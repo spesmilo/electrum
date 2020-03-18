@@ -11,8 +11,7 @@ from .util import char_width_in_lineedit
 
 from electrum.util import (format_satoshis_plain, decimal_point_to_base_unit_name,
                            FEERATE_PRECISION, quantize_feerate)
-
-
+         
 class FreezableLineEdit(QLineEdit):
     frozen = pyqtSignal()
 
@@ -23,9 +22,9 @@ class FreezableLineEdit(QLineEdit):
 
 class AmountEdit(FreezableLineEdit):
     shortcut = pyqtSignal()
-
     def __init__(self, base_unit, is_int=False, parent=None):
         QLineEdit.__init__(self, parent)
+
         # This seems sufficient for hundred-BTC amounts with 8 decimals
         self.setFixedWidth(24 * char_width_in_lineedit())
         self.base_unit = base_unit
@@ -121,9 +120,8 @@ class BTCAmountEdit(AmountEdit):
         return Decimal(amount) if not self.is_int else int(amount)
 
     def setAmount(self, amount):
-        if amount is None:
-            self.setText(" ") # Space forces repaint in case units changed
-        else:
+        self.setText(" ") # Space forces repaint in case units changed
+        if amount is not None:
             self.setText(format_satoshis_plain(amount, self.decimal_point))
 
 class FeerateEdit(BTCAmountEdit):

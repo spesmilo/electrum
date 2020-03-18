@@ -1254,7 +1254,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if not self.question(_("Warning: The next address will not be recovered automatically if you restore your wallet from seed; you may need to add it manually.\n\nThis occurs because you have too many unused addresses in your wallet. To avoid this situation, use the existing addresses first.\n\nCreate anyway?")):
                 return
             addr = self.wallet.create_new_address(False)
-        asset_guid = self.receive_asset_e.selected_asset.asset
+        asset_guid = None
+        if self.receive_asset_e.selected_asset is not None:
+            asset_guid = self.receive_asset_e.selected_asset.asset
         req = self.wallet.make_payment_request(asset_guid, addr, amount, message, expiration)
         try:
             self.wallet.add_payment_request(req)
@@ -1460,17 +1462,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         outputs = self.payto_e.get_outputs(True)
         if not outputs:
             return
-        asset_guid = None
-        asset_address = None
-        if self.asset_e.selected_asset is not None:
-            asset_guid = self.asset_e.selected_asset.asset
-            asset_address = self.asset_e.selected_asset.address
         make_tx = lambda fee_est: self.wallet.make_unsigned_transaction(
             coins=self.get_coins(),
             outputs=outputs,
             fee=fee_est,
-            is_sweep=False,
-            asset_guid=asset_guid, asset_address=asset_address)
+            is_sweep=False)
 
         try:
             tx = make_tx(None)
@@ -1500,7 +1496,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.redraw_asset_selection_combo(guid, address, self.asset_e, self.amount_e)
 
     def redraw_asset_selection_combo(self, guid, address, asset_e, amount_e):
-        self.logger.info("redraw_asset_selection_combo guid {} address {}".format(guid, address))
         self.updating_asset_list = True
         asset_e.clear()
         idx = 1
@@ -1515,7 +1510,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 foundAsset = True
             idx = idx + 1
         if foundAsset is True:
-            self.logger.info("redraw_asset_selection_combo setassetstate")
             self.setAssetState(True, asset_e, amount_e)
         self.updating_asset_list = False
 
