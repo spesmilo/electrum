@@ -841,3 +841,71 @@ and there is no warning message.
 * Fix #1718: We had a string format error in Export Private Keys dialog, which
   would cause uses that were using a password with '{' in it to experience
   crashes. (cculianu)
+
+# Release 4.0.13
+
+- **BIP 39 Seed format** is now the ***native seed format*** for Electron Cash!
+  (Calin Culianu)
+    - New wallets will always generate seeds in this format. When restoring from
+      seed, format auto-detection is implemented (so that old 'Electrum' style
+      seeds continue to work).
+    - Additionally, wallets created/restored from BIP39 will no longer have no
+      "Seed" icon in the GUI (and you can always view their seed; it is never
+      "forgotten").
+  - The seed dialog now always shows derivation paths for BIP39 seeds.
+- **New integrated Tor capability**. (Axel Gembe, Calin Culianu)
+    - This capability will be bundled with Electron Cash for the upcoming
+      ***CashFusion*** feature.
+    - For now, though -- you can use it to start/stop Tor right from inside
+      Electron Cash -- **no additional Tor browser install needed**!
+- Faster Network, #1819: Improved network code for faster wallet startup times.
+  (Mark B Lundeberg)
+- Added "Sign/Verify message" to the 'Contacts' tab right-click menu.
+  (Calin Culianu)
+- Fix #1727 - Don't close Qt app if user hides windows using the system tray
+  icon Show/Hide feature. (Calin Culianu)
+- Wallet rename function added for Android version, plus other fixes.
+  (Andrew#128, Malcolm Smith)
+- Wallet export function added for Android version. (Andrew#128, Malcolm Smith)
+- Internal fix-ups to possible error message dialogs when broadcasting a
+  transaction #1730 (Mark B. Lundeberg)
+- Performance boost to base_encode/base_decode for legacy addresses.
+  (SomberNight/ghost43)
+- Updated translations. (Axel Gembe, Georg Engelmann, various other volunteers)
+- Updated embedded libsecp256k1 to ABC version 0.20.9.
+  (Calin Culianu, ABC Authors)
+- Server list: Add 'display' key to give Tor servers a short name. (Axel Gembe)
+- Network dialog: Various fixups to proxy detection and usage of Tor servers &
+  onion icon on .onion servers (Axel Gembe, Calin Culianu)
+- Various much-needed build system refinements and fixes. (Axel Gembe)
+- Qr code reader: Fix to make it more reliable on all setups. (Axel Gembe)
+- Updated pre-packages server list, aka `servers.json`.
+  (Calin Culianu, Andrea Suisani)
+- Fixed the long-standing "tx's lose their txid" bug resulting in erroneous
+  error dialogs popping up on broadcast sometimes. (Calin Culianu)
+- Fix #1785 - Allow searching (Ctrl+F) by tx_hash in history tab.
+  (Calin Culianu)
+- About dialog: Update copyright year to 2020 and make localizable. (Axel Gembe)
+- Fix #1789: Disallow user delete last address in Imported wallet. You could
+  then end up with an empty, 0-address wallet, which the rest of the internal
+  codebase did not like. (Calin Culianu)
+- Fix #1774: Tolerate spurious 'error' messages from server. (Calin Culianu)
+- Fix #1738 - Handle `protobuf` serialization errors for payment requests.
+  (Calin Culianu)
+- CashFusion back-port #1647:  Add change-address reservation subsystem.
+  (Mark B Lundeberg)
+- Add create/restore commands in to daemon mode RPC server #1746.
+  (MrNaif2018)
+- UTXOList (Coins tab): Show number of coins in output_point column.
+  (Calin Culianu)
+- Update ViaBTC explorer address. (Imaginary Username)
+- #1802 - Added "payment_received" event which can be used by plugin authors
+  wishing to author BIP70 payment integraton plugins. (MrNaif2018)
+- Fix: Signing payment requests with OpenAlias should now work. (Calin Culianu)
+- #1811: `servers.json`, updated greedyhog's server. (greedyhog)
+- Max OSX -Binaries are now built with hardened runtime enabled, which is
+  required now on latest Catalina. (Calin Culianu)
+- Fix #1817, Bitcoin Lib: Added tighter validation to bitcoin.deserialize_xkey.
+  (Calin Culianu)
+- Various internal bug-fixes and improvements.
+  (Calin Culianu, Axel Gembe, Mark B Lundeberg, Andrew#128, Malcolm Smith).
