@@ -71,6 +71,7 @@ class AssetSynchronizer(Logger):
         self.total_pages = 1
         self.lastUrl = ""
         self.lastResponse = ""
+        self.asset_list_dict = None
 
     def get_assets_from_json(self, jsonTokens):
         alist = []
@@ -93,9 +94,11 @@ class AssetSynchronizer(Logger):
 
     async def fetch_assethistory(self):
         url = 'api/v2/xpub/' + self.xpub
-        url += '?details=txs&page=' + str(self.current_page) + '&pageSize=' + str(self.results_per_page) + '&filter=tokens'
+        url += '?details=txslight&page=' + str(self.current_page) + '&pageSize=' + str(self.results_per_page) + '&filter=tokens'
         res = await self.send_request(url)
         if res is None:
+            return
+        if 'totalPages' not in res:
             return
         self.total_pages = res['totalPages']
         xpubTokens = {}
@@ -193,6 +196,8 @@ class AssetSynchronizer(Logger):
 
     def get_asset(self, asset_guid, asset_address=None, all_allocations = False):
         if asset_guid is None:
+            return None
+        if self.asset_list_dict is None:
             return None
         assets = self.asset_list_dict.get(asset_guid, {})
         if all_allocations is True:
