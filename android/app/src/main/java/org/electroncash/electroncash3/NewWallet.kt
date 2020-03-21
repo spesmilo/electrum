@@ -294,6 +294,6 @@ fun setupSeedDialog(fragment: AlertDialogFragment) {
 
 fun seedAdvice(seed: String): String {
     return app.getString(R.string.please_save, seed.split(" ").size) + " " +
-           app.getString(R.string.this_seed) + " " +
+           app.getString(R.string.this_seed_will) + " " +
            app.getString(R.string.never_disclose)
 }
