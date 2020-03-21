@@ -213,10 +213,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.console_tab = self.create_console_tab()
         self.contacts_tab = self.create_contacts_tab()
         self.channels_tab = self.create_channels_tab()
-        tabs.addTab(self.create_history_tab(), read_QIcon("tab_history.png"), _('History'))
+        tabs.addTab(self.create_history_tab(), read_QIcon("tab_history.png"), _('Syscoin History'))
         tabs.addTab(self.send_tab, read_QIcon("tab_send.png"), _('Send'))
         tabs.addTab(self.receive_tab, read_QIcon("tab_receive.png"), _('Receive'))
-
+        tabs.addTab(self.assethistory_tab, read_QIcon("tab_assets.png"), _("Asset History"))
         def add_optional_tab(tabs, tab, icon, description, name):
             tab.tab_icon = icon
             tab.tab_description = description
@@ -226,7 +226,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 tabs.addTab(tab, icon, description.replace("&", ""))
 
         add_optional_tab(tabs, self.addresses_tab, read_QIcon("tab_addresses.png"), _("&Addresses"), "addresses")
-        add_optional_tab(tabs, self.assethistory_tab, read_QIcon("tab_assets.png"), _("Asset &History"), "assethistory")
         if self.wallet.has_lightning():
             add_optional_tab(tabs, self.channels_tab, read_QIcon("lightning.png"), _("Channels"), "channels")
         add_optional_tab(tabs, self.utxo_tab, read_QIcon("tab_coins.png"), _("Co&ins"), "utxo")
@@ -707,7 +706,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         view_menu = menubar.addMenu(_("&View"))
         add_toggle_action(view_menu, self.addresses_tab)
-        add_toggle_action(view_menu, self.assethistory_tab)
         add_toggle_action(view_menu, self.utxo_tab)
         if self.wallet.has_lightning():
             add_toggle_action(view_menu, self.channels_tab)

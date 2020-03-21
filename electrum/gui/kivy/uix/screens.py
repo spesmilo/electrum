@@ -49,6 +49,9 @@ if TYPE_CHECKING:
 class HistoryRecycleView(RecycleView):
     pass
 
+class AssetHistoryRecycleView(RecycleView):
+    pass
+
 class RequestRecycleView(RecycleView):
     pass
 
@@ -98,7 +101,7 @@ TX_ICONS = [
 Builder.load_file('electrum/gui/kivy/uix/ui_screens/history.kv')
 Builder.load_file('electrum/gui/kivy/uix/ui_screens/send.kv')
 Builder.load_file('electrum/gui/kivy/uix/ui_screens/receive.kv')
-
+Builder.load_file('electrum/gui/kivy/uix/ui_screens/assethistory.kv')
 
 class HistoryScreen(CScreen):
 
@@ -170,6 +173,84 @@ class HistoryScreen(CScreen):
         history = reversed(self.history.values())
         history_card = self.ids.history_container
         history_card.data = [self.get_card(item) for item in history]
+
+class AssetHistoryScreen(CScreen):
+
+    tab = ObjectProperty(None)
+    kvname = 'assethistory'
+    cards = {}
+
+    def __init__(self, **kwargs):
+        self.ra_dialog = None
+        super(AssetHistoryScreen, self).__init__(**kwargs)
+
+    def show_item(self, obj):
+        key = obj.key
+        tx_item = self.assethistory.get(key)
+        if tx_item.get('lightning') and tx_item['type'] == 'payment':
+            self.app.lightning_tx_dialog(tx_item)
+            return
+        if tx_item.get('lightning'):
+            tx = self.app.wallet.lnworker.lnwatcher.db.get_transaction(key)
+        else:
+            tx = self.app.wallet.db.get_transaction(key)
+        if not tx:
+            return
+        self.app.tx_dialog(tx)
+
+    def get_card(self, tx_item): #tx_hash, tx_mined_status, value, balance):
+        is_lightning = tx_item.get('lightning', False)
+        timestamp = tx_item['timestamp']
+        key = tx_item.get('txid') or tx_item['payment_hash']
+        asset = None
+        asset_address = None
+        if is_lightning:
+            status = 0
+            status_str = 'unconfirmed' if timestamp is None else format_time(int(timestamp))
+            icon = "atlas://electrum/gui/kivy/theming/light/lightning"
+            message = tx_item['label']
+            fee_msat = tx_item['fee_msat']
+            fee = int(fee_msat/1000) if fee_msat else None
+            fee_text = '' if fee is None else 'fee: %d sat'%fee
+        else:
+            tx_hash = tx_item['txid']
+            conf = tx_item['confirmations']
+            tx_mined_info = TxMinedInfo(height=tx_item['height'],
+                                        conf=tx_item['confirmations'],
+                                        timestamp=tx_item['timestamp'])
+            status, status_str = self.app.wallet.get_tx_status(tx_hash, tx_mined_info)
+            icon = "atlas://electrum/gui/kivy/theming/light/" + TX_ICONS[status]
+            message = tx_item['label'] or tx_hash
+            fee = tx_item['fee_sat']
+            fee_text = '' if fee is None else 'fee: %d sat'%fee
+            if 'asset' in tx_item:
+                asset = tx_item['asset']
+                asset_address = tx_item['address']
+        ri = {}
+        ri['screen'] = self
+        ri['key'] = key
+        ri['icon'] = icon
+        ri['date'] = status_str
+        ri['message'] = message
+        ri['fee_text'] = fee_text
+        ri['asset'] = asset
+        ri['address'] = asset_address
+        value = tx_item['value'].value
+        if value is not None:
+            ri['is_mine'] = value <= 0
+            ri['amount'] = self.app.format_amount(value, is_diff = True)
+            if 'fiat_value' in tx_item:
+                ri['quote_text'] = str(tx_item['fiat_value'])
+        return ri
+
+    def update(self, see_all=False):
+        wallet = self.app.wallet
+        if wallet is None:
+            return
+        self.assethistory = wallet.get_full_assethistory(self.app.fx)
+        assethistory = reversed(self.assethistory.values())
+        assethistory_card = self.ids.assethistory_container
+        assethistory_card.data = [self.get_card(item) for item in assethistory]
 
 
 class SendScreen(CScreen):

@@ -386,19 +386,25 @@
         ReceiveScreen:
             id: receive_screen
             tab: receive_tab
+        AssetHistoryScreen:
+            id: assethistory_screen
+            tab: assethistory_tab           
         CleanHeader:
             id: send_tab
             text: _('Send')
             slide: 0
         CleanHeader:
             id: history_tab
-            text: _('History')
+            text: _('Syscoin History')
             slide: 1
         CleanHeader:
             id: receive_tab
             text: _('Receive')
             slide: 2
-
+        CleanHeader:
+            id: assethistory_tab
+            text: _('Asset History')
+            slide: 3
 
 <ActionOvrButton@ActionButton>
     #on_release:

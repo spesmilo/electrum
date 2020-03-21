@@ -202,6 +202,10 @@ class ElectrumWindow(App):
         if self.history_screen:
             self.history_screen.update()
 
+    def update_assethistory(self, *dt):
+        if self.assethistory_screen:
+            self.assethistory_screen.update()
+
     def on_quotes(self, d):
         Logger.info("on_quotes")
         self._trigger_update_status()
@@ -431,7 +435,7 @@ class ElectrumWindow(App):
 
     @profiler
     def update_tabs(self):
-        for tab in ['invoices', 'send', 'history', 'receive', 'address']:
+        for tab in ['invoices', 'send', 'history', 'receive', 'address', 'assethistory']:
             self.update_tab(tab)
 
     def switch_to(self, name):
@@ -794,6 +798,7 @@ class ElectrumWindow(App):
         self.root.manager = self.root.ids['manager']
 
         self.history_screen = None
+        self.assethistory_screen = None
         self.contacts_screen = None
         self.send_screen = None
         self.invoices_screen = None
