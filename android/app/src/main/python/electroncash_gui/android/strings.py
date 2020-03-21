@@ -9,13 +9,14 @@ def _(s):
     return s
 
 _("Are you sure you want to delete your wallet \'%s\'?")
+_("BIP39 seed")
 _("Block explorer")
 _("Cannot specify private keys and addresses in the same wallet.")
 _("Change password")
 _("Close wallet")
 _("Confirm password")
 _("Console")
-_("Copyright © 2017-2019 Electron Cash LLC and the Electron Cash developers.")
+_("Copyright © 2017-2020 Electron Cash LLC and the Electron Cash developers.")
 _("Current password")
 _("Delete wallet")
 _("Derivation invalid")

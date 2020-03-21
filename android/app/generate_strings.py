@@ -25,12 +25,12 @@ EC_ROOT = abspath(join(dirname(__file__), "../.."))
 
 
 JAVA_KEYWORDS = set([
-    "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class",
-    "const", "continue", "default", "do", "double ", "else", "enum", "extends", "final",
+    "_", "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class",
+    "const", "continue", "default", "do", "double ", "else", "enum", "extends", "false", "final",
     "finally", "float", "for", "goto", "if", "implements", "import", "instanceof", "int",
-    "interface ", "long", "native", "new", "package", "private", "protected", "public",
+    "interface ", "long", "native", "new", "null", "package", "private", "protected", "public",
     "return", "short", "static", "strictfp", "super", "switch ", "synchronized", "this",
-    "throw", "throws", "transient", "try", "void", "volatile", "while"])
+    "throw", "throws", "transient", "true", "try", "void", "volatile", "while"])
 
 KOTLIN_KEYWORDS = set([  # "Hard" keywords only.
     "as", "break", "class", "continue", "do", "else", "false", "for", "fun", "if", "in",
@@ -87,15 +87,17 @@ def main():
 
     src_strings = read_catalog(join(locale_dir, "messages.pot"))
     ids = make_ids(src_strings)
+
+    log(f"Writing to {args.res_dir}")
     for lang, region_strings in lang_strings.items():
         region_strings.sort(key=region_order, reverse=True)
         for i, (region, strings) in enumerate(region_strings):
-            write_xml(lang if i == 0 else "{}-r{}".format(lang, region),
+            write_xml(args.res_dir, lang if i == 0 else "{}-r{}".format(lang, region),
                       strings, ids)
 
     # The main strings.xml should be generated last, because this script will only be
     # automatically run if it's missing.
-    write_xml("", src_strings, ids)
+    write_xml(args.res_dir, "", src_strings, ids)
 
 
 def read_catalog(filename):
@@ -168,12 +170,12 @@ def region_order(item):
 def parse_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("--no-download", action="store_true")
+    ap.add_argument("res_dir", type=abspath)
     return ap.parse_args()
 
 
 def is_excluded(src_str):
-    return (re.search(r"^\W*$", src_str) or         # Empty or only punctuation.
-            src_str in ["Auto connect"])            # Clashes with "Auto-connect".
+    return bool(re.search(r"^\W*$", src_str))  # Empty or only punctuation.
 
 
 # Returns a dict {s: id} where each `s` is a string in `strings`, and `id` is a unique
@@ -205,13 +207,13 @@ def make_ids_inner(ids_in, ids_out):
     prev_counts = None
     while ids_in:
         counts = Counter(existing_ids)
-        counts.update([id[:max_words] for id in ids_in.values()])
+        counts.update([shorten_id(id, max_words) for id in ids_in.values()])
         if counts == prev_counts:
             raise DuplicateStringError()
 
         strings_done = []
         for s, id in ids_in.items():
-            short_id = id[:max_words]
+            short_id = shorten_id(id, max_words)
             if counts[short_id] == 1:
                 ids_out[s] = short_id
                 strings_done.append(s)
@@ -222,12 +224,28 @@ def make_ids_inner(ids_in, ids_out):
         max_words += 1
 
 
+# We still need to preserve empty words to avoid duplicate IDs. But we don't count them against
+# the word limit, otherwise we end up with IDs like "__1" or "_", the last of which isn't even
+# legal in Java 9.
+def shorten_id(id, max_words):
+    result = []
+    num_words = 0
+    for word in id:
+        result.append(word)
+        if word:
+            num_words += 1
+        if num_words == max_words:
+            break
+    return tuple(result)
+
+
 class DuplicateStringError(Exception):
     pass
 
 
 # Returns an identifier generated from every word in the given string.
 def str_to_id(s, *, lower, squash):
+    s_original = s
     s = s.replace("'", "")  # Combine contractions.
     if lower:
         s = s.lower()
@@ -244,17 +262,23 @@ def str_to_id(s, *, lower, squash):
     id = (re.sub(pattern, "_", s, flags=re.ASCII)  # Remove invalid characters.
           .lstrip(lstrip)
           .rstrip(rstrip))
+
+    if not id or not re.search(r"^[a-zA-Z_]", id):
+        if squash:
+            return str_to_id(s_original, lower=lower, squash=False)
+        else:
+            raise Exception(f"string {s_original!r} generated invalid identifier {id!r}")
+
     if id in KEYWORDS:
         id += "_"
     return id
 
 
-def write_xml(res_suffix, strings, ids):
+def write_xml(res_dir, res_suffix, strings, ids):
     dir_name = "values" + ("-" + res_suffix if res_suffix else "")
     base_name = "strings.xml"
-    log("Generating {}/{}: ".format(dir_name, base_name), end="")
-
-    abs_dir_name = join(EC_ROOT, "android/app/src/main/res", dir_name)
+    log("{}/{}: ".format(dir_name, base_name), end="")
+    abs_dir_name = join(res_dir, dir_name)
     os.makedirs(abs_dir_name, exist_ok=True)
 
     timestamp = datetime.utcnow().isoformat()
