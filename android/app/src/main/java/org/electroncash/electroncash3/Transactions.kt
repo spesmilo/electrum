@@ -118,9 +118,9 @@ class TransactionDialog() : AlertDialogFragment() {
 
         tvTxid.text = txid
 
-        val timestamp = txInfo.get(8).toLong()
-        tvTimestamp.text = if (timestamp == 0L) getString(R.string.Unknown)
-                                  else libUtil.callAttr("format_time", timestamp).toString()
+        val timestamp = txInfo.get(8)?.toLong()
+        tvTimestamp.text = if (timestamp == null || timestamp == 0L) getString(R.string.Unknown)
+                           else libUtil.callAttr("format_time", timestamp).toString()
 
         tvStatus.text = txInfo.get(1)!!.toString()
 
