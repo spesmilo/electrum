@@ -31,6 +31,8 @@ abstract class AlertDialogFragment : DialogFragment() {
     private val model: Model by viewModels()
 
     var started = false
+    var suppressView = false
+    var focusOnStop = View.NO_ID
 
     override fun onCreateDialog(savedInstanceState: Bundle?): AlertDialog {
         val builder = AlertDialog.Builder(context!!)
@@ -51,21 +53,31 @@ abstract class AlertDialogFragment : DialogFragment() {
         // make AlertDialog create its views.
         dialog.show()
 
-        // This isn't really documented...
-        val contentParent = dialog.findViewById<ViewGroup>(android.R.id.content)!!
-        val content = contentParent.getChildAt(0)
-
-        // ... so make sure we are returning the layout defined in
+        // The top-level view structure isn't really documented, so make sure we are returning
+        // the layout defined in
         // android/platform/frameworks/support/appcompat/res/layout/abc_alert_dialog_material.xml.
+        val content = dialog.findViewById<ViewGroup>(android.R.id.content)!!.getChildAt(0)
         val contentClassName = content.javaClass.name
         if (contentClassName != "androidx.appcompat.widget.AlertDialogLayout") {
             throw IllegalStateException("Unexpected content view $contentClassName")
         }
-
-        // The view will be re-added in DialogFragment.onActivityCreated.
-        contentParent.removeView(content)
         return content
     }
+
+    // Since we've implemented onCreateView, DialogFragment.onActivityCreated will attempt to
+    // add the view to the dialog, but AlertDialog has already done that. Stop this by
+    // overriding getView temporarily.
+    //
+    // Previously we worked around this by removing the view from the dialog in onCreateView
+    // and letting DialogFragment.onActivityCreated add it back, but that stops <requestFocus/>
+    // tags from working.
+    override fun onActivityCreated(savedInstanceState: Bundle?) {
+        suppressView = true
+        super.onActivityCreated(savedInstanceState)
+        suppressView = false
+    }
+
+    override fun getView() = if (suppressView) null else super.getView()
 
     open fun onBuildDialog(builder: AlertDialog.Builder) {}
 
@@ -74,6 +86,8 @@ abstract class AlertDialogFragment : DialogFragment() {
     // So use one of the fragment lifecycle methods instead.
     override fun onStart() {
         super.onStart()
+        focusOnStop = View.NO_ID
+
         if (!started) {
             started = true
             onShowDialog()
@@ -81,6 +95,27 @@ abstract class AlertDialogFragment : DialogFragment() {
         if (!model.started) {
             model.started = true
             onFirstShowDialog()
+        }
+    }
+
+    override fun onStop() {
+        focusOnStop = dialog.findViewById<View>(android.R.id.content)?.findFocus()?.id
+                      ?: View.NO_ID
+        super.onStop()
+    }
+
+    // When changing orientation on targetSdkVersion >= 28, onStop is called before
+    // onSaveInstanceState and the focused view is lost.
+    // (https://issuetracker.google.com/issues/152131900),
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        if (focusOnStop != View.NO_ID) {
+            val hierarchy = outState.getBundle("android:savedDialogState")
+                ?.getBundle("android:dialogHierarchy")
+            if (hierarchy != null &&
+                hierarchy.getInt("android:focusedViewId", View.NO_ID) == View.NO_ID) {
+                hierarchy.putInt("android:focusedViewId", focusOnStop)
+            }
         }
     }
 

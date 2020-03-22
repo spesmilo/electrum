@@ -146,6 +146,9 @@ class RequestDialog() : AlertDialogFragment() {
             etAmount.setText(model.amount)
             etDescription.setText(model.description)
         }
+        // We don't <requestFocus/> in the layout file, because it's also included by the
+        // Send dialog, where the initial focus should be on the address box.
+        etAmount.requestFocus()
     }
 
     private fun updateUI() {

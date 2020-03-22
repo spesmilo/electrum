@@ -35,7 +35,9 @@
         app:layout_constraintEnd_toStartOf="@+id/btnContacts"
         app:layout_constraintStart_toStartOf="@+id/textView4"
         app:layout_constraintTop_toBottomOf="@+id/textView4"
-        tools:text="@string/test_address"/>
+        tools:text="@string/test_address">
+        <requestFocus/>
+    </EditText>
 
     <!-- Bottom constraint keeps button aligned with text box before API 21 (see dimens.xml). -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
