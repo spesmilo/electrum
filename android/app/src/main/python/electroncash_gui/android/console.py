@@ -144,15 +144,14 @@ class AndroidCommands(commands.Commands):
             wallet = ImportedPrivkeyWallet.from_text(storage, privkeys)
         else:
             if bip39_derivation is not None:
-                ks = keystore.from_seed(seed, passphrase, seed_type='bip39', derivation=bip39_derivation)
+                ks = keystore.from_seed(seed, passphrase, seed_type='bip39',
+                                        derivation=bip39_derivation)
             elif master is not None:
                 ks = keystore.from_master_key(master)
             else:
                 if seed is None:
-                    seed = self.make_electrum_seed()
+                    seed = self.make_seed()
                     print("Your wallet generation seed is:\n\"%s\"" % seed)
-                # not specifying a seed_type below triggers auto-detect, with
-                # preference order: old, electrum, bip39
                 ks = keystore.from_seed(seed, passphrase)
 
             storage.put('keystore', ks.dump())

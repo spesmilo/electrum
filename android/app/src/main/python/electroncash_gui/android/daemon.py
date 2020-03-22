@@ -5,8 +5,9 @@ import sys
 import threading
 
 
-# Stop Java-created threads from being marked as daemon.
-# TODO: remove once this is incorporated into Chaquopy.
+# To catch programming errors in the back end, WalletStorage._write doesn't allow daemon
+# threads to write the wallet. But on Android, background threads created from Java will also
+# have the daemon attribute set.
 DummyThread_init_original = threading._DummyThread.__init__
 def DummyThread_init(self):
     DummyThread_init_original(self)
