@@ -33,7 +33,9 @@
         app:layout_constraintEnd_toEndOf="@+id/tvPrompt"
         app:layout_constraintStart_toStartOf="@+id/tvPrompt"
         app:layout_constraintTop_toBottomOf="@+id/tvPrompt"
-        tools:text="@string/test_seed"/>
+        tools:text="@string/test_seed">
+        <requestFocus/>
+    </EditText>
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/passphrasePanel"

@@ -50,7 +50,9 @@
             app:layout_constraintHorizontal_bias="0.0"
             app:layout_constraintStart_toStartOf="@+id/textView3"
             app:layout_constraintTop_toBottomOf="@+id/textView3"
-            tools:text="@string/test_wallet"/>
+            tools:text="@string/test_wallet">
+            <requestFocus/>
+        </EditText>
 
         <TextView
             android:id="@+id/textView6"
