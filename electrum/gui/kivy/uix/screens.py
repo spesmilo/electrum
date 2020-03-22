@@ -461,7 +461,6 @@ class SendScreen(CScreen):
                 if asset.balance >= amount:
                     asset_amount = amount
                     amount = tx.output_value()
-                    from_address = asset.address
 
         if from_address is None or asset_precision is None:
             self.app.show_error(_("Not enough funds in asset"))

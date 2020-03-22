@@ -216,6 +216,7 @@ class ElectrumWindow(App):
         if self.wallet:
             self.wallet.clear_coin_price_cache()
         self._trigger_update_history()
+        self._trigger_update_assethistory()
 
     def on_fee_histogram(self, *args):
         self._trigger_update_history()
@@ -370,6 +371,7 @@ class ElectrumWindow(App):
         self._trigger_update_wallet = Clock.create_trigger(self.update_wallet, .5)
         self._trigger_update_status = Clock.create_trigger(self.update_status, .5)
         self._trigger_update_history = Clock.create_trigger(self.update_history, .5)
+        self._trigger_update_assethistory = Clock.create_trigger(self.update_assethistory, .5)
         self._trigger_update_interfaces = Clock.create_trigger(self.update_interfaces, .5)
 
         self._periodic_update_status_during_sync = Clock.schedule_interval(self.update_wallet_synchronizing_progress, .5)
@@ -571,6 +573,7 @@ class ElectrumWindow(App):
             self.network.register_callback(self.on_fee_histogram, ['fee_histogram'])
             self.network.register_callback(self.on_quotes, ['on_quotes'])
             self.network.register_callback(self.on_history, ['on_history'])
+            self.network.register_callback(self.on_assethistory, ['on_assethistory'])
             self.network.register_callback(self.on_channels, ['channels_updated'])
             self.network.register_callback(self.on_channel, ['channel'])
             self.network.register_callback(self.on_invoice_status, ['invoice_status'])
