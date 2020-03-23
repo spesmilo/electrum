@@ -30,13 +30,13 @@ folder.
 3. Build locale files
 
     ```
-    $ ./contrib/pull_locale
+    $ sudo ./contrib/pull_locale
     ```
 
 4. Prepare pure python dependencies
 
     ```
-    $ ./contrib/make_packages
+    $ sudo ./contrib/make_packages
     ```
 
 5. Build binaries
