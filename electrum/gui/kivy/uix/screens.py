@@ -456,11 +456,12 @@ class SendScreen(CScreen):
                         break
             else:
                 asset = self.app.wallet.asset_synchronizer.get_asset(asset_guid, asset_address=from_address)
-                asset_precision = asset.precision
-                asset_symbol = asset.symbol
-                if asset.balance >= amount:
-                    asset_amount = amount
-                    amount = tx.output_value()
+                if asset is not None:
+                    asset_precision = asset.precision
+                    asset_symbol = asset.symbol
+                    if asset.balance >= amount:
+                        asset_amount = amount
+                        amount = tx.output_value()
 
         if from_address is None or asset_precision is None:
             self.app.show_error(_("Not enough funds in asset"))

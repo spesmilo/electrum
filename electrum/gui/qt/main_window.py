@@ -869,12 +869,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         return format_satoshis(x, self.num_zeros, decimal or self.decimal_point, is_diff=is_diff, whitespaces=whitespaces)
 
     def format_amount_and_units(self, amount, asset_amount=None, asset_symbol=None, asset_precision=None):
-        text = self.format_amount(amount) + ' '+ self.base_unit()
-        x = self.fx.format_amount_and_units(amount) if self.fx else None
-        if text and x:
-            text += ' (%s)'%x
-        if asset_symbol is not None:
-            text += ' - Asset: ' + self.format_amount(asset_amount, decimal=asset_precision) + ' '+ self.base_asset_unit(asset_symbol)
+        text = ''
+        if amount is not None:
+            text += self.format_amount(amount) + ' '+ self.base_unit()
+            x = self.fx.format_amount_and_units(amount) if self.fx else None
+            if text and x:
+                text += ' (%s)'%x
+        if asset_symbol is not None and asset_amount is not None:
+            self.logger.info("format_amount_and_units {} precision {}".format(asset_amount, asset_precision))
+            if amount is not None:
+                text += ' - Asset: ' + self.format_amount(asset_amount, decimal=asset_precision) + ' '+ self.base_asset_unit(asset_symbol)
+            else:
+                text += self.format_amount(asset_amount, decimal=asset_precision) + ' '+ self.base_asset_unit(asset_symbol)
+
         return text
 
     def format_fee_rate(self, fee_rate):
@@ -1050,7 +1057,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 index = 0
             if state <= 0:
                 self.setAssetState(False, self.receive_asset_e, self.receive_amount_e)
-            elif index < len(asset_list):
+            elif asset_list is not None and index < len(asset_list):
                 self.receive_asset_e.selected_asset_idx = state
                 self.receive_asset_e.selected_asset = copy.deepcopy(asset_list[index])
                 self.setAssetState(True, self.receive_asset_e, self.receive_amount_e)
@@ -1351,7 +1358,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 index = 0
             if state <= 0:
                 self.setAssetState(False, self.asset_e, self.amount_e)
-            elif index < len(asset_list):
+            elif asset_list is not None and index < len(asset_list):
                 self.asset_e.selected_asset_idx = state
                 self.asset_e.selected_asset = copy.deepcopy(asset_list[index])
                 self.setAssetState(True, self.asset_e, self.amount_e)
@@ -1681,7 +1688,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if run_hook('abort_send', self):
             return
         is_sweep = bool(external_keypairs)
-        self.logger.info("pay_onchain_dialog")
         make_tx = lambda fee_est: self.wallet.make_unsigned_transaction(
             coins=inputs,
             outputs=outputs,
@@ -1704,7 +1710,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if asset is not None:
                 asset_symbol = asset.symbol
                 asset_precision = asset.precision
-        d = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=output_value, is_sweep=is_sweep, asset_symbol=asset_symbol, asset_precision=asset_precision)
+                asset_amount = output_value
+
+        d = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=output_value, is_sweep=is_sweep, asset_amount=asset_amount, asset_symbol=asset_symbol, asset_precision=asset_precision)
         if d.not_enough_funds:
             self.show_message(_('Not Enough Funds'))
             return
@@ -2019,7 +2027,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         idx = 0
         asset_e.clear()
         asset_e.addItem("Syscoin")
-        if len(asset_list) > 0:
+        if asset_list is not None and len(asset_list) > 0:
             foundAmountIdx = False
             # populate drop down list items
             for allocation in asset_list:
@@ -2035,13 +2043,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                         foundAmountIdx = True
     
             if amount is not None and foundAmountIdx is False:
-                self.logger.info("populate_asset_picklist set sys mode1")
                 self.setAssetState(False, asset_e, amount_e)
             else:
                 self.setAssetState(True, asset_e, amount_e)
 
         else:
-            self.logger.info("populate_asset_picklist set sys mode2")
             self.setAssetState(False, asset_e, amount_e)
         self.updating_asset_list = False
 

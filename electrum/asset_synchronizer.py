@@ -25,6 +25,8 @@ import asyncio
 import threading
 import asyncio
 import itertools
+import aiohttp
+from aiohttp import client_exceptions
 from collections import defaultdict
 from typing import Dict, Optional, Set, Tuple, NamedTuple, Sequence, List
 from . import bitcoin
@@ -217,13 +219,14 @@ class AssetSynchronizer(Logger):
                 return
             new_asset_list = []
             changed_asset = None
-            for asset in result_:
-                new_asset_list.append(asset)
-            
-            for x in range(len(self.asset_list)):
-                if self.asset_list[x].asset != new_asset_list[x].asset or self.asset_list[x].address != new_asset_list[x].address or self.asset_list[x].balance != new_asset_list[x].balance:
-                    changed_asset = new_asset_list[x]
-                    break
+            if result_ is not None:
+                for asset in result_:
+                    new_asset_list.append(asset)
+            if self.asset_list is not None:
+                for x in range(len(self.asset_list)):
+                    if self.asset_list[x].asset != new_asset_list[x].asset or self.asset_list[x].address != new_asset_list[x].address or self.asset_list[x].balance != new_asset_list[x].balance:
+                        changed_asset = new_asset_list[x]
+                        break
             self.asset_list = new_asset_list
             if callback is not None:
                 callback(changed_asset)
@@ -241,10 +244,14 @@ class AssetSynchronizer(Logger):
         explorer_url, explorer_dict = be_tuple
         url = ''.join([explorer_url, cmd])
         proxy = self.network.proxy if self.network else None
-        async with make_aiohttp_session(proxy) as session:
-            async with session.get(url) as response:
-                response.raise_for_status()
-                return await response.json(content_type=None)
+        try:
+            async with make_aiohttp_session(proxy) as session:
+                async with session.get(url) as response:
+                    response.raise_for_status()
+                    return await response.json(content_type=None)
+        except aiohttp.client_exceptions.ClientConnectorError:
+            self.logger.info(f'could not contact explorer api backend {url}')
+
 
     async def create_assetallocation_send(self, from_address, to_address, asset_guid, amount):
         url = 'api/v2/assetallocationsend/' + str(asset_guid) + '?to=' + to_address + '&from='+from_address + '&amount=' + str(amount)

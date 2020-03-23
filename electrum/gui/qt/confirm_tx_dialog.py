@@ -132,7 +132,6 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
         self.fee_label = QLabel('')
         grid.addWidget(HelpLabel(_("Mining fee") + ": ", msg), 1, 0)
         grid.addWidget(self.fee_label, 1, 1)
-
         self.extra_fee_label = QLabel(_("Additional fees") + ": ")
         self.extra_fee_label.setVisible(False)
         self.extra_fee_value = QLabel('')
@@ -202,8 +201,9 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
 
     def update(self):
         tx = self.tx
-        amount = tx.output_value() if self.output_value == '!' else self.output_value
-        self.amount_label.setText(self.main_window.format_amount_and_units(amount, self.asset_amount, self.asset_symbol, self.asset_precision))
+        if tx is not None:
+            amount = tx.output_value() if self.output_value == '!' else self.output_value
+            self.amount_label.setText(self.main_window.format_amount_and_units(amount, self.asset_amount, self.asset_symbol, self.asset_precision))
 
         if self.not_enough_funds:
             text = _("Not enough funds")

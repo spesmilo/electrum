@@ -122,10 +122,12 @@ class InvoiceList(MyTreeView):
             asset_guid = item.get('asset', None)
             asset_address = item.get('asset_address', None)
             precision = 8
+            asset_symbol = None
             if asset_guid is not None: 
                 asset = self.parent.wallet.asset_synchronizer.get_asset(asset_guid)
-                asset_symbol = asset.symbol
-                precision = asset.precision
+                if asset is not None:
+                    asset_symbol = asset.symbol
+                    precision = asset.precision
             else:  
                 asset_symbol = "SYS"
             date_str = format_time(timestamp) if timestamp else _('Unknown')
