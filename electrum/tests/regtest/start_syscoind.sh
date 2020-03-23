@@ -4,7 +4,6 @@ set -eux pipefail
 mkdir -p ~/.syscoin
 cat > ~/.syscoin/syscoin.conf <<EOF
 regtest=1
-txindex=1
 printtoconsole=1
 rpcuser=doggman
 rpcpassword=donkey
