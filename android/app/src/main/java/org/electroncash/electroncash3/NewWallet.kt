@@ -278,7 +278,8 @@ fun setupSeedDialog(fragment: AlertDialogFragment) {
         if (passphrase == null) {
             // Import or generate
             passphrasePanel.visibility = View.VISIBLE
-            tvPassphrasePrompt.setText(R.string.please_enter_your_seed_derivation)
+            tvPassphrasePrompt.setText(app.getString(R.string.you_may_extend) + " " +
+                                       app.getString(R.string.if_you_are))
         } else {
             // Display
             if (passphrase.isNotEmpty()) {
