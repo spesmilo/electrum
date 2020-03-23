@@ -1705,12 +1705,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         output_value = '!' if '!' in output_values else sum(output_values)
         asset_symbol = None
         asset_precision = None
+        asset_amount = None
         if asset_guid is not None:
             asset = self.wallet.asset_synchronizer.get_asset(asset_guid)
             if asset is not None:
                 asset_symbol = asset.symbol
                 asset_precision = asset.precision
                 asset_amount = output_value
+                output_value = None
 
         d = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=output_value, is_sweep=is_sweep, asset_amount=asset_amount, asset_symbol=asset_symbol, asset_precision=asset_precision)
         if d.not_enough_funds:
