@@ -1,5 +1,15 @@
 {
-    "18.204.96.195": {
+    "electrumx1.syscoin.org": {
+        "pruning": "-",
+        "s": "58881",
+        "version": "1.4.1"
+    },
+    "electrumx2.syscoin.org": {
+        "pruning": "-",
+        "s": "58881",
+        "version": "1.4.1"
+    },
+    "electrumx3.syscoin.org": {
         "pruning": "-",
         "s": "58881",
         "version": "1.4.1"
