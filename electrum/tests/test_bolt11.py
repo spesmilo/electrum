@@ -6,6 +6,7 @@ import unittest
 
 from electrum.lnaddr import shorten_amount, unshorten_amount, LnAddr, lnencode, lndecode, u5_to_bitarray, bitarray_to_u5
 from electrum.segwit_addr import bech32_encode, bech32_decode
+from electrum.lnutil import UnknownEvenFeatureBits
 
 from . import ElectrumTestCase
 
@@ -66,11 +67,22 @@ class TestBolt11(ElectrumTestCase):
             LnAddr(RHASH, amount=Decimal('1'), tags=[('h', longdescription)]),
             LnAddr(RHASH, currency='tb', tags=[('f', 'mk2QpYatsKicvFVuTAQLBryyccRXMUaGHP'), ('h', longdescription)]),
             LnAddr(RHASH, amount=24, tags=[
-                ('r', [(unhexlify('029e03a901b85534ff1e92c43c74431f7ce72046060fcf7a95c37e148f78c77255'), unhexlify('0102030405060708'), 1, 20, 3), (unhexlify('039e03a901b85534ff1e92c43c74431f7ce72046060fcf7a95c37e148f78c77255'), unhexlify('030405060708090a'), 2, 30, 4)]), ('f', '1RustyRX2oai4EYYDpQGWvEL62BBGqN9T'), ('h', longdescription)]),
+                ('r', [(unhexlify('029e03a901b85534ff1e92c43c74431f7ce72046060fcf7a95c37e148f78c77255'), unhexlify('0102030405060708'), 1, 20, 3),
+                       (unhexlify('039e03a901b85534ff1e92c43c74431f7ce72046060fcf7a95c37e148f78c77255'), unhexlify('030405060708090a'), 2, 30, 4)]),
+                ('f', '1RustyRX2oai4EYYDpQGWvEL62BBGqN9T'),
+                ('h', longdescription)]),
             LnAddr(RHASH, amount=24, tags=[('f', '3EktnHQD7RiAE6uzMj2ZifT9YgRrkSgzQX'), ('h', longdescription)]),
             LnAddr(RHASH, amount=24, tags=[('f', 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4'), ('h', longdescription)]),
             LnAddr(RHASH, amount=24, tags=[('f', 'bc1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3qccfmv3'), ('h', longdescription)]),
             LnAddr(RHASH, amount=24, tags=[('n', PUBKEY), ('h', longdescription)]),
+            LnAddr(RHASH, amount=24, tags=[('h', longdescription), ('9', 514)]),
+            LnAddr(RHASH, amount=24, tags=[('h', longdescription), ('9', 10 + (1 << 8))]),
+            LnAddr(RHASH, amount=24, tags=[('h', longdescription), ('9', 10 + (1 << 9))]),
+            LnAddr(RHASH, amount=24, tags=[('h', longdescription), ('9', 10 + (1 << 11))]),
+            LnAddr(RHASH, amount=24, tags=[('h', longdescription), ('9', 10 + (1 << 12))]),
+            LnAddr(RHASH, amount=24, tags=[('h', longdescription), ('9', 10 + (1 << 13))]),
+            #LnAddr(RHASH, amount=24, tags=[('h', longdescription), ('9', 10 + (1 << 14))]),
+            LnAddr(RHASH, amount=24, tags=[('h', longdescription), ('9', 10 + (1 << 15))]),
         ]
 
         # Roundtrip
@@ -98,9 +110,18 @@ class TestBolt11(ElectrumTestCase):
         assert lnaddr.pubkey.serialize() == PUBKEY
 
     def test_min_final_cltv_expiry_decoding(self):
-        self.assertEqual(144, lndecode("lnsb500u1pdsgyf3pp5nmrqejdsdgs4n9ukgxcp2kcq265yhrxd4k5dyue58rxtp5y83s3qdqqcqzystrggccm9yvkr5yqx83jxll0qjpmgfg9ywmcd8g33msfgmqgyfyvqhku80qmqm8q6v35zvck2y5ccxsz5avtrauz8hgjj3uahppyq20qp6dvwxe", expected_hrp="sb").get_min_final_cltv_expiry())
+        lnaddr = lndecode("lnsb500u1pdsgyf3pp5nmrqejdsdgs4n9ukgxcp2kcq265yhrxd4k5dyue58rxtp5y83s3qdqqcqzystrggccm9yvkr5yqx83jxll0qjpmgfg9ywmcd8g33msfgmqgyfyvqhku80qmqm8q6v35zvck2y5ccxsz5avtrauz8hgjj3uahppyq20qp6dvwxe",
+                          expected_hrp="sb")
+        self.assertEqual(144, lnaddr.get_min_final_cltv_expiry())
 
     def test_min_final_cltv_expiry_roundtrip(self):
         lnaddr = LnAddr(RHASH, amount=Decimal('0.001'), tags=[('d', '1 cup coffee'), ('x', 60), ('c', 150)])
         invoice = lnencode(lnaddr, PRIVKEY)
         self.assertEqual(150, lndecode(invoice).get_min_final_cltv_expiry())
+
+    def test_features(self):
+        lnaddr = lndecode("lnbc25m1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq5vdhkven9v5sxyetpdees9qzsze992adudgku8p05pstl6zh7av6rx2f297pv89gu5q93a0hf3g7lynl3xq56t23dpvah6u7y9qey9lccrdml3gaqwc6nxsl5ktzm464sq73t7cl")
+        self.assertEqual(514, lnaddr.get_tag('9'))
+
+        with self.assertRaises(UnknownEvenFeatureBits):
+            lndecode("lnbc25m1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq5vdhkven9v5sxyetpdees9q4pqqqqqqqqqqqqqqqqqqszk3ed62snp73037h4py4gry05eltlp0uezm2w9ajnerhmxzhzhsu40g9mgyx5v3ad4aqwkmvyftzk4k9zenz90mhjcy9hcevc7r3lx2sphzfxz7")

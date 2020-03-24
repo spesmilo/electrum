@@ -165,6 +165,7 @@ class HandshakeFailed(LightningError): pass
 class ConnStringFormatError(LightningError): pass
 class UnknownPaymentHash(LightningError): pass
 class RemoteMisbehaving(LightningError): pass
+class UnknownEvenFeatureBits(Exception): pass
 
 class NotFoundChanAnnouncementForUpdate(Exception): pass
 
@@ -880,6 +881,16 @@ def ln_compare_features(our_features: 'LnFeatures', their_features: int) -> 'LnF
             if flag % 2 == 0:  # even flags are compulsory
                 raise IncompatibleLightningFeatures(f"remote wanted feature we don't have: {LnFeatures(1 << flag)!r}")
     return our_features
+
+
+def validate_features(features: int) -> None:
+    """Raises UnknownEvenFeatureBits if there is an unimplemented
+    mandatory feature.
+    """
+    enabled_features = list_enabled_bits(features)
+    for fbit in enabled_features:
+        if (1 << fbit) & LN_FEATURES_IMPLEMENTED == 0 and fbit % 2 == 0:
+            raise UnknownEvenFeatureBits(fbit)
 
 
 class LNPeerAddr:
