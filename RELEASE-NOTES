@@ -909,3 +909,10 @@ and there is no warning message.
   (Calin Culianu)
 - Various internal bug-fixes and improvements.
   (Calin Culianu, Axel Gembe, Mark B Lundeberg, Andrew#128, Malcolm Smith).
+
+# Release 4.0.14
+
+- Fixed a bug in CashShuffle which would sometimes cause some shuffle tx's
+  to use the same address twice in the outputs. (cculianu)
+  See reddit thread:
+      https://old.reddit.com/r/btc/comments/fmcf0x/cash_shuffle_privacy_bug/
