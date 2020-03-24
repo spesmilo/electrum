@@ -424,6 +424,7 @@ def monkey_patches_apply(window):
         if window.network:
             window.network.register_callback(window._shuffle_network_callback, ['new_transaction'])
         window._shuffle_patched_ = True
+        window.force_use_single_change_addr = _("CashShuffle is enabled: change address logic will be handled by CashShuffle (to preserve privacy).")
         print_error("[shuffle] Patched window")
 
     def patch_utxo_list(utxo_list):
@@ -447,8 +448,21 @@ def monkey_patches_apply(window):
         wallet._shuffled_address_cache = set()
         wallet._addresses_cashshuffle_reserved = set()
         wallet._reshuffles = set()
+        wallet._last_change = None
         CoinUtils.load_shuffle_change_shared_with_others(wallet)  # sets wallet._shuffle_change_shared_with_others
-        # Paranoia -- in case app crashed, unfreeze coins frozen by last
+        # Paranoia -- force wallet into this single change address mode in case
+        # other code (plugins, etc) generate tx's. We don't want tx generation
+        # code to clobber our shuffle tx output addresses.
+        change_addr_policy_1 = (bool(wallet.storage.get('use_change')), bool(wallet.storage.get('multiple_change')))
+        change_addr_policy_2 = (bool(wallet.use_change), bool(wallet.multiple_change))
+        desired_policy = (True, False)
+        if any(policy != desired_policy for policy in (change_addr_policy_1, change_addr_policy_2)):
+            wallet.use_change, wallet.multiple_change = desired_policy
+            wallet.storage.put('use_change', desired_policy[0])
+            wallet.storage.put('multiple_change', desired_policy[1])
+            wallet.print_error("CashShuffle forced change address policy to: use_change={}, multiple_change={}"
+                               .format(desired_policy[0], desired_policy[1]))
+        # More paranoia -- in case app crashed, unfreeze coins frozen by last
         # app run.
         CoinUtils.unfreeze_frozen_by_shuffling(wallet)
         wallet._shuffle_patched_ = True
@@ -474,6 +488,7 @@ def monkey_patches_remove(window):
         delattr(window, 'send_tab_shuffle_extra')
         delattr(window, 'background_process')
         delattr(window, '_shuffle_patched_')
+        window.force_use_single_change_addr = None
         print_error("[shuffle] Unpatched window")
         # Note that at this point an additional monkey patch: 'window.__disabled_sendtab_extra__' may stick around until the plugin is unloaded altogether
 
@@ -499,6 +514,7 @@ def monkey_patches_remove(window):
         delattr(wallet, "_is_shuffled_cache")
         delattr(wallet, "_shuffled_address_cache")
         delattr(wallet, '_shuffle_patched_')
+        delattr(wallet, "_last_change")
         delattr(wallet, "_reshuffles")
         CoinUtils.store_shuffle_change_shared_with_others(wallet) # save _shuffle_change_shared_with_others to storage -- note this doesn't call storage.write() for performance reasons.
         delattr(wallet, '_shuffle_change_shared_with_others')
@@ -939,6 +955,14 @@ class Plugin(BasePlugin):
             rets += [_("{} {} are busy shuffling").format(window.format_amount(totInProg).strip(), window.base_unit())]
 
         return ') ('.join(rets) or None
+
+    @hook
+    def get_change_addrs(self, wallet):
+        for window in self.windows:
+            if wallet == window.wallet:
+                change_addrs = [wallet.cashshuffle_get_new_change_address()]
+                wallet.print_error("CashShuffle: reserving change address",change_addrs[0].to_ui_string())
+                return change_addrs
 
     @hook
     def do_clear(self, w):

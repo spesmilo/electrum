@@ -228,11 +228,6 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         self.frozen_coins = set(storage.get('frozen_coins', []))
         self.frozen_coins_tmp = set()  # in-memory only
 
-        self.change_reserved = set(Address.from_string(a) for a in storage.get('change_reserved', ()))
-        self.change_reserved_default = [Address.from_string(a) for a in storage.get('change_reserved_default', ())]
-        self.change_unreserved = [Address.from_string(a) for a in storage.get('change_unreserved', ())]
-        self.change_reserved_tmp = set() # in-memory only
-
         # address -> list(txid, height)
         history = storage.get('addr_history',{})
         self._history = self.to_Address_dict(history)
@@ -438,13 +433,6 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             self.cashacct.save()
             if write:
                 self.storage.write()
-
-    def save_change_reservations(self):
-        with self.lock:
-            self.storage.put('change_reserved_default', [a.to_storage_string() for a in self.change_reserved_default])
-            self.storage.put('change_reserved', [a.to_storage_string() for a in self.change_reserved])
-            unreserved = self.change_unreserved + list(self.change_reserved_tmp)
-            self.storage.put('change_unreserved', [a.to_storage_string() for a in unreserved])
 
     def clear_history(self):
         with self.lock:
@@ -1698,106 +1686,6 @@ class Abstract_Wallet(PrintError, SPVDelegate):
     def dust_threshold(self):
         return dust_threshold(self.network)
 
-    def reserve_change_addresses(self, count, temporary=False):
-        """ Reserve and return `count` change addresses. In order
-        of preference, this will return from:
-
-        1. addresses 'freed' by `.unreserve_change_address`,
-        2. addresses in the last 20 (gap limit) of the change list,
-        3. newly-created addresses.
-
-        Of these, only unlabeled, unreserved addresses with no usage history
-        will be returned. If you pass temporary=False (default), this will
-        persist upon wallet saving, otherwise with temporary=True the address
-        will be made available again once the wallet is re-opened.
-
-        On non-deterministic wallets, this returns an empty list.
-        """
-        if count <= 0 or not hasattr(self, 'create_new_address'):
-            return []
-
-        with self.lock:
-            last_change_addrs = self.get_change_addresses()[-self.gap_limit_for_change:]
-            if not last_change_addrs:
-                # this happens in non-deterministic wallets but the above
-                # hasattr check should have caught those.
-                return []
-
-            def gen_change():
-                try:
-                    while True:
-                        yield self.change_unreserved.pop(0)
-                except IndexError:
-                    pass
-                for addr in last_change_addrs:
-                    yield addr
-                while True:
-                    yield self.create_new_address(for_change=True)
-
-            result = []
-            for addr in gen_change():
-                if (   addr in self.change_reserved
-                    or addr in self.change_reserved_tmp
-                    or self.get_num_tx(addr) != 0
-                    or addr in result):
-                    continue
-
-                addr_str = addr.to_storage_string()
-                if self.labels.get(addr_str):
-                    continue
-
-                result.append(addr)
-                if temporary:
-                    self.change_reserved_tmp.add(addr)
-                else:
-                    self.change_reserved.add(addr)
-                if len(result) >= count:
-                    return result
-
-            raise RuntimeError("Unable to generate new addresses") # should not happen
-
-    def unreserve_change_address(self, addr):
-        """ Unreserve an addr that was set by reserve_change_addresses, and
-        also explicitly reschedule this address to be usable by a future
-        reservation. Unreserving is appropriate when the address was never
-        actually shared or used in a transaction, and reduces empty gaps in
-        the change list.
-        """
-        assert addr in self.get_change_addresses()
-        with self.lock:
-            self.change_reserved.discard(addr)
-            self.change_reserved_tmp.discard(addr)
-            self.change_unreserved.append(addr)
-
-    def get_default_change_addresses(self, count):
-        """ Return `count` change addresses from the default reserved list,
-        ignoring and removing used addresses. Reserves more as needed.
-
-        The same default change addresses keep getting repeated until they are
-        actually seen as used in a transaction from the network. Theoretically
-        this could hurt privacy if the user has multiple unsigned transactions
-        open at the same time, but practically this avoids address gaps for
-        normal usage. If you need non-repeated addresses, see
-        `reserve_change_addresses`.
-
-        On non-deterministic wallets, this returns an empty list.
-        """
-        result = []
-        with self.lock:
-            for addr in list(self.change_reserved_default):
-                if len(result) >= count:
-                    break
-                if self.get_num_tx(addr) != 0:
-                    self.change_reserved_default.remove(addr)
-                    continue
-                result.append(addr)
-            need_more = count - len(result)
-            if need_more > 0:
-                new_addrs = self.reserve_change_addresses(need_more)
-                self.change_reserved_default.extend(new_addrs)
-                result.extend(new_addrs)
-            return result
-
     def make_unsigned_transaction(self, inputs, outputs, config, fixed_fee=None, change_addr=None, sign_schnorr=None):
         ''' sign_schnorr flag controls whether to mark the tx as signing with
         schnorr or not. Specify either a bool, or set the flag to 'None' to use
@@ -1822,6 +1710,32 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         for item in inputs:
             self.add_input_info(item)
 
+        # change address
+        if change_addr:
+            change_addrs = [change_addr]
+        else:
+            # This new hook is for 'Cashshuffle Enabled' mode which will:
+            # Reserve a brand new change address if spending shuffled-only *or* unshuffled-only coins and
+            # disregard the "use_change" setting since to preserve privacy we must use a new change address each time.
+            # Pick and lock a new change address. This "locked" change address will not be used by the shuffle threads.
+            # Note that subsequent calls to this function will return the same change address until that address is involved
+            # in a tx and has a history, at which point a new address will get generated and "locked".
+            change_addrs = run_hook("get_change_addrs", self)
+            if not change_addrs: # hook gave us nothing, so find a change addr based on classic Electron Cash rules.
+                addrs = self.get_change_addresses()[-self.gap_limit_for_change:]
+                if self.use_change and addrs:
+                    # New change addresses are created only after a few
+                    # confirmations.  Select the unused addresses within the
+                    # gap limit; if none take one at random
+                    change_addrs = [addr for addr in addrs if
+                                    self.get_num_tx(addr) == 0]
+                    if not change_addrs:
+                        change_addrs = [random.choice(addrs)]
+                else:
+                    change_addrs = [inputs[0]['address']]
+
+        assert all(isinstance(addr, Address) for addr in change_addrs)
+
         # Fee estimator
         if fixed_fee is None:
             fee_estimator = config.estimate_fee
@@ -1830,32 +1744,9 @@ class Abstract_Wallet(PrintError, SPVDelegate):
 
         if i_max is None:
             # Let the coin chooser select the coins to spend
-
-            if change_addr:
-                change_addrs = [change_addr]
-            else:
-                if self.use_change:
-                    change_addrs = self.get_default_change_addresses(
-                            self.max_change_outputs if self.multiple_change else 1)
-                else:
-                    change_addrs = []
-
-                if not change_addrs:
-                    # For some reason we couldn't get any autogenerated
-                    # change address (non-deterministic wallet?). So,
-                    # try to find an input address that belongs to us.
-                    for inp in inputs:
-                        backup_addr = inp['address']
-                        if self.is_mine(backup_addr):
-                            change_addrs = [backup_addr]
-                            break
-                    else:
-                        raise RuntimeError("Can't find a change address!")
-
-            assert all(isinstance(addr, Address) for addr in change_addrs)
-
+            max_change = self.max_change_outputs if self.multiple_change else 1
             coin_chooser = coinchooser.CoinChooserPrivacy()
-            tx = coin_chooser.make_tx(inputs, outputs, change_addrs,
+            tx = coin_chooser.make_tx(inputs, outputs, change_addrs[:max_change],
                                       fee_estimator, self.dust_threshold(), sign_schnorr=sign_schnorr)
         else:
             sendable = sum(map(lambda x:x['value'], inputs))
@@ -1883,7 +1774,6 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             locktime = 0
         tx.locktime = locktime
         run_hook('make_unsigned_transaction', self, tx)
-
         return tx
 
     def mktx(self, outputs, password, config, fee=None, change_addr=None, domain=None, sign_schnorr=None):
@@ -2024,7 +1914,6 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         self.save_transactions()
         self.save_verified_tx()  # implicit cashacct.save
         self.storage.put('frozen_coins', list(self.frozen_coins))
-        self.save_change_reservations()
         self.storage.write()
 
     def start_pruned_txo_cleaner_thread(self):
@@ -2491,15 +2380,10 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                 # reset the address list to default too, just in case. New synchronizer will pick up the addresses again.
                 self.receiving_addresses, self.change_addresses = self.receiving_addresses[:self.gap_limit], self.change_addresses[:self.gap_limit_for_change]
                 do_addr_save = True
-            self.change_reserved.clear()
-            self.change_reserved_default.clear()
-            self.change_unreserved.clear()
-            self.change_reserved_tmp.clear()
             self.invalidate_address_set_cache()
         if do_addr_save:
             self.save_addresses()
         self.save_transactions()
-        self.save_change_reservations()
         self.save_verified_tx()  # implicit cashacct.save
         self.storage.write()
         self.start_threads(network)

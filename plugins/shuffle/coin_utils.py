@@ -368,7 +368,6 @@ class CoinUtils(PrintError):
         wallet.storage.put(ConfKeys.PerWallet.CHANGE_SHARED_WITH_OTHERS,
                            [a.to_storage_string()
                             for a in wallet._shuffle_change_shared_with_others.copy()])
-        wallet.save_change_reservations()
         if write:
             wallet.storage.write()
 
@@ -528,38 +527,42 @@ class CoinUtils(PrintError):
             ret.append( (sum(c['value'] for c in l), len(l)) )
         return tuple(ret)
 
-    # Called from the shufflethread.
+    # Called from either the wallet code or the shufflethread.
+    # The wallet code calls this when spending either shuffled-only or unshuffled-only coins in a tx.
     # for_shufflethread may be a bool or an int. If int:
-    # 0    : unused, previously was for modifying `wallet.make_unsigned_transaction` behaviour in non-shuffle uses.
-    # 1    : for 'shuffle change' address. This address is reserved and if failed, it will be reused as a change address in a future shuffle.
-    # >=2  : for 'shuffled output' address. This is reserved solely for a single shuffle. If failed, it will be available as a normal address
+    # 0    : not for shuffle threads, use the one wallet-global 'reserved' change guaranteed to not have any history, which won't ever conflict with the shuffle threads (used in 'Send' tab)
+    # 1    : for 'change' address use in shuffle threads. This address will be marked as having been 'announced' and will not be eligible to be used as a shuffled output address or in the Send tab as a change address for a user-created TX
+    # >=2  : for 'shuffled output' address use in shuffle threads. This address is guaranteed to have never been shared over the network with other shufflers AND to be unused
     @staticmethod
     def get_new_change_address_safe(wallet, for_shufflethread=0):
         for_shufflethread = int(for_shufflethread or 0) # coerce to int in case it was a bool or None
-        if for_shufflethread == 0:
-            raise NotImplementedError
-
-        if for_shufflethread == 2:
-            return wallet.reserve_change_addresses(1, temporary=True)[0]
-
-        assert for_shufflethread == 1
         with wallet.lock:
-            # preferably, grab an already-reserved shuffle change addr that has
-            # been abandoned by a prior shuffle.
-            for address in wallet._shuffle_change_shared_with_others:
-                if wallet.get_num_tx(address) != 0:
-                    # Skip used addrs. These will eventually get discarded when saving.
-                    continue
-                if address not in wallet._addresses_cashshuffle_reserved:
-                    wallet._addresses_cashshuffle_reserved.add(address)
-                    return address
-
-            # otherwise, grab a fresh one
-            address = wallet.reserve_change_addresses(1)[0]
-            wallet._addresses_cashshuffle_reserved.add(address)
-            wallet._shuffle_change_shared_with_others.add(address)
-
-        return address
+            if not for_shufflethread and wallet._last_change and not wallet.get_address_history(wallet._last_change):
+                # if they keep hitting preview on the same tx, give them the same change each time
+                return wallet._last_change
+            change = None
+            for address in wallet.get_unused_addresses(for_change=True):
+                if (address not in wallet._addresses_cashshuffle_reserved
+                        and (for_shufflethread == 1 or address not in wallet._shuffle_change_shared_with_others)):
+                    change = address
+                    break
+            while not change:
+                address = wallet.create_new_address(for_change=True)
+                if (address not in wallet._addresses_cashshuffle_reserved
+                        and (for_shufflethread == 1 or address not in wallet._shuffle_change_shared_with_others)):
+                    change = address
+            wallet._addresses_cashshuffle_reserved.add(change)
+            if not for_shufflethread:
+                # new change address generated for code outside the shuffle threads. cache and return it next time.
+                wallet._last_change = change
+            if for_shufflethread == 1:
+                # this was either a 'change' output for the shuffle thread
+                # Mark it as having been somewhat privacy-reduced so that if
+                # this function is called with for_shufflethread=2 or 0, we
+                # won't ever give this particular change address out again).
+                # See issue clifordsymack#105
+                wallet._shuffle_change_shared_with_others.add(change)
+            return change
 
     @staticmethod
     @profiler

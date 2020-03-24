@@ -335,8 +335,7 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
         self._last_server_check = 0.0  # timestamp in seconds unix time
         self._dummy_address = Address.from_pubkey(EC_KEY(number_to_string(1337, generator_secp256k1.order())).get_public_key())  # dummy address
         # below 4 vars are related to the "delayed unreserve address" mechanism as part of the bug #70 & #97 workaround and the complexity created by it..
-        self._delayed_unreserve_new = dict()  # dict of Address -> time.time() timestamp when its shuffle ended
-        self._delayed_unreserve_change = dict()  # dict of Address -> time.time() timestamp when its shuffle ended
+        self._delayed_unreserve_addresses = dict()  # dict of Address -> time.time() timestamp when its shuffle ended
         self._last_delayed_unreserve_check = 0.0  # timestamp in seconds unix time
         self._delayed_unreserve_check_interval = 60.0  # check these addresses every 60 seconds.
         self._delayed_unreserve_timeout = 600.0  # how long before the delayed-unreserve addresses expire; 10 minutes
@@ -505,9 +504,7 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
 
     def check_delayed_unreserve_addresses(self):
         ''' Expire addresses put in the "delayed unreserve" dict which are
-        >600 seconds old. For shuffled-output addresses, these are given back
-        to the wallet and can be used for anything. For change addresses, they
-        go back to a pool used for shuffle change only.'''
+        >600 seconds old.'''
         if self.stop_flg.is_set():
             return
         now = time.time()
@@ -522,15 +519,10 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
                 # the addresses_cashshuffle_reserved set while we mutate it.
                 # This code path is executed very infrequently so it's not really
                 # a huge hit.
-                for addr, ts in self._delayed_unreserve_new.copy().items():
+                for addr, ts in self._delayed_unreserve_addresses.copy().items():
                     if now - ts > self._delayed_unreserve_timeout:
-                        self._delayed_unreserve_new.pop(addr, None)
-                        self.wallet.unreserve_change_address(addr)
-                        ct += 1
-                for addr, ts in self._delayed_unreserve_change.copy().items():
-                    if now - ts > self._delayed_unreserve_timeout:
-                        self._delayed_unreserve_change.pop(addr, None)
                         self.wallet._addresses_cashshuffle_reserved.discard(addr)
+                        self._delayed_unreserve_addresses.pop(addr, None)
                         ct += 1
             if ct:
                 self.print_error("Freed {} 'delayed unreserve' addresses in {:.02f} msec".format(ct, (time.time()-now)*1e3))
@@ -612,6 +604,9 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
             l = len(self.wallet._addresses_cashshuffle_reserved)
             self.wallet._addresses_cashshuffle_reserved.clear()
             if l: self.print_error("Freed {} reserved addresses".format(l))
+            if self.wallet._last_change:
+                self.wallet._last_change = None
+                self.print_error("Freed 'last_change'")
             CoinUtils.unfreeze_frozen_by_shuffling(self.wallet)
             self._coins_busy_shuffling.clear()
 
@@ -647,8 +642,9 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
             with self.wallet.lock:
                 if need_to_discard_change_if_errored and thr.protocol and not thr.protocol.did_use_change:
                     # The reserved change output address was definitely not used.
-                    # Immediately unreserve this change_addr so that other threads
-                    # may reserve it for shuffles immediately.
+                    # Immediately unreserve this change_addr so that it doesn't
+                    # 'leak' (create gaps) and so that other threads may reserve
+                    # it for shuffles immediately.
                     self.wallet._addresses_cashshuffle_reserved.discard(thr.change_addr)
                     need_to_discard_change_if_errored = False
                 self.wallet.set_frozen_coin_state([sender], False)
@@ -664,14 +660,14 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
                         # to mark these addresses to be unreserved at a later
                         # time rather than right away.
                         now = time.time()
-                        self._delayed_unreserve_new[thr.addr_new_addr] = now
+                        self._delayed_unreserve_addresses[thr.addr_new_addr] = now
                         if need_to_discard_change_if_errored:
-                            self._delayed_unreserve_change[thr.change_addr] = now
+                            self._delayed_unreserve_addresses[thr.change_addr] = now
                         self.print_error("Shuffle of coin {} did reach the 'tentative' stage. Will unreserve its reserved addresses in {} minutes."
                                          .format(sender, self._delayed_unreserve_timeout / 60.0))
                     else:
                         # unreserve addresses that were previously reserved iff error
-                        self.wallet.unreserve_change_address(thr.addr_new_addr)
+                        self.wallet._addresses_cashshuffle_reserved.discard(thr.addr_new_addr)
                         if need_to_discard_change_if_errored:
                             self.wallet._addresses_cashshuffle_reserved.discard(thr.change_addr)
             thr.already_did_cleanup = True  # mark this thread as 'cleaned up'. this is necessary because this function may reenter with this thread again later and doing the clean-up twice would create bugs as it would unreserve addresses, etc, that may already be taken
