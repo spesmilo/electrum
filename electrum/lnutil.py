@@ -8,8 +8,8 @@ import json
 from collections import namedtuple, defaultdict
 from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set, Sequence
 import re
-import attr
 
+import attr
 from aiorpcx import NetAddress
 
 from .util import bfh, bh2u, inv_dict, UserFacingException
@@ -838,6 +838,7 @@ LN_FEATURES_IMPLEMENTED = (
         | LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
         | LnFeatures.GOSSIP_QUERIES_OPT | LnFeatures.GOSSIP_QUERIES_REQ
         | LnFeatures.OPTION_STATIC_REMOTEKEY_OPT | LnFeatures.OPTION_STATIC_REMOTEKEY_REQ
+        | LnFeatures.VAR_ONION_OPT | LnFeatures.VAR_ONION_REQ
 )
 
 
