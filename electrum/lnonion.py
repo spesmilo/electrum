@@ -87,7 +87,7 @@ class LegacyHopDataPayload:
     @classmethod
     def from_tlv_dict(cls, d: dict) -> 'LegacyHopDataPayload':
         return LegacyHopDataPayload(
-            short_channel_id=d["short_channel_id"]["short_channel_id"],
+            short_channel_id=d["short_channel_id"]["short_channel_id"] if "short_channel_id" in d else b"\x00" * 8,
             amt_to_forward=d["amt_to_forward"]["amt_to_forward"],
             outgoing_cltv_value=d["outgoing_cltv_value"]["outgoing_cltv_value"],
         )

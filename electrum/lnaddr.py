@@ -141,6 +141,14 @@ def tagged(char, l):
 def tagged_bytes(char, l):
     return tagged(char, bitstring.BitArray(l))
 
+def trim_to_min_length(bits):
+    # Get minimal length by trimming leading 5 bits at a time.
+    while bits.startswith('0b00000'):
+        if len(bits) == 5:
+            break  # v == 0
+        bits = bits[5:]
+    return bits
+
 # Discard trailing bits, convert to bytes.
 def trim_to_bytes(barr):
     # Adds a byte if necessary.
@@ -155,7 +163,7 @@ def pull_tagged(stream):
     length = stream.read(5).uint * 32 + stream.read(5).uint
     return (CHARSET[tag], stream.read(length * 5), stream)
 
-def lnencode(addr, privkey):
+def lnencode(addr: 'LnAddr', privkey):
     if addr.amount:
         amount = Decimal(str(addr.amount))
         # We can only send down to millisatoshi.
@@ -196,23 +204,24 @@ def lnencode(addr, privkey):
         elif k == 'd':
             data += tagged_bytes('d', v.encode())
         elif k == 'x':
-            # Get minimal length by trimming leading 5 bits at a time.
             expirybits = bitstring.pack('intbe:64', v)[4:64]
-            while expirybits.startswith('0b00000'):
-                if len(expirybits) == 5:
-                    break  # v == 0
-                expirybits = expirybits[5:]
+            expirybits = trim_to_min_length(expirybits)
             data += tagged('x', expirybits)
         elif k == 'h':
             data += tagged_bytes('h', sha256(v.encode('utf-8')).digest())
         elif k == 'n':
             data += tagged_bytes('n', v)
         elif k == 'c':
-            # Get minimal length by trimming leading 5 bits at a time.
             finalcltvbits = bitstring.pack('intbe:64', v)[4:64]
-            while finalcltvbits.startswith('0b00000'):
-                finalcltvbits = finalcltvbits[5:]
+            finalcltvbits = trim_to_min_length(finalcltvbits)
             data += tagged('c', finalcltvbits)
+        elif k == '9':
+            if v == 0:
+                continue
+            feature_bits = bitstring.BitArray(uint=v, length=v.bit_length())
+            while feature_bits.len % 5 != 0:
+                feature_bits.prepend('0b0')
+            data += tagged('9', feature_bits)
         else:
             # FIXME: Support unknown tags?
             raise ValueError("Unknown tag {}".format(k))
@@ -247,7 +256,7 @@ class LnAddr(object):
         self.signature = None
         self.pubkey = None
         self.currency = constants.net.SEGWIT_HRP if currency is None else currency
-        self.amount = amount
+        self.amount = amount  # in bitcoins
         self._min_final_cltv_expiry = 9
 
     def __str__(self):
@@ -389,8 +398,16 @@ def lndecode(invoice: str, *, verbose=False, expected_hrp=None) -> LnAddr:
                 continue
             pubkeybytes = trim_to_bytes(tagdata)
             addr.pubkey = pubkeybytes
+
         elif tag == 'c':
             addr._min_final_cltv_expiry = tagdata.int
+
+        elif tag == '9':
+            features = tagdata.uint
+            addr.tags.append(('9', features))
+            from .lnutil import validate_features
+            validate_features(features)
+
         else:
             addr.unknown_tags.append((tag, tagdata))
 
