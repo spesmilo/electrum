@@ -26,7 +26,7 @@ RUN apt-get update -q && \
     add-apt-repository ppa:git-core/ppa && \
     apt-get update -q && \
     apt-get install -qy \
-        git=1:2.25.2-0ppa1~ubuntu16.04.1 \
+        git=1:2.26.0-1~ppa1~ubuntu16.04.1 \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \
