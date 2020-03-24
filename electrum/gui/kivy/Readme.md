@@ -101,7 +101,7 @@ adb logcat | grep -F "`adb shell ps | grep org.electrum.electrum | cut -c14-19`"
 
 ### Kivy can be run directly on Linux Desktop. How?
 Install Kivy.
-`sudo apt-get install python3-kivy python3-sdl2`
+`sudo apt-get install python3-kivy python3-sdl2 xclip xsel`
 
 Build atlas: `(cd electrum/gui/kivy/; make theming)`
 
