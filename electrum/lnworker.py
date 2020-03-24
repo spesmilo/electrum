@@ -54,7 +54,7 @@ from .lnutil import (Outpoint, LNPeerAddr,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH, SENT, RECEIVED, HTLCOwner,
                      UpdateAddHtlc, Direction, LnFeatures,
                      ShortChannelID, PaymentAttemptLog, PaymentAttemptFailureDetails,
-                     BarePaymentAttemptLog)
+                     BarePaymentAttemptLog, derive_payment_secret_from_payment_preimage)
 from .lnutil import ln_dummy_address, ln_compare_features, IncompatibleLightningFeatures
 from .transaction import PartialTxOutput, PartialTransaction, PartialTxInput
 from .lnonion import OnionFailureCode, process_onion_packet, OnionPacket
@@ -151,6 +151,7 @@ class LNWorker(Logger):
         self.features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
         self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_OPT
         self.features |= LnFeatures.VAR_ONION_OPT
+        self.features |= LnFeatures.PAYMENT_SECRET_OPT
 
     def channels_for_peer(self, node_id):
         return {}
@@ -953,7 +954,12 @@ class LNWallet(LNWorker):
         if not peer:
             raise Exception('Dropped peer')
         await peer.initialized
-        htlc = peer.pay(route, chan, int(lnaddr.amount * COIN * 1000), lnaddr.paymenthash, lnaddr.get_min_final_cltv_expiry())
+        htlc = peer.pay(route=route,
+                        chan=chan,
+                        amount_msat=int(lnaddr.amount * COIN * 1000),
+                        payment_hash=lnaddr.paymenthash,
+                        min_final_cltv_expiry=lnaddr.get_min_final_cltv_expiry(),
+                        payment_secret=lnaddr.payment_secret)
         self.network.trigger_callback('htlc_added', htlc, lnaddr, SENT)
         payment_attempt = await self.await_payment(lnaddr.paymenthash)
         if payment_attempt.success:
@@ -1141,6 +1147,7 @@ class LNWallet(LNWorker):
                              "Other clients will likely not be able to send to us.")
         payment_preimage = os.urandom(32)
         payment_hash = sha256(payment_preimage)
+
         info = PaymentInfo(payment_hash, amount_sat, RECEIVED, PR_UNPAID)
         amount_btc = amount_sat/Decimal(COIN) if amount_sat else None
         if expiry == 0:
@@ -1149,13 +1156,15 @@ class LNWallet(LNWorker):
             # Our higher level invoices code however uses 0 for "never".
             # Hence set some high expiration here
             expiry = 100 * 365 * 24 * 60 * 60  # 100 years
-        lnaddr = LnAddr(payment_hash, amount_btc,
+        lnaddr = LnAddr(paymenthash=payment_hash,
+                        amount=amount_btc,
                         tags=[('d', message),
                               ('c', MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE),
                               ('x', expiry),
                               ('9', self.features.for_invoice())]
                         + routing_hints,
-                        date = timestamp)
+                        date=timestamp,
+                        payment_secret=derive_payment_secret_from_payment_preimage(payment_preimage))
         invoice = lnencode(lnaddr, self.node_keypair.privkey)
         key = bh2u(lnaddr.paymenthash)
         req = {

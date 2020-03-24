@@ -260,7 +260,8 @@ def new_onion_packet(payment_path_pubkeys: Sequence[bytes], session_key: bytes,
         hmac=next_hmac)
 
 
-def calc_hops_data_for_payment(route: 'LNPaymentRoute', amount_msat: int, final_cltv: int) \
+def calc_hops_data_for_payment(route: 'LNPaymentRoute', amount_msat: int,
+                               final_cltv: int, *, payment_secret: bytes = None) \
         -> Tuple[List[OnionHopsDataSingle], int, int]:
     """Returns the hops_data to be used for constructing an onion packet,
     and the amount_msat and cltv to be used on our immediate channel.
@@ -275,6 +276,8 @@ def calc_hops_data_for_payment(route: 'LNPaymentRoute', amount_msat: int, final_
         "amt_to_forward": {"amt_to_forward": amt},
         "outgoing_cltv_value": {"outgoing_cltv_value": cltv},
     }
+    if payment_secret is not None:
+        hop_payload["payment_data"] = {"payment_secret": payment_secret, "total_msat": amt}
     hops_data = [OnionHopsDataSingle(is_tlv_payload=route[-1].has_feature_varonion(),
                                      payload=hop_payload)]
     # payloads, backwards from last hop (but excluding the first edge):

@@ -839,6 +839,7 @@ LN_FEATURES_IMPLEMENTED = (
         | LnFeatures.GOSSIP_QUERIES_OPT | LnFeatures.GOSSIP_QUERIES_REQ
         | LnFeatures.OPTION_STATIC_REMOTEKEY_OPT | LnFeatures.OPTION_STATIC_REMOTEKEY_REQ
         | LnFeatures.VAR_ONION_OPT | LnFeatures.VAR_ONION_REQ
+        | LnFeatures.PAYMENT_SECRET_OPT | LnFeatures.PAYMENT_SECRET_REQ
 )
 
 
@@ -892,6 +893,19 @@ def validate_features(features: int) -> None:
     for fbit in enabled_features:
         if (1 << fbit) & LN_FEATURES_IMPLEMENTED == 0 and fbit % 2 == 0:
             raise UnknownEvenFeatureBits(fbit)
+
+
+def derive_payment_secret_from_payment_preimage(payment_preimage: bytes) -> bytes:
+    """Returns secret to be put into invoice.
+    Derivation is deterministic, based on the preimage.
+    Crucially the payment_hash must be derived in an independent way from this.
+    """
+    # Note that this could be random data too, but then we would need to store it.
+    # We derive it identically to clightning, so that we cannot be distinguished:
+    # https://github.com/ElementsProject/lightning/blob/faac4b28adee5221e83787d64cd5d30b16b62097/lightningd/invoice.c#L115
+    modified = bytearray(payment_preimage)
+    modified[0] ^= 1
+    return sha256(bytes(modified))
 
 
 class LNPeerAddr:
