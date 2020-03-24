@@ -573,7 +573,6 @@ class ElectrumWindow(App):
             self.network.register_callback(self.on_fee_histogram, ['fee_histogram'])
             self.network.register_callback(self.on_quotes, ['on_quotes'])
             self.network.register_callback(self.on_history, ['on_history'])
-            self.network.register_callback(self.on_assethistory, ['on_assethistory'])
             self.network.register_callback(self.on_channels, ['channels_updated'])
             self.network.register_callback(self.on_channel, ['channel'])
             self.network.register_callback(self.on_invoice_status, ['invoice_status'])

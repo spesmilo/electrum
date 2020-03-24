@@ -273,8 +273,7 @@ class SendScreen(CScreen):
         amount = uri.get('amount')
         self.address = uri.get('address', '')
         self.message = uri.get('message', '')
-        self.asset = AssetItem()
-        self.asset.asset = uri.get('asset', None)
+        self.asset = uri.get('asset', '')
         self.amount = self.app.format_amount_and_units(amount) if amount else ''
         self.payment_request = None
         self.is_lightning = False
@@ -332,7 +331,7 @@ class SendScreen(CScreen):
 
     def do_clear(self):
         self.amount = ''
-        self.asset = None
+        self.asset = ''
         self.message = ''
         self.address = ''
         self.payment_request = None
@@ -345,8 +344,9 @@ class SendScreen(CScreen):
         amount = pr.get_amount()
         self.amount = self.app.format_amount_and_units(amount) if amount else ''
         self.message = pr.get_memo()
-        self.asset = AssetItem()
-        self.asset.asset = pr.get_asset_guid()
+        asset = pr.get_asset_guid()
+        if asset is not None:
+            self.asset = asset
         self.locked = True
         self.payment_request = pr
 
@@ -386,6 +386,8 @@ class SendScreen(CScreen):
             return
         message = self.message
         asset = self.asset
+        if asset is '':
+            asset = None
         if self.is_lightning:
             return self.app.wallet.lnworker.parse_bech32_invoice(address)
         else:  # on-chain
@@ -441,8 +443,11 @@ class SendScreen(CScreen):
         asset_symbol = None
         asset_amount = None
         asset_precision = None
-        asset_guid = invoice['asset']
-        from_address = invoice['asset_address'] or None
+        from_address = None
+        asset_guid = None
+        if 'asset' in invoice:
+            asset_guid = invoice['asset']
+            from_address = invoice['asset_address'] or None
         if asset_guid is not None:
             if from_address is None:
                 assets = self.app.wallet.asset_synchronizer.get_asset(asset_guid, all_allocations = True)
@@ -463,9 +468,9 @@ class SendScreen(CScreen):
                         asset_amount = amount
                         amount = tx.output_value()
 
-        if from_address is None or asset_precision is None:
-            self.app.show_error(_("Not enough funds in asset"))
-            return
+            if from_address is None or asset_precision is None:
+                self.app.show_error(_("Not enough funds in asset"))
+                return
         try:
             tx = self.app.wallet.make_unsigned_transaction(coins=coins, outputs=outputs, asset_guid=asset_guid, asset_address=asset_guid)
         except NotEnoughFunds:
@@ -539,7 +544,7 @@ class ReceiveScreen(CScreen):
 
     def clear(self):
         self.address = ''
-        self.asset = None
+        self.asset = ''
         self.amount = ''
         self.message = ''
         self.lnaddr = ''
@@ -565,11 +570,14 @@ class ReceiveScreen(CScreen):
             assert u == self.app.base_unit
             amount = Decimal(a) * pow(10, self.app.decimal_point())
         precision = 8
-        if self.asset is not None:
-            asset = self.app.wallet.asset_synchronizer.get_asset(self.asset.asset)
+        asset_guid = None
+        if self.asset is not '':
+            asset_guid = self.asset
+        if asset_guid is not None:
+            asset = self.app.wallet.asset_synchronizer.get_asset(asset_guid)
             if asset is not None:
                 precision = asset.precision      
-        return create_bip21_uri(self.asset, self.address, amount, self.message, decimal_point=precision)
+        return create_bip21_uri(asset_guid, self.address, amount, self.message, decimal_point=precision)
 
     def do_copy(self):
         uri = self.get_URI()
@@ -580,7 +588,9 @@ class ReceiveScreen(CScreen):
         amount = self.amount
         amount = self.app.get_amount(amount) if amount else 0
         message = self.message
-        asset_guid = self.asset.asset
+        asset_guid = None
+        if self.asset is not '':
+            asset_guid = self.asset
         if lightning:
             key = self.app.wallet.lnworker.add_request(amount, message, self.expiry())
         else:
