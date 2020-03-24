@@ -484,6 +484,7 @@ class OnionFailureCode(IntEnum):
     FINAL_INCORRECT_HTLC_AMOUNT =             19
     CHANNEL_DISABLED =                        UPDATE | 20
     EXPIRY_TOO_FAR =                          21
+    INVALID_ONION_PAYLOAD =                   PERM | 22
 
 
 # don't use these elsewhere, the names are ambiguous without context
