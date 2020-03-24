@@ -202,7 +202,7 @@ class SyscoinMainnet(AbstractSyscoinNet):
     ADDRTYPE_P2SH = 0x05
     SEGWIT_HRP = "sys"
     GENESIS = "0000022642db0346b6e01c2a397471f4f12e65d4f4251ec96c1f85367a61a7ab"
-    DEFAULT_PORTS = {'s': '58881'}
+    DEFAULT_PORTS = {'s': '58882'}
     DEFAULT_SERVERS = read_json('servers.json', {})
     CHECKPOINTS = read_json('checkpoints.json', [])
     BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS = 497000
@@ -294,7 +294,7 @@ class SyscoinSimnet(SyscoinTestnet):
 
 
 # don't import net directly, import the module instead (so that net is singleton)
-net = BitcoinMainnet
+net = SyscoinMainnet
 
 def set_simnet():
     global net
