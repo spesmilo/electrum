@@ -235,8 +235,8 @@ class TestPeer(ElectrumTestCase):
         w2.save_preimage(RHASH, payment_preimage)
         w2.save_payment_info(info)
         lnaddr = LnAddr(
-                    RHASH,
-                    amount_btc,
+                    paymenthash=RHASH,
+                    amount=amount_btc,
                     tags=[('c', lnutil.MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE),
                           ('d', 'coffee')
                          ])
@@ -355,7 +355,12 @@ class TestPeer(ElectrumTestCase):
             await asyncio.wait_for(p2.initialized, 1)
             # alice sends htlc
             route = w1._create_route_from_invoice(decoded_invoice=lnaddr)
-            htlc = p1.pay(route, alice_channel, int(lnaddr.amount * COIN * 1000), lnaddr.paymenthash, lnaddr.get_min_final_cltv_expiry())
+            htlc = p1.pay(route=route,
+                          chan=alice_channel,
+                          amount_msat=int(lnaddr.amount * COIN * 1000),
+                          payment_hash=lnaddr.paymenthash,
+                          min_final_cltv_expiry=lnaddr.get_min_final_cltv_expiry(),
+                          payment_secret=lnaddr.payment_secret)
             # alice closes
             await p1.close_channel(alice_channel.channel_id)
             gath.cancel()

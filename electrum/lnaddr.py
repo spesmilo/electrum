@@ -180,16 +180,22 @@ def lnencode(addr: 'LnAddr', privkey):
     # Start with the timestamp
     data = bitstring.pack('uint:35', addr.date)
 
+    tags_set = set()
+
     # Payment hash
     data += tagged_bytes('p', addr.paymenthash)
-    tags_set = set()
+    tags_set.add('p')
+
+    if addr.payment_secret is not None:
+        data += tagged_bytes('s', addr.payment_secret)
+        tags_set.add('s')
 
     for k, v in addr.tags:
 
         # BOLT #11:
         #
         # A writer MUST NOT include more than one `d`, `h`, `n` or `x` fields,
-        if k in ('d', 'h', 'n', 'x'):
+        if k in ('d', 'h', 'n', 'x', 'p', 's'):
             if k in tags_set:
                 raise ValueError("Duplicate '{}' tag".format(k))
 
@@ -248,11 +254,13 @@ def lnencode(addr: 'LnAddr', privkey):
     return bech32_encode(hrp, bitarray_to_u5(data))
 
 class LnAddr(object):
-    def __init__(self, paymenthash: bytes = None, amount=None, currency=None, tags=None, date=None):
+    def __init__(self, *, paymenthash: bytes = None, amount=None, currency=None, tags=None, date=None,
+                 payment_secret: bytes = None):
         self.date = int(time.time()) if not date else int(date)
         self.tags = [] if not tags else tags
         self.unknown_tags = []
         self.paymenthash = paymenthash
+        self.payment_secret = payment_secret
         self.signature = None
         self.pubkey = None
         self.currency = constants.net.SEGWIT_HRP if currency is None else currency
@@ -391,6 +399,12 @@ def lndecode(invoice: str, *, verbose=False, expected_hrp=None) -> LnAddr:
                 addr.unknown_tags.append((tag, tagdata))
                 continue
             addr.paymenthash = trim_to_bytes(tagdata)
+
+        elif tag == 's':
+            if data_length != 52:
+                addr.unknown_tags.append((tag, tagdata))
+                continue
+            addr.payment_secret = trim_to_bytes(tagdata)
 
         elif tag == 'n':
             if data_length != 53:
