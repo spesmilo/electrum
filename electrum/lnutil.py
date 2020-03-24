@@ -1075,3 +1075,11 @@ class UpdateAddHtlc:
 
     def to_tuple(self):
         return (self.amount_msat, self.payment_hash, self.cltv_expiry, self.htlc_id, self.timestamp)
+
+
+class OnionFailureCodeMetaFlag(IntFlag):
+    BADONION = 0x8000
+    PERM     = 0x4000
+    NODE     = 0x2000
+    UPDATE   = 0x1000
+

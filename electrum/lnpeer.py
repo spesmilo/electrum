@@ -1045,7 +1045,7 @@ class Peer(Logger):
         local_height = self.network.get_local_height()
         # create onion packet
         final_cltv = local_height + min_final_cltv_expiry
-        hops_data, amount_msat, cltv = calc_hops_data_for_payment(route, amount_msat, final_cltv)
+        hops_data, amount_msat, cltv = calc_hops_data_for_payment(route, amount_msat, final_cltv)  # TODO varonion
         assert final_cltv <= cltv, (final_cltv, cltv)
         secret_key = os.urandom(32)
         onion = new_onion_packet([x.node_id for x in route], secret_key, hops_data, associated_data=payment_hash)
@@ -1145,9 +1145,8 @@ class Peer(Logger):
         if not forwarding_enabled:
             self.logger.info(f"forwarding is disabled. failing htlc.")
             return OnionRoutingFailureMessage(code=OnionFailureCode.PERMANENT_CHANNEL_FAILURE, data=b'')
-        dph = processed_onion.hop_data.per_hop
-        next_chan = self.lnworker.get_channel_by_short_id(dph.short_channel_id)
-        next_chan_scid = dph.short_channel_id
+        next_chan_scid = processed_onion.hop_data.payload["short_channel_id"]["short_channel_id"]
+        next_chan = self.lnworker.get_channel_by_short_id(next_chan_scid)
         local_height = self.network.get_local_height()
         if next_chan is None:
             self.logger.info(f"cannot forward htlc. cannot find next_chan {next_chan_scid}")
@@ -1159,7 +1158,7 @@ class Peer(Logger):
                              f"chan state {next_chan.get_state()}, peer state: {next_chan.peer_state}")
             data = outgoing_chan_upd_len + outgoing_chan_upd
             return OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=data)
-        next_cltv_expiry = int.from_bytes(dph.outgoing_cltv_value, 'big')
+        next_cltv_expiry = processed_onion.hop_data.payload["outgoing_cltv_value"]["outgoing_cltv_value"]
         if htlc.cltv_expiry - next_cltv_expiry < NBLOCK_OUR_CLTV_EXPIRY_DELTA:
             data = htlc.cltv_expiry.to_bytes(4, byteorder="big") + outgoing_chan_upd_len + outgoing_chan_upd
             return OnionRoutingFailureMessage(code=OnionFailureCode.INCORRECT_CLTV_EXPIRY, data=data)
@@ -1169,7 +1168,7 @@ class Peer(Logger):
             return OnionRoutingFailureMessage(code=OnionFailureCode.EXPIRY_TOO_SOON, data=data)
         if max(htlc.cltv_expiry, next_cltv_expiry) > local_height + lnutil.NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE:
             return OnionRoutingFailureMessage(code=OnionFailureCode.EXPIRY_TOO_FAR, data=b'')
-        next_amount_msat_htlc = int.from_bytes(dph.amt_to_forward, 'big')
+        next_amount_msat_htlc = processed_onion.hop_data.payload["amt_to_forward"]["amt_to_forward"]
         forwarding_fees = fee_for_edge_msat(
             forwarded_amount_msat=next_amount_msat_htlc,
             fee_base_msat=lnutil.OUR_FEE_BASE_MSAT,
@@ -1190,8 +1189,8 @@ class Peer(Logger):
                 "update_add_htlc",
                 channel_id=next_chan.channel_id,
                 id=next_htlc.htlc_id,
-                cltv_expiry=dph.outgoing_cltv_value,
-                amount_msat=dph.amt_to_forward,
+                cltv_expiry=next_cltv_expiry,
+                amount_msat=next_amount_msat_htlc,
                 payment_hash=next_htlc.payment_hash,
                 onion_routing_packet=processed_onion.next_packet.to_bytes()
             )
@@ -1218,12 +1217,12 @@ class Peer(Logger):
         if local_height + MIN_FINAL_CLTV_EXPIRY_ACCEPTED > htlc.cltv_expiry:
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.FINAL_EXPIRY_TOO_SOON, data=b'')
             return False, reason
-        cltv_from_onion = int.from_bytes(processed_onion.hop_data.per_hop.outgoing_cltv_value, byteorder="big")
+        cltv_from_onion = processed_onion.hop_data.payload["outgoing_cltv_value"]["outgoing_cltv_value"]
         if cltv_from_onion != htlc.cltv_expiry:
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.FINAL_INCORRECT_CLTV_EXPIRY,
                                                 data=htlc.cltv_expiry.to_bytes(4, byteorder="big"))
             return False, reason
-        amount_from_onion = int.from_bytes(processed_onion.hop_data.per_hop.amt_to_forward, byteorder="big")
+        amount_from_onion = processed_onion.hop_data.payload["amt_to_forward"]["amt_to_forward"]
         if amount_from_onion > htlc.amount_msat:
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.FINAL_INCORRECT_HTLC_AMOUNT,
                                                 data=htlc.amount_msat.to_bytes(8, byteorder="big"))
