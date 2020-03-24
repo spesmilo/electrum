@@ -602,29 +602,6 @@ class AssetHistoryList(MyTreeView, AcceptFileDragDrop):
         else:
             assert False
 
-    def mouseDoubleClickEvent(self, event: QMouseEvent):
-        idx = self.indexAt(event.pos())
-        if not idx.isValid():
-            return
-        tx_item = self.tx_item_from_proxy_row(idx.row())
-        if self.hm.flags(self.model().mapToSource(idx)) & Qt.ItemIsEditable:
-            super().mouseDoubleClickEvent(event)
-        else:
-            if tx_item.get('lightning'):
-                if tx_item['type'] == 'payment':
-                    self.parent.show_lightning_transaction(tx_item)
-                return
-            tx_hash = tx_item['txid']
-            tx = self.wallet.db.get_transaction(tx_hash)
-            if not tx:
-                return
-            self.show_transaction(tx_item, tx)
-
-    def show_transaction(self, tx_item, tx):
-        tx_hash = tx_item['txid']
-        label = self.wallet.get_label(tx_hash) or None # prefer 'None' if not defined (force tx dialog to hide Description field if missing)
-        self.parent.show_transaction(tx, tx_desc=label)
-
     def add_copy_menu(self, menu, idx):
         cc = menu.addMenu(_("Copy"))
         for column in AssetHistoryColumns:
@@ -655,21 +632,11 @@ class AssetHistoryList(MyTreeView, AcceptFileDragDrop):
             menu.exec_(self.viewport().mapToGlobal(position))
             return
         tx_hash = tx_item['txid']
-        if tx_item.get('lightning'):
-            tx = self.wallet.lnworker.lnwatcher.db.get_transaction(tx_hash)
-        else:
-            tx = self.wallet.db.get_transaction(tx_hash)
-        if not tx:
-            return
         asset_guid = tx_item['asset']
         asset_URL = block_explorer_URL(self.config, 'asset', asset_guid)
         tx_URL = block_explorer_URL(self.config, 'tx', tx_hash)
-        tx_details = self.wallet.get_tx_info(tx)
-        is_unconfirmed = tx_details.tx_mined_status.height <= 0
-        invoice_keys = self.wallet._get_relevant_invoice_keys_for_tx(tx)
         menu = QMenu()
-        if tx_details.can_remove:
-            menu.addAction(_("Remove"), lambda: self.remove_local_tx(tx_hash))
+       
         cc = self.add_copy_menu(menu, idx)
         cc.addAction(_("Transaction ID"), lambda: self.place_text_on_clipboard(tx_hash, title="TXID"))
         for c in self.editable_columns:
@@ -678,20 +645,9 @@ class AssetHistoryList(MyTreeView, AcceptFileDragDrop):
             # TODO use siblingAtColumn when min Qt version is >=5.11
             persistent = QPersistentModelIndex(org_idx.sibling(org_idx.row(), c))
             menu.addAction(_("Edit {}").format(label), lambda p=persistent: self.edit(QModelIndex(p)))
-        menu.addAction(_("View Transaction"), lambda: self.show_transaction(tx_item, tx))
         channel_id = tx_item.get('channel_id')
         if channel_id:
             menu.addAction(_("View Channel"), lambda: self.parent.show_channel(bytes.fromhex(channel_id)))
-        if is_unconfirmed and tx:
-            # note: the current implementation of RBF *needs* the old tx fee
-            if tx_details.can_bump and tx_details.fee is not None:
-                menu.addAction(_("Increase fee"), lambda: self.parent.bump_fee_dialog(tx))
-            else:
-                child_tx = self.wallet.cpfp(tx, 0)
-                if child_tx:
-                    menu.addAction(_("Child pays for parent"), lambda: self.parent.cpfp(tx, child_tx))
-        if invoice_keys:
-           menu.addAction(read_QIcon("seal"), _("View invoice"), lambda: [self.parent.show_invoice(key) for key in invoice_keys])
         if tx_URL:
             menu.addAction(_("View on block explorer"), lambda: webopen(tx_URL))
         if asset_URL:

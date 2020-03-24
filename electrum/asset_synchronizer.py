@@ -131,9 +131,6 @@ class AssetSynchronizer(Logger):
                                 if recipient['to'] in xpubTokens:
                                     asset_address = recipient['to']
                                     delta = int(recipient['value'])
-                                    txDb = self.wallet.db.get_transaction(tx['txid'])
-                                    if not txDb:
-                                        missingTxs.append(tx)
                                     break
                         self.asset_history.append(AssetHistoryItem(txid=tx['txid'],
                             transfer_type=tokenTransfer['type'],
@@ -144,10 +141,6 @@ class AssetSynchronizer(Logger):
                             precision=tokenTransfer['decimals'],
                             tx_mined_status=TxMinedInfo(height=tx['blockHeight'], conf=tx['confirmations'], timestamp=tx['blockTime']),
                             delta=delta))
-
-        if len(missingTxs) > 0:         
-            hist = list(map(lambda item: (item['txid'], item['blockHeight']), missingTxs))
-            await self.wallet.synchronizer._request_missing_txs(hist, allow_server_not_finding_tx=True)
         return alist
 
     def get_onchain_assethistory(self):
