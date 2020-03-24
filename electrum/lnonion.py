@@ -161,6 +161,9 @@ class OnionHopsDataSingle:  # called HopData in lnd
             assert len(ret.hmac) == PER_HOP_HMAC_SIZE
             return ret
 
+    def __repr__(self):
+        return f"<OnionHopsDataSingle. is_tlv_payload={self.is_tlv_payload}. payload={self.payload}. hmac={self.hmac}>"
+
 
 class OnionPacket:
 
@@ -265,22 +268,24 @@ def calc_hops_data_for_payment(route: 'LNPaymentRoute', amount_msat: int, final_
     if len(route) > NUM_MAX_EDGES_IN_PAYMENT_PATH:
         raise PaymentFailure(f"too long route ({len(route)} edges)")
 
+    # payload that will be seen by the last hop:
     amt = amount_msat
     cltv = final_cltv
     hop_payload = {
         "amt_to_forward": {"amt_to_forward": amt},
         "outgoing_cltv_value": {"outgoing_cltv_value": cltv},
-        "short_channel_id": {"short_channel_id": b"\x00" * 8},  # TODO omit if tlv
     }
-    hops_data = [OnionHopsDataSingle(is_tlv_payload=False,  # TODO
+    hops_data = [OnionHopsDataSingle(is_tlv_payload=route[-1].has_feature_varonion(),
                                      payload=hop_payload)]
-    for route_edge in reversed(route[1:]):
+    # payloads, backwards from last hop (but excluding the first edge):
+    for edge_index in range(len(route) - 1, 0, -1):
+        route_edge = route[edge_index]
         hop_payload = {
             "amt_to_forward": {"amt_to_forward": amt},
             "outgoing_cltv_value": {"outgoing_cltv_value": cltv},
             "short_channel_id": {"short_channel_id": route_edge.short_channel_id},
         }
-        hops_data += [OnionHopsDataSingle(is_tlv_payload=False,  # TODO
+        hops_data += [OnionHopsDataSingle(is_tlv_payload=route[edge_index-1].has_feature_varonion(),
                                           payload=hop_payload)]
         amt += route_edge.fee_for_edge(amt)
         cltv += route_edge.cltv_expiry_delta

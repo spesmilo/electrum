@@ -150,6 +150,7 @@ class LNWorker(Logger):
         self.features = LnFeatures(0)
         self.features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
         self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_OPT
+        self.features |= LnFeatures.VAR_ONION_OPT
 
     def channels_for_peer(self, node_id):
         return {}
@@ -1047,7 +1048,7 @@ class LNWallet(LNWorker):
         return addr
 
     @profiler
-    def _create_route_from_invoice(self, decoded_invoice) -> LNPaymentRoute:
+    def _create_route_from_invoice(self, decoded_invoice: 'LnAddr') -> LNPaymentRoute:
         amount_msat = int(decoded_invoice.amount * COIN * 1000)
         invoice_pubkey = decoded_invoice.pubkey.serialize()
         # use 'r' field from invoice
@@ -1091,8 +1092,13 @@ class LNWallet(LNWorker):
                     fee_base_msat = channel_policy.fee_base_msat
                     fee_proportional_millionths = channel_policy.fee_proportional_millionths
                     cltv_expiry_delta = channel_policy.cltv_expiry_delta
-                route.append(RouteEdge(node_pubkey, short_channel_id, fee_base_msat, fee_proportional_millionths,
-                                       cltv_expiry_delta))
+                node_info = self.channel_db.get_node_info_for_node_id(node_id=node_pubkey)
+                route.append(RouteEdge(node_id=node_pubkey,
+                                       short_channel_id=short_channel_id,
+                                       fee_base_msat=fee_base_msat,
+                                       fee_proportional_millionths=fee_proportional_millionths,
+                                       cltv_expiry_delta=cltv_expiry_delta,
+                                       node_features=node_info.features if node_info else 0))
                 prev_node_id = node_pubkey
             # test sanity
             if not is_route_sane_to_use(route, amount_msat, decoded_invoice.get_min_final_cltv_expiry()):
@@ -1111,6 +1117,11 @@ class LNWallet(LNWorker):
             if not is_route_sane_to_use(route, amount_msat, decoded_invoice.get_min_final_cltv_expiry()):
                 self.logger.info(f"rejecting insane route {route}")
                 raise NoPathFound()
+        assert len(route) > 0
+        assert route[-1].node_id == invoice_pubkey
+        # add features from invoice
+        invoice_features = decoded_invoice.get_tag('9') or 0
+        route[-1].node_features |= invoice_features
         return route
 
     def add_request(self, amount_sat, message, expiry):
@@ -1141,7 +1152,8 @@ class LNWallet(LNWorker):
         lnaddr = LnAddr(payment_hash, amount_btc,
                         tags=[('d', message),
                               ('c', MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE),
-                              ('x', expiry)]
+                              ('x', expiry),
+                              ('9', self.features.for_invoice())]
                         + routing_hints,
                         date = timestamp)
         invoice = lnencode(lnaddr, self.node_keypair.privkey)

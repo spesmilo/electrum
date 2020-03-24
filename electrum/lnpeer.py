@@ -1040,12 +1040,15 @@ class Peer(Logger):
     def pay(self, route: 'LNPaymentRoute', chan: Channel, amount_msat: int,
             payment_hash: bytes, min_final_cltv_expiry: int) -> UpdateAddHtlc:
         assert amount_msat > 0, "amount_msat is not greater zero"
+        assert len(route) > 0
         if not chan.can_send_update_add_htlc():
             raise PaymentFailure("Channel cannot send update_add_htlc")
+        # add features learned during "init" for direct neighbour:
+        route[0].node_features |= self.features
         local_height = self.network.get_local_height()
         # create onion packet
         final_cltv = local_height + min_final_cltv_expiry
-        hops_data, amount_msat, cltv = calc_hops_data_for_payment(route, amount_msat, final_cltv)  # TODO varonion
+        hops_data, amount_msat, cltv = calc_hops_data_for_payment(route, amount_msat, final_cltv)
         assert final_cltv <= cltv, (final_cltv, cltv)
         secret_key = os.urandom(32)
         onion = new_onion_packet([x.node_id for x in route], secret_key, hops_data, associated_data=payment_hash)
@@ -1055,7 +1058,8 @@ class Peer(Logger):
         htlc = UpdateAddHtlc(amount_msat=amount_msat, payment_hash=payment_hash, cltv_expiry=cltv, timestamp=int(time.time()))
         htlc = chan.add_htlc(htlc)
         chan.set_onion_key(htlc.htlc_id, secret_key)
-        self.logger.info(f"starting payment. len(route)={len(route)}. route: {route}. htlc: {htlc}")
+        self.logger.info(f"starting payment. len(route)={len(route)}. route: {route}. "
+                         f"htlc: {htlc}. hops_data={hops_data!r}")
         self.send_message(
             "update_add_htlc",
             channel_id=chan.channel_id,
