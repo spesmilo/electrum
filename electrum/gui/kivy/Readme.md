@@ -104,7 +104,7 @@ Install Kivy.
 
 Build atlas: `(cd electrum/gui/kivy/; make theming)`
 
-Run electrum with the `-g` switch: `electrum -g kivy`
+Run electrum with the `-g` switch: `run_electrum -g kivy`
 
 ### debug vs release build
 If you just follow the instructions above, you will build the apk
