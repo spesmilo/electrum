@@ -30,13 +30,13 @@ folder.
 3. Build locale files
 
     ```
-    $ ./contrib/pull_locale
+    $ sudo ./contrib/pull_locale
     ```
 
 4. Prepare pure python dependencies
 
     ```
-    $ ./contrib/make_packages
+    $ sudo ./contrib/make_packages
     ```
 
 5. Build binaries
@@ -101,10 +101,11 @@ adb logcat | grep -F "`adb shell ps | grep org.electrum.electrum | cut -c14-19`"
 
 ### Kivy can be run directly on Linux Desktop. How?
 Install Kivy.
+`pip3 install kivy`
 
 Build atlas: `(cd electrum/gui/kivy/; make theming)`
 
-Run electrum with the `-g` switch: `electrum -g kivy`
+Run electrum with the `-g` switch: `run_electrum -g kivy`
 
 ### debug vs release build
 If you just follow the instructions above, you will build the apk
