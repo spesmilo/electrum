@@ -373,7 +373,8 @@ class ElectrumWindow(App):
         self._trigger_update_wallet = Clock.create_trigger(self.update_wallet, .5)
         self._trigger_update_status = Clock.create_trigger(self.update_status, .5)
         self._trigger_update_history = Clock.create_trigger(self.update_history, .5)
-       # self._trigger_update_assethistory = Clock.create_trigger(self.update_assethistory, 5)
+        self._trigger_update_assethistory = Clock.create_trigger(self.update_assethistory, .5)
+        self._trigger_update_assets = Clock.create_trigger(self.update_assets, .5)
         self._trigger_update_interfaces = Clock.create_trigger(self.update_interfaces, .5)
 
         self._periodic_update_status_during_sync = Clock.schedule_interval(self.update_wallet_synchronizing_progress, .5)
@@ -838,7 +839,7 @@ class ElectrumWindow(App):
         elif event == 'blockchain_updated':
             # to update number of confirmations in history
             self._trigger_update_wallet()
-            self.update_assethistory()
+            self._trigger_update_assets()
         elif event == 'status':
             self._trigger_update_status()
         elif event == 'new_transaction':
@@ -959,6 +960,15 @@ class ElectrumWindow(App):
         self._trigger_update_status()
         if self.wallet and (self.wallet.up_to_date or not self.network or not self.network.is_connected()):
             self.update_tabs()
+
+    def on_assets_updated(self, asset):
+        self._trigger_update_assethistory()
+        if asset is not None:
+            self.notify(_("Asset balance updated: New total for asset {} with guid {} is {}")
+                        .format(asset.symbol, asset.asset, self.format_amount(asset.balance, decimal=asset.precision)))
+
+    def update_assets(self, *dt):
+        asyncio.ensure_future(self.wallet.asset_synchronizer.synchronize_assets(self.on_assets_updated))
 
     def notify(self, message):
         try:

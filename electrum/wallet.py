@@ -1147,7 +1147,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         to_address = outputs[0].address
         from_address = None
         precision = 8
-        self.logger.info("make_unsigned_assetsend_transaction with guid {} and address {}".format(asset_guid, asset_address))
         asset = self.asset_synchronizer.get_asset(asset_guid, asset_address=asset_address)
         if asset is not None:
             precision = asset.precision
@@ -1161,8 +1160,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         raw_tx = None
         if self.network and self.network.asyncio_loop.is_running():
             try:
-                self.logger.info("creating assetsend transaction: {} {} {} {}".format(
-                    from_address, to_address, asset_guid, amount))
                 raw_tx = self.network.run_from_another_thread(
                     self.asset_synchronizer.create_assetallocation_send(
                         from_address,

@@ -434,7 +434,8 @@ class SendScreen(CScreen):
         asset = None
         precision = 8
         if self.asset_e.key is not None and self.asset_e.key.asset != 0:
-            asset = self.app.wallet.asset_synchronizer.get_asset(self.asset_e.key.asset)
+            asset = self.app.wallet.asset_synchronizer.get_asset(self.asset_e.key.asset, self.asset_e.key.address)
+            precision = asset.precision
         try:
             amount = self.app.get_amount(self.amount, decimal=precision)
         except:
@@ -494,7 +495,6 @@ class SendScreen(CScreen):
         amount = sum(map(lambda x: x.value, outputs))
         coins = self.app.wallet.get_spendable_coins(None)
         asset_symbol = None
-        asset_amount = None
         asset_precision = None
         from_address = None
         asset_guid = None
@@ -508,8 +508,6 @@ class SendScreen(CScreen):
                     asset_precision = asset.precision
                     asset_symbol = asset.symbol
                     if asset.balance >= amount:
-                        asset_amount = amount
-                        amount = tx.output_value()
                         from_address = asset.address
                         break
             else:
@@ -517,9 +515,6 @@ class SendScreen(CScreen):
                 if asset is not None:
                     asset_precision = asset.precision
                     asset_symbol = asset.symbol
-                    if asset.balance >= amount:
-                        asset_amount = amount
-                        amount = tx.output_value()
 
             if from_address is None or asset_precision is None:
                 self.app.show_error(_("Not enough funds in asset"))
@@ -539,7 +534,7 @@ class SendScreen(CScreen):
 
 
         msg = [
-            _("Amount to be sent") + ": " + self.app.format_amount_and_units(amount, asset_amount, asset_symbol, asset_precision),
+            _("Amount to be sent") + ": " + self.app.format_amount_and_units(tx.output_value(), amount, asset_symbol, asset_precision),
             _("Mining fee") + ": " + self.app.format_amount_and_units(fee),
         ]
         x_fee = run_hook('get_tx_extra_fee', self.app.wallet, tx)
