@@ -142,6 +142,13 @@ def tagged_bytes(char, l):
     return tagged(char, bitstring.BitArray(l))
 
 def trim_to_min_length(bits):
+    """Ensures 'bits' have min number of leading zeroes.
+    Assumes 'bits' is big-endian, and that it needs to be encoded in 5 bit blocks.
+    """
+    bits = bits[:]  # copy
+    # make sure we can be split into 5 bit blocks
+    while bits.len % 5 != 0:
+        bits.prepend('0b0')
     # Get minimal length by trimming leading 5 bits at a time.
     while bits.startswith('0b00000'):
         if len(bits) == 5:
@@ -210,7 +217,7 @@ def lnencode(addr: 'LnAddr', privkey):
         elif k == 'd':
             data += tagged_bytes('d', v.encode())
         elif k == 'x':
-            expirybits = bitstring.pack('intbe:64', v)[4:64]
+            expirybits = bitstring.pack('intbe:64', v)
             expirybits = trim_to_min_length(expirybits)
             data += tagged('x', expirybits)
         elif k == 'h':
@@ -218,15 +225,14 @@ def lnencode(addr: 'LnAddr', privkey):
         elif k == 'n':
             data += tagged_bytes('n', v)
         elif k == 'c':
-            finalcltvbits = bitstring.pack('intbe:64', v)[4:64]
+            finalcltvbits = bitstring.pack('intbe:64', v)
             finalcltvbits = trim_to_min_length(finalcltvbits)
             data += tagged('c', finalcltvbits)
         elif k == '9':
             if v == 0:
                 continue
             feature_bits = bitstring.BitArray(uint=v, length=v.bit_length())
-            while feature_bits.len % 5 != 0:
-                feature_bits.prepend('0b0')
+            feature_bits = trim_to_min_length(feature_bits)
             data += tagged('9', feature_bits)
         else:
             # FIXME: Support unknown tags?
