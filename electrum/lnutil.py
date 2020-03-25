@@ -165,7 +165,6 @@ class HandshakeFailed(LightningError): pass
 class ConnStringFormatError(LightningError): pass
 class UnknownPaymentHash(LightningError): pass
 class RemoteMisbehaving(LightningError): pass
-class UnknownEvenFeatureBits(Exception): pass
 
 class NotFoundChanAnnouncementForUpdate(Exception): pass
 
@@ -855,7 +854,11 @@ def get_ln_flag_pair_of_bit(flag_bit: int) -> int:
         return flag_bit - 1
 
 
-class IncompatibleLightningFeatures(ValueError): pass
+
+class IncompatibleOrInsaneFeatures(Exception): pass
+class UnknownEvenFeatureBits(IncompatibleOrInsaneFeatures): pass
+class IncompatibleLightningFeatures(IncompatibleOrInsaneFeatures): pass
+
 
 def ln_compare_features(our_features: 'LnFeatures', their_features: int) -> 'LnFeatures':
     """Returns negotiated features.
@@ -886,13 +889,17 @@ def ln_compare_features(our_features: 'LnFeatures', their_features: int) -> 'LnF
 
 
 def validate_features(features: int) -> None:
-    """Raises UnknownEvenFeatureBits if there is an unimplemented
-    mandatory feature.
+    """Raises IncompatibleOrInsaneFeatures if
+    - a mandatory feature is listed that we don't recognize, or
+    - the features are inconsistent
     """
+    features = LnFeatures(features)
     enabled_features = list_enabled_bits(features)
     for fbit in enabled_features:
         if (1 << fbit) & LN_FEATURES_IMPLEMENTED == 0 and fbit % 2 == 0:
             raise UnknownEvenFeatureBits(fbit)
+    if not features.validate_transitive_dependecies():
+        raise IncompatibleOrInsaneFeatures("not all transitive dependencies are set")
 
 
 def derive_payment_secret_from_payment_preimage(payment_preimage: bytes) -> bytes:
