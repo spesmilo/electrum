@@ -216,7 +216,7 @@ class ElectrumWindow(App):
         if self.wallet:
             self.wallet.clear_coin_price_cache()
         self._trigger_update_history()
-        self._trigger_update_assethistory()
+        self.update_assethistory()
 
     def on_fee_histogram(self, *args):
         self._trigger_update_history()
@@ -373,7 +373,7 @@ class ElectrumWindow(App):
         self._trigger_update_wallet = Clock.create_trigger(self.update_wallet, .5)
         self._trigger_update_status = Clock.create_trigger(self.update_status, .5)
         self._trigger_update_history = Clock.create_trigger(self.update_history, .5)
-        self._trigger_update_assethistory = Clock.create_trigger(self.update_assethistory, .5)
+       # self._trigger_update_assethistory = Clock.create_trigger(self.update_assethistory, 5)
         self._trigger_update_interfaces = Clock.create_trigger(self.update_interfaces, .5)
 
         self._periodic_update_status_during_sync = Clock.schedule_interval(self.update_wallet_synchronizing_progress, .5)
@@ -838,6 +838,7 @@ class ElectrumWindow(App):
         elif event == 'blockchain_updated':
             # to update number of confirmations in history
             self._trigger_update_wallet()
+            self.update_assethistory()
         elif event == 'status':
             self._trigger_update_status()
         elif event == 'new_transaction':

@@ -215,13 +215,14 @@ class AssetSynchronizer(Logger):
             if result_ is not None:
                 for asset in result_:
                     new_asset_list.append(asset)
-            if self.asset_list is not None:
-                for x in range(len(self.asset_list)):
-                    if self.asset_list[x].asset != new_asset_list[x].asset or self.asset_list[x].address != new_asset_list[x].address or self.asset_list[x].balance != new_asset_list[x].balance:
-                        changed_asset = new_asset_list[x]
-                        break
+                if self.asset_list is not None:
+                    for x in range(len(new_asset_list)):
+                        if x < len(new_asset_list) and x < len(self.asset_list):
+                            if self.asset_list[x].asset != new_asset_list[x].asset or self.asset_list[x].address != new_asset_list[x].address or self.asset_list[x].balance != new_asset_list[x].balance:
+                                changed_asset = new_asset_list[x]
+                                break
             self.asset_list = new_asset_list
-            if callback is not None:
+            if callback is not None and self.current_page is 1:
                 callback(changed_asset)
         except RequestTimedOut as e:
             if e is not TimeoutError:
