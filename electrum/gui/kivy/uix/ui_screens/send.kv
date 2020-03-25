@@ -85,6 +85,26 @@
                 height: blue_bottom.item_height
                 spacing: '5dp'
                 Image:
+                    source: 'atlas://electrum/gui/kivy/theming/light/assets'
+                    opacity: 0.7
+                    size_hint: None, None
+                    size: '22dp', '22dp'
+                    pos_hint: {'center_y': .5}
+                ComboBox:
+                    id: asset_e
+                    text: _('Asset')
+                    background_normal: 'atlas://data/images/defaulttheme/spinner'
+                    background_down: 'atlas://data/images/defaulttheme/spinner_pressed'
+                    on_key:
+                        if self.items: x, y = zip(*self.items); self.text = y[x.index(args[1])]
+            CardSeparator:
+                opacity: message_selection.opacity
+                color: blue_bottom.foreground_color
+            BoxLayout:
+                size_hint: 1, None
+                height: blue_bottom.item_height
+                spacing: '5dp'
+                Image:
                     source: 'atlas://electrum/gui/kivy/theming/light/lightning' if root.is_lightning else 'atlas://electrum/gui/kivy/theming/light/globe'
                     size_hint: None, None
                     size: '22dp', '22dp'

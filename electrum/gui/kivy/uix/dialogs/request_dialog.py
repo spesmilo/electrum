@@ -13,6 +13,7 @@ Builder.load_string('''
 <RequestDialog@Popup>
     id: popup
     amount: 0
+    amount_str: ''
     title: ''
     description:''
     data: ''
@@ -45,7 +46,7 @@ Builder.load_string('''
             RefLabel:
                 data: root.description or _('No description')
             TopLabel:
-                text: _('Amount') + ': ' + app.format_amount_and_units(root.amount)
+                text: _('Amount') + ': ' + root.amount_str
             TopLabel:
                 text: _('Status') + ': ' + root.status_str
                 color: root.status_color
@@ -90,6 +91,15 @@ class RequestDialog(Factory.Popup):
         self.key = key
         r = self.app.wallet.get_request(key)
         self.amount = r.get('amount')
+        asset_guid = r.get('asset', '')
+        if asset_guid != '':
+            asset = self.app.wallet.asset_synchronizer.get_asset(asset_guid)
+            if asset is not None:
+                self.amount_str = self.app.format_amount_and_units(None, asset_amount=self.amount, asset_symbol=asset.symbol, asset_precision=asset.precision)
+            else:
+                self.amount_str = self.app.format_amount_and_units(self.amount)
+        else:
+            self.amount_str = self.app.format_amount_and_units(self.amount)
         self.description = r.get('message', '')
         self.is_lightning = r.get('type') == PR_TYPE_LN
         self.update_status()

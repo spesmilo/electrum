@@ -8,16 +8,15 @@
 <AssetHistoryItem@CardItem>
     icon: 'atlas://electrum/gui/kivy/theming/light/important'
     message: ''
-    fee_text: ''
     is_mine: True
     amount: '--'
     amount_color: '#FF6657' if self.is_mine else '#2EA442'
     asset: ''
-    confirmations: 0
+    address: ''
+    transfer_type: ''
+    symbol: ''
     date: ''
-    quote_text: ''
-    amount_str: self.quote_text if app.is_fiat else self.amount
-    unit_str: app.fx.ccy if app.is_fiat else app.base_unit
+    amount_str: self.amount
     Image:
         id: icon
         source: root.icon
@@ -48,14 +47,9 @@
         orientation: 'vertical'
         Widget
         CardLabel:
-            text: u'[color={color}]{s}[/color]'.format(s=root.amount_str, color=root.amount_color) + ' ' + '[size=12sp]' + root.unit_str + '[/size]'
+            text: u'[color={color}]{s}[/color]'.format(s=root.amount_str, color=root.amount_color) + ' ' + '[size=12sp]' + root.symbol + '[/size]'
             halign: 'right'
             font_size: '15sp'
-        Widget
-        CardLabel:
-            text: root.fee_text
-            halign: 'right'
-            font_size: '12sp'
         Widget
 
 <AssetHistoryRecycleView>:
@@ -73,15 +67,6 @@
     content: assethistory_container
     BoxLayout:
         orientation: 'vertical'
-        Button:
-            background_color: 0, 0, 0, 0
-            text: app.fiat_balance if app.is_fiat else app.balance
-            markup: True
-            color: .9, .9, .9, 1
-            font_size: '30dp'
-            bold: True
-            size_hint: 1, 0.25
-            on_release: app.is_fiat = not app.is_fiat if app.fx.is_enabled() else False
         AssetHistoryRecycleView:
             id: assethistory_container
             scroll_type: ['bars', 'content']

@@ -292,14 +292,16 @@ class ElectrumWindow(App):
         satoshis = int(pow(10,8) * Decimal(fiat_amount) / Decimal(rate))
         return format_satoshis_plain(satoshis, self.decimal_point())
 
-    def get_amount(self, amount_str):
+    def get_amount(self, amount_str, decimal=None):
         a, u = amount_str.split()
-        assert u == self.base_unit
         try:
             x = Decimal(a)
         except:
             return None
-        p = pow(10, self.decimal_point())
+        if decimal is None:
+            p = pow(10, self.decimal_point())
+        else:
+            p = pow(10, decimal)
         return int(p * x)
 
 
@@ -929,11 +931,23 @@ class ElectrumWindow(App):
         amount_after_all_fees = amount - x_fee_amount
         return format_satoshis_plain(amount_after_all_fees, self.decimal_point())
 
-    def format_amount(self, x, is_diff=False, whitespaces=False):
-        return format_satoshis(x, 0, self.decimal_point(), is_diff=is_diff, whitespaces=whitespaces)
+    def base_asset_unit(self, asset_symbol):
+        return asset_symbol
+        
+    def format_amount(self, x, is_diff=False, whitespaces=False, decimal=None):
+        return format_satoshis(x, 0, decimal or self.decimal_point(), is_diff=is_diff, whitespaces=whitespaces)
 
-    def format_amount_and_units(self, x):
-        return format_satoshis_plain(x, self.decimal_point()) + ' ' + self.base_unit
+    def format_amount_and_units(self, amount, asset_amount=None, asset_symbol=None, asset_precision=None):
+        text = ''
+        if amount is not None and amount is not '':
+            text += format_satoshis_plain(amount, decimal_point=self.decimal_point()) + ' '+ self.base_unit
+        if asset_symbol is not None and asset_amount is not None and asset_amount is not '':
+            if amount is not None:
+                text += ' - Asset: ' + format_satoshis_plain(asset_amount, decimal_point=asset_precision) + ' '+ self.base_asset_unit(asset_symbol)
+            else:
+                text += format_satoshis_plain(asset_amount, decimal_point=asset_precision) + ' '+ self.base_asset_unit(asset_symbol)
+
+        return text
 
     def format_fee_rate(self, fee_rate):
         # fee_rate is in sat/kB
@@ -1120,9 +1134,15 @@ class ElectrumWindow(App):
         amount = screen.amount
         if amount:
             amount, u = str(amount).split()
-            assert u == self.base_unit
         def cb(amount):
-            screen.amount = amount
+            if screen.asset_e is not None and screen.asset_e.key is not None and screen.asset_e.key.asset != 0:
+                asset = self.wallet.asset_synchronizer.get_asset(screen.asset_e.key.asset, screen.asset_e.key.address)
+                if asset is not None:
+                    screen.amount = amount + ' ' + asset.symbol
+                else:
+                    screen.amount = amount + ' ' + self.base_unit
+            else:
+                screen.amount = amount + ' ' + self.base_unit
         popup = AmountDialog(show_max, amount, cb)
         popup.open()
 

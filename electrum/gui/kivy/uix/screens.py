@@ -4,6 +4,7 @@ from decimal import Decimal
 import re
 import threading
 import traceback, sys
+import copy
 from typing import TYPE_CHECKING, List, Optional
 
 from kivy.app import App
@@ -41,6 +42,7 @@ from .dialogs.lightning_open_channel import LightningOpenChannelDialog
 
 from electrum.gui.kivy.i18n import _
 from electrum.asset_synchronizer import AssetItem
+from .combobox import ComboBox
 if TYPE_CHECKING:
     from electrum.gui.kivy.main_window import ElectrumWindow
     from electrum.paymentrequest import PaymentRequest
@@ -102,6 +104,11 @@ Builder.load_file('electrum/gui/kivy/uix/ui_screens/history.kv')
 Builder.load_file('electrum/gui/kivy/uix/ui_screens/send.kv')
 Builder.load_file('electrum/gui/kivy/uix/ui_screens/receive.kv')
 Builder.load_file('electrum/gui/kivy/uix/ui_screens/assethistory.kv')
+
+class AssetKey():
+    def __init__(self, asset, address):
+        self.asset = asset
+        self.address = address
 
 class HistoryScreen(CScreen):
 
@@ -190,20 +197,16 @@ class AssetHistoryScreen(CScreen):
         if tx_item.get('lightning') and tx_item['type'] == 'payment':
             self.app.lightning_tx_dialog(tx_item)
             return
-        if tx_item.get('lightning'):
-            tx = self.app.wallet.lnworker.lnwatcher.db.get_transaction(key)
-        else:
-            tx = self.app.wallet.db.get_transaction(key)
-        if not tx:
-            return
-        self.app.tx_dialog(tx)
 
     def get_card(self, tx_item): #tx_hash, tx_mined_status, value, balance):
         is_lightning = tx_item.get('lightning', False)
         timestamp = tx_item['timestamp']
         key = tx_item.get('txid') or tx_item['payment_hash']
-        asset = None
-        asset_address = None
+        asset_guid = ''
+        asset_address = ''
+        transfer_type = ''
+        symbol = ''
+        precision = '8'
         if is_lightning:
             status = 0
             status_str = 'unconfirmed' if timestamp is None else format_time(int(timestamp))
@@ -224,21 +227,26 @@ class AssetHistoryScreen(CScreen):
             fee = tx_item['fee_sat']
             fee_text = '' if fee is None else 'fee: %d sat'%fee
             if 'asset' in tx_item:
-                asset = tx_item['asset']
+                asset_guid = tx_item['asset']
                 asset_address = tx_item['address']
+                transfer_type = tx_item['transfer_type']
+                symbol = tx_item['symbol']
+                precision = tx_item['precision']
         ri = {}
         ri['screen'] = self
         ri['key'] = key
         ri['icon'] = icon
         ri['date'] = status_str
         ri['message'] = message
-        ri['fee_text'] = fee_text
-        ri['asset'] = asset
+        ri['asset'] = asset_guid
         ri['address'] = asset_address
+        ri['transfer_type'] = transfer_type
+        ri['symbol'] = symbol
+        ri['precision'] = precision
         value = tx_item['value'].value
         if value is not None:
             ri['is_mine'] = value <= 0
-            ri['amount'] = self.app.format_amount(value, is_diff = True)
+            ri['amount'] = self.app.format_amount(value, is_diff = True, decimal=precision)
             if 'fiat_value' in tx_item:
                 ri['quote_text'] = str(tx_item['fiat_value'])
         return ri
@@ -259,6 +267,7 @@ class SendScreen(CScreen):
     payment_request = None  # type: Optional[PaymentRequest]
     payment_request_queued = None  # type: Optional[str]
     parsed_URI = None
+    asset_e = None
 
     def set_URI(self, text: str):
         if not self.app.wallet:
@@ -274,7 +283,16 @@ class SendScreen(CScreen):
         self.address = uri.get('address', '')
         self.message = uri.get('message', '')
         self.asset = uri.get('asset', '')
-        self.amount = self.app.format_amount_and_units(amount) if amount else ''
+        precision = 8
+        asset_symbol = None
+        if amount and self.asset is not '':
+            asset = self.app.wallet.asset_synchronizer.get_asset(self.asset)
+            if asset is not None:
+                precision = asset.precision
+                asset_symbol = asset.symbol
+            self.amount = self.app.format_amount_and_units(None, asset_amount=amount, asset_symbol=asset_symbol, asset_precision=precision)
+        else:
+            self.amount = self.app.format_amount_and_units(amount) if amount else ''
         self.payment_request = None
         self.is_lightning = False
 
@@ -291,6 +309,13 @@ class SendScreen(CScreen):
         self.payment_request = None
         self.is_lightning = True
 
+    def get_asset(self, asset):
+        balance = self.app.format_amount(asset.balance, is_diff=False, decimal=asset.precision)
+        if asset.asset is 0:
+            return [AssetKey(0, ''), balance + ' SYS']
+        else:
+            return [AssetKey(asset.asset, asset.address), asset.address + ' (' + str(asset.asset) + ':' + asset.symbol + ') ' + balance]
+    
     def update(self):
         if self.app.wallet is None:
             return
@@ -301,6 +326,15 @@ class SendScreen(CScreen):
         _list.reverse()
         payments_container = self.ids.payments_container
         payments_container.data = [self.get_card(item) for item in _list]
+
+        self.assets = copy.deepcopy(self.app.wallet.asset_synchronizer.get_assets())
+        c, u, x = self.app.wallet.get_balance()
+        self.assets.insert(0, AssetItem(asset=0,address='',
+                    symbol='',
+                    balance=c,
+                    precision=self.app.decimal_point()))
+        self.asset_e = self.ids.asset_e
+        self.asset_e.items = [self.get_asset(asset) for asset in self.assets]
 
     def show_item(self, obj):
         self.app.show_invoice(obj.is_lightning, obj.key)
@@ -317,16 +351,28 @@ class SendScreen(CScreen):
             key = item['id']
         else:
             raise Exception('unknown invoice type')
+        precision = 8
+        asset_symbol = None
+        amount = '0'
+        if item['amount'] and 'asset' in item and item['asset'] is not '':
+            asset = self.app.wallet.asset_synchronizer.get_asset(req.get('asset'))
+            if asset is not None:
+                precision = asset.precision
+                asset_symbol = asset.symbol
+                amount = self.app.format_amount_and_units(None, asset_amount=amount, asset_symbol=asset_symbol, asset_precision=precision)
+        else:
+            amount = self.app.format_amount_and_units(item['amount'] or 0)
         return {
             'is_lightning': invoice_type == PR_TYPE_LN,
             'is_asset': invoice_type == PR_TYPE_ONCHAIN_ASSET,
+            'asset': item['asset'] if 'asset' in item else '',
             'is_bip70': 'bip70' in item,
             'screen': self,
             'status': status,
             'status_str': status_str,
             'key': key,
             'memo': item['message'],
-            'amount': self.app.format_amount_and_units(item['amount'] or 0),
+            'amount': 'amount',
         }
 
     def do_clear(self):
@@ -342,11 +388,21 @@ class SendScreen(CScreen):
     def set_request(self, pr: 'PaymentRequest'):
         self.address = pr.get_requestor()
         amount = pr.get_amount()
-        self.amount = self.app.format_amount_and_units(amount) if amount else ''
+        asset_guid = pr.get_asset_guid()
+        precision = 8
+        asset_symbol = None
+        if amount and asset_guid is not None and asset_guid is not '':
+            asset = self.app.wallet.asset_synchronizer.get_asset(asset_guid)
+            if asset is not None:
+                precision = asset.precision
+                asset_symbol = asset.symbol
+                self.amount = self.app.format_amount_and_units(None, asset_amount=amount, asset_symbol=asset_symbol, asset_precision=precision)
+        else:
+            self.amount = self.app.format_amount_and_units(amount) if amount else ''              
         self.message = pr.get_memo()
-        asset = pr.get_asset_guid()
-        if asset is not None:
-            self.asset = asset
+        
+        #if asset is not None:
+        #    self.selected_asset = AssetKey(asset=asset_guid, address= None)
         self.locked = True
         self.payment_request = pr
 
@@ -379,15 +435,19 @@ class SendScreen(CScreen):
         if not self.amount:
             self.app.show_error(_('Please enter an amount'))
             return
+        asset_guid = None
+        precision = 8
+        if self.asset_e.key is not None and self.asset_e.key.asset != 0:
+            asset = self.app.wallet.asset_synchronizer.get_asset(self.asset_e.key.asset)
+            if asset is not None:
+                asset_guid = asset.asset
+                precision = asset.precision
         try:
-            amount = self.app.get_amount(self.amount)
+            amount = self.app.get_amount(self.amount, decimal=precision)
         except:
             self.app.show_error(_('Invalid amount') + ':\n' + self.amount)
             return
         message = self.message
-        asset = self.asset
-        if asset is '':
-            asset = None
         if self.is_lightning:
             return self.app.wallet.lnworker.parse_bech32_invoice(address)
         else:  # on-chain
@@ -398,7 +458,7 @@ class SendScreen(CScreen):
                     self.app.show_error(_('invalid syscoin address') + ':\n' + address)
                     return
                 outputs = [PartialTxOutput.from_address_and_value(address, amount)]
-            return self.app.wallet.create_invoice(asset, outputs, message, self.payment_request, self.parsed_URI)
+            return self.app.wallet.create_invoice(asset_guid, outputs, message, self.payment_request, self.parsed_URI)
 
     def do_save(self):
         invoice = self.read_invoice()
@@ -472,7 +532,7 @@ class SendScreen(CScreen):
                 self.app.show_error(_("Not enough funds in asset"))
                 return
         try:
-            tx = self.app.wallet.make_unsigned_transaction(coins=coins, outputs=outputs, asset_guid=asset_guid, asset_address=asset_guid)
+            tx = self.app.wallet.make_unsigned_transaction(coins=coins, outputs=outputs, asset_guid=asset_guid, asset_address=from_address)
         except NotEnoughFunds:
             self.app.show_error(_("Not enough funds"))
             return
@@ -530,15 +590,15 @@ class SendScreen(CScreen):
         d = Question(_(f'Delete {n} invoices?'), callback)
         d.open()
 
-
 class ReceiveScreen(CScreen):
 
     kvname = 'receive'
+    asset_e = None
 
     def __init__(self, **kwargs):
         super(ReceiveScreen, self).__init__(**kwargs)
         Clock.schedule_interval(lambda dt: self.update(), 5)
-
+        
     def expiry(self):
         return self.app.electrum_config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
 
@@ -571,8 +631,8 @@ class ReceiveScreen(CScreen):
             amount = Decimal(a) * pow(10, self.app.decimal_point())
         precision = 8
         asset_guid = None
-        if self.asset is not '':
-            asset_guid = self.asset
+        if self.asset_e.key is not None and self.asset_e.key.asset != 0:
+            asset_guid = self.asset_e.key.asset
         if asset_guid is not None:
             asset = self.app.wallet.asset_synchronizer.get_asset(asset_guid)
             if asset is not None:
@@ -585,12 +645,16 @@ class ReceiveScreen(CScreen):
         self.app.show_info(_('Request copied to clipboard'))
 
     def new_request(self, lightning):
-        amount = self.amount
-        amount = self.app.get_amount(amount) if amount else 0
-        message = self.message
         asset_guid = None
-        if self.asset is not '':
-            asset_guid = self.asset
+        precision = 8
+        if self.asset_e.key is not None and self.asset_e.key.asset != 0:
+            asset = self.app.wallet.asset_synchronizer.get_asset(self.asset_e.key.asset)
+            if asset is not None:
+                asset_guid = asset.asset
+                precision = asset.precision
+        amount = self.amount
+        amount = self.app.get_amount(amount, decimal=precision) if amount else 0
+        message = self.message
         if lightning:
             key = self.app.wallet.lnworker.add_request(amount, message, self.expiry())
         else:
@@ -615,6 +679,17 @@ class ReceiveScreen(CScreen):
             key = req['rhash']
             address = req['invoice']
         amount = req.get('amount')
+        precision = 8
+        asset_symbol = None
+        amountci = ''
+        if amount and req.get('type') == PR_TYPE_ONCHAIN_ASSET:
+            asset = self.app.wallet.asset_synchronizer.get_asset(req.get('asset'))
+            if asset is not None:
+                precision = asset.precision
+                asset_symbol = asset.symbol
+            amountci = self.app.format_amount_and_units(None, asset_amount=amount, asset_symbol=asset_symbol, asset_precision=precision)
+        else:
+            amountci = self.app.format_amount_and_units(amount) if amount else ''               
         description = req.get('message') or req.get('memo', '')  # TODO: a db upgrade would be needed to simplify that.
         status, status_str = get_request_status(req)
         ci = {}
@@ -622,7 +697,7 @@ class ReceiveScreen(CScreen):
         ci['address'] = address
         ci['is_lightning'] = is_lightning
         ci['key'] = key
-        ci['amount'] = self.app.format_amount_and_units(amount) if amount else ''
+        ci['amount'] = amountci
         ci['memo'] = description
         ci['status'] = status
         ci['status_str'] = status_str
@@ -630,6 +705,13 @@ class ReceiveScreen(CScreen):
         ci['asset']: req.get('asset')
         return ci
 
+    def get_asset(self, asset):
+        balance = self.app.format_amount(asset.balance, is_diff=False, decimal=asset.precision)
+        if asset.asset is 0:
+            return [AssetKey(0, ''), balance + ' SYS']
+        else:
+            return [AssetKey(asset.asset, asset.address), asset.address + ' (' + str(asset.asset) + ':' + asset.symbol + ') ' + balance]
+    
     def update(self):
         if self.app.wallet is None:
             return
@@ -637,6 +719,15 @@ class ReceiveScreen(CScreen):
         _list.reverse()
         requests_container = self.ids.requests_container
         requests_container.data = [self.get_card(item) for item in _list]
+
+        self.assets = copy.deepcopy(self.app.wallet.asset_synchronizer.get_assets())
+        c, u, x = self.app.wallet.get_balance()
+        self.assets.insert(0, AssetItem(asset=0,address='',
+                    symbol='',
+                    balance=c,
+                    precision=self.app.decimal_point()))
+        self.asset_e = self.ids.asset_e
+        self.asset_e.items = [self.get_asset(asset) for asset in self.assets]
 
     def show_item(self, obj):
         self.app.show_request(obj.is_lightning, obj.key)
