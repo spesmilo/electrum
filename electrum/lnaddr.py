@@ -170,7 +170,7 @@ def pull_tagged(stream):
     length = stream.read(5).uint * 32 + stream.read(5).uint
     return (CHARSET[tag], stream.read(length * 5), stream)
 
-def lnencode(addr: 'LnAddr', privkey):
+def lnencode(addr: 'LnAddr', privkey) -> str:
     if addr.amount:
         amount = Decimal(str(addr.amount))
         # We can only send down to millisatoshi.

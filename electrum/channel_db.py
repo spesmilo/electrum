@@ -39,7 +39,7 @@ from . import constants
 from .util import bh2u, profiler, get_headers_dir, bfh, is_ip_address, list_enabled_bits
 from .logging import Logger
 from .lnutil import (LNPeerAddr, format_short_channel_id, ShortChannelID,
-                     UnknownEvenFeatureBits, validate_features)
+                     validate_features, IncompatibleOrInsaneFeatures)
 from .lnverifier import LNChannelVerifier, verify_sig_for_channel_update
 from .lnmsg import decode_msg
 
@@ -331,8 +331,8 @@ class ChannelDB(SqlDB):
                 continue
             try:
                 channel_info = ChannelInfo.from_msg(msg)
-            except UnknownEvenFeatureBits:
-                self.logger.info("unknown feature bits")
+            except IncompatibleOrInsaneFeatures as e:
+                self.logger.info(f"unknown or insane feature bits: {e!r}")
                 continue
             if trusted:
                 added += 1
@@ -346,7 +346,7 @@ class ChannelDB(SqlDB):
     def add_verified_channel_info(self, msg: dict, *, capacity_sat: int = None) -> None:
         try:
             channel_info = ChannelInfo.from_msg(msg)
-        except UnknownEvenFeatureBits:
+        except IncompatibleOrInsaneFeatures:
             return
         channel_info = channel_info._replace(capacity_sat=capacity_sat)
         with self.lock:
@@ -499,7 +499,7 @@ class ChannelDB(SqlDB):
         for msg_payload in msg_payloads:
             try:
                 node_info, node_addresses = NodeInfo.from_msg(msg_payload)
-            except UnknownEvenFeatureBits:
+            except IncompatibleOrInsaneFeatures:
                 continue
             node_id = node_info.node_id
             # Ignore node if it has no associated channel (DoS protection)
@@ -593,11 +593,17 @@ class ChannelDB(SqlDB):
         self._recent_peers = sorted_node_ids[:self.NUM_MAX_RECENT_PEERS]
         c.execute("""SELECT * FROM channel_info""")
         for short_channel_id, msg in c:
-            ci = ChannelInfo.from_raw_msg(msg)
+            try:
+                ci = ChannelInfo.from_raw_msg(msg)
+            except IncompatibleOrInsaneFeatures:
+                continue
             self._channels[ShortChannelID.normalize(short_channel_id)] = ci
         c.execute("""SELECT * FROM node_info""")
         for node_id, msg in c:
-            node_info, node_addresses = NodeInfo.from_raw_msg(msg)
+            try:
+                node_info, node_addresses = NodeInfo.from_raw_msg(msg)
+            except IncompatibleOrInsaneFeatures:
+                continue
             # don't load node_addresses because they dont have timestamps
             self._nodes[node_id] = node_info
         c.execute("""SELECT * FROM policy""")
