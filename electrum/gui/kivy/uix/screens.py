@@ -286,11 +286,11 @@ class SendScreen(CScreen):
         precision = 8
         asset_symbol = None
         if amount and self.asset is not '':
-            asset = self.app.wallet.asset_synchronizer.get_asset(self.asset)
-            if asset is not None:
-                precision = asset.precision
-                asset_symbol = asset.symbol
-            self.amount = self.app.format_amount_and_units(None, asset_amount=amount, asset_symbol=asset_symbol, asset_precision=precision)
+            assetObj = self.app.wallet.asset_synchronizer.get_asset(self.asset)
+            if assetObj is not None:
+                self.amount = self.app.format_amount_and_units(None, asset_amount=amount, asset_symbol=assetObj.symbol, asset_precision=assetObj.precision)
+            else:
+                self.amount = self.app.format_amount_and_units(amount)
         else:
             self.amount = self.app.format_amount_and_units(amount) if amount else ''
         self.payment_request = None
@@ -351,28 +351,26 @@ class SendScreen(CScreen):
             key = item['id']
         else:
             raise Exception('unknown invoice type')
-        precision = 8
-        asset_symbol = None
         amount = '0'
         if item['amount'] and 'asset' in item and item['asset'] is not '':
-            asset = self.app.wallet.asset_synchronizer.get_asset(req.get('asset'))
+            asset = self.app.wallet.asset_synchronizer.get_asset(item['asset'])
             if asset is not None:
-                precision = asset.precision
-                asset_symbol = asset.symbol
-                amount = self.app.format_amount_and_units(None, asset_amount=amount, asset_symbol=asset_symbol, asset_precision=precision)
+                amount = self.app.format_amount_and_units(None, asset_amount=item['amount'], asset_symbol=asset.symbol, asset_precision=asset.precision)
+            else:
+                amount = self.app.format_amount_and_units(item['amount'])
         else:
             amount = self.app.format_amount_and_units(item['amount'] or 0)
         return {
             'is_lightning': invoice_type == PR_TYPE_LN,
-            'is_asset': invoice_type == PR_TYPE_ONCHAIN_ASSET,
             'asset': item['asset'] if 'asset' in item else '',
+            'asset_address': item['asset_address'] if 'asset_address' in item else '',
             'is_bip70': 'bip70' in item,
             'screen': self,
             'status': status,
             'status_str': status_str,
             'key': key,
             'memo': item['message'],
-            'amount': 'amount',
+            'amount': amount,
         }
 
     def do_clear(self):
@@ -389,14 +387,12 @@ class SendScreen(CScreen):
         self.address = pr.get_requestor()
         amount = pr.get_amount()
         asset_guid = pr.get_asset_guid()
-        precision = 8
-        asset_symbol = None
         if amount and asset_guid is not None and asset_guid is not '':
             asset = self.app.wallet.asset_synchronizer.get_asset(asset_guid)
             if asset is not None:
-                precision = asset.precision
-                asset_symbol = asset.symbol
-                self.amount = self.app.format_amount_and_units(None, asset_amount=amount, asset_symbol=asset_symbol, asset_precision=precision)
+                self.amount = self.app.format_amount_and_units(None, asset_amount=amount, asset_symbol=asset.symbol, asset_precision=asset.precision)
+            else:
+                self.amount = self.app.format_amount_and_units(amount)
         else:
             self.amount = self.app.format_amount_and_units(amount) if amount else ''              
         self.message = pr.get_memo()
@@ -435,13 +431,10 @@ class SendScreen(CScreen):
         if not self.amount:
             self.app.show_error(_('Please enter an amount'))
             return
-        asset_guid = None
+        asset = None
         precision = 8
         if self.asset_e.key is not None and self.asset_e.key.asset != 0:
             asset = self.app.wallet.asset_synchronizer.get_asset(self.asset_e.key.asset)
-            if asset is not None:
-                asset_guid = asset.asset
-                precision = asset.precision
         try:
             amount = self.app.get_amount(self.amount, decimal=precision)
         except:
@@ -458,7 +451,7 @@ class SendScreen(CScreen):
                     self.app.show_error(_('invalid syscoin address') + ':\n' + address)
                     return
                 outputs = [PartialTxOutput.from_address_and_value(address, amount)]
-            return self.app.wallet.create_invoice(asset_guid, outputs, message, self.payment_request, self.parsed_URI)
+            return self.app.wallet.create_invoice(asset, outputs, message, self.payment_request, self.parsed_URI)
 
     def do_save(self):
         invoice = self.read_invoice()
@@ -679,15 +672,13 @@ class ReceiveScreen(CScreen):
             key = req['rhash']
             address = req['invoice']
         amount = req.get('amount')
-        precision = 8
-        asset_symbol = None
         amountci = ''
         if amount and req.get('type') == PR_TYPE_ONCHAIN_ASSET:
             asset = self.app.wallet.asset_synchronizer.get_asset(req.get('asset'))
             if asset is not None:
-                precision = asset.precision
-                asset_symbol = asset.symbol
-            amountci = self.app.format_amount_and_units(None, asset_amount=amount, asset_symbol=asset_symbol, asset_precision=precision)
+                amountci = self.app.format_amount_and_units(None, asset_amount=amount, asset_symbol=asset.symbol, asset_precision=asset.precision)
+            else:
+                amountci = self.app.format_amount_and_units(amount)
         else:
             amountci = self.app.format_amount_and_units(amount) if amount else ''               
         description = req.get('message') or req.get('memo', '')  # TODO: a db upgrade would be needed to simplify that.
@@ -701,7 +692,6 @@ class ReceiveScreen(CScreen):
         ci['memo'] = description
         ci['status'] = status
         ci['status_str'] = status_str
-        ci['is_asset']: req.get('type') == PR_TYPE_ONCHAIN_ASSET
         ci['asset']: req.get('asset')
         return ci
 

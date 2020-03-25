@@ -18,7 +18,10 @@ Builder.load_string('''
 <InvoiceDialog@Popup>
     id: popup
     amount: 0
+    amount_str: ''
     title: ''
+    asset: ''
+    asset_address: ''
     data: ''
     description:''
     status_color: 1,1,1,1
@@ -40,11 +43,17 @@ Builder.load_string('''
                 data: root.data
                 name: _('Data')
             TopLabel:
+                text: _('Asset') + ':'                
+            RefLabel:
+                data: root.asset  
+            RefLabel:
+                data: root.asset_address                             
+            TopLabel:
                 text: _('Description') + ':'
             RefLabel:
                 data: root.description or _('No description')
             TopLabel:
-                text: _('Amount') + ': ' + app.format_amount_and_units(root.amount)
+                text: _('Amount') + ': ' + root.amount_str
             TopLabel:
                 text: _('Status') + ': ' + root.status_str
                 color: root.status_color
@@ -94,6 +103,17 @@ class InvoiceDialog(Factory.Popup):
         self.key = key
         r = self.app.wallet.get_invoice(key)
         self.amount = r.get('amount')
+        self.asset = str(r.get('asset', ''))
+        self.asset_address = r.get('asset_address', '')
+        if self.asset is not '':
+            assetObj = self.app.wallet.asset_synchronizer.get_asset(self.asset)
+            if assetObj is not None:
+                self.amount_str = self.app.format_amount_and_units(None, asset_amount=self.amount, asset_symbol=assetObj.symbol, asset_precision=assetObj.precision)
+            else:
+                self.amount_str = self.app.format_amount_and_units(self.amount)
+        else:
+            self.amount_str = self.app.format_amount_and_units(self.amount)
+            
         self.description = r.get('message') or r.get('memo','')
         self.is_lightning = r.get('type') == PR_TYPE_LN
         self.update_status()

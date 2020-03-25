@@ -14,6 +14,7 @@ Builder.load_string('''
     id: popup
     amount: 0
     amount_str: ''
+    asset: ''
     title: ''
     description:''
     data: ''
@@ -41,6 +42,10 @@ Builder.load_string('''
             RefLabel:
                 data: root.data
                 name: _('Request data')
+            TopLabel:
+                text: _('Asset') + ':'
+            RefLabel:
+                data: root.asset
             TopLabel:
                 text: _('Description') + ':'
             RefLabel:
@@ -91,11 +96,11 @@ class RequestDialog(Factory.Popup):
         self.key = key
         r = self.app.wallet.get_request(key)
         self.amount = r.get('amount')
-        asset_guid = r.get('asset', '')
-        if asset_guid != '':
-            asset = self.app.wallet.asset_synchronizer.get_asset(asset_guid)
-            if asset is not None:
-                self.amount_str = self.app.format_amount_and_units(None, asset_amount=self.amount, asset_symbol=asset.symbol, asset_precision=asset.precision)
+        self.asset = str(r.get('asset', ''))
+        if self.asset != '':
+            assetObj = self.app.wallet.asset_synchronizer.get_asset(self.asset)
+            if assetObj is not None:
+                self.amount_str = self.app.format_amount_and_units(None, asset_amount=self.amount, asset_symbol=assetObj.symbol, asset_precision=assetObj.precision)
             else:
                 self.amount_str = self.app.format_amount_and_units(self.amount)
         else:

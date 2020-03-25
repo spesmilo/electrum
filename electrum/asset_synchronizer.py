@@ -192,9 +192,9 @@ class AssetSynchronizer(Logger):
     def get_asset(self, asset_guid, asset_address=None, all_allocations = False):
         if asset_guid is None:
             return None
-        if self.asset_list_dict is None:
+        if self.asset_list_dict is None or int(asset_guid) not in self.asset_list_dict:
             return None
-        assets = self.asset_list_dict.get(asset_guid, {})
+        assets = self.asset_list_dict.get(int(asset_guid), {})
         if all_allocations is True:
             return iter(assets.values())
         elif asset_address is None:
