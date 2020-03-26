@@ -69,6 +69,7 @@ class Config(StoredObject):
     max_accepted_htlcs = attr.ib(type=int)
     initial_msat = attr.ib(type=int)
     reserve_sat = attr.ib(type=int)
+    htlc_minimum_msat = attr.ib(type=int)
 
 @attr.s
 class LocalConfig(Config):
@@ -80,7 +81,6 @@ class LocalConfig(Config):
 
 @attr.s
 class RemoteConfig(Config):
-    htlc_minimum_msat = attr.ib(type=int)
     next_per_commitment_point = attr.ib(type=bytes, converter=hex_to_bytes)
     current_per_commitment_point = attr.ib(default=None, type=bytes, converter=hex_to_bytes)
 

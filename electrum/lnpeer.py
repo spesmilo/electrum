@@ -504,11 +504,12 @@ class Peer(Logger):
             was_announced=False,
             current_commitment_signature=None,
             current_htlc_signatures=b'',
+            htlc_minimum_msat=1,
         )
         return local_config
 
     @log_exceptions
-    async def channel_establishment_flow(self, password: Optional[str], funding_tx: 'PartialTransaction', funding_sat: int, 
+    async def channel_establishment_flow(self, password: Optional[str], funding_tx: 'PartialTransaction', funding_sat: int,
                                          push_msat: int, temp_channel_id: bytes) -> Tuple[Channel, 'PartialTransaction']:
         await asyncio.wait_for(self.initialized, LN_P2P_NETWORK_TIMEOUT)
         feerate = self.lnworker.current_feerate_per_kw()
@@ -536,7 +537,7 @@ class Peer(Logger):
             max_htlc_value_in_flight_msat=local_config.max_htlc_value_in_flight_msat,
             channel_flags=0x00,  # not willing to announce channel
             channel_reserve_satoshis=local_config.reserve_sat,
-            htlc_minimum_msat=1,
+            htlc_minimum_msat=local_config.htlc_minimum_msat,
         )
         payload = await self.wait_for_message('accept_channel', temp_channel_id)
         remote_per_commitment_point = payload['first_per_commitment_point']
