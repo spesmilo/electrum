@@ -192,6 +192,7 @@ class ChannelsList(MyTreeView):
             items[self.Columns.LOCAL_BALANCE].setFont(QFont(MONOSPACE_FONT))
             items[self.Columns.REMOTE_BALANCE].setFont(QFont(MONOSPACE_FONT))
             self.model().insertRow(0, items)
+        self.sortByColumn(self.Columns.SHORT_CHANID, Qt.DescendingOrder)
 
     def update_can_send(self, lnworker):
         msg = _('Can send') + ' ' + self.parent.format_amount(lnworker.can_send())\
