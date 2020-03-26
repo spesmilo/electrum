@@ -913,7 +913,7 @@ class ElectrumWindow(App):
             return ''
         addr = None
         if self.send_screen:
-            addr = str(self.send_screen.screen.address)
+            addr = str(self.send_screen.address)
         if not addr:
             addr = self.wallet.dummy_address()
         outputs = [PartialTxOutput.from_address_and_value(addr, '!')]
@@ -1145,7 +1145,10 @@ class ElectrumWindow(App):
         from .uix.dialogs.amount_dialog import AmountDialog
         amount = screen.amount
         if amount:
-            amount, u = str(amount).split()
+            try:
+                amount, u = str(amount).split()
+            except ValueError:
+                amount = '0'
         def cb(amount):
             if screen.asset_e is not None and screen.asset_e.key is not None and screen.asset_e.key.asset != 0:
                 asset = self.wallet.asset_synchronizer.get_asset(screen.asset_e.key.asset, screen.asset_e.key.address)
