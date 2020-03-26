@@ -1,13 +1,20 @@
 import asyncio
 import binascii
+from typing import TYPE_CHECKING
+
 from kivy.lang import Builder
 from kivy.factory import Factory
 from kivy.uix.popup import Popup
 from kivy.clock import Clock
+
 from electrum.util import bh2u
 from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id
 from electrum.gui.kivy.i18n import _
 from .question import Question
+
+if TYPE_CHECKING:
+    from ...main_window import ElectrumWindow
+
 
 Builder.load_string(r'''
 <LightningChannelItem@CardItem>
@@ -267,7 +274,7 @@ class ChannelDetailsPopup(Popup):
 
 class LightningChannelsDialog(Factory.Popup):
 
-    def __init__(self, app):
+    def __init__(self, app: 'ElectrumWindow'):
         super(LightningChannelsDialog, self).__init__()
         self.clocks = []
         self.app = app
@@ -321,5 +328,5 @@ class LightningChannelsDialog(Factory.Popup):
 
     def update_can_send(self):
         lnworker = self.app.wallet.lnworker
-        self.can_send = self.app.format_amount_and_units(lnworker.can_send())
-        self.can_receive = self.app.format_amount_and_units(lnworker.can_receive())
+        self.can_send = self.app.format_amount_and_units(lnworker.num_sats_can_send())
+        self.can_receive = self.app.format_amount_and_units(lnworker.num_sats_can_receive())
