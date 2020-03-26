@@ -390,7 +390,22 @@ class Channel(Logger):
     def is_redeemed(self):
         return self.get_state() == channel_states.REDEEMED
 
-    def _check_can_pay(self, amount_msat: int) -> None:
+    def is_frozen(self) -> bool:
+        """Whether the user has marked this channel as frozen.
+        Frozen channels are not supposed to be used for new outgoing payments.
+        (note that payment-forwarding ignores this option)
+        """
+        return self.storage.get('frozen_for_sending', False)
+
+    def set_frozen(self, b: bool) -> None:
+        self.storage['frozen_for_sending'] = bool(b)
+        if self.lnworker:
+            self.lnworker.network.trigger_callback('channel', self)
+
+    def _assert_we_can_add_htlc(self, amount_msat: int) -> None:
+        """Raises PaymentFailure if the local party cannot add this new HTLC.
+        (this is relevant both for payments initiated by us and when forwarding)
+        """
         # TODO check if this method uses correct ctns (should use "latest" + 1)
         if self.is_closed():
             raise PaymentFailure('Channel closed')
@@ -398,6 +413,8 @@ class Channel(Logger):
             raise PaymentFailure('Channel not open', self.get_state())
         if not self.can_send_ctx_updates():
             raise PaymentFailure('Channel cannot send ctx updates')
+        if not self.can_send_update_add_htlc():
+            raise PaymentFailure('Channel cannot add htlc')
         if self.available_to_spend(LOCAL) < amount_msat:
             raise PaymentFailure(f'Not enough local balance. Have: {self.available_to_spend(LOCAL)}, Need: {amount_msat}')
         if len(self.hm.htlcs(LOCAL)) + 1 > self.config[REMOTE].max_accepted_htlcs:
@@ -409,9 +426,14 @@ class Channel(Logger):
         if amount_msat < self.config[REMOTE].htlc_minimum_msat:
             raise PaymentFailure(f'HTLC value too small: {amount_msat} msat')
 
-    def can_pay(self, amount_msat):
+    def can_pay(self, amount_msat: int) -> bool:
+        """Returns whether we can initiate a new payment of given value.
+        (we are the payer, not just a forwarding node)
+        """
+        if self.is_frozen():
+            return False
         try:
-            self._check_can_pay(amount_msat)
+            self._assert_we_can_add_htlc(amount_msat)
         except PaymentFailure:
             return False
         return True
@@ -430,11 +452,10 @@ class Channel(Logger):
 
         This docstring is from LND.
         """
-        assert self.can_send_ctx_updates(), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}"
         if isinstance(htlc, dict):  # legacy conversion  # FIXME remove
             htlc = UpdateAddHtlc(**htlc)
         assert isinstance(htlc, UpdateAddHtlc)
-        self._check_can_pay(htlc.amount_msat)
+        self._assert_we_can_add_htlc(htlc.amount_msat)
         if htlc.htlc_id is None:
             htlc = attr.evolve(htlc, htlc_id=self.hm.get_next_htlc_id(LOCAL))
         with self.db_lock:

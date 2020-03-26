@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 import traceback
 from enum import IntEnum
+from typing import Sequence, Optional
 
 from PyQt5 import QtCore, QtGui
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit,
                              QPushButton, QAbstractItemView)
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QStandardItem, QBrush
 
 from electrum.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
 from electrum.i18n import _
@@ -15,7 +16,7 @@ from electrum.wallet import Abstract_Wallet
 from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id, LN_MAX_FUNDING_SAT
 
 from .util import (MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton,
-                   EnterButton, WaitingDialog, MONOSPACE_FONT)
+                   EnterButton, WaitingDialog, MONOSPACE_FONT, ColorScheme)
 from .amountedit import BTCAmountEdit, FreezableLineEdit
 
 
@@ -42,6 +43,8 @@ class ChannelsList(MyTreeView):
         Columns.REMOTE_BALANCE: _('Remote'),
         Columns.CHANNEL_STATUS: _('Status'),
     }
+
+    _default_item_bg_brush = None  # type: Optional[QBrush]
 
     def __init__(self, parent):
         super().__init__(parent, self.create_menu, stretch_column=self.Columns.NODE_ID,
@@ -141,6 +144,12 @@ class ChannelsList(MyTreeView):
         cc = self.add_copy_menu(menu, idx)
         cc.addAction(_("Long Channel ID"), lambda: self.place_text_on_clipboard(channel_id.hex(),
                                                                                 title=_("Long Channel ID")))
+
+        if not chan.is_frozen():
+            menu.addAction(_("Freeze"), lambda: chan.set_frozen(True))
+        else:
+            menu.addAction(_("Unfreeze"), lambda: chan.set_frozen(False))
+
         funding_tx = self.parent.wallet.db.get_transaction(chan.funding_outpoint.txid)
         if funding_tx:
             menu.addAction(_("View funding transaction"), lambda: self.parent.show_transaction(funding_tx))
@@ -169,9 +178,12 @@ class ChannelsList(MyTreeView):
             return
         for row in range(self.model().rowCount()):
             item = self.model().item(row, self.Columns.NODE_ID)
-            if item.data(ROLE_CHANNEL_ID) == chan.channel_id:
-                for column, v in enumerate(self.format_fields(chan)):
-                    self.model().item(row, column).setData(v, QtCore.Qt.DisplayRole)
+            if item.data(ROLE_CHANNEL_ID) != chan.channel_id:
+                continue
+            for column, v in enumerate(self.format_fields(chan)):
+                self.model().item(row, column).setData(v, QtCore.Qt.DisplayRole)
+            items = [self.model().item(row, column) for column in self.Columns]
+            self._update_chan_frozen_bg(chan=chan, items=items)
         self.update_can_send(lnworker)
 
     @QtCore.pyqtSlot(Abstract_Wallet)
@@ -187,12 +199,30 @@ class ChannelsList(MyTreeView):
         for chan in lnworker.channels.values():
             items = [QtGui.QStandardItem(x) for x in self.format_fields(chan)]
             self.set_editability(items)
+            if self._default_item_bg_brush is None:
+                self._default_item_bg_brush = items[self.Columns.NODE_ID].background()
             items[self.Columns.NODE_ID].setData(chan.channel_id, ROLE_CHANNEL_ID)
             items[self.Columns.NODE_ID].setFont(QFont(MONOSPACE_FONT))
             items[self.Columns.LOCAL_BALANCE].setFont(QFont(MONOSPACE_FONT))
             items[self.Columns.REMOTE_BALANCE].setFont(QFont(MONOSPACE_FONT))
+            self._update_chan_frozen_bg(chan=chan, items=items)
             self.model().insertRow(0, items)
         self.sortByColumn(self.Columns.SHORT_CHANID, Qt.DescendingOrder)
+
+    def _update_chan_frozen_bg(self, *, chan: Channel, items: Sequence[QStandardItem]):
+        assert self._default_item_bg_brush is not None
+        for col in [
+            self.Columns.LOCAL_BALANCE,
+            self.Columns.REMOTE_BALANCE,
+            self.Columns.CHANNEL_STATUS,
+        ]:
+            item = items[col]
+            if chan.is_frozen():
+                item.setBackground(ColorScheme.BLUE.as_color(True))
+                item.setToolTip(_("This channel is frozen. Frozen channels will not be used for outgoing payments."))
+            else:
+                item.setBackground(self._default_item_bg_brush)
+                item.setToolTip("")
 
     def update_can_send(self, lnworker):
         msg = _('Can send') + ' ' + self.parent.format_amount(lnworker.can_send())\
