@@ -20,7 +20,8 @@ from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
                              QAbstractItemView, QVBoxLayout, QLineEdit,
                              QStyle, QDialog, QGroupBox, QButtonGroup, QRadioButton,
                              QFileDialog, QWidget, QToolButton, QTreeView, QPlainTextEdit,
-                             QHeaderView, QApplication, QToolTip, QTreeWidget, QStyledItemDelegate)
+                             QHeaderView, QApplication, QToolTip, QTreeWidget, QStyledItemDelegate,
+                             QMenu)
 
 from electrum.i18n import _, languages
 from electrum.util import FileImportFailed, FileExportFailed, make_aiohttp_session, resource_path
@@ -658,7 +659,7 @@ class MyTreeView(QTreeView):
     def toggle_toolbar(self, config=None):
         self.show_toolbar(not self.toolbar_shown, config)
 
-    def add_copy_menu(self, menu, idx):
+    def add_copy_menu(self, menu: QMenu, idx) -> QMenu:
         cc = menu.addMenu(_("Copy"))
         for column in self.Columns:
             column_title = self.model().horizontalHeaderItem(column).text()
@@ -669,6 +670,7 @@ class MyTreeView(QTreeView):
             cc.addAction(column_title,
                          lambda text=clipboard_data, title=column_title:
                          self.place_text_on_clipboard(text, title=title))
+        return cc
 
     def place_text_on_clipboard(self, text: str, *, title: str = None) -> None:
         self.parent.do_copy(text, title=title)

@@ -203,7 +203,7 @@ class LNWorker(Logger):
                 if last_tried + PEER_RETRY_INTERVAL < now:
                     await self._add_peer(peer.host, peer.port, peer.pubkey)
 
-    async def _add_peer(self, host, port, node_id):
+    async def _add_peer(self, host, port, node_id) -> Peer:
         if node_id in self.peers:
             return self.peers[node_id]
         port = int(port)
