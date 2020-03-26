@@ -146,10 +146,15 @@ class ChannelsList(MyTreeView):
         cc.addAction(_("Long Channel ID"), lambda: self.place_text_on_clipboard(channel_id.hex(),
                                                                                 title=_("Long Channel ID")))
 
-        if not chan.is_frozen():
-            menu.addAction(_("Freeze"), lambda: chan.set_frozen(True))
+        if not chan.is_frozen_for_sending():
+            menu.addAction(_("Freeze (for sending)"), lambda: chan.set_frozen_for_sending(True))
         else:
-            menu.addAction(_("Unfreeze"), lambda: chan.set_frozen(False))
+            menu.addAction(_("Unfreeze (for sending)"), lambda: chan.set_frozen_for_sending(False))
+        if not chan.is_frozen_for_receiving():
+            menu.addAction(_("Freeze (for receiving)"), lambda: chan.set_frozen_for_receiving(True))
+        else:
+            menu.addAction(_("Unfreeze (for receiving)"), lambda: chan.set_frozen_for_receiving(False))
+
 
         funding_tx = self.parent.wallet.db.get_transaction(chan.funding_outpoint.txid)
         if funding_tx:
@@ -212,18 +217,22 @@ class ChannelsList(MyTreeView):
 
     def _update_chan_frozen_bg(self, *, chan: Channel, items: Sequence[QStandardItem]):
         assert self._default_item_bg_brush is not None
-        for col in [
-            self.Columns.LOCAL_BALANCE,
-            self.Columns.REMOTE_BALANCE,
-            self.Columns.CHANNEL_STATUS,
-        ]:
-            item = items[col]
-            if chan.is_frozen():
-                item.setBackground(ColorScheme.BLUE.as_color(True))
-                item.setToolTip(_("This channel is frozen. Frozen channels will not be used for outgoing payments."))
-            else:
-                item.setBackground(self._default_item_bg_brush)
-                item.setToolTip("")
+        # frozen for sending
+        item = items[self.Columns.LOCAL_BALANCE]
+        if chan.is_frozen_for_sending():
+            item.setBackground(ColorScheme.BLUE.as_color(True))
+            item.setToolTip(_("This channel is frozen for sending. It will not be used for outgoing payments."))
+        else:
+            item.setBackground(self._default_item_bg_brush)
+            item.setToolTip("")
+        # frozen for receiving
+        item = items[self.Columns.REMOTE_BALANCE]
+        if chan.is_frozen_for_receiving():
+            item.setBackground(ColorScheme.BLUE.as_color(True))
+            item.setToolTip(_("This channel is frozen for receiving. It will not be included in invoices."))
+        else:
+            item.setBackground(self._default_item_bg_brush)
+            item.setToolTip("")
 
     def update_can_send(self, lnworker: LNWallet):
         msg = _('Can send') + ' ' + self.parent.format_amount(lnworker.num_sats_can_send())\

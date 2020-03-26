@@ -392,15 +392,27 @@ class Channel(Logger):
     def is_redeemed(self):
         return self.get_state() == channel_states.REDEEMED
 
-    def is_frozen(self) -> bool:
-        """Whether the user has marked this channel as frozen.
+    def is_frozen_for_sending(self) -> bool:
+        """Whether the user has marked this channel as frozen for sending.
         Frozen channels are not supposed to be used for new outgoing payments.
         (note that payment-forwarding ignores this option)
         """
         return self.storage.get('frozen_for_sending', False)
 
-    def set_frozen(self, b: bool) -> None:
+    def set_frozen_for_sending(self, b: bool) -> None:
         self.storage['frozen_for_sending'] = bool(b)
+        if self.lnworker:
+            self.lnworker.network.trigger_callback('channel', self)
+
+    def is_frozen_for_receiving(self) -> bool:
+        """Whether the user has marked this channel as frozen for receiving.
+        Frozen channels are not supposed to be used for new incoming payments.
+        (note that payment-forwarding ignores this option)
+        """
+        return self.storage.get('frozen_for_receiving', False)
+
+    def set_frozen_for_receiving(self, b: bool) -> None:
+        self.storage['frozen_for_receiving'] = bool(b)
         if self.lnworker:
             self.lnworker.network.trigger_callback('channel', self)
 
@@ -437,14 +449,22 @@ class Channel(Logger):
         if amount_msat > LN_MAX_HTLC_VALUE_MSAT and not self._ignore_max_htlc_value:
             raise PaymentFailure(f"HTLC value over protocol maximum: {amount_msat} > {LN_MAX_HTLC_VALUE_MSAT} msat")
 
-    def can_pay(self, amount_msat: int) -> bool:
-        """Returns whether we can initiate a new payment of given value.
-        (we are the payer, not just a forwarding node)
-        """
-        if self.is_frozen():
+    def can_pay(self, amount_msat: int, *, check_frozen=False) -> bool:
+        """Returns whether we can add an HTLC of given value."""
+        if check_frozen and self.is_frozen_for_sending():
             return False
         try:
             self._assert_can_add_htlc(htlc_proposer=LOCAL, amount_msat=amount_msat)
+        except PaymentFailure:
+            return False
+        return True
+
+    def can_receive(self, amount_msat: int, *, check_frozen=False) -> bool:
+        """Returns whether the remote can add an HTLC of given value."""
+        if check_frozen and self.is_frozen_for_receiving():
+            return False
+        try:
+            self._assert_can_add_htlc(htlc_proposer=REMOTE, amount_msat=amount_msat)
         except PaymentFailure:
             return False
         return True

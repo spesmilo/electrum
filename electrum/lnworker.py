@@ -1266,12 +1266,7 @@ class LNWallet(LNWorker):
                                if chan.short_channel_id is not None}
         # note: currently we add *all* our channels; but this might be a privacy leak?
         for chan in channels:
-            # check channel is open
-            if chan.get_state() != channel_states.OPEN:
-                continue
-            # check channel has sufficient balance
-            # FIXME because of on-chain fees of ctx, this check is insufficient
-            if amount_sat and chan.balance(REMOTE) // 1000 < amount_sat:
+            if not chan.can_receive(amount_sat, check_frozen=True):
                 continue
             chan_id = chan.short_channel_id
             assert isinstance(chan_id, bytes), chan_id
