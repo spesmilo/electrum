@@ -171,7 +171,7 @@ if [[ $1 == "redeem_htlcs" ]]; then
     new_blocks 3
     wait_until_channel_open alice
     # alice pays bob
-    invoice=$($bob add_lightning_request 0.05 -m "test")
+    invoice=$($bob add_lightning_request 0.04 -m "test")
     $alice lnpay $invoice --timeout=1 || true
     unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
     if [[ "$unsettled" == "0" ]]; then
@@ -213,7 +213,7 @@ if [[ $1 == "breach_with_unspent_htlc" ]]; then
     new_blocks 3
     wait_until_channel_open alice
     echo "alice pays bob"
-    invoice=$($bob add_lightning_request 0.05 -m "test")
+    invoice=$($bob add_lightning_request 0.04 -m "test")
     $alice lnpay $invoice --timeout=1 || true
     unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
     if [[ "$unsettled" == "0" ]]; then
@@ -242,7 +242,7 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     new_blocks 3
     wait_until_channel_open alice
     echo "alice pays bob"
-    invoice=$($bob add_lightning_request 0.05 -m "test")
+    invoice=$($bob add_lightning_request 0.04 -m "test")
     $alice lnpay $invoice --timeout=1 || true
     ctx=$($alice get_channel_ctx $channel --iknowwhatimdoing)
     unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
@@ -284,7 +284,7 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     $bob daemon -d
     sleep 1
     $bob load_wallet
-    wait_for_balance bob 0.049
+    wait_for_balance bob 0.039
     $bob getbalance
 fi
 

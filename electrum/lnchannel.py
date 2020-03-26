@@ -44,13 +44,14 @@ from .logging import Logger
 from .lnonion import decode_onion_error, OnionFailureCode, OnionRoutingFailureMessage
 from . import lnutil
 from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKeypair, ChannelConstraints,
-                    get_per_commitment_secret_from_seed, secret_to_pubkey, derive_privkey, make_closing_tx,
-                    sign_and_get_sig_string, RevocationStore, derive_blinded_pubkey, Direction, derive_pubkey,
-                    make_htlc_tx_with_open_channel, make_commitment, make_received_htlc, make_offered_htlc,
-                    HTLC_TIMEOUT_WEIGHT, HTLC_SUCCESS_WEIGHT, extract_ctn_from_tx_and_chan, UpdateAddHtlc,
-                    funding_output_script, SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, make_commitment_outputs,
-                    ScriptHtlc, PaymentFailure, calc_onchain_fees, RemoteMisbehaving, make_htlc_output_witness_script,
-                    ShortChannelID, map_htlcs_to_ctx_output_idxs, LNPeerAddr, BarePaymentAttemptLog)
+                     get_per_commitment_secret_from_seed, secret_to_pubkey, derive_privkey, make_closing_tx,
+                     sign_and_get_sig_string, RevocationStore, derive_blinded_pubkey, Direction, derive_pubkey,
+                     make_htlc_tx_with_open_channel, make_commitment, make_received_htlc, make_offered_htlc,
+                     HTLC_TIMEOUT_WEIGHT, HTLC_SUCCESS_WEIGHT, extract_ctn_from_tx_and_chan, UpdateAddHtlc,
+                     funding_output_script, SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, make_commitment_outputs,
+                     ScriptHtlc, PaymentFailure, calc_onchain_fees, RemoteMisbehaving, make_htlc_output_witness_script,
+                     ShortChannelID, map_htlcs_to_ctx_output_idxs, LNPeerAddr, BarePaymentAttemptLog,
+                     LN_MAX_HTLC_VALUE_MSAT)
 from .lnsweep import create_sweeptxs_for_our_ctx, create_sweeptxs_for_their_ctx
 from .lnsweep import create_sweeptx_for_their_revoked_htlc, SweepInfo
 from .lnhtlc import HTLCManager
@@ -159,6 +160,7 @@ class Channel(Logger):
         self.revocation_store = RevocationStore(state["revocation_store"])
         self._can_send_ctx_updates = True  # type: bool
         self._receive_fail_reasons = {}  # type: Dict[int, BarePaymentAttemptLog]
+        self._ignore_max_htlc_value = False  # used in tests
 
     def get_id_for_log(self) -> str:
         scid = self.short_channel_id
@@ -425,6 +427,8 @@ class Channel(Logger):
             raise PaymentFailure(f'HTLC value sum (sum of pending htlcs: {current_htlc_sum/1000} sat plus new htlc: {amount_msat/1000} sat) would exceed max allowed: {self.config[REMOTE].max_htlc_value_in_flight_msat/1000} sat')
         if amount_msat < self.config[REMOTE].htlc_minimum_msat:
             raise PaymentFailure(f'HTLC value too small: {amount_msat} msat')
+        if amount_msat > LN_MAX_HTLC_VALUE_MSAT and not self._ignore_max_htlc_value:
+            raise PaymentFailure(f"HTLC value over protocol maximum: {amount_msat} > {LN_MAX_HTLC_VALUE_MSAT} msat")
 
     def can_pay(self, amount_msat: int) -> bool:
         """Returns whether we can initiate a new payment of given value.
