@@ -120,6 +120,7 @@ class ChannelsList(MyTreeView):
 
     def create_menu(self, position):
         menu = QMenu()
+        menu.setSeparatorsCollapsible(True)  # consecutive separators are merged together
         idx = self.selectionModel().currentIndex()
         item = self.model().itemFromIndex(idx)
         if not item:
@@ -127,14 +128,18 @@ class ChannelsList(MyTreeView):
         channel_id = idx.sibling(idx.row(), self.Columns.NODE_ID).data(ROLE_CHANNEL_ID)
         chan = self.lnworker.channels[channel_id]
         menu.addAction(_("Details..."), lambda: self.parent.show_channel(channel_id))
-        self.add_copy_menu(menu, idx)
+        cc = self.add_copy_menu(menu, idx)
+        cc.addAction(_("Long Channel ID"), lambda: self.place_text_on_clipboard(channel_id.hex(),
+                                                                                title=_("Long Channel ID")))
         funding_tx = self.parent.wallet.db.get_transaction(chan.funding_outpoint.txid)
         if funding_tx:
             menu.addAction(_("View funding transaction"), lambda: self.parent.show_transaction(funding_tx))
         if not chan.is_closed():
+            menu.addSeparator()
             if chan.peer_state == peer_states.GOOD:
                 menu.addAction(_("Close channel"), lambda: self.close_channel(channel_id))
             menu.addAction(_("Force-close channel"), lambda: self.force_close(channel_id))
+            menu.addSeparator()
         else:
             item = chan.get_closing_height()
             if item:
@@ -143,6 +148,7 @@ class ChannelsList(MyTreeView):
                 if closing_tx:
                     menu.addAction(_("View closing transaction"), lambda: self.parent.show_transaction(closing_tx))
         if chan.is_redeemed():
+            menu.addSeparator()
             menu.addAction(_("Delete"), lambda: self.remove_channel(channel_id))
         menu.exec_(self.viewport().mapToGlobal(position))
 
