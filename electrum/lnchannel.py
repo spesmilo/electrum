@@ -664,20 +664,28 @@ class Channel(Logger):
                                         ctn=ctn,
                                         initial_balance_msat=initial)
 
-    def balance_minus_outgoing_htlcs(self, whose: HTLCOwner, *, ctx_owner: HTLCOwner = HTLCOwner.LOCAL):
+    def balance_minus_outgoing_htlcs(self, whose: HTLCOwner, *, ctx_owner: HTLCOwner = HTLCOwner.LOCAL,
+                                     ctn: int = None):
         """
         This balance in mSAT, which includes the value of
         pending outgoing HTLCs, is used in the UI.
         """
         assert type(whose) is HTLCOwner
-        ctn = self.get_next_ctn(ctx_owner)
-        return self.balance(whose, ctx_owner=ctx_owner, ctn=ctn) - self.unsettled_sent_balance(ctx_owner)
+        if ctn is None:
+            ctn = self.get_next_ctn(ctx_owner)
+        committed_balance = self.balance(whose, ctx_owner=ctx_owner, ctn=ctn)
+        direction = RECEIVED if whose != ctx_owner else SENT
+        balance_in_htlcs = self.balance_tied_up_in_htlcs_by_direction(ctx_owner, ctn=ctn, direction=direction)
+        return committed_balance - balance_in_htlcs
 
-    def unsettled_sent_balance(self, subject: HTLCOwner = LOCAL):
-        ctn = self.get_next_ctn(subject)
-        return htlcsum(self.hm.htlcs_by_direction(subject, SENT, ctn).values())
+    def balance_tied_up_in_htlcs_by_direction(self, ctx_owner: HTLCOwner = LOCAL, *, ctn: int = None,
+                                              direction: Direction):
+        # in msat
+        if ctn is None:
+            ctn = self.get_next_ctn(ctx_owner)
+        return htlcsum(self.hm.htlcs_by_direction(ctx_owner, direction, ctn).values())
 
-    def available_to_spend(self, subject):
+    def available_to_spend(self, subject: HTLCOwner) -> int:
         """
         This balance in mSAT, while technically correct, can
         not be used in the UI cause it fluctuates (commit fee)
@@ -685,14 +693,17 @@ class Channel(Logger):
         # FIXME whose balance? whose ctx?
         # FIXME confusing/mixing ctns (should probably use latest_ctn + 1; not oldest_unrevoked + 1)
         assert type(subject) is HTLCOwner
-        return self.balance_minus_outgoing_htlcs(subject, ctx_owner=subject)\
-                - self.config[-subject].reserve_sat * 1000\
-                - calc_onchain_fees(
-                      # TODO should we include a potential new htlc, when we are called from receive_htlc?
-                      len(self.included_htlcs(subject, SENT) + self.included_htlcs(subject, RECEIVED)),
-                      self.get_latest_feerate(subject),
-                      self.constraints.is_initiator,
-                  )[subject]
+        ctx_owner = subject.inverted()
+        ctn = self.get_next_ctn(ctx_owner)
+        balance = self.balance_minus_outgoing_htlcs(whose=subject, ctx_owner=ctx_owner, ctn=ctn)
+        reserve = self.config[-subject].reserve_sat * 1000
+        # TODO should we include a potential new htlc, when we are called from receive_htlc?
+        fees = calc_onchain_fees(
+            num_htlcs=len(self.included_htlcs(ctx_owner, SENT, ctn=ctn) + self.included_htlcs(ctx_owner, RECEIVED, ctn=ctn)),
+            feerate=self.get_feerate(ctx_owner, ctn=ctn),
+            is_local_initiator=self.constraints.is_initiator,
+        )[subject]
+        return balance - reserve - fees
 
     def included_htlcs(self, subject, direction, ctn=None):
         """
@@ -877,10 +888,12 @@ class Channel(Logger):
                     local_htlc_pubkey=this_htlc_pubkey,
                     payment_hash=htlc.payment_hash,
                     cltv_expiry=htlc.cltv_expiry), htlc))
+        # note: maybe flip initiator here for fee purposes, we want LOCAL and REMOTE
+        #       in the resulting dict to correspond to the to_local and to_remote *outputs* of the ctx
         onchain_fees = calc_onchain_fees(
-            len(htlcs),
-            feerate,
-            self.constraints.is_initiator == (subject == LOCAL),
+            num_htlcs=len(htlcs),
+            feerate=feerate,
+            is_local_initiator=self.constraints.is_initiator == (subject == LOCAL),
         )
         if self.is_static_remotekey_enabled():
             payment_pubkey = other_config.payment_basepoint.pubkey
