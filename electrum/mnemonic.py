@@ -137,6 +137,7 @@ class Wordlist(tuple):
 filenames = {
     'en':'english.txt',
     'es':'spanish.txt',
+    'fr':'french.txt',
     'ja':'japanese.txt',
     'pt':'portuguese.txt',
     'zh':'chinese_simplified.txt'
