@@ -931,6 +931,11 @@ class ElectrumWindow(App):
         amount = tx.output_value()
         __, x_fee_amount = run_hook('get_tx_extra_fee', self.wallet, tx) or (None, 0)
         amount_after_all_fees = amount - x_fee_amount
+        if self.send_screen:
+            if self.send_screen.asset_e is not None and self.send_screen.asset_e.key is not None and self.send_screen.asset_e.key.asset != 0:
+                asset = self.wallet.asset_synchronizer.get_asset(self.send_screen.asset_e.key.asset, self.send_screen.asset_e.key.address)
+                if asset is not None:
+                    return format_satoshis_plain(asset.balance, asset.precision)
         return format_satoshis_plain(amount_after_all_fees, self.decimal_point())
 
     def base_asset_unit(self, asset_symbol):
