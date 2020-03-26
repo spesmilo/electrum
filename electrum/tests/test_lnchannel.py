@@ -605,21 +605,28 @@ class TestChannel(ElectrumTestCase):
 class TestAvailableToSpend(ElectrumTestCase):
     def test_DesyncHTLCs(self):
         alice_channel, bob_channel = create_test_channels()
+        self.assertEqual(499995656000, alice_channel.available_to_spend(LOCAL))
+        self.assertEqual(500000000000, bob_channel.available_to_spend(LOCAL))
 
         paymentPreimage = b"\x01" * 32
         paymentHash = bitcoin.sha256(paymentPreimage)
         htlc_dict = {
             'payment_hash' : paymentHash,
-            'amount_msat' :  int(4.1 * one_bitcoin_in_msat),
+            'amount_msat' :  one_bitcoin_in_msat * 41 // 10,
             'cltv_expiry' :  5,
             'timestamp'   :  0,
         }
 
         alice_idx = alice_channel.add_htlc(htlc_dict).htlc_id
         bob_idx = bob_channel.receive_htlc(htlc_dict).htlc_id
+        self.assertEqual(89994624000, alice_channel.available_to_spend(LOCAL))
+        self.assertEqual(500000000000, bob_channel.available_to_spend(LOCAL))
+
         force_state_transition(alice_channel, bob_channel)
         bob_channel.fail_htlc(bob_idx)
         alice_channel.receive_fail_htlc(alice_idx, error_bytes=None)
+        self.assertEqual(89994624000, alice_channel.available_to_spend(LOCAL))
+        self.assertEqual(500000000000, bob_channel.available_to_spend(LOCAL))
         # Alice now has gotten all her original balance (5 BTC) back, however,
         # adding a new HTLC at this point SHOULD fail, since if she adds the
         # HTLC and signs the next state, Bob cannot assume she received the
@@ -638,6 +645,8 @@ class TestAvailableToSpend(ElectrumTestCase):
         # Now do a state transition, which will ACK the FailHTLC, making Alice
         # able to add the new HTLC.
         force_state_transition(alice_channel, bob_channel)
+        self.assertEqual(499995656000, alice_channel.available_to_spend(LOCAL))
+        self.assertEqual(500000000000, bob_channel.available_to_spend(LOCAL))
         alice_channel.add_htlc(htlc_dict)
 
 class TestChanReserve(ElectrumTestCase):
