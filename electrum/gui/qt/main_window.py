@@ -1810,9 +1810,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                       broadcast_thread, broadcast_done, self.on_error)
 
     def update_assets(self):
-        self.network.run_from_another_thread(
-            self.wallet.asset_synchronizer.synchronize_assets(self.on_assets_updated)
-        )
+        if self.wallet:
+            self.network.run_from_another_thread(
+                self.wallet.asset_synchronizer.synchronize_assets(self.on_assets_updated)
+            )
 
     def mktx_for_open_channel(self, funding_sat):
         coins = self.get_coins(nonlocal_only=True)

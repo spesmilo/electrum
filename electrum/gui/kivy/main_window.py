@@ -968,7 +968,8 @@ class ElectrumWindow(App):
                         .format(asset.symbol, asset.asset, self.format_amount(asset.balance, decimal=asset.precision)))
 
     def update_assets(self, *dt):
-        asyncio.ensure_future(self.wallet.asset_synchronizer.synchronize_assets(self.on_assets_updated))
+        if self.wallet:
+            asyncio.ensure_future(self.wallet.asset_synchronizer.synchronize_assets(self.on_assets_updated))
 
     def notify(self, message):
         try:
