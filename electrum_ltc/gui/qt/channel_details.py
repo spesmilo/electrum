@@ -153,7 +153,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
 
         form_layout = QtWidgets.QFormLayout(None)
         # add form content
-        form_layout.addRow(_('Channel ID:'), SelectableLabel(chan.get_id_for_log()))
+        form_layout.addRow(_('Channel ID:'), SelectableLabel(f"{chan.channel_id.hex()} (Short: {chan.short_channel_id})"))
         form_layout.addRow(_('State:'), SelectableLabel(chan.get_state_for_GUI()))
         self.initiator = 'Local' if chan.constraints.is_initiator else 'Remote'
         form_layout.addRow(_('Initiator:'), SelectableLabel(self.initiator))

@@ -7,7 +7,7 @@ import os
 from decimal import Decimal
 import random
 import time
-from typing import Optional, Sequence, Tuple, List, Dict, TYPE_CHECKING, NamedTuple
+from typing import Optional, Sequence, Tuple, List, Dict, TYPE_CHECKING, NamedTuple, Union
 import threading
 import socket
 import json
@@ -203,7 +203,7 @@ class LNWorker(Logger):
                 if last_tried + PEER_RETRY_INTERVAL < now:
                     await self._add_peer(peer.host, peer.port, peer.pubkey)
 
-    async def _add_peer(self, host, port, node_id):
+    async def _add_peer(self, host, port, node_id) -> Peer:
         if node_id in self.peers:
             return self.peers[node_id]
         port = int(port)
@@ -1266,12 +1266,7 @@ class LNWallet(LNWorker):
                                if chan.short_channel_id is not None}
         # note: currently we add *all* our channels; but this might be a privacy leak?
         for chan in channels:
-            # check channel is open
-            if chan.get_state() != channel_states.OPEN:
-                continue
-            # check channel has sufficient balance
-            # FIXME because of on-chain fees of ctx, this check is insufficient
-            if amount_sat and chan.balance(REMOTE) // 1000 < amount_sat:
+            if not chan.can_receive(amount_sat, check_frozen=True):
                 continue
             chan_id = chan.short_channel_id
             assert isinstance(chan_id, bytes), chan_id
@@ -1314,11 +1309,11 @@ class LNWallet(LNWorker):
         with self.lock:
             return Decimal(sum(chan.balance(LOCAL) if not chan.is_closed() else 0 for chan in self.channels.values()))/1000
 
-    def can_send(self):
+    def num_sats_can_send(self) -> Union[Decimal, int]:
         with self.lock:
             return Decimal(max(chan.available_to_spend(LOCAL) if chan.is_open() else 0 for chan in self.channels.values()))/1000 if self.channels else 0
 
-    def can_receive(self):
+    def num_sats_can_receive(self) -> Union[Decimal, int]:
         with self.lock:
             return Decimal(max(chan.available_to_spend(REMOTE) if chan.is_open() else 0 for chan in self.channels.values()))/1000 if self.channels else 0
 

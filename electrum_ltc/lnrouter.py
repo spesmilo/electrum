@@ -205,11 +205,12 @@ class LNPathFinder(Logger):
             is_mine = edge_channel_id in my_channels
             if is_mine:
                 if edge_startnode == nodeA:  # payment outgoing, on our channel
-                    if not my_channels[edge_channel_id].can_pay(amount_msat):
+                    if not my_channels[edge_channel_id].can_pay(amount_msat, check_frozen=True):
                         return
                 else:  # payment incoming, on our channel. (funny business, cycle weirdness)
                     assert edge_endnode == nodeA, (bh2u(edge_startnode), bh2u(edge_endnode))
-                    pass  # TODO?
+                    if not my_channels[edge_channel_id].can_receive(amount_msat, check_frozen=True):
+                        return
             edge_cost, fee_for_edge_msat = self._edge_cost(
                 edge_channel_id,
                 start_node=edge_startnode,

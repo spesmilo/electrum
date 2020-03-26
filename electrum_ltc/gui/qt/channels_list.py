@@ -1,20 +1,23 @@
 # -*- coding: utf-8 -*-
 import traceback
 from enum import IntEnum
+from typing import Sequence, Optional
 
 from PyQt5 import QtCore, QtGui
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit, QPushButton
-from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import (QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit,
+                             QPushButton, QAbstractItemView)
+from PyQt5.QtGui import QFont, QStandardItem, QBrush
 
 from electrum_ltc.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
 from electrum_ltc.i18n import _
 from electrum_ltc.lnchannel import Channel, peer_states
 from electrum_ltc.wallet import Abstract_Wallet
 from electrum_ltc.lnutil import LOCAL, REMOTE, format_short_channel_id, LN_MAX_FUNDING_SAT
+from electrum_ltc.lnworker import LNWallet
 
 from .util import (MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton,
-                   EnterButton, WaitingDialog, MONOSPACE_FONT)
+                   EnterButton, WaitingDialog, MONOSPACE_FONT, ColorScheme)
 from .amountedit import BTCAmountEdit, FreezableLineEdit
 
 
@@ -42,10 +45,13 @@ class ChannelsList(MyTreeView):
         Columns.CHANNEL_STATUS: _('Status'),
     }
 
+    _default_item_bg_brush = None  # type: Optional[QBrush]
+
     def __init__(self, parent):
         super().__init__(parent, self.create_menu, stretch_column=self.Columns.NODE_ID,
                          editable_columns=[])
         self.setModel(QtGui.QStandardItemModel(self))
+        self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.main_window = parent
         self.update_rows.connect(self.do_update_rows)
         self.update_single_row.connect(self.do_update_single_row)
@@ -120,21 +126,45 @@ class ChannelsList(MyTreeView):
 
     def create_menu(self, position):
         menu = QMenu()
-        idx = self.selectionModel().currentIndex()
+        menu.setSeparatorsCollapsible(True)  # consecutive separators are merged together
+        selected = self.selected_in_column(self.Columns.NODE_ID)
+        if not selected:
+            return
+        multi_select = len(selected) > 1
+        if multi_select:
+            return
+        idx = self.indexAt(position)
+        if not idx.isValid():
+            return
         item = self.model().itemFromIndex(idx)
         if not item:
             return
         channel_id = idx.sibling(idx.row(), self.Columns.NODE_ID).data(ROLE_CHANNEL_ID)
         chan = self.lnworker.channels[channel_id]
         menu.addAction(_("Details..."), lambda: self.parent.show_channel(channel_id))
-        self.add_copy_menu(menu, idx)
+        cc = self.add_copy_menu(menu, idx)
+        cc.addAction(_("Long Channel ID"), lambda: self.place_text_on_clipboard(channel_id.hex(),
+                                                                                title=_("Long Channel ID")))
+
+        if not chan.is_frozen_for_sending():
+            menu.addAction(_("Freeze (for sending)"), lambda: chan.set_frozen_for_sending(True))
+        else:
+            menu.addAction(_("Unfreeze (for sending)"), lambda: chan.set_frozen_for_sending(False))
+        if not chan.is_frozen_for_receiving():
+            menu.addAction(_("Freeze (for receiving)"), lambda: chan.set_frozen_for_receiving(True))
+        else:
+            menu.addAction(_("Unfreeze (for receiving)"), lambda: chan.set_frozen_for_receiving(False))
+
+
         funding_tx = self.parent.wallet.db.get_transaction(chan.funding_outpoint.txid)
         if funding_tx:
             menu.addAction(_("View funding transaction"), lambda: self.parent.show_transaction(funding_tx))
         if not chan.is_closed():
+            menu.addSeparator()
             if chan.peer_state == peer_states.GOOD:
                 menu.addAction(_("Close channel"), lambda: self.close_channel(channel_id))
             menu.addAction(_("Force-close channel"), lambda: self.force_close(channel_id))
+            menu.addSeparator()
         else:
             item = chan.get_closing_height()
             if item:
@@ -143,19 +173,23 @@ class ChannelsList(MyTreeView):
                 if closing_tx:
                     menu.addAction(_("View closing transaction"), lambda: self.parent.show_transaction(closing_tx))
         if chan.is_redeemed():
+            menu.addSeparator()
             menu.addAction(_("Delete"), lambda: self.remove_channel(channel_id))
         menu.exec_(self.viewport().mapToGlobal(position))
 
     @QtCore.pyqtSlot(Channel)
-    def do_update_single_row(self, chan):
+    def do_update_single_row(self, chan: Channel):
         lnworker = self.parent.wallet.lnworker
         if not lnworker:
             return
         for row in range(self.model().rowCount()):
             item = self.model().item(row, self.Columns.NODE_ID)
-            if item.data(ROLE_CHANNEL_ID) == chan.channel_id:
-                for column, v in enumerate(self.format_fields(chan)):
-                    self.model().item(row, column).setData(v, QtCore.Qt.DisplayRole)
+            if item.data(ROLE_CHANNEL_ID) != chan.channel_id:
+                continue
+            for column, v in enumerate(self.format_fields(chan)):
+                self.model().item(row, column).setData(v, QtCore.Qt.DisplayRole)
+            items = [self.model().item(row, column) for column in self.Columns]
+            self._update_chan_frozen_bg(chan=chan, items=items)
         self.update_can_send(lnworker)
 
     @QtCore.pyqtSlot(Abstract_Wallet)
@@ -171,16 +205,39 @@ class ChannelsList(MyTreeView):
         for chan in lnworker.channels.values():
             items = [QtGui.QStandardItem(x) for x in self.format_fields(chan)]
             self.set_editability(items)
+            if self._default_item_bg_brush is None:
+                self._default_item_bg_brush = items[self.Columns.NODE_ID].background()
             items[self.Columns.NODE_ID].setData(chan.channel_id, ROLE_CHANNEL_ID)
             items[self.Columns.NODE_ID].setFont(QFont(MONOSPACE_FONT))
             items[self.Columns.LOCAL_BALANCE].setFont(QFont(MONOSPACE_FONT))
             items[self.Columns.REMOTE_BALANCE].setFont(QFont(MONOSPACE_FONT))
+            self._update_chan_frozen_bg(chan=chan, items=items)
             self.model().insertRow(0, items)
+        self.sortByColumn(self.Columns.SHORT_CHANID, Qt.DescendingOrder)
 
-    def update_can_send(self, lnworker):
-        msg = _('Can send') + ' ' + self.parent.format_amount(lnworker.can_send())\
+    def _update_chan_frozen_bg(self, *, chan: Channel, items: Sequence[QStandardItem]):
+        assert self._default_item_bg_brush is not None
+        # frozen for sending
+        item = items[self.Columns.LOCAL_BALANCE]
+        if chan.is_frozen_for_sending():
+            item.setBackground(ColorScheme.BLUE.as_color(True))
+            item.setToolTip(_("This channel is frozen for sending. It will not be used for outgoing payments."))
+        else:
+            item.setBackground(self._default_item_bg_brush)
+            item.setToolTip("")
+        # frozen for receiving
+        item = items[self.Columns.REMOTE_BALANCE]
+        if chan.is_frozen_for_receiving():
+            item.setBackground(ColorScheme.BLUE.as_color(True))
+            item.setToolTip(_("This channel is frozen for receiving. It will not be included in invoices."))
+        else:
+            item.setBackground(self._default_item_bg_brush)
+            item.setToolTip("")
+
+    def update_can_send(self, lnworker: LNWallet):
+        msg = _('Can send') + ' ' + self.parent.format_amount(lnworker.num_sats_can_send())\
               + ' ' + self.parent.base_unit() + '; '\
-              + _('can receive') + ' ' + self.parent.format_amount(lnworker.can_receive())\
+              + _('can receive') + ' ' + self.parent.format_amount(lnworker.num_sats_can_receive())\
               + ' ' + self.parent.base_unit()
         self.can_send_label.setText(msg)
 

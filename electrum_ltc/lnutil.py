@@ -34,6 +34,7 @@ HTLC_TIMEOUT_WEIGHT = 663
 HTLC_SUCCESS_WEIGHT = 703
 
 LN_MAX_FUNDING_SAT = pow(2, 24) - 1
+LN_MAX_HTLC_VALUE_MSAT = pow(2, 32) - 1
 
 # dummy address for fee estimation of funding tx
 def ln_dummy_address():
@@ -68,6 +69,7 @@ class Config(StoredObject):
     max_accepted_htlcs = attr.ib(type=int)
     initial_msat = attr.ib(type=int)
     reserve_sat = attr.ib(type=int)
+    htlc_minimum_msat = attr.ib(type=int)
 
 @attr.s
 class LocalConfig(Config):
@@ -79,7 +81,6 @@ class LocalConfig(Config):
 
 @attr.s
 class RemoteConfig(Config):
-    htlc_minimum_msat = attr.ib(type=int)
     next_per_commitment_point = attr.ib(type=bytes, converter=hex_to_bytes)
     current_per_commitment_point = attr.ib(default=None, type=bytes, converter=hex_to_bytes)
 
@@ -556,11 +557,17 @@ def make_commitment_outputs(*, fees_per_participant: Mapping[HTLCOwner, int], lo
     c_outputs_filtered = list(filter(lambda x: x.value >= dust_limit_sat, non_htlc_outputs + htlc_outputs))
     return htlc_outputs, c_outputs_filtered
 
-def calc_onchain_fees(num_htlcs, feerate, we_pay_fee):
+
+def calc_onchain_fees(*, num_htlcs: int, feerate: int, is_local_initiator: bool) -> Dict['HTLCOwner', int]:
+    # feerate is in sat/kw
+    # returns fees in msats
     overall_weight = 500 + 172 * num_htlcs + 224
     fee = feerate * overall_weight
     fee = fee // 1000 * 1000
-    return {LOCAL: fee if we_pay_fee else 0, REMOTE: fee if not we_pay_fee else 0}
+    return {
+        LOCAL: fee if is_local_initiator else 0,
+        REMOTE: fee if not is_local_initiator else 0,
+    }
 
 def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
                     remote_payment_pubkey, funder_payment_basepoint,
