@@ -671,7 +671,7 @@ class TestAvailableToSpend(ElectrumTestCase):
         bob_channel._ignore_max_htlc_value = False
         with self.assertRaises(lnutil.PaymentFailure):
             alice_channel.add_htlc(htlc_dict)
-        with self.assertRaises(lnutil.PaymentFailure):
+        with self.assertRaises(lnutil.RemoteMisbehaving):
             bob_channel.receive_htlc(htlc_dict)
 
         alice_channel._ignore_max_htlc_value = True

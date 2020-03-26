@@ -404,28 +404,35 @@ class Channel(Logger):
         if self.lnworker:
             self.lnworker.network.trigger_callback('channel', self)
 
-    def _assert_we_can_add_htlc(self, amount_msat: int) -> None:
-        """Raises PaymentFailure if the local party cannot add this new HTLC.
-        (this is relevant both for payments initiated by us and when forwarding)
+    def _assert_can_add_htlc(self, *, htlc_proposer: HTLCOwner, amount_msat: int) -> None:
+        """Raises PaymentFailure if the htlc_proposer cannot add this new HTLC.
+        (this is relevant both for forwarding and endpoint)
         """
         # TODO check if this method uses correct ctns (should use "latest" + 1)
+        # TODO review all these checks... e.g. shouldn't we check both parties' ctx sometimes?
+        htlc_receiver = htlc_proposer.inverted()
         if self.is_closed():
             raise PaymentFailure('Channel closed')
         if self.get_state() != channel_states.OPEN:
             raise PaymentFailure('Channel not open', self.get_state())
-        if not self.can_send_ctx_updates():
-            raise PaymentFailure('Channel cannot send ctx updates')
-        if not self.can_send_update_add_htlc():
-            raise PaymentFailure('Channel cannot add htlc')
-        if self.available_to_spend(LOCAL) < amount_msat:
-            raise PaymentFailure(f'Not enough local balance. Have: {self.available_to_spend(LOCAL)}, Need: {amount_msat}')
-        if len(self.hm.htlcs(LOCAL)) + 1 > self.config[REMOTE].max_accepted_htlcs:
+        if htlc_proposer == LOCAL:
+            if not self.can_send_ctx_updates():
+                raise PaymentFailure('Channel cannot send ctx updates')
+            if not self.can_send_update_add_htlc():
+                raise PaymentFailure('Channel cannot add htlc')
+        if amount_msat <= 0:
+            raise PaymentFailure("HTLC value cannot must be >= 0")
+        if self.available_to_spend(htlc_proposer) < amount_msat:
+            raise PaymentFailure(f'Not enough local balance. Have: {self.available_to_spend(htlc_proposer)}, Need: {amount_msat}')
+        if len(self.hm.htlcs(htlc_proposer)) + 1 > self.config[htlc_receiver].max_accepted_htlcs:
             raise PaymentFailure('Too many HTLCs already in channel')
-        current_htlc_sum = (htlcsum(self.hm.htlcs_by_direction(LOCAL, SENT).values())
-                            + htlcsum(self.hm.htlcs_by_direction(LOCAL, RECEIVED).values()))
-        if current_htlc_sum + amount_msat > self.config[REMOTE].max_htlc_value_in_flight_msat:
-            raise PaymentFailure(f'HTLC value sum (sum of pending htlcs: {current_htlc_sum/1000} sat plus new htlc: {amount_msat/1000} sat) would exceed max allowed: {self.config[REMOTE].max_htlc_value_in_flight_msat/1000} sat')
-        if amount_msat < self.config[REMOTE].htlc_minimum_msat:
+        current_htlc_sum = (htlcsum(self.hm.htlcs_by_direction(htlc_proposer, SENT).values())
+                            + htlcsum(self.hm.htlcs_by_direction(htlc_proposer, RECEIVED).values()))
+        if current_htlc_sum + amount_msat > self.config[htlc_receiver].max_htlc_value_in_flight_msat:
+            raise PaymentFailure(f'HTLC value sum (sum of pending htlcs: {current_htlc_sum/1000} sat '
+                                 f'plus new htlc: {amount_msat/1000} sat) '
+                                 f'would exceed max allowed: {self.config[htlc_receiver].max_htlc_value_in_flight_msat/1000} sat')
+        if amount_msat < self.config[htlc_receiver].htlc_minimum_msat:
             raise PaymentFailure(f'HTLC value too small: {amount_msat} msat')
         if amount_msat > LN_MAX_HTLC_VALUE_MSAT and not self._ignore_max_htlc_value:
             raise PaymentFailure(f"HTLC value over protocol maximum: {amount_msat} > {LN_MAX_HTLC_VALUE_MSAT} msat")
@@ -437,7 +444,7 @@ class Channel(Logger):
         if self.is_frozen():
             return False
         try:
-            self._assert_we_can_add_htlc(amount_msat)
+            self._assert_can_add_htlc(htlc_proposer=LOCAL, amount_msat=amount_msat)
         except PaymentFailure:
             return False
         return True
@@ -459,7 +466,7 @@ class Channel(Logger):
         if isinstance(htlc, dict):  # legacy conversion  # FIXME remove
             htlc = UpdateAddHtlc(**htlc)
         assert isinstance(htlc, UpdateAddHtlc)
-        self._assert_we_can_add_htlc(htlc.amount_msat)
+        self._assert_can_add_htlc(htlc_proposer=LOCAL, amount_msat=htlc.amount_msat)
         if htlc.htlc_id is None:
             htlc = attr.evolve(htlc, htlc_id=self.hm.get_next_htlc_id(LOCAL))
         with self.db_lock:
@@ -478,12 +485,12 @@ class Channel(Logger):
         if isinstance(htlc, dict):  # legacy conversion  # FIXME remove
             htlc = UpdateAddHtlc(**htlc)
         assert isinstance(htlc, UpdateAddHtlc)
+        try:
+            self._assert_can_add_htlc(htlc_proposer=REMOTE, amount_msat=htlc.amount_msat)
+        except PaymentFailure as e:
+            raise RemoteMisbehaving(e) from e
         if htlc.htlc_id is None:  # used in unit tests
             htlc = attr.evolve(htlc, htlc_id=self.hm.get_next_htlc_id(REMOTE))
-        if 0 <= self.available_to_spend(REMOTE) < htlc.amount_msat:
-            raise RemoteMisbehaving('Remote dipped below channel reserve.' +\
-                    f' Available at remote: {self.available_to_spend(REMOTE)},' +\
-                    f' HTLC amount: {htlc.amount_msat}')
         with self.db_lock:
             self.hm.recv_htlc(htlc)
             local_ctn = self.get_latest_ctn(LOCAL)
