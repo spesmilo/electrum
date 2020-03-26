@@ -4,7 +4,8 @@ from enum import IntEnum
 
 from PyQt5 import QtCore, QtGui
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit, QPushButton
+from PyQt5.QtWidgets import (QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit,
+                             QPushButton, QAbstractItemView)
 from PyQt5.QtGui import QFont
 
 from electrum.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
@@ -46,6 +47,7 @@ class ChannelsList(MyTreeView):
         super().__init__(parent, self.create_menu, stretch_column=self.Columns.NODE_ID,
                          editable_columns=[])
         self.setModel(QtGui.QStandardItemModel(self))
+        self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.main_window = parent
         self.update_rows.connect(self.do_update_rows)
         self.update_single_row.connect(self.do_update_single_row)
@@ -121,7 +123,15 @@ class ChannelsList(MyTreeView):
     def create_menu(self, position):
         menu = QMenu()
         menu.setSeparatorsCollapsible(True)  # consecutive separators are merged together
-        idx = self.selectionModel().currentIndex()
+        selected = self.selected_in_column(self.Columns.NODE_ID)
+        if not selected:
+            return
+        multi_select = len(selected) > 1
+        if multi_select:
+            return
+        idx = self.indexAt(position)
+        if not idx.isValid():
+            return
         item = self.model().itemFromIndex(idx)
         if not item:
             return
@@ -153,7 +163,7 @@ class ChannelsList(MyTreeView):
         menu.exec_(self.viewport().mapToGlobal(position))
 
     @QtCore.pyqtSlot(Channel)
-    def do_update_single_row(self, chan):
+    def do_update_single_row(self, chan: Channel):
         lnworker = self.parent.wallet.lnworker
         if not lnworker:
             return
