@@ -83,6 +83,7 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
                 was_announced=False,
                 current_commitment_signature=None,
                 current_htlc_signatures=None,
+                htlc_minimum_msat=1,
             ),
             "constraints":lnpeer.ChannelConstraints(
                 capacity=funding_sat,
