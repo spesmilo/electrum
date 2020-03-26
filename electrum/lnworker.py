@@ -7,7 +7,7 @@ import os
 from decimal import Decimal
 import random
 import time
-from typing import Optional, Sequence, Tuple, List, Dict, TYPE_CHECKING, NamedTuple
+from typing import Optional, Sequence, Tuple, List, Dict, TYPE_CHECKING, NamedTuple, Union
 import threading
 import socket
 import json
@@ -1314,11 +1314,11 @@ class LNWallet(LNWorker):
         with self.lock:
             return Decimal(sum(chan.balance(LOCAL) if not chan.is_closed() else 0 for chan in self.channels.values()))/1000
 
-    def can_send(self):
+    def num_sats_can_send(self) -> Union[Decimal, int]:
         with self.lock:
             return Decimal(max(chan.available_to_spend(LOCAL) if chan.is_open() else 0 for chan in self.channels.values()))/1000 if self.channels else 0
 
-    def can_receive(self):
+    def num_sats_can_receive(self) -> Union[Decimal, int]:
         with self.lock:
             return Decimal(max(chan.available_to_spend(REMOTE) if chan.is_open() else 0 for chan in self.channels.values()))/1000 if self.channels else 0
 

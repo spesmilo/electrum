@@ -14,6 +14,7 @@ from electrum.i18n import _
 from electrum.lnchannel import Channel, peer_states
 from electrum.wallet import Abstract_Wallet
 from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id, LN_MAX_FUNDING_SAT
+from electrum.lnworker import LNWallet
 
 from .util import (MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, WaitingDialog, MONOSPACE_FONT, ColorScheme)
@@ -224,10 +225,10 @@ class ChannelsList(MyTreeView):
                 item.setBackground(self._default_item_bg_brush)
                 item.setToolTip("")
 
-    def update_can_send(self, lnworker):
-        msg = _('Can send') + ' ' + self.parent.format_amount(lnworker.can_send())\
+    def update_can_send(self, lnworker: LNWallet):
+        msg = _('Can send') + ' ' + self.parent.format_amount(lnworker.num_sats_can_send())\
               + ' ' + self.parent.base_unit() + '; '\
-              + _('can receive') + ' ' + self.parent.format_amount(lnworker.can_receive())\
+              + _('can receive') + ' ' + self.parent.format_amount(lnworker.num_sats_can_receive())\
               + ' ' + self.parent.base_unit()
         self.can_send_label.setText(msg)
 
