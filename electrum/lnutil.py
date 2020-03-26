@@ -34,6 +34,7 @@ HTLC_TIMEOUT_WEIGHT = 663
 HTLC_SUCCESS_WEIGHT = 703
 
 LN_MAX_FUNDING_SAT = pow(2, 24) - 1
+LN_MAX_HTLC_VALUE_MSAT = pow(2, 32) - 1
 
 # dummy address for fee estimation of funding tx
 def ln_dummy_address():

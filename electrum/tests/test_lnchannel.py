@@ -105,12 +105,12 @@ def bip32(sequence):
     assert type(k) is bytes
     return k
 
-def create_test_channels(feerate=6000, local=None, remote=None):
+def create_test_channels(*, feerate=6000, local_msat=None, remote_msat=None):
     funding_txid = binascii.hexlify(b"\x01"*32).decode("ascii")
     funding_index = 0
-    funding_sat = ((local + remote) // 1000) if local is not None and remote is not None else (bitcoin.COIN * 10)
-    local_amount = local if local is not None else (funding_sat * 1000 // 2)
-    remote_amount = remote if remote is not None else (funding_sat * 1000 // 2)
+    funding_sat = ((local_msat + remote_msat) // 1000) if local_msat is not None and remote_msat is not None else (bitcoin.COIN * 10)
+    local_amount = local_msat if local_msat is not None else (funding_sat * 1000 // 2)
+    remote_amount = remote_msat if remote_msat is not None else (funding_sat * 1000 // 2)
     alice_raw = [ bip32("m/" + str(i)) for i in range(5) ]
     bob_raw = [ bip32("m/" + str(i)) for i in range(5,11) ]
     alice_privkeys = [lnutil.Keypair(lnutil.privkey_to_pubkey(x), x) for x in alice_raw]
@@ -164,6 +164,10 @@ def create_test_channels(feerate=6000, local=None, remote=None):
     # TODO: sweep_address in lnchannel.py should use static_remotekey
     alice.sweep_address = bitcoin.pubkey_to_address('p2wpkh', alice.config[LOCAL].payment_basepoint.pubkey.hex())
     bob.sweep_address = bitcoin.pubkey_to_address('p2wpkh', bob.config[LOCAL].payment_basepoint.pubkey.hex())
+
+    alice._ignore_max_htlc_value = True
+    bob._ignore_max_htlc_value = True
+
     return alice, bob
 
 class TestFee(ElectrumTestCase):
@@ -172,7 +176,9 @@ class TestFee(ElectrumTestCase):
     https://github.com/lightningnetwork/lightning-rfc/blob/e0c436bd7a3ed6a028e1cb472908224658a14eca/03-transactions.md#requirements-2
     """
     def test_fee(self):
-        alice_channel, bob_channel = create_test_channels(253, 10000000000, 5000000000)
+        alice_channel, bob_channel = create_test_channels(feerate=253,
+                                                          local_msat=10000000000,
+                                                          remote_msat=5000000000)
         self.assertIn(9999817, [x.value for x in alice_channel.get_latest_commitment(LOCAL).outputs()])
 
 class TestChannel(ElectrumTestCase):
@@ -648,6 +654,30 @@ class TestAvailableToSpend(ElectrumTestCase):
         self.assertEqual(499995656000, alice_channel.available_to_spend(LOCAL))
         self.assertEqual(500000000000, bob_channel.available_to_spend(LOCAL))
         alice_channel.add_htlc(htlc_dict)
+
+    def test_max_htlc_value(self):
+        alice_channel, bob_channel = create_test_channels()
+        paymentPreimage = b"\x01" * 32
+        paymentHash = bitcoin.sha256(paymentPreimage)
+        htlc_dict = {
+            'payment_hash' : paymentHash,
+            'amount_msat' :  one_bitcoin_in_msat * 41 // 10,
+            'cltv_expiry' :  5,
+            'timestamp'   :  0,
+        }
+
+        alice_channel._ignore_max_htlc_value = False
+        bob_channel._ignore_max_htlc_value = False
+        with self.assertRaises(lnutil.PaymentFailure):
+            alice_channel.add_htlc(htlc_dict)
+        with self.assertRaises(lnutil.PaymentFailure):
+            bob_channel.receive_htlc(htlc_dict)
+
+        alice_channel._ignore_max_htlc_value = True
+        bob_channel._ignore_max_htlc_value = True
+        alice_channel.add_htlc(htlc_dict)
+        bob_channel.receive_htlc(htlc_dict)
+
 
 class TestChanReserve(ElectrumTestCase):
     def setUp(self):
