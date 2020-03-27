@@ -746,7 +746,7 @@ class Channel(Logger):
             ctn = self.get_oldest_unrevoked_ctn(subject)
         feerate = self.get_feerate(subject, ctn)
         conf = self.config[subject]
-        if (subject, direction) in [(REMOTE, RECEIVED), (LOCAL, SENT)]:
+        if direction == RECEIVED:
             weight = HTLC_SUCCESS_WEIGHT
         else:
             weight = HTLC_TIMEOUT_WEIGHT

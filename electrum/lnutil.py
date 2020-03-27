@@ -531,8 +531,8 @@ class HTLCOwner(IntFlag):
         return HTLCOwner(-self)
 
 class Direction(IntFlag):
-    SENT = -1
-    RECEIVED = 1
+    SENT = -1     # in the context of HTLCs: "offered" HTLCs
+    RECEIVED = 1  # in the context of HTLCs: "received" HTLCs
 
 SENT = Direction.SENT
 RECEIVED = Direction.RECEIVED
