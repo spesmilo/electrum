@@ -145,16 +145,15 @@ class ChannelsList(MyTreeView):
         cc = self.add_copy_menu(menu, idx)
         cc.addAction(_("Long Channel ID"), lambda: self.place_text_on_clipboard(channel_id.hex(),
                                                                                 title=_("Long Channel ID")))
-
-        if not chan.is_frozen_for_sending():
-            menu.addAction(_("Freeze (for sending)"), lambda: chan.set_frozen_for_sending(True))
-        else:
-            menu.addAction(_("Unfreeze (for sending)"), lambda: chan.set_frozen_for_sending(False))
-        if not chan.is_frozen_for_receiving():
-            menu.addAction(_("Freeze (for receiving)"), lambda: chan.set_frozen_for_receiving(True))
-        else:
-            menu.addAction(_("Unfreeze (for receiving)"), lambda: chan.set_frozen_for_receiving(False))
-
+        if not chan.is_closed():
+            if not chan.is_frozen_for_sending():
+                menu.addAction(_("Freeze (for sending)"), lambda: chan.set_frozen_for_sending(True))
+            else:
+                menu.addAction(_("Unfreeze (for sending)"), lambda: chan.set_frozen_for_sending(False))
+            if not chan.is_frozen_for_receiving():
+                menu.addAction(_("Freeze (for receiving)"), lambda: chan.set_frozen_for_receiving(True))
+            else:
+                menu.addAction(_("Unfreeze (for receiving)"), lambda: chan.set_frozen_for_receiving(False))
 
         funding_tx = self.parent.wallet.db.get_transaction(chan.funding_outpoint.txid)
         if funding_tx:
