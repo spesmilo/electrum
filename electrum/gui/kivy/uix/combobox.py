@@ -16,7 +16,8 @@ from kivy.lang import Builder
 Builder.load_string('''
 <ComboBoxOption>:
     size_hint_y: None
-    height: 44
+    height: 40
+    font_size: 22
 
 <ComboBox>:
     background_normal: 'atlas://data/images/defaulttheme/spinner'

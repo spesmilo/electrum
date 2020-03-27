@@ -314,7 +314,7 @@ class SendScreen(CScreen):
         if asset.asset is 0:
             return [AssetKey(0, ''), balance + ' SYS']
         else:
-            return [AssetKey(asset.asset, asset.address), asset.address + ' (' + str(asset.asset) + ':' + asset.symbol + ') ' + balance]
+            return [AssetKey(asset.asset, asset.address), asset.address[0:8] + '... ' + balance + ' ' +  asset.symbol]
     
     def update(self):
         if self.app.wallet is None:
@@ -695,7 +695,7 @@ class ReceiveScreen(CScreen):
         if asset.asset is 0:
             return [AssetKey(0, ''), balance + ' SYS']
         else:
-            return [AssetKey(asset.asset, asset.address), asset.address + ' (' + str(asset.asset) + ':' + asset.symbol + ') ' + balance]
+            return [AssetKey(asset.asset, asset.address), asset.address[0:8] + '... ' + balance + ' ' + asset.symbol]
     
     def update(self):
         if self.app.wallet is None:
