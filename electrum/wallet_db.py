@@ -1082,6 +1082,7 @@ class WalletDB(JsonDB):
         self.history.clear()
         self.verified_tx.clear()
         self.tx_fees.clear()
+        self._prevouts_by_scripthash.clear()
 
     def _convert_dict(self, path, key, v):
         if key == 'transactions':
