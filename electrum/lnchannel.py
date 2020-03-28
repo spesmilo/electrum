@@ -890,19 +890,15 @@ class Channel(Logger):
         other = subject.inverted()
         local_msat = self.balance(subject, ctx_owner=subject, ctn=ctn)
         remote_msat = self.balance(other, ctx_owner=subject, ctn=ctn)
-        received_htlcs = self.hm.htlcs_by_direction(subject, SENT if subject == LOCAL else RECEIVED, ctn).values()
-        sent_htlcs = self.hm.htlcs_by_direction(subject, RECEIVED if subject == LOCAL else SENT, ctn).values()
-        if subject != LOCAL:
-            remote_msat -= htlcsum(received_htlcs)
-            local_msat -= htlcsum(sent_htlcs)
-        else:
-            remote_msat -= htlcsum(sent_htlcs)
-            local_msat -= htlcsum(received_htlcs)
+        received_htlcs = self.hm.htlcs_by_direction(subject, RECEIVED, ctn).values()
+        sent_htlcs = self.hm.htlcs_by_direction(subject, SENT, ctn).values()
+        remote_msat -= htlcsum(received_htlcs)
+        local_msat -= htlcsum(sent_htlcs)
         assert remote_msat >= 0
         assert local_msat >= 0
         # same htlcs as before, but now without dust.
-        received_htlcs = self.included_htlcs(subject, SENT if subject == LOCAL else RECEIVED, ctn)
-        sent_htlcs = self.included_htlcs(subject, RECEIVED if subject == LOCAL else SENT, ctn)
+        received_htlcs = self.included_htlcs(subject, RECEIVED, ctn)
+        sent_htlcs = self.included_htlcs(subject, SENT, ctn)
 
         this_config = self.config[subject]
         other_config = self.config[-subject]
@@ -910,7 +906,7 @@ class Channel(Logger):
         this_htlc_pubkey = derive_pubkey(this_config.htlc_basepoint.pubkey, this_point)
         other_revocation_pubkey = derive_blinded_pubkey(other_config.revocation_basepoint.pubkey, this_point)
         htlcs = []  # type: List[ScriptHtlc]
-        for is_received_htlc, htlc_list in zip((subject != LOCAL, subject == LOCAL), (received_htlcs, sent_htlcs)):
+        for is_received_htlc, htlc_list in zip((True, False), (received_htlcs, sent_htlcs)):
             for htlc in htlc_list:
                 htlcs.append(ScriptHtlc(make_htlc_output_witness_script(
                     is_received_htlc=is_received_htlc,
