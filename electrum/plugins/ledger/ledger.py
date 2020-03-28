@@ -4,12 +4,13 @@ import sys
 import traceback
 
 from electrum import bitcoin
-from electrum.bitcoin import TYPE_ADDRESS, int_to_hex, var_int
+from electrum.bitcoin import TYPE_ADDRESS, TYPE_SCRIPT, int_to_hex, var_int
 from electrum.i18n import _
 from electrum.plugin import BasePlugin
 from electrum.keystore import Hardware_KeyStore
 from electrum.transaction import Transaction
 from electrum.wallet import Standard_Wallet
+from electrum import constants
 from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import is_any_tx_output_on_change_branch
 from electrum.util import print_error, bfh, bh2u, versiontuple
@@ -20,7 +21,7 @@ try:
     from btchip.btchipComm import HIDDongleHIDAPI, DongleWait
     from btchip.btchip import btchip
     from btchip.btchipUtils import compress_public_key,format_transaction, get_regular_input_script, get_p2sh_input_script
-    from btchip.bitcoinTransaction import bitcoinTransaction
+    from btchip.oceanTransaction import oceanTransaction
     from btchip.btchipFirmwareWizard import checkFirmware, updateFirmware
     from btchip.btchipException import BTChipException
     BTCHIP = True
@@ -230,6 +231,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
     def get_client_electrum(self):
         return self.plugin.get_client(self)
 
+    def check_password(self, password=None):
+        self.get_client()
+    
     def give_error(self, message, clear_client = False):
         print_error(message)
         if not self.signing:
@@ -378,13 +382,12 @@ class Ledger_KeyStore(Hardware_KeyStore):
 
         txOutput = var_int(len(tx.outputs()))
         for txout in tx.outputs():
-            output_type, addr, amount = txout
+            output_type, addr, amount, *args = txout
             txOutput += int_to_hex(amount, 8)
             script = tx.pay_script(output_type, addr)
             txOutput += var_int(len(script)//2)
             txOutput += script
         txOutput = bfh(txOutput)
-
         # Recognize outputs
         # - only one output and one change is authorized (for hw.1 and nano)
         # - at most one output can bypass confirmation (~change) (for all)
@@ -394,24 +397,34 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     self.give_error("Transaction with more than 2 outputs not supported")
             has_change = False
             any_output_on_change_branch = is_any_tx_output_on_change_branch(tx)
+            #DGLD transactions always contain one OP_RETURN output with the contract hash
+            n_script=0
+            #Contract in key tweak not implemented for ledger
+            assert constants.net.CONTRACTINTX == True
             for o in tx.outputs():
-                assert o.type == TYPE_ADDRESS
-                info = tx.output_info.get(o.address)
-                if (info is not None) and len(tx.outputs()) > 1 \
-                        and not has_change:
-                    index, xpubs, m = info
-                    on_change_branch = index[0] == 1
-                    # prioritise hiding outputs on the 'change' branch from user
-                    # because no more than one change address allowed
-                    if on_change_branch == any_output_on_change_branch:
-                        changePath = self.get_derivation()[2:] + "/%d/%d"%index
-                        has_change = True
+                if o.type == TYPE_SCRIPT:
+                    n_script = n_script+1
+                else:
+                    assert o.type == TYPE_ADDRESS
+                    info = tx.output_info.get(o.address)
+                    if (info is not None) and len(tx.outputs()) > 1 \
+                       and not has_change:
+                        index, xpubs, m = info
+                        on_change_branch = index[0] == 1
+                        # prioritise hiding outputs on the 'change' branch from user
+                        # because no more than one change address allowed
+                        if on_change_branch == any_output_on_change_branch:
+                            changePath = self.get_derivation()[2:] + "/%d/%d"%index
+                            has_change = True
+                        else:
+                            output = o.address
                     else:
                         output = o.address
-                else:
-                    output = o.address
 
-        self.handler.show_message(_("Confirm Transaction on your Ledger device..."))
+            #A fees output and a OP_RETURN output are required
+            assert n_script == 2
+        print(self.handler)
+        self.handler.show_message("Confirm Transaction on your Ledger device...")
         try:
             # Get trusted inputs from the original transactions
             for utxo in inputs:
@@ -423,8 +436,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     chipInputs.append({'value' : tmp, 'witness' : True, 'sequence' : sequence})
                     redeemScripts.append(bfh(utxo[2]))
                 elif not p2shTransaction:
-                    txtmp = bitcoinTransaction(bfh(utxo[0]))
-                    trustedInput = self.get_client().getTrustedInput(txtmp, utxo[1])
+                    txtmp = oceanTransaction(bfh(utxo[0]))
+                    trustedInput = self.get_client().getTrustedInputOcean(txtmp, utxo[1])
                     trustedInput['sequence'] = sequence
                     chipInputs.append(trustedInput)
                     redeemScripts.append(txtmp.outputs[utxo[1]].script)
@@ -438,14 +451,15 @@ class Ledger_KeyStore(Hardware_KeyStore):
             firstTransaction = True
             inputIndex = 0
             rawTx = tx.serialize_to_network()
+            print(rawTx)
             self.get_client().enableAlternate2fa(False)
             if segwitTransaction:
-                self.get_client().startUntrustedTransaction(True, inputIndex,
-                                                            chipInputs, redeemScripts[inputIndex])
+                self.get_client().startUntrustedTransactionOcean(True, inputIndex,
+                                                                 chipInputs, redeemScripts[inputIndex], version=tx.version)
                 if changePath:
                     # we don't set meaningful outputAddress, amount and fees
                     # as we only care about the alternateEncoding==True branch
-                    outputData = self.get_client().finalizeInput(b'', 0, 0, changePath, bfh(rawTx))
+                    outputData = self.get_client().finalizeInput(b'', 0, 0, changePath, bfh(rawTx), txClass=oceanTransaction)
                 else:
                     outputData = self.get_client().finalizeInputFull(txOutput)
                 outputData['outputData'] = txOutput
@@ -460,20 +474,21 @@ class Ledger_KeyStore(Hardware_KeyStore):
                         self.handler.show_message(_("Confirmed. Signing Transaction..."))
                 while inputIndex < len(inputs):
                     singleInput = [ chipInputs[inputIndex] ]
-                    self.get_client().startUntrustedTransaction(False, 0,
-                                                            singleInput, redeemScripts[inputIndex])
+                    self.get_client().startUntrustedTransactionOcean(False, 0,
+                                                                     singleInput, redeemScripts[inputIndex], version=tx.version)
                     inputSignature = self.get_client().untrustedHashSign(inputsPaths[inputIndex], pin, lockTime=tx.locktime)
                     inputSignature[0] = 0x30 # force for 1.4.9+
                     signatures.append(inputSignature)
                     inputIndex = inputIndex + 1
             else:
                 while inputIndex < len(inputs):
-                    self.get_client().startUntrustedTransaction(firstTransaction, inputIndex,
-                                                            chipInputs, redeemScripts[inputIndex])
+                    tx.pre_hash(inputIndex)
+                    self.get_client().startUntrustedTransactionOcean(firstTransaction, inputIndex,
+                                                                     chipInputs, redeemScripts[inputIndex], version=tx.version)
                     if changePath:
                         # we don't set meaningful outputAddress, amount and fees
                         # as we only care about the alternateEncoding==True branch
-                        outputData = self.get_client().finalizeInput(b'', 0, 0, changePath, bfh(rawTx))
+                        outputData = self.get_client().finalizeInput(b'', 0, 0, changePath, bfh(rawTx), txClass=oceanTransaction)
                     else:
                         outputData = self.get_client().finalizeInputFull(txOutput)
                     outputData['outputData'] = txOutput
@@ -504,6 +519,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
             elif e.sw == 0x6982:
                 raise  # pin lock. decorator will catch it
             else:
+                self.handler.show_error(e.message)
                 traceback.print_exc(file=sys.stderr)
                 self.give_error(e, True)
         except BaseException as e:

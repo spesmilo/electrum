@@ -852,7 +852,7 @@ class Abstract_Wallet(AddressSynchronizer):
         info = {}
         xpubs = self.get_master_public_keys()
         for txout in tx.outputs():
-            _type, addr, amount = txout
+            _type, addr, amount, *args = txout
             if self.is_mine(addr):
                 index = self.get_address_index(addr)
                 pubkeys = self.get_public_keys(addr)
@@ -873,11 +873,14 @@ class Abstract_Wallet(AddressSynchronizer):
             try:
                 if k.can_sign(tx):
                     k.check_password(password)
-                    # Add private keys
-                    keypairs = k.get_tx_derivations(tx)
-                    for x_pubkey, (derivation, address) in keypairs.items():
-                        keypairs[x_pubkey] = self.get_tweaked_private_key(address, derivation, password, self.get_txin_type(address))
-                    k.sign_transaction(tx, keypairs)
+                    if isinstance(k, Hardware_KeyStore):
+                        k.sign_transaction(tx, password)
+                    else:
+                        # Add private keys
+                        keypairs = k.get_tx_derivations(tx)
+                        for x_pubkey, (derivation, address) in keypairs.items():
+                            keypairs[x_pubkey] = self.get_tweaked_private_key(address, derivation, password, self.get_txin_type(address))
+                        k.sign_transaction(tx, keypairs)
             except UserCancelled:
                 continue
         return tx

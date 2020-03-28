@@ -1202,7 +1202,7 @@ class Transaction:
         return sum(output.value for output in self.outputs())
 
     def get_fee(self):
-        # Ocean fee is an empty script vout
+        # Oceano fee is an empty script vout
         # TO FIX: Future fees will be payed to the federation
         for o in self.outputs():
             if o.type == TYPE_SCRIPT and o.address == '':
@@ -1319,11 +1319,19 @@ class Transaction:
         print_error("is_complete", self.is_complete())
         self.raw = self.serialize()
 
+    def pre_hash(self, txin_index):
+        preimage=self.serialize_preimage(txin_index)
+        print("preimage: {}".format(preimage))
+        pre_hash = Hash(bfh(preimage))
+        print("pre_hash: {}".format(pre_hash.hex()))
+        return pre_hash
+        
     def sign_txin(self, txin_index, privkey_bytes) -> str:
-        pre_hash = Hash(bfh(self.serialize_preimage(txin_index)))
+        pre_hash=self.pre_hash(txin_index)
         privkey = ecc.ECPrivkey(privkey_bytes)
         sig = privkey.sign_transaction(pre_hash)
         sig = bh2u(sig) + '01'
+        print("sig: {}".format(sig))
         return sig
 
     def get_outputs(self):
