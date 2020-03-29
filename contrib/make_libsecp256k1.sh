@@ -1,5 +1,15 @@
 #!/bin/bash
 
+# This script was tested on Linux and MacOS hosts, where it can be used
+# to build native libsecp256k1 binaries.
+#
+# It can also be used to cross-compile to Windows:
+# $ sudo apt-get install mingw-w64
+# For a Windows x86 (32-bit) target, run:
+# $ GCC_TRIPLET_HOST="i686-w64-mingw32" ./contrib/make_libsecp256k1.sh
+# Or for a Windows x86_64 (64-bit) target, run:
+# $ GCC_TRIPLET_HOST="x86_64-w64-mingw32" ./contrib/make_libsecp256k1.sh
+
 LIBSECP_VERSION="b408c6a8b287003d1ade5709e6f7bc3c7f1d5be7"
 
 set -e
