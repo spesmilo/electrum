@@ -103,11 +103,13 @@ class Ledger_Client():
         fingerprint = 0
         if len(splitPath) > 1:
             prevPath = "/".join(splitPath[0:len(splitPath) - 1])
+            print("get_xpub path:{}".format(prevPath))
             nodeData = self.dongleObject.getWalletPublicKey(prevPath)
             publicKey = compress_public_key(nodeData['publicKey'])
             h = hashlib.new('ripemd160')
             h.update(hashlib.sha256(publicKey).digest())
             fingerprint = unpack(">I", h.digest()[0:4])[0]
+        print("get_xpub path:{}".format(bip32_path))
         nodeData = self.dongleObject.getWalletPublicKey(bip32_path)
         publicKey = compress_public_key(nodeData['publicKey'])
         depth = len(splitPath)
@@ -506,6 +508,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                         # Sign input with the provided PIN
                         inputSignature = self.get_client().untrustedHashSign(inputsPaths[inputIndex], pin, lockTime=tx.locktime)
                         inputSignature[0] = 0x30 # force for 1.4.9+
+                        print("Input signature:{}".format(inputSignature.hex()))
                         signatures.append(inputSignature)
                         inputIndex = inputIndex + 1
                     if pin != 'paired':
@@ -530,8 +533,13 @@ class Ledger_KeyStore(Hardware_KeyStore):
 
         for i, txin in enumerate(tx.inputs()):
             signingPos = inputs[i][4]
+            print("Adding signature to txin:{} {} {}".format(i, signingPos, signatures[i].hex()))
+            from PyQt5.QtCore import pyqtRemoveInputHook
+            from pdb import set_trace
+            pyqtRemoveInputHook()
+            set_trace()
             tx.add_signature_to_txin(i, signingPos, bh2u(signatures[i]))
-        tx.raw = tx.serialize()
+        tx.raw = tx.serialize(witness=False)
 
     @test_pin_unlocked
     @set_and_unset_signing
