@@ -1040,7 +1040,7 @@ class LNWallet(LNWorker):
             addr.amount = Decimal(amount_sat) / COIN
         if addr.amount is None:
             raise InvoiceError(_("Missing amount"))
-        if addr.get_min_final_cltv_expiry() > 60 * 144:
+        if addr.get_min_final_cltv_expiry() > lnutil.NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE:
             raise InvoiceError("{}\n{}".format(
                 _("Invoice wants us to risk locking funds for unreasonably long."),
                 f"min_final_cltv_expiry: {addr.get_min_final_cltv_expiry()}"))
