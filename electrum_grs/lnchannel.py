@@ -441,13 +441,13 @@ class Channel(Logger):
         current_htlc_sum = (htlcsum(self.hm.htlcs_by_direction(htlc_proposer, SENT).values())
                             + htlcsum(self.hm.htlcs_by_direction(htlc_proposer, RECEIVED).values()))
         if current_htlc_sum + amount_msat > self.config[htlc_receiver].max_htlc_value_in_flight_msat:
-            raise PaymentFailure(f'HTLC value sum (sum of pending htlcs: {current_htlc_sum/1000} sat '
-                                 f'plus new htlc: {amount_msat/1000} sat) '
-                                 f'would exceed max allowed: {self.config[htlc_receiver].max_htlc_value_in_flight_msat/1000} sat')
+            raise PaymentFailure(f'HTLC value sum (sum of pending htlcs: {current_htlc_sum/1000} gro '
+                                 f'plus new htlc: {amount_msat/1000} gro) '
+                                 f'would exceed max allowed: {self.config[htlc_receiver].max_htlc_value_in_flight_msat/1000} gro')
         if amount_msat < self.config[htlc_receiver].htlc_minimum_msat:
-            raise PaymentFailure(f'HTLC value too small: {amount_msat} msat')
+            raise PaymentFailure(f'HTLC value too small: {amount_msat} mgro')
         if amount_msat > LN_MAX_HTLC_VALUE_MSAT and not self._ignore_max_htlc_value:
-            raise PaymentFailure(f"HTLC value over protocol maximum: {amount_msat} > {LN_MAX_HTLC_VALUE_MSAT} msat")
+            raise PaymentFailure(f"HTLC value over protocol maximum: {amount_msat} > {LN_MAX_HTLC_VALUE_MSAT} mgro")
 
     def can_pay(self, amount_msat: int, *, check_frozen=False) -> bool:
         """Returns whether we can add an HTLC of given value."""

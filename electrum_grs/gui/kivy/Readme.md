@@ -124,6 +124,6 @@ of Android does not let you access the internal storage of an app without root.
 (See [this](https://stackoverflow.com/q/9017073))
 ```
 $ adb shell
-$ run-as org.electrum.electrum ls /data/data/org.electrum.electrum/files/data
-$ run-as org.electrum.electrum cp /data/data/org.electrum.electrum/files/data/wallets/my_wallet /sdcard/some_path/my_wallet
+$ run-as org.groestlcoin.ElectrumGRS ls /data/data/org.groestlcoin.ElectrumGRS/files/data
+$ run-as org.groestlcoin.ElectrumGRS cp /data/data/org.groestlcoin.ElectrumGRS/files/data/wallets/my_wallet /sdcard/some_path/my_wallet
 ```
