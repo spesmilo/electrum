@@ -30,8 +30,11 @@ if TYPE_CHECKING:
     from .lnonion import OnionRoutingFailureMessage
 
 
+# defined in BOLT-03:
 HTLC_TIMEOUT_WEIGHT = 663
 HTLC_SUCCESS_WEIGHT = 703
+COMMITMENT_TX_WEIGHT = 724
+HTLC_OUTPUT_WEIGHT = 172
 
 LN_MAX_FUNDING_SAT = pow(2, 24) - 1
 LN_MAX_HTLC_VALUE_MSAT = pow(2, 32) - 1
@@ -93,7 +96,7 @@ class FeeUpdate(StoredObject):
 @attr.s
 class ChannelConstraints(StoredObject):
     capacity = attr.ib(type=int)
-    is_initiator = attr.ib(type=bool)
+    is_initiator = attr.ib(type=bool)  # note: sometimes also called "funder"
     funding_txn_minimum_depth = attr.ib(type=int)
 
 
@@ -558,12 +561,39 @@ def make_commitment_outputs(*, fees_per_participant: Mapping[HTLCOwner, int], lo
     return htlc_outputs, c_outputs_filtered
 
 
-def calc_onchain_fees(*, num_htlcs: int, feerate: int, is_local_initiator: bool) -> Dict['HTLCOwner', int]:
+def offered_htlc_trim_threshold_sat(*, dust_limit_sat: int, feerate: int) -> int:
+    # offered htlcs strictly below this amount will be trimmed (from ctx).
+    # feerate is in sat/kw
+    # returns value in sat
+    weight = HTLC_TIMEOUT_WEIGHT
+    return dust_limit_sat + weight * feerate // 1000
+
+
+def received_htlc_trim_threshold_sat(*, dust_limit_sat: int, feerate: int) -> int:
+    # received htlcs strictly below this amount will be trimmed (from ctx).
+    # feerate is in sat/kw
+    # returns value in sat
+    weight = HTLC_SUCCESS_WEIGHT
+    return dust_limit_sat + weight * feerate // 1000
+
+
+def fee_for_htlc_output(*, feerate: int) -> int:
+    # feerate is in sat/kw
+    # returns fee in msat
+    return feerate * HTLC_OUTPUT_WEIGHT
+
+
+def calc_fees_for_commitment_tx(*, num_htlcs: int, feerate: int,
+                                is_local_initiator: bool, round_to_sat: bool = True) -> Dict['HTLCOwner', int]:
     # feerate is in sat/kw
     # returns fees in msats
-    overall_weight = 500 + 172 * num_htlcs + 224
+    # note: BOLT-02 specifies that msat fees need to be rounded down to sat.
+    #       However, the rounding needs to happen for the total fees, so if the return value
+    #       is to be used as part of additional fee calculation then rounding should be done after that.
+    overall_weight = COMMITMENT_TX_WEIGHT + num_htlcs * HTLC_OUTPUT_WEIGHT
     fee = feerate * overall_weight
-    fee = fee // 1000 * 1000
+    if round_to_sat:
+        fee = fee // 1000 * 1000
     return {
         LOCAL: fee if is_local_initiator else 0,
         REMOTE: fee if not is_local_initiator else 0,

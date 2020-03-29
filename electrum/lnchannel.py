@@ -49,9 +49,10 @@ from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKey
                      make_htlc_tx_with_open_channel, make_commitment, make_received_htlc, make_offered_htlc,
                      HTLC_TIMEOUT_WEIGHT, HTLC_SUCCESS_WEIGHT, extract_ctn_from_tx_and_chan, UpdateAddHtlc,
                      funding_output_script, SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, make_commitment_outputs,
-                     ScriptHtlc, PaymentFailure, calc_onchain_fees, RemoteMisbehaving, make_htlc_output_witness_script,
+                     ScriptHtlc, PaymentFailure, calc_fees_for_commitment_tx, RemoteMisbehaving, make_htlc_output_witness_script,
                      ShortChannelID, map_htlcs_to_ctx_output_idxs, LNPeerAddr, BarePaymentAttemptLog,
-                     LN_MAX_HTLC_VALUE_MSAT)
+                     LN_MAX_HTLC_VALUE_MSAT, fee_for_htlc_output, offered_htlc_trim_threshold_sat,
+                     received_htlc_trim_threshold_sat)
 from .lnsweep import create_sweeptxs_for_our_ctx, create_sweeptxs_for_their_ctx
 from .lnsweep import create_sweeptx_for_their_revoked_htlc, SweepInfo
 from .lnhtlc import HTLCManager
@@ -141,7 +142,7 @@ class Channel(Logger):
         self.sweep_address = sweep_address
         self.storage = state
         self.db_lock = self.storage.db.lock if self.storage.db else threading.RLock()
-        self.config = {}
+        self.config = {}  # type: Dict[HTLCOwner, lnutil.Config]
         self.config[LOCAL] = state["local_config"]
         self.config[REMOTE] = state["remote_config"]
         self.channel_id = bfh(state["channel_id"])
@@ -420,9 +421,11 @@ class Channel(Logger):
         """Raises PaymentFailure if the htlc_proposer cannot add this new HTLC.
         (this is relevant both for forwarding and endpoint)
         """
-        # TODO check if this method uses correct ctns (should use "latest" + 1)
-        # TODO review all these checks... e.g. shouldn't we check both parties' ctx sometimes?
         htlc_receiver = htlc_proposer.inverted()
+        # note: all these tests are about the *receiver's* *next* commitment transaction,
+        #       and the constraints are the ones imposed by their config
+        ctn = self.get_next_ctn(htlc_receiver)
+        chan_config = self.config[htlc_receiver]
         if self.is_closed():
             raise PaymentFailure('Channel closed')
         if self.get_state() != channel_states.OPEN:
@@ -432,22 +435,41 @@ class Channel(Logger):
                 raise PaymentFailure('Channel cannot send ctx updates')
             if not self.can_send_update_add_htlc():
                 raise PaymentFailure('Channel cannot add htlc')
+
+        # If proposer is LOCAL we apply stricter checks as that is behaviour we can control.
+        # This should lead to fewer disagreements (i.e. channels failing).
+        strict = (htlc_proposer == LOCAL)
+
+        # check htlc raw value
         if amount_msat <= 0:
-            raise PaymentFailure("HTLC value cannot must be >= 0")
-        if self.available_to_spend(htlc_proposer) < amount_msat:
-            raise PaymentFailure(f'Not enough local balance. Have: {self.available_to_spend(htlc_proposer)}, Need: {amount_msat}')
-        if len(self.hm.htlcs(htlc_proposer)) + 1 > self.config[htlc_receiver].max_accepted_htlcs:
-            raise PaymentFailure('Too many HTLCs already in channel')
-        current_htlc_sum = (htlcsum(self.hm.htlcs_by_direction(htlc_proposer, SENT).values())
-                            + htlcsum(self.hm.htlcs_by_direction(htlc_proposer, RECEIVED).values()))
-        if current_htlc_sum + amount_msat > self.config[htlc_receiver].max_htlc_value_in_flight_msat:
-            raise PaymentFailure(f'HTLC value sum (sum of pending htlcs: {current_htlc_sum/1000} sat '
-                                 f'plus new htlc: {amount_msat/1000} sat) '
-                                 f'would exceed max allowed: {self.config[htlc_receiver].max_htlc_value_in_flight_msat/1000} sat')
-        if amount_msat < self.config[htlc_receiver].htlc_minimum_msat:
+            raise PaymentFailure("HTLC value must be positive")
+        if amount_msat < chan_config.htlc_minimum_msat:
             raise PaymentFailure(f'HTLC value too small: {amount_msat} msat')
         if amount_msat > LN_MAX_HTLC_VALUE_MSAT and not self._ignore_max_htlc_value:
             raise PaymentFailure(f"HTLC value over protocol maximum: {amount_msat} > {LN_MAX_HTLC_VALUE_MSAT} msat")
+
+        # check proposer can afford htlc
+        max_can_send_msat = self.available_to_spend(htlc_proposer, strict=strict)
+        if max_can_send_msat < amount_msat:
+            raise PaymentFailure(f'Not enough balance. can send: {max_can_send_msat}, tried: {amount_msat}')
+
+        # check "max_accepted_htlcs"
+        # this is the loose check BOLT-02 specifies:
+        if len(self.hm.htlcs_by_direction(htlc_receiver, direction=RECEIVED, ctn=ctn)) + 1 > chan_config.max_accepted_htlcs:
+            raise PaymentFailure('Too many HTLCs already in channel')
+        # however, c-lightning is a lot stricter, so extra checks:
+        if strict:
+            max_concurrent_htlcs = min(self.config[htlc_proposer].max_accepted_htlcs,
+                                       self.config[htlc_receiver].max_accepted_htlcs)
+            if len(self.hm.htlcs(htlc_receiver, ctn=ctn)) + 1 > max_concurrent_htlcs:
+                raise PaymentFailure('Too many HTLCs already in channel')
+
+        # check "max_htlc_value_in_flight_msat"
+        current_htlc_sum = htlcsum(self.hm.htlcs_by_direction(htlc_receiver, direction=RECEIVED, ctn=ctn).values())
+        if current_htlc_sum + amount_msat > chan_config.max_htlc_value_in_flight_msat:
+            raise PaymentFailure(f'HTLC value sum (sum of pending htlcs: {current_htlc_sum/1000} sat '
+                                 f'plus new htlc: {amount_msat/1000} sat) '
+                                 f'would exceed max allowed: {chan_config.max_htlc_value_in_flight_msat/1000} sat')
 
     def can_pay(self, amount_msat: int, *, check_frozen=False) -> bool:
         """Returns whether we can add an HTLC of given value."""
@@ -678,15 +700,8 @@ class Channel(Logger):
                 self.lnworker.payment_failed(self, htlc.payment_hash, payment_attempt)
 
     def balance(self, whose: HTLCOwner, *, ctx_owner=HTLCOwner.LOCAL, ctn: int = None) -> int:
-        """
-        This balance in mSAT is not including reserve and fees.
-        So a node cannot actually use its whole balance.
-        But this number is simple, since it is derived simply
-        from the initial balance, and the value of settled HTLCs.
-        Note that it does not decrease once an HTLC is added,
-        failed or fulfilled, since the balance change is only
-        committed to later when the respective commitment
-        transaction has been revoked.
+        """This balance (in msat) only considers HTLCs that have been settled by ctn.
+        It disregards reserve, fees, and pending HTLCs (in both directions).
         """
         assert type(whose) is HTLCOwner
         initial = self.config[whose].initial_msat
@@ -697,8 +712,7 @@ class Channel(Logger):
 
     def balance_minus_outgoing_htlcs(self, whose: HTLCOwner, *, ctx_owner: HTLCOwner = HTLCOwner.LOCAL,
                                      ctn: int = None):
-        """
-        This balance in mSAT, which includes the value of
+        """This balance (in msat), which includes the value of
         pending outgoing HTLCs, is used in the UI.
         """
         assert type(whose) is HTLCOwner
@@ -716,27 +730,62 @@ class Channel(Logger):
             ctn = self.get_next_ctn(ctx_owner)
         return htlcsum(self.hm.htlcs_by_direction(ctx_owner, direction, ctn).values())
 
-    def available_to_spend(self, subject: HTLCOwner) -> int:
+    def available_to_spend(self, subject: HTLCOwner, *, strict: bool = True) -> int:
+        """The usable balance of 'subject' in msat, after taking reserve and fees into
+        consideration. Note that fees (and hence the result) fluctuate even without user interaction.
         """
-        This balance in mSAT, while technically correct, can
-        not be used in the UI cause it fluctuates (commit fee)
-        """
-        # FIXME whose balance? whose ctx?
-        # FIXME confusing/mixing ctns (should probably use latest_ctn + 1; not oldest_unrevoked + 1)
         assert type(subject) is HTLCOwner
-        ctx_owner = subject.inverted()
+        sender = subject
+        receiver = subject.inverted()
+        ctx_owner = receiver
+        # TODO but what about the other ctx? BOLT-02 only talks about checking the receiver's ctx,
+        #      however the channel reserve is only meaningful if we also check the sender's ctx!
+        #      in particular, note that dust limits can be different between the parties!
+        #      but due to the racy nature of this, we cannot be sure exactly what the sender's
+        #      next ctx will look like (e.g. what feerate it will use). hmmm :/
         ctn = self.get_next_ctn(ctx_owner)
-        balance = self.balance_minus_outgoing_htlcs(whose=subject, ctx_owner=ctx_owner, ctn=ctn)
-        reserve = self.config[-subject].reserve_sat * 1000
-        # TODO should we include a potential new htlc, when we are called from receive_htlc?
-        fees = calc_onchain_fees(
-            num_htlcs=len(self.included_htlcs(ctx_owner, SENT, ctn=ctn) + self.included_htlcs(ctx_owner, RECEIVED, ctn=ctn)),
-            feerate=self.get_feerate(ctx_owner, ctn=ctn),
+        sender_balance_msat = self.balance_minus_outgoing_htlcs(whose=sender, ctx_owner=ctx_owner, ctn=ctn)
+        receiver_balance_msat = self.balance_minus_outgoing_htlcs(whose=receiver, ctx_owner=ctx_owner, ctn=ctn)
+        sender_reserve_msat = self.config[receiver].reserve_sat * 1000
+        receiver_reserve_msat = self.config[sender].reserve_sat * 1000
+        initiator = LOCAL if self.constraints.is_initiator else REMOTE
+        # the initiator/funder pays on-chain fees
+        num_htlcs_in_ctx = len(self.included_htlcs(ctx_owner, SENT, ctn=ctn) + self.included_htlcs(ctx_owner, RECEIVED, ctn=ctn))
+        feerate = self.get_feerate(ctx_owner, ctn=ctn)
+        ctx_fees_msat = calc_fees_for_commitment_tx(
+            num_htlcs=num_htlcs_in_ctx,
+            feerate=feerate,
             is_local_initiator=self.constraints.is_initiator,
-        )[subject]
-        return balance - reserve - fees
+            round_to_sat=False,
+        )
+        # note: if this supposed new HTLC is large enough to create an output, the initiator needs to pay for that too
+        # note: if sender != initiator, both the sender and the receiver need to "afford" the payment
+        htlc_fee_msat = fee_for_htlc_output(feerate=feerate)
+        # TODO stuck channels. extra funder reserve? "fee spike buffer" (maybe only if "strict")
+        #      see https://github.com/lightningnetwork/lightning-rfc/issues/728
+        # note: in terms of on-chain outputs, as we are considering the htlc_receiver's ctx, this is a "received" HTLC
+        htlc_trim_threshold_msat = received_htlc_trim_threshold_sat(dust_limit_sat=self.config[receiver].dust_limit_sat, feerate=feerate) * 1000
+        if strict:
+            # also consider the other ctx, where the trim threshold is different
+            # note: the 'feerate' we use is not technically correct but we have no way
+            #       of knowing the actual future feerate ahead of time (this is a protocol bug)
+            htlc_trim_threshold_msat = min(htlc_trim_threshold_msat,
+                                           offered_htlc_trim_threshold_sat(dust_limit_sat=self.config[sender].dust_limit_sat, feerate=feerate) * 1000)
+        max_send_msat = sender_balance_msat - sender_reserve_msat - ctx_fees_msat[sender]
+        if max_send_msat < htlc_trim_threshold_msat:
+            # there will be no corresponding HTLC output
+            return max_send_msat
+        if sender == initiator:
+            max_send_after_htlc_fee_msat = max_send_msat - htlc_fee_msat
+            max_send_msat = max(htlc_trim_threshold_msat - 1, max_send_after_htlc_fee_msat)
+            return max_send_msat
+        else:
+            # the receiver is the initiator, so they need to be able to pay tx fees
+            if receiver_balance_msat - receiver_reserve_msat - ctx_fees_msat[receiver] - htlc_fee_msat < 0:
+                max_send_msat = htlc_trim_threshold_msat - 1
+            return max_send_msat
 
-    def included_htlcs(self, subject, direction, ctn=None):
+    def included_htlcs(self, subject: HTLCOwner, direction: Direction, ctn: int = None) -> Sequence[UpdateAddHtlc]:
         """
         return filter of non-dust htlcs for subjects commitment transaction, initiated by given party
         """
@@ -747,12 +796,11 @@ class Channel(Logger):
         feerate = self.get_feerate(subject, ctn)
         conf = self.config[subject]
         if direction == RECEIVED:
-            weight = HTLC_SUCCESS_WEIGHT
+            threshold_sat = received_htlc_trim_threshold_sat(dust_limit_sat=conf.dust_limit_sat, feerate=feerate)
         else:
-            weight = HTLC_TIMEOUT_WEIGHT
+            threshold_sat = offered_htlc_trim_threshold_sat(dust_limit_sat=conf.dust_limit_sat, feerate=feerate)
         htlcs = self.hm.htlcs_by_direction(subject, direction, ctn=ctn).values()
-        htlc_value_after_fees = lambda htlc: htlc.amount_msat // 1000 - (weight * feerate // 1000)
-        return list(filter(lambda htlc: htlc_value_after_fees(htlc) >= conf.dust_limit_sat, htlcs))
+        return list(filter(lambda htlc: htlc.amount_msat // 1000 >= threshold_sat, htlcs))
 
     def get_secret_and_point(self, subject: HTLCOwner, ctn: int) -> Tuple[Optional[bytes], bytes]:
         assert type(subject) is HTLCOwner
@@ -877,6 +925,8 @@ class Channel(Logger):
         # feerate uses sat/kw
         if self.constraints.is_initiator != from_us:
             raise Exception(f"Cannot update_fee: wrong initiator. us: {from_us}")
+        # TODO check that funder can afford the new on-chain fees (+ channel reserve)
+        #      (maybe check both ctxs, at least if from_us is True??)
         with self.db_lock:
             if from_us:
                 assert self.can_send_ctx_updates(), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}"
@@ -917,11 +967,19 @@ class Channel(Logger):
                     cltv_expiry=htlc.cltv_expiry), htlc))
         # note: maybe flip initiator here for fee purposes, we want LOCAL and REMOTE
         #       in the resulting dict to correspond to the to_local and to_remote *outputs* of the ctx
-        onchain_fees = calc_onchain_fees(
+        onchain_fees = calc_fees_for_commitment_tx(
             num_htlcs=len(htlcs),
             feerate=feerate,
             is_local_initiator=self.constraints.is_initiator == (subject == LOCAL),
         )
+
+        # TODO: we need to also include the respective channel reserves here, but not at the
+        #       beginning of the channel lifecycle when the reserve might not be met yet
+        if remote_msat - onchain_fees[REMOTE] < 0:
+            raise Exception(f"negative remote_msat in make_commitment: {remote_msat}")
+        if local_msat - onchain_fees[LOCAL] < 0:
+            raise Exception(f"negative local_msat in make_commitment: {local_msat}")
+
         if self.is_static_remotekey_enabled():
             payment_pubkey = other_config.payment_basepoint.pubkey
         else:
