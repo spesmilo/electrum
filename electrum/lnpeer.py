@@ -1027,13 +1027,16 @@ class Peer(Logger):
         assert amount_msat > 0, "amount_msat is not greater zero"
         if not chan.can_send_update_add_htlc():
             raise PaymentFailure("Channel cannot send update_add_htlc")
+        local_height = self.network.get_local_height()
         # create onion packet
-        final_cltv = self.network.get_local_height() + min_final_cltv_expiry
+        final_cltv = local_height + min_final_cltv_expiry
         hops_data, amount_msat, cltv = calc_hops_data_for_payment(route, amount_msat, final_cltv)
         assert final_cltv <= cltv, (final_cltv, cltv)
         secret_key = os.urandom(32)
         onion = new_onion_packet([x.node_id for x in route], secret_key, hops_data, associated_data=payment_hash)
         # create htlc
+        if cltv > local_height + lnutil.NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE:
+            raise PaymentFailure(f"htlc expiry too far into future. (in {cltv-local_height} blocks)")
         htlc = UpdateAddHtlc(amount_msat=amount_msat, payment_hash=payment_hash, cltv_expiry=cltv, timestamp=int(time.time()))
         htlc = chan.add_htlc(htlc)
         chan.set_onion_key(htlc.htlc_id, secret_key)

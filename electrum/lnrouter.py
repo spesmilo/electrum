@@ -31,6 +31,7 @@ from .util import bh2u, profiler
 from .logging import Logger
 from .lnutil import NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID
 from .channel_db import ChannelDB, Policy
+from .lnutil import NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE
 
 if TYPE_CHECKING:
     from .lnchannel import Channel
@@ -99,8 +100,7 @@ def is_route_sane_to_use(route: LNPaymentRoute, invoice_amount_msat: int, min_fi
         cltv += route_edge.cltv_expiry_delta
     total_fee = amt - invoice_amount_msat
     # TODO revise ad-hoc heuristics
-    # cltv cannot be more than 2 months
-    if cltv > 60 * 144:
+    if cltv > NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE:
         return False
     if not is_fee_sane(total_fee, payment_amount_msat=invoice_amount_msat):
         return False
