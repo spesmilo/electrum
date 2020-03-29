@@ -9,9 +9,7 @@ import hashlib
 import asyncio
 from asyncio import StreamReader, StreamWriter
 
-from Cryptodome.Cipher import ChaCha20_Poly1305
-
-from .crypto import sha256, hmac_oneshot
+from .crypto import sha256, hmac_oneshot, chacha20_poly1305_encrypt, chacha20_poly1305_decrypt
 from .lnutil import (get_ecdh, privkey_to_pubkey, LightningPeerConnectionClosed,
                      HandshakeFailed, LNPeerAddr)
 from . import ecc
@@ -41,17 +39,17 @@ def get_nonce_bytes(n):
 
 def aead_encrypt(key: bytes, nonce: int, associated_data: bytes, data: bytes) -> bytes:
     nonce_bytes = get_nonce_bytes(nonce)
-    cipher = ChaCha20_Poly1305.new(key=key, nonce=nonce_bytes)
-    cipher.update(associated_data)
-    ciphertext, mac = cipher.encrypt_and_digest(plaintext=data)
-    return ciphertext + mac
+    return chacha20_poly1305_encrypt(key=key,
+                                     nonce=nonce_bytes,
+                                     associated_data=associated_data,
+                                     data=data)
 
 def aead_decrypt(key: bytes, nonce: int, associated_data: bytes, data: bytes) -> bytes:
     nonce_bytes = get_nonce_bytes(nonce)
-    cipher = ChaCha20_Poly1305.new(key=key, nonce=nonce_bytes)
-    cipher.update(associated_data)
-    # raises ValueError if not valid (e.g. incorrect MAC)
-    return cipher.decrypt_and_verify(ciphertext=data[:-16], received_mac_tag=data[-16:])
+    return chacha20_poly1305_decrypt(key=key,
+                                     nonce=nonce_bytes,
+                                     associated_data=associated_data,
+                                     data=data)
 
 def get_bolt8_hkdf(salt, ikm):
     """RFC5869 HKDF instantiated in the specific form

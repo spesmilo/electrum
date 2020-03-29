@@ -149,12 +149,13 @@ if [[ $1 == "breach" ]]; then
     echo "alice pays"
     $alice lnpay $request
     sleep 2
-    ctx=$($alice get_channel_ctx $channel)
+    ctx=$($alice get_channel_ctx $channel --iknowwhatimdoing)
     request=$($bob add_lightning_request 0.01 -m "blah2")
     echo "alice pays again"
     $alice lnpay $request
     echo "alice broadcasts old ctx"
     $groestlcoin_cli sendrawtransaction $ctx
+    new_blocks 1
     wait_until_channel_closed bob
     new_blocks 1
     wait_for_balance bob 0.14
@@ -170,10 +171,10 @@ if [[ $1 == "redeem_htlcs" ]]; then
     new_blocks 3
     wait_until_channel_open alice
     # alice pays bob
-    invoice=$($bob add_lightning_request 0.05 -m "test")
+    invoice=$($bob add_lightning_request 0.04 -m "test")
     $alice lnpay $invoice --timeout=1 || true
-    settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
-    if [[ "$settled" != "0" ]]; then
+    unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
+    if [[ "$unsettled" == "0" ]]; then
         echo 'enable_htlc_settle did not work'
         exit 1
     fi
@@ -212,18 +213,18 @@ if [[ $1 == "breach_with_unspent_htlc" ]]; then
     new_blocks 3
     wait_until_channel_open alice
     echo "alice pays bob"
-    invoice=$($bob add_lightning_request 0.05 -m "test")
+    invoice=$($bob add_lightning_request 0.04 -m "test")
     $alice lnpay $invoice --timeout=1 || true
-    settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
-    if [[ "$settled" != "0" ]]; then
-        echo "enable_htlc_settle did not work, $settled != 0"
+    unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
+    if [[ "$unsettled" == "0" ]]; then
+        echo "enable_htlc_settle did not work, $unsettled"
         exit 1
     fi
-    ctx=$($alice get_channel_ctx $channel)
+    ctx=$($alice get_channel_ctx $channel --iknowwhatimdoing)
     $bob enable_htlc_settle true
-    settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
-    if [[ "$settled" != "1" ]]; then
-        echo "enable_htlc_settle did not work, $settled != 1"
+    unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
+    if [[ "$unsettled" != "0" ]]; then
+        echo "enable_htlc_settle did not work, $unsettled"
         exit 1
     fi
     echo "alice breaches with old ctx"
@@ -241,19 +242,19 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     new_blocks 3
     wait_until_channel_open alice
     echo "alice pays bob"
-    invoice=$($bob add_lightning_request 0.05 -m "test")
+    invoice=$($bob add_lightning_request 0.04 -m "test")
     $alice lnpay $invoice --timeout=1 || true
-    ctx=$($alice get_channel_ctx $channel)
-    settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
-    if [[ "$settled" != "0" ]]; then
-        echo "enable_htlc_settle did not work, $settled != 0"
+    ctx=$($alice get_channel_ctx $channel --iknowwhatimdoing)
+    unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
+    if [[ "$unsettled" == "0" ]]; then
+        echo "enable_htlc_settle did not work, $unsettled"
         exit 1
     fi
     cp /tmp/alice/regtest/wallets/default_wallet /tmp/alice/regtest/wallets/toxic_wallet
     $bob enable_htlc_settle true
-    settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
-    if [[ "$settled" != "1" ]]; then
-        echo "enable_htlc_settle did not work, $settled != 1"
+    unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
+    if [[ "$unsettled" != "0" ]]; then
+        echo "enable_htlc_settle did not work, $unsettled"
         exit 1
     fi
     echo $($bob getbalance)
@@ -283,7 +284,7 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     $bob daemon -d
     sleep 1
     $bob load_wallet
-    wait_for_balance bob 0.049
+    wait_for_balance bob 0.039
     $bob getbalance
 fi
 
@@ -307,7 +308,7 @@ if [[ $1 == "watchtower" ]]; then
     echo "alice pays bob"
     invoice1=$($bob add_lightning_request 0.01 -m "invoice1")
     $alice lnpay $invoice1
-    ctx=$($alice get_channel_ctx $channel)
+    ctx=$($alice get_channel_ctx $channel --iknowwhatimdoing)
     echo "alice pays bob again"
     invoice2=$($bob add_lightning_request 0.01 -m "invoice2")
     $alice lnpay $invoice2

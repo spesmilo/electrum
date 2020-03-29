@@ -108,8 +108,8 @@ def is_route_sane_to_use(route: LNPaymentRoute, invoice_amount_msat: int, min_fi
 
 
 def is_fee_sane(fee_msat: int, *, payment_amount_msat: int) -> bool:
-    # fees <= 2 sat are fine
-    if fee_msat <= 2_000:
+    # fees <= 5 sat are fine
+    if fee_msat <= 5_000:
         return True
     # fees <= 1 % of payment are fine
     if 100 * fee_msat <= payment_amount_msat:
@@ -146,7 +146,6 @@ class LNPathFinder(Logger):
             return float('inf'), 0
         if channel_policy.is_disabled():
             return float('inf'), 0
-        route_edge = RouteEdge.from_channel_policy(channel_policy, short_channel_id, end_node)
         if payment_amt_msat < channel_policy.htlc_minimum_msat:
             return float('inf'), 0  # payment amount too little
         if channel_info.capacity_sat is not None and \
@@ -155,6 +154,7 @@ class LNPathFinder(Logger):
         if channel_policy.htlc_maximum_msat is not None and \
                 payment_amt_msat > channel_policy.htlc_maximum_msat:
             return float('inf'), 0  # payment amount too large
+        route_edge = RouteEdge.from_channel_policy(channel_policy, short_channel_id, end_node)
         if not route_edge.is_sane_to_use(payment_amt_msat):
             return float('inf'), 0  # thanks but no thanks
 
@@ -187,6 +187,8 @@ class LNPathFinder(Logger):
         assert type(nodeB) is bytes
         assert type(invoice_amount_msat) is int
         if my_channels is None: my_channels = {}
+        # note: we don't lock self.channel_db, so while the path finding runs,
+        #       the underlying graph could potentially change... (not good but maybe ~OK?)
 
         # FIXME paths cannot be longer than 20 edges (onion packet)...
 
@@ -203,11 +205,12 @@ class LNPathFinder(Logger):
             is_mine = edge_channel_id in my_channels
             if is_mine:
                 if edge_startnode == nodeA:  # payment outgoing, on our channel
-                    if not my_channels[edge_channel_id].can_pay(amount_msat):
+                    if not my_channels[edge_channel_id].can_pay(amount_msat, check_frozen=True):
                         return
                 else:  # payment incoming, on our channel. (funny business, cycle weirdness)
                     assert edge_endnode == nodeA, (bh2u(edge_startnode), bh2u(edge_endnode))
-                    pass  # TODO?
+                    if not my_channels[edge_channel_id].can_receive(amount_msat, check_frozen=True):
+                        return
             edge_cost, fee_for_edge_msat = self._edge_cost(
                 edge_channel_id,
                 start_node=edge_startnode,

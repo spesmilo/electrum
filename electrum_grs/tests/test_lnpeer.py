@@ -7,6 +7,9 @@ from collections import defaultdict
 import logging
 import concurrent
 from concurrent import futures
+import unittest
+
+from aiorpcx import TaskGroup
 
 from electrum_grs import constants
 from electrum_grs.network import Network
@@ -18,16 +21,17 @@ from electrum_grs.util import bh2u, create_and_start_event_loop
 from electrum_grs.lnpeer import Peer
 from electrum_grs.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
 from electrum_grs.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
-from electrum_grs.lnutil import PaymentFailure, LnLocalFeatures
+from electrum_grs.lnutil import PaymentFailure, LnLocalFeatures, HTLCOwner
 from electrum_grs.lnchannel import channel_states, peer_states, Channel
 from electrum_grs.lnrouter import LNPathFinder
 from electrum_grs.channel_db import ChannelDB
 from electrum_grs.lnworker import LNWallet, NoPathFound
 from electrum_grs.lnmsg import encode_msg, decode_msg
-from electrum_grs.logging import console_stderr_handler
+from electrum_grs.logging import console_stderr_handler, Logger
 from electrum_grs.lnworker import PaymentInfo, RECEIVED, PR_UNPAID
 
 from .test_lnchannel import create_test_channels
+from .test_bitcoin import needs_test_with_all_chacha20_implementations
 from . import ElectrumTestCase
 
 def keypair():
@@ -51,6 +55,7 @@ class MockNetwork:
         self.config = simple_config.SimpleConfig(user_config, read_user_dir_function=lambda: user_dir)
         self.asyncio_loop = asyncio.get_event_loop()
         self.channel_db = ChannelDB(self)
+        self.channel_db.data_loaded.set()
         self.path_finder = LNPathFinder(self.channel_db)
         self.tx_queue = tx_queue
 
@@ -65,9 +70,12 @@ class MockNetwork:
     def get_local_height(self):
         return 0
 
-    async def try_broadcasting(self, tx, name):
+    async def broadcast_transaction(self, tx):
         if self.tx_queue:
             await self.tx_queue.put(tx)
+
+    async def try_broadcasting(self, tx, name):
+        self.broadcast_transaction(tx)
 
 class MockWallet:
     def set_label(self, x, y):
@@ -77,8 +85,9 @@ class MockWallet:
     def is_lightning_backup(self):
         return False
 
-class MockLNWallet:
+class MockLNWallet(Logger):
     def __init__(self, remote_keypair, local_keypair, chan: 'Channel', tx_queue):
+        Logger.__init__(self)
         self.remote_keypair = remote_keypair
         self.node_keypair = local_keypair
         self.network = MockNetwork(tx_queue)
@@ -118,22 +127,27 @@ class MockLNWallet:
     def save_channel(self, chan):
         print("Ignoring channel save")
 
+    is_routing = set()
     preimages = {}
     get_payment_info = LNWallet.get_payment_info
     save_payment_info = LNWallet.save_payment_info
+    set_invoice_status = LNWallet.set_invoice_status
     set_payment_status = LNWallet.set_payment_status
     get_payment_status = LNWallet.get_payment_status
     await_payment = LNWallet.await_payment
     payment_received = LNWallet.payment_received
     payment_sent = LNWallet.payment_sent
+    payment_failed = LNWallet.payment_failed
     save_preimage = LNWallet.save_preimage
     get_preimage = LNWallet.get_preimage
     _create_route_from_invoice = LNWallet._create_route_from_invoice
     _check_invoice = staticmethod(LNWallet._check_invoice)
     _pay_to_route = LNWallet._pay_to_route
+    _pay = LNWallet._pay
     force_close_channel = LNWallet.force_close_channel
+    try_force_closing = LNWallet.try_force_closing
     get_first_timestamp = lambda self: 0
-    payment_completed = LNWallet.payment_completed
+
 
 class MockTransport:
     def __init__(self, name):
@@ -209,9 +223,11 @@ class TestPeer(ElectrumTestCase):
         return p1, p2, w1, w2, q1, q2
 
     @staticmethod
-    def prepare_invoice(w2 # receiver
-            ):
-        amount_sat = 100000
+    def prepare_invoice(
+            w2,  # receiver
+            *,
+            amount_sat=100_000,
+    ):
         amount_btc = amount_sat/Decimal(COIN)
         payment_preimage = os.urandom(32)
         RHASH = sha256(payment_preimage)
@@ -244,13 +260,14 @@ class TestPeer(ElectrumTestCase):
         with self.assertRaises(concurrent.futures.CancelledError):
             run(f())
 
+    @needs_test_with_all_chacha20_implementations
     def test_reestablish_with_old_state(self):
         alice_channel, bob_channel = create_test_channels()
         alice_channel_0, bob_channel_0 = create_test_channels() # these are identical
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
         pay_req = self.prepare_invoice(w2)
         async def pay():
-            result = await LNWallet._pay(w1, pay_req)
+            result = await w1._pay(pay_req)
             self.assertEqual(result, True)
             gath.cancel()
         gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
@@ -277,12 +294,13 @@ class TestPeer(ElectrumTestCase):
         with self.assertRaises(concurrent.futures.CancelledError):
             run(f())
 
+    @needs_test_with_all_chacha20_implementations
     def test_payment(self):
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
         pay_req = self.prepare_invoice(w2)
         async def pay():
-            result = await LNWallet._pay(w1, pay_req)
+            result = await w1._pay(pay_req)
             self.assertTrue(result)
             gath.cancel()
         gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
@@ -291,6 +309,36 @@ class TestPeer(ElectrumTestCase):
         with self.assertRaises(concurrent.futures.CancelledError):
             run(f())
 
+    #@unittest.skip("too expensive")
+    #@needs_test_with_all_chacha20_implementations
+    def test_payments_stresstest(self):
+        alice_channel, bob_channel = create_test_channels()
+        p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+        alice_init_balance_msat = alice_channel.balance(HTLCOwner.LOCAL)
+        bob_init_balance_msat = bob_channel.balance(HTLCOwner.LOCAL)
+        num_payments = 50
+        #pay_reqs1 = [self.prepare_invoice(w1, amount_sat=1) for i in range(num_payments)]
+        pay_reqs2 = [self.prepare_invoice(w2, amount_sat=1) for i in range(num_payments)]
+        max_htlcs_in_flight = asyncio.Semaphore(5)
+        async def single_payment(pay_req):
+            async with max_htlcs_in_flight:
+                await w1._pay(pay_req)
+        async def many_payments():
+            async with TaskGroup() as group:
+                for pay_req in pay_reqs2:
+                    await group.spawn(single_payment(pay_req))
+            gath.cancel()
+        gath = asyncio.gather(many_payments(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+        async def f():
+            await gath
+        with self.assertRaises(concurrent.futures.CancelledError):
+            run(f())
+        self.assertEqual(alice_init_balance_msat - num_payments * 1000, alice_channel.balance(HTLCOwner.LOCAL))
+        self.assertEqual(alice_init_balance_msat - num_payments * 1000, bob_channel.balance(HTLCOwner.REMOTE))
+        self.assertEqual(bob_init_balance_msat + num_payments * 1000, bob_channel.balance(HTLCOwner.LOCAL))
+        self.assertEqual(bob_init_balance_msat + num_payments * 1000, alice_channel.balance(HTLCOwner.REMOTE))
+
+    @needs_test_with_all_chacha20_implementations
     def test_close(self):
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
@@ -305,8 +353,8 @@ class TestPeer(ElectrumTestCase):
             await asyncio.wait_for(p1.initialized, 1)
             await asyncio.wait_for(p2.initialized, 1)
             # alice sends htlc
-            route = await w1._create_route_from_invoice(decoded_invoice=lnaddr)
-            htlc = await p1.pay(route, alice_channel, int(lnaddr.amount * COIN * 1000), lnaddr.paymenthash, lnaddr.get_min_final_cltv_expiry())
+            route = w1._create_route_from_invoice(decoded_invoice=lnaddr)
+            htlc = p1.pay(route, alice_channel, int(lnaddr.amount * COIN * 1000), lnaddr.paymenthash, lnaddr.get_min_final_cltv_expiry())
             # alice closes
             await p1.close_channel(alice_channel.channel_id)
             gath.cancel()
@@ -325,14 +373,14 @@ class TestPeer(ElectrumTestCase):
         pay_req = self.prepare_invoice(w2)
 
         addr = w1._check_invoice(pay_req)
-        route = run(w1._create_route_from_invoice(decoded_invoice=addr))
+        route = w1._create_route_from_invoice(decoded_invoice=addr)
 
         run(w1.force_close_channel(alice_channel.channel_id))
         # check if a tx (commitment transaction) was broadcasted:
         assert q1.qsize() == 1
 
         with self.assertRaises(NoPathFound) as e:
-            run(w1._create_route_from_invoice(decoded_invoice=addr))
+            w1._create_route_from_invoice(decoded_invoice=addr)
 
         peer = w1.peers[route[0].node_id]
         # AssertionError is ok since we shouldn't use old routes, and the
@@ -341,6 +389,7 @@ class TestPeer(ElectrumTestCase):
             await asyncio.gather(w1._pay_to_route(route, addr), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         with self.assertRaises(PaymentFailure):
             run(f())
+
 
 def run(coro):
     return asyncio.run_coroutine_threadsafe(coro, loop=asyncio.get_event_loop()).result()

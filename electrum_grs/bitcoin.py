@@ -299,19 +299,24 @@ def add_number_to_script(i: int) -> bytes:
 
 
 def relayfee(network: 'Network' = None) -> int:
+    """Returns feerate in sat/kbyte."""
     from .simple_config import FEERATE_DEFAULT_RELAY, FEERATE_MAX_RELAY
     if network and network.relay_fee is not None:
         fee = network.relay_fee
     else:
         fee = FEERATE_DEFAULT_RELAY
+    # sanity safeguards, as network.relay_fee is coming from a server:
     fee = min(fee, FEERATE_MAX_RELAY)
-    fee = max(fee, 0)
+    fee = max(fee, FEERATE_DEFAULT_RELAY)
     return fee
 
 
-def dust_threshold(network: 'Network'=None) -> int:
+def dust_threshold(network: 'Network' = None) -> int:
+    """Returns the dust limit in satoshis."""
     # Change <= dust threshold is added to the tx fee
-    return 182 * 3 * relayfee(network) // 1000
+    dust_lim = 182 * 3 * relayfee(network)  # in msat
+    # convert to sat, but round up:
+    return (dust_lim // 1000) + (dust_lim % 1000 > 0)
 
 
 def hash_encode(x: bytes) -> str:

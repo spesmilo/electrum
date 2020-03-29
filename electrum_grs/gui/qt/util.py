@@ -20,11 +20,12 @@ from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
                              QAbstractItemView, QVBoxLayout, QLineEdit,
                              QStyle, QDialog, QGroupBox, QButtonGroup, QRadioButton,
                              QFileDialog, QWidget, QToolButton, QTreeView, QPlainTextEdit,
-                             QHeaderView, QApplication, QToolTip, QTreeWidget, QStyledItemDelegate)
+                             QHeaderView, QApplication, QToolTip, QTreeWidget, QStyledItemDelegate,
+                             QMenu)
 
 from electrum_grs.i18n import _, languages
 from electrum_grs.util import FileImportFailed, FileExportFailed, make_aiohttp_session, resource_path
-from electrum_grs.util import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED
+from electrum_grs.util import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -47,6 +48,7 @@ pr_icons = {
     PR_EXPIRED:"expired.png",
     PR_INFLIGHT:"unconfirmed.png",
     PR_FAILED:"warning.png",
+    PR_ROUTING:"unconfirmed.png",
 }
 
 
@@ -657,7 +659,7 @@ class MyTreeView(QTreeView):
     def toggle_toolbar(self, config=None):
         self.show_toolbar(not self.toolbar_shown, config)
 
-    def add_copy_menu(self, menu, idx):
+    def add_copy_menu(self, menu: QMenu, idx) -> QMenu:
         cc = menu.addMenu(_("Copy"))
         for column in self.Columns:
             column_title = self.model().horizontalHeaderItem(column).text()
@@ -668,6 +670,7 @@ class MyTreeView(QTreeView):
             cc.addAction(column_title,
                          lambda text=clipboard_data, title=column_title:
                          self.place_text_on_clipboard(text, title=title))
+        return cc
 
     def place_text_on_clipboard(self, text: str, *, title: str = None) -> None:
         self.parent.do_copy(text, title=title)
@@ -695,7 +698,7 @@ class ButtonsWidget(QWidget):
 
     def resizeButtons(self):
         frameWidth = self.style().pixelMetric(QStyle.PM_DefaultFrameWidth)
-        x = self.rect().right() - frameWidth
+        x = self.rect().right() - frameWidth - 10
         y = self.rect().bottom() - frameWidth
         for button in self.buttons:
             sz = button.sizeHint()

@@ -27,10 +27,8 @@ import hashlib
 from typing import Sequence, List, Tuple, NamedTuple, TYPE_CHECKING
 from enum import IntEnum, IntFlag
 
-from Cryptodome.Cipher import ChaCha20
-
 from . import ecc
-from .crypto import sha256, hmac_oneshot
+from .crypto import sha256, hmac_oneshot, chacha20_encrypt
 from .util import bh2u, profiler, xor_bytes, bfh
 from .lnutil import (get_ecdh, PaymentFailure, NUM_MAX_HOPS_IN_PAYMENT_PATH,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID)
@@ -47,6 +45,7 @@ PER_HOP_HMAC_SIZE = 32
 
 class UnsupportedOnionPacketVersion(Exception): pass
 class InvalidOnionMac(Exception): pass
+class InvalidOnionPubkey(Exception): pass
 
 
 class OnionPerHop:
@@ -111,6 +110,8 @@ class OnionPacket:
         self.public_key = public_key
         self.hops_data = hops_data  # also called RoutingInfo in bolt-04
         self.hmac = hmac
+        if not ecc.ECPubkey.is_pubkey_bytes(public_key):
+            raise InvalidOnionPubkey()
 
     def to_bytes(self) -> bytes:
         ret = bytes([self.version])
@@ -136,7 +137,7 @@ class OnionPacket:
 
 
 def get_bolt04_onion_key(key_type: bytes, secret: bytes) -> bytes:
-    if key_type not in (b'rho', b'mu', b'um', b'ammag'):
+    if key_type not in (b'rho', b'mu', b'um', b'ammag', b'pad'):
         raise Exception('invalid key_type {}'.format(key_type))
     key = hmac_oneshot(key_type, msg=secret, digest=hashlib.sha256)
     return key
@@ -165,8 +166,12 @@ def new_onion_packet(payment_path_pubkeys: Sequence[bytes], session_key: bytes,
     hop_shared_secrets = get_shared_secrets_along_route(payment_path_pubkeys, session_key)
 
     filler = generate_filler(b'rho', num_hops, PER_HOP_FULL_SIZE, hop_shared_secrets)
-    mix_header = bytes(HOPS_DATA_SIZE)
     next_hmac = bytes(PER_HOP_HMAC_SIZE)
+
+    # Our starting packet needs to be filled out with random bytes, we
+    # generate some determinstically using the session private key.
+    pad_key = get_bolt04_onion_key(b'pad', session_key)
+    mix_header = generate_cipher_stream(pad_key, HOPS_DATA_SIZE)
 
     # compute routing info and MAC for each hop
     for i in range(num_hops-1, -1, -1):
@@ -227,8 +232,9 @@ def generate_filler(key_type: bytes, num_hops: int, hop_size: int,
 
 
 def generate_cipher_stream(stream_key: bytes, num_bytes: int) -> bytes:
-    cipher = ChaCha20.new(key=stream_key, nonce=bytes(8))
-    return cipher.encrypt(bytes(num_bytes))
+    return chacha20_encrypt(key=stream_key,
+                            nonce=bytes(8),
+                            data=bytes(num_bytes))
 
 
 class ProcessedOnionPacket(NamedTuple):
@@ -240,6 +246,8 @@ class ProcessedOnionPacket(NamedTuple):
 # TODO replay protection
 def process_onion_packet(onion_packet: OnionPacket, associated_data: bytes,
                          our_onion_private_key: bytes) -> ProcessedOnionPacket:
+    if not ecc.ECPubkey.is_pubkey_bytes(onion_packet.public_key):
+        raise InvalidOnionPubkey()
     shared_secret = get_ecdh(our_onion_private_key, onion_packet.public_key)
 
     # check message integrity
@@ -319,7 +327,7 @@ def construct_onion_error(reason: OnionRoutingFailureMessage,
 
 
 def _decode_onion_error(error_packet: bytes, payment_path_pubkeys: Sequence[bytes],
-                        session_key: bytes) -> (bytes, int):
+                        session_key: bytes) -> Tuple[bytes, int]:
     """Returns the decoded error bytes, and the index of the sender of the error."""
     num_hops = len(payment_path_pubkeys)
     hop_shared_secrets = get_shared_secrets_along_route(payment_path_pubkeys, session_key)

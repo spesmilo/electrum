@@ -25,13 +25,12 @@ jobs:
     - name: "Regtest functional tests"
       language: python
       python: 3.7
-      before_install:
+      install:
         - sudo add-apt-repository -y ppa:groestlcoin/groestlcoin
         - sudo apt-get -qq update
         - sudo apt-get install -yq groestlcoind
         - sudo apt-get -y install libsecp256k1-0
-      install:
-        - pip install -r contrib/requirements/requirements.txt
+        - pip install .[tests]
         - pip install electrumx
       before_script:
           - electrum_grs/tests/regtest/start_groestlcoind.sh

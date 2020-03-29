@@ -1,4 +1,6 @@
 #:import _ electrum_grs.gui.kivy.i18n._
+#:import pr_color electrum_grs.util.pr_color
+#:import PR_UNKNOWN electrum_grs.util.PR_UNKNOWN
 #:import Factory kivy.factory.Factory
 #:import Decimal decimal.Decimal
 #:set btc_symbol chr(171)
@@ -13,11 +15,11 @@
     valign: 'top'
 
 <RequestItem@CardItem>
-    is_expired: False
     address: ''
     memo: ''
     amount: ''
-    status: ''
+    status_str: ''
+    status: PR_UNKNOWN
     BoxLayout:
         spacing: '8dp'
         height: '32dp'
@@ -44,10 +46,10 @@
             font_size: '15sp'
         Widget
         RequestLabel:
-            text: root.status
+            text: root.status_str
             halign: 'right'
             font_size: '13sp'
-            color: (1., .2, .2, 1) if root.is_expired else (.7, .7, .7, 1)
+            color: pr_color[root.status]
         Widget
 
 <RequestRecycleView>:
@@ -60,7 +62,7 @@
         orientation: 'vertical'
 
 
-ReceiveScreen:
+<ReceiveScreen>:
     id: s
     name: 'receive'
     address: ''
@@ -132,7 +134,7 @@ ReceiveScreen:
             size_hint: 1, None
             height: '48dp'
             IconButton:
-                icon: 'atlas://electrum_grs/gui/kivy/theming/light/list'
+                icon: 'atlas://electrum_grs/gui/kivy/theming/light/delete'
                 size_hint: 0.5, None
                 height: '48dp'
                 on_release: Clock.schedule_once(lambda dt: s.clear_requests_dialog())
@@ -145,12 +147,12 @@ ReceiveScreen:
                 text: _('Clear')
                 size_hint: 1, None
                 height: '48dp'
-                on_release: Clock.schedule_once(lambda dt: s.parent.clear())
+                on_release: Clock.schedule_once(lambda dt: s.clear())
             Button:
                 text: _('Request')
                 size_hint: 1, None
                 height: '48dp'
-                on_release: Clock.schedule_once(lambda dt: s.parent.new_request(root.is_lightning))
+                on_release: Clock.schedule_once(lambda dt: s.new_request(root.is_lightning))
         Widget:
             size_hint: 1, 0.1
         RequestRecycleView:

@@ -8,7 +8,7 @@ from distutils.version import StrictVersion
 
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QProgressBar,
-                             QHBoxLayout, QPushButton)
+                             QHBoxLayout, QPushButton, QDialog)
 
 from electrum_grs import version
 from electrum_grs import constants
@@ -18,7 +18,7 @@ from electrum_grs.util import make_aiohttp_session
 from electrum_grs.logging import Logger
 
 
-class UpdateCheck(QWidget, Logger):
+class UpdateCheck(QDialog, Logger):
     url = "https://groestlcoin.org/version"
     download_url = "https://www.groestlcoin.org/groestlcoin-electrum-wallet/"
 
@@ -28,7 +28,7 @@ class UpdateCheck(QWidget, Logger):
 
     def __init__(self, main_window, latest_version=None):
         self.main_window = main_window
-        QWidget.__init__(self)
+        QDialog.__init__(self)
         self.setWindowTitle('Electrum-GRS - ' + _('Update Check'))
         self.content = QVBoxLayout()
         self.content.setContentsMargins(*[10]*4)

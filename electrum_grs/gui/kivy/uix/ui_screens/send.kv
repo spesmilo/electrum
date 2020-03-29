@@ -62,7 +62,7 @@
         height: self.minimum_height
         orientation: 'vertical'
 
-SendScreen:
+<SendScreen>:
     id: s
     name: 'send'
     address: ''
@@ -149,26 +149,30 @@ SendScreen:
             size_hint: 1, None
             height: '48dp'
             IconButton:
+                icon: 'atlas://electrum_grs/gui/kivy/theming/light/delete'
                 size_hint: 0.5, 1
-                on_release: s.parent.do_save()
+                on_release: Clock.schedule_once(lambda dt: s.clear_invoices_dialog())
+            IconButton:
+                size_hint: 0.5, 1
+                on_release: s.do_save()
                 icon: 'atlas://electrum_grs/gui/kivy/theming/light/save'
             IconButton:
                 size_hint: 0.5, 1
-                icon: 'atlas://electrum_grs/gui/kivy/theming/light/copy'
-                on_release: s.parent.do_paste()
+                on_release: s.do_clear()
+                icon: 'atlas://electrum_grs/gui/kivy/theming/light/closebutton'
             IconButton:
+                size_hint: 0.5, 1
+                icon: 'atlas://electrum_grs/gui/kivy/theming/light/copy'
+                on_release: s.do_paste()
+            Button:
                 id: qr
+                text:_('Scan')
                 size_hint: 1, 1
                 on_release: Clock.schedule_once(lambda dt: app.scan_qr(on_complete=app.on_qr))
-                icon: 'atlas://electrum_grs/gui/kivy/theming/light/camera'
-            Button:
-                text: _('Clear')
-                size_hint: 1, 1
-                on_release: s.parent.do_clear()
             Button:
                 text: _('Pay')
                 size_hint: 1, 1
-                on_release: s.parent.do_pay()
+                on_release: s.do_pay()
         Widget:
             size_hint: 1, 0.1
         PaymentRecycleView:

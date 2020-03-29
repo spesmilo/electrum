@@ -9,31 +9,55 @@ Electrum-GRS - Lightweight Groestlcoin client
 Getting started
 ===============
 
-Electrum-GRS itself is pure Python, and so are most of the required dependencies.
+(*If you've come here looking to simply run Electrum-GRS,* `you may download it here`_.)
 
-Non-python dependencies
------------------------
+.. _you may download it here: https://www.groestlcoin.org/groestlcoin-electrum-wallet/
+
+Electrum-GRS itself is pure Python, and so are most of the required dependencies,
+but not everything. The following sections describe how to run from source, but here
+is a TL;DR::
+
+    sudo apt-get install libsecp256k1-0
+    python3 -m pip install --user .[gui,crypto]
+
+
+Not pure-python dependencies
+----------------------------
 
 If you want to use the Qt interface, install the Qt dependencies::
 
     sudo apt-get install python3-pyqt5
 
-For elliptic curve operations, libsecp256k1 is a required dependency::
+For elliptic curve operations, `libsecp256k1`_ is a required dependency::
 
     sudo apt-get install libsecp256k1-0
 
 Alternatively, when running from a cloned repository, a script is provided to build
 libsecp256k1 yourself::
 
+    sudo apt-get install automake libtool
     ./contrib/make_libsecp256k1.sh
 
+Due to the need for fast symmetric ciphers, either one of `pycryptodomex`_
+or `cryptography`_ is required. Install from your package manager
+(or from pip)::
+
+    sudo apt-get install python3-cryptography
+
+
+If you would like hardware wallet support, see `this`_.
+
+.. _libsecp256k1: https://github.com/bitcoin-core/secp256k1
+.. _pycryptodomex: https://github.com/Legrandin/pycryptodome
+.. _cryptography: https://github.com/pyca/cryptography
+.. _this: https://github.com/spesmilo/electrum-docs/blob/master/hardware-linux.rst
 
 Running from tar.gz
 -------------------
 
 If you downloaded the official package (tar.gz), you can run
 Electrum-GRS from its root directory without installing it on your
-system; all the python dependencies are included in the 'packages'
+system; all the pure python dependencies are included in the 'packages'
 directory. To run Electrum-GRS from its root directory, just do::
 
     ./run_electrum_grs
@@ -46,13 +70,9 @@ You can also install Electrum-GRS on your system, by running this command::
 This will download and install the Python dependencies used by
 Electrum-GRS instead of using the 'packages' directory.
 
-If you cloned the git repository, you need to compile extra files
-before you can run Electrum-GRS. Read the next section, "Development
-version".
 
-
-Development version
--------------------
+Development version (git clone)
+-------------------------------
 
 Check out the code from GitHub::
 
