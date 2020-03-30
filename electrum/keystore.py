@@ -516,6 +516,10 @@ class Hardware_KeyStore(KeyStore, Xpub):
         self.handler = None
         run_hook('init_keystore', self)
 
+    #No key tweaking for hardware keystores.
+    def tweak_pubkey(self, c, t, e=False):
+        return c
+        
     def set_label(self, label):
         self.label = label
 
