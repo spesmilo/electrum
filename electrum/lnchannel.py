@@ -32,7 +32,7 @@ import attr
 
 from . import ecc
 from . import constants
-from .util import bfh, bh2u
+from .util import bfh, bh2u, chunks
 from .bitcoin import redeem_script_to_address
 from .crypto import sha256, sha256d
 from .transaction import Transaction, PartialTransaction
@@ -628,7 +628,7 @@ class Channel(Logger):
 
     def get_remote_htlc_sig_for_htlc(self, *, htlc_relative_idx: int) -> bytes:
         data = self.config[LOCAL].current_htlc_signatures
-        htlc_sigs = [data[i:i + 64] for i in range(0, len(data), 64)]
+        htlc_sigs = list(chunks(data, 64))
         htlc_sig = htlc_sigs[htlc_relative_idx]
         remote_htlc_sig = ecc.der_sig_from_sig_string(htlc_sig) + b'\x01'
         return remote_htlc_sig

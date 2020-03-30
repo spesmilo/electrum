@@ -1076,7 +1076,7 @@ class Peer(Logger):
         if chan.hm.is_revack_pending(LOCAL):
             raise RemoteMisbehaving('received commitment_signed before we revoked previous ctx')
         data = payload["htlc_signature"]
-        htlc_sigs = [data[i:i+64] for i in range(0, len(data), 64)]
+        htlc_sigs = list(chunks(data, 64))
         chan.receive_new_commitment(payload["signature"], htlc_sigs)
         self.send_revoke_and_ack(chan)
 
