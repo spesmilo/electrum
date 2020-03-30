@@ -1,5 +1,4 @@
 # Copyright (C) 2018 The Electrum developers
-# Copyright (C) 2015-2018 The Lightning Network Developers
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -18,9 +17,6 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-
-# API (method signatures and docstrings) partially copied from lnd
-# 42de4400bff5105352d0552155f73589166d162b
 
 import os
 from collections import namedtuple, defaultdict
@@ -499,11 +495,8 @@ class Channel(Logger):
         return redeem_script_to_address('p2wsh', script)
 
     def add_htlc(self, htlc: UpdateAddHtlc) -> UpdateAddHtlc:
-        """
-        AddHTLC adds an HTLC to the state machine's local update log. This method
-        should be called when preparing to send an outgoing HTLC.
-
-        This docstring is from LND.
+        """Adds a new LOCAL HTLC to the channel.
+        Action must be initiated by LOCAL.
         """
         if isinstance(htlc, dict):  # legacy conversion  # FIXME remove
             htlc = UpdateAddHtlc(**htlc)
@@ -517,12 +510,8 @@ class Channel(Logger):
         return htlc
 
     def receive_htlc(self, htlc: UpdateAddHtlc, onion_packet:bytes = None) -> UpdateAddHtlc:
-        """
-        ReceiveHTLC adds an HTLC to the state machine's remote update log. This
-        method should be called in response to receiving a new HTLC from the remote
-        party.
-
-        This docstring is from LND.
+        """Adds a new REMOTE HTLC to the channel.
+        Action must be initiated by REMOTE.
         """
         if isinstance(htlc, dict):  # legacy conversion  # FIXME remove
             htlc = UpdateAddHtlc(**htlc)
@@ -543,17 +532,10 @@ class Channel(Logger):
         self.logger.info("receive_htlc")
         return htlc
 
-    def sign_next_commitment(self):
-        """
-        SignNextCommitment signs a new commitment which includes any previous
-        unsettled HTLCs, any new HTLCs, and any modifications to prior HTLCs
-        committed in previous commitment updates.
-        The first return parameter is the signature for the commitment transaction
-        itself, while the second parameter is are all HTLC signatures concatenated.
-        any). The HTLC signatures are sorted according to the BIP 69 order of the
-        HTLC's on the commitment transaction.
-
-        This docstring was adapted from LND.
+    def sign_next_commitment(self) -> Tuple[bytes, Sequence[bytes]]:
+        """Returns signatures for our next remote commitment tx.
+        Action must be initiated by LOCAL.
+        Finally, the next remote ctx becomes the latest remote ctx.
         """
         next_remote_ctn = self.get_next_ctn(REMOTE)
         self.logger.info(f"sign_next_commitment {next_remote_ctn}")
@@ -589,18 +571,10 @@ class Channel(Logger):
             self.hm.send_ctx()
         return sig_64, htlcsigs
 
-    def receive_new_commitment(self, sig, htlc_sigs):
-        """
-        ReceiveNewCommitment process a signature for a new commitment state sent by
-        the remote party. This method should be called in response to the
-        remote party initiating a new change, or when the remote party sends a
-        signature fully accepting a new state we've initiated. If we are able to
-        successfully validate the signature, then the generated commitment is added
-        to our local commitment chain. Once we send a revocation for our prior
-        state, then this newly added commitment becomes our current accepted channel
-        state.
-
-        This docstring is from LND.
+    def receive_new_commitment(self, sig: bytes, htlc_sigs: Sequence[bytes]) -> None:
+        """Processes signatures for our next local commitment tx, sent by the REMOTE.
+        Action must be initiated by REMOTE.
+        If all checks pass, the next local ctx becomes the latest local ctx.
         """
         # TODO in many failure cases below, we should "fail" the channel (force-close)
         next_local_ctn = self.get_next_ctn(LOCAL)
@@ -627,19 +601,19 @@ class Channel(Logger):
             raise Exception(f'htlc sigs failure. recv {len(htlc_sigs)} sigs, expected {len(htlc_to_ctx_output_idx_map)}')
         for (direction, htlc), (ctx_output_idx, htlc_relative_idx) in htlc_to_ctx_output_idx_map.items():
             htlc_sig = htlc_sigs[htlc_relative_idx]
-            self.verify_htlc(htlc=htlc,
-                             htlc_sig=htlc_sig,
-                             htlc_direction=direction,
-                             pcp=pcp,
-                             ctx=pending_local_commitment,
-                             ctx_output_idx=ctx_output_idx)
+            self._verify_htlc_sig(htlc=htlc,
+                                  htlc_sig=htlc_sig,
+                                  htlc_direction=direction,
+                                  pcp=pcp,
+                                  ctx=pending_local_commitment,
+                                  ctx_output_idx=ctx_output_idx)
         with self.db_lock:
             self.hm.recv_ctx()
             self.config[LOCAL].current_commitment_signature=sig
             self.config[LOCAL].current_htlc_signatures=htlc_sigs_string
 
-    def verify_htlc(self, *, htlc: UpdateAddHtlc, htlc_sig: bytes, htlc_direction: Direction,
-                    pcp: bytes, ctx: Transaction, ctx_output_idx: int) -> None:
+    def _verify_htlc_sig(self, *, htlc: UpdateAddHtlc, htlc_sig: bytes, htlc_direction: Direction,
+                         pcp: bytes, ctx: Transaction, ctx_output_idx: int) -> None:
         _script, htlc_tx = make_htlc_tx_with_open_channel(chan=self,
                                                           pcp=pcp,
                                                           subject=LOCAL,
@@ -786,8 +760,8 @@ class Channel(Logger):
             return max_send_msat
 
     def included_htlcs(self, subject: HTLCOwner, direction: Direction, ctn: int = None) -> Sequence[UpdateAddHtlc]:
-        """
-        return filter of non-dust htlcs for subjects commitment transaction, initiated by given party
+        """Returns list of non-dust HTLCs for subject's commitment tx at ctn,
+        filtered by direction (of HTLCs).
         """
         assert type(subject) is HTLCOwner
         assert type(direction) is Direction
@@ -859,14 +833,14 @@ class Channel(Logger):
     def get_next_ctn(self, subject: HTLCOwner) -> int:
         return self.hm.ctn_latest(subject) + 1
 
-    def total_msat(self, direction):
+    def total_msat(self, direction: Direction) -> int:
         """Return the cumulative total msat amount received/sent so far."""
         assert type(direction) is Direction
         return htlcsum(self.hm.all_settled_htlcs_ever_by_direction(LOCAL, direction))
 
-    def settle_htlc(self, preimage, htlc_id):
-        """
-        SettleHTLC attempts to settle an existing outstanding received HTLC.
+    def settle_htlc(self, preimage: bytes, htlc_id: int) -> None:
+        """Settle/fulfill a pending received HTLC.
+        Action must be initiated by LOCAL.
         """
         self.logger.info("settle_htlc")
         assert self.can_send_ctx_updates(), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}"
@@ -889,7 +863,10 @@ class Channel(Logger):
             self.onion_keys[htlc_id])
         return failure_msg, sender_idx
 
-    def receive_htlc_settle(self, preimage, htlc_id):
+    def receive_htlc_settle(self, preimage: bytes, htlc_id: int) -> None:
+        """Settle/fulfill a pending offered HTLC.
+        Action must be initiated by REMOTE.
+        """
         self.logger.info("receive_htlc_settle")
         log = self.hm.log[LOCAL]
         htlc = log['adds'][htlc_id]
@@ -898,7 +875,10 @@ class Channel(Logger):
         with self.db_lock:
             self.hm.recv_settle(htlc_id)
 
-    def fail_htlc(self, htlc_id):
+    def fail_htlc(self, htlc_id: int) -> None:
+        """Fail a pending received HTLC.
+        Action must be initiated by LOCAL.
+        """
         self.logger.info("fail_htlc")
         assert self.can_send_ctx_updates(), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}"
         with self.db_lock:
@@ -906,7 +886,10 @@ class Channel(Logger):
 
     def receive_fail_htlc(self, htlc_id: int, *,
                           error_bytes: Optional[bytes],
-                          reason: Optional[OnionRoutingFailureMessage] = None):
+                          reason: Optional[OnionRoutingFailureMessage] = None) -> None:
+        """Fail a pending offered HTLC.
+        Action must be initiated by REMOTE.
+        """
         self.logger.info("receive_fail_htlc")
         with self.db_lock:
             self.hm.recv_fail(htlc_id)
