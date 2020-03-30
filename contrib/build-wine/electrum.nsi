@@ -6,7 +6,7 @@
 ;--------------------------------
 ;Variables
 
-  !define PRODUCT_NAME "Electrum"
+  !define PRODUCT_NAME "ElectrumSys"
   !define PRODUCT_WEB_SITE "https://github.com/syscoin/electrum"
   !define PRODUCT_PUBLISHER "Blockchain Foundry"
   !define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
