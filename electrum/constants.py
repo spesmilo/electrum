@@ -29,6 +29,7 @@ import json
 #from .bitcoin import *
 
 
+
 def read_json(filename, default):
     path = os.path.join(os.path.dirname(__file__), filename)
     try:
@@ -57,7 +58,6 @@ class VersionedValue:
         self.__value = value
     
     def __getitem__(self, block_number):
-        print(repr(block_number))
         try:
             key = sorted(_key for _key in self.__value.keys() if _key <= block_number)[-1]
             return self.__value[key]
