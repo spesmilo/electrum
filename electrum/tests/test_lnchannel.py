@@ -786,25 +786,25 @@ class TestChanReserve(ElectrumTestCase):
         alice_idx = self.alice_channel.add_htlc(htlc_dict).htlc_id
         bob_idx = self.bob_channel.receive_htlc(htlc_dict).htlc_id
         force_state_transition(self.alice_channel, self.bob_channel)
-        self.check_bals(one_bitcoin_in_msat*3\
-                - self.alice_channel.pending_local_fee(),
-                  one_bitcoin_in_msat*5)
+        self.check_bals(one_bitcoin_in_msat * 3
+                        - self.alice_channel.get_next_fee(LOCAL),
+                        one_bitcoin_in_msat * 5)
         self.bob_channel.settle_htlc(paymentPreimage, bob_idx)
         self.alice_channel.receive_htlc_settle(paymentPreimage, alice_idx)
         force_state_transition(self.alice_channel, self.bob_channel)
-        self.check_bals(one_bitcoin_in_msat*3\
-                - self.alice_channel.pending_local_fee(),
-                  one_bitcoin_in_msat*7)
-        # And now let Bob add an HTLC of 1 SYS. This will take Bob's balance
+        self.check_bals(one_bitcoin_in_msat * 3
+                        - self.alice_channel.get_next_fee(LOCAL),
+                        one_bitcoin_in_msat * 7)
+        # And now let Bob add an HTLC of 1 BTC. This will take Bob's balance
         # all the way down to his channel reserve, but since he is not paying
         # the fee this is okay.
         htlc_dict['amount_msat'] = one_bitcoin_in_msat
         self.bob_channel.add_htlc(htlc_dict)
         self.alice_channel.receive_htlc(htlc_dict)
         force_state_transition(self.alice_channel, self.bob_channel)
-        self.check_bals(one_bitcoin_in_msat*3\
-                - self.alice_channel.pending_local_fee(),
-                  one_bitcoin_in_msat*6)
+        self.check_bals(one_bitcoin_in_msat * 3 \
+                        - self.alice_channel.get_next_fee(LOCAL),
+                        one_bitcoin_in_msat * 6)
 
     def check_bals(self, amt1, amt2):
         self.assertEqual(self.alice_channel.available_to_spend(LOCAL), amt1)
@@ -840,7 +840,7 @@ class TestDust(ElectrumTestCase):
         self.assertEqual(len(alice_ctx.outputs()), 3)
         self.assertEqual(len(bob_ctx.outputs()), 2)
         default_fee = calc_static_fee(0)
-        self.assertEqual(bob_channel.pending_local_fee(), default_fee + htlcAmt)
+        self.assertEqual(bob_channel.get_next_fee(LOCAL), default_fee + htlcAmt)
         bob_channel.settle_htlc(paymentPreimage, bobHtlcIndex)
         alice_channel.receive_htlc_settle(paymentPreimage, aliceHtlcIndex)
         force_state_transition(bob_channel, alice_channel)

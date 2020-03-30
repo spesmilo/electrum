@@ -599,13 +599,27 @@ def calc_fees_for_commitment_tx(*, num_htlcs: int, feerate: int,
         REMOTE: fee if not is_local_initiator else 0,
     }
 
-def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
-                    remote_payment_pubkey, funder_payment_basepoint,
-                    fundee_payment_basepoint, revocation_pubkey,
-                    delayed_pubkey, to_self_delay, funding_txid,
-                    funding_pos, funding_sat, local_amount, remote_amount,
-                    dust_limit_sat, fees_per_participant,
-                    htlcs: List[ScriptHtlc]) -> PartialTransaction:
+
+def make_commitment(
+        *,
+        ctn: int,
+        local_funding_pubkey: bytes,
+        remote_funding_pubkey: bytes,
+        remote_payment_pubkey: bytes,
+        funder_payment_basepoint: bytes,
+        fundee_payment_basepoint: bytes,
+        revocation_pubkey: bytes,
+        delayed_pubkey: bytes,
+        to_self_delay: int,
+        funding_txid: str,
+        funding_pos: int,
+        funding_sat: int,
+        local_amount: int,
+        remote_amount: int,
+        dust_limit_sat: int,
+        fees_per_participant: Mapping[HTLCOwner, int],
+        htlcs: List[ScriptHtlc]
+) -> PartialTransaction:
     c_input = make_funding_input(local_funding_pubkey, remote_funding_pubkey,
                                  funding_pos, funding_txid, funding_sat)
     obs = get_obscured_ctn(ctn, funder_payment_basepoint, fundee_payment_basepoint)
@@ -618,7 +632,7 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
     # commitment tx outputs
     local_address = make_commitment_output_to_local_address(revocation_pubkey, to_self_delay, delayed_pubkey)
     remote_address = make_commitment_output_to_remote_address(remote_payment_pubkey)
-    # TODO trim htlc outputs here while also considering 2nd stage htlc transactions
+    # note: it is assumed that the given 'htlcs' are all non-dust (dust htlcs already trimmed)
 
     # BOLT-03: "Transaction Input and Output Ordering
     #           Lexicographic ordering: see BIP69. In the case of identical HTLC outputs,

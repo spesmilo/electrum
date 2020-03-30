@@ -23,6 +23,7 @@ from .transaction import Transaction
 if TYPE_CHECKING:
     from .network import Network
     from .lnsweep import SweepInfo
+    from .lnworker import LNWallet
 
 class ListenerItem(NamedTuple):
     # this is triggered when the lnwatcher is all done with the outpoint used as index in LNWatcher.tx_progress
@@ -332,7 +333,7 @@ CHANNEL_OPENING_TIMEOUT = 24*60*60
 
 class LNWalletWatcher(LNWatcher):
 
-    def __init__(self, lnworker, network):
+    def __init__(self, lnworker: 'LNWallet', network: 'Network'):
         LNWatcher.__init__(self, network)
         self.network = network
         self.lnworker = lnworker
