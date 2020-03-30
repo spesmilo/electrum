@@ -23,7 +23,8 @@ from collections import namedtuple, defaultdict
 import binascii
 import json
 from enum import IntEnum
-from typing import Optional, Dict, List, Tuple, NamedTuple, Set, Callable, Iterable, Sequence, TYPE_CHECKING, Iterator
+from typing import (Optional, Dict, List, Tuple, NamedTuple, Set, Callable,
+                    Iterable, Sequence, TYPE_CHECKING, Iterator, Union)
 import time
 import threading
 
@@ -63,7 +64,7 @@ if TYPE_CHECKING:
 # lightning channel states
 # Note: these states are persisted by name (for a given channel) in the wallet file,
 #       so consider doing a wallet db upgrade when changing them.
-class channel_states(IntEnum):
+class channel_states(IntEnum):  # TODO rename to use CamelCase
     PREOPENING      = 0 # Initial negotiation. Channel will not be reestablished
     OPENING         = 1 # Channel will be reestablished. (per BOLT2)
                         #  - Funding node: has received funding_signed (can broadcast the funding tx)
@@ -75,7 +76,7 @@ class channel_states(IntEnum):
     CLOSED          = 6 # closing tx has been mined
     REDEEMED        = 7 # we can stop watching
 
-class peer_states(IntEnum):
+class peer_states(IntEnum):  # TODO rename to use CamelCase
     DISCONNECTED   = 0
     REESTABLISHING = 1
     GOOD           = 2
@@ -138,15 +139,15 @@ class Channel(Logger):
         self.sweep_address = sweep_address
         self.storage = state
         self.db_lock = self.storage.db.lock if self.storage.db else threading.RLock()
-        self.config = {}  # type: Dict[HTLCOwner, lnutil.Config]
+        self.config = {}  # type: Dict[HTLCOwner, Union[LocalConfig, RemoteConfig]]
         self.config[LOCAL] = state["local_config"]
         self.config[REMOTE] = state["remote_config"]
         self.channel_id = bfh(state["channel_id"])
-        self.constraints = state["constraints"]
-        self.funding_outpoint = state["funding_outpoint"]
+        self.constraints = state["constraints"]  # type: ChannelConstraints
+        self.funding_outpoint = state["funding_outpoint"]  # type: Outpoint
         self.node_id = bfh(state["node_id"])
         self.short_channel_id = ShortChannelID.normalize(state["short_channel_id"])
-        self.onion_keys = state['onion_keys']
+        self.onion_keys = state['onion_keys']  # type: Dict[int, bytes]
         self.data_loss_protect_remote_pcp = state['data_loss_protect_remote_pcp']
         self.hm = HTLCManager(log=state['log'], initial_feerate=initial_feerate)
         self._state = channel_states[state['state']]
@@ -165,10 +166,10 @@ class Channel(Logger):
             return str(scid)
         return self.channel_id.hex()
 
-    def set_onion_key(self, key, value):
+    def set_onion_key(self, key: int, value: bytes):
         self.onion_keys[key] = value
 
-    def get_onion_key(self, key):
+    def get_onion_key(self, key: int) -> bytes:
         return self.onion_keys.get(key)
 
     def set_data_loss_protect_remote_pcp(self, key, value):
@@ -262,23 +263,24 @@ class Channel(Logger):
         self._chan_ann_without_sigs = chan_ann
         return chan_ann
 
-    def is_static_remotekey_enabled(self):
-        return self.storage.get('static_remotekey_enabled')
+    def is_static_remotekey_enabled(self) -> bool:
+        return bool(self.storage.get('static_remotekey_enabled'))
 
-    def set_short_channel_id(self, short_id):
+    def set_short_channel_id(self, short_id: ShortChannelID) -> None:
         self.short_channel_id = short_id
         self.storage["short_channel_id"] = short_id
 
-    def get_feerate(self, subject, ctn):
+    def get_feerate(self, subject: HTLCOwner, *, ctn: int) -> int:
+        # returns feerate in sat/kw
         return self.hm.get_feerate(subject, ctn)
 
-    def get_oldest_unrevoked_feerate(self, subject):
+    def get_oldest_unrevoked_feerate(self, subject: HTLCOwner) -> int:
         return self.hm.get_feerate_in_oldest_unrevoked_ctx(subject)
 
-    def get_latest_feerate(self, subject):
+    def get_latest_feerate(self, subject: HTLCOwner) -> int:
         return self.hm.get_feerate_in_latest_ctx(subject)
 
-    def get_next_feerate(self, subject):
+    def get_next_feerate(self, subject: HTLCOwner) -> int:
         return self.hm.get_feerate_in_next_ctx(subject)
 
     def get_payments(self):
@@ -316,7 +318,7 @@ class Channel(Logger):
             self.hm.channel_open_finished()
             self.peer_state = peer_states.GOOD
 
-    def set_state(self, state):
+    def set_state(self, state: channel_states) -> None:
         """ set on-chain state """
         old_state = self._state
         if (old_state, state) not in state_transitions:
@@ -329,7 +331,7 @@ class Channel(Logger):
             self.lnworker.save_channel(self)
             self.lnworker.network.trigger_callback('channel', self)
 
-    def get_state(self):
+    def get_state(self) -> channel_states:
         return self._state
 
     def get_state_for_GUI(self):
@@ -767,7 +769,7 @@ class Channel(Logger):
         assert type(direction) is Direction
         if ctn is None:
             ctn = self.get_oldest_unrevoked_ctn(subject)
-        feerate = self.get_feerate(subject, ctn)
+        feerate = self.get_feerate(subject, ctn=ctn)
         conf = self.config[subject]
         if direction == RECEIVED:
             threshold_sat = received_htlc_trim_threshold_sat(dust_limit_sat=conf.dust_limit_sat, feerate=feerate)
@@ -798,30 +800,30 @@ class Channel(Logger):
             point = secret_to_pubkey(int.from_bytes(secret, 'big'))
         return secret, point
 
-    def get_secret_and_commitment(self, subject, ctn):
+    def get_secret_and_commitment(self, subject: HTLCOwner, *, ctn: int) -> Tuple[Optional[bytes], PartialTransaction]:
         secret, point = self.get_secret_and_point(subject, ctn)
         ctx = self.make_commitment(subject, point, ctn)
         return secret, ctx
 
-    def get_commitment(self, subject, ctn) -> PartialTransaction:
-        secret, ctx = self.get_secret_and_commitment(subject, ctn)
+    def get_commitment(self, subject: HTLCOwner, *, ctn: int) -> PartialTransaction:
+        secret, ctx = self.get_secret_and_commitment(subject, ctn=ctn)
         return ctx
 
     def get_next_commitment(self, subject: HTLCOwner) -> PartialTransaction:
         ctn = self.get_next_ctn(subject)
-        return self.get_commitment(subject, ctn)
+        return self.get_commitment(subject, ctn=ctn)
 
     def get_latest_commitment(self, subject: HTLCOwner) -> PartialTransaction:
         ctn = self.get_latest_ctn(subject)
-        return self.get_commitment(subject, ctn)
+        return self.get_commitment(subject, ctn=ctn)
 
     def get_oldest_unrevoked_commitment(self, subject: HTLCOwner) -> PartialTransaction:
         ctn = self.get_oldest_unrevoked_ctn(subject)
-        return self.get_commitment(subject, ctn)
+        return self.get_commitment(subject, ctn=ctn)
 
     def create_sweeptxs(self, ctn: int) -> List[Transaction]:
         from .lnsweep import create_sweeptxs_for_watchtower
-        secret, ctx = self.get_secret_and_commitment(REMOTE, ctn)
+        secret, ctx = self.get_secret_and_commitment(REMOTE, ctn=ctn)
         return create_sweeptxs_for_watchtower(self, ctx, secret, self.sweep_address)
 
     def get_oldest_unrevoked_ctn(self, subject: HTLCOwner) -> int:
@@ -850,9 +852,9 @@ class Channel(Logger):
         assert htlc_id not in log['settles']
         self.hm.send_settle(htlc_id)
 
-    def get_payment_hash(self, htlc_id):
+    def get_payment_hash(self, htlc_id: int) -> bytes:
         log = self.hm.log[LOCAL]
-        htlc = log['adds'][htlc_id]
+        htlc = log['adds'][htlc_id]  # type: UpdateAddHtlc
         return htlc.payment_hash
 
     def decode_onion_error(self, reason: bytes, route: Sequence['RouteEdge'],
@@ -898,13 +900,13 @@ class Channel(Logger):
                                                                     error_bytes=error_bytes,
                                                                     error_reason=reason)
 
-    def pending_local_fee(self):
-        return self.constraints.capacity - sum(x.value for x in self.get_next_commitment(LOCAL).outputs())
+    def get_next_fee(self, subject: HTLCOwner) -> int:
+        return self.constraints.capacity - sum(x.value for x in self.get_next_commitment(subject).outputs())
 
-    def get_latest_fee(self, subject):
+    def get_latest_fee(self, subject: HTLCOwner) -> int:
         return self.constraints.capacity - sum(x.value for x in self.get_latest_commitment(subject).outputs())
 
-    def update_fee(self, feerate: int, from_us: bool):
+    def update_fee(self, feerate: int, from_us: bool) -> None:
         # feerate uses sat/kw
         if self.constraints.is_initiator != from_us:
             raise Exception(f"Cannot update_fee: wrong initiator. us: {from_us}")
@@ -917,9 +919,9 @@ class Channel(Logger):
             else:
                 self.hm.recv_update_fee(feerate)
 
-    def make_commitment(self, subject, this_point, ctn) -> PartialTransaction:
+    def make_commitment(self, subject: HTLCOwner, this_point: bytes, ctn: int) -> PartialTransaction:
         assert type(subject) is HTLCOwner
-        feerate = self.get_feerate(subject, ctn)
+        feerate = self.get_feerate(subject, ctn=ctn)
         other = subject.inverted()
         local_msat = self.balance(subject, ctx_owner=subject, ctn=ctn)
         remote_msat = self.balance(other, ctx_owner=subject, ctn=ctn)
@@ -969,23 +971,24 @@ class Channel(Logger):
             payment_pubkey = derive_pubkey(other_config.payment_basepoint.pubkey, this_point)
 
         return make_commitment(
-            ctn,
-            this_config.multisig_key.pubkey,
-            other_config.multisig_key.pubkey,
-            payment_pubkey,
-            self.config[LOCAL if     self.constraints.is_initiator else REMOTE].payment_basepoint.pubkey,
-            self.config[LOCAL if not self.constraints.is_initiator else REMOTE].payment_basepoint.pubkey,
-            other_revocation_pubkey,
-            derive_pubkey(this_config.delayed_basepoint.pubkey, this_point),
-            other_config.to_self_delay,
-            self.funding_outpoint.txid,
-            self.funding_outpoint.output_index,
-            self.constraints.capacity,
-            local_msat,
-            remote_msat,
-            this_config.dust_limit_sat,
-            onchain_fees,
-            htlcs=htlcs)
+            ctn=ctn,
+            local_funding_pubkey=this_config.multisig_key.pubkey,
+            remote_funding_pubkey=other_config.multisig_key.pubkey,
+            remote_payment_pubkey=payment_pubkey,
+            funder_payment_basepoint=self.config[LOCAL if     self.constraints.is_initiator else REMOTE].payment_basepoint.pubkey,
+            fundee_payment_basepoint=self.config[LOCAL if not self.constraints.is_initiator else REMOTE].payment_basepoint.pubkey,
+            revocation_pubkey=other_revocation_pubkey,
+            delayed_pubkey=derive_pubkey(this_config.delayed_basepoint.pubkey, this_point),
+            to_self_delay=other_config.to_self_delay,
+            funding_txid=self.funding_outpoint.txid,
+            funding_pos=self.funding_outpoint.output_index,
+            funding_sat=self.constraints.capacity,
+            local_amount=local_msat,
+            remote_amount=remote_msat,
+            dust_limit_sat=this_config.dust_limit_sat,
+            fees_per_participant=onchain_fees,
+            htlcs=htlcs,
+        )
 
     def make_closing_tx(self, local_script: bytes, remote_script: bytes,
                         fee_sat: int, *, drop_remote = False) -> Tuple[bytes, PartialTransaction]:
@@ -1013,7 +1016,7 @@ class Channel(Logger):
         sig = ecc.sig_string_from_der_sig(der_sig[:-1])
         return sig, closing_tx
 
-    def signature_fits(self, tx: PartialTransaction):
+    def signature_fits(self, tx: PartialTransaction) -> bool:
         remote_sig = self.config[LOCAL].current_commitment_signature
         preimage_hex = tx.serialize_preimage(0)
         msg_hash = sha256d(bfh(preimage_hex))
@@ -1021,7 +1024,7 @@ class Channel(Logger):
         res = ecc.verify_signature(self.config[REMOTE].multisig_key.pubkey, remote_sig, msg_hash)
         return res
 
-    def force_close_tx(self):
+    def force_close_tx(self) -> PartialTransaction:
         tx = self.get_latest_commitment(LOCAL)
         assert self.signature_fits(tx)
         tx.sign({bh2u(self.config[LOCAL].multisig_key.pubkey): (self.config[LOCAL].multisig_key.privkey, True)})
@@ -1048,11 +1051,11 @@ class Channel(Logger):
                 self.sweep_info[txid] = {}
         return self.sweep_info[txid]
 
-    def sweep_htlc(self, ctx:Transaction, htlc_tx: Transaction):
+    def sweep_htlc(self, ctx: Transaction, htlc_tx: Transaction) -> Optional[SweepInfo]:
         # look at the output address, check if it matches
         return create_sweeptx_for_their_revoked_htlc(self, ctx, htlc_tx, self.sweep_address)
 
-    def has_pending_changes(self, subject):
+    def has_pending_changes(self, subject: HTLCOwner) -> bool:
         next_htlcs = self.hm.get_htlcs_in_next_ctx(subject)
         latest_htlcs = self.hm.get_htlcs_in_latest_ctx(subject)
         return not (next_htlcs == latest_htlcs and self.get_next_feerate(subject) == self.get_latest_feerate(subject))
