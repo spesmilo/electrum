@@ -209,7 +209,7 @@ MAXIMUM_HTLC_MINIMUM_MSAT_ACCEPTED = 1000
 MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED = 2016
 
 class RevocationStore:
-    """ Taken from LND, see license in lnchannel.py. """
+    # closely based on code in lightningnetwork/lnd
 
     START_INDEX = 2 ** 48 - 1
 

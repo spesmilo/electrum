@@ -18,6 +18,9 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
+#
+# Many of these unit tests are heavily based on unit tests in lnd
+# (around commit 42de4400bff5105352d0552155f73589166d162b).
 
 import unittest
 import os
