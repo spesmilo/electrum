@@ -204,29 +204,23 @@ class AssetSynchronizer(Logger):
         return None
 
     async def synchronize_assets(self, callback=None):
-        try:
-            try:
-                result_ = await self.fetch_assethistory()
-            except RuntimeError as e:
-                self.logger.info("synchronize_assets: asyncio error {}".format(e))
-                return
-            new_asset_list = []
-            changed_asset = None
-            if result_ is not None:
-                for asset in result_:
-                    new_asset_list.append(asset)
-                if self.asset_list is not None:
-                    for x in range(len(new_asset_list)):
-                        if x < len(new_asset_list) and x < len(self.asset_list):
-                            if self.asset_list[x].asset != new_asset_list[x].asset or self.asset_list[x].address != new_asset_list[x].address or self.asset_list[x].balance != new_asset_list[x].balance:
-                                changed_asset = new_asset_list[x]
-                                break
-            self.asset_list = new_asset_list
-            if callback is not None and self.current_page is 1:
-                callback(changed_asset)
-        except RequestTimedOut as e:
-            if e is not TimeoutError:
-                raise e
+
+        result_ = await self.fetch_assethistory()
+        new_asset_list = []
+        changed_asset = None
+        if result_ is not None:
+            for asset in result_:
+                new_asset_list.append(asset)
+            if self.asset_list is not None:
+                for x in range(len(new_asset_list)):
+                    if x < len(new_asset_list) and x < len(self.asset_list):
+                        if self.asset_list[x].asset != new_asset_list[x].asset or self.asset_list[x].address != new_asset_list[x].address or self.asset_list[x].balance != new_asset_list[x].balance:
+                            changed_asset = new_asset_list[x]
+                            break
+        self.asset_list = new_asset_list
+        if callback is not None and self.current_page is 1:
+            callback(changed_asset)
+
 
     async def send_request(self, cmd):
         if self.network is None:
@@ -243,8 +237,14 @@ class AssetSynchronizer(Logger):
                 async with session.get(url) as response:
                     response.raise_for_status()
                     return await response.json(content_type=None)
+        except RequestTimedOut as e:
+            self.logger.info(f'timeout on api backend {url}')
         except aiohttp.client_exceptions.ClientConnectorError:
             self.logger.info(f'could not contact explorer api backend {url}')
+        except Exception as e:
+            self.logger.info("caught unknown exceptionrror {}".format(e))
+        return None
+
 
 
     async def create_assetallocation_send(self, from_address, to_address, asset_guid, amount):
@@ -253,8 +253,10 @@ class AssetSynchronizer(Logger):
         if self.lastUrl == url:
             return self.lastResponse
         res = await self.send_request(url)
-        self.lastResponse = res['tx']['hex']
-        self.lastUrl = url
+        self.lastResponse = None
+        if res is not None:
+            self.lastResponse = res['tx']['hex']
+            self.lastUrl = url
         return self.lastResponse
 
  
