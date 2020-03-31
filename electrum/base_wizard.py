@@ -332,7 +332,7 @@ class BaseWizard(Logger):
         self.choice_dialog(title=title, message=msg, choices=choices,
                            run_next=lambda *args: self.on_device(*args, purpose=purpose, storage=storage))
 
-    def on_device(self, name, device_info, *, purpose, storage=None):
+    def on_device(self, name, device_info: 'DeviceInfo', *, purpose, storage=None):
         self.plugin = self.plugins.get_plugin(name)
         assert isinstance(self.plugin, HW_PluginBase)
         devmgr = self.plugins.device_manager
@@ -414,7 +414,7 @@ class BaseWizard(Logger):
                 self.show_error(e)
                 # let the user choose again
 
-    def on_hw_derivation(self, name, device_info, derivation, xtype):
+    def on_hw_derivation(self, name, device_info: 'DeviceInfo', derivation, xtype):
         from .keystore import hardware_keystore
         devmgr = self.plugins.device_manager
         try:
@@ -422,6 +422,7 @@ class BaseWizard(Logger):
             client = devmgr.client_by_id(device_info.device.id_)
             if not client: raise Exception("failed to find client for device id")
             root_fingerprint = client.request_root_fingerprint_from_device()
+            label = client.label()  # use this as device_info.label might be outdated!
         except ScriptTypeNotSupported:
             raise  # this is handled in derivation_dialog
         except BaseException as e:
@@ -434,7 +435,7 @@ class BaseWizard(Logger):
             'derivation': derivation,
             'root_fingerprint': root_fingerprint,
             'xpub': xpub,
-            'label': device_info.label,
+            'label': label,
         }
         k = hardware_keystore(d)
         self.on_keystore(k)
@@ -535,6 +536,7 @@ class BaseWizard(Logger):
         if self.wallet_type == 'standard' and isinstance(self.keystores[0], Hardware_KeyStore):
             # offer encrypting with a pw derived from the hw device
             k = self.keystores[0]  # type: Hardware_KeyStore
+            assert isinstance(self.plugin, HW_PluginBase)
             try:
                 k.handler = self.plugin.create_handler(self)
                 password = k.get_password_for_storage_encryption()

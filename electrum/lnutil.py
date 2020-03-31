@@ -30,10 +30,14 @@ if TYPE_CHECKING:
     from .lnonion import OnionRoutingFailureMessage
 
 
+# defined in BOLT-03:
 HTLC_TIMEOUT_WEIGHT = 663
 HTLC_SUCCESS_WEIGHT = 703
+COMMITMENT_TX_WEIGHT = 724
+HTLC_OUTPUT_WEIGHT = 172
 
 LN_MAX_FUNDING_SAT = pow(2, 24) - 1
+LN_MAX_HTLC_VALUE_MSAT = pow(2, 32) - 1
 
 # dummy address for fee estimation of funding tx
 def ln_dummy_address():
@@ -41,42 +45,47 @@ def ln_dummy_address():
 
 from .json_db import StoredObject
 
+
+hex_to_bytes = lambda v: v if isinstance(v, bytes) else bytes.fromhex(v) if v is not None else None
+json_to_keypair = lambda v: v if isinstance(v, OnlyPubkeyKeypair) else Keypair(**v) if len(v)==2 else OnlyPubkeyKeypair(**v)
+
+
 @attr.s
 class OnlyPubkeyKeypair(StoredObject):
-    pubkey = attr.ib(type=bytes)
+    pubkey = attr.ib(type=bytes, converter=hex_to_bytes)
 
 @attr.s
 class Keypair(OnlyPubkeyKeypair):
-    privkey = attr.ib(type=bytes)
+    privkey = attr.ib(type=bytes, converter=hex_to_bytes)
 
 @attr.s
 class Config(StoredObject):
     # shared channel config fields
-    payment_basepoint = attr.ib(type=OnlyPubkeyKeypair)
-    multisig_key = attr.ib(type=OnlyPubkeyKeypair)
-    htlc_basepoint = attr.ib(type=OnlyPubkeyKeypair)
-    delayed_basepoint = attr.ib(type=OnlyPubkeyKeypair)
-    revocation_basepoint = attr.ib(type=OnlyPubkeyKeypair)
+    payment_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
+    multisig_key = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
+    htlc_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
+    delayed_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
+    revocation_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
     to_self_delay = attr.ib(type=int)
     dust_limit_sat = attr.ib(type=int)
     max_htlc_value_in_flight_msat = attr.ib(type=int)
     max_accepted_htlcs = attr.ib(type=int)
     initial_msat = attr.ib(type=int)
     reserve_sat = attr.ib(type=int)
+    htlc_minimum_msat = attr.ib(type=int)
 
 @attr.s
 class LocalConfig(Config):
-    per_commitment_secret_seed = attr.ib(type=bytes)
+    per_commitment_secret_seed = attr.ib(type=bytes, converter=hex_to_bytes)
     funding_locked_received = attr.ib(type=bool)
     was_announced = attr.ib(type=bool)
-    current_commitment_signature = attr.ib(type=bytes)
-    current_htlc_signatures = attr.ib(type=bytes)
+    current_commitment_signature = attr.ib(type=bytes, converter=hex_to_bytes)
+    current_htlc_signatures = attr.ib(type=bytes, converter=hex_to_bytes)
 
 @attr.s
 class RemoteConfig(Config):
-    htlc_minimum_msat = attr.ib(type=int)
-    next_per_commitment_point = attr.ib(type=bytes)
-    current_per_commitment_point = attr.ib(default=None, type=bytes)
+    next_per_commitment_point = attr.ib(type=bytes, converter=hex_to_bytes)
+    current_per_commitment_point = attr.ib(default=None, type=bytes, converter=hex_to_bytes)
 
 @attr.s
 class FeeUpdate(StoredObject):
@@ -87,7 +96,7 @@ class FeeUpdate(StoredObject):
 @attr.s
 class ChannelConstraints(StoredObject):
     capacity = attr.ib(type=int)
-    is_initiator = attr.ib(type=bool)
+    is_initiator = attr.ib(type=bool)  # note: sometimes also called "funder"
     funding_txn_minimum_depth = attr.ib(type=int)
 
 
@@ -107,7 +116,7 @@ class Outpoint(StoredObject):
 
 
 class PaymentAttemptFailureDetails(NamedTuple):
-    sender_idx: int
+    sender_idx: Optional[int]
     failure_msg: 'OnionRoutingFailureMessage'
     is_blacklisted: bool
 
@@ -123,21 +132,29 @@ class PaymentAttemptLog(NamedTuple):
         if not self.exception:
             route = self.route
             route_str = '%d'%len(route)
+            short_channel_id = None
             if not self.success:
                 sender_idx = self.failure_details.sender_idx
                 failure_msg = self.failure_details.failure_msg
-                short_channel_id = route[sender_idx+1].short_channel_id
-                data = failure_msg.data
+                if sender_idx is not None:
+                    short_channel_id = route[sender_idx+1].short_channel_id
                 message = str(failure_msg.code.name)
             else:
                 short_channel_id = route[-1].short_channel_id
                 message = _('Success')
-            chan_str = str(short_channel_id)
+            chan_str = str(short_channel_id) if short_channel_id else _("Unknown")
         else:
             route_str = 'None'
             chan_str = 'N/A'
             message = str(self.exception)
         return route_str, chan_str, message
+
+
+class BarePaymentAttemptLog(NamedTuple):
+    success: bool
+    preimage: Optional[bytes]
+    error_bytes: Optional[bytes]
+    error_reason: Optional['OnionRoutingFailureMessage'] = None
 
 
 class LightningError(Exception): pass
@@ -179,7 +196,7 @@ NBLOCK_OUR_CLTV_EXPIRY_DELTA = 144
 OUR_FEE_BASE_MSAT = 1000
 OUR_FEE_PROPORTIONAL_MILLIONTHS = 1
 
-NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE = 4032
+NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE = 28 * 144
 
 
 # When we open a channel, the remote peer has to support at least this
@@ -192,7 +209,7 @@ MAXIMUM_HTLC_MINIMUM_MSAT_ACCEPTED = 1000
 MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED = 2016
 
 class RevocationStore:
-    """ Taken from LND, see license in lnchannel.py. """
+    # closely based on code in lightningnetwork/lnd
 
     START_INDEX = 2 ** 48 - 1
 
@@ -517,8 +534,8 @@ class HTLCOwner(IntFlag):
         return HTLCOwner(-self)
 
 class Direction(IntFlag):
-    SENT = -1
-    RECEIVED = 1
+    SENT = -1     # in the context of HTLCs: "offered" HTLCs
+    RECEIVED = 1  # in the context of HTLCs: "received" HTLCs
 
 SENT = Direction.SENT
 RECEIVED = Direction.RECEIVED
@@ -543,19 +560,66 @@ def make_commitment_outputs(*, fees_per_participant: Mapping[HTLCOwner, int], lo
     c_outputs_filtered = list(filter(lambda x: x.value >= dust_limit_sat, non_htlc_outputs + htlc_outputs))
     return htlc_outputs, c_outputs_filtered
 
-def calc_onchain_fees(num_htlcs, feerate, we_pay_fee):
-    overall_weight = 500 + 172 * num_htlcs + 224
-    fee = feerate * overall_weight
-    fee = fee // 1000 * 1000
-    return {LOCAL: fee if we_pay_fee else 0, REMOTE: fee if not we_pay_fee else 0}
 
-def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
-                    remote_payment_pubkey, funder_payment_basepoint,
-                    fundee_payment_basepoint, revocation_pubkey,
-                    delayed_pubkey, to_self_delay, funding_txid,
-                    funding_pos, funding_sat, local_amount, remote_amount,
-                    dust_limit_sat, fees_per_participant,
-                    htlcs: List[ScriptHtlc]) -> PartialTransaction:
+def offered_htlc_trim_threshold_sat(*, dust_limit_sat: int, feerate: int) -> int:
+    # offered htlcs strictly below this amount will be trimmed (from ctx).
+    # feerate is in sat/kw
+    # returns value in sat
+    weight = HTLC_TIMEOUT_WEIGHT
+    return dust_limit_sat + weight * feerate // 1000
+
+
+def received_htlc_trim_threshold_sat(*, dust_limit_sat: int, feerate: int) -> int:
+    # received htlcs strictly below this amount will be trimmed (from ctx).
+    # feerate is in sat/kw
+    # returns value in sat
+    weight = HTLC_SUCCESS_WEIGHT
+    return dust_limit_sat + weight * feerate // 1000
+
+
+def fee_for_htlc_output(*, feerate: int) -> int:
+    # feerate is in sat/kw
+    # returns fee in msat
+    return feerate * HTLC_OUTPUT_WEIGHT
+
+
+def calc_fees_for_commitment_tx(*, num_htlcs: int, feerate: int,
+                                is_local_initiator: bool, round_to_sat: bool = True) -> Dict['HTLCOwner', int]:
+    # feerate is in sat/kw
+    # returns fees in msats
+    # note: BOLT-02 specifies that msat fees need to be rounded down to sat.
+    #       However, the rounding needs to happen for the total fees, so if the return value
+    #       is to be used as part of additional fee calculation then rounding should be done after that.
+    overall_weight = COMMITMENT_TX_WEIGHT + num_htlcs * HTLC_OUTPUT_WEIGHT
+    fee = feerate * overall_weight
+    if round_to_sat:
+        fee = fee // 1000 * 1000
+    return {
+        LOCAL: fee if is_local_initiator else 0,
+        REMOTE: fee if not is_local_initiator else 0,
+    }
+
+
+def make_commitment(
+        *,
+        ctn: int,
+        local_funding_pubkey: bytes,
+        remote_funding_pubkey: bytes,
+        remote_payment_pubkey: bytes,
+        funder_payment_basepoint: bytes,
+        fundee_payment_basepoint: bytes,
+        revocation_pubkey: bytes,
+        delayed_pubkey: bytes,
+        to_self_delay: int,
+        funding_txid: str,
+        funding_pos: int,
+        funding_sat: int,
+        local_amount: int,
+        remote_amount: int,
+        dust_limit_sat: int,
+        fees_per_participant: Mapping[HTLCOwner, int],
+        htlcs: List[ScriptHtlc]
+) -> PartialTransaction:
     c_input = make_funding_input(local_funding_pubkey, remote_funding_pubkey,
                                  funding_pos, funding_txid, funding_sat)
     obs = get_obscured_ctn(ctn, funder_payment_basepoint, fundee_payment_basepoint)
@@ -568,7 +632,7 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
     # commitment tx outputs
     local_address = make_commitment_output_to_local_address(revocation_pubkey, to_self_delay, delayed_pubkey)
     remote_address = make_commitment_output_to_remote_address(remote_payment_pubkey)
-    # TODO trim htlc outputs here while also considering 2nd stage htlc transactions
+    # note: it is assumed that the given 'htlcs' are all non-dust (dust htlcs already trimmed)
 
     # BOLT-03: "Transaction Input and Output Ordering
     #           Lexicographic ordering: see BIP69. In the case of identical HTLC outputs,
@@ -873,21 +937,21 @@ def format_short_channel_id(short_channel_id: Optional[bytes]):
         + 'x' + str(int.from_bytes(short_channel_id[6:], 'big'))
 
 
-class UpdateAddHtlc(namedtuple('UpdateAddHtlc', ['amount_msat', 'payment_hash', 'cltv_expiry', 'htlc_id', 'timestamp'])):
-    # note: typing.NamedTuple cannot be used because we are overriding __new__
+@attr.s(frozen=True)
+class UpdateAddHtlc:
+    amount_msat = attr.ib(type=int, kw_only=True)
+    payment_hash = attr.ib(type=bytes, kw_only=True, converter=hex_to_bytes)
+    cltv_expiry = attr.ib(type=int, kw_only=True)
+    timestamp = attr.ib(type=int, kw_only=True)
+    htlc_id = attr.ib(type=int, kw_only=True, default=None)
 
-    __slots__ = ()
-    def __new__(cls, *args, **kwargs):
-        # if you pass a hex-string as payment_hash, it is decoded to bytes.
-        # Bytes can't be saved to disk, so we save hex-strings.
-        if len(args) > 0:
-            args = list(args)
-            if type(args[1]) is str:
-                args[1] = bfh(args[1])
-            return super().__new__(cls, *args)
-        if type(kwargs['payment_hash']) is str:
-            kwargs['payment_hash'] = bfh(kwargs['payment_hash'])
-        if len(args) < 4 and 'htlc_id' not in kwargs:
-            kwargs['htlc_id'] = None
-        return super().__new__(cls, **kwargs)
+    @classmethod
+    def from_tuple(cls, amount_msat, payment_hash, cltv_expiry, htlc_id, timestamp) -> 'UpdateAddHtlc':
+        return cls(amount_msat=amount_msat,
+                   payment_hash=payment_hash,
+                   cltv_expiry=cltv_expiry,
+                   htlc_id=htlc_id,
+                   timestamp=timestamp)
 
+    def to_tuple(self):
+        return (self.amount_msat, self.payment_hash, self.cltv_expiry, self.htlc_id, self.timestamp)

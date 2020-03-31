@@ -299,19 +299,24 @@ def add_number_to_script(i: int) -> bytes:
 
 
 def relayfee(network: 'Network' = None) -> int:
+    """Returns feerate in sat/kbyte."""
     #from .simple_config import FEERATE_DEFAULT_RELAY, FEERATE_MAX_RELAY
     if network and network.relay_fee is not None:
         fee = network.relay_fee
     else:
         fee = constants.net.FEERATE_DEFAULT_RELAY
+    # sanity safeguards, as network.relay_fee is coming from a server:
     fee = min(fee, constants.net.FEERATE_MAX_RELAY)
-    fee = max(fee, 0)
+    fee = max(fee, constants.net.FEERATE_DEFAULT_RELAY)
     return fee
 
 
-def dust_threshold(network: 'Network'=None) -> int:
+def dust_threshold(network: 'Network' = None) -> int:
+    """Returns the dust limit in satoshis."""
     # Change <= dust threshold is added to the tx fee
-    return 182 * 3 * relayfee(network) // 1000
+    dust_lim = 182 * 3 * relayfee(network)  # in msat
+    # convert to sat, but round up:
+    return (dust_lim // 1000) + (dust_lim % 1000 > 0)
 
 
 def hash_encode(x: bytes) -> str:
@@ -560,8 +565,8 @@ def is_segwit_script_type(txin_type: str) -> bool:
     return txin_type in ('p2wpkh', 'p2wpkh-p2sh', 'p2wsh', 'p2wsh-p2sh')
 
 
-def serialize_privkey(secret: bytes, compressed: bool, txin_type: str,
-                      internal_use: bool=False) -> str:
+def serialize_privkey(secret: bytes, compressed: bool, txin_type: str, *,
+                      internal_use: bool = False) -> str:
     # we only export secrets inside curve range
     secret = ecc.ECPrivkey.normalize_secret_bytes(secret)
     if internal_use:

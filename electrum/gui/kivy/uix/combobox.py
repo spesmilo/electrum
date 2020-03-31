@@ -15,8 +15,8 @@ from kivy.lang import Builder
 
 Builder.load_string('''
 <ComboBoxOption>:
-    size_hint_y: None
-    height: 44
+    height: '24dp'
+    shorten: True
 
 <ComboBox>:
     background_normal: 'atlas://data/images/defaulttheme/spinner'
@@ -51,6 +51,7 @@ class ComboBox(Button):
             items=self._update_dropdown,
             key=self._update_text)
         self._build_dropdown()
+        self._dropdown.container.row_default_height = '30dp'
         self._update_text()
 
     def _update_text(self, *largs):

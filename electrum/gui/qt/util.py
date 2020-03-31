@@ -20,7 +20,8 @@ from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
                              QAbstractItemView, QVBoxLayout, QLineEdit,
                              QStyle, QDialog, QGroupBox, QButtonGroup, QRadioButton,
                              QFileDialog, QWidget, QToolButton, QTreeView, QPlainTextEdit,
-                             QHeaderView, QApplication, QToolTip, QTreeWidget, QStyledItemDelegate)
+                             QHeaderView, QApplication, QToolTip, QTreeWidget, QStyledItemDelegate,
+                             QMenu)
 
 from electrum.i18n import _, languages
 from electrum.util import FileImportFailed, FileExportFailed, make_aiohttp_session, resource_path
@@ -641,6 +642,20 @@ class MyTreeView(QTreeView):
         hbox.addWidget(hide_button)
         return hbox
 
+    def create_paging_layout(self):
+        hbox = QHBoxLayout()
+        buttons = self.get_paging_buttons()
+        info = self.get_page_info_labels()
+        hbox.addWidget(buttons[0])
+        hbox.addWidget(buttons[1])
+        hbox.addWidget(info[0])
+        hbox.addWidget(info[1])
+        hbox.addWidget(info[2])
+        hbox.addWidget(buttons[2])
+        hbox.setAlignment(Qt.AlignRight)
+        return hbox
+
+
     def save_toolbar_state(self, state, config):
         pass  # implemented in subclasses
 
@@ -658,7 +673,7 @@ class MyTreeView(QTreeView):
     def toggle_toolbar(self, config=None):
         self.show_toolbar(not self.toolbar_shown, config)
 
-    def add_copy_menu(self, menu, idx):
+    def add_copy_menu(self, menu: QMenu, idx) -> QMenu:
         cc = menu.addMenu(_("Copy"))
         for column in self.Columns:
             column_title = self.model().horizontalHeaderItem(column).text()
@@ -669,6 +684,7 @@ class MyTreeView(QTreeView):
             cc.addAction(column_title,
                          lambda text=clipboard_data, title=column_title:
                          self.place_text_on_clipboard(text, title=title))
+        return cc
 
     def place_text_on_clipboard(self, text: str, *, title: str = None) -> None:
         self.parent.do_copy(text, title=title)

@@ -30,13 +30,13 @@ folder.
 3. Build locale files
 
     ```
-    $ ./contrib/pull_locale
+    $ sudo ./contrib/pull_locale
     ```
 
 4. Prepare pure python dependencies
 
     ```
-    $ ./contrib/make_packages
+    $ sudo ./contrib/make_packages
     ```
 
 5. Build binaries
@@ -70,7 +70,7 @@ You probably need to clear the cache: `rm -rf .buildozer/android/platform/build/
 Assuming `adb` is installed:
 ```
 $ adb -d install -r bin/Electrum-*-arm64-v8a-debug.apk
-$ adb shell monkey -p org.electrum.electrum 1
+$ adb shell monkey -p org.electrumsys.electrum 1
 ```
 
 
@@ -95,16 +95,17 @@ adb logcat | grep python
 ```
 Better `grep` but fragile because of `cut`:
 ```
-adb logcat | grep -F "`adb shell ps | grep org.electrum.electrum | cut -c14-19`"
+adb logcat | grep -F "`adb shell ps | grep org.electrumsys.electrum | cut -c14-19`"
 ```
 
 
 ### Kivy can be run directly on Linux Desktop. How?
 Install Kivy.
+`pip3 install kivy`
 
 Build atlas: `(cd electrum/gui/kivy/; make theming)`
 
-Run electrum with the `-g` switch: `electrum -g kivy`
+Run electrum with the `-g` switch: `run_electrum -g kivy`
 
 ### debug vs release build
 If you just follow the instructions above, you will build the apk
@@ -122,6 +123,6 @@ of Android does not let you access the internal storage of an app without root.
 (See [this](https://stackoverflow.com/q/9017073))
 ```
 $ adb shell
-$ run-as org.electrum.electrum ls /data/data/org.electrum.electrum/files/data
-$ run-as org.electrum.electrum cp /data/data/org.electrum.electrum/files/data/wallets/my_wallet /sdcard/some_path/my_wallet
+$ run-as org.electrumsys.electrum ls /data/data/org.electrumsys.electrum/files/data
+$ run-as org.electrumsys.electrum cp /data/data/org.electrumsys.electrum/files/data/wallets/my_wallet /sdcard/some_path/my_wallet
 ```

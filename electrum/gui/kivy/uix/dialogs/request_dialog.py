@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from kivy.factory import Factory
 from kivy.lang import Builder
 from kivy.core.clipboard import Clipboard
@@ -8,11 +10,16 @@ from electrum.gui.kivy.i18n import _
 from electrum.util import pr_tooltips, pr_color, get_request_status
 from electrum.util import PR_UNKNOWN, PR_UNPAID, PR_FAILED, PR_TYPE_LN
 
+if TYPE_CHECKING:
+    from ...main_window import ElectrumWindow
+
 
 Builder.load_string('''
 <RequestDialog@Popup>
     id: popup
     amount: 0
+    amount_str: ''
+    asset: ''
     title: ''
     description:''
     data: ''
@@ -41,11 +48,15 @@ Builder.load_string('''
                 data: root.data
                 name: _('Request data')
             TopLabel:
+                text: _('Asset') + ':'
+            RefLabel:
+                data: root.asset
+            TopLabel:
                 text: _('Description') + ':'
             RefLabel:
                 data: root.description or _('No description')
             TopLabel:
-                text: _('Amount') + ': ' + app.format_amount_and_units(root.amount)
+                text: _('Amount') + ': ' + root.amount_str
             TopLabel:
                 text: _('Status') + ': ' + root.status_str
                 color: root.status_color
@@ -84,12 +95,21 @@ class RequestDialog(Factory.Popup):
     def __init__(self, title, data, key, *, is_lightning=False):
         self.status = PR_UNKNOWN
         Factory.Popup.__init__(self)
-        self.app = App.get_running_app()
+        self.app = App.get_running_app()  # type: ElectrumWindow
         self.title = title
         self.data = data
         self.key = key
         r = self.app.wallet.get_request(key)
         self.amount = r.get('amount')
+        self.asset = str(r.get('asset', ''))
+        if self.asset != '':
+            assetObj = self.app.wallet.asset_synchronizer.get_asset(self.asset)
+            if assetObj is not None:
+                self.amount_str = self.app.format_amount_and_units(None, asset_amount=self.amount, asset_symbol=assetObj.symbol, asset_precision=assetObj.precision)
+            else:
+                self.amount_str = self.app.format_amount_and_units(self.amount)
+        else:
+            self.amount_str = self.app.format_amount_and_units(self.amount)
         self.description = r.get('message', '')
         self.is_lightning = r.get('type') == PR_TYPE_LN
         self.update_status()
@@ -107,7 +127,7 @@ class RequestDialog(Factory.Popup):
         self.status, self.status_str = get_request_status(req)
         self.status_color = pr_color[self.status]
         if self.status == PR_UNPAID and self.is_lightning and self.app.wallet.lnworker:
-            if self.amount and self.amount > self.app.wallet.lnworker.can_receive():
+            if self.amount and self.amount > self.app.wallet.lnworker.num_sats_can_receive():
                 self.warning = _('Warning') + ': ' + _('This amount exceeds the maximum you can currently receive with your channels')
 
     def on_dismiss(self):

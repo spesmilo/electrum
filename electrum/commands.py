@@ -414,6 +414,13 @@ class Commands:
         domain = address
         return [wallet.export_private_key(address, password) for address in domain]
 
+    @command('wp')
+    async def getprivatekeyforpath(self, path, password=None, wallet: Abstract_Wallet = None):
+        """Get private key corresponding to derivation path (address index).
+        'path' can be either a str such as "m/0/50", or a list of ints such as [0, 50].
+        """
+        return wallet.export_private_key_for_path(path, password)
+
     @command('w')
     async def ismine(self, address, wallet: Abstract_Wallet = None):
         """Check if address is in wallet. Return true if and only address is in wallet"""
@@ -467,7 +474,7 @@ class Commands:
 
     @command('n')
     async def getservers(self):
-        """Return the list of available servers"""
+        """Return the list of known servers (candidates for connecting)."""
         return self.network.get_servers()
 
     @command('')
@@ -731,6 +738,11 @@ class Commands:
             raise Exception("Mismatching txid")
         return tx.serialize()
 
+    @command('n')
+    async def export_checkpoints(self, path):
+        """Run manually to generate blockchain checkpoints. """
+        return await self.network.export_checkpoints(path)
+
     @command('')
     async def encrypt(self, pubkey, message) -> str:
         """Encrypt a message with a public key. Use quotes if the message contains whitespaces."""
@@ -757,7 +769,7 @@ class Commands:
     def _format_request(self, out):
         from .util import get_request_status
         out['amount_SYS'] = format_satoshis(out.get('amount'))
-        out['status_str'] = get_request_status(out)
+        out['status'], out['status_str'] = get_request_status(out)
         return out
 
     @command('w')
@@ -1004,8 +1016,8 @@ class Commands:
                 'remote_balance': chan.balance(REMOTE)//1000,
                 'local_reserve': chan.config[LOCAL].reserve_sat,
                 'remote_reserve': chan.config[REMOTE].reserve_sat,
-                'local_unsettled_sent': chan.unsettled_sent_balance(LOCAL)//1000,
-                'remote_unsettled_sent': chan.unsettled_sent_balance(REMOTE)//1000,
+                'local_unsettled_sent': chan.balance_tied_up_in_htlcs_by_direction(LOCAL, direction=SENT) // 1000,
+                'remote_unsettled_sent': chan.balance_tied_up_in_htlcs_by_direction(REMOTE, direction=SENT) // 1000,
             } for channel_id, chan in l
         ]
 
@@ -1224,7 +1236,7 @@ argparse._SubParsersAction.__call__ = subparser_call
 def add_network_options(parser):
     parser.add_argument("-1", "--oneserver", action="store_true", dest="oneserver", default=None, help="connect to one server only")
     parser.add_argument("-s", "--server", dest="server", default=None, help="set server host:port:protocol, where protocol is either t (tcp) or s (ssl)")
-    parser.add_argument("-p", "--proxy", dest="proxy", default=None, help="set proxy [type:]host[:port], where type is socks4,socks5 or http")
+    parser.add_argument("-p", "--proxy", dest="proxy", default=None, help="set proxy [type:]host[:port] (or 'none' to disable proxy), where type is socks4,socks5 or http")
     parser.add_argument("--noonion", action="store_true", dest="noonion", default=None, help="do not try to connect to onion servers")
     parser.add_argument("--skipmerklecheck", action="store_true", dest="skipmerklecheck", default=False, help="Tolerate invalid merkle proofs from server")
 

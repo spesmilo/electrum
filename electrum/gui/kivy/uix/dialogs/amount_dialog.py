@@ -22,7 +22,7 @@ Builder.load_string('''
                 Button:
                     background_color: 0, 0, 0, 0
                     id: btc
-                    text: kb.amount + ' ' + app.base_unit
+                    text: kb.amount
                     color: (0.7, 0.7, 1, 1) if kb.is_fiat else (1, 1, 1, 1)
                     halign: 'right'
                     size_hint: 1, None

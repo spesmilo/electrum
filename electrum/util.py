@@ -77,6 +77,7 @@ DECIMAL_POINT_DEFAULT = 8  # SYS
 # types of payment requests
 PR_TYPE_ONCHAIN = 0
 PR_TYPE_LN = 2
+PR_TYPE_ONCHAIN_ASSET = 4
 
 # status of payment requests
 PR_UNPAID   = 0
@@ -278,6 +279,9 @@ class MyEncoder(json.JSONEncoder):
     def default(self, obj):
         # note: this does not get called for namedtuples :(  https://bugs.python.org/issue30343
         from .transaction import Transaction, TxOutput
+        from .lnutil import UpdateAddHtlc
+        if isinstance(obj, UpdateAddHtlc):
+            return obj.to_tuple()
         if isinstance(obj, Transaction):
             return obj.serialize()
         if isinstance(obj, TxOutput):
@@ -441,7 +445,7 @@ def android_ext_dir():
     return primary_external_storage_path()
 
 def android_backup_dir():
-    d = os.path.join(android_ext_dir(), 'org.electrum.electrum')
+    d = os.path.join(android_ext_dir(), 'org.electrumsys.electrum')
     if not os.path.exists(d):
         os.mkdir(d)
     return d
@@ -580,11 +584,11 @@ def user_dir():
     elif 'ANDROID_DATA' in os.environ:
         return android_data_dir()
     elif os.name == 'posix':
-        return os.path.join(os.environ["HOME"], ".electrum")
+        return os.path.join(os.environ["HOME"], ".electrumsys")
     elif "APPDATA" in os.environ:
-        return os.path.join(os.environ["APPDATA"], "Electrum")
+        return os.path.join(os.environ["APPDATA"], "ElectrumSys")
     elif "LOCALAPPDATA" in os.environ:
-        return os.path.join(os.environ["LOCALAPPDATA"], "Electrum")
+        return os.path.join(os.environ["LOCALAPPDATA"], "ElectrumSys")
     else:
         #raise Exception("No home directory found in environment variables.")
         return
@@ -750,16 +754,16 @@ def time_difference(distance_in_time, include_seconds):
 
 mainnet_block_explorers = {
     'Syscoin Explorer': ('https://sys1.bcfn.ca/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
+                        {'tx': 'tx/', 'asset': 'asset/', 'addr': 'address/'}),
     'system default': ('https://sys1.bcfn.ca/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
+                        {'tx': 'tx/', 'asset': 'asset/', 'addr': 'address/'}),
 }
 
 testnet_block_explorers = {
     'Syscoin Testnet Explorer': ('https://tsys1.bcfn.ca/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
+                        {'tx': 'tx/', 'asset': 'asset/', 'addr': 'address/'}),
     'system default': ('https://tsys1.bcfn.ca/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
+                        {'tx': 'tx/', 'asset': 'asset/', 'addr': 'address/'}),
 }
 
 def block_explorer_info():
@@ -879,8 +883,8 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
     return out
 
 
-def create_bip21_uri(addr, amount_sat: Optional[int], message: Optional[str],
-                     *, extra_query_params: Optional[dict] = None) -> str:
+def create_bip21_uri(asset, addr, amount_sat: Optional[int], message: Optional[str],
+                     *, extra_query_params: Optional[dict] = None, decimal_point = 8) -> str:
     from . import bitcoin
     if not bitcoin.is_address(addr):
         return ""
@@ -888,9 +892,11 @@ def create_bip21_uri(addr, amount_sat: Optional[int], message: Optional[str],
         extra_query_params = {}
     query = []
     if amount_sat:
-        query.append('amount=%s'%format_satoshis_plain(amount_sat))
+        query.append('amount=%s'%format_satoshis_plain(amount_sat, decimal_point=decimal_point))
     if message:
-        query.append('message=%s'%urllib.parse.quote(message))
+        query.append('message=%s'%urllib.parse.quote(message))   
+    if asset:
+        query.append('asset_guid=%s'%str(asset.asset))        
     for k, v in extra_query_params.items():
         if not isinstance(k, str) or k != urllib.parse.quote(k):
             raise Exception(f"illegal key for URI: {repr(k)}")

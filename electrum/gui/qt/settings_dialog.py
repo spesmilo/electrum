@@ -101,6 +101,7 @@ class SettingsDialog(WindowModalDialog):
                 self.config.set_key('num_zeros', value, True)
                 self.window.history_list.update()
                 self.window.address_list.update()
+                self.window.assethistory_list.update()
         nz.valueChanged.connect(on_nz)
         gui_widgets.append((nz_label, nz))
 
@@ -268,6 +269,7 @@ that is always connected to the internet. Configure a port if you want it to be 
             self.window.history_list.update()
             self.window.request_list.update()
             self.window.address_list.update()
+            self.window.assethistory_list.update()
             for edit, amount in zip(edits, amounts):
                 edit.setAmount(amount)
             self.window.update_status()

@@ -26,14 +26,17 @@ jobs:
       language: python
       python: 3.7
       install:
-        - sudo add-apt-repository -y ppa:bitcoin/bitcoin
+        - sudo add-apt-repository -y ppa:luke-jr/bitcoincore
         - sudo apt-get -qq update
-        - sudo apt-get install -yq bitcoind
+        - sudo wget https://github.com/syscoin/syscoin/releases/download/v4.1.3/syscoin-4.1.3-x86_64-linux-gnu.tar.gz
+        - echo "858f0e24be6c999aabe8cd9a682ac3b8bdf24dbc42c36566536701faf85824f4 syscoin-4.1.3-x86_64-linux-gnu.tar.gz" | sha256sum -c
+        - sudo tar xf syscoin-4.1.3-x86_64-linux-gnu.tar.gz
+        - sudo install -m 0755 -o root -g root -t /usr/local/bin syscoin-4.1.3/bin/*
         - sudo apt-get -y install libsecp256k1-0
         - pip install .[tests]
         - pip install electrumx
       before_script:
-          - electrum/tests/regtest/start_bitcoind.sh
+          - electrum/tests/regtest/start_syscoind.sh
           - electrum/tests/regtest/start_electrumx.sh
       script:
         - python -m unittest electrum/tests/regtest.py

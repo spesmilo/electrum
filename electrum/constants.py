@@ -202,14 +202,8 @@ class SyscoinMainnet(AbstractSyscoinNet):
     ADDRTYPE_P2SH = 0x05
     SEGWIT_HRP = "sys"
     GENESIS = "0000022642db0346b6e01c2a397471f4f12e65d4f4251ec96c1f85367a61a7ab"
-    DEFAULT_PORTS = {'s': '58881'}
-    DEFAULT_SERVERS = read_json('servers.json', {
-        "18.204.96.195": {
-            "pruning": "-",
-            "s": "58881",
-            "version": "1.4.1"
-        }
-    })
+    DEFAULT_PORTS = {'s': '58882'}
+    DEFAULT_SERVERS = read_json('servers.json', {})
     CHECKPOINTS = read_json('checkpoints.json', [])
     BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS = 497000
 
@@ -250,14 +244,7 @@ class SyscoinTestnet(AbstractSyscoinNet):
     SEGWIT_HRP = "tsys"
     GENESIS = "0000064430008f1fe74ba0bf54080f1cf6e73da3372df7617e33648529940fc3"
     DEFAULT_PORTS = {'t': '59991', 's': '59992'}
-    DEFAULT_SERVERS = read_json('servers_testnet.json', {
-        "104.248.3.80": {
-            "pruning": "-",
-            "t": "59991",
-            "s": "59992",
-            "version": "1.4.1"
-        }
-    })
+    DEFAULT_SERVERS = read_json('servers_testnet.json', {})
     CHECKPOINTS = read_json('checkpoints_testnet.json', [])
 
     XPRV_HEADERS = {

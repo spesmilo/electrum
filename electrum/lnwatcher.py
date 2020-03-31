@@ -23,6 +23,7 @@ from .transaction import Transaction
 if TYPE_CHECKING:
     from .network import Network
     from .lnsweep import SweepInfo
+    from .lnworker import LNWallet
 
 class ListenerItem(NamedTuple):
     # this is triggered when the lnwatcher is all done with the outpoint used as index in LNWatcher.tx_progress
@@ -160,7 +161,8 @@ class LNWatcher(AddressSynchronizer):
         self.channels[address] = outpoint
 
     async def unwatch_channel(self, address, funding_outpoint):
-        pass
+        self.logger.info(f'unwatching {funding_outpoint}')
+        self.channels.pop(address, None)
 
     @log_exceptions
     async def on_network_update(self, event, *args):
@@ -170,7 +172,8 @@ class LNWatcher(AddressSynchronizer):
         if not self.synchronizer:
             self.logger.info("synchronizer not set yet")
             return
-        for address, outpoint in self.channels.items():
+        channels_items = list(self.channels.items())  # copy
+        for address, outpoint in channels_items:
             await self.check_onchain_situation(address, outpoint)
 
     async def check_onchain_situation(self, address, funding_outpoint):
@@ -315,7 +318,7 @@ class WatchTower(LNWatcher):
         return self.network.run_from_another_thread(f())
 
     async def unwatch_channel(self, address, funding_outpoint):
-        self.logger.info(f'unwatching {funding_outpoint}')
+        await super().unwatch_channel(address, funding_outpoint)
         await self.sweepstore.remove_sweep_tx(funding_outpoint)
         await self.sweepstore.remove_channel(funding_outpoint)
         if funding_outpoint in self.tx_progress:
@@ -330,7 +333,7 @@ CHANNEL_OPENING_TIMEOUT = 24*60*60
 
 class LNWalletWatcher(LNWatcher):
 
-    def __init__(self, lnworker, network):
+    def __init__(self, lnworker: 'LNWallet', network: 'Network'):
         LNWatcher.__init__(self, network)
         self.network = network
         self.lnworker = lnworker

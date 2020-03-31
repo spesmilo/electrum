@@ -34,7 +34,7 @@ from PyQt5.QtWidgets import QMenu, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QH
 from electrum.i18n import _
 from electrum.util import format_time, PR_UNPAID, PR_PAID, PR_INFLIGHT, PR_FAILED
 from electrum.util import get_request_status
-from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
+from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_ONCHAIN_ASSET, PR_TYPE_LN
 from electrum.lnutil import PaymentAttemptLog
 
 from .util import (MyTreeView, read_QIcon,
@@ -52,12 +52,16 @@ class InvoiceList(MyTreeView):
 
     class Columns(IntEnum):
         DATE = 0
-        DESCRIPTION = 1
-        AMOUNT = 2
-        STATUS = 3
+        ASSET = 1
+        ASSET_ADDRESS = 2
+        DESCRIPTION = 3
+        AMOUNT = 4
+        STATUS = 5
 
     headers = {
         Columns.DATE: _('Date'),
+        Columns.ASSET: _('Asset'),
+        Columns.ASSET_ADDRESS: _('Asset Address'),
         Columns.DESCRIPTION: _('Description'),
         Columns.AMOUNT: _('Amount'),
         Columns.STATUS: _('Status'),
@@ -104,15 +108,31 @@ class InvoiceList(MyTreeView):
                 icon_name = 'bitcoin.png'
                 if item.get('bip70'):
                     icon_name = 'seal.png'
+            elif invoice_type == PR_TYPE_ONCHAIN_ASSET:
+                key = item['id']
+                icon_name = 'tab_assets.png'
+                if item.get('bip70'):
+                    icon_name = 'seal.png'
             else:
                 raise Exception('Unsupported type')
             status, status_str = get_request_status(item)
             message = item['message']
             amount = item['amount']
             timestamp = item.get('time', 0)
+            asset_guid = item.get('asset', None)
+            asset_address = item.get('asset_address', None)
+            precision = 8
+            asset_symbol = None
+            if asset_guid is not None: 
+                asset = self.parent.wallet.asset_synchronizer.get_asset(asset_guid)
+                if asset is not None:
+                    asset_symbol = asset.symbol
+                    precision = asset.precision
+            else:  
+                asset_symbol = "SYS"
             date_str = format_time(timestamp) if timestamp else _('Unknown')
-            amount_str = self.parent.format_amount(amount, whitespaces=True)
-            labels = [date_str, message, amount_str, status_str]
+            amount_str = self.parent.format_amount(amount, whitespaces=True, decimal=precision)
+            labels = [date_str, asset_symbol, asset_address, message, amount_str, status_str]
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
             items[self.Columns.DATE].setIcon(read_QIcon(icon_name))

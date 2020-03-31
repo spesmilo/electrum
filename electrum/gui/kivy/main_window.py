@@ -202,6 +202,10 @@ class ElectrumWindow(App):
         if self.history_screen:
             self.history_screen.update()
 
+    def update_assethistory(self, *dt):
+        if self.assethistory_screen:
+            self.assethistory_screen.update()
+
     def on_quotes(self, d):
         Logger.info("on_quotes")
         self._trigger_update_status()
@@ -212,6 +216,7 @@ class ElectrumWindow(App):
         if self.wallet:
             self.wallet.clear_coin_price_cache()
         self._trigger_update_history()
+        self.update_assethistory()
 
     def on_fee_histogram(self, *args):
         self._trigger_update_history()
@@ -287,14 +292,16 @@ class ElectrumWindow(App):
         satoshis = int(pow(10,8) * Decimal(fiat_amount) / Decimal(rate))
         return format_satoshis_plain(satoshis, self.decimal_point())
 
-    def get_amount(self, amount_str):
+    def get_amount(self, amount_str, decimal=None):
         a, u = amount_str.split()
-        assert u == self.base_unit
         try:
             x = Decimal(a)
         except:
             return None
-        p = pow(10, self.decimal_point())
+        if decimal is None:
+            p = pow(10, self.decimal_point())
+        else:
+            p = pow(10, decimal)
         return int(p * x)
 
 
@@ -366,6 +373,8 @@ class ElectrumWindow(App):
         self._trigger_update_wallet = Clock.create_trigger(self.update_wallet, .5)
         self._trigger_update_status = Clock.create_trigger(self.update_status, .5)
         self._trigger_update_history = Clock.create_trigger(self.update_history, .5)
+        self._trigger_update_assethistory = Clock.create_trigger(self.update_assethistory, .5)
+        self._trigger_update_assets = Clock.create_trigger(self.update_assets, .5)
         self._trigger_update_interfaces = Clock.create_trigger(self.update_interfaces, .5)
 
         self._periodic_update_status_during_sync = Clock.schedule_interval(self.update_wallet_synchronizing_progress, .5)
@@ -431,7 +440,7 @@ class ElectrumWindow(App):
 
     @profiler
     def update_tabs(self):
-        for tab in ['invoices', 'send', 'history', 'receive', 'address']:
+        for tab in ['invoices', 'send', 'history', 'receive', 'address', 'assethistory']:
             self.update_tab(tab)
 
     def switch_to(self, name):
@@ -475,7 +484,7 @@ class ElectrumWindow(App):
         from jnius import autoclass, cast
         from android import activity
         PythonActivity = autoclass('org.kivy.android.PythonActivity')
-        SimpleScannerActivity = autoclass("org.electrum.qr.SimpleScannerActivity")
+        SimpleScannerActivity = autoclass("org.electrumsys.qr.SimpleScannerActivity")
         Intent = autoclass('android.content.Intent')
         intent = Intent(PythonActivity.mActivity, SimpleScannerActivity)
 
@@ -794,6 +803,7 @@ class ElectrumWindow(App):
         self.root.manager = self.root.ids['manager']
 
         self.history_screen = None
+        self.assethistory_screen = None
         self.contacts_screen = None
         self.send_screen = None
         self.invoices_screen = None
@@ -829,6 +839,7 @@ class ElectrumWindow(App):
         elif event == 'blockchain_updated':
             # to update number of confirmations in history
             self._trigger_update_wallet()
+            self._trigger_update_assets()
         elif event == 'status':
             self._trigger_update_status()
         elif event == 'new_transaction':
@@ -902,7 +913,7 @@ class ElectrumWindow(App):
             return ''
         addr = None
         if self.send_screen:
-            addr = str(self.send_screen.screen.address)
+            addr = str(self.send_screen.address)
         if not addr:
             addr = self.wallet.dummy_address()
         outputs = [PartialTxOutput.from_address_and_value(addr, '!')]
@@ -920,13 +931,30 @@ class ElectrumWindow(App):
         amount = tx.output_value()
         __, x_fee_amount = run_hook('get_tx_extra_fee', self.wallet, tx) or (None, 0)
         amount_after_all_fees = amount - x_fee_amount
+        if self.send_screen:
+            if self.send_screen.asset_e is not None and self.send_screen.asset_e.key is not None and self.send_screen.asset_e.key.asset != 0:
+                asset = self.wallet.asset_synchronizer.get_asset(self.send_screen.asset_e.key.asset, self.send_screen.asset_e.key.address)
+                if asset is not None:
+                    return format_satoshis_plain(asset.balance, asset.precision)
         return format_satoshis_plain(amount_after_all_fees, self.decimal_point())
 
-    def format_amount(self, x, is_diff=False, whitespaces=False):
-        return format_satoshis(x, 0, self.decimal_point(), is_diff=is_diff, whitespaces=whitespaces)
+    def base_asset_unit(self, asset_symbol):
+        return asset_symbol
+        
+    def format_amount(self, x, is_diff=False, whitespaces=False, decimal=None):
+        return format_satoshis(x, 0, decimal or self.decimal_point(), is_diff=is_diff, whitespaces=whitespaces)
 
-    def format_amount_and_units(self, x):
-        return format_satoshis_plain(x, self.decimal_point()) + ' ' + self.base_unit
+    def format_amount_and_units(self, amount, asset_amount=None, asset_symbol=None, asset_precision=None):
+        text = ''
+        if amount is not None and amount is not '':
+            text += format_satoshis_plain(amount, decimal_point=self.decimal_point()) + ' '+ self.base_unit
+        if asset_symbol is not None and asset_amount is not None and asset_amount is not '':
+            if amount is not None:
+                text += ' - Asset: ' + format_satoshis_plain(asset_amount, decimal_point=asset_precision) + ' '+ self.base_asset_unit(asset_symbol)
+            else:
+                text += format_satoshis_plain(asset_amount, decimal_point=asset_precision) + ' '+ self.base_asset_unit(asset_symbol)
+
+        return text
 
     def format_fee_rate(self, fee_rate):
         # fee_rate is in sat/kB
@@ -937,6 +965,16 @@ class ElectrumWindow(App):
         self._trigger_update_status()
         if self.wallet and (self.wallet.up_to_date or not self.network or not self.network.is_connected()):
             self.update_tabs()
+
+    def on_assets_updated(self, asset):
+        self._trigger_update_assethistory()
+        if asset is not None:
+            self.notify(_("Asset balance updated: New total for asset {} with guid {} is {}")
+                        .format(asset.symbol, asset.asset, self.format_amount(asset.balance, decimal=asset.precision)))
+
+    def update_assets(self, *dt):
+        if self.wallet:
+            asyncio.ensure_future(self.wallet.asset_synchronizer.synchronize_assets(self.on_assets_updated))
 
     def notify(self, message):
         try:
@@ -1112,10 +1150,19 @@ class ElectrumWindow(App):
         from .uix.dialogs.amount_dialog import AmountDialog
         amount = screen.amount
         if amount:
-            amount, u = str(amount).split()
-            assert u == self.base_unit
+            try:
+                amount, u = str(amount).split()
+            except ValueError:
+                amount = '0'
         def cb(amount):
-            screen.amount = amount
+            if screen.asset_e is not None and screen.asset_e.key is not None and screen.asset_e.key.asset != 0:
+                asset = self.wallet.asset_synchronizer.get_asset(screen.asset_e.key.asset, screen.asset_e.key.address)
+                if asset is not None:
+                    screen.amount = amount + ' ' + asset.symbol
+                else:
+                    screen.amount = amount + ' ' + self.base_unit
+            else:
+                screen.amount = amount + ' ' + self.base_unit
         popup = AmountDialog(show_max, amount, cb)
         popup.open()
 

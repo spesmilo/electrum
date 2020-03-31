@@ -149,6 +149,18 @@ Builder.load_string('''
             range: 1, n.value
             step: 1
             value: 2
+    Widget
+        size_hint: 1, 1
+    Label:
+        id: backup_warning_label
+        color: root.text_color
+        size_hint: 1, None
+        text_size: self.width, None
+        height: self.texture_size[1]
+        opacity: int(m.value != n.value)
+        text: _("Warning: to be able to restore a multisig wallet, " \
+                "you should include the master public key for each cosigner " \
+                "in all of your backups.")
 
 
 <WizardChoiceDialog>

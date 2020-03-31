@@ -31,6 +31,7 @@ from .util import bh2u, profiler
 from .logging import Logger
 from .lnutil import NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID
 from .channel_db import ChannelDB, Policy
+from .lnutil import NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE
 
 if TYPE_CHECKING:
     from .lnchannel import Channel
@@ -99,8 +100,7 @@ def is_route_sane_to_use(route: LNPaymentRoute, invoice_amount_msat: int, min_fi
         cltv += route_edge.cltv_expiry_delta
     total_fee = amt - invoice_amount_msat
     # TODO revise ad-hoc heuristics
-    # cltv cannot be more than 2 months
-    if cltv > 60 * 144:
+    if cltv > NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE:
         return False
     if not is_fee_sane(total_fee, payment_amount_msat=invoice_amount_msat):
         return False
@@ -108,8 +108,8 @@ def is_route_sane_to_use(route: LNPaymentRoute, invoice_amount_msat: int, min_fi
 
 
 def is_fee_sane(fee_msat: int, *, payment_amount_msat: int) -> bool:
-    # fees <= 2 sat are fine
-    if fee_msat <= 2_000:
+    # fees <= 5 sat are fine
+    if fee_msat <= 5_000:
         return True
     # fees <= 1 % of payment are fine
     if 100 * fee_msat <= payment_amount_msat:
@@ -205,11 +205,12 @@ class LNPathFinder(Logger):
             is_mine = edge_channel_id in my_channels
             if is_mine:
                 if edge_startnode == nodeA:  # payment outgoing, on our channel
-                    if not my_channels[edge_channel_id].can_pay(amount_msat):
+                    if not my_channels[edge_channel_id].can_pay(amount_msat, check_frozen=True):
                         return
                 else:  # payment incoming, on our channel. (funny business, cycle weirdness)
                     assert edge_endnode == nodeA, (bh2u(edge_startnode), bh2u(edge_endnode))
-                    pass  # TODO?
+                    if not my_channels[edge_channel_id].can_receive(amount_msat, check_frozen=True):
+                        return
             edge_cost, fee_for_edge_msat = self._edge_cost(
                 edge_channel_id,
                 start_node=edge_startnode,
