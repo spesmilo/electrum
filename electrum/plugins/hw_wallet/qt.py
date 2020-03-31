@@ -190,7 +190,10 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
             self.dialog = None
 
     def win_query_choice(self, msg, labels):
-        self.choice = self.win.query_choice(msg, labels)
+        try:
+            self.choice = self.win.query_choice(msg, labels)
+        except UserCancelled:
+            self.choice = None
         self.done.set()
 
     def win_yes_no_question(self, msg):
