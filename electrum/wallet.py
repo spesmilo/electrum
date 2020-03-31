@@ -44,7 +44,7 @@ from abc import ABC, abstractmethod
 import itertools
 
 from .i18n import _
-from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath
+from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath, convert_bip32_path_to_list_of_uint32
 from .crypto import sha256
 from .util import (NotEnoughFunds, UserCancelled, profiler,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
@@ -462,7 +462,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         """Return script type of wallet address."""
         pass
 
-    def export_private_key(self, address, password) -> str:
+    def export_private_key(self, address: str, password: Optional[str]) -> str:
         if self.is_watching_only():
             raise Exception(_("This is a watching-only wallet"))
         if not is_address(address):
@@ -474,6 +474,9 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         txin_type = self.get_txin_type(address)
         serialized_privkey = bitcoin.serialize_privkey(pk, compressed, txin_type)
         return serialized_privkey
+
+    def export_private_key_for_path(self, path: Union[Sequence[int], str], password: Optional[str]) -> str:
+        raise Exception("this wallet is not deterministic")
 
     @abstractmethod
     def get_public_keys(self, address: str) -> Sequence[str]:
@@ -2201,6 +2204,13 @@ class Deterministic_Wallet(Abstract_Wallet):
         pubkeys = self.derive_pubkeys(for_change, n)
         return self.pubkeys_to_address(pubkeys)
 
+    def export_private_key_for_path(self, path: Union[Sequence[int], str], password: Optional[str]) -> str:
+        if isinstance(path, str):
+            path = convert_bip32_path_to_list_of_uint32(path)
+        pk, compressed = self.keystore.get_private_key(path, password)
+        txin_type = self.get_txin_type()  # assumes no mixed-scripts in wallet
+        return bitcoin.serialize_privkey(pk, compressed, txin_type)
+
     def get_public_keys_with_deriv_info(self, address: str):
         der_suffix = self.get_address_index(address)
         der_suffix = [int(x) for x in der_suffix]
@@ -2301,7 +2311,7 @@ class Deterministic_Wallet(Abstract_Wallet):
     def get_fingerprint(self):
         return self.get_master_public_key()
 
-    def get_txin_type(self, address):
+    def get_txin_type(self, address=None):
         return self.txin_type
 
 
