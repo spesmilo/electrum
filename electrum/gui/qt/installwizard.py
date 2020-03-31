@@ -358,10 +358,6 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
         return db
 
-    def finished(self):
-        """Called in hardware client wrapper, in order to close popups."""
-        return
-
     def on_error(self, exc_info):
         if not isinstance(exc_info[1], UserCancelled):
             self.logger.error("on_error", exc_info=exc_info)
