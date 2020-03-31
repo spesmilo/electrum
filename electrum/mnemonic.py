@@ -27,12 +27,14 @@ import math
 import hashlib
 import unicodedata
 import string
+from typing import Sequence, Dict
+from types import MappingProxyType
 
-import ecdsa
-
-from .util import print_error, resource_path, bfh, bh2u
+from .util import resource_path, bfh, bh2u, randrange
 from .crypto import hmac_oneshot
 from . import version
+from .logging import Logger
+
 
 # http://www.asahi-net.or.jp/~ax2s-kmtn/ref/unicode/e_asia.html
 CJK_INTERVALS = [
@@ -87,20 +89,49 @@ def normalize_text(seed: str) -> str:
     seed = u''.join([seed[i] for i in range(len(seed)) if not (seed[i] in string.whitespace and is_CJK(seed[i-1]) and is_CJK(seed[i+1]))])
     return seed
 
-def load_wordlist(filename):
-    path = resource_path('wordlist', filename)
-    with open(path, 'r', encoding='utf-8') as f:
-        s = f.read().strip()
-    s = unicodedata.normalize('NFKD', s)
-    lines = s.split('\n')
-    wordlist = []
-    for line in lines:
-        line = line.split('#')[0]
-        line = line.strip(' \r')
-        assert ' ' not in line
-        if line:
-            wordlist.append(line)
-    return wordlist
+
+_WORDLIST_CACHE = {}  # type: Dict[str, Wordlist]
+
+
+class Wordlist(tuple):
+
+    def __init__(self, words: Sequence[str]):
+        super().__init__()
+        index_from_word = {w: i for i, w in enumerate(words)}
+        self._index_from_word = MappingProxyType(index_from_word)  # no mutation
+
+    def index(self, word, start=None, stop=None) -> int:
+        try:
+            return self._index_from_word[word]
+        except KeyError as e:
+            raise ValueError from e
+
+    def __contains__(self, word) -> bool:
+        try:
+            self.index(word)
+        except ValueError:
+            return False
+        else:
+            return True
+
+    @classmethod
+    def from_file(cls, filename) -> 'Wordlist':
+        path = resource_path('wordlist', filename)
+        if path not in _WORDLIST_CACHE:
+            with open(path, 'r', encoding='utf-8') as f:
+                s = f.read().strip()
+            s = unicodedata.normalize('NFKD', s)
+            lines = s.split('\n')
+            words = []
+            for line in lines:
+                line = line.split('#')[0]
+                line = line.strip(' \r')
+                assert ' ' not in line
+                if line:
+                    words.append(line)
+
+            _WORDLIST_CACHE[path] = Wordlist(words)
+        return _WORDLIST_CACHE[path]
 
 
 filenames = {
@@ -112,18 +143,17 @@ filenames = {
 }
 
 
-# FIXME every time we instantiate this class, we read the wordlist from disk
-# and store a new copy of it in memory
-class Mnemonic(object):
+class Mnemonic(Logger):
     # Seed derivation does not follow BIP39
     # Mnemonic phrase uses a hash based checksum, instead of a wordlist-dependent checksum
 
     def __init__(self, lang=None):
+        Logger.__init__(self)
         lang = lang or 'en'
-        print_error('language', lang)
+        self.logger.info(f'language {lang}')
         filename = filenames.get(lang[0:2], 'english.txt')
-        self.wordlist = load_wordlist(filename)
-        print_error("wordlist has %d words"%len(self.wordlist))
+        self.wordlist = Wordlist.from_file(filename)
+        self.logger.info(f"wordlist has {len(self.wordlist)} words")
 
     @classmethod
     def mnemonic_to_seed(self, mnemonic, passphrase) -> bytes:
@@ -157,17 +187,19 @@ class Mnemonic(object):
             i = i*n + k
         return i
 
-    def make_seed(self, seed_type='standard', num_bits=132):
+    def make_seed(self, seed_type=None, *, num_bits=132) -> str:
+        if seed_type is None:
+            seed_type = 'segwit'
         prefix = version.seed_prefix(seed_type)
         # increase num_bits in order to obtain a uniform distribution for the last word
         bpw = math.log(len(self.wordlist), 2)
         # rounding
         n = int(math.ceil(num_bits/bpw) * bpw)
-        print_error("make_seed. prefix: '%s'"%prefix, "entropy: %d bits"%n)
+        self.logger.info(f"make_seed. prefix: '{prefix}', entropy: {n} bits")
         entropy = 1
         while entropy < pow(2, n - bpw):
             # try again if seed would not contain enough words
-            entropy = ecdsa.util.randrange(pow(2, n))
+            entropy = randrange(pow(2, n))
         nonce = 0
         while True:
             nonce += 1
@@ -179,7 +211,7 @@ class Mnemonic(object):
                 continue
             if is_new_seed(seed, prefix):
                 break
-        print_error('%d words'%len(seed.split()))
+        self.logger.info(f'{len(seed.split())} words')
         return seed
 
 

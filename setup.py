@@ -52,10 +52,14 @@ if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
 
 extras_require = {
     'hardware': requirements_hw,
-    'fast': ['pycryptodomex'],
     'gui': ['pyqt5'],
+    'crypto': ['pycryptodomex>=3.7'],
+    'tests': ['pycryptodomex>=3.7', 'cryptography>=2.1'],
 }
-extras_require['full'] = [pkg for sublist in list(extras_require.values()) for pkg in sublist]
+# 'full' extra that tries to grab everything an enduser would need (except for libsecp256k1...)
+extras_require['full'] = [pkg for sublist in ['hardware', 'gui', 'crypto'] for pkg in sublist]
+# legacy. keep 'fast' extra working
+extras_require['fast'] = extras_require['crypto']
 
 
 setup(
@@ -85,10 +89,10 @@ setup(
     },
     scripts=['electrum/electrum'],
     data_files=data_files,
-    description="Lightweight Bitcoin Wallet",
-    author="Thomas Voegtlin",
-    author_email="thomasv@electrum.org",
-    license="MIT Licence",
-    url="https://electrum.org",
-    long_description="""Lightweight Bitcoin Wallet""",
+    description="Lightweight Syscoin Wallet (AuxPoW fork)",
+    author="The Syscoin developers; based on Electrum by Thomas Voegtlin and Electrum-DOGE by The Electrum-DOGE contributors",
+    author_email="jsidhu@blockchainfoundry.co",
+    license="GNU GPLv3+ for Electrum-DOGE components; MIT Licence for all other components",
+    url="https://www.namecoin.org/",
+    long_description="""Lightweight Syscoin Wallet (AuxPoW fork)""",
 )

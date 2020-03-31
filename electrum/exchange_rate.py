@@ -8,26 +8,28 @@ import time
 import csv
 import decimal
 from decimal import Decimal
-import traceback
 from typing import Sequence, Optional
 
 from aiorpcx.curio import timeout_after, TaskTimeout, TaskGroup
 
 from .bitcoin import COIN
 from .i18n import _
-from .util import (PrintError, ThreadJob, make_dir, log_exceptions,
+from .util import (ThreadJob, make_dir, log_exceptions,
                    make_aiohttp_session, resource_path)
 from .network import Network
 from .simple_config import SimpleConfig
+from .logging import Logger
 
 
-DEFAULT_ENABLED = False
-DEFAULT_CURRENCY = "EUR"
+DEFAULT_ENABLED = True
+DEFAULT_CURRENCY = "USD"
+DEFAULT_BASE_CURRENCY = "syscoin"
 DEFAULT_EXCHANGE = "CoinGecko"  # default exchange should ideally provide historical rates
 
 
 # See https://en.wikipedia.org/wiki/ISO_4217
-CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
+CCY_PRECISIONS = {'USD': 4, 'EUR': 4, 'BTC': 8, 'ETH': 8, 'CAD': 4,
+                  'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
                   'CVE': 0, 'DJF': 0, 'GNF': 0, 'IQD': 3, 'ISK': 0,
                   'JOD': 3, 'JPY': 0, 'KMF': 0, 'KRW': 0, 'KWD': 3,
                   'LYD': 3, 'MGA': 1, 'MRO': 1, 'OMR': 3, 'PYG': 0,
@@ -35,9 +37,10 @@ CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
                   'VUV': 0, 'XAF': 0, 'XAU': 4, 'XOF': 0, 'XPF': 0}
 
 
-class ExchangeBase(PrintError):
+class ExchangeBase(Logger):
 
     def __init__(self, on_quotes, on_history):
+        Logger.__init__(self)
         self.history = {}
         self.quotes = {}
         self.on_quotes = on_quotes
@@ -72,14 +75,16 @@ class ExchangeBase(PrintError):
     def name(self):
         return self.__class__.__name__
 
-    async def update_safe(self, ccy):
+    async def update_safe(self, ccy, bccy='syscoin'):
         try:
-            self.print_error("getting fx quotes for", ccy)
-            self.quotes = await self.get_rates(ccy)
-            self.print_error("received fx quotes")
+            self.logger.info(f"getting fx quotes for {ccy}")
+            self.quotes = await self.get_rates(ccy, bccy)
+            self.logger.info("received fx quotes")
+        except asyncio.CancelledError:
+            # CancelledError must be passed-through for cancellation to work
+            raise
         except BaseException as e:
-            self.print_error("failed fx quotes:", repr(e))
-            # traceback.print_exc()
+            self.logger.info(f"failed fx quotes: {repr(e)}")
             self.quotes = {}
         self.on_quotes()
 
@@ -103,12 +108,11 @@ class ExchangeBase(PrintError):
     @log_exceptions
     async def get_historical_rates_safe(self, ccy, cache_dir):
         try:
-            self.print_error(f"requesting fx history for {ccy}")
+            self.logger.info(f"requesting fx history for {ccy}")
             h = await self.request_history(ccy)
-            self.print_error(f"received fx history for {ccy}")
+            self.logger.info(f"received fx history for {ccy}")
         except BaseException as e:
-            self.print_error(f"failed fx history: {repr(e)}")
-            #traceback.print_exc()
+            self.logger.info(f"failed fx history: {repr(e)}")
             return
         filename = os.path.join(cache_dir, self.name() + '_' + ccy)
         with open(filename, 'w', encoding='utf-8') as f:
@@ -135,14 +139,16 @@ class ExchangeBase(PrintError):
     async def request_history(self, ccy):
         raise NotImplementedError()  # implemented by subclasses
 
-    async def get_rates(self, ccy):
+    async def get_rates(self, ccy, bccy='syscoin'):
         raise NotImplementedError()  # implemented by subclasses
 
-    async def get_currencies(self):
-        rates = await self.get_rates('')
+    async def get_currencies(self, bccy='syscoin'):
+        rates = await self.get_rates('', bccy)
         return sorted([str(a) for (a, b) in rates.items() if b is not None and len(a)==3])
 
 
+# Doesn't support Syscoin.
+"""
 class BitcoinAverage(ExchangeBase):
     # note: historical rates used to be freely available
     # but this is no longer the case. see #5188
@@ -152,14 +158,21 @@ class BitcoinAverage(ExchangeBase):
         return dict([(r.replace("BTC", ""), Decimal(json[r]['last']))
                      for r in json if r != 'timestamp'])
 
+"""
 
+
+# Doesn't support Syscoin.
+"""
 class Bitcointoyou(ExchangeBase):
 
     async def get_rates(self, ccy):
         json = await self.get_json('bitcointoyou.com', "/API/ticker.aspx")
         return {'BRL': Decimal(json['ticker']['last'])}
 
+"""
 
+# Doesn't support Syscoin.
+"""
 class BitcoinVenezuela(ExchangeBase):
 
     async def get_rates(self, ccy):
@@ -175,43 +188,51 @@ class BitcoinVenezuela(ExchangeBase):
         json = await self.get_json('api.bitcoinvenezuela.com',
                              "/historical/index.php?coin=BTC")
         return json[ccy +'_BTC']
+"""
 
 
+# Doesn't support Syscoin.
+"""
 class Bitbank(ExchangeBase):
 
     async def get_rates(self, ccy):
         json = await self.get_json('public.bitbank.cc', '/btc_jpy/ticker')
         return {'JPY': Decimal(json['data']['last'])}
+"""
 
 
+# Doesn't support Syscoin.
+"""
 class BitFlyer(ExchangeBase):
 
     async def get_rates(self, ccy):
         json = await self.get_json('bitflyer.jp', '/api/echo/price')
         return {'JPY': Decimal(json['mid'])}
+"""
 
 
-class Bitmarket(ExchangeBase):
-
-    async def get_rates(self, ccy):
-        json = await self.get_json('www.bitmarket.pl', '/json/BTCPLN/ticker.json')
-        return {'PLN': Decimal(json['last'])}
-
-
+# Doesn't support Syscoin.
+"""
 class BitPay(ExchangeBase):
 
     async def get_rates(self, ccy):
         json = await self.get_json('bitpay.com', '/api/rates')
         return dict([(r['code'], Decimal(r['rate'])) for r in json])
+"""
 
 
+# Doesn't support Syscoin.
+"""
 class Bitso(ExchangeBase):
 
     async def get_rates(self, ccy):
         json = await self.get_json('api.bitso.com', '/v2/ticker')
         return {'MXN': Decimal(json['last'])}
+"""
 
 
+# Doesn't support Syscoin.
+"""
 class BitStamp(ExchangeBase):
 
     async def get_currencies(self):
@@ -222,42 +243,61 @@ class BitStamp(ExchangeBase):
             json = await self.get_json('www.bitstamp.net', f'/api/v2/ticker/btc{ccy.lower()}/')
             return {ccy: Decimal(json['last'])}
         return {}
+"""
 
 
+# Doesn't support Syscoin.
+"""
 class Bitvalor(ExchangeBase):
 
     async def get_rates(self,ccy):
         json = await self.get_json('api.bitvalor.com', '/v1/ticker.json')
         return {'BRL': Decimal(json['ticker_1h']['total']['last'])}
+"""
 
 
+# Doesn't support Syscoin.
+"""
 class BlockchainInfo(ExchangeBase):
 
     async def get_rates(self, ccy):
         json = await self.get_json('blockchain.info', '/ticker')
         return dict([(r, Decimal(json[r]['15m'])) for r in json])
+"""
 
 
+# Doesn't support Syscoin.
+"""
 class Bylls(ExchangeBase):
 
     async def get_rates(self, ccy):
         json = await self.get_json('bylls.com', '/api/price?from_currency=BTC&to_currency=CAD')
         return {'CAD': Decimal(json['public_price']['to_price'])}
+"""
 
 
+# Doesn't support Syscoin.
+"""
 class Coinbase(ExchangeBase):
 
     async def get_rates(self, ccy):
         json = await self.get_json('api.coinbase.com',
                              '/v2/exchange-rates?currency=BTC')
         return {ccy: Decimal(rate) for (ccy, rate) in json["data"]["rates"].items()}
+"""
 
 
 class CoinCap(ExchangeBase):
 
-    async def get_rates(self, ccy):
+    async def get_rates(self, ccy, bccy='syscoin'):
+        # CoinCap rates API is broken for Syscoin.  Use history API instead.
+        """
         json = await self.get_json('api.coincap.io', '/v2/rates/bitcoin/')
         return {'USD': Decimal(json['data']['rateUsd'])}
+        """
+        json = await self.get_json('api.coincap.io',
+                                      '/v2/assets/{}/history?interval=d1&limit=2000'.format(bccy))
+        return {'USD': Decimal(json['data'][-1]['priceUsd'])}
 
     def history_ccys(self):
         return ['USD']
@@ -266,11 +306,13 @@ class CoinCap(ExchangeBase):
         # Currently 2000 days is the maximum in 1 API call
         # (and history starts on 2017-03-23)
         history = await self.get_json('api.coincap.io',
-                                      '/v2/assets/bitcoin/history?interval=d1&limit=2000')
+                                      '/v2/assets/syscoin/history?interval=d1&limit=2000')
         return dict([(datetime.utcfromtimestamp(h['time']/1000).strftime('%Y-%m-%d'), h['priceUsd'])
                      for h in history['data']])
 
 
+# Doesn't support Syscoin.
+"""
 class CoinDesk(ExchangeBase):
 
     async def get_currencies(self):
@@ -298,14 +340,21 @@ class CoinDesk(ExchangeBase):
                  % (start, end))
         json = await self.get_json('api.coindesk.com', query)
         return json['bpi']
+"""
 
 
 class CoinGecko(ExchangeBase):
 
-    async def get_rates(self, ccy):
+    async def get_rates(self, ccy, bccy='syscoin'):
+        # CoinGecko exchange_rates API is unavailable for Syscoin.  Use coins API instead.
+        """
         json = await self.get_json('api.coingecko.com', '/api/v3/exchange_rates')
         return dict([(ccy.upper(), Decimal(d['value']))
                      for ccy, d in json['rates'].items()])
+        """
+        json = await self.get_json('api.coingecko.com', '/api/v3/coins/{}'.format(bccy.lower()))
+        return dict([(ccy.upper(), Decimal(d))
+                     for ccy, d in json['market_data']['current_price'].items()])
 
     def history_ccys(self):
         # CoinGecko seems to have historical data for all ccys it supports
@@ -313,12 +362,13 @@ class CoinGecko(ExchangeBase):
 
     async def request_history(self, ccy):
         history = await self.get_json('api.coingecko.com',
-                                      '/api/v3/coins/bitcoin/market_chart?vs_currency=%s&days=max' % ccy)
+                                      '/api/v3/coins/syscoin/market_chart?vs_currency=%s&days=max' % ccy)
 
         return dict([(datetime.utcfromtimestamp(h[0]/1000).strftime('%Y-%m-%d'), h[1])
                      for h in history['prices']])
 
 
+"""
 class itBit(ExchangeBase):
 
     async def get_rates(self, ccy):
@@ -328,8 +378,11 @@ class itBit(ExchangeBase):
         if ccy in ccys:
             result[ccy] = Decimal(json['lastPrice'])
         return result
+"""
 
 
+# Doesn't support Syscoin.
+"""
 class Kraken(ExchangeBase):
 
     async def get_rates(self, ccy):
@@ -339,37 +392,52 @@ class Kraken(ExchangeBase):
                              '/0/public/Ticker?pair=%s' % ','.join(pairs))
         return dict((k[-3:], Decimal(float(v['c'][0])))
                      for k, v in json['result'].items())
+"""
 
 
+# Doesn't support Syscoin.
+"""
 class LocalBitcoins(ExchangeBase):
 
     async def get_rates(self, ccy):
         json = await self.get_json('localbitcoins.com',
                              '/bitcoinaverage/ticker-all-currencies/')
         return dict([(r, Decimal(json[r]['rates']['last'])) for r in json])
+"""
 
 
+# Doesn't support Syscoin.
+"""
 class MercadoBitcoin(ExchangeBase):
 
     async def get_rates(self, ccy):
         json = await self.get_json('api.bitvalor.com', '/v1/ticker.json')
         return {'BRL': Decimal(json['ticker_1h']['exchanges']['MBT']['last'])}
+"""
 
 
+# Doesn't support Syscoin.
+"""
 class NegocieCoins(ExchangeBase):
 
     async def get_rates(self,ccy):
         json = await self.get_json('api.bitvalor.com', '/v1/ticker.json')
         return {'BRL': Decimal(json['ticker_1h']['exchanges']['NEG']['last'])}
+"""
 
+# Doesn't support Syscoin.
+"""
 class TheRockTrading(ExchangeBase):
 
     async def get_rates(self, ccy):
         json = await self.get_json('api.therocktrading.com',
                              '/v1/funds/BTCEUR/ticker')
         return {'EUR': Decimal(json['last'])}
+"""
 
 
+# Doesn't support Syscoin.
+"""
 class Winkdex(ExchangeBase):
 
     async def get_rates(self, ccy):
@@ -385,12 +453,16 @@ class Winkdex(ExchangeBase):
         history = json['series'][0]['results']
         return dict([(h['timestamp'][:10], h['price'] / 100.0)
                      for h in history])
+"""
 
 
+# Doesn't support Syscoin.
+"""
 class Zaif(ExchangeBase):
     async def get_rates(self, ccy):
         json = await self.get_json('api.zaif.jp', '/api/1/last_price/btc_jpy')
         return {'JPY': Decimal(json['last_price'])}
+"""
 
 
 def dictinvert(d):
@@ -458,11 +530,13 @@ def get_exchanges_by_ccy(history=True):
 class FxThread(ThreadJob):
 
     def __init__(self, config: SimpleConfig, network: Network):
+        ThreadJob.__init__(self)
         self.config = config
         self.network = network
         if self.network:
             self.network.register_callback(self.set_proxy, ['proxy_set'])
         self.ccy = self.get_currency()
+        self.bccy = self.get_base_currency()
         self.history_used_spot = False
         self.ccy_combo = None
         self.hist_checkbox = None
@@ -511,7 +585,7 @@ class FxThread(ThreadJob):
             except TaskTimeout:
                 pass
             if self.is_enabled():
-                await self.exchange.update_safe(self.ccy)
+                await self.exchange.update_safe(self.ccy, self.bccy)
 
     def is_enabled(self):
         return bool(self.config.get('use_exchange_rate', DEFAULT_ENABLED))
@@ -542,6 +616,10 @@ class FxThread(ThreadJob):
         '''Use when dynamic fetching is needed'''
         return self.config.get("currency", DEFAULT_CURRENCY)
 
+    def get_base_currency(self):
+        '''Use when dynamic fetching is needed'''
+        return self.config.get("base_currency", DEFAULT_BASE_CURRENCY)
+
     def config_exchange(self):
         return self.config.get('use_exchange', DEFAULT_EXCHANGE)
 
@@ -554,16 +632,23 @@ class FxThread(ThreadJob):
         self.trigger_update()
         self.on_quotes()
 
+    def set_base_currency(self, bccy):
+        self.bccy = bccy
+        self.config.set_key('base_currency', bccy, True)
+        self.trigger_update()
+        self.on_quotes()
+
     def trigger_update(self):
         if self.network:
             self.network.asyncio_loop.call_soon_threadsafe(self._trigger.set)
 
     def set_exchange(self, name):
         class_ = globals().get(name) or globals().get(DEFAULT_EXCHANGE)
-        self.print_error("using exchange", name)
+        self.logger.info(f"using exchange {name}")
         if self.config_exchange() != name:
             self.config.set_key('use_exchange', name, True)
-        self.exchange = class_(self.on_quotes, self.on_history)
+        assert issubclass(class_, ExchangeBase), f"unexpected type {class_} for {name}"
+        self.exchange = class_(self.on_quotes, self.on_history)  # type: ExchangeBase
         # A new exchange means new fx quotes, initially empty.  Force
         # a quote refresh
         self.trigger_update()
@@ -614,9 +699,11 @@ class FxThread(ThreadJob):
         rate = self.exchange.historical_rate(self.ccy, d_t)
         # Frequently there is no rate for today, until tomorrow :)
         # Use spot quotes in that case
-        if rate == 'NaN' and (datetime.today().date() - d_t.date()).days <= 2:
+        if rate in ('NaN', None) and (datetime.today().date() - d_t.date()).days <= 2:
             rate = self.exchange.quotes.get(self.ccy, 'NaN')
             self.history_used_spot = True
+        if rate is None:
+            rate = 'NaN'
         return Decimal(rate)
 
     def historical_value_str(self, satoshis, d_t):

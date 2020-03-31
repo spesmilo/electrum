@@ -3,32 +3,40 @@ from struct import pack
 
 from electrum import ecc
 from electrum.i18n import _
-from electrum.util import PrintError, UserCancelled, UserFacingException
+from electrum.util import UserCancelled, UserFacingException
 from electrum.keystore import bip39_normalize_passphrase
 from electrum.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32 as parse_path
 from electrum.logging import Logger
-from electrum.plugins.hw_wallet.plugin import OutdatedHwFirmwareException
+from electrum.plugins.hw_wallet.plugin import OutdatedHwFirmwareException, HardwareClientBase
 
 from trezorlib.client import TrezorClient
 from trezorlib.exceptions import TrezorFailure, Cancelled, OutdatedFirmwareError
-from trezorlib.messages import WordRequestType, FailureType, RecoveryDeviceType
+from trezorlib.messages import WordRequestType, FailureType, RecoveryDeviceType, ButtonRequestType
 import trezorlib.btc
 import trezorlib.device
 
 MESSAGES = {
-    3: _("Confirm the transaction output on your {} device"),
-    4: _("Confirm internal entropy on your {} device to begin"),
-    5: _("Write down the seed word shown on your {}"),
-    6: _("Confirm on your {} that you want to wipe it clean"),
-    7: _("Confirm on your {} device the message to sign"),
-    8: _("Confirm the total amount spent and the transaction fee on your {} device"),
-    10: _("Confirm wallet address on your {} device"),
-    14: _("Choose on your {} device where to enter your passphrase"),
+    ButtonRequestType.ConfirmOutput:
+        _("Confirm the transaction output on your {} device"),
+    ButtonRequestType.ResetDevice:
+        _("Complete the initialization process on your {} device"),
+    ButtonRequestType.ConfirmWord:
+        _("Write down the seed word shown on your {}"),
+    ButtonRequestType.WipeDevice:
+        _("Confirm on your {} that you want to wipe it clean"),
+    ButtonRequestType.ProtectCall:
+        _("Confirm on your {} device the message to sign"),
+    ButtonRequestType.SignTx:
+        _("Confirm the total amount spent and the transaction fee on your {} device"),
+    ButtonRequestType.Address:
+        _("Confirm wallet address on your {} device"),
+    ButtonRequestType.PassphraseType:
+        _("Choose on your {} device where to enter your passphrase"),
     'default': _("Check your {} device to continue"),
 }
 
 
-class TrezorClientBase(PrintError):
+class TrezorClientBase(HardwareClientBase, Logger):
     def __init__(self, transport, handler, plugin):
         if plugin.is_outdated_fw_ignored():
             TrezorClient.is_outdated = lambda *args, **kwargs: False
@@ -36,6 +44,7 @@ class TrezorClientBase(PrintError):
         self.plugin = plugin
         self.device = plugin.device
         self.handler = handler
+        Logger.__init__(self)
 
         self.msg = None
         self.creating_wallet = False
@@ -85,11 +94,9 @@ class TrezorClientBase(PrintError):
         return "%s/%s" % (self.label(), self.features.device_id)
 
     def label(self):
-        '''The name given by the user to the device.'''
         return self.features.label
 
     def is_initialized(self):
-        '''True if initialized, False if wiped.'''
         return self.features.initialized
 
     def is_pairable(self):
@@ -115,7 +122,7 @@ class TrezorClientBase(PrintError):
     def timeout(self, cutoff):
         '''Time out the client if the last operation was before cutoff.'''
         if self.last_operation < cutoff:
-            self.print_error("timed out")
+            self.logger.info("timed out")
             self.clear_session()
 
     def i4b(self, x):
@@ -162,17 +169,17 @@ class TrezorClientBase(PrintError):
     def clear_session(self):
         '''Clear the session to force pin (and passphrase if enabled)
         re-entry.  Does not leak exceptions.'''
-        self.print_error("clear session:", self)
+        self.logger.info(f"clear session: {self}")
         self.prevent_timeouts()
         try:
             self.client.clear_session()
         except BaseException as e:
             # If the device was removed it has the same effect...
-            self.print_error("clear_session: ignoring error", str(e))
+            self.logger.info(f"clear_session: ignoring error {e}")
 
     def close(self):
         '''Called when Our wallet was closed or the device removed.'''
-        self.print_error("closing client")
+        self.logger.info("closing client")
         self.clear_session()
 
     def is_uptodate(self):
@@ -257,7 +264,7 @@ class TrezorClientBase(PrintError):
             msg = _("Enter a passphrase to generate this wallet.  Each time "
                     "you use this wallet your {} will prompt you for the "
                     "passphrase.  If you forget the passphrase you cannot "
-                    "access the bitcoins in the wallet.").format(self.device)
+                    "access the syscoins in the wallet.").format(self.device)
         else:
             msg = _("Enter the passphrase to unlock this wallet:")
         passphrase = self.handler.get_passphrase(msg, self.creating_wallet)

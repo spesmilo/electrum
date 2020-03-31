@@ -25,44 +25,63 @@
 
 import re
 from decimal import Decimal
+from typing import NamedTuple, Sequence, Optional, List, TYPE_CHECKING
 
-from PyQt5.QtGui import QFontMetrics
+from PyQt5.QtGui import QFontMetrics, QFont
 
 from electrum import bitcoin
-from electrum.util import bfh, PrintError
-from electrum.transaction import TxOutput, push_script
+from electrum.util import bfh, maybe_extract_bolt11_invoice
+from electrum.transaction import push_script, PartialTxOutput
 from electrum.bitcoin import opcodes
+from electrum.logging import Logger
+from electrum.lnaddr import LnDecodeException
 
 from .qrtextedit import ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
 from . import util
+from .util import MONOSPACE_FONT
+
+if TYPE_CHECKING:
+    from .main_window import ElectrumWindow
+
+
+if TYPE_CHECKING:
+    from .main_window import ElectrumWindow
+
 
 RE_ALIAS = r'(.*?)\s*\<([0-9A-Za-z]{1,})\>'
 
-frozen_style = "QWidget { background-color:none; border:none;}"
+frozen_style = "QWidget {border:none;}"
 normal_style = "QPlainTextEdit { }"
 
 
-class PayToEdit(CompletionTextEdit, ScanQRTextEdit, PrintError):
+class PayToLineError(NamedTuple):
+    idx: int  # index of line
+    line_content: str
+    exc: Exception
 
-    def __init__(self, win):
+
+class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
+
+    def __init__(self, win: 'ElectrumWindow'):
         CompletionTextEdit.__init__(self)
         ScanQRTextEdit.__init__(self)
+        Logger.__init__(self)
         self.win = win
         self.amount_edit = win.amount_e
+        self.setFont(QFont(MONOSPACE_FONT))
         self.document().contentsChanged.connect(self.update_size)
         self.heightMin = 0
         self.heightMax = 150
         self.c = None
         self.textChanged.connect(self.check_text)
-        self.outputs = []
-        self.errors = []
+        self.outputs = []  # type: List[PartialTxOutput]
+        self.errors = []  # type: Sequence[PayToLineError]
         self.is_pr = False
         self.is_alias = False
-        self.scan_f = win.pay_to_URI
         self.update_size()
-        self.payto_address = None
-
+        self.payto_scriptpubkey = None  # type: Optional[bytes]
+        self.lightning_invoice = None
         self.previous_payto = ''
 
     def setFrozen(self, b):
@@ -77,19 +96,19 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, PrintError):
     def setExpired(self):
         self.setStyleSheet(util.ColorScheme.RED.as_stylesheet(True))
 
-    def parse_address_and_amount(self, line):
+    def parse_address_and_amount(self, line) -> PartialTxOutput:
         x, y = line.split(',')
-        out_type, out = self.parse_output(x)
+        scriptpubkey = self.parse_output(x)
         amount = self.parse_amount(y)
-        return TxOutput(out_type, out, amount)
+        return PartialTxOutput(scriptpubkey=scriptpubkey, value=amount)
 
-    def parse_output(self, x):
+    def parse_output(self, x) -> bytes:
         try:
             address = self.parse_address(x)
-            return bitcoin.TYPE_ADDRESS, address
+            return bfh(bitcoin.address_to_script(address))
         except:
             script = self.parse_script(x)
-            return bitcoin.TYPE_SCRIPT, script
+            return bfh(script)
 
     def parse_script(self, x):
         script = ''
@@ -122,19 +141,30 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, PrintError):
             return
         # filter out empty lines
         lines = [i for i in self.lines() if i]
-        outputs = []
+        outputs = []  # type: List[PartialTxOutput]
         total = 0
-        self.payto_address = None
+        self.payto_scriptpubkey = None
+        self.lightning_invoice = None
         if len(lines) == 1:
             data = lines[0]
-            if data.startswith("bitcoin:"):
-                self.scan_f(data)
+            if data.startswith("syscoin:"):
+                self.win.pay_to_URI(data)
+                return
+            bolt11_invoice = maybe_extract_bolt11_invoice(data)
+            if bolt11_invoice is not None:
+                try:
+                    self.win.parse_lightning_invoice(bolt11_invoice)
+                except LnDecodeException as e:
+                    self.errors.append(PayToLineError(idx=0, line_content=data, exc=e))
+                else:
+                    self.lightning_invoice = bolt11_invoice
                 return
             try:
-                self.payto_address = self.parse_output(data)
+                self.payto_scriptpubkey = self.parse_output(data)
             except:
                 pass
-            if self.payto_address:
+            if self.payto_scriptpubkey:
+                self.win.set_onchain(True)
                 self.win.lock_amount(False)
                 return
 
@@ -142,41 +172,40 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, PrintError):
         for i, line in enumerate(lines):
             try:
                 output = self.parse_address_and_amount(line)
-            except:
-                self.errors.append((i, line.strip()))
+            except Exception as e:
+                self.errors.append(PayToLineError(idx=i, line_content=line.strip(), exc=e))
                 continue
-
             outputs.append(output)
             if output.value == '!':
                 is_max = True
             else:
                 total += output.value
+        if outputs:
+            self.win.set_onchain(True)
 
         self.win.max_button.setChecked(is_max)
         self.outputs = outputs
-        self.payto_address = None
+        self.payto_scriptpubkey = None
 
         if self.win.max_button.isChecked():
-            self.win.do_update_fee()
+            self.win.spend_max()
         else:
             self.amount_edit.setAmount(total if outputs else None)
-            self.win.lock_amount(total or len(lines)>1)
+        self.win.lock_amount(self.win.max_button.isChecked() or bool(outputs))
 
-    def get_errors(self):
+    def get_errors(self) -> Sequence[PayToLineError]:
         return self.errors
 
-    def get_recipient(self):
-        return self.payto_address
+    def get_destination_scriptpubkey(self) -> Optional[bytes]:
+        return self.payto_scriptpubkey
 
     def get_outputs(self, is_max):
-        if self.payto_address:
+        if self.payto_scriptpubkey:
             if is_max:
                 amount = '!'
             else:
                 amount = self.amount_edit.get_amount()
-
-            _type, addr = self.payto_address
-            self.outputs = [TxOutput(_type, addr, amount)]
+            self.outputs = [PartialTxOutput(scriptpubkey=self.payto_scriptpubkey, value=amount)]
 
         return self.outputs[:]
 
@@ -193,16 +222,16 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, PrintError):
     def update_size(self):
         lineHeight = QFontMetrics(self.document().defaultFont()).height()
         docHeight = self.document().size().height()
-        h = docHeight * lineHeight + 11
-        if self.heightMin <= h <= self.heightMax:
-            self.setMinimumHeight(h)
-            self.setMaximumHeight(h)
+        h = round(docHeight * lineHeight + 11)
+        h = min(max(h, self.heightMin), self.heightMax)
+        self.setMinimumHeight(h)
+        self.setMaximumHeight(h)
         self.verticalScrollBar().hide()
 
     def qr_input(self):
         data = super(PayToEdit,self).qr_input()
-        if data.startswith("bitcoin:"):
-            self.scan_f(data)
+        if data.startswith("syscoin:"):
+            self.win.pay_to_URI(data)
             # TODO: update fee
 
     def resolve(self):
@@ -226,7 +255,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, PrintError):
         try:
             data = self.win.contacts.resolve(key)
         except Exception as e:
-            self.print_error(f'error resolving address/alias: {repr(e)}')
+            self.logger.info(f'error resolving address/alias: {repr(e)}')
             return
         if not data:
             return

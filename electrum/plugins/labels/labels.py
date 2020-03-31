@@ -30,7 +30,7 @@ class LabelsPlugin(BasePlugin):
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
-        self.target_host = 'labels.electrum.org'
+        self.target_host = 'labels.electrum.syscoin.org'
         self.wallets = {}
 
     def encode(self, wallet, msg):
@@ -46,15 +46,15 @@ class LabelsPlugin(BasePlugin):
 
     def get_nonce(self, wallet):
         # nonce is the nonce to be used with the next change
-        nonce = wallet.storage.get('wallet_nonce')
+        nonce = wallet.db.get('wallet_nonce')
         if nonce is None:
             nonce = 1
             self.set_nonce(wallet, nonce)
         return nonce
 
     def set_nonce(self, wallet, nonce):
-        self.print_error("set", wallet.basename(), "nonce to", nonce)
-        wallet.storage.put("wallet_nonce", nonce)
+        self.logger.info(f"set {wallet.basename()} nonce to {nonce}")
+        wallet.db.put("wallet_nonce", nonce)
 
     @hook
     def set_label(self, wallet, item, label):
@@ -109,7 +109,7 @@ class LabelsPlugin(BasePlugin):
                 encoded_key = self.encode(wallet, key)
                 encoded_value = self.encode(wallet, value)
             except:
-                self.print_error('cannot encode', repr(key), repr(value))
+                self.logger.info(f'cannot encode {repr(key)} {repr(value)}')
                 continue
             bundle["labels"].append({'encryptedLabel': encoded_value,
                                      'externalId': encoded_key})
@@ -121,13 +121,13 @@ class LabelsPlugin(BasePlugin):
             raise Exception('Wallet {} not loaded'.format(wallet))
         wallet_id = wallet_data[2]
         nonce = 1 if force else self.get_nonce(wallet) - 1
-        self.print_error("asking for labels since nonce", nonce)
+        self.logger.info(f"asking for labels since nonce {nonce}")
         try:
             response = await self.do_get("/labels/since/%d/for/%s" % (nonce, wallet_id))
         except Exception as e:
             raise ErrorConnectingServer(e) from e
         if response["labels"] is None:
-            self.print_error('no new labels')
+            self.logger.info('no new labels')
             return
         result = {}
         for label in response["labels"]:
@@ -140,7 +140,7 @@ class LabelsPlugin(BasePlugin):
                 json.dumps(key)
                 json.dumps(value)
             except:
-                self.print_error('error: no json', key)
+                self.logger.info(f'error: no json {key}')
                 continue
             result[key] = value
 
@@ -148,9 +148,7 @@ class LabelsPlugin(BasePlugin):
             if force or not wallet.labels.get(key):
                 wallet.labels[key] = value
 
-        self.print_error("received %d labels" % len(response))
-        # do not write to disk because we're in a daemon thread
-        wallet.storage.put('labels', wallet.labels)
+        self.logger.info(f"received {len(response)} labels")
         self.set_nonce(wallet, response["nonce"] + 1)
         self.on_pulled(wallet)
 
@@ -160,7 +158,7 @@ class LabelsPlugin(BasePlugin):
         try:
             await self.pull_thread(wallet, force)
         except ErrorConnectingServer as e:
-            self.print_error(str(e))
+            self.logger.info(repr(e))
 
     def pull(self, wallet, force):
         if not wallet.network: raise Exception(_('You are offline.'))
@@ -173,7 +171,7 @@ class LabelsPlugin(BasePlugin):
     def start_wallet(self, wallet):
         if not wallet.network: return  # 'offline' mode
         nonce = self.get_nonce(wallet)
-        self.print_error("wallet", wallet.basename(), "nonce is", nonce)
+        self.logger.info(f"wallet {wallet.basename()} nonce is {nonce}")
         mpk = wallet.get_fingerprint()
         if not mpk:
             return

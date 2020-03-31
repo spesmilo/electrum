@@ -66,7 +66,7 @@ class HandlerTwoFactor(QObject, Logger):
             return
         if wallet.can_sign_without_server():
             return
-        if not wallet.keystores['x3/'].get_tx_derivations(tx):
+        if not wallet.keystores['x3/'].can_sign(tx, ignore_watching_only=True):
             self.logger.info("twofactor: xpub3 not needed")
             return
         window = self.window.top_level_window()
@@ -132,7 +132,7 @@ class Plugin(TrustedCoinPlugin):
             e = exc_info[1]
             window.show_error("{header}\n{exc}\n\n{tor}"
                               .format(header=_('Error getting TrustedCoin account info.'),
-                                      exc=str(e),
+                                      exc=repr(e),
                                       tor=_('If you keep experiencing network problems, try using a Tor proxy.')))
         return WaitingDialog(parent=window,
                              message=_('Requesting account info from TrustedCoin server...'),
@@ -193,7 +193,7 @@ class Plugin(TrustedCoinPlugin):
         vbox.addLayout(grid)
 
         price_per_tx = wallet.price_per_tx
-        n_prepay = wallet.num_prepay(self.config)
+        n_prepay = wallet.num_prepay()
         i = 0
         for k, v in sorted(price_per_tx.items()):
             if k == 1:
@@ -227,7 +227,7 @@ class Plugin(TrustedCoinPlugin):
             wizard.confirm_dialog(title='', message=msg, run_next = lambda x: wizard.run('accept_terms_of_use'))
         except GoBack:
             # user clicked 'Cancel' and decided to move wallet file manually
-            wizard.create_storage(wizard.path)
+            storage, db = wizard.create_storage(wizard.path)
             raise
 
     def accept_terms_of_use(self, window):
@@ -253,7 +253,7 @@ class Plugin(TrustedCoinPlugin):
             except Exception as e:
                 self.logger.exception('Could not retrieve Terms of Service')
                 tos_e.error_signal.emit(_('Could not retrieve Terms of Service:')
-                                        + '\n' + str(e))
+                                        + '\n' + repr(e))
                 return
             self.TOS = tos
             tos_e.tos_signal.emit()

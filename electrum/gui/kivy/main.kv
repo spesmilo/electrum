@@ -58,6 +58,7 @@
 
 <IconButton@Button>:
     icon: ''
+    icon_size: '30dp'
     AnchorLayout:
         pos: self.parent.pos
         size: self.parent.size
@@ -65,8 +66,19 @@
         Image:
             source: self.parent.parent.icon
             size_hint_x: None
-            size: '30dp', '30dp'
+            size: root.icon_size, root.icon_size
 
+            
+<BackgroundColor@Widget>
+    background_color: 0, 0, 0, 1
+    canvas.before:
+        Color:
+            rgba: root.background_color
+        Rectangle:
+            size: self.size
+            pos: self.pos
+<BackgroundTopLabel@TopLabel+BackgroundColor>
+    background_color: 0, 0, 0, 1
 
 
 #########################
@@ -88,11 +100,15 @@
 <OutputItem>
     address: ''
     value: ''
+    background_color: 0, 0, 0, 1
+    color: 1, 1, 1, 1
     size_hint_y: None
     height: max(lbl1.height, lbl2.height)
-    TopLabel
+    BackgroundTopLabel
         id: lbl1
         text: '[ref=%s]%s[/ref]'%(root.address, root.address)
+        color: root.color
+        background_color: root.background_color 
         font_size: '6pt'
         shorten: True
         size_hint_x: 0.65
@@ -133,16 +149,22 @@
     font_size: '6pt'
     name: ''
     data: ''
-    text: self.data
+    visible: True
+    opacity: 1 if self.visible else 0
+    disabled: not self.visible
+    text: self.data if self.data else _('Tap to show')
     touched: False
     padding: '10dp', '10dp'
+    background_color: .3, .3, .3, 1
+    touch_callback: lambda: app.on_ref_label(self)
     on_touch_down:
         touch = args[1]
-        if self.collide_point(*touch.pos): app.on_ref_label(self, touch)
-        else: self.touched = False
+        touched = bool(self.collide_point(*touch.pos))
+        if touched: self.touch_callback()
+        if touched: self.touched = True
     canvas.before:
         Color:
-            rgb: .3, .3, .3
+            rgba: root.background_color
         Rectangle:
             size: self.size
             pos: self.pos
@@ -231,15 +253,14 @@
             size: self.size
             pos: self.pos
 
-<CardItem@ToggleButtonBehavior+BoxLayout>
+<CardItem@ButtonBehavior+BoxLayout>
     size_hint: 1, None
     height: '65dp'
     group: 'requests'
     padding: dp(12)
     spacing: dp(5)
     screen: None
-    on_state:
-        self.screen.show_menu(args[0]) if self.state == 'down' else self.screen.hide_menu()
+    on_release: self.screen.show_item(args[0])
     canvas.before:
         Color:
             rgba: (0.192, .498, 0.745, 1) if self.state == 'down' else (0.15, 0.15, 0.17, 1)
@@ -266,25 +287,6 @@
             size: self.size
             pos: self.pos
 
-<AddressButton@Button>:
-	background_color: 1, .585, .878, 0
-	halign: 'center'
-	text_size: (self.width, None)
-	shorten: True
-	size_hint: 0.5, None
-	default_text: ''
-	text: self.default_text
-	padding: '5dp', '5dp'
-	height: '40dp'
-	text_color: self.foreground_color
-	disabled_color: 1, 1, 1, 1
-	foreground_color: 1, 1, 1, 1
-	canvas.before:
-		Color:
-			rgba: (0.9, .498, 0.745, 1) if self.state == 'down' else self.background_color
-		Rectangle:
-			size: self.size
-			pos: self.pos
 
 <KButton@Button>:
     size_hint: 1, None
@@ -345,6 +347,7 @@
     description: ''
     size_hint: 1, None
     height: '60dp'
+    action: lambda x: None
     canvas.before:
         Color:
             rgba: (0.192, .498, 0.745, 1) if self.state == 'down' else (0.3, 0.3, 0.3, 0)
@@ -372,7 +375,7 @@
     TabbedCarousel:
         id: panel
         tab_height: '48dp'
-        tab_width: panel.width/3
+        tab_width: panel.width/4
         strip_border: 0, 0, 0, 0
         SendScreen:
             id: send_screen
@@ -383,19 +386,25 @@
         ReceiveScreen:
             id: receive_screen
             tab: receive_tab
+        AssetHistoryScreen:
+            id: assethistory_screen
+            tab: assethistory_tab           
         CleanHeader:
             id: send_tab
             text: _('Send')
             slide: 0
         CleanHeader:
             id: history_tab
-            text: _('Balance')
+            text: _('Syscoin History')
             slide: 1
         CleanHeader:
             id: receive_tab
             text: _('Receive')
             slide: 2
-
+        CleanHeader:
+            id: assethistory_tab
+            text: _('Asset History')
+            slide: 3
 
 <ActionOvrButton@ActionButton>
     #on_release:
@@ -421,34 +430,43 @@ BoxLayout:
         ActionView:
             id: av
             ActionPrevious:
-                app_icon: 'atlas://electrum/gui/kivy/theming/light/logo'
-                app_icon_width: '100dp'
                 with_previous: False
-                size_hint_x: None
-                on_release: app.popup_dialog('network')
+                size_hint: None, None
+                size: 0, 0
 
             ActionButton:
-                id: action_status
-                important: True
-                size_hint: 1, 1
+                size_hint_x: None
+                text: app.wallet_name
                 bold: True
                 color: 0.7, 0.7, 0.7, 1
-                text: app.wallet_name
                 font_size: '22dp'
-                #minimum_width: '1dp'
-                on_release: app.popup_dialog('status')
+                on_release:
+                    Clock.schedule_once(lambda dt: app.popup_dialog('status'), 0.05)
+                    self.state = 'normal'
+
+            ActionButton:
+                size_hint_x: 0.8
+                text: ''
+                opacity:0
 
             ActionOverflow:
                 id: ao
+                size_hint_x: 0.2
                 ActionOvrButton:
                     name: 'about'
                     text: _('About')
                 ActionOvrButton:
-                    name: 'wallets'
-                    text: _('Wallets')
-                ActionOvrButton:
                     name: 'network'
                     text: _('Network')
+                ActionOvrButton:
+                    name: 'lightning'
+                    text: _('Lightning')
+                ActionOvrButton:
+                    name: 'addresses_dialog'
+                    text: _('Addresses')
+                ActionOvrButton:
+                    name: 'lightning_channels_dialog'
+                    text: _('Channels')
                 ActionOvrButton:
                     name: 'settings'
                     text: _('Settings')
@@ -456,6 +474,7 @@ BoxLayout:
                         # when widget overflow drop down is shown, adjust the width
                         parent = args[1]
                         if parent: ao._dropdown.width = sp(200)
+
     ScreenManager:
         id: manager
         ScreenTabs:

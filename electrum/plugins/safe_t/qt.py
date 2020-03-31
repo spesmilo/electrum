@@ -29,10 +29,10 @@ PASSPHRASE_HELP = PASSPHRASE_HELP_SHORT + "  " + _(
     "accessible behind its own passphrase.")
 RECOMMEND_PIN = _(
     "You should enable PIN protection.  Your PIN is the only protection "
-    "for your bitcoins if your device is lost or stolen.")
+    "for your syscoins if your device is lost or stolen.")
 PASSPHRASE_NOT_PIN = _(
     "If you forget a passphrase you will be unable to access any "
-    "bitcoins in the wallet behind it.  A passphrase is not a PIN. "
+    "syscoins in the wallet behind it.  A passphrase is not a PIN. "
     "Only change this if you are sure you understand it.")
 
 
@@ -70,9 +70,6 @@ class QtPlugin(QtPluginBase):
     # Derived classes must provide the following class-static variables:
     #   icon_file
     #   pin_matrix_widget_class
-
-    def create_handler(self, window):
-        return QtHandler(window, self.pin_matrix_widget_class(), self.device)
 
     @only_hook_if_libraries_available
     @hook
@@ -176,12 +173,12 @@ class Plugin(SafeTPlugin, QtPlugin):
     icon_unpaired = "safe-t_unpaired.png"
     icon_paired = "safe-t.png"
 
+    def create_handler(self, window):
+        return QtHandler(window, self.pin_matrix_widget_class(), self.device)
+
     @classmethod
     def pin_matrix_widget_class(self):
-        # We use a local updated copy of pinmatrix.py until safetlib
-        # releases a new version that includes https://github.com/archos-safe-t/python-safet/commit/b1eab3dba4c04fdfc1fcf17b66662c28c5f2380e
-        # from safetlib.qt.pinmatrix import PinMatrixWidget
-        from .pinmatrix import PinMatrixWidget
+        from safetlib.qt.pinmatrix import PinMatrixWidget
         return PinMatrixWidget
 
 
@@ -316,7 +313,7 @@ class SettingsDialog(WindowModalDialog):
             if wallet and sum(wallet.get_balance()):
                 title = _("Confirm Device Wipe")
                 msg = _("Are you SURE you want to wipe the device?\n"
-                        "Your wallet still has bitcoins in it!")
+                        "Your wallet still has syscoins in it!")
                 if not self.question(msg, title=title,
                                      icon=QMessageBox.Critical):
                     return
@@ -388,7 +385,7 @@ class SettingsDialog(WindowModalDialog):
         settings_glayout.addWidget(pin_button, 2, 1)
         pin_msg = QLabel(_("PIN protection is strongly recommended.  "
                            "A PIN is your only protection against someone "
-                           "stealing your bitcoins if they obtain physical "
+                           "stealing your syscoins if they obtain physical "
                            "access to your {}.").format(plugin.device))
         pin_msg.setWordWrap(True)
         pin_msg.setStyleSheet("color: red")
@@ -453,7 +450,7 @@ class SettingsDialog(WindowModalDialog):
         clear_pin_button.clicked.connect(clear_pin)
         clear_pin_warning = QLabel(
             _("If you disable your PIN, anyone with physical access to your "
-              "{} device can spend your bitcoins.").format(plugin.device))
+              "{} device can spend your syscoins.").format(plugin.device))
         clear_pin_warning.setWordWrap(True)
         clear_pin_warning.setStyleSheet("color: red")
         advanced_glayout.addWidget(clear_pin_button, 0, 2)
@@ -478,7 +475,7 @@ class SettingsDialog(WindowModalDialog):
         wipe_device_msg.setWordWrap(True)
         wipe_device_warning = QLabel(
             _("Only wipe a device if you have the recovery seed written down "
-              "and the device wallet(s) are empty, otherwise the bitcoins "
+              "and the device wallet(s) are empty, otherwise the syscoins "
               "will be lost forever."))
         wipe_device_warning.setWordWrap(True)
         wipe_device_warning.setStyleSheet("color: red")

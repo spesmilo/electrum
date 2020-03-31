@@ -3,13 +3,25 @@
 
 set -e
 
+here="$(dirname "$(readlink -e "$0")")"
+LIBSECP_VERSION="b408c6a8b287003d1ade5709e6f7bc3c7f1d5be7"
+
+. "$CONTRIB"/build_tools_util.sh
+
+info "building libsecp256k1..."
+
+
 build_dll() {
     #sudo apt-get install -y mingw-w64
     export SOURCE_DATE_EPOCH=1530212462
-    ./autogen.sh
     echo "LDFLAGS = -no-undefined" >> Makefile.am
+    ./autogen.sh
+    # Note: set both --build and --host when running configure
+    # Otherwise weird voodoo magic happens with Docker and Wine.
+    # https://www.gnu.org/software/autoconf/manual/autoconf-2.69/html_node/Hosts-and-Cross_002dCompilation.html
     LDFLAGS="-Wl,--no-insert-timestamp" ./configure \
         --host=$1 \
+        --build=x86_64-pc-linux-gnu \
         --enable-module-recovery \
         --enable-experimental \
         --enable-module-ecdh \
@@ -19,23 +31,26 @@ build_dll() {
 }
 
 
-cd /tmp/electrum-build
+cd "$CACHEDIR"
+
+if [ -f "secp256k1/libsecp256k1.dll" ]; then
+    info "libsecp256k1.dll already built, skipping"
+    exit 0
+fi
+
 
 if [ ! -d secp256k1 ]; then
     git clone https://github.com/bitcoin-core/secp256k1.git
-    cd secp256k1;
-else
-    cd secp256k1
-    git pull
 fi
 
-LIBSECP_VERSION="b408c6a8b287003d1ade5709e6f7bc3c7f1d5be7"
-git reset --hard "$LIBSECP_VERSION"
+cd secp256k1
+git reset --hard
 git clean -f -x -q
+git checkout $LIBSECP_VERSION
 
 build_dll i686-w64-mingw32  # 64-bit would be: x86_64-w64-mingw32
 mv .libs/libsecp256k1-0.dll libsecp256k1.dll
 
 find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 
-echo "building libsecp256k1 finished"
+info "building libsecp256k1 finished"

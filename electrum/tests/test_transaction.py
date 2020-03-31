@@ -1,20 +1,26 @@
-from electrum import transaction
-from electrum.transaction import TxOutputForUI, tx_from_str
-from electrum.bitcoin import TYPE_ADDRESS
-from electrum.keystore import xpubkey_to_address
+from typing import NamedTuple, Union
+
+from electrum import transaction, bitcoin
+from electrum.transaction import convert_raw_tx_to_hex, tx_from_any, Transaction, PartialTransaction
 from electrum.util import bh2u, bfh
+from electrum import keystore
+from electrum import bip32
+from electrum.mnemonic import seed_type
+from electrum.simple_config import SimpleConfig
 
-from . import SequentialTestCase, TestCaseForTestnet
-from .test_bitcoin import needs_test_with_all_ecc_implementations
 
-unsigned_blob = '45505446ff0001000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf38633b424eb4031000000005701ff4c53ff0488b21e03ef2afea18000000089689bff23e1e7fb2f161daa37270a97a3d8c2e537584b2d304ecb47b86d21fc021b010d3bd425f8cf2e04824bfdf1f1f5ff1d51fadd9a41f9e3fb8dd3403b1bfe00000000ffffffff0140420f00000000001976a914230ac37834073a42146f11ef8414ae929feaafc388ac00000000'
+from electrum.plugins.trustedcoin import trustedcoin
+from electrum.plugins.trustedcoin.legacy_tx_format import serialize_tx_in_legacy_format
+
+from . import ElectrumTestCase, TestCaseForTestnet
+
 signed_blob = '01000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf38633b424eb4031000000006c493046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d985012102e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6ffffffff0140420f00000000001976a914230ac37834073a42146f11ef8414ae929feaafc388ac00000000'
 v2_blob = "0200000001191601a44a81e061502b7bfbc6eaa1cef6d1e6af5308ef96c9342f71dbf4b9b5000000006b483045022100a6d44d0a651790a477e75334adfb8aae94d6612d01187b2c02526e340a7fd6c8022028bdf7a64a54906b13b145cd5dab21a26bd4b85d6044e9b97bceab5be44c2a9201210253e8e0254b0c95776786e40984c1aa32a7d03efa6bdacdea5f421b774917d346feffffff026b20fa04000000001976a914024db2e87dd7cfd0e5f266c5f212e21a31d805a588aca0860100000000001976a91421919b94ae5cefcdf0271191459157cdb41c4cbf88aca6240700"
 signed_segwit_blob = "01000000000101b66d722484f2db63e827ebf41d02684fed0c6550e85015a6c9d41ef216a8a6f00000000000fdffffff0280c3c90100000000160014b65ce60857f7e7892b983851c2a8e3526d09e4ab64bac30400000000160014c478ebbc0ab2097706a98e10db7cf101839931c4024730440220789c7d47f876638c58d98733c30ae9821c8fa82b470285dcdf6db5994210bf9f02204163418bbc44af701212ad42d884cc613f3d3d831d2d0cc886f767cca6e0235e012103083a6dc250816d771faa60737bfe78b23ad619f6b458e0a1f1688e3a0605e79c00000000"
 
 signed_blob_signatures = ['3046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d98501', ]
 
-class TestBCDataStream(SequentialTestCase):
+class TestBCDataStream(ElectrumTestCase):
 
     def test_compact_size(self):
         s = transaction.BCDataStream()
@@ -49,89 +55,72 @@ class TestBCDataStream(SequentialTestCase):
 
     def test_bytes(self):
         s = transaction.BCDataStream()
+        with self.assertRaises(transaction.SerializationError):
+            s.read_bytes(1)
         s.write(b'foobar')
         self.assertEqual(s.read_bytes(3), b'foo')
         self.assertEqual(s.read_bytes(2), b'ba')
-        self.assertEqual(s.read_bytes(4), b'r')
-        self.assertEqual(s.read_bytes(1), b'')
+        with self.assertRaises(transaction.SerializationError):
+            s.read_bytes(4)
+        self.assertEqual(s.read_bytes(0), b'')
+        self.assertEqual(s.read_bytes(1), b'r')
+        self.assertEqual(s.read_bytes(0), b'')
 
-class TestTransaction(SequentialTestCase):
+    def test_bool(self):
+        s = transaction.BCDataStream()
+        s.write(b'f\x00\x00b')
+        self.assertTrue(s.read_boolean())
+        self.assertFalse(s.read_boolean())
+        self.assertFalse(s.read_boolean())
+        self.assertTrue(s.read_boolean())
+        s.write_boolean(True)
+        s.write_boolean(False)
+        self.assertEqual(b'\x01\x00', s.read_bytes(2))
+        self.assertFalse(s.can_read_more())
 
-    @needs_test_with_all_ecc_implementations
-    def test_tx_unsigned(self):
-        expected = {
-            'inputs': [{
-                'type': 'p2pkh',
-                'address': '1446oU3z268EeFgfcwJv6X2VBXHfoYxfuD',
-                'num_sig': 1,
-                'prevout_hash': '3140eb24b43386f35ba69e3875eb6c93130ac66201d01c58f598defc949a5c2a',
-                'prevout_n': 0,
-                'pubkeys': ['02e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6'],
-                'scriptSig': '01ff4c53ff0488b21e03ef2afea18000000089689bff23e1e7fb2f161daa37270a97a3d8c2e537584b2d304ecb47b86d21fc021b010d3bd425f8cf2e04824bfdf1f1f5ff1d51fadd9a41f9e3fb8dd3403b1bfe00000000',
-                'sequence': 4294967295,
-                'signatures': [None],
-                'x_pubkeys': ['ff0488b21e03ef2afea18000000089689bff23e1e7fb2f161daa37270a97a3d8c2e537584b2d304ecb47b86d21fc021b010d3bd425f8cf2e04824bfdf1f1f5ff1d51fadd9a41f9e3fb8dd3403b1bfe00000000']}],
-            'lockTime': 0,
-            'outputs': [{
-                'address': '14CHYaaByjJZpx4oHBpfDMdqhTyXnZ3kVs',
-                'prevout_n': 0,
-                'scriptPubKey': '76a914230ac37834073a42146f11ef8414ae929feaafc388ac',
-                'type': TYPE_ADDRESS,
-                'value': 1000000}],
-            'partial': True,
-            'segwit_ser': False,
-            'version': 1,
-        }
-        tx = transaction.Transaction(unsigned_blob)
-        self.assertEqual(tx.deserialize(), expected)
-        self.assertEqual(tx.deserialize(), None)
 
-        self.assertEqual(tx.as_dict(), {'hex': unsigned_blob, 'complete': False, 'final': True})
-        self.assertEqual(tx.get_outputs_for_UI(), [TxOutputForUI('14CHYaaByjJZpx4oHBpfDMdqhTyXnZ3kVs', 1000000)])
+class TestTransaction(ElectrumTestCase):
 
-        self.assertTrue(tx.has_address('14CHYaaByjJZpx4oHBpfDMdqhTyXnZ3kVs'))
-        self.assertTrue(tx.has_address('1446oU3z268EeFgfcwJv6X2VBXHfoYxfuD'))
-        self.assertFalse(tx.has_address('1CQj15y1N7LDHp7wTt28eoD1QhHgFgxECH'))
-
-        self.assertEqual(tx.serialize(), unsigned_blob)
-
+    def test_tx_update_signatures(self):
+        tx = tx_from_any("cHNidP8BAFUBAAAAASpcmpT83pj1WBzQAWLGChOTbOt1OJ6mW/OGM7Qk60AxAAAAAAD/////AUBCDwAAAAAAGXapFCMKw3g0BzpCFG8R74QUrpKf6q/DiKwAAAAAAAAA")
+        tx.inputs()[0].script_type = 'p2pkh'
+        tx.inputs()[0].pubkeys = [bfh('02e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6')]
+        tx.inputs()[0].num_sig = 1
         tx.update_signatures(signed_blob_signatures)
-        self.assertEqual(tx.raw, signed_blob)
+        self.assertEqual(tx.serialize(), signed_blob)
 
-        tx.update(unsigned_blob)
-        tx.raw = None
-        blob = str(tx)
-        self.assertEqual(transaction.deserialize(blob), expected)
+    def test_tx_setting_locktime_invalidates_ser_cache(self):
+        tx = tx_from_any("cHNidP8BAJICAAAAAdAEtnw/IOVkr4oexG2xYnm+Vevsn3J7nbZsGpiBWS8MAQAAAAD9////A2Q5AwAAAAAAF6kUF6jKG6BuNVhq1RilflIDCitepw6H/NEEAAAAAAAXqRQx9SsFxDAaaOWbLB2ely1ZoZ61DYeIbQoAAAAAABYAFItCjFDsC28Z1R3tFaoi//pcInvnI3AZAAABAR+weRIAAAAAABYAFEK0I6qyqoA/lXCEgysQNZvqokaQIgYC9tgRn6/8hlDLEvEg3lKD1HmNim0gGRYwt4x3aJURIq4MqAq7DwEAAAAUAAAAAAAAIgICXYdVjyDIufLQ3yeDA4M8016luFER2SWaGPk6UF8CbuQMqAq7DwEAAAAXAAAAAA==")
+        self.assertEqual("2774c819a05e44861a0555401d2741e6c03079cc4d892c69b910c0f52f407859", tx.txid())
+        tx.locktime = 111222333
+        self.assertEqual("3d33a69c3f7717840b266c24ae1a6d29486820249b47261232e93ee118a6565b", tx.txid())
 
-    @needs_test_with_all_ecc_implementations
-    def test_tx_signed(self):
-        expected = {
-            'inputs': [{'address': None,
-                'num_sig': 0,
-                'prevout_hash': '3140eb24b43386f35ba69e3875eb6c93130ac66201d01c58f598defc949a5c2a',
-                'prevout_n': 0,
-                'scriptSig': '493046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d985012102e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6',
-                'sequence': 4294967295,
-                'type': 'unknown'}],
-            'lockTime': 0,
-            'outputs': [{
-                'address': '14CHYaaByjJZpx4oHBpfDMdqhTyXnZ3kVs',
-                'prevout_n': 0,
-                'scriptPubKey': '76a914230ac37834073a42146f11ef8414ae929feaafc388ac',
-                'type': TYPE_ADDRESS,
-                'value': 1000000}],
-            'partial': False,
-            'segwit_ser': False,
-            'version': 1
-        }
+    def test_tx_setting_version_invalidates_ser_cache(self):
+        tx = tx_from_any("cHNidP8BAJICAAAAAdAEtnw/IOVkr4oexG2xYnm+Vevsn3J7nbZsGpiBWS8MAQAAAAD9////A2Q5AwAAAAAAF6kUF6jKG6BuNVhq1RilflIDCitepw6H/NEEAAAAAAAXqRQx9SsFxDAaaOWbLB2ely1ZoZ61DYeIbQoAAAAAABYAFItCjFDsC28Z1R3tFaoi//pcInvnI3AZAAABAR+weRIAAAAAABYAFEK0I6qyqoA/lXCEgysQNZvqokaQIgYC9tgRn6/8hlDLEvEg3lKD1HmNim0gGRYwt4x3aJURIq4MqAq7DwEAAAAUAAAAAAAAIgICXYdVjyDIufLQ3yeDA4M8016luFER2SWaGPk6UF8CbuQMqAq7DwEAAAAXAAAAAA==")
+        self.assertEqual("2774c819a05e44861a0555401d2741e6c03079cc4d892c69b910c0f52f407859", tx.txid())
+        tx.version = 555
+        self.assertEqual("8a9b89a1a7aac1995dd013069d9866197d77c14c22315958d612fc02fd4b596a", tx.txid())
+
+    def test_tx_deserialize_for_signed_network_tx(self):
         tx = transaction.Transaction(signed_blob)
-        self.assertEqual(tx.deserialize(), expected)
-        self.assertEqual(tx.deserialize(), None)
-        self.assertEqual(tx.as_dict(), {'hex': signed_blob, 'complete': True, 'final': True})
+        tx.deserialize()
+        self.assertEqual(1, tx.version)
+        self.assertEqual(0, tx.locktime)
+        self.assertEqual(1, len(tx.inputs()))
+        self.assertEqual(4294967295, tx.inputs()[0].nsequence)
+        self.assertEqual(bfh('493046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d985012102e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6'),
+                         tx.inputs()[0].script_sig)
+        self.assertEqual(None, tx.inputs()[0].witness)
+        self.assertEqual('3140eb24b43386f35ba69e3875eb6c93130ac66201d01c58f598defc949a5c2a:0', tx.inputs()[0].prevout.to_str())
+        self.assertEqual(1, len(tx.outputs()))
+        self.assertEqual(bfh('76a914230ac37834073a42146f11ef8414ae929feaafc388ac'), tx.outputs()[0].scriptpubkey)
+        self.assertEqual('14CHYaaByjJZpx4oHBpfDMdqhTyXnZ3kVs', tx.outputs()[0].address)
+        self.assertEqual(1000000, tx.outputs()[0].value)
 
         self.assertEqual(tx.serialize(), signed_blob)
 
-        tx.update_signatures(signed_blob_signatures)
+    def test_estimated_tx_size(self):
+        tx = transaction.Transaction(signed_blob)
 
         self.assertEqual(tx.estimated_total_size(), 193)
         self.assertEqual(tx.estimated_base_size(), 193)
@@ -156,73 +145,123 @@ class TestTransaction(SequentialTestCase):
         self.assertEqual(tx.estimated_weight(), 561)
         self.assertEqual(tx.estimated_size(), 141)
 
-    def test_errors(self):
-        with self.assertRaises(TypeError):
-            transaction.Transaction.pay_script(output_type=None, addr='')
-
-        with self.assertRaises(BaseException):
-            xpubkey_to_address('')
-
-    def test_parse_xpub(self):
-        res = xpubkey_to_address('fe4e13b0f311a55b8a5db9a32e959da9f011b131019d4cebe6141b9e2c93edcbfc0954c358b062a9f94111548e50bde5847a3096b8b7872dcffadb0e9579b9017b01000200')
-        self.assertEqual(res, ('04ee98d63800824486a1cf5b4376f2f574d86e0a3009a6448105703453f3368e8e1d8d090aaecdd626a45cc49876709a3bbb6dc96a4311b3cac03e225df5f63dfc', '19h943e4diLc68GXW7G75QNe2KWuMu7BaJ'))
-
     def test_version_field(self):
         tx = transaction.Transaction(v2_blob)
         self.assertEqual(tx.txid(), "b97f9180173ab141b61b9f944d841e60feec691d6daab4d4d932b24dd36606fe")
 
-    def test_tx_from_str(self):
-        # json dict
-        self.assertEqual('020000000001012005273af813ba23b0c205e4b145e525c280dd876e061f35bff7db9b2e0043640100000000fdffffff02d885010000000000160014e73f444b8767c84afb46ef4125d8b81d2542a53d00e1f5050000000017a914052ed032f5c74a636ed5059611bb90012d40316c870247304402200c628917673d75f05db893cc377b0a69127f75e10949b35da52aa1b77a14c350022055187adf9a668fdf45fc09002726ba7160e713ed79dddcd20171308273f1a2f1012103cb3e00561c3439ccbacc033a72e0513bcfabff8826de0bc651d661991ade6171049e1600',
-                         tx_from_str("""{
-                                        "complete": true,
-                                        "final": false,
-                                        "hex": "020000000001012005273af813ba23b0c205e4b145e525c280dd876e061f35bff7db9b2e0043640100000000fdffffff02d885010000000000160014e73f444b8767c84afb46ef4125d8b81d2542a53d00e1f5050000000017a914052ed032f5c74a636ed5059611bb90012d40316c870247304402200c628917673d75f05db893cc377b0a69127f75e10949b35da52aa1b77a14c350022055187adf9a668fdf45fc09002726ba7160e713ed79dddcd20171308273f1a2f1012103cb3e00561c3439ccbacc033a72e0513bcfabff8826de0bc651d661991ade6171049e1600"
-                                    }
-                                    """)
-        )
+    def test_convert_raw_tx_to_hex(self):
         # raw hex
         self.assertEqual('020000000001012005273af813ba23b0c205e4b145e525c280dd876e061f35bff7db9b2e0043640100000000fdffffff02d885010000000000160014e73f444b8767c84afb46ef4125d8b81d2542a53d00e1f5050000000017a914052ed032f5c74a636ed5059611bb90012d40316c870247304402200c628917673d75f05db893cc377b0a69127f75e10949b35da52aa1b77a14c350022055187adf9a668fdf45fc09002726ba7160e713ed79dddcd20171308273f1a2f1012103cb3e00561c3439ccbacc033a72e0513bcfabff8826de0bc651d661991ade6171049e1600',
-                         tx_from_str('020000000001012005273af813ba23b0c205e4b145e525c280dd876e061f35bff7db9b2e0043640100000000fdffffff02d885010000000000160014e73f444b8767c84afb46ef4125d8b81d2542a53d00e1f5050000000017a914052ed032f5c74a636ed5059611bb90012d40316c870247304402200c628917673d75f05db893cc377b0a69127f75e10949b35da52aa1b77a14c350022055187adf9a668fdf45fc09002726ba7160e713ed79dddcd20171308273f1a2f1012103cb3e00561c3439ccbacc033a72e0513bcfabff8826de0bc651d661991ade6171049e1600'))
+                         convert_raw_tx_to_hex('020000000001012005273af813ba23b0c205e4b145e525c280dd876e061f35bff7db9b2e0043640100000000fdffffff02d885010000000000160014e73f444b8767c84afb46ef4125d8b81d2542a53d00e1f5050000000017a914052ed032f5c74a636ed5059611bb90012d40316c870247304402200c628917673d75f05db893cc377b0a69127f75e10949b35da52aa1b77a14c350022055187adf9a668fdf45fc09002726ba7160e713ed79dddcd20171308273f1a2f1012103cb3e00561c3439ccbacc033a72e0513bcfabff8826de0bc651d661991ade6171049e1600'))
         # base43
         self.assertEqual('020000000001012005273af813ba23b0c205e4b145e525c280dd876e061f35bff7db9b2e0043640100000000fdffffff02d885010000000000160014e73f444b8767c84afb46ef4125d8b81d2542a53d00e1f5050000000017a914052ed032f5c74a636ed5059611bb90012d40316c870247304402200c628917673d75f05db893cc377b0a69127f75e10949b35da52aa1b77a14c350022055187adf9a668fdf45fc09002726ba7160e713ed79dddcd20171308273f1a2f1012103cb3e00561c3439ccbacc033a72e0513bcfabff8826de0bc651d661991ade6171049e1600',
-                         tx_from_str('64XF-8+PM6*4IYN-QWW$B2QLNW+:C8-$I$-+T:L.6DKXTSWSFFONDP1J/MOS3SPK0-SYVW38U9.3+A1/*2HTHQTJGP79LVEK-IITQJ1H.C/X$NSOV$8DWR6JAFWXD*LX4-EN0.BDOF+PPYPH16$NM1H.-MAA$V1SCP0Q.6Y5FR822S6K-.5K5F.Z4Q:0SDRG-4GEBLAO4W9Z*H-$1-KDYAFOGF675W0:CK5M1LT92IG:3X60P3GKPM:X2$SP5A7*LT9$-TTEG0/DRZYV$7B4ADL9CVS5O7YG.J64HLZ24MVKO/-GV:V.T/L$D3VQ:MR8--44HK8W'))
+                         convert_raw_tx_to_hex('64XF-8+PM6*4IYN-QWW$B2QLNW+:C8-$I$-+T:L.6DKXTSWSFFONDP1J/MOS3SPK0-SYVW38U9.3+A1/*2HTHQTJGP79LVEK-IITQJ1H.C/X$NSOV$8DWR6JAFWXD*LX4-EN0.BDOF+PPYPH16$NM1H.-MAA$V1SCP0Q.6Y5FR822S6K-.5K5F.Z4Q:0SDRG-4GEBLAO4W9Z*H-$1-KDYAFOGF675W0:CK5M1LT92IG:3X60P3GKPM:X2$SP5A7*LT9$-TTEG0/DRZYV$7B4ADL9CVS5O7YG.J64HLZ24MVKO/-GV:V.T/L$D3VQ:MR8--44HK8W'))
 
     def test_get_address_from_output_script(self):
-        # the inverse of this test is in test_bitcoin: test_address_to_script
+        # the inverse of this test is in test_syscoin: test_address_to_script
         addr_from_script = lambda script: transaction.get_address_from_output_script(bfh(script))
-        ADDR = transaction.TYPE_ADDRESS
-        PUBKEY = transaction.TYPE_PUBKEY
-        SCRIPT = transaction.TYPE_SCRIPT
 
         # bech32 native segwit
         # test vectors from BIP-0173
-        self.assertEqual((ADDR, 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4'), addr_from_script('0014751e76e8199196d454941c45d1b3a323f1433bd6'))
-        self.assertEqual((ADDR, 'bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7k7grplx'), addr_from_script('5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6'))
-        self.assertEqual((ADDR, 'bc1sw50qa3jx3s'), addr_from_script('6002751e'))
-        self.assertEqual((ADDR, 'bc1zw508d6qejxtdg4y5r3zarvaryvg6kdaj'), addr_from_script('5210751e76e8199196d454941c45d1b3a323'))
+        self.assertEqual('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4', addr_from_script('0014751e76e8199196d454941c45d1b3a323f1433bd6'))
+        self.assertEqual('bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7k7grplx', addr_from_script('5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6'))
+        self.assertEqual('bc1sw50qa3jx3s', addr_from_script('6002751e'))
+        self.assertEqual('bc1zw508d6qejxtdg4y5r3zarvaryvg6kdaj', addr_from_script('5210751e76e8199196d454941c45d1b3a323'))
         # almost but not quite
-        self.assertEqual((SCRIPT, '0013751e76e8199196d454941c45d1b3a323f1433b'), addr_from_script('0013751e76e8199196d454941c45d1b3a323f1433b'))
+        self.assertEqual(None, addr_from_script('0013751e76e8199196d454941c45d1b3a323f1433b'))
 
         # base58 p2pkh
-        self.assertEqual((ADDR, '14gcRovpkCoGkCNBivQBvw7eso7eiNAbxG'), addr_from_script('76a91428662c67561b95c79d2257d2a93d9d151c977e9188ac'))
-        self.assertEqual((ADDR, '1BEqfzh4Y3zzLosfGhw1AsqbEKVW6e1qHv'), addr_from_script('76a914704f4b81cadb7bf7e68c08cd3657220f680f863c88ac'))
+        self.assertEqual('14gcRovpkCoGkCNBivQBvw7eso7eiNAbxG', addr_from_script('76a91428662c67561b95c79d2257d2a93d9d151c977e9188ac'))
+        self.assertEqual('1BEqfzh4Y3zzLosfGhw1AsqbEKVW6e1qHv', addr_from_script('76a914704f4b81cadb7bf7e68c08cd3657220f680f863c88ac'))
         # almost but not quite
-        self.assertEqual((SCRIPT, '76a9130000000000000000000000000000000000000088ac'), addr_from_script('76a9130000000000000000000000000000000000000088ac'))
+        self.assertEqual(None, addr_from_script('76a9130000000000000000000000000000000000000088ac'))
 
         # base58 p2sh
-        self.assertEqual((ADDR, '35ZqQJcBQMZ1rsv8aSuJ2wkC7ohUCQMJbT'), addr_from_script('a9142a84cf00d47f699ee7bbc1dea5ec1bdecb4ac15487'))
-        self.assertEqual((ADDR, '3PyjzJ3im7f7bcV724GR57edKDqoZvH7Ji'), addr_from_script('a914f47c8954e421031ad04ecd8e7752c9479206b9d387'))
+        self.assertEqual('35ZqQJcBQMZ1rsv8aSuJ2wkC7ohUCQMJbT', addr_from_script('a9142a84cf00d47f699ee7bbc1dea5ec1bdecb4ac15487'))
+        self.assertEqual('3PyjzJ3im7f7bcV724GR57edKDqoZvH7Ji', addr_from_script('a914f47c8954e421031ad04ecd8e7752c9479206b9d387'))
         # almost but not quite
-        self.assertEqual((SCRIPT, 'a912f47c8954e421031ad04ecd8e7752c947920687'), addr_from_script('a912f47c8954e421031ad04ecd8e7752c947920687'))
+        self.assertEqual(None, addr_from_script('a912f47c8954e421031ad04ecd8e7752c947920687'))
 
         # p2pk
-        self.assertEqual((PUBKEY, '0289e14468d94537493c62e2168318b568912dec0fb95609afd56f2527c2751c8b'), addr_from_script('210289e14468d94537493c62e2168318b568912dec0fb95609afd56f2527c2751c8bac'))
-        self.assertEqual((PUBKEY, '045485b0b076848af1209e788c893522a90f3df77c1abac2ca545846a725e6c3da1f7743f55a1bc3b5f0c7e0ee4459954ec0307022742d60032b13432953eb7120'), addr_from_script('41045485b0b076848af1209e788c893522a90f3df77c1abac2ca545846a725e6c3da1f7743f55a1bc3b5f0c7e0ee4459954ec0307022742d60032b13432953eb7120ac'))
+        self.assertEqual(None, addr_from_script('210289e14468d94537493c62e2168318b568912dec0fb95609afd56f2527c2751c8bac'))
+        self.assertEqual(None, addr_from_script('41045485b0b076848af1209e788c893522a90f3df77c1abac2ca545846a725e6c3da1f7743f55a1bc3b5f0c7e0ee4459954ec0307022742d60032b13432953eb7120ac'))
         # almost but not quite
-        self.assertEqual((SCRIPT, '200289e14468d94537493c62e2168318b568912dec0fb95609afd56f2527c2751cac'), addr_from_script('200289e14468d94537493c62e2168318b568912dec0fb95609afd56f2527c2751cac'))
-        self.assertEqual((SCRIPT, '210589e14468d94537493c62e2168318b568912dec0fb95609afd56f2527c2751c8bac'), addr_from_script('210589e14468d94537493c62e2168318b568912dec0fb95609afd56f2527c2751c8bac'))
+        self.assertEqual(None, addr_from_script('200289e14468d94537493c62e2168318b568912dec0fb95609afd56f2527c2751cac'))
+        self.assertEqual(None, addr_from_script('210589e14468d94537493c62e2168318b568912dec0fb95609afd56f2527c2751c8bac'))
 
+    def test_tx_serialize_methods_for_psbt(self):
+        raw_hex = "70736274ff01009a020000000258e87a21b56daf0c23be8e7070456c336f7cbaa5c8757924f545887bb2abdd750000000000ffffffff838d0427d0ec650a68aa46bb0b098aea4422c071b2ca78352a077959d07cea1d0100000000ffffffff0270aaf00800000000160014d85c2b71d0060b09c9886aeb815e50991dda124d00e1f5050000000016001400aea9a2e5f0f876a588df5546e8742d1d87008f00000000000100bb0200000001aad73931018bd25f84ae400b68848be09db706eac2ac18298babee71ab656f8b0000000048473044022058f6fc7c6a33e1b31548d481c826c015bd30135aad42cd67790dab66d2ad243b02204a1ced2604c6735b6393e5b41691dd78b00f0c5942fb9f751856faa938157dba01feffffff0280f0fa020000000017a9140fb9463421696b82c833af241c78c17ddbde493487d0f20a270100000017a91429ca74f8a08f81999428185c97b5d852e4063f618765000000010304010000000104475221029583bf39ae0a609747ad199addd634fa6108559d6c5cd39b4c2183f1ab96e07f2102dab61ff49a14db6a7d02b0cd1fbb78fc4b18312b5b4e54dae4dba2fbfef536d752ae2206029583bf39ae0a609747ad199addd634fa6108559d6c5cd39b4c2183f1ab96e07f10d90c6a4f000000800000008000000080220602dab61ff49a14db6a7d02b0cd1fbb78fc4b18312b5b4e54dae4dba2fbfef536d710d90c6a4f0000008000000080010000800001012000c2eb0b0000000017a914b7f5faf40e3d40a5a459b1db3535f2b72fa921e8870103040100000001042200208c2353173743b595dfb4a07b72ba8e42e3797da74e87fe7d9d7497e3b2028903010547522103089dc10c7ac6db54f91329af617333db388cead0c231f723379d1b99030b02dc21023add904f3d6dcf59ddb906b0dee23529b7ffb9ed50e5e86151926860221f0e7352ae2206023add904f3d6dcf59ddb906b0dee23529b7ffb9ed50e5e86151926860221f0e7310d90c6a4f000000800000008003000080220603089dc10c7ac6db54f91329af617333db388cead0c231f723379d1b99030b02dc10d90c6a4f00000080000000800200008000220203a9a4c37f5996d3aa25dbac6b570af0650394492942460b354753ed9eeca5877110d90c6a4f000000800000008004000080002202027f6399757d2eff55a136ad02c684b1838b6556e5f1b6b34282a94b6b5005109610d90c6a4f00000080000000800500008000"
+        raw_base64 = "cHNidP8BAJoCAAAAAljoeiG1ba8MI76OcHBFbDNvfLqlyHV5JPVFiHuyq911AAAAAAD/////g40EJ9DsZQpoqka7CwmK6kQiwHGyyng1Kgd5WdB86h0BAAAAAP////8CcKrwCAAAAAAWABTYXCtx0AYLCcmIauuBXlCZHdoSTQDh9QUAAAAAFgAUAK6pouXw+HaliN9VRuh0LR2HAI8AAAAAAAEAuwIAAAABqtc5MQGL0l+ErkALaISL4J23BurCrBgpi6vucatlb4sAAAAASEcwRAIgWPb8fGoz4bMVSNSByCbAFb0wE1qtQs1neQ2rZtKtJDsCIEoc7SYExnNbY5PltBaR3XiwDwxZQvufdRhW+qk4FX26Af7///8CgPD6AgAAAAAXqRQPuUY0IWlrgsgzryQceMF9295JNIfQ8gonAQAAABepFCnKdPigj4GZlCgYXJe12FLkBj9hh2UAAAABAwQBAAAAAQRHUiEClYO/Oa4KYJdHrRma3dY0+mEIVZ1sXNObTCGD8auW4H8hAtq2H/SaFNtqfQKwzR+7ePxLGDErW05U2uTbovv+9TbXUq4iBgKVg785rgpgl0etGZrd1jT6YQhVnWxc05tMIYPxq5bgfxDZDGpPAAAAgAAAAIAAAACAIgYC2rYf9JoU22p9ArDNH7t4/EsYMStbTlTa5Nui+/71NtcQ2QxqTwAAAIAAAACAAQAAgAABASAAwusLAAAAABepFLf1+vQOPUClpFmx2zU18rcvqSHohwEDBAEAAAABBCIAIIwjUxc3Q7WV37Sge3K6jkLjeX2nTof+fZ10l+OyAokDAQVHUiEDCJ3BDHrG21T5EymvYXMz2ziM6tDCMfcjN50bmQMLAtwhAjrdkE89bc9Z3bkGsN7iNSm3/7ntUOXoYVGSaGAiHw5zUq4iBgI63ZBPPW3PWd25BrDe4jUpt/+57VDl6GFRkmhgIh8OcxDZDGpPAAAAgAAAAIADAACAIgYDCJ3BDHrG21T5EymvYXMz2ziM6tDCMfcjN50bmQMLAtwQ2QxqTwAAAIAAAACAAgAAgAAiAgOppMN/WZbTqiXbrGtXCvBlA5RJKUJGCzVHU+2e7KWHcRDZDGpPAAAAgAAAAIAEAACAACICAn9jmXV9Lv9VoTatAsaEsYOLZVbl8bazQoKpS2tQBRCWENkMak8AAACAAAAAgAUAAIAA"
+        partial_tx = tx_from_any(raw_hex)
+        self.assertEqual(PartialTransaction, type(partial_tx))
+        self.assertEqual(raw_base64,
+                         partial_tx.serialize())
+        self.assertEqual(raw_hex,
+                         partial_tx.serialize_as_bytes().hex())
+        self.assertEqual(raw_base64,
+                         partial_tx._serialize_as_base64())
+
+    def test_tx_serialize_methods_for_network_tx(self):
+        raw_hex = "0200000000010258e87a21b56daf0c23be8e7070456c336f7cbaa5c8757924f545887bb2abdd7500000000da00473044022074018ad4180097b873323c0015720b3684cc8123891048e7dbcd9b55ad679c99022073d369b740e3eb53dcefa33823c8070514ca55a7dd9544f157c167913261118c01483045022100f61038b308dc1da865a34852746f015772934208c6d24454393cd99bdf2217770220056e675a675a6d0a02b85b14e5e29074d8a25a9b5760bea2816f661910a006ea01475221029583bf39ae0a609747ad199addd634fa6108559d6c5cd39b4c2183f1ab96e07f2102dab61ff49a14db6a7d02b0cd1fbb78fc4b18312b5b4e54dae4dba2fbfef536d752aeffffffff838d0427d0ec650a68aa46bb0b098aea4422c071b2ca78352a077959d07cea1d01000000232200208c2353173743b595dfb4a07b72ba8e42e3797da74e87fe7d9d7497e3b2028903ffffffff0270aaf00800000000160014d85c2b71d0060b09c9886aeb815e50991dda124d00e1f5050000000016001400aea9a2e5f0f876a588df5546e8742d1d87008f000400473044022062eb7a556107a7c73f45ac4ab5a1dddf6f7075fb1275969a7f383efff784bcb202200c05dbb7470dbf2f08557dd356c7325c1ed30913e996cd3840945db12228da5f01473044022065f45ba5998b59a27ffe1a7bed016af1f1f90d54b3aa8f7450aa5f56a25103bd02207f724703ad1edb96680b284b56d4ffcb88f7fb759eabbe08aa30f29b851383d20147522103089dc10c7ac6db54f91329af617333db388cead0c231f723379d1b99030b02dc21023add904f3d6dcf59ddb906b0dee23529b7ffb9ed50e5e86151926860221f0e7352ae00000000"
+        tx = tx_from_any(raw_hex)
+        self.assertEqual(Transaction, type(tx))
+        self.assertEqual(raw_hex,
+                         tx.serialize())
+        self.assertEqual(raw_hex,
+                         tx.serialize_as_bytes().hex())
+
+    def test_tx_serialize_methods_for_psbt_that_is_ready_to_be_finalized(self):
+        raw_hex_psbt = "70736274ff01009a020000000258e87a21b56daf0c23be8e7070456c336f7cbaa5c8757924f545887bb2abdd750000000000ffffffff838d0427d0ec650a68aa46bb0b098aea4422c071b2ca78352a077959d07cea1d0100000000ffffffff0270aaf00800000000160014d85c2b71d0060b09c9886aeb815e50991dda124d00e1f5050000000016001400aea9a2e5f0f876a588df5546e8742d1d87008f00000000000100bb0200000001aad73931018bd25f84ae400b68848be09db706eac2ac18298babee71ab656f8b0000000048473044022058f6fc7c6a33e1b31548d481c826c015bd30135aad42cd67790dab66d2ad243b02204a1ced2604c6735b6393e5b41691dd78b00f0c5942fb9f751856faa938157dba01feffffff0280f0fa020000000017a9140fb9463421696b82c833af241c78c17ddbde493487d0f20a270100000017a91429ca74f8a08f81999428185c97b5d852e4063f6187650000000107da00473044022074018ad4180097b873323c0015720b3684cc8123891048e7dbcd9b55ad679c99022073d369b740e3eb53dcefa33823c8070514ca55a7dd9544f157c167913261118c01483045022100f61038b308dc1da865a34852746f015772934208c6d24454393cd99bdf2217770220056e675a675a6d0a02b85b14e5e29074d8a25a9b5760bea2816f661910a006ea01475221029583bf39ae0a609747ad199addd634fa6108559d6c5cd39b4c2183f1ab96e07f2102dab61ff49a14db6a7d02b0cd1fbb78fc4b18312b5b4e54dae4dba2fbfef536d752ae0001012000c2eb0b0000000017a914b7f5faf40e3d40a5a459b1db3535f2b72fa921e8870107232200208c2353173743b595dfb4a07b72ba8e42e3797da74e87fe7d9d7497e3b20289030108da0400473044022062eb7a556107a7c73f45ac4ab5a1dddf6f7075fb1275969a7f383efff784bcb202200c05dbb7470dbf2f08557dd356c7325c1ed30913e996cd3840945db12228da5f01473044022065f45ba5998b59a27ffe1a7bed016af1f1f90d54b3aa8f7450aa5f56a25103bd02207f724703ad1edb96680b284b56d4ffcb88f7fb759eabbe08aa30f29b851383d20147522103089dc10c7ac6db54f91329af617333db388cead0c231f723379d1b99030b02dc21023add904f3d6dcf59ddb906b0dee23529b7ffb9ed50e5e86151926860221f0e7352ae00220203a9a4c37f5996d3aa25dbac6b570af0650394492942460b354753ed9eeca5877110d90c6a4f000000800000008004000080002202027f6399757d2eff55a136ad02c684b1838b6556e5f1b6b34282a94b6b5005109610d90c6a4f00000080000000800500008000"
+        raw_hex_network_tx = "0200000000010258e87a21b56daf0c23be8e7070456c336f7cbaa5c8757924f545887bb2abdd7500000000da00473044022074018ad4180097b873323c0015720b3684cc8123891048e7dbcd9b55ad679c99022073d369b740e3eb53dcefa33823c8070514ca55a7dd9544f157c167913261118c01483045022100f61038b308dc1da865a34852746f015772934208c6d24454393cd99bdf2217770220056e675a675a6d0a02b85b14e5e29074d8a25a9b5760bea2816f661910a006ea01475221029583bf39ae0a609747ad199addd634fa6108559d6c5cd39b4c2183f1ab96e07f2102dab61ff49a14db6a7d02b0cd1fbb78fc4b18312b5b4e54dae4dba2fbfef536d752aeffffffff838d0427d0ec650a68aa46bb0b098aea4422c071b2ca78352a077959d07cea1d01000000232200208c2353173743b595dfb4a07b72ba8e42e3797da74e87fe7d9d7497e3b2028903ffffffff0270aaf00800000000160014d85c2b71d0060b09c9886aeb815e50991dda124d00e1f5050000000016001400aea9a2e5f0f876a588df5546e8742d1d87008f000400473044022062eb7a556107a7c73f45ac4ab5a1dddf6f7075fb1275969a7f383efff784bcb202200c05dbb7470dbf2f08557dd356c7325c1ed30913e996cd3840945db12228da5f01473044022065f45ba5998b59a27ffe1a7bed016af1f1f90d54b3aa8f7450aa5f56a25103bd02207f724703ad1edb96680b284b56d4ffcb88f7fb759eabbe08aa30f29b851383d20147522103089dc10c7ac6db54f91329af617333db388cead0c231f723379d1b99030b02dc21023add904f3d6dcf59ddb906b0dee23529b7ffb9ed50e5e86151926860221f0e7352ae00000000"
+        partial_tx = tx_from_any(raw_hex_psbt)
+        self.assertEqual(PartialTransaction, type(partial_tx))
+        self.assertEqual(raw_hex_network_tx,
+                         partial_tx.serialize())
+        self.assertEqual(raw_hex_network_tx,
+                         partial_tx.serialize_as_bytes().hex())
+        # note: the diff between the following, and raw_hex_psbt, is that we added
+        #       an extra FINAL_SCRIPTWITNESS field in finalize_psbt()
+        self.assertEqual("70736274ff01009a020000000258e87a21b56daf0c23be8e7070456c336f7cbaa5c8757924f545887bb2abdd750000000000ffffffff838d0427d0ec650a68aa46bb0b098aea4422c071b2ca78352a077959d07cea1d0100000000ffffffff0270aaf00800000000160014d85c2b71d0060b09c9886aeb815e50991dda124d00e1f5050000000016001400aea9a2e5f0f876a588df5546e8742d1d87008f00000000000100bb0200000001aad73931018bd25f84ae400b68848be09db706eac2ac18298babee71ab656f8b0000000048473044022058f6fc7c6a33e1b31548d481c826c015bd30135aad42cd67790dab66d2ad243b02204a1ced2604c6735b6393e5b41691dd78b00f0c5942fb9f751856faa938157dba01feffffff0280f0fa020000000017a9140fb9463421696b82c833af241c78c17ddbde493487d0f20a270100000017a91429ca74f8a08f81999428185c97b5d852e4063f6187650000000107da00473044022074018ad4180097b873323c0015720b3684cc8123891048e7dbcd9b55ad679c99022073d369b740e3eb53dcefa33823c8070514ca55a7dd9544f157c167913261118c01483045022100f61038b308dc1da865a34852746f015772934208c6d24454393cd99bdf2217770220056e675a675a6d0a02b85b14e5e29074d8a25a9b5760bea2816f661910a006ea01475221029583bf39ae0a609747ad199addd634fa6108559d6c5cd39b4c2183f1ab96e07f2102dab61ff49a14db6a7d02b0cd1fbb78fc4b18312b5b4e54dae4dba2fbfef536d752ae010801000001012000c2eb0b0000000017a914b7f5faf40e3d40a5a459b1db3535f2b72fa921e8870107232200208c2353173743b595dfb4a07b72ba8e42e3797da74e87fe7d9d7497e3b20289030108da0400473044022062eb7a556107a7c73f45ac4ab5a1dddf6f7075fb1275969a7f383efff784bcb202200c05dbb7470dbf2f08557dd356c7325c1ed30913e996cd3840945db12228da5f01473044022065f45ba5998b59a27ffe1a7bed016af1f1f90d54b3aa8f7450aa5f56a25103bd02207f724703ad1edb96680b284b56d4ffcb88f7fb759eabbe08aa30f29b851383d20147522103089dc10c7ac6db54f91329af617333db388cead0c231f723379d1b99030b02dc21023add904f3d6dcf59ddb906b0dee23529b7ffb9ed50e5e86151926860221f0e7352ae00220203a9a4c37f5996d3aa25dbac6b570af0650394492942460b354753ed9eeca5877110d90c6a4f000000800000008004000080002202027f6399757d2eff55a136ad02c684b1838b6556e5f1b6b34282a94b6b5005109610d90c6a4f00000080000000800500008000",
+                         partial_tx.serialize_as_bytes(force_psbt=True).hex())
+
+    def test_tx_from_any(self):
+        class RawTx(NamedTuple):
+            data: Union[str, bytes]
+            is_whitespace_allowed: bool = True
+        raw_tx_map = {
+            "network_tx_hex_str": RawTx("0200000000010258e87a21b56daf0c23be8e7070456c336f7cbaa5c8757924f545887bb2abdd7500000000da00473044022074018ad4180097b873323c0015720b3684cc8123891048e7dbcd9b55ad679c99022073d369b740e3eb53dcefa33823c8070514ca55a7dd9544f157c167913261118c01483045022100f61038b308dc1da865a34852746f015772934208c6d24454393cd99bdf2217770220056e675a675a6d0a02b85b14e5e29074d8a25a9b5760bea2816f661910a006ea01475221029583bf39ae0a609747ad199addd634fa6108559d6c5cd39b4c2183f1ab96e07f2102dab61ff49a14db6a7d02b0cd1fbb78fc4b18312b5b4e54dae4dba2fbfef536d752aeffffffff838d0427d0ec650a68aa46bb0b098aea4422c071b2ca78352a077959d07cea1d01000000232200208c2353173743b595dfb4a07b72ba8e42e3797da74e87fe7d9d7497e3b2028903ffffffff0270aaf00800000000160014d85c2b71d0060b09c9886aeb815e50991dda124d00e1f5050000000016001400aea9a2e5f0f876a588df5546e8742d1d87008f000400473044022062eb7a556107a7c73f45ac4ab5a1dddf6f7075fb1275969a7f383efff784bcb202200c05dbb7470dbf2f08557dd356c7325c1ed30913e996cd3840945db12228da5f01473044022065f45ba5998b59a27ffe1a7bed016af1f1f90d54b3aa8f7450aa5f56a25103bd02207f724703ad1edb96680b284b56d4ffcb88f7fb759eabbe08aa30f29b851383d20147522103089dc10c7ac6db54f91329af617333db388cead0c231f723379d1b99030b02dc21023add904f3d6dcf59ddb906b0dee23529b7ffb9ed50e5e86151926860221f0e7352ae00000000"),
+            "network_tx_hex_bytes": RawTx(b"0200000000010258e87a21b56daf0c23be8e7070456c336f7cbaa5c8757924f545887bb2abdd7500000000da00473044022074018ad4180097b873323c0015720b3684cc8123891048e7dbcd9b55ad679c99022073d369b740e3eb53dcefa33823c8070514ca55a7dd9544f157c167913261118c01483045022100f61038b308dc1da865a34852746f015772934208c6d24454393cd99bdf2217770220056e675a675a6d0a02b85b14e5e29074d8a25a9b5760bea2816f661910a006ea01475221029583bf39ae0a609747ad199addd634fa6108559d6c5cd39b4c2183f1ab96e07f2102dab61ff49a14db6a7d02b0cd1fbb78fc4b18312b5b4e54dae4dba2fbfef536d752aeffffffff838d0427d0ec650a68aa46bb0b098aea4422c071b2ca78352a077959d07cea1d01000000232200208c2353173743b595dfb4a07b72ba8e42e3797da74e87fe7d9d7497e3b2028903ffffffff0270aaf00800000000160014d85c2b71d0060b09c9886aeb815e50991dda124d00e1f5050000000016001400aea9a2e5f0f876a588df5546e8742d1d87008f000400473044022062eb7a556107a7c73f45ac4ab5a1dddf6f7075fb1275969a7f383efff784bcb202200c05dbb7470dbf2f08557dd356c7325c1ed30913e996cd3840945db12228da5f01473044022065f45ba5998b59a27ffe1a7bed016af1f1f90d54b3aa8f7450aa5f56a25103bd02207f724703ad1edb96680b284b56d4ffcb88f7fb759eabbe08aa30f29b851383d20147522103089dc10c7ac6db54f91329af617333db388cead0c231f723379d1b99030b02dc21023add904f3d6dcf59ddb906b0dee23529b7ffb9ed50e5e86151926860221f0e7352ae00000000"),
+            "network_tx_base43_str": RawTx("3E2DH7.J3PKVZJ3RCOXQVS3Y./6-WE.75DDU0K58-0N1FRL565N8ZH-DG1Z.1IGWTE5HK8F7PWH5P8+V3XGZZ6GQBPHNDE+RD8CAQVV1/6PQEMJIZTGPMIJ93B8P$QX+Y2R:TGT9QW8S89U4N2.+FUT8VG+34USI/N/JJ3CE*KLSW:REE8T5Y*9:U6515JIUR$6TODLYHSDE3B5DAF:5TF7V*VAL3G40WBOM0DO2+CFKTTM$G-SO:8U0EW:M8V:4*R9ZDX$B1IRBP9PLMDK8H801PNTFB4$HL1+/U3F61P$4N:UAO88:N5D+J:HI4YR8IM:3A7K1YZ9VMRC/47$6GGW5JEL1N690TDQ4XW+TWHD:V.1.630QK*JN/.EITVU80YS3.8LWKO:2STLWZAVHUXFHQ..NZ0:.J/FTZM.KYDXIE1VBY7/:PHZMQ$.JZQ2.XT32440X/HM+UY/7QP4I+HTD9.DUSY-8R6HDR-B8/PF2NP7I2-MRW9VPW3U9.S0LQ.*221F8KVMD5ANJXZJ8WV4UFZ4R.$-NXVE+-FAL:WFERGU+WHJTHAP"),
+            "network_tx_base43_bytes": RawTx(b"3E2DH7.J3PKVZJ3RCOXQVS3Y./6-WE.75DDU0K58-0N1FRL565N8ZH-DG1Z.1IGWTE5HK8F7PWH5P8+V3XGZZ6GQBPHNDE+RD8CAQVV1/6PQEMJIZTGPMIJ93B8P$QX+Y2R:TGT9QW8S89U4N2.+FUT8VG+34USI/N/JJ3CE*KLSW:REE8T5Y*9:U6515JIUR$6TODLYHSDE3B5DAF:5TF7V*VAL3G40WBOM0DO2+CFKTTM$G-SO:8U0EW:M8V:4*R9ZDX$B1IRBP9PLMDK8H801PNTFB4$HL1+/U3F61P$4N:UAO88:N5D+J:HI4YR8IM:3A7K1YZ9VMRC/47$6GGW5JEL1N690TDQ4XW+TWHD:V.1.630QK*JN/.EITVU80YS3.8LWKO:2STLWZAVHUXFHQ..NZ0:.J/FTZM.KYDXIE1VBY7/:PHZMQ$.JZQ2.XT32440X/HM+UY/7QP4I+HTD9.DUSY-8R6HDR-B8/PF2NP7I2-MRW9VPW3U9.S0LQ.*221F8KVMD5ANJXZJ8WV4UFZ4R.$-NXVE+-FAL:WFERGU+WHJTHAP"),
+            "network_tx_raw_bytes": RawTx(bytes.fromhex("0200000000010258e87a21b56daf0c23be8e7070456c336f7cbaa5c8757924f545887bb2abdd7500000000da00473044022074018ad4180097b873323c0015720b3684cc8123891048e7dbcd9b55ad679c99022073d369b740e3eb53dcefa33823c8070514ca55a7dd9544f157c167913261118c01483045022100f61038b308dc1da865a34852746f015772934208c6d24454393cd99bdf2217770220056e675a675a6d0a02b85b14e5e29074d8a25a9b5760bea2816f661910a006ea01475221029583bf39ae0a609747ad199addd634fa6108559d6c5cd39b4c2183f1ab96e07f2102dab61ff49a14db6a7d02b0cd1fbb78fc4b18312b5b4e54dae4dba2fbfef536d752aeffffffff838d0427d0ec650a68aa46bb0b098aea4422c071b2ca78352a077959d07cea1d01000000232200208c2353173743b595dfb4a07b72ba8e42e3797da74e87fe7d9d7497e3b2028903ffffffff0270aaf00800000000160014d85c2b71d0060b09c9886aeb815e50991dda124d00e1f5050000000016001400aea9a2e5f0f876a588df5546e8742d1d87008f000400473044022062eb7a556107a7c73f45ac4ab5a1dddf6f7075fb1275969a7f383efff784bcb202200c05dbb7470dbf2f08557dd356c7325c1ed30913e996cd3840945db12228da5f01473044022065f45ba5998b59a27ffe1a7bed016af1f1f90d54b3aa8f7450aa5f56a25103bd02207f724703ad1edb96680b284b56d4ffcb88f7fb759eabbe08aa30f29b851383d20147522103089dc10c7ac6db54f91329af617333db388cead0c231f723379d1b99030b02dc21023add904f3d6dcf59ddb906b0dee23529b7ffb9ed50e5e86151926860221f0e7352ae00000000"),
+                                          is_whitespace_allowed=False),
+            "psbt_hex_str": RawTx("70736274ff01009a020000000258e87a21b56daf0c23be8e7070456c336f7cbaa5c8757924f545887bb2abdd750000000000ffffffff838d0427d0ec650a68aa46bb0b098aea4422c071b2ca78352a077959d07cea1d0100000000ffffffff0270aaf00800000000160014d85c2b71d0060b09c9886aeb815e50991dda124d00e1f5050000000016001400aea9a2e5f0f876a588df5546e8742d1d87008f00000000000100bb0200000001aad73931018bd25f84ae400b68848be09db706eac2ac18298babee71ab656f8b0000000048473044022058f6fc7c6a33e1b31548d481c826c015bd30135aad42cd67790dab66d2ad243b02204a1ced2604c6735b6393e5b41691dd78b00f0c5942fb9f751856faa938157dba01feffffff0280f0fa020000000017a9140fb9463421696b82c833af241c78c17ddbde493487d0f20a270100000017a91429ca74f8a08f81999428185c97b5d852e4063f6187650000000107da00473044022074018ad4180097b873323c0015720b3684cc8123891048e7dbcd9b55ad679c99022073d369b740e3eb53dcefa33823c8070514ca55a7dd9544f157c167913261118c01483045022100f61038b308dc1da865a34852746f015772934208c6d24454393cd99bdf2217770220056e675a675a6d0a02b85b14e5e29074d8a25a9b5760bea2816f661910a006ea01475221029583bf39ae0a609747ad199addd634fa6108559d6c5cd39b4c2183f1ab96e07f2102dab61ff49a14db6a7d02b0cd1fbb78fc4b18312b5b4e54dae4dba2fbfef536d752ae0001012000c2eb0b0000000017a914b7f5faf40e3d40a5a459b1db3535f2b72fa921e8870107232200208c2353173743b595dfb4a07b72ba8e42e3797da74e87fe7d9d7497e3b20289030108da0400473044022062eb7a556107a7c73f45ac4ab5a1dddf6f7075fb1275969a7f383efff784bcb202200c05dbb7470dbf2f08557dd356c7325c1ed30913e996cd3840945db12228da5f01473044022065f45ba5998b59a27ffe1a7bed016af1f1f90d54b3aa8f7450aa5f56a25103bd02207f724703ad1edb96680b284b56d4ffcb88f7fb759eabbe08aa30f29b851383d20147522103089dc10c7ac6db54f91329af617333db388cead0c231f723379d1b99030b02dc21023add904f3d6dcf59ddb906b0dee23529b7ffb9ed50e5e86151926860221f0e7352ae00220203a9a4c37f5996d3aa25dbac6b570af0650394492942460b354753ed9eeca5877110d90c6a4f000000800000008004000080002202027f6399757d2eff55a136ad02c684b1838b6556e5f1b6b34282a94b6b5005109610d90c6a4f00000080000000800500008000"),
+            "psbt_hex_bytes": RawTx(b"70736274ff01009a020000000258e87a21b56daf0c23be8e7070456c336f7cbaa5c8757924f545887bb2abdd750000000000ffffffff838d0427d0ec650a68aa46bb0b098aea4422c071b2ca78352a077959d07cea1d0100000000ffffffff0270aaf00800000000160014d85c2b71d0060b09c9886aeb815e50991dda124d00e1f5050000000016001400aea9a2e5f0f876a588df5546e8742d1d87008f00000000000100bb0200000001aad73931018bd25f84ae400b68848be09db706eac2ac18298babee71ab656f8b0000000048473044022058f6fc7c6a33e1b31548d481c826c015bd30135aad42cd67790dab66d2ad243b02204a1ced2604c6735b6393e5b41691dd78b00f0c5942fb9f751856faa938157dba01feffffff0280f0fa020000000017a9140fb9463421696b82c833af241c78c17ddbde493487d0f20a270100000017a91429ca74f8a08f81999428185c97b5d852e4063f6187650000000107da00473044022074018ad4180097b873323c0015720b3684cc8123891048e7dbcd9b55ad679c99022073d369b740e3eb53dcefa33823c8070514ca55a7dd9544f157c167913261118c01483045022100f61038b308dc1da865a34852746f015772934208c6d24454393cd99bdf2217770220056e675a675a6d0a02b85b14e5e29074d8a25a9b5760bea2816f661910a006ea01475221029583bf39ae0a609747ad199addd634fa6108559d6c5cd39b4c2183f1ab96e07f2102dab61ff49a14db6a7d02b0cd1fbb78fc4b18312b5b4e54dae4dba2fbfef536d752ae0001012000c2eb0b0000000017a914b7f5faf40e3d40a5a459b1db3535f2b72fa921e8870107232200208c2353173743b595dfb4a07b72ba8e42e3797da74e87fe7d9d7497e3b20289030108da0400473044022062eb7a556107a7c73f45ac4ab5a1dddf6f7075fb1275969a7f383efff784bcb202200c05dbb7470dbf2f08557dd356c7325c1ed30913e996cd3840945db12228da5f01473044022065f45ba5998b59a27ffe1a7bed016af1f1f90d54b3aa8f7450aa5f56a25103bd02207f724703ad1edb96680b284b56d4ffcb88f7fb759eabbe08aa30f29b851383d20147522103089dc10c7ac6db54f91329af617333db388cead0c231f723379d1b99030b02dc21023add904f3d6dcf59ddb906b0dee23529b7ffb9ed50e5e86151926860221f0e7352ae00220203a9a4c37f5996d3aa25dbac6b570af0650394492942460b354753ed9eeca5877110d90c6a4f000000800000008004000080002202027f6399757d2eff55a136ad02c684b1838b6556e5f1b6b34282a94b6b5005109610d90c6a4f00000080000000800500008000"),
+            "psbt_base64_str": RawTx("cHNidP8BAJoCAAAAAljoeiG1ba8MI76OcHBFbDNvfLqlyHV5JPVFiHuyq911AAAAAAD/////g40EJ9DsZQpoqka7CwmK6kQiwHGyyng1Kgd5WdB86h0BAAAAAP////8CcKrwCAAAAAAWABTYXCtx0AYLCcmIauuBXlCZHdoSTQDh9QUAAAAAFgAUAK6pouXw+HaliN9VRuh0LR2HAI8AAAAAAAEAuwIAAAABqtc5MQGL0l+ErkALaISL4J23BurCrBgpi6vucatlb4sAAAAASEcwRAIgWPb8fGoz4bMVSNSByCbAFb0wE1qtQs1neQ2rZtKtJDsCIEoc7SYExnNbY5PltBaR3XiwDwxZQvufdRhW+qk4FX26Af7///8CgPD6AgAAAAAXqRQPuUY0IWlrgsgzryQceMF9295JNIfQ8gonAQAAABepFCnKdPigj4GZlCgYXJe12FLkBj9hh2UAAAABAwQBAAAAAQRHUiEClYO/Oa4KYJdHrRma3dY0+mEIVZ1sXNObTCGD8auW4H8hAtq2H/SaFNtqfQKwzR+7ePxLGDErW05U2uTbovv+9TbXUq4iBgKVg785rgpgl0etGZrd1jT6YQhVnWxc05tMIYPxq5bgfxDZDGpPAAAAgAAAAIAAAACAIgYC2rYf9JoU22p9ArDNH7t4/EsYMStbTlTa5Nui+/71NtcQ2QxqTwAAAIAAAACAAQAAgAABASAAwusLAAAAABepFLf1+vQOPUClpFmx2zU18rcvqSHohwEDBAEAAAABBCIAIIwjUxc3Q7WV37Sge3K6jkLjeX2nTof+fZ10l+OyAokDAQVHUiEDCJ3BDHrG21T5EymvYXMz2ziM6tDCMfcjN50bmQMLAtwhAjrdkE89bc9Z3bkGsN7iNSm3/7ntUOXoYVGSaGAiHw5zUq4iBgI63ZBPPW3PWd25BrDe4jUpt/+57VDl6GFRkmhgIh8OcxDZDGpPAAAAgAAAAIADAACAIgYDCJ3BDHrG21T5EymvYXMz2ziM6tDCMfcjN50bmQMLAtwQ2QxqTwAAAIAAAACAAgAAgAAiAgOppMN/WZbTqiXbrGtXCvBlA5RJKUJGCzVHU+2e7KWHcRDZDGpPAAAAgAAAAIAEAACAACICAn9jmXV9Lv9VoTatAsaEsYOLZVbl8bazQoKpS2tQBRCWENkMak8AAACAAAAAgAUAAIAA"),
+            "psbt_base64_bytes": RawTx(b"cHNidP8BAJoCAAAAAljoeiG1ba8MI76OcHBFbDNvfLqlyHV5JPVFiHuyq911AAAAAAD/////g40EJ9DsZQpoqka7CwmK6kQiwHGyyng1Kgd5WdB86h0BAAAAAP////8CcKrwCAAAAAAWABTYXCtx0AYLCcmIauuBXlCZHdoSTQDh9QUAAAAAFgAUAK6pouXw+HaliN9VRuh0LR2HAI8AAAAAAAEAuwIAAAABqtc5MQGL0l+ErkALaISL4J23BurCrBgpi6vucatlb4sAAAAASEcwRAIgWPb8fGoz4bMVSNSByCbAFb0wE1qtQs1neQ2rZtKtJDsCIEoc7SYExnNbY5PltBaR3XiwDwxZQvufdRhW+qk4FX26Af7///8CgPD6AgAAAAAXqRQPuUY0IWlrgsgzryQceMF9295JNIfQ8gonAQAAABepFCnKdPigj4GZlCgYXJe12FLkBj9hh2UAAAABAwQBAAAAAQRHUiEClYO/Oa4KYJdHrRma3dY0+mEIVZ1sXNObTCGD8auW4H8hAtq2H/SaFNtqfQKwzR+7ePxLGDErW05U2uTbovv+9TbXUq4iBgKVg785rgpgl0etGZrd1jT6YQhVnWxc05tMIYPxq5bgfxDZDGpPAAAAgAAAAIAAAACAIgYC2rYf9JoU22p9ArDNH7t4/EsYMStbTlTa5Nui+/71NtcQ2QxqTwAAAIAAAACAAQAAgAABASAAwusLAAAAABepFLf1+vQOPUClpFmx2zU18rcvqSHohwEDBAEAAAABBCIAIIwjUxc3Q7WV37Sge3K6jkLjeX2nTof+fZ10l+OyAokDAQVHUiEDCJ3BDHrG21T5EymvYXMz2ziM6tDCMfcjN50bmQMLAtwhAjrdkE89bc9Z3bkGsN7iNSm3/7ntUOXoYVGSaGAiHw5zUq4iBgI63ZBPPW3PWd25BrDe4jUpt/+57VDl6GFRkmhgIh8OcxDZDGpPAAAAgAAAAIADAACAIgYDCJ3BDHrG21T5EymvYXMz2ziM6tDCMfcjN50bmQMLAtwQ2QxqTwAAAIAAAACAAgAAgAAiAgOppMN/WZbTqiXbrGtXCvBlA5RJKUJGCzVHU+2e7KWHcRDZDGpPAAAAgAAAAIAEAACAACICAn9jmXV9Lv9VoTatAsaEsYOLZVbl8bazQoKpS2tQBRCWENkMak8AAACAAAAAgAUAAIAA"),
+            "psbt_base43_str": RawTx("EFS+4WQ2R.5QWTVLQS.BWHG21Q-M0HVA+KKLG+9RYJ2B/GHJ$3OUOKH32U0NISGM$CI*KI24$PKQI0F*GA..*DW:UJ4FM-6S3B*VIJ0.M8M*DVCR9+TNG2R/IMZY0A72MS8+QMTO*:25V577L*DRC78WBK0BNAK7/8JQR-FA/L-KNBBKTQRZEU93T/Z/.7OBC6A7WWZ49DNHLG:X37ISM2+.ZT4ZC00.G8K8O6NM48GRR+N/-W/ASXT5VLPPHPRWR2PHMLZWDYAN8DMW$1EKD/EU4LHQWIKM0N42B*/32MQ1C:I17FMQVVQF6OA*X1RW8X.H17040FPH8/L5HBPFTTT0PMJGR9I0/J0+4PS5WJE/:W-Y.YA:SMFZMO36IMK0P/KUHVR.44OPT$TD*ZHSPZVULFWH75T+APO636*NYL19ZJIU3N37$KN7OY7*WOA498BWCPM$G6::C:YPDZ:PUISTZB-RL**B/QAX+HA*55O+:R/L8*J9B*G:QU6FS+HS+:OXPKOP-GDJK$NU72E4Y11BZENGIJWLWZ+C:01G$H-*LY5.LGC5I1A4G7$KT9BZ81LEPV5D09RAKI5BW1*O8QWMIIG17/8$J0X:W7F9FC7EMQRLESY2NNNVLZTHWB/FJVB-*.5JU0GQ*3JIBTQ$OR3AHTJ-U-C-8MWV$R::*VTRY-2+*H7U594$0JCN27R9*TY0+8:3Q7T/HES5OF*GLL::5Z8M$JNCLLKH6:J:GCT$E:27AXUA1L4ROJO3*-86C2QH.9TBNP0SS51XRL/J7:-+QES+37SOZIJCKG2XOUVPJR:F+MGS1L6-8/YA.6BKZ+FMF8F:OT2P4X:9M4P8IGM-/UUSS8S5*8YMZ$S+JKY.DHDCY$$+F53TGYK1.RHYA68-KO3O:$$IO/R9995TPAE6FF6$UOAUD5A2YLY.Q$VE$Q*0437K-DHKRFM$Q$3G:58+GER9D.6S$EW++HBBE0T62MAA/$-A2OV22QHY.JHK:6GNT.QQ*5YWZKCZI$+IQPU0UT/0H0PR9BYB1BB-Y+A.Q2HD$JP+:AT0CQR$R3PVHC9K/IPTVWJK0J4$J-B-CL6713L5PM-33-.CHXGJ$*ME.U-71V2JNX*W7JYC$V2VEEL:3GU3HGV84O.5PT+K*NB/2.-0.GCQNJ*ZOC$M2Y86V:URJ4/.ZVK6X1I--.B9NAWE54IDPLRN0FSWYGA/INDLPUBW7SZ/YADHWFLU*MWI121O2Y56QWG.EFNLSIVAVXYF$.:N/OU-PS7U/*Z94CR7T0+.F+RL9.-U5FQ1QL/A2$O2E0$TP-AX4*55QET9BPH6:K+CD$.+$*F0BUWSW.*$IF*WIC+UMJRZP5.50V1DMTIZ.D/2+$0T-GDBE7LHPGY0X0:G/*ZPTAMQABEC4HPML4UCLSAR-.5UT-X1.PMM60HUFAF"),
+            "psbt_base43_bytes": RawTx(b'EFS+4WQ2R.5QWTVLQS.BWHG21Q-M0HVA+KKLG+9RYJ2B/GHJ$3OUOKH32U0NISGM$CI*KI24$PKQI0F*GA..*DW:UJ4FM-6S3B*VIJ0.M8M*DVCR9+TNG2R/IMZY0A72MS8+QMTO*:25V577L*DRC78WBK0BNAK7/8JQR-FA/L-KNBBKTQRZEU93T/Z/.7OBC6A7WWZ49DNHLG:X37ISM2+.ZT4ZC00.G8K8O6NM48GRR+N/-W/ASXT5VLPPHPRWR2PHMLZWDYAN8DMW$1EKD/EU4LHQWIKM0N42B*/32MQ1C:I17FMQVVQF6OA*X1RW8X.H17040FPH8/L5HBPFTTT0PMJGR9I0/J0+4PS5WJE/:W-Y.YA:SMFZMO36IMK0P/KUHVR.44OPT$TD*ZHSPZVULFWH75T+APO636*NYL19ZJIU3N37$KN7OY7*WOA498BWCPM$G6::C:YPDZ:PUISTZB-RL**B/QAX+HA*55O+:R/L8*J9B*G:QU6FS+HS+:OXPKOP-GDJK$NU72E4Y11BZENGIJWLWZ+C:01G$H-*LY5.LGC5I1A4G7$KT9BZ81LEPV5D09RAKI5BW1*O8QWMIIG17/8$J0X:W7F9FC7EMQRLESY2NNNVLZTHWB/FJVB-*.5JU0GQ*3JIBTQ$OR3AHTJ-U-C-8MWV$R::*VTRY-2+*H7U594$0JCN27R9*TY0+8:3Q7T/HES5OF*GLL::5Z8M$JNCLLKH6:J:GCT$E:27AXUA1L4ROJO3*-86C2QH.9TBNP0SS51XRL/J7:-+QES+37SOZIJCKG2XOUVPJR:F+MGS1L6-8/YA.6BKZ+FMF8F:OT2P4X:9M4P8IGM-/UUSS8S5*8YMZ$S+JKY.DHDCY$$+F53TGYK1.RHYA68-KO3O:$$IO/R9995TPAE6FF6$UOAUD5A2YLY.Q$VE$Q*0437K-DHKRFM$Q$3G:58+GER9D.6S$EW++HBBE0T62MAA/$-A2OV22QHY.JHK:6GNT.QQ*5YWZKCZI$+IQPU0UT/0H0PR9BYB1BB-Y+A.Q2HD$JP+:AT0CQR$R3PVHC9K/IPTVWJK0J4$J-B-CL6713L5PM-33-.CHXGJ$*ME.U-71V2JNX*W7JYC$V2VEEL:3GU3HGV84O.5PT+K*NB/2.-0.GCQNJ*ZOC$M2Y86V:URJ4/.ZVK6X1I--.B9NAWE54IDPLRN0FSWYGA/INDLPUBW7SZ/YADHWFLU*MWI121O2Y56QWG.EFNLSIVAVXYF$.:N/OU-PS7U/*Z94CR7T0+.F+RL9.-U5FQ1QL/A2$O2E0$TP-AX4*55QET9BPH6:K+CD$.+$*F0BUWSW.*$IF*WIC+UMJRZP5.50V1DMTIZ.D/2+$0T-GDBE7LHPGY0X0:G/*ZPTAMQABEC4HPML4UCLSAR-.5UT-X1.PMM60HUFAF'),
+            "psbt_raw_bytes": RawTx(bytes.fromhex("70736274ff01009a020000000258e87a21b56daf0c23be8e7070456c336f7cbaa5c8757924f545887bb2abdd750000000000ffffffff838d0427d0ec650a68aa46bb0b098aea4422c071b2ca78352a077959d07cea1d0100000000ffffffff0270aaf00800000000160014d85c2b71d0060b09c9886aeb815e50991dda124d00e1f5050000000016001400aea9a2e5f0f876a588df5546e8742d1d87008f00000000000100bb0200000001aad73931018bd25f84ae400b68848be09db706eac2ac18298babee71ab656f8b0000000048473044022058f6fc7c6a33e1b31548d481c826c015bd30135aad42cd67790dab66d2ad243b02204a1ced2604c6735b6393e5b41691dd78b00f0c5942fb9f751856faa938157dba01feffffff0280f0fa020000000017a9140fb9463421696b82c833af241c78c17ddbde493487d0f20a270100000017a91429ca74f8a08f81999428185c97b5d852e4063f6187650000000107da00473044022074018ad4180097b873323c0015720b3684cc8123891048e7dbcd9b55ad679c99022073d369b740e3eb53dcefa33823c8070514ca55a7dd9544f157c167913261118c01483045022100f61038b308dc1da865a34852746f015772934208c6d24454393cd99bdf2217770220056e675a675a6d0a02b85b14e5e29074d8a25a9b5760bea2816f661910a006ea01475221029583bf39ae0a609747ad199addd634fa6108559d6c5cd39b4c2183f1ab96e07f2102dab61ff49a14db6a7d02b0cd1fbb78fc4b18312b5b4e54dae4dba2fbfef536d752ae0001012000c2eb0b0000000017a914b7f5faf40e3d40a5a459b1db3535f2b72fa921e8870107232200208c2353173743b595dfb4a07b72ba8e42e3797da74e87fe7d9d7497e3b20289030108da0400473044022062eb7a556107a7c73f45ac4ab5a1dddf6f7075fb1275969a7f383efff784bcb202200c05dbb7470dbf2f08557dd356c7325c1ed30913e996cd3840945db12228da5f01473044022065f45ba5998b59a27ffe1a7bed016af1f1f90d54b3aa8f7450aa5f56a25103bd02207f724703ad1edb96680b284b56d4ffcb88f7fb759eabbe08aa30f29b851383d20147522103089dc10c7ac6db54f91329af617333db388cead0c231f723379d1b99030b02dc21023add904f3d6dcf59ddb906b0dee23529b7ffb9ed50e5e86151926860221f0e7352ae00220203a9a4c37f5996d3aa25dbac6b570af0650394492942460b354753ed9eeca5877110d90c6a4f000000800000008004000080002202027f6399757d2eff55a136ad02c684b1838b6556e5f1b6b34282a94b6b5005109610d90c6a4f00000080000000800500008000"),
+                                    is_whitespace_allowed=False),
+        }
+        whitespace_str = " \r\n  \n  "
+        whitespace_bytes = b" \r\n  \n  "
+        for case_name, raw_tx in raw_tx_map.items():
+            for has_whitespaces in (False, True):
+                with self.subTest(msg=case_name, has_whitespaces=has_whitespaces):
+                    if not has_whitespaces:
+                        data = raw_tx.data
+                        tx_from_any(data)  # test if raises (should not)
+                    else:
+                        if isinstance(raw_tx.data, str):
+                            data = whitespace_str + raw_tx.data + whitespace_str
+                        else:
+                            data = whitespace_bytes + raw_tx.data + whitespace_bytes
+                        if raw_tx.is_whitespace_allowed:
+                            tx_from_any(data)  # test if raises (should not)
+                        else:
+                            with self.assertRaises(transaction.SerializationError):
+                                tx_from_any(data)  # test if raises (should)
 
 #####
 
@@ -811,45 +850,54 @@ class TestTransaction(SequentialTestCase):
 # txns from Bitcoin Core ends <---
 
 
-class TestTransactionTestnet(TestCaseForTestnet):
+class TestLegacyPartialTxFormat(TestCaseForTestnet):
 
-    def _run_naive_tests_on_tx(self, raw_tx, txid):
-        tx = transaction.Transaction(raw_tx)
-        self.assertEqual(txid, tx.txid())
-        self.assertEqual(raw_tx, tx.serialize())
-        self.assertTrue(tx.estimated_size() >= 0)
+    def setUp(self):
+        super().setUp()
+        self.config = SimpleConfig({'electrum_path': self.electrum_path})
 
-# partial txns using our partial format --->
-    # NOTE: our partial format contains xpubs, and xpubs have version bytes,
-    # and version bytes encode the network as well; so these are network-sensitive!
+    def test_trustedcoin_legacy_2fa_psbt_to_legacy_partial_tx(self):
+        from .test_wallet_vertical import WalletIntegrityHelper
+        seed_words = 'kiss live scene rude gate step hip quarter bunker oxygen motor glove'
+        self.assertEqual(seed_type(seed_words), '2fa')
 
-    def test_txid_partial_segwit_p2wpkh(self):
-        raw_tx = '45505446ff000100000000010115a847356cbb44be67f345965bb3f2589e2fec1c9a0ada21fd28225dcc602e8f0100000000fdffffff02f6fd1200000000001600149c756aa33f4f89418b33872a973274b5445c727b80969800000000001600140f9de573bc679d040e763d13f0250bd03e625f6ffeffffffff9095ab000000000000000201ff53ff045f1cf6014af5fa07800000002fa3f450ba41799b9b62642979505817783a9b6c656dc11cd0bb4fa362096808026adc616c25a4d0a877d1741eb1db9cef65c15118bd7d5f31bf65f319edda81840100c8000f391400'
-        txid = '63ff7e99d85d8e33f683e6ec84574bdf8f5111078a5fe900893e019f9a7f95c3'
-        self._run_naive_tests_on_tx(raw_tx, txid)
+        xprv1, xpub1, xprv2, xpub2 = trustedcoin.TrustedCoinPlugin.xkeys_from_seed(seed_words, '')
+        ks1 = keystore.from_xprv(xprv1)
+        ks2 = keystore.from_xprv(xprv2)
+        long_user_id, short_id = trustedcoin.get_user_id(
+            {'x1/': {'xpub': xpub1},
+             'x2/': {'xpub': xpub2}})
+        xtype = bip32.xpub_type(xpub1)
+        xpub3 = trustedcoin.make_xpub(trustedcoin.get_signing_xpub(xtype), long_user_id)
+        ks3 = keystore.from_xpub(xpub3)
 
-    def test_txid_partial_segwit_p2wpkh_p2sh_simple(self):
-        raw_tx = '45505446ff0001000000000101d0d23a6fbddb21cc664cb81cca96715baa4d6dbe5b7b9bcc6632f1005a7b0b840100000017160014a78a91261e71a681b6312cd184b14503a21f856afdffffff0134410f000000000017a914d6514ca17ecc31952c990daf96e307fbc58529cd87feffffffff40420f000000000000000201ff53ff044a5262033601222e800000001618aa51e49a961f63fd111f64cd4a7e792c1d7168be7a07703de505ebed2cf70286ebbe755767adaa5835f4d78dec1ee30849d69eacfe80b7ee6b1585279536c30000020011391400'
-        txid = '2739f2e7fde9b8ec73fce4aee53722cc7683312d1321ded073284c51fadf44df'
-        self._run_naive_tests_on_tx(raw_tx, txid)
+        wallet = WalletIntegrityHelper.create_multisig_wallet([ks1, ks2, ks3], '2of3', config=self.config)
 
-    def test_txid_partial_segwit_p2wpkh_p2sh_mixed_outputs(self):
-        raw_tx = '45505446ff00010000000001011dcac788f24b84d771b60c44e1f9b6b83429e50f06e1472d47241922164013b00100000017160014801d28ca6e2bde551112031b6cb75de34f10851ffdffffff0440420f00000000001600140f9de573bc679d040e763d13f0250bd03e625f6fc0c62d000000000017a9142899f6484e477233ce60072fc185ef4c1f2c654487809698000000000017a914d40f85ba3c8fa0f3615bcfa5d6603e36dfc613ef87712d19040000000017a914e38c0cffde769cb65e72cda1c234052ae8d2254187feffffffff6ad1ee040000000000000201ff53ff044a5262033601222e800000001618aa51e49a961f63fd111f64cd4a7e792c1d7168be7a07703de505ebed2cf70286ebbe755767adaa5835f4d78dec1ee30849d69eacfe80b7ee6b1585279536c301000c000f391400'
-        txid = 'ba5c88e07a4025a39ad3b85247cbd4f556a70d6312b18e04513c7cec9d45d6ac'
-        self._run_naive_tests_on_tx(raw_tx, txid)
+        tx = tx_from_any('cHNidP8BAJQCAAAAAcqqxrXrkW4wZ9AiT5QvszHOHc+0Axz7R555Qdz5XkCYAQAAAAD9////A6CGAQAAAAAAFgAU+fBLRlKk9v89xVEm2xJ0kG1wcvNMCwMAAAAAABepFPKffLiXEB3Gmv1Y35uy5bTUM59Nh0ANAwAAAAAAGXapFPriyJZefiOenIisUU3nDewLDxYIiKwSKxgATwEENYfPAAAAAAAAAAAAnOMnCVq57ruCJ7c38H6PtmrwS48+kcQJPEh70w/ofCQCDSEN062A0pw2JKkYltX2G3th8zLexPfEVDGu74BeD6cEcH3xxE8BBDWHzwGCB4l2gAAAAJOfYJjOAH6kksFOokIboP3+8Gwhlzlxhl5uY7zokvfcAmGy8e8txy0wkx69/TgZFOMe1aZc2g1HCwrRQ9M9+Ph7CIIHiXYAAACATwEENYfPAYIHiXaAAAABb6EovcClpG/Hrxr9IF22IHGR1MQFG27b0GQTzcCxot8Dak5MvnvEZt1lN4TIazd0m+w+goApzqNMFWkJVv1hV28IggeJdgEAAIAAAQDfAgAAAAGcKHw7enlMh6IibIkEeKQlL5pUR2wKv6GC1NTd6KY8ggEAAABqRzBEAiBNHsG9H5z10eHHsIOe4kFdvnZK38E7Jx+Cmru14SdQ/gIgWngNYj/F8qHAhkdlU+BgY5ktAL2MeIUoqIJKXudcFRMBIQNU856KX8nmKx8+nbIRwjpRAvyMWroJGz+F6ADwzYv/GP3///8CnJ0HAAAAAAAZdqkUsQVAb+BbDci+RMeDa6WBLb9nTOiIrCChBwAAAAAAF6kULBYX0k+TbkDRSw3ylOy3u6rXUzeHEisYACICA/5C2rWHGOoEE/fI3mk83u4izhmx3DTAu916SCRUZcWiSDBFAiEA0Dw1yyk7Adp74Ndxztr6iR7V1wpnfPzNaWcTVva+vtwCIAsqV2xM0cZCSAdWzh/WYKyvC6UmGTowmeH4HN0BrSCTAQEEaVIhAgkfC02KswAWpdHAiCSeAog/rYFg8G+lNYithZhlCj5iIQNfL4JjuzYI1sxO4DvUy41lxNcK9xBJ8F+/7kl4gyof0iED/kLatYcY6gQT98jeaTze7iLOGbHcNMC73XpIJFRlxaJTriIGA/5C2rWHGOoEE/fI3mk83u4izhmx3DTAu916SCRUZcWiEIIHiXYAAACAAAAAAAAAAAAiBgIJHwtNirMAFqXRwIgkngKIP62BYPBvpTWIrYWYZQo+YhCCB4l2AQAAgAAAAAAAAAAAIgYDXy+CY7s2CNbMTuA71MuNZcTXCvcQSfBfv+5JeIMqH9IMcH3xxAAAAAAAAAAAAAABAGlSIQIqtnn9ouM3xAq7wIID09cdKpb9u/OMkI97kuU3wcTv/yEDTNFHFnZ1xmKGRQzFaUAT9DeDk2NdeWSrilc8w9BKjU4hA1joWoIBRYfeqDPrX/uT45hWkO5Lph7zLVsorVqhYXN/U64iAgNM0UcWdnXGYoZFDMVpQBP0N4OTY115ZKuKVzzD0EqNThCCB4l2AAAAgAEAAAAAAAAAIgICKrZ5/aLjN8QKu8CCA9PXHSqW/bvzjJCPe5LlN8HE7/8QggeJdgEAAIABAAAAAAAAACICA1joWoIBRYfeqDPrX/uT45hWkO5Lph7zLVsorVqhYXN/DHB98cQBAAAAAAAAAAAA')
+        tx.add_info_from_wallet(wallet)
+        raw_tx = serialize_tx_in_legacy_format(tx, wallet=wallet)
+        self.assertEqual('45505446ff000200000001caaac6b5eb916e3067d0224f942fb331ce1dcfb4031cfb479e7941dcf95e409801000000fd53010001ff01ff483045022100d03c35cb293b01da7be0d771cedafa891ed5d70a677cfccd69671356f6bebedc02200b2a576c4cd1c642480756ce1fd660acaf0ba526193a3099e1f81cdd01ad2093014d0201524c53ff043587cf0182078976800000016fa128bdc0a5a46fc7af1afd205db6207191d4c4051b6edbd06413cdc0b1a2df036a4e4cbe7bc466dd653784c86b37749bec3e828029cea34c15690956fd61576f000000004c53ff043587cf0000000000000000009ce327095ab9eebb8227b737f07e8fb66af04b8f3e91c4093c487bd30fe87c24020d210dd3ad80d29c3624a91896d5f61b7b61f332dec4f7c45431aeef805e0fa7000000004c53ff043587cf018207897680000000939f6098ce007ea492c14ea2421ba0fdfef06c21973971865e6e63bce892f7dc0261b2f1ef2dc72d30931ebdfd381914e31ed5a65cda0d470b0ad143d33df8f87b0000000053aefdffffff03a086010000000000160014f9f04b4652a4f6ff3dc55126db1274906d7072f34c0b03000000000017a914f29f7cb897101dc69afd58df9bb2e5b4d4339f4d87400d0300000000001976a914fae2c8965e7e239e9c88ac514de70dec0b0f160888ac122b1800',
+                         raw_tx)
 
-    def test_txid_partial_issue_5366(self):
-        raw_tx = '45505446ff000200000000010127523d70642dabd999fb43191ff6763f5b04150ba4cf38d2cfb53edf6a40ac4f0100000000fdffffff013286010000000000160014e79c7ac0b390a9caf52dc002e1095a5fbc042a18feffffffffa08601000000000000000201ff57ff045f1cf60157e9eb7a8000000038fa0b3a9c155ff3390ca0d639783d97af3b3bf66ebb69a31dfe8317fae0a7fe0324bc048fc0002253dfec9d6299711d708175f950ecee8e09db3518a5685741830000ffffcf01010043281700'
-        txid = 'a0c159616073dc7a4a482092dab4e8516c83dddb769b65919f23f6df63d33eb8'
-        self._run_naive_tests_on_tx(raw_tx, txid)
+    def test_trustedcoin_segwit_2fa_psbt_to_legacy_partial_tx(self):
+        from .test_wallet_vertical import WalletIntegrityHelper
+        seed_words = 'universe topic remind silver february ranch shine worth innocent cattle enhance wise'
+        self.assertEqual(seed_type(seed_words), '2fa_segwit')
 
-# end partial txns <---
+        xprv1, xpub1, xprv2, xpub2 = trustedcoin.TrustedCoinPlugin.xkeys_from_seed(seed_words, '')
+        ks1 = keystore.from_xprv(xprv1)
+        ks2 = keystore.from_xprv(xprv2)
+        long_user_id, short_id = trustedcoin.get_user_id(
+            {'x1/': {'xpub': xpub1},
+             'x2/': {'xpub': xpub2}})
+        xtype = bip32.xpub_type(xpub1)
+        xpub3 = trustedcoin.make_xpub(trustedcoin.get_signing_xpub(xtype), long_user_id)
+        ks3 = keystore.from_xpub(xpub3)
 
+        wallet = WalletIntegrityHelper.create_multisig_wallet([ks1, ks2, ks3], '2of3', config=self.config)
 
-class NetworkMock(object):
-
-    def __init__(self, unspent):
-        self.unspent = unspent
-
-    def synchronous_send(self, arg):
-        return self.unspent
+        tx = tx_from_any('70736274ff01009f020000000187c4646ca690b397e357b23b2137030691a90a068a6690834d340b4be84acd6a0100000000fdffffff03a0860100000000001600148bc9d947e4d0addc2f4c34b8371034eb47b3d305140c030000000000220020a6087c4f84a55dc39014729a18e08955139d4384559d1fd2a48a1d95d746a425400d0300000000001976a914c13fd6294d1be7b9410a5538f4b4ef10fc594ee788ac132b18004f0102575483000000000000000000d644dcdd7a4acb432355e010ac4a5f955940c82a9767731b7d89dc42eb3cdac40272faa2f98b76cc9d655ef281c07acda75c30a990dc3a527b6cf92a8f5a6b8a80044bf212094f010257548301d24cd5918000000199c4d6c893fa1addec6b0121181137e25c38194333b8c57215b3cf1e6d7e7af102a23ddae698bb6095b8b8035bdd1e94479f66c29679d81931e0fe07aa436149ee08d24cd591010000804f010257548301d24cd59180000000b60a85089ad0850a6ffe8590a3e15064e63eefd020813df2e4a6b3209ce3df5f02c8b14f2917d557cd482970c114c3e3457e09d256397802277a2e4d1519ab9f8c08d24cd591000000800001012b20a1070000000000220020a948d7fa6abbb97e31779ae54383012b413d53821c7fd394900f6b443c61deee22020307a3c41d07ed976d65e213e823d02840937475e709b41253e85e970e3cb1667447304402202f7be5fad398f1a3576293339f2274d227af17798690aa1ad00ff83d96725cc5022000cb2e9fff5be23a862718c665a5035f172783e9b3158eae83673f6c59adc3c001010569522102a9dcb570e8280c741f09032c158095b7aa3b0ce401ada030f2d47b999f020606210307a3c41d07ed976d65e213e823d02840937475e709b41253e85e970e3cb166742103521b0a45e042f08ccd03af47fd88bb207b5414e0e30bb8799fca311a06323a1953ae22060307a3c41d07ed976d65e213e823d02840937475e709b41253e85e970e3cb1667410d24cd591000000800000000001000000220603521b0a45e042f08ccd03af47fd88bb207b5414e0e30bb8799fca311a06323a1910d24cd591010000800000000001000000220602a9dcb570e8280c741f09032c158095b7aa3b0ce401ada030f2d47b999f0206060c4bf212090000000001000000000001016952210205829f9522577122ca9ca9beb67f94cf2fe0ad0d17e052a110701cf4128d339c21022cca282cfdd9cc1f387d3098661d68bc9c8a39ac6bd72c30db579a7857d0859b2102d90e3c8973844b9cc0b38494c48515a319eec3ac2489f96f6f55e6aa6912a60853ae220202d90e3c8973844b9cc0b38494c48515a319eec3ac2489f96f6f55e6aa6912a60810d24cd5910000008001000000000000002202022cca282cfdd9cc1f387d3098661d68bc9c8a39ac6bd72c30db579a7857d0859b10d24cd59101000080010000000000000022020205829f9522577122ca9ca9beb67f94cf2fe0ad0d17e052a110701cf4128d339c0c4bf2120901000000000000000000')
+        tx.add_info_from_wallet(wallet)
+        raw_tx = serialize_tx_in_legacy_format(tx, wallet=wallet)
+        self.assertEqual('45505446ff000200000000010187c4646ca690b397e357b23b2137030691a90a068a6690834d340b4be84acd6a0100000000fdffffff03a0860100000000001600148bc9d947e4d0addc2f4c34b8371034eb47b3d305140c030000000000220020a6087c4f84a55dc39014729a18e08955139d4384559d1fd2a48a1d95d746a425400d0300000000001976a914c13fd6294d1be7b9410a5538f4b4ef10fc594ee788acfeffffffff20a10700000000000000050001ff47304402202f7be5fad398f1a3576293339f2274d227af17798690aa1ad00ff83d96725cc5022000cb2e9fff5be23a862718c665a5035f172783e9b3158eae83673f6c59adc3c00101fffd0201524c53ff02575483000000000000000000d644dcdd7a4acb432355e010ac4a5f955940c82a9767731b7d89dc42eb3cdac40272faa2f98b76cc9d655ef281c07acda75c30a990dc3a527b6cf92a8f5a6b8a80000001004c53ff0257548301d24cd59180000000b60a85089ad0850a6ffe8590a3e15064e63eefd020813df2e4a6b3209ce3df5f02c8b14f2917d557cd482970c114c3e3457e09d256397802277a2e4d1519ab9f8c000001004c53ff0257548301d24cd5918000000199c4d6c893fa1addec6b0121181137e25c38194333b8c57215b3cf1e6d7e7af102a23ddae698bb6095b8b8035bdd1e94479f66c29679d81931e0fe07aa436149ee0000010053ae132b1800',
+                         raw_tx)

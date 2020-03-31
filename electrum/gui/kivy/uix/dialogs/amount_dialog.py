@@ -22,7 +22,7 @@ Builder.load_string('''
                 Button:
                     background_color: 0, 0, 0, 0
                     id: btc
-                    text: kb.amount + ' ' + app.base_unit
+                    text: kb.amount
                     color: (0.7, 0.7, 1, 1) if kb.is_fiat else (1, 1, 1, 1)
                     halign: 'right'
                     size_hint: 1, None
@@ -120,6 +120,8 @@ from kivy.properties import BooleanProperty
 
 class AmountDialog(Factory.Popup):
     show_max = BooleanProperty(False)
+    app = App.get_running_app()
+
     def __init__(self, show_max, amount, cb):
         Factory.Popup.__init__(self)
         self.show_max = show_max
@@ -129,8 +131,8 @@ class AmountDialog(Factory.Popup):
 
     def update_amount(self, c):
         kb = self.ids.kb
-        amount = kb.fiat_amount if kb.is_fiat else kb.amount
-        if c == '<':
+        amount = kb.fiat_amount if kb.is_fiat else kb.amount  # type: str
+        if c == '<':  # delete
             amount = amount[:-1]
         elif c == '.' and amount in ['0', '']:
             amount = '0.'
@@ -142,6 +144,11 @@ class AmountDialog(Factory.Popup):
                 amount += c
             except:
                 pass
+            # truncate btc amounts to max precision:
+            if not kb.is_fiat and '.' in amount:
+                p = amount.find('.')
+                amount = amount.replace('.', '')
+                amount = amount[:p] + '.' + amount[p:p + self.app.decimal_point()]
         if kb.is_fiat:
             kb.fiat_amount = amount
         else:

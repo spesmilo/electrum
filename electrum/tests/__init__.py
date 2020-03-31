@@ -1,5 +1,7 @@
 import unittest
 import threading
+import tempfile
+import shutil
 
 from electrum import constants
 
@@ -11,7 +13,7 @@ from electrum import constants
 FAST_TESTS = False
 
 
-# some unit tests are modifying globals; sorry.
+# some unit tests are modifying globals...
 class SequentialTestCase(unittest.TestCase):
 
     test_lock = threading.Lock()
@@ -25,7 +27,19 @@ class SequentialTestCase(unittest.TestCase):
         self.test_lock.release()
 
 
-class TestCaseForTestnet(SequentialTestCase):
+class ElectrumTestCase(SequentialTestCase):
+    """Base class for our unit tests."""
+
+    def setUp(self):
+        super().setUpClass()
+        self.electrum_path = tempfile.mkdtemp()
+
+    def tearDown(self):
+        super().tearDownClass()
+        shutil.rmtree(self.electrum_path)
+
+
+class TestCaseForTestnet(ElectrumTestCase):
 
     @classmethod
     def setUpClass(cls):

@@ -1,0 +1,73 @@
+#:import _ electrum.gui.kivy.i18n._
+#:import Factory kivy.factory.Factory
+#:set font_light 'electrum/gui/kivy/data/fonts/Roboto-Condensed.ttf'
+#:set btc_symbol chr(171)
+#:set mbtc_symbol chr(187)
+
+
+<AssetHistoryItem@CardItem>
+    icon: 'atlas://electrum/gui/kivy/theming/light/important'
+    message: ''
+    is_mine: True
+    amount: '--'
+    amount_color: '#FF6657' if self.is_mine else '#2EA442'
+    asset: ''
+    address: ''
+    transfer_type: ''
+    symbol: ''
+    date: ''
+    amount_str: self.amount
+    Image:
+        id: icon
+        source: root.icon
+        size_hint: None, 1
+        allow_stretch: True
+        width: self.height*1.5
+        mipmap: True
+    BoxLayout:
+        spacing: '8dp'
+        height: '32dp'
+        orientation: 'vertical'
+        Widget
+        CardLabel:
+            color: 0.95, 0.95, 0.95, 1
+            text: root.message
+            shorten: True
+            shorten_from: 'right'
+            font_size: '15sp'
+        Widget
+        CardLabel:
+            font_size: '12sp'
+            shorten: True
+            text: root.date
+        Widget
+    BoxLayout:
+        spacing: '8dp'
+        height: '32dp'
+        orientation: 'vertical'
+        Widget
+        CardLabel:
+            text: u'[color={color}]{s}[/color]'.format(s=root.amount_str, color=root.amount_color) + ' ' + '[size=12sp]' + root.symbol + '[/size]'
+            halign: 'right'
+            font_size: '15sp'
+        Widget
+
+<AssetHistoryRecycleView>:
+    viewclass: 'AssetHistoryItem'
+    RecycleBoxLayout:
+        default_size: None, dp(56)
+        default_size_hint: 1, None
+        size_hint: 1, None
+        height: self.minimum_height
+        orientation: 'vertical'
+
+
+<AssetHistoryScreen>:
+    name: 'assethistory'
+    content: assethistory_container
+    BoxLayout:
+        orientation: 'vertical'
+        AssetHistoryRecycleView:
+            id: assethistory_container
+            scroll_type: ['bars', 'content']
+            bar_width: '25dp'

@@ -2,13 +2,11 @@ import dns
 
 from electrum import dnssec
 
-from . import SequentialTestCase
-from .test_bitcoin import needs_test_with_all_ecc_implementations
+from . import ElectrumTestCase
 
 
-class TestDnsSec(SequentialTestCase):
+class TestDnsSec(ElectrumTestCase):
 
-    @needs_test_with_all_ecc_implementations
     def test_python_validate_rrsig_ecdsa(self):
         rrset = dns.rrset.from_text("getmonero.org.", 3599, 1, 48,
                                     "257 3 13 mdsswUyr3DPW132mOi8V9xESWE8jTo0d xCjjnopKl+GqJxpVXckHAeF+KkxLbxIL fDLUT0rAK9iUzy1L53eKGQ==",

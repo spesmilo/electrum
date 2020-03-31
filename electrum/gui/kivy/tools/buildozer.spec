@@ -1,13 +1,13 @@
 [app]
 
 # (str) Title of your application
-title = Electrum
+title = ElectrumSys
 
 # (str) Package name
-package.name = Electrum
+package.name = ElectrumSys
 
 # (str) Package domain (needed for android/ios packaging)
-package.domain = org.electrum
+package.domain = org.electrumsys
 
 # (str) Source code where the main.py live
 source.dir = .
@@ -23,7 +23,9 @@ source.exclude_dirs = bin, build, dist, contrib,
     electrum/tests,
     electrum/gui/qt,
     electrum/gui/kivy/tools,
-    electrum/gui/kivy/theming/light
+    electrum/gui/kivy/theming/light,
+    # exclude pycryptodomex built by make_packages; android needs custom version
+    packages/cryptodome
 # (list) List of exclusions using pattern matching
 source.exclude_patterns = Makefile,setup*
 
@@ -40,9 +42,11 @@ requirements =
     android,
     openssl,
     plyer,
-    kivy==82d561d62577757d478df52173610f925c05ecab,
+    # kivy 1.11.1
+    kivy==39c17457bae91baf8fe710dc989791e45879f136,
     libffi,
-    libsecp256k1
+    libsecp256k1,
+    pycryptodomex==bfc1cca093a7344c9ed2b7c34bc560db6dca662a
 
 # (str) Presplash of the application
 #presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png
@@ -63,7 +67,7 @@ fullscreen = False
 #
 
 # (list) Permissions
-android.permissions = INTERNET, CAMERA
+android.permissions = INTERNET, CAMERA, WRITE_EXTERNAL_STORAGE
 
 # (int) Android API to use
 android.api = 28
@@ -72,7 +76,7 @@ android.api = 28
 android.minapi = 21
 
 # (str) Android NDK version to use
-android.ndk = 17c
+android.ndk = 19b
 
 # (int) Android NDK API to use (optional). This is the minimum API your app will support.
 android.ndk_api = 21
@@ -85,6 +89,9 @@ android.ndk_path = /opt/android/android-ndk
 
 # (str) Android SDK directory (if empty, it will be automatically downloaded.)
 android.sdk_path = /opt/android/android-sdk
+
+# (str) ANT directory (if empty, it will be automatically downloaded.)
+android.ant_path = /opt/android/apache-ant
 
 # (str) Android entry point, default is ok for Kivy-based app
 #android.entrypoint = org.renpy.android.PythonActivity
@@ -102,7 +109,7 @@ android.add_src = electrum/gui/kivy/data/java-classes/
 
 android.gradle_dependencies = me.dm7.barcodescanner:zxing:1.9.8
 
-android.add_activities = org.electrum.qr.SimpleScannerActivity
+android.add_activities = org.electrumsys.qr.SimpleScannerActivity
 
 # (str) python-for-android branch to use, if not master, useful to try
 # not yet merged features.
@@ -128,6 +135,10 @@ android.manifest.launch_mode = singleTask
 # Don't forget to add the WAKE_LOCK permission if you set this to True
 #android.wakelock = False
 
+# (str) The Android arch to build for, choices: armeabi-v7a, arm64-v8a, x86, x86_64
+# note: can be overwritten by APP_ANDROID_ARCH env var
+android.arch = armeabi-v7a
+
 # (list) Android application meta-data to set (key=value format)
 #android.meta_data =
 
@@ -137,8 +148,26 @@ android.manifest.launch_mode = singleTask
 
 android.whitelist = lib-dynload/_csv.so
 
-# local version that merges branch 866
+
+#
+# Python for android (p4a) specific
+#
+
+# (str) python-for-android git clone directory (if empty, it will be automatically cloned from github)
 p4a.source_dir = /opt/python-for-android
+
+# (str) The directory in which python-for-android should look for your own build recipes (if any)
+#p4a.local_recipes =
+
+# (str) Filename to the hook for p4a
+#p4a.hook =
+
+# (str) Bootstrap to use for android builds
+# p4a.bootstrap = sdl2
+
+# (int) port number to specify an explicit --port= p4a argument (eg for bootstrap flask)
+#p4a.port =
+
 
 #
 # iOS specific

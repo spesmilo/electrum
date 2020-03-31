@@ -3,5 +3,5 @@
   <action android:name="android.nfc.action.NDEF_DISCOVERED"/>
   <category android:name="android.intent.category.DEFAULT" />
   <category android:name="android.intent.category.BROWSABLE" />
-  <data android:scheme="bitcoin" />
+  <data android:scheme="syscoin" />
 </intent-filter>

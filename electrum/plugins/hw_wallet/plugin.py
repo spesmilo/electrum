@@ -24,19 +24,25 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from electrum.plugin import BasePlugin, hook
+from typing import TYPE_CHECKING, Dict, List, Union, Tuple, Sequence, Optional, Type
+
+from electrum.plugin import BasePlugin, hook, Device, DeviceMgr, DeviceInfo
 from electrum.i18n import _
-from electrum.bitcoin import is_address, TYPE_SCRIPT, opcodes
+from electrum.bitcoin import is_address, opcodes
 from electrum.util import bfh, versiontuple, UserFacingException
-from electrum.transaction import TxOutput, Transaction
+from electrum.transaction import TxOutput, Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
+from electrum.bip32 import BIP32Node
+from electrum.storage import get_derivation_used_for_hw_device_encryption
+from electrum.keystore import Xpub, Hardware_KeyStore
+
+if TYPE_CHECKING:
+    from electrum.wallet import Abstract_Wallet
+    from electrum.base_wizard import BaseWizard
 
 
 class HW_PluginBase(BasePlugin):
-    # Derived classes provide:
-    #
-    #  class-static variables: client_class, firmware_URL, handler_class,
-    #     libraries_available, libraries_URL, minimum_firmware,
-    #     wallet_class, ckd_public, types, HidTransport
+    keystore_class: Type['Hardware_KeyStore']
+    libraries_available: bool
 
     minimum_library = (0, )
 
@@ -49,30 +55,33 @@ class HW_PluginBase(BasePlugin):
     def is_enabled(self):
         return True
 
-    def device_manager(self):
+    def device_manager(self) -> 'DeviceMgr':
         return self.parent.device_manager
 
     @hook
-    def close_wallet(self, wallet):
+    def close_wallet(self, wallet: 'Abstract_Wallet'):
         for keystore in wallet.get_keystores():
             if isinstance(keystore, self.keystore_class):
                 self.device_manager().unpair_xpub(keystore.xpub)
 
-    def setup_device(self, device_info, wizard, purpose):
+    def setup_device(self, device_info: DeviceInfo, wizard: 'BaseWizard', purpose):
         """Called when creating a new wallet or when using the device to decrypt
         an existing wallet. Select the device to use.  If the device is
         uninitialized, go through the initialization process.
         """
         raise NotImplementedError()
 
-    def show_address(self, wallet, address, keystore=None):
+    def get_client(self, keystore: 'Hardware_KeyStore', force_pair: bool = True) -> Optional['HardwareClientBase']:
+        raise NotImplementedError()
+
+    def show_address(self, wallet: 'Abstract_Wallet', address, keystore: 'Hardware_KeyStore' = None):
         pass  # implemented in child classes
 
     def show_address_helper(self, wallet, address, keystore=None):
         if keystore is None:
             keystore = wallet.get_keystore()
         if not is_address(address):
-            keystore.handler.show_error(_('Invalid Bitcoin Address'))
+            keystore.handler.show_error(_('invalid syscoin address'))
             return False
         if not wallet.is_mine(address):
             keystore.handler.show_error(_('Address not in wallet.'))
@@ -131,34 +140,167 @@ class HW_PluginBase(BasePlugin):
     def is_outdated_fw_ignored(self) -> bool:
         return self._ignore_outdated_fw
 
+    def create_client(self, device: 'Device',
+                      handler: Optional['HardwareHandlerBase']) -> Optional['HardwareClientBase']:
+        raise NotImplementedError()
 
-def is_any_tx_output_on_change_branch(tx: Transaction):
-    if not tx.output_info:
-        return False
-    for o in tx.outputs():
-        info = tx.output_info.get(o.address)
-        if info is not None:
-            if info.address_index[0] == 1:
-                return True
-    return False
+    def get_xpub(self, device_id, derivation: str, xtype, wizard: 'BaseWizard') -> str:
+        raise NotImplementedError()
+
+    def create_handler(self, window) -> 'HardwareHandlerBase':
+        # note: in Qt GUI, 'window' is either an ElectrumWindow or an InstallWizard
+        raise NotImplementedError()
+
+
+class HardwareClientBase:
+
+    plugin: 'HW_PluginBase'
+    handler: Optional['HardwareHandlerBase']
+
+    def is_pairable(self) -> bool:
+        raise NotImplementedError()
+
+    def close(self):
+        raise NotImplementedError()
+
+    def timeout(self, cutoff) -> None:
+        pass
+
+    def is_initialized(self) -> bool:
+        """True if initialized, False if wiped."""
+        raise NotImplementedError()
+
+    def label(self) -> Optional[str]:
+        """The name given by the user to the device.
+
+        Note: labels are shown to the user to help distinguish their devices,
+        and they are also used as a fallback to distinguish devices programmatically.
+        So ideally, different devices would have different labels.
+        """
+        raise NotImplementedError()
+
+    def has_usable_connection_with_device(self) -> bool:
+        raise NotImplementedError()
+
+    def get_xpub(self, bip32_path: str, xtype) -> str:
+        raise NotImplementedError()
+
+    def request_root_fingerprint_from_device(self) -> str:
+        # digitalbitbox (at least) does not reveal xpubs corresponding to unhardened paths
+        # so ask for a direct child, and read out fingerprint from that:
+        child_of_root_xpub = self.get_xpub("m/0'", xtype='standard')
+        root_fingerprint = BIP32Node.from_xkey(child_of_root_xpub).fingerprint.hex().lower()
+        return root_fingerprint
+
+    def get_password_for_storage_encryption(self) -> str:
+        # note: using a different password based on hw device type is highly undesirable! see #5993
+        derivation = get_derivation_used_for_hw_device_encryption()
+        xpub = self.get_xpub(derivation, "standard")
+        password = Xpub.get_pubkey_from_xpub(xpub, ()).hex()
+        return password
+
+
+class HardwareHandlerBase:
+    """An interface between the GUI and the device handling logic for handling I/O."""
+    win = None
+    device: str
+
+    def get_wallet(self) -> Optional['Abstract_Wallet']:
+        if self.win is not None:
+            if hasattr(self.win, 'wallet'):
+                return self.win.wallet
+
+    def update_status(self, paired: bool) -> None:
+        pass
+
+    def query_choice(self, msg: str, labels: Sequence[str]) -> Optional[int]:
+        raise NotImplementedError()
+
+    def yes_no_question(self, msg: str) -> bool:
+        raise NotImplementedError()
+
+    def show_message(self, msg: str, on_cancel=None) -> None:
+        raise NotImplementedError()
+
+    def show_error(self, msg: str, blocking: bool = False) -> None:
+        raise NotImplementedError()
+
+    def finished(self) -> None:
+        pass
+
+    def get_word(self, msg: str) -> str:
+        raise NotImplementedError()
+
+    def get_passphrase(self, msg: str, confirm: bool) -> Optional[str]:
+        raise NotImplementedError()
+
+
+def is_any_tx_output_on_change_branch(tx: PartialTransaction) -> bool:
+    return any([txout.is_change for txout in tx.outputs()])
 
 
 def trezor_validate_op_return_output_and_get_data(output: TxOutput) -> bytes:
-    if output.type != TYPE_SCRIPT:
-        raise Exception("Unexpected output type: {}".format(output.type))
-    script = bfh(output.address)
+    validate_op_return_output(output)
+    script = output.scriptpubkey
     if not (script[0] == opcodes.OP_RETURN and
             script[1] == len(script) - 2 and script[1] <= 75):
         raise UserFacingException(_("Only OP_RETURN scripts, with one constant push, are supported."))
+    return script[2:]
+
+
+def validate_op_return_output(output: TxOutput, *, max_size: int = None) -> None:
+    script = output.scriptpubkey
+    if script[0] != opcodes.OP_RETURN:
+        raise UserFacingException(_("Only OP_RETURN scripts are supported."))
+    if max_size is not None and len(script) > max_size:
+        raise UserFacingException(_("OP_RETURN payload too large." + "\n"
+                                  + f"(scriptpubkey size {len(script)} > {max_size})"))
     if output.value != 0:
         raise UserFacingException(_("Amount for OP_RETURN output must be zero."))
-    return script[2:]
+
+
+def get_xpubs_and_der_suffixes_from_txinout(tx: PartialTransaction,
+                                            txinout: Union[PartialTxInput, PartialTxOutput]) \
+        -> List[Tuple[str, List[int]]]:
+    xfp_to_xpub_map = {xfp: bip32node for bip32node, (xfp, path)
+                       in tx.xpubs.items()}  # type: Dict[bytes, BIP32Node]
+    xfps = [txinout.bip32_paths[pubkey][0] for pubkey in txinout.pubkeys]
+    try:
+        xpubs = [xfp_to_xpub_map[xfp] for xfp in xfps]
+    except KeyError as e:
+        raise Exception(f"Partial transaction is missing global xpub for "
+                        f"fingerprint ({str(e)}) in input/output") from e
+    xpubs_and_deriv_suffixes = []
+    for bip32node, pubkey in zip(xpubs, txinout.pubkeys):
+        xfp, path = txinout.bip32_paths[pubkey]
+        der_suffix = list(path)[bip32node.depth:]
+        xpubs_and_deriv_suffixes.append((bip32node.to_xpub(), der_suffix))
+    return xpubs_and_deriv_suffixes
+
+
+def get_xpubs_and_der_suffixes_from_txinout(tx: PartialTransaction,
+                                            txinout: Union[PartialTxInput, PartialTxOutput]) \
+        -> List[Tuple[str, List[int]]]:
+    xfp_to_xpub_map = {xfp: bip32node for bip32node, (xfp, path)
+                       in tx.xpubs.items()}  # type: Dict[bytes, BIP32Node]
+    xfps = [txinout.bip32_paths[pubkey][0] for pubkey in txinout.pubkeys]
+    try:
+        xpubs = [xfp_to_xpub_map[xfp] for xfp in xfps]
+    except KeyError as e:
+        raise Exception(f"Partial transaction is missing global xpub for "
+                        f"fingerprint ({str(e)}) in input/output") from e
+    xpubs_and_deriv_suffixes = []
+    for bip32node, pubkey in zip(xpubs, txinout.pubkeys):
+        xfp, path = txinout.bip32_paths[pubkey]
+        der_suffix = list(path)[bip32node.depth:]
+        xpubs_and_deriv_suffixes.append((bip32node.to_xpub(), der_suffix))
+    return xpubs_and_deriv_suffixes
 
 
 def only_hook_if_libraries_available(func):
     # note: this decorator must wrap @hook, not the other way around,
     # as 'hook' uses the name of the function it wraps
-    def wrapper(self, *args, **kwargs):
+    def wrapper(self: 'HW_PluginBase', *args, **kwargs):
         if not self.libraries_available: return None
         return func(self, *args, **kwargs)
     return wrapper

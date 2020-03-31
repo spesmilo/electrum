@@ -81,7 +81,7 @@ class Processor(threading.Thread, Logger):
                 p = [p]
                 continue
             for item in p:
-                if item.get_content_type() == "application/bitcoin-paymentrequest":
+                if item.get_content_type() == "application/syscoin-paymentrequest":
                     pr_str = item.get_payload()
                     pr_str = base64.b64decode(pr_str)
                     self.on_receive(pr_str)
@@ -111,7 +111,7 @@ class Processor(threading.Thread, Logger):
         msg['Subject'] = message
         msg['To'] = recipient
         msg['From'] = self.username
-        part = MIMEBase('application', "bitcoin-paymentrequest")
+        part = MIMEBase('application', "syscoin-paymentrequest")
         part.set_payload(payment_request)
         encode_base64(part)
         part.add_header('Content-Disposition', 'attachment; filename="payreq.btc"')
@@ -196,7 +196,7 @@ class Plugin(BasePlugin):
             self.processor.send(recipient, message, payload)
         except BaseException as e:
             self.logger.exception('')
-            window.show_message(str(e))
+            window.show_message(repr(e))
         else:
             window.show_message(_('Request sent.'))
 
@@ -269,4 +269,4 @@ class CheckConnectionThread(QThread):
             conn = imaplib.IMAP4_SSL(self.server)
             conn.login(self.username, self.password)
         except BaseException as e:
-            self.connection_error_signal.emit(str(e))
+            self.connection_error_signal.emit(repr(e))

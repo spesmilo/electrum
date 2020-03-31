@@ -2,8 +2,15 @@
 import re
 import os
 import sys
+import importlib
 
-from electrum.version import ELECTRUM_VERSION, APK_VERSION
+# load version.py; needlessly complicated alternative to "imp.load_source":
+version_spec = importlib.util.spec_from_file_location('version', 'electrum/version.py')
+version_module = importlib.util.module_from_spec(version_spec)
+version_spec.loader.exec_module(version_module)
+
+ELECTRUM_VERSION = version_module.ELECTRUM_VERSION
+APK_VERSION = version_module.APK_VERSION
 print("version", ELECTRUM_VERSION)
 
 dirname = sys.argv[1]
@@ -34,7 +41,7 @@ files = {
 
 for k, n in files.items():
     path = "dist/%s"%n
-    link = "https://download.electrum.org/%s/%s"%(version,n)
+    link = "https://download-electrum.syscoin.org/%s/%s"%(version,n)
     if not os.path.exists(path):
         os.system("wget -q %s -O %s" % (link, path))
     if not os.path.getsize(path):

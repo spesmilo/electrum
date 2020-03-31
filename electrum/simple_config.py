@@ -3,6 +3,7 @@ import threading
 import time
 import os
 import stat
+import ssl
 from decimal import Decimal
 from typing import Union, Optional
 from numbers import Real
@@ -10,36 +11,16 @@ from numbers import Real
 from copy import deepcopy
 
 from . import util
+from . import constants
 from .util import (user_dir, make_dir,
                    NoDynamicFeeEstimates, format_fee_satoshis, quantize_feerate)
 from .i18n import _
 from .logging import get_logger, Logger
 
 
-FEE_ETA_TARGETS = [25, 10, 5, 2]
-FEE_DEPTH_TARGETS = [10000000, 5000000, 2000000, 1000000, 500000, 200000, 100000]
-
-# satoshi per kbyte
-FEERATE_MAX_DYNAMIC = 1500000
-FEERATE_WARNING_HIGH_FEE = 600000
-FEERATE_FALLBACK_STATIC_FEE = 150000
-FEERATE_DEFAULT_RELAY = 1000
-FEERATE_STATIC_VALUES = [1000, 2000, 5000, 10000, 20000, 30000,
-                         50000, 70000, 100000, 150000, 200000, 300000]
 
 
-config = None
 _logger = get_logger(__name__)
-
-
-def get_config():
-    global config
-    return config
-
-
-def set_config(c):
-    global config
-    config = c
 
 
 FINAL_CONFIG_VERSION = 3
@@ -58,7 +39,6 @@ class SimpleConfig(Logger):
 
     def __init__(self, options=None, read_user_config_function=None,
                  read_user_dir_function=None):
-
         if options is None:
             options = {}
 
@@ -102,9 +82,6 @@ class SimpleConfig(Logger):
         # config upgrade - user config
         if self.requires_upgrade():
             self.upgrade()
-
-        # Make a singleton instance of 'self'
-        set_config(self)
 
     def electrum_path(self):
         # Read electrum_path from command line
@@ -235,6 +212,8 @@ class SimpleConfig(Logger):
         return key not in self.cmdline_options
 
     def save_user_config(self):
+        if self.get('forget_config'):
+            return
         if not self.path:
             return
         path = os.path.join(self.path, "config")
@@ -248,17 +227,17 @@ class SimpleConfig(Logger):
             if os.path.exists(self.path):  # or maybe not?
                 raise
 
-    def get_wallet_path(self):
+    def get_wallet_path(self, *, use_gui_last_wallet=False):
         """Set the path of the wallet."""
 
         # command line -w option
         if self.get('wallet_path'):
             return os.path.join(self.get('cwd', ''), self.get('wallet_path'))
 
-        # path in config file
-        path = self.get('default_wallet_path')
-        if path and os.path.exists(path):
-            return path
+        if use_gui_last_wallet:
+            path = self.get('gui_last_wallet')
+            if path and os.path.exists(path):
+                return path
 
         # default path
         util.assert_datadir_available(self.path)
@@ -287,12 +266,6 @@ class SimpleConfig(Logger):
     def get_session_timeout(self):
         return self.get('session_timeout', 300)
 
-    def open_last_wallet(self):
-        if self.get('wallet_path') is None:
-            last_wallet = self.get('gui_last_wallet')
-            if last_wallet is not None and os.path.exists(last_wallet):
-                self.cmdline_options['default_wallet_path'] = last_wallet
-
     def save_last_wallet(self, wallet):
         if self.get('wallet_path') is None:
             path = wallet.storage.path
@@ -303,17 +276,17 @@ class SimpleConfig(Logger):
             fee = func(self, *args, **kwargs)
             if fee is None:
                 return fee
-            fee = min(FEERATE_MAX_DYNAMIC, fee)
-            fee = max(FEERATE_DEFAULT_RELAY, fee)
+            fee = min(constants.net.FEERATE_MAX_DYNAMIC, fee)
+            fee = max(constants.net.FEERATE_DEFAULT_RELAY, fee)
             return fee
         return get_fee_within_limits
 
     def eta_to_fee(self, slider_pos) -> Optional[int]:
         """Returns fee in sat/kbyte."""
         slider_pos = max(slider_pos, 0)
-        slider_pos = min(slider_pos, len(FEE_ETA_TARGETS))
-        if slider_pos < len(FEE_ETA_TARGETS):
-            num_blocks = FEE_ETA_TARGETS[slider_pos]
+        slider_pos = min(slider_pos, len(constants.net.FEE_ETA_TARGETS))
+        if slider_pos < len(constants.net.FEE_ETA_TARGETS):
+            num_blocks = constants.net.FEE_ETA_TARGETS[slider_pos]
             fee = self.eta_target_to_fee(num_blocks)
         else:
             fee = self.eta_target_to_fee(1)
@@ -368,13 +341,13 @@ class SimpleConfig(Logger):
 
     def depth_target(self, slider_pos):
         slider_pos = max(slider_pos, 0)
-        slider_pos = min(slider_pos, len(FEE_DEPTH_TARGETS)-1)
-        return FEE_DEPTH_TARGETS[slider_pos]
+        slider_pos = min(slider_pos, len(constants.net.FEE_DEPTH_TARGETS)-1)
+        return constants.net.FEE_DEPTH_TARGETS[slider_pos]
 
     def eta_target(self, i):
-        if i == len(FEE_ETA_TARGETS):
+        if i == len(constants.net.FEE_ETA_TARGETS):
             return 1
-        return FEE_ETA_TARGETS[i]
+        return constants.net.FEE_ETA_TARGETS[i]
 
     def fee_to_eta(self, fee_per_kb):
         import operator
@@ -438,36 +411,36 @@ class SimpleConfig(Logger):
         return text, tooltip
 
     def get_depth_level(self):
-        maxp = len(FEE_DEPTH_TARGETS) - 1
+        maxp = len(constants.net.FEE_DEPTH_TARGETS) - 1
         return min(maxp, self.get('depth_level', 2))
 
     def get_fee_level(self):
-        maxp = len(FEE_ETA_TARGETS)  # not (-1) to have "next block"
+        maxp = len(constants.net.FEE_ETA_TARGETS)  # not (-1) to have "next block"
         return min(maxp, self.get('fee_level', 2))
 
     def get_fee_slider(self, dyn, mempool):
         if dyn:
             if mempool:
                 pos = self.get_depth_level()
-                maxp = len(FEE_DEPTH_TARGETS) - 1
+                maxp = len(constants.net.FEE_DEPTH_TARGETS) - 1
                 fee_rate = self.depth_to_fee(pos)
             else:
                 pos = self.get_fee_level()
-                maxp = len(FEE_ETA_TARGETS)  # not (-1) to have "next block"
+                maxp = len(constants.net.FEE_ETA_TARGETS)  # not (-1) to have "next block"
                 fee_rate = self.eta_to_fee(pos)
         else:
             fee_rate = self.fee_per_kb(dyn=False)
             pos = self.static_fee_index(fee_rate)
-            maxp = len(FEERATE_STATIC_VALUES) - 1
+            maxp = len(constants.net.FEERATE_STATIC_VALUES) - 1
         return maxp, pos, fee_rate
 
     def static_fee(self, i):
-        return FEERATE_STATIC_VALUES[i]
+        return constants.net.FEERATE_STATIC_VALUES[i]
 
     def static_fee_index(self, value):
         if value is None:
             raise TypeError('static fee cannot be None')
-        dist = list(map(lambda x: abs(x - value), FEERATE_STATIC_VALUES))
+        dist = list(map(lambda x: abs(x - value), constants.net.FEERATE_STATIC_VALUES))
         return min(range(len(dist)), key=dist.__getitem__)
 
     def has_fee_etas(self):
@@ -493,13 +466,13 @@ class SimpleConfig(Logger):
         fee_level = max(fee_level, 0)
         fee_level = min(fee_level, 1)
         if dyn:
-            max_pos = (len(FEE_DEPTH_TARGETS) - 1) if mempool else len(FEE_ETA_TARGETS)
+            max_pos = (len(constants.net.FEE_DEPTH_TARGETS) - 1) if mempool else len(constants.net.FEE_ETA_TARGETS)
             slider_pos = round(fee_level * max_pos)
             fee_rate = self.depth_to_fee(slider_pos) if mempool else self.eta_to_fee(slider_pos)
         else:
-            max_pos = len(FEERATE_STATIC_VALUES) - 1
+            max_pos = len(constants.net.FEERATE_STATIC_VALUES) - 1
             slider_pos = round(fee_level * max_pos)
-            fee_rate = FEERATE_STATIC_VALUES[slider_pos]
+            fee_rate = constants.net.FEERATE_STATIC_VALUES[slider_pos]
         return fee_rate
 
     def fee_per_kb(self, dyn: bool=None, mempool: bool=None, fee_level: float=None) -> Union[int, None]:
@@ -508,6 +481,8 @@ class SimpleConfig(Logger):
 
         fee_level: float between 0.0 and 1.0, representing fee slider position
         """
+        if constants.net is constants.BitcoinRegtest:
+            return constants.net.FEERATE_REGTEST_HARDCODED
         if dyn is None:
             dyn = self.is_dynfee()
         if mempool is None:
@@ -523,7 +498,7 @@ class SimpleConfig(Logger):
             else:
                 fee_rate = self.eta_to_fee(self.get_fee_level())
         else:
-            fee_rate = self.get('fee_per_kb', FEERATE_FALLBACK_STATIC_FEE)
+            fee_rate = self.get('fee_per_kb', constants.net.FEERATE_FALLBACK_STATIC_FEE)
         return fee_rate
 
     def fee_per_byte(self):
@@ -533,14 +508,20 @@ class SimpleConfig(Logger):
         fee_per_kb = self.fee_per_kb()
         return fee_per_kb / 1000 if fee_per_kb is not None else None
 
-    def estimate_fee(self, size):
+    def estimate_fee(self, size: Union[int, float, Decimal], *,
+                     allow_fallback_to_static_rates: bool = False) -> int:
         fee_per_kb = self.fee_per_kb()
         if fee_per_kb is None:
-            raise NoDynamicFeeEstimates()
+            if allow_fallback_to_static_rates:
+                fee_per_kb = constants.net.FEERATE_FALLBACK_STATIC_FEE
+            else:
+                raise NoDynamicFeeEstimates()
         return self.estimate_fee_for_feerate(fee_per_kb, size)
 
     @classmethod
-    def estimate_fee_for_feerate(cls, fee_per_kb, size):
+    def estimate_fee_for_feerate(cls, fee_per_kb: Union[int, float, Decimal],
+                                 size: Union[int, float, Decimal]) -> int:
+        size = Decimal(size)
         fee_per_kb = Decimal(fee_per_kb)
         fee_per_byte = fee_per_kb / 1000
         # to be consistent with what is displayed in the GUI,
@@ -567,6 +548,14 @@ class SimpleConfig(Logger):
         if device == 'default':
             device = ''
         return device
+
+    def get_ssl_context(self):
+        ssl_keyfile = self.get('ssl_keyfile')
+        ssl_certfile = self.get('ssl_certfile')
+        if ssl_keyfile and ssl_certfile:
+            ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+            ssl_context.load_cert_chain(ssl_certfile, ssl_keyfile)
+            return ssl_context
 
 
 def read_user_config(path):

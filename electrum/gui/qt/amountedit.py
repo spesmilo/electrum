@@ -1,16 +1,18 @@
 # -*- coding: utf-8 -*-
 
 from decimal import Decimal
+from typing import Union
 
 from PyQt5.QtCore import pyqtSignal, Qt
 from PyQt5.QtGui import QPalette, QPainter
 from PyQt5.QtWidgets import (QLineEdit, QStyle, QStyleOptionFrame)
 
+from .util import char_width_in_lineedit
+
 from electrum.util import (format_satoshis_plain, decimal_point_to_base_unit_name,
                            FEERATE_PRECISION, quantize_feerate)
-
-
-class MyLineEdit(QLineEdit):
+         
+class FreezableLineEdit(QLineEdit):
     frozen = pyqtSignal()
 
     def setFrozen(self, b):
@@ -18,25 +20,23 @@ class MyLineEdit(QLineEdit):
         self.setFrame(not b)
         self.frozen.emit()
 
-class AmountEdit(MyLineEdit):
+class AmountEdit(FreezableLineEdit):
     shortcut = pyqtSignal()
-
     def __init__(self, base_unit, is_int=False, parent=None):
         QLineEdit.__init__(self, parent)
+
         # This seems sufficient for hundred-BTC amounts with 8 decimals
-        self.setFixedWidth(140)
+        self.setFixedWidth(24 * char_width_in_lineedit())
         self.base_unit = base_unit
         self.textChanged.connect(self.numbify)
         self.is_int = is_int
         self.is_shortcut = False
         self.help_palette = QPalette()
         self.extra_precision = 0
-
-    def decimal_point(self):
-        return 8
+        self.decimal_point = 8
 
     def max_precision(self):
-        return self.decimal_point() + self.extra_precision
+        return self.decimal_point + self.extra_precision
 
     def numbify(self):
         text = self.text().strip()
@@ -69,7 +69,7 @@ class AmountEdit(MyLineEdit):
             painter.setPen(self.help_palette.brush(QPalette.Disabled, QPalette.Text).color())
             painter.drawText(textRect, Qt.AlignRight | Qt.AlignVCenter, self.base_unit())
 
-    def get_amount(self):
+    def get_amount(self) -> Union[None, Decimal, int]:
         try:
             return (int if self.is_int else Decimal)(str(self.text()))
         except:
@@ -78,16 +78,32 @@ class AmountEdit(MyLineEdit):
     def setAmount(self, x):
         self.setText("%d"%x)
 
-
 class BTCAmountEdit(AmountEdit):
 
     def __init__(self, decimal_point, is_int=False, parent=None):
         AmountEdit.__init__(self, self._base_unit, is_int, parent)
+        self.token_symbol = "syscoin"
         self.decimal_point = decimal_point
 
     def _base_unit(self):
-        return decimal_point_to_base_unit_name(self.decimal_point())
+        if self.token_symbol is "syscoin":
+            return decimal_point_to_base_unit_name(self.decimal_point)
+        else:
+            return self.token_symbol
 
+    def setAssetMode(self, token, decimal_point):
+        self.token_symbol = token
+        self.decimal_point = decimal_point
+        self.setAmount(0)
+    
+    def setSyscoinMode(self, decimal_point):
+        self.token_symbol = "syscoin"
+        self.decimal_point = decimal_point
+        self.setAmount(0)
+
+    def getTokenSymbol(self):
+        return self.token_symbol
+    
     def get_amount(self):
         try:
             x = Decimal(str(self.text()))
@@ -97,58 +113,16 @@ class BTCAmountEdit(AmountEdit):
         power = pow(10, self.max_precision())
         max_prec_amount = int(power * x)
         # if the max precision is simply what unit conversion allows, just return
-        if self.max_precision() == self.decimal_point():
+        if self.max_precision() == self.decimal_point:
             return max_prec_amount
         # otherwise, scale it back to the expected unit
-        amount = Decimal(max_prec_amount) / pow(10, self.max_precision()-self.decimal_point())
+        amount = Decimal(max_prec_amount) / pow(10, self.max_precision()-self.decimal_point)
         return Decimal(amount) if not self.is_int else int(amount)
 
     def setAmount(self, amount):
-        if amount is None:
-            self.setText(" ") # Space forces repaint in case units changed
-        else:
-            self.setText(format_satoshis_plain(amount, self.decimal_point()))
-
-
-class TokenAmountEdit(AmountEdit):
-
-    def __init__(self, token_symbol, precision=8, is_int=False, parent=None):
-        AmountEdit.__init__(self, self._base_unit, is_int, parent)
-        self.token_symbol = token_symbol
-        self.precision = precision
-
-    def set_token_symbol(self, token_symbol):
-        self.token_symbol = token_symbol
-
-    def _base_unit(self):
-        return self.token_symbol
-
-    def set_precision(self, precision):
-        self.precision = precision
-
-    def get_amount(self):
-        try:
-            x = Decimal(str(self.text()))
-        except:
-            return None
-        # scale it to max allowed precision, make it an int
-        power = pow(10, self.max_precision())
-        max_prec_amount = int(power * x)
-
-        # if the max precision is simply what unit conversion allows, just return
-        if self.max_precision() == self.decimal_point():
-            return max_prec_amount
-
-        # otherwise, scale it back to the expected unit
-        amount = Decimal(max_prec_amount) / pow(10, self.max_precision() - self.decimal_point())
-        return Decimal(amount) if not self.is_int else int(amount)
-
-    def set_amount(self, amount):
-        if amount is None:
-            self.setText(" ") # Space forces repaint in case units changed
-        else:
-            self.setText(format_satoshis_plain(amount, self.decimal_point()))
-
+        self.setText(" ") # Space forces repaint in case units changed
+        if amount is not None:
+            self.setText(format_satoshis_plain(amount, self.decimal_point))
 
 class FeerateEdit(BTCAmountEdit):
 
