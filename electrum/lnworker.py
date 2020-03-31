@@ -292,9 +292,9 @@ class LNWorker(Logger):
                 return [peer]
 
         # getting desperate... let's try hardcoded fallback list of peers
-        if constants.net in (constants.BitcoinTestnet, ):
+        if constants.net in (constants.SyscoinTestnet, ):
             fallback_list = FALLBACK_NODE_LIST_TESTNET
-        elif constants.net in (constants.BitcoinMainnet, ):
+        elif constants.net in (constants.SyscoinMainnet, ):
             fallback_list = FALLBACK_NODE_LIST_MAINNET
         else:
             return []  # regtest??

@@ -78,7 +78,7 @@ def bitarray_to_u5(barr):
 def encode_fallback(fallback, currency):
     """ Encode all supported fallback addresses.
     """
-    if currency in [constants.BitcoinMainnet.SEGWIT_HRP, constants.BitcoinTestnet.SEGWIT_HRP]:
+    if currency in [constants.SyscoinMainnet.SEGWIT_HRP, constants.SyscoinTestnet.SEGWIT_HRP]:
         fbhrp, witness = bech32_decode(fallback, ignore_long_length=True)
         if fbhrp:
             if fbhrp != currency:
@@ -101,7 +101,7 @@ def encode_fallback(fallback, currency):
         raise NotImplementedError("Support for currency {} not implemented".format(currency))
 
 def parse_fallback(fallback, currency):
-    if currency in [constants.BitcoinMainnet.SEGWIT_HRP, constants.BitcoinTestnet.SEGWIT_HRP]:
+    if currency in [constants.SyscoinMainnet.SEGWIT_HRP, constants.BitcoinTestnet.SEGWIT_HRP]:
         wver = fallback[0:5].uint
         if wver == 17:
             addr=hash160_to_b58_address(fallback[5:].tobytes(), base58_prefix_map[currency][0])
@@ -118,8 +118,8 @@ def parse_fallback(fallback, currency):
 
 # Map of classical and witness address prefixes
 base58_prefix_map = {
-    constants.BitcoinMainnet.SEGWIT_HRP : (constants.BitcoinMainnet.ADDRTYPE_P2PKH, constants.BitcoinMainnet.ADDRTYPE_P2SH),
-    constants.BitcoinTestnet.SEGWIT_HRP : (constants.BitcoinTestnet.ADDRTYPE_P2PKH, constants.BitcoinTestnet.ADDRTYPE_P2SH)
+    constants.SyscoinMainnet.SEGWIT_HRP : (constants.SyscoinMainnet.ADDRTYPE_P2PKH, constants.SyscoinMainnet.ADDRTYPE_P2SH),
+    constants.SyscoinTestnet.SEGWIT_HRP : (constants.SyscoinTestnet.ADDRTYPE_P2PKH, constants.SyscoinTestnet.ADDRTYPE_P2SH)
 }
 
 def is_p2pkh(currency, prefix):
