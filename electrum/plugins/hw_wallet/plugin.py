@@ -26,7 +26,7 @@
 
 from typing import TYPE_CHECKING, Dict, List, Union, Tuple, Sequence, Optional, Type
 
-from electrum.plugin import BasePlugin, hook, Device, DeviceMgr
+from electrum.plugin import BasePlugin, hook, Device, DeviceMgr, DeviceInfo
 from electrum.i18n import _
 from electrum.bitcoin import is_address, opcodes
 from electrum.util import bfh, versiontuple, UserFacingException
@@ -64,7 +64,7 @@ class HW_PluginBase(BasePlugin):
             if isinstance(keystore, self.keystore_class):
                 self.device_manager().unpair_xpub(keystore.xpub)
 
-    def setup_device(self, device_info, wizard: 'BaseWizard', purpose):
+    def setup_device(self, device_info: DeviceInfo, wizard: 'BaseWizard', purpose):
         """Called when creating a new wallet or when using the device to decrypt
         an existing wallet. Select the device to use.  If the device is
         uninitialized, go through the initialization process.
