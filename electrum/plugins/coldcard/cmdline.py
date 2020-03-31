@@ -2,13 +2,15 @@ from electrum.plugin import hook
 from electrum.util import print_msg, raw_input, print_stderr
 from electrum.logging import get_logger
 
+from ..hw_wallet.cmdline import CmdLineHandler
+
 from .coldcard import ColdcardPlugin
 
 
 _logger = get_logger(__name__)
 
 
-class ColdcardCmdLineHandler:
+class ColdcardCmdLineHandler(CmdLineHandler):
 
     def get_passphrase(self, msg, confirm):
         raise NotImplementedError

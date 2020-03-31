@@ -535,6 +535,7 @@ class BaseWizard(Logger):
         if self.wallet_type == 'standard' and isinstance(self.keystores[0], Hardware_KeyStore):
             # offer encrypting with a pw derived from the hw device
             k = self.keystores[0]  # type: Hardware_KeyStore
+            assert isinstance(self.plugin, HW_PluginBase)
             try:
                 k.handler = self.plugin.create_handler(self)
                 password = k.get_password_for_storage_encryption()
