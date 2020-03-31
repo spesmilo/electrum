@@ -305,6 +305,7 @@ class DeviceInfo(NamedTuple):
     label: Optional[str] = None
     initialized: Optional[bool] = None
     exception: Optional[Exception] = None
+    plugin_name: Optional[str] = None  # manufacturer, e.g. "trezor"
 
 
 class HardwarePluginToScan(NamedTuple):
@@ -532,13 +533,14 @@ class DeviceMgr(ThreadJob):
             except Exception as e:
                 self.logger.error(f'failed to create client for {plugin.name} at {device.path}: {repr(e)}')
                 if include_failing_clients:
-                    infos.append(DeviceInfo(device=device, exception=e))
+                    infos.append(DeviceInfo(device=device, exception=e, plugin_name=plugin.name))
                 continue
             if not client:
                 continue
             infos.append(DeviceInfo(device=device,
                                     label=client.label(),
-                                    initialized=client.is_initialized()))
+                                    initialized=client.is_initialized(),
+                                    plugin_name=plugin.name))
 
         return infos
 
@@ -574,7 +576,7 @@ class DeviceMgr(ThreadJob):
         # ask user to select device
         msg = _("Please select which {} device to use:").format(plugin.device)
         descriptions = ["{label} ({init}, {transport})"
-                        .format(label=info.label,
+                        .format(label=info.label or _("An unnamed {}").format(info.plugin_name),
                                 init=(_("initialized") if info.initialized else _("wiped")),
                                 transport=info.device.transport_ui_string)
                         for info in infos]
