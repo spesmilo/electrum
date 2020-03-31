@@ -6,7 +6,7 @@ Electrum - Lightweight Syscoin client (AuxPoW fork)
   Licence: GNU GPLv3+ for Electrum-DOGE components; MIT Licence for all other components
   Author: The Syscoin developers; based on Electrum by Thomas Voegtlin and Electrum-DOGE by The Electrum-DOGE contributors
   Language: Python (>= 3.6)
-  Homepage: https://www.namecoin.org/ ; original Electrum Homepage at https://electrum.syscoin.org/
+  Homepage: https://syscoin.org/ ; original Electrum Homepage at https://electrum.syscoin.org/
 
 
 .. image:: https://travis-ci.org/syscoin/electrum.svg?branch=master
