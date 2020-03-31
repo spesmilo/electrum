@@ -30,8 +30,11 @@ if TYPE_CHECKING:
     from .lnonion import OnionRoutingFailureMessage
 
 
+# defined in BOLT-03:
 HTLC_TIMEOUT_WEIGHT = 663
 HTLC_SUCCESS_WEIGHT = 703
+COMMITMENT_TX_WEIGHT = 724
+HTLC_OUTPUT_WEIGHT = 172
 
 LN_MAX_FUNDING_SAT = pow(2, 24) - 1
 LN_MAX_HTLC_VALUE_MSAT = pow(2, 32) - 1
@@ -93,7 +96,7 @@ class FeeUpdate(StoredObject):
 @attr.s
 class ChannelConstraints(StoredObject):
     capacity = attr.ib(type=int)
-    is_initiator = attr.ib(type=bool)
+    is_initiator = attr.ib(type=bool)  # note: sometimes also called "funder"
     funding_txn_minimum_depth = attr.ib(type=int)
 
 
@@ -193,7 +196,7 @@ NBLOCK_OUR_CLTV_EXPIRY_DELTA = 144
 OUR_FEE_BASE_MSAT = 1000
 OUR_FEE_PROPORTIONAL_MILLIONTHS = 1
 
-NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE = 4032
+NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE = 28 * 144
 
 
 # When we open a channel, the remote peer has to support at least this
@@ -206,7 +209,7 @@ MAXIMUM_HTLC_MINIMUM_MSAT_ACCEPTED = 1000
 MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED = 2016
 
 class RevocationStore:
-    """ Taken from LND, see license in lnchannel.py. """
+    # closely based on code in lightningnetwork/lnd
 
     START_INDEX = 2 ** 48 - 1
 
@@ -558,24 +561,65 @@ def make_commitment_outputs(*, fees_per_participant: Mapping[HTLCOwner, int], lo
     return htlc_outputs, c_outputs_filtered
 
 
-def calc_onchain_fees(*, num_htlcs: int, feerate: int, is_local_initiator: bool) -> Dict['HTLCOwner', int]:
+def offered_htlc_trim_threshold_sat(*, dust_limit_sat: int, feerate: int) -> int:
+    # offered htlcs strictly below this amount will be trimmed (from ctx).
+    # feerate is in sat/kw
+    # returns value in sat
+    weight = HTLC_TIMEOUT_WEIGHT
+    return dust_limit_sat + weight * feerate // 1000
+
+
+def received_htlc_trim_threshold_sat(*, dust_limit_sat: int, feerate: int) -> int:
+    # received htlcs strictly below this amount will be trimmed (from ctx).
+    # feerate is in sat/kw
+    # returns value in sat
+    weight = HTLC_SUCCESS_WEIGHT
+    return dust_limit_sat + weight * feerate // 1000
+
+
+def fee_for_htlc_output(*, feerate: int) -> int:
+    # feerate is in sat/kw
+    # returns fee in msat
+    return feerate * HTLC_OUTPUT_WEIGHT
+
+
+def calc_fees_for_commitment_tx(*, num_htlcs: int, feerate: int,
+                                is_local_initiator: bool, round_to_sat: bool = True) -> Dict['HTLCOwner', int]:
     # feerate is in sat/kw
     # returns fees in msats
-    overall_weight = 500 + 172 * num_htlcs + 224
+    # note: BOLT-02 specifies that msat fees need to be rounded down to sat.
+    #       However, the rounding needs to happen for the total fees, so if the return value
+    #       is to be used as part of additional fee calculation then rounding should be done after that.
+    overall_weight = COMMITMENT_TX_WEIGHT + num_htlcs * HTLC_OUTPUT_WEIGHT
     fee = feerate * overall_weight
-    fee = fee // 1000 * 1000
+    if round_to_sat:
+        fee = fee // 1000 * 1000
     return {
         LOCAL: fee if is_local_initiator else 0,
         REMOTE: fee if not is_local_initiator else 0,
     }
 
-def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
-                    remote_payment_pubkey, funder_payment_basepoint,
-                    fundee_payment_basepoint, revocation_pubkey,
-                    delayed_pubkey, to_self_delay, funding_txid,
-                    funding_pos, funding_sat, local_amount, remote_amount,
-                    dust_limit_sat, fees_per_participant,
-                    htlcs: List[ScriptHtlc]) -> PartialTransaction:
+
+def make_commitment(
+        *,
+        ctn: int,
+        local_funding_pubkey: bytes,
+        remote_funding_pubkey: bytes,
+        remote_payment_pubkey: bytes,
+        funder_payment_basepoint: bytes,
+        fundee_payment_basepoint: bytes,
+        revocation_pubkey: bytes,
+        delayed_pubkey: bytes,
+        to_self_delay: int,
+        funding_txid: str,
+        funding_pos: int,
+        funding_sat: int,
+        local_amount: int,
+        remote_amount: int,
+        dust_limit_sat: int,
+        fees_per_participant: Mapping[HTLCOwner, int],
+        htlcs: List[ScriptHtlc]
+) -> PartialTransaction:
     c_input = make_funding_input(local_funding_pubkey, remote_funding_pubkey,
                                  funding_pos, funding_txid, funding_sat)
     obs = get_obscured_ctn(ctn, funder_payment_basepoint, fundee_payment_basepoint)
@@ -588,7 +632,7 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
     # commitment tx outputs
     local_address = make_commitment_output_to_local_address(revocation_pubkey, to_self_delay, delayed_pubkey)
     remote_address = make_commitment_output_to_remote_address(remote_payment_pubkey)
-    # TODO trim htlc outputs here while also considering 2nd stage htlc transactions
+    # note: it is assumed that the given 'htlcs' are all non-dust (dust htlcs already trimmed)
 
     # BOLT-03: "Transaction Input and Output Ordering
     #           Lexicographic ordering: see BIP69. In the case of identical HTLC outputs,

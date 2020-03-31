@@ -414,6 +414,13 @@ class Commands:
         domain = address
         return [wallet.export_private_key(address, password) for address in domain]
 
+    @command('wp')
+    async def getprivatekeyforpath(self, path, password=None, wallet: Abstract_Wallet = None):
+        """Get private key corresponding to derivation path (address index).
+        'path' can be either a str such as "m/0/50", or a list of ints such as [0, 50].
+        """
+        return wallet.export_private_key_for_path(path, password)
+
     @command('w')
     async def ismine(self, address, wallet: Abstract_Wallet = None):
         """Check if address is in wallet. Return true if and only address is in wallet"""
@@ -467,7 +474,7 @@ class Commands:
 
     @command('n')
     async def getservers(self):
-        """Return the list of available servers"""
+        """Return the list of known servers (candidates for connecting)."""
         return self.network.get_servers()
 
     @command('')

@@ -108,6 +108,9 @@ class TestUtil(ElectrumTestCase):
     def test_chunks(self):
         self.assertEqual([[1, 2], [3, 4], [5]],
                          list(chunks([1, 2, 3, 4, 5], 2)))
+        self.assertEqual([], list(chunks(b'', 64)))
+        self.assertEqual([b'12', b'34', b'56'],
+                         list(chunks(b'123456', 2)))
         with self.assertRaises(ValueError):
             list(chunks([1, 2, 3], 0))
 

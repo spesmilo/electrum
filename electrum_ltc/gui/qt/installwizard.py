@@ -304,6 +304,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                                               _('If you use a passphrase, make sure it is correct.'))
                         self.reset_stack()
                         return self.select_storage(path, get_wallet_from_daemon)
+                    except UserCancelled:
+                        raise
                     except BaseException as e:
                         self.logger.exception('')
                         self.show_message(title=_('Error'), msg=repr(e))
@@ -357,10 +359,6 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             self.upgrade_db(storage, db)
 
         return db
-
-    def finished(self):
-        """Called in hardware client wrapper, in order to close popups."""
-        return
 
     def on_error(self, exc_info):
         if not isinstance(exc_info[1], UserCancelled):
@@ -664,18 +662,25 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         def on_m(m):
             m_label.setText(_('Require {0} signatures').format(m))
             cw.set_m(m)
+            backup_warning_label.setVisible(cw.m != cw.n)
         def on_n(n):
             n_label.setText(_('From {0} cosigners').format(n))
             cw.set_n(n)
             m_edit.setMaximum(n)
+            backup_warning_label.setVisible(cw.m != cw.n)
         n_edit.valueChanged.connect(on_n)
         m_edit.valueChanged.connect(on_m)
-        on_n(2)
-        on_m(2)
         vbox = QVBoxLayout()
         vbox.addWidget(cw)
         vbox.addWidget(WWLabel(_("Choose the number of signatures needed to unlock funds in your wallet:")))
         vbox.addLayout(grid)
+        vbox.addSpacing(2 * char_width_in_lineedit())
+        backup_warning_label = WWLabel(_("Warning: to be able to restore a multisig wallet, "
+                                         "you should include the master public key for each cosigner "
+                                         "in all of your backups."))
+        vbox.addWidget(backup_warning_label)
+        on_n(2)
+        on_m(2)
         self.exec_layout(vbox, _("Multi-Signature Wallet"))
         m = int(m_edit.value())
         n = int(n_edit.value())

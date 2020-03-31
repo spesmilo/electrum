@@ -1,11 +1,13 @@
 from electrum_ltc.util import print_stderr, raw_input
 from electrum_ltc.logging import get_logger
 
+from .plugin import HardwareHandlerBase
+
 
 _logger = get_logger(__name__)
 
 
-class CmdLineHandler:
+class CmdLineHandler(HardwareHandlerBase):
 
     def get_passphrase(self, msg, confirm):
         import getpass

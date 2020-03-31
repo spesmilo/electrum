@@ -169,9 +169,6 @@ class QtPlugin(QtPluginBase):
     #   icon_file
     #   pin_matrix_widget_class
 
-    def create_handler(self, window):
-        return QtHandler(window, self.pin_matrix_widget_class(), self.device)
-
     @only_hook_if_libraries_available
     @hook
     def receive_menu(self, menu, addrs, wallet):
@@ -376,6 +373,9 @@ class QtPlugin(QtPluginBase):
 class Plugin(TrezorPlugin, QtPlugin):
     icon_unpaired = "trezor_unpaired.png"
     icon_paired = "trezor.png"
+
+    def create_handler(self, window):
+        return QtHandler(window, self.pin_matrix_widget_class(), self.device)
 
     @classmethod
     def pin_matrix_widget_class(self):

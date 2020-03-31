@@ -282,7 +282,6 @@ class TrezorPlugin(HW_PluginBase):
                    .format(self.device, client.label(), self.firmware_URL))
             raise OutdatedHwFirmwareException(msg)
 
-        # fixme: we should use: client.handler = wizard
         client.handler = self.create_handler(wizard)
         if not device_info.initialized:
             self.initialize_device(device_id, wizard, client.handler)
@@ -295,7 +294,7 @@ class TrezorPlugin(HW_PluginBase):
             raise ScriptTypeNotSupported(_('This type of script is not supported with {}.').format(self.device))
         devmgr = self.device_manager()
         client = devmgr.client_by_id(device_id)
-        client.handler = wizard
+        client.handler = self.create_handler(wizard)
         xpub = client.get_xpub(derivation, xtype)
         client.used()
         return xpub

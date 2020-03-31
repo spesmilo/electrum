@@ -916,7 +916,7 @@ class Network(Logger):
             r"Signature hash type missing or not understood",
             r"Non-canonical DER signature",
             r"Data push larger than necessary",
-            r"Only non-push operators allowed in signatures",
+            r"Only push operators allowed in signatures",
             r"Non-canonical signature: S value is unnecessarily high",
             r"Dummy CHECKMULTISIG argument must be zero",
             r"OP_IF/NOTIF argument must be minimal",

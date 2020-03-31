@@ -56,10 +56,11 @@ class UTXOList(MyTreeView):
         Columns.OUTPOINT: _('Output point'),
     }
     filter_columns = [Columns.ADDRESS, Columns.LABEL, Columns.OUTPOINT]
+    stretch_column = Columns.LABEL
 
     def __init__(self, parent):
         super().__init__(parent, self.create_menu,
-                         stretch_column=self.Columns.LABEL,
+                         stretch_column=self.stretch_column,
                          editable_columns=[])
         self._spend_set = None
         self._utxo_dict = {}

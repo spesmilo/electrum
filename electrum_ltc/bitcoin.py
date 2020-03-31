@@ -565,8 +565,8 @@ def is_segwit_script_type(txin_type: str) -> bool:
     return txin_type in ('p2wpkh', 'p2wpkh-p2sh', 'p2wsh', 'p2wsh-p2sh')
 
 
-def serialize_privkey(secret: bytes, compressed: bool, txin_type: str,
-                      internal_use: bool=False) -> str:
+def serialize_privkey(secret: bytes, compressed: bool, txin_type: str, *,
+                      internal_use: bool = False) -> str:
     # we only export secrets inside curve range
     secret = ecc.ECPrivkey.normalize_secret_bytes(secret)
     if internal_use:

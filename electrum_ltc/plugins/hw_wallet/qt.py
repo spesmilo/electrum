@@ -35,13 +35,14 @@ from electrum_ltc.gui.qt.password_dialog import PasswordLayout, PW_PASSPHRASE
 from electrum_ltc.gui.qt.util import (read_QIcon, WWLabel, OkButton, WindowModalDialog,
                                       Buttons, CancelButton, TaskThread, char_width_in_lineedit)
 from electrum_ltc.gui.qt.main_window import StatusBarButton, ElectrumWindow
+from electrum_ltc.gui.qt.installwizard import InstallWizard
 
 from electrum_ltc.i18n import _
 from electrum_ltc.logging import Logger
 from electrum_ltc.util import parse_URI, InvalidBitcoinURI, UserCancelled
 from electrum_ltc.plugin import hook, DeviceUnpairableError
 
-from .plugin import OutdatedHwFirmwareException, HW_PluginBase
+from .plugin import OutdatedHwFirmwareException, HW_PluginBase, HardwareHandlerBase
 
 if TYPE_CHECKING:
     from electrum_ltc.wallet import Abstract_Wallet
@@ -50,7 +51,7 @@ if TYPE_CHECKING:
 
 # The trickiest thing about this handler was getting windows properly
 # parented on macOS.
-class QtHandlerBase(QObject, Logger):
+class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
     '''An interface between the GUI (here, QT) and the device handling
     logic for handling I/O.'''
 
@@ -63,7 +64,7 @@ class QtHandlerBase(QObject, Logger):
     yes_no_signal = pyqtSignal(object)
     status_signal = pyqtSignal(object)
 
-    def __init__(self, win, device):
+    def __init__(self, win: Union[ElectrumWindow, InstallWizard], device: str):
         QObject.__init__(self)
         Logger.__init__(self)
         self.clear_signal.connect(self.clear_dialog)
@@ -189,7 +190,10 @@ class QtHandlerBase(QObject, Logger):
             self.dialog = None
 
     def win_query_choice(self, msg, labels):
-        self.choice = self.win.query_choice(msg, labels)
+        try:
+            self.choice = self.win.query_choice(msg, labels)
+        except UserCancelled:
+            self.choice = None
         self.done.set()
 
     def win_yes_no_question(self, msg):
@@ -267,5 +271,5 @@ class QtPluginBase(object):
         dev_name = f"{plugin.device} ({keystore.label})"
         receive_address_e.addButton("eye1.png", show_address, _("Show on {}").format(dev_name))
 
-    def create_handler(self, window: ElectrumWindow) -> 'QtHandlerBase':
+    def create_handler(self, window: Union[ElectrumWindow, InstallWizard]) -> 'QtHandlerBase':
         raise NotImplementedError()

@@ -45,6 +45,7 @@ For elliptic curve operations, `libsecp256k1`_ is a required dependency::
 Alternatively, when running from a cloned repository, a script is provided to build
 libsecp256k1 yourself::
 
+    sudo apt-get install automake libtool
     ./contrib/make_libsecp256k1.sh
 
 Due to the need for fast symmetric ciphers, either one of `pycryptodomex`_
