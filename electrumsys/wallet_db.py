@@ -50,7 +50,7 @@ if TYPE_CHECKING:
 
 OLD_SEED_VERSION = 4        # electrumsys versions < 2.0
 NEW_SEED_VERSION = 11       # electrumsys versions >= 2.0
-FINAL_SEED_VERSION = 27     # electrumsys >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 28     # electrumsys >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -173,6 +173,7 @@ class WalletDB(JsonDB):
         self._convert_version_25()
         self._convert_version_26()
         self._convert_version_27()
+        self._convert_version_28()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
         self._after_upgrade_tasks()
@@ -595,6 +596,14 @@ class WalletDB(JsonDB):
         for channel_id, c in channels.items():
             c['local_config']['htlc_minimum_msat'] = 1
         self.data['seed_version'] = 27
+
+    def _convert_version_28(self):
+        if not self._is_upgrade_method_needed(27, 27):
+            return
+        channels = self.data.get('channels', {})
+        for channel_id, c in channels.items():
+            c['local_config']['seed'] = None
+        self.data['seed_version'] = 28
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
