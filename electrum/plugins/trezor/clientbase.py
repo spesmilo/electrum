@@ -9,7 +9,7 @@ from electrum.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32 as pa
 from electrum.logging import Logger
 from electrum.plugins.hw_wallet.plugin import OutdatedHwFirmwareException, HardwareClientBase
 
-from trezorlib.client import TrezorClient
+from trezorlib.client import TrezorClient, PASSPHRASE_ON_DEVICE
 from trezorlib.exceptions import TrezorFailure, Cancelled, OutdatedFirmwareError
 from trezorlib.messages import WordRequestType, FailureType, RecoveryDeviceType, ButtonRequestType
 import trezorlib.btc
@@ -30,8 +30,10 @@ MESSAGES = {
         _("Confirm the total amount spent and the transaction fee on your {} device"),
     ButtonRequestType.Address:
         _("Confirm wallet address on your {} device"),
-    ButtonRequestType.PassphraseType:
+    ButtonRequestType._Deprecated_ButtonRequest_PassphraseType:
         _("Choose on your {} device where to enter your passphrase"),
+    ButtonRequestType.PassphraseEntry:
+        _("Please enter your passphrase on the {} device"),
     'default': _("Check your {} device to continue"),
 }
 
@@ -259,7 +261,7 @@ class TrezorClientBase(HardwareClientBase, Logger):
             raise Cancelled
         return pin
 
-    def get_passphrase(self):
+    def get_passphrase(self, available_on_device):
         if self.creating_wallet:
             msg = _("Enter a passphrase to generate this wallet.  Each time "
                     "you use this wallet your {} will prompt you for the "
@@ -267,7 +269,11 @@ class TrezorClientBase(HardwareClientBase, Logger):
                     "access the bitcoins in the wallet.").format(self.device)
         else:
             msg = _("Enter the passphrase to unlock this wallet:")
-        passphrase = self.handler.get_passphrase(msg, self.creating_wallet)
+
+        self.handler.passphrase_on_device = available_on_device
+        passphrase = self.handler.trezor_get_passphrase(msg, self.creating_wallet)
+        if passphrase is PASSPHRASE_ON_DEVICE:
+            return passphrase
         if passphrase is None:
             raise Cancelled
         passphrase = bip39_normalize_passphrase(passphrase)
