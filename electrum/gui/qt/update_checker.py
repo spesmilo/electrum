@@ -22,9 +22,6 @@ class UpdateCheck(QDialog, Logger):
     url = "https://electrum.syscoin.org/version"
     download_url = "https://electrum.syscoin.org/#download"
 
-    VERSION_ANNOUNCEMENT_SIGNING_KEYS = (
-        "13xjmVAB1EATPP8RshTE8S8sNwwSUM9p1P",
-    )
 
     def __init__(self, main_window, latest_version=None):
         self.main_window = main_window
@@ -110,24 +107,9 @@ class UpdateCheckThread(QThread, Logger):
                 signed_version_dict = await result.json(content_type=None)
                 # example signed_version_dict:
                 # {
-                #     "version": "3.9.9",
-                #     "signatures": {
-                #         "1Lqm1HphuhxKZQEawzPse8gJtgjm9kUKT4": "IA+2QG3xPRn4HAIFdpu9eeaCYC7S5wS/sDxn54LJx6BdUTBpse3ibtfq8C43M7M1VfpGkD5tsdwl5C6IfpZD/gQ="
-                #     }
+                #     "version": "4.0.0"
                 # }
                 version_num = signed_version_dict['version']
-                sigs = signed_version_dict['signatures']
-                for address, sig in sigs.items():
-                    if address not in UpdateCheck.VERSION_ANNOUNCEMENT_SIGNING_KEYS:
-                        continue
-                    sig = base64.b64decode(sig)
-                    msg = version_num.encode('utf-8')
-                    if ecc.verify_message_with_address(address=address, sig65=sig, message=msg,
-                                                       net=constants.BitcoinMainnet):
-                        self.logger.info(f"valid sig for version announcement '{version_num}' from address '{address}'")
-                        break
-                else:
-                    raise Exception('no valid signature for version announcement')
                 return StrictVersion(version_num.strip())
 
     def run(self):
