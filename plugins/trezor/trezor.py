@@ -30,6 +30,8 @@ try:
     RECOVERY_TYPE_SCRAMBLED_WORDS = RecoveryDeviceType.ScrambledWords
     RECOVERY_TYPE_MATRIX = RecoveryDeviceType.Matrix
 
+    from trezorlib.client import PASSPHRASE_ON_DEVICE
+
     TREZORLIB = True
 except Exception as e:
     import traceback
@@ -37,6 +39,8 @@ except Exception as e:
     TREZORLIB = False
 
     RECOVERY_TYPE_SCRAMBLED_WORDS, RECOVERY_TYPE_MATRIX = range(2)
+
+    PASSPHRASE_ON_DEVICE = object()
 
 
 # TREZOR initialization methods
@@ -104,10 +108,10 @@ class TrezorPlugin(HW_PluginBase):
     #     wallet_class, types
 
     firmware_URL = 'https://wallet.trezor.io'
-    libraries_URL = 'https://github.com/trezor/python-trezor'
+    libraries_URL = 'https://pypi.org/project/trezor/'
     minimum_firmware = (1, 5, 2)
     keystore_class = TrezorKeyStore
-    minimum_library = (0, 11, 0)
+    minimum_library = (0, 12, 0)
     maximum_library = (0, 13)
 
     DEVICE_IDS = (TREZOR_PRODUCT_KEY,)
