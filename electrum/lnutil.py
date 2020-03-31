@@ -61,11 +61,6 @@ class Keypair(OnlyPubkeyKeypair):
 @attr.s
 class Config(StoredObject):
     # shared channel config fields
-    payment_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
-    multisig_key = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
-    htlc_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
-    delayed_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
-    revocation_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
     to_self_delay = attr.ib(type=int)
     dust_limit_sat = attr.ib(type=int)
     max_htlc_value_in_flight_msat = attr.ib(type=int)
@@ -76,14 +71,36 @@ class Config(StoredObject):
 
 @attr.s
 class LocalConfig(Config):
-    per_commitment_secret_seed = attr.ib(type=bytes, converter=hex_to_bytes)
+    seed = attr.ib(type=bytes, converter=hex_to_bytes)
+    static_remotekey = attr.ib(type=bytes, converter=hex_to_bytes)
     funding_locked_received = attr.ib(type=bool)
     was_announced = attr.ib(type=bool)
     current_commitment_signature = attr.ib(type=bytes, converter=hex_to_bytes)
     current_htlc_signatures = attr.ib(type=bytes, converter=hex_to_bytes)
 
+    def derive_keys(self):
+        node = BIP32Node.from_rootseed(self.seed, xtype='standard')
+        keypair_generator = lambda family: generate_keypair(node, family)
+        self.per_commitment_secret_seed = keypair_generator(LnKeyFamily.REVOCATION_ROOT).privkey
+        self.multisig_key = keypair_generator(LnKeyFamily.MULTISIG)
+        self.htlc_basepoint = keypair_generator(LnKeyFamily.HTLC_BASE)
+        self.delayed_basepoint = keypair_generator(LnKeyFamily.DELAY_BASE)
+        self.revocation_basepoint = keypair_generator(LnKeyFamily.REVOCATION_BASE)
+        self.payment_basepoint = OnlyPubkeyKeypair(self.static_remotekey) if self.static_remotekey else keypair_generator(LnKeyFamily.PAYMENT_BASE)
+
+    def to_json(self):
+        d = dict(vars(self))
+        for key in ['db', 'per_commitment_secret_seed', 'multisig_key', 'htlc_basepoint', 'delayed_basepoint', 'revocation_basepoint', 'payment_basepoint']:
+            d.pop(key, None)
+        return d
+
 @attr.s
 class RemoteConfig(Config):
+    payment_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
+    multisig_key = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
+    htlc_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
+    delayed_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
+    revocation_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
     next_per_commitment_point = attr.ib(type=bytes, converter=hex_to_bytes)
     current_per_commitment_point = attr.ib(default=None, type=bytes, converter=hex_to_bytes)
 

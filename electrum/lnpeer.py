@@ -20,7 +20,6 @@ import aiorpcx
 
 from .crypto import sha256, sha256d
 from . import bitcoin
-from .bip32 import BIP32Node
 from . import ecc
 from .ecc import sig_string_from_r_and_s, get_r_and_s_from_sig_string, der_sig_from_sig_string
 from . import constants
@@ -468,44 +467,39 @@ class Peer(Logger):
         return bool(self.localfeatures & LnLocalFeatures.OPTION_STATIC_REMOTEKEY_OPT)
 
     def make_local_config(self, funding_sat: int, push_msat: int, initiator: HTLCOwner) -> LocalConfig:
-        # key derivation
-        seed = os.urandom(32)
-        node = BIP32Node.from_rootseed(seed, xtype='standard')
-        keypair_generator = lambda family: generate_keypair(node, family)
 
+        random_seed = os.urandom(32)
         if initiator == LOCAL:
             initial_msat = funding_sat * 1000 - push_msat
         else:
             initial_msat = push_msat
 
         if self.is_static_remotekey():
+            # Note: in the future, if a CSV delay is added,
+            # we will want to derive that key
             wallet = self.lnworker.wallet
             assert wallet.txin_type == 'p2wpkh'
             addr = wallet.get_unused_address()
-            static_key = wallet.get_public_key(addr) # just a pubkey
-            payment_basepoint = OnlyPubkeyKeypair(bfh(static_key))
+            static_remotekey = bfh(wallet.get_public_key(addr))
         else:
-            payment_basepoint = keypair_generator(LnKeyFamily.PAYMENT_BASE)
+            static_remotekey = None
 
-        local_config=LocalConfig(
-            payment_basepoint=payment_basepoint,
-            multisig_key=keypair_generator(LnKeyFamily.MULTISIG),
-            htlc_basepoint=keypair_generator(LnKeyFamily.HTLC_BASE),
-            delayed_basepoint=keypair_generator(LnKeyFamily.DELAY_BASE),
-            revocation_basepoint=keypair_generator(LnKeyFamily.REVOCATION_BASE),
+        local_config = LocalConfig(
+            seed=random_seed,
+            static_remotekey=static_remotekey,
             to_self_delay=DEFAULT_TO_SELF_DELAY,
             dust_limit_sat=546,
             max_htlc_value_in_flight_msat=funding_sat * 1000,
             max_accepted_htlcs=5,
             initial_msat=initial_msat,
             reserve_sat=546,
-            per_commitment_secret_seed=keypair_generator(LnKeyFamily.REVOCATION_ROOT).privkey,
             funding_locked_received=False,
             was_announced=False,
             current_commitment_signature=None,
             current_htlc_signatures=b'',
             htlc_minimum_msat=1,
         )
+        local_config.derive_keys()
         return local_config
 
     @log_exceptions

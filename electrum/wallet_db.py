@@ -1105,6 +1105,7 @@ class WalletDB(JsonDB):
     def _convert_value(self, path, key, v):
         if key == 'local_config':
             v = LocalConfig(**v)
+            v.derive_keys()
         elif key == 'remote_config':
             v = RemoteConfig(**v)
         elif key == 'constraints':
