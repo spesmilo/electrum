@@ -349,23 +349,30 @@ class DeviceMgr(ThreadJob):
     This plugin is thread-safe.  Currently only devices supported by
     hidapi are implemented.'''
 
-    def __init__(self, config):
+    def __init__(self, config: SimpleConfig):
         ThreadJob.__init__(self)
         # Keyed by xpub.  The value is the device id
-        # has been paired, and None otherwise.
+        # has been paired, and None otherwise. Needs self.lock.
         self.xpub_ids = {}  # type: Dict[str, str]
         # A list of clients.  The key is the client, the value is
-        # a (path, id_) pair.
+        # a (path, id_) pair. Needs self.lock.
         self.clients = {}  # type: Dict[HardwareClientBase, Tuple[Union[str, bytes], str]]
         # What we recognise.  Each entry is a (vendor_id, product_id)
         # pair.
         self.recognised_hardware = set()
         # Custom enumerate functions for devices we don't know about.
         self.enumerate_func = set()
-        # For synchronization
+        # locks: if you need to take multiple ones, acquire them in the order they are defined here!
+        self._scan_lock = threading.RLock()
         self.lock = threading.RLock()
-        self.hid_lock = threading.RLock()
+
         self.config = config
+
+    def with_scan_lock(func):
+        def func_wrapper(self: 'DeviceMgr', *args, **kwargs):
+            with self._scan_lock:
+                return func(self, *args, **kwargs)
+        return func_wrapper
 
     def thread_jobs(self):
         # Thread job to handle device timeouts
@@ -449,6 +456,7 @@ class DeviceMgr(ThreadJob):
         self.scan_devices()
         return self.client_lookup(id_)
 
+    @with_scan_lock
     def client_for_keystore(self, plugin: 'HW_PluginBase', handler: Optional['HardwareHandlerBase'],
                             keystore: 'Hardware_KeyStore',
                             force_pair: bool) -> Optional['HardwareClientBase']:
@@ -591,14 +599,14 @@ class DeviceMgr(ThreadJob):
             wallet.save_keystore()
         return info
 
+    @with_scan_lock
     def _scan_devices_with_hid(self) -> List['Device']:
         try:
             import hid
         except ImportError:
             return []
 
-        with self.hid_lock:
-            hid_list = hid.enumerate(0, 0)
+        hid_list = hid.enumerate(0, 0)
 
         devices = []
         for d in hid_list:
@@ -619,6 +627,7 @@ class DeviceMgr(ThreadJob):
                                       transport_ui_string='hid'))
         return devices
 
+    @with_scan_lock
     def scan_devices(self) -> List['Device']:
         self.logger.info("scanning devices...")
 

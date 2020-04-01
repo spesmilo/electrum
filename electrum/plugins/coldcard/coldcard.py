@@ -547,8 +547,7 @@ class ColdcardPlugin(HW_PluginBase):
         # Acquire a connection to the hardware device (via USB)
         devmgr = self.device_manager()
         handler = keystore.handler
-        with devmgr.hid_lock:
-            client = devmgr.client_for_keystore(self, handler, keystore, force_pair)
+        client = devmgr.client_for_keystore(self, handler, keystore, force_pair)
 
         if client is not None:
             client.ping_check()

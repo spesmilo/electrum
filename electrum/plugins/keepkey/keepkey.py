@@ -184,8 +184,7 @@ class KeepKeyPlugin(HW_PluginBase):
     def get_client(self, keystore, force_pair=True) -> Optional['KeepKeyClient']:
         devmgr = self.device_manager()
         handler = keystore.handler
-        with devmgr.hid_lock:
-            client = devmgr.client_for_keystore(self, handler, keystore, force_pair)
+        client = devmgr.client_for_keystore(self, handler, keystore, force_pair)
         # returns the client for a given keystore. can use xpub
         if client:
             client.used()
