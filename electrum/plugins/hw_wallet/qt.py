@@ -67,6 +67,7 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
     def __init__(self, win: Union[ElectrumWindow, InstallWizard], device: str):
         QObject.__init__(self)
         Logger.__init__(self)
+        assert win.gui_thread == threading.current_thread(), 'must be called from GUI thread'
         self.clear_signal.connect(self.clear_dialog)
         self.error_signal.connect(self.error_dialog)
         self.message_signal.connect(self.message_dialog)
@@ -254,6 +255,7 @@ class QtPluginBase(object):
                       keystore: 'Hardware_KeyStore') -> Optional[str]:
         '''This dialog box should be usable even if the user has
         forgotten their PIN or it is in bootloader mode.'''
+        assert window.gui_thread != threading.current_thread(), 'must not be called from GUI thread'
         device_id = self.device_manager().xpub_id(keystore.xpub)
         if not device_id:
             try:
@@ -264,7 +266,10 @@ class QtPluginBase(object):
         return device_id
 
     def show_settings_dialog(self, window: ElectrumWindow, keystore: 'Hardware_KeyStore') -> None:
-        device_id = self.choose_device(window, keystore)
+        # default implementation (if no dialog): just try to connect to device
+        def connect():
+            device_id = self.choose_device(window, keystore)
+        keystore.thread.add(connect)
 
     def add_show_address_on_hw_device_button_for_receive_addr(self, wallet: 'Abstract_Wallet',
                                                               keystore: 'Hardware_KeyStore',

@@ -36,6 +36,7 @@ from electrum.storage import get_derivation_used_for_hw_device_encryption
 from electrum.keystore import Xpub, Hardware_KeyStore
 
 if TYPE_CHECKING:
+    import threading
     from electrum.wallet import Abstract_Wallet
     from electrum.base_wizard import BaseWizard
 
@@ -209,6 +210,11 @@ class HardwareHandlerBase:
         if self.win is not None:
             if hasattr(self.win, 'wallet'):
                 return self.win.wallet
+
+    def get_gui_thread(self) -> Optional['threading.Thread']:
+        if self.win is not None:
+            if hasattr(self.win, 'gui_thread'):
+                return self.win.gui_thread
 
     def update_status(self, paired: bool) -> None:
         pass
