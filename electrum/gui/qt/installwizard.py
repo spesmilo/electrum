@@ -31,6 +31,7 @@ from electrum.plugin import run_hook, Plugins
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
+    from . import ElectrumGui
 
 
 MSG_ENTER_PASSWORD = _("Choose a password to encrypt your wallet keys.") + '\n'\
@@ -121,12 +122,13 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     accept_signal = pyqtSignal()
 
-    def __init__(self, config: 'SimpleConfig', app: QApplication, plugins: 'Plugins'):
+    def __init__(self, config: 'SimpleConfig', app: QApplication, plugins: 'Plugins', *, gui_object: 'ElectrumGui'):
         QDialog.__init__(self, None)
         BaseWizard.__init__(self, config, plugins)
         self.setWindowTitle('Electrum  -  ' + _('Install Wizard'))
         self.app = app
         self.config = config
+        self.gui_thread = gui_object.gui_thread
         self.setMinimumSize(600, 400)
         self.accept_signal.connect(self.accept)
         self.title = QLabel()

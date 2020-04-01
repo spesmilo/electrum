@@ -556,6 +556,8 @@ class DeviceMgr(ThreadJob):
                       keystore: 'Hardware_KeyStore', devices: List['Device'] = None) -> 'DeviceInfo':
         '''Ask the user to select a device to use if there is more than one,
         and return the DeviceInfo for the device.'''
+        # ideally this should not be called from the GUI thread...
+        # assert handler.get_gui_thread() != threading.current_thread(), 'must not be called from GUI thread'
         while True:
             infos = self.unpaired_device_infos(handler, plugin, devices)
             if infos:
