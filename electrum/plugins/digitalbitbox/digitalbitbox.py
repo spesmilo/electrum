@@ -234,10 +234,9 @@ class DigitalBitbox_Client(HardwareClientBase):
             (_("Load a wallet from the micro SD card (the current seed is overwritten)")),
             (_("Erase the Digital Bitbox"))
         ]
-        try:
-            reply = self.handler.win.query_choice(msg, choices)
-        except Exception:
-            return # Back button pushed
+        reply = self.handler.query_choice(msg, choices)
+        if reply is None:
+            return  # user cancelled
         if reply == 2:
             self.dbb_erase()
         elif reply == 1:
@@ -256,10 +255,9 @@ class DigitalBitbox_Client(HardwareClientBase):
             (_("Generate a new random wallet")),
             (_("Load a wallet from the micro SD card"))
         ]
-        try:
-            reply = self.handler.win.query_choice(msg, choices)
-        except Exception:
-            return # Back button pushed
+        reply = self.handler.query_choice(msg, choices)
+        if reply is None:
+            return  # user cancelled
         if reply == 0:
             self.dbb_generate_wallet()
         else:
@@ -297,10 +295,9 @@ class DigitalBitbox_Client(HardwareClientBase):
             _('Do not pair'),
             _('Import pairing from the Digital Bitbox desktop app'),
         ]
-        try:
-            reply = self.handler.win.query_choice(_('Mobile pairing options'), choices)
-        except Exception:
-            return # Back button pushed
+        reply = self.handler.query_choice(_('Mobile pairing options'), choices)
+        if reply is None:
+            return  # user cancelled
 
         if reply == 0:
             if self.plugin.is_mobile_paired():
@@ -338,10 +335,9 @@ class DigitalBitbox_Client(HardwareClientBase):
         backups = self.hid_send_encrypt(b'{"backup":"list"}')
         if 'error' in backups:
             raise UserFacingException(backups['error']['message'])
-        try:
-            f = self.handler.win.query_choice(_("Choose a backup file:"), backups['backup'])
-        except Exception:
-            return False # Back button pushed
+        f = self.handler.query_choice(_("Choose a backup file:"), backups['backup'])
+        if f is None:
+            return False  # user cancelled
         key = self.backup_password_dialog()
         if key is None:
             raise Exception('Canceled by user')
