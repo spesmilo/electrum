@@ -39,7 +39,7 @@ from electrum.gui.qt.installwizard import InstallWizard
 
 from electrum.i18n import _
 from electrum.logging import Logger
-from electrum.util import parse_URI, InvalidBitcoinURI, UserCancelled
+from electrum.util import parse_URI, InvalidBitcoinURI, UserCancelled, UserFacingException
 from electrum.plugin import hook, DeviceUnpairableError
 
 from .plugin import OutdatedHwFirmwareException, HW_PluginBase, HardwareHandlerBase
@@ -213,7 +213,7 @@ class QtPluginBase(object):
                 window.show_error(message)
                 return
             tooltip = self.device + '\n' + (keystore.label or 'unnamed')
-            cb = partial(self.show_settings_dialog, window, keystore)
+            cb = partial(self._on_status_bar_button_click, window=window, keystore=keystore)
             button = StatusBarButton(read_QIcon(self.icon_unpaired), tooltip, cb)
             button.icon_paired = self.icon_paired
             button.icon_unpaired = self.icon_unpaired
@@ -225,6 +225,13 @@ class QtPluginBase(object):
             self.add_show_address_on_hw_device_button_for_receive_addr(wallet, keystore, window)
             # Trigger a pairing
             keystore.thread.add(partial(self.get_client, keystore))
+
+    def _on_status_bar_button_click(self, *, window: ElectrumWindow, keystore: 'Hardware_KeyStore'):
+        try:
+            self.show_settings_dialog(window=window, keystore=keystore)
+        except (UserFacingException, UserCancelled) as e:
+            exc_info = (type(e), e, e.__traceback__)
+            self.on_task_thread_error(window=window, keystore=keystore, exc_info=exc_info)
 
     def on_task_thread_error(self: Union['QtPluginBase', HW_PluginBase], window: ElectrumWindow,
                              keystore: 'Hardware_KeyStore', exc_info):
