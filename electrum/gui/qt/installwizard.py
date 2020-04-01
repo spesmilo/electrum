@@ -31,6 +31,7 @@ from electrum.plugin import run_hook, Plugins
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
+    from electrum.wallet_db import WalletDB
     from . import ElectrumGui
 
 
@@ -321,7 +322,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
         return temp_storage.path, (temp_storage if temp_storage.file_exists() else None)
 
-    def run_upgrades(self, storage, db):
+    def run_upgrades(self, storage: WalletStorage, db: 'WalletDB') -> None:
         path = storage.path
         if db.requires_split():
             self.hide()
@@ -359,8 +360,6 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
         if db.requires_upgrade():
             self.upgrade_db(storage, db)
-
-        return db
 
     def on_error(self, exc_info):
         if not isinstance(exc_info[1], UserCancelled):

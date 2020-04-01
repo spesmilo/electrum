@@ -144,7 +144,7 @@ class BaseWizard(Logger):
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.on_wallet_type)
 
     def upgrade_db(self, storage, db):
-        exc = None
+        exc = None  # type: Optional[Exception]
         def on_finished():
             if exc is None:
                 self.terminate(storage=storage, db=db)
