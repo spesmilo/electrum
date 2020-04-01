@@ -707,7 +707,8 @@ class DigitalBitboxPlugin(HW_PluginBase):
         client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
         if purpose == HWD_SETUP_NEW_WALLET:
             client.setupRunning = True
-        client.get_xpub("m/44'/0'", 'standard')
+        wizard.run_task_without_blocking_gui(
+            task=lambda: client.get_xpub("m/44'/0'", 'standard'))
 
 
     def is_mobile_paired(self):

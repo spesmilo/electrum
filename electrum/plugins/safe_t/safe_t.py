@@ -253,7 +253,8 @@ class SafeTPlugin(HW_PluginBase):
         client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
         if not device_info.initialized:
             self.initialize_device(device_id, wizard, client.handler)
-        client.get_xpub('m', 'standard')
+        wizard.run_task_without_blocking_gui(
+            task=lambda: client.get_xpub("m", 'standard'))
         client.used()
 
     def get_xpub(self, device_id, derivation, xtype, wizard):

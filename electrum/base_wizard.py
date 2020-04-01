@@ -158,6 +158,13 @@ class BaseWizard(Logger):
                 exc = e
         self.waiting_dialog(do_upgrade, _('Upgrading wallet format...'), on_finished=on_finished)
 
+    def run_task_without_blocking_gui(self, task, *, msg: str = None) -> Any:
+        """Perform a task in a thread without blocking the GUI.
+        Returns the result of 'task', or raises the same exception.
+        This method blocks until 'task' is finished.
+        """
+        raise NotImplementedError()
+
     def load_2fa(self):
         self.data['wallet_type'] = '2fa'
         self.data['use_trustedcoin'] = True
@@ -421,6 +428,7 @@ class BaseWizard(Logger):
     def on_hw_derivation(self, name, device_info: 'DeviceInfo', derivation, xtype):
         from .keystore import hardware_keystore
         devmgr = self.plugins.device_manager
+        assert isinstance(self.plugin, HW_PluginBase)
         try:
             xpub = self.plugin.get_xpub(device_info.device.id_, derivation, xtype, self)
             client = devmgr.client_by_id(device_info.device.id_)

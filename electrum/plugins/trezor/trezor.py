@@ -280,7 +280,8 @@ class TrezorPlugin(HW_PluginBase):
         if not device_info.initialized:
             self.initialize_device(device_id, wizard, client.handler)
         is_creating_wallet = purpose == HWD_SETUP_NEW_WALLET
-        client.get_xpub('m', 'standard', creating=is_creating_wallet)
+        wizard.run_task_without_blocking_gui(
+            task=lambda: client.get_xpub('m', 'standard', creating=is_creating_wallet))
         client.used()
 
     def get_xpub(self, device_id, derivation, xtype, wizard):
