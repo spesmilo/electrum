@@ -754,8 +754,7 @@ class DigitalBitboxPlugin(HW_PluginBase):
     def get_client(self, keystore, force_pair=True):
         devmgr = self.device_manager()
         handler = keystore.handler
-        with devmgr.hid_lock:
-            client = devmgr.client_for_keystore(self, handler, keystore, force_pair)
+        client = devmgr.client_for_keystore(self, handler, keystore, force_pair)
         if client is not None:
             client.check_device_dialog()
         return client
