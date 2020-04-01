@@ -65,6 +65,15 @@ class HW_PluginBase(BasePlugin):
             if isinstance(keystore, self.keystore_class):
                 self.device_manager().unpair_xpub(keystore.xpub)
 
+    def scan_and_create_client_for_device(self, *, device_id: str, wizard: 'BaseWizard') -> 'HardwareClientBase':
+        devmgr = self.device_manager()
+        client = devmgr.client_by_id(device_id)
+        if client is None:
+            raise UserFacingException(_('Failed to create a client for this device.') + '\n' +
+                                      _('Make sure it is in the correct state.'))
+        client.handler = self.create_handler(wizard)
+        return client
+
     def setup_device(self, device_info: DeviceInfo, wizard: 'BaseWizard', purpose):
         """Called when creating a new wallet or when using the device to decrypt
         an existing wallet. Select the device to use.  If the device is
