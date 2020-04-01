@@ -229,6 +229,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
         self.force_watching_only = False
         self.signing = False
         self.cfg = d.get('cfg', {'mode': 0})
+        self.cfg = dict(self.cfg)  # convert to dict from StoredDict (see #6066)
 
     def dump(self):
         obj = Hardware_KeyStore.dump(self)
