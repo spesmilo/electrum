@@ -40,7 +40,7 @@ from .wallet import (Imported_Wallet, Standard_Wallet, Multisig_Wallet,
 from .storage import WalletStorage, StorageEncryptionVersion
 from .wallet_db import WalletDB
 from .i18n import _
-from .util import UserCancelled, InvalidPassword, WalletFileException
+from .util import UserCancelled, InvalidPassword, WalletFileException, UserFacingException
 from .simple_config import SimpleConfig
 from .plugin import Plugins, HardwarePluginLibraryUnavailable
 from .logging import Logger
@@ -354,6 +354,10 @@ class BaseWizard(Logger):
             self.choose_hw_device(purpose, storage=storage)
             return
         except (UserCancelled, GoBack):
+            self.choose_hw_device(purpose, storage=storage)
+            return
+        except UserFacingException as e:
+            self.show_error(str(e))
             self.choose_hw_device(purpose, storage=storage)
             return
         except BaseException as e:
