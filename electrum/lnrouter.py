@@ -27,11 +27,13 @@ import queue
 from collections import defaultdict
 from typing import Sequence, List, Tuple, Optional, Dict, NamedTuple, TYPE_CHECKING, Set
 
+import attr
+
 from .util import bh2u, profiler
 from .logging import Logger
-from .lnutil import NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID
-from .channel_db import ChannelDB, Policy
-from .lnutil import NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE
+from .lnutil import (NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID, LnFeatures,
+                     NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE)
+from .channel_db import ChannelDB, Policy, NodeInfo
 
 if TYPE_CHECKING:
     from .lnchannel import Channel
@@ -48,13 +50,15 @@ def fee_for_edge_msat(forwarded_amount_msat: int, fee_base_msat: int, fee_propor
            + (forwarded_amount_msat * fee_proportional_millionths // 1_000_000)
 
 
-class RouteEdge(NamedTuple):
+@attr.s
+class RouteEdge:
     """if you travel through short_channel_id, you will reach node_id"""
-    node_id: bytes
-    short_channel_id: ShortChannelID
-    fee_base_msat: int
-    fee_proportional_millionths: int
-    cltv_expiry_delta: int
+    node_id = attr.ib(type=bytes, kw_only=True)
+    short_channel_id = attr.ib(type=ShortChannelID, kw_only=True)
+    fee_base_msat = attr.ib(type=int, kw_only=True)
+    fee_proportional_millionths = attr.ib(type=int, kw_only=True)
+    cltv_expiry_delta = attr.ib(type=int, kw_only=True)
+    node_features = attr.ib(type=int, kw_only=True)  # note: for end node!
 
     def fee_for_edge(self, amount_msat: int) -> int:
         return fee_for_edge_msat(forwarded_amount_msat=amount_msat,
@@ -63,14 +67,16 @@ class RouteEdge(NamedTuple):
 
     @classmethod
     def from_channel_policy(cls, channel_policy: 'Policy',
-                            short_channel_id: bytes, end_node: bytes) -> 'RouteEdge':
+                            short_channel_id: bytes, end_node: bytes, *,
+                            node_info: Optional[NodeInfo]) -> 'RouteEdge':
         assert isinstance(short_channel_id, bytes)
         assert type(end_node) is bytes
-        return RouteEdge(end_node,
-                         ShortChannelID.normalize(short_channel_id),
-                         channel_policy.fee_base_msat,
-                         channel_policy.fee_proportional_millionths,
-                         channel_policy.cltv_expiry_delta)
+        return RouteEdge(node_id=end_node,
+                         short_channel_id=ShortChannelID.normalize(short_channel_id),
+                         fee_base_msat=channel_policy.fee_base_msat,
+                         fee_proportional_millionths=channel_policy.fee_proportional_millionths,
+                         cltv_expiry_delta=channel_policy.cltv_expiry_delta,
+                         node_features=node_info.features if node_info else 0)
 
     def is_sane_to_use(self, amount_msat: int) -> bool:
         # TODO revise ad-hoc heuristics
@@ -81,6 +87,10 @@ class RouteEdge(NamedTuple):
         if not is_fee_sane(total_fee, payment_amount_msat=amount_msat):
             return False
         return True
+
+    def has_feature_varonion(self) -> bool:
+        features = self.node_features
+        return bool(features & LnFeatures.VAR_ONION_REQ or features & LnFeatures.VAR_ONION_OPT)
 
 
 LNPaymentRoute = Sequence[RouteEdge]
@@ -154,7 +164,9 @@ class LNPathFinder(Logger):
         if channel_policy.htlc_maximum_msat is not None and \
                 payment_amt_msat > channel_policy.htlc_maximum_msat:
             return float('inf'), 0  # payment amount too large
-        route_edge = RouteEdge.from_channel_policy(channel_policy, short_channel_id, end_node)
+        node_info = self.channel_db.get_node_info_for_node_id(node_id=end_node)
+        route_edge = RouteEdge.from_channel_policy(channel_policy, short_channel_id, end_node,
+                                                   node_info=node_info)
         if not route_edge.is_sane_to_use(payment_amt_msat):
             return float('inf'), 0  # thanks but no thanks
 
@@ -268,6 +280,8 @@ class LNPathFinder(Logger):
                                                                  my_channels=my_channels)
             if channel_policy is None:
                 raise NoChannelPolicy(short_channel_id)
-            route.append(RouteEdge.from_channel_policy(channel_policy, short_channel_id, node_id))
+            node_info = self.channel_db.get_node_info_for_node_id(node_id=node_id)
+            route.append(RouteEdge.from_channel_policy(channel_policy, short_channel_id, node_id,
+                                                       node_info=node_info))
             prev_node_id = node_id
         return route

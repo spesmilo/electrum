@@ -52,10 +52,10 @@ from .lnutil import (Outpoint, LNPeerAddr,
                      generate_keypair, LnKeyFamily, LOCAL, REMOTE,
                      UnknownPaymentHash, MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH, SENT, RECEIVED, HTLCOwner,
-                     UpdateAddHtlc, Direction, LnLocalFeatures,
+                     UpdateAddHtlc, Direction, LnFeatures,
                      ShortChannelID, PaymentAttemptLog, PaymentAttemptFailureDetails,
-                     BarePaymentAttemptLog)
-from .lnutil import ln_dummy_address, ln_compare_features
+                     BarePaymentAttemptLog, derive_payment_secret_from_payment_preimage)
+from .lnutil import ln_dummy_address, ln_compare_features, IncompatibleLightningFeatures
 from .transaction import PartialTxOutput, PartialTransaction, PartialTxInput
 from .lnonion import OnionFailureCode, process_onion_packet, OnionPacket
 from .lnmsg import decode_msg
@@ -147,9 +147,11 @@ class LNWorker(Logger):
         self.taskgroup = SilentTaskGroup()
         # set some feature flags as baseline for both LNWallet and LNGossip
         # note that e.g. DATA_LOSS_PROTECT is needed for LNGossip as many peers require it
-        self.localfeatures = LnLocalFeatures(0)
-        self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT
-        self.localfeatures |= LnLocalFeatures.OPTION_STATIC_REMOTEKEY_OPT
+        self.features = LnFeatures(0)
+        self.features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
+        self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_OPT
+        self.features |= LnFeatures.VAR_ONION_OPT
+        self.features |= LnFeatures.PAYMENT_SECRET_OPT
 
     def channels_for_peer(self, node_id):
         return {}
@@ -248,8 +250,8 @@ class LNWorker(Logger):
         if not node:
             return False
         try:
-            ln_compare_features(self.localfeatures, node.features)
-        except ValueError:
+            ln_compare_features(self.features, node.features)
+        except IncompatibleLightningFeatures:
             return False
         #self.logger.info(f'is_good {peer.host}')
         return True
@@ -366,8 +368,8 @@ class LNGossip(LNWorker):
         node = BIP32Node.from_rootseed(seed, xtype='standard')
         xprv = node.to_xprv()
         super().__init__(xprv)
-        self.localfeatures |= LnLocalFeatures.GOSSIP_QUERIES_OPT
-        self.localfeatures |= LnLocalFeatures.GOSSIP_QUERIES_REQ
+        self.features |= LnFeatures.GOSSIP_QUERIES_OPT
+        self.features |= LnFeatures.GOSSIP_QUERIES_REQ
         self.unknown_ids = set()
 
     def start_network(self, network: 'Network'):
@@ -419,8 +421,8 @@ class LNWallet(LNWorker):
         self.db = wallet.db
         self.config = wallet.config
         LNWorker.__init__(self, xprv)
-        self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_REQ
-        self.localfeatures |= LnLocalFeatures.OPTION_STATIC_REMOTEKEY_REQ
+        self.features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_REQ
         self.payments = self.db.get_dict('lightning_payments')     # RHASH -> amount, direction, is_paid
         self.preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
         self.sweep_address = wallet.get_receiving_address()
@@ -952,7 +954,12 @@ class LNWallet(LNWorker):
         if not peer:
             raise Exception('Dropped peer')
         await peer.initialized
-        htlc = peer.pay(route, chan, int(lnaddr.amount * COIN * 1000), lnaddr.paymenthash, lnaddr.get_min_final_cltv_expiry())
+        htlc = peer.pay(route=route,
+                        chan=chan,
+                        amount_msat=int(lnaddr.amount * COIN * 1000),
+                        payment_hash=lnaddr.paymenthash,
+                        min_final_cltv_expiry=lnaddr.get_min_final_cltv_expiry(),
+                        payment_secret=lnaddr.payment_secret)
         self.network.trigger_callback('htlc_added', htlc, lnaddr, SENT)
         payment_attempt = await self.await_payment(lnaddr.paymenthash)
         if payment_attempt.success:
@@ -1047,7 +1054,7 @@ class LNWallet(LNWorker):
         return addr
 
     @profiler
-    def _create_route_from_invoice(self, decoded_invoice) -> LNPaymentRoute:
+    def _create_route_from_invoice(self, decoded_invoice: 'LnAddr') -> LNPaymentRoute:
         amount_msat = int(decoded_invoice.amount * COIN * 1000)
         invoice_pubkey = decoded_invoice.pubkey.serialize()
         # use 'r' field from invoice
@@ -1091,8 +1098,13 @@ class LNWallet(LNWorker):
                     fee_base_msat = channel_policy.fee_base_msat
                     fee_proportional_millionths = channel_policy.fee_proportional_millionths
                     cltv_expiry_delta = channel_policy.cltv_expiry_delta
-                route.append(RouteEdge(node_pubkey, short_channel_id, fee_base_msat, fee_proportional_millionths,
-                                       cltv_expiry_delta))
+                node_info = self.channel_db.get_node_info_for_node_id(node_id=node_pubkey)
+                route.append(RouteEdge(node_id=node_pubkey,
+                                       short_channel_id=short_channel_id,
+                                       fee_base_msat=fee_base_msat,
+                                       fee_proportional_millionths=fee_proportional_millionths,
+                                       cltv_expiry_delta=cltv_expiry_delta,
+                                       node_features=node_info.features if node_info else 0))
                 prev_node_id = node_pubkey
             # test sanity
             if not is_route_sane_to_use(route, amount_msat, decoded_invoice.get_min_final_cltv_expiry()):
@@ -1111,6 +1123,11 @@ class LNWallet(LNWorker):
             if not is_route_sane_to_use(route, amount_msat, decoded_invoice.get_min_final_cltv_expiry()):
                 self.logger.info(f"rejecting insane route {route}")
                 raise NoPathFound()
+        assert len(route) > 0
+        assert route[-1].node_id == invoice_pubkey
+        # add features from invoice
+        invoice_features = decoded_invoice.get_tag('9') or 0
+        route[-1].node_features |= invoice_features
         return route
 
     def add_request(self, amount_sat, message, expiry):
@@ -1130,6 +1147,7 @@ class LNWallet(LNWorker):
                              "Other clients will likely not be able to send to us.")
         payment_preimage = os.urandom(32)
         payment_hash = sha256(payment_preimage)
+
         info = PaymentInfo(payment_hash, amount_sat, RECEIVED, PR_UNPAID)
         amount_btc = amount_sat/Decimal(COIN) if amount_sat else None
         if expiry == 0:
@@ -1138,12 +1156,15 @@ class LNWallet(LNWorker):
             # Our higher level invoices code however uses 0 for "never".
             # Hence set some high expiration here
             expiry = 100 * 365 * 24 * 60 * 60  # 100 years
-        lnaddr = LnAddr(payment_hash, amount_btc,
+        lnaddr = LnAddr(paymenthash=payment_hash,
+                        amount=amount_btc,
                         tags=[('d', message),
                               ('c', MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE),
-                              ('x', expiry)]
+                              ('x', expiry),
+                              ('9', self.features.for_invoice())]
                         + routing_hints,
-                        date = timestamp)
+                        date=timestamp,
+                        payment_secret=derive_payment_secret_from_payment_preimage(payment_preimage))
         invoice = lnencode(lnaddr, self.node_keypair.privkey)
         key = bh2u(lnaddr.paymenthash)
         req = {

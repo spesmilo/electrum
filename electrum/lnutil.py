@@ -3,12 +3,13 @@
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
 from enum import IntFlag, IntEnum
+import enum
 import json
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set, Sequence
 import re
-import attr
 
+import attr
 from aiorpcx import NetAddress
 
 from .util import bfh, bh2u, inv_dict, UserFacingException
@@ -708,19 +709,137 @@ def get_ecdh(priv: bytes, pub: bytes) -> bytes:
     return sha256(pt.get_public_key_bytes())
 
 
-class LnLocalFeatures(IntFlag):
+class LnFeatureContexts(enum.Flag):
+    INIT = enum.auto()
+    NODE_ANN = enum.auto()
+    CHAN_ANN_AS_IS = enum.auto()
+    CHAN_ANN_ALWAYS_ODD = enum.auto()
+    CHAN_ANN_ALWAYS_EVEN = enum.auto()
+    INVOICE = enum.auto()
+
+LNFC = LnFeatureContexts
+
+_ln_feature_direct_dependencies = defaultdict(set)  # type: Dict[LnFeatures, Set[LnFeatures]]
+_ln_feature_contexts = {}  # type: Dict[LnFeatures, LnFeatureContexts]
+
+class LnFeatures(IntFlag):
     OPTION_DATA_LOSS_PROTECT_REQ = 1 << 0
     OPTION_DATA_LOSS_PROTECT_OPT = 1 << 1
+    _ln_feature_contexts[OPTION_DATA_LOSS_PROTECT_OPT] = (LNFC.INIT | LnFeatureContexts.NODE_ANN)
+    _ln_feature_contexts[OPTION_DATA_LOSS_PROTECT_REQ] = (LNFC.INIT | LnFeatureContexts.NODE_ANN)
+
     INITIAL_ROUTING_SYNC = 1 << 3
+    _ln_feature_contexts[INITIAL_ROUTING_SYNC] = LNFC.INIT
+
     OPTION_UPFRONT_SHUTDOWN_SCRIPT_REQ = 1 << 4
     OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT = 1 << 5
+    _ln_feature_contexts[OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
+    _ln_feature_contexts[OPTION_UPFRONT_SHUTDOWN_SCRIPT_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
+
     GOSSIP_QUERIES_REQ = 1 << 6
     GOSSIP_QUERIES_OPT = 1 << 7
+    _ln_feature_contexts[GOSSIP_QUERIES_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
+    _ln_feature_contexts[GOSSIP_QUERIES_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
+
+    VAR_ONION_REQ = 1 << 8
+    VAR_ONION_OPT = 1 << 9
+    _ln_feature_contexts[VAR_ONION_OPT] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
+    _ln_feature_contexts[VAR_ONION_REQ] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
+
+    GOSSIP_QUERIES_EX_REQ = 1 << 10
+    GOSSIP_QUERIES_EX_OPT = 1 << 11
+    _ln_feature_direct_dependencies[GOSSIP_QUERIES_EX_OPT] = {GOSSIP_QUERIES_OPT}
+    _ln_feature_contexts[GOSSIP_QUERIES_EX_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
+    _ln_feature_contexts[GOSSIP_QUERIES_EX_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
+
     OPTION_STATIC_REMOTEKEY_REQ = 1 << 12
     OPTION_STATIC_REMOTEKEY_OPT = 1 << 13
+    _ln_feature_contexts[OPTION_STATIC_REMOTEKEY_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
+    _ln_feature_contexts[OPTION_STATIC_REMOTEKEY_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
 
-# note that these are powers of two, not the bits themselves
-LN_LOCAL_FEATURES_KNOWN_SET = set(LnLocalFeatures)
+    PAYMENT_SECRET_REQ = 1 << 14
+    PAYMENT_SECRET_OPT = 1 << 15
+    _ln_feature_direct_dependencies[PAYMENT_SECRET_OPT] = {VAR_ONION_OPT}
+    _ln_feature_contexts[PAYMENT_SECRET_OPT] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
+    _ln_feature_contexts[PAYMENT_SECRET_REQ] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
+
+    BASIC_MPP_REQ = 1 << 16
+    BASIC_MPP_OPT = 1 << 17
+    _ln_feature_direct_dependencies[BASIC_MPP_OPT] = {PAYMENT_SECRET_OPT}
+    _ln_feature_contexts[BASIC_MPP_OPT] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
+    _ln_feature_contexts[BASIC_MPP_REQ] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
+
+    OPTION_SUPPORT_LARGE_CHANNEL_REQ = 1 << 18
+    OPTION_SUPPORT_LARGE_CHANNEL_OPT = 1 << 19
+    _ln_feature_contexts[OPTION_SUPPORT_LARGE_CHANNEL_OPT] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.CHAN_ANN_ALWAYS_EVEN)
+    _ln_feature_contexts[OPTION_SUPPORT_LARGE_CHANNEL_REQ] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.CHAN_ANN_ALWAYS_EVEN)
+
+    def validate_transitive_dependecies(self) -> bool:
+        # for all even bit set, set corresponding odd bit:
+        features = self  # copy
+        flags = list_enabled_bits(features)
+        for flag in flags:
+            if flag % 2 == 0:
+                features |= 1 << get_ln_flag_pair_of_bit(flag)
+        # Check dependencies. We only check that the direct dependencies of each flag set
+        # are satisfied: this implies that transitive dependencies are also satisfied.
+        flags = list_enabled_bits(features)
+        for flag in flags:
+            for dependency in _ln_feature_direct_dependencies[1 << flag]:
+                if not (dependency & features):
+                    return False
+        return True
+
+    def for_init_message(self) -> 'LnFeatures':
+        features = LnFeatures(0)
+        for flag in list_enabled_bits(self):
+            if LnFeatureContexts.INIT & _ln_feature_contexts[1 << flag]:
+                features |= (1 << flag)
+        return features
+
+    def for_node_announcement(self) -> 'LnFeatures':
+        features = LnFeatures(0)
+        for flag in list_enabled_bits(self):
+            if LnFeatureContexts.NODE_ANN & _ln_feature_contexts[1 << flag]:
+                features |= (1 << flag)
+        return features
+
+    def for_invoice(self) -> 'LnFeatures':
+        features = LnFeatures(0)
+        for flag in list_enabled_bits(self):
+            if LnFeatureContexts.INVOICE & _ln_feature_contexts[1 << flag]:
+                features |= (1 << flag)
+        return features
+
+    def for_channel_announcement(self) -> 'LnFeatures':
+        features = LnFeatures(0)
+        for flag in list_enabled_bits(self):
+            ctxs = _ln_feature_contexts[1 << flag]
+            if LnFeatureContexts.CHAN_ANN_AS_IS & ctxs:
+                features |= (1 << flag)
+            elif LnFeatureContexts.CHAN_ANN_ALWAYS_EVEN & ctxs:
+                if flag % 2 == 0:
+                    features |= (1 << flag)
+            elif LnFeatureContexts.CHAN_ANN_ALWAYS_ODD & ctxs:
+                if flag % 2 == 0:
+                    flag = get_ln_flag_pair_of_bit(flag)
+                features |= (1 << flag)
+        return features
+
+
+del LNFC  # name is ambiguous without context
+
+# features that are actually implemented and understood in our codebase:
+# (note: this is not what we send in e.g. init!)
+# (note: specify both OPT and REQ here)
+LN_FEATURES_IMPLEMENTED = (
+        LnFeatures(0)
+        | LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        | LnFeatures.GOSSIP_QUERIES_OPT | LnFeatures.GOSSIP_QUERIES_REQ
+        | LnFeatures.OPTION_STATIC_REMOTEKEY_OPT | LnFeatures.OPTION_STATIC_REMOTEKEY_REQ
+        | LnFeatures.VAR_ONION_OPT | LnFeatures.VAR_ONION_REQ
+        | LnFeatures.PAYMENT_SECRET_OPT | LnFeatures.PAYMENT_SECRET_REQ
+)
 
 
 def get_ln_flag_pair_of_bit(flag_bit: int) -> int:
@@ -735,23 +854,24 @@ def get_ln_flag_pair_of_bit(flag_bit: int) -> int:
         return flag_bit - 1
 
 
-class LnGlobalFeatures(IntFlag):
-    pass
 
-# note that these are powers of two, not the bits themselves
-LN_GLOBAL_FEATURES_KNOWN_SET = set(LnGlobalFeatures)
+class IncompatibleOrInsaneFeatures(Exception): pass
+class UnknownEvenFeatureBits(IncompatibleOrInsaneFeatures): pass
+class IncompatibleLightningFeatures(IncompatibleOrInsaneFeatures): pass
 
-class IncompatibleLightningFeatures(ValueError): pass
 
-def ln_compare_features(our_features, their_features) -> int:
-    """raises IncompatibleLightningFeatures if incompatible"""
+def ln_compare_features(our_features: 'LnFeatures', their_features: int) -> 'LnFeatures':
+    """Returns negotiated features.
+    Raises IncompatibleLightningFeatures if incompatible.
+    """
     our_flags = set(list_enabled_bits(our_features))
     their_flags = set(list_enabled_bits(their_features))
+    # check that they have our required features, and disable the optional features they don't have
     for flag in our_flags:
         if flag not in their_flags and get_ln_flag_pair_of_bit(flag) not in their_flags:
             # they don't have this feature we wanted :(
             if flag % 2 == 0:  # even flags are compulsory
-                raise IncompatibleLightningFeatures(f"remote does not support {LnLocalFeatures(1 << flag)!r}")
+                raise IncompatibleLightningFeatures(f"remote does not support {LnFeatures(1 << flag)!r}")
             our_features ^= 1 << flag  # disable flag
         else:
             # They too have this flag.
@@ -759,7 +879,40 @@ def ln_compare_features(our_features, their_features) -> int:
             # set the corresponding odd flag now.
             if flag % 2 == 0 and our_features & (1 << flag):
                 our_features |= 1 << get_ln_flag_pair_of_bit(flag)
+    # check that we have their required features
+    for flag in their_flags:
+        if flag not in our_flags and get_ln_flag_pair_of_bit(flag) not in our_flags:
+            # we don't have this feature they wanted :(
+            if flag % 2 == 0:  # even flags are compulsory
+                raise IncompatibleLightningFeatures(f"remote wanted feature we don't have: {LnFeatures(1 << flag)!r}")
     return our_features
+
+
+def validate_features(features: int) -> None:
+    """Raises IncompatibleOrInsaneFeatures if
+    - a mandatory feature is listed that we don't recognize, or
+    - the features are inconsistent
+    """
+    features = LnFeatures(features)
+    enabled_features = list_enabled_bits(features)
+    for fbit in enabled_features:
+        if (1 << fbit) & LN_FEATURES_IMPLEMENTED == 0 and fbit % 2 == 0:
+            raise UnknownEvenFeatureBits(fbit)
+    if not features.validate_transitive_dependecies():
+        raise IncompatibleOrInsaneFeatures("not all transitive dependencies are set")
+
+
+def derive_payment_secret_from_payment_preimage(payment_preimage: bytes) -> bytes:
+    """Returns secret to be put into invoice.
+    Derivation is deterministic, based on the preimage.
+    Crucially the payment_hash must be derived in an independent way from this.
+    """
+    # Note that this could be random data too, but then we would need to store it.
+    # We derive it identically to clightning, so that we cannot be distinguished:
+    # https://github.com/ElementsProject/lightning/blob/faac4b28adee5221e83787d64cd5d30b16b62097/lightningd/invoice.c#L115
+    modified = bytearray(payment_preimage)
+    modified[0] ^= 1
+    return sha256(bytes(modified))
 
 
 class LNPeerAddr:
@@ -955,3 +1108,11 @@ class UpdateAddHtlc:
 
     def to_tuple(self):
         return (self.amount_msat, self.payment_hash, self.cltv_expiry, self.htlc_id, self.timestamp)
+
+
+class OnionFailureCodeMetaFlag(IntFlag):
+    BADONION = 0x8000
+    PERM     = 0x4000
+    NODE     = 0x2000
+    UPDATE   = 0x1000
+

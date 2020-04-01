@@ -218,13 +218,13 @@ class Channel(Logger):
             short_channel_id=self.short_channel_id,
             channel_flags=channel_flags,
             message_flags=b'\x01',
-            cltv_expiry_delta=lnutil.NBLOCK_OUR_CLTV_EXPIRY_DELTA.to_bytes(2, byteorder="big"),
-            htlc_minimum_msat=self.config[REMOTE].htlc_minimum_msat.to_bytes(8, byteorder="big"),
-            htlc_maximum_msat=htlc_maximum_msat.to_bytes(8, byteorder="big"),
-            fee_base_msat=lnutil.OUR_FEE_BASE_MSAT.to_bytes(4, byteorder="big"),
-            fee_proportional_millionths=lnutil.OUR_FEE_PROPORTIONAL_MILLIONTHS.to_bytes(4, byteorder="big"),
+            cltv_expiry_delta=lnutil.NBLOCK_OUR_CLTV_EXPIRY_DELTA,
+            htlc_minimum_msat=self.config[REMOTE].htlc_minimum_msat,
+            htlc_maximum_msat=htlc_maximum_msat,
+            fee_base_msat=lnutil.OUR_FEE_BASE_MSAT,
+            fee_proportional_millionths=lnutil.OUR_FEE_PROPORTIONAL_MILLIONTHS,
             chain_hash=constants.net.rev_genesis_bytes(),
-            timestamp=now.to_bytes(4, byteorder="big"),
+            timestamp=now,
         )
         sighash = sha256d(chan_upd[2 + 64:])
         sig = ecc.ECPrivkey(self.lnworker.node_keypair.privkey).sign(sighash, ecc.sig_string_from_r_and_s)
@@ -249,7 +249,8 @@ class Channel(Logger):
             node_ids = sorted_node_ids
             bitcoin_keys.reverse()
 
-        chan_ann = encode_msg("channel_announcement",
+        chan_ann = encode_msg(
+            "channel_announcement",
             len=0,
             features=b'',
             chain_hash=constants.net.rev_genesis_bytes(),
@@ -257,7 +258,7 @@ class Channel(Logger):
             node_id_1=node_ids[0],
             node_id_2=node_ids[1],
             bitcoin_key_1=bitcoin_keys[0],
-            bitcoin_key_2=bitcoin_keys[1]
+            bitcoin_key_2=bitcoin_keys[1],
         )
 
         self._chan_ann_without_sigs = chan_ann
