@@ -14,3 +14,4 @@ jsonrpcclient
 attrs
 PyQt5<5.12
 PyQt5-sip<=4.19.13
+importlib-metadata
