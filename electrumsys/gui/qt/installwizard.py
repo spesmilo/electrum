@@ -540,7 +540,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             nonlocal exc
             nonlocal res
             try:
-                task()
+                res = task()
             except Exception as e:
                 exc = e
         self.waiting_dialog(task_wrapper, msg=msg)
