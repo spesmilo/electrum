@@ -14,6 +14,7 @@ fi
 
 git submodule update --init
 
+"$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
 (
     rm -rf "$LOCALE"
     cd "$CONTRIB/deterministic-build/electrum-locale/"
