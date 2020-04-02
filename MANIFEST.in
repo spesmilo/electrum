@@ -16,6 +16,7 @@ exclude electrumsys/*.so
 exclude electrumsys/*.so.0
 include electrumsys/libsecp256k1.so.0
 recursive-include packages *.json
+recursive-include packages *.csv
 
 global-exclude __pycache__
 global-exclude *.py[co~]
