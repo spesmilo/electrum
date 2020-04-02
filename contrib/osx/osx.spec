@@ -73,6 +73,7 @@ datas = [
     (electrumsys + PYPKG + '/locale', PYPKG + '/locale'),
     (electrumsys + PYPKG + '/plugins', PYPKG + '/plugins'),
     (electrumsys + PYPKG + '/gui/icons', PYPKG + '/gui/icons'),
+    (electrumsys + PYPKG + '/lnwire', PYPKG + '/lnwire'),
 ]
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('safetlib')

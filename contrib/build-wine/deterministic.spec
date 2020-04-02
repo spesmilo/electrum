@@ -40,6 +40,7 @@ datas = [
     (home+'electrumsys/plugins', 'electrumsys/plugins'),
     ('C:\\Program Files (x86)\\ZBar\\bin\\', '.'),
     (home+'electrumsys/gui/icons', 'electrumsys/gui/icons'),
+    (home+'electrumsys/lnwire', 'electrumsys/lnwire'),
 ]
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('safetlib')
