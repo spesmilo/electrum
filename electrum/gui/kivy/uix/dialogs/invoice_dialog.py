@@ -105,7 +105,7 @@ class InvoiceDialog(Factory.Popup):
         self.amount = r.get('amount')
         self.asset = str(r.get('asset', ''))
         self.asset_address = r.get('asset_address', '')
-        if self.asset is not '':
+        if self.asset != '':
             assetObj = self.app.wallet.asset_synchronizer.get_asset(self.asset)
             if assetObj is not None:
                 self.amount_str = self.app.format_amount_and_units(None, asset_amount=self.amount, asset_symbol=assetObj.symbol, asset_precision=assetObj.precision)

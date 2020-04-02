@@ -1139,12 +1139,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
 
     def make_unsigned_assetsend_transaction(self, asset_guid, asset_address, outputs) -> PartialTransaction:
         tx = None
-        if outputs is None or len(outputs) is 0:
+        if outputs is None or len(outputs) == 0:
             raise Exception("No outputs defined")
         if len(outputs) > 1:
             raise Exception("More than one output for asset send is not supported by electrum at this moment")
         amount = None
-        if outputs[0].value is not '!':
+        if outputs[0].value != '!':
             amount = int(outputs[0].value)
         
         to_address = outputs[0].address

@@ -873,12 +873,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def format_amount_and_units(self, amount, asset_amount=None, asset_symbol=None, asset_precision=None):
         text = ''
-        if amount is not None and amount is not '':
+        if amount is not None and amount != '':
             text += self.format_amount(amount) + ' '+ self.base_unit()
             x = self.fx.format_amount_and_units(amount) if self.fx else None
             if text and x:
                 text += ' (%s)'%x
-        if asset_symbol is not None and asset_amount is not None and asset_amount is not '':
+        if asset_symbol is not None and asset_amount is not None and asset_amount != '':
             if amount is not None:
                 text += ' - Asset: ' + self.format_amount(asset_amount, decimal=asset_precision) + ' '+ self.base_asset_unit(asset_symbol)
             else:

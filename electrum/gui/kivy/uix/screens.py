@@ -285,7 +285,7 @@ class SendScreen(CScreen):
         self.asset = uri.get('asset', '')
         precision = 8
         asset_symbol = None
-        if amount and self.asset is not '':
+        if amount and self.asset != '':
             assetObj = self.app.wallet.asset_synchronizer.get_asset(self.asset)
             if assetObj is not None:
                 self.amount = self.app.format_amount_and_units(None, asset_amount=amount, asset_symbol=assetObj.symbol, asset_precision=assetObj.precision)
@@ -311,7 +311,7 @@ class SendScreen(CScreen):
 
     def get_asset(self, asset):
         balance = self.app.format_amount(asset.balance, is_diff=False, decimal=asset.precision)
-        if asset.asset is 0:
+        if asset.asset == 0:
             return [AssetKey(0, ''), balance + ' SYS']
         else:
             return [AssetKey(asset.asset, asset.address), asset.address[0:8] + '... ' + balance + ' ' +  asset.symbol]
@@ -352,7 +352,7 @@ class SendScreen(CScreen):
         else:
             raise Exception('unknown invoice type')
         amount = '0'
-        if item['amount'] and 'asset' in item and item['asset'] is not '':
+        if item['amount'] and 'asset' in item and item['asset'] != '':
             asset = self.app.wallet.asset_synchronizer.get_asset(item['asset'])
             if asset is not None:
                 amount = self.app.format_amount_and_units(None, asset_amount=item['amount'], asset_symbol=asset.symbol, asset_precision=asset.precision)
@@ -387,7 +387,7 @@ class SendScreen(CScreen):
         self.address = pr.get_requestor()
         amount = pr.get_amount()
         asset_guid = pr.get_asset_guid()
-        if amount and asset_guid is not None and asset_guid is not '':
+        if amount and asset_guid is not None and asset_guid != '':
             asset = self.app.wallet.asset_synchronizer.get_asset(asset_guid)
             if asset is not None:
                 self.amount = self.app.format_amount_and_units(None, asset_amount=amount, asset_symbol=asset.symbol, asset_precision=asset.precision)
@@ -692,7 +692,7 @@ class ReceiveScreen(CScreen):
 
     def get_asset(self, asset):
         balance = self.app.format_amount(asset.balance, is_diff=False, decimal=asset.precision)
-        if asset.asset is 0:
+        if asset.asset == 0:
             return [AssetKey(0, ''), balance + ' SYS']
         else:
             return [AssetKey(asset.asset, asset.address), asset.address[0:8] + '... ' + balance + ' ' + asset.symbol]

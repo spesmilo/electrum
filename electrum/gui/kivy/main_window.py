@@ -946,9 +946,9 @@ class ElectrumWindow(App):
 
     def format_amount_and_units(self, amount, asset_amount=None, asset_symbol=None, asset_precision=None):
         text = ''
-        if amount is not None and amount is not '':
+        if amount is not None and amount != '':
             text += format_satoshis_plain(amount, decimal_point=self.decimal_point()) + ' '+ self.base_unit
-        if asset_symbol is not None and asset_amount is not None and asset_amount is not '':
+        if asset_symbol is not None and asset_amount is not None and asset_amount != '':
             if amount is not None:
                 text += ' - Asset: ' + format_satoshis_plain(asset_amount, decimal_point=asset_precision) + ' '+ self.base_asset_unit(asset_symbol)
             else:

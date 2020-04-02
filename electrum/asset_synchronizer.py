@@ -170,7 +170,7 @@ class AssetSynchronizer(Logger):
         if self.current_page < self.total_pages:
             self.current_page = self.current_page + 1
             self.asset_list = await self.fetch_assethistory()
-            if len(self.asset_list) is 0:
+            if len(self.asset_list) == 0:
                 self.current_page = self.current_page - 1
                 self.asset_list = await self.fetch_assethistory()
             callback()
