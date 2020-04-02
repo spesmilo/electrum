@@ -1,5 +1,5 @@
 #
-# Coldcard Electrum plugin main code.
+# Coldcard ElectrumSys plugin main code.
 #
 #
 import os, time, io
@@ -7,16 +7,16 @@ import traceback
 from typing import TYPE_CHECKING
 import struct
 
-from electrum import bip32
-from electrum.bip32 import BIP32Node, InvalidMasterKeyVersionBytes
-from electrum.i18n import _
-from electrum.plugin import Device, hook
-from electrum.keystore import Hardware_KeyStore, KeyStoreWithMPK
-from electrum.transaction import PartialTransaction
-from electrum.wallet import Standard_Wallet, Multisig_Wallet, Abstract_Wallet
-from electrum.util import bfh, bh2u, versiontuple, UserFacingException
-from electrum.base_wizard import ScriptTypeNotSupported
-from electrum.logging import get_logger
+from electrumsys import bip32
+from electrumsys.bip32 import BIP32Node, InvalidMasterKeyVersionBytes
+from electrumsys.i18n import _
+from electrumsys.plugin import Device, hook
+from electrumsys.keystore import Hardware_KeyStore, KeyStoreWithMPK
+from electrumsys.transaction import PartialTransaction
+from electrumsys.wallet import Standard_Wallet, Multisig_Wallet, Abstract_Wallet
+from electrumsys.util import bfh, bh2u, versiontuple, UserFacingException
+from electrumsys.base_wizard import ScriptTypeNotSupported
+from electrumsys.logging import get_logger
 
 from ..hw_wallet import HW_PluginBase, HardwareClientBase
 from ..hw_wallet.plugin import LibraryFoundButUnusable, only_hook_if_libraries_available
@@ -37,11 +37,11 @@ try:
     requirements_ok = True
 
 
-    class ElectrumColdcardDevice(ColdcardDevice):
+    class ElectrumSysColdcardDevice(ColdcardDevice):
         # avoid use of pycoin for MiTM message signature test
         def mitm_verify(self, sig, expect_xpub):
             # verify a signature (65 bytes) over the session key, using the master bip32 node
-            # - customized to use specific EC library of Electrum.
+            # - customized to use specific EC library of ElectrumSys.
             pubkey = BIP32Node.from_xkey(expect_xpub).eckey
             try:
                 pubkey.verify_message_hash(sig[1:65], self.session_key)
@@ -68,14 +68,14 @@ class CKCCClient(HardwareClientBase):
         self._expected_device = None
 
         if is_simulator:
-            self.dev = ElectrumColdcardDevice(dev_path, encrypt=True)
+            self.dev = ElectrumSysColdcardDevice(dev_path, encrypt=True)
         else:
             # open the real HID device
             import hid
             hd = hid.device(path=dev_path)
             hd.open_path(dev_path)
 
-            self.dev = ElectrumColdcardDevice(dev=hd, encrypt=True)
+            self.dev = ElectrumSysColdcardDevice(dev=hd, encrypt=True)
 
         # NOTE: MiTM test is delayed until we have a hint as to what XPUB we
         # should expect. It's also kinda slow.
@@ -184,7 +184,7 @@ class CKCCClient(HardwareClientBase):
     def ping_check(self):
         # check connection is working
         assert self.dev.session_key, 'not encrypted?'
-        req = b'1234 Electrum Plugin 4321'      # free up to 59 bytes
+        req = b'1234 ElectrumSys Plugin 4321'      # free up to 59 bytes
         try:
             echo = self.dev.send_recv(CCProtocolPacker.ping(req))
             assert echo == req
@@ -407,7 +407,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
 
     @staticmethod
     def _encode_txin_type(txin_type):
-        # Map from Electrum code names to our code numbers.
+        # Map from ElectrumSys code names to our code numbers.
         return {'standard': AF_CLASSIC, 'p2pkh': AF_CLASSIC,
                 'p2sh': AF_P2SH,
                 'p2wpkh-p2sh': AF_P2WPKH_P2SH,
@@ -553,7 +553,7 @@ class ColdcardPlugin(HW_PluginBase):
         # it is participating in. All involved Coldcards can share same file.
         assert isinstance(wallet, Multisig_Wallet)
 
-        print('# Exported from Electrum', file=fp)
+        print('# Exported from ElectrumSys', file=fp)
         print(f'Name: {name:.20s}', file=fp)
         print(f'Policy: {wallet.m} of {wallet.n}', file=fp)
         print(f'Format: {wallet.txin_type.upper()}' , file=fp)

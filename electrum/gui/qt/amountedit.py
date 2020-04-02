@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (QLineEdit, QStyle, QStyleOptionFrame)
 
 from .util import char_width_in_lineedit
 
-from electrum.util import (format_satoshis_plain, decimal_point_to_base_unit_name,
+from electrumsys.util import (format_satoshis_plain, decimal_point_to_base_unit_name,
                            FEERATE_PRECISION, quantize_feerate)
          
 class FreezableLineEdit(QLineEdit):

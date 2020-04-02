@@ -2,9 +2,9 @@
 
 # Parameterize
 PYTHON_VERSION=3.7.6
-BUILDDIR=/tmp/electrum-build
+BUILDDIR=/tmp/electrumsys-build
 PACKAGE=ElectrumSys
-GIT_REPO=https://github.com/syscoin/electrum
+GIT_REPO=https://github.com/syscoin/electrumsys
 LIBSECP_VERSION="b408c6a8b287003d1ade5709e6f7bc3c7f1d5be7"
 
 export GCC_STRIP_BINARIES="1"
@@ -81,11 +81,11 @@ info "generating locale"
         brew install gettext
         brew link --force gettext
     fi
-    cd "$CONTRIB"/deterministic-build/electrum-locale
+    cd "$CONTRIB"/deterministic-build/electrumsys-locale
     for i in ./locale/*; do
-        dir="$ROOT_FOLDER"/electrum/$i/LC_MESSAGES
+        dir="$ROOT_FOLDER"/electrumsys/$i/LC_MESSAGES
         mkdir -p $dir
-        msgfmt --output-file=$dir/electrum.mo $i/electrum.po || true
+        msgfmt --output-file=$dir/electrumsys.mo $i/electrumsys.po || true
     done
 ) || fail "failed generating locale"
 
@@ -100,7 +100,7 @@ echo "82c368dfd4da017ceb32b12ca885576f325503428a4966cc09302cbd62702493  contrib/
 info "Preparing for building libsecp256k1"
 brew install autoconf automake libtool
 "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
-cp "$ROOT_FOLDER"/electrum/libsecp256k1.0.dylib contrib/osx
+cp "$ROOT_FOLDER"/electrumsys/libsecp256k1.0.dylib contrib/osx
 
 info "Building CalinsQRReader..."
 d=contrib/osx/CalinsQRReader
@@ -142,9 +142,9 @@ plutil -insert 'CFBundleURLTypes' \
 DoCodeSignMaybe "app bundle" "dist/${PACKAGE}.app" "$APP_SIGN" # If APP_SIGN is empty will be a noop
 
 info "Creating .DMG"
-hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/electrum-$VERSION.dmg || fail "Could not create .DMG"
+hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/electrumsys-$VERSION.dmg || fail "Could not create .DMG"
 
-DoCodeSignMaybe ".DMG" "dist/electrum-${VERSION}.dmg" "$APP_SIGN" # If APP_SIGN is empty will be a noop
+DoCodeSignMaybe ".DMG" "dist/electrumsys-${VERSION}.dmg" "$APP_SIGN" # If APP_SIGN is empty will be a noop
 
 if [ -z "$APP_SIGN" ]; then
     warn "App was built successfully but was not code signed. Users may get security warnings from macOS."

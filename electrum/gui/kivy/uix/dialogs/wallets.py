@@ -5,8 +5,8 @@ from kivy.factory import Factory
 from kivy.properties import ObjectProperty
 from kivy.lang import Builder
 
-from electrum.util import base_units
-from electrum.storage import StorageReadWriteError
+from electrumsys.util import base_units
+from electrumsys.storage import StorageReadWriteError
 
 from ...i18n import _
 from .label_dialog import LabelDialog

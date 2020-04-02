@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
+# ElectrumSys - lightweight Bitcoin client
 # Copyright (C) 2015 Thomas Voegtlin
 #
 # Permission is hereby granted, free of charge, to any person
@@ -39,29 +39,29 @@ from PyQt5.QtWidgets import (QMenu, QHeaderView, QLabel, QMessageBox,
                              QPushButton, QComboBox, QVBoxLayout, QCalendarWidget,
                              QGridLayout)
 
-from electrum.address_synchronizer import TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE
-from electrum.i18n import _
-from electrum.util import (block_explorer_URL, profiler, TxMinedInfo,
+from electrumsys.address_synchronizer import TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE
+from electrumsys.i18n import _
+from electrumsys.util import (block_explorer_URL, profiler, TxMinedInfo,
                            OrderedDictWithIndex, timestamp_to_datetime,
                            Satoshis, format_time)
-from electrum.logging import get_logger, Logger
+from electrumsys.logging import get_logger, Logger
 
 from .util import (read_QIcon, MONOSPACE_FONT, Buttons, CancelButton, OkButton,
                    filename_field, MyTreeView, AcceptFileDragDrop, WindowModalDialog,
                    CloseButton, webopen)
 
 if TYPE_CHECKING:
-    from electrum.wallet import Abstract_Wallet
-    from .main_window import ElectrumWindow
+    from electrumsys.wallet import Abstract_Wallet
+    from .main_window import ElectrumSysWindow
 
 
 _logger = get_logger(__name__)
 
 
 try:
-    from electrum.plot import plot_history, NothingToPlotException
+    from electrumsys.plot import plot_history, NothingToPlotException
 except:
-    _logger.info("could not import electrum.plot. This feature needs matplotlib to be installed.")
+    _logger.info("could not import electrumsys.plot. This feature needs matplotlib to be installed.")
     plot_history = None
 
 # note: this list needs to be kept in sync with another in kivy
@@ -108,7 +108,7 @@ def get_item_key(tx_item):
 
 class HistoryModel(QAbstractItemModel, Logger):
 
-    def __init__(self, parent: 'ElectrumWindow'):
+    def __init__(self, parent: 'ElectrumSysWindow'):
         QAbstractItemModel.__init__(self, parent)
         Logger.__init__(self)
         self.parent = parent
@@ -701,7 +701,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         d = WindowModalDialog(self, _('Export History'))
         d.setMinimumSize(400, 200)
         vbox = QVBoxLayout(d)
-        defaultname = os.path.expanduser('~/electrum-history.csv')
+        defaultname = os.path.expanduser('~/electrumsys-history.csv')
         select_msg = _('Select file to export your wallet transactions to')
         hbox, filename_e, csv_button = filename_field(self, self.config, defaultname, select_msg)
         vbox.addLayout(hbox)
@@ -718,7 +718,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         try:
             self.do_export_history(filename, csv_button.isChecked())
         except (IOError, os.error) as reason:
-            export_error_label = _("Electrum was unable to produce a transaction export.")
+            export_error_label = _("ElectrumSys was unable to produce a transaction export.")
             self.parent.show_critical(export_error_label + "\n" + str(reason), title=_("Unable to export history"))
             return
         self.parent.show_message(_("Your wallet history has been successfully exported."))
@@ -752,7 +752,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                 for line in lines:
                     transaction.writerow(line)
             else:
-                from electrum.util import json_encode
+                from electrumsys.util import json_encode
                 f.write(json_encode(txns))
 
     def text_txid_from_coordinate(self, row, col):

@@ -1,13 +1,13 @@
 import time
 from struct import pack
 
-from electrum import ecc
-from electrum.i18n import _
-from electrum.util import UserCancelled
-from electrum.keystore import bip39_normalize_passphrase
-from electrum.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32
-from electrum.logging import Logger
-from electrum.plugins.hw_wallet.plugin import HardwareClientBase
+from electrumsys import ecc
+from electrumsys.i18n import _
+from electrumsys.util import UserCancelled
+from electrumsys.keystore import bip39_normalize_passphrase
+from electrumsys.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32
+from electrumsys.logging import Logger
+from electrumsys.plugins.hw_wallet.plugin import HardwareClientBase
 
 
 class GuiMixin(object):
@@ -125,8 +125,8 @@ class SafeTClientBase(HardwareClientBase, GuiMixin, Logger):
 
     def has_usable_connection_with_device(self):
         try:
-            res = self.ping("electrum pinging device")
-            assert res == "electrum pinging device"
+            res = self.ping("electrumsys pinging device")
+            assert res == "electrumsys pinging device"
         except BaseException:
             return False
         return True

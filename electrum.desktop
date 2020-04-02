@@ -1,22 +1,22 @@
-# If you want Electrum to appear in a Linux app launcher ("start menu"), install this by doing:
-# sudo desktop-file-install electrum.desktop
+# If you want ElectrumSys to appear in a Linux app launcher ("start menu"), install this by doing:
+# sudo desktop-file-install electrumsys.desktop
 
 [Desktop Entry]
 Comment=Lightweight Syscoin Client
-Exec=sh -c "PATH=\"\\$HOME/.local/bin:\\$PATH\"; electrum %u"
+Exec=sh -c "PATH=\"\\$HOME/.local/bin:\\$PATH\"; electrumsys %u"
 GenericName[en_US]=Syscoin Wallet
 GenericName=Syscoin Wallet
-Icon=electrum
-Name[en_US]=Electrum Syscoin Wallet
-Name=Electrum Syscoin Wallet
+Icon=electrumsys
+Name[en_US]=ElectrumSys Syscoin Wallet
+Name=ElectrumSys Syscoin Wallet
 Categories=Finance;Network;
 StartupNotify=true
-StartupWMClass=electrum
+StartupWMClass=electrumsys
 Terminal=false
 Type=Application
 MimeType=x-scheme-handler/syscoin;
 Actions=Testnet;
 
 [Desktop Action Testnet]
-Exec=sh -c "PATH=\"\\$HOME/.local/bin:\\$PATH\"; electrum --testnet %u"
+Exec=sh -c "PATH=\"\\$HOME/.local/bin:\\$PATH\"; electrumsys --testnet %u"
 Name=Testnet mode

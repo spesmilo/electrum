@@ -13,7 +13,7 @@ except ImportError as e:
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 os.chdir('..')
 
-cmd = "find electrum -type f -name '*.py' -o -name '*.kv'"
+cmd = "find electrumsys -type f -name '*.py' -o -name '*.kv'"
 
 files = subprocess.check_output(cmd, shell=True)
 
@@ -23,16 +23,16 @@ with open("app.fil", "wb") as f:
 print("Found {} files to translate".format(len(files.splitlines())))
 
 # Generate fresh translation template
-if not os.path.exists('electrum/locale'):
-    os.mkdir('electrum/locale')
-cmd = 'xgettext -s --from-code UTF-8 --language Python --no-wrap -f app.fil --output=electrum/locale/messages.pot'
+if not os.path.exists('electrumsys/locale'):
+    os.mkdir('electrumsys/locale')
+cmd = 'xgettext -s --from-code UTF-8 --language Python --no-wrap -f app.fil --output=electrumsys/locale/messages.pot'
 print('Generate template')
 os.system(cmd)
 
-os.chdir('electrum')
+os.chdir('electrumsys')
 
-crowdin_identifier = 'electrum'
-crowdin_file_name = 'files[electrum-client/messages.pot]'
+crowdin_identifier = 'electrumsys'
+crowdin_file_name = 'files[electrumsys-client/messages.pot]'
 locale_file_name = 'locale/messages.pot'
 
 # Download & unzip
@@ -42,7 +42,7 @@ zfobj = zipfile.ZipFile(io.BytesIO(s))
 
 print('Unzip translations')
 for name in zfobj.namelist():
-    if not name.startswith('electrum-client/locale'):
+    if not name.startswith('electrumsys-client/locale'):
         continue
     if name.endswith('/'):
         if not os.path.exists(name[16:]):
@@ -60,6 +60,6 @@ for lang in os.listdir('locale'):
     mo_dir = 'locale/%s/LC_MESSAGES' % lang
     if not os.path.exists(mo_dir):
         os.mkdir(mo_dir)
-    cmd = 'msgfmt --output-file="%s/electrum.mo" "locale/%s/electrum.po"' % (mo_dir,lang)
+    cmd = 'msgfmt --output-file="%s/electrumsys.mo" "locale/%s/electrumsys.po"' % (mo_dir,lang)
     print('Installing', lang)
     os.system(cmd)

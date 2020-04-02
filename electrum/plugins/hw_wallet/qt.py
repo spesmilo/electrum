@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- mode: python -*-
 #
-# Electrum - lightweight Bitcoin client
-# Copyright (C) 2016  The Electrum developers
+# ElectrumSys - lightweight Bitcoin client
+# Copyright (C) 2016  The ElectrumSys developers
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -31,22 +31,22 @@ from typing import TYPE_CHECKING, Union, Optional, Callable, Any
 from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtWidgets import QVBoxLayout, QLineEdit, QHBoxLayout, QLabel
 
-from electrum.gui.qt.password_dialog import PasswordLayout, PW_PASSPHRASE
-from electrum.gui.qt.util import (read_QIcon, WWLabel, OkButton, WindowModalDialog,
+from electrumsys.gui.qt.password_dialog import PasswordLayout, PW_PASSPHRASE
+from electrumsys.gui.qt.util import (read_QIcon, WWLabel, OkButton, WindowModalDialog,
                                   Buttons, CancelButton, TaskThread, char_width_in_lineedit)
-from electrum.gui.qt.main_window import StatusBarButton, ElectrumWindow
-from electrum.gui.qt.installwizard import InstallWizard
+from electrumsys.gui.qt.main_window import StatusBarButton, ElectrumSysWindow
+from electrumsys.gui.qt.installwizard import InstallWizard
 
-from electrum.i18n import _
-from electrum.logging import Logger
-from electrum.util import parse_URI, InvalidBitcoinURI, UserCancelled, UserFacingException
-from electrum.plugin import hook, DeviceUnpairableError
+from electrumsys.i18n import _
+from electrumsys.logging import Logger
+from electrumsys.util import parse_URI, InvalidBitcoinURI, UserCancelled, UserFacingException
+from electrumsys.plugin import hook, DeviceUnpairableError
 
 from .plugin import OutdatedHwFirmwareException, HW_PluginBase, HardwareHandlerBase
 
 if TYPE_CHECKING:
-    from electrum.wallet import Abstract_Wallet
-    from electrum.keystore import Hardware_KeyStore
+    from electrumsys.wallet import Abstract_Wallet
+    from electrumsys.keystore import Hardware_KeyStore
 
 
 # The trickiest thing about this handler was getting windows properly
@@ -64,7 +64,7 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
     yes_no_signal = pyqtSignal(object)
     status_signal = pyqtSignal(object)
 
-    def __init__(self, win: Union[ElectrumWindow, InstallWizard], device: str):
+    def __init__(self, win: Union[ElectrumSysWindow, InstallWizard], device: str):
         QObject.__init__(self)
         Logger.__init__(self)
         assert win.gui_thread == threading.current_thread(), 'must be called from GUI thread'
@@ -205,7 +205,7 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
 class QtPluginBase(object):
 
     @hook
-    def load_wallet(self: Union['QtPluginBase', HW_PluginBase], wallet: 'Abstract_Wallet', window: ElectrumWindow):
+    def load_wallet(self: Union['QtPluginBase', HW_PluginBase], wallet: 'Abstract_Wallet', window: ElectrumSysWindow):
         for keystore in wallet.get_keystores():
             if not isinstance(keystore, self.keystore_class):
                 continue
@@ -227,14 +227,14 @@ class QtPluginBase(object):
             # Trigger a pairing
             keystore.thread.add(partial(self.get_client, keystore))
 
-    def _on_status_bar_button_click(self, *, window: ElectrumWindow, keystore: 'Hardware_KeyStore'):
+    def _on_status_bar_button_click(self, *, window: ElectrumSysWindow, keystore: 'Hardware_KeyStore'):
         try:
             self.show_settings_dialog(window=window, keystore=keystore)
         except (UserFacingException, UserCancelled) as e:
             exc_info = (type(e), e, e.__traceback__)
             self.on_task_thread_error(window=window, keystore=keystore, exc_info=exc_info)
 
-    def on_task_thread_error(self: Union['QtPluginBase', HW_PluginBase], window: ElectrumWindow,
+    def on_task_thread_error(self: Union['QtPluginBase', HW_PluginBase], window: ElectrumSysWindow,
                              keystore: 'Hardware_KeyStore', exc_info):
         e = exc_info[1]
         if isinstance(e, OutdatedHwFirmwareException):
@@ -251,7 +251,7 @@ class QtPluginBase(object):
         else:
             window.on_error(exc_info)
 
-    def choose_device(self: Union['QtPluginBase', HW_PluginBase], window: ElectrumWindow,
+    def choose_device(self: Union['QtPluginBase', HW_PluginBase], window: ElectrumSysWindow,
                       keystore: 'Hardware_KeyStore') -> Optional[str]:
         '''This dialog box should be usable even if the user has
         forgotten their PIN or it is in bootloader mode.'''
@@ -265,7 +265,7 @@ class QtPluginBase(object):
             device_id = info.device.id_
         return device_id
 
-    def show_settings_dialog(self, window: ElectrumWindow, keystore: 'Hardware_KeyStore') -> None:
+    def show_settings_dialog(self, window: ElectrumSysWindow, keystore: 'Hardware_KeyStore') -> None:
         # default implementation (if no dialog): just try to connect to device
         def connect():
             device_id = self.choose_device(window, keystore)
@@ -273,7 +273,7 @@ class QtPluginBase(object):
 
     def add_show_address_on_hw_device_button_for_receive_addr(self, wallet: 'Abstract_Wallet',
                                                               keystore: 'Hardware_KeyStore',
-                                                              main_window: ElectrumWindow):
+                                                              main_window: ElectrumSysWindow):
         plugin = keystore.plugin
         receive_address_e = main_window.receive_address_e
 
@@ -283,5 +283,5 @@ class QtPluginBase(object):
         dev_name = f"{plugin.device} ({keystore.label})"
         receive_address_e.addButton("eye1.png", show_address, _("Show on {}").format(dev_name))
 
-    def create_handler(self, window: Union[ElectrumWindow, InstallWizard]) -> 'QtHandlerBase':
+    def create_handler(self, window: Union[ElectrumSysWindow, InstallWizard]) -> 'QtHandlerBase':
         raise NotImplementedError()

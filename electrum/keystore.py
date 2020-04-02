@@ -1,8 +1,8 @@
 #!/usr/bin/env python2
 # -*- mode: python -*-
 #
-# Electrum - lightweight Bitcoin client
-# Copyright (C) 2016  The Electrum developers
+# ElectrumSys - lightweight Bitcoin client
+# Copyright (C) 2016  The ElectrumSys developers
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files

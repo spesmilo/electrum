@@ -13,7 +13,7 @@ except ImportError as e:
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 os.chdir('..')
 
-cmd = "find electrum -type f -name '*.py' -o -name '*.kv'"
+cmd = "find electrumsys -type f -name '*.py' -o -name '*.kv'"
 
 files = subprocess.check_output(cmd, shell=True)
 
@@ -23,16 +23,16 @@ with open("app.fil", "wb") as f:
 print("Found {} files to translate".format(len(files.splitlines())))
 
 # Generate fresh translation template
-if not os.path.exists('electrum/locale'):
-    os.mkdir('electrum/locale')
-cmd = 'xgettext -s --from-code UTF-8 --language Python --no-wrap -f app.fil --output=electrum/locale/messages.pot'
+if not os.path.exists('electrumsys/locale'):
+    os.mkdir('electrumsys/locale')
+cmd = 'xgettext -s --from-code UTF-8 --language Python --no-wrap -f app.fil --output=electrumsys/locale/messages.pot'
 print('Generate template')
 os.system(cmd)
 
-os.chdir('electrum')
+os.chdir('electrumsys')
 
-crowdin_identifier = 'electrum'
-crowdin_file_name = 'files[electrum-client/messages.pot]'
+crowdin_identifier = 'electrumsys'
+crowdin_file_name = 'files[electrumsys-client/messages.pot]'
 locale_file_name = 'locale/messages.pot'
 crowdin_api_key = None
 

@@ -13,16 +13,16 @@ from kivy.uix.button import Button
 from kivy.utils import get_color_from_hex
 
 from .question import Question
-from electrum.gui.kivy.i18n import _
+from electrumsys.gui.kivy.i18n import _
 
-from electrum.util import InvalidPassword
-from electrum.address_synchronizer import TX_HEIGHT_LOCAL
-from electrum.wallet import CannotBumpFee
-from electrum.transaction import Transaction, PartialTransaction
+from electrumsys.util import InvalidPassword
+from electrumsys.address_synchronizer import TX_HEIGHT_LOCAL
+from electrumsys.wallet import CannotBumpFee
+from electrumsys.transaction import Transaction, PartialTransaction
 from ...util import address_colors
 
 if TYPE_CHECKING:
-    from ...main_window import ElectrumWindow
+    from ...main_window import ElectrumSysWindow
 
 
 Builder.load_string('''
@@ -103,7 +103,7 @@ Builder.load_string('''
             IconButton:
                 size_hint: 0.5, None
                 height: '48dp'
-                icon: 'atlas://electrum/gui/kivy/theming/light/qrcode'
+                icon: 'atlas://electrumsys/gui/kivy/theming/light/qrcode'
                 on_release: root.show_qr()
             Button:
                 size_hint: 0.5, None
@@ -128,7 +128,7 @@ class TxDialog(Factory.Popup):
 
     def __init__(self, app, tx):
         Factory.Popup.__init__(self)
-        self.app = app  # type: ElectrumWindow
+        self.app = app  # type: ElectrumSysWindow
         self.wallet = self.app.wallet
         self.tx = tx  # type: Transaction
         self._action_button_fn = lambda btn: None
@@ -271,7 +271,7 @@ class TxDialog(Factory.Popup):
         self.app.broadcast(self.tx)
 
     def show_qr(self):
-        from electrum.bitcoin import base_encode, bfh
+        from electrumsys.bitcoin import base_encode, bfh
         original_raw_tx = str(self.tx)
         tx = copy.deepcopy(self.tx)  # make copy as we mutate tx
         if isinstance(tx, PartialTransaction):

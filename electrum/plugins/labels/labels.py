@@ -7,11 +7,11 @@ from typing import Union
 
 import base64
 
-from electrum.plugin import BasePlugin, hook
-from electrum.crypto import aes_encrypt_with_iv, aes_decrypt_with_iv
-from electrum.i18n import _
-from electrum.util import log_exceptions, ignore_exceptions, make_aiohttp_session
-from electrum.network import Network
+from electrumsys.plugin import BasePlugin, hook
+from electrumsys.crypto import aes_encrypt_with_iv, aes_decrypt_with_iv
+from electrumsys.i18n import _
+from electrumsys.util import log_exceptions, ignore_exceptions, make_aiohttp_session
+from electrumsys.network import Network
 
 
 class ErrorConnectingServer(Exception):
@@ -30,7 +30,7 @@ class LabelsPlugin(BasePlugin):
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
-        self.target_host = 'labels.electrum.syscoin.org'
+        self.target_host = 'labels.electrumsys.syscoin.org'
         self.wallets = {}
 
     def encode(self, wallet, msg):

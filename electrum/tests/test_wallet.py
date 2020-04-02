@@ -7,17 +7,17 @@ from decimal import Decimal
 import time
 
 from io import StringIO
-from electrum.storage import WalletStorage
-from electrum.wallet_db import FINAL_SEED_VERSION
-from electrum.wallet import (Abstract_Wallet, Standard_Wallet, create_new_wallet,
+from electrumsys.storage import WalletStorage
+from electrumsys.wallet_db import FINAL_SEED_VERSION
+from electrumsys.wallet import (Abstract_Wallet, Standard_Wallet, create_new_wallet,
                              restore_wallet_from_text, Imported_Wallet)
-from electrum.exchange_rate import ExchangeBase, FxThread
-from electrum.util import TxMinedInfo
-from electrum.bitcoin import COIN
-from electrum.wallet_db import WalletDB
-from electrum.simple_config import SimpleConfig
+from electrumsys.exchange_rate import ExchangeBase, FxThread
+from electrumsys.util import TxMinedInfo
+from electrumsys.bitcoin import COIN
+from electrumsys.wallet_db import WalletDB
+from electrumsys.simple_config import SimpleConfig
 
-from . import ElectrumTestCase
+from . import ElectrumSysTestCase
 
 
 class FakeSynchronizer(object):
@@ -29,12 +29,12 @@ class FakeSynchronizer(object):
         self.store.append(address)
 
 
-class WalletTestCase(ElectrumTestCase):
+class WalletTestCase(ElectrumSysTestCase):
 
     def setUp(self):
         super(WalletTestCase, self).setUp()
         self.user_dir = tempfile.mkdtemp()
-        self.config = SimpleConfig({'electrum_path': self.user_dir})
+        self.config = SimpleConfig({'electrumsys_path': self.user_dir})
 
         self.wallet_path = os.path.join(self.user_dir, "somewallet")
 
@@ -118,7 +118,7 @@ class FakeWallet:
 txid = 'abc'
 ccy = 'TEST'
 
-class TestFiat(ElectrumTestCase):
+class TestFiat(ElectrumSysTestCase):
     def setUp(self):
         super().setUp()
         self.value_sat = COIN
@@ -193,7 +193,7 @@ class TestCreateRestoreWallet(WalletTestCase):
         self.assertEqual(text, wallet.keystore.get_master_public_key())
         self.assertEqual('bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', wallet.get_receiving_addresses()[0])
 
-    def test_restore_wallet_from_text_xkey_that_is_also_a_valid_electrum_seed_by_chance(self):
+    def test_restore_wallet_from_text_xkey_that_is_also_a_valid_electrumsys_seed_by_chance(self):
         text = 'yprvAJBpuoF4FKpK92ofzQ7ge6VJMtorow3maAGPvPGj38ggr2xd1xCrC9ojUVEf9jhW5L9SPu6fU2U3o64cLrRQ83zaQGNa6YP3ajZS6hHNPXj'
         d = restore_wallet_from_text(text, path=self.wallet_path, gap_limit=1, config=self.config)
         wallet = d['wallet']  # type: Standard_Wallet

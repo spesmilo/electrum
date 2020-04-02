@@ -1,6 +1,6 @@
 # Kivy GUI
 
-The Kivy GUI is used with Electrum on Android devices.
+The Kivy GUI is used with ElectrumSys on Android devices.
 To generate an APK file, follow these instructions.
 
 ## Android binary with Docker
@@ -24,7 +24,7 @@ folder.
 2. Build image
 
     ```
-    $ sudo docker build -t electrum-android-builder-img electrum/gui/kivy/tools
+    $ sudo docker build -t electrumsys-android-builder-img electrumsys/gui/kivy/tools
     ```
 
 3. Build locale files
@@ -44,12 +44,12 @@ folder.
     ```
     $ mkdir --parents $PWD/.buildozer/.gradle
     $ sudo docker run -it --rm \
-        --name electrum-android-builder-cont \
-        -v $PWD:/home/user/wspace/electrum \
+        --name electrumsys-android-builder-cont \
+        -v $PWD:/home/user/wspace/electrumsys \
         -v $PWD/.buildozer/.gradle:/home/user/.gradle \
         -v ~/.keystore:/home/user/.keystore \
-        --workdir /home/user/wspace/electrum \
-        electrum-android-builder-img \
+        --workdir /home/user/wspace/electrumsys \
+        electrumsys-android-builder-img \
         ./contrib/make_apk
     ```
     This mounts the project dir inside the container,
@@ -69,18 +69,18 @@ You probably need to clear the cache: `rm -rf .buildozer/android/platform/build/
 ### How do I deploy on connected phone for quick testing?
 Assuming `adb` is installed:
 ```
-$ adb -d install -r bin/Electrum-*-arm64-v8a-debug.apk
-$ adb shell monkey -p org.electrumsys.electrum 1
+$ adb -d install -r bin/ElectrumSys-*-arm64-v8a-debug.apk
+$ adb shell monkey -p org.electrumsys.electrumsys 1
 ```
 
 
 ### How do I get an interactive shell inside docker?
 ```
 $ sudo docker run -it --rm \
-    -v $PWD:/home/user/wspace/electrum \
+    -v $PWD:/home/user/wspace/electrumsys \
     -v $PWD/.buildozer/.gradle:/home/user/.gradle \
-    --workdir /home/user/wspace/electrum \
-    electrum-android-builder-img
+    --workdir /home/user/wspace/electrumsys \
+    electrumsys-android-builder-img
 ```
 
 
@@ -95,7 +95,7 @@ adb logcat | grep python
 ```
 Better `grep` but fragile because of `cut`:
 ```
-adb logcat | grep -F "`adb shell ps | grep org.electrumsys.electrum | cut -c14-19`"
+adb logcat | grep -F "`adb shell ps | grep org.electrumsys.electrumsys | cut -c14-19`"
 ```
 
 
@@ -103,9 +103,9 @@ adb logcat | grep -F "`adb shell ps | grep org.electrumsys.electrum | cut -c14-1
 Install Kivy.
 `pip3 install kivy`
 
-Build atlas: `(cd electrum/gui/kivy/; make theming)`
+Build atlas: `(cd electrumsys/gui/kivy/; make theming)`
 
-Run electrum with the `-g` switch: `run_electrum -g kivy`
+Run electrumsys with the `-g` switch: `run_electrumsys -g kivy`
 
 ### debug vs release build
 If you just follow the instructions above, you will build the apk
@@ -123,6 +123,6 @@ of Android does not let you access the internal storage of an app without root.
 (See [this](https://stackoverflow.com/q/9017073))
 ```
 $ adb shell
-$ run-as org.electrumsys.electrum ls /data/data/org.electrumsys.electrum/files/data
-$ run-as org.electrumsys.electrum cp /data/data/org.electrumsys.electrum/files/data/wallets/my_wallet /sdcard/some_path/my_wallet
+$ run-as org.electrumsys.electrumsys ls /data/data/org.electrumsys.electrumsys/files/data
+$ run-as org.electrumsys.electrumsys cp /data/data/org.electrumsys.electrumsys/files/data/wallets/my_wallet /sdcard/some_path/my_wallet
 ```

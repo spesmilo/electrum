@@ -9,7 +9,7 @@ def address_colors(wallet, addr):
     Returns: color, background_color
     """
     
-    # modified colors (textcolor, background_color) from electrum/gui/qt/util.py
+    # modified colors (textcolor, background_color) from electrumsys/gui/qt/util.py
     GREEN = ("#000000", "#8af296")
     YELLOW = ("#000000", "#ffff00")
     BLUE = ("#000000", "#8cb3f2")

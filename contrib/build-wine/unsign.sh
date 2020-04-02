@@ -14,15 +14,15 @@ set -e
 mkdir -p signed >/dev/null 2>&1
 mkdir -p signed/stripped >/dev/null 2>&1
 
-version=`python3 -c "import electrum; print(electrum.version.ELECTRUM_VERSION)"`
+version=`python3 -c "import electrumsys; print(electrumsys.version.ELECTRUM_VERSION)"`
 
 echo "Found $(ls dist/*.exe | wc -w) files to verify."
 
 for mine in $(ls dist/*.exe); do
     echo "---------------"
     f=$(basename $mine)
-    echo "Downloading https://downloadelectrum.syscoin.org/$version/$f"
-    wget -q https://downloadelectrum.syscoin.org/$version/$f -O signed/$f
+    echo "Downloading https://downloadelectrumsys.syscoin.org/$version/$f"
+    wget -q https://downloadelectrumsys.syscoin.org/$version/$f -O signed/$f
     out="signed/stripped/$f"
     # Remove PE signature from signed binary
     osslsigncode remove-signature -in signed/$f -out $out > /dev/null 2>&1

@@ -1,23 +1,23 @@
-Electrum - Lightweight Syscoin client (AuxPoW fork)
+ElectrumSys - Lightweight Syscoin client (AuxPoW fork)
 ===================================================
 
 ::
 
-  Licence: GNU GPLv3+ for Electrum-DOGE components; MIT Licence for all other components
-  Author: The Syscoin developers; based on Electrum by Thomas Voegtlin and Electrum-DOGE by The Electrum-DOGE contributors
+  Licence: GNU GPLv3+ for ElectrumSys-DOGE components; MIT Licence for all other components
+  Author: The Syscoin developers; based on ElectrumSys by Thomas Voegtlin and ElectrumSys-DOGE by The ElectrumSys-DOGE contributors
   Language: Python (>= 3.6)
-  Homepage: https://syscoin.org/ ; original Electrum Homepage at https://electrum.syscoin.org/
+  Homepage: https://syscoin.org/ ; original ElectrumSys Homepage at https://electrumsys.syscoin.org/
 
 
-.. image:: https://travis-ci.org/syscoin/electrum.svg?branch=master
-    :target: https://travis-ci.org/syscoin/electrum
+.. image:: https://travis-ci.org/syscoin/electrumsys.svg?branch=master
+    :target: https://travis-ci.org/syscoin/electrumsys
     :alt: Build Status
-.. image:: https://coveralls.io/repos/github/syscoin/electrum/badge.svg?branch=master
-    :target: https://coveralls.io/github/syscoin/electrum?branch=master
+.. image:: https://coveralls.io/repos/github/syscoin/electrumsys/badge.svg?branch=master
+    :target: https://coveralls.io/github/syscoin/electrumsys?branch=master
     :alt: Test coverage statistics
-.. image:: https://d322cqt584bo4o.cloudfront.net/electrum/localized.svg
-    :target: https://crowdin.com/project/electrum
-    :alt: Help translate Electrum online
+.. image:: https://d322cqt584bo4o.cloudfront.net/electrumsys/localized.svg
+    :target: https://crowdin.com/project/electrumsys
+    :alt: Help translate ElectrumSys online
 
 
 
@@ -26,11 +26,11 @@ Electrum - Lightweight Syscoin client (AuxPoW fork)
 Getting started
 ===============
 
-(*If you've come here looking to simply run Electrum,* `you may download it here`_.)
+(*If you've come here looking to simply run ElectrumSys,* `you may download it here`_.)
 
-.. _you may download it here: https://electrum.syscoin.org/#download
+.. _you may download it here: https://electrumsys.syscoin.org/#download
 
-Electrum itself is pure Python, and so are most of the required dependencies,
+ElectrumSys itself is pure Python, and so are most of the required dependencies,
 but not everything. The following sections describe how to run from source, but here
 is a TL;DR::
 
@@ -67,25 +67,25 @@ If you would like hardware wallet support, see `this`_.
 .. _libsecp256k1: https://github.com/bitcoin-core/secp256k1
 .. _pycryptodomex: https://github.com/Legrandin/pycryptodome
 .. _cryptography: https://github.com/pyca/cryptography
-.. _this: https://github.com/spesmilo/electrum-docs/blob/master/hardware-linux.rst
+.. _this: https://github.com/spesmilo/electrumsys-docs/blob/master/hardware-linux.rst
 
 Running from tar.gz
 -------------------
 
 If you downloaded the official package (tar.gz), you can run
-Electrum from its root directory without installing it on your
+ElectrumSys from its root directory without installing it on your
 system; all the pure python dependencies are included in the 'packages'
-directory. To run Electrum from its root directory, just do::
+directory. To run ElectrumSys from its root directory, just do::
 
-    ./run_electrum
+    ./run_electrumsys
 
-You can also install Electrum on your system, by running this command::
+You can also install ElectrumSys on your system, by running this command::
 
     sudo apt-get install python3-setuptools python3-pip
     python3 -m pip install --user .
 
 This will download and install the Python dependencies used by
-Electrum instead of using the 'packages' directory.
+ElectrumSys instead of using the 'packages' directory.
 
 
 Development version (git clone)
@@ -93,8 +93,8 @@ Development version (git clone)
 
 Check out the code from GitHub::
 
-    git clone git://github.com/spesmilo/electrum.git
-    cd electrum
+    git clone git://github.com/spesmilo/electrumsys.git
+    cd electrumsys
     git submodule update --init
 
 Run install (this should install dependencies)::
@@ -140,4 +140,4 @@ See :code:`contrib/build-wine/README.md`.
 Android
 -------
 
-See :code:`electrum/gui/kivy/Readme.md`.
+See :code:`electrumsys/gui/kivy/Readme.md`.

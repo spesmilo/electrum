@@ -2,10 +2,10 @@
 import json
 import asyncio
 
-from electrum.simple_config import SimpleConfig
-from electrum.network import filter_version, Network
-from electrum.util import create_and_start_event_loop, log_exceptions
-from electrum import constants
+from electrumsys.simple_config import SimpleConfig
+from electrumsys.network import filter_version, Network
+from electrumsys.util import create_and_start_event_loop, log_exceptions
+from electrumsys import constants
 
 # testnet?
 #constants.set_testnet()

@@ -1,11 +1,11 @@
 import dns
 
-from electrum import dnssec
+from electrumsys import dnssec
 
-from . import ElectrumTestCase
+from . import ElectrumSysTestCase
 
 
-class TestDnsSec(ElectrumTestCase):
+class TestDnsSec(ElectrumSysTestCase):
 
     def test_python_validate_rrsig_ecdsa(self):
         rrset = dns.rrset.from_text("getmonero.org.", 3599, 1, 48,

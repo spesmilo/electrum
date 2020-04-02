@@ -1,9 +1,9 @@
-[submodule "contrib/deterministic-build/electrum-locale"]
-	path = contrib/deterministic-build/electrum-locale
-	url = https://github.com/syscoin/electrum-locale
+[submodule "contrib/deterministic-build/electrumsys-locale"]
+	path = contrib/deterministic-build/electrumsys-locale
+	url = https://github.com/syscoin/electrumsys-locale
 [submodule "contrib/CalinsQRReader"]
 	path = contrib/osx/CalinsQRReader
 	url = https://github.com/spesmilo/CalinsQRReader
-[submodule "electrum/www"]
-	path = electrum/www
-	url = https://github.com/spesmilo/electrum-http.git
+[submodule "electrumsys/www"]
+	path = electrumsys/www
+	url = https://github.com/spesmilo/electrumsys-http.git

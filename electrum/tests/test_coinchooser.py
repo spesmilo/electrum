@@ -1,10 +1,10 @@
-from electrum.coinchooser import CoinChooserPrivacy
-from electrum.util import NotEnoughFunds
+from electrumsys.coinchooser import CoinChooserPrivacy
+from electrumsys.util import NotEnoughFunds
 
-from . import ElectrumTestCase
+from . import ElectrumSysTestCase
 
 
-class TestCoinChooser(ElectrumTestCase):
+class TestCoinChooser(ElectrumSysTestCase):
 
     def test_bucket_candidates_with_empty_buckets(self):
         def sufficient_funds(buckets, *, bucket_value_sum):

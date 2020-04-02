@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 #
-# Electrum-NMC - lightweight Namecoin client
+# ElectrumSys-NMC - lightweight Namecoin client
 # Copyright (C) 2018 The Namecoin developers
 #
-# License for all components not part of Electrum-DOGE:
+# License for all components not part of ElectrumSys-DOGE:
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -25,10 +25,10 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 #
-# Based on Electrum-DOGE - lightweight Dogecoin client
-# Copyright (C) 2014 The Electrum-DOGE contributors
+# Based on ElectrumSys-DOGE - lightweight Dogecoin client
+# Copyright (C) 2014 The ElectrumSys-DOGE contributors
 #
-# License for the Electrum-DOGE components:
+# License for the ElectrumSys-DOGE components:
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -45,9 +45,9 @@
 
 import binascii
 
-# electrum.blockchain is an absolute import because cyclic imports must be
+# electrumsys.blockchain is an absolute import because cyclic imports must be
 # absolute prior to Python 3.5.
-import electrum.blockchain
+import electrumsys.blockchain
 from .bitcoin import hash_encode, hash_decode
 from . import constants
 from .crypto import sha256d
@@ -124,16 +124,16 @@ def deserialize_auxpow_header(base_header, s, start_position=0) -> (dict, int):
     auxpow_header['chain_merkle_branch'], auxpow_header['chain_merkle_index'], start_position = deserialize_merkle_branch(s, start_position=start_position)
     
     # Finally there's the parent header.  Deserialize it.
-    parent_header_bytes = s[start_position : start_position + electrum.blockchain.HEADER_SIZE]
-    auxpow_header['parent_header'] = electrum.blockchain.deserialize_pure_header(parent_header_bytes, None)
-    start_position += electrum.blockchain.HEADER_SIZE
+    parent_header_bytes = s[start_position : start_position + electrumsys.blockchain.HEADER_SIZE]
+    auxpow_header['parent_header'] = electrumsys.blockchain.deserialize_pure_header(parent_header_bytes, None)
+    start_position += electrumsys.blockchain.HEADER_SIZE
     # The parent block header doesn't have any block height,
     # so delete that field.  (We used None as a dummy value above.)
     del auxpow_header['parent_header']['block_height']
 
     return auxpow_header, start_position
 
-# Copied from merkle_branch_from_string in https://github.com/electrumalt/electrum-doge/blob/f74312822a14f59aa8d50186baff74cade449ccd/lib/blockchain.py#L622
+# Copied from merkle_branch_from_string in https://github.com/electrumsysalt/electrumsys-doge/blob/f74312822a14f59aa8d50186baff74cade449ccd/lib/blockchain.py#L622
 # Returns list of hashes, merkle index, and position of trailing data in s
 # TODO: Audit this function carefully.
 def deserialize_merkle_branch(s, start_position=0):
@@ -150,13 +150,13 @@ def deserialize_merkle_branch(s, start_position=0):
 
 def hash_parent_header(header):
     if not auxpow_active(header):
-        return electrum.blockchain.hash_header(header)
+        return electrumsys.blockchain.hash_header(header)
 
     verify_auxpow(header)
 
-    return electrum.blockchain.hash_header(header['auxpow']['parent_header'])
+    return electrumsys.blockchain.hash_header(header['auxpow']['parent_header'])
 
-# Reimplementation of btcutils.check_merkle_branch from Electrum-DOGE.
+# Reimplementation of btcutils.check_merkle_branch from ElectrumSys-DOGE.
 # btcutils seems to have an unclear license and no obvious Git repo, so it
 # seemed wiser to re-implement.
 # This re-implementation is roughly based on libdohj's calculateMerkleRoot.
@@ -174,7 +174,7 @@ def calculate_merkle_root(leaf, merkle_branch, index):
 
     return hash_encode(target)
 
-# Copied from Electrum-DOGE
+# Copied from ElectrumSys-DOGE
 # TODO: Audit this function carefully.
 # https://github.com/kR105/i0coin/compare/syscoin:master...master#diff-610df86e65fce009eb271c2a4f7394ccR262
 def calc_merkle_index(chain_id, nonce, merkle_size):
@@ -184,10 +184,10 @@ def calc_merkle_index(chain_id, nonce, merkle_size):
     rand = (rand * 1103515245 + 12345) & 0xffffffff
     return rand % merkle_size
 
-# Copied from Electrum-DOGE
+# Copied from ElectrumSys-DOGE
 # TODO: Audit this function carefully.
 def verify_auxpow(header):
-    auxhash = electrum.blockchain.hash_header(header)
+    auxhash = electrumsys.blockchain.hash_header(header)
     auxpow = header['auxpow']
 
     parent_block = auxpow['parent_header']

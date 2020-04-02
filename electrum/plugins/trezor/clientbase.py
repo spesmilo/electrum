@@ -1,13 +1,13 @@
 import time
 from struct import pack
 
-from electrum import ecc
-from electrum.i18n import _
-from electrum.util import UserCancelled, UserFacingException
-from electrum.keystore import bip39_normalize_passphrase
-from electrum.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32 as parse_path
-from electrum.logging import Logger
-from electrum.plugins.hw_wallet.plugin import OutdatedHwFirmwareException, HardwareClientBase
+from electrumsys import ecc
+from electrumsys.i18n import _
+from electrumsys.util import UserCancelled, UserFacingException
+from electrumsys.keystore import bip39_normalize_passphrase
+from electrumsys.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32 as parse_path
+from electrumsys.logging import Logger
+from electrumsys.plugins.hw_wallet.plugin import OutdatedHwFirmwareException, HardwareClientBase
 
 from trezorlib.client import TrezorClient
 from trezorlib.exceptions import TrezorFailure, Cancelled, OutdatedFirmwareError
@@ -107,8 +107,8 @@ class TrezorClientBase(HardwareClientBase, Logger):
             return True
 
         try:
-            res = self.client.ping("electrum pinging device")
-            assert res == "electrum pinging device"
+            res = self.client.ping("electrumsys pinging device")
+            assert res == "electrumsys pinging device"
         except BaseException:
             return False
         return True

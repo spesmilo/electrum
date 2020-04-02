@@ -8,11 +8,11 @@ from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QPushButton,
                              QTextEdit, QLineEdit, QRadioButton, QCheckBox, QWidget,
                              QMessageBox, QFileDialog, QSlider, QTabWidget)
 
-from electrum.gui.qt.util import (WindowModalDialog, WWLabel, Buttons, CancelButton,
+from electrumsys.gui.qt.util import (WindowModalDialog, WWLabel, Buttons, CancelButton,
                                   OkButton, CloseButton)
-from electrum.i18n import _
-from electrum.plugin import hook
-from electrum.util import bh2u
+from electrumsys.i18n import _
+from electrumsys.plugin import hook
+from electrumsys.util import bh2u
 
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 from ..hw_wallet.plugin import only_hook_if_libraries_available
@@ -23,7 +23,7 @@ PASSPHRASE_HELP_SHORT =_(
     "Passphrases allow you to access new wallets, each "
     "hidden behind a particular case-sensitive passphrase.")
 PASSPHRASE_HELP = PASSPHRASE_HELP_SHORT + "  " + _(
-    "You need to create a separate Electrum wallet for each passphrase "
+    "You need to create a separate ElectrumSys wallet for each passphrase "
     "you use as they each generate different addresses.  Changing "
     "your passphrase does not lose other wallets, each is still "
     "accessible behind its own passphrase.")
@@ -131,7 +131,7 @@ class QtPlugin(QtPluginBase):
             else:
                 msg = _("Enter the master private key beginning with xprv:")
                 def set_enabled():
-                    from electrum.bip32 import is_xprv
+                    from electrumsys.bip32 import is_xprv
                     wizard.next_button.setEnabled(is_xprv(clean_text(text)))
                 text.textChanged.connect(set_enabled)
                 next_enabled = False
@@ -260,13 +260,13 @@ class SettingsDialog(WindowModalDialog):
             currently_enabled = self.features.passphrase_protection
             if currently_enabled:
                 msg = _("After disabling passphrases, you can only pair this "
-                        "Electrum wallet if it had an empty passphrase.  "
+                        "ElectrumSys wallet if it had an empty passphrase.  "
                         "If its passphrase was not empty, you will need to "
                         "create a new wallet with the install wizard.  You "
                         "can use this wallet again at any time by re-enabling "
                         "passphrases and entering its passphrase.")
             else:
-                msg = _("Your current Electrum wallet can only be used with "
+                msg = _("Your current ElectrumSys wallet can only be used with "
                         "an empty passphrase.  You must create a separate "
                         "wallet with the install wizard for other passphrases "
                         "as each one generates a new set of addresses.")

@@ -23,7 +23,7 @@ rm "$here"/dist/* -rf
 
 mkdir -p "$CACHEDIR" "$PIP_CACHE_DIR"
 
-if [ -f "$PROJECT_ROOT/electrum/libsecp256k1-0.dll" ]; then
+if [ -f "$PROJECT_ROOT/electrumsys/libsecp256k1-0.dll" ]; then
     info "libsecp256k1 already built, skipping"
 else
     "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
@@ -38,6 +38,6 @@ find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 popd
 ls -l /opt/wine64/drive_c/python*
 
-$here/build-electrum-git.sh || fail "build-electrum-git failed"
+$here/build-electrumsys-git.sh || fail "build-electrumsys-git failed"
 
 info "Done."

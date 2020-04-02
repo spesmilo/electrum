@@ -1,18 +1,18 @@
 from typing import NamedTuple, Union
 
-from electrum import transaction, bitcoin
-from electrum.transaction import convert_raw_tx_to_hex, tx_from_any, Transaction, PartialTransaction
-from electrum.util import bh2u, bfh
-from electrum import keystore
-from electrum import bip32
-from electrum.mnemonic import seed_type
-from electrum.simple_config import SimpleConfig
+from electrumsys import transaction, bitcoin
+from electrumsys.transaction import convert_raw_tx_to_hex, tx_from_any, Transaction, PartialTransaction
+from electrumsys.util import bh2u, bfh
+from electrumsys import keystore
+from electrumsys import bip32
+from electrumsys.mnemonic import seed_type
+from electrumsys.simple_config import SimpleConfig
 
 
-from electrum.plugins.trustedcoin import trustedcoin
-from electrum.plugins.trustedcoin.legacy_tx_format import serialize_tx_in_legacy_format
+from electrumsys.plugins.trustedcoin import trustedcoin
+from electrumsys.plugins.trustedcoin.legacy_tx_format import serialize_tx_in_legacy_format
 
-from . import ElectrumTestCase, TestCaseForTestnet
+from . import ElectrumSysTestCase, TestCaseForTestnet
 
 signed_blob = '01000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf38633b424eb4031000000006c493046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d985012102e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6ffffffff0140420f00000000001976a914230ac37834073a42146f11ef8414ae929feaafc388ac00000000'
 v2_blob = "0200000001191601a44a81e061502b7bfbc6eaa1cef6d1e6af5308ef96c9342f71dbf4b9b5000000006b483045022100a6d44d0a651790a477e75334adfb8aae94d6612d01187b2c02526e340a7fd6c8022028bdf7a64a54906b13b145cd5dab21a26bd4b85d6044e9b97bceab5be44c2a9201210253e8e0254b0c95776786e40984c1aa32a7d03efa6bdacdea5f421b774917d346feffffff026b20fa04000000001976a914024db2e87dd7cfd0e5f266c5f212e21a31d805a588aca0860100000000001976a91421919b94ae5cefcdf0271191459157cdb41c4cbf88aca6240700"
@@ -20,7 +20,7 @@ signed_segwit_blob = "01000000000101b66d722484f2db63e827ebf41d02684fed0c6550e850
 
 signed_blob_signatures = ['3046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d98501', ]
 
-class TestBCDataStream(ElectrumTestCase):
+class TestBCDataStream(ElectrumSysTestCase):
 
     def test_compact_size(self):
         s = transaction.BCDataStream()
@@ -79,7 +79,7 @@ class TestBCDataStream(ElectrumTestCase):
         self.assertFalse(s.can_read_more())
 
 
-class TestTransaction(ElectrumTestCase):
+class TestTransaction(ElectrumSysTestCase):
 
     def test_tx_update_signatures(self):
         tx = tx_from_any("cHNidP8BAFUBAAAAASpcmpT83pj1WBzQAWLGChOTbOt1OJ6mW/OGM7Qk60AxAAAAAAD/////AUBCDwAAAAAAGXapFCMKw3g0BzpCFG8R74QUrpKf6q/DiKwAAAAAAAAA")
@@ -854,7 +854,7 @@ class TestLegacyPartialTxFormat(TestCaseForTestnet):
 
     def setUp(self):
         super().setUp()
-        self.config = SimpleConfig({'electrum_path': self.electrum_path})
+        self.config = SimpleConfig({'electrumsys_path': self.electrumsys_path})
 
     def test_trustedcoin_legacy_2fa_psbt_to_legacy_partial_tx(self):
         from .test_wallet_vertical import WalletIntegrityHelper

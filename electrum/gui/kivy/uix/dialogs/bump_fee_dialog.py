@@ -3,7 +3,7 @@ from kivy.factory import Factory
 from kivy.properties import ObjectProperty
 from kivy.lang import Builder
 
-from electrum.gui.kivy.i18n import _
+from electrumsys.gui.kivy.i18n import _
 
 Builder.load_string('''
 <BumpFeeDialog@Popup>
@@ -74,7 +74,7 @@ class BumpFeeDialog(Factory.Popup):
         self.init_fee = fee
         self.tx_size = size
         self.callback = callback
-        self.config = app.electrum_config
+        self.config = app.electrumsys_config
         self.mempool = self.config.use_mempool_fees()
         self.dynfees = self.config.is_dynfee() and bool(self.app.network) and self.config.has_dynamic_fees_ready()
         self.ids.old_fee.value = self.app.format_amount_and_units(self.init_fee)

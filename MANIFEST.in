@@ -1,20 +1,20 @@
 include LICENCE RELEASE-NOTES AUTHORS
 include README.rst
-include electrum.desktop
+include electrumsys.desktop
 include *.py
-include run_electrum
+include run_electrumsys
 include contrib/requirements/requirements.txt
 include contrib/requirements/requirements-hw.txt
 recursive-include packages *.py
 recursive-include packages cacert.pem
 
-graft electrum
-prune electrum/tests
+graft electrumsys
+prune electrumsys/tests
 graft contrib/udev
 
-exclude electrum/*.so
-exclude electrum/*.so.0
-include electrum/libsecp256k1.so.0
+exclude electrumsys/*.so
+exclude electrumsys/*.so.0
+include electrumsys/libsecp256k1.so.0
 recursive-include packages *.json
 
 global-exclude __pycache__

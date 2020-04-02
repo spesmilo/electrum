@@ -3,7 +3,7 @@
 
 set -e
 
-venv_dir=~/.electrum-venv
+venv_dir=~/.electrumsys-venv
 contrib=$(dirname "$0")
 
 which virtualenv > /dev/null 2>&1 || { echo "Please install virtualenv" && exit 1; }

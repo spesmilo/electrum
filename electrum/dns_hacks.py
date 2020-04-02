@@ -1,4 +1,4 @@
-# Copyright (C) 2020 The Electrum developers
+# Copyright (C) 2020 The ElectrumSys developers
 # Distributed under the MIT software license, see the accompanying
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
@@ -31,7 +31,7 @@ def configure_dns_depending_on_proxy(is_proxy: bool) -> None:
         if sys.platform == 'win32':
             # On Windows, socket.getaddrinfo takes a mutex, and might hold it for up to 10 seconds
             # when dns-resolving. To speed it up drastically, we resolve dns ourselves, outside that lock.
-            # See https://github.com/spesmilo/electrum/issues/4421
+            # See https://github.com/spesmilo/electrumsys/issues/4421
             _prepare_windows_dns_hack()
             socket.getaddrinfo = _fast_getaddrinfo
         else:

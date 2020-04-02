@@ -1,7 +1,7 @@
 import base64
 import sys
 
-from electrum.bitcoin import (public_key_to_p2pkh, address_from_private_key,
+from electrumsys.bitcoin import (public_key_to_p2pkh, address_from_private_key,
                               is_address, is_private_key,
                               var_int, _op_push, address_to_script,
                               deserialize_privkey, serialize_privkey, is_segwit_address,
@@ -9,20 +9,20 @@ from electrum.bitcoin import (public_key_to_p2pkh, address_from_private_key,
                               is_compressed_privkey, EncodeBase58Check, DecodeBase58Check,
                               script_num_to_hex, push_script, add_number_to_script, int_to_hex,
                               opcodes, base_encode, base_decode, BitcoinException)
-from electrum import bip32
-from electrum.bip32 import (BIP32Node, convert_bip32_intpath_to_strpath,
+from electrumsys import bip32
+from electrumsys.bip32 import (BIP32Node, convert_bip32_intpath_to_strpath,
                             xpub_from_xprv, xpub_type, is_xprv, is_bip32_derivation,
                             is_xpub, convert_bip32_path_to_list_of_uint32,
                             normalize_bip32_derivation, is_all_public_derivation)
-from electrum.crypto import sha256d, SUPPORTED_PW_HASH_VERSIONS
-from electrum import ecc, crypto, constants
-from electrum.util import bfh, bh2u, InvalidPassword, randrange
-from electrum.storage import WalletStorage
-from electrum.keystore import xtype_from_derivation
+from electrumsys.crypto import sha256d, SUPPORTED_PW_HASH_VERSIONS
+from electrumsys import ecc, crypto, constants
+from electrumsys.util import bfh, bh2u, InvalidPassword, randrange
+from electrumsys.storage import WalletStorage
+from electrumsys.keystore import xtype_from_derivation
 
-from electrum import ecc_fast
+from electrumsys import ecc_fast
 
-from . import ElectrumTestCase
+from . import ElectrumSysTestCase
 from . import TestCaseForTestnet
 from . import FAST_TESTS
 
@@ -87,7 +87,7 @@ def needs_test_with_all_chacha20_implementations(func):
     return run_test
 
 
-class Test_bitcoin(ElectrumTestCase):
+class Test_bitcoin(ElectrumSysTestCase):
 
     def test_libsecp256k1_is_available(self):
         # we want the unit testing framework to test with libsecp256k1 available.
@@ -162,7 +162,7 @@ class Test_bitcoin(ElectrumTestCase):
 
     def test_msg_signing(self):
         msg1 = b'Chancellor on brink of second bailout for banks'
-        msg2 = b'Electrum'
+        msg2 = b'ElectrumSys'
 
         def sign_message_with_wif_privkey(wif_privkey, msg):
             txin_type, privkey, compressed = deserialize_privkey(wif_privkey)
@@ -422,7 +422,7 @@ class Test_bitcoin_testnet(TestCaseForTestnet):
         self.assertEqual(address_to_script('2NE4ZdmxFmUgwu5wtfoN2gVniyMgRDYq1kk'), 'a914e4567743d378957cd2ee7072da74b1203c1a7a0b87')
 
 
-class Test_xprv_xpub(ElectrumTestCase):
+class Test_xprv_xpub(ElectrumSysTestCase):
 
     xprv_xpub = (
         # Taken from test vectors in https://en.bitcoin.it/wiki/BIP_0032_TestVectors
@@ -688,7 +688,7 @@ class Test_xprv_xpub_testnet(TestCaseForTestnet):
             self.assertTrue(xkey_b58.startswith(xpub_headers_b58[xtype]))
 
 
-class Test_keyImport(ElectrumTestCase):
+class Test_keyImport(ElectrumSysTestCase):
 
     priv_pub_addr = (
            {'priv': 'KzMFjMC2MPadjvX5Cd7b8AKKjjpBSoRKUTpoAtN6B3J9ezWYyXS6',
@@ -854,7 +854,7 @@ class Test_keyImport(ElectrumTestCase):
                            raise_on_error=True)
 
 
-class TestBaseEncode(ElectrumTestCase):
+class TestBaseEncode(ElectrumSysTestCase):
 
     def test_base43(self):
         tx_hex = "020000000001021cd0e96f9ca202e017ca3465e3c13373c0df3a4cdd91c1fd02ea42a1a65d2a410000000000fdffffff757da7cf8322e5063785e2d8ada74702d2648fa2add2d533ba83c52eb110df690200000000fdffffff02d07e010000000000160014b544c86eaf95e3bb3b6d2cabb12ab40fc59cad9ca086010000000000232102ce0d066fbfcf150a5a1bbc4f312cd2eb080e8d8a47e5f2ce1a63b23215e54fb5ac02483045022100a9856bf10a950810abceeabc9a86e6ba533e130686e3d7863971b9377e7c658a0220288a69ef2b958a7c2ecfa376841d4a13817ed24fa9a0e0a6b9cb48e6439794c701210324e291735f83ff8de47301b12034950b80fa4724926a34d67e413d8ff8817c53024830450221008f885978f7af746679200ed55fe2e86c1303620824721f95cc41eb7965a3dfcf02207872082ac4a3c433d41a203e6d685a459e70e551904904711626ac899238c20a0121023d4c9deae1aacf3f822dd97a28deaec7d4e4ff97be746d124a63d20e582f5b290a971600"

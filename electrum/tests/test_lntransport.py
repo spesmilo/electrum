@@ -1,14 +1,14 @@
 import asyncio
 
-from electrum.ecc import ECPrivkey
-from electrum.lnutil import LNPeerAddr
-from electrum.lntransport import LNResponderTransport, LNTransport
+from electrumsys.ecc import ECPrivkey
+from electrumsys.lnutil import LNPeerAddr
+from electrumsys.lntransport import LNResponderTransport, LNTransport
 
-from . import ElectrumTestCase
+from . import ElectrumSysTestCase
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
 
 
-class TestLNTransport(ElectrumTestCase):
+class TestLNTransport(ElectrumSysTestCase):
 
     @needs_test_with_all_chacha20_implementations
     def test_responder(self):

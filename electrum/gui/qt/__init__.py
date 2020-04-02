@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
+# ElectrumSys - lightweight Bitcoin client
 # Copyright (C) 2012 thomasv@gitorious
 #
 # Permission is hereby granted, free of charge, to any person
@@ -42,27 +42,27 @@ from PyQt5.QtWidgets import (QApplication, QSystemTrayIcon, QWidget, QMenu,
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer
 import PyQt5.QtCore as QtCore
 
-from electrum.i18n import _, set_language
-from electrum.plugin import run_hook
-from electrum.base_wizard import GoBack
-from electrum.util import (UserCancelled, profiler,
+from electrumsys.i18n import _, set_language
+from electrumsys.plugin import run_hook
+from electrumsys.base_wizard import GoBack
+from electrumsys.util import (UserCancelled, profiler,
                            WalletFileException, BitcoinException, get_new_wallet_name)
-from electrum.wallet import Wallet, Abstract_Wallet
-from electrum.wallet_db import WalletDB
-from electrum.logging import Logger
+from electrumsys.wallet import Wallet, Abstract_Wallet
+from electrumsys.wallet_db import WalletDB
+from electrumsys.logging import Logger
 
 from .installwizard import InstallWizard, WalletAlreadyOpenInMemory
 from .util import get_default_language, read_QIcon, ColorScheme, custom_message_box
-from .main_window import ElectrumWindow
+from .main_window import ElectrumSysWindow
 from .network_dialog import NetworkDialog
 from .stylesheet_patcher import patch_qt_stylesheet
 from .lightning_dialog import LightningDialog
 from .watchtower_dialog import WatchtowerDialog
 
 if TYPE_CHECKING:
-    from electrum.daemon import Daemon
-    from electrum.simple_config import SimpleConfig
-    from electrum.plugin import Plugins
+    from electrumsys.daemon import Daemon
+    from electrumsys.simple_config import SimpleConfig
+    from electrumsys.plugin import Plugins
 
 
 class OpenFileEventFilter(QObject):
@@ -78,7 +78,7 @@ class OpenFileEventFilter(QObject):
         return False
 
 
-class QElectrumApplication(QApplication):
+class QElectrumSysApplication(QApplication):
     new_window_signal = pyqtSignal(str, object)
 
 
@@ -86,7 +86,7 @@ class QNetworkUpdatedSignalObject(QObject):
     network_updated_signal = pyqtSignal(str, object)
 
 
-class ElectrumGui(Logger):
+class ElectrumSysGui(Logger):
 
     @profiler
     def __init__(self, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
@@ -95,21 +95,21 @@ class ElectrumGui(Logger):
         # Uncomment this call to verify objects are being properly
         # GC-ed when windows are closed
         #network.add_jobs([DebugMem([Abstract_Wallet, SPV, Synchronizer,
-        #                            ElectrumWindow], interval=5)])
+        #                            ElectrumSysWindow], interval=5)])
         QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_X11InitThreads)
         if hasattr(QtCore.Qt, "AA_ShareOpenGLContexts"):
             QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_ShareOpenGLContexts)
         if hasattr(QGuiApplication, 'setDesktopFileName'):
-            QGuiApplication.setDesktopFileName('electrum.desktop')
+            QGuiApplication.setDesktopFileName('electrumsys.desktop')
         self.gui_thread = threading.current_thread()
         self.config = config
         self.daemon = daemon
         self.plugins = plugins
         self.windows = []
         self.efilter = OpenFileEventFilter(self.windows)
-        self.app = QElectrumApplication(sys.argv)
+        self.app = QElectrumSysApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
-        self.app.setWindowIcon(read_QIcon("electrum.png"))
+        self.app.setWindowIcon(read_QIcon("electrumsys.png"))
         # timer
         self.timer = QTimer(self.app)
         self.timer.setSingleShot(False)
@@ -124,7 +124,7 @@ class ElectrumGui(Logger):
         # init tray
         self.dark_icon = self.config.get("dark_icon", False)
         self.tray = QSystemTrayIcon(self.tray_icon(), None)
-        self.tray.setToolTip('Electrum')
+        self.tray.setToolTip('ElectrumSys')
         self.tray.activated.connect(self.tray_activated)
         self.build_tray_menu()
         self.tray.show()
@@ -169,13 +169,13 @@ class ElectrumGui(Logger):
             submenu.addAction(_("Close"), window.close)
         m.addAction(_("Dark/Light"), self.toggle_tray_icon)
         m.addSeparator()
-        m.addAction(_("Exit Electrum"), self.close)
+        m.addAction(_("Exit ElectrumSys"), self.close)
 
     def tray_icon(self):
         if self.dark_icon:
-            return read_QIcon('electrum_dark_icon.png')
+            return read_QIcon('electrumsys_dark_icon.png')
         else:
-            return read_QIcon('electrum_light_icon.png')
+            return read_QIcon('electrumsys_light_icon.png')
 
     def toggle_tray_icon(self):
         self.dark_icon = not self.dark_icon
@@ -228,7 +228,7 @@ class ElectrumGui(Logger):
         self.network_dialog.show()
 
     def _create_window_for_wallet(self, wallet):
-        w = ElectrumWindow(self, wallet)
+        w = ElectrumSysWindow(self, wallet)
         self.windows.append(w)
         self.build_tray_menu()
         # FIXME: Remove in favour of the load_wallet hook
@@ -239,7 +239,7 @@ class ElectrumGui(Logger):
         return w
 
     def count_wizards_in_progress(func):
-        def wrapper(self: 'ElectrumGui', *args, **kwargs):
+        def wrapper(self: 'ElectrumSysGui', *args, **kwargs):
             with self._num_wizards_lock:
                 self._num_wizards_in_progress += 1
             try:
@@ -328,7 +328,7 @@ class ElectrumGui(Logger):
         self.daemon.add_wallet(wallet)
         return wallet
 
-    def close_window(self, window: ElectrumWindow):
+    def close_window(self, window: ElectrumSysWindow):
         if window in self.windows:
            self.windows.remove(window)
         self.build_tray_menu()

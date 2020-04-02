@@ -7,13 +7,13 @@ from kivy.factory import Factory
 from kivy.uix.popup import Popup
 from kivy.clock import Clock
 
-from electrum.util import bh2u
-from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id
-from electrum.gui.kivy.i18n import _
+from electrumsys.util import bh2u
+from electrumsys.lnutil import LOCAL, REMOTE, format_short_channel_id
+from electrumsys.gui.kivy.i18n import _
 from .question import Question
 
 if TYPE_CHECKING:
-    from ...main_window import ElectrumWindow
+    from ...main_window import ElectrumSysWindow
 
 
 Builder.load_string(r'''
@@ -274,7 +274,7 @@ class ChannelDetailsPopup(Popup):
 
 class LightningChannelsDialog(Factory.Popup):
 
-    def __init__(self, app: 'ElectrumWindow'):
+    def __init__(self, app: 'ElectrumSysWindow'):
         super(LightningChannelsDialog, self).__init__()
         self.clocks = []
         self.app = app

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
+# ElectrumSys - lightweight Bitcoin client
 # Copyright (C) 2012 thomasv@gitorious
 #
 # Permission is hereby granted, free of charge, to any person
@@ -27,17 +27,17 @@ from typing import TYPE_CHECKING
 
 from PyQt5.QtWidgets import (QDialog, QLabel, QVBoxLayout, QPushButton)
 
-from electrum.i18n import _
+from electrumsys.i18n import _
 
 from .util import Buttons
 
 if TYPE_CHECKING:
-    from . import ElectrumGui
+    from . import ElectrumSysGui
 
 
 class LightningDialog(QDialog):
 
-    def __init__(self, gui_object: 'ElectrumGui'):
+    def __init__(self, gui_object: 'ElectrumSysGui'):
         QDialog.__init__(self)
         self.gui_object = gui_object
         self.config = gui_object.config

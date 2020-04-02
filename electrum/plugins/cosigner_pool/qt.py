@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
+# ElectrumSys - lightweight Bitcoin client
 # Copyright (C) 2014 Thomas Voegtlin
 #
 # Permission is hereby granted, free of charge, to any person
@@ -30,23 +30,23 @@ from typing import TYPE_CHECKING, Union, List, Tuple
 from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtWidgets import QPushButton
 
-from electrum import util, keystore, ecc, crypto
-from electrum import transaction
-from electrum.transaction import Transaction, PartialTransaction, tx_from_any
-from electrum.bip32 import BIP32Node
-from electrum.plugin import BasePlugin, hook
-from electrum.i18n import _
-from electrum.wallet import Multisig_Wallet
-from electrum.util import bh2u, bfh
+from electrumsys import util, keystore, ecc, crypto
+from electrumsys import transaction
+from electrumsys.transaction import Transaction, PartialTransaction, tx_from_any
+from electrumsys.bip32 import BIP32Node
+from electrumsys.plugin import BasePlugin, hook
+from electrumsys.i18n import _
+from electrumsys.wallet import Multisig_Wallet
+from electrumsys.util import bh2u, bfh
 
-from electrum.gui.qt.transaction_dialog import show_transaction, TxDialog
-from electrum.gui.qt.util import WaitingDialog
+from electrumsys.gui.qt.transaction_dialog import show_transaction, TxDialog
+from electrumsys.gui.qt.util import WaitingDialog
 
 if TYPE_CHECKING:
-    from electrum.gui.qt.main_window import ElectrumWindow
+    from electrumsys.gui.qt.main_window import ElectrumSysWindow
 
 
-server = ServerProxy('https://cosigner.electrum.syscoin.org/', allow_none=True)
+server = ServerProxy('https://cosigner.electrumsys.syscoin.org/', allow_none=True)
 
 
 class Listener(util.DaemonThread):
@@ -99,8 +99,8 @@ class Plugin(BasePlugin):
         self.listener = None
         self.obj = QReceiveSignalObject()
         self.obj.cosigner_receive_signal.connect(self.on_receive)
-        self.keys = []  # type: List[Tuple[str, str, ElectrumWindow]]
-        self.cosigner_list = []  # type: List[Tuple[ElectrumWindow, str, bytes, str]]
+        self.keys = []  # type: List[Tuple[str, str, ElectrumSysWindow]]
+        self.cosigner_list = []  # type: List[Tuple[ElectrumSysWindow, str, bytes, str]]
 
     @hook
     def init_qt(self, gui):
@@ -118,7 +118,7 @@ class Plugin(BasePlugin):
     def is_available(self):
         return True
 
-    def update(self, window: 'ElectrumWindow'):
+    def update(self, window: 'ElectrumSysWindow'):
         wallet = window.wallet
         if type(wallet) != Multisig_Wallet:
             return

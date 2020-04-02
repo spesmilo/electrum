@@ -12,11 +12,11 @@ from kivy.uix.label import Label
 from kivy.uix.dropdown import DropDown
 from kivy.uix.button import Button
 
-from electrum.gui.kivy.i18n import _
+from electrumsys.gui.kivy.i18n import _
 
 
 if TYPE_CHECKING:
-    from ...main_window import ElectrumWindow
+    from ...main_window import ElectrumSysWindow
 
 
 Builder.load_string('''
@@ -95,7 +95,7 @@ class LightningTxDialog(Factory.Popup):
 
     def __init__(self, app, tx_item):
         Factory.Popup.__init__(self)
-        self.app = app  # type: ElectrumWindow
+        self.app = app  # type: ElectrumSysWindow
         self.wallet = self.app.wallet
         self._action_button_fn = lambda btn: None
         self.is_sent = bool(tx_item['direction'] == 'sent')

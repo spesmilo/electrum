@@ -2,21 +2,21 @@ import unittest
 from unittest import mock
 from decimal import Decimal
 
-from electrum.util import create_and_start_event_loop
-from electrum.commands import Commands, eval_bool
-from electrum import storage, wallet
-from electrum.wallet import restore_wallet_from_text
-from electrum.simple_config import SimpleConfig
+from electrumsys.util import create_and_start_event_loop
+from electrumsys.commands import Commands, eval_bool
+from electrumsys import storage, wallet
+from electrumsys.wallet import restore_wallet_from_text
+from electrumsys.simple_config import SimpleConfig
 
-from . import TestCaseForTestnet, ElectrumTestCase
+from . import TestCaseForTestnet, ElectrumSysTestCase
 
 
-class TestCommands(ElectrumTestCase):
+class TestCommands(ElectrumSysTestCase):
 
     def setUp(self):
         super().setUp()
         self.asyncio_loop, self._stop_loop, self._loop_thread = create_and_start_event_loop()
-        self.config = SimpleConfig({'electrum_path': self.electrum_path})
+        self.config = SimpleConfig({'electrumsys_path': self.electrumsys_path})
 
     def tearDown(self):
         super().tearDown()
@@ -36,18 +36,18 @@ class TestCommands(ElectrumTestCase):
         self.assertEqual(True, Commands._setconfig_normalize_value('show_console_tab', "True"))
 
     def test_setconfig_non_auth_list(self):
-        self.assertEqual(['file:///var/www/', 'https://electrum.syscoin.org'],
-            Commands._setconfig_normalize_value('url_rewrite', "['file:///var/www/','https://electrum.syscoin.org']"))
-        self.assertEqual(['file:///var/www/', 'https://electrum.syscoin.org'],
-            Commands._setconfig_normalize_value('url_rewrite', '["file:///var/www/","https://electrum.syscoin.org"]'))
+        self.assertEqual(['file:///var/www/', 'https://electrumsys.syscoin.org'],
+            Commands._setconfig_normalize_value('url_rewrite', "['file:///var/www/','https://electrumsys.syscoin.org']"))
+        self.assertEqual(['file:///var/www/', 'https://electrumsys.syscoin.org'],
+            Commands._setconfig_normalize_value('url_rewrite', '["file:///var/www/","https://electrumsys.syscoin.org"]'))
 
     def test_setconfig_auth(self):
         self.assertEqual("7777", Commands._setconfig_normalize_value('rpcuser', "7777"))
         self.assertEqual("7777", Commands._setconfig_normalize_value('rpcuser', '7777'))
         self.assertEqual("7777", Commands._setconfig_normalize_value('rpcpassword', '7777'))
         self.assertEqual("2asd", Commands._setconfig_normalize_value('rpcpassword', '2asd'))
-        self.assertEqual("['file:///var/www/','https://electrum.syscoin.org']",
-            Commands._setconfig_normalize_value('rpcpassword', "['file:///var/www/','https://electrum.syscoin.org']"))
+        self.assertEqual("['file:///var/www/','https://electrumsys.syscoin.org']",
+            Commands._setconfig_normalize_value('rpcpassword', "['file:///var/www/','https://electrumsys.syscoin.org']"))
 
     def test_eval_bool(self):
         self.assertFalse(eval_bool("False"))
@@ -133,7 +133,7 @@ class TestCommandsTestnet(TestCaseForTestnet):
     def setUp(self):
         super().setUp()
         self.asyncio_loop, self._stop_loop, self._loop_thread = create_and_start_event_loop()
-        self.config = SimpleConfig({'electrum_path': self.electrum_path})
+        self.config = SimpleConfig({'electrumsys_path': self.electrumsys_path})
 
     def tearDown(self):
         super().tearDown()

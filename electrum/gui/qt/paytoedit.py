@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
+# ElectrumSys - lightweight Bitcoin client
 # Copyright (C) 2012 thomasv@gitorious
 #
 # Permission is hereby granted, free of charge, to any person
@@ -29,12 +29,12 @@ from typing import NamedTuple, Sequence, Optional, List, TYPE_CHECKING
 
 from PyQt5.QtGui import QFontMetrics, QFont
 
-from electrum import bitcoin
-from electrum.util import bfh, maybe_extract_bolt11_invoice
-from electrum.transaction import push_script, PartialTxOutput
-from electrum.bitcoin import opcodes
-from electrum.logging import Logger
-from electrum.lnaddr import LnDecodeException
+from electrumsys import bitcoin
+from electrumsys.util import bfh, maybe_extract_bolt11_invoice
+from electrumsys.transaction import push_script, PartialTxOutput
+from electrumsys.bitcoin import opcodes
+from electrumsys.logging import Logger
+from electrumsys.lnaddr import LnDecodeException
 
 from .qrtextedit import ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
@@ -42,11 +42,11 @@ from . import util
 from .util import MONOSPACE_FONT
 
 if TYPE_CHECKING:
-    from .main_window import ElectrumWindow
+    from .main_window import ElectrumSysWindow
 
 
 if TYPE_CHECKING:
-    from .main_window import ElectrumWindow
+    from .main_window import ElectrumSysWindow
 
 
 RE_ALIAS = r'(.*?)\s*\<([0-9A-Za-z]{1,})\>'
@@ -63,7 +63,7 @@ class PayToLineError(NamedTuple):
 
 class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
 
-    def __init__(self, win: 'ElectrumWindow'):
+    def __init__(self, win: 'ElectrumSysWindow'):
         CompletionTextEdit.__init__(self)
         ScanQRTextEdit.__init__(self)
         Logger.__init__(self)

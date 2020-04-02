@@ -11,28 +11,28 @@ import unittest
 
 from aiorpcx import TaskGroup
 
-from electrum import constants
-from electrum.network import Network
-from electrum.ecc import ECPrivkey
-from electrum import simple_config, lnutil
-from electrum.lnaddr import lnencode, LnAddr, lndecode
-from electrum.bitcoin import COIN, sha256
-from electrum.util import bh2u, create_and_start_event_loop
-from electrum.lnpeer import Peer
-from electrum.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
-from electrum.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
-from electrum.lnutil import PaymentFailure, LnFeatures, HTLCOwner
-from electrum.lnchannel import channel_states, peer_states, Channel
-from electrum.lnrouter import LNPathFinder
-from electrum.channel_db import ChannelDB
-from electrum.lnworker import LNWallet, NoPathFound
-from electrum.lnmsg import encode_msg, decode_msg
-from electrum.logging import console_stderr_handler, Logger
-from electrum.lnworker import PaymentInfo, RECEIVED, PR_UNPAID
+from electrumsys import constants
+from electrumsys.network import Network
+from electrumsys.ecc import ECPrivkey
+from electrumsys import simple_config, lnutil
+from electrumsys.lnaddr import lnencode, LnAddr, lndecode
+from electrumsys.bitcoin import COIN, sha256
+from electrumsys.util import bh2u, create_and_start_event_loop
+from electrumsys.lnpeer import Peer
+from electrumsys.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
+from electrumsys.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
+from electrumsys.lnutil import PaymentFailure, LnFeatures, HTLCOwner
+from electrumsys.lnchannel import channel_states, peer_states, Channel
+from electrumsys.lnrouter import LNPathFinder
+from electrumsys.channel_db import ChannelDB
+from electrumsys.lnworker import LNWallet, NoPathFound
+from electrumsys.lnmsg import encode_msg, decode_msg
+from electrumsys.logging import console_stderr_handler, Logger
+from electrumsys.lnworker import PaymentInfo, RECEIVED, PR_UNPAID
 
 from .test_lnchannel import create_test_channels
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
-from . import ElectrumTestCase
+from . import ElectrumSysTestCase
 
 def keypair():
     priv = ECPrivkey.generate_random_key().get_secret_bytes()
@@ -51,7 +51,7 @@ class MockNetwork:
         self.lnwatcher = None
         self.interface = None
         user_config = {}
-        user_dir = tempfile.mkdtemp(prefix="electrum-lnpeer-test-")
+        user_dir = tempfile.mkdtemp(prefix="electrumsys-lnpeer-test-")
         self.config = simple_config.SimpleConfig(user_config, read_user_dir_function=lambda: user_dir)
         self.asyncio_loop = asyncio.get_event_loop()
         self.channel_db = ChannelDB(self)
@@ -187,7 +187,7 @@ def transport_pair(name1, name2):
     t2.other_mock_transport = t1
     return t1, t2
 
-class TestPeer(ElectrumTestCase):
+class TestPeer(ElectrumSysTestCase):
 
     @classmethod
     def setUpClass(cls):

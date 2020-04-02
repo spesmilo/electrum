@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
+# ElectrumSys - lightweight Bitcoin client
 # Copyright (C) 2012 thomasv@gitorious
 #
 # Permission is hereby granted, free of charge, to any person
@@ -42,25 +42,25 @@ kivy.require('1.8.0')
 from kivy.logger import Logger
 
 if TYPE_CHECKING:
-    from electrum.simple_config import SimpleConfig
-    from electrum.daemon import Daemon
-    from electrum.plugin import Plugins
+    from electrumsys.simple_config import SimpleConfig
+    from electrumsys.daemon import Daemon
+    from electrumsys.plugin import Plugins
 
 
 
 
-class ElectrumGui:
+class ElectrumSysGui:
 
     def __init__(self, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
-        Logger.debug('ElectrumGUI: initialising')
+        Logger.debug('ElectrumSysGUI: initialising')
         self.daemon = daemon
         self.network = daemon.network
         self.config = config
         self.plugins = plugins
 
     def main(self):
-        from .main_window import ElectrumWindow
-        w = ElectrumWindow(config=self.config,
+        from .main_window import ElectrumSysWindow
+        w = ElectrumSysWindow(config=self.config,
                            network=self.network,
                            plugins = self.plugins,
                            gui_object=self)

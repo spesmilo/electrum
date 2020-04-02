@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
+# ElectrumSys - lightweight Bitcoin client
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -28,10 +28,10 @@ import PyQt5.QtCore as QtCore
 from PyQt5.QtWidgets import (QWidget, QLabel, QPushButton, QTextEdit,
                              QMessageBox, QHBoxLayout, QVBoxLayout)
 
-from electrum.i18n import _
-from electrum.base_crash_reporter import BaseCrashReporter
-from electrum.logging import Logger
-from electrum import constants
+from electrumsys.i18n import _
+from electrumsys.base_crash_reporter import BaseCrashReporter
+from electrumsys.logging import Logger
+from electrumsys import constants
 
 from .util import MessageBoxMixin, read_QIcon, WaitingDialog
 
@@ -44,7 +44,7 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
         self.main_window = main_window
 
         QWidget.__init__(self)
-        self.setWindowTitle('Electrum - ' + _('An Error Occurred'))
+        self.setWindowTitle('ElectrumSys - ' + _('An Error Occurred'))
         self.setMinimumSize(600, 300)
 
         Logger.__init__(self)

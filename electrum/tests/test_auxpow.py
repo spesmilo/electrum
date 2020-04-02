@@ -1,5 +1,5 @@
-from electrum import auxpow, blockchain, constants
-from electrum.util import bfh, bh2u
+from electrumsys import auxpow, blockchain, constants
+from electrumsys.util import bfh, bh2u
 
 from . import SequentialTestCase
 from . import TestCaseForTestnet
@@ -29,7 +29,7 @@ class Test_auxpow(SequentialTestCase):
 
         # We pass a height beyond the last checkpoint, because
         # deserialize_full_header expects checkpointed headers to be truncated
-        # by ElectrumX (i.e. not contain an AuxPoW).
+        # by ElectrumSysX (i.e. not contain an AuxPoW).
         return blockchain.deserialize_full_header(bfh(data_hex), constants.net.max_checkpoint() + 1, **kwargs)
 
     @staticmethod

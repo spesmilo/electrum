@@ -3,7 +3,7 @@ Source tarballs
 
 ✗ _This script does not produce reproducible output (yet!)._
 
-1. Prepare python dependencies used by Electrum.
+1. Prepare python dependencies used by ElectrumSys.
 
     ```
     contrib/make_packages

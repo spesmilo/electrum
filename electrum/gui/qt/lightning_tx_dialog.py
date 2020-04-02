@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
-# Copyright (C) 2020 The Electrum Developers
+# ElectrumSys - lightweight Bitcoin client
+# Copyright (C) 2020 The ElectrumSys Developers
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -30,17 +30,17 @@ import datetime
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QVBoxLayout, QLabel, QGridLayout
 
-from electrum.i18n import _
+from electrumsys.i18n import _
 from .util import WindowModalDialog, ButtonsLineEdit, ColorScheme, Buttons, CloseButton, MONOSPACE_FONT
 
 if TYPE_CHECKING:
-    from .main_window import ElectrumWindow
+    from .main_window import ElectrumSysWindow
 
 
 
 class LightningTxDialog(WindowModalDialog):
 
-    def __init__(self, parent: 'ElectrumWindow', tx_item: dict):
+    def __init__(self, parent: 'ElectrumSysWindow', tx_item: dict):
         WindowModalDialog.__init__(self, parent, _("Lightning Payment"))
         self.parent = parent
         self.is_sent = bool(tx_item['direction'] == 'sent')

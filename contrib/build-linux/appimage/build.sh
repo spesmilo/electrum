@@ -7,7 +7,7 @@ CONTRIB="$PROJECT_ROOT/contrib"
 CONTRIB_APPIMAGE="$CONTRIB/build-linux/appimage"
 DISTDIR="$PROJECT_ROOT/dist"
 BUILDDIR="$CONTRIB_APPIMAGE/build/appimage"
-APPDIR="$BUILDDIR/electrum.AppDir"
+APPDIR="$BUILDDIR/electrumsys.AppDir"
 CACHEDIR="$CONTRIB_APPIMAGE/.cache/appimage"
 
 export GCC_STRIP_BINARIES="1"
@@ -19,7 +19,7 @@ SQUASHFSKIT_COMMIT="ae0d656efa2d0df2fcac795b6823b44462f19386"
 
 
 VERSION=`git describe --tags --dirty --always`
-APPIMAGE="$DISTDIR/electrum-$VERSION-x86_64.AppImage"
+APPIMAGE="$DISTDIR/electrumsys-$VERSION-x86_64.AppImage"
 
 . "$CONTRIB"/build_tools_util.sh
 
@@ -79,7 +79,7 @@ MKSQUASHFS="$BUILDDIR/squashfskit/squashfs-tools/mksquashfs"
 
 
 "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
-cp -f "$PROJECT_ROOT/electrum/libsecp256k1.so.0" "$APPDIR/usr/lib/libsecp256k1.so.0" || fail "Could not copy libsecp to its destination"
+cp -f "$PROJECT_ROOT/electrumsys/libsecp256k1.so.0" "$APPDIR/usr/lib/libsecp256k1.so.0" || fail "Could not copy libsecp to its destination"
 
 
 appdir_python() {
@@ -96,25 +96,25 @@ info "installing pip."
 "$python" -m ensurepip
 
 
-info "preparing electrum-locale."
+info "preparing electrumsys-locale."
 (
     cd "$PROJECT_ROOT"
     git submodule update --init
 
-    pushd "$CONTRIB"/deterministic-build/electrum-locale
+    pushd "$CONTRIB"/deterministic-build/electrumsys-locale
     if ! which msgfmt > /dev/null 2>&1; then
         fail "Please install gettext"
     fi
     for i in ./locale/*; do
-        dir="$PROJECT_ROOT/electrum/$i/LC_MESSAGES"
+        dir="$PROJECT_ROOT/electrumsys/$i/LC_MESSAGES"
         mkdir -p $dir
-        msgfmt --output-file="$dir/electrum.mo" "$i/electrum.po" || true
+        msgfmt --output-file="$dir/electrumsys.mo" "$i/electrumsys.po" || true
     done
     popd
 )
 
 
-info "installing electrum and its dependencies."
+info "installing electrumsys and its dependencies."
 mkdir -p "$CACHEDIR/pip_cache"
 "$python" -m pip install --no-dependencies --no-warn-script-location --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements.txt"
 "$python" -m pip install --no-dependencies --no-warn-script-location --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements-binaries.txt"
@@ -130,8 +130,8 @@ cp "/usr/lib/x86_64-linux-gnu/libzbar.so.0" "$APPDIR/usr/lib/libzbar.so.0"
 
 
 info "desktop integration."
-cp "$PROJECT_ROOT/electrum.desktop" "$APPDIR/electrum.desktop"
-cp "$PROJECT_ROOT/electrum/gui/icons/electrum.png" "$APPDIR/electrum.png"
+cp "$PROJECT_ROOT/electrumsys.desktop" "$APPDIR/electrumsys.desktop"
+cp "$PROJECT_ROOT/electrumsys/gui/icons/electrumsys.png" "$APPDIR/electrumsys.png"
 
 
 # add launcher

@@ -3,10 +3,10 @@
 import sys
 import asyncio
 
-from electrum.network import Network
-from electrum.util import print_msg, create_and_start_event_loop
-from electrum.synchronizer import SynchronizerBase
-from electrum.simple_config import SimpleConfig
+from electrumsys.network import Network
+from electrumsys.util import print_msg, create_and_start_event_loop
+from electrumsys.synchronizer import SynchronizerBase
+from electrumsys.simple_config import SimpleConfig
 
 
 try:

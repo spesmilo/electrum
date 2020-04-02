@@ -1,7 +1,7 @@
-#:import VERSION electrum.version.ELECTRUM_VERSION
+#:import VERSION electrumsys.version.ELECTRUM_VERSION
 
 Popup:
-    title: _("About Electrum")
+    title: _("About ElectrumSys")
     BoxLayout:
         orientation: 'vertical'
         spacing: '10dp'
@@ -26,10 +26,10 @@ Popup:
                 size_hint_x: 0.4
             TopLabel:
                 markup: True
-                text: '[color=6666ff][ref=x]https://electrum.syscoin.org[/ref][/color]'
+                text: '[color=6666ff][ref=x]https://electrumsys.syscoin.org[/ref][/color]'
                 on_ref_press:
                     import webbrowser
-                    webbrowser.open("https://electrum.syscoin.org")
+                    webbrowser.open("https://electrumsys.syscoin.org")
                 size_hint_x: 0.6
             TopLabel:
                 text: _('Developers')
@@ -38,7 +38,7 @@ Popup:
                 text: '\n'.join(['Thomas Voegtlin', 'Neil Booth', 'Akshay Arora'])
                 size_hint_x: 0.6
         TopLabel:
-            text: _('Distributed by Electrum Technologies GmbH')
+            text: _('Distributed by ElectrumSys Technologies GmbH')
             padding: '0dp', '20dp'
         Widget:
             size_hint: None, 0.5

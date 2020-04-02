@@ -2,15 +2,15 @@ import shutil
 import tempfile
 import os
 
-from electrum import constants, blockchain
-from electrum.simple_config import SimpleConfig
-from electrum.blockchain import Blockchain, deserialize_pure_header, hash_header
-from electrum.util import bh2u, bfh, make_dir
+from electrumsys import constants, blockchain
+from electrumsys.simple_config import SimpleConfig
+from electrumsys.blockchain import Blockchain, deserialize_pure_header, hash_header
+from electrumsys.util import bh2u, bfh, make_dir
 
-from . import ElectrumTestCase
+from . import ElectrumSysTestCase
 
 
-class TestBlockchain(ElectrumTestCase):
+class TestBlockchain(ElectrumSysTestCase):
 
     HEADERS = {
         'A': deserialize_pure_header(bfh("0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4adae5494dffff7f2002000000"), 0),
@@ -57,9 +57,9 @@ class TestBlockchain(ElectrumTestCase):
 
     def setUp(self):
         super().setUp()
-        self.data_dir = self.electrum_path
+        self.data_dir = self.electrumsys_path
         make_dir(os.path.join(self.data_dir, 'forks'))
-        self.config = SimpleConfig({'electrum_path': self.data_dir})
+        self.config = SimpleConfig({'electrumsys_path': self.data_dir})
         blockchain.blockchains = {}
 
     def _append_header(self, chain: Blockchain, header: dict):
@@ -337,7 +337,7 @@ class TestBlockchain(ElectrumTestCase):
             self.assertTrue(all([b.can_connect(b.read_header(i), False) for i in range(b.height())]))
 
 
-class TestVerifyHeader(ElectrumTestCase):
+class TestVerifyHeader(ElectrumSysTestCase):
 
     # Data for Bitcoin block header #100.
     valid_header = "0100000095194b8567fe2e8bbda931afd01a7acd399b9325cb54683e64129bcd00000000660802c98f18fd34fd16d61c63cf447568370124ac5f3be626c2e1c3c9f0052d19a76949ffff001d33f3c25d"

@@ -9,15 +9,15 @@ import threading
 import asyncio
 from typing import TYPE_CHECKING, Optional, Union, Callable, Sequence
 
-from electrum.storage import WalletStorage, StorageReadWriteError
-from electrum.wallet_db import WalletDB
-from electrum.wallet import Wallet, InternalAddressCorruption, Abstract_Wallet
-from electrum.plugin import run_hook
-from electrum.util import (profiler, InvalidPassword, send_exception_to_crash_reporter,
+from electrumsys.storage import WalletStorage, StorageReadWriteError
+from electrumsys.wallet_db import WalletDB
+from electrumsys.wallet import Wallet, InternalAddressCorruption, Abstract_Wallet
+from electrumsys.plugin import run_hook
+from electrumsys.util import (profiler, InvalidPassword, send_exception_to_crash_reporter,
                            format_satoshis, format_satoshis_plain, format_fee_satoshis,
                            PR_PAID, PR_FAILED, maybe_extract_bolt11_invoice)
-from electrum import blockchain
-from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed
+from electrumsys import blockchain
+from electrumsys.network import Network, TxBroadcastError, BestEffortRequestFailed
 from .i18n import _
 
 from kivy.app import App
@@ -34,10 +34,10 @@ from kivy.lang import Builder
 from .uix.dialogs.password_dialog import PasswordDialog, PincodeDialog
 
 ## lazy imports for factory so that widgets can be used in kv
-#Factory.register('InstallWizard', module='electrum.gui.kivy.uix.dialogs.installwizard')
-#Factory.register('InfoBubble', module='electrum.gui.kivy.uix.dialogs')
-#Factory.register('OutputList', module='electrum.gui.kivy.uix.dialogs')
-#Factory.register('OutputItem', module='electrum.gui.kivy.uix.dialogs')
+#Factory.register('InstallWizard', module='electrumsys.gui.kivy.uix.dialogs.installwizard')
+#Factory.register('InfoBubble', module='electrumsys.gui.kivy.uix.dialogs')
+#Factory.register('OutputList', module='electrumsys.gui.kivy.uix.dialogs')
+#Factory.register('OutputItem', module='electrumsys.gui.kivy.uix.dialogs')
 
 from .uix.dialogs.installwizard import InstallWizard
 from .uix.dialogs import InfoBubble, crash_reporter
@@ -54,26 +54,26 @@ util = False
 
 # register widget cache for keeping memory down timeout to forever to cache
 # the data
-Cache.register('electrum_widgets', timeout=0)
+Cache.register('electrumsys_widgets', timeout=0)
 
 from kivy.uix.screenmanager import Screen
 from kivy.uix.tabbedpanel import TabbedPanel
 from kivy.uix.label import Label
 from kivy.core.clipboard import Clipboard
 
-Factory.register('TabbedCarousel', module='electrum.gui.kivy.uix.screens')
+Factory.register('TabbedCarousel', module='electrumsys.gui.kivy.uix.screens')
 
 # Register fonts without this you won't be able to use bold/italic...
 # inside markup.
 from kivy.core.text import Label
 Label.register('Roboto',
-               'electrum/gui/kivy/data/fonts/Roboto.ttf',
-               'electrum/gui/kivy/data/fonts/Roboto.ttf',
-               'electrum/gui/kivy/data/fonts/Roboto-Bold.ttf',
-               'electrum/gui/kivy/data/fonts/Roboto-Bold.ttf')
+               'electrumsys/gui/kivy/data/fonts/Roboto.ttf',
+               'electrumsys/gui/kivy/data/fonts/Roboto.ttf',
+               'electrumsys/gui/kivy/data/fonts/Roboto-Bold.ttf',
+               'electrumsys/gui/kivy/data/fonts/Roboto-Bold.ttf')
 
 
-from electrum.util import (base_units, NoDynamicFeeEstimates, decimal_point_to_base_unit_name,
+from electrumsys.util import (base_units, NoDynamicFeeEstimates, decimal_point_to_base_unit_name,
                            base_unit_name_to_decimal_point, NotEnoughFunds, UnknownBaseUnit,
                            DECIMAL_POINT_DEFAULT)
 
@@ -81,15 +81,15 @@ from .uix.dialogs.lightning_open_channel import LightningOpenChannelDialog
 from .uix.dialogs.lightning_channels import LightningChannelsDialog
 
 if TYPE_CHECKING:
-    from . import ElectrumGui
-    from electrum.simple_config import SimpleConfig
-    from electrum.plugin import Plugins
-    from electrum.paymentrequest import PaymentRequest
+    from . import ElectrumSysGui
+    from electrumsys.simple_config import SimpleConfig
+    from electrumsys.plugin import Plugins
+    from electrumsys.paymentrequest import PaymentRequest
 
 
-class ElectrumWindow(App):
+class ElectrumSysWindow(App):
 
-    electrum_config = ObjectProperty(None)
+    electrumsys_config = ObjectProperty(None)
     language = StringProperty('en')
 
     # properties might be updated by the network
@@ -137,7 +137,7 @@ class ElectrumWindow(App):
         from .uix.dialogs.choice_dialog import ChoiceDialog
         protocol = 's'
         def cb2(host):
-            from electrum import constants
+            from electrumsys import constants
             pp = servers.get(host, constants.net.DEFAULT_PORTS)
             port = pp.get(protocol, '')
             popup.ids.host.text = host
@@ -162,11 +162,11 @@ class ElectrumWindow(App):
 
     use_rbf = BooleanProperty(False)
     def on_use_rbf(self, instance, x):
-        self.electrum_config.set_key('use_rbf', self.use_rbf, True)
+        self.electrumsys_config.set_key('use_rbf', self.use_rbf, True)
 
     android_backups = BooleanProperty(False)
     def on_android_backups(self, instance, x):
-        self.electrum_config.set_key('android_backups', self.android_backups, True)
+        self.electrumsys_config.set_key('android_backups', self.android_backups, True)
 
     use_change = BooleanProperty(False)
     def on_use_change(self, instance, x):
@@ -177,7 +177,7 @@ class ElectrumWindow(App):
 
     use_unconfirmed = BooleanProperty(False)
     def on_use_unconfirmed(self, instance, x):
-        self.electrum_config.set_key('confirmed_only', not self.use_unconfirmed, True)
+        self.electrumsys_config.set_key('confirmed_only', not self.use_unconfirmed, True)
 
     def set_URI(self, uri):
         self.switch_to('send')
@@ -249,7 +249,7 @@ class ElectrumWindow(App):
         self.show_info(_('Payment failed') + '\n\n' + reason)
 
     def _get_bu(self):
-        decimal_point = self.electrum_config.get('decimal_point', DECIMAL_POINT_DEFAULT)
+        decimal_point = self.electrumsys_config.get('decimal_point', DECIMAL_POINT_DEFAULT)
         try:
             return decimal_point_to_base_unit_name(decimal_point)
         except UnknownBaseUnit:
@@ -258,7 +258,7 @@ class ElectrumWindow(App):
     def _set_bu(self, value):
         assert value in base_units.keys()
         decimal_point = base_unit_name_to_decimal_point(value)
-        self.electrum_config.set_key('decimal_point', decimal_point, True)
+        self.electrumsys_config.set_key('decimal_point', decimal_point, True)
         self._trigger_update_status()
         self._trigger_update_history()
 
@@ -348,7 +348,7 @@ class ElectrumWindow(App):
 
         App.__init__(self)#, **kwargs)
 
-        self.electrum_config = config = kwargs.get('config', None)  # type: SimpleConfig
+        self.electrumsys_config = config = kwargs.get('config', None)  # type: SimpleConfig
         self.language = config.get('language', 'en')
         self.network = network = kwargs.get('network', None)  # type: Network
         if self.network:
@@ -363,7 +363,7 @@ class ElectrumWindow(App):
             self.update_proxy_str(self.proxy_config)
 
         self.plugins = kwargs.get('plugins', None)  # type: Plugins
-        self.gui_object = kwargs.get('gui_object', None)  # type: ElectrumGui
+        self.gui_object = kwargs.get('gui_object', None)  # type: ElectrumSysGui
         self.daemon = self.gui_object.daemon
         self.fx = self.daemon.fx
         self.use_rbf = config.get('use_rbf', True)
@@ -385,7 +385,7 @@ class ElectrumWindow(App):
         self._password_dialog = None
         self._channels_dialog = None
         self._addresses_dialog = None
-        self.fee_status = self.electrum_config.get_fee_status()
+        self.fee_status = self.electrumsys_config.get_fee_status()
         self.invoice_popup = None
         self.request_popup = None
 
@@ -409,7 +409,7 @@ class ElectrumWindow(App):
             self.send_screen.do_clear()
 
     def on_qr(self, data):
-        from electrum.bitcoin import is_address
+        from electrumsys.bitcoin import is_address
         data = data.strip()
         if is_address(data):
             self.set_URI(data)
@@ -422,7 +422,7 @@ class ElectrumWindow(App):
             self.set_ln_invoice(bolt11_invoice)
             return
         # try to decode transaction
-        from electrum.transaction import tx_from_any
+        from electrumsys.transaction import tx_from_any
         try:
             tx = tx_from_any(data)
         except:
@@ -519,7 +519,7 @@ class ElectrumWindow(App):
         currentActivity.startActivity(it)
 
     def build(self):
-        return Builder.load_file('electrum/gui/kivy/main.kv')
+        return Builder.load_file('electrumsys/gui/kivy/main.kv')
 
     def _pause(self):
         if platform == 'android':
@@ -586,9 +586,9 @@ class ElectrumWindow(App):
             self.network.register_callback(self.set_num_peers, ['gossip_peers'])
             self.network.register_callback(self.set_unknown_channels, ['unknown_channels'])
         # load wallet
-        self.load_wallet_by_name(self.electrum_config.get_wallet_path(use_gui_last_wallet=True))
+        self.load_wallet_by_name(self.electrumsys_config.get_wallet_path(use_gui_last_wallet=True))
         # URI passed in config
-        uri = self.electrum_config.get('url')
+        uri = self.electrumsys_config.get('url')
         if uri:
             self.set_URI(uri)
 
@@ -610,21 +610,21 @@ class ElectrumWindow(App):
 
     def on_wizard_complete(self, wizard, storage, db):
         if storage:
-            wallet = Wallet(db, storage, config=self.electrum_config)
+            wallet = Wallet(db, storage, config=self.electrumsys_config)
             wallet.start_network(self.daemon.network)
             self.daemon.add_wallet(wallet)
             self.load_wallet(wallet)
         elif not self.wallet:
             # wizard did not return a wallet; and there is no wallet open atm
             # try to open last saved wallet (potentially start wizard again)
-            self.load_wallet_by_name(self.electrum_config.get_wallet_path(use_gui_last_wallet=True),
+            self.load_wallet_by_name(self.electrumsys_config.get_wallet_path(use_gui_last_wallet=True),
                                      ask_if_wizard=True)
 
     def _on_decrypted_storage(self, storage: WalletStorage):
         assert storage.is_past_initial_decryption()
         db = WalletDB(storage.read(), manual_upgrades=False)
         if db.requires_upgrade():
-            wizard = Factory.InstallWizard(self.electrum_config, self.plugins)
+            wizard = Factory.InstallWizard(self.electrumsys_config, self.plugins)
             wizard.path = storage.path
             wizard.bind(on_wizard_complete=self.on_wizard_complete)
             wizard.upgrade_storage(storage, db)
@@ -654,7 +654,7 @@ class ElectrumWindow(App):
             def launch_wizard():
                 storage = WalletStorage(path)
                 if not storage.file_exists():
-                    wizard = Factory.InstallWizard(self.electrum_config, self.plugins)
+                    wizard = Factory.InstallWizard(self.electrumsys_config, self.plugins)
                     wizard.path = path
                     wizard.bind(on_wizard_complete=self.on_wizard_complete)
                     wizard.run('new')
@@ -754,7 +754,7 @@ class ElectrumWindow(App):
     def wallets_dialog(self):
         from .uix.dialogs.wallets import WalletDialog
         d = WalletDialog()
-        d.path = os.path.dirname(self.electrum_config.get_wallet_path())
+        d.path = os.path.dirname(self.electrumsys_config.get_wallet_path())
         d.open()
 
     def popup_dialog(self, name):
@@ -763,7 +763,7 @@ class ElectrumWindow(App):
         elif name == 'wallets':
             self.wallets_dialog()
         elif name == 'status':
-            popup = Builder.load_file('electrum/gui/kivy/uix/ui_screens/'+name+'.kv')
+            popup = Builder.load_file('electrumsys/gui/kivy/uix/ui_screens/'+name+'.kv')
             master_public_keys_layout = popup.ids.master_public_keys
             for xpub in self.wallet.get_master_public_keys()[1:]:
                 master_public_keys_layout.add_widget(TopLabel(text=_('Master Public Key')))
@@ -775,12 +775,12 @@ class ElectrumWindow(App):
         elif name.endswith("_dialog"):
             getattr(self, name)()
         else:
-            popup = Builder.load_file('electrum/gui/kivy/uix/ui_screens/'+name+'.kv')
+            popup = Builder.load_file('electrumsys/gui/kivy/uix/ui_screens/'+name+'.kv')
             popup.open()
 
     @profiler
     def init_ui(self):
-        ''' Initialize The Ux part of electrum. This function performs the basic
+        ''' Initialize The Ux part of electrumsys. This function performs the basic
         tasks of setting up the ui.
         '''
         #from weakref import ref
@@ -791,13 +791,13 @@ class ElectrumWindow(App):
 
         #setup lazy imports for mainscreen
         Factory.register('AnimatedPopup',
-                         module='electrum.gui.kivy.uix.dialogs')
+                         module='electrumsys.gui.kivy.uix.dialogs')
         Factory.register('QRCodeWidget',
-                         module='electrum.gui.kivy.uix.qrcodewidget')
+                         module='electrumsys.gui.kivy.uix.qrcodewidget')
 
         # preload widgets. Remove this if you want to load the widgets on demand
-        #Cache.append('electrum_widgets', 'AnimatedPopup', Factory.AnimatedPopup())
-        #Cache.append('electrum_widgets', 'QRCodeWidget', Factory.QRCodeWidget())
+        #Cache.append('electrumsys_widgets', 'AnimatedPopup', Factory.AnimatedPopup())
+        #Cache.append('electrumsys_widgets', 'QRCodeWidget', Factory.QRCodeWidget())
 
         # load and focus the ui
         self.root.manager = self.root.ids['manager']
@@ -810,7 +810,7 @@ class ElectrumWindow(App):
         self.receive_screen = None
         self.requests_screen = None
         self.address_screen = None
-        self.icon = "electrum/gui/icons/electrum.png"
+        self.icon = "electrumsys/gui/icons/electrumsys.png"
         self.tabs = self.root.ids['tabs']
 
     def update_interfaces(self, dt):
@@ -867,7 +867,7 @@ class ElectrumWindow(App):
             send_exception_to_crash_reporter(e)
             return
         self.use_change = self.wallet.use_change
-        self.electrum_config.save_last_wallet(wallet)
+        self.electrumsys_config.save_last_wallet(wallet)
 
     def update_status(self, *dt):
         if not self.wallet:
@@ -905,7 +905,7 @@ class ElectrumWindow(App):
             self._trigger_update_status()
 
     def get_max_amount(self):
-        from electrum.transaction import PartialTxOutput
+        from electrumsys.transaction import PartialTxOutput
         if run_hook('abort_send', self):
             return ''
         inputs = self.wallet.get_spendable_coins(None)
@@ -983,8 +983,8 @@ class ElectrumWindow(App):
                 from plyer import notification
             icon = (os.path.dirname(os.path.realpath(__file__))
                     + '/../../' + self.icon)
-            notification.notify('Electrum', message,
-                            app_icon=icon, app_name='Electrum')
+            notification.notify('ElectrumSys', message,
+                            app_icon=icon, app_name='ElectrumSys')
         except ImportError:
             Logger.Error('Notification: needs plyer; `sudo python3 -m pip install plyer`')
 
@@ -1013,7 +1013,7 @@ class ElectrumWindow(App):
         self.qr_dialog(label.name, label.data, True)
 
     def show_error(self, error, width='200dp', pos=None, arrow_pos=None,
-        exit=False, icon='atlas://electrum/gui/kivy/theming/light/error', duration=0,
+        exit=False, icon='atlas://electrumsys/gui/kivy/theming/light/error', duration=0,
         modal=False):
         ''' Show an error Message Bubble.
         '''
@@ -1025,7 +1025,7 @@ class ElectrumWindow(App):
         exit=False, duration=0, modal=False):
         ''' Show an Info Message Bubble.
         '''
-        self.show_error(error, icon='atlas://electrum/gui/kivy/theming/light/important',
+        self.show_error(error, icon='atlas://electrumsys/gui/kivy/theming/light/important',
             duration=duration, modal=modal, exit=exit, pos=pos,
             arrow_pos=arrow_pos)
 
@@ -1065,7 +1065,7 @@ class ElectrumWindow(App):
             info_bubble.show_arrow = False
             img.allow_stretch = True
             info_bubble.dim_background = True
-            info_bubble.background_image = 'atlas://electrum/gui/kivy/theming/light/card'
+            info_bubble.background_image = 'atlas://electrumsys/gui/kivy/theming/light/card'
         else:
             info_bubble.fs = False
             info_bubble.icon = icon
@@ -1176,15 +1176,15 @@ class ElectrumWindow(App):
     def fee_dialog(self, label, dt):
         from .uix.dialogs.fee_dialog import FeeDialog
         def cb():
-            self.fee_status = self.electrum_config.get_fee_status()
-        fee_dialog = FeeDialog(self, self.electrum_config, cb)
+            self.fee_status = self.electrumsys_config.get_fee_status()
+        fee_dialog = FeeDialog(self, self.electrumsys_config, cb)
         fee_dialog.open()
 
     def on_fee(self, event, *arg):
-        self.fee_status = self.electrum_config.get_fee_status()
+        self.fee_status = self.electrumsys_config.get_fee_status()
 
     def protected(self, msg, f, args):
-        if self.electrum_config.get('pin_code'):
+        if self.electrumsys_config.get('pin_code'):
             on_success = lambda pw: f(*(args + (self.password,)))
             self.pincode_dialog(
                 message = msg,
@@ -1203,7 +1203,7 @@ class ElectrumWindow(App):
             else:
                 self.show_info('This wallet has channels')
         else:
-            warning1 = _("Lightning support in Electrum is experimental. Do not put large amounts in lightning channels.")
+            warning1 = _("Lightning support in ElectrumSys is experimental. Do not put large amounts in lightning channels.")
             warning2 = _("Funds stored in lightning channels are not recoverable from your seed. You must backup your wallet file everytime you create a new channel.")
             d = Question(_('Enable Lightning?') + '\n\n' + warning1 + '\n\n' + warning2, self._enable_lightning)
             d.open()
@@ -1235,7 +1235,7 @@ class ElectrumWindow(App):
             else:
                 self.show_info('This wallet has channels')
         else:
-            warning1 = _("Lightning support in Electrum is experimental. Do not put large amounts in lightning channels.")
+            warning1 = _("Lightning support in ElectrumSys is experimental. Do not put large amounts in lightning channels.")
             warning2 = _("Funds stored in lightning channels are not recoverable from your seed. You must backup your wallet file everytime you create a new channel.")
             d = Question(_('Enable Lightning?') + '\n\n' + warning1 + '\n\n' + warning2, self._enable_lightning)
             d.open()
@@ -1280,7 +1280,7 @@ class ElectrumWindow(App):
         self.stop_wallet()
         os.unlink(wallet_path)
         self.show_error(_("Wallet removed: {}").format(basename))
-        new_path = self.electrum_config.get_wallet_path(use_gui_last_wallet=True)
+        new_path = self.electrumsys_config.get_wallet_path(use_gui_last_wallet=True)
         self.load_wallet_by_name(new_path)
 
     def show_seed(self, label):
@@ -1297,10 +1297,10 @@ class ElectrumWindow(App):
             label.data += '\n\n' + _('Passphrase') + ': ' + passphrase
 
     def has_pin_code(self):
-        return bool(self.electrum_config.get('pin_code'))
+        return bool(self.electrumsys_config.get('pin_code'))
 
     def check_pin_code(self, pin):
-        if pin != self.electrum_config.get('pin_code'):
+        if pin != self.electrumsys_config.get('pin_code'):
             raise InvalidPassword
 
     def password_dialog(self, **kwargs):
@@ -1332,7 +1332,7 @@ class ElectrumWindow(App):
         if self._pincode_dialog is None:
             self._pincode_dialog = PincodeDialog()
         def on_success(old_password, new_password):
-            self.electrum_config.set_key('pin_code', new_password)
+            self.electrumsys_config.set_key('pin_code', new_password)
             cb()
             self.show_info(_("PIN updated") if new_password else _('PIN disabled'))
         on_failure = lambda: self.show_error(_("PIN not updated"))

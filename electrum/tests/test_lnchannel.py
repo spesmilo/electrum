@@ -1,4 +1,4 @@
-# Copyright (C) 2018 The Electrum developers
+# Copyright (C) 2018 The ElectrumSys developers
 # Copyright (C) 2015-2018 The Lightning Network Developers
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -28,19 +28,19 @@ import binascii
 from pprint import pformat
 import logging
 
-from electrum import bitcoin
-from electrum import lnpeer
-from electrum import lnchannel
-from electrum import lnutil
-from electrum import bip32 as bip32_utils
-from electrum.lnutil import SENT, LOCAL, REMOTE, RECEIVED
-from electrum.lnutil import FeeUpdate
-from electrum.ecc import sig_string_from_der_sig
-from electrum.logging import console_stderr_handler
-from electrum.lnchannel import channel_states
-from electrum.json_db import StoredDict
+from electrumsys import bitcoin
+from electrumsys import lnpeer
+from electrumsys import lnchannel
+from electrumsys import lnutil
+from electrumsys import bip32 as bip32_utils
+from electrumsys.lnutil import SENT, LOCAL, REMOTE, RECEIVED
+from electrumsys.lnutil import FeeUpdate
+from electrumsys.ecc import sig_string_from_der_sig
+from electrumsys.logging import console_stderr_handler
+from electrumsys.lnchannel import channel_states
+from electrumsys.json_db import StoredDict
 
-from . import ElectrumTestCase
+from . import ElectrumSysTestCase
 
 
 one_bitcoin_in_msat = bitcoin.COIN * 1000
@@ -174,7 +174,7 @@ def create_test_channels(*, feerate=6000, local_msat=None, remote_msat=None):
 
     return alice, bob
 
-class TestFee(ElectrumTestCase):
+class TestFee(ElectrumSysTestCase):
     """
     test
     https://github.com/lightningnetwork/lightning-rfc/blob/e0c436bd7a3ed6a028e1cb472908224658a14eca/03-transactions.md#requirements-2
@@ -185,7 +185,7 @@ class TestFee(ElectrumTestCase):
                                                           remote_msat=5000000000)
         self.assertIn(9999817, [x.value for x in alice_channel.get_latest_commitment(LOCAL).outputs()])
 
-class TestChannel(ElectrumTestCase):
+class TestChannel(ElectrumSysTestCase):
     maxDiff = 999
 
     def assertOutputExistsByValue(self, tx, amt_sat):
@@ -286,7 +286,7 @@ class TestChannel(ElectrumTestCase):
         self.assertEqual(bob_channel.included_htlcs(REMOTE, RECEIVED, 0), [])
         self.assertEqual(bob_channel.included_htlcs(REMOTE, RECEIVED, 1), [])
 
-        from electrum.lnutil import extract_ctn_from_tx_and_chan
+        from electrumsys.lnutil import extract_ctn_from_tx_and_chan
         tx0 = str(alice_channel.force_close_tx())
         self.assertEqual(alice_channel.get_oldest_unrevoked_ctn(LOCAL), 0)
         self.assertEqual(extract_ctn_from_tx_and_chan(alice_channel.force_close_tx(), alice_channel), 0)
@@ -612,7 +612,7 @@ class TestChannel(ElectrumTestCase):
         self.assertIn('Not enough local balance', cm.exception.args[0])
 
 
-class TestAvailableToSpend(ElectrumTestCase):
+class TestAvailableToSpend(ElectrumSysTestCase):
     def test_DesyncHTLCs(self):
         alice_channel, bob_channel = create_test_channels()
         self.assertEqual(499994624000, alice_channel.available_to_spend(LOCAL))
@@ -683,7 +683,7 @@ class TestAvailableToSpend(ElectrumTestCase):
         bob_channel.receive_htlc(htlc_dict)
 
 
-class TestChanReserve(ElectrumTestCase):
+class TestChanReserve(ElectrumSysTestCase):
     def setUp(self):
         alice_channel, bob_channel = create_test_channels()
         alice_min_reserve = int(.5 * one_bitcoin_in_msat // 1000)
@@ -812,7 +812,7 @@ class TestChanReserve(ElectrumTestCase):
         self.assertEqual(self.alice_channel.available_to_spend(REMOTE), amt2)
         self.assertEqual(self.bob_channel.available_to_spend(LOCAL), amt2)
 
-class TestDust(ElectrumTestCase):
+class TestDust(ElectrumSysTestCase):
     def test_DustLimit(self):
         alice_channel, bob_channel = create_test_channels()
 

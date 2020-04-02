@@ -10,7 +10,7 @@ here=$(dirname "$0")
 cd $here/../dist
 
 sftp -oBatchMode=no -b - sidhujag@$host << !
-   cd electrum-downloads
+   cd electrumsys-downloads
    mkdir $version
    cd $version
    mput *

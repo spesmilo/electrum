@@ -5,13 +5,13 @@ import copy
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QPushButton, QLabel, QVBoxLayout, QWidget, QGridLayout
 
-from electrum.gui.qt.util import WindowModalDialog, CloseButton, get_parent_main_window, Buttons
-from electrum.gui.qt.transaction_dialog import TxDialog
+from electrumsys.gui.qt.util import WindowModalDialog, CloseButton, get_parent_main_window, Buttons
+from electrumsys.gui.qt.transaction_dialog import TxDialog
 
-from electrum.i18n import _
-from electrum.plugin import hook
-from electrum.wallet import Multisig_Wallet
-from electrum.transaction import PartialTransaction
+from electrumsys.i18n import _
+from electrumsys.plugin import hook
+from electrumsys.wallet import Multisig_Wallet
+from electrumsys.transaction import PartialTransaction
 
 from .coldcard import ColdcardPlugin, xfp2str
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase

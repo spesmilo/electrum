@@ -1,4 +1,4 @@
-# Electrum - lightweight Bitcoin client
+# ElectrumSys - lightweight Bitcoin client
 # Copyright (C) 2015 Thomas Voegtlin
 #
 # Permission is hereby granted, free of charge, to any person
@@ -141,7 +141,7 @@ def sweep_preparations(privkeys, network: 'Network', imax=100):
             find_utxos_for_privkey('p2pk', privkey, compressed)
     if not inputs:
         raise Exception(_('No inputs found. (Note that inputs need to be confirmed)'))
-        # FIXME actually inputs need not be confirmed now, see https://github.com/kyuupichan/electrumx/issues/365
+        # FIXME actually inputs need not be confirmed now, see https://github.com/kyuupichan/electrumsysx/issues/365
     return inputs, keypairs
 
 
@@ -1142,7 +1142,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if outputs is None or len(outputs) == 0:
             raise Exception("No outputs defined")
         if len(outputs) > 1:
-            raise Exception("More than one output for asset send is not supported by electrum at this moment")
+            raise Exception("More than one output for asset send is not supported by electrumsys at this moment")
         amount = None
         if outputs[0].value != '!':
             amount = int(outputs[0].value)

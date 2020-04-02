@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - Lightweight Bitcoin Client
+# ElectrumSys - Lightweight Bitcoin Client
 # Copyright (C) 2015 Thomas Voegtlin
 #
 # Permission is hereby granted, free of charge, to any person
@@ -41,13 +41,13 @@ from PyQt5.QtCore import QObject, pyqtSignal, QThread
 from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QLineEdit,
                              QInputDialog)
 
-from electrum.gui.qt.util import (EnterButton, Buttons, CloseButton, OkButton,
+from electrumsys.gui.qt.util import (EnterButton, Buttons, CloseButton, OkButton,
                                   WindowModalDialog, get_parent_main_window)
 
-from electrum.plugin import BasePlugin, hook
-from electrum.paymentrequest import PaymentRequest
-from electrum.i18n import _
-from electrum.logging import Logger
+from electrumsys.plugin import BasePlugin, hook
+from electrumsys.paymentrequest import PaymentRequest
+from electrumsys.i18n import _
+from electrumsys.logging import Logger
 
 
 class Processor(threading.Thread, Logger):
@@ -176,7 +176,7 @@ class Plugin(BasePlugin):
         menu.addAction(_("Send via e-mail"), lambda: self.send(window, addr))
 
     def send(self, window, addr):
-        from electrum import paymentrequest
+        from electrumsys import paymentrequest
         r = window.wallet.receive_requests.get(addr)
         message = r.get('memo', '')
         if r.get('signature'):

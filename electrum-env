@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
 # This script creates a virtualenv named 'env' and installs all
-# python dependencies before activating the env and running Electrum.
-# If 'env' already exists, it is activated and Electrum is started
+# python dependencies before activating the env and running ElectrumSys.
+# If 'env' already exists, it is activated and ElectrumSys is started
 # without any installations. Additionally, the PYTHONPATH environment
-# variable is set properly before running Electrum.
+# variable is set properly before running ElectrumSys.
 #
 # python-qt and its dependencies will still need to be installed with
 # your package manager.
@@ -22,6 +22,6 @@ fi
 
 export PYTHONPATH="/usr/local/lib/python${PYTHON_VER}/site-packages:$PYTHONPATH"
 
-./run_electrum "$@"
+./run_electrumsys "$@"
 
 deactivate

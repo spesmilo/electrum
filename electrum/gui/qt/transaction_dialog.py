@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
+# ElectrumSys - lightweight Bitcoin client
 # Copyright (C) 2012 thomasv@gitorious
 #
 # Permission is hereby granted, free of charge, to any person
@@ -39,14 +39,14 @@ from PyQt5.QtWidgets import (QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLay
 import qrcode
 from qrcode import exceptions
 
-from electrum.simple_config import SimpleConfig
-from electrum.util import quantize_feerate
-from electrum.bitcoin import base_encode, NLOCKTIME_BLOCKHEIGHT_MAX
-from electrum.i18n import _
-from electrum.plugin import run_hook
-from electrum import simple_config
-from electrum.transaction import SerializationError, Transaction, PartialTransaction, PartialTxInput
-from electrum.logging import get_logger
+from electrumsys.simple_config import SimpleConfig
+from electrumsys.util import quantize_feerate
+from electrumsys.bitcoin import base_encode, NLOCKTIME_BLOCKHEIGHT_MAX
+from electrumsys.i18n import _
+from electrumsys.plugin import run_hook
+from electrumsys import simple_config
+from electrumsys.transaction import SerializationError, Transaction, PartialTransaction, PartialTxInput
+from electrumsys.logging import get_logger
 
 from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    MONOSPACE_FONT, ColorScheme, ButtonsLineEdit, text_dialog,
@@ -59,9 +59,9 @@ from .fee_slider import FeeSlider
 from .confirm_tx_dialog import TxEditor
 from .amountedit import FeerateEdit, BTCAmountEdit
 from .locktimeedit import LockTimeEdit
-from electrum import constants
+from electrumsys import constants
 if TYPE_CHECKING:
-    from .main_window import ElectrumWindow
+    from .main_window import ElectrumSysWindow
 
 
 class TxSizeLabel(QLabel):
@@ -79,12 +79,12 @@ _logger = get_logger(__name__)
 dialogs = []  # Otherwise python randomly garbage collects the dialogs...
 
 
-def show_transaction(tx: Transaction, *, parent: 'ElectrumWindow', desc=None, prompt_if_unsaved=False):
+def show_transaction(tx: Transaction, *, parent: 'ElectrumSysWindow', desc=None, prompt_if_unsaved=False):
     try:
         d = TxDialog(tx, parent=parent, desc=desc, prompt_if_unsaved=prompt_if_unsaved)
     except SerializationError as e:
         _logger.exception('unable to deserialize the transaction')
-        parent.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
+        parent.show_critical(_("ElectrumSys was unable to deserialize the transaction:") + "\n" + str(e))
     else:
         d.show()
 
@@ -92,7 +92,7 @@ def show_transaction(tx: Transaction, *, parent: 'ElectrumWindow', desc=None, pr
 
 class BaseTxDialog(QDialog, MessageBoxMixin):
 
-    def __init__(self, *, parent: 'ElectrumWindow', desc, prompt_if_unsaved, finalized: bool, external_keypairs=None):
+    def __init__(self, *, parent: 'ElectrumSysWindow', desc, prompt_if_unsaved, finalized: bool, external_keypairs=None):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
         '''
@@ -270,7 +270,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         tx = copy.deepcopy(self.tx)
         tx.add_info_from_wallet(self.wallet, include_xpubs_and_full_paths=True)
         # log warning if PSBT_*_BIP32_DERIVATION fields cannot be filled with full path due to missing info
-        from electrum.keystore import Xpub
+        from electrumsys.keystore import Xpub
         def is_ks_missing_info(ks):
             return (isinstance(ks, Xpub) and (ks.get_root_fingerprint() is None
                                               or ks.get_derivation_prefix() is None))
@@ -675,7 +675,7 @@ class TxDetailLabel(QLabel):
 
 
 class TxDialog(BaseTxDialog):
-    def __init__(self, tx: Transaction, *, parent: 'ElectrumWindow', desc, prompt_if_unsaved):
+    def __init__(self, tx: Transaction, *, parent: 'ElectrumSysWindow', desc, prompt_if_unsaved):
         BaseTxDialog.__init__(self, parent=parent, desc=desc, prompt_if_unsaved=prompt_if_unsaved, finalized=True)
         self.set_tx(tx)
         self.update()
@@ -684,7 +684,7 @@ class TxDialog(BaseTxDialog):
 
 class PreviewTxDialog(BaseTxDialog, TxEditor):
 
-    def __init__(self, *, make_tx, external_keypairs, window: 'ElectrumWindow'):
+    def __init__(self, *, make_tx, external_keypairs, window: 'ElectrumSysWindow'):
         TxEditor.__init__(self, window=window, make_tx=make_tx, is_sweep=bool(external_keypairs))
         BaseTxDialog.__init__(self, parent=window, desc='', prompt_if_unsaved=False,
                               finalized=False, external_keypairs=external_keypairs)
@@ -715,7 +715,7 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
 
         def feerounding_onclick():
             text = (self.feerounding_text + '\n\n' +
-                    _('To somewhat protect your privacy, Electrum tries to create change with similar precision to other outputs.') + ' ' +
+                    _('To somewhat protect your privacy, ElectrumSys tries to create change with similar precision to other outputs.') + ' ' +
                     _('At most 100 satoshis might be lost due to this rounding.') + ' ' +
                     _("You can disable this setting in '{}'.").format(_('Preferences')) + '\n' +
                     _('Also, dust is not kept as change, but added to the fee.')  + '\n' +

@@ -1,18 +1,18 @@
 import unittest
 import json
 
-from electrum import bitcoin
-from electrum.json_db import StoredDict
-from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_seed, make_offered_htlc,
+from electrumsys import bitcoin
+from electrumsys.json_db import StoredDict
+from electrumsys.lnutil import (RevocationStore, get_per_commitment_secret_from_seed, make_offered_htlc,
                              make_received_htlc, make_commitment, make_htlc_tx_witness, make_htlc_tx_output,
                              make_htlc_tx_inputs, secret_to_pubkey, derive_blinded_pubkey, derive_privkey,
                              derive_pubkey, make_htlc_tx, extract_ctn_from_tx, UnableToDeriveSecret,
                              get_compressed_pubkey_from_bech32, split_host_port, ConnStringFormatError,
                              ScriptHtlc, extract_nodeid, calc_fees_for_commitment_tx, UpdateAddHtlc, LnFeatures)
-from electrum.util import bh2u, bfh, MyEncoder
-from electrum.transaction import Transaction, PartialTransaction
+from electrumsys.util import bh2u, bfh, MyEncoder
+from electrumsys.transaction import Transaction, PartialTransaction
 
-from . import ElectrumTestCase
+from . import ElectrumSysTestCase
 
 
 funding_tx_id = '8984484a580b825b9972d7adb15050b3ab624ccd731946b3eeddb92f4e7ef6be'
@@ -36,7 +36,7 @@ local_revocation_pubkey = bytes.fromhex('0212a140cd0c6539d07cd08dfe09984dec3251e
 # funding wscript = 5221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae
 
 
-class TestLNUtil(ElectrumTestCase):
+class TestLNUtil(ElectrumSysTestCase):
     def test_shachain_store(self):
         tests = [
             {
@@ -741,13 +741,13 @@ class TestLNUtil(ElectrumTestCase):
         # accepted by getaddrinfo but not ipaddress.ip_address
         self.assertEqual(split_host_port("127.0.0:8000"), ("127.0.0", "8000"))
         self.assertEqual(split_host_port("127.0.0"), ("127.0.0", "9735"))
-        self.assertEqual(split_host_port("electrum.syscoin.org:8000"), ("electrum.syscoin.org", "8000"))
-        self.assertEqual(split_host_port("electrum.syscoin.org"), ("electrum.syscoin.org", "9735"))
+        self.assertEqual(split_host_port("electrumsys.syscoin.org:8000"), ("electrumsys.syscoin.org", "8000"))
+        self.assertEqual(split_host_port("electrumsys.syscoin.org"), ("electrumsys.syscoin.org", "9735"))
 
         with self.assertRaises(ConnStringFormatError):
-            split_host_port("electrum.syscoin.org:8000:")
+            split_host_port("electrumsys.syscoin.org:8000:")
         with self.assertRaises(ConnStringFormatError):
-            split_host_port("electrum.syscoin.org:")
+            split_host_port("electrumsys.syscoin.org:")
 
     def test_extract_nodeid(self):
         with self.assertRaises(ConnStringFormatError):

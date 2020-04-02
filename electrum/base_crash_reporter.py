@@ -1,4 +1,4 @@
-# Electrum - lightweight Bitcoin client
+# ElectrumSys - lightweight Bitcoin client
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -35,7 +35,7 @@ from .logging import describe_os_version, Logger
 
 
 class BaseCrashReporter(Logger):
-    report_server = "https://crashhub.electrum.syscoin.org"
+    report_server = "https://crashhub.electrumsys.syscoin.org"
     config_key = "show_crash_reporter"
     issue_template = """<h2>Traceback</h2>
 <pre>
@@ -44,14 +44,14 @@ class BaseCrashReporter(Logger):
 
 <h2>Additional information</h2>
 <ul>
-  <li>Electrum version: {app_version}</li>
+  <li>ElectrumSys version: {app_version}</li>
   <li>Python version: {python_version}</li>
   <li>Operating system: {os}</li>
   <li>Wallet type: {wallet_type}</li>
   <li>Locale: {locale}</li>
 </ul>
     """
-    CRASH_MESSAGE = _('Something went wrong while executing Electrum.')
+    CRASH_MESSAGE = _('Something went wrong while executing ElectrumSys.')
     CRASH_TITLE = _('Sorry!')
     REQUEST_HELP_MESSAGE = _('To help us diagnose and fix the problem, you can send us a bug report that contains '
                              'useful debug information:')
@@ -63,7 +63,7 @@ class BaseCrashReporter(Logger):
         self.exc_args = (exctype, value, tb)
 
     def send_report(self, asyncio_loop, proxy, endpoint="/crash", *, timeout=None):
-        if constants.net.GENESIS[-4:] not in ["4943", "e26f"] and ".electrum.syscoin.org" in BaseCrashReporter.report_server:
+        if constants.net.GENESIS[-4:] not in ["4943", "e26f"] and ".electrumsys.syscoin.org" in BaseCrashReporter.report_server:
             # Gah! Some kind of altcoin wants to send us crash reports.
             raise Exception(_("Missing report URL."))
         report = self.get_traceback_info()

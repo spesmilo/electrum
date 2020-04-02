@@ -1,16 +1,16 @@
-# Copyright (C) 2018 The Electrum developers
+# Copyright (C) 2018 The ElectrumSys developers
 # Distributed under the MIT software license, see the accompanying
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
 import copy
 from typing import Union
 
-from electrum import bitcoin
-from electrum.bitcoin import push_script, int_to_hex, var_int
-from electrum.transaction import (Transaction, PartialTransaction, PartialTxInput,
+from electrumsys import bitcoin
+from electrumsys.bitcoin import push_script, int_to_hex, var_int
+from electrumsys.transaction import (Transaction, PartialTransaction, PartialTxInput,
                                   multisig_script, construct_witness)
-from electrum.keystore import BIP32_KeyStore
-from electrum.wallet import Multisig_Wallet
+from electrumsys.keystore import BIP32_KeyStore
+from electrumsys.wallet import Multisig_Wallet
 
 
 ELECTRUM_PARTIAL_TXN_HEADER_MAGIC = b'EPTF\xff'

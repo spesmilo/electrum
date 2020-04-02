@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
+# ElectrumSys - lightweight Bitcoin client
 # Copyright (C) 2011 thomasv@gitorious
 #
 # Permission is hereby granted, free of charge, to any person
@@ -75,7 +75,7 @@ def satoshis(amount):
 
 def json_normalize(x):
     # note: The return value of commands, when going through the JSON-RPC interface,
-    #       is json-encoded. The encoder used there cannot handle some types, e.g. electrum.util.Satoshis.
+    #       is json-encoded. The encoder used there cannot handle some types, e.g. electrumsys.util.Satoshis.
     # note: We should not simply do "json_encode(x)" here, as then later x would get doubly json-encoded.
     # see #5868
     return json_decode(json_encode(x))
@@ -429,7 +429,7 @@ class Commands:
     @command('')
     async def dumpprivkeys(self):
         """Deprecated."""
-        return "This command is deprecated. Use a pipe instead: 'electrum listaddresses | electrum getprivatekeys - '"
+        return "This command is deprecated. Use a pipe instead: 'electrumsys listaddresses | electrumsys getprivatekeys - '"
 
     @command('')
     async def validateaddress(self, address):
@@ -468,7 +468,7 @@ class Commands:
 
     @command('n')
     async def getmerkle(self, txid, height):
-        """Get Merkle branch of a transaction included in a block. Electrum
+        """Get Merkle branch of a transaction included in a block. ElectrumSys
         uses this to verify transactions (Simple Payment Verification)."""
         return await self.network.get_merkle_for_transaction(txid, int(height))
 
@@ -479,7 +479,7 @@ class Commands:
 
     @command('')
     async def version(self):
-        """Return the version of Electrum."""
+        """Return the version of ElectrumSys."""
         from .version import ELECTRUM_VERSION
         return ELECTRUM_VERSION
 
@@ -1174,10 +1174,10 @@ config_variables = {
     'addrequest': {
         'ssl_privkey': 'Path to your SSL private key, needed to sign the request.',
         'ssl_chain': 'Chain of SSL certificates, needed for signed requests. Put your certificate at the top and the root CA at the end',
-        'url_rewrite': 'Parameters passed to str.replace(), in order to create the r= part of syscoin: URIs. Example: \"(\'file:///var/www/\',\'https://electrum.syscoin.org/\')\"',
+        'url_rewrite': 'Parameters passed to str.replace(), in order to create the r= part of syscoin: URIs. Example: \"(\'file:///var/www/\',\'https://electrumsys.syscoin.org/\')\"',
     },
     'listrequests':{
-        'url_rewrite': 'Parameters passed to str.replace(), in order to create the r= part of syscoin: URIs. Example: \"(\'file:///var/www/\',\'https://electrum.syscoin.org/\')\"',
+        'url_rewrite': 'Parameters passed to str.replace(), in order to create the r= part of syscoin: URIs. Example: \"(\'file:///var/www/\',\'https://electrumsys.syscoin.org/\')\"',
     }
 }
 
@@ -1244,8 +1244,8 @@ def add_global_options(parser):
     group = parser.add_argument_group('global options')
     group.add_argument("-v", dest="verbosity", help="Set verbosity (log levels)", default='')
     group.add_argument("-V", dest="verbosity_shortcuts", help="Set verbosity (shortcut-filter list)", default='')
-    group.add_argument("-D", "--dir", dest="electrum_path", help="electrum directory")
-    group.add_argument("-P", "--portable", action="store_true", dest="portable", default=False, help="Use local 'electrum_data' directory")
+    group.add_argument("-D", "--dir", dest="electrumsys_path", help="electrumsys directory")
+    group.add_argument("-P", "--portable", action="store_true", dest="portable", default=False, help="Use local 'electrumsys_data' directory")
     group.add_argument("--testnet", action="store_true", dest="testnet", default=False, help="Use Testnet")
     group.add_argument("--regtest", action="store_true", dest="regtest", default=False, help="Use Regtest")
     group.add_argument("--simnet", action="store_true", dest="simnet", default=False, help="Use Simnet")
@@ -1258,11 +1258,11 @@ def add_wallet_option(parser):
 def get_parser():
     # create main parser
     parser = argparse.ArgumentParser(
-        epilog="Run 'electrum help <command>' to see the help for a command")
+        epilog="Run 'electrumsys help <command>' to see the help for a command")
     add_global_options(parser)
     subparsers = parser.add_subparsers(dest='cmd', metavar='<command>')
     # gui
-    parser_gui = subparsers.add_parser('gui', description="Run Electrum's Graphical User Interface.", help="Run GUI (default)")
+    parser_gui = subparsers.add_parser('gui', description="Run ElectrumSys's Graphical User Interface.", help="Run GUI (default)")
     parser_gui.add_argument("url", nargs='?', default=None, help="bitcoin URI (or bip70 file)")
     parser_gui.add_argument("-g", "--gui", dest="gui", help="select graphical user interface", choices=['qt', 'kivy', 'text', 'stdio'])
     parser_gui.add_argument("-m", action="store_true", dest="hide_gui", default=False, help="hide GUI on startup")

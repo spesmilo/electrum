@@ -4,7 +4,7 @@ Building Mac OS binaries
 ✗ _This script does not produce reproducible output (yet!).
    Please help us remedy this._
 
-This guide explains how to build Electrum binaries for macOS systems.
+This guide explains how to build ElectrumSys binaries for macOS systems.
 
 
 ## 1. Building the binary
@@ -14,7 +14,7 @@ on High Sierra (or later)
 makes the binaries [incompatible with older versions](https://github.com/pyinstaller/pyinstaller/issues/1191).
 
 Another factor for the minimum supported macOS version is the
-[bundled Qt version](https://github.com/spesmilo/electrum/issues/3685).
+[bundled Qt version](https://github.com/spesmilo/electrumsys/issues/3685).
 
 Before starting, make sure that the Xcode command line tools are installed (e.g. you have `git`).
 
@@ -46,9 +46,9 @@ On newer Mac, run:
 Move `prebuilt_qr` to El Capitan: `contrib/osx/CalinsQRReader/prebuilt_qr`.
 
 
-#### 1.2 Build Electrum
+#### 1.2 Build ElectrumSys
 
-    cd electrum
+    cd electrumsys
     ./contrib/osx/make_osx
     
 This creates both a folder named ElectrumSys.app and the .dmg file.
@@ -68,5 +68,5 @@ Copy the ElectrumSys.app directory over and install the dependencies, e.g.:
     
 Then you can just invoke `package.sh` with the path to the app:
 
-    cd electrum
+    cd electrumsys
     ./contrib/osx/package.sh ~/ElectrumSys.app/

@@ -1,8 +1,8 @@
 #!/usr/bin/env python2
 # -*- mode: python -*-
 #
-# Electrum - lightweight Bitcoin client
-# Copyright (C) 2016  The Electrum developers
+# ElectrumSys - lightweight Bitcoin client
+# Copyright (C) 2016  The ElectrumSys developers
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -26,19 +26,19 @@
 
 from typing import TYPE_CHECKING, Dict, List, Union, Tuple, Sequence, Optional, Type
 
-from electrum.plugin import BasePlugin, hook, Device, DeviceMgr, DeviceInfo
-from electrum.i18n import _
-from electrum.bitcoin import is_address, opcodes
-from electrum.util import bfh, versiontuple, UserFacingException
-from electrum.transaction import TxOutput, Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
-from electrum.bip32 import BIP32Node
-from electrum.storage import get_derivation_used_for_hw_device_encryption
-from electrum.keystore import Xpub, Hardware_KeyStore
+from electrumsys.plugin import BasePlugin, hook, Device, DeviceMgr, DeviceInfo
+from electrumsys.i18n import _
+from electrumsys.bitcoin import is_address, opcodes
+from electrumsys.util import bfh, versiontuple, UserFacingException
+from electrumsys.transaction import TxOutput, Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
+from electrumsys.bip32 import BIP32Node
+from electrumsys.storage import get_derivation_used_for_hw_device_encryption
+from electrumsys.keystore import Xpub, Hardware_KeyStore
 
 if TYPE_CHECKING:
     import threading
-    from electrum.wallet import Abstract_Wallet
-    from electrum.base_wizard import BaseWizard
+    from electrumsys.wallet import Abstract_Wallet
+    from electrumsys.base_wizard import BaseWizard
 
 
 class HW_PluginBase(BasePlugin):
@@ -160,7 +160,7 @@ class HW_PluginBase(BasePlugin):
         raise NotImplementedError()
 
     def create_handler(self, window) -> 'HardwareHandlerBase':
-        # note: in Qt GUI, 'window' is either an ElectrumWindow or an InstallWizard
+        # note: in Qt GUI, 'window' is either an ElectrumSysWindow or an InstallWizard
         raise NotImplementedError()
 
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - Lightweight Bitcoin Client
+# ElectrumSys - Lightweight Bitcoin Client
 # Copyright (C) 2015 Thomas Voegtlin
 #
 # Permission is hereby granted, free of charge, to any person
@@ -33,17 +33,17 @@ from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtWidgets import (QTextEdit, QVBoxLayout, QLabel, QGridLayout, QHBoxLayout,
                              QRadioButton, QCheckBox, QLineEdit)
 
-from electrum.gui.qt.util import (read_QIcon, WindowModalDialog, WaitingDialog, OkButton,
+from electrumsys.gui.qt.util import (read_QIcon, WindowModalDialog, WaitingDialog, OkButton,
                                   CancelButton, Buttons, icon_path, WWLabel, CloseButton)
-from electrum.gui.qt.qrcodewidget import QRCodeWidget
-from electrum.gui.qt.amountedit import AmountEdit
-from electrum.gui.qt.main_window import StatusBarButton
-from electrum.gui.qt.installwizard import InstallWizard
-from electrum.i18n import _
-from electrum.plugin import hook
-from electrum.util import is_valid_email
-from electrum.logging import Logger
-from electrum.base_wizard import GoBack
+from electrumsys.gui.qt.qrcodewidget import QRCodeWidget
+from electrumsys.gui.qt.amountedit import AmountEdit
+from electrumsys.gui.qt.main_window import StatusBarButton
+from electrumsys.gui.qt.installwizard import InstallWizard
+from electrumsys.i18n import _
+from electrumsys.plugin import hook
+from electrumsys.util import is_valid_email
+from electrumsys.logging import Logger
+from electrumsys.base_wizard import GoBack
 
 from .trustedcoin import TrustedCoinPlugin, server
 
@@ -170,7 +170,7 @@ class Plugin(TrustedCoinPlugin):
         logo = QLabel()
         logo.setPixmap(QPixmap(icon_path("trustedcoin-status.png")))
         msg = _('This wallet is protected by TrustedCoin\'s two-factor authentication.') + '<br/>'\
-              + _("For more information, visit") + " <a href=\"https://api.trustedcoin.com/#/electrum-help\">https://api.trustedcoin.com/#/electrum-help</a>"
+              + _("For more information, visit") + " <a href=\"https://api.trustedcoin.com/#/electrumsys-help\">https://api.trustedcoin.com/#/electrumsys-help</a>"
         label = QLabel(msg)
         label.setOpenExternalLinks(1)
 
@@ -218,7 +218,7 @@ class Plugin(TrustedCoinPlugin):
               "your wallet.  If you generated your seed on an offline "
               'computer, click on "{}" to close this window, move your '
               "wallet file to an online computer, and reopen it with "
-              "Electrum.").format(_('Cancel')),
+              "ElectrumSys.").format(_('Cancel')),
             _('If you are online, click on "{}" to continue.').format(_('Next'))
         ]
         msg = '\n\n'.join(msg)

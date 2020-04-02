@@ -24,28 +24,28 @@ from kivy.factory import Factory
 from kivy.utils import platform
 from kivy.logger import Logger
 
-from electrum.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds, Fiat
-from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_ONCHAIN_ASSET, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING
-from electrum import bitcoin, constants
-from electrum.transaction import Transaction, tx_from_any, PartialTransaction, PartialTxOutput
-from electrum.util import (parse_URI, InvalidBitcoinURI, PR_PAID, PR_UNKNOWN, PR_EXPIRED,
+from electrumsys.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds, Fiat
+from electrumsys.util import PR_TYPE_ONCHAIN, PR_TYPE_ONCHAIN_ASSET, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING
+from electrumsys import bitcoin, constants
+from electrumsys.transaction import Transaction, tx_from_any, PartialTransaction, PartialTxOutput
+from electrumsys.util import (parse_URI, InvalidBitcoinURI, PR_PAID, PR_UNKNOWN, PR_EXPIRED,
                            PR_INFLIGHT, TxMinedInfo, get_request_status, pr_expiration_values,
                            maybe_extract_bolt11_invoice)
-from electrum.plugin import run_hook
-from electrum.wallet import InternalAddressCorruption
-from electrum import simple_config
-from electrum.lnaddr import lndecode
-from electrum.lnutil import RECEIVED, SENT, PaymentFailure
+from electrumsys.plugin import run_hook
+from electrumsys.wallet import InternalAddressCorruption
+from electrumsys import simple_config
+from electrumsys.lnaddr import lndecode
+from electrumsys.lnutil import RECEIVED, SENT, PaymentFailure
 
 from .dialogs.question import Question
 from .dialogs.lightning_open_channel import LightningOpenChannelDialog
 
-from electrum.gui.kivy.i18n import _
-from electrum.asset_synchronizer import AssetItem
+from electrumsys.gui.kivy.i18n import _
+from electrumsys.asset_synchronizer import AssetItem
 from .combobox import ComboBox
 if TYPE_CHECKING:
-    from electrum.gui.kivy.main_window import ElectrumWindow
-    from electrum.paymentrequest import PaymentRequest
+    from electrumsys.gui.kivy.main_window import ElectrumSysWindow
+    from electrumsys.paymentrequest import PaymentRequest
 
 
 class HistoryRecycleView(RecycleView):
@@ -64,7 +64,7 @@ class CScreen(Factory.Screen):
     __events__ = ('on_activate', 'on_deactivate', 'on_enter', 'on_leave')
     action_view = ObjectProperty(None)
     kvname = None
-    app = App.get_running_app()  # type: ElectrumWindow
+    app = App.get_running_app()  # type: ElectrumSysWindow
 
     def on_enter(self):
         # FIXME: use a proper event don't use animation time of screen
@@ -100,10 +100,10 @@ TX_ICONS = [
 ]
 
 
-Builder.load_file('electrum/gui/kivy/uix/ui_screens/history.kv')
-Builder.load_file('electrum/gui/kivy/uix/ui_screens/send.kv')
-Builder.load_file('electrum/gui/kivy/uix/ui_screens/receive.kv')
-Builder.load_file('electrum/gui/kivy/uix/ui_screens/assethistory.kv')
+Builder.load_file('electrumsys/gui/kivy/uix/ui_screens/history.kv')
+Builder.load_file('electrumsys/gui/kivy/uix/ui_screens/send.kv')
+Builder.load_file('electrumsys/gui/kivy/uix/ui_screens/receive.kv')
+Builder.load_file('electrumsys/gui/kivy/uix/ui_screens/assethistory.kv')
 
 class AssetKey():
     def __init__(self, asset, address):
@@ -141,7 +141,7 @@ class HistoryScreen(CScreen):
         if is_lightning:
             status = 0
             status_str = 'unconfirmed' if timestamp is None else format_time(int(timestamp))
-            icon = "atlas://electrum/gui/kivy/theming/light/lightning"
+            icon = "atlas://electrumsys/gui/kivy/theming/light/lightning"
             message = tx_item['label']
             fee_msat = tx_item['fee_msat']
             fee = int(fee_msat/1000) if fee_msat else None
@@ -153,7 +153,7 @@ class HistoryScreen(CScreen):
                                         conf=tx_item['confirmations'],
                                         timestamp=tx_item['timestamp'])
             status, status_str = self.app.wallet.get_tx_status(tx_hash, tx_mined_info)
-            icon = "atlas://electrum/gui/kivy/theming/light/" + TX_ICONS[status]
+            icon = "atlas://electrumsys/gui/kivy/theming/light/" + TX_ICONS[status]
             message = tx_item['label'] or tx_hash
             fee = tx_item['fee_sat']
             fee_text = '' if fee is None else 'fee: %d sat'%fee
@@ -210,7 +210,7 @@ class AssetHistoryScreen(CScreen):
         if is_lightning:
             status = 0
             status_str = 'unconfirmed' if timestamp is None else format_time(int(timestamp))
-            icon = "atlas://electrum/gui/kivy/theming/light/lightning"
+            icon = "atlas://electrumsys/gui/kivy/theming/light/lightning"
             message = tx_item['label']
             fee_msat = tx_item['fee_msat']
             fee = int(fee_msat/1000) if fee_msat else None
@@ -222,7 +222,7 @@ class AssetHistoryScreen(CScreen):
                                         conf=tx_item['confirmations'],
                                         timestamp=tx_item['timestamp'])
             status, status_str = self.app.wallet.get_tx_status(tx_hash, tx_mined_info)
-            icon = "atlas://electrum/gui/kivy/theming/light/" + TX_ICONS[status]
+            icon = "atlas://electrumsys/gui/kivy/theming/light/" + TX_ICONS[status]
             message = tx_item['label'] or tx_hash
             fee = tx_item['fee_sat']
             fee_text = '' if fee is None else 'fee: %d sat'%fee
@@ -477,7 +477,7 @@ class SendScreen(CScreen):
             return
         elif invoice['type'] == PR_TYPE_ONCHAIN or invoice['type'] == PR_TYPE_ONCHAIN_ASSET:
             do_pay = lambda rbf: self._do_pay_onchain(invoice, rbf)
-            if self.app.electrum_config.get('use_rbf'):
+            if self.app.electrumsys_config.get('use_rbf'):
                 d = Question(_('Should this transaction be replaceable?'), do_pay)
                 d.open()
             else:
@@ -588,7 +588,7 @@ class ReceiveScreen(CScreen):
         Clock.schedule_interval(lambda dt: self.update(), 5)
         
     def expiry(self):
-        return self.app.electrum_config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
+        return self.app.electrumsys_config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
 
     def clear(self):
         self.address = ''
@@ -611,7 +611,7 @@ class ReceiveScreen(CScreen):
             self.status = _('Payment received') if status == PR_PAID else ''
 
     def get_URI(self):
-        from electrum.util import create_bip21_uri
+        from electrumsys.util import create_bip21_uri
         amount = self.amount
         if amount:
             a, u = self.amount.split()
@@ -720,7 +720,7 @@ class ReceiveScreen(CScreen):
     def expiration_dialog(self, obj):
         from .dialogs.choice_dialog import ChoiceDialog
         def callback(c):
-            self.app.electrum_config.set_key('request_expiry', c)
+            self.app.electrumsys_config.set_key('request_expiry', c)
         d = ChoiceDialog(_('Expiration date'), pr_expiration_values, self.expiry(), callback)
         d.open()
 

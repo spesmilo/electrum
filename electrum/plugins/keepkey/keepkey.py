@@ -3,14 +3,14 @@ import traceback
 import sys
 from typing import NamedTuple, Any, Optional, Dict, Union, List, Tuple, TYPE_CHECKING
 
-from electrum.util import bfh, bh2u, UserCancelled, UserFacingException
-from electrum.bip32 import BIP32Node
-from electrum import constants
-from electrum.i18n import _
-from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
-from electrum.keystore import Hardware_KeyStore
-from electrum.plugin import Device
-from electrum.base_wizard import ScriptTypeNotSupported
+from electrumsys.util import bfh, bh2u, UserCancelled, UserFacingException
+from electrumsys.bip32 import BIP32Node
+from electrumsys import constants
+from electrumsys.i18n import _
+from electrumsys.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
+from electrumsys.keystore import Hardware_KeyStore
+from electrumsys.plugin import Device
+from electrumsys.base_wizard import ScriptTypeNotSupported
 
 from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import (is_any_tx_output_on_change_branch, trezor_validate_op_return_output_and_get_data,
@@ -293,27 +293,27 @@ class KeepKeyPlugin(HW_PluginBase):
         client.used()
         return xpub
 
-    def get_keepkey_input_script_type(self, electrum_txin_type: str):
-        if electrum_txin_type in ('p2wpkh', 'p2wsh'):
+    def get_keepkey_input_script_type(self, electrumsys_txin_type: str):
+        if electrumsys_txin_type in ('p2wpkh', 'p2wsh'):
             return self.types.SPENDWITNESS
-        if electrum_txin_type in ('p2wpkh-p2sh', 'p2wsh-p2sh'):
+        if electrumsys_txin_type in ('p2wpkh-p2sh', 'p2wsh-p2sh'):
             return self.types.SPENDP2SHWITNESS
-        if electrum_txin_type in ('p2pkh', ):
+        if electrumsys_txin_type in ('p2pkh', ):
             return self.types.SPENDADDRESS
-        if electrum_txin_type in ('p2sh', ):
+        if electrumsys_txin_type in ('p2sh', ):
             return self.types.SPENDMULTISIG
-        raise ValueError('unexpected txin type: {}'.format(electrum_txin_type))
+        raise ValueError('unexpected txin type: {}'.format(electrumsys_txin_type))
 
-    def get_keepkey_output_script_type(self, electrum_txin_type: str):
-        if electrum_txin_type in ('p2wpkh', 'p2wsh'):
+    def get_keepkey_output_script_type(self, electrumsys_txin_type: str):
+        if electrumsys_txin_type in ('p2wpkh', 'p2wsh'):
             return self.types.PAYTOWITNESS
-        if electrum_txin_type in ('p2wpkh-p2sh', 'p2wsh-p2sh'):
+        if electrumsys_txin_type in ('p2wpkh-p2sh', 'p2wsh-p2sh'):
             return self.types.PAYTOP2SHWITNESS
-        if electrum_txin_type in ('p2pkh', ):
+        if electrumsys_txin_type in ('p2pkh', ):
             return self.types.PAYTOADDRESS
-        if electrum_txin_type in ('p2sh', ):
+        if electrumsys_txin_type in ('p2sh', ):
             return self.types.PAYTOMULTISIG
-        raise ValueError('unexpected txin type: {}'.format(electrum_txin_type))
+        raise ValueError('unexpected txin type: {}'.format(electrumsys_txin_type))
 
     def sign_transaction(self, keystore, tx: PartialTransaction, prev_tx):
         self.prev_tx = prev_tx
@@ -457,7 +457,7 @@ class KeepKeyPlugin(HW_PluginBase):
 
         return outputs
 
-    def electrum_tx_to_txtype(self, tx: Optional[Transaction]):
+    def electrumsys_tx_to_txtype(self, tx: Optional[Transaction]):
         t = self.types.TransactionType()
         if tx is None:
             # probably for segwit input and we don't need this prev txn
@@ -476,4 +476,4 @@ class KeepKeyPlugin(HW_PluginBase):
     # This function is called from the TREZOR libraries (via tx_api)
     def get_tx(self, tx_hash):
         tx = self.prev_tx[tx_hash]
-        return self.electrum_tx_to_txtype(tx)
+        return self.electrumsys_tx_to_txtype(tx)

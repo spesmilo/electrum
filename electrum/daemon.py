@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
+# ElectrumSys - lightweight Bitcoin client
 # Copyright (C) 2015 Thomas Voegtlin
 #
 # Permission is hereby granted, free of charge, to any person
@@ -346,7 +346,7 @@ class Daemon(Logger):
             try:
                 await self.authenticate(request.headers)
             except AuthenticationInvalidOrMissing:
-                return web.Response(headers={"WWW-Authenticate": "Basic realm=Electrum"},
+                return web.Response(headers={"WWW-Authenticate": "Basic realm=ElectrumSys"},
                                     text='Unauthorized', status=401)
             except AuthenticationCredentialsInvalid:
                 return web.Response(text='Forbidden', status=403)
@@ -394,7 +394,7 @@ class Daemon(Logger):
             else:
                 response = "error: current GUI does not support multiple windows"
         else:
-            response = "Error: Electrum is running in daemon mode. Please stop the daemon first."
+            response = "Error: ElectrumSys is running in daemon mode. Please stop the daemon first."
         return response
 
     def load_wallet(self, path, password, *, manual_upgrades=True) -> Optional[Abstract_Wallet]:
@@ -516,8 +516,8 @@ class Daemon(Logger):
             gui_name = 'qt'
         self.logger.info(f'launching GUI: {gui_name}')
         try:
-            gui = __import__('electrum.gui.' + gui_name, fromlist=['electrum'])
-            self.gui_object = gui.ElectrumGui(config, self, plugins)
+            gui = __import__('electrumsys.gui.' + gui_name, fromlist=['electrumsys'])
+            self.gui_object = gui.ElectrumSysGui(config, self, plugins)
             self.gui_object.main()
         except BaseException as e:
             self.logger.error(f'GUI raised exception: {repr(e)}. shutting down.')

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-NAME_ROOT=electrum
+NAME_ROOT=electrumsys
 
 # These settings probably don't need any change
 export WINEPREFIX=/opt/wine64
@@ -18,22 +18,22 @@ here="$(dirname "$(readlink -e "$0")")"
 
 . "$CONTRIB"/build_tools_util.sh
 
-pushd $WINEPREFIX/drive_c/electrum
+pushd $WINEPREFIX/drive_c/electrumsys
 
 VERSION=`git describe --tags --dirty --always`
 info "Last commit: $VERSION"
 
-# Load electrum-locale for this release
+# Load electrumsys-locale for this release
 git submodule update --init
 
-pushd ./contrib/deterministic-build/electrum-locale
+pushd ./contrib/deterministic-build/electrumsys-locale
 if ! which msgfmt > /dev/null 2>&1; then
     fail "Please install gettext"
 fi
 for i in ./locale/*; do
-    dir=$WINEPREFIX/drive_c/electrum/electrum/$i/LC_MESSAGES
+    dir=$WINEPREFIX/drive_c/electrumsys/electrumsys/$i/LC_MESSAGES
     mkdir -p $dir
-    msgfmt --output-file=$dir/electrum.mo $i/electrum.po || true
+    msgfmt --output-file=$dir/electrumsys.mo $i/electrumsys.po || true
 done
 popd
 
@@ -46,9 +46,9 @@ $PYTHON -m pip install --no-dependencies --no-warn-script-location -r "$CONTRIB"
 
 $PYTHON -m pip install --no-dependencies --no-warn-script-location -r "$CONTRIB"/deterministic-build/requirements-hw.txt
 
-pushd $WINEPREFIX/drive_c/electrum
+pushd $WINEPREFIX/drive_c/electrumsys
 # see https://github.com/pypa/pip/issues/2195 -- pip makes a copy of the entire directory
-info "Pip installing Electrum. This might take a long time if the project folder is large."
+info "Pip installing ElectrumSys. This might take a long time if the project folder is large."
 $PYTHON -m pip install --no-dependencies --no-warn-script-location .
 popd
 
@@ -69,11 +69,11 @@ find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
 info "building NSIS installer"
-# $VERSION could be passed to the electrum.nsi script, but this would require some rewriting in the script itself.
-wine "$WINEPREFIX/drive_c/Program Files (x86)/NSIS/makensis.exe" /DPRODUCT_VERSION=$VERSION electrum.nsi
+# $VERSION could be passed to the electrumsys.nsi script, but this would require some rewriting in the script itself.
+wine "$WINEPREFIX/drive_c/Program Files (x86)/NSIS/makensis.exe" /DPRODUCT_VERSION=$VERSION electrumsys.nsi
 
 cd dist
-mv electrum-setup.exe $NAME_ROOT-$VERSION-setup.exe
+mv electrumsys-setup.exe $NAME_ROOT-$VERSION-setup.exe
 cd ..
 
 info "Padding binaries to 8-byte boundaries, and fixing COFF image checksum in PE header"
@@ -118,4 +118,4 @@ EOF
     done
 )
 
-sha256sum dist/electrum*.exe
+sha256sum dist/electrumsys*.exe

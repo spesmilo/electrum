@@ -2,17 +2,17 @@ from pprint import pprint
 import unittest
 from typing import NamedTuple
 
-from electrum.lnutil import RECEIVED, LOCAL, REMOTE, SENT, HTLCOwner, Direction
-from electrum.lnhtlc import HTLCManager
-from electrum.json_db import StoredDict
+from electrumsys.lnutil import RECEIVED, LOCAL, REMOTE, SENT, HTLCOwner, Direction
+from electrumsys.lnhtlc import HTLCManager
+from electrumsys.json_db import StoredDict
 
-from . import ElectrumTestCase
+from . import ElectrumSysTestCase
 
 class H(NamedTuple):
     owner : str
     htlc_id : int
 
-class TestHTLCManager(ElectrumTestCase):
+class TestHTLCManager(ElectrumSysTestCase):
     def test_adding_htlcs_race(self):
         A = HTLCManager(StoredDict({}, None, []))
         B = HTLCManager(StoredDict({}, None, []))

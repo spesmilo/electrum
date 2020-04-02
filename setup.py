@@ -17,7 +17,7 @@ _min_python_version_tuple = tuple(map(int, (MIN_PYTHON_VERSION.split("."))))
 
 
 if sys.version_info[:3] < _min_python_version_tuple:
-    sys.exit("Error: Electrum requires Python version >= %s..." % MIN_PYTHON_VERSION)
+    sys.exit("Error: ElectrumSys requires Python version >= %s..." % MIN_PYTHON_VERSION)
 
 with open('contrib/requirements/requirements.txt') as f:
     requirements = f.read().splitlines()
@@ -26,7 +26,7 @@ with open('contrib/requirements/requirements-hw.txt') as f:
     requirements_hw = f.read().splitlines()
 
 # load version.py; needlessly complicated alternative to "imp.load_source":
-version_spec = importlib.util.spec_from_file_location('version', 'electrum/version.py')
+version_spec = importlib.util.spec_from_file_location('version', 'electrumsys/version.py')
 version_module = version = importlib.util.module_from_spec(version_spec)
 version_spec.loader.exec_module(version_module)
 
@@ -46,8 +46,8 @@ if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
         else:
             usr_share = os.path.expanduser('~/.local/share')
     data_files += [
-        (os.path.join(usr_share, 'applications/'), ['electrum.desktop']),
-        (os.path.join(usr_share, icons_dirname), ['electrum/gui/icons/electrum.png']),
+        (os.path.join(usr_share, 'applications/'), ['electrumsys.desktop']),
+        (os.path.join(usr_share, icons_dirname), ['electrumsys/gui/icons/electrumsys.png']),
     ]
 
 extras_require = {
@@ -63,36 +63,36 @@ extras_require['fast'] = extras_require['crypto']
 
 
 setup(
-    name="Electrum",
+    name="ElectrumSys",
     version=version.ELECTRUM_VERSION,
     python_requires='>={}'.format(MIN_PYTHON_VERSION),
     install_requires=requirements,
     extras_require=extras_require,
     packages=[
-        'electrum',
-        'electrum.gui',
-        'electrum.gui.qt',
-        'electrum.plugins',
-    ] + [('electrum.plugins.'+pkg) for pkg in find_packages('electrum/plugins')],
+        'electrumsys',
+        'electrumsys.gui',
+        'electrumsys.gui.qt',
+        'electrumsys.plugins',
+    ] + [('electrumsys.plugins.'+pkg) for pkg in find_packages('electrumsys/plugins')],
     package_dir={
-        'electrum': 'electrum'
+        'electrumsys': 'electrumsys'
     },
     package_data={
         '': ['*.txt', '*.json', '*.ttf', '*.otf'],
-        'electrum': [
+        'electrumsys': [
             'wordlist/*.txt',
-            'locale/*/LC_MESSAGES/electrum.mo',
+            'locale/*/LC_MESSAGES/electrumsys.mo',
         ],
-        'electrum.gui': [
+        'electrumsys.gui': [
             'icons/*',
         ],
     },
-    scripts=['electrum/electrum'],
+    scripts=['electrumsys/electrumsys'],
     data_files=data_files,
     description="Lightweight Syscoin Wallet (AuxPoW fork)",
-    author="The Syscoin developers; based on Electrum by Thomas Voegtlin and Electrum-DOGE by The Electrum-DOGE contributors",
+    author="The Syscoin developers; based on ElectrumSys by Thomas Voegtlin and ElectrumSys-DOGE by The ElectrumSys-DOGE contributors",
     author_email="jsidhu@blockchainfoundry.co",
-    license="GNU GPLv3+ for Electrum-DOGE components; MIT Licence for all other components",
+    license="GNU GPLv3+ for ElectrumSys-DOGE components; MIT Licence for all other components",
     url="https://www.namecoin.org/",
     long_description="""Lightweight Syscoin Wallet (AuxPoW fork)""",
 )

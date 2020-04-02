@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - Lightweight Bitcoin Client
+# ElectrumSys - Lightweight Bitcoin Client
 # Copyright (C) 2015 Thomas Voegtlin
 #
 # Permission is hereby granted, free of charge, to any person
@@ -35,19 +35,19 @@ from urllib.parse import urljoin
 from urllib.parse import quote
 from aiohttp import ClientResponse
 
-from electrum import ecc, constants, keystore, version, bip32, bitcoin
-from electrum.bip32 import BIP32Node, xpub_type
-from electrum.crypto import sha256
-from electrum.transaction import PartialTxOutput, PartialTxInput, PartialTransaction, Transaction
-from electrum.mnemonic import Mnemonic, seed_type, is_any_2fa_seed_type
-from electrum.wallet import Multisig_Wallet, Deterministic_Wallet
-from electrum.i18n import _
-from electrum.plugin import BasePlugin, hook
-from electrum.util import NotEnoughFunds, UserFacingException
-from electrum.storage import StorageEncryptionVersion
-from electrum.network import Network
-from electrum.base_wizard import BaseWizard, WizardWalletPasswordSetting
-from electrum.logging import Logger
+from electrumsys import ecc, constants, keystore, version, bip32, bitcoin
+from electrumsys.bip32 import BIP32Node, xpub_type
+from electrumsys.crypto import sha256
+from electrumsys.transaction import PartialTxOutput, PartialTxInput, PartialTransaction, Transaction
+from electrumsys.mnemonic import Mnemonic, seed_type, is_any_2fa_seed_type
+from electrumsys.wallet import Multisig_Wallet, Deterministic_Wallet
+from electrumsys.i18n import _
+from electrumsys.plugin import BasePlugin, hook
+from electrumsys.util import NotEnoughFunds, UserFacingException
+from electrumsys.storage import StorageEncryptionVersion
+from electrumsys.network import Network
+from electrumsys.base_wizard import BaseWizard, WizardWalletPasswordSetting
+from electrumsys.logging import Logger
 
 from .legacy_tx_format import serialize_tx_in_legacy_format
 
@@ -174,7 +174,7 @@ class TrustedCoinCosignerClient(Logger):
                 self.logger.debug(f'--> {response}')
             return response
 
-    def get_terms_of_service(self, billing_plan='electrum-per-tx-otp'):
+    def get_terms_of_service(self, billing_plan='electrumsys-per-tx-otp'):
         """
         Returns the TOS for the given billing plan as a plain/text unicode string.
         :param billing_plan: the plan to return the terms for
@@ -182,7 +182,7 @@ class TrustedCoinCosignerClient(Logger):
         payload = {'billing_plan': billing_plan}
         return self.send_request('get', 'tos', payload)
 
-    def create(self, xpubkey1, xpubkey2, email, billing_plan='electrum-per-tx-otp'):
+    def create(self, xpubkey1, xpubkey2, email, billing_plan='electrumsys-per-tx-otp'):
         """
         Creates a new cosigner resource.
         :param xpubkey1: a bip32 extended public key (customarily the hot key)
@@ -256,7 +256,7 @@ class TrustedCoinCosignerClient(Logger):
         return self.send_request('post', relative_url, payload, headers)
 
 
-server = TrustedCoinCosignerClient(user_agent="Electrum/" + version.ELECTRUM_VERSION)
+server = TrustedCoinCosignerClient(user_agent="ElectrumSys/" + version.ELECTRUM_VERSION)
 
 class Wallet_2fa(Multisig_Wallet):
 

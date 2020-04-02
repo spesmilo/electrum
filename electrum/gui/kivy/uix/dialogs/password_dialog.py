@@ -7,19 +7,19 @@ from kivy.lang import Builder
 from decimal import Decimal
 from kivy.clock import Clock
 
-from electrum.util import InvalidPassword
-from electrum.gui.kivy.i18n import _
+from electrumsys.util import InvalidPassword
+from electrumsys.gui.kivy.i18n import _
 
 if TYPE_CHECKING:
-    from ...main_window import ElectrumWindow
-    from electrum.wallet import Abstract_Wallet
-    from electrum.storage import WalletStorage
+    from ...main_window import ElectrumSysWindow
+    from electrumsys.wallet import Abstract_Wallet
+    from electrumsys.storage import WalletStorage
 
 Builder.load_string('''
 
 <PasswordDialog@Popup>
     id: popup
-    title: 'Electrum'
+    title: 'ElectrumSys'
     message: ''
     basename:''
     is_change: False
@@ -41,7 +41,7 @@ Builder.load_string('''
             IconButton:
                 size_hint: 0.15, None
                 height: '40dp'
-                icon: 'atlas://electrum/gui/kivy/theming/light/btn_create_account'
+                icon: 'atlas://electrumsys/gui/kivy/theming/light/btn_create_account'
                 on_release: root.select_file()
                 disabled: root.is_change
                 opacity: 0 if root.is_change else 1
@@ -73,7 +73,7 @@ Builder.load_string('''
             IconButton:
                 height: '40dp'
                 size_hint: 0.15, None
-                icon: 'atlas://electrum/gui/kivy/theming/light/eye1'
+                icon: 'atlas://electrumsys/gui/kivy/theming/light/eye1'
                 icon_size: '40dp'
                 on_release:
                     textinput_generic_password.password = False if textinput_generic_password.password else True
@@ -83,7 +83,7 @@ Builder.load_string('''
 
 <PincodeDialog@Popup>
     id: popup
-    title: 'Electrum'
+    title: 'ElectrumSys'
     message: ''
     basename:''
     BoxLayout:
@@ -144,7 +144,7 @@ Builder.load_string('''
 
 class AbstractPasswordDialog:
 
-    def init(self, app: 'ElectrumWindow', *,
+    def init(self, app: 'ElectrumSysWindow', *,
              check_password = None,
              on_success: Callable = None, on_failure: Callable = None,
              is_change: bool = False,
@@ -161,7 +161,7 @@ class AbstractPasswordDialog:
         self.is_change = is_change
         self.pw = None
         self.new_password = None
-        self.title = 'Electrum'
+        self.title = 'ElectrumSys'
         self.level = 1 if is_change and not has_password else 0
         self.basename = basename
         self.update_screen()

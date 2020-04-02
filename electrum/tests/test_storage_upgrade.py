@@ -3,9 +3,9 @@ import tempfile
 import os
 import json
 
-from electrum.wallet_db import WalletDB
-from electrum.wallet import Wallet
-from electrum import constants
+from electrumsys.wallet_db import WalletDB
+from electrumsys.wallet import Wallet
+from electrumsys import constants
 
 from .test_wallet import WalletTestCase
 
@@ -276,11 +276,11 @@ class TestStorageUpgrade(WalletTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        from electrum.plugin import Plugins
-        from electrum.simple_config import SimpleConfig
+        from electrumsys.plugin import Plugins
+        from electrumsys.simple_config import SimpleConfig
 
-        cls.__electrum_path = tempfile.mkdtemp()
-        config = SimpleConfig({'electrum_path': cls.__electrum_path})
+        cls.__electrumsys_path = tempfile.mkdtemp()
+        config = SimpleConfig({'electrumsys_path': cls.__electrumsys_path})
 
         gui_name = 'cmdline'
         # TODO it's probably wasteful to load all plugins... only need Trezor
@@ -289,7 +289,7 @@ class TestStorageUpgrade(WalletTestCase):
     @classmethod
     def tearDownClass(cls):
         super().tearDownClass()
-        shutil.rmtree(cls.__electrum_path)
+        shutil.rmtree(cls.__electrumsys_path)
 
     def _upgrade_storage(self, wallet_json, accounts=1):
         if accounts == 1:

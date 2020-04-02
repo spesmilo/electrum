@@ -1,4 +1,4 @@
-# Electrum - lightweight Bitcoin client
+# ElectrumSys - lightweight Bitcoin client
 # Copyright (C) 2011 Thomas Voegtlin
 #
 # Permission is hereby granted, free of charge, to any person
@@ -445,7 +445,7 @@ def android_ext_dir():
     return primary_external_storage_path()
 
 def android_backup_dir():
-    d = os.path.join(android_ext_dir(), 'org.electrumsys.electrum')
+    d = os.path.join(android_ext_dir(), 'org.electrumsys.electrumsys')
     if not os.path.exists(d):
         os.mkdir(d)
     return d
@@ -481,7 +481,7 @@ def assert_datadir_available(config_path):
         return
     else:
         raise FileNotFoundError(
-            'Electrum datadir does not exist. Was it deleted while running?' + '\n' +
+            'ElectrumSys datadir does not exist. Was it deleted while running?' + '\n' +
             'Should be at {}'.format(path))
 
 
@@ -598,7 +598,7 @@ def resource_path(*parts):
     return os.path.join(pkg_dir, *parts)
 
 
-# absolute path to python package folder of electrum ("lib")
+# absolute path to python package folder of electrumsys ("lib")
 pkg_dir = os.path.split(os.path.realpath(__file__))[0]
 
 
@@ -1049,7 +1049,7 @@ class TxMinedInfo(NamedTuple):
 
 def make_aiohttp_session(proxy: Optional[dict], headers=None, timeout=None):
     if headers is None:
-        headers = {'User-Agent': 'Electrum'}
+        headers = {'User-Agent': 'ElectrumSys'}
     if timeout is None:
         # The default timeout is high intentionally.
         # DNS on some systems can be really slow, see e.g. #5337

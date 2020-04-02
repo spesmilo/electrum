@@ -68,8 +68,8 @@ class SimpleConfig(Logger):
         self.cmdline_options.pop('config_version', None)
 
         # Set self.path and read the user config
-        self.user_config = {}  # for self.get in electrum_path()
-        self.path = self.electrum_path()
+        self.user_config = {}  # for self.get in electrumsys_path()
+        self.path = self.electrumsys_path()
         self.user_config = read_user_config_function(self.path)
         if not self.user_config:
             # avoid new config getting upgraded
@@ -83,10 +83,10 @@ class SimpleConfig(Logger):
         if self.requires_upgrade():
             self.upgrade()
 
-    def electrum_path(self):
-        # Read electrum_path from command line
+    def electrumsys_path(self):
+        # Read electrumsys_path from command line
         # Otherwise use the user's default data directory.
-        path = self.get('electrum_path')
+        path = self.get('electrumsys_path')
         if path is None:
             path = self.user_dir()
 
@@ -101,7 +101,7 @@ class SimpleConfig(Logger):
             path = os.path.join(path, 'simnet')
             make_dir(path, allow_symlink=False)
 
-        self.logger.info(f"electrum directory {path}")
+        self.logger.info(f"electrumsys directory {path}")
         return path
 
     def rename_config_keys(self, config, keypairs, deprecation_warning=False):
@@ -247,7 +247,7 @@ class SimpleConfig(Logger):
         new_path = os.path.join(self.path, "wallets", "default_wallet")
 
         # default path in pre 1.9 versions
-        old_path = os.path.join(self.path, "electrum.dat")
+        old_path = os.path.join(self.path, "electrumsys.dat")
         if os.path.exists(old_path) and not os.path.exists(new_path):
             os.rename(old_path, new_path)
 
@@ -559,7 +559,7 @@ class SimpleConfig(Logger):
 
 
 def read_user_config(path):
-    """Parse and store the user config settings in electrum.conf into user_config[]."""
+    """Parse and store the user config settings in electrumsys.conf into user_config[]."""
     if not path:
         return {}
     config_path = os.path.join(path, "config")

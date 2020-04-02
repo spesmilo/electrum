@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
+# ElectrumSys - lightweight Bitcoin client
 # Copyright (C) 2011 Thomas Voegtlin
 #
 # Permission is hereby granted, free of charge, to any person
@@ -1014,8 +1014,8 @@ def tx_from_any(raw: Union[str, bytes], *,
         return PartialTransaction.from_raw_psbt(raw)
     except BadHeaderMagic:
         if raw[:10] == b'EPTF\xff'.hex():
-            raise SerializationError("Partial transactions generated with old Electrum versions "
-                                     "(< 4.0) are no longer supported. Please upgrade Electrum on "
+            raise SerializationError("Partial transactions generated with old ElectrumSys versions "
+                                     "(< 4.0) are no longer supported. Please upgrade ElectrumSys on "
                                      "the other machine where this transaction was created.")
     try:
         tx = Transaction(raw)
@@ -1915,7 +1915,7 @@ class PartialTransaction(Transaction):
         only_der_suffix = not include_xpubs_and_full_paths
         # only include xpubs for multisig wallets; currently only they need it in practice
         # note: coldcard fw have a limitation that if they are included then all
-        #       inputs are assumed to be multisig... https://github.com/spesmilo/electrum/pull/5440#issuecomment-549504761
+        #       inputs are assumed to be multisig... https://github.com/spesmilo/electrumsys/pull/5440#issuecomment-549504761
         # note: trezor plugin needs xpubs included, if there are multisig inputs/change_outputs
         from .wallet import Multisig_Wallet
         if include_xpubs_and_full_paths and isinstance(wallet, Multisig_Wallet):

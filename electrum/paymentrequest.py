@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
+# ElectrumSys - lightweight Bitcoin client
 # Copyright (C) 2014 Thomas Voegtlin
 #
 # Permission is hereby granted, free of charge, to any person
@@ -37,7 +37,7 @@ try:
     from . import paymentrequest_pb2 as pb2
 except ImportError:
     # sudo apt-get install protobuf-compiler
-    sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'protoc --proto_path=electrum/ --python_out=electrum/ electrum/paymentrequest.proto'")
+    sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'protoc --proto_path=electrumsys/ --python_out=electrumsys/ electrumsys/paymentrequest.proto'")
 
 from . import bitcoin, ecc, util, transaction, x509, rsakey
 from .util import bh2u, bfh, export_meta, import_meta, make_aiohttp_session
@@ -52,8 +52,8 @@ from .logging import get_logger, Logger
 _logger = get_logger(__name__)
 
 
-REQUEST_HEADERS = {'Accept': 'application/syscoin-paymentrequest', 'User-Agent': 'Electrum'}
-ACK_HEADERS = {'Content-Type':'application/syscoin-payment','Accept':'application/syscoin-paymentack','User-Agent':'Electrum'}
+REQUEST_HEADERS = {'Accept': 'application/syscoin-paymentrequest', 'User-Agent': 'ElectrumSys'}
+ACK_HEADERS = {'Content-Type':'application/syscoin-payment','Accept':'application/syscoin-paymentack','User-Agent':'ElectrumSys'}
 
 ca_path = certifi.where()
 ca_list = None
@@ -281,7 +281,7 @@ class PaymentRequest:
         paymnt.transactions.append(bfh(raw_tx))
         ref_out = paymnt.refund_to.add()
         ref_out.script = util.bfh(address_to_script(refund_addr))
-        paymnt.memo = "Paid using Electrum"
+        paymnt.memo = "Paid using ElectrumSys"
         pm = paymnt.SerializeToString()
         payurl = urllib.parse.urlparse(pay_det.payment_url)
         resp_content = None

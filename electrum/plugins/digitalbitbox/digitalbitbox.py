@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------------------
-# Electrum plugin for the Digital Bitbox hardware wallet by Shift Devices AG
+# ElectrumSys plugin for the Digital Bitbox hardware wallet by Shift Devices AG
 # digitalbitbox.com
 #
 
@@ -16,20 +16,20 @@ import sys
 import time
 import copy
 
-from electrum.crypto import sha256d, EncodeAES_base64, EncodeAES_bytes, DecodeAES_bytes, hmac_oneshot
-from electrum.bitcoin import public_key_to_p2pkh
-from electrum.bip32 import BIP32Node, convert_bip32_intpath_to_strpath, is_all_public_derivation
-from electrum import ecc
-from electrum.ecc import msg_magic
-from electrum.wallet import Standard_Wallet
-from electrum import constants
-from electrum.transaction import Transaction, PartialTransaction, PartialTxInput
-from electrum.i18n import _
-from electrum.keystore import Hardware_KeyStore
-from electrum.util import to_string, UserCancelled, UserFacingException, bfh
-from electrum.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
-from electrum.network import Network
-from electrum.logging import get_logger
+from electrumsys.crypto import sha256d, EncodeAES_base64, EncodeAES_bytes, DecodeAES_bytes, hmac_oneshot
+from electrumsys.bitcoin import public_key_to_p2pkh
+from electrumsys.bip32 import BIP32Node, convert_bip32_intpath_to_strpath, is_all_public_derivation
+from electrumsys import ecc
+from electrumsys.ecc import msg_magic
+from electrumsys.wallet import Standard_Wallet
+from electrumsys import constants
+from electrumsys.transaction import Transaction, PartialTransaction, PartialTxInput
+from electrumsys.i18n import _
+from electrumsys.keystore import Hardware_KeyStore
+from electrumsys.util import to_string, UserCancelled, UserFacingException, bfh
+from electrumsys.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
+from electrumsys.network import Network
+from electrumsys.logging import get_logger
 
 from ..hw_wallet import HW_PluginBase, HardwareClientBase
 
@@ -216,7 +216,7 @@ class DigitalBitbox_Client(HardwareClientBase):
 
         # Initialize device if not yet initialized
         if not self.setupRunning:
-            self.isInitialized = True # Wallet exists. Electrum code later checks if the device matches the wallet
+            self.isInitialized = True # Wallet exists. ElectrumSys code later checks if the device matches the wallet
         elif not self.isInitialized:
             reply = self.hid_send_encrypt(b'{"device":"info"}')
             if reply['device']['id'] != "":
@@ -311,7 +311,7 @@ class DigitalBitbox_Client(HardwareClientBase):
 
     def dbb_generate_wallet(self):
         key = self.stretch_key(self.password)
-        filename = ("Electrum-" + time.strftime("%Y-%m-%d-%H-%M-%S") + ".pdf")
+        filename = ("ElectrumSys-" + time.strftime("%Y-%m-%d-%H-%M-%S") + ".pdf")
         msg = ('{"seed":{"source": "create", "key": "%s", "filename": "%s", "entropy": "%s"}}' % (key, filename, to_hexstr(os.urandom(32)))).encode('utf8')
         reply = self.hid_send_encrypt(msg)
         if 'error' in reply:

@@ -5,9 +5,9 @@
 import time
 import asyncio
 
-from electrum.network import Network
-from electrum.util import print_msg, json_encode, create_and_start_event_loop, log_exceptions
-from electrum.simple_config import SimpleConfig
+from electrumsys.network import Network
+from electrumsys.util import print_msg, json_encode, create_and_start_event_loop, log_exceptions
+from electrumsys.simple_config import SimpleConfig
 
 config = SimpleConfig()
 

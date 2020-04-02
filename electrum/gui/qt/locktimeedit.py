@@ -1,4 +1,4 @@
-# Copyright (C) 2020 The Electrum developers
+# Copyright (C) 2020 The ElectrumSys developers
 # Distributed under the MIT software license, see the accompanying
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
@@ -11,8 +11,8 @@ from PyQt5.QtGui import QPalette, QPainter
 from PyQt5.QtWidgets import (QWidget, QLineEdit, QStyle, QStyleOptionFrame, QComboBox,
                              QHBoxLayout, QDateTimeEdit)
 
-from electrum.i18n import _
-from electrum.bitcoin import NLOCKTIME_MIN, NLOCKTIME_MAX, NLOCKTIME_BLOCKHEIGHT_MAX
+from electrumsys.i18n import _
+from electrumsys.bitcoin import NLOCKTIME_MIN, NLOCKTIME_MAX, NLOCKTIME_BLOCKHEIGHT_MAX
 
 from .util import char_width_in_lineedit
 

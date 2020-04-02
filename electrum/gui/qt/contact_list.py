@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
+# ElectrumSys - lightweight Bitcoin client
 # Copyright (C) 2015 Thomas Voegtlin
 #
 # Permission is hereby granted, free of charge, to any person
@@ -29,10 +29,10 @@ from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtCore import Qt, QPersistentModelIndex, QModelIndex
 from PyQt5.QtWidgets import (QAbstractItemView, QMenu)
 
-from electrum.i18n import _
-from electrum.bitcoin import is_address
-from electrum.util import block_explorer_URL
-from electrum.plugin import run_hook
+from electrumsys.i18n import _
+from electrumsys.bitcoin import is_address
+from electrumsys.util import block_explorer_URL
+from electrumsys.plugin import run_hook
 
 from .util import MyTreeView, import_meta_gui, export_meta_gui, webopen
 

@@ -8,11 +8,11 @@ from kivy.core.window import Window
 from kivy.uix.recycleview import RecycleView
 from kivy.uix.boxlayout import BoxLayout
 
-from electrum.gui.kivy.i18n import _
+from electrumsys.gui.kivy.i18n import _
 
 if TYPE_CHECKING:
-    from ...main_window import ElectrumWindow
-    from electrum.transaction import TxOutput
+    from ...main_window import ElectrumSysWindow
+    from electrumsys.transaction import TxOutput
 
 
 class AnimatedPopup(Factory.Popup):
@@ -207,7 +207,7 @@ class OutputList(RecycleView):
 
     def __init__(self, **kwargs):
         super(OutputList, self).__init__(**kwargs)
-        self.app = App.get_running_app()  # type: ElectrumWindow
+        self.app = App.get_running_app()  # type: ElectrumSysWindow
 
     def update(self, outputs: Sequence['TxOutput']):
         res = []

@@ -5,17 +5,17 @@ import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtCore as QtCore
 from PyQt5.QtWidgets import QLabel, QLineEdit
 
-from electrum.i18n import _
-from electrum.util import bh2u, format_time
-from electrum.lnutil import format_short_channel_id, LOCAL, REMOTE, UpdateAddHtlc, Direction
-from electrum.lnchannel import htlcsum, Channel
-from electrum.lnaddr import LnAddr, lndecode
-from electrum.bitcoin import COIN
+from electrumsys.i18n import _
+from electrumsys.util import bh2u, format_time
+from electrumsys.lnutil import format_short_channel_id, LOCAL, REMOTE, UpdateAddHtlc, Direction
+from electrumsys.lnchannel import htlcsum, Channel
+from electrumsys.lnaddr import LnAddr, lndecode
+from electrumsys.bitcoin import COIN
 
 from .util import Buttons, CloseButton, ButtonsLineEdit
 
 if TYPE_CHECKING:
-    from .main_window import ElectrumWindow
+    from .main_window import ElectrumSysWindow
 
 class HTLCItem(QtGui.QStandardItem):
     def __init__(self, *args, **kwargs):
@@ -117,7 +117,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         funding_tx = self.window.wallet.db.get_transaction(self.chan.funding_outpoint.txid)
         self.window.show_transaction(funding_tx, tx_desc=_('Funding Transaction'))
 
-    def __init__(self, window: 'ElectrumWindow', chan_id: bytes):
+    def __init__(self, window: 'ElectrumSysWindow', chan_id: bytes):
         super().__init__(window)
 
         # initialize instance fields

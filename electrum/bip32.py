@@ -1,4 +1,4 @@
-# Copyright (C) 2018 The Electrum developers
+# Copyright (C) 2018 The ElectrumSys developers
 # Distributed under the MIT software license, see the accompanying
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 

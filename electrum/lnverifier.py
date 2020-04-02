@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
-# Electrum - lightweight Bitcoin client
-# Copyright (C) 2018 The Electrum developers
+# ElectrumSys - lightweight Bitcoin client
+# Copyright (C) 2018 The ElectrumSys developers
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -48,7 +48,7 @@ if TYPE_CHECKING:
 class LNChannelVerifier(NetworkJobOnDefaultServer):
     """ Verify channel announcements for the Channel DB """
 
-    # FIXME the initial routing sync is bandwidth-heavy, and the electrum server
+    # FIXME the initial routing sync is bandwidth-heavy, and the electrumsys server
     # will start throttling us, making it even slower. one option would be to
     # spread it over multiple servers.
 
@@ -108,12 +108,12 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
 
     async def verify_channel(self, block_height: int, short_channel_id: ShortChannelID):
         # we are verifying channel announcements as they are from untrusted ln peers.
-        # we use electrum servers to do this. however we don't trust electrum servers either...
+        # we use electrumsys servers to do this. however we don't trust electrumsys servers either...
         try:
             result = await self.network.get_txid_from_txpos(
                 block_height, short_channel_id.txpos, True)
         except aiorpcx.jsonrpc.RPCError:
-            # the electrum server is complaining about the txpos for given block.
+            # the electrumsys server is complaining about the txpos for given block.
             # it is not clear what to do now, but let's believe the server.
             self._blacklist_short_channel_id(short_channel_id)
             return
@@ -125,24 +125,24 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
         try:
             verify_tx_is_in_block(tx_hash, merkle_branch, short_channel_id.txpos, header, block_height)
         except MerkleVerificationFailure as e:
-            # the electrum server sent an incorrect proof. blame is on server, not the ln peer
+            # the electrumsys server sent an incorrect proof. blame is on server, not the ln peer
             raise GracefulDisconnect(e) from e
         try:
             raw_tx = await self.network.get_transaction(tx_hash)
         except aiorpcx.jsonrpc.RPCError as e:
-            # the electrum server can't find the tx; but it was the
+            # the electrumsys server can't find the tx; but it was the
             # one who told us about the txid!! blame is on server
             raise GracefulDisconnect(e) from e
         tx = Transaction(raw_tx)
         try:
             tx.deserialize()
         except Exception:
-            # either bug in client, or electrum server is evil.
+            # either bug in client, or electrumsys server is evil.
             # if we connect to a diff server at some point, let's try again.
             self.logger.warning(f"cannot deserialize transaction, skipping {tx_hash}")
             return
         if tx_hash != tx.txid():
-            # either bug in client, or electrum server is evil.
+            # either bug in client, or electrumsys server is evil.
             # if we connect to a diff server at some point, let's try again.
             self.logger.info(f"received tx does not match expected txid ({tx_hash} != {tx.txid()})")
             return

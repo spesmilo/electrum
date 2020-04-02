@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
+# ElectrumSys - lightweight Bitcoin client
 # Copyright (C) 2014 Thomas Voegtlin
 #
 # Permission is hereby granted, free of charge, to any person
@@ -235,7 +235,7 @@ class Synchronizer(SynchronizerBase):
         # request missing txns, if any
         for addr in self.wallet.db.get_history():
             history = self.wallet.db.get_addr_history(addr)
-            # Old electrum servers returned ['*'] when all history for the address
+            # Old electrumsys servers returned ['*'] when all history for the address
             # was pruned. This no longer happens but may remain in old wallets.
             if history == ['*']: continue
             await self._request_missing_txs(history, allow_server_not_finding_tx=True)

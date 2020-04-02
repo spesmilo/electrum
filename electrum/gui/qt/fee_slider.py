@@ -4,7 +4,7 @@ from PyQt5.QtGui import QCursor
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QSlider, QToolTip
 
-from electrum.i18n import _
+from electrumsys.i18n import _
 
 
 class FeeSlider(QSlider):

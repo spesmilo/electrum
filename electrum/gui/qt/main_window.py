@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
+# ElectrumSys - lightweight Bitcoin client
 # Copyright (C) 2012 thomasv@gitorious
 #
 # Permission is hereby granted, free of charge, to any person
@@ -48,13 +48,13 @@ from PyQt5.QtWidgets import (QMessageBox, QComboBox, QSystemTrayIcon, QTabWidget
                              QShortcut, QMainWindow, QCompleter, QInputDialog,
                              QWidget, QSizePolicy, QStatusBar, QToolTip, QDialog)
 
-import electrum
-from electrum import (keystore, ecc, constants, util, bitcoin, commands,
+import electrumsys
+from electrumsys import (keystore, ecc, constants, util, bitcoin, commands,
                       paymentrequest)
-from electrum.bitcoin import COIN, is_address
-from electrum.plugin import run_hook
-from electrum.i18n import _
-from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
+from electrumsys.bitcoin import COIN, is_address
+from electrumsys.plugin import run_hook
+from electrumsys.i18n import _
+from electrumsys.util import (format_time, format_satoshis, format_fee_satoshis,
                            format_satoshis_plain,
                            UserCancelled, profiler,
                            export_meta, import_meta, bh2u, bfh, InvalidPassword,
@@ -63,20 +63,20 @@ from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
                            get_new_wallet_name, send_exception_to_crash_reporter,
                            InvalidBitcoinURI, maybe_extract_bolt11_invoice, NotEnoughFunds,
                            NoDynamicFeeEstimates, MultipleSpendMaxTxOutputs)
-from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_ONCHAIN_ASSET, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING
-from electrum.transaction import (Transaction, PartialTxInput,
+from electrumsys.util import PR_TYPE_ONCHAIN, PR_TYPE_ONCHAIN_ASSET, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING
+from electrumsys.transaction import (Transaction, PartialTxInput,
                                   PartialTransaction, PartialTxOutput)
-from electrum.address_synchronizer import AddTransactionException
-from electrum.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet,
+from electrumsys.address_synchronizer import AddTransactionException
+from electrumsys.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet,
                              sweep_preparations, InternalAddressCorruption)
-from electrum.version import ELECTRUM_VERSION
-from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed, UntrustedServerReturnedError
-from electrum.exchange_rate import FxThread
-from electrum.simple_config import SimpleConfig
-from electrum.logging import Logger
-from electrum.util import PR_PAID, PR_FAILED
-from electrum.util import pr_expiration_values
-from electrum.lnutil import ln_dummy_address
+from electrumsys.version import ELECTRUM_VERSION
+from electrumsys.network import Network, TxBroadcastError, BestEffortRequestFailed, UntrustedServerReturnedError
+from electrumsys.exchange_rate import FxThread
+from electrumsys.simple_config import SimpleConfig
+from electrumsys.logging import Logger
+from electrumsys.util import PR_PAID, PR_FAILED
+from electrumsys.util import pr_expiration_values
+from electrumsys.lnutil import ln_dummy_address
 
 from .exception_window import Exception_Hook
 from .amountedit import AmountEdit, BTCAmountEdit, FreezableLineEdit, FeerateEdit
@@ -101,7 +101,7 @@ from .confirm_tx_dialog import ConfirmTxDialog
 from .transaction_dialog import PreviewTxDialog
 
 if TYPE_CHECKING:
-    from . import ElectrumGui
+    from . import ElectrumSysGui
 
 
 LN_NUM_PAYMENT_ATTEMPTS = 10
@@ -151,7 +151,7 @@ def protected(func):
     return request_password
 
 
-class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
+class ElectrumSysWindow(QMainWindow, MessageBoxMixin, Logger):
 
     payment_request_ok_signal = pyqtSignal()
     payment_request_error_signal = pyqtSignal()
@@ -162,7 +162,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     show_privkeys_signal = pyqtSignal()
     assets_updated_signal = pyqtSignal()
 
-    def __init__(self, gui_object: 'ElectrumGui', wallet: Abstract_Wallet):
+    def __init__(self, gui_object: 'ElectrumSysGui', wallet: Abstract_Wallet):
         QMainWindow.__init__(self)
 
         self.gui_object = gui_object
@@ -245,7 +245,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if self.config.get("is_maximized"):
             self.showMaximized()
 
-        self.setWindowIcon(read_QIcon("electrum.png"))
+        self.setWindowIcon(read_QIcon("electrumsys.png"))
         self.init_menubar()
 
         wrtabs = weakref.proxy(tabs)
@@ -290,9 +290,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         # If the option hasn't been set yet
         if config.get('check_updates') is None:
-            choice = self.question(title="Electrum - " + _("Enable update check"),
-                                   msg=_("For security reasons we advise that you always use the latest version of Electrum.") + " " +
-                                       _("Would you like to be notified when there is a newer version of Electrum available?"))
+            choice = self.question(title="ElectrumSys - " + _("Enable update check"),
+                                   msg=_("For security reasons we advise that you always use the latest version of ElectrumSys.") + " " +
+                                       _("Would you like to be notified when there is a newer version of ElectrumSys available?"))
             config.set_key('check_updates', bool(choice), save=True)
 
         if config.get('check_updates', False):
@@ -300,7 +300,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             # to prevent GC from getting in our way.
             def on_version_received(v):
                 if UpdateCheck.is_newer(v):
-                    self.update_check_button.setText(_("Update to Electrum {} is available").format(v))
+                    self.update_check_button.setText(_("Update to ElectrumSys {} is available").format(v))
                     self.update_check_button.clicked.connect(lambda: self.show_update_check(v))
                     self.update_check_button.show()
             self._update_check_thread = UpdateCheckThread(self)
@@ -540,7 +540,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.setGeometry(100, 100, 840, 400)
 
     def watching_only_changed(self):
-        name = "Electrum Testnet" if constants.net.TESTNET else "Electrum"
+        name = "ElectrumSys Testnet" if constants.net.TESTNET else "ElectrumSys"
         title = '%s %s  -  %s' % (name, ELECTRUM_VERSION,
                                         self.wallet.basename())
         extra = [self.wallet.db.get('wallet_type', '?')]
@@ -614,7 +614,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         try:
             new_path = self.wallet.save_backup()
         except BaseException as reason:
-            self.show_critical(_("Electrum was unable to copy your wallet file to the specified location.") + "\n" + str(reason), title=_("Unable to create backup"))
+            self.show_critical(_("ElectrumSys was unable to copy your wallet file to the specified location.") + "\n" + str(reason), title=_("Unable to create backup"))
             return
         if new_path:
             self.show_message(_("A copy of your wallet file was created in")+" '%s'" % str(new_path), title=_("Wallet backup created"))
@@ -718,7 +718,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         tools_menu = menubar.addMenu(_("&Tools"))
 
         # Settings / Preferences are all reserved keywords in macOS using this as work around
-        tools_menu.addAction(_("Electrum preferences") if sys.platform == 'darwin' else _("Preferences"), self.settings_dialog)
+        tools_menu.addAction(_("ElectrumSys preferences") if sys.platform == 'darwin' else _("Preferences"), self.settings_dialog)
         tools_menu.addAction(_("&Network"), self.gui_object.show_network_dialog).setEnabled(bool(self.network))
         tools_menu.addAction(_("&Lightning Network"), self.gui_object.show_lightning_dialog).setEnabled(bool(self.wallet.has_lightning() and self.network))
         tools_menu.addAction(_("Local &Watchtower"), self.gui_object.show_watchtower_dialog).setEnabled(bool(self.network and self.network.local_watchtower))
@@ -741,9 +741,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         help_menu = menubar.addMenu(_("&Help"))
         help_menu.addAction(_("&About"), self.show_about)
         help_menu.addAction(_("&Check for updates"), self.show_update_check)
-        help_menu.addAction(_("&Official website"), lambda: webopen("https://electrum.syscoin.org"))
+        help_menu.addAction(_("&Official website"), lambda: webopen("https://electrumsys.syscoin.org"))
         help_menu.addSeparator()
-        help_menu.addAction(_("&Documentation"), lambda: webopen("http://docs.electrum.syscoin.org/")).setShortcut(QKeySequence.HelpContents)
+        help_menu.addAction(_("&Documentation"), lambda: webopen("http://docs.electrumsys.syscoin.org/")).setShortcut(QKeySequence.HelpContents)
         help_menu.addAction(_("&Report Bug"), self.show_report_bug)
         help_menu.addSeparator()
         help_menu.addAction(_("&Donate to server"), self.donate_to_server)
@@ -759,9 +759,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.show_error(_('No donation address for this server'))
 
     def show_about(self):
-        QMessageBox.about(self, "Electrum",
+        QMessageBox.about(self, "ElectrumSys",
                           (_("Version")+" %s" % ELECTRUM_VERSION + "\n\n" +
-                           _("Electrum's focus is speed, with low resource usage and simplifying Syscoin.") + " " +
+                           _("ElectrumSys's focus is speed, with low resource usage and simplifying Syscoin.") + " " +
                            _("You do not need to perform regular backups, because your wallet can be "
                               "recovered from a secret phrase that you can memorize or write on paper.") + " " +
                            _("Startup times are instant because it operates in conjunction with high-performance "
@@ -775,10 +775,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         msg = ' '.join([
             _("Please report any bugs as issues on github:<br/>"),
             f'''<a href="{constants.GIT_REPO_ISSUES_URL}">{constants.GIT_REPO_ISSUES_URL}</a><br/><br/>''',
-            _("Before reporting a bug, upgrade to the most recent version of Electrum (latest release or git HEAD), and include the version number in your report."),
+            _("Before reporting a bug, upgrade to the most recent version of ElectrumSys (latest release or git HEAD), and include the version number in your report."),
             _("Try to explain not only what the bug is, but how it occurs.")
          ])
-        self.show_message(msg, title="Electrum - " + _("Reporting Bugs"), rich_text=True)
+        self.show_message(msg, title="ElectrumSys - " + _("Reporting Bugs"), rich_text=True)
 
     def notify_transactions(self):
         if self.tx_notification_queue.qsize() == 0:
@@ -818,9 +818,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if self.tray:
             try:
                 # this requires Qt 5.9
-                self.tray.showMessage("Electrum", message, read_QIcon("electrum_dark_icon"), 20000)
+                self.tray.showMessage("ElectrumSys", message, read_QIcon("electrumsys_dark_icon"), 20000)
             except TypeError:
-                self.tray.showMessage("Electrum", message, QSystemTrayIcon.Information, 20000)
+                self.tray.showMessage("ElectrumSys", message, QSystemTrayIcon.Information, 20000)
 
 
 
@@ -1117,7 +1117,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             _('Expiration date of your request.'),
             _('This information is seen by the recipient if you send them a signed payment request.'),
             _('Expired requests have to be deleted manually from your list, in order to free the corresponding Syscoin addresses.'),
-            _('The syscoin address never expires and will always be part of this electrum wallet.'),
+            _('The syscoin address never expires and will always be part of this electrumsys wallet.'),
         ])
         grid.addWidget(HelpLabel(_('Expires after'), msg), 3, 0)
         grid.addWidget(self.expires_combo, 3, 1)
@@ -1934,7 +1934,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def parse_lightning_invoice(self, invoice):
         """Parse ln invoice, and prepare the send tab for it."""
-        from electrum.lnaddr import lndecode, LnDecodeException
+        from electrumsys.lnaddr import lndecode, LnDecodeException
         try:
             lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
         except Exception as e:
@@ -2232,7 +2232,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             'plugins': self.gui_object.plugins,
             'window': self,
             'config': self.config,
-            'electrum': electrum,
+            'electrumsys': electrumsys,
             'daemon': self.gui_object.daemon,
             'util': util,
             'bitcoin': bitcoin,
@@ -2356,7 +2356,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.password_button.setVisible(self.wallet.may_have_password())
 
     def change_password_dialog(self):
-        from electrum.storage import StorageEncryptionVersion
+        from electrumsys.storage import StorageEncryptionVersion
         if self.wallet.get_available_storage_encryption_version() == StorageEncryptionVersion.XPUB_PASSWORD:
             from .password_dialog import ChangePasswordDialogForHW
             d = ChangePasswordDialogForHW(self, self.wallet)
@@ -2434,7 +2434,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.close()
 
     def enable_lightning(self):
-        warning1 = _("Lightning support in Electrum is experimental. Do not put large amounts in lightning channels.")
+        warning1 = _("Lightning support in ElectrumSys is experimental. Do not put large amounts in lightning channels.")
         warning2 = _("Funds stored in lightning channels are not recoverable from your seed. You must backup your wallet file everytime you create a new channel.")
         r = self.question(_('Enable Lightning payments?') + '\n\n' + _('WARNINGS') + ': ' + '\n\n' + warning1 + '\n\n' + warning2)
         if not r:
@@ -2593,7 +2593,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 "private key, and verifying with the corresponding public key. The "
                 "address you have entered does not have a unique public key, so these "
                 "operations cannot be performed.") + '\n\n' + \
-               _('The operation is undefined. Not just in Electrum, but in general.')
+               _('The operation is undefined. Not just in ElectrumSys, but in general.')
 
     @protected
     def do_sign(self, address, message, signature, password):
@@ -2757,15 +2757,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         return d.run()
 
     def tx_from_text(self, data: Union[str, bytes]) -> Union[None, 'PartialTransaction', 'Transaction']:
-        from electrum.transaction import tx_from_any
+        from electrumsys.transaction import tx_from_any
         try:
             return tx_from_any(data)
         except BaseException as e:
-            self.show_critical(_("Electrum was unable to parse your transaction") + ":\n" + repr(e))
+            self.show_critical(_("ElectrumSys was unable to parse your transaction") + ":\n" + repr(e))
             return
 
     def read_tx_from_qrcode(self):
-        from electrum import qrscanner
+        from electrumsys import qrscanner
         try:
             data = qrscanner.scan_barcode(self.config.get_video_device())
         except BaseException as e:
@@ -2792,7 +2792,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             with open(fileName, "rb") as f:
                 file_content = f.read()  # type: Union[str, bytes]
         except (ValueError, IOError, os.error) as reason:
-            self.show_critical(_("Electrum was unable to open your transaction file") + "\n" + str(reason),
+            self.show_critical(_("ElectrumSys was unable to open your transaction file") + "\n" + str(reason),
                                title=_("Unable to read file or no transaction found"))
             return
         return self.tx_from_text(file_content)
@@ -2811,7 +2811,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.show_transaction(tx)
 
     def do_process_from_txid(self):
-        from electrum import transaction
+        from electrumsys import transaction
         txid, ok = QInputDialog.getText(self, _('Lookup transaction'), _('Transaction ID') + ':')
         if ok and txid:
             txid = str(txid).strip()
@@ -2852,7 +2852,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         e.setReadOnly(True)
         vbox.addWidget(e)
 
-        defaultname = 'electrum-private-keys.csv'
+        defaultname = 'electrumsys-private-keys.csv'
         select_msg = _('Select file to export your private keys to')
         hbox, filename_e, csv_button = filename_field(self, self.config, defaultname, select_msg)
         vbox.addLayout(hbox)
@@ -2910,7 +2910,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.do_export_privkeys(filename, private_keys, csv_button.isChecked())
         except (IOError, os.error) as reason:
             txt = "\n".join([
-                _("Electrum was unable to produce a private key-export."),
+                _("ElectrumSys was unable to produce a private key-export."),
                 str(reason)
             ])
             self.show_critical(txt, title=_("Unable to create csv"))
@@ -3074,7 +3074,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.fx.trigger_update()
         run_hook('close_settings_dialog')
         if d.need_restart:
-            self.show_warning(_('Please restart Electrum to activate the new GUI settings'), title=_('Success'))
+            self.show_warning(_('Please restart ElectrumSys to activate the new GUI settings'), title=_('Success'))
 
     def closeEvent(self, event):
         # It seems in some rare cases this closeEvent() is called twice
@@ -3101,7 +3101,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.gui_object.close_window(self)
 
     def plugins_dialog(self):
-        self.pluginsdialog = d = WindowModalDialog(self, _('Electrum Plugins'))
+        self.pluginsdialog = d = WindowModalDialog(self, _('ElectrumSys Plugins'))
 
         plugins = self.gui_object.plugins
 

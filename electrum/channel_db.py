@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
-# Electrum - lightweight Bitcoin client
-# Copyright (C) 2018 The Electrum developers
+# ElectrumSys - lightweight Bitcoin client
+# Copyright (C) 2018 The ElectrumSys developers
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files

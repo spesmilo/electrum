@@ -3,7 +3,7 @@ import threading
 import tempfile
 import shutil
 
-from electrum import constants
+from electrumsys import constants
 
 
 # Set this locally to make the test suite run faster.
@@ -27,19 +27,19 @@ class SequentialTestCase(unittest.TestCase):
         self.test_lock.release()
 
 
-class ElectrumTestCase(SequentialTestCase):
+class ElectrumSysTestCase(SequentialTestCase):
     """Base class for our unit tests."""
 
     def setUp(self):
         super().setUpClass()
-        self.electrum_path = tempfile.mkdtemp()
+        self.electrumsys_path = tempfile.mkdtemp()
 
     def tearDown(self):
         super().tearDownClass()
-        shutil.rmtree(self.electrum_path)
+        shutil.rmtree(self.electrumsys_path)
 
 
-class TestCaseForTestnet(ElectrumTestCase):
+class TestCaseForTestnet(ElectrumSysTestCase):
 
     @classmethod
     def setUpClass(cls):

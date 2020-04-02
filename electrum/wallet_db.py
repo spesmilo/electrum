@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
+# ElectrumSys - lightweight Bitcoin client
 # Copyright (C) 2015 Thomas Voegtlin
 #
 # Permission is hereby granted, free of charge, to any person
@@ -48,9 +48,9 @@ if TYPE_CHECKING:
 
 # seed_version is now used for the version of the wallet file
 
-OLD_SEED_VERSION = 4        # electrum versions < 2.0
-NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 27     # electrum >= 2.7 will set this to prevent
+OLD_SEED_VERSION = 4        # electrumsys versions < 2.0
+NEW_SEED_VERSION = 11       # electrumsys versions >= 2.0
+FINAL_SEED_VERSION = 27     # electrumsys >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -648,7 +648,7 @@ class WalletDB(JsonDB):
         if not seed_version:
             seed_version = OLD_SEED_VERSION if len(self.get('master_public_key','')) == 128 else NEW_SEED_VERSION
         if seed_version > FINAL_SEED_VERSION:
-            raise WalletFileException('This version of Electrum is too old to open this wallet.\n'
+            raise WalletFileException('This version of ElectrumSys is too old to open this wallet.\n'
                                       '(highest supported storage version: {}, version of this file: {})'
                                       .format(FINAL_SEED_VERSION, seed_version))
         if seed_version==14 and self.get('seed_type') == 'segwit':
@@ -670,8 +670,8 @@ class WalletDB(JsonDB):
                 # pbkdf2 (at that time an additional dependency) was not included with the binaries, and wallet creation aborted.
                 msg += "\nIt does not contain any keys, and can safely be removed."
             else:
-                # creation was complete if electrum was run from source
-                msg += "\nPlease open this file with Electrum 1.9.8, and move your coins to a new wallet."
+                # creation was complete if electrumsys was run from source
+                msg += "\nPlease open this file with ElectrumSys 1.9.8, and move your coins to a new wallet."
         raise WalletFileException(msg)
 
     @locked

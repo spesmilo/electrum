@@ -2,14 +2,14 @@ import asyncio
 import tempfile
 import unittest
 
-from electrum import constants
-from electrum.simple_config import SimpleConfig
-from electrum import blockchain
-from electrum.interface import Interface
-from electrum.crypto import sha256
-from electrum.util import bh2u
+from electrumsys import constants
+from electrumsys.simple_config import SimpleConfig
+from electrumsys import blockchain
+from electrumsys.interface import Interface
+from electrumsys.crypto import sha256
+from electrumsys.util import bh2u
 
-from . import ElectrumTestCase
+from . import ElectrumSysTestCase
 
 
 class MockTaskGroup:
@@ -38,7 +38,7 @@ class MockInterface(Interface):
         assert assert_mode in item['mock'], (assert_mode, item)
         return item
 
-class TestNetwork(ElectrumTestCase):
+class TestNetwork(ElectrumSysTestCase):
 
     @classmethod
     def setUpClass(cls):
@@ -52,7 +52,7 @@ class TestNetwork(ElectrumTestCase):
 
     def setUp(self):
         super().setUp()
-        self.config = SimpleConfig({'electrum_path': self.electrum_path})
+        self.config = SimpleConfig({'electrumsys_path': self.electrumsys_path})
         self.interface = MockInterface(self.config)
 
     def test_fork_noconflict(self):

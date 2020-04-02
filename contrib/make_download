@@ -5,7 +5,7 @@ import sys
 import importlib
 
 # load version.py; needlessly complicated alternative to "imp.load_source":
-version_spec = importlib.util.spec_from_file_location('version', 'electrum/version.py')
+version_spec = importlib.util.spec_from_file_location('version', 'electrumsys/version.py')
 version_module = importlib.util.module_from_spec(version_spec)
 version_spec.loader.exec_module(version_module)
 
@@ -30,18 +30,18 @@ string = string.replace("##VERSION_ANDROID##", version_android)
 string = string.replace("##VERSION_APK##", APK_VERSION)
 
 files = {
-    'tgz': "Electrum-%s.tar.gz" % version,
-    'appimage': "electrum-%s-x86_64.AppImage" % version,
-    'zip': "Electrum-%s.zip" % version,
-    'mac': "electrum-%s.dmg" % version_mac,
-    'win': "electrum-%s.exe" % version_win,
-    'win_setup': "electrum-%s-setup.exe" % version_win,
-    'win_portable': "electrum-%s-portable.exe" % version_win,
+    'tgz': "ElectrumSys-%s.tar.gz" % version,
+    'appimage': "electrumsys-%s-x86_64.AppImage" % version,
+    'zip': "ElectrumSys-%s.zip" % version,
+    'mac': "electrumsys-%s.dmg" % version_mac,
+    'win': "electrumsys-%s.exe" % version_win,
+    'win_setup': "electrumsys-%s-setup.exe" % version_win,
+    'win_portable': "electrumsys-%s-portable.exe" % version_win,
 }
 
 for k, n in files.items():
     path = "dist/%s"%n
-    link = "https://downloadelectrum.syscoin.org/%s/%s"%(version,n)
+    link = "https://downloadelectrumsys.syscoin.org/%s/%s"%(version,n)
     if not os.path.exists(path):
         os.system("wget -q %s -O %s" % (link, path))
     if not os.path.getsize(path):

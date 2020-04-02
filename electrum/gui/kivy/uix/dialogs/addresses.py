@@ -7,11 +7,11 @@ from kivy.lang import Builder
 from decimal import Decimal
 from kivy.uix.popup import Popup
 
-from electrum.gui.kivy.i18n import _
+from electrumsys.gui.kivy.i18n import _
 from ...util import address_colors
 
 if TYPE_CHECKING:
-    from ...main_window import ElectrumWindow
+    from ...main_window import ElectrumSysWindow
 
 
 Builder.load_string('''
@@ -216,7 +216,7 @@ class AddressesDialog(Factory.Popup):
 
     def __init__(self, app):
         Factory.Popup.__init__(self)
-        self.app = app  # type: ElectrumWindow
+        self.app = app  # type: ElectrumSysWindow
 
     def get_card(self, addr, balance, is_used, label):
         ci = {}

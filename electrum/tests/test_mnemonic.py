@@ -1,13 +1,13 @@
 from typing import NamedTuple, Optional
 
-from electrum import keystore
-from electrum import mnemonic
-from electrum import old_mnemonic
-from electrum.util import bh2u, bfh
-from electrum.mnemonic import is_new_seed, is_old_seed, seed_type
-from electrum.version import SEED_PREFIX_SW, SEED_PREFIX
+from electrumsys import keystore
+from electrumsys import mnemonic
+from electrumsys import old_mnemonic
+from electrumsys.util import bh2u, bfh
+from electrumsys.mnemonic import is_new_seed, is_old_seed, seed_type
+from electrumsys.version import SEED_PREFIX_SW, SEED_PREFIX
 
-from . import ElectrumTestCase
+from . import ElectrumSysTestCase
 from .test_wallet_vertical import UNICODE_HORROR, UNICODE_HORROR_HEX
 
 
@@ -95,10 +95,10 @@ SEED_TEST_CASES = {
 }
 
 
-class Test_NewMnemonic(ElectrumTestCase):
+class Test_NewMnemonic(ElectrumSysTestCase):
 
     def test_mnemonic_to_seed_basic(self):
-        # note: not a valid electrum seed
+        # note: not a valid electrumsys seed
         seed = mnemonic.Mnemonic.mnemonic_to_seed(mnemonic='foobar', passphrase='none')
         self.assertEqual('741b72fd15effece6bfe5a26a52184f66811bd2be363190e07a42cca442b1a5bb22b3ad0eb338197287e6d314866c7fba863ac65d3f156087a5052ebc7157fce',
                          bh2u(seed))
@@ -125,7 +125,7 @@ class Test_NewMnemonic(ElectrumTestCase):
             self.assertEqual(m.mnemonic_encode(i), seed)
 
 
-class Test_OldMnemonic(ElectrumTestCase):
+class Test_OldMnemonic(ElectrumSysTestCase):
 
     def test(self):
         seed = '8edad31a95e7d59f8837667510d75a4d'
@@ -135,7 +135,7 @@ class Test_OldMnemonic(ElectrumTestCase):
         self.assertEqual(old_mnemonic.mn_decode(result), seed)
 
 
-class Test_BIP39Checksum(ElectrumTestCase):
+class Test_BIP39Checksum(ElectrumSysTestCase):
 
     def test(self):
         mnemonic = u'gravity machine north sort system female filter attitude volume fold club stay feature office ecology stable narrow fog'
@@ -144,7 +144,7 @@ class Test_BIP39Checksum(ElectrumTestCase):
         self.assertTrue(is_checksum_valid)
 
 
-class Test_seeds(ElectrumTestCase):
+class Test_seeds(ElectrumSysTestCase):
     """ Test old and new seeds. """
 
     mnemonics = {

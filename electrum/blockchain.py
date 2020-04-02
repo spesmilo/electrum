@@ -1,4 +1,4 @@
-# Electrum - lightweight Bitcoin client
+# ElectrumSys - lightweight Bitcoin client
 # Copyright (C) 2012 thomasv@ecdsa.org
 #
 # Permission is hereby granted, free of charge, to any person
@@ -471,7 +471,7 @@ class Blockchain(Logger):
         if os.path.exists(path):
             return
         elif not os.path.exists(util.get_headers_dir(self.config)):
-            raise FileNotFoundError('Electrum headers_dir does not exist. Was it deleted while running?')
+            raise FileNotFoundError('ElectrumSys headers_dir does not exist. Was it deleted while running?')
         else:
             raise FileNotFoundError('Cannot find headers file but headers_dir is there. Should be at {}'.format(path))
 

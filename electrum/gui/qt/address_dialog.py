@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
+# ElectrumSys - lightweight Bitcoin client
 # Copyright (C) 2012 thomasv@gitorious
 #
 # Permission is hereby granted, free of charge, to any person
@@ -27,18 +27,18 @@ from typing import TYPE_CHECKING
 
 from PyQt5.QtWidgets import QVBoxLayout, QLabel
 
-from electrum.i18n import _
+from electrumsys.i18n import _
 
 from .util import WindowModalDialog, ButtonsLineEdit, ColorScheme, Buttons, CloseButton
 from .history_list import HistoryList, HistoryModel
 from .qrtextedit import ShowQRTextEdit
 
 if TYPE_CHECKING:
-    from .main_window import ElectrumWindow
+    from .main_window import ElectrumSysWindow
 
 
 class AddressHistoryModel(HistoryModel):
-    def __init__(self, parent: 'ElectrumWindow', address):
+    def __init__(self, parent: 'ElectrumSysWindow', address):
         super().__init__(parent)
         self.address = address
 
@@ -51,7 +51,7 @@ class AddressHistoryModel(HistoryModel):
 
 class AddressDialog(WindowModalDialog):
 
-    def __init__(self, parent: 'ElectrumWindow', address: str):
+    def __init__(self, parent: 'ElectrumSysWindow', address: str):
         WindowModalDialog.__init__(self, parent, _("Address"))
         self.address = address
         self.parent = parent

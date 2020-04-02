@@ -1,4 +1,4 @@
-# Copyright (C) 2018 The Electrum developers
+# Copyright (C) 2018 The ElectrumSys developers
 # Distributed under the MIT software license, see the accompanying
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
@@ -202,7 +202,7 @@ NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE = 28 * 144
 
 # When we open a channel, the remote peer has to support at least this
 # value of mSATs in HTLCs accumulated on the channel, or we refuse opening.
-# Number is based on observed testnet limit https://github.com/spesmilo/electrum/issues/5032
+# Number is based on observed testnet limit https://github.com/spesmilo/electrumsys/issues/5032
 MINIMUM_MAX_HTLC_VALUE_IN_FLIGHT_ACCEPTED = 19_800 * 1000
 
 MAXIMUM_HTLC_MINIMUM_MSAT_ACCEPTED = 1000

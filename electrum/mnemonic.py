@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
+# ElectrumSys - lightweight Bitcoin client
 # Copyright (C) 2014 Thomas Voegtlin
 #
 # Permission is hereby granted, free of charge, to any person
@@ -161,7 +161,7 @@ class Mnemonic(Logger):
         mnemonic = normalize_text(mnemonic)
         passphrase = passphrase or ''
         passphrase = normalize_text(passphrase)
-        return hashlib.pbkdf2_hmac('sha512', mnemonic.encode('utf-8'), b'electrum' + passphrase.encode('utf-8'), iterations = PBKDF2_ROUNDS)
+        return hashlib.pbkdf2_hmac('sha512', mnemonic.encode('utf-8'), b'electrumsys' + passphrase.encode('utf-8'), iterations = PBKDF2_ROUNDS)
 
     def mnemonic_encode(self, i):
         n = len(self.wordlist)
@@ -228,15 +228,15 @@ def is_old_seed(seed: str) -> bool:
     try:
         # checks here are deliberately left weak for legacy reasons, see #3149
         old_mnemonic.mn_decode(words)
-        uses_electrum_words = True
+        uses_electrumsys_words = True
     except Exception:
-        uses_electrum_words = False
+        uses_electrumsys_words = False
     try:
         seed = bfh(seed)
         is_hex = (len(seed) == 16 or len(seed) == 32)
     except Exception:
         is_hex = False
-    return is_hex or (uses_electrum_words and (len(words) == 12 or len(words) == 24))
+    return is_hex or (uses_electrumsys_words and (len(words) == 12 or len(words) == 24))
 
 
 def seed_type(x: str) -> str:

@@ -5,7 +5,7 @@ set -e
 CONTRIB="$(dirname "$(readlink -e "$0")")"
 ROOT_FOLDER="$CONTRIB"/..
 PACKAGES="$ROOT_FOLDER"/packages/
-LOCALE="$ROOT_FOLDER"/electrum/locale/
+LOCALE="$ROOT_FOLDER"/electrumsys/locale/
 
 if [ ! -d "$PACKAGES" ]; then
   echo "Run make_packages first!"
@@ -17,16 +17,16 @@ git submodule update --init
 "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
 (
     rm -rf "$LOCALE"
-    cd "$CONTRIB/deterministic-build/electrum-locale/"
+    cd "$CONTRIB/deterministic-build/electrumsys-locale/"
     if ! which msgfmt > /dev/null 2>&1; then
         echo "Please install gettext"
         exit 1
     fi
     for i in ./locale/*; do
-        dir="$ROOT_FOLDER"/electrum/$i/LC_MESSAGES
+        dir="$ROOT_FOLDER"/electrumsys/$i/LC_MESSAGES
         mkdir -p $dir
-        msgfmt --output-file=$dir/electrum.mo $i/electrum.po || true
-        cp $i/electrum.po "$ROOT_FOLDER"/electrum/$i/electrum.po
+        msgfmt --output-file=$dir/electrumsys.mo $i/electrumsys.po || true
+        cp $i/electrumsys.po "$ROOT_FOLDER"/electrumsys/$i/electrumsys.po
     done
 )
 
@@ -38,7 +38,7 @@ git submodule update --init
     echo "<<<"
 
     # we could build the kivy atlas potentially?
-    #(cd electrum/gui/kivy/; make theming) || echo "building kivy atlas failed! skipping."
+    #(cd electrumsys/gui/kivy/; make theming) || echo "building kivy atlas failed! skipping."
 
     python3 setup.py --quiet sdist --format=zip,gztar
 )

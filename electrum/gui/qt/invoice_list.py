@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
+# ElectrumSys - lightweight Bitcoin client
 # Copyright (C) 2015 Thomas Voegtlin
 #
 # Permission is hereby granted, free of charge, to any person
@@ -31,11 +31,11 @@ from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import QAbstractItemView
 from PyQt5.QtWidgets import QMenu, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QHeaderView
 
-from electrum.i18n import _
-from electrum.util import format_time, PR_UNPAID, PR_PAID, PR_INFLIGHT, PR_FAILED
-from electrum.util import get_request_status
-from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_ONCHAIN_ASSET, PR_TYPE_LN
-from electrum.lnutil import PaymentAttemptLog
+from electrumsys.i18n import _
+from electrumsys.util import format_time, PR_UNPAID, PR_PAID, PR_INFLIGHT, PR_FAILED
+from electrumsys.util import get_request_status
+from electrumsys.util import PR_TYPE_ONCHAIN, PR_TYPE_ONCHAIN_ASSET, PR_TYPE_LN
+from electrumsys.lnutil import PaymentAttemptLog
 
 from .util import (MyTreeView, read_QIcon,
                    import_meta_gui, export_meta_gui, pr_icons)

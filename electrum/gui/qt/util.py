@@ -23,12 +23,12 @@ from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
                              QHeaderView, QApplication, QToolTip, QTreeWidget, QStyledItemDelegate,
                              QMenu)
 
-from electrum.i18n import _, languages
-from electrum.util import FileImportFailed, FileExportFailed, make_aiohttp_session, resource_path
-from electrum.util import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING
+from electrumsys.i18n import _, languages
+from electrumsys.util import FileImportFailed, FileExportFailed, make_aiohttp_session, resource_path
+from electrumsys.util import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING
 
 if TYPE_CHECKING:
-    from .main_window import ElectrumWindow
+    from .main_window import ElectrumSysWindow
 
 
 if platform.system() == 'Windows':
@@ -464,7 +464,7 @@ def filename_field(parent, config, defaultname, select_msg):
 
     return vbox, filename_e, b1
 
-class ElectrumItemDelegate(QStyledItemDelegate):
+class ElectrumSysItemDelegate(QStyledItemDelegate):
     def __init__(self, tv: 'MyTreeView'):
         super().__init__(tv)
         self.tv = tv
@@ -489,7 +489,7 @@ class ElectrumItemDelegate(QStyledItemDelegate):
 class MyTreeView(QTreeView):
     ROLE_CLIPBOARD_DATA = Qt.UserRole + 100
 
-    def __init__(self, parent: 'ElectrumWindow', create_menu, *,
+    def __init__(self, parent: 'ElectrumSysWindow', create_menu, *,
                  stretch_column=None, editable_columns=None):
         super().__init__(parent)
         self.parent = parent
@@ -507,7 +507,7 @@ class MyTreeView(QTreeView):
         else:
             editable_columns = {}
         self.editable_columns = editable_columns
-        self.setItemDelegate(ElectrumItemDelegate(self))
+        self.setItemDelegate(ElectrumSysItemDelegate(self))
         self.current_filter = ""
 
         self.setRootIsDecorated(False)  # remove left margin
@@ -877,43 +877,43 @@ class AcceptFileDragDrop:
         raise NotImplementedError()
 
 
-def import_meta_gui(electrum_window, title, importer, on_success):
+def import_meta_gui(electrumsys_window, title, importer, on_success):
     filter_ = "JSON (*.json);;All files (*)"
-    filename = electrum_window.getOpenFileName(_("Open {} file").format(title), filter_)
+    filename = electrumsys_window.getOpenFileName(_("Open {} file").format(title), filter_)
     if not filename:
         return
     try:
         importer(filename)
     except FileImportFailed as e:
-        electrum_window.show_critical(str(e))
+        electrumsys_window.show_critical(str(e))
     else:
-        electrum_window.show_message(_("Your {} were successfully imported").format(title))
+        electrumsys_window.show_message(_("Your {} were successfully imported").format(title))
         on_success()
 
 
-def export_meta_gui(electrum_window, title, exporter):
+def export_meta_gui(electrumsys_window, title, exporter):
     filter_ = "JSON (*.json);;All files (*)"
-    filename = electrum_window.getSaveFileName(_("Select file to save your {}").format(title),
-                                               'electrum_{}.json'.format(title), filter_)
+    filename = electrumsys_window.getSaveFileName(_("Select file to save your {}").format(title),
+                                               'electrumsys_{}.json'.format(title), filter_)
     if not filename:
         return
     try:
         exporter(filename)
     except FileExportFailed as e:
-        electrum_window.show_critical(str(e))
+        electrumsys_window.show_critical(str(e))
     else:
-        electrum_window.show_message(_("Your {0} were exported to '{1}'")
+        electrumsys_window.show_message(_("Your {0} were exported to '{1}'")
                                      .format(title, str(filename)))
 
 
 def get_parent_main_window(widget):
-    """Returns a reference to the ElectrumWindow this widget belongs to."""
-    from .main_window import ElectrumWindow
+    """Returns a reference to the ElectrumSysWindow this widget belongs to."""
+    from .main_window import ElectrumSysWindow
     from .transaction_dialog import TxDialog
     for _ in range(100):
         if widget is None:
             return None
-        if isinstance(widget, ElectrumWindow):
+        if isinstance(widget, ElectrumSysWindow):
             return widget
         elif isinstance(widget, TxDialog):
             return widget.main_window

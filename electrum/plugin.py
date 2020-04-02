@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
+# ElectrumSys - lightweight Bitcoin client
 # Copyright (C) 2015 Thomas Voegtlin
 #
 # Permission is hereby granted, free of charge, to any person
@@ -70,7 +70,7 @@ class Plugins(DaemonThread):
 
     def load_plugins(self):
         for loader, name, ispkg in pkgutil.iter_modules([self.pkgpath]):
-            full_name = f'electrum.plugins.{name}'
+            full_name = f'electrumsys.plugins.{name}'
             spec = importlib.util.find_spec(full_name)
             if spec is None:  # pkgutil found it but importlib can't ?!
                 raise Exception(f"Error pre-loading {full_name}: no spec")
@@ -108,7 +108,7 @@ class Plugins(DaemonThread):
     def load_plugin(self, name):
         if name in self.plugins:
             return self.plugins[name]
-        full_name = f'electrum.plugins.{name}.{self.gui_name}'
+        full_name = f'electrumsys.plugins.{name}.{self.gui_name}'
         spec = importlib.util.find_spec(full_name)
         if spec is None:
             raise RuntimeError("%s implementation for %s plugin not found"
@@ -515,7 +515,7 @@ class DeviceMgr(ThreadJob):
         # The user input has wrong PIN or passphrase, or cancelled input,
         # or it is not pairable
         raise DeviceUnpairableError(
-            _('Electrum cannot pair with your {}.\n\n'
+            _('ElectrumSys cannot pair with your {}.\n\n'
               'Before you request syscoins to be sent to addresses in this '
               'wallet, ensure you can pair with your device, or that you have '
               'its seed (and passphrase, if any).  Otherwise all bitcoins you '

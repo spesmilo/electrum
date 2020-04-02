@@ -2,15 +2,15 @@ import traceback
 import sys
 from typing import NamedTuple, Any, Optional, Dict, Union, List, Tuple, TYPE_CHECKING
 
-from electrum.util import bfh, bh2u, versiontuple, UserCancelled, UserFacingException
-from electrum.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32 as parse_path
-from electrum import constants
-from electrum.i18n import _
-from electrum.plugin import Device
-from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
-from electrum.keystore import Hardware_KeyStore
-from electrum.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
-from electrum.logging import get_logger
+from electrumsys.util import bfh, bh2u, versiontuple, UserCancelled, UserFacingException
+from electrumsys.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32 as parse_path
+from electrumsys import constants
+from electrumsys.i18n import _
+from electrumsys.plugin import Device
+from electrumsys.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
+from electrumsys.keystore import Hardware_KeyStore
+from electrumsys.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
+from electrumsys.logging import get_logger
 
 from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import (is_any_tx_output_on_change_branch, trezor_validate_op_return_output_and_get_data,
@@ -140,7 +140,7 @@ class TrezorPlugin(HW_PluginBase):
 
     def enumerate(self):
         # If there is a bridge, prefer that.
-        # On Windows, the bridge runs as Admin (and Electrum usually does not),
+        # On Windows, the bridge runs as Admin (and ElectrumSys usually does not),
         # so the bridge has better chances of finding devices. see #5420
         # This also avoids duplicate entries.
         try:
@@ -292,30 +292,30 @@ class TrezorPlugin(HW_PluginBase):
         client.used()
         return xpub
 
-    def get_trezor_input_script_type(self, electrum_txin_type: str):
-        if electrum_txin_type in ('p2wpkh', 'p2wsh'):
+    def get_trezor_input_script_type(self, electrumsys_txin_type: str):
+        if electrumsys_txin_type in ('p2wpkh', 'p2wsh'):
             return InputScriptType.SPENDWITNESS
-        if electrum_txin_type in ('p2wpkh-p2sh', 'p2wsh-p2sh'):
+        if electrumsys_txin_type in ('p2wpkh-p2sh', 'p2wsh-p2sh'):
             return InputScriptType.SPENDP2SHWITNESS
-        if electrum_txin_type in ('p2pkh', ):
+        if electrumsys_txin_type in ('p2pkh', ):
             return InputScriptType.SPENDADDRESS
-        if electrum_txin_type in ('p2sh', ):
+        if electrumsys_txin_type in ('p2sh', ):
             return InputScriptType.SPENDMULTISIG
-        raise ValueError('unexpected txin type: {}'.format(electrum_txin_type))
+        raise ValueError('unexpected txin type: {}'.format(electrumsys_txin_type))
 
-    def get_trezor_output_script_type(self, electrum_txin_type: str):
-        if electrum_txin_type in ('p2wpkh', 'p2wsh'):
+    def get_trezor_output_script_type(self, electrumsys_txin_type: str):
+        if electrumsys_txin_type in ('p2wpkh', 'p2wsh'):
             return OutputScriptType.PAYTOWITNESS
-        if electrum_txin_type in ('p2wpkh-p2sh', 'p2wsh-p2sh'):
+        if electrumsys_txin_type in ('p2wpkh-p2sh', 'p2wsh-p2sh'):
             return OutputScriptType.PAYTOP2SHWITNESS
-        if electrum_txin_type in ('p2pkh', ):
+        if electrumsys_txin_type in ('p2pkh', ):
             return OutputScriptType.PAYTOADDRESS
-        if electrum_txin_type in ('p2sh', ):
+        if electrumsys_txin_type in ('p2sh', ):
             return OutputScriptType.PAYTOMULTISIG
-        raise ValueError('unexpected txin type: {}'.format(electrum_txin_type))
+        raise ValueError('unexpected txin type: {}'.format(electrumsys_txin_type))
 
     def sign_transaction(self, keystore, tx: PartialTransaction, prev_tx):
-        prev_tx = { bfh(txhash): self.electrum_tx_to_txtype(tx) for txhash, tx in prev_tx.items() }
+        prev_tx = { bfh(txhash): self.electrumsys_tx_to_txtype(tx) for txhash, tx in prev_tx.items() }
         client = self.get_client(keystore)
         inputs = self.tx_inputs(tx, for_sig=True, keystore=keystore)
         outputs = self.tx_outputs(tx, keystore=keystore)
@@ -454,7 +454,7 @@ class TrezorPlugin(HW_PluginBase):
 
         return outputs
 
-    def electrum_tx_to_txtype(self, tx: Optional[Transaction]):
+    def electrumsys_tx_to_txtype(self, tx: Optional[Transaction]):
         t = TransactionType()
         if tx is None:
             # probably for segwit input and we don't need this prev txn

@@ -20,7 +20,7 @@ folder.
 2. Build image
 
     ```
-    $ sudo docker build -t electrum-wine-builder-img contrib/build-wine
+    $ sudo docker build -t electrumsys-wine-builder-img contrib/build-wine
     ```
 
     Note: see [this](https://stackoverflow.com/a/40516974/7499128) if having dns problems
@@ -35,19 +35,19 @@ folder.
         sudo rm -rf $FRESH_CLONE && \
         mkdir -p $FRESH_CLONE && \
         cd $FRESH_CLONE  && \
-        git clone https://github.com/syscoin/electrum.git && \
-        cd electrum
+        git clone https://github.com/syscoin/electrumsys.git && \
+        cd electrumsys
     ```
 
     And then build from this directory:
     ```
     $ git checkout $REV
     $ sudo docker run -it \
-        --name electrum-wine-builder-cont \
-        -v $PWD:/opt/wine64/drive_c/electrum \
+        --name electrumsys-wine-builder-cont \
+        -v $PWD:/opt/wine64/drive_c/electrumsys \
         --rm \
-        --workdir /opt/wine64/drive_c/electrum/contrib/build-wine \
-        electrum-wine-builder-img \
+        --workdir /opt/wine64/drive_c/electrumsys/contrib/build-wine \
+        electrumsys-wine-builder-img \
         ./build.sh
     ```
 4. The generated binaries are in `./contrib/build-wine/dist`.
@@ -57,10 +57,10 @@ folder.
 Code Signing
 ============
 
-Electrum Windows builds are signed with a Microsoft Authenticode™ code signing
+ElectrumSys Windows builds are signed with a Microsoft Authenticode™ code signing
 certificate in addition to the GPG-based signatures.
 
-The advantage of using Authenticode is that Electrum users won't receive a 
+The advantage of using Authenticode is that ElectrumSys users won't receive a 
 Windows SmartScreen warning when starting it.
 
 The release signing procedure involves a signer (the holder of the
@@ -78,7 +78,7 @@ certificate/key) and one or multiple trusted verifiers:
 
 | Signer and verifiers:                                                                         |
 |-----------------------------------------------------------------------------------------------|
-| Upload signatures to 'electrum-signatures' repo, as `$version/$filename.$builder.asc`         |
+| Upload signatures to 'electrumsys-signatures' repo, as `$version/$filename.$builder.asc`         |
 
 
 

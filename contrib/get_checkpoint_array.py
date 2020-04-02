@@ -8,7 +8,7 @@ if len(argv) < 3:
     print('Arguments: <rpc_username> <rpc_password> [<rpc_port>]')
     sys.exit(1)
 
-# From electrum.
+# From electrumsys.
 def bits_to_target(bits):
     bitsN = (bits >> 24) & 0xff
     if not (bitsN >= 0x03 and bitsN <= 0x1e):
@@ -43,7 +43,7 @@ def rpc(method, params):
 
     return loads(json_response)
 
-# Electrum checkpoints are blocks 359, 359 + 360, 359 + 360*2, ...
+# ElectrumSys checkpoints are blocks 359, 359 + 360, 359 + 360*2, ...
 i = 359
 INTERVAL = 360
 

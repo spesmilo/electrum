@@ -9,12 +9,12 @@ from PyQt5.QtWidgets import (QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayou
                              QPushButton, QAbstractItemView)
 from PyQt5.QtGui import QFont, QStandardItem, QBrush
 
-from electrum.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
-from electrum.i18n import _
-from electrum.lnchannel import Channel, peer_states
-from electrum.wallet import Abstract_Wallet
-from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id, LN_MAX_FUNDING_SAT
-from electrum.lnworker import LNWallet
+from electrumsys.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
+from electrumsys.i18n import _
+from electrumsys.lnchannel import Channel, peer_states
+from electrumsys.wallet import Abstract_Wallet
+from electrumsys.lnutil import LOCAL, REMOTE, format_short_channel_id, LN_MAX_FUNDING_SAT
+from electrumsys.lnworker import LNWallet
 
 from .util import (MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, WaitingDialog, MONOSPACE_FONT, ColorScheme)

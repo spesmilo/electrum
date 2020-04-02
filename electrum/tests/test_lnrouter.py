@@ -3,13 +3,13 @@ import tempfile
 import shutil
 import asyncio
 
-from electrum.util import bh2u, bfh, create_and_start_event_loop
-from electrum.lnonion import (OnionHopsDataSingle, new_onion_packet,
+from electrumsys.util import bh2u, bfh, create_and_start_event_loop
+from electrumsys.lnonion import (OnionHopsDataSingle, new_onion_packet,
                               process_onion_packet, _decode_onion_error, decode_onion_error,
                               OnionFailureCode, OnionPacket)
-from electrum import bitcoin, lnrouter
-from electrum.constants import BitcoinTestnet
-from electrum.simple_config import SimpleConfig
+from electrumsys import bitcoin, lnrouter
+from electrumsys.constants import BitcoinTestnet
+from electrumsys.simple_config import SimpleConfig
 
 from . import TestCaseForTestnet
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
@@ -34,7 +34,7 @@ class Test_LNRouter(TestCaseForTestnet):
     def setUp(self):
         super().setUp()
         self.asyncio_loop, self._stop_loop, self._loop_thread = create_and_start_event_loop()
-        self.config = SimpleConfig({'electrum_path': self.electrum_path})
+        self.config = SimpleConfig({'electrumsys_path': self.electrumsys_path})
 
     def tearDown(self):
         self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)

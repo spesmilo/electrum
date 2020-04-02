@@ -3,16 +3,16 @@ from typing import TYPE_CHECKING
 from kivy.lang import Builder
 from kivy.factory import Factory
 
-from electrum.gui.kivy.i18n import _
-from electrum.lnaddr import lndecode
-from electrum.util import bh2u
-from electrum.bitcoin import COIN
-import electrum.simple_config as config
+from electrumsys.gui.kivy.i18n import _
+from electrumsys.lnaddr import lndecode
+from electrumsys.util import bh2u
+from electrumsys.bitcoin import COIN
+import electrumsys.simple_config as config
 
 from .label_dialog import LabelDialog
 
 if TYPE_CHECKING:
-    from ...main_window import ElectrumWindow
+    from ...main_window import ElectrumSysWindow
 
 
 Builder.load_string('''
@@ -35,7 +35,7 @@ Builder.load_string('''
                 size_hint: 1, None
                 height: blue_bottom.item_height
                 Image:
-                    source: 'atlas://electrum/gui/kivy/theming/light/globe'
+                    source: 'atlas://electrumsys/gui/kivy/theming/light/globe'
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
@@ -48,7 +48,7 @@ Builder.load_string('''
                 size_hint: 1, None
                 height: blue_bottom.item_height
                 Image:
-                    source: 'atlas://electrum/gui/kivy/theming/light/calculator'
+                    source: 'atlas://electrumsys/gui/kivy/theming/light/calculator'
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
@@ -61,12 +61,12 @@ Builder.load_string('''
             size_hint: 1, None
             height: '48dp'
             IconButton:
-                icon: 'atlas://electrum/gui/kivy/theming/light/copy'
+                icon: 'atlas://electrumsys/gui/kivy/theming/light/copy'
                 size_hint: 0.5, None
                 height: '48dp'
                 on_release: s.do_paste()
             IconButton:
-                icon: 'atlas://electrum/gui/kivy/theming/light/camera'
+                icon: 'atlas://electrumsys/gui/kivy/theming/light/camera'
                 size_hint: 0.5, None
                 height: '48dp'
                 on_release: app.scan_qr(on_complete=s.on_qr)
@@ -108,14 +108,14 @@ class LightningOpenChannelDialog(Factory.Popup):
 
     def __init__(self, app, lnaddr=None, msg=None):
         super(LightningOpenChannelDialog, self).__init__()
-        self.app = app  # type: ElectrumWindow
+        self.app = app  # type: ElectrumSysWindow
         self.lnaddr = lnaddr
         self.msg = msg
 
     def open(self, *args, **kwargs):
         super(LightningOpenChannelDialog, self).open(*args, **kwargs)
         if self.lnaddr:
-            fee = self.app.electrum_config.fee_per_kb()
+            fee = self.app.electrumsys_config.fee_per_kb()
             if not fee:
                 fee = config.FEERATE_FALLBACK_STATIC_FEE
             self.amount = self.app.format_amount_and_units(self.lnaddr.amount * COIN + fee * 2)

@@ -1,4 +1,4 @@
-# Electrum - Lightweight Bitcoin Client
+# ElectrumSys - Lightweight Bitcoin Client
 # Copyright (c) 2011-2016 Thomas Voegtlin
 #
 # Permission is hereby granted, free of charge, to any person
@@ -196,7 +196,7 @@ class TxBroadcastHashMismatch(TxBroadcastError):
     def get_message_for_gui(self):
         return "{}\n{}\n\n{}" \
             .format(_("The server returned an unexpected transaction ID when broadcasting the transaction."),
-                    _("Consider trying to connect to a different server, or updating Electrum."),
+                    _("Consider trying to connect to a different server, or updating ElectrumSys."),
                     str(self))
 
 
@@ -204,7 +204,7 @@ class TxBroadcastServerReturnedError(TxBroadcastError):
     def get_message_for_gui(self):
         return "{}\n{}\n\n{}" \
             .format(_("The server returned an error when broadcasting the transaction."),
-                    _("Consider trying to connect to a different server, or updating Electrum."),
+                    _("Consider trying to connect to a different server, or updating ElectrumSys."),
                     str(self))
 
 
@@ -212,7 +212,7 @@ class TxBroadcastUnknownError(TxBroadcastError):
     def get_message_for_gui(self):
         return "{}\n{}" \
             .format(_("Unknown error when broadcasting the transaction."),
-                    _("Consider trying to connect to a different server, or updating Electrum."))
+                    _("Consider trying to connect to a different server, or updating ElectrumSys."))
 
 
 class UntrustedServerReturnedError(NetworkException):
@@ -234,7 +234,7 @@ _INSTANCE = None
 
 
 class Network(Logger):
-    """The Network class manages a set of connections to remote electrum
+    """The Network class manages a set of connections to remote electrumsys
     servers, each connected socket is handled by an Interface() object.
     """
 
@@ -870,7 +870,7 @@ class Network(Logger):
 
     @staticmethod
     def sanitize_tx_broadcast_response(server_msg) -> str:
-        # Unfortunately, bitcoind and hence the Electrum protocol doesn't return a useful error code.
+        # Unfortunately, bitcoind and hence the ElectrumSys protocol doesn't return a useful error code.
         # So, we use substring matching to grok the error message.
         # server_msg is untrusted input so it should not be shown to the user. see #4968
         server_msg = str(server_msg)
