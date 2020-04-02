@@ -218,7 +218,7 @@ class AssetSynchronizer(Logger):
                             changed_asset = new_asset_list[x]
                             break
         self.asset_list = new_asset_list
-        if callback is not None and self.current_page is 1:
+        if callback is not None and self.current_page == 1:
             callback(changed_asset)
 
 
