@@ -1,0 +1,5368 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: electrumsys\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2019-02-13 20:50+0000\n"
+"PO-Revision-Date: 2019-02-13 20:52\n"
+"Last-Translator: rdymac <crowdin-electrumsys@monerovenezuela.com>\n"
+"Language-Team: Slovak\n"
+"Language: sk_SK\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=4; plural=(n==1) ? 0 : (n>=2 && n<=4) ? 1 : 3;\n"
+"X-Generator: crowdin.com\n"
+"X-Crowdin-Project: electrumsys\n"
+"X-Crowdin-Language: sk\n"
+"X-Crowdin-File: /electrumsys-client/messages.pot\n"
+
+#: electrumsys/exchange_rate.py:574
+msgid "  (No FX rate available)"
+msgstr "  (Nie je k dispozícii výmenný kurz)"
+
+#: electrumsys/gui/qt/history_list.py:164
+msgid " confirmation"
+msgstr " potvrdenie"
+
+#: electrumsys/gui/qt/main_window.py:611
+msgid "&About"
+msgstr "&O aplikácii"
+
+#: electrumsys/gui/qt/main_window.py:186 electrumsys/gui/qt/main_window.py:557
+msgid "&Addresses"
+msgstr "&Adresy"
+
+#: electrumsys/gui/qt/main_window.py:612
+msgid "&Check for updates"
+msgstr "&Vyhľadať aktualizácie"
+
+#: electrumsys/gui/qt/main_window.py:615
+msgid "&Documentation"
+msgstr "&Dokumentácia"
+
+#: electrumsys/gui/qt/main_window.py:618
+msgid "&Donate to server"
+msgstr "&Prispieť na server"
+
+#: electrumsys/gui/qt/main_window.py:597
+msgid "&Encrypt/decrypt message"
+msgstr "&Šifrovať/dešifrovať správu"
+
+#: electrumsys/gui/qt/main_window.py:553 electrumsys/gui/qt/main_window.py:561
+#: electrumsys/gui/qt/main_window.py:566
+msgid "&Export"
+msgstr "&Exportovať"
+
+#: electrumsys/gui/qt/main_window.py:536
+msgid "&File"
+msgstr "&Súbor"
+
+#: electrumsys/gui/qt/main_window.py:558 electrumsys/gui/qt/main_window.py:563
+msgid "&Filter"
+msgstr "&Filter"
+
+#: electrumsys/gui/qt/main_window.py:606
+msgid "&From QR code"
+msgstr "&Z QR kódu"
+
+#: electrumsys/gui/qt/main_window.py:603
+msgid "&From file"
+msgstr "&Zo súboru"
+
+#: electrumsys/gui/qt/main_window.py:604
+msgid "&From text"
+msgstr "&Z textu"
+
+#: electrumsys/gui/qt/main_window.py:605
+msgid "&From the blockchain"
+msgstr "&Z blockchain"
+
+#: electrumsys/gui/qt/main_window.py:610
+msgid "&Help"
+msgstr "&Pomoc"
+
+#: electrumsys/gui/qt/main_window.py:562
+msgid "&History"
+msgstr "&História"
+
+#: electrumsys/gui/qt/main_window.py:552 electrumsys/gui/qt/main_window.py:560
+msgid "&Import"
+msgstr "&Importovať"
+
+#: electrumsys/gui/qt/main_window.py:546
+msgid "&Information"
+msgstr "&Informácie"
+
+#: electrumsys/gui/qt/main_window.py:559
+msgid "&Labels"
+msgstr "&Menovky"
+
+#: electrumsys/gui/qt/main_window.py:602
+msgid "&Load transaction"
+msgstr "&Načítať transakcie"
+
+#: electrumsys/gui/qt/main_window.py:593
+msgid "&Network"
+msgstr "&Sieť"
+
+#: electrumsys/gui/qt/main_window.py:568
+msgid "&New"
+msgstr "&Nový"
+
+#: electrumsys/gui/qt/main_window.py:539
+msgid "&New/Restore"
+msgstr "&Nový/Obnoviť"
+
+#: electrumsys/gui/qt/main_window.py:613
+msgid "&Official website"
+msgstr "&Oficiálna webstránka"
+
+#: electrumsys/gui/qt/main_window.py:538
+msgid "&Open"
+msgstr "&Otvoriť"
+
+#: electrumsys/gui/qt/main_window.py:548
+msgid "&Password"
+msgstr "&Heslo"
+
+#: electrumsys/gui/qt/main_window.py:600
+msgid "&Pay to many"
+msgstr "&Hromadná platba"
+
+#: electrumsys/gui/qt/main_window.py:565
+msgid "&Plot"
+msgstr "Zakresliť"
+
+#: electrumsys/gui/qt/main_window.py:594
+msgid "&Plugins"
+msgstr "&Doplnky"
+
+#: electrumsys/gui/qt/main_window.py:550
+msgid "&Private keys"
+msgstr "&Súkromné kľúče"
+
+#: electrumsys/gui/qt/main_window.py:543
+msgid "&Quit"
+msgstr "&Skončiť"
+
+#: electrumsys/gui/qt/main_window.py:537
+msgid "&Recently open"
+msgstr "&Naposledy otvorené"
+
+#: electrumsys/gui/qt/main_window.py:616
+msgid "&Report Bug"
+msgstr "&Nahlásiť chybu v programe"
+
+#: electrumsys/gui/qt/main_window.py:540
+msgid "&Save Copy"
+msgstr "&Uložiť kópiu"
+
+#: electrumsys/gui/qt/main_window.py:549
+msgid "&Seed"
+msgstr "&Seed"
+
+#: electrumsys/gui/qt/main_window.py:596
+msgid "&Sign/verify message"
+msgstr "&Podpísať/overiť správu"
+
+#: electrumsys/gui/qt/main_window.py:564
+msgid "&Summary"
+msgstr "&Zhrnutie"
+
+#: electrumsys/gui/qt/main_window.py:551
+msgid "&Sweep"
+msgstr "Zhrnúť"
+
+#: electrumsys/gui/qt/main_window.py:589
+msgid "&Tools"
+msgstr "&Nástroje"
+
+#: electrumsys/gui/qt/main_window.py:583
+msgid "&View"
+msgstr "&Zobrazenie"
+
+#: electrumsys/gui/qt/main_window.py:545
+msgid "&Wallet"
+msgstr "&Peňaženka"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:627
+msgid "(Touch {} of {})"
+msgstr "(Dotknite sa {} z {})"
+
+#: electrumsys/plugins/virtualkeyboard/qt.py:15
+msgid "+"
+msgstr "+"
+
+#: electrumsys/gui/qt/util.py:56
+msgid "1 day"
+msgstr "1 deň"
+
+#: electrumsys/gui/qt/util.py:55
+msgid "1 hour"
+msgstr "1 hodina"
+
+#: electrumsys/gui/qt/util.py:57
+msgid "1 week"
+msgstr "1 týždeň"
+
+#: electrumsys/plugins/revealer/qt.py:458
+msgid "1. Place this paper on a flat and well iluminated surface."
+msgstr "1. Položte tento papier na rovnú a dobre osvetlenú plochu."
+
+#: electrumsys/plugins/revealer/qt.py:459
+msgid "2. Align your Revealer borderlines to the dashed lines on the top and left."
+msgstr "2. Priblížte okraje svojho Revealera k prerušovaným čiaram hore a vľavo."
+
+#: electrumsys/plugins/revealer/qt.py:460
+msgid "3. Press slightly the Revealer against the paper and read the numbers that best match on the opposite sides. "
+msgstr "3. Jemne pritlačte Revealer na papier a prečítajte čísla, ktoré sa najviac zhodujú s opačnou stranou. "
+
+#: electrumsys/plugins/revealer/qt.py:462
+msgid "4. Type the numbers in the software"
+msgstr "4. Zadajte čísla v softvéri"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:187
+msgid "A backup is saved automatically when generating a new wallet."
+msgstr "Pri tvorbe novej peňaženky sa automaticky uloží záloha."
+
+#: electrumsys/gui/qt/main_window.py:496
+msgid "A copy of your wallet file was created in"
+msgstr "Kópia vašej peňaženky bola vytvorená v"
+
+#: electrumsys/gui/qt/installwizard.py:37
+msgid "A few examples"
+msgstr "Niekoľko príkladov"
+
+#: electrumsys/plugin.py:449
+msgid "A library is probably missing."
+msgstr "Pravdepodobne chýba knižnica."
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:79
+msgid "A small fee will be charged on each transaction that uses the remote server.  You may check and modify your billing preferences once the installation is complete."
+msgstr "Pri každej transakcii, ktorá využíva vzdialený server, bude účtovaný malý poplatok. Po ukončení inštalácie si môžete skontrolovať a upraviť svoje nastavenia fakturácie."
+
+#: electrumsys/gui/qt/main_window.py:1183
+msgid "A suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction."
+msgstr "Navrhnutý poplatok sa automaticky pridáva k tomuto poľu. Môžete to prepísať. Navrhovaný poplatok sa zväčšuje s veľkosťou transakcie."
+
+#: electrumsys/gui/kivy/main.kv:445
+msgid "About"
+msgstr "O programe"
+
+#: electrumsys/gui/kivy/uix/ui_screens/about.kv:4
+msgid "About electrumsys"
+msgstr "O aplikácii electrumsys"
+
+#: electrumsys/plugins/trustedcoin/qt.py:230
+msgid "Accept"
+msgstr "Potvrdiť"
+
+#: electrumsys/plugins/keepkey/qt.py:75
+msgid "Accept Word"
+msgstr "Prijať slovo"
+
+#: electrumsys/gui/qt/history_list.py:327
+msgid "Acquisition price"
+msgstr "Obstarávacia cena"
+
+#: electrumsys/gui/qt/installwizard.py:404
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:1017
+msgid "Add Cosigner"
+msgstr "Pridať spolupodpisovateľa"
+
+#: electrumsys/base_wizard.py:190
+msgid "Add a cosigner to your multi-sig wallet"
+msgstr "Pridať spolupodpisovateľa k vašej multi-sig peňaženke"
+
+#: electrumsys/plugins/virtualkeyboard/__init__.py:4
+msgid "Add an optional virtual keyboard to the password dialog."
+msgstr "Pridať voliteľnú virtuálnu klávesnicu k dialógovému oknu hesla."
+
+#: electrumsys/base_wizard.py:179
+msgid "Add cosigner"
+msgstr "Pridať spolupodpisovateľa"
+
+#: electrumsys/gui/qt/main_window.py:1642 electrumsys/gui/kivy/uix/screens.py:294
+msgid "Additional fees"
+msgstr "Dodatočné poplatky"
+
+#: electrumsys/gui/qt/main_window.py:1122
+msgid "Additional {} satoshis are going to be added."
+msgstr "Pridá sa ďalších {} satoshi."
+
+#: electrumsys/gui/qt/util.py:353 electrumsys/gui/qt/utxo_list.py:47
+#: electrumsys/gui/qt/address_list.py:90 electrumsys/gui/qt/contact_list.py:49
+#: electrumsys/gui/qt/request_list.py:53 electrumsys/gui/qt/address_dialog.py:45
+#: electrumsys/gui/qt/main_window.py:2139 electrumsys/gui/qt/main_window.py:2252
+#: electrumsys/gui/qt/main_window.py:2332
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:40
+msgid "Address"
+msgstr "Adresa"
+
+#: electrumsys/gui/kivy/main.kv:101
+msgid "Address copied to clipboard"
+msgstr "Adresa sa skopírovala do schránky"
+
+#: electrumsys/wallet.py:1080 electrumsys/plugins/hw_wallet/plugin.py:77
+#: electrumsys/gui/qt/main_window.py:2284
+msgid "Address not in wallet."
+msgstr "Adresa nie je v peňaženke."
+
+#: electrumsys/gui/qt/address_dialog.py:57
+msgid "Address:"
+msgstr "Adresa:"
+
+#: electrumsys/gui/text.py:69
+msgid "Addresses"
+msgstr "Adresy"
+
+#: electrumsys/wallet.py:764
+msgid "Addresses generated:"
+msgstr "Vygenerované adresy:"
+
+#: electrumsys/plugins/trezor/qt.py:580 electrumsys/plugins/keepkey/qt.py:586
+#: electrumsys/plugins/safe_t/qt.py:494
+msgid "Advanced"
+msgstr "Pokročilé"
+
+#: electrumsys/plugins/trezor/qt.py:347 electrumsys/plugins/keepkey/qt.py:383
+#: electrumsys/plugins/safe_t/qt.py:261
+msgid "After disabling passphrases, you can only pair this electrumsys wallet if it had an empty passphrase.  If its passphrase was not empty, you will need to create a new wallet with the install wizard.  You can use this wallet again at any time by re-enabling passphrases and entering its passphrase."
+msgstr "Po vypnutí prístupových fráz môžete spárovať toto zariadenie s peňaženkou electrumsys, iba ak mala prázdnu prístupovú frázu. Ak jej prístupová fráza nebola prázdna, budete si musieť vytvoriť novú peňaženku pomocou sprievodcu inštaláciou. Túto peňaženku môžete kedykoľvek opätovne použiť znovu zapnutím prístupových fráz a zadaním jej prístupovej frázy."
+
+#: electrumsys/gui/qt/address_list.py:62 electrumsys/gui/qt/address_list.py:66
+#: electrumsys/gui/qt/history_list.py:405 electrumsys/gui/qt/history_list.py:429
+msgid "All"
+msgstr "Všetko"
+
+#: electrumsys/plugins/greenaddress_instant/__init__.py:4
+msgid "Allows validating if your transactions have instant confirmations by GreenAddress"
+msgstr "Umožňuje validáciu, ak vaše transakcie majú okamžité potvrdenia z GreenAddress"
+
+#: electrumsys/gui/qt/update_checker.py:88
+msgid "Already up to date"
+msgstr "Už je v najnovšej verzii"
+
+#: electrumsys/gui/qt/main_window.py:1246
+msgid "Also, dust is not kept as change, but added to the fee."
+msgstr "Dust (prach) sa tiež neuchováva ako zvyšok, ale sa pridáva k poplatku."
+
+#: electrumsys/gui/qt/main_window.py:1247
+msgid "Also, when batching RBF transactions, BIP 125 imposes a lower bound on the fee."
+msgstr "Takisto pri dávkovaní transakcií RBF BIP 125 ukladá nižšiu spodnú hranicu pre poplatok."
+
+#: electrumsys/plugins/revealer/qt.py:181
+msgid "Always check your backups."
+msgstr "Vždy si kontrolujte svoje zálohy."
+
+#: electrumsys/gui/text.py:109 electrumsys/gui/text.py:180
+#: electrumsys/gui/qt/utxo_list.py:49 electrumsys/gui/qt/request_list.py:56
+#: electrumsys/gui/qt/history_list.py:333 electrumsys/gui/qt/invoice_list.py:52
+#: electrumsys/gui/qt/main_window.py:1163 electrumsys/gui/qt/main_window.py:1960
+#: electrumsys/gui/stdio.py:108 electrumsys/gui/kivy/uix/ui_screens/receive.kv:89
+#: electrumsys/gui/kivy/uix/ui_screens/receive.kv:90
+#: electrumsys/gui/kivy/uix/ui_screens/send.kv:53
+#: electrumsys/gui/kivy/uix/ui_screens/send.kv:54
+msgid "Amount"
+msgstr "Čiastka"
+
+#: electrumsys/plugins/hw_wallet/plugin.py:147
+msgid "Amount for OP_RETURN output must be zero."
+msgstr "Suma pre výstup OP_RETURN musí byť 0."
+
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:34
+msgid "Amount received"
+msgstr "Prijatá suma"
+
+#: electrumsys/gui/qt/transaction_dialog.py:263
+msgid "Amount received:"
+msgstr "Obdržaná čiastka:"
+
+#: electrumsys/gui/qt/transaction_dialog.py:265
+msgid "Amount sent:"
+msgstr "Odoslaná čiastka:"
+
+#: electrumsys/gui/qt/main_window.py:1635 electrumsys/gui/kivy/uix/screens.py:288
+msgid "Amount to be sent"
+msgstr "Suma na odoslanie"
+
+#: electrumsys/gui/qt/main_window.py:1159
+msgid "Amount to be sent."
+msgstr "Čiastka k odoslaniu."
+
+#: electrumsys/gui/qt/exception_window.py:46
+msgid "An Error Occurred"
+msgstr "Vyskytla sa chyba"
+
+#: electrumsys/plugins/cosigner_pool/qt.py:205
+#: electrumsys/plugins/cosigner_pool/qt.py:210
+#: electrumsys/plugins/cosigner_pool/qt.py:216
+msgid "An encrypted transaction was retrieved from cosigning pool."
+msgstr "Zo spolupodpisovateľského fondu sa načítala šifrovaná transakcia."
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:183
+msgid "An uninitialized Digital Bitbox is detected."
+msgstr "Zistil sa neinicializovaný Digital Bitbox."
+
+#: electrumsys/base_wizard.py:311
+msgid "An unnamed {}"
+msgstr "{} bez názvu"
+
+#: electrumsys/plugins/trezor/qt.py:461 electrumsys/plugins/keepkey/qt.py:490
+#: electrumsys/plugins/safe_t/qt.py:375
+msgid "Apply"
+msgstr "Použiť"
+
+#: electrumsys/i18n.py:46
+msgid "Arabic"
+msgstr "Arabčina"
+
+#: electrumsys/plugins/trezor/qt.py:404 electrumsys/plugins/keepkey/qt.py:430
+#: electrumsys/plugins/safe_t/qt.py:318
+msgid "Are you SURE you want to wipe the device?\n"
+"Your wallet still has bitcoins in it!"
+msgstr "NAOZAJ si želáte vymazať toto zariadenie?\n"
+"Peňaženka stále obsahuje bitcoiny!"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:319
+msgid "Are you sure you want to erase the Digital Bitbox?"
+msgstr "Ste si istý/á, že chcete vymazať tento Digital Bitbox?"
+
+#: electrumsys/plugins/trezor/qt.py:358 electrumsys/plugins/keepkey/qt.py:394
+#: electrumsys/plugins/safe_t/qt.py:272
+msgid "Are you sure you want to proceed?"
+msgstr "Ste si istý/á, že chcete pokračovať?"
+
+#: electrumsys/gui/qt/history_list.py:609
+msgid "Are you sure you want to remove this transaction and {} child transactions?"
+msgstr "Ste si istý/á, že chcete odstrániť túto transakciu a {} detských transakcií?"
+
+#: electrumsys/gui/qt/history_list.py:606
+msgid "Are you sure you want to remove this transaction?"
+msgstr "Ste si istý/á, že chcete odstrániť túto transakciu?"
+
+#: electrumsys/i18n.py:58
+msgid "Armenian"
+msgstr "Arménčina"
+
+#: electrumsys/gui/qt/main_window.py:1244
+msgid "At most 100 satoshis might be lost due to this rounding."
+msgstr "V dôsledku tohto zaokrúhlenia by ste mohli prísť maximálne o 100 satoshi."
+
+#: electrumsys/plugins/audio_modem/__init__.py:3
+msgid "Audio MODEM"
+msgstr "Audio MODEM"
+
+#: electrumsys/plugins/audio_modem/qt.py:47
+msgid "Audio Modem Settings"
+msgstr "Nastavenia audio modemu"
+
+#: electrumsys/plugins/trustedcoin/qt.py:102
+msgid "Authorization"
+msgstr "Autorizácia"
+
+#: electrumsys/gui/qt/installwizard.py:598
+msgid "Auto connect"
+msgstr "Automaticky pripojiť"
+
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:33
+msgid "Auto-connect"
+msgstr "Automatické pripojenie"
+
+#: electrumsys/gui/qt/main_window.py:2951
+msgid "Automatically check for software updates"
+msgstr "Automaticky vyhľadávať softvérové aktualizácie"
+
+#: electrumsys/gui/qt/seed_dialog.py:82
+msgid "BIP39 seed"
+msgstr "Seed BIP39"
+
+#: electrumsys/gui/qt/seed_dialog.py:74
+msgid "BIP39 seeds can be imported in electrumsys, so that users can access funds locked in other wallets."
+msgstr "Seedy BIP39 možno importovať do Electra, aby používatelia mali prístup k prostriedkom uzamknutým v iných peňaženkách."
+
+#: electrumsys/gui/qt/seed_dialog.py:76
+msgid "BIP39 seeds do not include a version number, which compromises compatibility with future software."
+msgstr "Seedy BIP39 neobsahujú číslo verzie, čo ohrozuje kompatibilitu s budúcim softvérom."
+
+#: electrumsys/gui/qt/installwizard.py:91 electrumsys/gui/qt/installwizard.py:125
+#: electrumsys/gui/qt/installwizard.py:126
+msgid "Back"
+msgstr "Späť"
+
+#: electrumsys/gui/text.py:109 electrumsys/gui/text.py:142
+#: electrumsys/gui/qt/address_list.py:92 electrumsys/gui/qt/address_list.py:93
+#: electrumsys/gui/qt/history_list.py:334 electrumsys/gui/qt/main_window.py:803
+#: electrumsys/gui/stdio.py:108 electrumsys/gui/stdio.py:120
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:52
+#: electrumsys/gui/kivy/uix/ui_screens/status.kv:33 electrumsys/gui/kivy/main.kv:392
+msgid "Balance"
+msgstr "Zostatok"
+
+#: electrumsys/gui/text.py:69
+msgid "Banner"
+msgstr "Banner"
+
+#: electrumsys/gui/qt/main_window.py:2889
+msgid "Base unit"
+msgstr "Základná jednotka"
+
+#: electrumsys/gui/qt/main_window.py:2886
+msgid "Base unit of your wallet."
+msgstr "Základná jednotka vašej peňaženky."
+
+#: electrumsys/gui/qt/main_window.py:2824
+msgid "Batch RBF transactions"
+msgstr "Spracúvať transakcie RBF v dávkach"
+
+#: electrumsys/gui/qt/main_window.py:647
+msgid "Before reporting a bug, upgrade to the most recent version of electrumsys (latest release or git HEAD), and include the version number in your report."
+msgstr "Pred nahlásením chyby upgradujte na najnovšiu verziu aplikácie electrumsys (posledné vydanie alebo git HEAD) a uveďte číslo jej verzie vo svojom hlásení."
+
+#: electrumsys/plugins/audio_modem/qt.py:50
+msgid "Bit rate [kbps]: "
+msgstr "Bitová rýchlosť [kbps]: "
+
+#: electrumsys/gui/kivy/uix/ui_screens/receive.kv:71
+msgid "Bitcoin Address"
+msgstr "Bitcoinová adresa"
+
+#: electrumsys/gui/qt/main_window.py:1572
+msgid "Bitcoin Address is None"
+msgstr "Nebola zadaná Bitcoin Adresa"
+
+#: electrumsys/gui/qt/main_window.py:875
+msgid "Bitcoin address where the payment should be received. Note that each payment request uses a different Bitcoin address."
+msgstr "Bitcoinová adresa, kam má byť zaslaná platba. Každá žiadosť o platbu používa inú bitcoinovú adresu."
+
+#: electrumsys/gui/qt/main_window.py:1181
+msgid "Bitcoin transactions are in general not free. A transaction fee is paid by the sender of the funds."
+msgstr "Transakcie Bitcoinov všeobecne nie sú bezplatné. Poplatok za transakciu platí odosielateľ peňažných prostriedkov."
+
+#: electrumsys/gui/qt/network_dialog.py:313
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:47
+msgid "Blockchain"
+msgstr "Blockchain"
+
+#: electrumsys/plugins/coldcard/qt.py:153
+msgid "Bootloader"
+msgstr "Bootloader"
+
+#: electrumsys/plugins/trezor/qt.py:438 electrumsys/plugins/keepkey/qt.py:466
+#: electrumsys/plugins/safe_t/qt.py:352
+msgid "Bootloader Hash"
+msgstr "Hodnota hash bootloadera"
+
+#: electrumsys/plugins/revealer/qt.py:744
+msgid "Bottom"
+msgstr "Spodok"
+
+#: electrumsys/i18n.py:67
+msgid "Brasilian"
+msgstr "Brazílčina"
+
+#: electrumsys/gui/qt/transaction_dialog.py:126
+msgid "Broadcast"
+msgstr "Zverejniť"
+
+#: electrumsys/gui/qt/main_window.py:1736
+msgid "Broadcasting transaction..."
+msgstr "Vysiela sa transakcia..."
+
+#: electrumsys/plugins/coldcard/qt.py:152
+msgid "Build Date"
+msgstr "Dátum zostavy"
+
+#: electrumsys/i18n.py:47
+msgid "Bulgarian"
+msgstr "Bulharčina"
+
+#: electrumsys/gui/qt/main_window.py:3319
+msgid "Bump Fee"
+msgstr "Navýšiť poplatok"
+
+#: electrumsys/gui/qt/util.py:366
+msgid "CSV"
+msgstr "CSV"
+
+#: electrumsys/plugins/revealer/qt.py:452
+msgid "Calibration sheet"
+msgstr "Kalibračný list"
+
+#: electrumsys/plugins/revealer/qt.py:736
+msgid "Calibration values:"
+msgstr "Kalibračné hodnoty:"
+
+#: electrumsys/gui/qt/main_window.py:3315
+#: electrumsys/gui/kivy/uix/dialogs/tx_dialog.py:139
+msgid "Can't bump fee: unknown fee for original transaction."
+msgstr "Poplatok sa nedá navýšiť: nie je známy poplatok pre pôvodnú transakciu."
+
+#: electrumsys/gui/qt/history_list.py:513
+msgid "Can't plot history."
+msgstr "Nie je možné znázorniť históriu."
+
+#: electrumsys/plugins/trezor/qt.py:67 electrumsys/plugins/keepkey/qt.py:83
+#: electrumsys/plugins/trustedcoin/qt.py:208 electrumsys/gui/qt/util.py:178
+#: electrumsys/gui/qt/installwizard.py:91 electrumsys/gui/qt/installwizard.py:126
+#: electrumsys/gui/qt/installwizard.py:601
+msgid "Cancel"
+msgstr "Zrušiť"
+
+#: electrumsys/plugins/ledger/ledger.py:278 electrumsys/plugins/ledger/ledger.py:291
+#: electrumsys/plugins/ledger/ledger.py:489
+msgid "Cancelled by user"
+msgstr "Zrušené používateľom"
+
+#: electrumsys/base_wizard.py:489
+msgid "Cannot add this cosigner:"
+msgstr "Nie je možné pridať tohto spolupodpisovateľa:"
+
+#: electrumsys/gui/kivy/main_window.py:946
+msgid "Cannot broadcast transaction"
+msgstr "Nie je možné vyslať transakciu"
+
+#: electrumsys/wallet.py:801 electrumsys/wallet.py:832
+msgid "Cannot bump fee"
+msgstr "Poplatok sa nedá navýšiť"
+
+#: electrumsys/gui/qt/__init__.py:262
+msgid "Cannot create window for wallet"
+msgstr "Nie je možné vytvoriť okno pre peňaženku"
+
+#: electrumsys/gui/qt/__init__.py:222 electrumsys/gui/qt/__init__.py:241
+msgid "Cannot load wallet"
+msgstr "Nie je možné načítať peňaženku"
+
+#: electrumsys/gui/qt/installwizard.py:232
+msgid "Cannot read file"
+msgstr "Nie je možné čítať súbor"
+
+#: electrumsys/gui/qt/main_window.py:2288
+msgid "Cannot sign messages with this type of address:"
+msgstr "Nie je možné podpísať správy s týmto typom adresy:"
+
+#: electrumsys/gui/qt/history_list.py:328
+msgid "Capital Gains"
+msgstr "Kapitálové výnosy"
+
+#: electrumsys/gui/qt/history_list.py:501
+msgid "Capital gains"
+msgstr "Kapitálové výnosy"
+
+#: electrumsys/gui/qt/network_dialog.py:377
+#, python-brace-format
+msgid "Chain split detected at block {0}"
+msgstr "Bolo zistené rozštiepenie reťazca na bloku {0}"
+
+#: electrumsys/gui/qt/address_list.py:62
+msgid "Change"
+msgstr "Drobné"
+
+#: electrumsys/plugins/trezor/qt.py:316 electrumsys/plugins/keepkey/qt.py:350
+#: electrumsys/plugins/safe_t/qt.py:230
+msgid "Change PIN"
+msgstr "Zmeniť PIN"
+
+#: electrumsys/gui/qt/password_dialog.py:61
+msgid "Change Password"
+msgstr "Zmeniť heslo"
+
+#: electrumsys/plugins/trezor/qt.py:485 electrumsys/plugins/safe_t/qt.py:399
+msgid "Change..."
+msgstr "Zmeniť..."
+
+#: electrumsys/gui/kivy/main_window.py:1067
+msgid "Changing PIN code."
+msgstr "Zmeniť PIN kód."
+
+#: electrumsys/plugins/trustedcoin/qt.py:295
+msgid "Check this box to request a new secret. You will need to retype your seed."
+msgstr "Pre vyžiadanie nového tajného kódu zaškrtnite toto políčko. Budete musieť znova zadať svoj seed."
+
+#: electrumsys/plugins/trezor/clientbase.py:24
+#: electrumsys/plugins/keepkey/clientbase.py:22
+#: electrumsys/plugins/safe_t/clientbase.py:24
+msgid "Check your {} device to continue"
+msgstr "Pre pokračovanie vyberte svoje zariadenie {}"
+
+#: electrumsys/gui/qt/update_checker.py:91
+msgid "Checking for updates..."
+msgstr "Vyhľadávanie aktualizácií..."
+
+#: electrumsys/gui/qt/main_window.py:3261
+msgid "Child Pays for Parent"
+msgstr "Dieťa platí za rodiča"
+
+#: electrumsys/gui/qt/history_list.py:596
+msgid "Child pays for parent"
+msgstr "Dieťa platí za rodiča"
+
+#: electrumsys/i18n.py:79
+msgid "Chinese Simplified"
+msgstr "Čínština (zjednodušená)"
+
+#: electrumsys/i18n.py:80
+msgid "Chinese Traditional"
+msgstr "Čínština (tradičná)"
+
+#: electrumsys/plugins/trezor/qt.py:364 electrumsys/plugins/keepkey/qt.py:401
+#: electrumsys/plugins/safe_t/qt.py:278
+msgid "Choose Homescreen"
+msgstr "Vybrať domovskú obrazovku"
+
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:1042
+msgid "Choose PIN code"
+msgstr "Zvoľte PIN kód"
+
+#: electrumsys/base_wizard.py:570
+msgid "Choose Seed type"
+msgstr "Zvoľte typ seedu"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:336
+msgid "Choose a backup file:"
+msgstr "Zvoľte záložný súbor:"
+
+#: electrumsys/gui/qt/installwizard.py:30
+msgid "Choose a password to encrypt your wallet keys."
+msgstr "Zvoľte heslo pre zašifrovanie kľúčov peňaženky."
+
+#: electrumsys/gui/kivy/main_window.py:129
+msgid "Choose a server"
+msgstr "Vybrať server"
+
+#: electrumsys/gui/qt/main_window.py:2995
+msgid "Choose coin (UTXO) selection method.  The following are available:\n\n"
+msgstr "Vyberte spôsob výberu mincí (UTXO). K dispozícii sú:\n\n"
+
+#: electrumsys/gui/kivy/uix/ui_screens/server.kv:43
+msgid "Choose from peers"
+msgstr "Vyberte z peerov"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:248
+msgid "Choose how to initialize your Digital Bitbox:"
+msgstr "Vyberte si, ako chcete inicializovať svoj Digital Bitbox:"
+
+#: electrumsys/plugins/trezor/trezor.py:167
+#: electrumsys/plugins/keepkey/keepkey.py:161
+#: electrumsys/plugins/safe_t/safe_t.py:166
+msgid "Choose how you want to initialize your {}.\n\n"
+"The first two methods are secure as no secret information is entered into your computer.\n\n"
+"For the last two methods you input secrets on your keyboard and upload them to your {}, and so you should only do those on a computer you know to be trustworthy and free of malware."
+msgstr "Vyberte, ako chcete inicializovať vaše zariadenie {}.\n\n"
+"Prvé dve metódy sú bezpečné, pretože sa pri nich do vášho počítača nezadávajú žiadne tajné informácie.\n\n"
+"Pri posledných dvoch metódach zadávate tajné kódy na vašej klávesnici a nahrávate ich do svojho zariadenia {}, takže by ste to mali vykonávať iba na počítači, o ktorom viete, že je dôveryhodný a neobsahuje malvér."
+
+#: electrumsys/plugins/trezor/clientbase.py:23
+#: electrumsys/plugins/safe_t/clientbase.py:23
+msgid "Choose on your {} device where to enter your passphrase"
+msgstr "Zvoľte na svojom zariadení {}, kde zadať prístupovú frázu"
+
+#: electrumsys/gui/qt/installwizard.py:643
+msgid "Choose the number of signatures needed to unlock funds in your wallet:"
+msgstr "Vyberte počet podpisov potrebných pre odomknutie prostriedkov vo vašej peňaženke:"
+
+#: electrumsys/base_wizard.py:361
+msgid "Choose the type of addresses in your wallet."
+msgstr "Vyberte typ adries vo vašej peňaženke."
+
+#: electrumsys/gui/qt/main_window.py:2912
+msgid "Choose which online block explorer to use for functions that open a web browser"
+msgstr "Vyberte online průzkumník bloků k používání pro funkce, které otevírají webový prohlížeč"
+
+#: electrumsys/gui/kivy/main_window.py:144
+msgid "Choose your chain"
+msgstr "Vyberte svoj reťazec"
+
+#: electrumsys/gui/qt/installwizard.py:172
+msgid "Choose..."
+msgstr "Vyberte..."
+
+#: electrumsys/gui/qt/main_window.py:1284
+#: electrumsys/gui/kivy/uix/ui_screens/send.kv:116
+msgid "Clear"
+msgstr "Vymazať"
+
+#: electrumsys/plugins/trezor/qt.py:516 electrumsys/plugins/keepkey/qt.py:522
+#: electrumsys/plugins/safe_t/qt.py:430
+msgid "Clear the session after the specified period of inactivity.  Once a session has timed out, your PIN and passphrase (if enabled) must be re-entered to use the device."
+msgstr "Vymažte reláciu po stanovenej dobe nečinnosti. Keď uplynie časový limit pre reláciu, musíte pre použitie zariadenia znova zadať svoj PIN a prístupovú frázu (ak je povolená)."
+
+#: electrumsys/plugins/ledger/auth2fa.py:33
+msgid "Click Pair button to begin pairing a mobile phone."
+msgstr "Pre spustenie párovania mobilného telefónu kliknite na tlačidlo Párovať."
+
+#: electrumsys/gui/qt/console.py:68
+msgid "Click here to hide this message."
+msgstr "Pre skrytie tejto správy kliknite sem."
+
+#: electrumsys/gui/kivy/uix/screens.py:238
+msgid "Clipboard is empty"
+msgstr "Schránka je prázdna"
+
+#: electrumsys/gui/qt/util.py:154 electrumsys/gui/qt/transaction_dialog.py:141
+#: electrumsys/gui/qt/qrcodewidget.py:124 electrumsys/gui/qt/update_checker.py:61
+#: electrumsys/gui/qt/__init__.py:147 electrumsys/gui/qt/main_window.py:2350
+#: electrumsys/gui/qt/main_window.py:2417
+#: electrumsys/gui/kivy/uix/ui_screens/about.kv:54
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:82
+msgid "Close"
+msgstr "Zavrieť"
+
+#: electrumsys/gui/qt/main_window.py:187
+msgid "Co&ins"
+msgstr "Mi&nce"
+
+#: electrumsys/plugins/trustedcoin/qt.py:109
+msgid "Code"
+msgstr "Kód"
+
+#: electrumsys/gui/qt/main_window.py:2997
+#: electrumsys/gui/kivy/uix/dialogs/settings.py:153
+msgid "Coin selection"
+msgstr "Výber mince"
+
+#: electrumsys/plugins/coldcard/qt.py:98
+msgid "Coldcard Status"
+msgstr "Stav Coldcard"
+
+#: electrumsys/plugins/coldcard/__init__.py:6
+msgid "Coldcard Wallet"
+msgstr "Peňaženka Coldcard"
+
+#: electrumsys/gui/qt/main_window.py:2944
+msgid "Color theme"
+msgstr "Farebný motív"
+
+#: electrumsys/gui/qt/main_window.py:189
+msgid "Con&sole"
+msgstr "Kon&zola"
+
+#: electrumsys/gui/qt/main_window.py:188
+msgid "Con&tacts"
+msgstr "Kon&takty"
+
+#: electrumsys/plugins/trezor/qt.py:403 electrumsys/plugins/keepkey/qt.py:429
+#: electrumsys/plugins/safe_t/qt.py:317
+msgid "Confirm Device Wipe"
+msgstr "Potvrdiť vymazanie zariadenia"
+
+#: electrumsys/gui/qt/password_dialog.py:87
+msgid "Confirm Passphrase:"
+msgstr "Povrdiť prístupovú frázu:"
+
+#: electrumsys/gui/qt/password_dialog.py:102
+msgid "Confirm Password:"
+msgstr "Potvrďte heslo:"
+
+#: electrumsys/gui/qt/installwizard.py:425
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:990
+msgid "Confirm Seed"
+msgstr "Potvrdiť seed"
+
+#: electrumsys/base_wizard.py:610
+msgid "Confirm Seed Extension"
+msgstr "Potvrdiť rozšírenie seedu"
+
+#: electrumsys/plugins/trezor/qt.py:344 electrumsys/plugins/keepkey/qt.py:380
+#: electrumsys/plugins/safe_t/qt.py:258
+msgid "Confirm Toggle Passphrase Protection"
+msgstr "Potvrďte ochranu prepnutia prístupovej frázy"
+
+#: electrumsys/plugins/ledger/ledger.py:413
+msgid "Confirm Transaction on your Ledger device..."
+msgstr "Potvrďte transakciu na svojom zariadení Ledger..."
+
+#: electrumsys/plugins/trezor/clientbase.py:17
+#: electrumsys/plugins/keepkey/clientbase.py:15
+#: electrumsys/plugins/safe_t/clientbase.py:16
+msgid "Confirm internal entropy on your {} device to begin"
+msgstr "Na začiatok potvrďte internú entropiu na vašom zariadení {}"
+
+#: electrumsys/gui/kivy/uix/dialogs/password_dialog.py:134
+msgid "Confirm new PIN"
+msgstr "Potvrďte nový PIN"
+
+#: electrumsys/plugins/trezor/clientbase.py:20
+#: electrumsys/plugins/keepkey/clientbase.py:18
+#: electrumsys/plugins/safe_t/clientbase.py:19
+msgid "Confirm on your {} device the message to sign"
+msgstr "Potvrďte na svojom zariadení {} správu určenú na podpis"
+
+#: electrumsys/plugins/trezor/clientbase.py:146
+#: electrumsys/plugins/keepkey/clientbase.py:179
+#: electrumsys/plugins/safe_t/clientbase.py:181
+msgid "Confirm on your {} device to change your PIN"
+msgstr "Potvrďte na svojom zariadení {} zmenu svojho PIN-u"
+
+#: electrumsys/plugins/trezor/clientbase.py:139
+#: electrumsys/plugins/keepkey/clientbase.py:172
+#: electrumsys/plugins/safe_t/clientbase.py:174
+msgid "Confirm on your {} device to change your home screen"
+msgstr "Potvrďte na svojom zariadení {} zmenu domovskej obrazovky"
+
+#: electrumsys/plugins/trezor/clientbase.py:144
+#: electrumsys/plugins/keepkey/clientbase.py:177
+#: electrumsys/plugins/safe_t/clientbase.py:179
+msgid "Confirm on your {} device to disable PIN protection"
+msgstr "Potvrďte na svojom zariadení {} vypnutie ochrany PIN-om"
+
+#: electrumsys/plugins/trezor/clientbase.py:127
+#: electrumsys/plugins/keepkey/clientbase.py:161
+#: electrumsys/plugins/safe_t/clientbase.py:163
+msgid "Confirm on your {} device to disable passphrases"
+msgstr "Potvrďte na svojom zariadení {} vypnutie prístupových fráz"
+
+#: electrumsys/plugins/trezor/clientbase.py:129
+#: electrumsys/plugins/keepkey/clientbase.py:163
+#: electrumsys/plugins/safe_t/clientbase.py:165
+msgid "Confirm on your {} device to enable passphrases"
+msgstr "Potvrďte na svojom zariadení {} zapnutie prístupových fráz"
+
+#: electrumsys/plugins/trezor/clientbase.py:148
+#: electrumsys/plugins/keepkey/clientbase.py:181
+#: electrumsys/plugins/safe_t/clientbase.py:183
+msgid "Confirm on your {} device to set a PIN"
+msgstr "Potvrďte na svojom zariadení {} nastavenie PIN-u"
+
+#: electrumsys/plugins/trezor/clientbase.py:19
+#: electrumsys/plugins/keepkey/clientbase.py:17
+#: electrumsys/plugins/safe_t/clientbase.py:18
+msgid "Confirm on your {} that you want to wipe it clean"
+msgstr "Potvrďte na svojom zariadení {}, že ho chcete celkom vymazať"
+
+#: electrumsys/plugins/trezor/clientbase.py:135
+#: electrumsys/plugins/keepkey/clientbase.py:168
+#: electrumsys/plugins/safe_t/clientbase.py:170
+msgid "Confirm the new label on your {} device"
+msgstr "Potvrďte na svojom zariadení {} novú menovku"
+
+#: electrumsys/plugins/trezor/clientbase.py:21
+#: electrumsys/plugins/keepkey/clientbase.py:19
+#: electrumsys/plugins/safe_t/clientbase.py:20
+msgid "Confirm the total amount spent and the transaction fee on your {} device"
+msgstr "Potvrďte na svojom zariadení {} celkovú vynaloženú sumu a transakčný poplatok"
+
+#: electrumsys/plugins/trezor/clientbase.py:16
+#: electrumsys/plugins/keepkey/clientbase.py:14
+#: electrumsys/plugins/safe_t/clientbase.py:15
+msgid "Confirm the transaction output on your {} device"
+msgstr "Potvrďte na svojom zariadení {} výstup transakcie"
+
+#: electrumsys/plugins/trezor/clientbase.py:22
+#: electrumsys/plugins/keepkey/clientbase.py:21
+#: electrumsys/plugins/safe_t/clientbase.py:22
+msgid "Confirm wallet address on your {} device"
+msgstr "Potvrďte na svojom zariadení {} adresu peňaženky"
+
+#: electrumsys/gui/kivy/uix/ui_screens/status.kv:36
+msgid "Confirmed"
+msgstr "Potvrdené"
+
+#: electrumsys/plugins/ledger/ledger.py:455 electrumsys/plugins/ledger/ledger.py:479
+msgid "Confirmed. Signing Transaction..."
+msgstr "Potvrdené. Transakcia sa podpisuje..."
+
+#: electrumsys/gui/qt/network_dialog.py:73
+msgid "Connected node"
+msgstr "Pripojený uzol"
+
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:55
+msgid "Connected nodes are on the same chain"
+msgstr "Pripojené uzly sú na tom istom reťazci"
+
+#: electrumsys/gui/qt/network_dialog.py:370
+#, python-brace-format
+msgid "Connected to {0} nodes."
+msgstr "Pripojené k {0} uzlom."
+
+#: electrumsys/wallet.py:771
+msgid "Connecting..."
+msgstr "Pripája sa..."
+
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:16
+msgid "Connections with electrumsys servers"
+msgstr "Pripojenia k serverom electrumsys"
+
+#: electrumsys/network.py:180 electrumsys/network.py:188 electrumsys/network.py:196
+msgid "Consider trying to connect to a different server, or updating electrumsys."
+msgstr "Zvážte pokúsiť sa pripojiť na iný server alebo aktualizovať aplikáciu electrumsys."
+
+#: electrumsys/gui/text.py:69 electrumsys/gui/qt/main_window.py:567
+msgid "Contacts"
+msgstr "Kontakty"
+
+#: electrumsys/gui/qt/util.py:160 electrumsys/gui/qt/qrcodewidget.py:116
+#: electrumsys/gui/kivy/uix/ui_screens/receive.kv:124
+msgid "Copy"
+msgstr "Kopírovať"
+
+#: electrumsys/gui/qt/request_list.py:156
+msgid "Copy URI"
+msgstr "Kopírovať URI"
+
+#: electrumsys/gui/qt/util.py:165
+msgid "Copy and Close"
+msgstr "Kopírovať a zavrieť"
+
+#: electrumsys/gui/kivy/uix/ui_screens/send.kv:36
+msgid "Copy and paste the recipient address using the Paste button, or use the camera to scan a QR code."
+msgstr "Skopírujte a prilepte adresu príjemcu pomocou tlačidla Prilepiť alebo naskenujte QR kód pomocou fotoaparátu."
+
+#: electrumsys/gui/qt/util.py:620
+msgid "Copy to clipboard"
+msgstr "Kopírovať do schránky"
+
+#: electrumsys/gui/qt/address_list.py:200 electrumsys/gui/qt/contact_list.py:89
+#: electrumsys/gui/qt/request_list.py:155 electrumsys/gui/qt/history_list.py:580
+#: electrumsys/gui/qt/invoice_list.py:110
+msgid "Copy {}"
+msgstr "Kopírovať {}"
+
+#: electrumsys/base_wizard.py:196
+msgid "Cosign with hardware device"
+msgstr "Spolupodpísať s hardvérovým zariadením"
+
+#: electrumsys/plugins/cosigner_pool/__init__.py:2
+msgid "Cosigner Pool"
+msgstr "Spolupodpisovateľský fond"
+
+#: electrumsys/gui/qt/main_window.py:2456
+msgid "Could not decode QR code"
+msgstr "Nie je možné dekódovať QR kód"
+
+#: electrumsys/plugins/trustedcoin/qt.py:238
+msgid "Could not retrieve Terms of Service:"
+msgstr "Nie je možné načítať Podmienky služby:"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:511
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:524
+msgid "Could not sign message"
+msgstr "Nie je možné podpísať správu"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:488
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:501
+msgid "Could not sign message."
+msgstr "Nie je možné podpísať správu."
+
+#: electrumsys/gui/qt/exception_window.py:103
+msgid "Crash report"
+msgstr "Hlásenie o zlyhaní"
+
+#: electrumsys/base_wizard.py:121
+msgid "Create"
+msgstr "Vytvoriť"
+
+#: electrumsys/plugins/revealer/qt.py:115
+msgid "Create a new Revealer"
+msgstr "Vytvoriť nového Revealera"
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:504 electrumsys/base_wizard.py:183
+msgid "Create a new seed"
+msgstr "Vytvoriť nový Seed"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:227
+msgid "Create a wallet using the current seed"
+msgstr "Vytvoriť peňaženku s použitím súčasného seedu"
+
+#: electrumsys/base_wizard.py:234
+msgid "Create keystore from a master key"
+msgstr "Vytvoriť úložisko kľúčov z hlavného kľúča"
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:501
+msgid "Create or restore"
+msgstr "Vytvoriť alebo obnoviť"
+
+#: electrumsys/gui/qt/util.py:214
+msgid "Critical Error"
+msgstr "Kritická chyba"
+
+#: electrumsys/gui/qt/password_dialog.py:104
+msgid "Current Password:"
+msgstr "Aktuálne heslo:"
+
+#: electrumsys/gui/qt/main_window.py:3322
+msgid "Current fee"
+msgstr "Aktuálny poplatok"
+
+#: electrumsys/gui/qt/fee_slider.py:38
+msgid "Current rate"
+msgstr "Aktuálne hodnotenie"
+
+#: electrumsys/gui/qt/update_checker.py:49
+msgid "Current version: {}"
+msgstr "Aktuálna verzia: {}"
+
+#: electrumsys/gui/qt/history_list.py:402 electrumsys/gui/qt/history_list.py:429
+msgid "Custom"
+msgstr "Vlastné"
+
+#: electrumsys/plugins/revealer/qt.py:389
+msgid "Custom secret"
+msgstr "Vlastný tajný kód"
+
+#: electrumsys/i18n.py:48
+msgid "Czech"
+msgstr "Čeština"
+
+#: electrumsys/i18n.py:49
+msgid "Danish"
+msgstr "Dánčina"
+
+#: electrumsys/gui/qt/main_window.py:2941
+msgid "Dark"
+msgstr "Tmavé"
+
+#: electrumsys/gui/qt/__init__.py:148
+msgid "Dark/Light"
+msgstr "Tmavé/Svetlé"
+
+#: electrumsys/gui/text.py:109 electrumsys/gui/qt/request_list.py:52
+#: electrumsys/gui/qt/history_list.py:331 electrumsys/gui/stdio.py:108
+#: electrumsys/gui/kivy/uix/dialogs/tx_dialog.py:114
+msgid "Date"
+msgstr "Dátum"
+
+#: electrumsys/gui/qt/transaction_dialog.py:252
+msgid "Date: {}"
+msgstr "Dátum: {}"
+
+#: electrumsys/base_wizard.py:301
+msgid "Debug message"
+msgstr "Správa o ladení"
+
+#: electrumsys/gui/qt/main_window.py:2413
+msgid "Decrypt"
+msgstr "Dešifrovať"
+
+#: electrumsys/i18n.py:45
+msgid "Default"
+msgstr "Predvolené"
+
+#: electrumsys/gui/qt/network_dialog.py:240
+msgid "Default Servers"
+msgstr "Predvolené servery"
+
+#: electrumsys/gui/qt/contact_list.py:97 electrumsys/gui/qt/request_list.py:158
+#: electrumsys/gui/qt/invoice_list.py:114 electrumsys/gui/qt/main_window.py:541
+#: electrumsys/gui/qt/main_window.py:1987
+#: electrumsys/gui/kivy/uix/dialogs/requests.py:126
+#: electrumsys/gui/kivy/uix/ui_screens/status.kv:81
+msgid "Delete"
+msgstr "Odstrániť"
+
+#: electrumsys/gui/qt/main_window.py:1982
+#: electrumsys/gui/kivy/uix/dialogs/invoices.py:158
+msgid "Delete invoice?"
+msgstr "Vymazať faktúru?"
+
+#: electrumsys/gui/kivy/uix/dialogs/requests.py:146
+msgid "Delete request"
+msgstr "Vymazať žiadosť"
+
+#: electrumsys/gui/qt/main_window.py:2200
+msgid "Delete wallet file?"
+msgstr "Vymazať súbor peňaženky?"
+
+#: electrumsys/gui/kivy/main_window.py:1015
+msgid "Delete wallet?"
+msgstr "Vymazať peňaženku?"
+
+#: electrumsys/gui/kivy/uix/dialogs/settings.py:139
+msgid "Denomination"
+msgstr "Denominácia"
+
+#: electrumsys/gui/text.py:109 electrumsys/gui/text.py:179
+#: electrumsys/gui/qt/transaction_dialog.py:246 electrumsys/gui/qt/request_list.py:55
+#: electrumsys/gui/qt/history_list.py:332 electrumsys/gui/qt/invoice_list.py:51
+#: electrumsys/gui/qt/main_window.py:883 electrumsys/gui/qt/main_window.py:1148
+#: electrumsys/gui/stdio.py:108 electrumsys/gui/kivy/uix/ui_screens/receive.kv:108
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:49
+#: electrumsys/gui/kivy/uix/ui_screens/send.kv:72
+msgid "Description"
+msgstr "Popis"
+
+#: electrumsys/gui/qt/main_window.py:1146
+msgid "Description of the transaction (not mandatory)."
+msgstr "Popis transakcie (nepovinné)."
+
+#: electrumsys/gui/qt/utxo_list.py:113 electrumsys/gui/qt/address_list.py:201
+#: electrumsys/gui/qt/history_list.py:587 electrumsys/gui/qt/invoice_list.py:111
+#: electrumsys/gui/kivy/uix/dialogs/addresses.py:124
+msgid "Details"
+msgstr "Detaily"
+
+#: electrumsys/gui/kivy/uix/ui_screens/about.kv:35
+msgid "Developers"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:437 electrumsys/plugins/keepkey/qt.py:465
+#: electrumsys/plugins/safe_t/qt.py:351
+msgid "Device ID"
+msgstr "ID zariadenia"
+
+#: electrumsys/plugins/trezor/qt.py:433 electrumsys/plugins/trezor/qt.py:457
+#: electrumsys/plugins/keepkey/qt.py:461 electrumsys/plugins/keepkey/qt.py:486
+#: electrumsys/plugins/safe_t/qt.py:347 electrumsys/plugins/safe_t/qt.py:371
+msgid "Device Label"
+msgstr "Menovka zariadenia"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:130
+msgid "Device communication error. Please unplug and replug your Digital Bitbox."
+msgstr "Chyba komunikácie zariadenia. Odpojte a znovu zapojte váš Digital Bitbox."
+
+#: electrumsys/plugins/ledger/ledger.py:195
+msgid "Device not in Bitcoin mode"
+msgstr "Zariadenie nie je v bitcoinovom režime"
+
+#: electrumsys/plugins/digitalbitbox/__init__.py:5
+msgid "Digital Bitbox wallet"
+msgstr "Peňaženka Digital Bitbox"
+
+#: electrumsys/plugins/revealer/qt.py:194
+msgid "Digital Revealer ({}_{}) saved as PNG and PDF at:"
+msgstr "Digitálny Revealer ({}_{}) sa uložil ako PNG a PDF v:"
+
+#: electrumsys/plugins/trezor/qt.py:538 electrumsys/plugins/keepkey/qt.py:544
+#: electrumsys/plugins/safe_t/qt.py:452
+msgid "Disable PIN"
+msgstr "Deaktivovaný PIN"
+
+#: electrumsys/plugins/trezor/qt.py:314 electrumsys/plugins/keepkey/qt.py:348
+#: electrumsys/plugins/safe_t/qt.py:228
+msgid "Disable Passphrases"
+msgstr "Vypnúť prístupové frázy"
+
+#: electrumsys/plugins/trezor/qt.py:315 electrumsys/plugins/keepkey/qt.py:349
+#: electrumsys/plugins/safe_t/qt.py:229
+msgid "Disabled"
+msgstr "Vypnuté"
+
+#: electrumsys/gui/kivy/main_window.py:745
+msgid "Disconnected"
+msgstr "Odpojené"
+
+#: electrumsys/gui/qt/main_window.py:1282
+msgid "Display the details of your transaction before signing it."
+msgstr "Zobraziť podrobnosti o transakcii pred jej podpísaním."
+
+#: electrumsys/gui/kivy/uix/ui_screens/about.kv:41
+msgid "Distributed by electrumsys Technologies GmbH"
+msgstr "Distribuuje electrumsys Technologies GmbH"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:291
+msgid "Do not pair"
+msgstr "Nepárovať"
+
+#: electrumsys/gui/qt/console.py:66
+msgid "Do not paste code here that you don't understand. Executing the wrong code could lead to your coins being irreversibly lost."
+msgstr "Nevkladajte sem kód, ktorému nerozumiete. Vykonanie chybného kódu by mohlo viesť k nezvratnej strate vašich mincí."
+
+#: electrumsys/gui/qt/seed_dialog.py:52
+msgid "Do not store it electronically."
+msgstr "Neuchovávajte ho v elektronickej podobe."
+
+#: electrumsys/plugins/revealer/__init__.py:5
+msgid "Do you have something to hide ?"
+msgstr "Máte čo skrývať?"
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:502 electrumsys/base_wizard.py:181
+msgid "Do you want to create a new seed, or to restore a wallet using an existing seed?"
+msgstr "Chcete vytvoriť nový seed alebo obnoviť peňaženku s použitím existujúceho seedu?"
+
+#: electrumsys/gui/qt/installwizard.py:314
+msgid "Do you want to delete '{}'?"
+msgstr "Chcete vymazať „{}“?"
+
+#: electrumsys/gui/qt/installwizard.py:302
+msgid "Do you want to delete the old file"
+msgstr "Chcete vymazať starý súbor"
+
+#: electrumsys/gui/kivy/main_window.py:572
+msgid "Do you want to launch the wizard again?"
+msgstr "Chcete znovu spustiť sprievodcu?"
+
+#: electrumsys/plugins/cosigner_pool/qt.py:217
+msgid "Do you want to open it now?"
+msgstr "Chcete ho teraz otvoriť?"
+
+#: electrumsys/gui/qt/main_window.py:1886
+msgid "Do you want to remove {} from your wallet?"
+msgstr "Chcete odstrániť {} zo svojej peňaženky?"
+
+#: electrumsys/base_crash_reporter.py:58
+msgid "Do you want to send this report?"
+msgstr "Chcete odoslať túto správu?"
+
+#: electrumsys/gui/qt/main_window.py:1562
+msgid "Do you wish to continue?"
+msgstr "Želáte si pokračovať?"
+
+#: electrumsys/gui/qt/installwizard.py:46
+msgid "Due to a bug, old versions of electrumsys will NOT be creating the same wallet as newer versions or other software."
+msgstr "Kvôli chybe staré verzie Electra NEbudú vytvárať rovnakú peňaženku ako novšie verzie alebo iný softvér."
+
+#: electrumsys/i18n.py:65
+msgid "Dutch"
+msgstr "Holandčina"
+
+#: electrumsys/util.py:97
+msgid "Dynamic fee estimates not available"
+msgstr "Odhady dynamických poplatkov nie sú k dispozícii"
+
+#: electrumsys/gui/qt/main_window.py:2793
+msgid "ETA"
+msgstr "Odhadovaný čas"
+
+#: electrumsys/plugins/revealer/qt.py:133
+msgid "Each revealer should be used only once."
+msgstr "Každý revealer by sa mal použiť iba raz."
+
+#: electrumsys/gui/qt/main_window.py:2802
+msgid "Edit fees manually"
+msgstr "Upraviť poplatky manuálne"
+
+#: electrumsys/gui/qt/address_list.py:203 electrumsys/gui/qt/contact_list.py:95
+#: electrumsys/gui/qt/history_list.py:586
+msgid "Edit {}"
+msgstr "Upraviť {}"
+
+#: electrumsys/gui/kivy/main_window.py:285
+msgid "electrumsys App"
+msgstr "Appka electrumsys"
+
+#: electrumsys/gui/qt/main_window.py:3195
+msgid "electrumsys Plugins"
+msgstr "Pluginy programu electrumsys"
+
+#: electrumsys/plugin.py:498
+msgid "electrumsys cannot pair with your {}.\n\n"
+"Before you request bitcoins to be sent to addresses in this wallet, ensure you can pair with your device, or that you have its seed (and passphrase, if any).  Otherwise all bitcoins you receive will be unspendable."
+msgstr "electrumsys nie je možné spárovať s vaším zariadením {}.\n\n"
+"Predtým, ako požiadate o zaslanie bitcoinov na adresy v tejto peňaženke, uistite sa, že párovanie vášho zariadenia funguje alebo že máte jeho seed (a prístupovú frázu, ak existuje). Inak nubudete môcť minúť žiadne bitcoiny, ktoré obdržíte."
+
+#: electrumsys/gui/qt/installwizard.py:592
+msgid "electrumsys communicates with remote servers to get information about your transactions and addresses. The servers all fulfill the same purpose only differing in hardware. In most cases you simply want to let electrumsys pick one at random.  However if you prefer feel free to select a server manually."
+msgstr "electrumsys komunikuje so vzdialenými servermi za účelom získavania informácií o vašich transakciách a adresách. Servery majú ten istý účel, iba sa líšia po hardvérovej stránke. Vo väčšine prípadov budete zrejme chcieť prenechať ich výber na aplikácii electrumsys. Avšak môžete si zvoliť server aj manuálne, ak si to želáte."
+
+#: electrumsys/gui/qt/network_dialog.py:297
+msgid "electrumsys connects to several nodes in order to download block headers and find out the longest blockchain."
+msgstr "electrumsys sa pripája k niekoľkým uzlom, aby stiahol hlavičky blokov a vypátral najdlhší blockchain."
+
+#: electrumsys/base_wizard.py:624
+msgid "electrumsys is generating your addresses, please wait..."
+msgstr "electrumsys vytvára vaše adresy. Čakajte, prosím..."
+
+#: electrumsys/gui/qt/main_window.py:592
+msgid "electrumsys preferences"
+msgstr "Nastavenia programu electrumsys"
+
+#: electrumsys/gui/kivy/uix/ui_screens/server.kv:9
+msgid "electrumsys requests your transaction history from a single server. The returned history is checked against blockchain headers sent by other nodes, using Simple Payment Verification (SPV)."
+msgstr "electrumsys si vyžiadava históriu transakcií z jedného servera. Vrátená história sa porovná s hlavičkami blockchainu odoslanými inými uzlami s použitím jednoduchého overenia transakcií (SPV)."
+
+#: electrumsys/gui/qt/network_dialog.py:306
+msgid "electrumsys sends your wallet addresses to a single server, in order to receive your transaction history."
+msgstr "electrumsys odosiela adresy vašich peňaženiek na server, aby mohol získať históriu vašich transakcií."
+
+#: electrumsys/gui/qt/installwizard.py:187
+msgid "electrumsys wallet"
+msgstr "electrumsys peňaženka"
+
+#: electrumsys/gui/qt/main_window.py:498
+msgid "electrumsys was unable to copy your wallet file to the specified location."
+msgstr "electrumsys nedokázal skopírovať súbor s vašou peaňzenkou do uvedeného umiestnenia."
+
+#: electrumsys/gui/qt/transaction_dialog.py:62
+msgid "electrumsys was unable to deserialize the transaction:"
+msgstr "Electru sa nepodarilo deserializovať transakciu:"
+
+#: electrumsys/gui/qt/main_window.py:2471
+msgid "electrumsys was unable to open your transaction file"
+msgstr "electrumsys nemohol otvoriť súbor vašich transakcií"
+
+#: electrumsys/gui/qt/main_window.py:2436
+msgid "electrumsys was unable to parse your transaction"
+msgstr "electrumsys nedokázal spracovať vašu transakciu"
+
+#: electrumsys/gui/qt/main_window.py:2583
+msgid "electrumsys was unable to produce a private key-export."
+msgstr "electrumsys nemohol vytvoriť export súkromného kľúča."
+
+#: electrumsys/gui/qt/history_list.py:649
+msgid "electrumsys was unable to produce a transaction export."
+msgstr "electrumsys nemohol vytvoriť export transakcií."
+
+#: electrumsys/gui/qt/main_window.py:633
+msgid "electrumsys's focus is speed, with low resource usage and simplifying Bitcoin."
+msgstr ""
+
+#: electrumsys/plugins/email_requests/__init__.py:3
+msgid "Email"
+msgstr "E-mail"
+
+#: electrumsys/plugins/email_requests/qt.py:208
+msgid "Email settings"
+msgstr "Nastavenie e-mailu"
+
+#: electrumsys/plugins/trezor/qt.py:216 electrumsys/plugins/keepkey/qt.py:249
+#: electrumsys/plugins/safe_t/qt.py:123
+msgid "Enable PIN protection"
+msgstr "Zapnúť ochranu PIN-om"
+
+#: electrumsys/plugins/trezor/qt.py:314 electrumsys/plugins/keepkey/qt.py:348
+#: electrumsys/plugins/safe_t/qt.py:228
+msgid "Enable Passphrases"
+msgstr "Povoliť prístupové frázy"
+
+#: electrumsys/gui/qt/main_window.py:3020
+msgid "Enable output value rounding"
+msgstr "Povoliť zaokrúhľovanie výstupnej hodnoty"
+
+#: electrumsys/plugins/trezor/qt.py:225 electrumsys/plugins/keepkey/qt.py:283
+#: electrumsys/plugins/safe_t/qt.py:157
+msgid "Enable passphrases"
+msgstr "Povoliť prístupové frázy"
+
+#: electrumsys/gui/qt/main_window.py:242
+msgid "Enable update check"
+msgstr "Povoliť kontrolu aktualizácie"
+
+#: electrumsys/plugins/trezor/qt.py:315 electrumsys/plugins/keepkey/qt.py:349
+#: electrumsys/plugins/safe_t/qt.py:229
+msgid "Enabled"
+msgstr "Zapnuté"
+
+#: electrumsys/gui/qt/main_window.py:2409
+msgid "Encrypt"
+msgstr "Šifrovať"
+
+#: electrumsys/plugins/revealer/qt.py:269
+msgid "Encrypt custom secret"
+msgstr "Zašifrovať vlastný tajný kód"
+
+#: electrumsys/gui/qt/password_dialog.py:125
+#: electrumsys/gui/qt/password_dialog.py:207
+msgid "Encrypt wallet file"
+msgstr "Zašifrovať súbor peňaženky"
+
+#: electrumsys/plugins/revealer/qt.py:250
+msgid "Encrypt {}'s seed"
+msgstr "Zašifrovať seed {}"
+
+#: electrumsys/gui/qt/main_window.py:2386
+msgid "Encrypt/decrypt Message"
+msgstr "Šifrovať/dešifrovať správu"
+
+#: electrumsys/gui/qt/address_list.py:209
+msgid "Encrypt/decrypt message"
+msgstr "Šifrovať/dešifrovať správu"
+
+#: electrumsys/gui/qt/main_window.py:2404
+msgid "Encrypted"
+msgstr "Šifrované"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:469
+#: electrumsys/plugins/ledger/ledger.py:261
+#: electrumsys/plugins/coldcard/coldcard.py:324
+msgid "Encryption and decryption are currently not supported for {}"
+msgstr "Šifrovanie a dešifrovanie nie sú momentálne pre {} podporované"
+
+#: electrumsys/plugins/trezor/trezor.py:58 electrumsys/plugins/keepkey/keepkey.py:33
+#: electrumsys/plugins/safe_t/safe_t.py:34
+msgid "Encryption and decryption are not implemented by {}"
+msgstr "Šifrovanie a dešifrovanie nie sú v {} implementované"
+
+#: electrumsys/gui/qt/history_list.py:489
+msgid "End"
+msgstr "Koniec"
+
+#: electrumsys/i18n.py:53
+msgid "English"
+msgstr "Angličtina"
+
+#: electrumsys/plugins/trezor/qt.py:145 electrumsys/plugins/keepkey/qt.py:174
+#: electrumsys/plugins/safe_t/qt.py:57 electrumsys/gui/kivy/main_window.py:814
+msgid "Enter PIN"
+msgstr "Zadajte PIN"
+
+#: electrumsys/gui/kivy/main_window.py:551
+msgid "Enter PIN code"
+msgstr "Zadajte PIN kód."
+
+#: electrumsys/plugins/ledger/auth2fa.py:109
+#: electrumsys/plugins/ledger/auth2fa.py:142
+msgid "Enter PIN:"
+msgstr "Zadajte PIN:"
+
+#: electrumsys/plugins/hw_wallet/qt.py:121 electrumsys/gui/qt/password_dialog.py:61
+msgid "Enter Passphrase"
+msgstr "Zadajte prístupovú frázu"
+
+#: electrumsys/gui/qt/password_dialog.py:61 electrumsys/gui/qt/password_dialog.py:292
+msgid "Enter Password"
+msgstr "Zadajte Heslo"
+
+#: electrumsys/gui/qt/installwizard.py:418
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:767
+msgid "Enter Seed"
+msgstr "Zadajte seed"
+
+#: electrumsys/gui/kivy/uix/screens.py:133
+msgid "Enter Transaction Label"
+msgstr "Zadajte menovku transakcie"
+
+#: electrumsys/gui/qt/main_window.py:489
+msgid "Enter a filename for the copy of your wallet"
+msgstr "Zadajte názov súboru pre kópiu vašej peňaženky"
+
+#: electrumsys/plugins/trezor/qt.py:191 electrumsys/plugins/keepkey/qt.py:221
+#: electrumsys/plugins/safe_t/qt.py:97
+msgid "Enter a label to name your device:"
+msgstr "Pre pomenovanie vášho zariadenia zadajte menovku:"
+
+#: electrumsys/base_wizard.py:203
+msgid "Enter a list of Bitcoin addresses (this will create a watching-only wallet), or a list of private keys."
+msgstr "Zadajte zoznam bitcoinových adries (vytvorí sa peňaženka len na čítanie) alebo zoznam súkromných kľúčov."
+
+#: electrumsys/gui/qt/main_window.py:1906
+msgid "Enter a list of outputs in the 'Pay to' field."
+msgstr "Zadajte zoznam výstupov v poli „Príjemca“."
+
+#: electrumsys/plugins/trezor/clientbase.py:231
+#: electrumsys/plugins/keepkey/clientbase.py:46
+#: electrumsys/plugins/safe_t/clientbase.py:48
+msgid "Enter a new PIN for your {}:"
+msgstr "Zadajte nový PIN pre {}:"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:184
+msgid "Enter a new password below."
+msgstr "Zadajte nižšie nové heslo."
+
+#: electrumsys/plugins/trezor/clientbase.py:247
+#: electrumsys/plugins/keepkey/clientbase.py:62
+#: electrumsys/plugins/safe_t/clientbase.py:67
+msgid "Enter a passphrase to generate this wallet.  Each time you use this wallet your {} will prompt you for the passphrase.  If you forget the passphrase you cannot access the bitcoins in the wallet."
+msgstr "Pre vytvorenie tejto peňaženky zadajte prístupovú frázu. Vždy, keď budete používať túto peňaženku, vaše {} vás vyzve, aby ste zadali prístupovú frázu. Ak zabudnete prístupovú frázu, nebudete môcť pristupovať k bitcoinom v peňaženke."
+
+#: electrumsys/gui/qt/main_window.py:2713
+msgid "Enter addresses"
+msgstr "Zadajte adresu"
+
+#: electrumsys/base_wizard.py:192
+msgid "Enter cosigner key"
+msgstr "Zadajte kľúč spolupodpisovateľa"
+
+#: electrumsys/base_wizard.py:193
+msgid "Enter cosigner seed"
+msgstr "Zadajte seed spolupodpisovateľa"
+
+#: electrumsys/gui/kivy/main_window.py:953
+msgid "Enter description"
+msgstr "Zadajte popis"
+
+#: electrumsys/gui/kivy/uix/dialogs/password_dialog.py:129
+msgid "Enter new PIN"
+msgstr "Zadajte nový PIN"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:148
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:151
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:163
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:166
+msgid "Enter password:"
+msgstr "Zadajte heslo:"
+
+#: electrumsys/gui/qt/main_window.py:2722
+msgid "Enter private keys"
+msgstr "Zadajte súkromné kľúče"
+
+#: electrumsys/gui/qt/main_window.py:2630
+msgid "Enter private keys:"
+msgstr "Zadajte súkromné kľúče:"
+
+#: electrumsys/plugins/keepkey/qt.py:257 electrumsys/plugins/safe_t/qt.py:131
+msgid "Enter the master private key beginning with xprv:"
+msgstr "Zadajte hlavný súkromný kľúč začínajúci na xprv:"
+
+#: electrumsys/plugins/trezor/clientbase.py:252
+#: electrumsys/plugins/keepkey/clientbase.py:67
+#: electrumsys/plugins/safe_t/clientbase.py:72
+msgid "Enter the passphrase to unlock this wallet:"
+msgstr "Pre odomknutie tejto peňaženky zadajte prístupovú frázu:"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:141
+msgid "Enter the password used when the backup was created:"
+msgstr "Zadajte heslo použité pri tvorbe zálohy:"
+
+#: electrumsys/plugins/trezor/qt.py:38
+msgid "Enter the recovery words by pressing the buttons according to what the device shows on its display.  You can also use your NUMPAD.\n"
+"Press BACKSPACE to go back a choice or word.\n"
+msgstr "Zadajte slová pre obnovu stláčaním tlačidiel podľa toho, čo sa zobrazuje na displeji zariadenia.  Môžete tiež použiť klávesnicu NUMPAD.\n"
+"Ak sa chcete vrátiť o voľbu alebo slovo dozadu, stlačte BACKSPACE.\n"
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:102
+msgid "Enter the seed for your 2-factor wallet:"
+msgstr "Zadajte seed pre svoju 2-faktorovú peňaženku:"
+
+#: electrumsys/gui/qt/installwizard.py:407
+msgid "Enter their master private key (xprv) if you want to be able to sign for them."
+msgstr "Ak chcete za nich podpisovať, zadajte ich hlavný súkromný kľúč (xprv)."
+
+#: electrumsys/gui/kivy/uix/dialogs/wallets.py:60
+msgid "Enter wallet name"
+msgstr "Zadajte názov peňaženky"
+
+#: electrumsys/plugins/keepkey/qt.py:255 electrumsys/plugins/safe_t/qt.py:129
+msgid "Enter your BIP39 mnemonic:"
+msgstr "Zadajte mnemotechnický kód BIP39:"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:194
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:204
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:209
+msgid "Enter your Digital Bitbox password:"
+msgstr "Zadajte heslo vášho Digital Bitboxu:"
+
+#: electrumsys/plugins/keepkey/qt.py:270 electrumsys/plugins/safe_t/qt.py:144
+msgid "Enter your PIN (digits 1-9):"
+msgstr "Zadajte váš PIN (číslice 1-9):"
+
+#: electrumsys/gui/kivy/main_window.py:1090
+msgid "Enter your PIN code in order to decrypt your private key"
+msgstr "Pre dešifrovanie svojho súkromného kľúča zadajte svoj PIN kód"
+
+#: electrumsys/gui/kivy/main_window.py:1040
+msgid "Enter your PIN code in order to decrypt your seed"
+msgstr "Pre dešifrovanie svojho seedu zadajte svoj PIN kód"
+
+#: electrumsys/gui/kivy/uix/dialogs/tx_dialog.py:164
+msgid "Enter your PIN code in order to sign this transaction"
+msgstr "Pre podpísanie tejto transakcie zadajte svoj PIN kód"
+
+#: electrumsys/gui/kivy/main_window.py:1021
+msgid "Enter your PIN code to confirm deletion of {}"
+msgstr "Pre potvrdenie vymazania {} zadajte svoj PIN kód"
+
+#: electrumsys/gui/kivy/uix/screens.py:298
+msgid "Enter your PIN code to proceed"
+msgstr "Pre pokračovanie zadajte svoj PIN kód"
+
+#: electrumsys/gui/kivy/main_window.py:1067
+msgid "Enter your current PIN:"
+msgstr "Zadajte váš aktuálny PIN:"
+
+#: electrumsys/plugins/trezor/clientbase.py:236
+#: electrumsys/plugins/keepkey/clientbase.py:51
+#: electrumsys/plugins/safe_t/clientbase.py:53
+msgid "Enter your current {} PIN:"
+msgstr "Zadajte svoj aktuálny PIN {}:"
+
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:657
+msgid "Enter your email address:"
+msgstr "Zadajte svoju e-mailovú adresu:"
+
+#: electrumsys/gui/qt/installwizard.py:218
+msgid "Enter your password or choose another file."
+msgstr "Zadajte svoje heslo alebo vyberte iný súbor."
+
+#: electrumsys/gui/qt/main_window.py:1650
+msgid "Enter your password to proceed"
+msgstr "Pre pokračovanie zadajte svoje heslo"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:229
+msgid "Erase the Digital Bitbox"
+msgstr "Vymažte Digital Bitbox"
+
+#: electrumsys/plugins/trustedcoin/kivy.py:69
+#: electrumsys/plugins/trustedcoin/kivy.py:71
+#: electrumsys/plugins/trustedcoin/kivy.py:84
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:653 electrumsys/gui/qt/util.py:210
+#: electrumsys/gui/qt/installwizard.py:265 electrumsys/gui/qt/installwizard.py:269
+#: electrumsys/gui/qt/installwizard.py:276 electrumsys/gui/qt/installwizard.py:283
+#: electrumsys/gui/qt/__init__.py:221 electrumsys/gui/qt/__init__.py:240
+#: electrumsys/gui/qt/__init__.py:261
+msgid "Error"
+msgstr "Chyba"
+
+#: electrumsys/gui/qt/main_window.py:1015 electrumsys/gui/kivy/uix/screens.py:401
+msgid "Error adding payment request"
+msgstr "Chyba pri pridávaní žiadosti o platbu"
+
+#: electrumsys/plugins/trustedcoin/kivy.py:82
+msgid "Error connecting to server"
+msgstr "Chyba pri pripájaní k serveru"
+
+#: electrumsys/plugins/cosigner_pool/qt.py:229
+msgid "Error decrypting message"
+msgstr "Chyba pri dešifrovaní správy"
+
+#: electrumsys/gui/qt/main_window.py:2497
+msgid "Error getting transaction from network"
+msgstr "Chyba pri získavaní transakcie zo siete"
+
+#: electrumsys/gui/qt/qrtextedit.py:52
+msgid "Error opening file"
+msgstr "Chyba pri otváraní súboru"
+
+#: electrumsys/base_wizard.py:267
+msgid "Error scanning devices"
+msgstr "Chyba pri kontrole zariadenia"
+
+#: electrumsys/plugins/ledger/ledger.py:527
+#: electrumsys/plugins/coldcard/coldcard.py:373
+#: electrumsys/plugins/coldcard/coldcard.py:591
+msgid "Error showing address"
+msgstr "Chyba pri zobrazení adresy"
+
+#: electrumsys/plugins/labels/qt.py:63
+msgid "Error synchronising labels"
+msgstr "Chyba pri synchronizácii menoviek"
+
+#: electrumsys/base_wizard.py:483
+msgid "Error: duplicate master public key"
+msgstr "Chyba: duplikátny hlavný verejný kľúč"
+
+#: electrumsys/i18n.py:52
+msgid "Esperanto"
+msgstr "Esperanto"
+
+#: electrumsys/gui/qt/fee_slider.py:40
+msgid "Estimate"
+msgstr "Odhad"
+
+#: electrumsys/gui/qt/__init__.py:150
+msgid "Exit electrumsys"
+msgstr "Ukončiť electrumsys"
+
+#: electrumsys/gui/qt/history_list.py:498
+msgid "Expenditures"
+msgstr "Výdavky"
+
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:46
+msgid "Expiration"
+msgstr "Expirácia"
+
+#: electrumsys/gui/qt/main_window.py:903
+msgid "Expiration date of your request."
+msgstr "Dátum vypršania platnosti vašej požiadavky."
+
+#: electrumsys/gui/qt/util.py:51 electrumsys/gui/kivy/uix/dialogs/requests.py:92
+#: electrumsys/gui/kivy/uix/dialogs/invoices.py:88
+msgid "Expired"
+msgstr "Expirované"
+
+#: electrumsys/gui/qt/main_window.py:905
+msgid "Expired requests have to be deleted manually from your list, in order to free the corresponding Bitcoin addresses."
+msgstr "Aby sa mohli uvoľniť zodpovedajúce bitcoinové adresy, vypršané žiadosti sa musia manuálne vymazať z vášho zoznamu."
+
+#: electrumsys/gui/qt/invoice_list.py:49 electrumsys/gui/qt/main_window.py:1969
+msgid "Expires"
+msgstr "Platnosť vyprší"
+
+#: electrumsys/gui/qt/transaction_dialog.py:138
+#: electrumsys/gui/qt/history_list.py:637 electrumsys/gui/qt/main_window.py:570
+#: electrumsys/gui/qt/main_window.py:573 electrumsys/gui/qt/main_window.py:2530
+msgid "Export"
+msgstr "Exportovať"
+
+#: electrumsys/gui/qt/history_list.py:629
+msgid "Export History"
+msgstr "Exportovať Históriu"
+
+#: electrumsys/gui/qt/contact_list.py:84
+msgid "Export file"
+msgstr "Exportovať súbor"
+
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:87
+msgid "Export private key"
+msgstr "Exportovať súkromný kľúč"
+
+#: electrumsys/gui/qt/main_window.py:2517
+msgid "Exposing a single private key can compromise your entire wallet!"
+msgstr "Odhalenie jediného súkromného kľúča môže ohroziť celú vašu peňaženku!"
+
+#: electrumsys/gui/qt/seed_dialog.py:63
+msgid "Extend this seed with custom words"
+msgstr "Rozšíriť tento seed o vlastné slová"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:727
+#: electrumsys/plugins/ledger/ledger.py:589 electrumsys/plugins/trezor/trezor.py:259
+#: electrumsys/plugins/keepkey/keepkey.py:245
+#: electrumsys/plugins/safe_t/safe_t.py:262
+#: electrumsys/plugins/coldcard/coldcard.py:667
+msgid "Failed to create a client for this device."
+msgstr "Tvorba klienta pre toto zariadenie zlyhala."
+
+#: electrumsys/gui/qt/installwizard.py:277
+msgid "Failed to decrypt using this hardware device."
+msgstr "Dešifrovanie s použitím tohto hardvérového zariadenia zlyhalo."
+
+#: electrumsys/gui/qt/transaction_dialog.py:195
+#: electrumsys/gui/qt/transaction_dialog.py:198
+#: electrumsys/gui/kivy/main_window.py:427
+msgid "Failed to display QR code."
+msgstr "Zobrazenie QR kódu zlyhalo."
+
+#: electrumsys/util.py:118
+msgid "Failed to export to file."
+msgstr "Export do súboru zlyhal."
+
+#: electrumsys/util.py:110
+msgid "Failed to import from file."
+msgstr "Import zo súboru zlyhal."
+
+#: electrumsys/plugins/cosigner_pool/qt.py:180
+msgid "Failed to send transaction to cosigning pool"
+msgstr "Nepodarilo sa odoslať transakciu do spolupodpisovateľského fondu"
+
+#: electrumsys/gui/qt/main_window.py:2108
+msgid "Failed to update password"
+msgstr "Nepodarilo sa aktualizovať heslo"
+
+#: electrumsys/gui/qt/main_window.py:2156
+msgid "False"
+msgstr "Nepravda"
+
+#: electrumsys/gui/text.py:181 electrumsys/gui/qt/transaction_dialog.py:267
+#: electrumsys/gui/qt/main_window.py:1184
+#: electrumsys/gui/kivy/uix/ui_screens/send.kv:90
+msgid "Fee"
+msgstr "Poplatok"
+
+#: electrumsys/gui/qt/main_window.py:2791
+msgid "Fee estimation"
+msgstr "Odhad poplatku"
+
+#: electrumsys/gui/qt/main_window.py:3291
+msgid "Fee:"
+msgstr "Poplatok:"
+
+#: electrumsys/gui/qt/main_window.py:3129
+msgid "Fees"
+msgstr "Poplatky"
+
+#: electrumsys/gui/qt/address_list.py:87 electrumsys/gui/qt/main_window.py:3132
+msgid "Fiat"
+msgstr "Fiat"
+
+#: electrumsys/gui/qt/main_window.py:3122
+msgid "Fiat currency"
+msgstr "Fiat mena"
+
+#: electrumsys/gui/qt/util.py:387
+msgid "File"
+msgstr "Súbor"
+
+#: electrumsys/gui/qt/address_list.py:72
+msgid "Filter:"
+msgstr "Filter:"
+
+#: electrumsys/gui/qt/main_window.py:3333
+msgid "Final"
+msgstr "Konečná"
+
+#: electrumsys/gui/qt/history_list.py:492
+msgid "Final balance"
+msgstr "Konečný zostatok"
+
+#: electrumsys/gui/qt/main_window.py:576
+msgid "Find"
+msgstr "Hľadať"
+
+#: electrumsys/plugins/trezor/qt.py:436 electrumsys/plugins/keepkey/qt.py:464
+#: electrumsys/plugins/safe_t/qt.py:350 electrumsys/plugins/coldcard/qt.py:151
+msgid "Firmware Version"
+msgstr "Verzia firmwaru"
+
+#: electrumsys/plugins/ledger/ledger.py:33
+msgid "Firmware version (or \"Bitcoin\" app) too old for Segwit support. Please update at"
+msgstr "Verzia firmvéru (alebo „bitcoinovej“ appky) je príliš stará pre podporu Segwitu. Prosím, aktualizujte ho na"
+
+#: electrumsys/plugins/ledger/ledger.py:31
+msgid "Firmware version too old. Please update at"
+msgstr "Verzia firmvéru je príliš stará. Prosím, aktualizujte ho na"
+
+#: electrumsys/gui/qt/fee_slider.py:40
+msgid "Fixed rate"
+msgstr "Fixný kurz"
+
+#: electrumsys/gui/qt/network_dialog.py:88
+msgid "Follow this branch"
+msgstr "Sledovať túto vetvu"
+
+#: electrumsys/plugins/revealer/__init__.py:7
+#: electrumsys/plugins/trustedcoin/qt.py:160
+#: electrumsys/plugins/trustedcoin/__init__.py:6
+msgid "For more information, visit"
+msgstr "Pre viac informácií navštívte"
+
+#: electrumsys/gui/qt/main_window.py:243
+msgid "For security reasons we advise that you always use the latest version of electrumsys."
+msgstr "Z bezpečnostných dôvodov vám odporúčame vždy používať najnovšiu verziu electrumsys."
+
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:53
+msgid "Fork detected at block {}"
+msgstr "Rozštiepenie (fork) zistené na bloku {}"
+
+#: electrumsys/gui/qt/util.py:363
+msgid "Format"
+msgstr "Formát"
+
+#: electrumsys/gui/qt/main_window.py:1908
+msgid "Format: address, amount"
+msgstr "Formát: adresa, suma"
+
+#: electrumsys/gui/qt/address_list.py:217
+msgid "Freeze"
+msgstr "Zmraziť"
+
+#: electrumsys/i18n.py:56
+msgid "French"
+msgstr "Francúzština"
+
+#: electrumsys/gui/qt/history_list.py:417 electrumsys/gui/qt/main_window.py:1153
+msgid "From"
+msgstr "Od"
+
+#: electrumsys/gui/qt/installwizard.py:634
+#, python-brace-format
+msgid "From {0} cosigners"
+msgstr "Od {0} spolupodpisovateľov"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:242
+msgid "Full 2FA enabled. This is not supported yet."
+msgstr "Zapnuté úplné 2FA. Toto nie je ešte podporované."
+
+#: electrumsys/gui/qt/address_list.py:66
+#: electrumsys/gui/kivy/uix/dialogs/addresses.py:120
+msgid "Funded"
+msgstr "Financované"
+
+#: electrumsys/gui/qt/main_window.py:3131
+msgid "General"
+msgstr "Všeobecné"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:250
+msgid "Generate a new random wallet"
+msgstr "Vytvoriť novú náhodnú peňaženku"
+
+#: electrumsys/i18n.py:50
+msgid "German"
+msgstr "Nemčina"
+
+#: electrumsys/plugins/trustedcoin/qt.py:286
+msgid "Google Authenticator code:"
+msgstr "Kód Google Authenticatora:"
+
+#: electrumsys/i18n.py:51
+msgid "Greek"
+msgstr "Gréčtina"
+
+#: electrumsys/plugins/greenaddress_instant/qt.py:79
+msgid "GreenAddress requires your signature \n"
+"to verify that transaction is instant.\n"
+"Please enter your password to sign a\n"
+"verification request."
+msgstr "GreenAddress potrebuje váš podpis \n"
+"na overenie, že transakcia je okamžitá.\n"
+"Prosím, zadajte heslo na podpis\n"
+"žiadosti o overenie."
+
+#: electrumsys/plugin.py:449
+msgid "Handler not found for"
+msgstr "Nenašiel sa obslužný program pre"
+
+#: electrumsys/base_wizard.py:249
+msgid "Hardware Keystore"
+msgstr "Hardvérové úložisko kľúčov"
+
+#: electrumsys/gui/qt/network_dialog.py:73 electrumsys/gui/qt/utxo_list.py:50
+msgid "Height"
+msgstr "Výška"
+
+#: electrumsys/gui/kivy/main_window.py:849
+msgid "Hello World"
+msgstr "Hello World"
+
+#: electrumsys/gui/qt/installwizard.py:582
+msgid "Here is your master public key."
+msgstr "Tu je váš hlavný verejný kľúč."
+
+#: electrumsys/gui/qt/main_window.py:580
+msgid "Hide"
+msgstr "Skryť"
+
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:87
+msgid "Hide private key"
+msgstr "Skryť súkromný kľúč"
+
+#: electrumsys/gui/kivy/uix/ui_screens/status.kv:74
+msgid "Hide seed"
+msgstr "Skryť Seed"
+
+#: electrumsys/gui/qt/main_window.py:290
+msgid "Hide {}"
+msgstr "Skryť {}"
+
+#: electrumsys/gui/text.py:69 electrumsys/gui/qt/address_dialog.py:87
+#: electrumsys/gui/qt/main_window.py:174
+msgid "History"
+msgstr "História"
+
+#: electrumsys/gui/kivy/uix/ui_screens/about.kv:25
+msgid "Homepage"
+msgstr "Domovská stránka"
+
+#: electrumsys/plugins/trezor/qt.py:484 electrumsys/plugins/safe_t/qt.py:398
+msgid "Homescreen"
+msgstr "Domovská obrazovka"
+
+#: electrumsys/gui/qt/network_dialog.py:146
+#: electrumsys/gui/kivy/uix/ui_screens/proxy.kv:19
+#: electrumsys/gui/kivy/uix/ui_screens/server.kv:19
+msgid "Host"
+msgstr "Hostiteľ"
+
+#: electrumsys/gui/qt/installwizard.py:599
+msgid "How do you want to connect to a server? "
+msgstr "Ako sa chcete pripojiť k serveru? "
+
+#: electrumsys/plugins/cosigner_pool/qt.py:206
+msgid "However, hardware wallets do not support message decryption, which makes them not compatible with the current design of cosigner pool."
+msgstr "Avšak hardvérové peňaženky nepodporujú šifrovanie správ, čo ich robí nekompatibilnými so súčasným návrhom spolupodpisovateľského fondu."
+
+#: electrumsys/gui/qt/seed_dialog.py:75
+msgid "However, we do not generate BIP39 seeds, because they do not meet our safety standard."
+msgstr "My však nevytvárame seedy BIP39, pretože nespĺňajú naše bezpečnostné normy."
+
+#: electrumsys/i18n.py:57
+msgid "Hungarian"
+msgstr "Maďarčina"
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:505 electrumsys/base_wizard.py:184
+msgid "I already have a seed"
+msgstr "Už mám seed"
+
+#: electrumsys/plugins/trustedcoin/qt.py:294
+msgid "I have lost my Google Authenticator account"
+msgstr "Stratil/a som svoj účet Google Authenticator"
+
+#: electrumsys/gui/qt/main_window.py:3133
+msgid "Identity"
+msgstr "Osobné údaje"
+
+#: electrumsys/gui/qt/network_dialog.py:230
+msgid "If auto-connect is enabled, electrumsys will always use a server that is on the longest blockchain."
+msgstr "Ak je automatické pripájanie povolené, electrumsys vždy použije server, ktorý je na najdlhšej reťazi blokov."
+
+#: electrumsys/gui/qt/main_window.py:3024
+msgid "If enabled, at most 100 satoshis might be lost due to this, per transaction."
+msgstr "Ak je zapnuté, môžete kvôli tomu prísť pri jednej transakcii o max. 100 satoshi."
+
+#: electrumsys/gui/qt/network_dialog.py:231
+msgid "If it is disabled, you have to choose a server you want to use. electrumsys will warn you if your server is lagging."
+msgstr "Ak je vypnuté, musíte si vybrať server, ktorý chcete používať. V prípade, že váš server bude zaostávať, electrumsys vás na to upozorní."
+
+#: electrumsys/base_wizard.py:364
+msgid "If you are not sure what this is, leave this field unchanged."
+msgstr "Ak nie ste si istý/á, čo to znamená, nechajte toto pole bez zmeny."
+
+#: electrumsys/plugins/trustedcoin/qt.py:209
+msgid "If you are online, click on \"{}\" to continue."
+msgstr "Ak ste online, pre pokračovanie kliknite na „{}“."
+
+#: electrumsys/gui/qt/main_window.py:2815
+msgid "If you check this box, your transactions will be marked as non-final,"
+msgstr "Ak zaškrtnete toto políčko, vaše transakcie budú označené ako neuzavreté,"
+
+#: electrumsys/gui/qt/main_window.py:2828
+msgid "If you check this box, your unconfirmed transactions will be consolidated into a single transaction."
+msgstr "Ak zaškrtnete toto políčko, vaše nepotvrdené transakcie sa zlúčia do jednej transakcie."
+
+#: electrumsys/plugins/trezor/qt.py:541 electrumsys/plugins/keepkey/qt.py:547
+#: electrumsys/plugins/safe_t/qt.py:455
+msgid "If you disable your PIN, anyone with physical access to your {} device can spend your bitcoins."
+msgstr "Ak vypnete svoj PIN, ktokoľvek s fyzickým prístupom k vášmu zariadeniu {} bude môcť míňať vaše bitcoiny."
+
+#: electrumsys/base_wizard.py:422
+msgid "If you do not know what this is, leave this field empty."
+msgstr "Ak neviete, čo to znamená, nechajte toto pole prázdne."
+
+#: electrumsys/plugins/trezor/qt.py:34 electrumsys/plugins/keepkey/qt.py:34
+#: electrumsys/plugins/safe_t/qt.py:34
+msgid "If you forget a passphrase you will be unable to access any bitcoins in the wallet behind it.  A passphrase is not a PIN. Only change this if you are sure you understand it."
+msgstr "Ak zabudnete prístupovú frázu, stratíte prístup k bitcoinom v danej peňaženke. Prístupová fráza nie je PIN. Toto meňte iba ak ste si istý/á, že tomu rozumiete."
+
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:727
+msgid "If you forget your PIN or lose your device, your seed phrase will be the only way to recover your funds."
+msgstr "Ak zabudnete PIN alebo stratíte zariadenie, vaša seedová fráza bude jediný spôsob, ako obnoviť svoje prostriedky."
+
+#: electrumsys/plugins/revealer/qt.py:727
+msgid "If you have an old printer, or want optimal precision"
+msgstr "Ak máte starú tlačiareň alebo ak chcete optimálnu presnosť"
+
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:620
+msgid "If you have lost your Google Authenticator account, you can request a new secret. You will need to retype your seed."
+msgstr "Ak ste stratili svoj účet Google Authenticator, môžete požiadať o nový tajný kód. Budete musieť znova zadať svoj seed."
+
+#: electrumsys/plugins/trustedcoin/qt.py:112
+msgid "If you have lost your second factor, you need to restore your wallet from seed in order to request a new code."
+msgstr "Ak ste stratili svoj druhý faktor, pre vyžiadanie nového kódu musíte obnoviť svoju peňaženku zo seedu."
+
+#: electrumsys/gui/qt/installwizard.py:428
+msgid "If you lose your seed, your money will be permanently lost."
+msgstr "Ak stratíte svoj seed, vaše peniaze sa tiež nenávratne stratia."
+
+#: electrumsys/gui/qt/installwizard.py:278
+msgid "If you use a passphrase, make sure it is correct."
+msgstr "Ak používate prístupovú frázu, uistite sa, že je správna."
+
+#: electrumsys/gui/qt/main_window.py:1053
+msgid "If you want to create new addresses, use a deterministic wallet instead."
+msgstr "Ak si chcete vytvoriť nové adresy, použite namiesto toho deterministickú peňaženku."
+
+#: electrumsys/base_wizard.py:299
+msgid "If your device is not detected on Windows, go to \"Settings\", \"Devices\", \"Connected devices\", and do \"Remove device\". Then, plug your device again."
+msgstr "Ak vaše zariadenie systém Windows nerozozná, choďte do „Nastavenia“, „Zariadenia“, „Pripojené zariadenia“ a kliknite na „Odstrániť zariadenie“. Potom znova zapojte vaše zariadenie."
+
+#: electrumsys/gui/qt/main_window.py:2202
+msgid "If your wallet contains funds, make sure you have saved its seed."
+msgstr "Ak vaša peňaženka obsahuje prostriedky, uistite sa, že ste si uložili jej seed."
+
+#: electrumsys/gui/qt/main_window.py:569 electrumsys/gui/qt/main_window.py:572
+#: electrumsys/gui/qt/main_window.py:2692
+msgid "Import"
+msgstr "Importovať"
+
+#: electrumsys/base_wizard.py:202
+msgid "Import Bitcoin Addresses"
+msgstr "Importovať bitcoinové adresy"
+
+#: electrumsys/base_wizard.py:129
+msgid "Import Bitcoin addresses or private keys"
+msgstr "Importovať bitcoinové adresy alebo súkromné kľúče"
+
+#: electrumsys/gui/qt/main_window.py:554 electrumsys/gui/qt/main_window.py:2713
+msgid "Import addresses"
+msgstr "Importovať adresy"
+
+#: electrumsys/gui/qt/contact_list.py:83
+msgid "Import file"
+msgstr "Importovať súbor"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:292
+msgid "Import pairing from the Digital Bitbox desktop app"
+msgstr "Importujte párovanie z aplikácie Digital Bitboxu pre počítače"
+
+#: electrumsys/gui/qt/main_window.py:2720
+msgid "Import private keys"
+msgstr "Importovať súkromné kľúče"
+
+#: electrumsys/gui/qt/main_window.py:2518
+msgid "In particular, DO NOT use 'redeem private key' services proposed by third parties."
+msgstr "Špeciálne, NEPOUŽÍVAJTE služby 'obnovy súkromných kľúčov' od tretích strán."
+
+#: electrumsys/gui/qt/main_window.py:2980
+msgid "In some cases, use up to 3 change addresses in order to break up large coin amounts and obfuscate the recipient address."
+msgstr "V niektorých prípadoch použite až 3 adresy pre výdavok, aby sa mohli veľké sumy mincí rozdeliť na menšie a aby sa ukryla adresa príjemcu."
+
+#: electrumsys/simple_config.py:390
+msgid "In the next block"
+msgstr "V ďalšom bloku"
+
+#: electrumsys/gui/qt/history_list.py:495
+msgid "Income"
+msgstr "Príjem"
+
+#: electrumsys/util.py:102
+msgid "Incorrect password"
+msgstr "Nesprávne heslo"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:202
+msgid "Incorrect password entered."
+msgstr "Zadali ste nesprávne heslo."
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:706
+msgid "Incorrect seed"
+msgstr "Nesprávny seed"
+
+#: electrumsys/gui/qt/history_list.py:592
+msgid "Increase fee"
+msgstr "Navýšiť poplatok"
+
+#: electrumsys/gui/qt/main_window.py:3321
+msgid "Increase your transaction's fee to improve its position in mempool."
+msgstr "Pre zlepšenie pozície vašej transakcie v mempoole navýšte jej poplatok."
+
+#: electrumsys/i18n.py:59
+msgid "Indonesian"
+msgstr "Indonézština"
+
+#: electrumsys/plugins/trezor/qt.py:578 electrumsys/plugins/keepkey/qt.py:584
+#: electrumsys/plugins/safe_t/qt.py:492 electrumsys/gui/qt/util.py:218
+#: electrumsys/gui/qt/main_window.py:472
+msgid "Information"
+msgstr "Informácie"
+
+#: electrumsys/gui/qt/history_list.py:486
+msgid "Initial balance"
+msgstr "Počiatočný zostatok"
+
+#: electrumsys/plugins/ledger/qt.py:85
+msgid "Initialization of Ledger HW devices is currently disabled."
+msgstr "Inicializácia HW zariadení Ledger momentálne nie je možná."
+
+#: electrumsys/plugins/trezor/trezor.py:195
+#: electrumsys/plugins/keepkey/keepkey.py:188
+#: electrumsys/plugins/safe_t/safe_t.py:193
+msgid "Initialize Device"
+msgstr "Inicializovať zariadenie"
+
+#: electrumsys/plugins/trezor/qt.py:440 electrumsys/plugins/keepkey/qt.py:469
+#: electrumsys/plugins/safe_t/qt.py:354
+msgid "Initialized"
+msgstr "Inicializované"
+
+#: electrumsys/gui/qt/main_window.py:3278
+msgid "Input amount"
+msgstr "Zadajte sumu"
+
+#: electrumsys/gui/qt/main_window.py:2476
+msgid "Input raw transaction"
+msgstr "Vloziť Raw transakciu"
+
+#: electrumsys/gui/qt/transaction_dialog.py:283
+msgid "Inputs"
+msgstr "Vstupy"
+
+#: electrumsys/gui/qt/installwizard.py:116
+msgid "Install Wizard"
+msgstr "Sprievodca inštaláciou"
+
+#: electrumsys/gui/qt/main_window.py:2932
+msgid "Install the zbar package to enable this."
+msgstr "Aby ste toto umožnili, nainštalujte balík zbar."
+
+#: electrumsys/plugins/revealer/qt.py:455
+msgid "Instructions:"
+msgstr "Inštrukcie:"
+
+#: electrumsys/util.py:92
+msgid "Insufficient funds"
+msgstr "Nemáte dostatočnú sumu"
+
+#: electrumsys/gui/qt/main_window.py:1926
+msgid "Invalid Address"
+msgstr "Neplatná adresa"
+
+#: electrumsys/gui/text.py:345 electrumsys/gui/qt/main_window.py:1578
+#: electrumsys/gui/stdio.py:176
+msgid "Invalid Amount"
+msgstr "Neplatné množstvo"
+
+#: electrumsys/plugins/hw_wallet/plugin.py:74 electrumsys/gui/qt/main_window.py:1575
+#: electrumsys/gui/kivy/uix/screens.py:254
+msgid "Invalid Bitcoin Address"
+msgstr "Neplatná Bitcoinová Adresa"
+
+#: electrumsys/gui/text.py:340 electrumsys/gui/stdio.py:171
+msgid "Invalid Bitcoin address"
+msgstr "Neplatná bitcoinová adresa"
+
+#: electrumsys/wallet.py:1078 electrumsys/gui/qt/main_window.py:2278
+#: electrumsys/gui/qt/main_window.py:2306
+msgid "Invalid Bitcoin address."
+msgstr "Neplatná bitcoinová adresa."
+
+#: electrumsys/gui/text.py:350 electrumsys/gui/stdio.py:181
+msgid "Invalid Fee"
+msgstr "Neplatný poplatok"
+
+#: electrumsys/util.py:880
+msgid "Invalid JSON code."
+msgstr "Neplatný JSON kód."
+
+#: electrumsys/gui/qt/main_window.py:1554
+msgid "Invalid Lines found:"
+msgstr "Našli sa neplatné riadky:"
+
+#: electrumsys/gui/kivy/uix/dialogs/tx_dialog.py:174
+#: electrumsys/gui/kivy/main_window.py:911
+msgid "Invalid PIN"
+msgstr "Neplatný PIN"
+
+#: electrumsys/gui/qt/main_window.py:2380
+msgid "Invalid Public key"
+msgstr "Neplatný verejný kľúč"
+
+#: electrumsys/gui/kivy/uix/screens.py:259
+msgid "Invalid amount"
+msgstr "Neplatná suma"
+
+#: electrumsys/gui/qt/main_window.py:1806
+msgid "Invalid bitcoin URI:"
+msgstr "Neplatný bitcoin URI:"
+
+#: electrumsys/plugins/trustedcoin/kivy.py:67
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:327
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:685
+msgid "Invalid one-time password."
+msgstr "Neplatné jednorazové heslo."
+
+#: electrumsys/plugins/coldcard/coldcard.py:196
+msgid "Invalid xpub magic. Make sure your {} device is set to the correct chain."
+msgstr "Neplatný xpub magic. Uistite sa, že vaše zariadenie {} je nastavené na správny reťazec."
+
+#: electrumsys/gui/qt/main_window.py:1955
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:17
+msgid "Invoice"
+msgstr "Faktúra"
+
+#: electrumsys/gui/kivy/uix/screens.py:227
+msgid "Invoice saved"
+msgstr "Faktúra uložená"
+
+#: electrumsys/gui/qt/main_window.py:1979
+msgid "Invoice saved as "
+msgstr "Faktúra uložená ako "
+
+#: electrumsys/gui/qt/main_window.py:571 electrumsys/gui/qt/main_window.py:1340
+#: electrumsys/gui/kivy/uix/ui_screens/send.kv:101
+msgid "Invoices"
+msgstr "Faktúry"
+
+#: electrumsys/gui/qt/installwizard.py:34
+msgid "It also contains your master public key that allows watching your addresses."
+msgstr "Obsahuje tiež váš hlavný verejný kľúč, ktorý umožňuje sledovanie vašich adries."
+
+#: electrumsys/gui/qt/main_window.py:2510
+msgid "It cannot be \"backed up\" by simply exporting these private keys."
+msgstr "Nie je možné ju „zálohovať“ iba exportovaním týchto súkromných kľúčov."
+
+#: electrumsys/gui/qt/main_window.py:3358
+msgid "It conflicts with current history."
+msgstr "Je to v rozpore so súčasnou históriou."
+
+#: electrumsys/plugins/cosigner_pool/__init__.py:5
+msgid "It sends and receives partially signed transactions from/to your cosigner wallet."
+msgstr "Posiela a prijíma čiastočne podpísané transakcie z/do vašej spolupodpisovateľskej peňaženky."
+
+#: electrumsys/i18n.py:60
+msgid "Italian"
+msgstr "Taliančina"
+
+#: electrumsys/i18n.py:61
+msgid "Japanese"
+msgstr "Japončina"
+
+#: electrumsys/plugins/keepkey/qt.py:59
+msgid "KeepKey Seed Recovery"
+msgstr "Obnovenie seedu KeepKey"
+
+#: electrumsys/plugins/keepkey/__init__.py:6
+msgid "KeepKey wallet"
+msgstr "Peňaženka KeepKey"
+
+#: electrumsys/gui/qt/main_window.py:1162
+msgid "Keyboard shortcut: type \"!\" to send all your coins."
+msgstr "Klávesová skratka: napíšte \"!\" na odoslanie všetkých mincí."
+
+#: electrumsys/base_wizard.py:179
+msgid "Keystore"
+msgstr "Úložisko kľúčov"
+
+#: electrumsys/gui/qt/main_window.py:2169
+msgid "Keystore type"
+msgstr "Typ úložiska kľúčov"
+
+#: electrumsys/i18n.py:62
+msgid "Kyrgyz"
+msgstr "Kirgizština"
+
+#: electrumsys/gui/qt/utxo_list.py:48 electrumsys/gui/qt/address_list.py:91
+msgid "Label"
+msgstr "Menovka"
+
+#: electrumsys/plugins/labels/qt.py:34
+msgid "Label Settings"
+msgstr "Nastavenie menoviek"
+
+#: electrumsys/plugins/labels/__init__.py:3
+msgid "LabelSync"
+msgstr "LabelSync"
+
+#: electrumsys/plugins/labels/__init__.py:6
+msgid "Labels, transactions IDs and addresses are encrypted before they are sent to the remote server."
+msgstr "Menovky, ID transakcií a adresy sa zašifrujú pred odoslaním na vzdialený server."
+
+#: electrumsys/plugins/trezor/qt.py:439 electrumsys/plugins/keepkey/qt.py:468
+#: electrumsys/plugins/safe_t/qt.py:353 electrumsys/gui/qt/main_window.py:2747
+#: electrumsys/gui/kivy/uix/dialogs/settings.py:131
+msgid "Language"
+msgstr "Jazyk"
+
+#: electrumsys/gui/qt/update_checker.py:50 electrumsys/gui/qt/update_checker.py:82
+msgid "Latest version: {}"
+msgstr "Najnovšia verzia: {}"
+
+#: electrumsys/i18n.py:63
+msgid "Latvian"
+msgstr "Lotyština"
+
+#: electrumsys/gui/qt/installwizard.py:31
+msgid "Leave this field empty if you want to disable encryption."
+msgstr "Ak chcete vypnúť šifrovanie, nechajte toto pole prázdne."
+
+#: electrumsys/plugins/ledger/qt.py:55
+msgid "Ledger Status"
+msgstr "Stav Ledgera"
+
+#: electrumsys/plugins/ledger/auth2fa.py:48
+msgid "Ledger Wallet Authentication"
+msgstr "Overenie peňaženkou Ledger"
+
+#: electrumsys/plugins/ledger/__init__.py:6
+msgid "Ledger wallet"
+msgstr "Peňaženka Ledger"
+
+#: electrumsys/base_wizard.py:581
+msgid "Legacy"
+msgstr "Staršia verzia"
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:512
+msgid "Legacy 2FA"
+msgstr "Staršia verzia 2FA"
+
+#: electrumsys/plugins/trezor/trezor.py:177
+#: electrumsys/plugins/keepkey/keepkey.py:171
+#: electrumsys/plugins/safe_t/safe_t.py:176
+msgid "Let the device generate a completely new seed randomly"
+msgstr "Nechajte zariadenie vytvoriť kompletne nový seed náhodne"
+
+#: electrumsys/plugins/hw_wallet/plugin.py:111
+msgid "Library version for '{}' is incompatible."
+msgstr "Verzia knižnice pre „{}“ je nekompatibilná."
+
+#: electrumsys/gui/kivy/uix/ui_screens/about.kv:19
+msgid "Licence"
+msgstr "Licencia"
+
+#: electrumsys/gui/qt/main_window.py:2940
+msgid "Light"
+msgstr "Svetlý"
+
+#: electrumsys/gui/qt/main_window.py:1554
+msgid "Line #"
+msgstr "Riadok #"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:251
+msgid "Load a wallet from the micro SD card"
+msgstr "Načítať peňaženku z karty micro SD"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:228
+msgid "Load a wallet from the micro SD card (the current seed is overwritten)"
+msgstr "Načítať peňaženku z karty micro SD (súčasný seed je prepísaný)"
+
+#: electrumsys/gui/qt/main_window.py:2476
+msgid "Load transaction"
+msgstr "Načítať transakciu"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:344
+msgid "Loading backup..."
+msgstr "Načítava sa záloha..."
+
+#: electrumsys/wallet.py:74 electrumsys/wallet.py:378
+msgid "Local"
+msgstr "Miestne"
+
+#: electrumsys/gui/qt/main_window.py:2490
+msgid "Lookup transaction"
+msgstr "Vyhľadaj transakciu"
+
+#: electrumsys/simple_config.py:388
+msgid "Low fee"
+msgstr "Nízky poplatok"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:728
+#: electrumsys/plugins/ledger/ledger.py:590 electrumsys/plugins/trezor/trezor.py:260
+#: electrumsys/plugins/keepkey/keepkey.py:246
+#: electrumsys/plugins/safe_t/safe_t.py:263
+#: electrumsys/plugins/coldcard/coldcard.py:668
+msgid "Make sure it is in the correct state."
+msgstr "Uistite sa, že je v správnom stave."
+
+#: electrumsys/plugins/hw_wallet/plugin.py:124
+msgid "Make sure you install it with python3"
+msgstr "Uistite sa, že ho inštalujete pomocou python3"
+
+#: electrumsys/gui/qt/main_window.py:470
+msgid "Make sure you own the seed phrase or the private keys, before you request Bitcoins to be sent to this wallet."
+msgstr "Predtým, ako požiadate o zaslanie Bitcoinov do tejto peňaženky, sa uistite, že vlastníte seedovú frázu alebo súkromné kľúče."
+
+#: electrumsys/plugins/coldcard/qt.py:154
+msgid "Master Fingerprint"
+msgstr "Hlavný odtlačok"
+
+#: electrumsys/gui/qt/installwizard.py:588 electrumsys/gui/qt/main_window.py:2190
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:890
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:894
+#: electrumsys/gui/kivy/uix/ui_screens/status.kv:58
+#: electrumsys/gui/kivy/uix/ui_screens/status.kv:61
+#: electrumsys/gui/kivy/main_window.py:633 electrumsys/gui/kivy/main_window.py:635
+msgid "Master Public Key"
+msgstr "Hlavný verejný kľúč"
+
+#: electrumsys/gui/qt/main_window.py:2187
+msgid "Master Public Keys"
+msgstr "Hlavné verejné kľúče"
+
+#: electrumsys/plugins/trezor/qt.py:248
+msgid "Matrix"
+msgstr "Matica"
+
+#: electrumsys/gui/qt/main_window.py:1174
+msgid "Max"
+msgstr "Max"
+
+#: electrumsys/gui/qt/main_window.py:3306
+msgid "Max fee exceeded"
+msgstr "Maximálny poplatok prekročený"
+
+#: electrumsys/gui/qt/main_window.py:1964
+msgid "Memo"
+msgstr "Poznámka"
+
+#: electrumsys/gui/qt/main_window.py:2793
+msgid "Mempool"
+msgstr "Mempool"
+
+#: electrumsys/gui/qt/main_window.py:2788
+msgid "Mempool based: fee rate is targeting a depth in the memory pool"
+msgstr "Založený na mempoole: sadzba poplatku sa odvíja od hĺbky fondu pamäti"
+
+#: electrumsys/gui/kivy/uix/dialogs/tx_dialog.py:117
+msgid "Mempool depth"
+msgstr "Hĺbka mempoolu"
+
+#: electrumsys/gui/qt/main_window.py:2326 electrumsys/gui/qt/main_window.py:2392
+msgid "Message"
+msgstr "Správa"
+
+#: electrumsys/plugins/ledger/auth2fa.py:83
+msgid "Method:"
+msgstr "Metóda:"
+
+#: electrumsys/gui/qt/main_window.py:1636 electrumsys/gui/kivy/uix/screens.py:289
+msgid "Mining fee"
+msgstr "Ťažobný poplatok"
+
+#: electrumsys/plugins/hw_wallet/plugin.py:123
+msgid "Missing libraries for {}."
+msgstr "Chýbajú knižnice pre {}."
+
+#: electrumsys/base_crash_reporter.py:66
+msgid "Missing report URL."
+msgstr "Chýbajúca správa URL."
+
+#: electrumsys/plugins/ledger/auth2fa.py:178
+msgid "Mobile - Not paired"
+msgstr "Mobilné zariadenie - nespárované"
+
+#: electrumsys/plugins/ledger/auth2fa.py:180
+msgid "Mobile - {}"
+msgstr "Mobilné zariadenie - {}"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:295
+msgid "Mobile pairing options"
+msgstr "Možnosti párovania mobilných zariadení"
+
+#: electrumsys/plugins/revealer/qt.py:221
+msgid "More info at: {}"
+msgstr "Viac info na: {}"
+
+#: electrumsys/gui/qt/installwizard.py:645
+msgid "Multi-Signature Wallet"
+msgstr "Viacpodpisová peňaženka"
+
+#: electrumsys/base_wizard.py:128
+msgid "Multi-signature wallet"
+msgstr "Viacpodpisová peňaženka"
+
+#: electrumsys/plugins/ledger/auth2fa.py:111
+#: electrumsys/plugins/ledger/auth2fa.py:149
+msgid "NOT DEVICE PIN - see above"
+msgstr "TOTO NIE JE PIN ZARIADENIA - pozri vyššie"
+
+#: electrumsys/gui/qt/contact_list.py:48 electrumsys/gui/qt/main_window.py:2141
+msgid "Name"
+msgstr "Meno"
+
+#: electrumsys/plugins/trezor/qt.py:453 electrumsys/plugins/keepkey/qt.py:482
+#: electrumsys/plugins/safe_t/qt.py:367
+msgid "Name this {}.  If you have multiple devices their labels help distinguish them."
+msgstr "Pomenujte toto zariadenie {}. Ak máte viaceré zariadenia, menovky ich pomáhajú rozlišovať."
+
+#: electrumsys/gui/text.py:155 electrumsys/gui/qt/network_dialog.py:49
+#: electrumsys/gui/qt/main_window.py:2061
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:3 electrumsys/gui/kivy/main.kv:451
+msgid "Network"
+msgstr "Sieť"
+
+#: electrumsys/interface.py:150
+msgid "Network request timed out."
+msgstr "Uplynul časový limit požiadavky siete."
+
+#: electrumsys/gui/qt/util.py:58 electrumsys/gui/qt/exception_window.py:80
+#: electrumsys/gui/qt/request_list.py:78 electrumsys/gui/qt/invoice_list.py:76
+#: electrumsys/gui/kivy/uix/dialogs/invoices.py:128
+msgid "Never"
+msgstr "Nikdy"
+
+#: electrumsys/gui/qt/seed_dialog.py:50
+msgid "Never disclose your seed."
+msgstr "Nikdy neprezrádzajte svoj seed."
+
+#: electrumsys/gui/qt/seed_dialog.py:51
+msgid "Never type it on a website."
+msgstr "Nikdy ho nezadávajte na webovej stránke."
+
+#: electrumsys/gui/qt/main_window.py:919
+#: electrumsys/gui/kivy/uix/ui_screens/receive.kv:139
+msgid "New"
+msgstr "Nové"
+
+#: electrumsys/gui/qt/main_window.py:2131 electrumsys/gui/qt/main_window.py:2133
+msgid "New Contact"
+msgstr "Nový kontakt"
+
+#: electrumsys/gui/qt/password_dialog.py:101
+msgid "New Password:"
+msgstr "Nové heslo:"
+
+#: electrumsys/gui/qt/contact_list.py:82
+msgid "New contact"
+msgstr "Nový kontakt"
+
+#: electrumsys/gui/qt/main_window.py:3323
+msgid "New fee:"
+msgstr "Nový poplatok:"
+
+#: electrumsys/gui/qt/main_window.py:682
+msgid "New transaction received: {}"
+msgstr "Bola prijatá nová transakcia: {}"
+
+#: electrumsys/plugins/revealer/qt.py:127 electrumsys/plugins/trustedcoin/qt.py:209
+#: electrumsys/gui/qt/installwizard.py:127
+msgid "Next"
+msgstr "Ďalej"
+
+#: electrumsys/plugins/trezor/qt.py:313 electrumsys/plugins/keepkey/qt.py:347
+#: electrumsys/plugins/safe_t/qt.py:227
+msgid "No"
+msgstr "Nie"
+
+#: electrumsys/gui/kivy/uix/dialogs/invoices.py:125
+msgid "No Amount"
+msgstr "Žiadna suma"
+
+#: electrumsys/util.py:175
+msgid "No Data"
+msgstr "Žiadne údaje"
+
+#: electrumsys/gui/kivy/uix/ui_screens/send.kv:72
+msgid "No Description"
+msgstr "Žiadny popis"
+
+#: electrumsys/gui/kivy/main_window.py:203
+msgid "No Wallet"
+msgstr "Žiadna peňaženka"
+
+#: electrumsys/exchange_rate.py:585
+msgid "No data"
+msgstr "Žiadne údaje"
+
+#: electrumsys/gui/qt/main_window.py:628
+msgid "No donation address for this server"
+msgstr "Pri tomto serveri chýba adresa pre dary"
+
+#: electrumsys/base_wizard.py:294
+msgid "No exceptions encountered."
+msgstr "Nevyskytli sa žiadne výnimky."
+
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:53
+msgid "No fork detected"
+msgstr "Nebolo zistené rozvetvenie (fork)"
+
+#: electrumsys/base_wizard.py:297
+msgid "No hardware device detected."
+msgstr "Nezistilo sa žiadne hardvérové zariadenie."
+
+#: electrumsys/wallet.py:122
+msgid "No inputs found. (Note that inputs need to be confirmed)"
+msgstr "Nenašli sa žiadne vstupy. (Vstupy sa musia potvrdiť)"
+
+#: electrumsys/gui/qt/main_window.py:2170
+msgid "No keystore"
+msgstr "Žiadne úložisko kľúčov"
+
+#: electrumsys/gui/qt/main_window.py:1006
+msgid "No message or amount"
+msgstr "Žiadna správa alebo suma"
+
+#: electrumsys/gui/qt/main_window.py:1051
+msgid "No more addresses in your wallet."
+msgstr "Vo vašej peňaženke nie sú ďalšie adresy."
+
+#: electrumsys/gui/qt/main_window.py:1567
+msgid "No outputs"
+msgstr "Žiadne výstupy"
+
+#: electrumsys/gui/kivy/main_window.py:971
+msgid "No saved invoices."
+msgstr "Žiadne uložené faktúry."
+
+#: electrumsys/gui/kivy/main_window.py:983
+msgid "No saved requests."
+msgstr "Žiadne uložené žiadosti."
+
+#: electrumsys/gui/kivy/main_window.py:321
+msgid "No wallet loaded."
+msgstr "Nenačítala sa žiadna peňaženka."
+
+#: electrumsys/gui/qt/network_dialog.py:359 electrumsys/gui/qt/history_list.py:398
+#: electrumsys/gui/qt/main_window.py:3040
+#: electrumsys/gui/kivy/uix/dialogs/fx_dialog.py:97
+#: electrumsys/gui/kivy/uix/dialogs/fx_dialog.py:98
+#: electrumsys/gui/kivy/uix/dialogs/fx_dialog.py:103
+#: electrumsys/gui/kivy/uix/dialogs/settings.py:159
+#: electrumsys/gui/kivy/uix/dialogs/settings.py:217
+#: electrumsys/gui/kivy/main_window.py:117
+msgid "None"
+msgstr "Žiadny"
+
+#: electrumsys/i18n.py:64
+msgid "Norwegian Bokmal"
+msgstr "Nórčina Bokmal"
+
+#: electrumsys/gui/qt/exception_window.py:84
+msgid "Not Now"
+msgstr "Nie teraz"
+
+#: electrumsys/wallet.py:73
+msgid "Not Verified"
+msgstr "Neoverené"
+
+#: electrumsys/gui/kivy/uix/screens.py:180
+msgid "Not a Bitcoin URI"
+msgstr "Nie je bitcoinové URI"
+
+#: electrumsys/gui/text.py:148 electrumsys/gui/qt/network_dialog.py:370
+#: electrumsys/gui/qt/main_window.py:819 electrumsys/gui/qt/main_window.py:821
+#: electrumsys/gui/stdio.py:126 electrumsys/gui/kivy/uix/ui_screens/network.kv:14
+#: electrumsys/gui/kivy/main_window.py:946
+msgid "Not connected"
+msgstr "Nepripojené"
+
+#: electrumsys/gui/qt/main_window.py:1313 electrumsys/gui/kivy/uix/screens.py:278
+msgid "Not enough funds"
+msgstr "Nedostatok peňažných prostriedkov"
+
+#: electrumsys/wallet.py:136 electrumsys/wallet.py:138
+msgid "Not enough funds on address."
+msgstr "Na adrese nie je dostatok prostriedkov."
+
+#: electrumsys/wallet.py:367
+msgid "Not verified"
+msgstr "Neoverené"
+
+#: electrumsys/gui/qt/main_window.py:1161
+msgid "Note that if you have frozen some of your addresses, the available funds will be lower than your total balance."
+msgstr "Ak ste zmrazili niektoré zo svojich adries, disponibilné prostriedky budú nižšie ako váš celkový zostatok."
+
+#: electrumsys/gui/qt/main_window.py:2817
+msgid "Note that some merchants do not accept non-final transactions until they are confirmed."
+msgstr "Niektorí obchodníci neprijímajú neuzavreté transakcie, kým sa nepotvrdia."
+
+#: electrumsys/base_wizard.py:421
+msgid "Note that this is NOT your encryption password."
+msgstr "Toto NIE je vaše šifrovacie heslo."
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:82
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:98
+msgid "Note that your coins are not locked in this service.  You may withdraw your funds at any time and at no cost, without the remote server, by using the 'restore wallet' option with your wallet seed."
+msgstr "Vaše mince nie sú v tejto službe uzamknuté. Svoje prostriedky si môžete kedykoľvek bezplatne vybrať bez vzdialeného servera, s použitím voľby „obnoviť peňaženku“ so seedom vašej peňaženky."
+
+#: electrumsys/gui/qt/installwizard.py:35 electrumsys/gui/qt/password_dialog.py:278
+msgid "Note: If you enable this setting, you will need your hardware device to open your wallet."
+msgstr "Poznámka: Ak zapnete toto nastavenie, budete na otvorenie peňaženky potrebovať vaše hardvérové zariadenie."
+
+#: electrumsys/gui/qt/main_window.py:3368
+msgid "Note: this is an offline transaction, if you want the network to see it, you need to broadcast it."
+msgstr "Poznámka: toto je offline transakcia. Ak chcete, aby ju sieť videla, musíte ju odvysielať."
+
+#: electrumsys/gui/kivy/uix/dialogs/__init__.py:95
+msgid "Nothing set !"
+msgstr "Nič sa nenastavilo!"
+
+#: electrumsys/plot.py:15
+msgid "Nothing to plot."
+msgstr "Nie je čo zakresliť."
+
+#: electrumsys/gui/qt/history_list.py:474
+msgid "Nothing to summarize."
+msgstr "Nie je čo zhrnúť."
+
+#: electrumsys/gui/qt/main_window.py:2768
+msgid "Number of zeros displayed after the decimal point. For example, if this is set to 2, \"1.\" will be displayed as \"1.00\""
+msgstr "Počet núl za desatinnou čiarkou. Napr, ak je to nastavené na 2, \"1\" bude zobrazené ako \"1,00\""
+
+#: electrumsys/plugins/audio_modem/qt.py:63 electrumsys/gui/qt/util.py:172
+#: electrumsys/gui/kivy/uix/ui_screens/proxy.kv:64
+#: electrumsys/gui/kivy/uix/ui_screens/server.kv:57
+msgid "OK"
+msgstr "OK"
+
+#: electrumsys/plugins/revealer/qt.py:255
+msgid "OR"
+msgstr "ALEBO"
+
+#: electrumsys/gui/text.py:136 electrumsys/gui/qt/__init__.py:182
+#: electrumsys/gui/qt/main_window.py:785 electrumsys/gui/kivy/main_window.py:733
+msgid "Offline"
+msgstr "Offline"
+
+#: electrumsys/plugins/ledger/ledger.py:360 electrumsys/plugins/trezor/trezor.py:77
+#: electrumsys/plugins/keepkey/keepkey.py:53 electrumsys/plugins/safe_t/safe_t.py:54
+msgid "Offline signing with {} is not supported for legacy inputs."
+msgstr "Offline podpisovanie so zariadením {} nie je podporované pre staršie verzie vstupov."
+
+#: electrumsys/base_wizard.py:300
+msgid "On Linux, you might have to add a new permission to your udev rules."
+msgstr "Na Linuxe budete možno musieť pridať nové povolenie do vašich pravidiel udev."
+
+#: electrumsys/gui/qt/main_window.py:1907
+msgid "One output per line."
+msgstr "Jeden výstup na riadok."
+
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:39
+msgid "One-server mode"
+msgstr "Jednoserverový režim"
+
+#: electrumsys/gui/qt/main_window.py:2913
+msgid "Online Block Explorer"
+msgstr "Online Prehliadač Blokov"
+
+#: electrumsys/plugins/hw_wallet/plugin.py:145
+msgid "Only OP_RETURN scripts, with one constant push, are supported."
+msgstr "Podporované sú iba skripty OP_RETURN s jednou operáciou push pri konštante."
+
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:40
+msgid "Only connect to a single server"
+msgstr "Pripojiť iba k jednému serveru"
+
+#: electrumsys/plugins/trezor/qt.py:566 electrumsys/plugins/keepkey/qt.py:572
+#: electrumsys/plugins/safe_t/qt.py:480
+msgid "Only wipe a device if you have the recovery seed written down and the device wallet(s) are empty, otherwise the bitcoins will be lost forever."
+msgstr "Zariadenie vymažte iba ak ste si zapísali seed pre obnovu a zariadenie je prázdne, inak sa bitcoiny navždy stratia."
+
+#: electrumsys/plugins/revealer/qt.py:732
+msgid "Open calibration pdf"
+msgstr "Otvorte kalibračné pdf"
+
+#: electrumsys/plugins/cosigner_pool/qt.py:175
+msgid "Open your cosigner wallet to retrieve it."
+msgstr "Pre načítanie otvorte spolupodpisovateľskú peňaženku."
+
+#: electrumsys/gui/qt/util.py:766
+msgid "Open {} file"
+msgstr "Otvorte súbor {}"
+
+#: electrumsys/gui/qt/main_window.py:2839
+msgid "OpenAlias"
+msgstr "OpenAlias"
+
+#: electrumsys/gui/qt/main_window.py:2835
+msgid "OpenAlias record, used to receive coins and to sign payment requests."
+msgstr "Záznam OpenAlias, používaný na prijímanie mincí a podpisovanie žiadostí o platbu."
+
+#: electrumsys/gui/qt/seed_dialog.py:134
+msgid "Options"
+msgstr "Možnosti"
+
+#: electrumsys/plugins/trezor/trezor.py:263
+#: electrumsys/plugins/keepkey/keepkey.py:134
+#: electrumsys/plugins/safe_t/safe_t.py:139
+msgid "Outdated {} firmware for device labelled {}. Please download the updated firmware from {}"
+msgstr "Zastaraný firmvér {} pre zariadenie s menovkou {}. Stiahnite si, prosím, aktualizovaný firmvér z {}"
+
+#: electrumsys/gui/qt/main_window.py:3281
+msgid "Output amount"
+msgstr "Suma výstupu"
+
+#: electrumsys/gui/qt/utxo_list.py:51
+msgid "Output point"
+msgstr "Bod výstupu"
+
+#: electrumsys/gui/qt/transaction_dialog.py:325
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:62
+msgid "Outputs"
+msgstr "Výstupy"
+
+#: electrumsys/gui/qt/network_dialog.py:209
+msgid "Overview"
+msgstr "Prehľad"
+
+#: electrumsys/plugins/trezor/qt.py:470 electrumsys/plugins/keepkey/qt.py:499
+#: electrumsys/plugins/safe_t/qt.py:384
+msgid "PIN Protection"
+msgstr "Ochrana PIN-om"
+
+#: electrumsys/gui/kivy/main_window.py:1071
+msgid "PIN codes do not match"
+msgstr "PIN kódy sa nezhodujú"
+
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:1038
+msgid "PIN mismatch"
+msgstr "PIN sa nezhoduje"
+
+#: electrumsys/plugins/trezor/qt.py:475 electrumsys/plugins/keepkey/qt.py:504
+#: electrumsys/plugins/safe_t/qt.py:389
+msgid "PIN protection is strongly recommended.  A PIN is your only protection against someone stealing your bitcoins if they obtain physical access to your {}."
+msgstr "Dôrazne sa odporúča ochrana PIN-om. PIN je vaša jediná ochrana voči krádeži bitcoinov v prípade, že niekto získa fyzický prístup k vášmu zariadeniu {}."
+
+#: electrumsys/plugins/trezor/qt.py:434 electrumsys/plugins/keepkey/qt.py:462
+#: electrumsys/plugins/safe_t/qt.py:348
+msgid "PIN set"
+msgstr "PIN nastavený"
+
+#: electrumsys/gui/qt/util.py:50 electrumsys/gui/kivy/uix/dialogs/invoices.py:87
+msgid "Paid"
+msgstr "Zaplatené"
+
+#: electrumsys/plugins/ledger/auth2fa.py:86 electrumsys/plugins/ledger/auth2fa.py:186
+msgid "Pair"
+msgstr "Párovať"
+
+#: electrumsys/wallet.py:385
+msgid "Partially signed"
+msgstr "Čiastočne podpísané"
+
+#: electrumsys/gui/kivy/main_window.py:1054
+msgid "Passphrase"
+msgstr "Prístupová fráza"
+
+#: electrumsys/gui/qt/password_dialog.py:87
+msgid "Passphrase:"
+msgstr "Prístupová fráza:"
+
+#: electrumsys/plugins/trezor/qt.py:435 electrumsys/plugins/keepkey/qt.py:463
+#: electrumsys/plugins/safe_t/qt.py:349
+msgid "Passphrases"
+msgstr "Prístupové frázy"
+
+#: electrumsys/plugins/trezor/qt.py:23 electrumsys/plugins/keepkey/qt.py:23
+#: electrumsys/plugins/safe_t/qt.py:23
+msgid "Passphrases allow you to access new wallets, each hidden behind a particular case-sensitive passphrase."
+msgstr "Prístupové frázy umožňujú prístup k novým peňaženkám - každá sa ukrýva za konkrétnou prístupovou frázou, pri ktorej sa rozlišujú veľké a malé písmená."
+
+#: electrumsys/gui/qt/network_dialog.py:263 electrumsys/gui/qt/installwizard.py:182
+#: electrumsys/gui/qt/password_dialog.py:299 electrumsys/gui/qt/main_window.py:2055
+#: electrumsys/gui/kivy/uix/ui_screens/proxy.kv:47
+msgid "Password"
+msgstr "Heslo"
+
+#: electrumsys/gui/qt/password_dialog.py:152
+msgid "Password Strength"
+msgstr "Prekonateľnosť hesla"
+
+#: electrumsys/gui/qt/main_window.py:2110
+msgid "Password is disabled, this wallet is not protected"
+msgstr "Heslo je vypnuté, táto peňaženka nie je chránená"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:147
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:162
+msgid "Password must have at least 4 characters."
+msgstr "Heslo musí mať najmenej 4 znaky."
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:150
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:165
+msgid "Password must have less than 64 characters."
+msgstr "Heslo musí mať menej ako 64 znakov."
+
+#: electrumsys/gui/qt/main_window.py:2110
+msgid "Password was updated successfully"
+msgstr "Heslo bolo úspešne aktualizované"
+
+#: electrumsys/gui/qt/password_dialog.py:101
+msgid "Password:"
+msgstr "Heslo:"
+
+#: electrumsys/gui/kivy/uix/ui_screens/send.kv:105
+msgid "Paste"
+msgstr "Prilepiť"
+
+#: electrumsys/gui/kivy/uix/ui_screens/send.kv:121
+msgid "Pay"
+msgstr "Zaplatiť"
+
+#: electrumsys/gui/qt/invoice_list.py:113
+msgid "Pay Now"
+msgstr "Zaplatiť teraz"
+
+#: electrumsys/gui/text.py:178 electrumsys/gui/qt/contact_list.py:96
+#: electrumsys/gui/qt/main_window.py:1137
+msgid "Pay to"
+msgstr "Príjemca"
+
+#: electrumsys/gui/qt/main_window.py:1911
+msgid "Pay to many"
+msgstr "Hromadná platba"
+
+#: electrumsys/gui/qt/qrwindow.py:39
+msgid "Payment Request"
+msgstr "Žiadosť o platbu"
+
+#: electrumsys/gui/kivy/uix/screens.py:328 electrumsys/gui/kivy/uix/screens.py:362
+msgid "Payment received"
+msgstr "Platba prijatá"
+
+#: electrumsys/gui/qt/main_window.py:1545 electrumsys/gui/qt/main_window.py:1698
+#: electrumsys/gui/kivy/uix/screens.py:245 electrumsys/gui/kivy/main_window.py:333
+msgid "Payment request has expired"
+msgstr "Požiadavka na platbu expirovala"
+
+#: electrumsys/gui/text.py:379 electrumsys/gui/qt/main_window.py:1729
+#: electrumsys/gui/stdio.py:216 electrumsys/gui/kivy/main_window.py:931
+msgid "Payment sent."
+msgstr "Platba odoslaná."
+
+#: electrumsys/gui/qt/util.py:49 electrumsys/gui/kivy/uix/dialogs/requests.py:89
+#: electrumsys/gui/kivy/uix/dialogs/invoices.py:85
+msgid "Pending"
+msgstr "Čaká sa"
+
+#: electrumsys/gui/qt/history_list.py:514
+msgid "Perhaps some dependencies are missing..."
+msgstr "Možno chýbajú niektoré závislosti..."
+
+#: electrumsys/i18n.py:55
+msgid "Persian"
+msgstr "Perzština"
+
+#: electrumsys/base_crash_reporter.py:57
+msgid "Please briefly describe what led to the error (optional):"
+msgstr "Prosím, stručne popíšte, čo viedlo k chybe (voliteľné):"
+
+#: electrumsys/plugins/email_requests/qt.py:251
+msgid "Please check your connection and credentials."
+msgstr "Skontrolujte, prosím, svoje pripojenie a poverenia."
+
+#: electrumsys/gui/kivy/uix/dialogs/crash_reporter.py:123
+msgid "Please check your network connection."
+msgstr "Skontrolujte, prosím, svoje sieťové pripojenie."
+
+#: electrumsys/plugins/hw_wallet/qt.py:159
+msgid "Please check your {} device"
+msgstr "Skontrolujte svoje zariadenie {}"
+
+#: electrumsys/gui/qt/history_list.py:611
+msgid "Please confirm"
+msgstr "Prosím, potvrďte"
+
+#: electrumsys/gui/qt/installwizard.py:406
+msgid "Please enter the master public key (xpub) of your cosigner."
+msgstr "Prosím, zadajte hlavný verejný kľúč (xpub) vášho spolupodpisovateľa."
+
+#: electrumsys/plugins/trustedcoin/kivy.py:58
+#: electrumsys/plugins/trustedcoin/qt.py:105
+msgid "Please enter your Google Authenticator code"
+msgstr "Zadajte, prosím, váš kód Google Authenticatora"
+
+#: electrumsys/plugins/trustedcoin/cmdline.py:40
+msgid "Please enter your Google Authenticator code:"
+msgstr "Prosím, zadajte váš kód Google Authenticatora:"
+
+#: electrumsys/plugins/trustedcoin/qt.py:224
+msgid "Please enter your e-mail address"
+msgstr "Zadajte, prosím, svoju e-mailovú adresu"
+
+#: electrumsys/gui/qt/password_dialog.py:291 electrumsys/gui/qt/main_window.py:987
+msgid "Please enter your password"
+msgstr "Prosím zadajte vaše heslo"
+
+#: electrumsys/plugins/cosigner_pool/qt.py:211
+msgid "Please enter your password to decrypt it."
+msgstr "Pre dešifrovanie svojho hesla ho zadajte."
+
+#: electrumsys/gui/qt/installwizard.py:419
+msgid "Please enter your seed phrase in order to restore your wallet."
+msgstr "Pre obnovu vašej peňaženky zadajte, prosím, svoju seedovú frázu."
+
+#: electrumsys/plugins/coldcard/qt.py:111
+msgid "Please initialize your Coldcard while disconnected."
+msgstr "Inicializujte zariadenie Coldcard, keď je odpojené."
+
+#: electrumsys/plugin.py:540
+msgid "Please insert your {}"
+msgstr "Vložte, prosím, svoje zariadenie {}"
+
+#: electrumsys/base_wizard.py:575
+msgid "Please note that websites and other wallets may not support these addresses yet."
+msgstr "Webové stránky a iné peňaženky nemusia ešte podporovať tieto adresy."
+
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:1018
+msgid "Please paste your cosigners master public key, or scan it using the camera button."
+msgstr "Vložte hlavný verejný kľúč vašich spolupodpisovateľov alebo ho naskenujte pomocou tlačidla kamery."
+
+#: electrumsys/gui/qt/main_window.py:645
+msgid "Please report any bugs as issues on github:<br/>"
+msgstr "Akékoľvek chyby hláste na githube ako problémy:<br/>"
+
+#: electrumsys/gui/qt/exception_window.py:101
+msgid "Please report this issue manually."
+msgstr "Nahláste, prosím, tento problém manuálne."
+
+#: electrumsys/gui/qt/main_window.py:3164
+msgid "Please restart electrumsys to activate the new GUI settings"
+msgstr "Prosím reštartujte program electrumsys pre uplatnenie zmien v nastavení GUI"
+
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:991
+msgid "Please retype your seed phrase, to confirm that you properly saved it"
+msgstr "Znovu zadajte svojú seedovú frázu pre potvrdenie, že ste si ju správne uložili"
+
+#: electrumsys/gui/qt/seed_dialog.py:44
+#, python-brace-format
+msgid "Please save these {0} words on paper (order is important). "
+msgstr "Zapíšte si týchto {0} slov na papier (poradie je dôležité). "
+
+#: electrumsys/gui/kivy/uix/screens.py:251
+msgid "Please scan a Bitcoin address or a payment request"
+msgstr "Naskenujte bitcoinovú adresu alebo žiadosť o platbu"
+
+#: electrumsys/plugin.py:557
+msgid "Please select which {} device to use:"
+msgstr "Vyberte, ktoré so zariadení {} použiť:"
+
+#: electrumsys/gui/qt/installwizard.py:583
+msgid "Please share it with your cosigners."
+msgstr "Prosím, zdieľajte ho so svojimi spolupodpisovateľmi."
+
+#: electrumsys/gui/qt/transaction_dialog.py:51
+msgid "Please sign this transaction in order to save it"
+msgstr "Pre uloženie tejto transakcie ju, prosím, podpíšte"
+
+#: electrumsys/plugins/trustedcoin/kivy.py:108
+#: electrumsys/plugins/trustedcoin/qt.py:139 electrumsys/base_wizard.py:327
+msgid "Please try again."
+msgstr "Skúste znova neskôr."
+
+#: electrumsys/base_wizard.py:613
+msgid "Please type it here."
+msgstr "Zadajte ho, prosím, sem."
+
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:766
+msgid "Please type your seed phrase using the virtual keyboard."
+msgstr "Zadajte, prosím, svoj seed s použitím virtuálnej klávesnice."
+
+#: electrumsys/gui/kivy/uix/screens.py:413
+msgid "Please use the existing requests first."
+msgstr "Použite, prosím, najskôr existujúce žiadosti."
+
+#: electrumsys/gui/qt/util.py:255
+msgid "Please wait"
+msgstr "Čakajte, prosím"
+
+#: electrumsys/gui/qt/update_checker.py:92
+msgid "Please wait while electrumsys checks for available updates."
+msgstr "Prosím, počkajte, kým electrumsys vyhľadá dostupné aktualizácie."
+
+#: electrumsys/wallet.py:763 electrumsys/gui/text.py:369
+#: electrumsys/gui/qt/installwizard.py:130 electrumsys/gui/stdio.py:206
+#: electrumsys/gui/kivy/uix/dialogs/password_dialog.py:125
+msgid "Please wait..."
+msgstr "Čakajte, prosím..."
+
+#: electrumsys/i18n.py:66
+msgid "Polish"
+msgstr "Poľština"
+
+#: electrumsys/gui/qt/network_dialog.py:146
+#: electrumsys/gui/kivy/uix/ui_screens/proxy.kv:28
+#: electrumsys/gui/kivy/uix/ui_screens/server.kv:31
+msgid "Port"
+msgstr "Port"
+
+#: electrumsys/i18n.py:68
+msgid "Portuguese"
+msgstr "Portugalčina"
+
+#: electrumsys/gui/qt/transaction_dialog.py:256
+msgid "Position in mempool: {} from tip"
+msgstr "Pozícia v mempoole: {} od špičky"
+
+#: electrumsys/gui/qt/main_window.py:592 electrumsys/gui/qt/main_window.py:1245
+#: electrumsys/gui/qt/main_window.py:2058 electrumsys/gui/qt/main_window.py:2737
+msgid "Preferences"
+msgstr "Nastavenia"
+
+#: electrumsys/gui/qt/installwizard.py:222
+msgid "Press 'Next' to choose device to decrypt."
+msgstr "Pre výber zariadenia na zašifrovanie stlačte „Ďalej“."
+
+#: electrumsys/gui/qt/installwizard.py:213
+msgid "Press 'Next' to create this wallet, or choose another file."
+msgstr "Pre tvorbu tejto peňaženky stlačte „Ďalej“, alebo vyberte iný súbor."
+
+#: electrumsys/gui/qt/installwizard.py:229
+msgid "Press 'Next' to create/focus window."
+msgstr "Stlačte „Ďalej“ pre vytvorenie/zameranie okna."
+
+#: electrumsys/gui/qt/installwizard.py:225
+msgid "Press 'Next' to open this wallet."
+msgstr "Pre otvorenie tejto peňaženky stlačte „Ďalej“."
+
+#: electrumsys/plugins/ledger/auth2fa.py:138
+msgid "Press Enter"
+msgstr "Stlačte Enter"
+
+#: electrumsys/gui/kivy/main_window.py:608
+msgid "Press again to exit"
+msgstr "Pre ukončenie stlačte znova"
+
+#: electrumsys/gui/qt/main_window.py:1281
+msgid "Preview"
+msgstr "Ukážka"
+
+#: electrumsys/plugins/revealer/qt.py:73
+msgid "Printer Calibration"
+msgstr "Kalibrácia tlačiarne"
+
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:55
+msgid "Private Key"
+msgstr "Súkromný kľúč"
+
+#: electrumsys/gui/qt/address_list.py:206 electrumsys/gui/qt/main_window.py:2249
+#: electrumsys/gui/qt/main_window.py:2254
+msgid "Private key"
+msgstr "Súkromný kľúč"
+
+#: electrumsys/gui/qt/main_window.py:2512
+msgid "Private keys"
+msgstr "Súkromné kľúče"
+
+#: electrumsys/gui/qt/main_window.py:2592
+msgid "Private keys exported."
+msgstr "Súkromné kľúče exportované."
+
+#: electrumsys/plugins/revealer/qt.py:222
+msgid "Proceed at your own risk."
+msgstr "Pokračujte na vlastné riziko."
+
+#: electrumsys/gui/qt/main_window.py:1655
+msgid "Proceed?"
+msgstr "Pokračovať?"
+
+#: electrumsys/plugins/digitalbitbox/__init__.py:4
+msgid "Provides support for Digital Bitbox hardware wallet"
+msgstr "Poskytuje podporu pre hardvérovú peňaženku Digital Bitbox"
+
+#: electrumsys/plugins/keepkey/__init__.py:4
+msgid "Provides support for KeepKey hardware wallet"
+msgstr "Poskytuje podporu pre hardvérovú peňaženku KeepKey"
+
+#: electrumsys/plugins/safe_t/__init__.py:4
+msgid "Provides support for Safe-T mini hardware wallet"
+msgstr "Poskytuje podporu pre hardvérovú peňaženku Safe-T mini"
+
+#: electrumsys/plugins/trezor/__init__.py:4
+msgid "Provides support for Trezor hardware wallet"
+msgstr "Poskytuje podporu pre hardvérovú peňaženku Trezor"
+
+#: electrumsys/plugins/audio_modem/__init__.py:4
+msgid "Provides support for air-gapped transaction signing."
+msgstr "Poskytuje podporu pre „air-gapped“ podpisovanie transakcií."
+
+#: electrumsys/gui/qt/network_dialog.py:211
+#: electrumsys/gui/kivy/uix/ui_screens/proxy.kv:3
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:27
+msgid "Proxy"
+msgstr "Proxy"
+
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:28
+msgid "Proxy configuration"
+msgstr "Konfigurácia proxy"
+
+#: electrumsys/gui/kivy/uix/ui_screens/proxy.kv:11
+msgid "Proxy mode"
+msgstr "Režim proxy"
+
+#: electrumsys/gui/qt/network_dialog.py:286
+msgid "Proxy settings apply to all connections: with electrumsys servers, but also with third-party services."
+msgstr "Nastavenia proxy sa vzťahujú na všetky pripojenia: k serverom electrumsys, ale aj k službám tretích strán."
+
+#: electrumsys/gui/qt/network_dialog.py:261
+msgid "Proxy user"
+msgstr "Používateľ proxy"
+
+#: electrumsys/gui/kivy/uix/screens.py:139
+msgid "Pruned transaction outputs"
+msgstr "Orezané výstupy transakcií"
+
+#: electrumsys/gui/qt/main_window.py:2400
+msgid "Public key"
+msgstr "Verejný kľúč"
+
+#: electrumsys/gui/qt/address_dialog.py:70
+msgid "Public keys"
+msgstr "Verejné kľúče"
+
+#: electrumsys/gui/qt/main_window.py:2232
+msgid "QR code"
+msgstr "QR kód"
+
+#: electrumsys/gui/qt/qrcodewidget.py:114
+msgid "QR code copied to clipboard"
+msgstr "QR kód sa skopíroval do schránky"
+
+#: electrumsys/gui/qt/qrcodewidget.py:109
+msgid "QR code saved to file"
+msgstr "QR kód uložený do súboru"
+
+#: electrumsys/gui/kivy/uix/dialogs/question.py:51
+msgid "Question"
+msgstr "Otázka"
+
+#: electrumsys/gui/text.py:155
+msgid "Quit"
+msgstr "Ukončiť"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:185
+msgid "REMEMBER THE PASSWORD!"
+msgstr "ZAPAMÄTAJTE SI HESLO!"
+
+#: electrumsys/gui/kivy/uix/dialogs/tx_dialog.py:185
+msgid "Raw Transaction"
+msgstr "Nespracovaná transakcia"
+
+#: electrumsys/plugins/ledger/auth2fa.py:186
+msgid "Re-Pair"
+msgstr "Znova spárovať"
+
+#: electrumsys/plugins/trezor/clientbase.py:233
+#: electrumsys/plugins/keepkey/clientbase.py:48
+#: electrumsys/plugins/safe_t/clientbase.py:50
+msgid "Re-enter the new PIN for your {}.\n\n"
+"NOTE: the positions of the numbers have changed!"
+msgstr "Znovu zadajte nový PIN pre vaše zariadenie {}.\n\n"
+"POZNÁMKA: pozície čísel sa zmenili!"
+
+#: electrumsys/gui/qt/qrtextedit.py:41 electrumsys/gui/qt/qrtextedit.py:74
+msgid "Read QR code"
+msgstr "Skenovať QR kód"
+
+#: electrumsys/gui/qt/qrtextedit.py:39
+msgid "Read file"
+msgstr "Čítať súbor"
+
+#: electrumsys/plugins/audio_modem/qt.py:83
+msgid "Read from microphone"
+msgstr "Čítať z mikrofónu"
+
+#: electrumsys/plugins/revealer/qt.py:243
+msgid "Ready to encrypt for revealer {}"
+msgstr "Pripravené na zašifrovanie pre revealer {}"
+
+#: electrumsys/gui/text.py:69 electrumsys/gui/qt/main_window.py:176
+#: electrumsys/gui/kivy/main.kv:396
+msgid "Receive"
+msgstr "Prijať"
+
+#: electrumsys/gui/kivy/uix/dialogs/requests.py:91
+#: electrumsys/gui/kivy/uix/ui_screens/history.kv:24
+msgid "Received"
+msgstr "Prijaté"
+
+#: electrumsys/gui/qt/address_list.py:62
+msgid "Receiving"
+msgstr "Prijímajúce"
+
+#: electrumsys/gui/qt/main_window.py:876
+msgid "Receiving address"
+msgstr "Príjmacia adresa"
+
+#: electrumsys/gui/kivy/uix/ui_screens/send.kv:34
+msgid "Recipient"
+msgstr "Príjemca"
+
+#: electrumsys/gui/kivy/uix/screens.py:251
+msgid "Recipient not specified."
+msgstr "Príjemca nebol určený."
+
+#: electrumsys/gui/qt/main_window.py:1135
+msgid "Recipient of the funds."
+msgstr "Príjemca peňažných prostriedkov."
+
+#: electrumsys/plugins/trezor/trezor.py:178
+#: electrumsys/plugins/keepkey/keepkey.py:172
+#: electrumsys/plugins/safe_t/safe_t.py:177
+msgid "Recover from a seed you have previously written down"
+msgstr "Obnoviť zo seedu, ktorý ste si predtým zapísali"
+
+#: electrumsys/gui/qt/address_dialog.py:82 electrumsys/gui/qt/main_window.py:2259
+msgid "Redeem Script"
+msgstr "Redeem Script"
+
+#: electrumsys/gui/qt/history_list.py:579 electrumsys/gui/qt/main_window.py:1472
+msgid "Remove"
+msgstr "Odstrániť"
+
+#: electrumsys/gui/qt/address_list.py:211
+msgid "Remove from wallet"
+msgstr "Odstrániť z peňaženky"
+
+#: electrumsys/gui/qt/main_window.py:1936
+msgid "Remove {} from your list of contacts?"
+msgstr "Odstrániť {} z vášho zoznamu kontaktov?"
+
+#: electrumsys/gui/qt/exception_window.py:60
+msgid "Report contents"
+msgstr "Obsah správy"
+
+#: electrumsys/gui/kivy/uix/dialogs/crash_reporter.py:125
+msgid "Report sent"
+msgstr "Správa odoslaná"
+
+#: electrumsys/gui/qt/main_window.py:650
+msgid "Reporting Bugs"
+msgstr "Nahlasovanie problémov"
+
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:17
+msgid "Request"
+msgstr "Vyžiadať"
+
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:37
+msgid "Request amount"
+msgstr "Požadovaná čiastka"
+
+#: electrumsys/gui/kivy/uix/screens.py:387
+msgid "Request copied to clipboard"
+msgstr "Žiadosť sa skopírovala do schránky"
+
+#: electrumsys/gui/qt/main_window.py:908
+msgid "Request expires"
+msgstr "Žiadosť vyprší"
+
+#: electrumsys/gui/qt/address_list.py:204
+msgid "Request payment"
+msgstr "Požiadať o platbu"
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:722
+msgid "Request rejected by server"
+msgstr "Žiadosť bola odmietnutá serverom"
+
+#: electrumsys/gui/qt/main_window.py:1043
+msgid "Request saved successfully"
+msgstr "Žiadosť sa úspešne uložila"
+
+#: electrumsys/plugins/email_requests/qt.py:199
+msgid "Request sent."
+msgstr "Žiadosť bola odoslaná."
+
+#: electrumsys/gui/kivy/uix/screens.py:417
+msgid "Request was saved."
+msgstr "Žiadosť sa uložila."
+
+#: electrumsys/gui/qt/main_window.py:888
+msgid "Requested amount"
+msgstr "Vyžiadaná suma"
+
+#: electrumsys/plugins/trustedcoin/kivy.py:107
+#: electrumsys/plugins/trustedcoin/qt.py:138
+msgid "Requesting account info from TrustedCoin server..."
+msgstr "Prebieha vyžiadanie informácií o účte zo servera TrustedCoin..."
+
+#: electrumsys/gui/qt/invoice_list.py:50 electrumsys/gui/qt/main_window.py:1958
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:40
+msgid "Requestor"
+msgstr "Žiadateľ"
+
+#: electrumsys/gui/qt/main_window.py:933
+#: electrumsys/gui/kivy/uix/ui_screens/receive.kv:119
+msgid "Requests"
+msgstr "Žiadosti"
+
+#: electrumsys/gui/qt/installwizard.py:631
+#, python-brace-format
+msgid "Require {0} signatures"
+msgstr "Vyžadovať {0} podpisov"
+
+#: electrumsys/plugins/trezor/qt.py:493
+msgid "Required package 'PIL' is not available - Please install it or use the Trezor website instead."
+msgstr "Požadovaný balík „PIL“ nie je k dispozícii - Nainštalujte ho alebo namiesto toho použite webovú stránku Trezoru."
+
+#: electrumsys/plugins/safe_t/qt.py:407
+msgid "Required package 'PIL' is not available - Please install it."
+msgstr "Požadovaný balík „PIL“ nie je k dispozícii - Nainštalujte ho."
+
+#: electrumsys/gui/qt/main_window.py:3250
+msgid "Requires"
+msgstr "Vyžaduje"
+
+#: electrumsys/plugins/trezor/qt.py:486 electrumsys/plugins/safe_t/qt.py:400
+msgid "Reset"
+msgstr "Resetovať"
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:587
+msgid "Restore 2FA wallet"
+msgstr "Obnoviť peňaženku 2FA"
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:576
+msgid "Restore two-factor Wallet"
+msgstr "Obnoviť dvojfaktorovú peňaženku"
+
+#: electrumsys/plugins/revealer/qt.py:722
+msgid "Revealer - Printer calibration settings"
+msgstr "Revealer - Kalibračné nastavenia tlačiarne"
+
+#: electrumsys/plugins/revealer/__init__.py:3
+msgid "Revealer Backup Utility"
+msgstr "Pomôcka na zálohovanie Revealera"
+
+#: electrumsys/plugins/revealer/qt.py:112 electrumsys/plugins/revealer/qt.py:242
+msgid "Revealer Secret Backup Plugin"
+msgstr "Doplnok na tajné zálohovanie Revealera"
+
+#: electrumsys/plugins/revealer/qt.py:220
+msgid "Revealers starting with 0 are not secure due to a vulnerability."
+msgstr "Revealery začínajúce na 0 nie sú z dôvodu zraniteľnosti bezpečné."
+
+#: electrumsys/plugins/revealer/qt.py:739
+msgid "Right side"
+msgstr "Pravá strana"
+
+#: electrumsys/i18n.py:69
+msgid "Romanian"
+msgstr "Rumunčina"
+
+#: electrumsys/i18n.py:70
+msgid "Russian"
+msgstr "Ruština"
+
+#: electrumsys/gui/qt/main_window.py:2877
+msgid "SSL certificate"
+msgstr "Certifikát SSL"
+
+#: electrumsys/gui/qt/main_window.py:2864
+msgid "SSL certificate used to sign payment requests."
+msgstr "SSL certifikát používaný na podpis žiadostí o platbu."
+
+#: electrumsys/plugins/safe_t/__init__.py:6
+msgid "Safe-T mini wallet"
+msgstr "Peňaženka Safe-T mini"
+
+#: electrumsys/gui/qt/transaction_dialog.py:129
+#: electrumsys/gui/qt/qrcodewidget.py:120 electrumsys/gui/qt/main_window.py:916
+#: electrumsys/gui/qt/main_window.py:1980
+msgid "Save"
+msgstr "Uložiť"
+
+#: electrumsys/plugins/coldcard/qt.py:46
+msgid "Save PSBT"
+msgstr "Uložiť PSBT"
+
+#: electrumsys/gui/qt/request_list.py:157
+msgid "Save as BIP70 file"
+msgstr "Uložiť ako súbor BIP70"
+
+#: electrumsys/gui/qt/main_window.py:1974
+msgid "Save invoice to file"
+msgstr "Uložiť faktúru do súboru"
+
+#: electrumsys/gui/qt/transaction_dialog.py:50
+msgid "Save transaction offline"
+msgstr "Uložiť transakciu offline"
+
+#: electrumsys/plugins/labels/__init__.py:5
+msgid "Save your wallet labels on a remote server, and synchronize them across multiple devices where you use electrumsys."
+msgstr "Uložte vaše menovky peňaženky na vzdialenom serveri a synchronizujte ich naprieč viacerými zariadeniami, na ktorých používate electrumsys."
+
+#: electrumsys/plugins/ledger/auth2fa.py:34
+msgid "Scan this QR code with your Ledger Wallet phone app to pair it with this Ledger device.<br>To complete pairing you will need your security card to answer a challenge."
+msgstr "Pre spárovanie mobilnej aplikácie Ledger Wallet s týmto zariadením Ledger naskenujte tento QR kód.<br>Pre dokončenie párovania budete potrebovať vašu bezpečnostnú kartu na zodpovedanie overovacieho testu."
+
+#: electrumsys/plugins/trezor/qt.py:241
+msgid "Scrambled words"
+msgstr "Pomiešané slová"
+
+#: electrumsys/gui/qt/main_window.py:2164 electrumsys/gui/qt/main_window.py:2253
+msgid "Script type"
+msgstr "Typ skriptu"
+
+#: electrumsys/base_wizard.py:386
+msgid "Script type and Derivation path"
+msgstr "Typ skriptu a derivačná cesta"
+
+#: electrumsys/plugins/ledger/auth2fa.py:176
+msgid "Security Card Challenge"
+msgstr "Overovací test bezpečnostnej karty"
+
+#: electrumsys/gui/qt/seed_dialog.py:209 electrumsys/gui/qt/main_window.py:2059
+#: electrumsys/gui/kivy/main_window.py:1052
+msgid "Seed"
+msgstr "Seed"
+
+#: electrumsys/plugins/keepkey/qt.py:82
+msgid "Seed Entered"
+msgstr "Zadaný seed"
+
+#: electrumsys/gui/qt/seed_dialog.py:169
+msgid "Seed Type"
+msgstr "Typ seedu"
+
+#: electrumsys/gui/qt/main_window.py:2166
+msgid "Seed available"
+msgstr "Seed k dispozícii"
+
+#: electrumsys/base_wizard.py:415
+msgid "Seed extension"
+msgstr "Rozšírenie seedu"
+
+#: electrumsys/base_wizard.py:580
+msgid "Segwit"
+msgstr "Segwit"
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:511
+msgid "Segwit 2FA"
+msgstr "Segwit 2FA"
+
+#: electrumsys/base_wizard.py:574
+msgid "Segwit wallets use bech32 addresses, defined in BIP173."
+msgstr "Peňaženky segwit používajú adresy bech32, definované v BIP173."
+
+#: electrumsys/base_wizard.py:316
+msgid "Select a device"
+msgstr "Vyberte zariadenie"
+
+#: electrumsys/gui/qt/history_list.py:452
+msgid "Select date"
+msgstr "Vybrať dátum"
+
+#: electrumsys/gui/qt/main_window.py:2526
+msgid "Select file to export your private keys to"
+msgstr "Vybrať súbor do ktorého exportovať vaše súkromné kľúče"
+
+#: electrumsys/gui/qt/history_list.py:633
+msgid "Select file to export your wallet transactions to"
+msgstr "Vybrať súbor do ktorého exportovať transakcie vašej peňaženky"
+
+#: electrumsys/gui/qt/util.py:780
+msgid "Select file to save your {}"
+msgstr "Vyberte súbor pre uloženie svojho zariadenia {}"
+
+#: electrumsys/plugins/trezor/qt.py:237
+msgid "Select recovery type:"
+msgstr "Vybrať typ obnovy:"
+
+#: electrumsys/gui/qt/network_dialog.py:221
+msgid "Select server automatically"
+msgstr "Vybrať server automaticky"
+
+#: electrumsys/gui/qt/installwizard.py:598
+msgid "Select server manually"
+msgstr "Zvoliť server ručne"
+
+#: electrumsys/plugins/coldcard/qt.py:71
+msgid "Select where to save the PSBT file"
+msgstr "Vyberte kam uložiť súbor PSBT"
+
+#: electrumsys/gui/qt/main_window.py:1039
+msgid "Select where to save your payment request"
+msgstr "Vyberte miesto uloženia vašej žiadosti o platbu"
+
+#: electrumsys/gui/qt/transaction_dialog.py:225
+msgid "Select where to save your signed transaction"
+msgstr "Vyberte kam uložiť vašu podpísanu transakciu"
+
+#: electrumsys/gui/qt/main_window.py:2746
+msgid "Select which language is used in the GUI (after restart)."
+msgstr "Vyberte ktorý jazyk použiť v GUI (po reštarte)."
+
+#: electrumsys/plugins/trezor/qt.py:207 electrumsys/plugins/keepkey/qt.py:240
+#: electrumsys/plugins/safe_t/qt.py:114
+msgid "Select your seed length:"
+msgstr "Vyberte dĺžku vášho seedu:"
+
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:34
+msgid "Select your server automatically"
+msgstr "Vybrať server automaticky"
+
+#: electrumsys/gui/qt/main_window.py:2464
+msgid "Select your transaction file"
+msgstr "Zvoľte váš súbor transakcie"
+
+#: electrumsys/gui/text.py:69 electrumsys/gui/qt/main_window.py:175
+#: electrumsys/gui/qt/main_window.py:1283 electrumsys/gui/kivy/main.kv:388
+msgid "Send"
+msgstr "Odoslať"
+
+#: electrumsys/gui/qt/exception_window.py:75
+msgid "Send Bug Report"
+msgstr "Poslať správu o chybe"
+
+#: electrumsys/plugins/email_requests/__init__.py:4
+msgid "Send and receive payment request with an email account"
+msgstr "Posielať a prijímať žiadosti o platbu prostredníctvom e-mailového účtu"
+
+#: electrumsys/plugins/email_requests/qt.py:136
+msgid "Send and receive payment requests via email"
+msgstr "Posielať a prijímať žiadosti o platbu prostredníctvom e-mailu"
+
+#: electrumsys/plugins/cosigner_pool/qt.py:145
+msgid "Send to cosigner"
+msgstr "Odoslať spolupodpisovateľovi"
+
+#: electrumsys/plugins/audio_modem/qt.py:90
+msgid "Send to speaker"
+msgstr "Odoslať reproduktoru"
+
+#: electrumsys/plugins/email_requests/qt.py:174
+msgid "Send via e-mail"
+msgstr "Odoslať e-mailom"
+
+#: electrumsys/gui/kivy/main_window.py:943
+msgid "Sending"
+msgstr "Odosiela sa"
+
+#: electrumsys/plugins/cosigner_pool/qt.py:191
+msgid "Sending transaction to cosigning pool..."
+msgstr "Transakcia sa odosiela do spolupodpisovateľského fondu..."
+
+#: electrumsys/gui/kivy/uix/ui_screens/history.kv:24
+msgid "Sent"
+msgstr "Odoslané"
+
+#: electrumsys/gui/qt/network_dialog.py:210 electrumsys/gui/qt/network_dialog.py:236
+#: electrumsys/gui/qt/network_dialog.py:307
+#: electrumsys/gui/kivy/uix/ui_screens/server.kv:3
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:21
+msgid "Server"
+msgstr "Server"
+
+#: electrumsys/plugins/email_requests/qt.py:212
+msgid "Server hosting your email account"
+msgstr "Server hosťujúci váš e-mailový účet"
+
+#: electrumsys/gui/qt/main_window.py:799
+msgid "Server is lagging ({} blocks)"
+msgstr "Server zaostáva (o {} blocks)"
+
+#: electrumsys/gui/kivy/main_window.py:741
+msgid "Server lagging"
+msgstr "Server zaostáva"
+
+#: electrumsys/plugins/trustedcoin/qt.py:148
+msgid "Server not reachable."
+msgstr "Server je nedostupný."
+
+#: electrumsys/gui/qt/network_dialog.py:240
+msgid "Server peers"
+msgstr "Serveroví peeri"
+
+#: electrumsys/network.py:813
+msgid "Server returned unexpected transaction ID."
+msgstr "Server vrátil nečakané ID transakcie."
+
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:22
+msgid "Server used to query your history."
+msgstr "Server používaný na vyhľadávanie vo vašej histórii."
+
+#: electrumsys/plugins/trezor/qt.py:507 electrumsys/plugins/keepkey/qt.py:513
+#: electrumsys/plugins/safe_t/qt.py:421
+msgid "Session Timeout"
+msgstr "Vypršanie platnosti relácie"
+
+#: electrumsys/plugins/trezor/qt.py:316 electrumsys/plugins/keepkey/qt.py:350
+#: electrumsys/plugins/safe_t/qt.py:230
+msgid "Set a PIN"
+msgstr "Nastaviť PIN"
+
+#: electrumsys/gui/qt/main_window.py:3022
+msgid "Set the value of the change output so that it has similar precision to the other outputs."
+msgstr "Nastavte hodnotu výstupu výdavku, aby mala podobnú presnosť ako ostatné výstupy."
+
+#: electrumsys/gui/qt/installwizard.py:32
+msgid "Set wallet file encryption."
+msgstr "Nastaviť šifrovanie súboru peňaženky."
+
+#: electrumsys/plugins/email_requests/qt.py:205 electrumsys/plugins/trezor/qt.py:579
+#: electrumsys/plugins/keepkey/qt.py:585 electrumsys/plugins/safe_t/qt.py:493
+#: electrumsys/plugins/labels/qt.py:29 electrumsys/plugins/audio_modem/qt.py:44
+#: electrumsys/gui/text.py:155 electrumsys/gui/kivy/main.kv:454
+msgid "Settings"
+msgstr "Nastavenia"
+
+#: electrumsys/gui/kivy/uix/screens.py:382
+msgid "Share Bitcoin Request"
+msgstr "Zdieľať žiadosť o bitcoiny"
+
+#: electrumsys/gui/kivy/uix/screens.py:266
+msgid "Should this transaction be replaceable?"
+msgstr "Mala by byť táto transakcia nahraditeľná?"
+
+#: electrumsys/gui/qt/main_window.py:580
+#: electrumsys/gui/kivy/uix/dialogs/requests.py:126
+msgid "Show"
+msgstr "Zobraziť"
+
+#: electrumsys/gui/qt/main_window.py:3125
+msgid "Show Fiat balance for addresses"
+msgstr "Zobraziť zostatok fiat pre adresy"
+
+#: electrumsys/gui/qt/address_dialog.py:61
+msgid "Show QR Code"
+msgstr "Zobraziť QR kód"
+
+#: electrumsys/gui/qt/transaction_dialog.py:105 electrumsys/gui/qt/qrtextedit.py:15
+#: electrumsys/gui/qt/qrtextedit.py:29
+msgid "Show as QR code"
+msgstr "Zobraziť ako QR kód"
+
+#: electrumsys/gui/qt/main_window.py:3124
+msgid "Show capital gains in history"
+msgstr "Zobraziť v histórii kapitálové výnosy"
+
+#: electrumsys/gui/qt/main_window.py:2804
+msgid "Show fee edit box in send tab."
+msgstr "Zobraziť políčko úpravy poplatku na karte Poslať."
+
+#: electrumsys/gui/qt/main_window.py:3123
+msgid "Show history rates"
+msgstr "Zobraziť historické kurzy"
+
+#: electrumsys/plugins/coldcard/qt.py:33
+msgid "Show on Coldcard"
+msgstr "Zobraziť na Coldcard"
+
+#: electrumsys/plugins/ledger/qt.py:34
+msgid "Show on Ledger"
+msgstr "Zobraziť na Ledgeri"
+
+#: electrumsys/plugins/digitalbitbox/qt.py:39 electrumsys/plugins/trezor/qt.py:181
+#: electrumsys/plugins/keepkey/qt.py:211 electrumsys/plugins/safe_t/qt.py:87
+#: electrumsys/plugins/hw_wallet/qt.py:240
+msgid "Show on {}"
+msgstr "Zobraziť na zariadení {}"
+
+#: electrumsys/gui/qt/exception_window.py:57
+msgid "Show report contents"
+msgstr "Zobraziť obsah správy"
+
+#: electrumsys/gui/kivy/uix/ui_screens/status.kv:74
+msgid "Show seed"
+msgstr "Zobraziť seed"
+
+#: electrumsys/gui/qt/main_window.py:290
+msgid "Show {}"
+msgstr "Zobraziť {}"
+
+#: electrumsys/gui/qt/__init__.py:146
+msgid "Show/Hide"
+msgstr "Zobraziť/Skryť"
+
+#: electrumsys/plugins/ledger/ledger.py:515
+#: electrumsys/plugins/coldcard/coldcard.py:583
+msgid "Showing address ..."
+msgstr "Adresa sa zobrazuje..."
+
+#: electrumsys/gui/qt/transaction_dialog.py:123
+#: electrumsys/gui/qt/main_window.py:2342
+msgid "Sign"
+msgstr "Podpísať"
+
+#: electrumsys/gui/qt/main_window.py:2320
+msgid "Sign/verify Message"
+msgstr "Podpísať/overiť správu"
+
+#: electrumsys/gui/qt/address_list.py:208
+msgid "Sign/verify message"
+msgstr "Podpísať/overiť správu"
+
+#: electrumsys/gui/qt/main_window.py:1966 electrumsys/gui/qt/main_window.py:2336
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:43
+msgid "Signature"
+msgstr "Podpis"
+
+#: electrumsys/gui/qt/main_window.py:2315
+msgid "Signature verified"
+msgstr "Podpis overený"
+
+#: electrumsys/wallet.py:381
+msgid "Signed"
+msgstr "Podpísané"
+
+#: electrumsys/gui/kivy/main_window.py:972
+msgid "Signed invoices are saved automatically when you scan them."
+msgstr "Podpísané faktúry sa automaticky uložia, keď ich naskenujete."
+
+#: electrumsys/gui/kivy/uix/dialogs/tx_dialog.py:167
+msgid "Signing"
+msgstr "Podpisuje sa"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:625
+msgid "Signing large transaction. Please be patient ..."
+msgstr "Podpisuje sa veľká transakcia. Prosím o strpenie..."
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:491
+msgid "Signing message ..."
+msgstr "Podpisuje sa správa..."
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:630
+#: electrumsys/gui/qt/main_window.py:1688
+msgid "Signing transaction..."
+msgstr "Podpisuje sa transakcia..."
+
+#: electrumsys/gui/qt/main_window.py:2267
+msgid "Signing with an address actually means signing with the corresponding private key, and verifying with the corresponding public key. The address you have entered does not have a unique public key, so these operations cannot be performed."
+msgstr "Podpisovanie adresou v skutočnosti znamená podpisovanie príslušným súkromným kľúčom a overovanie príslušným verejným kľúčom. Adresa, ktorú ste zadali, nemá jedinečný verejný kľúč, takže tieto operácie nemožno vykonať."
+
+#: electrumsys/gui/qt/transaction_dialog.py:266
+msgid "Size:"
+msgstr "Veľkosť:"
+
+#: electrumsys/i18n.py:71
+msgid "Slovak"
+msgstr "Slovenčina"
+
+#: electrumsys/i18n.py:72
+msgid "Slovenian"
+msgstr "Slovinčina"
+
+#: electrumsys/base_crash_reporter.py:53
+msgid "Something went wrong while executing electrumsys."
+msgstr "Pri vykonávaní aplikácie electrumsys sa vyskytla chyba."
+
+#: electrumsys/base_crash_reporter.py:54
+msgid "Sorry!"
+msgstr "Prepáčte!"
+
+#: electrumsys/gui/qt/update_checker.py:72
+msgid "Sorry, but we were unable to check for updates. Please try again later."
+msgstr "Je nám ľúto, ale nepodarilo sa nám skontrolovať aktualizácie. Skúste to znova neskôr."
+
+#: electrumsys/gui/qt/main_window.py:3126
+msgid "Source"
+msgstr "Zdroj"
+
+#: electrumsys/i18n.py:54
+msgid "Spanish"
+msgstr "Španielčina"
+
+#: electrumsys/gui/qt/utxo_list.py:107
+msgid "Spend"
+msgstr "Minúť"
+
+#: electrumsys/gui/qt/address_list.py:223
+msgid "Spend from"
+msgstr "Minúť od"
+
+#: electrumsys/gui/qt/main_window.py:3011
+msgid "Spend only confirmed coins"
+msgstr "Minúť iba potvrdené mince"
+
+#: electrumsys/gui/qt/main_window.py:3012
+msgid "Spend only confirmed inputs."
+msgstr "Minúť iba potvrdené vstupy."
+
+#: electrumsys/base_wizard.py:126
+msgid "Standard wallet"
+msgstr "Štandardná peňaženka"
+
+#: electrumsys/gui/qt/history_list.py:483
+msgid "Start"
+msgstr "Štart"
+
+#: electrumsys/gui/qt/main_window.py:636
+msgid "Startup times are instant because it operates in conjunction with high-performance servers that handle the most complicated parts of the Bitcoin system."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2793
+msgid "Static"
+msgstr "Statická sadzba"
+
+#: electrumsys/gui/qt/network_dialog.py:301 electrumsys/gui/qt/request_list.py:57
+#: electrumsys/gui/qt/invoice_list.py:53
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:34
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:15
+msgid "Status"
+msgstr "Status"
+
+#: electrumsys/gui/qt/transaction_dialog.py:248
+msgid "Status:"
+msgstr "Status: "
+
+#: electrumsys/plugins/trezor/clientbase.py:281
+#: electrumsys/plugins/keepkey/clientbase.py:82
+#: electrumsys/plugins/safe_t/clientbase.py:90
+msgid "Step {}/24.  Enter seed word as explained on your {}:"
+msgstr "Krok {}/24.  Zadajte slovo seedu podľa vášho zariadenia {}:"
+
+#: electrumsys/gui/qt/main_window.py:2111 electrumsys/gui/qt/main_window.py:3164
+#: electrumsys/gui/qt/main_window.py:3370
+msgid "Success"
+msgstr "Úspešné"
+
+#: electrumsys/gui/qt/history_list.py:479
+msgid "Summary"
+msgstr "Zhrnutie"
+
+#: electrumsys/plugins/ledger/auth2fa.py:174
+msgid "Summary Text PIN (requires dongle replugging)"
+msgstr "Súhrnný textový PIN (vyžaduje opätovné zapojenie hardvérového kľúča)"
+
+#: electrumsys/plugins/ledger/auth2fa.py:174
+msgid "Summary Text PIN is Disabled"
+msgstr "Súhrnný textový PIN je vypnutý"
+
+#: electrumsys/plugins/keepkey/qt.py:467
+msgid "Supported Coins"
+msgstr "Podporované mince"
+
+#: electrumsys/i18n.py:73
+msgid "Swedish"
+msgstr "Švédčina"
+
+#: electrumsys/gui/qt/main_window.py:2648
+msgid "Sweep"
+msgstr "Zmiesť"
+
+#: electrumsys/gui/qt/main_window.py:2624
+msgid "Sweep private keys"
+msgstr "Vymiesť súkromné kľúče"
+
+#: electrumsys/gui/text.py:139 electrumsys/gui/qt/main_window.py:796
+#: electrumsys/gui/stdio.py:117 electrumsys/gui/kivy/main_window.py:739
+msgid "Synchronizing..."
+msgstr "Synchronizácia..."
+
+#: electrumsys/i18n.py:74
+msgid "Tamil"
+msgstr "Tamilčina"
+
+#: electrumsys/gui/qt/fee_slider.py:38
+msgid "Target"
+msgstr "Cieľ"
+
+#: electrumsys/plugins/trustedcoin/qt.py:217
+msgid "Terms of Service"
+msgstr "Podmienky používania"
+
+#: electrumsys/gui/qt/util.py:624
+msgid "Text copied to clipboard"
+msgstr "Text skopírovaný do schránky"
+
+#: electrumsys/gui/kivy/main_window.py:429
+msgid "Text copied to clipboard."
+msgstr "Text skopírovaný do schránky."
+
+#: electrumsys/gui/kivy/main_window.py:830
+msgid "Text copied to clipboard.\n"
+"Tap again to display it as QR code."
+msgstr "Text sa skopíroval do schránky.\n"
+"Ťuknite znova pre jeho zobrazenie vo forme QR kódu."
+
+#: electrumsys/i18n.py:75
+msgid "Thai"
+msgstr "Thajčina"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:225
+msgid "The Digital Bitbox is already seeded. Choose an option:"
+msgstr "Zariadenie Digital Bitbox je už seedované. Vyberte možnosť:"
+
+#: electrumsys/plugins/trezor/clientbase.py:241
+#: electrumsys/plugins/keepkey/clientbase.py:54
+#: electrumsys/plugins/safe_t/clientbase.py:56
+msgid "The PIN cannot be longer than 9 characters."
+msgstr "PIN nemôže byť dlhší ako 9 znakov."
+
+#: electrumsys/gui/qt/main_window.py:1182
+msgid "The amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed."
+msgstr "Výšku poplatku môže zvoliť sám odosielateľ. Spracovanie transakcie s nízkym poplatkom však môže trvať dlhšie."
+
+#: electrumsys/gui/qt/main_window.py:1160
+msgid "The amount will be displayed in red if you do not have enough funds in your wallet."
+msgstr "Ak nebudete mať v peňaženke dostatok prostriedkov, suma bude zobrazená v červenom."
+
+#: electrumsys/gui/qt/main_window.py:906
+msgid "The bitcoin address never expires and will always be part of this electrumsys wallet."
+msgstr "Bitcoinová adresa nikdy nevyprší a bude vždy súčasťou tejto peňaženky electrumsys."
+
+#: electrumsys/gui/qt/main_window.py:1147
+msgid "The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the 'History' tab."
+msgstr "Popis sa neposiela príjemcovi prostriedkov. Je uložený v súbore vašej peňaženky a zobrazovaný v záložke 'História'."
+
+#: electrumsys/gui/qt/main_window.py:1646 electrumsys/gui/kivy/uix/screens.py:297
+msgid "The fee for this transaction seems unusually high."
+msgstr "Poplatok za túto transakciu sa zdá byť nezvyčajne vysoký."
+
+#: electrumsys/gui/qt/installwizard.py:311
+msgid "The file '{}' contains an incompletely created wallet.\n"
+"Do you want to complete its creation now?"
+msgstr "Súbor „{}“ obsahuje neúplne vytvorenú peňaženku.\n"
+"Chcete dokončiť jej vytvorenie teraz?"
+
+#: electrumsys/gui/qt/installwizard.py:305 electrumsys/gui/qt/installwizard.py:316
+msgid "The file was removed"
+msgstr "Súbor sa odstránil"
+
+#: electrumsys/gui/qt/main_window.py:2700
+msgid "The following addresses were added"
+msgstr "Nasledujúce adresy boli pridané"
+
+#: electrumsys/gui/qt/main_window.py:2836
+msgid "The following alias providers are available:"
+msgstr "K dispozícii sú títo poskytovatelia aliasov:"
+
+#: electrumsys/gui/qt/main_window.py:2705 electrumsys/base_wizard.py:226
+msgid "The following inputs could not be imported"
+msgstr "Nasledujúce vstupy nemohli byť importované"
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:85
+msgid "The next step will generate the seed of your wallet.  This seed will NOT be saved in your computer, and it must be stored on paper.  To be safe from malware, you may want to do this on an offline computer, and move your wallet later to an online computer."
+msgstr "V ďalšom kroku sa vytvorí seed vašej peňaženky. Tento sa NEuloží vo vašom počítači a musí sa uchovať na papieri. Ak sa chcete ochrániť pred malvérom, bude lepšie, keď to urobíte na offline počítači a neskôr presuniete svoju peňaženku na online počítač."
+
+#: electrumsys/gui/qt/main_window.py:2271
+msgid "The operation is undefined. Not just in electrumsys, but in general."
+msgstr "Operácia je nedefinovaná. Nielen v electrumsys, ale vo všeobecnosti."
+
+#: electrumsys/network.py:187
+msgid "The server returned an error when broadcasting the transaction."
+msgstr "Server vrátil chybu pri vysielaní transakcie."
+
+#: electrumsys/network.py:204
+msgid "The server returned an error."
+msgstr ""
+
+#: electrumsys/network.py:179
+msgid "The server returned an unexpected transaction ID when broadcasting the transaction."
+msgstr "Server vrátil nečakané ID transakcie pri vysielaní tejto transakcie."
+
+#: electrumsys/network.py:832
+msgid "The transaction was rejected because it contains multiple OP_RETURN outputs."
+msgstr "Transakcia bola odmietnutá, pretože obsahuje niekoľko výstupov OP_RETURN."
+
+#: electrumsys/network.py:826
+msgid "The transaction was rejected because it is too large (in bytes)."
+msgstr ""
+
+#: electrumsys/base_wizard.py:573
+msgid "The type of addresses used by your wallet will depend on your seed."
+msgstr "Typ adries používaných vašou peňaženkou bude závisieť od vášho seedu."
+
+#: electrumsys/gui/qt/installwizard.py:297
+msgid "The wallet '{}' contains multiple accounts, which are no longer supported since electrumsys 2.7.\n\n"
+"Do you want to split your wallet into multiple files?"
+msgstr "Peňaženka „{}“ obsahuje niekoľko účtov, ktoré už viac nie sú podporované od verzie electrumsys 2.7.\n\n"
+"Chcete rozdeliť vašu peňaženku na niekoľko súborov?"
+
+#: electrumsys/plugins/trustedcoin/qt.py:278
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:644
+msgid "Then, enter your Google Authenticator code:"
+msgstr "Potom zadajte váš kód Google Authenticatora:"
+
+#: electrumsys/gui/qt/update_checker.py:84
+msgid "There is a new update available"
+msgstr "K dispozícii je nová aktualizácia"
+
+#: electrumsys/gui/qt/exception_window.py:99
+msgid "There was a problem with the automatic reporting:"
+msgstr "Vyskytol sa problém s automatickými hláseniami:"
+
+#: electrumsys/plugins/trustedcoin/qt.py:91
+msgid "Therefore, two-factor authentication is disabled."
+msgstr "Preto je dvojfaktorové overenie vypnuté."
+
+#: electrumsys/gui/qt/network_dialog.py:298
+msgid "This blockchain is used to verify the transactions sent by your transaction server."
+msgstr "Tento blockchain sa používa na overovanie transakcií odoslaných vaším transakčným serverom."
+
+#: electrumsys/plugins/greenaddress_instant/qt.py:73
+msgid "This feature is not available for watch-only wallets."
+msgstr "Táto funkcia nie je dostupná pre peňaženky iba na sledovanie."
+
+#: electrumsys/gui/qt/installwizard.py:212
+msgid "This file does not exist."
+msgstr "Tento súbor neexistuje."
+
+#: electrumsys/gui/qt/installwizard.py:228
+msgid "This file is already open in memory."
+msgstr "Tento súbor je už otvorený v pamäti."
+
+#: electrumsys/gui/qt/installwizard.py:221
+msgid "This file is encrypted using a hardware device."
+msgstr "Tento súbor je šifrovaný pomocou hardvérového zariadenia."
+
+#: electrumsys/gui/qt/installwizard.py:217
+msgid "This file is encrypted with a password."
+msgstr "Tento súbor je šifrovaný heslom."
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:783
+msgid "This function is only available after pairing your {} with a mobile device."
+msgstr "Táto funkcia je dostupná iba po spárovaní vášho zariadenia {} s mobilným zariadením."
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:786
+msgid "This function is only available for p2pkh keystores when using {}."
+msgstr "Táto funkcia je dostupná iba pre úložiská kľúčov p2pkh pri použití zariadenia {}."
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:780
+#: electrumsys/plugins/ledger/ledger.py:623
+#: electrumsys/plugins/coldcard/coldcard.py:705
+msgid "This function is only available for standard wallets when using {}."
+msgstr "Táto funkcia je dostupná iba pre štandardné peňaženky pri použití zariadenia {}."
+
+#: electrumsys/gui/qt/main_window.py:904
+msgid "This information is seen by the recipient if you send them a signed payment request."
+msgstr "Túto informáciu vidí príjemca, ak mu pošlete podpísanú žiadosť o platbu."
+
+#: electrumsys/gui/qt/main_window.py:2505
+msgid "This is a watching-only wallet"
+msgstr "Toto je peňaženka len pre čítanie"
+
+#: electrumsys/gui/qt/main_window.py:2281 electrumsys/gui/qt/main_window.py:2359
+msgid "This is a watching-only wallet."
+msgstr "Toto je peňaženka iba na sledovanie."
+
+#: electrumsys/gui/kivy/main_window.py:1077
+msgid "This is a watching-only wallet. It does not contain private keys."
+msgstr "Toto je peňaženka iba na sledovanie. Neobsahuje súkromné kľúče."
+
+#: electrumsys/gui/qt/installwizard.py:45
+msgid "This is discouraged."
+msgstr "Neodporúča sa to."
+
+#: electrumsys/gui/qt/network_dialog.py:312
+msgid "This is the height of your local copy of the blockchain."
+msgstr "Toto je výška vašej lokálnej kópie blockchainu."
+
+#: electrumsys/gui/qt/main_window.py:2982
+msgid "This may result in higher transactions fees."
+msgstr "Môže to mať za následok vyššie transakčné poplatky."
+
+#: electrumsys/gui/qt/main_window.py:469
+msgid "This means you will not be able to spend Bitcoins with it."
+msgstr "Znamená to, že nebudete môcť minúť bitcoiny, ktoré obsahuje."
+
+#: electrumsys/gui/qt/main_window.py:3023
+msgid "This might improve your privacy somewhat."
+msgstr "Toto môže trocha vylepšiť vaše súkromie."
+
+#: electrumsys/gui/qt/main_window.py:987
+msgid "This payment request will be signed."
+msgstr "Táto žiadosť o platbu sa podpíše."
+
+#: electrumsys/plugins/revealer/__init__.py:6
+msgid "This plug-in allows you to create a visually encrypted backup of your wallet seeds, or of custom alphanumeric secrets."
+msgstr "Tento doplnok vám umožňuje vytvoriť vizuálne šifrovanú zálohu seedov peňaženiek alebo vlastných alfanumerických tajných kódov."
+
+#: electrumsys/plugins/trustedcoin/__init__.py:5
+msgid "This plugin adds two-factor authentication to your wallet."
+msgstr "Tento doplnok pridá k vašej peňaženke dvojfaktorové overenie."
+
+#: electrumsys/plugins/cosigner_pool/__init__.py:4
+msgid "This plugin facilitates the use of multi-signatures wallets."
+msgstr "Tento doplnok uľahčuje používanie viacpodpisových peňaženiek."
+
+#: electrumsys/gui/qt/seed_dialog.py:45
+msgid "This seed will allow you to recover your wallet in case of computer failure."
+msgstr "Tento zdroj vám umožní obnoviť vašu peňaženku v prípade poruchy počítača."
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:94
+msgid "This service uses a multi-signature wallet, where you own 2 of 3 keys.  The third key is stored on a remote server that signs transactions on your behalf. A small fee will be charged on each transaction that uses the remote server."
+msgstr "Táto služba používa viacpodpisovú peňaženku, kde vlastníte 2 z 3 kľúčov.  Tretí kľúč je uložený na vzdialenom serveri, ktorý podpisuje transakcie vo vašom mene. Pri každej transakcii, ktorá používa vzdialený server, sa účtuje malý poplatok."
+
+#: electrumsys/gui/qt/main_window.py:2888
+msgid "This setting affects the Send tab, and all balance related fields."
+msgstr "Toto nastavenie ovplyvňuje kartu Poslať a všetky polia súvisiace so zostatkom."
+
+#: electrumsys/gui/qt/transaction_dialog.py:176
+msgid "This transaction is not saved. Close anyway?"
+msgstr "Táto transakcia nie je uložená. Chcete napriek tomu zavrieť?"
+
+#: electrumsys/gui/qt/main_window.py:1620
+msgid "This transaction requires a higher fee, or it will not be propagated by your current server"
+msgstr "Táto transakcia vyžaduje vyšší poplatok, inak ju váš súčasný server nebude šíriť"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:756
+#: electrumsys/plugins/ledger/ledger.py:596 electrumsys/plugins/trezor/trezor.py:278
+#: electrumsys/plugins/keepkey/keepkey.py:256
+#: electrumsys/plugins/safe_t/safe_t.py:273
+#: electrumsys/plugins/coldcard/coldcard.py:675
+msgid "This type of script is not supported with {}."
+msgstr "Zariadenie {} nepodporuje tento typ skriptu."
+
+#: electrumsys/plugins/revealer/qt.py:265
+msgid "This version supports a maximum of {} characters."
+msgstr "Táto verzia podporuje maximálne {} znakov."
+
+#: electrumsys/plugins/revealer/qt.py:291 electrumsys/gui/qt/main_window.py:2219
+msgid "This wallet has no seed"
+msgstr "Táto peňaženka nemá zdroj"
+
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:619
+msgid "This wallet is already registered with TrustedCoin. To finalize wallet creation, please enter your Google Authenticator Code."
+msgstr "Táto peňaženka je už registrovaná v TrustedCoin. Pre dokončenie tvorby peňaženky zadajte svoj kód z Google Authenticatora."
+
+#: electrumsys/plugins/trustedcoin/qt.py:159
+msgid "This wallet is protected by TrustedCoin's two-factor authentication."
+msgstr "Táto peňaženka je chránená dvojfaktorovým overením TrustedCoin."
+
+#: electrumsys/gui/kivy/uix/ui_screens/status.kv:66
+msgid "This wallet is watching-only"
+msgstr "Táto peňaženka je iba na sledovanie"
+
+#: electrumsys/gui/qt/main_window.py:468
+msgid "This wallet is watching-only."
+msgstr "Táto peňaženka je iba na sledovanie."
+
+#: electrumsys/plugins/trustedcoin/qt.py:90
+msgid "This wallet was restored from seed, and it contains two master private keys."
+msgstr "Táto peňaženka bola obnovená zo seedu a obsahuje dva hlavné súkromné kľúče."
+
+#: electrumsys/gui/qt/main_window.py:2829
+msgid "This will save fees."
+msgstr "To ušetrí poplatky."
+
+#: electrumsys/base_wizard.py:576
+msgid "Thus, you might want to keep using a non-segwit wallet in order to be able to receive bitcoins during the transition period."
+msgstr "Preto možno budete chcieť používať nesegwitovú peňaženku, aby ste mohli prijímať bitcoiny počas obdobia prechodu."
+
+#: electrumsys/gui/qt/main_window.py:2787
+msgid "Time based: fee rate is based on average confirmation time estimates"
+msgstr "Časovo ohraničené: sadzba poplatku je založená na odhadoch priemerných časov potvrdenia"
+
+#: electrumsys/gui/qt/history_list.py:418
+msgid "To"
+msgstr "Komu"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:493
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:628
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:632
+msgid "To cancel, briefly touch the blinking light or wait for the timeout."
+msgstr "Pre zrušenie sa krátko dotknite blikajúceho svetla alebo počkajte na časový limit."
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:321
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:346
+msgid "To cancel, briefly touch the light or wait for the timeout."
+msgstr "Pre zrušenie sa krátko dotknite svetla alebo počkajte na časový limit."
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:492
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:626
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:631
+msgid "To continue, touch the Digital Bitbox's blinking light for 3 seconds."
+msgstr "Pre pokračovanie sa dotknite blikajúceho svetla Digital Bitboxu na 3 sekundy."
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:320
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:345
+msgid "To continue, touch the Digital Bitbox's light for 3 seconds."
+msgstr "Pre pokračovanie sa dotknite svetla Digital Bitboxu na 3 sekundy."
+
+#: electrumsys/base_wizard.py:237
+msgid "To create a spending wallet, please enter a master private key (xprv/yprv/zprv)."
+msgstr "Pre vytvorenie spotrebnej peňaženky zadajte, prosím, hlavný súkromný kľúč (xprv/yprv/zprv)."
+
+#: electrumsys/base_wizard.py:236
+msgid "To create a watching-only wallet, please enter your master public key (xpub/ypub/zpub)."
+msgstr "Pre vytvorenie peňaženky iba na sledovanie zadajte, prosím, svoj hlavný verejný kľúč (xpub/ypub/zpub)."
+
+#: electrumsys/plugins/revealer/qt.py:113
+msgid "To encrypt your backup, first we need to load some noise."
+msgstr "Aby sme mohli zašifrovať vašu zálohu, potrebujeme najskôr načítať nejaký šum."
+
+#: electrumsys/base_crash_reporter.py:55
+msgid "To help us diagnose and fix the problem, you can send us a bug report that contains useful debug information:"
+msgstr "Aby ste nám pomohli diagnostikovať a vyriešiť problém, môžete nám poslať správu o chybe, ktorá obsahuje užitočné informácie o ladení:"
+
+#: electrumsys/gui/qt/installwizard.py:429
+msgid "To make sure that you have properly saved your seed, please retype it here."
+msgstr "Aby sme sa uistili že ste si riadne uložili zdroj, prosím opíšte ho sem."
+
+#: electrumsys/gui/qt/main_window.py:1243
+msgid "To somewhat protect your privacy, electrumsys tries to create change with similar precision to other outputs."
+msgstr "Pre istú ochranu vášho súkromia sa electrumsys snaží tvoriť výdavok s presnosťou podobnou iným výstupom."
+
+#: electrumsys/base_wizard.py:298
+msgid "To trigger a rescan, press 'Next'."
+msgstr "Pre spustenie opätovného skenovania stlačte „Ďalej“."
+
+#: electrumsys/base_wizard.py:326
+msgid "To try to fix this, we will now re-pair with your device."
+msgstr "Pri snahe o vyriešenie problému sa pokúsime o znovu spárovanie s vaším zariadením."
+
+#: electrumsys/gui/qt/password_dialog.py:213
+msgid "Toggle Encryption"
+msgstr "Prepnúť šifrovanie"
+
+#: electrumsys/plugins/trezor/clientbase.py:259
+#: electrumsys/plugins/keepkey/clientbase.py:76
+#: electrumsys/plugins/safe_t/clientbase.py:81
+msgid "Too long passphrase ({} > 50 chars)."
+msgstr "Príliš dlhá prístupová fráza ({} > 50 znakov)."
+
+#: electrumsys/gui/qt/main_window.py:3275
+msgid "Total size"
+msgstr "Celková veľkosť"
+
+#: electrumsys/gui/qt/transaction_dialog.py:96
+msgid "Transaction"
+msgstr "Transakcia"
+
+#: electrumsys/gui/qt/history_list.py:565 electrumsys/gui/qt/main_window.py:2490
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:66
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:69
+msgid "Transaction ID"
+msgstr "ID transakcie"
+
+#: electrumsys/gui/qt/transaction_dialog.py:101
+msgid "Transaction ID:"
+msgstr "ID transakcie:"
+
+#: electrumsys/plugins/ledger/auth2fa.py:32
+msgid "Transaction accepted by mobile phone. Waiting for confirmation."
+msgstr "Transakcia prijatá mobilným telefónom. Čaká sa na potvrdenie."
+
+#: electrumsys/gui/qt/main_window.py:3367
+msgid "Transaction added to wallet history."
+msgstr "Transakcia bola pridaná do histórie peňaženky."
+
+#: electrumsys/network.py:831
+msgid "Transaction could not be broadcast due to dust outputs."
+msgstr "Transakciu nebolo možné odvysielať kvôli dustovým (prašným) výstupom."
+
+#: electrumsys/gui/qt/main_window.py:3357
+msgid "Transaction could not be saved."
+msgstr "Transakciu sa nepodarilo uložiť."
+
+#: electrumsys/plugins/coldcard/qt.py:76 electrumsys/gui/qt/transaction_dialog.py:229
+msgid "Transaction exported successfully"
+msgstr "Transakcia bola úspešne exportovaná"
+
+#: electrumsys/gui/qt/transaction_dialog.py:196
+msgid "Transaction is too large in size."
+msgstr "Transakcia má príliš veľkú veľkosť."
+
+#: electrumsys/address_synchronizer.py:54
+msgid "Transaction is unrelated to this wallet."
+msgstr "Transakcia nesúvisí s touto peňaženkou."
+
+#: electrumsys/gui/qt/transaction_dialog.py:261
+#: electrumsys/gui/kivy/uix/dialogs/tx_dialog.py:124
+msgid "Transaction unrelated to your wallet"
+msgstr "Transakcia nesúvisiaca s vašou peňaženkou"
+
+#: electrumsys/network.py:825
+msgid "Transaction uses non-standard version."
+msgstr "Transakcia používa neštandardnú verziu."
+
+#: electrumsys/gui/qt/main_window.py:2476
+msgid "Transaction:"
+msgstr "Transakcia:"
+
+#: electrumsys/gui/qt/main_window.py:3130
+msgid "Transactions"
+msgstr "Transakcie"
+
+#: electrumsys/plugins/cosigner_pool/__init__.py:6
+msgid "Transactions are encrypted and stored on a remote server."
+msgstr "Transakcie sa šifrujú a uchovávajú na vzdialenom serveri."
+
+#: electrumsys/plugins/trezor/qt.py:47
+msgid "Trezor Matrix Recovery"
+msgstr "Obnovenie matice Trezora"
+
+#: electrumsys/plugins/trezor/__init__.py:6
+msgid "Trezor wallet"
+msgstr "Peňaženka Trezor"
+
+#: electrumsys/gui/qt/main_window.py:2156
+msgid "True"
+msgstr "Pravda"
+
+#: electrumsys/plugins/trustedcoin/qt.py:97
+msgid "TrustedCoin"
+msgstr "TrustedCoin"
+
+#: electrumsys/gui/qt/transaction_dialog.py:293
+msgid "TrustedCoin (2FA) fee for the next batch of transactions"
+msgstr "Poplatok TrustedCoin (2FA) pre ďalšiu dávku transakcií"
+
+#: electrumsys/plugins/trustedcoin/qt.py:152
+msgid "TrustedCoin Information"
+msgstr "Informácie o TrustedCoin"
+
+#: electrumsys/plugins/trustedcoin/qt.py:173
+msgid "TrustedCoin charges a small fee to co-sign transactions. The fee depends on how many prepaid transactions you buy. An extra output is added to your transaction every time you run out of prepaid transactions."
+msgstr "TrustedCoin si účtuje malý poplatok za spolupodpisovanie transakcií. Poplatok závisí od množstva predplatených transakcií, ktoré ste si zakúpili. Zakaždým, keď sa vám minú predplatené transakcie, pridá sa k vašej transakcii výstup navyše."
+
+#: electrumsys/plugin.py:546
+msgid "Try to connect again?"
+msgstr "Pokúsiť sa o pripojenie znovu?"
+
+#: electrumsys/gui/qt/main_window.py:648
+msgid "Try to explain not only what the bug is, but how it occurs."
+msgstr "Pokúste sa objasniť nielen o akú chybu ide, ale tiež ako k nej dochádza."
+
+#: electrumsys/gui/qt/main_window.py:1621
+msgid "Try to raise your transaction fee, or use a server with a lower relay fee."
+msgstr "Skúste navýšiť transakčný poplatok alebo použite server s nižším prenosovým poplatkom."
+
+#: electrumsys/i18n.py:76
+msgid "Turkish"
+msgstr "Turečtina"
+
+#: electrumsys/plugins/trustedcoin/__init__.py:3
+msgid "Two Factor Authentication"
+msgstr "Dvojfaktorové overenie"
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:74
+msgid "Two-factor authentication is a service provided by TrustedCoin.  It uses a multi-signature wallet, where you own 2 of 3 keys.  The third key is stored on a remote server that signs transactions on your behalf.  To use this service, you will need a smartphone with Google Authenticator installed."
+msgstr "Dvojfaktorové overenie je služba, ktorú poskytuje TrustedCoin.  Používa viacpodpisovú peňaženku, kde vlastníte 2 z 3 kľúčov.  Tretí kľúč je uložený na vzdialenom serveri, ktorý podpisuje transakcie vo vašom mene. Pre používanie tejto služby budete potrebovať smartfón s nainštalovanou aplikáciou Google Authenticator."
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:92
+msgid "Two-factor authentication is a service provided by TrustedCoin. To use it, you must have a separate device with Google Authenticator."
+msgstr "Dvojfaktoré overenie je služba, ktorú poskytuje TrustedCoin. Pre jej používanie musíte mať iné zariadenie s aplikáciou Google Authenticator."
+
+#: electrumsys/gui/qt/address_list.py:94
+msgid "Tx"
+msgstr "Tx"
+
+#: electrumsys/gui/qt/address_list.py:89
+msgid "Type"
+msgstr "Typ"
+
+#: electrumsys/plugins/coldcard/qt.py:155
+msgid "USB Serial"
+msgstr "USB port"
+
+#: electrumsys/i18n.py:77
+msgid "Ukrainian"
+msgstr "Ukrajinčina"
+
+#: electrumsys/plugins/email_requests/qt.py:250
+msgid "Unable to connect to mail server:\n"
+" {}"
+msgstr "Nedá sa pripojiť k poštovému serveru:\n"
+" {}"
+
+#: electrumsys/gui/qt/main_window.py:498
+msgid "Unable to create backup"
+msgstr "Nedá sa vytvoriť záloha"
+
+#: electrumsys/gui/qt/main_window.py:2586
+msgid "Unable to create csv"
+msgstr "Nepodarilo sa vytvoriť CSV"
+
+#: electrumsys/gui/qt/history_list.py:650
+msgid "Unable to export history"
+msgstr "Neschopný exportovať históriu"
+
+#: electrumsys/gui/qt/main_window.py:2471
+msgid "Unable to read file or no transaction found"
+msgstr "Nie je možné prečítať súbor alebo sa nenašla žiadna transakcia"
+
+#: electrumsys/gui/kivy/uix/dialogs/crash_reporter.py:123
+msgid "Unable to send report"
+msgstr "Správa sa nedá odoslať"
+
+#: electrumsys/wallet.py:71 electrumsys/wallet.py:369
+#: electrumsys/gui/kivy/uix/ui_screens/status.kv:41
+msgid "Unconfirmed"
+msgstr "Nepotvrdené"
+
+#: electrumsys/wallet.py:72
+msgid "Unconfirmed parent"
+msgstr "Nepotvrdený rodič"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:207
+msgid "Unexpected error occurred."
+msgstr "Vyskytla sa neočakávaná chyba."
+
+#: electrumsys/crypto.py:132
+msgid "Unexpected password hash version"
+msgstr "Neočakávaná verzia hašu hesla"
+
+#: electrumsys/gui/qt/address_list.py:219
+msgid "Unfreeze"
+msgstr "Uvoľniť"
+
+#: electrumsys/util.py:592 electrumsys/gui/qt/transaction_dialog.py:242
+#: electrumsys/gui/kivy/uix/dialogs/requests.py:90
+#: electrumsys/gui/kivy/uix/dialogs/invoices.py:86
+msgid "Unknown"
+msgstr "Neznáme"
+
+#: electrumsys/network.py:947
+msgid "Unknown error"
+msgstr "Neznáma chyba"
+
+#: electrumsys/network.py:195
+msgid "Unknown error when broadcasting the transaction."
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/status.kv:45
+msgid "Unmatured"
+msgstr "Pred lehotou splatnosti"
+
+#: electrumsys/gui/qt/history_list.py:503
+msgid "Unrealized gains"
+msgstr "Nerealizované zisky"
+
+#: electrumsys/wallet.py:385
+msgid "Unsigned"
+msgstr "Nepodpísané"
+
+#: electrumsys/crypto.py:143
+msgid "Unsupported password hash version"
+msgstr "Nepodporovaná verzia hašu hesla"
+
+#: electrumsys/gui/qt/address_list.py:66
+#: electrumsys/gui/kivy/uix/dialogs/addresses.py:120
+msgid "Unused"
+msgstr "Nepoužité"
+
+#: electrumsys/gui/qt/update_checker.py:31
+msgid "Update Check"
+msgstr "Kontrola aktualizácií"
+
+#: electrumsys/gui/qt/update_checker.py:71
+msgid "Update check failed"
+msgstr "Kontrola aktualizácií zlyhala"
+
+#: electrumsys/gui/qt/main_window.py:254
+msgid "Update to electrumsys {} is available"
+msgstr "Je k dispozícii aktualizácia electrumsys {}"
+
+#: electrumsys/base_wizard.py:148
+msgid "Upgrading wallet format..."
+msgstr "Upgraduje sa formát peňaženky..."
+
+#: electrumsys/plugins/keepkey/keepkey.py:173
+#: electrumsys/plugins/safe_t/safe_t.py:178
+msgid "Upload a BIP39 mnemonic to generate the seed"
+msgstr "Pre vytvorenie seedu nahrajte mnemotechnický kód BIP39"
+
+#: electrumsys/plugins/keepkey/keepkey.py:174
+#: electrumsys/plugins/safe_t/safe_t.py:179
+msgid "Upload a master private key"
+msgstr "Nahrajte hlavný súkromný kľúč"
+
+#: electrumsys/gui/kivy/uix/dialogs/addresses.py:124
+msgid "Use"
+msgstr "Použiť"
+
+#: electrumsys/gui/qt/main_window.py:2812
+msgid "Use Replace-By-Fee"
+msgstr "Použite Replace-By-Fee"
+
+#: electrumsys/gui/qt/network_dialog.py:279
+msgid "Use Tor Proxy"
+msgstr "Použiť Tor proxy"
+
+#: electrumsys/base_wizard.py:188
+msgid "Use a hardware device"
+msgstr "Použiť hardvérové zariadenie"
+
+#: electrumsys/base_wizard.py:185
+msgid "Use a master key"
+msgstr "Použiť hlavný kľúč"
+
+#: electrumsys/gui/qt/network_dialog.py:85 electrumsys/gui/qt/network_dialog.py:156
+msgid "Use as server"
+msgstr "Použiť ako server"
+
+#: electrumsys/gui/qt/main_window.py:2958
+msgid "Use change addresses"
+msgstr "Použiť adresu pre výdavok"
+
+#: electrumsys/gui/qt/main_window.py:2977
+msgid "Use multiple change addresses"
+msgstr "Použiť niekoľko adries pre výdavok"
+
+#: electrumsys/gui/qt/network_dialog.py:250
+msgid "Use proxy"
+msgstr "Použite proxy"
+
+#: electrumsys/gui/qt/main_window.py:2865
+msgid "Use setconfig to set ssl_chain and ssl_privkey."
+msgstr "Pre nastavenie ssl_chain a ssl_privkey použite setconfig."
+
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:1013
+msgid "Use the camera button to scan a QR code."
+msgstr "Pre naskenovanie QR kódu použite tlačidlo kamery."
+
+#: electrumsys/gui/qt/password_dialog.py:249
+msgid "Use this dialog to add a password to your wallet."
+msgstr "Použite toto dialógové okno na pridanie hesla k svojej peňaženke."
+
+#: electrumsys/gui/qt/password_dialog.py:255
+msgid "Use this dialog to change your password."
+msgstr "Použite toto dialógové okno na zmenu svojho hesla."
+
+#: electrumsys/gui/qt/password_dialog.py:279
+msgid "Use this dialog to toggle encryption."
+msgstr "Použite toto dialógové okno na prepnutie šifrovania."
+
+#: electrumsys/gui/qt/address_list.py:66
+#: electrumsys/gui/kivy/uix/dialogs/addresses.py:120
+msgid "Used"
+msgstr "Použité"
+
+#: electrumsys/gui/kivy/uix/ui_screens/proxy.kv:38
+msgid "Username"
+msgstr "Užívateľské meno"
+
+#: electrumsys/gui/qt/main_window.py:638
+msgid "Uses icons from the Icons8 icon pack (icons8.com)."
+msgstr "Použite ikony z balíka ikon Icons8 (icons8.com)."
+
+#: electrumsys/gui/qt/main_window.py:2968
+msgid "Using change addresses makes it more difficult for other people to track your transactions."
+msgstr "Použitie adresy pre výdavok sťažuje druhým ľuďom sledovanie vašich transakcií."
+
+#: electrumsys/gui/qt/history_list.py:326
+msgid "Value"
+msgstr "Hodnota"
+
+#: electrumsys/plugins/greenaddress_instant/qt.py:106
+msgid "Verification failed!"
+msgstr "Overovanie zlyhalo!"
+
+#: electrumsys/plugins/greenaddress_instant/qt.py:104
+msgid "Verification successful!"
+msgstr "Overenie úspešné!"
+
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:48
+msgid "Verified block headers"
+msgstr "Overené blokové hlavičky"
+
+#: electrumsys/gui/qt/main_window.py:2346
+msgid "Verify"
+msgstr "Overiť"
+
+#: electrumsys/plugins/greenaddress_instant/qt.py:43
+msgid "Verify GA instant"
+msgstr "Overiť okamžité potvrdenie GA"
+
+#: electrumsys/plugins/ledger/auth2fa.py:30
+msgid "Verify the address below.<br>Type the character from your security card corresponding to the <u><b>BOLD</b></u> character."
+msgstr "Overte adresu nižšie.<br>Zadajte znak zo svojej bezpečnostnej karty, ktorý zodpovedá <u><b>TUČNE VYZNAČENÉMU</b></u> znaku."
+
+#: electrumsys/plugin.py:544
+msgid "Verify the cable is connected and that no other application is using it."
+msgstr "Overte, či je kábel pripojený a či ho nepoužíva iná aplikácia."
+
+#: electrumsys/plugins/greenaddress_instant/qt.py:87
+msgid "Verifying..."
+msgstr "Overovanie..."
+
+#: electrumsys/gui/qt/main_window.py:632
+#: electrumsys/gui/kivy/uix/ui_screens/about.kv:13
+msgid "Version"
+msgstr "Verzia"
+
+#: electrumsys/gui/qt/main_window.py:2933
+msgid "Video Device"
+msgstr "Videozariadenie"
+
+#: electrumsys/i18n.py:78
+msgid "Vietnamese"
+msgstr "Vietnamčina"
+
+#: electrumsys/gui/qt/history_list.py:598
+msgid "View invoice"
+msgstr "Zobraziť faktúru"
+
+#: electrumsys/gui/qt/address_list.py:214 electrumsys/gui/qt/contact_list.py:100
+#: electrumsys/gui/qt/history_list.py:600
+msgid "View on block explorer"
+msgstr "Pozrieť v prieskumníkovi blokov"
+
+#: electrumsys/gui/qt/seed_dialog.py:48
+msgid "WARNING"
+msgstr "VAROVANIE"
+
+#: electrumsys/gui/qt/main_window.py:2516
+msgid "WARNING: ALL your private keys are secret."
+msgstr "VAROVANIE: VŠETKY vaše súkromné kľúče sú tajné."
+
+#: electrumsys/gui/qt/main_window.py:2509
+msgid "WARNING: This is a multi-signature wallet."
+msgstr "UPOZORNENIE: Toto je viacpodpisová peňaženka."
+
+#: electrumsys/gui/qt/main_window.py:1560
+msgid "WARNING: the alias \"{}\" could not be validated via an additional security check, DNSSEC, and thus may not be correct."
+msgstr "UPOZORNENIE: Alias „{}“ sa nepodarilo overiť prostredníctvom ďalšej kontroly zabezpečenia, DNSSEC, a teda nemusí byť správny."
+
+#: electrumsys/gui/qt/installwizard.py:36
+msgid "WIF keys are typed in electrumsys, based on script type."
+msgstr "Kľúče WIF sa zadávajú v aplikácii electrumsys podľa typu skriptu."
+
+#: electrumsys/plugins/ledger/auth2fa.py:31
+msgid "Waiting for authentication on your mobile phone"
+msgstr "Čaká sa na overenie na vašom mobilnom telefóne"
+
+#: electrumsys/gui/qt/installwizard.py:169
+msgid "Wallet"
+msgstr "Peňaženka"
+
+#: electrumsys/gui/qt/main_window.py:2149
+msgid "Wallet Information"
+msgstr "Informácie o peňaženke"
+
+#: electrumsys/gui/kivy/uix/ui_screens/status.kv:27
+msgid "Wallet Name"
+msgstr "Názov peňaženky"
+
+#: electrumsys/gui/qt/main_window.py:496
+msgid "Wallet backup created"
+msgstr "Záloha peňaženky vytvorená"
+
+#: electrumsys/gui/qt/transaction_dialog.py:290
+msgid "Wallet change address"
+msgstr "Adresa peňaženky pre výdavok"
+
+#: electrumsys/wallet.py:176
+msgid "Wallet file corruption detected. Please restore your wallet from seed, and compare the addresses in both files"
+msgstr "Zistilo sa poškodenie súboru peňaženky. Prosím, obnovte vašu peňaženku zo seedu a porovnajte adresy v oboch súboroch"
+
+#: electrumsys/gui/qt/main_window.py:2214
+msgid "Wallet file not found: {}"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2160
+msgid "Wallet name"
+msgstr "Názov peňaženky"
+
+#: electrumsys/gui/qt/transaction_dialog.py:287
+msgid "Wallet receive address"
+msgstr "Prijímacia adresa peňaženky"
+
+#: electrumsys/gui/qt/main_window.py:2212 electrumsys/gui/kivy/main_window.py:1035
+msgid "Wallet removed: {}"
+msgstr "Peňaženka odstránená: {}"
+
+#: electrumsys/gui/qt/main_window.py:2162
+msgid "Wallet type"
+msgstr "Typ peňaženky"
+
+#: electrumsys/gui/kivy/uix/ui_screens/status.kv:30
+msgid "Wallet type:"
+msgstr "Typ peňaženky:"
+
+#: electrumsys/base_wizard.py:127
+msgid "Wallet with two-factor authentication"
+msgstr "Peňaženka s dvojfaktorovým overovaním"
+
+#: electrumsys/gui/kivy/main.kv:448
+msgid "Wallets"
+msgstr "Peňaženky"
+
+#: electrumsys/plugins/revealer/qt.py:133 electrumsys/plugins/revealer/qt.py:186
+#: electrumsys/plugins/revealer/qt.py:219 electrumsys/gui/qt/util.py:206
+#: electrumsys/gui/qt/transaction_dialog.py:176
+#: electrumsys/gui/qt/transaction_dialog.py:273
+#: electrumsys/gui/qt/installwizard.py:42 electrumsys/gui/qt/seed_dialog.py:73
+#: electrumsys/gui/qt/main_window.py:1646 electrumsys/gui/kivy/uix/screens.py:297
+msgid "Warning"
+msgstr "Upozornenie"
+
+#: electrumsys/gui/qt/console.py:65
+msgid "Warning!"
+msgstr "Pozor!"
+
+#: electrumsys/gui/qt/main_window.py:1057
+msgid "Warning: The next address will not be recovered automatically if you restore your wallet from seed; you may need to add it manually.\n\n"
+"This occurs because you have too many unused addresses in your wallet. To avoid this situation, use the existing addresses first.\n\n"
+"Create anyway?"
+msgstr "Upozornenie: Ďalšia adresa sa neobnoví automaticky, ak obnovíte peňaženku zo seedu; možno ju budete musieť pridať manuálne.\n\n"
+"Toto sa deje, lebo vo svojej peňaženke máte príliš veľa nepoužitých adries. Aby ste sa vyhli tejto situácii, použite najskôr existujúce adresy.\n\n"
+"Vytvoriť aj tak?"
+
+#: electrumsys/plugins/virtualkeyboard/__init__.py:4
+msgid "Warning: do not use this if it makes you pick a weaker password."
+msgstr "Upozornenie: nepoužívajte, ak vás to núti vybrať si slabšie heslo."
+
+#: electrumsys/gui/qt/seed_dialog.py:77
+msgid "We do not guarantee that BIP39 imports will always be supported in electrumsys."
+msgstr "Negarantujeme, že importy BIP39 budú v Electre vždy podporované."
+
+#: electrumsys/base_wizard.py:324
+msgid "We encountered an error while connecting to your device:"
+msgstr "Vyskytla sa chyba pri pripájaní sa k vášmu zariadeniu:"
+
+#: electrumsys/base_wizard.py:123
+msgid "What kind of wallet do you want to create?"
+msgstr "Aký typ peňaženky chcete vytvoriť?"
+
+#: electrumsys/plugins/trezor/qt.py:559 electrumsys/plugins/keepkey/qt.py:565
+#: electrumsys/plugins/safe_t/qt.py:473
+msgid "Wipe Device"
+msgstr "Vymazať zariadenie"
+
+#: electrumsys/plugins/trezor/qt.py:562 electrumsys/plugins/keepkey/qt.py:568
+#: electrumsys/plugins/safe_t/qt.py:476
+msgid "Wipe the device, removing all data from it.  The firmware is left unchanged."
+msgstr "Vymazaním zariadenia odstránite z neho všetky údaje. Firmvér zostane nezmenený."
+
+#: electrumsys/simple_config.py:392
+msgid "Within {} blocks"
+msgstr "V {} blokoch"
+
+#: electrumsys/gui/qt/main_window.py:244
+msgid "Would you like to be notified when there is a newer version of electrumsys available?"
+msgstr "Chceli by ste dostávať oznámenia, keď je k dispozícii novšia verzia electrumsys?"
+
+#: electrumsys/plugins/trezor/clientbase.py:18
+#: electrumsys/plugins/keepkey/clientbase.py:16
+#: electrumsys/plugins/safe_t/clientbase.py:17
+msgid "Write down the seed word shown on your {}"
+msgstr "Zapíšte si slovo seedu zobrazené na vašom zariadení {}"
+
+#: electrumsys/gui/kivy/uix/dialogs/password_dialog.py:141
+msgid "Wrong PIN"
+msgstr "Nesprávny PIN"
+
+#: electrumsys/base_wizard.py:471 electrumsys/base_wizard.py:479
+msgid "Wrong key type"
+msgstr "Nesprávny typ kľúča"
+
+#: electrumsys/gui/qt/main_window.py:2317
+msgid "Wrong signature"
+msgstr "Nesprávny podpis"
+
+#: electrumsys/plugins/trezor/qt.py:313 electrumsys/plugins/keepkey/qt.py:347
+#: electrumsys/plugins/safe_t/qt.py:227
+msgid "Yes"
+msgstr "Áno"
+
+#: electrumsys/gui/qt/update_checker.py:89
+msgid "You are already on the latest version of electrumsys."
+msgstr "Už máte najnovšiu verziu electrumsys."
+
+#: electrumsys/gui/qt/network_dialog.py:378
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:54
+msgid "You are following branch"
+msgstr "Sledujete vetvu"
+
+#: electrumsys/crypto.py:134
+msgid "You are most likely using an outdated version of electrumsys. Please update."
+msgstr "Pravdepodobne používate zastaranú verziu aplikácie electrumsys. Prosím, aktualizujte ju."
+
+#: electrumsys/plugins/labels/labels.py:142 electrumsys/plugins/labels/labels.py:146
+msgid "You are offline."
+msgstr "Ste offline."
+
+#: electrumsys/gui/qt/__init__.py:182
+msgid "You are using electrumsys in offline mode; restart electrumsys if you want to get connected"
+msgstr "Používate electrumsys v režime offline. Reštartujte electrumsys, ak sa chcete pripojiť"
+
+#: electrumsys/gui/qt/main_window.py:1052
+msgid "You are using a non-deterministic wallet, which cannot create new addresses."
+msgstr "Používate nedeterministickú peňaženku, ktorá nedokáže tvoriť nové adresy."
+
+#: electrumsys/gui/qt/main_window.py:1245
+msgid "You can disable this setting in '{}'."
+msgstr "Toto nastavenie môžete vypnúť v „{}“."
+
+#: electrumsys/gui/qt/update_checker.py:86
+msgid "You can download the new version from {}."
+msgstr "Novú verziu si môžete stiahnuť z {}."
+
+#: electrumsys/base_wizard.py:363
+msgid "You can override the suggested derivation path."
+msgstr "Môžete prepísať navrhovanú derivačnú cestu."
+
+#: electrumsys/plugins/trezor/qt.py:496 electrumsys/plugins/safe_t/qt.py:410
+msgid "You can set the homescreen on your device to personalize it.  You must choose a {} x {} monochrome black and white image."
+msgstr "V rámci personalizácie si môžete na svojom zariadení nastaviť domovskú obrazovku. Musíte si vybrať čiernobiely obrázok s veľkosťou {} x {}."
+
+#: electrumsys/gui/qt/main_window.py:1630
+msgid "You can't broadcast a transaction without a live network connection."
+msgstr "Nemôžete odvysielať transakciu bez aktívneho sieťového pripojenia."
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:186
+msgid "You cannot access your coins or a backup without the password."
+msgstr "Bez hesla nemôžete pristupovať k svojim minciam, ani k zálohe."
+
+#: electrumsys/gui/qt/main_window.py:634
+msgid "You do not need to perform regular backups, because your wallet can be recovered from a secret phrase that you can memorize or write on paper."
+msgstr "Nemusíte vykonávať pravidelné zálohy, pretože vašu peňaženku možno obnoviť z tajnej frázy, ktorú si môžete zapamätať alebo zapísať na papier."
+
+#: electrumsys/gui/qt/installwizard.py:43
+msgid "You have multiple consecutive whitespaces or leading/trailing whitespaces in your passphrase."
+msgstr "Vaša prístupová fráza obsahuje niekoľko prázdnych znakov za sebou alebo medzeru navyše na začiatku alebo na konci slova."
+
+#: electrumsys/gui/kivy/main_window.py:973
+msgid "You may also save unsigned requests or contact addresses using the save button."
+msgstr "Pomocou tlačidla Uložiť môžete tiež uložiť nepodpísané žiadosti alebo kontaktné adresy."
+
+#: electrumsys/gui/qt/main_window.py:1136
+msgid "You may enter a Bitcoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Bitcoin address)"
+msgstr "Môžete vložiť Bitcoin adresu, menov zo zoznamu kontaktov (bude ponúknutý zoznam pre doplnenie), alebo alias (ako keby emailová adresa ktorá odkazuje na adresu Bitcoin)"
+
+#: electrumsys/base_wizard.py:417
+msgid "You may extend your seed with custom words."
+msgstr "Svoj seed môžete rozšíriť o vlastné slová."
+
+#: electrumsys/gui/qt/main_window.py:1909
+msgid "You may load a CSV file using the file icon."
+msgstr "Súbor CSV môžete načítať pomocou ikony súboru."
+
+#: electrumsys/base_wizard.py:276
+msgid "You might have an incompatible library."
+msgstr "Možno máte nekompatibilnú knižnicu."
+
+#: electrumsys/plugins/trustedcoin/qt.py:204
+msgid "You need to be online in order to complete the creation of your wallet.  If you generated your seed on an offline computer, click on \"{}\" to close this window, move your wallet file to an online computer, and reopen it with electrumsys."
+msgstr "Pre dokončenie tvorby peňaženky musíte byť online. Ak ste vygenerovali seed na offline počítači, kliknite na „{}“ pre zatvorenie tohto okna, presuňte súbor s peňaženkou na online počítač a znova ho otvorte v aplikácii electrumsys."
+
+#: electrumsys/plugins/trezor/qt.py:26 electrumsys/plugins/keepkey/qt.py:26
+#: electrumsys/plugins/safe_t/qt.py:26
+msgid "You need to create a separate electrumsys wallet for each passphrase you use as they each generate different addresses.  Changing your passphrase does not lose other wallets, each is still accessible behind its own passphrase."
+msgstr "Pre každú prístupovú frázu musíte vytvoriť samostatnú peňaženku electrumsys, keďže každá fráza generuje odlišné adresy. Zmenou prístupovej frázy neprídete o ostatné peňaženky; každá z nich bude naďalej k dispozícii so svojou vlastnou prístupovou frázou."
+
+#: electrumsys/plugins/trezor/qt.py:31 electrumsys/plugins/keepkey/qt.py:31
+#: electrumsys/plugins/safe_t/qt.py:31
+msgid "You should enable PIN protection.  Your PIN is the only protection for your bitcoins if your device is lost or stolen."
+msgstr "Mali by ste zapnúť ochranu PIN-om. PIN je totiž vašou jedinou ochranou voči krádeži bitcoinov v prípade straty alebo krádeže vášho zariadenia."
+
+#: electrumsys/plugins/trezor/trezor.py:215 electrumsys/plugins/safe_t/safe_t.py:213
+msgid "You will be asked to enter 24 words regardless of your seed's actual length.  If you enter a word incorrectly or misspell it, you cannot change it or go back - you will need to start again from the beginning.\n\n"
+"So please enter the words carefully!"
+msgstr "Budete požiadaní o zadanie 24 slov bez ohľadu na skutočnú dĺžku vášho seedu. Ak zadáte slovo nesprávne alebo ho zle vyhláskujete, nemôžete ho zmeniť alebo ísť späť - budete musieť začať odznova.\n\n"
+"Zadávajte teda slová pozorne!"
+
+#: electrumsys/plugins/ledger/auth2fa.py:24
+msgid "Your Ledger Wallet wants to tell you a one-time PIN code.<br><br>For best security you should unplug your device, open a text editor on another computer, put your cursor into it, and plug your device into that computer. It will output a summary of the transaction being signed and a one-time PIN.<br><br>Verify the transaction summary and type the PIN code here.<br><br>Before pressing enter, plug the device back into this computer.<br>"
+msgstr "Vaša peňaženka Ledger vám chce oznámiť jednorazový PIN kód.<br><br>Pre maximálnu bezpečnosť by ste mali odpojiť svoje zariadenie, otvoriť textový editor na inom počítači, umiestniť do neho kurzor a zapojiť svoje zariadenie do tohto počítača. V editore sa vytvorí zhrnutie podpisovanej transakcie a jednorazového PIN-u.<br><br>Overte zhrnutie transakcie a zadajte tu svoj PIN kód.<br><br>Pred stlačením klávesu enter zapojte zariadenie spät do tohto počítača.<br>"
+
+#: electrumsys/plugins/ledger/ledger.py:49
+msgid "Your Ledger is locked. Please unlock it."
+msgstr "Vaše zariadenie Ledger je zamknuté. Prosím, odomknite ho."
+
+#: electrumsys/gui/kivy/main_window.py:1070
+msgid "Your PIN code was updated"
+msgstr "Váš PIN kód bol aktualizovaný"
+
+#: electrumsys/gui/qt/installwizard.py:302
+msgid "Your accounts have been moved to"
+msgstr "Vaše účty sa presunuli do"
+
+#: electrumsys/gui/qt/password_dialog.py:252
+msgid "Your bitcoins are password protected. However, your wallet file is not encrypted."
+msgstr "Vaše bitcoiny sú chránené heslom. Avšak súbor vašej peňaženky nie je šifrovaný."
+
+#: electrumsys/plugins/trezor/qt.py:354 electrumsys/plugins/keepkey/qt.py:390
+#: electrumsys/plugins/safe_t/qt.py:268
+msgid "Your current electrumsys wallet can only be used with an empty passphrase.  You must create a separate wallet with the install wizard for other passphrases as each one generates a new set of addresses."
+msgstr "Vašu súčasnú peňaženku electrumsys možno používať iba s prázdnou prístupovou frázou. Pre iné prístupové frázy si musíte vytvoriť samostatnú peňaženku pomocou sprievodcu inštaláciou, keďže každá prístupová fráza generuje novú množinu adries."
+
+#: electrumsys/plugins/keepkey/keepkey.py:304
+#: electrumsys/plugins/safe_t/safe_t.py:321
+msgid "Your device firmware is too old"
+msgstr "Firmvér vášho zariadenia je príliš starý"
+
+#: electrumsys/plugins/ledger/ledger.py:529
+msgid "Your device might not have support for this functionality."
+msgstr "Vaše zariadenie nemusí mať podporu pre túto funkcionalitu."
+
+#: electrumsys/plugins/labels/qt.py:59
+msgid "Your labels have been synchronised."
+msgstr "Vaše menovky boli synchronizované."
+
+#: electrumsys/gui/qt/seed_dialog.py:142
+msgid "Your seed extension is"
+msgstr "Vaše rozšírenie seedu je"
+
+#: electrumsys/base_wizard.py:418 electrumsys/base_wizard.py:612
+msgid "Your seed extension must be saved together with your seed."
+msgstr "Vaše rozšírenie seedu sa musí uložiť spolu s vaším seedom."
+
+#: electrumsys/gui/qt/installwizard.py:427
+msgid "Your seed is important!"
+msgstr "Váš seed je dôležitý!"
+
+#: electrumsys/gui/qt/network_dialog.py:378
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:54
+msgid "Your server is on branch"
+msgstr "Váš server je na vetve"
+
+#: electrumsys/plugins/cosigner_pool/qt.py:174
+msgid "Your transaction was sent to the cosigning pool."
+msgstr "Vaša transakcia bola odoslaná do spolupodpisovateľského fondu."
+
+#: electrumsys/gui/qt/installwizard.py:33
+msgid "Your wallet file does not contain secrets, mostly just metadata. "
+msgstr "Váš súbor peňaženky neobsahuje tajné kódy, ale prevažne iba metadáta. "
+
+#: electrumsys/gui/qt/password_dialog.py:275
+msgid "Your wallet file is NOT encrypted."
+msgstr "Vaša peňaženka NIE je šifrovaná."
+
+#: electrumsys/gui/qt/password_dialog.py:277
+msgid "Your wallet file is encrypted."
+msgstr "Vaša peňaženka je šifrovaná."
+
+#: electrumsys/plugins/trustedcoin/qt.py:203
+msgid "Your wallet file is: {}."
+msgstr "Váš súbor peňaženky je: {}."
+
+#: electrumsys/gui/qt/installwizard.py:436 electrumsys/gui/qt/seed_dialog.py:212
+msgid "Your wallet generation seed is:"
+msgstr "Váš seed tvorby peňaženky je:"
+
+#: electrumsys/plugins/trustedcoin/qt.py:197
+msgid "Your wallet has {} prepaid transactions."
+msgstr "Vaša peňaženka má {} predplatených transakcií."
+
+#: electrumsys/gui/qt/history_list.py:652
+msgid "Your wallet history has been successfully exported."
+msgstr "História vašej peňaženky bola úspešne exportovaná."
+
+#: electrumsys/gui/qt/password_dialog.py:248
+msgid "Your wallet is not protected."
+msgstr "Vaša peňaženka nie je chránená."
+
+#: electrumsys/gui/qt/password_dialog.py:254
+msgid "Your wallet is password protected and encrypted."
+msgstr "Vaša peňaženka je chránená heslom a šifrovaná."
+
+#: electrumsys/gui/qt/util.py:789
+#, python-brace-format
+msgid "Your {0} were exported to '{1}'"
+msgstr "Váš {0} sa exportoval do „{1}“"
+
+#: electrumsys/gui/qt/util.py:774
+msgid "Your {} were successfully imported"
+msgstr "Vaše {} boli úspešne importované"
+
+#: electrumsys/gui/qt/main_window.py:2769
+msgid "Zeros after decimal point"
+msgstr "Nula za desatinnou čiarkou"
+
+#: electrumsys/gui/text.py:183
+msgid "[Clear]"
+msgstr "[Clear]"
+
+#: electrumsys/gui/text.py:182
+msgid "[Send]"
+msgstr "[Send]"
+
+#: electrumsys/gui/stdio.py:52
+msgid "[b] - print server banner"
+msgstr "[b] - banner tlačového servera"
+
+#: electrumsys/gui/stdio.py:51
+msgid "[c] - display contacts"
+msgstr "[c] - zobraziť kontakty"
+
+#: electrumsys/gui/stdio.py:45
+msgid "[h] - displays this help text"
+msgstr "[h] - zobrazí takýto pomocný text"
+
+#: electrumsys/gui/stdio.py:46
+msgid "[i] - display transaction history"
+msgstr "[i] - zobraziť históriu transakcií"
+
+#: electrumsys/gui/stdio.py:47
+msgid "[o] - enter payment order"
+msgstr "[o] - zadať platobný príkaz"
+
+#: electrumsys/gui/stdio.py:48
+msgid "[p] - print stored payment order"
+msgstr "[p] - vytlačiť uložený platobný príkaz"
+
+#: electrumsys/gui/stdio.py:53
+msgid "[q] - quit"
+msgstr "[q] - skončiť"
+
+#: electrumsys/gui/stdio.py:50
+msgid "[r] - show own receipt addresses"
+msgstr "[r] - zobraziť vlastné príjmové adresy"
+
+#: electrumsys/gui/stdio.py:49
+msgid "[s] - send stored payment order"
+msgstr "[s] - poslať uložený platobný príkaz"
+
+#: electrumsys/wallet.py:1377
+msgid "address already in wallet"
+msgstr "adresa je už v peňaženke"
+
+#: electrumsys/gui/qt/main_window.py:2816
+msgid "and you will have the possibility, while they are unconfirmed, to replace them with transactions that pay higher fees."
+msgstr "a budete mať možnosť, kým nie sú potvrdené, nahradiť ich transakciami, ktoré platia vyššie poplatky."
+
+#: electrumsys/gui/qt/main_window.py:1316
+msgid "are frozen"
+msgstr "sú zmrazené"
+
+#: electrumsys/gui/qt/network_dialog.py:367 electrumsys/gui/qt/network_dialog.py:379
+msgid "blocks"
+msgstr "bloky"
+
+#: electrumsys/gui/qt/address_list.py:153
+msgid "change"
+msgstr "výdavok"
+
+#: electrumsys/gui/qt/contact_list.py:68 electrumsys/gui/qt/contact_list.py:71
+msgid "contacts"
+msgstr "kontakty"
+
+#: electrumsys/gui/qt/main_window.py:2183
+msgid "cosigner"
+msgstr "spolupodpisovateľ"
+
+#: electrumsys/wallet.py:832
+msgid "could not find suitable outputs"
+msgstr "nepodarilo sa nájsť vhodné výstupy"
+
+#: electrumsys/gui/qt/transaction_dialog.py:273
+msgid "high fee"
+msgstr "vysoký poplatok"
+
+#: electrumsys/plugin.py:558 electrumsys/base_wizard.py:310
+msgid "initialized"
+msgstr "inicializované"
+
+#: electrumsys/wallet.py:1374
+msgid "invalid address"
+msgstr "neplatná adresa"
+
+#: electrumsys/wallet.py:1456
+msgid "invalid private key"
+msgstr "neplatný súkromný kľúč"
+
+#: electrumsys/gui/qt/invoice_list.py:92 electrumsys/gui/qt/invoice_list.py:95
+msgid "invoices"
+msgstr "faktúry"
+
+#: electrumsys/gui/qt/util.py:369
+msgid "json"
+msgstr "json"
+
+#: electrumsys/gui/qt/main_window.py:2616 electrumsys/gui/qt/main_window.py:2621
+msgid "labels"
+msgstr "menovky"
+
+#: electrumsys/plugins/revealer/qt.py:134
+msgid "more information at <a href=\"https://revealer.cc/faq\">https://revealer.cc/faq</a>"
+msgstr "viac informácií na <a href=\"https://revealer.cc/faq\">https://revealer.cc/faq</a>"
+
+#: electrumsys/wallet.py:1459
+msgid "not implemented type"
+msgstr "neimplementovaný typ"
+
+#: electrumsys/plugins/revealer/qt.py:124
+msgid "or type an existing revealer code below and click 'next':"
+msgstr "alebo zadajte extistujúci kód revealera nižšie a kliknite na „ďalej“:"
+
+#: electrumsys/gui/qt/main_window.py:1760
+msgid "please wait..."
+msgstr "Počkajte prosím..."
+
+#: electrumsys/plugins/revealer/qt.py:728
+msgid "print the calibration pdf and follow the instructions "
+msgstr "vytlačte kalibračné pdf a riaďte sa jeho inštrukciami "
+
+#: electrumsys/gui/qt/main_window.py:819
+msgid "proxy enabled"
+msgstr "proxy zapnuté"
+
+#: electrumsys/gui/qt/address_list.py:156
+msgid "receiving"
+msgstr "prijímajúce"
+
+#: electrumsys/plugins/revealer/qt.py:65
+msgid "secret backup utility"
+msgstr "pomôcka na tajné zálohovanie"
+
+#: electrumsys/plugins/revealer/qt.py:392
+msgid "seed"
+msgstr "seed"
+
+#: electrumsys/wallet.py:801
+msgid "transaction is final"
+msgstr "transakcia je konečná"
+
+#: electrumsys/plugins/revealer/qt.py:255
+msgid "type a custom alphanumerical secret below:"
+msgstr "zadajte nižšie vlastný alfanumerický tajný kód:"
+
+#: electrumsys/wallet.py:600 electrumsys/gui/qt/transaction_dialog.py:267
+#: electrumsys/gui/kivy/uix/dialogs/tx_dialog.py:131
+msgid "unknown"
+msgstr "neznámy"
+
+#: electrumsys/commands.py:918
+msgid "unknown parser {!r} (choices: {})"
+msgstr "neznámy analyzátor {!r} (voľby: {})"
+
+#: electrumsys/gui/qt/main_window.py:457
+msgid "watching only"
+msgstr "len"
+
+#: electrumsys/gui/qt/main_window.py:2155
+msgid "watching-only"
+msgstr "len na sledovanie"
+
+#: electrumsys/plugin.py:558 electrumsys/base_wizard.py:310
+msgid "wiped"
+msgstr "vymazané"
+
+#: electrumsys/plugins/revealer/qt.py:187
+msgid "your seed extension will <b>not</b> be included in the encrypted backup."
+msgstr "vaše rozšírenie seedu <b>nebude</b> zahrnuté v šifrovanej zálohe."
+
+#: electrumsys/plugins/trezor/qt.py:413 electrumsys/plugins/keepkey/qt.py:439
+#: electrumsys/plugins/safe_t/qt.py:327
+msgid "{:2d} minutes"
+msgstr "{:2d} minút"
+
+#: electrumsys/plugins/trezor/qt.py:211 electrumsys/plugins/safe_t/qt.py:118
+msgid "{:d} words"
+msgstr "{:d} slov"
+
+#: electrumsys/plugins/trezor/qt.py:280 electrumsys/plugins/keepkey/qt.py:317
+#: electrumsys/plugins/safe_t/qt.py:194 electrumsys/plugins/coldcard/qt.py:120
+msgid "{} Settings"
+msgstr "Nastavenia zariadenia {}"
+
+#: electrumsys/wallet.py:365
+msgid "{} confirmations"
+msgstr "{} potvrdení"
+
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:14
+msgid "{} connections."
+msgstr "{} pripojení."
+
+#: electrumsys/plugins/revealer/qt.py:179
+msgid "{} encrypted for Revealer {}_{} saved as PNG and PDF at: "
+msgstr "{} šifrovaných pre Revealer {}_{} uložený ako PNG a PDF v: "
+
+#: electrumsys/gui/kivy/uix/dialogs/tx_dialog.py:118
+msgid "{} from tip"
+msgstr "{} od špičky"
+
+#: electrumsys/plugins/greenaddress_instant/qt.py:104
+msgid "{} is covered by GreenAddress instant confirmation"
+msgstr "{} je krytá okamžitým potvrdením služby GreenAddress"
+
+#: electrumsys/plugins/greenaddress_instant/qt.py:106
+msgid "{} is not covered by GreenAddress instant confirmation"
+msgstr "{} nie je krytá okamžitým potvrdením služby GreenAddress"
+
+#: electrumsys/gui/qt/main_window.py:676
+msgid "{} new transactions received: Total amount received in the new transactions {}"
+msgstr "{} nových prijatých transakcií: Celková prijatá suma v nových transakciách {}"
+
+#: electrumsys/plugins/keepkey/qt.py:244
+msgid "{} words"
+msgstr "{} slov"
+

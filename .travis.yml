@@ -34,10 +34,10 @@ jobs:
         - sudo install -m 0755 -o root -g root -t /usr/local/bin syscoin-4.1.3/bin/*
         - sudo apt-get -y install libsecp256k1-0
         - pip install .[tests]
-        - pip install electrumsysx
+        - pip install electrumx
       before_script:
           - electrumsys/tests/regtest/start_syscoind.sh
-          - electrumsys/tests/regtest/start_electrumsysx.sh
+          - electrumsys/tests/regtest/start_electrumx.sh
       script:
         - python -m unittest electrumsys/tests/regtest.py
       after_success: True

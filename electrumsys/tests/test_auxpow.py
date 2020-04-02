@@ -29,7 +29,7 @@ class Test_auxpow(SequentialTestCase):
 
         # We pass a height beyond the last checkpoint, because
         # deserialize_full_header expects checkpointed headers to be truncated
-        # by ElectrumSysX (i.e. not contain an AuxPoW).
+        # by ElectrumX (i.e. not contain an AuxPoW).
         return blockchain.deserialize_full_header(bfh(data_hex), constants.net.max_checkpoint() + 1, **kwargs)
 
     @staticmethod

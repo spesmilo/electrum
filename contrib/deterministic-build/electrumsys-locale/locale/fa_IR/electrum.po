@@ -1,0 +1,5352 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: electrumsys\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2019-02-13 20:50+0000\n"
+"PO-Revision-Date: 2019-02-13 20:53\n"
+"Last-Translator: rdymac <crowdin-electrumsys@monerovenezuela.com>\n"
+"Language-Team: Persian\n"
+"Language: fa_IR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Generator: crowdin.com\n"
+"X-Crowdin-Project: electrumsys\n"
+"X-Crowdin-Language: fa\n"
+"X-Crowdin-File: /electrumsys-client/messages.pot\n"
+
+#: electrumsys/exchange_rate.py:574
+msgid "  (No FX rate available)"
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:164
+msgid " confirmation"
+msgstr "تصدیق"
+
+#: electrumsys/gui/qt/main_window.py:611
+msgid "&About"
+msgstr "درباره"
+
+#: electrumsys/gui/qt/main_window.py:186 electrumsys/gui/qt/main_window.py:557
+msgid "&Addresses"
+msgstr "آدرس ها"
+
+#: electrumsys/gui/qt/main_window.py:612
+msgid "&Check for updates"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:615
+msgid "&Documentation"
+msgstr "مستندات"
+
+#: electrumsys/gui/qt/main_window.py:618
+msgid "&Donate to server"
+msgstr "کمک به سرور"
+
+#: electrumsys/gui/qt/main_window.py:597
+msgid "&Encrypt/decrypt message"
+msgstr "رمزنگاری/رمزگشایی پیغام"
+
+#: electrumsys/gui/qt/main_window.py:553 electrumsys/gui/qt/main_window.py:561
+#: electrumsys/gui/qt/main_window.py:566
+msgid "&Export"
+msgstr "خروجی"
+
+#: electrumsys/gui/qt/main_window.py:536
+msgid "&File"
+msgstr "فایل"
+
+#: electrumsys/gui/qt/main_window.py:558 electrumsys/gui/qt/main_window.py:563
+msgid "&Filter"
+msgstr "فیلتر"
+
+#: electrumsys/gui/qt/main_window.py:606
+msgid "&From QR code"
+msgstr "از QR کد"
+
+#: electrumsys/gui/qt/main_window.py:603
+msgid "&From file"
+msgstr "از فایل"
+
+#: electrumsys/gui/qt/main_window.py:604
+msgid "&From text"
+msgstr "از متن"
+
+#: electrumsys/gui/qt/main_window.py:605
+msgid "&From the blockchain"
+msgstr "از بلاکچین"
+
+#: electrumsys/gui/qt/main_window.py:610
+msgid "&Help"
+msgstr "راهنما"
+
+#: electrumsys/gui/qt/main_window.py:562
+msgid "&History"
+msgstr "تاریخچه"
+
+#: electrumsys/gui/qt/main_window.py:552 electrumsys/gui/qt/main_window.py:560
+msgid "&Import"
+msgstr "وارد کردن"
+
+#: electrumsys/gui/qt/main_window.py:546
+msgid "&Information"
+msgstr "اطلاعات"
+
+#: electrumsys/gui/qt/main_window.py:559
+msgid "&Labels"
+msgstr "برچسب ها"
+
+#: electrumsys/gui/qt/main_window.py:602
+msgid "&Load transaction"
+msgstr "لود کردن تراکنش"
+
+#: electrumsys/gui/qt/main_window.py:593
+msgid "&Network"
+msgstr "شبکه"
+
+#: electrumsys/gui/qt/main_window.py:568
+msgid "&New"
+msgstr "جدید"
+
+#: electrumsys/gui/qt/main_window.py:539
+msgid "&New/Restore"
+msgstr "جدید/بازگردانی"
+
+#: electrumsys/gui/qt/main_window.py:613
+msgid "&Official website"
+msgstr "وب‌سایت رسمی"
+
+#: electrumsys/gui/qt/main_window.py:538
+msgid "&Open"
+msgstr "بازکردن"
+
+#: electrumsys/gui/qt/main_window.py:548
+msgid "&Password"
+msgstr "رمزعبور"
+
+#: electrumsys/gui/qt/main_window.py:600
+msgid "&Pay to many"
+msgstr "پرداخت به چندین حساب"
+
+#: electrumsys/gui/qt/main_window.py:565
+msgid "&Plot"
+msgstr "طرح"
+
+#: electrumsys/gui/qt/main_window.py:594
+msgid "&Plugins"
+msgstr "افزونه‌ها"
+
+#: electrumsys/gui/qt/main_window.py:550
+msgid "&Private keys"
+msgstr "کلید خصوصی"
+
+#: electrumsys/gui/qt/main_window.py:543
+msgid "&Quit"
+msgstr "خروج"
+
+#: electrumsys/gui/qt/main_window.py:537
+msgid "&Recently open"
+msgstr "به تازگی باز شده"
+
+#: electrumsys/gui/qt/main_window.py:616
+msgid "&Report Bug"
+msgstr "گزارش مشکلات"
+
+#: electrumsys/gui/qt/main_window.py:540
+msgid "&Save Copy"
+msgstr "ذخیره رونوشت"
+
+#: electrumsys/gui/qt/main_window.py:549
+msgid "&Seed"
+msgstr "سید"
+
+#: electrumsys/gui/qt/main_window.py:596
+msgid "&Sign/verify message"
+msgstr "امضا/تایید پیغام"
+
+#: electrumsys/gui/qt/main_window.py:564
+msgid "&Summary"
+msgstr "خلاصه"
+
+#: electrumsys/gui/qt/main_window.py:551
+msgid "&Sweep"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:589
+msgid "&Tools"
+msgstr "ابزارها"
+
+#: electrumsys/gui/qt/main_window.py:583
+msgid "&View"
+msgstr "مشاهده"
+
+#: electrumsys/gui/qt/main_window.py:545
+msgid "&Wallet"
+msgstr "کیف پول"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:627
+msgid "(Touch {} of {})"
+msgstr ""
+
+#: electrumsys/plugins/virtualkeyboard/qt.py:15
+msgid "+"
+msgstr "+"
+
+#: electrumsys/gui/qt/util.py:56
+msgid "1 day"
+msgstr "1 روز"
+
+#: electrumsys/gui/qt/util.py:55
+msgid "1 hour"
+msgstr "۱ ساعت"
+
+#: electrumsys/gui/qt/util.py:57
+msgid "1 week"
+msgstr "1 هفته"
+
+#: electrumsys/plugins/revealer/qt.py:458
+msgid "1. Place this paper on a flat and well iluminated surface."
+msgstr "۱. این کاغذ را در یک سطح مسطح و روشن قرار دهید."
+
+#: electrumsys/plugins/revealer/qt.py:459
+msgid "2. Align your Revealer borderlines to the dashed lines on the top and left."
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:460
+msgid "3. Press slightly the Revealer against the paper and read the numbers that best match on the opposite sides. "
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:462
+msgid "4. Type the numbers in the software"
+msgstr "۴. اعداد موجود در نرم افزار را تایپ کنید"
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:187
+msgid "A backup is saved automatically when generating a new wallet."
+msgstr "زمانی که یک کیف پول جدید ایجاد می شود، یک فایل پشتیبان خودکار نیز ذخیره می شود."
+
+#: electrumsys/gui/qt/main_window.py:496
+msgid "A copy of your wallet file was created in"
+msgstr "یک کپی از فایل کیف پول شما ذخیره شد در"
+
+#: electrumsys/gui/qt/installwizard.py:37
+msgid "A few examples"
+msgstr "چندین مثال"
+
+#: electrumsys/plugin.py:449
+msgid "A library is probably missing."
+msgstr "یک کتابخانه احتمالا گم شده."
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:79
+msgid "A small fee will be charged on each transaction that uses the remote server.  You may check and modify your billing preferences once the installation is complete."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1183
+msgid "A suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction."
+msgstr ""
+
+#: electrumsys/gui/kivy/main.kv:445
+msgid "About"
+msgstr "درباره"
+
+#: electrumsys/gui/kivy/uix/ui_screens/about.kv:4
+msgid "About electrumsys"
+msgstr "درباره ی الکتروم"
+
+#: electrumsys/plugins/trustedcoin/qt.py:230
+msgid "Accept"
+msgstr "پذیرفتن"
+
+#: electrumsys/plugins/keepkey/qt.py:75
+msgid "Accept Word"
+msgstr "پذیرفتن کلمه"
+
+#: electrumsys/gui/qt/history_list.py:327
+msgid "Acquisition price"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:404
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:1017
+msgid "Add Cosigner"
+msgstr ""
+
+#: electrumsys/base_wizard.py:190
+msgid "Add a cosigner to your multi-sig wallet"
+msgstr ""
+
+#: electrumsys/plugins/virtualkeyboard/__init__.py:4
+msgid "Add an optional virtual keyboard to the password dialog."
+msgstr ""
+
+#: electrumsys/base_wizard.py:179
+msgid "Add cosigner"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1642 electrumsys/gui/kivy/uix/screens.py:294
+msgid "Additional fees"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1122
+msgid "Additional {} satoshis are going to be added."
+msgstr ""
+
+#: electrumsys/gui/qt/util.py:353 electrumsys/gui/qt/utxo_list.py:47
+#: electrumsys/gui/qt/address_list.py:90 electrumsys/gui/qt/contact_list.py:49
+#: electrumsys/gui/qt/request_list.py:53 electrumsys/gui/qt/address_dialog.py:45
+#: electrumsys/gui/qt/main_window.py:2139 electrumsys/gui/qt/main_window.py:2252
+#: electrumsys/gui/qt/main_window.py:2332
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:40
+msgid "Address"
+msgstr ""
+
+#: electrumsys/gui/kivy/main.kv:101
+msgid "Address copied to clipboard"
+msgstr ""
+
+#: electrumsys/wallet.py:1080 electrumsys/plugins/hw_wallet/plugin.py:77
+#: electrumsys/gui/qt/main_window.py:2284
+msgid "Address not in wallet."
+msgstr ""
+
+#: electrumsys/gui/qt/address_dialog.py:57
+msgid "Address:"
+msgstr ""
+
+#: electrumsys/gui/text.py:69
+msgid "Addresses"
+msgstr ""
+
+#: electrumsys/wallet.py:764
+msgid "Addresses generated:"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:580 electrumsys/plugins/keepkey/qt.py:586
+#: electrumsys/plugins/safe_t/qt.py:494
+msgid "Advanced"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:347 electrumsys/plugins/keepkey/qt.py:383
+#: electrumsys/plugins/safe_t/qt.py:261
+msgid "After disabling passphrases, you can only pair this electrumsys wallet if it had an empty passphrase.  If its passphrase was not empty, you will need to create a new wallet with the install wizard.  You can use this wallet again at any time by re-enabling passphrases and entering its passphrase."
+msgstr ""
+
+#: electrumsys/gui/qt/address_list.py:62 electrumsys/gui/qt/address_list.py:66
+#: electrumsys/gui/qt/history_list.py:405 electrumsys/gui/qt/history_list.py:429
+msgid "All"
+msgstr ""
+
+#: electrumsys/plugins/greenaddress_instant/__init__.py:4
+msgid "Allows validating if your transactions have instant confirmations by GreenAddress"
+msgstr ""
+
+#: electrumsys/gui/qt/update_checker.py:88
+msgid "Already up to date"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1246
+msgid "Also, dust is not kept as change, but added to the fee."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1247
+msgid "Also, when batching RBF transactions, BIP 125 imposes a lower bound on the fee."
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:181
+msgid "Always check your backups."
+msgstr ""
+
+#: electrumsys/gui/text.py:109 electrumsys/gui/text.py:180
+#: electrumsys/gui/qt/utxo_list.py:49 electrumsys/gui/qt/request_list.py:56
+#: electrumsys/gui/qt/history_list.py:333 electrumsys/gui/qt/invoice_list.py:52
+#: electrumsys/gui/qt/main_window.py:1163 electrumsys/gui/qt/main_window.py:1960
+#: electrumsys/gui/stdio.py:108 electrumsys/gui/kivy/uix/ui_screens/receive.kv:89
+#: electrumsys/gui/kivy/uix/ui_screens/receive.kv:90
+#: electrumsys/gui/kivy/uix/ui_screens/send.kv:53
+#: electrumsys/gui/kivy/uix/ui_screens/send.kv:54
+msgid "Amount"
+msgstr ""
+
+#: electrumsys/plugins/hw_wallet/plugin.py:147
+msgid "Amount for OP_RETURN output must be zero."
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:34
+msgid "Amount received"
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:263
+msgid "Amount received:"
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:265
+msgid "Amount sent:"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1635 electrumsys/gui/kivy/uix/screens.py:288
+msgid "Amount to be sent"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1159
+msgid "Amount to be sent."
+msgstr ""
+
+#: electrumsys/gui/qt/exception_window.py:46
+msgid "An Error Occurred"
+msgstr ""
+
+#: electrumsys/plugins/cosigner_pool/qt.py:205
+#: electrumsys/plugins/cosigner_pool/qt.py:210
+#: electrumsys/plugins/cosigner_pool/qt.py:216
+msgid "An encrypted transaction was retrieved from cosigning pool."
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:183
+msgid "An uninitialized Digital Bitbox is detected."
+msgstr ""
+
+#: electrumsys/base_wizard.py:311
+msgid "An unnamed {}"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:461 electrumsys/plugins/keepkey/qt.py:490
+#: electrumsys/plugins/safe_t/qt.py:375
+msgid "Apply"
+msgstr ""
+
+#: electrumsys/i18n.py:46
+msgid "Arabic"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:404 electrumsys/plugins/keepkey/qt.py:430
+#: electrumsys/plugins/safe_t/qt.py:318
+msgid "Are you SURE you want to wipe the device?\n"
+"Your wallet still has bitcoins in it!"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:319
+msgid "Are you sure you want to erase the Digital Bitbox?"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:358 electrumsys/plugins/keepkey/qt.py:394
+#: electrumsys/plugins/safe_t/qt.py:272
+msgid "Are you sure you want to proceed?"
+msgstr "آیا مطمئن هستید که می‌خواهید ادامه دهید؟"
+
+#: electrumsys/gui/qt/history_list.py:609
+msgid "Are you sure you want to remove this transaction and {} child transactions?"
+msgstr "آیا مطمئن هستید که می‌خواهید این تراکنش و زیر تراکنش ها را پاک کنید؟"
+
+#: electrumsys/gui/qt/history_list.py:606
+msgid "Are you sure you want to remove this transaction?"
+msgstr "آیا مطمئن هستید که می‌خواهید این تراکنش را پاک کنید؟"
+
+#: electrumsys/i18n.py:58
+msgid "Armenian"
+msgstr "ارمنی"
+
+#: electrumsys/gui/qt/main_window.py:1244
+msgid "At most 100 satoshis might be lost due to this rounding."
+msgstr "ممکن است با رند کردن حداکثر ۱۰۰ ساتوشی از بین برود."
+
+#: electrumsys/plugins/audio_modem/__init__.py:3
+msgid "Audio MODEM"
+msgstr "مودم صوتی"
+
+#: electrumsys/plugins/audio_modem/qt.py:47
+msgid "Audio Modem Settings"
+msgstr "تنظیمات مودم صوتی"
+
+#: electrumsys/plugins/trustedcoin/qt.py:102
+msgid "Authorization"
+msgstr "مجوز"
+
+#: electrumsys/gui/qt/installwizard.py:598
+msgid "Auto connect"
+msgstr "اتصال خودکار"
+
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:33
+msgid "Auto-connect"
+msgstr "اتصال-خودکار"
+
+#: electrumsys/gui/qt/main_window.py:2951
+msgid "Automatically check for software updates"
+msgstr ""
+
+#: electrumsys/gui/qt/seed_dialog.py:82
+msgid "BIP39 seed"
+msgstr "سید BIP39"
+
+#: electrumsys/gui/qt/seed_dialog.py:74
+msgid "BIP39 seeds can be imported in electrumsys, so that users can access funds locked in other wallets."
+msgstr "سید های BIP39 می توانند در الکتروم وارد شوند، پس کاربران میتوانند به پول های قفل شده ی خود در کیف پول دسترسی پیدا کنند."
+
+#: electrumsys/gui/qt/seed_dialog.py:76
+msgid "BIP39 seeds do not include a version number, which compromises compatibility with future software."
+msgstr "سید های BIP39 شامل ورژن های متفاوت نمی شوند، چیزی که باعث می شود که با نسخه های آینده ی نرم افزار هم سازگاری داشته باشد."
+
+#: electrumsys/gui/qt/installwizard.py:91 electrumsys/gui/qt/installwizard.py:125
+#: electrumsys/gui/qt/installwizard.py:126
+msgid "Back"
+msgstr ""
+
+#: electrumsys/gui/text.py:109 electrumsys/gui/text.py:142
+#: electrumsys/gui/qt/address_list.py:92 electrumsys/gui/qt/address_list.py:93
+#: electrumsys/gui/qt/history_list.py:334 electrumsys/gui/qt/main_window.py:803
+#: electrumsys/gui/stdio.py:108 electrumsys/gui/stdio.py:120
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:52
+#: electrumsys/gui/kivy/uix/ui_screens/status.kv:33 electrumsys/gui/kivy/main.kv:392
+msgid "Balance"
+msgstr ""
+
+#: electrumsys/gui/text.py:69
+msgid "Banner"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2889
+msgid "Base unit"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2886
+msgid "Base unit of your wallet."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2824
+msgid "Batch RBF transactions"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:647
+msgid "Before reporting a bug, upgrade to the most recent version of electrumsys (latest release or git HEAD), and include the version number in your report."
+msgstr ""
+
+#: electrumsys/plugins/audio_modem/qt.py:50
+msgid "Bit rate [kbps]: "
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/receive.kv:71
+msgid "Bitcoin Address"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1572
+msgid "Bitcoin Address is None"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:875
+msgid "Bitcoin address where the payment should be received. Note that each payment request uses a different Bitcoin address."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1181
+msgid "Bitcoin transactions are in general not free. A transaction fee is paid by the sender of the funds."
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:313
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:47
+msgid "Blockchain"
+msgstr ""
+
+#: electrumsys/plugins/coldcard/qt.py:153
+msgid "Bootloader"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:438 electrumsys/plugins/keepkey/qt.py:466
+#: electrumsys/plugins/safe_t/qt.py:352
+msgid "Bootloader Hash"
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:744
+msgid "Bottom"
+msgstr ""
+
+#: electrumsys/i18n.py:67
+msgid "Brasilian"
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:126
+msgid "Broadcast"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1736
+msgid "Broadcasting transaction..."
+msgstr ""
+
+#: electrumsys/plugins/coldcard/qt.py:152
+msgid "Build Date"
+msgstr ""
+
+#: electrumsys/i18n.py:47
+msgid "Bulgarian"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3319
+msgid "Bump Fee"
+msgstr ""
+
+#: electrumsys/gui/qt/util.py:366
+msgid "CSV"
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:452
+msgid "Calibration sheet"
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:736
+msgid "Calibration values:"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3315
+#: electrumsys/gui/kivy/uix/dialogs/tx_dialog.py:139
+msgid "Can't bump fee: unknown fee for original transaction."
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:513
+msgid "Can't plot history."
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:67 electrumsys/plugins/keepkey/qt.py:83
+#: electrumsys/plugins/trustedcoin/qt.py:208 electrumsys/gui/qt/util.py:178
+#: electrumsys/gui/qt/installwizard.py:91 electrumsys/gui/qt/installwizard.py:126
+#: electrumsys/gui/qt/installwizard.py:601
+msgid "Cancel"
+msgstr ""
+
+#: electrumsys/plugins/ledger/ledger.py:278 electrumsys/plugins/ledger/ledger.py:291
+#: electrumsys/plugins/ledger/ledger.py:489
+msgid "Cancelled by user"
+msgstr ""
+
+#: electrumsys/base_wizard.py:489
+msgid "Cannot add this cosigner:"
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:946
+msgid "Cannot broadcast transaction"
+msgstr ""
+
+#: electrumsys/wallet.py:801 electrumsys/wallet.py:832
+msgid "Cannot bump fee"
+msgstr ""
+
+#: electrumsys/gui/qt/__init__.py:262
+msgid "Cannot create window for wallet"
+msgstr ""
+
+#: electrumsys/gui/qt/__init__.py:222 electrumsys/gui/qt/__init__.py:241
+msgid "Cannot load wallet"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:232
+msgid "Cannot read file"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2288
+msgid "Cannot sign messages with this type of address:"
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:328
+msgid "Capital Gains"
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:501
+msgid "Capital gains"
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:377
+#, python-brace-format
+msgid "Chain split detected at block {0}"
+msgstr ""
+
+#: electrumsys/gui/qt/address_list.py:62
+msgid "Change"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:316 electrumsys/plugins/keepkey/qt.py:350
+#: electrumsys/plugins/safe_t/qt.py:230
+msgid "Change PIN"
+msgstr ""
+
+#: electrumsys/gui/qt/password_dialog.py:61
+msgid "Change Password"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:485 electrumsys/plugins/safe_t/qt.py:399
+msgid "Change..."
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:1067
+msgid "Changing PIN code."
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/qt.py:295
+msgid "Check this box to request a new secret. You will need to retype your seed."
+msgstr ""
+
+#: electrumsys/plugins/trezor/clientbase.py:24
+#: electrumsys/plugins/keepkey/clientbase.py:22
+#: electrumsys/plugins/safe_t/clientbase.py:24
+msgid "Check your {} device to continue"
+msgstr ""
+
+#: electrumsys/gui/qt/update_checker.py:91
+msgid "Checking for updates..."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3261
+msgid "Child Pays for Parent"
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:596
+msgid "Child pays for parent"
+msgstr ""
+
+#: electrumsys/i18n.py:79
+msgid "Chinese Simplified"
+msgstr ""
+
+#: electrumsys/i18n.py:80
+msgid "Chinese Traditional"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:364 electrumsys/plugins/keepkey/qt.py:401
+#: electrumsys/plugins/safe_t/qt.py:278
+msgid "Choose Homescreen"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:1042
+msgid "Choose PIN code"
+msgstr ""
+
+#: electrumsys/base_wizard.py:570
+msgid "Choose Seed type"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:336
+msgid "Choose a backup file:"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:30
+msgid "Choose a password to encrypt your wallet keys."
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:129
+msgid "Choose a server"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2995
+msgid "Choose coin (UTXO) selection method.  The following are available:\n\n"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/server.kv:43
+msgid "Choose from peers"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:248
+msgid "Choose how to initialize your Digital Bitbox:"
+msgstr ""
+
+#: electrumsys/plugins/trezor/trezor.py:167
+#: electrumsys/plugins/keepkey/keepkey.py:161
+#: electrumsys/plugins/safe_t/safe_t.py:166
+msgid "Choose how you want to initialize your {}.\n\n"
+"The first two methods are secure as no secret information is entered into your computer.\n\n"
+"For the last two methods you input secrets on your keyboard and upload them to your {}, and so you should only do those on a computer you know to be trustworthy and free of malware."
+msgstr ""
+
+#: electrumsys/plugins/trezor/clientbase.py:23
+#: electrumsys/plugins/safe_t/clientbase.py:23
+msgid "Choose on your {} device where to enter your passphrase"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:643
+msgid "Choose the number of signatures needed to unlock funds in your wallet:"
+msgstr ""
+
+#: electrumsys/base_wizard.py:361
+msgid "Choose the type of addresses in your wallet."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2912
+msgid "Choose which online block explorer to use for functions that open a web browser"
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:144
+msgid "Choose your chain"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:172
+msgid "Choose..."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1284
+#: electrumsys/gui/kivy/uix/ui_screens/send.kv:116
+msgid "Clear"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:516 electrumsys/plugins/keepkey/qt.py:522
+#: electrumsys/plugins/safe_t/qt.py:430
+msgid "Clear the session after the specified period of inactivity.  Once a session has timed out, your PIN and passphrase (if enabled) must be re-entered to use the device."
+msgstr ""
+
+#: electrumsys/plugins/ledger/auth2fa.py:33
+msgid "Click Pair button to begin pairing a mobile phone."
+msgstr ""
+
+#: electrumsys/gui/qt/console.py:68
+msgid "Click here to hide this message."
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/screens.py:238
+msgid "Clipboard is empty"
+msgstr ""
+
+#: electrumsys/gui/qt/util.py:154 electrumsys/gui/qt/transaction_dialog.py:141
+#: electrumsys/gui/qt/qrcodewidget.py:124 electrumsys/gui/qt/update_checker.py:61
+#: electrumsys/gui/qt/__init__.py:147 electrumsys/gui/qt/main_window.py:2350
+#: electrumsys/gui/qt/main_window.py:2417
+#: electrumsys/gui/kivy/uix/ui_screens/about.kv:54
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:82
+msgid "Close"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:187
+msgid "Co&ins"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/qt.py:109
+msgid "Code"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2997
+#: electrumsys/gui/kivy/uix/dialogs/settings.py:153
+msgid "Coin selection"
+msgstr ""
+
+#: electrumsys/plugins/coldcard/qt.py:98
+msgid "Coldcard Status"
+msgstr ""
+
+#: electrumsys/plugins/coldcard/__init__.py:6
+msgid "Coldcard Wallet"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2944
+msgid "Color theme"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:189
+msgid "Con&sole"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:188
+msgid "Con&tacts"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:403 electrumsys/plugins/keepkey/qt.py:429
+#: electrumsys/plugins/safe_t/qt.py:317
+msgid "Confirm Device Wipe"
+msgstr ""
+
+#: electrumsys/gui/qt/password_dialog.py:87
+msgid "Confirm Passphrase:"
+msgstr ""
+
+#: electrumsys/gui/qt/password_dialog.py:102
+msgid "Confirm Password:"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:425
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:990
+msgid "Confirm Seed"
+msgstr ""
+
+#: electrumsys/base_wizard.py:610
+msgid "Confirm Seed Extension"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:344 electrumsys/plugins/keepkey/qt.py:380
+#: electrumsys/plugins/safe_t/qt.py:258
+msgid "Confirm Toggle Passphrase Protection"
+msgstr ""
+
+#: electrumsys/plugins/ledger/ledger.py:413
+msgid "Confirm Transaction on your Ledger device..."
+msgstr ""
+
+#: electrumsys/plugins/trezor/clientbase.py:17
+#: electrumsys/plugins/keepkey/clientbase.py:15
+#: electrumsys/plugins/safe_t/clientbase.py:16
+msgid "Confirm internal entropy on your {} device to begin"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/password_dialog.py:134
+msgid "Confirm new PIN"
+msgstr ""
+
+#: electrumsys/plugins/trezor/clientbase.py:20
+#: electrumsys/plugins/keepkey/clientbase.py:18
+#: electrumsys/plugins/safe_t/clientbase.py:19
+msgid "Confirm on your {} device the message to sign"
+msgstr ""
+
+#: electrumsys/plugins/trezor/clientbase.py:146
+#: electrumsys/plugins/keepkey/clientbase.py:179
+#: electrumsys/plugins/safe_t/clientbase.py:181
+msgid "Confirm on your {} device to change your PIN"
+msgstr ""
+
+#: electrumsys/plugins/trezor/clientbase.py:139
+#: electrumsys/plugins/keepkey/clientbase.py:172
+#: electrumsys/plugins/safe_t/clientbase.py:174
+msgid "Confirm on your {} device to change your home screen"
+msgstr ""
+
+#: electrumsys/plugins/trezor/clientbase.py:144
+#: electrumsys/plugins/keepkey/clientbase.py:177
+#: electrumsys/plugins/safe_t/clientbase.py:179
+msgid "Confirm on your {} device to disable PIN protection"
+msgstr ""
+
+#: electrumsys/plugins/trezor/clientbase.py:127
+#: electrumsys/plugins/keepkey/clientbase.py:161
+#: electrumsys/plugins/safe_t/clientbase.py:163
+msgid "Confirm on your {} device to disable passphrases"
+msgstr ""
+
+#: electrumsys/plugins/trezor/clientbase.py:129
+#: electrumsys/plugins/keepkey/clientbase.py:163
+#: electrumsys/plugins/safe_t/clientbase.py:165
+msgid "Confirm on your {} device to enable passphrases"
+msgstr ""
+
+#: electrumsys/plugins/trezor/clientbase.py:148
+#: electrumsys/plugins/keepkey/clientbase.py:181
+#: electrumsys/plugins/safe_t/clientbase.py:183
+msgid "Confirm on your {} device to set a PIN"
+msgstr ""
+
+#: electrumsys/plugins/trezor/clientbase.py:19
+#: electrumsys/plugins/keepkey/clientbase.py:17
+#: electrumsys/plugins/safe_t/clientbase.py:18
+msgid "Confirm on your {} that you want to wipe it clean"
+msgstr ""
+
+#: electrumsys/plugins/trezor/clientbase.py:135
+#: electrumsys/plugins/keepkey/clientbase.py:168
+#: electrumsys/plugins/safe_t/clientbase.py:170
+msgid "Confirm the new label on your {} device"
+msgstr ""
+
+#: electrumsys/plugins/trezor/clientbase.py:21
+#: electrumsys/plugins/keepkey/clientbase.py:19
+#: electrumsys/plugins/safe_t/clientbase.py:20
+msgid "Confirm the total amount spent and the transaction fee on your {} device"
+msgstr ""
+
+#: electrumsys/plugins/trezor/clientbase.py:16
+#: electrumsys/plugins/keepkey/clientbase.py:14
+#: electrumsys/plugins/safe_t/clientbase.py:15
+msgid "Confirm the transaction output on your {} device"
+msgstr ""
+
+#: electrumsys/plugins/trezor/clientbase.py:22
+#: electrumsys/plugins/keepkey/clientbase.py:21
+#: electrumsys/plugins/safe_t/clientbase.py:22
+msgid "Confirm wallet address on your {} device"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/status.kv:36
+msgid "Confirmed"
+msgstr ""
+
+#: electrumsys/plugins/ledger/ledger.py:455 electrumsys/plugins/ledger/ledger.py:479
+msgid "Confirmed. Signing Transaction..."
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:73
+msgid "Connected node"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:55
+msgid "Connected nodes are on the same chain"
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:370
+#, python-brace-format
+msgid "Connected to {0} nodes."
+msgstr ""
+
+#: electrumsys/wallet.py:771
+msgid "Connecting..."
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:16
+msgid "Connections with electrumsys servers"
+msgstr ""
+
+#: electrumsys/network.py:180 electrumsys/network.py:188 electrumsys/network.py:196
+msgid "Consider trying to connect to a different server, or updating electrumsys."
+msgstr ""
+
+#: electrumsys/gui/text.py:69 electrumsys/gui/qt/main_window.py:567
+msgid "Contacts"
+msgstr ""
+
+#: electrumsys/gui/qt/util.py:160 electrumsys/gui/qt/qrcodewidget.py:116
+#: electrumsys/gui/kivy/uix/ui_screens/receive.kv:124
+msgid "Copy"
+msgstr ""
+
+#: electrumsys/gui/qt/request_list.py:156
+msgid "Copy URI"
+msgstr ""
+
+#: electrumsys/gui/qt/util.py:165
+msgid "Copy and Close"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/send.kv:36
+msgid "Copy and paste the recipient address using the Paste button, or use the camera to scan a QR code."
+msgstr ""
+
+#: electrumsys/gui/qt/util.py:620
+msgid "Copy to clipboard"
+msgstr ""
+
+#: electrumsys/gui/qt/address_list.py:200 electrumsys/gui/qt/contact_list.py:89
+#: electrumsys/gui/qt/request_list.py:155 electrumsys/gui/qt/history_list.py:580
+#: electrumsys/gui/qt/invoice_list.py:110
+msgid "Copy {}"
+msgstr ""
+
+#: electrumsys/base_wizard.py:196
+msgid "Cosign with hardware device"
+msgstr ""
+
+#: electrumsys/plugins/cosigner_pool/__init__.py:2
+msgid "Cosigner Pool"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2456
+msgid "Could not decode QR code"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/qt.py:238
+msgid "Could not retrieve Terms of Service:"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:511
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:524
+msgid "Could not sign message"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:488
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:501
+msgid "Could not sign message."
+msgstr ""
+
+#: electrumsys/gui/qt/exception_window.py:103
+msgid "Crash report"
+msgstr ""
+
+#: electrumsys/base_wizard.py:121
+msgid "Create"
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:115
+msgid "Create a new Revealer"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:504 electrumsys/base_wizard.py:183
+msgid "Create a new seed"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:227
+msgid "Create a wallet using the current seed"
+msgstr ""
+
+#: electrumsys/base_wizard.py:234
+msgid "Create keystore from a master key"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:501
+msgid "Create or restore"
+msgstr ""
+
+#: electrumsys/gui/qt/util.py:214
+msgid "Critical Error"
+msgstr ""
+
+#: electrumsys/gui/qt/password_dialog.py:104
+msgid "Current Password:"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3322
+msgid "Current fee"
+msgstr ""
+
+#: electrumsys/gui/qt/fee_slider.py:38
+msgid "Current rate"
+msgstr ""
+
+#: electrumsys/gui/qt/update_checker.py:49
+msgid "Current version: {}"
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:402 electrumsys/gui/qt/history_list.py:429
+msgid "Custom"
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:389
+msgid "Custom secret"
+msgstr ""
+
+#: electrumsys/i18n.py:48
+msgid "Czech"
+msgstr ""
+
+#: electrumsys/i18n.py:49
+msgid "Danish"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2941
+msgid "Dark"
+msgstr ""
+
+#: electrumsys/gui/qt/__init__.py:148
+msgid "Dark/Light"
+msgstr ""
+
+#: electrumsys/gui/text.py:109 electrumsys/gui/qt/request_list.py:52
+#: electrumsys/gui/qt/history_list.py:331 electrumsys/gui/stdio.py:108
+#: electrumsys/gui/kivy/uix/dialogs/tx_dialog.py:114
+msgid "Date"
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:252
+msgid "Date: {}"
+msgstr ""
+
+#: electrumsys/base_wizard.py:301
+msgid "Debug message"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2413
+msgid "Decrypt"
+msgstr ""
+
+#: electrumsys/i18n.py:45
+msgid "Default"
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:240
+msgid "Default Servers"
+msgstr ""
+
+#: electrumsys/gui/qt/contact_list.py:97 electrumsys/gui/qt/request_list.py:158
+#: electrumsys/gui/qt/invoice_list.py:114 electrumsys/gui/qt/main_window.py:541
+#: electrumsys/gui/qt/main_window.py:1987
+#: electrumsys/gui/kivy/uix/dialogs/requests.py:126
+#: electrumsys/gui/kivy/uix/ui_screens/status.kv:81
+msgid "Delete"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1982
+#: electrumsys/gui/kivy/uix/dialogs/invoices.py:158
+msgid "Delete invoice?"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/requests.py:146
+msgid "Delete request"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2200
+msgid "Delete wallet file?"
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:1015
+msgid "Delete wallet?"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/settings.py:139
+msgid "Denomination"
+msgstr ""
+
+#: electrumsys/gui/text.py:109 electrumsys/gui/text.py:179
+#: electrumsys/gui/qt/transaction_dialog.py:246 electrumsys/gui/qt/request_list.py:55
+#: electrumsys/gui/qt/history_list.py:332 electrumsys/gui/qt/invoice_list.py:51
+#: electrumsys/gui/qt/main_window.py:883 electrumsys/gui/qt/main_window.py:1148
+#: electrumsys/gui/stdio.py:108 electrumsys/gui/kivy/uix/ui_screens/receive.kv:108
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:49
+#: electrumsys/gui/kivy/uix/ui_screens/send.kv:72
+msgid "Description"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1146
+msgid "Description of the transaction (not mandatory)."
+msgstr ""
+
+#: electrumsys/gui/qt/utxo_list.py:113 electrumsys/gui/qt/address_list.py:201
+#: electrumsys/gui/qt/history_list.py:587 electrumsys/gui/qt/invoice_list.py:111
+#: electrumsys/gui/kivy/uix/dialogs/addresses.py:124
+msgid "Details"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/about.kv:35
+msgid "Developers"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:437 electrumsys/plugins/keepkey/qt.py:465
+#: electrumsys/plugins/safe_t/qt.py:351
+msgid "Device ID"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:433 electrumsys/plugins/trezor/qt.py:457
+#: electrumsys/plugins/keepkey/qt.py:461 electrumsys/plugins/keepkey/qt.py:486
+#: electrumsys/plugins/safe_t/qt.py:347 electrumsys/plugins/safe_t/qt.py:371
+msgid "Device Label"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:130
+msgid "Device communication error. Please unplug and replug your Digital Bitbox."
+msgstr ""
+
+#: electrumsys/plugins/ledger/ledger.py:195
+msgid "Device not in Bitcoin mode"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/__init__.py:5
+msgid "Digital Bitbox wallet"
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:194
+msgid "Digital Revealer ({}_{}) saved as PNG and PDF at:"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:538 electrumsys/plugins/keepkey/qt.py:544
+#: electrumsys/plugins/safe_t/qt.py:452
+msgid "Disable PIN"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:314 electrumsys/plugins/keepkey/qt.py:348
+#: electrumsys/plugins/safe_t/qt.py:228
+msgid "Disable Passphrases"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:315 electrumsys/plugins/keepkey/qt.py:349
+#: electrumsys/plugins/safe_t/qt.py:229
+msgid "Disabled"
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:745
+msgid "Disconnected"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1282
+msgid "Display the details of your transaction before signing it."
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/about.kv:41
+msgid "Distributed by electrumsys Technologies GmbH"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:291
+msgid "Do not pair"
+msgstr ""
+
+#: electrumsys/gui/qt/console.py:66
+msgid "Do not paste code here that you don't understand. Executing the wrong code could lead to your coins being irreversibly lost."
+msgstr ""
+
+#: electrumsys/gui/qt/seed_dialog.py:52
+msgid "Do not store it electronically."
+msgstr ""
+
+#: electrumsys/plugins/revealer/__init__.py:5
+msgid "Do you have something to hide ?"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:502 electrumsys/base_wizard.py:181
+msgid "Do you want to create a new seed, or to restore a wallet using an existing seed?"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:314
+msgid "Do you want to delete '{}'?"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:302
+msgid "Do you want to delete the old file"
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:572
+msgid "Do you want to launch the wizard again?"
+msgstr ""
+
+#: electrumsys/plugins/cosigner_pool/qt.py:217
+msgid "Do you want to open it now?"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1886
+msgid "Do you want to remove {} from your wallet?"
+msgstr ""
+
+#: electrumsys/base_crash_reporter.py:58
+msgid "Do you want to send this report?"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1562
+msgid "Do you wish to continue?"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:46
+msgid "Due to a bug, old versions of electrumsys will NOT be creating the same wallet as newer versions or other software."
+msgstr ""
+
+#: electrumsys/i18n.py:65
+msgid "Dutch"
+msgstr ""
+
+#: electrumsys/util.py:97
+msgid "Dynamic fee estimates not available"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2793
+msgid "ETA"
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:133
+msgid "Each revealer should be used only once."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2802
+msgid "Edit fees manually"
+msgstr ""
+
+#: electrumsys/gui/qt/address_list.py:203 electrumsys/gui/qt/contact_list.py:95
+#: electrumsys/gui/qt/history_list.py:586
+msgid "Edit {}"
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:285
+msgid "electrumsys App"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3195
+msgid "electrumsys Plugins"
+msgstr ""
+
+#: electrumsys/plugin.py:498
+msgid "electrumsys cannot pair with your {}.\n\n"
+"Before you request bitcoins to be sent to addresses in this wallet, ensure you can pair with your device, or that you have its seed (and passphrase, if any).  Otherwise all bitcoins you receive will be unspendable."
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:592
+msgid "electrumsys communicates with remote servers to get information about your transactions and addresses. The servers all fulfill the same purpose only differing in hardware. In most cases you simply want to let electrumsys pick one at random.  However if you prefer feel free to select a server manually."
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:297
+msgid "electrumsys connects to several nodes in order to download block headers and find out the longest blockchain."
+msgstr ""
+
+#: electrumsys/base_wizard.py:624
+msgid "electrumsys is generating your addresses, please wait..."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:592
+msgid "electrumsys preferences"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/server.kv:9
+msgid "electrumsys requests your transaction history from a single server. The returned history is checked against blockchain headers sent by other nodes, using Simple Payment Verification (SPV)."
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:306
+msgid "electrumsys sends your wallet addresses to a single server, in order to receive your transaction history."
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:187
+msgid "electrumsys wallet"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:498
+msgid "electrumsys was unable to copy your wallet file to the specified location."
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:62
+msgid "electrumsys was unable to deserialize the transaction:"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2471
+msgid "electrumsys was unable to open your transaction file"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2436
+msgid "electrumsys was unable to parse your transaction"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2583
+msgid "electrumsys was unable to produce a private key-export."
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:649
+msgid "electrumsys was unable to produce a transaction export."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:633
+msgid "electrumsys's focus is speed, with low resource usage and simplifying Bitcoin."
+msgstr ""
+
+#: electrumsys/plugins/email_requests/__init__.py:3
+msgid "Email"
+msgstr ""
+
+#: electrumsys/plugins/email_requests/qt.py:208
+msgid "Email settings"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:216 electrumsys/plugins/keepkey/qt.py:249
+#: electrumsys/plugins/safe_t/qt.py:123
+msgid "Enable PIN protection"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:314 electrumsys/plugins/keepkey/qt.py:348
+#: electrumsys/plugins/safe_t/qt.py:228
+msgid "Enable Passphrases"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3020
+msgid "Enable output value rounding"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:225 electrumsys/plugins/keepkey/qt.py:283
+#: electrumsys/plugins/safe_t/qt.py:157
+msgid "Enable passphrases"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:242
+msgid "Enable update check"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:315 electrumsys/plugins/keepkey/qt.py:349
+#: electrumsys/plugins/safe_t/qt.py:229
+msgid "Enabled"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2409
+msgid "Encrypt"
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:269
+msgid "Encrypt custom secret"
+msgstr ""
+
+#: electrumsys/gui/qt/password_dialog.py:125
+#: electrumsys/gui/qt/password_dialog.py:207
+msgid "Encrypt wallet file"
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:250
+msgid "Encrypt {}'s seed"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2386
+msgid "Encrypt/decrypt Message"
+msgstr ""
+
+#: electrumsys/gui/qt/address_list.py:209
+msgid "Encrypt/decrypt message"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2404
+msgid "Encrypted"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:469
+#: electrumsys/plugins/ledger/ledger.py:261
+#: electrumsys/plugins/coldcard/coldcard.py:324
+msgid "Encryption and decryption are currently not supported for {}"
+msgstr ""
+
+#: electrumsys/plugins/trezor/trezor.py:58 electrumsys/plugins/keepkey/keepkey.py:33
+#: electrumsys/plugins/safe_t/safe_t.py:34
+msgid "Encryption and decryption are not implemented by {}"
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:489
+msgid "End"
+msgstr ""
+
+#: electrumsys/i18n.py:53
+msgid "English"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:145 electrumsys/plugins/keepkey/qt.py:174
+#: electrumsys/plugins/safe_t/qt.py:57 electrumsys/gui/kivy/main_window.py:814
+msgid "Enter PIN"
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:551
+msgid "Enter PIN code"
+msgstr ""
+
+#: electrumsys/plugins/ledger/auth2fa.py:109
+#: electrumsys/plugins/ledger/auth2fa.py:142
+msgid "Enter PIN:"
+msgstr ""
+
+#: electrumsys/plugins/hw_wallet/qt.py:121 electrumsys/gui/qt/password_dialog.py:61
+msgid "Enter Passphrase"
+msgstr ""
+
+#: electrumsys/gui/qt/password_dialog.py:61 electrumsys/gui/qt/password_dialog.py:292
+msgid "Enter Password"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:418
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:767
+msgid "Enter Seed"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/screens.py:133
+msgid "Enter Transaction Label"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:489
+msgid "Enter a filename for the copy of your wallet"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:191 electrumsys/plugins/keepkey/qt.py:221
+#: electrumsys/plugins/safe_t/qt.py:97
+msgid "Enter a label to name your device:"
+msgstr ""
+
+#: electrumsys/base_wizard.py:203
+msgid "Enter a list of Bitcoin addresses (this will create a watching-only wallet), or a list of private keys."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1906
+msgid "Enter a list of outputs in the 'Pay to' field."
+msgstr ""
+
+#: electrumsys/plugins/trezor/clientbase.py:231
+#: electrumsys/plugins/keepkey/clientbase.py:46
+#: electrumsys/plugins/safe_t/clientbase.py:48
+msgid "Enter a new PIN for your {}:"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:184
+msgid "Enter a new password below."
+msgstr ""
+
+#: electrumsys/plugins/trezor/clientbase.py:247
+#: electrumsys/plugins/keepkey/clientbase.py:62
+#: electrumsys/plugins/safe_t/clientbase.py:67
+msgid "Enter a passphrase to generate this wallet.  Each time you use this wallet your {} will prompt you for the passphrase.  If you forget the passphrase you cannot access the bitcoins in the wallet."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2713
+msgid "Enter addresses"
+msgstr ""
+
+#: electrumsys/base_wizard.py:192
+msgid "Enter cosigner key"
+msgstr ""
+
+#: electrumsys/base_wizard.py:193
+msgid "Enter cosigner seed"
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:953
+msgid "Enter description"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/password_dialog.py:129
+msgid "Enter new PIN"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:148
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:151
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:163
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:166
+msgid "Enter password:"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2722
+msgid "Enter private keys"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2630
+msgid "Enter private keys:"
+msgstr ""
+
+#: electrumsys/plugins/keepkey/qt.py:257 electrumsys/plugins/safe_t/qt.py:131
+msgid "Enter the master private key beginning with xprv:"
+msgstr ""
+
+#: electrumsys/plugins/trezor/clientbase.py:252
+#: electrumsys/plugins/keepkey/clientbase.py:67
+#: electrumsys/plugins/safe_t/clientbase.py:72
+msgid "Enter the passphrase to unlock this wallet:"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:141
+msgid "Enter the password used when the backup was created:"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:38
+msgid "Enter the recovery words by pressing the buttons according to what the device shows on its display.  You can also use your NUMPAD.\n"
+"Press BACKSPACE to go back a choice or word.\n"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:102
+msgid "Enter the seed for your 2-factor wallet:"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:407
+msgid "Enter their master private key (xprv) if you want to be able to sign for them."
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/wallets.py:60
+msgid "Enter wallet name"
+msgstr ""
+
+#: electrumsys/plugins/keepkey/qt.py:255 electrumsys/plugins/safe_t/qt.py:129
+msgid "Enter your BIP39 mnemonic:"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:194
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:204
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:209
+msgid "Enter your Digital Bitbox password:"
+msgstr ""
+
+#: electrumsys/plugins/keepkey/qt.py:270 electrumsys/plugins/safe_t/qt.py:144
+msgid "Enter your PIN (digits 1-9):"
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:1090
+msgid "Enter your PIN code in order to decrypt your private key"
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:1040
+msgid "Enter your PIN code in order to decrypt your seed"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/tx_dialog.py:164
+msgid "Enter your PIN code in order to sign this transaction"
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:1021
+msgid "Enter your PIN code to confirm deletion of {}"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/screens.py:298
+msgid "Enter your PIN code to proceed"
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:1067
+msgid "Enter your current PIN:"
+msgstr ""
+
+#: electrumsys/plugins/trezor/clientbase.py:236
+#: electrumsys/plugins/keepkey/clientbase.py:51
+#: electrumsys/plugins/safe_t/clientbase.py:53
+msgid "Enter your current {} PIN:"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:657
+msgid "Enter your email address:"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:218
+msgid "Enter your password or choose another file."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1650
+msgid "Enter your password to proceed"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:229
+msgid "Erase the Digital Bitbox"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/kivy.py:69
+#: electrumsys/plugins/trustedcoin/kivy.py:71
+#: electrumsys/plugins/trustedcoin/kivy.py:84
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:653 electrumsys/gui/qt/util.py:210
+#: electrumsys/gui/qt/installwizard.py:265 electrumsys/gui/qt/installwizard.py:269
+#: electrumsys/gui/qt/installwizard.py:276 electrumsys/gui/qt/installwizard.py:283
+#: electrumsys/gui/qt/__init__.py:221 electrumsys/gui/qt/__init__.py:240
+#: electrumsys/gui/qt/__init__.py:261
+msgid "Error"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1015 electrumsys/gui/kivy/uix/screens.py:401
+msgid "Error adding payment request"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/kivy.py:82
+msgid "Error connecting to server"
+msgstr ""
+
+#: electrumsys/plugins/cosigner_pool/qt.py:229
+msgid "Error decrypting message"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2497
+msgid "Error getting transaction from network"
+msgstr ""
+
+#: electrumsys/gui/qt/qrtextedit.py:52
+msgid "Error opening file"
+msgstr ""
+
+#: electrumsys/base_wizard.py:267
+msgid "Error scanning devices"
+msgstr ""
+
+#: electrumsys/plugins/ledger/ledger.py:527
+#: electrumsys/plugins/coldcard/coldcard.py:373
+#: electrumsys/plugins/coldcard/coldcard.py:591
+msgid "Error showing address"
+msgstr ""
+
+#: electrumsys/plugins/labels/qt.py:63
+msgid "Error synchronising labels"
+msgstr ""
+
+#: electrumsys/base_wizard.py:483
+msgid "Error: duplicate master public key"
+msgstr ""
+
+#: electrumsys/i18n.py:52
+msgid "Esperanto"
+msgstr ""
+
+#: electrumsys/gui/qt/fee_slider.py:40
+msgid "Estimate"
+msgstr ""
+
+#: electrumsys/gui/qt/__init__.py:150
+msgid "Exit electrumsys"
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:498
+msgid "Expenditures"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:46
+msgid "Expiration"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:903
+msgid "Expiration date of your request."
+msgstr ""
+
+#: electrumsys/gui/qt/util.py:51 electrumsys/gui/kivy/uix/dialogs/requests.py:92
+#: electrumsys/gui/kivy/uix/dialogs/invoices.py:88
+msgid "Expired"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:905
+msgid "Expired requests have to be deleted manually from your list, in order to free the corresponding Bitcoin addresses."
+msgstr ""
+
+#: electrumsys/gui/qt/invoice_list.py:49 electrumsys/gui/qt/main_window.py:1969
+msgid "Expires"
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:138
+#: electrumsys/gui/qt/history_list.py:637 electrumsys/gui/qt/main_window.py:570
+#: electrumsys/gui/qt/main_window.py:573 electrumsys/gui/qt/main_window.py:2530
+msgid "Export"
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:629
+msgid "Export History"
+msgstr ""
+
+#: electrumsys/gui/qt/contact_list.py:84
+msgid "Export file"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:87
+msgid "Export private key"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2517
+msgid "Exposing a single private key can compromise your entire wallet!"
+msgstr ""
+
+#: electrumsys/gui/qt/seed_dialog.py:63
+msgid "Extend this seed with custom words"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:727
+#: electrumsys/plugins/ledger/ledger.py:589 electrumsys/plugins/trezor/trezor.py:259
+#: electrumsys/plugins/keepkey/keepkey.py:245
+#: electrumsys/plugins/safe_t/safe_t.py:262
+#: electrumsys/plugins/coldcard/coldcard.py:667
+msgid "Failed to create a client for this device."
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:277
+msgid "Failed to decrypt using this hardware device."
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:195
+#: electrumsys/gui/qt/transaction_dialog.py:198
+#: electrumsys/gui/kivy/main_window.py:427
+msgid "Failed to display QR code."
+msgstr ""
+
+#: electrumsys/util.py:118
+msgid "Failed to export to file."
+msgstr ""
+
+#: electrumsys/util.py:110
+msgid "Failed to import from file."
+msgstr ""
+
+#: electrumsys/plugins/cosigner_pool/qt.py:180
+msgid "Failed to send transaction to cosigning pool"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2108
+msgid "Failed to update password"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2156
+msgid "False"
+msgstr ""
+
+#: electrumsys/gui/text.py:181 electrumsys/gui/qt/transaction_dialog.py:267
+#: electrumsys/gui/qt/main_window.py:1184
+#: electrumsys/gui/kivy/uix/ui_screens/send.kv:90
+msgid "Fee"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2791
+msgid "Fee estimation"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3291
+msgid "Fee:"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3129
+msgid "Fees"
+msgstr ""
+
+#: electrumsys/gui/qt/address_list.py:87 electrumsys/gui/qt/main_window.py:3132
+msgid "Fiat"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3122
+msgid "Fiat currency"
+msgstr ""
+
+#: electrumsys/gui/qt/util.py:387
+msgid "File"
+msgstr ""
+
+#: electrumsys/gui/qt/address_list.py:72
+msgid "Filter:"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3333
+msgid "Final"
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:492
+msgid "Final balance"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:576
+msgid "Find"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:436 electrumsys/plugins/keepkey/qt.py:464
+#: electrumsys/plugins/safe_t/qt.py:350 electrumsys/plugins/coldcard/qt.py:151
+msgid "Firmware Version"
+msgstr ""
+
+#: electrumsys/plugins/ledger/ledger.py:33
+msgid "Firmware version (or \"Bitcoin\" app) too old for Segwit support. Please update at"
+msgstr ""
+
+#: electrumsys/plugins/ledger/ledger.py:31
+msgid "Firmware version too old. Please update at"
+msgstr ""
+
+#: electrumsys/gui/qt/fee_slider.py:40
+msgid "Fixed rate"
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:88
+msgid "Follow this branch"
+msgstr ""
+
+#: electrumsys/plugins/revealer/__init__.py:7
+#: electrumsys/plugins/trustedcoin/qt.py:160
+#: electrumsys/plugins/trustedcoin/__init__.py:6
+msgid "For more information, visit"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:243
+msgid "For security reasons we advise that you always use the latest version of electrumsys."
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:53
+msgid "Fork detected at block {}"
+msgstr ""
+
+#: electrumsys/gui/qt/util.py:363
+msgid "Format"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1908
+msgid "Format: address, amount"
+msgstr ""
+
+#: electrumsys/gui/qt/address_list.py:217
+msgid "Freeze"
+msgstr ""
+
+#: electrumsys/i18n.py:56
+msgid "French"
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:417 electrumsys/gui/qt/main_window.py:1153
+msgid "From"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:634
+#, python-brace-format
+msgid "From {0} cosigners"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:242
+msgid "Full 2FA enabled. This is not supported yet."
+msgstr ""
+
+#: electrumsys/gui/qt/address_list.py:66
+#: electrumsys/gui/kivy/uix/dialogs/addresses.py:120
+msgid "Funded"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3131
+msgid "General"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:250
+msgid "Generate a new random wallet"
+msgstr ""
+
+#: electrumsys/i18n.py:50
+msgid "German"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/qt.py:286
+msgid "Google Authenticator code:"
+msgstr ""
+
+#: electrumsys/i18n.py:51
+msgid "Greek"
+msgstr ""
+
+#: electrumsys/plugins/greenaddress_instant/qt.py:79
+msgid "GreenAddress requires your signature \n"
+"to verify that transaction is instant.\n"
+"Please enter your password to sign a\n"
+"verification request."
+msgstr ""
+
+#: electrumsys/plugin.py:449
+msgid "Handler not found for"
+msgstr ""
+
+#: electrumsys/base_wizard.py:249
+msgid "Hardware Keystore"
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:73 electrumsys/gui/qt/utxo_list.py:50
+msgid "Height"
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:849
+msgid "Hello World"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:582
+msgid "Here is your master public key."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:580
+msgid "Hide"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:87
+msgid "Hide private key"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/status.kv:74
+msgid "Hide seed"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:290
+msgid "Hide {}"
+msgstr ""
+
+#: electrumsys/gui/text.py:69 electrumsys/gui/qt/address_dialog.py:87
+#: electrumsys/gui/qt/main_window.py:174
+msgid "History"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/about.kv:25
+msgid "Homepage"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:484 electrumsys/plugins/safe_t/qt.py:398
+msgid "Homescreen"
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:146
+#: electrumsys/gui/kivy/uix/ui_screens/proxy.kv:19
+#: electrumsys/gui/kivy/uix/ui_screens/server.kv:19
+msgid "Host"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:599
+msgid "How do you want to connect to a server? "
+msgstr ""
+
+#: electrumsys/plugins/cosigner_pool/qt.py:206
+msgid "However, hardware wallets do not support message decryption, which makes them not compatible with the current design of cosigner pool."
+msgstr ""
+
+#: electrumsys/gui/qt/seed_dialog.py:75
+msgid "However, we do not generate BIP39 seeds, because they do not meet our safety standard."
+msgstr ""
+
+#: electrumsys/i18n.py:57
+msgid "Hungarian"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:505 electrumsys/base_wizard.py:184
+msgid "I already have a seed"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/qt.py:294
+msgid "I have lost my Google Authenticator account"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3133
+msgid "Identity"
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:230
+msgid "If auto-connect is enabled, electrumsys will always use a server that is on the longest blockchain."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3024
+msgid "If enabled, at most 100 satoshis might be lost due to this, per transaction."
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:231
+msgid "If it is disabled, you have to choose a server you want to use. electrumsys will warn you if your server is lagging."
+msgstr ""
+
+#: electrumsys/base_wizard.py:364
+msgid "If you are not sure what this is, leave this field unchanged."
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/qt.py:209
+msgid "If you are online, click on \"{}\" to continue."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2815
+msgid "If you check this box, your transactions will be marked as non-final,"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2828
+msgid "If you check this box, your unconfirmed transactions will be consolidated into a single transaction."
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:541 electrumsys/plugins/keepkey/qt.py:547
+#: electrumsys/plugins/safe_t/qt.py:455
+msgid "If you disable your PIN, anyone with physical access to your {} device can spend your bitcoins."
+msgstr ""
+
+#: electrumsys/base_wizard.py:422
+msgid "If you do not know what this is, leave this field empty."
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:34 electrumsys/plugins/keepkey/qt.py:34
+#: electrumsys/plugins/safe_t/qt.py:34
+msgid "If you forget a passphrase you will be unable to access any bitcoins in the wallet behind it.  A passphrase is not a PIN. Only change this if you are sure you understand it."
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:727
+msgid "If you forget your PIN or lose your device, your seed phrase will be the only way to recover your funds."
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:727
+msgid "If you have an old printer, or want optimal precision"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:620
+msgid "If you have lost your Google Authenticator account, you can request a new secret. You will need to retype your seed."
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/qt.py:112
+msgid "If you have lost your second factor, you need to restore your wallet from seed in order to request a new code."
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:428
+msgid "If you lose your seed, your money will be permanently lost."
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:278
+msgid "If you use a passphrase, make sure it is correct."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1053
+msgid "If you want to create new addresses, use a deterministic wallet instead."
+msgstr ""
+
+#: electrumsys/base_wizard.py:299
+msgid "If your device is not detected on Windows, go to \"Settings\", \"Devices\", \"Connected devices\", and do \"Remove device\". Then, plug your device again."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2202
+msgid "If your wallet contains funds, make sure you have saved its seed."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:569 electrumsys/gui/qt/main_window.py:572
+#: electrumsys/gui/qt/main_window.py:2692
+msgid "Import"
+msgstr ""
+
+#: electrumsys/base_wizard.py:202
+msgid "Import Bitcoin Addresses"
+msgstr ""
+
+#: electrumsys/base_wizard.py:129
+msgid "Import Bitcoin addresses or private keys"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:554 electrumsys/gui/qt/main_window.py:2713
+msgid "Import addresses"
+msgstr ""
+
+#: electrumsys/gui/qt/contact_list.py:83
+msgid "Import file"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:292
+msgid "Import pairing from the Digital Bitbox desktop app"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2720
+msgid "Import private keys"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2518
+msgid "In particular, DO NOT use 'redeem private key' services proposed by third parties."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2980
+msgid "In some cases, use up to 3 change addresses in order to break up large coin amounts and obfuscate the recipient address."
+msgstr ""
+
+#: electrumsys/simple_config.py:390
+msgid "In the next block"
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:495
+msgid "Income"
+msgstr ""
+
+#: electrumsys/util.py:102
+msgid "Incorrect password"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:202
+msgid "Incorrect password entered."
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:706
+msgid "Incorrect seed"
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:592
+msgid "Increase fee"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3321
+msgid "Increase your transaction's fee to improve its position in mempool."
+msgstr ""
+
+#: electrumsys/i18n.py:59
+msgid "Indonesian"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:578 electrumsys/plugins/keepkey/qt.py:584
+#: electrumsys/plugins/safe_t/qt.py:492 electrumsys/gui/qt/util.py:218
+#: electrumsys/gui/qt/main_window.py:472
+msgid "Information"
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:486
+msgid "Initial balance"
+msgstr ""
+
+#: electrumsys/plugins/ledger/qt.py:85
+msgid "Initialization of Ledger HW devices is currently disabled."
+msgstr ""
+
+#: electrumsys/plugins/trezor/trezor.py:195
+#: electrumsys/plugins/keepkey/keepkey.py:188
+#: electrumsys/plugins/safe_t/safe_t.py:193
+msgid "Initialize Device"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:440 electrumsys/plugins/keepkey/qt.py:469
+#: electrumsys/plugins/safe_t/qt.py:354
+msgid "Initialized"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3278
+msgid "Input amount"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2476
+msgid "Input raw transaction"
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:283
+msgid "Inputs"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:116
+msgid "Install Wizard"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2932
+msgid "Install the zbar package to enable this."
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:455
+msgid "Instructions:"
+msgstr ""
+
+#: electrumsys/util.py:92
+msgid "Insufficient funds"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1926
+msgid "Invalid Address"
+msgstr ""
+
+#: electrumsys/gui/text.py:345 electrumsys/gui/qt/main_window.py:1578
+#: electrumsys/gui/stdio.py:176
+msgid "Invalid Amount"
+msgstr ""
+
+#: electrumsys/plugins/hw_wallet/plugin.py:74 electrumsys/gui/qt/main_window.py:1575
+#: electrumsys/gui/kivy/uix/screens.py:254
+msgid "Invalid Bitcoin Address"
+msgstr ""
+
+#: electrumsys/gui/text.py:340 electrumsys/gui/stdio.py:171
+msgid "Invalid Bitcoin address"
+msgstr ""
+
+#: electrumsys/wallet.py:1078 electrumsys/gui/qt/main_window.py:2278
+#: electrumsys/gui/qt/main_window.py:2306
+msgid "Invalid Bitcoin address."
+msgstr ""
+
+#: electrumsys/gui/text.py:350 electrumsys/gui/stdio.py:181
+msgid "Invalid Fee"
+msgstr ""
+
+#: electrumsys/util.py:880
+msgid "Invalid JSON code."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1554
+msgid "Invalid Lines found:"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/tx_dialog.py:174
+#: electrumsys/gui/kivy/main_window.py:911
+msgid "Invalid PIN"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2380
+msgid "Invalid Public key"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/screens.py:259
+msgid "Invalid amount"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1806
+msgid "Invalid bitcoin URI:"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/kivy.py:67
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:327
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:685
+msgid "Invalid one-time password."
+msgstr ""
+
+#: electrumsys/plugins/coldcard/coldcard.py:196
+msgid "Invalid xpub magic. Make sure your {} device is set to the correct chain."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1955
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:17
+msgid "Invoice"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/screens.py:227
+msgid "Invoice saved"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1979
+msgid "Invoice saved as "
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:571 electrumsys/gui/qt/main_window.py:1340
+#: electrumsys/gui/kivy/uix/ui_screens/send.kv:101
+msgid "Invoices"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:34
+msgid "It also contains your master public key that allows watching your addresses."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2510
+msgid "It cannot be \"backed up\" by simply exporting these private keys."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3358
+msgid "It conflicts with current history."
+msgstr ""
+
+#: electrumsys/plugins/cosigner_pool/__init__.py:5
+msgid "It sends and receives partially signed transactions from/to your cosigner wallet."
+msgstr ""
+
+#: electrumsys/i18n.py:60
+msgid "Italian"
+msgstr ""
+
+#: electrumsys/i18n.py:61
+msgid "Japanese"
+msgstr ""
+
+#: electrumsys/plugins/keepkey/qt.py:59
+msgid "KeepKey Seed Recovery"
+msgstr ""
+
+#: electrumsys/plugins/keepkey/__init__.py:6
+msgid "KeepKey wallet"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1162
+msgid "Keyboard shortcut: type \"!\" to send all your coins."
+msgstr ""
+
+#: electrumsys/base_wizard.py:179
+msgid "Keystore"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2169
+msgid "Keystore type"
+msgstr ""
+
+#: electrumsys/i18n.py:62
+msgid "Kyrgyz"
+msgstr ""
+
+#: electrumsys/gui/qt/utxo_list.py:48 electrumsys/gui/qt/address_list.py:91
+msgid "Label"
+msgstr ""
+
+#: electrumsys/plugins/labels/qt.py:34
+msgid "Label Settings"
+msgstr ""
+
+#: electrumsys/plugins/labels/__init__.py:3
+msgid "LabelSync"
+msgstr ""
+
+#: electrumsys/plugins/labels/__init__.py:6
+msgid "Labels, transactions IDs and addresses are encrypted before they are sent to the remote server."
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:439 electrumsys/plugins/keepkey/qt.py:468
+#: electrumsys/plugins/safe_t/qt.py:353 electrumsys/gui/qt/main_window.py:2747
+#: electrumsys/gui/kivy/uix/dialogs/settings.py:131
+msgid "Language"
+msgstr ""
+
+#: electrumsys/gui/qt/update_checker.py:50 electrumsys/gui/qt/update_checker.py:82
+msgid "Latest version: {}"
+msgstr ""
+
+#: electrumsys/i18n.py:63
+msgid "Latvian"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:31
+msgid "Leave this field empty if you want to disable encryption."
+msgstr ""
+
+#: electrumsys/plugins/ledger/qt.py:55
+msgid "Ledger Status"
+msgstr ""
+
+#: electrumsys/plugins/ledger/auth2fa.py:48
+msgid "Ledger Wallet Authentication"
+msgstr ""
+
+#: electrumsys/plugins/ledger/__init__.py:6
+msgid "Ledger wallet"
+msgstr ""
+
+#: electrumsys/base_wizard.py:581
+msgid "Legacy"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:512
+msgid "Legacy 2FA"
+msgstr ""
+
+#: electrumsys/plugins/trezor/trezor.py:177
+#: electrumsys/plugins/keepkey/keepkey.py:171
+#: electrumsys/plugins/safe_t/safe_t.py:176
+msgid "Let the device generate a completely new seed randomly"
+msgstr ""
+
+#: electrumsys/plugins/hw_wallet/plugin.py:111
+msgid "Library version for '{}' is incompatible."
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/about.kv:19
+msgid "Licence"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2940
+msgid "Light"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1554
+msgid "Line #"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:251
+msgid "Load a wallet from the micro SD card"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:228
+msgid "Load a wallet from the micro SD card (the current seed is overwritten)"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2476
+msgid "Load transaction"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:344
+msgid "Loading backup..."
+msgstr ""
+
+#: electrumsys/wallet.py:74 electrumsys/wallet.py:378
+msgid "Local"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2490
+msgid "Lookup transaction"
+msgstr ""
+
+#: electrumsys/simple_config.py:388
+msgid "Low fee"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:728
+#: electrumsys/plugins/ledger/ledger.py:590 electrumsys/plugins/trezor/trezor.py:260
+#: electrumsys/plugins/keepkey/keepkey.py:246
+#: electrumsys/plugins/safe_t/safe_t.py:263
+#: electrumsys/plugins/coldcard/coldcard.py:668
+msgid "Make sure it is in the correct state."
+msgstr ""
+
+#: electrumsys/plugins/hw_wallet/plugin.py:124
+msgid "Make sure you install it with python3"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:470
+msgid "Make sure you own the seed phrase or the private keys, before you request Bitcoins to be sent to this wallet."
+msgstr ""
+
+#: electrumsys/plugins/coldcard/qt.py:154
+msgid "Master Fingerprint"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:588 electrumsys/gui/qt/main_window.py:2190
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:890
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:894
+#: electrumsys/gui/kivy/uix/ui_screens/status.kv:58
+#: electrumsys/gui/kivy/uix/ui_screens/status.kv:61
+#: electrumsys/gui/kivy/main_window.py:633 electrumsys/gui/kivy/main_window.py:635
+msgid "Master Public Key"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2187
+msgid "Master Public Keys"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:248
+msgid "Matrix"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1174
+msgid "Max"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3306
+msgid "Max fee exceeded"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1964
+msgid "Memo"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2793
+msgid "Mempool"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2788
+msgid "Mempool based: fee rate is targeting a depth in the memory pool"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/tx_dialog.py:117
+msgid "Mempool depth"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2326 electrumsys/gui/qt/main_window.py:2392
+msgid "Message"
+msgstr ""
+
+#: electrumsys/plugins/ledger/auth2fa.py:83
+msgid "Method:"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1636 electrumsys/gui/kivy/uix/screens.py:289
+msgid "Mining fee"
+msgstr ""
+
+#: electrumsys/plugins/hw_wallet/plugin.py:123
+msgid "Missing libraries for {}."
+msgstr ""
+
+#: electrumsys/base_crash_reporter.py:66
+msgid "Missing report URL."
+msgstr ""
+
+#: electrumsys/plugins/ledger/auth2fa.py:178
+msgid "Mobile - Not paired"
+msgstr ""
+
+#: electrumsys/plugins/ledger/auth2fa.py:180
+msgid "Mobile - {}"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:295
+msgid "Mobile pairing options"
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:221
+msgid "More info at: {}"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:645
+msgid "Multi-Signature Wallet"
+msgstr ""
+
+#: electrumsys/base_wizard.py:128
+msgid "Multi-signature wallet"
+msgstr ""
+
+#: electrumsys/plugins/ledger/auth2fa.py:111
+#: electrumsys/plugins/ledger/auth2fa.py:149
+msgid "NOT DEVICE PIN - see above"
+msgstr ""
+
+#: electrumsys/gui/qt/contact_list.py:48 electrumsys/gui/qt/main_window.py:2141
+msgid "Name"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:453 electrumsys/plugins/keepkey/qt.py:482
+#: electrumsys/plugins/safe_t/qt.py:367
+msgid "Name this {}.  If you have multiple devices their labels help distinguish them."
+msgstr ""
+
+#: electrumsys/gui/text.py:155 electrumsys/gui/qt/network_dialog.py:49
+#: electrumsys/gui/qt/main_window.py:2061
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:3 electrumsys/gui/kivy/main.kv:451
+msgid "Network"
+msgstr ""
+
+#: electrumsys/interface.py:150
+msgid "Network request timed out."
+msgstr ""
+
+#: electrumsys/gui/qt/util.py:58 electrumsys/gui/qt/exception_window.py:80
+#: electrumsys/gui/qt/request_list.py:78 electrumsys/gui/qt/invoice_list.py:76
+#: electrumsys/gui/kivy/uix/dialogs/invoices.py:128
+msgid "Never"
+msgstr ""
+
+#: electrumsys/gui/qt/seed_dialog.py:50
+msgid "Never disclose your seed."
+msgstr ""
+
+#: electrumsys/gui/qt/seed_dialog.py:51
+msgid "Never type it on a website."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:919
+#: electrumsys/gui/kivy/uix/ui_screens/receive.kv:139
+msgid "New"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2131 electrumsys/gui/qt/main_window.py:2133
+msgid "New Contact"
+msgstr ""
+
+#: electrumsys/gui/qt/password_dialog.py:101
+msgid "New Password:"
+msgstr ""
+
+#: electrumsys/gui/qt/contact_list.py:82
+msgid "New contact"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3323
+msgid "New fee:"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:682
+msgid "New transaction received: {}"
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:127 electrumsys/plugins/trustedcoin/qt.py:209
+#: electrumsys/gui/qt/installwizard.py:127
+msgid "Next"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:313 electrumsys/plugins/keepkey/qt.py:347
+#: electrumsys/plugins/safe_t/qt.py:227
+msgid "No"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/invoices.py:125
+msgid "No Amount"
+msgstr ""
+
+#: electrumsys/util.py:175
+msgid "No Data"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/send.kv:72
+msgid "No Description"
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:203
+msgid "No Wallet"
+msgstr ""
+
+#: electrumsys/exchange_rate.py:585
+msgid "No data"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:628
+msgid "No donation address for this server"
+msgstr ""
+
+#: electrumsys/base_wizard.py:294
+msgid "No exceptions encountered."
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:53
+msgid "No fork detected"
+msgstr ""
+
+#: electrumsys/base_wizard.py:297
+msgid "No hardware device detected."
+msgstr ""
+
+#: electrumsys/wallet.py:122
+msgid "No inputs found. (Note that inputs need to be confirmed)"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2170
+msgid "No keystore"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1006
+msgid "No message or amount"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1051
+msgid "No more addresses in your wallet."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1567
+msgid "No outputs"
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:971
+msgid "No saved invoices."
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:983
+msgid "No saved requests."
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:321
+msgid "No wallet loaded."
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:359 electrumsys/gui/qt/history_list.py:398
+#: electrumsys/gui/qt/main_window.py:3040
+#: electrumsys/gui/kivy/uix/dialogs/fx_dialog.py:97
+#: electrumsys/gui/kivy/uix/dialogs/fx_dialog.py:98
+#: electrumsys/gui/kivy/uix/dialogs/fx_dialog.py:103
+#: electrumsys/gui/kivy/uix/dialogs/settings.py:159
+#: electrumsys/gui/kivy/uix/dialogs/settings.py:217
+#: electrumsys/gui/kivy/main_window.py:117
+msgid "None"
+msgstr ""
+
+#: electrumsys/i18n.py:64
+msgid "Norwegian Bokmal"
+msgstr ""
+
+#: electrumsys/gui/qt/exception_window.py:84
+msgid "Not Now"
+msgstr ""
+
+#: electrumsys/wallet.py:73
+msgid "Not Verified"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/screens.py:180
+msgid "Not a Bitcoin URI"
+msgstr ""
+
+#: electrumsys/gui/text.py:148 electrumsys/gui/qt/network_dialog.py:370
+#: electrumsys/gui/qt/main_window.py:819 electrumsys/gui/qt/main_window.py:821
+#: electrumsys/gui/stdio.py:126 electrumsys/gui/kivy/uix/ui_screens/network.kv:14
+#: electrumsys/gui/kivy/main_window.py:946
+msgid "Not connected"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1313 electrumsys/gui/kivy/uix/screens.py:278
+msgid "Not enough funds"
+msgstr ""
+
+#: electrumsys/wallet.py:136 electrumsys/wallet.py:138
+msgid "Not enough funds on address."
+msgstr ""
+
+#: electrumsys/wallet.py:367
+msgid "Not verified"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1161
+msgid "Note that if you have frozen some of your addresses, the available funds will be lower than your total balance."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2817
+msgid "Note that some merchants do not accept non-final transactions until they are confirmed."
+msgstr ""
+
+#: electrumsys/base_wizard.py:421
+msgid "Note that this is NOT your encryption password."
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:82
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:98
+msgid "Note that your coins are not locked in this service.  You may withdraw your funds at any time and at no cost, without the remote server, by using the 'restore wallet' option with your wallet seed."
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:35 electrumsys/gui/qt/password_dialog.py:278
+msgid "Note: If you enable this setting, you will need your hardware device to open your wallet."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3368
+msgid "Note: this is an offline transaction, if you want the network to see it, you need to broadcast it."
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/__init__.py:95
+msgid "Nothing set !"
+msgstr ""
+
+#: electrumsys/plot.py:15
+msgid "Nothing to plot."
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:474
+msgid "Nothing to summarize."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2768
+msgid "Number of zeros displayed after the decimal point. For example, if this is set to 2, \"1.\" will be displayed as \"1.00\""
+msgstr ""
+
+#: electrumsys/plugins/audio_modem/qt.py:63 electrumsys/gui/qt/util.py:172
+#: electrumsys/gui/kivy/uix/ui_screens/proxy.kv:64
+#: electrumsys/gui/kivy/uix/ui_screens/server.kv:57
+msgid "OK"
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:255
+msgid "OR"
+msgstr ""
+
+#: electrumsys/gui/text.py:136 electrumsys/gui/qt/__init__.py:182
+#: electrumsys/gui/qt/main_window.py:785 electrumsys/gui/kivy/main_window.py:733
+msgid "Offline"
+msgstr ""
+
+#: electrumsys/plugins/ledger/ledger.py:360 electrumsys/plugins/trezor/trezor.py:77
+#: electrumsys/plugins/keepkey/keepkey.py:53 electrumsys/plugins/safe_t/safe_t.py:54
+msgid "Offline signing with {} is not supported for legacy inputs."
+msgstr ""
+
+#: electrumsys/base_wizard.py:300
+msgid "On Linux, you might have to add a new permission to your udev rules."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1907
+msgid "One output per line."
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:39
+msgid "One-server mode"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2913
+msgid "Online Block Explorer"
+msgstr ""
+
+#: electrumsys/plugins/hw_wallet/plugin.py:145
+msgid "Only OP_RETURN scripts, with one constant push, are supported."
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:40
+msgid "Only connect to a single server"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:566 electrumsys/plugins/keepkey/qt.py:572
+#: electrumsys/plugins/safe_t/qt.py:480
+msgid "Only wipe a device if you have the recovery seed written down and the device wallet(s) are empty, otherwise the bitcoins will be lost forever."
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:732
+msgid "Open calibration pdf"
+msgstr ""
+
+#: electrumsys/plugins/cosigner_pool/qt.py:175
+msgid "Open your cosigner wallet to retrieve it."
+msgstr ""
+
+#: electrumsys/gui/qt/util.py:766
+msgid "Open {} file"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2839
+msgid "OpenAlias"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2835
+msgid "OpenAlias record, used to receive coins and to sign payment requests."
+msgstr ""
+
+#: electrumsys/gui/qt/seed_dialog.py:134
+msgid "Options"
+msgstr ""
+
+#: electrumsys/plugins/trezor/trezor.py:263
+#: electrumsys/plugins/keepkey/keepkey.py:134
+#: electrumsys/plugins/safe_t/safe_t.py:139
+msgid "Outdated {} firmware for device labelled {}. Please download the updated firmware from {}"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3281
+msgid "Output amount"
+msgstr ""
+
+#: electrumsys/gui/qt/utxo_list.py:51
+msgid "Output point"
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:325
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:62
+msgid "Outputs"
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:209
+msgid "Overview"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:470 electrumsys/plugins/keepkey/qt.py:499
+#: electrumsys/plugins/safe_t/qt.py:384
+msgid "PIN Protection"
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:1071
+msgid "PIN codes do not match"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:1038
+msgid "PIN mismatch"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:475 electrumsys/plugins/keepkey/qt.py:504
+#: electrumsys/plugins/safe_t/qt.py:389
+msgid "PIN protection is strongly recommended.  A PIN is your only protection against someone stealing your bitcoins if they obtain physical access to your {}."
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:434 electrumsys/plugins/keepkey/qt.py:462
+#: electrumsys/plugins/safe_t/qt.py:348
+msgid "PIN set"
+msgstr ""
+
+#: electrumsys/gui/qt/util.py:50 electrumsys/gui/kivy/uix/dialogs/invoices.py:87
+msgid "Paid"
+msgstr ""
+
+#: electrumsys/plugins/ledger/auth2fa.py:86 electrumsys/plugins/ledger/auth2fa.py:186
+msgid "Pair"
+msgstr ""
+
+#: electrumsys/wallet.py:385
+msgid "Partially signed"
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:1054
+msgid "Passphrase"
+msgstr ""
+
+#: electrumsys/gui/qt/password_dialog.py:87
+msgid "Passphrase:"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:435 electrumsys/plugins/keepkey/qt.py:463
+#: electrumsys/plugins/safe_t/qt.py:349
+msgid "Passphrases"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:23 electrumsys/plugins/keepkey/qt.py:23
+#: electrumsys/plugins/safe_t/qt.py:23
+msgid "Passphrases allow you to access new wallets, each hidden behind a particular case-sensitive passphrase."
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:263 electrumsys/gui/qt/installwizard.py:182
+#: electrumsys/gui/qt/password_dialog.py:299 electrumsys/gui/qt/main_window.py:2055
+#: electrumsys/gui/kivy/uix/ui_screens/proxy.kv:47
+msgid "Password"
+msgstr ""
+
+#: electrumsys/gui/qt/password_dialog.py:152
+msgid "Password Strength"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2110
+msgid "Password is disabled, this wallet is not protected"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:147
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:162
+msgid "Password must have at least 4 characters."
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:150
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:165
+msgid "Password must have less than 64 characters."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2110
+msgid "Password was updated successfully"
+msgstr ""
+
+#: electrumsys/gui/qt/password_dialog.py:101
+msgid "Password:"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/send.kv:105
+msgid "Paste"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/send.kv:121
+msgid "Pay"
+msgstr ""
+
+#: electrumsys/gui/qt/invoice_list.py:113
+msgid "Pay Now"
+msgstr ""
+
+#: electrumsys/gui/text.py:178 electrumsys/gui/qt/contact_list.py:96
+#: electrumsys/gui/qt/main_window.py:1137
+msgid "Pay to"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1911
+msgid "Pay to many"
+msgstr ""
+
+#: electrumsys/gui/qt/qrwindow.py:39
+msgid "Payment Request"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/screens.py:328 electrumsys/gui/kivy/uix/screens.py:362
+msgid "Payment received"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1545 electrumsys/gui/qt/main_window.py:1698
+#: electrumsys/gui/kivy/uix/screens.py:245 electrumsys/gui/kivy/main_window.py:333
+msgid "Payment request has expired"
+msgstr ""
+
+#: electrumsys/gui/text.py:379 electrumsys/gui/qt/main_window.py:1729
+#: electrumsys/gui/stdio.py:216 electrumsys/gui/kivy/main_window.py:931
+msgid "Payment sent."
+msgstr ""
+
+#: electrumsys/gui/qt/util.py:49 electrumsys/gui/kivy/uix/dialogs/requests.py:89
+#: electrumsys/gui/kivy/uix/dialogs/invoices.py:85
+msgid "Pending"
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:514
+msgid "Perhaps some dependencies are missing..."
+msgstr ""
+
+#: electrumsys/i18n.py:55
+msgid "Persian"
+msgstr ""
+
+#: electrumsys/base_crash_reporter.py:57
+msgid "Please briefly describe what led to the error (optional):"
+msgstr ""
+
+#: electrumsys/plugins/email_requests/qt.py:251
+msgid "Please check your connection and credentials."
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/crash_reporter.py:123
+msgid "Please check your network connection."
+msgstr ""
+
+#: electrumsys/plugins/hw_wallet/qt.py:159
+msgid "Please check your {} device"
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:611
+msgid "Please confirm"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:406
+msgid "Please enter the master public key (xpub) of your cosigner."
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/kivy.py:58
+#: electrumsys/plugins/trustedcoin/qt.py:105
+msgid "Please enter your Google Authenticator code"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/cmdline.py:40
+msgid "Please enter your Google Authenticator code:"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/qt.py:224
+msgid "Please enter your e-mail address"
+msgstr ""
+
+#: electrumsys/gui/qt/password_dialog.py:291 electrumsys/gui/qt/main_window.py:987
+msgid "Please enter your password"
+msgstr ""
+
+#: electrumsys/plugins/cosigner_pool/qt.py:211
+msgid "Please enter your password to decrypt it."
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:419
+msgid "Please enter your seed phrase in order to restore your wallet."
+msgstr ""
+
+#: electrumsys/plugins/coldcard/qt.py:111
+msgid "Please initialize your Coldcard while disconnected."
+msgstr ""
+
+#: electrumsys/plugin.py:540
+msgid "Please insert your {}"
+msgstr ""
+
+#: electrumsys/base_wizard.py:575
+msgid "Please note that websites and other wallets may not support these addresses yet."
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:1018
+msgid "Please paste your cosigners master public key, or scan it using the camera button."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:645
+msgid "Please report any bugs as issues on github:<br/>"
+msgstr ""
+
+#: electrumsys/gui/qt/exception_window.py:101
+msgid "Please report this issue manually."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3164
+msgid "Please restart electrumsys to activate the new GUI settings"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:991
+msgid "Please retype your seed phrase, to confirm that you properly saved it"
+msgstr ""
+
+#: electrumsys/gui/qt/seed_dialog.py:44
+#, python-brace-format
+msgid "Please save these {0} words on paper (order is important). "
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/screens.py:251
+msgid "Please scan a Bitcoin address or a payment request"
+msgstr ""
+
+#: electrumsys/plugin.py:557
+msgid "Please select which {} device to use:"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:583
+msgid "Please share it with your cosigners."
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:51
+msgid "Please sign this transaction in order to save it"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/kivy.py:108
+#: electrumsys/plugins/trustedcoin/qt.py:139 electrumsys/base_wizard.py:327
+msgid "Please try again."
+msgstr ""
+
+#: electrumsys/base_wizard.py:613
+msgid "Please type it here."
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:766
+msgid "Please type your seed phrase using the virtual keyboard."
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/screens.py:413
+msgid "Please use the existing requests first."
+msgstr ""
+
+#: electrumsys/gui/qt/util.py:255
+msgid "Please wait"
+msgstr ""
+
+#: electrumsys/gui/qt/update_checker.py:92
+msgid "Please wait while electrumsys checks for available updates."
+msgstr ""
+
+#: electrumsys/wallet.py:763 electrumsys/gui/text.py:369
+#: electrumsys/gui/qt/installwizard.py:130 electrumsys/gui/stdio.py:206
+#: electrumsys/gui/kivy/uix/dialogs/password_dialog.py:125
+msgid "Please wait..."
+msgstr ""
+
+#: electrumsys/i18n.py:66
+msgid "Polish"
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:146
+#: electrumsys/gui/kivy/uix/ui_screens/proxy.kv:28
+#: electrumsys/gui/kivy/uix/ui_screens/server.kv:31
+msgid "Port"
+msgstr ""
+
+#: electrumsys/i18n.py:68
+msgid "Portuguese"
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:256
+msgid "Position in mempool: {} from tip"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:592 electrumsys/gui/qt/main_window.py:1245
+#: electrumsys/gui/qt/main_window.py:2058 electrumsys/gui/qt/main_window.py:2737
+msgid "Preferences"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:222
+msgid "Press 'Next' to choose device to decrypt."
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:213
+msgid "Press 'Next' to create this wallet, or choose another file."
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:229
+msgid "Press 'Next' to create/focus window."
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:225
+msgid "Press 'Next' to open this wallet."
+msgstr ""
+
+#: electrumsys/plugins/ledger/auth2fa.py:138
+msgid "Press Enter"
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:608
+msgid "Press again to exit"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1281
+msgid "Preview"
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:73
+msgid "Printer Calibration"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:55
+msgid "Private Key"
+msgstr ""
+
+#: electrumsys/gui/qt/address_list.py:206 electrumsys/gui/qt/main_window.py:2249
+#: electrumsys/gui/qt/main_window.py:2254
+msgid "Private key"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2512
+msgid "Private keys"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2592
+msgid "Private keys exported."
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:222
+msgid "Proceed at your own risk."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1655
+msgid "Proceed?"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/__init__.py:4
+msgid "Provides support for Digital Bitbox hardware wallet"
+msgstr ""
+
+#: electrumsys/plugins/keepkey/__init__.py:4
+msgid "Provides support for KeepKey hardware wallet"
+msgstr ""
+
+#: electrumsys/plugins/safe_t/__init__.py:4
+msgid "Provides support for Safe-T mini hardware wallet"
+msgstr ""
+
+#: electrumsys/plugins/trezor/__init__.py:4
+msgid "Provides support for Trezor hardware wallet"
+msgstr ""
+
+#: electrumsys/plugins/audio_modem/__init__.py:4
+msgid "Provides support for air-gapped transaction signing."
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:211
+#: electrumsys/gui/kivy/uix/ui_screens/proxy.kv:3
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:27
+msgid "Proxy"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:28
+msgid "Proxy configuration"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/proxy.kv:11
+msgid "Proxy mode"
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:286
+msgid "Proxy settings apply to all connections: with electrumsys servers, but also with third-party services."
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:261
+msgid "Proxy user"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/screens.py:139
+msgid "Pruned transaction outputs"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2400
+msgid "Public key"
+msgstr ""
+
+#: electrumsys/gui/qt/address_dialog.py:70
+msgid "Public keys"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2232
+msgid "QR code"
+msgstr ""
+
+#: electrumsys/gui/qt/qrcodewidget.py:114
+msgid "QR code copied to clipboard"
+msgstr ""
+
+#: electrumsys/gui/qt/qrcodewidget.py:109
+msgid "QR code saved to file"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/question.py:51
+msgid "Question"
+msgstr ""
+
+#: electrumsys/gui/text.py:155
+msgid "Quit"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:185
+msgid "REMEMBER THE PASSWORD!"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/tx_dialog.py:185
+msgid "Raw Transaction"
+msgstr ""
+
+#: electrumsys/plugins/ledger/auth2fa.py:186
+msgid "Re-Pair"
+msgstr ""
+
+#: electrumsys/plugins/trezor/clientbase.py:233
+#: electrumsys/plugins/keepkey/clientbase.py:48
+#: electrumsys/plugins/safe_t/clientbase.py:50
+msgid "Re-enter the new PIN for your {}.\n\n"
+"NOTE: the positions of the numbers have changed!"
+msgstr ""
+
+#: electrumsys/gui/qt/qrtextedit.py:41 electrumsys/gui/qt/qrtextedit.py:74
+msgid "Read QR code"
+msgstr ""
+
+#: electrumsys/gui/qt/qrtextedit.py:39
+msgid "Read file"
+msgstr ""
+
+#: electrumsys/plugins/audio_modem/qt.py:83
+msgid "Read from microphone"
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:243
+msgid "Ready to encrypt for revealer {}"
+msgstr ""
+
+#: electrumsys/gui/text.py:69 electrumsys/gui/qt/main_window.py:176
+#: electrumsys/gui/kivy/main.kv:396
+msgid "Receive"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/requests.py:91
+#: electrumsys/gui/kivy/uix/ui_screens/history.kv:24
+msgid "Received"
+msgstr ""
+
+#: electrumsys/gui/qt/address_list.py:62
+msgid "Receiving"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:876
+msgid "Receiving address"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/send.kv:34
+msgid "Recipient"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/screens.py:251
+msgid "Recipient not specified."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1135
+msgid "Recipient of the funds."
+msgstr ""
+
+#: electrumsys/plugins/trezor/trezor.py:178
+#: electrumsys/plugins/keepkey/keepkey.py:172
+#: electrumsys/plugins/safe_t/safe_t.py:177
+msgid "Recover from a seed you have previously written down"
+msgstr ""
+
+#: electrumsys/gui/qt/address_dialog.py:82 electrumsys/gui/qt/main_window.py:2259
+msgid "Redeem Script"
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:579 electrumsys/gui/qt/main_window.py:1472
+msgid "Remove"
+msgstr ""
+
+#: electrumsys/gui/qt/address_list.py:211
+msgid "Remove from wallet"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1936
+msgid "Remove {} from your list of contacts?"
+msgstr ""
+
+#: electrumsys/gui/qt/exception_window.py:60
+msgid "Report contents"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/crash_reporter.py:125
+msgid "Report sent"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:650
+msgid "Reporting Bugs"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:17
+msgid "Request"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:37
+msgid "Request amount"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/screens.py:387
+msgid "Request copied to clipboard"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:908
+msgid "Request expires"
+msgstr ""
+
+#: electrumsys/gui/qt/address_list.py:204
+msgid "Request payment"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:722
+msgid "Request rejected by server"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1043
+msgid "Request saved successfully"
+msgstr ""
+
+#: electrumsys/plugins/email_requests/qt.py:199
+msgid "Request sent."
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/screens.py:417
+msgid "Request was saved."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:888
+msgid "Requested amount"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/kivy.py:107
+#: electrumsys/plugins/trustedcoin/qt.py:138
+msgid "Requesting account info from TrustedCoin server..."
+msgstr ""
+
+#: electrumsys/gui/qt/invoice_list.py:50 electrumsys/gui/qt/main_window.py:1958
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:40
+msgid "Requestor"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:933
+#: electrumsys/gui/kivy/uix/ui_screens/receive.kv:119
+msgid "Requests"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:631
+#, python-brace-format
+msgid "Require {0} signatures"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:493
+msgid "Required package 'PIL' is not available - Please install it or use the Trezor website instead."
+msgstr ""
+
+#: electrumsys/plugins/safe_t/qt.py:407
+msgid "Required package 'PIL' is not available - Please install it."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3250
+msgid "Requires"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:486 electrumsys/plugins/safe_t/qt.py:400
+msgid "Reset"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:587
+msgid "Restore 2FA wallet"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:576
+msgid "Restore two-factor Wallet"
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:722
+msgid "Revealer - Printer calibration settings"
+msgstr ""
+
+#: electrumsys/plugins/revealer/__init__.py:3
+msgid "Revealer Backup Utility"
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:112 electrumsys/plugins/revealer/qt.py:242
+msgid "Revealer Secret Backup Plugin"
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:220
+msgid "Revealers starting with 0 are not secure due to a vulnerability."
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:739
+msgid "Right side"
+msgstr ""
+
+#: electrumsys/i18n.py:69
+msgid "Romanian"
+msgstr ""
+
+#: electrumsys/i18n.py:70
+msgid "Russian"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2877
+msgid "SSL certificate"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2864
+msgid "SSL certificate used to sign payment requests."
+msgstr ""
+
+#: electrumsys/plugins/safe_t/__init__.py:6
+msgid "Safe-T mini wallet"
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:129
+#: electrumsys/gui/qt/qrcodewidget.py:120 electrumsys/gui/qt/main_window.py:916
+#: electrumsys/gui/qt/main_window.py:1980
+msgid "Save"
+msgstr ""
+
+#: electrumsys/plugins/coldcard/qt.py:46
+msgid "Save PSBT"
+msgstr ""
+
+#: electrumsys/gui/qt/request_list.py:157
+msgid "Save as BIP70 file"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1974
+msgid "Save invoice to file"
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:50
+msgid "Save transaction offline"
+msgstr ""
+
+#: electrumsys/plugins/labels/__init__.py:5
+msgid "Save your wallet labels on a remote server, and synchronize them across multiple devices where you use electrumsys."
+msgstr ""
+
+#: electrumsys/plugins/ledger/auth2fa.py:34
+msgid "Scan this QR code with your Ledger Wallet phone app to pair it with this Ledger device.<br>To complete pairing you will need your security card to answer a challenge."
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:241
+msgid "Scrambled words"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2164 electrumsys/gui/qt/main_window.py:2253
+msgid "Script type"
+msgstr ""
+
+#: electrumsys/base_wizard.py:386
+msgid "Script type and Derivation path"
+msgstr ""
+
+#: electrumsys/plugins/ledger/auth2fa.py:176
+msgid "Security Card Challenge"
+msgstr ""
+
+#: electrumsys/gui/qt/seed_dialog.py:209 electrumsys/gui/qt/main_window.py:2059
+#: electrumsys/gui/kivy/main_window.py:1052
+msgid "Seed"
+msgstr ""
+
+#: electrumsys/plugins/keepkey/qt.py:82
+msgid "Seed Entered"
+msgstr ""
+
+#: electrumsys/gui/qt/seed_dialog.py:169
+msgid "Seed Type"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2166
+msgid "Seed available"
+msgstr ""
+
+#: electrumsys/base_wizard.py:415
+msgid "Seed extension"
+msgstr ""
+
+#: electrumsys/base_wizard.py:580
+msgid "Segwit"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:511
+msgid "Segwit 2FA"
+msgstr ""
+
+#: electrumsys/base_wizard.py:574
+msgid "Segwit wallets use bech32 addresses, defined in BIP173."
+msgstr ""
+
+#: electrumsys/base_wizard.py:316
+msgid "Select a device"
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:452
+msgid "Select date"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2526
+msgid "Select file to export your private keys to"
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:633
+msgid "Select file to export your wallet transactions to"
+msgstr ""
+
+#: electrumsys/gui/qt/util.py:780
+msgid "Select file to save your {}"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:237
+msgid "Select recovery type:"
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:221
+msgid "Select server automatically"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:598
+msgid "Select server manually"
+msgstr ""
+
+#: electrumsys/plugins/coldcard/qt.py:71
+msgid "Select where to save the PSBT file"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1039
+msgid "Select where to save your payment request"
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:225
+msgid "Select where to save your signed transaction"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2746
+msgid "Select which language is used in the GUI (after restart)."
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:207 electrumsys/plugins/keepkey/qt.py:240
+#: electrumsys/plugins/safe_t/qt.py:114
+msgid "Select your seed length:"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:34
+msgid "Select your server automatically"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2464
+msgid "Select your transaction file"
+msgstr ""
+
+#: electrumsys/gui/text.py:69 electrumsys/gui/qt/main_window.py:175
+#: electrumsys/gui/qt/main_window.py:1283 electrumsys/gui/kivy/main.kv:388
+msgid "Send"
+msgstr ""
+
+#: electrumsys/gui/qt/exception_window.py:75
+msgid "Send Bug Report"
+msgstr ""
+
+#: electrumsys/plugins/email_requests/__init__.py:4
+msgid "Send and receive payment request with an email account"
+msgstr ""
+
+#: electrumsys/plugins/email_requests/qt.py:136
+msgid "Send and receive payment requests via email"
+msgstr ""
+
+#: electrumsys/plugins/cosigner_pool/qt.py:145
+msgid "Send to cosigner"
+msgstr ""
+
+#: electrumsys/plugins/audio_modem/qt.py:90
+msgid "Send to speaker"
+msgstr ""
+
+#: electrumsys/plugins/email_requests/qt.py:174
+msgid "Send via e-mail"
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:943
+msgid "Sending"
+msgstr ""
+
+#: electrumsys/plugins/cosigner_pool/qt.py:191
+msgid "Sending transaction to cosigning pool..."
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/history.kv:24
+msgid "Sent"
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:210 electrumsys/gui/qt/network_dialog.py:236
+#: electrumsys/gui/qt/network_dialog.py:307
+#: electrumsys/gui/kivy/uix/ui_screens/server.kv:3
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:21
+msgid "Server"
+msgstr ""
+
+#: electrumsys/plugins/email_requests/qt.py:212
+msgid "Server hosting your email account"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:799
+msgid "Server is lagging ({} blocks)"
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:741
+msgid "Server lagging"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/qt.py:148
+msgid "Server not reachable."
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:240
+msgid "Server peers"
+msgstr ""
+
+#: electrumsys/network.py:813
+msgid "Server returned unexpected transaction ID."
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:22
+msgid "Server used to query your history."
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:507 electrumsys/plugins/keepkey/qt.py:513
+#: electrumsys/plugins/safe_t/qt.py:421
+msgid "Session Timeout"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:316 electrumsys/plugins/keepkey/qt.py:350
+#: electrumsys/plugins/safe_t/qt.py:230
+msgid "Set a PIN"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3022
+msgid "Set the value of the change output so that it has similar precision to the other outputs."
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:32
+msgid "Set wallet file encryption."
+msgstr ""
+
+#: electrumsys/plugins/email_requests/qt.py:205 electrumsys/plugins/trezor/qt.py:579
+#: electrumsys/plugins/keepkey/qt.py:585 electrumsys/plugins/safe_t/qt.py:493
+#: electrumsys/plugins/labels/qt.py:29 electrumsys/plugins/audio_modem/qt.py:44
+#: electrumsys/gui/text.py:155 electrumsys/gui/kivy/main.kv:454
+msgid "Settings"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/screens.py:382
+msgid "Share Bitcoin Request"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/screens.py:266
+msgid "Should this transaction be replaceable?"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:580
+#: electrumsys/gui/kivy/uix/dialogs/requests.py:126
+msgid "Show"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3125
+msgid "Show Fiat balance for addresses"
+msgstr ""
+
+#: electrumsys/gui/qt/address_dialog.py:61
+msgid "Show QR Code"
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:105 electrumsys/gui/qt/qrtextedit.py:15
+#: electrumsys/gui/qt/qrtextedit.py:29
+msgid "Show as QR code"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3124
+msgid "Show capital gains in history"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2804
+msgid "Show fee edit box in send tab."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3123
+msgid "Show history rates"
+msgstr ""
+
+#: electrumsys/plugins/coldcard/qt.py:33
+msgid "Show on Coldcard"
+msgstr ""
+
+#: electrumsys/plugins/ledger/qt.py:34
+msgid "Show on Ledger"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/qt.py:39 electrumsys/plugins/trezor/qt.py:181
+#: electrumsys/plugins/keepkey/qt.py:211 electrumsys/plugins/safe_t/qt.py:87
+#: electrumsys/plugins/hw_wallet/qt.py:240
+msgid "Show on {}"
+msgstr ""
+
+#: electrumsys/gui/qt/exception_window.py:57
+msgid "Show report contents"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/status.kv:74
+msgid "Show seed"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:290
+msgid "Show {}"
+msgstr ""
+
+#: electrumsys/gui/qt/__init__.py:146
+msgid "Show/Hide"
+msgstr ""
+
+#: electrumsys/plugins/ledger/ledger.py:515
+#: electrumsys/plugins/coldcard/coldcard.py:583
+msgid "Showing address ..."
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:123
+#: electrumsys/gui/qt/main_window.py:2342
+msgid "Sign"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2320
+msgid "Sign/verify Message"
+msgstr ""
+
+#: electrumsys/gui/qt/address_list.py:208
+msgid "Sign/verify message"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1966 electrumsys/gui/qt/main_window.py:2336
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:43
+msgid "Signature"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2315
+msgid "Signature verified"
+msgstr ""
+
+#: electrumsys/wallet.py:381
+msgid "Signed"
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:972
+msgid "Signed invoices are saved automatically when you scan them."
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/tx_dialog.py:167
+msgid "Signing"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:625
+msgid "Signing large transaction. Please be patient ..."
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:491
+msgid "Signing message ..."
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:630
+#: electrumsys/gui/qt/main_window.py:1688
+msgid "Signing transaction..."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2267
+msgid "Signing with an address actually means signing with the corresponding private key, and verifying with the corresponding public key. The address you have entered does not have a unique public key, so these operations cannot be performed."
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:266
+msgid "Size:"
+msgstr ""
+
+#: electrumsys/i18n.py:71
+msgid "Slovak"
+msgstr ""
+
+#: electrumsys/i18n.py:72
+msgid "Slovenian"
+msgstr ""
+
+#: electrumsys/base_crash_reporter.py:53
+msgid "Something went wrong while executing electrumsys."
+msgstr ""
+
+#: electrumsys/base_crash_reporter.py:54
+msgid "Sorry!"
+msgstr ""
+
+#: electrumsys/gui/qt/update_checker.py:72
+msgid "Sorry, but we were unable to check for updates. Please try again later."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3126
+msgid "Source"
+msgstr ""
+
+#: electrumsys/i18n.py:54
+msgid "Spanish"
+msgstr ""
+
+#: electrumsys/gui/qt/utxo_list.py:107
+msgid "Spend"
+msgstr ""
+
+#: electrumsys/gui/qt/address_list.py:223
+msgid "Spend from"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3011
+msgid "Spend only confirmed coins"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3012
+msgid "Spend only confirmed inputs."
+msgstr ""
+
+#: electrumsys/base_wizard.py:126
+msgid "Standard wallet"
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:483
+msgid "Start"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:636
+msgid "Startup times are instant because it operates in conjunction with high-performance servers that handle the most complicated parts of the Bitcoin system."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2793
+msgid "Static"
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:301 electrumsys/gui/qt/request_list.py:57
+#: electrumsys/gui/qt/invoice_list.py:53
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:34
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:15
+msgid "Status"
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:248
+msgid "Status:"
+msgstr ""
+
+#: electrumsys/plugins/trezor/clientbase.py:281
+#: electrumsys/plugins/keepkey/clientbase.py:82
+#: electrumsys/plugins/safe_t/clientbase.py:90
+msgid "Step {}/24.  Enter seed word as explained on your {}:"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2111 electrumsys/gui/qt/main_window.py:3164
+#: electrumsys/gui/qt/main_window.py:3370
+msgid "Success"
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:479
+msgid "Summary"
+msgstr ""
+
+#: electrumsys/plugins/ledger/auth2fa.py:174
+msgid "Summary Text PIN (requires dongle replugging)"
+msgstr ""
+
+#: electrumsys/plugins/ledger/auth2fa.py:174
+msgid "Summary Text PIN is Disabled"
+msgstr ""
+
+#: electrumsys/plugins/keepkey/qt.py:467
+msgid "Supported Coins"
+msgstr ""
+
+#: electrumsys/i18n.py:73
+msgid "Swedish"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2648
+msgid "Sweep"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2624
+msgid "Sweep private keys"
+msgstr ""
+
+#: electrumsys/gui/text.py:139 electrumsys/gui/qt/main_window.py:796
+#: electrumsys/gui/stdio.py:117 electrumsys/gui/kivy/main_window.py:739
+msgid "Synchronizing..."
+msgstr ""
+
+#: electrumsys/i18n.py:74
+msgid "Tamil"
+msgstr ""
+
+#: electrumsys/gui/qt/fee_slider.py:38
+msgid "Target"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/qt.py:217
+msgid "Terms of Service"
+msgstr ""
+
+#: electrumsys/gui/qt/util.py:624
+msgid "Text copied to clipboard"
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:429
+msgid "Text copied to clipboard."
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:830
+msgid "Text copied to clipboard.\n"
+"Tap again to display it as QR code."
+msgstr ""
+
+#: electrumsys/i18n.py:75
+msgid "Thai"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:225
+msgid "The Digital Bitbox is already seeded. Choose an option:"
+msgstr ""
+
+#: electrumsys/plugins/trezor/clientbase.py:241
+#: electrumsys/plugins/keepkey/clientbase.py:54
+#: electrumsys/plugins/safe_t/clientbase.py:56
+msgid "The PIN cannot be longer than 9 characters."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1182
+msgid "The amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1160
+msgid "The amount will be displayed in red if you do not have enough funds in your wallet."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:906
+msgid "The bitcoin address never expires and will always be part of this electrumsys wallet."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1147
+msgid "The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the 'History' tab."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1646 electrumsys/gui/kivy/uix/screens.py:297
+msgid "The fee for this transaction seems unusually high."
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:311
+msgid "The file '{}' contains an incompletely created wallet.\n"
+"Do you want to complete its creation now?"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:305 electrumsys/gui/qt/installwizard.py:316
+msgid "The file was removed"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2700
+msgid "The following addresses were added"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2836
+msgid "The following alias providers are available:"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2705 electrumsys/base_wizard.py:226
+msgid "The following inputs could not be imported"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:85
+msgid "The next step will generate the seed of your wallet.  This seed will NOT be saved in your computer, and it must be stored on paper.  To be safe from malware, you may want to do this on an offline computer, and move your wallet later to an online computer."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2271
+msgid "The operation is undefined. Not just in electrumsys, but in general."
+msgstr ""
+
+#: electrumsys/network.py:187
+msgid "The server returned an error when broadcasting the transaction."
+msgstr ""
+
+#: electrumsys/network.py:204
+msgid "The server returned an error."
+msgstr ""
+
+#: electrumsys/network.py:179
+msgid "The server returned an unexpected transaction ID when broadcasting the transaction."
+msgstr ""
+
+#: electrumsys/network.py:832
+msgid "The transaction was rejected because it contains multiple OP_RETURN outputs."
+msgstr ""
+
+#: electrumsys/network.py:826
+msgid "The transaction was rejected because it is too large (in bytes)."
+msgstr ""
+
+#: electrumsys/base_wizard.py:573
+msgid "The type of addresses used by your wallet will depend on your seed."
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:297
+msgid "The wallet '{}' contains multiple accounts, which are no longer supported since electrumsys 2.7.\n\n"
+"Do you want to split your wallet into multiple files?"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/qt.py:278
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:644
+msgid "Then, enter your Google Authenticator code:"
+msgstr ""
+
+#: electrumsys/gui/qt/update_checker.py:84
+msgid "There is a new update available"
+msgstr ""
+
+#: electrumsys/gui/qt/exception_window.py:99
+msgid "There was a problem with the automatic reporting:"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/qt.py:91
+msgid "Therefore, two-factor authentication is disabled."
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:298
+msgid "This blockchain is used to verify the transactions sent by your transaction server."
+msgstr ""
+
+#: electrumsys/plugins/greenaddress_instant/qt.py:73
+msgid "This feature is not available for watch-only wallets."
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:212
+msgid "This file does not exist."
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:228
+msgid "This file is already open in memory."
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:221
+msgid "This file is encrypted using a hardware device."
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:217
+msgid "This file is encrypted with a password."
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:783
+msgid "This function is only available after pairing your {} with a mobile device."
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:786
+msgid "This function is only available for p2pkh keystores when using {}."
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:780
+#: electrumsys/plugins/ledger/ledger.py:623
+#: electrumsys/plugins/coldcard/coldcard.py:705
+msgid "This function is only available for standard wallets when using {}."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:904
+msgid "This information is seen by the recipient if you send them a signed payment request."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2505
+msgid "This is a watching-only wallet"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2281 electrumsys/gui/qt/main_window.py:2359
+msgid "This is a watching-only wallet."
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:1077
+msgid "This is a watching-only wallet. It does not contain private keys."
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:45
+msgid "This is discouraged."
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:312
+msgid "This is the height of your local copy of the blockchain."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2982
+msgid "This may result in higher transactions fees."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:469
+msgid "This means you will not be able to spend Bitcoins with it."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3023
+msgid "This might improve your privacy somewhat."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:987
+msgid "This payment request will be signed."
+msgstr ""
+
+#: electrumsys/plugins/revealer/__init__.py:6
+msgid "This plug-in allows you to create a visually encrypted backup of your wallet seeds, or of custom alphanumeric secrets."
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/__init__.py:5
+msgid "This plugin adds two-factor authentication to your wallet."
+msgstr ""
+
+#: electrumsys/plugins/cosigner_pool/__init__.py:4
+msgid "This plugin facilitates the use of multi-signatures wallets."
+msgstr ""
+
+#: electrumsys/gui/qt/seed_dialog.py:45
+msgid "This seed will allow you to recover your wallet in case of computer failure."
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:94
+msgid "This service uses a multi-signature wallet, where you own 2 of 3 keys.  The third key is stored on a remote server that signs transactions on your behalf. A small fee will be charged on each transaction that uses the remote server."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2888
+msgid "This setting affects the Send tab, and all balance related fields."
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:176
+msgid "This transaction is not saved. Close anyway?"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1620
+msgid "This transaction requires a higher fee, or it will not be propagated by your current server"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:756
+#: electrumsys/plugins/ledger/ledger.py:596 electrumsys/plugins/trezor/trezor.py:278
+#: electrumsys/plugins/keepkey/keepkey.py:256
+#: electrumsys/plugins/safe_t/safe_t.py:273
+#: electrumsys/plugins/coldcard/coldcard.py:675
+msgid "This type of script is not supported with {}."
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:265
+msgid "This version supports a maximum of {} characters."
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:291 electrumsys/gui/qt/main_window.py:2219
+msgid "This wallet has no seed"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:619
+msgid "This wallet is already registered with TrustedCoin. To finalize wallet creation, please enter your Google Authenticator Code."
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/qt.py:159
+msgid "This wallet is protected by TrustedCoin's two-factor authentication."
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/status.kv:66
+msgid "This wallet is watching-only"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:468
+msgid "This wallet is watching-only."
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/qt.py:90
+msgid "This wallet was restored from seed, and it contains two master private keys."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2829
+msgid "This will save fees."
+msgstr ""
+
+#: electrumsys/base_wizard.py:576
+msgid "Thus, you might want to keep using a non-segwit wallet in order to be able to receive bitcoins during the transition period."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2787
+msgid "Time based: fee rate is based on average confirmation time estimates"
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:418
+msgid "To"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:493
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:628
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:632
+msgid "To cancel, briefly touch the blinking light or wait for the timeout."
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:321
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:346
+msgid "To cancel, briefly touch the light or wait for the timeout."
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:492
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:626
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:631
+msgid "To continue, touch the Digital Bitbox's blinking light for 3 seconds."
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:320
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:345
+msgid "To continue, touch the Digital Bitbox's light for 3 seconds."
+msgstr ""
+
+#: electrumsys/base_wizard.py:237
+msgid "To create a spending wallet, please enter a master private key (xprv/yprv/zprv)."
+msgstr ""
+
+#: electrumsys/base_wizard.py:236
+msgid "To create a watching-only wallet, please enter your master public key (xpub/ypub/zpub)."
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:113
+msgid "To encrypt your backup, first we need to load some noise."
+msgstr ""
+
+#: electrumsys/base_crash_reporter.py:55
+msgid "To help us diagnose and fix the problem, you can send us a bug report that contains useful debug information:"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:429
+msgid "To make sure that you have properly saved your seed, please retype it here."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1243
+msgid "To somewhat protect your privacy, electrumsys tries to create change with similar precision to other outputs."
+msgstr ""
+
+#: electrumsys/base_wizard.py:298
+msgid "To trigger a rescan, press 'Next'."
+msgstr ""
+
+#: electrumsys/base_wizard.py:326
+msgid "To try to fix this, we will now re-pair with your device."
+msgstr ""
+
+#: electrumsys/gui/qt/password_dialog.py:213
+msgid "Toggle Encryption"
+msgstr ""
+
+#: electrumsys/plugins/trezor/clientbase.py:259
+#: electrumsys/plugins/keepkey/clientbase.py:76
+#: electrumsys/plugins/safe_t/clientbase.py:81
+msgid "Too long passphrase ({} > 50 chars)."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3275
+msgid "Total size"
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:96
+msgid "Transaction"
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:565 electrumsys/gui/qt/main_window.py:2490
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:66
+#: electrumsys/gui/kivy/uix/ui_screens/invoice.kv:69
+msgid "Transaction ID"
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:101
+msgid "Transaction ID:"
+msgstr ""
+
+#: electrumsys/plugins/ledger/auth2fa.py:32
+msgid "Transaction accepted by mobile phone. Waiting for confirmation."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3367
+msgid "Transaction added to wallet history."
+msgstr ""
+
+#: electrumsys/network.py:831
+msgid "Transaction could not be broadcast due to dust outputs."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3357
+msgid "Transaction could not be saved."
+msgstr ""
+
+#: electrumsys/plugins/coldcard/qt.py:76 electrumsys/gui/qt/transaction_dialog.py:229
+msgid "Transaction exported successfully"
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:196
+msgid "Transaction is too large in size."
+msgstr ""
+
+#: electrumsys/address_synchronizer.py:54
+msgid "Transaction is unrelated to this wallet."
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:261
+#: electrumsys/gui/kivy/uix/dialogs/tx_dialog.py:124
+msgid "Transaction unrelated to your wallet"
+msgstr ""
+
+#: electrumsys/network.py:825
+msgid "Transaction uses non-standard version."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2476
+msgid "Transaction:"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:3130
+msgid "Transactions"
+msgstr ""
+
+#: electrumsys/plugins/cosigner_pool/__init__.py:6
+msgid "Transactions are encrypted and stored on a remote server."
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:47
+msgid "Trezor Matrix Recovery"
+msgstr ""
+
+#: electrumsys/plugins/trezor/__init__.py:6
+msgid "Trezor wallet"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2156
+msgid "True"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/qt.py:97
+msgid "TrustedCoin"
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:293
+msgid "TrustedCoin (2FA) fee for the next batch of transactions"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/qt.py:152
+msgid "TrustedCoin Information"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/qt.py:173
+msgid "TrustedCoin charges a small fee to co-sign transactions. The fee depends on how many prepaid transactions you buy. An extra output is added to your transaction every time you run out of prepaid transactions."
+msgstr ""
+
+#: electrumsys/plugin.py:546
+msgid "Try to connect again?"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:648
+msgid "Try to explain not only what the bug is, but how it occurs."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1621
+msgid "Try to raise your transaction fee, or use a server with a lower relay fee."
+msgstr ""
+
+#: electrumsys/i18n.py:76
+msgid "Turkish"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/__init__.py:3
+msgid "Two Factor Authentication"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:74
+msgid "Two-factor authentication is a service provided by TrustedCoin.  It uses a multi-signature wallet, where you own 2 of 3 keys.  The third key is stored on a remote server that signs transactions on your behalf.  To use this service, you will need a smartphone with Google Authenticator installed."
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/trustedcoin.py:92
+msgid "Two-factor authentication is a service provided by TrustedCoin. To use it, you must have a separate device with Google Authenticator."
+msgstr ""
+
+#: electrumsys/gui/qt/address_list.py:94
+msgid "Tx"
+msgstr ""
+
+#: electrumsys/gui/qt/address_list.py:89
+msgid "Type"
+msgstr ""
+
+#: electrumsys/plugins/coldcard/qt.py:155
+msgid "USB Serial"
+msgstr ""
+
+#: electrumsys/i18n.py:77
+msgid "Ukrainian"
+msgstr ""
+
+#: electrumsys/plugins/email_requests/qt.py:250
+msgid "Unable to connect to mail server:\n"
+" {}"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:498
+msgid "Unable to create backup"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2586
+msgid "Unable to create csv"
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:650
+msgid "Unable to export history"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2471
+msgid "Unable to read file or no transaction found"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/crash_reporter.py:123
+msgid "Unable to send report"
+msgstr ""
+
+#: electrumsys/wallet.py:71 electrumsys/wallet.py:369
+#: electrumsys/gui/kivy/uix/ui_screens/status.kv:41
+msgid "Unconfirmed"
+msgstr ""
+
+#: electrumsys/wallet.py:72
+msgid "Unconfirmed parent"
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:207
+msgid "Unexpected error occurred."
+msgstr ""
+
+#: electrumsys/crypto.py:132
+msgid "Unexpected password hash version"
+msgstr ""
+
+#: electrumsys/gui/qt/address_list.py:219
+msgid "Unfreeze"
+msgstr ""
+
+#: electrumsys/util.py:592 electrumsys/gui/qt/transaction_dialog.py:242
+#: electrumsys/gui/kivy/uix/dialogs/requests.py:90
+#: electrumsys/gui/kivy/uix/dialogs/invoices.py:86
+msgid "Unknown"
+msgstr ""
+
+#: electrumsys/network.py:947
+msgid "Unknown error"
+msgstr ""
+
+#: electrumsys/network.py:195
+msgid "Unknown error when broadcasting the transaction."
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/status.kv:45
+msgid "Unmatured"
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:503
+msgid "Unrealized gains"
+msgstr ""
+
+#: electrumsys/wallet.py:385
+msgid "Unsigned"
+msgstr ""
+
+#: electrumsys/crypto.py:143
+msgid "Unsupported password hash version"
+msgstr ""
+
+#: electrumsys/gui/qt/address_list.py:66
+#: electrumsys/gui/kivy/uix/dialogs/addresses.py:120
+msgid "Unused"
+msgstr ""
+
+#: electrumsys/gui/qt/update_checker.py:31
+msgid "Update Check"
+msgstr ""
+
+#: electrumsys/gui/qt/update_checker.py:71
+msgid "Update check failed"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:254
+msgid "Update to electrumsys {} is available"
+msgstr ""
+
+#: electrumsys/base_wizard.py:148
+msgid "Upgrading wallet format..."
+msgstr ""
+
+#: electrumsys/plugins/keepkey/keepkey.py:173
+#: electrumsys/plugins/safe_t/safe_t.py:178
+msgid "Upload a BIP39 mnemonic to generate the seed"
+msgstr ""
+
+#: electrumsys/plugins/keepkey/keepkey.py:174
+#: electrumsys/plugins/safe_t/safe_t.py:179
+msgid "Upload a master private key"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/addresses.py:124
+msgid "Use"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2812
+msgid "Use Replace-By-Fee"
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:279
+msgid "Use Tor Proxy"
+msgstr ""
+
+#: electrumsys/base_wizard.py:188
+msgid "Use a hardware device"
+msgstr ""
+
+#: electrumsys/base_wizard.py:185
+msgid "Use a master key"
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:85 electrumsys/gui/qt/network_dialog.py:156
+msgid "Use as server"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2958
+msgid "Use change addresses"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2977
+msgid "Use multiple change addresses"
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:250
+msgid "Use proxy"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2865
+msgid "Use setconfig to set ssl_chain and ssl_privkey."
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/installwizard.py:1013
+msgid "Use the camera button to scan a QR code."
+msgstr ""
+
+#: electrumsys/gui/qt/password_dialog.py:249
+msgid "Use this dialog to add a password to your wallet."
+msgstr ""
+
+#: electrumsys/gui/qt/password_dialog.py:255
+msgid "Use this dialog to change your password."
+msgstr ""
+
+#: electrumsys/gui/qt/password_dialog.py:279
+msgid "Use this dialog to toggle encryption."
+msgstr ""
+
+#: electrumsys/gui/qt/address_list.py:66
+#: electrumsys/gui/kivy/uix/dialogs/addresses.py:120
+msgid "Used"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/proxy.kv:38
+msgid "Username"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:638
+msgid "Uses icons from the Icons8 icon pack (icons8.com)."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2968
+msgid "Using change addresses makes it more difficult for other people to track your transactions."
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:326
+msgid "Value"
+msgstr ""
+
+#: electrumsys/plugins/greenaddress_instant/qt.py:106
+msgid "Verification failed!"
+msgstr ""
+
+#: electrumsys/plugins/greenaddress_instant/qt.py:104
+msgid "Verification successful!"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:48
+msgid "Verified block headers"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2346
+msgid "Verify"
+msgstr ""
+
+#: electrumsys/plugins/greenaddress_instant/qt.py:43
+msgid "Verify GA instant"
+msgstr ""
+
+#: electrumsys/plugins/ledger/auth2fa.py:30
+msgid "Verify the address below.<br>Type the character from your security card corresponding to the <u><b>BOLD</b></u> character."
+msgstr ""
+
+#: electrumsys/plugin.py:544
+msgid "Verify the cable is connected and that no other application is using it."
+msgstr ""
+
+#: electrumsys/plugins/greenaddress_instant/qt.py:87
+msgid "Verifying..."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:632
+#: electrumsys/gui/kivy/uix/ui_screens/about.kv:13
+msgid "Version"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2933
+msgid "Video Device"
+msgstr ""
+
+#: electrumsys/i18n.py:78
+msgid "Vietnamese"
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:598
+msgid "View invoice"
+msgstr ""
+
+#: electrumsys/gui/qt/address_list.py:214 electrumsys/gui/qt/contact_list.py:100
+#: electrumsys/gui/qt/history_list.py:600
+msgid "View on block explorer"
+msgstr ""
+
+#: electrumsys/gui/qt/seed_dialog.py:48
+msgid "WARNING"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2516
+msgid "WARNING: ALL your private keys are secret."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2509
+msgid "WARNING: This is a multi-signature wallet."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1560
+msgid "WARNING: the alias \"{}\" could not be validated via an additional security check, DNSSEC, and thus may not be correct."
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:36
+msgid "WIF keys are typed in electrumsys, based on script type."
+msgstr ""
+
+#: electrumsys/plugins/ledger/auth2fa.py:31
+msgid "Waiting for authentication on your mobile phone"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:169
+msgid "Wallet"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2149
+msgid "Wallet Information"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/status.kv:27
+msgid "Wallet Name"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:496
+msgid "Wallet backup created"
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:290
+msgid "Wallet change address"
+msgstr ""
+
+#: electrumsys/wallet.py:176
+msgid "Wallet file corruption detected. Please restore your wallet from seed, and compare the addresses in both files"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2214
+msgid "Wallet file not found: {}"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2160
+msgid "Wallet name"
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:287
+msgid "Wallet receive address"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2212 electrumsys/gui/kivy/main_window.py:1035
+msgid "Wallet removed: {}"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2162
+msgid "Wallet type"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/status.kv:30
+msgid "Wallet type:"
+msgstr ""
+
+#: electrumsys/base_wizard.py:127
+msgid "Wallet with two-factor authentication"
+msgstr ""
+
+#: electrumsys/gui/kivy/main.kv:448
+msgid "Wallets"
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:133 electrumsys/plugins/revealer/qt.py:186
+#: electrumsys/plugins/revealer/qt.py:219 electrumsys/gui/qt/util.py:206
+#: electrumsys/gui/qt/transaction_dialog.py:176
+#: electrumsys/gui/qt/transaction_dialog.py:273
+#: electrumsys/gui/qt/installwizard.py:42 electrumsys/gui/qt/seed_dialog.py:73
+#: electrumsys/gui/qt/main_window.py:1646 electrumsys/gui/kivy/uix/screens.py:297
+msgid "Warning"
+msgstr ""
+
+#: electrumsys/gui/qt/console.py:65
+msgid "Warning!"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1057
+msgid "Warning: The next address will not be recovered automatically if you restore your wallet from seed; you may need to add it manually.\n\n"
+"This occurs because you have too many unused addresses in your wallet. To avoid this situation, use the existing addresses first.\n\n"
+"Create anyway?"
+msgstr ""
+
+#: electrumsys/plugins/virtualkeyboard/__init__.py:4
+msgid "Warning: do not use this if it makes you pick a weaker password."
+msgstr ""
+
+#: electrumsys/gui/qt/seed_dialog.py:77
+msgid "We do not guarantee that BIP39 imports will always be supported in electrumsys."
+msgstr ""
+
+#: electrumsys/base_wizard.py:324
+msgid "We encountered an error while connecting to your device:"
+msgstr ""
+
+#: electrumsys/base_wizard.py:123
+msgid "What kind of wallet do you want to create?"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:559 electrumsys/plugins/keepkey/qt.py:565
+#: electrumsys/plugins/safe_t/qt.py:473
+msgid "Wipe Device"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:562 electrumsys/plugins/keepkey/qt.py:568
+#: electrumsys/plugins/safe_t/qt.py:476
+msgid "Wipe the device, removing all data from it.  The firmware is left unchanged."
+msgstr ""
+
+#: electrumsys/simple_config.py:392
+msgid "Within {} blocks"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:244
+msgid "Would you like to be notified when there is a newer version of electrumsys available?"
+msgstr ""
+
+#: electrumsys/plugins/trezor/clientbase.py:18
+#: electrumsys/plugins/keepkey/clientbase.py:16
+#: electrumsys/plugins/safe_t/clientbase.py:17
+msgid "Write down the seed word shown on your {}"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/password_dialog.py:141
+msgid "Wrong PIN"
+msgstr ""
+
+#: electrumsys/base_wizard.py:471 electrumsys/base_wizard.py:479
+msgid "Wrong key type"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2317
+msgid "Wrong signature"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:313 electrumsys/plugins/keepkey/qt.py:347
+#: electrumsys/plugins/safe_t/qt.py:227
+msgid "Yes"
+msgstr ""
+
+#: electrumsys/gui/qt/update_checker.py:89
+msgid "You are already on the latest version of electrumsys."
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:378
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:54
+msgid "You are following branch"
+msgstr ""
+
+#: electrumsys/crypto.py:134
+msgid "You are most likely using an outdated version of electrumsys. Please update."
+msgstr ""
+
+#: electrumsys/plugins/labels/labels.py:142 electrumsys/plugins/labels/labels.py:146
+msgid "You are offline."
+msgstr ""
+
+#: electrumsys/gui/qt/__init__.py:182
+msgid "You are using electrumsys in offline mode; restart electrumsys if you want to get connected"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1052
+msgid "You are using a non-deterministic wallet, which cannot create new addresses."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1245
+msgid "You can disable this setting in '{}'."
+msgstr ""
+
+#: electrumsys/gui/qt/update_checker.py:86
+msgid "You can download the new version from {}."
+msgstr ""
+
+#: electrumsys/base_wizard.py:363
+msgid "You can override the suggested derivation path."
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:496 electrumsys/plugins/safe_t/qt.py:410
+msgid "You can set the homescreen on your device to personalize it.  You must choose a {} x {} monochrome black and white image."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1630
+msgid "You can't broadcast a transaction without a live network connection."
+msgstr ""
+
+#: electrumsys/plugins/digitalbitbox/digitalbitbox.py:186
+msgid "You cannot access your coins or a backup without the password."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:634
+msgid "You do not need to perform regular backups, because your wallet can be recovered from a secret phrase that you can memorize or write on paper."
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:43
+msgid "You have multiple consecutive whitespaces or leading/trailing whitespaces in your passphrase."
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:973
+msgid "You may also save unsigned requests or contact addresses using the save button."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1136
+msgid "You may enter a Bitcoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Bitcoin address)"
+msgstr ""
+
+#: electrumsys/base_wizard.py:417
+msgid "You may extend your seed with custom words."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1909
+msgid "You may load a CSV file using the file icon."
+msgstr ""
+
+#: electrumsys/base_wizard.py:276
+msgid "You might have an incompatible library."
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/qt.py:204
+msgid "You need to be online in order to complete the creation of your wallet.  If you generated your seed on an offline computer, click on \"{}\" to close this window, move your wallet file to an online computer, and reopen it with electrumsys."
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:26 electrumsys/plugins/keepkey/qt.py:26
+#: electrumsys/plugins/safe_t/qt.py:26
+msgid "You need to create a separate electrumsys wallet for each passphrase you use as they each generate different addresses.  Changing your passphrase does not lose other wallets, each is still accessible behind its own passphrase."
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:31 electrumsys/plugins/keepkey/qt.py:31
+#: electrumsys/plugins/safe_t/qt.py:31
+msgid "You should enable PIN protection.  Your PIN is the only protection for your bitcoins if your device is lost or stolen."
+msgstr ""
+
+#: electrumsys/plugins/trezor/trezor.py:215 electrumsys/plugins/safe_t/safe_t.py:213
+msgid "You will be asked to enter 24 words regardless of your seed's actual length.  If you enter a word incorrectly or misspell it, you cannot change it or go back - you will need to start again from the beginning.\n\n"
+"So please enter the words carefully!"
+msgstr ""
+
+#: electrumsys/plugins/ledger/auth2fa.py:24
+msgid "Your Ledger Wallet wants to tell you a one-time PIN code.<br><br>For best security you should unplug your device, open a text editor on another computer, put your cursor into it, and plug your device into that computer. It will output a summary of the transaction being signed and a one-time PIN.<br><br>Verify the transaction summary and type the PIN code here.<br><br>Before pressing enter, plug the device back into this computer.<br>"
+msgstr ""
+
+#: electrumsys/plugins/ledger/ledger.py:49
+msgid "Your Ledger is locked. Please unlock it."
+msgstr ""
+
+#: electrumsys/gui/kivy/main_window.py:1070
+msgid "Your PIN code was updated"
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:302
+msgid "Your accounts have been moved to"
+msgstr ""
+
+#: electrumsys/gui/qt/password_dialog.py:252
+msgid "Your bitcoins are password protected. However, your wallet file is not encrypted."
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:354 electrumsys/plugins/keepkey/qt.py:390
+#: electrumsys/plugins/safe_t/qt.py:268
+msgid "Your current electrumsys wallet can only be used with an empty passphrase.  You must create a separate wallet with the install wizard for other passphrases as each one generates a new set of addresses."
+msgstr ""
+
+#: electrumsys/plugins/keepkey/keepkey.py:304
+#: electrumsys/plugins/safe_t/safe_t.py:321
+msgid "Your device firmware is too old"
+msgstr ""
+
+#: electrumsys/plugins/ledger/ledger.py:529
+msgid "Your device might not have support for this functionality."
+msgstr ""
+
+#: electrumsys/plugins/labels/qt.py:59
+msgid "Your labels have been synchronised."
+msgstr ""
+
+#: electrumsys/gui/qt/seed_dialog.py:142
+msgid "Your seed extension is"
+msgstr ""
+
+#: electrumsys/base_wizard.py:418 electrumsys/base_wizard.py:612
+msgid "Your seed extension must be saved together with your seed."
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:427
+msgid "Your seed is important!"
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:378
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:54
+msgid "Your server is on branch"
+msgstr ""
+
+#: electrumsys/plugins/cosigner_pool/qt.py:174
+msgid "Your transaction was sent to the cosigning pool."
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:33
+msgid "Your wallet file does not contain secrets, mostly just metadata. "
+msgstr ""
+
+#: electrumsys/gui/qt/password_dialog.py:275
+msgid "Your wallet file is NOT encrypted."
+msgstr ""
+
+#: electrumsys/gui/qt/password_dialog.py:277
+msgid "Your wallet file is encrypted."
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/qt.py:203
+msgid "Your wallet file is: {}."
+msgstr ""
+
+#: electrumsys/gui/qt/installwizard.py:436 electrumsys/gui/qt/seed_dialog.py:212
+msgid "Your wallet generation seed is:"
+msgstr ""
+
+#: electrumsys/plugins/trustedcoin/qt.py:197
+msgid "Your wallet has {} prepaid transactions."
+msgstr ""
+
+#: electrumsys/gui/qt/history_list.py:652
+msgid "Your wallet history has been successfully exported."
+msgstr ""
+
+#: electrumsys/gui/qt/password_dialog.py:248
+msgid "Your wallet is not protected."
+msgstr ""
+
+#: electrumsys/gui/qt/password_dialog.py:254
+msgid "Your wallet is password protected and encrypted."
+msgstr ""
+
+#: electrumsys/gui/qt/util.py:789
+#, python-brace-format
+msgid "Your {0} were exported to '{1}'"
+msgstr ""
+
+#: electrumsys/gui/qt/util.py:774
+msgid "Your {} were successfully imported"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2769
+msgid "Zeros after decimal point"
+msgstr ""
+
+#: electrumsys/gui/text.py:183
+msgid "[Clear]"
+msgstr ""
+
+#: electrumsys/gui/text.py:182
+msgid "[Send]"
+msgstr ""
+
+#: electrumsys/gui/stdio.py:52
+msgid "[b] - print server banner"
+msgstr ""
+
+#: electrumsys/gui/stdio.py:51
+msgid "[c] - display contacts"
+msgstr ""
+
+#: electrumsys/gui/stdio.py:45
+msgid "[h] - displays this help text"
+msgstr ""
+
+#: electrumsys/gui/stdio.py:46
+msgid "[i] - display transaction history"
+msgstr ""
+
+#: electrumsys/gui/stdio.py:47
+msgid "[o] - enter payment order"
+msgstr ""
+
+#: electrumsys/gui/stdio.py:48
+msgid "[p] - print stored payment order"
+msgstr ""
+
+#: electrumsys/gui/stdio.py:53
+msgid "[q] - quit"
+msgstr ""
+
+#: electrumsys/gui/stdio.py:50
+msgid "[r] - show own receipt addresses"
+msgstr ""
+
+#: electrumsys/gui/stdio.py:49
+msgid "[s] - send stored payment order"
+msgstr ""
+
+#: electrumsys/wallet.py:1377
+msgid "address already in wallet"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2816
+msgid "and you will have the possibility, while they are unconfirmed, to replace them with transactions that pay higher fees."
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1316
+msgid "are frozen"
+msgstr ""
+
+#: electrumsys/gui/qt/network_dialog.py:367 electrumsys/gui/qt/network_dialog.py:379
+msgid "blocks"
+msgstr ""
+
+#: electrumsys/gui/qt/address_list.py:153
+msgid "change"
+msgstr ""
+
+#: electrumsys/gui/qt/contact_list.py:68 electrumsys/gui/qt/contact_list.py:71
+msgid "contacts"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2183
+msgid "cosigner"
+msgstr ""
+
+#: electrumsys/wallet.py:832
+msgid "could not find suitable outputs"
+msgstr ""
+
+#: electrumsys/gui/qt/transaction_dialog.py:273
+msgid "high fee"
+msgstr ""
+
+#: electrumsys/plugin.py:558 electrumsys/base_wizard.py:310
+msgid "initialized"
+msgstr ""
+
+#: electrumsys/wallet.py:1374
+msgid "invalid address"
+msgstr ""
+
+#: electrumsys/wallet.py:1456
+msgid "invalid private key"
+msgstr ""
+
+#: electrumsys/gui/qt/invoice_list.py:92 electrumsys/gui/qt/invoice_list.py:95
+msgid "invoices"
+msgstr ""
+
+#: electrumsys/gui/qt/util.py:369
+msgid "json"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2616 electrumsys/gui/qt/main_window.py:2621
+msgid "labels"
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:134
+msgid "more information at <a href=\"https://revealer.cc/faq\">https://revealer.cc/faq</a>"
+msgstr ""
+
+#: electrumsys/wallet.py:1459
+msgid "not implemented type"
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:124
+msgid "or type an existing revealer code below and click 'next':"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:1760
+msgid "please wait..."
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:728
+msgid "print the calibration pdf and follow the instructions "
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:819
+msgid "proxy enabled"
+msgstr ""
+
+#: electrumsys/gui/qt/address_list.py:156
+msgid "receiving"
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:65
+msgid "secret backup utility"
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:392
+msgid "seed"
+msgstr ""
+
+#: electrumsys/wallet.py:801
+msgid "transaction is final"
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:255
+msgid "type a custom alphanumerical secret below:"
+msgstr ""
+
+#: electrumsys/wallet.py:600 electrumsys/gui/qt/transaction_dialog.py:267
+#: electrumsys/gui/kivy/uix/dialogs/tx_dialog.py:131
+msgid "unknown"
+msgstr ""
+
+#: electrumsys/commands.py:918
+msgid "unknown parser {!r} (choices: {})"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:457
+msgid "watching only"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:2155
+msgid "watching-only"
+msgstr ""
+
+#: electrumsys/plugin.py:558 electrumsys/base_wizard.py:310
+msgid "wiped"
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:187
+msgid "your seed extension will <b>not</b> be included in the encrypted backup."
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:413 electrumsys/plugins/keepkey/qt.py:439
+#: electrumsys/plugins/safe_t/qt.py:327
+msgid "{:2d} minutes"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:211 electrumsys/plugins/safe_t/qt.py:118
+msgid "{:d} words"
+msgstr ""
+
+#: electrumsys/plugins/trezor/qt.py:280 electrumsys/plugins/keepkey/qt.py:317
+#: electrumsys/plugins/safe_t/qt.py:194 electrumsys/plugins/coldcard/qt.py:120
+msgid "{} Settings"
+msgstr ""
+
+#: electrumsys/wallet.py:365
+msgid "{} confirmations"
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/ui_screens/network.kv:14
+msgid "{} connections."
+msgstr ""
+
+#: electrumsys/plugins/revealer/qt.py:179
+msgid "{} encrypted for Revealer {}_{} saved as PNG and PDF at: "
+msgstr ""
+
+#: electrumsys/gui/kivy/uix/dialogs/tx_dialog.py:118
+msgid "{} from tip"
+msgstr ""
+
+#: electrumsys/plugins/greenaddress_instant/qt.py:104
+msgid "{} is covered by GreenAddress instant confirmation"
+msgstr ""
+
+#: electrumsys/plugins/greenaddress_instant/qt.py:106
+msgid "{} is not covered by GreenAddress instant confirmation"
+msgstr ""
+
+#: electrumsys/gui/qt/main_window.py:676
+msgid "{} new transactions received: Total amount received in the new transactions {}"
+msgstr ""
+
+#: electrumsys/plugins/keepkey/qt.py:244
+msgid "{} words"
+msgstr ""
+

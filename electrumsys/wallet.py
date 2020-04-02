@@ -141,7 +141,7 @@ def sweep_preparations(privkeys, network: 'Network', imax=100):
             find_utxos_for_privkey('p2pk', privkey, compressed)
     if not inputs:
         raise Exception(_('No inputs found. (Note that inputs need to be confirmed)'))
-        # FIXME actually inputs need not be confirmed now, see https://github.com/kyuupichan/electrumsysx/issues/365
+        # FIXME actually inputs need not be confirmed now, see https://github.com/kyuupichan/electrumx/issues/365
     return inputs, keypairs
 
 

@@ -1,15 +1,15 @@
 {
-    "electrumsysx1.syscoin.org": {
+    "electrumx1.syscoin.org": {
         "pruning": "-",
         "s": "58882",
         "version": "1.4.1"
     },
-    "electrumsysx2.syscoin.org": {
+    "electrumx2.syscoin.org": {
         "pruning": "-",
         "s": "58882",
         "version": "1.4.1"
     },
-    "electrumsysx3.syscoin.org": {
+    "electrumx3.syscoin.org": {
         "pruning": "-",
         "s": "58882",
         "version": "1.4.1"
