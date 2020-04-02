@@ -14,6 +14,7 @@ graft contrib/udev
 
 exclude electrum/*.so
 exclude electrum/*.so.0
+include electrum/libsecp256k1.so.0
 
 global-exclude __pycache__
 global-exclude *.py[co~]
