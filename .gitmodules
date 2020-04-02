@@ -10,3 +10,6 @@
 [submodule "contrib/deterministic-build/electrumsys-locale"]
 	path = contrib/deterministic-build/electrumsys_locale
 	url = https://github.com/syscoin/electrumsys-locale
+[submodule "electrumsys/www"]
+	path = electrumsys/www
+	url = https://github.com/spesmilo/electrum-http.git
