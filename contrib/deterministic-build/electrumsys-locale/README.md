@@ -1,1 +1,0 @@
-# electrumsys-locale
