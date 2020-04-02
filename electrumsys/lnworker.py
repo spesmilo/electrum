@@ -725,7 +725,7 @@ class LNWallet(LNWorker):
 
     async def update_open_channel(self, chan, funding_txid, funding_height):
 
-        if chan.get_state() == channel_states.OPEN and chan.should_be_closed_due_to_expiring_htlcs(network.get_local_height()):
+        if chan.get_state() == channel_states.OPEN and chan.should_be_closed_due_to_expiring_htlcs(self.network.get_local_height()):
             self.logger.info(f"force-closing due to expiring htlcs")
             await self.try_force_closing(chan.channel_id)
             return
