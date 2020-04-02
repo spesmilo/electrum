@@ -86,7 +86,7 @@ class BTCAmountEdit(AmountEdit):
         self.decimal_point = decimal_point
 
     def _base_unit(self):
-        if self.token_symbol is "syscoin":
+        if self.token_symbol == "syscoin":
             return decimal_point_to_base_unit_name(self.decimal_point)
         else:
             return self.token_symbol
