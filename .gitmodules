@@ -2,7 +2,7 @@
 	path = contrib/osx/CalinsQRReader
 	url = https://github.com/spesmilo/CalinsQRReader
 [submodule "contrib/deterministic-build/electrumsys-locale"]
-	path = contrib/deterministic-build/electrumsys_locale
+	path = contrib/deterministic-build/electrumsys-locale
 	url = https://github.com/syscoin/electrumsys-locale
 [submodule "electrumsys/www"]
 	path = electrumsys/www
