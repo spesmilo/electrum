@@ -14,9 +14,8 @@ graft electrumsys/lnwire
 prune electrumsys/tests
 graft contrib/udev
 
-exclude electrumsys/*.so
-exclude electrumsys/*.so.0
-include electrumsys/libsecp256k1.so.0
+exclude electrum/*.so
+exclude electrum/*.so.0
 recursive-include packages *.json
 
 global-exclude __pycache__
