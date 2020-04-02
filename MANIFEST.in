@@ -2,6 +2,7 @@ include LICENCE RELEASE-NOTES AUTHORS
 include README.rst
 include electrumsys.desktop
 include *.py
+include *.csv
 include run_electrumsys
 include contrib/requirements/requirements.txt
 include contrib/requirements/requirements-hw.txt
@@ -9,6 +10,7 @@ recursive-include packages *.py
 recursive-include packages cacert.pem
 
 graft electrumsys
+graft electrumsys/lnwire
 prune electrumsys/tests
 graft contrib/udev
 
@@ -16,7 +18,6 @@ exclude electrumsys/*.so
 exclude electrumsys/*.so.0
 include electrumsys/libsecp256k1.so.0
 recursive-include packages *.json
-recursive-include packages *.csv
 
 global-exclude __pycache__
 global-exclude *.py[co~]
