@@ -96,19 +96,27 @@ def wizard_dialog(func):
     def func_wrapper(*args, **kwargs):
         run_next = kwargs['run_next']
         wizard = args[0]  # type: InstallWizard
-        wizard.back_button.setText(_('Back') if wizard.can_go_back() else _('Cancel'))
-        try:
-            out = func(*args, **kwargs)
-            if type(out) is not tuple:
-                out = (out,)
-            run_next(*out)
-        except GoBack:
-            if wizard.can_go_back():
-                wizard.go_back()
-                return
-            else:
-                wizard.close()
+        while True:
+            wizard.back_button.setText(_('Back') if wizard.can_go_back() else _('Cancel'))
+            # current dialog
+            try:
+                out = func(*args, **kwargs)
+                if type(out) is not tuple:
+                    out = (out,)
+            except GoBack:
+                if not wizard.can_go_back():
+                    wizard.close()
+                # to go back from the current dialog, we just let the caller unroll the stack:
                 raise
+            # next dialog
+            try:
+                run_next(*out)
+            except GoBack:
+                # to go back from the next dialog, we ask the wizard to restore state
+                wizard.go_back(rerun_previous=False)
+                # and we re-run the current dialog (by continuing)
+            else:
+                break
     return func_wrapper
 
 

@@ -113,18 +113,21 @@ class BaseWizard(Logger):
     def can_go_back(self):
         return len(self._stack) > 1
 
-    def go_back(self):
+    def go_back(self, *, rerun_previous: bool = True) -> None:
         if not self.can_go_back():
             return
         # pop 'current' frame
         self._stack.pop()
-        # pop 'previous' frame
-        stack_item = self._stack.pop()
+        prev_frame = self._stack[-1]
         # try to undo side effects since we last entered 'previous' frame
-        # FIXME only self.storage is properly restored
-        self.data = copy.deepcopy(stack_item.db_data)
-        # rerun 'previous' frame
-        self.run(stack_item.action, *stack_item.args, **stack_item.kwargs)
+        # FIXME only self.data is properly restored
+        self.data = copy.deepcopy(prev_frame.db_data)
+
+        if rerun_previous:
+            # pop 'previous' frame
+            self._stack.pop()
+            # rerun 'previous' frame
+            self.run(prev_frame.action, *prev_frame.args, **prev_frame.kwargs)
 
     def reset_stack(self):
         self._stack = []
