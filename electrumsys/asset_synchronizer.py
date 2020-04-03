@@ -95,6 +95,8 @@ class AssetSynchronizer(Logger):
     
 
     async def fetch_assethistory(self):
+        if self.xpub is None:
+            return
         url = 'api/v2/xpub/' + self.xpub
         url += '?details=txslight&page=' + str(self.current_page) + '&pageSize=' + str(self.results_per_page) + '&filter=tokens'
         res = await self.send_request(url)
