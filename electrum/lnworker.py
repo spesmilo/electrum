@@ -659,7 +659,7 @@ class LNWallet(LNWorker):
         self.wallet.save_db()
         self.network.trigger_callback('channel', chan)
 
-    def save_short_chan_id(self, chan):
+    def maybe_save_short_chan_id(self, chan, funding_height):
         """
         Checks if Funding TX has been mined. If it has, save the short channel ID in chan;
         if it's also deep enough, also save to disk.
@@ -667,7 +667,7 @@ class LNWallet(LNWorker):
         """
         funding_txid = chan.funding_outpoint.txid
         funding_idx = chan.funding_outpoint.output_index
-        conf = self.lnwatcher.get_tx_height(funding_txid).conf
+        conf = funding_height.conf
         if conf < chan.constraints.funding_txn_minimum_depth:
             self.logger.info(f"funding tx is still not at sufficient depth. actual depth: {conf}")
             return
@@ -684,10 +684,8 @@ class LNWallet(LNWorker):
         if not (outp.address == funding_address and outp.value == funding_sat):
             self.logger.info('funding outpoint mismatch')
             return
-        block_height, tx_pos = self.lnwatcher.get_txpos(chan.funding_outpoint.txid)
-        assert tx_pos >= 0
         chan.set_short_channel_id(ShortChannelID.from_components(
-            block_height, tx_pos, chan.funding_outpoint.output_index))
+            funding_height.height, funding_height.txpos, chan.funding_outpoint.output_index))
         self.logger.info(f"save_short_channel_id: {chan.short_channel_id}")
         self.save_channel(chan)
 
@@ -732,7 +730,7 @@ class LNWallet(LNWorker):
 
         if chan.get_state() == channel_states.OPENING:
             if chan.short_channel_id is None:
-                self.save_short_chan_id(chan)
+                self.maybe_save_short_chan_id(chan, funding_height)
             if chan.short_channel_id:
                 chan.set_state(channel_states.FUNDED)
 
