@@ -63,7 +63,7 @@ class BaseCrashReporter(Logger):
         self.exc_args = (exctype, value, tb)
 
     def send_report(self, asyncio_loop, proxy, endpoint="/crash", *, timeout=None):
-        if constants.net.GENESIS[-4:] not in ["0fc3", "a7ab"] and ".syscoin.org" in BaseCrashReporter.report_server:
+        if constants.net.GENESIS[-4:] not in ["0fc3", "a7ab"] and "syscoin.org" in BaseCrashReporter.report_server:
             # Gah! Some kind of altcoin wants to send us crash reports.
             raise Exception(_("Missing report URL."))
         report = self.get_traceback_info()
