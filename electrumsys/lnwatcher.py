@@ -341,23 +341,11 @@ class LNWalletWatcher(LNWatcher):
     @ignore_exceptions
     @log_exceptions
     async def update_channel_state(self, funding_outpoint, funding_txid, funding_height, closing_txid, closing_height, keep_watching):
-        # note: state transitions are irreversible, but
-        # save_funding_height, save_closing_height are reversible
         chan = self.lnworker.channel_by_txo(funding_outpoint)
         if not chan:
             return
-        if funding_height.height == TX_HEIGHT_LOCAL:
-            chan.delete_funding_height()
-            chan.delete_closing_height()
-            await self.lnworker.update_unfunded_channel(chan, funding_txid)
-        elif closing_height.height == TX_HEIGHT_LOCAL:
-            chan.save_funding_height(funding_txid, funding_height.height, funding_height.timestamp)
-            chan.delete_closing_height()
-            await self.lnworker.update_open_channel(chan, funding_txid, funding_height)
-        else:
-            chan.save_funding_height(funding_txid, funding_height.height, funding_height.timestamp)
-            chan.save_closing_height(closing_txid, closing_height.height, closing_height.timestamp)
-            await self.lnworker.update_closed_channel(chan, funding_txid, funding_height, closing_txid, closing_height, keep_watching)
+        chan.update_onchain_state(funding_txid, funding_height, closing_txid, closing_height, keep_watching)
+        await self.lnworker.on_channel_update(chan)
 
     async def do_breach_remedy(self, funding_outpoint, closing_tx, spenders):
         chan = self.lnworker.channel_by_txo(funding_outpoint)

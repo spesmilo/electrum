@@ -54,6 +54,7 @@ from .lnsweep import create_sweeptxs_for_our_ctx, create_sweeptxs_for_their_ctx
 from .lnsweep import create_sweeptx_for_their_revoked_htlc, SweepInfo
 from .lnhtlc import HTLCManager
 from .lnmsg import encode_msg, decode_msg
+from .address_synchronizer import TX_HEIGHT_LOCAL
 
 if TYPE_CHECKING:
     from .lnworker import LNWallet
@@ -1092,3 +1093,63 @@ class Channel(Logger):
         min_value_worth_closing_channel_over_sat = max(num_htlcs * 10 * self.config[REMOTE].dust_limit_sat,
                                                        500_000)
         return total_value_sat > min_value_worth_closing_channel_over_sat
+
+    def update_onchain_state(self, funding_txid, funding_height, closing_txid, closing_height, keep_watching):
+        # note: state transitions are irreversible, but
+        # save_funding_height, save_closing_height are reversible
+        if funding_height.height == TX_HEIGHT_LOCAL:
+            self.update_unfunded_state()
+        elif closing_height.height == TX_HEIGHT_LOCAL:
+            self.update_funded_state(funding_txid, funding_height)
+        else:
+            self.update_closed_state(funding_txid, funding_height, closing_txid, closing_height, keep_watching)
+
+    def update_unfunded_state(self):
+        self.delete_funding_height()
+        self.delete_closing_height()
+        if self.get_state() in [channel_states.PREOPENING, channel_states.OPENING, channel_states.FORCE_CLOSING] and self.lnworker:
+            if self.constraints.is_initiator:
+                # set channel state to REDEEMED so that it can be removed manually
+                # to protect ourselves against a server lying by omission,
+                # we check that funding_inputs have been double spent and deeply mined
+                inputs = self.storage.get('funding_inputs', [])
+                if not inputs:
+                    self.logger.info(f'channel funding inputs are not provided')
+                    self.set_state(channel_states.REDEEMED)
+                for i in inputs:
+                    spender_txid = self.lnworker.wallet.db.get_spent_outpoint(*i)
+                    if spender_txid is None:
+                        continue
+                    if spender_txid != self.funding_outpoint.txid:
+                        tx_mined_height = self.lnworker.wallet.get_tx_height(spender_txid)
+                        if tx_mined_height.conf > lnutil.REDEEM_AFTER_DOUBLE_SPENT_DELAY:
+                            self.logger.info(f'channel is double spent {inputs}')
+                            self.set_state(channel_states.REDEEMED)
+                            break
+            else:
+                now = int(time.time())
+                if now - self.storage.get('init_timestamp', 0) > CHANNEL_OPENING_TIMEOUT:
+                    self.lnworker.remove_channel(self.channel_id)
+
+    def update_funded_state(self, funding_txid, funding_height):
+        self.save_funding_height(funding_txid, funding_height.height, funding_height.timestamp)
+        self.delete_closing_height()
+        if self.get_state() == channel_states.OPENING:
+            if self.short_channel_id is None:
+                self.lnworker.maybe_save_short_chan_id(self, funding_height)
+            if self.short_channel_id:
+                self.set_state(channel_states.FUNDED)
+
+    def update_closed_state(self, funding_txid, funding_height, closing_txid, closing_height, keep_watching):
+        self.save_funding_height(funding_txid, funding_height.height, funding_height.timestamp)
+        self.save_closing_height(closing_txid, closing_height.height, closing_height.timestamp)
+        if self.get_state() < channel_states.CLOSED:
+            conf = closing_height.conf
+            if conf > 0:
+                self.set_state(channel_states.CLOSED)
+            else:
+                # we must not trust the server with unconfirmed transactions
+                # if the remote force closed, we remain OPEN until the closing tx is confirmed
+                pass
+        if self.get_state() == channel_states.CLOSED and not keep_watching:
+            self.set_state(channel_states.REDEEMED)
