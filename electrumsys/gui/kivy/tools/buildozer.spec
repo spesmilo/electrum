@@ -23,9 +23,7 @@ source.exclude_dirs = bin, build, dist, contrib,
     electrumsys/tests,
     electrumsys/gui/qt,
     electrumsys/gui/kivy/tools,
-    electrumsys/gui/kivy/theming/light,
-    # exclude pycryptodomex built by make_packages; android needs custom version
-    packages/cryptodome
+    electrumsys/gui/kivy/theming/light
 # (list) List of exclusions using pattern matching
 source.exclude_patterns = Makefile,setup*
 
@@ -46,7 +44,7 @@ requirements =
     kivy==39c17457bae91baf8fe710dc989791e45879f136,
     libffi,
     libsecp256k1,
-    pycryptodomex==bfc1cca093a7344c9ed2b7c34bc560db6dca662a
+    cryptography
 
 # (str) Presplash of the application
 #presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png

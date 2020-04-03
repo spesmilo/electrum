@@ -163,7 +163,7 @@ RUN cd /opt \
     && cd python-for-android \
     && git remote add sombernight https://github.com/SomberNight/python-for-android \
     && git fetch --all \
-    && git checkout 5ab509ad41e2e56026174dffcf280cf1d14d54ca \
+    && git checkout 690a8ecc8d1c7f446d42f53a89af06c9a2d00e4e \
     && python3 -m pip install --user -e .
 
 # build env vars
