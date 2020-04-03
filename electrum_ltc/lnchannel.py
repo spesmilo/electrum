@@ -218,13 +218,13 @@ class Channel(Logger):
             short_channel_id=self.short_channel_id,
             channel_flags=channel_flags,
             message_flags=b'\x01',
-            cltv_expiry_delta=lnutil.NBLOCK_OUR_CLTV_EXPIRY_DELTA.to_bytes(2, byteorder="big"),
-            htlc_minimum_msat=self.config[REMOTE].htlc_minimum_msat.to_bytes(8, byteorder="big"),
-            htlc_maximum_msat=htlc_maximum_msat.to_bytes(8, byteorder="big"),
-            fee_base_msat=lnutil.OUR_FEE_BASE_MSAT.to_bytes(4, byteorder="big"),
-            fee_proportional_millionths=lnutil.OUR_FEE_PROPORTIONAL_MILLIONTHS.to_bytes(4, byteorder="big"),
+            cltv_expiry_delta=lnutil.NBLOCK_OUR_CLTV_EXPIRY_DELTA,
+            htlc_minimum_msat=self.config[REMOTE].htlc_minimum_msat,
+            htlc_maximum_msat=htlc_maximum_msat,
+            fee_base_msat=lnutil.OUR_FEE_BASE_MSAT,
+            fee_proportional_millionths=lnutil.OUR_FEE_PROPORTIONAL_MILLIONTHS,
             chain_hash=constants.net.rev_genesis_bytes(),
-            timestamp=now.to_bytes(4, byteorder="big"),
+            timestamp=now,
         )
         sighash = sha256d(chan_upd[2 + 64:])
         sig = ecc.ECPrivkey(self.lnworker.node_keypair.privkey).sign(sighash, ecc.sig_string_from_r_and_s)
@@ -249,7 +249,8 @@ class Channel(Logger):
             node_ids = sorted_node_ids
             bitcoin_keys.reverse()
 
-        chan_ann = encode_msg("channel_announcement",
+        chan_ann = encode_msg(
+            "channel_announcement",
             len=0,
             features=b'',
             chain_hash=constants.net.rev_genesis_bytes(),
@@ -257,7 +258,7 @@ class Channel(Logger):
             node_id_1=node_ids[0],
             node_id_2=node_ids[1],
             bitcoin_key_1=bitcoin_keys[0],
-            bitcoin_key_2=bitcoin_keys[1]
+            bitcoin_key_2=bitcoin_keys[1],
         )
 
         self._chan_ann_without_sigs = chan_ann
@@ -1059,3 +1060,35 @@ class Channel(Logger):
         next_htlcs = self.hm.get_htlcs_in_next_ctx(subject)
         latest_htlcs = self.hm.get_htlcs_in_latest_ctx(subject)
         return not (next_htlcs == latest_htlcs and self.get_next_feerate(subject) == self.get_latest_feerate(subject))
+
+    def should_be_closed_due_to_expiring_htlcs(self, local_height) -> bool:
+        htlcs_we_could_reclaim = {}  # type: Dict[Tuple[Direction, int], UpdateAddHtlc]
+        # If there is a received HTLC for which we already released the preimage
+        # but the remote did not revoke yet, and the CLTV of this HTLC is dangerously close
+        # to the present, then unilaterally close channel
+        recv_htlc_deadline = lnutil.NBLOCK_DEADLINE_BEFORE_EXPIRY_FOR_RECEIVED_HTLCS
+        for sub, dir, ctn in ((LOCAL, RECEIVED, self.get_latest_ctn(LOCAL)),
+                              (REMOTE, SENT, self.get_oldest_unrevoked_ctn(LOCAL)),
+                              (REMOTE, SENT, self.get_latest_ctn(LOCAL)),):
+            for htlc_id, htlc in self.hm.htlcs_by_direction(subject=sub, direction=dir, ctn=ctn).items():
+                if not self.hm.was_htlc_preimage_released(htlc_id=htlc_id, htlc_sender=REMOTE):
+                    continue
+                if htlc.cltv_expiry - recv_htlc_deadline > local_height:
+                    continue
+                htlcs_we_could_reclaim[(RECEIVED, htlc_id)] = htlc
+        # If there is an offered HTLC which has already expired (+ some grace period after), we
+        # will unilaterally close the channel and time out the HTLC
+        offered_htlc_deadline = lnutil.NBLOCK_DEADLINE_AFTER_EXPIRY_FOR_OFFERED_HTLCS
+        for sub, dir, ctn in ((LOCAL, SENT, self.get_latest_ctn(LOCAL)),
+                              (REMOTE, RECEIVED, self.get_oldest_unrevoked_ctn(LOCAL)),
+                              (REMOTE, RECEIVED, self.get_latest_ctn(LOCAL)),):
+            for htlc_id, htlc in self.hm.htlcs_by_direction(subject=sub, direction=dir, ctn=ctn).items():
+                if htlc.cltv_expiry + offered_htlc_deadline > local_height:
+                    continue
+                htlcs_we_could_reclaim[(SENT, htlc_id)] = htlc
+
+        total_value_sat = sum([htlc.amount_msat // 1000 for htlc in htlcs_we_could_reclaim.values()])
+        num_htlcs = len(htlcs_we_could_reclaim)
+        min_value_worth_closing_channel_over_sat = max(num_htlcs * 10 * self.config[REMOTE].dust_limit_sat,
+                                                       500_000)
+        return total_value_sat > min_value_worth_closing_channel_over_sat

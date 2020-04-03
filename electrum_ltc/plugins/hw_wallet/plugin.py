@@ -36,6 +36,7 @@ from electrum_ltc.storage import get_derivation_used_for_hw_device_encryption
 from electrum_ltc.keystore import Xpub, Hardware_KeyStore
 
 if TYPE_CHECKING:
+    import threading
     from electrum_ltc.wallet import Abstract_Wallet
     from electrum_ltc.base_wizard import BaseWizard
 
@@ -64,10 +65,21 @@ class HW_PluginBase(BasePlugin):
             if isinstance(keystore, self.keystore_class):
                 self.device_manager().unpair_xpub(keystore.xpub)
 
+    def scan_and_create_client_for_device(self, *, device_id: str, wizard: 'BaseWizard') -> 'HardwareClientBase':
+        devmgr = self.device_manager()
+        client = devmgr.client_by_id(device_id)
+        if client is None:
+            raise UserFacingException(_('Failed to create a client for this device.') + '\n' +
+                                      _('Make sure it is in the correct state.'))
+        client.handler = self.create_handler(wizard)
+        return client
+
     def setup_device(self, device_info: DeviceInfo, wizard: 'BaseWizard', purpose):
         """Called when creating a new wallet or when using the device to decrypt
         an existing wallet. Select the device to use.  If the device is
         uninitialized, go through the initialization process.
+
+        Runs in GUI thread.
         """
         raise NotImplementedError()
 
@@ -209,6 +221,11 @@ class HardwareHandlerBase:
         if self.win is not None:
             if hasattr(self.win, 'wallet'):
                 return self.win.wallet
+
+    def get_gui_thread(self) -> Optional['threading.Thread']:
+        if self.win is not None:
+            if hasattr(self.win, 'gui_thread'):
+                return self.win.gui_thread
 
     def update_status(self, paired: bool) -> None:
         pass

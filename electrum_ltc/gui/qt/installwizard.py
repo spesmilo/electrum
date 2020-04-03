@@ -31,6 +31,8 @@ from electrum_ltc.plugin import run_hook, Plugins
 
 if TYPE_CHECKING:
     from electrum_ltc.simple_config import SimpleConfig
+    from electrum_ltc.wallet_db import WalletDB
+    from . import ElectrumGui
 
 
 MSG_ENTER_PASSWORD = _("Choose a password to encrypt your wallet keys.") + '\n'\
@@ -121,12 +123,13 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     accept_signal = pyqtSignal()
 
-    def __init__(self, config: 'SimpleConfig', app: QApplication, plugins: 'Plugins'):
+    def __init__(self, config: 'SimpleConfig', app: QApplication, plugins: 'Plugins', *, gui_object: 'ElectrumGui'):
         QDialog.__init__(self, None)
         BaseWizard.__init__(self, config, plugins)
         self.setWindowTitle('Electrum-LTC  -  ' + _('Install Wizard'))
         self.app = app
         self.config = config
+        self.gui_thread = gui_object.gui_thread
         self.setMinimumSize(600, 400)
         self.accept_signal.connect(self.accept)
         self.title = QLabel()
@@ -304,7 +307,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                                               _('If you use a passphrase, make sure it is correct.'))
                         self.reset_stack()
                         return self.select_storage(path, get_wallet_from_daemon)
-                    except UserCancelled:
+                    except (UserCancelled, GoBack):
                         raise
                     except BaseException as e:
                         self.logger.exception('')
@@ -319,7 +322,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
         return temp_storage.path, (temp_storage if temp_storage.file_exists() else None)
 
-    def run_upgrades(self, storage, db):
+    def run_upgrades(self, storage: WalletStorage, db: 'WalletDB') -> None:
         path = storage.path
         if db.requires_split():
             self.hide()
@@ -357,8 +360,6 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
         if db.requires_upgrade():
             self.upgrade_db(storage, db)
-
-        return db
 
     def on_error(self, exc_info):
         if not isinstance(exc_info[1], UserCancelled):
@@ -527,6 +528,26 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                 break
         if on_finished:
             on_finished()
+
+    def run_task_without_blocking_gui(self, task, *, msg=None):
+        assert self.gui_thread == threading.current_thread(), 'must be called from GUI thread'
+        if msg is None:
+            msg = _("Please wait...")
+
+        exc = None  # type: Optional[Exception]
+        res = None
+        def task_wrapper():
+            nonlocal exc
+            nonlocal res
+            try:
+                res = task()
+            except Exception as e:
+                exc = e
+        self.waiting_dialog(task_wrapper, msg=msg)
+        if exc is None:
+            return res
+        else:
+            raise exc
 
     @wizard_dialog
     def choice_dialog(self, title, message, choices, run_next):

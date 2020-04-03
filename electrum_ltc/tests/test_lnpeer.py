@@ -21,7 +21,7 @@ from electrum_ltc.util import bh2u, create_and_start_event_loop
 from electrum_ltc.lnpeer import Peer
 from electrum_ltc.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
 from electrum_ltc.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
-from electrum_ltc.lnutil import PaymentFailure, LnLocalFeatures, HTLCOwner
+from electrum_ltc.lnutil import PaymentFailure, LnFeatures, HTLCOwner
 from electrum_ltc.lnchannel import channel_states, peer_states, Channel
 from electrum_ltc.lnrouter import LNPathFinder
 from electrum_ltc.channel_db import ChannelDB
@@ -95,8 +95,8 @@ class MockLNWallet(Logger):
         self.payments = {}
         self.logs = defaultdict(list)
         self.wallet = MockWallet()
-        self.localfeatures = LnLocalFeatures(0)
-        self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT
+        self.features = LnFeatures(0)
+        self.features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
         self.pending_payments = defaultdict(asyncio.Future)
         chan.lnworker = self
         chan.node_id = remote_keypair.pubkey
@@ -235,8 +235,8 @@ class TestPeer(ElectrumTestCase):
         w2.save_preimage(RHASH, payment_preimage)
         w2.save_payment_info(info)
         lnaddr = LnAddr(
-                    RHASH,
-                    amount_btc,
+                    paymenthash=RHASH,
+                    amount=amount_btc,
                     tags=[('c', lnutil.MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE),
                           ('d', 'coffee')
                          ])
@@ -317,8 +317,9 @@ class TestPeer(ElectrumTestCase):
         alice_init_balance_msat = alice_channel.balance(HTLCOwner.LOCAL)
         bob_init_balance_msat = bob_channel.balance(HTLCOwner.LOCAL)
         num_payments = 50
+        payment_value_sat = 10000  # make it large enough so that there are actually HTLCs on the ctx
         #pay_reqs1 = [self.prepare_invoice(w1, amount_sat=1) for i in range(num_payments)]
-        pay_reqs2 = [self.prepare_invoice(w2, amount_sat=1) for i in range(num_payments)]
+        pay_reqs2 = [self.prepare_invoice(w2, amount_sat=payment_value_sat) for i in range(num_payments)]
         max_htlcs_in_flight = asyncio.Semaphore(5)
         async def single_payment(pay_req):
             async with max_htlcs_in_flight:
@@ -333,10 +334,10 @@ class TestPeer(ElectrumTestCase):
             await gath
         with self.assertRaises(concurrent.futures.CancelledError):
             run(f())
-        self.assertEqual(alice_init_balance_msat - num_payments * 1000, alice_channel.balance(HTLCOwner.LOCAL))
-        self.assertEqual(alice_init_balance_msat - num_payments * 1000, bob_channel.balance(HTLCOwner.REMOTE))
-        self.assertEqual(bob_init_balance_msat + num_payments * 1000, bob_channel.balance(HTLCOwner.LOCAL))
-        self.assertEqual(bob_init_balance_msat + num_payments * 1000, alice_channel.balance(HTLCOwner.REMOTE))
+        self.assertEqual(alice_init_balance_msat - num_payments * payment_value_sat * 1000, alice_channel.balance(HTLCOwner.LOCAL))
+        self.assertEqual(alice_init_balance_msat - num_payments * payment_value_sat * 1000, bob_channel.balance(HTLCOwner.REMOTE))
+        self.assertEqual(bob_init_balance_msat + num_payments * payment_value_sat * 1000, bob_channel.balance(HTLCOwner.LOCAL))
+        self.assertEqual(bob_init_balance_msat + num_payments * payment_value_sat * 1000, alice_channel.balance(HTLCOwner.REMOTE))
 
     @needs_test_with_all_chacha20_implementations
     def test_close(self):
@@ -354,7 +355,12 @@ class TestPeer(ElectrumTestCase):
             await asyncio.wait_for(p2.initialized, 1)
             # alice sends htlc
             route = w1._create_route_from_invoice(decoded_invoice=lnaddr)
-            htlc = p1.pay(route, alice_channel, int(lnaddr.amount * COIN * 1000), lnaddr.paymenthash, lnaddr.get_min_final_cltv_expiry())
+            htlc = p1.pay(route=route,
+                          chan=alice_channel,
+                          amount_msat=int(lnaddr.amount * COIN * 1000),
+                          payment_hash=lnaddr.paymenthash,
+                          min_final_cltv_expiry=lnaddr.get_min_final_cltv_expiry(),
+                          payment_secret=lnaddr.payment_secret)
             # alice closes
             await p1.close_channel(alice_channel.channel_id)
             gath.cancel()

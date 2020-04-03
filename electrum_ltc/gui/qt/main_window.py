@@ -379,6 +379,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         elif isinstance(e, UserFacingException):
             self.show_error(str(e))
         else:
+            # TODO would be nice if we just sent these to the crash reporter...
+            #      anything we don't want to send there, we should explicitly catch
+            # send_exception_to_crash_reporter(e)
             try:
                 self.logger.error("on_error", exc_info=exc_info)
             except OSError:

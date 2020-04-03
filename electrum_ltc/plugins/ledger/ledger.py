@@ -230,6 +230,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
         self.force_watching_only = False
         self.signing = False
         self.cfg = d.get('cfg', {'mode': 0})
+        self.cfg = dict(self.cfg)  # convert to dict from StoredDict (see #6066)
 
     def dump(self):
         obj = Hardware_KeyStore.dump(self)
@@ -589,21 +590,15 @@ class LedgerPlugin(HW_PluginBase):
         return client
 
     def setup_device(self, device_info, wizard, purpose):
-        devmgr = self.device_manager()
         device_id = device_info.device.id_
-        client = devmgr.client_by_id(device_id)
-        if client is None:
-            raise UserFacingException(_('Failed to create a client for this device.') + '\n' +
-                                      _('Make sure it is in the correct state.'))
-        client.handler = self.create_handler(wizard)
-        client.get_xpub("m/44'/2'", 'standard') # TODO replace by direct derivation once Nano S > 1.1
+        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
+        wizard.run_task_without_blocking_gui(
+            task=lambda: client.get_xpub("m/44'/2'", 'standard'))  # TODO replace by direct derivation once Nano S > 1.1
 
     def get_xpub(self, device_id, derivation, xtype, wizard):
         if xtype not in self.SUPPORTED_XTYPES:
             raise ScriptTypeNotSupported(_('This type of script is not supported with {}.').format(self.device))
-        devmgr = self.device_manager()
-        client = devmgr.client_by_id(device_id)
-        client.handler = self.create_handler(wizard)
+        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
         client.checkDevice()
         xpub = client.get_xpub(derivation, xtype)
         return xpub
@@ -612,8 +607,7 @@ class LedgerPlugin(HW_PluginBase):
         # All client interaction should not be in the main GUI thread
         devmgr = self.device_manager()
         handler = keystore.handler
-        with devmgr.hid_lock:
-            client = devmgr.client_for_keystore(self, handler, keystore, force_pair)
+        client = devmgr.client_for_keystore(self, handler, keystore, force_pair)
         # returns the client for a given keystore. can use xpub
         #if client:
         #    client.used()

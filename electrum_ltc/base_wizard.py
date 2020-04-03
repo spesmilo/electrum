@@ -40,7 +40,7 @@ from .wallet import (Imported_Wallet, Standard_Wallet, Multisig_Wallet,
 from .storage import WalletStorage, StorageEncryptionVersion
 from .wallet_db import WalletDB
 from .i18n import _
-from .util import UserCancelled, InvalidPassword, WalletFileException
+from .util import UserCancelled, InvalidPassword, WalletFileException, UserFacingException
 from .simple_config import SimpleConfig
 from .plugin import Plugins, HardwarePluginLibraryUnavailable
 from .logging import Logger
@@ -144,7 +144,7 @@ class BaseWizard(Logger):
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.on_wallet_type)
 
     def upgrade_db(self, storage, db):
-        exc = None
+        exc = None  # type: Optional[Exception]
         def on_finished():
             if exc is None:
                 self.terminate(storage=storage, db=db)
@@ -157,6 +157,13 @@ class BaseWizard(Logger):
             except Exception as e:
                 exc = e
         self.waiting_dialog(do_upgrade, _('Upgrading wallet format...'), on_finished=on_finished)
+
+    def run_task_without_blocking_gui(self, task, *, msg: str = None) -> Any:
+        """Perform a task in a thread without blocking the GUI.
+        Returns the result of 'task', or raises the same exception.
+        This method blocks until 'task' is finished.
+        """
+        raise NotImplementedError()
 
     def load_2fa(self):
         self.data['wallet_type'] = '2fa'
@@ -356,6 +363,10 @@ class BaseWizard(Logger):
         except (UserCancelled, GoBack):
             self.choose_hw_device(purpose, storage=storage)
             return
+        except UserFacingException as e:
+            self.show_error(str(e))
+            self.choose_hw_device(purpose, storage=storage)
+            return
         except BaseException as e:
             self.logger.exception('')
             self.show_error(str(e))
@@ -417,6 +428,7 @@ class BaseWizard(Logger):
     def on_hw_derivation(self, name, device_info: 'DeviceInfo', derivation, xtype):
         from .keystore import hardware_keystore
         devmgr = self.plugins.device_manager
+        assert isinstance(self.plugin, HW_PluginBase)
         try:
             xpub = self.plugin.get_xpub(device_info.device.id_, derivation, xtype, self)
             client = devmgr.client_by_id(device_info.device.id_)

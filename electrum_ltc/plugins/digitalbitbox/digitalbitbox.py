@@ -234,10 +234,9 @@ class DigitalBitbox_Client(HardwareClientBase):
             (_("Load a wallet from the micro SD card (the current seed is overwritten)")),
             (_("Erase the Digital Bitbox"))
         ]
-        try:
-            reply = self.handler.win.query_choice(msg, choices)
-        except Exception:
-            return # Back button pushed
+        reply = self.handler.query_choice(msg, choices)
+        if reply is None:
+            return  # user cancelled
         if reply == 2:
             self.dbb_erase()
         elif reply == 1:
@@ -256,10 +255,9 @@ class DigitalBitbox_Client(HardwareClientBase):
             (_("Generate a new random wallet")),
             (_("Load a wallet from the micro SD card"))
         ]
-        try:
-            reply = self.handler.win.query_choice(msg, choices)
-        except Exception:
-            return # Back button pushed
+        reply = self.handler.query_choice(msg, choices)
+        if reply is None:
+            return  # user cancelled
         if reply == 0:
             self.dbb_generate_wallet()
         else:
@@ -297,10 +295,9 @@ class DigitalBitbox_Client(HardwareClientBase):
             _('Do not pair'),
             _('Import pairing from the Digital Bitbox desktop app'),
         ]
-        try:
-            reply = self.handler.win.query_choice(_('Mobile pairing options'), choices)
-        except Exception:
-            return # Back button pushed
+        reply = self.handler.query_choice(_('Mobile pairing options'), choices)
+        if reply is None:
+            return  # user cancelled
 
         if reply == 0:
             if self.plugin.is_mobile_paired():
@@ -338,10 +335,9 @@ class DigitalBitbox_Client(HardwareClientBase):
         backups = self.hid_send_encrypt(b'{"backup":"list"}')
         if 'error' in backups:
             raise UserFacingException(backups['error']['message'])
-        try:
-            f = self.handler.win.query_choice(_("Choose a backup file:"), backups['backup'])
-        except Exception:
-            return False # Back button pushed
+        f = self.handler.query_choice(_("Choose a backup file:"), backups['backup'])
+        if f is None:
+            return False  # user cancelled
         key = self.backup_password_dialog()
         if key is None:
             raise Exception('Canceled by user')
@@ -707,16 +703,12 @@ class DigitalBitboxPlugin(HW_PluginBase):
 
 
     def setup_device(self, device_info, wizard, purpose):
-        devmgr = self.device_manager()
         device_id = device_info.device.id_
-        client = devmgr.client_by_id(device_id)
-        if client is None:
-            raise Exception(_('Failed to create a client for this device.') + '\n' +
-                            _('Make sure it is in the correct state.'))
-        client.handler = self.create_handler(wizard)
+        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
         if purpose == HWD_SETUP_NEW_WALLET:
             client.setupRunning = True
-        client.get_xpub("m/44'/2'", 'standard')
+        wizard.run_task_without_blocking_gui(
+            task=lambda: client.get_xpub("m/44'/2'", 'standard'))
 
 
     def is_mobile_paired(self):
@@ -743,9 +735,7 @@ class DigitalBitboxPlugin(HW_PluginBase):
             raise ScriptTypeNotSupported(_('This type of script is not supported with {}.').format(self.device))
         if is_all_public_derivation(derivation):
             raise Exception(f"The {self.device} does not reveal xpubs corresponding to non-hardened paths. (path: {derivation})")
-        devmgr = self.device_manager()
-        client = devmgr.client_by_id(device_id)
-        client.handler = self.create_handler(wizard)
+        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
         client.check_device_dialog()
         xpub = client.get_xpub(derivation, xtype)
         return xpub
@@ -754,8 +744,7 @@ class DigitalBitboxPlugin(HW_PluginBase):
     def get_client(self, keystore, force_pair=True):
         devmgr = self.device_manager()
         handler = keystore.handler
-        with devmgr.hid_lock:
-            client = devmgr.client_for_keystore(self, handler, keystore, force_pair)
+        client = devmgr.client_for_keystore(self, handler, keystore, force_pair)
         if client is not None:
             client.check_device_dialog()
         return client
