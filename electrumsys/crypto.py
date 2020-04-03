@@ -189,22 +189,17 @@ def _hash_password(password: Union[bytes, str], *, version: int) -> bytes:
         raise UnexpectedPasswordHashVersion(version)
 
 
-def pw_encode(data: str, password: Union[bytes, str, None], *, version: int) -> str:
-    if not password:
-        return data
+def pw_encode_bytes(data: bytes, password: Union[bytes, str], *, version: int) -> str:
     if version not in KNOWN_PW_HASH_VERSIONS:
         raise UnexpectedPasswordHashVersion(version)
     # derive key from password
     secret = _hash_password(password, version=version)
     # encrypt given data
-    ciphertext = EncodeAES_bytes(secret, to_bytes(data, "utf8"))
+    ciphertext = EncodeAES_bytes(secret, data)
     ciphertext_b64 = base64.b64encode(ciphertext)
     return ciphertext_b64.decode('utf8')
 
-
-def pw_decode(data: str, password: Union[bytes, str, None], *, version: int) -> str:
-    if password is None:
-        return data
+def pw_decode_bytes(data: str, password: Union[bytes, str], *, version: int) -> bytes:
     if version not in KNOWN_PW_HASH_VERSIONS:
         raise UnexpectedPasswordHashVersion(version)
     data_bytes = bytes(base64.b64decode(data))
@@ -212,10 +207,20 @@ def pw_decode(data: str, password: Union[bytes, str, None], *, version: int) -> 
     secret = _hash_password(password, version=version)
     # decrypt given data
     try:
-        d = to_string(DecodeAES_bytes(secret, data_bytes), "utf8")
+        d = DecodeAES_bytes(secret, data_bytes)
     except Exception as e:
         raise InvalidPassword() from e
     return d
+
+def pw_encode(data: str, password: Union[bytes, str, None], *, version: int) -> str:
+    if not password:
+        return data
+    return pw_encode_bytes(to_bytes(data, "utf8"), password, version=version)
+
+def pw_decode(data: str, password: Union[bytes, str, None], *, version: int) -> str:
+    if password is None:
+        return data
+    return to_string(pw_decode_bytes(data, password, version=version), "utf8")
 
 
 def sha256(x: Union[bytes, str]) -> bytes:
