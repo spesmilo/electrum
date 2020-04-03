@@ -271,18 +271,21 @@ class NetworkChoiceLayout(object):
         self.proxy_password.setPlaceholderText(_("Password"))
         self.proxy_password.setEchoMode(QLineEdit.Password)
         self.proxy_password.setFixedWidth(fixed_width_port)
+        self.proxy_isolate = QCheckBox(_("Use stream isolation"))
 
         self.proxy_mode.currentIndexChanged.connect(self.set_proxy)
         self.proxy_host.editingFinished.connect(self.set_proxy)
         self.proxy_port.editingFinished.connect(self.set_proxy)
         self.proxy_user.editingFinished.connect(self.set_proxy)
         self.proxy_password.editingFinished.connect(self.set_proxy)
+        self.proxy_isolate.clicked.connect(self.set_proxy)
 
         self.proxy_mode.currentIndexChanged.connect(self.proxy_settings_changed)
         self.proxy_host.textEdited.connect(self.proxy_settings_changed)
         self.proxy_port.textEdited.connect(self.proxy_settings_changed)
         self.proxy_user.textEdited.connect(self.proxy_settings_changed)
         self.proxy_password.textEdited.connect(self.proxy_settings_changed)
+        self.proxy_isolate.clicked.connect(self.proxy_settings_changed)
 
         self.tor_cb = QCheckBox(_("Use Tor Proxy"))
         self.tor_cb.setIcon(read_QIcon("tor_logo.png"))
@@ -297,6 +300,7 @@ class NetworkChoiceLayout(object):
         grid.addWidget(self.proxy_port, 4, 3)
         grid.addWidget(self.proxy_user, 5, 2)
         grid.addWidget(self.proxy_password, 5, 3)
+        grid.addWidget(self.proxy_isolate, 6, 2)
         grid.setRowStretch(7, 1)
 
         # Blockchain Tab
@@ -342,7 +346,7 @@ class NetworkChoiceLayout(object):
     def check_disable_proxy(self, b):
         if not self.config.is_modifiable('proxy'):
             b = False
-        for w in [self.proxy_mode, self.proxy_host, self.proxy_port, self.proxy_user, self.proxy_password]:
+        for w in [self.proxy_mode, self.proxy_host, self.proxy_port, self.proxy_user, self.proxy_password, self.proxy_isolate]:
             w.setEnabled(b)
 
     def enable_set_server(self):
@@ -407,6 +411,7 @@ class NetworkChoiceLayout(object):
         self.proxy_port.setText(proxy_config.get("port"))
         self.proxy_user.setText(proxy_config.get("user", ""))
         self.proxy_password.setText(proxy_config.get("password", ""))
+        self.proxy_isolate.setChecked(proxy_config.get("isolate", True))
 
     def layout(self):
         return self.layout_
@@ -474,7 +479,8 @@ class NetworkChoiceLayout(object):
                       'host':str(self.proxy_host.text()),
                       'port':str(self.proxy_port.text()),
                       'user':str(self.proxy_user.text()),
-                      'password':str(self.proxy_password.text())}
+                      'password':str(self.proxy_password.text()),
+                      'isolate':self.proxy_isolate.isChecked()}
         else:
             proxy = None
             self.tor_cb.setChecked(False)
@@ -507,6 +513,7 @@ class NetworkChoiceLayout(object):
             self.proxy_port.setText(str(self.tor_proxy[1]))
             self.proxy_user.setText("")
             self.proxy_password.setText("")
+            self.proxy_isolate.setChecked(True)
             self.tor_cb.setChecked(True)
             self.proxy_cb.setChecked(True)
         self.check_disable_proxy(use_it)

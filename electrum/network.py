@@ -153,7 +153,8 @@ def serialize_proxy(p):
     if not isinstance(p, dict):
         return None
     return ':'.join([p.get('mode'), p.get('host'), p.get('port'),
-                     p.get('user', ''), p.get('password', '')])
+                     p.get('user', ''), p.get('password', ''),
+                     ('1' if p.get('isolate', True) else '0')])
 
 
 def deserialize_proxy(s: str) -> Optional[dict]:
@@ -181,6 +182,17 @@ def deserialize_proxy(s: str) -> Optional[dict]:
         n += 1
     if len(args) > n:
         proxy["password"] = args[n]
+        n += 1
+    if len(args) > n:
+        isolate = args[n]
+        if isolate == "0":
+            proxy["isolate"] = False
+        elif isolate == "1":
+            proxy["isolate"] = True
+        else:
+            raise Exception("Couldn't parse proxy isolation setting: " + isolate)
+    else:
+        proxy["isolate"] = True
     return proxy
 
 
