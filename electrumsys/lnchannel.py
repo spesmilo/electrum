@@ -55,6 +55,7 @@ from .lnsweep import create_sweeptx_for_their_revoked_htlc, SweepInfo
 from .lnhtlc import HTLCManager
 from .lnmsg import encode_msg, decode_msg
 from .address_synchronizer import TX_HEIGHT_LOCAL
+from .lnutil import CHANNEL_OPENING_TIMEOUT
 
 if TYPE_CHECKING:
     from .lnworker import LNWallet

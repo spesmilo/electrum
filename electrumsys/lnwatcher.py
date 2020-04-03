@@ -329,7 +329,6 @@ class WatchTower(LNWatcher):
 
 
 
-CHANNEL_OPENING_TIMEOUT = 24*60*60
 
 class LNWalletWatcher(LNWatcher):
 
