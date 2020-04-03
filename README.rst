@@ -6,7 +6,7 @@ ElectrumSys - Lightweight Syscoin client (AuxPoW fork)
   Licence: GNU GPLv3+ for ElectrumSys-DOGE components; MIT Licence for all other components
   Author: The Syscoin developers; based on ElectrumSys by Thomas Voegtlin and ElectrumSys-DOGE by The ElectrumSys-DOGE contributors
   Language: Python (>= 3.6)
-  Homepage: https://syscoin.org/ ; original ElectrumSys Homepage at https://electrumsys.syscoin.org/
+  Homepage: https://syscoin.org/ ; original ElectrumSys Homepage at https://electrum.syscoin.org/
 
 
 .. image:: https://travis-ci.org/syscoin/electrumsys.svg?branch=master
@@ -28,7 +28,7 @@ Getting started
 
 (*If you've come here looking to simply run ElectrumSys,* `you may download it here`_.)
 
-.. _you may download it here: https://electrumsys.syscoin.org/#download
+.. _you may download it here: https://electrum.syscoin.org/#download
 
 ElectrumSys itself is pure Python, and so are most of the required dependencies,
 but not everything. The following sections describe how to run from source, but here

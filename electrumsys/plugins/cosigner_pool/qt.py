@@ -46,7 +46,7 @@ if TYPE_CHECKING:
     from electrumsys.gui.qt.main_window import ElectrumSysWindow
 
 
-server = ServerProxy('https://cosigner.electrumsys.syscoin.org/', allow_none=True)
+server = ServerProxy('https://cosigner.electrum.syscoin.org/', allow_none=True)
 
 
 class Listener(util.DaemonThread):
