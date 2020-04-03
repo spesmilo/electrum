@@ -78,7 +78,7 @@ setup(
         'electrumsys': 'electrumsys'
     },
     package_data={
-        '': ['*.txt', '*.json', '*.ttf', '*.otf'],
+        '': ['*.txt', '*.json', '*.ttf', '*.otf', '*.csv'],
         'electrumsys': [
             'wordlist/*.txt',
             'locale/*/LC_MESSAGES/electrumsys.mo',
