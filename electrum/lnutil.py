@@ -175,6 +175,8 @@ DEFAULT_TO_SELF_DELAY = 144
 
 REDEEM_AFTER_DOUBLE_SPENT_DELAY = 30
 
+CHANNEL_OPENING_TIMEOUT = 24*60*60
+
 ##### CLTV-expiry-delta-related values
 # see https://github.com/lightningnetwork/lightning-rfc/blob/master/02-peer-protocol.md#cltv_expiry_delta-selection
 

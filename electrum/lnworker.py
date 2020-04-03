@@ -63,7 +63,7 @@ from .i18n import _
 from .lnrouter import RouteEdge, LNPaymentRoute, is_route_sane_to_use
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from . import lnsweep
-from .lnwatcher import LNWalletWatcher, CHANNEL_OPENING_TIMEOUT
+from .lnwatcher import LNWalletWatcher
 
 if TYPE_CHECKING:
     from .network import Network
