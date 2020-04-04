@@ -129,7 +129,7 @@ You need to install **either** `MacPorts <https://www.macports.org>`_  **or** `H
 3. Install PyQt5: ``python3 -m pip install --user pyqt5``
 4. Install Electron Cash requirements: ``python3 -m pip install --user -r contrib/requirements/requirements.txt``
 5. Compile libsecp256k1 (optional, yet highly recommended): ``./contrib/make_secp``.
-   This requires GNU tools, install with brew: ``brew install coreutils`` or if using MacPorts: ``sudo port install coreutils``
+   This requires GNU tools and automake, install with brew: ``brew install coreutils automake`` or if using MacPorts: ``sudo port install coreutils automake``
 6. At this point you should be able to just run the sources: ``./electron-cash``
 
 
