@@ -18,7 +18,7 @@ RUN apt -y update -qq \
 
 
 ENV ANDROID_NDK_HOME="${ANDROID_HOME}/android-ndk"
-ENV ANDROID_NDK_VERSION="19b"
+ENV ANDROID_NDK_VERSION="19c"
 ENV ANDROID_NDK_HOME_V="${ANDROID_NDK_HOME}-r${ANDROID_NDK_VERSION}"
 
 # get the latest version from https://developer.android.com/ndk/downloads/index.html
@@ -154,7 +154,7 @@ RUN cd /opt \
     && cd buildozer \
     && git remote add sombernight https://github.com/SomberNight/buildozer \
     && git fetch --all \
-    && git checkout 7578fea609d4445b3fed1f441813ab4c86ef0086 \
+    && git checkout cceab3c2ce4b2d2d621cf2fd18227024fc2d4bca \
     && python3 -m pip install --user -e .
 
 # install python-for-android
@@ -163,7 +163,7 @@ RUN cd /opt \
     && cd python-for-android \
     && git remote add sombernight https://github.com/SomberNight/python-for-android \
     && git fetch --all \
-    && git checkout 9162ec6b4af464672960f6f9bb7c481af2d01802 \
+    && git checkout 690a8ecc8d1c7f446d42f53a89af06c9a2d00e4e \
     && python3 -m pip install --user -e .
 
 # build env vars

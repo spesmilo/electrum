@@ -13,7 +13,7 @@ package.domain = org.electrum_ltc
 source.dir = .
 
 # (list) Source files to include (let empty to include all the files)
-source.include_exts = py,png,jpg,kv,atlas,ttf,txt,gif,pem,mo,vs,fs,json
+source.include_exts = py,png,jpg,kv,atlas,ttf,txt,gif,pem,mo,vs,fs,json,csv
 
 # (list) Source files to exclude (let empty to not exclude anything)
 source.exclude_exts = spec
@@ -23,9 +23,7 @@ source.exclude_dirs = bin, build, dist, contrib,
     electrum_ltc/tests,
     electrum_ltc/gui/qt,
     electrum_ltc/gui/kivy/tools,
-    electrum_ltc/gui/kivy/theming/light,
-    # exclude pycryptodomex built by make_packages; android needs custom version
-    packages_ltc/cryptodome
+    electrum_ltc/gui/kivy/theming/light
 # (list) List of exclusions using pattern matching
 source.exclude_patterns = Makefile,setup*
 
@@ -46,7 +44,7 @@ requirements =
     kivy==39c17457bae91baf8fe710dc989791e45879f136,
     libffi,
     libsecp256k1,
-    pycryptodomex==bfc1cca093a7344c9ed2b7c34bc560db6dca662a
+    cryptography
 
 # (str) Presplash of the application
 #presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png
@@ -76,7 +74,7 @@ android.api = 28
 android.minapi = 21
 
 # (str) Android NDK version to use
-android.ndk = 19b
+android.ndk = 19c
 
 # (int) Android NDK API to use (optional). This is the minimum API your app will support.
 android.ndk_api = 21

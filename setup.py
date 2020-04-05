@@ -78,7 +78,7 @@ setup(
         'electrum_ltc': 'electrum_ltc'
     },
     package_data={
-        '': ['*.txt', '*.json', '*.ttf', '*.otf'],
+        '': ['*.txt', '*.json', '*.ttf', '*.otf', '*.csv'],
         'electrum_ltc': [
             'wordlist/*.txt',
             'locale/*/LC_MESSAGES/electrum.mo',

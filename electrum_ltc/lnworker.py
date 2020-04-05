@@ -63,7 +63,7 @@ from .i18n import _
 from .lnrouter import RouteEdge, LNPaymentRoute, is_route_sane_to_use
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from . import lnsweep
-from .lnwatcher import LNWalletWatcher, CHANNEL_OPENING_TIMEOUT
+from .lnwatcher import LNWalletWatcher
 
 if TYPE_CHECKING:
     from .network import Network
@@ -659,7 +659,7 @@ class LNWallet(LNWorker):
         self.wallet.save_db()
         self.network.trigger_callback('channel', chan)
 
-    def save_short_chan_id(self, chan):
+    def maybe_save_short_chan_id(self, chan, funding_height):
         """
         Checks if Funding TX has been mined. If it has, save the short channel ID in chan;
         if it's also deep enough, also save to disk.
@@ -667,7 +667,7 @@ class LNWallet(LNWorker):
         """
         funding_txid = chan.funding_outpoint.txid
         funding_idx = chan.funding_outpoint.output_index
-        conf = self.lnwatcher.get_tx_height(funding_txid).conf
+        conf = funding_height.conf
         if conf < chan.constraints.funding_txn_minimum_depth:
             self.logger.info(f"funding tx is still not at sufficient depth. actual depth: {conf}")
             return
@@ -684,10 +684,8 @@ class LNWallet(LNWorker):
         if not (outp.address == funding_address and outp.value == funding_sat):
             self.logger.info('funding outpoint mismatch')
             return
-        block_height, tx_pos = self.lnwatcher.get_txpos(chan.funding_outpoint.txid)
-        assert tx_pos >= 0
         chan.set_short_channel_id(ShortChannelID.from_components(
-            block_height, tx_pos, chan.funding_outpoint.output_index))
+            funding_height.height, funding_height.txpos, chan.funding_outpoint.output_index))
         self.logger.info(f"save_short_channel_id: {chan.short_channel_id}")
         self.save_channel(chan)
 
@@ -698,57 +696,24 @@ class LNWallet(LNWorker):
             if chan.funding_outpoint.to_str() == txo:
                 return chan
 
-    async def update_unfunded_channel(self, chan, funding_txid):
-        if chan.get_state() in [channel_states.PREOPENING, channel_states.OPENING, channel_states.FORCE_CLOSING]:
-            if chan.constraints.is_initiator:
-                # set channel state to REDEEMED so that it can be removed manually
-                # to protect ourselves against a server lying by omission,
-                # we check that funding_inputs have been double spent and deeply mined
-                inputs = chan.storage.get('funding_inputs', [])
-                if not inputs:
-                    self.logger.info(f'channel funding inputs are not provided')
-                    chan.set_state(channel_states.REDEEMED)
-                for i in inputs:
-                    spender_txid = self.wallet.db.get_spent_outpoint(*i)
-                    if spender_txid is None:
-                        continue
-                    if spender_txid != funding_txid:
-                        tx_mined_height = self.wallet.get_tx_height(spender_txid)
-                        if tx_mined_height.conf > lnutil.REDEEM_AFTER_DOUBLE_SPENT_DELAY:
-                            self.logger.info(f'channel is double spent {inputs}')
-                            chan.set_state(channel_states.REDEEMED)
-                            break
-            else:
-                now = int(time.time())
-                if now - chan.storage.get('init_timestamp', 0) > CHANNEL_OPENING_TIMEOUT:
-                    self.remove_channel(chan.channel_id)
 
-    async def update_open_channel(self, chan, funding_txid, funding_height):
+    async def on_channel_update(self, chan):
 
         if chan.get_state() == channel_states.OPEN and chan.should_be_closed_due_to_expiring_htlcs(self.network.get_local_height()):
             self.logger.info(f"force-closing due to expiring htlcs")
             await self.try_force_closing(chan.channel_id)
-            return
 
-        if chan.get_state() == channel_states.OPENING:
-            if chan.short_channel_id is None:
-                self.save_short_chan_id(chan)
-            if chan.short_channel_id:
-                chan.set_state(channel_states.FUNDED)
-
-        if chan.get_state() == channel_states.FUNDED:
+        elif chan.get_state() == channel_states.FUNDED:
             peer = self.peers.get(chan.node_id)
             if peer and peer.is_initialized():
                 peer.send_funding_locked(chan)
 
         elif chan.get_state() == channel_states.OPEN:
             peer = self.peers.get(chan.node_id)
-            if peer is None:
-                self.logger.info("peer not found for {}".format(bh2u(chan.node_id)))
-                return
-            await peer.maybe_update_fee(chan)
-            conf = self.lnwatcher.get_tx_height(chan.funding_outpoint.txid).conf
-            peer.on_network_update(chan, conf)
+            if peer:
+                await peer.maybe_update_fee(chan)
+                conf = self.lnwatcher.get_tx_height(chan.funding_outpoint.txid).conf
+                peer.on_network_update(chan, conf)
 
         elif chan.get_state() == channel_states.FORCE_CLOSING:
             force_close_tx = chan.force_close_tx()
@@ -759,19 +724,6 @@ class LNWallet(LNWorker):
                 await self.network.try_broadcasting(force_close_tx, 'force-close')
 
 
-    async def update_closed_channel(self, chan, funding_txid, funding_height, closing_txid, closing_height, keep_watching):
-
-        if chan.get_state() < channel_states.CLOSED:
-            conf = closing_height.conf
-            if conf > 0:
-                chan.set_state(channel_states.CLOSED)
-            else:
-                # we must not trust the server with unconfirmed transactions
-                # if the remote force closed, we remain OPEN until the closing tx is confirmed
-                pass
-
-        if chan.get_state() == channel_states.CLOSED and not keep_watching:
-            chan.set_state(channel_states.REDEEMED)
 
 
     @log_exceptions
