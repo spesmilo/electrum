@@ -77,7 +77,7 @@ class Config(StoredObject):
 
 @attr.s
 class LocalConfig(Config):
-    seed = attr.ib(type=bytes, converter=hex_to_bytes)  # type: Optional[bytes]
+    channel_seed = attr.ib(type=bytes, converter=hex_to_bytes)  # type: Optional[bytes]
     funding_locked_received = attr.ib(type=bool)
     was_announced = attr.ib(type=bool)
     current_commitment_signature = attr.ib(type=bytes, converter=hex_to_bytes)
@@ -86,9 +86,9 @@ class LocalConfig(Config):
 
     @classmethod
     def from_seed(self, **kwargs):
-        seed = kwargs['seed']
+        channel_seed = kwargs['channel_seed']
         static_remotekey = kwargs.pop('static_remotekey')
-        node = BIP32Node.from_rootseed(seed, xtype='standard')
+        node = BIP32Node.from_rootseed(channel_seed, xtype='standard')
         keypair_generator = lambda family: generate_keypair(node, family)
         kwargs['per_commitment_secret_seed'] = keypair_generator(LnKeyFamily.REVOCATION_ROOT).privkey
         kwargs['multisig_key'] = keypair_generator(LnKeyFamily.MULTISIG)

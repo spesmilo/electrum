@@ -483,13 +483,8 @@ class Peer(Logger):
         return bool(self.features & LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
 
     def make_local_config(self, funding_sat: int, push_msat: int, initiator: HTLCOwner) -> LocalConfig:
-
-        random_seed = os.urandom(32)
-        if initiator == LOCAL:
-            initial_msat = funding_sat * 1000 - push_msat
-        else:
-            initial_msat = push_msat
-
+        channel_seed = os.urandom(32)
+        initial_msat = funding_sat * 1000 - push_msat if initiator == LOCAL else push_msat
         if self.is_static_remotekey():
             # Note: in the future, if a CSV delay is added,
             # we will want to derive that key
@@ -499,9 +494,8 @@ class Peer(Logger):
             static_remotekey = bfh(wallet.get_public_key(addr))
         else:
             static_remotekey = None
-
         local_config = LocalConfig.from_seed(
-            seed=random_seed,
+            channel_seed=channel_seed,
             static_remotekey=static_remotekey,
             to_self_delay=DEFAULT_TO_SELF_DELAY,
             dust_limit_sat=546,
