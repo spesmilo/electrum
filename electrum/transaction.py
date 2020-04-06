@@ -1299,10 +1299,10 @@ class Transaction:
         return r == s
 
     def sign(self, keypairs) -> None:
-        from PyQt5.QtCore import pyqtRemoveInputHook
-        from pdb import set_trace
-        pyqtRemoveInputHook()
-        set_trace()
+#        from PyQt5.QtCore import pyqtRemoveInputHook
+#        from pdb import set_trace
+#        pyqtRemoveInputHook()
+#        set_trace()
         # keypairs:  (x_)pubkey -> secret_bytes
         for i, txin in enumerate(self.inputs()):
             pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)

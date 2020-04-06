@@ -479,10 +479,12 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     singleInput = [ chipInputs[inputIndex] ]
                     self.get_client().startUntrustedTransactionOcean(False, 0,
                                                                      singleInput, redeemScripts[inputIndex], version=tx.version)
-                    inputSignature = self.get_client().untrustedHashSign(inputsPaths[inputIndex], pin, lockTime=tx.locktime)
+
                     inputSignature[0] = 0x30 # force for 1.4.9+
+                    print("Input signature:{}".format(inputSignature.hex()))
                     signatures.append(inputSignature)
                     inputIndex = inputIndex + 1
+                    firstTransaction = False
             else:
                 while inputIndex < len(inputs):
                     print("pre_hash for inputIndex {}:".format(i))
@@ -502,13 +504,15 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     else:
                         # Sign input with the provided PIN                                                                     
                         inputSignature = self.get_client().untrustedHashSign(inputsPaths[inputIndex], pin, lockTime=tx.locktime)
-                        inputSignature[0] = 0x30 # force for 1.4.9+                                                            
-                        my_pubkey = inputs[inputIndex][4]
-                        tx.add_signature_to_txin(inputIndex,
-                                                 signing_pubkey=my_pubkey,
-                                                 sig=inputSignature.hex())
+                        inputSignature[0] = 0x30 # force for 1.4.9+
+
+
+
+                        print("Input signature:{}".format(inputSignature.hex()))
+                        signatures.append(inputSignature)
                         inputIndex = inputIndex + 1
-                    firstTransaction = False
+                    if pin != 'paired':
+                        firstTransaction = False
         except UserWarning:
             self.handler.show_error(_('Cancelled by user'))
             return
