@@ -477,7 +477,7 @@ class ColdcardPlugin(HW_PluginBase):
         if not self.libraries_available:
             return
 
-        self.device_manager().register_devices(self.DEVICE_IDS)
+        self.device_manager().register_devices(self.DEVICE_IDS, plugin=self)
         self.device_manager().register_enumerate_func(self.detect_simulator)
 
     def get_library_version(self):

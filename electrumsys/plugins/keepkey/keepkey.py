@@ -90,7 +90,7 @@ class KeepKeyPlugin(HW_PluginBase):
             self.DEVICE_IDS = (keepkeylib.transport_hid.DEVICE_IDS +
                                keepkeylib.transport_webusb.DEVICE_IDS)
             # only "register" hid device id:
-            self.device_manager().register_devices(keepkeylib.transport_hid.DEVICE_IDS)
+            self.device_manager().register_devices(keepkeylib.transport_hid.DEVICE_IDS, plugin=self)
             # for webusb transport, use custom enumerate function:
             self.device_manager().register_enumerate_func(self.enumerate)
             self.libraries_available = True
