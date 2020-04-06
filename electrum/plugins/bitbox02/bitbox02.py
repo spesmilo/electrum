@@ -17,6 +17,7 @@ from electrum.plugin import Device, DeviceInfo
 from electrum.simple_config import SimpleConfig
 from electrum.json_db import StoredDict
 from electrum.storage import get_derivation_used_for_hw_device_encryption
+from electrum.bitcoin import OnchainOutputType
 
 import electrum.bitcoin as bitcoin
 import electrum.ecc as ecc
@@ -411,13 +412,13 @@ class BitBox02Client(HardwareClientBase):
                 )
             else:
                 addrtype, pubkey_hash = bitcoin.address_to_hash(txout.address)
-                if addrtype == bitcoin.WIF_SCRIPT_TYPES["p2pkh"]:
+                if addrtype == OnchainOutputType.P2PKH:
                     output_type = bitbox02.btc.P2PKH
-                elif addrtype == bitcoin.WIF_SCRIPT_TYPES["p2sh"]:
+                elif addrtype == OnchainOutputType.P2SH:
                     output_type = bitbox02.btc.P2SH
-                elif addrtype == bitcoin.WIF_SCRIPT_TYPES["p2wpkh"]:
+                elif addrtype == OnchainOutputType.WITVER0_P2WPKH:
                     output_type = bitbox02.btc.P2WPKH
-                elif addrtype == bitcoin.WIF_SCRIPT_TYPES["p2wsh"]:
+                elif addrtype == OnchainOutputType.WITVER0_P2WSH:
                     output_type = bitbox02.btc.P2WSH
                 else:
                     raise UserFacingException(
