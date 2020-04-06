@@ -4,7 +4,7 @@
 
 import hid
 import hashlib
-from typing import TYPE_CHECKING, Dict, Tuple, Optional, List, Any
+from typing import TYPE_CHECKING, Dict, Tuple, Optional, List, Any, Callable
 
 from electrum import bip32, constants
 from electrum.i18n import _
@@ -84,16 +84,22 @@ class BitBox02Client(HardwareClientBase):
 
     def has_usable_connection_with_device(self) -> bool:
         if self.bitbox_hid_info is None:
-                return False
+            return False
         return True
 
     def pairing_dialog(self, wizard: bool = True):
-        def pairing_step(code):
-            msg = "Please compare and confirm the pairing code on your BitBox02:\n"
-            choice = [code]
-            if wizard == True:
-                return self.handler.win.query_choice(msg, choice)
-            self.handler.pairing_code_dialog(code)
+        def pairing_step(code: str, device_response: Callable[[], bool]) -> bool:
+            msg = "Please compare and confirm the pairing code on your BitBox02:\n" + code
+            self.handler.show_message(msg)
+            try:
+                res = device_response()
+            except:
+                # Close the hid device on exception
+                hid_device.close()
+                raise
+            finally:
+                self.handler.finished()
+            return res
 
         def exists_remote_static_pubkey(pubkey: bytes) -> bool:
             bitbox02_config = self.config.get("bitbox02")
@@ -132,15 +138,8 @@ class BitBox02Client(HardwareClientBase):
         class NoiseConfig(bitbox_api_protocol.BitBoxNoiseConfig):
             """NoiseConfig extends BitBoxNoiseConfig"""
 
-            def show_pairing(self, code: str) -> bool:
-                choice = [code]
-                try:
-                    reply = pairing_step(code)
-                except:
-                    # Close the hid device on exception
-                    hid_device.close()
-                    raise
-                return True
+            def show_pairing(self, code: str, device_response: Callable[[], bool]) -> bool:
+                return pairing_step(code, device_response)
 
             def attestation_check(self, result: bool) -> None:
                 if not result:
@@ -168,6 +167,10 @@ class BitBox02Client(HardwareClientBase):
                 noise_config=NoiseConfig(),
             )
 
+        self.fail_if_not_initialized()
+
+    def fail_if_not_initialized(self) -> None:
+        assert self.bitbox02_device
         if not self.bitbox02_device.device_info()["initialized"]:
             raise Exception(
                 "Please initialize the BitBox02 using the BitBox app first before using the BitBox02 in electrum"
@@ -201,10 +204,7 @@ class BitBox02Client(HardwareClientBase):
                 "Need to setup communication first before attempting any BitBox02 calls"
             )
 
-        if not self.bitbox02_device.device_info()["initialized"]:
-            raise UserFacingException(
-                "Please initialize the BitBox02 using the BitBox app first before using the BitBox02 in electrum"
-            )
+        self.fail_if_not_initialized()
 
         xpub_keypath = bip32.convert_bip32_path_to_list_of_uint32(bip32_path)
         coin_network = self.coin_network_from_electrum_network()
@@ -502,11 +502,12 @@ class BitBox02_KeyStore(Hardware_KeyStore):
         if tx.is_complete():
             return
         client = self.get_client()
+        assert isinstance(client, BitBox02Client)
 
         try:
             try:
                 self.handler.show_message("Authorize Transaction...")
-                client.sign_transaction(self, tx, self.handler.win.wallet)
+                client.sign_transaction(self, tx, self.handler.get_wallet())
 
             finally:
                 self.handler.finished()
@@ -535,7 +536,7 @@ class BitBox02_KeyStore(Hardware_KeyStore):
 
 class BitBox02Plugin(HW_PluginBase):
     keystore_class = BitBox02_KeyStore
-
+    minimum_library = (2, 0, 2)
     DEVICE_IDS = [(0x03EB, 0x2403)]
 
     SUPPORTED_XTYPES = ("p2wpkh-p2sh", "p2wpkh", "p2wsh")
@@ -571,8 +572,11 @@ class BitBox02Plugin(HW_PluginBase):
     ):
         device_id = device_info.device.id_
         client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
+        assert isinstance(client, BitBox02Client)
         if client.bitbox02_device is None:
-            client.pairing_dialog()
+            wizard.run_task_without_blocking_gui(
+                task=lambda client=client: client.pairing_dialog())
+        client.fail_if_not_initialized()
         return client
 
     def get_xpub(
@@ -583,8 +587,8 @@ class BitBox02Plugin(HW_PluginBase):
                 _("This type of script is not supported with {}.").format(self.device)
             )
         client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
-        if client.bitbox02_device is None:
-            client.pairing_dialog()
+        assert isinstance(client, BitBox02Client)
+        assert client.bitbox02_device is not None
         return client.get_xpub(derivation, xtype)
 
     def get_client(self, keystore: BitBox02_KeyStore, force_pair: bool = True):
