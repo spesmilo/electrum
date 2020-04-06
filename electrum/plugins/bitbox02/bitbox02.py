@@ -546,7 +546,7 @@ class BitBox02Plugin(HW_PluginBase):
         self.libraries_available = self.check_libraries_available()
         if not self.libraries_available:
             return
-        self.device_manager().register_devices(self.DEVICE_IDS)
+        self.device_manager().register_devices(self.DEVICE_IDS, plugin=self)
 
     def get_library_version(self):
         try:
@@ -617,3 +617,10 @@ class BitBox02Plugin(HW_PluginBase):
         derivation = keystore.get_derivation_prefix()
         xtype = keystore.get_bip32_node_for_xpub().xtype
         client.get_xpub(derivation, xtype, display=True)
+
+    def create_device_from_hid_enumeration(self, d: dict, *, product_key) -> 'Device':
+        device = super().create_device_from_hid_enumeration(d, product_key=product_key)
+        # The BitBox02's product_id is not unique per device, thus use the path instead to
+        # distinguish devices.
+        id_ = str(d['path'])
+        return device._replace(id_=id_)
