@@ -1105,6 +1105,33 @@ class Channel(Logger):
         else:
             self.update_closed_state(funding_txid, funding_height, closing_txid, closing_height, keep_watching)
 
+    def is_funding_tx_mined(self, funding_height):
+        """
+        Checks if Funding TX has been mined. If it has, save the short channel ID in chan;
+        if it's also deep enough, also save to disk.
+        Returns tuple (mined_deep_enough, num_confirmations).
+        """
+        funding_txid = self.funding_outpoint.txid
+        funding_idx = self.funding_outpoint.output_index
+        conf = funding_height.conf
+        if conf < self.constraints.funding_txn_minimum_depth:
+            self.logger.info(f"funding tx is still not at sufficient depth. actual depth: {conf}")
+            return False
+        assert conf > 0
+        # check funding_tx amount and script
+        funding_tx = self.lnworker.lnwatcher.db.get_transaction(funding_txid)
+        if not funding_tx:
+            self.logger.info(f"no funding_tx {funding_txid}")
+            return False
+        outp = funding_tx.outputs()[funding_idx]
+        redeem_script = funding_output_script(self.config[REMOTE], self.config[LOCAL])
+        funding_address = redeem_script_to_address('p2wsh', redeem_script)
+        funding_sat = self.constraints.capacity
+        if not (outp.address == funding_address and outp.value == funding_sat):
+            self.logger.info('funding outpoint mismatch')
+            return False
+        return True
+
     def update_unfunded_state(self):
         self.delete_funding_height()
         self.delete_closing_height()
@@ -1136,10 +1163,11 @@ class Channel(Logger):
         self.save_funding_height(funding_txid, funding_height.height, funding_height.timestamp)
         self.delete_closing_height()
         if self.get_state() == channel_states.OPENING:
-            if self.short_channel_id is None:
-                self.lnworker.maybe_save_short_chan_id(self, funding_height)
-            if self.short_channel_id:
+            if self.is_funding_tx_mined(funding_height):
                 self.set_state(channel_states.FUNDED)
+                self.set_short_channel_id(ShortChannelID.from_components(
+                    funding_height.height, funding_height.txpos, self.funding_outpoint.output_index))
+                self.logger.info(f"save_short_channel_id: {self.short_channel_id}")
 
     def update_closed_state(self, funding_txid, funding_height, closing_txid, closing_height, keep_watching):
         self.save_funding_height(funding_txid, funding_height.height, funding_height.timestamp)
