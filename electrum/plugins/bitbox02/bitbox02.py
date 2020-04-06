@@ -3,18 +3,16 @@
 #
 
 import hid
-import hashlib
 from typing import TYPE_CHECKING, Dict, Tuple, Optional, List, Any, Callable
 
 from electrum import bip32, constants
 from electrum.i18n import _
-from electrum.keystore import Hardware_KeyStore, Xpub
+from electrum.keystore import Hardware_KeyStore
 from electrum.transaction import PartialTransaction
 from electrum.wallet import Standard_Wallet, Multisig_Wallet, Deterministic_Wallet
 from electrum.util import bh2u, UserFacingException
 from electrum.base_wizard import ScriptTypeNotSupported, BaseWizard
 from electrum.logging import get_logger
-from electrum.crypto import hmac_oneshot
 from electrum.plugin import Device, DeviceInfo
 from electrum.simple_config import SimpleConfig
 from electrum.json_db import StoredDict
@@ -24,7 +22,6 @@ import electrum.bitcoin as bitcoin
 import electrum.ecc as ecc
 
 from ..hw_wallet import HW_PluginBase, HardwareClientBase
-from ..hw_wallet.plugin import LibraryFoundButUnusable
 
 
 try:

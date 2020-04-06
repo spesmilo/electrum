@@ -1,37 +1,26 @@
-import time, os
 from functools import partial
-import copy
 
-from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import (
     QPushButton,
     QLabel,
     QVBoxLayout,
-    QWidget,
-    QGridLayout,
     QLineEdit,
     QHBoxLayout,
 )
 
-from PyQt5.QtCore import Qt, QMetaObject, Q_RETURN_ARG, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import Qt, QMetaObject, Q_RETURN_ARG, pyqtSlot
 
 from electrum.gui.qt.util import (
     WindowModalDialog,
-    Buttons,
     OkButton,
-    CancelButton,
-    get_parent_main_window,
 )
-from electrum.gui.qt.transaction_dialog import TxDialog
 
 from electrum.i18n import _
 from electrum.plugin import hook
-from electrum.wallet import Multisig_Wallet
-from electrum.transaction import PartialTransaction
 
 from .bitbox02 import BitBox02Plugin
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
-from ..hw_wallet.plugin import only_hook_if_libraries_available, LibraryFoundButUnusable
+from ..hw_wallet.plugin import only_hook_if_libraries_available
 
 
 class Plugin(BitBox02Plugin, QtPluginBase):
