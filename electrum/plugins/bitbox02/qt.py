@@ -28,7 +28,6 @@ from electrum.i18n import _
 from electrum.plugin import hook
 from electrum.wallet import Multisig_Wallet
 from electrum.transaction import PartialTransaction
-from electrum import keystore
 
 from .bitbox02 import BitBox02Plugin
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
@@ -77,11 +76,11 @@ class Plugin(BitBox02Plugin, QtPluginBase):
                 selected_keystore_index = labels_clayout.selected_index()
             keystores = wallet.get_keystores()
             selected_keystore = keystores[selected_keystore_index]
-            derivation = selected_keystore.get_derivation_prefix()
             if type(selected_keystore) != self.keystore_class:
                 main_window.show_error("Select a BitBox02 xpub")
-            selected_keystore.get_client().get_xpub(
-                derivation, keystore.xtype_from_derivation(derivation), True
+                return
+            selected_keystore.thread.add(
+                partial(self.show_xpub, keystore=selected_keystore)
             )
 
         btn.clicked.connect(lambda unused: on_button_click())
