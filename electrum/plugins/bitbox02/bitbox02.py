@@ -569,39 +569,28 @@ class BitBox02Plugin(HW_PluginBase):
     def setup_device(
         self, device_info: DeviceInfo, wizard: BaseWizard, purpose: int
     ):
-        devmgr = self.device_manager()
         device_id = device_info.device.id_
-        client = devmgr.client_by_id(device_id)
-        if client is None:
-            raise UserFacingException(
-                _("Failed to create a client for this device.")
-                + "\n"
-                + _("Make sure it is in the correct state.")
-            )
-        client.handler = self.create_handler(wizard)
+        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
         if client.bitbox02_device is None:
             client.pairing_dialog()
+        return client
 
     def get_xpub(
-        self, device_id: bytes, derivation: str, xtype: str, wizard: BaseWizard
+        self, device_id: str, derivation: str, xtype: str, wizard: BaseWizard
     ):
         if xtype not in self.SUPPORTED_XTYPES:
             raise ScriptTypeNotSupported(
                 _("This type of script is not supported with {}.").format(self.device)
             )
-        devmgr = self.device_manager()
-        client = devmgr.client_by_id(device_id)
+        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
         if client.bitbox02_device is None:
-            client.handler = self.create_handler(wizard)
             client.pairing_dialog()
         return client.get_xpub(derivation, xtype)
 
     def get_client(self, keystore: BitBox02_KeyStore, force_pair: bool = True):
         devmgr = self.device_manager()
         handler = keystore.handler
-        with devmgr.hid_lock:
-            client = devmgr.client_for_keystore(self, handler, keystore, force_pair)
-
+        client = devmgr.client_for_keystore(self, handler, keystore, force_pair)
         return client
 
     def show_address(
