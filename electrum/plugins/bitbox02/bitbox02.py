@@ -196,7 +196,7 @@ class BitBox02Client(HardwareClientBase):
         node = bip32.BIP32Node.from_xkey(xpub, net = constants.BitcoinMainnet()).subkey_at_public_derivation(())
         return node.eckey.get_public_key_bytes(compressed=True).hex()
 
-    def get_xpub(self, bip32_path: str, xtype: str, display: bool = False) -> str:
+    def get_xpub(self, bip32_path: str, xtype: str, *, display: bool = False) -> str:
         if self.bitbox02_device is None:
             self.pairing_dialog(wizard=False)
 
@@ -612,3 +612,10 @@ class BitBox02Plugin(HW_PluginBase):
         txin_type = wallet.get_txin_type(address)
         sequence = wallet.get_address_index(address)
         keystore.show_address(sequence, txin_type, wallet)
+
+    def show_xpub(self, keystore: BitBox02_KeyStore):
+        client = keystore.get_client()
+        assert isinstance(client, BitBox02Client)
+        derivation = keystore.get_derivation_prefix()
+        xtype = keystore.get_bip32_node_for_xpub().xtype
+        client.get_xpub(derivation, xtype, display=True)
