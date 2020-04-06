@@ -271,7 +271,7 @@ class TrezorClientBase(HardwareClientBase, Logger):
             msg = _("Enter the passphrase to unlock this wallet:")
 
         self.handler.passphrase_on_device = available_on_device
-        passphrase = self.handler.trezor_get_passphrase(msg, self.creating_wallet)
+        passphrase = self.handler.get_passphrase(msg, self.creating_wallet)
         if passphrase is PASSPHRASE_ON_DEVICE:
             return passphrase
         if passphrase is None:
