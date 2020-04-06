@@ -32,6 +32,8 @@ try:
         InputScriptType, OutputScriptType, MultisigRedeemScriptType,
         TxInputType, TxOutputType, TxOutputBinType, TransactionType, SignTx)
 
+    from trezorlib.client import PASSPHRASE_ON_DEVICE
+
     TREZORLIB = True
 except Exception as e:
     _logger.exception('error importing trezorlib')
@@ -51,6 +53,8 @@ except Exception as e:
     Capability = _EnumMissing()
     BackupType = _EnumMissing()
     RecoveryDeviceType = _EnumMissing()
+
+    PASSPHRASE_ON_DEVICE = object()
 
 
 # Trezor initialization methods
@@ -109,11 +113,11 @@ class TrezorPlugin(HW_PluginBase):
     #     wallet_class, types
 
     firmware_URL = 'https://wallet.trezor.io'
-    libraries_URL = 'https://github.com/trezor/python-trezor'
+    libraries_URL = 'https://pypi.org/project/trezor/'
     minimum_firmware = (1, 5, 2)
     keystore_class = TrezorKeyStore
-    minimum_library = (0, 11, 5)
-    maximum_library = (0, 12)
+    minimum_library = (0, 12, 0)
+    maximum_library = (0, 13)
     SUPPORTED_XTYPES = ('standard', 'p2wpkh-p2sh', 'p2wpkh', 'p2wsh-p2sh', 'p2wsh')
     DEVICE_IDS = (TREZOR_PRODUCT_KEY,)
 
