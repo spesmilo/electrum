@@ -89,11 +89,9 @@ class Plugin(BitBox02Plugin, QtPluginBase):
 
 
 class BitBox02_Handler(QtHandlerBase):
-    setup_signal = pyqtSignal()
 
     def __init__(self, win):
         super(BitBox02_Handler, self).__init__(win, "BitBox02")
-        self.setup_signal.connect(self.setup_dialog)
 
     def message_dialog(self, msg):
         self.clear_dialog()
@@ -104,24 +102,6 @@ class BitBox02_Handler(QtHandlerBase):
         vbox = QVBoxLayout(dialog)
         vbox.addWidget(l)
         dialog.show()
-
-    def attestation_failed_warning(self, msg):
-        self.clear_dialog()
-        self.dialog = dialog = WindowModalDialog(None, "BitBox02 Attestation Failed")
-        l = QLabel(msg)
-        vbox = QVBoxLayout(dialog)
-        vbox.addWidget(l)
-        okButton = OkButton(dialog)
-        vbox.addWidget(okButton)
-        dialog.setLayout(vbox)
-        dialog.exec_()
-        return
-
-    def get_setup(self):
-        self.done.clear()
-        self.setup_signal.emit()
-        self.done.wait()
-        return
 
     def name_multisig_account(self):
         return QMetaObject.invokeMethod(
@@ -157,7 +137,3 @@ class BitBox02_Handler(QtHandlerBase):
         dialog.setLayout(vbox)
         dialog.exec_()
         return name.text().strip()
-
-    def setup_dialog(self):
-        self.show_error(_("Please initialize your BitBox02 while connected."))
-        return
