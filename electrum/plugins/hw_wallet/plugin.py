@@ -165,7 +165,7 @@ class HW_PluginBase(BasePlugin):
                       handler: Optional['HardwareHandlerBase']) -> Optional['HardwareClientBase']:
         raise NotImplementedError()
 
-    def get_xpub(self, device_id, derivation: str, xtype, wizard: 'BaseWizard') -> str:
+    def get_xpub(self, device_id: str, derivation: str, xtype, wizard: 'BaseWizard') -> str:
         raise NotImplementedError()
 
     def create_handler(self, window) -> 'HardwareHandlerBase':
