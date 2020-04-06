@@ -70,6 +70,7 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
                 current_per_commitment_point=cur,
             ),
             "local_config":lnpeer.LocalConfig(
+                channel_seed = None,
                 payment_basepoint=privkeys[0],
                 multisig_key=privkeys[1],
                 htlc_basepoint=privkeys[2],

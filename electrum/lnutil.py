@@ -23,7 +23,7 @@ from .bitcoin import push_script, redeem_script_to_address, address_to_script
 from . import segwit_addr
 from .i18n import _
 from .lnaddr import lndecode
-from .bip32 import BIP32Node
+from .bip32 import BIP32Node, BIP32_PRIME
 
 if TYPE_CHECKING:
     from .lnchannel import Channel
@@ -77,11 +77,27 @@ class Config(StoredObject):
 
 @attr.s
 class LocalConfig(Config):
-    per_commitment_secret_seed = attr.ib(type=bytes, converter=hex_to_bytes)
+    channel_seed = attr.ib(type=bytes, converter=hex_to_bytes)  # type: Optional[bytes]
     funding_locked_received = attr.ib(type=bool)
     was_announced = attr.ib(type=bool)
     current_commitment_signature = attr.ib(type=bytes, converter=hex_to_bytes)
     current_htlc_signatures = attr.ib(type=bytes, converter=hex_to_bytes)
+    per_commitment_secret_seed = attr.ib(type=bytes, converter=hex_to_bytes)
+
+    @classmethod
+    def from_seed(self, **kwargs):
+        channel_seed = kwargs['channel_seed']
+        static_remotekey = kwargs.pop('static_remotekey')
+        node = BIP32Node.from_rootseed(channel_seed, xtype='standard')
+        keypair_generator = lambda family: generate_keypair(node, family)
+        kwargs['per_commitment_secret_seed'] = keypair_generator(LnKeyFamily.REVOCATION_ROOT).privkey
+        kwargs['multisig_key'] = keypair_generator(LnKeyFamily.MULTISIG)
+        kwargs['htlc_basepoint'] = keypair_generator(LnKeyFamily.HTLC_BASE)
+        kwargs['delayed_basepoint'] = keypair_generator(LnKeyFamily.DELAY_BASE)
+        kwargs['revocation_basepoint'] = keypair_generator(LnKeyFamily.REVOCATION_BASE)
+        kwargs['payment_basepoint'] = OnlyPubkeyKeypair(static_remotekey) if static_remotekey else keypair_generator(LnKeyFamily.PAYMENT_BASE)
+        return LocalConfig(**kwargs)
+
 
 @attr.s
 class RemoteConfig(Config):
@@ -1024,12 +1040,12 @@ def extract_nodeid(connect_contents: str) -> Tuple[bytes, str]:
 # key derivation
 # see lnd/keychain/derivation.go
 class LnKeyFamily(IntEnum):
-    MULTISIG = 0
-    REVOCATION_BASE = 1
-    HTLC_BASE = 2
-    PAYMENT_BASE = 3
-    DELAY_BASE = 4
-    REVOCATION_ROOT = 5
+    MULTISIG = 0 | BIP32_PRIME
+    REVOCATION_BASE = 1 | BIP32_PRIME
+    HTLC_BASE = 2 | BIP32_PRIME
+    PAYMENT_BASE = 3 | BIP32_PRIME
+    DELAY_BASE = 4 | BIP32_PRIME
+    REVOCATION_ROOT = 5 | BIP32_PRIME
     NODE_KEY = 6
 
 
