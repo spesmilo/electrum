@@ -16,7 +16,7 @@ from electrumsys.util import bh2u
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 from ..hw_wallet.plugin import only_hook_if_libraries_available
 from .trezor import (TrezorPlugin, TIM_NEW, TIM_RECOVER, TrezorInitSettings,
-                     Capability, BackupType, RecoveryDeviceType)
+                     PASSPHRASE_ON_DEVICE, Capability, BackupType, RecoveryDeviceType)
 
 
 PASSPHRASE_HELP_SHORT =_(
@@ -119,6 +119,7 @@ class QtHandler(QtHandlerBase):
         self.close_matrix_dialog_signal.connect(self._close_matrix_dialog)
         self.pin_matrix_widget_class = pin_matrix_widget_class
         self.matrix_dialog = None
+        self.passphrase_on_device = False
 
     def get_pin(self, msg):
         self.done.clear()
@@ -161,6 +162,72 @@ class QtHandler(QtHandlerBase):
         if not self.matrix_dialog:
             self.matrix_dialog = MatrixDialog(self.top_level_window())
         self.matrix_dialog.get_matrix(msg)
+        self.done.set()
+
+    def passphrase_dialog(self, msg, confirm):
+        # If confirm is true, require the user to enter the passphrase twice
+        parent = self.top_level_window()
+        d = WindowModalDialog(parent, _('Enter Passphrase'))
+
+        OK_button = OkButton(d, _('Enter Passphrase'))
+        OnDevice_button = QPushButton(_('Enter Passphrase on Device'))
+
+        new_pw = QLineEdit()
+        new_pw.setEchoMode(2)
+        conf_pw = QLineEdit()
+        conf_pw.setEchoMode(2)
+
+        vbox = QVBoxLayout()
+        label = QLabel(msg + "\n")
+        label.setWordWrap(True)
+
+        grid = QGridLayout()
+        grid.setSpacing(8)
+        grid.setColumnMinimumWidth(0, 150)
+        grid.setColumnMinimumWidth(1, 100)
+        grid.setColumnStretch(1,1)
+
+        vbox.addWidget(label)
+
+        grid.addWidget(QLabel(_('Passphrase:')), 0, 0)
+        grid.addWidget(new_pw, 0, 1)
+
+        if confirm:
+            grid.addWidget(QLabel(_('Confirm Passphrase:')), 1, 0)
+            grid.addWidget(conf_pw, 1, 1)
+
+        vbox.addLayout(grid)
+
+        def enable_OK():
+            if not confirm:
+                ok = True
+            else:
+                ok = new_pw.text() == conf_pw.text()
+            OK_button.setEnabled(ok)
+
+        new_pw.textChanged.connect(enable_OK)
+        conf_pw.textChanged.connect(enable_OK)
+
+        vbox.addWidget(OK_button)
+
+        if self.passphrase_on_device:
+            vbox.addWidget(OnDevice_button)
+
+        d.setLayout(vbox)
+
+        self.passphrase = None
+
+        def ok_clicked():
+            self.passphrase = new_pw.text()
+
+        def on_device_clicked():
+            self.passphrase = PASSPHRASE_ON_DEVICE
+
+        OK_button.clicked.connect(ok_clicked)
+        OnDevice_button.clicked.connect(on_device_clicked)
+        OnDevice_button.clicked.connect(d.accept)
+
+        d.exec_()
         self.done.set()
 
 
