@@ -602,7 +602,7 @@ class WalletDB(JsonDB):
             return
         channels = self.data.get('channels', {})
         for channel_id, c in channels.items():
-            c['local_config']['seed'] = None
+            c['local_config']['channel_seed'] = None
         self.data['seed_version'] = 28
 
     def _convert_imported(self):
