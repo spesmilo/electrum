@@ -267,7 +267,11 @@ class TrezorClientBase(HardwareClientBase, Logger):
                     "access the syscoins in the wallet.").format(self.device)
         else:
             msg = _("Enter the passphrase to unlock this wallet:")
+
+        self.handler.passphrase_on_device = available_on_device
         passphrase = self.handler.get_passphrase(msg, self.creating_wallet)
+        if passphrase is PASSPHRASE_ON_DEVICE:
+            return passphrase
         if passphrase is None:
             raise Cancelled
         passphrase = bip39_normalize_passphrase(passphrase)
