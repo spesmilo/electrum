@@ -75,7 +75,7 @@ class Peer(Logger):
         self.transport = transport
         self.pubkey = pubkey  # remote pubkey
         self.lnworker = lnworker
-        self.privkey = lnworker.node_keypair.privkey  # local privkey
+        self.privkey = self.transport.privkey  # local privkey
         self.features = self.lnworker.features
         self.node_ids = [self.pubkey, privkey_to_pubkey(self.privkey)]
         self.network = lnworker.network
