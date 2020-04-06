@@ -131,8 +131,9 @@ class BitBox02Client(HardwareClientBase):
             self.config.set_key("bitbox02", bitbox02_config)
 
         def attestation_warning() -> None:
-            self.handler.attestation_failed_warning(
-                "The BitBox02 attestation failed.\nTry reconnecting the BitBox02.\nWarning: The device might not be genuine, if the\n problem persists please contact Shift support."
+            self.handler.show_error(
+                "The BitBox02 attestation failed.\nTry reconnecting the BitBox02.\nWarning: The device might not be genuine, if the\n problem persists please contact Shift support.",
+                blocking=True
             )
 
         class NoiseConfig(bitbox_api_protocol.BitBoxNoiseConfig):
