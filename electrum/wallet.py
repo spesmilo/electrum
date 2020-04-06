@@ -862,6 +862,11 @@ class Abstract_Wallet(AddressSynchronizer):
         tx.output_info = info
 
     def sign_transaction(self, tx, password):
+        from PyQt5.QtCore import pyqtRemoveInputHook
+        from pdb import set_trace
+        pyqtRemoveInputHook()
+        set_trace()
+
         if self.is_watching_only():
             return
         self.add_input_info_to_all_inputs(tx)

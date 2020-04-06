@@ -1147,7 +1147,7 @@ class Transaction:
             return self._segwit_ser
         return any(self.is_segwit_input(x, guess_for_address=guess_for_address) for x in self.inputs())
 
-    def serialize(self, estimate_size=False, witness=True):
+    def serialize(self, estimate_size=False, witness=False):
         network_ser = self.serialize_to_network(estimate_size, witness)
         if estimate_size:
             return network_ser
@@ -1157,7 +1157,7 @@ class Transaction:
         else:
             return network_ser
 
-    def serialize_to_network(self, estimate_size=False, witness=True):
+    def serialize_to_network(self, estimate_size=False, witness=False):
         nVersion = int_to_hex(self.version, 4)
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
@@ -1188,7 +1188,7 @@ class Transaction:
         self.deserialize()
         if not self.is_complete():
             return None
-        ser = self.serialize_to_network(witness=True)
+        ser = self.serialize_to_network(witness=False)
         return bh2u(Hash(bfh(ser))[::-1])
 
     def add_outputs(self, outputs):
@@ -1299,6 +1299,10 @@ class Transaction:
         return r == s
 
     def sign(self, keypairs) -> None:
+        from PyQt5.QtCore import pyqtRemoveInputHook
+        from pdb import set_trace
+        pyqtRemoveInputHook()
+        set_trace()
         # keypairs:  (x_)pubkey -> secret_bytes
         for i, txin in enumerate(self.inputs()):
             pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)

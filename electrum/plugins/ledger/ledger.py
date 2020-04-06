@@ -334,6 +334,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
 
         # Fetch inputs of the transaction to sign
         derivations = self.get_tx_derivations(tx)
+
         for txin in tx.inputs():
             if txin['type'] == 'coinbase':
                 self.give_error("Coinbase not supported")     # should never happen
@@ -452,7 +453,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
             # Sign all inputs
             firstTransaction = True
             inputIndex = 0
-            rawTx = tx.serialize_to_network()
+            rawTx = tx.serialize_to_network(witness=False)
             print(rawTx)
             self.get_client().enableAlternate2fa(False)
             if segwitTransaction:
@@ -484,35 +485,30 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     inputIndex = inputIndex + 1
             else:
                 while inputIndex < len(inputs):
+                    print("pre_hash for inputIndex {}:".format(i))
                     tx.pre_hash(inputIndex)
+                    print("rawTx {}:".format(rawTx))
                     self.get_client().startUntrustedTransactionOcean(firstTransaction, inputIndex,
                                                                      chipInputs, redeemScripts[inputIndex], version=tx.version)
-                    if changePath:
-                        # we don't set meaningful outputAddress, amount and fees
-                        # as we only care about the alternateEncoding==True branch
-                        outputData = self.get_client().finalizeInput(b'', 0, 0, changePath, bfh(rawTx), txClass=oceanTransaction)
-                    else:
-                        outputData = self.get_client().finalizeInputFull(txOutput)
+                    outputData = self.get_client().finalizeInput(b'', 0, 0, changePath, bfh(rawTx),txClass=oceanTransaction)
                     outputData['outputData'] = txOutput
-                    if firstTransaction:
-                        transactionOutput = outputData['outputData']
                     if outputData['confirmationNeeded']:
                         outputData['address'] = output
                         self.handler.finished()
-                        pin = self.handler.get_auth( outputData ) # does the authenticate dialog and returns pin
+                        pin = self.handler.get_auth( outputData ) # does the authenticate dialog and returns pin               
                         if not pin:
                             raise UserWarning()
-                        if pin != 'paired':
-                            self.handler.show_message(_("Confirmed. Signing Transaction..."))
+                        self.handler.show_message(_("Confirmed. Signing Transaction..."))
                     else:
-                        # Sign input with the provided PIN
+                        # Sign input with the provided PIN                                                                     
                         inputSignature = self.get_client().untrustedHashSign(inputsPaths[inputIndex], pin, lockTime=tx.locktime)
-                        inputSignature[0] = 0x30 # force for 1.4.9+
-                        print("Input signature:{}".format(inputSignature.hex()))
-                        signatures.append(inputSignature)
+                        inputSignature[0] = 0x30 # force for 1.4.9+                                                            
+                        my_pubkey = inputs[inputIndex][4]
+                        tx.add_signature_to_txin(inputIndex,
+                                                 signing_pubkey=my_pubkey,
+                                                 sig=inputSignature.hex())
                         inputIndex = inputIndex + 1
-                    if pin != 'paired':
-                        firstTransaction = False
+                    firstTransaction = False
         except UserWarning:
             self.handler.show_error(_('Cancelled by user'))
             return
@@ -534,10 +530,6 @@ class Ledger_KeyStore(Hardware_KeyStore):
         for i, txin in enumerate(tx.inputs()):
             signingPos = inputs[i][4]
             print("Adding signature to txin:{} {} {}".format(i, signingPos, signatures[i].hex()))
-            from PyQt5.QtCore import pyqtRemoveInputHook
-            from pdb import set_trace
-            pyqtRemoveInputHook()
-            set_trace()
             tx.add_signature_to_txin(i, signingPos, bh2u(signatures[i]))
         tx.raw = tx.serialize(witness=False)
 
