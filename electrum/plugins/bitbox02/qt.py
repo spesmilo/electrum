@@ -117,17 +117,6 @@ class BitBox02_Handler(QtHandlerBase):
         dialog.exec_()
         return
 
-    def pairing_code_dialog(self, code):
-        self.clear_dialog()
-        self.dialog = dialog = WindowModalDialog(None, "BitBox02 Pairing Code")
-        l = QLabel(code)
-        vbox = QVBoxLayout(dialog)
-        vbox.addWidget(l)
-        vbox.addLayout(Buttons(CancelButton(dialog), OkButton(dialog)))
-        dialog.setLayout(vbox)
-        dialog.exec_()
-        return
-
     def get_setup(self):
         self.done.clear()
         self.setup_signal.emit()
