@@ -23,7 +23,7 @@ from .bitcoin import push_script, redeem_script_to_address, address_to_script
 from . import segwit_addr
 from .i18n import _
 from .lnaddr import lndecode
-from .bip32 import BIP32Node
+from .bip32 import BIP32Node, BIP32_PRIME
 
 if TYPE_CHECKING:
     from .lnchannel import Channel
@@ -77,7 +77,7 @@ class Config(StoredObject):
 
 @attr.s
 class LocalConfig(Config):
-    seed = attr.ib(type=bytes, converter=hex_to_bytes)
+    seed = attr.ib(type=bytes, converter=hex_to_bytes)  # type: Optional[bytes]
     funding_locked_received = attr.ib(type=bool)
     was_announced = attr.ib(type=bool)
     current_commitment_signature = attr.ib(type=bytes, converter=hex_to_bytes)
@@ -1040,12 +1040,12 @@ def extract_nodeid(connect_contents: str) -> Tuple[bytes, str]:
 # key derivation
 # see lnd/keychain/derivation.go
 class LnKeyFamily(IntEnum):
-    MULTISIG = 0
-    REVOCATION_BASE = 1
-    HTLC_BASE = 2
-    PAYMENT_BASE = 3
-    DELAY_BASE = 4
-    REVOCATION_ROOT = 5
+    MULTISIG = 0 | BIP32_PRIME
+    REVOCATION_BASE = 1 | BIP32_PRIME
+    HTLC_BASE = 2 | BIP32_PRIME
+    PAYMENT_BASE = 3 | BIP32_PRIME
+    DELAY_BASE = 4 | BIP32_PRIME
+    REVOCATION_ROOT = 5 | BIP32_PRIME
     NODE_KEY = 6
 
 
