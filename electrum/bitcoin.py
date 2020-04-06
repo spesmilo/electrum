@@ -25,7 +25,8 @@
 
 import hashlib
 from typing import List, Tuple, TYPE_CHECKING, Optional, Union
-from enum import IntEnum
+import enum
+from enum import IntEnum, Enum
 
 from .util import bfh, bh2u, BitcoinException, assert_bytes, to_bytes, inv_dict
 from . import version
@@ -432,20 +433,39 @@ def address_to_script(addr: str, *, net=None) -> str:
         raise BitcoinException(f'unknown address type: {addrtype}')
     return script
 
-def address_to_hash(addr: str, *, net=None) -> Tuple[int, bytes]:
-    """Return the pubkey hash / witness program of an address"""
+
+class OnchainOutputType(Enum):
+    """Opaque types of scriptPubKeys.
+    In case of p2sh, p2wsh and similar, no knowledge of redeem script, etc.
+    """
+    P2PKH = enum.auto()
+    P2SH = enum.auto()
+    WITVER0_P2WPKH = enum.auto()
+    WITVER0_P2WSH = enum.auto()
+
+
+def address_to_hash(addr: str, *, net=None) -> Tuple[OnchainOutputType, bytes]:
+    """Return (type, pubkey hash / witness program) for an address."""
     if net is None: net = constants.net
     if not is_address(addr, net=net):
         raise BitcoinException(f"invalid bitcoin address: {addr}")
     witver, witprog = segwit_addr.decode(net.SEGWIT_HRP, addr)
     if witprog is not None:
+        if witver != 0:
+            raise BitcoinException(f"not implemented handling for witver={witver}")
         if len(witprog) == 20:
-            return WIF_SCRIPT_TYPES['p2wpkh'], bytes(witprog)
-        return WIF_SCRIPT_TYPES['p2wsh'], bytes(witprog)
+            return OnchainOutputType.WITVER0_P2WPKH, bytes(witprog)
+        elif len(witprog) == 32:
+            return OnchainOutputType.WITVER0_P2WSH, bytes(witprog)
+        else:
+            raise BitcoinException(f"unexpected length for segwit witver=0 witprog: len={len(witprog)}")
     addrtype, hash_160_ = b58_address_to_hash160(addr)
     if addrtype == net.ADDRTYPE_P2PKH:
-        return WIF_SCRIPT_TYPES['p2pkh'], hash_160_
-    return WIF_SCRIPT_TYPES['p2sh'], hash_160_
+        return OnchainOutputType.P2PKH, hash_160_
+    elif addrtype == net.ADDRTYPE_P2SH:
+        return OnchainOutputType.P2SH, hash_160_
+    raise BitcoinException(f"unknown address type: {addrtype}")
+
 
 def address_to_scripthash(addr: str) -> str:
     script = address_to_script(addr)
