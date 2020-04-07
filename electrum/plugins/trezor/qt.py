@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QPushButton,
                              QMessageBox, QFileDialog, QSlider, QTabWidget)
 
 from electrum.gui.qt.util import (WindowModalDialog, WWLabel, Buttons, CancelButton,
-                                  OkButton, CloseButton)
+                                  OkButton, CloseButton, PasswordLineEdit)
 from electrum.i18n import _
 from electrum.plugin import hook
 from electrum.util import bh2u
@@ -172,10 +172,8 @@ class QtHandler(QtHandlerBase):
         OK_button = OkButton(d, _('Enter Passphrase'))
         OnDevice_button = QPushButton(_('Enter Passphrase on Device'))
 
-        new_pw = QLineEdit()
-        new_pw.setEchoMode(2)
-        conf_pw = QLineEdit()
-        conf_pw.setEchoMode(2)
+        new_pw = PasswordLineEdit()
+        conf_pw = PasswordLineEdit()
 
         vbox = QVBoxLayout()
         label = QLabel(msg + "\n")

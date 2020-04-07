@@ -33,7 +33,8 @@ from PyQt5.QtWidgets import QVBoxLayout, QLineEdit, QHBoxLayout, QLabel
 
 from electrum.gui.qt.password_dialog import PasswordLayout, PW_PASSPHRASE
 from electrum.gui.qt.util import (read_QIcon, WWLabel, OkButton, WindowModalDialog,
-                                  Buttons, CancelButton, TaskThread, char_width_in_lineedit)
+                                  Buttons, CancelButton, TaskThread, char_width_in_lineedit,
+                                  PasswordLineEdit)
 from electrum.gui.qt.main_window import StatusBarButton, ElectrumWindow
 from electrum.gui.qt.installwizard import InstallWizard
 
@@ -142,8 +143,7 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
             d.setLayout(vbox)
             passphrase = playout.new_password() if d.exec_() else None
         else:
-            pw = QLineEdit()
-            pw.setEchoMode(2)
+            pw = PasswordLineEdit()
             pw.setMinimumWidth(200)
             vbox = QVBoxLayout()
             vbox.addWidget(WWLabel(msg))

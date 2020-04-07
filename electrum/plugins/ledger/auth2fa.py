@@ -5,6 +5,8 @@ from PyQt5.QtWidgets import (QDialog, QLineEdit, QTextEdit, QVBoxLayout, QLabel,
 
 from btchip.btchip import BTChipException
 
+from electrum.gui.qt.util import PasswordLineEdit
+
 from electrum.i18n import _
 from electrum import constants, bitcoin
 from electrum.logging import get_logger
@@ -79,8 +81,7 @@ class LedgerAuthDialog(QDialog):
         self.pinbox = QWidget()
         pinlayout = QHBoxLayout()
         self.pinbox.setLayout(pinlayout)
-        self.pintxt = QLineEdit()
-        self.pintxt.setEchoMode(2)
+        self.pintxt = PasswordLineEdit()
         self.pintxt.setMaxLength(4)
         self.pintxt.returnPressed.connect(return_pin)
         pinlayout.addWidget(QLabel(_("Enter PIN:")))
@@ -121,8 +122,7 @@ class LedgerAuthDialog(QDialog):
         pin_changed('')    
         cardpin = QHBoxLayout()
         cardpin.addWidget(QLabel(_("Enter PIN:")))
-        self.cardtxt = QLineEdit()
-        self.cardtxt.setEchoMode(2)
+        self.cardtxt = PasswordLineEdit()
         self.cardtxt.setMaxLength(len(self.idxs))
         self.cardtxt.textChanged.connect(pin_changed)
         self.cardtxt.returnPressed.connect(return_pin)

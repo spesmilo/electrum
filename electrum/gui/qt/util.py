@@ -748,6 +748,12 @@ class ButtonsTextEdit(QPlainTextEdit, ButtonsWidget):
         return o
 
 
+class PasswordLineEdit(QLineEdit):
+    def __init__(self, *args, **kwargs):
+        QLineEdit.__init__(self, *args, **kwargs)
+        self.setEchoMode(QLineEdit.Password)
+
+
 class TaskThread(QThread):
     '''Thread that runs background tasks.  Callbacks are guaranteed
     to happen in the context of its parent.'''
