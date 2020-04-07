@@ -40,7 +40,8 @@ from electrumsys.interface import serialize_server, deserialize_server
 from electrumsys.network import Network
 from electrumsys.logging import get_logger
 
-from .util import Buttons, CloseButton, HelpButton, read_QIcon, char_width_in_lineedit
+from .util import (Buttons, CloseButton, HelpButton, read_QIcon, char_width_in_lineedit,
+                   PasswordLineEdit)
 
 
 _logger = get_logger(__name__)
@@ -267,9 +268,8 @@ class NetworkChoiceLayout(object):
         self.proxy_port.setFixedWidth(fixed_width_port)
         self.proxy_user = QLineEdit()
         self.proxy_user.setPlaceholderText(_("Proxy user"))
-        self.proxy_password = QLineEdit()
+        self.proxy_password = PasswordLineEdit()
         self.proxy_password.setPlaceholderText(_("Password"))
-        self.proxy_password.setEchoMode(QLineEdit.Password)
         self.proxy_password.setFixedWidth(fixed_width_port)
 
         self.proxy_mode.currentIndexChanged.connect(self.set_proxy)

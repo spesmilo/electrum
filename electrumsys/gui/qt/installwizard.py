@@ -25,7 +25,7 @@ from electrumsys.i18n import _
 from .seed_dialog import SeedLayout, KeysLayout
 from .network_dialog import NetworkChoiceLayout
 from .util import (MessageBoxMixin, Buttons, icon_path, ChoicesLayout, WWLabel,
-                   InfoButton, char_width_in_lineedit)
+                   InfoButton, char_width_in_lineedit, PasswordLineEdit)
 from .password_dialog import PasswordLayout, PasswordLayoutForHW, PW_NEW
 from electrumsys.plugin import run_hook, Plugins
 
@@ -196,9 +196,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         msg_label = WWLabel('')
         vbox.addWidget(msg_label)
         hbox2 = QHBoxLayout()
-        pw_e = QLineEdit('', self)
+        pw_e = PasswordLineEdit('', self)
         pw_e.setFixedWidth(17 * char_width_in_lineedit())
-        pw_e.setEchoMode(2)
         pw_label = QLabel(_('Password') + ':')
         hbox2.addWidget(pw_label)
         hbox2.addWidget(pw_e)

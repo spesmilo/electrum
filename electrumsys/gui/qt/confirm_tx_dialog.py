@@ -34,7 +34,8 @@ from electrumsys.transaction import Transaction, PartialTransaction
 #from electrumsys.simple_config import FEERATE_WARNING_HIGH_FEE
 from electrumsys.wallet import InternalAddressCorruption
 
-from .util import WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton, BlockingWaitingDialog
+from .util import (WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton,
+                   BlockingWaitingDialog, PasswordLineEdit)
 
 from .fee_slider import FeeSlider
 from electrumsys import constants
@@ -146,8 +147,7 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
         grid.addWidget(self.message_label, 6, 0, 1, -1)
         self.pw_label = QLabel(_('Password'))
         self.pw_label.setVisible(self.password_required)
-        self.pw = QLineEdit()
-        self.pw.setEchoMode(2)
+        self.pw = PasswordLineEdit()
         self.pw.setVisible(self.password_required)
         grid.addWidget(self.pw_label, 8, 0)
         grid.addWidget(self.pw, 8, 1, 1, -1)
