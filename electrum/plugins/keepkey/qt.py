@@ -137,7 +137,7 @@ class CharacterDialog(WindowModalDialog):
 class QtHandler(QtHandlerBase):
 
     char_signal = pyqtSignal(object)
-    pin_signal = pyqtSignal(object)
+    pin_signal = pyqtSignal(object, object)
     close_char_dialog_signal = pyqtSignal()
 
     def __init__(self, win, pin_matrix_widget_class, device):
@@ -162,17 +162,17 @@ class QtHandler(QtHandlerBase):
             self.character_dialog.accept()
             self.character_dialog = None
 
-    def get_pin(self, msg):
+    def get_pin(self, msg, *, show_strength=True):
         self.done.clear()
-        self.pin_signal.emit(msg)
+        self.pin_signal.emit(msg, show_strength)
         self.done.wait()
         return self.response
 
-    def pin_dialog(self, msg):
+    def pin_dialog(self, msg, show_strength):
         # Needed e.g. when resetting a device
         self.clear_dialog()
         dialog = WindowModalDialog(self.top_level_window(), _("Enter PIN"))
-        matrix = self.pin_matrix_widget_class()
+        matrix = self.pin_matrix_widget_class(show_strength)
         vbox = QVBoxLayout()
         vbox.addWidget(QLabel(msg))
         vbox.addWidget(matrix)

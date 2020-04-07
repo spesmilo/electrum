@@ -14,7 +14,7 @@ class CmdLineHandler(HardwareHandlerBase):
         print_stderr(msg)
         return getpass.getpass('')
 
-    def get_pin(self, msg):
+    def get_pin(self, msg, *, show_strength=True):
         t = { 'a':'7', 'b':'8', 'c':'9', 'd':'4', 'e':'5', 'f':'6', 'g':'1', 'h':'2', 'i':'3'}
         print_stderr(msg)
         print_stderr("a b c\nd e f\ng h i\n-----")

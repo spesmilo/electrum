@@ -108,7 +108,7 @@ class MatrixDialog(WindowModalDialog):
 
 class QtHandler(QtHandlerBase):
 
-    pin_signal = pyqtSignal(object)
+    pin_signal = pyqtSignal(object, object)
     matrix_signal = pyqtSignal(object)
     close_matrix_dialog_signal = pyqtSignal()
 
@@ -121,9 +121,9 @@ class QtHandler(QtHandlerBase):
         self.matrix_dialog = None
         self.passphrase_on_device = False
 
-    def get_pin(self, msg):
+    def get_pin(self, msg, *, show_strength=True):
         self.done.clear()
-        self.pin_signal.emit(msg)
+        self.pin_signal.emit(msg, show_strength)
         self.done.wait()
         return self.response
 
@@ -144,11 +144,11 @@ class QtHandler(QtHandlerBase):
     def close_matrix_dialog(self):
         self.close_matrix_dialog_signal.emit()
 
-    def pin_dialog(self, msg):
+    def pin_dialog(self, msg, show_strength):
         # Needed e.g. when resetting a device
         self.clear_dialog()
         dialog = WindowModalDialog(self.top_level_window(), _("Enter PIN"))
-        matrix = self.pin_matrix_widget_class()
+        matrix = self.pin_matrix_widget_class(show_strength)
         vbox = QVBoxLayout()
         vbox.addWidget(QLabel(msg))
         vbox.addWidget(matrix)

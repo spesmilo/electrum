@@ -246,6 +246,7 @@ class TrezorClientBase(HardwareClientBase, Logger):
         self.handler.show_message(message.format(self.device), self.client.cancel)
 
     def get_pin(self, code=None):
+        show_strength = True
         if code == 2:
             msg = _("Enter a new PIN for your {}:")
         elif code == 3:
@@ -253,7 +254,8 @@ class TrezorClientBase(HardwareClientBase, Logger):
                      "NOTE: the positions of the numbers have changed!"))
         else:
             msg = _("Enter your current {} PIN:")
-        pin = self.handler.get_pin(msg.format(self.device))
+            show_strength = False
+        pin = self.handler.get_pin(msg.format(self.device), show_strength=show_strength)
         if not pin:
             raise Cancelled
         if len(pin) > 9:
