@@ -251,6 +251,9 @@ class HardwareHandlerBase:
     def get_passphrase(self, msg: str, confirm: bool) -> Optional[str]:
         raise NotImplementedError()
 
+    def get_pin(self, msg: str, *, show_strength: bool = True) -> str:
+        raise NotImplementedError()
+
 
 def is_any_tx_output_on_change_branch(tx: PartialTransaction) -> bool:
     return any([txout.is_change for txout in tx.outputs()])
