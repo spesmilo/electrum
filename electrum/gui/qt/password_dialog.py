@@ -25,6 +25,7 @@
 
 import re
 import math
+from functools import partial
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap
@@ -165,6 +166,10 @@ class PasswordLayout(object):
             pw = None
         return pw
 
+    def clear_password_fields(self):
+        for field in [self.pw, self.new_pw, self.conf_pw]:
+            field.clear()
+
 
 class PasswordLayoutForHW(object):
 
@@ -258,9 +263,12 @@ class ChangePasswordDialogForSW(ChangePasswordDialogBase):
                                       force_disable_encrypt_cb=not wallet.can_have_keystore_encryption())
 
     def run(self):
-        if not self.exec_():
-            return False, None, None, None
-        return True, self.playout.old_password(), self.playout.new_password(), self.playout.encrypt_cb.isChecked()
+        try:
+            if not self.exec_():
+                return False, None, None, None
+            return True, self.playout.old_password(), self.playout.new_password(), self.playout.encrypt_cb.isChecked()
+        finally:
+            self.playout.clear_password_fields()
 
 
 class ChangePasswordDialogForHW(ChangePasswordDialogBase):
@@ -301,6 +309,9 @@ class PasswordDialog(WindowModalDialog):
         run_hook('password_dialog', pw, grid, 1)
 
     def run(self):
-        if not self.exec_():
-            return
-        return self.pw.text()
+        try:
+            if not self.exec_():
+                return
+            return self.pw.text()
+        finally:
+            self.pw.clear()

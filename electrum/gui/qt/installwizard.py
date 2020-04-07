@@ -281,51 +281,57 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         name_e.textChanged.connect(on_filename)
         name_e.setText(os.path.basename(path))
 
-        while True:
-            if self.loop.exec_() != 2:  # 2 = next
-                raise UserCancelled
-            assert temp_storage
-            if temp_storage.file_exists() and not temp_storage.is_encrypted():
-                break
-            if not temp_storage.file_exists():
-                break
-            wallet_from_memory = get_wallet_from_daemon(temp_storage.path)
-            if wallet_from_memory:
-                raise WalletAlreadyOpenInMemory(wallet_from_memory)
-            if temp_storage.file_exists() and temp_storage.is_encrypted():
-                if temp_storage.is_encrypted_with_user_pw():
-                    password = pw_e.text()
-                    try:
-                        temp_storage.decrypt(password)
-                        break
-                    except InvalidPassword as e:
-                        self.show_message(title=_('Error'), msg=str(e))
-                        continue
-                    except BaseException as e:
-                        self.logger.exception('')
-                        self.show_message(title=_('Error'), msg=repr(e))
-                        raise UserCancelled()
-                elif temp_storage.is_encrypted_with_hw_device():
-                    try:
-                        self.run('choose_hw_device', HWD_SETUP_DECRYPT_WALLET, storage=temp_storage)
-                    except InvalidPassword as e:
-                        self.show_message(title=_('Error'),
-                                          msg=_('Failed to decrypt using this hardware device.') + '\n' +
-                                              _('If you use a passphrase, make sure it is correct.'))
-                        self.reset_stack()
-                        return self.select_storage(path, get_wallet_from_daemon)
-                    except (UserCancelled, GoBack):
-                        raise
-                    except BaseException as e:
-                        self.logger.exception('')
-                        self.show_message(title=_('Error'), msg=repr(e))
-                        raise UserCancelled()
-                    if temp_storage.is_past_initial_decryption():
-                        break
+        def run_user_interaction_loop():
+            while True:
+                if self.loop.exec_() != 2:  # 2 = next
+                    raise UserCancelled
+                assert temp_storage
+                if temp_storage.file_exists() and not temp_storage.is_encrypted():
+                    break
+                if not temp_storage.file_exists():
+                    break
+                wallet_from_memory = get_wallet_from_daemon(temp_storage.path)
+                if wallet_from_memory:
+                    raise WalletAlreadyOpenInMemory(wallet_from_memory)
+                if temp_storage.file_exists() and temp_storage.is_encrypted():
+                    if temp_storage.is_encrypted_with_user_pw():
+                        password = pw_e.text()
+                        try:
+                            temp_storage.decrypt(password)
+                            break
+                        except InvalidPassword as e:
+                            self.show_message(title=_('Error'), msg=str(e))
+                            continue
+                        except BaseException as e:
+                            self.logger.exception('')
+                            self.show_message(title=_('Error'), msg=repr(e))
+                            raise UserCancelled()
+                    elif temp_storage.is_encrypted_with_hw_device():
+                        try:
+                            self.run('choose_hw_device', HWD_SETUP_DECRYPT_WALLET, storage=temp_storage)
+                        except InvalidPassword as e:
+                            self.show_message(title=_('Error'),
+                                              msg=_('Failed to decrypt using this hardware device.') + '\n' +
+                                                  _('If you use a passphrase, make sure it is correct.'))
+                            self.reset_stack()
+                            return self.select_storage(path, get_wallet_from_daemon)
+                        except (UserCancelled, GoBack):
+                            raise
+                        except BaseException as e:
+                            self.logger.exception('')
+                            self.show_message(title=_('Error'), msg=repr(e))
+                            raise UserCancelled()
+                        if temp_storage.is_past_initial_decryption():
+                            break
+                        else:
+                            raise UserCancelled()
                     else:
-                        raise UserCancelled()
-                else:
-                    raise Exception('Unexpected encryption version')
+                        raise Exception('Unexpected encryption version')
+
+        try:
+            run_user_interaction_loop()
+        finally:
+            pw_e.clear()
 
         return temp_storage.path, (temp_storage if temp_storage.file_exists() else None)
 
@@ -482,8 +488,11 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         playout = PasswordLayout(msg=msg, kind=kind, OK_button=self.next_button,
                                  force_disable_encrypt_cb=force_disable_encrypt_cb)
         playout.encrypt_cb.setChecked(True)
-        self.exec_layout(playout.layout())
-        return playout.new_password(), playout.encrypt_cb.isChecked()
+        try:
+            self.exec_layout(playout.layout())
+            return playout.new_password(), playout.encrypt_cb.isChecked()
+        finally:
+            playout.clear_password_fields()
 
     @wizard_dialog
     def request_password(self, run_next, force_disable_encrypt_cb=False):
