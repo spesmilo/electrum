@@ -75,7 +75,7 @@ class MockNetwork:
             await self.tx_queue.put(tx)
 
     async def try_broadcasting(self, tx, name):
-        self.broadcast_transaction(tx)
+        await self.broadcast_transaction(tx)
 
 class MockWallet:
     def set_label(self, x, y):
