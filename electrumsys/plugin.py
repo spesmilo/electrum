@@ -364,7 +364,7 @@ class DeviceMgr(ThreadJob):
         # pair.
         self.recognised_hardware = set()
         # Custom enumerate functions for devices we don't know about.
-        self.enumerate_func = set()
+        self._enumerate_func = set()  # Needs self.lock.
         # locks: if you need to take multiple ones, acquire them in the order they are defined here!
         self._scan_lock = threading.RLock()
         self.lock = threading.RLock()
@@ -395,7 +395,8 @@ class DeviceMgr(ThreadJob):
             self.recognised_hardware.add(pair)
 
     def register_enumerate_func(self, func):
-        self.enumerate_func.add(func)
+        with self.lock:
+            self._enumerate_func.add(func)
 
     def create_client(self, device: 'Device', handler: Optional['HardwareHandlerBase'],
                       plugin: 'HW_PluginBase') -> Optional['HardwareClientBase']:
@@ -664,7 +665,9 @@ class DeviceMgr(ThreadJob):
         devices = self._scan_devices_with_hid()
 
         # Let plugin handlers enumerate devices we don't know about
-        for f in self.enumerate_func:
+        with self.lock:
+            enumerate_funcs = list(self._enumerate_func)
+        for f in enumerate_funcs:
             try:
                 new_devices = f()
             except BaseException as e:
