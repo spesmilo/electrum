@@ -70,6 +70,7 @@ class Ledger_Client(HardwareClientBase):
         self.dongleObject = btchip(hidDevice)
         self.preflightDone = False
         self._is_hw1 = is_hw1
+        self._soft_device_id = None
 
     def is_pairable(self):
         return True
@@ -85,6 +86,14 @@ class Ledger_Client(HardwareClientBase):
 
     def label(self):
         return ""
+
+    def get_soft_device_id(self):
+        if self._soft_device_id is None:
+            # modern ledger can provide xpub without user interaction
+            # (hw1 would prompt for PIN)
+            if not self.is_hw1():
+                self._soft_device_id = self.request_root_fingerprint_from_device()
+        return self._soft_device_id
 
     def is_hw1(self) -> bool:
         return self._is_hw1
@@ -180,7 +189,8 @@ class Ledger_Client(HardwareClientBase):
                     # Acquire the new client on the next run
                 else:
                     raise e
-            if self.has_detached_pin_support(self.dongleObject) and not self.is_pin_validated(self.dongleObject) and (self.handler is not None):
+            if self.has_detached_pin_support(self.dongleObject) and not self.is_pin_validated(self.dongleObject):
+                assert self.handler, "no handler for client"
                 remaining_attempts = self.dongleObject.getVerifyPinRemainingAttempts()
                 if remaining_attempts != 1:
                     msg = "Enter your Ledger PIN - remaining attempts : " + str(remaining_attempts)

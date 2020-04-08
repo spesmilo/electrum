@@ -167,7 +167,7 @@ class HW_PluginBase(BasePlugin):
 class HardwareClientBase:
 
     plugin: 'HW_PluginBase'
-    handler: Optional['HardwareHandlerBase']
+    handler = None  # type: Optional['HardwareHandlerBase']
 
     def is_pairable(self) -> bool:
         raise NotImplementedError()
@@ -190,6 +190,16 @@ class HardwareClientBase:
         So ideally, different devices would have different labels.
         """
         raise NotImplementedError()
+
+    def get_soft_device_id(self) -> Optional[str]:
+        """An id-like string that is used to distinguish devices programmatically.
+        This is a long term id for the device, that does not change between reconnects.
+        This method should not prompt the user, i.e. no user interaction, as it is used
+        during USB device enumeration (called for each unpaired device).
+        Stored in the wallet file.
+        """
+        # This functionality is optional. If not implemented just return None:
+        return None
 
     def has_usable_connection_with_device(self) -> bool:
         raise NotImplementedError()
