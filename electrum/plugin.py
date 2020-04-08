@@ -485,6 +485,7 @@ class DeviceMgr(ThreadJob):
         if client:
             handler.update_status(True)
         if client:
+            # note: if select_device was called, we might also update label etc here:
             keystore.opportunistically_fill_in_missing_info_from_device(client)
         self.logger.info("end client for keystore")
         return client
@@ -621,12 +622,7 @@ class DeviceMgr(ThreadJob):
         if c is None:
             raise UserCancelled()
         info = infos[c]
-        # save new label / soft_device_id
-        keystore.set_label(info.label)
-        keystore.soft_device_id = info.soft_device_id
-        wallet = handler.get_wallet()
-        if wallet is not None:
-            wallet.save_keystore()
+        # note: updated label/soft_device_id will be saved after pairing succeeds
         return info
 
     @with_scan_lock
