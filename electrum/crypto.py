@@ -229,7 +229,10 @@ def pw_decode(data: str, password: Union[bytes, str, None], *, version: int) -> 
     if password is None:
         return data
     plaintext_bytes = pw_decode_bytes(data, password, version=version)
-    plaintext_str = to_string(plaintext_bytes, "utf8")
+    try:
+        plaintext_str = to_string(plaintext_bytes, "utf8")
+    except UnicodeDecodeError as e:
+        raise InvalidPassword() from e
     return plaintext_str
 
 
