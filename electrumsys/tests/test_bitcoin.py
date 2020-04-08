@@ -254,6 +254,11 @@ class Test_bitcoin(ElectrumSysTestCase):
             enc = crypto.pw_encode(payload, password, version=version)
             with self.assertRaises(InvalidPassword):
                 crypto.pw_decode(enc, wrong_password, version=version)
+        # sometimes the PKCS7 padding gets removed cleanly,
+        # but then UnicodeDecodeError gets raised (internally):
+        enc = 'smJ7j6ccr8LnMOlx98s/ajgikv9s3R1PQuG3GyyIMmo='
+        with self.assertRaises(InvalidPassword):
+            crypto.pw_decode(enc, wrong_password, version=1)
 
     @needs_test_with_all_chacha20_implementations
     def test_chacha20_poly1305_encrypt(self):
