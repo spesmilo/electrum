@@ -587,12 +587,6 @@ class BitBox02Plugin(HW_PluginBase):
         assert client.bitbox02_device is not None
         return client.get_xpub(derivation, xtype)
 
-    def get_client(self, keystore: BitBox02_KeyStore, force_pair: bool = True):
-        devmgr = self.device_manager()
-        handler = keystore.handler
-        client = devmgr.client_for_keystore(self, handler, keystore, force_pair)
-        return client
-
     def show_address(
         self,
         wallet: Deterministic_Wallet,
