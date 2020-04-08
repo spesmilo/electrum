@@ -196,6 +196,14 @@ class TrezorClientBase(HardwareClientBase, Logger):
         """Returns '1' for Trezor One, 'T' for Trezor T."""
         return self.features.model
 
+    def device_model_name(self):
+        model = self.get_trezor_model()
+        if model == '1':
+            return "Trezor One"
+        elif model == 'T':
+            return "Trezor T"
+        return None
+
     def show_address(self, address_str, script_type, multisig=None):
         coin_name = self.plugin.get_coin_name()
         address_n = parse_path(address_str)

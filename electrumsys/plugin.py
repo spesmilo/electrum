@@ -308,6 +308,7 @@ class DeviceInfo(NamedTuple):
     exception: Optional[Exception] = None
     plugin_name: Optional[str] = None  # manufacturer, e.g. "trezor"
     soft_device_id: Optional[str] = None  # if available, used to distinguish same-type hw devices
+    model_name: Optional[str] = None  # e.g. "Ledger Nano S"
 
 
 class HardwarePluginToScan(NamedTuple):
@@ -560,7 +561,8 @@ class DeviceMgr(ThreadJob):
                                     label=client.label(),
                                     initialized=client.is_initialized(),
                                     plugin_name=plugin.name,
-                                    soft_device_id=client.get_soft_device_id()))
+                                    soft_device_id=client.get_soft_device_id(),
+                                    model_name=client.device_model_name()))
 
         return infos
 
@@ -613,10 +615,11 @@ class DeviceMgr(ThreadJob):
             raise CannotAutoSelectDevice()
         # ask user to select device manually
         msg = _("Please select which {} device to use:").format(plugin.device)
-        descriptions = ["{label} ({init}, {transport})"
+        descriptions = ["{label} ({maybe_model}{init}, {transport})"
                         .format(label=info.label or _("An unnamed {}").format(info.plugin_name),
                                 init=(_("initialized") if info.initialized else _("wiped")),
-                                transport=info.device.transport_ui_string)
+                                transport=info.device.transport_ui_string,
+                                maybe_model=f"{info.model_name}, " if info.model_name else "")
                         for info in infos]
         c = handler.query_choice(msg, descriptions)
         if c is None:
