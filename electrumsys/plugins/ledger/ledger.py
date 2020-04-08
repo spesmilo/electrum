@@ -84,9 +84,6 @@ class Ledger_Client(HardwareClientBase):
     def is_initialized(self):
         return True
 
-    def label(self):
-        return ""
-
     def get_soft_device_id(self):
         if self._soft_device_id is None:
             # modern ledger can provide xpub without user interaction
