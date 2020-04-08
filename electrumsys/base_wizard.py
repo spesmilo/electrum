@@ -280,7 +280,8 @@ class BaseWizard(Logger):
 
         # scan devices
         try:
-            scanned_devices = devmgr.scan_devices()
+            scanned_devices = self.run_task_without_blocking_gui(task=devmgr.scan_devices,
+                                                                 msg=_("Scanning devices..."))
         except BaseException as e:
             self.logger.info('error scanning devices: {}'.format(repr(e)))
             debug_msg = '  {}:\n    {}'.format(_('Error scanning devices'), e)
