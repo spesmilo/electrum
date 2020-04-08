@@ -2,7 +2,7 @@ from struct import pack, unpack
 import hashlib
 import sys
 import traceback
-from typing import Optional
+from typing import Optional, Tuple
 
 from electrum import ecc
 from electrum import bip32
@@ -62,10 +62,10 @@ def test_pin_unlocked(func):
 
 
 class Ledger_Client(HardwareClientBase):
-    def __init__(self, hidDevice, *, is_hw1: bool = False):
+    def __init__(self, hidDevice, *, product_key: Tuple[int, int]):
         self.dongleObject = btchip(hidDevice)
         self.preflightDone = False
-        self._is_hw1 = is_hw1
+        self._product_key = product_key
         self._soft_device_id = None
 
     def is_pairable(self):
@@ -92,7 +92,18 @@ class Ledger_Client(HardwareClientBase):
         return self._soft_device_id
 
     def is_hw1(self) -> bool:
-        return self._is_hw1
+        return self._product_key[0] == 0x2581
+
+    def device_model_name(self):
+        if self.is_hw1():
+            return "Ledger HW.1"
+        if self._product_key == (0x2c97, 0x0000):
+            return "Ledger Blue"
+        if self._product_key == (0x2c97, 0x0001):
+            return "Ledger Nano S"
+        if self._product_key == (0x2c97, 0x0004):
+            return "Ledger Nano X"
+        return None
 
     def has_usable_connection_with_device(self):
         try:
@@ -594,8 +605,7 @@ class LedgerPlugin(HW_PluginBase):
 
         client = self.get_btchip_device(device)
         if client is not None:
-            is_hw1 = device.product_key[0] == 0x2581
-            client = Ledger_Client(client, is_hw1=is_hw1)
+            client = Ledger_Client(client, product_key=device.product_key)
         return client
 
     def setup_device(self, device_info, wizard, purpose):
