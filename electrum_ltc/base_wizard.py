@@ -280,7 +280,8 @@ class BaseWizard(Logger):
 
         # scan devices
         try:
-            scanned_devices = devmgr.scan_devices()
+            scanned_devices = self.run_task_without_blocking_gui(task=devmgr.scan_devices,
+                                                                 msg=_("Scanning devices..."))
         except BaseException as e:
             self.logger.info('error scanning devices: {}'.format(repr(e)))
             debug_msg = '  {}:\n    {}'.format(_('Error scanning devices'), e)
@@ -336,7 +337,7 @@ class BaseWizard(Logger):
             label = info.label or _("An unnamed {}").format(name)
             try: transport_str = info.device.transport_ui_string[:20]
             except: transport_str = 'unknown transport'
-            descr = f"{label} [{name}, {state}, {transport_str}]"
+            descr = f"{label} [{info.model_name or name}, {state}, {transport_str}]"
             choices.append(((name, info), descr))
         msg = _('Select a device') + ':'
         self.choice_dialog(title=title, message=msg, choices=choices,
@@ -438,6 +439,7 @@ class BaseWizard(Logger):
             if not client: raise Exception("failed to find client for device id")
             root_fingerprint = client.request_root_fingerprint_from_device()
             label = client.label()  # use this as device_info.label might be outdated!
+            soft_device_id = client.get_soft_device_id()  # use this as device_info.device_id might be outdated!
         except ScriptTypeNotSupported:
             raise  # this is handled in derivation_dialog
         except BaseException as e:
@@ -451,6 +453,7 @@ class BaseWizard(Logger):
             'root_fingerprint': root_fingerprint,
             'xpub': xpub,
             'label': label,
+            'soft_device_id': soft_device_id,
         }
         k = hardware_keystore(d)
         self.on_keystore(k)
@@ -612,7 +615,7 @@ class BaseWizard(Logger):
         if os.path.exists(path):
             raise Exception('file already exists at path')
         if not self.pw_args:
-            return
+            return  # FIXME
         pw_args = self.pw_args
         self.pw_args = None  # clean-up so that it can get GC-ed
         storage = WalletStorage(path)

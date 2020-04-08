@@ -724,6 +724,7 @@ class Hardware_KeyStore(Xpub, KeyStore):
         # device reconnects
         self.xpub = d.get('xpub')
         self.label = d.get('label')
+        self.soft_device_id = d.get('soft_device_id')  # type: Optional[str]
         self.handler = None  # type: Optional[HardwareHandlerBase]
         run_hook('init_keystore', self)
 
@@ -747,6 +748,7 @@ class Hardware_KeyStore(Xpub, KeyStore):
             'derivation': self.get_derivation_prefix(),
             'root_fingerprint': self.get_root_fingerprint(),
             'label':self.label,
+            'soft_device_id': self.soft_device_id,
         }
 
     def unpaired(self):
@@ -787,6 +789,9 @@ class Hardware_KeyStore(Xpub, KeyStore):
             self.is_requesting_to_be_rewritten_to_wallet_file = True
         if self.label != client.label():
             self.label = client.label()
+            self.is_requesting_to_be_rewritten_to_wallet_file = True
+        if self.soft_device_id != client.get_soft_device_id():
+            self.soft_device_id = client.get_soft_device_id()
             self.is_requesting_to_be_rewritten_to_wallet_file = True
 
 

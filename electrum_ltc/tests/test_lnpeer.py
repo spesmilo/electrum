@@ -75,7 +75,7 @@ class MockNetwork:
             await self.tx_queue.put(tx)
 
     async def try_broadcasting(self, tx, name):
-        self.broadcast_transaction(tx)
+        await self.broadcast_transaction(tx)
 
 class MockWallet:
     def set_label(self, x, y):
@@ -173,16 +173,17 @@ class NoFeaturesTransport(MockTransport):
             self.queue.put_nowait(encode_msg('init', lflen=1, gflen=1, localfeatures=b"\x00", globalfeatures=b"\x00"))
 
 class PutIntoOthersQueueTransport(MockTransport):
-    def __init__(self, name):
+    def __init__(self, keypair, name):
         super().__init__(name)
         self.other_mock_transport = None
+        self.privkey = keypair.privkey
 
     def send_bytes(self, data):
         self.other_mock_transport.queue.put_nowait(data)
 
-def transport_pair(name1, name2):
-    t1 = PutIntoOthersQueueTransport(name1)
-    t2 = PutIntoOthersQueueTransport(name2)
+def transport_pair(k1, k2, name1, name2):
+    t1 = PutIntoOthersQueueTransport(k1, name1)
+    t2 = PutIntoOthersQueueTransport(k2, name2)
     t1.other_mock_transport = t2
     t2.other_mock_transport = t1
     return t1, t2
@@ -205,7 +206,7 @@ class TestPeer(ElectrumTestCase):
 
     def prepare_peers(self, alice_channel, bob_channel):
         k1, k2 = keypair(), keypair()
-        t1, t2 = transport_pair(alice_channel.name, bob_channel.name)
+        t1, t2 = transport_pair(k2, k1, alice_channel.name, bob_channel.name)
         q1, q2 = asyncio.Queue(), asyncio.Queue()
         w1 = MockLNWallet(k1, k2, alice_channel, tx_queue=q1)
         w2 = MockLNWallet(k2, k1, bob_channel, tx_queue=q2)
