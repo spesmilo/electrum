@@ -4,7 +4,7 @@
 #
 import os, time, io
 import traceback
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 import struct
 
 from electrum import bip32
@@ -536,11 +536,12 @@ class ColdcardPlugin(HW_PluginBase):
         xpub = client.get_xpub(derivation, xtype)
         return xpub
 
-    def get_client(self, keystore, force_pair=True) -> 'CKCCClient':
+    def get_client(self, keystore, force_pair=True, *,
+                   devices=None, allow_user_interaction=True) -> Optional['CKCCClient']:
         # Acquire a connection to the hardware device (via USB)
-        devmgr = self.device_manager()
-        handler = keystore.handler
-        client = devmgr.client_for_keystore(self, handler, keystore, force_pair)
+        client = super().get_client(keystore, force_pair,
+                                    devices=devices,
+                                    allow_user_interaction=allow_user_interaction)
 
         if client is not None:
             client.ping_check()

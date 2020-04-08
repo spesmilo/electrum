@@ -612,11 +612,12 @@ class LedgerPlugin(HW_PluginBase):
         xpub = client.get_xpub(derivation, xtype)
         return xpub
 
-    def get_client(self, keystore, force_pair=True):
+    def get_client(self, keystore, force_pair=True, *,
+                   devices=None, allow_user_interaction=True):
         # All client interaction should not be in the main GUI thread
-        devmgr = self.device_manager()
-        handler = keystore.handler
-        client = devmgr.client_for_keystore(self, handler, keystore, force_pair)
+        client = super().get_client(keystore, force_pair,
+                                    devices=devices,
+                                    allow_user_interaction=allow_user_interaction)
         # returns the client for a given keystore. can use xpub
         #if client:
         #    client.used()

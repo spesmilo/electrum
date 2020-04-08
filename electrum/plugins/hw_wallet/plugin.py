@@ -83,8 +83,15 @@ class HW_PluginBase(BasePlugin):
         """
         raise NotImplementedError()
 
-    def get_client(self, keystore: 'Hardware_KeyStore', force_pair: bool = True) -> Optional['HardwareClientBase']:
-        raise NotImplementedError()
+    def get_client(self, keystore: 'Hardware_KeyStore', force_pair: bool = True, *,
+                   devices: Sequence['Device'] = None,
+                   allow_user_interaction: bool = True) -> Optional['HardwareClientBase']:
+        devmgr = self.device_manager()
+        handler = keystore.handler
+        client = devmgr.client_for_keystore(self, handler, keystore, force_pair,
+                                            devices=devices,
+                                            allow_user_interaction=allow_user_interaction)
+        return client
 
     def show_address(self, wallet: 'Abstract_Wallet', address, keystore: 'Hardware_KeyStore' = None):
         pass  # implemented in child classes

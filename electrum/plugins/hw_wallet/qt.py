@@ -206,9 +206,11 @@ class QtPluginBase(object):
 
     @hook
     def load_wallet(self: Union['QtPluginBase', HW_PluginBase], wallet: 'Abstract_Wallet', window: ElectrumWindow):
-        for keystore in wallet.get_keystores():
-            if not isinstance(keystore, self.keystore_class):
-                continue
+        relevant_keystores = [keystore for keystore in wallet.get_keystores()
+                              if isinstance(keystore, self.keystore_class)]
+        if not relevant_keystores:
+            return
+        for keystore in relevant_keystores:
             if not self.libraries_available:
                 message = keystore.plugin.get_library_not_available_message()
                 window.show_error(message)
@@ -224,8 +226,31 @@ class QtPluginBase(object):
             keystore.handler = handler
             keystore.thread = TaskThread(window, on_error=partial(self.on_task_thread_error, window, keystore))
             self.add_show_address_on_hw_device_button_for_receive_addr(wallet, keystore, window)
-            # Trigger a pairing
-            keystore.thread.add(partial(self.get_client, keystore))
+        # Trigger pairings
+        def trigger_pairings():
+            devmgr = self.device_manager()
+            devices = devmgr.scan_devices()
+            # first pair with all devices that can be auto-selected
+            for keystore in relevant_keystores:
+                try:
+                    self.get_client(keystore=keystore,
+                                    force_pair=True,
+                                    allow_user_interaction=False,
+                                    devices=devices)
+                except UserCancelled:
+                    pass
+            # now do manual selections
+            for keystore in relevant_keystores:
+                try:
+                    self.get_client(keystore=keystore,
+                                    force_pair=True,
+                                    allow_user_interaction=True,
+                                    devices=devices)
+                except UserCancelled:
+                    pass
+
+        some_keystore = relevant_keystores[0]
+        some_keystore.thread.add(trigger_pairings)
 
     def _on_status_bar_button_click(self, *, window: ElectrumWindow, keystore: 'Hardware_KeyStore'):
         try:
