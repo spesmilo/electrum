@@ -29,7 +29,7 @@ import time
 import threading
 import sys
 from typing import (NamedTuple, Any, Union, TYPE_CHECKING, Optional, Tuple,
-                    Dict, Iterable, List)
+                    Dict, Iterable, List, Sequence)
 
 from .i18n import _
 from .util import (profiler, DaemonThread, UserCancelled, ThreadJob, UserFacingException)
@@ -289,6 +289,7 @@ class BasePlugin(Logger):
 
 class DeviceUnpairableError(UserFacingException): pass
 class HardwarePluginLibraryUnavailable(Exception): pass
+class CannotAutoSelectDevice(Exception): pass
 
 
 class Device(NamedTuple):
@@ -460,19 +461,27 @@ class DeviceMgr(ThreadJob):
     @with_scan_lock
     def client_for_keystore(self, plugin: 'HW_PluginBase', handler: Optional['HardwareHandlerBase'],
                             keystore: 'Hardware_KeyStore',
-                            force_pair: bool) -> Optional['HardwareClientBase']:
+                            force_pair: bool, *,
+                            devices: Sequence['Device'] = None,
+                            allow_user_interaction: bool = True) -> Optional['HardwareClientBase']:
         self.logger.info("getting client for keystore")
         if handler is None:
             raise Exception(_("Handler not found for") + ' ' + plugin.name + '\n' + _("A library is probably missing."))
         handler.update_status(False)
-        devices = self.scan_devices()
+        if devices is None:
+            devices = self.scan_devices()
         xpub = keystore.xpub
         derivation = keystore.get_derivation_prefix()
         assert derivation is not None
         client = self.client_by_xpub(plugin, xpub, handler, devices)
         if client is None and force_pair:
-            info = self.select_device(plugin, handler, keystore, devices)
-            client = self.force_pair_xpub(plugin, handler, info, xpub, derivation)
+            try:
+                info = self.select_device(plugin, handler, keystore, devices,
+                                          allow_user_interaction=allow_user_interaction)
+            except CannotAutoSelectDevice:
+                pass
+            else:
+                client = self.force_pair_xpub(plugin, handler, info, xpub, derivation)
         if client:
             handler.update_status(True)
         if client:
@@ -481,7 +490,7 @@ class DeviceMgr(ThreadJob):
         return client
 
     def client_by_xpub(self, plugin: 'HW_PluginBase', xpub, handler: 'HardwareHandlerBase',
-                       devices: Iterable['Device']) -> Optional['HardwareClientBase']:
+                       devices: Sequence['Device']) -> Optional['HardwareClientBase']:
         _id = self.xpub_id(xpub)
         client = self.client_lookup(_id)
         if client:
@@ -523,7 +532,7 @@ class DeviceMgr(ThreadJob):
               'receive will be unspendable.').format(plugin.device))
 
     def unpaired_device_infos(self, handler: Optional['HardwareHandlerBase'], plugin: 'HW_PluginBase',
-                              devices: List['Device'] = None,
+                              devices: Sequence['Device'] = None,
                               include_failing_clients=False) -> List['DeviceInfo']:
         '''Returns a list of DeviceInfo objects: one for each connected,
         unpaired device accepted by the plugin.'''
@@ -555,15 +564,17 @@ class DeviceMgr(ThreadJob):
         return infos
 
     def select_device(self, plugin: 'HW_PluginBase', handler: 'HardwareHandlerBase',
-                      keystore: 'Hardware_KeyStore', devices: List['Device'] = None) -> 'DeviceInfo':
-        '''Ask the user to select a device to use if there is more than one,
-        and return the DeviceInfo for the device.'''
+                      keystore: 'Hardware_KeyStore', devices: Sequence['Device'] = None,
+                      *, allow_user_interaction: bool = True) -> 'DeviceInfo':
+        """Select the device to use for keystore."""
         # ideally this should not be called from the GUI thread...
         # assert handler.get_gui_thread() != threading.current_thread(), 'must not be called from GUI thread'
         while True:
             infos = self.unpaired_device_infos(handler, plugin, devices)
             if infos:
                 break
+            if not allow_user_interaction:
+                raise CannotAutoSelectDevice()
             msg = _('Please insert your {}').format(plugin.device)
             if keystore.label:
                 msg += ' ({})'.format(keystore.label)
@@ -575,21 +586,30 @@ class DeviceMgr(ThreadJob):
             if not handler.yes_no_question(msg):
                 raise UserCancelled()
             devices = None
-        if len(infos) == 1:
-            return infos[0]
-        # select device by id
+
+        # select device automatically. (but only if we have reasonable expectation it is the correct one)
+        # method 1: select device by id
         if keystore.soft_device_id:
             for info in infos:
                 if info.soft_device_id == keystore.soft_device_id:
                     return info
-        # select device by label automatically;
-        # but only if not a placeholder label and only if there is no collision
+        # method 2: select device by label
+        #           but only if not a placeholder label and only if there is no collision
         device_labels = [info.label for info in infos]
         if (keystore.label not in PLACEHOLDER_HW_CLIENT_LABELS
                 and device_labels.count(keystore.label) == 1):
             for info in infos:
                 if info.label == keystore.label:
                     return info
+        # method 3: if there is only one device connected, and we don't have useful label/soft_device_id
+        #           saved for keystore anyway, select it
+        if (len(infos) == 1
+                and keystore.label in PLACEHOLDER_HW_CLIENT_LABELS
+                and keystore.soft_device_id is None):
+            return infos[0]
+
+        if not allow_user_interaction:
+            raise CannotAutoSelectDevice()
         # ask user to select device manually
         msg = _("Please select which {} device to use:").format(plugin.device)
         descriptions = ["{label} ({init}, {transport})"
@@ -638,7 +658,7 @@ class DeviceMgr(ThreadJob):
         return devices
 
     @with_scan_lock
-    def scan_devices(self) -> List['Device']:
+    def scan_devices(self) -> Sequence['Device']:
         self.logger.info("scanning devices...")
 
         # First see what's connected that we know about

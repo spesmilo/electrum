@@ -741,10 +741,11 @@ class DigitalBitboxPlugin(HW_PluginBase):
         return xpub
 
 
-    def get_client(self, keystore, force_pair=True):
-        devmgr = self.device_manager()
-        handler = keystore.handler
-        client = devmgr.client_for_keystore(self, handler, keystore, force_pair)
+    def get_client(self, keystore, force_pair=True, *,
+                   devices=None, allow_user_interaction=True):
+        client = super().get_client(keystore, force_pair,
+                                    devices=devices,
+                                    allow_user_interaction=allow_user_interaction)
         if client is not None:
             client.check_device_dialog()
         return client
