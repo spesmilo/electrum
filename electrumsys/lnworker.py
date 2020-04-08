@@ -832,7 +832,6 @@ class LNWallet(LNWorker):
             self.network.trigger_callback('payment_succeeded', key)
         else:
             self.network.trigger_callback('payment_failed', key, reason)
-        self.logger.debug(f'payment attempts log for RHASH {key}: {repr(log)}')
         return success
 
     async def _pay_to_route(self, route: LNPaymentRoute, lnaddr: LnAddr) -> PaymentAttemptLog:
