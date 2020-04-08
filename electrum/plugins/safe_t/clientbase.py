@@ -121,6 +121,9 @@ class SafeTClientBase(HardwareClientBase, GuiMixin, Logger):
     def label(self):
         return self.features.label
 
+    def get_soft_device_id(self):
+        return self.features.device_id
+
     def is_initialized(self):
         return self.features.initialized
 

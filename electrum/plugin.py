@@ -306,6 +306,7 @@ class DeviceInfo(NamedTuple):
     initialized: Optional[bool] = None
     exception: Optional[Exception] = None
     plugin_name: Optional[str] = None  # manufacturer, e.g. "trezor"
+    soft_device_id: Optional[str] = None  # if available, used to distinguish same-type hw devices
 
 
 class HardwarePluginToScan(NamedTuple):
@@ -548,7 +549,8 @@ class DeviceMgr(ThreadJob):
             infos.append(DeviceInfo(device=device,
                                     label=client.label(),
                                     initialized=client.is_initialized(),
-                                    plugin_name=plugin.name))
+                                    plugin_name=plugin.name,
+                                    soft_device_id=client.get_soft_device_id()))
 
         return infos
 
@@ -575,6 +577,11 @@ class DeviceMgr(ThreadJob):
             devices = None
         if len(infos) == 1:
             return infos[0]
+        # select device by id
+        if keystore.soft_device_id:
+            for info in infos:
+                if info.soft_device_id == keystore.soft_device_id:
+                    return info
         # select device by label automatically;
         # but only if not a placeholder label and only if there is no collision
         device_labels = [info.label for info in infos]
@@ -583,7 +590,7 @@ class DeviceMgr(ThreadJob):
             for info in infos:
                 if info.label == keystore.label:
                     return info
-        # ask user to select device
+        # ask user to select device manually
         msg = _("Please select which {} device to use:").format(plugin.device)
         descriptions = ["{label} ({init}, {transport})"
                         .format(label=info.label or _("An unnamed {}").format(info.plugin_name),
@@ -594,8 +601,9 @@ class DeviceMgr(ThreadJob):
         if c is None:
             raise UserCancelled()
         info = infos[c]
-        # save new label
+        # save new label / soft_device_id
         keystore.set_label(info.label)
+        keystore.soft_device_id = info.soft_device_id
         wallet = handler.get_wallet()
         if wallet is not None:
             wallet.save_keystore()

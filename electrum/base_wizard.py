@@ -438,6 +438,7 @@ class BaseWizard(Logger):
             if not client: raise Exception("failed to find client for device id")
             root_fingerprint = client.request_root_fingerprint_from_device()
             label = client.label()  # use this as device_info.label might be outdated!
+            soft_device_id = client.get_soft_device_id()  # use this as device_info.device_id might be outdated!
         except ScriptTypeNotSupported:
             raise  # this is handled in derivation_dialog
         except BaseException as e:
@@ -451,6 +452,7 @@ class BaseWizard(Logger):
             'root_fingerprint': root_fingerprint,
             'xpub': xpub,
             'label': label,
+            'soft_device_id': soft_device_id,
         }
         k = hardware_keystore(d)
         self.on_keystore(k)
@@ -612,7 +614,7 @@ class BaseWizard(Logger):
         if os.path.exists(path):
             raise Exception('file already exists at path')
         if not self.pw_args:
-            return
+            return  # FIXME
         pw_args = self.pw_args
         self.pw_args = None  # clean-up so that it can get GC-ed
         storage = WalletStorage(path)
