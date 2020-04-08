@@ -68,6 +68,10 @@ if TYPE_CHECKING:
 known_commands = {}  # type: Dict[str, Command]
 
 
+class NotSynchronizedException(Exception):
+    pass
+
+
 def satoshis(amount):
     # satoshi conversion must not be performed by the parser
     return int(COIN*Decimal(amount)) if amount not in ['!', None] else amount
@@ -827,7 +831,7 @@ class Commands:
         if not isinstance(wallet, Deterministic_Wallet):
             raise Exception("This wallet is not deterministic.")
         if not wallet.is_up_to_date():
-            raise Exception("Wallet not fully synchronized.")
+            raise NotSynchronizedException("Wallet not fully synchronized.")
         return wallet.min_acceptable_gap()
 
     @command('w')
