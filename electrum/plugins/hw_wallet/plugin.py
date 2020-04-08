@@ -196,7 +196,9 @@ class HardwareClientBase:
         and they are also used as a fallback to distinguish devices programmatically.
         So ideally, different devices would have different labels.
         """
-        raise NotImplementedError()
+        # When returning a constant here (i.e. not implementing the method in the way
+        # it is supposed to work), make sure the return value is in electrum.plugin.PLACEHOLDER_HW_CLIENT_LABELS
+        return " "
 
     def get_soft_device_id(self) -> Optional[str]:
         """An id-like string that is used to distinguish devices programmatically.
