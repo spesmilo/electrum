@@ -58,6 +58,7 @@ class Test_auxpow(SequentialTestCase):
     # This height was chosen because it has large, non-equal lengths of the
     # coinbase and chain Merkle branches.  It has an explicit coinbase MM
     # header.
+    # Equivalent to parseAuxPoWHeader in libdohj tests.
     def test_deserialize_auxpow_header_explicit_coinbase(self):
         header = self.deserialize_with_auxpow(namecoin_header_37174)
         header_auxpow = header['auxpow']
@@ -111,17 +112,20 @@ class Test_auxpow(SequentialTestCase):
         self.assertEqual(start_position, len(namecoin_header_37174)//2 + 1)
 
     # Verify the AuxPoW header from Namecoin block #37,174.
+    # Equivalent to checkAuxPoWHeader in libdohj tests.
     def test_verify_auxpow_header_explicit_coinbase(self):
         header = self.deserialize_with_auxpow(namecoin_header_37174)
         blockchain.Blockchain.verify_header(header, namecoin_prev_hash_37174, namecoin_target_37174)
 
     # Verify the AuxPoW header from Namecoin block #19,414.  This header
     # doesn't have an explicit MM coinbase header.
+    # Equivalent to checkAuxPoWHeaderNoTxHeader in libdohj tests.
     def test_verify_auxpow_header_implicit_coinbase(self):
         header = self.deserialize_with_auxpow(namecoin_header_19414)
         blockchain.Blockchain.verify_header(header, namecoin_prev_hash_19414, namecoin_target_19414)
 
     # Check that a non-generate AuxPoW transaction is rejected.
+    # Equivalent to shouldRejectNonGenerateAuxPoW in libdohj tests.
     def test_should_reject_non_generate_auxpow(self):
         header = self.deserialize_with_auxpow(namecoin_header_37174)
         header['auxpow']['coinbase_merkle_index'] = 0x01
@@ -131,6 +135,7 @@ class Test_auxpow(SequentialTestCase):
 
     # Check that block headers from the sidechain are rejected as parent chain
     # for AuxPoW, via checking of the chain ID's.
+    # Equivalent to shouldRejectOwnChainID in libdohj tests.
     def test_should_reject_own_chain_id(self):
         parent_header = self.deserialize_with_auxpow(namecoin_header_19204)
         self.assertEqual(1, auxpow.get_chain_id(parent_header))
@@ -143,6 +148,7 @@ class Test_auxpow(SequentialTestCase):
 
     # Check that where the chain merkle branch is far too long to use, it's
     # rejected.
+    # Equivalent to shouldRejectVeryLongMerkleBranch in libdohj tests.
     def test_should_reject_very_long_merkle_branch(self):
         header = self.deserialize_with_auxpow(namecoin_header_37174)
         header['auxpow']['chain_merkle_branch'] = list([32 * '00' for i in range(32)])
@@ -155,6 +161,7 @@ class Test_auxpow(SequentialTestCase):
     # transaction is actually part of the parent chain block, so first we test
     # that the transaction hash is part of the merkle tree. This test modifies
     # the transaction, invalidating the hash, to confirm that it's rejected.
+    # Equivalent to shouldRejectIfCoinbaseTransactionNotInMerkleBranch in libdohj tests.
     def test_should_reject_bad_coinbase_merkle_branch(self):
         header = self.deserialize_with_auxpow(namecoin_header_37174)
 
@@ -167,6 +174,7 @@ class Test_auxpow(SequentialTestCase):
 
     # Ensure that in case of a malformed coinbase transaction (no inputs) it's
     # caught and processed neatly.
+    # Equivalent to shouldRejectIfCoinbaseTransactionHasNoInputs in libdohj tests.
     def test_should_reject_coinbase_no_inputs(self):
         header = self.deserialize_with_auxpow(namecoin_header_37174)
 
@@ -182,6 +190,7 @@ class Test_auxpow(SequentialTestCase):
     # the merged block. In this case we make the transaction script too short
     # for it to do so.  This test is for the code path with an implicit MM
     # coinbase header.
+    # Equivalent to shouldRejectIfMergedMineHeaderMissing in libdohj tests.
     def test_should_reject_coinbase_root_too_late(self):
         header = self.deserialize_with_auxpow(namecoin_header_19414)
 
@@ -199,6 +208,8 @@ class Test_auxpow(SequentialTestCase):
 
     # Verifies that the commitment of the auxpow to the block header it is
     # proving for is actually checked.
+    # Analogous to shouldRejectIfCoinbaseMissingChainMerkleRoot in libdohj tests.
+    # TODO: Maybe make this test closer to libdohj's test?
     def test_should_reject_coinbase_root_missing(self):
         header = self.deserialize_with_auxpow(namecoin_header_19414)
         # Modify the header so that its hash no longer matches the
