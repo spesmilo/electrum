@@ -82,6 +82,7 @@ setup(
         'electrum_ltc': [
             'wordlist/*.txt',
             'locale/*/LC_MESSAGES/electrum.mo',
+            'lnwire/*.csv',
         ],
         'electrum_ltc.gui': [
             'icons/*',

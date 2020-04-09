@@ -611,6 +611,7 @@ class LedgerPlugin(HW_PluginBase):
         client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
         wizard.run_task_without_blocking_gui(
             task=lambda: client.get_xpub("m/44'/2'", 'standard'))  # TODO replace by direct derivation once Nano S > 1.1
+        return client
 
     def get_xpub(self, device_id, derivation, xtype, wizard):
         if xtype not in self.SUPPORTED_XTYPES:

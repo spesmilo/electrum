@@ -288,6 +288,7 @@ class TrezorPlugin(HW_PluginBase):
         wizard.run_task_without_blocking_gui(
             task=lambda: client.get_xpub('m', 'standard', creating=is_creating_wallet))
         client.used()
+        return client
 
     def get_xpub(self, device_id, derivation, xtype, wizard):
         if xtype not in self.SUPPORTED_XTYPES:

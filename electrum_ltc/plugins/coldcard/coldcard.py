@@ -524,6 +524,7 @@ class ColdcardPlugin(HW_PluginBase):
     def setup_device(self, device_info, wizard, purpose):
         device_id = device_info.device.id_
         client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
+        return client
 
     def get_xpub(self, device_id, derivation, xtype, wizard):
         # this seems to be part of the pairing process only, not during normal ops?
