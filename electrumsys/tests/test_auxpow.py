@@ -206,6 +206,25 @@ class Test_auxpow(SequentialTestCase):
         with self.assertRaises(auxpow.AuxPoWCoinbaseRootTooLate):
             blockchain.Blockchain.verify_header(header, namecoin_prev_hash_19414, namecoin_target_19414)
 
+    # Catch the case that more than one merged mine header is present in the
+    # coinbase transaction (this is considered an attempt to confuse the
+    # parser).  We use this Namecoin header because it has an explicit MM
+    # coinbase header (otherwise it won't be a duplicate).
+    # Equivalent to shouldRejectIfMergedMineHeaderDuplicated in libdohj tests.
+    def test_should_reject_coinbase_root_duplicated(self):
+        header = self.deserialize_with_auxpow(namecoin_header_37174)
+
+        input_script = header['auxpow']['parent_coinbase_tx'].inputs()[0].script_sig
+
+        new_script = input_script + auxpow.COINBASE_MERGED_MINING_HEADER
+
+        header['auxpow']['parent_coinbase_tx']._inputs[0].script_sig = new_script
+
+        self.clear_coinbase_outputs(header['auxpow'])
+
+        with self.assertRaises(auxpow.AuxPoWCoinbaseRootDuplicatedError):
+            blockchain.Blockchain.verify_header(header, namecoin_prev_hash_37174, namecoin_target_37174)
+
     # Verifies that the commitment of the auxpow to the block header it is
     # proving for is actually checked.
     # Analogous to shouldRejectIfCoinbaseMissingChainMerkleRoot in libdohj tests.
