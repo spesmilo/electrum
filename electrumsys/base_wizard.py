@@ -263,7 +263,7 @@ class BaseWizard(Logger):
         k = keystore.from_master_key(text)
         self.on_keystore(k)
 
-    def choose_hw_device(self, purpose=HWD_SETUP_NEW_WALLET, *, storage=None):
+    def choose_hw_device(self, purpose=HWD_SETUP_NEW_WALLET, *, storage: WalletStorage = None):
         title = _('Hardware Keystore')
         # check available plugins
         supported_plugins = self.plugins.get_hardware_support()
@@ -343,7 +343,7 @@ class BaseWizard(Logger):
         self.choice_dialog(title=title, message=msg, choices=choices,
                            run_next=lambda *args: self.on_device(*args, purpose=purpose, storage=storage))
 
-    def on_device(self, name, device_info: 'DeviceInfo', *, purpose, storage=None):
+    def on_device(self, name, device_info: 'DeviceInfo', *, purpose, storage: WalletStorage = None):
         self.plugin = self.plugins.get_plugin(name)
         assert isinstance(self.plugin, HW_PluginBase)
         devmgr = self.plugins.device_manager
@@ -444,6 +444,7 @@ class BaseWizard(Logger):
         except BaseException as e:
             self.logger.exception('')
             self.show_error(e)
+            self.choose_hw_device()
             return
         d = {
             'type': 'hardware',
@@ -565,6 +566,7 @@ class BaseWizard(Logger):
             except BaseException as e:
                 self.logger.exception('')
                 self.show_error(str(e))
+                self.choose_hw_device()
                 return
             self.request_storage_encryption(
                 run_next=lambda encrypt_storage: self.on_password(
