@@ -902,18 +902,24 @@ class LNWallet(LNWorker):
             #       we try decoding both ways here.
             try:
                 message_type, payload = decode_msg(channel_update_typed)
+                assert payload['chain_hash'] == constants.net.rev_genesis_bytes()
                 payload['raw'] = channel_update_typed
             except:  # FIXME: too broad
                 message_type, payload = decode_msg(channel_update_as_received)
                 payload['raw'] = channel_update_as_received
+            # sanity check
+            if payload['chain_hash'] != constants.net.rev_genesis_bytes():
+                self.logger.info(f'could not decode channel_update for failed htlc: {channel_update_as_received.hex()}')
+                return True
             categorized_chan_upds = self.channel_db.add_channel_updates([payload])
             blacklist = False
+            short_channel_id = ShortChannelID(payload['short_channel_id'])
             if categorized_chan_upds.good:
-                self.logger.info("applied channel update on our db")
+                self.logger.info(f"applied channel update to {short_channel_id}")
                 peer.maybe_save_remote_update(payload)
             elif categorized_chan_upds.orphaned:
                 # maybe it is a private channel (and data in invoice was outdated)
-                self.logger.info("maybe channel update is for private channel?")
+                self.logger.info(f"Could not find {short_channel_id}. maybe update is for private channel?")
                 start_node_id = route[sender_idx].node_id
                 self.channel_db.add_channel_update_for_private_channel(payload, start_node_id)
             elif categorized_chan_upds.expired:
