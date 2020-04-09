@@ -25,6 +25,7 @@
 # SOFTWARE.
 
 from typing import TYPE_CHECKING, Dict, List, Union, Tuple, Sequence, Optional, Type
+from functools import partial
 
 from electrum.plugin import BasePlugin, hook, Device, DeviceMgr, DeviceInfo
 from electrum.i18n import _
@@ -67,14 +68,15 @@ class HW_PluginBase(BasePlugin):
 
     def scan_and_create_client_for_device(self, *, device_id: str, wizard: 'BaseWizard') -> 'HardwareClientBase':
         devmgr = self.device_manager()
-        client = devmgr.client_by_id(device_id)
+        client = wizard.run_task_without_blocking_gui(
+            task=partial(devmgr.client_by_id, device_id))
         if client is None:
             raise UserFacingException(_('Failed to create a client for this device.') + '\n' +
                                       _('Make sure it is in the correct state.'))
         client.handler = self.create_handler(wizard)
         return client
 
-    def setup_device(self, device_info: DeviceInfo, wizard: 'BaseWizard', purpose):
+    def setup_device(self, device_info: DeviceInfo, wizard: 'BaseWizard', purpose) -> 'HardwareClientBase':
         """Called when creating a new wallet or when using the device to decrypt
         an existing wallet. Select the device to use.  If the device is
         uninitialized, go through the initialization process.

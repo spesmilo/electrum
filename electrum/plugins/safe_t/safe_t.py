@@ -257,6 +257,7 @@ class SafeTPlugin(HW_PluginBase):
         wizard.run_task_without_blocking_gui(
             task=lambda: client.get_xpub("m", 'standard'))
         client.used()
+        return client
 
     def get_xpub(self, device_id, derivation, xtype, wizard):
         if xtype not in self.SUPPORTED_XTYPES:
