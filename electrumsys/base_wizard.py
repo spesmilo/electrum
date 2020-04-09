@@ -348,7 +348,7 @@ class BaseWizard(Logger):
         assert isinstance(self.plugin, HW_PluginBase)
         devmgr = self.plugins.device_manager
         try:
-            self.plugin.setup_device(device_info, self, purpose)
+            client = self.plugin.setup_device(device_info, self, purpose)
         except OSError as e:
             self.show_error(_('We encountered an error while connecting to your device:')
                             + '\n' + str(e) + '\n'
@@ -376,19 +376,18 @@ class BaseWizard(Logger):
             self.show_error(str(e))
             self.choose_hw_device(purpose, storage=storage)
             return
+
         if purpose == HWD_SETUP_NEW_WALLET:
             def f(derivation, script_type):
                 derivation = normalize_bip32_derivation(derivation)
                 self.run('on_hw_derivation', name, device_info, derivation, script_type)
             self.derivation_and_script_type_dialog(f)
         elif purpose == HWD_SETUP_DECRYPT_WALLET:
-            client = devmgr.client_by_id(device_info.device.id_)
             password = client.get_password_for_storage_encryption()
             try:
                 storage.decrypt(password)
             except InvalidPassword:
                 # try to clear session so that user can type another passphrase
-                client = devmgr.client_by_id(device_info.device.id_)
                 if hasattr(client, 'clear_session'):  # FIXME not all hw wallet plugins have this
                     client.clear_session()
                 raise
@@ -435,7 +434,7 @@ class BaseWizard(Logger):
         assert isinstance(self.plugin, HW_PluginBase)
         try:
             xpub = self.plugin.get_xpub(device_info.device.id_, derivation, xtype, self)
-            client = devmgr.client_by_id(device_info.device.id_)
+            client = devmgr.client_by_id(device_info.device.id_, scan_now=False)
             if not client: raise Exception("failed to find client for device id")
             root_fingerprint = client.request_root_fingerprint_from_device()
             label = client.label()  # use this as device_info.label might be outdated!
