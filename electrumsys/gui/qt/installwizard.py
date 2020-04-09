@@ -331,7 +331,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         try:
             run_user_interaction_loop()
         finally:
-            pw_e.clear()
+            try:
+                pw_e.clear()
+            except RuntimeError:  # wrapped C/C++ object has been deleted.
+                pass              # happens when decrypting with hw device
 
         return temp_storage.path, (temp_storage if temp_storage.file_exists() else None)
 
