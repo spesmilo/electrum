@@ -685,3 +685,6 @@ class BaseWizard(Logger):
             self.line_dialog(run_next=f, title=title, message=message, default='', test=lambda x: x==passphrase)
         else:
             f('')
+
+    def show_error(self, msg: Union[str, BaseException]) -> None:
+        raise NotImplementedError()
