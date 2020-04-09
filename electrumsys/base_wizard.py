@@ -28,7 +28,7 @@ import sys
 import copy
 import traceback
 from functools import partial
-from typing import List, TYPE_CHECKING, Tuple, NamedTuple, Any, Dict, Optional
+from typing import List, TYPE_CHECKING, Tuple, NamedTuple, Any, Dict, Optional, Union
 
 from . import bitcoin
 from . import keystore
@@ -611,12 +611,10 @@ class BaseWizard(Logger):
                                                    encrypt_keystore=encrypt_keystore)
         self.terminate()
 
-
-    def create_storage(self, path):
+    def create_storage(self, path) -> Tuple[WalletStorage, WalletDB]:
         if os.path.exists(path):
             raise Exception('file already exists at path')
-        if not self.pw_args:
-            return  # FIXME
+        assert self.pw_args, f"pw_args not set?!"
         pw_args = self.pw_args
         self.pw_args = None  # clean-up so that it can get GC-ed
         storage = WalletStorage(path)
@@ -630,7 +628,9 @@ class BaseWizard(Logger):
         db.write(storage)
         return storage, db
 
-    def terminate(self, *, storage: Optional[WalletStorage], db: Optional[WalletDB] = None):
+    def terminate(self, *, storage: WalletStorage = None,
+                  db: WalletDB = None,
+                  aborted: bool = False) -> None:
         raise NotImplementedError()  # implemented by subclasses
 
     def show_xpub_and_add_cosigners(self, xpub):

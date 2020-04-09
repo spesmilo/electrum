@@ -189,7 +189,6 @@ class WalletStorage(Logger):
             s = ''
         self.pubkey = ec_key.get_public_key_hex()
         self.decrypted = s
-        return s
 
     def encrypt_before_writing(self, plaintext: str) -> str:
         s = plaintext
