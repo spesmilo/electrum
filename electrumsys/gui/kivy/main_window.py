@@ -1013,8 +1013,8 @@ class ElectrumSysWindow(App):
         self.qr_dialog(label.name, label.data, True)
 
     def show_error(self, error, width='200dp', pos=None, arrow_pos=None,
-        exit=False, icon='atlas://electrumsys/gui/kivy/theming/light/error', duration=0,
-        modal=False):
+                   exit=False, icon='atlas://electrumsys/gui/kivy/theming/light/error', duration=0,
+                   modal=False):
         ''' Show an error Message Bubble.
         '''
         self.show_info_bubble( text=error, icon=icon, width=width,
@@ -1022,7 +1022,7 @@ class ElectrumSysWindow(App):
             duration=duration, modal=modal)
 
     def show_info(self, error, width='200dp', pos=None, arrow_pos=None,
-        exit=False, duration=0, modal=False):
+                  exit=False, duration=0, modal=False):
         ''' Show an Info Message Bubble.
         '''
         self.show_error(error, icon='atlas://electrumsys/gui/kivy/theming/light/important',
@@ -1030,7 +1030,7 @@ class ElectrumSysWindow(App):
             arrow_pos=arrow_pos)
 
     def show_info_bubble(self, text=_('Hello World'), pos=None, duration=0,
-        arrow_pos='bottom_mid', width=None, icon='', modal=False, exit=False):
+                         arrow_pos='bottom_mid', width=None, icon='', modal=False, exit=False):
         '''Method to show an Information Bubble
 
         .. parameters::
@@ -1040,6 +1040,7 @@ class ElectrumSysWindow(App):
             width: width of the Bubble
             arrow_pos: arrow position for the bubble
         '''
+        text = str(text)  # so that we also handle e.g. Exception
         info_bubble = self.info_bubble
         if not info_bubble:
             info_bubble = self.info_bubble = Factory.InfoBubble()
