@@ -86,6 +86,12 @@ class AuxPoWCoinbaseRootTooLate(AuxPowVerifyError):
 class AuxPoWCoinbaseRootMissingError(AuxPowVerifyError):
     pass
 
+class AuxPoWCoinbaseRootDuplicatedError(AuxPowVerifyError):
+    pass
+
+class AuxPoWCoinbaseRootWrongOffset(AuxPowVerifyError):
+    pass
+
 def auxpow_active(base_header):
     height_allows_auxpow = base_header['block_height'] >= constants.net.AUXPOW_START_HEIGHT
     version_allows_auxpow = base_header['version'] & BLOCK_VERSION_AUXPOW_BIT
@@ -278,8 +284,10 @@ def verify_auxpow(header):
         #if (pcHead + sizeof(pchMergedMiningHeader) != pc)
             #return error("Merged mining header is not just before chain merkle root");
 
-        # TODO
-        pass
+        if -1 != script_bytes.find(COINBASE_MERGED_MINING_HEADER, pos_header + 1):
+            raise AuxPoWCoinbaseRootDuplicatedError('Multiple merged mining headers in coinbase')
+        if pos_header + len(COINBASE_MERGED_MINING_HEADER) != pos:
+            raise AuxPoWCoinbaseRootWrongOffset('Merged mining header is not just before chain merkle root')
 
     #}
     #else
