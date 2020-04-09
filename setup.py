@@ -82,6 +82,7 @@ setup(
         'electrumsys': [
             'wordlist/*.txt',
             'locale/*/LC_MESSAGES/electrumsys.mo',
+            'lnwire/*.csv',
         ],
         'electrumsys.gui': [
             'icons/*',
