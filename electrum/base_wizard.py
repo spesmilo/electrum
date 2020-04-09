@@ -60,6 +60,9 @@ class ScriptTypeNotSupported(Exception): pass
 class GoBack(Exception): pass
 
 
+class ChooseHwDeviceAgain(Exception): pass
+
+
 class WizardStackItem(NamedTuple):
     action: Any
     args: Any
@@ -264,6 +267,15 @@ class BaseWizard(Logger):
         self.on_keystore(k)
 
     def choose_hw_device(self, purpose=HWD_SETUP_NEW_WALLET, *, storage: WalletStorage = None):
+        while True:
+            try:
+                self._choose_hw_device(purpose=purpose, storage=storage)
+            except ChooseHwDeviceAgain:
+                pass
+            else:
+                break
+
+    def _choose_hw_device(self, *, purpose, storage: WalletStorage = None):
         title = _('Hardware Keystore')
         # check available plugins
         supported_plugins = self.plugins.get_hardware_support()
@@ -327,8 +339,8 @@ class BaseWizard(Logger):
             msg += '\n\n'
             msg += _('Debug message') + '\n' + debug_msg
             self.confirm_dialog(title=title, message=msg,
-                                run_next=lambda x: self.choose_hw_device(purpose, storage=storage))
-            return
+                                run_next=lambda x: None)
+            raise ChooseHwDeviceAgain()
         # select device
         self.devices = devices
         choices = []
@@ -355,27 +367,22 @@ class BaseWizard(Logger):
                             + _('To try to fix this, we will now re-pair with your device.') + '\n'
                             + _('Please try again.'))
             devmgr.unpair_id(device_info.device.id_)
-            self.choose_hw_device(purpose, storage=storage)
-            return
+            raise ChooseHwDeviceAgain()
         except OutdatedHwFirmwareException as e:
             if self.question(e.text_ignore_old_fw_and_continue(), title=_("Outdated device firmware")):
                 self.plugin.set_ignore_outdated_fw()
                 # will need to re-pair
                 devmgr.unpair_id(device_info.device.id_)
-            self.choose_hw_device(purpose, storage=storage)
-            return
+            raise ChooseHwDeviceAgain()
         except (UserCancelled, GoBack):
-            self.choose_hw_device(purpose, storage=storage)
-            return
+            raise ChooseHwDeviceAgain()
         except UserFacingException as e:
             self.show_error(str(e))
-            self.choose_hw_device(purpose, storage=storage)
-            return
+            raise ChooseHwDeviceAgain()
         except BaseException as e:
             self.logger.exception('')
             self.show_error(str(e))
-            self.choose_hw_device(purpose, storage=storage)
-            return
+            raise ChooseHwDeviceAgain()
 
         if purpose == HWD_SETUP_NEW_WALLET:
             def f(derivation, script_type):
@@ -444,8 +451,7 @@ class BaseWizard(Logger):
         except BaseException as e:
             self.logger.exception('')
             self.show_error(e)
-            self.choose_hw_device()
-            return
+            raise ChooseHwDeviceAgain()
         d = {
             'type': 'hardware',
             'hw_type': name,
@@ -561,13 +567,11 @@ class BaseWizard(Logger):
             except UserCancelled:
                 devmgr = self.plugins.device_manager
                 devmgr.unpair_xpub(k.xpub)
-                self.choose_hw_device()
-                return
+                raise ChooseHwDeviceAgain()
             except BaseException as e:
                 self.logger.exception('')
                 self.show_error(str(e))
-                self.choose_hw_device()
-                return
+                raise ChooseHwDeviceAgain()
             self.request_storage_encryption(
                 run_next=lambda encrypt_storage: self.on_password(
                     password,
