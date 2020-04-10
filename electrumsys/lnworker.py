@@ -657,6 +657,10 @@ class LNWallet(LNWorker):
         with self.lock:
             return {x: y for (x, y) in self.channels.items() if y.node_id == node_id}
 
+    def channel_state_changed(self, chan):
+        self.save_channel(chan)
+        self.network.trigger_callback('channel', chan)
+
     def save_channel(self, chan):
         assert type(chan) is Channel
         if chan.config[REMOTE].next_per_commitment_point == chan.config[REMOTE].current_per_commitment_point:
@@ -1367,6 +1371,9 @@ class LNBackups(Logger):
         for channel_id, cb in self.db.get_dict("channel_backups").items():
             self.channel_backups[bfh(channel_id)] = ChannelBackup(cb, sweep_address=self.sweep_address, lnworker=self)
 
+    def channel_state_changed(self, chan):
+        self.network.trigger_callback('channel', chan)
+
     def peer_closed(self, chan):
         pass
 
@@ -1390,16 +1397,17 @@ class LNBackups(Logger):
 
     def import_channel_backup(self, encrypted):
         xpub = self.wallet.get_fingerprint()
-        x = pw_decode_bytes(encrypted, xpub, version=PW_HASH_VERSION_LATEST)
-        cb = ChannelBackupStorage.from_bytes(x)
-        channel_id = cb.channel_id().hex()
+        decrypted = pw_decode_bytes(encrypted, xpub, version=PW_HASH_VERSION_LATEST)
+        cb_storage = ChannelBackupStorage.from_bytes(decrypted)
+        channel_id = cb_storage.channel_id().hex()
         d = self.db.get_dict("channel_backups")
         if channel_id in d:
             raise Exception('Channel already in wallet')
-        d[channel_id] = cb
-        self.channel_backups[bfh(channel_id)] = ChannelBackup(cb, sweep_address=self.sweep_address, lnworker=self)
+        d[channel_id] = cb_storage
+        self.channel_backups[bfh(channel_id)] = cb = ChannelBackup(cb_storage, sweep_address=self.sweep_address, lnworker=self)
         self.wallet.save_db()
         self.network.trigger_callback('channels_updated', self.wallet)
+        self.lnwatcher.add_channel(cb.funding_outpoint.to_str(), cb.get_funding_address())
 
     def remove_channel_backup(self, channel_id):
         d = self.db.get_dict("channel_backups")
