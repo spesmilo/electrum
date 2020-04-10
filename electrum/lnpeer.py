@@ -886,11 +886,10 @@ class Peer(Logger):
             return
 
         chan.peer_state = peer_states.GOOD
-        # note: chan.short_channel_id being set implies the funding txn is already at sufficient depth
-        if their_next_local_ctn == next_local_ctn == 1 and chan.short_channel_id:
+        if chan.is_funded() and their_next_local_ctn == next_local_ctn == 1:
             self.send_funding_locked(chan)
         # checks done
-        if chan.config[LOCAL].funding_locked_received and chan.short_channel_id:
+        if chan.is_funded() and chan.config[LOCAL].funding_locked_received:
             self.mark_open(chan)
         self.network.trigger_callback('channel', chan)
         if chan.get_state() == channel_states.CLOSING:
@@ -903,7 +902,7 @@ class Peer(Logger):
             get_per_commitment_secret_from_seed(chan.config[LOCAL].per_commitment_secret_seed, per_commitment_secret_index), 'big'))
         # note: if funding_locked was not yet received, we might send it multiple times
         self.send_message("funding_locked", channel_id=channel_id, next_per_commitment_point=per_commitment_point_second)
-        if chan.config[LOCAL].funding_locked_received and chan.short_channel_id:
+        if chan.is_funded() and chan.config[LOCAL].funding_locked_received:
             self.mark_open(chan)
 
     def on_funding_locked(self, chan: Channel, payload):
@@ -913,7 +912,7 @@ class Peer(Logger):
             chan.config[REMOTE].next_per_commitment_point = their_next_point
             chan.config[LOCAL].funding_locked_received = True
             self.lnworker.save_channel(chan)
-        if chan.short_channel_id:
+        if chan.is_funded():
             self.mark_open(chan)
 
     def on_network_update(self, chan: Channel, funding_tx_depth: int):
@@ -970,7 +969,7 @@ class Peer(Logger):
         )
 
     def mark_open(self, chan: Channel):
-        assert chan.short_channel_id is not None
+        assert chan.is_funded()
         # only allow state transition from "FUNDED" to "OPEN"
         old_state = chan.get_state()
         if old_state == channel_states.OPEN:
