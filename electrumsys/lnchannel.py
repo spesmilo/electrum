@@ -135,6 +135,9 @@ class AbstractChannel(Logger):
             return str(scid)
         return self.channel_id.hex()
 
+    def short_id_for_GUI(self) -> str:
+        return format_short_channel_id(self.short_channel_id)
+
     def set_state(self, state: channel_states) -> None:
         """ set on-chain state """
         old_state = self._state
@@ -146,6 +149,9 @@ class AbstractChannel(Logger):
 
     def get_state(self) -> channel_states:
         return self._state
+
+    def is_funded(self):
+        return self.get_state() >= channel_states.FUNDED
 
     def is_open(self):
         return self.get_state() == channel_states.OPEN
@@ -244,12 +250,12 @@ class AbstractChannel(Logger):
     def update_funded_state(self, funding_txid, funding_height):
         self.save_funding_height(funding_txid, funding_height.height, funding_height.timestamp)
         self.delete_closing_height()
+        if funding_height.conf>0:
+            self.set_short_channel_id(ShortChannelID.from_components(
+                funding_height.height, funding_height.txpos, self.funding_outpoint.output_index))
         if self.get_state() == channel_states.OPENING:
             if self.is_funding_tx_mined(funding_height):
                 self.set_state(channel_states.FUNDED)
-                self.set_short_channel_id(ShortChannelID.from_components(
-                    funding_height.height, funding_height.txpos, self.funding_outpoint.output_index))
-                self.logger.info(f"save_short_channel_id: {self.short_channel_id}")
 
     def update_closed_state(self, funding_txid, funding_height, closing_txid, closing_height, keep_watching):
         self.save_funding_height(funding_txid, funding_height.height, funding_height.timestamp)
@@ -333,15 +339,12 @@ class ChannelBackup(AbstractChannel):
     def get_funding_address(self):
         return self.cb.funding_address
 
-    def short_id_for_GUI(self) -> str:
-        return 'BACKUP'
-
     def is_initiator(self):
         return self.cb.is_initiator
 
     def get_state_for_GUI(self):
         cs = self.get_state()
-        return cs.name
+        return 'BACKUP, ' + cs.name
 
     def get_oldest_unrevoked_ctn(self, who):
         return -1
@@ -400,9 +403,6 @@ class Channel(AbstractChannel):
         self._can_send_ctx_updates = True  # type: bool
         self._receive_fail_reasons = {}  # type: Dict[int, BarePaymentAttemptLog]
         self._ignore_max_htlc_value = False  # used in tests
-
-    def short_id_for_GUI(self) -> str:
-        return format_short_channel_id(self.short_channel_id)
 
     def is_initiator(self):
         return self.constraints.is_initiator
