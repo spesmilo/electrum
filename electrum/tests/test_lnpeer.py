@@ -124,6 +124,9 @@ class MockLNWallet(Logger):
                 if chan.short_channel_id == short_channel_id:
                     return chan
 
+    def channel_state_changed(self, chan):
+        pass
+
     def save_channel(self, chan):
         print("Ignoring channel save")
 

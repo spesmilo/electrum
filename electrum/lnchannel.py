@@ -146,6 +146,8 @@ class AbstractChannel(Logger):
         self.logger.debug(f'Setting channel state: {old_state.name} -> {state.name}')
         self._state = state
         self.storage['state'] = self._state.name
+        if self.lnworker:
+            self.lnworker.channel_state_changed(self)
 
     def get_state(self) -> channel_states:
         return self._state
@@ -566,12 +568,6 @@ class Channel(AbstractChannel):
             self.config[LOCAL].current_commitment_signature = remote_sig
             self.hm.channel_open_finished()
             self.peer_state = peer_states.GOOD
-
-    def set_state(self, state: channel_states) -> None:
-        super().set_state(state)
-        if self.lnworker:
-            self.lnworker.save_channel(self)
-            self.lnworker.network.trigger_callback('channel', self)
 
     def get_state_for_GUI(self):
         # status displayed in the GUI

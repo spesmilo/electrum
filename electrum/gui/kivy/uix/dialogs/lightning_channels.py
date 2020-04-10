@@ -183,6 +183,11 @@ Builder.load_string(r'''
             Button:
                 size_hint: 0.5, None
                 height: '48dp'
+                text: _('Backup')
+                on_release: root.export_backup()
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
                 text: _('Close')
                 on_release: root.close()
                 disabled: root.is_closed
@@ -284,6 +289,9 @@ class ChannelBackupPopup(Popup):
         super(ChannelBackupPopup,self).__init__(**kwargs)
         self.chan = chan
         self.app = app
+        self.short_id = format_short_channel_id(chan.short_channel_id)
+        self.state = chan.get_state_for_GUI()
+        self.title = _('Channel Backup')
 
     def request_force_close(self):
         msg = _('Request force close?')
@@ -362,6 +370,10 @@ class ChannelDetailsPopup(Popup):
         self.app.wallet.lnworker.remove_channel(self.chan.channel_id)
         self.app._trigger_update_history()
         self.dismiss()
+
+    def export_backup(self):
+        text = self.app.wallet.lnworker.export_channel_backup(self.chan.channel_id)
+        self.app.qr_dialog(_("Channel Backup " + self.chan.short_id_for_GUI()), 'channel_backup:'+text)
 
     def force_close(self):
         Question(_('Force-close channel?'), self._force_close).open()
