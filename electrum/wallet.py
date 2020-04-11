@@ -1170,33 +1170,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             self.frozen_coins -= set(utxos)
         self.db.put('frozen_coins', list(self.frozen_coins))
 
-    def wait_until_synchronized(self, callback=None):
-        def wait_for_wallet():
-            self.set_up_to_date(False)
-            while not self.is_up_to_date():
-                if callback:
-                    msg = "{}\n{} {}".format(
-                        _("Please wait..."),
-                        _("Addresses generated:"),
-                        len(self.get_addresses()))
-                    callback(msg)
-                time.sleep(0.1)
-        def wait_for_network():
-            while not self.network.is_connected():
-                if callback:
-                    msg = "{} \n".format(_("Connecting..."))
-                    callback(msg)
-                time.sleep(0.1)
-        # wait until we are connected, because the user
-        # might have selected another server
-        if self.network:
-            self.logger.info("waiting for network...")
-            wait_for_network()
-            self.logger.info("waiting while wallet is syncing...")
-            wait_for_wallet()
-        else:
-            self.synchronize()
-
     def can_export(self):
         return not self.is_watching_only() and hasattr(self.keystore, 'get_private_key')
 
