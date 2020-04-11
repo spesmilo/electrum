@@ -33,7 +33,7 @@ from electrum.util import (parse_URI, InvalidBitcoinURI, PR_PAID, PR_UNKNOWN, PR
 from electrum.plugin import run_hook
 from electrum.wallet import InternalAddressCorruption
 from electrum import simple_config
-from electrum.lnaddr import lndecode
+from electrum.lnaddr import lndecode, parse_lightning_invoice
 from electrum.lnutil import RECEIVED, SENT, PaymentFailure
 
 from .dialogs.question import Question
@@ -299,7 +299,7 @@ class SendScreen(CScreen):
             return
         message = self.message
         if self.is_lightning:
-            return self.app.wallet.lnworker.parse_bech32_invoice(address)
+            return parse_lightning_invoice(address)
         else:  # on-chain
             if self.payment_request:
                 outputs = self.payment_request.get_outputs()

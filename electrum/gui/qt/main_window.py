@@ -76,6 +76,7 @@ from electrum.logging import Logger
 from electrum.util import PR_PAID, PR_FAILED
 from electrum.util import pr_expiration_values
 from electrum.lnutil import ln_dummy_address
+from electrum.lnaddr import parse_lightning_invoice
 
 from .exception_window import Exception_Hook
 from .amountedit import AmountEdit, BTCAmountEdit, FreezableLineEdit, FeerateEdit
@@ -1492,7 +1493,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if not self.wallet.lnworker:
                 self.show_error(_('Lightning is disabled'))
                 return
-            invoice_dict = self.wallet.lnworker.parse_bech32_invoice(invoice)
+            invoice_dict = parse_lightning_invoice(invoice)
             if invoice_dict.get('amount') is None:
                 amount = self.amount_e.get_amount()
                 if amount:

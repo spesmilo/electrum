@@ -529,20 +529,6 @@ class LNWallet(LNWorker):
                 out[k].append(v)
         return out
 
-    def parse_bech32_invoice(self, invoice):
-        lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
-        amount = int(lnaddr.amount * COIN) if lnaddr.amount else None
-        return {
-            'type': PR_TYPE_LN,
-            'invoice': invoice,
-            'amount': amount,
-            'message': lnaddr.get_description(),
-            'time': lnaddr.date,
-            'exp': lnaddr.get_expiry(),
-            'pubkey': bh2u(lnaddr.pubkey.serialize()),
-            'rhash': lnaddr.paymenthash.hex(),
-        }
-
     def get_lightning_history(self):
         out = {}
         for key, plist in self.get_settled_payments().items():
