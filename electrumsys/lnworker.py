@@ -819,7 +819,7 @@ class LNWallet(LNWorker):
             if success:
                 break
         else:
-            reason = _(f'Failed after {attempts} attempts')
+            reason = _('Failed after {} attempts').format(attempts)
         self.network.trigger_callback('invoice_status', key)
         if success:
             self.network.trigger_callback('payment_succeeded', key)

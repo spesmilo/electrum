@@ -108,7 +108,7 @@ class ChannelsList(MyTreeView):
         chan = self.lnworker.channels[channel_id]
         to_self_delay = chan.config[REMOTE].to_self_delay
         msg = _('Force-close channel?') + '\n\n'\
-              + _(f'Funds retrieved from this channel will not be available before {to_self_delay} blocks after forced closure.') + ' '\
+              + _('Funds retrieved from this channel will not be available before {} blocks after forced closure.').format(to_self_delay) + ' '\
               + _('After that delay, funds will be sent to an address derived from your wallet seed.') + '\n\n'\
               + _('In the meantime, channel funds will not be recoverable from your seed, and might be lost if you lose your wallet.') + ' '\
               + _('To prevent that, you should have a backup of this channel on another device.')

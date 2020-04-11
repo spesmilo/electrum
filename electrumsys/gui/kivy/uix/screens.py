@@ -575,7 +575,7 @@ class SendScreen(CScreen):
                     self.app.wallet.delete_invoice(key)
                 self.update()
         n = len(invoices)
-        d = Question(_(f'Delete {n} invoices?'), callback)
+        d = Question(_('Delete {} invoices?').format(n), callback)
         d.open()
 
 class ReceiveScreen(CScreen):
@@ -735,7 +735,7 @@ class ReceiveScreen(CScreen):
                     self.app.wallet.delete_request(key)
                 self.update()
         n = len(requests)
-        d = Question(_(f'Delete {n} requests?'), callback)
+        d = Question(_('Delete {} requests?').format(n), callback)
         d.open()
 
 
