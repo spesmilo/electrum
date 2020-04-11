@@ -13,6 +13,8 @@ from .bitcoin import hash160_to_b58_address, b58_address_to_hash160
 from .segwit_addr import bech32_encode, bech32_decode, CHARSET
 from . import constants
 from . import ecc
+from .util import PR_TYPE_LN
+from .bitcoin import COIN
 
 
 # BOLT #11:
@@ -309,6 +311,11 @@ class LnAddr(object):
 
 class LnDecodeException(Exception): pass
 
+class SerializableKey:
+    def __init__(self, pubkey):
+        self.pubkey = pubkey
+    def serialize(self):
+        return self.pubkey.get_public_key_bytes(True)
 
 def lndecode(invoice: str, *, verbose=False, expected_hrp=None) -> LnAddr:
     if expected_hrp is None:
@@ -462,11 +469,22 @@ def lndecode(invoice: str, *, verbose=False, expected_hrp=None) -> LnAddr:
 
     return addr
 
-class SerializableKey:
-    def __init__(self, pubkey):
-        self.pubkey = pubkey
-    def serialize(self):
-        return self.pubkey.get_public_key_bytes(True)
+
+
+
+def parse_lightning_invoice(invoice):
+    lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
+    amount = int(lnaddr.amount * COIN) if lnaddr.amount else None
+    return {
+        'type': PR_TYPE_LN,
+        'invoice': invoice,
+        'amount': amount,
+        'message': lnaddr.get_description(),
+        'time': lnaddr.date,
+        'exp': lnaddr.get_expiry(),
+        'pubkey': lnaddr.pubkey.serialize().hex(),
+        'rhash': lnaddr.paymenthash.hex(),
+    }
 
 if __name__ == '__main__':
     # run using

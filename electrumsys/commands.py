@@ -58,6 +58,7 @@ from .lnpeer import channel_id_from_funding_tx
 from .plugin import run_hook
 from .version import ELECTRUM_VERSION
 from .simple_config import SimpleConfig
+from .lnaddr import parse_lightning_invoice
 
 
 if TYPE_CHECKING:
@@ -985,6 +986,10 @@ class Commands:
                                                                          push_sat=push_sat,
                                                                          password=password)
         return chan.funding_outpoint.to_str()
+
+    @command('')
+    async def decode_invoice(self, invoice):
+        return parse_lightning_invoice(invoice)
 
     @command('wn')
     async def lnpay(self, invoice, attempts=1, timeout=10, wallet: Abstract_Wallet = None):
