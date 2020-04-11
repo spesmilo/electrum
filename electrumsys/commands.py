@@ -793,6 +793,7 @@ class Commands:
     async def list_requests(self, pending=False, expired=False, paid=False, wallet: Abstract_Wallet = None):
         """List the payment requests you made."""
         out = wallet.get_sorted_requests()
+        out = list(map(self._format_request, out))
         if pending:
             f = PR_UNPAID
         elif expired:
@@ -803,7 +804,7 @@ class Commands:
             f = None
         if f is not None:
             out = list(filter(lambda x: x.get('status')==f, out))
-        return list(map(self._format_request, out))
+        return out
 
     @command('w')
     async def createnewaddress(self, wallet: Abstract_Wallet = None):
