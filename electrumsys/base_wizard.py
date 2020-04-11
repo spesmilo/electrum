@@ -60,6 +60,9 @@ class ScriptTypeNotSupported(Exception): pass
 class GoBack(Exception): pass
 
 
+class ReRunDialog(Exception): pass
+
+
 class ChooseHwDeviceAgain(Exception): pass
 
 
