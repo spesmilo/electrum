@@ -1147,8 +1147,9 @@ class ElectrumSysWindow(QMainWindow, MessageBoxMixin, Logger):
 
         self.clear_invoice_button = QPushButton(_('Clear'))
         self.clear_invoice_button.clicked.connect(self.clear_receive_tab)
-        self.create_invoice_button = QPushButton(_('On-chain'))
+        self.create_invoice_button = QPushButton(_('Request'))
         self.create_invoice_button.setIcon(read_QIcon("bitcoin.png"))
+        self.create_invoice_button.setToolTip('Create on-chain request')
         self.create_invoice_button.clicked.connect(lambda: self.create_invoice(False))
         self.receive_buttons = buttons = QHBoxLayout()
         buttons.addStretch(1)
@@ -1156,6 +1157,7 @@ class ElectrumSysWindow(QMainWindow, MessageBoxMixin, Logger):
         buttons.addWidget(self.create_invoice_button)
         if self.wallet.has_lightning():
             self.create_lightning_invoice_button = QPushButton(_('Lightning'))
+            self.create_lightning_invoice_button.setToolTip('Create lightning request')
             self.create_lightning_invoice_button.setIcon(read_QIcon("lightning.png"))
             self.create_lightning_invoice_button.clicked.connect(lambda: self.create_invoice(True))
             buttons.addWidget(self.create_lightning_invoice_button)
