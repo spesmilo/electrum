@@ -60,6 +60,22 @@ class HW_PluginBase(BasePlugin):
     def device_manager(self) -> 'DeviceMgr':
         return self.parent.device_manager
 
+    def create_device_from_hid_enumeration(self, d: dict, *, product_key) -> 'Device':
+        # Older versions of hid don't provide interface_number
+        interface_number = d.get('interface_number', -1)
+        usage_page = d['usage_page']
+        id_ = d['serial_number']
+        if len(id_) == 0:
+            id_ = str(d['path'])
+        id_ += str(interface_number) + str(usage_page)
+        device = Device(path=d['path'],
+                        interface_number=interface_number,
+                        id_=id_,
+                        product_key=product_key,
+                        usage_page=usage_page,
+                        transport_ui_string='hid')
+        return device
+
     @hook
     def close_wallet(self, wallet: 'Abstract_Wallet'):
         for keystore in wallet.get_keystores():
@@ -165,7 +181,7 @@ class HW_PluginBase(BasePlugin):
                       handler: Optional['HardwareHandlerBase']) -> Optional['HardwareClientBase']:
         raise NotImplementedError()
 
-    def get_xpub(self, device_id, derivation: str, xtype, wizard: 'BaseWizard') -> str:
+    def get_xpub(self, device_id: str, derivation: str, xtype, wizard: 'BaseWizard') -> str:
         raise NotImplementedError()
 
     def create_handler(self, window) -> 'HardwareHandlerBase':
