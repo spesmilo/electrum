@@ -969,6 +969,15 @@ class Commands:
         await wallet.lnworker.add_peer(connection_string)
         return True
 
+    @command('wn')
+    async def list_peers(self, wallet: Abstract_Wallet = None):
+        return [{
+            'node_id':p.pubkey.hex(),
+            'address':p.transport.name(),
+            'initialized':p.is_initialized(),
+            'channels': [c.funding_outpoint.to_str() for c in p.channels.values()],
+        } for p in wallet.lnworker.peers.values()]
+
     @command('wpn')
     async def open_channel(self, connection_string, amount, push_amount=0, password=None, wallet: Abstract_Wallet = None):
         funding_sat = satoshis(amount)
