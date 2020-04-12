@@ -366,6 +366,7 @@ class LNWorker(Logger):
 
 class LNGossip(LNWorker):
     max_age = 14*24*3600
+    LOGGING_SHORTCUT = 'g'
 
     def __init__(self, network):
         seed = os.urandom(32)

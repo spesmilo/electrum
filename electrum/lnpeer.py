@@ -62,6 +62,7 @@ LN_P2P_NETWORK_TIMEOUT = 20
 
 
 class Peer(Logger):
+    LOGGING_SHORTCUT = 'P'
 
     def __init__(self, lnworker: Union['LNGossip', 'LNWallet'], pubkey:bytes, transport: LNTransportBase):
         self._sent_init = False  # type: bool

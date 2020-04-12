@@ -616,6 +616,7 @@ class AddressSynchronizer(Logger):
             self.up_to_date = up_to_date
         if self.network:
             self.network.notify('status')
+        self.logger.info(f'set_up_to_date: {up_to_date}')
 
     def is_up_to_date(self):
         with self.lock: return self.up_to_date
