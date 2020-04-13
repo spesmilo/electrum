@@ -176,11 +176,7 @@ def get_locktime_for_new_transaction(network: 'Network') -> int:
     if not network:
         return 0
     chain = network.blockchain()
-    header = chain.header_at_tip()
-    if not header:
-        return 0
-    STALE_DELAY = 8 * 60 * 60  # in seconds
-    if header['timestamp'] + STALE_DELAY < time.time():
+    if chain.is_tip_stale():
         return 0
     # discourage "fee sniping"
     locktime = chain.height()

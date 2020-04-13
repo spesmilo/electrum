@@ -58,6 +58,7 @@ class MockNetwork:
         self.channel_db.data_loaded.set()
         self.path_finder = LNPathFinder(self.channel_db)
         self.tx_queue = tx_queue
+        self._blockchain = MockBlockchain()
 
     @property
     def callback_lock(self):
@@ -70,12 +71,25 @@ class MockNetwork:
     def get_local_height(self):
         return 0
 
+    def blockchain(self):
+        return self._blockchain
+
     async def broadcast_transaction(self, tx):
         if self.tx_queue:
             await self.tx_queue.put(tx)
 
     async def try_broadcasting(self, tx, name):
         await self.broadcast_transaction(tx)
+
+
+class MockBlockchain:
+
+    def height(self):
+        return 0
+
+    def is_tip_stale(self):
+        return False
+
 
 class MockWallet:
     def set_label(self, x, y):
