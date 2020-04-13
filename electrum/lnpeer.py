@@ -463,7 +463,6 @@ class Peer(Logger):
         async for msg in self.transport.read_messages():
             self.process_message(msg)
             await asyncio.sleep(.01)
-            self.ping_if_required()
 
     def on_reply_short_channel_ids_end(self, payload):
         self.querying.set()
@@ -1452,8 +1451,10 @@ class Peer(Logger):
         return closing_tx.txid()
 
     async def htlc_switch(self):
+        await self.initialized
         while True:
             await asyncio.sleep(0.1)
+            self.ping_if_required()
             for chan_id, chan in self.channels.items():
                 if not chan.can_send_ctx_updates():
                     continue
