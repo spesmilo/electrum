@@ -262,7 +262,8 @@ CHANNEL_OPENING_TIMEOUT = 24*60*60
 ##### CLTV-expiry-delta-related values
 # see https://github.com/lightningnetwork/lightning-rfc/blob/master/02-peer-protocol.md#cltv_expiry_delta-selection
 
-# the minimum cltv_expiry accepted for terminal payments
+# the minimum cltv_expiry accepted for newly received HTLCs
+# note: when changing, consider Blockchain.is_tip_stale()
 MIN_FINAL_CLTV_EXPIRY_ACCEPTED = 144
 # set it a tiny bit higher for invoices as blocks could get mined
 # during forward path of payment
