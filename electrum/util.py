@@ -43,7 +43,7 @@ import ssl
 import ipaddress
 
 import aiohttp
-from aiohttp_socks import SocksConnector, SocksVer
+from aiohttp_socks import ProxyConnector, ProxyType
 from aiorpcx import TaskGroup
 import certifi
 import dns.resolver
@@ -1093,8 +1093,8 @@ def make_aiohttp_session(proxy: Optional[dict], headers=None, timeout=None):
     ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
 
     if proxy:
-        connector = SocksConnector(
-            socks_ver=SocksVer.SOCKS5 if proxy['mode'] == 'socks5' else SocksVer.SOCKS4,
+        connector = ProxyConnector(
+            proxy_type=ProxyType.SOCKS5 if proxy['mode'] == 'socks5' else ProxyType.SOCKS4,
             host=proxy['host'],
             port=int(proxy['port']),
             username=proxy.get('user', None),
