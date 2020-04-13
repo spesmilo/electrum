@@ -89,6 +89,7 @@ def create_ephemeral_key() -> (bytes, bytes):
 class LNTransportBase:
     reader: StreamReader
     writer: StreamWriter
+    privkey: bytes
 
     def name(self) -> str:
         raise NotImplementedError()
