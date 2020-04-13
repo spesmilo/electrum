@@ -46,7 +46,8 @@ from PyQt5.QtWidgets import (QMessageBox, QComboBox, QSystemTrayIcon, QTabWidget
                              QVBoxLayout, QGridLayout, QLineEdit,
                              QHBoxLayout, QPushButton, QScrollArea, QTextEdit,
                              QShortcut, QMainWindow, QCompleter, QInputDialog,
-                             QWidget, QSizePolicy, QStatusBar, QToolTip, QDialog)
+                             QWidget, QSizePolicy, QStatusBar, QToolTip, QDialog,
+                             QMenu, QAction)
 
 import electrumsys
 from electrumsys import (keystore, ecc, constants, util, bitcoin, commands,
@@ -733,10 +734,17 @@ class ElectrumSysWindow(QMainWindow, MessageBoxMixin, Logger):
         add_toggle_action(view_menu, self.contacts_tab)
         add_toggle_action(view_menu, self.console_tab)
 
-        tools_menu = menubar.addMenu(_("&Tools"))
+        tools_menu = menubar.addMenu(_("&Tools"))  # type: QMenu
+        preferences_action = tools_menu.addAction(_("Preferences"), self.settings_dialog)  # type: QAction
+        if sys.platform == 'darwin':
+            # "Settings"/"Preferences" are all reserved keywords in macOS.
+            # preferences_action will get picked up based on name (and put into a standardized location,
+            # and given a standard reserved hotkey)
+            # Hence, this menu item will be at a "uniform location re macOS processes"
+            preferences_action.setMenuRole(QAction.PreferencesRole)  # make sure OS recognizes it as preferences
+            # Add another preferences item, to also have a "uniform location for Electrum between different OSes"
+            tools_menu.addAction(_("ElectrumSys preferences"), self.settings_dialog)
 
-        # Settings / Preferences are all reserved keywords in macOS using this as work around
-        tools_menu.addAction(_("ElectrumSys preferences") if sys.platform == 'darwin' else _("Preferences"), self.settings_dialog)
         tools_menu.addAction(_("&Network"), self.gui_object.show_network_dialog).setEnabled(bool(self.network))
         tools_menu.addAction(_("&Lightning Network"), self.gui_object.show_lightning_dialog).setEnabled(bool(self.wallet.has_lightning() and self.network))
         tools_menu.addAction(_("Local &Watchtower"), self.gui_object.show_watchtower_dialog).setEnabled(bool(self.network and self.network.local_watchtower))
