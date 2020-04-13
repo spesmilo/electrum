@@ -1288,9 +1288,6 @@ class LNWallet(LNWorker):
     async def reestablish_peers_and_channels(self):
         while True:
             await asyncio.sleep(1)
-            # wait until on-chain state is synchronized
-            if not (self.wallet.is_up_to_date() and self.lnwatcher.is_up_to_date()):
-                continue
             with self.lock:
                 channels = list(self.channels.values())
             for chan in channels:
