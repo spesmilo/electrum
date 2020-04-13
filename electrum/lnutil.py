@@ -27,7 +27,7 @@ from .bip32 import BIP32Node, BIP32_PRIME
 from .transaction import BCDataStream
 
 if TYPE_CHECKING:
-    from .lnchannel import Channel
+    from .lnchannel import Channel, AbstractChannel
     from .lnrouter import LNPaymentRoute
     from .lnonion import OnionRoutingFailureMessage
 
@@ -504,8 +504,8 @@ def make_htlc_output_witness_script(is_received_htlc: bool, remote_revocation_pu
                                  payment_hash=payment_hash)
 
 
-def get_ordered_channel_configs(chan: 'Channel', for_us: bool) -> Tuple[Union[LocalConfig, RemoteConfig],
-                                                                        Union[LocalConfig, RemoteConfig]]:
+def get_ordered_channel_configs(chan: 'AbstractChannel', for_us: bool) -> Tuple[Union[LocalConfig, RemoteConfig],
+                                                                                Union[LocalConfig, RemoteConfig]]:
     conf =       chan.config[LOCAL] if     for_us else chan.config[REMOTE]
     other_conf = chan.config[LOCAL] if not for_us else chan.config[REMOTE]
     return conf, other_conf
@@ -781,7 +781,7 @@ def extract_ctn_from_tx(tx: Transaction, txin_index: int, funder_payment_basepoi
     obs = ((sequence & 0xffffff) << 24) + (locktime & 0xffffff)
     return get_obscured_ctn(obs, funder_payment_basepoint, fundee_payment_basepoint)
 
-def extract_ctn_from_tx_and_chan(tx: Transaction, chan: 'Channel') -> int:
+def extract_ctn_from_tx_and_chan(tx: Transaction, chan: 'AbstractChannel') -> int:
     funder_conf = chan.config[LOCAL] if     chan.is_initiator() else chan.config[REMOTE]
     fundee_conf = chan.config[LOCAL] if not chan.is_initiator() else chan.config[REMOTE]
     return extract_ctn_from_tx(tx, txin_index=0,
