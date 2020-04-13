@@ -69,25 +69,27 @@ if TYPE_CHECKING:
 # lightning channel states
 # Note: these states are persisted by name (for a given channel) in the wallet file,
 #       so consider doing a wallet db upgrade when changing them.
-class channel_states(IntEnum):  # TODO rename to use CamelCase
-    PREOPENING      = 0 # Initial negotiation. Channel will not be reestablished
-    OPENING         = 1 # Channel will be reestablished. (per BOLT2)
-                        #  - Funding node: has received funding_signed (can broadcast the funding tx)
-                        #  - Non-funding node: has sent the funding_signed message.
-    FUNDED          = 2 # Funding tx was mined (requires min_depth and tx verification)
-    OPEN            = 3 # both parties have sent funding_locked
-    CLOSING         = 4 # shutdown has been sent, and closing tx is unconfirmed.
-    FORCE_CLOSING   = 5 # we force-closed, and closing tx is unconfirmed. (otherwise we remain OPEN)
-    CLOSED          = 6 # closing tx has been mined
-    REDEEMED        = 7 # we can stop watching
+class ChannelState(IntEnum):
+    PREOPENING      = 0  # Initial negotiation. Channel will not be reestablished
+    OPENING         = 1  # Channel will be reestablished. (per BOLT2)
+                         #  - Funding node: has received funding_signed (can broadcast the funding tx)
+                         #  - Non-funding node: has sent the funding_signed message.
+    FUNDED          = 2  # Funding tx was mined (requires min_depth and tx verification)
+    OPEN            = 3  # both parties have sent funding_locked
+    CLOSING         = 4  # shutdown has been sent, and closing tx is unconfirmed.
+    FORCE_CLOSING   = 5  # we force-closed, and closing tx is unconfirmed. (otherwise we remain OPEN)
+    CLOSED          = 6  # closing tx has been mined
+    REDEEMED        = 7  # we can stop watching
 
-class peer_states(IntEnum):  # TODO rename to use CamelCase
+
+class PeerState(IntEnum):
     DISCONNECTED   = 0
     REESTABLISHING = 1
     GOOD           = 2
     BAD            = 3
 
-cs = channel_states
+
+cs = ChannelState
 state_transitions = [
     (cs.PREOPENING, cs.OPENING),
     (cs.OPENING, cs.FUNDED),
@@ -102,14 +104,14 @@ state_transitions = [
     (cs.OPENING, cs.CLOSED),
     (cs.FUNDED, cs.CLOSED),
     (cs.OPEN, cs.CLOSED),
-    (cs.CLOSING, cs.CLOSING), # if we reestablish
+    (cs.CLOSING, cs.CLOSING),  # if we reestablish
     (cs.CLOSING, cs.CLOSED),
-    (cs.FORCE_CLOSING, cs.FORCE_CLOSING), # allow multiple attempts
+    (cs.FORCE_CLOSING, cs.FORCE_CLOSING),  # allow multiple attempts
     (cs.FORCE_CLOSING, cs.CLOSED),
     (cs.FORCE_CLOSING, cs.REDEEMED),
     (cs.CLOSED, cs.REDEEMED),
-    (cs.OPENING, cs.REDEEMED), # channel never funded (dropped from mempool)
-    (cs.PREOPENING, cs.REDEEMED), # channel never funded
+    (cs.OPENING, cs.REDEEMED),  # channel never funded (dropped from mempool)
+    (cs.PREOPENING, cs.REDEEMED),  # channel never funded
 ]
 del cs  # delete as name is ambiguous without context
 
@@ -135,7 +137,7 @@ class AbstractChannel(Logger, ABC):
     channel_id: bytes
     funding_outpoint: Outpoint
     node_id: bytes
-    _state: channel_states
+    _state: ChannelState
 
     def set_short_channel_id(self, short_id: ShortChannelID) -> None:
         self.short_channel_id = short_id
@@ -150,7 +152,7 @@ class AbstractChannel(Logger, ABC):
     def short_id_for_GUI(self) -> str:
         return format_short_channel_id(self.short_channel_id)
 
-    def set_state(self, state: channel_states) -> None:
+    def set_state(self, state: ChannelState) -> None:
         """ set on-chain state """
         old_state = self._state
         if (old_state, state) not in state_transitions:
@@ -161,24 +163,24 @@ class AbstractChannel(Logger, ABC):
         if self.lnworker:
             self.lnworker.channel_state_changed(self)
 
-    def get_state(self) -> channel_states:
+    def get_state(self) -> ChannelState:
         return self._state
 
     def is_funded(self):
-        return self.get_state() >= channel_states.FUNDED
+        return self.get_state() >= ChannelState.FUNDED
 
     def is_open(self):
-        return self.get_state() == channel_states.OPEN
+        return self.get_state() == ChannelState.OPEN
 
     def is_closing(self):
-        return self.get_state() in [channel_states.CLOSING, channel_states.FORCE_CLOSING]
+        return self.get_state() in [ChannelState.CLOSING, ChannelState.FORCE_CLOSING]
 
     def is_closed(self):
         # the closing txid has been saved
-        return self.get_state() >= channel_states.CLOSED
+        return self.get_state() >= ChannelState.CLOSED
 
     def is_redeemed(self):
-        return self.get_state() == channel_states.REDEEMED
+        return self.get_state() == ChannelState.REDEEMED
 
     def save_funding_height(self, *, txid: str, height: int, timestamp: Optional[int]) -> None:
         self.storage['funding_height'] = txid, height, timestamp
@@ -241,7 +243,7 @@ class AbstractChannel(Logger, ABC):
     def update_unfunded_state(self):
         self.delete_funding_height()
         self.delete_closing_height()
-        if self.get_state() in [channel_states.PREOPENING, channel_states.OPENING, channel_states.FORCE_CLOSING] and self.lnworker:
+        if self.get_state() in [ChannelState.PREOPENING, ChannelState.OPENING, ChannelState.FORCE_CLOSING] and self.lnworker:
             if self.is_initiator():
                 # set channel state to REDEEMED so that it can be removed manually
                 # to protect ourselves against a server lying by omission,
@@ -249,7 +251,7 @@ class AbstractChannel(Logger, ABC):
                 inputs = self.storage.get('funding_inputs', [])
                 if not inputs:
                     self.logger.info(f'channel funding inputs are not provided')
-                    self.set_state(channel_states.REDEEMED)
+                    self.set_state(ChannelState.REDEEMED)
                 for i in inputs:
                     spender_txid = self.lnworker.wallet.db.get_spent_outpoint(*i)
                     if spender_txid is None:
@@ -258,7 +260,7 @@ class AbstractChannel(Logger, ABC):
                         tx_mined_height = self.lnworker.wallet.get_tx_height(spender_txid)
                         if tx_mined_height.conf > lnutil.REDEEM_AFTER_DOUBLE_SPENT_DELAY:
                             self.logger.info(f'channel is double spent {inputs}')
-                            self.set_state(channel_states.REDEEMED)
+                            self.set_state(ChannelState.REDEEMED)
                             break
             else:
                 now = int(time.time())
@@ -271,24 +273,24 @@ class AbstractChannel(Logger, ABC):
         if funding_height.conf>0:
             self.set_short_channel_id(ShortChannelID.from_components(
                 funding_height.height, funding_height.txpos, self.funding_outpoint.output_index))
-        if self.get_state() == channel_states.OPENING:
+        if self.get_state() == ChannelState.OPENING:
             if self.is_funding_tx_mined(funding_height):
-                self.set_state(channel_states.FUNDED)
+                self.set_state(ChannelState.FUNDED)
 
     def update_closed_state(self, *, funding_txid: str, funding_height: TxMinedInfo,
                             closing_txid: str, closing_height: TxMinedInfo, keep_watching: bool) -> None:
         self.save_funding_height(txid=funding_txid, height=funding_height.height, timestamp=funding_height.timestamp)
         self.save_closing_height(txid=closing_txid, height=closing_height.height, timestamp=closing_height.timestamp)
-        if self.get_state() < channel_states.CLOSED:
+        if self.get_state() < ChannelState.CLOSED:
             conf = closing_height.conf
             if conf > 0:
-                self.set_state(channel_states.CLOSED)
+                self.set_state(ChannelState.CLOSED)
             else:
                 # we must not trust the server with unconfirmed transactions
                 # if the remote force closed, we remain OPEN until the closing tx is confirmed
                 pass
-        if self.get_state() == channel_states.CLOSED and not keep_watching:
-            self.set_state(channel_states.REDEEMED)
+        if self.get_state() == ChannelState.CLOSED and not keep_watching:
+            self.set_state(ChannelState.REDEEMED)
 
     @abstractmethod
     def is_initiator(self) -> bool:
@@ -368,7 +370,7 @@ class ChannelBackup(AbstractChannel):
         self._sweep_info = {}
         self.sweep_address = sweep_address
         self.storage = {} # dummy storage
-        self._state = channel_states.OPENING
+        self._state = ChannelState.OPENING
         self.config = {}
         self.config[LOCAL] = LocalConfig.from_seed(
             channel_seed=cb.channel_seed,
@@ -473,8 +475,8 @@ class Channel(AbstractChannel):
         self.onion_keys = state['onion_keys']  # type: Dict[int, bytes]
         self.data_loss_protect_remote_pcp = state['data_loss_protect_remote_pcp']
         self.hm = HTLCManager(log=state['log'], initial_feerate=initial_feerate)
-        self._state = channel_states[state['state']]
-        self.peer_state = peer_states.DISCONNECTED
+        self._state = ChannelState[state['state']]
+        self.peer_state = PeerState.DISCONNECTED
         self._sweep_info = {}
         self._outgoing_channel_update = None  # type: Optional[bytes]
         self._chan_ann_without_sigs = None  # type: Optional[bytes]
@@ -644,7 +646,7 @@ class Channel(AbstractChannel):
             self.config[REMOTE].next_per_commitment_point = None
             self.config[LOCAL].current_commitment_signature = remote_sig
             self.hm.channel_open_finished()
-            self.peer_state = peer_states.GOOD
+            self.peer_state = PeerState.GOOD
 
     def get_state_for_GUI(self):
         # status displayed in the GUI
@@ -652,7 +654,7 @@ class Channel(AbstractChannel):
         if self.is_closed():
             return cs.name
         ps = self.peer_state
-        if ps != peer_states.GOOD:
+        if ps != PeerState.GOOD:
             return ps.name
         return cs.name
 
@@ -663,7 +665,7 @@ class Channel(AbstractChannel):
         """Whether we can send update_fee, update_*_htlc changes to the remote."""
         if not (self.is_open() or self.is_closing()):
             return False
-        if self.peer_state != peer_states.GOOD:
+        if self.peer_state != PeerState.GOOD:
             return False
         if not self._can_send_ctx_updates:
             return False
@@ -699,7 +701,7 @@ class Channel(AbstractChannel):
         chan_config = self.config[htlc_receiver]
         if self.is_closed():
             raise PaymentFailure('Channel closed')
-        if self.get_state() != channel_states.OPEN:
+        if self.get_state() != ChannelState.OPEN:
             raise PaymentFailure('Channel not open', self.get_state())
         if htlc_proposer == LOCAL:
             if not self.can_send_ctx_updates():
@@ -763,7 +765,7 @@ class Channel(AbstractChannel):
         return True
 
     def should_try_to_reestablish_peer(self) -> bool:
-        return channel_states.PREOPENING < self._state < channel_states.FORCE_CLOSING and self.peer_state == peer_states.DISCONNECTED
+        return ChannelState.PREOPENING < self._state < ChannelState.FORCE_CLOSING and self.peer_state == PeerState.DISCONNECTED
 
     def get_funding_address(self):
         script = funding_output_script(self.config[LOCAL], self.config[REMOTE])

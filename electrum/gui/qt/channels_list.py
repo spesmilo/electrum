@@ -11,7 +11,7 @@ from PyQt5.QtGui import QFont, QStandardItem, QBrush
 
 from electrum.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
 from electrum.i18n import _
-from electrum.lnchannel import Channel, peer_states
+from electrum.lnchannel import Channel, PeerState
 from electrum.wallet import Abstract_Wallet
 from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id, LN_MAX_FUNDING_SAT
 from electrum.lnworker import LNWallet
@@ -179,7 +179,7 @@ class ChannelsList(MyTreeView):
             menu.addAction(_("View funding transaction"), lambda: self.parent.show_transaction(funding_tx))
         if not chan.is_closed():
             menu.addSeparator()
-            if chan.peer_state == peer_states.GOOD:
+            if chan.peer_state == PeerState.GOOD:
                 menu.addAction(_("Close channel"), lambda: self.close_channel(channel_id))
             menu.addAction(_("Force-close channel"), lambda: self.force_close(channel_id))
         else:
