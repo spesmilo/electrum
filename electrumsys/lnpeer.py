@@ -31,7 +31,7 @@ from .lnonion import (new_onion_packet, decode_onion_error, OnionFailureCode, ca
                       process_onion_packet, OnionPacket, construct_onion_error, OnionRoutingFailureMessage,
                       ProcessedOnionPacket, UnsupportedOnionPacketVersion, InvalidOnionMac, InvalidOnionPubkey,
                       OnionFailureCodeMetaFlag)
-from .lnchannel import Channel, RevokeAndAck, htlcsum, RemoteCtnTooFarInFuture, channel_states, peer_states
+from .lnchannel import Channel, RevokeAndAck, htlcsum, RemoteCtnTooFarInFuture, ChannelState, PeerState
 from . import lnutil
 from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      RemoteConfig, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
@@ -619,7 +619,7 @@ class Peer(Logger):
         remote_sig = payload['signature']
         chan.receive_new_commitment(remote_sig, [])
         chan.open_with_first_pcp(remote_per_commitment_point, remote_sig)
-        chan.set_state(channel_states.OPENING)
+        chan.set_state(ChannelState.OPENING)
         self.lnworker.add_new_channel(chan)
         return chan, funding_tx
 
@@ -633,7 +633,7 @@ class Peer(Logger):
             "local_config": local_config,
             "constraints": constraints,
             "remote_update": None,
-            "state": channel_states.PREOPENING.name,
+            "state": ChannelState.PREOPENING.name,
             'onion_keys': {},
             'data_loss_protect_remote_pcp': {},
             "log": {},
@@ -714,7 +714,7 @@ class Peer(Logger):
         )
         self.funding_signed_sent.add(chan.channel_id)
         chan.open_with_first_pcp(payload['first_per_commitment_point'], remote_sig)
-        chan.set_state(channel_states.OPENING)
+        chan.set_state(ChannelState.OPENING)
         self.lnworker.add_new_channel(chan)
 
     def validate_remote_reserve(self, remote_reserve_sat: int, dust_limit: int, funding_sat: int) -> int:
@@ -738,12 +738,12 @@ class Peer(Logger):
     async def reestablish_channel(self, chan: Channel):
         await self.initialized
         chan_id = chan.channel_id
-        assert channel_states.PREOPENING < chan.get_state() < channel_states.FORCE_CLOSING
-        if chan.peer_state != peer_states.DISCONNECTED:
+        assert ChannelState.PREOPENING < chan.get_state() < ChannelState.FORCE_CLOSING
+        if chan.peer_state != PeerState.DISCONNECTED:
             self.logger.info(f'reestablish_channel was called but channel {chan.get_id_for_log()} '
                              f'already in peer_state {chan.peer_state}')
             return
-        chan.peer_state = peer_states.REESTABLISHING
+        chan.peer_state = PeerState.REESTABLISHING
         self.network.trigger_callback('channel', chan)
         # BOLT-02: "A node [...] upon disconnection [...] MUST reverse any uncommitted updates sent by the other side"
         chan.hm.discard_unsigned_remote_updates()
@@ -878,21 +878,21 @@ class Peer(Logger):
             # data_loss_protect_remote_pcp is used in lnsweep
             chan.set_data_loss_protect_remote_pcp(their_next_local_ctn - 1, their_local_pcp)
             self.lnworker.save_channel(chan)
-            chan.peer_state = peer_states.BAD
+            chan.peer_state = PeerState.BAD
             return
         elif we_are_ahead:
             self.logger.warning(f"channel_reestablish ({chan.get_id_for_log()}): we are ahead of remote! trying to force-close.")
             await self.lnworker.try_force_closing(chan_id)
             return
 
-        chan.peer_state = peer_states.GOOD
+        chan.peer_state = PeerState.GOOD
         if chan.is_funded() and their_next_local_ctn == next_local_ctn == 1:
             self.send_funding_locked(chan)
         # checks done
         if chan.is_funded() and chan.config[LOCAL].funding_locked_received:
             self.mark_open(chan)
         self.network.trigger_callback('channel', chan)
-        if chan.get_state() == channel_states.CLOSING:
+        if chan.get_state() == ChannelState.CLOSING:
             await self.send_shutdown(chan)
 
     def send_funding_locked(self, chan: Channel):
@@ -972,13 +972,13 @@ class Peer(Logger):
         assert chan.is_funded()
         # only allow state transition from "FUNDED" to "OPEN"
         old_state = chan.get_state()
-        if old_state == channel_states.OPEN:
+        if old_state == ChannelState.OPEN:
             return
-        if old_state != channel_states.FUNDED:
+        if old_state != ChannelState.FUNDED:
             self.logger.info(f"cannot mark open ({chan.get_id_for_log()}), current state: {repr(old_state)}")
             return
         assert chan.config[LOCAL].funding_locked_received
-        chan.set_state(channel_states.OPEN)
+        chan.set_state(ChannelState.OPEN)
         self.network.trigger_callback('channel', chan)
         # peer may have sent us a channel update for the incoming direction previously
         pending_channel_update = self.orphan_channel_updates.get(chan.short_channel_id)
@@ -1071,7 +1071,7 @@ class Peer(Logger):
         self.maybe_send_commitment(chan)
 
     def on_commitment_signed(self, chan: Channel, payload):
-        if chan.peer_state == peer_states.BAD:
+        if chan.peer_state == PeerState.BAD:
             return
         self.logger.info(f'on_commitment_signed. chan {chan.short_channel_id}. ctn: {chan.get_next_ctn(LOCAL)}.')
         # make sure there were changes to the ctx, otherwise the remote peer is misbehaving
@@ -1116,7 +1116,7 @@ class Peer(Logger):
         cltv_expiry = payload["cltv_expiry"]
         amount_msat_htlc = payload["amount_msat"]
         onion_packet = payload["onion_routing_packet"]
-        if chan.get_state() != channel_states.OPEN:
+        if chan.get_state() != ChannelState.OPEN:
             raise RemoteMisbehaving(f"received update_add_htlc while chan.get_state() != OPEN. state was {chan.get_state()}")
         if cltv_expiry > bitcoin.NLOCKTIME_BLOCKHEIGHT_MAX:
             asyncio.ensure_future(self.lnworker.try_force_closing(chan.channel_id))
@@ -1285,7 +1285,7 @@ class Peer(Logger):
                               failure_code=reason.code)
 
     def on_revoke_and_ack(self, chan: Channel, payload):
-        if chan.peer_state == peer_states.BAD:
+        if chan.peer_state == PeerState.BAD:
             return
         self.logger.info(f'on_revoke_and_ack. chan {chan.short_channel_id}. ctn: {chan.get_oldest_unrevoked_ctn(REMOTE)}')
         rev = RevokeAndAck(payload["per_commitment_secret"], payload["next_per_commitment_point"])
@@ -1360,7 +1360,7 @@ class Peer(Logger):
             self.logger.info(f'({chan.get_id_for_log()}) Channel closed by remote peer {txid}')
 
     def can_send_shutdown(self, chan):
-        if chan.get_state() >= channel_states.OPENING:
+        if chan.get_state() >= ChannelState.OPENING:
             return True
         if chan.constraints.is_initiator and chan.channel_id in self.funding_created_sent:
             return True
@@ -1377,7 +1377,7 @@ class Peer(Logger):
         while chan.has_pending_changes(REMOTE):
             await asyncio.sleep(0.1)
         self.send_message('shutdown', channel_id=chan.channel_id, len=len(scriptpubkey), scriptpubkey=scriptpubkey)
-        chan.set_state(channel_states.CLOSING)
+        chan.set_state(ChannelState.CLOSING)
         # can fullfill or fail htlcs. cannot add htlcs, because of CLOSING state
         chan.set_can_send_ctx_updates(True)
 

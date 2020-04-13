@@ -37,7 +37,7 @@ from electrumsys.lnutil import SENT, LOCAL, REMOTE, RECEIVED
 from electrumsys.lnutil import FeeUpdate
 from electrumsys.ecc import sig_string_from_der_sig
 from electrumsys.logging import console_stderr_handler
-from electrumsys.lnchannel import channel_states
+from electrumsys.lnchannel import ChannelState
 from electrumsys.json_db import StoredDict
 
 from . import ElectrumSysTestCase
@@ -143,8 +143,8 @@ def create_test_channels(*, feerate=6000, local_msat=None, remote_msat=None):
     alice.hm.log[LOCAL]['ctn'] = 0
     bob.hm.log[LOCAL]['ctn'] = 0
 
-    alice._state = channel_states.OPEN
-    bob._state = channel_states.OPEN
+    alice._state = ChannelState.OPEN
+    bob._state = ChannelState.OPEN
 
     a_out = alice.get_latest_commitment(LOCAL).outputs()
     b_out = bob.get_next_commitment(REMOTE).outputs()

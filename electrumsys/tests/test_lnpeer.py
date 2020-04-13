@@ -22,7 +22,7 @@ from electrumsys.lnpeer import Peer
 from electrumsys.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
 from electrumsys.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
 from electrumsys.lnutil import PaymentFailure, LnFeatures, HTLCOwner
-from electrumsys.lnchannel import channel_states, peer_states, Channel
+from electrumsys.lnchannel import ChannelState, PeerState, Channel
 from electrumsys.lnrouter import LNPathFinder
 from electrumsys.channel_db import ChannelDB
 from electrumsys.lnworker import LNWallet, NoPathFound
@@ -219,8 +219,8 @@ class TestPeer(ElectrumSysTestCase):
         w2.peer = p2
         # mark_open won't work if state is already OPEN.
         # so set it to FUNDED
-        alice_channel._state = channel_states.FUNDED
-        bob_channel._state = channel_states.FUNDED
+        alice_channel._state = ChannelState.FUNDED
+        bob_channel._state = ChannelState.FUNDED
         # this populates the channel graph:
         p1.mark_open(alice_channel)
         p2.mark_open(bob_channel)
@@ -250,13 +250,13 @@ class TestPeer(ElectrumSysTestCase):
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
         for chan in (alice_channel, bob_channel):
-            chan.peer_state = peer_states.DISCONNECTED
+            chan.peer_state = PeerState.DISCONNECTED
         async def reestablish():
             await asyncio.gather(
                 p1.reestablish_channel(alice_channel),
                 p2.reestablish_channel(bob_channel))
-            self.assertEqual(alice_channel.peer_state, peer_states.GOOD)
-            self.assertEqual(bob_channel.peer_state, peer_states.GOOD)
+            self.assertEqual(alice_channel.peer_state, PeerState.GOOD)
+            self.assertEqual(bob_channel.peer_state, PeerState.GOOD)
             gath.cancel()
         gath = asyncio.gather(reestablish(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p1.htlc_switch())
         async def f():
@@ -282,13 +282,13 @@ class TestPeer(ElectrumSysTestCase):
 
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel_0, bob_channel)
         for chan in (alice_channel_0, bob_channel):
-            chan.peer_state = peer_states.DISCONNECTED
+            chan.peer_state = PeerState.DISCONNECTED
         async def reestablish():
             await asyncio.gather(
                 p1.reestablish_channel(alice_channel_0),
                 p2.reestablish_channel(bob_channel))
-            self.assertEqual(alice_channel_0.peer_state, peer_states.BAD)
-            self.assertEqual(bob_channel._state, channel_states.FORCE_CLOSING)
+            self.assertEqual(alice_channel_0.peer_state, PeerState.BAD)
+            self.assertEqual(bob_channel._state, ChannelState.FORCE_CLOSING)
             # wait so that pending messages are processed
             #await asyncio.sleep(1)
             gath.cancel()
