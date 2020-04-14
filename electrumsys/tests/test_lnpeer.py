@@ -64,10 +64,6 @@ class MockNetwork:
     def callback_lock(self):
         return noop_lock()
 
-    register_callback = Network.register_callback
-    unregister_callback = Network.unregister_callback
-    trigger_callback = Network.trigger_callback
-
     def get_local_height(self):
         return 0
 
