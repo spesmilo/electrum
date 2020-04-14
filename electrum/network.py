@@ -268,8 +268,8 @@ class Network(Logger):
             try:
                 deserialize_server(self.default_server)
             except:
-                self.logger.warning('failed to parse server-string; falling back to random.')
-                self.default_server = None
+                print('Failed to parse server-string.')
+                exit()
         if not self.default_server:
             self.default_server = pick_random_server()
 
