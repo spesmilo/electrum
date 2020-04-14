@@ -1096,7 +1096,7 @@ class NetworkJobOnDefaultServer(Logger):
         self._restart_lock = asyncio.Lock()
         self._reset()
         asyncio.run_coroutine_threadsafe(self._restart(), network.asyncio_loop)
-        network.register_callback(self._restart, ['default_server_changed'])
+        register_callback(self._restart, ['default_server_changed'])
 
     def _reset(self):
         """Initialise fields. Called every time the underlying
@@ -1270,3 +1270,41 @@ def randrange(bound: int) -> int:
     """Return a random integer k such that 1 <= k < bound, uniformly
     distributed across that range."""
     return ecdsa.util.randrange(bound)
+
+
+class CallbackManager:
+        # callbacks set by the GUI
+    def __init__(self):
+        self.callback_lock = threading.Lock()
+        self.callbacks = defaultdict(list)      # note: needs self.callback_lock
+        self.asyncio_loop = None
+
+    def register_callback(self, callback, events):
+        with self.callback_lock:
+            for event in events:
+                self.callbacks[event].append(callback)
+
+    def unregister_callback(self, callback):
+        with self.callback_lock:
+            for callbacks in self.callbacks.values():
+                if callback in callbacks:
+                    callbacks.remove(callback)
+
+    def trigger_callback(self, event, *args):
+        if self.asyncio_loop is None:
+            self.asyncio_loop = asyncio.get_event_loop()
+            assert self.asyncio_loop.is_running(), "event loop not running"
+        with self.callback_lock:
+            callbacks = self.callbacks[event][:]
+        for callback in callbacks:
+            # FIXME: if callback throws, we will lose the traceback
+            if asyncio.iscoroutinefunction(callback):
+                asyncio.run_coroutine_threadsafe(callback(event, *args), self.asyncio_loop)
+            else:
+                self.asyncio_loop.call_soon_threadsafe(callback, event, *args)
+
+
+callback_mgr = CallbackManager()
+trigger_callback = callback_mgr.trigger_callback
+register_callback = callback_mgr.register_callback
+unregister_callback = callback_mgr.unregister_callback

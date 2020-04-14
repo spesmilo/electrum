@@ -563,7 +563,7 @@ class Interface(Logger):
                 raise GracefulDisconnect('server tip below max checkpoint')
             self._mark_ready()
             await self._process_header_at_tip()
-            self.network.trigger_callback('network_updated')
+            util.trigger_callback('network_updated')
             await self.network.switch_unwanted_fork_interface()
             await self.network.switch_lagging_interface()
 
@@ -578,7 +578,7 @@ class Interface(Logger):
             # in the simple case, height == self.tip+1
             if height <= self.tip:
                 await self.sync_until(height)
-        self.network.trigger_callback('blockchain_updated')
+        util.trigger_callback('blockchain_updated')
 
     async def sync_until(self, height, next_height=None):
         if next_height is None:
@@ -593,7 +593,7 @@ class Interface(Logger):
                         raise GracefulDisconnect('server chain conflicts with checkpoints or genesis')
                     last, height = await self.step(height)
                     continue
-                self.network.trigger_callback('network_updated')
+                util.trigger_callback('network_updated')
                 height = (height // constants.net.POW_BLOCK_ADJUST * constants.net.POW_BLOCK_ADJUST) + num_headers
                 assert height <= next_height+1, (height, self.tip)
                 last = 'catchup'

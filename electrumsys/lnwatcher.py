@@ -8,6 +8,7 @@ import asyncio
 from enum import IntEnum, auto
 from typing import NamedTuple, Dict
 
+from . import util
 from .sql_db import SqlDB, sql
 from .wallet_db import WalletDB
 from .util import bh2u, bfh, log_exceptions, ignore_exceptions, TxMinedInfo
@@ -139,8 +140,9 @@ class LNWatcher(AddressSynchronizer):
         self.config = network.config
         self.channels = {}
         self.network = network
-        self.network.register_callback(self.on_network_update,
-                                       ['network_updated', 'blockchain_updated', 'verified', 'wallet_updated', 'fee'])
+        util.register_callback(
+            self.on_network_update,
+            ['network_updated', 'blockchain_updated', 'verified', 'wallet_updated', 'fee'])
 
         # status gets populated when we run
         self.channel_status = {}
@@ -420,4 +422,4 @@ class LNWalletWatcher(LNWatcher):
                 tx_was_added = False
             if tx_was_added:
                 self.logger.info(f'added future tx: {name}. prevout: {prevout}')
-                self.network.trigger_callback('wallet_updated', self.lnworker.wallet)
+                util.trigger_callback('wallet_updated', self.lnworker.wallet)

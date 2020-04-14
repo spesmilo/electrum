@@ -278,7 +278,6 @@ class Network(Logger):
         # locks
         self.restart_lock = asyncio.Lock()
         self.bhi_lock = asyncio.Lock()
-        self.callback_lock = threading.Lock()
         self.recent_servers_lock = threading.RLock()       # <- re-entrant
         self.interfaces_lock = threading.Lock()            # for mutating/iterating self.interfaces
 
@@ -288,8 +287,6 @@ class Network(Logger):
         self.banner = ''
         self.donation_address = ''
         self.relay_fee = None  # type: Optional[int]
-        # callbacks set by the GUI
-        self.callbacks = defaultdict(list)      # note: needs self.callback_lock
 
         dir_path = os.path.join(self.config.path, 'certs')
         util.make_dir(dir_path)
@@ -332,7 +329,7 @@ class Network(Logger):
             from . import channel_db
             self.channel_db = channel_db.ChannelDB(self)
             self.path_finder = lnrouter.LNPathFinder(self.channel_db)
-            self.lngossip = lnworker.LNGossip(self)
+            self.lngossip = lnworker.LNGossip()
             self.lngossip.start_network(self)
 
     def run_from_another_thread(self, coro, *, timeout=None):
@@ -349,27 +346,6 @@ class Network(Logger):
             with self.recent_servers_lock:
                 return func(self, *args, **kwargs)
         return func_wrapper
-
-    def register_callback(self, callback, events):
-        with self.callback_lock:
-            for event in events:
-                self.callbacks[event].append(callback)
-
-    def unregister_callback(self, callback):
-        with self.callback_lock:
-            for callbacks in self.callbacks.values():
-                if callback in callbacks:
-                    callbacks.remove(callback)
-
-    def trigger_callback(self, event, *args):
-        with self.callback_lock:
-            callbacks = self.callbacks[event][:]
-        for callback in callbacks:
-            # FIXME: if callback throws, we will lose the traceback
-            if asyncio.iscoroutinefunction(callback):
-                asyncio.run_coroutine_threadsafe(callback(event, *args), self.asyncio_loop)
-            else:
-                self.asyncio_loop.call_soon_threadsafe(callback, event, *args)
 
     def _read_recent_servers(self):
         if not self.config.path:
@@ -481,9 +457,9 @@ class Network(Logger):
 
     def notify(self, key):
         if key in ['status', 'updated']:
-            self.trigger_callback(key)
+            util.trigger_callback(key)
         else:
-            self.trigger_callback(key, self.get_status_value(key))
+            util.trigger_callback(key, self.get_status_value(key))
 
     def get_parameters(self) -> NetworkParameters:
         host, port, protocol = deserialize_server(self.default_server)
@@ -574,7 +550,7 @@ class Network(Logger):
         self.proxy = proxy
         dns_hacks.configure_dns_depending_on_proxy(bool(proxy))
         self.logger.info(f'setting proxy {proxy}')
-        self.trigger_callback('proxy_set', self.proxy)
+        util.trigger_callback('proxy_set', self.proxy)
 
     @log_exceptions
     async def set_parameters(self, net_params: NetworkParameters):
@@ -700,12 +676,13 @@ class Network(Logger):
             blockchain_updated = i.blockchain != self.blockchain()
             self.interface = i
             await i.taskgroup.spawn(self._request_server_info(i))
-            self.trigger_callback('default_server_changed')
+            util.trigger_callback('default_server_changed')
             self.default_server_changed_event.set()
             self.default_server_changed_event.clear()
             self._set_status('connected')
-            self.trigger_callback('network_updated')
-            if blockchain_updated: self.trigger_callback('blockchain_updated')
+            util.trigger_callback('network_updated')
+            if blockchain_updated:
+                util.trigger_callback('blockchain_updated')
 
     async def _close_interface(self, interface: Interface):
         if interface:
@@ -734,7 +711,7 @@ class Network(Logger):
         if server == self.default_server:
             self._set_status('disconnected')
         await self._close_interface(interface)
-        self.trigger_callback('network_updated')
+        util.trigger_callback('network_updated')
 
     def get_network_timeout_seconds(self, request_type=NetworkTimeout.Generic) -> int:
         if self.oneserver and not self.auto_connect:
@@ -767,7 +744,7 @@ class Network(Logger):
             await self.switch_to_interface(server)
 
         self._add_recent_server(server)
-        self.trigger_callback('network_updated')
+        util.trigger_callback('network_updated')
 
     def check_interface_against_healthy_spread_of_connected_servers(self, iface_to_check) -> bool:
         # main interface is exempt. this makes switching servers easier
@@ -1152,7 +1129,7 @@ class Network(Logger):
                 self.logger.info("taskgroup stopped.")
         asyncio.run_coroutine_threadsafe(main(), self.asyncio_loop)
 
-        self.trigger_callback('network_updated')
+        util.trigger_callback('network_updated')
 
     def start(self, jobs: Iterable = None):
         """Schedule starting the network, along with the given job co-routines.
@@ -1176,7 +1153,7 @@ class Network(Logger):
         self.connecting.clear()
         self.server_queue = None
         if not full_shutdown:
-            self.trigger_callback('network_updated')
+            util.trigger_callback('network_updated')
 
     def stop(self):
         assert self._loop_thread != threading.current_thread(), 'must not be called from network thread'

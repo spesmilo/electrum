@@ -5,6 +5,7 @@ import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtCore as QtCore
 from PyQt5.QtWidgets import QLabel, QLineEdit
 
+from electrumsys import util
 from electrumsys.i18n import _
 from electrumsys.util import bh2u, format_time
 from electrumsys.lnutil import format_short_channel_id, LOCAL, REMOTE, UpdateAddHtlc, Direction
@@ -132,10 +133,10 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         self.htlc_added.connect(self.do_htlc_added)
 
         # register callbacks for updating
-        window.network.register_callback(self.ln_payment_completed.emit, ['ln_payment_completed'])
-        window.network.register_callback(self.ln_payment_failed.emit, ['ln_payment_failed'])
-        window.network.register_callback(self.htlc_added.emit, ['htlc_added'])
-        window.network.register_callback(self.state_changed.emit, ['channel'])
+        util.register_callback(self.ln_payment_completed.emit, ['ln_payment_completed'])
+        util.register_callback(self.ln_payment_failed.emit, ['ln_payment_failed'])
+        util.register_callback(self.htlc_added.emit, ['htlc_added'])
+        util.register_callback(self.state_changed.emit, ['channel'])
 
         # set attributes of QDialog
         self.setWindowTitle(_('Channel Details'))

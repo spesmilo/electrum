@@ -279,7 +279,7 @@ class ElectrumSysWindow(QMainWindow, MessageBoxMixin, Logger):
             # window from being GC-ed when closed, callbacks should be
             # methods of this class only, and specifically not be
             # partials, lambdas or methods of subobjects.  Hence...
-            self.network.register_callback(self.on_network, interests)
+            util.register_callback(self.on_network, interests)
             # set initial message
             self.console.showMessage(self.network.banner)
 
@@ -504,8 +504,8 @@ class ElectrumSysWindow(QMainWindow, MessageBoxMixin, Logger):
     def load_wallet(self, wallet):
         wallet.thread = TaskThread(self, self.on_error)
         self.update_recently_visited(wallet.storage.path)
-        if wallet.lnworker and wallet.network:
-            wallet.network.trigger_callback('channels_updated', wallet)
+        if wallet.lnworker:
+            util.trigger_callback('channels_updated', wallet)
         self.need_update.set()
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
         # update menus
@@ -3131,8 +3131,7 @@ class ElectrumSysWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def clean_up(self):
         self.wallet.thread.stop()
-        if self.network:
-            self.network.unregister_callback(self.on_network)
+        util.unregister_callback(self.on_network)
         self.config.set_key("is_maximized", self.isMaximized())
         if not self.isMaximized():
             g = self.geometry()

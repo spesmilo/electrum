@@ -8,6 +8,7 @@ import getpass
 import logging
 
 import electrumsys
+from electrumsys import util
 from electrumsys.util import format_satoshis
 from electrumsys.bitcoin import is_address, COIN
 from electrumsys.transaction import PartialTxOutput
@@ -65,8 +66,7 @@ class ElectrumSysGui:
         self.str_fee = ""
         self.history = None
 
-        if self.network:
-            self.network.register_callback(self.update, ['wallet_updated', 'network_updated'])
+        util.register_callback(self.update, ['wallet_updated', 'network_updated'])
 
         self.tab_names = [_("History"), _("Send"), _("Receive"), _("Addresses"), _("Contacts"), _("Banner")]
         self.num_tabs = len(self.tab_names)
