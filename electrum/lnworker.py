@@ -232,11 +232,10 @@ class LNWorker(Logger):
         assert network
         self.network = network
         self.config = network.config
-        daemon = network.daemon
         self.channel_db = self.network.channel_db
         self._last_tried_peer = {}  # type: Dict[LNPeerAddr, float]  # LNPeerAddr -> unix timestamp
         self._add_peers_from_config()
-        asyncio.run_coroutine_threadsafe(daemon.taskgroup.spawn(self.main_loop()), self.network.asyncio_loop)
+        asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
 
     def _add_peers_from_config(self):
         peer_list = self.config.get('lightning_peers', [])
