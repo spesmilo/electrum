@@ -6,6 +6,7 @@ import locale
 from decimal import Decimal
 import getpass
 import logging
+from typing import TYPE_CHECKING
 
 import electrum
 from electrum import util
@@ -15,15 +16,21 @@ from electrum.transaction import PartialTxOutput
 from electrum.wallet import Wallet
 from electrum.storage import WalletStorage
 from electrum.network import NetworkParameters, TxBroadcastError, BestEffortRequestFailed
-from electrum.interface import deserialize_server
+from electrum.interface import ServerAddr
 from electrum.logging import console_stderr_handler
+
+if TYPE_CHECKING:
+    from electrum.daemon import Daemon
+    from electrum.simple_config import SimpleConfig
+    from electrum.plugin import Plugins
+
 
 _ = lambda x:x  # i18n
 
 
 class ElectrumGui:
 
-    def __init__(self, config, daemon, plugins):
+    def __init__(self, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
 
         self.config = config
         self.network = daemon.network
@@ -404,21 +411,24 @@ class ElectrumGui:
         net_params = self.network.get_parameters()
         host, port, protocol = net_params.host, net_params.port, net_params.protocol
         proxy_config, auto_connect = net_params.proxy, net_params.auto_connect
-        srv = 'auto-connect' if auto_connect else self.network.default_server
+        srv = 'auto-connect' if auto_connect else str(self.network.default_server)
         out = self.run_dialog('Network', [
             {'label':'server', 'type':'str', 'value':srv},
             {'label':'proxy', 'type':'str', 'value':self.config.get('proxy', '')},
             ], buttons = 1)
         if out:
             if out.get('server'):
-                server = out.get('server')
-                auto_connect = server == 'auto-connect'
+                server_str = out.get('server')
+                auto_connect = server_str == 'auto-connect'
                 if not auto_connect:
                     try:
-                        host, port, protocol = deserialize_server(server)
+                        server_addr = ServerAddr.from_str(server_str)
                     except Exception:
-                        self.show_message("Error:" + server + "\nIn doubt, type \"auto-connect\"")
+                        self.show_message("Error:" + server_str + "\nIn doubt, type \"auto-connect\"")
                         return False
+                    host = server_addr.host
+                    port = str(server_addr.port)
+                    protocol = server_addr.protocol
             if out.get('server') or out.get('proxy'):
                 proxy = electrum.network.deserialize_proxy(out.get('proxy')) if out.get('proxy') else proxy_config
                 net_params = NetworkParameters(host, port, protocol, proxy, auto_connect)

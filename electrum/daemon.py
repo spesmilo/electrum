@@ -270,6 +270,8 @@ class AuthenticationCredentialsInvalid(AuthenticationError):
 
 class Daemon(Logger):
 
+    network: Optional[Network]
+
     @profiler
     def __init__(self, config: SimpleConfig, fd=None, *, listen_jsonrpc=True):
         Logger.__init__(self)
