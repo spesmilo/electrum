@@ -35,7 +35,7 @@ from PyQt5.QtWidgets import (QTreeWidget, QTreeWidgetItem, QMenu, QGridLayout, Q
 from PyQt5.QtGui import QFontMetrics
 
 from electrum.i18n import _
-from electrum import constants, blockchain
+from electrum import constants, blockchain, util
 from electrum.interface import serialize_server, deserialize_server
 from electrum.network import Network
 from electrum.logging import get_logger
@@ -61,7 +61,7 @@ class NetworkDialog(QDialog):
         vbox.addLayout(Buttons(CloseButton(self)))
         self.network_updated_signal_obj.network_updated_signal.connect(
             self.on_update)
-        network.register_callback(self.on_network, ['network_updated'])
+        util.register_callback(self.on_network, ['network_updated'])
 
     def on_network(self, event, *args):
         self.network_updated_signal_obj.network_updated_signal.emit(event, args)

@@ -3,6 +3,7 @@ import getpass
 import datetime
 import logging
 
+from electrum import util
 from electrum import WalletStorage, Wallet
 from electrum.util import format_satoshis
 from electrum.bitcoin import is_address, COIN
@@ -43,7 +44,7 @@ class ElectrumGui:
         self.wallet.start_network(self.network)
         self.contacts = self.wallet.contacts
 
-        self.network.register_callback(self.on_network, ['wallet_updated', 'network_updated', 'banner'])
+        util.register_callback(self.on_network, ['wallet_updated', 'network_updated', 'banner'])
         self.commands = [_("[h] - displays this help text"), \
                          _("[i] - display transaction history"), \
                          _("[o] - enter payment order"), \
