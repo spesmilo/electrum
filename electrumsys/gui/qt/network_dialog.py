@@ -36,7 +36,7 @@ from PyQt5.QtGui import QFontMetrics
 
 from electrumsys.i18n import _
 from electrumsys import constants, blockchain, util
-from electrumsys.interface import serialize_server, deserialize_server
+from electrumsys.interface import ServerAddr
 from electrumsys.network import Network
 from electrumsys.logging import get_logger
 
@@ -72,10 +72,13 @@ class NetworkDialog(QDialog):
 
 
 class NodesListWidget(QTreeWidget):
+    SERVER_ADDR_ROLE = Qt.UserRole + 100
+    CHAIN_ID_ROLE = Qt.UserRole + 101
+    IS_SERVER_ROLE = Qt.UserRole + 102
 
     def __init__(self, parent):
         QTreeWidget.__init__(self)
-        self.parent = parent
+        self.parent = parent  # type: NetworkChoiceLayout
         self.setHeaderLabels([_('Connected node'), _('Height')])
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.create_menu)
@@ -84,13 +87,13 @@ class NodesListWidget(QTreeWidget):
         item = self.currentItem()
         if not item:
             return
-        is_server = not bool(item.data(0, Qt.UserRole))
+        is_server = bool(item.data(0, self.IS_SERVER_ROLE))
         menu = QMenu()
         if is_server:
-            server = item.data(1, Qt.UserRole)
+            server = item.data(0, self.SERVER_ADDR_ROLE)  # type: ServerAddr
             menu.addAction(_("Use as server"), lambda: self.parent.follow_server(server))
         else:
-            chain_id = item.data(1, Qt.UserRole)
+            chain_id = item.data(0, self.CHAIN_ID_ROLE)
             menu.addAction(_("Follow this branch"), lambda: self.parent.follow_branch(chain_id))
         menu.exec_(self.viewport().mapToGlobal(position))
 
@@ -117,15 +120,15 @@ class NodesListWidget(QTreeWidget):
             name = b.get_name()
             if n_chains > 1:
                 x = QTreeWidgetItem([name + '@%d'%b.get_max_forkpoint(), '%d'%b.height()])
-                x.setData(0, Qt.UserRole, 1)
-                x.setData(1, Qt.UserRole, b.get_id())
+                x.setData(0, self.IS_SERVER_ROLE, 0)
+                x.setData(0, self.CHAIN_ID_ROLE, b.get_id())
             else:
                 x = self
             for i in interfaces:
                 star = ' *' if i == network.interface else ''
                 item = QTreeWidgetItem([i.host + star, '%d'%i.tip])
-                item.setData(0, Qt.UserRole, 0)
-                item.setData(1, Qt.UserRole, i.server)
+                item.setData(0, self.IS_SERVER_ROLE, 1)
+                item.setData(0, self.SERVER_ADDR_ROLE, i.server)
                 x.addChild(item)
             if n_chains > 1:
                 self.addTopLevelItem(x)
@@ -144,11 +147,11 @@ class ServerListWidget(QTreeWidget):
         HOST = 0
         PORT = 1
 
-    SERVER_STR_ROLE = Qt.UserRole + 100
+    SERVER_ADDR_ROLE = Qt.UserRole + 100
 
     def __init__(self, parent):
         QTreeWidget.__init__(self)
-        self.parent = parent
+        self.parent = parent  # type: NetworkChoiceLayout
         self.setHeaderLabels([_('Host'), _('Port')])
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.create_menu)
@@ -158,14 +161,13 @@ class ServerListWidget(QTreeWidget):
         if not item:
             return
         menu = QMenu()
-        server = item.data(self.Columns.HOST, self.SERVER_STR_ROLE)
+        server = item.data(self.Columns.HOST, self.SERVER_ADDR_ROLE)
         menu.addAction(_("Use as server"), lambda: self.set_server(server))
         menu.exec_(self.viewport().mapToGlobal(position))
 
-    def set_server(self, s):
-        host, port, protocol = deserialize_server(s)
-        self.parent.server_host.setText(host)
-        self.parent.server_port.setText(port)
+    def set_server(self, server: ServerAddr):
+        self.parent.server_host.setText(server.host)
+        self.parent.server_port.setText(str(server.port))
         self.parent.set_server()
 
     def keyPressEvent(self, event):
@@ -188,8 +190,8 @@ class ServerListWidget(QTreeWidget):
             port = d.get(protocol)
             if port:
                 x = QTreeWidgetItem([_host, port])
-                server = serialize_server(_host, port, protocol)
-                x.setData(self.Columns.HOST, self.SERVER_STR_ROLE, server)
+                server = ServerAddr(_host, port, protocol=protocol)
+                x.setData(self.Columns.HOST, self.SERVER_ADDR_ROLE, server)
                 self.addTopLevelItem(x)
 
         h = self.header()
@@ -431,7 +433,7 @@ class NetworkChoiceLayout(object):
         self.network.run_from_another_thread(self.network.follow_chain_given_id(chain_id))
         self.update()
 
-    def follow_server(self, server):
+    def follow_server(self, server: ServerAddr):
         self.network.run_from_another_thread(self.network.follow_chain_given_server(server))
         self.update()
 

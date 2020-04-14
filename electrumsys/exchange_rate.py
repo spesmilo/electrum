@@ -530,7 +530,7 @@ def get_exchanges_by_ccy(history=True):
 
 class FxThread(ThreadJob):
 
-    def __init__(self, config: SimpleConfig, network: Network):
+    def __init__(self, config: SimpleConfig, network: Optional[Network]):
         ThreadJob.__init__(self)
         self.config = config
         self.network = network
