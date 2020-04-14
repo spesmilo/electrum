@@ -72,6 +72,7 @@ _logger = get_logger(__name__)
 
 
 NUM_TARGET_CONNECTED_SERVERS = 10
+NUM_STICKY_SERVERS = 4
 NUM_RECENT_SERVERS = 20
 MAX_RETRY_DELAY_FOR_SERVERS = 600  # sec
 INIT_RETRY_DELAY_FOR_SERVERS = 15  # sec
@@ -551,20 +552,27 @@ class Network(Logger):
     def _get_next_server_to_try(self) -> Optional[ServerAddr]:
         now = time.time()
         with self.interfaces_lock:
-            exclude_set = set(self.interfaces) | self.connecting
-        # first try from recent servers
+            connected_servers = set(self.interfaces) | self.connecting
+        # First try from recent servers. (which are persisted)
+        # As these are servers we successfully connected to recently, they are
+        # most likely to work. This also makes servers "sticky".
+        # Note: with sticky servers, it is more difficult for an attacker to eclipse the client,
+        #       however if they succeed, the eclipsing would persist. To try to balance this,
+        #       we only give priority to recent_servers up to NUM_STICKY_SERVERS.
         with self.recent_servers_lock:
             recent_servers = list(self._recent_servers)
         recent_servers = [s for s in recent_servers if s.protocol == self.protocol]
-        for server in recent_servers:
-            if server in exclude_set:
-                continue
-            if not self._can_retry_server(server, now=now):
-                continue
-            return server
-        # try all servers we know about
+        if len(connected_servers & set(recent_servers)) < NUM_STICKY_SERVERS:
+            for server in recent_servers:
+                if server in connected_servers:
+                    continue
+                if not self._can_retry_server(server, now=now):
+                    continue
+                return server
+        # try all servers we know about, pick one at random
         hostmap = self.get_servers()
-        servers = set(filter_protocol(hostmap, self.protocol)) - exclude_set
+        servers = list(set(filter_protocol(hostmap, self.protocol)) - connected_servers)
+        random.shuffle(servers)
         for server in servers:
             if not self._can_retry_server(server, now=now):
                 continue
