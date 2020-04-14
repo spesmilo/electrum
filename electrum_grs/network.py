@@ -268,8 +268,8 @@ class Network(Logger):
             try:
                 deserialize_server(self.default_server)
             except:
-                self.logger.warning('failed to parse server-string; falling back to random.')
-                self.default_server = None
+                self.logger.warning('failed to parse server-string; falling back to localhost.')
+                self.default_server = "localhost:50002:s"
         if not self.default_server:
             self.default_server = pick_random_server()
 
@@ -916,7 +916,7 @@ class Network(Logger):
             r"Signature hash type missing or not understood",
             r"Non-canonical DER signature",
             r"Data push larger than necessary",
-            r"Only non-push operators allowed in signatures",
+            r"Only push operators allowed in signatures",
             r"Non-canonical signature: S value is unnecessarily high",
             r"Dummy CHECKMULTISIG argument must be zero",
             r"OP_IF/NOTIF argument must be minimal",

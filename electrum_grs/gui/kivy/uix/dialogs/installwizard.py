@@ -2,6 +2,7 @@
 from functools import partial
 import threading
 import os
+from typing import TYPE_CHECKING
 
 from kivy.app import App
 from kivy.clock import Clock
@@ -23,6 +24,10 @@ from electrum_grs.util import is_valid_email
 from . import EventsDialog
 from ...i18n import _
 from .password_dialog import PasswordDialog
+
+if TYPE_CHECKING:
+    from electrum.gui.kivy.main_window import ElectrumWindow
+
 
 # global Variables
 is_test = (platform == "linux")
@@ -149,6 +154,18 @@ Builder.load_string('''
             range: 1, n.value
             step: 1
             value: 2
+    Widget
+        size_hint: 1, 1
+    Label:
+        id: backup_warning_label
+        color: root.text_color
+        size_hint: 1, None
+        text_size: self.width, None
+        height: self.texture_size[1]
+        opacity: int(m.value != n.value)
+        text: _("Warning: to be able to restore a multisig wallet, " \
+                "you should include the master public key for each cosigner " \
+                "in all of your backups.")
 
 
 <WizardChoiceDialog>
@@ -1141,7 +1158,7 @@ class InstallWizard(BaseWizard, Widget):
     def show_message(self, msg): self.show_error(msg)
 
     def show_error(self, msg):
-        app = App.get_running_app()
+        app = App.get_running_app()  # type: ElectrumWindow
         Clock.schedule_once(lambda dt: app.show_error(msg))
 
     def request_password(self, run_next, force_disable_encrypt_cb=False):

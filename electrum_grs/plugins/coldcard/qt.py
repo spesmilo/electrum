@@ -57,7 +57,7 @@ class Plugin(ColdcardPlugin, QtPluginBase):
         btn = QPushButton(_("Export for Coldcard"))
         btn.clicked.connect(lambda unused: self.export_multisig_setup(main_window, wallet))
 
-        return Buttons(btn, CloseButton(dialog))
+        return btn
 
     def export_multisig_setup(self, main_window, wallet):
 
@@ -77,14 +77,9 @@ class Plugin(ColdcardPlugin, QtPluginBase):
 
 
 class Coldcard_Handler(QtHandlerBase):
-    setup_signal = pyqtSignal()
-    #auth_signal = pyqtSignal(object)
 
     def __init__(self, win):
         super(Coldcard_Handler, self).__init__(win, 'Coldcard')
-        self.setup_signal.connect(self.setup_dialog)
-        #self.auth_signal.connect(self.auth_dialog)
-
 
     def message_dialog(self, msg):
         self.clear_dialog()
@@ -94,15 +89,6 @@ class Coldcard_Handler(QtHandlerBase):
         vbox.addWidget(l)
         dialog.show()
 
-    def get_setup(self):
-        self.done.clear()
-        self.setup_signal.emit()
-        self.done.wait()
-        return
-
-    def setup_dialog(self):
-        self.show_error(_('Please initialize your Coldcard while disconnected.'))
-        return
 
 class CKCCSettingsDialog(WindowModalDialog):
 

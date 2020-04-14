@@ -289,6 +289,10 @@ class BCDataStream(object):
         else:
             raise SerializationError('attempt to read past end of buffer')
 
+    def write_bytes(self, _bytes: Union[bytes, bytearray], length: int):
+        assert len(_bytes) == length, len(_bytes)
+        self.write(_bytes)
+
     def can_read_more(self) -> bool:
         if not self.input:
             return False

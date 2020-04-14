@@ -78,10 +78,11 @@ setup(
         'electrum_grs': 'electrum_grs'
     },
     package_data={
-        '': ['*.txt', '*.json', '*.ttf', '*.otf'],
+        '': ['*.txt', '*.json', '*.ttf', '*.otf', '*.csv'],
         'electrum_grs': [
             'wordlist/*.txt',
             'locale/*/LC_MESSAGES/electrum.mo',
+            'lnwire/*.csv',
         ],
         'electrum_grs.gui': [
             'icons/*',

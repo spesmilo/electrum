@@ -235,7 +235,6 @@ class ElectrumGui(Logger):
         run_hook('on_new_window', w)
         w.warn_if_testnet()
         w.warn_if_watching_only()
-        w.warn_if_lightning_backup()
         return w
 
     def count_wizards_in_progress(func):
@@ -303,7 +302,7 @@ class ElectrumGui(Logger):
         return window
 
     def _start_wizard_to_select_or_create_wallet(self, path) -> Optional[Abstract_Wallet]:
-        wizard = InstallWizard(self.config, self.app, self.plugins)
+        wizard = InstallWizard(self.config, self.app, self.plugins, gui_object=self)
         try:
             path, storage = wizard.select_storage(path, self.daemon.get_wallet)
             # storage is None if file does not exist
@@ -342,7 +341,7 @@ class ElectrumGui(Logger):
         # Show network dialog if config does not exist
         if self.daemon.network:
             if self.config.get('auto_connect') is None:
-                wizard = InstallWizard(self.config, self.app, self.plugins)
+                wizard = InstallWizard(self.config, self.app, self.plugins, gui_object=self)
                 wizard.init_network(self.daemon.network)
                 wizard.terminate()
 

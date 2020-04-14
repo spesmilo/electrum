@@ -33,7 +33,7 @@ from electrum_grs.util import (parse_URI, InvalidBitcoinURI, PR_PAID, PR_UNKNOWN
 from electrum_grs.plugin import run_hook
 from electrum_grs.wallet import InternalAddressCorruption
 from electrum_grs import simple_config
-from electrum_grs.lnaddr import lndecode
+from electrum_grs.lnaddr import lndecode, parse_lightning_invoice
 from electrum_grs.lnutil import RECEIVED, SENT, PaymentFailure
 
 from .dialogs.question import Question
@@ -299,7 +299,7 @@ class SendScreen(CScreen):
             return
         message = self.message
         if self.is_lightning:
-            return self.app.wallet.lnworker.parse_bech32_invoice(address)
+            return parse_lightning_invoice(address)
         else:  # on-chain
             if self.payment_request:
                 outputs = self.payment_request.get_outputs()
@@ -404,7 +404,7 @@ class SendScreen(CScreen):
                     self.app.wallet.delete_invoice(key)
                 self.update()
         n = len(invoices)
-        d = Question(_(f'Delete {n} invoices?'), callback)
+        d = Question(_('Delete {} invoices?').format(n), callback)
         d.open()
 
 
@@ -522,7 +522,7 @@ class ReceiveScreen(CScreen):
                     self.app.wallet.delete_request(key)
                 self.update()
         n = len(requests)
-        d = Question(_(f'Delete {n} requests?'), callback)
+        d = Question(_('Delete {} requests?').format(n), callback)
         d.open()
 
 

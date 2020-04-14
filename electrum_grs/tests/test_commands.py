@@ -180,3 +180,17 @@ class TestCommandsTestnet(TestCaseForTestnet):
         }
         self.assertEqual("0200000000010139c5375fe9da7bd377c1783002b129f8c57d3e724d62f5eacb9739ca691a229d0100000000feffffff01301b0f0000000000160014ac0e2d229200bffb2167ed6fd196aef9d687d8bb0247304402206367fb2ddd723985f5f51e0f2435084c0a66f5c26f4403a75d3dd417b71a20450220545dc3637bcb49beedbbdf5063e05cad63be91af4f839886451c30ecd6edf1d20121021f110909ded653828a254515b58498a6bafc96799fb0851554463ed44ca7d9da00000000",
                          cmds._run('serialize', (jsontx,)))
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    def test_getprivatekeyforpath(self, mock_save_db):
+        wallet = restore_wallet_from_text('north rent dawn bunker hamster invest wagon market romance pig either squeeze',
+                                          gap_limit=2,
+                                          path='if_this_exists_mocking_failed_648151893',
+                                          config=self.config)['wallet']
+        cmds = Commands(config=self.config)
+        self.assertEqual("p2wpkh:cUzm7zPpWgLYeURgff4EsoMjhskCpsviBH4Y3aZcrBX8UJSRPjC2",
+                         cmds._run('getprivatekeyforpath', ([0, 10000],), wallet=wallet))
+        self.assertEqual("p2wpkh:cUzm7zPpWgLYeURgff4EsoMjhskCpsviBH4Y3aZcrBX8UJSRPjC2",
+                         cmds._run('getprivatekeyforpath', ("m/0/10000",), wallet=wallet))
+        self.assertEqual("p2wpkh:cQAj4WGf1socCPCJNMjXYCJ8Bs5JUAk5pbDr4ris44QdgAXcV24S",
+                         cmds._run('getprivatekeyforpath', ("m/5h/100000/88h/7",), wallet=wallet))

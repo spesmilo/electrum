@@ -141,11 +141,11 @@ class SafeTPlugin(HW_PluginBase):
 
         return client
 
-    def get_client(self, keystore, force_pair=True) -> Optional['SafeTClient']:
-        devmgr = self.device_manager()
-        handler = keystore.handler
-        with devmgr.hid_lock:
-            client = devmgr.client_for_keystore(self, handler, keystore, force_pair)
+    def get_client(self, keystore, force_pair=True, *,
+                   devices=None, allow_user_interaction=True) -> Optional['SafeTClient']:
+        client = super().get_client(keystore, force_pair,
+                                    devices=devices,
+                                    allow_user_interaction=allow_user_interaction)
         # returns the client for a given keystore. can use xpub
         if client:
             client.used()
@@ -250,25 +250,19 @@ class SafeTPlugin(HW_PluginBase):
         return self.types.HDNodePathType(node=node, address_n=address_n)
 
     def setup_device(self, device_info, wizard, purpose):
-        devmgr = self.device_manager()
         device_id = device_info.device.id_
-        client = devmgr.client_by_id(device_id)
-        if client is None:
-            raise UserFacingException(_('Failed to create a client for this device.') + '\n' +
-                                      _('Make sure it is in the correct state.'))
-        # fixme: we should use: client.handler = wizard
-        client.handler = self.create_handler(wizard)
+        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
         if not device_info.initialized:
             self.initialize_device(device_id, wizard, client.handler)
-        client.get_xpub('m', 'standard')
+        wizard.run_task_without_blocking_gui(
+            task=lambda: client.get_xpub("m", 'standard'))
         client.used()
+        return client
 
     def get_xpub(self, device_id, derivation, xtype, wizard):
         if xtype not in self.SUPPORTED_XTYPES:
             raise ScriptTypeNotSupported(_('This type of script is not supported with {}.').format(self.device))
-        devmgr = self.device_manager()
-        client = devmgr.client_by_id(device_id)
-        client.handler = wizard
+        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
         xpub = client.get_xpub(derivation, xtype)
         client.used()
         return xpub

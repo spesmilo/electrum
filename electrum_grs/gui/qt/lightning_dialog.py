@@ -66,14 +66,14 @@ class LightningDialog(QDialog):
         self.set_unknown_channels('', len(self.network.lngossip.unknown_ids))
 
     def on_channel_db(self, event, num_nodes, num_channels, num_policies):
-        self.num_nodes.setText(_(f'{num_nodes} nodes'))
-        self.num_channels.setText(_(f'{num_channels} channels'))
+        self.num_nodes.setText(_('{} nodes').format(num_nodes))
+        self.num_channels.setText(_('{} channels').format(num_channels))
 
     def set_num_peers(self, event, num_peers):
-        self.num_peers.setText(_(f'Connected to {num_peers} peers'))
+        self.num_peers.setText(_('Connected to {} peers').format(num_peers))
 
     def set_unknown_channels(self, event, unknown):
-        self.status.setText(_(f'Requesting {unknown} channels...') if unknown else '')
+        self.status.setText(_('Requesting {} channels...').format(unknown) if unknown else '')
 
     def is_hidden(self):
         return self.isMinimized() or self.isHidden()

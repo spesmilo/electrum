@@ -449,7 +449,7 @@ class AddressSynchronizer(Logger):
         domain = set(domain)
         # 1. Get the history of each address in the domain, maintain the
         #    delta of a tx as the sum of its deltas on domain addresses
-        tx_deltas = defaultdict(int)
+        tx_deltas = defaultdict(int)  # type: Dict[str, Optional[int]]
         for addr in domain:
             h = self.get_address_history(addr)
             for tx_hash, height in h:
@@ -616,6 +616,7 @@ class AddressSynchronizer(Logger):
             self.up_to_date = up_to_date
         if self.network:
             self.network.notify('status')
+        self.logger.info(f'set_up_to_date: {up_to_date}')
 
     def is_up_to_date(self):
         with self.lock: return self.up_to_date

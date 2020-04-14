@@ -1,5 +1,6 @@
 import time
 from struct import pack
+from typing import Optional
 
 from electrum_grs import ecc
 from electrum_grs.i18n import _
@@ -7,11 +8,12 @@ from electrum_grs.util import UserCancelled
 from electrum_grs.keystore import bip39_normalize_passphrase
 from electrum_grs.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32
 from electrum_grs.logging import Logger
-from electrum_grs.plugins.hw_wallet.plugin import HardwareClientBase
+from electrum_grs.plugins.hw_wallet.plugin import HardwareClientBase, HardwareHandlerBase
 
 
 class GuiMixin(object):
     # Requires: self.proto, self.device
+    handler: Optional[HardwareHandlerBase]
 
     # ref: https://github.com/trezor/trezor-common/blob/44dfb07cfaafffada4b2ce0d15ba1d90d17cf35e/protob/types.proto#L89
     messages = {
@@ -47,6 +49,7 @@ class GuiMixin(object):
         return self.proto.ButtonAck()
 
     def callback_PinMatrixRequest(self, msg):
+        show_strength = True
         if msg.type == 2:
             msg = _("Enter a new PIN for your {}:")
         elif msg.type == 3:
@@ -54,7 +57,8 @@ class GuiMixin(object):
                      "NOTE: the positions of the numbers have changed!"))
         else:
             msg = _("Enter your current {} PIN:")
-        pin = self.handler.get_pin(msg.format(self.device))
+            show_strength = False
+        pin = self.handler.get_pin(msg.format(self.device), show_strength=show_strength)
         if len(pin) > 9:
             self.handler.show_error(_('The PIN cannot be longer than 9 characters.'))
             pin = ''  # to cancel below
@@ -116,6 +120,9 @@ class SafeTClientBase(HardwareClientBase, GuiMixin, Logger):
 
     def label(self):
         return self.features.label
+
+    def get_soft_device_id(self):
+        return self.features.device_id
 
     def is_initialized(self):
         return self.features.initialized

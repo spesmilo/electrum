@@ -13,7 +13,7 @@ package.domain = org.groestlcoin
 source.dir = .
 
 # (list) Source files to include (let empty to include all the files)
-source.include_exts = py,png,jpg,kv,atlas,ttf,txt,gif,pem,mo,vs,fs,json
+source.include_exts = py,png,jpg,kv,atlas,ttf,txt,gif,pem,mo,vs,fs,json,csv
 
 # (list) Source files to exclude (let empty to not exclude anything)
 source.exclude_exts = spec
@@ -23,9 +23,7 @@ source.exclude_dirs = bin, build, dist, contrib,
     electrum_grs/tests,
     electrum_grs/gui/qt,
     electrum_grs/gui/kivy/tools,
-    electrum_grs/gui/kivy/theming/light,
-    # exclude pycryptodomex built by make_packages; android needs custom version
-    packages/cryptodome
+    electrum_grs/gui/kivy/theming/light
 # (list) List of exclusions using pattern matching
 source.exclude_patterns = Makefile,setup*
 
@@ -46,7 +44,7 @@ requirements =
     kivy==39c17457bae91baf8fe710dc989791e45879f136,
     libffi,
     libsecp256k1,
-    pycryptodomex==bfc1cca093a7344c9ed2b7c34bc560db6dca662a,
+    cryptography,
     groestlcoin_hash
 
 # (str) Presplash of the application
@@ -77,7 +75,7 @@ android.api = 28
 android.minapi = 21
 
 # (str) Android NDK version to use
-android.ndk = 19b
+android.ndk = 19c
 
 # (int) Android NDK API to use (optional). This is the minimum API your app will support.
 android.ndk_api = 21

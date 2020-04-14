@@ -161,6 +161,8 @@ class Buttons(QHBoxLayout):
         QHBoxLayout.__init__(self)
         self.addStretch(1)
         for b in buttons:
+            if b is None:
+                continue
             self.addWidget(b)
 
 class CloseButton(QPushButton):
@@ -746,6 +748,18 @@ class ButtonsTextEdit(QPlainTextEdit, ButtonsWidget):
         o = QPlainTextEdit.resizeEvent(self, e)
         self.resizeButtons()
         return o
+
+
+class PasswordLineEdit(QLineEdit):
+    def __init__(self, *args, **kwargs):
+        QLineEdit.__init__(self, *args, **kwargs)
+        self.setEchoMode(QLineEdit.Password)
+
+    def clear(self):
+        # Try to actually overwrite the memory.
+        # This is really just a best-effort thing...
+        self.setText(len(self.text()) * " ")
+        super().clear()
 
 
 class TaskThread(QThread):

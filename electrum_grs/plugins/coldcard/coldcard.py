@@ -4,7 +4,7 @@
 #
 import os, time, io
 import traceback
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 import struct
 
 from electrum_grs import bip32
@@ -477,7 +477,7 @@ class ColdcardPlugin(HW_PluginBase):
         if not self.libraries_available:
             return
 
-        self.device_manager().register_devices(self.DEVICE_IDS)
+        self.device_manager().register_devices(self.DEVICE_IDS, plugin=self)
         self.device_manager().register_enumerate_func(self.detect_simulator)
 
     def get_library_version(self):
@@ -522,33 +522,27 @@ class ColdcardPlugin(HW_PluginBase):
             return None
 
     def setup_device(self, device_info, wizard, purpose):
-        devmgr = self.device_manager()
         device_id = device_info.device.id_
-        client = devmgr.client_by_id(device_id)
-        if client is None:
-            raise UserFacingException(_('Failed to create a client for this device.') + '\n' +
-                                      _('Make sure it is in the correct state.'))
-        client.handler = self.create_handler(wizard)
+        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
+        return client
 
     def get_xpub(self, device_id, derivation, xtype, wizard):
         # this seems to be part of the pairing process only, not during normal ops?
         # base_wizard:on_hw_derivation
         if xtype not in self.SUPPORTED_XTYPES:
             raise ScriptTypeNotSupported(_('This type of script is not supported with {}.').format(self.device))
-        devmgr = self.device_manager()
-        client = devmgr.client_by_id(device_id)
-        client.handler = self.create_handler(wizard)
+        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
         client.ping_check()
 
         xpub = client.get_xpub(derivation, xtype)
         return xpub
 
-    def get_client(self, keystore, force_pair=True) -> 'CKCCClient':
+    def get_client(self, keystore, force_pair=True, *,
+                   devices=None, allow_user_interaction=True) -> Optional['CKCCClient']:
         # Acquire a connection to the hardware device (via USB)
-        devmgr = self.device_manager()
-        handler = keystore.handler
-        with devmgr.hid_lock:
-            client = devmgr.client_for_keystore(self, handler, keystore, force_pair)
+        client = super().get_client(keystore, force_pair,
+                                    devices=devices,
+                                    allow_user_interaction=allow_user_interaction)
 
         if client is not None:
             client.ping_check()

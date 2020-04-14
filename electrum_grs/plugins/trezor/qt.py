@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QPushButton,
                              QMessageBox, QFileDialog, QSlider, QTabWidget)
 
 from electrum_grs.gui.qt.util import (WindowModalDialog, WWLabel, Buttons, CancelButton,
-                                  OkButton, CloseButton)
+                                  OkButton, CloseButton, PasswordLineEdit)
 from electrum_grs.i18n import _
 from electrum_grs.plugin import hook
 from electrum_grs.util import bh2u
@@ -16,7 +16,7 @@ from electrum_grs.util import bh2u
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 from ..hw_wallet.plugin import only_hook_if_libraries_available
 from .trezor import (TrezorPlugin, TIM_NEW, TIM_RECOVER, TrezorInitSettings,
-                     Capability, BackupType, RecoveryDeviceType)
+                     PASSPHRASE_ON_DEVICE, Capability, BackupType, RecoveryDeviceType)
 
 
 PASSPHRASE_HELP_SHORT =_(
@@ -108,7 +108,7 @@ class MatrixDialog(WindowModalDialog):
 
 class QtHandler(QtHandlerBase):
 
-    pin_signal = pyqtSignal(object)
+    pin_signal = pyqtSignal(object, object)
     matrix_signal = pyqtSignal(object)
     close_matrix_dialog_signal = pyqtSignal()
 
@@ -119,10 +119,11 @@ class QtHandler(QtHandlerBase):
         self.close_matrix_dialog_signal.connect(self._close_matrix_dialog)
         self.pin_matrix_widget_class = pin_matrix_widget_class
         self.matrix_dialog = None
+        self.passphrase_on_device = False
 
-    def get_pin(self, msg):
+    def get_pin(self, msg, *, show_strength=True):
         self.done.clear()
-        self.pin_signal.emit(msg)
+        self.pin_signal.emit(msg, show_strength)
         self.done.wait()
         return self.response
 
@@ -143,11 +144,11 @@ class QtHandler(QtHandlerBase):
     def close_matrix_dialog(self):
         self.close_matrix_dialog_signal.emit()
 
-    def pin_dialog(self, msg):
+    def pin_dialog(self, msg, show_strength):
         # Needed e.g. when resetting a device
         self.clear_dialog()
         dialog = WindowModalDialog(self.top_level_window(), _("Enter PIN"))
-        matrix = self.pin_matrix_widget_class()
+        matrix = self.pin_matrix_widget_class(show_strength)
         vbox = QVBoxLayout()
         vbox.addWidget(QLabel(msg))
         vbox.addWidget(matrix)
@@ -163,14 +164,75 @@ class QtHandler(QtHandlerBase):
         self.matrix_dialog.get_matrix(msg)
         self.done.set()
 
+    def passphrase_dialog(self, msg, confirm):
+        # If confirm is true, require the user to enter the passphrase twice
+        parent = self.top_level_window()
+        d = WindowModalDialog(parent, _('Enter Passphrase'))
+
+        OK_button = OkButton(d, _('Enter Passphrase'))
+        OnDevice_button = QPushButton(_('Enter Passphrase on Device'))
+
+        new_pw = PasswordLineEdit()
+        conf_pw = PasswordLineEdit()
+
+        vbox = QVBoxLayout()
+        label = QLabel(msg + "\n")
+        label.setWordWrap(True)
+
+        grid = QGridLayout()
+        grid.setSpacing(8)
+        grid.setColumnMinimumWidth(0, 150)
+        grid.setColumnMinimumWidth(1, 100)
+        grid.setColumnStretch(1,1)
+
+        vbox.addWidget(label)
+
+        grid.addWidget(QLabel(_('Passphrase:')), 0, 0)
+        grid.addWidget(new_pw, 0, 1)
+
+        if confirm:
+            grid.addWidget(QLabel(_('Confirm Passphrase:')), 1, 0)
+            grid.addWidget(conf_pw, 1, 1)
+
+        vbox.addLayout(grid)
+
+        def enable_OK():
+            if not confirm:
+                ok = True
+            else:
+                ok = new_pw.text() == conf_pw.text()
+            OK_button.setEnabled(ok)
+
+        new_pw.textChanged.connect(enable_OK)
+        conf_pw.textChanged.connect(enable_OK)
+
+        vbox.addWidget(OK_button)
+
+        if self.passphrase_on_device:
+            vbox.addWidget(OnDevice_button)
+
+        d.setLayout(vbox)
+
+        self.passphrase = None
+
+        def ok_clicked():
+            self.passphrase = new_pw.text()
+
+        def on_device_clicked():
+            self.passphrase = PASSPHRASE_ON_DEVICE
+
+        OK_button.clicked.connect(ok_clicked)
+        OnDevice_button.clicked.connect(on_device_clicked)
+        OnDevice_button.clicked.connect(d.accept)
+
+        d.exec_()
+        self.done.set()
+
 
 class QtPlugin(QtPluginBase):
     # Derived classes must provide the following class-static variables:
     #   icon_file
     #   pin_matrix_widget_class
-
-    def create_handler(self, window):
-        return QtHandler(window, self.pin_matrix_widget_class(), self.device)
 
     @only_hook_if_libraries_available
     @hook
@@ -185,9 +247,13 @@ class QtPlugin(QtPluginBase):
                 menu.addAction(_("Show on {}").format(device_name), show_address)
 
     def show_settings_dialog(self, window, keystore):
-        device_id = self.choose_device(window, keystore)
-        if device_id:
-            SettingsDialog(window, self, keystore, device_id).exec_()
+        def connect():
+            device_id = self.choose_device(window, keystore)
+            return device_id
+        def show_dialog(device_id):
+            if device_id:
+                SettingsDialog(window, self, keystore, device_id).exec_()
+        keystore.thread.add(connect, on_success=show_dialog)
 
     def request_trezor_init_settings(self, wizard, method, device_id):
         vbox = QVBoxLayout()
@@ -376,6 +442,9 @@ class QtPlugin(QtPluginBase):
 class Plugin(TrezorPlugin, QtPlugin):
     icon_unpaired = "trezor_unpaired.png"
     icon_paired = "trezor.png"
+
+    def create_handler(self, window):
+        return QtHandler(window, self.pin_matrix_widget_class(), self.device)
 
     @classmethod
     def pin_matrix_widget_class(self):

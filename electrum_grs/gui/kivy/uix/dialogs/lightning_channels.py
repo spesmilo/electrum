@@ -183,6 +183,11 @@ Builder.load_string(r'''
             Button:
                 size_hint: 0.5, None
                 height: '48dp'
+                text: _('Backup')
+                on_release: root.export_backup()
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
                 text: _('Close')
                 on_release: root.close()
                 disabled: root.is_closed
@@ -198,8 +203,120 @@ Builder.load_string(r'''
                 text: _('Delete')
                 on_release: root.remove_channel()
                 disabled: not root.is_redeemed
+
+<ChannelBackupPopup@Popup>:
+    id: popuproot
+    data: []
+    is_closed: False
+    is_redeemed: False
+    node_id:''
+    short_id:''
+    initiator:''
+    capacity:''
+    funding_txid:''
+    closing_txid:''
+    state:''
+    is_open:False
+    BoxLayout:
+        padding: '12dp', '12dp', '12dp', '12dp'
+        spacing: '12dp'
+        orientation: 'vertical'
+        ScrollView:
+            scroll_type: ['bars', 'content']
+            scroll_wheel_distance: dp(114)
+            BoxLayout:
+                orientation: 'vertical'
+                height: self.minimum_height
+                size_hint_y: None
+                spacing: '5dp'
+                BoxLabel:
+                    text: _('Channel ID')
+                    value: root.short_id
+                BoxLabel:
+                    text: _('State')
+                    value: root.state
+                BoxLabel:
+                    text: _('Initiator')
+                    value: root.initiator
+                BoxLabel:
+                    text: _('Capacity')
+                    value: root.capacity
+                Widget:
+                    size_hint: 1, 0.1
+                TopLabel:
+                    text: _('Remote Node ID')
+                TxHashLabel:
+                    data: root.node_id
+                    name: _('Remote Node ID')
+                TopLabel:
+                    text: _('Funding Transaction')
+                TxHashLabel:
+                    data: root.funding_txid
+                    name: _('Funding Transaction')
+                    touch_callback: lambda: app.show_transaction(root.funding_txid)
+                TopLabel:
+                    text: _('Closing Transaction')
+                    opacity: int(bool(root.closing_txid))
+                TxHashLabel:
+                    opacity: int(bool(root.closing_txid))
+                    data: root.closing_txid
+                    name: _('Closing Transaction')
+                    touch_callback: lambda: app.show_transaction(root.closing_txid)
+                Widget:
+                    size_hint: 1, 0.1
+        Widget:
+            size_hint: 1, 0.05
+        BoxLayout:
+            size_hint: 1, None
+            height: '48dp'
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('Request force-close')
+                on_release: root.request_force_close()
+                disabled: root.is_closed
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('Delete')
+                on_release: root.remove_backup()
 ''')
 
+
+class ChannelBackupPopup(Popup):
+
+    def __init__(self, chan, app, **kwargs):
+        super(ChannelBackupPopup,self).__init__(**kwargs)
+        self.chan = chan
+        self.app = app
+        self.short_id = format_short_channel_id(chan.short_channel_id)
+        self.state = chan.get_state_for_GUI()
+        self.title = _('Channel Backup')
+
+    def request_force_close(self):
+        msg = _('Request force close?')
+        Question(msg, self._request_force_close).open()
+
+    def _request_force_close(self, b):
+        if not b:
+            return
+        loop = self.app.wallet.network.asyncio_loop
+        coro = asyncio.run_coroutine_threadsafe(self.app.wallet.lnbackups.request_force_close(self.chan.channel_id), loop)
+        try:
+            coro.result(5)
+            self.app.show_info(_('Channel closed'))
+        except Exception as e:
+            self.app.show_info(_('Could not close channel: ') + repr(e)) # repr because str(Exception()) == ''
+
+    def remove_backup(self):
+        msg = _('Delete backup?')
+        Question(msg, self._remove_backup).open()
+
+    def _remove_backup(self, b):
+        if not b:
+            return
+        self.app.wallet.lnbackups.remove_channel_backup(self.chan.channel_id)
+        self.dismiss()
 
 class ChannelDetailsPopup(Popup):
 
@@ -254,6 +371,10 @@ class ChannelDetailsPopup(Popup):
         self.app._trigger_update_history()
         self.dismiss()
 
+    def export_backup(self):
+        text = self.app.wallet.lnworker.export_channel_backup(self.chan.channel_id)
+        self.app.qr_dialog(_("Channel Backup " + self.chan.short_id_for_GUI()), 'channel_backup:'+text)
+
     def force_close(self):
         Question(_('Force-close channel?'), self._force_close).open()
 
@@ -282,7 +403,11 @@ class LightningChannelsDialog(Factory.Popup):
         self.update()
 
     def show_item(self, obj):
-        p = ChannelDetailsPopup(obj._chan, self.app)
+        chan = obj._chan
+        if chan.is_backup():
+            p = ChannelBackupPopup(chan, self.app)
+        else:
+            p = ChannelDetailsPopup(chan, self.app)
         p.open()
 
     def format_fields(self, chan):
@@ -305,7 +430,7 @@ class LightningChannelsDialog(Factory.Popup):
     def update_item(self, item):
         chan = item._chan
         item.status = chan.get_state_for_GUI()
-        item.short_channel_id = format_short_channel_id(chan.short_channel_id)
+        item.short_channel_id = chan.short_id_for_GUI()
         l, r = self.format_fields(chan)
         item.local_balance = _('Local') + ':' + l
         item.remote_balance = _('Remote') + ': ' + r
@@ -317,10 +442,13 @@ class LightningChannelsDialog(Factory.Popup):
         if not self.app.wallet:
             return
         lnworker = self.app.wallet.lnworker
-        for i in lnworker.channels.values():
+        channels = list(lnworker.channels.values()) if lnworker else []
+        lnbackups = self.app.wallet.lnbackups
+        backups = list(lnbackups.channel_backups.values())
+        for i in channels + backups:
             item = Factory.LightningChannelItem()
             item.screen = self
-            item.active = i.node_id in lnworker.peers
+            item.active = i.node_id in (lnworker.peers if lnworker else [])
             item._chan = i
             self.update_item(item)
             channel_cards.add_widget(item)
@@ -328,5 +456,7 @@ class LightningChannelsDialog(Factory.Popup):
 
     def update_can_send(self):
         lnworker = self.app.wallet.lnworker
+        if not lnworker:
+            return
         self.can_send = self.app.format_amount_and_units(lnworker.num_sats_can_send())
         self.can_receive = self.app.format_amount_and_units(lnworker.num_sats_can_receive())

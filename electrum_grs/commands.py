@@ -58,6 +58,7 @@ from .lnpeer import channel_id_from_funding_tx
 from .plugin import run_hook
 from .version import ELECTRUM_VERSION
 from .simple_config import SimpleConfig
+from .lnaddr import parse_lightning_invoice
 
 
 if TYPE_CHECKING:
@@ -66,6 +67,10 @@ if TYPE_CHECKING:
 
 
 known_commands = {}  # type: Dict[str, Command]
+
+
+class NotSynchronizedException(Exception):
+    pass
 
 
 def satoshis(amount):
@@ -414,6 +419,13 @@ class Commands:
         domain = address
         return [wallet.export_private_key(address, password) for address in domain]
 
+    @command('wp')
+    async def getprivatekeyforpath(self, path, password=None, wallet: Abstract_Wallet = None):
+        """Get private key corresponding to derivation path (address index).
+        'path' can be either a str such as "m/0/50", or a list of ints such as [0, 50].
+        """
+        return wallet.export_private_key_for_path(path, password)
+
     @command('w')
     async def ismine(self, address, wallet: Abstract_Wallet = None):
         """Check if address is in wallet. Return true if and only address is in wallet"""
@@ -467,7 +479,7 @@ class Commands:
 
     @command('n')
     async def getservers(self):
-        """Return the list of available servers"""
+        """Return the list of known servers (candidates for connecting)."""
         return self.network.get_servers()
 
     @command('')
@@ -777,6 +789,7 @@ class Commands:
     async def list_requests(self, pending=False, expired=False, paid=False, wallet: Abstract_Wallet = None):
         """List the payment requests you made."""
         out = wallet.get_sorted_requests()
+        out = list(map(self._format_request, out))
         if pending:
             f = PR_UNPAID
         elif expired:
@@ -787,7 +800,7 @@ class Commands:
             f = None
         if f is not None:
             out = list(filter(lambda x: x.get('status')==f, out))
-        return list(map(self._format_request, out))
+        return out
 
     @command('w')
     async def createnewaddress(self, wallet: Abstract_Wallet = None):
@@ -815,7 +828,7 @@ class Commands:
         if not isinstance(wallet, Deterministic_Wallet):
             raise Exception("This wallet is not deterministic.")
         if not wallet.is_up_to_date():
-            raise Exception("Wallet not fully synchronized.")
+            raise NotSynchronizedException("Wallet not fully synchronized.")
         return wallet.min_acceptable_gap()
 
     @command('w')
@@ -956,6 +969,15 @@ class Commands:
         await wallet.lnworker.add_peer(connection_string)
         return True
 
+    @command('wn')
+    async def list_peers(self, wallet: Abstract_Wallet = None):
+        return [{
+            'node_id':p.pubkey.hex(),
+            'address':p.transport.name(),
+            'initialized':p.is_initialized(),
+            'channels': [c.funding_outpoint.to_str() for c in p.channels.values()],
+        } for p in wallet.lnworker.peers.values()]
+
     @command('wpn')
     async def open_channel(self, connection_string, amount, push_amount=0, password=None, wallet: Abstract_Wallet = None):
         funding_sat = satoshis(amount)
@@ -968,6 +990,10 @@ class Commands:
                                                                          push_sat=push_sat,
                                                                          password=password)
         return chan.funding_outpoint.to_str()
+
+    @command('')
+    async def decode_invoice(self, invoice):
+        return parse_lightning_invoice(invoice)
 
     @command('wn')
     async def lnpay(self, invoice, attempts=1, timeout=10, wallet: Abstract_Wallet = None):
@@ -1038,6 +1064,16 @@ class Commands:
         chan_id, _ = channel_id_from_funding_tx(txid, int(index))
         coro = wallet.lnworker.force_close_channel(chan_id) if force else wallet.lnworker.close_channel(chan_id)
         return await coro
+
+    @command('w')
+    async def export_channel_backup(self, channel_point, wallet: Abstract_Wallet = None):
+        txid, index = channel_point.split(':')
+        chan_id, _ = channel_id_from_funding_tx(txid, int(index))
+        return wallet.lnworker.export_channel_backup(chan_id)
+
+    @command('w')
+    async def import_channel_backup(self, encrypted, wallet: Abstract_Wallet = None):
+        return wallet.lnworker.import_channel_backup(encrypted)
 
     @command('wn')
     async def get_channel_ctx(self, channel_point, iknowwhatimdoing=False, wallet: Abstract_Wallet = None):

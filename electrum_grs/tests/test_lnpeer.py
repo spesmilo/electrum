@@ -21,8 +21,8 @@ from electrum_grs.util import bh2u, create_and_start_event_loop
 from electrum_grs.lnpeer import Peer
 from electrum_grs.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
 from electrum_grs.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
-from electrum_grs.lnutil import PaymentFailure, LnLocalFeatures, HTLCOwner
-from electrum_grs.lnchannel import channel_states, peer_states, Channel
+from electrum_grs.lnutil import PaymentFailure, LnFeatures, HTLCOwner
+from electrum_grs.lnchannel import ChannelState, PeerState, Channel
 from electrum_grs.lnrouter import LNPathFinder
 from electrum_grs.channel_db import ChannelDB
 from electrum_grs.lnworker import LNWallet, NoPathFound
@@ -58,6 +58,7 @@ class MockNetwork:
         self.channel_db.data_loaded.set()
         self.path_finder = LNPathFinder(self.channel_db)
         self.tx_queue = tx_queue
+        self._blockchain = MockBlockchain()
 
     @property
     def callback_lock(self):
@@ -70,12 +71,25 @@ class MockNetwork:
     def get_local_height(self):
         return 0
 
+    def blockchain(self):
+        return self._blockchain
+
     async def broadcast_transaction(self, tx):
         if self.tx_queue:
             await self.tx_queue.put(tx)
 
     async def try_broadcasting(self, tx, name):
-        self.broadcast_transaction(tx)
+        await self.broadcast_transaction(tx)
+
+
+class MockBlockchain:
+
+    def height(self):
+        return 0
+
+    def is_tip_stale(self):
+        return False
+
 
 class MockWallet:
     def set_label(self, x, y):
@@ -95,8 +109,8 @@ class MockLNWallet(Logger):
         self.payments = {}
         self.logs = defaultdict(list)
         self.wallet = MockWallet()
-        self.localfeatures = LnLocalFeatures(0)
-        self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT
+        self.features = LnFeatures(0)
+        self.features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
         self.pending_payments = defaultdict(asyncio.Future)
         chan.lnworker = self
         chan.node_id = remote_keypair.pubkey
@@ -123,6 +137,9 @@ class MockLNWallet(Logger):
             for chan in self.channels.values():
                 if chan.short_channel_id == short_channel_id:
                     return chan
+
+    def channel_state_changed(self, chan):
+        pass
 
     def save_channel(self, chan):
         print("Ignoring channel save")
@@ -173,16 +190,17 @@ class NoFeaturesTransport(MockTransport):
             self.queue.put_nowait(encode_msg('init', lflen=1, gflen=1, localfeatures=b"\x00", globalfeatures=b"\x00"))
 
 class PutIntoOthersQueueTransport(MockTransport):
-    def __init__(self, name):
+    def __init__(self, keypair, name):
         super().__init__(name)
         self.other_mock_transport = None
+        self.privkey = keypair.privkey
 
     def send_bytes(self, data):
         self.other_mock_transport.queue.put_nowait(data)
 
-def transport_pair(name1, name2):
-    t1 = PutIntoOthersQueueTransport(name1)
-    t2 = PutIntoOthersQueueTransport(name2)
+def transport_pair(k1, k2, name1, name2):
+    t1 = PutIntoOthersQueueTransport(k1, name1)
+    t2 = PutIntoOthersQueueTransport(k2, name2)
     t1.other_mock_transport = t2
     t2.other_mock_transport = t1
     return t1, t2
@@ -205,7 +223,7 @@ class TestPeer(ElectrumTestCase):
 
     def prepare_peers(self, alice_channel, bob_channel):
         k1, k2 = keypair(), keypair()
-        t1, t2 = transport_pair(alice_channel.name, bob_channel.name)
+        t1, t2 = transport_pair(k2, k1, alice_channel.name, bob_channel.name)
         q1, q2 = asyncio.Queue(), asyncio.Queue()
         w1 = MockLNWallet(k1, k2, alice_channel, tx_queue=q1)
         w2 = MockLNWallet(k2, k1, bob_channel, tx_queue=q2)
@@ -215,8 +233,8 @@ class TestPeer(ElectrumTestCase):
         w2.peer = p2
         # mark_open won't work if state is already OPEN.
         # so set it to FUNDED
-        alice_channel._state = channel_states.FUNDED
-        bob_channel._state = channel_states.FUNDED
+        alice_channel._state = ChannelState.FUNDED
+        bob_channel._state = ChannelState.FUNDED
         # this populates the channel graph:
         p1.mark_open(alice_channel)
         p2.mark_open(bob_channel)
@@ -235,8 +253,8 @@ class TestPeer(ElectrumTestCase):
         w2.save_preimage(RHASH, payment_preimage)
         w2.save_payment_info(info)
         lnaddr = LnAddr(
-                    RHASH,
-                    amount_btc,
+                    paymenthash=RHASH,
+                    amount=amount_btc,
                     tags=[('c', lnutil.MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE),
                           ('d', 'coffee')
                          ])
@@ -246,13 +264,13 @@ class TestPeer(ElectrumTestCase):
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
         for chan in (alice_channel, bob_channel):
-            chan.peer_state = peer_states.DISCONNECTED
+            chan.peer_state = PeerState.DISCONNECTED
         async def reestablish():
             await asyncio.gather(
                 p1.reestablish_channel(alice_channel),
                 p2.reestablish_channel(bob_channel))
-            self.assertEqual(alice_channel.peer_state, peer_states.GOOD)
-            self.assertEqual(bob_channel.peer_state, peer_states.GOOD)
+            self.assertEqual(alice_channel.peer_state, PeerState.GOOD)
+            self.assertEqual(bob_channel.peer_state, PeerState.GOOD)
             gath.cancel()
         gath = asyncio.gather(reestablish(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p1.htlc_switch())
         async def f():
@@ -278,13 +296,13 @@ class TestPeer(ElectrumTestCase):
 
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel_0, bob_channel)
         for chan in (alice_channel_0, bob_channel):
-            chan.peer_state = peer_states.DISCONNECTED
+            chan.peer_state = PeerState.DISCONNECTED
         async def reestablish():
             await asyncio.gather(
                 p1.reestablish_channel(alice_channel_0),
                 p2.reestablish_channel(bob_channel))
-            self.assertEqual(alice_channel_0.peer_state, peer_states.BAD)
-            self.assertEqual(bob_channel._state, channel_states.FORCE_CLOSING)
+            self.assertEqual(alice_channel_0.peer_state, PeerState.BAD)
+            self.assertEqual(bob_channel._state, ChannelState.FORCE_CLOSING)
             # wait so that pending messages are processed
             #await asyncio.sleep(1)
             gath.cancel()
@@ -317,8 +335,9 @@ class TestPeer(ElectrumTestCase):
         alice_init_balance_msat = alice_channel.balance(HTLCOwner.LOCAL)
         bob_init_balance_msat = bob_channel.balance(HTLCOwner.LOCAL)
         num_payments = 50
+        payment_value_sat = 10000  # make it large enough so that there are actually HTLCs on the ctx
         #pay_reqs1 = [self.prepare_invoice(w1, amount_sat=1) for i in range(num_payments)]
-        pay_reqs2 = [self.prepare_invoice(w2, amount_sat=1) for i in range(num_payments)]
+        pay_reqs2 = [self.prepare_invoice(w2, amount_sat=payment_value_sat) for i in range(num_payments)]
         max_htlcs_in_flight = asyncio.Semaphore(5)
         async def single_payment(pay_req):
             async with max_htlcs_in_flight:
@@ -333,10 +352,10 @@ class TestPeer(ElectrumTestCase):
             await gath
         with self.assertRaises(concurrent.futures.CancelledError):
             run(f())
-        self.assertEqual(alice_init_balance_msat - num_payments * 1000, alice_channel.balance(HTLCOwner.LOCAL))
-        self.assertEqual(alice_init_balance_msat - num_payments * 1000, bob_channel.balance(HTLCOwner.REMOTE))
-        self.assertEqual(bob_init_balance_msat + num_payments * 1000, bob_channel.balance(HTLCOwner.LOCAL))
-        self.assertEqual(bob_init_balance_msat + num_payments * 1000, alice_channel.balance(HTLCOwner.REMOTE))
+        self.assertEqual(alice_init_balance_msat - num_payments * payment_value_sat * 1000, alice_channel.balance(HTLCOwner.LOCAL))
+        self.assertEqual(alice_init_balance_msat - num_payments * payment_value_sat * 1000, bob_channel.balance(HTLCOwner.REMOTE))
+        self.assertEqual(bob_init_balance_msat + num_payments * payment_value_sat * 1000, bob_channel.balance(HTLCOwner.LOCAL))
+        self.assertEqual(bob_init_balance_msat + num_payments * payment_value_sat * 1000, alice_channel.balance(HTLCOwner.REMOTE))
 
     @needs_test_with_all_chacha20_implementations
     def test_close(self):
@@ -354,7 +373,12 @@ class TestPeer(ElectrumTestCase):
             await asyncio.wait_for(p2.initialized, 1)
             # alice sends htlc
             route = w1._create_route_from_invoice(decoded_invoice=lnaddr)
-            htlc = p1.pay(route, alice_channel, int(lnaddr.amount * COIN * 1000), lnaddr.paymenthash, lnaddr.get_min_final_cltv_expiry())
+            htlc = p1.pay(route=route,
+                          chan=alice_channel,
+                          amount_msat=int(lnaddr.amount * COIN * 1000),
+                          payment_hash=lnaddr.paymenthash,
+                          min_final_cltv_expiry=lnaddr.get_min_final_cltv_expiry(),
+                          payment_secret=lnaddr.payment_secret)
             # alice closes
             await p1.close_channel(alice_channel.channel_id)
             gath.cancel()

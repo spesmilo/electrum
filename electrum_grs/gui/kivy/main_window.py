@@ -408,6 +408,9 @@ class ElectrumWindow(App):
         if data.startswith('groestlcoin:'):
             self.set_URI(data)
             return
+        if data.startswith('channel_backup:'):
+            self.import_channel_backup(data[15:])
+            return
         bolt11_invoice = maybe_extract_bolt11_invoice(data)
         if bolt11_invoice is not None:
             self.set_ln_invoice(bolt11_invoice)
@@ -727,9 +730,6 @@ class ElectrumWindow(App):
         d.open()
 
     def lightning_channels_dialog(self):
-        if not self.wallet.has_lightning():
-            self.show_error('Lightning not enabled on this wallet')
-            return
         if self._channels_dialog is None:
             self._channels_dialog = LightningChannelsDialog(self)
         self._channels_dialog.open()
@@ -975,8 +975,8 @@ class ElectrumWindow(App):
         self.qr_dialog(label.name, label.data, True)
 
     def show_error(self, error, width='200dp', pos=None, arrow_pos=None,
-        exit=False, icon='atlas://electrum_grs/gui/kivy/theming/light/error', duration=0,
-        modal=False):
+                   exit=False, icon='atlas://electrum_grs/gui/kivy/theming/light/error', duration=0,
+                   modal=False):
         ''' Show an error Message Bubble.
         '''
         self.show_info_bubble( text=error, icon=icon, width=width,
@@ -984,7 +984,7 @@ class ElectrumWindow(App):
             duration=duration, modal=modal)
 
     def show_info(self, error, width='200dp', pos=None, arrow_pos=None,
-        exit=False, duration=0, modal=False):
+                  exit=False, duration=0, modal=False):
         ''' Show an Info Message Bubble.
         '''
         self.show_error(error, icon='atlas://electrum_grs/gui/kivy/theming/light/important',
@@ -992,7 +992,7 @@ class ElectrumWindow(App):
             arrow_pos=arrow_pos)
 
     def show_info_bubble(self, text=_('Hello World'), pos=None, duration=0,
-        arrow_pos='bottom_mid', width=None, icon='', modal=False, exit=False):
+                         arrow_pos='bottom_mid', width=None, icon='', modal=False, exit=False):
         '''Method to show an Information Bubble
 
         .. parameters::
@@ -1002,6 +1002,7 @@ class ElectrumWindow(App):
             width: width of the Bubble
             arrow_pos: arrow position for the bubble
         '''
+        text = str(text)  # so that we also handle e.g. Exception
         info_bubble = self.info_bubble
         if not info_bubble:
             info_bubble = self.info_bubble = Factory.InfoBubble()
@@ -1302,3 +1303,17 @@ class ElectrumWindow(App):
                 self.show_error("Invalid PIN")
                 return
         self.protected(_("Enter your PIN code in order to decrypt your private key"), show_private_key, (addr, pk_label))
+
+    def import_channel_backup(self, encrypted):
+        d = Question(_('Import Channel Backup?'), lambda b: self._import_channel_backup(b, encrypted))
+        d.open()
+
+    def _import_channel_backup(self, b, encrypted):
+        if not b:
+            return
+        try:
+            self.wallet.lnbackups.import_channel_backup(encrypted)
+        except Exception as e:
+            self.show_error("failed to import backup" + '\n' + str(e))
+            return
+        self.lightning_channels_dialog()

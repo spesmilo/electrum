@@ -13,6 +13,8 @@ from .bitcoin import hash160_to_b58_address, b58_address_to_hash160
 from .segwit_addr import bech32_encode, bech32_decode, CHARSET
 from . import constants
 from . import ecc
+from .util import PR_TYPE_LN
+from .bitcoin import COIN
 
 
 # BOLT #11:
@@ -141,6 +143,21 @@ def tagged(char, l):
 def tagged_bytes(char, l):
     return tagged(char, bitstring.BitArray(l))
 
+def trim_to_min_length(bits):
+    """Ensures 'bits' have min number of leading zeroes.
+    Assumes 'bits' is big-endian, and that it needs to be encoded in 5 bit blocks.
+    """
+    bits = bits[:]  # copy
+    # make sure we can be split into 5 bit blocks
+    while bits.len % 5 != 0:
+        bits.prepend('0b0')
+    # Get minimal length by trimming leading 5 bits at a time.
+    while bits.startswith('0b00000'):
+        if len(bits) == 5:
+            break  # v == 0
+        bits = bits[5:]
+    return bits
+
 # Discard trailing bits, convert to bytes.
 def trim_to_bytes(barr):
     # Adds a byte if necessary.
@@ -155,7 +172,7 @@ def pull_tagged(stream):
     length = stream.read(5).uint * 32 + stream.read(5).uint
     return (CHARSET[tag], stream.read(length * 5), stream)
 
-def lnencode(addr, privkey):
+def lnencode(addr: 'LnAddr', privkey) -> str:
     if addr.amount:
         amount = Decimal(str(addr.amount))
         # We can only send down to millisatoshi.
@@ -172,16 +189,22 @@ def lnencode(addr, privkey):
     # Start with the timestamp
     data = bitstring.pack('uint:35', addr.date)
 
+    tags_set = set()
+
     # Payment hash
     data += tagged_bytes('p', addr.paymenthash)
-    tags_set = set()
+    tags_set.add('p')
+
+    if addr.payment_secret is not None:
+        data += tagged_bytes('s', addr.payment_secret)
+        tags_set.add('s')
 
     for k, v in addr.tags:
 
         # BOLT #11:
         #
         # A writer MUST NOT include more than one `d`, `h`, `n` or `x` fields,
-        if k in ('d', 'h', 'n', 'x'):
+        if k in ('d', 'h', 'n', 'x', 'p', 's'):
             if k in tags_set:
                 raise ValueError("Duplicate '{}' tag".format(k))
 
@@ -196,23 +219,23 @@ def lnencode(addr, privkey):
         elif k == 'd':
             data += tagged_bytes('d', v.encode())
         elif k == 'x':
-            # Get minimal length by trimming leading 5 bits at a time.
-            expirybits = bitstring.pack('intbe:64', v)[4:64]
-            while expirybits.startswith('0b00000'):
-                if len(expirybits) == 5:
-                    break  # v == 0
-                expirybits = expirybits[5:]
+            expirybits = bitstring.pack('intbe:64', v)
+            expirybits = trim_to_min_length(expirybits)
             data += tagged('x', expirybits)
         elif k == 'h':
             data += tagged_bytes('h', sha256(v.encode('utf-8')).digest())
         elif k == 'n':
             data += tagged_bytes('n', v)
         elif k == 'c':
-            # Get minimal length by trimming leading 5 bits at a time.
-            finalcltvbits = bitstring.pack('intbe:64', v)[4:64]
-            while finalcltvbits.startswith('0b00000'):
-                finalcltvbits = finalcltvbits[5:]
+            finalcltvbits = bitstring.pack('intbe:64', v)
+            finalcltvbits = trim_to_min_length(finalcltvbits)
             data += tagged('c', finalcltvbits)
+        elif k == '9':
+            if v == 0:
+                continue
+            feature_bits = bitstring.BitArray(uint=v, length=v.bit_length())
+            feature_bits = trim_to_min_length(feature_bits)
+            data += tagged('9', feature_bits)
         else:
             # FIXME: Support unknown tags?
             raise ValueError("Unknown tag {}".format(k))
@@ -239,15 +262,17 @@ def lnencode(addr, privkey):
     return bech32_encode(hrp, bitarray_to_u5(data))
 
 class LnAddr(object):
-    def __init__(self, paymenthash: bytes = None, amount=None, currency=None, tags=None, date=None):
+    def __init__(self, *, paymenthash: bytes = None, amount=None, currency=None, tags=None, date=None,
+                 payment_secret: bytes = None):
         self.date = int(time.time()) if not date else int(date)
         self.tags = [] if not tags else tags
         self.unknown_tags = []
         self.paymenthash = paymenthash
+        self.payment_secret = payment_secret
         self.signature = None
         self.pubkey = None
         self.currency = constants.net.SEGWIT_HRP if currency is None else currency
-        self.amount = amount
+        self.amount = amount  # in bitcoins
         self._min_final_cltv_expiry = 9
 
     def __str__(self):
@@ -284,6 +309,11 @@ class LnAddr(object):
 
 class LnDecodeException(Exception): pass
 
+class SerializableKey:
+    def __init__(self, pubkey):
+        self.pubkey = pubkey
+    def serialize(self):
+        return self.pubkey.get_public_key_bytes(True)
 
 def lndecode(invoice: str, *, verbose=False, expected_hrp=None) -> LnAddr:
     if expected_hrp is None:
@@ -383,14 +413,28 @@ def lndecode(invoice: str, *, verbose=False, expected_hrp=None) -> LnAddr:
                 continue
             addr.paymenthash = trim_to_bytes(tagdata)
 
+        elif tag == 's':
+            if data_length != 52:
+                addr.unknown_tags.append((tag, tagdata))
+                continue
+            addr.payment_secret = trim_to_bytes(tagdata)
+
         elif tag == 'n':
             if data_length != 53:
                 addr.unknown_tags.append((tag, tagdata))
                 continue
             pubkeybytes = trim_to_bytes(tagdata)
             addr.pubkey = pubkeybytes
+
         elif tag == 'c':
             addr._min_final_cltv_expiry = tagdata.int
+
+        elif tag == '9':
+            features = tagdata.uint
+            addr.tags.append(('9', features))
+            from .lnutil import validate_features
+            validate_features(features)
+
         else:
             addr.unknown_tags.append((tag, tagdata))
 
@@ -423,11 +467,22 @@ def lndecode(invoice: str, *, verbose=False, expected_hrp=None) -> LnAddr:
 
     return addr
 
-class SerializableKey:
-    def __init__(self, pubkey):
-        self.pubkey = pubkey
-    def serialize(self):
-        return self.pubkey.get_public_key_bytes(True)
+
+
+
+def parse_lightning_invoice(invoice):
+    lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
+    amount = int(lnaddr.amount * COIN) if lnaddr.amount else None
+    return {
+        'type': PR_TYPE_LN,
+        'invoice': invoice,
+        'amount': amount,
+        'message': lnaddr.get_description(),
+        'time': lnaddr.date,
+        'exp': lnaddr.get_expiry(),
+        'pubkey': lnaddr.pubkey.serialize().hex(),
+        'rhash': lnaddr.paymenthash.hex(),
+    }
 
 if __name__ == '__main__':
     # run using

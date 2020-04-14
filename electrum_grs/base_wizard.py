@@ -28,7 +28,7 @@ import sys
 import copy
 import traceback
 from functools import partial
-from typing import List, TYPE_CHECKING, Tuple, NamedTuple, Any, Dict, Optional
+from typing import List, TYPE_CHECKING, Tuple, NamedTuple, Any, Dict, Optional, Union
 
 from . import bitcoin
 from . import keystore
@@ -40,7 +40,7 @@ from .wallet import (Imported_Wallet, Standard_Wallet, Multisig_Wallet,
 from .storage import WalletStorage, StorageEncryptionVersion
 from .wallet_db import WalletDB
 from .i18n import _
-from .util import UserCancelled, InvalidPassword, WalletFileException
+from .util import UserCancelled, InvalidPassword, WalletFileException, UserFacingException
 from .simple_config import SimpleConfig
 from .plugin import Plugins, HardwarePluginLibraryUnavailable
 from .logging import Logger
@@ -58,6 +58,12 @@ class ScriptTypeNotSupported(Exception): pass
 
 
 class GoBack(Exception): pass
+
+
+class ReRunDialog(Exception): pass
+
+
+class ChooseHwDeviceAgain(Exception): pass
 
 
 class WizardStackItem(NamedTuple):
@@ -113,18 +119,21 @@ class BaseWizard(Logger):
     def can_go_back(self):
         return len(self._stack) > 1
 
-    def go_back(self):
+    def go_back(self, *, rerun_previous: bool = True) -> None:
         if not self.can_go_back():
             return
         # pop 'current' frame
         self._stack.pop()
-        # pop 'previous' frame
-        stack_item = self._stack.pop()
+        prev_frame = self._stack[-1]
         # try to undo side effects since we last entered 'previous' frame
-        # FIXME only self.storage is properly restored
-        self.data = copy.deepcopy(stack_item.db_data)
-        # rerun 'previous' frame
-        self.run(stack_item.action, *stack_item.args, **stack_item.kwargs)
+        # FIXME only self.data is properly restored
+        self.data = copy.deepcopy(prev_frame.db_data)
+
+        if rerun_previous:
+            # pop 'previous' frame
+            self._stack.pop()
+            # rerun 'previous' frame
+            self.run(prev_frame.action, *prev_frame.args, **prev_frame.kwargs)
 
     def reset_stack(self):
         self._stack = []
@@ -145,7 +154,7 @@ class BaseWizard(Logger):
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.on_wallet_type)
 
     def upgrade_db(self, storage, db):
-        exc = None
+        exc = None  # type: Optional[Exception]
         def on_finished():
             if exc is None:
                 self.terminate(storage=storage, db=db)
@@ -158,6 +167,13 @@ class BaseWizard(Logger):
             except Exception as e:
                 exc = e
         self.waiting_dialog(do_upgrade, _('Upgrading wallet format...'), on_finished=on_finished)
+
+    def run_task_without_blocking_gui(self, task, *, msg: str = None) -> Any:
+        """Perform a task in a thread without blocking the GUI.
+        Returns the result of 'task', or raises the same exception.
+        This method blocks until 'task' is finished.
+        """
+        raise NotImplementedError()
 
     def load_2fa(self):
         self.data['wallet_type'] = '2fa'
@@ -254,7 +270,16 @@ class BaseWizard(Logger):
         k = keystore.from_master_key(text)
         self.on_keystore(k)
 
-    def choose_hw_device(self, purpose=HWD_SETUP_NEW_WALLET, *, storage=None):
+    def choose_hw_device(self, purpose=HWD_SETUP_NEW_WALLET, *, storage: WalletStorage = None):
+        while True:
+            try:
+                self._choose_hw_device(purpose=purpose, storage=storage)
+            except ChooseHwDeviceAgain:
+                pass
+            else:
+                break
+
+    def _choose_hw_device(self, *, purpose, storage: WalletStorage = None):
         title = _('Hardware Keystore')
         # check available plugins
         supported_plugins = self.plugins.get_hardware_support()
@@ -271,7 +296,8 @@ class BaseWizard(Logger):
 
         # scan devices
         try:
-            scanned_devices = devmgr.scan_devices()
+            scanned_devices = self.run_task_without_blocking_gui(task=devmgr.scan_devices,
+                                                                 msg=_("Scanning devices..."))
         except BaseException as e:
             self.logger.info('error scanning devices: {}'.format(repr(e)))
             debug_msg = '  {}:\n    {}'.format(_('Error scanning devices'), e)
@@ -317,8 +343,8 @@ class BaseWizard(Logger):
             msg += '\n\n'
             msg += _('Debug message') + '\n' + debug_msg
             self.confirm_dialog(title=title, message=msg,
-                                run_next=lambda x: self.choose_hw_device(purpose, storage=storage))
-            return
+                                run_next=lambda x: None)
+            raise ChooseHwDeviceAgain()
         # select device
         self.devices = devices
         choices = []
@@ -327,54 +353,52 @@ class BaseWizard(Logger):
             label = info.label or _("An unnamed {}").format(name)
             try: transport_str = info.device.transport_ui_string[:20]
             except: transport_str = 'unknown transport'
-            descr = f"{label} [{name}, {state}, {transport_str}]"
+            descr = f"{label} [{info.model_name or name}, {state}, {transport_str}]"
             choices.append(((name, info), descr))
         msg = _('Select a device') + ':'
         self.choice_dialog(title=title, message=msg, choices=choices,
                            run_next=lambda *args: self.on_device(*args, purpose=purpose, storage=storage))
 
-    def on_device(self, name, device_info, *, purpose, storage=None):
+    def on_device(self, name, device_info: 'DeviceInfo', *, purpose, storage: WalletStorage = None):
         self.plugin = self.plugins.get_plugin(name)
         assert isinstance(self.plugin, HW_PluginBase)
         devmgr = self.plugins.device_manager
         try:
-            self.plugin.setup_device(device_info, self, purpose)
+            client = self.plugin.setup_device(device_info, self, purpose)
         except OSError as e:
             self.show_error(_('We encountered an error while connecting to your device:')
                             + '\n' + str(e) + '\n'
                             + _('To try to fix this, we will now re-pair with your device.') + '\n'
                             + _('Please try again.'))
             devmgr.unpair_id(device_info.device.id_)
-            self.choose_hw_device(purpose, storage=storage)
-            return
+            raise ChooseHwDeviceAgain()
         except OutdatedHwFirmwareException as e:
             if self.question(e.text_ignore_old_fw_and_continue(), title=_("Outdated device firmware")):
                 self.plugin.set_ignore_outdated_fw()
                 # will need to re-pair
                 devmgr.unpair_id(device_info.device.id_)
-            self.choose_hw_device(purpose, storage=storage)
-            return
+            raise ChooseHwDeviceAgain()
         except (UserCancelled, GoBack):
-            self.choose_hw_device(purpose, storage=storage)
-            return
+            raise ChooseHwDeviceAgain()
+        except UserFacingException as e:
+            self.show_error(str(e))
+            raise ChooseHwDeviceAgain()
         except BaseException as e:
             self.logger.exception('')
             self.show_error(str(e))
-            self.choose_hw_device(purpose, storage=storage)
-            return
+            raise ChooseHwDeviceAgain()
+
         if purpose == HWD_SETUP_NEW_WALLET:
             def f(derivation, script_type):
                 derivation = normalize_bip32_derivation(derivation)
                 self.run('on_hw_derivation', name, device_info, derivation, script_type)
             self.derivation_and_script_type_dialog(f)
         elif purpose == HWD_SETUP_DECRYPT_WALLET:
-            client = devmgr.client_by_id(device_info.device.id_)
             password = client.get_password_for_storage_encryption()
             try:
                 storage.decrypt(password)
             except InvalidPassword:
                 # try to clear session so that user can type another passphrase
-                client = devmgr.client_by_id(device_info.device.id_)
                 if hasattr(client, 'clear_session'):  # FIXME not all hw wallet plugins have this
                     client.clear_session()
                 raise
@@ -415,27 +439,31 @@ class BaseWizard(Logger):
                 self.show_error(e)
                 # let the user choose again
 
-    def on_hw_derivation(self, name, device_info, derivation, xtype):
+    def on_hw_derivation(self, name, device_info: 'DeviceInfo', derivation, xtype):
         from .keystore import hardware_keystore
         devmgr = self.plugins.device_manager
+        assert isinstance(self.plugin, HW_PluginBase)
         try:
             xpub = self.plugin.get_xpub(device_info.device.id_, derivation, xtype, self)
-            client = devmgr.client_by_id(device_info.device.id_)
+            client = devmgr.client_by_id(device_info.device.id_, scan_now=False)
             if not client: raise Exception("failed to find client for device id")
             root_fingerprint = client.request_root_fingerprint_from_device()
+            label = client.label()  # use this as device_info.label might be outdated!
+            soft_device_id = client.get_soft_device_id()  # use this as device_info.device_id might be outdated!
         except ScriptTypeNotSupported:
             raise  # this is handled in derivation_dialog
         except BaseException as e:
             self.logger.exception('')
             self.show_error(e)
-            return
+            raise ChooseHwDeviceAgain()
         d = {
             'type': 'hardware',
             'hw_type': name,
             'derivation': derivation,
             'root_fingerprint': root_fingerprint,
             'xpub': xpub,
-            'label': device_info.label,
+            'label': label,
+            'soft_device_id': soft_device_id,
         }
         k = hardware_keystore(d)
         self.on_keystore(k)
@@ -536,18 +564,18 @@ class BaseWizard(Logger):
         if self.wallet_type == 'standard' and isinstance(self.keystores[0], Hardware_KeyStore):
             # offer encrypting with a pw derived from the hw device
             k = self.keystores[0]  # type: Hardware_KeyStore
+            assert isinstance(self.plugin, HW_PluginBase)
             try:
                 k.handler = self.plugin.create_handler(self)
                 password = k.get_password_for_storage_encryption()
             except UserCancelled:
                 devmgr = self.plugins.device_manager
                 devmgr.unpair_xpub(k.xpub)
-                self.choose_hw_device()
-                return
+                raise ChooseHwDeviceAgain()
             except BaseException as e:
                 self.logger.exception('')
                 self.show_error(str(e))
-                return
+                raise ChooseHwDeviceAgain()
             self.request_storage_encryption(
                 run_next=lambda encrypt_storage: self.on_password(
                     password,
@@ -591,12 +619,10 @@ class BaseWizard(Logger):
                                                    encrypt_keystore=encrypt_keystore)
         self.terminate()
 
-
-    def create_storage(self, path):
+    def create_storage(self, path) -> Tuple[WalletStorage, WalletDB]:
         if os.path.exists(path):
             raise Exception('file already exists at path')
-        if not self.pw_args:
-            return
+        assert self.pw_args, f"pw_args not set?!"
         pw_args = self.pw_args
         self.pw_args = None  # clean-up so that it can get GC-ed
         storage = WalletStorage(path)
@@ -610,7 +636,9 @@ class BaseWizard(Logger):
         db.write(storage)
         return storage, db
 
-    def terminate(self, *, storage: Optional[WalletStorage], db: Optional[WalletDB] = None):
+    def terminate(self, *, storage: WalletStorage = None,
+                  db: WalletDB = None,
+                  aborted: bool = False) -> None:
         raise NotImplementedError()  # implemented by subclasses
 
     def show_xpub_and_add_cosigners(self, xpub):
@@ -665,3 +693,6 @@ class BaseWizard(Logger):
             self.line_dialog(run_next=f, title=title, message=message, default='', test=lambda x: x==passphrase)
         else:
             f('')
+
+    def show_error(self, msg: Union[str, BaseException]) -> None:
+        raise NotImplementedError()

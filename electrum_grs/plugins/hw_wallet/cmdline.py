@@ -1,18 +1,20 @@
 from electrum_grs.util import print_stderr, raw_input
 from electrum_grs.logging import get_logger
 
+from .plugin import HardwareHandlerBase
+
 
 _logger = get_logger(__name__)
 
 
-class CmdLineHandler:
+class CmdLineHandler(HardwareHandlerBase):
 
     def get_passphrase(self, msg, confirm):
         import getpass
         print_stderr(msg)
         return getpass.getpass('')
 
-    def get_pin(self, msg):
+    def get_pin(self, msg, *, show_strength=True):
         t = { 'a':'7', 'b':'8', 'c':'9', 'd':'4', 'e':'5', 'f':'6', 'g':'1', 'h':'2', 'i':'3'}
         print_stderr(msg)
         print_stderr("a b c\nd e f\ng h i\n-----")

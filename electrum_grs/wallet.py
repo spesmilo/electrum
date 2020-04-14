@@ -44,7 +44,7 @@ from abc import ABC, abstractmethod
 import itertools
 
 from .i18n import _
-from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath
+from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath, convert_bip32_path_to_list_of_uint32
 from .crypto import sha256
 from .util import (NotEnoughFunds, UserCancelled, profiler,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
@@ -72,7 +72,7 @@ from .contacts import Contacts
 from .interface import NetworkException
 from .mnemonic import Mnemonic
 from .logging import get_logger
-from .lnworker import LNWallet
+from .lnworker import LNWallet, LNBackups
 from .paymentrequest import PaymentRequest
 
 if TYPE_CHECKING:
@@ -174,11 +174,7 @@ def get_locktime_for_new_transaction(network: 'Network') -> int:
     if not network:
         return 0
     chain = network.blockchain()
-    header = chain.header_at_tip()
-    if not header:
-        return 0
-    STALE_DELAY = 8 * 60 * 60  # in seconds
-    if header['timestamp'] + STALE_DELAY < time.time():
+    if chain.is_tip_stale():
         return 0
     # discourage "fee sniping"
     locktime = chain.height()
@@ -259,6 +255,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         # lightning
         ln_xprv = self.db.get('lightning_privkey2')
         self.lnworker = LNWallet(self, ln_xprv) if ln_xprv else None
+        self.lnbackups = LNBackups(self)
 
     def save_db(self):
         if self.storage:
@@ -269,7 +266,14 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if backup_dir is None:
             return
         new_db = WalletDB(self.db.dump(), manual_upgrades=False)
-        new_db.put('is_backup', True)
+
+        if self.lnworker:
+            channel_backups = new_db.get_dict('channel_backups')
+            for chan_id, chan in self.lnworker.channels.items():
+                channel_backups[chan_id.hex()] = self.lnworker.create_channel_backup(chan_id)
+            new_db.put('channels', None)
+            new_db.put('lightning_privkey2', None)
+
         new_path = os.path.join(backup_dir, self.basename() + '.backup')
         new_storage = WalletStorage(new_path)
         new_storage._encryption_version = self.storage._encryption_version
@@ -305,9 +309,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         self.db.put('lightning_privkey2', None)
         self.save_db()
 
-    def is_lightning_backup(self):
-        return self.has_lightning() and self.db.get('is_backup')
-
     def stop_threads(self):
         super().stop_threads()
         if any([ks.is_requesting_to_be_rewritten_to_wallet_file for ks in self.get_keystores()]):
@@ -324,9 +325,11 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
 
     def start_network(self, network):
         AddressSynchronizer.start_network(self, network)
-        if self.lnworker and network and not self.is_lightning_backup():
-            network.maybe_init_lightning()
-            self.lnworker.start_network(network)
+        if network:
+            if self.lnworker:
+                network.maybe_init_lightning()
+                self.lnworker.start_network(network)
+            self.lnbackups.start_network(network)
 
     def load_and_cleanup(self):
         self.load_keystore()
@@ -462,7 +465,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         """Return script type of wallet address."""
         pass
 
-    def export_private_key(self, address, password) -> str:
+    def export_private_key(self, address: str, password: Optional[str]) -> str:
         if self.is_watching_only():
             raise Exception(_("This is a watching-only wallet"))
         if not is_address(address):
@@ -474,6 +477,9 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         txin_type = self.get_txin_type(address)
         serialized_privkey = bitcoin.serialize_privkey(pk, compressed, txin_type)
         return serialized_privkey
+
+    def export_private_key_for_path(self, path: Union[Sequence[int], str], password: Optional[str]) -> str:
+        raise Exception("this wallet is not deterministic")
 
     @abstractmethod
     def get_public_keys(self, address: str) -> Sequence[str]:
@@ -1159,33 +1165,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         else:
             self.frozen_coins -= set(utxos)
         self.db.put('frozen_coins', list(self.frozen_coins))
-
-    def wait_until_synchronized(self, callback=None):
-        def wait_for_wallet():
-            self.set_up_to_date(False)
-            while not self.is_up_to_date():
-                if callback:
-                    msg = "{}\n{} {}".format(
-                        _("Please wait..."),
-                        _("Addresses generated:"),
-                        len(self.get_addresses()))
-                    callback(msg)
-                time.sleep(0.1)
-        def wait_for_network():
-            while not self.network.is_connected():
-                if callback:
-                    msg = "{} \n".format(_("Connecting..."))
-                    callback(msg)
-                time.sleep(0.1)
-        # wait until we are connected, because the user
-        # might have selected another server
-        if self.network:
-            self.logger.info("waiting for network...")
-            wait_for_network()
-            self.logger.info("waiting while wallet is syncing...")
-            wait_for_wallet()
-        else:
-            self.synchronize()
 
     def can_export(self):
         return not self.is_watching_only() and hasattr(self.keystore, 'get_private_key')
@@ -2201,6 +2180,13 @@ class Deterministic_Wallet(Abstract_Wallet):
         pubkeys = self.derive_pubkeys(for_change, n)
         return self.pubkeys_to_address(pubkeys)
 
+    def export_private_key_for_path(self, path: Union[Sequence[int], str], password: Optional[str]) -> str:
+        if isinstance(path, str):
+            path = convert_bip32_path_to_list_of_uint32(path)
+        pk, compressed = self.keystore.get_private_key(path, password)
+        txin_type = self.get_txin_type()  # assumes no mixed-scripts in wallet
+        return bitcoin.serialize_privkey(pk, compressed, txin_type)
+
     def get_public_keys_with_deriv_info(self, address: str):
         der_suffix = self.get_address_index(address)
         der_suffix = [int(x) for x in der_suffix]
@@ -2301,7 +2287,7 @@ class Deterministic_Wallet(Abstract_Wallet):
     def get_fingerprint(self):
         return self.get_master_public_key()
 
-    def get_txin_type(self, address):
+    def get_txin_type(self, address=None):
         return self.txin_type
 
 

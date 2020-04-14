@@ -4,25 +4,20 @@
 
 from typing import NamedTuple, Iterable, TYPE_CHECKING
 import os
-import queue
-import threading
-import concurrent
-from collections import defaultdict
 import asyncio
 from enum import IntEnum, auto
 from typing import NamedTuple, Dict
 
 from .sql_db import SqlDB, sql
 from .wallet_db import WalletDB
-from .util import bh2u, bfh, log_exceptions, ignore_exceptions
-from . import wallet
-from .storage import WalletStorage
+from .util import bh2u, bfh, log_exceptions, ignore_exceptions, TxMinedInfo
 from .address_synchronizer import AddressSynchronizer, TX_HEIGHT_LOCAL, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED
 from .transaction import Transaction
 
 if TYPE_CHECKING:
     from .network import Network
     from .lnsweep import SweepInfo
+    from .lnworker import LNWallet
 
 class ListenerItem(NamedTuple):
     # this is triggered when the lnwatcher is all done with the outpoint used as index in LNWatcher.tx_progress
@@ -197,17 +192,22 @@ class LNWatcher(AddressSynchronizer):
         else:
             keep_watching = True
         await self.update_channel_state(
-            funding_outpoint, funding_txid,
-            funding_height, closing_txid,
-            closing_height, keep_watching)
+            funding_outpoint=funding_outpoint,
+            funding_txid=funding_txid,
+            funding_height=funding_height,
+            closing_txid=closing_txid,
+            closing_height=closing_height,
+            keep_watching=keep_watching)
         if not keep_watching:
             await self.unwatch_channel(address, funding_outpoint)
 
-    async def do_breach_remedy(self, funding_outpoint, closing_tx, spenders):
-        raise NotImplementedError() # implemented by subclasses
+    async def do_breach_remedy(self, funding_outpoint, closing_tx, spenders) -> bool:
+        raise NotImplementedError()  # implemented by subclasses
 
-    async def update_channel_state(self, *args):
-        raise NotImplementedError() # implemented by subclasses
+    async def update_channel_state(self, *, funding_outpoint: str, funding_txid: str,
+                                   funding_height: TxMinedInfo, closing_txid: str,
+                                   closing_height: TxMinedInfo, keep_watching: bool) -> None:
+        raise NotImplementedError()  # implemented by subclasses
 
     def inspect_tx_candidate(self, outpoint, n):
         prev_txid, index = outpoint.split(':')
@@ -323,45 +323,38 @@ class WatchTower(LNWatcher):
         if funding_outpoint in self.tx_progress:
             self.tx_progress[funding_outpoint].all_done.set()
 
-    async def update_channel_state(self, *args):
+    async def update_channel_state(self, *args, **kwargs):
         pass
 
 
 
-CHANNEL_OPENING_TIMEOUT = 24*60*60
 
 class LNWalletWatcher(LNWatcher):
 
-    def __init__(self, lnworker, network):
+    def __init__(self, lnworker: 'LNWallet', network: 'Network'):
         LNWatcher.__init__(self, network)
         self.network = network
         self.lnworker = lnworker
 
     @ignore_exceptions
     @log_exceptions
-    async def update_channel_state(self, funding_outpoint, funding_txid, funding_height, closing_txid, closing_height, keep_watching):
-        # note: state transitions are irreversible, but
-        # save_funding_height, save_closing_height are reversible
+    async def update_channel_state(self, *, funding_outpoint: str, funding_txid: str,
+                                   funding_height: TxMinedInfo, closing_txid: str,
+                                   closing_height: TxMinedInfo, keep_watching: bool) -> None:
         chan = self.lnworker.channel_by_txo(funding_outpoint)
         if not chan:
             return
-        if funding_height.height == TX_HEIGHT_LOCAL:
-            chan.delete_funding_height()
-            chan.delete_closing_height()
-            await self.lnworker.update_unfunded_channel(chan, funding_txid)
-        elif closing_height.height == TX_HEIGHT_LOCAL:
-            chan.save_funding_height(funding_txid, funding_height.height, funding_height.timestamp)
-            chan.delete_closing_height()
-            await self.lnworker.update_open_channel(chan, funding_txid, funding_height)
-        else:
-            chan.save_funding_height(funding_txid, funding_height.height, funding_height.timestamp)
-            chan.save_closing_height(closing_txid, closing_height.height, closing_height.timestamp)
-            await self.lnworker.update_closed_channel(chan, funding_txid, funding_height, closing_txid, closing_height, keep_watching)
+        chan.update_onchain_state(funding_txid=funding_txid,
+                                  funding_height=funding_height,
+                                  closing_txid=closing_txid,
+                                  closing_height=closing_height,
+                                  keep_watching=keep_watching)
+        await self.lnworker.on_channel_update(chan)
 
     async def do_breach_remedy(self, funding_outpoint, closing_tx, spenders):
         chan = self.lnworker.channel_by_txo(funding_outpoint)
         if not chan:
-            return
+            return False
         # detect who closed and set sweep_info
         sweep_info_dict = chan.sweep_ctx(closing_tx)
         keep_watching = False if sweep_info_dict else not self.is_deeply_mined(closing_tx.txid())
