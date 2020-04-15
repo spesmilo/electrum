@@ -42,6 +42,7 @@ import time
 from typing import NamedTuple, Optional
 import ssl
 import ipaddress
+import random
 
 import aiohttp
 from aiohttp_socks import ProxyConnector, ProxyType
@@ -1372,7 +1373,10 @@ class NetworkRetryManager(Generic[_NetAddrType]):
 
     def _trying_addr_now(self, addr: _NetAddrType) -> None:
         last_time, num_attempts = self._last_tried_addr.get(addr, (0, 0))
-        self._last_tried_addr[addr] = time.time(), num_attempts + 1
+        # we add up to 1 second of noise to the time, so that clients are less likely
+        # to get synchronised and bombard the remote in connection waves:
+        cur_time = time.time() + random.random()
+        self._last_tried_addr[addr] = cur_time, num_attempts + 1
 
     def _on_connection_successfully_established(self, addr: _NetAddrType) -> None:
         self._last_tried_addr[addr] = time.time(), 0
