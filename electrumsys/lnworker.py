@@ -189,7 +189,8 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
                     self.logger.info('handshake failure from incoming connection')
                     return
                 peer = Peer(self, node_id, transport)
-                self._peers[node_id] = peer
+                with self.lock:
+                    self._peers[node_id] = peer
                 await self.taskgroup.spawn(peer.main_loop())
             try:
                 # FIXME: server.close(), server.wait_closed(), etc... ?
@@ -233,12 +234,13 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         self.logger.info(f"adding peer {peer_addr}")
         peer = Peer(self, node_id, transport)
         await self.taskgroup.spawn(peer.main_loop())
-        self._peers[node_id] = peer
+        with self.lock:
+            self._peers[node_id] = peer
         return peer
 
     def peer_closed(self, peer: Peer) -> None:
-        if peer.pubkey in self._peers:
-            self._peers.pop(peer.pubkey)
+        with self.lock:
+            self._peers.pop(peer.pubkey, None)
 
     def num_peers(self) -> int:
         return sum([p.is_initialized() for p in self.peers.values()])
