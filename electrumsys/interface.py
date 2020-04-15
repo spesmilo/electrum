@@ -43,7 +43,7 @@ from aiorpcx.jsonrpc import JSONRPC, CodeMessageError
 from aiorpcx.rawsocket import RSClient
 import certifi
 
-from .util import ignore_exceptions, log_exceptions, bfh, SilentTaskGroup
+from .util import ignore_exceptions, log_exceptions, bfh, SilentTaskGroup, MySocksProxy
 from . import util
 from . import x509
 from . import pem
@@ -284,7 +284,7 @@ class Interface(Logger):
         self.blockchain = None  # type: Optional[Blockchain]
         self._requested_chunks = set()  # type: Set[int]
         self.network = network
-        self._set_proxy(proxy)
+        self.proxy = MySocksProxy.from_proxy_dict(proxy)
         self.session = None  # type: Optional[NotificationSession]
         self._ipaddr_bucket = None
 
@@ -316,23 +316,6 @@ class Interface(Logger):
 
     def __str__(self):
         return f"<Interface {self.diagnostic_name()}>"
-
-    def _set_proxy(self, proxy: dict):
-        if proxy:
-            username, pw = proxy.get('user'), proxy.get('password')
-            if not username or not pw:
-                auth = None
-            else:
-                auth = aiorpcx.socks.SOCKSUserAuth(username, pw)
-            addr = NetAddress(proxy['host'], proxy['port'])
-            if proxy['mode'] == "socks4":
-                self.proxy = aiorpcx.socks.SOCKSProxy(addr, aiorpcx.socks.SOCKS4a, auth)
-            elif proxy['mode'] == "socks5":
-                self.proxy = aiorpcx.socks.SOCKSProxy(addr, aiorpcx.socks.SOCKS5, auth)
-            else:
-                raise NotImplementedError  # http proxy not available with aiorpcx
-        else:
-            self.proxy = None
 
     async def is_server_ca_signed(self, ca_ssl_context):
         """Given a CA enforcing SSL context, returns True if the connection

@@ -57,7 +57,7 @@ class TestLNTransport(ElectrumSysTestCase):
         server = server_future.result()  # type: asyncio.Server
         async def connect():
             peer_addr = LNPeerAddr('127.0.0.1', 42898, responder_key.get_public_key_bytes())
-            t = LNTransport(initiator_key.get_secret_bytes(), peer_addr)
+            t = LNTransport(initiator_key.get_secret_bytes(), peer_addr, proxy=None)
             await t.handshake()
             t.send_bytes(b'hello from client')
             self.assertEqual(await t.read_messages().__anext__(), b'hello from server')

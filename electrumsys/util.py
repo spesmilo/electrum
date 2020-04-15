@@ -46,6 +46,7 @@ import random
 
 import aiohttp
 from aiohttp_socks import ProxyConnector, ProxyType
+import aiorpcx
 from aiorpcx import TaskGroup
 import certifi
 import dns.resolver
@@ -1363,3 +1364,33 @@ class NetworkRetryManager(Generic[_NetAddrType]):
 
     def _clear_addr_retry_times(self) -> None:
         self._last_tried_addr.clear()
+
+
+class MySocksProxy(aiorpcx.SOCKSProxy):
+
+    async def open_connection(self, host=None, port=None, **kwargs):
+        loop = asyncio.get_event_loop()
+        reader = asyncio.StreamReader(loop=loop)
+        protocol = asyncio.StreamReaderProtocol(reader, loop=loop)
+        transport, _ = await self.create_connection(
+            lambda: protocol, host, port, **kwargs)
+        writer = asyncio.StreamWriter(transport, protocol, reader, loop)
+        return reader, writer
+
+    @classmethod
+    def from_proxy_dict(cls, proxy: dict = None) -> Optional['MySocksProxy']:
+        if not proxy:
+            return None
+        username, pw = proxy.get('user'), proxy.get('password')
+        if not username or not pw:
+            auth = None
+        else:
+            auth = aiorpcx.socks.SOCKSUserAuth(username, pw)
+        addr = aiorpcx.NetAddress(proxy['host'], proxy['port'])
+        if proxy['mode'] == "socks4":
+            ret = cls(addr, aiorpcx.socks.SOCKS4a, auth)
+        elif proxy['mode'] == "socks5":
+            ret = cls(addr, aiorpcx.socks.SOCKS5, auth)
+        else:
+            raise NotImplementedError  # http proxy not available with aiorpcx
+        return ret
