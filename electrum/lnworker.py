@@ -390,6 +390,7 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
     def on_proxy_changed(self, event, *args):
         for peer in self.peers.values():
             peer.close_and_cleanup()
+        self._clear_addr_retry_times()
 
 
 class LNGossip(LNWorker):
