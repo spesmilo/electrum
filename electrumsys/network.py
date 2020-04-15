@@ -245,7 +245,7 @@ class Network(Logger):
     taskgroup: Optional[TaskGroup]
     interface: Optional[Interface]
     interfaces: Dict[ServerAddr, Interface]
-    connecting: Set[ServerAddr]
+    _connecting: Set[ServerAddr]
     default_server: ServerAddr
     _recent_servers: List[ServerAddr]
 
@@ -309,7 +309,7 @@ class Network(Logger):
         # set of servers we have an ongoing connection with
         self.interfaces = {}
         self.auto_connect = self.config.get('auto_connect', True)
-        self.connecting = set()
+        self._connecting = set()
         self.proxy = None
 
         # Dump network messages (all interfaces).  Set at runtime from the console.
@@ -552,7 +552,7 @@ class Network(Logger):
     def _get_next_server_to_try(self) -> Optional[ServerAddr]:
         now = time.time()
         with self.interfaces_lock:
-            connected_servers = set(self.interfaces) | self.connecting
+            connected_servers = set(self.interfaces) | self._connecting
         # First try from recent servers. (which are persisted)
         # As these are servers we successfully connected to recently, they are
         # most likely to work. This also makes servers "sticky".
@@ -755,9 +755,9 @@ class Network(Logger):
     @ignore_exceptions  # do not kill outer taskgroup
     @log_exceptions
     async def _run_new_interface(self, server: ServerAddr):
-        if server in self.interfaces or server in self.connecting:
+        if server in self.interfaces or server in self._connecting:
             return
-        self.connecting.add(server)
+        self._connecting.add(server)
         if server == self.default_server:
             self.logger.info(f"connecting to {server} as new interface")
             self._set_status('connecting')
@@ -779,7 +779,7 @@ class Network(Logger):
                 assert server not in self.interfaces
                 self.interfaces[server] = interface
         finally:
-            try: self.connecting.remove(server)
+            try: self._connecting.remove(server)
             except KeyError: pass
 
         if server == self.default_server:
@@ -1149,7 +1149,7 @@ class Network(Logger):
         assert not self.taskgroup
         self.taskgroup = taskgroup = SilentTaskGroup()
         assert not self.interface and not self.interfaces
-        assert not self.connecting
+        assert not self._connecting
         self.logger.info('starting network')
         self._last_tried_server.clear()
         self.protocol = self.default_server.protocol
@@ -1194,7 +1194,7 @@ class Network(Logger):
         self.taskgroup = None
         self.interface = None
         self.interfaces = {}
-        self.connecting.clear()
+        self._connecting.clear()
         if not full_shutdown:
             util.trigger_callback('network_updated')
 
@@ -1218,7 +1218,7 @@ class Network(Logger):
 
     async def _maintain_sessions(self):
         async def maybe_start_new_interfaces():
-            for i in range(self.num_server - len(self.interfaces) - len(self.connecting)):
+            for i in range(self.num_server - len(self.interfaces) - len(self._connecting)):
                 # FIXME this should try to honour "healthy spread of connected servers"
                 server = self._get_next_server_to_try()
                 if server:
