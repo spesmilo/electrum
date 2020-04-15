@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING
 
 from PyQt5.QtWidgets import (QDialog, QLabel, QVBoxLayout, QPushButton)
 
+from electrum_grs import util
 from electrum_grs.i18n import _
 
 from .util import Buttons
@@ -58,9 +59,9 @@ class LightningDialog(QDialog):
         b = QPushButton(_('Close'))
         b.clicked.connect(self.close)
         vbox.addLayout(Buttons(b))
-        self.network.register_callback(self.on_channel_db, ['channel_db'])
-        self.network.register_callback(self.set_num_peers, ['gossip_peers'])
-        self.network.register_callback(self.set_unknown_channels, ['unknown_channels'])
+        util.register_callback(self.on_channel_db, ['channel_db'])
+        util.register_callback(self.set_num_peers, ['gossip_peers'])
+        util.register_callback(self.set_unknown_channels, ['unknown_channels'])
         self.network.channel_db.update_counts() # trigger callback
         self.set_num_peers('', self.network.lngossip.num_peers())
         self.set_unknown_channels('', len(self.network.lngossip.unknown_ids))

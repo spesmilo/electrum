@@ -19,7 +19,7 @@ from datetime import datetime
 import aiorpcx
 
 from .crypto import sha256, sha256d
-from . import bitcoin
+from . import bitcoin, util
 from . import ecc
 from .ecc import sig_string_from_r_and_s, get_r_and_s_from_sig_string, der_sig_from_sig_string
 from . import constants
@@ -744,7 +744,7 @@ class Peer(Logger):
                              f'already in peer_state {chan.peer_state}')
             return
         chan.peer_state = PeerState.REESTABLISHING
-        self.network.trigger_callback('channel', chan)
+        util.trigger_callback('channel', chan)
         # BOLT-02: "A node [...] upon disconnection [...] MUST reverse any uncommitted updates sent by the other side"
         chan.hm.discard_unsigned_remote_updates()
         # ctns
@@ -891,7 +891,7 @@ class Peer(Logger):
         # checks done
         if chan.is_funded() and chan.config[LOCAL].funding_locked_received:
             self.mark_open(chan)
-        self.network.trigger_callback('channel', chan)
+        util.trigger_callback('channel', chan)
         if chan.get_state() == ChannelState.CLOSING:
             await self.send_shutdown(chan)
 
@@ -979,7 +979,7 @@ class Peer(Logger):
             return
         assert chan.config[LOCAL].funding_locked_received
         chan.set_state(ChannelState.OPEN)
-        self.network.trigger_callback('channel', chan)
+        util.trigger_callback('channel', chan)
         # peer may have sent us a channel update for the incoming direction previously
         pending_channel_update = self.orphan_channel_updates.get(chan.short_channel_id)
         if pending_channel_update:

@@ -21,7 +21,7 @@ import dns.resolver
 import dns.exception
 from aiorpcx import run_in_thread
 
-from . import constants
+from . import constants, util
 from . import keystore
 from .util import profiler
 from .util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING
@@ -203,11 +203,10 @@ class LNWorker(Logger):
         assert network
         self.network = network
         self.config = network.config
-        daemon = network.daemon
         self.channel_db = self.network.channel_db
         self._last_tried_peer = {}  # type: Dict[LNPeerAddr, float]  # LNPeerAddr -> unix timestamp
         self._add_peers_from_config()
-        asyncio.run_coroutine_threadsafe(daemon.taskgroup.spawn(self.main_loop()), self.network.asyncio_loop)
+        asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
 
     def _add_peers_from_config(self):
         peer_list = self.config.get('lightning_peers', [])
@@ -339,7 +338,7 @@ class LNGossip(LNWorker):
     max_age = 14*24*3600
     LOGGING_SHORTCUT = 'g'
 
-    def __init__(self, network):
+    def __init__(self):
         seed = os.urandom(32)
         node = BIP32Node.from_rootseed(seed, xtype='standard')
         xprv = node.to_xprv()
@@ -365,16 +364,16 @@ class LNGossip(LNWorker):
         known = self.channel_db.get_channel_ids()
         new = set(ids) - set(known)
         self.unknown_ids.update(new)
-        self.network.trigger_callback('unknown_channels', len(self.unknown_ids))
-        self.network.trigger_callback('gossip_peers', self.num_peers())
-        self.network.trigger_callback('ln_gossip_sync_progress')
+        util.trigger_callback('unknown_channels', len(self.unknown_ids))
+        util.trigger_callback('gossip_peers', self.num_peers())
+        util.trigger_callback('ln_gossip_sync_progress')
 
     def get_ids_to_query(self):
         N = 500
         l = list(self.unknown_ids)
         self.unknown_ids = set(l[N:])
-        self.network.trigger_callback('unknown_channels', len(self.unknown_ids))
-        self.network.trigger_callback('ln_gossip_sync_progress')
+        util.trigger_callback('unknown_channels', len(self.unknown_ids))
+        util.trigger_callback('ln_gossip_sync_progress')
         return l[0:N]
 
     def get_sync_progress_estimate(self) -> Tuple[Optional[int], Optional[int]]:
@@ -486,7 +485,7 @@ class LNWallet(LNWorker):
     def peer_closed(self, peer):
         for chan in self.channels_for_peer(peer.pubkey).values():
             chan.peer_state = PeerState.DISCONNECTED
-            self.network.trigger_callback('channel', chan)
+            util.trigger_callback('channel', chan)
         super().peer_closed(peer)
 
     def get_settled_payments(self):
@@ -617,14 +616,14 @@ class LNWallet(LNWorker):
 
     def channel_state_changed(self, chan):
         self.save_channel(chan)
-        self.network.trigger_callback('channel', chan)
+        util.trigger_callback('channel', chan)
 
     def save_channel(self, chan):
         assert type(chan) is Channel
         if chan.config[REMOTE].next_per_commitment_point == chan.config[REMOTE].current_per_commitment_point:
             raise Exception("Tried to save channel with next_point == current_point, this should not happen")
         self.wallet.save_db()
-        self.network.trigger_callback('channel', chan)
+        util.trigger_callback('channel', chan)
 
     def channel_by_txo(self, txo):
         with self.lock:
@@ -675,7 +674,7 @@ class LNWallet(LNWorker):
             funding_sat=funding_sat,
             push_msat=push_sat * 1000,
             temp_channel_id=os.urandom(32))
-        self.network.trigger_callback('channels_updated', self.wallet)
+        util.trigger_callback('channels_updated', self.wallet)
         self.wallet.add_transaction(funding_tx)  # save tx as local into the wallet
         self.wallet.set_label(funding_tx.txid(), _('Open channel'))
         if funding_tx.is_complete():
@@ -776,10 +775,10 @@ class LNWallet(LNWorker):
                 # note: path-finding runs in a separate thread so that we don't block the asyncio loop
                 # graph updates might occur during the computation
                 self.set_invoice_status(key, PR_ROUTING)
-                self.network.trigger_callback('invoice_status', key)
+                util.trigger_callback('invoice_status', key)
                 route = await run_in_thread(self._create_route_from_invoice, lnaddr)
                 self.set_invoice_status(key, PR_INFLIGHT)
-                self.network.trigger_callback('invoice_status', key)
+                util.trigger_callback('invoice_status', key)
                 payment_attempt_log = await self._pay_to_route(route, lnaddr)
             except Exception as e:
                 log.append(PaymentAttemptLog(success=False, exception=e))
@@ -792,11 +791,11 @@ class LNWallet(LNWorker):
                 break
         else:
             reason = _('Failed after {} attempts').format(attempts)
-        self.network.trigger_callback('invoice_status', key)
+        util.trigger_callback('invoice_status', key)
         if success:
-            self.network.trigger_callback('payment_succeeded', key)
+            util.trigger_callback('payment_succeeded', key)
         else:
-            self.network.trigger_callback('payment_failed', key, reason)
+            util.trigger_callback('payment_failed', key, reason)
         return success
 
     async def _pay_to_route(self, route: LNPaymentRoute, lnaddr: LnAddr) -> PaymentAttemptLog:
@@ -812,7 +811,7 @@ class LNWallet(LNWorker):
                         payment_hash=lnaddr.paymenthash,
                         min_final_cltv_expiry=lnaddr.get_min_final_cltv_expiry(),
                         payment_secret=lnaddr.payment_secret)
-        self.network.trigger_callback('htlc_added', htlc, lnaddr, SENT)
+        util.trigger_callback('htlc_added', htlc, lnaddr, SENT)
         payment_attempt = await self.await_payment(lnaddr.paymenthash)
         if payment_attempt.success:
             failure_log = None
@@ -1111,9 +1110,9 @@ class LNWallet(LNWorker):
             f.set_result(payment_attempt)
         else:
             chan.logger.info('received unexpected payment_failed, probably from previous session')
-            self.network.trigger_callback('invoice_status', key)
-            self.network.trigger_callback('payment_failed', key, '')
-        self.network.trigger_callback('ln_payment_failed', payment_hash, chan.channel_id)
+            util.trigger_callback('invoice_status', key)
+            util.trigger_callback('payment_failed', key, '')
+        util.trigger_callback('ln_payment_failed', payment_hash, chan.channel_id)
 
     def payment_sent(self, chan, payment_hash: bytes):
         self.set_payment_status(payment_hash, PR_PAID)
@@ -1127,14 +1126,14 @@ class LNWallet(LNWorker):
             f.set_result(payment_attempt)
         else:
             chan.logger.info('received unexpected payment_sent, probably from previous session')
-            self.network.trigger_callback('invoice_status', key)
-            self.network.trigger_callback('payment_succeeded', key)
-        self.network.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
+            util.trigger_callback('invoice_status', key)
+            util.trigger_callback('payment_succeeded', key)
+        util.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
 
     def payment_received(self, chan, payment_hash: bytes):
         self.set_payment_status(payment_hash, PR_PAID)
-        self.network.trigger_callback('request_status', payment_hash.hex(), PR_PAID)
-        self.network.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
+        util.trigger_callback('request_status', payment_hash.hex(), PR_PAID)
+        util.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
 
     async def _calc_routing_hints_for_invoice(self, amount_sat):
         """calculate routing hints (BOLT-11 'r' field)"""
@@ -1223,8 +1222,8 @@ class LNWallet(LNWorker):
             self.channels.pop(chan_id)
             self.db.get('channels').pop(chan_id.hex())
 
-        self.network.trigger_callback('channels_updated', self.wallet)
-        self.network.trigger_callback('wallet_updated', self.wallet)
+        util.trigger_callback('channels_updated', self.wallet)
+        util.trigger_callback('wallet_updated', self.wallet)
 
     @ignore_exceptions
     @log_exceptions
@@ -1327,7 +1326,7 @@ class LNBackups(Logger):
             self.channel_backups[bfh(channel_id)] = ChannelBackup(cb, sweep_address=self.sweep_address, lnworker=self)
 
     def channel_state_changed(self, chan):
-        self.network.trigger_callback('channel', chan)
+        util.trigger_callback('channel', chan)
 
     def peer_closed(self, chan):
         pass
@@ -1361,7 +1360,7 @@ class LNBackups(Logger):
         d[channel_id] = cb_storage
         self.channel_backups[bfh(channel_id)] = cb = ChannelBackup(cb_storage, sweep_address=self.sweep_address, lnworker=self)
         self.wallet.save_db()
-        self.network.trigger_callback('channels_updated', self.wallet)
+        util.trigger_callback('channels_updated', self.wallet)
         self.lnwatcher.add_channel(cb.funding_outpoint.to_str(), cb.get_funding_address())
 
     def remove_channel_backup(self, channel_id):
@@ -1371,7 +1370,7 @@ class LNBackups(Logger):
         d.pop(channel_id.hex())
         self.channel_backups.pop(channel_id)
         self.wallet.save_db()
-        self.network.trigger_callback('channels_updated', self.wallet)
+        util.trigger_callback('channels_updated', self.wallet)
 
     @log_exceptions
     async def request_force_close(self, channel_id):

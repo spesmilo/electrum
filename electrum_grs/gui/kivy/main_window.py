@@ -13,6 +13,7 @@ from electrum_grs.storage import WalletStorage, StorageReadWriteError
 from electrum_grs.wallet_db import WalletDB
 from electrum_grs.wallet import Wallet, InternalAddressCorruption, Abstract_Wallet
 from electrum_grs.plugin import run_hook
+from electrum_grs import util
 from electrum_grs.util import (profiler, InvalidPassword, send_exception_to_crash_reporter,
                            format_satoshis, format_satoshis_plain, format_fee_satoshis,
                            PR_PAID, PR_FAILED, maybe_extract_bolt11_invoice)
@@ -50,7 +51,6 @@ from .uix.dialogs.question import Question
 
 # delayed imports: for startup speed on android
 notification = app = ref = None
-util = False
 
 # register widget cache for keeping memory down timeout to forever to cache
 # the data
@@ -565,20 +565,20 @@ class ElectrumWindow(App):
         if self.network:
             interests = ['wallet_updated', 'network_updated', 'blockchain_updated',
                          'status', 'new_transaction', 'verified']
-            self.network.register_callback(self.on_network_event, interests)
-            self.network.register_callback(self.on_fee, ['fee'])
-            self.network.register_callback(self.on_fee_histogram, ['fee_histogram'])
-            self.network.register_callback(self.on_quotes, ['on_quotes'])
-            self.network.register_callback(self.on_history, ['on_history'])
-            self.network.register_callback(self.on_channels, ['channels_updated'])
-            self.network.register_callback(self.on_channel, ['channel'])
-            self.network.register_callback(self.on_invoice_status, ['invoice_status'])
-            self.network.register_callback(self.on_request_status, ['request_status'])
-            self.network.register_callback(self.on_payment_failed, ['payment_failed'])
-            self.network.register_callback(self.on_payment_succeeded, ['payment_succeeded'])
-            self.network.register_callback(self.on_channel_db, ['channel_db'])
-            self.network.register_callback(self.set_num_peers, ['gossip_peers'])
-            self.network.register_callback(self.set_unknown_channels, ['unknown_channels'])
+            util.register_callback(self.on_network_event, interests)
+            util.register_callback(self.on_fee, ['fee'])
+            util.register_callback(self.on_fee_histogram, ['fee_histogram'])
+            util.register_callback(self.on_quotes, ['on_quotes'])
+            util.register_callback(self.on_history, ['on_history'])
+            util.register_callback(self.on_channels, ['channels_updated'])
+            util.register_callback(self.on_channel, ['channel'])
+            util.register_callback(self.on_invoice_status, ['invoice_status'])
+            util.register_callback(self.on_request_status, ['request_status'])
+            util.register_callback(self.on_payment_failed, ['payment_failed'])
+            util.register_callback(self.on_payment_succeeded, ['payment_succeeded'])
+            util.register_callback(self.on_channel_db, ['channel_db'])
+            util.register_callback(self.set_num_peers, ['gossip_peers'])
+            util.register_callback(self.set_unknown_channels, ['unknown_channels'])
         # load wallet
         self.load_wallet_by_name(self.electrum_config.get_wallet_path(use_gui_last_wallet=True))
         # URI passed in config

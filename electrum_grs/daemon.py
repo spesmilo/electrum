@@ -41,6 +41,7 @@ from jsonrpcserver import response
 from jsonrpcclient.clients.aiohttp_client import AiohttpClient
 from aiorpcx import TaskGroup
 
+from . import util
 from .network import Network
 from .util import (json_decode, to_bytes, to_string, profiler, standardize_path, constant_time_compare)
 from .util import PR_PAID, PR_EXPIRED, get_request_status
@@ -181,7 +182,7 @@ class PayServer(Logger):
         self.daemon = daemon
         self.config = daemon.config
         self.pending = defaultdict(asyncio.Event)
-        self.daemon.network.register_callback(self.on_payment, ['payment_received'])
+        util.register_callback(self.on_payment, ['payment_received'])
 
     async def on_payment(self, evt, wallet, key, status):
         if status == PR_PAID:

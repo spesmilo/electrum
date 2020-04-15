@@ -33,7 +33,7 @@ from aiorpcx import NetAddress
 import attr
 
 from . import ecc
-from . import constants
+from . import constants, util
 from .util import bfh, bh2u, chunks, TxMinedInfo
 from .bitcoin import redeem_script_to_address
 from .crypto import sha256, sha256d
@@ -679,16 +679,14 @@ class Channel(AbstractChannel):
 
     def set_frozen_for_sending(self, b: bool) -> None:
         self.storage['frozen_for_sending'] = bool(b)
-        if self.lnworker:
-            self.lnworker.network.trigger_callback('channel', self)
+        util.trigger_callback('channel', self)
 
     def is_frozen_for_receiving(self) -> bool:
         return self.storage.get('frozen_for_receiving', False)
 
     def set_frozen_for_receiving(self, b: bool) -> None:
         self.storage['frozen_for_receiving'] = bool(b)
-        if self.lnworker:
-            self.lnworker.network.trigger_callback('channel', self)
+        util.trigger_callback('channel', self)
 
     def _assert_can_add_htlc(self, *, htlc_proposer: HTLCOwner, amount_msat: int) -> None:
         """Raises PaymentFailure if the htlc_proposer cannot add this new HTLC.
