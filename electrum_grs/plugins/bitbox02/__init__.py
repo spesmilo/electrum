@@ -1,4 +1,4 @@
-from electrum-grs.i18n import _
+from electrum_grs.i18n import _
 
 fullname = "BitBox02"
 description = (
