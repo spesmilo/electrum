@@ -124,6 +124,10 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
 
     @property
     def peers(self):
+        return self._peers
+
+    @property
+    def _peers(self):
         return {self.remote_keypair.pubkey: self.peer}
 
     def channels_for_peer(self, pubkey):
