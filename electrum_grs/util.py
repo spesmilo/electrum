@@ -757,6 +757,8 @@ mainnet_block_explorers = {
                         {'tx': 'tx/', 'addr': 'address/'}),
     'blockbook': ('https://blockbook.groestlcoin.org/',
                         {'tx': 'tx/', 'addr': 'address/'}),
+    'esplora': ('https://esplora.groestlcoin.org/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
     'blockchair.com': ('https://blockchair.com/groestlcoin/',
                         {'tx': 'transaction/', 'addr': 'address/'}),
     'system default': ('blockchain://00000ac5927c594d49cc0bdb81759d0da8297eb614683d3acb62f0703b639023/',
@@ -770,6 +772,8 @@ testnet_block_explorers = {
                         {'tx': 'tx/', 'addr': 'address/'}),
     'blockbook': ('https://blockbook-test.groestlcoin.org/',
                         {'tx': 'tx/', 'addr': 'address/'}),
+    'esplora': ('https://esplora-test.groestlcoin.org/',
+                            {'tx': 'tx/', 'addr': 'address/'}),
     'system default': ('blockchain://000000ffbb50fc9898cdd36ec163e6ba23230164c0052a28876255b7dcf2cd36/',
                         {'tx': 'tx/', 'addr': 'address/'}),
 }
