@@ -15,6 +15,9 @@ from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import is_any_tx_output_on_change_branch
 from electrum.util import print_error, bfh, bh2u, versiontuple
 from electrum.base_wizard import ScriptTypeNotSupported
+from electrum import ecc 
+import ecdsa
+import bitcoin as btc
 
 try:
     import hid
@@ -103,13 +106,11 @@ class Ledger_Client():
         fingerprint = 0
         if len(splitPath) > 1:
             prevPath = "/".join(splitPath[0:len(splitPath) - 1])
-            print("get_xpub path:{}".format(prevPath))
             nodeData = self.dongleObject.getWalletPublicKey(prevPath)
             publicKey = compress_public_key(nodeData['publicKey'])
             h = hashlib.new('ripemd160')
             h.update(hashlib.sha256(publicKey).digest())
             fingerprint = unpack(">I", h.digest()[0:4])[0]
-        print("get_xpub path:{}".format(bip32_path))
         nodeData = self.dongleObject.getWalletPublicKey(bip32_path)
         publicKey = compress_public_key(nodeData['publicKey'])
         depth = len(splitPath)
@@ -367,6 +368,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
             if txin_prev_tx is None and not Transaction.is_segwit_input(txin):
                 raise Exception(_('Offline signing with {} is not supported for legacy inputs.').format(self.device))
             txin_prev_tx_raw = txin_prev_tx.raw if txin_prev_tx else None
+
+
             inputs.append([txin_prev_tx_raw,
                            txin['prevout_n'],
                            redeemScript,
@@ -440,6 +443,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     redeemScripts.append(bfh(utxo[2]))
                 elif not p2shTransaction:
                     txtmp = oceanTransaction(bfh(utxo[0]))
+                    txtmp_2 = Transaction(utxo[0])
+                    print("electrum: getting trusted input for txid {}".format(txtmp_2.txid()))
+                    print("electrum: txid serialization: {}".format(txtmp_2.serialize_to_network(estimate_size=False, witness=False)))
                     trustedInput = self.get_client().getTrustedInputOcean(txtmp, utxo[1])
                     trustedInput['sequence'] = sequence
                     chipInputs.append(trustedInput)
@@ -481,7 +487,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                                                                      singleInput, redeemScripts[inputIndex], version=tx.version)
 
                     inputSignature[0] = 0x30 # force for 1.4.9+
-                    print("Input signature:{}".format(inputSignature.hex()))
+                    print("Input signature for input {}:{}".format(inputIndex,inputSignature.hex()))
                     signatures.append(inputSignature)
                     inputIndex = inputIndex + 1
                     firstTransaction = False
@@ -505,10 +511,38 @@ class Ledger_KeyStore(Hardware_KeyStore):
                         # Sign input with the provided PIN                                                                     
                         inputSignature = self.get_client().untrustedHashSign(inputsPaths[inputIndex], pin, lockTime=tx.locktime)
                         inputSignature[0] = 0x30 # force for 1.4.9+
-
-
-
-                        print("Input signature:{}".format(inputSignature.hex()))
+                        print("Ledger input signature: {}".format(inputSignature.hex()))
+                        #pk_hex='36D76A46DDA7A5631F14235A0A68D38B73D8986F62331BD257946093C9BF2277'
+                        #pk_decoded=btc.decode_privkey(pk_hex, 'hex')
+                        #pk_bytes=bytes.fromhex(pk_hex)
+                        #inputSignature=bytes.fromhex(tx.sign_txin(inputIndex, pk_bytes))
+                        #ecPrivKey=ecc.ECPrivkey(pk_bytes)
+                        #pubKeyCompressed=ecPrivKey.get_public_key_hex(compressed=True)
+                        #print("Input signature:{}".format(inputSignature.hex()))
+                        print("Verifying input signature {}".format(inputIndex))
+                        print("pubKeys: {}".format(pubKeys[inputIndex][0]))
+                        #Get the uncompressed public key bytes from the compressed public key bytes
+                        #print("Compressed pub key from electrum: {}".format(pubKeys[inputIndex][0]))
+                        #print("Compressed pub key from ledger priv key: {}".format(pubKeyCompressed))
+                        ecPubkey = ecc.ECPubkey(bytes.fromhex(pubKeys[inputIndex][0]));
+                        ecPubkeyBytes=ecPubkey.get_public_key_bytes(compressed=False)
+                        print("Uncompressed pub key: {}".format(ecPubkeyBytes.hex()))
+                        print("Uncompressed pub key without prefix: {}".format(ecPubkeyBytes[1:].hex()))
+                        print("Length of uncompressed pub key without prefix: {}".format(len(ecPubkeyBytes[1:])))
+                        #Construct the verifying key from the uncompressed public key bytes
+                        vk = ecdsa.VerifyingKey.from_string(ecPubkeyBytes[1:], curve=ecdsa.SECP256k1, hashfunc=hashlib.sha256)
+                        r, s = ecc.get_r_and_s_from_der_sig(inputSignature[:-1])
+                        print("r={}".format(r))
+                        print("s={}".format(s))
+                        print("hex(r)={}".format(hex(r)))
+                        print("hex(s)={}".format(hex(s)))
+                        if not vk.verify_digest(inputSignature[:-1], tx.pre_hash(inputIndex), ecc.get_r_and_s_from_der_sig):
+                            raise Exception('Sanity check verifying signature failed.')
+#                        faulty_hash=bytearray(tx.pre_hash(inputIndex))
+#                        faulty_hash[1]=faulty_hash[1]+1
+#                        if ecPubKey.verify_digest(inputSignature,faulty_hash, ecc.get_r_and_s_from_sig_string(inputSignature.hex())):
+#                          if vk.verify_digest(inputSignature[:-1], bytes(faulty_hash), ecc.get_r_and_s_from_der_sig):
+#                            raise Exception('Sanity check verifying signature failed - invalid signature deemed valid.')
                         signatures.append(inputSignature)
                         inputIndex = inputIndex + 1
                     if pin != 'paired':

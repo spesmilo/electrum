@@ -1335,7 +1335,7 @@ class Transaction:
         privkey = ecc.ECPrivkey(privkey_bytes)
         sig = privkey.sign_transaction(pre_hash)
         sig = bh2u(sig) + '01'
-        print("sig: {}".format(sig))
+        print("transaction.sign_txin: txin_index: {},  sig: {}".format(txin_index, sig))
         return sig
 
     def get_outputs(self):
