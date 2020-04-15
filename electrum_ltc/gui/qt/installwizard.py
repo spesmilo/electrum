@@ -19,7 +19,7 @@ from PyQt5.QtWidgets import (QWidget, QDialog, QLabel, QHBoxLayout, QMessageBox,
 from electrum_ltc.wallet import Wallet, Abstract_Wallet
 from electrum_ltc.storage import WalletStorage, StorageReadWriteError
 from electrum_ltc.util import UserCancelled, InvalidPassword, WalletFileException, get_new_wallet_name
-from electrum_ltc.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET, GoBack
+from electrum_ltc.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET, GoBack, ReRunDialog
 from electrum_ltc.i18n import _
 
 from .seed_dialog import SeedLayout, KeysLayout
@@ -97,6 +97,7 @@ def wizard_dialog(func):
         run_next = kwargs['run_next']
         wizard = args[0]  # type: InstallWizard
         while True:
+            #wizard.logger.debug(f"dialog stack. len: {len(wizard._stack)}. stack: {wizard._stack}")
             wizard.back_button.setText(_('Back') if wizard.can_go_back() else _('Cancel'))
             # current dialog
             try:
@@ -110,11 +111,24 @@ def wizard_dialog(func):
                 raise
             # next dialog
             try:
-                run_next(*out)
-            except GoBack:
+                while True:
+                    try:
+                        run_next(*out)
+                    except ReRunDialog:
+                        # restore state, and then let the loop re-run next
+                        wizard.go_back(rerun_previous=False)
+                    else:
+                        break
+            except GoBack as e:
                 # to go back from the next dialog, we ask the wizard to restore state
                 wizard.go_back(rerun_previous=False)
-                # and we re-run the current dialog (by continuing)
+                # and we re-run the current dialog
+                if wizard.can_go_back():
+                    # also rerun any calculations that might have populated the inputs to the current dialog,
+                    # by going back to just after the *previous* dialog finished
+                    raise ReRunDialog() from e
+                else:
+                    continue
             else:
                 break
     return func_wrapper

@@ -18,10 +18,10 @@ from .lnutil import (make_commitment_output_to_remote_address, make_commitment_o
 from .transaction import (Transaction, TxOutput, construct_witness, PartialTransaction, PartialTxInput,
                           PartialTxOutput, TxOutpoint)
 from .simple_config import SimpleConfig
-from .logging import get_logger
+from .logging import get_logger, Logger
 
 if TYPE_CHECKING:
-    from .lnchannel import Channel
+    from .lnchannel import Channel, AbstractChannel
 
 
 _logger = get_logger(__name__)
@@ -169,7 +169,7 @@ def create_sweeptx_for_their_revoked_htlc(chan: 'Channel', ctx: Transaction, htl
 
 
 
-def create_sweeptxs_for_our_ctx(*, chan: 'Channel', ctx: Transaction,
+def create_sweeptxs_for_our_ctx(*, chan: 'AbstractChannel', ctx: Transaction,
                                 sweep_address: str) -> Optional[Dict[str, SweepInfo]]:
     """Handle the case where we force close unilaterally with our latest ctx.
     Construct sweep txns for 'to_local', and for all HTLCs (2 txns each).

@@ -35,7 +35,7 @@ import threading
 
 
 from .sql_db import SqlDB, sql
-from . import constants
+from . import constants, util
 from .util import bh2u, profiler, get_headers_dir, bfh, is_ip_address, list_enabled_bits
 from .logging import Logger
 from .lnutil import (LNPeerAddr, format_short_channel_id, ShortChannelID,
@@ -269,8 +269,8 @@ class ChannelDB(SqlDB):
         self.num_nodes = len(self._nodes)
         self.num_channels = len(self._channels)
         self.num_policies = len(self._policies)
-        self.network.trigger_callback('channel_db', self.num_nodes, self.num_channels, self.num_policies)
-        self.network.trigger_callback('ln_gossip_sync_progress')
+        util.trigger_callback('channel_db', self.num_nodes, self.num_channels, self.num_policies)
+        util.trigger_callback('ln_gossip_sync_progress')
 
     def get_channel_ids(self):
         with self.lock:

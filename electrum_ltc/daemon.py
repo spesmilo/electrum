@@ -32,6 +32,8 @@ import threading
 from typing import Dict, Optional, Tuple, Iterable
 from base64 import b64decode, b64encode
 from collections import defaultdict
+import concurrent
+from concurrent import futures
 
 import aiohttp
 from aiohttp import web, client_exceptions
@@ -41,6 +43,7 @@ from jsonrpcserver import response
 from jsonrpcclient.clients.aiohttp_client import AiohttpClient
 from aiorpcx import TaskGroup
 
+from . import util
 from .network import Network
 from .util import (json_decode, to_bytes, to_string, profiler, standardize_path, constant_time_compare)
 from .util import PR_PAID, PR_EXPIRED, get_request_status
@@ -181,7 +184,7 @@ class PayServer(Logger):
         self.daemon = daemon
         self.config = daemon.config
         self.pending = defaultdict(asyncio.Event)
-        self.daemon.network.register_callback(self.on_payment, ['payment_received'])
+        util.register_callback(self.on_payment, ['payment_received'])
 
     async def on_payment(self, evt, wallet, key, status):
         if status == PR_PAID:
@@ -268,6 +271,8 @@ class AuthenticationCredentialsInvalid(AuthenticationError):
     pass
 
 class Daemon(Logger):
+
+    network: Optional[Network]
 
     @profiler
     def __init__(self, config: SimpleConfig, fd=None, *, listen_jsonrpc=True):
@@ -504,7 +509,7 @@ class Daemon(Logger):
         fut = asyncio.run_coroutine_threadsafe(self.taskgroup.cancel_remaining(), self.asyncio_loop)
         try:
             fut.result(timeout=2)
-        except (asyncio.TimeoutError, asyncio.CancelledError):
+        except (concurrent.futures.TimeoutError, concurrent.futures.CancelledError, asyncio.CancelledError):
             pass
         self.logger.info("removing lockfile")
         remove_lockfile(get_lockfile(self.config))

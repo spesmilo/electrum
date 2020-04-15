@@ -17,12 +17,12 @@ from electrum_ltc.ecc import ECPrivkey
 from electrum_ltc import simple_config, lnutil
 from electrum_ltc.lnaddr import lnencode, LnAddr, lndecode
 from electrum_ltc.bitcoin import COIN, sha256
-from electrum_ltc.util import bh2u, create_and_start_event_loop
+from electrum_ltc.util import bh2u, create_and_start_event_loop, NetworkRetryManager
 from electrum_ltc.lnpeer import Peer
 from electrum_ltc.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
 from electrum_ltc.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
 from electrum_ltc.lnutil import PaymentFailure, LnFeatures, HTLCOwner
-from electrum_ltc.lnchannel import channel_states, peer_states, Channel
+from electrum_ltc.lnchannel import ChannelState, PeerState, Channel
 from electrum_ltc.lnrouter import LNPathFinder
 from electrum_ltc.channel_db import ChannelDB
 from electrum_ltc.lnworker import LNWallet, NoPathFound
@@ -58,17 +58,17 @@ class MockNetwork:
         self.channel_db.data_loaded.set()
         self.path_finder = LNPathFinder(self.channel_db)
         self.tx_queue = tx_queue
+        self._blockchain = MockBlockchain()
 
     @property
     def callback_lock(self):
         return noop_lock()
 
-    register_callback = Network.register_callback
-    unregister_callback = Network.unregister_callback
-    trigger_callback = Network.trigger_callback
-
     def get_local_height(self):
         return 0
+
+    def blockchain(self):
+        return self._blockchain
 
     async def broadcast_transaction(self, tx):
         if self.tx_queue:
@@ -76,6 +76,16 @@ class MockNetwork:
 
     async def try_broadcasting(self, tx, name):
         await self.broadcast_transaction(tx)
+
+
+class MockBlockchain:
+
+    def height(self):
+        return 0
+
+    def is_tip_stale(self):
+        return False
+
 
 class MockWallet:
     def set_label(self, x, y):
@@ -85,9 +95,10 @@ class MockWallet:
     def is_lightning_backup(self):
         return False
 
-class MockLNWallet(Logger):
+class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     def __init__(self, remote_keypair, local_keypair, chan: 'Channel', tx_queue):
         Logger.__init__(self)
+        NetworkRetryManager.__init__(self, max_retry_delay_normal=1, init_retry_delay_normal=1)
         self.remote_keypair = remote_keypair
         self.node_keypair = local_keypair
         self.network = MockNetwork(tx_queue)
@@ -113,6 +124,10 @@ class MockLNWallet(Logger):
 
     @property
     def peers(self):
+        return self._peers
+
+    @property
+    def _peers(self):
         return {self.remote_keypair.pubkey: self.peer}
 
     def channels_for_peer(self, pubkey):
@@ -123,6 +138,9 @@ class MockLNWallet(Logger):
             for chan in self.channels.values():
                 if chan.short_channel_id == short_channel_id:
                     return chan
+
+    def channel_state_changed(self, chan):
+        pass
 
     def save_channel(self, chan):
         print("Ignoring channel save")
@@ -147,6 +165,7 @@ class MockLNWallet(Logger):
     force_close_channel = LNWallet.force_close_channel
     try_force_closing = LNWallet.try_force_closing
     get_first_timestamp = lambda self: 0
+    on_peer_successfully_established = LNWallet.on_peer_successfully_established
 
 
 class MockTransport:
@@ -216,8 +235,8 @@ class TestPeer(ElectrumTestCase):
         w2.peer = p2
         # mark_open won't work if state is already OPEN.
         # so set it to FUNDED
-        alice_channel._state = channel_states.FUNDED
-        bob_channel._state = channel_states.FUNDED
+        alice_channel._state = ChannelState.FUNDED
+        bob_channel._state = ChannelState.FUNDED
         # this populates the channel graph:
         p1.mark_open(alice_channel)
         p2.mark_open(bob_channel)
@@ -247,13 +266,13 @@ class TestPeer(ElectrumTestCase):
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
         for chan in (alice_channel, bob_channel):
-            chan.peer_state = peer_states.DISCONNECTED
+            chan.peer_state = PeerState.DISCONNECTED
         async def reestablish():
             await asyncio.gather(
                 p1.reestablish_channel(alice_channel),
                 p2.reestablish_channel(bob_channel))
-            self.assertEqual(alice_channel.peer_state, peer_states.GOOD)
-            self.assertEqual(bob_channel.peer_state, peer_states.GOOD)
+            self.assertEqual(alice_channel.peer_state, PeerState.GOOD)
+            self.assertEqual(bob_channel.peer_state, PeerState.GOOD)
             gath.cancel()
         gath = asyncio.gather(reestablish(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p1.htlc_switch())
         async def f():
@@ -279,13 +298,13 @@ class TestPeer(ElectrumTestCase):
 
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel_0, bob_channel)
         for chan in (alice_channel_0, bob_channel):
-            chan.peer_state = peer_states.DISCONNECTED
+            chan.peer_state = PeerState.DISCONNECTED
         async def reestablish():
             await asyncio.gather(
                 p1.reestablish_channel(alice_channel_0),
                 p2.reestablish_channel(bob_channel))
-            self.assertEqual(alice_channel_0.peer_state, peer_states.BAD)
-            self.assertEqual(bob_channel._state, channel_states.FORCE_CLOSING)
+            self.assertEqual(alice_channel_0.peer_state, PeerState.BAD)
+            self.assertEqual(bob_channel._state, ChannelState.FORCE_CLOSING)
             # wait so that pending messages are processed
             #await asyncio.sleep(1)
             gath.cancel()

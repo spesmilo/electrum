@@ -579,7 +579,7 @@ class LedgerPlugin(HW_PluginBase):
         self.segwit = config.get("segwit")
         HW_PluginBase.__init__(self, parent, config, name)
         if self.libraries_available:
-            self.device_manager().register_devices(self.DEVICE_IDS)
+            self.device_manager().register_devices(self.DEVICE_IDS, plugin=self)
 
     def get_btchip_device(self, device):
         ledger = False

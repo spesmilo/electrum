@@ -13,6 +13,7 @@ from electrum_ltc.storage import WalletStorage, StorageReadWriteError
 from electrum_ltc.wallet_db import WalletDB
 from electrum_ltc.wallet import Wallet, InternalAddressCorruption, Abstract_Wallet
 from electrum_ltc.plugin import run_hook
+from electrum_ltc import util
 from electrum_ltc.util import (profiler, InvalidPassword, send_exception_to_crash_reporter,
                                format_satoshis, format_satoshis_plain, format_fee_satoshis,
                                PR_PAID, PR_FAILED, maybe_extract_bolt11_invoice)
@@ -50,7 +51,6 @@ from .uix.dialogs.question import Question
 
 # delayed imports: for startup speed on android
 notification = app = ref = None
-util = False
 
 # register widget cache for keeping memory down timeout to forever to cache
 # the data
@@ -408,6 +408,9 @@ class ElectrumWindow(App):
         if data.startswith('litecoin:'):
             self.set_URI(data)
             return
+        if data.startswith('channel_backup:'):
+            self.import_channel_backup(data[15:])
+            return
         bolt11_invoice = maybe_extract_bolt11_invoice(data)
         if bolt11_invoice is not None:
             self.set_ln_invoice(bolt11_invoice)
@@ -562,20 +565,20 @@ class ElectrumWindow(App):
         if self.network:
             interests = ['wallet_updated', 'network_updated', 'blockchain_updated',
                          'status', 'new_transaction', 'verified']
-            self.network.register_callback(self.on_network_event, interests)
-            self.network.register_callback(self.on_fee, ['fee'])
-            self.network.register_callback(self.on_fee_histogram, ['fee_histogram'])
-            self.network.register_callback(self.on_quotes, ['on_quotes'])
-            self.network.register_callback(self.on_history, ['on_history'])
-            self.network.register_callback(self.on_channels, ['channels_updated'])
-            self.network.register_callback(self.on_channel, ['channel'])
-            self.network.register_callback(self.on_invoice_status, ['invoice_status'])
-            self.network.register_callback(self.on_request_status, ['request_status'])
-            self.network.register_callback(self.on_payment_failed, ['payment_failed'])
-            self.network.register_callback(self.on_payment_succeeded, ['payment_succeeded'])
-            self.network.register_callback(self.on_channel_db, ['channel_db'])
-            self.network.register_callback(self.set_num_peers, ['gossip_peers'])
-            self.network.register_callback(self.set_unknown_channels, ['unknown_channels'])
+            util.register_callback(self.on_network_event, interests)
+            util.register_callback(self.on_fee, ['fee'])
+            util.register_callback(self.on_fee_histogram, ['fee_histogram'])
+            util.register_callback(self.on_quotes, ['on_quotes'])
+            util.register_callback(self.on_history, ['on_history'])
+            util.register_callback(self.on_channels, ['channels_updated'])
+            util.register_callback(self.on_channel, ['channel'])
+            util.register_callback(self.on_invoice_status, ['invoice_status'])
+            util.register_callback(self.on_request_status, ['request_status'])
+            util.register_callback(self.on_payment_failed, ['payment_failed'])
+            util.register_callback(self.on_payment_succeeded, ['payment_succeeded'])
+            util.register_callback(self.on_channel_db, ['channel_db'])
+            util.register_callback(self.set_num_peers, ['gossip_peers'])
+            util.register_callback(self.set_unknown_channels, ['unknown_channels'])
         # load wallet
         self.load_wallet_by_name(self.electrum_config.get_wallet_path(use_gui_last_wallet=True))
         # URI passed in config
@@ -727,9 +730,6 @@ class ElectrumWindow(App):
         d.open()
 
     def lightning_channels_dialog(self):
-        if not self.wallet.has_lightning():
-            self.show_error('Lightning not enabled on this wallet')
-            return
         if self._channels_dialog is None:
             self._channels_dialog = LightningChannelsDialog(self)
         self._channels_dialog.open()
@@ -1303,3 +1303,17 @@ class ElectrumWindow(App):
                 self.show_error("Invalid PIN")
                 return
         self.protected(_("Enter your PIN code in order to decrypt your private key"), show_private_key, (addr, pk_label))
+
+    def import_channel_backup(self, encrypted):
+        d = Question(_('Import Channel Backup?'), lambda b: self._import_channel_backup(b, encrypted))
+        d.open()
+
+    def _import_channel_backup(self, b, encrypted):
+        if not b:
+            return
+        try:
+            self.wallet.lnbackups.import_channel_backup(encrypted)
+        except Exception as e:
+            self.show_error("failed to import backup" + '\n' + str(e))
+            return
+        self.lightning_channels_dialog()

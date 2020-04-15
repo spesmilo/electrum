@@ -32,7 +32,7 @@ import socket
 import json
 import sys
 import asyncio
-from typing import NamedTuple, Optional, Sequence, List, Dict, Tuple, TYPE_CHECKING, Iterable
+from typing import NamedTuple, Optional, Sequence, List, Dict, Tuple, TYPE_CHECKING, Iterable, Set
 import traceback
 import concurrent
 from concurrent import futures
@@ -44,7 +44,7 @@ from aiohttp import ClientResponse
 from . import util
 from .util import (log_exceptions, ignore_exceptions,
                    bfh, SilentTaskGroup, make_aiohttp_session, send_exception_to_crash_reporter,
-                   is_hash256_str, is_non_negative_integer)
+                   is_hash256_str, is_non_negative_integer, MyEncoder, NetworkRetryManager)
 
 from .bitcoin import COIN
 from . import constants
@@ -53,9 +53,9 @@ from . import bitcoin
 from . import dns_hacks
 from .transaction import Transaction
 from .blockchain import Blockchain, HEADER_SIZE
-from .interface import (Interface, serialize_server, deserialize_server,
+from .interface import (Interface,
                         RequestTimedOut, NetworkTimeout, BUCKET_NAME_OF_ONION_SERVERS,
-                        NetworkException, RequestCorrupted)
+                        NetworkException, RequestCorrupted, ServerAddr)
 from .version import PROTOCOL_VERSION
 from .simple_config import SimpleConfig
 from .i18n import _
@@ -71,10 +71,8 @@ if TYPE_CHECKING:
 _logger = get_logger(__name__)
 
 
-
-NODES_RETRY_INTERVAL = 60
-SERVER_RETRY_INTERVAL = 10
 NUM_TARGET_CONNECTED_SERVERS = 10
+NUM_STICKY_SERVERS = 4
 NUM_RECENT_SERVERS = 20
 
 
@@ -117,18 +115,18 @@ def filter_noonion(servers):
     return {k: v for k, v in servers.items() if not k.endswith('.onion')}
 
 
-def filter_protocol(hostmap, protocol='s'):
-    '''Filters the hostmap for those implementing protocol.
-    The result is a list in serialized form.'''
+def filter_protocol(hostmap, protocol='s') -> Sequence[ServerAddr]:
+    """Filters the hostmap for those implementing protocol."""
     eligible = []
     for host, portmap in hostmap.items():
         port = portmap.get(protocol)
         if port:
-            eligible.append(serialize_server(host, port, protocol))
+            eligible.append(ServerAddr(host, port, protocol=protocol))
     return eligible
 
 
-def pick_random_server(hostmap=None, protocol='s', exclude_set=None):
+def pick_random_server(hostmap=None, *, protocol='s',
+                       exclude_set: Set[ServerAddr] = None) -> Optional[ServerAddr]:
     if hostmap is None:
         hostmap = constants.net.DEFAULT_SERVERS
     if exclude_set is None:
@@ -233,12 +231,19 @@ class UntrustedServerReturnedError(NetworkException):
 _INSTANCE = None
 
 
-class Network(Logger):
+class Network(Logger, NetworkRetryManager[ServerAddr]):
     """The Network class manages a set of connections to remote electrum
     servers, each connected socket is handled by an Interface() object.
     """
 
     LOGGING_SHORTCUT = 'n'
+
+    taskgroup: Optional[TaskGroup]
+    interface: Optional[Interface]
+    interfaces: Dict[ServerAddr, Interface]
+    _connecting: Set[ServerAddr]
+    default_server: ServerAddr
+    _recent_servers: List[ServerAddr]
 
     def __init__(self, config: SimpleConfig, *, daemon: 'Daemon' = None):
         global _INSTANCE
@@ -246,6 +251,13 @@ class Network(Logger):
         _INSTANCE = self
 
         Logger.__init__(self)
+        NetworkRetryManager.__init__(
+            self,
+            max_retry_delay_normal=600,
+            init_retry_delay_normal=15,
+            max_retry_delay_urgent=10,
+            init_retry_delay_urgent=1,
+        )
 
         self.asyncio_loop = asyncio.get_event_loop()
         assert self.asyncio_loop.is_running(), "event loop not running"
@@ -266,45 +278,39 @@ class Network(Logger):
         # Sanitize default server
         if self.default_server:
             try:
-                deserialize_server(self.default_server)
+                self.default_server = ServerAddr.from_str(self.default_server)
             except:
-                self.logger.warning('failed to parse server-string; falling back to random.')
-                self.default_server = None
-        if not self.default_server:
+                self.logger.warning('failed to parse server-string; falling back to localhost.')
+                self.default_server = ServerAddr.from_str("localhost:50002:s")
+        else:
             self.default_server = pick_random_server()
+        assert isinstance(self.default_server, ServerAddr), f"invalid type for default_server: {self.default_server!r}"
 
-        self.taskgroup = None  # type: TaskGroup
+        self.taskgroup = None
 
         # locks
         self.restart_lock = asyncio.Lock()
         self.bhi_lock = asyncio.Lock()
-        self.callback_lock = threading.Lock()
         self.recent_servers_lock = threading.RLock()       # <- re-entrant
         self.interfaces_lock = threading.Lock()            # for mutating/iterating self.interfaces
 
         self.server_peers = {}  # returned by interface (servers that the main interface knows about)
-        self.recent_servers = self._read_recent_servers()  # note: needs self.recent_servers_lock
+        self._recent_servers = self._read_recent_servers()  # note: needs self.recent_servers_lock
 
         self.banner = ''
         self.donation_address = ''
         self.relay_fee = None  # type: Optional[int]
-        # callbacks set by the GUI
-        self.callbacks = defaultdict(list)      # note: needs self.callback_lock
 
         dir_path = os.path.join(self.config.path, 'certs')
         util.make_dir(dir_path)
 
-        # retry times
-        self.server_retry_time = time.time()
-        self.nodes_retry_time = time.time()
         # the main server we are currently communicating with
-        self.interface = None  # type: Optional[Interface]
+        self.interface = None
         self.default_server_changed_event = asyncio.Event()
         # set of servers we have an ongoing connection with
-        self.interfaces = {}  # type: Dict[str, Interface]
+        self.interfaces = {}
         self.auto_connect = self.config.get('auto_connect', True)
-        self.connecting = set()
-        self.server_queue = None
+        self._connecting = set()
         self.proxy = None
 
         # Dump network messages (all interfaces).  Set at runtime from the console.
@@ -332,7 +338,7 @@ class Network(Logger):
             from . import channel_db
             self.channel_db = channel_db.ChannelDB(self)
             self.path_finder = lnrouter.LNPathFinder(self.channel_db)
-            self.lngossip = lnworker.LNGossip(self)
+            self.lngossip = lnworker.LNGossip()
             self.lngossip.start_network(self)
 
     def run_from_another_thread(self, coro, *, timeout=None):
@@ -350,35 +356,15 @@ class Network(Logger):
                 return func(self, *args, **kwargs)
         return func_wrapper
 
-    def register_callback(self, callback, events):
-        with self.callback_lock:
-            for event in events:
-                self.callbacks[event].append(callback)
-
-    def unregister_callback(self, callback):
-        with self.callback_lock:
-            for callbacks in self.callbacks.values():
-                if callback in callbacks:
-                    callbacks.remove(callback)
-
-    def trigger_callback(self, event, *args):
-        with self.callback_lock:
-            callbacks = self.callbacks[event][:]
-        for callback in callbacks:
-            # FIXME: if callback throws, we will lose the traceback
-            if asyncio.iscoroutinefunction(callback):
-                asyncio.run_coroutine_threadsafe(callback(event, *args), self.asyncio_loop)
-            else:
-                self.asyncio_loop.call_soon_threadsafe(callback, event, *args)
-
-    def _read_recent_servers(self):
+    def _read_recent_servers(self) -> List[ServerAddr]:
         if not self.config.path:
             return []
         path = os.path.join(self.config.path, "recent_servers")
         try:
             with open(path, "r", encoding='utf-8') as f:
                 data = f.read()
-                return json.loads(data)
+                servers_list = json.loads(data)
+            return [ServerAddr.from_str(s) for s in servers_list]
         except:
             return []
 
@@ -387,7 +373,7 @@ class Network(Logger):
         if not self.config.path:
             return
         path = os.path.join(self.config.path, "recent_servers")
-        s = json.dumps(self.recent_servers, indent=4, sort_keys=True)
+        s = json.dumps(self._recent_servers, indent=4, sort_keys=True, cls=MyEncoder)
         try:
             with open(path, "w", encoding='utf-8') as f:
                 f.write(s)
@@ -481,15 +467,15 @@ class Network(Logger):
 
     def notify(self, key):
         if key in ['status', 'updated']:
-            self.trigger_callback(key)
+            util.trigger_callback(key)
         else:
-            self.trigger_callback(key, self.get_status_value(key))
+            util.trigger_callback(key, self.get_status_value(key))
 
     def get_parameters(self) -> NetworkParameters:
-        host, port, protocol = deserialize_server(self.default_server)
-        return NetworkParameters(host=host,
-                                 port=port,
-                                 protocol=protocol,
+        server = self.default_server
+        return NetworkParameters(host=server.host,
+                                 port=str(server.port),
+                                 protocol=server.protocol,
                                  proxy=self.proxy,
                                  auto_connect=self.auto_connect,
                                  oneserver=self.oneserver)
@@ -498,7 +484,7 @@ class Network(Logger):
         if self.is_connected():
             return self.donation_address
 
-    def get_interfaces(self) -> List[str]:
+    def get_interfaces(self) -> List[ServerAddr]:
         """The list of servers for the connected interfaces."""
         with self.interfaces_lock:
             return list(self.interfaces)
@@ -540,51 +526,61 @@ class Network(Logger):
         # hardcoded servers
         out.update(constants.net.DEFAULT_SERVERS)
         # add recent servers
-        for s in self.recent_servers:
-            try:
-                host, port, protocol = deserialize_server(s)
-            except:
-                continue
-            if host in out:
-                out[host].update({protocol: port})
+        for server in self._recent_servers:
+            port = str(server.port)
+            if server.host in out:
+                out[server.host].update({server.protocol: port})
             else:
-                out[host] = {protocol: port}
+                out[server.host] = {server.protocol: port}
         # potentially filter out some
         if self.config.get('noonion'):
             out = filter_noonion(out)
         return out
 
-    def _start_interface(self, server: str):
-        if server not in self.interfaces and server not in self.connecting:
-            if server == self.default_server:
-                self.logger.info(f"connecting to {server} as new interface")
-                self._set_status('connecting')
-            self.connecting.add(server)
-            self.server_queue.put(server)
-
-    def _start_random_interface(self):
+    def _get_next_server_to_try(self) -> Optional[ServerAddr]:
+        now = time.time()
         with self.interfaces_lock:
-            exclude_set = self.disconnected_servers | set(self.interfaces) | self.connecting
-        server = pick_random_server(self.get_servers(), self.protocol, exclude_set)
-        if server:
-            self._start_interface(server)
-        return server
+            connected_servers = set(self.interfaces) | self._connecting
+        # First try from recent servers. (which are persisted)
+        # As these are servers we successfully connected to recently, they are
+        # most likely to work. This also makes servers "sticky".
+        # Note: with sticky servers, it is more difficult for an attacker to eclipse the client,
+        #       however if they succeed, the eclipsing would persist. To try to balance this,
+        #       we only give priority to recent_servers up to NUM_STICKY_SERVERS.
+        with self.recent_servers_lock:
+            recent_servers = list(self._recent_servers)
+        recent_servers = [s for s in recent_servers if s.protocol == self.protocol]
+        if len(connected_servers & set(recent_servers)) < NUM_STICKY_SERVERS:
+            for server in recent_servers:
+                if server in connected_servers:
+                    continue
+                if not self._can_retry_addr(server, now=now):
+                    continue
+                return server
+        # try all servers we know about, pick one at random
+        hostmap = self.get_servers()
+        servers = list(set(filter_protocol(hostmap, self.protocol)) - connected_servers)
+        random.shuffle(servers)
+        for server in servers:
+            if not self._can_retry_addr(server, now=now):
+                continue
+            return server
+        return None
 
     def _set_proxy(self, proxy: Optional[dict]):
         self.proxy = proxy
         dns_hacks.configure_dns_depending_on_proxy(bool(proxy))
         self.logger.info(f'setting proxy {proxy}')
-        self.trigger_callback('proxy_set', self.proxy)
+        util.trigger_callback('proxy_set', self.proxy)
 
     @log_exceptions
     async def set_parameters(self, net_params: NetworkParameters):
         proxy = net_params.proxy
         proxy_str = serialize_proxy(proxy)
         host, port, protocol = net_params.host, net_params.port, net_params.protocol
-        server_str = serialize_server(host, port, protocol)
         # sanitize parameters
         try:
-            deserialize_server(serialize_server(host, port, protocol))
+            server = ServerAddr(host, port, protocol=protocol)
             if proxy:
                 proxy_modes.index(proxy['mode']) + 1
                 int(proxy['port'])
@@ -593,9 +589,9 @@ class Network(Logger):
         self.config.set_key('auto_connect', net_params.auto_connect, False)
         self.config.set_key('oneserver', net_params.oneserver, False)
         self.config.set_key('proxy', proxy_str, False)
-        self.config.set_key('server', server_str, True)
+        self.config.set_key('server', str(server), True)
         # abort if changes were not allowed by config
-        if self.config.get('server') != server_str \
+        if self.config.get('server') != str(server) \
                 or self.config.get('proxy') != proxy_str \
                 or self.config.get('oneserver') != net_params.oneserver:
             return
@@ -605,10 +601,10 @@ class Network(Logger):
             if self.proxy != proxy or self.protocol != protocol or self.oneserver != net_params.oneserver:
                 # Restart the network defaulting to the given server
                 await self._stop()
-                self.default_server = server_str
+                self.default_server = server
                 await self._start()
-            elif self.default_server != server_str:
-                await self.switch_to_interface(server_str)
+            elif self.default_server != server:
+                await self.switch_to_interface(server)
             else:
                 await self.switch_lagging_interface()
 
@@ -670,7 +666,7 @@ class Network(Logger):
             # FIXME switch to best available?
             self.logger.info("tried to switch to best chain but no interfaces are on it")
 
-    async def switch_to_interface(self, server: str):
+    async def switch_to_interface(self, server: ServerAddr):
         """Switch to server as our main interface. If no connection exists,
         queue interface to be started. The actual switch will
         happen when the interface becomes ready.
@@ -686,11 +682,11 @@ class Network(Logger):
         if old_server and old_server != server:
             await self._close_interface(old_interface)
             if len(self.interfaces) <= self.num_server:
-                self._start_interface(old_server)
+                await self.taskgroup.spawn(self._run_new_interface(old_server))
 
         if server not in self.interfaces:
             self.interface = None
-            self._start_interface(server)
+            await self.taskgroup.spawn(self._run_new_interface(server))
             return
 
         i = self.interfaces[server]
@@ -700,12 +696,13 @@ class Network(Logger):
             blockchain_updated = i.blockchain != self.blockchain()
             self.interface = i
             await i.taskgroup.spawn(self._request_server_info(i))
-            self.trigger_callback('default_server_changed')
+            util.trigger_callback('default_server_changed')
             self.default_server_changed_event.set()
             self.default_server_changed_event.clear()
             self._set_status('connected')
-            self.trigger_callback('network_updated')
-            if blockchain_updated: self.trigger_callback('blockchain_updated')
+            util.trigger_callback('network_updated')
+            if blockchain_updated:
+                util.trigger_callback('blockchain_updated')
 
     async def _close_interface(self, interface: Interface):
         if interface:
@@ -717,12 +714,13 @@ class Network(Logger):
             await interface.close()
 
     @with_recent_servers_lock
-    def _add_recent_server(self, server):
+    def _add_recent_server(self, server: ServerAddr) -> None:
+        self._on_connection_successfully_established(server)
         # list is ordered
-        if server in self.recent_servers:
-            self.recent_servers.remove(server)
-        self.recent_servers.insert(0, server)
-        self.recent_servers = self.recent_servers[:NUM_RECENT_SERVERS]
+        if server in self._recent_servers:
+            self._recent_servers.remove(server)
+        self._recent_servers.insert(0, server)
+        self._recent_servers = self._recent_servers[:NUM_RECENT_SERVERS]
         self._save_recent_servers()
 
     async def connection_down(self, interface: Interface):
@@ -730,11 +728,10 @@ class Network(Logger):
         We distinguish by whether it is in self.interfaces.'''
         if not interface: return
         server = interface.server
-        self.disconnected_servers.add(server)
         if server == self.default_server:
             self._set_status('disconnected')
         await self._close_interface(interface)
-        self.trigger_callback('network_updated')
+        util.trigger_callback('network_updated')
 
     def get_network_timeout_seconds(self, request_type=NetworkTimeout.Generic) -> int:
         if self.oneserver and not self.auto_connect:
@@ -743,10 +740,18 @@ class Network(Logger):
             return request_type.RELAXED
         return request_type.NORMAL
 
-    @ignore_exceptions  # do not kill main_taskgroup
+    @ignore_exceptions  # do not kill outer taskgroup
     @log_exceptions
-    async def _run_new_interface(self, server):
-        interface = Interface(self, server, self.proxy)
+    async def _run_new_interface(self, server: ServerAddr):
+        if server in self.interfaces or server in self._connecting:
+            return
+        self._connecting.add(server)
+        if server == self.default_server:
+            self.logger.info(f"connecting to {server} as new interface")
+            self._set_status('connecting')
+        self._trying_addr_now(server)
+
+        interface = Interface(network=self, server=server, proxy=self.proxy)
         # note: using longer timeouts here as DNS can sometimes be slow!
         timeout = self.get_network_timeout_seconds(NetworkTimeout.Generic)
         try:
@@ -760,16 +765,16 @@ class Network(Logger):
                 assert server not in self.interfaces
                 self.interfaces[server] = interface
         finally:
-            try: self.connecting.remove(server)
+            try: self._connecting.remove(server)
             except KeyError: pass
 
         if server == self.default_server:
             await self.switch_to_interface(server)
 
         self._add_recent_server(server)
-        self.trigger_callback('network_updated')
+        util.trigger_callback('network_updated')
 
-    def check_interface_against_healthy_spread_of_connected_servers(self, iface_to_check) -> bool:
+    def check_interface_against_healthy_spread_of_connected_servers(self, iface_to_check: Interface) -> bool:
         # main interface is exempt. this makes switching servers easier
         if iface_to_check.is_main_server():
             return True
@@ -1093,23 +1098,26 @@ class Network(Logger):
         with self.interfaces_lock: interfaces = list(self.interfaces.values())
         interfaces_on_selected_chain = list(filter(lambda iface: iface.blockchain == bc, interfaces))
         if len(interfaces_on_selected_chain) == 0: return
-        chosen_iface = random.choice(interfaces_on_selected_chain)
+        chosen_iface = random.choice(interfaces_on_selected_chain)  # type: Interface
         # switch to server (and save to config)
         net_params = self.get_parameters()
-        host, port, protocol = deserialize_server(chosen_iface.server)
-        net_params = net_params._replace(host=host, port=port, protocol=protocol)
+        server = chosen_iface.server
+        net_params = net_params._replace(host=server.host,
+                                         port=str(server.port),
+                                         protocol=server.protocol)
         await self.set_parameters(net_params)
 
-    async def follow_chain_given_server(self, server_str: str) -> None:
+    async def follow_chain_given_server(self, server: ServerAddr) -> None:
         # note that server_str should correspond to a connected interface
-        iface = self.interfaces.get(server_str)
+        iface = self.interfaces.get(server)
         if iface is None:
             return
         self._set_preferred_chain(iface.blockchain)
         # switch to server (and save to config)
         net_params = self.get_parameters()
-        host, port, protocol = deserialize_server(server_str)
-        net_params = net_params._replace(host=host, port=port, protocol=protocol)
+        net_params = net_params._replace(host=server.host,
+                                         port=str(server.port),
+                                         protocol=server.protocol)
         await self.set_parameters(net_params)
 
     def get_local_height(self):
@@ -1127,14 +1135,13 @@ class Network(Logger):
         assert not self.taskgroup
         self.taskgroup = taskgroup = SilentTaskGroup()
         assert not self.interface and not self.interfaces
-        assert not self.connecting and not self.server_queue
+        assert not self._connecting
         self.logger.info('starting network')
-        self.disconnected_servers = set([])
-        self.protocol = deserialize_server(self.default_server)[2]
-        self.server_queue = queue.Queue()
+        self._clear_addr_retry_times()
+        self.protocol = self.default_server.protocol
         self._set_proxy(deserialize_proxy(self.config.get('proxy')))
         self._set_oneserver(self.config.get('oneserver', False))
-        self._start_interface(self.default_server)
+        await self.taskgroup.spawn(self._run_new_interface(self.default_server))
 
         async def main():
             self.logger.info("starting taskgroup.")
@@ -1152,7 +1159,7 @@ class Network(Logger):
                 self.logger.info("taskgroup stopped.")
         asyncio.run_coroutine_threadsafe(main(), self.asyncio_loop)
 
-        self.trigger_callback('network_updated')
+        util.trigger_callback('network_updated')
 
     def start(self, jobs: Iterable = None):
         """Schedule starting the network, along with the given job co-routines.
@@ -1170,13 +1177,12 @@ class Network(Logger):
             await asyncio.wait_for(self.taskgroup.cancel_remaining(), timeout=2)
         except (asyncio.TimeoutError, asyncio.CancelledError) as e:
             self.logger.info(f"exc during main_taskgroup cancellation: {repr(e)}")
-        self.taskgroup = None  # type: TaskGroup
-        self.interface = None  # type: Interface
-        self.interfaces = {}  # type: Dict[str, Interface]
-        self.connecting.clear()
-        self.server_queue = None
+        self.taskgroup = None
+        self.interface = None
+        self.interfaces = {}
+        self._connecting.clear()
         if not full_shutdown:
-            self.trigger_callback('network_updated')
+            util.trigger_callback('network_updated')
 
     def stop(self):
         assert self._loop_thread != threading.current_thread(), 'must not be called from network thread'
@@ -1188,33 +1194,21 @@ class Network(Logger):
     async def _ensure_there_is_a_main_interface(self):
         if self.is_connected():
             return
-        now = time.time()
         # if auto_connect is set, try a different server
         if self.auto_connect and not self.is_connecting():
             await self._switch_to_random_interface()
         # if auto_connect is not set, or still no main interface, retry current
         if not self.is_connected() and not self.is_connecting():
-            if self.default_server in self.disconnected_servers:
-                if now - self.server_retry_time > SERVER_RETRY_INTERVAL:
-                    self.disconnected_servers.remove(self.default_server)
-                    self.server_retry_time = now
-            else:
+            if self._can_retry_addr(self.default_server, urgent=True):
                 await self.switch_to_interface(self.default_server)
 
     async def _maintain_sessions(self):
-        async def launch_already_queued_up_new_interfaces():
-            while self.server_queue.qsize() > 0:
-                server = self.server_queue.get()
-                await self.taskgroup.spawn(self._run_new_interface(server))
-        async def maybe_queue_new_interfaces_to_be_launched_later():
-            now = time.time()
-            for i in range(self.num_server - len(self.interfaces) - len(self.connecting)):
+        async def maybe_start_new_interfaces():
+            for i in range(self.num_server - len(self.interfaces) - len(self._connecting)):
                 # FIXME this should try to honour "healthy spread of connected servers"
-                self._start_random_interface()
-            if now - self.nodes_retry_time > NODES_RETRY_INTERVAL:
-                self.logger.info('network: retrying connections')
-                self.disconnected_servers = set([])
-                self.nodes_retry_time = now
+                server = self._get_next_server_to_try()
+                if server:
+                    await self.taskgroup.spawn(self._run_new_interface(server))
         async def maintain_healthy_spread_of_connected_servers():
             with self.interfaces_lock: interfaces = list(self.interfaces.values())
             random.shuffle(interfaces)
@@ -1231,8 +1225,7 @@ class Network(Logger):
 
         while True:
             try:
-                await launch_already_queued_up_new_interfaces()
-                await maybe_queue_new_interfaces_to_be_launched_later()
+                await maybe_start_new_interfaces()
                 await maintain_healthy_spread_of_connected_servers()
                 await maintain_main_interface()
             except asyncio.CancelledError:
@@ -1291,8 +1284,8 @@ class Network(Logger):
 
     async def send_multiple_requests(self, servers: List[str], method: str, params: Sequence):
         responses = dict()
-        async def get_response(server):
-            interface = Interface(self, server, self.proxy)
+        async def get_response(server: ServerAddr):
+            interface = Interface(network=self, server=server, proxy=self.proxy)
             timeout = self.get_network_timeout_seconds(NetworkTimeout.Urgent)
             try:
                 await asyncio.wait_for(interface.ready, timeout)
@@ -1306,5 +1299,6 @@ class Network(Logger):
             responses[interface.server] = res
         async with TaskGroup() as group:
             for server in servers:
+                server = ServerAddr.from_str(server)
                 await group.spawn(get_response(server))
         return responses

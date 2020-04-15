@@ -161,6 +161,8 @@ class Buttons(QHBoxLayout):
         QHBoxLayout.__init__(self)
         self.addStretch(1)
         for b in buttons:
+            if b is None:
+                continue
             self.addWidget(b)
 
 class CloseButton(QPushButton):

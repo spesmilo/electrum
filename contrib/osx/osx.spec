@@ -66,6 +66,7 @@ hiddenimports += collect_submodules('btchip')
 hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
 hiddenimports += collect_submodules('ckcc')
+hiddenimports += collect_submodules('bitbox02')
 hiddenimports += ['_scrypt', 'PyQt5.QtPrintSupport']  # needed by Revealer
 
 datas = [
@@ -81,6 +82,7 @@ datas += collect_data_files('safetlib')
 datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
 datas += collect_data_files('ckcc')
+datas += collect_data_files('bitbox02')
 datas += collect_data_files('jsonrpcserver')
 datas += collect_data_files('jsonrpcclient')
 

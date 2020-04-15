@@ -19,7 +19,7 @@ from datetime import datetime
 import aiorpcx
 
 from .crypto import sha256, sha256d
-from . import bitcoin
+from . import bitcoin, util
 from . import ecc
 from .ecc import sig_string_from_r_and_s, get_r_and_s_from_sig_string, der_sig_from_sig_string
 from . import constants
@@ -31,7 +31,7 @@ from .lnonion import (new_onion_packet, decode_onion_error, OnionFailureCode, ca
                       process_onion_packet, OnionPacket, construct_onion_error, OnionRoutingFailureMessage,
                       ProcessedOnionPacket, UnsupportedOnionPacketVersion, InvalidOnionMac, InvalidOnionPubkey,
                       OnionFailureCodeMetaFlag)
-from .lnchannel import Channel, RevokeAndAck, htlcsum, RemoteCtnTooFarInFuture, channel_states, peer_states
+from .lnchannel import Channel, RevokeAndAck, htlcsum, RemoteCtnTooFarInFuture, ChannelState, PeerState
 from . import lnutil
 from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      RemoteConfig, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
@@ -44,7 +44,7 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED, RemoteMisbehaving, DEFAULT_TO_SELF_DELAY,
                      NBLOCK_OUR_CLTV_EXPIRY_DELTA, format_short_channel_id, ShortChannelID,
                      IncompatibleLightningFeatures, derive_payment_secret_from_payment_preimage)
-from .lnutil import FeeUpdate
+from .lnutil import FeeUpdate, channel_id_from_funding_tx
 from .lntransport import LNTransport, LNTransportBase
 from .lnmsg import encode_msg, decode_msg
 from .interface import GracefulDisconnect, NetworkException
@@ -60,12 +60,9 @@ if TYPE_CHECKING:
 
 LN_P2P_NETWORK_TIMEOUT = 20
 
-def channel_id_from_funding_tx(funding_txid: str, funding_index: int) -> Tuple[bytes, bytes]:
-    funding_txid_bytes = bytes.fromhex(funding_txid)[::-1]
-    i = int.from_bytes(funding_txid_bytes, 'big') ^ funding_index
-    return i.to_bytes(32, 'big'), funding_txid_bytes
 
 class Peer(Logger):
+    LOGGING_SHORTCUT = 'P'
 
     def __init__(self, lnworker: Union['LNGossip', 'LNWallet'], pubkey:bytes, transport: LNTransportBase):
         self._sent_init = False  # type: bool
@@ -222,10 +219,7 @@ class Peer(Logger):
             if constants.net.rev_genesis_bytes() not in their_chains:
                 raise GracefulDisconnect(f"no common chain found with remote. (they sent: {their_chains})")
         # all checks passed
-        if isinstance(self.transport, LNTransport):
-            self.channel_db.add_recent_peer(self.transport.peer_addr)
-            for chan in self.channels.values():
-                chan.add_or_update_peer_addr(self.transport.peer_addr)
+        self.lnworker.on_peer_successfully_established(self)
         self._received_init = True
         self.maybe_set_initialized()
 
@@ -257,7 +251,8 @@ class Peer(Logger):
                 return await func(self, *args, **kwargs)
             except GracefulDisconnect as e:
                 self.logger.log(e.log_level, f"Disconnecting: {repr(e)}")
-            except (LightningPeerConnectionClosed, IncompatibleLightningFeatures) as e:
+            except (LightningPeerConnectionClosed, IncompatibleLightningFeatures,
+                    aiorpcx.socks.SOCKSError) as e:
                 self.logger.info(f"Disconnecting: {repr(e)}")
             finally:
                 self.close_and_cleanup()
@@ -466,7 +461,6 @@ class Peer(Logger):
         async for msg in self.transport.read_messages():
             self.process_message(msg)
             await asyncio.sleep(.01)
-            self.ping_if_required()
 
     def on_reply_short_channel_ids_end(self, payload):
         self.querying.set()
@@ -623,7 +617,7 @@ class Peer(Logger):
         remote_sig = payload['signature']
         chan.receive_new_commitment(remote_sig, [])
         chan.open_with_first_pcp(remote_per_commitment_point, remote_sig)
-        chan.set_state(channel_states.OPENING)
+        chan.set_state(ChannelState.OPENING)
         self.lnworker.add_new_channel(chan)
         return chan, funding_tx
 
@@ -637,7 +631,7 @@ class Peer(Logger):
             "local_config": local_config,
             "constraints": constraints,
             "remote_update": None,
-            "state": channel_states.PREOPENING.name,
+            "state": ChannelState.PREOPENING.name,
             'onion_keys': {},
             'data_loss_protect_remote_pcp': {},
             "log": {},
@@ -718,7 +712,7 @@ class Peer(Logger):
         )
         self.funding_signed_sent.add(chan.channel_id)
         chan.open_with_first_pcp(payload['first_per_commitment_point'], remote_sig)
-        chan.set_state(channel_states.OPENING)
+        chan.set_state(ChannelState.OPENING)
         self.lnworker.add_new_channel(chan)
 
     def validate_remote_reserve(self, remote_reserve_sat: int, dust_limit: int, funding_sat: int) -> int:
@@ -728,16 +722,27 @@ class Peer(Logger):
             raise Exception(f'reserve too high: {remote_reserve_sat}, funding_sat: {funding_sat}')
         return remote_reserve_sat
 
+    async def trigger_force_close(self, channel_id):
+        await self.initialized
+        latest_point = 0
+        self.send_message(
+            "channel_reestablish",
+            channel_id=channel_id,
+            next_local_commitment_number=0,
+            next_remote_revocation_number=0,
+            your_last_per_commitment_secret=0,
+            my_current_per_commitment_point=latest_point)
+
     async def reestablish_channel(self, chan: Channel):
         await self.initialized
         chan_id = chan.channel_id
-        assert channel_states.PREOPENING < chan.get_state() < channel_states.FORCE_CLOSING
-        if chan.peer_state != peer_states.DISCONNECTED:
+        assert ChannelState.PREOPENING < chan.get_state() < ChannelState.FORCE_CLOSING
+        if chan.peer_state != PeerState.DISCONNECTED:
             self.logger.info(f'reestablish_channel was called but channel {chan.get_id_for_log()} '
                              f'already in peer_state {chan.peer_state}')
             return
-        chan.peer_state = peer_states.REESTABLISHING
-        self.network.trigger_callback('channel', chan)
+        chan.peer_state = PeerState.REESTABLISHING
+        util.trigger_callback('channel', chan)
         # BOLT-02: "A node [...] upon disconnection [...] MUST reverse any uncommitted updates sent by the other side"
         chan.hm.discard_unsigned_remote_updates()
         # ctns
@@ -749,8 +754,7 @@ class Peer(Logger):
         next_remote_ctn = chan.get_next_ctn(REMOTE)
         assert self.features & LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
         # send message
-        srk_enabled = chan.is_static_remotekey_enabled()
-        if srk_enabled:
+        if chan.is_static_remotekey_enabled():
             latest_secret, latest_point = chan.get_secret_and_point(LOCAL, 0)
         else:
             latest_secret, latest_point = chan.get_secret_and_point(LOCAL, latest_local_ctn)
@@ -872,26 +876,21 @@ class Peer(Logger):
             # data_loss_protect_remote_pcp is used in lnsweep
             chan.set_data_loss_protect_remote_pcp(their_next_local_ctn - 1, their_local_pcp)
             self.lnworker.save_channel(chan)
-            chan.peer_state = peer_states.BAD
+            chan.peer_state = PeerState.BAD
             return
         elif we_are_ahead:
             self.logger.warning(f"channel_reestablish ({chan.get_id_for_log()}): we are ahead of remote! trying to force-close.")
             await self.lnworker.try_force_closing(chan_id)
             return
-        elif self.lnworker.wallet.is_lightning_backup():
-            self.logger.warning(f"channel_reestablish ({chan.get_id_for_log()}): force-closing because we are a recent backup")
-            await self.lnworker.try_force_closing(chan_id)
-            return
 
-        chan.peer_state = peer_states.GOOD
-        # note: chan.short_channel_id being set implies the funding txn is already at sufficient depth
-        if their_next_local_ctn == next_local_ctn == 1 and chan.short_channel_id:
+        chan.peer_state = PeerState.GOOD
+        if chan.is_funded() and their_next_local_ctn == next_local_ctn == 1:
             self.send_funding_locked(chan)
         # checks done
-        if chan.config[LOCAL].funding_locked_received and chan.short_channel_id:
+        if chan.is_funded() and chan.config[LOCAL].funding_locked_received:
             self.mark_open(chan)
-        self.network.trigger_callback('channel', chan)
-        if chan.get_state() == channel_states.CLOSING:
+        util.trigger_callback('channel', chan)
+        if chan.get_state() == ChannelState.CLOSING:
             await self.send_shutdown(chan)
 
     def send_funding_locked(self, chan: Channel):
@@ -901,7 +900,7 @@ class Peer(Logger):
             get_per_commitment_secret_from_seed(chan.config[LOCAL].per_commitment_secret_seed, per_commitment_secret_index), 'big'))
         # note: if funding_locked was not yet received, we might send it multiple times
         self.send_message("funding_locked", channel_id=channel_id, next_per_commitment_point=per_commitment_point_second)
-        if chan.config[LOCAL].funding_locked_received and chan.short_channel_id:
+        if chan.is_funded() and chan.config[LOCAL].funding_locked_received:
             self.mark_open(chan)
 
     def on_funding_locked(self, chan: Channel, payload):
@@ -911,7 +910,7 @@ class Peer(Logger):
             chan.config[REMOTE].next_per_commitment_point = their_next_point
             chan.config[LOCAL].funding_locked_received = True
             self.lnworker.save_channel(chan)
-        if chan.short_channel_id:
+        if chan.is_funded():
             self.mark_open(chan)
 
     def on_network_update(self, chan: Channel, funding_tx_depth: int):
@@ -968,17 +967,17 @@ class Peer(Logger):
         )
 
     def mark_open(self, chan: Channel):
-        assert chan.short_channel_id is not None
+        assert chan.is_funded()
         # only allow state transition from "FUNDED" to "OPEN"
         old_state = chan.get_state()
-        if old_state == channel_states.OPEN:
+        if old_state == ChannelState.OPEN:
             return
-        if old_state != channel_states.FUNDED:
+        if old_state != ChannelState.FUNDED:
             self.logger.info(f"cannot mark open ({chan.get_id_for_log()}), current state: {repr(old_state)}")
             return
         assert chan.config[LOCAL].funding_locked_received
-        chan.set_state(channel_states.OPEN)
-        self.network.trigger_callback('channel', chan)
+        chan.set_state(ChannelState.OPEN)
+        util.trigger_callback('channel', chan)
         # peer may have sent us a channel update for the incoming direction previously
         pending_channel_update = self.orphan_channel_updates.get(chan.short_channel_id)
         if pending_channel_update:
@@ -1070,7 +1069,7 @@ class Peer(Logger):
         self.maybe_send_commitment(chan)
 
     def on_commitment_signed(self, chan: Channel, payload):
-        if chan.peer_state == peer_states.BAD:
+        if chan.peer_state == PeerState.BAD:
             return
         self.logger.info(f'on_commitment_signed. chan {chan.short_channel_id}. ctn: {chan.get_next_ctn(LOCAL)}.')
         # make sure there were changes to the ctx, otherwise the remote peer is misbehaving
@@ -1115,7 +1114,7 @@ class Peer(Logger):
         cltv_expiry = payload["cltv_expiry"]
         amount_msat_htlc = payload["amount_msat"]
         onion_packet = payload["onion_routing_packet"]
-        if chan.get_state() != channel_states.OPEN:
+        if chan.get_state() != ChannelState.OPEN:
             raise RemoteMisbehaving(f"received update_add_htlc while chan.get_state() != OPEN. state was {chan.get_state()}")
         if cltv_expiry > bitcoin.NLOCKTIME_BLOCKHEIGHT_MAX:
             asyncio.ensure_future(self.lnworker.try_force_closing(chan.channel_id))
@@ -1130,19 +1129,23 @@ class Peer(Logger):
         chan.receive_htlc(htlc, onion_packet)
 
     def maybe_forward_htlc(self, chan: Channel, htlc: UpdateAddHtlc, *,
-                           onion_packet: OnionPacket, processed_onion: ProcessedOnionPacket):
+                           onion_packet: OnionPacket, processed_onion: ProcessedOnionPacket
+                           ) -> Optional[OnionRoutingFailureMessage]:
         # Forward HTLC
         # FIXME: there are critical safety checks MISSING here
         forwarding_enabled = self.network.config.get('lightning_forward_payments', False)
         if not forwarding_enabled:
             self.logger.info(f"forwarding is disabled. failing htlc.")
             return OnionRoutingFailureMessage(code=OnionFailureCode.PERMANENT_CHANNEL_FAILURE, data=b'')
+        chain = self.network.blockchain()
+        if chain.is_tip_stale():
+            return OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
         try:
             next_chan_scid = processed_onion.hop_data.payload["short_channel_id"]["short_channel_id"]
         except:
             return OnionRoutingFailureMessage(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
         next_chan = self.lnworker.get_channel_by_short_id(next_chan_scid)
-        local_height = self.network.get_local_height()
+        local_height = chain.height()
         if next_chan is None:
             self.logger.info(f"cannot forward htlc. cannot find next_chan {next_chan_scid}")
             return OnionRoutingFailureMessage(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
@@ -1160,7 +1163,7 @@ class Peer(Logger):
         if htlc.cltv_expiry - next_cltv_expiry < NBLOCK_OUR_CLTV_EXPIRY_DELTA:
             data = htlc.cltv_expiry.to_bytes(4, byteorder="big") + outgoing_chan_upd_len + outgoing_chan_upd
             return OnionRoutingFailureMessage(code=OnionFailureCode.INCORRECT_CLTV_EXPIRY, data=data)
-        if htlc.cltv_expiry - lnutil.NBLOCK_DEADLINE_BEFORE_EXPIRY_FOR_RECEIVED_HTLCS <= local_height \
+        if htlc.cltv_expiry - lnutil.MIN_FINAL_CLTV_EXPIRY_ACCEPTED <= local_height \
                 or next_cltv_expiry <= local_height:
             data = outgoing_chan_upd_len + outgoing_chan_upd
             return OnionRoutingFailureMessage(code=OnionFailureCode.EXPIRY_TOO_SOON, data=data)
@@ -1201,14 +1204,15 @@ class Peer(Logger):
             return OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=data)
         return None
 
-    def maybe_fulfill_htlc(self, chan: Channel, htlc: UpdateAddHtlc, *,
-                          onion_packet: OnionPacket, processed_onion: ProcessedOnionPacket):
+    def maybe_fulfill_htlc(self, *, chan: Channel, htlc: UpdateAddHtlc,
+                           onion_packet: OnionPacket, processed_onion: ProcessedOnionPacket,
+                           ) -> Tuple[Optional[bytes], Optional[OnionRoutingFailureMessage]]:
         try:
             info = self.lnworker.get_payment_info(htlc.payment_hash)
             preimage = self.lnworker.get_preimage(htlc.payment_hash)
         except UnknownPaymentHash:
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
-            return False, reason
+            return None, reason
         try:
             payment_secret_from_onion = processed_onion.hop_data.payload["payment_data"]["payment_secret"]
         except:
@@ -1216,30 +1220,37 @@ class Peer(Logger):
         else:
             if payment_secret_from_onion != derive_payment_secret_from_payment_preimage(preimage):
                 reason = OnionRoutingFailureMessage(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
-                return False, reason
+                return None, reason
         expected_received_msat = int(info.amount * 1000) if info.amount is not None else None
         if expected_received_msat is not None and \
                 not (expected_received_msat <= htlc.amount_msat <= 2 * expected_received_msat):
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
-            return False, reason
-        local_height = self.network.get_local_height()
+            return None, reason
+        # Check that our blockchain tip is sufficiently recent so that we have an approx idea of the height.
+        # We should not release the preimage for an HTLC that its sender could already time out as
+        # then they might try to force-close and it becomes a race.
+        chain = self.network.blockchain()
+        if chain.is_tip_stale():
+            reason = OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
+            return None, reason
+        local_height = chain.height()
         if local_height + MIN_FINAL_CLTV_EXPIRY_ACCEPTED > htlc.cltv_expiry:
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.FINAL_EXPIRY_TOO_SOON, data=b'')
-            return False, reason
+            return None, reason
         try:
             cltv_from_onion = processed_onion.hop_data.payload["outgoing_cltv_value"]["outgoing_cltv_value"]
         except:
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
-            return False, reason
+            return None, reason
         if cltv_from_onion != htlc.cltv_expiry:
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.FINAL_INCORRECT_CLTV_EXPIRY,
                                                 data=htlc.cltv_expiry.to_bytes(4, byteorder="big"))
-            return False, reason
+            return None, reason
         try:
             amount_from_onion = processed_onion.hop_data.payload["amt_to_forward"]["amt_to_forward"]
         except:
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
-            return False, reason
+            return None, reason
         try:
             amount_from_onion = processed_onion.hop_data.payload["payment_data"]["total_msat"]
         except:
@@ -1247,7 +1258,7 @@ class Peer(Logger):
         if amount_from_onion > htlc.amount_msat:
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.FINAL_INCORRECT_HTLC_AMOUNT,
                                                 data=htlc.amount_msat.to_bytes(8, byteorder="big"))
-            return False, reason
+            return None, reason
         # all good
         return preimage, None
 
@@ -1284,7 +1295,7 @@ class Peer(Logger):
                               failure_code=reason.code)
 
     def on_revoke_and_ack(self, chan: Channel, payload):
-        if chan.peer_state == peer_states.BAD:
+        if chan.peer_state == PeerState.BAD:
             return
         self.logger.info(f'on_revoke_and_ack. chan {chan.short_channel_id}. ctn: {chan.get_oldest_unrevoked_ctn(REMOTE)}')
         rev = RevokeAndAck(payload["per_commitment_secret"], payload["next_per_commitment_point"])
@@ -1359,7 +1370,7 @@ class Peer(Logger):
             self.logger.info(f'({chan.get_id_for_log()}) Channel closed by remote peer {txid}')
 
     def can_send_shutdown(self, chan):
-        if chan.get_state() >= channel_states.OPENING:
+        if chan.get_state() >= ChannelState.OPENING:
             return True
         if chan.constraints.is_initiator and chan.channel_id in self.funding_created_sent:
             return True
@@ -1376,7 +1387,7 @@ class Peer(Logger):
         while chan.has_pending_changes(REMOTE):
             await asyncio.sleep(0.1)
         self.send_message('shutdown', channel_id=chan.channel_id, len=len(scriptpubkey), scriptpubkey=scriptpubkey)
-        chan.set_state(channel_states.CLOSING)
+        chan.set_state(ChannelState.CLOSING)
         # can fullfill or fail htlcs. cannot add htlcs, because of CLOSING state
         chan.set_can_send_ctx_updates(True)
 
@@ -1450,8 +1461,10 @@ class Peer(Logger):
         return closing_tx.txid()
 
     async def htlc_switch(self):
+        await self.initialized
         while True:
             await asyncio.sleep(0.1)
+            self.ping_if_required()
             for chan_id, chan in self.channels.items():
                 if not chan.can_send_ctx_updates():
                     continue

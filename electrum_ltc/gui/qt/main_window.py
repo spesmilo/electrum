@@ -45,7 +45,8 @@ from PyQt5.QtWidgets import (QMessageBox, QComboBox, QSystemTrayIcon, QTabWidget
                              QVBoxLayout, QGridLayout, QLineEdit,
                              QHBoxLayout, QPushButton, QScrollArea, QTextEdit,
                              QShortcut, QMainWindow, QCompleter, QInputDialog,
-                             QWidget, QSizePolicy, QStatusBar, QToolTip, QDialog)
+                             QWidget, QSizePolicy, QStatusBar, QToolTip, QDialog,
+                             QMenu, QAction)
 
 import electrum_ltc as electrum
 from electrum_ltc import (keystore, ecc, constants, util, bitcoin, commands,
@@ -76,6 +77,7 @@ from electrum_ltc.logging import Logger
 from electrum_ltc.util import PR_PAID, PR_FAILED
 from electrum_ltc.util import pr_expiration_values
 from electrum_ltc.lnutil import ln_dummy_address
+from electrum_ltc.lnaddr import parse_lightning_invoice
 
 from .exception_window import Exception_Hook
 from .amountedit import AmountEdit, BTCAmountEdit, FreezableLineEdit, FeerateEdit
@@ -221,8 +223,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 tabs.addTab(tab, icon, description.replace("&", ""))
 
         add_optional_tab(tabs, self.addresses_tab, read_QIcon("tab_addresses.png"), _("&Addresses"), "addresses")
-        if self.wallet.has_lightning():
-            add_optional_tab(tabs, self.channels_tab, read_QIcon("lightning.png"), _("Channels"), "channels")
+        add_optional_tab(tabs, self.channels_tab, read_QIcon("lightning.png"), _("Channels"), "channels")
         add_optional_tab(tabs, self.utxo_tab, read_QIcon("tab_coins.png"), _("Co&ins"), "utxo")
         add_optional_tab(tabs, self.contacts_tab, read_QIcon("tab_contacts.png"), _("Con&tacts"), "contacts")
         add_optional_tab(tabs, self.console_tab, read_QIcon("tab_console.png"), _("Con&sole"), "console")
@@ -271,7 +272,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             # window from being GC-ed when closed, callbacks should be
             # methods of this class only, and specifically not be
             # partials, lambdas or methods of subobjects.  Hence...
-            self.network.register_callback(self.on_network, interests)
+            util.register_callback(self.on_network, interests)
             # set initial message
             self.console.showMessage(self.network.banner)
 
@@ -465,8 +466,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def load_wallet(self, wallet):
         wallet.thread = TaskThread(self, self.on_error)
         self.update_recently_visited(wallet.storage.path)
-        if wallet.lnworker and wallet.network:
-            wallet.network.trigger_callback('channels_updated', wallet)
+        if wallet.lnworker:
+            util.trigger_callback('channels_updated', wallet)
         self.need_update.set()
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
         # update menus
@@ -524,18 +525,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             ])
             self.show_warning(msg, title=_('Watch-only wallet'))
 
-    def warn_if_lightning_backup(self):
-        if self.wallet.is_lightning_backup():
-            msg = '\n\n'.join([
-                _("This file is a backup of a lightning wallet."),
-                _("You will not be able to perform lightning payments using this file, and the lightning balance displayed in this wallet might be outdated.") + ' ' + \
-                _("If you have lost the original wallet file, you can use this file to trigger a forced closure of your channels."),
-                _("Do you want to have your channels force-closed?")
-            ])
-            if self.question(msg, title=_('Lightning Backup')):
-                self.network.maybe_init_lightning()
-                self.wallet.lnworker.start_network(self.network)
-
     def warn_if_testnet(self):
         if not constants.net.TESTNET:
             return
@@ -572,14 +561,44 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         self.gui_object.new_window(filename)
 
+    def select_backup_dir(self, b):
+        name = self.config.get('backup_dir', '')
+        dirname = QFileDialog.getExistingDirectory(self, "Select your SSL certificate file", name)
+        if dirname:
+            self.config.set_key('backup_dir', dirname)
+            self.backup_dir_e.setText(dirname)
+
     def backup_wallet(self):
+        d = WindowModalDialog(self, _("File Backup"))
+        vbox = QVBoxLayout(d)
+        grid = QGridLayout()
+        backup_help = ""
+        backup_dir = self.config.get('backup_dir')
+        backup_dir_label = HelpLabel(_('Backup directory') + ':', backup_help)
+        msg = _('Please select a backup directory')
+        if self.wallet.lnworker and self.wallet.lnworker.channels:
+            msg += '\n\n' + ' '.join([
+                _("Note that lightning channels will be converted to channel backups."),
+                _("You cannot use channel backups to perform lightning payments."),
+                _("Channel backups can only be used to request your channels to be closed.")
+            ])
+        self.backup_dir_e = QPushButton(backup_dir)
+        self.backup_dir_e.clicked.connect(self.select_backup_dir)
+        grid.addWidget(backup_dir_label, 1, 0)
+        grid.addWidget(self.backup_dir_e, 1, 1)
+        vbox.addLayout(grid)
+        vbox.addWidget(WWLabel(msg))
+        vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
+        if not d.exec_():
+            return
         try:
             new_path = self.wallet.save_backup()
         except BaseException as reason:
             self.show_critical(_("Electrum was unable to copy your wallet file to the specified location.") + "\n" + str(reason), title=_("Unable to create backup"))
             return
         if new_path:
-            self.show_message(_("A copy of your wallet file was created in")+" '%s'" % str(new_path), title=_("Wallet backup created"))
+            msg = _("A copy of your wallet file was created in")+" '%s'" % str(new_path)
+            self.show_message(msg, title=_("Wallet backup created"))
         else:
             self.show_message(_("You need to configure a backup directory in your preferences"), title=_("Backup not created"))
 
@@ -674,10 +693,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         add_toggle_action(view_menu, self.contacts_tab)
         add_toggle_action(view_menu, self.console_tab)
 
-        tools_menu = menubar.addMenu(_("&Tools"))
+        tools_menu = menubar.addMenu(_("&Tools"))  # type: QMenu
+        preferences_action = tools_menu.addAction(_("Preferences"), self.settings_dialog)  # type: QAction
+        if sys.platform == 'darwin':
+            # "Settings"/"Preferences" are all reserved keywords in macOS.
+            # preferences_action will get picked up based on name (and put into a standardized location,
+            # and given a standard reserved hotkey)
+            # Hence, this menu item will be at a "uniform location re macOS processes"
+            preferences_action.setMenuRole(QAction.PreferencesRole)  # make sure OS recognizes it as preferences
+            # Add another preferences item, to also have a "uniform location for Electrum between different OSes"
+            tools_menu.addAction(_("Electrum preferences"), self.settings_dialog)
 
-        # Settings / Preferences are all reserved keywords in macOS using this as work around
-        tools_menu.addAction(_("Electrum preferences") if sys.platform == 'darwin' else _("Preferences"), self.settings_dialog)
         tools_menu.addAction(_("&Network"), self.gui_object.show_network_dialog).setEnabled(bool(self.network))
         tools_menu.addAction(_("&Lightning Network"), self.gui_object.show_lightning_dialog).setEnabled(bool(self.wallet.has_lightning() and self.network))
         tools_menu.addAction(_("Local &Watchtower"), self.gui_object.show_watchtower_dialog).setEnabled(bool(self.network and self.network.local_watchtower))
@@ -1046,8 +1072,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         self.clear_invoice_button = QPushButton(_('Clear'))
         self.clear_invoice_button.clicked.connect(self.clear_receive_tab)
-        self.create_invoice_button = QPushButton(_('On-chain'))
+        self.create_invoice_button = QPushButton(_('Request'))
         self.create_invoice_button.setIcon(read_QIcon("bitcoin.png"))
+        self.create_invoice_button.setToolTip('Create on-chain request')
         self.create_invoice_button.clicked.connect(lambda: self.create_invoice(False))
         self.receive_buttons = buttons = QHBoxLayout()
         buttons.addStretch(1)
@@ -1055,6 +1082,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         buttons.addWidget(self.create_invoice_button)
         if self.wallet.has_lightning():
             self.create_lightning_invoice_button = QPushButton(_('Lightning'))
+            self.create_lightning_invoice_button.setToolTip('Create lightning request')
             self.create_lightning_invoice_button.setIcon(read_QIcon("lightning.png"))
             self.create_lightning_invoice_button.clicked.connect(lambda: self.create_invoice(True))
             buttons.addWidget(self.create_lightning_invoice_button)
@@ -1475,7 +1503,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if not self.wallet.lnworker:
                 self.show_error(_('Lightning is disabled'))
                 return
-            invoice_dict = self.wallet.lnworker.parse_bech32_invoice(invoice)
+            invoice_dict = parse_lightning_invoice(invoice)
             if invoice_dict.get('amount') is None:
                 amount = self.amount_e.get_amount()
                 if amount:
@@ -2253,7 +2281,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             def show_mpk(index):
                 mpk_text.setText(mpk_list[index])
                 mpk_text.repaint()  # macOS hack for #4777
-                
+
+            # declare this value such that the hooks can later figure out what to do
+            labels_clayout = None
             # only show the combobox in case multiple accounts are available
             if len(mpk_list) > 1:
                 # only show the combobox if multiple master keys are defined
@@ -2268,6 +2298,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 on_click = lambda clayout: show_mpk(clayout.selected_index())
                 labels_clayout = ChoicesLayout(_("Master Public Keys"), labels, on_click)
                 vbox.addLayout(labels_clayout.layout())
+                labels_clayout.selected_index()
             else:
                 vbox.addWidget(QLabel(_("Master Public Key")))
 
@@ -2275,7 +2306,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             vbox.addWidget(mpk_text)
 
         vbox.addStretch(1)
-        btns = run_hook('wallet_info_buttons', self, dialog) or Buttons(CloseButton(dialog))
+        btn_export_info = run_hook('wallet_info_buttons', self, dialog)
+        btn_show_xpub = run_hook('show_xpub_button', self, dialog, labels_clayout)
+        btn_close = CloseButton(dialog)
+        btns = Buttons(btn_export_info, btn_show_xpub, btn_close)
         vbox.addLayout(btns)
         dialog.setLayout(vbox)
         dialog.exec_()
@@ -2524,6 +2558,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.show_critical(_("Electrum was unable to parse your transaction") + ":\n" + repr(e))
             return
 
+    def import_channel_backup(self, encrypted):
+        if not self.question('Import channel backup?'):
+            return
+        try:
+            self.wallet.lnbackups.import_channel_backup(encrypted)
+        except Exception as e:
+            self.show_error("failed to import backup" + '\n' + str(e))
+            return
+
     def read_tx_from_qrcode(self):
         from electrum_ltc import qrscanner
         try:
@@ -2536,6 +2579,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         # if the user scanned a bitcoin URI
         if str(data).startswith("litecoin:"):
             self.pay_to_URI(data)
+            return
+        if data.startswith('channel_backup:'):
+            self.import_channel_backup(data[15:])
             return
         # else if the user scanned an offline signed tx
         tx = self.tx_from_text(data)
@@ -2843,8 +2889,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def clean_up(self):
         self.wallet.thread.stop()
-        if self.network:
-            self.network.unregister_callback(self.on_network)
+        util.unregister_callback(self.on_network)
         self.config.set_key("is_maximized", self.isMaximized())
         if not self.isMaximized():
             g = self.geometry()

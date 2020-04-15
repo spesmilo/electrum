@@ -28,7 +28,7 @@ import itertools
 from collections import defaultdict
 from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple, NamedTuple, Sequence, List
 
-from . import bitcoin
+from . import bitcoin, util
 from .bitcoin import COINBASE_MATURITY
 from .util import profiler, bfh, TxMinedInfo
 from .transaction import Transaction, TxOutput, TxInput, PartialTxInput, TxOutpoint, PartialTransaction
@@ -161,7 +161,7 @@ class AddressSynchronizer(Logger):
         if self.network is not None:
             self.synchronizer = Synchronizer(self)
             self.verifier = SPV(self.network, self)
-            self.network.register_callback(self.on_blockchain_updated, ['blockchain_updated'])
+            util.register_callback(self.on_blockchain_updated, ['blockchain_updated'])
 
     def on_blockchain_updated(self, event, *args):
         self._get_addr_balance_cache = {}  # invalidate cache
@@ -174,7 +174,7 @@ class AddressSynchronizer(Logger):
             if self.verifier:
                 asyncio.run_coroutine_threadsafe(self.verifier.stop(), self.network.asyncio_loop)
                 self.verifier = None
-            self.network.unregister_callback(self.on_blockchain_updated)
+            util.unregister_callback(self.on_blockchain_updated)
             self.db.put('stored_height', self.get_local_height())
 
     def add_address(self, address):
@@ -546,7 +546,7 @@ class AddressSynchronizer(Logger):
             self.unverified_tx.pop(tx_hash, None)
             self.db.add_verified_tx(tx_hash, info)
         tx_mined_status = self.get_tx_height(tx_hash)
-        self.network.trigger_callback('verified', self, tx_hash, tx_mined_status)
+        util.trigger_callback('verified', self, tx_hash, tx_mined_status)
 
     def get_unverified_txs(self):
         '''Returns a map from tx hash to transaction height'''
@@ -616,6 +616,7 @@ class AddressSynchronizer(Logger):
             self.up_to_date = up_to_date
         if self.network:
             self.network.notify('status')
+        self.logger.info(f'set_up_to_date: {up_to_date}')
 
     def is_up_to_date(self):
         with self.lock: return self.up_to_date
