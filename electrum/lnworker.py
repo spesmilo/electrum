@@ -162,6 +162,8 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         self.features |= LnFeatures.VAR_ONION_OPT
         self.features |= LnFeatures.PAYMENT_SECRET_OPT
 
+        util.register_callback(self.on_proxy_changed, ['proxy_set'])
+
     @property
     def peers(self) -> Mapping[bytes, Peer]:
         """Returns a read-only copy of peers."""
@@ -191,6 +193,7 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
                 await self.taskgroup.spawn(peer.main_loop())
             try:
                 # FIXME: server.close(), server.wait_closed(), etc... ?
+                # TODO: onion hidden service?
                 server = await asyncio.start_server(cb, addr, int(port))
             except OSError as e:
                 self.logger.error(f"cannot listen for lightning p2p. error: {e!r}")
@@ -224,7 +227,8 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
             return self._peers[node_id]
         port = int(port)
         peer_addr = LNPeerAddr(host, port, node_id)
-        transport = LNTransport(self.node_keypair.privkey, peer_addr)
+        transport = LNTransport(self.node_keypair.privkey, peer_addr,
+                                proxy=self.network.proxy)
         self._trying_addr_now(peer_addr)
         self.logger.info(f"adding peer {peer_addr}")
         peer = Peer(self, node_id, transport)
@@ -380,6 +384,10 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         # TODO maybe filter out onion if not on tor?
         choice = random.choice(addr_list)
         return choice
+
+    def on_proxy_changed(self, event, *args):
+        for peer in self.peers.values():
+            peer.close_and_cleanup()
 
 
 class LNGossip(LNWorker):
@@ -1415,7 +1423,8 @@ class LNBackups(Logger):
     async def request_force_close(self, channel_id):
         cb = self.channel_backups[channel_id].cb
         peer_addr = LNPeerAddr(cb.host, cb.port, cb.node_id)
-        transport = LNTransport(cb.privkey, peer_addr)
+        transport = LNTransport(cb.privkey, peer_addr,
+                                proxy=self.network.proxy)
         peer = Peer(self, cb.node_id, transport)
         await self.taskgroup.spawn(peer._message_loop())
         await peer.initialized

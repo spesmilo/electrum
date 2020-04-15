@@ -251,7 +251,8 @@ class Peer(Logger):
                 return await func(self, *args, **kwargs)
             except GracefulDisconnect as e:
                 self.logger.log(e.log_level, f"Disconnecting: {repr(e)}")
-            except (LightningPeerConnectionClosed, IncompatibleLightningFeatures) as e:
+            except (LightningPeerConnectionClosed, IncompatibleLightningFeatures,
+                    aiorpcx.socks.SOCKSError) as e:
                 self.logger.info(f"Disconnecting: {repr(e)}")
             finally:
                 self.close_and_cleanup()
