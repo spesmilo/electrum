@@ -219,10 +219,7 @@ class Peer(Logger):
             if constants.net.rev_genesis_bytes() not in their_chains:
                 raise GracefulDisconnect(f"no common chain found with remote. (they sent: {their_chains})")
         # all checks passed
-        if self.channel_db and isinstance(self.transport, LNTransport):
-            self.channel_db.add_recent_peer(self.transport.peer_addr)
-            for chan in self.channels.values():
-                chan.add_or_update_peer_addr(self.transport.peer_addr)
+        self.lnworker.on_peer_successfully_established(self)
         self._received_init = True
         self.maybe_set_initialized()
 
