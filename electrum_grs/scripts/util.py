@@ -5,7 +5,7 @@ from .. import Connection, Interface, SimpleConfig
 from electrum_grs.network import parse_servers
 from collections import defaultdict
 
-# electrum.util.set_verbosity(1)
+# electrum_grs.util.set_verbosity(1)
 def get_interfaces(servers, timeout=10):
     '''Returns a map of servers to connected interfaces.  If any
     connections fail or timeout, they will be missing from the map.

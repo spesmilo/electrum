@@ -26,7 +26,7 @@ from ...i18n import _
 from .password_dialog import PasswordDialog
 
 if TYPE_CHECKING:
-    from electrum.gui.kivy.main_window import ElectrumWindow
+    from electrum_grs.gui.kivy.main_window import ElectrumWindow
 
 
 # global Variables

@@ -270,7 +270,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         tx = copy.deepcopy(self.tx)
         tx.add_info_from_wallet(self.wallet, include_xpubs_and_full_paths=True)
         # log warning if PSBT_*_BIP32_DERIVATION fields cannot be filled with full path due to missing info
-        from electrum.keystore import Xpub
+        from electrum_grs.keystore import Xpub
         def is_ks_missing_info(ks):
             return (isinstance(ks, Xpub) and (ks.get_root_fingerprint() is None
                                               or ks.get_derivation_prefix() is None))
