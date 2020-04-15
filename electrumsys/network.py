@@ -44,7 +44,7 @@ from aiohttp import ClientResponse
 from . import util
 from .util import (log_exceptions, ignore_exceptions,
                    bfh, SilentTaskGroup, make_aiohttp_session, send_exception_to_crash_reporter,
-                   is_hash256_str, is_non_negative_integer, MyEncoder)
+                   is_hash256_str, is_non_negative_integer, MyEncoder, NetworkRetryManager)
 
 from .bitcoin import COIN
 from . import constants
@@ -74,10 +74,6 @@ _logger = get_logger(__name__)
 NUM_TARGET_CONNECTED_SERVERS = 10
 NUM_STICKY_SERVERS = 4
 NUM_RECENT_SERVERS = 20
-MAX_RETRY_DELAY_FOR_SERVERS = 600  # sec
-INIT_RETRY_DELAY_FOR_SERVERS = 15  # sec
-MAX_RETRY_DELAY_FOR_MAIN_SERVER = 10  # sec
-INIT_RETRY_DELAY_FOR_MAIN_SERVER = 1  # sec
 
 
 def parse_servers(result: Sequence[Tuple[str, str, List[str]]]) -> Dict[str, dict]:
@@ -235,7 +231,7 @@ class UntrustedServerReturnedError(NetworkException):
 _INSTANCE = None
 
 
-class Network(Logger):
+class Network(Logger, NetworkRetryManager[ServerAddr]):
     """The Network class manages a set of connections to remote electrumsys
     servers, each connected socket is handled by an Interface() object.
     """
@@ -255,6 +251,13 @@ class Network(Logger):
         _INSTANCE = self
 
         Logger.__init__(self)
+        NetworkRetryManager.__init__(
+            self,
+            max_retry_delay_normal=600,
+            init_retry_delay_normal=15,
+            max_retry_delay_urgent=10,
+            init_retry_delay_urgent=1,
+        )
 
         self.asyncio_loop = asyncio.get_event_loop()
         assert self.asyncio_loop.is_running(), "event loop not running"
@@ -301,8 +304,6 @@ class Network(Logger):
         dir_path = os.path.join(self.config.path, 'certs')
         util.make_dir(dir_path)
 
-        # retry times
-        self._last_tried_server = {}  # type: Dict[ServerAddr, Tuple[float, int]]  # unix ts, num_attempts
         # the main server we are currently communicating with
         self.interface = None
         self.default_server_changed_event = asyncio.Event()
@@ -536,19 +537,6 @@ class Network(Logger):
             out = filter_noonion(out)
         return out
 
-    def _can_retry_server(self, server: ServerAddr, *, now: float = None) -> bool:
-        if now is None:
-            now = time.time()
-        last_time, num_attempts = self._last_tried_server.get(server, (0, 0))
-        if server == self.default_server:
-            delay = min(MAX_RETRY_DELAY_FOR_MAIN_SERVER,
-                        INIT_RETRY_DELAY_FOR_MAIN_SERVER * 2 ** num_attempts)
-        else:
-            delay = min(MAX_RETRY_DELAY_FOR_SERVERS,
-                        INIT_RETRY_DELAY_FOR_SERVERS * 2 ** num_attempts)
-        next_time = last_time + delay
-        return next_time < now
-
     def _get_next_server_to_try(self) -> Optional[ServerAddr]:
         now = time.time()
         with self.interfaces_lock:
@@ -566,7 +554,7 @@ class Network(Logger):
             for server in recent_servers:
                 if server in connected_servers:
                     continue
-                if not self._can_retry_server(server, now=now):
+                if not self._can_retry_addr(server, now=now):
                     continue
                 return server
         # try all servers we know about, pick one at random
@@ -574,7 +562,7 @@ class Network(Logger):
         servers = list(set(filter_protocol(hostmap, self.protocol)) - connected_servers)
         random.shuffle(servers)
         for server in servers:
-            if not self._can_retry_server(server, now=now):
+            if not self._can_retry_addr(server, now=now):
                 continue
             return server
         return None
@@ -726,8 +714,8 @@ class Network(Logger):
             await interface.close()
 
     @with_recent_servers_lock
-    def _add_recent_server(self, server):
-        self._last_tried_server[server] = time.time(), 0
+    def _add_recent_server(self, server: ServerAddr) -> None:
+        self._on_connection_successfully_established(server)
         # list is ordered
         if server in self._recent_servers:
             self._recent_servers.remove(server)
@@ -761,9 +749,7 @@ class Network(Logger):
         if server == self.default_server:
             self.logger.info(f"connecting to {server} as new interface")
             self._set_status('connecting')
-        # update _last_tried_server
-        last_time, num_attempts = self._last_tried_server.get(server, (0, 0))
-        self._last_tried_server[server] = time.time(), num_attempts + 1
+        self._trying_addr_now(server)
 
         interface = Interface(network=self, server=server, proxy=self.proxy)
         # note: using longer timeouts here as DNS can sometimes be slow!
@@ -1151,7 +1137,7 @@ class Network(Logger):
         assert not self.interface and not self.interfaces
         assert not self._connecting
         self.logger.info('starting network')
-        self._last_tried_server.clear()
+        self._clear_addr_retry_times()
         self.protocol = self.default_server.protocol
         self._set_proxy(deserialize_proxy(self.config.get('proxy')))
         self._set_oneserver(self.config.get('oneserver', False))
@@ -1213,7 +1199,7 @@ class Network(Logger):
             await self._switch_to_random_interface()
         # if auto_connect is not set, or still no main interface, retry current
         if not self.is_connected() and not self.is_connecting():
-            if self._can_retry_server(self.default_server):
+            if self._can_retry_addr(self.default_server, urgent=True):
                 await self.switch_to_interface(self.default_server)
 
     async def _maintain_sessions(self):

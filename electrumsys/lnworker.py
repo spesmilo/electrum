@@ -25,7 +25,7 @@ from . import constants, util
 from . import keystore
 from .util import profiler
 from .util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING
-from .util import PR_TYPE_LN
+from .util import PR_TYPE_LN, NetworkRetryManager
 from .lnutil import LN_MAX_FUNDING_SAT
 from .keystore import BIP32_KeyStore
 from .bitcoin import COIN
@@ -78,10 +78,6 @@ SAVED_PR_STATUS = [PR_PAID, PR_UNPAID, PR_INFLIGHT] # status that are persisted
 
 NUM_PEERS_TARGET = 4
 
-MAX_RETRY_DELAY_FOR_PEERS = 3600  # sec
-INIT_RETRY_DELAY_FOR_PEERS = 600  # sec
-MAX_RETRY_DELAY_FOR_CHANNEL_PEERS = 300  # sec
-INIT_RETRY_DELAY_FOR_CHANNEL_PEERS = 4  # sec
 
 FALLBACK_NODE_LIST_TESTNET = (
     LNPeerAddr(host='203.132.95.10', port=9735, pubkey=bfh('038863cf8ab91046230f561cd5b386cbff8309fa02e3f0c3ed161a3aeb64a643b9')),
@@ -143,10 +139,17 @@ class NoPathFound(PaymentFailure):
         return _('No path found')
 
 
-class LNWorker(Logger):
+class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
 
     def __init__(self, xprv):
         Logger.__init__(self)
+        NetworkRetryManager.__init__(
+            self,
+            max_retry_delay_normal=3600,
+            init_retry_delay_normal=600,
+            max_retry_delay_urgent=300,
+            init_retry_delay_urgent=4,
+        )
         self.node_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NODE_KEY)
         self.peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer
         self.taskgroup = SilentTaskGroup()
@@ -157,8 +160,6 @@ class LNWorker(Logger):
         self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_OPT
         self.features |= LnFeatures.VAR_ONION_OPT
         self.features |= LnFeatures.PAYMENT_SECRET_OPT
-
-        self._last_tried_peer = {}  # type: Dict[LNPeerAddr, Tuple[float, int]]  # LNPeerAddr -> (unix ts, num_attempts)
 
     def channels_for_peer(self, node_id):
         return {}
@@ -208,17 +209,16 @@ class LNWorker(Logger):
                 continue
             peers = await self._get_next_peers_to_try()
             for peer in peers:
-                if self._can_retry_peer(peer, now=now):
+                if self._can_retry_addr(peer, now=now):
                     await self._add_peer(peer.host, peer.port, peer.pubkey)
 
-    async def _add_peer(self, host, port, node_id) -> Peer:
+    async def _add_peer(self, host: str, port: int, node_id: bytes) -> Peer:
         if node_id in self.peers:
             return self.peers[node_id]
         port = int(port)
         peer_addr = LNPeerAddr(host, port, node_id)
         transport = LNTransport(self.node_keypair.privkey, peer_addr)
-        last_time, num_attempts = self._last_tried_peer.get(peer_addr, (0, 0))
-        self._last_tried_peer[peer_addr] = time.time(), num_attempts + 1
+        self._trying_addr_now(peer_addr)
         self.logger.info(f"adding peer {peer_addr}")
         peer = Peer(self, node_id, transport)
         await self.taskgroup.spawn(peer.main_loop())
@@ -266,27 +266,13 @@ class LNWorker(Logger):
         if isinstance(peer.transport, LNTransport):
             peer_addr = peer.transport.peer_addr
             # reset connection attempt count
-            self._last_tried_peer[peer_addr] = time.time(), 0
+            self._on_connection_successfully_established(peer_addr)
             # add into channel db
             if self.channel_db:
                 self.channel_db.add_recent_peer(peer_addr)
             # save network address into channels we might have with peer
             for chan in peer.channels.values():
                 chan.add_or_update_peer_addr(peer_addr)
-
-    def _can_retry_peer(self, peer: LNPeerAddr, *,
-                        now: float = None, for_channel: bool = False) -> bool:
-        if now is None:
-            now = time.time()
-        last_time, num_attempts = self._last_tried_peer.get(peer, (0, 0))
-        if for_channel:
-            delay = min(MAX_RETRY_DELAY_FOR_CHANNEL_PEERS,
-                        INIT_RETRY_DELAY_FOR_CHANNEL_PEERS * 2 ** num_attempts)
-        else:
-            delay = min(MAX_RETRY_DELAY_FOR_PEERS,
-                        INIT_RETRY_DELAY_FOR_PEERS * 2 ** num_attempts)
-        next_time = last_time + delay
-        return next_time < now
 
     async def _get_next_peers_to_try(self) -> Sequence[LNPeerAddr]:
         now = time.time()
@@ -298,7 +284,7 @@ class LNWorker(Logger):
                 continue
             if peer.pubkey in self.peers:
                 continue
-            if not self._can_retry_peer(peer, now=now):
+            if not self._can_retry_addr(peer, now=now):
                 continue
             if not self.is_good_peer(peer):
                 continue
@@ -315,7 +301,7 @@ class LNWorker(Logger):
                     peer = LNPeerAddr(host, port, node_id)
                 except ValueError:
                     continue
-                if not self._can_retry_peer(peer, now=now):
+                if not self._can_retry_addr(peer, now=now):
                     continue
                 if not self.is_good_peer(peer):
                     continue
@@ -330,7 +316,7 @@ class LNWorker(Logger):
         else:
             return []  # regtest??
 
-        fallback_list = [peer for peer in fallback_list if self._can_retry_peer(peer, now=now)]
+        fallback_list = [peer for peer in fallback_list if self._can_retry_addr(peer, now=now)]
         if fallback_list:
             return [random.choice(fallback_list)]
 
@@ -1298,7 +1284,7 @@ class LNWallet(LNWorker):
         # Done gathering addresses.
         # Now select first one that has not failed recently.
         for peer in peer_addresses:
-            if self._can_retry_peer(peer, for_channel=True, now=now):
+            if self._can_retry_addr(peer, urgent=True, now=now):
                 await self._add_peer(peer.host, peer.port, peer.pubkey)
                 return
 
