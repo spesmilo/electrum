@@ -444,8 +444,6 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 elif not p2shTransaction:
                     txtmp = oceanTransaction(bfh(utxo[0]))
                     txtmp_2 = Transaction(utxo[0])
-                    print("electrum: getting trusted input for txid {}".format(txtmp_2.txid()))
-                    print("electrum: txid serialization: {}".format(txtmp_2.serialize_to_network(estimate_size=False, witness=False)))
                     trustedInput = self.get_client().getTrustedInputOcean(txtmp, utxo[1])
                     trustedInput['sequence'] = sequence
                     chipInputs.append(trustedInput)
@@ -460,7 +458,6 @@ class Ledger_KeyStore(Hardware_KeyStore):
             firstTransaction = True
             inputIndex = 0
             rawTx = tx.serialize_to_network(witness=False)
-            print(rawTx)
             self.get_client().enableAlternate2fa(False)
             if segwitTransaction:
                 self.get_client().startUntrustedTransactionOcean(True, inputIndex,
@@ -487,15 +484,12 @@ class Ledger_KeyStore(Hardware_KeyStore):
                                                                      singleInput, redeemScripts[inputIndex], version=tx.version)
 
                     inputSignature[0] = 0x30 # force for 1.4.9+
-                    print("Input signature for input {}:{}".format(inputIndex,inputSignature.hex()))
                     signatures.append(inputSignature)
                     inputIndex = inputIndex + 1
                     firstTransaction = False
             else:
                 while inputIndex < len(inputs):
-                    print("pre_hash for inputIndex {}:".format(i))
                     tx.pre_hash(inputIndex)
-                    print("rawTx {}:".format(rawTx))
                     self.get_client().startUntrustedTransactionOcean(firstTransaction, inputIndex,
                                                                      chipInputs, redeemScripts[inputIndex], version=tx.version)
                     outputData = self.get_client().finalizeInput(b'', 0, 0, changePath, bfh(rawTx),txClass=oceanTransaction)
@@ -511,44 +505,18 @@ class Ledger_KeyStore(Hardware_KeyStore):
                         # Sign input with the provided PIN                                                                     
                         inputSignature = self.get_client().untrustedHashSign(inputsPaths[inputIndex], pin, lockTime=tx.locktime)
                         inputSignature[0] = 0x30 # force for 1.4.9+
-                        print("Ledger input signature: {}".format(inputSignature.hex()))
-                        #pk_hex='36D76A46DDA7A5631F14235A0A68D38B73D8986F62331BD257946093C9BF2277'
-                        #pk_decoded=btc.decode_privkey(pk_hex, 'hex')
-                        #pk_bytes=bytes.fromhex(pk_hex)
-                        #inputSignature=bytes.fromhex(tx.sign_txin(inputIndex, pk_bytes))
-                        #ecPrivKey=ecc.ECPrivkey(pk_bytes)
-                        #pubKeyCompressed=ecPrivKey.get_public_key_hex(compressed=True)
-                        #print("Input signature:{}".format(inputSignature.hex()))
-                        print("Verifying input signature {}".format(inputIndex))
-                        print("pubKeys: {}".format(pubKeys[inputIndex][0]))
-                        #Get the uncompressed public key bytes from the compressed public key bytes
-                        #print("Compressed pub key from electrum: {}".format(pubKeys[inputIndex][0]))
-                        #print("Compressed pub key from ledger priv key: {}".format(pubKeyCompressed))
                         ecPubkey = ecc.ECPubkey(bytes.fromhex(pubKeys[inputIndex][0]));
                         ecPubkeyBytes=ecPubkey.get_public_key_bytes(compressed=False)
-                        print("Uncompressed pub key: {}".format(ecPubkeyBytes.hex()))
-                        print("Uncompressed pub key without prefix: {}".format(ecPubkeyBytes[1:].hex()))
-                        print("Length of uncompressed pub key without prefix: {}".format(len(ecPubkeyBytes[1:])))
                         #Construct the verifying key from the uncompressed public key bytes
                         vk = ecdsa.VerifyingKey.from_string(ecPubkeyBytes[1:], curve=ecdsa.SECP256k1, hashfunc=hashlib.sha256)
-                        r, s = ecc.get_r_and_s_from_der_sig(inputSignature[:-1])
-                        print("r={}".format(r))
-                        print("s={}".format(s))
-                        print("hex(r)={}".format(hex(r)))
-                        print("hex(s)={}".format(hex(s)))
                         if not vk.verify_digest(inputSignature[:-1], tx.pre_hash(inputIndex), ecc.get_r_and_s_from_der_sig):
-                            raise Exception('Sanity check verifying signature failed.')
-#                        faulty_hash=bytearray(tx.pre_hash(inputIndex))
-#                        faulty_hash[1]=faulty_hash[1]+1
-#                        if ecPubKey.verify_digest(inputSignature,faulty_hash, ecc.get_r_and_s_from_sig_string(inputSignature.hex())):
-#                          if vk.verify_digest(inputSignature[:-1], bytes(faulty_hash), ecc.get_r_and_s_from_der_sig):
-#                            raise Exception('Sanity check verifying signature failed - invalid signature deemed valid.')
+                            self.give_error('Error: an incorrect signature was supplied by the ledger device.', True)
                         signatures.append(inputSignature)
                         inputIndex = inputIndex + 1
                     if pin != 'paired':
                         firstTransaction = False
         except UserWarning:
-            self.handler.show_error(_('Cancelled by user'))
+            self.handler.show_error('Cancelled by user')
             return
         except BTChipException as e:
             if e.sw == 0x6985:  # cancelled by user
@@ -567,7 +535,6 @@ class Ledger_KeyStore(Hardware_KeyStore):
 
         for i, txin in enumerate(tx.inputs()):
             signingPos = inputs[i][4]
-            print("Adding signature to txin:{} {} {}".format(i, signingPos, signatures[i].hex()))
             tx.add_signature_to_txin(i, signingPos, bh2u(signatures[i]))
         tx.raw = tx.serialize(witness=False)
 

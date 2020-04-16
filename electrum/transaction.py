@@ -1325,9 +1325,7 @@ class Transaction:
 
     def pre_hash(self, txin_index):
         preimage=self.serialize_preimage(txin_index)
-        print("preimage: {}".format(preimage))
         pre_hash = Hash(bfh(preimage))
-        print("pre_hash: {}".format(pre_hash.hex()))
         return pre_hash
         
     def sign_txin(self, txin_index, privkey_bytes) -> str:
@@ -1335,7 +1333,6 @@ class Transaction:
         privkey = ecc.ECPrivkey(privkey_bytes)
         sig = privkey.sign_transaction(pre_hash)
         sig = bh2u(sig) + '01'
-        print("transaction.sign_txin: txin_index: {},  sig: {}".format(txin_index, sig))
         return sig
 
     def get_outputs(self):

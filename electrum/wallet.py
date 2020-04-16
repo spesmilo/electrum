@@ -62,6 +62,8 @@ from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
 from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .paymentrequest import InvoiceStore
 from .contacts import Contacts
+from ecdsa.util import string_to_number, number_to_string
+import ecdsa
 
 TX_STATUS = [
     _('Unconfirmed'),
@@ -862,11 +864,6 @@ class Abstract_Wallet(AddressSynchronizer):
         tx.output_info = info
 
     def sign_transaction(self, tx, password):
-#        from PyQt5.QtCore import pyqtRemoveInputHook
-#        from pdb import set_trace
-#        pyqtRemoveInputHook()
-#        set_trace()
-
         if self.is_watching_only():
             return
         self.add_input_info_to_all_inputs(tx)
@@ -919,6 +916,7 @@ class Abstract_Wallet(AddressSynchronizer):
         addrs = self.get_unused_encryption_addresses()
         if addrs:
             return addrs[0]
+        return None
 
 
     def get_unused_encryption_addresses(self):
@@ -2014,17 +2012,22 @@ class Standard_Wallet(Simple_Deterministic_Wallet):
         return bitcoin.pubkey_to_address(self.txin_type, pubkey)
 
     def get_kyc_string(self, password=None):
-        address=self.get_unused_encryption_address()
-        if address == None:
-            return False, "No wallet encryption keys available."
-        onboardUserPubKey=self.get_public_key(address)
+        if not isinstance(self.keystore, Hardware_KeyStore):
+            address=self.get_unused_encryption_address()
+            if address == None:
+                return False, "No wallet encryption keys available."
+            onboardUserPubKey=self.get_public_key(address)
 
-        onboardUserKey_serialized, redeem_script=self.export_private_key(address, password)
-        txin_type = self.get_txin_type(address)
-        txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
-        onboardUserKey=ecc.ECPrivkey(secret_bytes)
-        # onboardUserKey=ecc.ECPrivKey.normalize_secret_bytes(onboardUserKey)
-
+            onboardUserKey_serialized, redeem_script=self.export_private_key(address, password)
+            txin_type = self.get_txin_type(address)
+            txin_type, secret_bytes, compressed = bitcoin.deserialize_privkey(onboardUserKey_serialized)
+            onboardUserKey=ecc.ECPrivkey(secret_bytes)
+            # onboardUserKey=ecc.ECPrivKey.normalize_secret_bytes(onboardUserKey)
+        else:
+            #The ledger app does not have a encryption function, so use a randomly generated key
+            onboardUserKey = ecc.ECPrivkey(number_to_string(ecdsa.util.randrange(ecc.CURVE_ORDER), ecc.CURVE_ORDER))
+            onboardUserPubKey = (ecc.generator() * onboardUserKey.secret_scalar).get_public_key_hex()
+            
         onboardPubKey=self.get_unassigned_kyc_pubkey()
         if onboardPubKey is None:
             return False, "No unassigned KYC public keys available. Please ensure that the wallet is connected to the network."
