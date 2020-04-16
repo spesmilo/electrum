@@ -37,7 +37,7 @@ from PyQt5.QtGui import QFontMetrics
 from electrum.i18n import _
 from electrum import constants, blockchain, util
 from electrum.interface import ServerAddr
-from electrum.network import Network
+from electrum.network import Network, PREFERRED_NETWORK_PROTOCOL
 from electrum.logging import get_logger
 
 from .util import (Buttons, CloseButton, HelpButton, read_QIcon, char_width_in_lineedit,
@@ -72,6 +72,8 @@ class NetworkDialog(QDialog):
 
 
 class NodesListWidget(QTreeWidget):
+    """List of connected servers."""
+
     SERVER_ADDR_ROLE = Qt.UserRole + 100
     CHAIN_ID_ROLE = Qt.UserRole + 101
     IS_SERVER_ROLE = Qt.UserRole + 102
@@ -129,6 +131,7 @@ class NodesListWidget(QTreeWidget):
                 item = QTreeWidgetItem([i.host + star, '%d'%i.tip])
                 item.setData(0, self.IS_SERVER_ROLE, 1)
                 item.setData(0, self.SERVER_ADDR_ROLE, i.server)
+                item.setToolTip(0, str(i.server))
                 x.addChild(item)
             if n_chains > 1:
                 self.addTopLevelItem(x)
@@ -143,6 +146,8 @@ class NodesListWidget(QTreeWidget):
 
 
 class ServerListWidget(QTreeWidget):
+    """List of all known servers."""
+
     class Columns(IntEnum):
         HOST = 0
         PORT = 1
@@ -182,8 +187,9 @@ class ServerListWidget(QTreeWidget):
         pt.setX(50)
         self.customContextMenuRequested.emit(pt)
 
-    def update(self, servers, protocol, use_tor):
+    def update(self, servers, use_tor):
         self.clear()
+        protocol = PREFERRED_NETWORK_PROTOCOL
         for _host, d in sorted(servers.items()):
             if _host.endswith('.onion') and not use_tor:
                 continue
@@ -207,7 +213,6 @@ class NetworkChoiceLayout(object):
     def __init__(self, network: Network, config, wizard=False):
         self.network = network
         self.config = config
-        self.protocol = None
         self.tor_proxy = None
 
         self.tabs = tabs = QTabWidget()
@@ -370,9 +375,8 @@ class NetworkChoiceLayout(object):
         host = interface.host if interface else _('None')
         self.server_label.setText(host)
 
-        self.set_protocol(protocol)
         self.servers = self.network.get_servers()
-        self.servers_list.update(self.servers, self.protocol, self.tor_cb.isChecked())
+        self.servers_list.update(self.servers, self.tor_cb.isChecked())
         self.enable_set_server()
 
         height_str = "%d "%(self.network.get_local_height()) + _('blocks')
@@ -413,22 +417,6 @@ class NetworkChoiceLayout(object):
     def layout(self):
         return self.layout_
 
-    def set_protocol(self, protocol):
-        if protocol != self.protocol:
-            self.protocol = protocol
-
-    def change_protocol(self, use_ssl):
-        p = 's' if use_ssl else 't'
-        host = self.server_host.text()
-        pp = self.servers.get(host, constants.net.DEFAULT_PORTS)
-        if p not in pp.keys():
-            p = list(pp.keys())[0]
-        port = pp[p]
-        self.server_host.setText(host)
-        self.server_port.setText(port)
-        self.set_protocol(p)
-        self.set_server()
-
     def follow_branch(self, chain_id):
         self.network.run_from_another_thread(self.network.follow_chain_given_id(chain_id))
         self.update()
@@ -436,10 +424,6 @@ class NetworkChoiceLayout(object):
     def follow_server(self, server: ServerAddr):
         self.network.run_from_another_thread(self.network.follow_chain_given_server(server))
         self.update()
-
-    def server_changed(self, x):
-        if x:
-            self.change_server(str(x.text(0)), self.protocol)
 
     def change_server(self, host, protocol):
         pp = self.servers.get(host, constants.net.DEFAULT_PORTS)
