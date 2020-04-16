@@ -36,8 +36,8 @@ from PyQt5.QtGui import QFontMetrics
 
 from electrumsys.i18n import _
 from electrumsys import constants, blockchain, util
-from electrumsys.interface import ServerAddr
-from electrumsys.network import Network, PREFERRED_NETWORK_PROTOCOL
+from electrumsys.interface import ServerAddr, PREFERRED_NETWORK_PROTOCOL
+from electrumsys.network import Network
 from electrumsys.logging import get_logger
 
 from .util import (Buttons, CloseButton, HelpButton, read_QIcon, char_width_in_lineedit,
@@ -171,8 +171,7 @@ class ServerListWidget(QTreeWidget):
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def set_server(self, server: ServerAddr):
-        self.parent.server_host.setText(server.host)
-        self.parent.server_port.setText(str(server.port))
+        self.parent.server_e.setText(server.net_addr_str())
         self.parent.set_server()
 
     def keyPressEvent(self, event):
@@ -230,15 +229,12 @@ class NetworkChoiceLayout(object):
         grid = QGridLayout(server_tab)
         grid.setSpacing(8)
 
-        self.server_host = QLineEdit()
-        self.server_host.setFixedWidth(fixed_width_hostname)
-        self.server_port = QLineEdit()
-        self.server_port.setFixedWidth(fixed_width_port)
+        self.server_e = QLineEdit()
+        self.server_e.setFixedWidth(fixed_width_hostname + fixed_width_port)
         self.autoconnect_cb = QCheckBox(_('Select server automatically'))
         self.autoconnect_cb.setEnabled(self.config.is_modifiable('auto_connect'))
 
-        self.server_host.editingFinished.connect(self.set_server)
-        self.server_port.editingFinished.connect(self.set_server)
+        self.server_e.editingFinished.connect(self.set_server)
         self.autoconnect_cb.clicked.connect(self.set_server)
         self.autoconnect_cb.clicked.connect(self.update)
 
@@ -250,8 +246,7 @@ class NetworkChoiceLayout(object):
         grid.addWidget(HelpButton(msg), 0, 4)
 
         grid.addWidget(QLabel(_('Server') + ':'), 1, 0)
-        grid.addWidget(self.server_host, 1, 1, 1, 2)
-        grid.addWidget(self.server_port, 1, 3)
+        grid.addWidget(self.server_e, 1, 1, 1, 3)
 
         label = _('Server peers') if network.is_connected() else _('Default Servers')
         grid.addWidget(QLabel(label), 2, 0, 1, 5)
@@ -355,20 +350,18 @@ class NetworkChoiceLayout(object):
     def enable_set_server(self):
         if self.config.is_modifiable('server'):
             enabled = not self.autoconnect_cb.isChecked()
-            self.server_host.setEnabled(enabled)
-            self.server_port.setEnabled(enabled)
+            self.server_e.setEnabled(enabled)
             self.servers_list.setEnabled(enabled)
         else:
-            for w in [self.autoconnect_cb, self.server_host, self.server_port, self.servers_list]:
+            for w in [self.autoconnect_cb, self.server_e, self.servers_list]:
                 w.setEnabled(False)
 
     def update(self):
         net_params = self.network.get_parameters()
         server = net_params.server
         proxy_config, auto_connect = net_params.proxy, net_params.auto_connect
-        if not self.server_host.hasFocus() and not self.server_port.hasFocus():
-            self.server_host.setText(server.host)
-            self.server_port.setText(str(server.port))
+        if not self.server_e.hasFocus():
+            self.server_e.setText(server.net_addr_str())
         self.autoconnect_cb.setChecked(auto_connect)
 
         interface = self.network.interface
@@ -425,33 +418,13 @@ class NetworkChoiceLayout(object):
         self.network.run_from_another_thread(self.network.follow_chain_given_server(server))
         self.update()
 
-    def change_server(self, host, protocol):
-        pp = self.servers.get(host, constants.net.DEFAULT_PORTS)
-        if protocol and protocol not in protocol_letters:
-            protocol = None
-        if protocol:
-            port = pp.get(protocol)
-            if port is None:
-                protocol = None
-        if not protocol:
-            if 's' in pp.keys():
-                protocol = 's'
-                port = pp.get(protocol)
-            else:
-                protocol = list(pp.keys())[0]
-                port = pp.get(protocol)
-        self.server_host.setText(host)
-        self.server_port.setText(port)
-
     def accept(self):
         pass
 
     def set_server(self):
         net_params = self.network.get_parameters()
         try:
-            server = ServerAddr(host=str(self.server_host.text()),
-                                port=str(self.server_port.text()),
-                                protocol=net_params.server.protocol)
+            server = ServerAddr.from_str_with_inference(str(self.server_e.text()))
         except Exception:
             return
         net_params = net_params._replace(server=server,
