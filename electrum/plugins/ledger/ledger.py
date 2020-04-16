@@ -22,9 +22,9 @@ import bitcoin as btc
 try:
     import hid
     from btchip.btchipComm import HIDDongleHIDAPI, DongleWait
-    from btchip.btchip import btchip
+    from electrum.btchip_ocean.btchip import btchip_ocean
+    from electrum.btchip_ocean.oceanTransaction import oceanTransaction
     from btchip.btchipUtils import compress_public_key,format_transaction, get_regular_input_script, get_p2sh_input_script
-    from btchip.oceanTransaction import oceanTransaction
     from btchip.btchipFirmwareWizard import checkFirmware, updateFirmware
     from btchip.btchipException import BTChipException
     BTCHIP = True
@@ -58,7 +58,7 @@ def test_pin_unlocked(func):
 
 class Ledger_Client():
     def __init__(self, hidDevice):
-        self.dongleObject = btchip(hidDevice)
+        self.dongleObject = btchip_ocean(hidDevice)
         self.preflightDone = False
 
     def is_pairable(self):
@@ -444,7 +444,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 elif not p2shTransaction:
                     txtmp = oceanTransaction(bfh(utxo[0]))
                     txtmp_2 = Transaction(utxo[0])
-                    trustedInput = self.get_client().getTrustedInputOcean(txtmp, utxo[1])
+                    trustedInput = self.get_client().getTrustedInput(txtmp, utxo[1])
                     trustedInput['sequence'] = sequence
                     chipInputs.append(trustedInput)
                     redeemScripts.append(txtmp.outputs[utxo[1]].script)
@@ -460,12 +460,12 @@ class Ledger_KeyStore(Hardware_KeyStore):
             rawTx = tx.serialize_to_network(witness=False)
             self.get_client().enableAlternate2fa(False)
             if segwitTransaction:
-                self.get_client().startUntrustedTransactionOcean(True, inputIndex,
+                self.get_client().startUntrustedTransaction(True, inputIndex,
                                                                  chipInputs, redeemScripts[inputIndex], version=tx.version)
                 if changePath:
                     # we don't set meaningful outputAddress, amount and fees
                     # as we only care about the alternateEncoding==True branch
-                    outputData = self.get_client().finalizeInput(b'', 0, 0, changePath, bfh(rawTx), txClass=oceanTransaction)
+                    outputData = self.get_client().finalizeInput(b'', 0, 0, changePath, bfh(rawTx))
                 else:
                     outputData = self.get_client().finalizeInputFull(txOutput)
                 outputData['outputData'] = txOutput
@@ -480,7 +480,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                         self.handler.show_message(_("Confirmed. Signing Transaction..."))
                 while inputIndex < len(inputs):
                     singleInput = [ chipInputs[inputIndex] ]
-                    self.get_client().startUntrustedTransactionOcean(False, 0,
+                    self.get_client().startUntrustedTransaction(False, 0,
                                                                      singleInput, redeemScripts[inputIndex], version=tx.version)
 
                     inputSignature[0] = 0x30 # force for 1.4.9+
@@ -490,9 +490,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
             else:
                 while inputIndex < len(inputs):
                     tx.pre_hash(inputIndex)
-                    self.get_client().startUntrustedTransactionOcean(firstTransaction, inputIndex,
+                    self.get_client().startUntrustedTransaction(firstTransaction, inputIndex,
                                                                      chipInputs, redeemScripts[inputIndex], version=tx.version)
-                    outputData = self.get_client().finalizeInput(b'', 0, 0, changePath, bfh(rawTx),txClass=oceanTransaction)
+                    outputData = self.get_client().finalizeInput(b'', 0, 0, changePath, bfh(rawTx))
                     outputData['outputData'] = txOutput
                     if outputData['confirmationNeeded']:
                         outputData['address'] = output
