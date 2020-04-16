@@ -1,4 +1,4 @@
-# -*- coAding: utf-8 -*-
+# -*- coding: utf-8 -*-
 #
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2018 The Electrum developers
