@@ -187,7 +187,7 @@ class Commands:
         net_params = self.network.get_parameters()
         response = {
             'path': self.network.config.path,
-            'server': net_params.host,
+            'server': net_params.server.host,
             'blockchain_height': self.network.get_local_height(),
             'server_height': self.network.get_server_height(),
             'spv_nodes': len(self.network.get_interfaces()),

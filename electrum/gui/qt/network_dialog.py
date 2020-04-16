@@ -364,11 +364,11 @@ class NetworkChoiceLayout(object):
 
     def update(self):
         net_params = self.network.get_parameters()
-        host, port, protocol = net_params.host, net_params.port, net_params.protocol
+        server = net_params.server
         proxy_config, auto_connect = net_params.proxy, net_params.auto_connect
         if not self.server_host.hasFocus() and not self.server_port.hasFocus():
-            self.server_host.setText(host)
-            self.server_port.setText(str(port))
+            self.server_host.setText(server.host)
+            self.server_port.setText(str(server.port))
         self.autoconnect_cb.setChecked(auto_connect)
 
         interface = self.network.interface
@@ -448,8 +448,13 @@ class NetworkChoiceLayout(object):
 
     def set_server(self):
         net_params = self.network.get_parameters()
-        net_params = net_params._replace(host=str(self.server_host.text()),
-                                         port=str(self.server_port.text()),
+        try:
+            server = ServerAddr(host=str(self.server_host.text()),
+                                port=str(self.server_port.text()),
+                                protocol=net_params.server.protocol)
+        except Exception:
+            return
+        net_params = net_params._replace(server=server,
                                          auto_connect=self.autoconnect_cb.isChecked())
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
 

@@ -144,9 +144,7 @@ def pick_random_server(hostmap=None, *, allowed_protocols: Iterable[str],
 
 
 class NetworkParameters(NamedTuple):
-    host: str
-    port: str
-    protocol: str
+    server: ServerAddr
     proxy: Optional[dict]
     auto_connect: bool
     oneserver: bool = False
@@ -483,10 +481,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             util.trigger_callback(key, self.get_status_value(key))
 
     def get_parameters(self) -> NetworkParameters:
-        server = self.default_server
-        return NetworkParameters(host=server.host,
-                                 port=str(server.port),
-                                 protocol=server.protocol,
+        return NetworkParameters(server=self.default_server,
                                  proxy=self.proxy,
                                  auto_connect=self.auto_connect,
                                  oneserver=self.oneserver)
@@ -585,13 +580,12 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         util.trigger_callback('proxy_set', self.proxy)
 
     @log_exceptions
-    async def set_parameters(self, net_params: NetworkParameters):  # TODO
+    async def set_parameters(self, net_params: NetworkParameters):
         proxy = net_params.proxy
         proxy_str = serialize_proxy(proxy)
-        host, port, protocol = net_params.host, net_params.port, net_params.protocol
+        server = net_params.server
         # sanitize parameters
         try:
-            server = ServerAddr(host, port, protocol=protocol)
             if proxy:
                 proxy_modes.index(proxy['mode']) + 1
                 int(proxy['port'])
@@ -1112,10 +1106,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         chosen_iface = random.choice(interfaces_on_selected_chain)  # type: Interface
         # switch to server (and save to config)
         net_params = self.get_parameters()
-        server = chosen_iface.server
-        net_params = net_params._replace(host=server.host,
-                                         port=str(server.port),
-                                         protocol=server.protocol)
+        net_params = net_params._replace(server=chosen_iface.server)
         await self.set_parameters(net_params)
 
     async def follow_chain_given_server(self, server: ServerAddr) -> None:
@@ -1126,9 +1117,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self._set_preferred_chain(iface.blockchain)
         # switch to server (and save to config)
         net_params = self.get_parameters()
-        net_params = net_params._replace(host=server.host,
-                                         port=str(server.port),
-                                         protocol=server.protocol)
+        net_params = net_params._replace(server=server)
         await self.set_parameters(net_params)
 
     def get_local_height(self):
