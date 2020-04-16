@@ -285,8 +285,8 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             try:
                 self.default_server = ServerAddr.from_str(self.default_server)
             except:
-                self.logger.warning('failed to parse server-string; falling back to localhost.')
-                self.default_server = ServerAddr.from_str("localhost:58882:s")
+                self.logger.warning('failed to parse server-string; falling back to localhost:1:s.')
+                self.default_server = ServerAddr.from_str("localhost:1:s")
         else:
             self.default_server = pick_random_server(allowed_protocols=self._allowed_protocols)
         assert isinstance(self.default_server, ServerAddr), f"invalid type for default_server: {self.default_server!r}"
