@@ -12,6 +12,7 @@ from typing import Sequence, Optional
 
 from aiorpcx.curio import timeout_after, TaskTimeout, TaskGroup
 
+from . import util
 from .bitcoin import COIN
 from .i18n import _
 from .util import (ThreadJob, make_dir, log_exceptions,
@@ -452,12 +453,11 @@ def get_exchanges_by_ccy(history=True):
 
 class FxThread(ThreadJob):
 
-    def __init__(self, config: SimpleConfig, network: Network):
+    def __init__(self, config: SimpleConfig, network: Optional[Network]):
         ThreadJob.__init__(self)
         self.config = config
         self.network = network
-        if self.network:
-            self.network.register_callback(self.set_proxy, ['proxy_set'])
+        util.register_callback(self.set_proxy, ['proxy_set'])
         self.ccy = self.get_currency()
         self.history_used_spot = False
         self.ccy_combo = None
@@ -567,12 +567,10 @@ class FxThread(ThreadJob):
         self.exchange.read_historical_rates(self.ccy, self.cache_dir)
 
     def on_quotes(self):
-        if self.network:
-            self.network.trigger_callback('on_quotes')
+        util.trigger_callback('on_quotes')
 
     def on_history(self):
-        if self.network:
-            self.network.trigger_callback('on_history')
+        util.trigger_callback('on_history')
 
     def exchange_rate(self) -> Decimal:
         """Returns the exchange rate as a Decimal"""

@@ -13,6 +13,7 @@ from electrum.storage import WalletStorage, StorageReadWriteError
 from electrum.wallet_db import WalletDB
 from electrum.wallet import Wallet, InternalAddressCorruption, Abstract_Wallet
 from electrum.plugin import run_hook
+from electrum import util
 from electrum.util import (profiler, InvalidPassword, send_exception_to_crash_reporter,
                            format_satoshis, format_satoshis_plain, format_fee_satoshis,
                            PR_PAID, PR_FAILED, maybe_extract_bolt11_invoice)
@@ -50,7 +51,6 @@ from .uix.dialogs.question import Question
 
 # delayed imports: for startup speed on android
 notification = app = ref = None
-util = False
 
 # register widget cache for keeping memory down timeout to forever to cache
 # the data
@@ -144,6 +144,17 @@ class ElectrumWindow(App):
             popup.ids.port.text = port
         servers = self.network.get_servers()
         ChoiceDialog(_('Choose a server'), sorted(servers), popup.ids.host.text, cb2).open()
+
+    def maybe_switch_to_server(self, server_str: str):
+        from electrum.interface import ServerAddr
+        net_params = self.network.get_parameters()
+        try:
+            server = ServerAddr.from_str_with_inference(server_str)
+        except Exception as e:
+            self.show_error(_("Invalid server details: {}").format(repr(e)))
+            return
+        net_params = net_params._replace(server=server)
+        self.network.run_from_another_thread(self.network.set_parameters(net_params))
 
     def choose_blockchain_dialog(self, dt):
         from .uix.dialogs.choice_dialog import ChoiceDialog
@@ -348,8 +359,8 @@ class ElectrumWindow(App):
             self.num_blocks = self.network.get_local_height()
             self.num_nodes = len(self.network.get_interfaces())
             net_params = self.network.get_parameters()
-            self.server_host = net_params.host
-            self.server_port = net_params.port
+            self.server_host = net_params.server.host
+            self.server_port = str(net_params.server.port)
             self.auto_connect = net_params.auto_connect
             self.oneserver = net_params.oneserver
             self.proxy_config = net_params.proxy if net_params.proxy else {}
@@ -565,20 +576,20 @@ class ElectrumWindow(App):
         if self.network:
             interests = ['wallet_updated', 'network_updated', 'blockchain_updated',
                          'status', 'new_transaction', 'verified']
-            self.network.register_callback(self.on_network_event, interests)
-            self.network.register_callback(self.on_fee, ['fee'])
-            self.network.register_callback(self.on_fee_histogram, ['fee_histogram'])
-            self.network.register_callback(self.on_quotes, ['on_quotes'])
-            self.network.register_callback(self.on_history, ['on_history'])
-            self.network.register_callback(self.on_channels, ['channels_updated'])
-            self.network.register_callback(self.on_channel, ['channel'])
-            self.network.register_callback(self.on_invoice_status, ['invoice_status'])
-            self.network.register_callback(self.on_request_status, ['request_status'])
-            self.network.register_callback(self.on_payment_failed, ['payment_failed'])
-            self.network.register_callback(self.on_payment_succeeded, ['payment_succeeded'])
-            self.network.register_callback(self.on_channel_db, ['channel_db'])
-            self.network.register_callback(self.set_num_peers, ['gossip_peers'])
-            self.network.register_callback(self.set_unknown_channels, ['unknown_channels'])
+            util.register_callback(self.on_network_event, interests)
+            util.register_callback(self.on_fee, ['fee'])
+            util.register_callback(self.on_fee_histogram, ['fee_histogram'])
+            util.register_callback(self.on_quotes, ['on_quotes'])
+            util.register_callback(self.on_history, ['on_history'])
+            util.register_callback(self.on_channels, ['channels_updated'])
+            util.register_callback(self.on_channel, ['channel'])
+            util.register_callback(self.on_invoice_status, ['invoice_status'])
+            util.register_callback(self.on_request_status, ['request_status'])
+            util.register_callback(self.on_payment_failed, ['payment_failed'])
+            util.register_callback(self.on_payment_succeeded, ['payment_succeeded'])
+            util.register_callback(self.on_channel_db, ['channel_db'])
+            util.register_callback(self.set_num_peers, ['gossip_peers'])
+            util.register_callback(self.set_unknown_channels, ['unknown_channels'])
         # load wallet
         self.load_wallet_by_name(self.electrum_config.get_wallet_path(use_gui_last_wallet=True))
         # URI passed in config
@@ -814,7 +825,7 @@ class ElectrumWindow(App):
         if interface:
             self.server_host = interface.host
         else:
-            self.server_host = str(net_params.host) + ' (connecting...)'
+            self.server_host = str(net_params.server.host) + ' (connecting...)'
         self.proxy_config = net_params.proxy or {}
         self.update_proxy_str(self.proxy_config)
 

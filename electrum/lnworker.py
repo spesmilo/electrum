@@ -7,7 +7,7 @@ import os
 from decimal import Decimal
 import random
 import time
-from typing import Optional, Sequence, Tuple, List, Dict, TYPE_CHECKING, NamedTuple, Union
+from typing import Optional, Sequence, Tuple, List, Dict, TYPE_CHECKING, NamedTuple, Union, Mapping
 import threading
 import socket
 import json
@@ -21,11 +21,11 @@ import dns.resolver
 import dns.exception
 from aiorpcx import run_in_thread
 
-from . import constants
+from . import constants, util
 from . import keystore
 from .util import profiler
 from .util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING
-from .util import PR_TYPE_LN
+from .util import PR_TYPE_LN, NetworkRetryManager
 from .lnutil import LN_MAX_FUNDING_SAT
 from .keystore import BIP32_KeyStore
 from .bitcoin import COIN
@@ -77,9 +77,7 @@ SAVED_PR_STATUS = [PR_PAID, PR_UNPAID, PR_INFLIGHT] # status that are persisted
 
 
 NUM_PEERS_TARGET = 4
-PEER_RETRY_INTERVAL = 600  # seconds
-PEER_RETRY_INTERVAL_FOR_CHANNELS = 30  # seconds
-GRAPH_DOWNLOAD_SECONDS = 600
+
 
 FALLBACK_NODE_LIST_TESTNET = (
     LNPeerAddr(host='203.132.95.10', port=9735, pubkey=bfh('038863cf8ab91046230f561cd5b386cbff8309fa02e3f0c3ed161a3aeb64a643b9')),
@@ -141,12 +139,20 @@ class NoPathFound(PaymentFailure):
         return _('No path found')
 
 
-class LNWorker(Logger):
+class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
 
     def __init__(self, xprv):
         Logger.__init__(self)
+        NetworkRetryManager.__init__(
+            self,
+            max_retry_delay_normal=3600,
+            init_retry_delay_normal=600,
+            max_retry_delay_urgent=300,
+            init_retry_delay_urgent=4,
+        )
+        self.lock = threading.RLock()
         self.node_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NODE_KEY)
-        self.peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer
+        self._peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer  # needs self.lock
         self.taskgroup = SilentTaskGroup()
         # set some feature flags as baseline for both LNWallet and LNGossip
         # note that e.g. DATA_LOSS_PROTECT is needed for LNGossip as many peers require it
@@ -155,6 +161,14 @@ class LNWorker(Logger):
         self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_OPT
         self.features |= LnFeatures.VAR_ONION_OPT
         self.features |= LnFeatures.PAYMENT_SECRET_OPT
+
+        util.register_callback(self.on_proxy_changed, ['proxy_set'])
+
+    @property
+    def peers(self) -> Mapping[bytes, Peer]:
+        """Returns a read-only copy of peers."""
+        with self.lock:
+            return self._peers.copy()
 
     def channels_for_peer(self, node_id):
         return {}
@@ -175,10 +189,12 @@ class LNWorker(Logger):
                     self.logger.info('handshake failure from incoming connection')
                     return
                 peer = Peer(self, node_id, transport)
-                self.peers[node_id] = peer
+                with self.lock:
+                    self._peers[node_id] = peer
                 await self.taskgroup.spawn(peer.main_loop())
             try:
                 # FIXME: server.close(), server.wait_closed(), etc... ?
+                # TODO: onion hidden service?
                 server = await asyncio.start_server(cb, addr, int(port))
             except OSError as e:
                 self.logger.error(f"cannot listen for lightning p2p. error: {e!r}")
@@ -200,30 +216,31 @@ class LNWorker(Logger):
         while True:
             await asyncio.sleep(1)
             now = time.time()
-            if len(self.peers) >= NUM_PEERS_TARGET:
+            if len(self._peers) >= NUM_PEERS_TARGET:
                 continue
             peers = await self._get_next_peers_to_try()
             for peer in peers:
-                last_tried = self._last_tried_peer.get(peer, 0)
-                if last_tried + PEER_RETRY_INTERVAL < now:
+                if self._can_retry_addr(peer, now=now):
                     await self._add_peer(peer.host, peer.port, peer.pubkey)
 
-    async def _add_peer(self, host, port, node_id) -> Peer:
-        if node_id in self.peers:
-            return self.peers[node_id]
+    async def _add_peer(self, host: str, port: int, node_id: bytes) -> Peer:
+        if node_id in self._peers:
+            return self._peers[node_id]
         port = int(port)
         peer_addr = LNPeerAddr(host, port, node_id)
-        transport = LNTransport(self.node_keypair.privkey, peer_addr)
-        self._last_tried_peer[peer_addr] = time.time()
+        transport = LNTransport(self.node_keypair.privkey, peer_addr,
+                                proxy=self.network.proxy)
+        self._trying_addr_now(peer_addr)
         self.logger.info(f"adding peer {peer_addr}")
         peer = Peer(self, node_id, transport)
         await self.taskgroup.spawn(peer.main_loop())
-        self.peers[node_id] = peer
+        with self.lock:
+            self._peers[node_id] = peer
         return peer
 
     def peer_closed(self, peer: Peer) -> None:
-        if peer.pubkey in self.peers:
-            self.peers.pop(peer.pubkey)
+        with self.lock:
+            self._peers.pop(peer.pubkey, None)
 
     def num_peers(self) -> int:
         return sum([p.is_initialized() for p in self.peers.values()])
@@ -232,11 +249,9 @@ class LNWorker(Logger):
         assert network
         self.network = network
         self.config = network.config
-        daemon = network.daemon
         self.channel_db = self.network.channel_db
-        self._last_tried_peer = {}  # type: Dict[LNPeerAddr, float]  # LNPeerAddr -> unix timestamp
         self._add_peers_from_config()
-        asyncio.run_coroutine_threadsafe(daemon.taskgroup.spawn(self.main_loop()), self.network.asyncio_loop)
+        asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
 
     def _add_peers_from_config(self):
         peer_list = self.config.get('lightning_peers', [])
@@ -260,20 +275,29 @@ class LNWorker(Logger):
         #self.logger.info(f'is_good {peer.host}')
         return True
 
+    def on_peer_successfully_established(self, peer: Peer) -> None:
+        if isinstance(peer.transport, LNTransport):
+            peer_addr = peer.transport.peer_addr
+            # reset connection attempt count
+            self._on_connection_successfully_established(peer_addr)
+            # add into channel db
+            if self.channel_db:
+                self.channel_db.add_recent_peer(peer_addr)
+            # save network address into channels we might have with peer
+            for chan in peer.channels.values():
+                chan.add_or_update_peer_addr(peer_addr)
+
     async def _get_next_peers_to_try(self) -> Sequence[LNPeerAddr]:
         now = time.time()
         await self.channel_db.data_loaded.wait()
-        recent_peers = self.channel_db.get_recent_peers()
-        # maintenance for last tried times
-        # due to this, below we can just test membership in _last_tried_peer
-        for peer in list(self._last_tried_peer):
-            if now >= self._last_tried_peer[peer] + PEER_RETRY_INTERVAL:
-                del self._last_tried_peer[peer]
         # first try from recent peers
+        recent_peers = self.channel_db.get_recent_peers()
         for peer in recent_peers:
-            if peer.pubkey in self.peers:
+            if not peer:
                 continue
-            if peer in self._last_tried_peer:
+            if peer.pubkey in self._peers:
+                continue
+            if not self._can_retry_addr(peer, now=now):
                 continue
             if not self.is_good_peer(peer):
                 continue
@@ -290,7 +314,7 @@ class LNWorker(Logger):
                     peer = LNPeerAddr(host, port, node_id)
                 except ValueError:
                     continue
-                if peer in self._last_tried_peer:
+                if not self._can_retry_addr(peer, now=now):
                     continue
                 if not self.is_good_peer(peer):
                     continue
@@ -305,7 +329,7 @@ class LNWorker(Logger):
         else:
             return []  # regtest??
 
-        fallback_list = [peer for peer in fallback_list if peer not in self._last_tried_peer]
+        fallback_list = [peer for peer in fallback_list if self._can_retry_addr(peer, now=now)]
         if fallback_list:
             return [random.choice(fallback_list)]
 
@@ -363,12 +387,40 @@ class LNWorker(Logger):
         choice = random.choice(addr_list)
         return choice
 
+    def on_proxy_changed(self, event, *args):
+        for peer in self.peers.values():
+            peer.close_and_cleanup()
+        self._clear_addr_retry_times()
+
+    @log_exceptions
+    async def add_peer(self, connect_str: str) -> Peer:
+        node_id, rest = extract_nodeid(connect_str)
+        peer = self._peers.get(node_id)
+        if not peer:
+            if rest is not None:
+                host, port = split_host_port(rest)
+            else:
+                addrs = self.channel_db.get_node_addresses(node_id)
+                if not addrs:
+                    raise ConnStringFormatError(_('Don\'t know any addresses for node:') + ' ' + bh2u(node_id))
+                host, port, timestamp = self.choose_preferred_address(addrs)
+            port = int(port)
+            # Try DNS-resolving the host (if needed). This is simply so that
+            # the caller gets a nice exception if it cannot be resolved.
+            try:
+                await asyncio.get_event_loop().getaddrinfo(host, port)
+            except socket.gaierror:
+                raise ConnStringFormatError(_('Hostname does not resolve (getaddrinfo failed)'))
+            # add peer
+            peer = await self._add_peer(host, port, node_id)
+        return peer
+
 
 class LNGossip(LNWorker):
     max_age = 14*24*3600
     LOGGING_SHORTCUT = 'g'
 
-    def __init__(self, network):
+    def __init__(self):
         seed = os.urandom(32)
         node = BIP32Node.from_rootseed(seed, xtype='standard')
         xprv = node.to_xprv()
@@ -394,16 +446,16 @@ class LNGossip(LNWorker):
         known = self.channel_db.get_channel_ids()
         new = set(ids) - set(known)
         self.unknown_ids.update(new)
-        self.network.trigger_callback('unknown_channels', len(self.unknown_ids))
-        self.network.trigger_callback('gossip_peers', self.num_peers())
-        self.network.trigger_callback('ln_gossip_sync_progress')
+        util.trigger_callback('unknown_channels', len(self.unknown_ids))
+        util.trigger_callback('gossip_peers', self.num_peers())
+        util.trigger_callback('ln_gossip_sync_progress')
 
     def get_ids_to_query(self):
         N = 500
         l = list(self.unknown_ids)
         self.unknown_ids = set(l[N:])
-        self.network.trigger_callback('unknown_channels', len(self.unknown_ids))
-        self.network.trigger_callback('ln_gossip_sync_progress')
+        util.trigger_callback('unknown_channels', len(self.unknown_ids))
+        util.trigger_callback('ln_gossip_sync_progress')
         return l[0:N]
 
     def get_sync_progress_estimate(self) -> Tuple[Optional[int], Optional[int]]:
@@ -431,7 +483,6 @@ class LNWallet(LNWorker):
         self.payments = self.db.get_dict('lightning_payments')     # RHASH -> amount, direction, is_paid
         self.preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
         self.sweep_address = wallet.get_receiving_address()
-        self.lock = threading.RLock()
         self.logs = defaultdict(list)  # type: Dict[str, List[PaymentAttemptLog]]  # key is RHASH  # (not persisted)
         self.is_routing = set()        # (not persisted) keys of invoices that are in PR_ROUTING state
         # used in tests
@@ -515,7 +566,7 @@ class LNWallet(LNWorker):
     def peer_closed(self, peer):
         for chan in self.channels_for_peer(peer.pubkey).values():
             chan.peer_state = PeerState.DISCONNECTED
-            self.network.trigger_callback('channel', chan)
+            util.trigger_callback('channel', chan)
         super().peer_closed(peer)
 
     def get_settled_payments(self):
@@ -646,14 +697,14 @@ class LNWallet(LNWorker):
 
     def channel_state_changed(self, chan):
         self.save_channel(chan)
-        self.network.trigger_callback('channel', chan)
+        util.trigger_callback('channel', chan)
 
     def save_channel(self, chan):
         assert type(chan) is Channel
         if chan.config[REMOTE].next_per_commitment_point == chan.config[REMOTE].current_per_commitment_point:
             raise Exception("Tried to save channel with next_point == current_point, this should not happen")
         self.wallet.save_db()
-        self.network.trigger_callback('channel', chan)
+        util.trigger_callback('channel', chan)
 
     def channel_by_txo(self, txo):
         with self.lock:
@@ -669,12 +720,12 @@ class LNWallet(LNWorker):
             await self.try_force_closing(chan.channel_id)
 
         elif chan.get_state() == ChannelState.FUNDED:
-            peer = self.peers.get(chan.node_id)
+            peer = self._peers.get(chan.node_id)
             if peer and peer.is_initialized():
                 peer.send_funding_locked(chan)
 
         elif chan.get_state() == ChannelState.OPEN:
-            peer = self.peers.get(chan.node_id)
+            peer = self._peers.get(chan.node_id)
             if peer:
                 await peer.maybe_update_fee(chan)
                 conf = self.lnwatcher.get_tx_height(chan.funding_outpoint.txid).conf
@@ -687,9 +738,6 @@ class LNWallet(LNWorker):
             if height == TX_HEIGHT_LOCAL:
                 self.logger.info('REBROADCASTING CLOSING TX')
                 await self.network.try_broadcasting(force_close_tx, 'force-close')
-
-
-
 
     @log_exceptions
     async def _open_channel_coroutine(self, *, connect_str: str, funding_tx: PartialTransaction,
@@ -704,7 +752,7 @@ class LNWallet(LNWorker):
             funding_sat=funding_sat,
             push_msat=push_sat * 1000,
             temp_channel_id=os.urandom(32))
-        self.network.trigger_callback('channels_updated', self.wallet)
+        util.trigger_callback('channels_updated', self.wallet)
         self.wallet.add_transaction(funding_tx)  # save tx as local into the wallet
         self.wallet.set_label(funding_tx.txid(), _('Open channel'))
         if funding_tx.is_complete():
@@ -721,29 +769,6 @@ class LNWallet(LNWorker):
         channels_db = self.db.get_dict('channels')
         channels_db[chan.channel_id.hex()] = chan.storage
         self.wallet.save_backup()
-
-    @log_exceptions
-    async def add_peer(self, connect_str: str) -> Peer:
-        node_id, rest = extract_nodeid(connect_str)
-        peer = self.peers.get(node_id)
-        if not peer:
-            if rest is not None:
-                host, port = split_host_port(rest)
-            else:
-                addrs = self.channel_db.get_node_addresses(node_id)
-                if not addrs:
-                    raise ConnStringFormatError(_('Don\'t know any addresses for node:') + ' ' + bh2u(node_id))
-                host, port, timestamp = self.choose_preferred_address(addrs)
-            port = int(port)
-            # Try DNS-resolving the host (if needed). This is simply so that
-            # the caller gets a nice exception if it cannot be resolved.
-            try:
-                await asyncio.get_event_loop().getaddrinfo(host, port)
-            except socket.gaierror:
-                raise ConnStringFormatError(_('Hostname does not resolve (getaddrinfo failed)'))
-            # add peer
-            peer = await self._add_peer(host, port, node_id)
-        return peer
 
     def mktx_for_open_channel(self, *, coins: Sequence[PartialTxInput], funding_sat: int,
                               fee_est=None) -> PartialTransaction:
@@ -805,10 +830,10 @@ class LNWallet(LNWorker):
                 # note: path-finding runs in a separate thread so that we don't block the asyncio loop
                 # graph updates might occur during the computation
                 self.set_invoice_status(key, PR_ROUTING)
-                self.network.trigger_callback('invoice_status', key)
+                util.trigger_callback('invoice_status', key)
                 route = await run_in_thread(self._create_route_from_invoice, lnaddr)
                 self.set_invoice_status(key, PR_INFLIGHT)
-                self.network.trigger_callback('invoice_status', key)
+                util.trigger_callback('invoice_status', key)
                 payment_attempt_log = await self._pay_to_route(route, lnaddr)
             except Exception as e:
                 log.append(PaymentAttemptLog(success=False, exception=e))
@@ -821,17 +846,17 @@ class LNWallet(LNWorker):
                 break
         else:
             reason = _('Failed after {} attempts').format(attempts)
-        self.network.trigger_callback('invoice_status', key)
+        util.trigger_callback('invoice_status', key)
         if success:
-            self.network.trigger_callback('payment_succeeded', key)
+            util.trigger_callback('payment_succeeded', key)
         else:
-            self.network.trigger_callback('payment_failed', key, reason)
+            util.trigger_callback('payment_failed', key, reason)
         return success
 
     async def _pay_to_route(self, route: LNPaymentRoute, lnaddr: LnAddr) -> PaymentAttemptLog:
         short_channel_id = route[0].short_channel_id
         chan = self.get_channel_by_short_id(short_channel_id)
-        peer = self.peers.get(route[0].node_id)
+        peer = self._peers.get(route[0].node_id)
         if not peer:
             raise Exception('Dropped peer')
         await peer.initialized
@@ -841,7 +866,7 @@ class LNWallet(LNWorker):
                         payment_hash=lnaddr.paymenthash,
                         min_final_cltv_expiry=lnaddr.get_min_final_cltv_expiry(),
                         payment_secret=lnaddr.payment_secret)
-        self.network.trigger_callback('htlc_added', htlc, lnaddr, SENT)
+        util.trigger_callback('htlc_added', htlc, lnaddr, SENT)
         payment_attempt = await self.await_payment(lnaddr.paymenthash)
         if payment_attempt.success:
             failure_log = None
@@ -1140,9 +1165,9 @@ class LNWallet(LNWorker):
             f.set_result(payment_attempt)
         else:
             chan.logger.info('received unexpected payment_failed, probably from previous session')
-            self.network.trigger_callback('invoice_status', key)
-            self.network.trigger_callback('payment_failed', key, '')
-        self.network.trigger_callback('ln_payment_failed', payment_hash, chan.channel_id)
+            util.trigger_callback('invoice_status', key)
+            util.trigger_callback('payment_failed', key, '')
+        util.trigger_callback('ln_payment_failed', payment_hash, chan.channel_id)
 
     def payment_sent(self, chan, payment_hash: bytes):
         self.set_payment_status(payment_hash, PR_PAID)
@@ -1156,14 +1181,14 @@ class LNWallet(LNWorker):
             f.set_result(payment_attempt)
         else:
             chan.logger.info('received unexpected payment_sent, probably from previous session')
-            self.network.trigger_callback('invoice_status', key)
-            self.network.trigger_callback('payment_succeeded', key)
-        self.network.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
+            util.trigger_callback('invoice_status', key)
+            util.trigger_callback('payment_succeeded', key)
+        util.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
 
     def payment_received(self, chan, payment_hash: bytes):
         self.set_payment_status(payment_hash, PR_PAID)
-        self.network.trigger_callback('request_status', payment_hash.hex(), PR_PAID)
-        self.network.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
+        util.trigger_callback('request_status', payment_hash.hex(), PR_PAID)
+        util.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
 
     async def _calc_routing_hints_for_invoice(self, amount_sat):
         """calculate routing hints (BOLT-11 'r' field)"""
@@ -1227,7 +1252,7 @@ class LNWallet(LNWorker):
 
     async def close_channel(self, chan_id):
         chan = self.channels[chan_id]
-        peer = self.peers[chan.node_id]
+        peer = self._peers[chan.node_id]
         return await peer.close_channel(chan_id)
 
     async def force_close_channel(self, chan_id):
@@ -1252,8 +1277,8 @@ class LNWallet(LNWorker):
             self.channels.pop(chan_id)
             self.db.get('channels').pop(chan_id.hex())
 
-        self.network.trigger_callback('channels_updated', self.wallet)
-        self.network.trigger_callback('wallet_updated', self.wallet)
+        util.trigger_callback('channels_updated', self.wallet)
+        util.trigger_callback('wallet_updated', self.wallet)
 
     @ignore_exceptions
     @log_exceptions
@@ -1270,18 +1295,10 @@ class LNWallet(LNWorker):
             peer_addresses.append(LNPeerAddr(host, port, chan.node_id))
         # will try addresses stored in channel storage
         peer_addresses += list(chan.get_peer_addresses())
+        # Done gathering addresses.
         # Now select first one that has not failed recently.
-        # Use long retry interval to check. This ensures each address we gathered gets a chance.
         for peer in peer_addresses:
-            last_tried = self._last_tried_peer.get(peer, 0)
-            if last_tried + PEER_RETRY_INTERVAL < now:
-                await self._add_peer(peer.host, peer.port, peer.pubkey)
-                return
-        # Still here? That means all addresses failed ~recently.
-        # Use short retry interval now.
-        for peer in peer_addresses:
-            last_tried = self._last_tried_peer.get(peer, 0)
-            if last_tried + PEER_RETRY_INTERVAL_FOR_CHANNELS < now:
+            if self._can_retry_addr(peer, urgent=True, now=now):
                 await self._add_peer(peer.host, peer.port, peer.pubkey)
                 return
 
@@ -1296,7 +1313,7 @@ class LNWallet(LNWorker):
                 # reestablish
                 if not chan.should_try_to_reestablish_peer():
                     continue
-                peer = self.peers.get(chan.node_id, None)
+                peer = self._peers.get(chan.node_id, None)
                 if peer:
                     await peer.taskgroup.spawn(peer.reestablish_channel(chan))
                 else:
@@ -1356,7 +1373,7 @@ class LNBackups(Logger):
             self.channel_backups[bfh(channel_id)] = ChannelBackup(cb, sweep_address=self.sweep_address, lnworker=self)
 
     def channel_state_changed(self, chan):
-        self.network.trigger_callback('channel', chan)
+        util.trigger_callback('channel', chan)
 
     def peer_closed(self, chan):
         pass
@@ -1390,7 +1407,7 @@ class LNBackups(Logger):
         d[channel_id] = cb_storage
         self.channel_backups[bfh(channel_id)] = cb = ChannelBackup(cb_storage, sweep_address=self.sweep_address, lnworker=self)
         self.wallet.save_db()
-        self.network.trigger_callback('channels_updated', self.wallet)
+        util.trigger_callback('channels_updated', self.wallet)
         self.lnwatcher.add_channel(cb.funding_outpoint.to_str(), cb.get_funding_address())
 
     def remove_channel_backup(self, channel_id):
@@ -1400,13 +1417,14 @@ class LNBackups(Logger):
         d.pop(channel_id.hex())
         self.channel_backups.pop(channel_id)
         self.wallet.save_db()
-        self.network.trigger_callback('channels_updated', self.wallet)
+        util.trigger_callback('channels_updated', self.wallet)
 
     @log_exceptions
     async def request_force_close(self, channel_id):
         cb = self.channel_backups[channel_id].cb
         peer_addr = LNPeerAddr(cb.host, cb.port, cb.node_id)
-        transport = LNTransport(cb.privkey, peer_addr)
+        transport = LNTransport(cb.privkey, peer_addr,
+                                proxy=self.network.proxy)
         peer = Peer(self, cb.node_id, transport)
         await self.taskgroup.spawn(peer._message_loop())
         await peer.initialized

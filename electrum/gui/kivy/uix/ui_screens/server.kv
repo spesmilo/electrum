@@ -16,27 +16,14 @@ Popup:
                 height: '36dp'
                 size_hint_x: 1
                 size_hint_y: None
-                text: _('Host') + ':'
+                text: _('Server') + ':'
             TextInput:
-                id: host
+                id: server_str
                 multiline: False
                 height: '36dp'
                 size_hint_x: 3
                 size_hint_y: None
-                text: app.network.get_parameters().host
-            Label:
-                height: '36dp'
-                size_hint_x: 1
-                size_hint_y: None
-                text: _('Port') + ':'
-            TextInput:
-                id: port
-                multiline: False
-                input_type: 'number'
-                height: '36dp'
-                size_hint_x: 3
-                size_hint_y: None
-                text: app.network.get_parameters().port
+                text: app.network.get_parameters().server.net_addr_str()
             Widget
             Button:
                 id: chooser
@@ -56,7 +43,5 @@ Popup:
                 height: '48dp'
                 text: _('OK')
                 on_release:
-                    net_params = app.network.get_parameters()
-                    net_params = net_params._replace(host=str(root.ids.host.text), port=str(root.ids.port.text))
-                    app.network.run_from_another_thread(app.network.set_parameters(net_params))
+                    app.maybe_switch_to_server(str(root.ids.server_str.text))
                     nd.dismiss()
