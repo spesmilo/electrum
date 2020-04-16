@@ -397,7 +397,7 @@ class ECPrivkey(ECPubkey):
         if not public_key.verify_digest(sig, data, sigdecode=sigdecode):
             raise Exception('Sanity check verifying our own signature failed.')
         return sig
-
+    
     def sign_transaction(self, hashed_preimage: bytes) -> bytes:
         return self.sign(hashed_preimage,
                          sigencode=der_sig_from_r_and_s,
