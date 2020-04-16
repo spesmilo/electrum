@@ -242,7 +242,7 @@ class ChannelDB(SqlDB):
 
     def __init__(self, network: 'Network'):
         path = os.path.join(get_headers_dir(network.config), 'gossip_db')
-        super().__init__(network, path, commit_interval=100)
+        super().__init__(network.asyncio_loop, path, commit_interval=100)
         self.lock = threading.RLock()
         self.num_nodes = 0
         self.num_channels = 0
