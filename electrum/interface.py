@@ -34,6 +34,7 @@ from collections import defaultdict
 from ipaddress import IPv4Network, IPv6Network, ip_address, IPv6Address
 import itertools
 import logging
+import hashlib
 
 import aiorpcx
 from aiorpcx import TaskGroup
@@ -426,6 +427,12 @@ class Interface(Logger):
     @log_exceptions
     @handle_disconnect
     async def run(self):
+        expected_fingerprint = self.network.config.get("fingerprint")
+        if expected_fingerprint:
+            has_matching_certificate = await self.verify_server_certificate(expected_fingerprint)
+            if not has_matching_certificate:
+                self.logger.warning(f'Refusing to connect to main server due to SSL certificate fingerprint mismatch')
+                return
         try:
             ssl_context = await self._get_ssl_context()
         except (ErrorParsingSSLCert, ErrorGettingSSLCertFromServer) as e:
@@ -491,6 +498,12 @@ class Interface(Logger):
             asyncio_transport = session.transport._asyncio_transport  # type: asyncio.BaseTransport
             ssl_object = asyncio_transport.get_extra_info("ssl_object")  # type: ssl.SSLObject
             return ssl_object.getpeercert(binary_form=True)
+
+    async def verify_server_certificate(self, expected_fingerprint):
+        certificate = await self.get_certificate()
+        fingerprint = hashlib.sha256(certificate).hexdigest()
+
+        return fingerprint.lower() == expected_fingerprint.lower()
 
     async def get_block_header(self, height, assert_mode):
         self.logger.info(f'requesting block header {height} in mode {assert_mode}')
