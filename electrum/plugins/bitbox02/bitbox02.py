@@ -5,22 +5,22 @@
 import hid
 from typing import TYPE_CHECKING, Dict, Tuple, Optional, List, Any, Callable
 
-from electrum import bip32, constants
-from electrum.i18n import _
-from electrum.keystore import Hardware_KeyStore
-from electrum.transaction import PartialTransaction
-from electrum.wallet import Standard_Wallet, Multisig_Wallet, Deterministic_Wallet
-from electrum.util import bh2u, UserFacingException
-from electrum.base_wizard import ScriptTypeNotSupported, BaseWizard
-from electrum.logging import get_logger
-from electrum.plugin import Device, DeviceInfo
-from electrum.simple_config import SimpleConfig
-from electrum.json_db import StoredDict
-from electrum.storage import get_derivation_used_for_hw_device_encryption
-from electrum.bitcoin import OnchainOutputType
+from electrumsys import bip32, constants
+from electrumsys.i18n import _
+from electrumsys.keystore import Hardware_KeyStore
+from electrumsys.transaction import PartialTransaction
+from electrumsys.wallet import Standard_Wallet, Multisig_Wallet, Deterministic_Wallet
+from electrumsys.util import bh2u, UserFacingException
+from electrumsys.base_wizard import ScriptTypeNotSupported, BaseWizard
+from electrumsys.logging import get_logger
+from electrumsys.plugin import Device, DeviceInfo
+from electrumsys.simple_config import SimpleConfig
+from electrumsys.json_db import StoredDict
+from electrumsys.storage import get_derivation_used_for_hw_device_encryption
+from electrumsys.bitcoin import OnchainOutputType
 
-import electrum.bitcoin as bitcoin
-import electrum.ecc as ecc
+import electrumsys.bitcoin as bitcoin
+import electrumsys.ecc as ecc
 
 from ..hw_wallet import HW_PluginBase, HardwareClientBase
 

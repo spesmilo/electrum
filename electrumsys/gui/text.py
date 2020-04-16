@@ -20,9 +20,9 @@ from electrumsys.interface import ServerAddr
 from electrumsys.logging import console_stderr_handler
 
 if TYPE_CHECKING:
-    from electrum.daemon import Daemon
-    from electrum.simple_config import SimpleConfig
-    from electrum.plugin import Plugins
+    from electrumsys.daemon import Daemon
+    from electrumsys.simple_config import SimpleConfig
+    from electrumsys.plugin import Plugins
 
 
 _ = lambda x:x  # i18n
@@ -409,7 +409,7 @@ class ElectrumSysGui:
         if not self.network:
             return
         net_params = self.network.get_parameters()
-        host, port, protocol = net_params.host, net_params.port, net_params.protocol
+        server_addr = net_params.server
         proxy_config, auto_connect = net_params.proxy, net_params.auto_connect
         srv = 'auto-connect' if auto_connect else str(self.network.default_server)
         out = self.run_dialog('Network', [
@@ -426,12 +426,11 @@ class ElectrumSysGui:
                     except Exception:
                         self.show_message("Error:" + server_str + "\nIn doubt, type \"auto-connect\"")
                         return False
-                    host = server_addr.host
-                    port = str(server_addr.port)
-                    protocol = server_addr.protocol
             if out.get('server') or out.get('proxy'):
                 proxy = electrumsys.network.deserialize_proxy(out.get('proxy')) if out.get('proxy') else proxy_config
-                net_params = NetworkParameters(host, port, protocol, proxy, auto_connect)
+                net_params = NetworkParameters(server=server_addr,
+                                               proxy=proxy,
+                                               auto_connect=auto_connect)
                 self.network.run_from_another_thread(self.network.set_parameters(net_params))
 
     def settings_dialog(self):
