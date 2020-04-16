@@ -74,6 +74,7 @@ class Peer(Logger):
         self.lnworker = lnworker
         self.privkey = self.transport.privkey  # local privkey
         self.features = self.lnworker.features
+        self.their_features = 0
         self.node_ids = [self.pubkey, privkey_to_pubkey(self.privkey)]
         self.network = lnworker.network
         self.channel_db = lnworker.network.channel_db
@@ -200,15 +201,15 @@ class Peer(Logger):
         if self._received_init:
             self.logger.info("ALREADY INITIALIZED BUT RECEIVED INIT")
             return
-        their_features = LnFeatures(int.from_bytes(payload['features'], byteorder="big"))
+        self.their_features = LnFeatures(int.from_bytes(payload['features'], byteorder="big"))
         their_globalfeatures = int.from_bytes(payload['globalfeatures'], byteorder="big")
-        their_features |= their_globalfeatures
+        self.their_features |= their_globalfeatures
         # check transitive dependencies for received features
-        if not their_features.validate_transitive_dependecies():
+        if not self.their_features.validate_transitive_dependecies():
             raise GracefulDisconnect("remote did not set all dependencies for the features they sent")
         # check if features are compatible, and set self.features to what we negotiated
         try:
-            self.features = ln_compare_features(self.features, their_features)
+            self.features = ln_compare_features(self.features, self.their_features)
         except IncompatibleLightningFeatures as e:
             self.initialized.set_exception(e)
             raise GracefulDisconnect(f"{str(e)}")

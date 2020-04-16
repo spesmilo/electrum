@@ -53,6 +53,7 @@ from .wallet import Abstract_Wallet, create_new_wallet, restore_wallet_from_text
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from .mnemonic import Mnemonic
 from .lnutil import SENT, RECEIVED
+from .lnutil import LnFeatures
 from .lnutil import ln_dummy_address
 from .lnpeer import channel_id_from_funding_tx
 from .plugin import run_hook
@@ -970,18 +971,21 @@ class Commands:
 
     # lightning network commands
     @command('wn')
-    async def add_peer(self, connection_string, timeout=20, wallet: Abstract_Wallet = None):
-        await wallet.lnworker.add_peer(connection_string)
+    async def add_peer(self, connection_string, timeout=20, gossip=False, wallet: Abstract_Wallet = None):
+        lnworker = self.network.lngossip if gossip else wallet.lnworker
+        await lnworker.add_peer(connection_string)
         return True
 
     @command('wn')
-    async def list_peers(self, wallet: Abstract_Wallet = None):
+    async def list_peers(self, gossip=False, wallet: Abstract_Wallet = None):
+        lnworker = self.network.lngossip if gossip else wallet.lnworker
         return [{
             'node_id':p.pubkey.hex(),
             'address':p.transport.name(),
             'initialized':p.is_initialized(),
+            'features': str(LnFeatures(p.features)),
             'channels': [c.funding_outpoint.to_str() for c in p.channels.values()],
-        } for p in wallet.lnworker.peers.values()]
+        } for p in lnworker.peers.values()]
 
     @command('wpn')
     async def open_channel(self, connection_string, amount, push_amount=0, password=None, wallet: Abstract_Wallet = None):
@@ -1170,6 +1174,7 @@ command_options = {
     'from_height': (None, "Only show transactions that confirmed after given block height"),
     'to_height':   (None, "Only show transactions that confirmed before given block height"),
     'iknowwhatimdoing': (None, "Acknowledge that I understand the full implications of what I am about to do"),
+    'gossip':      (None, "Apply command to gossip node instead of wallet"),
 }
 
 
