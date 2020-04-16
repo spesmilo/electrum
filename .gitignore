@@ -16,7 +16,7 @@ bin/
 .idea
 .mypy_cache
 .vscode
-electrum_data
+electrumsys_data
 
 # icons
 electrumsys/gui/kivy/theming/light-0.png
