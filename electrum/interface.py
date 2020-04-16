@@ -191,6 +191,7 @@ class RequestCorrupted(GracefulDisconnect): pass
 
 class ErrorParsingSSLCert(Exception): pass
 class ErrorGettingSSLCertFromServer(Exception): pass
+class ErrorSSLCertFingerprintMismatch(Exception): pass
 class ConnectError(NetworkException): pass
 
 
@@ -429,8 +430,7 @@ class Interface(Logger):
     async def run(self):
         expected_fingerprint = self.network.config.get("fingerprint")
         if expected_fingerprint and not await self.verify_server_certificate(expected_fingerprint):
-            self.logger.warning(f'Refusing to connect to server due to SSL certificate fingerprint mismatch')
-            return
+            raise ErrorSSLCertFingerprintMismatch('Refusing to connect to server due to SSL certificate fingerprint mismatch')
         try:
             ssl_context = await self._get_ssl_context()
         except (ErrorParsingSSLCert, ErrorGettingSSLCertFromServer) as e:
