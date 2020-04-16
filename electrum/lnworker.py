@@ -392,6 +392,29 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
             peer.close_and_cleanup()
         self._clear_addr_retry_times()
 
+    @log_exceptions
+    async def add_peer(self, connect_str: str) -> Peer:
+        node_id, rest = extract_nodeid(connect_str)
+        peer = self._peers.get(node_id)
+        if not peer:
+            if rest is not None:
+                host, port = split_host_port(rest)
+            else:
+                addrs = self.channel_db.get_node_addresses(node_id)
+                if not addrs:
+                    raise ConnStringFormatError(_('Don\'t know any addresses for node:') + ' ' + bh2u(node_id))
+                host, port, timestamp = self.choose_preferred_address(addrs)
+            port = int(port)
+            # Try DNS-resolving the host (if needed). This is simply so that
+            # the caller gets a nice exception if it cannot be resolved.
+            try:
+                await asyncio.get_event_loop().getaddrinfo(host, port)
+            except socket.gaierror:
+                raise ConnStringFormatError(_('Hostname does not resolve (getaddrinfo failed)'))
+            # add peer
+            peer = await self._add_peer(host, port, node_id)
+        return peer
+
 
 class LNGossip(LNWorker):
     max_age = 14*24*3600
@@ -716,9 +739,6 @@ class LNWallet(LNWorker):
                 self.logger.info('REBROADCASTING CLOSING TX')
                 await self.network.try_broadcasting(force_close_tx, 'force-close')
 
-
-
-
     @log_exceptions
     async def _open_channel_coroutine(self, *, connect_str: str, funding_tx: PartialTransaction,
                                       funding_sat: int, push_sat: int,
@@ -749,29 +769,6 @@ class LNWallet(LNWorker):
         channels_db = self.db.get_dict('channels')
         channels_db[chan.channel_id.hex()] = chan.storage
         self.wallet.save_backup()
-
-    @log_exceptions
-    async def add_peer(self, connect_str: str) -> Peer:
-        node_id, rest = extract_nodeid(connect_str)
-        peer = self._peers.get(node_id)
-        if not peer:
-            if rest is not None:
-                host, port = split_host_port(rest)
-            else:
-                addrs = self.channel_db.get_node_addresses(node_id)
-                if not addrs:
-                    raise ConnStringFormatError(_('Don\'t know any addresses for node:') + ' ' + bh2u(node_id))
-                host, port, timestamp = self.choose_preferred_address(addrs)
-            port = int(port)
-            # Try DNS-resolving the host (if needed). This is simply so that
-            # the caller gets a nice exception if it cannot be resolved.
-            try:
-                await asyncio.get_event_loop().getaddrinfo(host, port)
-            except socket.gaierror:
-                raise ConnStringFormatError(_('Hostname does not resolve (getaddrinfo failed)'))
-            # add peer
-            peer = await self._add_peer(host, port, node_id)
-        return peer
 
     def mktx_for_open_channel(self, *, coins: Sequence[PartialTxInput], funding_sat: int,
                               fee_est=None) -> PartialTransaction:
