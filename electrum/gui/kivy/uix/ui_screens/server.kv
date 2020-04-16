@@ -1,5 +1,3 @@
-#:import ServerAddr electrum.interface.ServerAddr
-
 Popup:
     id: nd
     title: _('Server')
@@ -18,27 +16,14 @@ Popup:
                 height: '36dp'
                 size_hint_x: 1
                 size_hint_y: None
-                text: _('Host') + ':'
+                text: _('Server') + ':'
             TextInput:
-                id: host
+                id: server_str
                 multiline: False
                 height: '36dp'
                 size_hint_x: 3
                 size_hint_y: None
-                text: app.network.get_parameters().server.host
-            Label:
-                height: '36dp'
-                size_hint_x: 1
-                size_hint_y: None
-                text: _('Port') + ':'
-            TextInput:
-                id: port
-                multiline: False
-                input_type: 'number'
-                height: '36dp'
-                size_hint_x: 3
-                size_hint_y: None
-                text: str(app.network.get_parameters().server.port)
+                text: app.network.get_parameters().server.net_addr_str()
             Widget
             Button:
                 id: chooser
@@ -58,5 +43,5 @@ Popup:
                 height: '48dp'
                 text: _('OK')
                 on_release:
-                    app.maybe_switch_to_server(host=str(root.ids.host.text), port=str(root.ids.port.text))
+                    app.maybe_switch_to_server(str(root.ids.server_str.text))
                     nd.dismiss()

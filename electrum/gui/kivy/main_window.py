@@ -145,13 +145,11 @@ class ElectrumWindow(App):
         servers = self.network.get_servers()
         ChoiceDialog(_('Choose a server'), sorted(servers), popup.ids.host.text, cb2).open()
 
-    def maybe_switch_to_server(self, *, host: str, port: str):
+    def maybe_switch_to_server(self, server_str: str):
         from electrum.interface import ServerAddr
         net_params = self.network.get_parameters()
         try:
-            server = ServerAddr(host=host,
-                                port=port,
-                                protocol=net_params.server.protocol)
+            server = ServerAddr.from_str_with_inference(server_str)
         except Exception as e:
             self.show_error(_("Invalid server details: {}").format(repr(e)))
             return

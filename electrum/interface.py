@@ -65,6 +65,10 @@ BUCKET_NAME_OF_ONION_SERVERS = 'onion'
 
 MAX_INCOMING_MSG_SIZE = 1_000_000  # in bytes
 
+_KNOWN_NETWORK_PROTOCOLS = {'t', 's'}
+PREFERRED_NETWORK_PROTOCOL = 's'
+assert PREFERRED_NETWORK_PROTOCOL in _KNOWN_NETWORK_PROTOCOLS
+
 
 class NetworkTimeout:
     # seconds
@@ -212,7 +216,7 @@ class ServerAddr:
             net_addr = NetAddress(host, port)  # this validates host and port
         except Exception as e:
             raise ValueError(f"cannot construct ServerAddr: invalid host or port (host={host}, port={port})") from e
-        if protocol not in ('s', 't'):
+        if protocol not in _KNOWN_NETWORK_PROTOCOLS:
             raise ValueError(f"invalid network protocol: {protocol}")
         self.host = str(net_addr.host)  # canonical form (if e.g. IPv6 address)
         self.port = int(net_addr.port)
@@ -223,6 +227,24 @@ class ServerAddr:
     def from_str(cls, s: str) -> 'ServerAddr':
         # host might be IPv6 address, hence do rsplit:
         host, port, protocol = str(s).rsplit(':', 2)
+        return ServerAddr(host=host, port=port, protocol=protocol)
+
+    @classmethod
+    def from_str_with_inference(cls, s: str) -> Optional['ServerAddr']:
+        """Construct ServerAddr from str, guessing missing details.
+        Ongoing compatibility not guaranteed.
+        """
+        if not s:
+            return None
+        items = str(s).rsplit(':', 2)
+        if len(items) < 2:
+            return None  # although maybe we could guess the port too?
+        host = items[0]
+        port = items[1]
+        if len(items) >= 3:
+            protocol = items[2]
+        else:
+            protocol = PREFERRED_NETWORK_PROTOCOL
         return ServerAddr(host=host, port=port, protocol=protocol)
 
     def __str__(self):
