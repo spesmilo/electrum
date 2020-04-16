@@ -268,8 +268,8 @@ class Network(Logger):
             try:
                 deserialize_server(self.default_server)
             except:
-                self.logger.warning('failed to parse server-string; falling back to localhost:50123:s.')
-                self.default_server = "localhost:50123:s"
+                self.logger.warning('failed to parse server-string; falling back to localhost:1:s.')
+                self.default_server = "localhost:1:s"
         if not self.default_server:
             self.default_server = pick_random_server()
 
