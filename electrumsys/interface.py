@@ -470,13 +470,12 @@ class Interface(Logger):
 
     async def get_certificate(self):
         sslc = ssl.SSLContext()
-        try:
-            async with _RSClient(session_factory=RPCSession,
-                                 host=self.host, port=self.port,
-                                 ssl=sslc, proxy=self.proxy) as session:
-                return session.transport._asyncio_transport._ssl_protocol._sslpipe._sslobj.getpeercert(True)
-        except ValueError:
-            return None
+        async with _RSClient(session_factory=RPCSession,
+                             host=self.host, port=self.port,
+                             ssl=sslc, proxy=self.proxy) as session:
+            asyncio_transport = session.transport._asyncio_transport  # type: asyncio.BaseTransport
+            ssl_object = asyncio_transport.get_extra_info("ssl_object")  # type: ssl.SSLObject
+            return ssl_object.getpeercert(binary_form=True)
 
     async def get_block_header(self, height, assert_mode):
         self.logger.info(f'requesting block header {height} in mode {assert_mode}')
