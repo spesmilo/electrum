@@ -754,8 +754,12 @@ is_private_key = lambda x: is_xprv(x) or is_private_key_list(x)
 is_bip32_key = lambda x: is_xprv(x) or is_xpub(x)
 
 
-def bip44_derivation(account_id, bip43_purpose=44):
-    coin = constants.net.BIP44_COIN_TYPE
+def bip44_derivation(account_id, bip43_purpose=44, forHardwareWallet=False):
+    # m / 44' / coin_type' / account' / change / address_index
+    if forHardwareWallet:
+        coin = constants.net.BIP44_COIN_TYPE_HW
+    else:
+        coin = constants.net.BIP44_COIN_TYPE
     return "m/%d'/%d'/%d'" % (bip43_purpose, coin, int(account_id))
 
 
