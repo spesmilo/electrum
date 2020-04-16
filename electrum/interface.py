@@ -429,7 +429,7 @@ class Interface(Logger):
     async def run(self):
         expected_fingerprint = self.network.config.get("fingerprint")
         if expected_fingerprint and not await self.verify_server_certificate(expected_fingerprint):
-            self.logger.warning(f'Refusing to connect to main server due to SSL certificate fingerprint mismatch')
+            self.logger.warning(f'Refusing to connect to server due to SSL certificate fingerprint mismatch')
             return
         try:
             ssl_context = await self._get_ssl_context()
