@@ -60,7 +60,8 @@ CKCC_SIMULATED_PID = CKCC_PID ^ 0x55aa
 
 class CKCCClient(HardwareClientBase):
 
-    def __init__(self, plugin, handler, dev_path, is_simulator=False):
+    def __init__(self, plugin, handler, dev_path, *, is_simulator=False):
+        HardwareClientBase.__init__(self, plugin=plugin)
         self.device = plugin.device
         self.handler = handler
 
@@ -515,7 +516,7 @@ class ColdcardPlugin(HW_PluginBase):
         # the 'path' is unabiguous, so we'll use that.
         try:
             rv = CKCCClient(self, handler, device.path,
-                    is_simulator=(device.product_key[1] == CKCC_SIMULATED_PID))
+                            is_simulator=(device.product_key[1] == CKCC_SIMULATED_PID))
             return rv
         except:
             self.logger.info('late failure connecting to device?')

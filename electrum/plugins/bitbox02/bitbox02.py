@@ -44,7 +44,8 @@ _logger = get_logger(__name__)
 
 class BitBox02Client(HardwareClientBase):
     # handler is a BitBox02_Handler, importing it would lead to a circular dependency
-    def __init__(self, handler: Any, device: Device, config: SimpleConfig):
+    def __init__(self, handler: Any, device: Device, config: SimpleConfig, *, plugin: HW_PluginBase):
+        HardwareClientBase.__init__(self, plugin=plugin)
         self.bitbox02_device = None
         self.handler = handler
         self.device_descriptor = device
@@ -556,12 +557,11 @@ class BitBox02Plugin(HW_PluginBase):
         else:
             raise ImportError()
 
-
     # handler is a BitBox02_Handler
     def create_client(self, device: Device, handler: Any) -> BitBox02Client:
         if not handler:
             self.handler = handler
-        return BitBox02Client(handler, device, self.config)
+        return BitBox02Client(handler, device, self.config, plugin=self)
 
     def setup_device(
         self, device_info: DeviceInfo, wizard: BaseWizard, purpose: int

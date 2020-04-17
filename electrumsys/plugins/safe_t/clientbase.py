@@ -105,6 +105,7 @@ class SafeTClientBase(HardwareClientBase, GuiMixin, Logger):
 
     def __init__(self, handler, plugin, proto):
         assert hasattr(self, 'tx_api')  # ProtocolMixin already constructed?
+        HardwareClientBase.__init__(self, plugin=plugin)
         self.proto = proto
         self.device = plugin.device
         self.handler = handler
