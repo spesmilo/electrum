@@ -192,6 +192,7 @@ class RequestCorrupted(GracefulDisconnect): pass
 class ErrorParsingSSLCert(Exception): pass
 class ErrorGettingSSLCertFromServer(Exception): pass
 class ErrorSSLCertFingerprintMismatch(Exception): pass
+class InvalidOptionCombination(Exception): pass
 class ConnectError(NetworkException): pass
 
 
@@ -430,8 +431,8 @@ class Interface(Logger):
     async def run(self):
         expected_fingerprint = self.network.config.get("serverfingerprint")
         if (expected_fingerprint and self.is_main_server()):
-            if self.protocol is not 's':
-                raise Error(f'cannot use --serverfingerprint with non-SSL servers')
+            if self.protocol != 's':
+                raise InvalidOptionCombination(f'cannot use --serverfingerprint with non-SSL servers')
             if not await self.verify_server_certificate(expected_fingerprint):
                 raise ErrorSSLCertFingerprintMismatch('Refusing to connect to server due to SSL certificate fingerprint mismatch')
         try:
