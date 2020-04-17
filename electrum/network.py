@@ -1296,3 +1296,9 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             for server in servers:
                 await group.spawn(get_response(server))
         return responses
+
+    def update_beacons(self):
+        self.maybe_init_lightning()
+        height = self.get_local_height()
+        block_hash = self.blockchain().get_hash(height)
+        self.path_finder.update_beacons(block_hash)

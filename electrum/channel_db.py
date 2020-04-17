@@ -261,6 +261,8 @@ class ChannelDB(SqlDB):
         self._channels = {}  # type: Dict[ShortChannelID, ChannelInfo]
         self._policies = {}  # type: Dict[Tuple[bytes, ShortChannelID], Policy]  # (node_id, scid) -> Policy
         self._nodes = {}  # type: Dict[bytes, NodeInfo]  # node_id -> NodeInfo
+        self.raw_node_announcements = {}
+        self.raw_channel_updates = {}
         # node_id -> (host, port, ts)
         self._addresses = defaultdict(set)  # type: Dict[bytes, Set[Tuple[str, int, int]]]
         self._channels_for_node = defaultdict(set)  # type: Dict[bytes, Set[ShortChannelID]]
@@ -427,6 +429,7 @@ class ChannelDB(SqlDB):
         self._update_num_policies_for_chan(short_channel_id)
         if 'raw' in payload:
             self._db_save_policy(policy.key, payload['raw'])
+            self.raw_channel_updates[key] = payload['raw']
         if old_policy and not self.policy_changed(old_policy, policy, verbose):
             return UpdateStatus.UNCHANGED
         else:
@@ -545,6 +548,7 @@ class ChannelDB(SqlDB):
                 self._nodes[node_id] = node_info
             if 'raw' in msg_payload:
                 self._db_save_node_info(node_id, msg_payload['raw'])
+                self.raw_node_announcements[node_id] = msg_payload['raw']
             with self.lock:
                 for addr in node_addresses:
                     self._addresses[node_id].add((addr.host, addr.port, 0))
@@ -634,9 +638,11 @@ class ChannelDB(SqlDB):
                 continue
             # don't load node_addresses because they dont have timestamps
             self._nodes[node_id] = node_info
+            self.raw_node_announcements[node_id] = msg
         c.execute("""SELECT * FROM policy""")
         for key, msg in c:
             p = Policy.from_raw_msg(key, msg)
+            self.raw_channel_updates[(p.start_node, p.short_channel_id)] = msg
             self._policies[(p.start_node, p.short_channel_id)] = p
         for channel_info in self._channels.values():
             self._channels_for_node[channel_info.node1_id].add(channel_info.short_channel_id)
@@ -675,6 +681,12 @@ class ChannelDB(SqlDB):
         nchans_with_1p = len(self._chans_with_1_policies)
         nchans_with_2p = len(self._chans_with_2_policies)
         return nchans_with_0p, nchans_with_1p, nchans_with_2p
+
+    def get_channel_update(self, start_node_id: bytes, short_channel_id: bytes) -> Optional[bytes]:
+        return self.raw_channel_updates.get((start_node_id, short_channel_id))
+
+    def get_node_announcement(self, node_id: bytes) -> Optional[bytes]:
+        return self.raw_node_announcements.get(node_id)
 
     def get_policy_for_node(self, short_channel_id: bytes, node_id: bytes, *,
                             my_channels: Dict[ShortChannelID, 'Channel'] = None) -> Optional['Policy']:

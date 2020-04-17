@@ -34,6 +34,7 @@ from .logging import Logger
 from .lnutil import (NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID, LnFeatures,
                      NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE)
 from .channel_db import ChannelDB, Policy, NodeInfo
+from .crypto import sha256
 
 if TYPE_CHECKING:
     from .lnchannel import Channel
@@ -133,6 +134,7 @@ class LNPathFinder(Logger):
         Logger.__init__(self)
         self.channel_db = channel_db
         self.blacklist = set()
+        self.block_hash_for_beacons = None
 
     def add_to_blacklist(self, short_channel_id: ShortChannelID):
         self.logger.info(f'blacklisting channel {short_channel_id}')
@@ -186,6 +188,7 @@ class LNPathFinder(Logger):
 
     def get_distances(self, nodeA: bytes, nodeB: bytes,
                       invoice_amount_msat: int, *,
+                      is_source: bool =True,
                       my_channels: Dict[ShortChannelID, 'Channel'] = None) \
                       -> Optional[Sequence[Tuple[bytes, bytes]]]:
         # note: we don't lock self.channel_db, so while the path finding runs,
@@ -204,7 +207,7 @@ class LNPathFinder(Logger):
         # main loop of search
         while nodes_to_explore.qsize() > 0:
             dist_to_edge_endnode, amount_msat, edge_endnode = nodes_to_explore.get()
-            if edge_endnode == nodeA:
+            if nodeA and edge_endnode == nodeA:
                 break
             if dist_to_edge_endnode != distance_from_start[edge_endnode]:
                 # queue.PriorityQueue does not implement decrease_priority,
@@ -231,7 +234,7 @@ class LNPathFinder(Logger):
                     start_node=edge_startnode,
                     end_node=edge_endnode,
                     payment_amt_msat=amount_msat,
-                    ignore_costs=(edge_startnode == nodeA),
+                    ignore_costs=(edge_startnode == nodeA) if nodeA else False,
                     is_mine=is_mine,
                     my_channels=my_channels)
                 alt_dist_to_neighbour = distance_from_start[edge_endnode] + edge_cost
@@ -260,8 +263,10 @@ class LNPathFinder(Logger):
         if my_channels is None:
             my_channels = {}
 
-        prev_node = self.get_distances(nodeA, nodeB, invoice_amount_msat, my_channels=my_channels)
+        prev_node = self.get_distances(nodeA, nodeB, invoice_amount_msat, is_source=True, my_channels=my_channels)
+        return self.get_path(nodeA, nodeB, prev_node)
 
+    def get_path(self, nodeA, nodeB, prev_node):
         if nodeA not in prev_node:
             return None  # no path found
 
@@ -293,3 +298,57 @@ class LNPathFinder(Logger):
                                                        node_info=node_info))
             prev_node_id = node_id
         return route
+
+    def update_beacons(self, block_hash):
+        if self.block_hash_for_beacons == block_hash:
+            return
+        self.block_hash_for_beacons = block_hash
+        b = int.from_bytes(sha256(block_hash), 'big')
+        def dist(a):
+            a = int.from_bytes(a, 'big')
+            return(str(bin(a^b)).count('1'))
+        l = [(dist(node_id), node_id) for node_id in self.channel_db._nodes.keys()]
+        l.sort()
+        self.beacons = [x[1] for x in l[:20]]
+        self.prev_nodes_to_beacons = {}
+        self.prev_nodes_from_beacons = {}
+
+    def get_prev_nodes_to_beacons(self, amount_sat, is_source):
+        if not self.channel_db.data_loaded.is_set():
+            print('not loaded')
+            return {}
+        import math
+        amount_sat = int(pow(10, math.ceil(math.log(amount_sat, 10))))
+        d = self.prev_nodes_to_beacons if is_source else self.prev_nodes_from_beacons
+        if amount_sat not in d:
+            d[amount_sat] = {}
+            for node_id in self.beacons:
+                d[amount_sat][node_id] = self.get_distances(None, node_id, 1000*amount_sat, is_source=is_source, my_channels={})
+            print('amount %8d'% amount_sat, [len(x) for x in d[amount_sat].values()])
+        return d[amount_sat]
+
+    def get_paths_to_beacons(self, amount_sat, source_id, *, is_source=True):
+        prev_nodes = self.get_prev_nodes_to_beacons(amount_sat, is_source)
+        out = {}
+        for node_id, prev in prev_nodes.items():
+            out[node_id] = self.get_path(source_id, node_id, prev)
+        return out
+
+    @profiler
+    def get_routes_to_beacons(self, amount_sat, node_id, *, is_source=True, blacklist=None):
+        paths = self.get_paths_to_beacons(amount_sat, node_id, is_source=is_source)
+        out = {}
+        for beacon_id, path in paths.items():
+            if path is None:
+                continue
+            route = []
+            prev_node_id = node_id
+            for next_node_id, short_channel_id in path:
+                start_node_id = prev_node_id if is_source else next_node_id
+                channel_update = self.channel_db.get_channel_update(start_node_id, short_channel_id)
+                node_announcement = self.channel_db.get_node_announcement(node_id=next_node_id)
+                route.append((node_announcement, channel_update.hex()))
+                prev_node_id = next_node_id
+            out[beacon_id] = route
+            self.logger.info(f'route to beacon {beacon_id.hex()}: {len(route)}' )
+        return out
