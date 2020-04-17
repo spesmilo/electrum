@@ -53,7 +53,7 @@ from . import bitcoin
 from . import dns_hacks
 from .transaction import Transaction
 from .blockchain import Blockchain, HEADER_SIZE
-from .interface import (Interface,
+from .interface import (Interface, PREFERRED_NETWORK_PROTOCOL,
                         RequestTimedOut, NetworkTimeout, BUCKET_NAME_OF_ONION_SERVERS,
                         NetworkException, RequestCorrupted, ServerAddr)
 from .version import PROTOCOL_VERSION
@@ -115,30 +115,32 @@ def filter_noonion(servers):
     return {k: v for k, v in servers.items() if not k.endswith('.onion')}
 
 
-def filter_protocol(hostmap, protocol='s') -> Sequence[ServerAddr]:
+def filter_protocol(hostmap, *, allowed_protocols: Iterable[str] = None) -> Sequence[ServerAddr]:
     """Filters the hostmap for those implementing protocol."""
+    if allowed_protocols is None:
+        allowed_protocols = {PREFERRED_NETWORK_PROTOCOL}
     eligible = []
     for host, portmap in hostmap.items():
-        port = portmap.get(protocol)
-        if port:
-            eligible.append(ServerAddr(host, port, protocol=protocol))
+        for protocol in allowed_protocols:
+            port = portmap.get(protocol)
+            if port:
+                eligible.append(ServerAddr(host, port, protocol=protocol))
     return eligible
 
 
-def pick_random_server(hostmap=None, *, protocol='s',
+def pick_random_server(hostmap=None, *, allowed_protocols: Iterable[str],
                        exclude_set: Set[ServerAddr] = None) -> Optional[ServerAddr]:
     if hostmap is None:
         hostmap = constants.net.DEFAULT_SERVERS
     if exclude_set is None:
         exclude_set = set()
-    eligible = list(set(filter_protocol(hostmap, protocol)) - exclude_set)
+    servers = set(filter_protocol(hostmap, allowed_protocols=allowed_protocols))
+    eligible = list(servers - exclude_set)
     return random.choice(eligible) if eligible else None
 
 
 class NetworkParameters(NamedTuple):
-    host: str
-    port: str
-    protocol: str
+    server: ServerAddr
     proxy: Optional[dict]
     auto_connect: bool
     oneserver: bool = False
@@ -273,6 +275,9 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self.logger.info(f"blockchains {list(map(lambda b: b.forkpoint, blockchain.blockchains.values()))}")
         self._blockchain_preferred_block = self.config.get('blockchain_preferred_block', None)  # type: Optional[Dict]
         self._blockchain = blockchain.get_best_chain()
+
+        self._allowed_protocols = {PREFERRED_NETWORK_PROTOCOL}
+
         # Server for addresses and transactions
         self.default_server = self.config.get('server', None)
         # Sanitize default server
@@ -280,10 +285,10 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             try:
                 self.default_server = ServerAddr.from_str(self.default_server)
             except:
-                self.logger.warning('failed to parse server-string; falling back to localhost.')
-                self.default_server = ServerAddr.from_str("localhost:50002:s")
+                self.logger.warning('failed to parse server-string; falling back to localhost:1:s.')
+                self.default_server = ServerAddr.from_str("localhost:1:s")
         else:
-            self.default_server = pick_random_server()
+            self.default_server = pick_random_server(allowed_protocols=self._allowed_protocols)
         assert isinstance(self.default_server, ServerAddr), f"invalid type for default_server: {self.default_server!r}"
 
         self.taskgroup = None
@@ -472,10 +477,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             util.trigger_callback(key, self.get_status_value(key))
 
     def get_parameters(self) -> NetworkParameters:
-        server = self.default_server
-        return NetworkParameters(host=server.host,
-                                 port=str(server.port),
-                                 protocol=server.protocol,
+        return NetworkParameters(server=self.default_server,
                                  proxy=self.proxy,
                                  auto_connect=self.auto_connect,
                                  oneserver=self.oneserver)
@@ -549,7 +551,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         #       we only give priority to recent_servers up to NUM_STICKY_SERVERS.
         with self.recent_servers_lock:
             recent_servers = list(self._recent_servers)
-        recent_servers = [s for s in recent_servers if s.protocol == self.protocol]
+        recent_servers = [s for s in recent_servers if s.protocol in self._allowed_protocols]
         if len(connected_servers & set(recent_servers)) < NUM_STICKY_SERVERS:
             for server in recent_servers:
                 if server in connected_servers:
@@ -559,7 +561,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 return server
         # try all servers we know about, pick one at random
         hostmap = self.get_servers()
-        servers = list(set(filter_protocol(hostmap, self.protocol)) - connected_servers)
+        servers = list(set(filter_protocol(hostmap, allowed_protocols=self._allowed_protocols)) - connected_servers)
         random.shuffle(servers)
         for server in servers:
             if not self._can_retry_addr(server, now=now):
@@ -577,10 +579,9 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     async def set_parameters(self, net_params: NetworkParameters):
         proxy = net_params.proxy
         proxy_str = serialize_proxy(proxy)
-        host, port, protocol = net_params.host, net_params.port, net_params.protocol
+        server = net_params.server
         # sanitize parameters
         try:
-            server = ServerAddr(host, port, protocol=protocol)
             if proxy:
                 proxy_modes.index(proxy['mode']) + 1
                 int(proxy['port'])
@@ -598,7 +599,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
         async with self.restart_lock:
             self.auto_connect = net_params.auto_connect
-            if self.proxy != proxy or self.protocol != protocol or self.oneserver != net_params.oneserver:
+            if self.proxy != proxy or self.oneserver != net_params.oneserver:
                 # Restart the network defaulting to the given server
                 await self._stop()
                 self.default_server = server
@@ -1101,10 +1102,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         chosen_iface = random.choice(interfaces_on_selected_chain)  # type: Interface
         # switch to server (and save to config)
         net_params = self.get_parameters()
-        server = chosen_iface.server
-        net_params = net_params._replace(host=server.host,
-                                         port=str(server.port),
-                                         protocol=server.protocol)
+        net_params = net_params._replace(server=chosen_iface.server)
         await self.set_parameters(net_params)
 
     async def follow_chain_given_server(self, server: ServerAddr) -> None:
@@ -1115,9 +1113,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self._set_preferred_chain(iface.blockchain)
         # switch to server (and save to config)
         net_params = self.get_parameters()
-        net_params = net_params._replace(host=server.host,
-                                         port=str(server.port),
-                                         protocol=server.protocol)
+        net_params = net_params._replace(server=server)
         await self.set_parameters(net_params)
 
     def get_local_height(self):
@@ -1138,7 +1134,6 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         assert not self._connecting
         self.logger.info('starting network')
         self._clear_addr_retry_times()
-        self.protocol = self.default_server.protocol
         self._set_proxy(deserialize_proxy(self.config.get('proxy')))
         self._set_oneserver(self.config.get('oneserver', False))
         await self.taskgroup.spawn(self._run_new_interface(self.default_server))
@@ -1282,7 +1277,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         session = self.interface.session
         return parse_servers(await session.send_request('server.peers.subscribe'))
 
-    async def send_multiple_requests(self, servers: List[str], method: str, params: Sequence):
+    async def send_multiple_requests(self, servers: Sequence[ServerAddr], method: str, params: Sequence):
         responses = dict()
         async def get_response(server: ServerAddr):
             interface = Interface(network=self, server=server, proxy=self.proxy)
@@ -1299,6 +1294,5 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             responses[interface.server] = res
         async with TaskGroup() as group:
             for server in servers:
-                server = ServerAddr.from_str(server)
                 await group.spawn(get_response(server))
         return responses

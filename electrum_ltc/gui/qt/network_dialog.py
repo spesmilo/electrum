@@ -36,7 +36,7 @@ from PyQt5.QtGui import QFontMetrics
 
 from electrum_ltc.i18n import _
 from electrum_ltc import constants, blockchain, util
-from electrum_ltc.interface import ServerAddr
+from electrum_ltc.interface import ServerAddr, PREFERRED_NETWORK_PROTOCOL
 from electrum_ltc.network import Network
 from electrum_ltc.logging import get_logger
 
@@ -72,6 +72,8 @@ class NetworkDialog(QDialog):
 
 
 class NodesListWidget(QTreeWidget):
+    """List of connected servers."""
+
     SERVER_ADDR_ROLE = Qt.UserRole + 100
     CHAIN_ID_ROLE = Qt.UserRole + 101
     IS_SERVER_ROLE = Qt.UserRole + 102
@@ -129,6 +131,7 @@ class NodesListWidget(QTreeWidget):
                 item = QTreeWidgetItem([i.host + star, '%d'%i.tip])
                 item.setData(0, self.IS_SERVER_ROLE, 1)
                 item.setData(0, self.SERVER_ADDR_ROLE, i.server)
+                item.setToolTip(0, str(i.server))
                 x.addChild(item)
             if n_chains > 1:
                 self.addTopLevelItem(x)
@@ -143,6 +146,8 @@ class NodesListWidget(QTreeWidget):
 
 
 class ServerListWidget(QTreeWidget):
+    """List of all known servers."""
+
     class Columns(IntEnum):
         HOST = 0
         PORT = 1
@@ -166,8 +171,7 @@ class ServerListWidget(QTreeWidget):
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def set_server(self, server: ServerAddr):
-        self.parent.server_host.setText(server.host)
-        self.parent.server_port.setText(str(server.port))
+        self.parent.server_e.setText(server.net_addr_str())
         self.parent.set_server()
 
     def keyPressEvent(self, event):
@@ -182,8 +186,9 @@ class ServerListWidget(QTreeWidget):
         pt.setX(50)
         self.customContextMenuRequested.emit(pt)
 
-    def update(self, servers, protocol, use_tor):
+    def update(self, servers, use_tor):
         self.clear()
+        protocol = PREFERRED_NETWORK_PROTOCOL
         for _host, d in sorted(servers.items()):
             if _host.endswith('.onion') and not use_tor:
                 continue
@@ -207,7 +212,6 @@ class NetworkChoiceLayout(object):
     def __init__(self, network: Network, config, wizard=False):
         self.network = network
         self.config = config
-        self.protocol = None
         self.tor_proxy = None
 
         self.tabs = tabs = QTabWidget()
@@ -225,15 +229,12 @@ class NetworkChoiceLayout(object):
         grid = QGridLayout(server_tab)
         grid.setSpacing(8)
 
-        self.server_host = QLineEdit()
-        self.server_host.setFixedWidth(fixed_width_hostname)
-        self.server_port = QLineEdit()
-        self.server_port.setFixedWidth(fixed_width_port)
+        self.server_e = QLineEdit()
+        self.server_e.setFixedWidth(fixed_width_hostname + fixed_width_port)
         self.autoconnect_cb = QCheckBox(_('Select server automatically'))
         self.autoconnect_cb.setEnabled(self.config.is_modifiable('auto_connect'))
 
-        self.server_host.editingFinished.connect(self.set_server)
-        self.server_port.editingFinished.connect(self.set_server)
+        self.server_e.editingFinished.connect(self.set_server)
         self.autoconnect_cb.clicked.connect(self.set_server)
         self.autoconnect_cb.clicked.connect(self.update)
 
@@ -245,8 +246,7 @@ class NetworkChoiceLayout(object):
         grid.addWidget(HelpButton(msg), 0, 4)
 
         grid.addWidget(QLabel(_('Server') + ':'), 1, 0)
-        grid.addWidget(self.server_host, 1, 1, 1, 2)
-        grid.addWidget(self.server_port, 1, 3)
+        grid.addWidget(self.server_e, 1, 1, 1, 3)
 
         label = _('Server peers') if network.is_connected() else _('Default Servers')
         grid.addWidget(QLabel(label), 2, 0, 1, 5)
@@ -350,29 +350,26 @@ class NetworkChoiceLayout(object):
     def enable_set_server(self):
         if self.config.is_modifiable('server'):
             enabled = not self.autoconnect_cb.isChecked()
-            self.server_host.setEnabled(enabled)
-            self.server_port.setEnabled(enabled)
+            self.server_e.setEnabled(enabled)
             self.servers_list.setEnabled(enabled)
         else:
-            for w in [self.autoconnect_cb, self.server_host, self.server_port, self.servers_list]:
+            for w in [self.autoconnect_cb, self.server_e, self.servers_list]:
                 w.setEnabled(False)
 
     def update(self):
         net_params = self.network.get_parameters()
-        host, port, protocol = net_params.host, net_params.port, net_params.protocol
+        server = net_params.server
         proxy_config, auto_connect = net_params.proxy, net_params.auto_connect
-        if not self.server_host.hasFocus() and not self.server_port.hasFocus():
-            self.server_host.setText(host)
-            self.server_port.setText(str(port))
+        if not self.server_e.hasFocus():
+            self.server_e.setText(server.net_addr_str())
         self.autoconnect_cb.setChecked(auto_connect)
 
         interface = self.network.interface
         host = interface.host if interface else _('None')
         self.server_label.setText(host)
 
-        self.set_protocol(protocol)
         self.servers = self.network.get_servers()
-        self.servers_list.update(self.servers, self.protocol, self.tor_cb.isChecked())
+        self.servers_list.update(self.servers, self.tor_cb.isChecked())
         self.enable_set_server()
 
         height_str = "%d "%(self.network.get_local_height()) + _('blocks')
@@ -413,22 +410,6 @@ class NetworkChoiceLayout(object):
     def layout(self):
         return self.layout_
 
-    def set_protocol(self, protocol):
-        if protocol != self.protocol:
-            self.protocol = protocol
-
-    def change_protocol(self, use_ssl):
-        p = 's' if use_ssl else 't'
-        host = self.server_host.text()
-        pp = self.servers.get(host, constants.net.DEFAULT_PORTS)
-        if p not in pp.keys():
-            p = list(pp.keys())[0]
-        port = pp[p]
-        self.server_host.setText(host)
-        self.server_port.setText(port)
-        self.set_protocol(p)
-        self.set_server()
-
     def follow_branch(self, chain_id):
         self.network.run_from_another_thread(self.network.follow_chain_given_id(chain_id))
         self.update()
@@ -437,35 +418,16 @@ class NetworkChoiceLayout(object):
         self.network.run_from_another_thread(self.network.follow_chain_given_server(server))
         self.update()
 
-    def server_changed(self, x):
-        if x:
-            self.change_server(str(x.text(0)), self.protocol)
-
-    def change_server(self, host, protocol):
-        pp = self.servers.get(host, constants.net.DEFAULT_PORTS)
-        if protocol and protocol not in protocol_letters:
-            protocol = None
-        if protocol:
-            port = pp.get(protocol)
-            if port is None:
-                protocol = None
-        if not protocol:
-            if 's' in pp.keys():
-                protocol = 's'
-                port = pp.get(protocol)
-            else:
-                protocol = list(pp.keys())[0]
-                port = pp.get(protocol)
-        self.server_host.setText(host)
-        self.server_port.setText(port)
-
     def accept(self):
         pass
 
     def set_server(self):
         net_params = self.network.get_parameters()
-        net_params = net_params._replace(host=str(self.server_host.text()),
-                                         port=str(self.server_port.text()),
+        try:
+            server = ServerAddr.from_str_with_inference(str(self.server_e.text()))
+        except Exception:
+            return
+        net_params = net_params._replace(server=server,
                                          auto_connect=self.autoconnect_cb.isChecked())
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
 

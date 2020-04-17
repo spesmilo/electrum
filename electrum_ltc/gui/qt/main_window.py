@@ -738,7 +738,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def donate_to_server(self):
         d = self.network.get_donation_address()
         if d:
-            host = self.network.get_parameters().host
+            host = self.network.get_parameters().server.host
             self.pay_to_URI('litecoin:%s?message=donation for %s'%(d, host))
         else:
             self.show_error(_('No donation address for this server'))
