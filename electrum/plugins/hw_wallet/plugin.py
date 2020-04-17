@@ -191,8 +191,10 @@ class HW_PluginBase(BasePlugin):
 
 class HardwareClientBase:
 
-    plugin: 'HW_PluginBase'
     handler = None  # type: Optional['HardwareHandlerBase']
+
+    def __init__(self, *, plugin: 'HW_PluginBase'):
+        self.plugin = plugin
 
     def is_pairable(self) -> bool:
         raise NotImplementedError()
