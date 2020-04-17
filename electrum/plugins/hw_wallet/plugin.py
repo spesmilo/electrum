@@ -196,6 +196,9 @@ class HardwareClientBase:
     def __init__(self, *, plugin: 'HW_PluginBase'):
         self.plugin = plugin
 
+    def device_manager(self) -> 'DeviceMgr':
+        return self.plugin.device_manager()
+
     def is_pairable(self) -> bool:
         raise NotImplementedError()
 

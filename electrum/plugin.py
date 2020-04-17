@@ -30,6 +30,8 @@ import threading
 import sys
 from typing import (NamedTuple, Any, Union, TYPE_CHECKING, Optional, Tuple,
                     Dict, Iterable, List, Sequence)
+import concurrent
+from concurrent import futures
 
 from .i18n import _
 from .util import (profiler, DaemonThread, UserCancelled, ThreadJob, UserFacingException)
@@ -321,6 +323,20 @@ class HardwarePluginToScan(NamedTuple):
 PLACEHOLDER_HW_CLIENT_LABELS = {None, "", " "}
 
 
+# hidapi is not thread-safe
+# see https://github.com/signal11/hidapi/issues/205#issuecomment-527654560
+#     https://github.com/libusb/hidapi/issues/45
+#     https://github.com/signal11/hidapi/issues/45#issuecomment-4434598
+#     https://github.com/signal11/hidapi/pull/414#issuecomment-445164238
+# It is not entirely clear to me, exactly what is safe and what isn't, when
+# using multiple threads...
+# For now, we use a dedicated thread to enumerate devices (_hid_executor),
+# and we synchronize all device opens/closes/enumeration (_hid_lock).
+# FIXME there are still probably threading issues with how we use hidapi...
+_hid_executor = None  # type: Optional[concurrent.futures.Executor]
+_hid_lock = threading.Lock()
+
+
 class DeviceMgr(ThreadJob):
     '''Manages hardware clients.  A client communicates over a hardware
     channel with the device.
@@ -367,8 +383,14 @@ class DeviceMgr(ThreadJob):
         # locks: if you need to take multiple ones, acquire them in the order they are defined here!
         self._scan_lock = threading.RLock()
         self.lock = threading.RLock()
+        self.hid_lock = _hid_lock
 
         self.config = config
+
+        global _hid_executor
+        if _hid_executor is None:
+            _hid_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1,
+                                                                  thread_name_prefix='hid_enumerate_thread')
 
     def with_scan_lock(func):
         def func_wrapper(self: 'DeviceMgr', *args, **kwargs):
@@ -636,7 +658,15 @@ class DeviceMgr(ThreadJob):
         except ImportError:
             return []
 
-        hid_list = hid.enumerate(0, 0)
+        def hid_enumerate():
+            with self.hid_lock:
+                return hid.enumerate(0, 0)
+
+        hid_list_fut = _hid_executor.submit(hid_enumerate)
+        try:
+            hid_list = hid_list_fut.result()
+        except (concurrent.futures.CancelledError, concurrent.futures.TimeoutError) as e:
+            return []
 
         devices = []
         for d in hid_list:
