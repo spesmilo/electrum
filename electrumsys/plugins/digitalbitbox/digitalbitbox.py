@@ -77,10 +77,11 @@ class DigitalBitbox_Client(HardwareClientBase):
 
     def close(self):
         if self.opened:
-            try:
-                self.dbb_hid.close()
-            except:
-                pass
+            with self.device_manager().hid_lock:
+                try:
+                    self.dbb_hid.close()
+                except:
+                    pass
         self.opened = False
 
 
@@ -681,8 +682,9 @@ class DigitalBitboxPlugin(HW_PluginBase):
 
 
     def get_dbb_device(self, device):
-        dev = hid.device()
-        dev.open_path(device.path)
+        with self.device_manager().hid_lock:
+            dev = hid.device()
+            dev.open_path(device.path)
         return dev
 
 

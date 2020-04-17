@@ -78,7 +78,8 @@ class Ledger_Client(HardwareClientBase):
         return True
 
     def close(self):
-        self.dongleObject.dongle.close()
+        with self.device_manager().hid_lock:
+            self.dongleObject.dongle.close()
 
     def timeout(self, cutoff):
         pass
@@ -188,13 +189,13 @@ class Ledger_Client(HardwareClientBase):
             self.segwitSupported = self.nativeSegwitSupported or (firmwareInfo['specialVersion'] == 0x20 and versiontuple(firmware) >= versiontuple(SEGWIT_SUPPORT_SPECIAL))
 
             if not checkFirmware(firmwareInfo):
-                self.dongleObject.dongle.close()
+                self.close()
                 raise UserFacingException(MSG_NEEDS_FW_UPDATE_GENERIC)
             try:
                 self.dongleObject.getOperationMode()
             except BTChipException as e:
                 if (e.sw == 0x6985):
-                    self.dongleObject.dongle.close()
+                    self.close()
                     self.handler.get_setup( )
                     # Acquire the new client on the next run
                 else:
@@ -597,9 +598,10 @@ class LedgerPlugin(HW_PluginBase):
                 ledger = True
             else:
                 return None  # non-compatible interface of a Nano S or Blue
-        dev = hid.device()
-        dev.open_path(device.path)
-        dev.set_nonblocking(True)
+        with self.device_manager().hid_lock:
+            dev = hid.device()
+            dev.open_path(device.path)
+            dev.set_nonblocking(True)
         return HIDDongleHIDAPI(dev, ledger, BTCHIP_DEBUG)
 
     def create_client(self, device, handler):

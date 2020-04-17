@@ -72,9 +72,9 @@ class CKCCClient(HardwareClientBase):
             self.dev = ElectrumSysColdcardDevice(dev_path, encrypt=True)
         else:
             # open the real HID device
-            import hid
-            hd = hid.device(path=dev_path)
-            hd.open_path(dev_path)
+            with self.device_manager().hid_lock:
+                hd = hid.device(path=dev_path)
+                hd.open_path(dev_path)
 
             self.dev = ElectrumSysColdcardDevice(dev=hd, encrypt=True)
 
@@ -127,7 +127,8 @@ class CKCCClient(HardwareClientBase):
 
     def close(self):
         # close the HID device (so can be reused)
-        self.dev.close()
+        with self.device_manager().hid_lock:
+            self.dev.close()
         self.dev = None
 
     def is_initialized(self):
