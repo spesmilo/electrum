@@ -184,25 +184,12 @@ class LNPathFinder(Logger):
         overall_cost = base_cost + fee_msat + cltv_cost
         return overall_cost, fee_msat
 
-    @profiler
-    def find_path_for_payment(self, nodeA: bytes, nodeB: bytes,
-                              invoice_amount_msat: int, *,
-                              my_channels: Dict[ShortChannelID, 'Channel'] = None) \
-            -> Optional[Sequence[Tuple[bytes, bytes]]]:
-        """Return a path from nodeA to nodeB.
-
-        Returns a list of (node_id, short_channel_id) representing a path.
-        To get from node ret[n][0] to ret[n+1][0], use channel ret[n+1][1];
-        i.e. an element reads as, "to get to node_id, travel through short_channel_id"
-        """
-        assert type(nodeA) is bytes
-        assert type(nodeB) is bytes
-        assert type(invoice_amount_msat) is int
-        if my_channels is None: my_channels = {}
+    def get_distances(self, nodeA: bytes, nodeB: bytes,
+                      invoice_amount_msat: int, *,
+                      my_channels: Dict[ShortChannelID, 'Channel'] = None) \
+                      -> Optional[Sequence[Tuple[bytes, bytes]]]:
         # note: we don't lock self.channel_db, so while the path finding runs,
         #       the underlying graph could potentially change... (not good but maybe ~OK?)
-
-        # FIXME paths cannot be longer than 20 edges (onion packet)...
 
         # run Dijkstra
         # The search is run in the REVERSE direction, from nodeB to nodeA,
@@ -255,10 +242,33 @@ class LNPathFinder(Logger):
                 channel_info = self.channel_db.get_channel_info(edge_channel_id, my_channels=my_channels)
                 edge_startnode = channel_info.node2_id if channel_info.node1_id == edge_endnode else channel_info.node1_id
                 inspect_edge()
-        else:
+
+        return prev_node
+
+    @profiler
+    def find_path_for_payment(self, nodeA: bytes, nodeB: bytes,
+                              invoice_amount_msat: int, *,
+                              my_channels: Dict[ShortChannelID, 'Channel'] = None) \
+            -> Optional[Sequence[Tuple[bytes, bytes]]]:
+        """Return a path from nodeA to nodeB.
+
+        Returns a list of (node_id, short_channel_id) representing a path.
+        To get from node ret[n][0] to ret[n+1][0], use channel ret[n+1][1];
+        i.e. an element reads as, "to get to node_id, travel through short_channel_id"
+        """
+        assert type(nodeA) is bytes
+        assert type(nodeB) is bytes
+        assert type(invoice_amount_msat) is int
+        if my_channels is None:
+            my_channels = {}
+
+        prev_node = self.get_distances(nodeA, nodeB, invoice_amount_msat, my_channels=my_channels)
+
+        if nodeA not in prev_node:
             return None  # no path found
 
         # backtrack from search_end (nodeA) to search_start (nodeB)
+        # FIXME paths cannot be longer than 20 edges (onion packet)...
         edge_startnode = nodeA
         path = []
         while edge_startnode != nodeB:
