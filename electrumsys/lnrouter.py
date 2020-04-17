@@ -200,30 +200,6 @@ class LNPathFinder(Logger):
         nodes_to_explore = queue.PriorityQueue()
         nodes_to_explore.put((0, invoice_amount_msat, nodeB))  # order of fields (in tuple) matters!
 
-        def inspect_edge():
-            is_mine = edge_channel_id in my_channels
-            if is_mine:
-                if edge_startnode == nodeA:  # payment outgoing, on our channel
-                    if not my_channels[edge_channel_id].can_pay(amount_msat, check_frozen=True):
-                        return
-                else:  # payment incoming, on our channel. (funny business, cycle weirdness)
-                    assert edge_endnode == nodeA, (bh2u(edge_startnode), bh2u(edge_endnode))
-                    if not my_channels[edge_channel_id].can_receive(amount_msat, check_frozen=True):
-                        return
-            edge_cost, fee_for_edge_msat = self._edge_cost(
-                edge_channel_id,
-                start_node=edge_startnode,
-                end_node=edge_endnode,
-                payment_amt_msat=amount_msat,
-                ignore_costs=(edge_startnode == nodeA),
-                is_mine=is_mine,
-                my_channels=my_channels)
-            alt_dist_to_neighbour = distance_from_start[edge_endnode] + edge_cost
-            if alt_dist_to_neighbour < distance_from_start[edge_startnode]:
-                distance_from_start[edge_startnode] = alt_dist_to_neighbour
-                prev_node[edge_startnode] = edge_endnode, edge_channel_id
-                amount_to_forward_msat = amount_msat + fee_for_edge_msat
-                nodes_to_explore.put((alt_dist_to_neighbour, amount_to_forward_msat, edge_startnode))
 
         # main loop of search
         while nodes_to_explore.qsize() > 0:
@@ -241,7 +217,29 @@ class LNPathFinder(Logger):
                     continue
                 channel_info = self.channel_db.get_channel_info(edge_channel_id, my_channels=my_channels)
                 edge_startnode = channel_info.node2_id if channel_info.node1_id == edge_endnode else channel_info.node1_id
-                inspect_edge()
+                is_mine = edge_channel_id in my_channels
+                if is_mine:
+                    if edge_startnode == nodeA:  # payment outgoing, on our channel
+                        if not my_channels[edge_channel_id].can_pay(amount_msat, check_frozen=True):
+                            continue
+                    else:  # payment incoming, on our channel. (funny business, cycle weirdness)
+                        assert edge_endnode == nodeA, (bh2u(edge_startnode), bh2u(edge_endnode))
+                        if not my_channels[edge_channel_id].can_receive(amount_msat, check_frozen=True):
+                            continue
+                edge_cost, fee_for_edge_msat = self._edge_cost(
+                    edge_channel_id,
+                    start_node=edge_startnode,
+                    end_node=edge_endnode,
+                    payment_amt_msat=amount_msat,
+                    ignore_costs=(edge_startnode == nodeA),
+                    is_mine=is_mine,
+                    my_channels=my_channels)
+                alt_dist_to_neighbour = distance_from_start[edge_endnode] + edge_cost
+                if alt_dist_to_neighbour < distance_from_start[edge_startnode]:
+                    distance_from_start[edge_startnode] = alt_dist_to_neighbour
+                    prev_node[edge_startnode] = edge_endnode, edge_channel_id
+                    amount_to_forward_msat = amount_msat + fee_for_edge_msat
+                    nodes_to_explore.put((alt_dist_to_neighbour, amount_to_forward_msat, edge_startnode))
 
         return prev_node
 
