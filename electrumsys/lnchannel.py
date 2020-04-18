@@ -688,7 +688,8 @@ class Channel(AbstractChannel):
         self.storage['frozen_for_receiving'] = bool(b)
         util.trigger_callback('channel', self)
 
-    def _assert_can_add_htlc(self, *, htlc_proposer: HTLCOwner, amount_msat: int) -> None:
+    def _assert_can_add_htlc(self, *, htlc_proposer: HTLCOwner, amount_msat: int,
+                             ignore_min_htlc_value: bool = False) -> None:
         """Raises PaymentFailure if the htlc_proposer cannot add this new HTLC.
         (this is relevant both for forwarding and endpoint)
         """
@@ -712,10 +713,11 @@ class Channel(AbstractChannel):
         strict = (htlc_proposer == LOCAL)
 
         # check htlc raw value
-        if amount_msat <= 0:
-            raise PaymentFailure("HTLC value must be positive")
-        if amount_msat < chan_config.htlc_minimum_msat:
-            raise PaymentFailure(f'HTLC value too small: {amount_msat} msat')
+        if not ignore_min_htlc_value:
+            if amount_msat <= 0:
+                raise PaymentFailure("HTLC value must be positive")
+            if amount_msat < chan_config.htlc_minimum_msat:
+                raise PaymentFailure(f'HTLC value too small: {amount_msat} msat')
         if amount_msat > LN_MAX_HTLC_VALUE_MSAT and not self._ignore_max_htlc_value:
             raise PaymentFailure(f"HTLC value over protocol maximum: {amount_msat} > {LN_MAX_HTLC_VALUE_MSAT} msat")
 
@@ -752,12 +754,15 @@ class Channel(AbstractChannel):
             return False
         return True
 
-    def can_receive(self, amount_msat: int, *, check_frozen=False) -> bool:
+    def can_receive(self, amount_msat: int, *, check_frozen=False,
+                    ignore_min_htlc_value: bool = False) -> bool:
         """Returns whether the remote can add an HTLC of given value."""
         if check_frozen and self.is_frozen_for_receiving():
             return False
         try:
-            self._assert_can_add_htlc(htlc_proposer=REMOTE, amount_msat=amount_msat)
+            self._assert_can_add_htlc(htlc_proposer=REMOTE,
+                                      amount_msat=amount_msat,
+                                      ignore_min_htlc_value=ignore_min_htlc_value)
         except PaymentFailure:
             return False
         return True
