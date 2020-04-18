@@ -1197,13 +1197,17 @@ class LNWallet(LNWorker):
             channels = list(self.channels.values())
         scid_to_my_channels = {chan.short_channel_id: chan for chan in channels
                                if chan.short_channel_id is not None}
+        ignore_min_htlc_value = False
         if amount_sat:
             amount_msat = 1000 * amount_sat
-        else:  # for no amt invoices, check if channel can receive at least 1 sat:
+        else:
+            # for no amt invoices, check if channel can receive at least 1 msat
             amount_msat = 1
+            ignore_min_htlc_value = True
         # note: currently we add *all* our channels; but this might be a privacy leak?
         for chan in channels:
-            if not chan.can_receive(amount_msat=amount_msat, check_frozen=True):
+            if not chan.can_receive(amount_msat=amount_msat, check_frozen=True,
+                                    ignore_min_htlc_value=ignore_min_htlc_value):
                 continue
             chan_id = chan.short_channel_id
             assert isinstance(chan_id, bytes), chan_id
