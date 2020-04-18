@@ -353,6 +353,8 @@ class Interface(Logger):
     async def _try_saving_ssl_cert_for_first_time(self, ca_ssl_context):
         ca_signed = await self.is_server_ca_signed(ca_ssl_context)
         if ca_signed:
+            if self.network.config.get("serverfingerprint"):
+                raise InvalidOptionCombination("cannot use --serverfingerprint with CA signed servers")
             with open(self.cert_path, 'w') as f:
                 # empty file means this is CA signed, not self-signed
                 f.write('')
@@ -365,6 +367,8 @@ class Interface(Logger):
         with open(self.cert_path, 'r') as f:
             contents = f.read()
         if contents == '':  # CA signed
+            if self.network.config.get("serverfingerprint"):
+                raise InvalidOptionCombination("cannot use --serverfingerprint with CA signed servers")
             return True
         # pinned self-signed cert
         try:
