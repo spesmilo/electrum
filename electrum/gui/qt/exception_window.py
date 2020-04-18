@@ -22,6 +22,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import sys
+import html
 
 from PyQt5.QtCore import QObject
 import PyQt5.QtCore as QtCore
@@ -58,8 +59,6 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
         main_box.addWidget(QLabel(BaseCrashReporter.REQUEST_HELP_MESSAGE))
 
         collapse_info = QPushButton(_("Show report contents"))
-        # FIXME if traceback contains special HTML characters, e.g. '<'
-        #       then formatting issues arise (due to rich_text=True)
         collapse_info.clicked.connect(
             lambda: self.msg_box(QMessageBox.NoIcon,
                                  self, _("Report contents"), self.get_report_string(),
@@ -138,6 +137,13 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
 
     def get_wallet_type(self):
         return self.main_window.wallet.wallet_type
+
+    def _get_traceback_str(self) -> str:
+        # The msg_box that shows the report uses rich_text=True, so
+        # if traceback contains special HTML characters, e.g. '<',
+        # they need to be escaped to avoid formatting issues.
+        traceback_str = super()._get_traceback_str()
+        return html.escape(traceback_str)
 
 
 def _show_window(*args):
