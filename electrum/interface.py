@@ -379,11 +379,12 @@ class Interface(Logger):
             raise ErrorParsingSSLCert(e) from e
         try:
             x.check_date()
-            return True
         except x509.CertificateError as e:
             self.logger.info(f"certificate has expired: {e}")
             os.unlink(self.cert_path)  # delete pinned cert only in this case
             return False
+        self.verify_certificate_fingerprint(bytearray(b))
+        return True
 
     async def _get_ssl_context(self):
         if self.protocol != 's':
@@ -429,12 +430,6 @@ class Interface(Logger):
     @log_exceptions
     @handle_disconnect
     async def run(self):
-        expected_fingerprint = self.network.config.get("serverfingerprint")
-        if (expected_fingerprint and self.is_main_server()):
-            if self.protocol != 's':
-                raise InvalidOptionCombination(f'cannot use --serverfingerprint with non-SSL servers')
-            if not await self.verify_server_certificate(expected_fingerprint):
-                raise ErrorSSLCertFingerprintMismatch('Refusing to connect to server due to SSL certificate fingerprint mismatch')
         try:
             ssl_context = await self._get_ssl_context()
         except (ErrorParsingSSLCert, ErrorGettingSSLCertFromServer) as e:
@@ -477,6 +472,7 @@ class Interface(Logger):
                 dercert = await self.get_certificate()
                 if dercert:
                     self.logger.info("succeeded in getting cert")
+                    self.verify_certificate_fingerprint(dercert)
                     with open(self.cert_path, 'w') as f:
                         cert = ssl.DER_cert_to_PEM_cert(dercert)
                         # workaround android bug
@@ -501,11 +497,15 @@ class Interface(Logger):
             ssl_object = asyncio_transport.get_extra_info("ssl_object")  # type: ssl.SSLObject
             return ssl_object.getpeercert(binary_form=True)
 
-    async def verify_server_certificate(self, expected_fingerprint):
-        certificate = await self.get_certificate()
+    def verify_certificate_fingerprint(self, certificate):
+        expected_fingerprint = self.network.config.get("serverfingerprint")
+        if not expected_fingerprint or not self.is_main_server():
+            return
         fingerprint = hashlib.sha256(certificate).hexdigest()
-
-        return fingerprint.lower() == expected_fingerprint.lower()
+        fingerprints_match = fingerprint.lower() == expected_fingerprint.lower()
+        if not fingerprints_match:
+            raise ErrorSSLCertFingerprintMismatch('Refusing to connect to server due to cert fingerprint mismatch')
+        self.logger.info("cert fingerprint verification passed")
 
     async def get_block_header(self, height, assert_mode):
         self.logger.info(f'requesting block header {height} in mode {assert_mode}')
