@@ -1051,7 +1051,7 @@ class LNWallet(LNWorker):
             raise Exception(_("add invoice timed out"))
 
     @log_exceptions
-    async def _add_request_coro(self, amount_sat, message, expiry: int):
+    async def _add_request_coro(self, amount_sat: Optional[int], message, expiry: int):
         timestamp = int(time.time())
         routing_hints = await self._calc_routing_hints_for_invoice(amount_sat)
         if not routing_hints:
@@ -1190,16 +1190,20 @@ class LNWallet(LNWorker):
         util.trigger_callback('request_status', payment_hash.hex(), PR_PAID)
         util.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
 
-    async def _calc_routing_hints_for_invoice(self, amount_sat):
+    async def _calc_routing_hints_for_invoice(self, amount_sat: Optional[int]):
         """calculate routing hints (BOLT-11 'r' field)"""
         routing_hints = []
         with self.lock:
             channels = list(self.channels.values())
         scid_to_my_channels = {chan.short_channel_id: chan for chan in channels
                                if chan.short_channel_id is not None}
+        if amount_sat:
+            amount_msat = 1000 * amount_sat
+        else:  # for no amt invoices, check if channel can receive at least 1 sat:
+            amount_msat = 1
         # note: currently we add *all* our channels; but this might be a privacy leak?
         for chan in channels:
-            if not chan.can_receive(amount_sat, check_frozen=True):
+            if not chan.can_receive(amount_msat=amount_msat, check_frozen=True):
                 continue
             chan_id = chan.short_channel_id
             assert isinstance(chan_id, bytes), chan_id
