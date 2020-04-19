@@ -183,6 +183,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.checking_accounts = False
         self.qr_window = None
         self.pluginsdialog = None
+        self.showing_cert_mismatch_error = False
         self.tl_windows = []
         Logger.__init__(self)
 
@@ -267,7 +268,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                          'banner', 'verified', 'fee', 'fee_histogram', 'on_quotes',
                          'on_history', 'channel', 'channels_updated',
                          'payment_failed', 'payment_succeeded',
-                         'invoice_status', 'request_status', 'ln_gossip_sync_progress']
+                         'invoice_status', 'request_status', 'ln_gossip_sync_progress',
+                         'cert_mismatch']
             # To avoid leaking references to "self" that prevent the
             # window from being GC-ed when closed, callbacks should be
             # methods of this class only, and specifically not be
@@ -442,6 +444,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.history_model.on_fee_histogram()
         elif event == 'ln_gossip_sync_progress':
             self.update_lightning_icon()
+        elif event == 'cert_mismatch':
+            self.show_cert_mismatch_error()
         else:
             self.logger.info(f"unexpected network event: {event} {args}")
 
@@ -3118,3 +3122,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                      "to see it, you need to broadcast it."))
             win.msg_box(QPixmap(icon_path("offline_tx.png")), None, _('Success'), msg)
             return True
+
+    def show_cert_mismatch_error(self):
+        if self.showing_cert_mismatch_error:
+            return
+        self.showing_cert_mismatch_error = True
+        self.show_critical(title=_("Certificate mismatch"),
+                           msg="\n\n" +
+                               _("The SSL certificate provided by the main server did not match the fingerprint passed in with the --serverfingerprint option.") + "\n\n" +
+                               _("Electrum will now exit."))
+        self.showing_cert_mismatch_error = False
+        self.close()

@@ -508,6 +508,7 @@ class Interface(Logger):
         fingerprint = hashlib.sha256(certificate).hexdigest()
         fingerprints_match = fingerprint.lower() == expected_fingerprint.lower()
         if not fingerprints_match:
+            util.trigger_callback('cert_mismatch')
             raise ErrorSSLCertFingerprintMismatch('Refusing to connect to server due to cert fingerprint mismatch')
         self.logger.info("cert fingerprint verification passed")
 
