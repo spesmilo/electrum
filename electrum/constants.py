@@ -105,6 +105,8 @@ class OceanMainnet:
 
     }
     BIP44_COIN_TYPE = 0
+    #A reserved BIP44 coin type to be used with hardware wallets 
+    BIP44_COIN_TYPE_HW = 452
 
     CONTROLER1 = "04103fda45d114931ab5b24b77a383d16c3e510ee83ebf91987436a21e02ad7b6d41dc52d40ac27a3703be934ebd207071ba83b3674ac4fc01bb602fb434eddfee"
     CONTROLER2 = "04ee4278985ac544f0fec151a1ba21ac97e26fdbf230973e07aeb608ed0a18b535396579ebfbc6a54efa7628f4c7e51cd4ed6c6e6967699d387352efa5971d6548"
@@ -155,6 +157,7 @@ class LocalTestnet:
 
     }
     BIP44_COIN_TYPE = 0
+    BIP44_COIN_TYPE_HW = 1
 
     CONTROLER1 = "04103fda45d114931ab5b24b77a383d16c3e510ee83ebf91987436a21e02ad7b6d41dc52d40ac27a3703be934ebd207071ba83b3674ac4fc01bb602fb434eddfee"
     CONTROLER2 = "04ee4278985ac544f0fec151a1ba21ac97e26fdbf230973e07aeb608ed0a18b535396579ebfbc6a54efa7628f4c7e51cd4ed6c6e6967699d387352efa5971d6548"
@@ -202,6 +205,8 @@ class OceanTestnet(OceanMainnet):
         'p2wsh':       0x02aa7ed3,  # Zpub
     }
 
+    BIP44_COIN_TYPE_HW = 1
+
     CONTROLER1 = "048249c166d63d2b76c958bab0ad13bf7009121acfe1c2727701df8a4fc3f3d045744cf6894db9df71ce9ef64d2bb5c6d80a1318b74dfee4ad69137469defa9d2a"
     CONTROLER2 = "04441ef52d1923962e44fd86c0bc019dd768988f603d625791a721f855ddcf6320b2fad5507dc16acf4beace8658b5092b450f7c4d32b15b7351c0ef2afe7574e4"
     CONTROLER3 = "04ac8725ca6d2f68ec65ec01ae335c94d28168df07d64f66a70b7def687f2c352827ffaa540c61a4f68b0cf63c9a99fb61dccebfe7b9b0a6e75bbd4d6e5d3aba59"
@@ -245,6 +250,7 @@ class OceanRegtest(OceanMainnet):
     }
 
     BIP44_COIN_TYPE = 1
+    BIP44_COIN_TYPE_HW = 1
     ENCRYPTED_WHITELIST=False
  
 
