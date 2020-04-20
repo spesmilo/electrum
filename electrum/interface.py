@@ -353,7 +353,7 @@ class Interface(Logger):
     async def _try_saving_ssl_cert_for_first_time(self, ca_ssl_context):
         ca_signed = await self.is_server_ca_signed(ca_ssl_context)
         if ca_signed:
-            if self.network.config.get("serverfingerprint"):
+            if self.get_expected_fingerprint():
                 raise InvalidOptionCombination("cannot use --serverfingerprint with CA signed servers")
             with open(self.cert_path, 'w') as f:
                 # empty file means this is CA signed, not self-signed
@@ -367,7 +367,7 @@ class Interface(Logger):
         with open(self.cert_path, 'r') as f:
             contents = f.read()
         if contents == '':  # CA signed
-            if self.network.config.get("serverfingerprint"):
+            if self.get_expected_fingerprint():
                 raise InvalidOptionCombination("cannot use --serverfingerprint with CA signed servers")
             return True
         # pinned self-signed cert
@@ -501,9 +501,13 @@ class Interface(Logger):
             ssl_object = asyncio_transport.get_extra_info("ssl_object")  # type: ssl.SSLObject
             return ssl_object.getpeercert(binary_form=True)
 
+    def get_expected_fingerprint(self):
+        if self.is_main_server():
+            return self.network.config.get("serverfingerprint")
+
     def verify_certificate_fingerprint(self, certificate):
-        expected_fingerprint = self.network.config.get("serverfingerprint")
-        if not expected_fingerprint or not self.is_main_server():
+        expected_fingerprint = self.get_expected_fingerprint()
+        if not expected_fingerprint:
             return
         fingerprint = hashlib.sha256(certificate).hexdigest()
         fingerprints_match = fingerprint.lower() == expected_fingerprint.lower()
