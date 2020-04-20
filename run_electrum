@@ -26,6 +26,22 @@
 # SOFTWARE.
 import os
 import sys
+import faulthandler
+
+
+stdouterrfile=open("electrum_std_out_err.txt", "w")
+
+class CustomPrint(object):
+    def write(self, data):
+        stdouterrfile.write(data)
+
+    def flush(self):
+        pass
+
+sys.stdout = CustomPrint()
+sys.stderr = CustomPrint()
+
+faulthandler.enable(file=open("electrum_fault_handler_traceback.txt", "w"), all_threads=True)
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 is_bundle = getattr(sys, 'frozen', False)
