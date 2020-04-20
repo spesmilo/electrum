@@ -346,7 +346,6 @@ def init_plugins(config, gui_name):
     
 @print_all_exceptions
 def main_func():
-    print(undeclared)
     # The hook will only be used in the Qt GUI right now
     util.setup_thread_excepthook()
     # on macOS, delete Process Serial Number arg generated for apps launched in Finder
