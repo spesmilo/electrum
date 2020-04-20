@@ -121,9 +121,12 @@ class BaseCrashReporter(Logger):
             ['git', 'describe', '--always', '--dirty'], cwd=dir)
         return str(version, "utf8").strip()
 
+    def _get_traceback_str(self) -> str:
+        return "".join(traceback.format_exception(*self.exc_args))
+
     def get_report_string(self):
         info = self.get_additional_info()
-        info["traceback"] = "".join(traceback.format_exception(*self.exc_args))
+        info["traceback"] = self._get_traceback_str()
         return self.issue_template.format(**info)
 
     def get_user_description(self):
