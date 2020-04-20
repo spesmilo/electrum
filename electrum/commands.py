@@ -1077,7 +1077,7 @@ class Commands:
 
     @command('w')
     async def import_channel_backup(self, encrypted, wallet: Abstract_Wallet = None):
-        return wallet.lnworker.import_channel_backup(encrypted)
+        return wallet.lnbackups.import_channel_backup(encrypted)
 
     @command('wn')
     async def get_channel_ctx(self, channel_point, iknowwhatimdoing=False, wallet: Abstract_Wallet = None):
