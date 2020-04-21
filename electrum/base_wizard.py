@@ -216,17 +216,14 @@ class BaseWizard(object):
     def choose_hw_device(self, purpose=HWD_SETUP_NEW_WALLET):
         title = _('Hardware Keystore')
         # check available plugins
-        self.plugins.enable('ledger')
         support = self.plugins.get_hardware_support()
-        lp=self.plugins.load_plugin('ledger')
-        support.append(('ledger','',lp))
-        #if not support:
-        #    msg = '\n'.join([
-        #        _('No hardware wallet support found on your system.'),
-        #        _('Please install the relevant libraries (eg python-trezor for Trezor).'),
-        #    ])
-        #    self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_hw_device(purpose))
-        #    return
+        if not support:
+            msg = '\n'.join([
+                _('No hardware wallet support found on your system.'),
+                _('Please install the relevant libraries (eg python-trezor for Trezor).'),
+            ])
+            self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_hw_device(purpose))
+            return
         # scan devices
         devices = []
         devmgr = self.plugins.device_manager
