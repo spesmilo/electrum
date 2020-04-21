@@ -53,7 +53,7 @@ PRIMARY KEY(outpoint)
 class SweepStore(SqlDB):
 
     def __init__(self, path, network):
-        super().__init__(network, path)
+        super().__init__(network.asyncio_loop, path)
 
     def create_database(self):
         c = self.conn.cursor()
