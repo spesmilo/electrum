@@ -56,7 +56,8 @@ setup(
         'electrum',
         'electrum.gui',
         'electrum.gui.qt',
-        'electrum.plugins',
+        'electrum.btchip_ocean',
+        'electrum.plugins'
     ] + [('electrum.plugins.'+pkg) for pkg in find_packages('electrum/plugins')],
     package_dir={
         'electrum': 'electrum'
