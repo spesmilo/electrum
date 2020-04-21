@@ -35,6 +35,7 @@ datas = [
     (home+'electrum/*.json', 'electrum'),
     (home+'electrum/wordlist/english.txt', 'electrum/wordlist'),
     (home+'electrum/locale', 'electrum/locale'),
+    (home+'electrum/plugins', 'electrum/plugins'),
     ('C:\\Program Files (x86)\\ZBar\\bin\\', '.'),    
     (home+'electrum/contract/contract', 'electrum/contract')
 ]
