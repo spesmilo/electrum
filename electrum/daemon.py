@@ -177,6 +177,47 @@ class WatchTowerServer(Logger):
         return await self.lnwatcher.sweepstore.add_sweep_tx(*args)
 
 
+class BeaconsServer(Logger):
+
+    def __init__(self, network):
+        Logger.__init__(self)
+        self.config = network.config
+        self.network = network
+        self.commands = network.daemon.cmd_runner
+        self.app = web.Application()
+        self.app.router.add_post("/", self.handle)
+        self.methods = jsonrpcserver.methods.Methods()
+        self.methods.add(self.get_routes_to_beacons)
+        self.methods.add(self.get_routes_from_beacons)
+
+    async def get_routes_to_beacons(self, *args):
+        return await self.commands.get_routes_to_beacons(*args)
+
+    async def get_routes_from_beacons(self, *args):
+        return await self.commands.get_routes_from_beacons(*args)
+
+    @log_exceptions
+    async def handle(self, request):
+        request = await request.text()
+        self.logger.info(f'{request}')
+        response = await jsonrpcserver.async_dispatch(request, methods=self.methods)
+        if response.wanted:
+            return web.json_response(response.deserialized(), status=response.http_status)
+        else:
+            return web.Response()
+
+    @log_exceptions
+    async def run(self):
+        self.logger.info('starting beacons server')
+        self.network.maybe_init_lightning()
+        host = self.config.get('beacons_server_host')
+        port = self.config.get('beacons_server_port', 12346)
+        self.runner = web.AppRunner(self.app)
+        await self.runner.setup()
+        site = web.TCPSite(self.runner, host, port, ssl_context=self.config.get_ssl_context())
+        await site.start()
+
+
 class PayServer(Logger):
 
     def __init__(self, daemon: 'Daemon'):
@@ -294,6 +335,8 @@ class Daemon(Logger):
         # path -> wallet;   make sure path is standardized.
         self._wallets = {}  # type: Dict[str, Abstract_Wallet]
         daemon_jobs = []
+        # cnd runner used by jsonrpcserver, beacons server
+        self.cmd_runner = Commands(config=self.config, network=self.network, daemon=self)
         # Setup JSONRPC server
         if listen_jsonrpc:
             daemon_jobs.append(self.start_jsonrpc(config, fd))
@@ -307,6 +350,11 @@ class Daemon(Logger):
         if not config.get('offline') and self.config.get('run_watchtower'):
             self.watchtower = WatchTowerServer(self.network)
             daemon_jobs.append(self.watchtower.run)
+        # beacons
+        self.beacons_server = None
+        if not config.get('offline') and self.config.get('run_beacons_server'):
+            self.beacons_server = BeaconsServer(self.network)
+            daemon_jobs.append(self.beacons_server.run)
         if self.network:
             self.network.start(jobs=[self.fx.run])
 
@@ -374,7 +422,6 @@ class Daemon(Logger):
         self.methods = jsonrpcserver.methods.Methods()
         self.methods.add(self.ping)
         self.methods.add(self.gui)
-        self.cmd_runner = Commands(config=self.config, network=self.network, daemon=self)
         for cmdname in known_commands:
             self.methods.add(getattr(self.cmd_runner, cmdname))
         self.methods.add(self.run_cmdline)

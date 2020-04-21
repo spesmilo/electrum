@@ -347,7 +347,7 @@ class LNPathFinder(Logger):
                 start_node_id = prev_node_id if is_source else next_node_id
                 channel_update = self.channel_db.get_channel_update(start_node_id, short_channel_id)
                 node_announcement = self.channel_db.get_node_announcement(node_id=next_node_id)
-                route.append((node_announcement, channel_update.hex()))
+                route.append((node_announcement, channel_update))
                 prev_node_id = next_node_id
             out[beacon_id] = route
             self.logger.info(f'route to beacon {beacon_id.hex()}: {len(route)}' )
