@@ -111,6 +111,10 @@ done
 # upgrade pip
 $PYTHON -m pip install pip --upgrade
 
+# install btchip-python
+
+$PYTHON -m pip install btchip-python
+
 # Install pywin32-ctypes (needed by pyinstaller)
 $PYTHON -m pip install pywin32-ctypes==0.1.2
 
