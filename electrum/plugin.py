@@ -30,7 +30,7 @@ import pkgutil
 import time
 import threading
 
-from .util import print_error
+from .util import print_error, print_msg
 from .i18n import _
 from .util import profiler, PrintError, DaemonThread, UserCancelled, ThreadJob
 from . import bitcoin
@@ -39,7 +39,6 @@ from . import plugins
 plugin_loaders = {}
 hook_names = set()
 hooks = {}
-
 
 class Plugins(DaemonThread):
     verbosity_filter = 'p'
@@ -297,6 +296,7 @@ class DeviceMgr(ThreadJob, PrintError):
     hidapi are implemented.'''
 
     def __init__(self, config):
+        self.print_error("init")
         super(DeviceMgr, self).__init__()
         # Keyed by xpub.  The value is the device id
         # has been paired, and None otherwise.
@@ -324,11 +324,15 @@ class DeviceMgr(ThreadJob, PrintError):
         with self.lock:
             clients = list(self.clients.keys())
         cutoff = time.time() - self.config.get_session_timeout()
+        self.print_msg("run: n_clients = {}".format(len(clients)))
         for client in clients:
+            self.print_msg(client)
             client.timeout(cutoff)
 
     def register_devices(self, device_pairs):
         for pair in device_pairs:
+            self.print_msg("registering device")
+            self.print_msg(device_pairs)
             self.recognised_hardware.add(pair)
 
     def register_enumerate_func(self, func):
@@ -337,11 +341,14 @@ class DeviceMgr(ThreadJob, PrintError):
     def create_client(self, device, handler, plugin):
         # Get from cache first
         client = self.client_lookup(device.id_)
+        self.print_msg("looking up client -device id: {}".format(device.id_))
         if client:
+            self.print_msg("returning client: {}".format(client))
             return client
         client = plugin.create_client(device, handler)
         if client:
-            self.print_error("Registering", client)
+            self.print_msg("registering client: {}".format(client))
+            self.print_msg("Registering", client)
             with self.lock:
                 self.clients[client] = (device.path, device.id_)
         return client

@@ -41,6 +41,7 @@ from .i18n import _
 
 import urllib.request, urllib.parse, urllib.error
 import queue
+import functools
 
 def inv_dict(d):
     return {v: k for k, v in d.items()}
@@ -170,10 +171,11 @@ class MyEncoder(json.JSONEncoder):
             return list(obj)
         return super(MyEncoder, self).default(obj)
 
+    
 class PrintError(object):
     '''A handy base class'''
     verbosity_filter = ''
-
+        
     def diagnostic_name(self):
         return self.__class__.__name__
 
@@ -186,6 +188,8 @@ class PrintError(object):
 
     def print_msg(self, *msg):
         print_msg("[%s]" % self.diagnostic_name(), *msg)
+
+        
 
 class ThreadJob(PrintError):
     """A job that is run periodically from a thread's main loop.  run() is
@@ -279,16 +283,31 @@ def set_verbosity(b):
     global verbosity
     verbosity = b
 
+def log_file_writer(func):
+    @functools.wraps(func)
+    def wrapper(*args):
+        print_to_file(*args)
+        return func(*args)
+    return wrapper
+
+def print_to_file(*args):
+    args = [str(item) for item in args]
+    log_file=open("electrum.log", "a")        
+    log_file.write(" ".join(args) + "\n")
+    log_file.flush()
+    log_file.close()
 
 def print_error(*args):
     if not verbosity: return
     print_stderr(*args)
 
+@log_file_writer
 def print_stderr(*args):
     args = [str(item) for item in args]
     sys.stderr.write(" ".join(args) + "\n")
     sys.stderr.flush()
 
+@log_file_writer
 def print_msg(*args):
     # Stringify args
     args = [str(item) for item in args]
