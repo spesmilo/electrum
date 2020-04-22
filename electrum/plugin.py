@@ -35,6 +35,7 @@ from .i18n import _
 from .util import profiler, PrintError, DaemonThread, UserCancelled, ThreadJob
 from . import bitcoin
 from . import plugins
+from . import bip32
 
 plugin_loaders = {}
 hook_names = set()

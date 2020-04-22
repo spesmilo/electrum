@@ -32,6 +32,7 @@ from electrum.i18n import _
 from electrum.bitcoin import is_address, opcodes
 from electrum.util import bfh, versiontuple, UserFacingException
 from electrum.transaction import TxOutput, Transaction
+from electrum import bip32
 from electrum.bip32 import BIP32Node
 from electrum.storage import get_derivation_used_for_hw_device_encryption
 from electrum.keystore import Xpub, Hardware_KeyStore
