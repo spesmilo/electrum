@@ -13,7 +13,7 @@ RUN dpkg --add-architecture i386 && \
 
 RUN apt-get update -q && \
         apt-get install -qy \
-        git=1:2.17.1-1ubuntu0.6 \
+        git=1:2.17.1-1ubuntu0.7 \
         p7zip-full=16.02+dfsg-6 \
         make=4.1-9.1ubuntu1 \
         mingw-w64=5.0.3-1 \
