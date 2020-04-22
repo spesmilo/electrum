@@ -86,7 +86,7 @@ class Plugins(DaemonThread):
         return len(self.plugins)
 
     def load_plugin(self, name):
-        self.print_error\("load_plugin({})".format(name))
+        self.print_error("load_plugin({})".format(name))
         if name in self.plugins:
             return self.plugins[name]
         full_name = 'electrum.plugins.' + name + '.' + self.gui_name
@@ -335,9 +335,8 @@ class DeviceMgr(ThreadJob, PrintError):
         with self.lock:
             clients = list(self.clients.keys())
         cutoff = time.time() - self.config.get_session_timeout()
-        self.print_error("run: n_clients = {}".format(len(clients)))
         for client in clients:
-            self.print_error(client)
+            self.print_error("client: {}".format(client))
             client.timeout(cutoff)
 
     def register_devices(self, device_pairs):

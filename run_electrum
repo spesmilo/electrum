@@ -31,7 +31,7 @@ import faulthandler
 faulthandler.enable(file=open("electrum_fault_handler_traceback.txt", "w"), all_threads=True)
 
 def print_exception(exception=""):
-    f = open('electrum_exception.txt', 'w')
+    f = open('electrum_exception.log', 'a')
     f.write('An exception occured - %s' % exception)
     f.close() 
 
