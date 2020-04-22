@@ -30,7 +30,7 @@ import pkgutil
 import time
 import threading
 
-from .util import print_error, print_msg
+from .util import print_error
 from .i18n import _
 from .util import profiler, PrintError, DaemonThread, UserCancelled, ThreadJob
 from . import bitcoin
@@ -86,15 +86,21 @@ class Plugins(DaemonThread):
         return len(self.plugins)
 
     def load_plugin(self, name):
+        self.print_error\("load_plugin({})".format(name))
         if name in self.plugins:
             return self.plugins[name]
         full_name = 'electrum.plugins.' + name + '.' + self.gui_name
+        self.print_error("pkgutil.find_loader({})".format(full_name))
         loader = pkgutil.find_loader(full_name)
         if not loader:
+            self.print_error("{} implementation for {} plugin not found".format(gui_name, name))
             raise RuntimeError("%s implementation for %s plugin not found"
                                % (self.gui_name, name))
+        self.print_error("loader.load_module()")
         p = loader.load_module()
+        self.print_error("init Plugin")
         plugin = p.Plugin(self, self.config, name)
+        self.print_error("add jobs to plugin")
         self.add_jobs(plugin.thread_jobs())
         self.plugins[name] = plugin
         self.print_error("loaded", name)
@@ -142,9 +148,12 @@ class Plugins(DaemonThread):
         for name, (gui_good, details) in self.hw_wallets.items():
             if gui_good:
                 try:
+                    self.print_error("loading plugin for:", name)
                     p = self.get_plugin(name)
                     if p.is_enabled():
                         out.append([name, details[2], p])
+                    else:
+                        self.print_error("plugin not enabled:", name)
                 except:
                     traceback.print_exc()
                     self.print_error("cannot load plugin for:", name)
@@ -170,7 +179,9 @@ class Plugins(DaemonThread):
 
     def get_plugin(self, name):
         if not name in self.plugins:
+            self.print_error("plugin not in cache. loading:", name)
             self.load_plugin(name)
+        self.print_error("plugin loaded. returning:", name)
         return self.plugins[name]
 
     def run(self):
@@ -324,15 +335,15 @@ class DeviceMgr(ThreadJob, PrintError):
         with self.lock:
             clients = list(self.clients.keys())
         cutoff = time.time() - self.config.get_session_timeout()
-        self.print_msg("run: n_clients = {}".format(len(clients)))
+        self.print_error("run: n_clients = {}".format(len(clients)))
         for client in clients:
-            self.print_msg(client)
+            self.print_error(client)
             client.timeout(cutoff)
 
     def register_devices(self, device_pairs):
         for pair in device_pairs:
-            self.print_msg("registering device")
-            self.print_msg(device_pairs)
+            self.print_error("registering device")
+            self.print_error(device_pairs)
             self.recognised_hardware.add(pair)
 
     def register_enumerate_func(self, func):
@@ -341,14 +352,14 @@ class DeviceMgr(ThreadJob, PrintError):
     def create_client(self, device, handler, plugin):
         # Get from cache first
         client = self.client_lookup(device.id_)
-        self.print_msg("looking up client -device id: {}".format(device.id_))
+        self.print_error("looking up client -device id: {}".format(device.id_))
         if client:
-            self.print_msg("returning client: {}".format(client))
+            self.print_error("returning client: {}".format(client))
             return client
         client = plugin.create_client(device, handler)
         if client:
-            self.print_msg("registering client: {}".format(client))
-            self.print_msg("Registering", client)
+            self.print_error("registering client: {}".format(client))
+            self.print_error("Registering", client)
             with self.lock:
                 self.clients[client] = (device.path, device.id_)
         return client
