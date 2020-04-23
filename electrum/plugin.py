@@ -82,6 +82,7 @@ class Plugins(DaemonThread):
                 except BaseException as e:
                     traceback.print_exc(file=tb_exc_file)
                     self.print_error("cannot initialize plugin %s:" % name, str(e))
+                    raise
 
     def get(self, name):
         return self.plugins.get(name)
@@ -143,7 +144,9 @@ class Plugins(DaemonThread):
                 __import__(dep)
             except ImportError as e:
                 self.print_error('Plugin', name, 'unavailable:', type(e).__name__, ':', str(e))
+                raise
                 return False
+            
         requires = d.get('requires_wallet_type', [])
         return not requires or w.wallet_type in requires
 
@@ -158,7 +161,7 @@ class Plugins(DaemonThread):
                         out.append([name, details[2], p])
                     else:
                         self.print_error("plugin not enabled:", name)
-                except Exception as e:
+                except BaseException as e:
                     traceback.print_exc(file=tb_exc_file)
                     self.print_error("cannot load plugin for:", name)
                     raise
@@ -211,6 +214,7 @@ def run_hook(name, *args):
                 print_error("Plugin error")
                 traceback.print_exc(file=tb_exc_file)
                 r = False
+                raise
             if r:
                 results.append(r)
 
@@ -534,6 +538,7 @@ class DeviceMgr(ThreadJob, PrintError):
         try:
             import hid
         except ImportError:
+            raise
             return []
 
         with self.hid_lock:
@@ -567,6 +572,7 @@ class DeviceMgr(ThreadJob, PrintError):
             except BaseException as e:
                 self.print_error('custom device enum failed. func {}, error {}'
                                  .format(str(f), str(e)))
+                raise
             else:
                 devices.extend(new_devices)
 

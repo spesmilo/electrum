@@ -4,9 +4,10 @@ from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QInputDialog, QLabel, QVBoxLayout, QLineEdit
 
 from electrum.i18n import _
-from electrum.plugin import hook
-from electrum.wallet import Standard_Wallet
-from electrum.gui.qt.util import WindowModalDialog
+from electrum.plugin import hook, DeviceMgr
+from electrum.wallet import Wallet, Standard_Wallet
+from electrum.util import PrintError, UserCancelled, bh2u
+from electrum.gui.qt.util import *
 
 from .ledger import LedgerPlugin
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
@@ -21,7 +22,6 @@ class Plugin(LedgerPlugin, QtPluginBase):
         return Ledger_Handler(window)
 
     @only_hook_if_libraries_available
-    @hook
     def receive_menu(self, menu, addrs, wallet):
         if type(wallet) is not Standard_Wallet:
             return
