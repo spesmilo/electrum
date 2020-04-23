@@ -17,6 +17,7 @@ home = 'C:\\electrum\\'
 
 # see https://github.com/pyinstaller/pyinstaller/issues/2005
 hiddenimports = []
+hiddenimports += collect_submodules('pkg_resources')  # workaround for https://github.com/pypa/setuptools/issues/1963
 hiddenimports += collect_submodules('trezorlib')
 hiddenimports += collect_submodules('safetlib')
 hiddenimports += collect_submodules('btchip')
@@ -62,6 +63,8 @@ a = Analysis([home+'run_electrum',
               home+'electrum/plugins/safe_t/qt.py',
               home+'electrum/plugins/keepkey/qt.py',
               home+'electrum/plugins/ledger/qt.py',
+              home+'electrum/plugins/ledger/btchip.py',
+              home+'electrum/plugins/ledger/oceanTransaction.py',
               #home+'packages/requests/utils.py'
               ],
              binaries=binaries,
