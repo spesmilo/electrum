@@ -306,6 +306,13 @@ class LnAddr(object):
         # we treat it as 0 seconds here (instead of never)
         return now > self.get_expiry() + self.date
 
+    def get_private_routes(self):
+        # only want 'r' tags
+        r_tags = list(filter(lambda x: x[0] == 'r', self.tags))
+        # strip the tag type, it's implicitly 'r' now
+        r_tags = list(map(lambda x: x[1], r_tags))
+        return r_tags
+
 
 class LnDecodeException(Exception): pass
 

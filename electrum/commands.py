@@ -1019,6 +1019,10 @@ class Commands:
         return parse_lightning_invoice(invoice)
 
     @command('wn')
+    async def request_routes(self, invoice, wallet: Abstract_Wallet = None):
+        return await wallet.lnworker.request_routes_for_invoice(invoice)
+
+    @command('wn')
     async def lnpay(self, invoice, attempts=1, timeout=10, wallet: Abstract_Wallet = None):
         lnworker = wallet.lnworker
         lnaddr = lnworker._check_invoice(invoice, None)

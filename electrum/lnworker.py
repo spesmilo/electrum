@@ -139,6 +139,12 @@ class NoPathFound(PaymentFailure):
     def __str__(self):
         return _('No path found')
 
+from jsonrpcclient.clients.aiohttp_client import AiohttpClient
+class myAiohttpClient(AiohttpClient):
+    async def request(self, *args, **kwargs):
+        r = await super().request(*args, **kwargs)
+        return r.data.result
+
 
 class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
 
@@ -514,11 +520,6 @@ class LNWallet(LNWorker):
     @log_exceptions
     async def sync_with_remote_watchtower(self):
         import aiohttp
-        from jsonrpcclient.clients.aiohttp_client import AiohttpClient
-        class myAiohttpClient(AiohttpClient):
-            async def request(self, *args, **kwargs):
-                r = await super().request(*args, **kwargs)
-                return r.data.result
         while True:
             await asyncio.sleep(5)
             watchtower_url = self.config.get('watchtower_url')
@@ -810,6 +811,51 @@ class LNWallet(LNWorker):
                 if chan.short_channel_id == short_channel_id:
                     return chan
 
+    def add_routes(self, routes):
+        def dec(raw):
+            message_type, payload = decode_msg(raw)
+            payload['raw'] = raw
+            return payload
+        for route in routes:
+            node_announcements = [ dec(bytes.fromhex(x[0])) for x in route]
+            self.channel_db.add_node_announcement(node_announcements)
+            channel_updates = [dec(bytes.fromhex(x[1])) for x in route]
+            self.channel_db.add_channel_updates(channel_updates)
+
+    @log_exceptions
+    async def request_routes_for_invoice(self, invoice):
+        lnaddr = self._check_invoice(invoice)
+        amount_sat = int(lnaddr.amount * COIN)
+        invoice_pubkey = lnaddr.pubkey.serialize()
+        private_routes = lnaddr.get_private_routes()
+        dest_nodes = [x[0][0] for x in private_routes] or [invoice_pubkey]
+        #print([s.hex() for s in dest_nodes])
+        source_nodes = [chan.node_id for chan in self.channels.values()]
+        #print([s.hex() for s in source_nodes])
+        routes_to = []
+        for node_id in source_nodes:
+            r = await self.request_routes_to_beacons(amount_sat, node_id)
+            routes_to += r.values()
+        self.add_routes(routes_to)
+        routes_from = []
+        for node_id in dest_nodes:
+            r = await self.request_routes_from_beacons(amount_sat, node_id)
+            routes_from += r.values()
+        self.add_routes(routes_from)
+        return {'from_beacons':len(routes_from), 'to_beacons':len(routes_to)}
+
+    async def request_routes_to_beacons(self, amount_sat, node_id):
+        beacons_server_url = 'http://ecdsa.org:8888'
+        async with make_aiohttp_session(proxy=self.network.proxy) as session:
+            beacons_server = myAiohttpClient(session, beacons_server_url)
+            return await beacons_server.get_routes_to_beacons(amount_sat, node_id.hex())
+
+    async def request_routes_from_beacons(self, amount_sat, node_id):
+        beacons_server_url = 'http://ecdsa.org:8888'
+        async with make_aiohttp_session(proxy=self.network.proxy) as session:
+            beacons_server = myAiohttpClient(session, beacons_server_url)
+            return await beacons_server.get_routes_from_beacons(amount_sat, node_id.hex())
+
     async def _pay(self, invoice, amount_sat=None, attempts=1) -> bool:
         lnaddr = self._check_invoice(invoice, amount_sat)
         payment_hash = lnaddr.paymenthash
@@ -974,10 +1020,7 @@ class LNWallet(LNWorker):
         invoice_pubkey = decoded_invoice.pubkey.serialize()
         # use 'r' field from invoice
         route = None  # type: Optional[LNPaymentRoute]
-        # only want 'r' tags
-        r_tags = list(filter(lambda x: x[0] == 'r', decoded_invoice.tags))
-        # strip the tag type, it's implicitly 'r' now
-        r_tags = list(map(lambda x: x[1], r_tags))
+        r_tags = decoded_invoice.get_private_routes()
         # if there are multiple hints, we will use the first one that works,
         # from a random permutation
         random.shuffle(r_tags)
