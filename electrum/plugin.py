@@ -41,7 +41,7 @@ plugin_loaders = {}
 hook_names = set()
 hooks = {}
 
-tb_exc_file=electrum_tb_exc.log
+tb_exc_file="electrum_tb_exc.log"
 #tb_exc_file=sys.stdout
 
 class Plugins(DaemonThread):
@@ -159,7 +159,7 @@ class Plugins(DaemonThread):
                     else:
                         self.print_error("plugin not enabled:", name)
                 except Exception as e:
-                    traceback.print_exc(tb_exc_file)
+                    traceback.print_exc(file=tb_exc_file)
                     self.print_error("cannot load plugin for:", name)
                     raise
         return out
