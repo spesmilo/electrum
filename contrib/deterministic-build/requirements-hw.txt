@@ -1,4 +1,4 @@
-bitcoin=1.1.42 \
+bitcoin==1.1.42 \
     --hash=sha256:11ba70bd9e1c764f6bb2c4bd4c7fbebd5c9053c73f4d4325b00a98869a8b7236
 base58==2.0.0 \
     --hash=sha256:4c7f5687da771b519cf86b3236250e7c3543368c576404c9fe2d992a287666e0 \
