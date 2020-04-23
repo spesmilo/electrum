@@ -41,8 +41,8 @@ plugin_loaders = {}
 hook_names = set()
 hooks = {}
 
-tb_exc_file=open("electrum_tb_exc.log","w")
-#tb_exc_file=sys.stdout
+#tb_exc_file=open("electrum_tb_exc.log","w")
+tb_exc_file=sys.stdout
 
 class Plugins(DaemonThread):
     verbosity_filter = 'p'
@@ -65,11 +65,12 @@ class Plugins(DaemonThread):
         for loader, name, ispkg in pkgutil.iter_modules([self.pkgpath]):
             mod = pkgutil.find_loader('electrum.plugins.' + name)
             try:
-                p = loader.load_module()
+                m = mod.load_module()
             except BaseException as e:
+                self.print_error("exception from load_module() in load_plugins() for")
+                self.print_error("{}: {}".format(name, e))
                 traceback.print_exc(file=tb_exc_file)
-                self.print_error("exception from load_module() in load_plugins() for {}: {}".format(name, e))
-            m = mod.load_module()
+                raise
             d = m.__dict__
             gui_good = self.gui_name in d.get('available_for', [])
             if not gui_good:
@@ -85,8 +86,8 @@ class Plugins(DaemonThread):
                 try:
                     self.load_plugin(name)
                 except BaseException as e:
-                    traceback.print_exc(file=tb_exc_file)
                     self.print_error("cannot initialize plugin %s:" % name, str(e))
+                    traceback.print_exc(file=tb_exc_file)
 
 
     def get(self, name):
@@ -110,8 +111,9 @@ class Plugins(DaemonThread):
         try:
             p = loader.load_module()
         except BaseException as e:
+            self.print_error("exception from load_module for")
+            self.print_error("{}: {}".format(name, e))
             traceback.print_exc(file=tb_exc_file)
-            self.print_error("exception from load_module for {}: {}".format(name, e))
         self.print_error("init Plugin")
         plugin = p.Plugin(self, self.config, name)
         self.print_error("add jobs to plugin")
