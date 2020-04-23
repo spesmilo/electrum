@@ -2073,7 +2073,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.seed_button = StatusBarButton(read_QIcon("seed.png"), _("Seed"), self.show_seed_dialog )
         sb.addPermanentWidget(self.seed_button)
         self.lightning_button = None
-        if self.wallet.has_lightning() and self.network:
+        if self.wallet.has_lightning() and self.network and self.network.lngossip:
             self.lightning_button = StatusBarButton(read_QIcon("lightning.png"), _("Lightning Network"), self.gui_object.show_lightning_dialog)
             self.update_lightning_icon()
             sb.addPermanentWidget(self.lightning_button)

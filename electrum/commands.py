@@ -992,14 +992,14 @@ class Commands:
         self.network.update_beacons()
         node_id = bytes.fromhex(node_id)
         routes = self.network.path_finder.get_routes_to_beacons(amount_sat, node_id, is_source=True)
-        return {k.hex():[(x[0].hex(), x[1].hex()) for x in v] for k,v in routes.items()}
+        return {k.hex():[(x[0].hex(), x[1].hex(), x[2].hex()) for x in v] for k,v in routes.items()}
 
     @command('n')
     async def get_routes_from_beacons(self, amount_sat, node_id):
         self.network.update_beacons()
         node_id = bytes.fromhex(node_id)
         routes = self.network.path_finder.get_routes_to_beacons(amount_sat, node_id, is_source=False)
-        return {k.hex():[(x[0].hex(), x[1].hex()) for x in v] for k,v in routes.items()}
+        return {k.hex():[(x[0].hex(), x[1].hex(), x[2].hex()) for x in v] for k,v in routes.items()}
 
     @command('wpn')
     async def open_channel(self, connection_string, amount, push_amount=0, password=None, wallet: Abstract_Wallet = None):

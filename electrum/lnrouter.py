@@ -153,9 +153,9 @@ class LNPathFinder(Logger):
         if channel_policy is None:
             return float('inf'), 0
         # channels that did not publish both policies often return temporary channel failure
-        if self.channel_db.get_policy_for_node(short_channel_id, end_node, my_channels=my_channels) is None \
-                and not is_mine:
-            return float('inf'), 0
+        #if self.channel_db.get_policy_for_node(short_channel_id, end_node, my_channels=my_channels) is None \
+        #        and not is_mine:
+        #    return float('inf'), 0
         if channel_policy.is_disabled():
             return float('inf'), 0
         if payment_amt_msat < channel_policy.htlc_minimum_msat:
@@ -188,7 +188,7 @@ class LNPathFinder(Logger):
 
     def get_distances(self, nodeA: bytes, nodeB: bytes,
                       invoice_amount_msat: int, *,
-                      is_source: bool =True,
+                      is_source: bool =True, # A is source
                       my_channels: Dict[ShortChannelID, 'Channel'] = None) \
                       -> Optional[Sequence[Tuple[bytes, bytes]]]:
         # note: we don't lock self.channel_db, so while the path finding runs,
@@ -202,7 +202,6 @@ class LNPathFinder(Logger):
         prev_node = {}
         nodes_to_explore = queue.PriorityQueue()
         nodes_to_explore.put((0, invoice_amount_msat, nodeB))  # order of fields (in tuple) matters!
-
 
         # main loop of search
         while nodes_to_explore.qsize() > 0:
@@ -231,8 +230,8 @@ class LNPathFinder(Logger):
                             continue
                 edge_cost, fee_for_edge_msat = self._edge_cost(
                     edge_channel_id,
-                    start_node=edge_startnode,
-                    end_node=edge_endnode,
+                    start_node=edge_startnode if is_source else edge_endnode,
+                    end_node=edge_endnode if is_source else edge_startnode,
                     payment_amt_msat=amount_msat,
                     ignore_costs=(edge_startnode == nodeA) if nodeA else False,
                     is_mine=is_mine,
@@ -345,9 +344,10 @@ class LNPathFinder(Logger):
             prev_node_id = node_id
             for next_node_id, short_channel_id in path:
                 start_node_id = prev_node_id if is_source else next_node_id
+                channel_announcement = self.channel_db.get_channel_announcement(short_channel_id)
                 channel_update = self.channel_db.get_channel_update(start_node_id, short_channel_id)
                 node_announcement = self.channel_db.get_node_announcement(node_id=next_node_id)
-                route.append((node_announcement, channel_update))
+                route.append((node_announcement, channel_announcement, channel_update))
                 prev_node_id = next_node_id
             out[beacon_id] = route
             self.logger.info(f'route to beacon {beacon_id.hex()}: {len(route)}' )

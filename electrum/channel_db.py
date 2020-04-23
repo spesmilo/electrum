@@ -262,6 +262,7 @@ class ChannelDB(SqlDB):
         self._policies = {}  # type: Dict[Tuple[bytes, ShortChannelID], Policy]  # (node_id, scid) -> Policy
         self._nodes = {}  # type: Dict[bytes, NodeInfo]  # node_id -> NodeInfo
         self.raw_node_announcements = {}
+        self.raw_channel_announcements = {}
         self.raw_channel_updates = {}
         # node_id -> (host, port, ts)
         self._addresses = defaultdict(set)  # type: Dict[bytes, Set[Tuple[str, int, int]]]
@@ -365,6 +366,7 @@ class ChannelDB(SqlDB):
         self._update_num_policies_for_chan(channel_info.short_channel_id)
         if 'raw' in msg:
             self._db_save_channel(channel_info.short_channel_id, msg['raw'])
+            self.raw_channel_announcements[channel_info.short_channel_id] = msg['raw']
 
     def policy_changed(self, old_policy: Policy, new_policy: Policy, verbose: bool) -> bool:
         changed = False
@@ -535,7 +537,7 @@ class ChannelDB(SqlDB):
             node_id = node_info.node_id
             # Ignore node if it has no associated channel (DoS protection)
             if node_id not in self._channels_for_node:
-                #self.logger.info('ignoring orphan node_announcement')
+                self.logger.info('ignoring orphan node_announcement')
                 continue
             node = self._nodes.get(node_id)
             if node and node.timestamp >= node_info.timestamp:
@@ -630,6 +632,7 @@ class ChannelDB(SqlDB):
             except IncompatibleOrInsaneFeatures:
                 continue
             self._channels[ShortChannelID.normalize(short_channel_id)] = ci
+            self.raw_channel_announcements[short_channel_id] = msg
         c.execute("""SELECT * FROM node_info""")
         for node_id, msg in c:
             try:
@@ -681,6 +684,9 @@ class ChannelDB(SqlDB):
         nchans_with_1p = len(self._chans_with_1_policies)
         nchans_with_2p = len(self._chans_with_2_policies)
         return nchans_with_0p, nchans_with_1p, nchans_with_2p
+
+    def get_channel_announcement(self, node_id: bytes) -> Optional[bytes]:
+        return self.raw_channel_announcements.get(node_id)
 
     def get_channel_update(self, start_node_id: bytes, short_channel_id: bytes) -> Optional[bytes]:
         return self.raw_channel_updates.get((start_node_id, short_channel_id))
@@ -734,8 +740,8 @@ class ChannelDB(SqlDB):
     def get_channels_for_node(self, node_id: bytes, *,
                               my_channels: Dict[ShortChannelID, 'Channel'] = None) -> Set[bytes]:
         """Returns the set of short channel IDs where node_id is one of the channel participants."""
-        if not self.data_loaded.is_set():
-            raise Exception("channelDB data not loaded yet!")
+        #if not self.data_loaded.is_set():
+        #    raise Exception("channelDB data not loaded yet!")
         relevant_channels = self._channels_for_node.get(node_id) or set()
         relevant_channels = set(relevant_channels)  # copy
         # add our own channels  # TODO maybe slow?

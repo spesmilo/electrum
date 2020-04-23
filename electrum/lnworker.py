@@ -817,9 +817,11 @@ class LNWallet(LNWorker):
             payload['raw'] = raw
             return payload
         for route in routes:
-            node_announcements = [ dec(bytes.fromhex(x[0])) for x in route]
+            node_announcements = [dec(bytes.fromhex(x[0])) for x in route]
+            channel_announcements = [dec(bytes.fromhex(x[1])) for x in route]
+            channel_updates = [self.decode_channel_update(bytes.fromhex(x[2])) for x in route]
+            self.channel_db.add_channel_announcement(channel_announcements)
             self.channel_db.add_node_announcement(node_announcements)
-            channel_updates = [dec(bytes.fromhex(x[1])) for x in route]
             self.channel_db.add_channel_updates(channel_updates)
 
     @log_exceptions
@@ -829,9 +831,7 @@ class LNWallet(LNWorker):
         invoice_pubkey = lnaddr.pubkey.serialize()
         private_routes = lnaddr.get_private_routes()
         dest_nodes = [x[0][0] for x in private_routes] or [invoice_pubkey]
-        #print([s.hex() for s in dest_nodes])
         source_nodes = [chan.node_id for chan in self.channels.values()]
-        #print([s.hex() for s in source_nodes])
         routes_to = []
         for node_id in source_nodes:
             r = await self.request_routes_to_beacons(amount_sat, node_id)
@@ -866,6 +866,8 @@ class LNWallet(LNWorker):
             raise PaymentFailure(_("This invoice has been paid already"))
         if status == PR_INFLIGHT:
             raise PaymentFailure(_("A payment was already initiated for this invoice"))
+        #
+        await self.request_routes_for_invoice(invoice)
         info = PaymentInfo(lnaddr.paymenthash, amount, SENT, PR_UNPAID)
         self.save_payment_info(info)
         self.wallet.set_label(key, lnaddr.get_description())
@@ -946,6 +948,19 @@ class LNWallet(LNWorker):
                                  preimage=payment_attempt.preimage,
                                  failure_details=failure_log)
 
+    def decode_channel_update(self, channel_update_as_received:bytes):
+        channel_update_typed = (258).to_bytes(length=2, byteorder="big") + channel_update_as_received
+        # note: some nodes put channel updates in error msgs with the leading msg_type already there.
+        #       we try decoding both ways here.
+        try:
+            message_type, payload = decode_msg(channel_update_typed)
+            assert payload['chain_hash'] == constants.net.rev_genesis_bytes()
+            payload['raw'] = channel_update_typed
+        except:  # FIXME: too broad
+            message_type, payload = decode_msg(channel_update_as_received)
+            payload['raw'] = channel_update_as_received
+        return payload
+
     def handle_error_code_from_failed_htlc(self, failure_msg, sender_idx, route, peer):
         code, data = failure_msg.code, failure_msg.data
         self.logger.info(f"UPDATE_FAIL_HTLC {repr(code)} {data}")
@@ -963,16 +978,7 @@ class LNWallet(LNWorker):
             offset = failure_codes[code]
             channel_update_len = int.from_bytes(data[offset:offset+2], byteorder="big")
             channel_update_as_received = data[offset+2: offset+2+channel_update_len]
-            channel_update_typed = (258).to_bytes(length=2, byteorder="big") + channel_update_as_received
-            # note: some nodes put channel updates in error msgs with the leading msg_type already there.
-            #       we try decoding both ways here.
-            try:
-                message_type, payload = decode_msg(channel_update_typed)
-                assert payload['chain_hash'] == constants.net.rev_genesis_bytes()
-                payload['raw'] = channel_update_typed
-            except:  # FIXME: too broad
-                message_type, payload = decode_msg(channel_update_as_received)
-                payload['raw'] = channel_update_as_received
+            payload = self.decode_channel_update(channel_update_as_received)
             # sanity check
             if payload['chain_hash'] != constants.net.rev_genesis_bytes():
                 self.logger.info(f'could not decode channel_update for failed htlc: {channel_update_as_received.hex()}')
