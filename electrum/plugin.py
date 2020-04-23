@@ -41,6 +41,9 @@ plugin_loaders = {}
 hook_names = set()
 hooks = {}
 
+tb_exc_file=electrum_tb_exc.log
+#tb_exc_file=sys.stdout
+
 class Plugins(DaemonThread):
     verbosity_filter = 'p'
 
@@ -77,7 +80,7 @@ class Plugins(DaemonThread):
                 try:
                     self.load_plugin(name)
                 except BaseException as e:
-                    traceback.print_exc(file=sys.stdout)
+                    traceback.print_exc(file=tb_exc_file)
                     self.print_error("cannot initialize plugin %s:" % name, str(e))
 
     def get(self, name):
@@ -155,9 +158,10 @@ class Plugins(DaemonThread):
                         out.append([name, details[2], p])
                     else:
                         self.print_error("plugin not enabled:", name)
-                except:
-                    traceback.print_exc()
+                except Exception as e:
+                    traceback.print_exc(tb_exc_file)
                     self.print_error("cannot load plugin for:", name)
+                    raise
         return out
 
     def register_wallet_type(self, name, gui_good, wallet_type):
@@ -205,7 +209,7 @@ def run_hook(name, *args):
                 r = f(*args)
             except Exception:
                 print_error("Plugin error")
-                traceback.print_exc(file=sys.stdout)
+                traceback.print_exc(file=tb_exc_file)
                 r = False
             if r:
                 results.append(r)
