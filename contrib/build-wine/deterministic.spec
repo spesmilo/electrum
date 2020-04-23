@@ -21,6 +21,7 @@ hiddenimports += collect_submodules('pkg_resources')  # workaround for https://g
 hiddenimports += collect_submodules('trezorlib')
 hiddenimports += collect_submodules('safetlib')
 hiddenimports += collect_submodules('btchip')
+hiddenimports += collect_submodules('bitcoin')
 hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
 
@@ -43,6 +44,7 @@ datas = [
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('safetlib')
 datas += collect_data_files('btchip')
+datas += collect_data_files('bitcoin')
 datas += collect_data_files('keepkeylib')
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
