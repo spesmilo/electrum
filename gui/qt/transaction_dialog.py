@@ -816,7 +816,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
                     text_getter = lambda: self.wallet.cashacct.fmt_info(cashacct.Info.from_script(ca_script, self.tx_hash), emoji=True)
                     text_getter()  # go out to network to cache the shortest encoding for cash account name ahead of time...
                     copy_list += [ ( _("Copy Cash Account"), lambda: self._copy_to_clipboard(text_getter(), o_text) ) ]
-        except (TypeError, ValueError, IndexError, KeyError) as e:
+        except (TypeError, ValueError, IndexError, KeyError, AttributeError) as e:
             self.print_error("Outputs right-click menu exception:", repr(e))
 
         for item in show_list:
