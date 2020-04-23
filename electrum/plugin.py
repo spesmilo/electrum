@@ -41,7 +41,7 @@ plugin_loaders = {}
 hook_names = set()
 hooks = {}
 
-tb_exc_file="electrum_tb_exc.log"
+tb_exc_file=open("electrum_tb_exc.log","w")
 #tb_exc_file=sys.stdout
 
 class Plugins(DaemonThread):
@@ -64,6 +64,11 @@ class Plugins(DaemonThread):
     def load_plugins(self):
         for loader, name, ispkg in pkgutil.iter_modules([self.pkgpath]):
             mod = pkgutil.find_loader('electrum.plugins.' + name)
+            try:
+                p = loader.load_module()
+            except BaseException as e:
+                traceback.print_exc(file=tb_exc_file)
+                self.print_error("exception from load_module() in load_plugins() for {}: {}".format(name, e))
             m = mod.load_module()
             d = m.__dict__
             gui_good = self.gui_name in d.get('available_for', [])
@@ -82,7 +87,7 @@ class Plugins(DaemonThread):
                 except BaseException as e:
                     traceback.print_exc(file=tb_exc_file)
                     self.print_error("cannot initialize plugin %s:" % name, str(e))
-                    raise
+
 
     def get(self, name):
         return self.plugins.get(name)
@@ -102,7 +107,11 @@ class Plugins(DaemonThread):
             raise RuntimeError("%s implementation for %s plugin not found"
                                % (self.gui_name, name))
         self.print_error("loader.load_module()")
-        p = loader.load_module()
+        try:
+            p = loader.load_module()
+        except BaseException as e:
+            traceback.print_exc(file=tb_exc_file)
+            self.print_error("exception from load_module for {}: {}".format(name, e))
         self.print_error("init Plugin")
         plugin = p.Plugin(self, self.config, name)
         self.print_error("add jobs to plugin")
@@ -144,7 +153,6 @@ class Plugins(DaemonThread):
                 __import__(dep)
             except ImportError as e:
                 self.print_error('Plugin', name, 'unavailable:', type(e).__name__, ':', str(e))
-                raise
                 return False
             
         requires = d.get('requires_wallet_type', [])
@@ -164,7 +172,6 @@ class Plugins(DaemonThread):
                 except BaseException as e:
                     traceback.print_exc(file=tb_exc_file)
                     self.print_error("cannot load plugin for:", name)
-                    raise
         return out
 
     def register_wallet_type(self, name, gui_good, wallet_type):
@@ -214,7 +221,6 @@ def run_hook(name, *args):
                 print_error("Plugin error")
                 traceback.print_exc(file=tb_exc_file)
                 r = False
-                raise
             if r:
                 results.append(r)
 
@@ -538,7 +544,6 @@ class DeviceMgr(ThreadJob, PrintError):
         try:
             import hid
         except ImportError:
-            raise
             return []
 
         with self.hid_lock:
@@ -572,7 +577,6 @@ class DeviceMgr(ThreadJob, PrintError):
             except BaseException as e:
                 self.print_error('custom device enum failed. func {}, error {}'
                                  .format(str(f), str(e)))
-                raise
             else:
                 devices.extend(new_devices)
 
