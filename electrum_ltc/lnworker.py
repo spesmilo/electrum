@@ -67,6 +67,7 @@ from .lnwatcher import LNWalletWatcher
 from .crypto import pw_encode_bytes, pw_decode_bytes, PW_HASH_VERSION_LATEST
 from .lnutil import ChannelBackupStorage
 from .lnchannel import ChannelBackup
+from .channel_db import UpdateStatus
 
 if TYPE_CHECKING:
     from .network import Network
@@ -930,21 +931,23 @@ class LNWallet(LNWorker):
             if payload['chain_hash'] != constants.net.rev_genesis_bytes():
                 self.logger.info(f'could not decode channel_update for failed htlc: {channel_update_as_received.hex()}')
                 return True
-            categorized_chan_upds = self.channel_db.add_channel_updates([payload])
+            r = self.channel_db.add_channel_update(payload)
             blacklist = False
             short_channel_id = ShortChannelID(payload['short_channel_id'])
-            if categorized_chan_upds.good:
+            if r == UpdateStatus.GOOD:
                 self.logger.info(f"applied channel update to {short_channel_id}")
                 peer.maybe_save_remote_update(payload)
-            elif categorized_chan_upds.orphaned:
+            elif r == UpdateStatus.ORPHANED:
                 # maybe it is a private channel (and data in invoice was outdated)
                 self.logger.info(f"Could not find {short_channel_id}. maybe update is for private channel?")
                 start_node_id = route[sender_idx].node_id
                 self.channel_db.add_channel_update_for_private_channel(payload, start_node_id)
-            elif categorized_chan_upds.expired:
+            elif r == UpdateStatus.EXPIRED:
                 blacklist = True
-            elif categorized_chan_upds.deprecated:
+            elif r == UpdateStatus.DEPRECATED:
                 self.logger.info(f'channel update is not more recent.')
+                blacklist = True
+            elif r == UpdateStatus.UNCHANGED:
                 blacklist = True
         else:
             blacklist = True

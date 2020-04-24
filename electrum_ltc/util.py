@@ -1132,7 +1132,7 @@ class NetworkJobOnDefaultServer(Logger):
         raise NotImplementedError()  # implemented by subclasses
 
     async def stop(self):
-        self.network.unregister_callback(self._restart)
+        unregister_callback(self._restart)
         await self._stop()
 
     async def _stop(self):

@@ -46,6 +46,7 @@ import itertools
 from .i18n import _
 from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath, convert_bip32_path_to_list_of_uint32
 from .crypto import sha256
+from . import util
 from .util import (NotEnoughFunds, UserCancelled, profiler,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
                    WalletFileException, BitcoinException, MultipleSpendMaxTxOutputs,
@@ -1615,7 +1616,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             addr = self.get_txout_address(txo)
             if addr in self.receive_requests:
                 status, conf = self.get_request_status(addr)
-                self.network.trigger_callback('payment_received', self, addr, status)
+                util.trigger_callback('payment_received', self, addr, status)
 
     def make_payment_request(self, addr, amount, message, expiration):
         timestamp = int(time.time())
