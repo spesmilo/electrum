@@ -201,12 +201,14 @@ class UpdateStatus(IntEnum):
     ORPHANED   = 0
     EXPIRED    = 1
     DEPRECATED = 2
-    GOOD       = 3
+    UNCHANGED  = 3
+    GOOD       = 4
 
 class CategorizedChannelUpdates(NamedTuple):
     orphaned: List    # no channel announcement for channel update
     expired: List     # update older than two weeks
     deprecated: List  # update older than database entry
+    unchanged: List   # unchanged policies
     good: List        # good updates
 
 
@@ -362,22 +364,39 @@ class ChannelDB(SqlDB):
         if 'raw' in msg:
             self._db_save_channel(channel_info.short_channel_id, msg['raw'])
 
-    def print_change(self, old_policy: Policy, new_policy: Policy):
-        # print what changed between policies
+    def policy_changed(self, old_policy: Policy, new_policy: Policy, verbose: bool) -> bool:
+        changed = False
         if old_policy.cltv_expiry_delta != new_policy.cltv_expiry_delta:
-            self.logger.info(f'cltv_expiry_delta: {old_policy.cltv_expiry_delta} -> {new_policy.cltv_expiry_delta}')
+            changed |= True
+            if verbose:
+                self.logger.info(f'cltv_expiry_delta: {old_policy.cltv_expiry_delta} -> {new_policy.cltv_expiry_delta}')
         if old_policy.htlc_minimum_msat != new_policy.htlc_minimum_msat:
-            self.logger.info(f'htlc_minimum_msat: {old_policy.htlc_minimum_msat} -> {new_policy.htlc_minimum_msat}')
+            changed |= True
+            if verbose:
+                self.logger.info(f'htlc_minimum_msat: {old_policy.htlc_minimum_msat} -> {new_policy.htlc_minimum_msat}')
         if old_policy.htlc_maximum_msat != new_policy.htlc_maximum_msat:
-            self.logger.info(f'htlc_maximum_msat: {old_policy.htlc_maximum_msat} -> {new_policy.htlc_maximum_msat}')
+            changed |= True
+            if verbose:
+                self.logger.info(f'htlc_maximum_msat: {old_policy.htlc_maximum_msat} -> {new_policy.htlc_maximum_msat}')
         if old_policy.fee_base_msat != new_policy.fee_base_msat:
-            self.logger.info(f'fee_base_msat: {old_policy.fee_base_msat} -> {new_policy.fee_base_msat}')
+            changed |= True
+            if verbose:
+                self.logger.info(f'fee_base_msat: {old_policy.fee_base_msat} -> {new_policy.fee_base_msat}')
         if old_policy.fee_proportional_millionths != new_policy.fee_proportional_millionths:
-            self.logger.info(f'fee_proportional_millionths: {old_policy.fee_proportional_millionths} -> {new_policy.fee_proportional_millionths}')
+            changed |= True
+            if verbose:
+                self.logger.info(f'fee_proportional_millionths: {old_policy.fee_proportional_millionths} -> {new_policy.fee_proportional_millionths}')
         if old_policy.channel_flags != new_policy.channel_flags:
-            self.logger.info(f'channel_flags: {old_policy.channel_flags} -> {new_policy.channel_flags}')
+            changed |= True
+            if verbose:
+                self.logger.info(f'channel_flags: {old_policy.channel_flags} -> {new_policy.channel_flags}')
         if old_policy.message_flags != new_policy.message_flags:
-            self.logger.info(f'message_flags: {old_policy.message_flags} -> {new_policy.message_flags}')
+            changed |= True
+            if verbose:
+                self.logger.info(f'message_flags: {old_policy.message_flags} -> {new_policy.message_flags}')
+        if not changed and verbose:
+            self.logger.info(f'policy unchanged: {old_policy.timestamp} -> {new_policy.timestamp}')
+        return changed
 
     def add_channel_update(self, payload, max_age=None, verify=False, verbose=True):
         now = int(time.time())
@@ -408,14 +427,16 @@ class ChannelDB(SqlDB):
         self._update_num_policies_for_chan(short_channel_id)
         if 'raw' in payload:
             self._db_save_policy(policy.key, payload['raw'])
-        if old_policy and verbose:
-            self.print_change(old_policy, policy)
-        return UpdateStatus.GOOD
+        if old_policy and not self.policy_changed(old_policy, policy, verbose):
+            return UpdateStatus.UNCHANGED
+        else:
+            return UpdateStatus.GOOD
 
     def add_channel_updates(self, payloads, max_age=None) -> CategorizedChannelUpdates:
         orphaned = []
         expired = []
         deprecated = []
+        unchanged = []
         good = []
         for payload in payloads:
             r = self.add_channel_update(payload, max_age=max_age, verbose=False)
@@ -425,6 +446,8 @@ class ChannelDB(SqlDB):
                 expired.append(payload)
             elif r == UpdateStatus.DEPRECATED:
                 deprecated.append(payload)
+            elif r == UpdateStatus.UNCHANGED:
+                unchanged.append(payload)
             elif r == UpdateStatus.GOOD:
                 good.append(payload)
         self.update_counts()
@@ -432,6 +455,7 @@ class ChannelDB(SqlDB):
             orphaned=orphaned,
             expired=expired,
             deprecated=deprecated,
+            unchanged=unchanged,
             good=good)
 
 
