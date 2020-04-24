@@ -903,11 +903,16 @@ class Commands:
         return True
 
     @command('n')
-    async def notify(self, address: str, URL: str):
-        """Watch an address. Every time the address changes, a http POST is sent to the URL."""
+    async def notify(self, address: str, URL: Optional[str]):
+        """Watch an address. Every time the address changes, a http POST is sent to the URL.
+        Call with an empty URL to stop watching an address.
+        """
         if not hasattr(self, "_notifier"):
             self._notifier = Notifier(self.network)
-        await self._notifier.start_watching_queue.put((address, URL))
+        if URL:
+            await self._notifier.start_watching_addr(address, URL)
+        else:
+            await self._notifier.stop_watching_addr(address)
         return True
 
     @command('wn')
