@@ -947,6 +947,8 @@ class LNWallet(LNWorker):
             elif r == UpdateStatus.DEPRECATED:
                 self.logger.info(f'channel update is not more recent.')
                 blacklist = True
+            elif r == UpdateStatus.UNCHANGED:
+                blacklist = True
         else:
             blacklist = True
         return blacklist
