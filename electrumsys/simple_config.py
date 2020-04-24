@@ -75,6 +75,8 @@ class SimpleConfig(Logger):
             # avoid new config getting upgraded
             self.user_config = {'config_version': FINAL_CONFIG_VERSION}
 
+        self._not_modifiable_keys = set()
+
         # config "upgrade" - CLI options
         self.rename_config_keys(
             self.cmdline_options, {'auto_cycle': 'auto_connect'}, True)
@@ -82,6 +84,8 @@ class SimpleConfig(Logger):
         # config upgrade - user config
         if self.requires_upgrade():
             self.upgrade()
+
+        self._check_dependent_keys()
 
     def electrumsys_path(self):
         # Read electrumsys_path from command line
@@ -146,6 +150,12 @@ class SimpleConfig(Logger):
                 out = self.user_config.get(key, default)
         return out
 
+    def _check_dependent_keys(self) -> None:
+        if self.get('serverfingerprint'):
+            if not self.get('server'):
+                raise Exception("config key 'serverfingerprint' requires 'server' to also be set")
+            self.make_key_not_modifiable('server')
+
     def requires_upgrade(self):
         return self.get_config_version() < FINAL_CONFIG_VERSION
 
@@ -208,8 +218,12 @@ class SimpleConfig(Logger):
                                 .format(config_version, FINAL_CONFIG_VERSION))
         return config_version
 
-    def is_modifiable(self, key):
-        return key not in self.cmdline_options
+    def is_modifiable(self, key) -> bool:
+        return (key not in self.cmdline_options
+                and key not in self._not_modifiable_keys)
+
+    def make_key_not_modifiable(self, key) -> None:
+        self._not_modifiable_keys.add(key)
 
     def save_user_config(self):
         if self.get('forget_config'):
