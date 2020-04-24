@@ -811,22 +811,27 @@ class LNWallet(LNWorker):
                 if chan.short_channel_id == short_channel_id:
                     return chan
 
-    def add_routes(self, routes):
+    def add_routes(self, routes, direction):
         def dec(raw):
             message_type, payload = decode_msg(raw)
             payload['raw'] = raw
             return payload
-        for route in routes:
-            node_announcements = [dec(bytes.fromhex(x[0])) for x in route]
+        out = {}
+        for beacon_id, route in routes.items():
             channel_announcements = [dec(bytes.fromhex(x[1])) for x in route]
             channel_updates = [self.decode_channel_update(bytes.fromhex(x[2])) for x in route]
             self.channel_db.add_channel_announcement(channel_announcements)
-            self.channel_db.add_node_announcement(node_announcements)
             self.channel_db.add_channel_updates(channel_updates)
+            #print(f'route {direction} beacons:', )
+            out[beacon_id] = str([str(ShortChannelID(x['short_channel_id'])) for x in channel_announcements])
+        return out
+
+    def format_route(self, route):
+        return str([str(ShortChannelID(x.short_channel_id)) for x in route])
 
     @log_exceptions
     async def request_routes_for_invoice(self, invoice):
-        lnaddr = self._check_invoice(invoice)
+        lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
         amount_sat = int(lnaddr.amount * COIN)
         invoice_pubkey = lnaddr.pubkey.serialize()
         private_routes = lnaddr.get_private_routes()
@@ -835,14 +840,33 @@ class LNWallet(LNWorker):
         routes_to = []
         for node_id in source_nodes:
             r = await self.request_routes_to_beacons(amount_sat, node_id)
+            r = self.add_routes(r, 'to')
             routes_to += r.values()
-        self.add_routes(routes_to)
         routes_from = []
         for node_id in dest_nodes:
             r = await self.request_routes_from_beacons(amount_sat, node_id)
+            r = self.add_routes(r, 'from')
             routes_from += r.values()
-        self.add_routes(routes_from)
-        return {'from_beacons':len(routes_from), 'to_beacons':len(routes_to)}
+
+        q_amount_sat = self.network.path_finder.quantize_amount(amount_sat)
+        try:
+            route1 = self._create_route_from_invoice(amount_sat, lnaddr)
+            route1 = self.format_route(route1)
+        except Exception as e:
+            route1 = str(e)
+        try:
+            route2 = self._create_route_from_invoice(q_amount_sat, lnaddr)
+            route2 = self.format_route(route2)
+        except Exception as e:
+            route2 = str(e)
+        return {
+            'amount1':amount_sat,
+            'amount2':q_amount_sat,
+            'from_beacons':routes_from,
+            'to_beacons':routes_to,
+            'route1':route1,
+            'route2':route2,
+        }
 
     async def request_routes_to_beacons(self, amount_sat, node_id):
         beacons_server_url = 'http://ecdsa.org:8888'
@@ -880,7 +904,7 @@ class LNWallet(LNWorker):
                 # graph updates might occur during the computation
                 self.set_invoice_status(key, PR_ROUTING)
                 util.trigger_callback('invoice_status', key)
-                route = await run_in_thread(self._create_route_from_invoice, lnaddr)
+                route = await run_in_thread(self._create_route_from_invoice, amount, lnaddr)
                 self.set_invoice_status(key, PR_INFLIGHT)
                 util.trigger_callback('invoice_status', key)
                 payment_attempt_log = await self._pay_to_route(route, lnaddr)
@@ -909,6 +933,7 @@ class LNWallet(LNWorker):
         if not peer:
             raise Exception('Dropped peer')
         await peer.initialized
+        self.logger.info(f"starting payment. {self.format_route(route)}.")
         htlc = peer.pay(route=route,
                         chan=chan,
                         amount_msat=int(lnaddr.amount * COIN * 1000),
@@ -1021,8 +1046,8 @@ class LNWallet(LNWorker):
         return addr
 
     @profiler
-    def _create_route_from_invoice(self, decoded_invoice: 'LnAddr') -> LNPaymentRoute:
-        amount_msat = int(decoded_invoice.amount * COIN * 1000)
+    def _create_route_from_invoice(self, amount_sat:int, decoded_invoice: 'LnAddr') -> LNPaymentRoute:
+        amount_msat = amount_sat * 1000
         invoice_pubkey = decoded_invoice.pubkey.serialize()
         # use 'r' field from invoice
         route = None  # type: Optional[LNPaymentRoute]

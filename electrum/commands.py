@@ -1022,6 +1022,25 @@ class Commands:
     async def request_routes(self, invoice, wallet: Abstract_Wallet = None):
         return await wallet.lnworker.request_routes_for_invoice(invoice)
 
+    @command('n')
+    async def get_channel_policy(self, scid_str):
+        from .lnutil import parse_short_channel_id
+        short_id = parse_short_channel_id(scid_str)
+        ci = self.network.channel_db.get_channel_info(short_id)
+        if not ci: return
+        p1 = self.network.channel_db.get_policy_for_node(short_id, ci.node1_id)
+        p2 = self.network.channel_db.get_policy_for_node(short_id, ci.node2_id)
+        out = {}
+        if p1:
+            return(str(p1))
+            out['fb1'] = p1.fee_base_msat / 1000
+            out['min 1'] = p1.htlc_minimum_msat / 1000
+        if p2:
+            return(str(p2))
+            out['fb2'] = p2.fee_base_msat / 1000
+            out['min 2'] = p2.htlc_minimum_msat / 1000
+        return out
+
     @command('wn')
     async def lnpay(self, invoice, attempts=1, timeout=10, wallet: Abstract_Wallet = None):
         lnworker = wallet.lnworker

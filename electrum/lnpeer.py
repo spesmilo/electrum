@@ -1046,8 +1046,6 @@ class Peer(Logger):
         htlc = UpdateAddHtlc(amount_msat=amount_msat, payment_hash=payment_hash, cltv_expiry=cltv, timestamp=int(time.time()))
         htlc = chan.add_htlc(htlc)
         chan.set_onion_key(htlc.htlc_id, secret_key)
-        self.logger.info(f"starting payment. len(route)={len(route)}. route: {route}. "
-                         f"htlc: {htlc}. hops_data={hops_data!r}")
         self.send_message(
             "update_add_htlc",
             channel_id=chan.channel_id,

@@ -139,6 +139,8 @@ class AbstractChannel(Logger, ABC):
     node_id: bytes
     _state: ChannelState
 
+    LOGGING_SHORTCUT = 'c'
+
     def set_short_channel_id(self, short_id: ShortChannelID) -> None:
         self.short_channel_id = short_id
         self.storage["short_channel_id"] = short_id

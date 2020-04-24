@@ -1174,6 +1174,12 @@ def format_short_channel_id(short_channel_id: Optional[bytes]):
         + 'x' + str(int.from_bytes(short_channel_id[3:6], 'big')) \
         + 'x' + str(int.from_bytes(short_channel_id[6:], 'big'))
 
+def parse_short_channel_id(scid_str):
+    b,n,o = scid_str.split('x')
+    out = int(b).to_bytes(length=3,byteorder='big') + int(n).to_bytes(length=3, byteorder='big') + int(o).to_bytes(length=2,byteorder='big')
+    assert format_short_channel_id(out) == scid_str
+    return out
+
 
 @attr.s(frozen=True)
 class UpdateAddHtlc:

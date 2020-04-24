@@ -312,12 +312,15 @@ class LNPathFinder(Logger):
         self.prev_nodes_to_beacons = {}
         self.prev_nodes_from_beacons = {}
 
+    def quantize_amount(self, amount_sat):
+        import math
+        return int(pow(10, math.ceil(math.log(amount_sat, 10))))
+
     def get_prev_nodes_to_beacons(self, amount_sat, is_source):
         if not self.channel_db.data_loaded.is_set():
             print('not loaded')
             return {}
-        import math
-        amount_sat = int(pow(10, math.ceil(math.log(amount_sat, 10))))
+        amount_sat = self.quantize_amount(amount_sat)
         d = self.prev_nodes_to_beacons if is_source else self.prev_nodes_from_beacons
         if amount_sat not in d:
             d[amount_sat] = {}
