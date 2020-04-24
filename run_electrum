@@ -26,25 +26,7 @@
 # SOFTWARE.
 import os
 import sys
-import faulthandler
 
-faulthandler.enable(file=open("electrum_fault_handler_traceback.txt", "w"), all_threads=True)
-
-def print_exception(exception=""):
-    f = open('electrum_exception.log', 'a')
-    f.write('An exception occured - %s' % exception)
-    f.close() 
-
-def print_all_exceptions(func):
-    def wrapper_print_all_exceptions(*args, **kwargs):
-        try:
-            func(*args, **kwargs)
-        except Exception as e:
-            print_exception(e)
-            raise
-    return wrapper_print_all_exceptions
-    
-    
 script_dir = os.path.dirname(os.path.realpath(__file__))
 is_bundle= getattr(sys, 'frozen', False)
 is_local = not is_bundle and os.path.exists(os.path.join(script_dir, "electrum.desktop"))
@@ -344,7 +326,6 @@ def init_plugins(config, gui_name):
     from electrum.plugin import Plugins
     return Plugins(config, is_local or is_android, gui_name)
     
-@print_all_exceptions
 def main_func():
     # The hook will only be used in the Qt GUI right now
     util.setup_thread_excepthook()

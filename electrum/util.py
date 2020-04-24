@@ -1,4 +1,4 @@
-# Electrum - lightweight Bitcoin client
+A# Electrum - lightweight Bitcoin client
 # Copyright (C) 2011 Thomas Voegtlin
 #
 # Permission is hereby granted, free of charge, to any person
@@ -38,14 +38,12 @@ from locale import localeconv
 
 from .i18n import _
 
-
 import urllib.request, urllib.parse, urllib.error
 import queue
 import functools
 
 def inv_dict(d):
     return {v: k for k, v in d.items()}
-
 
 base_units = {'DGLD':8, 'mDGLD':5, 'Au':0, 'test':3}
 base_units_inverse = inv_dict(base_units)
@@ -306,13 +304,14 @@ def print_error(*args):
     if not verbosity: return
     print_stderr(*args)
 
-@log_file_writer
+
+#@log_file_writer
 def print_stderr(*args):
     args = [str(item) for item in args]
     sys.stderr.write(" ".join(args) + "\n")
     sys.stderr.flush()
 
-@log_file_writer
+#@log_file_writer
 def print_msg(*args):
     # Stringify args
     args = [str(item) for item in args]

@@ -41,8 +41,6 @@ plugin_loaders = {}
 hook_names = set()
 hooks = {}
 
-#tb_exc_file=open("electrum_tb_exc.log","w")
-tb_exc_file=sys.stdout
 
 class Plugins(DaemonThread):
     verbosity_filter = 'p'
@@ -69,7 +67,7 @@ class Plugins(DaemonThread):
             except BaseException as e:
                 self.print_error("exception from load_module() in load_plugins() for")
                 self.print_error("{}: {}".format(name, e))
-                traceback.print_exc(file=tb_exc_file)
+                traceback.print_exc(file=sys.stdout)
                 raise
             d = m.__dict__
             gui_good = self.gui_name in d.get('available_for', [])
@@ -87,7 +85,7 @@ class Plugins(DaemonThread):
                     self.load_plugin(name)
                 except BaseException as e:
                     self.print_error("cannot initialize plugin %s:" % name, str(e))
-                    traceback.print_exc(file=tb_exc_file)
+                    traceback.print_exc(file=sys.stdout)
 
 
     def get(self, name):
@@ -113,7 +111,7 @@ class Plugins(DaemonThread):
         except BaseException as e:
             self.print_error("exception from load_module for")
             self.print_error("{}: {}".format(name, e))
-            traceback.print_exc(file=tb_exc_file)
+            traceback.print_exc(file=sys.stdout)
         self.print_error("init Plugin")
         plugin = p.Plugin(self, self.config, name)
         self.print_error("add jobs to plugin")
@@ -172,7 +170,7 @@ class Plugins(DaemonThread):
                     else:
                         self.print_error("plugin not enabled:", name)
                 except BaseException as e:
-                    traceback.print_exc(file=tb_exc_file)
+                    traceback.print_exc(file=sys.stdout)
                     self.print_error("cannot load plugin for:", name)
         return out
 
@@ -221,7 +219,7 @@ def run_hook(name, *args):
                 r = f(*args)
             except Exception:
                 print_error("Plugin error")
-                traceback.print_exc(file=tb_exc_file)
+                traceback.print_exc(file=sys.stdout)
                 r = False
             if r:
                 results.append(r)

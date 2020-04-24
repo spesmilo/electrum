@@ -38,8 +38,6 @@ $PYTHON -m pip install -r ../../deterministic-build/requirements-hw.txt
 
 pushd $WINEPREFIX/drive_c/electrum
 $PYTHON setup.py install
-echo "***************************** Contents of lib: **************************************"
-ls build/lib/electrum
 popd
 
 cd ..

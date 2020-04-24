@@ -16,8 +16,6 @@ from ..hw_wallet.plugin import is_any_tx_output_on_change_branch
 from electrum.util import print_error, bfh, bh2u, versiontuple
 from electrum.base_wizard import ScriptTypeNotSupported
 from electrum import ecc
-from electrum import bip32
-from electrum.bip32 import BIP32Node, convert_bip32_intpath_to_strpath
 import ecdsa
 import bitcoin as btc
 
