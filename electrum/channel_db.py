@@ -32,6 +32,7 @@ import binascii
 import base64
 import asyncio
 import threading
+from enum import IntEnum
 
 
 from .sql_db import SqlDB, sql
@@ -196,13 +197,17 @@ class NodeInfo(NamedTuple):
         return addresses
 
 
+class UpdateStatus(IntEnum):
+    ORPHANED   = 0
+    EXPIRED    = 1
+    DEPRECATED = 2
+    GOOD       = 3
+
 class CategorizedChannelUpdates(NamedTuple):
     orphaned: List    # no channel announcement for channel update
     expired: List     # update older than two weeks
     deprecated: List  # update older than database entry
     good: List        # good updates
-    to_delete: List   # database entries to delete
-
 
 
 create_channel_info = """
@@ -374,62 +379,61 @@ class ChannelDB(SqlDB):
         if old_policy.message_flags != new_policy.message_flags:
             self.logger.info(f'message_flags: {old_policy.message_flags} -> {new_policy.message_flags}')
 
-    def add_channel_updates(self, payloads, max_age=None, verify=True) -> CategorizedChannelUpdates:
+    def add_channel_update(self, payload, max_age=None, verify=False, verbose=True):
+        now = int(time.time())
+        short_channel_id = ShortChannelID(payload['short_channel_id'])
+        timestamp = payload['timestamp']
+        if max_age and now - timestamp > max_age:
+            return UpdateStatus.EXPIRED
+        channel_info = self._channels.get(short_channel_id)
+        if not channel_info:
+            return UpdateStatus.ORPHANED
+        flags = int.from_bytes(payload['channel_flags'], 'big')
+        direction = flags & FLAG_DIRECTION
+        start_node = channel_info.node1_id if direction == 0 else channel_info.node2_id
+        payload['start_node'] = start_node
+        # compare updates to existing database entries
+        timestamp = payload['timestamp']
+        start_node = payload['start_node']
+        short_channel_id = ShortChannelID(payload['short_channel_id'])
+        key = (start_node, short_channel_id)
+        old_policy = self._policies.get(key)
+        if old_policy and timestamp <= old_policy.timestamp:
+            return UpdateStatus.DEPRECATED
+        if verify:
+            self.verify_channel_update(payload)
+        policy = Policy.from_msg(payload)
+        with self.lock:
+            self._policies[key] = policy
+        self._update_num_policies_for_chan(short_channel_id)
+        if 'raw' in payload:
+            self._db_save_policy(policy.key, payload['raw'])
+        if old_policy and verbose:
+            self.print_change(old_policy, policy)
+        return UpdateStatus.GOOD
+
+    def add_channel_updates(self, payloads, max_age=None) -> CategorizedChannelUpdates:
         orphaned = []
         expired = []
         deprecated = []
         good = []
-        to_delete = []
-        # filter orphaned and expired first
-        known = []
-        now = int(time.time())
         for payload in payloads:
-            short_channel_id = ShortChannelID(payload['short_channel_id'])
-            timestamp = payload['timestamp']
-            if max_age and now - timestamp > max_age:
-                expired.append(payload)
-                continue
-            channel_info = self._channels.get(short_channel_id)
-            if not channel_info:
+            r = self.add_channel_update(payload, max_age=max_age, verbose=False)
+            if r == UpdateStatus.ORPHANED:
                 orphaned.append(payload)
-                continue
-            flags = int.from_bytes(payload['channel_flags'], 'big')
-            direction = flags & FLAG_DIRECTION
-            start_node = channel_info.node1_id if direction == 0 else channel_info.node2_id
-            payload['start_node'] = start_node
-            known.append(payload)
-        # compare updates to existing database entries
-        for payload in known:
-            timestamp = payload['timestamp']
-            start_node = payload['start_node']
-            short_channel_id = ShortChannelID(payload['short_channel_id'])
-            key = (start_node, short_channel_id)
-            old_policy = self._policies.get(key)
-            if old_policy and timestamp <= old_policy.timestamp:
+            elif r == UpdateStatus.EXPIRED:
+                expired.append(payload)
+            elif r == UpdateStatus.DEPRECATED:
                 deprecated.append(payload)
-                continue
-            good.append(payload)
-            if verify:
-                self.verify_channel_update(payload)
-            policy = Policy.from_msg(payload)
-            with self.lock:
-                self._policies[key] = policy
-            self._update_num_policies_for_chan(short_channel_id)
-            if 'raw' in payload:
-                self._db_save_policy(policy.key, payload['raw'])
-        #
+            elif r == UpdateStatus.GOOD:
+                good.append(payload)
         self.update_counts()
         return CategorizedChannelUpdates(
             orphaned=orphaned,
             expired=expired,
             deprecated=deprecated,
-            good=good,
-            to_delete=to_delete,
-        )
+            good=good)
 
-    def add_channel_update(self, payload):
-        # called from tests
-        self.add_channel_updates([payload], verify=False)
 
     def create_database(self):
         c = self.conn.cursor()
