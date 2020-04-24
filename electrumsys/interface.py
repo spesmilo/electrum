@@ -34,6 +34,7 @@ from collections import defaultdict
 from ipaddress import IPv4Network, IPv6Network, ip_address, IPv6Address
 import itertools
 import logging
+import hashlib
 
 import aiorpcx
 from aiorpcx import TaskGroup
@@ -201,6 +202,8 @@ class RequestCorrupted(GracefulDisconnect): pass
 
 class ErrorParsingSSLCert(Exception): pass
 class ErrorGettingSSLCertFromServer(Exception): pass
+class ErrorSSLCertFingerprintMismatch(Exception): pass
+class InvalidOptionCombination(Exception): pass
 class ConnectError(NetworkException): pass
 
 
@@ -361,6 +364,8 @@ class Interface(Logger):
     async def _try_saving_ssl_cert_for_first_time(self, ca_ssl_context):
         ca_signed = await self.is_server_ca_signed(ca_ssl_context)
         if ca_signed:
+            if self.get_expected_fingerprint():
+                raise InvalidOptionCombination("cannot use --serverfingerprint with CA signed servers")
             with open(self.cert_path, 'w') as f:
                 # empty file means this is CA signed, not self-signed
                 f.write('')
@@ -373,6 +378,8 @@ class Interface(Logger):
         with open(self.cert_path, 'r') as f:
             contents = f.read()
         if contents == '':  # CA signed
+            if self.get_expected_fingerprint():
+                raise InvalidOptionCombination("cannot use --serverfingerprint with CA signed servers")
             return True
         # pinned self-signed cert
         try:
@@ -387,11 +394,12 @@ class Interface(Logger):
             raise ErrorParsingSSLCert(e) from e
         try:
             x.check_date()
-            return True
         except x509.CertificateError as e:
             self.logger.info(f"certificate has expired: {e}")
             os.unlink(self.cert_path)  # delete pinned cert only in this case
             return False
+        self.verify_certificate_fingerprint(bytearray(b))
+        return True
 
     async def _get_ssl_context(self):
         if self.protocol != 's':
@@ -479,6 +487,7 @@ class Interface(Logger):
                 dercert = await self.get_certificate()
                 if dercert:
                     self.logger.info("succeeded in getting cert")
+                    self.verify_certificate_fingerprint(dercert)
                     with open(self.cert_path, 'w') as f:
                         cert = ssl.DER_cert_to_PEM_cert(dercert)
                         # workaround android bug
@@ -502,6 +511,21 @@ class Interface(Logger):
             asyncio_transport = session.transport._asyncio_transport  # type: asyncio.BaseTransport
             ssl_object = asyncio_transport.get_extra_info("ssl_object")  # type: ssl.SSLObject
             return ssl_object.getpeercert(binary_form=True)
+
+    def get_expected_fingerprint(self):
+        if self.is_main_server():
+            return self.network.config.get("serverfingerprint")
+
+    def verify_certificate_fingerprint(self, certificate):
+        expected_fingerprint = self.get_expected_fingerprint()
+        if not expected_fingerprint:
+            return
+        fingerprint = hashlib.sha256(certificate).hexdigest()
+        fingerprints_match = fingerprint.lower() == expected_fingerprint.lower()
+        if not fingerprints_match:
+            util.trigger_callback('cert_mismatch')
+            raise ErrorSSLCertFingerprintMismatch('Refusing to connect to server due to cert fingerprint mismatch')
+        self.logger.info("cert fingerprint verification passed")
 
     async def get_block_header(self, height, assert_mode):
         self.logger.info(f'requesting block header {height} in mode {assert_mode}')
