@@ -28,7 +28,7 @@ import os
 import sys
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
-is_bundle = getattr(sys, 'frozen', False)
+is_bundle= getattr(sys, 'frozen', False)
 is_local = not is_bundle and os.path.exists(os.path.join(script_dir, "electrum.desktop"))
 is_android = 'ANDROID_DATA' in os.environ
 
@@ -46,7 +46,6 @@ if is_local or is_android:
 #
 #    sys.path.append(getcwd() + '/electrum')
 #    print(sys.path)
-
 
 def check_imports():
     # pure-python dependencies need to be imported here for pyinstaller
@@ -98,7 +97,6 @@ def prompt_password(prompt, confirm=True):
     if not password:
         password = None
     return password
-
 
 
 def run_non_RPC(config):
@@ -173,7 +171,6 @@ def run_non_RPC(config):
     print_msg("Wallet saved in '%s'" % wallet.storage.path)
     sys.exit(0)
 
-
 def init_daemon(config_options):
     config = SimpleConfig(config_options)
     storage = WalletStorage(config.get_wallet_path())
@@ -195,7 +192,6 @@ def init_daemon(config_options):
     else:
         password = None
     config_options['password'] = password
-
 
 def init_cmdline(config_options, server):
     config = SimpleConfig(config_options)
@@ -250,7 +246,6 @@ def init_cmdline(config_options, server):
 
     return cmd, password
 
-
 def get_connected_hw_devices(plugins):
     support = plugins.get_hardware_support()
     if not support:
@@ -267,7 +262,6 @@ def get_connected_hw_devices(plugins):
             continue
         devices += list(map(lambda x: (name, x), u))
     return devices
-
 
 def get_password_for_hw_device_encrypted_storage(plugins):
     devices = get_connected_hw_devices(plugins)
@@ -287,7 +281,6 @@ def get_password_for_hw_device_encrypted_storage(plugins):
         sys.exit(0)
     password = keystore.Xpub.get_pubkey_from_xpub(xpub, ())
     return password
-
 
 def run_offline_command(config, config_options, plugins):
     cmdname = config.get('cmd')
@@ -332,9 +325,8 @@ def run_offline_command(config, config_options, plugins):
 def init_plugins(config, gui_name):
     from electrum.plugin import Plugins
     return Plugins(config, is_local or is_android, gui_name)
-
-
-if __name__ == '__main__':
+    
+def main_func():
     # The hook will only be used in the Qt GUI right now
     util.setup_thread_excepthook()
     # on macOS, delete Process Serial Number arg generated for apps launched in Finder
@@ -481,3 +473,6 @@ if __name__ == '__main__':
     elif result is not None:
         print_msg(json_encode(result))
     sys.exit(0)
+
+if __name__ == '__main__':
+    main_func()
