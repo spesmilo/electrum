@@ -35,7 +35,6 @@ from .i18n import _
 from .util import profiler, PrintError, DaemonThread, UserCancelled, ThreadJob
 from . import bitcoin
 from . import plugins
-from . import bip32
 
 plugin_loaders = {}
 hook_names = set()
@@ -62,13 +61,7 @@ class Plugins(DaemonThread):
     def load_plugins(self):
         for loader, name, ispkg in pkgutil.iter_modules([self.pkgpath]):
             mod = pkgutil.find_loader('electrum.plugins.' + name)
-            try:
-                m = mod.load_module()
-            except BaseException as e:
-                self.print_error("exception from load_module() in load_plugins() for")
-                self.print_error("{}: {}".format(name, e))
-                traceback.print_exc(file=sys.stdout)
-                raise
+            m = mod.load_module()
             d = m.__dict__
             gui_good = self.gui_name in d.get('available_for', [])
             if not gui_good:
@@ -84,9 +77,8 @@ class Plugins(DaemonThread):
                 try:
                     self.load_plugin(name)
                 except BaseException as e:
-                    self.print_error("cannot initialize plugin %s:" % name, str(e))
                     traceback.print_exc(file=sys.stdout)
-
+                    self.print_error("cannot initialize plugin %s:" % name, str(e))
 
     def get(self, name):
         return self.plugins.get(name)
@@ -95,26 +87,15 @@ class Plugins(DaemonThread):
         return len(self.plugins)
 
     def load_plugin(self, name):
-        self.print_error("load_plugin({})".format(name))
         if name in self.plugins:
             return self.plugins[name]
         full_name = 'electrum.plugins.' + name + '.' + self.gui_name
-        self.print_error("pkgutil.find_loader({})".format(full_name))
         loader = pkgutil.find_loader(full_name)
         if not loader:
-            self.print_error("{} implementation for {} plugin not found".format(gui_name, name))
             raise RuntimeError("%s implementation for %s plugin not found"
                                % (self.gui_name, name))
-        self.print_error("loader.load_module()")
-        try:
-            p = loader.load_module()
-        except BaseException as e:
-            self.print_error("exception from load_module for")
-            self.print_error("{}: {}".format(name, e))
-            traceback.print_exc(file=sys.stdout)
-        self.print_error("init Plugin")
+        p = loader.load_module()
         plugin = p.Plugin(self, self.config, name)
-        self.print_error("add jobs to plugin")
         self.add_jobs(plugin.thread_jobs())
         self.plugins[name] = plugin
         self.print_error("loaded", name)
@@ -154,7 +135,6 @@ class Plugins(DaemonThread):
             except ImportError as e:
                 self.print_error('Plugin', name, 'unavailable:', type(e).__name__, ':', str(e))
                 return False
-            
         requires = d.get('requires_wallet_type', [])
         return not requires or w.wallet_type in requires
 
@@ -163,14 +143,11 @@ class Plugins(DaemonThread):
         for name, (gui_good, details) in self.hw_wallets.items():
             if gui_good:
                 try:
-                    self.print_error("loading plugin for:", name)
                     p = self.get_plugin(name)
                     if p.is_enabled():
                         out.append([name, details[2], p])
-                    else:
-                        self.print_error("plugin not enabled:", name)
-                except BaseException as e:
-                    traceback.print_exc(file=sys.stdout)
+                except:
+                    traceback.print_exc()
                     self.print_error("cannot load plugin for:", name)
         return out
 
@@ -194,9 +171,7 @@ class Plugins(DaemonThread):
 
     def get_plugin(self, name):
         if not name in self.plugins:
-            self.print_error("plugin not in cache. loading:", name)
             self.load_plugin(name)
-        self.print_error("plugin loaded. returning:", name)
         return self.plugins[name]
 
     def run(self):
@@ -322,7 +297,6 @@ class DeviceMgr(ThreadJob, PrintError):
     hidapi are implemented.'''
 
     def __init__(self, config):
-        self.print_error("init")
         super(DeviceMgr, self).__init__()
         # Keyed by xpub.  The value is the device id
         # has been paired, and None otherwise.
@@ -351,13 +325,10 @@ class DeviceMgr(ThreadJob, PrintError):
             clients = list(self.clients.keys())
         cutoff = time.time() - self.config.get_session_timeout()
         for client in clients:
-            self.print_error("client: {}".format(client))
             client.timeout(cutoff)
 
     def register_devices(self, device_pairs):
         for pair in device_pairs:
-            self.print_error("registering device")
-            self.print_error(device_pairs)
             self.recognised_hardware.add(pair)
 
     def register_enumerate_func(self, func):
@@ -366,13 +337,10 @@ class DeviceMgr(ThreadJob, PrintError):
     def create_client(self, device, handler, plugin):
         # Get from cache first
         client = self.client_lookup(device.id_)
-        self.print_error("looking up client -device id: {}".format(device.id_))
         if client:
-            self.print_error("returning client: {}".format(client))
             return client
         client = plugin.create_client(device, handler)
         if client:
-            self.print_error("registering client: {}".format(client))
             self.print_error("Registering", client)
             with self.lock:
                 self.clients[client] = (device.path, device.id_)

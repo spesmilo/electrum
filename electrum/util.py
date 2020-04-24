@@ -1,4 +1,4 @@
-A# Electrum - lightweight Bitcoin client
+# Electrum - lightweight Bitcoin client
 # Copyright (C) 2011 Thomas Voegtlin
 #
 # Permission is hereby granted, free of charge, to any person
