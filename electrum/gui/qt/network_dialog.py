@@ -26,7 +26,7 @@
 import socket
 import time
 from enum import IntEnum
-from typing import Tuple
+from typing import Tuple, TYPE_CHECKING
 
 from PyQt5.QtCore import Qt, pyqtSignal, QThread
 from PyQt5.QtWidgets import (QTreeWidget, QTreeWidgetItem, QMenu, QGridLayout, QComboBox,
@@ -42,6 +42,9 @@ from electrum.logging import get_logger
 
 from .util import (Buttons, CloseButton, HelpButton, read_QIcon, char_width_in_lineedit,
                    PasswordLineEdit)
+
+if TYPE_CHECKING:
+    from electrum.simple_config import SimpleConfig
 
 
 _logger = get_logger(__name__)
@@ -209,7 +212,7 @@ class ServerListWidget(QTreeWidget):
 
 class NetworkChoiceLayout(object):
 
-    def __init__(self, network: Network, config, wizard=False):
+    def __init__(self, network: Network, config: 'SimpleConfig', wizard=False):
         self.network = network
         self.config = config
         self.tor_proxy = None
