@@ -428,6 +428,7 @@ class NetworkChoiceLayout(object):
         net_params = self.network.get_parameters()
         try:
             server = ServerAddr.from_str_with_inference(str(self.server_e.text()))
+            if not server: raise Exception("failed to parse")
         except Exception:
             return
         net_params = net_params._replace(server=server,
