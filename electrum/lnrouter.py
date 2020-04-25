@@ -332,8 +332,15 @@ class LNPathFinder(Logger):
     def get_paths_to_beacons(self, amount_sat, source_id, *, is_source=True):
         prev_nodes = self.get_prev_nodes_to_beacons(amount_sat, is_source)
         out = {}
-        for node_id, prev in prev_nodes.items():
-            out[node_id] = self.get_path(source_id, node_id, prev)
+        for beacon_id, prev in prev_nodes.items():
+            #out[beacon_id] = self.get_path(source_id, beacon_id, prev)
+            # add paths from neighbours
+            for edge_channel_id in self.channel_db.get_channels_for_node(source_id, my_channels={}):
+                channel_info = self.channel_db.get_channel_info(edge_channel_id, my_channels={})
+                next_node = channel_info.node2_id if channel_info.node1_id == source_id else channel_info.node1_id
+                p = self.get_path(next_node, beacon_id, prev)
+                if p:
+                    out[beacon_id + edge_channel_id] = [(next_node, edge_channel_id)] + p
         return out
 
     @profiler
@@ -350,7 +357,8 @@ class LNPathFinder(Logger):
                 channel_announcement = self.channel_db.get_channel_announcement(short_channel_id)
                 channel_update = self.channel_db.get_channel_update(start_node_id, short_channel_id)
                 node_announcement = self.channel_db.get_node_announcement(node_id=next_node_id)
-                route.append((node_announcement, channel_announcement, channel_update))
+                if node_announcement and channel_announcement and channel_update:
+                    route.append((node_announcement, channel_announcement, channel_update))
                 prev_node_id = next_node_id
             out[beacon_id] = route
             self.logger.info(f'route to beacon {beacon_id.hex()}: {len(route)}' )
