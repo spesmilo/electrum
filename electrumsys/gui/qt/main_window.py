@@ -2517,6 +2517,8 @@ class ElectrumSysWindow(QMainWindow, MessageBoxMixin, Logger):
             grid.addWidget(lightning_b, 5, 2)
         vbox.addLayout(grid)
 
+        labels_clayout = None
+
         if self.wallet.is_deterministic():
             mpk_text = ShowQRTextEdit()
             mpk_text.setMaximumHeight(150)
@@ -2526,8 +2528,6 @@ class ElectrumSysWindow(QMainWindow, MessageBoxMixin, Logger):
                 mpk_text.setText(mpk_list[index])
                 mpk_text.repaint()  # macOS hack for #4777
 
-            # declare this value such that the hooks can later figure out what to do
-            labels_clayout = None
             # only show the combobox in case multiple accounts are available
             if len(mpk_list) > 1:
                 # only show the combobox if multiple master keys are defined
