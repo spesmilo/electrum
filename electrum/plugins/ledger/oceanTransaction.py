@@ -2,8 +2,8 @@ from btchip.bitcoinVarint import *
 from binascii import hexlify
 from collections import namedtuple
 from struct import pack, Struct
-from .bitcoin import *
-from .util import bh2u
+from electrum.util import bh2u
+from electrum.bitcoin import int_to_hex
 
 unpack_int32_from = Struct('<i').unpack_from
 unpack_int64_from = Struct('<q').unpack_from
