@@ -31,7 +31,7 @@ import asyncio
 import socket
 from typing import Tuple, Union, List, TYPE_CHECKING, Optional, Set, NamedTuple
 from collections import defaultdict
-from ipaddress import IPv4Network, IPv6Network, ip_address, IPv6Address
+from ipaddress import IPv4Network, IPv6Network, ip_address, IPv6Address, IPv4Address
 import itertools
 import logging
 import hashlib
@@ -794,10 +794,12 @@ class Interface(Logger):
             if self.is_tor():
                 return BUCKET_NAME_OF_ONION_SERVERS
             try:
-                ip_addr = ip_address(self.ip_addr())
+                ip_addr = ip_address(self.ip_addr())  # type: Union[IPv4Address, IPv6Address]
             except ValueError:
                 return ''
             if not ip_addr:
+                return ''
+            if ip_addr.is_loopback:  # localhost is exempt
                 return ''
             if ip_addr.version == 4:
                 slash16 = IPv4Network(ip_addr).supernet(prefixlen_diff=32-16)

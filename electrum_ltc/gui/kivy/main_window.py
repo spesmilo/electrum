@@ -150,6 +150,7 @@ class ElectrumWindow(App):
         net_params = self.network.get_parameters()
         try:
             server = ServerAddr.from_str_with_inference(server_str)
+            if not server: raise Exception("failed to parse")
         except Exception as e:
             self.show_error(_("Invalid server details: {}").format(repr(e)))
             return
