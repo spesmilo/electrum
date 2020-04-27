@@ -22,8 +22,8 @@ import bitcoin as btc
 try:
     import hid
     from btchip.btchipComm import HIDDongleHIDAPI, DongleWait
-    from electrum.btchip_ocean.btchip import btchip_ocean
-    from electrum.btchip_ocean.oceanTransaction import oceanTransaction
+    from .btchip import btchip_ocean
+    from .oceanTransaction import oceanTransaction
     from btchip.btchipUtils import compress_public_key,format_transaction, get_regular_input_script, get_p2sh_input_script
     from btchip.btchipFirmwareWizard import checkFirmware, updateFirmware
     from btchip.btchipException import BTChipException
