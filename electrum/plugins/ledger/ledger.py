@@ -17,7 +17,6 @@ from electrum.util import print_error, bfh, bh2u, versiontuple
 from electrum.base_wizard import ScriptTypeNotSupported
 from electrum import ecc 
 import ecdsa
-import bitcoin as btc
 
 try:
     import hid

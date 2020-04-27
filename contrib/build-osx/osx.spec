@@ -22,9 +22,11 @@ block_cipher = None
 
 # see https://github.com/pyinstaller/pyinstaller/issues/2005
 hiddenimports = []
+hiddenimports += collect_submodules('pkg_resources')  # workaround for https://github.com/pypa/setuptools/issues/1963
 hiddenimports += collect_submodules('trezorlib')
 hiddenimports += collect_submodules('safetlib')
 hiddenimports += collect_submodules('btchip')
+hiddenimports += collect_submodules('bitcoin')
 hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
 
@@ -32,11 +34,13 @@ datas = [
     (electrum+'electrum/*.json', PYPKG),
     (electrum+'electrum/wordlist/english.txt', PYPKG + '/wordlist'),
     (electrum+'electrum/locale', PYPKG + '/locale'),
+    (electrum+'electrum/plugins', PYPKG + '/plugins'),
     (electrum+'electrum/contract/contract', PYPKG + '/contract')
 ]
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('safetlib')
 datas += collect_data_files('btchip')
+datas += collect_data_files('bitcoin')
 datas += collect_data_files('keepkeylib')
 
 # Add libusb so Trezor and Safe-T mini will work
@@ -64,6 +68,8 @@ a = Analysis([electrum+ MAIN_SCRIPT,
               electrum+'electrum/plugins/safe_t/qt.py',
               electrum+'electrum/plugins/keepkey/qt.py',
               electrum+'electrum/plugins/ledger/qt.py',
+              electrum+'electrum/plugins/ledger/btchip.py',
+              electrum+'electrum/plugins/ledger/oceanTransaction.py',
               ],
              binaries=binaries,
              datas=datas,
