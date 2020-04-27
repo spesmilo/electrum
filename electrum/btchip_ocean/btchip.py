@@ -26,10 +26,10 @@ class btchip_ocean(btchip.btchip):
                 apdu.extend(params)
                 self.dongle.exchange(bytearray(apdu))
                 # Each input
+                i_input=0
                 for trinput in transaction.inputs:
                         apdu = [ self.BTCHIP_CLA, self.BTCHIP_INS_GET_TRUSTED_INPUT, 0x80, 0x00 ]
-                        params = bytearray(trinput.prev_hash)
-                        params.extend(struct.pack('<I',trinput.prev_idx))
+                        params = bytearray.fromhex(oceanTransaction.serialize_outpoint(trinput))
                         writeVarint(len(trinput.script), params)
                         apdu.append(len(params))
                         apdu.extend(params)
@@ -45,12 +45,17 @@ class btchip_ocean(btchip.btchip):
                                 #Append the sequence data if we have finished sending the script data.
                                 if ((offset + dataLength) == len(trinput.script)):
                                         params.extend(struct.pack('<I', trinput.sequence))
+                                        if trinput.is_issuance:
+                                                iss = bytearray(trinput.issuance.serialize())
+                                                params.extend(iss)
+                                
                                 apdu = [ self.BTCHIP_CLA, self.BTCHIP_INS_GET_TRUSTED_INPUT, 0x80, 0x00, len(params) ]
                                 apdu.extend(params)
                                 self.dongle.exchange(bytearray(apdu))
                                 offset += dataLength
                                 if (offset >= len(trinput.script)):
                                         break
+                        i_input = i_input + 1
                 # Number of outputs
                 apdu = [ self.BTCHIP_CLA, self.BTCHIP_INS_GET_TRUSTED_INPUT, 0x80, 0x00 ]
                 params = []

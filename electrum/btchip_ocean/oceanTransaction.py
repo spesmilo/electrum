@@ -2,7 +2,7 @@ from btchip.bitcoinVarint import *
 from binascii import hexlify
 from collections import namedtuple
 from struct import pack, Struct
-
+from ..bitcoin import *
 
 unpack_int32_from = Struct('<i').unpack_from
 unpack_int64_from = Struct('<q').unpack_from
@@ -314,13 +314,16 @@ class DeserializerOcean(Deserializer):
                 )
             prev_idx &= TxInputOcean.OUTPOINT_INDEX_MASK
 
-        return TxInputOcean(
+        inp = TxInputOcean(
             prev_hash,
             prev_idx,
             script,
             sequence,
             issuance
         )
+
+        return inp
+            
 
     def _read_output(self):
         '''Return a TxOutputOcean object'''
@@ -417,7 +420,7 @@ class oceanTransaction(TxOcean):
                         self._non_copy_constructor(binary, start)
                 else:
                         self._copy_constructor(orig)
-
+                        
         def _copy_constructor(self, orig):
                 self.version = orig.version
                 self.flag = orig.flag
@@ -435,7 +438,18 @@ class oceanTransaction(TxOcean):
         def _non_copy_constructor(self, binary, start):
                 assert binary is not None
                 self._copy_constructor(DeserializerOcean(binary, start).read_tx())
-                
+
+        @classmethod
+        def serialize_outpoint(self, txin):
+            if txin.prev_idx == TxInputOcean.MINUS_1:
+                return bh2u(txin.prev_hash) + int_to_hex(txin.prev_idx, 4)
+            else:
+                prevout = txin.prev_idx & TxInputOcean.OUTPOINT_INDEX_MASK
+                if txin.is_issuance:
+                    prevout |= TxInputOcean.OUTPOINT_ISSUANCE_FLAG
+            result = bh2u(txin.prev_hash) + int_to_hex(prevout, 4)
+            return result
+
 
         def serialize(self, skipOutputLockTime=False, skipWitness=False):
                 if skipWitness or (not self.inwitness and not self.outwitness):
@@ -475,6 +489,29 @@ class oceanTransaction(TxOcean):
                 return None
             return result
 
+class TxInputIssuanceOcean():
+    def __init__(self,issuance_nonce=None, issuance_entropy=None,
+                 amount=None, inflation=None):
+        self.issuance_nonce=issuance_nonce
+        self.issuance_entropy=issuance_entropy
+        self.amount=amount
+        self.inflation=inflation
+
+    def serialize(self):
+        result = []
+        result.extend(self.issuance_nonce)
+        result.extend(self.issuance_entropy)
+        result.extend(self.amount)
+        result.extend(self.inflation)
+        return result
+
+    def __str__(self):
+        buf = "Issuance nonce: {}".format(self.issuance_nonce.hex()) + "\r\n"
+        buf += "Issuance entropy: {}".format(self.issuance_entropy.hex()) + "\r\n"
+        buf += "Issuance amount: {}".format(self.amount.hex()) + "\r\n"
+        buf += "Issuance inflation: {}".format(self.inflation.hex()) + "\r\n"
+        return buf
+        
 class TxInputOcean():
     '''Class representing a transaction input.'''
     ZERO = bytes(32)
@@ -489,7 +526,8 @@ class TxInputOcean():
         self.prev_idx=prev_idx 
         self.script=script 
         self.sequence=sequence 
-        self.issuance=issuance 
+        self.issuance=issuance
+
 
     @cachedproperty
     def is_coinbase(self):
@@ -513,7 +551,7 @@ class TxInputOcean():
 
     def __str__(self):
         script = self.script.hex()
-        prev_hash = hash_to_hex_str(self.prev_hash)
+        prev_hash = self.prev_hash.hex()
         return ("Input({}, {:d}, script={}, sequence={:d})"
                 .format(prev_hash, self.prev_idx, script, self.sequence))
 
@@ -552,25 +590,22 @@ class oceanInput(TxInputOcean):
 
     def serialize(self):
         result = []
-        result.extend(self.prev_hash)
-        result.extend(self.prev_idx)
+        #prevout_hash + prevout_n
+        result.extend(oceanTransaction.serialize_outpoint(self.prev_idx))
         writeVarint(self.getScriptLength(), result)
         result.extend(self.script)
         result.extend(self.sequence)
         if self.issuance is not None:
-            iss=self.issuance
-            result.extend(iss.issuance_none)
-            result.extend(iss.issuance_entropy)
-            result.extend(iss.amount)
-            result.extend(iss.inflation)
+            result.extend(self.issuance.serialize())
         return result
 
     def __str__(self):
-        buf =  "PrevHash : " + hexlify(self.getPrevHash()) + "\r\n"
-        buf =  "PrevIdx : " + hexlify(self.getPrevIdx()) + "\r\n"
-        buf += "Script : " + hexlify(self.getScript()) + "\r\n"
-        buf += "Sequence : " + hexlify(self.getSequence()) + "\r\n"
-        buf += "Issuance : " + hexlify(self.getIssuance()) + "\r\n"
+        buf =  "PrevHash : {}".format(self.prev_hash.hex()) + "\r\n"
+        buf =  "PrevIdx : {}".format(self.prev_idx) + "\r\n"
+        buf += "Script : {}".format(self.script.hex()) + "\r\n"
+        buf += "Sequence : {}".format(self.sequence) + "\r\n"
+        if self.is_issuance:
+            buf += "Issuance : {}".format(self.issuance) + "\r\n"
         return buf
 
 

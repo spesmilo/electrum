@@ -443,7 +443,6 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     redeemScripts.append(bfh(utxo[2]))
                 elif not p2shTransaction:
                     txtmp = oceanTransaction(bfh(utxo[0]))
-                    txtmp_2 = Transaction(utxo[0])
                     trustedInput = self.get_client().getTrustedInput(txtmp, utxo[1])
                     trustedInput['sequence'] = sequence
                     chipInputs.append(trustedInput)

@@ -762,7 +762,7 @@ class Transaction:
     @classmethod
     def get_sorted_pubkeys(self, txin):
         # sort pubkeys and x_pubkeys, using the order of pubkeys
-        if txin['type'] == 'coinbase':
+        if txin['type'] == 'coinbase' or txin['issuance'] != None:
             return [], []
         x_pubkeys = txin['x_pubkeys']
         pubkeys = txin.get('pubkeys')
