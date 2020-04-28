@@ -9,5 +9,5 @@ PySocks>=1.6.6
 qdarkgraystyle
 typing>=3.0.0
 bitcoin
-PyQt5<=5.14
+PyQt5<5.11
 pycryptodomex

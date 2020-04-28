@@ -1,2 +1,2 @@
-PyQt5<=5.10
+PyQt5<5.11
 pycryptodomex
