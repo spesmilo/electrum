@@ -183,6 +183,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.checking_accounts = False
         self.qr_window = None
         self.pluginsdialog = None
+        self.showing_cert_mismatch_error = False
         self.tl_windows = []
         Logger.__init__(self)
 
@@ -223,7 +224,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 tabs.addTab(tab, icon, description.replace("&", ""))
 
         add_optional_tab(tabs, self.addresses_tab, read_QIcon("tab_addresses.png"), _("&Addresses"), "addresses")
-        add_optional_tab(tabs, self.channels_tab, read_QIcon("lightning.png"), _("Channels"), "channels")
+        if self.wallet.has_lightning():
+            add_optional_tab(tabs, self.channels_tab, read_QIcon("lightning.png"), _("Channels"), "channels")
         add_optional_tab(tabs, self.utxo_tab, read_QIcon("tab_coins.png"), _("Co&ins"), "utxo")
         add_optional_tab(tabs, self.contacts_tab, read_QIcon("tab_contacts.png"), _("Con&tacts"), "contacts")
         add_optional_tab(tabs, self.console_tab, read_QIcon("tab_console.png"), _("Con&sole"), "console")
@@ -267,7 +269,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                          'banner', 'verified', 'fee', 'fee_histogram', 'on_quotes',
                          'on_history', 'channel', 'channels_updated',
                          'payment_failed', 'payment_succeeded',
-                         'invoice_status', 'request_status', 'ln_gossip_sync_progress']
+                         'invoice_status', 'request_status', 'ln_gossip_sync_progress',
+                         'cert_mismatch']
             # To avoid leaking references to "self" that prevent the
             # window from being GC-ed when closed, callbacks should be
             # methods of this class only, and specifically not be
@@ -442,6 +445,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.history_model.on_fee_histogram()
         elif event == 'ln_gossip_sync_progress':
             self.update_lightning_icon()
+        elif event == 'cert_mismatch':
+            self.show_cert_mismatch_error()
         else:
             self.logger.info(f"unexpected network event: {event} {args}")
 
@@ -738,7 +743,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def donate_to_server(self):
         d = self.network.get_donation_address()
         if d:
-            host = self.network.get_parameters().host
+            host = self.network.get_parameters().server.host
             self.pay_to_URI('groestlcoin:%s?message=donation for %s'%(d, host))
         else:
             self.show_error(_('No donation address for this server'))
@@ -2256,6 +2261,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             ks_type = str(keystore_types[0]) if keystore_types else _('No keystore')
             grid.addWidget(QLabel(ks_type), 4, 1)
         # lightning
+        grid.addWidget(QLabel(_('Lightning') + ':'), 5, 0)
         if self.wallet.can_have_lightning():
             if self.wallet.has_lightning():
                 lightning_b = QPushButton(_('Disable'))
@@ -2268,10 +2274,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 lightning_b.clicked.connect(dialog.close)
                 lightning_b.clicked.connect(self.enable_lightning)
                 lightning_label = QLabel(_('Disabled'))
-            grid.addWidget(QLabel(_('Lightning')), 5, 0)
             grid.addWidget(lightning_label, 5, 1)
             grid.addWidget(lightning_b, 5, 2)
+        else:
+            grid.addWidget(QLabel(_("Not available for this wallet.")), 5, 1)
+            grid.addWidget(HelpButton(_("Lightning is currently restricted to HD wallets with p2wpkh addresses.")), 5, 2)
         vbox.addLayout(grid)
+
+        labels_clayout = None
 
         if self.wallet.is_deterministic():
             mpk_text = ShowQRTextEdit()
@@ -2282,8 +2292,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 mpk_text.setText(mpk_list[index])
                 mpk_text.repaint()  # macOS hack for #4777
 
-            # declare this value such that the hooks can later figure out what to do
-            labels_clayout = None
             # only show the combobox in case multiple accounts are available
             if len(mpk_list) > 1:
                 # only show the combobox if multiple master keys are defined
@@ -2729,6 +2737,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def do_export_privkeys(self, fileName, pklist, is_csv):
         with open(fileName, "w+") as f:
+            os.chmod(fileName, 0o600)
             if is_csv:
                 transaction = csv.writer(f)
                 transaction.writerow(["address", "private_key"])
@@ -3118,3 +3127,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                      "to see it, you need to broadcast it."))
             win.msg_box(QPixmap(icon_path("offline_tx.png")), None, _('Success'), msg)
             return True
+
+    def show_cert_mismatch_error(self):
+        if self.showing_cert_mismatch_error:
+            return
+        self.showing_cert_mismatch_error = True
+        self.show_critical(title=_("Certificate mismatch"),
+                           msg=_("The SSL certificate provided by the main server did not match the fingerprint passed in with the --serverfingerprint option.") + "\n\n" +
+                               _("Electrum-GRS will now exit."))
+        self.showing_cert_mismatch_error = False
+        self.close()

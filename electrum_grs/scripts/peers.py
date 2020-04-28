@@ -17,7 +17,7 @@ network.start()
 async def f():
     try:
         peers = await network.get_peers()
-        peers = filter_protocol(peers, 's')
+        peers = filter_protocol(peers)
         results = await network.send_multiple_requests(peers, 'blockchain.headers.subscribe', [])
         for server, header in sorted(results.items(), key=lambda x: x[1].get('height')):
             height = header.get('height')

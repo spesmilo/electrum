@@ -145,6 +145,18 @@ class ElectrumWindow(App):
         servers = self.network.get_servers()
         ChoiceDialog(_('Choose a server'), sorted(servers), popup.ids.host.text, cb2).open()
 
+    def maybe_switch_to_server(self, server_str: str):
+        from electrum.interface import ServerAddr
+        net_params = self.network.get_parameters()
+        try:
+            server = ServerAddr.from_str_with_inference(server_str)
+            if not server: raise Exception("failed to parse")
+        except Exception as e:
+            self.show_error(_("Invalid server details: {}").format(repr(e)))
+            return
+        net_params = net_params._replace(server=server)
+        self.network.run_from_another_thread(self.network.set_parameters(net_params))
+
     def choose_blockchain_dialog(self, dt):
         from .uix.dialogs.choice_dialog import ChoiceDialog
         chains = self.network.get_blockchains()
@@ -348,8 +360,8 @@ class ElectrumWindow(App):
             self.num_blocks = self.network.get_local_height()
             self.num_nodes = len(self.network.get_interfaces())
             net_params = self.network.get_parameters()
-            self.server_host = net_params.host
-            self.server_port = net_params.port
+            self.server_host = net_params.server.host
+            self.server_port = str(net_params.server.port)
             self.auto_connect = net_params.auto_connect
             self.oneserver = net_params.oneserver
             self.proxy_config = net_params.proxy if net_params.proxy else {}
@@ -814,7 +826,7 @@ class ElectrumWindow(App):
         if interface:
             self.server_host = interface.host
         else:
-            self.server_host = str(net_params.host) + ' (connecting...)'
+            self.server_host = str(net_params.server.host) + ' (connecting...)'
         self.proxy_config = net_params.proxy or {}
         self.update_proxy_str(self.proxy_config)
 

@@ -6,6 +6,7 @@ import locale
 from decimal import Decimal
 import getpass
 import logging
+from typing import TYPE_CHECKING
 
 import electrum_grs
 from electrum_grs import util
@@ -15,15 +16,21 @@ from electrum_grs.transaction import PartialTxOutput
 from electrum_grs.wallet import Wallet
 from electrum_grs.storage import WalletStorage
 from electrum_grs.network import NetworkParameters, TxBroadcastError, BestEffortRequestFailed
-from electrum_grs.interface import deserialize_server
+from electrum_grs.interface import ServerAddr
 from electrum_grs.logging import console_stderr_handler
+
+if TYPE_CHECKING:
+    from electrum_grs.daemon import Daemon
+    from electrum_grs.simple_config import SimpleConfig
+    from electrum_grs.plugin import Plugins
+
 
 _ = lambda x:x  # i18n
 
 
 class ElectrumGui:
 
-    def __init__(self, config, daemon, plugins):
+    def __init__(self, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
 
         self.config = config
         self.network = daemon.network
@@ -402,26 +409,28 @@ class ElectrumGui:
         if not self.network:
             return
         net_params = self.network.get_parameters()
-        host, port, protocol = net_params.host, net_params.port, net_params.protocol
+        server_addr = net_params.server
         proxy_config, auto_connect = net_params.proxy, net_params.auto_connect
-        srv = 'auto-connect' if auto_connect else self.network.default_server
+        srv = 'auto-connect' if auto_connect else str(self.network.default_server)
         out = self.run_dialog('Network', [
             {'label':'server', 'type':'str', 'value':srv},
             {'label':'proxy', 'type':'str', 'value':self.config.get('proxy', '')},
             ], buttons = 1)
         if out:
             if out.get('server'):
-                server = out.get('server')
-                auto_connect = server == 'auto-connect'
+                server_str = out.get('server')
+                auto_connect = server_str == 'auto-connect'
                 if not auto_connect:
                     try:
-                        host, port, protocol = deserialize_server(server)
+                        server_addr = ServerAddr.from_str(server_str)
                     except Exception:
-                        self.show_message("Error:" + server + "\nIn doubt, type \"auto-connect\"")
+                        self.show_message("Error:" + server_str + "\nIn doubt, type \"auto-connect\"")
                         return False
             if out.get('server') or out.get('proxy'):
                 proxy = electrum_grs.network.deserialize_proxy(out.get('proxy')) if out.get('proxy') else proxy_config
-                net_params = NetworkParameters(host, port, protocol, proxy, auto_connect)
+                net_params = NetworkParameters(server=server_addr,
+                                               proxy=proxy,
+                                               auto_connect=auto_connect)
                 self.network.run_from_another_thread(self.network.set_parameters(net_params))
 
     def settings_dialog(self):

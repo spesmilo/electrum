@@ -81,6 +81,8 @@ class HW_PluginBase(BasePlugin):
         for keystore in wallet.get_keystores():
             if isinstance(keystore, self.keystore_class):
                 self.device_manager().unpair_xpub(keystore.xpub)
+                if keystore.thread:
+                    keystore.thread.stop()
 
     def scan_and_create_client_for_device(self, *, device_id: str, wizard: 'BaseWizard') -> 'HardwareClientBase':
         devmgr = self.device_manager()
@@ -191,8 +193,13 @@ class HW_PluginBase(BasePlugin):
 
 class HardwareClientBase:
 
-    plugin: 'HW_PluginBase'
     handler = None  # type: Optional['HardwareHandlerBase']
+
+    def __init__(self, *, plugin: 'HW_PluginBase'):
+        self.plugin = plugin
+
+    def device_manager(self) -> 'DeviceMgr':
+        return self.plugin.device_manager()
 
     def is_pairable(self) -> bool:
         raise NotImplementedError()

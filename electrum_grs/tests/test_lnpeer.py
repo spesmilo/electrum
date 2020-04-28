@@ -17,7 +17,7 @@ from electrum_grs.ecc import ECPrivkey
 from electrum_grs import simple_config, lnutil
 from electrum_grs.lnaddr import lnencode, LnAddr, lndecode
 from electrum_grs.bitcoin import COIN, sha256
-from electrum_grs.util import bh2u, create_and_start_event_loop
+from electrum_grs.util import bh2u, create_and_start_event_loop, NetworkRetryManager
 from electrum_grs.lnpeer import Peer
 from electrum_grs.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
 from electrum_grs.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
@@ -95,9 +95,10 @@ class MockWallet:
     def is_lightning_backup(self):
         return False
 
-class MockLNWallet(Logger):
+class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     def __init__(self, remote_keypair, local_keypair, chan: 'Channel', tx_queue):
         Logger.__init__(self)
+        NetworkRetryManager.__init__(self, max_retry_delay_normal=1, init_retry_delay_normal=1)
         self.remote_keypair = remote_keypair
         self.node_keypair = local_keypair
         self.network = MockNetwork(tx_queue)
@@ -123,6 +124,10 @@ class MockLNWallet(Logger):
 
     @property
     def peers(self):
+        return self._peers
+
+    @property
+    def _peers(self):
         return {self.remote_keypair.pubkey: self.peer}
 
     def channels_for_peer(self, pubkey):
@@ -160,6 +165,7 @@ class MockLNWallet(Logger):
     force_close_channel = LNWallet.force_close_channel
     try_force_closing = LNWallet.try_force_closing
     get_first_timestamp = lambda self: 0
+    on_peer_successfully_established = LNWallet.on_peer_successfully_established
 
 
 class MockTransport:

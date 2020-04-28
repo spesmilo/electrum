@@ -26,7 +26,7 @@
 import socket
 import time
 from enum import IntEnum
-from typing import Tuple
+from typing import Tuple, TYPE_CHECKING
 
 from PyQt5.QtCore import Qt, pyqtSignal, QThread
 from PyQt5.QtWidgets import (QTreeWidget, QTreeWidgetItem, QMenu, QGridLayout, QComboBox,
@@ -36,12 +36,15 @@ from PyQt5.QtGui import QFontMetrics
 
 from electrum_grs.i18n import _
 from electrum_grs import constants, blockchain, util
-from electrum_grs.interface import serialize_server, deserialize_server
+from electrum_grs.interface import ServerAddr, PREFERRED_NETWORK_PROTOCOL
 from electrum_grs.network import Network
 from electrum_grs.logging import get_logger
 
 from .util import (Buttons, CloseButton, HelpButton, read_QIcon, char_width_in_lineedit,
                    PasswordLineEdit)
+
+if TYPE_CHECKING:
+    from electrum_grs.simple_config import SimpleConfig
 
 
 _logger = get_logger(__name__)
@@ -53,7 +56,7 @@ class NetworkDialog(QDialog):
     def __init__(self, network, config, network_updated_signal_obj):
         QDialog.__init__(self)
         self.setWindowTitle(_('Network'))
-        self.setMinimumSize(500, 300)
+        self.setMinimumSize(500, 500)
         self.nlayout = NetworkChoiceLayout(network, config)
         self.network_updated_signal_obj = network_updated_signal_obj
         vbox = QVBoxLayout(self)
@@ -72,11 +75,22 @@ class NetworkDialog(QDialog):
 
 
 class NodesListWidget(QTreeWidget):
+    """List of connected servers."""
+
+    SERVER_ADDR_ROLE = Qt.UserRole + 100
+    CHAIN_ID_ROLE = Qt.UserRole + 101
+    ITEMTYPE_ROLE = Qt.UserRole + 102
+
+    class ItemType(IntEnum):
+        CHAIN = 0
+        CONNECTED_SERVER = 1
+        DISCONNECTED_SERVER = 2
+        TOPLEVEL = 3
 
     def __init__(self, parent):
         QTreeWidget.__init__(self)
-        self.parent = parent
-        self.setHeaderLabels([_('Connected node'), _('Height')])
+        self.parent = parent  # type: NetworkChoiceLayout
+        self.setHeaderLabels([_('Server'), _('Height')])
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.create_menu)
 
@@ -84,14 +98,22 @@ class NodesListWidget(QTreeWidget):
         item = self.currentItem()
         if not item:
             return
-        is_server = not bool(item.data(0, Qt.UserRole))
+        item_type = item.data(0, self.ITEMTYPE_ROLE)
         menu = QMenu()
-        if is_server:
-            server = item.data(1, Qt.UserRole)
+        if item_type == self.ItemType.CONNECTED_SERVER:
+            server = item.data(0, self.SERVER_ADDR_ROLE)  # type: ServerAddr
             menu.addAction(_("Use as server"), lambda: self.parent.follow_server(server))
-        else:
-            chain_id = item.data(1, Qt.UserRole)
+        elif item_type == self.ItemType.DISCONNECTED_SERVER:
+            server = item.data(0, self.SERVER_ADDR_ROLE)  # type: ServerAddr
+            def func():
+                self.parent.server_e.setText(server.net_addr_str())
+                self.parent.set_server()
+            menu.addAction(_("Use as server"), func)
+        elif item_type == self.ItemType.CHAIN:
+            chain_id = item.data(0, self.CHAIN_ID_ROLE)
             menu.addAction(_("Follow this branch"), lambda: self.parent.follow_branch(chain_id))
+        else:
+            return
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def keyPressEvent(self, event):
@@ -106,9 +128,12 @@ class NodesListWidget(QTreeWidget):
         pt.setX(50)
         self.customContextMenuRequested.emit(pt)
 
-    def update(self, network: Network):
+    def update(self, *, network: Network, servers: dict, use_tor: bool):
         self.clear()
-        self.addChild = self.addTopLevelItem
+
+        # connected servers
+        connected_servers_item = QTreeWidgetItem([_("Connected nodes"), ''])
+        connected_servers_item.setData(0, self.ITEMTYPE_ROLE, self.ItemType.TOPLEVEL)
         chains = network.get_blockchains()
         n_chains = len(chains)
         for chain_id, interfaces in chains.items():
@@ -117,20 +142,47 @@ class NodesListWidget(QTreeWidget):
             name = b.get_name()
             if n_chains > 1:
                 x = QTreeWidgetItem([name + '@%d'%b.get_max_forkpoint(), '%d'%b.height()])
-                x.setData(0, Qt.UserRole, 1)
-                x.setData(1, Qt.UserRole, b.get_id())
+                x.setData(0, self.ITEMTYPE_ROLE, self.ItemType.CHAIN)
+                x.setData(0, self.CHAIN_ID_ROLE, b.get_id())
             else:
-                x = self
+                x = connected_servers_item
             for i in interfaces:
                 star = ' *' if i == network.interface else ''
-                item = QTreeWidgetItem([i.host + star, '%d'%i.tip])
-                item.setData(0, Qt.UserRole, 0)
-                item.setData(1, Qt.UserRole, i.server)
+                item = QTreeWidgetItem([f"{i.server.net_addr_str()}" + star, '%d'%i.tip])
+                item.setData(0, self.ITEMTYPE_ROLE, self.ItemType.CONNECTED_SERVER)
+                item.setData(0, self.SERVER_ADDR_ROLE, i.server)
+                item.setToolTip(0, str(i.server))
                 x.addChild(item)
             if n_chains > 1:
-                self.addTopLevelItem(x)
-                x.setExpanded(True)
+                connected_servers_item.addChild(x)
 
+        # disconnected servers
+        disconnected_servers_item = QTreeWidgetItem([_("Other known servers"), ""])
+        disconnected_servers_item.setData(0, self.ITEMTYPE_ROLE, self.ItemType.TOPLEVEL)
+        connected_hosts = set([iface.host for ifaces in chains.values() for iface in ifaces])
+        protocol = PREFERRED_NETWORK_PROTOCOL
+        for _host, d in sorted(servers.items()):
+            if _host in connected_hosts:
+                continue
+            if _host.endswith('.onion') and not use_tor:
+                continue
+            port = d.get(protocol)
+            if port:
+                server = ServerAddr(_host, port, protocol=protocol)
+                item = QTreeWidgetItem([server.net_addr_str(), ""])
+                item.setData(0, self.ITEMTYPE_ROLE, self.ItemType.DISCONNECTED_SERVER)
+                item.setData(0, self.SERVER_ADDR_ROLE, server)
+                disconnected_servers_item.addChild(item)
+
+        self.addTopLevelItem(connected_servers_item)
+        self.addTopLevelItem(disconnected_servers_item)
+
+        connected_servers_item.setExpanded(True)
+        for i in range(connected_servers_item.childCount()):
+            connected_servers_item.child(i).setExpanded(True)
+        disconnected_servers_item.setExpanded(True)
+
+        # headers
         h = self.header()
         h.setStretchLastSection(False)
         h.setSectionResizeMode(0, QHeaderView.Stretch)
@@ -139,117 +191,21 @@ class NodesListWidget(QTreeWidget):
         super().update()
 
 
-class ServerListWidget(QTreeWidget):
-    class Columns(IntEnum):
-        HOST = 0
-        PORT = 1
-
-    SERVER_STR_ROLE = Qt.UserRole + 100
-
-    def __init__(self, parent):
-        QTreeWidget.__init__(self)
-        self.parent = parent
-        self.setHeaderLabels([_('Host'), _('Port')])
-        self.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.customContextMenuRequested.connect(self.create_menu)
-
-    def create_menu(self, position):
-        item = self.currentItem()
-        if not item:
-            return
-        menu = QMenu()
-        server = item.data(self.Columns.HOST, self.SERVER_STR_ROLE)
-        menu.addAction(_("Use as server"), lambda: self.set_server(server))
-        menu.exec_(self.viewport().mapToGlobal(position))
-
-    def set_server(self, s):
-        host, port, protocol = deserialize_server(s)
-        self.parent.server_host.setText(host)
-        self.parent.server_port.setText(port)
-        self.parent.set_server()
-
-    def keyPressEvent(self, event):
-        if event.key() in [ Qt.Key_F2, Qt.Key_Return ]:
-            self.on_activated(self.currentItem(), self.currentColumn())
-        else:
-            QTreeWidget.keyPressEvent(self, event)
-
-    def on_activated(self, item, column):
-        # on 'enter' we show the menu
-        pt = self.visualItemRect(item).bottomLeft()
-        pt.setX(50)
-        self.customContextMenuRequested.emit(pt)
-
-    def update(self, servers, protocol, use_tor):
-        self.clear()
-        for _host, d in sorted(servers.items()):
-            if _host.endswith('.onion') and not use_tor:
-                continue
-            port = d.get(protocol)
-            if port:
-                x = QTreeWidgetItem([_host, port])
-                server = serialize_server(_host, port, protocol)
-                x.setData(self.Columns.HOST, self.SERVER_STR_ROLE, server)
-                self.addTopLevelItem(x)
-
-        h = self.header()
-        h.setStretchLastSection(False)
-        h.setSectionResizeMode(self.Columns.HOST, QHeaderView.Stretch)
-        h.setSectionResizeMode(self.Columns.PORT, QHeaderView.ResizeToContents)
-
-        super().update()
-
-
 class NetworkChoiceLayout(object):
 
-    def __init__(self, network: Network, config, wizard=False):
+    def __init__(self, network: Network, config: 'SimpleConfig', wizard=False):
         self.network = network
         self.config = config
-        self.protocol = None
         self.tor_proxy = None
 
         self.tabs = tabs = QTabWidget()
-        server_tab = QWidget()
         proxy_tab = QWidget()
         blockchain_tab = QWidget()
         tabs.addTab(blockchain_tab, _('Overview'))
-        tabs.addTab(server_tab, _('Server'))
         tabs.addTab(proxy_tab, _('Proxy'))
 
         fixed_width_hostname = 24 * char_width_in_lineedit()
         fixed_width_port = 6 * char_width_in_lineedit()
-
-        # server tab
-        grid = QGridLayout(server_tab)
-        grid.setSpacing(8)
-
-        self.server_host = QLineEdit()
-        self.server_host.setFixedWidth(fixed_width_hostname)
-        self.server_port = QLineEdit()
-        self.server_port.setFixedWidth(fixed_width_port)
-        self.autoconnect_cb = QCheckBox(_('Select server automatically'))
-        self.autoconnect_cb.setEnabled(self.config.is_modifiable('auto_connect'))
-
-        self.server_host.editingFinished.connect(self.set_server)
-        self.server_port.editingFinished.connect(self.set_server)
-        self.autoconnect_cb.clicked.connect(self.set_server)
-        self.autoconnect_cb.clicked.connect(self.update)
-
-        msg = ' '.join([
-            _("If auto-connect is enabled, Electrum-GRS will always use a server that is on the longest blockchain."),
-            _("If it is disabled, you have to choose a server you want to use. Electrum-GRS will warn you if your server is lagging.")
-        ])
-        grid.addWidget(self.autoconnect_cb, 0, 0, 1, 3)
-        grid.addWidget(HelpButton(msg), 0, 4)
-
-        grid.addWidget(QLabel(_('Server') + ':'), 1, 0)
-        grid.addWidget(self.server_host, 1, 1, 1, 2)
-        grid.addWidget(self.server_port, 1, 3)
-
-        label = _('Server peers') if network.is_connected() else _('Default Servers')
-        grid.addWidget(QLabel(label), 2, 0, 1, 5)
-        self.servers_list = ServerListWidget(self)
-        grid.addWidget(self.servers_list, 3, 0, 1, 5)
 
         # Proxy tab
         grid = QGridLayout(proxy_tab)
@@ -310,23 +266,36 @@ class NetworkChoiceLayout(object):
         grid.addWidget(self.status_label, 0, 1, 1, 3)
         grid.addWidget(HelpButton(msg), 0, 4)
 
-        self.server_label = QLabel('')
-        msg = _("Electrum-GRS sends your wallet addresses to a single server, in order to receive your transaction history.")
-        grid.addWidget(QLabel(_('Server') + ':'), 1, 0)
-        grid.addWidget(self.server_label, 1, 1, 1, 3)
+        self.autoconnect_cb = QCheckBox(_('Select server automatically'))
+        self.autoconnect_cb.setEnabled(self.config.is_modifiable('auto_connect'))
+        self.autoconnect_cb.clicked.connect(self.set_server)
+        self.autoconnect_cb.clicked.connect(self.update)
+        msg = ' '.join([
+            _("If auto-connect is enabled, Electrum-GRS will always use a server that is on the longest blockchain."),
+            _("If it is disabled, you have to choose a server you want to use. Electrum-GRS will warn you if your server is lagging.")
+        ])
+        grid.addWidget(self.autoconnect_cb, 1, 0, 1, 3)
         grid.addWidget(HelpButton(msg), 1, 4)
+
+        self.server_e = QLineEdit()
+        self.server_e.setFixedWidth(fixed_width_hostname + fixed_width_port)
+        self.server_e.editingFinished.connect(self.set_server)
+        msg = _("Electrum-GRS sends your wallet addresses to a single server, in order to receive your transaction history.")
+        grid.addWidget(QLabel(_('Server') + ':'), 2, 0)
+        grid.addWidget(self.server_e, 2, 1, 1, 3)
+        grid.addWidget(HelpButton(msg), 2, 4)
 
         self.height_label = QLabel('')
         msg = _('This is the height of your local copy of the blockchain.')
-        grid.addWidget(QLabel(_('Blockchain') + ':'), 2, 0)
-        grid.addWidget(self.height_label, 2, 1)
-        grid.addWidget(HelpButton(msg), 2, 4)
+        grid.addWidget(QLabel(_('Blockchain') + ':'), 3, 0)
+        grid.addWidget(self.height_label, 3, 1)
+        grid.addWidget(HelpButton(msg), 3, 4)
 
         self.split_label = QLabel('')
-        grid.addWidget(self.split_label, 3, 0, 1, 3)
+        grid.addWidget(self.split_label, 4, 0, 1, 3)
 
         self.nodes_list_widget = NodesListWidget(self)
-        grid.addWidget(self.nodes_list_widget, 5, 0, 1, 5)
+        grid.addWidget(self.nodes_list_widget, 6, 0, 1, 5)
 
         vbox = QVBoxLayout()
         vbox.addWidget(tabs)
@@ -348,30 +317,18 @@ class NetworkChoiceLayout(object):
     def enable_set_server(self):
         if self.config.is_modifiable('server'):
             enabled = not self.autoconnect_cb.isChecked()
-            self.server_host.setEnabled(enabled)
-            self.server_port.setEnabled(enabled)
-            self.servers_list.setEnabled(enabled)
+            self.server_e.setEnabled(enabled)
         else:
-            for w in [self.autoconnect_cb, self.server_host, self.server_port, self.servers_list]:
+            for w in [self.autoconnect_cb, self.server_e, self.nodes_list_widget]:
                 w.setEnabled(False)
 
     def update(self):
         net_params = self.network.get_parameters()
-        host, port, protocol = net_params.host, net_params.port, net_params.protocol
-        proxy_config, auto_connect = net_params.proxy, net_params.auto_connect
-        if not self.server_host.hasFocus() and not self.server_port.hasFocus():
-            self.server_host.setText(host)
-            self.server_port.setText(str(port))
+        server = net_params.server
+        auto_connect = net_params.auto_connect
+        if not self.server_e.hasFocus():
+            self.server_e.setText(server.net_addr_str())
         self.autoconnect_cb.setChecked(auto_connect)
-
-        interface = self.network.interface
-        host = interface.host if interface else _('None')
-        self.server_label.setText(host)
-
-        self.set_protocol(protocol)
-        self.servers = self.network.get_servers()
-        self.servers_list.update(self.servers, self.protocol, self.tor_cb.isChecked())
-        self.enable_set_server()
 
         height_str = "%d "%(self.network.get_local_height()) + _('blocks')
         self.height_label.setText(height_str)
@@ -389,7 +346,10 @@ class NetworkChoiceLayout(object):
         else:
             msg = ''
         self.split_label.setText(msg)
-        self.nodes_list_widget.update(self.network)
+        self.nodes_list_widget.update(network=self.network,
+                                      servers=self.network.get_servers(),
+                                      use_tor=self.tor_cb.isChecked())
+        self.enable_set_server()
 
     def fill_in_proxy_settings(self):
         proxy_config = self.network.get_parameters().proxy
@@ -411,59 +371,25 @@ class NetworkChoiceLayout(object):
     def layout(self):
         return self.layout_
 
-    def set_protocol(self, protocol):
-        if protocol != self.protocol:
-            self.protocol = protocol
-
-    def change_protocol(self, use_ssl):
-        p = 's' if use_ssl else 't'
-        host = self.server_host.text()
-        pp = self.servers.get(host, constants.net.DEFAULT_PORTS)
-        if p not in pp.keys():
-            p = list(pp.keys())[0]
-        port = pp[p]
-        self.server_host.setText(host)
-        self.server_port.setText(port)
-        self.set_protocol(p)
-        self.set_server()
-
     def follow_branch(self, chain_id):
         self.network.run_from_another_thread(self.network.follow_chain_given_id(chain_id))
         self.update()
 
-    def follow_server(self, server):
+    def follow_server(self, server: ServerAddr):
         self.network.run_from_another_thread(self.network.follow_chain_given_server(server))
         self.update()
-
-    def server_changed(self, x):
-        if x:
-            self.change_server(str(x.text(0)), self.protocol)
-
-    def change_server(self, host, protocol):
-        pp = self.servers.get(host, constants.net.DEFAULT_PORTS)
-        if protocol and protocol not in protocol_letters:
-            protocol = None
-        if protocol:
-            port = pp.get(protocol)
-            if port is None:
-                protocol = None
-        if not protocol:
-            if 's' in pp.keys():
-                protocol = 's'
-                port = pp.get(protocol)
-            else:
-                protocol = list(pp.keys())[0]
-                port = pp.get(protocol)
-        self.server_host.setText(host)
-        self.server_port.setText(port)
 
     def accept(self):
         pass
 
     def set_server(self):
         net_params = self.network.get_parameters()
-        net_params = net_params._replace(host=str(self.server_host.text()),
-                                         port=str(self.server_port.text()),
+        try:
+            server = ServerAddr.from_str_with_inference(str(self.server_e.text()))
+            if not server: raise Exception("failed to parse")
+        except Exception:
+            return
+        net_params = net_params._replace(server=server,
                                          auto_connect=self.autoconnect_cb.isChecked())
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
 

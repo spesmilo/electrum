@@ -5,7 +5,7 @@ import unittest
 from electrum_grs import constants
 from electrum_grs.simple_config import SimpleConfig
 from electrum_grs import blockchain
-from electrum_grs.interface import Interface
+from electrum_grs.interface import Interface, ServerAddr
 from electrum_grs.crypto import sha256
 from electrum_grs.util import bh2u
 
@@ -24,7 +24,7 @@ class MockInterface(Interface):
         self.config = config
         network = MockNetwork()
         network.config = config
-        super().__init__(network, 'mock-server:50000:t', None)
+        super().__init__(network=network, server=ServerAddr.from_str('mock-server:50000:t'), proxy=None)
         self.q = asyncio.Queue()
         self.blockchain = blockchain.Blockchain(config=self.config, forkpoint=0,
                                                 parent=None, forkpoint_hash=constants.net.GENESIS, prev_hash=None)

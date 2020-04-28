@@ -23,7 +23,8 @@
 import binascii
 import os, sys, re, json
 from collections import defaultdict, OrderedDict
-from typing import NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any, Sequence
+from typing import (NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any,
+                    Sequence, Dict, Generic, TypeVar)
 from datetime import datetime
 import decimal
 from decimal import Decimal
@@ -41,9 +42,11 @@ import time
 from typing import NamedTuple, Optional
 import ssl
 import ipaddress
+import random
 
 import aiohttp
 from aiohttp_socks import ProxyConnector, ProxyType
+import aiorpcx
 from aiorpcx import TaskGroup
 import certifi
 import dns.resolver
@@ -1125,7 +1128,7 @@ class NetworkJobOnDefaultServer(Logger):
         raise NotImplementedError()  # implemented by subclasses
 
     async def stop(self):
-        self.network.unregister_callback(self._restart)
+        unregister_callback(self._restart)
         await self._stop()
 
     async def _stop(self):
@@ -1318,3 +1321,86 @@ callback_mgr = CallbackManager()
 trigger_callback = callback_mgr.trigger_callback
 register_callback = callback_mgr.register_callback
 unregister_callback = callback_mgr.unregister_callback
+
+
+_NetAddrType = TypeVar("_NetAddrType")
+
+
+class NetworkRetryManager(Generic[_NetAddrType]):
+    """Truncated Exponential Backoff for network connections."""
+
+    def __init__(
+            self, *,
+            max_retry_delay_normal: float,
+            init_retry_delay_normal: float,
+            max_retry_delay_urgent: float = None,
+            init_retry_delay_urgent: float = None,
+    ):
+        self._last_tried_addr = {}  # type: Dict[_NetAddrType, Tuple[float, int]]  # (unix ts, num_attempts)
+
+        # note: these all use "seconds" as unit
+        if max_retry_delay_urgent is None:
+            max_retry_delay_urgent = max_retry_delay_normal
+        if init_retry_delay_urgent is None:
+            init_retry_delay_urgent = init_retry_delay_normal
+        self._max_retry_delay_normal = max_retry_delay_normal
+        self._init_retry_delay_normal = init_retry_delay_normal
+        self._max_retry_delay_urgent = max_retry_delay_urgent
+        self._init_retry_delay_urgent = init_retry_delay_urgent
+
+    def _trying_addr_now(self, addr: _NetAddrType) -> None:
+        last_time, num_attempts = self._last_tried_addr.get(addr, (0, 0))
+        # we add up to 1 second of noise to the time, so that clients are less likely
+        # to get synchronised and bombard the remote in connection waves:
+        cur_time = time.time() + random.random()
+        self._last_tried_addr[addr] = cur_time, num_attempts + 1
+
+    def _on_connection_successfully_established(self, addr: _NetAddrType) -> None:
+        self._last_tried_addr[addr] = time.time(), 0
+
+    def _can_retry_addr(self, peer: _NetAddrType, *,
+                        now: float = None, urgent: bool = False) -> bool:
+        if now is None:
+            now = time.time()
+        last_time, num_attempts = self._last_tried_addr.get(peer, (0, 0))
+        if urgent:
+            delay = min(self._max_retry_delay_urgent,
+                        self._init_retry_delay_urgent * 2 ** num_attempts)
+        else:
+            delay = min(self._max_retry_delay_normal,
+                        self._init_retry_delay_normal * 2 ** num_attempts)
+        next_time = last_time + delay
+        return next_time < now
+
+    def _clear_addr_retry_times(self) -> None:
+        self._last_tried_addr.clear()
+
+
+class MySocksProxy(aiorpcx.SOCKSProxy):
+
+    async def open_connection(self, host=None, port=None, **kwargs):
+        loop = asyncio.get_event_loop()
+        reader = asyncio.StreamReader(loop=loop)
+        protocol = asyncio.StreamReaderProtocol(reader, loop=loop)
+        transport, _ = await self.create_connection(
+            lambda: protocol, host, port, **kwargs)
+        writer = asyncio.StreamWriter(transport, protocol, reader, loop)
+        return reader, writer
+
+    @classmethod
+    def from_proxy_dict(cls, proxy: dict = None) -> Optional['MySocksProxy']:
+        if not proxy:
+            return None
+        username, pw = proxy.get('user'), proxy.get('password')
+        if not username or not pw:
+            auth = None
+        else:
+            auth = aiorpcx.socks.SOCKSUserAuth(username, pw)
+        addr = aiorpcx.NetAddress(proxy['host'], proxy['port'])
+        if proxy['mode'] == "socks4":
+            ret = cls(addr, aiorpcx.socks.SOCKS4a, auth)
+        elif proxy['mode'] == "socks5":
+            ret = cls(addr, aiorpcx.socks.SOCKS5, auth)
+        else:
+            raise NotImplementedError  # http proxy not available with aiorpcx
+        return ret

@@ -66,7 +66,7 @@ CHANNEL_ID_KEY = 'comserverchannelid'
 class DigitalBitbox_Client(HardwareClientBase):
 
     def __init__(self, plugin, hidDevice):
-        self.plugin = plugin
+        HardwareClientBase.__init__(self, plugin=plugin)
         self.dbb_hid = hidDevice
         self.opened = True
         self.password = None
@@ -77,10 +77,11 @@ class DigitalBitbox_Client(HardwareClientBase):
 
     def close(self):
         if self.opened:
-            try:
-                self.dbb_hid.close()
-            except:
-                pass
+            with self.device_manager().hid_lock:
+                try:
+                    self.dbb_hid.close()
+                except:
+                    pass
         self.opened = False
 
 
@@ -684,8 +685,9 @@ class DigitalBitboxPlugin(HW_PluginBase):
         return False
 
     def get_dbb_device(self, device):
-        dev = hid.device()
-        dev.open_path(device.path)
+        with self.device_manager().hid_lock:
+            dev = hid.device()
+            dev.open_path(device.path)
         return dev
 
 

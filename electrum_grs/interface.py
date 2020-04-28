@@ -29,11 +29,12 @@ import sys
 import traceback
 import asyncio
 import socket
-from typing import Tuple, Union, List, TYPE_CHECKING, Optional, Set
+from typing import Tuple, Union, List, TYPE_CHECKING, Optional, Set, NamedTuple
 from collections import defaultdict
-from ipaddress import IPv4Network, IPv6Network, ip_address, IPv6Address
+from ipaddress import IPv4Network, IPv6Network, ip_address, IPv6Address, IPv4Address
 import itertools
 import logging
+import hashlib
 
 import aiorpcx
 from aiorpcx import TaskGroup
@@ -43,7 +44,7 @@ from aiorpcx.jsonrpc import JSONRPC, CodeMessageError
 from aiorpcx.rawsocket import RSClient
 import certifi
 
-from .util import ignore_exceptions, log_exceptions, bfh, SilentTaskGroup
+from .util import ignore_exceptions, log_exceptions, bfh, SilentTaskGroup, MySocksProxy
 from . import util
 from . import x509
 from . import pem
@@ -64,6 +65,10 @@ ca_path = certifi.where()
 BUCKET_NAME_OF_ONION_SERVERS = 'onion'
 
 MAX_INCOMING_MSG_SIZE = 1_000_000  # in bytes
+
+_KNOWN_NETWORK_PROTOCOLS = {'t', 's'}
+PREFERRED_NETWORK_PROTOCOL = 's'
+assert PREFERRED_NETWORK_PROTOCOL in _KNOWN_NETWORK_PROTOCOLS
 
 
 class NetworkTimeout:
@@ -186,6 +191,8 @@ class RequestCorrupted(GracefulDisconnect): pass
 
 class ErrorParsingSSLCert(Exception): pass
 class ErrorGettingSSLCertFromServer(Exception): pass
+class ErrorSSLCertFingerprintMismatch(Exception): pass
+class InvalidOptionCombination(Exception): pass
 class ConnectError(NetworkException): pass
 
 
@@ -198,22 +205,75 @@ class _RSClient(RSClient):
             raise ConnectError(e) from e
 
 
-def deserialize_server(server_str: str) -> Tuple[str, str, str]:
-    # host might be IPv6 address, hence do rsplit:
-    host, port, protocol = str(server_str).rsplit(':', 2)
-    if not host:
-        raise ValueError('host must not be empty')
-    if host[0] == '[' and host[-1] == ']':  # IPv6
-        host = host[1:-1]
-    if protocol not in ('s', 't'):
-        raise ValueError('invalid network protocol: {}'.format(protocol))
-    net_addr = NetAddress(host, port)  # this validates host and port
-    host = str(net_addr.host)  # canonical form (if e.g. IPv6 address)
-    return host, port, protocol
+class ServerAddr:
 
+    def __init__(self, host: str, port: Union[int, str], *, protocol: str = None):
+        assert isinstance(host, str), repr(host)
+        if protocol is None:
+            protocol = 's'
+        if not host:
+            raise ValueError('host must not be empty')
+        if host[0] == '[' and host[-1] == ']':  # IPv6
+            host = host[1:-1]
+        try:
+            net_addr = NetAddress(host, port)  # this validates host and port
+        except Exception as e:
+            raise ValueError(f"cannot construct ServerAddr: invalid host or port (host={host}, port={port})") from e
+        if protocol not in _KNOWN_NETWORK_PROTOCOLS:
+            raise ValueError(f"invalid network protocol: {protocol}")
+        self.host = str(net_addr.host)  # canonical form (if e.g. IPv6 address)
+        self.port = int(net_addr.port)
+        self.protocol = protocol
+        self._net_addr_str = str(net_addr)
 
-def serialize_server(host: str, port: Union[str, int], protocol: str) -> str:
-    return str(':'.join([host, str(port), protocol]))
+    @classmethod
+    def from_str(cls, s: str) -> 'ServerAddr':
+        # host might be IPv6 address, hence do rsplit:
+        host, port, protocol = str(s).rsplit(':', 2)
+        return ServerAddr(host=host, port=port, protocol=protocol)
+
+    @classmethod
+    def from_str_with_inference(cls, s: str) -> Optional['ServerAddr']:
+        """Construct ServerAddr from str, guessing missing details.
+        Ongoing compatibility not guaranteed.
+        """
+        if not s:
+            return None
+        items = str(s).rsplit(':', 2)
+        if len(items) < 2:
+            return None  # although maybe we could guess the port too?
+        host = items[0]
+        port = items[1]
+        if len(items) >= 3:
+            protocol = items[2]
+        else:
+            protocol = PREFERRED_NETWORK_PROTOCOL
+        return ServerAddr(host=host, port=port, protocol=protocol)
+
+    def __str__(self):
+        return '{}:{}'.format(self.net_addr_str(), self.protocol)
+
+    def to_json(self) -> str:
+        return str(self)
+
+    def __repr__(self):
+        return f'<ServerAddr host={self.host} port={self.port} protocol={self.protocol}>'
+
+    def net_addr_str(self) -> str:
+        return self._net_addr_str
+
+    def __eq__(self, other):
+        if not isinstance(other, ServerAddr):
+            return False
+        return (self.host == other.host
+                and self.port == other.port
+                and self.protocol == other.protocol)
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    def __hash__(self):
+        return hash((self.host, self.port, self.protocol))
 
 
 def _get_cert_path_for_host(*, config: 'SimpleConfig', host: str) -> str:
@@ -232,19 +292,17 @@ class Interface(Logger):
 
     LOGGING_SHORTCUT = 'i'
 
-    def __init__(self, network: 'Network', server: str, proxy: Optional[dict]):
+    def __init__(self, *, network: 'Network', server: ServerAddr, proxy: Optional[dict]):
         self.ready = asyncio.Future()
         self.got_disconnected = asyncio.Future()
         self.server = server
-        self.host, self.port, self.protocol = deserialize_server(self.server)
-        self.port = int(self.port)
         Logger.__init__(self)
         assert network.config.path
         self.cert_path = _get_cert_path_for_host(config=network.config, host=self.host)
         self.blockchain = None  # type: Optional[Blockchain]
         self._requested_chunks = set()  # type: Set[int]
         self.network = network
-        self._set_proxy(proxy)
+        self.proxy = MySocksProxy.from_proxy_dict(proxy)
         self.session = None  # type: Optional[NotificationSession]
         self._ipaddr_bucket = None
 
@@ -259,28 +317,23 @@ class Interface(Logger):
             self.network.taskgroup.spawn(self.run()), self.network.asyncio_loop)
         self.taskgroup = SilentTaskGroup()
 
+    @property
+    def host(self):
+        return self.server.host
+
+    @property
+    def port(self):
+        return self.server.port
+
+    @property
+    def protocol(self):
+        return self.server.protocol
+
     def diagnostic_name(self):
-        return str(NetAddress(self.host, self.port))
+        return self.server.net_addr_str()
 
     def __str__(self):
         return f"<Interface {self.diagnostic_name()}>"
-
-    def _set_proxy(self, proxy: dict):
-        if proxy:
-            username, pw = proxy.get('user'), proxy.get('password')
-            if not username or not pw:
-                auth = None
-            else:
-                auth = aiorpcx.socks.SOCKSUserAuth(username, pw)
-            addr = NetAddress(proxy['host'], proxy['port'])
-            if proxy['mode'] == "socks4":
-                self.proxy = aiorpcx.socks.SOCKSProxy(addr, aiorpcx.socks.SOCKS4a, auth)
-            elif proxy['mode'] == "socks5":
-                self.proxy = aiorpcx.socks.SOCKSProxy(addr, aiorpcx.socks.SOCKS5, auth)
-            else:
-                raise NotImplementedError  # http proxy not available with aiorpcx
-        else:
-            self.proxy = None
 
     async def is_server_ca_signed(self, ca_ssl_context):
         """Given a CA enforcing SSL context, returns True if the connection
@@ -300,11 +353,13 @@ class Interface(Logger):
     async def _try_saving_ssl_cert_for_first_time(self, ca_ssl_context):
         ca_signed = await self.is_server_ca_signed(ca_ssl_context)
         if ca_signed:
+            if self._get_expected_fingerprint():
+                raise InvalidOptionCombination("cannot use --serverfingerprint with CA signed servers")
             with open(self.cert_path, 'w') as f:
                 # empty file means this is CA signed, not self-signed
                 f.write('')
         else:
-            await self.save_certificate()
+            await self._save_certificate()
 
     def _is_saved_ssl_cert_available(self):
         if not os.path.exists(self.cert_path):
@@ -312,6 +367,8 @@ class Interface(Logger):
         with open(self.cert_path, 'r') as f:
             contents = f.read()
         if contents == '':  # CA signed
+            if self._get_expected_fingerprint():
+                raise InvalidOptionCombination("cannot use --serverfingerprint with CA signed servers")
             return True
         # pinned self-signed cert
         try:
@@ -326,11 +383,12 @@ class Interface(Logger):
             raise ErrorParsingSSLCert(e) from e
         try:
             x.check_date()
-            return True
         except x509.CertificateError as e:
             self.logger.info(f"certificate has expired: {e}")
             os.unlink(self.cert_path)  # delete pinned cert only in this case
             return False
+        self._verify_certificate_fingerprint(bytearray(b))
+        return True
 
     async def _get_ssl_context(self):
         if self.protocol != 's':
@@ -411,13 +469,14 @@ class Interface(Logger):
 
         self.ready.set_result(1)
 
-    async def save_certificate(self):
+    async def _save_certificate(self) -> None:
         if not os.path.exists(self.cert_path):
             # we may need to retry this a few times, in case the handshake hasn't completed
             for _ in range(10):
-                dercert = await self.get_certificate()
+                dercert = await self._fetch_certificate()
                 if dercert:
                     self.logger.info("succeeded in getting cert")
+                    self._verify_certificate_fingerprint(dercert)
                     with open(self.cert_path, 'w') as f:
                         cert = ssl.DER_cert_to_PEM_cert(dercert)
                         # workaround android bug
@@ -433,15 +492,29 @@ class Interface(Logger):
             else:
                 raise GracefulDisconnect("could not get certificate after 10 tries")
 
-    async def get_certificate(self):
+    async def _fetch_certificate(self) -> bytes:
         sslc = ssl.SSLContext()
-        try:
-            async with _RSClient(session_factory=RPCSession,
-                                 host=self.host, port=self.port,
-                                 ssl=sslc, proxy=self.proxy) as session:
-                return session.transport._asyncio_transport._ssl_protocol._sslpipe._sslobj.getpeercert(True)
-        except ValueError:
-            return None
+        async with _RSClient(session_factory=RPCSession,
+                             host=self.host, port=self.port,
+                             ssl=sslc, proxy=self.proxy) as session:
+            asyncio_transport = session.transport._asyncio_transport  # type: asyncio.BaseTransport
+            ssl_object = asyncio_transport.get_extra_info("ssl_object")  # type: ssl.SSLObject
+            return ssl_object.getpeercert(binary_form=True)
+
+    def _get_expected_fingerprint(self) -> Optional[str]:
+        if self.is_main_server():
+            return self.network.config.get("serverfingerprint")
+
+    def _verify_certificate_fingerprint(self, certificate):
+        expected_fingerprint = self._get_expected_fingerprint()
+        if not expected_fingerprint:
+            return
+        fingerprint = hashlib.sha256(certificate).hexdigest()
+        fingerprints_match = fingerprint.lower() == expected_fingerprint.lower()
+        if not fingerprints_match:
+            util.trigger_callback('cert_mismatch')
+            raise ErrorSSLCertFingerprintMismatch('Refusing to connect to server due to cert fingerprint mismatch')
+        self.logger.info("cert fingerprint verification passed")
 
     async def get_block_header(self, height, assert_mode):
         self.logger.info(f'requesting block header {height} in mode {assert_mode}')
@@ -721,10 +794,12 @@ class Interface(Logger):
             if self.is_tor():
                 return BUCKET_NAME_OF_ONION_SERVERS
             try:
-                ip_addr = ip_address(self.ip_addr())
+                ip_addr = ip_address(self.ip_addr())  # type: Union[IPv4Address, IPv6Address]
             except ValueError:
                 return ''
             if not ip_addr:
+                return ''
+            if ip_addr.is_loopback:  # localhost is exempt
                 return ''
             if ip_addr.version == 4:
                 slash16 = IPv4Network(ip_addr).supernet(prefixlen_diff=32-16)

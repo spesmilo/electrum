@@ -32,6 +32,8 @@ import threading
 from typing import Dict, Optional, Tuple, Iterable
 from base64 import b64decode, b64encode
 from collections import defaultdict
+import concurrent
+from concurrent import futures
 
 import aiohttp
 from aiohttp import web, client_exceptions
@@ -270,6 +272,8 @@ class AuthenticationCredentialsInvalid(AuthenticationError):
 
 class Daemon(Logger):
 
+    network: Optional[Network]
+
     @profiler
     def __init__(self, config: SimpleConfig, fd=None, *, listen_jsonrpc=True):
         Logger.__init__(self)
@@ -505,7 +509,7 @@ class Daemon(Logger):
         fut = asyncio.run_coroutine_threadsafe(self.taskgroup.cancel_remaining(), self.asyncio_loop)
         try:
             fut.result(timeout=2)
-        except (asyncio.TimeoutError, asyncio.CancelledError):
+        except (concurrent.futures.TimeoutError, concurrent.futures.CancelledError, asyncio.CancelledError):
             pass
         self.logger.info("removing lockfile")
         remove_lockfile(get_lockfile(self.config))

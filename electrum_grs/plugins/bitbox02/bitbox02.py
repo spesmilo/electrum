@@ -44,8 +44,9 @@ _logger = get_logger(__name__)
 
 class BitBox02Client(HardwareClientBase):
     # handler is a BitBox02_Handler, importing it would lead to a circular dependency
-    def __init__(self, handler: Any, device: Device, config: SimpleConfig):
-        self.bitbox02_device = None
+    def __init__(self, handler: Any, device: Device, config: SimpleConfig, *, plugin: HW_PluginBase):
+        HardwareClientBase.__init__(self, plugin=plugin)
+        self.bitbox02_device = None  # type: Optional[bitbox02.BitBox02]
         self.handler = handler
         self.device_descriptor = device
         self.config = config
@@ -72,10 +73,11 @@ class BitBox02Client(HardwareClientBase):
         return True
 
     def close(self):
-        try:
-            self.bitbox02_device.close()
-        except:
-            pass
+        with self.device_manager().hid_lock:
+            try:
+                self.bitbox02_device.close()
+            except:
+                pass
 
     def has_usable_connection_with_device(self) -> bool:
         if self.bitbox_hid_info is None:
@@ -90,7 +92,8 @@ class BitBox02Client(HardwareClientBase):
                 res = device_response()
             except:
                 # Close the hid device on exception
-                hid_device.close()
+                with self.device_manager().hid_lock:
+                    hid_device.close()
                 raise
             finally:
                 self.handler.finished()
@@ -154,8 +157,9 @@ class BitBox02Client(HardwareClientBase):
                 return set_noise_privkey(privkey)
 
         if self.bitbox02_device is None:
-            hid_device = hid.device()
-            hid_device.open_path(self.bitbox_hid_info["path"])
+            with self.device_manager().hid_lock:
+                hid_device = hid.device()
+                hid_device.open_path(self.bitbox_hid_info["path"])
 
             self.bitbox02_device = bitbox02.BitBox02(
                 transport=u2fhid.U2FHid(hid_device),
@@ -556,12 +560,11 @@ class BitBox02Plugin(HW_PluginBase):
         else:
             raise ImportError()
 
-
     # handler is a BitBox02_Handler
     def create_client(self, device: Device, handler: Any) -> BitBox02Client:
         if not handler:
             self.handler = handler
-        return BitBox02Client(handler, device, self.config)
+        return BitBox02Client(handler, device, self.config, plugin=self)
 
     def setup_device(
         self, device_info: DeviceInfo, wizard: BaseWizard, purpose: int
