@@ -2,7 +2,7 @@ pyaes>=0.1a1
 ecdsa>=0.9
 requests
 qrcode
-protobuf<3.9
+protobuf
 dnspython
 jsonrpclib-pelix
 PySocks>=1.6.6
