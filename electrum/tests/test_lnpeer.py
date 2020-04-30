@@ -170,6 +170,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     try_force_closing = LNWallet.try_force_closing
     get_first_timestamp = lambda self: 0
     on_peer_successfully_established = LNWallet.on_peer_successfully_established
+    get_channel_by_id = LNWallet.get_channel_by_id
 
 
 class MockTransport:
