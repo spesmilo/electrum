@@ -107,7 +107,8 @@ class Peer(Logger):
         if not (message_name.startswith("update_") or is_commitment_signed):
             return
         assert channel_id
-        chan = self.channels[channel_id]
+        chan = self.get_channel_by_id(channel_id)
+        assert chan
         chan.hm.store_local_update_raw_msg(raw_msg, is_commitment_signed=is_commitment_signed)
         if is_commitment_signed:
             # saving now, to ensure replaying updates works (in case of channel reestablishment)
@@ -139,9 +140,16 @@ class Peer(Logger):
 
     @property
     def channels(self) -> Dict[bytes, Channel]:
-        # FIXME this iterates over all channels in lnworker,
-        #       so if we just want to lookup a channel by channel_id, it's wasteful
         return self.lnworker.channels_for_peer(self.pubkey)
+
+    def get_channel_by_id(self, channel_id: bytes) -> Optional[Channel]:
+        # note: this is faster than self.channels.get(channel_id)
+        chan = self.lnworker.get_channel_by_id(channel_id)
+        if not chan:
+            return None
+        if chan.node_id != self.pubkey:
+            return None
+        return chan
 
     def diagnostic_name(self):
         return self.lnworker.__class__.__name__ + ', ' + self.transport.name()
@@ -158,7 +166,7 @@ class Peer(Logger):
             self.ordered_message_queues[chan_id].put_nowait((message_type, payload))
         else:
             if message_type != 'error' and 'channel_id' in payload:
-                chan = self.channels.get(payload['channel_id'])
+                chan = self.get_channel_by_id(payload['channel_id'])
                 if chan is None:
                     raise Exception('Got unknown '+ message_type)
                 args = (chan, payload)

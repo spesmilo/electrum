@@ -504,6 +504,9 @@ class LNWallet(LNWorker):
         with self.lock:
             return self._channels.copy()
 
+    def get_channel_by_id(self, channel_id: bytes) -> Optional[Channel]:
+        return self._channels.get(channel_id, None)
+
     @ignore_exceptions
     @log_exceptions
     async def sync_with_local_watchtower(self):
@@ -691,7 +694,8 @@ class LNWallet(LNWorker):
 
     def channels_for_peer(self, node_id):
         assert type(node_id) is bytes
-        return {x: y for (x, y) in self.channels.items() if y.node_id == node_id}
+        return {chan_id: chan for (chan_id, chan) in self.channels.items()
+                if chan.node_id == node_id}
 
     def channel_state_changed(self, chan):
         self.save_channel(chan)
