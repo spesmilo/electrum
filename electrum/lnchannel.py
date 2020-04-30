@@ -838,6 +838,7 @@ class Channel(AbstractChannel):
             _script, htlc_tx = make_htlc_tx_with_open_channel(chan=self,
                                                               pcp=self.config[REMOTE].next_per_commitment_point,
                                                               subject=REMOTE,
+                                                              ctn=next_remote_ctn,
                                                               htlc_direction=direction,
                                                               commit=pending_remote_commitment,
                                                               ctx_output_idx=ctx_output_idx,
@@ -886,17 +887,19 @@ class Channel(AbstractChannel):
                                   htlc_direction=direction,
                                   pcp=pcp,
                                   ctx=pending_local_commitment,
-                                  ctx_output_idx=ctx_output_idx)
+                                  ctx_output_idx=ctx_output_idx,
+                                  ctn=next_local_ctn)
         with self.db_lock:
             self.hm.recv_ctx()
             self.config[LOCAL].current_commitment_signature=sig
             self.config[LOCAL].current_htlc_signatures=htlc_sigs_string
 
     def _verify_htlc_sig(self, *, htlc: UpdateAddHtlc, htlc_sig: bytes, htlc_direction: Direction,
-                         pcp: bytes, ctx: Transaction, ctx_output_idx: int) -> None:
+                         pcp: bytes, ctx: Transaction, ctx_output_idx: int, ctn: int) -> None:
         _script, htlc_tx = make_htlc_tx_with_open_channel(chan=self,
                                                           pcp=pcp,
                                                           subject=LOCAL,
+                                                          ctn=ctn,
                                                           htlc_direction=htlc_direction,
                                                           commit=ctx,
                                                           ctx_output_idx=ctx_output_idx,
