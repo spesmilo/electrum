@@ -107,7 +107,7 @@ class Peer(Logger):
         if not (message_name.startswith("update_") or is_commitment_signed):
             return
         assert channel_id
-        chan = self.lnworker.channels[channel_id]  # type: Channel
+        chan = self.channels[channel_id]
         chan.hm.store_local_update_raw_msg(raw_msg, is_commitment_signed=is_commitment_signed)
         if is_commitment_signed:
             # saving now, to ensure replaying updates works (in case of channel reestablishment)
@@ -139,6 +139,8 @@ class Peer(Logger):
 
     @property
     def channels(self) -> Dict[bytes, Channel]:
+        # FIXME this iterates over all channels in lnworker,
+        #       so if we just want to lookup a channel by channel_id, it's wasteful
         return self.lnworker.channels_for_peer(self.pubkey)
 
     def diagnostic_name(self):
