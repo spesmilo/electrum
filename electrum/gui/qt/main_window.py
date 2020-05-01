@@ -167,12 +167,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.gui_object = gui_object
         self.config = config = gui_object.config  # type: SimpleConfig
         self.gui_thread = gui_object.gui_thread
+        assert wallet, "no wallet"
+        self.wallet = wallet
 
         self.setup_exception_hook()
 
         self.network = gui_object.daemon.network  # type: Network
-        assert wallet, "no wallet"
-        self.wallet = wallet
         self.fx = gui_object.daemon.fx  # type: FxThread
         self.contacts = wallet.contacts
         self.tray = gui_object.tray
@@ -304,7 +304,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self._update_check_thread.start()
 
     def setup_exception_hook(self):
-        Exception_Hook(self)
+        Exception_Hook.maybe_setup(config=self.config,
+                                   wallet=self.wallet)
 
     def on_fx_history(self):
         self.history_model.refresh('fx_history')
