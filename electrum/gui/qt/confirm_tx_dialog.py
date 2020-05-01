@@ -104,7 +104,13 @@ class TxEditor:
         if use_rbf:
             self.tx.set_rbf(True)
 
-
+    def have_enough_funds_assuming_zero_fees(self) -> bool:
+        try:
+            tx = self.make_tx(0)
+        except NotEnoughFunds:
+            return False
+        else:
+            return True
 
 
 
