@@ -44,7 +44,7 @@ from .util import (Buttons, CloseButton, HelpButton, read_QIcon, char_width_in_l
                    PasswordLineEdit)
 
 if TYPE_CHECKING:
-    from electrum.simple_config import SimpleConfig
+    from electrumsys.simple_config import SimpleConfig
 
 
 _logger = get_logger(__name__)
