@@ -750,7 +750,7 @@ class Peer(Logger):
         assert ChannelState.PREOPENING < chan.get_state() < ChannelState.FORCE_CLOSING
         if chan.peer_state != PeerState.DISCONNECTED:
             self.logger.info(f'reestablish_channel was called but channel {chan.get_id_for_log()} '
-                             f'already in peer_state {chan.peer_state}')
+                             f'already in peer_state {chan.peer_state!r}')
             return
         chan.peer_state = PeerState.REESTABLISHING
         util.trigger_callback('channel', chan)
@@ -1126,7 +1126,7 @@ class Peer(Logger):
         amount_msat_htlc = payload["amount_msat"]
         onion_packet = payload["onion_routing_packet"]
         if chan.get_state() != ChannelState.OPEN:
-            raise RemoteMisbehaving(f"received update_add_htlc while chan.get_state() != OPEN. state was {chan.get_state()}")
+            raise RemoteMisbehaving(f"received update_add_htlc while chan.get_state() != OPEN. state was {chan.get_state()!r}")
         if cltv_expiry > bitcoin.NLOCKTIME_BLOCKHEIGHT_MAX:
             asyncio.ensure_future(self.lnworker.try_force_closing(chan.channel_id))
             raise RemoteMisbehaving(f"received update_add_htlc with cltv_expiry > BLOCKHEIGHT_MAX. value was {cltv_expiry}")
@@ -1164,7 +1164,7 @@ class Peer(Logger):
         outgoing_chan_upd_len = len(outgoing_chan_upd).to_bytes(2, byteorder="big")
         if not next_chan.can_send_update_add_htlc():
             self.logger.info(f"cannot forward htlc. next_chan {next_chan_scid} cannot send ctx updates. "
-                             f"chan state {next_chan.get_state()}, peer state: {next_chan.peer_state}")
+                             f"chan state {next_chan.get_state()!r}, peer state: {next_chan.peer_state!r}")
             data = outgoing_chan_upd_len + outgoing_chan_upd
             return OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=data)
         try:
