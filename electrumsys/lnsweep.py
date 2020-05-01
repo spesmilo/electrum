@@ -193,7 +193,9 @@ def create_sweeptxs_for_our_ctx(*, chan: 'AbstractChannel', ctx: Transaction,
     to_local_witness_script = bh2u(make_commitment_output_to_local_witness_script(
         their_revocation_pubkey, to_self_delay, our_localdelayed_pubkey))
     to_local_address = redeem_script_to_address('p2wsh', to_local_witness_script)
-    their_payment_pubkey = derive_pubkey(their_conf.payment_basepoint.pubkey, our_pcp)
+    # to remote address
+    bpk = their_conf.payment_basepoint.pubkey
+    their_payment_pubkey = bpk if chan.is_static_remotekey_enabled() else derive_pubkey(their_conf.payment_basepoint.pubkey, our_pcp)
     to_remote_address = make_commitment_output_to_remote_address(their_payment_pubkey)
     # test ctx
     _logger.debug(f'testing our ctx: {to_local_address} {to_remote_address}')
