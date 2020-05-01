@@ -199,11 +199,22 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
         self.pw.setEnabled(True)
         self.send_button.setEnabled(True)
 
+    def _update_amount_label(self):
+        tx = self.tx
+        if self.output_value == '!':
+            if tx:
+                amount = tx.output_value()
+                amount_str = self.main_window.format_amount_and_units(amount, self.asset_amount, self.asset_symbol, self.asset_precision)
+            else:
+                amount_str = "max"
+        else:
+            amount = self.output_value
+            amount_str = self.main_window.format_amount_and_units(amount, self.asset_amount, self.asset_symbol, self.asset_precision)
+        self.amount_label.setText(amount_str)
+
     def update(self):
         tx = self.tx
-        if tx is not None:
-            amount = tx.output_value() if self.output_value == '!' else self.output_value
-            self.amount_label.setText(self.main_window.format_amount_and_units(amount, self.asset_amount, self.asset_symbol, self.asset_precision))
+        self._update_amount_label()
 
         if self.not_enough_funds:
             text = _("Not enough funds")
