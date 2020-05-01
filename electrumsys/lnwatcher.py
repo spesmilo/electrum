@@ -147,6 +147,10 @@ class LNWatcher(AddressSynchronizer):
         # status gets populated when we run
         self.channel_status = {}
 
+    def stop(self):
+        super().stop()
+        util.unregister_callback(self.on_network_update)
+
     def get_channel_status(self, outpoint):
         return self.channel_status.get(outpoint, 'unknown')
 

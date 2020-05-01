@@ -254,6 +254,10 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         self._add_peers_from_config()
         asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
 
+    def stop(self):
+        asyncio.run_coroutine_threadsafe(self.taskgroup.cancel_remaining(), self.network.asyncio_loop)
+        util.unregister_callback(self.on_proxy_changed)
+
     def _add_peers_from_config(self):
         peer_list = self.config.get('lightning_peers', [])
         for host, port, pubkey in peer_list:
@@ -568,6 +572,11 @@ class LNWallet(LNWorker):
         ]:
             tg_coro = self.taskgroup.spawn(coro)
             asyncio.run_coroutine_threadsafe(tg_coro, self.network.asyncio_loop)
+
+    def stop(self):
+        super().stop()
+        self.lnwatcher.stop()
+        self.lnwatcher = None
 
     def peer_closed(self, peer):
         for chan in self.channels_for_peer(peer.pubkey).values():
@@ -1403,6 +1412,10 @@ class LNBackups(Logger):
         self.network = network
         for cb in self.channel_backups.values():
             self.lnwatcher.add_channel(cb.funding_outpoint.to_str(), cb.get_funding_address())
+
+    def stop(self):
+        self.lnwatcher.stop()
+        self.lnwatcher = None
 
     def import_channel_backup(self, encrypted):
         xpub = self.wallet.get_fingerprint()

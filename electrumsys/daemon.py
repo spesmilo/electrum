@@ -454,7 +454,7 @@ class Daemon(Logger):
         wallet = self._wallets.pop(path, None)
         if not wallet:
             return False
-        wallet.stop_threads()
+        wallet.stop()
         return True
 
     async def run_cmdline(self, config_options):
@@ -500,7 +500,7 @@ class Daemon(Logger):
             self.gui_object.stop()
         # stop network/wallets
         for k, wallet in self._wallets.items():
-            wallet.stop_threads()
+            wallet.stop()
         if self.network:
             self.logger.info("shutting down network")
             self.network.stop()
