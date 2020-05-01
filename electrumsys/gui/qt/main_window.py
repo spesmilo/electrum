@@ -306,7 +306,7 @@ class ElectrumSysWindow(QMainWindow, MessageBoxMixin, Logger):
                     self.update_check_button.setText(_("Update to ElectrumSys {} is available").format(v))
                     self.update_check_button.clicked.connect(lambda: self.show_update_check(v))
                     self.update_check_button.show()
-            self._update_check_thread = UpdateCheckThread(self)
+            self._update_check_thread = UpdateCheckThread()
             self._update_check_thread.checked.connect(on_version_received)
             self._update_check_thread.start()
 
@@ -503,6 +503,7 @@ class ElectrumSysWindow(QMainWindow, MessageBoxMixin, Logger):
     def close_wallet(self):
         if self.wallet:
             self.logger.info(f'close_wallet {self.wallet.storage.path}')
+            self.wallet.thread = None
         run_hook('close_wallet', self.wallet)
 
     @profiler
@@ -799,7 +800,7 @@ class ElectrumSysWindow(QMainWindow, MessageBoxMixin, Logger):
                            _("Uses icons from the Icons8 icon pack (icons8.com).")))
 
     def show_update_check(self, version=None):
-        self.gui_object._update_check = UpdateCheck(self, version)
+        self.gui_object._update_check = UpdateCheck(latest_version=version)
 
     def show_report_bug(self):
         msg = ' '.join([
