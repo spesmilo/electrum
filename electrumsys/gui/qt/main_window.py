@@ -1751,8 +1751,11 @@ class ElectrumSysWindow(QMainWindow, MessageBoxMixin, Logger):
 
         d = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=output_value, is_sweep=is_sweep, asset_amount=asset_amount, asset_symbol=asset_symbol, asset_precision=asset_precision)
         if d.not_enough_funds:
-            self.show_message(_('Not Enough Funds'))
-            return
+            # Check if we had enough funds excluding fees,
+            # if so, still provide opportunity to set lower fees.
+            if not d.have_enough_funds_assuming_zero_fees():
+                self.show_message(_('Not Enough Funds'))
+                return
         cancelled, is_send, password, tx = d.run()
         if cancelled:
             return
