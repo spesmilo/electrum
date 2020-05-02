@@ -1311,7 +1311,7 @@ class Channel(AbstractChannel):
         assert tx.is_complete()
         return tx
 
-    def sweep_htlc(self, ctx: Transaction, htlc_tx: Transaction) -> Optional[SweepInfo]:
+    def maybe_sweep_revoked_htlc(self, ctx: Transaction, htlc_tx: Transaction) -> Optional[SweepInfo]:
         # look at the output address, check if it matches
         return create_sweeptx_for_their_revoked_htlc(self, ctx, htlc_tx, self.sweep_address)
 
