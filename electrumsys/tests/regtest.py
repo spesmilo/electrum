@@ -39,6 +39,9 @@ class TestLightningAB(TestLightning):
     def test_breach(self):
         self.run_shell(['breach'])
 
+    def test_extract_preimage(self):
+        self.run_shell(['extract_preimage'])
+
     def test_redeem_htlcs(self):
         self.run_shell(['redeem_htlcs'])
 

@@ -162,6 +162,39 @@ if [[ $1 == "breach" ]]; then
     $bob getbalance
 fi
 
+
+if [[ $1 == "extract_preimage" ]]; then
+    # instead of settling bob will broadcast
+    $bob enable_htlc_settle false
+    wait_for_balance alice 1
+    echo "alice opens channel"
+    bob_node=$($bob nodeid)
+    $alice open_channel $bob_node 0.15
+    new_blocks 3
+    wait_until_channel_open alice
+    chan_id=$($alice list_channels | jq -r ".[0].channel_point")
+    # alice pays bob
+    invoice=$($bob add_lightning_request 0.04 -m "test")
+    screen -S alice_payment -dm -L -Logfile /tmp/alice/screen.log $alice lnpay $invoice --timeout=600
+    sleep 1
+    unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
+    if [[ "$unsettled" == "0" ]]; then
+        echo 'enable_htlc_settle did not work'
+        exit 1
+    fi
+    # bob force closes
+    $bob close_channel $chan_id --force
+    new_blocks 1
+    wait_until_channel_closed bob
+    sleep 5
+    success=$(cat /tmp/alice/screen.log | jq -r ".success")
+    if [[ "$success" != "true" ]]; then
+        exit 1
+    fi
+    cat /tmp/alice/screen.log
+fi
+
+
 if [[ $1 == "redeem_htlcs" ]]; then
     $bob enable_htlc_settle false
     wait_for_balance alice 1

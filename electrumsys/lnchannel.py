@@ -956,6 +956,21 @@ class Channel(AbstractChannel):
                 payment_attempt = self._receive_fail_reasons.get(htlc.htlc_id)
                 self.lnworker.payment_failed(self, htlc.payment_hash, payment_attempt)
 
+    def extract_preimage_from_htlc_tx(self, tx):
+        witness = tx.inputs()[0].witness_elements()
+        if len(witness) != 5:
+            return
+        preimage = witness[3]
+        payment_hash = sha256(preimage)
+        for direction, htlc in self.hm.get_htlcs_in_oldest_unrevoked_ctx(REMOTE):
+            if htlc.payment_hash == payment_hash:
+                self.logger.info(f'found preimage for {payment_hash.hex()} in tx witness')
+                self.lnworker.save_preimage(payment_hash, preimage)
+                if direction == RECEIVED:
+                    self.lnworker.payment_sent(self, payment_hash)
+                else:
+                    self.lnworker.payment_received(self, payment_hash)
+
     def balance(self, whose: HTLCOwner, *, ctx_owner=HTLCOwner.LOCAL, ctn: int = None) -> int:
         assert type(whose) is HTLCOwner
         initial = self.config[whose].initial_msat
