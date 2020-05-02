@@ -50,7 +50,7 @@ from .lnutil import (Outpoint, LNPeerAddr,
                      get_compressed_pubkey_from_bech32, extract_nodeid,
                      PaymentFailure, split_host_port, ConnStringFormatError,
                      generate_keypair, LnKeyFamily, LOCAL, REMOTE,
-                     UnknownPaymentHash, MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE,
+                     MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH, SENT, RECEIVED, HTLCOwner,
                      UpdateAddHtlc, Direction, LnFeatures,
                      ShortChannelID, PaymentAttemptLog, PaymentAttemptFailureDetails,
@@ -606,11 +606,8 @@ class LNWallet(LNWorker):
                 timestamp = htlc.timestamp
                 label = self.wallet.get_label(key)
                 if _direction == SENT:
-                    try:
-                        inv = self.get_payment_info(bfh(key))
-                        fee_msat = - inv.amount*1000 - amount_msat if inv.amount else None
-                    except UnknownPaymentHash:
-                        fee_msat = None
+                    info = self.get_payment_info(bfh(key))
+                    fee_msat = - info.amount*1000 - amount_msat if info and info.amount else None
                 else:
                     fee_msat = None
             else:
@@ -1114,10 +1111,9 @@ class LNWallet(LNWorker):
     def get_payment_info(self, payment_hash: bytes) -> PaymentInfo:
         key = payment_hash.hex()
         with self.lock:
-            if key not in self.payments:
-                raise UnknownPaymentHash(payment_hash)
-            amount, direction, status = self.payments[key]
-            return PaymentInfo(payment_hash, amount, direction, status)
+            if key in self.payments:
+                amount, direction, status = self.payments[key]
+                return PaymentInfo(payment_hash, amount, direction, status)
 
     def save_payment_info(self, info: PaymentInfo) -> None:
         key = info.payment_hash.hex()
@@ -1127,12 +1123,8 @@ class LNWallet(LNWorker):
         self.wallet.save_db()
 
     def get_payment_status(self, payment_hash):
-        try:
-            info = self.get_payment_info(payment_hash)
-            status = info.status
-        except UnknownPaymentHash:
-            status = PR_UNPAID
-        return status
+        info = self.get_payment_info(payment_hash)
+        return info.status if info else PR_UNPAID
 
     def get_invoice_status(self, key):
         log = self.logs[key]
@@ -1158,9 +1150,8 @@ class LNWallet(LNWorker):
         return payment_attempt
 
     def set_payment_status(self, payment_hash: bytes, status):
-        try:
-            info = self.get_payment_info(payment_hash)
-        except UnknownPaymentHash:
+        info = self.get_payment_info(payment_hash)
+        if info is None:
             # if we are forwarding
             return
         info = info._replace(status=status)
