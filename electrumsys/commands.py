@@ -1014,6 +1014,7 @@ class Commands:
         lnworker = wallet.lnworker
         lnaddr = lnworker._check_invoice(invoice, None)
         payment_hash = lnaddr.paymenthash
+        wallet.save_invoice(parse_lightning_invoice(invoice))
         success = await lnworker._pay(invoice, attempts=attempts)
         return {
             'payment_hash': payment_hash.hex(),
