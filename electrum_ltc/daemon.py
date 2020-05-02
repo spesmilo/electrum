@@ -186,9 +186,14 @@ class PayServer(Logger):
         self.pending = defaultdict(asyncio.Event)
         util.register_callback(self.on_payment, ['payment_received'])
 
+    @property
+    def wallet(self):
+        # FIXME specify wallet somehow?
+        return list(self.daemon.get_wallets().values())[0]
+
     async def on_payment(self, evt, wallet, key, status):
         if status == PR_PAID:
-            await self.pending[key].set()
+            self.pending[key].set()
 
     @ignore_exceptions
     @log_exceptions
@@ -209,24 +214,26 @@ class PayServer(Logger):
 
     async def create_request(self, request):
         params = await request.post()
-        wallet = self.daemon.wallet
+        wallet = self.wallet
         if 'amount_sat' not in params or not params['amount_sat'].isdigit():
             raise web.HTTPUnsupportedMediaType()
         amount = int(params['amount_sat'])
         message = params['message'] or "donation"
-        payment_hash = await wallet.lnworker._add_invoice_coro(amount, message, 3600)
+        payment_hash = wallet.lnworker.add_request(amount_sat=amount,
+                                                   message=message,
+                                                   expiry=3600)
         key = payment_hash.hex()
         raise web.HTTPFound(self.root + '/pay?id=' + key)
 
     async def get_request(self, r):
         key = r.query_string
-        request = self.daemon.wallet.get_request(key)
+        request = self.wallet.get_request(key)
         return web.json_response(request)
 
     async def get_bip70_request(self, r):
         from .paymentrequest import make_request
         key = r.match_info['key']
-        request = self.daemon.wallet.get_request(key)
+        request = self.wallet.get_request(key)
         if not request:
             return web.HTTPNotFound()
         pr = make_request(self.config, request)
@@ -236,7 +243,7 @@ class PayServer(Logger):
         ws = web.WebSocketResponse()
         await ws.prepare(request)
         key = request.query_string
-        info = self.daemon.wallet.get_request(key)
+        info = self.wallet.get_request(key)
         if not info:
             await ws.send_str('unknown invoice')
             await ws.close()
@@ -427,7 +434,6 @@ class Daemon(Logger):
         wallet = Wallet(db, storage, config=self.config)
         wallet.start_network(self.network)
         self._wallets[path] = wallet
-        self.wallet = wallet
         return wallet
 
     def add_wallet(self, wallet: Abstract_Wallet) -> None:
@@ -455,7 +461,7 @@ class Daemon(Logger):
         wallet = self._wallets.pop(path, None)
         if not wallet:
             return False
-        wallet.stop_threads()
+        wallet.stop()
         return True
 
     async def run_cmdline(self, config_options):
@@ -501,7 +507,7 @@ class Daemon(Logger):
             self.gui_object.stop()
         # stop network/wallets
         for k, wallet in self._wallets.items():
-            wallet.stop_threads()
+            wallet.stop()
         if self.network:
             self.logger.info("shutting down network")
             self.network.stop()

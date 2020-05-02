@@ -41,6 +41,7 @@ def create_sweeptxs_for_watchtower(chan: 'Channel', ctx: Transaction, per_commit
     Sweep 'to_local', and all the HTLCs (two cases: directly from ctx, or from HTLC tx).
     """
     # prep
+    ctn = extract_ctn_from_tx_and_chan(ctx, chan)
     pcp = ecc.ECPrivkey(per_commitment_secret).get_public_key_bytes(compressed=True)
     this_conf, other_conf = get_ordered_channel_configs(chan=chan, for_us=False)
     other_revocation_privkey = derive_blinded_privkey(other_conf.revocation_basepoint.privkey,
@@ -72,6 +73,7 @@ def create_sweeptxs_for_watchtower(chan: 'Channel', ctx: Transaction, per_commit
         htlc_tx_witness_script, htlc_tx = make_htlc_tx_with_open_channel(chan=chan,
                                                                          pcp=pcp,
                                                                          subject=REMOTE,
+                                                                         ctn=ctn,
                                                                          htlc_direction=htlc_direction,
                                                                          commit=ctx,
                                                                          htlc=htlc,
@@ -85,7 +87,6 @@ def create_sweeptxs_for_watchtower(chan: 'Channel', ctx: Transaction, per_commit
             is_revocation=True,
             config=chan.lnworker.config)
 
-    ctn = extract_ctn_from_tx_and_chan(ctx, chan)
     htlc_to_ctx_output_idx_map = map_htlcs_to_ctx_output_idxs(chan=chan,
                                                               ctx=ctx,
                                                               pcp=pcp,
@@ -192,7 +193,9 @@ def create_sweeptxs_for_our_ctx(*, chan: 'AbstractChannel', ctx: Transaction,
     to_local_witness_script = bh2u(make_commitment_output_to_local_witness_script(
         their_revocation_pubkey, to_self_delay, our_localdelayed_pubkey))
     to_local_address = redeem_script_to_address('p2wsh', to_local_witness_script)
-    their_payment_pubkey = derive_pubkey(their_conf.payment_basepoint.pubkey, our_pcp)
+    # to remote address
+    bpk = their_conf.payment_basepoint.pubkey
+    their_payment_pubkey = bpk if chan.is_static_remotekey_enabled() else derive_pubkey(their_conf.payment_basepoint.pubkey, our_pcp)
     to_remote_address = make_commitment_output_to_remote_address(their_payment_pubkey)
     # test ctx
     _logger.debug(f'testing our ctx: {to_local_address} {to_remote_address}')
@@ -425,9 +428,11 @@ def create_htlctx_that_spends_from_our_ctx(chan: 'Channel', our_pcp: bytes,
                                            ctx_output_idx: int) -> Tuple[bytes, Transaction]:
     assert (htlc_direction == RECEIVED) == bool(preimage), 'preimage is required iff htlc is received'
     preimage = preimage or b''
+    ctn = extract_ctn_from_tx_and_chan(ctx, chan)
     witness_script, htlc_tx = make_htlc_tx_with_open_channel(chan=chan,
                                                              pcp=our_pcp,
                                                              subject=LOCAL,
+                                                             ctn=ctn,
                                                              htlc_direction=htlc_direction,
                                                              commit=ctx,
                                                              htlc=htlc,

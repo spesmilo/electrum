@@ -70,13 +70,17 @@ class AddressSynchronizer(Logger):
     inherited by wallet
     """
 
+    network: Optional['Network']
+    synchronizer: Optional['Synchronizer']
+    verifier: Optional['SPV']
+
     def __init__(self, db: 'WalletDB'):
         self.db = db
-        self.network = None  # type: Network
+        self.network = None
         Logger.__init__(self)
         # verifier (SPV) and synchronizer are started in start_network
-        self.synchronizer = None  # type: Synchronizer
-        self.verifier = None  # type: SPV
+        self.synchronizer = None
+        self.verifier = None
         # locks: if you need to take multiple ones, acquire them in the order they are defined here!
         self.lock = threading.RLock()
         self.transaction_lock = threading.RLock()
@@ -156,7 +160,7 @@ class AddressSynchronizer(Logger):
                 # add it in case it was previously unconfirmed
                 self.add_unverified_tx(tx_hash, tx_height)
 
-    def start_network(self, network):
+    def start_network(self, network: Optional['Network']) -> None:
         self.network = network
         if self.network is not None:
             self.synchronizer = Synchronizer(self)
@@ -166,7 +170,7 @@ class AddressSynchronizer(Logger):
     def on_blockchain_updated(self, event, *args):
         self._get_addr_balance_cache = {}  # invalidate cache
 
-    def stop_threads(self):
+    def stop(self):
         if self.network:
             if self.synchronizer:
                 asyncio.run_coroutine_threadsafe(self.synchronizer.stop(), self.network.asyncio_loop)

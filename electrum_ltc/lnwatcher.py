@@ -147,6 +147,10 @@ class LNWatcher(AddressSynchronizer):
         # status gets populated when we run
         self.channel_status = {}
 
+    def stop(self):
+        super().stop()
+        util.unregister_callback(self.on_network_update)
+
     def get_channel_status(self, outpoint):
         return self.channel_status.get(outpoint, 'unknown')
 
@@ -370,7 +374,7 @@ class LNWalletWatcher(LNWatcher):
                 if not spender_tx:
                     keep_watching = True
                     continue
-                e_htlc_tx = chan.sweep_htlc(closing_tx, spender_tx)
+                e_htlc_tx = chan.maybe_sweep_revoked_htlc(closing_tx, spender_tx)
                 if e_htlc_tx:
                     spender2 = spenders.get(spender_txid+':0')
                     if spender2:

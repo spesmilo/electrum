@@ -107,7 +107,8 @@ class Peer(Logger):
         if not (message_name.startswith("update_") or is_commitment_signed):
             return
         assert channel_id
-        chan = self.lnworker.channels[channel_id]  # type: Channel
+        chan = self.get_channel_by_id(channel_id)
+        assert chan
         chan.hm.store_local_update_raw_msg(raw_msg, is_commitment_signed=is_commitment_signed)
         if is_commitment_signed:
             # saving now, to ensure replaying updates works (in case of channel reestablishment)
@@ -141,6 +142,15 @@ class Peer(Logger):
     def channels(self) -> Dict[bytes, Channel]:
         return self.lnworker.channels_for_peer(self.pubkey)
 
+    def get_channel_by_id(self, channel_id: bytes) -> Optional[Channel]:
+        # note: this is faster than self.channels.get(channel_id)
+        chan = self.lnworker.get_channel_by_id(channel_id)
+        if not chan:
+            return None
+        if chan.node_id != self.pubkey:
+            return None
+        return chan
+
     def diagnostic_name(self):
         return self.lnworker.__class__.__name__ + ', ' + self.transport.name()
 
@@ -156,7 +166,7 @@ class Peer(Logger):
             self.ordered_message_queues[chan_id].put_nowait((message_type, payload))
         else:
             if message_type != 'error' and 'channel_id' in payload:
-                chan = self.channels.get(payload['channel_id'])
+                chan = self.get_channel_by_id(payload['channel_id'])
                 if chan is None:
                     raise Exception('Got unknown '+ message_type)
                 args = (chan, payload)
@@ -740,7 +750,7 @@ class Peer(Logger):
         assert ChannelState.PREOPENING < chan.get_state() < ChannelState.FORCE_CLOSING
         if chan.peer_state != PeerState.DISCONNECTED:
             self.logger.info(f'reestablish_channel was called but channel {chan.get_id_for_log()} '
-                             f'already in peer_state {chan.peer_state}')
+                             f'already in peer_state {chan.peer_state!r}')
             return
         chan.peer_state = PeerState.REESTABLISHING
         util.trigger_callback('channel', chan)
@@ -1116,7 +1126,7 @@ class Peer(Logger):
         amount_msat_htlc = payload["amount_msat"]
         onion_packet = payload["onion_routing_packet"]
         if chan.get_state() != ChannelState.OPEN:
-            raise RemoteMisbehaving(f"received update_add_htlc while chan.get_state() != OPEN. state was {chan.get_state()}")
+            raise RemoteMisbehaving(f"received update_add_htlc while chan.get_state() != OPEN. state was {chan.get_state()!r}")
         if cltv_expiry > bitcoin.NLOCKTIME_BLOCKHEIGHT_MAX:
             asyncio.ensure_future(self.lnworker.try_force_closing(chan.channel_id))
             raise RemoteMisbehaving(f"received update_add_htlc with cltv_expiry > BLOCKHEIGHT_MAX. value was {cltv_expiry}")
@@ -1154,7 +1164,7 @@ class Peer(Logger):
         outgoing_chan_upd_len = len(outgoing_chan_upd).to_bytes(2, byteorder="big")
         if not next_chan.can_send_update_add_htlc():
             self.logger.info(f"cannot forward htlc. next_chan {next_chan_scid} cannot send ctx updates. "
-                             f"chan state {next_chan.get_state()}, peer state: {next_chan.peer_state}")
+                             f"chan state {next_chan.get_state()!r}, peer state: {next_chan.peer_state!r}")
             data = outgoing_chan_upd_len + outgoing_chan_upd
             return OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=data)
         try:

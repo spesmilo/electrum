@@ -23,6 +23,7 @@
 # SOFTWARE.
 import sys
 import html
+from typing import TYPE_CHECKING, Optional, Set
 
 from PyQt5.QtCore import QObject
 import PyQt5.QtCore as QtCore
@@ -33,16 +34,22 @@ from electrum_ltc.i18n import _
 from electrum_ltc.base_crash_reporter import BaseCrashReporter
 from electrum_ltc.logging import Logger
 from electrum_ltc import constants
+from electrum_ltc.network import Network
 
 from .util import MessageBoxMixin, read_QIcon, WaitingDialog
+
+if TYPE_CHECKING:
+    from electrum_ltc.simple_config import SimpleConfig
+    from electrum_ltc.wallet import Abstract_Wallet
 
 
 class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
     _active_window = None
 
-    def __init__(self, main_window, exctype, value, tb):
+    def __init__(self, config: 'SimpleConfig', exctype, value, tb):
         BaseCrashReporter.__init__(self, exctype, value, tb)
-        self.main_window = main_window
+        self.network = Network.get_instance()
+        self.config = config
 
         QWidget.__init__(self)
         self.setWindowTitle('Electrum-LTC - ' + _('An Error Occurred'))
@@ -115,8 +122,8 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
                                     f' <a href="{constants.GIT_REPO_ISSUES_URL}">on GitHub</a>.'),
                                rich_text=True)
 
-        proxy = self.main_window.network.proxy
-        task = lambda: BaseCrashReporter.send_report(self, self.main_window.network.asyncio_loop, proxy)
+        proxy = self.network.proxy
+        task = lambda: BaseCrashReporter.send_report(self, self.network.asyncio_loop, proxy)
         msg = _('Sending crash report...')
         WaitingDialog(self, msg, task, on_success, on_failure)
 
@@ -125,7 +132,7 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
         self.close()
 
     def show_never(self):
-        self.main_window.config.set_key(BaseCrashReporter.config_key, False)
+        self.config.set_key(BaseCrashReporter.config_key, False)
         self.close()
 
     def closeEvent(self, event):
@@ -136,7 +143,8 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
         return self.description_textfield.toPlainText()
 
     def get_wallet_type(self):
-        return self.main_window.wallet.wallet_type
+        wallet_types = Exception_Hook._INSTANCE.wallet_types_seen
+        return ",".join(wallet_types)
 
     def _get_traceback_str(self) -> str:
         # The msg_box that shows the report uses rich_text=True, so
@@ -154,15 +162,26 @@ def _show_window(*args):
 class Exception_Hook(QObject, Logger):
     _report_exception = QtCore.pyqtSignal(object, object, object, object)
 
-    def __init__(self, main_window, *args, **kwargs):
-        QObject.__init__(self, *args, **kwargs)
+    _INSTANCE = None  # type: Optional[Exception_Hook]  # singleton
+
+    def __init__(self, *, config: 'SimpleConfig'):
+        QObject.__init__(self)
         Logger.__init__(self)
-        if not main_window.config.get(BaseCrashReporter.config_key, default=True):
-            return
-        self.main_window = main_window
+        assert self._INSTANCE is None, "Exception_Hook is supposed to be a singleton"
+        self.config = config
+        self.wallet_types_seen = set()  # type: Set[str]
+
         sys.excepthook = self.handler
         self._report_exception.connect(_show_window)
 
+    @classmethod
+    def maybe_setup(cls, *, config: 'SimpleConfig', wallet: 'Abstract_Wallet') -> None:
+        if not config.get(BaseCrashReporter.config_key, default=True):
+            return
+        if not cls._INSTANCE:
+            cls._INSTANCE = Exception_Hook(config=config)
+        cls._INSTANCE.wallet_types_seen.add(wallet.wallet_type)
+
     def handler(self, *exc_info):
         self.logger.error('exception caught by crash reporter', exc_info=exc_info)
-        self._report_exception.emit(self.main_window, *exc_info)
+        self._report_exception.emit(self.config, *exc_info)
