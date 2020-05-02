@@ -38,7 +38,7 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      funding_output_script, get_per_commitment_secret_from_seed,
                      secret_to_pubkey, PaymentFailure, LnFeatures,
                      LOCAL, REMOTE, HTLCOwner, generate_keypair, LnKeyFamily,
-                     ln_compare_features, privkey_to_pubkey, UnknownPaymentHash, MIN_FINAL_CLTV_EXPIRY_ACCEPTED,
+                     ln_compare_features, privkey_to_pubkey, MIN_FINAL_CLTV_EXPIRY_ACCEPTED,
                      LightningPeerConnectionClosed, HandshakeFailed, NotFoundChanAnnouncementForUpdate,
                      MINIMUM_MAX_HTLC_VALUE_IN_FLIGHT_ACCEPTED, MAXIMUM_HTLC_MINIMUM_MSAT_ACCEPTED,
                      MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED, RemoteMisbehaving, DEFAULT_TO_SELF_DELAY,
@@ -1218,12 +1218,11 @@ class Peer(Logger):
     def maybe_fulfill_htlc(self, *, chan: Channel, htlc: UpdateAddHtlc,
                            onion_packet: OnionPacket, processed_onion: ProcessedOnionPacket,
                            ) -> Tuple[Optional[bytes], Optional[OnionRoutingFailureMessage]]:
-        try:
-            info = self.lnworker.get_payment_info(htlc.payment_hash)
-            preimage = self.lnworker.get_preimage(htlc.payment_hash)
-        except UnknownPaymentHash:
+        info = self.lnworker.get_payment_info(htlc.payment_hash)
+        if info is None:
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
             return None, reason
+        preimage = self.lnworker.get_preimage(htlc.payment_hash)
         try:
             payment_secret_from_onion = processed_onion.hop_data.payload["payment_data"]["payment_secret"]
         except:
