@@ -235,9 +235,9 @@ class PaymentAttemptLog(NamedTuple):
 
 class BarePaymentAttemptLog(NamedTuple):
     success: bool
-    preimage: Optional[bytes]
-    error_bytes: Optional[bytes]
-    error_reason: Optional['OnionRoutingFailureMessage'] = None
+    preimage: Optional[bytes] = None
+    error_bytes: Optional[bytes] = None
+    failure_message: Optional['OnionRoutingFailureMessage'] = None
 
 
 class LightningError(Exception): pass

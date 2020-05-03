@@ -29,6 +29,8 @@ class HTLCManager:
 
         if 'unfulfilled_htlcs' not in log:
             log['unfulfilled_htlcs'] = {}  # htlc_id -> onion_packet
+        if 'fail_htlc_reasons' not in log:
+            log['fail_htlc_reasons'] = {}  # htlc_id -> error_bytes, failure_message
 
         # maybe bootstrap fee_updates if initial_feerate was provided
         if initial_feerate is not None:
