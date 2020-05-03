@@ -48,7 +48,7 @@ from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKey
                      HTLC_TIMEOUT_WEIGHT, HTLC_SUCCESS_WEIGHT, extract_ctn_from_tx_and_chan, UpdateAddHtlc,
                      funding_output_script, SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, make_commitment_outputs,
                      ScriptHtlc, PaymentFailure, calc_fees_for_commitment_tx, RemoteMisbehaving, make_htlc_output_witness_script,
-                     ShortChannelID, map_htlcs_to_ctx_output_idxs, LNPeerAddr, BarePaymentAttemptLog,
+                     ShortChannelID, map_htlcs_to_ctx_output_idxs, LNPeerAddr,
                      LN_MAX_HTLC_VALUE_MSAT, fee_for_htlc_output, offered_htlc_trim_threshold_sat,
                      received_htlc_trim_threshold_sat)
 from .lnsweep import create_sweeptxs_for_our_ctx, create_sweeptxs_for_their_ctx
@@ -482,7 +482,7 @@ class Channel(AbstractChannel):
         self._chan_ann_without_sigs = None  # type: Optional[bytes]
         self.revocation_store = RevocationStore(state["revocation_store"])
         self._can_send_ctx_updates = True  # type: bool
-        self._receive_fail_reasons = {}  # type: Dict[int, BarePaymentAttemptLog]
+        self._receive_fail_reasons = {}  # type: Dict[int, (bytes, OnionRoutingFailureMessage)]
         self._ignore_max_htlc_value = False  # used in tests
 
     def is_initiator(self):
@@ -953,8 +953,23 @@ class Channel(AbstractChannel):
                 self.lnworker.payment_sent(self, htlc.payment_hash)
             failed = self.hm.failed_in_ctn(new_ctn)
             for htlc in failed:
-                payment_attempt = self._receive_fail_reasons.get(htlc.htlc_id)
-                self.lnworker.payment_failed(self, htlc.payment_hash, payment_attempt)
+                error_bytes, failure_message = self._receive_fail_reasons.pop(htlc.htlc_id)
+                # if we are forwarding, save error message to disk
+                if self.lnworker.get_payment_info(htlc.payment_hash) is None:
+                    self.save_fail_htlc_reason(htlc.htlc_id, error_bytes, failure_message)
+                else:
+                    self.lnworker.payment_failed(self, htlc.payment_hash, error_bytes, failure_message)
+
+    def save_fail_htlc_reason(self, htlc_id, error_bytes, failure_message):
+        error_hex = error_bytes.hex() if error_bytes else None
+        failure_hex = failure_message.to_bytes().hex() if failure_message else None
+        self.hm.log['fail_htlc_reasons'][htlc_id] = (error_hex, failure_hex)
+
+    def pop_fail_htlc_reason(self, htlc_id):
+        error_hex, failure_hex = self.hm.log['fail_htlc_reasons'].pop(htlc_id, (None, None))
+        error_bytes = bytes.fromhex(error_hex) if error_hex else None
+        failure_message = OnionRoutingFailureMessage.from_bytes(bytes.fromhex(failure_hex)) if failure_hex else None
+        return error_bytes, failure_message
 
     def extract_preimage_from_htlc_tx(self, tx):
         witness = tx.inputs()[0].witness_elements()
@@ -1185,10 +1200,7 @@ class Channel(AbstractChannel):
         self.logger.info("receive_fail_htlc")
         with self.db_lock:
             self.hm.recv_fail(htlc_id)
-        self._receive_fail_reasons[htlc_id] = BarePaymentAttemptLog(success=False,
-                                                                    preimage=None,
-                                                                    error_bytes=error_bytes,
-                                                                    error_reason=reason)
+        self._receive_fail_reasons[htlc_id] = (error_bytes, reason)
 
     def get_next_fee(self, subject: HTLCOwner) -> int:
         return self.constraints.capacity - sum(x.value for x in self.get_next_commitment(subject).outputs())

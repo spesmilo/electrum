@@ -1105,10 +1105,11 @@ class LNWallet(LNWorker):
         self.preimages[bh2u(payment_hash)] = bh2u(preimage)
         self.wallet.save_db()
 
-    def get_preimage(self, payment_hash: bytes) -> bytes:
-        return bfh(self.preimages.get(bh2u(payment_hash)))
+    def get_preimage(self, payment_hash: bytes) -> Optional[bytes]:
+        r = self.preimages.get(bh2u(payment_hash))
+        return bfh(r) if r else None
 
-    def get_payment_info(self, payment_hash: bytes) -> PaymentInfo:
+    def get_payment_info(self, payment_hash: bytes) -> Optional[PaymentInfo]:
         key = payment_hash.hex()
         with self.lock:
             if key in self.payments:
@@ -1157,14 +1158,18 @@ class LNWallet(LNWorker):
         info = info._replace(status=status)
         self.save_payment_info(info)
 
-    def payment_failed(self, chan, payment_hash: bytes, payment_attempt: BarePaymentAttemptLog):
+    def payment_failed(self, chan, payment_hash: bytes, error_bytes: bytes, failure_message):
         self.set_payment_status(payment_hash, PR_UNPAID)
-        key = payment_hash.hex()
         f = self.pending_payments.get(payment_hash)
         if f and not f.cancelled():
+            payment_attempt = BarePaymentAttemptLog(
+                success=False,
+                error_bytes=error_bytes,
+                failure_message=failure_message)
             f.set_result(payment_attempt)
         else:
             chan.logger.info('received unexpected payment_failed, probably from previous session')
+            key = payment_hash.hex()
             util.trigger_callback('invoice_status', key)
             util.trigger_callback('payment_failed', key, '')
         util.trigger_callback('ln_payment_failed', payment_hash, chan.channel_id)
@@ -1172,15 +1177,15 @@ class LNWallet(LNWorker):
     def payment_sent(self, chan, payment_hash: bytes):
         self.set_payment_status(payment_hash, PR_PAID)
         preimage = self.get_preimage(payment_hash)
-        key = payment_hash.hex()
         f = self.pending_payments.get(payment_hash)
         if f and not f.cancelled():
-            payment_attempt = BarePaymentAttemptLog(success=True,
-                                                    preimage=preimage,
-                                                    error_bytes=None)
+            payment_attempt = BarePaymentAttemptLog(
+                success=True,
+                preimage=preimage)
             f.set_result(payment_attempt)
         else:
             chan.logger.info('received unexpected payment_sent, probably from previous session')
+            key = payment_hash.hex()
             util.trigger_callback('invoice_status', key)
             util.trigger_callback('payment_succeeded', key)
         util.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
