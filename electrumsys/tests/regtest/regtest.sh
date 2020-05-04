@@ -104,6 +104,7 @@ fi
 
 if [[ $1 == "configure_test_forwarding" ]]; then
     $bob setconfig --offline lightning_forward_payments true
+    # $carol setconfig --offline test_fail_malformed_htlc true # uncomment to test update_fail_malformed_htlc
 fi
 
 if [[ $1 == "open" ]]; then
