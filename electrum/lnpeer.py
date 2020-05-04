@@ -1495,6 +1495,7 @@ class Peer(Logger):
                     onion_packet_bytes = bytes.fromhex(onion_packet_hex)
                     onion_packet = None
                     try:
+                        if self.network.config.get('test_fail_malformed_htlc'): raise InvalidOnionPubkey()
                         onion_packet = OnionPacket.from_bytes(onion_packet_bytes)
                         processed_onion = process_onion_packet(onion_packet, associated_data=payment_hash, our_onion_private_key=self.privkey)
                     except UnsupportedOnionPacketVersion:
