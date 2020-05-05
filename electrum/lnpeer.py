@@ -1212,7 +1212,7 @@ class Peer(Logger):
         except BaseException as e:
             self.logger.info(f"failed to forward htlc: error sending message. {e}")
             data = outgoing_chan_upd_len + outgoing_chan_upd
-            return OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=data)
+            return None, None, OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=data)
         return next_chan_scid, next_htlc.htlc_id, None
 
     def maybe_fulfill_htlc(self, *, chan: Channel, htlc: UpdateAddHtlc,
