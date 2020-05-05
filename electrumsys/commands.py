@@ -1010,16 +1010,17 @@ class Commands:
         return parse_lightning_invoice(invoice)
 
     @command('wn')
-    async def lnpay(self, invoice, attempts=1, timeout=10, wallet: Abstract_Wallet = None):
+    async def lnpay(self, invoice, attempts=1, timeout=30, wallet: Abstract_Wallet = None):
         lnworker = wallet.lnworker
         lnaddr = lnworker._check_invoice(invoice, None)
         payment_hash = lnaddr.paymenthash
         wallet.save_invoice(parse_lightning_invoice(invoice))
-        success = await lnworker._pay(invoice, attempts=attempts)
+        success, log = await lnworker._pay(invoice, attempts=attempts)
         return {
             'payment_hash': payment_hash.hex(),
             'success': success,
             'preimage': lnworker.get_preimage(payment_hash).hex() if success else None,
+            'log': [x.formatted_tuple() for x in log]
         }
 
     @command('w')
@@ -1207,6 +1208,7 @@ arg_types = {
     'encrypt_file': eval_bool,
     'rbf': eval_bool,
     'timeout': float,
+    'attempts': int,
 }
 
 config_variables = {
