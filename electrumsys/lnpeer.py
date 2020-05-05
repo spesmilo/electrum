@@ -1150,7 +1150,7 @@ class Peer(Logger):
             return None, None, OnionRoutingFailureMessage(code=OnionFailureCode.PERMANENT_CHANNEL_FAILURE, data=b'')
         chain = self.network.blockchain()
         if chain.is_tip_stale():
-            return OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
+            return None, None, OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
         try:
             next_chan_scid = processed_onion.hop_data.payload["short_channel_id"]["short_channel_id"]
         except:
