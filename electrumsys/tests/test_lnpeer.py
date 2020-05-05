@@ -292,7 +292,7 @@ class TestPeer(ElectrumSysTestCase):
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
         pay_req = self.prepare_invoice(w2)
         async def pay():
-            result = await w1._pay(pay_req)
+            result, log = await w1._pay(pay_req)
             self.assertEqual(result, True)
             gath.cancel()
         gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
@@ -325,7 +325,7 @@ class TestPeer(ElectrumSysTestCase):
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
         pay_req = self.prepare_invoice(w2)
         async def pay():
-            result = await w1._pay(pay_req)
+            result, log = await w1._pay(pay_req)
             self.assertTrue(result)
             gath.cancel()
         gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
