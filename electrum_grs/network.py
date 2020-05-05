@@ -317,6 +317,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self.auto_connect = self.config.get('auto_connect', True)
         self._connecting = set()
         self.proxy = None
+        self._maybe_set_oneserver()
 
         # Dump network messages (all interfaces).  Set at runtime from the console.
         self.debug = False
@@ -609,9 +610,10 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             else:
                 await self.switch_lagging_interface()
 
-    def _set_oneserver(self, oneserver: bool):
+    def _maybe_set_oneserver(self) -> None:
+        oneserver = bool(self.config.get('oneserver', False))
+        self.oneserver = oneserver
         self.num_server = NUM_TARGET_CONNECTED_SERVERS if not oneserver else 0
-        self.oneserver = bool(oneserver)
 
     async def _switch_to_random_interface(self):
         '''Switch to a random connected server other than the current one'''
@@ -1135,7 +1137,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self.logger.info('starting network')
         self._clear_addr_retry_times()
         self._set_proxy(deserialize_proxy(self.config.get('proxy')))
-        self._set_oneserver(self.config.get('oneserver', False))
+        self._maybe_set_oneserver()
         await self.taskgroup.spawn(self._run_new_interface(self.default_server))
 
         async def main():

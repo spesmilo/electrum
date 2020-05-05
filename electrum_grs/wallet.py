@@ -222,6 +222,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
 
     txin_type: str
     wallet_type: str
+    lnworker: Optional['LNWallet']
+    lnbackups: Optional['LNBackups']
 
     def __init__(self, db: WalletDB, storage: Optional[WalletStorage], *, config: SimpleConfig):
         if not db.is_ready_to_be_used_by_wallet():
@@ -310,10 +312,16 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         self.db.put('lightning_privkey2', None)
         self.save_db()
 
-    def stop_threads(self):
-        super().stop_threads()
+    def stop(self):
+        super().stop()
         if any([ks.is_requesting_to_be_rewritten_to_wallet_file for ks in self.get_keystores()]):
             self.save_keystore()
+        if self.network:
+            if self.lnworker:
+                self.lnworker.stop()
+                self.lnworker = None
+            self.lnbackups.stop()
+            self.lnbackups = None
         self.save_db()
 
     def set_up_to_date(self, b):

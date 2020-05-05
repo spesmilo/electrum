@@ -39,6 +39,9 @@ class TestLightningAB(TestLightning):
     def test_breach(self):
         self.run_shell(['breach'])
 
+    def test_extract_preimage(self):
+        self.run_shell(['extract_preimage'])
+
     def test_redeem_htlcs(self):
         self.run_shell(['redeem_htlcs'])
 
@@ -53,9 +56,7 @@ class TestLightningABC(TestLightning):
     agents = ['alice', 'bob', 'carol']
 
     def test_forwarding(self):
-        self.run_shell(['open'])
-        self.run_shell(['alice_pays_carol'])
-        self.run_shell(['close'])
+        self.run_shell(['forwarding'])
 
     def test_watchtower(self):
         self.run_shell(['watchtower'])

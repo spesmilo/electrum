@@ -102,36 +102,29 @@ if [[ $1 == "stop" ]]; then
     $agent stop || true
 fi
 
-if [[ $1 == "configure_test_forwarding" ]]; then
-    $bob setconfig --offline lightning_forward_payments true
-fi
-
-if [[ $1 == "open" ]]; then
+if [[ $1 == "forwarding" ]]; then
+    $bob setconfig lightning_forward_payments true
     bob_node=$($bob nodeid)
     channel_id1=$($alice open_channel $bob_node 0.002 --push_amount 0.001)
     channel_id2=$($carol open_channel $bob_node 0.002 --push_amount 0.001)
     echo "mining 3 blocks"
     new_blocks 3
     sleep 10 # time for channelDB
-fi
-
-if [[ $1 == "alice_pays_carol" ]]; then
     request=$($carol add_lightning_request 0.0001 -m "blah")
+    $carol setconfig test_fail_malformed_htlc true
     $alice lnpay $request
+    request2=$($carol add_lightning_request 0.0001 -m "blah")
+    $carol setconfig test_fail_malformed_htlc false
+    $alice lnpay $request2
     carol_balance=$($carol list_channels | jq -r '.[0].local_balance')
     echo "carol balance: $carol_balance"
     if [[ $carol_balance != 110000 ]]; then
         exit 1
     fi
-fi
-
-if [[ $1 == "close" ]]; then
    chan1=$($alice list_channels | jq -r ".[0].channel_point")
    chan2=$($carol list_channels | jq -r ".[0].channel_point")
    $alice close_channel $chan1
    $carol close_channel $chan2
-   echo "mining 1 block"
-   new_blocks 1
 fi
 
 # alice sends two payments, then broadcast ctx after first payment.
@@ -161,6 +154,39 @@ if [[ $1 == "breach" ]]; then
     wait_for_balance bob 0.14
     $bob getbalance
 fi
+
+
+if [[ $1 == "extract_preimage" ]]; then
+    # instead of settling bob will broadcast
+    $bob enable_htlc_settle false
+    wait_for_balance alice 1
+    echo "alice opens channel"
+    bob_node=$($bob nodeid)
+    $alice open_channel $bob_node 0.15
+    new_blocks 3
+    wait_until_channel_open alice
+    chan_id=$($alice list_channels | jq -r ".[0].channel_point")
+    # alice pays bob
+    invoice=$($bob add_lightning_request 0.04 -m "test")
+    screen -S alice_payment -dm -L -Logfile /tmp/alice/screen.log $alice lnpay $invoice --timeout=600
+    sleep 1
+    unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
+    if [[ "$unsettled" == "0" ]]; then
+        echo 'enable_htlc_settle did not work'
+        exit 1
+    fi
+    # bob force closes
+    $bob close_channel $chan_id --force
+    new_blocks 1
+    wait_until_channel_closed bob
+    sleep 5
+    success=$(cat /tmp/alice/screen.log | jq -r ".success")
+    if [[ "$success" != "true" ]]; then
+        exit 1
+    fi
+    cat /tmp/alice/screen.log
+fi
+
 
 if [[ $1 == "redeem_htlcs" ]]; then
     $bob enable_htlc_settle false

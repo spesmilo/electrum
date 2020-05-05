@@ -132,7 +132,7 @@ class BaseCrashReporter(Logger):
     def get_user_description(self):
         raise NotImplementedError
 
-    def get_wallet_type(self):
+    def get_wallet_type(self) -> str:
         raise NotImplementedError
 
 

@@ -11,7 +11,7 @@ from PyQt5.QtGui import QFont, QStandardItem, QBrush
 
 from electrum_grs.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
 from electrum_grs.i18n import _
-from electrum_grs.lnchannel import Channel, PeerState
+from electrum_grs.lnchannel import AbstractChannel, PeerState
 from electrum_grs.wallet import Abstract_Wallet
 from electrum_grs.lnutil import LOCAL, REMOTE, format_short_channel_id, LN_MAX_FUNDING_SAT
 from electrum_grs.lnworker import LNWallet
@@ -26,7 +26,7 @@ ROLE_CHANNEL_ID = Qt.UserRole
 
 class ChannelsList(MyTreeView):
     update_rows = QtCore.pyqtSignal(Abstract_Wallet)
-    update_single_row = QtCore.pyqtSignal(Channel)
+    update_single_row = QtCore.pyqtSignal(AbstractChannel)
 
     class Columns(IntEnum):
         SHORT_CHANID = 0
@@ -196,8 +196,8 @@ class ChannelsList(MyTreeView):
             menu.addAction(_("Delete"), lambda: self.remove_channel(channel_id))
         menu.exec_(self.viewport().mapToGlobal(position))
 
-    @QtCore.pyqtSlot(Channel)
-    def do_update_single_row(self, chan: Channel):
+    @QtCore.pyqtSlot(AbstractChannel)
+    def do_update_single_row(self, chan: AbstractChannel):
         lnworker = self.parent.wallet.lnworker
         if not lnworker:
             return
@@ -235,7 +235,7 @@ class ChannelsList(MyTreeView):
 
         self.sortByColumn(self.Columns.SHORT_CHANID, Qt.DescendingOrder)
 
-    def _update_chan_frozen_bg(self, *, chan: Channel, items: Sequence[QStandardItem]):
+    def _update_chan_frozen_bg(self, *, chan: AbstractChannel, items: Sequence[QStandardItem]):
         assert self._default_item_bg_brush is not None
         # frozen for sending
         item = items[self.Columns.LOCAL_BALANCE]
@@ -266,9 +266,10 @@ class ChannelsList(MyTreeView):
         self.can_send_label = QLabel('')
         h.addWidget(self.can_send_label)
         h.addStretch()
-        h.addWidget(EnterButton(_('Open Channel'), self.new_channel_dialog))
+        self.new_channel_button = EnterButton(_('Open Channel'), self.new_channel_dialog)
+        self.new_channel_button.setEnabled(self.parent.wallet.has_lightning())
+        h.addWidget(self.new_channel_button)
         return h
-
 
     def statistics_dialog(self):
         channel_db = self.parent.network.channel_db

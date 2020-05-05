@@ -102,7 +102,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         self.remote_keypair = remote_keypair
         self.node_keypair = local_keypair
         self.network = MockNetwork(tx_queue)
-        self.channels = {chan.channel_id: chan}
+        self._channels = {chan.channel_id: chan}
         self.payments = {}
         self.logs = defaultdict(list)
         self.wallet = MockWallet()
@@ -123,6 +123,10 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         return noop_lock()
 
     @property
+    def channels(self):
+        return self._channels
+
+    @property
     def peers(self):
         return self._peers
 
@@ -131,11 +135,11 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         return {self.remote_keypair.pubkey: self.peer}
 
     def channels_for_peer(self, pubkey):
-        return self.channels
+        return self._channels
 
     def get_channel_by_short_id(self, short_channel_id):
         with self.lock:
-            for chan in self.channels.values():
+            for chan in self._channels.values():
                 if chan.short_channel_id == short_channel_id:
                     return chan
 
@@ -166,6 +170,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     try_force_closing = LNWallet.try_force_closing
     get_first_timestamp = lambda self: 0
     on_peer_successfully_established = LNWallet.on_peer_successfully_established
+    get_channel_by_id = LNWallet.get_channel_by_id
 
 
 class MockTransport:

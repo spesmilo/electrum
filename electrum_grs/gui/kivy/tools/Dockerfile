@@ -92,8 +92,8 @@ ENV WORK_DIR="${HOME_DIR}/wspace" \
 # install system dependencies
 RUN apt -y update -qq \
     && apt -y install -qq --no-install-recommends \
-        python3 virtualenv python3-pip python3-setuptools git wget lbzip2 patch sudo \
-        software-properties-common \
+        python3 python3-pip python3-setuptools git wget lbzip2 patch sudo \
+        software-properties-common libssl-dev \
     && apt -y autoremove
 
 # install kivy
@@ -154,7 +154,7 @@ RUN cd /opt \
     && cd buildozer \
     && git remote add sombernight https://github.com/SomberNight/buildozer \
     && git fetch --all \
-    && git checkout cceab3c2ce4b2d2d621cf2fd18227024fc2d4bca \
+    && git checkout d0323c165dd5d9aa23d5eb01044474fe006c3420 \
     && python3 -m pip install -e .
 
 # install python-for-android
@@ -163,7 +163,7 @@ RUN cd /opt \
     && cd python-for-android \
     && git remote add sombernight https://github.com/SomberNight/python-for-android \
     && git fetch --all \
-    && git checkout 690a8ecc8d1c7f446d42f53a89af06c9a2d00e4e \
+    && git checkout cef08b92268fe69ef331699c2205cbb091e730f0 \
     && python3 -m pip install -e .
 
 # build env vars
