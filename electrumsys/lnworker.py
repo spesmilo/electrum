@@ -1110,6 +1110,7 @@ class LNWallet(LNWorker):
         return bfh(r) if r else None
 
     def get_payment_info(self, payment_hash: bytes) -> Optional[PaymentInfo]:
+        """returns None if payment_hash is a payment we are forwarding"""
         key = payment_hash.hex()
         with self.lock:
             if key in self.payments:

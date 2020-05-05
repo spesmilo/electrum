@@ -34,7 +34,7 @@ import attr
 
 from . import ecc
 from . import constants, util
-from .util import bfh, bh2u, chunks, TxMinedInfo
+from .util import bfh, bh2u, chunks, TxMinedInfo, PR_PAID
 from .bitcoin import redeem_script_to_address
 from .crypto import sha256, sha256d
 from .transaction import Transaction, PartialTransaction
@@ -972,16 +972,42 @@ class Channel(AbstractChannel):
         return error_bytes, failure_message
 
     def extract_preimage_from_htlc_tx(self, tx):
-        witness = tx.inputs()[0].witness_elements()
-        if len(witness) != 5:
-            return
-        preimage = witness[3]
-        payment_hash = sha256(preimage)
-        for direction, htlc in self.hm.get_htlcs_in_oldest_unrevoked_ctx(REMOTE):
-            if htlc.payment_hash == payment_hash:
-                self.logger.info(f'found preimage for {payment_hash.hex()} in tx witness')
+        for _input in tx.inputs():
+            witness = _input.witness_elements()
+            if len(witness) == 5:
+                preimage = witness[3]
+            elif len(witness) == 3:
+                preimage = witness[1]
+            else:
+                continue
+            payment_hash = sha256(preimage)
+            for direction, htlc in self.hm.get_htlcs_in_oldest_unrevoked_ctx(REMOTE):
+                if htlc.payment_hash == payment_hash:
+                    is_sent = direction == RECEIVED
+                    break
+            else:
+                for direction, htlc in self.hm.get_htlcs_in_latest_ctx(REMOTE):
+                    if htlc.payment_hash == payment_hash:
+                        is_sent = direction == RECEIVED
+                        break
+                else:
+                    for direction, htlc in self.hm.get_htlcs_in_oldest_unrevoked_ctx(LOCAL):
+                        if htlc.payment_hash == payment_hash:
+                            is_sent = direction == SENT
+                            break
+                    else:
+                        for direction, htlc in self.hm.get_htlcs_in_latest_ctx(LOCAL):
+                            if htlc.payment_hash == payment_hash:
+                                is_sent = direction == SENT
+                                break
+                        else:
+                            continue
+            if self.lnworker.get_preimage(payment_hash) is None:
+                self.logger.info(f'found preimage for {payment_hash.hex()} in witness of length {len(witness)}')
                 self.lnworker.save_preimage(payment_hash, preimage)
-                if direction == RECEIVED:
+            info = self.lnworker.get_payment_info(payment_hash)
+            if info is not None and info.status != PR_PAID:
+                if is_sent:
                     self.lnworker.payment_sent(self, payment_hash)
                 else:
                     self.lnworker.payment_received(self, payment_hash)
