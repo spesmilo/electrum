@@ -807,7 +807,7 @@ class LNWallet(LNWorker):
         """
         coro = self._pay(invoice, amount_sat, attempts)
         fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
-        success = fut.result()
+        success, log = fut.result()
 
     def get_channel_by_short_id(self, short_channel_id: ShortChannelID) -> Channel:
         for chan in self.channels.values():
@@ -827,7 +827,7 @@ class LNWallet(LNWorker):
         info = PaymentInfo(lnaddr.paymenthash, amount, SENT, PR_UNPAID)
         self.save_payment_info(info)
         self.wallet.set_label(key, lnaddr.get_description())
-        log = self.logs[key]
+        self.logs[key] = log = []
         success = False
         reason = ''
         for i in range(attempts):
@@ -856,7 +856,7 @@ class LNWallet(LNWorker):
             util.trigger_callback('payment_succeeded', key)
         else:
             util.trigger_callback('payment_failed', key, reason)
-        return success
+        return success, log
 
     async def _pay_to_route(self, route: LNPaymentRoute, lnaddr: LnAddr) -> PaymentAttemptLog:
         short_channel_id = route[0].short_channel_id
