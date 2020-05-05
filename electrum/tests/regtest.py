@@ -56,9 +56,7 @@ class TestLightningABC(TestLightning):
     agents = ['alice', 'bob', 'carol']
 
     def test_forwarding(self):
-        self.run_shell(['open'])
-        self.run_shell(['alice_pays_carol'])
-        self.run_shell(['close'])
+        self.run_shell(['forwarding'])
 
     def test_watchtower(self):
         self.run_shell(['watchtower'])
