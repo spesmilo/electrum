@@ -235,9 +235,9 @@ class PaymentAttemptLog(NamedTuple):
 
 class BarePaymentAttemptLog(NamedTuple):
     success: bool
-    preimage: Optional[bytes]
-    error_bytes: Optional[bytes]
-    error_reason: Optional['OnionRoutingFailureMessage'] = None
+    preimage: Optional[bytes] = None
+    error_bytes: Optional[bytes] = None
+    failure_message: Optional['OnionRoutingFailureMessage'] = None
 
 
 class LightningError(Exception): pass
@@ -245,7 +245,6 @@ class LightningPeerConnectionClosed(LightningError): pass
 class UnableToDeriveSecret(LightningError): pass
 class HandshakeFailed(LightningError): pass
 class ConnStringFormatError(LightningError): pass
-class UnknownPaymentHash(LightningError): pass
 class RemoteMisbehaving(LightningError): pass
 
 class NotFoundChanAnnouncementForUpdate(Exception): pass
