@@ -60,7 +60,8 @@ from .transaction import PartialTxOutput, PartialTransaction, PartialTxInput
 from .lnonion import OnionFailureCode, process_onion_packet, OnionPacket
 from .lnmsg import decode_msg
 from .i18n import _
-from .lnrouter import RouteEdge, LNPaymentRoute, is_route_sane_to_use
+from .lnrouter import (RouteEdge, LNPaymentRoute, LNPaymentPath, is_route_sane_to_use,
+                       NoChannelPolicy, LNPathInconsistent)
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from . import lnsweep
 from .lnwatcher import LNWalletWatcher
@@ -815,7 +816,8 @@ class LNWallet(LNWorker):
                 return chan
 
     async def _pay(self, invoice: str, amount_sat: int = None, *,
-                   attempts: int = 1) -> Tuple[bool, List[PaymentAttemptLog]]:
+                   attempts: int = 1,
+                   full_path: LNPaymentPath = None) -> Tuple[bool, List[PaymentAttemptLog]]:
         lnaddr = self._check_invoice(invoice, amount_sat)
         payment_hash = lnaddr.paymenthash
         key = payment_hash.hex()
@@ -837,7 +839,7 @@ class LNWallet(LNWorker):
                 # graph updates might occur during the computation
                 self.set_invoice_status(key, PR_ROUTING)
                 util.trigger_callback('invoice_status', key)
-                route = await run_in_thread(self._create_route_from_invoice, lnaddr)
+                route = await run_in_thread(partial(self._create_route_from_invoice, lnaddr, full_path=full_path))
                 self.set_invoice_status(key, PR_INFLIGHT)
                 util.trigger_callback('invoice_status', key)
                 payment_attempt_log = await self._pay_to_route(route, lnaddr)
@@ -974,7 +976,8 @@ class LNWallet(LNWorker):
         return addr
 
     @profiler
-    def _create_route_from_invoice(self, decoded_invoice: 'LnAddr') -> LNPaymentRoute:
+    def _create_route_from_invoice(self, decoded_invoice: 'LnAddr',
+                                   *, full_path: LNPaymentPath = None) -> LNPaymentRoute:
         amount_msat = int(decoded_invoice.amount * COIN * 1000)
         invoice_pubkey = decoded_invoice.pubkey.serialize()
         # use 'r' field from invoice
@@ -995,12 +998,22 @@ class LNWallet(LNWorker):
             if len(private_route) > NUM_MAX_EDGES_IN_PAYMENT_PATH:
                 continue
             border_node_pubkey = private_route[0][0]
-            path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, border_node_pubkey, amount_msat,
-                                                                  my_channels=scid_to_my_channels)
+            if full_path:
+                # user pre-selected path. check that end of given path coincides with private_route:
+                if [edge.short_channel_id for edge in full_path[-len(private_route):]] != [edge[1] for edge in private_route]:
+                    continue
+                path = full_path[:-len(private_route)]
+            else:
+                # find path now on public graph, to border node
+                path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, border_node_pubkey, amount_msat,
+                                                                      my_channels=scid_to_my_channels)
             if not path:
                 continue
-            route = self.network.path_finder.create_route_from_path(path, self.node_keypair.pubkey,
-                                                                    my_channels=scid_to_my_channels)
+            try:
+                route = self.network.path_finder.create_route_from_path(path, self.node_keypair.pubkey,
+                                                                        my_channels=scid_to_my_channels)
+            except NoChannelPolicy:
+                continue
             # we need to shift the node pubkey by one towards the destination:
             private_route_nodes = [edge[0] for edge in private_route][1:] + [invoice_pubkey]
             private_route_rest = [edge[1:] for edge in private_route]
@@ -1033,8 +1046,11 @@ class LNWallet(LNWorker):
             break
         # if could not find route using any hint; try without hint now
         if route is None:
-            path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, invoice_pubkey, amount_msat,
-                                                                  my_channels=scid_to_my_channels)
+            if full_path:  # user pre-selected path
+                path = full_path
+            else:  # find path now
+                path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, invoice_pubkey, amount_msat,
+                                                                      my_channels=scid_to_my_channels)
             if not path:
                 raise NoPathFound()
             route = self.network.path_finder.create_route_from_path(path, self.node_keypair.pubkey,
@@ -1043,7 +1059,8 @@ class LNWallet(LNWorker):
                 self.logger.info(f"rejecting insane route {route}")
                 raise NoPathFound()
         assert len(route) > 0
-        assert route[-1].node_id == invoice_pubkey
+        if route[-1].node_id != invoice_pubkey:
+            raise LNPathInconsistent("last node_id != invoice pubkey")
         # add features from invoice
         invoice_features = decoded_invoice.get_tag('9') or 0
         route[-1].node_features |= invoice_features
