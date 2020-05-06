@@ -892,9 +892,9 @@ class LNWallet(LNWorker):
                         self.network.path_finder.add_to_blacklist(short_chan_id)
             else:
                 # probably got "update_fail_malformed_htlc". well... who to penalise now?
-                assert payment_attempt.error_reason is not None
+                assert payment_attempt.failure_message is not None
                 sender_idx = None
-                failure_msg = payment_attempt.error_reason
+                failure_msg = payment_attempt.failure_message
                 is_blacklisted = False
             failure_log = PaymentAttemptFailureDetails(sender_idx=sender_idx,
                                                        failure_msg=failure_msg,
