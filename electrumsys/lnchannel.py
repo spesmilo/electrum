@@ -631,14 +631,14 @@ class Channel(AbstractChannel):
         return out
 
     def get_settled_payments(self):
-        out = {}
+        out = defaultdict(list)
         for subject in LOCAL, REMOTE:
             log = self.hm.log[subject]
             for htlc_id, htlc in log.get('adds', {}).items():
                 if htlc_id in log.get('settles',{}):
                     direction = SENT if subject is LOCAL else RECEIVED
                     rhash = bh2u(htlc.payment_hash)
-                    out[rhash] = (self.channel_id, htlc, direction)
+                    out[rhash].append((self.channel_id, htlc, direction))
         return out
 
     def open_with_first_pcp(self, remote_pcp: bytes, remote_sig: bytes) -> None:
