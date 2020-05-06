@@ -13,7 +13,7 @@ from .sql_db import SqlDB, sql
 from .wallet_db import WalletDB
 from .util import bh2u, bfh, log_exceptions, ignore_exceptions, TxMinedInfo
 from .address_synchronizer import AddressSynchronizer, TX_HEIGHT_LOCAL, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED
-from .transaction import Transaction
+from .transaction import Transaction, TxOutpoint
 
 if TYPE_CHECKING:
     from .network import Network
@@ -387,7 +387,10 @@ class LNWalletWatcher(LNWatcher):
                 else:
                     self.logger.info(f'(chan {chan.get_id_for_log()}) outpoint already spent {name}: {prevout}')
                     keep_watching |= not self.is_deeply_mined(spender_txid)
-                    chan.extract_preimage_from_htlc_tx(spender_tx)
+                    txin_idx = spender_tx.get_input_idx_that_spent_prevout(TxOutpoint.from_str(prevout))
+                    assert txin_idx is not None
+                    spender_txin = spender_tx.inputs()[txin_idx]
+                    chan.extract_preimage_from_htlc_txin(spender_txin)
             else:
                 self.logger.info(f'(chan {chan.get_id_for_log()}) trying to redeem {name}: {prevout}')
                 await self.try_redeem(prevout, sweep_info, name)
