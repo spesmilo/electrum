@@ -214,7 +214,7 @@ def transport_pair(k1, k2, name1, name2):
     return t1, t2
 
 
-class DiamondGraph(NamedTuple):
+class SquareGraph(NamedTuple):
     #        A
     #      /   \
     #     B     C
@@ -285,7 +285,7 @@ class TestPeer(ElectrumTestCase):
         p2.mark_open(bob_channel)
         return p1, p2, w1, w2, q1, q2
 
-    def prepare_chans_and_peers_in_diamond(self) -> DiamondGraph:
+    def prepare_chans_and_peers_in_square(self) -> SquareGraph:
         key_a, key_b, key_c, key_d = [keypair() for i in range(4)]
         chan_ab, chan_ba = create_test_channels(alice_name="alice", bob_name="bob", alice_pubkey=key_a.pubkey, bob_pubkey=key_b.pubkey)
         chan_ac, chan_ca = create_test_channels(alice_name="alice", bob_name="carol", alice_pubkey=key_a.pubkey, bob_pubkey=key_c.pubkey)
@@ -333,7 +333,7 @@ class TestPeer(ElectrumTestCase):
         peer_cd.mark_open(chan_cd)
         peer_db.mark_open(chan_db)
         peer_dc.mark_open(chan_dc)
-        return DiamondGraph(
+        return SquareGraph(
             w_a=w_a,
             w_b=w_b,
             w_c=w_c,
@@ -488,7 +488,7 @@ class TestPeer(ElectrumTestCase):
 
     @needs_test_with_all_chacha20_implementations
     def test_payment_multihop(self):
-        graph = self.prepare_chans_and_peers_in_diamond()
+        graph = self.prepare_chans_and_peers_in_square()
         peers = graph.all_peers()
         async def pay(pay_req):
             result, log = await graph.w_a._pay(pay_req)
@@ -507,7 +507,7 @@ class TestPeer(ElectrumTestCase):
 
     @needs_test_with_all_chacha20_implementations
     def test_payment_multihop_with_preselected_path(self):
-        graph = self.prepare_chans_and_peers_in_diamond()
+        graph = self.prepare_chans_and_peers_in_square()
         peers = graph.all_peers()
         async def pay(pay_req):
             with self.subTest(msg="bad path: edges do not chain together"):
@@ -542,7 +542,7 @@ class TestPeer(ElectrumTestCase):
 
     @needs_test_with_all_chacha20_implementations
     def test_payment_multihop_temp_node_failure(self):
-        graph = self.prepare_chans_and_peers_in_diamond()
+        graph = self.prepare_chans_and_peers_in_square()
         graph.w_b._fail_htlcs_with_temp_node_failure = True
         graph.w_c._fail_htlcs_with_temp_node_failure = True
         peers = graph.all_peers()
