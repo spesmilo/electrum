@@ -45,6 +45,9 @@ class NoChannelPolicy(Exception):
         super().__init__(f'cannot find channel policy for short_channel_id: {short_channel_id}')
 
 
+class LNPathInconsistent(Exception): pass
+
+
 def fee_for_edge_msat(forwarded_amount_msat: int, fee_base_msat: int, fee_proportional_millionths: int) -> int:
     return fee_base_msat \
            + (forwarded_amount_msat * fee_proportional_millionths // 1_000_000)
@@ -286,6 +289,9 @@ class LNPathFinder(Logger):
         for edge in path:
             node_id = edge.node_id
             short_channel_id = edge.short_channel_id
+            _endnodes = self.channel_db.get_endnodes_for_chan(short_channel_id, my_channels=my_channels)
+            if _endnodes and sorted(_endnodes) != sorted([prev_node_id, node_id]):
+                raise LNPathInconsistent("edges do not chain together")
             channel_policy = self.channel_db.get_policy_for_node(short_channel_id=short_channel_id,
                                                                  node_id=prev_node_id,
                                                                  my_channels=my_channels)

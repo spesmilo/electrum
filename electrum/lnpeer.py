@@ -108,7 +108,8 @@ class Peer(Logger):
             return
         assert channel_id
         chan = self.get_channel_by_id(channel_id)
-        assert chan
+        if not chan:
+            raise Exception(f"channel {channel_id.hex()} not found for peer {self.pubkey.hex()}")
         chan.hm.store_local_update_raw_msg(raw_msg, is_commitment_signed=is_commitment_signed)
         if is_commitment_signed:
             # saving now, to ensure replaying updates works (in case of channel reestablishment)
