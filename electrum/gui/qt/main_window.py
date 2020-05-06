@@ -1473,7 +1473,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def pay_lightning_invoice(self, invoice, amount_sat=None):
         attempts = LN_NUM_PAYMENT_ATTEMPTS
         def task():
-            self.wallet.lnworker.pay(invoice, amount_sat, attempts)
+            self.wallet.lnworker.pay(invoice, amount_sat, attempts=attempts)
         self.do_clear()
         self.wallet.thread.add(task)
         self.invoice_list.update()

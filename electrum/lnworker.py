@@ -801,20 +801,21 @@ class LNWallet(LNWorker):
             raise Exception(_("open_channel timed out"))
         return chan, funding_tx
 
-    def pay(self, invoice, amount_sat=None, attempts=1):
+    def pay(self, invoice: str, amount_sat: int = None, *, attempts: int = 1) -> Tuple[bool, List[PaymentAttemptLog]]:
         """
         Can be called from other threads
         """
-        coro = self._pay(invoice, amount_sat, attempts)
+        coro = self._pay(invoice, amount_sat, attempts=attempts)
         fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
-        success, log = fut.result()
+        return fut.result()
 
-    def get_channel_by_short_id(self, short_channel_id: ShortChannelID) -> Channel:
+    def get_channel_by_short_id(self, short_channel_id: bytes) -> Optional[Channel]:
         for chan in self.channels.values():
             if chan.short_channel_id == short_channel_id:
                 return chan
 
-    async def _pay(self, invoice, amount_sat=None, attempts=1) -> bool:
+    async def _pay(self, invoice: str, amount_sat: int = None, *,
+                   attempts: int = 1) -> Tuple[bool, List[PaymentAttemptLog]]:
         lnaddr = self._check_invoice(invoice, amount_sat)
         payment_hash = lnaddr.paymenthash
         key = payment_hash.hex()
@@ -958,7 +959,7 @@ class LNWallet(LNWorker):
         return blacklist
 
     @staticmethod
-    def _check_invoice(invoice, amount_sat=None):
+    def _check_invoice(invoice: str, amount_sat: int = None) -> LnAddr:
         addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
         if addr.is_expired():
             raise InvoiceError(_("This invoice has expired"))
