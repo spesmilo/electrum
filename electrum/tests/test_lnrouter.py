@@ -10,26 +10,13 @@ from electrum.lnonion import (OnionHopsDataSingle, new_onion_packet,
 from electrum import bitcoin, lnrouter
 from electrum.constants import BitcoinTestnet
 from electrum.simple_config import SimpleConfig
+from electrum.lnrouter import PathEdge
 
 from . import TestCaseForTestnet
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
 
 
 class Test_LNRouter(TestCaseForTestnet):
-
-    #@staticmethod
-    #def parse_witness_list(witness_bytes):
-    #    amount_witnesses = witness_bytes[0]
-    #    witness_bytes = witness_bytes[1:]
-    #    res = []
-    #    for i in range(amount_witnesses):
-    #        witness_length = witness_bytes[0]
-    #        this_witness = witness_bytes[1:witness_length+1]
-    #        assert len(this_witness) == witness_length
-    #        witness_bytes = witness_bytes[witness_length+1:]
-    #        res += [bytes(this_witness)]
-    #    assert witness_bytes == b"", witness_bytes
-    #    return res
 
     def setUp(self):
         super().setUp()
@@ -97,13 +84,13 @@ class Test_LNRouter(TestCaseForTestnet):
         cdb.add_channel_update({'short_channel_id': bfh('0000000000000006'), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 99999999, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
         cdb.add_channel_update({'short_channel_id': bfh('0000000000000006'), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
         path = path_finder.find_path_for_payment(b'\x02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', b'\x02eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', 100000)
-        self.assertEqual([(b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', b'\x00\x00\x00\x00\x00\x00\x00\x03'),
-                          (b'\x02eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', b'\x00\x00\x00\x00\x00\x00\x00\x02'),
+        self.assertEqual([PathEdge(node_id=b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', short_channel_id=bfh('0000000000000003')),
+                          PathEdge(node_id=b'\x02eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', short_channel_id=bfh('0000000000000002')),
                          ], path)
-        start_node = b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+        start_node = b'\x02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
         route = path_finder.create_route_from_path(path, start_node)
-        self.assertEqual(route[0].node_id, start_node)
-        self.assertEqual(route[0].short_channel_id, bfh('0000000000000003'))
+        self.assertEqual(b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', route[0].node_id)
+        self.assertEqual(bfh('0000000000000003'),                 route[0].short_channel_id)
 
         # need to duplicate tear_down here, as we also need to wait for the sql thread to stop
         self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
