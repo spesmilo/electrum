@@ -494,6 +494,7 @@ class LNWallet(LNWorker):
         # used in tests
         self.enable_htlc_settle = asyncio.Event()
         self.enable_htlc_settle.set()
+        self._fail_htlcs_with_temp_node_failure = False
 
         # note: accessing channels (besides simple lookup) needs self.lock!
         self._channels = {}  # type: Dict[bytes, Channel]

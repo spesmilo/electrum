@@ -1510,7 +1510,9 @@ class Peer(Logger):
                         self.logger.info(f"error processing onion packet: {e!r}")
                         error_reason = OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
                     else:
-                        if processed_onion.are_we_final:
+                        if self.lnworker._fail_htlcs_with_temp_node_failure:
+                            error_reason = OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
+                        elif processed_onion.are_we_final:
                             preimage, error_reason = self.maybe_fulfill_htlc(
                                 chan=chan,
                                 htlc=htlc,
