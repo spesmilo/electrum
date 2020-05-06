@@ -549,7 +549,7 @@ class BaseWizard(Logger):
             if len(self.keystores) == 0:
                 xpub = k.get_master_public_key()
                 self.run('show_xpub_and_add_cosigners', xpub)
-                # self.reset_stack()
+                self.reset_stack()
             self.keystores.append(k)
             if len(self.keystores) < self.n:
                 self.run('choose_keystore')
