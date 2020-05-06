@@ -593,7 +593,7 @@ class LNWallet(LNWorker):
         for chan in self.channels.values():
             d = chan.get_settled_payments()
             for k, v in d.items():
-                out[k].append(v)
+                out[k] += v
         return out
 
     def get_lightning_history(self):
@@ -601,26 +601,21 @@ class LNWallet(LNWorker):
         for key, plist in self.get_settled_payments().items():
             if len(plist) == 0:
                 continue
-            elif len(plist) == 1:
-                chan_id, htlc, _direction = plist[0]
-                direction = 'sent' if _direction == SENT else 'received'
-                amount_msat = int(_direction) * htlc.amount_msat
-                timestamp = htlc.timestamp
-                label = self.wallet.get_label(key)
-                if _direction == SENT:
-                    info = self.get_payment_info(bfh(key))
-                    fee_msat = - info.amount*1000 - amount_msat if info and info.amount else None
-                else:
-                    fee_msat = None
-            else:
-                # assume forwarding
-                direction = 'forwarding'
-                amount_msat = sum([int(_direction) * htlc.amount_msat for chan_id, htlc, _direction in plist])
-                label = _('Forwarding')
-                timestamp = min([htlc.timestamp for chan_id, htlc, _direction in plist])
-                fee_msat = None # fixme
-
             payment_hash = bytes.fromhex(key)
+            info = self.get_payment_info(payment_hash)
+            timestamp = min([htlc.timestamp for chan_id, htlc, _direction in plist])
+            amount_msat = 0
+            fee_msat = None
+            for chan_id, htlc, _direction in plist:
+                amount_msat += int(_direction) * htlc.amount_msat
+                if _direction == SENT and info and info.amount:
+                    fee_msat = (fee_msat or 0) - info.amount*1000 - amount_msat
+            if info is not None:
+                label = self.wallet.get_label(key)
+                direction = ('sent' if info.direction == SENT else 'received') if len(plist)==1 else 'self-payment'
+            else:
+                direction = 'forwarding'
+                label = _('Forwarding')
             preimage = self.get_preimage(payment_hash).hex()
             item = {
                 'type': 'payment',
