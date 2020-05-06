@@ -45,16 +45,23 @@ class NoChannelPolicy(Exception):
         super().__init__(f'cannot find channel policy for short_channel_id: {short_channel_id}')
 
 
+class LNPathInconsistent(Exception): pass
+
+
 def fee_for_edge_msat(forwarded_amount_msat: int, fee_base_msat: int, fee_proportional_millionths: int) -> int:
     return fee_base_msat \
            + (forwarded_amount_msat * fee_proportional_millionths // 1_000_000)
 
 
-@attr.s
-class RouteEdge:
+@attr.s(slots=True)
+class PathEdge:
     """if you travel through short_channel_id, you will reach node_id"""
     node_id = attr.ib(type=bytes, kw_only=True)
     short_channel_id = attr.ib(type=ShortChannelID, kw_only=True)
+
+
+@attr.s
+class RouteEdge(PathEdge):
     fee_base_msat = attr.ib(type=int, kw_only=True)
     fee_proportional_millionths = attr.ib(type=int, kw_only=True)
     cltv_expiry_delta = attr.ib(type=int, kw_only=True)
@@ -93,6 +100,7 @@ class RouteEdge:
         return bool(features & LnFeatures.VAR_ONION_REQ or features & LnFeatures.VAR_ONION_OPT)
 
 
+LNPaymentPath = Sequence[PathEdge]
 LNPaymentRoute = Sequence[RouteEdge]
 
 
@@ -186,8 +194,8 @@ class LNPathFinder(Logger):
 
     def get_distances(self, nodeA: bytes, nodeB: bytes,
                       invoice_amount_msat: int, *,
-                      my_channels: Dict[ShortChannelID, 'Channel'] = None) \
-                      -> Optional[Sequence[Tuple[bytes, bytes]]]:
+                      my_channels: Dict[ShortChannelID, 'Channel'] = None
+                      ) -> Dict[bytes, PathEdge]:
         # note: we don't lock self.channel_db, so while the path finding runs,
         #       the underlying graph could potentially change... (not good but maybe ~OK?)
 
@@ -196,7 +204,7 @@ class LNPathFinder(Logger):
         # to properly calculate compound routing fees.
         distance_from_start = defaultdict(lambda: float('inf'))
         distance_from_start[nodeB] = 0
-        prev_node = {}
+        prev_node = {}  # type: Dict[bytes, PathEdge]
         nodes_to_explore = queue.PriorityQueue()
         nodes_to_explore.put((0, invoice_amount_msat, nodeB))  # order of fields (in tuple) matters!
 
@@ -237,7 +245,8 @@ class LNPathFinder(Logger):
                 alt_dist_to_neighbour = distance_from_start[edge_endnode] + edge_cost
                 if alt_dist_to_neighbour < distance_from_start[edge_startnode]:
                     distance_from_start[edge_startnode] = alt_dist_to_neighbour
-                    prev_node[edge_startnode] = edge_endnode, edge_channel_id
+                    prev_node[edge_startnode] = PathEdge(node_id=edge_endnode,
+                                                         short_channel_id=ShortChannelID(edge_channel_id))
                     amount_to_forward_msat = amount_msat + fee_for_edge_msat
                     nodes_to_explore.put((alt_dist_to_neighbour, amount_to_forward_msat, edge_startnode))
 
@@ -247,13 +256,8 @@ class LNPathFinder(Logger):
     def find_path_for_payment(self, nodeA: bytes, nodeB: bytes,
                               invoice_amount_msat: int, *,
                               my_channels: Dict[ShortChannelID, 'Channel'] = None) \
-            -> Optional[Sequence[Tuple[bytes, bytes]]]:
-        """Return a path from nodeA to nodeB.
-
-        Returns a list of (node_id, short_channel_id) representing a path.
-        To get from node ret[n][0] to ret[n+1][0], use channel ret[n+1][1];
-        i.e. an element reads as, "to get to node_id, travel through short_channel_id"
-        """
+            -> Optional[LNPaymentPath]:
+        """Return a path from nodeA to nodeB."""
         assert type(nodeA) is bytes
         assert type(nodeB) is bytes
         assert type(invoice_amount_msat) is int
@@ -270,19 +274,24 @@ class LNPathFinder(Logger):
         edge_startnode = nodeA
         path = []
         while edge_startnode != nodeB:
-            edge_endnode, edge_taken = prev_node[edge_startnode]
-            path += [(edge_endnode, edge_taken)]
-            edge_startnode = edge_endnode
+            edge = prev_node[edge_startnode]
+            path += [edge]
+            edge_startnode = edge.node_id
         return path
 
-    def create_route_from_path(self, path, from_node_id: bytes, *,
+    def create_route_from_path(self, path: Optional[LNPaymentPath], from_node_id: bytes, *,
                                my_channels: Dict[ShortChannelID, 'Channel'] = None) -> LNPaymentRoute:
         assert isinstance(from_node_id, bytes)
         if path is None:
             raise Exception('cannot create route from None path')
         route = []
         prev_node_id = from_node_id
-        for node_id, short_channel_id in path:
+        for edge in path:
+            node_id = edge.node_id
+            short_channel_id = edge.short_channel_id
+            _endnodes = self.channel_db.get_endnodes_for_chan(short_channel_id, my_channels=my_channels)
+            if _endnodes and sorted(_endnodes) != sorted([prev_node_id, node_id]):
+                raise LNPathInconsistent("edges do not chain together")
             channel_policy = self.channel_db.get_policy_for_node(short_channel_id=short_channel_id,
                                                                  node_id=prev_node_id,
                                                                  my_channels=my_channels)

@@ -108,7 +108,8 @@ class Peer(Logger):
             return
         assert channel_id
         chan = self.get_channel_by_id(channel_id)
-        assert chan
+        if not chan:
+            raise Exception(f"channel {channel_id.hex()} not found for peer {self.pubkey.hex()}")
         chan.hm.store_local_update_raw_msg(raw_msg, is_commitment_signed=is_commitment_signed)
         if is_commitment_signed:
             # saving now, to ensure replaying updates works (in case of channel reestablishment)
@@ -1509,7 +1510,9 @@ class Peer(Logger):
                         self.logger.info(f"error processing onion packet: {e!r}")
                         error_reason = OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
                     else:
-                        if processed_onion.are_we_final:
+                        if self.lnworker._fail_htlcs_with_temp_node_failure:
+                            error_reason = OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
+                        elif processed_onion.are_we_final:
                             preimage, error_reason = self.maybe_fulfill_htlc(
                                 chan=chan,
                                 htlc=htlc,
