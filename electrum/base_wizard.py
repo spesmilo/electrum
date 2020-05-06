@@ -117,7 +117,6 @@ class BaseWizard(Logger):
             raise Exception("unknown action", action)
 
     def can_go_back(self):
-        print(self._stack)
         return len(self._stack) > 1
 
     def go_back(self, *, rerun_previous: bool = True) -> None:
