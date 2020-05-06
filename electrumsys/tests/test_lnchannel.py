@@ -39,6 +39,7 @@ from electrumsys.ecc import sig_string_from_der_sig
 from electrumsys.logging import console_stderr_handler
 from electrumsys.lnchannel import ChannelState
 from electrumsys.json_db import StoredDict
+from electrumsys.coinchooser import PRNG
 
 from . import ElectrumSysTestCase
 
@@ -110,8 +111,13 @@ def bip32(sequence):
     assert type(k) is bytes
     return k
 
-def create_test_channels(*, feerate=6000, local_msat=None, remote_msat=None):
-    funding_txid = binascii.hexlify(b"\x01"*32).decode("ascii")
+def create_test_channels(*, feerate=6000, local_msat=None, remote_msat=None,
+                         alice_name="alice", bob_name="bob",
+                         alice_pubkey=b"\x01"*33, bob_pubkey=b"\x02"*33, random_seed=None):
+    if random_seed is None:  # needed for deterministic randomness
+        random_seed = os.urandom(32)
+    random_gen = PRNG(random_seed)
+    funding_txid = binascii.hexlify(random_gen.get_bytes(32)).decode("ascii")
     funding_index = 0
     funding_sat = ((local_msat + remote_msat) // 1000) if local_msat is not None and remote_msat is not None else (bitcoin.COIN * 10)
     local_amount = local_msat if local_msat is not None else (funding_sat * 1000 // 2)
@@ -123,20 +129,20 @@ def create_test_channels(*, feerate=6000, local_msat=None, remote_msat=None):
     alice_pubkeys = [lnutil.OnlyPubkeyKeypair(x.pubkey) for x in alice_privkeys]
     bob_pubkeys = [lnutil.OnlyPubkeyKeypair(x.pubkey) for x in bob_privkeys]
 
-    alice_seed = b"\x01" * 32
-    bob_seed = b"\x02" * 32
+    alice_seed = random_gen.get_bytes(32)
+    bob_seed = random_gen.get_bytes(32)
 
     alice_first = lnutil.secret_to_pubkey(int.from_bytes(lnutil.get_per_commitment_secret_from_seed(alice_seed, lnutil.RevocationStore.START_INDEX), "big"))
     bob_first = lnutil.secret_to_pubkey(int.from_bytes(lnutil.get_per_commitment_secret_from_seed(bob_seed, lnutil.RevocationStore.START_INDEX), "big"))
 
     alice, bob = (
         lnchannel.Channel(
-            create_channel_state(funding_txid, funding_index, funding_sat, True, local_amount, remote_amount, alice_privkeys, bob_pubkeys, alice_seed, None, bob_first, b"\x02"*33, l_dust=200, r_dust=1300, l_csv=5, r_csv=4),
-            name="alice",
+            create_channel_state(funding_txid, funding_index, funding_sat, True, local_amount, remote_amount, alice_privkeys, bob_pubkeys, alice_seed, None, bob_first, other_node_id=bob_pubkey, l_dust=200, r_dust=1300, l_csv=5, r_csv=4),
+            name=bob_name,
             initial_feerate=feerate),
         lnchannel.Channel(
-            create_channel_state(funding_txid, funding_index, funding_sat, False, remote_amount, local_amount, bob_privkeys, alice_pubkeys, bob_seed, None, alice_first, b"\x01"*33, l_dust=1300, r_dust=200, l_csv=4, r_csv=5),
-            name="bob",
+            create_channel_state(funding_txid, funding_index, funding_sat, False, remote_amount, local_amount, bob_privkeys, alice_pubkeys, bob_seed, None, alice_first, other_node_id=alice_pubkey, l_dust=1300, r_dust=200, l_csv=4, r_csv=5),
+            name=alice_name,
             initial_feerate=feerate)
     )
 

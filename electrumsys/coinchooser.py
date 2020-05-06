@@ -44,12 +44,12 @@ class PRNG:
         self.sha = sha256(seed)
         self.pool = bytearray()
 
-    def get_bytes(self, n):
+    def get_bytes(self, n: int) -> bytes:
         while len(self.pool) < n:
             self.pool.extend(self.sha)
             self.sha = sha256(self.sha)
         result, self.pool = self.pool[:n], self.pool[n:]
-        return result
+        return bytes(result)
 
     def randint(self, start, end):
         # Returns random integer in [start, end)
