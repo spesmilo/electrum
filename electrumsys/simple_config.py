@@ -571,6 +571,14 @@ class SimpleConfig(Logger):
             ssl_context.load_cert_chain(ssl_certfile, ssl_keyfile)
             return ssl_context
 
+    def get_ssl_domain(self):
+        from .paymentrequest import check_ssl_config
+        if self.get('ssl_keyfile') and self.get('ssl_certfile'):
+            SSL_identity = check_ssl_config(self)
+        else:
+            SSL_identity = None
+        return SSL_identity
+
 
 def read_user_config(path):
     """Parse and store the user config settings in electrumsys.conf into user_config[]."""

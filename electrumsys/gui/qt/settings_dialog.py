@@ -566,17 +566,13 @@ that is always connected to the internet. Configure a port if you want it to be 
             self.check_ssl_config()
 
     def check_ssl_config(self):
-        if self.config.get('ssl_keyfile') and self.config.get('ssl_certfile'):
-            try:
-                SSL_identity = paymentrequest.check_ssl_config(self.config)
-                SSL_error = None
-            except BaseException as e:
-                SSL_identity = "error"
-                SSL_error = repr(e)
-        else:
-            SSL_identity = ""
+        try:
+            SSL_identity = self.config.get_ssl_domain()
             SSL_error = None
-        self.ssl_domain_e.setText(SSL_identity)
+        except BaseException as e:
+            SSL_identity = "error"
+            SSL_error = repr(e)
+        self.ssl_domain_e.setText(SSL_identity or "")
         s = (ColorScheme.RED if SSL_error else ColorScheme.GREEN).as_stylesheet(True) if SSL_identity else ''
         self.ssl_domain_e.setStyleSheet(s)
         if SSL_error:
