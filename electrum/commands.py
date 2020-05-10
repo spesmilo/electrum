@@ -118,7 +118,7 @@ def command(s):
             cmd = known_commands[func.__name__]  # type: Command
             password = kwargs.get('password')
             daemon = cmd_runner.daemon
-            if daemon:
+            if daemon and not isinstance(kwargs.get('wallet'), Abstract_Wallet):
                 if (cmd.requires_wallet or 'wallet_path' in cmd.options) and kwargs.get('wallet_path') is None:
                     # using JSON-RPC, sometimes the "wallet" kwarg needs to be used to specify a wallet
                     kwargs['wallet_path'] = kwargs.pop('wallet', None) or daemon.config.get_wallet_path()
