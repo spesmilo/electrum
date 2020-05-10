@@ -1207,7 +1207,7 @@ class LNWallet(LNWorker):
 
     def payment_received(self, chan, payment_hash: bytes):
         self.set_payment_status(payment_hash, PR_PAID)
-        util.trigger_callback('request_status', self.wallet, payment_hash.hex(), PR_PAID)
+        util.trigger_callback('request_status', payment_hash.hex(), PR_PAID)
         util.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
 
     async def _calc_routing_hints_for_invoice(self, amount_sat: Optional[int]):
