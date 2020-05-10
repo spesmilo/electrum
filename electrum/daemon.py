@@ -191,7 +191,7 @@ class PayServer(Logger):
         # FIXME specify wallet somehow?
         return list(self.daemon.get_wallets().values())[0]
 
-    async def on_payment(self, evt, wallet, key, status):
+    async def on_payment(self, evt, key, status):
         if status == PR_PAID:
             self.pending[key].set()
 
