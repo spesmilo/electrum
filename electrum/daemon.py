@@ -200,11 +200,12 @@ class PayServer(Logger):
     async def run(self):
         root = self.config.get('payserver_root', '/r')
         app = web.Application()
-        app.add_routes([web.post('/api/create_invoice', self.create_request)])
         app.add_routes([web.get('/api/get_invoice', self.get_request)])
         app.add_routes([web.get('/api/get_status', self.get_status)])
         app.add_routes([web.get('/bip70/{key}.bip70', self.get_bip70_request)])
         app.add_routes([web.static(root, os.path.join(os.path.dirname(__file__), 'www'))])
+        if self.config.get('payserver_allow_create_invoice'):
+            app.add_routes([web.post('/api/create_invoice', self.create_request)])
         runner = web.AppRunner(app)
         await runner.setup()
         site = web.TCPSite(runner, host=str(self.addr.host), port=self.addr.port, ssl_context=self.config.get_ssl_context())
@@ -217,9 +218,10 @@ class PayServer(Logger):
             raise web.HTTPUnsupportedMediaType()
         amount = int(params['amount_sat'])
         message = params['message'] or "donation"
-        payment_hash = wallet.lnworker.add_request(amount_sat=amount,
-                                                   message=message,
-                                                   expiry=3600)
+        payment_hash = wallet.lnworker.add_request(
+            amount_sat=amount,
+            message=message,
+            expiry=3600)
         key = payment_hash.hex()
         raise web.HTTPFound(self.root + '/pay?id=' + key)
 
