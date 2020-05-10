@@ -1623,7 +1623,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             addr = self.get_txout_address(txo)
             if addr in self.receive_requests:
                 status, conf = self.get_request_status(addr)
-                util.trigger_callback('payment_received', self, addr, status)
+                util.trigger_callback('request_status', self, addr, status)
 
     def make_payment_request(self, addr, amount, message, expiration):
         timestamp = int(time.time())

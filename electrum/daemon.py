@@ -184,7 +184,7 @@ class PayServer(Logger):
         self.daemon = daemon
         self.config = daemon.config
         self.pending = defaultdict(asyncio.Event)
-        util.register_callback(self.on_payment, ['payment_received'])
+        util.register_callback(self.on_payment, ['request_status'])
 
     @property
     def wallet(self):
