@@ -9,6 +9,7 @@ from typing import Union, Optional
 from numbers import Real
 
 from copy import deepcopy
+from aiorpcx import NetAddress
 
 from . import util
 from . import constants
@@ -591,6 +592,15 @@ class SimpleConfig(Logger):
         else:
             SSL_identity = None
         return SSL_identity
+
+    def get_netaddress(self, key: str) -> Optional[NetAddress]:
+        text = self.get(key)
+        if text:
+            try:
+                host, port = text.split(':')
+                return NetAddress(host, port)
+            except:
+                pass
 
 
 def read_user_config(path):

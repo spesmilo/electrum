@@ -1605,13 +1605,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         else:
             return
         # add URL if we are running a payserver
-        if self.config.get('run_payserver'):
-            host = self.config.get('payserver_host', 'localhost')
-            port = self.config.get('payserver_port', 8002)
+        payserver = self.config.get_netaddress('payserver_address')
+        if payserver:
             root = self.config.get('payserver_root', '/r')
             use_ssl = bool(self.config.get('ssl_keyfile'))
             protocol = 'https' if use_ssl else 'http'
-            base = '%s://%s:%d'%(protocol, host, port)
+            base = '%s://%s:%d'%(protocol, payserver.host, payserver.port)
             req['view_url'] = base + root + '/pay?id=' + key
             if use_ssl and 'URI' in req:
                 request_url = base + '/bip70/' + key + '.bip70'

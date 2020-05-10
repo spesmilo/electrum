@@ -62,7 +62,6 @@ class SettingsDialog(WindowModalDialog):
         fee_widgets = []
         tx_widgets = []
         oa_widgets = []
-        services_widgets = []
 
         # language
         lang_help = _('Select which language is used in the GUI (after restart).')
@@ -146,10 +145,19 @@ class SettingsDialog(WindowModalDialog):
         # lightning
         lightning_widgets = []
 
-        help_persist = _("""If this option is checked, Electrum will persist as a daemon after
-you close all your wallet windows. Your local watchtower will keep
-running, and it will protect your channels even if your wallet is not
+        help_local_wt = _("""If this option is checked, Electrum will
+run a local watchtower to watch your channels if your wallet is not
 open. For this to work, your computer needs to be online regularly.""")
+        local_wt_cb = QCheckBox(_("Run a local watchtower"))
+        local_wt_cb.setToolTip(help_local_wt)
+        local_wt_cb.setChecked(bool(self.config.get('run_local_watchtower', False)))
+        def on_local_wt_checked(x):
+            self.config.set_key('run_local_watchtower', bool(x))
+        local_wt_cb.stateChanged.connect(on_local_wt_checked)
+        lightning_widgets.append((local_wt_cb, None))
+
+        help_persist = _("""If this option is checked, Electrum will persist as a daemon after
+you close all your wallet windows. Use this to keep your local watchtower running""")
         persist_cb = QCheckBox(_("Run as daemon after the GUI is closed"))
         persist_cb.setToolTip(help_persist)
         persist_cb.setChecked(bool(self.config.get('persist_daemon', False)))
@@ -185,60 +193,6 @@ open. For this to work, your computer needs to be online regularly.""")
         self.set_alias_color()
         self.alias_e.editingFinished.connect(self.on_alias_edit)
         oa_widgets.append((alias_label, self.alias_e))
-
-        # Services
-        ssl_cert = self.config.get('ssl_certfile')
-        ssl_cert_label = HelpLabel(_('SSL cert file') + ':', 'certificate file, with intermediate certificates if needed')
-        self.ssl_cert_e = QPushButton(ssl_cert)
-        self.ssl_cert_e.clicked.connect(self.select_ssl_certfile)
-        services_widgets.append((ssl_cert_label, self.ssl_cert_e))
-
-        ssl_privkey = self.config.get('ssl_keyfile')
-        ssl_privkey_label = HelpLabel(_('SSL key file') + ':', '')
-        self.ssl_privkey_e = QPushButton(ssl_privkey)
-        self.ssl_privkey_e.clicked.connect(self.select_ssl_privkey)
-        services_widgets.append((ssl_privkey_label, self.ssl_privkey_e))
-
-        ssl_domain_label = HelpLabel(_('SSL domain') + ':', '')
-        self.ssl_domain_e = QLineEdit('')
-        self.ssl_domain_e.setReadOnly(True)
-        services_widgets.append((ssl_domain_label, self.ssl_domain_e))
-
-        self.check_ssl_config()
-
-        hostname = self.config.get('services_hostname', 'localhost')
-        hostname_label = HelpLabel(_('Hostname') + ':', 'must match your SSL domain')
-        self.hostname_e = QLineEdit(hostname)
-        self.hostname_e.editingFinished.connect(self.on_hostname)
-        services_widgets.append((hostname_label, self.hostname_e))
-
-        payserver_cb = QCheckBox(_("Run PayServer"))
-        payserver_cb.setToolTip("Configure a port")
-        payserver_cb.setChecked(bool(self.config.get('run_payserver', False)))
-        def on_payserver_checked(x):
-            self.config.set_key('run_payserver', bool(x))
-            self.payserver_port_e.setEnabled(bool(x))
-        payserver_cb.stateChanged.connect(on_payserver_checked)
-        payserver_port = self.config.get('payserver_port', 8002)
-        self.payserver_port_e = QLineEdit(str(payserver_port))
-        self.payserver_port_e.editingFinished.connect(self.on_payserver_port)
-        self.payserver_port_e.setEnabled(self.config.get('run_payserver', False))
-        services_widgets.append((payserver_cb, self.payserver_port_e))
-
-        help_local_wt = _("""To run a watchtower, you must run Electrum on a machine
-that is always connected to the internet. Configure a port if you want it to be public.""")
-        local_wt_cb = QCheckBox(_("Run Watchtower"))
-        local_wt_cb.setToolTip(help_local_wt)
-        local_wt_cb.setChecked(bool(self.config.get('run_watchtower', False)))
-        def on_local_wt_checked(x):
-            self.config.set_key('run_watchtower', bool(x))
-            self.local_wt_port_e.setEnabled(bool(x))
-        local_wt_cb.stateChanged.connect(on_local_wt_checked)
-        watchtower_port = self.config.get('watchtower_port', '')
-        self.local_wt_port_e = QLineEdit(str(watchtower_port))
-        self.local_wt_port_e.setEnabled(self.config.get('run_watchtower', False))
-        self.local_wt_port_e.editingFinished.connect(self.on_watchtower_port)
-        services_widgets.append((local_wt_cb, self.local_wt_port_e))
 
         # units
         units = base_units_list
@@ -506,7 +460,6 @@ that is always connected to the internet. Configure a port if you want it to be 
             (tx_widgets, _('Transactions')),
             (lightning_widgets, _('Lightning')),
             (fiat_widgets, _('Fiat')),
-            (services_widgets, _('Services')),
             (oa_widgets, _('OpenAlias')),
         ]
         for widgets, name in tabs_info:
@@ -546,60 +499,3 @@ that is always connected to the internet. Configure a port if you want it to be 
         self.config.set_key('alias', alias, True)
         if alias:
             self.window.fetch_alias()
-
-    def select_ssl_certfile(self, b):
-        name = self.config.get('ssl_certfile', '')
-        filename, __ = QFileDialog.getOpenFileName(self, "Select your SSL certificate file", name)
-        if filename:
-            self.config.set_key('ssl_certfile', filename)
-            self.ssl_cert_e.setText(filename)
-            self.check_ssl_config()
-
-    def select_ssl_privkey(self, b):
-        name = self.config.get('ssl_keyfile', '')
-        filename, __ = QFileDialog.getOpenFileName(self, "Select your SSL private key file", name)
-        if filename:
-            self.config.set_key('ssl_keyfile', filename)
-            self.ssl_cert_e.setText(filename)
-            self.check_ssl_config()
-
-    def check_ssl_config(self):
-        try:
-            SSL_identity = self.config.get_ssl_domain()
-            SSL_error = None
-        except BaseException as e:
-            SSL_identity = "error"
-            SSL_error = repr(e)
-        self.ssl_domain_e.setText(SSL_identity or "")
-        s = (ColorScheme.RED if SSL_error else ColorScheme.GREEN).as_stylesheet(True) if SSL_identity else ''
-        self.ssl_domain_e.setStyleSheet(s)
-        if SSL_error:
-            self.ssl_domain_e.setText(SSL_error)
-
-    def on_hostname(self):
-        hostname = str(self.hostname_e.text())
-        self.config.set_key('services_hostname', hostname, True)
-
-    def _get_int_port_from_port_text(self, port_text) -> Optional[int]:
-        if not port_text:
-            return
-        try:
-            port = int(port_text)
-            if not (0 < port < 2 ** 16):
-                raise Exception('port out of range')
-        except Exception:
-            self.window.show_error("invalid port")
-            return
-        return port
-
-    def on_payserver_port(self):
-        port_text = self.payserver_port_e.text()
-        port = self._get_int_port_from_port_text(port_text)
-        if port is None: return
-        self.config.set_key('payserver_port', port, True)
-
-    def on_watchtower_port(self):
-        port_text = self.payserver_port_e.text()
-        port = self._get_int_port_from_port_text(port_text)
-        if port is None: return
-        self.config.set_key('watchtower_port', port, True)

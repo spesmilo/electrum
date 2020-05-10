@@ -142,8 +142,9 @@ def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
 
 class WatchTowerServer(Logger):
 
-    def __init__(self, network):
+    def __init__(self, network, netaddress):
         Logger.__init__(self)
+        self.addr = netaddress
         self.config = network.config
         self.network = network
         self.lnwatcher = network.local_watchtower
@@ -163,11 +164,9 @@ class WatchTowerServer(Logger):
             return web.Response()
 
     async def run(self):
-        host = self.config.get('watchtower_host')
-        port = self.config.get('watchtower_port', 12345)
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
-        site = web.TCPSite(self.runner, host, port, ssl_context=self.config.get_ssl_context())
+        site = web.TCPSite(self.runner, host=str(self.addr.host), port=self.addr.port, ssl_context=self.config.get_ssl_context())
         await site.start()
 
     async def get_ctn(self, *args):
@@ -179,8 +178,9 @@ class WatchTowerServer(Logger):
 
 class PayServer(Logger):
 
-    def __init__(self, daemon: 'Daemon'):
+    def __init__(self, daemon: 'Daemon', netaddress):
         Logger.__init__(self)
+        self.addr = netaddress
         self.daemon = daemon
         self.config = daemon.config
         self.pending = defaultdict(asyncio.Event)
@@ -198,8 +198,6 @@ class PayServer(Logger):
     @ignore_exceptions
     @log_exceptions
     async def run(self):
-        host = self.config.get('payserver_host', 'localhost')
-        port = self.config.get('payserver_port')
         root = self.config.get('payserver_root', '/r')
         app = web.Application()
         app.add_routes([web.post('/api/create_invoice', self.create_request)])
@@ -209,7 +207,7 @@ class PayServer(Logger):
         app.add_routes([web.static(root, os.path.join(os.path.dirname(__file__), 'www'))])
         runner = web.AppRunner(app)
         await runner.setup()
-        site = web.TCPSite(runner, port=port, host=host, ssl_context=self.config.get_ssl_context())
+        site = web.TCPSite(runner, host=str(self.addr.host), port=self.addr.port, ssl_context=self.config.get_ssl_context())
         await site.start()
 
     async def create_request(self, request):
@@ -306,13 +304,15 @@ class Daemon(Logger):
             daemon_jobs.append(self.start_jsonrpc(config, fd))
         # request server
         self.pay_server = None
-        if not config.get('offline') and self.config.get('run_payserver'):
-            self.pay_server = PayServer(self)
+        payserver_address = self.config.get_netaddress('payserver_address')
+        if not config.get('offline') and payserver_address:
+            self.pay_server = PayServer(self, payserver_address)
             daemon_jobs.append(self.pay_server.run())
         # server-side watchtower
         self.watchtower = None
-        if not config.get('offline') and self.config.get('run_watchtower'):
-            self.watchtower = WatchTowerServer(self.network)
+        watchtower_address = self.config.get_netaddress('watchtower_address')
+        if not config.get('offline') and watchtower_address:
+            self.watchtower = WatchTowerServer(self.network, watchtower_address)
             daemon_jobs.append(self.watchtower.run)
         if self.network:
             self.network.start(jobs=[self.fx.run])
