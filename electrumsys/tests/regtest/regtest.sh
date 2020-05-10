@@ -317,10 +317,9 @@ fi
 
 if [[ $1 == "configure_test_watchtower" ]]; then
     # carol is the watchtower of bob
-    $carol setconfig --offline run_watchtower true
-    $carol setconfig --offline watchtower_host 127.0.0.1
-    $carol setconfig --offline watchtower_port 12345
-    $bob setconfig --offline watchtower_url http://127.0.0.1:12345
+    $carol setconfig -o run_local_watchtower true
+    $carol setconfig -o watchtower_address 127.0.0.1:12345
+    $bob setconfig -o watchtower_url http://127.0.0.1:12345
 fi
 
 if [[ $1 == "watchtower" ]]; then

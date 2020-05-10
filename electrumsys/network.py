@@ -328,7 +328,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self.channel_db = None  # type: Optional[ChannelDB]
         self.lngossip = None  # type: Optional[LNGossip]
         self.local_watchtower = None  # type: Optional[WatchTower]
-        if self.config.get('run_watchtower', False):
+        if self.config.get('run_local_watchtower', False):
             from . import lnwatcher
             self.local_watchtower = lnwatcher.WatchTower(self)
             self.local_watchtower.start_network(self)
