@@ -26,7 +26,7 @@
 import queue
 from collections import defaultdict
 from typing import Sequence, List, Tuple, Optional, Dict, NamedTuple, TYPE_CHECKING, Set
-
+import time
 import attr
 
 from .util import bh2u, profiler
@@ -135,16 +135,24 @@ def is_fee_sane(fee_msat: int, *, payment_amount_msat: int) -> bool:
     return False
 
 
+BLACKLIST_DURATION = 3600
+
 class LNPathFinder(Logger):
 
     def __init__(self, channel_db: ChannelDB):
         Logger.__init__(self)
         self.channel_db = channel_db
-        self.blacklist = set()
+        self.blacklist = dict() # short_chan_id -> timestamp
 
     def add_to_blacklist(self, short_channel_id: ShortChannelID):
         self.logger.info(f'blacklisting channel {short_channel_id}')
-        self.blacklist.add(short_channel_id)
+        now = int(time.time())
+        self.blacklist[short_channel_id] = now
+
+    def is_blacklisted(self, short_channel_id: ShortChannelID) -> bool:
+        now = int(time.time())
+        t = self.blacklist.get(short_channel_id, 0)
+        return now - t < BLACKLIST_DURATION
 
     def _edge_cost(self, short_channel_id: bytes, start_node: bytes, end_node: bytes,
                    payment_amt_msat: int, ignore_costs=False, is_mine=False, *,
@@ -221,7 +229,7 @@ class LNPathFinder(Logger):
                 continue
             for edge_channel_id in self.channel_db.get_channels_for_node(edge_endnode, my_channels=my_channels):
                 assert isinstance(edge_channel_id, bytes)
-                if edge_channel_id in self.blacklist:
+                if self.is_blacklisted(edge_channel_id):
                     continue
                 channel_info = self.channel_db.get_channel_info(edge_channel_id, my_channels=my_channels)
                 edge_startnode = channel_info.node2_id if channel_info.node1_id == edge_endnode else channel_info.node1_id
