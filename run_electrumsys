@@ -432,6 +432,7 @@ if __name__ == '__main__':
         print_msg(result)
     elif type(result) is dict and result.get('error'):
         print_stderr(result.get('error'))
+        sys_exit(1)
     elif result is not None:
         print_msg(json_encode(result))
     sys_exit(0)
