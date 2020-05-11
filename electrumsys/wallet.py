@@ -618,7 +618,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def get_onchain_history(self, *, domain=None):
         monotonic_timestamp = 0
         for hist_item in self.get_history(domain=domain):
-            monotonic_timestamp = max(monotonic_timestamp, (hist_item.tx_mined_status.timestamp or float('inf')))
+            monotonic_timestamp = max(monotonic_timestamp, (hist_item.tx_mined_status.timestamp or 999_999_999_999))
             yield {
                 'txid': hist_item.txid,
                 'fee_sat': hist_item.fee,
