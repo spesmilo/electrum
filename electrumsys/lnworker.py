@@ -811,6 +811,7 @@ class LNWallet(LNWorker):
             if chan.short_channel_id == short_channel_id:
                 return chan
 
+    @log_exceptions
     async def _pay(self, invoice: str, amount_sat: int = None, *,
                    attempts: int = 1,
                    full_path: LNPaymentPath = None) -> Tuple[bool, List[PaymentAttemptLog]]:
@@ -928,12 +929,13 @@ class LNWallet(LNWorker):
                 assert payload['chain_hash'] == constants.net.rev_genesis_bytes()
                 payload['raw'] = channel_update_typed
             except:  # FIXME: too broad
-                message_type, payload = decode_msg(channel_update_as_received)
-                payload['raw'] = channel_update_as_received
-            # sanity check
-            if payload['chain_hash'] != constants.net.rev_genesis_bytes():
-                self.logger.info(f'could not decode channel_update for failed htlc: {channel_update_as_received.hex()}')
-                return True
+                try:
+                    message_type, payload = decode_msg(channel_update_as_received)
+                    payload['raw'] = channel_update_as_received
+                    assert payload['chain_hash'] != constants.net.rev_genesis_bytes()
+                except:
+                    self.logger.info(f'could not decode channel_update for failed htlc: {channel_update_as_received.hex()}')
+                    return True
             r = self.channel_db.add_channel_update(payload)
             blacklist = False
             short_channel_id = ShortChannelID(payload['short_channel_id'])
