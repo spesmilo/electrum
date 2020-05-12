@@ -5,11 +5,12 @@ PYTHON_VERSION=3.7.6
 BUILDDIR=/tmp/electrum-build
 PACKAGE=Electrum
 GIT_REPO=https://github.com/spesmilo/electrum
-LIBSECP_VERSION="b408c6a8b287003d1ade5709e6f7bc3c7f1d5be7"
 
 export GCC_STRIP_BINARIES="1"
 
-. $(dirname "$0")/base.sh
+
+. $(dirname "$0")/../build_tools_util.sh
+
 
 CONTRIB_OSX="$(dirname "$(realpath "$0")")"
 CONTRIB="$CONTRIB_OSX/.."
@@ -24,26 +25,46 @@ which brew > /dev/null 2>&1 || fail "Please install brew from https://brew.sh/ t
 which xcodebuild > /dev/null 2>&1 || fail "Please install Xcode and xcode command line tools to continue"
 
 # Code Signing: See https://developer.apple.com/library/archive/documentation/Security/Conceptual/CodeSigningGuide/Procedures/Procedures.html
-APP_SIGN=""
-if [ -n "$1" ]; then
+if [ -n "$CODESIGN_CERT" ]; then
     # Test the identity is valid for signing by doing this hack. There is no other way to do this.
     cp -f /bin/ls ./CODESIGN_TEST
-    codesign -s "$1" --dryrun -f ./CODESIGN_TEST > /dev/null 2>&1
+    codesign -s "$CODESIGN_CERT" --dryrun -f ./CODESIGN_TEST > /dev/null 2>&1
     res=$?
     rm -f ./CODESIGN_TEST
     if ((res)); then
-        fail "Code signing identity \"$1\" appears to be invalid."
+        fail "Code signing identity \"$CODESIGN_CERT\" appears to be invalid."
     fi
     unset res
-    APP_SIGN="$1"
-    info "Code signing enabled using identity \"$APP_SIGN\""
+    info "Code signing enabled using identity \"$CODESIGN_CERT\""
 else
-    warn "Code signing DISABLED. Specify a valid macOS Developer identity installed on the system as the first argument to this script to enable signing."
+    warn "Code signing DISABLED. Specify a valid macOS Developer identity installed on the system to enable signing."
 fi
+
+
+function DoCodeSignMaybe { # ARGS: infoName fileOrDirName
+    infoName="$1"
+    file="$2"
+    deep=""
+    if [ -z "$CODESIGN_CERT" ]; then
+        # no cert -> we won't codesign
+        return
+    fi
+    if [ -d "$file" ]; then
+        deep="--deep"
+    fi
+    if [ -z "$infoName" ] || [ -z "$file" ] || [ ! -e "$file" ]; then
+        fail "Argument error to internal function DoCodeSignMaybe()"
+    fi
+    hardened_arg="--entitlements=${CONTRIB_OSX}/entitlements.plist -o runtime"
+
+    info "Code signing ${infoName}..."
+    codesign -f -v $deep -s "$CODESIGN_CERT" $hardened_arg "$file" || fail "Could not code sign ${infoName}"
+}
+
 
 info "Installing Python $PYTHON_VERSION"
 export PATH="~/.pyenv/bin:~/.pyenv/shims:~/Library/Python/3.7/bin:$PATH"
-if [ -d "~/.pyenv" ]; then
+if [ -d "${HOME}/.pyenv" ]; then
   pyenv update
 else
   curl -L https://raw.githubusercontent.com/pyenv/pyenv-installer/master/bin/pyenv-installer | bash > /dev/null 2>&1
@@ -109,7 +130,7 @@ rm -fr build
 # prefer building using xcode ourselves. otherwise fallback to prebuilt binary
 xcodebuild || cp -r prebuilt_qr build || fail "Could not build CalinsQRReader"
 popd
-DoCodeSignMaybe "CalinsQRReader.app" "${d}/build/Release/CalinsQRReader.app" "$APP_SIGN" # If APP_SIGN is empty will be a noop
+DoCodeSignMaybe "CalinsQRReader.app" "${d}/build/Release/CalinsQRReader.app"
 
 
 info "Installing requirements..."
@@ -131,7 +152,7 @@ for d in ~/Library/Python/ ~/.pyenv .; do
 done
 
 info "Building binary"
-APP_SIGN="$APP_SIGN" pyinstaller --noconfirm --ascii --clean --name $VERSION contrib/osx/osx.spec || fail "Could not build binary"
+APP_SIGN="$CODESIGN_CERT" pyinstaller --noconfirm --ascii --clean --name $VERSION contrib/osx/osx.spec || fail "Could not build binary"
 
 info "Adding bitcoin URI types to Info.plist"
 plutil -insert 'CFBundleURLTypes' \
@@ -139,14 +160,23 @@ plutil -insert 'CFBundleURLTypes' \
 	-- dist/$PACKAGE.app/Contents/Info.plist \
 	|| fail "Could not add keys to Info.plist. Make sure the program 'plutil' exists and is installed."
 
-DoCodeSignMaybe "app bundle" "dist/${PACKAGE}.app" "$APP_SIGN" # If APP_SIGN is empty will be a noop
+DoCodeSignMaybe "app bundle" "dist/${PACKAGE}.app"
+
+if [ ! -z "$CODESIGN_CERT" ]; then
+    if [ ! -z "$APPLE_ID_USER" ]; then
+        info "Notarizing .app with Apple's central server..."
+        "${CONTRIB_OSX}/notarize_app.sh" "dist/${PACKAGE}.app" || fail "Could not notarize binary."
+    else
+        warn "AppleID details not set! Skipping Apple notarization."
+    fi
+fi
 
 info "Creating .DMG"
 hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/electrum-$VERSION.dmg || fail "Could not create .DMG"
 
-DoCodeSignMaybe ".DMG" "dist/electrum-${VERSION}.dmg" "$APP_SIGN" # If APP_SIGN is empty will be a noop
+DoCodeSignMaybe ".DMG" "dist/electrum-${VERSION}.dmg"
 
-if [ -z "$APP_SIGN" ]; then
+if [ -z "$CODESIGN_CERT" ]; then
     warn "App was built successfully but was not code signed. Users may get security warnings from macOS."
-    warn "Specify a valid code signing identity as the first argument to this script to enable code signing."
+    warn "Specify a valid code signing identity to enable code signing."
 fi
