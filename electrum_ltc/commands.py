@@ -299,6 +299,12 @@ class Commands:
         return True
 
     @command('')
+    async def get_ssl_domain(self):
+        """Check and return the SSL domain set in ssl_keyfile and ssl_certfile
+        """
+        return self.config.get_ssl_domain()
+
+    @command('')
     async def make_seed(self, nbits=132, language=None, seed_type=None):
         """Create a seed"""
         from .mnemonic import Mnemonic
@@ -860,7 +866,7 @@ class Commands:
     async def add_lightning_request(self, amount, memo='', expiration=3600, wallet: Abstract_Wallet = None):
         amount_sat = int(satoshis(amount))
         key = await wallet.lnworker._add_request_coro(amount_sat, memo, expiration)
-        return wallet.get_request(key)['invoice']
+        return wallet.get_request(key)
 
     @command('w')
     async def addtransaction(self, tx, wallet: Abstract_Wallet = None):

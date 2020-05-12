@@ -404,6 +404,8 @@ class ChannelDB(SqlDB):
         timestamp = payload['timestamp']
         if max_age and now - timestamp > max_age:
             return UpdateStatus.EXPIRED
+        if timestamp - now > 60:
+            return UpdateStatus.DEPRECATED
         channel_info = self._channels.get(short_channel_id)
         if not channel_info:
             return UpdateStatus.ORPHANED
@@ -417,7 +419,7 @@ class ChannelDB(SqlDB):
         short_channel_id = ShortChannelID(payload['short_channel_id'])
         key = (start_node, short_channel_id)
         old_policy = self._policies.get(key)
-        if old_policy and timestamp <= old_policy.timestamp:
+        if old_policy and timestamp <= old_policy.timestamp + 60:
             return UpdateStatus.DEPRECATED
         if verify:
             self.verify_channel_update(payload)

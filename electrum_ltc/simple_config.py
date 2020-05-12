@@ -9,6 +9,7 @@ from typing import Union, Optional
 from numbers import Real
 
 from copy import deepcopy
+from aiorpcx import NetAddress
 
 from . import util
 from . import constants
@@ -586,6 +587,23 @@ class SimpleConfig(Logger):
             ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
             ssl_context.load_cert_chain(ssl_certfile, ssl_keyfile)
             return ssl_context
+
+    def get_ssl_domain(self):
+        from .paymentrequest import check_ssl_config
+        if self.get('ssl_keyfile') and self.get('ssl_certfile'):
+            SSL_identity = check_ssl_config(self)
+        else:
+            SSL_identity = None
+        return SSL_identity
+
+    def get_netaddress(self, key: str) -> Optional[NetAddress]:
+        text = self.get(key)
+        if text:
+            try:
+                host, port = text.split(':')
+                return NetAddress(host, port)
+            except:
+                pass
 
 
 def read_user_config(path):

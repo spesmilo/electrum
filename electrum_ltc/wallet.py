@@ -614,7 +614,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def get_onchain_history(self, *, domain=None):
         monotonic_timestamp = 0
         for hist_item in self.get_history(domain=domain):
-            monotonic_timestamp = max(monotonic_timestamp, (hist_item.tx_mined_status.timestamp or float('inf')))
+            monotonic_timestamp = max(monotonic_timestamp, (hist_item.tx_mined_status.timestamp or 999_999_999_999))
             yield {
                 'txid': hist_item.txid,
                 'fee_sat': hist_item.fee,
@@ -1605,13 +1605,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         else:
             return
         # add URL if we are running a payserver
-        if self.config.get('run_payserver'):
-            host = self.config.get('payserver_host', 'localhost')
-            port = self.config.get('payserver_port', 8002)
+        payserver = self.config.get_netaddress('payserver_address')
+        if payserver:
             root = self.config.get('payserver_root', '/r')
             use_ssl = bool(self.config.get('ssl_keyfile'))
             protocol = 'https' if use_ssl else 'http'
-            base = '%s://%s:%d'%(protocol, host, port)
+            base = '%s://%s:%d'%(protocol, payserver.host, payserver.port)
             req['view_url'] = base + root + '/pay?id=' + key
             if use_ssl and 'URI' in req:
                 request_url = base + '/bip70/' + key + '.bip70'
@@ -1624,7 +1623,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             addr = self.get_txout_address(txo)
             if addr in self.receive_requests:
                 status, conf = self.get_request_status(addr)
-                util.trigger_callback('payment_received', self, addr, status)
+                util.trigger_callback('request_status', addr, status)
 
     def make_payment_request(self, addr, amount, message, expiration):
         timestamp = int(time.time())
