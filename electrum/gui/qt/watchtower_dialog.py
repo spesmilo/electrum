@@ -25,7 +25,7 @@
 
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QPushButton)
+from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QPushButton, QLabel)
 
 from electrum.i18n import _
 from .util import MyTreeView, Buttons
@@ -53,6 +53,8 @@ class WatcherList(MyTreeView):
             status = lnwatcher.get_channel_status(outpoint)
             items = [QStandardItem(e) for e in [outpoint, "%d"%n, status]]
             self.model().insertRow(self.model().rowCount(), items)
+        size = lnwatcher.sweepstore.filesize()
+        self.parent.size_label.setText('Database size: %.2f Mb'%(size/1024/1024.))
 
 
 class WatchtowerDialog(QDialog):
@@ -66,9 +68,11 @@ class WatchtowerDialog(QDialog):
         self.lnwatcher = self.network.local_watchtower
         self.setWindowTitle(_('Watchtower'))
         self.setMinimumSize(600, 20)
+        self.size_label = QLabel()
         self.watcher_list = WatcherList(self)
 
         vbox = QVBoxLayout(self)
+        vbox.addWidget(self.size_label)
         vbox.addWidget(self.watcher_list)
         b = QPushButton(_('Close'))
         b.clicked.connect(self.close)
