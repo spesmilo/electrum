@@ -28,6 +28,9 @@ class SqlDB(Logger):
         self.sql_thread = threading.Thread(target=self.run_sql)
         self.sql_thread.start()
 
+    def filesize(self):
+        return os.stat(self.path).st_size
+
     def run_sql(self):
         self.logger.info("SQL thread started")
         self.conn = sqlite3.connect(self.path)
