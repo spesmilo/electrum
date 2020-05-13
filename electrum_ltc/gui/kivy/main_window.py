@@ -19,6 +19,7 @@ from electrum_ltc.util import (profiler, InvalidPassword, send_exception_to_cras
                                PR_PAID, PR_FAILED, maybe_extract_bolt11_invoice)
 from electrum_ltc import blockchain
 from electrum_ltc.network import Network, TxBroadcastError, BestEffortRequestFailed
+from electrum_ltc.interface import PREFERRED_NETWORK_PROTOCOL, ServerAddr
 from .i18n import _
 
 from kivy.app import App
@@ -135,18 +136,19 @@ class ElectrumWindow(App):
 
     def choose_server_dialog(self, popup):
         from .uix.dialogs.choice_dialog import ChoiceDialog
-        protocol = 's'
-        def cb2(host):
-            from electrum_ltc import constants
-            pp = servers.get(host, constants.net.DEFAULT_PORTS)
-            port = pp.get(protocol, '')
-            popup.ids.host.text = host
-            popup.ids.port.text = port
+        protocol = PREFERRED_NETWORK_PROTOCOL
+        def cb2(server_str):
+            popup.ids.server_str.text = server_str
         servers = self.network.get_servers()
-        ChoiceDialog(_('Choose a server'), sorted(servers), popup.ids.host.text, cb2).open()
+        server_choices = {}
+        for _host, d in sorted(servers.items()):
+            port = d.get(protocol)
+            if port:
+                server = ServerAddr(_host, port, protocol=protocol)
+                server_choices[server.net_addr_str()] = _host
+        ChoiceDialog(_('Choose a server'), server_choices, popup.ids.server_str.text, cb2).open()
 
     def maybe_switch_to_server(self, server_str: str):
-        from electrum_ltc.interface import ServerAddr
         net_params = self.network.get_parameters()
         try:
             server = ServerAddr.from_str_with_inference(server_str)
