@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Parameterize
-PYTHON_VERSION=3.7.6
+PYTHON_VERSION=3.7.7
 BUILDDIR=/tmp/electrumsys-build
 PACKAGE=ElectrumSys
 GIT_REPO=https://github.com/syscoin/electrumsys
