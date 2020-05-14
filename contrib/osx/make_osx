@@ -112,10 +112,10 @@ info "generating locale"
 
 
 info "Downloading libusb..."
-curl https://homebrew.bintray.com/bottles/libusb-1.0.22.el_capitan.bottle.tar.gz | \
+curl https://homebrew.bintray.com/bottles/libusb-1.0.23.high_sierra.bottle.tar.gz | \
 tar xz --directory $BUILDDIR
-cp $BUILDDIR/libusb/1.0.22/lib/libusb-1.0.dylib contrib/osx
-echo "82c368dfd4da017ceb32b12ca885576f325503428a4966cc09302cbd62702493  contrib/osx/libusb-1.0.dylib" | \
+cp $BUILDDIR/libusb/1.0.23/lib/libusb-1.0.dylib contrib/osx
+echo "caea266f3fc3982adc55d6cb8d9bad10f6e61f0c24ce5901aa1804618e08e14d  contrib/osx/libusb-1.0.dylib" | \
     shasum -a 256 -c || fail "libusb checksum mismatched"
 
 info "Preparing for building libsecp256k1"
