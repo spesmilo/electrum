@@ -101,6 +101,8 @@ class RequestList(MyTreeView):
         else:
             self.parent.receive_payreq_e.setText(req.get('URI'))
             self.parent.receive_address_e.setText(req['address'])
+        self.parent.receive_payreq_e.repaint()  # macOS hack (similar to #4777)
+        self.parent.receive_address_e.repaint()  # macOS hack (similar to #4777)
 
     def clearSelection(self):
         super().clearSelection()
