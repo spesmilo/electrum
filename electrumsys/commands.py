@@ -106,6 +106,16 @@ class Command:
             self.options = []
             self.defaults = []
 
+        # sanity checks
+        if self.requires_password:
+            assert self.requires_wallet
+        for varname in ('wallet_path', 'wallet'):
+            if varname in varnames:
+                assert varname in self.options
+        assert not ('wallet_path' in varnames and 'wallet' in varnames)
+        if self.requires_wallet:
+            assert 'wallet' in varnames
+
 
 def command(s):
     def decorator(func):
@@ -119,18 +129,20 @@ def command(s):
             password = kwargs.get('password')
             daemon = cmd_runner.daemon
             if daemon:
-                if (cmd.requires_wallet or 'wallet_path' in cmd.options) and kwargs.get('wallet_path') is None:
-                    # using JSON-RPC, sometimes the "wallet" kwarg needs to be used to specify a wallet
-                    kwargs['wallet_path'] = kwargs.pop('wallet', None) or daemon.config.get_wallet_path()
-                if cmd.requires_wallet:
-                    wallet_path = kwargs.pop('wallet_path')
-                    wallet = daemon.get_wallet(wallet_path)
-                    if wallet is None:
-                        raise Exception('wallet not loaded')
-                    kwargs['wallet'] = wallet
-            else:
-                # we are offline. the wallet must have been passed if required
-                wallet = kwargs.get('wallet')
+                if 'wallet_path' in cmd.options and kwargs.get('wallet_path') is None:
+                    kwargs['wallet_path'] = daemon.config.get_wallet_path()
+                if cmd.requires_wallet and kwargs.get('wallet') is None:
+                    kwargs['wallet'] = daemon.config.get_wallet_path()
+                if 'wallet' in cmd.options:
+                    wallet_path = kwargs.get('wallet', None)
+                    if isinstance(wallet_path, str):
+                        wallet = daemon.get_wallet(wallet_path)
+                        if wallet is None:
+                            raise Exception('wallet not loaded')
+                        kwargs['wallet'] = wallet
+            wallet = kwargs.get('wallet')  # type: Optional[Abstract_Wallet]
+            if cmd.requires_wallet and not wallet:
+                raise Exception('wallet not loaded')
             if cmd.requires_password and password is None and wallet.has_password():
                 raise Exception('Password required')
             return await func(*args, **kwargs)
