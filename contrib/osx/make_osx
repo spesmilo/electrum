@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Parameterize
-PYTHON_VERSION=3.7.6
+PYTHON_VERSION=3.7.7
 BUILDDIR=/tmp/electrum-build
 PACKAGE=Electrum
 GIT_REPO=https://github.com/spesmilo/electrum
