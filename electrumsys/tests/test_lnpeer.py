@@ -118,7 +118,6 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         # used in tests
         self.enable_htlc_settle = asyncio.Event()
         self.enable_htlc_settle.set()
-        self._fail_htlcs_with_temp_node_failure = False
 
     def get_invoice_status(self, key):
         pass
@@ -543,8 +542,8 @@ class TestPeer(ElectrumSysTestCase):
     @needs_test_with_all_chacha20_implementations
     def test_payment_multihop_temp_node_failure(self):
         graph = self.prepare_chans_and_peers_in_square()
-        graph.w_b._fail_htlcs_with_temp_node_failure = True
-        graph.w_c._fail_htlcs_with_temp_node_failure = True
+        graph.w_b.network.config.set_key('test_fail_htlcs_with_temp_node_failure', True)
+        graph.w_c.network.config.set_key('test_fail_htlcs_with_temp_node_failure', True)
         peers = graph.all_peers()
         async def pay(pay_req):
             result, log = await graph.w_a._pay(pay_req)
