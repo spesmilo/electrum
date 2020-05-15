@@ -959,16 +959,20 @@ class ElectrumSysWindow(App):
         return format_satoshis(x, 0, decimal or self.decimal_point(), is_diff=is_diff, whitespaces=whitespaces)
 
     def format_amount_and_units(self, amount, asset_amount=None, asset_symbol=None, asset_precision=None):
+        if amount is None and asset_amount is None:
+            return 'none'
+        if amount == '!' and asset_amount is None or asset_amount == '!' and amount is None:
+            return 'max'
         text = ''
-        if amount is not None and amount != '':
+        if amount is not None:
             text += format_satoshis_plain(amount, decimal_point=self.decimal_point()) + ' '+ self.base_unit
         if asset_symbol is not None and asset_amount is not None and asset_amount != '':
             if amount is not None:
                 text += ' - Asset: ' + format_satoshis_plain(asset_amount, decimal_point=asset_precision) + ' '+ self.base_asset_unit(asset_symbol)
             else:
                 text += format_satoshis_plain(asset_amount, decimal_point=asset_precision) + ' '+ self.base_asset_unit(asset_symbol)
-
         return text
+
 
     def format_fee_rate(self, fee_rate):
         # fee_rate is in sat/kB

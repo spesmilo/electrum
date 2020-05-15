@@ -492,7 +492,6 @@ class SendScreen(CScreen):
     def _do_pay_onchain(self, invoice, rbf):
         # make unsigned transaction
         outputs = invoice['outputs']  # type: List[PartialTxOutput]
-        amount = sum(map(lambda x: x.value, outputs))
         coins = self.app.wallet.get_spendable_coins(None)
         asset_symbol = None
         asset_precision = None
@@ -531,8 +530,7 @@ class SendScreen(CScreen):
         if rbf:
             tx.set_rbf(True)
         fee = tx.get_fee()
-
-
+        amount = sum(map(lambda x: x.value, outputs)) if '!' not in [x.value for x in outputs] else tx.output_value()
         msg = [
             _("Amount to be sent") + ": " + self.app.format_amount_and_units(tx.output_value(), amount, asset_symbol, asset_precision),
             _("Mining fee") + ": " + self.app.format_amount_and_units(fee),

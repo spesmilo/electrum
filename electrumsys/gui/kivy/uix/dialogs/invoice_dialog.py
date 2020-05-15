@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 Builder.load_string('''
 <InvoiceDialog@Popup>
     id: popup
-    amount: 0
+    amount: None
     amount_str: ''
     title: ''
     asset: ''
