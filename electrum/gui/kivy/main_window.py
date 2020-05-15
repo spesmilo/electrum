@@ -1153,14 +1153,21 @@ class ElectrumWindow(App):
 
     def protected(self, msg, f, args):
         if self.electrum_config.get('pin_code'):
-            on_success = lambda pw: f(*(args + (self.password,)))
+            msg += "\n" + _("Enter your PIN code to proceed")
+            on_success = lambda pw: f(*args, self.password)
             self.pincode_dialog(
                 message = msg,
                 check_password=self.check_pin_code,
                 on_success=on_success,
                 on_failure=lambda: None)
         else:
-            f(*(args + (self.password,)))
+            d = Question(
+                msg,
+                lambda b: f(*args, self.password) if b else None,
+                yes_str=_("OK"),
+                no_str=_("Cancel"),
+                title=_("Confirm action"))
+            d.open()
 
     def toggle_lightning(self):
         if self.wallet.has_lightning():
@@ -1202,7 +1209,8 @@ class ElectrumWindow(App):
     def _delete_wallet(self, b):
         if b:
             basename = self.wallet.basename()
-            self.protected(_("Enter your PIN code to confirm deletion of {}").format(basename), self.__delete_wallet, ())
+            self.protected(_("Are you sure you want to delete wallet {}?").format(basename),
+                           self.__delete_wallet, ())
 
     def __delete_wallet(self, pw):
         wallet_path = self.get_wallet_path()
@@ -1220,7 +1228,7 @@ class ElectrumWindow(App):
         self.load_wallet_by_name(new_path)
 
     def show_seed(self, label):
-        self.protected(_("Enter PIN code to display your seed"), self._show_seed, (label,))
+        self.protected(_("Display your seed?"), self._show_seed, (label,))
 
     def _show_seed(self, label, password):
         if self.wallet.has_password() and password is None:
@@ -1316,7 +1324,7 @@ class ElectrumWindow(App):
             except InvalidPassword:
                 self.show_error("Invalid PIN")
                 return
-        self.protected(_("Enter your PIN code in order to decrypt your private key"), show_private_key, (addr, pk_label))
+        self.protected(_("Decrypt your private key?"), show_private_key, (addr, pk_label))
 
     def import_channel_backup(self, encrypted):
         d = Question(_('Import Channel Backup?'), lambda b: self._import_channel_backup(b, encrypted))

@@ -374,7 +374,6 @@ class SendScreen(CScreen):
         feerate_warning = simple_config.FEERATE_WARNING_HIGH_FEE
         if fee > feerate_warning * tx.estimated_size() / 1000:
             msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high."))
-        msg.append(_("Enter your PIN code to proceed"))
         self.app.protected('\n'.join(msg), self.send_tx, (tx,))
 
     def send_tx(self, tx, password):
