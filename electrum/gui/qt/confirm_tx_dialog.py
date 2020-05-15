@@ -191,17 +191,15 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
         self.is_send = True
         self.accept()
 
-    def disable(self, reason):
-        self.message_label.setStyleSheet(ColorScheme.RED.as_stylesheet())
-        self.message_label.setText(reason)
-        self.pw.setEnabled(False)
-        self.send_button.setEnabled(False)
-
-    def enable(self):
-        self.message_label.setStyleSheet(None)
-        self.message_label.setText(self.default_message())
-        self.pw.setEnabled(True)
-        self.send_button.setEnabled(True)
+    def toggle_send_button(self, enable: bool, *, message: str = None):
+        if message is None:
+            self.message_label.setStyleSheet(None)
+            self.message_label.setText(self.default_message())
+        else:
+            self.message_label.setStyleSheet(ColorScheme.RED.as_stylesheet())
+            self.message_label.setText(message)
+        self.pw.setEnabled(enable)
+        self.send_button.setEnabled(enable)
 
     def _update_amount_label(self):
         tx = self.tx
@@ -227,7 +225,7 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
                 text += " ({} {} {})".format(
                     self.main_window.format_amount(c + u + x).strip(), self.main_window.base_unit(), _("are frozen")
                 )
-            self.disable(text)
+            self.toggle_send_button(False, message=text)
             return
 
         if not tx:
@@ -250,8 +248,9 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
                 _("This transaction requires a higher fee, or it will not be propagated by your current server"),
                 _("Try to raise your transaction fee, or use a server with a lower relay fee.")
             ])
-            self.disable(msg)
+            self.toggle_send_button(False, message=msg)
         elif high_fee:
-            self.disable(_('Warning') + ': ' + _("The fee for this transaction seems unusually high."))
+            self.toggle_send_button(True,
+                                    message=_('Warning') + ': ' + _("The fee for this transaction seems unusually high."))
         else:
-            self.enable()
+            self.toggle_send_button(True)
