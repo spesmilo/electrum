@@ -33,6 +33,7 @@ from electrum.util import (parse_URI, InvalidBitcoinURI, PR_PAID, PR_UNKNOWN, PR
 from electrum.plugin import run_hook
 from electrum.wallet import InternalAddressCorruption
 from electrum import simple_config
+from electrum.simple_config import FEERATE_WARNING_HIGH_FEE, FEE_RATIO_HIGH_WARNING
 from electrum.lnaddr import lndecode, parse_lightning_invoice
 from electrum.lnutil import RECEIVED, SENT, PaymentFailure
 
@@ -371,9 +372,14 @@ class SendScreen(CScreen):
             x_fee_address, x_fee_amount = x_fee
             msg.append(_("Additional fees") + ": " + self.app.format_amount_and_units(x_fee_amount))
 
-        feerate_warning = simple_config.FEERATE_WARNING_HIGH_FEE
-        if fee > feerate_warning * tx.estimated_size() / 1000:
-            msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high."))
+        feerate = Decimal(fee) / tx.estimated_size()  # sat/byte
+        fee_ratio = Decimal(fee) / amount if amount else 1
+        if fee_ratio >= FEE_RATIO_HIGH_WARNING:
+            msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high.")
+                       + f' ({fee_ratio*100:.2f}% of amount)')
+        elif feerate > FEERATE_WARNING_HIGH_FEE / 1000:
+            msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high.")
+                       + f' (feerate: {feerate:.2f} sat/byte)')
         self.app.protected('\n'.join(msg), self.send_tx, (tx,))
 
     def send_tx(self, tx, password):
