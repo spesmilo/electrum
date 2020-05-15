@@ -916,7 +916,7 @@ class ElectrumWindow(App):
             return ''
         addr = None
         if self.send_screen:
-            addr = str(self.send_screen.screen.address)
+            addr = str(self.send_screen.address)
         if not addr:
             addr = self.wallet.dummy_address()
         outputs = [PartialTxOutput.from_address_and_value(addr, '!')]
@@ -939,7 +939,11 @@ class ElectrumWindow(App):
     def format_amount(self, x, is_diff=False, whitespaces=False):
         return format_satoshis(x, 0, self.decimal_point(), is_diff=is_diff, whitespaces=whitespaces)
 
-    def format_amount_and_units(self, x):
+    def format_amount_and_units(self, x) -> str:
+        if x is None:
+            return 'none'
+        if x == '!':
+            return 'max'
         return format_satoshis_plain(x, self.decimal_point()) + ' ' + self.base_unit
 
     def format_fee_rate(self, fee_rate):
