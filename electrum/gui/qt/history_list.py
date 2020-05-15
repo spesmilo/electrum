@@ -755,7 +755,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                 from electrum.util import json_encode
                 f.write(json_encode(txns))
 
-    def text_txid_from_coordinate(self, row, col):
+    def get_text_and_userrole_from_coordinate(self, row, col):
         idx = self.model().mapToSource(self.model().index(row, col))
         tx_item = self.hm.transactions.value_from_pos(idx.row())
         return self.hm.data(idx, Qt.DisplayRole).value(), get_item_key(tx_item)
