@@ -20,6 +20,8 @@ from .logging import get_logger, Logger
 
 
 
+FEE_RATIO_HIGH_WARNING = 0.05  # warn user if fee/amount for on-chain tx is higher than this
+
 
 _logger = get_logger(__name__)
 
