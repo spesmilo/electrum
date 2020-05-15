@@ -254,7 +254,7 @@ class TxDialog(Factory.Popup):
         self.do_sign()
 
     def do_sign(self):
-        self.app.protected(_("Enter your PIN code in order to sign this transaction"), self._do_sign, ())
+        self.app.protected(_("Sign this transaction?"), self._do_sign, ())
 
     def _do_sign(self, password):
         self.status_str = _('Signing') + '...'

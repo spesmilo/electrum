@@ -146,7 +146,7 @@ class LightningOpenChannelDialog(Factory.Popup):
         if self.ipport:
             conn_str += '@' + self.ipport.strip()
         amount = self.app.get_amount(self.amount)
-        self.app.protected('Enter PIN to create a new channel', self.do_open_channel, (conn_str, amount))
+        self.app.protected('Create a new channel?', self.do_open_channel, (conn_str, amount))
         self.dismiss()
 
     def do_open_channel(self, conn_str, amount, password):
