@@ -76,9 +76,9 @@
         "t": "50001",
         "version": "1.4.3"
     },
-    "electrum-abc.criptolayer.net": {
+    "ec-bcn.criptolayer.net": {
         "pruning": "-",
-        "s": "50012",
+        "s": "50212",
         "version": "1.4.1"
     },
     "electrumx-cash.1209k.com": {
