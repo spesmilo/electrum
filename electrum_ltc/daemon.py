@@ -251,8 +251,10 @@ class CommandsServer(AuthenticatedServer):
         kwargs = {}
         for x in cmd.options:
             kwargs[x] = config_options.get(x)
-        if cmd.requires_wallet:
+        if 'wallet_path' in cmd.options:
             kwargs['wallet_path'] = config_options.get('wallet_path')
+        elif 'wallet' in cmd.options:
+            kwargs['wallet'] = config_options.get('wallet_path')
         func = getattr(self.cmd_runner, cmd.name)
         # fixme: not sure how to retrieve message in jsonrpcclient
         try:
@@ -477,7 +479,7 @@ class Daemon(Logger):
         path = standardize_path(path)
         self._wallets[path] = wallet
 
-    def get_wallet(self, path: str) -> Abstract_Wallet:
+    def get_wallet(self, path: str) -> Optional[Abstract_Wallet]:
         path = standardize_path(path)
         return self._wallets.get(path)
 

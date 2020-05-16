@@ -33,6 +33,8 @@ FEERATE_STATIC_VALUES = [10000, 20000, 30000, 50000, 70000, 100000,
                          150000, 200000, 300000, 500000]
 FEERATE_REGTEST_HARDCODED = 180000  # for eclair compat
 
+FEE_RATIO_HIGH_WARNING = 0.05  # warn user if fee/amount for on-chain tx is higher than this
+
 
 _logger = get_logger(__name__)
 

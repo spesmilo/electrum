@@ -37,7 +37,7 @@ from electrum_ltc.util import get_request_status
 from electrum_ltc.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
 from electrum_ltc.lnutil import PaymentAttemptLog
 
-from .util import (MyTreeView, read_QIcon,
+from .util import (MyTreeView, read_QIcon, MySortModel,
                    import_meta_gui, export_meta_gui, pr_icons)
 from .util import CloseButton, Buttons
 from .util import WindowModalDialog
@@ -46,6 +46,7 @@ from .util import WindowModalDialog
 
 ROLE_REQUEST_TYPE = Qt.UserRole
 ROLE_REQUEST_ID = Qt.UserRole + 1
+ROLE_SORT_ORDER = Qt.UserRole + 2
 
 
 class InvoiceList(MyTreeView):
@@ -68,8 +69,11 @@ class InvoiceList(MyTreeView):
         super().__init__(parent, self.create_menu,
                          stretch_column=self.Columns.DESCRIPTION,
                          editable_columns=[])
+        self.std_model = QStandardItemModel(self)
+        self.proxy = MySortModel(self, sort_role=ROLE_SORT_ORDER)
+        self.proxy.setSourceModel(self.std_model)
+        self.setModel(self.proxy)
         self.setSortingEnabled(True)
-        self.setModel(QStandardItemModel(self))
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.update()
 
@@ -92,7 +96,8 @@ class InvoiceList(MyTreeView):
 
     def update(self):
         # not calling maybe_defer_update() as it interferes with conditional-visibility
-        self.model().clear()
+        self.proxy.setDynamicSortFilter(False)  # temp. disable re-sorting after every change
+        self.std_model.clear()
         self.update_headers(self.__class__.headers)
         for idx, item in enumerate(self.parent.wallet.get_invoices()):
             invoice_type = item['type']
@@ -119,17 +124,17 @@ class InvoiceList(MyTreeView):
             items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
             items[self.Columns.DATE].setData(key, role=ROLE_REQUEST_ID)
             items[self.Columns.DATE].setData(invoice_type, role=ROLE_REQUEST_TYPE)
-            self.model().insertRow(idx, items)
-
-        self.selectionModel().select(self.model().index(0,0), QItemSelectionModel.SelectCurrent)
+            items[self.Columns.DATE].setData(timestamp, role=ROLE_SORT_ORDER)
+            self.std_model.insertRow(idx, items)
+        self.filter()
+        self.proxy.setDynamicSortFilter(True)
         # sort requests by date
         self.sortByColumn(self.Columns.DATE, Qt.DescendingOrder)
         # hide list if empty
         if self.parent.isVisible():
-            b = self.model().rowCount() > 0
+            b = self.std_model.rowCount() > 0
             self.setVisible(b)
             self.parent.invoices_label.setVisible(b)
-        self.filter()
 
     def import_invoices(self):
         import_meta_gui(self.parent, _('invoices'), self.parent.invoices.import_file, self.update)
@@ -150,12 +155,11 @@ class InvoiceList(MyTreeView):
             menu.exec_(self.viewport().mapToGlobal(position))
             return
         idx = self.indexAt(position)
-        item = self.model().itemFromIndex(idx)
-        item_col0 = self.model().itemFromIndex(idx.sibling(idx.row(), self.Columns.DATE))
+        item = self.item_from_index(idx)
+        item_col0 = self.item_from_index(idx.sibling(idx.row(), self.Columns.DATE))
         if not item or not item_col0:
             return
         key = item_col0.data(ROLE_REQUEST_ID)
-        request_type = item_col0.data(ROLE_REQUEST_TYPE)
         menu = QMenu(self)
         self.add_copy_menu(menu, idx)
         invoice = self.parent.wallet.get_invoice(key)

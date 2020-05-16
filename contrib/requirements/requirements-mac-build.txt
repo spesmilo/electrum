@@ -1,0 +1,6 @@
+pip
+setuptools
+pyinstaller>=3.6
+
+# needed by pyinstaller:
+macholib
