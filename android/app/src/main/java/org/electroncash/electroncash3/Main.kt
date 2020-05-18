@@ -286,18 +286,14 @@ class MainActivity : AppCompatActivity(R.layout.main) {
                     toast(R.string.no_wallet_is_open_)
                     openDrawer()
                 } else {
-                    val dialog = findDialog(this, SendDialog::class)
-                    if (dialog != null) {
+                    try {
+                        var dialog = findDialog(this, SendDialog::class)
+                        if (dialog == null) {
+                            dialog = SendDialog()
+                            showDialog(this, dialog)
+                        }
                         dialog.onUri(uri.toString())
-                    } else {
-                        try {
-                            showDialog(this, SendDialog().apply {
-                                arguments = Bundle().apply {
-                                    putString("uri", uri.toString())
-                                }
-                            })
-                        } catch (e: ToastException) { e.show() }
-                    }
+                    } catch (e: ToastException) { e.show() }
                 }
             }
         }

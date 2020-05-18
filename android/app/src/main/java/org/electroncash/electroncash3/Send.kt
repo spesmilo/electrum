@@ -58,10 +58,6 @@ class SendDialog : AlertDialogFragment() {
                 etAddress.setText(address)
                 etAmount.requestFocus()
             }
-            val uri = arguments!!.getString("uri")
-            if (uri != null) {
-                onUri(uri)
-            }
             arguments = null
         }
         setPaymentRequest(model.paymentRequest)
