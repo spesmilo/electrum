@@ -29,7 +29,8 @@ val libNetworks by lazy { libMod("networks") }
 
 
 // Not using reportFields: it doesn't noticably reduce response time.
-@AcraCore(reportSenderFactoryClasses = [CrashhubSenderFactory::class])
+@AcraCore(buildConfigClass = BuildConfig::class,
+          reportSenderFactoryClasses = [CrashhubSenderFactory::class])
 @AcraDialog(reportDialogClass = CrashhubDialog::class, resTitle = R.string.sorry,
             resCommentPrompt = R.string.please_briefly, resPositiveButtonText = R.string.send)
 class App : Application() {
