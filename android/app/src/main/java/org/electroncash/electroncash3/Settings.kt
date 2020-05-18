@@ -27,7 +27,14 @@ fun initSettings() {
     }
     settings.getString("base_unit").observeForever {
         unitName = it!!
-        unitPlaces = libUtil.get("base_units")!!.callAttr("get", it)!!.toInt()
+        val places = libUtil.get("base_units")!!.callAttr("get", it)
+        if (places != null) {
+            unitPlaces = places.toInt()
+        } else {
+            // The chosen unit has been renamed or removed: revert to the default.
+            settings.getString("base_unit").setValue(
+                libUtil.get("DEFAULT_BASE_UNIT")!!.toString())
+        }
     }
 }
 
@@ -47,6 +54,7 @@ fun setDefaultValues(sp: SharedPreferences) {
     // Appearance
     setDefaultValue(sp, "cashaddr_format",
                     clsAddress.get("FMT_UI") == clsAddress.get("FMT_CASHADDR"))
+    setDefaultValue(sp, "base_unit", libUtil.get("DEFAULT_BASE_UNIT")!!.toString())
     setDefaultValue(sp, "block_explorer", libWeb.get("DEFAULT_EXPLORER")!!.toString())
 
     // Fiat
