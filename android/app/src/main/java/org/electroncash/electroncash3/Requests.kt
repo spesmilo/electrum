@@ -10,6 +10,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.observe
 import com.chaquo.python.PyObject
 import kotlinx.android.synthetic.main.amount_box.*
+import kotlinx.android.synthetic.main.main.*
 import kotlinx.android.synthetic.main.request_detail.*
 import kotlinx.android.synthetic.main.requests.*
 
@@ -171,9 +172,14 @@ class RequestDialog() : AlertDialogFragment() {
                 "add_payment_request",
                 wallet.callAttr("make_payment_request", address, amount, description),
                 daemonModel.config)
-            daemonUpdate.setValue(Unit)
-            dismiss()
         } catch (e: ToastException) { e.show() }
+
+        daemonUpdate.setValue(Unit)
+        dismiss()
+
+        // If the dialog was opened from the Transactions screen, we should now switch to
+        // the Requests screen so the user can verify that the request has been saved.
+        (activity as MainActivity).navBottom.selectedItemId = R.id.navRequests
     }
 
     val description
