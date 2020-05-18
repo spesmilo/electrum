@@ -30,7 +30,6 @@
         <ListPreference
             android:key="base_unit"
             android:title="@string/base_unit"
-            android:defaultValue="BCH"
             tools:summary="BCH"/>
         <ListPreference
             android:key="block_explorer"
