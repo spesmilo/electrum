@@ -471,15 +471,19 @@ class WalletDeleteDialog : WalletCloseDialog() {
 
 
 open class WalletCloseDialog : TaskDialog<Unit>() {
-    var walletName: String by notNull()
+    var walletName: String? = null
 
     override fun onPreExecute() {
-        walletName = daemonModel.walletName!!
+        walletName = daemonModel.walletName
         daemonModel.commands.callAttr("select_wallet", null)
     }
 
     override fun doInBackground() {
-        daemonModel.commands.callAttr("close_wallet", walletName)
+        // It should be impossible for this to be null, but it looks like there's still a race
+        // condition somewhere (#1872).
+        if (walletName != null) {
+            daemonModel.commands.callAttr("close_wallet", walletName)
+        }
     }
 
     override fun onPostExecute(result: Unit) {
