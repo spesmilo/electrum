@@ -1100,6 +1100,16 @@ class Commands:
         """ return the local watchtower's ctn of channel. used in regtests """
         return await self.network.local_watchtower.sweepstore.get_ctn(channel_point, None)
 
+    @command('wn')
+    async def reverse_swap(self, amount, wallet: Abstract_Wallet = None):
+        from .submarine_swaps import reverse_swap
+        amount_sat = satoshis(amount)
+        return await reverse_swap(amount_sat, wallet, self.network)
+
+    @command('wn')
+    async def claim_swap(self, key, wallet: Abstract_Wallet = None):
+        from .submarine_swaps import claim_swap
+        return await claim_swap(key, wallet)
 
 def eval_bool(x: str) -> bool:
     if x == 'false': return False
