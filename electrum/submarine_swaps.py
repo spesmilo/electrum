@@ -10,9 +10,6 @@ from .transaction import Transaction
 from .util import log_exceptions
 
 
-# todo:
-#  - integrate with lnwatcher
-#  - forward swaps
 
 API_URL = 'http://ecdsa.org:9001'
 
@@ -36,10 +33,8 @@ WITNESS_TEMPLATE_SWAP = [
 ]
 
 
-def create_claim_tx(txid, index, witness_script, preimage, privkey:bytes, amount_sat, address, fee):
+def create_claim_tx(txin, witness_script, preimage, privkey:bytes, amount_sat, address, fee):
     pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
-    prevout = TxOutpoint(txid=bytes.fromhex(txid), out_idx=index)
-    txin = PartialTxInput(prevout=prevout)
     txin.script_type = 'p2wsh'
     txin.script_sig = b''
     txin.pubkeys = [pubkey]
@@ -59,29 +54,14 @@ def create_claim_tx(txid, index, witness_script, preimage, privkey:bytes, amount
 async def _claim_swap(lnworker, lockup_address, redeem_script, preimage, privkey, onchain_amount, address):
     # add address to lnwatcher
     lnwatcher = lnworker.lnwatcher
-    lnwatcher.add_address(lockup_address)
-    while True:
-        h = lnwatcher.get_address_history(lockup_address)
-        if not h:
-            await asyncio.sleep(1)
-            continue
-        for txid, height in h:
-            tx = lnwatcher.db.get_transaction(txid)
-            # find relevant output
-            for i, o in enumerate(tx.outputs()):
-                if o.address == lockup_address:
-                    break
-            else:
-                continue
-            # create claim tx
-            fee = lnwatcher.config.estimate_fee(136, allow_fallback_to_static_rates=True)
-            tx = create_claim_tx(txid, i, redeem_script, preimage, privkey, onchain_amount, address, fee)
-            try:
-                await lnwatcher.network.broadcast_transaction(tx)
-                break
-            except:
-                continue
+    utxos = lnwatcher.get_addr_utxo(lockup_address)
+    for txin in list(utxos.values()):
+        fee = lnwatcher.config.estimate_fee(136, allow_fallback_to_static_rates=True)
+        tx = create_claim_tx(txin, redeem_script, preimage, privkey, onchain_amount, address, fee)
+        await lnwatcher.network.broadcast_transaction(tx)
 
+
+@log_exceptions
 async def claim_swap(key, wallet):
     lnworker = wallet.lnworker
     address = wallet.get_unused_address()
@@ -92,7 +72,10 @@ async def claim_swap(key, wallet):
     lockup_address = data['lockupAddress']
     preimage = bytes.fromhex(data['preimage'])
     privkey = bytes.fromhex(data['privkey'])
-    await _claim_swap(lnworker, lockup_address, redeem_script, preimage, privkey, onchain_amount, address)
+    callback = lambda: _claim_swap(lnworker, lockup_address, redeem_script, preimage, privkey, onchain_amount, address)
+    lnworker.lnwatcher.add_callback(lockup_address, callback)
+    return True
+
 
 @log_exceptions
 async def reverse_swap(amount_sat, wallet: 'Abstract_Wallet', network: 'Network'):
@@ -141,10 +124,11 @@ async def reverse_swap(amount_sat, wallet: 'Abstract_Wallet', network: 'Network'
     # save data to wallet file
     swaps = wallet.db.get_dict('submarine_swaps')
     swaps[response_id] = data
-    # add to lnwatcher
-    f = asyncio.ensure_future(_claim_swap(lnworker, lockup_address, redeem_script, preimage, privkey, onchain_amount, address))
+    # add callback to lnwatcher
+    callback = lambda: _claim_swap(lnworker, lockup_address, redeem_script, preimage, privkey, onchain_amount, address)
+    lnworker.lnwatcher.add_callback(lockup_address, callback)
     # initiate payment.
-    success, log = await lnworker._pay(invoice, attempts=1)
+    success, log = await lnworker._pay(invoice, attempts=5)
     # discard data; this should be done by lnwatcher
     if success:
         swaps.pop(response_id)
