@@ -1100,6 +1100,12 @@ class Commands:
         """ return the local watchtower's ctn of channel. used in regtests """
         return await self.network.local_watchtower.sweepstore.get_ctn(channel_point, None)
 
+    @command('wnp')
+    async def submarine_swap(self, amount, password=None, wallet: Abstract_Wallet = None):
+        from .submarine_swaps import submarine_swap
+        amount_sat = satoshis(amount)
+        return await submarine_swap(amount_sat, wallet, self.network, password)
+
     @command('wn')
     async def reverse_swap(self, amount, wallet: Abstract_Wallet = None):
         from .submarine_swaps import reverse_swap

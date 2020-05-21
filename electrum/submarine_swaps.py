@@ -3,17 +3,33 @@ import json
 import os
 from .crypto import sha256, hash_160
 from .ecc import ECPrivkey
-from .bitcoin import address_to_script, script_to_p2wsh, opcodes
+from .bitcoin import address_to_script, script_to_p2wsh, redeem_script_to_address, opcodes
 from .transaction import TxOutpoint, PartialTxInput, PartialTxOutput, PartialTransaction, construct_witness
 from .transaction import script_GetOp, match_script_against_template, OPPushDataGeneric, OPPushDataPubkey
 from .transaction import Transaction
 from .util import log_exceptions
 
 
-
 API_URL = 'http://ecdsa.org:9001'
 
+
 WITNESS_TEMPLATE_SWAP = [
+    opcodes.OP_HASH160,
+    OPPushDataGeneric(lambda x: x == 20),
+    opcodes.OP_EQUAL,
+    opcodes.OP_IF,
+    OPPushDataPubkey,
+    opcodes.OP_ELSE,
+    OPPushDataGeneric(None),
+    opcodes.OP_CHECKLOCKTIMEVERIFY,
+    opcodes.OP_DROP,
+    OPPushDataPubkey,
+    opcodes.OP_ENDIF,
+    opcodes.OP_CHECKSIG
+]
+
+
+WITNESS_TEMPLATE_REVERSE_SWAP = [
     opcodes.OP_SIZE,
     OPPushDataGeneric(None),
     opcodes.OP_EQUAL,
@@ -78,6 +94,72 @@ async def claim_swap(key, wallet):
 
 
 @log_exceptions
+async def submarine_swap(amount_sat, wallet: 'Abstract_Wallet', network: 'Network', password):
+    # 
+    lnworker = wallet.lnworker
+    privkey = os.urandom(32)
+    pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
+    key = await lnworker._add_request_coro(amount_sat, 'swap', expiry=3600)
+    request = wallet.get_request(key)
+    invoice = request['invoice']
+    lnaddr = lnworker._check_invoice(invoice, amount_sat)
+    payment_hash = lnaddr.paymenthash
+    preimage = lnworker.get_preimage(payment_hash)
+    request_data = {
+        "type": "submarine",
+        "pairId": "BTC/BTC",
+        "orderSide": "sell",
+        "invoice": invoice,
+        "refundPublicKey": pubkey.hex()
+    }
+    response = await network._send_http_on_proxy(
+        'post',
+        API_URL + '/createswap',
+        json=request_data,
+        timeout=30)
+    data = json.loads(response)
+    response_id = data["id"]
+    zeroconf = data["acceptZeroConf"]
+    onchain_amount = data["expectedAmount"]
+    locktime = data["timeoutBlockHeight"],
+    lockup_address = data["address"]
+    redeem_script = data["redeemScript"]
+    
+    print(data)
+    # verify redeem_script is built with our pubkey and preimage
+    redeem_script = bytes.fromhex(redeem_script)
+    parsed_script = [x for x in script_GetOp(redeem_script)]
+    assert match_script_against_template(redeem_script, WITNESS_TEMPLATE_SWAP)
+    #assert script_to_p2wsh(redeem_script.hex()) == lockup_address
+    assert redeem_script_to_address('p2wsh-p2sh', redeem_script.hex()) == lockup_address 
+    assert hash_160(preimage) == parsed_script[1][1]
+    assert pubkey == parsed_script[9][1]
+    # verify that we will have enought time to get our tx confirmed
+    cltv = int.from_bytes(parsed_script[6][1], byteorder='little')
+    assert cltv - network.get_local_height() == 140
+
+    # save swap data in wallet in case we need a refund
+    data['privkey'] = privkey.hex()
+    data['preimage'] = preimage.hex()
+    swaps = wallet.db.get_dict('submarine_swaps')
+    swaps[response_id] = data
+    # todo: add callback to lnwatcher (with cltv)
+    #callback = lambda: _claim_refund(lnworker, lockup_address, redeem_script, preimage, privkey, onchain_amount, address)
+    #lnworker.lnwatcher.add_callback(lockup_address, callback)
+
+    # pay onchain. must not be RBF
+    outputs = [PartialTxOutput.from_address_and_value(lockup_address, onchain_amount)]
+    tx = wallet.create_transaction(outputs=outputs, rbf=False, password=password)
+    await network.broadcast_transaction(tx)
+    #
+    attempt = await lnworker.await_payment(payment_hash)
+    return {
+        'id':response_id,
+        'success':attempt.success,
+    }
+
+
+@log_exceptions
 async def reverse_swap(amount_sat, wallet: 'Abstract_Wallet', network: 'Network'):
     privkey = os.urandom(32)
     pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
@@ -107,7 +189,7 @@ async def reverse_swap(amount_sat, wallet: 'Abstract_Wallet', network: 'Network'
     # verify redeem_script is built with our pubkey and preimage
     redeem_script = bytes.fromhex(redeem_script)
     parsed_script = [x for x in script_GetOp(redeem_script)]
-    assert match_script_against_template(redeem_script, WITNESS_TEMPLATE_SWAP)
+    assert match_script_against_template(redeem_script, WITNESS_TEMPLATE_REVERSE_SWAP)
     assert script_to_p2wsh(redeem_script.hex()) == lockup_address
     assert hash_160(preimage) == parsed_script[5][1]
     assert pubkey == parsed_script[7][1]
