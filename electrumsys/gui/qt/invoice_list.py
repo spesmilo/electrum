@@ -82,7 +82,7 @@ class InvoiceList(MyTreeView):
         self.update()
 
     def update_item(self, key, req):
-        model = self.model()
+        model = self.std_model
         for row in range(0, model.rowCount()):
             item = model.item(row, 0)
             if item.data(ROLE_REQUEST_ID) == key:
