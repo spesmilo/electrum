@@ -584,81 +584,57 @@ class Commands:
         message = util.to_bytes(message)
         return ecc.verify_message_with_address(address, sig, message)
 
-    def _mktx(self, wallet: Abstract_Wallet, outputs, *, fee=None, feerate=None, change_addr=None, domain_addr=None, domain_coins=None,
-              nocheck=False, unsigned=False, rbf=None, password=None, locktime=None):
-        if fee is not None and feerate is not None:
-            raise Exception("Cannot specify both 'fee' and 'feerate' at the same time!")
-        self.nocheck = nocheck
-        change_addr = self._resolver(change_addr, wallet)
-        domain_addr = None if domain_addr is None else map(self._resolver, domain_addr, repeat(wallet))
-        final_outputs = []
-        for address, amount in outputs:
-            address = self._resolver(address, wallet)
-            amount = satoshis(amount)
-            final_outputs.append(PartialTxOutput.from_address_and_value(address, amount))
-
-        coins = wallet.get_spendable_coins(domain_addr)
-        if domain_coins is not None:
-            coins = [coin for coin in coins if (coin.prevout.to_str() in domain_coins)]
-        if feerate is not None:
-            fee_per_kb = 1000 * Decimal(feerate)
-            fee_estimator = partial(SimpleConfig.estimate_fee_for_feerate, fee_per_kb)
-        else:
-            fee_estimator = fee
-        tx = wallet.make_unsigned_transaction(coins=coins,
-                                              outputs=final_outputs,
-                                              fee=fee_estimator,
-                                              change_addr=change_addr)
-        if locktime is not None:
-            tx.locktime = locktime
-        if rbf is None:
-            rbf = self.config.get('use_rbf', True)
-        if rbf:
-            tx.set_rbf(True)
-        if not unsigned:
-            wallet.sign_transaction(tx, password)
-        return tx
-
     @command('wp')
     async def payto(self, destination, amount, fee=None, feerate=None, from_addr=None, from_coins=None, change_addr=None,
                     nocheck=False, unsigned=False, rbf=None, password=None, locktime=None, wallet: Abstract_Wallet = None):
         """Create a transaction. """
+        self.nocheck = nocheck
         tx_fee = satoshis(fee)
         domain_addr = from_addr.split(',') if from_addr else None
         domain_coins = from_coins.split(',') if from_coins else None
-        tx = self._mktx(wallet,
-                        [(destination, amount)],
-                        fee=tx_fee,
-                        feerate=feerate,
-                        change_addr=change_addr,
-                        domain_addr=domain_addr,
-                        domain_coins=domain_coins,
-                        nocheck=nocheck,
-                        unsigned=unsigned,
-                        rbf=rbf,
-                        password=password,
-                        locktime=locktime)
+        change_addr = self._resolver(change_addr, wallet)
+        domain_addr = None if domain_addr is None else map(self._resolver, domain_addr, repeat(wallet))
+        amount_sat = satoshis(amount)
+        outputs = [PartialTxOutput.from_address_and_value(destination, amount_sat)]
+        tx = wallet.create_transaction(
+            outputs,
+            fee=tx_fee,
+            feerate=feerate,
+            change_addr=change_addr,
+            domain_addr=domain_addr,
+            domain_coins=domain_coins,
+            unsigned=unsigned,
+            rbf=rbf,
+            password=password,
+            locktime=locktime)
         return tx.serialize()
 
     @command('wp')
     async def paytomany(self, outputs, fee=None, feerate=None, from_addr=None, from_coins=None, change_addr=None,
                         nocheck=False, unsigned=False, rbf=None, password=None, locktime=None, wallet: Abstract_Wallet = None):
         """Create a multi-output transaction. """
+        self.nocheck = nocheck
         tx_fee = satoshis(fee)
         domain_addr = from_addr.split(',') if from_addr else None
         domain_coins = from_coins.split(',') if from_coins else None
-        tx = self._mktx(wallet,
-                        outputs,
-                        fee=tx_fee,
-                        feerate=feerate,
-                        change_addr=change_addr,
-                        domain_addr=domain_addr,
-                        domain_coins=domain_coins,
-                        nocheck=nocheck,
-                        unsigned=unsigned,
-                        rbf=rbf,
-                        password=password,
-                        locktime=locktime)
+        change_addr = self._resolver(change_addr, wallet)
+        domain_addr = None if domain_addr is None else map(self._resolver, domain_addr, repeat(wallet))
+        final_outputs = []
+        for address, amount in outputs:
+            address = self._resolver(address, wallet)
+            amount_sat = satoshis(amount)
+            final_outputs.append(PartialTxOutput.from_address_and_value(address, amount_sat))
+        tx = wallet.create_transaction(
+            final_outputs,
+            fee=tx_fee,
+            feerate=feerate,
+            change_addr=change_addr,
+            domain_addr=domain_addr,
+            domain_coins=domain_coins,
+            unsigned=unsigned,
+            rbf=rbf,
+            password=password,
+            locktime=locktime)
         return tx.serialize()
 
     @command('w')

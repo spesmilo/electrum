@@ -1876,6 +1876,33 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def get_all_known_addresses_beyond_gap_limit(self) -> Set[str]:
         pass
 
+    def create_transaction(self, outputs, *, fee=None, feerate=None, change_addr=None, domain_addr=None, domain_coins=None,
+              unsigned=False, rbf=None, password=None, locktime=None):
+        if fee is not None and feerate is not None:
+            raise Exception("Cannot specify both 'fee' and 'feerate' at the same time!")
+        coins = self.get_spendable_coins(domain_addr)
+        if domain_coins is not None:
+            coins = [coin for coin in coins if (coin.prevout.to_str() in domain_coins)]
+        if feerate is not None:
+            fee_per_kb = 1000 * Decimal(feerate)
+            fee_estimator = partial(SimpleConfig.estimate_fee_for_feerate, fee_per_kb)
+        else:
+            fee_estimator = fee
+        tx = self.make_unsigned_transaction(
+            coins=coins,
+            outputs=outputs,
+            fee=fee_estimator,
+            change_addr=change_addr)
+        if locktime is not None:
+            tx.locktime = locktime
+        if rbf is None:
+            rbf = self.config.get('use_rbf', True)
+        if rbf:
+            tx.set_rbf(True)
+        if not unsigned:
+            self.sign_transaction(tx, password)
+        return tx
+
 
 class Simple_Wallet(Abstract_Wallet):
     # wallet with a single keystore
