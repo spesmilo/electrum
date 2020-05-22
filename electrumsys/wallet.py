@@ -376,6 +376,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 raise WalletFileException(f'The addresses in this wallet are not syscoin addresses.\n'
                                           f'e.g. {neutered_addr} (length: {len(addr)})')
 
+    def check_returned_address_for_corruption(func):
+        def wrapper(self, *args, **kwargs):
+            addr = func(self, *args, **kwargs)
+            self.check_address_for_corruption(addr)
+            return addr
+        return wrapper
+
     def calc_unused_change_addresses(self):
         with self.lock:
             if hasattr(self, '_unused_change_addresses'):
@@ -1145,7 +1152,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             assert is_address(addr), f"not valid syscoin address: {addr}"
             # note that change addresses are not necessarily ismine
             # in which case this is a no-op
-            self.check_address(addr)
+            self.check_address_for_corruption(addr)
         max_change = self.max_change_outputs if self.multiple_change else 1
         return change_addrs[:max_change]
 
@@ -1654,15 +1661,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def try_detecting_internal_addresses_corruption(self) -> None:
         pass
 
-    def check_address(self, addr: str) -> None:
+    def check_address_for_corruption(self, addr: str) -> None:
         pass
-
-    def check_returned_address(func):
-        def wrapper(self, *args, **kwargs):
-            addr = func(self, *args, **kwargs)
-            self.check_address(addr)
-            return addr
-        return wrapper
 
     def get_unused_addresses(self) -> Sequence[str]:
         domain = self.get_receiving_addresses()
@@ -1670,13 +1670,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         return [addr for addr in domain if not self.is_used(addr)
                 and addr not in in_use_by_request]
 
-    @check_returned_address
+    @check_returned_address_for_corruption
     def get_unused_address(self) -> Optional[str]:
         addrs = self.get_unused_addresses()
         if addrs:
             return addrs[0]
 
-    @check_returned_address
+    @check_returned_address_for_corruption
     def get_receiving_address(self) -> str:
         # always return an address
         domain = self.get_receiving_addresses()
@@ -2362,9 +2362,9 @@ class Deterministic_Wallet(Abstract_Wallet):
         addresses_rand = addresses_all[10:]
         addresses_sample2 = random.sample(addresses_rand, min(len(addresses_rand), 10))
         for addr_found in itertools.chain(addresses_sample1, addresses_sample2):
-            self.check_address(addr_found)
+            self.check_address_for_corruption(addr_found)
 
-    def check_address(self, addr):
+    def check_address_for_corruption(self, addr):
         if addr and self.is_mine(addr):
             if addr != self.derive_address(*self.get_address_index(addr)):
                 raise InternalAddressCorruption()
