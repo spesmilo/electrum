@@ -220,7 +220,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
 
     LOGGING_SHORTCUT = 'w'
     max_change_outputs = 3
-    gap_limit_for_change = 6
+    gap_limit_for_change = 10
 
     txin_type: str
     wallet_type: str
