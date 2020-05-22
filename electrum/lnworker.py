@@ -1398,10 +1398,13 @@ class LNBackups(Logger):
         self.lock = threading.RLock()
         self.wallet = wallet
         self.db = wallet.db
-        self.sweep_address = wallet.get_receiving_address()
         self.channel_backups = {}
         for channel_id, cb in self.db.get_dict("channel_backups").items():
             self.channel_backups[bfh(channel_id)] = ChannelBackup(cb, sweep_address=self.sweep_address, lnworker=self)
+
+    @property
+    def sweep_address(self) -> str:
+        return self.wallet.get_receiving_address()
 
     def channel_state_changed(self, chan):
         util.trigger_callback('channel', chan)
