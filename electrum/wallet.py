@@ -1530,6 +1530,16 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def create_new_address(self, for_change: bool = False):
         raise Exception("this wallet cannot generate new addresses")
 
+    def import_address(self, address: str) -> str:
+        raise Exception("this wallet cannot import addresses")
+
+    def import_addresses(self, addresses: List[str], *,
+                         write_to_disk=True) -> Tuple[List[str], List[Tuple[str, str]]]:
+        raise Exception("this wallet cannot import addresses")
+
+    def delete_address(self, address: str) -> None:
+        raise Exception("this wallet cannot delete addresses")
+
     def get_payment_status(self, address, amount):
         local_height = self.get_local_height()
         received, sent = self.get_addr_io(address)
@@ -2017,7 +2027,7 @@ class Imported_Wallet(Simple_Wallet):
         else:
             raise BitcoinException(str(bad_addr[0][1]))
 
-    def delete_address(self, address: str):
+    def delete_address(self, address: str) -> None:
         if not self.db.has_imported_address(address):
             return
         transactions_to_remove = set()  # only referred to by this address
