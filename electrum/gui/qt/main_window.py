@@ -2822,7 +2822,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         # user pressed "sweep"
         addr = get_address()
         try:
-            self.wallet.check_address(addr)
+            self.wallet.check_address_for_corruption(addr)
         except InternalAddressCorruption as e:
             self.show_error(str(e))
             raise
