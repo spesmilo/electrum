@@ -51,7 +51,7 @@ from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKey
                      ScriptHtlc, PaymentFailure, calc_fees_for_commitment_tx, RemoteMisbehaving, make_htlc_output_witness_script,
                      ShortChannelID, map_htlcs_to_ctx_output_idxs, LNPeerAddr,
                      LN_MAX_HTLC_VALUE_MSAT, fee_for_htlc_output, offered_htlc_trim_threshold_sat,
-                     received_htlc_trim_threshold_sat)
+                     received_htlc_trim_threshold_sat, make_commitment_output_to_remote_address)
 from .lnsweep import create_sweeptxs_for_our_ctx, create_sweeptxs_for_their_ctx
 from .lnsweep import create_sweeptx_for_their_revoked_htlc, SweepInfo
 from .lnhtlc import HTLCManager
@@ -600,6 +600,14 @@ class Channel(AbstractChannel):
 
     def is_static_remotekey_enabled(self) -> bool:
         return bool(self.storage.get('static_remotekey_enabled'))
+
+    def get_wallet_addresses_channel_might_want_reserved(self) -> Sequence[str]:
+        ret = []
+        if self.is_static_remotekey_enabled():
+            our_payment_pubkey = self.config[LOCAL].payment_basepoint.pubkey
+            to_remote_address = make_commitment_output_to_remote_address(our_payment_pubkey)
+            ret.append(to_remote_address)
+        return ret
 
     def get_feerate(self, subject: HTLCOwner, *, ctn: int) -> int:
         # returns feerate in sat/kw

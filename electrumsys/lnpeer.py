@@ -496,7 +496,7 @@ class Peer(Logger):
             # we will want to derive that key
             wallet = self.lnworker.wallet
             assert wallet.txin_type == 'p2wpkh'
-            addr = wallet.get_unused_address()
+            addr = wallet.get_new_sweep_address_for_channel()
             static_remotekey = bfh(wallet.get_public_key(addr))
         else:
             static_remotekey = None
