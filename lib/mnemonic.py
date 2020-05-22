@@ -95,17 +95,16 @@ def is_CJK(c) -> bool:
     return False
 
 
-def normalize_text(seed: str) -> str:
+def normalize_text(seed: str, is_passphrase=False) -> str:
     # normalize
     seed = unicodedata.normalize('NFKD', seed)
     # lower
-    seed = seed.lower()
-    # remove accents
-    seed = u''.join([c for c in seed if not unicodedata.combining(c)])
-    # normalize whitespaces
-    seed = u' '.join(seed.split())
-    # remove whitespaces between CJK
-    seed = u''.join([seed[i] for i in range(len(seed)) if not (seed[i] in string.whitespace and is_CJK(seed[i-1]) and is_CJK(seed[i+1]))])
+    if not is_passphrase:
+        seed = seed.lower()
+        # normalize whitespaces
+        seed = u' '.join(seed.split())
+        # remove whitespaces between CJK
+        seed = u''.join([seed[i] for i in range(len(seed)) if not (seed[i] in string.whitespace and is_CJK(seed[i-1]) and is_CJK(seed[i+1]))])
     return seed
 
 def load_wordlist(filename: str) -> List[str]:
@@ -260,13 +259,13 @@ class MnemonicBase(PrintError):
         return list(filenames.keys())
 
     @classmethod
-    def normalize_text(cls, txt: Union[str, bytes]) -> str:
+    def normalize_text(cls, txt: Union[str, bytes], is_passphrase=False) -> str:
         if isinstance(txt, bytes):
             txt = txt.decode('utf8')
         elif not isinstance(txt, str):  # noqa: F821
             raise TypeError("String value expected")
 
-        return normalize_text(txt)
+        return normalize_text(txt, is_passphrase=is_passphrase)
 
     @classmethod
     def detect_language(cls, code: str) -> str:
@@ -338,7 +337,7 @@ class Mnemonic(MnemonicBase):
     def mnemonic_to_seed(cls, mnemonic: str, passphrase: Optional[str]) -> bytes:
         PBKDF2_ROUNDS = 2048
         mnemonic = cls.normalize_text(mnemonic)
-        passphrase = cls.normalize_text(passphrase or '')
+        passphrase = cls.normalize_text(passphrase or '', is_passphrase=True)
         return hashlib.pbkdf2_hmac('sha512', mnemonic.encode('utf-8'), b'mnemonic' + passphrase.encode('utf-8'), iterations = PBKDF2_ROUNDS)
 
     def make_seed(self, seed_type=None, num_bits=128, custom_entropy=1) -> str:
@@ -410,7 +409,7 @@ class Mnemonic_Electrum(MnemonicBase):
         """ Electrum format """
         PBKDF2_ROUNDS = 2048
         mnemonic = cls.normalize_text(mnemonic)
-        passphrase = cls.normalize_text(passphrase or '')
+        passphrase = cls.normalize_text(passphrase or '', is_passphrase=True)
         return hashlib.pbkdf2_hmac('sha512', mnemonic.encode('utf-8'), b'electrum' + passphrase.encode('utf-8'), iterations = PBKDF2_ROUNDS)
 
     def mnemonic_encode(self, i):
