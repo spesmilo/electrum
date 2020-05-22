@@ -1677,11 +1677,11 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             return addrs[0]
 
     @check_returned_address
-    def get_receiving_address(self):
+    def get_receiving_address(self) -> str:
         # always return an address
         domain = self.get_receiving_addresses()
         if not domain:
-            return
+            raise Exception("no receiving addresses in wallet?!")
         choice = domain[0]
         for addr in domain:
             if not self.is_used(addr):
@@ -2217,6 +2217,8 @@ class Imported_Wallet(Simple_Wallet):
     def delete_address(self, address: str) -> None:
         if not self.db.has_imported_address(address):
             return
+        if len(self.get_addresses()) <= 1:
+            raise Exception("cannot delete last remaining address from wallet")
         transactions_to_remove = set()  # only referred to by this address
         transactions_new = set()  # txs that are not only referred to by address
         with self.lock:
