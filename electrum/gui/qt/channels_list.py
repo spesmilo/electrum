@@ -369,21 +369,6 @@ class ChannelsList(MyTreeView):
         self.parent.open_channel(connect_str, funding_sat, 0)
 
     def swap_dialog(self):
-        lnworker = self.parent.wallet.lnworker
-        d = WindowModalDialog(self.parent, _('Reverse Submarine Swap'))
-        vbox = QVBoxLayout(d)
-        amount_e = BTCAmountEdit(self.parent.get_decimal_point)
-        h = QGridLayout()
-        h.addWidget(QLabel('Amount'), 3, 0)
-        h.addWidget(amount_e, 3, 1)
-        vbox.addLayout(h)
-        ok_button = OkButton(d)
-        ok_button.setDefault(True)
-        vbox.addLayout(Buttons(CancelButton(d), ok_button))
-        if not d.exec_():
-            return
-        from electrum.submarine_swaps import reverse_swap
-        import asyncio
-        amount_sat = amount_e.get_amount()
-        coro = reverse_swap(amount_sat, self.parent.wallet, self.parent.network)
-        fut = asyncio.run_coroutine_threadsafe(coro, self.parent.network.asyncio_loop)
+        from .swap_dialog import SwapDialog
+        d = SwapDialog(self.parent)
+        d.run()
