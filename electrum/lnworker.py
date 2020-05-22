@@ -488,7 +488,7 @@ class LNWallet(LNWorker):
         self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_REQ
         self.payments = self.db.get_dict('lightning_payments')     # RHASH -> amount, direction, is_paid
         self.preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
-        self.sweep_address = wallet.get_receiving_address()
+        self.sweep_address = wallet.get_new_sweep_address_for_channel()  # TODO possible address-reuse
         self.logs = defaultdict(list)  # type: Dict[str, List[PaymentAttemptLog]]  # key is RHASH  # (not persisted)
         self.is_routing = set()        # (not persisted) keys of invoices that are in PR_ROUTING state
         # used in tests
@@ -770,6 +770,8 @@ class LNWallet(LNWorker):
         self.add_channel(chan)
         channels_db = self.db.get_dict('channels')
         channels_db[chan.channel_id.hex()] = chan.storage
+        for addr in chan.get_wallet_addresses_channel_might_want_reserved():
+            self.wallet.set_reserved_state_of_address(addr, reserved=True)
         self.wallet.save_backup()
 
     def mktx_for_open_channel(self, *, coins: Sequence[PartialTxInput], funding_sat: int,
@@ -1309,6 +1311,8 @@ class LNWallet(LNWorker):
         with self.lock:
             self._channels.pop(chan_id)
             self.db.get('channels').pop(chan_id.hex())
+        for addr in chan.get_wallet_addresses_channel_might_want_reserved():
+            self.wallet.set_reserved_state_of_address(addr, reserved=False)
 
         util.trigger_callback('channels_updated', self.wallet)
         util.trigger_callback('wallet_updated', self.wallet)
@@ -1404,7 +1408,8 @@ class LNBackups(Logger):
 
     @property
     def sweep_address(self) -> str:
-        return self.wallet.get_receiving_address()
+        # TODO possible address-reuse
+        return self.wallet.get_new_sweep_address_for_channel()
 
     def channel_state_changed(self, chan):
         util.trigger_callback('channel', chan)

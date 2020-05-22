@@ -247,6 +247,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         self.fiat_value            = db.get_dict('fiat_value')
         self.receive_requests      = db.get_dict('payment_requests')
         self.invoices              = db.get_dict('invoices')
+        self._reserved_addresses   = set(db.get('reserved_addresses', []))
 
         self._prepare_onchain_invoice_paid_detection()
         self.calc_unused_change_addresses()
@@ -386,7 +387,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 addrs = self._unused_change_addresses
             else:
                 addrs = self.get_change_addresses()
-            self._unused_change_addresses = [addr for addr in addrs if not self.is_used(addr)]
+            self._unused_change_addresses = [addr for addr in addrs
+                                             if not self.is_used(addr) and not self.is_address_reserved(addr)]
             return list(self._unused_change_addresses)
 
     def is_deterministic(self) -> bool:
@@ -1046,6 +1048,22 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         max_change = self.max_change_outputs if self.multiple_change else 1
         return change_addrs[:max_change]
 
+    @check_returned_address_for_corruption
+    def get_new_sweep_address_for_channel(self) -> str:
+        # Recalc and get unused change addresses
+        addrs = self.calc_unused_change_addresses()
+        if addrs:
+            selected_addr = addrs[0]
+        else:
+            # if there are none, take one randomly from the last few
+            addrs = self.get_change_addresses(slice_start=-self.gap_limit_for_change)
+            if addrs:
+                selected_addr = random.choice(addrs)
+            else:  # fallback for e.g. imported wallets
+                selected_addr = self.get_receiving_address()
+        assert is_address(selected_addr), f"not valid bitcoin address: {selected_addr}"
+        return selected_addr
+
     def make_unsigned_transaction(self, *, coins: Sequence[PartialTxInput],
                                   outputs: List[PartialTxOutput], fee=None,
                                   change_addr: str = None, is_sweep=False) -> PartialTransaction:
@@ -1181,6 +1199,20 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         else:
             self.frozen_coins -= set(utxos)
         self.db.put('frozen_coins', list(self.frozen_coins))
+
+    def is_address_reserved(self, addr: str) -> bool:
+        # note: atm 'reserved' status is only taken into consideration for 'change addresses'
+        return addr in self._reserved_addresses
+
+    def set_reserved_state_of_address(self, addr: str, *, reserved: bool) -> None:
+        if not self.is_mine(addr):
+            return
+        with self.lock:
+            if reserved:
+                self._reserved_addresses.add(addr)
+            else:
+                self._reserved_addresses.discard(addr)
+        self.db.put('reserved_addresses', list(self._reserved_addresses))
 
     def can_export(self):
         return not self.is_watching_only() and hasattr(self.keystore, 'get_private_key')
