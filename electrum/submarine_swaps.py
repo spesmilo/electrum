@@ -3,11 +3,12 @@ import json
 import os
 from .crypto import sha256, hash_160
 from .ecc import ECPrivkey
-from .bitcoin import address_to_script, script_to_p2wsh, redeem_script_to_address, opcodes
+from .bitcoin import address_to_script, script_to_p2wsh, redeem_script_to_address, opcodes, p2wsh_nested_script
 from .transaction import TxOutpoint, PartialTxInput, PartialTxOutput, PartialTransaction, construct_witness
 from .transaction import script_GetOp, match_script_against_template, OPPushDataGeneric, OPPushDataPubkey
 from .transaction import Transaction
 from .util import log_exceptions
+from .bitcoin import dust_threshold
 
 
 API_URL = 'http://ecdsa.org:9001'
@@ -49,32 +50,44 @@ WITNESS_TEMPLATE_REVERSE_SWAP = [
 ]
 
 
-def create_claim_tx(txin, witness_script, preimage, privkey:bytes, amount_sat, address, fee):
+def create_claim_tx(txin, witness_script, preimage, privkey:bytes, address, amount_sat, is_refund):
     pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
-    txin.script_type = 'p2wsh'
+    print(txin.to_json())
+    if is_refund:
+        txin.script_type = 'p2wsh-p2sh'
+        txin.redeem_script = bytes.fromhex(p2wsh_nested_script(witness_script.hex()))
+    else:
+        txin.script_type = 'p2wsh'
     txin.script_sig = b''
     txin.pubkeys = [pubkey]
     txin.num_sig = 1
     txin.witness_script = witness_script
-    txin._trusted_value_sats = amount_sat
-    txout = PartialTxOutput(scriptpubkey=bytes.fromhex(address_to_script(address)), value=amount_sat - fee)
+    txout = PartialTxOutput(scriptpubkey=bytes.fromhex(address_to_script(address)), value=amount_sat)
     tx = PartialTransaction.from_io([txin], [txout], version=2)
     sig = bytes.fromhex(tx.sign_txin(0, privkey))
-    witness = construct_witness([sig, preimage, witness_script])
-    tx.inputs()[0].witness = bytes.fromhex(witness)
+    witness = [sig, witness_script] if is_refund else [sig, preimage, witness_script]
+    tx.inputs()[0].witness = bytes.fromhex(construct_witness(witness))
     assert tx.is_complete()
     return tx
 
 
 @log_exceptions
-async def _claim_swap(lnworker, lockup_address, redeem_script, preimage, privkey, onchain_amount, address):
-    # add address to lnwatcher
+async def _claim_swap(lnworker, lockup_address, redeem_script, preimage, privkey, address, locktime, is_refund=False):
     lnwatcher = lnworker.lnwatcher
     utxos = lnwatcher.get_addr_utxo(lockup_address)
+    delta = lnwatcher.network.get_local_height() - locktime
     for txin in list(utxos.values()):
         fee = lnwatcher.config.estimate_fee(136, allow_fallback_to_static_rates=True)
-        tx = create_claim_tx(txin, redeem_script, preimage, privkey, onchain_amount, address, fee)
-        await lnwatcher.network.broadcast_transaction(tx)
+        amount_sat = txin._trusted_value_sats - fee
+        if amount_sat < dust_threshold():
+            print('dust')
+            continue
+        tx = create_claim_tx(txin, redeem_script, preimage, privkey, address, amount_sat, is_refund)
+        if is_refund and delta < 0:
+            print('height not reached for refund', delta, locktime)
+            print(tx.serialize())
+        else:
+            await lnwatcher.network.broadcast_transaction(tx)
 
 
 @log_exceptions
@@ -85,17 +98,33 @@ async def claim_swap(key, wallet):
     data = swaps[key]
     onchain_amount = data['onchainAmount']
     redeem_script = bytes.fromhex(data['redeemScript'])
+    locktime = data['timeoutBlockHeight']
     lockup_address = data['lockupAddress']
     preimage = bytes.fromhex(data['preimage'])
     privkey = bytes.fromhex(data['privkey'])
-    callback = lambda: _claim_swap(lnworker, lockup_address, redeem_script, preimage, privkey, onchain_amount, address)
+    callback = lambda: _claim_swap(lnworker, lockup_address, redeem_script, preimage, privkey, address, locktime, is_refund=False)
     lnworker.lnwatcher.add_callback(lockup_address, callback)
     return True
 
 
 @log_exceptions
-async def submarine_swap(amount_sat, wallet: 'Abstract_Wallet', network: 'Network', password):
-    # 
+async def refund_swap(key, wallet):
+    lnworker = wallet.lnworker
+    address = wallet.get_unused_address()
+    swaps = wallet.db.get_dict('submarine_swaps')
+    data = swaps[key]
+    lockup_address = data['address']
+    redeem_script = bytes.fromhex(data['redeemScript'])
+    locktime = data['timeoutBlockHeight']
+    preimage = bytes.fromhex(data['preimage'])
+    privkey = bytes.fromhex(data['privkey'])
+    callback = lambda: _claim_swap(lnworker, lockup_address, redeem_script, preimage, privkey, address, locktime, is_refund=True)
+    lnworker.lnwatcher.add_callback(lockup_address, callback)
+    return True
+
+
+@log_exceptions
+async def normal_swap(amount_sat, wallet: 'Abstract_Wallet', network: 'Network', password):
     lnworker = wallet.lnworker
     privkey = os.urandom(32)
     pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
@@ -124,8 +153,6 @@ async def submarine_swap(amount_sat, wallet: 'Abstract_Wallet', network: 'Networ
     locktime = data["timeoutBlockHeight"],
     lockup_address = data["address"]
     redeem_script = data["redeemScript"]
-    
-    print(data)
     # verify redeem_script is built with our pubkey and preimage
     redeem_script = bytes.fromhex(redeem_script)
     parsed_script = [x for x in script_GetOp(redeem_script)]
@@ -135,19 +162,15 @@ async def submarine_swap(amount_sat, wallet: 'Abstract_Wallet', network: 'Networ
     assert hash_160(preimage) == parsed_script[1][1]
     assert pubkey == parsed_script[9][1]
     # verify that we will have enought time to get our tx confirmed
-    cltv = int.from_bytes(parsed_script[6][1], byteorder='little')
-    assert cltv - network.get_local_height() == 140
-
+    assert locktime == int.from_bytes(parsed_script[6][1], byteorder='little')
+    assert locktime - network.get_local_height() == 140
     # save swap data in wallet in case we need a refund
     data['privkey'] = privkey.hex()
     data['preimage'] = preimage.hex()
     swaps = wallet.db.get_dict('submarine_swaps')
     swaps[response_id] = data
-    # todo: add callback to lnwatcher (with cltv)
-    #callback = lambda: _claim_refund(lnworker, lockup_address, redeem_script, preimage, privkey, onchain_amount, address)
-    #lnworker.lnwatcher.add_callback(lockup_address, callback)
-
-    # pay onchain. must not be RBF
+    callback = lambda: _claim_swap(lnworker, lockup_address, redeem_script, preimage, privkey, address, locktime, is_refund=True)
+    lnworker.lnwatcher.add_callback(lockup_address, callback)
     outputs = [PartialTxOutput.from_address_and_value(lockup_address, onchain_amount)]
     tx = wallet.create_transaction(outputs=outputs, rbf=False, password=password)
     await network.broadcast_transaction(tx)
@@ -183,7 +206,7 @@ async def reverse_swap(amount_sat, wallet: 'Abstract_Wallet', network: 'Network'
     invoice = data['invoice']
     lockup_address = data['lockupAddress']
     redeem_script = data['redeemScript']
-    timeout_block_height = data['timeoutBlockHeight']
+    locktime = data['timeoutBlockHeight']
     onchain_amount = data["onchainAmount"]
     response_id = data['id']
     # verify redeem_script is built with our pubkey and preimage
@@ -194,8 +217,8 @@ async def reverse_swap(amount_sat, wallet: 'Abstract_Wallet', network: 'Network'
     assert hash_160(preimage) == parsed_script[5][1]
     assert pubkey == parsed_script[7][1]
     # verify that we will have enought time to get our tx confirmed
-    cltv = int.from_bytes(parsed_script[10][1], byteorder='little')
-    assert cltv - network.get_local_height() > 10
+    assert locktime == int.from_bytes(parsed_script[10][1], byteorder='little')
+    assert locktime - network.get_local_height() > 10
     # verify invoice preimage_hash
     lnworker = wallet.lnworker
     lnaddr = lnworker._check_invoice(invoice, amount_sat)
@@ -207,7 +230,7 @@ async def reverse_swap(amount_sat, wallet: 'Abstract_Wallet', network: 'Network'
     swaps = wallet.db.get_dict('submarine_swaps')
     swaps[response_id] = data
     # add callback to lnwatcher
-    callback = lambda: _claim_swap(lnworker, lockup_address, redeem_script, preimage, privkey, onchain_amount, address)
+    callback = lambda: _claim_swap(lnworker, lockup_address, redeem_script, preimage, privkey, address, locktime, is_refund=False)
     lnworker.lnwatcher.add_callback(lockup_address, callback)
     # initiate payment.
     success, log = await lnworker._pay(invoice, attempts=5)
@@ -218,3 +241,13 @@ async def reverse_swap(amount_sat, wallet: 'Abstract_Wallet', network: 'Network'
         'id':response_id,
         'success':success,
     }
+
+
+@log_exceptions
+async def get_pairs(network):
+    response = await network._send_http_on_proxy(
+        'get',
+        API_URL + '/getpairs',
+        timeout=30)
+    data = json.loads(response)
+    return data

@@ -60,6 +60,7 @@ from .plugin import run_hook
 from .version import ELECTRUM_VERSION
 from .simple_config import SimpleConfig
 from .invoices import LNInvoice
+from . import submarine_swaps
 
 
 if TYPE_CHECKING:
@@ -1102,20 +1103,23 @@ class Commands:
 
     @command('wnp')
     async def submarine_swap(self, amount, password=None, wallet: Abstract_Wallet = None):
-        from .submarine_swaps import submarine_swap
-        amount_sat = satoshis(amount)
-        return await submarine_swap(amount_sat, wallet, self.network, password)
+        return await submarine_swaps.normal_swap(satoshis(amount), wallet, self.network, password)
 
     @command('wn')
     async def reverse_swap(self, amount, wallet: Abstract_Wallet = None):
-        from .submarine_swaps import reverse_swap
-        amount_sat = satoshis(amount)
-        return await reverse_swap(amount_sat, wallet, self.network)
+        return await submarine_swaps.reverse_swap(satoshis(amount), wallet, self.network)
+
+    @command('n')
+    async def get_pairs(self):
+        return await submarine_swaps.get_pairs(self.network)
 
     @command('wn')
     async def claim_swap(self, key, wallet: Abstract_Wallet = None):
-        from .submarine_swaps import claim_swap
-        return await claim_swap(key, wallet)
+        return await submarine_swaps.claim_swap(key, wallet)
+
+    @command('wn')
+    async def refund_swap(self, key, wallet: Abstract_Wallet = None):
+        return await submarine_swaps.refund_swap(key, wallet)
 
 def eval_bool(x: str) -> bool:
     if x == 'false': return False
