@@ -9,7 +9,11 @@ from .transaction import script_GetOp, match_script_against_template, OPPushData
 from .transaction import Transaction
 from .util import log_exceptions
 from .bitcoin import dust_threshold
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from .network import Network
+    from .wallet import Abstract_Wallet
 
 API_URL = 'http://ecdsa.org:9001'
 
@@ -132,6 +136,7 @@ async def normal_swap(amount_sat, wallet: 'Abstract_Wallet', network: 'Network',
     lnaddr = lnworker._check_invoice(invoice, amount_sat)
     payment_hash = lnaddr.paymenthash
     preimage = lnworker.get_preimage(payment_hash)
+    address = wallet.get_unused_address()
     request_data = {
         "type": "submarine",
         "pairId": "BTC/BTC",
@@ -148,7 +153,7 @@ async def normal_swap(amount_sat, wallet: 'Abstract_Wallet', network: 'Network',
     response_id = data["id"]
     zeroconf = data["acceptZeroConf"]
     onchain_amount = data["expectedAmount"]
-    locktime = data["timeoutBlockHeight"],
+    locktime = data["timeoutBlockHeight"]
     lockup_address = data["address"]
     redeem_script = data["redeemScript"]
     # verify redeem_script is built with our pubkey and preimage
