@@ -5,6 +5,11 @@
         "t": "50001",
         "version": "1.4.2"
     },
+    "bch.disdev.org": {
+        "pruning": "-",
+        "s": "50002",
+        "version": "1.4.2"
+    },
     "bch.imaginary.cash": {
         "pruning": "-",
         "s": "50002",
@@ -34,11 +39,6 @@
         "pruning": "-",
         "s": "50002",
         "version": "1.4.1"
-    },
-    "bchx.disdev.org": {
-        "pruning": "-",
-        "s": "50002",
-        "version": "1.4.2"
     },
     "bitcoincash.quangld.com": {
         "pruning": "-",
