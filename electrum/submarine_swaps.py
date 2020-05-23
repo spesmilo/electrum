@@ -78,18 +78,17 @@ async def _claim_swap(lnworker, lockup_address, redeem_script, preimage, privkey
     lnwatcher = lnworker.lnwatcher
     utxos = lnwatcher.get_addr_utxo(lockup_address)
     delta = lnwatcher.network.get_local_height() - locktime
+    if is_refund and delta < 0:
+        print('height not reached for refund', delta, locktime)
+        return
     for txin in list(utxos.values()):
         fee = lnwatcher.config.estimate_fee(136, allow_fallback_to_static_rates=True)
         amount_sat = txin._trusted_value_sats - fee
         if amount_sat < dust_threshold():
-            print('dust')
+            print('txo lower than dust threshold')
             continue
         tx = create_claim_tx(txin, redeem_script, preimage, privkey, address, amount_sat, locktime, is_refund)
-        if is_refund and delta < 0:
-            print('height not reached for refund', delta, locktime)
-            print(tx.serialize())
-        else:
-            await lnwatcher.network.broadcast_transaction(tx)
+        await lnwatcher.network.broadcast_transaction(tx)
 
 
 @log_exceptions
@@ -130,7 +129,7 @@ async def normal_swap(amount_sat, wallet: 'Abstract_Wallet', network: 'Network',
     lnworker = wallet.lnworker
     privkey = os.urandom(32)
     pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
-    key = await lnworker._add_request_coro(amount_sat, 'swap', expiry=3600)
+    key = await lnworker._add_request_coro(amount_sat, 'swap', expiry=3600*24)
     request = wallet.get_request(key)
     invoice = request['invoice']
     lnaddr = lnworker._check_invoice(invoice, amount_sat)
@@ -160,8 +159,7 @@ async def normal_swap(amount_sat, wallet: 'Abstract_Wallet', network: 'Network',
     redeem_script = bytes.fromhex(redeem_script)
     parsed_script = [x for x in script_GetOp(redeem_script)]
     assert match_script_against_template(redeem_script, WITNESS_TEMPLATE_SWAP)
-    #assert script_to_p2wsh(redeem_script.hex()) == lockup_address
-    assert redeem_script_to_address('p2wsh-p2sh', redeem_script.hex()) == lockup_address 
+    assert script_to_p2wsh(redeem_script.hex()) == lockup_address
     assert hash_160(preimage) == parsed_script[1][1]
     assert pubkey == parsed_script[9][1]
     # verify that we will have enought time to get our tx confirmed
