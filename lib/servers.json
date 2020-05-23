@@ -1,4 +1,10 @@
 {
+    "bch.crypto.mldlabs.com": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4.2"
+    },
     "bch.imaginary.cash": {
         "pruning": "-",
         "s": "50002",
@@ -41,12 +47,6 @@
         "version": "1.4.2"
     },
     "blackie.c3-soft.com": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.4.1"
-    },
-    "crypto.mldlabs.com": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
