@@ -3,7 +3,7 @@ import json
 import os
 from .crypto import sha256, hash_160
 from .ecc import ECPrivkey
-from .bitcoin import address_to_script, script_to_p2wsh, redeem_script_to_address, opcodes, p2wsh_nested_script
+from .bitcoin import address_to_script, script_to_p2wsh, redeem_script_to_address, opcodes, p2wsh_nested_script, push_script, is_segwit_address
 from .transaction import TxOutpoint, PartialTxInput, PartialTxOutput, PartialTransaction, construct_witness
 from .transaction import script_GetOp, match_script_against_template, OPPushDataGeneric, OPPushDataPubkey
 from .transaction import Transaction
@@ -50,24 +50,22 @@ WITNESS_TEMPLATE_REVERSE_SWAP = [
 ]
 
 
-def create_claim_tx(txin, witness_script, preimage, privkey:bytes, address, amount_sat, is_refund):
+def create_claim_tx(txin, witness_script, preimage, privkey:bytes, address, amount_sat, locktime, is_refund):
     pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
-    print(txin.to_json())
-    if is_refund:
+    if is_segwit_address(txin.address):
+        txin.script_type = 'p2wsh'
+        txin.script_sig = b''
+    else:
         txin.script_type = 'p2wsh-p2sh'
         txin.redeem_script = bytes.fromhex(p2wsh_nested_script(witness_script.hex()))
-    else:
-        txin.script_type = 'p2wsh'
-    txin.script_sig = b''
-    txin.pubkeys = [pubkey]
-    txin.num_sig = 1
+        txin.script_sig = bytes.fromhex(push_script(txin.redeem_script.hex()))
     txin.witness_script = witness_script
     txout = PartialTxOutput(scriptpubkey=bytes.fromhex(address_to_script(address)), value=amount_sat)
-    tx = PartialTransaction.from_io([txin], [txout], version=2)
+    tx = PartialTransaction.from_io([txin], [txout], version=2, locktime=(locktime if is_refund else None))
+    tx.set_rbf(True)
     sig = bytes.fromhex(tx.sign_txin(0, privkey))
-    witness = [sig, witness_script] if is_refund else [sig, preimage, witness_script]
-    tx.inputs()[0].witness = bytes.fromhex(construct_witness(witness))
-    assert tx.is_complete()
+    witness = [sig, 0, witness_script] if is_refund else [sig, preimage, witness_script]
+    txin.witness = bytes.fromhex(construct_witness(witness))
     return tx
 
 
@@ -82,7 +80,7 @@ async def _claim_swap(lnworker, lockup_address, redeem_script, preimage, privkey
         if amount_sat < dust_threshold():
             print('dust')
             continue
-        tx = create_claim_tx(txin, redeem_script, preimage, privkey, address, amount_sat, is_refund)
+        tx = create_claim_tx(txin, redeem_script, preimage, privkey, address, amount_sat, locktime, is_refund)
         if is_refund and delta < 0:
             print('height not reached for refund', delta, locktime)
             print(tx.serialize())
