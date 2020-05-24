@@ -117,24 +117,29 @@ for x in a.binaries.copy():
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
-exe = EXE(pyz,
-          a.scripts,
-          a.binaries,
-          a.datas,
-          name=PACKAGE,
-          debug=False,
-          strip=False,
-          upx=False,
-          icon=home+ICONS_FILE,
-          console=False)
+exe = EXE(
+    pyz,
+    a.scripts,
+    exclude_binaries=True,
+    name=PACKAGE,
+    debug=False,
+    strip=False,
+    upx=False,
+    icon=home+ICONS_FILE,
+    console=False
+)
 
-app = BUNDLE(exe,
-             version = VERSION,
-             name=PACKAGE + '.app',
-             icon=home+ICONS_FILE,
-             bundle_identifier=BUNDLE_IDENTIFIER,
-             info_plist = {
-                 'NSHighResolutionCapable':'True',
-                 'NSSupportsAutomaticGraphicsSwitching':'True'
-             }
+app = BUNDLE(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    version = VERSION,
+    name=PACKAGE + '.app',
+    icon=home+ICONS_FILE,
+    bundle_identifier=BUNDLE_IDENTIFIER,
+    info_plist = {
+        'NSHighResolutionCapable':'True',
+        'NSSupportsAutomaticGraphicsSwitching':'True'
+    }
 )
