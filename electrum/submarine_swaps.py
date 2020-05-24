@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from .network import Network
     from .wallet import Abstract_Wallet
 
-API_URL = 'http://ecdsa.org:9001'
+API_URL = 'https://lightning.electrum.org/api'
 
 
 WITNESS_TEMPLATE_SWAP = [
