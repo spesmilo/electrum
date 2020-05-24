@@ -8,6 +8,7 @@ import os
 import webbrowser
 from collections import namedtuple
 from functools import partial, wraps
+from .utils import darkdetect
 
 from electroncash.address import Address
 from electroncash.util import print_error, PrintError, Weak, finalization_print_error
@@ -1011,7 +1012,6 @@ class _ColorScheme:
     def __init__(self):
         self._dark_scheme = False
 
-        from .utils import darkdetect
         self._dark_detector = darkdetect.isDark
 
         self.DEEPGREEN = ColorSchemeItem("#335c33", "#7ac276")
