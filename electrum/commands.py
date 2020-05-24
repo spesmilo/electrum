@@ -1103,23 +1103,12 @@ class Commands:
 
     @command('wnp')
     async def submarine_swap(self, amount, password=None, wallet: Abstract_Wallet = None):
-        return await submarine_swaps.normal_swap(satoshis(amount), wallet, self.network, password)
+        return await wallet.lnworker.swap_manager.normal_swap(satoshis(amount), password)
 
     @command('wn')
     async def reverse_swap(self, amount, wallet: Abstract_Wallet = None):
-        return await submarine_swaps.reverse_swap(satoshis(amount), wallet, self.network)
+        return await wallet.lnworker.swap_manager.reverse_swap(satoshis(amount))
 
-    @command('n')
-    async def get_pairs(self):
-        return await submarine_swaps.get_pairs(self.network)
-
-    @command('wn')
-    async def claim_swap(self, key, wallet: Abstract_Wallet = None):
-        return await submarine_swaps.claim_swap(key, wallet)
-
-    @command('wn')
-    async def refund_swap(self, key, wallet: Abstract_Wallet = None):
-        return await submarine_swaps.refund_swap(key, wallet)
 
 def eval_bool(x: str) -> bool:
     if x == 'false': return False

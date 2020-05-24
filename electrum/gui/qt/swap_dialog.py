@@ -16,7 +16,6 @@ from .util import (MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButto
 from .amountedit import BTCAmountEdit, FreezableLineEdit
 
 
-from electrum import submarine_swaps as ss
 import asyncio
 from .util import read_QIcon
 
@@ -26,6 +25,7 @@ class SwapDialog(WindowModalDialog):
     def __init__(self, window):
         WindowModalDialog.__init__(self, window, _('Submarine Swap'))
         self.window = window
+        self.swap_manager = self.window.wallet.lnworker.swap_manager
         self.network = window.network
         self.normal_fee = 0
         self.lockup_fee = 0
@@ -85,7 +85,7 @@ class SwapDialog(WindowModalDialog):
         self.send_amount_e.follows = False
 
     def get_pairs(self):
-        fut = asyncio.run_coroutine_threadsafe(ss.get_pairs(self.network), self.network.asyncio_loop)
+        fut = asyncio.run_coroutine_threadsafe(self.swap_manager.get_pairs(), self.network.asyncio_loop)
         pairs = fut.result()
         print(pairs)
         fees = pairs['pairs']['BTC/BTC']['fees']
@@ -125,9 +125,9 @@ class SwapDialog(WindowModalDialog):
             return
         if self.is_reverse:
             amount_sat = self.send_amount_e.get_amount()
-            coro = ss.reverse_swap(amount_sat, self.window.wallet, self.network)
+            coro = self.swap_manager.reverse_swap(amount_sat)
         else:
             amount_sat = self.recv_amount_e.get_amount()
             password = self.window.protect(lambda x: x, [])
-            coro = ss.normal_swap(amount_sat, self.window.wallet, self.network, password)
+            coro = self.swap_manager.normal_swap(amount_sat, password)
         asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)

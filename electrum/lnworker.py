@@ -70,6 +70,7 @@ from .crypto import pw_encode_bytes, pw_decode_bytes, PW_HASH_VERSION_LATEST
 from .lnutil import ChannelBackupStorage
 from .lnchannel import ChannelBackup
 from .channel_db import UpdateStatus
+from .submarine_swaps import SwapManager
 
 if TYPE_CHECKING:
     from .network import Network
@@ -556,6 +557,7 @@ class LNWallet(LNWorker):
         self.lnwatcher = LNWalletWatcher(self, network)
         self.lnwatcher.start_network(network)
         self.network = network
+        self.swap_manager = SwapManager(self.wallet, network)
 
         for chan in self.channels.values():
             self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
