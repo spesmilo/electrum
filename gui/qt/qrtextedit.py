@@ -1,21 +1,36 @@
+import sys
 
 from electroncash.i18n import _
 from electroncash.plugins import run_hook
 from electroncash import util
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
-from PyQt5.QtWidgets import QFileDialog
+from PyQt5.QtWidgets import QFileDialog, QAbstractButton, QWidget
 
 from .util import ButtonsTextEdit, MessageBoxMixin, ColorScheme
 
-
-class ShowQRTextEdit(ButtonsTextEdit):
-
+class _QrCodeTextEdit(ButtonsTextEdit):
     def __init__(self, text=None):
         ButtonsTextEdit.__init__(self, text)
+        self.qr_button = None
+
+    def get_qr_icon(self):
+        return ":icons/qrcode_white.svg" if ColorScheme.dark_scheme else ":icons/qrcode.svg"
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        if sys.platform in ('darwin',) and isinstance(self.qr_button, QAbstractButton):
+            # on Darwin it's entirely possible that the color scheme changes
+            # from underneath our feet, so force a re-set of the icon on show.
+            self.qr_button.setIcon(QIcon(self.get_qr_icon()))
+
+
+class ShowQRTextEdit(_QrCodeTextEdit):
+
+    def __init__(self, text=None):
+        _QrCodeTextEdit.__init__(self, text)
         self.setReadOnly(1)
-        icon = ":icons/qrcode_white.svg" if ColorScheme.dark_scheme else ":icons/qrcode.svg"
-        self.addButton(icon, self.qr_show, _("Show as QR code"))
+        self.qr_button = self.addButton(self.get_qr_icon(), self.qr_show, _("Show as QR code"))
 
         run_hook('show_text_edit', self)
 
@@ -34,14 +49,13 @@ class ShowQRTextEdit(ButtonsTextEdit):
         m.exec_(e.globalPos())
 
 
-class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
+class ScanQRTextEdit(_QrCodeTextEdit, MessageBoxMixin):
 
     def __init__(self, text="", allow_multi=False):
-        ButtonsTextEdit.__init__(self, text)
+        _QrCodeTextEdit.__init__(self, text)
         self.allow_multi = allow_multi
         self.setReadOnly(0)
-        icon = ":icons/qrcode_white.svg" if ColorScheme.dark_scheme else ":icons/qrcode.svg"
-        self.addButton(icon, self.qr_input, _("Read QR code"))
+        self.qr_button = self.addButton(self.get_qr_icon(), self.qr_input, _("Read QR code"))
         self.addButton(":icons/file.png", self.file_input, _("Read text or image file"))
         run_hook('scan_text_edit', self)
 

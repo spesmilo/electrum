@@ -290,6 +290,11 @@ class ElectrumGui(QObject, PrintError):
             sys.exit(msg)
 
     def is_dark_theme_available(self):
+        if sys.platform in ('darwin',):
+            # On OSX, qdarkstyle is kind of broken. We instead rely on Mojave
+            # dark mode if (built in to the OS) for this facility, which the
+            # user can set outside of this application.
+            return False
         try:
             import qdarkstyle
         except:
@@ -297,7 +302,13 @@ class ElectrumGui(QObject, PrintError):
         return True
 
     def set_dark_theme_if_needed(self):
-        use_dark_theme = self.config.get('qt_gui_color_theme', 'default') == 'dark'
+        if sys.platform in ('darwin',):
+            # On OSX, qdarkstyle is kind of broken. We instead rely on Mojave
+            # dark mode if (built in to the OS) for this facility, which the
+            # user can set outside of this application.
+            use_dark_theme = False
+        else:
+            use_dark_theme = self.config.get('qt_gui_color_theme', 'default') == 'dark'
         darkstyle_ver = None
         if use_dark_theme:
             try:

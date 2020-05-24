@@ -816,18 +816,36 @@ class OverlayControlMixin:
     QPushButton:hover { border: 1px solid #3daee9; }
     '''
 
+    STYLE_SHEET_MAC = '''
+    QPushButton { border-width: 1px; padding: 0px; margin: 2px; }
+    QPushButton { border: 1px solid transparent; }
+    QPushButton:hover { border: 1px solid #3daee9; }
+    '''
+
     def __init__(self, middle: bool = False):
         assert isinstance(self, QWidget)
         self.middle = middle
         self.overlay_widget = QWidget(self)
-        style_sheet = self.STYLE_SHEET_COMMON
-        if not ColorScheme.dark_scheme:
-            style_sheet = style_sheet + self.STYLE_SHEET_LIGHT
-        self.overlay_widget.setStyleSheet(style_sheet)
+        self._updateSverlayStyleSheet()
         self.overlay_layout = QHBoxLayout(self.overlay_widget)
         self.overlay_layout.setContentsMargins(0, 0, 0, 0)
         self.overlay_layout.setSpacing(1)
         self._updateOverlayPos()
+
+    def _updateSverlayStyleSheet(self):
+        if sys.platform in ('darwin',):
+            # On Mac, in Mojave dark mode, we get some strange button spacing
+            # if we use the regular common sheet, so we must use a custom sheet.
+            style_sheet = self.STYLE_SHEET_MAC
+        else:
+            style_sheet = self.STYLE_SHEET_COMMON
+            if not ColorScheme.dark_scheme:
+                style_sheet = style_sheet + self.STYLE_SHEET_LIGHT
+        self.overlay_widget.setStyleSheet(style_sheet)
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        self._updateSverlayStyleSheet()
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
@@ -989,31 +1007,52 @@ class ColorSchemeItem:
         return self._get_color(background)
 
 
-class ColorScheme:
-    dark_scheme = False
+class _ColorScheme:
+    def __init__(self):
+        self._dark_scheme = False
 
-    GREEN = ColorSchemeItem("#117c11", "#8af296")
-    SLPGREEN = ColorSchemeItem("#25863f", "#8af296") # darker alternative: ColorSchemeItem("#25863f", "#60bc70")
-    YELLOW = ColorSchemeItem("#897b2a", "#ffff00")
-    PINK = ColorSchemeItem("#9c4444", "#ffbaba")
-    RED = ColorSchemeItem("#7c1111", "#f18c8c")
-    BLUE = ColorSchemeItem("#123b7c", "#8cb3f2")
-    DEFAULT = ColorSchemeItem("black", "white")
-    if sys.platform.startswith("win"):
-        GRAY = ColorSchemeItem("#6a6864", "#a0a0a4")  # darkGray, gray
-    else:
-        GRAY = ColorSchemeItem("#777777", "#a0a0a4")  # darkGray, gray
+        from .utils import darkdetect
+        self._dark_detector = darkdetect.isDark
 
-    @staticmethod
-    def has_dark_background(widget):
+        self.DEEPGREEN = ColorSchemeItem("#335c33", "#7ac276")
+        self.GREEN = ColorSchemeItem("#117c11", "#8af296")
+        self.SLPGREEN = ColorSchemeItem("#25863f", "#8af296") # darker alternative: ColorSchemeItem("#25863f", "#60bc70")
+        self.YELLOW = ColorSchemeItem("#897b2a", "#ffff00")
+        self.PINK = ColorSchemeItem("#9c4444", "#ffbaba")
+        self.RED = ColorSchemeItem("#7c1111", "#f18c8c")
+        self.BLUE = ColorSchemeItem("#123b7c", "#8cb3f2")
+        self.DEFAULT = ColorSchemeItem("black", "white")
+        if sys.platform.startswith("win"):
+            self.GRAY = ColorSchemeItem("#6a6864", "#a0a0a4")  # darkGray, gray
+        else:
+            self.GRAY = ColorSchemeItem("#777777", "#a0a0a4")  # darkGray, gray
+
+    def has_dark_background(self, widget):
         brightness = sum(widget.palette().color(QPalette.Background).getRgb()[0:3])
         return brightness < (255*3/2)
 
-    @staticmethod
-    def update_from_widget(widget, *, force_dark=False):
-        if force_dark or ColorScheme.has_dark_background(widget):
-            ColorScheme.dark_scheme = True
+    def update_from_widget(self, widget, *, force_dark=False):
+        self.dark_scheme = bool(force_dark or self.has_dark_background(widget))
 
+    @property
+    def dark_scheme(self):
+        '''Getter. We rely on the _dark_detector function. If it returns None
+        we know the _dark_detector is invalid so we just use the cached
+        setting.'''
+        detected = self._dark_detector()
+        if detected is not None:
+            return detected
+        else:
+            return self._dark_scheme
+
+    @dark_scheme.setter
+    def dark_scheme(self, b):
+        '''Note that the setter may not actually take effect if using the
+        system-specific dark detector (MacOS Mojave+ only).'''
+        self._dark_scheme = b
+
+
+ColorScheme = _ColorScheme()
 
 class SortableTreeWidgetItem(QTreeWidgetItem):
     DataRole = Qt.UserRole + 1

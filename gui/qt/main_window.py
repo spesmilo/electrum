@@ -753,12 +753,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def show_about(self):
         QMessageBox.about(self, "Electron Cash",
             "<p><font size=+3><b>Electron Cash</b></font></p><p>" + _("Version") + f" {self.wallet.electrum_version}" + "</p>" +
-            '<p><span style="font-size:11pt; font-weight:500;">' +
+            '<span style="font-size:11pt; font-weight:500;"><p>' +
             _("Copyright © {year_start}-{year_end} Electron Cash LLC and the Electron Cash developers.").format(year_start=2017, year_end=2020) +
-            "</span></p>" +
-            '<p><span style="font-weight:200;">' +
+            "</p><p>" + _("darkdetect for macOS © 2019 Alberto Sottile") + "</p>"
+            "</span>" +
+            '<span style="font-weight:200;"><p>' +
             _("Electron Cash's focus is speed, with low resource usage and simplifying Bitcoin Cash. You do not need to perform regular backups, because your wallet can be recovered from a secret phrase that you can memorize or write on paper. Startup times are instant because it operates in conjunction with high-performance servers that handle the most complicated parts of the Bitcoin Cash system.") +
-            "</span></p>"
+            "</p></span>"
         )
 
     def show_report_bug(self):
@@ -4451,15 +4452,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         index = colortheme_combo.findData(theme_name)
         if index < 0: index = 0
         colortheme_combo.setCurrentIndex(index)
-        msg = ( _("Dark theme support requires the package 'QDarkStyle' (typically installed via the 'pip3' command on Unix & macOS).")
-               if not dark_theme_available
-               else '' )
+        if sys.platform in ('darwin',) and not dark_theme_available:
+            msg = _("Color theme support is provided by macOS if using Mojave or above."
+                    " Use the System Preferences to switch color themes.")
+            err_msg = msg
+        else:
+            msg = ( _("Dark theme support requires the package 'QDarkStyle' (typically installed via the 'pip3' command on Unix & macOS).")
+                   if not dark_theme_available
+                   else '' )
+            err_msg = _("Dark theme is not available. Please install QDarkStyle to access this feature.")
         lbltxt = _('Color theme') + ':'
         colortheme_label = HelpLabel(lbltxt, msg) if msg else QLabel(lbltxt)
         def on_colortheme(x):
             item_data = colortheme_combo.itemData(x)
             if not dark_theme_available and item_data == 'dark':
-                self.show_error(_("Dark theme is not available. Please install QDarkStyle to access this feature."))
+                self.show_error(err_msg)
                 colortheme_combo.setCurrentIndex(0)
                 return
             self.config.set_key('qt_gui_color_theme', item_data, True)
