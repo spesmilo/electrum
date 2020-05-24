@@ -248,10 +248,12 @@ if ((DARWIN_VER >= 18 && FORCE_MOJAVE_DARK)); then
       || fail "Could not set Info.plist NSRequiresAquaSystemAppearance"
 fi
 
-DoCodeSignMaybe "app bundle" "dist/${PACKAGE}.app" "$APP_SIGN" # must force a codesign again because Info.plist modified above
+# Sign the Tor binary separately
+DoCodeSignMaybe "tor binary" "dist/${PACKAGE}.app/Contents/Resources/electroncash/tor/bin/tor" "$APP_SIGN"
+# Finally, codesign the whole thing
+DoCodeSignMaybe ".app bundle" "dist/${PACKAGE}.app" "$APP_SIGN"
 
 info "Creating .DMG"
-
 dmgbuild -D PACKAGE=$PACKAGE -s contrib/osx/dmgbuild.spec "" "dist/${PACKAGE}-${VERSION}-macosx${OSX_COMPAT}.dmg" || fail "Could not create .DMG"
 
 DoCodeSignMaybe ".DMG" "dist/${PACKAGE}-${VERSION}-macosx${OSX_COMPAT}.dmg" "$APP_SIGN" # If APP_SIGN is empty will be a noop
