@@ -54,7 +54,7 @@ WITNESS_TEMPLATE_REVERSE_SWAP = [
 ]
 
 
-def create_claim_tx(txin, witness_script, preimage, privkey:bytes, address, amount_sat, locktime, is_refund):
+def create_claim_tx(txin, witness_script, preimage, privkey:bytes, address, amount_sat, locktime):
     pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
     if is_segwit_address(txin.address):
         txin.script_type = 'p2wsh'
@@ -65,10 +65,10 @@ def create_claim_tx(txin, witness_script, preimage, privkey:bytes, address, amou
         txin.script_sig = bytes.fromhex(push_script(txin.redeem_script.hex()))
     txin.witness_script = witness_script
     txout = PartialTxOutput(scriptpubkey=bytes.fromhex(address_to_script(address)), value=amount_sat)
-    tx = PartialTransaction.from_io([txin], [txout], version=2, locktime=(locktime if is_refund else None))
+    tx = PartialTransaction.from_io([txin], [txout], version=2, locktime=locktime)
     tx.set_rbf(True)
     sig = bytes.fromhex(tx.sign_txin(0, privkey))
-    witness = [sig, 0, witness_script] if is_refund else [sig, preimage, witness_script]
+    witness = [sig, preimage, witness_script]
     txin.witness = bytes.fromhex(construct_witness(witness))
     return tx
 
@@ -77,14 +77,15 @@ def create_claim_tx(txin, witness_script, preimage, privkey:bytes, address, amou
 class SwapManager(Logger):
 
     @log_exceptions
-    async def _claim_swap(self, lockup_address, redeem_script, preimage, privkey, locktime, is_refund=False):
+    async def _claim_swap(self, lockup_address, redeem_script, preimage, privkey, locktime):
         utxos = self.lnwatcher.get_addr_utxo(lockup_address)
         if not utxos:
             return
-        delta = self.network.get_local_height() - locktime
-        if is_refund and delta < 0:
-            self.logger.info(f'height not reached for refund {lockup_address} {delta}, {locktime}')
-            return
+        if not preimage:
+            delta = self.network.get_local_height() - locktime
+            if delta < 0:
+                self.logger.info(f'height not reached for refund {lockup_address} {delta}, {locktime}')
+                return
         for txin in list(utxos.values()):
             fee = self.lnwatcher.config.estimate_fee(136, allow_fallback_to_static_rates=True)
             amount_sat = txin._trusted_value_sats - fee
@@ -92,7 +93,7 @@ class SwapManager(Logger):
                 self.logger.info('utxo value below dust threshold')
                 continue
             address = self.wallet.get_unused_address()
-            tx = create_claim_tx(txin, redeem_script, preimage, privkey, address, amount_sat, locktime, is_refund)
+            tx = create_claim_tx(txin, redeem_script, preimage, privkey, address, amount_sat, locktime)
             await self.network.broadcast_transaction(tx)
 
     def __init__(self, wallet: 'Abstract_Wallet', network:'Network'):
@@ -105,18 +106,17 @@ class SwapManager(Logger):
         for key, data in swaps.items():
             redeem_script = bytes.fromhex(data['redeemScript'])
             locktime = data['timeoutBlockHeight']
-            preimage = bytes.fromhex(data['preimage'])
             privkey = bytes.fromhex(data['privkey'])
             if data.get('invoice'):
                 lockup_address = data['lockupAddress']
-                is_refund = False
+                preimage = bytes.fromhex(data['preimage'])
             else:
                 lockup_address = data['address']
-                is_refund = True
-            self.add_lnwatcher_callback(lockup_address, redeem_script, preimage, privkey, locktime, is_refund)
+                preimage = 0
+            self.add_lnwatcher_callback(lockup_address, redeem_script, preimage, privkey, locktime)
 
-    def add_lnwatcher_callback(self, lockup_address, redeem_script, preimage, privkey, locktime, is_refund):
-        callback = lambda: self._claim_swap(lockup_address, redeem_script, preimage, privkey, locktime, is_refund=is_refund)
+    def add_lnwatcher_callback(self, lockup_address, redeem_script, preimage, privkey, locktime):
+        callback = lambda: self._claim_swap(lockup_address, redeem_script, preimage, privkey, locktime)
         self.lnwatcher.add_callback(lockup_address, callback)
 
     @log_exceptions
@@ -163,7 +163,7 @@ class SwapManager(Logger):
         data['preimage'] = preimage.hex()
         swaps = self.wallet.db.get_dict('submarine_swaps')
         swaps[response_id] = data
-        self.add_lnwatcher_callback(lockup_address, redeem_script, preimage, privkey, locktime, is_refund=True)
+        self.add_lnwatcher_callback(lockup_address, redeem_script, 0, privkey, locktime)
         outputs = [PartialTxOutput.from_address_and_value(lockup_address, onchain_amount)]
         tx = self.wallet.create_transaction(outputs=outputs, rbf=False, password=password)
         await self.network.broadcast_transaction(tx)
@@ -220,7 +220,7 @@ class SwapManager(Logger):
         swaps = self.wallet.db.get_dict('submarine_swaps')
         swaps[response_id] = data
         # add callback to lnwatcher
-        self.add_lnwatcher_callback(lockup_address, redeem_script, preimage, privkey, locktime, is_refund=False)
+        self.add_lnwatcher_callback(lockup_address, redeem_script, preimage, privkey, locktime)
         # initiate payment.
         success, log = await self.lnworker._pay(invoice, attempts=5)
         # discard data; this should be done by lnwatcher
