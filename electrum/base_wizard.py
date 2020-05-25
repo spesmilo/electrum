@@ -198,6 +198,19 @@ class BaseWizard(Logger):
 
     def save_staking_address(self, address):
         self.data['staking_address'] = address
+        self.run('choose_voting_address')
+
+    def choose_voting_address(self):
+        title = _('Specify the voting address')
+        message = '\n'.join([
+            _('The voting address is the address which will hold the voting rights. This is obtained creating a voting wallet.'),
+            _('Please type it here.'),
+            _('You can also leave it empty if you want to keep the voting rights in the staking address.'),
+        ])
+        self.line_dialog(run_next=self.save_voting_address, title=title, message=message, default='', test=lambda x: bitcoin.is_address(x) and b58_address_to_hash160(x)[0] == constants.net.ADDRTYPE_P2PKH)
+
+    def save_voting_address(self, address):
+        self.data['voting_address'] = address
         self.run('choose_keystore')
 
     def choose_keystore(self):

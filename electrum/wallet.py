@@ -54,7 +54,8 @@ from .simple_config import SimpleConfig
 from .bitcoin import (COIN, is_address, address_to_script,
                       is_minikey, relayfee, dust_threshold,
                       hash160_to_p2cs, b58_address_to_hash160,
-                      public_key_to_p2cs)
+                      public_key_to_p2cs, hash160_to_p2cs2,
+                      public_key_to_p2cs2 )
 from .crypto import sha256d, hash_160
 from . import keystore
 from .keystore import load_keystore, Hardware_KeyStore, KeyStore
@@ -421,7 +422,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def get_redeem_script(self, address: str) -> Optional[str]:
         txin_type = self.get_txin_type(address)
-        if txin_type in ('p2pkh', 'p2wpkh', 'p2pk', 'p2cs'):
+        if txin_type in ('p2pkh', 'p2wpkh', 'p2pk', 'p2cs', 'p2cs2'):
             return None
         if txin_type == 'p2wpkh-p2sh':
             pubkey = self.get_public_key(address)
@@ -2171,14 +2172,25 @@ class Cold_Staking_Wallet(Simple_Deterministic_Wallet):
         self.wallet_type = storage.get('wallet_type')
         _, pkh = b58_address_to_hash160(storage.get('staking_address'))
         self.staking_pkh = pkh
+        if storage.get('voting_address') != "":
+            _, pkh = b58_address_to_hash160(storage.get('voting_address'))
+            self.voting_pkh = pkh
+        else:
+            self.voting_pkg = None
         Deterministic_Wallet.__init__(self, storage, config=config)
 
     def pubkeys_to_address(self, pubkey):
-        return hash160_to_p2cs(self.staking_pkh, hash_160(bfh(pubkey)), net=constants.net)
+        if self.voting_pkh == None:
+            return hash160_to_p2cs(self.staking_pkh, hash_160(bfh(pubkey)), net=constants.net)
+        else:
+            return hash160_to_p2cs2(self.staking_pkh, hash_160(bfh(pubkey)), self.voting_pkh, net=constants.net)
 
     def load_keystore(self):
         self.keystore = load_keystore(self.storage, 'keystore')
-        self.txin_type = 'p2cs'
+        if self.storage.get('voting_address') == "":
+            self.txin_type = 'p2cs'
+        else:
+            self.txin_type = 'p2cs2'
 
     def _add_input_sig_info(self, txin, address, *, only_der_suffix=True):
         if not self.is_mine(address):
@@ -2191,6 +2203,9 @@ class Cold_Staking_Wallet(Simple_Deterministic_Wallet):
                                                                                    only_der_suffix=only_der_suffix)
             txin.bip32_paths[bfh(pubkey_hex)] = (fp_bytes, der_full)
         if txin.script_type in ('p2cs'):
+            txin.pubkeys.insert(0, self.staking_pkh)
+        if txin.script_type in ('p2cs2'):
+            txin.pubkeys.insert(0, self.voting_pkh)
             txin.pubkeys.insert(0, self.staking_pkh)
 
 

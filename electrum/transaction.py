@@ -45,7 +45,7 @@ from .bip32 import BIP32Node
 from .util import profiler, to_bytes, bh2u, bfh, chunks, is_hex_str
 from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160, hash160_to_p2cs,
                       hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr,
-                      var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN,
+                      var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN, hash160_to_p2cs2,
                       int_to_hex, push_script, b58_address_to_hash160, public_key_to_p2pkh,
                       opcodes, add_number_to_script, base_decode, is_segwit_script_type)
 from .crypto import sha256d, hash_160
@@ -415,6 +415,11 @@ def get_address_from_output_script(_bytes: bytes, *, net=None) -> Optional[str]:
     if match_decoded(decoded, match):
         return hash160_to_p2cs(decoded[4][1], decoded[10][1], net=net)
 
+    # p2cs2
+    match = [OPPushDataGeneric(lambda x: x == 20), opcodes.OP_DROP, opcodes.OP_COINSTAKE, opcodes.OP_IF, opcodes.OP_DUP, opcodes.OP_HASH160, OPPushDataGeneric(lambda x: x == 20), opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG, opcodes.OP_ELSE, opcodes.OP_DUP, opcodes.OP_HASH160, OPPushDataGeneric(lambda x: x == 20), opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG, opcodes.OP_ENDIF]
+    if match_decoded(decoded, match):
+        return hash160_to_p2cs2(decoded[6][1], decoded[12][1], decoded[0][1], net=net)
+
     # p2sh
     match = [opcodes.OP_HASH160, OPPushDataGeneric(lambda x: x == 20), opcodes.OP_EQUAL]
     if match_decoded(decoded, match):
@@ -644,6 +649,8 @@ class Transaction:
             return 'p2pkh'
         elif addrtype == constants.net.ADDRTYPE_P2CS:
             return 'p2cs'
+        elif addrtype == constants.net.ADDRTYPE_P2CS2:
+            return 'p2cs2'
         elif addrtype == constants.net.ADDRTYPE_P2SH:
             return 'p2wpkh-p2sh'
         raise Exception(f'unrecognized address: {repr(addr)}')
@@ -680,6 +687,9 @@ class Transaction:
         elif _type == 'p2cs':
             script += push_script(pubkeys[1])
             return script
+        elif _type == 'p2cs2':
+            script += push_script(pubkeys[1])
+            return script
         elif _type in ['p2wpkh', 'p2wsh']:
             return ''
         elif _type == 'p2wpkh-p2sh':
@@ -705,11 +715,17 @@ class Transaction:
         pubkeys = [pk.hex() for pk in txin.pubkeys]
         if txin.script_type in ['p2sh', 'p2wsh', 'p2wsh-p2sh']:
             return multisig_script(pubkeys, txin.num_sig)
-        elif txin.script_type in ['p2cs'] and len(pubkeys) >= 2:
+        elif txin.script_type in ['p2cs'] and len(pubkeys) == 2:
             pkh = pubkeys[0]
             pubkey2 = pubkeys[1]
             pkh2 = bh2u(hash_160(bfh(pubkey2)))
             return bitcoin.pubkeyhash_to_p2cs_script(pkh, pkh2)
+        elif txin.script_type in ['p2cs2'] and len(pubkeys) == 3:
+            pkh = pubkeys[0]
+            pubkey2 = pubkeys[1]
+            pkh2 = bh2u(hash_160(bfh(pubkey2)))
+            pkh3 = pubkeys[2]
+            return bitcoin.pubkeyhash_to_p2cs2_script(pkh, pkh2, pkh3)
         elif txin.script_type in ['p2pkh', 'p2wpkh', 'p2wpkh-p2sh', 'p2cs']:
             pubkey = pubkeys[0]
             pkh = bh2u(hash_160(bfh(pubkey)))
@@ -1273,7 +1289,7 @@ class PartialTxInput(TxInput, PSBTSection):
         #       that are related to the wallet.
         #       The 'fix' would be adding extra logic that matches on templates,
         #       and figures out the script_type from available fields.
-        if self.script_type in ('p2pk', 'p2pkh', 'p2wpkh', 'p2wpkh-p2sh', 'p2cs'):
+        if self.script_type in ('p2pk', 'p2pkh', 'p2wpkh', 'p2wpkh-p2sh', 'p2cs', 'p2cs2'):
             return s >= 1
         if self.script_type in ('p2sh', 'p2wsh', 'p2wsh-p2sh'):
             return s >= self.num_sig

@@ -64,6 +64,7 @@ class BitcoinMainnet(AbstractNet):
     ADDRTYPE_P2PKH = 53
     ADDRTYPE_P2SH = 85
     ADDRTYPE_P2CS = 21
+    ADDRTYPE_P2CS2 = 36
     SEGWIT_HRP = "nv"
     GENESIS = "00006a4e3e18c71c6d48ad6c261e2254fa764cf29607a4357c99b712dfbb8e6a"
     DEFAULT_PORTS = {'t': '40001', 's': '40002'}
