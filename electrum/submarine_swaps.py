@@ -129,7 +129,7 @@ class SwapManager(Logger):
     async def normal_swap(self, lightning_amount, expected_onchain_amount, password):
         privkey = os.urandom(32)
         pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
-        key = await self.lnworker._add_request_coro(amount_sat, 'swap', expiry=3600*24)
+        key = await self.lnworker._add_request_coro(lightning_amount, 'swap', expiry=3600*24)
         request = self.wallet.get_request(key)
         invoice = request['invoice']
         lnaddr = self.lnworker._check_invoice(invoice, lightning_amount)
@@ -233,9 +233,6 @@ class SwapManager(Logger):
         self.add_lnwatcher_callback(lockup_address, onchain_amount, redeem_script, preimage, privkey, locktime)
         # initiate payment.
         success, log = await self.lnworker._pay(invoice, attempts=5)
-        # discard data; this should be done by lnwatcher
-        if success:
-            swaps.pop(response_id)
         return {
             'id':response_id,
             'success':success,
