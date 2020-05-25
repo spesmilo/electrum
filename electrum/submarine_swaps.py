@@ -65,7 +65,7 @@ def create_claim_tx(txin, witness_script, preimage, privkey:bytes, address, amou
         txin.script_sig = bytes.fromhex(push_script(txin.redeem_script.hex()))
     txin.witness_script = witness_script
     txout = PartialTxOutput(scriptpubkey=bytes.fromhex(address_to_script(address)), value=amount_sat)
-    tx = PartialTransaction.from_io([txin], [txout], version=2, locktime=locktime)
+    tx = PartialTransaction.from_io([txin], [txout], version=2, locktime=(None if preimage else locktime))
     tx.set_rbf(True)
     sig = bytes.fromhex(tx.sign_txin(0, privkey))
     witness = [sig, preimage, witness_script]
@@ -87,14 +87,16 @@ class SwapManager(Logger):
                 self.logger.info(f'height not reached for refund {lockup_address} {delta}, {locktime}')
                 return
         for txin in list(utxos.values()):
-            fee = self.lnwatcher.config.estimate_fee(136, allow_fallback_to_static_rates=True)
-            amount_sat = txin._trusted_value_sats - fee
+            amount_sat = txin._trusted_value_sats - self.get_tx_fee()
             if amount_sat < dust_threshold():
                 self.logger.info('utxo value below dust threshold')
                 continue
             address = self.wallet.get_unused_address()
             tx = create_claim_tx(txin, redeem_script, preimage, privkey, address, amount_sat, locktime)
             await self.network.broadcast_transaction(tx)
+
+    def get_tx_fee(self):
+        return self.lnwatcher.config.estimate_fee(136, allow_fallback_to_static_rates=True)
 
     def __init__(self, wallet: 'Abstract_Wallet', network:'Network'):
         Logger.__init__(self)
