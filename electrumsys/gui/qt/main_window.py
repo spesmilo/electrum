@@ -3193,6 +3193,7 @@ class ElectrumSysWindow(QMainWindow, MessageBoxMixin, Logger):
             p = plugins.toggle(name)
             cb.setChecked(bool(p))
             enable_settings_widget(p, name, i)
+            # note: all enabled plugins will receive this hook:
             run_hook('init_qt', self.gui_object)
 
         for i, descr in enumerate(plugins.descriptions.values()):
