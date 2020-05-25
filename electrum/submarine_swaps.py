@@ -163,7 +163,7 @@ class SwapManager(Logger):
         assert pubkey == parsed_script[9][1]
         assert locktime == int.from_bytes(parsed_script[6][1], byteorder='little')
         # check that onchain_amount is what was announced
-        assert onchain_amount == expected_onchain_amount
+        assert onchain_amount <= expected_onchain_amount, (onchain_amount, expected_onchain_amount)
         # verify that they are not locking up funds for more than a day
         assert locktime - self.network.get_local_height() < 144
         # save swap data in wallet in case we need a refund
@@ -217,7 +217,7 @@ class SwapManager(Logger):
         assert pubkey == parsed_script[7][1]
         assert locktime == int.from_bytes(parsed_script[10][1], byteorder='little')
         # check that the amount is what we expected
-        assert onchain_amount == expected_amount, (onchain_amount, expected_amount)
+        assert onchain_amount >= expected_amount, (onchain_amount, expected_amount)
         # verify that we will have enought time to get our tx confirmed
         assert locktime - self.network.get_local_height() > 10
         # verify invoice preimage_hash

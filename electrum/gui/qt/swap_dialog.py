@@ -155,12 +155,14 @@ class SwapDialog(WindowModalDialog):
             return
         if send_amount < self.min_amount or send_amount > self.max_amount:
             return
-        x = int(send_amount * (100 - self.percentage) / 100)
+        x = send_amount
         if self.is_reverse:
+            x = int(x * (100 - self.percentage) / 100)
             x -= self.lockup_fee
             x -= self.claim_fee
         else:
             x -= self.normal_fee
+            x = int(x * (100 - self.percentage) / 100)
         if x < 0:
             return
         return x
@@ -172,9 +174,10 @@ class SwapDialog(WindowModalDialog):
         if self.is_reverse:
             x += self.lockup_fee
             x += self.claim_fee
+            x = int(x * 100 / (100 - self.percentage)) + 1
         else:
+            x = int(x * 100 / (100 - self.percentage)) + 1
             x += self.normal_fee
-        x = int(x * 100 / (100 - self.percentage)) + 1
         return x
 
     def run(self):
