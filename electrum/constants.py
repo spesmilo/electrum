@@ -133,6 +133,40 @@ class BitcoinRegtest(BitcoinTestnet):
     LN_DNS_SEEDS = []
 
 
+class BTCVRegtest(AbstractNet):
+    TESTNET = True
+    GENESIS = "01cead69f2b51e214e1c2cd50e3744428cae526db87b2ff8f32489ff801d0f1d"
+    CHECKPOINTS = []
+    SEGWIT_HRP = "rtvault"
+
+    DEFAULT_PORTS = {'t': '51001', 's': '51002'}
+    DEFAULT_SERVERS = read_json('servers_regtest.json', {})
+
+    WIF_PREFIX = 0xef
+    ADDRTYPE_P2PKH = 111
+    ADDRTYPE_P2SH = 196
+
+    XPRV_HEADERS = {
+        'standard':    0x04358394,  # tprv
+        'p2wpkh-p2sh': 0x044a4e28,  # uprv
+        'p2wsh-p2sh':  0x024285b5,  # Uprv
+        'p2wpkh':      0x045f18bc,  # vprv
+        'p2wsh':       0x02575048,  # Vprv
+    }
+    XPRV_HEADERS_INV = inv_dict(XPRV_HEADERS)
+    XPUB_HEADERS = {
+        'standard':    0x043587cf,  # tpub
+        'p2wpkh-p2sh': 0x044a5262,  # upub
+        'p2wsh-p2sh':  0x024289ef,  # Upub
+        'p2wpkh':      0x045f1cf6,  # vpub
+        'p2wsh':       0x02575483,  # Vpub
+    }
+    XPUB_HEADERS_INV = inv_dict(XPUB_HEADERS)
+    BIP44_COIN_TYPE = 1
+    LN_REALM_BYTE = 1
+    LN_DNS_SEEDS = []
+
+
 class BitcoinSimnet(BitcoinTestnet):
 
     WIF_PREFIX = 0x64
@@ -164,3 +198,7 @@ def set_testnet():
 def set_regtest():
     global net
     net = BitcoinRegtest
+
+def set_btcv_regtest():
+    global net
+    net = BTCVRegtest

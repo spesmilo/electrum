@@ -333,6 +333,8 @@ if __name__ == '__main__':
         constants.set_regtest()
     elif config.get('simnet'):
         constants.set_simnet()
+    elif config.get('btcv_regtest'):
+        constants.set_btcv_regtest()
 
     cmdname = config.get('cmd')
 
