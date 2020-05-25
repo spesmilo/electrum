@@ -41,6 +41,7 @@ class SwapDialog(WindowModalDialog):
         self.recv_amount_e = BTCAmountEdit(self.window.get_decimal_point)
         self.send_button = QPushButton('')
         self.recv_button = QPushButton('')
+        self.send_follows = False
         self.is_reverse = True
         self.send_amount_e.follows = False
         self.recv_amount_e.follows = False
@@ -87,8 +88,10 @@ class SwapDialog(WindowModalDialog):
             self.config.set_key('fee_per_kb', fee_rate, False)
         # read claim_fee from config
         self.claim_fee = self.swap_manager.get_tx_fee()
-        self.on_send_edited()
-        #self.on_recv_edited()
+        if self.send_follows:
+            self.on_recv_edited()
+        else:
+            self.on_send_edited()
         self.update()
 
     def toggle_direction(self):
@@ -100,23 +103,28 @@ class SwapDialog(WindowModalDialog):
     def on_send_edited(self):
         if self.send_amount_e.follows:
             return
+        self.send_amount_e.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
         amount = self.send_amount_e.get_amount()
         self.recv_amount_e.follows = True
         self.recv_amount_e.setAmount(self.get_recv_amount(amount))
+        self.recv_amount_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
         self.recv_amount_e.follows = False
+        self.send_follows = False
 
     def on_recv_edited(self):
         if self.recv_amount_e.follows:
             return
+        self.recv_amount_e.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
         amount = self.recv_amount_e.get_amount()
         self.send_amount_e.follows = True
         self.send_amount_e.setAmount(self.get_send_amount(amount))
+        self.send_amount_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
         self.send_amount_e.follows = False
+        self.send_follows = True
 
     def get_pairs(self):
         fut = asyncio.run_coroutine_threadsafe(self.swap_manager.get_pairs(), self.network.asyncio_loop)
         pairs = fut.result()
-        print(pairs)
         fees = pairs['pairs']['BTC/BTC']['fees']
         self.percentage = fees['percentage']
         self.normal_fee = fees['minerFees']['baseAsset']['normal']
@@ -147,7 +155,7 @@ class SwapDialog(WindowModalDialog):
             return
         if send_amount < self.min_amount or send_amount > self.max_amount:
             return
-        x = send_amount * (100 - self.percentage) / 100
+        x = int(send_amount * (100 - self.percentage) / 100)
         if self.is_reverse:
             x -= self.lockup_fee
             x -= self.claim_fee
@@ -160,12 +168,13 @@ class SwapDialog(WindowModalDialog):
     def get_send_amount(self, recv_amount):
         if not recv_amount:
             return
-        x = recv_amount * (100 + self.percentage) / 100
+        x = recv_amount
         if self.is_reverse:
             x += self.lockup_fee
             x += self.claim_fee
         else:
             x += self.normal_fee
+        x = int(x * 100 / (100 - self.percentage)) + 1
         return x
 
     def run(self):
