@@ -77,16 +77,18 @@ def create_claim_tx(txin, witness_script, preimage, privkey:bytes, address, amou
 class SwapManager(Logger):
 
     @log_exceptions
-    async def _claim_swap(self, lockup_address, redeem_script, preimage, privkey, locktime):
+    async def _claim_swap(self, lockup_address, onchain_amount, redeem_script, preimage, privkey, locktime):
         utxos = self.lnwatcher.get_addr_utxo(lockup_address)
         if not utxos:
             return
-        if not preimage:
-            delta = self.network.get_local_height() - locktime
-            if delta < 0:
-                self.logger.info(f'height not reached for refund {lockup_address} {delta}, {locktime}')
-                return
+        delta = self.network.get_local_height() - locktime
+        if not preimage and delta < 0:
+            self.logger.info(f'height not reached for refund {lockup_address} {delta}, {locktime}')
+            return
         for txin in list(utxos.values()):
+            if preimage and txin._trusted_value_sats < onchain_amount:
+                self.logger.info('amount too low, we should not reveal the preimage')
+                continue
             amount_sat = txin._trusted_value_sats - self.get_tx_fee()
             if amount_sat < dust_threshold():
                 self.logger.info('utxo value below dust threshold')
@@ -111,24 +113,26 @@ class SwapManager(Logger):
             privkey = bytes.fromhex(data['privkey'])
             if data.get('invoice'):
                 lockup_address = data['lockupAddress']
+                onchain_amount = data["onchainAmount"]
                 preimage = bytes.fromhex(data['preimage'])
             else:
                 lockup_address = data['address']
+                onchain_amount = data["expectedAmount"]
                 preimage = 0
-            self.add_lnwatcher_callback(lockup_address, redeem_script, preimage, privkey, locktime)
+            self.add_lnwatcher_callback(lockup_address, onchain_amount, redeem_script, preimage, privkey, locktime)
 
-    def add_lnwatcher_callback(self, lockup_address, redeem_script, preimage, privkey, locktime):
-        callback = lambda: self._claim_swap(lockup_address, redeem_script, preimage, privkey, locktime)
+    def add_lnwatcher_callback(self, lockup_address, onchain_amount, redeem_script, preimage, privkey, locktime):
+        callback = lambda: self._claim_swap(lockup_address, onchain_amount, redeem_script, preimage, privkey, locktime)
         self.lnwatcher.add_callback(lockup_address, callback)
 
     @log_exceptions
-    async def normal_swap(self, amount_sat, password):
+    async def normal_swap(self, lightning_amount, expected_onchain_amount, password):
         privkey = os.urandom(32)
         pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
         key = await self.lnworker._add_request_coro(amount_sat, 'swap', expiry=3600*24)
         request = self.wallet.get_request(key)
         invoice = request['invoice']
-        lnaddr = self.lnworker._check_invoice(invoice, amount_sat)
+        lnaddr = self.lnworker._check_invoice(invoice, lightning_amount)
         payment_hash = lnaddr.paymenthash
         preimage = self.lnworker.get_preimage(payment_hash)
         request_data = {
@@ -157,15 +161,17 @@ class SwapManager(Logger):
         assert script_to_p2wsh(redeem_script.hex()) == lockup_address
         assert hash_160(preimage) == parsed_script[1][1]
         assert pubkey == parsed_script[9][1]
-        # verify that they are not locking up funds for more than a day
         assert locktime == int.from_bytes(parsed_script[6][1], byteorder='little')
+        # check that onchain_amount is what was announced
+        assert onchain_amount == expected_onchain_amount
+        # verify that they are not locking up funds for more than a day
         assert locktime - self.network.get_local_height() < 144
         # save swap data in wallet in case we need a refund
         data['privkey'] = privkey.hex()
         data['preimage'] = preimage.hex()
         swaps = self.wallet.db.get_dict('submarine_swaps')
         swaps[response_id] = data
-        self.add_lnwatcher_callback(lockup_address, redeem_script, 0, privkey, locktime)
+        self.add_lnwatcher_callback(lockup_address, onchain_amount, redeem_script, 0, privkey, locktime)
         outputs = [PartialTxOutput.from_address_and_value(lockup_address, onchain_amount)]
         tx = self.wallet.create_transaction(outputs=outputs, rbf=False, password=password)
         await self.network.broadcast_transaction(tx)
@@ -177,7 +183,7 @@ class SwapManager(Logger):
         }
 
     @log_exceptions
-    async def reverse_swap(self, amount_sat):
+    async def reverse_swap(self, amount_sat, expected_amount):
         privkey = os.urandom(32)
         pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
         preimage = os.urandom(32)
@@ -209,8 +215,10 @@ class SwapManager(Logger):
         assert script_to_p2wsh(redeem_script.hex()) == lockup_address
         assert hash_160(preimage) == parsed_script[5][1]
         assert pubkey == parsed_script[7][1]
-        # verify that we will have enought time to get our tx confirmed
         assert locktime == int.from_bytes(parsed_script[10][1], byteorder='little')
+        # check that the amount is what we expected
+        assert onchain_amount == expected_amount, (onchain_amount, expected_amount)
+        # verify that we will have enought time to get our tx confirmed
         assert locktime - self.network.get_local_height() > 10
         # verify invoice preimage_hash
         lnaddr = self.lnworker._check_invoice(invoice, amount_sat)
@@ -222,7 +230,7 @@ class SwapManager(Logger):
         swaps = self.wallet.db.get_dict('submarine_swaps')
         swaps[response_id] = data
         # add callback to lnwatcher
-        self.add_lnwatcher_callback(lockup_address, redeem_script, preimage, privkey, locktime)
+        self.add_lnwatcher_callback(lockup_address, onchain_amount, redeem_script, preimage, privkey, locktime)
         # initiate payment.
         success, log = await self.lnworker._pay(invoice, attempts=5)
         # discard data; this should be done by lnwatcher

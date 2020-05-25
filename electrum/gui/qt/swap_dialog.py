@@ -182,13 +182,15 @@ class SwapDialog(WindowModalDialog):
         if not self.exec_():
             return
         if self.is_reverse:
-            amount_sat = self.send_amount_e.get_amount()
-            coro = self.swap_manager.reverse_swap(amount_sat)
+            lightning_amount = self.send_amount_e.get_amount()
+            onchain_amount = self.recv_amount_e.get_amount() + self.claim_fee
+            coro = self.swap_manager.reverse_swap(lightning_amount, onchain_amount)
             asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
         else:
-            amount_sat = self.recv_amount_e.get_amount()
-            self.window.protect(self.do_normal_swap, (amount_sat,))
+            lightning_amount = self.recv_amount_e.get_amount()
+            onchain_amount = self.send_amount_e.get_amount()
+            self.window.protect(self.do_normal_swap, (lightning_amount, onchain_amount))
 
-    def do_normal_swap(self, amount_sat, password):
-        coro = self.swap_manager.normal_swap(amount_sat, password)
+    def do_normal_swap(self, lightning_amount, onchain_amount, password):
+        coro = self.swap_manager.normal_swap(lightning_amount, onchain_amount, password)
         asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
