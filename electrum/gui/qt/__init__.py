@@ -28,7 +28,7 @@ import signal
 import sys
 import traceback
 import threading
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, List
 
 
 try:
@@ -106,7 +106,7 @@ class ElectrumGui(Logger):
         self.config = config
         self.daemon = daemon
         self.plugins = plugins
-        self.windows = []
+        self.windows = []  # type: List[ElectrumWindow]
         self.efilter = OpenFileEventFilter(self.windows)
         self.app = QElectrumApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
