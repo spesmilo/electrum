@@ -53,7 +53,7 @@ import electrumsys
 from electrumsys import (keystore, ecc, constants, util, bitcoin, commands,
                       paymentrequest)
 from electrumsys.bitcoin import COIN, is_address
-from electrumsys.plugin import run_hook
+from electrumsys.plugin import run_hook, BasePlugin
 from electrumsys.i18n import _
 from electrumsys.util import (format_time, format_satoshis, format_fee_satoshis,
                            format_satoshis_plain,
@@ -3181,13 +3181,17 @@ class ElectrumSysWindow(QMainWindow, MessageBoxMixin, Logger):
 
         settings_widgets = {}
 
-        def enable_settings_widget(p, name, i):
-            widget = settings_widgets.get(name)
-            if not widget and p and p.requires_settings():
+        def enable_settings_widget(p: Optional['BasePlugin'], name: str, i: int):
+            widget = settings_widgets.get(name)  # type: Optional[QWidget]
+            if widget and not p:
+                # plugin got disabled, rm widget
+                grid.removeWidget(widget)
+                widget.setParent(None)
+                settings_widgets.pop(name)
+            elif widget is None and p and p.requires_settings() and p.is_enabled():
+                # plugin got enabled, add widget
                 widget = settings_widgets[name] = p.settings_widget(d)
                 grid.addWidget(widget, i, 1)
-            if widget:
-                widget.setEnabled(bool(p and p.is_enabled()))
 
         def do_toggle(cb, name, i):
             p = plugins.toggle(name)
