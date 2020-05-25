@@ -1212,7 +1212,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 self._reserved_addresses.add(addr)
             else:
                 self._reserved_addresses.discard(addr)
-        self.db.put('reserved_addresses', list(self._reserved_addresses))
+            self.db.put('reserved_addresses', list(self._reserved_addresses))
 
     def can_export(self):
         return not self.is_watching_only() and hasattr(self.keystore, 'get_private_key')
