@@ -184,8 +184,11 @@ class SwapDialog(WindowModalDialog):
         if self.is_reverse:
             amount_sat = self.send_amount_e.get_amount()
             coro = self.swap_manager.reverse_swap(amount_sat)
+            asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
         else:
             amount_sat = self.recv_amount_e.get_amount()
-            password = self.window.protect(lambda x: x, [])
-            coro = self.swap_manager.normal_swap(amount_sat, password)
+            self.window.protect(self.do_normal_swap, (amount_sat,))
+
+    def do_normal_swap(self, amount_sat, password):
+        coro = self.swap_manager.normal_swap(amount_sat, password)
         asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
