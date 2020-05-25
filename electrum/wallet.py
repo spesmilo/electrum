@@ -381,15 +381,22 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             return addr
         return wrapper
 
-    def calc_unused_change_addresses(self):
+    def calc_unused_change_addresses(self) -> Sequence[str]:
+        """Returns a list of change addresses to choose from, for usage in e.g. new transactions.
+        The caller should give priority to earlier ones in the list.
+        """
         with self.lock:
-            if hasattr(self, '_unused_change_addresses'):
-                addrs = self._unused_change_addresses
-            else:
-                addrs = self.get_change_addresses()
-            self._unused_change_addresses = [addr for addr in addrs
-                                             if not self.is_used(addr) and not self.is_address_reserved(addr)]
-            return list(self._unused_change_addresses)
+            # We want a list of unused change addresses.
+            # As a performance optimisation, to avoid checking all addresses every time,
+            # we maintain a list of "not old" addresses ("old" addresses have deeply confirmed history),
+            # and only check those.
+            if not hasattr(self, '_not_old_change_addresses'):
+                self._not_old_change_addresses = self.get_change_addresses()
+            self._not_old_change_addresses = [addr for addr in self._not_old_change_addresses
+                                              if not self.address_is_old(addr)]
+            unused_addrs = [addr for addr in self._not_old_change_addresses
+                            if not self.is_used(addr) and not self.is_address_reserved(addr)]
+            return unused_addrs
 
     def is_deterministic(self) -> bool:
         return self.keystore.is_deterministic()
@@ -2294,8 +2301,8 @@ class Deterministic_Wallet(Abstract_Wallet):
             self.db.add_change_address(address) if for_change else self.db.add_receiving_address(address)
             self.add_address(address)
             if for_change:
-                # note: if it's actually used, it will get filtered later
-                self._unused_change_addresses.append(address)
+                # note: if it's actually "old", it will get filtered later
+                self._not_old_change_addresses.append(address)
             return address
 
     def synchronize_sequence(self, for_change):
