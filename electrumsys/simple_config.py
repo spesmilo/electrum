@@ -13,8 +13,9 @@ from aiorpcx import NetAddress
 
 from . import util
 from . import constants
-from .util import (user_dir, make_dir,
-                   NoDynamicFeeEstimates, format_fee_satoshis, quantize_feerate)
+from .util import base_units, base_unit_name_to_decimal_point
+from .util import format_satoshis, format_fee_satoshis, decimal_point_to_base_unit_name, DECIMAL_POINT_DEFAULT
+from .util import user_dir, make_dir, NoDynamicFeeEstimates, quantize_feerate
 from .i18n import _
 from .logging import get_logger, Logger
 
@@ -90,8 +91,16 @@ class SimpleConfig(Logger):
 
         self._check_dependent_keys()
 
-    def electrumsys_path(self):
-        # Read electrumsys_path from command line
+        # units and formatting
+        self.decimal_point = self.get('decimal_point', DECIMAL_POINT_DEFAULT)
+        try:
+            decimal_point_to_base_unit_name(self.decimal_point)
+        except UnknownBaseUnit:
+            self.decimal_point = DECIMAL_POINT_DEFAULT
+        self.num_zeros = int(self.get('num_zeros', 0))
+
+    def electrum_path(self):
+        # Read electrum_path from command line
         # Otherwise use the user's default data directory.
         path = self.get('electrumsys_path')
         if path is None:
@@ -590,6 +599,26 @@ class SimpleConfig(Logger):
                 return NetAddress(host, port)
             except:
                 pass
+
+    def format_amount(self, x, is_diff=False, whitespaces=False):
+        return format_satoshis(x, self.num_zeros, self.decimal_point, is_diff=is_diff, whitespaces=whitespaces)
+
+    def format_amount_and_units(self, amount):
+        return self.format_amount(amount) + ' '+ self.base_unit()
+
+    def format_fee_rate(self, fee_rate):
+        return format_fee_satoshis(fee_rate/1000, num_zeros=self.num_zeros) + ' sat/byte'
+
+    def get_base_unit(self):
+        return decimal_point_to_base_unit_name(self.decimal_point)
+
+    def set_base_unit(self, unit):
+        assert unit in base_units.keys()
+        self.decimal_point = base_unit_name_to_decimal_point(unit)
+        self.set_key('decimal_point', self.decimal_point, True)
+
+    def get_decimal_point(self):
+        return self.decimal_point
 
 
 def read_user_config(path):

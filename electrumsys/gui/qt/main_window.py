@@ -196,12 +196,6 @@ class ElectrumSysWindow(QMainWindow, MessageBoxMixin, Logger):
 
         self.create_status_bar()
         self.need_update = threading.Event()
-        self.decimal_point = config.get('decimal_point', DECIMAL_POINT_DEFAULT)
-        try:
-            decimal_point_to_base_unit_name(self.decimal_point)
-        except UnknownBaseUnit:
-            self.decimal_point = DECIMAL_POINT_DEFAULT
-        self.num_zeros = int(config.get('num_zeros', 0))
 
         self.completions = QStringListModel()
 
@@ -899,13 +893,13 @@ class ElectrumSysWindow(QMainWindow, MessageBoxMixin, Logger):
         self.payto_e.resolve()
         self.notify_transactions()
 
-    def format_amount(self, x, is_diff=False, whitespaces=False, decimal=None):
-        return format_satoshis(x, self.num_zeros, decimal or self.decimal_point, is_diff=is_diff, whitespaces=whitespaces)
+    def format_amount(self, x, is_diff=False, whitespaces=False):
+        return self.config.format_amount(x, is_diff=is_diff, whitespaces=whitespaces)
 
     def format_amount_and_units(self, amount, asset_amount=None, asset_symbol=None, asset_precision=None):
         text = ''
         if amount is not None and amount != '':
-            text += self.format_amount(amount) + ' '+ self.base_unit()
+            text += self.config.format_amount(amount) + ' '+ self.base_unit()
             x = self.fx.format_amount_and_units(amount) if self.fx else None
             if text and x:
                 text += ' (%s)'%x
@@ -918,14 +912,13 @@ class ElectrumSysWindow(QMainWindow, MessageBoxMixin, Logger):
         return text
 
     def format_fee_rate(self, fee_rate):
-        # fee_rate is in sat/kB
-        return format_fee_satoshis(fee_rate/1000, num_zeros=self.num_zeros) + ' sat/byte'
+        return self.config.format_fee_rate(fee_rate)
 
     def get_decimal_point(self):
-        return self.decimal_point
+        return self.config.get_decimal_point()
 
     def base_unit(self):
-        return decimal_point_to_base_unit_name(self.decimal_point)
+        return self.config.get_base_unit()
 
     def base_asset_unit(self, asset_symbol):
         return asset_symbol
