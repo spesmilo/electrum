@@ -34,7 +34,7 @@ from decimal import Decimal
 
 from PyQt5.QtCore import QSize, Qt
 from PyQt5.QtGui import QTextCharFormat, QBrush, QFont, QPixmap
-from PyQt5.QtWidgets import (QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget,
+from PyQt5.QtWidgets import (QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QGridLayout,
                              QTextEdit, QFrame, QAction, QToolButton, QMenu, QCheckBox)
 import qrcode
 from qrcode import exceptions
@@ -55,7 +55,7 @@ from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX,
                    BlockingWaitingDialog)
 
-from .fee_slider import FeeSlider
+from .fee_slider import FeeSlider, FeeComboBox
 from .confirm_tx_dialog import TxEditor
 from .amountedit import FeerateEdit, BTCAmountEdit
 from .locktimeedit import LockTimeEdit
@@ -711,6 +711,7 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
         self.feerate_e.textChanged.connect(self.entry_changed)
 
         self.fee_slider = FeeSlider(self, self.config, self.fee_slider_callback)
+        self.fee_combo = FeeComboBox(self.fee_slider)
         self.fee_slider.setFixedWidth(self.fee_e.width())
 
         def feerounding_onclick():
@@ -728,21 +729,19 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
         self.feerounding_icon.clicked.connect(feerounding_onclick)
         self.feerounding_icon.setVisible(False)
 
-        self.fee_adv_controls = QWidget()
-        hbox = QHBoxLayout(self.fee_adv_controls)
-        hbox.setContentsMargins(0, 0, 0, 0)
-        hbox.addWidget(self.feerate_e)
-        hbox.addWidget(self.size_e)
-        hbox.addWidget(self.fee_e)
-        hbox.addWidget(self.feerounding_icon, Qt.AlignLeft)
-        hbox.addStretch(1)
-
         self.feecontrol_fields = QWidget()
-        vbox_feecontrol = QVBoxLayout(self.feecontrol_fields)
-        vbox_feecontrol.setContentsMargins(0, 0, 0, 0)
-        vbox_feecontrol.addWidget(QLabel(_("Target fee:")))
-        vbox_feecontrol.addWidget(self.fee_adv_controls)
-        vbox_feecontrol.addWidget(self.fee_slider)
+        hbox = QHBoxLayout(self.feecontrol_fields)
+        hbox.setContentsMargins(0, 0, 0, 0)
+        grid = QGridLayout()
+        grid.addWidget(QLabel(_("Target fee:")), 0, 0)
+        grid.addWidget(self.feerate_e, 0, 1)
+        grid.addWidget(self.size_e, 0, 2)
+        grid.addWidget(self.fee_e, 0, 3)
+        grid.addWidget(self.feerounding_icon, 0, 4)
+        grid.addWidget(self.fee_slider, 1, 1)
+        grid.addWidget(self.fee_combo, 1, 2)
+        hbox.addLayout(grid)
+        hbox.addStretch(1)
 
     def fee_slider_callback(self, dyn, pos, fee_rate):
         super().fee_slider_callback(dyn, pos, fee_rate)
@@ -868,7 +867,7 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
         self.finalized = True
         self.tx.set_rbf(self.rbf_cb.isChecked())
         self.tx.locktime = self.locktime_e.get_locktime()
-        for widget in [self.fee_slider, self.feecontrol_fields, self.rbf_cb,
+        for widget in [self.fee_slider, self.fee_combo, self.feecontrol_fields, self.rbf_cb,
                        self.locktime_setter_widget, self.locktime_e]:
             widget.setEnabled(False)
             widget.setVisible(False)
