@@ -258,16 +258,10 @@ class ElectrumWindow(App):
         self.show_info(_('Payment failed') + '\n\n' + reason)
 
     def _get_bu(self):
-        decimal_point = self.electrum_config.get('decimal_point', DECIMAL_POINT_DEFAULT)
-        try:
-            return decimal_point_to_base_unit_name(decimal_point)
-        except UnknownBaseUnit:
-            return decimal_point_to_base_unit_name(DECIMAL_POINT_DEFAULT)
+        return self.electrum_config.get_base_unit()
 
     def _set_bu(self, value):
-        assert value in base_units.keys()
-        decimal_point = base_unit_name_to_decimal_point(value)
-        self.electrum_config.set_key('decimal_point', decimal_point, True)
+        self.electrum_config.set_base_unit(value)
         self._trigger_update_status()
         self._trigger_update_history()
 
@@ -279,7 +273,7 @@ class ElectrumWindow(App):
         self._trigger_update_history()
 
     def decimal_point(self):
-        return base_units[self.base_unit]
+        return self.electrum_config.get_decimal_point()
 
     def btc_to_fiat(self, amount_str):
         if not amount_str:

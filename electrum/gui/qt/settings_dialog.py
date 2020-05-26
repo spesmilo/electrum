@@ -33,7 +33,7 @@ from PyQt5.QtWidgets import (QComboBox,  QTabWidget,
 
 from electrum.i18n import _
 from electrum import util, coinchooser, paymentrequest
-from electrum.util import base_units_list, base_unit_name_to_decimal_point
+from electrum.util import base_units_list
 
 from .util import (ColorScheme, WindowModalDialog, HelpLabel, Buttons,
                    CloseButton)
@@ -89,14 +89,14 @@ class SettingsDialog(WindowModalDialog):
         nz_label = HelpLabel(_('Zeros after decimal point') + ':', nz_help)
         nz = QSpinBox()
         nz.setMinimum(0)
-        nz.setMaximum(self.window.decimal_point)
-        nz.setValue(self.window.num_zeros)
+        nz.setMaximum(self.config.decimal_point)
+        nz.setValue(self.config.num_zeros)
         if not self.config.is_modifiable('num_zeros'):
             for w in [nz, nz_label]: w.setEnabled(False)
         def on_nz():
             value = nz.value()
-            if self.window.num_zeros != value:
-                self.window.num_zeros = value
+            if self.config.num_zeros != value:
+                self.config.num_zeros = value
                 self.config.set_key('num_zeros', value, True)
                 self.window.history_list.update()
                 self.window.address_list.update()
@@ -209,9 +209,8 @@ you close all your wallet windows. Use this to keep your local watchtower runnin
                 return
             edits = self.window.amount_e, self.window.receive_amount_e
             amounts = [edit.get_amount() for edit in edits]
-            self.window.decimal_point = base_unit_name_to_decimal_point(unit_result)
-            self.config.set_key('decimal_point', self.window.decimal_point, True)
-            nz.setMaximum(self.window.decimal_point)
+            self.config.set_base_unit(unit_result)
+            nz.setMaximum(self.config.decimal_point)
             self.window.history_list.update()
             self.window.request_list.update()
             self.window.address_list.update()
