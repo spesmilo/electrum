@@ -66,7 +66,7 @@ def create_claim_tx(txin, witness_script, preimage, privkey:bytes, address, amou
     txin.witness_script = witness_script
     txout = PartialTxOutput(scriptpubkey=bytes.fromhex(address_to_script(address)), value=amount_sat)
     tx = PartialTransaction.from_io([txin], [txout], version=2, locktime=(None if preimage else locktime))
-    tx.set_rbf(True)
+    #tx.set_rbf(True)
     sig = bytes.fromhex(tx.sign_txin(0, privkey))
     witness = [sig, preimage, witness_script]
     txin.witness = bytes.fromhex(construct_witness(witness))
