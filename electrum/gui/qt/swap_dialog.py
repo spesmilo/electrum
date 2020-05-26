@@ -122,9 +122,7 @@ class SwapDialog(WindowModalDialog):
         self.send_amount_e.follows = False
         self.send_follows = True
 
-    def get_pairs(self):
-        fut = asyncio.run_coroutine_threadsafe(self.swap_manager.get_pairs(), self.network.asyncio_loop)
-        pairs = fut.result()
+    def on_pairs(self, pairs):
         fees = pairs['pairs']['BTC/BTC']['fees']
         self.percentage = fees['percentage']
         self.normal_fee = fees['minerFees']['baseAsset']['normal']
@@ -181,14 +179,14 @@ class SwapDialog(WindowModalDialog):
         return x
 
     def run(self):
-        self.get_pairs()
+        self.window.run_coroutine_from_thread(self.swap_manager.get_pairs(), self.on_pairs)
         if not self.exec_():
             return
         if self.is_reverse:
             lightning_amount = self.send_amount_e.get_amount()
             onchain_amount = self.recv_amount_e.get_amount() + self.claim_fee
             coro = self.swap_manager.reverse_swap(lightning_amount, onchain_amount)
-            asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+            self.window.run_coroutine_from_thread(coro)
         else:
             lightning_amount = self.recv_amount_e.get_amount()
             onchain_amount = self.send_amount_e.get_amount()
@@ -196,4 +194,4 @@ class SwapDialog(WindowModalDialog):
 
     def do_normal_swap(self, lightning_amount, onchain_amount, password):
         coro = self.swap_manager.normal_swap(lightning_amount, onchain_amount, password)
-        asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+        self.window.run_coroutine_from_thread(coro)

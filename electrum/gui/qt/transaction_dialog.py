@@ -414,6 +414,11 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
                 tx_mined_status = self.wallet.lnworker.lnwatcher.get_tx_height(txid)
         else:
             ln_amount = None
+        swap_history = self.wallet.lnworker.get_swap_history() if self.wallet.lnworker else {}
+        if txid in swap_history:
+            item = swap_history[txid]
+            ln_amount = item['lightning_amount']
+
         self.broadcast_button.setEnabled(tx_details.can_broadcast)
         can_sign = not self.tx.is_complete() and \
             (self.wallet.can_sign(self.tx) or bool(self.external_keypairs))

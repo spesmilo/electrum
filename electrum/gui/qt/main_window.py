@@ -299,6 +299,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         Exception_Hook.maybe_setup(config=self.config,
                                    wallet=self.wallet)
 
+    def run_coroutine_from_thread(self, coro, on_result=None):
+        def task():
+            try:
+                f = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+                r = f.result()
+                if on_result:
+                    on_result(r)
+            except Exception as e:
+                self.show_error(str(e))
+        self.wallet.thread.add(task)
+
     def on_fx_history(self):
         self.history_model.refresh('fx_history')
         self.address_list.update()

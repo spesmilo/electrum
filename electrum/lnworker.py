@@ -626,7 +626,35 @@ class LNWallet(LNWorker):
                 'payment_hash': key,
                 'preimage': preimage,
             }
+            # add txid to merge item with onchain item
+            swap_info = self.swap_manager.get_swap(preimage)
+            if swap_info:
+                is_reverse = swap_info.get('invoice')
+                if is_reverse:
+                    item['txid'] = swap_info.get('claim_txid')
+                    lightning_amount = swap_info.get('lightning_amount')
+                    item['label'] = 'Reverse swap' + ' ' + self.config.format_amount_and_units(lightning_amount)
+                else:
+                    item['txid'] = swap_info.get('funding_txid')
+                    onchain_amount = swap_info["expectedAmount"]
+                    item['label'] = 'Normal swap' + ' ' + self.config.format_amount_and_units(onchain_amount)
+            # done
             out[payment_hash] = item
+        return out
+
+    def get_swap_history(self):
+        out = {}
+        for k, swap_info in self.swap_manager.swaps.items():
+            is_reverse = swap_info.get('invoice')
+            if is_reverse:
+                txid = swap_info.get('claim_txid')
+            else:
+                txid = swap_info.get('funding_txid')
+            if txid is None:
+                continue
+            out[txid] = {
+                'lightning_amount': swap_info.get('lightning_amount', 0) * (-1 if is_reverse else 1)
+            }
         return out
 
     def get_onchain_history(self):

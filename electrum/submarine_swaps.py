@@ -96,6 +96,9 @@ class SwapManager(Logger):
             address = self.wallet.get_unused_address()
             tx = create_claim_tx(txin, redeem_script, preimage, privkey, address, amount_sat, locktime)
             await self.network.broadcast_transaction(tx)
+            # save txid
+            what = 'claim_txid' if preimage else 'refund_txid'
+            self.swaps[preimage.hex()][what] = tx.txid()
 
     def get_tx_fee(self):
         return self.lnwatcher.config.estimate_fee(136, allow_fallback_to_static_rates=True)
@@ -106,8 +109,8 @@ class SwapManager(Logger):
         self.wallet = wallet
         self.lnworker = wallet.lnworker
         self.lnwatcher = self.wallet.lnworker.lnwatcher
-        swaps = self.wallet.db.get_dict('submarine_swaps')
-        for key, data in swaps.items():
+        self.swaps = self.wallet.db.get_dict('submarine_swaps')
+        for data in self.swaps.values():
             redeem_script = bytes.fromhex(data['redeemScript'])
             locktime = data['timeoutBlockHeight']
             privkey = bytes.fromhex(data['privkey'])
@@ -120,6 +123,9 @@ class SwapManager(Logger):
                 onchain_amount = data["expectedAmount"]
                 preimage = 0
             self.add_lnwatcher_callback(lockup_address, onchain_amount, redeem_script, preimage, privkey, locktime)
+
+    def get_swap(self, preimage_hex):
+        return self.swaps.get(preimage_hex)
 
     def add_lnwatcher_callback(self, lockup_address, onchain_amount, redeem_script, preimage, privkey, locktime):
         callback = lambda: self._claim_swap(lockup_address, onchain_amount, redeem_script, preimage, privkey, locktime)
@@ -166,14 +172,16 @@ class SwapManager(Logger):
         assert onchain_amount <= expected_onchain_amount, (onchain_amount, expected_onchain_amount)
         # verify that they are not locking up funds for more than a day
         assert locktime - self.network.get_local_height() < 144
+        # create funding tx
+        outputs = [PartialTxOutput.from_address_and_value(lockup_address, onchain_amount)]
+        tx = self.wallet.create_transaction(outputs=outputs, rbf=False, password=password)
         # save swap data in wallet in case we need a refund
         data['privkey'] = privkey.hex()
         data['preimage'] = preimage.hex()
-        swaps = self.wallet.db.get_dict('submarine_swaps')
-        swaps[response_id] = data
+        data['lightning_amount'] = lightning_amount
+        data['funding_txid'] = tx.txid()
+        self.swaps[preimage.hex()] = data
         self.add_lnwatcher_callback(lockup_address, onchain_amount, redeem_script, 0, privkey, locktime)
-        outputs = [PartialTxOutput.from_address_and_value(lockup_address, onchain_amount)]
-        tx = self.wallet.create_transaction(outputs=outputs, rbf=False, password=password)
         await self.network.broadcast_transaction(tx)
         #
         attempt = await self.lnworker.await_payment(payment_hash)
@@ -226,9 +234,9 @@ class SwapManager(Logger):
         # save swap data in wallet in case payment fails
         data['privkey'] = privkey.hex()
         data['preimage'] = preimage.hex()
+        data['lightning_amount'] = amount_sat
         # save data to wallet file
-        swaps = self.wallet.db.get_dict('submarine_swaps')
-        swaps[response_id] = data
+        self.swaps[preimage.hex()] = data
         # add callback to lnwatcher
         self.add_lnwatcher_callback(lockup_address, onchain_amount, redeem_script, preimage, privkey, locktime)
         # initiate payment.
