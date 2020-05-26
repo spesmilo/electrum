@@ -13,8 +13,8 @@ from aiorpcx import NetAddress
 
 from . import util
 from . import constants
-from .util import base_units, base_unit_name_to_decimal_point
-from .util import format_satoshis, format_fee_satoshis, decimal_point_to_base_unit_name, DECIMAL_POINT_DEFAULT
+from .util import base_units, base_unit_name_to_decimal_point, decimal_point_to_base_unit_name, UnknownBaseUnit, DECIMAL_POINT_DEFAULT
+from .util import format_satoshis, format_fee_satoshis
 from .util import user_dir, make_dir, NoDynamicFeeEstimates, quantize_feerate
 from .i18n import _
 from .logging import get_logger, Logger

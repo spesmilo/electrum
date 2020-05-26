@@ -74,9 +74,7 @@ Label.register('Roboto',
                'electrum/gui/kivy/data/fonts/Roboto-Bold.ttf')
 
 
-from electrum.util import (base_units, NoDynamicFeeEstimates, decimal_point_to_base_unit_name,
-                           base_unit_name_to_decimal_point, NotEnoughFunds, UnknownBaseUnit,
-                           DECIMAL_POINT_DEFAULT)
+from electrum.util import (NoDynamicFeeEstimates, NotEnoughFunds)
 
 from .uix.dialogs.lightning_open_channel import LightningOpenChannelDialog
 from .uix.dialogs.lightning_channels import LightningChannelsDialog
