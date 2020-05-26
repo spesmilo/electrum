@@ -146,8 +146,21 @@ class LockTimeHeightEdit(LockTimeRawEdit):
         painter.drawText(textRect, Qt.AlignRight | Qt.AlignVCenter, "height")
 
 
+def get_max_allowed_timestamp() -> int:
+    ts = NLOCKTIME_MAX
+    # Test if this value is within the valid timestamp limits (which is platform-dependent).
+    # see #6170
+    try:
+        datetime.fromtimestamp(ts)
+    except (OSError, OverflowError):
+        ts = 2 ** 31 - 1  # INT32_MAX
+        datetime.fromtimestamp(ts)  # test if raises
+    return ts
+
+
 class LockTimeDateEdit(QDateTimeEdit, _LockTimeEditor):
     min_allowed_value = NLOCKTIME_BLOCKHEIGHT_MAX + 1
+    max_allowed_value = get_max_allowed_timestamp()
 
     def __init__(self, parent=None):
         QDateTimeEdit.__init__(self, parent)

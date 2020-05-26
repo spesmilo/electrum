@@ -33,7 +33,7 @@ from PyQt5.QtWidgets import (QComboBox,  QTabWidget,
 
 from electrum_ltc.i18n import _
 from electrum_ltc import util, coinchooser, paymentrequest
-from electrum_ltc.util import base_units_list, base_unit_name_to_decimal_point
+from electrum_ltc.util import base_units_list
 
 from .util import (ColorScheme, WindowModalDialog, HelpLabel, Buttons,
                    CloseButton)
@@ -59,7 +59,6 @@ class SettingsDialog(WindowModalDialog):
         vbox = QVBoxLayout()
         tabs = QTabWidget()
         gui_widgets = []
-        fee_widgets = []
         tx_widgets = []
         oa_widgets = []
 
@@ -89,34 +88,19 @@ class SettingsDialog(WindowModalDialog):
         nz_label = HelpLabel(_('Zeros after decimal point') + ':', nz_help)
         nz = QSpinBox()
         nz.setMinimum(0)
-        nz.setMaximum(self.window.decimal_point)
-        nz.setValue(self.window.num_zeros)
+        nz.setMaximum(self.config.decimal_point)
+        nz.setValue(self.config.num_zeros)
         if not self.config.is_modifiable('num_zeros'):
             for w in [nz, nz_label]: w.setEnabled(False)
         def on_nz():
             value = nz.value()
-            if self.window.num_zeros != value:
-                self.window.num_zeros = value
+            if self.config.num_zeros != value:
+                self.config.num_zeros = value
                 self.config.set_key('num_zeros', value, True)
                 self.window.history_list.update()
                 self.window.address_list.update()
         nz.valueChanged.connect(on_nz)
         gui_widgets.append((nz_label, nz))
-
-        msg = '\n'.join([
-            _('Time based: fee rate is based on average confirmation time estimates'),
-            _('Mempool based: fee rate is targeting a depth in the memory pool')
-            ]
-        )
-        fee_type_label = HelpLabel(_('Fee estimation') + ':', msg)
-        fee_type_combo = QComboBox()
-        fee_type_combo.addItems([_('Static'), _('ETA'), _('Mempool')])
-        fee_type_combo.setCurrentIndex((2 if self.config.use_mempool_fees() else 1) if self.config.is_dynfee() else 0)
-        def on_fee_type(x):
-            self.config.set_key('mempool_fees', x==2)
-            self.config.set_key('dynamic_fees', x>0)
-        fee_type_combo.currentIndexChanged.connect(on_fee_type)
-        fee_widgets.append((fee_type_label, fee_type_combo))
 
         use_rbf = bool(self.config.get('use_rbf', True))
         use_rbf_cb = QCheckBox(_('Use Replace-By-Fee'))
@@ -129,7 +113,7 @@ class SettingsDialog(WindowModalDialog):
             self.config.set_key('use_rbf', bool(x))
             batch_rbf_cb.setEnabled(bool(x))
         use_rbf_cb.stateChanged.connect(on_use_rbf)
-        fee_widgets.append((use_rbf_cb, None))
+        tx_widgets.append((use_rbf_cb, None))
 
         batch_rbf_cb = QCheckBox(_('Batch RBF transactions'))
         batch_rbf_cb.setChecked(bool(self.config.get('batch_rbf', False)))
@@ -140,7 +124,7 @@ class SettingsDialog(WindowModalDialog):
         def on_batch_rbf(x):
             self.config.set_key('batch_rbf', bool(x))
         batch_rbf_cb.stateChanged.connect(on_batch_rbf)
-        fee_widgets.append((batch_rbf_cb, None))
+        tx_widgets.append((batch_rbf_cb, None))
 
         # lightning
         lightning_widgets = []
@@ -209,9 +193,8 @@ you close all your wallet windows. Use this to keep your local watchtower runnin
                 return
             edits = self.window.amount_e, self.window.receive_amount_e
             amounts = [edit.get_amount() for edit in edits]
-            self.window.decimal_point = base_unit_name_to_decimal_point(unit_result)
-            self.config.set_key('decimal_point', self.window.decimal_point, True)
-            nz.setMaximum(self.window.decimal_point)
+            self.config.set_base_unit(unit_result)
+            nz.setMaximum(self.config.decimal_point)
             self.window.history_list.update()
             self.window.request_list.update()
             self.window.address_list.update()
@@ -456,7 +439,6 @@ you close all your wallet windows. Use this to keep your local watchtower runnin
 
         tabs_info = [
             (gui_widgets, _('General')),
-            (fee_widgets, _('Fees')),
             (tx_widgets, _('Transactions')),
             (lightning_widgets, _('Lightning')),
             (fiat_widgets, _('Fiat')),

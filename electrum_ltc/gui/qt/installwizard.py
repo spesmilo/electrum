@@ -20,6 +20,7 @@ from electrum_ltc.wallet import Wallet, Abstract_Wallet
 from electrum_ltc.storage import WalletStorage, StorageReadWriteError
 from electrum_ltc.util import UserCancelled, InvalidPassword, WalletFileException, get_new_wallet_name
 from electrum_ltc.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET, GoBack, ReRunDialog
+from electrum_ltc.network import Network
 from electrum_ltc.i18n import _
 
 from .seed_dialog import SeedLayout, KeysLayout
@@ -674,7 +675,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.exec_layout(vbox, _('Master Public Key'))
         return None
 
-    def init_network(self, network):
+    def init_network(self, network: 'Network'):
         message = _("Electrum communicates with remote servers to get "
                   "information about your transactions and addresses. The "
                   "servers all fulfill the same purpose only differing in "
@@ -691,6 +692,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             nlayout = NetworkChoiceLayout(network, self.config, wizard=True)
             if self.exec_layout(nlayout.layout()):
                 nlayout.accept()
+                self.config.set_key('auto_connect', network.auto_connect, True)
         else:
             network.auto_connect = True
             self.config.set_key('auto_connect', True, True)
