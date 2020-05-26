@@ -15,7 +15,7 @@ from .util import (MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButto
                    EnterButton, WaitingDialog, MONOSPACE_FONT, ColorScheme)
 from .amountedit import BTCAmountEdit, FreezableLineEdit
 from .util import WWLabel
-from .fee_slider import FeeSlider
+from .fee_slider import FeeSlider, FeeComboBox
 
 import asyncio
 from .util import read_QIcon
@@ -49,6 +49,11 @@ class SwapDialog(WindowModalDialog):
         self.recv_button.clicked.connect(self.toggle_direction)
         self.send_amount_e.textChanged.connect(self.on_send_edited)
         self.recv_amount_e.textChanged.connect(self.on_recv_edited)
+        fee_slider = FeeSlider(self.window, self.config, self.fee_slider_callback)
+        fee_combo = FeeComboBox(fee_slider)
+        fee_slider.update()
+        self.fee_label = QLabel()
+        self.percentage_label = QLabel()
         h = QGridLayout()
         h.addWidget(QLabel(_('You send')+':'), 2, 0)
         h.addWidget(self.send_amount_e, 2, 1)
@@ -56,22 +61,13 @@ class SwapDialog(WindowModalDialog):
         h.addWidget(QLabel(_('You receive')+':'), 3, 0)
         h.addWidget(self.recv_amount_e, 3, 1)
         h.addWidget(self.recv_button, 3, 2)
-        self.min_label = QLabel('')
-        self.max_label = QLabel('')
-        self.fee_label = QLabel()
-        self.percentage_label = QLabel()
-        h.addWidget(QLabel(_('Min amount')+':'), 4, 0)
-        h.addWidget(self.min_label, 4, 1)
-        h.addWidget(QLabel(_('Max amount')+':'), 5, 0)
-        h.addWidget(self.max_label, 5, 1)
-        h.addWidget(QLabel(_('Mining fee')+':'), 4, 2)
-        h.addWidget(self.fee_label, 4, 3)
-        h.addWidget(QLabel(_('Swap fee')+':'), 5, 2)
-        h.addWidget(self.percentage_label, 5, 3)
-        vbox.addLayout(h)
-        fee_slider = FeeSlider(self.window, self.config, self.fee_slider_callback)
-        fee_slider.update()
+        h.addWidget(QLabel(_('Swap fee')+':'), 4, 0)
+        h.addWidget(self.percentage_label, 4, 1)
+        h.addWidget(QLabel(_('Mining fees')+':'), 5, 0)
+        h.addWidget(self.fee_label, 5, 1)
         h.addWidget(fee_slider, 6, 1)
+        h.addWidget(fee_combo, 6, 2)
+        vbox.addLayout(h)
         vbox.addStretch(1)
         ok_button = OkButton(self)
         ok_button.setDefault(True)
@@ -139,8 +135,6 @@ class SwapDialog(WindowModalDialog):
         fee = self.lockup_fee + self.claim_fee if self.is_reverse else self.normal_fee
         self.fee_label.setText(self.window.format_amount(fee) + ' ' + self.window.base_unit())
         self.percentage_label.setText('%.2f'%self.percentage + '%')
-        self.min_label.setText(self.window.format_amount(self.min_amount) + ' ' + self.window.base_unit())
-        self.max_label.setText(self.window.format_amount(self.max_amount) + ' ' + self.window.base_unit())
 
     def set_minimum(self):
         self.send_amount_e.setAmount(self.min_amount)
