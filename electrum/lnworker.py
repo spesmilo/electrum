@@ -682,6 +682,7 @@ class LNWallet(LNWorker):
             out[closing_txid] = item
         # add submarine swaps
         settled_payments = self.get_settled_payments()
+        current_height = self.network.get_local_height()
         for preimage_hex, swap_info in self.swap_manager.swaps.items():
             is_reverse = swap_info.get('invoice')
             txid = swap_info.get('claim_txid' if is_reverse else 'funding_txid')
@@ -694,11 +695,16 @@ class LNWallet(LNWorker):
                 amount_msat, fee_msat, timestamp = self.get_payment_value(info, plist)
             else:
                 amount_msat = 0
+            locktime = swap_info.get('timeoutBlockHeight')
+            delta = current_height - locktime
+            label = 'Reverse swap' if is_reverse else 'Normal swap'
+            if delta < 0:
+                label += f' (refundable in {-delta} blocks)'
             out[txid] = {
                 'txid': txid,
                 'amount_msat': amount_msat,
                 'type': 'swap',
-                'label': 'Reverse swap' if is_reverse else 'Normal swap' # TODO: show time left until we can get a refund
+                'label': label
             }
         return out
 
