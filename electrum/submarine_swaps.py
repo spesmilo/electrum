@@ -1,14 +1,16 @@
 import asyncio
 import json
 import os
+from typing import TYPE_CHECKING
+
 from .crypto import sha256, hash_160
 from .ecc import ECPrivkey
 from .bitcoin import address_to_script, script_to_p2wsh, redeem_script_to_address, opcodes, p2wsh_nested_script, push_script, is_segwit_address
 from .transaction import TxOutpoint, PartialTxInput, PartialTxOutput, PartialTransaction, construct_witness
 from .transaction import script_GetOp, match_script_against_template, OPPushDataGeneric, OPPushDataPubkey
 from .util import log_exceptions
+from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY
 from .bitcoin import dust_threshold
-from typing import TYPE_CHECKING
 from .logging import Logger
 
 if TYPE_CHECKING:
@@ -78,16 +80,26 @@ class SwapManager(Logger):
 
     @log_exceptions
     async def _claim_swap(self, lockup_address, onchain_amount, redeem_script, preimage, privkey, locktime):
-        utxos = self.lnwatcher.get_addr_utxo(lockup_address)
-        if not utxos:
+        if not self.lnwatcher.is_up_to_date():
             return
-        delta = self.network.get_local_height() - locktime
-        if not preimage and delta < 0:
-            self.logger.info(f'height not reached for refund {lockup_address} {delta}, {locktime}')
+        current_height = self.network.get_local_height()
+        delta = current_height - locktime
+        is_reverse = bool(preimage)
+        if not is_reverse and delta < 0:
+            # too early for refund
             return
-        for txin in list(utxos.values()):
+        txos = self.lnwatcher.get_addr_outputs(lockup_address)
+        swap = self.swaps[preimage.hex()]
+        for txin in txos.values():
             if preimage and txin._trusted_value_sats < onchain_amount:
                 self.logger.info('amount too low, we should not reveal the preimage')
+                continue
+            spent_height = txin.spent_height
+            if spent_height is not None:
+                if spent_height > 0 and current_height - spent_height > REDEEM_AFTER_DOUBLE_SPENT_DELAY:
+                    self.logger.info(f'stop watching swap {lockup_address}')
+                    self.lnwatcher.remove_callback(lockup_address)
+                    swap['redeemed'] = True
                 continue
             amount_sat = txin._trusted_value_sats - self.get_tx_fee()
             if amount_sat < dust_threshold():
@@ -97,8 +109,7 @@ class SwapManager(Logger):
             tx = create_claim_tx(txin, redeem_script, preimage, privkey, address, amount_sat, locktime)
             await self.network.broadcast_transaction(tx)
             # save txid
-            what = 'claim_txid' if preimage else 'refund_txid'
-            self.swaps[preimage.hex()][what] = tx.txid()
+            swap['claim_txid' if preimage else 'refund_txid'] = tx.txid()
 
     def get_tx_fee(self):
         return self.lnwatcher.config.estimate_fee(136, allow_fallback_to_static_rates=True)
@@ -111,6 +122,8 @@ class SwapManager(Logger):
         self.lnwatcher = self.wallet.lnworker.lnwatcher
         self.swaps = self.wallet.db.get_dict('submarine_swaps')
         for data in self.swaps.values():
+            if data.get('redeemed'):
+                continue
             redeem_script = bytes.fromhex(data['redeemScript'])
             locktime = data['timeoutBlockHeight']
             privkey = bytes.fromhex(data['privkey'])
