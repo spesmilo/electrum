@@ -253,7 +253,7 @@ class SwapManager(Logger):
         # add callback to lnwatcher
         self.add_lnwatcher_callback(lockup_address, onchain_amount, redeem_script, preimage, privkey, locktime)
         # initiate payment.
-        success, log = await self.lnworker._pay(invoice, attempts=5)
+        success, log = await self.lnworker._pay(invoice, attempts=10)
         return {
             'id':response_id,
             'success':success,
