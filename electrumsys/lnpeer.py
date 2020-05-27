@@ -810,7 +810,13 @@ class Peer(Logger):
         self.logger.info(f'channel_reestablish ({chan.get_id_for_log()}): sent channel_reestablish with '
                          f'(next_local_ctn={next_local_ctn}, '
                          f'oldest_unrevoked_remote_ctn={oldest_unrevoked_remote_ctn})')
-        msg = await self.wait_for_message('channel_reestablish', chan_id)
+        while True:
+            try:
+                msg = await self.wait_for_message('channel_reestablish', chan_id)
+                break
+            except asyncio.TimeoutError:
+                self.logger.info('waiting to receive channel_reestablish...')
+                continue
         their_next_local_ctn = msg["next_commitment_number"]
         their_oldest_unrevoked_remote_ctn = msg["next_revocation_number"]
         their_local_pcp = msg.get("my_current_per_commitment_point")
