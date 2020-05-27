@@ -414,11 +414,6 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
                 tx_mined_status = self.wallet.lnworker.lnwatcher.get_tx_height(txid)
         else:
             ln_amount = None
-        swap_history = self.wallet.lnworker.get_swap_history() if self.wallet.lnworker else {}
-        if txid in swap_history:
-            item = swap_history[txid]
-            ln_amount = item['lightning_amount']
-
         self.broadcast_button.setEnabled(tx_details.can_broadcast)
         can_sign = not self.tx.is_complete() and \
             (self.wallet.can_sign(self.tx) or bool(self.external_keypairs))
@@ -490,7 +485,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             self.fee_warning_icon.setVisible(bool(risk_of_burning_coins))
         self.fee_label.setText(fee_str)
         self.size_label.setText(size_str)
-        if ln_amount is None:
+        if ln_amount is None or ln_amount == 0:
             ln_amount_str = ''
         elif ln_amount > 0:
             ln_amount_str = _('Amount received in channels') + ': ' + format_amount(ln_amount) + ' ' + base_unit

@@ -820,23 +820,29 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         transactions_tmp = OrderedDictWithIndex()
         # add on-chain txns
         onchain_history = self.get_onchain_history(domain=onchain_domain)
+        lnworker_history = self.lnworker.get_onchain_history() if self.lnworker else []
         for tx_item in onchain_history:
             txid = tx_item['txid']
             transactions_tmp[txid] = tx_item
-        # add LN txns
-        if self.lnworker and include_lightning:
-            lightning_history = self.lnworker.get_history()
-        else:
-            lightning_history = []
-        for i, tx_item in enumerate(lightning_history):
+            # add lnworker info here
+            if txid in lnworker_history:
+                item = lnworker_history[txid]
+                tx_item['label'] = item['label']
+                tx_item['type'] = item['type']
+                ln_value = Decimal(item['amount_msat']) / 1000
+                tx_item['ln_value'] = Satoshis(ln_value)
+        # add lightning transactions.
+        lightning_history = self.lnworker.get_lightning_history() if self.lnworker and include_lightning else {}
+        for tx_item in lightning_history.values():
             txid = tx_item.get('txid')
             ln_value = Decimal(tx_item['amount_msat']) / 1000
+            # merge items that have a txid with onchain tx
             if txid and txid in transactions_tmp:
                 item = transactions_tmp[txid]
                 item['label'] = tx_item['label']
                 item['type'] = tx_item['type']
-                #item['channel_id'] = tx_item['channel_id']
                 item['ln_value'] = Satoshis(ln_value)
+                item['amount_msat'] = tx_item['amount_msat']
             else:
                 tx_item['lightning'] = True
                 tx_item['ln_value'] = Satoshis(ln_value)

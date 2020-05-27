@@ -594,6 +594,16 @@ class LNWallet(LNWorker):
                 out[k] += v
         return out
 
+    def get_payment_value(self, info, plist):
+        amount_msat = 0
+        fee_msat = None
+        for chan_id, htlc, _direction in plist:
+            amount_msat += int(_direction) * htlc.amount_msat
+            if _direction == SENT and info and info.amount:
+                fee_msat = (fee_msat or 0) - info.amount*1000 - amount_msat
+        timestamp = min([htlc.timestamp for chan_id, htlc, _direction in plist])
+        return amount_msat, fee_msat, timestamp
+
     def get_lightning_history(self):
         out = {}
         for key, plist in self.get_settled_payments().items():
@@ -601,13 +611,7 @@ class LNWallet(LNWorker):
                 continue
             payment_hash = bytes.fromhex(key)
             info = self.get_payment_info(payment_hash)
-            timestamp = min([htlc.timestamp for chan_id, htlc, _direction in plist])
-            amount_msat = 0
-            fee_msat = None
-            for chan_id, htlc, _direction in plist:
-                amount_msat += int(_direction) * htlc.amount_msat
-                if _direction == SENT and info and info.amount:
-                    fee_msat = (fee_msat or 0) - info.amount*1000 - amount_msat
+            amount_msat, fee_msat, timestamp = self.get_payment_value(info, plist)
             if info is not None:
                 label = self.wallet.get_label(key)
                 direction = ('sent' if info.direction == SENT else 'received') if len(plist)==1 else 'self-payment'
@@ -640,21 +644,6 @@ class LNWallet(LNWorker):
                     item['label'] = 'Normal swap' + ' ' + self.config.format_amount_and_units(onchain_amount)
             # done
             out[payment_hash] = item
-        return out
-
-    def get_swap_history(self):
-        out = {}
-        for k, swap_info in self.swap_manager.swaps.items():
-            is_reverse = swap_info.get('invoice')
-            if is_reverse:
-                txid = swap_info.get('claim_txid')
-            else:
-                txid = swap_info.get('funding_txid')
-            if txid is None:
-                continue
-            out[txid] = {
-                'lightning_amount': swap_info.get('lightning_amount', 0) * (-1 if is_reverse else 1)
-            }
         return out
 
     def get_onchain_history(self):
@@ -691,6 +680,26 @@ class LNWallet(LNWorker):
                 'fee_msat': None,
             }
             out[closing_txid] = item
+        # add submarine swaps
+        settled_payments = self.get_settled_payments()
+        for preimage_hex, swap_info in self.swap_manager.swaps.items():
+            is_reverse = swap_info.get('invoice')
+            txid = swap_info.get('claim_txid' if is_reverse else 'funding_txid')
+            if txid is None:
+                continue
+            payment_hash = sha256(bytes.fromhex(preimage_hex))
+            if payment_hash.hex() in settled_payments:
+                plist = settled_payments[payment_hash.hex()]
+                info = self.get_payment_info(payment_hash)
+                amount_msat, fee_msat, timestamp = self.get_payment_value(info, plist)
+            else:
+                amount_msat = 0
+            out[txid] = {
+                'txid': txid,
+                'amount_msat': amount_msat,
+                'type': 'swap',
+                'label': 'Reverse swap' if is_reverse else 'Normal swap' # TODO: show time left until we can get a refund
+            }
         return out
 
     def get_history(self):
