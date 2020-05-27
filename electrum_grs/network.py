@@ -77,7 +77,9 @@ NUM_RECENT_SERVERS = 20
 
 
 def parse_servers(result: Sequence[Tuple[str, str, List[str]]]) -> Dict[str, dict]:
-    """ parse servers list into dict format"""
+    """Convert servers list (from protocol method "server.peers.subscribe") into dict format.
+    Also validate values, such as IP addresses and ports.
+    """
     servers = {}
     for item in result:
         host = item[1]
@@ -89,6 +91,7 @@ def parse_servers(result: Sequence[Tuple[str, str, List[str]]]) -> Dict[str, dic
                 if re.match(r"[st]\d*", v):
                     protocol, port = v[0], v[1:]
                     if port == '': port = constants.net.DEFAULT_PORTS[protocol]
+                    ServerAddr(host, port, protocol=protocol)  # check if raises
                     out[protocol] = port
                 elif re.match("v(.?)+", v):
                     version = v[1:]
@@ -328,7 +331,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self.channel_db = None  # type: Optional[ChannelDB]
         self.lngossip = None  # type: Optional[LNGossip]
         self.local_watchtower = None  # type: Optional[WatchTower]
-        if self.config.get('run_watchtower', False):
+        if self.config.get('run_local_watchtower', False):
             from . import lnwatcher
             self.local_watchtower = lnwatcher.WatchTower(self)
             self.local_watchtower.start_network(self)
@@ -431,6 +434,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             random.shuffle(server_peers)
             max_accepted_peers = len(constants.net.DEFAULT_SERVERS) + NUM_RECENT_SERVERS
             server_peers = server_peers[:max_accepted_peers]
+            # note that 'parse_servers' also validates the data (which is untrusted input!)
             self.server_peers = parse_servers(server_peers)
             self.notify('servers')
         async def get_relay_fee():

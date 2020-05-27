@@ -60,7 +60,8 @@ from .transaction import PartialTxOutput, PartialTransaction, PartialTxInput
 from .lnonion import OnionFailureCode, process_onion_packet, OnionPacket
 from .lnmsg import decode_msg
 from .i18n import _
-from .lnrouter import RouteEdge, LNPaymentRoute, is_route_sane_to_use
+from .lnrouter import (RouteEdge, LNPaymentRoute, LNPaymentPath, is_route_sane_to_use,
+                       NoChannelPolicy, LNPathInconsistent)
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from . import lnsweep
 from .lnwatcher import LNWalletWatcher
@@ -458,7 +459,7 @@ class LNWallet(LNWorker):
         self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_REQ
         self.payments = self.db.get_dict('lightning_payments')     # RHASH -> amount, direction, is_paid
         self.preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
-        self.sweep_address = wallet.get_receiving_address()
+        self.sweep_address = wallet.get_new_sweep_address_for_channel()  # TODO possible address-reuse
         self.logs = defaultdict(list)  # type: Dict[str, List[PaymentAttemptLog]]  # key is RHASH  # (not persisted)
         self.is_routing = set()        # (not persisted) keys of invoices that are in PR_ROUTING state
         # used in tests
@@ -562,7 +563,7 @@ class LNWallet(LNWorker):
         for chan in self.channels.values():
             d = chan.get_settled_payments()
             for k, v in d.items():
-                out[k].append(v)
+                out[k] += v
         return out
 
     def get_lightning_history(self):
@@ -570,26 +571,21 @@ class LNWallet(LNWorker):
         for key, plist in self.get_settled_payments().items():
             if len(plist) == 0:
                 continue
-            elif len(plist) == 1:
-                chan_id, htlc, _direction = plist[0]
-                direction = 'sent' if _direction == SENT else 'received'
-                amount_msat = int(_direction) * htlc.amount_msat
-                timestamp = htlc.timestamp
-                label = self.wallet.get_label(key)
-                if _direction == SENT:
-                    info = self.get_payment_info(bfh(key))
-                    fee_msat = - info.amount*1000 - amount_msat if info and info.amount else None
-                else:
-                    fee_msat = None
-            else:
-                # assume forwarding
-                direction = 'forwarding'
-                amount_msat = sum([int(_direction) * htlc.amount_msat for chan_id, htlc, _direction in plist])
-                label = _('Forwarding')
-                timestamp = min([htlc.timestamp for chan_id, htlc, _direction in plist])
-                fee_msat = None # fixme
-
             payment_hash = bytes.fromhex(key)
+            info = self.get_payment_info(payment_hash)
+            timestamp = min([htlc.timestamp for chan_id, htlc, _direction in plist])
+            amount_msat = 0
+            fee_msat = None
+            for chan_id, htlc, _direction in plist:
+                amount_msat += int(_direction) * htlc.amount_msat
+                if _direction == SENT and info and info.amount:
+                    fee_msat = (fee_msat or 0) - info.amount*1000 - amount_msat
+            if info is not None:
+                label = self.wallet.get_label(key)
+                direction = ('sent' if info.direction == SENT else 'received') if len(plist)==1 else 'self-payment'
+            else:
+                direction = 'forwarding'
+                label = _('Forwarding')
             preimage = self.get_preimage(payment_hash).hex()
             item = {
                 'type': 'payment',
@@ -724,7 +720,7 @@ class LNWallet(LNWorker):
         # will raise if init fails
         await asyncio.wait_for(peer.initialized, LN_P2P_NETWORK_TIMEOUT)
         chan, funding_tx = await peer.channel_establishment_flow(
-            password,
+            password=password,
             funding_tx=funding_tx,
             funding_sat=funding_sat,
             push_msat=push_sat * 1000,
@@ -745,6 +741,8 @@ class LNWallet(LNWorker):
         self.add_channel(chan)
         channels_db = self.db.get_dict('channels')
         channels_db[chan.channel_id.hex()] = chan.storage
+        for addr in chan.get_wallet_addresses_channel_might_want_reserved():
+            self.wallet.set_reserved_state_of_address(addr, reserved=True)
         self.wallet.save_backup()
 
     def mktx_for_open_channel(self, *, coins: Sequence[PartialTxInput], funding_sat: int,
@@ -772,20 +770,23 @@ class LNWallet(LNWorker):
             raise Exception(_("open_channel timed out"))
         return chan, funding_tx
 
-    def pay(self, invoice, amount_sat=None, attempts=1):
+    def pay(self, invoice: str, amount_sat: int = None, *, attempts: int = 1) -> Tuple[bool, List[PaymentAttemptLog]]:
         """
         Can be called from other threads
         """
-        coro = self._pay(invoice, amount_sat, attempts)
+        coro = self._pay(invoice, amount_sat, attempts=attempts)
         fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
-        success = fut.result()
+        return fut.result()
 
-    def get_channel_by_short_id(self, short_channel_id: ShortChannelID) -> Channel:
+    def get_channel_by_short_id(self, short_channel_id: bytes) -> Optional[Channel]:
         for chan in self.channels.values():
             if chan.short_channel_id == short_channel_id:
                 return chan
 
-    async def _pay(self, invoice, amount_sat=None, attempts=1) -> bool:
+    @log_exceptions
+    async def _pay(self, invoice: str, amount_sat: int = None, *,
+                   attempts: int = 1,
+                   full_path: LNPaymentPath = None) -> Tuple[bool, List[PaymentAttemptLog]]:
         lnaddr = self._check_invoice(invoice, amount_sat)
         payment_hash = lnaddr.paymenthash
         key = payment_hash.hex()
@@ -798,7 +799,7 @@ class LNWallet(LNWorker):
         info = PaymentInfo(lnaddr.paymenthash, amount, SENT, PR_UNPAID)
         self.save_payment_info(info)
         self.wallet.set_label(key, lnaddr.get_description())
-        log = self.logs[key]
+        self.logs[key] = log = []
         success = False
         reason = ''
         for i in range(attempts):
@@ -807,7 +808,7 @@ class LNWallet(LNWorker):
                 # graph updates might occur during the computation
                 self.set_invoice_status(key, PR_ROUTING)
                 util.trigger_callback('invoice_status', key)
-                route = await run_in_thread(self._create_route_from_invoice, lnaddr)
+                route = await run_in_thread(partial(self._create_route_from_invoice, lnaddr, full_path=full_path))
                 self.set_invoice_status(key, PR_INFLIGHT)
                 util.trigger_callback('invoice_status', key)
                 payment_attempt_log = await self._pay_to_route(route, lnaddr)
@@ -827,7 +828,7 @@ class LNWallet(LNWorker):
             util.trigger_callback('payment_succeeded', key)
         else:
             util.trigger_callback('payment_failed', key, reason)
-        return success
+        return success, log
 
     async def _pay_to_route(self, route: LNPaymentRoute, lnaddr: LnAddr) -> PaymentAttemptLog:
         short_channel_id = route[0].short_channel_id
@@ -863,9 +864,9 @@ class LNWallet(LNWorker):
                         self.network.path_finder.add_to_blacklist(short_chan_id)
             else:
                 # probably got "update_fail_malformed_htlc". well... who to penalise now?
-                assert payment_attempt.error_reason is not None
+                assert payment_attempt.failure_message is not None
                 sender_idx = None
-                failure_msg = payment_attempt.error_reason
+                failure_msg = payment_attempt.failure_message
                 is_blacklisted = False
             failure_log = PaymentAttemptFailureDetails(sender_idx=sender_idx,
                                                        failure_msg=failure_msg,
@@ -900,12 +901,13 @@ class LNWallet(LNWorker):
                 assert payload['chain_hash'] == constants.net.rev_genesis_bytes()
                 payload['raw'] = channel_update_typed
             except:  # FIXME: too broad
-                message_type, payload = decode_msg(channel_update_as_received)
-                payload['raw'] = channel_update_as_received
-            # sanity check
-            if payload['chain_hash'] != constants.net.rev_genesis_bytes():
-                self.logger.info(f'could not decode channel_update for failed htlc: {channel_update_as_received.hex()}')
-                return True
+                try:
+                    message_type, payload = decode_msg(channel_update_as_received)
+                    payload['raw'] = channel_update_as_received
+                    assert payload['chain_hash'] != constants.net.rev_genesis_bytes()
+                except:
+                    self.logger.info(f'could not decode channel_update for failed htlc: {channel_update_as_received.hex()}')
+                    return True
             r = self.channel_db.add_channel_update(payload)
             blacklist = False
             short_channel_id = ShortChannelID(payload['short_channel_id'])
@@ -929,7 +931,7 @@ class LNWallet(LNWorker):
         return blacklist
 
     @staticmethod
-    def _check_invoice(invoice, amount_sat=None):
+    def _check_invoice(invoice: str, amount_sat: int = None) -> LnAddr:
         addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
         if addr.is_expired():
             raise InvoiceError(_("This invoice has expired"))
@@ -944,7 +946,8 @@ class LNWallet(LNWorker):
         return addr
 
     @profiler
-    def _create_route_from_invoice(self, decoded_invoice: 'LnAddr') -> LNPaymentRoute:
+    def _create_route_from_invoice(self, decoded_invoice: 'LnAddr',
+                                   *, full_path: LNPaymentPath = None) -> LNPaymentRoute:
         amount_msat = int(decoded_invoice.amount * COIN * 1000)
         invoice_pubkey = decoded_invoice.pubkey.serialize()
         # use 'r' field from invoice
@@ -965,12 +968,22 @@ class LNWallet(LNWorker):
             if len(private_route) > NUM_MAX_EDGES_IN_PAYMENT_PATH:
                 continue
             border_node_pubkey = private_route[0][0]
-            path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, border_node_pubkey, amount_msat,
-                                                                  my_channels=scid_to_my_channels)
+            if full_path:
+                # user pre-selected path. check that end of given path coincides with private_route:
+                if [edge.short_channel_id for edge in full_path[-len(private_route):]] != [edge[1] for edge in private_route]:
+                    continue
+                path = full_path[:-len(private_route)]
+            else:
+                # find path now on public graph, to border node
+                path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, border_node_pubkey, amount_msat,
+                                                                      my_channels=scid_to_my_channels)
             if not path:
                 continue
-            route = self.network.path_finder.create_route_from_path(path, self.node_keypair.pubkey,
-                                                                    my_channels=scid_to_my_channels)
+            try:
+                route = self.network.path_finder.create_route_from_path(path, self.node_keypair.pubkey,
+                                                                        my_channels=scid_to_my_channels)
+            except NoChannelPolicy:
+                continue
             # we need to shift the node pubkey by one towards the destination:
             private_route_nodes = [edge[0] for edge in private_route][1:] + [invoice_pubkey]
             private_route_rest = [edge[1:] for edge in private_route]
@@ -1003,8 +1016,11 @@ class LNWallet(LNWorker):
             break
         # if could not find route using any hint; try without hint now
         if route is None:
-            path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, invoice_pubkey, amount_msat,
-                                                                  my_channels=scid_to_my_channels)
+            if full_path:  # user pre-selected path
+                path = full_path
+            else:  # find path now
+                path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, invoice_pubkey, amount_msat,
+                                                                      my_channels=scid_to_my_channels)
             if not path:
                 raise NoPathFound()
             route = self.network.path_finder.create_route_from_path(path, self.node_keypair.pubkey,
@@ -1013,7 +1029,8 @@ class LNWallet(LNWorker):
                 self.logger.info(f"rejecting insane route {route}")
                 raise NoPathFound()
         assert len(route) > 0
-        assert route[-1].node_id == invoice_pubkey
+        if route[-1].node_id != invoice_pubkey:
+            raise LNPathInconsistent("last node_id != invoice pubkey")
         # add features from invoice
         invoice_features = decoded_invoice.get_tag('9') or 0
         route[-1].node_features |= invoice_features
@@ -1081,6 +1098,7 @@ class LNWallet(LNWorker):
         return bfh(r) if r else None
 
     def get_payment_info(self, payment_hash: bytes) -> Optional[PaymentInfo]:
+        """returns None if payment_hash is a payment we are forwarding"""
         key = payment_hash.hex()
         with self.lock:
             if key in self.payments:
@@ -1170,19 +1188,21 @@ class LNWallet(LNWorker):
         """calculate routing hints (BOLT-11 'r' field)"""
         routing_hints = []
         channels = list(self.channels.values())
+        random.shuffle(channels)  # not sure this has any benefit but let's not leak channel order
         scid_to_my_channels = {chan.short_channel_id: chan for chan in channels
                                if chan.short_channel_id is not None}
-        ignore_min_htlc_value = False
         if amount_sat:
             amount_msat = 1000 * amount_sat
         else:
             # for no amt invoices, check if channel can receive at least 1 msat
             amount_msat = 1
-            ignore_min_htlc_value = True
         # note: currently we add *all* our channels; but this might be a privacy leak?
         for chan in channels:
-            if not chan.can_receive(amount_msat=amount_msat, check_frozen=True,
-                                    ignore_min_htlc_value=ignore_min_htlc_value):
+            # do minimal filtering of channels.
+            # we include channels that cannot *right now* receive (e.g. peer disconnected or balance insufficient)
+            if not (chan.is_open() and not chan.is_frozen_for_receiving()):
+                continue
+            if amount_msat > 1000 * chan.constraints.capacity:
                 continue
             chan_id = chan.short_channel_id
             assert isinstance(chan_id, bytes), chan_id
@@ -1262,6 +1282,8 @@ class LNWallet(LNWorker):
         with self.lock:
             self._channels.pop(chan_id)
             self.db.get('channels').pop(chan_id.hex())
+        for addr in chan.get_wallet_addresses_channel_might_want_reserved():
+            self.wallet.set_reserved_state_of_address(addr, reserved=False)
 
         util.trigger_callback('channels_updated', self.wallet)
         util.trigger_callback('wallet_updated', self.wallet)
@@ -1351,10 +1373,14 @@ class LNBackups(Logger):
         self.lock = threading.RLock()
         self.wallet = wallet
         self.db = wallet.db
-        self.sweep_address = wallet.get_receiving_address()
         self.channel_backups = {}
         for channel_id, cb in self.db.get_dict("channel_backups").items():
             self.channel_backups[bfh(channel_id)] = ChannelBackup(cb, sweep_address=self.sweep_address, lnworker=self)
+
+    @property
+    def sweep_address(self) -> str:
+        # TODO possible address-reuse
+        return self.wallet.get_new_sweep_address_for_channel()
 
     def channel_state_changed(self, chan):
         util.trigger_callback('channel', chan)

@@ -547,12 +547,12 @@ class BaseWizard(Logger):
                     self.show_error(_('Cannot add this cosigner:') + '\n' + "Their key type is '%s', we are '%s'"%(t1, t2))
                     self.run('choose_keystore')
                     return
-            self.keystores.append(k)
-            if len(self.keystores) == 1:
+            if len(self.keystores) == 0:
                 xpub = k.get_master_public_key()
-                self.reset_stack()
                 self.run('show_xpub_and_add_cosigners', xpub)
-            elif len(self.keystores) < self.n:
+            self.reset_stack()
+            self.keystores.append(k)
+            if len(self.keystores) < self.n:
                 self.run('choose_keystore')
             else:
                 self.run('create_wallet')
@@ -642,7 +642,7 @@ class BaseWizard(Logger):
         raise NotImplementedError()  # implemented by subclasses
 
     def show_xpub_and_add_cosigners(self, xpub):
-        self.show_xpub_dialog(xpub=xpub, run_next=lambda x: self.run('choose_keystore'))
+        self.show_xpub_dialog(xpub=xpub, run_next=lambda x: None)
 
     def choose_seed_type(self, message=None, choices=None):
         title = _('Choose Seed type')

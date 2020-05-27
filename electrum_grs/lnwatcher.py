@@ -13,7 +13,7 @@ from .sql_db import SqlDB, sql
 from .wallet_db import WalletDB
 from .util import bh2u, bfh, log_exceptions, ignore_exceptions, TxMinedInfo
 from .address_synchronizer import AddressSynchronizer, TX_HEIGHT_LOCAL, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED
-from .transaction import Transaction
+from .transaction import Transaction, TxOutpoint
 
 if TYPE_CHECKING:
     from .network import Network
@@ -138,7 +138,7 @@ class LNWatcher(AddressSynchronizer):
     def __init__(self, network: 'Network'):
         AddressSynchronizer.__init__(self, WalletDB({}, manual_upgrades=False))
         self.config = network.config
-        self.channels = {}
+        self.callbacks = {} # address -> lambda: coroutine
         self.network = network
         util.register_callback(
             self.on_network_update,
@@ -157,12 +157,19 @@ class LNWatcher(AddressSynchronizer):
     def add_channel(self, outpoint: str, address: str) -> None:
         assert isinstance(outpoint, str)
         assert isinstance(address, str)
-        self.add_address(address)
-        self.channels[address] = outpoint
+        cb = lambda: self.check_onchain_situation(address, outpoint)
+        self.add_callback(address, cb)
 
     async def unwatch_channel(self, address, funding_outpoint):
         self.logger.info(f'unwatching {funding_outpoint}')
-        self.channels.pop(address, None)
+        self.remove_callback(address)
+
+    def remove_callback(self, address):
+        self.callbacks.pop(address, None)
+
+    def add_callback(self, address, callback):
+        self.add_address(address)
+        self.callbacks[address] = callback
 
     @log_exceptions
     async def on_network_update(self, event, *args):
@@ -172,9 +179,8 @@ class LNWatcher(AddressSynchronizer):
         if not self.synchronizer:
             self.logger.info("synchronizer not set yet")
             return
-        channels_items = list(self.channels.items())  # copy
-        for address, outpoint in channels_items:
-            await self.check_onchain_situation(address, outpoint)
+        for address, callback in list(self.callbacks.items()):
+            await callback()
 
     async def check_onchain_situation(self, address, funding_outpoint):
         # early return if address has not been added yet
@@ -387,7 +393,10 @@ class LNWalletWatcher(LNWatcher):
                 else:
                     self.logger.info(f'(chan {chan.get_id_for_log()}) outpoint already spent {name}: {prevout}')
                     keep_watching |= not self.is_deeply_mined(spender_txid)
-                    chan.extract_preimage_from_htlc_tx(spender_tx)
+                    txin_idx = spender_tx.get_input_idx_that_spent_prevout(TxOutpoint.from_str(prevout))
+                    assert txin_idx is not None
+                    spender_txin = spender_tx.inputs()[txin_idx]
+                    chan.extract_preimage_from_htlc_txin(spender_txin)
             else:
                 self.logger.info(f'(chan {chan.get_id_for_log()}) trying to redeem {name}: {prevout}')
                 await self.try_redeem(prevout, sweep_info, name)

@@ -28,16 +28,17 @@ from typing import (Optional, Dict, List, Tuple, NamedTuple, Set, Callable,
 import time
 import threading
 from abc import ABC, abstractmethod
+import itertools
 
 from aiorpcx import NetAddress
 import attr
 
 from . import ecc
 from . import constants, util
-from .util import bfh, bh2u, chunks, TxMinedInfo
+from .util import bfh, bh2u, chunks, TxMinedInfo, PR_PAID
 from .bitcoin import redeem_script_to_address
 from .crypto import sha256, sha256d
-from .transaction import Transaction, PartialTransaction
+from .transaction import Transaction, PartialTransaction, TxInput
 from .logging import Logger
 from .lnonion import decode_onion_error, OnionFailureCode, OnionRoutingFailureMessage
 from . import lnutil
@@ -50,7 +51,7 @@ from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKey
                      ScriptHtlc, PaymentFailure, calc_fees_for_commitment_tx, RemoteMisbehaving, make_htlc_output_witness_script,
                      ShortChannelID, map_htlcs_to_ctx_output_idxs, LNPeerAddr,
                      LN_MAX_HTLC_VALUE_MSAT, fee_for_htlc_output, offered_htlc_trim_threshold_sat,
-                     received_htlc_trim_threshold_sat)
+                     received_htlc_trim_threshold_sat, make_commitment_output_to_remote_address)
 from .lnsweep import create_sweeptxs_for_our_ctx, create_sweeptxs_for_their_ctx
 from .lnsweep import create_sweeptx_for_their_revoked_htlc, SweepInfo
 from .lnhtlc import HTLCManager
@@ -600,6 +601,14 @@ class Channel(AbstractChannel):
     def is_static_remotekey_enabled(self) -> bool:
         return bool(self.storage.get('static_remotekey_enabled'))
 
+    def get_wallet_addresses_channel_might_want_reserved(self) -> Sequence[str]:
+        ret = []
+        if self.is_static_remotekey_enabled():
+            our_payment_pubkey = self.config[LOCAL].payment_basepoint.pubkey
+            to_remote_address = make_commitment_output_to_remote_address(our_payment_pubkey)
+            ret.append(to_remote_address)
+        return ret
+
     def get_feerate(self, subject: HTLCOwner, *, ctn: int) -> int:
         # returns feerate in sat/kw
         return self.hm.get_feerate(subject, ctn)
@@ -630,14 +639,14 @@ class Channel(AbstractChannel):
         return out
 
     def get_settled_payments(self):
-        out = {}
+        out = defaultdict(list)
         for subject in LOCAL, REMOTE:
             log = self.hm.log[subject]
             for htlc_id, htlc in log.get('adds', {}).items():
                 if htlc_id in log.get('settles',{}):
                     direction = SENT if subject is LOCAL else RECEIVED
                     rhash = bh2u(htlc.payment_hash)
-                    out[rhash] = (self.channel_id, htlc, direction)
+                    out[rhash].append((self.channel_id, htlc, direction))
         return out
 
     def open_with_first_pcp(self, remote_pcp: bytes, remote_sig: bytes) -> None:
@@ -971,20 +980,37 @@ class Channel(AbstractChannel):
         failure_message = OnionRoutingFailureMessage.from_bytes(bytes.fromhex(failure_hex)) if failure_hex else None
         return error_bytes, failure_message
 
-    def extract_preimage_from_htlc_tx(self, tx):
-        witness = tx.inputs()[0].witness_elements()
-        if len(witness) != 5:
+    def extract_preimage_from_htlc_txin(self, txin: TxInput) -> None:
+        witness = txin.witness_elements()
+        if len(witness) == 5:  # HTLC success tx
+            preimage = witness[3]
+        elif len(witness) == 3:  # spending offered HTLC directly from ctx
+            preimage = witness[1]
+        else:
             return
-        preimage = witness[3]
         payment_hash = sha256(preimage)
-        for direction, htlc in self.hm.get_htlcs_in_oldest_unrevoked_ctx(REMOTE):
+        for direction, htlc in itertools.chain(self.hm.get_htlcs_in_oldest_unrevoked_ctx(REMOTE),
+                                               self.hm.get_htlcs_in_latest_ctx(REMOTE)):
             if htlc.payment_hash == payment_hash:
-                self.logger.info(f'found preimage for {payment_hash.hex()} in tx witness')
-                self.lnworker.save_preimage(payment_hash, preimage)
-                if direction == RECEIVED:
-                    self.lnworker.payment_sent(self, payment_hash)
-                else:
-                    self.lnworker.payment_received(self, payment_hash)
+                is_sent = direction == RECEIVED
+                break
+        else:
+            for direction, htlc in itertools.chain(self.hm.get_htlcs_in_oldest_unrevoked_ctx(LOCAL),
+                                                   self.hm.get_htlcs_in_latest_ctx(LOCAL)):
+                if htlc.payment_hash == payment_hash:
+                    is_sent = direction == SENT
+                    break
+            else:
+                return
+        if self.lnworker.get_preimage(payment_hash) is None:
+            self.logger.info(f'found preimage for {payment_hash.hex()} in witness of length {len(witness)}')
+            self.lnworker.save_preimage(payment_hash, preimage)
+        info = self.lnworker.get_payment_info(payment_hash)
+        if info is not None and info.status != PR_PAID:
+            if is_sent:
+                self.lnworker.payment_sent(self, payment_hash)
+            else:
+                self.lnworker.payment_received(self, payment_hash)
 
     def balance(self, whose: HTLCOwner, *, ctx_owner=HTLCOwner.LOCAL, ctn: int = None) -> int:
         assert type(whose) is HTLCOwner

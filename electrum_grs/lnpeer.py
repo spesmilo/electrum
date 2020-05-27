@@ -108,7 +108,8 @@ class Peer(Logger):
             return
         assert channel_id
         chan = self.get_channel_by_id(channel_id)
-        assert chan
+        if not chan:
+            raise Exception(f"channel {channel_id.hex()} not found for peer {self.pubkey.hex()}")
         chan.hm.store_local_update_raw_msg(raw_msg, is_commitment_signed=is_commitment_signed)
         if is_commitment_signed:
             # saving now, to ensure replaying updates works (in case of channel reestablishment)
@@ -495,7 +496,7 @@ class Peer(Logger):
             # we will want to derive that key
             wallet = self.lnworker.wallet
             assert wallet.txin_type == 'p2wpkh'
-            addr = wallet.get_unused_address()
+            addr = wallet.get_new_sweep_address_for_channel()
             static_remotekey = bfh(wallet.get_public_key(addr))
         else:
             static_remotekey = None
@@ -516,9 +517,34 @@ class Peer(Logger):
         )
         return local_config
 
+    def temporarily_reserve_funding_tx_change_address(func):
+        # During the channel open flow, if we initiated, we might have used a change address
+        # of ours in the funding tx. The funding tx is not part of the wallet history
+        # at that point yet, but we should already consider this change address as 'used'.
+        async def wrapper(self: 'Peer', *args, **kwargs):
+            funding_tx = kwargs['funding_tx']  # type: PartialTransaction
+            wallet = self.lnworker.wallet
+            change_addresses = [txout.address for txout in funding_tx.outputs()
+                                if wallet.is_change(txout.address)]
+            for addr in change_addresses:
+                wallet.set_reserved_state_of_address(addr, reserved=True)
+            try:
+                return await func(self, *args, **kwargs)
+            finally:
+                for addr in change_addresses:
+                    self.lnworker.wallet.set_reserved_state_of_address(addr, reserved=False)
+        return wrapper
+
     @log_exceptions
-    async def channel_establishment_flow(self, password: Optional[str], funding_tx: 'PartialTransaction', funding_sat: int,
-                                         push_msat: int, temp_channel_id: bytes) -> Tuple[Channel, 'PartialTransaction']:
+    @temporarily_reserve_funding_tx_change_address
+    async def channel_establishment_flow(
+            self, *,
+            password: Optional[str],
+            funding_tx: 'PartialTransaction',
+            funding_sat: int,
+            push_msat: int,
+            temp_channel_id: bytes
+    ) -> Tuple[Channel, 'PartialTransaction']:
         await asyncio.wait_for(self.initialized, LN_P2P_NETWORK_TIMEOUT)
         feerate = self.lnworker.current_feerate_per_kw()
         local_config = self.make_local_config(funding_sat, push_msat, LOCAL)
@@ -1470,7 +1496,6 @@ class Peer(Logger):
         await self.network.try_broadcasting(closing_tx, 'closing')
         return closing_tx.txid()
 
-    @log_exceptions
     async def htlc_switch(self):
         await self.initialized
         while True:
@@ -1509,7 +1534,9 @@ class Peer(Logger):
                         self.logger.info(f"error processing onion packet: {e!r}")
                         error_reason = OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
                     else:
-                        if processed_onion.are_we_final:
+                        if self.network.config.get('test_fail_htlcs_with_temp_node_failure'):
+                            error_reason = OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
+                        elif processed_onion.are_we_final:
                             preimage, error_reason = self.maybe_fulfill_htlc(
                                 chan=chan,
                                 htlc=htlc,

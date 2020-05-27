@@ -27,21 +27,21 @@ from enum import IntEnum
 from typing import Optional
 
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
-from PyQt5.QtWidgets import QMenu
+from PyQt5.QtWidgets import QMenu, QAbstractItemView
 from PyQt5.QtCore import Qt, QItemSelectionModel, QModelIndex
-from PyQt5.QtWidgets import QAbstractItemView
 
 from electrum_grs.i18n import _
 from electrum_grs.util import format_time, get_request_status
 from electrum_grs.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
-from electrum_grs.util import PR_PAID
 from electrum_grs.plugin import run_hook
 
-from .util import MyTreeView, pr_icons, read_QIcon, webopen
+from .util import MyTreeView, pr_icons, read_QIcon, webopen, MySortModel
 
 
 ROLE_REQUEST_TYPE = Qt.UserRole
 ROLE_KEY = Qt.UserRole + 1
+ROLE_SORT_ORDER = Qt.UserRole + 2
+
 
 class RequestList(MyTreeView):
 
@@ -64,7 +64,10 @@ class RequestList(MyTreeView):
                          stretch_column=self.Columns.DESCRIPTION,
                          editable_columns=[])
         self.wallet = self.parent.wallet
-        self.setModel(QStandardItemModel(self))
+        self.std_model = QStandardItemModel(self)
+        self.proxy = MySortModel(self, sort_role=ROLE_SORT_ORDER)
+        self.proxy.setSourceModel(self.std_model)
+        self.setModel(self.proxy)
         self.setSortingEnabled(True)
         self.selectionModel().currentRowChanged.connect(self.item_changed)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
@@ -86,7 +89,7 @@ class RequestList(MyTreeView):
         if not idx.isValid():
             return
         # TODO use siblingAtColumn when min Qt version is >=5.11
-        item = self.model().itemFromIndex(idx.sibling(idx.row(), self.Columns.DATE))
+        item = self.item_from_index(idx.sibling(idx.row(), self.Columns.DATE))
         request_type = item.data(ROLE_REQUEST_TYPE)
         key = item.data(ROLE_KEY)
         req = self.wallet.get_request(key)
@@ -99,20 +102,21 @@ class RequestList(MyTreeView):
         else:
             self.parent.receive_payreq_e.setText(req.get('URI'))
             self.parent.receive_address_e.setText(req['address'])
+        self.parent.receive_payreq_e.repaint()  # macOS hack (similar to #4777)
+        self.parent.receive_address_e.repaint()  # macOS hack (similar to #4777)
 
     def clearSelection(self):
         super().clearSelection()
         self.selectionModel().clearCurrentIndex()
 
     def refresh_status(self):
-        m = self.model()
+        m = self.std_model
         for r in range(m.rowCount()):
             idx = m.index(r, self.Columns.STATUS)
             date_idx = idx.sibling(idx.row(), self.Columns.DATE)
             date_item = m.itemFromIndex(date_idx)
             status_item = m.itemFromIndex(idx)
             key = date_item.data(ROLE_KEY)
-            is_lightning = date_item.data(ROLE_REQUEST_TYPE) == PR_TYPE_LN
             req = self.wallet.get_request(key)
             if req:
                 status, status_str = get_request_status(req)
@@ -122,7 +126,8 @@ class RequestList(MyTreeView):
     def update(self):
         # not calling maybe_defer_update() as it interferes with conditional-visibility
         self.parent.update_receive_address_styling()
-        self.model().clear()
+        self.proxy.setDynamicSortFilter(False)  # temp. disable re-sorting after every change
+        self.std_model.clear()
         self.update_headers(self.__class__.headers)
         for req in self.wallet.get_sorted_requests():
             status, status_str = get_request_status(req)
@@ -145,16 +150,18 @@ class RequestList(MyTreeView):
             self.set_editability(items)
             items[self.Columns.DATE].setData(request_type, ROLE_REQUEST_TYPE)
             items[self.Columns.DATE].setData(key, ROLE_KEY)
+            items[self.Columns.DATE].setData(timestamp, ROLE_SORT_ORDER)
             items[self.Columns.DATE].setIcon(icon)
             items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
             items[self.Columns.DATE].setToolTip(tooltip)
-            self.model().insertRow(self.model().rowCount(), items)
+            self.std_model.insertRow(self.std_model.rowCount(), items)
         self.filter()
+        self.proxy.setDynamicSortFilter(True)
         # sort requests by date
         self.sortByColumn(self.Columns.DATE, Qt.DescendingOrder)
         # hide list if empty
         if self.parent.isVisible():
-            b = self.model().rowCount() > 0
+            b = self.std_model.rowCount() > 0
             self.setVisible(b)
             self.parent.receive_requests_label.setVisible(b)
             if not b:
@@ -170,9 +177,8 @@ class RequestList(MyTreeView):
             menu.exec_(self.viewport().mapToGlobal(position))
             return
         idx = self.indexAt(position)
-        item = self.model().itemFromIndex(idx)
         # TODO use siblingAtColumn when min Qt version is >=5.11
-        item = self.model().itemFromIndex(idx.sibling(idx.row(), self.Columns.DATE))
+        item = self.item_from_index(idx.sibling(idx.row(), self.Columns.DATE))
         if not item:
             return
         key = item.data(ROLE_KEY)

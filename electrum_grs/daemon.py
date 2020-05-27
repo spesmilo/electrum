@@ -140,12 +140,139 @@ def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
     return rpc_user, rpc_password
 
 
-class WatchTowerServer(Logger):
+class AuthenticationError(Exception):
+    pass
 
-    def __init__(self, network):
+class AuthenticationInvalidOrMissing(AuthenticationError):
+    pass
+
+class AuthenticationCredentialsInvalid(AuthenticationError):
+    pass
+
+class AuthenticatedServer(Logger):
+
+    def __init__(self, rpc_user, rpc_password):
         Logger.__init__(self)
+        self.rpc_user = rpc_user
+        self.rpc_password = rpc_password
+        self.auth_lock = asyncio.Lock()
+
+    async def authenticate(self, headers):
+        if self.rpc_password == '':
+            # RPC authentication is disabled
+            return
+        auth_string = headers.get('Authorization', None)
+        if auth_string is None:
+            raise AuthenticationInvalidOrMissing('CredentialsMissing')
+        basic, _, encoded = auth_string.partition(' ')
+        if basic != 'Basic':
+            raise AuthenticationInvalidOrMissing('UnsupportedType')
+        encoded = to_bytes(encoded, 'utf8')
+        credentials = to_string(b64decode(encoded), 'utf8')
+        username, _, password = credentials.partition(':')
+        if not (constant_time_compare(username, self.rpc_user)
+                and constant_time_compare(password, self.rpc_password)):
+            await asyncio.sleep(0.050)
+            raise AuthenticationCredentialsInvalid('Invalid Credentials')
+
+    async def handle(self, request):
+        async with self.auth_lock:
+            try:
+                await self.authenticate(request.headers)
+            except AuthenticationInvalidOrMissing:
+                return web.Response(headers={"WWW-Authenticate": "Basic realm=Electrum-GRS"},
+                                    text='Unauthorized', status=401)
+            except AuthenticationCredentialsInvalid:
+                return web.Response(text='Forbidden', status=403)
+        request = await request.text()
+        response = await jsonrpcserver.async_dispatch(request, methods=self.methods)
+        if isinstance(response, jsonrpcserver.response.ExceptionResponse):
+            self.logger.error(f"error handling request: {request}", exc_info=response.exc)
+            # this exposes the error message to the client
+            response.message = str(response.exc)
+        if response.wanted:
+            return web.json_response(response.deserialized(), status=response.http_status)
+        else:
+            return web.Response()
+
+
+class CommandsServer(AuthenticatedServer):
+
+    def __init__(self, daemon, fd):
+        rpc_user, rpc_password = get_rpc_credentials(daemon.config)
+        AuthenticatedServer.__init__(self, rpc_user, rpc_password)
+        self.daemon = daemon
+        self.fd = fd
+        self.config = daemon.config
+        self.host = self.config.get('rpchost', '127.0.0.1')
+        self.port = self.config.get('rpcport', 0)
+        self.app = web.Application()
+        self.app.router.add_post("/", self.handle)
+        self.methods = jsonrpcserver.methods.Methods()
+        self.methods.add(self.ping)
+        self.methods.add(self.gui)
+        self.cmd_runner = Commands(config=self.config, network=self.daemon.network, daemon=self.daemon)
+        for cmdname in known_commands:
+            self.methods.add(getattr(self.cmd_runner, cmdname))
+        self.methods.add(self.run_cmdline)
+
+    async def run(self):
+        self.runner = web.AppRunner(self.app)
+        await self.runner.setup()
+        site = web.TCPSite(self.runner, self.host, self.port)
+        await site.start()
+        socket = site._server.sockets[0]
+        os.write(self.fd, bytes(repr((socket.getsockname(), time.time())), 'utf8'))
+        os.close(self.fd)
+
+    async def ping(self):
+        return True
+
+    async def gui(self, config_options):
+        if self.daemon.gui_object:
+            if hasattr(self.daemon.gui_object, 'new_window'):
+                path = self.config.get_wallet_path(use_gui_last_wallet=True)
+                self.daemon.gui_object.new_window(path, config_options.get('url'))
+                response = "ok"
+            else:
+                response = "error: current GUI does not support multiple windows"
+        else:
+            response = "Error: Electrum-GRS is running in daemon mode. Please stop the daemon first."
+        return response
+
+    async def run_cmdline(self, config_options):
+        cmdname = config_options['cmd']
+        cmd = known_commands[cmdname]
+        # arguments passed to function
+        args = [config_options.get(x) for x in cmd.params]
+        # decode json arguments
+        args = [json_decode(i) for i in args]
+        # options
+        kwargs = {}
+        for x in cmd.options:
+            kwargs[x] = config_options.get(x)
+        if 'wallet_path' in cmd.options:
+            kwargs['wallet_path'] = config_options.get('wallet_path')
+        elif 'wallet' in cmd.options:
+            kwargs['wallet'] = config_options.get('wallet_path')
+        func = getattr(self.cmd_runner, cmd.name)
+        # fixme: not sure how to retrieve message in jsonrpcclient
+        try:
+            result = await func(*args, **kwargs)
+        except Exception as e:
+            result = {'error':str(e)}
+        return result
+
+
+class WatchTowerServer(AuthenticatedServer):
+
+    def __init__(self, network, netaddress):
+        self.addr = netaddress
         self.config = network.config
         self.network = network
+        watchtower_user = self.config.get('watchtower_user', '')
+        watchtower_password = self.config.get('watchtower_password', '')
+        AuthenticatedServer.__init__(self, watchtower_user, watchtower_password)
         self.lnwatcher = network.local_watchtower
         self.app = web.Application()
         self.app.router.add_post("/", self.handle)
@@ -153,21 +280,10 @@ class WatchTowerServer(Logger):
         self.methods.add(self.get_ctn)
         self.methods.add(self.add_sweep_tx)
 
-    async def handle(self, request):
-        request = await request.text()
-        self.logger.info(f'{request}')
-        response = await jsonrpcserver.async_dispatch(request, methods=self.methods)
-        if response.wanted:
-            return web.json_response(response.deserialized(), status=response.http_status)
-        else:
-            return web.Response()
-
     async def run(self):
-        host = self.config.get('watchtower_host')
-        port = self.config.get('watchtower_port', 12345)
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
-        site = web.TCPSite(self.runner, host, port, ssl_context=self.config.get_ssl_context())
+        site = web.TCPSite(self.runner, host=str(self.addr.host), port=self.addr.port, ssl_context=self.config.get_ssl_context())
         await site.start()
 
     async def get_ctn(self, *args):
@@ -179,37 +295,37 @@ class WatchTowerServer(Logger):
 
 class PayServer(Logger):
 
-    def __init__(self, daemon: 'Daemon'):
+    def __init__(self, daemon: 'Daemon', netaddress):
         Logger.__init__(self)
+        self.addr = netaddress
         self.daemon = daemon
         self.config = daemon.config
         self.pending = defaultdict(asyncio.Event)
-        util.register_callback(self.on_payment, ['payment_received'])
+        util.register_callback(self.on_payment, ['request_status'])
 
     @property
     def wallet(self):
         # FIXME specify wallet somehow?
         return list(self.daemon.get_wallets().values())[0]
 
-    async def on_payment(self, evt, wallet, key, status):
+    async def on_payment(self, evt, key, status):
         if status == PR_PAID:
             self.pending[key].set()
 
     @ignore_exceptions
     @log_exceptions
     async def run(self):
-        host = self.config.get('payserver_host', 'localhost')
-        port = self.config.get('payserver_port')
         root = self.config.get('payserver_root', '/r')
         app = web.Application()
-        app.add_routes([web.post('/api/create_invoice', self.create_request)])
         app.add_routes([web.get('/api/get_invoice', self.get_request)])
         app.add_routes([web.get('/api/get_status', self.get_status)])
         app.add_routes([web.get('/bip70/{key}.bip70', self.get_bip70_request)])
         app.add_routes([web.static(root, os.path.join(os.path.dirname(__file__), 'www'))])
+        if self.config.get('payserver_allow_create_invoice'):
+            app.add_routes([web.post('/api/create_invoice', self.create_request)])
         runner = web.AppRunner(app)
         await runner.setup()
-        site = web.TCPSite(runner, port=port, host=host, ssl_context=self.config.get_ssl_context())
+        site = web.TCPSite(runner, host=str(self.addr.host), port=self.addr.port, ssl_context=self.config.get_ssl_context())
         await site.start()
 
     async def create_request(self, request):
@@ -219,9 +335,10 @@ class PayServer(Logger):
             raise web.HTTPUnsupportedMediaType()
         amount = int(params['amount_sat'])
         message = params['message'] or "donation"
-        payment_hash = wallet.lnworker.add_request(amount_sat=amount,
-                                                   message=message,
-                                                   expiry=3600)
+        payment_hash = wallet.lnworker.add_request(
+            amount_sat=amount,
+            message=message,
+            expiry=3600)
         key = payment_hash.hex()
         raise web.HTTPFound(self.root + '/pay?id=' + key)
 
@@ -268,14 +385,6 @@ class PayServer(Logger):
         return ws
 
 
-class AuthenticationError(Exception):
-    pass
-
-class AuthenticationInvalidOrMissing(AuthenticationError):
-    pass
-
-class AuthenticationCredentialsInvalid(AuthenticationError):
-    pass
 
 class Daemon(Logger):
 
@@ -284,7 +393,6 @@ class Daemon(Logger):
     @profiler
     def __init__(self, config: SimpleConfig, fd=None, *, listen_jsonrpc=True):
         Logger.__init__(self)
-        self.auth_lock = asyncio.Lock()
         self.running = False
         self.running_lock = threading.Lock()
         self.config = config
@@ -301,18 +409,22 @@ class Daemon(Logger):
         # path -> wallet;   make sure path is standardized.
         self._wallets = {}  # type: Dict[str, Abstract_Wallet]
         daemon_jobs = []
-        # Setup JSONRPC server
+        # Setup commands server
+        self.commands_server = None
         if listen_jsonrpc:
-            daemon_jobs.append(self.start_jsonrpc(config, fd))
-        # request server
+            self.commands_server = CommandsServer(self, fd)
+            daemon_jobs.append(self.commands_server.run())
+        # pay server
         self.pay_server = None
-        if not config.get('offline') and self.config.get('run_payserver'):
-            self.pay_server = PayServer(self)
+        payserver_address = self.config.get_netaddress('payserver_address')
+        if not config.get('offline') and payserver_address:
+            self.pay_server = PayServer(self, payserver_address)
             daemon_jobs.append(self.pay_server.run())
         # server-side watchtower
         self.watchtower = None
-        if not config.get('offline') and self.config.get('run_watchtower'):
-            self.watchtower = WatchTowerServer(self.network)
+        watchtower_address = self.config.get_netaddress('watchtower_address')
+        if not config.get('offline') and watchtower_address:
+            self.watchtower = WatchTowerServer(self.network, watchtower_address)
             daemon_jobs.append(self.watchtower.run)
         if self.network:
             self.network.start(jobs=[self.fx.run])
@@ -335,80 +447,6 @@ class Daemon(Logger):
             self.logger.exception("taskgroup died.")
         finally:
             self.logger.info("taskgroup stopped.")
-
-    async def authenticate(self, headers):
-        if self.rpc_password == '':
-            # RPC authentication is disabled
-            return
-        auth_string = headers.get('Authorization', None)
-        if auth_string is None:
-            raise AuthenticationInvalidOrMissing('CredentialsMissing')
-        basic, _, encoded = auth_string.partition(' ')
-        if basic != 'Basic':
-            raise AuthenticationInvalidOrMissing('UnsupportedType')
-        encoded = to_bytes(encoded, 'utf8')
-        credentials = to_string(b64decode(encoded), 'utf8')
-        username, _, password = credentials.partition(':')
-        if not (constant_time_compare(username, self.rpc_user)
-                and constant_time_compare(password, self.rpc_password)):
-            await asyncio.sleep(0.050)
-            raise AuthenticationCredentialsInvalid('Invalid Credentials')
-
-    async def handle(self, request):
-        async with self.auth_lock:
-            try:
-                await self.authenticate(request.headers)
-            except AuthenticationInvalidOrMissing:
-                return web.Response(headers={"WWW-Authenticate": "Basic realm=Electrum"},
-                                    text='Unauthorized', status=401)
-            except AuthenticationCredentialsInvalid:
-                return web.Response(text='Forbidden', status=403)
-        request = await request.text()
-        response = await jsonrpcserver.async_dispatch(request, methods=self.methods)
-        if isinstance(response, jsonrpcserver.response.ExceptionResponse):
-            self.logger.error(f"error handling request: {request}", exc_info=response.exc)
-            # this exposes the error message to the client
-            response.message = str(response.exc)
-        if response.wanted:
-            return web.json_response(response.deserialized(), status=response.http_status)
-        else:
-            return web.Response()
-
-    async def start_jsonrpc(self, config: SimpleConfig, fd):
-        self.app = web.Application()
-        self.app.router.add_post("/", self.handle)
-        self.rpc_user, self.rpc_password = get_rpc_credentials(config)
-        self.methods = jsonrpcserver.methods.Methods()
-        self.methods.add(self.ping)
-        self.methods.add(self.gui)
-        self.cmd_runner = Commands(config=self.config, network=self.network, daemon=self)
-        for cmdname in known_commands:
-            self.methods.add(getattr(self.cmd_runner, cmdname))
-        self.methods.add(self.run_cmdline)
-        self.host = config.get('rpchost', '127.0.0.1')
-        self.port = config.get('rpcport', 0)
-        self.runner = web.AppRunner(self.app)
-        await self.runner.setup()
-        site = web.TCPSite(self.runner, self.host, self.port)
-        await site.start()
-        socket = site._server.sockets[0]
-        os.write(fd, bytes(repr((socket.getsockname(), time.time())), 'utf8'))
-        os.close(fd)
-
-    async def ping(self):
-        return True
-
-    async def gui(self, config_options):
-        if self.gui_object:
-            if hasattr(self.gui_object, 'new_window'):
-                path = self.config.get_wallet_path(use_gui_last_wallet=True)
-                self.gui_object.new_window(path, config_options.get('url'))
-                response = "ok"
-            else:
-                response = "error: current GUI does not support multiple windows"
-        else:
-            response = "Error: Electrum-GRS is running in daemon mode. Please stop the daemon first."
-        return response
 
     def load_wallet(self, path, password, *, manual_upgrades=True) -> Optional[Abstract_Wallet]:
         path = standardize_path(path)
@@ -441,7 +479,7 @@ class Daemon(Logger):
         path = standardize_path(path)
         self._wallets[path] = wallet
 
-    def get_wallet(self, path: str) -> Abstract_Wallet:
+    def get_wallet(self, path: str) -> Optional[Abstract_Wallet]:
         path = standardize_path(path)
         return self._wallets.get(path)
 
@@ -463,27 +501,6 @@ class Daemon(Logger):
             return False
         wallet.stop()
         return True
-
-    async def run_cmdline(self, config_options):
-        cmdname = config_options['cmd']
-        cmd = known_commands[cmdname]
-        # arguments passed to function
-        args = [config_options.get(x) for x in cmd.params]
-        # decode json arguments
-        args = [json_decode(i) for i in args]
-        # options
-        kwargs = {}
-        for x in cmd.options:
-            kwargs[x] = config_options.get(x)
-        if cmd.requires_wallet:
-            kwargs['wallet_path'] = config_options.get('wallet_path')
-        func = getattr(self.cmd_runner, cmd.name)
-        # fixme: not sure how to retrieve message in jsonrpcclient
-        try:
-            result = await func(*args, **kwargs)
-        except Exception as e:
-            result = {'error':str(e)}
-        return result
 
     def run_daemon(self):
         self.running = True

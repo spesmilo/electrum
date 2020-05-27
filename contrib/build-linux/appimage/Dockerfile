@@ -1,4 +1,4 @@
-FROM ubuntu:16.04@sha256:97b54e5692c27072234ff958a7442dde4266af21e7b688e7fca5dc5acc8ed7d9
+FROM ubuntu:16.04@sha256:a4fc0c40360ff2224db3a483e5d80e9164fe3fdce2a8439d2686270643974632
 
 ENV LC_ALL=C.UTF-8 LANG=C.UTF-8
 
@@ -19,7 +19,7 @@ RUN apt-get update -q && \
         libncurses5-dev=6.0+20160213-1ubuntu1 \
         libsqlite3-dev=3.11.0-1ubuntu1.4 \
         libusb-1.0-0-dev=2:1.0.20-1 \
-        libudev-dev=229-4ubuntu21.27 \
+        libudev-dev=229-4ubuntu21.28 \
         gettext=0.19.7-2ubuntu3.1 \
         libzbar0=0.10+doc-10ubuntu1  \
         libdbus-1-3=1.10.6-1ubuntu3.4 \

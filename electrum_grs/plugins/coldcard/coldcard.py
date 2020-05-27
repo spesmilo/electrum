@@ -519,8 +519,8 @@ class ColdcardPlugin(HW_PluginBase):
             rv = CKCCClient(self, handler, device.path,
                             is_simulator=(device.product_key[1] == CKCC_SIMULATED_PID))
             return rv
-        except:
-            self.logger.info('late failure connecting to device?')
+        except Exception as e:
+            self.logger.exception('late failure connecting to device?')
             return None
 
     def setup_device(self, device_info, wizard, purpose):

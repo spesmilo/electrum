@@ -43,6 +43,7 @@ from electrum_grs.gui.qt.transaction_dialog import show_transaction, TxDialog
 from electrum_grs.gui.qt.util import WaitingDialog
 
 if TYPE_CHECKING:
+    from electrum_grs.gui.qt import ElectrumGui
     from electrum_grs.gui.qt.main_window import ElectrumWindow
 
 
@@ -101,9 +102,13 @@ class Plugin(BasePlugin):
         self.obj.cosigner_receive_signal.connect(self.on_receive)
         self.keys = []  # type: List[Tuple[str, str, ElectrumWindow]]
         self.cosigner_list = []  # type: List[Tuple[ElectrumWindow, str, bytes, str]]
+        self._init_qt_received = False
 
     @hook
-    def init_qt(self, gui):
+    def init_qt(self, gui: 'ElectrumGui'):
+        if self._init_qt_received:  # only need/want the first signal
+            return
+        self._init_qt_received = True
         for window in gui.windows:
             self.on_new_window(window)
 

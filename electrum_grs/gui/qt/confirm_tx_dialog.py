@@ -23,6 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+from decimal import Decimal
 from typing import TYPE_CHECKING, Optional, Union
 
 from PyQt5.QtWidgets import  QVBoxLayout, QLabel, QGridLayout, QPushButton, QLineEdit
@@ -31,13 +32,13 @@ from electrum_grs.i18n import _
 from electrum_grs.util import NotEnoughFunds, NoDynamicFeeEstimates
 from electrum_grs.plugin import run_hook
 from electrum_grs.transaction import Transaction, PartialTransaction
-from electrum_grs.simple_config import FEERATE_WARNING_HIGH_FEE
+from electrum_grs.simple_config import FEERATE_WARNING_HIGH_FEE, FEE_RATIO_HIGH_WARNING
 from electrum_grs.wallet import InternalAddressCorruption
 
 from .util import (WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton,
                    BlockingWaitingDialog, PasswordLineEdit)
 
-from .fee_slider import FeeSlider
+from .fee_slider import FeeSlider, FeeComboBox
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -145,7 +146,10 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
         grid.addWidget(self.extra_fee_value, 2, 1)
 
         self.fee_slider = FeeSlider(self, self.config, self.fee_slider_callback)
+        self.fee_combo = FeeComboBox(self.fee_slider)
+        grid.addWidget(HelpLabel(_("Fee rate") + ": ", self.fee_combo.help_msg), 5, 0)
         grid.addWidget(self.fee_slider, 5, 1)
+        grid.addWidget(self.fee_combo, 5, 2)
 
         self.message_label = QLabel(self.default_message())
         grid.addWidget(self.message_label, 6, 0, 1, -1)
@@ -191,17 +195,15 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
         self.is_send = True
         self.accept()
 
-    def disable(self, reason):
-        self.message_label.setStyleSheet(ColorScheme.RED.as_stylesheet())
-        self.message_label.setText(reason)
-        self.pw.setEnabled(False)
-        self.send_button.setEnabled(False)
-
-    def enable(self):
-        self.message_label.setStyleSheet(None)
-        self.message_label.setText(self.default_message())
-        self.pw.setEnabled(True)
-        self.send_button.setEnabled(True)
+    def toggle_send_button(self, enable: bool, *, message: str = None):
+        if message is None:
+            self.message_label.setStyleSheet(None)
+            self.message_label.setText(self.default_message())
+        else:
+            self.message_label.setStyleSheet(ColorScheme.RED.as_stylesheet())
+            self.message_label.setText(message)
+        self.pw.setEnabled(enable)
+        self.send_button.setEnabled(enable)
 
     def _update_amount_label(self):
         tx = self.tx
@@ -227,7 +229,7 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
                 text += " ({} {} {})".format(
                     self.main_window.format_amount(c + u + x).strip(), self.main_window.base_unit(), _("are frozen")
                 )
-            self.disable(text)
+            self.toggle_send_button(False, message=text)
             return
 
         if not tx:
@@ -242,16 +244,22 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
             self.extra_fee_value.setVisible(True)
             self.extra_fee_value.setText(self.main_window.format_amount_and_units(x_fee_amount))
 
-        feerate_warning = FEERATE_WARNING_HIGH_FEE
-        low_fee = fee < self.wallet.relayfee() * tx.estimated_size() / 1000
-        high_fee = fee > feerate_warning * tx.estimated_size() / 1000
-        if low_fee:
+        amount = tx.output_value() if self.output_value == '!' else self.output_value
+        feerate = Decimal(fee) / tx.estimated_size()  # sat/byte
+        fee_ratio = Decimal(fee) / amount if amount else 1
+        if feerate < self.wallet.relayfee() / 1000:
             msg = '\n'.join([
                 _("This transaction requires a higher fee, or it will not be propagated by your current server"),
                 _("Try to raise your transaction fee, or use a server with a lower relay fee.")
             ])
-            self.disable(msg)
-        elif high_fee:
-            self.disable(_('Warning') + ': ' + _("The fee for this transaction seems unusually high."))
+            self.toggle_send_button(False, message=msg)
+        elif fee_ratio >= FEE_RATIO_HIGH_WARNING:
+            self.toggle_send_button(True,
+                                    message=_('Warning') + ': ' + _("The fee for this transaction seems unusually high.")
+                                            + f'\n({fee_ratio*100:.2f}% of amount)')
+        elif feerate > FEERATE_WARNING_HIGH_FEE / 1000:
+            self.toggle_send_button(True,
+                                    message=_('Warning') + ': ' + _("The fee for this transaction seems unusually high.")
+                                            + f'\n(feerate: {feerate:.2f} gro/byte)')
         else:
-            self.enable()
+            self.toggle_send_button(True)
