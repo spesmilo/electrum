@@ -14,7 +14,7 @@ from electrum_grs.util import log_exceptions, ignore_exceptions, make_aiohttp_se
 from electrum_grs.network import Network
 
 if TYPE_CHECKING:
-    from electrum.wallet import Abstract_Wallet
+    from electrum_grs.wallet import Abstract_Wallet
 
 
 class ErrorConnectingServer(Exception):

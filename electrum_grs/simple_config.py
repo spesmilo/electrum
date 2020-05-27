@@ -621,7 +621,7 @@ class SimpleConfig(Logger):
         return self.format_amount(amount) + ' '+ self.get_base_unit()
 
     def format_fee_rate(self, fee_rate):
-        return format_fee_satoshis(fee_rate/1000, num_zeros=self.num_zeros) + ' sat/byte'
+        return format_fee_satoshis(fee_rate/1000, num_zeros=self.num_zeros) + ' gro/byte'
 
     def get_base_unit(self):
         return decimal_point_to_base_unit_name(self.decimal_point)

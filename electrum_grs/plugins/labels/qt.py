@@ -13,9 +13,9 @@ from electrum_grs.gui.qt.util import ThreadedButton, Buttons, EnterButton, Windo
 from .labels import LabelsPlugin
 
 if TYPE_CHECKING:
-    from electrum.gui.qt import ElectrumGui
-    from electrum.gui.qt.main_window import ElectrumWindow
-    from electrum.wallet import Abstract_Wallet
+    from electrum_grs.gui.qt import ElectrumGui
+    from electrum_grs.gui.qt.main_window import ElectrumWindow
+    from electrum_grs.wallet import Abstract_Wallet
 
 class QLabelsSignalObject(QObject):
     labels_changed_signal = pyqtSignal(object)

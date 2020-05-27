@@ -1068,7 +1068,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 selected_addr = random.choice(addrs)
             else:  # fallback for e.g. imported wallets
                 selected_addr = self.get_receiving_address()
-        assert is_address(selected_addr), f"not valid bitcoin address: {selected_addr}"
+        assert is_address(selected_addr), f"not valid groestlcoin address: {selected_addr}"
         return selected_addr
 
     def make_unsigned_transaction(self, *, coins: Sequence[PartialTxInput],
