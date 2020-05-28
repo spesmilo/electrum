@@ -820,7 +820,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         transactions_tmp = OrderedDictWithIndex()
         # add on-chain txns
         onchain_history = self.get_onchain_history(domain=onchain_domain)
-        lnworker_history = self.lnworker.get_onchain_history() if self.lnworker else []
+        lnworker_history = self.lnworker.get_onchain_history() if self.lnworker and include_lightning else {}
         for tx_item in onchain_history:
             txid = tx_item['txid']
             transactions_tmp[txid] = tx_item
