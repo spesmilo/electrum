@@ -916,3 +916,26 @@ and there is no warning message.
   to use the same address twice in the outputs. (cculianu)
   See reddit thread:
       https://old.reddit.com/r/btc/comments/fmcf0x/cash_shuffle_privacy_bug/
+
+# Release 4.0.15
+
+- Fixed USB HID support for hardware wallets on macOS. (cculianu)
+- Documentation: Updated instructions for running from source on macOS #1848.
+  (Ty Everett)
+- Fix #1806 - Fixed crash when no outputs in tx dialog. (cculianu)
+- Requirements: Remove protobuf <3.9 constraint #1864. (Axel Gembe)
+- Server list updated. (imaginaryusername, Axel Gembe, cculianu)
+- Android fixups and improvements:
+    - Handle base units being renamed or removed (Malcolm Smith)
+    - Switch to Requests screen when a request is saved (Malcolm Smith)
+    - Fix crash when opening payment protocol URL from browser (Malcolm Smith)
+    - Various internal improvements and fixes (Malcolm Smith)
+- Bugfix: BIP39 passphrases were being handled incorrectly for upper or mixed
+  case #1878. (Jochen Hoenicke)
+- Added OP_REVERSEBYTES to the list of known script ops for display. (cculianu)
+- Made "Connect only to Preferred Servers" False by default. (cculuanu)
+- Varous macOS Fixups and improvements:
+    - Mojave+ dark mode now works (cculianu)
+    - On macOS we now disabled the "dark" theme in favor of the system dark
+      theme (cculianu)
+    - Catalina startup times drastically improved (cculianu)
