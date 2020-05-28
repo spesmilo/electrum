@@ -20,6 +20,12 @@ from .fee_slider import FeeSlider, FeeComboBox
 import asyncio
 from .util import read_QIcon
 
+CANNOT_RECEIVE_WARNING = """
+The requested amount is higher than what you can receive in your currently open channels.
+If you continue, your funds will be locked until the remote server can find a path to pay you.
+If the swap cannot be performed after 24h, you will be refunded.
+Do you want to continue?
+"""
 
 class SwapDialog(WindowModalDialog):
 
@@ -27,7 +33,8 @@ class SwapDialog(WindowModalDialog):
         WindowModalDialog.__init__(self, window, _('Submarine Swap'))
         self.window = window
         self.config = window.config
-        self.swap_manager = self.window.wallet.lnworker.swap_manager
+        self.lnworker = self.window.wallet.lnworker
+        self.swap_manager = self.lnworker.swap_manager
         self.network = window.network
         vbox = QVBoxLayout(self)
         vbox.addWidget(WWLabel('Swap lightning funds for on-chain funds if you need to increase your receiving capacity. This service is powered by the Boltz backend.'))
@@ -92,9 +99,12 @@ class SwapDialog(WindowModalDialog):
         if self.send_amount_e.follows:
             return
         self.send_amount_e.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
-        amount = self.send_amount_e.get_amount()
+        send_amount = self.send_amount_e.get_amount()
+        recv_amount = self.swap_manager.get_recv_amount(send_amount, self.is_reverse)
+        if self.is_reverse and send_amount and send_amount > self.lnworker.num_sats_can_send():
+            recv_amount = None
         self.recv_amount_e.follows = True
-        self.recv_amount_e.setAmount(self.swap_manager.get_recv_amount(amount, self.is_reverse))
+        self.recv_amount_e.setAmount(recv_amount)
         self.recv_amount_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
         self.recv_amount_e.follows = False
         self.send_follows = False
@@ -103,9 +113,12 @@ class SwapDialog(WindowModalDialog):
         if self.recv_amount_e.follows:
             return
         self.recv_amount_e.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
-        amount = self.recv_amount_e.get_amount()
+        recv_amount = self.recv_amount_e.get_amount()
+        send_amount = self.swap_manager.get_send_amount(recv_amount, self.is_reverse)
+        if self.is_reverse and send_amount and send_amount > self.lnworker.num_sats_can_send():
+            send_amount = None
         self.send_amount_e.follows = True
-        self.send_amount_e.setAmount(self.swap_manager.get_send_amount(amount, self.is_reverse))
+        self.send_amount_e.setAmount(send_amount)
         self.send_amount_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
         self.send_amount_e.follows = False
         self.send_follows = True
@@ -124,12 +137,19 @@ class SwapDialog(WindowModalDialog):
             return
         if self.is_reverse:
             lightning_amount = self.send_amount_e.get_amount()
-            onchain_amount = self.recv_amount_e.get_amount() + self.swap_manager.get_claim_fee()
-            coro = self.swap_manager.reverse_swap(lightning_amount, onchain_amount)
+            onchain_amount = self.recv_amount_e.get_amount()
+            if lightning_amount is None or onchain_amount is None:
+                return
+            coro = self.swap_manager.reverse_swap(lightning_amount, onchain_amount + self.swap_manager.get_claim_fee())
             self.window.run_coroutine_from_thread(coro)
         else:
             lightning_amount = self.recv_amount_e.get_amount()
             onchain_amount = self.send_amount_e.get_amount()
+            if lightning_amount is None or onchain_amount is None:
+                return
+            if lightning_amount > self.lnworker.num_sats_can_receive():
+                if not self.window.question(CANNOT_RECEIVE_WARNING):
+                    return
             self.window.protect(self.do_normal_swap, (lightning_amount, onchain_amount))
 
     def do_normal_swap(self, lightning_amount, onchain_amount, password):
