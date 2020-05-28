@@ -29,12 +29,6 @@ class SwapDialog(WindowModalDialog):
         self.config = window.config
         self.swap_manager = self.window.wallet.lnworker.swap_manager
         self.network = window.network
-        self.normal_fee = 0
-        self.lockup_fee = 0
-        self.claim_fee = self.swap_manager.get_tx_fee()
-        self.percentage = 0
-        self.min_amount = 0
-        self.max_amount = 0
         vbox = QVBoxLayout(self)
         vbox.addWidget(WWLabel('Swap lightning funds for on-chain funds if you need to increase your receiving capacity. This service is powered by the Boltz backend.'))
         self.send_amount_e = BTCAmountEdit(self.window.get_decimal_point)
@@ -82,8 +76,6 @@ class SwapDialog(WindowModalDialog):
                 self.config.set_key('fee_level', pos, False)
         else:
             self.config.set_key('fee_per_kb', fee_rate, False)
-        # read claim_fee from config
-        self.claim_fee = self.swap_manager.get_tx_fee()
         if self.send_follows:
             self.on_recv_edited()
         else:
@@ -102,7 +94,7 @@ class SwapDialog(WindowModalDialog):
         self.send_amount_e.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
         amount = self.send_amount_e.get_amount()
         self.recv_amount_e.follows = True
-        self.recv_amount_e.setAmount(self.get_recv_amount(amount))
+        self.recv_amount_e.setAmount(self.swap_manager.get_recv_amount(amount, self.is_reverse))
         self.recv_amount_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
         self.recv_amount_e.follows = False
         self.send_follows = False
@@ -113,72 +105,26 @@ class SwapDialog(WindowModalDialog):
         self.recv_amount_e.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
         amount = self.recv_amount_e.get_amount()
         self.send_amount_e.follows = True
-        self.send_amount_e.setAmount(self.get_send_amount(amount))
+        self.send_amount_e.setAmount(self.swap_manager.get_send_amount(amount, self.is_reverse))
         self.send_amount_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
         self.send_amount_e.follows = False
         self.send_follows = True
 
-    def on_pairs(self, pairs):
-        fees = pairs['pairs']['BTC/BTC']['fees']
-        self.percentage = fees['percentage']
-        self.normal_fee = fees['minerFees']['baseAsset']['normal']
-        self.lockup_fee = fees['minerFees']['baseAsset']['reverse']['lockup']
-        #self.claim_fee = fees['minerFees']['baseAsset']['reverse']['claim']
-        limits = pairs['pairs']['BTC/BTC']['limits']
-        self.min_amount = limits['minimal']
-        self.max_amount = limits['maximal']
-        self.update()
-
     def update(self):
+        sm = self.swap_manager
         self.send_button.setIcon(read_QIcon("lightning.png" if self.is_reverse else "bitcoin.png"))
         self.recv_button.setIcon(read_QIcon("lightning.png" if not self.is_reverse else "bitcoin.png"))
-        fee = self.lockup_fee + self.claim_fee if self.is_reverse else self.normal_fee
+        fee = sm.lockup_fee + sm.get_claim_fee() if self.is_reverse else sm.normal_fee
         self.fee_label.setText(self.window.format_amount(fee) + ' ' + self.window.base_unit())
-        self.percentage_label.setText('%.2f'%self.percentage + '%')
-
-    def set_minimum(self):
-        self.send_amount_e.setAmount(self.min_amount)
-
-    def set_maximum(self):
-        self.send_amount_e.setAmount(self.max_amount)
-
-    def get_recv_amount(self, send_amount):
-        if send_amount is None:
-            return
-        if send_amount < self.min_amount or send_amount > self.max_amount:
-            return
-        x = send_amount
-        if self.is_reverse:
-            x = int(x * (100 - self.percentage) / 100)
-            x -= self.lockup_fee
-            x -= self.claim_fee
-        else:
-            x -= self.normal_fee
-            x = int(x * (100 - self.percentage) / 100)
-        if x < 0:
-            return
-        return x
-
-    def get_send_amount(self, recv_amount):
-        if not recv_amount:
-            return
-        x = recv_amount
-        if self.is_reverse:
-            x += self.lockup_fee
-            x += self.claim_fee
-            x = int(x * 100 / (100 - self.percentage)) + 1
-        else:
-            x = int(x * 100 / (100 - self.percentage)) + 1
-            x += self.normal_fee
-        return x
+        self.percentage_label.setText('%.2f'%sm.percentage + '%')
 
     def run(self):
-        self.window.run_coroutine_from_thread(self.swap_manager.get_pairs(), self.on_pairs)
+        self.window.run_coroutine_from_thread(self.swap_manager.get_pairs(), lambda x: self.update())
         if not self.exec_():
             return
         if self.is_reverse:
             lightning_amount = self.send_amount_e.get_amount()
-            onchain_amount = self.recv_amount_e.get_amount() + self.claim_fee
+            onchain_amount = self.recv_amount_e.get_amount() + self.swap_manager.get_claim_fee()
             coro = self.swap_manager.reverse_swap(lightning_amount, onchain_amount)
             self.window.run_coroutine_from_thread(coro)
         else:

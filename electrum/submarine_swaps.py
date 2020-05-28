@@ -96,6 +96,23 @@ def create_claim_tx(txin, witness_script, preimage, privkey:bytes, address, amou
 
 class SwapManager(Logger):
 
+    def __init__(self, wallet: 'Abstract_Wallet', network:'Network'):
+        Logger.__init__(self)
+        self.normal_fee = 0
+        self.lockup_fee = 0
+        self.percentage = 0
+        self.min_amount = 0
+        self.max_amount = 0
+        self.network = network
+        self.wallet = wallet
+        self.lnworker = wallet.lnworker
+        self.lnwatcher = self.wallet.lnworker.lnwatcher
+        self.swaps = self.wallet.db.get_dict('submarine_swaps')
+        for swap in self.swaps.values():
+            if swap.is_redeemed:
+                continue
+            self.add_lnwatcher_callback(swap)
+
     @log_exceptions
     async def _claim_swap(self, swap):
         if not self.lnwatcher.is_up_to_date():
@@ -117,7 +134,7 @@ class SwapManager(Logger):
                     self.lnwatcher.remove_callback(swap.lockup_address)
                     swap.is_redeemed = True
                 continue
-            amount_sat = txin._trusted_value_sats - self.get_tx_fee()
+            amount_sat = txin._trusted_value_sats - self.get_claim_fee()
             if amount_sat < dust_threshold():
                 self.logger.info('utxo value below dust threshold')
                 continue
@@ -128,20 +145,8 @@ class SwapManager(Logger):
             # save txid
             swap.spending_txid = tx.txid()
 
-    def get_tx_fee(self):
+    def get_claim_fee(self):
         return self.lnwatcher.config.estimate_fee(136, allow_fallback_to_static_rates=True)
-
-    def __init__(self, wallet: 'Abstract_Wallet', network:'Network'):
-        Logger.__init__(self)
-        self.network = network
-        self.wallet = wallet
-        self.lnworker = wallet.lnworker
-        self.lnwatcher = self.wallet.lnworker.lnwatcher
-        self.swaps = self.wallet.db.get_dict('submarine_swaps')
-        for swap in self.swaps.values():
-            if swap.is_redeemed:
-                continue
-            self.add_lnwatcher_callback(swap)
 
     def get_swap(self, payment_hash):
         return self.swaps.get(payment_hash.hex())
@@ -211,12 +216,7 @@ class SwapManager(Logger):
         self.swaps[payment_hash.hex()] = swap
         self.add_lnwatcher_callback(swap)
         await self.network.broadcast_transaction(tx)
-        #
-        attempt = await self.lnworker.await_payment(payment_hash)
-        return {
-            'id':response_id,
-            'success':attempt.success,
-        }
+        return tx.txid()
 
     @log_exceptions
     async def reverse_swap(self, amount_sat, expected_amount):
@@ -278,10 +278,7 @@ class SwapManager(Logger):
         self.add_lnwatcher_callback(swap)
         # initiate payment.
         success, log = await self.lnworker._pay(invoice, attempts=10)
-        return {
-            'id':response_id,
-            'success':success,
-        }
+        return success
 
     @log_exceptions
     async def get_pairs(self):
@@ -289,5 +286,42 @@ class SwapManager(Logger):
             'get',
             API_URL + '/getpairs',
             timeout=30)
-        data = json.loads(response)
-        return data
+        pairs = json.loads(response)
+        fees = pairs['pairs']['BTC/BTC']['fees']
+        self.percentage = fees['percentage']
+        self.normal_fee = fees['minerFees']['baseAsset']['normal']
+        self.lockup_fee = fees['minerFees']['baseAsset']['reverse']['lockup']
+        limits = pairs['pairs']['BTC/BTC']['limits']
+        self.min_amount = limits['minimal']
+        self.max_amount = limits['maximal']
+
+    def get_recv_amount(self, send_amount, is_reverse):
+        if send_amount is None:
+            return
+        if send_amount < self.min_amount or send_amount > self.max_amount:
+            return
+        x = send_amount
+        if is_reverse:
+            x = int(x * (100 - self.percentage) / 100)
+            x -= self.lockup_fee
+            x -= self.get_claim_fee()
+        else:
+            x -= self.normal_fee
+            x = int(x * (100 - self.percentage) / 100)
+        if x < 0:
+            return
+        return x
+
+    def get_send_amount(self, recv_amount, is_reverse):
+        if not recv_amount:
+            return
+        x = recv_amount
+        if is_reverse:
+            x += self.lockup_fee
+            x += self.get_claim_fee()
+            x = int(x * 100 / (100 - self.percentage)) + 1
+        else:
+            x = int(x * 100 / (100 - self.percentage)) + 1
+            x += self.normal_fee
+        return x
+
