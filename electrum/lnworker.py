@@ -631,17 +631,14 @@ class LNWallet(LNWorker):
                 'preimage': preimage,
             }
             # add txid to merge item with onchain item
-            swap_info = self.swap_manager.get_swap(preimage)
-            if swap_info:
-                is_reverse = swap_info.get('invoice')
-                if is_reverse:
-                    item['txid'] = swap_info.get('claim_txid')
-                    lightning_amount = swap_info.get('lightning_amount')
-                    item['label'] = 'Reverse swap' + ' ' + self.config.format_amount_and_units(lightning_amount)
+            swap = self.swap_manager.get_swap(payment_hash)
+            if swap:
+                if swap.is_reverse:
+                    item['txid'] = swap.spending_txid
+                    item['label'] = 'Reverse swap' + ' ' + self.config.format_amount_and_units(swap.lightning_amount)
                 else:
-                    item['txid'] = swap_info.get('funding_txid')
-                    onchain_amount = swap_info["expectedAmount"]
-                    item['label'] = 'Normal swap' + ' ' + self.config.format_amount_and_units(onchain_amount)
+                    item['txid'] = swap.funding_txid
+                    item['label'] = 'Normal swap' + ' ' + self.config.format_amount_and_units(swap.onchain_amount)
             # done
             out[payment_hash] = item
         return out
@@ -683,21 +680,18 @@ class LNWallet(LNWorker):
         # add submarine swaps
         settled_payments = self.get_settled_payments()
         current_height = self.network.get_local_height()
-        for preimage_hex, swap_info in self.swap_manager.swaps.items():
-            is_reverse = swap_info.get('invoice')
-            txid = swap_info.get('claim_txid' if is_reverse else 'funding_txid')
+        for payment_hash_hex, swap in self.swap_manager.swaps.items():
+            txid = swap.spending_txid if swap.is_reverse else swap.funding_txid
             if txid is None:
                 continue
-            payment_hash = sha256(bytes.fromhex(preimage_hex))
-            if payment_hash.hex() in settled_payments:
-                plist = settled_payments[payment_hash.hex()]
-                info = self.get_payment_info(payment_hash)
+            if payment_hash_hex in settled_payments:
+                plist = settled_payments[payment_hash_hex]
+                info = self.get_payment_info(bytes.fromhex(payment_hash_hex))
                 amount_msat, fee_msat, timestamp = self.get_payment_value(info, plist)
             else:
                 amount_msat = 0
-            locktime = swap_info.get('timeoutBlockHeight')
-            delta = current_height - locktime
-            label = 'Reverse swap' if is_reverse else 'Normal swap'
+            label = 'Reverse swap' if swap.is_reverse else 'Normal swap'
+            delta = current_height - swap.locktime
             if delta < 0:
                 label += f' (refundable in {-delta} blocks)'
             out[txid] = {
