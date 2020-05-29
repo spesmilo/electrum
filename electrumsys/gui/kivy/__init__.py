@@ -34,8 +34,8 @@ try:
     import kivy
 except ImportError:
     # This error ideally shouldn't be raised with pre-built packages
-    sys.exit("Error: Could not import kivy. Please install it using the" + \
-             "instructions mentioned here `http://kivy.org/#download` .")
+    sys.exit("Error: Could not import kivy. Please install it using the "
+             "instructions mentioned here `https://kivy.org/#download` .")
 
 # minimum required version for kivy
 kivy.require('1.8.0')
