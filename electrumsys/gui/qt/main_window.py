@@ -1161,6 +1161,7 @@ class ElectrumSysWindow(QMainWindow, MessageBoxMixin, Logger):
         buttons.addWidget(self.clear_invoice_button)
         buttons.addWidget(self.create_invoice_button)
         if self.wallet.has_lightning():
+            self.create_invoice_button.setText(_('On-chain'))
             self.create_lightning_invoice_button = QPushButton(_('Lightning'))
             self.create_lightning_invoice_button.setToolTip('Create lightning request')
             self.create_lightning_invoice_button.setIcon(read_QIcon("lightning.png"))
@@ -1271,6 +1272,11 @@ class ElectrumSysWindow(QMainWindow, MessageBoxMixin, Logger):
         # clear request fields
         self.receive_amount_e.setText('')
         self.receive_message_e.setText('')
+        # copy to clipboard
+        r = self.wallet.get_request(key)
+        content = r.get('invoice', '') if is_lightning else r.get('address', '')
+        title = _('Invoice') if is_lightning else _('Address')
+        self.do_copy(content, title=title)
 
     def create_bitcoin_request(self, amount, message, expiration):
         addr = self.wallet.get_unused_address()
