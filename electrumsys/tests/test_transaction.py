@@ -3,16 +3,8 @@ from typing import NamedTuple, Union
 from electrumsys import transaction, bitcoin
 from electrumsys.transaction import convert_raw_tx_to_hex, tx_from_any, Transaction, PartialTransaction
 from electrumsys.util import bh2u, bfh
-from electrumsys import keystore
-from electrumsys import bip32
-from electrumsys.mnemonic import seed_type
-from electrumsys.simple_config import SimpleConfig
 
-
-from electrumsys.plugins.trustedcoin import trustedcoin
-from electrumsys.plugins.trustedcoin.legacy_tx_format import serialize_tx_in_legacy_format
-
-from . import ElectrumSysTestCase, TestCaseForTestnet
+from . import ElectrumSysTestCase
 
 signed_blob = '01000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf38633b424eb4031000000006c493046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d985012102e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6ffffffff0140420f00000000001976a914230ac37834073a42146f11ef8414ae929feaafc388ac00000000'
 v2_blob = "0200000001191601a44a81e061502b7bfbc6eaa1cef6d1e6af5308ef96c9342f71dbf4b9b5000000006b483045022100a6d44d0a651790a477e75334adfb8aae94d6612d01187b2c02526e340a7fd6c8022028bdf7a64a54906b13b145cd5dab21a26bd4b85d6044e9b97bceab5be44c2a9201210253e8e0254b0c95776786e40984c1aa32a7d03efa6bdacdea5f421b774917d346feffffff026b20fa04000000001976a914024db2e87dd7cfd0e5f266c5f212e21a31d805a588aca0860100000000001976a91421919b94ae5cefcdf0271191459157cdb41c4cbf88aca6240700"
@@ -848,56 +840,3 @@ class TestTransaction(ElectrumSysTestCase):
         self._run_naive_tests_on_tx(raw_tx, txid)
 
 # txns from Bitcoin Core ends <---
-
-
-class TestLegacyPartialTxFormat(TestCaseForTestnet):
-
-    def setUp(self):
-        super().setUp()
-        self.config = SimpleConfig({'electrumsys_path': self.electrumsys_path})
-
-    def test_trustedcoin_legacy_2fa_psbt_to_legacy_partial_tx(self):
-        from .test_wallet_vertical import WalletIntegrityHelper
-        seed_words = 'kiss live scene rude gate step hip quarter bunker oxygen motor glove'
-        self.assertEqual(seed_type(seed_words), '2fa')
-
-        xprv1, xpub1, xprv2, xpub2 = trustedcoin.TrustedCoinPlugin.xkeys_from_seed(seed_words, '')
-        ks1 = keystore.from_xprv(xprv1)
-        ks2 = keystore.from_xprv(xprv2)
-        long_user_id, short_id = trustedcoin.get_user_id(
-            {'x1/': {'xpub': xpub1},
-             'x2/': {'xpub': xpub2}})
-        xtype = bip32.xpub_type(xpub1)
-        xpub3 = trustedcoin.make_xpub(trustedcoin.get_signing_xpub(xtype), long_user_id)
-        ks3 = keystore.from_xpub(xpub3)
-
-        wallet = WalletIntegrityHelper.create_multisig_wallet([ks1, ks2, ks3], '2of3', config=self.config)
-
-        tx = tx_from_any('cHNidP8BAJQCAAAAAcqqxrXrkW4wZ9AiT5QvszHOHc+0Axz7R555Qdz5XkCYAQAAAAD9////A6CGAQAAAAAAFgAU+fBLRlKk9v89xVEm2xJ0kG1wcvNMCwMAAAAAABepFPKffLiXEB3Gmv1Y35uy5bTUM59Nh0ANAwAAAAAAGXapFPriyJZefiOenIisUU3nDewLDxYIiKwSKxgATwEENYfPAAAAAAAAAAAAnOMnCVq57ruCJ7c38H6PtmrwS48+kcQJPEh70w/ofCQCDSEN062A0pw2JKkYltX2G3th8zLexPfEVDGu74BeD6cEcH3xxE8BBDWHzwGCB4l2gAAAAJOfYJjOAH6kksFOokIboP3+8Gwhlzlxhl5uY7zokvfcAmGy8e8txy0wkx69/TgZFOMe1aZc2g1HCwrRQ9M9+Ph7CIIHiXYAAACATwEENYfPAYIHiXaAAAABb6EovcClpG/Hrxr9IF22IHGR1MQFG27b0GQTzcCxot8Dak5MvnvEZt1lN4TIazd0m+w+goApzqNMFWkJVv1hV28IggeJdgEAAIAAAQDfAgAAAAGcKHw7enlMh6IibIkEeKQlL5pUR2wKv6GC1NTd6KY8ggEAAABqRzBEAiBNHsG9H5z10eHHsIOe4kFdvnZK38E7Jx+Cmru14SdQ/gIgWngNYj/F8qHAhkdlU+BgY5ktAL2MeIUoqIJKXudcFRMBIQNU856KX8nmKx8+nbIRwjpRAvyMWroJGz+F6ADwzYv/GP3///8CnJ0HAAAAAAAZdqkUsQVAb+BbDci+RMeDa6WBLb9nTOiIrCChBwAAAAAAF6kULBYX0k+TbkDRSw3ylOy3u6rXUzeHEisYACICA/5C2rWHGOoEE/fI3mk83u4izhmx3DTAu916SCRUZcWiSDBFAiEA0Dw1yyk7Adp74Ndxztr6iR7V1wpnfPzNaWcTVva+vtwCIAsqV2xM0cZCSAdWzh/WYKyvC6UmGTowmeH4HN0BrSCTAQEEaVIhAgkfC02KswAWpdHAiCSeAog/rYFg8G+lNYithZhlCj5iIQNfL4JjuzYI1sxO4DvUy41lxNcK9xBJ8F+/7kl4gyof0iED/kLatYcY6gQT98jeaTze7iLOGbHcNMC73XpIJFRlxaJTriIGA/5C2rWHGOoEE/fI3mk83u4izhmx3DTAu916SCRUZcWiEIIHiXYAAACAAAAAAAAAAAAiBgIJHwtNirMAFqXRwIgkngKIP62BYPBvpTWIrYWYZQo+YhCCB4l2AQAAgAAAAAAAAAAAIgYDXy+CY7s2CNbMTuA71MuNZcTXCvcQSfBfv+5JeIMqH9IMcH3xxAAAAAAAAAAAAAABAGlSIQIqtnn9ouM3xAq7wIID09cdKpb9u/OMkI97kuU3wcTv/yEDTNFHFnZ1xmKGRQzFaUAT9DeDk2NdeWSrilc8w9BKjU4hA1joWoIBRYfeqDPrX/uT45hWkO5Lph7zLVsorVqhYXN/U64iAgNM0UcWdnXGYoZFDMVpQBP0N4OTY115ZKuKVzzD0EqNThCCB4l2AAAAgAEAAAAAAAAAIgICKrZ5/aLjN8QKu8CCA9PXHSqW/bvzjJCPe5LlN8HE7/8QggeJdgEAAIABAAAAAAAAACICA1joWoIBRYfeqDPrX/uT45hWkO5Lph7zLVsorVqhYXN/DHB98cQBAAAAAAAAAAAA')
-        tx.add_info_from_wallet(wallet)
-        raw_tx = serialize_tx_in_legacy_format(tx, wallet=wallet)
-        self.assertEqual('45505446ff000200000001caaac6b5eb916e3067d0224f942fb331ce1dcfb4031cfb479e7941dcf95e409801000000fd53010001ff01ff483045022100d03c35cb293b01da7be0d771cedafa891ed5d70a677cfccd69671356f6bebedc02200b2a576c4cd1c642480756ce1fd660acaf0ba526193a3099e1f81cdd01ad2093014d0201524c53ff043587cf0182078976800000016fa128bdc0a5a46fc7af1afd205db6207191d4c4051b6edbd06413cdc0b1a2df036a4e4cbe7bc466dd653784c86b37749bec3e828029cea34c15690956fd61576f000000004c53ff043587cf0000000000000000009ce327095ab9eebb8227b737f07e8fb66af04b8f3e91c4093c487bd30fe87c24020d210dd3ad80d29c3624a91896d5f61b7b61f332dec4f7c45431aeef805e0fa7000000004c53ff043587cf018207897680000000939f6098ce007ea492c14ea2421ba0fdfef06c21973971865e6e63bce892f7dc0261b2f1ef2dc72d30931ebdfd381914e31ed5a65cda0d470b0ad143d33df8f87b0000000053aefdffffff03a086010000000000160014f9f04b4652a4f6ff3dc55126db1274906d7072f34c0b03000000000017a914f29f7cb897101dc69afd58df9bb2e5b4d4339f4d87400d0300000000001976a914fae2c8965e7e239e9c88ac514de70dec0b0f160888ac122b1800',
-                         raw_tx)
-
-    def test_trustedcoin_segwit_2fa_psbt_to_legacy_partial_tx(self):
-        from .test_wallet_vertical import WalletIntegrityHelper
-        seed_words = 'universe topic remind silver february ranch shine worth innocent cattle enhance wise'
-        self.assertEqual(seed_type(seed_words), '2fa_segwit')
-
-        xprv1, xpub1, xprv2, xpub2 = trustedcoin.TrustedCoinPlugin.xkeys_from_seed(seed_words, '')
-        ks1 = keystore.from_xprv(xprv1)
-        ks2 = keystore.from_xprv(xprv2)
-        long_user_id, short_id = trustedcoin.get_user_id(
-            {'x1/': {'xpub': xpub1},
-             'x2/': {'xpub': xpub2}})
-        xtype = bip32.xpub_type(xpub1)
-        xpub3 = trustedcoin.make_xpub(trustedcoin.get_signing_xpub(xtype), long_user_id)
-        ks3 = keystore.from_xpub(xpub3)
-
-        wallet = WalletIntegrityHelper.create_multisig_wallet([ks1, ks2, ks3], '2of3', config=self.config)
-
-        tx = tx_from_any('70736274ff01009f020000000187c4646ca690b397e357b23b2137030691a90a068a6690834d340b4be84acd6a0100000000fdffffff03a0860100000000001600148bc9d947e4d0addc2f4c34b8371034eb47b3d305140c030000000000220020a6087c4f84a55dc39014729a18e08955139d4384559d1fd2a48a1d95d746a425400d0300000000001976a914c13fd6294d1be7b9410a5538f4b4ef10fc594ee788ac132b18004f0102575483000000000000000000d644dcdd7a4acb432355e010ac4a5f955940c82a9767731b7d89dc42eb3cdac40272faa2f98b76cc9d655ef281c07acda75c30a990dc3a527b6cf92a8f5a6b8a80044bf212094f010257548301d24cd5918000000199c4d6c893fa1addec6b0121181137e25c38194333b8c57215b3cf1e6d7e7af102a23ddae698bb6095b8b8035bdd1e94479f66c29679d81931e0fe07aa436149ee08d24cd591010000804f010257548301d24cd59180000000b60a85089ad0850a6ffe8590a3e15064e63eefd020813df2e4a6b3209ce3df5f02c8b14f2917d557cd482970c114c3e3457e09d256397802277a2e4d1519ab9f8c08d24cd591000000800001012b20a1070000000000220020a948d7fa6abbb97e31779ae54383012b413d53821c7fd394900f6b443c61deee22020307a3c41d07ed976d65e213e823d02840937475e709b41253e85e970e3cb1667447304402202f7be5fad398f1a3576293339f2274d227af17798690aa1ad00ff83d96725cc5022000cb2e9fff5be23a862718c665a5035f172783e9b3158eae83673f6c59adc3c001010569522102a9dcb570e8280c741f09032c158095b7aa3b0ce401ada030f2d47b999f020606210307a3c41d07ed976d65e213e823d02840937475e709b41253e85e970e3cb166742103521b0a45e042f08ccd03af47fd88bb207b5414e0e30bb8799fca311a06323a1953ae22060307a3c41d07ed976d65e213e823d02840937475e709b41253e85e970e3cb1667410d24cd591000000800000000001000000220603521b0a45e042f08ccd03af47fd88bb207b5414e0e30bb8799fca311a06323a1910d24cd591010000800000000001000000220602a9dcb570e8280c741f09032c158095b7aa3b0ce401ada030f2d47b999f0206060c4bf212090000000001000000000001016952210205829f9522577122ca9ca9beb67f94cf2fe0ad0d17e052a110701cf4128d339c21022cca282cfdd9cc1f387d3098661d68bc9c8a39ac6bd72c30db579a7857d0859b2102d90e3c8973844b9cc0b38494c48515a319eec3ac2489f96f6f55e6aa6912a60853ae220202d90e3c8973844b9cc0b38494c48515a319eec3ac2489f96f6f55e6aa6912a60810d24cd5910000008001000000000000002202022cca282cfdd9cc1f387d3098661d68bc9c8a39ac6bd72c30db579a7857d0859b10d24cd59101000080010000000000000022020205829f9522577122ca9ca9beb67f94cf2fe0ad0d17e052a110701cf4128d339c0c4bf2120901000000000000000000')
-        tx.add_info_from_wallet(wallet)
-        raw_tx = serialize_tx_in_legacy_format(tx, wallet=wallet)
-        self.assertEqual('45505446ff000200000000010187c4646ca690b397e357b23b2137030691a90a068a6690834d340b4be84acd6a0100000000fdffffff03a0860100000000001600148bc9d947e4d0addc2f4c34b8371034eb47b3d305140c030000000000220020a6087c4f84a55dc39014729a18e08955139d4384559d1fd2a48a1d95d746a425400d0300000000001976a914c13fd6294d1be7b9410a5538f4b4ef10fc594ee788acfeffffffff20a10700000000000000050001ff47304402202f7be5fad398f1a3576293339f2274d227af17798690aa1ad00ff83d96725cc5022000cb2e9fff5be23a862718c665a5035f172783e9b3158eae83673f6c59adc3c00101fffd0201524c53ff02575483000000000000000000d644dcdd7a4acb432355e010ac4a5f955940c82a9767731b7d89dc42eb3cdac40272faa2f98b76cc9d655ef281c07acda75c30a990dc3a527b6cf92a8f5a6b8a80000001004c53ff0257548301d24cd59180000000b60a85089ad0850a6ffe8590a3e15064e63eefd020813df2e4a6b3209ce3df5f02c8b14f2917d557cd482970c114c3e3457e09d256397802277a2e4d1519ab9f8c000001004c53ff0257548301d24cd5918000000199c4d6c893fa1addec6b0121181137e25c38194333b8c57215b3cf1e6d7e7af102a23ddae698bb6095b8b8035bdd1e94479f66c29679d81931e0fe07aa436149ee0000010053ae132b1800',
-                         raw_tx)
