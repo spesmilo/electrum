@@ -650,6 +650,7 @@ class ChannelDB(SqlDB):
         self.logger.info(f'num_channels_partitioned_by_policy_count. '
                          f'0p: {nchans_with_0p}, 1p: {nchans_with_1p}, 2p: {nchans_with_2p}')
         self.data_loaded.set()
+        util.trigger_callback('gossip_db_loaded')
 
     def _update_num_policies_for_chan(self, short_channel_id: ShortChannelID) -> None:
         channel_info = self.get_channel_info(short_channel_id)

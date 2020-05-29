@@ -269,7 +269,7 @@ class ElectrumSysWindow(QMainWindow, MessageBoxMixin, Logger):
                          'on_history', 'channel', 'channels_updated',
                          'payment_failed', 'payment_succeeded',
                          'invoice_status', 'request_status', 'ln_gossip_sync_progress',
-                         'cert_mismatch']
+                         'cert_mismatch', 'gossip_db_loaded']
             # To avoid leaking references to "self" that prevent the
             # window from being GC-ed when closed, callbacks should be
             # methods of this class only, and specifically not be
@@ -449,6 +449,8 @@ class ElectrumSysWindow(QMainWindow, MessageBoxMixin, Logger):
             self.on_fx_quotes()
         elif event == 'on_history':
             self.on_fx_history()
+        elif event == 'gossip_db_loaded':
+            self.channels_list.gossip_db_loaded.emit(*args)
         elif event == 'channels_updated':
             self.channels_list.update_rows.emit(*args)
         elif event == 'channel':
