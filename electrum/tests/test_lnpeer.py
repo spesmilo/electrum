@@ -90,12 +90,19 @@ class MockBlockchain:
 
 
 class MockWallet:
+
     def set_label(self, x, y):
         pass
+
     def save_db(self):
         pass
+
+    def add_transaction(self, tx):
+        pass
+
     def is_lightning_backup(self):
         return False
+
 
 class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     def __init__(self, *, local_keypair: Keypair, chans: Iterable['Channel'], tx_queue):
