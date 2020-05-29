@@ -465,6 +465,9 @@ class TrustedCoinPlugin(BasePlugin):
             self.prompt_user_for_otp(wallet, tx, on_success, on_failure)
         return wrapper
 
+    def prompt_user_for_otp(self, wallet, tx, on_success, on_failure) -> None:
+        raise NotImplementedError()
+
     @hook
     def get_tx_extra_fee(self, wallet, tx: Transaction):
         if type(wallet) != Wallet_2fa:
