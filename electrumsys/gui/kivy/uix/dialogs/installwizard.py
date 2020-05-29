@@ -30,10 +30,6 @@ if TYPE_CHECKING:
 
 
 # global Variables
-is_test = (platform == "linux")
-test_seed = "grape impose jazz bind spatial mind jelly tourist tank today holiday stomach"
-test_seed = "time taxi field recycle tiny license olive virus report rare steel portion achieve"
-test_xpub = "xpub661MyMwAqRbcEbvVtRRSjqxVnaWVUMewVzMiURAKyYratih4TtBpMypzzefmv8zUNebmNVzB3PojdC5sV2P9bDgMoo9B3SARw1MXUUfU1GL"
 
 Builder.load_string('''
 #:import Window kivy.core.window.Window
@@ -878,7 +874,7 @@ class RestoreSeedDialog(WizardDialog):
         from electrumsys.mnemonic import Mnemonic
         from electrumsys.old_mnemonic import wordlist as old_wordlist
         self.words = set(Mnemonic('en').wordlist).union(set(old_wordlist))
-        self.ids.text_input_seed.text = test_seed if is_test else ''
+        self.ids.text_input_seed.text = ''
         self.message = _('Please type your seed phrase using the virtual keyboard.')
         self.title = _('Enter Seed')
         self.ext = False
@@ -1055,7 +1051,7 @@ class AddXpubDialog(WizardDialog):
         self.app.scan_qr(on_complete)
 
     def do_paste(self):
-        self.ids.text_input.text = test_xpub if is_test else self.app._clipboard.paste()
+        self.ids.text_input.text = self.app._clipboard.paste()
 
     def do_clear(self):
         self.ids.text_input.text = ''
