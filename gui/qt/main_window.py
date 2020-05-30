@@ -2218,9 +2218,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             callback(False)
 
         if self.tx_external_keypairs:
-            task = partial(Transaction.sign, tx, self.tx_external_keypairs)
+            task = partial(Transaction.sign, tx, self.tx_external_keypairs, use_cache=True)
         else:
-            task = partial(self.wallet.sign_transaction, tx, password)
+            task = partial(self.wallet.sign_transaction, tx, password, use_cache=True)
         WaitingDialog(self, _('Signing transaction...'), task,
                       on_signed, on_failed)
 
