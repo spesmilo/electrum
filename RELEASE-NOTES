@@ -933,7 +933,7 @@ and there is no warning message.
 - Bugfix: BIP39 passphrases were being handled incorrectly for upper or mixed
   case #1878. (Jochen Hoenicke)
 - Added OP_REVERSEBYTES to the list of known script ops for display. (cculianu)
-- Made "Connect only to Preferred Servers" False by default. (cculuanu)
+- Made "Connect only to Preferred Servers" False by default. (cculianu)
 - Varous macOS Fixups and improvements:
     - Mojave+ dark mode now works (cculianu)
     - On macOS we now disabled the "dark" theme in favor of the system dark
