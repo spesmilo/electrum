@@ -1470,7 +1470,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         return False  # no errors
 
-    def pay_lightning_invoice(self, invoice, amount_sat=None):
+    def pay_lightning_invoice(self, invoice: str, amount_sat: int):
+        msg = _("Pay lightning invoice?") + '\n\n' + _("This will send {}?").format(self.format_amount_and_units(amount_sat))
+        if not self.question(msg):
+            return
         attempts = LN_NUM_PAYMENT_ATTEMPTS
         def task():
             self.wallet.lnworker.pay(invoice, amount_sat, attempts=attempts)
@@ -1549,7 +1552,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def do_pay_invoice(self, invoice):
         if invoice['type'] == PR_TYPE_LN:
-            self.pay_lightning_invoice(invoice['invoice'], amount_sat=invoice['amount'])
+            self.pay_lightning_invoice(invoice['invoice'], invoice['amount'])
         elif invoice['type'] == PR_TYPE_ONCHAIN:
             outputs = invoice['outputs']
             self.pay_onchain_dialog(self.get_coins(), outputs)
