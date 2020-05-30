@@ -2181,7 +2181,17 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                 info[addr] = index, sorted_xpubs, self.m if isinstance(self, Multisig_Wallet) else None, self.txin_type
         tx.output_info = info
 
-    def sign_transaction(self, tx, password):
+    def sign_transaction(self, tx, password, *, use_cache=False):
+        """ Sign a transaction, requires password (may be None for password-less
+        wallets). If `use_cache` is enabled then signing will be much faster.
+
+        For transactions with N inputs and M outputs, calculating all sighashes
+        takes only O(N + M) with the cache, as opposed to O(N^2 + NM) without
+        the cache.
+
+        Warning: If you modify non-signature parts of the transaction
+        afterwards, do not use `use_cache`! """
+
         if self.is_watching_only():
             return
         # add input values for signing
@@ -2193,7 +2203,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         for k in self.get_keystores():
             try:
                 if k.can_sign(tx):
-                    k.sign_transaction(tx, password)
+                    k.sign_transaction(tx, password, use_cache=use_cache)
             except UserCancelled:
                 continue
 

@@ -104,7 +104,7 @@ class Software_KeyStore(KeyStore):
         decrypted = ec.decrypt_message(message)
         return decrypted
 
-    def sign_transaction(self, tx, password):
+    def sign_transaction(self, tx, password, *, use_cache=False):
         if self.is_watching_only():
             return
         # Raise if password is not correct.
@@ -115,7 +115,7 @@ class Software_KeyStore(KeyStore):
             keypairs[k] = self.get_private_key(v, password)
         # Sign
         if keypairs:
-            tx.sign(keypairs)
+            tx.sign(keypairs, use_cache=use_cache)
 
 
 class Imported_KeyStore(Software_KeyStore):
