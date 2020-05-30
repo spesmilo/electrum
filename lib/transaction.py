@@ -916,7 +916,7 @@ class Transaction:
         return sig
 
 
-    def sign(self, keypairs):
+    def sign(self, keypairs, *, use_cache=False):
         for i, txin in enumerate(self.inputs()):
             pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
             for j, (pubkey, x_pubkey) in enumerate(zip(pubkeys, x_pubkeys)):
@@ -933,16 +933,16 @@ class Transaction:
                     continue
                 print_error(f"adding signature for input#{i} sig#{j}; {kname}: {_pubkey} schnorr: {self._sign_schnorr}")
                 sec, compressed = keypairs.get(_pubkey)
-                self._sign_txin(i, j, sec, compressed)
+                self._sign_txin(i, j, sec, compressed, use_cache=use_cache)
         print_error("is_complete", self.is_complete())
         self.raw = self.serialize()
 
-    def _sign_txin(self, i, j, sec, compressed):
+    def _sign_txin(self, i, j, sec, compressed, *, use_cache=False):
         '''Note: precondition is self._inputs is valid (ie: tx is already deserialized)'''
         pubkey = public_key_from_private_key(sec, compressed)
         # add signature
         nHashType = 0x00000041 # hardcoded, perhaps should be taken from unsigned input dict
-        pre_hash = Hash(bfh(self.serialize_preimage(i, nHashType)))
+        pre_hash = Hash(bfh(self.serialize_preimage(i, nHashType, use_cache=use_cache)))
         if self._sign_schnorr:
             sig = self._schnorr_sign(pubkey, sec, pre_hash)
         else:
