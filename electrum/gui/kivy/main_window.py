@@ -16,7 +16,8 @@ from electrum.plugin import run_hook
 from electrum import util
 from electrum.util import (profiler, InvalidPassword, send_exception_to_crash_reporter,
                            format_satoshis, format_satoshis_plain, format_fee_satoshis,
-                           PR_PAID, PR_FAILED, maybe_extract_bolt11_invoice)
+                           maybe_extract_bolt11_invoice)
+from electrum.invoices import PR_PAID, PR_FAILED
 from electrum import blockchain
 from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed
 from electrum.interface import PREFERRED_NETWORK_PROTOCOL, ServerAddr
@@ -242,7 +243,7 @@ class ElectrumWindow(App):
         req = self.wallet.get_invoice(key)
         if req is None:
             return
-        status = req['status']
+        status = self.wallet.get_invoice_status(req)
         # todo: update single item
         self.update_tab('send')
         if self.invoice_popup and self.invoice_popup.key == key:
@@ -393,7 +394,7 @@ class ElectrumWindow(App):
         if pr.verify(self.wallet.contacts):
             key = pr.get_id()
             invoice = self.wallet.get_invoice(key)  # FIXME wrong key...
-            if invoice and invoice['status'] == PR_PAID:
+            if invoice and self.wallet.get_invoice_status(invoice) == PR_PAID:
                 self.show_error("invoice already paid")
                 self.send_screen.do_clear()
             elif pr.has_expired():
@@ -451,9 +452,7 @@ class ElectrumWindow(App):
 
     def show_request(self, is_lightning, key):
         from .uix.dialogs.request_dialog import RequestDialog
-        request = self.wallet.get_request(key)
-        data = request['invoice'] if is_lightning else request['URI']
-        self.request_popup = RequestDialog('Request', data, key, is_lightning=is_lightning)
+        self.request_popup = RequestDialog('Request', key)
         self.request_popup.open()
 
     def show_invoice(self, is_lightning, key):
@@ -461,7 +460,7 @@ class ElectrumWindow(App):
         invoice = self.wallet.get_invoice(key)
         if not invoice:
             return
-        data = invoice['invoice'] if is_lightning else key
+        data = invoice.invoice if is_lightning else key
         self.invoice_popup = InvoiceDialog('Invoice', data, key)
         self.invoice_popup.open()
 

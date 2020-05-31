@@ -47,7 +47,7 @@ from .bip32 import BIP32Node
 from .i18n import _
 from .transaction import (Transaction, multisig_script, TxOutput, PartialTransaction, PartialTxOutput,
                           tx_from_any, PartialTxInput, TxOutpoint)
-from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
+from .invoices import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .synchronizer import Notifier
 from .wallet import Abstract_Wallet, create_new_wallet, restore_wallet_from_text, Deterministic_Wallet
 from .address_synchronizer import TX_HEIGHT_LOCAL
@@ -59,7 +59,7 @@ from .lnpeer import channel_id_from_funding_tx
 from .plugin import run_hook
 from .version import ELECTRUM_VERSION
 from .simple_config import SimpleConfig
-from .lnaddr import parse_lightning_invoice
+from .invoices import LNInvoice
 
 
 if TYPE_CHECKING:
@@ -761,19 +761,13 @@ class Commands:
         decrypted = wallet.decrypt_message(pubkey, encrypted, password)
         return decrypted.decode('utf-8')
 
-    def _format_request(self, out):
-        from .util import get_request_status
-        out['amount_BTC'] = format_satoshis(out.get('amount'))
-        out['status'], out['status_str'] = get_request_status(out)
-        return out
-
     @command('w')
     async def getrequest(self, key, wallet: Abstract_Wallet = None):
         """Return a payment request"""
         r = wallet.get_request(key)
         if not r:
             raise Exception("Request not found")
-        return self._format_request(r)
+        return wallet.export_request(r)
 
     #@command('w')
     #async def ackrequest(self, serialized):
@@ -783,8 +777,6 @@ class Commands:
     @command('w')
     async def list_requests(self, pending=False, expired=False, paid=False, wallet: Abstract_Wallet = None):
         """List the payment requests you made."""
-        out = wallet.get_sorted_requests()
-        out = list(map(self._format_request, out))
         if pending:
             f = PR_UNPAID
         elif expired:
@@ -793,9 +785,10 @@ class Commands:
             f = PR_PAID
         else:
             f = None
+        out = wallet.get_sorted_requests()
         if f is not None:
-            out = list(filter(lambda x: x.get('status')==f, out))
-        return out
+            out = list(filter(lambda x: x.status==f, out))
+        return [wallet.export_request(x) for x in out]
 
     @command('w')
     async def createnewaddress(self, wallet: Abstract_Wallet = None):
@@ -847,14 +840,13 @@ class Commands:
         expiration = int(expiration) if expiration else None
         req = wallet.make_payment_request(addr, amount, memo, expiration)
         wallet.add_payment_request(req)
-        out = wallet.get_request(addr)
-        return self._format_request(out)
+        return wallet.export_request(req)
 
     @command('wn')
     async def add_lightning_request(self, amount, memo='', expiration=3600, wallet: Abstract_Wallet = None):
         amount_sat = int(satoshis(amount))
         key = await wallet.lnworker._add_request_coro(amount_sat, memo, expiration)
-        return wallet.get_request(key)
+        return wallet.get_formatted_request(key)
 
     @command('w')
     async def addtransaction(self, tx, wallet: Abstract_Wallet = None):
@@ -996,14 +988,24 @@ class Commands:
 
     @command('')
     async def decode_invoice(self, invoice):
-        return parse_lightning_invoice(invoice)
+        from .lnaddr import lndecode
+        lnaddr = lndecode(invoice)
+        return {
+            'pubkey': lnaddr.pubkey.serialize().hex(),
+            'amount_BTC': lnaddr.amount,
+            'rhash': lnaddr.paymenthash.hex(),
+            'description': lnaddr.get_description(),
+            'exp': lnaddr.get_expiry(),
+            'time': lnaddr.date,
+            #'tags': str(lnaddr.tags),
+        }
 
     @command('wn')
     async def lnpay(self, invoice, attempts=1, timeout=30, wallet: Abstract_Wallet = None):
         lnworker = wallet.lnworker
         lnaddr = lnworker._check_invoice(invoice, None)
         payment_hash = lnaddr.paymenthash
-        wallet.save_invoice(parse_lightning_invoice(invoice))
+        wallet.save_invoice(LNInvoice.from_bech32(invoice))
         success, log = await lnworker._pay(invoice, attempts=attempts)
         return {
             'payment_hash': payment_hash.hex(),
@@ -1061,7 +1063,8 @@ class Commands:
 
     @command('w')
     async def list_invoices(self, wallet: Abstract_Wallet = None):
-        return wallet.get_invoices()
+        l = wallet.get_invoices()
+        return [wallet.export_invoice(x) for x in l]
 
     @command('wn')
     async def close_channel(self, channel_point, force=False, wallet: Abstract_Wallet = None):

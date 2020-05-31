@@ -7,8 +7,8 @@ from kivy.app import App
 from kivy.clock import Clock
 
 from electrum.gui.kivy.i18n import _
-from electrum.util import pr_tooltips, pr_color, get_request_status
-from electrum.util import PR_UNKNOWN, PR_UNPAID, PR_FAILED, PR_TYPE_LN
+from electrum.invoices import pr_tooltips, pr_color
+from electrum.invoices import PR_UNKNOWN, PR_UNPAID, PR_FAILED, PR_TYPE_LN
 
 if TYPE_CHECKING:
     from electrum.gui.kivy.main_window import ElectrumWindow
@@ -92,16 +92,17 @@ class InvoiceDialog(Factory.Popup):
         self.title = title
         self.data = data
         self.key = key
-        r = self.app.wallet.get_invoice(key)
-        self.amount = r.get('amount')
-        self.description = r.get('message') or r.get('memo','')
-        self.is_lightning = r.get('type') == PR_TYPE_LN
+        invoice = self.app.wallet.get_invoice(key)
+        self.amount = invoice.amount
+        self.description = invoice.message
+        self.is_lightning = invoice.type == PR_TYPE_LN
         self.update_status()
         self.log = self.app.wallet.lnworker.logs[self.key] if self.is_lightning else []
 
     def update_status(self):
-        req = self.app.wallet.get_invoice(self.key)
-        self.status, self.status_str = get_request_status(req)
+        invoice = self.app.wallet.get_invoice(self.key)
+        self.status = self.app.wallet.get_invoice_status(invoice)
+        self.status_str = invoice.get_status_str(self.status)
         self.status_color = pr_color[self.status]
         self.can_pay = self.status in [PR_UNPAID, PR_FAILED]
         if self.can_pay and self.is_lightning and self.app.wallet.lnworker:

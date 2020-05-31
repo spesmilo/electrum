@@ -46,7 +46,7 @@ from aiorpcx import TaskGroup
 from . import util
 from .network import Network
 from .util import (json_decode, to_bytes, to_string, profiler, standardize_path, constant_time_compare)
-from .util import PR_PAID, PR_EXPIRED, get_request_status
+from .invoices import PR_PAID, PR_EXPIRED
 from .util import log_exceptions, ignore_exceptions, randrange
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
@@ -344,13 +344,13 @@ class PayServer(Logger):
 
     async def get_request(self, r):
         key = r.query_string
-        request = self.wallet.get_request(key)
+        request = self.wallet.get_formatted_request(key)
         return web.json_response(request)
 
     async def get_bip70_request(self, r):
         from .paymentrequest import make_request
         key = r.match_info['key']
-        request = self.wallet.get_request(key)
+        request = self.wallet.get_formatted_request(key)
         if not request:
             return web.HTTPNotFound()
         pr = make_request(self.config, request)
@@ -360,7 +360,7 @@ class PayServer(Logger):
         ws = web.WebSocketResponse()
         await ws.prepare(request)
         key = request.query_string
-        info = self.wallet.get_request(key)
+        info = self.wallet.get_formatted_request(key)
         if not info:
             await ws.send_str('unknown invoice')
             await ws.close()
