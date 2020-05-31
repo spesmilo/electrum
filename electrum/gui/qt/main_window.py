@@ -62,7 +62,8 @@ from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
                            get_new_wallet_name, send_exception_to_crash_reporter,
                            InvalidBitcoinURI, maybe_extract_bolt11_invoice, NotEnoughFunds,
                            NoDynamicFeeEstimates, MultipleSpendMaxTxOutputs)
-from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING
+from electrum.invoices import PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING
+from electrum.invoices import PR_PAID, PR_FAILED, pr_expiration_values, LNInvoice
 from electrum.transaction import (Transaction, PartialTxInput,
                                   PartialTransaction, PartialTxOutput)
 from electrum.address_synchronizer import AddTransactionException
@@ -73,10 +74,7 @@ from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed,
 from electrum.exchange_rate import FxThread
 from electrum.simple_config import SimpleConfig
 from electrum.logging import Logger
-from electrum.util import PR_PAID, PR_FAILED
-from electrum.util import pr_expiration_values
 from electrum.lnutil import ln_dummy_address
-from electrum.lnaddr import parse_lightning_invoice
 
 from .exception_window import Exception_Hook
 from .amountedit import AmountEdit, BTCAmountEdit, FreezableLineEdit, FeerateEdit
@@ -1192,7 +1190,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.receive_message_e.setText('')
         # copy to clipboard
         r = self.wallet.get_request(key)
-        content = r.get('invoice', '') if is_lightning else r.get('address', '')
+        content = r.invoice if r.is_lightning() else r.get_address()
         title = _('Invoice') if is_lightning else _('Address')
         self.do_copy(content, title=title)
 
@@ -1505,21 +1503,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if self.check_send_tab_payto_line_and_show_errors():
             return
         if not self._is_onchain:
-            invoice = self.payto_e.lightning_invoice
-            if not invoice:
+            invoice_str = self.payto_e.lightning_invoice
+            if not invoice_str:
                 return
             if not self.wallet.lnworker:
                 self.show_error(_('Lightning is disabled'))
                 return
-            invoice_dict = parse_lightning_invoice(invoice)
-            if invoice_dict.get('amount') is None:
+            invoice = LNInvoice.from_bech32(invoice_str)
+            if invoice.amount is None:
                 amount = self.amount_e.get_amount()
                 if amount:
-                    invoice_dict['amount'] = amount
+                    invoice.amount = amount
                 else:
                     self.show_error(_('No amount'))
                     return
-            return invoice_dict
+            return invoice
         else:
             outputs = self.read_outputs()
             if self.check_send_tab_onchain_outputs_and_show_errors(outputs):
@@ -1551,11 +1549,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.pay_onchain_dialog(self.get_coins(), outputs)
 
     def do_pay_invoice(self, invoice):
-        if invoice['type'] == PR_TYPE_LN:
-            self.pay_lightning_invoice(invoice['invoice'], invoice['amount'])
-        elif invoice['type'] == PR_TYPE_ONCHAIN:
-            outputs = invoice['outputs']
-            self.pay_onchain_dialog(self.get_coins(), outputs)
+        if invoice.type == PR_TYPE_LN:
+            self.pay_lightning_invoice(invoice.invoice, invoice.amount)
+        elif invoice.type == PR_TYPE_ONCHAIN:
+            self.pay_onchain_dialog(self.get_coins(), invoice.outputs)
         else:
             raise Exception('unknown invoice type')
 
@@ -1970,7 +1967,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if invoice is None:
             self.show_error('Cannot find payment request in wallet.')
             return
-        bip70 = invoice.get('bip70')
+        bip70 = invoice.bip70
         if bip70:
             pr = paymentrequest.PaymentRequest(bytes.fromhex(bip70))
             pr.verify(self.contacts)

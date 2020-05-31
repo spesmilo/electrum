@@ -16,7 +16,8 @@ from electrum.plugin import run_hook
 from electrum import util
 from electrum.util import (profiler, InvalidPassword, send_exception_to_crash_reporter,
                            format_satoshis, format_satoshis_plain, format_fee_satoshis,
-                           PR_PAID, PR_FAILED, maybe_extract_bolt11_invoice)
+                           maybe_extract_bolt11_invoice)
+from electrum.invoices import PR_PAID, PR_FAILED
 from electrum import blockchain
 from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed
 from electrum.interface import PREFERRED_NETWORK_PROTOCOL, ServerAddr
@@ -451,9 +452,7 @@ class ElectrumWindow(App):
 
     def show_request(self, is_lightning, key):
         from .uix.dialogs.request_dialog import RequestDialog
-        request = self.wallet.get_request(key)
-        data = request['invoice'] if is_lightning else request['URI']
-        self.request_popup = RequestDialog('Request', data, key, is_lightning=is_lightning)
+        self.request_popup = RequestDialog('Request', key)
         self.request_popup.open()
 
     def show_invoice(self, is_lightning, key):
@@ -461,7 +460,7 @@ class ElectrumWindow(App):
         invoice = self.wallet.get_invoice(key)
         if not invoice:
             return
-        data = invoice['invoice'] if is_lightning else key
+        data = invoice.invoice if is_lightning else key
         self.invoice_popup = InvoiceDialog('Invoice', data, key)
         self.invoice_popup.open()
 

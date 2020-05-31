@@ -24,17 +24,17 @@ from kivy.utils import platform
 from kivy.logger import Logger
 
 from electrum.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds, Fiat
-from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING
+from electrum.invoices import (PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING,
+                               PR_PAID, PR_UNKNOWN, PR_EXPIRED, PR_INFLIGHT,
+                               LNInvoice, pr_expiration_values)
 from electrum import bitcoin, constants
 from electrum.transaction import Transaction, tx_from_any, PartialTransaction, PartialTxOutput
-from electrum.util import (parse_URI, InvalidBitcoinURI, PR_PAID, PR_UNKNOWN, PR_EXPIRED,
-                           PR_INFLIGHT, TxMinedInfo, get_request_status, pr_expiration_values,
-                           maybe_extract_bolt11_invoice)
+from electrum.util import parse_URI, InvalidBitcoinURI, TxMinedInfo, maybe_extract_bolt11_invoice
 from electrum.plugin import run_hook
 from electrum.wallet import InternalAddressCorruption
 from electrum import simple_config
 from electrum.simple_config import FEERATE_WARNING_HIGH_FEE, FEE_RATIO_HIGH_WARNING
-from electrum.lnaddr import lndecode, parse_lightning_invoice
+from electrum.lnaddr import lndecode
 from electrum.lnutil import RECEIVED, SENT, PaymentFailure
 
 from .dialogs.question import Question
@@ -225,26 +225,27 @@ class SendScreen(CScreen):
         self.app.show_invoice(obj.is_lightning, obj.key)
 
     def get_card(self, item):
-        invoice_type = item['type']
-        status, status_str = get_request_status(item) # convert to str
-        if invoice_type == PR_TYPE_LN:
-            key = item['rhash']
+        status = self.app.wallet.get_invoice_status(item)
+        status_str = item.get_status_str(status)
+        is_lightning = item.type == PR_TYPE_LN
+        if is_lightning:
+            key = item.rhash
             log = self.app.wallet.lnworker.logs.get(key)
-            if item['status'] == PR_INFLIGHT and log:
+            if status == PR_INFLIGHT and log:
                 status_str += '... (%d)'%len(log)
-        elif invoice_type == PR_TYPE_ONCHAIN:
-            key = item['id']
+            is_bip70 = False
         else:
-            raise Exception('unknown invoice type')
+            key = item.id
+            is_bip70 = bool(item.bip70)
         return {
-            'is_lightning': invoice_type == PR_TYPE_LN,
-            'is_bip70': 'bip70' in item,
+            'is_lightning': is_lightning,
+            'is_bip70': is_bip70,
             'screen': self,
             'status': status,
             'status_str': status_str,
             'key': key,
-            'memo': item['message'],
-            'amount': self.app.format_amount_and_units(item['amount'] or 0),
+            'memo': item.message,
+            'amount': self.app.format_amount_and_units(item.amount or 0),
         }
 
     def do_clear(self):
@@ -300,7 +301,7 @@ class SendScreen(CScreen):
             return
         message = self.message
         if self.is_lightning:
-            return parse_lightning_invoice(address)
+            return LNInvoice.from_bech32(address)
         else:  # on-chain
             if self.payment_request:
                 outputs = self.payment_request.get_outputs()
@@ -477,16 +478,17 @@ class ReceiveScreen(CScreen):
         self.app.show_request(lightning, key)
 
     def get_card(self, req):
-        is_lightning = req.get('type') == PR_TYPE_LN
+        is_lightning = req.is_lightning()
         if not is_lightning:
-            address = req['address']
+            address = req.get_address()
             key = address
         else:
-            key = req['rhash']
-            address = req['invoice']
-        amount = req.get('amount')
-        description = req.get('message') or req.get('memo', '')  # TODO: a db upgrade would be needed to simplify that.
-        status, status_str = get_request_status(req)
+            key = req.rhash
+            address = req.invoice
+        amount = req.amount
+        description = req.message
+        status = self.app.wallet.get_request_status(key)
+        status_str = req.get_status_str(status)
         ci = {}
         ci['screen'] = self
         ci['address'] = address

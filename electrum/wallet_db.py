@@ -32,7 +32,8 @@ from typing import Dict, Optional, List, Tuple, Set, Iterable, NamedTuple, Seque
 import binascii
 
 from . import util, bitcoin
-from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, bfh, PR_TYPE_ONCHAIN
+from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, bfh
+from .invoices import PR_TYPE_ONCHAIN, invoice_from_json
 from .keystore import bip44_derivation
 from .transaction import Transaction, TxOutpoint, tx_from_any, PartialTransaction, PartialTxOutput
 from .logging import Logger
@@ -50,7 +51,7 @@ if TYPE_CHECKING:
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 28     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 29     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -174,6 +175,7 @@ class WalletDB(JsonDB):
         self._convert_version_26()
         self._convert_version_27()
         self._convert_version_28()
+        self._convert_version_29()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
         self._after_upgrade_tasks()
@@ -604,6 +606,42 @@ class WalletDB(JsonDB):
         for channel_id, c in channels.items():
             c['local_config']['channel_seed'] = None
         self.data['seed_version'] = 28
+
+    def _convert_version_29(self):
+        if not self._is_upgrade_method_needed(28, 28):
+            return
+        requests = self.data.get('payment_requests', {})
+        invoices = self.data.get('invoices', {})
+        for d in [invoices, requests]:
+            for key, r in list(d.items()):
+                message = r.get('message') or r.get('memo', '')
+                _type = r.get('type', 0)
+                item = {
+                    'type': _type,
+                    'message': message,
+                    'amount': r.get('amount'),
+                    'exp': r.get('exp', 0),
+                    'time': r.get('time', 0),
+                }
+                if _type == PR_TYPE_ONCHAIN:
+                    address = r.pop('address', None)
+                    if address:
+                        outputs = [(0, address, r.get('amount'))]
+                    else:
+                        outputs = r.get('outputs')
+                    item.update({
+                        'outputs': outputs,
+                        'id': r.get('id'),
+                        'bip70': r.get('bip70'),
+                        'requestor': r.get('requestor'),
+                    })
+                else:
+                    item.update({
+                        'rhash': r['rhash'],
+                        'invoice': r['invoice'],
+                    })
+                d[key] = item
+        self.data['seed_version'] = 29
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
@@ -1072,15 +1110,6 @@ class WalletDB(JsonDB):
                 if spending_txid not in self.transactions:
                     self.logger.info("removing unreferenced spent outpoint")
                     d.pop(prevout_n)
-        # convert invoices
-        # TODO invoices being these contextual dicts even internally,
-        #      where certain keys are only present depending on values of other keys...
-        #      it's horrible. we need to change this, at least for the internal representation,
-        #      to something that can be typed.
-        self.invoices = self.get_dict('invoices')
-        for invoice_key, invoice in self.invoices.items():
-            if invoice.get('type') == PR_TYPE_ONCHAIN:
-                invoice['outputs'] = [PartialTxOutput.from_legacy_tuple(*output) for output in invoice.get('outputs')]
 
     @modifier
     def clear_history(self):
@@ -1097,6 +1126,10 @@ class WalletDB(JsonDB):
         if key == 'transactions':
             # note: for performance, "deserialize=False" so that we will deserialize these on-demand
             v = dict((k, tx_from_any(x, deserialize=False)) for k, x in v.items())
+        if key == 'invoices':
+            v = dict((k, invoice_from_json(x)) for k, x in v.items())
+        if key == 'payment_requests':
+            v = dict((k, invoice_from_json(x)) for k, x in v.items())
         elif key == 'adds':
             v = dict((k, UpdateAddHtlc.from_tuple(*x)) for k, x in v.items())
         elif key == 'fee_updates':

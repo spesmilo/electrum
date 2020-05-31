@@ -41,7 +41,7 @@ except ImportError:
 
 from . import bitcoin, ecc, util, transaction, x509, rsakey
 from .util import bh2u, bfh, export_meta, import_meta, make_aiohttp_session
-from .util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT
+from .invoices import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT
 from .crypto import sha256
 from .bitcoin import address_to_script
 from .transaction import PartialTxOutput
