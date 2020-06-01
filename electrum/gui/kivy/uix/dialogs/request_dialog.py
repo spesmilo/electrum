@@ -20,7 +20,8 @@ Builder.load_string('''
     amount: 0
     title: ''
     description:''
-    data: ''
+    is_lightning: False
+    key:''
     warning: ''
     status_str: ''
     status_color: 1,1,1,1
@@ -41,16 +42,13 @@ Builder.load_string('''
                     touch = args[1]
                     if self.collide_point(*touch.pos): self.shaded = not self.shaded
             TopLabel:
-                text: _('Data')+ ':'
-            RefLabel:
-                data: root.data
-                name: _('Request data')
-            TopLabel:
-                text: _('Description') + ':'
-            RefLabel:
-                data: root.description or _('No description')
+                text: _('Description') + ': ' + root.description or _('None')
             TopLabel:
                 text: _('Amount') + ': ' + app.format_amount_and_units(root.amount)
+            TopLabel:
+                text: (_('Address') if not root.is_lightning else _('Payment hash')) + ': '
+            RefLabel:
+                text: root.key
             TopLabel:
                 text: _('Status') + ': ' + root.status_str
                 color: root.status_color
@@ -95,7 +93,7 @@ class RequestDialog(Factory.Popup):
         r = self.app.wallet.get_request(key)
         self.is_lightning = r.is_lightning()
         self.data = r.invoice if self.is_lightning else self.app.wallet.get_request_URI(r)
-        self.amount = r.amount
+        self.amount = r.amount or 0
         self.description = r.message
         self.update_status()
 
