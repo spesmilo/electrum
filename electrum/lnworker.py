@@ -24,7 +24,7 @@ from aiorpcx import run_in_thread
 from . import constants, util
 from . import keystore
 from .util import profiler
-from .invoices import PR_TYPE_LN, PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING, LNInvoice
+from .invoices import PR_TYPE_LN, PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING, LNInvoice, LN_EXPIRY_NEVER
 from .util import NetworkRetryManager
 from .lnutil import LN_MAX_FUNDING_SAT
 from .keystore import BIP32_KeyStore
@@ -1086,11 +1086,7 @@ class LNWallet(LNWorker):
         info = PaymentInfo(payment_hash, amount_sat, RECEIVED, PR_UNPAID)
         amount_btc = amount_sat/Decimal(COIN) if amount_sat else None
         if expiry == 0:
-            # hack: BOLT-11 is not really clear on what an expiry of 0 means.
-            # It probably interprets it as 0 seconds, so already expired...
-            # Our higher level invoices code however uses 0 for "never".
-            # Hence set some high expiration here
-            expiry = 100 * 365 * 24 * 60 * 60  # 100 years
+            expiry = LN_EXPIRY_NEVER
         lnaddr = LnAddr(paymenthash=payment_hash,
                         amount=amount_btc,
                         tags=[('d', message),

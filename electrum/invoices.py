@@ -56,6 +56,12 @@ assert PR_DEFAULT_EXPIRATION_WHEN_CREATING in pr_expiration_values
 
 outputs_decoder = lambda _list: [PartialTxOutput.from_legacy_tuple(*x) for x in _list]
 
+# hack: BOLT-11 is not really clear on what an expiry of 0 means.
+# It probably interprets it as 0 seconds, so already expired...
+# Our higher level invoices code however uses 0 for "never".
+# Hence set some high expiration here
+LN_EXPIRY_NEVER = 100 * 365 * 24 * 60 * 60  # 100 years
+
 @attr.s
 class Invoice(StoredObject):
     type = attr.ib(type=int)
@@ -70,7 +76,7 @@ class Invoice(StoredObject):
     def get_status_str(self, status):
         status_str = pr_tooltips[status]
         if status == PR_UNPAID:
-            if self.exp > 0:
+            if self.exp > 0 and self.exp != LN_EXPIRY_NEVER:
                 expiration = self.exp + self.time
                 status_str = _('Expires') + ' ' + age(expiration, include_seconds=True)
             else:
