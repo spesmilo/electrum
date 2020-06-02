@@ -350,7 +350,7 @@ class PayServer(Logger):
     async def get_bip70_request(self, r):
         from .paymentrequest import make_request
         key = r.match_info['key']
-        request = self.wallet.get_formatted_request(key)
+        request = self.wallet.get_request(key)
         if not request:
             return web.HTTPNotFound()
         pr = make_request(self.config, request)
