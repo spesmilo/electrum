@@ -33,6 +33,7 @@ try:
         HARDENED,
         u2fhid,
         bitbox_api_protocol,
+        FirmwareVersionOutdatedException,
     )
     requirements_ok = True
 except ImportError:
@@ -161,11 +162,17 @@ class BitBox02Client(HardwareClientBase):
                 hid_device = hid.device()
                 hid_device.open_path(self.bitbox_hid_info["path"])
 
-            self.bitbox02_device = bitbox02.BitBox02(
+
+            bitbox02_device = bitbox02.BitBox02(
                 transport=u2fhid.U2FHid(hid_device),
                 device_info=self.bitbox_hid_info,
                 noise_config=NoiseConfig(),
             )
+            try:
+                bitbox02_device.check_min_version()
+            except FirmwareVersionOutdatedException:
+                raise
+            self.bitbox02_device = bitbox02_device
 
         self.fail_if_not_initialized()
 
@@ -175,13 +182,6 @@ class BitBox02Client(HardwareClientBase):
             raise Exception(
                 "Please initialize the BitBox02 using the BitBox app first before using the BitBox02 in electrum"
             )
-
-    def check_device_firmware_version(self) -> bool:
-        if self.bitbox02_device is None:
-            raise Exception(
-                "Need to setup communication first before attempting any BitBox02 calls"
-            )
-        return self.bitbox02_device.check_firmware_version()
 
     def coin_network_from_electrum_network(self) -> int:
         if constants.net.TESTNET:
