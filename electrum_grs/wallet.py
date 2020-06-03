@@ -1724,6 +1724,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 util.trigger_callback('request_status', addr, status)
 
     def make_payment_request(self, address, amount, message, expiration):
+        amount = amount or None
         timestamp = int(time.time())
         _id = bh2u(sha256(address + "%d"%timestamp))[0:10]
         return OnchainInvoice(
