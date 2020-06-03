@@ -316,7 +316,7 @@ you close all your wallet windows. Use this to keep your local watchtower runnin
 
         def on_outrounding(x):
             self.config.set_key('coin_chooser_output_rounding', bool(x))
-        enable_outrounding = bool(self.config.get('coin_chooser_output_rounding', False))
+        enable_outrounding = bool(self.config.get('coin_chooser_output_rounding', True))
         outrounding_cb = QCheckBox(_('Enable output value rounding'))
         outrounding_cb.setToolTip(
             _('Set the value of the change output so that it has similar precision to the other outputs.') + '\n' +

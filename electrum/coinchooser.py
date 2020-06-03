@@ -484,7 +484,12 @@ def get_name(config):
 
 def get_coin_chooser(config):
     klass = COIN_CHOOSERS[get_name(config)]
+    # note: we enable enable_output_value_rounding by default as
+    #       - for sacrificing a few satoshis
+    #       + it gives better privacy for the user re change output
+    #       + it also helps the network as a whole as fees will become noisier
+    #         (trying to counter the heuristic that "whole integer sat/byte feerates" are common)
     coinchooser = klass(
-        enable_output_value_rounding=config.get('coin_chooser_output_rounding', False),
+        enable_output_value_rounding=config.get('coin_chooser_output_rounding', True),
     )
     return coinchooser
