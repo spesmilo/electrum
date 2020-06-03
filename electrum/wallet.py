@@ -68,7 +68,7 @@ from .transaction import (Transaction, TxInput, UnknownTxinType, TxOutput,
 from .plugin import run_hook
 from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
                                    TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE)
-from .invoices import Invoice, OnchainInvoice, invoice_from_json
+from .invoices import Invoice, OnchainInvoice, invoice_from_json, LNInvoice
 from .invoices import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_INFLIGHT, PR_TYPE_ONCHAIN, PR_TYPE_LN
 from .contacts import Contacts
 from .interface import NetworkException
@@ -248,7 +248,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         self.frozen_coins          = set(db.get('frozen_coins', []))  # set of txid:vout strings
         self.fiat_value            = db.get_dict('fiat_value')
         self.receive_requests      = db.get_dict('payment_requests')
-        self.invoices              = db.get_dict('invoices')
+        self.invoices              = db.get_dict('invoices')  # type: Dict[str, Invoice]
         self._reserved_addresses   = set(db.get('reserved_addresses', []))
 
         self._prepare_onchain_invoice_paid_detection()
@@ -656,43 +656,33 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 'txpos_in_block': hist_item.tx_mined_status.txpos,
             }
 
-    def create_invoice(self, outputs: List[PartialTxOutput], message, pr, URI):
+    def create_invoice(self, *, outputs: List[PartialTxOutput], message, pr, URI) -> Invoice:
+        if pr:
+            return OnchainInvoice.from_bip70_payreq(pr)
         if '!' in (x.value for x in outputs):
             amount = '!'
         else:
             amount = sum(x.value for x in outputs)
-        outputs = [x.to_legacy_tuple() for x in outputs]
-        if pr:
-            invoice = OnchainInvoice(
-                type = PR_TYPE_ONCHAIN,
-                amount = amount,
-                outputs = outputs,
-                message = pr.get_memo(),
-                id = pr.get_id(),
-                time = pr.get_time(),
-                exp = pr.get_expiration_date() - pr.get_time(),
-                bip70 = pr.raw.hex() if pr else None,
-                requestor = pr.get_requestor(),
-            )
-        else:
-            invoice = OnchainInvoice(
-                type = PR_TYPE_ONCHAIN,
-                amount = amount,
-                outputs = outputs,
-                message = message,
-                id = bh2u(sha256(repr(outputs))[0:16]),
-                time = URI.get('time') if URI else int(time.time()),
-                exp = URI.get('exp') if URI else 0,
-                bip70 = None,
-                requestor = None,
-            )
+        invoice = OnchainInvoice(
+            type=PR_TYPE_ONCHAIN,
+            amount=amount,
+            outputs=outputs,
+            message=message,
+            id=bh2u(sha256(repr(outputs))[0:16]),
+            time=URI.get('time') if URI else int(time.time()),
+            exp=URI.get('exp') if URI else 0,
+            bip70=None,
+            requestor=None,
+        )
         return invoice
 
-    def save_invoice(self, invoice: Invoice):
+    def save_invoice(self, invoice: Invoice) -> None:
         invoice_type = invoice.type
         if invoice_type == PR_TYPE_LN:
+            assert isinstance(invoice, LNInvoice)
             key = invoice.rhash
         elif invoice_type == PR_TYPE_ONCHAIN:
+            assert isinstance(invoice, OnchainInvoice)
             key = invoice.id
             if self.is_onchain_invoice_paid(invoice):
                 self.logger.info("saving invoice... but it is already paid!")
@@ -729,12 +719,14 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         self._invoices_from_scriptpubkey_map = defaultdict(set)  # type: Dict[bytes, Set[str]]
         for invoice_key, invoice in self.invoices.items():
             if invoice.type == PR_TYPE_ONCHAIN:
+                assert isinstance(invoice, OnchainInvoice)
                 for txout in invoice.outputs:
                     self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(invoice_key)
 
     def _is_onchain_invoice_paid(self, invoice: Invoice) -> Tuple[bool, Sequence[str]]:
         """Returns whether on-chain invoice is satisfied, and list of relevant TXIDs."""
         assert invoice.type == PR_TYPE_ONCHAIN
+        assert isinstance(invoice, OnchainInvoice)
         invoice_amounts = defaultdict(int)  # type: Dict[bytes, int]  # scriptpubkey -> value_sats
         for txo in invoice.outputs:  # type: PartialTxOutput
             invoice_amounts[txo.scriptpubkey] += 1 if txo.value == '!' else txo.value
@@ -763,9 +755,9 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             for invoice_key in self._get_relevant_invoice_keys_for_tx(tx):
                 invoice = self.invoices.get(invoice_key)
                 if invoice is None: continue
-                assert invoice.get('type') == PR_TYPE_ONCHAIN
-                if invoice['message']:
-                    labels.append(invoice['message'])
+                assert isinstance(invoice, OnchainInvoice)
+                if invoice.message:
+                    labels.append(invoice.message)
         if labels:
             self.set_label(tx_hash, "; ".join(labels))
         return bool(labels)
@@ -1610,7 +1602,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             status = PR_EXPIRED
         return status
 
-    def get_invoice_status(self, invoice):
+    def get_invoice_status(self, invoice: Invoice):
         if invoice.is_lightning():
             status = self.lnworker.get_invoice_status(invoice)
         else:
