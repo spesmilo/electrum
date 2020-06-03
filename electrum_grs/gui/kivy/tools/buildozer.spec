@@ -36,7 +36,9 @@ version = 4.0.0
 
 # (list) Application requirements
 requirements =
-    python3,
+    # note: re python3.8, see #6147
+    hostpython3==3.7.7,
+    python3==3.7.7,
     android,
     openssl,
     plyer,

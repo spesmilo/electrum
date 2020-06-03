@@ -87,7 +87,7 @@ class Peer(Logger):
         self.temp_id_to_id = {}   # to forward error messages
         self.funding_created_sent = set() # for channels in PREOPENING
         self.funding_signed_sent = set()  # for channels in PREOPENING
-        self.shutdown_received = {}
+        self.shutdown_received = {} # chan_id -> asyncio.Future()
         self.announcement_signatures = defaultdict(asyncio.Queue)
         self.orphan_channel_updates = OrderedDict()
         Logger.__init__(self)
@@ -810,7 +810,13 @@ class Peer(Logger):
         self.logger.info(f'channel_reestablish ({chan.get_id_for_log()}): sent channel_reestablish with '
                          f'(next_local_ctn={next_local_ctn}, '
                          f'oldest_unrevoked_remote_ctn={oldest_unrevoked_remote_ctn})')
-        msg = await self.wait_for_message('channel_reestablish', chan_id)
+        while True:
+            try:
+                msg = await self.wait_for_message('channel_reestablish', chan_id)
+                break
+            except asyncio.TimeoutError:
+                self.logger.info('waiting to receive channel_reestablish...')
+                continue
         their_next_local_ctn = msg["next_commitment_number"]
         their_oldest_unrevoked_remote_ctn = msg["next_revocation_number"]
         their_local_pcp = msg.get("my_current_per_commitment_point")
@@ -927,7 +933,8 @@ class Peer(Logger):
         if chan.is_funded() and chan.config[LOCAL].funding_locked_received:
             self.mark_open(chan)
         util.trigger_callback('channel', chan)
-        if chan.get_state() == ChannelState.CLOSING:
+        # if we have sent a previous shutdown, it must be retransmitted (Bolt2)
+        if chan.get_state() == ChannelState.SHUTDOWN:
             await self.send_shutdown(chan)
 
     def send_funding_locked(self, chan: Channel):
@@ -1423,7 +1430,7 @@ class Peer(Logger):
         while chan.has_pending_changes(REMOTE):
             await asyncio.sleep(0.1)
         self.send_message('shutdown', channel_id=chan.channel_id, len=len(scriptpubkey), scriptpubkey=scriptpubkey)
-        chan.set_state(ChannelState.CLOSING)
+        chan.set_state(ChannelState.SHUTDOWN)
         # can fullfill or fail htlcs. cannot add htlcs, because of CLOSING state
         chan.set_can_send_ctx_updates(True)
 
@@ -1486,12 +1493,17 @@ class Peer(Logger):
         if not chan.constraints.is_initiator:
             send_closing_signed()
         # add signatures
-        closing_tx.add_signature_to_txin(txin_idx=0,
-                                         signing_pubkey=chan.config[LOCAL].multisig_key.pubkey.hex(),
-                                         sig=bh2u(der_sig_from_sig_string(our_sig) + b'\x01'))
-        closing_tx.add_signature_to_txin(txin_idx=0,
-                                         signing_pubkey=chan.config[REMOTE].multisig_key.pubkey.hex(),
-                                         sig=bh2u(der_sig_from_sig_string(their_sig) + b'\x01'))
+        closing_tx.add_signature_to_txin(
+            txin_idx=0,
+            signing_pubkey=chan.config[LOCAL].multisig_key.pubkey.hex(),
+            sig=bh2u(der_sig_from_sig_string(our_sig) + b'\x01'))
+        closing_tx.add_signature_to_txin(
+            txin_idx=0,
+            signing_pubkey=chan.config[REMOTE].multisig_key.pubkey.hex(),
+            sig=bh2u(der_sig_from_sig_string(their_sig) + b'\x01'))
+        # save local transaction and set state
+        self.lnworker.wallet.add_transaction(closing_tx)
+        chan.set_state(ChannelState.CLOSING)
         # broadcast
         await self.network.try_broadcasting(closing_tx, 'closing')
         return closing_tx.txid()

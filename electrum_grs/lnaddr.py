@@ -13,7 +13,6 @@ from .bitcoin import hash160_to_b58_address, b58_address_to_hash160
 from .segwit_addr import bech32_encode, bech32_decode, CHARSET
 from . import constants
 from . import ecc
-from .util import PR_TYPE_LN
 from .bitcoin import COIN
 
 
@@ -469,20 +468,6 @@ def lndecode(invoice: str, *, verbose=False, expected_hrp=None) -> LnAddr:
 
 
 
-
-def parse_lightning_invoice(invoice):
-    lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
-    amount = int(lnaddr.amount * COIN) if lnaddr.amount else None
-    return {
-        'type': PR_TYPE_LN,
-        'invoice': invoice,
-        'amount': amount,
-        'message': lnaddr.get_description(),
-        'time': lnaddr.date,
-        'exp': lnaddr.get_expiry(),
-        'pubkey': lnaddr.pubkey.serialize().hex(),
-        'rhash': lnaddr.paymenthash.hex(),
-    }
 
 if __name__ == '__main__':
     # run using

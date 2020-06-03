@@ -41,7 +41,7 @@ except ImportError:
 
 from . import bitcoin, ecc, util, transaction, x509, rsakey
 from .util import bh2u, bfh, export_meta, import_meta, make_aiohttp_session
-from .util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT
+from .invoices import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT
 from .crypto import sha256
 from .bitcoin import address_to_script
 from .transaction import PartialTxOutput
@@ -317,17 +317,17 @@ class PaymentRequest:
 
 def make_unsigned_request(req):
     from .transaction import Transaction
-    addr = req['address']
-    time = req.get('time', 0)
-    exp = req.get('exp', 0)
+    addr = req.get_address()
+    time = req.time
+    exp = req.exp
     if time and type(time) != int:
         time = 0
     if exp and type(exp) != int:
         exp = 0
-    amount = req['amount']
+    amount = req.amount
     if amount is None:
         amount = 0
-    memo = req['memo']
+    memo = req.message
     script = bfh(address_to_script(addr))
     outputs = [(script, amount)]
     pd = pb2.PaymentDetails()

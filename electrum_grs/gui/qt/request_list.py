@@ -31,8 +31,8 @@ from PyQt5.QtWidgets import QMenu, QAbstractItemView
 from PyQt5.QtCore import Qt, QItemSelectionModel, QModelIndex
 
 from electrum_grs.i18n import _
-from electrum_grs.util import format_time, get_request_status
-from electrum_grs.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
+from electrum_grs.util import format_time
+from electrum_grs.invoices import PR_TYPE_ONCHAIN, PR_TYPE_LN
 from electrum_grs.plugin import run_hook
 
 from .util import MyTreeView, pr_icons, read_QIcon, webopen, MySortModel
@@ -90,18 +90,17 @@ class RequestList(MyTreeView):
             return
         # TODO use siblingAtColumn when min Qt version is >=5.11
         item = self.item_from_index(idx.sibling(idx.row(), self.Columns.DATE))
-        request_type = item.data(ROLE_REQUEST_TYPE)
         key = item.data(ROLE_KEY)
         req = self.wallet.get_request(key)
         if req is None:
             self.update()
             return
-        if request_type == PR_TYPE_LN:
-            self.parent.receive_payreq_e.setText(req.get('invoice'))
-            self.parent.receive_address_e.setText(req.get('invoice'))
+        if req.is_lightning():
+            self.parent.receive_payreq_e.setText(req.invoice)
+            self.parent.receive_address_e.setText(req.invoice)
         else:
-            self.parent.receive_payreq_e.setText(req.get('URI'))
-            self.parent.receive_address_e.setText(req['address'])
+            self.parent.receive_payreq_e.setText(self.parent.wallet.get_request_URI(req))
+            self.parent.receive_address_e.setText(req.get_address())
         self.parent.receive_payreq_e.repaint()  # macOS hack (similar to #4777)
         self.parent.receive_address_e.repaint()  # macOS hack (similar to #4777)
 
@@ -119,7 +118,8 @@ class RequestList(MyTreeView):
             key = date_item.data(ROLE_KEY)
             req = self.wallet.get_request(key)
             if req:
-                status, status_str = get_request_status(req)
+                status = self.parent.wallet.get_request_status(key)
+                status_str = req.get_status_str(status)
                 status_item.setText(status_str)
                 status_item.setIcon(read_QIcon(pr_icons.get(status)))
 
@@ -130,20 +130,22 @@ class RequestList(MyTreeView):
         self.std_model.clear()
         self.update_headers(self.__class__.headers)
         for req in self.wallet.get_sorted_requests():
-            status, status_str = get_request_status(req)
-            request_type = req['type']
-            timestamp = req.get('time', 0)
-            amount = req.get('amount')
-            message = req.get('message') or req.get('memo')
+            key = req.rhash if req.is_lightning() else req.id
+            status = self.parent.wallet.get_request_status(key)
+            status_str = req.get_status_str(status)
+            request_type = req.type
+            timestamp = req.time
+            amount = req.amount
+            message = req.message
             date = format_time(timestamp)
             amount_str = self.parent.format_amount(amount) if amount else ""
             labels = [date, message, amount_str, status_str]
-            if request_type == PR_TYPE_LN:
-                key = req['rhash']
+            if req.is_lightning():
+                key = req.rhash
                 icon = read_QIcon("lightning.png")
                 tooltip = 'lightning request'
-            elif request_type == PR_TYPE_ONCHAIN:
-                key = req['address']
+            else:
+                key = req.get_address()
                 icon = read_QIcon("groestlcoin.png")
                 tooltip = 'onchain request'
             items = [QStandardItem(e) for e in labels]
@@ -182,20 +184,20 @@ class RequestList(MyTreeView):
         if not item:
             return
         key = item.data(ROLE_KEY)
-        request_type = item.data(ROLE_REQUEST_TYPE)
         req = self.wallet.get_request(key)
         if req is None:
             self.update()
             return
         menu = QMenu(self)
         self.add_copy_menu(menu, idx)
-        if request_type == PR_TYPE_LN:
-            menu.addAction(_("Copy Request"), lambda: self.parent.do_copy(req['invoice'], title='Lightning Request'))
+        if req.is_lightning():
+            menu.addAction(_("Copy Request"), lambda: self.parent.do_copy(req.invoice, title='Lightning Request'))
         else:
-            menu.addAction(_("Copy Request"), lambda: self.parent.do_copy(req['URI'], title='Groestlcoin URI'))
-            menu.addAction(_("Copy Address"), lambda: self.parent.do_copy(req['address'], title='Groestlcoin Address'))
-        if 'view_url' in req:
-            menu.addAction(_("View in web browser"), lambda: webopen(req['view_url']))
+            URI = self.wallet.get_request_URI(req)
+            menu.addAction(_("Copy Request"), lambda: self.parent.do_copy(URI, title='Groestlcoin URI'))
+            menu.addAction(_("Copy Address"), lambda: self.parent.do_copy(req.get_address(), title='Groestlcoin Address'))
+        #if 'view_url' in req:
+        #    menu.addAction(_("View in web browser"), lambda: webopen(req['view_url']))
         menu.addAction(_("Delete"), lambda: self.parent.delete_requests([key]))
         run_hook('receive_list_menu', menu, key)
         menu.exec_(self.viewport().mapToGlobal(position))

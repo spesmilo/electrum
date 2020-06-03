@@ -24,17 +24,17 @@ from kivy.utils import platform
 from kivy.logger import Logger
 
 from electrum_grs.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds, Fiat
-from electrum_grs.util import PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING
+from electrum_grs.invoices import (PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING,
+                               PR_PAID, PR_UNKNOWN, PR_EXPIRED, PR_INFLIGHT,
+                               LNInvoice, pr_expiration_values)
 from electrum_grs import bitcoin, constants
 from electrum_grs.transaction import Transaction, tx_from_any, PartialTransaction, PartialTxOutput
-from electrum_grs.util import (parse_URI, InvalidBitcoinURI, PR_PAID, PR_UNKNOWN, PR_EXPIRED,
-                           PR_INFLIGHT, TxMinedInfo, get_request_status, pr_expiration_values,
-                           maybe_extract_bolt11_invoice)
+from electrum_grs.util import parse_URI, InvalidBitcoinURI, TxMinedInfo, maybe_extract_bolt11_invoice
 from electrum_grs.plugin import run_hook
 from electrum_grs.wallet import InternalAddressCorruption
 from electrum_grs import simple_config
 from electrum_grs.simple_config import FEERATE_WARNING_HIGH_FEE, FEE_RATIO_HIGH_WARNING
-from electrum_grs.lnaddr import lndecode, parse_lightning_invoice
+from electrum_grs.lnaddr import lndecode
 from electrum_grs.lnutil import RECEIVED, SENT, PaymentFailure
 
 from .dialogs.question import Question
@@ -225,26 +225,27 @@ class SendScreen(CScreen):
         self.app.show_invoice(obj.is_lightning, obj.key)
 
     def get_card(self, item):
-        invoice_type = item['type']
-        status, status_str = get_request_status(item) # convert to str
-        if invoice_type == PR_TYPE_LN:
-            key = item['rhash']
+        status = self.app.wallet.get_invoice_status(item)
+        status_str = item.get_status_str(status)
+        is_lightning = item.type == PR_TYPE_LN
+        if is_lightning:
+            key = item.rhash
             log = self.app.wallet.lnworker.logs.get(key)
-            if item['status'] == PR_INFLIGHT and log:
+            if status == PR_INFLIGHT and log:
                 status_str += '... (%d)'%len(log)
-        elif invoice_type == PR_TYPE_ONCHAIN:
-            key = item['id']
+            is_bip70 = False
         else:
-            raise Exception('unknown invoice type')
+            key = item.id
+            is_bip70 = bool(item.bip70)
         return {
-            'is_lightning': invoice_type == PR_TYPE_LN,
-            'is_bip70': 'bip70' in item,
+            'is_lightning': is_lightning,
+            'is_bip70': is_bip70,
             'screen': self,
             'status': status,
             'status_str': status_str,
             'key': key,
-            'memo': item['message'],
-            'amount': self.app.format_amount_and_units(item['amount'] or 0),
+            'memo': item.message,
+            'amount': self.app.format_amount_and_units(item.amount or 0),
         }
 
     def do_clear(self):
@@ -300,7 +301,7 @@ class SendScreen(CScreen):
             return
         message = self.message
         if self.is_lightning:
-            return parse_lightning_invoice(address)
+            return LNInvoice.from_bech32(address)
         else:  # on-chain
             if self.payment_request:
                 outputs = self.payment_request.get_outputs()
@@ -329,26 +330,27 @@ class SendScreen(CScreen):
         self.do_pay_invoice(invoice)
 
     def do_pay_invoice(self, invoice):
-        if invoice['type'] == PR_TYPE_LN:
+        if invoice.is_lightning():
             self._do_pay_lightning(invoice)
             return
-        elif invoice['type'] == PR_TYPE_ONCHAIN:
+        else:
             do_pay = lambda rbf: self._do_pay_onchain(invoice, rbf)
             if self.app.electrum_config.get('use_rbf'):
                 d = Question(_('Should this transaction be replaceable?'), do_pay)
                 d.open()
             else:
                 do_pay(False)
-        else:
-            raise Exception('unknown invoice type')
 
     def _do_pay_lightning(self, invoice):
         attempts = 10
-        threading.Thread(target=self.app.wallet.lnworker.pay, args=(invoice['invoice'], invoice['amount'], attempts)).start()
+        threading.Thread(
+            target=self.app.wallet.lnworker.pay,
+            args=(invoice.invoice, invoice.amount),
+            kwargs={'attempts':10}).start()
 
     def _do_pay_onchain(self, invoice, rbf):
         # make unsigned transaction
-        outputs = invoice['outputs']  # type: List[PartialTxOutput]
+        outputs = invoice.outputs  # type: List[PartialTxOutput]
         coins = self.app.wallet.get_spendable_coins(None)
         try:
             tx = self.app.wallet.make_unsigned_transaction(coins=coins, outputs=outputs)
@@ -405,7 +407,7 @@ class SendScreen(CScreen):
         def callback(c):
             if c:
                 for req in invoices:
-                    key = req['key']
+                    key = req.rhash if req.is_lightning() else req.get_address()
                     self.app.wallet.delete_invoice(key)
                 self.update()
         n = len(invoices)
@@ -477,16 +479,17 @@ class ReceiveScreen(CScreen):
         self.app.show_request(lightning, key)
 
     def get_card(self, req):
-        is_lightning = req.get('type') == PR_TYPE_LN
+        is_lightning = req.is_lightning()
         if not is_lightning:
-            address = req['address']
+            address = req.get_address()
             key = address
         else:
-            key = req['rhash']
-            address = req['invoice']
-        amount = req.get('amount')
-        description = req.get('message') or req.get('memo', '')  # TODO: a db upgrade would be needed to simplify that.
-        status, status_str = get_request_status(req)
+            key = req.rhash
+            address = req.invoice
+        amount = req.amount
+        description = req.message
+        status = self.app.wallet.get_request_status(key)
+        status_str = req.get_status_str(status)
         ci = {}
         ci['screen'] = self
         ci['address'] = address

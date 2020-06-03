@@ -170,9 +170,9 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         ptx_merge_sigs_action = QAction(_("Merge signatures from"), self)
         ptx_merge_sigs_action.triggered.connect(self.merge_sigs)
         partial_tx_actions_menu.addAction(ptx_merge_sigs_action)
-        ptx_join_txs_action = QAction(_("Join inputs/outputs"), self)
-        ptx_join_txs_action.triggered.connect(self.join_tx_with_another)
-        partial_tx_actions_menu.addAction(ptx_join_txs_action)
+        self._ptx_join_txs_action = QAction(_("Join inputs/outputs"), self)
+        self._ptx_join_txs_action.triggered.connect(self.join_tx_with_another)
+        partial_tx_actions_menu.addAction(self._ptx_join_txs_action)
         self.partial_tx_actions_button = QToolButton()
         self.partial_tx_actions_button.setText(_("Combine"))
         self.partial_tx_actions_button.setMenu(partial_tx_actions_menu)
@@ -499,6 +499,8 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
                 widget.menuAction().setVisible(show_psbt_only_widgets)
             else:
                 widget.setVisible(show_psbt_only_widgets)
+        if tx_details.is_lightning_funding_tx:
+            self._ptx_join_txs_action.setEnabled(False)  # would change txid
 
         self.save_button.setEnabled(tx_details.can_save_as_local)
         if tx_details.can_save_as_local:

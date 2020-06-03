@@ -27,18 +27,17 @@ ROLE_CHANNEL_ID = Qt.UserRole
 class ChannelsList(MyTreeView):
     update_rows = QtCore.pyqtSignal(Abstract_Wallet)
     update_single_row = QtCore.pyqtSignal(AbstractChannel)
+    gossip_db_loaded = QtCore.pyqtSignal()
 
     class Columns(IntEnum):
         SHORT_CHANID = 0
-        NODE_ID = 1
-        NODE_ALIAS = 2
-        LOCAL_BALANCE = 3
-        REMOTE_BALANCE = 4
-        CHANNEL_STATUS = 5
+        NODE_ALIAS = 1
+        LOCAL_BALANCE = 2
+        REMOTE_BALANCE = 3
+        CHANNEL_STATUS = 4
 
     headers = {
         Columns.SHORT_CHANID: _('Short Channel ID'),
-        Columns.NODE_ID: _('Node ID'),
         Columns.NODE_ALIAS: _('Node alias'),
         Columns.LOCAL_BALANCE: _('Local'),
         Columns.REMOTE_BALANCE: _('Remote'),
@@ -48,11 +47,12 @@ class ChannelsList(MyTreeView):
     _default_item_bg_brush = None  # type: Optional[QBrush]
 
     def __init__(self, parent):
-        super().__init__(parent, self.create_menu, stretch_column=self.Columns.NODE_ID,
+        super().__init__(parent, self.create_menu, stretch_column=self.Columns.NODE_ALIAS,
                          editable_columns=[])
         self.setModel(QtGui.QStandardItemModel(self))
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.main_window = parent
+        self.gossip_db_loaded.connect(self.on_gossip_db)
         self.update_rows.connect(self.do_update_rows)
         self.update_single_row.connect(self.do_update_single_row)
         self.network = self.parent.network
@@ -80,7 +80,6 @@ class ChannelsList(MyTreeView):
             node_alias = ''
         return [
             chan.short_id_for_GUI(),
-            bh2u(chan.node_id),
             node_alias,
             '' if closed else labels[LOCAL],
             '' if closed else labels[REMOTE],
@@ -141,7 +140,7 @@ class ChannelsList(MyTreeView):
     def create_menu(self, position):
         menu = QMenu()
         menu.setSeparatorsCollapsible(True)  # consecutive separators are merged together
-        selected = self.selected_in_column(self.Columns.NODE_ID)
+        selected = self.selected_in_column(self.Columns.NODE_ALIAS)
         if not selected:
             return
         multi_select = len(selected) > 1
@@ -153,7 +152,7 @@ class ChannelsList(MyTreeView):
         item = self.model().itemFromIndex(idx)
         if not item:
             return
-        channel_id = idx.sibling(idx.row(), self.Columns.NODE_ID).data(ROLE_CHANNEL_ID)
+        channel_id = idx.sibling(idx.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
         if channel_id in self.lnbackups.channel_backups:
             menu.addAction(_("Request force-close"), lambda: self.request_force_close(channel_id))
             menu.addAction(_("Delete"), lambda: self.remove_channel_backup(channel_id))
@@ -162,8 +161,10 @@ class ChannelsList(MyTreeView):
         chan = self.lnworker.channels[channel_id]
         menu.addAction(_("Details..."), lambda: self.parent.show_channel(channel_id))
         cc = self.add_copy_menu(menu, idx)
-        cc.addAction(_("Long Channel ID"), lambda: self.place_text_on_clipboard(channel_id.hex(),
-                                                                                title=_("Long Channel ID")))
+        cc.addAction(_("Node ID"), lambda: self.place_text_on_clipboard(
+            chan.node_id.hex(), title=_("Node ID")))
+        cc.addAction(_("Long Channel ID"), lambda: self.place_text_on_clipboard(
+            channel_id.hex(), title=_("Long Channel ID")))
         if not chan.is_closed():
             if not chan.is_frozen_for_sending():
                 menu.addAction(_("Freeze (for sending)"), lambda: chan.set_frozen_for_sending(True))
@@ -202,7 +203,7 @@ class ChannelsList(MyTreeView):
         if not lnworker:
             return
         for row in range(self.model().rowCount()):
-            item = self.model().item(row, self.Columns.NODE_ID)
+            item = self.model().item(row, self.Columns.NODE_ALIAS)
             if item.data(ROLE_CHANNEL_ID) != chan.channel_id:
                 continue
             for column, v in enumerate(self.format_fields(chan)):
@@ -210,6 +211,10 @@ class ChannelsList(MyTreeView):
             items = [self.model().item(row, column) for column in self.Columns]
             self._update_chan_frozen_bg(chan=chan, items=items)
         self.update_can_send(lnworker)
+
+    @QtCore.pyqtSlot()
+    def on_gossip_db(self):
+        self.do_update_rows(self.parent.wallet)
 
     @QtCore.pyqtSlot(Abstract_Wallet)
     def do_update_rows(self, wallet):
@@ -225,9 +230,9 @@ class ChannelsList(MyTreeView):
             items = [QtGui.QStandardItem(x) for x in self.format_fields(chan)]
             self.set_editability(items)
             if self._default_item_bg_brush is None:
-                self._default_item_bg_brush = items[self.Columns.NODE_ID].background()
-            items[self.Columns.NODE_ID].setData(chan.channel_id, ROLE_CHANNEL_ID)
-            items[self.Columns.NODE_ID].setFont(QFont(MONOSPACE_FONT))
+                self._default_item_bg_brush = items[self.Columns.NODE_ALIAS].background()
+            items[self.Columns.NODE_ALIAS].setData(chan.channel_id, ROLE_CHANNEL_ID)
+            items[self.Columns.NODE_ALIAS].setFont(QFont(MONOSPACE_FONT))
             items[self.Columns.LOCAL_BALANCE].setFont(QFont(MONOSPACE_FONT))
             items[self.Columns.REMOTE_BALANCE].setFont(QFont(MONOSPACE_FONT))
             self._update_chan_frozen_bg(chan=chan, items=items)
