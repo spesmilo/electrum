@@ -1381,15 +1381,15 @@ class PartialTxInput(TxInput, PSBTSection):
         self.finalize()
 
     def ensure_there_is_only_one_utxo(self):
+        # we prefer having the full previous tx, even for segwit inputs. see #6198
+        # for witness v1, witness_utxo will be enough though
         if self.utxo is not None and self.witness_utxo is not None:
-            if Transaction.is_segwit_input(self):
-                self.utxo = None
-            else:
-                self.witness_utxo = None
+            self.witness_utxo = None
 
     def convert_utxo_to_witness_utxo(self) -> None:
         if self.utxo:
             self.witness_utxo = self.utxo.outputs()[self.prevout.out_idx]
+            self.utxo = None  # type: Optional[Transaction]
 
     def is_native_segwit(self) -> Optional[bool]:
         """Whether this input is native segwit. None means inconclusive."""
