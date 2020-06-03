@@ -62,7 +62,8 @@ from electrum_ltc.util import (format_time, format_satoshis, format_fee_satoshis
                                get_new_wallet_name, send_exception_to_crash_reporter,
                                InvalidBitcoinURI, maybe_extract_bolt11_invoice, NotEnoughFunds,
                                NoDynamicFeeEstimates, MultipleSpendMaxTxOutputs)
-from electrum_ltc.util import PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING
+from electrum_ltc.invoices import PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING
+from electrum_ltc.invoices import PR_PAID, PR_FAILED, pr_expiration_values, LNInvoice
 from electrum_ltc.transaction import (Transaction, PartialTxInput,
                                       PartialTransaction, PartialTxOutput)
 from electrum_ltc.address_synchronizer import AddTransactionException
@@ -73,10 +74,7 @@ from electrum_ltc.network import Network, TxBroadcastError, BestEffortRequestFai
 from electrum_ltc.exchange_rate import FxThread
 from electrum_ltc.simple_config import SimpleConfig
 from electrum_ltc.logging import Logger
-from electrum_ltc.util import PR_PAID, PR_FAILED
-from electrum_ltc.util import pr_expiration_values
 from electrum_ltc.lnutil import ln_dummy_address
-from electrum_ltc.lnaddr import parse_lightning_invoice
 
 from .exception_window import Exception_Hook
 from .amountedit import AmountEdit, BTCAmountEdit, FreezableLineEdit, FeerateEdit
@@ -262,7 +260,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                          'on_history', 'channel', 'channels_updated',
                          'payment_failed', 'payment_succeeded',
                          'invoice_status', 'request_status', 'ln_gossip_sync_progress',
-                         'cert_mismatch']
+                         'cert_mismatch', 'gossip_db_loaded']
             # To avoid leaking references to "self" that prevent the
             # window from being GC-ed when closed, callbacks should be
             # methods of this class only, and specifically not be
@@ -411,6 +409,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.on_fx_quotes()
         elif event == 'on_history':
             self.on_fx_history()
+        elif event == 'gossip_db_loaded':
+            self.channels_list.gossip_db_loaded.emit(*args)
         elif event == 'channels_updated':
             self.channels_list.update_rows.emit(*args)
         elif event == 'channel':
@@ -1190,7 +1190,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.receive_message_e.setText('')
         # copy to clipboard
         r = self.wallet.get_request(key)
-        content = r.get('invoice', '') if is_lightning else r.get('address', '')
+        content = r.invoice if r.is_lightning() else r.get_address()
         title = _('Invoice') if is_lightning else _('Address')
         self.do_copy(content, title=title)
 
@@ -1229,7 +1229,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def export_payment_request(self, addr):
         r = self.wallet.receive_requests.get(addr)
         pr = paymentrequest.serialize_request(r).SerializeToString()
-        name = r['id'] + '.bip70'
+        name = r.id + '.bip70'
         fileName = self.getSaveFileName(_("Select where to save your payment request"), name, "*.bip70")
         if fileName:
             with open(fileName, "wb+") as f:
@@ -1468,7 +1468,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         return False  # no errors
 
-    def pay_lightning_invoice(self, invoice, amount_sat=None):
+    def pay_lightning_invoice(self, invoice: str, amount_sat: int):
+        msg = _("Pay lightning invoice?") + '\n\n' + _("This will send {}?").format(self.format_amount_and_units(amount_sat))
+        if not self.question(msg):
+            return
         attempts = LN_NUM_PAYMENT_ATTEMPTS
         def task():
             self.wallet.lnworker.pay(invoice, amount_sat, attempts=attempts)
@@ -1500,21 +1503,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if self.check_send_tab_payto_line_and_show_errors():
             return
         if not self._is_onchain:
-            invoice = self.payto_e.lightning_invoice
-            if not invoice:
+            invoice_str = self.payto_e.lightning_invoice
+            if not invoice_str:
                 return
             if not self.wallet.lnworker:
                 self.show_error(_('Lightning is disabled'))
                 return
-            invoice_dict = parse_lightning_invoice(invoice)
-            if invoice_dict.get('amount') is None:
+            invoice = LNInvoice.from_bech32(invoice_str)
+            if invoice.amount is None:
                 amount = self.amount_e.get_amount()
                 if amount:
-                    invoice_dict['amount'] = amount
+                    invoice.amount = amount
                 else:
                     self.show_error(_('No amount'))
                     return
-            return invoice_dict
+            return invoice
         else:
             outputs = self.read_outputs()
             if self.check_send_tab_onchain_outputs_and_show_errors(outputs):
@@ -1542,15 +1545,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def pay_multiple_invoices(self, invoices):
         outputs = []
         for invoice in invoices:
-            outputs += invoice['outputs']
+            outputs += invoice.outputs
         self.pay_onchain_dialog(self.get_coins(), outputs)
 
     def do_pay_invoice(self, invoice):
-        if invoice['type'] == PR_TYPE_LN:
-            self.pay_lightning_invoice(invoice['invoice'], amount_sat=invoice['amount'])
-        elif invoice['type'] == PR_TYPE_ONCHAIN:
-            outputs = invoice['outputs']
-            self.pay_onchain_dialog(self.get_coins(), outputs)
+        if invoice.type == PR_TYPE_LN:
+            self.pay_lightning_invoice(invoice.invoice, invoice.amount)
+        elif invoice.type == PR_TYPE_ONCHAIN:
+            self.pay_onchain_dialog(self.get_coins(), invoice.outputs)
         else:
             raise Exception('unknown invoice type')
 
@@ -1770,7 +1772,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         key = pr.get_id()
         invoice = self.wallet.get_invoice(key)
-        if invoice and invoice['status'] == PR_PAID:
+        if invoice and self.wallet.get_invoice_status() == PR_PAID:
             self.show_message("invoice already paid")
             self.do_clear()
             self.payment_request = None
@@ -1781,7 +1783,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         else:
             self.payto_e.setExpired()
         self.payto_e.setText(pr.get_requestor())
-        self.amount_e.setText(format_satoshis_plain(pr.get_amount(), self.decimal_point))
+        self.amount_e.setAmount(pr.get_amount())
         self.message_e.setText(pr.get_memo())
         # signal to set fee
         self.amount_e.textEdited.emit("")
@@ -1965,7 +1967,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if invoice is None:
             self.show_error('Cannot find payment request in wallet.')
             return
-        bip70 = invoice.get('bip70')
+        bip70 = invoice.bip70
         if bip70:
             pr = paymentrequest.PaymentRequest(bytes.fromhex(bip70))
             pr.verify(self.contacts)

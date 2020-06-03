@@ -32,9 +32,8 @@ from PyQt5.QtWidgets import QAbstractItemView
 from PyQt5.QtWidgets import QMenu, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QHeaderView
 
 from electrum_ltc.i18n import _
-from electrum_ltc.util import format_time, PR_UNPAID, PR_PAID, PR_INFLIGHT, PR_FAILED
-from electrum_ltc.util import get_request_status
-from electrum_ltc.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
+from electrum_ltc.util import format_time
+from electrum_ltc.invoices import Invoice, PR_UNPAID, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_TYPE_ONCHAIN, PR_TYPE_LN
 from electrum_ltc.lnutil import PaymentAttemptLog
 
 from .util import (MyTreeView, read_QIcon, MySortModel,
@@ -77,7 +76,7 @@ class InvoiceList(MyTreeView):
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.update()
 
-    def update_item(self, key, req):
+    def update_item(self, key, invoice: Invoice):
         model = self.std_model
         for row in range(0, model.rowCount()):
             item = model.item(row, 0)
@@ -86,7 +85,8 @@ class InvoiceList(MyTreeView):
         else:
             return
         status_item = model.item(row, self.Columns.STATUS)
-        status, status_str = get_request_status(req)
+        status = self.parent.wallet.get_invoice_status(invoice)
+        status_str = invoice.get_status_str(status)
         if self.parent.wallet.lnworker:
             log = self.parent.wallet.lnworker.logs.get(key)
             if log and status == PR_INFLIGHT:
@@ -100,21 +100,21 @@ class InvoiceList(MyTreeView):
         self.std_model.clear()
         self.update_headers(self.__class__.headers)
         for idx, item in enumerate(self.parent.wallet.get_invoices()):
-            invoice_type = item['type']
-            if invoice_type == PR_TYPE_LN:
-                key = item['rhash']
+            if item.type == PR_TYPE_LN:
+                key = item.rhash
                 icon_name = 'lightning.png'
-            elif invoice_type == PR_TYPE_ONCHAIN:
-                key = item['id']
+            elif item.type == PR_TYPE_ONCHAIN:
+                key = item.id
                 icon_name = 'bitcoin.png'
-                if item.get('bip70'):
+                if item.bip70:
                     icon_name = 'seal.png'
             else:
                 raise Exception('Unsupported type')
-            status, status_str = get_request_status(item)
-            message = item['message']
-            amount = item['amount']
-            timestamp = item.get('time', 0)
+            status = self.parent.wallet.get_invoice_status(item)
+            status_str = item.get_status_str(status)
+            message = item.message
+            amount = item.amount
+            timestamp = item.time or 0
             date_str = format_time(timestamp) if timestamp else _('Unknown')
             amount_str = self.parent.format_amount(amount, whitespaces=True)
             labels = [date_str, message, amount_str, status_str]
@@ -123,7 +123,7 @@ class InvoiceList(MyTreeView):
             items[self.Columns.DATE].setIcon(read_QIcon(icon_name))
             items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
             items[self.Columns.DATE].setData(key, role=ROLE_REQUEST_ID)
-            items[self.Columns.DATE].setData(invoice_type, role=ROLE_REQUEST_TYPE)
+            items[self.Columns.DATE].setData(item.type, role=ROLE_REQUEST_TYPE)
             items[self.Columns.DATE].setData(timestamp, role=ROLE_SORT_ORDER)
             self.std_model.insertRow(idx, items)
         self.filter()
@@ -143,11 +143,12 @@ class InvoiceList(MyTreeView):
         export_meta_gui(self.parent, _('invoices'), self.parent.invoices.export_file)
 
     def create_menu(self, position):
+        wallet = self.parent.wallet
         items = self.selected_in_column(0)
         if len(items)>1:
             keys = [ item.data(ROLE_REQUEST_ID)  for item in items]
-            invoices = [ self.parent.wallet.get_invoice(key) for key in keys]
-            can_batch_pay = all([ invoice['status'] == PR_UNPAID and invoice['type'] == PR_TYPE_ONCHAIN for invoice in invoices])
+            invoices = [ wallet.invoices.get(key) for key in keys]
+            can_batch_pay = all([i.type == PR_TYPE_ONCHAIN and wallet.get_invoice_status(i) == PR_UNPAID for i in invoices])
             menu = QMenu(self)
             if can_batch_pay:
                 menu.addAction(_("Batch pay invoices"), lambda: self.parent.pay_multiple_invoices(invoices))
@@ -164,9 +165,10 @@ class InvoiceList(MyTreeView):
         self.add_copy_menu(menu, idx)
         invoice = self.parent.wallet.get_invoice(key)
         menu.addAction(_("Details"), lambda: self.parent.show_invoice(key))
-        if invoice['status'] == PR_UNPAID:
+        status = wallet.get_invoice_status(invoice)
+        if status == PR_UNPAID:
             menu.addAction(_("Pay"), lambda: self.parent.do_pay_invoice(invoice))
-        if invoice['status'] == PR_FAILED:
+        if status == PR_FAILED:
             menu.addAction(_("Retry"), lambda: self.parent.do_pay_invoice(invoice))
         if self.parent.wallet.lnworker:
             log = self.parent.wallet.lnworker.logs.get(key)

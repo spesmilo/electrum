@@ -35,7 +35,8 @@ import attr
 
 from . import ecc
 from . import constants, util
-from .util import bfh, bh2u, chunks, TxMinedInfo, PR_PAID
+from .util import bfh, bh2u, chunks, TxMinedInfo
+from .invoices import PR_PAID
 from .bitcoin import redeem_script_to_address
 from .crypto import sha256, sha256d
 from .transaction import Transaction, PartialTransaction, TxInput
@@ -77,10 +78,11 @@ class ChannelState(IntEnum):
                          #  - Non-funding node: has sent the funding_signed message.
     FUNDED          = 2  # Funding tx was mined (requires min_depth and tx verification)
     OPEN            = 3  # both parties have sent funding_locked
-    CLOSING         = 4  # shutdown has been sent, and closing tx is unconfirmed.
-    FORCE_CLOSING   = 5  # we force-closed, and closing tx is unconfirmed. (otherwise we remain OPEN)
-    CLOSED          = 6  # closing tx has been mined
-    REDEEMED        = 7  # we can stop watching
+    SHUTDOWN        = 4  # shutdown has been sent.
+    CLOSING         = 5  # closing negotiation done. we have a fully signed tx.
+    FORCE_CLOSING   = 6  # we force-closed, and closing tx is unconfirmed. (otherwise we remain OPEN)
+    CLOSED          = 7  # closing tx has been mined
+    REDEEMED        = 8  # we can stop watching
 
 
 class PeerState(IntEnum):
@@ -95,18 +97,25 @@ state_transitions = [
     (cs.PREOPENING, cs.OPENING),
     (cs.OPENING, cs.FUNDED),
     (cs.FUNDED, cs.OPEN),
-    (cs.OPENING, cs.CLOSING),
-    (cs.FUNDED, cs.CLOSING),
-    (cs.OPEN, cs.CLOSING),
-    (cs.OPENING, cs.FORCE_CLOSING),
-    (cs.FUNDED, cs.FORCE_CLOSING),
-    (cs.OPEN, cs.FORCE_CLOSING),
-    (cs.CLOSING, cs.FORCE_CLOSING),
-    (cs.OPENING, cs.CLOSED),
-    (cs.FUNDED, cs.CLOSED),
-    (cs.OPEN, cs.CLOSED),
-    (cs.CLOSING, cs.CLOSING),  # if we reestablish
-    (cs.CLOSING, cs.CLOSED),
+    (cs.OPENING, cs.SHUTDOWN),
+    (cs.FUNDED, cs.SHUTDOWN),
+    (cs.OPEN, cs.SHUTDOWN),
+    (cs.SHUTDOWN, cs.SHUTDOWN),  # if we reestablish
+    (cs.SHUTDOWN, cs.CLOSING),
+    (cs.CLOSING, cs.CLOSING),
+    # we can force close almost any time
+    (cs.OPENING,  cs.FORCE_CLOSING),
+    (cs.FUNDED,   cs.FORCE_CLOSING),
+    (cs.OPEN,     cs.FORCE_CLOSING),
+    (cs.SHUTDOWN, cs.FORCE_CLOSING),
+    (cs.CLOSING,  cs.FORCE_CLOSING),
+    # we can get force closed almost any time
+    (cs.OPENING,  cs.CLOSED),
+    (cs.FUNDED,   cs.CLOSED),
+    (cs.OPEN,     cs.CLOSED),
+    (cs.SHUTDOWN, cs.CLOSED),
+    (cs.CLOSING,  cs.CLOSED),
+    #
     (cs.FORCE_CLOSING, cs.FORCE_CLOSING),  # allow multiple attempts
     (cs.FORCE_CLOSING, cs.CLOSED),
     (cs.FORCE_CLOSING, cs.REDEEMED),
@@ -174,11 +183,11 @@ class AbstractChannel(Logger, ABC):
         return self.get_state() == ChannelState.OPEN
 
     def is_closing(self):
-        return self.get_state() in [ChannelState.CLOSING, ChannelState.FORCE_CLOSING]
+        return ChannelState.SHUTDOWN <= self.get_state() <= ChannelState.FORCE_CLOSING
 
     def is_closed(self):
         # the closing txid has been saved
-        return self.get_state() >= ChannelState.CLOSED
+        return self.get_state() >= ChannelState.CLOSING
 
     def is_redeemed(self):
         return self.get_state() == ChannelState.REDEEMED
@@ -707,8 +716,6 @@ class Channel(AbstractChannel):
         #       and the constraints are the ones imposed by their config
         ctn = self.get_next_ctn(htlc_receiver)
         chan_config = self.config[htlc_receiver]
-        if self.is_closed():
-            raise PaymentFailure('Channel closed')
         if self.get_state() != ChannelState.OPEN:
             raise PaymentFailure('Channel not open', self.get_state())
         if htlc_proposer == LOCAL:
@@ -777,7 +784,7 @@ class Channel(AbstractChannel):
         return True
 
     def should_try_to_reestablish_peer(self) -> bool:
-        return ChannelState.PREOPENING < self._state < ChannelState.FORCE_CLOSING and self.peer_state == PeerState.DISCONNECTED
+        return ChannelState.PREOPENING < self._state < ChannelState.CLOSING and self.peer_state == PeerState.DISCONNECTED
 
     def get_funding_address(self):
         script = funding_output_script(self.config[LOCAL], self.config[REMOTE])

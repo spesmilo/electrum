@@ -7,8 +7,8 @@ from kivy.app import App
 from kivy.clock import Clock
 
 from electrum_ltc.gui.kivy.i18n import _
-from electrum_ltc.util import pr_tooltips, pr_color, get_request_status
-from electrum_ltc.util import PR_UNKNOWN, PR_UNPAID, PR_FAILED, PR_TYPE_LN
+from electrum_ltc.invoices import pr_tooltips, pr_color
+from electrum_ltc.invoices import PR_UNKNOWN, PR_UNPAID, PR_FAILED, PR_TYPE_LN
 
 if TYPE_CHECKING:
     from ...main_window import ElectrumWindow
@@ -20,7 +20,8 @@ Builder.load_string('''
     amount: 0
     title: ''
     description:''
-    data: ''
+    is_lightning: False
+    key:''
     warning: ''
     status_str: ''
     status_color: 1,1,1,1
@@ -41,16 +42,13 @@ Builder.load_string('''
                     touch = args[1]
                     if self.collide_point(*touch.pos): self.shaded = not self.shaded
             TopLabel:
-                text: _('Data')+ ':'
-            RefLabel:
-                data: root.data
-                name: _('Request data')
-            TopLabel:
-                text: _('Description') + ':'
-            RefLabel:
-                data: root.description or _('No description')
+                text: _('Description') + ': ' + root.description or _('None')
             TopLabel:
                 text: _('Amount') + ': ' + app.format_amount_and_units(root.amount)
+            TopLabel:
+                text: (_('Address') if not root.is_lightning else _('Payment hash')) + ': '
+            RefLabel:
+                text: root.key
             TopLabel:
                 text: _('Status') + ': ' + root.status_str
                 color: root.status_color
@@ -86,17 +84,17 @@ Builder.load_string('''
 
 class RequestDialog(Factory.Popup):
 
-    def __init__(self, title, data, key, *, is_lightning=False):
+    def __init__(self, title, key):
         self.status = PR_UNKNOWN
         Factory.Popup.__init__(self)
         self.app = App.get_running_app()  # type: ElectrumWindow
         self.title = title
-        self.data = data
         self.key = key
         r = self.app.wallet.get_request(key)
-        self.amount = r.get('amount')
-        self.description = r.get('message', '')
-        self.is_lightning = r.get('type') == PR_TYPE_LN
+        self.is_lightning = r.is_lightning()
+        self.data = r.invoice if self.is_lightning else self.app.wallet.get_request_URI(r)
+        self.amount = r.amount or 0
+        self.description = r.message
         self.update_status()
 
     def on_open(self):
@@ -109,7 +107,8 @@ class RequestDialog(Factory.Popup):
 
     def update_status(self):
         req = self.app.wallet.get_request(self.key)
-        self.status, self.status_str = get_request_status(req)
+        self.status = self.app.wallet.get_request_status(self.key)
+        self.status_str = req.get_status_str(self.status)
         self.status_color = pr_color[self.status]
         if self.status == PR_UNPAID and self.is_lightning and self.app.wallet.lnworker:
             if self.amount and self.amount > self.app.wallet.lnworker.num_sats_can_receive():
