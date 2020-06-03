@@ -29,6 +29,7 @@ import base64
 from functools import partial
 import traceback
 import sys
+from typing import Set
 
 import smtplib
 import imaplib
@@ -48,6 +49,8 @@ from electrum_grs.plugin import BasePlugin, hook
 from electrum_grs.paymentrequest import PaymentRequest
 from electrum_grs.i18n import _
 from electrum_grs.logging import Logger
+from electrum_grs.wallet import Abstract_Wallet
+from electrum_grs.invoices import OnchainInvoice
 
 
 class Processor(threading.Thread, Logger):
@@ -150,7 +153,7 @@ class Plugin(BasePlugin):
             self.processor.start()
         self.obj = QEmailSignalObject()
         self.obj.email_new_invoice_signal.connect(self.new_invoice)
-        self.wallets = set()
+        self.wallets = set()  # type: Set[Abstract_Wallet]
 
     def on_receive(self, pr_str):
         self.logger.info('received payment request')
@@ -166,8 +169,9 @@ class Plugin(BasePlugin):
         self.wallets -= {wallet}
 
     def new_invoice(self):
+        invoice = OnchainInvoice.from_bip70_payreq(self.pr)
         for wallet in self.wallets:
-            wallet.invoices.add(self.pr)
+            wallet.save_invoice(invoice)
         #main_window.invoice_list.update()
 
     @hook

@@ -310,7 +310,11 @@ class SendScreen(CScreen):
                     self.app.show_error(_('Invalid Groestlcoin Address') + ':\n' + address)
                     return
                 outputs = [PartialTxOutput.from_address_and_value(address, amount)]
-            return self.app.wallet.create_invoice(outputs, message, self.payment_request, self.parsed_URI)
+            return self.app.wallet.create_invoice(
+                outputs=outputs,
+                message=message,
+                pr=self.payment_request,
+                URI=self.parsed_URI)
 
     def do_save(self):
         invoice = self.read_invoice()

@@ -1,5 +1,6 @@
 import attr
 import time
+from typing import TYPE_CHECKING, List
 
 from .json_db import StoredObject
 from .i18n import _
@@ -8,6 +9,9 @@ from .lnaddr import lndecode
 from . import constants
 from .bitcoin import COIN
 from .transaction import PartialTxOutput
+
+if TYPE_CHECKING:
+    from .paymentrequest import PaymentRequest
 
 # convention: 'invoices' = outgoing , 'request' = incoming
 
@@ -54,7 +58,14 @@ pr_expiration_values = {
 }
 assert PR_DEFAULT_EXPIRATION_WHEN_CREATING in pr_expiration_values
 
-outputs_decoder = lambda _list: [PartialTxOutput.from_legacy_tuple(*x) for x in _list]
+
+def _decode_outputs(outputs) -> List[PartialTxOutput]:
+    ret = []
+    for output in outputs:
+        if not isinstance(output, PartialTxOutput):
+            output = PartialTxOutput.from_legacy_tuple(*output)
+        ret.append(output)
+    return ret
 
 # hack: BOLT-11 is not really clear on what an expiry of 0 means.
 # It probably interprets it as 0 seconds, so already expired...
@@ -86,13 +97,27 @@ class Invoice(StoredObject):
 @attr.s
 class OnchainInvoice(Invoice):
     id = attr.ib(type=str)
-    outputs = attr.ib(type=list, converter=outputs_decoder)
+    outputs = attr.ib(type=list, converter=_decode_outputs)
     bip70 = attr.ib(type=str) # may be None
     requestor = attr.ib(type=str) # may be None
 
-    def get_address(self):
+    def get_address(self) -> str:
         assert len(self.outputs) == 1
         return self.outputs[0].address
+
+    @classmethod
+    def from_bip70_payreq(cls, pr: 'PaymentRequest') -> 'OnchainInvoice':
+        return OnchainInvoice(
+            type=PR_TYPE_ONCHAIN,
+            amount=pr.get_amount(),
+            outputs=pr.get_outputs(),
+            message=pr.get_memo(),
+            id=pr.get_id(),
+            time=pr.get_time(),
+            exp=pr.get_expiration_date() - pr.get_time(),
+            bip70=pr.raw.hex() if pr else None,
+            requestor=pr.get_requestor(),
+        )
 
 @attr.s
 class LNInvoice(Invoice):
@@ -100,7 +125,7 @@ class LNInvoice(Invoice):
     invoice = attr.ib(type=str)
 
     @classmethod
-    def from_bech32(klass, invoice: str):
+    def from_bech32(klass, invoice: str) -> 'LNInvoice':
         lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
         amount = int(lnaddr.amount * COIN) if lnaddr.amount else None
         return LNInvoice(

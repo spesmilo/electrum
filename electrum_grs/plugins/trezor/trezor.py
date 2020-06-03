@@ -88,8 +88,8 @@ class TrezorKeyStore(Hardware_KeyStore):
         prev_tx = {}
         for txin in tx.inputs():
             tx_hash = txin.prevout.txid.hex()
-            if txin.utxo is None and not Transaction.is_segwit_input(txin):
-                raise UserFacingException(_('Missing previous tx for legacy input.'))
+            if txin.utxo is None:
+                raise UserFacingException(_('Missing previous tx.'))
             prev_tx[tx_hash] = txin.utxo
 
         self.plugin.sign_transaction(self, tx, prev_tx)

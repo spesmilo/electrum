@@ -1523,7 +1523,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if self.check_send_tab_onchain_outputs_and_show_errors(outputs):
                 return
             message = self.message_e.text()
-            return self.wallet.create_invoice(outputs, message, self.payment_request, self.payto_URI)
+            return self.wallet.create_invoice(
+                outputs=outputs,
+                message=message,
+                pr=self.payment_request,
+                URI=self.payto_URI)
 
     def do_save_invoice(self):
         invoice = self.read_invoice()
@@ -1772,7 +1776,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         key = pr.get_id()
         invoice = self.wallet.get_invoice(key)
-        if invoice and self.wallet.get_invoice_status() == PR_PAID:
+        if invoice and self.wallet.get_invoice_status(invoice) == PR_PAID:
             self.show_message("invoice already paid")
             self.do_clear()
             self.payment_request = None
