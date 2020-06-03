@@ -364,6 +364,32 @@ class BitBox02Client(HardwareClientBase):
                     "A wallet owned pubkey was not found in the transaction input to be signed"
                 )
 
+            prev_tx = wallet.db.get_transaction(txin.prevout.txid.hex())
+            if prev_tx is None:
+                raise Exception(
+                    "Could not find transaction {} in db".format(txin.prevout.txid.hex()),
+                )
+
+
+            prev_inputs: List[bitbox02.BTCPrevTxInputType] = []
+            prev_outputs: List[bitbox02.BTCPrevTxOutputType] = []
+            for prev_txin in prev_tx.inputs():
+                prev_inputs.append(
+                    {
+                        "prev_out_hash": prev_txin.prevout.txid[::-1],
+                        "prev_out_index": prev_txin.prevout.out_idx,
+                        "signature_script": prev_txin.script_sig,
+                        "sequence": prev_txin.nsequence,
+                    }
+                )
+            for prev_txout in prev_tx.outputs():
+                prev_outputs.append(
+                    {
+                        "value": prev_txout.value,
+                        "pubkey_script": prev_txout.scriptpubkey,
+                    }
+                )
+
             inputs.append(
                 {
                     "prev_out_hash": txin.prevout.txid[::-1],
@@ -371,6 +397,12 @@ class BitBox02Client(HardwareClientBase):
                     "prev_out_value": txin.value_sats(),
                     "sequence": txin.nsequence,
                     "keypath": full_path,
+                    "prev_tx": {
+                        "version": prev_tx.version,
+                        "locktime": prev_tx.locktime,
+                        "inputs": prev_inputs,
+                        "outputs": prev_outputs,
+                    },
                 }
             )
 
@@ -536,7 +568,7 @@ class BitBox02_KeyStore(Hardware_KeyStore):
 
 class BitBox02Plugin(HW_PluginBase):
     keystore_class = BitBox02_KeyStore
-    minimum_library = (2, 0, 2)
+    minimum_library = (3, 0, 0)
     DEVICE_IDS = [(0x03EB, 0x2403)]
 
     SUPPORTED_XTYPES = ("p2wpkh-p2sh", "p2wpkh", "p2wsh")
