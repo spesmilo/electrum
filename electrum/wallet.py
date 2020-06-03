@@ -1400,22 +1400,9 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         pass  # implemented by subclasses
 
     def _add_input_utxo_info(self, txin: PartialTxInput, address: str) -> None:
-        if Transaction.is_segwit_input(txin):
-            if txin.witness_utxo is None:
-                received, spent = self.get_addr_io(address)
-                item = received.get(txin.prevout.to_str())
-                if item:
-                    txin_value = item[1]
-                    txin.witness_utxo = TxOutput.from_address_and_value(address, txin_value)
-        else:  # legacy input
-            if txin.utxo is None:
-                # note: for hw wallets, for legacy inputs, ignore_network_issues used to be False
-                txin.utxo = self.get_input_tx(txin.prevout.txid.hex(), ignore_network_issues=True)
-        # If there is a NON-WITNESS UTXO, but we know input is segwit, add a WITNESS UTXO, based on it.
-        # This could have happened if previously another wallet had put a NON-WITNESS UTXO for txin,
-        # as they did not know if it was segwit. This switch is needed to interop with bitcoin core.
-        if txin.utxo and Transaction.is_segwit_input(txin):
-            txin.convert_utxo_to_witness_utxo()
+        if txin.utxo is None:
+            # note: for hw wallets, for legacy inputs, ignore_network_issues used to be False
+            txin.utxo = self.get_input_tx(txin.prevout.txid.hex(), ignore_network_issues=True)
         txin.ensure_there_is_only_one_utxo()
 
     def _learn_derivation_path_for_address_from_txinout(self, txinout: Union[PartialTxInput, PartialTxOutput],
