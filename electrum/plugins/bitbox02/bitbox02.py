@@ -33,6 +33,7 @@ try:
         HARDENED,
         u2fhid,
         bitbox_api_protocol,
+        FirmwareVersionOutdatedException,
     )
     requirements_ok = True
 except ImportError:
@@ -161,11 +162,17 @@ class BitBox02Client(HardwareClientBase):
                 hid_device = hid.device()
                 hid_device.open_path(self.bitbox_hid_info["path"])
 
-            self.bitbox02_device = bitbox02.BitBox02(
+
+            bitbox02_device = bitbox02.BitBox02(
                 transport=u2fhid.U2FHid(hid_device),
                 device_info=self.bitbox_hid_info,
                 noise_config=NoiseConfig(),
             )
+            try:
+                bitbox02_device.check_min_version()
+            except FirmwareVersionOutdatedException:
+                raise
+            self.bitbox02_device = bitbox02_device
 
         self.fail_if_not_initialized()
 
@@ -175,13 +182,6 @@ class BitBox02Client(HardwareClientBase):
             raise Exception(
                 "Please initialize the BitBox02 using the BitBox app first before using the BitBox02 in electrum"
             )
-
-    def check_device_firmware_version(self) -> bool:
-        if self.bitbox02_device is None:
-            raise Exception(
-                "Need to setup communication first before attempting any BitBox02 calls"
-            )
-        return self.bitbox02_device.check_firmware_version()
 
     def coin_network_from_electrum_network(self) -> int:
         if constants.net.TESTNET:
@@ -357,11 +357,34 @@ class BitBox02Client(HardwareClientBase):
         # Build BTCInputType list
         inputs = []
         for txin in tx.inputs():
-            _, full_path = keystore.find_my_pubkey_in_txinout(txin)
+            my_pubkey, full_path = keystore.find_my_pubkey_in_txinout(txin)
 
             if full_path is None:
                 raise Exception(
                     "A wallet owned pubkey was not found in the transaction input to be signed"
+                )
+
+            prev_tx = txin.utxo
+            if prev_tx is None:
+                raise UserFacingException(_('Missing previous tx.'))
+
+            prev_inputs: List[bitbox02.BTCPrevTxInputType] = []
+            prev_outputs: List[bitbox02.BTCPrevTxOutputType] = []
+            for prev_txin in prev_tx.inputs():
+                prev_inputs.append(
+                    {
+                        "prev_out_hash": prev_txin.prevout.txid[::-1],
+                        "prev_out_index": prev_txin.prevout.out_idx,
+                        "signature_script": prev_txin.script_sig,
+                        "sequence": prev_txin.nsequence,
+                    }
+                )
+            for prev_txout in prev_tx.outputs():
+                prev_outputs.append(
+                    {
+                        "value": prev_txout.value,
+                        "pubkey_script": prev_txout.scriptpubkey,
+                    }
                 )
 
             inputs.append(
@@ -371,6 +394,12 @@ class BitBox02Client(HardwareClientBase):
                     "prev_out_value": txin.value_sats(),
                     "sequence": txin.nsequence,
                     "keypath": full_path,
+                    "prev_tx": {
+                        "version": prev_tx.version,
+                        "locktime": prev_tx.locktime,
+                        "inputs": prev_inputs,
+                        "outputs": prev_outputs,
+                    },
                 }
             )
 
@@ -405,7 +434,7 @@ class BitBox02Client(HardwareClientBase):
             assert txout.address
             # check for change
             if txout.is_change:
-                _, change_pubkey_path = keystore.find_my_pubkey_in_txinout(txout)
+                my_pubkey, change_pubkey_path = keystore.find_my_pubkey_in_txinout(txout)
                 outputs.append(
                     bitbox02.BTCOutputInternal(
                         keypath=change_pubkey_path, value=txout.value,
@@ -536,7 +565,7 @@ class BitBox02_KeyStore(Hardware_KeyStore):
 
 class BitBox02Plugin(HW_PluginBase):
     keystore_class = BitBox02_KeyStore
-    minimum_library = (2, 0, 2)
+    minimum_library = (3, 0, 0)
     DEVICE_IDS = [(0x03EB, 0x2403)]
 
     SUPPORTED_XTYPES = ("p2wpkh-p2sh", "p2wpkh", "p2wsh")
