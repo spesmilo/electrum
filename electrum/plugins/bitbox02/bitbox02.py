@@ -357,19 +357,16 @@ class BitBox02Client(HardwareClientBase):
         # Build BTCInputType list
         inputs = []
         for txin in tx.inputs():
-            _, full_path = keystore.find_my_pubkey_in_txinout(txin)
+            my_pubkey, full_path = keystore.find_my_pubkey_in_txinout(txin)
 
             if full_path is None:
                 raise Exception(
                     "A wallet owned pubkey was not found in the transaction input to be signed"
                 )
 
-            prev_tx = wallet.db.get_transaction(txin.prevout.txid.hex())
+            prev_tx = txin.utxo
             if prev_tx is None:
-                raise Exception(
-                    "Could not find transaction {} in db".format(txin.prevout.txid.hex()),
-                )
-
+                raise UserFacingException(_('Missing previous tx.'))
 
             prev_inputs: List[bitbox02.BTCPrevTxInputType] = []
             prev_outputs: List[bitbox02.BTCPrevTxOutputType] = []
@@ -437,7 +434,7 @@ class BitBox02Client(HardwareClientBase):
             assert txout.address
             # check for change
             if txout.is_change:
-                _, change_pubkey_path = keystore.find_my_pubkey_in_txinout(txout)
+                my_pubkey, change_pubkey_path = keystore.find_my_pubkey_in_txinout(txout)
                 outputs.append(
                     bitbox02.BTCOutputInternal(
                         keypath=change_pubkey_path, value=txout.value,
