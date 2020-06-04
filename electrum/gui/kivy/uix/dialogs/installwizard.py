@@ -1168,9 +1168,8 @@ class InstallWizard(BaseWizard, Widget):
         def on_failure():
             self.show_error(_('Password mismatch'))
             self.run('request_password', run_next)
-        popup = PasswordDialog()
         app = App.get_running_app()
-        popup.init(
+        popup = PasswordDialog(
             app,
             check_password=lambda x:True,
             on_success=on_success,
