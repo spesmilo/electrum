@@ -76,6 +76,7 @@ from .mnemonic import Mnemonic
 from .logging import get_logger
 from .lnworker import LNWallet, LNBackups
 from .paymentrequest import PaymentRequest
+from .util import read_json_file, write_json_file
 
 if TYPE_CHECKING:
     from .network import Network
@@ -421,6 +422,14 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             run_hook('set_label', self, name, text)
         return changed
 
+    def import_labels(self, path):
+        data = read_json_file(path)
+        for key, value in data.items():
+            self.set_label(key, value)
+
+    def export_labels(self, path):
+        write_json_file(path, self.labels)
+
     def set_fiat_value(self, txid, ccy, text, fx, value_sat):
         if not self.db.get_transaction(txid):
             return
@@ -706,6 +715,24 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
 
     def get_invoice(self, key):
         return self.invoices.get(key)
+
+    def import_requests(self, path):
+        data = read_json_file(path)
+        for x in data:
+            req = invoice_from_json(x)
+            self.add_payment_request(req)
+
+    def export_requests(self, path):
+        write_json_file(path, list(self.receive_requests.values()))
+
+    def import_invoices(self, path):
+        data = read_json_file(path)
+        for x in data:
+            invoice = invoice_from_json(x)
+            self.save_invoice(invoice)
+
+    def export_invoices(self, path):
+        write_json_file(path, list(self.invoices.values()))
 
     def _get_relevant_invoice_keys_for_tx(self, tx: Transaction) -> Set[str]:
         relevant_invoice_keys = set()

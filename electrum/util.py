@@ -952,11 +952,10 @@ def versiontuple(v):
     return tuple(map(int, (v.split("."))))
 
 
-def import_meta(path, validater, load_meta):
+def read_json_file(path):
     try:
         with open(path, 'r', encoding='utf-8') as f:
-            d = validater(json.loads(f.read()))
-        load_meta(d)
+            data = json.loads(f.read())
     #backwards compatibility for JSONDecodeError
     except ValueError:
         _logger.exception('')
@@ -964,12 +963,12 @@ def import_meta(path, validater, load_meta):
     except BaseException as e:
         _logger.exception('')
         raise FileImportFailed(e)
+    return data
 
-
-def export_meta(meta, fileName):
+def write_json_file(path, data):
     try:
-        with open(fileName, 'w+', encoding='utf-8') as f:
-            json.dump(meta, f, indent=4, sort_keys=True)
+        with open(path, 'w+', encoding='utf-8') as f:
+            json.dump(data, f, indent=4, sort_keys=True, cls=MyEncoder)
     except (IOError, os.error) as e:
         _logger.exception('')
         raise FileExportFailed(e)
