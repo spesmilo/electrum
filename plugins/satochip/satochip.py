@@ -285,7 +285,7 @@ class Satochip_KeyStore(Hardware_KeyStore):
 
         return compsig
 
-    def sign_transaction(self, tx, password):
+    def sign_transaction(self, tx, password, *, use_cache=False):
         self.print_error('sign_transaction(): tx: '+ str(tx)) #debugSatochip
 
         client = self.get_client()

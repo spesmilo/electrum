@@ -509,7 +509,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
         return sig
 
 
-    def sign_transaction(self, tx, password):
+    def sign_transaction(self, tx, password, *, use_cache=False):
         if tx.is_complete():
             return
 
