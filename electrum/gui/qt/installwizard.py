@@ -28,6 +28,7 @@ from .network_dialog import NetworkChoiceLayout
 from .util import (MessageBoxMixin, Buttons, icon_path, ChoicesLayout, WWLabel,
                    InfoButton, char_width_in_lineedit, PasswordLineEdit)
 from .password_dialog import PasswordLayout, PasswordLayoutForHW, PW_NEW
+from .bip39_recovery_dialog import Bip39RecoveryDialog
 from electrum.plugin import run_hook, Plugins
 
 if TYPE_CHECKING:
@@ -603,10 +604,24 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return clayout.selected_index()
 
     @wizard_dialog
-    def choice_and_line_dialog(self, title: str, message1: str, choices: List[Tuple[str, str, str]],
+    def derivation_and_script_type_gui_specific_dialog(self, title: str, message1: str, choices: List[Tuple[str, str, str]],
                                message2: str, test_text: Callable[[str], int],
-                               run_next, default_choice_idx: int=0) -> Tuple[str, str]:
+                               run_next, default_choice_idx: int=0, get_account_xpub=None) -> Tuple[str, str]:
         vbox = QVBoxLayout()
+
+        if get_account_xpub:
+            button = QPushButton(_("Detect Existing Accounts"))
+            def on_account_select(account):
+                script_type = account["script_type"]
+                if script_type == "p2pkh":
+                    script_type = "standard"
+                button_index = c_values.index(script_type)
+                button = clayout.group.buttons()[button_index]
+                button.setChecked(True)
+                line.setText(account["derivation_path"])
+            button.clicked.connect(lambda: Bip39RecoveryDialog(self, get_account_xpub, on_account_select))
+            vbox.addWidget(button, alignment=Qt.AlignLeft)
+            vbox.addWidget(QLabel(_("Or")))
 
         c_values = [x[0] for x in choices]
         c_titles = [x[1] for x in choices]
@@ -618,7 +633,6 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                                 checked_index=default_choice_idx)
         vbox.addLayout(clayout.layout())
 
-        vbox.addSpacing(50)
         vbox.addWidget(WWLabel(message2))
 
         line = QLineEdit()

@@ -34,7 +34,7 @@ from . import bitcoin
 from . import keystore
 from . import mnemonic
 from .bip32 import is_bip32_derivation, xpub_type, normalize_bip32_derivation, BIP32Node
-from .keystore import bip44_derivation, purpose48_derivation, Hardware_KeyStore, KeyStore
+from .keystore import bip44_derivation, purpose48_derivation, Hardware_KeyStore, KeyStore, bip39_to_seed
 from .wallet import (Imported_Wallet, Standard_Wallet, Multisig_Wallet,
                      wallet_types, Wallet, Abstract_Wallet)
 from .storage import WalletStorage, StorageEncryptionVersion
@@ -404,7 +404,7 @@ class BaseWizard(Logger):
         else:
             raise Exception('unknown purpose: %s' % purpose)
 
-    def derivation_and_script_type_dialog(self, f):
+    def derivation_and_script_type_dialog(self, f, get_account_xpub=None):
         message1 = _('Choose the type of addresses in your wallet.')
         message2 = ' '.join([
             _('You can override the suggested derivation path.'),
@@ -429,10 +429,10 @@ class BaseWizard(Logger):
             ]
         while True:
             try:
-                self.choice_and_line_dialog(
+                self.derivation_and_script_type_gui_specific_dialog(
                     run_next=f, title=_('Script type and Derivation path'), message1=message1,
                     message2=message2, choices=choices, test_text=is_bip32_derivation,
-                    default_choice_idx=default_choice_idx)
+                    default_choice_idx=default_choice_idx, get_account_xpub=get_account_xpub)
                 return
             except ScriptTypeNotSupported as e:
                 self.show_error(e)
@@ -492,7 +492,8 @@ class BaseWizard(Logger):
     def on_restore_seed(self, seed, is_bip39, is_ext):
         self.seed_type = 'bip39' if is_bip39 else mnemonic.seed_type(seed)
         if self.seed_type == 'bip39':
-            f = lambda passphrase: self.on_restore_bip39(seed, passphrase)
+            def f(passphrase):
+                self.on_restore_bip39(seed, passphrase)
             self.passphrase_dialog(run_next=f, is_restoring=True) if is_ext else f('')
         elif self.seed_type in ['standard', 'segwit']:
             f = lambda passphrase: self.run('create_keystore', seed, passphrase)
@@ -509,7 +510,13 @@ class BaseWizard(Logger):
         def f(derivation, script_type):
             derivation = normalize_bip32_derivation(derivation)
             self.run('on_bip43', seed, passphrase, derivation, script_type)
-        self.derivation_and_script_type_dialog(f)
+        def get_account_xpub(account_path):
+            root_seed = bip39_to_seed(seed, passphrase)
+            root_node = BIP32Node.from_rootseed(root_seed, xtype="standard")
+            account_node = root_node.subkey_at_private_derivation(account_path)
+            account_xpub = account_node.to_xpub()
+            return account_xpub
+        self.derivation_and_script_type_dialog(f, get_account_xpub)
 
     def create_keystore(self, seed, passphrase):
         k = keystore.from_seed(seed, passphrase, self.wallet_type == 'multisig')
