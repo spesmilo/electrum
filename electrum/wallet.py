@@ -926,7 +926,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def make_unsigned_transaction(self, *, coins: Sequence[PartialTxInput],
                                   outputs: List[PartialTxOutput], fee=None,
-                                  change_addr: str = None, is_sweep=False) -> PartialTransaction:
+                                  change_addr: str = None, is_sweep=False, strdzeel:str="", version:int=3) -> PartialTransaction:
 
         # prevent side-effect with '!'
         outputs = copy.deepcopy(outputs)
@@ -988,7 +988,8 @@ class Abstract_Wallet(AddressSynchronizer):
                                       outputs=list(outputs) + txo,
                                       change_addrs=change_addrs,
                                       fee_estimator_vb=fee_estimator,
-                                      dust_threshold=self.dust_threshold())
+                                      dust_threshold=self.dust_threshold(),
+                                      version=version)
         else:
             # "spend max" branch
             # note: This *will* spend inputs with negative effective value (if there are any).
@@ -1010,20 +1011,21 @@ class Abstract_Wallet(AddressSynchronizer):
         # Timelock tx to current height.
         tx.locktime = get_locktime_for_new_transaction(self.network)
         tx.ntime = int(time.time())
-        tx.nversion = 3
-        tx.strdzeel = b''
+        tx.nversion = version
+        tx.strdzeel = strdzeel
 
         tx.add_info_from_wallet(self)
         run_hook('make_unsigned_transaction', self, tx)
         return tx
 
     def mktx(self, *, outputs: List[PartialTxOutput], password=None, fee=None, change_addr=None,
-             domain=None, rbf=False, nonlocal_only=False, tx_version=None, sign=True) -> PartialTransaction:
+             domain=None, rbf=False, nonlocal_only=False, tx_version=None, sign=True, strdzeel=None) -> PartialTransaction:
         coins = self.get_spendable_coins(domain, nonlocal_only=nonlocal_only)
         tx = self.make_unsigned_transaction(coins=coins,
                                             outputs=outputs,
                                             fee=fee,
-                                            change_addr=change_addr)
+                                            change_addr=change_addr,
+                                            strdzeel=strdzeel)
         tx.set_rbf(rbf)
         if tx_version is not None:
             tx.version = tx_version
@@ -2081,6 +2083,8 @@ class Deterministic_Wallet(Abstract_Wallet):
             return address
 
     def synchronize_sequence(self, for_change):
+        if self.wallet_type == 'voting':
+            return
         limit = self.gap_limit_for_change if for_change else self.gap_limit
         while True:
             num_addr = self.db.num_change_addresses() if for_change else self.db.num_receiving_addresses()
@@ -2165,6 +2169,38 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
     def derive_pubkeys(self, c, i):
         return self.keystore.derive_pubkey(c, i)
 
+
+class Voting_Wallet(Simple_Deterministic_Wallet):
+    def __init__(self, storage, *, config):
+        self.wallet_type = storage.get('wallet_type')
+        Deterministic_Wallet.__init__(self, storage, config=config)
+
+    def check_returned_address(func):
+        def wrapper(self, *args, **kwargs):
+            addr = func(self, *args, **kwargs)
+            self.check_address(addr)
+            return addr
+        return wrapper
+
+    @check_returned_address
+    def get_receiving_address(self):
+        # always return an address
+        domain = self.get_receiving_addresses()
+        if not domain:
+            return
+        choice = domain[0]
+        return choice[0]
+
+    def pubkeys_to_address(self, pubkey):
+        return bitcoin.pubkey_to_address(self.txin_type, pubkey)
+
+    def create_new_address(self, for_change=False):
+        with self.lock:
+            address = self.derive_address(0, 0)
+            self.db.add_receiving_address(address)
+            self.add_address(address)
+
+            return address
 
 
 class Cold_Staking_Wallet(Simple_Deterministic_Wallet):
@@ -2314,7 +2350,7 @@ class Multisig_Wallet(Deterministic_Wallet):
         return ''.join(sorted(self.get_master_public_keys()))
 
 
-wallet_types = ['standard', 'coldstaking', 'multisig', 'imported']
+wallet_types = ['standard', 'coldstaking', 'multisig', 'imported', 'voting']
 
 def register_wallet_type(category):
     wallet_types.append(category)
@@ -2322,6 +2358,7 @@ def register_wallet_type(category):
 wallet_constructors = {
     'standard': Standard_Wallet,
     'coldstaking': Cold_Staking_Wallet,
+    'voting': Voting_Wallet,
     'old': Standard_Wallet,
     'xpub': Standard_Wallet,
     'imported': Imported_Wallet

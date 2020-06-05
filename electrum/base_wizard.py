@@ -139,6 +139,7 @@ class BaseWizard(Logger):
         wallet_kinds = [
             ('standard',  _("Standard wallet")),
             ('coldstaking', _("Spending wallet for cold staking")),
+            ('voting', _("Voting wallet for cold staking")),
             ('multisig',  _("Multi-signature wallet")),
             ('imported',  _("Import Navcoin addresses or private keys")),
         ]
@@ -167,7 +168,7 @@ class BaseWizard(Logger):
 
     def on_wallet_type(self, choice):
         self.data['wallet_type'] = self.wallet_type = choice
-        if choice == 'standard':
+        if choice == 'standard' or choice == 'voting':
             action = 'choose_keystore'
         elif choice == 'multisig':
             action = 'choose_multisig'
@@ -203,7 +204,7 @@ class BaseWizard(Logger):
     def choose_voting_address(self):
         title = _('Specify the voting address')
         message = '\n'.join([
-            _('The voting address is the address which will hold the voting rights. This is obtained creating a voting wallet.'),
+            _('The voting address is the address which will hold the voting rights. This is obtained from the tab Your voting address after creating a voting wallet.'),
             _('Please type it here.'),
             _('You can also leave it empty if you want to keep the voting rights in the staking address.'),
         ])
@@ -214,10 +215,10 @@ class BaseWizard(Logger):
         self.run('choose_keystore')
 
     def choose_keystore(self):
-        assert self.wallet_type in ['standard', 'multisig', 'coldstaking']
+        assert self.wallet_type in ['standard', 'multisig', 'coldstaking', 'voting']
         i = len(self.keystores)
         title = _('Add cosigner') + ' (%d of %d)'%(i+1, self.n) if self.wallet_type=='multisig' else _('Keystore')
-        if self.wallet_type =='standard' or i==0:
+        if self.wallet_type =='standard' or i==0 or self.wallet_type == 'voting':
             message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
             choices = [
                 ('choose_seed_type', _('Create a new seed')),
@@ -487,7 +488,7 @@ class BaseWizard(Logger):
         self.opt_bip39 = True
         self.opt_ext = True
         is_cosigning_seed = lambda x: mnemonic.seed_type(x) in ['standard', 'segwit']
-        test = mnemonic.is_seed if self.wallet_type == 'standard' or self.wallet_type == 'coldstaking' else is_cosigning_seed
+        test = mnemonic.is_seed if self.wallet_type == 'standard' or self.wallet_type == 'voting' or self.wallet_type == 'coldstaking' else is_cosigning_seed
         self.restore_seed_dialog(run_next=self.on_restore_seed, test=test)
 
     def on_restore_seed(self, seed, is_bip39, is_ext):
@@ -495,7 +496,7 @@ class BaseWizard(Logger):
         if self.seed_type == 'bip39':
             f = lambda passphrase: self.on_restore_bip39(seed, passphrase)
             self.passphrase_dialog(run_next=f, is_restoring=True) if is_ext else f('')
-        elif self.seed_type in ['standard', 'segwit']:
+        elif self.seed_type in ['standard', 'segwit', 'voting']:
             f = lambda passphrase: self.run('create_keystore', seed, passphrase)
             self.passphrase_dialog(run_next=f, is_restoring=True) if is_ext else f('')
         elif self.seed_type == 'old':
@@ -524,8 +525,8 @@ class BaseWizard(Logger):
         has_xpub = isinstance(k, keystore.Xpub)
         if has_xpub:
             t1 = xpub_type(k.xpub)
-        if self.wallet_type == 'standard' or self.wallet_type == 'coldstaking':
-            if has_xpub and t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:
+        if self.wallet_type == 'standard' or self.wallet_type == 'coldstaking' or self.wallet_type == 'voting':
+            if has_xpub and t1 not in ['standard', 'voting', 'p2wpkh', 'p2wpkh-p2sh']:
                 self.show_error(_('Wrong key type') + ' %s'%t1)
                 self.run('choose_keystore')
                 return
@@ -561,7 +562,7 @@ class BaseWizard(Logger):
         encrypt_keystore = any(k.may_have_password() for k in self.keystores)
         # note: the following condition ("if") is duplicated logic from
         # wallet.get_available_storage_encryption_version()
-        if (self.wallet_type == 'standard' or self.wallet_type == 'coldstaking') and isinstance(self.keystores[0], keystore.Hardware_KeyStore):
+        if (self.wallet_type == 'standard' or self.wallet_type == 'voting' or self.wallet_type == 'coldstaking') and isinstance(self.keystores[0], keystore.Hardware_KeyStore):
             # offer encrypting with a pw derived from the hw device
             k = self.keystores[0]
             try:
@@ -600,7 +601,7 @@ class BaseWizard(Logger):
         for k in self.keystores:
             if k.may_have_password():
                 k.update_password(None, password)
-        if self.wallet_type == 'standard' or self.wallet_type == 'coldstaking':
+        if self.wallet_type == 'standard' or self.wallet_type == 'coldstaking' or self.wallet_type == 'voting':
             self.data['seed_type'] = self.seed_type
             keys = self.keystores[0].dump()
             self.data['keystore'] = keys

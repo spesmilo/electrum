@@ -795,6 +795,8 @@ class JsonDB(Logger):
 
     @modifier
     def add_receiving_address(self, addr):
+        if addr in self._addr_to_addr_index:
+            return
         self._addr_to_addr_index[addr] = (0, len(self.receiving_addresses))
         self.receiving_addresses.append(addr)
 

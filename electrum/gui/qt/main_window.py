@@ -45,12 +45,13 @@ from PyQt5.QtWidgets import (QMessageBox, QComboBox, QSystemTrayIcon, QTabWidget
                              QVBoxLayout, QGridLayout, QLineEdit,
                              QHBoxLayout, QPushButton, QScrollArea, QTextEdit,
                              QShortcut, QMainWindow, QCompleter, QInputDialog,
-                             QWidget, QSizePolicy, QStatusBar, QToolTip)
+                             QWidget, QSizePolicy, QStatusBar, QToolTip, QSpinBox,
+                             QRadioButton)
 
 import electrum
 from electrum import (keystore, ecc, constants, util, bitcoin, commands,
                       paymentrequest)
-from electrum.bitcoin import COIN, is_address
+from electrum.bitcoin import COIN, is_address, ConsensusParameters, b58_address_to_hash160, opcodes
 from electrum.plugin import run_hook
 from electrum.i18n import _
 from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
@@ -88,10 +89,14 @@ from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialo
                    CloseButton, HelpButton, MessageBoxMixin, EnterButton,
                    import_meta_gui, export_meta_gui,
                    filename_field, address_field, char_width_in_lineedit, webopen,
-                   TRANSACTION_FILE_EXTENSION_FILTER)
+                   TRANSACTION_FILE_EXTENSION_FILTER, DurationPickerWidget,
+                   NavCoinListWidget)
 from .util import ButtonsTextEdit
 from .installwizard import WIF_HELP_TEXT
 from .history_list import HistoryList, HistoryModel
+from .fund_list import FundList, FundFilter
+from .preq_list import PreqList, PreqFilter
+from .consultations_list import ConsultationsList, ConsultationsFilter
 from .update_checker import UpdateCheck, UpdateCheckThread
 from .channels_list import ChannelsList
 from .confirm_tx_dialog import ConfirmTxDialog
@@ -99,7 +104,6 @@ from .transaction_dialog import PreviewTxDialog
 
 if TYPE_CHECKING:
     from . import ElectrumGui
-
 
 LN_NUM_PAYMENT_ATTEMPTS = 10
 
@@ -162,6 +166,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.tx_notification_queue = queue.Queue()
         self.tx_notification_last_time = 0
 
+        if self.wallet.wallet_type == 'voting':
+            self.voting_address = self.wallet.create_new_address()
+            prefix, self.voting_script = b58_address_to_hash160(self.voting_address)
+            self.voting_script = "14"+self.voting_script.hex()[:-2]
+
         self.create_status_bar()
         self.need_update = threading.Event()
         self.decimal_point = config.get('decimal_point', DECIMAL_POINT_DEFAULT)
@@ -184,8 +193,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.contacts_tab = self.create_contacts_tab()
         self.channels_tab = self.create_channels_tab(wallet)
         tabs.addTab(self.create_history_tab(), read_QIcon("tab_history.png"), _('History'))
-        tabs.addTab(self.send_tab, read_QIcon("tab_send.png"), _('Send'))
-        tabs.addTab(self.receive_tab, read_QIcon("tab_receive.png"), _('Receive'))
+        tabs.addTab(self.send_tab, read_QIcon("tab_send.png"), _('Send') if self.wallet.wallet_type != 'voting' else _('Withdraw'))
+        if self.wallet.wallet_type != 'voting':
+            tabs.addTab(self.receive_tab, read_QIcon("tab_receive.png"), _('Receive'))
+        else:
+            self.voting_address_tab = self.create_voting_address_tab()
+            tabs.addTab(self.voting_address_tab, read_QIcon("tab_receive.png"), _('Voting address'))
+            tabs.addTab(self.create_fund_tab(), read_QIcon("tab_history.png"), _('Proposals'))
+            tabs.addTab(self.create_preq_tab(), read_QIcon("tab_history.png"), _('Payment Requests'))
+            tabs.addTab(self.create_consultations_tab(), read_QIcon("tab_history.png"), _('Consultations'))
+            tabs.addTab(self.create_consensus_tab(), read_QIcon("tab_history.png"), _('Consensus'))
 
         def add_optional_tab(tabs, tab, icon, description, name):
             tab.tab_icon = icon
@@ -194,8 +211,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             tab.tab_name = name
             if self.config.get('show_{}_tab'.format(name), False):
                 tabs.addTab(tab, icon, description.replace("&", ""))
-
-        add_optional_tab(tabs, self.addresses_tab, read_QIcon("tab_addresses.png"), _("&Addresses"), "addresses")
+        if self.wallet.wallet_type != 'voting':
+            add_optional_tab(tabs, self.addresses_tab, read_QIcon("tab_addresses.png"), _("&Addresses"), "addresses")
         if self.wallet.has_lightning():
             add_optional_tab(tabs, self.channels_tab, read_QIcon("lightning.png"), _("Channels"), "channels")
         add_optional_tab(tabs, self.utxo_tab, read_QIcon("tab_coins.png"), _("Co&ins"), "utxo")
@@ -601,6 +618,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.import_address_menu = wallet_menu.addAction(_("Import addresses"), self.import_addresses)
         wallet_menu.addSeparator()
 
+        dao_menu = menubar.addMenu(_("&DAO"))
+        dao_menu.addAction(_("&Create Proposal"), self.create_dao_proposal_dialog)
+        dao_menu.addAction(_("&Create Payment Request"), self.create_dao_prequest_dialog)
+        dao_menu.addAction(_("&Create Consultation"), self.create_dao_consultation_dialog)
+
         addresses_menu = wallet_menu.addMenu(_("&Addresses"))
         addresses_menu.addAction(_("&Filter"), lambda: self.address_list.toggle_toolbar(self.config))
         labels_menu = wallet_menu.addMenu(_("&Labels"))
@@ -628,7 +650,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             tab.menu_action = view_menu.addAction(item_name, lambda: self.toggle_tab(tab))
 
         view_menu = menubar.addMenu(_("&View"))
-        add_toggle_action(view_menu, self.addresses_tab)
+        if self.wallet.wallet_type != 'voting':
+            add_toggle_action(view_menu, self.addresses_tab)
         add_toggle_action(view_menu, self.utxo_tab)
         if self.wallet.has_lightning():
             add_toggle_action(view_menu, self.channels_tab)
@@ -770,6 +793,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         elif not self.wallet.up_to_date:
             # this updates "synchronizing" progress
             self.update_status()
+        if not self.wallet.dao_up_to_date:
+            self.update_dao()
+        if not self.wallet.consensus_up_to_date:
+            self.update_consensus()
+        if not self.wallet.votes_up_to_date:
+            self.update_votes()
         # resolve aliases
         # FIXME this is a blocking network call that has a timeout of 5 sec
         self.payto_e.resolve()
@@ -907,6 +936,36 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.invoice_list.update()
         self.update_completions()
 
+    def update_consensus(self, wallet=None):
+        if self.wallet.wallet_type != 'voting':
+            return
+        self.consensus_list.refresh('update_tabs')
+        self.wallet.set_consensus_up_to_date(True)
+        return
+
+    def update_votes(self):
+        if self.wallet.wallet_type != 'voting':
+            return
+        self.fund_list.refresh('votes')
+        self.preq_list.refresh('votes')
+        self.consultations_list.refresh('votes')
+        self.consensus_list.refresh('votes')
+        self.wallet.set_votes_up_to_date(True)
+        return
+
+    def update_dao(self, wallet=None):
+        if self.wallet.wallet_type != 'voting':
+            return
+        if wallet is None:
+            wallet = self.wallet
+        if wallet != self.wallet:
+            return
+        self.fund_list.refresh('update_tabs')
+        self.preq_list.refresh('update_tabs')
+        self.consultations_list.refresh('update_tabs')
+        self.consensus_list.refresh('update_tabs')
+        self.wallet.set_dao_up_to_date(True)
+
     def create_channels_tab(self, wallet):
         self.channels_list = ChannelsList(self)
         t = self.channels_list.get_toolbar()
@@ -921,6 +980,42 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         toolbar_shown = bool(self.config.get('show_toolbar_history', False))
         l.show_toolbar(toolbar_shown)
         return self.create_list_tab(l, toolbar)
+
+    def get_my_proposals(self, onlyAccepted=False):
+        if "p" not in self.wallet.dao:
+            return []
+
+        ret = []
+
+        for p in self.wallet.dao["p"]:
+            prop = self.wallet.dao["p"][p]
+            if not onlyAccepted or (onlyAccepted and prop["state"] == 1):
+                if self.wallet.is_mine(prop["ownerAddress"]):
+                    ret.append(prop)
+
+        return ret
+
+    def dao_filter(self, n):
+        self.update_dao()
+
+    def create_fund_tab(self):
+        self.fund_filter = FundFilter(self, self.dao_filter)
+        self.fund_list = l = FundList(self, self.fund_filter.get_filter)
+        return self.create_list_tab(l, self.fund_filter)
+
+    def create_preq_tab(self):
+        self.preq_filter = PreqFilter(self, self.dao_filter)
+        self.preq_list = l = PreqList(self, self.preq_filter.get_filter)
+        return self.create_list_tab(l, self.preq_filter)
+
+    def create_consensus_tab(self):
+        self.consensus_list = l = ConsultationsList(self, None, True)
+        return self.create_list_tab(l)
+
+    def create_consultations_tab(self):
+        self.consultations_filter = ConsultationsFilter(self, self.dao_filter)
+        self.consultations_list = l = ConsultationsList(self, self.consultations_filter.get_filter)
+        return self.create_list_tab(l, self.consultations_filter)
 
     def show_address(self, addr):
         from . import address_dialog
@@ -1044,6 +1139,42 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         return w
 
+    def create_voting_address_tab(self):
+        self.receive_qr_ = QRCodeWidget(fixedSize=230)
+        self.receive_qr_.setData("navcoin:{}".format(self.voting_address))
+
+        self.voting_address_label = QLabel(_("This is your voting address. You can deposit coins here:\n\n{}").format(self.voting_address))
+        self.voting_address_label.setAlignment(Qt.AlignCenter)
+
+        # layout
+        hbox = QHBoxLayout()
+        hbox.addStretch()
+        hbox.addWidget(self.receive_qr_)
+        hbox.addStretch()
+
+        hbox2 = QHBoxLayout()
+        hbox2.addStretch()
+        hbox2.addWidget(self.voting_address_label)
+        hbox2.addStretch()
+
+        button = QPushButton(_("Copy to clipboard"))
+        button.mouseReleaseEvent = lambda x: self.do_copy(self.voting_address, title="Address")
+        hbox3 = QHBoxLayout()
+        hbox3.addStretch()
+        hbox3.addWidget(button)
+        hbox3.addStretch()
+
+        w = QWidget()
+        vbox = QVBoxLayout(w)
+        vbox.addStretch(1)
+        vbox.addLayout(hbox)
+        vbox.addStretch(1)
+        vbox.addLayout(hbox2)
+        vbox.addLayout(hbox3)
+        vbox.addStretch(1)
+
+        return w
+
     def delete_request(self, key):
         self.wallet.delete_request(key)
         self.request_list.update()
@@ -1091,7 +1222,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.receive_amount_e.setText('')
         self.receive_message_e.setText('')
 
-    def create_bitcoin_request(self, amount, message, expiration):
+    def get_address(self):
         addr = self.wallet.get_unused_address()
         if addr is None:
             if not self.wallet.is_deterministic():
@@ -1102,9 +1233,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                    ]
                 self.show_message(' '.join(msg))
                 return
-            if not self.question(_("Warning: The next address will not be recovered automatically if you restore your wallet from seed; you may need to add it manually.\n\nThis occurs because you have too many unused addresses in your wallet. To avoid this situation, use the existing addresses first.\n\nCreate anyway?")):
-                return
+            if self.wallet.wallet_type != "voting":
+                if not self.question(_("Warning: The next address will not be recovered automatically if you restore your wallet from seed; you may need to add it manually.\n\nThis occurs because you have too many unused addresses in your wallet. To avoid this situation, use the existing addresses first.\n\nCreate anyway?")):
+                    return
             addr = self.wallet.create_new_address(False)
+        return addr
+
+    def create_bitcoin_request(self, amount, message, expiration):
+        addr = self.get_address()
         req = self.wallet.make_payment_request(addr, amount, message, expiration)
         try:
             self.wallet.add_payment_request(req)
@@ -1161,6 +1297,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def show_receive_tab(self):
         self.tabs.setCurrentIndex(self.tabs.indexOf(self.receive_tab))
+
+    def show_voting_address_tab(self):
+        self.tabs.setCurrentIndex(self.tabs.indexOf(self.voting_address_tab))
 
     def receive_at(self, addr):
         if not bitcoin.is_address(addr):
@@ -1482,9 +1621,386 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def get_manually_selected_coins(self) -> Sequence[PartialTxInput]:
         return self.utxo_list.get_spend_list()
 
+    def create_dao_prequest_dialog(self):
+        from .paytoedit import PayToEdit
+
+        d = WindowModalDialog(self, title=_('Create DAO Payment Request'))
+        d.setMinimumSize(600, 300)
+        vbox = QVBoxLayout(d)
+
+        myproposals = self.get_my_proposals(True)
+
+        if len(myproposals) == 0:
+            QMessageBox.warning(self, "Error",
+                  _("You should own an accepted proposal before creating a payment request."))
+            return
+
+        vbox.addWidget(QLabel(_("Request from proposal:")))
+        proposal_picker = QComboBox(self)
+        for p in myproposals:
+            proposal_picker.insertItem(0, p["description"], p["hash"])
+        vbox.addWidget(proposal_picker)
+
+        vbox.addWidget(QLabel(_("Title:")))
+        description = QLineEdit(self)
+        vbox.addWidget(description)
+
+        vbox.addWidget(QLabel(_("Amount requested:")))
+        amount = QLineEdit(self)
+        vbox.addWidget(amount)
+
+        vbox.addStretch(1)
+        button = OkButton(d, _('Create'))
+        vbox.addLayout(Buttons(CancelButton(d), button))
+        button.setEnabled(False)
+
+        def on_edit():
+            valid = True
+            if not amount.text().replace('.','',1).isdigit():
+                valid = False
+            hash = proposal_picker.currentData()
+            if not hash in self.wallet.dao["p"]:
+                valid = False
+            try:
+                if not float(amount.text()) <= float(self.wallet.dao["p"][hash]["notPaidYet"]):
+                    valid = False
+            except ValueError:
+                valid = False
+            if len(description.text()) > 255:
+                valid = False
+            button.setEnabled(valid)
+
+        amount.textChanged.connect(on_edit)
+        description.textChanged.connect(on_edit)
+
+        if not d.exec_():
+            return
+
+        hash = proposal_picker.currentData()
+
+        # user pressed "create"
+        self.create_dao_prequest(hash, int(float(amount.text())*COIN), description.text(), self.wallet.dao["p"][hash]["ownerAddress"])
+
+    def create_dao_proposal_dialog(self):
+        from .paytoedit import PayToEdit
+
+        d = WindowModalDialog(self, title=_('Create DAO Proposal'))
+        d.setMinimumSize(600, 300)
+        vbox = QVBoxLayout(d)
+
+        vbox.addWidget(QLabel(_("Title + URL:")))
+        description = QLineEdit(self)
+        vbox.addWidget(description)
+
+        vbox.addWidget(QLabel(_("Amount requested:")))
+        amount = QLineEdit(self)
+        vbox.addWidget(amount)
+
+        vbox.addWidget(QLabel(_("Duration of the proposal:")))
+        duration = DurationPickerWidget()
+        vbox.addWidget(duration)
+
+        vbox.addWidget(QLabel(_("Enter owner address:")))
+        hbox_owner = QHBoxLayout()
+        owner = QLineEdit(self)
+        owner_autoaddr = QPushButton(_("Use one of my addresses"))
+        hbox_owner.addWidget(owner)
+        hbox_owner.addWidget(owner_autoaddr)
+        vbox.addLayout(hbox_owner)
+
+        vbox.addWidget(QLabel(_("Enter address to receive the payment:")))
+        hbox_payment = QHBoxLayout()
+        payment = QLineEdit(self)
+        payment_autoaddr = QPushButton(_("Use one of my addresses"))
+        hbox_payment.addWidget(payment)
+        hbox_payment.addWidget(payment_autoaddr)
+        vbox.addLayout(hbox_payment)
+
+        vbox.addStretch(1)
+        button = OkButton(d, _('Create'))
+        vbox.addLayout(Buttons(CancelButton(d), button))
+        button.setEnabled(False)
+
+        def validate_address(input):
+            addr = str(input.text()).strip()
+            if bitcoin.is_address(addr):
+                return addr
+            return ""
+
+        def on_edit():
+            valid = True
+            if not validate_address(payment) or not validate_address(owner):
+                valid = False
+            if not amount.text().replace('.','',1).isdigit():
+                valid = False
+            if not duration.get_val() > 0:
+                valid = False
+            if len(description.text()) > 255:
+                valid = False
+            button.setEnabled(valid)
+
+        payment_autoaddr.pressed.connect(lambda: (payment.setText(self.get_address()), on_edit()))
+        owner_autoaddr.pressed.connect(lambda: (owner.setText(self.get_address()), on_edit()))
+
+        on_address_owner = lambda text: owner.setStyleSheet((ColorScheme.DEFAULT if validate_address(owner) else ColorScheme.RED).as_stylesheet())
+        on_address_payment = lambda text: payment.setStyleSheet((ColorScheme.DEFAULT if validate_address(payment) else ColorScheme.RED).as_stylesheet())
+        owner.textChanged.connect(on_edit)
+        payment.textChanged.connect(on_edit)
+        owner.textChanged.connect(on_address_owner)
+        payment.textChanged.connect(on_address_payment)
+
+        if not d.exec_():
+            return
+
+        # user pressed "create"
+        self.create_dao_proposal(owner.text(), payment.text(), int(float(amount.text())*COIN), duration.get_val(), description.text())
+
+
+    def create_dao_consultation_dialog(self):
+        range = QHBoxLayout()
+        minLbl = QLabel(_("Answer must be between"))
+        range.addWidget(minLbl)
+        minBox = QSpinBox()
+        minBox.setMinimum(0)
+        minBox.setMaximum(pow(2,24))
+        range.addWidget(minBox)
+        maxLbl = QLabel(_("Maximum amount of answers stakers can select at the same time"))
+        range.addWidget(maxLbl)
+        maxBox = QSpinBox()
+        maxBox.setMinimum(1)
+        maxBox.setMaximum(pow(2,24))
+        range.addWidget(maxBox)
+        range.addStretch(1)
+
+        answerIsNumbersBtn = QRadioButton(_("The possible answers are numbers"))
+        answerIsFromListBtn = QRadioButton(_("The possible answers are from a list"))
+
+        listWidget = NavCoinListWidget(_("Possible answers"), lambda x: x!="")
+
+        answerIsFromListBtn.setChecked(True)
+        answerIsNumbersBtn.setChecked(False)
+
+        moreAnswersBox = QCheckBox(_("Stakers can propose additional answers"))
+
+        d = WindowModalDialog(self, title=_('Create DAO Consultation'))
+        vbox = QVBoxLayout(d)
+
+        vbox.addWidget(QLabel(_("Question")))
+        question = QLineEdit(self)
+        vbox.addWidget(question)
+        vbox.addSpacing(15)
+        vbox.addWidget(answerIsNumbersBtn)
+        vbox.addSpacing(15)
+        vbox.addWidget(answerIsFromListBtn)
+        vbox.addWidget(listWidget)
+        vbox.addSpacing(15)
+        vbox.addWidget(moreAnswersBox)
+        vbox.addSpacing(15)
+        vbox.addLayout(range)
+        vbox.addSpacing(15)
+        button = OkButton(d, _('Create'))
+        vbox.addLayout(Buttons(CancelButton(d), button))
+        button.setEnabled(False)
+
+        def onRange(t):
+            if t:
+                minLbl.setVisible(True);
+                minBox.setVisible(True)
+                listWidget.setVisible(False)
+                moreAnswersBox.setVisible(False)
+                maxLbl.setText(_("and"))
+            else:
+                minLbl.setVisible(False)
+                minBox.setVisible(False)
+                listWidget.setVisible(True)
+                moreAnswersBox.setVisible(True)
+                maxLbl.setText(_("Maximum amount of answers stakers can select at the same time"))
+            d.adjustSize()
+            on_edit()
+
+        def onList(t):
+            on_edit()
+            return
+
+        def on_edit():
+            valid = True
+
+            fRange = answerIsNumbersBtn.isChecked()
+            nMin = minBox.value()
+            nMax = maxBox.value()
+
+            if not fRange and (nMax < 1 or nMax > 16):
+                valid = False
+            elif fRange and not (nMin >= 0 and nMax < pow(2,24) and nMax > nMin):
+                valid = False
+
+            if question.text() == "":
+                valid = False
+
+            if not fRange and len(listWidget.getEntries()) < 2 and not moreAnswersBox.isChecked():
+                valid = False
+
+            button.setEnabled(valid)
+
+        answerIsNumbersBtn.toggled.connect(onRange)
+        answerIsFromListBtn.toggled.connect(onList)
+        question.textChanged.connect(on_edit)
+        minBox.valueChanged.connect(on_edit)
+        maxBox.valueChanged.connect(on_edit)
+        listWidget.onchange.connect(on_edit)
+        moreAnswersBox.stateChanged.connect(on_edit)
+
+        onRange(False)
+
+        if not d.exec_():
+            return
+
+        fRange = answerIsNumbersBtn.isChecked()
+        nMin = minBox.value()
+        nMax = maxBox.value()
+
+        nVersion = 1
+
+        if fRange:
+            nVersion |= 1<<1
+        elif moreAnswersBox.isChecked():
+            nVersion |= 1<<2
+
+        answers = listWidget.getEntries()
+
+        questionStr = question.text()
+
+        # user pressed "create"
+        self.create_dao_consultation(questionStr, nMin, nMax, answers, nVersion)
+
+    def find_vote(self, hash):
+        ret = None
+        height = 0
+
+        if not self.voting_script in self.wallet.votes:
+            return ret
+
+        for i in self.wallet.votes[self.voting_script]:
+            if i["hash"] == hash and i["height"] > height:
+                ret = i["val"]
+                height = i["height"]
+
+        if ret == -2 or ret == -4:
+            return None
+
+        return ret
+
+    def create_dao_proposal(self, _owner, _payment, _amount, _deadline, _description):
+        if not self.question(_("Creating this proposal has a cost of {}NAV + transaction fees.").format(float(self.wallet.consensus[ConsensusParameters.PROPOSAL_MIN_FEE]['value'])/COIN) + '\n' +
+                               _("Do you want to continue?")):
+            return
+        self.pay_onchain_dialog(self.get_coins(), [PartialTxOutput.CommunityFundContribution(self.wallet.consensus[ConsensusParameters.PROPOSAL_MIN_FEE]['value'])], strdzeel=json.dumps({"a":_owner,"p":_payment,"n":_amount,"d":_deadline,"s":_description,"v":10}), version=4)
+
+    def create_dao_prequest(self, hash, _amount, _description, _owner):
+        if not self.question(_("Creating this payment request has a cost of {}NAV + transaction fees.").format(float(self.wallet.consensus[ConsensusParameters.PAYMENT_REQUEST_MIN_FEE]['value'])/COIN) + '\n' +
+                               _("Do you want to continue?")):
+            return
+        import string
+        import random
+        letters = string.ascii_lowercase
+        randomstr = ''.join(random.choice(letters) for i in range(16))
+        message = "{}I kindly ask to withdraw {}NAV from the proposal {}. Payment request id: {}".format(randomstr, _amount, _hash, _description)
+
+        self.do_sign_cb(_owner, message, lambda x: self.pay_onchain_dialog(self.get_coins(), [PartialTxOutput.CommunityFundContribution(self.wallet.consensus[ConsensusParameters.PAYMENT_REQUEST_MIN_FEE]['value'])], strdzeel=json.dumps({"h":hash,"s":x,"n":_amount,"r":randomstr,"i":_description,"v":10}), version=5))
+
+    def create_dao_consultation(self, _question, _nmin, _nmax, _answers, _nversion):
+        if not self.question(_("Creating this consultation has a cost of {}NAV + transaction fees.").format(float(self.wallet.consensus[ConsensusParameters.CONSULTATION_MIN_FEE]['value'] + len(_answers)*self.wallet.consensus[ConsensusParameters.CONSULTATION_ANSWER_MIN_FEE]['value'])/COIN) + '\n' +
+                               _("Do you want to continue?")):
+            return
+        self.pay_onchain_dialog(self.get_coins(), [PartialTxOutput.CommunityFundContribution(self.wallet.consensus[ConsensusParameters.CONSULTATION_MIN_FEE]['value'] + len(_answers)*self.wallet.consensus[ConsensusParameters.CONSULTATION_ANSWER_MIN_FEE]['value'])], strdzeel=json.dumps({"q":_question,"m":int(_nmin),"n":int(_nmax),"a":_answers,"v":_nversion}), version=6)
+
+    def propose_answer(self, hash, _answer):
+        if not self.question(_("Proposing this answer has a cost of {}NAV + transaction fees.").format(float(self.wallet.consensus[ConsensusParameters.CONSULTATION_ANSWER_MIN_FEE]['value'])/COIN) + '\n' +
+                               _("Do you want to continue?")):
+            return
+        print({"h":hash,"a":_answer,"v":1})
+        self.pay_onchain_dialog(self.get_coins(), [PartialTxOutput.CommunityFundContribution(self.wallet.consensus[ConsensusParameters.CONSULTATION_ANSWER_MIN_FEE]['value'])], strdzeel=json.dumps({"h":hash,"a":_answer,"v":1}), version=7)
+
+    def vote_proposal(self, hash, vote):
+        if hash == None or vote == None:
+            return
+        if not self.question(_("Broadcasting this vote has a cost of {}NAV + transaction fees.").format(float(self.wallet.consensus[ConsensusParameters.CONSENSUS_PARAMS_DAO_VOTE_LIGHT_MIN_FEE]['value'])/COIN) + '\n' +
+                               _("Do you want to continue?")):
+            return
+        op_vote = opcodes.OP_ABSTAIN
+        if vote == 1:
+            op_vote = opcodes.OP_YES
+        elif vote == 0:
+            op_vote = opcodes.OP_NO
+        elif vote == -2:
+            op_vote = opcodes.OP_REMOVE
+        self.pay_onchain_dialog(self.get_coins(), [PartialTxOutput.CommunityFundContribution(self.wallet.consensus[ConsensusParameters.CONSENSUS_PARAMS_DAO_VOTE_LIGHT_MIN_FEE]['value']), PartialTxOutput.ProposalVote(hash, op_vote)], version=8)
+
+    def vote_prequest(self, hash, vote):
+        if hash == None or vote == None:
+            return
+        if not self.question(_("Broadcasting this vote has a cost of {}NAV + transaction fees.").format(float(self.wallet.consensus[ConsensusParameters.CONSENSUS_PARAMS_DAO_VOTE_LIGHT_MIN_FEE]['value'])/COIN) + '\n' +
+                               _("Do you want to continue?")):
+            return
+        op_vote = opcodes.OP_ABSTAIN
+        if vote == 1:
+            op_vote = opcodes.OP_YES
+        elif vote == 0:
+            op_vote = opcodes.OP_NO
+        elif vote == -2:
+            op_vote = opcodes.OP_REMOVE
+        self.pay_onchain_dialog(self.get_coins(), [PartialTxOutput.CommunityFundContribution(self.wallet.consensus[ConsensusParameters.CONSENSUS_PARAMS_DAO_VOTE_LIGHT_MIN_FEE]['value']), PartialTxOutput.PaymentRequestVote(hash, op_vote)], version=8)
+
+    def support_consultations(self, hashes, hashes2):
+        if not (hashes != None or hashes2 != None):
+            return
+        if len(hashes) + len(hashes2) == 0:
+            return
+        if not self.question(_("Broadcasting this vote has a cost of {}NAV + transaction fees.").format(float(self.wallet.consensus[ConsensusParameters.CONSENSUS_PARAMS_DAO_VOTE_LIGHT_MIN_FEE]['value'])/COIN) + '\n' +
+                               _("Do you want to continue?")):
+            return
+        outputs = [PartialTxOutput.CommunityFundContribution(self.wallet.consensus[ConsensusParameters.CONSENSUS_PARAMS_DAO_VOTE_LIGHT_MIN_FEE]['value'])]
+        for hash in hashes:
+            outputs.append(PartialTxOutput.ConsultationSupport(hash))
+        for hash in hashes2:
+            outputs.append(PartialTxOutput.ConsultationSupportRemove(hash))
+        self.pay_onchain_dialog(self.get_coins(), outputs, version=8)
+
+    def vote_consultations(self, hashes, hashes2):
+        if not (hashes != None or hashes2 != None):
+            return
+        if len(hashes) + len(hashes2) == 0:
+            return
+        if not self.question(_("Broadcasting this vote has a cost of {}NAV + transaction fees.").format(float(self.wallet.consensus[ConsensusParameters.CONSENSUS_PARAMS_DAO_VOTE_LIGHT_MIN_FEE]['value'])/COIN) + '\n' +
+                               _("Do you want to continue?")):
+            return
+        outputs = [PartialTxOutput.CommunityFundContribution(self.wallet.consensus[ConsensusParameters.CONSENSUS_PARAMS_DAO_VOTE_LIGHT_MIN_FEE]['value'])]
+        for hash in hashes:
+            outputs.append(PartialTxOutput.ConsultationVote(hash, 1))
+        for hash in hashes2:
+            outputs.append(PartialTxOutput.ConsultationVoteRemove(hash))
+        self.pay_onchain_dialog(self.get_coins(), outputs, version=8)
+
+    def vote_consultations_values(self, hashes, values, hashes2):
+        if not (hashes != None or hashes2 != None):
+            return
+        if len(hashes) != len(values):
+            return
+        if len(hashes) + len(hashes2) == 0:
+            return
+        if not self.question(_("Broadcasting this vote has a cost of {}NAV + transaction fees.").format(float(self.wallet.consensus[ConsensusParameters.CONSENSUS_PARAMS_DAO_VOTE_LIGHT_MIN_FEE]['value'])/COIN) + '\n' +
+                               _("Do you want to continue?")):
+            return
+        outputs = [PartialTxOutput.CommunityFundContribution(self.wallet.consensus[ConsensusParameters.CONSENSUS_PARAMS_DAO_VOTE_LIGHT_MIN_FEE]['value'])]
+        for i, hash in enumerate(hashes):
+            outputs.append(PartialTxOutput.ConsultationVote(hash, values[i]))
+        for hash in hashes2:
+            outputs.append(PartialTxOutput.ConsultationVoteRemove(hash))
+        self.pay_onchain_dialog(self.get_coins(), outputs, version=8)
+
     def pay_onchain_dialog(self, inputs: Sequence[PartialTxInput],
                            outputs: List[PartialTxOutput], *,
-                           invoice=None, external_keypairs=None) -> None:
+                           invoice=None, external_keypairs=None, strdzeel="", version=3) -> None:
         # trustedcoin requires this
         if run_hook('abort_send', self):
             return
@@ -1493,7 +2009,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             coins=inputs,
             outputs=outputs,
             fee=fee_est,
-            is_sweep=is_sweep)
+            is_sweep=is_sweep,
+            strdzeel=strdzeel,
+            version=version)
         output_values = [x.value for x in outputs]
         if output_values.count('!') > 1:
             self.show_error(_("More than one output set to spend max"))
@@ -2299,6 +2817,35 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 pass
 
         self.wallet.thread.add(task, on_success=show_signed_message)
+
+    @protected
+    def do_sign_cb(self, address, message, cb, password):
+        address  = address.strip()
+        message = message.strip()
+        if not bitcoin.is_address(address):
+            self.show_message(_('Invalid Navcoin address.'))
+            return
+        if self.wallet.is_watching_only():
+            self.show_message(_('This is a watching-only wallet.'))
+            return
+        if not self.wallet.is_mine(address):
+            self.show_message(_('Address not in wallet.'))
+            return
+        txin_type = self.wallet.get_txin_type(address)
+        if txin_type not in ['p2pkh', 'p2wpkh', 'p2wpkh-p2sh']:
+            self.show_message(_('Cannot sign messages with this type of address:') + \
+                              ' ' + txin_type + '\n\n' + self.msg_sign)
+            return
+        task = partial(self.wallet.sign_message, address, message, password)
+
+        def cb_signed_message(sig):
+            try:
+                cb(base64.b64encode(sig).decode('ascii'))
+            except RuntimeError:
+                # (signature) wrapped C/C++ object has been deleted
+                pass
+
+        self.wallet.thread.add(task, on_success=cb_signed_message)
 
     def do_verify(self, address, message, signature):
         address  = address.text().strip()

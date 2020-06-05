@@ -32,7 +32,7 @@ from aiorpcx import TaskGroup, run_in_thread, RPCError
 
 from .transaction import Transaction
 from .util import bh2u, make_aiohttp_session, NetworkJobOnDefaultServer
-from .bitcoin import address_to_scripthash, is_address
+from .bitcoin import address_to_scripthash, is_address, b58_address_to_hash160
 from .network import UntrustedServerReturnedError
 from .logging import Logger
 from .interface import GracefulDisconnect
@@ -72,16 +72,25 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
         # Queues
         self.add_queue = asyncio.Queue()
         self.status_queue = asyncio.Queue()
+        self.dao_queue = asyncio.Queue()
+        self.votes_queue = asyncio.Queue()
+        self.consensus_queue = asyncio.Queue()
 
     async def _start_tasks(self):
         try:
             async with self.group as group:
                 await group.spawn(self.send_subscriptions())
                 await group.spawn(self.handle_status())
+                await group.spawn(self.handle_consensus())
+                await group.spawn(self.handle_dao())
+                await group.spawn(self.handle_votes())
                 await group.spawn(self.main())
         finally:
             # we are being cancelled now
             self.session.unsubscribe(self.status_queue)
+            self.session.unsubscribe(self.dao_queue)
+            self.session.unsubscribe(self.votes_queue)
+            self.session.unsubscribe(self.consensus_queue)
 
     def _reset_request_counters(self):
         self._requests_sent = 0
@@ -114,6 +123,9 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
             self._requests_answered += 1
             self.requested_addrs.remove(addr)
 
+        await self.session.subscribe('blockchain.dao.subscribe', [], self.dao_queue)
+        await self.session.subscribe('blockchain.consensus.subscribe', [], self.consensus_queue)
+
         while True:
             addr = await self.add_queue.get()
             await self.group.spawn(subscribe_to_address, addr)
@@ -124,6 +136,37 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
             addr = self.scripthash_to_address[h]
             await self.group.spawn(self._on_address_status, addr, status)
             self._processed_some_notifications = True
+
+    async def handle_dao(self):
+        while True:
+            h = await self.dao_queue.get()
+            if h[0] == {}:
+                continue
+            if h[0]["r"] == 0:
+                if h[0]["t"] not in self.wallet.dao:
+                    self.wallet.dao[h[0]["t"]] = {}
+                self.wallet.dao[h[0]["t"]][h[0]["w"]["hash"]] = h[0]["w"]
+            elif h[0]["r"] == 1:
+                if h[0]["t"] in wallet.dao and h[0]["w"]["hash"] in self.wallet.dao[h[0]["t"]]:
+                    del self.wallet.dao[h[0]["t"]][h[0]["w"]["hash"]]
+            self.wallet.set_dao_up_to_date(False)
+
+    async def handle_votes(self):
+        while True:
+            v = await self.votes_queue.get()
+            if len(v) != 2:
+                continue
+            self.wallet.votes[v[0]] = v[1]
+            self.wallet.set_votes_up_to_date(False)
+
+    async def handle_consensus(self):
+        while True:
+            c = await self.consensus_queue.get()
+            cp = {}
+            for par in c[0]:
+                cp[par['id']] = par
+            self.wallet.consensus = cp
+            self.wallet.set_consensus_up_to_date(False)
 
     def num_requests_sent_and_answered(self) -> Tuple[int, int]:
         return self._requests_sent, self._requests_answered
@@ -239,7 +282,14 @@ class Synchronizer(SynchronizerBase):
 
     async def main(self):
         self.wallet.set_up_to_date(False)
+        self.wallet.set_dao_up_to_date(False)
+        self.wallet.set_consensus_up_to_date(False)
+        self.wallet.set_votes_up_to_date(False)
         # request missing txns, if any
+        if self.wallet.wallet_type == 'voting':
+            va = self.wallet.create_new_address()
+            addrtype, h160 = b58_address_to_hash160(va)
+            await self.session.subscribe('blockchain.stakervote.subscribe', ["14"+h160.hex()[:-2]], self.votes_queue)
         for addr in self.wallet.db.get_history():
             history = self.wallet.db.get_addr_history(addr)
             # Old electrum servers returned ['*'] when all history for the address

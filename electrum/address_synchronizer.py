@@ -72,6 +72,9 @@ class AddressSynchronizer(Logger):
 
     def __init__(self, db: 'JsonDB'):
         self.db = db
+        self.dao = {}
+        self.votes = {}
+        self.consensus = []
         self.network = None  # type: Network
         Logger.__init__(self)
         # verifier (SPV) and synchronizer are started in start_network
@@ -85,6 +88,9 @@ class AddressSynchronizer(Logger):
         self.unverified_tx = defaultdict(int)
         # true when synchronized
         self.up_to_date = False
+        self.dao_up_to_date = False
+        self.consensus_up_to_date = False
+        self.votes_up_to_date = False
         # thread local storage for caching stuff
         self.threadlocal_cache = threading.local()
 
@@ -588,6 +594,24 @@ class AddressSynchronizer(Logger):
             else:
                 # local transaction
                 return TxMinedInfo(height=TX_HEIGHT_LOCAL, conf=0)
+
+    def set_dao_up_to_date(self, up_to_date):
+        self.dao_up_to_date = up_to_date
+
+    def is_dao_up_to_date(self):
+        return self.dao_up_to_date
+
+    def set_votes_up_to_date(self, up_to_date):
+        self.votes_up_to_date = up_to_date
+
+    def is_votes_up_to_date(self):
+        return self.votes_up_to_date
+
+    def set_consensus_up_to_date(self, up_to_date):
+        self.consensus_up_to_date = up_to_date
+
+    def is_consensus_up_to_date(self):
+        return self.consensus_up_to_date
 
     def set_up_to_date(self, up_to_date):
         with self.lock:

@@ -47,7 +47,7 @@ from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160, hash160_to_p2cs,
                       hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr,
                       var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN, hash160_to_p2cs2,
                       int_to_hex, push_script, b58_address_to_hash160, public_key_to_p2pkh,
-                      opcodes, add_number_to_script, base_decode, is_segwit_script_type)
+                      opcodes, add_number_to_script, base_decode, is_segwit_script_type, push_hash)
 from .crypto import sha256d, hash_160
 from .logging import get_logger
 
@@ -511,7 +511,7 @@ class Transaction:
         self.locktime = 0
         self.version = 3
         self.ntime = int(time.time())
-        self.strdzeel = b''
+        self.strdzeel = ""
 
         self._cached_txid = None  # type: Optional[str]
 
@@ -561,7 +561,7 @@ class Transaction:
                 parse_witness(vds, txin)
         self.locktime = vds.read_uint32()
         if self.version >= 2:
-            self.strdzeel=vds.read_bytes(vds.read_compact_size())
+            self.strdzeel=vds.read_bytes(vds.read_compact_size()).decode()
         if vds.can_read_more():
             raise SerializationError('extra junk at the end')
 
@@ -688,7 +688,7 @@ class Transaction:
             script += push_script(pubkeys[1])
             return script
         elif _type == 'p2cs2':
-            script += push_script(pubkeys[1])
+            script += push_script(pubkeys[2])
             return script
         elif _type in ['p2wpkh', 'p2wsh']:
             return ''
@@ -784,7 +784,7 @@ class Transaction:
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
         outputs = self.outputs()
-        strdzeel = bitcoin.witness_push(self.strdzeel.hex())
+        strdzeel = bitcoin.witness_push(self.strdzeel.encode().hex())
 
         def create_script_sig(txin: TxInput) -> str:
             if include_sigs:
@@ -1416,6 +1416,74 @@ class PartialTxOutput(TxOutput, PSBTSection):
                               value=txout.value)
         return res
 
+    @classmethod
+    def CommunityFundContribution(cls, _value: Union[int, str]):
+        script = opcodes.OP_RETURN.hex()
+        script += opcodes.OP_CFUND.hex()
+        return cls(scriptpubkey=bfh(script),
+                   value=_value)
+
+    @classmethod
+    def ProposalVote(cls, _hash: str, _vote: opcodes):
+        script = opcodes.OP_RETURN.hex()
+        script += opcodes.OP_CFUND.hex()
+        script += opcodes.OP_PROP.hex()
+        script += _vote.hex()
+        script += push_hash(_hash)
+        return cls(scriptpubkey=bfh(script),
+                   value=0)
+
+    @classmethod
+    def PaymentRequestVote(cls, _hash: str, _vote: opcodes):
+        script = opcodes.OP_RETURN.hex()
+        script += opcodes.OP_CFUND.hex()
+        script += opcodes.OP_PREQ.hex()
+        script += _vote.hex()
+        script += push_hash(_hash)
+        return cls(scriptpubkey=bfh(script),
+                   value=0)
+
+    @classmethod
+    def ConsultationSupport(cls, _hash: str):
+        script = opcodes.OP_RETURN.hex()
+        script += opcodes.OP_DAO.hex()
+        script += opcodes.OP_YES.hex()
+        script += push_hash(_hash)
+        return cls(scriptpubkey=bfh(script),
+                   value=0)
+
+    @classmethod
+    def ConsultationSupportRemove(cls, _hash: str):
+        script = opcodes.OP_RETURN.hex()
+        script += opcodes.OP_DAO.hex()
+        script += opcodes.OP_REMOVE.hex()
+        script += push_hash(_hash)
+        return cls(scriptpubkey=bfh(script),
+                   value=0)
+
+    @classmethod
+    def ConsultationVote(cls, _hash: str, _vote: int):
+        script = opcodes.OP_RETURN.hex()
+        script += opcodes.OP_CONSULTATION.hex()
+        if _vote > -1:
+            script += opcodes.OP_ANSWER.hex()
+        else:
+            script += opcodes.OP_ABSTAIN.hex()
+        script += push_hash(_hash)
+        if _vote > -1:
+            script += script_num_to_hex(_vote)
+        return cls(scriptpubkey=bfh(script),
+                   value=0)
+
+    @classmethod
+    def ConsultationVoteRemove(cls, _hash: str):
+        script = opcodes.OP_RETURN.hex()
+        script += opcodes.OP_DAO.hex()
+        script += opcodes.OP_REMOVE.hex()
+        script += push_hash(_hash)
+        return cls(scriptpubkey=bfh(script),
+                   value=0)
+
     def parse_psbt_section_kv(self, kt, key, val):
         try:
             kt = PSBTOutputType(kt)
@@ -1723,7 +1791,7 @@ class PartialTransaction(Transaction):
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
         outputs = self.outputs()
-        strdzeel = bitcoin.witness_push(self.strdzeel.hex())
+        strdzeel = bitcoin.witness_push(self.strdzeel.encode().hex())
         txin = inputs[txin_index]
         sighash = txin.sighash if txin.sighash is not None else SIGHASH_ALL
         if sighash != SIGHASH_ALL:

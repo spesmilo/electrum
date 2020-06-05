@@ -888,6 +888,16 @@ class Network(Logger):
         return await self.interface.session.send_request('blockchain.transaction.get_merkle', [tx_hash, tx_height])
 
     @best_effort_reliable
+    @catch_server_exceptions
+    async def listproposals(self, filter: str) -> dict:
+        return await self.interface.session.send_request('blockchain.listproposals', [filter])
+
+    @best_effort_reliable
+    @catch_server_exceptions
+    async def listconsultations(self, filter: str) -> dict:
+        return await self.interface.session.send_request('blockchain.listconsultations', [filter])
+
+    @best_effort_reliable
     async def broadcast_transaction(self, tx: 'Transaction', *, timeout=None) -> None:
         if timeout is None:
             timeout = self.get_network_timeout_seconds(NetworkTimeout.Urgent)

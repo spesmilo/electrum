@@ -51,6 +51,39 @@ TYPE_PUBKEY  = 1
 TYPE_SCRIPT  = 2
 
 
+class ConsensusParameters(IntEnum):
+    VOTING_CYCLE_LENGTH = 0
+    CONSULTATION_MIN_SUPPORT = 1
+    CONSULTATION_ANSWER_MIN_SUPPORT = 2
+    CONSULTATION_MIN_CYCLES = 3
+    CONSULTATION_MAX_VOTING_CYCLES = 4
+    CONSULTATION_MAX_SUPPORT_CYCLES = 5
+    CONSULTATION_REFLECTION_LENGTH = 6
+    CONSULTATION_MIN_FEE = 7
+    CONSULTATION_ANSWER_MIN_FEE = 8
+    PROPOSAL_MIN_QUORUM = 9
+    PROPOSAL_MIN_ACCEPT = 10
+    PROPOSAL_MIN_REJECT = 11
+    PROPOSAL_MIN_FEE = 12
+    PROPOSAL_MAX_VOTING_CYCLES = 13
+    PAYMENT_REQUEST_MIN_QUORUM = 14
+    PAYMENT_REQUEST_MIN_ACCEPT = 15
+    PAYMENT_REQUEST_MIN_REJECT = 16
+    PAYMENT_REQUEST_MIN_FEE = 17
+    PAYMENT_REQUEST_MAX_VOTING_CYCLES = 18
+    FUND_SPREAD_ACCUMULATION = 19
+    FUND_PERCENT_PER_BLOCK = 20
+    GENERATION_PER_BLOCK = 21
+    NAVNS_FEE = 22
+    CONSENSUS_PARAMS_DAO_VOTE_LIGHT_MIN_FEE = 23
+    MAX_CONSENSUS_PARAMS = 24
+
+class ConsensusParametersTypes(IntEnum):
+    TYPE_NUMBER = 0
+    TYPE_PERCENT = 1
+    TYPE_NAV = 2
+    TYPE_BOOL = 3
+
 class opcodes(IntEnum):
     # push value
     OP_0 = 0x00
@@ -186,6 +219,17 @@ class opcodes(IntEnum):
     OP_NOP9 = 0xb8
     OP_NOP10 = 0xb9
 
+    OP_CFUND = 0xc1
+    OP_PROP = 0xc2
+    OP_PREQ = 0xc3
+    OP_YES = 0xc4
+    OP_NO = 0xc5
+    OP_ABSTAIN = 0xc7
+    OP_REMOVE = 0xc8
+    OP_DAO = 0xc9
+    OP_ANSWER = 0xca
+    OP_CONSULTATION = 0xcb
+
     OP_COINSTAKE = 0xc6
 
     OP_INVALIDOPCODE = 0xff
@@ -290,6 +334,10 @@ def push_script(data: str) -> str:
         return opcodes.OP_1NEGATE.hex()
 
     return _op_push(data_len) + bh2u(data)
+
+def push_hash(data: str) -> str:
+    reversed=''.join([c for t in zip(data[-2::-2], data[::-2]) for c in t])
+    return push_script(reversed)
 
 
 def add_number_to_script(i: int) -> bytes:

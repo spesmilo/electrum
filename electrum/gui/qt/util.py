@@ -20,7 +20,8 @@ from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
                              QAbstractItemView, QVBoxLayout, QLineEdit,
                              QStyle, QDialog, QGroupBox, QButtonGroup, QRadioButton,
                              QFileDialog, QWidget, QToolButton, QTreeView, QPlainTextEdit,
-                             QHeaderView, QApplication, QToolTip, QTreeWidget, QStyledItemDelegate)
+                             QHeaderView, QApplication, QToolTip, QTreeWidget, QStyledItemDelegate,
+                             QListWidget, QListWidgetItem)
 
 from electrum.i18n import _, languages
 from electrum.util import FileImportFailed, FileExportFailed, make_aiohttp_session, resource_path
@@ -641,6 +642,111 @@ class MyTreeView(QTreeView):
     def place_text_on_clipboard(self, text: str, *, title: str = None) -> None:
         self.parent.do_copy(text, title=title)
 
+class NavCoinListWidget(QWidget):
+    onchange = pyqtSignal()
+
+    def __init__(self, title, validator):
+        super(QWidget, self).__init__()
+
+        vbox = QVBoxLayout(self)
+        addLayout = QHBoxLayout()
+
+        addInput = QLineEdit()
+        addBtn = QPushButton(_("Add"))
+        removeBtn = QPushButton(_("Remove"))
+
+        removeBtn.setVisible(False)
+
+        addLayout.addWidget(addInput)
+        addLayout.addWidget(addBtn)
+        addLayout.addWidget(removeBtn)
+
+        titleLbl = QLabel(title)
+
+        warningLbl = QLabel()
+        warningLbl.setObjectName("warning")
+        warningLbl.setVisible(False)
+
+        self.listWidget = QListWidget()
+
+        vbox.addWidget(titleLbl)
+        vbox.addWidget(self.listWidget)
+        vbox.addLayout(addLayout)
+        vbox.addWidget(warningLbl)
+
+        self.values = []
+
+        def onInsert():
+            itemText = addInput.text()
+            for i in range(self.listWidget.count()):
+                item = self.listWidget.item(i)
+                if item.text() == itemText:
+                    warningLbl.setText(_("Duplicated entry"))
+                    warningLbl.setVisible(True)
+                    return
+
+            if not validator(itemText):
+                warningLbl.setText(_("Entry not valid"))
+                warningLbl.setVisible(True)
+                return
+
+            warningLbl.setVisible(False)
+            addInput.clear()
+
+            newItem = QListWidgetItem(self.listWidget)
+            newItem.setText(itemText)
+
+            self.listWidget.insertItem(self.listWidget.row(self.listWidget.currentItem()), newItem)
+
+            self.onchange.emit()
+            self.adjustSize()
+
+        def onSelect(item):
+            removeBtn.setVisible(item != None)
+
+        def onRemove(item):
+            listWidget.takeItem(self.listWidget.row(self.listWidget.currentItem()))
+            self.onchange.emit()
+            self.adjustSize()
+
+        addBtn.clicked.connect(onInsert)
+        removeBtn.clicked.connect(onRemove)
+        self.listWidget.currentItemChanged.connect(onSelect)
+
+        self.listWidget.setSortingEnabled(True)
+
+    def getEntries(self):
+        ret = []
+
+        for i in range(self.listWidget.count()):
+            ret.append(self.listWidget.item(i).text())
+
+        return ret
+
+
+class DurationPickerWidget(QWidget):
+
+    def __init__(self):
+        super(QWidget, self).__init__()
+        hbox = QHBoxLayout(self)
+
+        self.months = QLineEdit()
+        self.days = QLineEdit()
+
+        hbox.addWidget(QLabel(_("Months")))
+        hbox.addWidget(self.months)
+        hbox.addWidget(QLabel(_("Days")))
+        hbox.addWidget(self.days)
+        hbox.addStretch(1)
+
+    def get_val(self):
+        months = 0
+        if self.months.text() != "":
+            months = int(self.months.text())
+        days = 0
+        if self.days.text() != "":
+            days = int(self.days.text())
+        return (months*30+days)*24*60*60
 
 class ButtonsWidget(QWidget):
 
