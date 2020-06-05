@@ -2841,15 +2841,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         except InternalAddressCorruption as e:
             self.show_error(str(e))
             raise
-        try:
-            coins, keypairs = sweep_preparations(get_pk(), self.network)
-        except Exception as e:  # FIXME too broad...
-            self.show_message(repr(e))
-            return
-        scriptpubkey = bfh(bitcoin.address_to_script(addr))
-        outputs = [PartialTxOutput(scriptpubkey=scriptpubkey, value='!')]
-        self.warn_if_watching_only()
-        self.pay_onchain_dialog(coins, outputs, external_keypairs=keypairs)
+        privkeys = get_pk()
+
+        def on_success(result):
+            coins, keypairs = result
+            outputs = [PartialTxOutput.from_address_and_value(addr, value='!')]
+            self.warn_if_watching_only()
+            self.pay_onchain_dialog(coins, outputs, external_keypairs=keypairs)
+        def on_failure(exc_info):
+            self.on_error(exc_info)
+        msg = _('Preparing sweep transaction...')
+        task = lambda: self.network.run_from_another_thread(
+            sweep_preparations(privkeys, self.network))
+        WaitingDialog(self, msg, task, on_success, on_failure)
 
     def _do_import(self, title, header_layout, func):
         text = text_dialog(self, title, header_layout, _('Import'), allow_multi=True)
