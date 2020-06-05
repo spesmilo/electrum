@@ -39,7 +39,7 @@ class KeepKey_KeyStore(Hardware_KeyStore):
         msg_sig = client.sign_message(self.plugin.get_coin_name(), address_n, message)
         return msg_sig.signature
 
-    def sign_transaction(self, tx, password):
+    def sign_transaction(self, tx, password, *, use_cache=False):
         if tx.is_complete():
             return
         # previous transactions used as inputs

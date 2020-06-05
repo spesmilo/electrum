@@ -64,7 +64,7 @@ class TrezorKeyStore(Hardware_KeyStore):
         msg_sig = client.sign_message(address_path, message)
         return msg_sig.signature
 
-    def sign_transaction(self, tx, password):
+    def sign_transaction(self, tx, password, *, use_cache=False):
         if tx.is_complete():
             return
         # path of the xpubs that are involved
