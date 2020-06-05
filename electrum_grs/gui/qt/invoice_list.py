@@ -36,8 +36,7 @@ from electrum_grs.util import format_time
 from electrum_grs.invoices import Invoice, PR_UNPAID, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_TYPE_ONCHAIN, PR_TYPE_LN
 from electrum_grs.lnutil import PaymentAttemptLog
 
-from .util import (MyTreeView, read_QIcon, MySortModel,
-                   import_meta_gui, export_meta_gui, pr_icons)
+from .util import MyTreeView, read_QIcon, MySortModel, pr_icons
 from .util import CloseButton, Buttons
 from .util import WindowModalDialog
 
@@ -135,12 +134,6 @@ class InvoiceList(MyTreeView):
             b = self.std_model.rowCount() > 0
             self.setVisible(b)
             self.parent.invoices_label.setVisible(b)
-
-    def import_invoices(self):
-        import_meta_gui(self.parent, _('invoices'), self.parent.invoices.import_file, self.update)
-
-    def export_invoices(self):
-        export_meta_gui(self.parent, _('invoices'), self.parent.invoices.export_file)
 
     def create_menu(self, position):
         wallet = self.parent.wallet

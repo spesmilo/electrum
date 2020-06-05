@@ -27,7 +27,7 @@ from dns.exception import DNSException
 
 from . import bitcoin
 from . import dnssec
-from .util import export_meta, import_meta, to_string
+from .util import read_json_file, write_json_file, to_string
 from .logging import Logger
 
 
@@ -52,14 +52,13 @@ class Contacts(dict, Logger):
         self.db.put('contacts', dict(self))
 
     def import_file(self, path):
-        import_meta(path, self._validate, self.load_meta)
-
-    def load_meta(self, data):
+        data = read_json_file(path)
+        data = self._validate(data)
         self.update(data)
         self.save()
 
-    def export_file(self, filename):
-        export_meta(self, filename)
+    def export_file(self, path):
+        write_json_file(path, self)
 
     def __setitem__(self, key, value):
         dict.__setitem__(self, key, value)
