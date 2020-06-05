@@ -47,7 +47,8 @@ from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160, hash160_to_p2cs,
                       hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr,
                       var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN, hash160_to_p2cs2,
                       int_to_hex, push_script, b58_address_to_hash160, public_key_to_p2pkh,
-                      opcodes, add_number_to_script, base_decode, is_segwit_script_type, push_hash)
+                      opcodes, add_number_to_script, base_decode, is_segwit_script_type, push_hash,
+                      script_num_to_hex)
 from .crypto import sha256d, hash_160
 from .logging import get_logger
 

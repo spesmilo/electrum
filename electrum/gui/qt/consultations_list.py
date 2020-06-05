@@ -185,7 +185,7 @@ class ConsultationsList(QTableWidget):
         mv = QTableWidgetItem()
         mv.setData(Qt.DisplayRole, "Removing...")
         mv.setData(Qt.TextAlignmentRole, Qt.AlignCenter)
-        self.setItem(row, ConsultationColumns.MYVOTE, mv)
+        self.setItem(row, ConsultationsColumns.MYVOTE, mv)
 
     def vote(self, consultation, row):
         fRange = consultation["version"]&1<<1
@@ -266,7 +266,7 @@ class ConsultationsList(QTableWidget):
         mv = QTableWidgetItem()
         mv.setData(Qt.DisplayRole, "Voting...")
         mv.setData(Qt.TextAlignmentRole, Qt.AlignCenter)
-        self.setItem(row, ConsultationColumns.MYVOTE, mv)
+        self.setItem(row, ConsultationsColumns.MYVOTE, mv)
 
     def is_valid_consensus(self, val, id):
         val = int(val)
