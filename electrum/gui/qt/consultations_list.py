@@ -213,6 +213,7 @@ class ConsultationsList(QTableWidget):
                 def on_cb(x):
                     nonlocal voted
                     nonlocal unvoted
+                    nonlocal count
                     hash = self.sender().property("id")
                     if x == Qt.Checked:
                         voted.append(hash)
