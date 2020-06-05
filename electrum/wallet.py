@@ -1631,7 +1631,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
 
     def get_invoice_status(self, invoice: Invoice):
         if invoice.is_lightning():
-            status = self.lnworker.get_invoice_status(invoice)
+            status = self.lnworker.get_invoice_status(invoice) if self.lnworker else PR_UNKNOWN
         else:
             status = PR_PAID if self.is_onchain_invoice_paid(invoice) else PR_UNPAID
         return self.check_expired_status(invoice, status)
@@ -1641,7 +1641,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if r is None:
             return PR_UNKNOWN
         if r.is_lightning():
-            status = self.lnworker.get_payment_status(bfh(r.rhash))
+            status = self.lnworker.get_payment_status(bfh(r.rhash)) if self.lnworker else PR_UNKNOWN
         else:
             paid, conf = self.get_payment_status(r.get_address(), r.amount)
             status = PR_PAID if paid else PR_UNPAID
@@ -1712,7 +1712,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         }
         if is_lightning:
             d['invoice'] = x.invoice
-            if status == PR_UNPAID:
+            if self.lnworker and status == PR_UNPAID:
                 d['can_pay'] = self.lnworker.can_pay_invoice(x)
         else:
             d['outputs'] = [y.to_legacy_tuple() for y in x.outputs]
