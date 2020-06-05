@@ -57,7 +57,7 @@ from electrum_ltc.i18n import _
 from electrum_ltc.util import (format_time, format_satoshis, format_fee_satoshis,
                                format_satoshis_plain,
                                UserCancelled, profiler,
-                               export_meta, import_meta, bh2u, bfh, InvalidPassword,
+                               bh2u, bfh, InvalidPassword,
                                UserFacingException,
                                get_new_wallet_name, send_exception_to_crash_reporter,
                                InvalidBitcoinURI, maybe_extract_bolt11_invoice, NotEnoughFunds,
@@ -670,11 +670,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         history_menu.addAction(_("&Export"), self.history_list.export_history_dialog)
         contacts_menu = wallet_menu.addMenu(_("Contacts"))
         contacts_menu.addAction(_("&New"), self.new_contact_dialog)
-        contacts_menu.addAction(_("Import"), lambda: self.contact_list.import_contacts())
-        contacts_menu.addAction(_("Export"), lambda: self.contact_list.export_contacts())
+        contacts_menu.addAction(_("Import"), lambda: self.import_contacts())
+        contacts_menu.addAction(_("Export"), lambda: self.export_contacts())
         invoices_menu = wallet_menu.addMenu(_("Invoices"))
-        invoices_menu.addAction(_("Import"), lambda: self.invoice_list.import_invoices())
-        invoices_menu.addAction(_("Export"), lambda: self.invoice_list.export_invoices())
+        invoices_menu.addAction(_("Import"), lambda: self.import_invoices())
+        invoices_menu.addAction(_("Export"), lambda: self.export_invoices())
+        requests_menu = wallet_menu.addMenu(_("Requests"))
+        requests_menu.addAction(_("Import"), lambda: self.import_requests())
+        requests_menu.addAction(_("Export"), lambda: self.export_requests())
 
         wallet_menu.addSeparator()
         wallet_menu.addAction(_("Find"), self.toggle_search).setShortcut(QKeySequence("Ctrl+F"))
@@ -1523,7 +1526,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if self.check_send_tab_onchain_outputs_and_show_errors(outputs):
                 return
             message = self.message_e.text()
-            return self.wallet.create_invoice(outputs, message, self.payment_request, self.payto_URI)
+            return self.wallet.create_invoice(
+                outputs=outputs,
+                message=message,
+                pr=self.payment_request,
+                URI=self.payto_URI)
 
     def do_save_invoice(self):
         invoice = self.read_invoice()
@@ -1772,7 +1779,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         key = pr.get_id()
         invoice = self.wallet.get_invoice(key)
-        if invoice and self.wallet.get_invoice_status() == PR_PAID:
+        if invoice and self.wallet.get_invoice_status(invoice) == PR_PAID:
             self.show_message("invoice already paid")
             self.do_clear()
             self.payment_request = None
@@ -2750,23 +2757,31 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 f.write(json.dumps(pklist, indent = 4))
 
     def do_import_labels(self):
-        def import_labels(path):
-            def _validate(data):
-                return data  # TODO
-
-            def import_labels_assign(data):
-                for key, value in data.items():
-                    self.wallet.set_label(key, value)
-            import_meta(path, _validate, import_labels_assign)
-
         def on_import():
             self.need_update.set()
-        import_meta_gui(self, _('labels'), import_labels, on_import)
+        import_meta_gui(self, _('labels'), self.wallet.import_labels, on_import)
 
     def do_export_labels(self):
-        def export_labels(filename):
-            export_meta(self.wallet.labels, filename)
-        export_meta_gui(self, _('labels'), export_labels)
+        export_meta_gui(self, _('labels'), self.wallet.export_labels)
+
+    def import_invoices(self):
+        import_meta_gui(self, _('invoices'), self.wallet.import_invoices, self.invoice_list.update)
+
+    def export_invoices(self):
+        export_meta_gui(self, _('invoices'), self.wallet.export_invoices)
+
+    def import_requests(self):
+        import_meta_gui(self, _('requests'), self.wallet.import_requests, self.request_list.update)
+
+    def export_requests(self):
+        export_meta_gui(self, _('requests'), self.wallet.export_requests)
+
+    def import_contacts(self):
+        import_meta_gui(self, _('contacts'), self.contacts.import_file, self.contact_list.update)
+
+    def export_contacts(self):
+        export_meta_gui(self, _('contacts'), self.contacts.export_file)
+
 
     def sweep_key_dialog(self):
         d = WindowModalDialog(self, title=_('Sweep private keys'))

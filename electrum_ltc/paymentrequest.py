@@ -40,7 +40,7 @@ except ImportError:
     sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'protoc --proto_path=electrum_ltc/ --python_out=electrum_ltc/ electrum_ltc/paymentrequest.proto'")
 
 from . import bitcoin, ecc, util, transaction, x509, rsakey
-from .util import bh2u, bfh, export_meta, import_meta, make_aiohttp_session
+from .util import bh2u, bfh, make_aiohttp_session
 from .invoices import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT
 from .crypto import sha256
 from .bitcoin import address_to_script

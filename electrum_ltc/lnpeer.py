@@ -1314,28 +1314,29 @@ class Peer(Logger):
                           id=htlc_id,
                           payment_preimage=preimage)
 
-    def fail_htlc(self, *, chan: Channel, htlc_id: int, onion_packet: Optional[OnionPacket],
-                  reason: Optional[OnionRoutingFailureMessage], error_bytes: Optional[bytes]):
-        self.logger.info(f"fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}. reason: {reason}")
+    def fail_htlc(self, *, chan: Channel, htlc_id: int, error_bytes: bytes):
+        self.logger.info(f"fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}.")
         assert chan.can_send_ctx_updates(), f"cannot send updates: {chan.short_channel_id}"
         chan.fail_htlc(htlc_id)
-        if onion_packet and reason:
-            error_bytes = construct_onion_error(reason, onion_packet, our_onion_private_key=self.privkey)
-        if error_bytes:
-            self.send_message("update_fail_htlc",
-                              channel_id=chan.channel_id,
-                              id=htlc_id,
-                              len=len(error_bytes),
-                              reason=error_bytes)
-        else:
-            assert reason is not None
-            if not (reason.code & OnionFailureCodeMetaFlag.BADONION and len(reason.data) == 32):
-                raise Exception(f"unexpected reason when sending 'update_fail_malformed_htlc': {reason!r}")
-            self.send_message("update_fail_malformed_htlc",
-                              channel_id=chan.channel_id,
-                              id=htlc_id,
-                              sha256_of_onion=reason.data,
-                              failure_code=reason.code)
+        self.send_message(
+            "update_fail_htlc",
+            channel_id=chan.channel_id,
+            id=htlc_id,
+            len=len(error_bytes),
+            reason=error_bytes)
+
+    def fail_malformed_htlc(self, *, chan: Channel, htlc_id: int, reason: OnionRoutingFailureMessage):
+        self.logger.info(f"fail_malformed_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}.")
+        assert chan.can_send_ctx_updates(), f"cannot send updates: {chan.short_channel_id}"
+        chan.fail_htlc(htlc_id)
+        if not (reason.code & OnionFailureCodeMetaFlag.BADONION and len(reason.data) == 32):
+            raise Exception(f"unexpected reason when sending 'update_fail_malformed_htlc': {reason!r}")
+        self.send_message(
+            "update_fail_malformed_htlc",
+            channel_id=chan.channel_id,
+            id=htlc_id,
+            sha256_of_onion=reason.data,
+            failure_code=reason.code)
 
     def on_revoke_and_ack(self, chan: Channel, payload):
         if chan.peer_state == PeerState.BAD:
@@ -1533,7 +1534,6 @@ class Peer(Logger):
                     onion_packet_bytes = bytes.fromhex(onion_packet_hex)
                     onion_packet = None
                     try:
-                        if self.network.config.get('test_fail_malformed_htlc'): raise InvalidOnionPubkey()
                         onion_packet = OnionPacket.from_bytes(onion_packet_bytes)
                         processed_onion = process_onion_packet(onion_packet, associated_data=payment_hash, our_onion_private_key=self.privkey)
                     except UnsupportedOnionPacketVersion:
@@ -1544,11 +1544,15 @@ class Peer(Logger):
                         error_reason = OnionRoutingFailureMessage(code=OnionFailureCode.INVALID_ONION_HMAC, data=sha256(onion_packet_bytes))
                     except Exception as e:
                         self.logger.info(f"error processing onion packet: {e!r}")
-                        error_reason = OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
+                        error_reason = OnionRoutingFailureMessage(code=OnionFailureCode.INVALID_ONION_VERSION, data=sha256(onion_packet_bytes))
                     else:
+                        if self.network.config.get('test_fail_malformed_htlc'):
+                            error_reason = OnionRoutingFailureMessage(code=OnionFailureCode.INVALID_ONION_VERSION, data=sha256(onion_packet_bytes))
                         if self.network.config.get('test_fail_htlcs_with_temp_node_failure'):
                             error_reason = OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
-                        elif processed_onion.are_we_final:
+
+                    if not error_reason:
+                        if processed_onion.are_we_final:
                             preimage, error_reason = self.maybe_fulfill_htlc(
                                 chan=chan,
                                 htlc=htlc,
@@ -1574,11 +1578,18 @@ class Peer(Logger):
                             self.fulfill_htlc(chan, htlc.htlc_id, preimage)
                             done.add(htlc_id)
                     if error_reason or error_bytes:
-                        self.fail_htlc(chan=chan,
-                                       htlc_id=htlc.htlc_id,
-                                       onion_packet=onion_packet,
-                                       reason=error_reason,
-                                       error_bytes=error_bytes)
+                        if onion_packet and error_reason:
+                            error_bytes = construct_onion_error(error_reason, onion_packet, our_onion_private_key=self.privkey)
+                        if error_bytes:
+                            self.fail_htlc(
+                                chan=chan,
+                                htlc_id=htlc.htlc_id,
+                                error_bytes=error_bytes)
+                        else:
+                            self.fail_malformed_htlc(
+                                chan=chan,
+                                htlc_id=htlc.htlc_id,
+                                reason=error_reason)
                         done.add(htlc_id)
                 # cleanup
                 for htlc_id in done:
