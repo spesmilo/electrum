@@ -63,7 +63,7 @@ from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
                            InvalidBitcoinURI, maybe_extract_bolt11_invoice, NotEnoughFunds,
                            NoDynamicFeeEstimates, MultipleSpendMaxTxOutputs)
 from electrum.invoices import PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING
-from electrum.invoices import PR_PAID, PR_FAILED, pr_expiration_values, LNInvoice
+from electrum.invoices import PR_PAID, PR_FAILED, pr_expiration_values, LNInvoice, OnchainInvoice
 from electrum.transaction import (Transaction, PartialTxInput,
                                   PartialTransaction, PartialTxOutput)
 from electrum.address_synchronizer import AddTransactionException
@@ -75,6 +75,7 @@ from electrum.exchange_rate import FxThread
 from electrum.simple_config import SimpleConfig
 from electrum.logging import Logger
 from electrum.lnutil import ln_dummy_address
+from electrum.lnaddr import lndecode, LnDecodeException
 
 from .exception_window import Exception_Hook
 from .amountedit import AmountEdit, BTCAmountEdit, FreezableLineEdit, FeerateEdit
@@ -1813,7 +1814,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def parse_lightning_invoice(self, invoice):
         """Parse ln invoice, and prepare the send tab for it."""
-        from electrum.lnaddr import lndecode, LnDecodeException
         try:
             lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
         except Exception as e:
@@ -1969,54 +1969,72 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.contact_list.update()
         self.update_completions()
 
-    def show_invoice(self, key):
-        invoice = self.wallet.get_invoice(key)
-        if invoice is None:
-            self.show_error('Cannot find payment request in wallet.')
-            return
-        bip70 = invoice.bip70
-        if bip70:
-            pr = paymentrequest.PaymentRequest(bytes.fromhex(bip70))
-            pr.verify(self.contacts)
-            self.show_bip70_details(pr)
-
-    def show_bip70_details(self, pr: 'paymentrequest.PaymentRequest'):
-        key = pr.get_id()
-        d = WindowModalDialog(self, _("BIP70 Invoice"))
+    def show_onchain_invoice(self, invoice: OnchainInvoice):
+        amount_str = self.format_amount(invoice.amount) + ' ' + self.base_unit()
+        d = WindowModalDialog(self, _("Onchain Invoice"))
         vbox = QVBoxLayout(d)
         grid = QGridLayout()
-        grid.addWidget(QLabel(_("Requestor") + ':'), 0, 0)
-        grid.addWidget(QLabel(pr.get_requestor()), 0, 1)
         grid.addWidget(QLabel(_("Amount") + ':'), 1, 0)
-        outputs_str = '\n'.join(map(lambda x: self.format_amount(x.value)+ self.base_unit() + ' @ ' + x.address, pr.get_outputs()))
-        grid.addWidget(QLabel(outputs_str), 1, 1)
-        expires = pr.get_expiration_date()
-        grid.addWidget(QLabel(_("Memo") + ':'), 2, 0)
-        grid.addWidget(QLabel(pr.get_memo()), 2, 1)
-        grid.addWidget(QLabel(_("Signature") + ':'), 3, 0)
-        grid.addWidget(QLabel(pr.get_verify_status()), 3, 1)
-        if expires:
+        grid.addWidget(QLabel(amount_str), 1, 1)
+        if len(invoice.outputs) == 1:
+            grid.addWidget(QLabel(_("Address") + ':'), 2, 0)
+            grid.addWidget(QLabel(invoice.get_address()), 2, 1)
+        else:
+            outputs_str = '\n'.join(map(lambda x: x.address + ' : ' + self.format_amount(x.value)+ self.base_unit(), invoice.outputs))
+            grid.addWidget(QLabel(_("Outputs") + ':'), 2, 0)
+            grid.addWidget(QLabel(outputs_str), 2, 1)
+        grid.addWidget(QLabel(_("Description") + ':'), 3, 0)
+        grid.addWidget(QLabel(invoice.message), 3, 1)
+        if invoice.exp:
             grid.addWidget(QLabel(_("Expires") + ':'), 4, 0)
-            grid.addWidget(QLabel(format_time(expires)), 4, 1)
+            grid.addWidget(QLabel(format_time(invoice.exp + invoice.time)), 4, 1)
+        if invoice.bip70:
+            pr = paymentrequest.PaymentRequest(bytes.fromhex(invoice.bip70))
+            pr.verify(self.contacts)
+            grid.addWidget(QLabel(_("Requestor") + ':'), 5, 0)
+            grid.addWidget(QLabel(pr.get_requestor()), 5, 1)
+            grid.addWidget(QLabel(_("Signature") + ':'), 6, 0)
+            grid.addWidget(QLabel(pr.get_verify_status()), 6, 1)
+            def do_export():
+                key = pr.get_id()
+                name = str(key) + '.bip70'
+                fn = self.getSaveFileName(_("Save invoice to file"), name, filter="*.bip70")
+                if not fn:
+                    return
+                with open(fn, 'wb') as f:
+                    data = f.write(pr.raw)
+                self.show_message(_('BIP70 invoice saved as' + ' ' + fn))
+            exportButton = EnterButton(_('Export'), do_export)
+            buttons = Buttons(exportButton, CloseButton(d))
+        else:
+            buttons = Buttons(CloseButton(d))
         vbox.addLayout(grid)
-        def do_export():
-            name = str(key) + '.bip70'
-            fn = self.getSaveFileName(_("Save invoice to file"), name, filter="*.bip70")
-            if not fn:
-                return
-            with open(fn, 'wb') as f:
-                data = f.write(pr.raw)
-            self.show_message(_('Invoice saved as' + ' ' + fn))
-        exportButton = EnterButton(_('Save'), do_export)
-        # note: "delete" disabled as invoice is saved with a different key in wallet.invoices that we do not have here
-        # def do_delete():
-        #     if self.question(_('Delete invoice?')):
-        #         self.wallet.delete_invoice(key)
-        #         self.history_list.update()
-        #         self.invoice_list.update()
-        #         d.close()
-        # deleteButton = EnterButton(_('Delete'), do_delete)
-        vbox.addLayout(Buttons(exportButton, CloseButton(d)))
+        vbox.addLayout(buttons)
+        d.exec_()
+
+    def show_lightning_invoice(self, invoice: LNInvoice):
+        lnaddr = lndecode(invoice.invoice, expected_hrp=constants.net.SEGWIT_HRP)
+        d = WindowModalDialog(self, _("Lightning Invoice"))
+        vbox = QVBoxLayout(d)
+        grid = QGridLayout()
+        grid.addWidget(QLabel(_("Node ID") + ':'), 0, 0)
+        grid.addWidget(QLabel(lnaddr.pubkey.serialize().hex()), 0, 1)
+        grid.addWidget(QLabel(_("Amount") + ':'), 1, 0)
+        amount_str = self.format_amount(invoice.amount) + ' ' + self.base_unit()
+        grid.addWidget(QLabel(amount_str), 1, 1)
+        grid.addWidget(QLabel(_("Description") + ':'), 2, 0)
+        grid.addWidget(QLabel(invoice.message), 2, 1)
+        grid.addWidget(QLabel(_("Hash") + ':'), 3, 0)
+        grid.addWidget(QLabel(lnaddr.paymenthash.hex()), 3, 1)
+        if invoice.exp:
+            grid.addWidget(QLabel(_("Expires") + ':'), 4, 0)
+            grid.addWidget(QLabel(format_time(invoice.time + invoice.exp)), 4, 1)
+        vbox.addLayout(grid)
+        invoice_e = ShowQRTextEdit()
+        invoice_e.addCopyButton(self.app)
+        invoice_e.setText(invoice.invoice)
+        vbox.addWidget(invoice_e)
+        vbox.addLayout(Buttons(CloseButton(d),))
         d.exec_()
 
     def create_console_tab(self):
