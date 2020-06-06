@@ -948,8 +948,12 @@ class ElectrumWindow(App):
 
     def on_resume(self):
         now = time.time()
-        if self.wallet and self.wallet.has_password() and now - self.pause_time > 5*60:
-            d = PincodeDialog(check_password=self.check_pin_code, on_success=None, on_failure=self.stop)
+        if self.wallet and self.has_pin_code() and now - self.pause_time > 5*60:
+            d = PincodeDialog(
+                self,
+                check_password=self.check_pin_code,
+                on_success=None,
+                on_failure=self.stop)
             d.open()
         if self.nfcscanner:
             self.nfcscanner.nfc_enable()
@@ -1132,6 +1136,7 @@ class ElectrumWindow(App):
             msg += "\n" + _("Enter your PIN code to proceed")
             on_success = lambda pw: f(*args, self.password)
             d = PincodeDialog(
+                self,
                 message = msg,
                 check_password=self.check_pin_code,
                 on_success=on_success,
@@ -1239,10 +1244,11 @@ class ElectrumWindow(App):
             cb()
             self.show_info(_("PIN updated") if new_password else _('PIN disabled'))
         on_failure = lambda: self.show_error(_("PIN not updated"))
-
         d = PincodeDialog(
-            self, check_password=self.check_pin_code,
-            on_success=on_success, on_failure=on_failure,
+            self,
+            check_password=self.check_pin_code,
+            on_success=on_success,
+            on_failure=on_failure,
             is_change=True,
             has_password = self.has_pin_code())
         d.open()

@@ -74,7 +74,7 @@ class ChannelsList(MyTreeView):
         status = chan.get_state_for_GUI()
         closed = chan.is_closed()
         if self.parent.network.is_lightning_running():
-            node_info = self.lnworker.channel_db.get_node_info_for_node_id(chan.node_id)
+            node_info = self.parent.network.channel_db.get_node_info_for_node_id(chan.node_id)
             node_alias = (node_info.alias if node_info else '') or ''
         else:
             node_alias = ''

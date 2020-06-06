@@ -43,6 +43,8 @@ from typing import TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple, Sequ
 from abc import ABC, abstractmethod
 import itertools
 
+from aiorpcx import TaskGroup
+
 from .i18n import _
 from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath, convert_bip32_path_to_list_of_uint32
 from .crypto import sha256
@@ -92,64 +94,79 @@ TX_STATUS = [
 ]
 
 
-def _append_utxos_to_inputs(inputs: List[PartialTxInput], network: 'Network', pubkey, txin_type, imax):
+async def _append_utxos_to_inputs(*, inputs: List[PartialTxInput], network: 'Network',
+                                  pubkey: str, txin_type: str, imax: int) -> None:
     if txin_type in ('p2pkh', 'p2wpkh', 'p2wpkh-p2sh'):
         address = bitcoin.pubkey_to_address(txin_type, pubkey)
         scripthash = bitcoin.address_to_scripthash(address)
     elif txin_type == 'p2pk':
         script = bitcoin.public_key_to_p2pk_script(pubkey)
         scripthash = bitcoin.script_to_scripthash(script)
-        address = None
     else:
         raise Exception(f'unexpected txin_type to sweep: {txin_type}')
 
-    u = network.run_from_another_thread(network.listunspent_for_scripthash(scripthash))
-    for item in u:
-        if len(inputs) >= imax:
-            break
+    async def append_single_utxo(item):
+        prev_tx_raw = await network.get_transaction(item['tx_hash'])
+        prev_tx = Transaction(prev_tx_raw)
+        prev_txout = prev_tx.outputs()[item['tx_pos']]
+        if scripthash != bitcoin.script_to_scripthash(prev_txout.scriptpubkey.hex()):
+            raise Exception('scripthash mismatch when sweeping')
         prevout_str = item['tx_hash'] + ':%d' % item['tx_pos']
         prevout = TxOutpoint.from_str(prevout_str)
-        utxo = PartialTxInput(prevout=prevout)
-        utxo._trusted_value_sats = int(item['value'])
-        utxo._trusted_address = address
-        utxo.block_height = int(item['height'])
-        utxo.script_type = txin_type
-        utxo.pubkeys = [bfh(pubkey)]
-        utxo.num_sig = 1
+        txin = PartialTxInput(prevout=prevout)
+        txin.utxo = prev_tx
+        txin.block_height = int(item['height'])
+        txin.script_type = txin_type
+        txin.pubkeys = [bfh(pubkey)]
+        txin.num_sig = 1
         if txin_type == 'p2wpkh-p2sh':
-            utxo.redeem_script = bfh(bitcoin.p2wpkh_nested_script(pubkey))
-        inputs.append(utxo)
+            txin.redeem_script = bfh(bitcoin.p2wpkh_nested_script(pubkey))
+        inputs.append(txin)
 
-def sweep_preparations(privkeys, network: 'Network', imax=100):
+    u = await network.listunspent_for_scripthash(scripthash)
+    async with TaskGroup() as group:
+        for item in u:
+            if len(inputs) >= imax:
+                break
+            await group.spawn(append_single_utxo(item))
 
-    def find_utxos_for_privkey(txin_type, privkey, compressed):
+
+async def sweep_preparations(privkeys, network: 'Network', imax=100):
+
+    async def find_utxos_for_privkey(txin_type, privkey, compressed):
         pubkey = ecc.ECPrivkey(privkey).get_public_key_hex(compressed=compressed)
-        _append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax)
+        await _append_utxos_to_inputs(
+            inputs=inputs,
+            network=network,
+            pubkey=pubkey,
+            txin_type=txin_type,
+            imax=imax)
         keypairs[pubkey] = privkey, compressed
+
     inputs = []  # type: List[PartialTxInput]
     keypairs = {}
-    for sec in privkeys:
-        txin_type, privkey, compressed = bitcoin.deserialize_privkey(sec)
-        find_utxos_for_privkey(txin_type, privkey, compressed)
-        # do other lookups to increase support coverage
-        if is_minikey(sec):
-            # minikeys don't have a compressed byte
-            # we lookup both compressed and uncompressed pubkeys
-            find_utxos_for_privkey(txin_type, privkey, not compressed)
-        elif txin_type == 'p2pkh':
-            # WIF serialization does not distinguish p2pkh and p2pk
-            # we also search for pay-to-pubkey outputs
-            find_utxos_for_privkey('p2pk', privkey, compressed)
+    async with TaskGroup() as group:
+        for sec in privkeys:
+            txin_type, privkey, compressed = bitcoin.deserialize_privkey(sec)
+            await group.spawn(find_utxos_for_privkey(txin_type, privkey, compressed))
+            # do other lookups to increase support coverage
+            if is_minikey(sec):
+                # minikeys don't have a compressed byte
+                # we lookup both compressed and uncompressed pubkeys
+                await group.spawn(find_utxos_for_privkey(txin_type, privkey, not compressed))
+            elif txin_type == 'p2pkh':
+                # WIF serialization does not distinguish p2pkh and p2pk
+                # we also search for pay-to-pubkey outputs
+                await group.spawn(find_utxos_for_privkey('p2pk', privkey, compressed))
     if not inputs:
-        raise Exception(_('No inputs found. (Note that inputs need to be confirmed)'))
-        # FIXME actually inputs need not be confirmed now, see https://github.com/kyuupichan/electrumx/issues/365
+        raise Exception(_('No inputs found.'))
     return inputs, keypairs
 
 
 def sweep(privkeys, *, network: 'Network', config: 'SimpleConfig',
           to_address: str, fee: int = None, imax=100,
           locktime=None, tx_version=None) -> PartialTransaction:
-    inputs, keypairs = sweep_preparations(privkeys, network, imax)
+    inputs, keypairs = network.run_from_another_thread(sweep_preparations(privkeys, network, imax))
     total = sum(txin.value_sats() for txin in inputs)
     if fee is None:
         outputs = [PartialTxOutput(scriptpubkey=bfh(bitcoin.address_to_script(to_address)),
@@ -1631,7 +1648,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
 
     def get_invoice_status(self, invoice: Invoice):
         if invoice.is_lightning():
-            status = self.lnworker.get_invoice_status(invoice)
+            status = self.lnworker.get_invoice_status(invoice) if self.lnworker else PR_UNKNOWN
         else:
             status = PR_PAID if self.is_onchain_invoice_paid(invoice) else PR_UNPAID
         return self.check_expired_status(invoice, status)
@@ -1641,7 +1658,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if r is None:
             return PR_UNKNOWN
         if r.is_lightning():
-            status = self.lnworker.get_payment_status(bfh(r.rhash))
+            status = self.lnworker.get_payment_status(bfh(r.rhash)) if self.lnworker else PR_UNKNOWN
         else:
             paid, conf = self.get_payment_status(r.get_address(), r.amount)
             status = PR_PAID if paid else PR_UNPAID
@@ -1712,7 +1729,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         }
         if is_lightning:
             d['invoice'] = x.invoice
-            if status == PR_UNPAID:
+            if self.lnworker and status == PR_UNPAID:
                 d['can_pay'] = self.lnworker.can_pay_invoice(x)
         else:
             d['outputs'] = [y.to_legacy_tuple() for y in x.outputs]
