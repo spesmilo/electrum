@@ -1132,6 +1132,7 @@ class ElectrumWindow(App):
             msg += "\n" + _("Enter your PIN code to proceed")
             on_success = lambda pw: f(*args, self.password)
             d = PincodeDialog(
+                self,
                 message = msg,
                 check_password=self.check_pin_code,
                 on_success=on_success,
