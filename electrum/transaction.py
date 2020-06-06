@@ -1479,7 +1479,7 @@ class PartialTxOutput(TxOutput, PSBTSection):
     @classmethod
     def ConsultationVoteRemove(cls, _hash: str):
         script = opcodes.OP_RETURN.hex()
-        script += opcodes.OP_DAO.hex()
+        script += opcodes.OP_CONSULTATION.hex()
         script += opcodes.OP_REMOVE.hex()
         script += push_hash(_hash)
         return cls(scriptpubkey=bfh(script),

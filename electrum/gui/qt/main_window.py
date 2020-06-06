@@ -199,10 +199,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         else:
             self.voting_address_tab = self.create_voting_address_tab()
             tabs.addTab(self.voting_address_tab, read_QIcon("tab_receive.png"), _('Voting address'))
-            tabs.addTab(self.create_fund_tab(), read_QIcon("tab_history.png"), _('Proposals'))
-            tabs.addTab(self.create_preq_tab(), read_QIcon("tab_history.png"), _('Payment Requests'))
-            tabs.addTab(self.create_consultations_tab(), read_QIcon("tab_history.png"), _('Consultations'))
-            tabs.addTab(self.create_consensus_tab(), read_QIcon("tab_history.png"), _('Consensus'))
+            tabs.addTab(self.create_dao_tab(), read_QIcon("tab_history.png"), _('DAO'))
+            # tabs.addTab(self.create_fund_tab(), read_QIcon("tab_history.png"), _('Proposals'))
+            # tabs.addTab(self.create_preq_tab(), read_QIcon("tab_history.png"), _('Payment Requests'))
+            # tabs.addTab(self.create_consultations_tab(), read_QIcon("tab_history.png"), _('Consultations'))
+            # tabs.addTab(self.create_consensus_tab(), read_QIcon("tab_history.png"), _('Consensus'))
 
         def add_optional_tab(tabs, tab, icon, description, name):
             tab.tab_icon = icon
@@ -2327,6 +2328,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         from .utxo_list import UTXOList
         self.utxo_list = UTXOList(self)
         return self.create_list_tab(self.utxo_list)
+
+    def create_dao_tab(self):
+        tabs = QTabWidget()
+        tabs.addTab(self.create_fund_tab(), read_QIcon("tab_history.png"), _('Proposals'))
+        tabs.addTab(self.create_preq_tab(), read_QIcon("tab_history.png"), _('Payment Requests'))
+        tabs.addTab(self.create_consultations_tab(), read_QIcon("tab_history.png"), _('Consultations'))
+        tabs.addTab(self.create_consensus_tab(), read_QIcon("tab_history.png"), _('Consensus'))
+        widget = QWidget()
+        vbox = QVBoxLayout(widget)
+        vbox.setContentsMargins(0, 0, 0, 0)
+        vbox.addWidget(tabs)
+        return widget
 
     def create_contacts_tab(self):
         from .contact_list import ContactList

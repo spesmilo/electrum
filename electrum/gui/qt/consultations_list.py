@@ -155,8 +155,7 @@ class ConsultationsList(QTableWidget):
 
             if current_vote != None:
                 menu.addAction(_("Change vote"), lambda: (self.vote(consultation, item.row())))
-                if fRange:
-                    menu.addAction(_("Remove vote"), lambda: (self.remove_vote(consultation, item.row())))
+                menu.addAction(_("Remove vote"), lambda: (self.remove_vote(consultation, item.row())))
             else:
                 menu.addAction(_("Vote"), lambda: (self.vote(consultation, item.row())))
         elif state == _("Looking for support") or state == _("Supported"):
@@ -180,7 +179,15 @@ class ConsultationsList(QTableWidget):
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def remove_vote(self, consultation, row):
-        self.parent.vote_consultations_values([], [], [consultation["hash"]])
+        fRange = consultation["version"]&1<<1
+
+        if fRange:
+            self.parent.vote_consultations([], [consultation["hash"]])
+        else:
+            hashes = []
+            for a in consultation["answers"]:
+                hashes.append(a["hash"])
+            self.parent.vote_consultations([], hashes)
 
         mv = QTableWidgetItem()
         mv.setData(Qt.DisplayRole, "Removing...")
@@ -207,7 +214,7 @@ class ConsultationsList(QTableWidget):
                 cb = QCheckBox(a["answer"] if not fConsensus else self.format_value(a["answer"], consultation["min"]))
                 cb.setProperty("id", a["hash"]);
                 vote = self.parent.find_vote(a["hash"])
-                cb.setChecked(vote == 1)
+                cb.setChecked(vote >= -1)
                 if vote == 1:
                     count = count + 1
                 def on_cb(x):
