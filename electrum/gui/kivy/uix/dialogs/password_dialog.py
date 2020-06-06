@@ -9,8 +9,9 @@ from decimal import Decimal
 from kivy.clock import Clock
 
 from electrum.util import InvalidPassword
-from electrum.wallet import WalletStorage
+from electrum.wallet import WalletStorage, Wallet
 from electrum.gui.kivy.i18n import _
+from electrum.wallet_db import WalletDB
 
 from .wallets import WalletDialog
 
@@ -347,7 +348,8 @@ class OpenWalletDialog(PasswordDialog):
         else:
             # it is a bit wasteful load the wallet here and load it again in main_window,
             # but that is fine, because we are progressively enforcing storage encryption.
-            wallet = self.app.daemon.load_wallet(path, None)
+            db = WalletDB(self.storage.read(), manual_upgrades=False)
+            wallet = Wallet(db, self.storage, config=self.app.electrum_config)
             self.require_password = wallet.has_password()
             self.pw_check = wallet.check_password
             self.message = self.enter_pw_message if self.require_password else _('Wallet not encrypted')
