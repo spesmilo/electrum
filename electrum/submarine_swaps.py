@@ -239,6 +239,7 @@ class SwapManager(Logger):
             timeout=30)
         data = json.loads(response)
         invoice = data['invoice']
+        fee_invoice = data.get('minerFeeInvoice')
         lockup_address = data['lockupAddress']
         redeem_script = data['redeemScript']
         locktime = data['timeoutBlockHeight']
@@ -252,19 +253,26 @@ class SwapManager(Logger):
         assert hash_160(preimage) == parsed_script[5][1]
         assert pubkey == parsed_script[7][1]
         assert locktime == int.from_bytes(parsed_script[10][1], byteorder='little')
-        # check that the amount is what we expected
+        # check that the onchain amount is what we expected
         assert onchain_amount >= expected_amount, (onchain_amount, expected_amount)
         # verify that we will have enought time to get our tx confirmed
         assert locktime - self.network.get_local_height() > 10
         # verify invoice preimage_hash
-        lnaddr = self.lnworker._check_invoice(invoice, amount_sat)
+        lnaddr = self.lnworker._check_invoice(invoice)
+        invoice_amount = lnaddr.get_amount_sat()
         assert lnaddr.paymenthash == preimage_hash
+        # check that the lightning amount is what we requested
+        if fee_invoice:
+            fee_lnaddr = self.lnworker._check_invoice(fee_invoice)
+            invoice_amount += fee_lnaddr.get_amount_sat()
+        assert int(invoice_amount) == amount_sat, (invoice_amount, amount_sat)
         # save swap data to wallet file
         swap = SwapData(
             redeem_script = redeem_script,
             locktime = locktime,
             privkey = privkey,
             preimage = preimage,
+            # save the rhash of the mining fee invoice
             lockup_address = lockup_address,
             onchain_amount = onchain_amount,
             lightning_amount = amount_sat,
@@ -276,6 +284,11 @@ class SwapManager(Logger):
         self.swaps[preimage_hash.hex()] = swap
         # add callback to lnwatcher
         self.add_lnwatcher_callback(swap)
+        # initiate payment.
+        if fee_invoice:
+            success, log = await self.lnworker._pay(fee_invoice, attempts=10)
+            if not success:
+                return False
         # initiate payment.
         success, log = await self.lnworker._pay(invoice, attempts=10)
         return success

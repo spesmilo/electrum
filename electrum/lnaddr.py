@@ -274,6 +274,9 @@ class LnAddr(object):
         self.amount = amount  # in bitcoins
         self._min_final_cltv_expiry = 9
 
+    def get_amount_sat(self):
+        return self.amount * COIN
+
     def __str__(self):
         return "LnAddr[{}, amount={}{} tags=[{}]]".format(
             hexlify(self.pubkey.serialize()).decode('utf-8') if self.pubkey else None,
