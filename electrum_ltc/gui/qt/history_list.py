@@ -664,8 +664,9 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                 child_tx = self.wallet.cpfp(tx, 0)
                 if child_tx:
                     menu.addAction(_("Child pays for parent"), lambda: self.parent.cpfp(tx, child_tx))
-        if invoice_keys:
-           menu.addAction(read_QIcon("seal"), _("View invoice"), lambda: [self.parent.show_invoice(key) for key in invoice_keys])
+        for key in invoice_keys:
+            invoice = self.parent.wallet.get_invoice(key)
+            menu.addAction(_("View invoice"), lambda: self.parent.show_onchain_invoice(invoice))
         if tx_URL:
             menu.addAction(_("View on block explorer"), lambda: webopen(tx_URL))
         menu.exec_(self.viewport().mapToGlobal(position))

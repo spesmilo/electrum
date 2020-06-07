@@ -99,16 +99,14 @@ class InvoiceList(MyTreeView):
         self.std_model.clear()
         self.update_headers(self.__class__.headers)
         for idx, item in enumerate(self.parent.wallet.get_invoices()):
-            if item.type == PR_TYPE_LN:
+            if item.is_lightning():
                 key = item.rhash
                 icon_name = 'lightning.png'
-            elif item.type == PR_TYPE_ONCHAIN:
+            else:
                 key = item.id
                 icon_name = 'bitcoin.png'
                 if item.bip70:
                     icon_name = 'seal.png'
-            else:
-                raise Exception('Unsupported type')
             status = self.parent.wallet.get_invoice_status(item)
             status_str = item.get_status_str(status)
             message = item.message
@@ -154,10 +152,15 @@ class InvoiceList(MyTreeView):
         if not item or not item_col0:
             return
         key = item_col0.data(ROLE_REQUEST_ID)
+        invoice = self.parent.wallet.get_invoice(key)
         menu = QMenu(self)
         self.add_copy_menu(menu, idx)
-        invoice = self.parent.wallet.get_invoice(key)
-        menu.addAction(_("Details"), lambda: self.parent.show_invoice(key))
+        if invoice.is_lightning():
+            menu.addAction(_("Details"), lambda: self.parent.show_lightning_invoice(invoice))
+        else:
+            if len(invoice.outputs) == 1:
+                menu.addAction(_("Copy Address"), lambda: self.parent.do_copy(invoice.get_address(), title='Litecoin Address'))
+            menu.addAction(_("Details"), lambda: self.parent.show_onchain_invoice(invoice))
         status = wallet.get_invoice_status(invoice)
         if status == PR_UNPAID:
             menu.addAction(_("Pay"), lambda: self.parent.do_pay_invoice(invoice))

@@ -85,7 +85,8 @@ class QRCodeWidget(QWidget):
         for r in range(k):
             for c in range(k):
                 if matrix[r][c]:
-                    qp.drawRect(left+c*boxsize, top+r*boxsize, boxsize - 1, boxsize - 1)
+                    qp.drawRect(int(left+c*boxsize), int(top+r*boxsize),
+                                boxsize - 1, boxsize - 1)
         qp.end()
 
 
