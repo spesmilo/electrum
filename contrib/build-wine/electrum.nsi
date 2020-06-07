@@ -8,7 +8,7 @@
 
   !define PRODUCT_NAME "NavCash"
   !define PRODUCT_WEB_SITE "https://github.com/aguycalled/electrum"
-  !define PRODUCT_PUBLISHER "Electrum Technologies GmbH"
+  !define PRODUCT_PUBLISHER "navcoin core developers"
   !define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
 
 ;--------------------------------
