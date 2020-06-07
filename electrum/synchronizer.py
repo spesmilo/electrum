@@ -140,7 +140,11 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
     async def handle_dao(self):
         while True:
             h = await self.dao_queue.get()
+            if len(h) == 0:
+                continue
             if h[0] == {}:
+                continue
+            if "r" not in h[0]:
                 continue
             if h[0]["r"] == 0:
                 if h[0]["t"] not in self.wallet.dao:
