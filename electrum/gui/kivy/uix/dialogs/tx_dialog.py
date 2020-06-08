@@ -132,9 +132,10 @@ class TxDialog(Factory.Popup):
         self.tx = tx  # type: Transaction
         self._action_button_fn = lambda btn: None
 
-        # if the wallet can populate the inputs with more info, do it now.
-        # as a result, e.g. we might learn an imported address tx is segwit,
-        # or that a beyond-gap-limit address is is_mine
+        # If the wallet can populate the inputs with more info, do it now.
+        # As a result, e.g. we might learn an imported address tx is segwit,
+        # or that a beyond-gap-limit address is is_mine.
+        # note: this might fetch prev txs over the network.
         tx.add_info_from_wallet(self.wallet)
 
     def on_open(self):
@@ -173,7 +174,7 @@ class TxDialog(Factory.Popup):
         risk_of_burning_coins = (isinstance(self.tx, PartialTransaction)
                                  and self.can_sign
                                  and fee is not None
-                                 and self.tx.is_there_risk_of_burning_coins_as_fees())
+                                 and bool(self.wallet.get_warning_for_risk_of_burning_coins_as_fees(self.tx)))
         if fee is not None and not risk_of_burning_coins:
             self.fee_str = format_amount(fee)
             fee_per_kb = fee / self.tx.estimated_size() * 1000

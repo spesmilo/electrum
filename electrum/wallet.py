@@ -2023,6 +2023,40 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             self.sign_transaction(tx, password)
         return tx
 
+    def get_warning_for_risk_of_burning_coins_as_fees(self, tx: 'PartialTransaction') -> Optional[str]:
+        """Returns a warning message if there is risk of burning coins as fees if we sign.
+        Note that if not all inputs are ismine, e.g. coinjoin, the risk is not just about fees.
+
+        Note:
+            - legacy sighash does not commit to any input amounts
+            - BIP-0143 sighash only commits to the *corresponding* input amount
+            - BIP-taproot sighash commits to *all* input amounts
+        """
+        assert isinstance(tx, PartialTransaction)
+        # if we have all full previous txs, we *know* all the input amounts -> fine
+        if all([txin.utxo for txin in tx.inputs()]):
+            return None
+        # a single segwit input -> fine
+        if len(tx.inputs()) == 1 and Transaction.is_segwit_input(tx.inputs()[0]) and tx.inputs()[0].witness_utxo:
+            return None
+        # coinjoin or similar
+        if any([not self.is_mine(txin.address) for txin in tx.inputs()]):
+            return (_("Warning") + ": "
+                    + _("The input amounts could not be verified as the previous transactions are missing.\n"
+                        "The amount of money being spent CANNOT be verified."))
+        # some inputs are legacy
+        if any([not Transaction.is_segwit_input(txin) for txin in tx.inputs()]):
+            return (_("Warning") + ": "
+                    + _("The fee could not be verified. Signing non-segwit inputs is risky:\n"
+                        "if this transaction was maliciously modified before you sign,\n"
+                        "you might end up paying a higher mining fee than displayed."))
+        # all inputs are segwit
+        # https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2017-August/014843.html
+        return (_("Warning") + ": "
+                + _("If you received this transaction from an untrusted device, "
+                    "do not accept to sign it more than once,\n"
+                    "otherwise you could end up paying a different fee."))
+
 
 class Simple_Wallet(Abstract_Wallet):
     # wallet with a single keystore
