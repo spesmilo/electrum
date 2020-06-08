@@ -1331,6 +1331,8 @@ class LNWallet(LNWorker):
 
     def create_channel_backup(self, channel_id):
         chan = self._channels[channel_id]
+        # do not backup old-style channels
+        assert chan.is_static_remotekey_enabled()
         peer_addresses = list(chan.get_peer_addresses())
         peer_addr = peer_addresses[0]
         return ChannelBackupStorage(

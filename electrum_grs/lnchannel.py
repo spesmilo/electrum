@@ -461,6 +461,9 @@ class ChannelBackup(AbstractChannel):
     def is_frozen_for_receiving(self) -> bool:
         return False
 
+    def is_static_remotekey_enabled(self) -> bool:
+        return True
+
 
 class Channel(AbstractChannel):
     # note: try to avoid naming ctns/ctxs/etc as "current" and "pending".
