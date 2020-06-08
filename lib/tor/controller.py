@@ -33,6 +33,7 @@ from enum import Enum
 import stem.socket
 import stem.process
 import stem.control
+import stem
 
 from .. import util
 from ..util import PrintError
@@ -237,12 +238,22 @@ class TorController(PrintError):
         self.active_port_changed(self)
 
         if self._tor_controller:
+            # tell tor to shut down
+            self._tor_controller.signal(stem.Signal.HALT)
             self._tor_controller.close()
             self._tor_controller = None
 
         if self._tor_process:
-            self._tor_process.terminate()
-            self._tor_process.wait()
+            try:
+                try:
+                    self._tor_process.wait(1.0)
+                    # if the wait doesn't raise an exception, the process has terminated
+                except subprocess.TimeoutExpired:
+                    # process is still running, try to terminate it
+                    self._tor_process.terminate()
+                    self._tor_process.wait()
+            except ProcessLookupError:
+                self.print_exception("Failed to terminate Tor process")
             self._tor_process = None
 
         if self._tor_read_thread:
