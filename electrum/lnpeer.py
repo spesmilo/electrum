@@ -40,10 +40,10 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      LOCAL, REMOTE, HTLCOwner, generate_keypair, LnKeyFamily,
                      ln_compare_features, privkey_to_pubkey, MIN_FINAL_CLTV_EXPIRY_ACCEPTED,
                      LightningPeerConnectionClosed, HandshakeFailed, NotFoundChanAnnouncementForUpdate,
-                     MINIMUM_MAX_HTLC_VALUE_IN_FLIGHT_ACCEPTED, MAXIMUM_HTLC_MINIMUM_MSAT_ACCEPTED,
-                     MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED, RemoteMisbehaving, DEFAULT_TO_SELF_DELAY,
+                     RemoteMisbehaving, DEFAULT_TO_SELF_DELAY,
                      NBLOCK_OUR_CLTV_EXPIRY_DELTA, format_short_channel_id, ShortChannelID,
-                     IncompatibleLightningFeatures, derive_payment_secret_from_payment_preimage)
+                     IncompatibleLightningFeatures, derive_payment_secret_from_payment_preimage,
+                     LN_MAX_FUNDING_SAT, calc_fees_for_commitment_tx)
 from .lnutil import FeeUpdate, channel_id_from_funding_tx
 from .lntransport import LNTransport, LNTransportBase
 from .lnmsg import encode_msg, decode_msg
@@ -504,17 +504,18 @@ class Peer(Logger):
             channel_seed=channel_seed,
             static_remotekey=static_remotekey,
             to_self_delay=DEFAULT_TO_SELF_DELAY,
-            dust_limit_sat=546,
+            dust_limit_sat=bitcoin.DUST_LIMIT_DEFAULT_SAT_LEGACY,
             max_htlc_value_in_flight_msat=funding_sat * 1000,
             max_accepted_htlcs=5,
             initial_msat=initial_msat,
-            reserve_sat=546,
+            reserve_sat=funding_sat // 100,
             funding_locked_received=False,
             was_announced=False,
             current_commitment_signature=None,
             current_htlc_signatures=b'',
             htlc_minimum_msat=1,
         )
+        local_config.validate_params(funding_sat=funding_sat)
         return local_config
 
     def temporarily_reserve_funding_tx_change_address(func):
@@ -548,6 +549,12 @@ class Peer(Logger):
         await asyncio.wait_for(self.initialized, LN_P2P_NETWORK_TIMEOUT)
         feerate = self.lnworker.current_feerate_per_kw()
         local_config = self.make_local_config(funding_sat, push_msat, LOCAL)
+        if funding_sat > LN_MAX_FUNDING_SAT:
+            raise Exception(f"MUST set funding_satoshis to less than 2^24 satoshi. {funding_sat} sat > {LN_MAX_FUNDING_SAT}")
+        if push_msat > 1000 * funding_sat:
+            raise Exception(f"MUST set push_msat to equal or less than 1000 * funding_satoshis: {push_msat} msat > {1000 * funding_sat} msat")
+        if funding_sat < lnutil.MIN_FUNDING_SAT:
+            raise Exception(f"funding_sat too low: {funding_sat} < {lnutil.MIN_FUNDING_SAT}")
         # for the first commitment transaction
         per_commitment_secret_first = get_per_commitment_secret_from_seed(local_config.per_commitment_secret_seed,
                                                                           RevocationStore.START_INDEX)
@@ -580,41 +587,31 @@ class Peer(Logger):
             raise Exception(f"minimum depth too low, {funding_txn_minimum_depth}")
         if funding_txn_minimum_depth > 30:
             raise Exception(f"minimum depth too high, {funding_txn_minimum_depth}")
-        remote_dust_limit_sat = payload['dust_limit_satoshis']
-        remote_reserve_sat = self.validate_remote_reserve(payload["channel_reserve_satoshis"], remote_dust_limit_sat, funding_sat)
-        if remote_dust_limit_sat > remote_reserve_sat:
-            raise Exception(f"Remote Lightning peer reports dust_limit_sat > reserve_sat which is a BOLT-02 protocol violation.")
-        htlc_min = payload['htlc_minimum_msat']
-        if htlc_min > MAXIMUM_HTLC_MINIMUM_MSAT_ACCEPTED:
-            raise Exception(f"Remote Lightning peer reports htlc_minimum_msat={htlc_min} mSAT," +
-                    f" which is above Electrums required maximum limit of that parameter ({MAXIMUM_HTLC_MINIMUM_MSAT_ACCEPTED} mSAT).")
-        remote_max = payload['max_htlc_value_in_flight_msat']
-        if remote_max < MINIMUM_MAX_HTLC_VALUE_IN_FLIGHT_ACCEPTED:
-            raise Exception(f"Remote Lightning peer reports max_htlc_value_in_flight_msat at only {remote_max} mSAT" +
-                    f" which is below Electrums required minimum ({MINIMUM_MAX_HTLC_VALUE_IN_FLIGHT_ACCEPTED} mSAT).")
-        max_accepted_htlcs = payload["max_accepted_htlcs"]
-        if max_accepted_htlcs > 483:
-            raise Exception("Remote Lightning peer reports max_accepted_htlcs > 483, which is a BOLT-02 protocol violation.")
-        remote_to_self_delay = payload['to_self_delay']
-        if remote_to_self_delay > MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED:
-            raise Exception(f"Remote Lightning peer reports to_self_delay={remote_to_self_delay}," +
-                    f" which is above Electrums required maximum ({MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED})")
         remote_config = RemoteConfig(
             payment_basepoint=OnlyPubkeyKeypair(payload['payment_basepoint']),
             multisig_key=OnlyPubkeyKeypair(payload["funding_pubkey"]),
             htlc_basepoint=OnlyPubkeyKeypair(payload['htlc_basepoint']),
             delayed_basepoint=OnlyPubkeyKeypair(payload['delayed_payment_basepoint']),
             revocation_basepoint=OnlyPubkeyKeypair(payload['revocation_basepoint']),
-            to_self_delay=remote_to_self_delay,
-            dust_limit_sat=remote_dust_limit_sat,
-            max_htlc_value_in_flight_msat=remote_max,
-            max_accepted_htlcs=max_accepted_htlcs,
+            to_self_delay=payload['to_self_delay'],
+            dust_limit_sat=payload['dust_limit_satoshis'],
+            max_htlc_value_in_flight_msat=payload['max_htlc_value_in_flight_msat'],
+            max_accepted_htlcs=payload["max_accepted_htlcs"],
             initial_msat=push_msat,
-            reserve_sat = remote_reserve_sat,
-            htlc_minimum_msat = htlc_min,
+            reserve_sat=payload["channel_reserve_satoshis"],
+            htlc_minimum_msat=payload['htlc_minimum_msat'],
             next_per_commitment_point=remote_per_commitment_point,
             current_per_commitment_point=None,
         )
+        remote_config.validate_params(funding_sat=funding_sat)
+        # if channel_reserve_satoshis is less than dust_limit_satoshis within the open_channel message:
+        #     MUST reject the channel.
+        if remote_config.reserve_sat < local_config.dust_limit_sat:
+            raise Exception("violated constraint: remote_config.reserve_sat < local_config.dust_limit_sat")
+        # if channel_reserve_satoshis from the open_channel message is less than dust_limit_satoshis:
+        #     MUST reject the channel.
+        if local_config.reserve_sat < remote_config.dust_limit_sat:
+            raise Exception("violated constraint: local_config.reserve_sat < remote_config.dust_limit_sat")
         # replace dummy output in funding tx
         redeem_script = funding_output_script(local_config, remote_config)
         funding_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
@@ -678,14 +675,51 @@ class Peer(Logger):
         return StoredDict(chan_dict, None, [])
 
     async def on_open_channel(self, payload):
-        # payload['channel_flags']
         if payload['chain_hash'] != constants.net.rev_genesis_bytes():
             raise Exception('wrong chain_hash')
         funding_sat = payload['funding_satoshis']
         push_msat = payload['push_msat']
-        feerate = payload['feerate_per_kw']
+        feerate = payload['feerate_per_kw']  # note: we are not validating this
         temp_chan_id = payload['temporary_channel_id']
         local_config = self.make_local_config(funding_sat, push_msat, REMOTE)
+        if funding_sat > LN_MAX_FUNDING_SAT:
+            raise Exception(f"MUST set funding_satoshis to less than 2^24 satoshi. {funding_sat} sat > {LN_MAX_FUNDING_SAT}")
+        if push_msat > 1000 * funding_sat:
+            raise Exception(f"MUST set push_msat to equal or less than 1000 * funding_satoshis: {push_msat} msat > {1000 * funding_sat} msat")
+        if funding_sat < lnutil.MIN_FUNDING_SAT:
+            raise Exception(f"funding_sat too low: {funding_sat} < {lnutil.MIN_FUNDING_SAT}")
+        remote_config = RemoteConfig(
+            payment_basepoint=OnlyPubkeyKeypair(payload['payment_basepoint']),
+            multisig_key=OnlyPubkeyKeypair(payload['funding_pubkey']),
+            htlc_basepoint=OnlyPubkeyKeypair(payload['htlc_basepoint']),
+            delayed_basepoint=OnlyPubkeyKeypair(payload['delayed_payment_basepoint']),
+            revocation_basepoint=OnlyPubkeyKeypair(payload['revocation_basepoint']),
+            to_self_delay=payload['to_self_delay'],
+            dust_limit_sat=payload['dust_limit_satoshis'],
+            max_htlc_value_in_flight_msat=payload['max_htlc_value_in_flight_msat'],
+            max_accepted_htlcs=payload['max_accepted_htlcs'],
+            initial_msat=funding_sat * 1000 - push_msat,
+            reserve_sat=payload['channel_reserve_satoshis'],
+            htlc_minimum_msat=payload['htlc_minimum_msat'],
+            next_per_commitment_point=payload['first_per_commitment_point'],
+            current_per_commitment_point=None,
+        )
+        remote_config.validate_params(funding_sat=funding_sat)
+        # The receiving node MUST fail the channel if:
+        #     the funder's amount for the initial commitment transaction is not sufficient for full fee payment.
+        if remote_config.initial_msat < calc_fees_for_commitment_tx(num_htlcs=0,
+                                                                    feerate=feerate,
+                                                                    is_local_initiator=False)[REMOTE]:
+            raise Exception("the funder's amount for the initial commitment transaction is not sufficient for full fee payment")
+        # The receiving node MUST fail the channel if:
+        #     both to_local and to_remote amounts for the initial commitment transaction are
+        #     less than or equal to channel_reserve_satoshis (see BOLT 3).
+        if (local_config.initial_msat <= 1000 * payload['channel_reserve_satoshis']
+                and remote_config.initial_msat <= 1000 * payload['channel_reserve_satoshis']):
+            raise Exception("both to_local and to_remote amounts for the initial commitment transaction are less than or equal to channel_reserve_satoshis")
+        # note: we ignore payload['channel_flags'],  which e.g. contains 'announce_channel'.
+        #       Notably if the remote sets 'announce_channel' to True, we will ignore that too,
+        #       but we will not play along with actually announcing the channel (so we keep it private).
         # for the first commitment transaction
         per_commitment_secret_first = get_per_commitment_secret_from_seed(local_config.per_commitment_secret_seed,
                                                                           RevocationStore.START_INDEX)
@@ -696,7 +730,7 @@ class Peer(Logger):
             dust_limit_satoshis=local_config.dust_limit_sat,
             max_htlc_value_in_flight_msat=local_config.max_htlc_value_in_flight_msat,
             channel_reserve_satoshis=local_config.reserve_sat,
-            htlc_minimum_msat=1000,
+            htlc_minimum_msat=local_config.htlc_minimum_msat,
             minimum_depth=min_depth,
             to_self_delay=local_config.to_self_delay,
             max_accepted_htlcs=local_config.max_accepted_htlcs,
@@ -711,25 +745,6 @@ class Peer(Logger):
         funding_idx = funding_created['funding_output_index']
         funding_txid = bh2u(funding_created['funding_txid'][::-1])
         channel_id, funding_txid_bytes = channel_id_from_funding_tx(funding_txid, funding_idx)
-        remote_balance_sat = funding_sat * 1000 - push_msat
-        remote_dust_limit_sat = payload['dust_limit_satoshis']  # TODO validate
-        remote_reserve_sat = self.validate_remote_reserve(payload['channel_reserve_satoshis'], remote_dust_limit_sat, funding_sat)
-        remote_config = RemoteConfig(
-            payment_basepoint=OnlyPubkeyKeypair(payload['payment_basepoint']),
-            multisig_key=OnlyPubkeyKeypair(payload['funding_pubkey']),
-            htlc_basepoint=OnlyPubkeyKeypair(payload['htlc_basepoint']),
-            delayed_basepoint=OnlyPubkeyKeypair(payload['delayed_payment_basepoint']),
-            revocation_basepoint=OnlyPubkeyKeypair(payload['revocation_basepoint']),
-            to_self_delay=payload['to_self_delay'],
-            dust_limit_sat=remote_dust_limit_sat,
-            max_htlc_value_in_flight_msat=payload['max_htlc_value_in_flight_msat'],  # TODO validate
-            max_accepted_htlcs=payload['max_accepted_htlcs'],  # TODO validate
-            initial_msat=remote_balance_sat,
-            reserve_sat = remote_reserve_sat,
-            htlc_minimum_msat=payload['htlc_minimum_msat'], # TODO validate
-            next_per_commitment_point=payload['first_per_commitment_point'],
-            current_per_commitment_point=None,
-        )
         constraints = ChannelConstraints(capacity=funding_sat, is_initiator=False, funding_txn_minimum_depth=min_depth)
         outpoint = Outpoint(funding_txid, funding_idx)
         chan_dict = self.create_channel_storage(channel_id, outpoint, local_config, remote_config, constraints)
@@ -751,13 +766,6 @@ class Peer(Logger):
         chan.open_with_first_pcp(payload['first_per_commitment_point'], remote_sig)
         chan.set_state(ChannelState.OPENING)
         self.lnworker.add_new_channel(chan)
-
-    def validate_remote_reserve(self, remote_reserve_sat: int, dust_limit: int, funding_sat: int) -> int:
-        if remote_reserve_sat < dust_limit:
-            raise Exception('protocol violation: reserve < dust_limit')
-        if remote_reserve_sat > funding_sat/100:
-            raise Exception(f'reserve too high: {remote_reserve_sat}, funding_sat: {funding_sat}')
-        return remote_reserve_sat
 
     async def trigger_force_close(self, channel_id):
         await self.initialized
