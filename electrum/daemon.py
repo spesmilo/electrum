@@ -104,7 +104,7 @@ def request(config: SimpleConfig, endpoint, args=(), timeout=60):
         loop = asyncio.get_event_loop()
         async def request_coroutine():
             async with aiohttp.ClientSession(auth=auth) as session:
-                c = util.myAiohttpClient(session, server_url)
+                c = util.JsonRPCClient(session, server_url)
                 return await c.request(endpoint, *args)
         try:
             fut = asyncio.run_coroutine_threadsafe(request_coroutine(), loop)

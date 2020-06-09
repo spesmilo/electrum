@@ -1370,14 +1370,17 @@ class MySocksProxy(aiorpcx.SOCKSProxy):
         return ret
 
 
-class myAiohttpClient:
+class JsonRPCClient:
 
-    def __init__(self, session, url):
+    def __init__(self, session: aiohttp.ClientSession, url: str):
         self.session = session
         self.url = url
+        self._id = 0
 
     async def request(self, endpoint, *args):
-        data = '{"jsonrpc": "2.0", "id":"0", "method":"%s", "params": %s }' %(endpoint, json.dumps(args))
+        self._id += 1
+        data = ('{"jsonrpc": "2.0", "id":"%d", "method": "%s", "params": %s }'
+                % (self._id, endpoint, json.dumps(args)))
         async with self.session.post(self.url, data=data) as resp:
             if resp.status == 200:
                 r = await resp.json()
