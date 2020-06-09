@@ -9,7 +9,9 @@ from electrum.i18n import _
 from electrum.lnchannel import AbstractChannel, PeerState
 from electrum.wallet import Abstract_Wallet
 from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id, LN_MAX_FUNDING_SAT
+from electrum.lnutil import ln_dummy_address
 from electrum.lnworker import LNWallet
+from electrum.transaction import PartialTxOutput
 
 from .util import (MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, WaitingDialog, MONOSPACE_FONT, ColorScheme)
@@ -39,6 +41,7 @@ class SwapDialog(WindowModalDialog):
         vbox = QVBoxLayout(self)
         vbox.addWidget(WWLabel('Swap lightning funds for on-chain funds if you need to increase your receiving capacity. This service is powered by the Boltz backend.'))
         self.send_amount_e = BTCAmountEdit(self.window.get_decimal_point)
+        self.send_amount_e.shortcut.connect(self.spend_max)
         self.recv_amount_e = BTCAmountEdit(self.window.get_decimal_point)
         self.send_button = QPushButton('')
         self.recv_button = QPushButton('')
@@ -54,17 +57,17 @@ class SwapDialog(WindowModalDialog):
         fee_combo = FeeComboBox(fee_slider)
         fee_slider.update()
         self.fee_label = QLabel()
-        self.percentage_label = QLabel()
+        self.server_fee_label = QLabel()
         h = QGridLayout()
-        h.addWidget(QLabel(_('You send')+':'), 2, 0)
-        h.addWidget(self.send_amount_e, 2, 1)
-        h.addWidget(self.send_button, 2, 2)
-        h.addWidget(QLabel(_('You receive')+':'), 3, 0)
-        h.addWidget(self.recv_amount_e, 3, 1)
-        h.addWidget(self.recv_button, 3, 2)
-        h.addWidget(QLabel(_('Swap fee')+':'), 4, 0)
-        h.addWidget(self.percentage_label, 4, 1)
-        h.addWidget(QLabel(_('Mining fees')+':'), 5, 0)
+        h.addWidget(QLabel(_('You send')+':'), 1, 0)
+        h.addWidget(self.send_amount_e, 1, 1)
+        h.addWidget(self.send_button, 1, 2)
+        h.addWidget(QLabel(_('You receive')+':'), 2, 0)
+        h.addWidget(self.recv_amount_e, 2, 1)
+        h.addWidget(self.recv_button, 2, 2)
+        h.addWidget(QLabel(_('Server fee')+':'), 4, 0)
+        h.addWidget(self.server_fee_label, 4, 1)
+        h.addWidget(QLabel(_('Mining fee')+':'), 5, 0)
         h.addWidget(self.fee_label, 5, 1)
         h.addWidget(fee_slider, 6, 1)
         h.addWidget(fee_combo, 6, 2)
@@ -95,6 +98,13 @@ class SwapDialog(WindowModalDialog):
         self.recv_amount_e.setAmount(None)
         self.update()
 
+    def spend_max(self):
+        if not self.is_reverse:
+            self.update_tx('!')
+            if self.tx:
+                txo = self.tx.outputs()[0]
+                self.send_amount_e.setAmount(txo.value)
+
     def on_send_edited(self):
         if self.send_amount_e.follows:
             return
@@ -108,6 +118,7 @@ class SwapDialog(WindowModalDialog):
         self.recv_amount_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
         self.recv_amount_e.follows = False
         self.send_follows = False
+        self.update_fee()
 
     def on_recv_edited(self):
         if self.recv_amount_e.follows:
@@ -122,14 +133,27 @@ class SwapDialog(WindowModalDialog):
         self.send_amount_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
         self.send_amount_e.follows = False
         self.send_follows = True
+        self.update_fee()
 
     def update(self):
         sm = self.swap_manager
         self.send_button.setIcon(read_QIcon("lightning.png" if self.is_reverse else "bitcoin.png"))
         self.recv_button.setIcon(read_QIcon("lightning.png" if not self.is_reverse else "bitcoin.png"))
-        fee = sm.lockup_fee + sm.get_claim_fee() if self.is_reverse else sm.normal_fee
-        self.fee_label.setText(self.window.format_amount(fee) + ' ' + self.window.base_unit())
-        self.percentage_label.setText('%.2f'%sm.percentage + '%')
+        server_mining_fee = sm.lockup_fee if self.is_reverse else sm.normal_fee
+        server_fee_str = '%.2f'%sm.percentage + '%  +  '  + self.window.format_amount(server_mining_fee) + ' ' + self.window.base_unit()
+        self.server_fee_label.setText(server_fee_str)
+        self.update_fee()
+
+    def update_fee(self):
+        if self.is_reverse:
+            sm = self.swap_manager
+            fee = sm.get_claim_fee()
+        else:
+            onchain_amount = self.send_amount_e.get_amount()
+            self.update_tx(onchain_amount)
+            fee = self.tx.get_fee() if self.tx else None
+        fee_text = self.window.format_amount(fee) + ' ' + self.window.base_unit() if fee else ''
+        self.fee_label.setText(fee_text)
 
     def run(self):
         self.window.run_coroutine_from_thread(self.swap_manager.get_pairs(), lambda x: self.update())
@@ -152,6 +176,16 @@ class SwapDialog(WindowModalDialog):
                     return
             self.window.protect(self.do_normal_swap, (lightning_amount, onchain_amount))
 
+    def update_tx(self, onchain_amount):
+        if onchain_amount is None:
+            self.tx = None
+            return
+        outputs = [PartialTxOutput.from_address_and_value(ln_dummy_address(), onchain_amount)]
+        coins = self.window.get_coins()
+        self.tx = self.window.wallet.make_unsigned_transaction(
+            coins=coins,
+            outputs=outputs)
+
     def do_normal_swap(self, lightning_amount, onchain_amount, password):
-        coro = self.swap_manager.normal_swap(lightning_amount, onchain_amount, password)
+        coro = self.swap_manager.normal_swap(lightning_amount, onchain_amount, password, tx=self.tx)
         self.window.run_coroutine_from_thread(coro)

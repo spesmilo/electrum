@@ -10,7 +10,7 @@ from .bitcoin import address_to_script, script_to_p2wsh, redeem_script_to_addres
 from .transaction import TxOutpoint, PartialTxInput, PartialTxOutput, PartialTransaction, construct_witness
 from .transaction import script_GetOp, match_script_against_template, OPPushDataGeneric, OPPushDataPubkey
 from .util import log_exceptions
-from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY
+from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY, ln_dummy_address
 from .bitcoin import dust_threshold
 from .logging import Logger
 from .lnutil import hex_to_bytes
@@ -143,7 +143,10 @@ class SwapManager(Logger):
             tx = create_claim_tx(txin, swap.redeem_script, preimage, swap.privkey, address, amount_sat, swap.locktime)
             await self.network.broadcast_transaction(tx)
             # save txid
-            swap.spending_txid = tx.txid()
+            if swap.is_reverse:
+                swap.spending_txid = tx.txid()
+            else:
+                self.wallet.setlabel(tx.txid(), 'Swap refund')
 
     def get_claim_fee(self):
         return self.lnwatcher.config.estimate_fee(136, allow_fallback_to_static_rates=True)
@@ -156,12 +159,12 @@ class SwapManager(Logger):
         self.lnwatcher.add_callback(swap.lockup_address, callback)
 
     @log_exceptions
-    async def normal_swap(self, lightning_amount, expected_onchain_amount, password):
+    async def normal_swap(self, lightning_amount, expected_onchain_amount, password, *, tx=None):
         privkey = os.urandom(32)
         pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
         key = await self.lnworker._add_request_coro(lightning_amount, 'swap', expiry=3600*24)
         request = self.wallet.get_request(key)
-        invoice = request['invoice']
+        invoice = request.invoice
         lnaddr = self.lnworker._check_invoice(invoice, lightning_amount)
         payment_hash = lnaddr.paymenthash
         preimage = self.lnworker.get_preimage(payment_hash)
@@ -192,13 +195,20 @@ class SwapManager(Logger):
         assert hash_160(preimage) == parsed_script[1][1]
         assert pubkey == parsed_script[9][1]
         assert locktime == int.from_bytes(parsed_script[6][1], byteorder='little')
-        # check that onchain_amount is what was announced
+        # check that onchain_amount is not more than what we estimated
         assert onchain_amount <= expected_onchain_amount, (onchain_amount, expected_onchain_amount)
         # verify that they are not locking up funds for more than a day
         assert locktime - self.network.get_local_height() < 144
         # create funding tx
-        outputs = [PartialTxOutput.from_address_and_value(lockup_address, onchain_amount)]
-        tx = self.wallet.create_transaction(outputs=outputs, rbf=False, password=password)
+        funding_output = PartialTxOutput.from_address_and_value(lockup_address, expected_onchain_amount)
+        if tx is None:
+            tx = self.wallet.create_transaction(outputs=[funding_output], rbf=False, password=password)
+        else:
+            dummy_output = PartialTxOutput.from_address_and_value(ln_dummy_address(), expected_onchain_amount)
+            tx.outputs().remove(dummy_output)
+            tx.add_outputs([funding_output])
+            tx.set_rbf(False)
+            self.wallet.sign_transaction(tx, password)
         # save swap data in wallet in case we need a refund
         swap = SwapData(
             redeem_script = redeem_script,
