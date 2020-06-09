@@ -40,7 +40,7 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      LOCAL, REMOTE, HTLCOwner, generate_keypair, LnKeyFamily,
                      ln_compare_features, privkey_to_pubkey, MIN_FINAL_CLTV_EXPIRY_ACCEPTED,
                      LightningPeerConnectionClosed, HandshakeFailed, NotFoundChanAnnouncementForUpdate,
-                     RemoteMisbehaving, DEFAULT_TO_SELF_DELAY,
+                     RemoteMisbehaving,
                      NBLOCK_OUR_CLTV_EXPIRY_DELTA, format_short_channel_id, ShortChannelID,
                      IncompatibleLightningFeatures, derive_payment_secret_from_payment_preimage,
                      LN_MAX_FUNDING_SAT, calc_fees_for_commitment_tx)
@@ -503,7 +503,7 @@ class Peer(Logger):
         local_config = LocalConfig.from_seed(
             channel_seed=channel_seed,
             static_remotekey=static_remotekey,
-            to_self_delay=DEFAULT_TO_SELF_DELAY,
+            to_self_delay=self.network.config.get('lightning_to_self_delay', 7 * 144),
             dust_limit_sat=bitcoin.DUST_LIMIT_DEFAULT_SAT_LEGACY,
             max_htlc_value_in_flight_msat=funding_sat * 1000,
             max_accepted_htlcs=5,

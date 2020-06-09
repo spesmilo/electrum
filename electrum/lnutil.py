@@ -282,8 +282,6 @@ class NotFoundChanAnnouncementForUpdate(Exception): pass
 class PaymentFailure(UserFacingException): pass
 
 # TODO make some of these values configurable?
-DEFAULT_TO_SELF_DELAY = 7 * 144
-
 REDEEM_AFTER_DOUBLE_SPENT_DELAY = 30
 
 CHANNEL_OPENING_TIMEOUT = 24*60*60
