@@ -37,11 +37,8 @@ from concurrent import futures
 
 import aiohttp
 from aiohttp import web, client_exceptions
-import jsonrpcclient
-import jsonrpcserver
-from jsonrpcserver import response
-from jsonrpcclient.clients.aiohttp_client import AiohttpClient
 from aiorpcx import TaskGroup
+import json
 
 from . import util
 from .network import Network
@@ -107,10 +104,8 @@ def request(config: SimpleConfig, endpoint, args=(), timeout=60):
         loop = asyncio.get_event_loop()
         async def request_coroutine():
             async with aiohttp.ClientSession(auth=auth) as session:
-                server = AiohttpClient(session, server_url, timeout=timeout)
-                f = getattr(server, endpoint)
-                response = await f(*args)
-                return response.data.result
+                c = util.myAiohttpClient(session, server_url)
+                return await c.request(endpoint, *args)
         try:
             fut = asyncio.run_coroutine_threadsafe(request_coroutine(), loop)
             return fut.result(timeout=timeout)
@@ -184,16 +179,22 @@ class AuthenticatedServer(Logger):
                                     text='Unauthorized', status=401)
             except AuthenticationCredentialsInvalid:
                 return web.Response(text='Forbidden', status=403)
-        request = await request.text()
-        response = await jsonrpcserver.async_dispatch(request, methods=self.methods)
-        if isinstance(response, jsonrpcserver.response.ExceptionResponse):
-            self.logger.error(f"error handling request: {request}", exc_info=response.exc)
-            # this exposes the error message to the client
-            response.message = str(response.exc)
-        if response.wanted:
-            return web.json_response(response.deserialized(), status=response.http_status)
-        else:
-            return web.Response()
+        try:
+            request = await request.text()
+            request = json.loads(request)
+            method = request['method']
+            _id = request['id']
+            params = request.get('params', [])
+            f = getattr(self, method)
+            assert f in self.methods
+        except:
+            return web.Response(text='Invalid Request', status=500)
+        response = {'id':_id}
+        try:
+            response['result'] = await f(*params)
+        except BaseException as e:
+            response['error'] = str(e)
+        return web.json_response(response)
 
 
 class CommandsServer(AuthenticatedServer):
@@ -208,7 +209,7 @@ class CommandsServer(AuthenticatedServer):
         self.port = self.config.get('rpcport', 0)
         self.app = web.Application()
         self.app.router.add_post("/", self.handle)
-        self.methods = jsonrpcserver.methods.Methods()
+        self.methods = set()
         self.methods.add(self.ping)
         self.methods.add(self.gui)
         self.cmd_runner = Commands(config=self.config, network=self.daemon.network, daemon=self.daemon)
@@ -276,7 +277,7 @@ class WatchTowerServer(AuthenticatedServer):
         self.lnwatcher = network.local_watchtower
         self.app = web.Application()
         self.app.router.add_post("/", self.handle)
-        self.methods = jsonrpcserver.methods.Methods()
+        self.methods = set()
         self.methods.add(self.get_ctn)
         self.methods.add(self.add_sweep_tx)
 
