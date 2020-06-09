@@ -10,6 +10,7 @@ import time
 from typing import Optional, Sequence, Tuple, List, Dict, TYPE_CHECKING, NamedTuple, Union, Mapping
 import threading
 import socket
+import aiohttp
 import json
 from datetime import datetime, timezone
 from functools import partial
@@ -25,7 +26,7 @@ from . import constants, util
 from . import keystore
 from .util import profiler
 from .invoices import PR_TYPE_LN, PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING, LNInvoice, LN_EXPIRY_NEVER
-from .util import NetworkRetryManager
+from .util import NetworkRetryManager, JsonRPCClient
 from .lnutil import LN_MAX_FUNDING_SAT
 from .keystore import BIP32_KeyStore
 from .bitcoin import COIN
@@ -525,12 +526,6 @@ class LNWallet(LNWorker):
     @ignore_exceptions
     @log_exceptions
     async def sync_with_remote_watchtower(self):
-        import aiohttp
-        from jsonrpcclient.clients.aiohttp_client import AiohttpClient
-        class myAiohttpClient(AiohttpClient):
-            async def request(self, *args, **kwargs):
-                r = await super().request(*args, **kwargs)
-                return r.data.result
         while True:
             await asyncio.sleep(5)
             watchtower_url = self.config.get('watchtower_url')
@@ -538,7 +533,9 @@ class LNWallet(LNWorker):
                 continue
             try:
                 async with make_aiohttp_session(proxy=self.network.proxy) as session:
-                    watchtower = myAiohttpClient(session, watchtower_url)
+                    watchtower = JsonRPCClient(session, watchtower_url)
+                    watchtower.add_method('get_ctn')
+                    watchtower.add_method('add_sweep_tx')
                     for chan in self.channels.values():
                         await self.sync_channel_with_watchtower(chan, watchtower)
             except aiohttp.client_exceptions.ClientConnectorError:

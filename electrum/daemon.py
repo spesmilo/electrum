@@ -29,18 +29,15 @@ import time
 import traceback
 import sys
 import threading
-from typing import Dict, Optional, Tuple, Iterable
+from typing import Dict, Optional, Tuple, Iterable, Callable, Union, Sequence, Mapping
 from base64 import b64decode, b64encode
 from collections import defaultdict
 import concurrent
 from concurrent import futures
+import json
 
 import aiohttp
 from aiohttp import web, client_exceptions
-import jsonrpcclient
-import jsonrpcserver
-from jsonrpcserver import response
-from jsonrpcclient.clients.aiohttp_client import AiohttpClient
 from aiorpcx import TaskGroup
 
 from . import util
@@ -107,10 +104,8 @@ def request(config: SimpleConfig, endpoint, args=(), timeout=60):
         loop = asyncio.get_event_loop()
         async def request_coroutine():
             async with aiohttp.ClientSession(auth=auth) as session:
-                server = AiohttpClient(session, server_url, timeout=timeout)
-                f = getattr(server, endpoint)
-                response = await f(*args)
-                return response.data.result
+                c = util.JsonRPCClient(session, server_url)
+                return await c.request(endpoint, *args)
         try:
             fut = asyncio.run_coroutine_threadsafe(request_coroutine(), loop)
             return fut.result(timeout=timeout)
@@ -156,6 +151,11 @@ class AuthenticatedServer(Logger):
         self.rpc_user = rpc_user
         self.rpc_password = rpc_password
         self.auth_lock = asyncio.Lock()
+        self._methods = {}  # type: Dict[str, Callable]
+
+    def register_method(self, f):
+        assert f.__name__ not in self._methods, f"name collision for {f.__name__}"
+        self._methods[f.__name__] = f
 
     async def authenticate(self, headers):
         if self.rpc_password == '':
@@ -184,16 +184,28 @@ class AuthenticatedServer(Logger):
                                     text='Unauthorized', status=401)
             except AuthenticationCredentialsInvalid:
                 return web.Response(text='Forbidden', status=403)
-        request = await request.text()
-        response = await jsonrpcserver.async_dispatch(request, methods=self.methods)
-        if isinstance(response, jsonrpcserver.response.ExceptionResponse):
-            self.logger.error(f"error handling request: {request}", exc_info=response.exc)
-            # this exposes the error message to the client
-            response.message = str(response.exc)
-        if response.wanted:
-            return web.json_response(response.deserialized(), status=response.http_status)
-        else:
-            return web.Response()
+        try:
+            request = await request.text()
+            request = json.loads(request)
+            method = request['method']
+            _id = request['id']
+            params = request.get('params', [])  # type: Union[Sequence, Mapping]
+            if method not in self._methods:
+                raise Exception(f"attempting to use unregistered method: {method}")
+            f = self._methods[method]
+        except Exception as e:
+            self.logger.exception("invalid request")
+            return web.Response(text='Invalid Request', status=500)
+        response = {'id': _id}
+        try:
+            if isinstance(params, dict):
+                response['result'] = await f(**params)
+            else:
+                response['result'] = await f(*params)
+        except BaseException as e:
+            self.logger.exception("internal error while executing RPC")
+            response['error'] = str(e)
+        return web.json_response(response)
 
 
 class CommandsServer(AuthenticatedServer):
@@ -208,13 +220,12 @@ class CommandsServer(AuthenticatedServer):
         self.port = self.config.get('rpcport', 0)
         self.app = web.Application()
         self.app.router.add_post("/", self.handle)
-        self.methods = jsonrpcserver.methods.Methods()
-        self.methods.add(self.ping)
-        self.methods.add(self.gui)
+        self.register_method(self.ping)
+        self.register_method(self.gui)
         self.cmd_runner = Commands(config=self.config, network=self.daemon.network, daemon=self.daemon)
         for cmdname in known_commands:
-            self.methods.add(getattr(self.cmd_runner, cmdname))
-        self.methods.add(self.run_cmdline)
+            self.register_method(getattr(self.cmd_runner, cmdname))
+        self.register_method(self.run_cmdline)
 
     async def run(self):
         self.runner = web.AppRunner(self.app)
@@ -276,9 +287,8 @@ class WatchTowerServer(AuthenticatedServer):
         self.lnwatcher = network.local_watchtower
         self.app = web.Application()
         self.app.router.add_post("/", self.handle)
-        self.methods = jsonrpcserver.methods.Methods()
-        self.methods.add(self.get_ctn)
-        self.methods.add(self.add_sweep_tx)
+        self.register_method(self.get_ctn)
+        self.register_method(self.add_sweep_tx)
 
     async def run(self):
         self.runner = web.AppRunner(self.app)
