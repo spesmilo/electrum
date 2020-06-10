@@ -1056,7 +1056,7 @@ class Channel(AbstractChannel):
         receiver = subject.inverted()
         initiator = LOCAL if self.constraints.is_initiator else REMOTE  # the initiator/funder pays on-chain fees
 
-        def consider_ctx(*, ctx_owner: HTLCOwner) -> int:
+        def consider_ctx(*, ctx_owner: HTLCOwner, is_htlc_dust: bool) -> int:
             ctn = self.get_next_ctn(ctx_owner)
             sender_balance_msat = self.balance_minus_outgoing_htlcs(whose=sender, ctx_owner=ctx_owner, ctn=ctn)
             receiver_balance_msat = self.balance_minus_outgoing_htlcs(whose=receiver, ctx_owner=ctx_owner, ctn=ctn)
@@ -1074,21 +1074,27 @@ class Channel(AbstractChannel):
             htlc_trim_func = received_htlc_trim_threshold_sat if ctx_owner == receiver else offered_htlc_trim_threshold_sat
             htlc_trim_threshold_msat = htlc_trim_func(dust_limit_sat=self.config[ctx_owner].dust_limit_sat, feerate=feerate) * 1000
             max_send_msat = sender_balance_msat - sender_reserve_msat - ctx_fees_msat[sender]
-            if max_send_msat < htlc_trim_threshold_msat:
-                # there will be no corresponding HTLC output
-                return max_send_msat
-            if sender == initiator:
-                max_send_after_htlc_fee_msat = max_send_msat - htlc_fee_msat
-                max_send_msat = max(htlc_trim_threshold_msat - 1, max_send_after_htlc_fee_msat)
-                return max_send_msat
+            if is_htlc_dust:
+                return min(max_send_msat, htlc_trim_threshold_msat - 1)
             else:
-                # the receiver is the initiator, so they need to be able to pay tx fees
-                if receiver_balance_msat - receiver_reserve_msat - ctx_fees_msat[receiver] - htlc_fee_msat < 0:
-                    max_send_msat = htlc_trim_threshold_msat - 1
-                return max_send_msat
+                if sender == initiator:
+                    return max_send_msat - htlc_fee_msat
+                else:
+                    # the receiver is the initiator, so they need to be able to pay tx fees
+                    if receiver_balance_msat - receiver_reserve_msat - ctx_fees_msat[receiver] - htlc_fee_msat < 0:
+                        return 0
+                    return max_send_msat
 
-        max_send_msat = min(consider_ctx(ctx_owner=receiver),
-                            consider_ctx(ctx_owner=sender))
+        max_send_msat = min(
+                            max(
+                                consider_ctx(ctx_owner=receiver, is_htlc_dust=True),
+                                consider_ctx(ctx_owner=receiver, is_htlc_dust=False),
+                            ),
+                            max(
+                                consider_ctx(ctx_owner=sender, is_htlc_dust=True),
+                                consider_ctx(ctx_owner=sender, is_htlc_dust=False),
+                            ),
+        )
         max_send_msat = max(max_send_msat, 0)
         return max_send_msat
 
