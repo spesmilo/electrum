@@ -1073,7 +1073,16 @@ class Channel(AbstractChannel):
             htlc_fee_msat = fee_for_htlc_output(feerate=feerate)
             htlc_trim_func = received_htlc_trim_threshold_sat if ctx_owner == receiver else offered_htlc_trim_threshold_sat
             htlc_trim_threshold_msat = htlc_trim_func(dust_limit_sat=self.config[ctx_owner].dust_limit_sat, feerate=feerate) * 1000
-            max_send_msat = sender_balance_msat - sender_reserve_msat - ctx_fees_msat[sender]
+            if sender == initiator == LOCAL:  # see https://github.com/lightningnetwork/lightning-rfc/pull/740
+                fee_spike_buffer = calc_fees_for_commitment_tx(
+                    num_htlcs=num_htlcs_in_ctx + int(not is_htlc_dust) + 1,
+                    feerate=2 * feerate,
+                    is_local_initiator=self.constraints.is_initiator,
+                    round_to_sat=False,
+                )[sender]
+                max_send_msat = sender_balance_msat - sender_reserve_msat - fee_spike_buffer
+            else:
+                max_send_msat = sender_balance_msat - sender_reserve_msat - ctx_fees_msat[sender]
             if is_htlc_dust:
                 return min(max_send_msat, htlc_trim_threshold_msat - 1)
             else:
