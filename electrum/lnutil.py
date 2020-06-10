@@ -73,13 +73,13 @@ class Config(StoredObject):
     htlc_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
     delayed_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
     revocation_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
-    to_self_delay = attr.ib(type=int)
-    dust_limit_sat = attr.ib(type=int)
-    max_htlc_value_in_flight_msat = attr.ib(type=int)
-    max_accepted_htlcs = attr.ib(type=int)
+    to_self_delay = attr.ib(type=int)  # applies to OTHER ctx
+    dust_limit_sat = attr.ib(type=int)  # applies to SAME ctx
+    max_htlc_value_in_flight_msat = attr.ib(type=int)  # max val of INCOMING htlcs
+    max_accepted_htlcs = attr.ib(type=int)  # max num of INCOMING htlcs
     initial_msat = attr.ib(type=int)
-    reserve_sat = attr.ib(type=int)
-    htlc_minimum_msat = attr.ib(type=int)
+    reserve_sat = attr.ib(type=int)  # applies to OTHER ctx
+    htlc_minimum_msat = attr.ib(type=int)  # smallest value for INCOMING htlc
 
     def validate_params(self, *, funding_sat: int) -> None:
         for key in (
@@ -101,6 +101,8 @@ class Config(StoredObject):
             raise Exception(f'reserve too high: {self.reserve_sat}, funding_sat: {funding_sat}')
         if self.htlc_minimum_msat > 1_000:
             raise Exception(f"htlc_minimum_msat too high: {self.htlc_minimum_msat} msat")
+        if self.htlc_minimum_msat < 1:
+            raise Exception(f"htlc_minimum_msat too low: {self.htlc_minimum_msat} msat")
         if self.max_accepted_htlcs < 1:
             raise Exception(f"max_accepted_htlcs too low: {self.max_accepted_htlcs}")
         if self.max_accepted_htlcs > 483:
