@@ -79,9 +79,10 @@ if [[ $1 == "init" ]]; then
     $agent -o init_lightning
     $agent setconfig --offline log_to_file True
     $agent setconfig --offline server 127.0.0.1:51001:t
+    $agent setconfig --offline lightning_to_self_delay 144
     # alice is funded, bob is listening
     if [[ $2 == "bob" ]]; then
-	$bob setconfig --offline lightning_listen localhost:9735
+        $bob setconfig --offline lightning_listen localhost:9735
     else
         echo "funding $2"
         $bitcoin_cli sendtoaddress $($agent getunusedaddress -o) 1

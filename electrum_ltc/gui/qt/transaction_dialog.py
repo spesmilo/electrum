@@ -211,9 +211,10 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             self.tx.deserialize()
         except BaseException as e:
             raise SerializationError(e)
-        # if the wallet can populate the inputs with more info, do it now.
-        # as a result, e.g. we might learn an imported address tx is segwit,
-        # or that a beyond-gap-limit address is is_mine
+        # If the wallet can populate the inputs with more info, do it now.
+        # As a result, e.g. we might learn an imported address tx is segwit,
+        # or that a beyond-gap-limit address is is_mine.
+        # note: this might fetch prev txs over the network.
         tx.add_info_from_wallet(self.wallet)
 
     def do_broadcast(self):
@@ -479,8 +480,9 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
                 fee_str += ' - ' + _('Warning') + ': ' + _("high fee") + '!'
         if isinstance(self.tx, PartialTransaction):
             risk_of_burning_coins = (can_sign and fee is not None
-                                     and self.tx.is_there_risk_of_burning_coins_as_fees())
-            self.fee_warning_icon.setVisible(risk_of_burning_coins)
+                                     and self.wallet.get_warning_for_risk_of_burning_coins_as_fees(self.tx))
+            self.fee_warning_icon.setToolTip(str(risk_of_burning_coins))
+            self.fee_warning_icon.setVisible(bool(risk_of_burning_coins))
         self.fee_label.setText(fee_str)
         self.size_label.setText(size_str)
         if ln_amount is None:
@@ -596,10 +598,6 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         pixmap_size = round(2 * char_width_in_lineedit())
         pixmap = pixmap.scaled(pixmap_size, pixmap_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
         self.fee_warning_icon.setPixmap(pixmap)
-        self.fee_warning_icon.setToolTip(_("Warning") + ": "
-                                         + _("The fee could not be verified. Signing non-segwit inputs is risky:\n"
-                                             "if this transaction was maliciously modified before you sign,\n"
-                                             "you might end up paying a higher mining fee than displayed."))
         self.fee_warning_icon.setVisible(False)
         fee_hbox.addWidget(self.fee_warning_icon)
         fee_hbox.addStretch(1)
