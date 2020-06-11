@@ -122,10 +122,10 @@ if [[ $1 == "forwarding" ]]; then
     if [[ $carol_balance != 110000 ]]; then
         exit 1
     fi
-   chan1=$($alice list_channels | jq -r ".[0].channel_point")
-   chan2=$($carol list_channels | jq -r ".[0].channel_point")
-   $alice close_channel $chan1
-   $carol close_channel $chan2
+    chan1=$($alice list_channels | jq -r ".[0].channel_point")
+    chan2=$($carol list_channels | jq -r ".[0].channel_point")
+    $alice close_channel $chan1
+    $carol close_channel $chan2
 fi
 
 # alice sends two payments, then broadcast ctx after first payment.
