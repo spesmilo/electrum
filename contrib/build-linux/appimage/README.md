@@ -61,6 +61,11 @@ diff sha256sum1 sha256sum2 > d
 cat d
 ```
 
+For file metadata, e.g. timestamps:
+```
+rsync -n -a -i --delete squashfs-root1/ squashfs-root2/
+```
+
 Useful binary comparison tools:
 - vbindiff
 - diffoscope

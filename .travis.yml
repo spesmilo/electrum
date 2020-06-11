@@ -99,6 +99,17 @@ jobs:
       script:
         - sudo docker run --name electrum-appimage-builder-cont -v $PWD:/opt/electrum --rm --workdir /opt/electrum/contrib/build-linux/appimage electrum-appimage-builder-img ./build.sh
       after_success: true
+    - if: branch = master
+      name: "tarball build"
+      language: c
+      python: false
+      services:
+        - docker
+      install:
+        - sudo docker build --no-cache -t electrum-sdist-builder-img ./contrib/build-linux/sdist/
+      script:
+        - sudo docker run --name electrum-sdist-builder-cont -v $PWD:/opt/electrum --rm --workdir /opt/electrum/contrib/build-linux/sdist electrum-sdist-builder-img ./build.sh
+      after_success: true
     - stage: release check
       install:
           - git fetch --all --tags
