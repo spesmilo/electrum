@@ -30,6 +30,7 @@ folder.
     ```
     $ FRESH_CLONE=contrib/build-linux/sdist/fresh_clone && \
         sudo rm -rf $FRESH_CLONE && \
+        umask 0022 && \
         mkdir -p $FRESH_CLONE && \
         cd $FRESH_CLONE  && \
         git clone https://github.com/spesmilo/electrum.git && \
