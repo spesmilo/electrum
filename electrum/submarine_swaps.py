@@ -68,6 +68,7 @@ class SwapData(StoredObject):
     lightning_amount = attr.ib(type=int)
     redeem_script = attr.ib(type=bytes, converter=hex_to_bytes)
     preimage = attr.ib(type=bytes, converter=hex_to_bytes)
+    fee_preimage = attr.ib(type=bytes, converter=hex_to_bytes)
     privkey = attr.ib(type=bytes, converter=hex_to_bytes)
     lockup_address = attr.ib(type=str)
     funding_txid = attr.ib(type=str)
@@ -108,6 +109,7 @@ class SwapManager(Logger):
         self.lnworker = wallet.lnworker
         self.lnwatcher = self.wallet.lnworker.lnwatcher
         self.swaps = self.wallet.db.get_dict('submarine_swaps')
+        self.prepayments = {}
         for swap in self.swaps.values():
             if swap.is_redeemed:
                 continue
@@ -153,6 +155,11 @@ class SwapManager(Logger):
 
     def get_swap(self, payment_hash):
         return self.swaps.get(payment_hash.hex())
+
+    def get_swap_by_prepay(self, prepay_payment_hash):
+        payment_hash = self.prepayments.get(prepay_payment_hash)
+        if payment_hash:
+            return self.swaps.get(payment_hash.hex())
 
     def add_lnwatcher_callback(self, swap):
         callback = lambda: self._claim_swap(swap)
@@ -275,6 +282,9 @@ class SwapManager(Logger):
         if fee_invoice:
             fee_lnaddr = self.lnworker._check_invoice(fee_invoice)
             invoice_amount += fee_lnaddr.get_amount_sat()
+            fee_preimage = fee_lnaddr.paymenthash
+        else:
+            fee_preimage = None
         assert int(invoice_amount) == amount_sat, (invoice_amount, amount_sat)
         # save swap data to wallet file
         swap = SwapData(
@@ -282,7 +292,7 @@ class SwapManager(Logger):
             locktime = locktime,
             privkey = privkey,
             preimage = preimage,
-            # save the rhash of the mining fee invoice
+            fee_preimage = fee_preimage,
             lockup_address = lockup_address,
             onchain_amount = onchain_amount,
             lightning_amount = amount_sat,
