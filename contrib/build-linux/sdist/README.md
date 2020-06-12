@@ -1,7 +1,8 @@
 Source tarballs
 ===============
 
-✗ _This script does not produce reproducible output (yet!)._
+✓ _This file should be reproducible, meaning you should be able to generate
+   distributables that match the official releases._
 
 This assumes an Ubuntu (x86_64) host, but it should not be too hard to adapt to another
 similar system. The docker commands should be executed in the project's root
