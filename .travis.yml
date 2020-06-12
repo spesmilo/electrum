@@ -105,9 +105,18 @@ jobs:
       python: false
       services:
         - docker
+      before_install:
+        # hack: travis already cloned the repo, but we re-clone now, as we need to have umask set BEFORE cloning
+        - umask 0022
+        - mkdir fresh_clone && cd fresh_clone
+        - git clone https://github.com/$TRAVIS_REPO_SLUG.git && cd electrum
+        - if [ "$TRAVIS_PULL_REQUEST" != "false" ]; then git fetch origin pull/$TRAVIS_PULL_REQUEST/merge; fi
+        - git checkout $TRAVIS_COMMIT
+        - echo "Second git clone ready at $PWD"
       install:
         - sudo docker build --no-cache -t electrum-sdist-builder-img ./contrib/build-linux/sdist/
       script:
+        - echo "Building sdist at $PWD"
         - sudo docker run --name electrum-sdist-builder-cont -v $PWD:/opt/electrum --rm --workdir /opt/electrum/contrib/build-linux/sdist electrum-sdist-builder-img ./build.sh
       after_success: true
     - stage: release check
