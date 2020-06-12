@@ -65,12 +65,12 @@ jobs:
       install:
         - pip install requests && ./contrib/pull_locale
         - ./contrib/make_packages
-        - sudo docker build --no-cache -t electrum-android-builder-img electrum/gui/kivy/tools
+        - sudo docker build --no-cache -t electrum-android-builder-img contrib/android
       script:
         - sudo chown -R 1000:1000 .
         # Output something every minute or Travis kills the job
         - while sleep 60; do echo "=====[ $SECONDS seconds still running ]====="; done &
-        - sudo docker run -it -u 1000:1000 --rm --name electrum-android-builder-cont --env CI=true -v $PWD:/home/user/wspace/electrum --workdir /home/user/wspace/electrum electrum-android-builder-img ./contrib/make_apk
+        - sudo docker run -it -u 1000:1000 --rm --name electrum-android-builder-cont --env CI=true -v $PWD:/home/user/wspace/electrum --workdir /home/user/wspace/electrum electrum-android-builder-img ./contrib/android/make_apk
         # kill background sleep loop
         - kill %1
         - ls -la bin
