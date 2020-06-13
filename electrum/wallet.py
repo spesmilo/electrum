@@ -184,7 +184,9 @@ def sweep(privkeys, *, network: 'Network', config: 'SimpleConfig',
         locktime = get_locktime_for_new_transaction(network)
 
     tx = PartialTransaction.from_io(inputs, outputs, locktime=locktime, version=tx_version)
-    tx.set_rbf(True)
+    rbf = config.get('use_rbf', True)
+    if rbf:
+        tx.set_rbf(True)
     tx.sign(keypairs)
     return tx
 
