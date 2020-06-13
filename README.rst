@@ -114,7 +114,7 @@ Creating Binaries
 Linux (tarball)
 ---------------
 
-See :code:`contrib/build-linux/README.md`.
+See :code:`contrib/build-linux/sdist/README.md`.
 
 
 Linux (AppImage)
@@ -138,4 +138,4 @@ See :code:`contrib/build-wine/README.md`.
 Android
 -------
 
-See :code:`electrum_ltc/gui/kivy/Readme.md`.
+See :code:`contrib/android/Readme.md`.

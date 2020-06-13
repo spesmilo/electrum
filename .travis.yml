@@ -65,12 +65,12 @@ jobs:
       install:
         - pip install requests && ./contrib/pull_locale
         - ./contrib/make_packages
-        - sudo docker build --no-cache -t electrum-android-builder-img electrum_ltc/gui/kivy/tools
+        - sudo docker build --no-cache -t electrum-android-builder-img contrib/android
       script:
         - sudo chown -R 1000:1000 .
         # Output something every minute or Travis kills the job
         - while sleep 60; do echo "=====[ $SECONDS seconds still running ]====="; done &
-        - sudo docker run -it -u 1000:1000 --rm --name electrum-android-builder-cont --env CI=true -v $PWD:/home/user/wspace/electrum --workdir /home/user/wspace/electrum electrum-android-builder-img ./contrib/make_apk
+        - sudo docker run -it -u 1000:1000 --rm --name electrum-android-builder-cont --env CI=true -v $PWD:/home/user/wspace/electrum --workdir /home/user/wspace/electrum electrum-android-builder-img ./contrib/android/make_apk
         # kill background sleep loop
         - kill %1
         - ls -la bin
@@ -98,6 +98,26 @@ jobs:
         - sudo docker build --no-cache -t electrum-ltc-appimage-builder-img ./contrib/build-linux/appimage/
       script:
         - sudo docker run --name electrum-ltc-appimage-builder-cont -v $PWD:/opt/electrum-ltc --rm --workdir /opt/electrum-ltc/contrib/build-linux/appimage electrum-ltc-appimage-builder-img ./build.sh
+      after_success: true
+    - if: branch = master
+      name: "tarball build"
+      language: c
+      python: false
+      services:
+        - docker
+      before_install:
+        # hack: travis already cloned the repo, but we re-clone now, as we need to have umask set BEFORE cloning
+        - umask 0022
+        - mkdir fresh_clone && cd fresh_clone
+        - git clone https://github.com/$TRAVIS_REPO_SLUG.git && cd electrum-ltc
+        - if [ "$TRAVIS_PULL_REQUEST" != "false" ]; then git fetch origin pull/$TRAVIS_PULL_REQUEST/merge; fi
+        - git checkout $TRAVIS_COMMIT
+        - echo "Second git clone ready at $PWD"
+      install:
+        - sudo docker build --no-cache -t electrum-sdist-builder-img ./contrib/build-linux/sdist/
+      script:
+        - echo "Building sdist at $PWD"
+        - sudo docker run --name electrum-sdist-builder-cont -v $PWD:/opt/electrum-ltc --rm --workdir /opt/electrum-ltc/contrib/build-linux/sdist electrum-sdist-builder-img ./build.sh
       after_success: true
     - stage: release check
       install:
