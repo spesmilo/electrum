@@ -121,7 +121,7 @@ Creating Binaries
 Linux (tarball)
 ---------------
 
-See :code:`contrib/build-linux/README.md`.
+See :code:`contrib/build-linux/sdist/README.md`.
 
 
 Linux (AppImage)

@@ -2,7 +2,8 @@
 
 set -e
 
-CONTRIB="$(dirname "$(readlink -e "$0")")"
+CONTRIB_SDIST="$(dirname "$(readlink -e "$0")")"
+CONTRIB="$CONTRIB_SDIST"/../..
 ROOT_FOLDER="$CONTRIB"/..
 PACKAGES="$ROOT_FOLDER"/packages/
 LOCALE="$ROOT_FOLDER"/electrum/locale/
@@ -39,5 +40,8 @@ git submodule update --init
     # we could build the kivy atlas potentially?
     #(cd electrum/gui/kivy/; make theming) || echo "building kivy atlas failed! skipping."
 
-    python3 setup.py --quiet sdist --format=zip,gztar
+    find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
+
+    # note: .zip sdists would not be reproducible due to https://bugs.python.org/issue40963
+    TZ=UTC faketime -f '2000-11-11 11:11:11' python3 setup.py --quiet sdist --format=gztar
 )

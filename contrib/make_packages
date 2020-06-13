@@ -6,5 +6,6 @@ test -n "$CONTRIB" -a -d "$CONTRIB" || exit
 rm "$CONTRIB"/../packages/ -r
 
 #Install pure python modules in electrum directory
-python3 -m pip install -r "$CONTRIB"/deterministic-build/requirements.txt -t "$CONTRIB"/../packages
+python3 -m pip install --no-dependencies --no-binary :all: \
+    -r "$CONTRIB"/deterministic-build/requirements.txt -t "$CONTRIB"/../packages
 
