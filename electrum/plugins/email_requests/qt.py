@@ -44,6 +44,7 @@ from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QLineEdit,
 
 from electrum.gui.qt.util import (EnterButton, Buttons, CloseButton, OkButton,
                                   WindowModalDialog, get_parent_main_window)
+from electrum.gui.qt.main_window import ElectrumWindow
 
 from electrum.plugin import BasePlugin, hook
 from electrum.paymentrequest import PaymentRequest
@@ -179,7 +180,7 @@ class Plugin(BasePlugin):
         window = get_parent_main_window(menu)
         menu.addAction(_("Send via e-mail"), lambda: self.send(window, addr))
 
-    def send(self, window, addr):
+    def send(self, window: ElectrumWindow, addr):  # FIXME this is broken
         from electrum import paymentrequest
         r = window.wallet.receive_requests.get(addr)
         message = r.get('memo', '')

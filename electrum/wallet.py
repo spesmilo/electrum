@@ -267,7 +267,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         self.frozen_addresses      = set(db.get('frozen_addresses', []))
         self.frozen_coins          = set(db.get('frozen_coins', []))  # set of txid:vout strings
         self.fiat_value            = db.get_dict('fiat_value')
-        self.receive_requests      = db.get_dict('payment_requests')
+        self.receive_requests      = db.get_dict('payment_requests')  # type: Dict[str, Invoice]
         self.invoices              = db.get_dict('invoices')  # type: Dict[str, Invoice]
         self._reserved_addresses   = set(db.get('reserved_addresses', []))
 
@@ -1624,7 +1624,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 return True, conf
         return False, None
 
-    def get_request_URI(self, req: Invoice):
+    def get_request_URI(self, req: OnchainInvoice) -> str:
         addr = req.get_address()
         message = self.labels.get(addr, '')
         amount = req.amount
@@ -1674,8 +1674,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if x:
             return self.export_request(x)
 
-    def export_request(self, x):
-        key = x.rhash if x.is_lightning() else x.get_address()
+    def export_request(self, x: Invoice) -> Dict[str, Any]:
+        if x.is_lightning():
+            assert isinstance(x, LNInvoice)
+            key = x.rhash
+        else:
+            assert isinstance(x, OnchainInvoice)
+            key = x.get_address()
         status = self.get_request_status(key)
         status_str = x.get_status_str(status)
         is_lightning = x.is_lightning()
@@ -1695,7 +1700,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             if self.lnworker and status == PR_UNPAID:
                 d['can_receive'] = self.lnworker.can_receive_invoice(x)
         else:
-            #key = x.id
             addr = x.get_address()
             paid, conf = self.get_payment_status(addr, x.amount)
             d['address'] = addr
@@ -1715,7 +1719,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 d['bip70_url'] = request_url
         return d
 
-    def export_invoice(self, x):
+    def export_invoice(self, x: Invoice) -> Dict[str, Any]:
         status = self.get_invoice_status(x)
         status_str = x.get_status_str(status)
         is_lightning = x.is_lightning()
@@ -1730,10 +1734,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             'status_str': status_str,
         }
         if is_lightning:
+            assert isinstance(x, LNInvoice)
             d['invoice'] = x.invoice
             if self.lnworker and status == PR_UNPAID:
                 d['can_pay'] = self.lnworker.can_pay_invoice(x)
         else:
+            assert isinstance(x, OnchainInvoice)
             d['outputs'] = [y.to_legacy_tuple() for y in x.outputs]
             if x.bip70:
                 d['bip70'] = x.bip70
@@ -1763,25 +1769,28 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             bip70 = None,
             requestor = None)
 
-    def sign_payment_request(self, key, alias, alias_addr, password):
+    def sign_payment_request(self, key, alias, alias_addr, password):  # FIXME this is broken
         req = self.receive_requests.get(key)
+        assert isinstance(req, OnchainInvoice)
         alias_privkey = self.export_private_key(alias_addr, password)
         pr = paymentrequest.make_unsigned_request(req)
         paymentrequest.sign_request_with_alias(pr, alias, alias_privkey)
+        req.bip70 = pr.raw.hex()
         req['name'] = pr.pki_data
         req['sig'] = bh2u(pr.signature)
         self.receive_requests[key] = req
 
-    def add_payment_request(self, req):
+    def add_payment_request(self, req: Invoice):
         if not req.is_lightning():
+            assert isinstance(req, OnchainInvoice)
             addr = req.get_address()
             if not bitcoin.is_address(addr):
                 raise Exception(_('Invalid Bitcoin address.'))
             if not self.is_mine(addr):
                 raise Exception(_('Address not in wallet.'))
             key = addr
-            message = req.message
         else:
+            assert isinstance(req, LNInvoice)
             key = req.rhash
         message = req.message
         self.receive_requests[key] = req
