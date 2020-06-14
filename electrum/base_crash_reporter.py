@@ -75,7 +75,7 @@ class BaseCrashReporter(Logger):
 
     async def do_post(self, proxy, url, data):
         async with make_aiohttp_session(proxy) as session:
-            async with session.post(url, data=data) as resp:
+            async with session.post(url, data=data, raise_for_status=True) as resp:
                 return await resp.text()
 
     def get_traceback_info(self):
