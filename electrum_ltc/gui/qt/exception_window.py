@@ -117,7 +117,7 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
             self.logger.error('There was a problem with the automatic reporting', exc_info=exc_info)
             self.show_critical(parent=self,
                                msg=(_('There was a problem with the automatic reporting:') + '<br/>' +
-                                    repr(e)[:120] + '<br/>' +
+                                    repr(e)[:120] + '<br/><br/>' +
                                     _("Please report this issue manually") +
                                     f' <a href="{constants.GIT_REPO_ISSUES_URL}">on GitHub</a>.'),
                                rich_text=True)
