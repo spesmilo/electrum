@@ -1641,7 +1641,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         uri = create_bip21_uri(addr, amount, message, extra_query_params=extra_query_params)
         return str(uri)
 
-    def check_expired_status(self, r, status):
+    def check_expired_status(self, r: Invoice, status):
         if r.is_lightning() and r.exp == 0:
             status = PR_EXPIRED  # for BOLT-11 invoices, exp==0 means 0 seconds
         if status == PR_UNPAID and r.exp > 0 and r.time + r.exp < time.time():
