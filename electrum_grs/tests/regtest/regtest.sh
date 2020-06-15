@@ -79,9 +79,10 @@ if [[ $1 == "init" ]]; then
     $agent -o init_lightning
     $agent setconfig --offline log_to_file True
     $agent setconfig --offline server 127.0.0.1:51001:t
+    $agent setconfig --offline lightning_to_self_delay 144
     # alice is funded, bob is listening
     if [[ $2 == "bob" ]]; then
-	$bob setconfig --offline lightning_listen localhost:9735
+        $bob setconfig --offline lightning_listen localhost:9735
     else
         echo "funding $2"
         $groestlcoin_cli sendtoaddress $($agent getunusedaddress -o) 1
@@ -121,10 +122,10 @@ if [[ $1 == "forwarding" ]]; then
     if [[ $carol_balance != 110000 ]]; then
         exit 1
     fi
-   chan1=$($alice list_channels | jq -r ".[0].channel_point")
-   chan2=$($carol list_channels | jq -r ".[0].channel_point")
-   $alice close_channel $chan1
-   $carol close_channel $chan2
+    chan1=$($alice list_channels | jq -r ".[0].channel_point")
+    chan2=$($carol list_channels | jq -r ".[0].channel_point")
+    $alice close_channel $chan1
+    $carol close_channel $chan2
 fi
 
 # alice sends two payments, then broadcast ctx after first payment.

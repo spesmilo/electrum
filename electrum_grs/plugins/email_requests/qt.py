@@ -44,6 +44,7 @@ from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QLineEdit,
 
 from electrum_grs.gui.qt.util import (EnterButton, Buttons, CloseButton, OkButton,
                                   WindowModalDialog, get_parent_main_window)
+from electrum_grs.gui.qt.main_window import ElectrumWindow
 
 from electrum_grs.plugin import BasePlugin, hook
 from electrum_grs.paymentrequest import PaymentRequest
@@ -179,21 +180,24 @@ class Plugin(BasePlugin):
         window = get_parent_main_window(menu)
         menu.addAction(_("Send via e-mail"), lambda: self.send(window, addr))
 
-    def send(self, window, addr):
+    def send(self, window: ElectrumWindow, addr):
         from electrum_grs import paymentrequest
-        r = window.wallet.receive_requests.get(addr)
-        message = r.get('memo', '')
-        if r.get('signature'):
-            pr = paymentrequest.serialize_request(r)
+        req = window.wallet.receive_requests.get(addr)
+        if not isinstance(req, OnchainInvoice):
+            window.show_error("Only on-chain requests are supported.")
+            return
+        message = req.message
+        if req.bip70:
+            payload = bytes.fromhex(req.bip70)
         else:
-            pr = paymentrequest.make_request(self.config, r)
-        if not pr:
+            pr = paymentrequest.make_request(self.config, req)
+            payload = pr.SerializeToString()
+        if not payload:
             return
         recipient, ok = QInputDialog.getText(window, 'Send request', 'Email invoice to:')
         if not ok:
             return
         recipient = str(recipient)
-        payload = pr.SerializeToString()
         self.logger.info(f'sending mail to {recipient}')
         try:
             # FIXME this runs in the GUI thread and blocks it...

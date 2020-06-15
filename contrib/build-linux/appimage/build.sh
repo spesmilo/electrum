@@ -206,13 +206,11 @@ rm -rf "$PYDIR"/site-packages/PyQt5/Qt.so
 
 # these are deleted as they were not deterministic; and are not needed anyway
 find "$APPDIR" -path '*/__pycache__*' -delete
-# note that jsonschema-*.dist-info is needed by that package as it uses 'pkg_resources.get_distribution'
-# also, see https://gitlab.com/python-devs/importlib_metadata/issues/71
-for f in "$PYDIR"/site-packages/jsonschema-*.dist-info; do mv "$f" "$(echo "$f" | sed s/\.dist-info/\.dist-info2/)"; done
+# note that *.dist-info is needed by certain packages.
+# e.g. see https://gitlab.com/python-devs/importlib_metadata/issues/71
 for f in "$PYDIR"/site-packages/importlib_metadata-*.dist-info; do mv "$f" "$(echo "$f" | sed s/\.dist-info/\.dist-info2/)"; done
 rm -rf "$PYDIR"/site-packages/*.dist-info/
 rm -rf "$PYDIR"/site-packages/*.egg-info/
-for f in "$PYDIR"/site-packages/jsonschema-*.dist-info2; do mv "$f" "$(echo "$f" | sed s/\.dist-info2/\.dist-info/)"; done
 for f in "$PYDIR"/site-packages/importlib_metadata-*.dist-info2; do mv "$f" "$(echo "$f" | sed s/\.dist-info2/\.dist-info/)"; done
 
 

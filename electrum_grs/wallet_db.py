@@ -619,7 +619,7 @@ class WalletDB(JsonDB):
                     'type': _type,
                     'message': r.get('message') or r.get('memo', ''),
                     'amount': r.get('amount'),
-                    'exp': r.get('exp', 0),
+                    'exp': r.get('exp') or 0,
                     'time': r.get('time', 0),
                 }
                 if _type == PR_TYPE_ONCHAIN:

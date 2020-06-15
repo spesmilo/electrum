@@ -184,7 +184,9 @@ def sweep(privkeys, *, network: 'Network', config: 'SimpleConfig',
         locktime = get_locktime_for_new_transaction(network)
 
     tx = PartialTransaction.from_io(inputs, outputs, locktime=locktime, version=tx_version)
-    tx.set_rbf(True)
+    rbf = config.get('use_rbf', True)
+    if rbf:
+        tx.set_rbf(True)
     tx.sign(keypairs)
     return tx
 
@@ -265,7 +267,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         self.frozen_addresses      = set(db.get('frozen_addresses', []))
         self.frozen_coins          = set(db.get('frozen_coins', []))  # set of txid:vout strings
         self.fiat_value            = db.get_dict('fiat_value')
-        self.receive_requests      = db.get_dict('payment_requests')
+        self.receive_requests      = db.get_dict('payment_requests')  # type: Dict[str, Invoice]
         self.invoices              = db.get_dict('invoices')  # type: Dict[str, Invoice]
         self._reserved_addresses   = set(db.get('reserved_addresses', []))
 
@@ -1622,7 +1624,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 return True, conf
         return False, None
 
-    def get_request_URI(self, req: Invoice):
+    def get_request_URI(self, req: OnchainInvoice) -> str:
         addr = req.get_address()
         message = self.labels.get(addr, '')
         amount = req.amount
@@ -1639,7 +1641,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         uri = create_bip21_uri(addr, amount, message, extra_query_params=extra_query_params)
         return str(uri)
 
-    def check_expired_status(self, r, status):
+    def check_expired_status(self, r: Invoice, status):
         if r.is_lightning() and r.exp == 0:
             status = PR_EXPIRED  # for BOLT-11 invoices, exp==0 means 0 seconds
         if status == PR_UNPAID and r.exp > 0 and r.time + r.exp < time.time():
@@ -1672,8 +1674,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if x:
             return self.export_request(x)
 
-    def export_request(self, x):
-        key = x.rhash if x.is_lightning() else x.get_address()
+    def export_request(self, x: Invoice) -> Dict[str, Any]:
+        if x.is_lightning():
+            assert isinstance(x, LNInvoice)
+            key = x.rhash
+        else:
+            assert isinstance(x, OnchainInvoice)
+            key = x.get_address()
         status = self.get_request_status(key)
         status_str = x.get_status_str(status)
         is_lightning = x.is_lightning()
@@ -1693,7 +1700,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             if self.lnworker and status == PR_UNPAID:
                 d['can_receive'] = self.lnworker.can_receive_invoice(x)
         else:
-            #key = x.id
             addr = x.get_address()
             paid, conf = self.get_payment_status(addr, x.amount)
             d['address'] = addr
@@ -1713,7 +1719,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 d['bip70_url'] = request_url
         return d
 
-    def export_invoice(self, x):
+    def export_invoice(self, x: Invoice) -> Dict[str, Any]:
         status = self.get_invoice_status(x)
         status_str = x.get_status_str(status)
         is_lightning = x.is_lightning()
@@ -1728,10 +1734,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             'status_str': status_str,
         }
         if is_lightning:
+            assert isinstance(x, LNInvoice)
             d['invoice'] = x.invoice
             if self.lnworker and status == PR_UNPAID:
                 d['can_pay'] = self.lnworker.can_pay_invoice(x)
         else:
+            assert isinstance(x, OnchainInvoice)
             d['outputs'] = [y.to_legacy_tuple() for y in x.outputs]
             if x.bip70:
                 d['bip70'] = x.bip70
@@ -1761,25 +1769,28 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             bip70 = None,
             requestor = None)
 
-    def sign_payment_request(self, key, alias, alias_addr, password):
+    def sign_payment_request(self, key, alias, alias_addr, password):  # FIXME this is broken
         req = self.receive_requests.get(key)
+        assert isinstance(req, OnchainInvoice)
         alias_privkey = self.export_private_key(alias_addr, password)
         pr = paymentrequest.make_unsigned_request(req)
         paymentrequest.sign_request_with_alias(pr, alias, alias_privkey)
+        req.bip70 = pr.raw.hex()
         req['name'] = pr.pki_data
         req['sig'] = bh2u(pr.signature)
         self.receive_requests[key] = req
 
-    def add_payment_request(self, req):
+    def add_payment_request(self, req: Invoice):
         if not req.is_lightning():
+            assert isinstance(req, OnchainInvoice)
             addr = req.get_address()
             if not bitcoin.is_address(addr):
                 raise Exception(_('Invalid Groestlcoin address.'))
             if not self.is_mine(addr):
                 raise Exception(_('Address not in wallet.'))
             key = addr
-            message = req.message
         else:
+            assert isinstance(req, LNInvoice)
             key = req.rhash
         message = req.message
         self.receive_requests[key] = req
@@ -2022,6 +2033,40 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if not unsigned:
             self.sign_transaction(tx, password)
         return tx
+
+    def get_warning_for_risk_of_burning_coins_as_fees(self, tx: 'PartialTransaction') -> Optional[str]:
+        """Returns a warning message if there is risk of burning coins as fees if we sign.
+        Note that if not all inputs are ismine, e.g. coinjoin, the risk is not just about fees.
+
+        Note:
+            - legacy sighash does not commit to any input amounts
+            - BIP-0143 sighash only commits to the *corresponding* input amount
+            - BIP-taproot sighash commits to *all* input amounts
+        """
+        assert isinstance(tx, PartialTransaction)
+        # if we have all full previous txs, we *know* all the input amounts -> fine
+        if all([txin.utxo for txin in tx.inputs()]):
+            return None
+        # a single segwit input -> fine
+        if len(tx.inputs()) == 1 and Transaction.is_segwit_input(tx.inputs()[0]) and tx.inputs()[0].witness_utxo:
+            return None
+        # coinjoin or similar
+        if any([not self.is_mine(txin.address) for txin in tx.inputs()]):
+            return (_("Warning") + ": "
+                    + _("The input amounts could not be verified as the previous transactions are missing.\n"
+                        "The amount of money being spent CANNOT be verified."))
+        # some inputs are legacy
+        if any([not Transaction.is_segwit_input(txin) for txin in tx.inputs()]):
+            return (_("Warning") + ": "
+                    + _("The fee could not be verified. Signing non-segwit inputs is risky:\n"
+                        "if this transaction was maliciously modified before you sign,\n"
+                        "you might end up paying a higher mining fee than displayed."))
+        # all inputs are segwit
+        # https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2017-August/014843.html
+        return (_("Warning") + ": "
+                + _("If you received this transaction from an untrusted device, "
+                    "do not accept to sign it more than once,\n"
+                    "otherwise you could end up paying a different fee."))
 
 
 class Simple_Wallet(Abstract_Wallet):

@@ -312,6 +312,11 @@ def relayfee(network: 'Network' = None) -> int:
     return fee
 
 
+# see https://github.com/bitcoin/bitcoin/blob/a62f0ed64f8bbbdfe6467ac5ce92ef5b5222d1bd/src/policy/policy.cpp#L14
+DUST_LIMIT_DEFAULT_SAT_LEGACY = 546
+DUST_LIMIT_DEFAULT_SAT_SEGWIT = 294
+
+
 def dust_threshold(network: 'Network' = None) -> int:
     """Returns the dust limit in gros."""
     # Change <= dust threshold is added to the tx fee

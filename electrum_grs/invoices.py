@@ -115,7 +115,7 @@ class OnchainInvoice(Invoice):
             id=pr.get_id(),
             time=pr.get_time(),
             exp=pr.get_expiration_date() - pr.get_time(),
-            bip70=pr.raw.hex() if pr else None,
+            bip70=pr.raw.hex(),
             requestor=pr.get_requestor(),
         )
 

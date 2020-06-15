@@ -1953,25 +1953,6 @@ class PartialTransaction(Transaction):
         for txin in self.inputs():
             txin.convert_utxo_to_witness_utxo()
 
-    def is_there_risk_of_burning_coins_as_fees(self) -> bool:
-        """Returns whether there is risk of burning coins as fees if we sign.
-
-        Note:
-            - legacy sighash does not commit to any input amounts
-            - BIP-0143 sighash only commits to the *corresponding* input amount
-            - BIP-taproot sighash commits to *all* input amounts
-        """
-        for txin in self.inputs():
-            # if we have full previous tx, we *know* the input amount
-            if txin.utxo:
-                continue
-            # if we have just the previous output, we only have guarantees if
-            # the sighash commits to this data
-            if txin.witness_utxo and Transaction.is_segwit_input(txin):
-                continue
-            return True
-        return False
-
     def remove_signatures(self):
         for txin in self.inputs():
             txin.part_sigs = {}

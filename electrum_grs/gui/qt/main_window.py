@@ -1159,7 +1159,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def sign_payment_request(self, addr):
         alias = self.config.get('alias')
-        alias_privkey = None
         if alias and self.alias_info:
             alias_addr, alias_name, validated = self.alias_info
             if alias_addr:
@@ -1229,17 +1228,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         else:
             tooltip_text = _("{} copied to clipboard").format(title)
         QToolTip.showText(QCursor.pos(), tooltip_text, self)
-
-    def export_payment_request(self, addr):
-        r = self.wallet.receive_requests.get(addr)
-        pr = paymentrequest.serialize_request(r).SerializeToString()
-        name = r.id + '.bip70'
-        fileName = self.getSaveFileName(_("Select where to save your payment request"), name, "*.bip70")
-        if fileName:
-            with open(fileName, "wb+") as f:
-                f.write(util.to_bytes(pr))
-            self.show_message(_("Request saved successfully"))
-            self.saved = True
 
     def clear_receive_tab(self):
         self.receive_payreq_e.setText('')
