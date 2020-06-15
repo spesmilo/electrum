@@ -639,8 +639,12 @@ class HTLCOwner(IntFlag):
     LOCAL = 1
     REMOTE = -LOCAL
 
-    def inverted(self):
-        return HTLCOwner(-self)
+    def inverted(self) -> 'HTLCOwner':
+        return -self
+
+    def __neg__(self) -> 'HTLCOwner':
+        return HTLCOwner(super().__neg__())
+
 
 class Direction(IntFlag):
     SENT = -1     # in the context of HTLCs: "offered" HTLCs
@@ -654,10 +658,14 @@ REMOTE = HTLCOwner.REMOTE
 
 def make_commitment_outputs(*, fees_per_participant: Mapping[HTLCOwner, int], local_amount_msat: int, remote_amount_msat: int,
         local_script: str, remote_script: str, htlcs: List[ScriptHtlc], dust_limit_sat: int) -> Tuple[List[PartialTxOutput], List[PartialTxOutput]]:
-    to_local_amt = local_amount_msat - fees_per_participant[LOCAL]
+    # BOLT-03: "Base commitment transaction fees are extracted from the funder's amount;
+    #           if that amount is insufficient, the entire amount of the funder's output is used."
+    #   -> if funder cannot afford feerate, their output might go negative, so take max(0, x) here:
+    to_local_amt = max(0, local_amount_msat - fees_per_participant[LOCAL])
     to_local = PartialTxOutput(scriptpubkey=bfh(local_script), value=to_local_amt // 1000)
-    to_remote_amt = remote_amount_msat - fees_per_participant[REMOTE]
+    to_remote_amt = max(0, remote_amount_msat - fees_per_participant[REMOTE])
     to_remote = PartialTxOutput(scriptpubkey=bfh(remote_script), value=to_remote_amt // 1000)
+
     non_htlc_outputs = [to_local, to_remote]
     htlc_outputs = []
     for script, htlc in htlcs:

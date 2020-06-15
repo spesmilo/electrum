@@ -1108,7 +1108,8 @@ class Channel(AbstractChannel):
         return max_send_msat
 
 
-    def included_htlcs(self, subject: HTLCOwner, direction: Direction, ctn: int = None) -> Sequence[UpdateAddHtlc]:
+    def included_htlcs(self, subject: HTLCOwner, direction: Direction, ctn: int = None, *,
+                       feerate: int = None) -> Sequence[UpdateAddHtlc]:
         """Returns list of non-dust HTLCs for subject's commitment tx at ctn,
         filtered by direction (of HTLCs).
         """
@@ -1116,7 +1117,8 @@ class Channel(AbstractChannel):
         assert type(direction) is Direction
         if ctn is None:
             ctn = self.get_oldest_unrevoked_ctn(subject)
-        feerate = self.get_feerate(subject, ctn=ctn)
+        if feerate is None:
+            feerate = self.get_feerate(subject, ctn=ctn)
         conf = self.config[subject]
         if direction == RECEIVED:
             threshold_sat = received_htlc_trim_threshold_sat(dust_limit_sat=conf.dust_limit_sat, feerate=feerate)
@@ -1254,8 +1256,22 @@ class Channel(AbstractChannel):
         # feerate uses sat/kw
         if self.constraints.is_initiator != from_us:
             raise Exception(f"Cannot update_fee: wrong initiator. us: {from_us}")
-        # TODO check that funder can afford the new on-chain fees (+ channel reserve)
-        #      (maybe check both ctxs, at least if from_us is True??)
+        sender = LOCAL if from_us else REMOTE
+        ctx_owner = -sender
+        ctn = self.get_next_ctn(ctx_owner)
+        sender_balance_msat = self.balance_minus_outgoing_htlcs(whose=sender, ctx_owner=ctx_owner, ctn=ctn)
+        sender_reserve_msat = self.config[-sender].reserve_sat * 1000
+        num_htlcs_in_ctx = len(self.included_htlcs(ctx_owner, SENT, ctn=ctn, feerate=feerate) +
+                               self.included_htlcs(ctx_owner, RECEIVED, ctn=ctn, feerate=feerate))
+        ctx_fees_msat = calc_fees_for_commitment_tx(
+            num_htlcs=num_htlcs_in_ctx,
+            feerate=feerate,
+            is_local_initiator=self.constraints.is_initiator,
+        )
+        remainder = sender_balance_msat - sender_reserve_msat - ctx_fees_msat[sender]
+        if remainder < 0:
+            raise Exception(f"Cannot update_fee. {sender} tried to update fee but they cannot afford it. "
+                            f"Their balance would go below reserve: {remainder} msat missing.")
         with self.db_lock:
             if from_us:
                 assert self.can_send_ctx_updates(), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}"
@@ -1301,13 +1317,6 @@ class Channel(AbstractChannel):
             feerate=feerate,
             is_local_initiator=self.constraints.is_initiator == (subject == LOCAL),
         )
-
-        # TODO: we need to also include the respective channel reserves here, but not at the
-        #       beginning of the channel lifecycle when the reserve might not be met yet
-        if remote_msat - onchain_fees[REMOTE] < 0:
-            raise Exception(f"negative remote_msat in make_commitment: {remote_msat}")
-        if local_msat - onchain_fees[LOCAL] < 0:
-            raise Exception(f"negative local_msat in make_commitment: {local_msat}")
 
         if self.is_static_remotekey_enabled():
             payment_pubkey = other_config.payment_basepoint.pubkey
