@@ -24,7 +24,7 @@ folder.
 2. Build image
 
     ```
-    $ sudo docker build -t electrum-grs-android-builder-img electrum_grs/gui/kivy/tools
+    $ sudo docker build -t electrum-grs-android-builder-img contrib/android
     ```
 
 3. Build locale files
@@ -52,7 +52,7 @@ folder.
         -v ~/.keystore:/home/.keystore \
         --workdir /home/user/wspace/electrum-grs \
         electrum-grs-android-builder-img \
-        ./contrib/make_apk
+        ./contrib/android/make_apk
     ```
     This mounts the project dir inside the container,
     and so the modifications will affect it, e.g. `.buildozer` folder
