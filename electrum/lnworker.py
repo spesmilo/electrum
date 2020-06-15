@@ -632,8 +632,6 @@ class LNWallet(LNWorker):
             }
             # add txid to merge item with onchain item
             swap = self.swap_manager.get_swap(payment_hash)
-            if swap is None:
-                swap = self.swap_manager.get_swap_by_prepay(payment_hash)
             if swap:
                 if swap.is_reverse:
                     item['txid'] = swap.spending_txid

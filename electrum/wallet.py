@@ -841,6 +841,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 item = transactions_tmp[txid]
                 item['label'] = tx_item['label']
                 item['type'] = tx_item['type']   # fixme: do we need this?
+                if 'ln_value' not in item:
+                    item['ln_value'] = 0
                 item['ln_value'] = Satoshis(ln_value)  # fixme: we need to add value
                 item['amount_msat'] = tx_item['amount_msat']
             else:
