@@ -35,7 +35,7 @@ info "Building $pkgname..."
     fi
     git reset --hard
     git clean -f -x -q
-    git checkout $LIBSECP_VERSION
+    git checkout "${LIBSECP_VERSION}^{commit}"
 
     if ! [ -x configure ] ; then
         echo "libsecp256k1_la_LDFLAGS = -no-undefined" >> Makefile.am
