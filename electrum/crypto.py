@@ -229,21 +229,29 @@ def pw_decode_bytes(data: str, password: Union[bytes, str], *, version:int) -> b
     return pw_decode_raw(data_bytes, password, version=version)
 
 
-def pw_encode_b64_with_version(data: bytes, password: Union[bytes, str]) -> str:
+def pw_encode_with_version_and_mac(data: bytes, password: Union[bytes, str]) -> str:
     """plaintext bytes -> base64 ciphertext"""
+    # https://crypto.stackexchange.com/questions/202/should-we-mac-then-encrypt-or-encrypt-then-mac
+    # Encrypt-and-MAC. The MAC will be used to detect invalid passwords
     version = PW_HASH_VERSION_LATEST
+    mac = sha256(data)[0:4]
     ciphertext = pw_encode_raw(data, password, version=version)
-    ciphertext_b64 = base64.b64encode(bytes([version]) + ciphertext)
+    ciphertext_b64 = base64.b64encode(bytes([version]) + ciphertext + mac)
     return ciphertext_b64.decode('utf8')
 
 
-def pw_decode_b64_with_version(data: str, password: Union[bytes, str]) -> bytes:
+def pw_decode_with_version_and_mac(data: str, password: Union[bytes, str]) -> bytes:
     """base64 ciphertext -> plaintext bytes"""
     data_bytes = bytes(base64.b64decode(data))
     version = int(data_bytes[0])
+    encrypted = data_bytes[1:-4]
+    mac = data_bytes[-4:]
     if version not in KNOWN_PW_HASH_VERSIONS:
         raise UnexpectedPasswordHashVersion(version)
-    return pw_decode_raw(data_bytes[1:], password, version=version)
+    decrypted = pw_decode_raw(encrypted, password, version=version)
+    if sha256(decrypted)[0:4] != mac:
+        raise InvalidPassword()
+    return decrypted
 
 
 def pw_encode(data: str, password: Union[bytes, str, None], *, version: int) -> str:
