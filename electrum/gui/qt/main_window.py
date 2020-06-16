@@ -2372,10 +2372,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         d = SeedDialog(self, seed, passphrase)
         d.exec_()
 
-    def show_qrcode(self, data, title = _("QR code"), parent=None):
+    def show_qrcode(self, data, title = _("QR code"), parent=None, help_text=None):
         if not data:
             return
-        d = QRDialog(data, parent or self, title)
+        d = QRDialog(data, parent or self, title, help_text=help_text)
         d.exec_()
 
     @protected

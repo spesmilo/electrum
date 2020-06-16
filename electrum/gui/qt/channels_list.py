@@ -126,8 +126,13 @@ class ChannelsList(MyTreeView):
             self.lnbackups.remove_channel_backup(channel_id)
 
     def export_channel_backup(self, channel_id):
+        msg = ' '.join([
+            _("Channel backups can be imported in another instance of the same wallet, by scanning this QR code."),
+            _("Please note that channel backups cannot be used to restore your channels."),
+            _("If you lose your wallet file, the only thing you can do with a backup is to request your channel to be closed, so that your funds will be sent on-chain."),
+        ])
         data = self.lnworker.export_channel_backup(channel_id)
-        self.main_window.show_qrcode('channel_backup:' + data, 'channel backup')
+        self.main_window.show_qrcode('channel_backup:' + data, 'channel backup', help_text=msg)
 
     def request_force_close(self, channel_id):
         def task():

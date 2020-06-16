@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import (
 
 from electrum.i18n import _
 
-from .util import WindowModalDialog, get_parent_main_window
+from .util import WindowModalDialog, get_parent_main_window, WWLabel
 
 
 class QRCodeWidget(QWidget):
@@ -93,17 +93,17 @@ class QRCodeWidget(QWidget):
 
 class QRDialog(WindowModalDialog):
 
-    def __init__(self, data, parent=None, title = "", show_text=False):
+    def __init__(self, data, parent=None, title = "", show_text=False, help_text=None):
         WindowModalDialog.__init__(self, parent, title)
 
         vbox = QVBoxLayout()
         qrw = QRCodeWidget(data)
         vbox.addWidget(qrw, 1)
-        if show_text:
-            text = QTextEdit()
-            text.setText(data)
-            text.setReadOnly(True)
-            vbox.addWidget(text)
+        help_text = data if show_text else help_text
+        if help_text:
+            text_label = WWLabel()
+            text_label.setText(help_text)
+            vbox.addWidget(text_label)
         hbox = QHBoxLayout()
         hbox.addStretch(1)
 
