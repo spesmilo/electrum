@@ -2617,7 +2617,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.pay_to_URI(data)
             return
         if data.startswith('channel_backup:'):
-            self.import_channel_backup(data[15:])
+            self.import_channel_backup(data)
             return
         # else if the user scanned an offline signed tx
         tx = self.tx_from_text(data)
