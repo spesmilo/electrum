@@ -43,6 +43,9 @@ class SwapDialog(WindowModalDialog):
         self.send_amount_e = BTCAmountEdit(self.window.get_decimal_point)
         self.send_amount_e.shortcut.connect(self.spend_max)
         self.recv_amount_e = BTCAmountEdit(self.window.get_decimal_point)
+        self.max_button = EnterButton(_("Max"), self.spend_max)
+        self.max_button.setFixedWidth(100)
+        self.max_button.setCheckable(True)
         self.send_button = QPushButton('')
         self.recv_button = QPushButton('')
         self.send_follows = False
@@ -62,6 +65,7 @@ class SwapDialog(WindowModalDialog):
         h.addWidget(QLabel(_('You send')+':'), 1, 0)
         h.addWidget(self.send_amount_e, 1, 1)
         h.addWidget(self.send_button, 1, 2)
+        h.addWidget(self.max_button, 1, 3)
         h.addWidget(QLabel(_('You receive')+':'), 2, 0)
         h.addWidget(self.recv_amount_e, 2, 1)
         h.addWidget(self.recv_button, 2, 2)
@@ -99,11 +103,17 @@ class SwapDialog(WindowModalDialog):
         self.update()
 
     def spend_max(self):
-        if not self.is_reverse:
+        if self.is_reverse:
+            return
+        if self.max_button.isChecked():
             self.update_tx('!')
             if self.tx:
                 txo = self.tx.outputs()[0]
                 self.send_amount_e.setAmount(txo.value)
+        else:
+            self.tx = None
+            self.send_amount_e.setAmount(None)
+            self.update_fee()
 
     def on_send_edited(self):
         if self.send_amount_e.follows:
@@ -139,6 +149,7 @@ class SwapDialog(WindowModalDialog):
         sm = self.swap_manager
         self.send_button.setIcon(read_QIcon("lightning.png" if self.is_reverse else "bitcoin.png"))
         self.recv_button.setIcon(read_QIcon("lightning.png" if not self.is_reverse else "bitcoin.png"))
+        self.max_button.setEnabled(not self.is_reverse)
         server_mining_fee = sm.lockup_fee if self.is_reverse else sm.normal_fee
         server_fee_str = '%.2f'%sm.percentage + '%  +  '  + self.window.format_amount(server_mining_fee) + ' ' + self.window.base_unit()
         self.server_fee_label.setText(server_fee_str)
@@ -149,9 +160,13 @@ class SwapDialog(WindowModalDialog):
             sm = self.swap_manager
             fee = sm.get_claim_fee()
         else:
-            onchain_amount = self.send_amount_e.get_amount()
+            is_max = self.max_button.isChecked()
+            onchain_amount = '!' if is_max else self.send_amount_e.get_amount()
             self.update_tx(onchain_amount)
             fee = self.tx.get_fee() if self.tx else None
+            if is_max and self.tx:
+                txo = self.tx.outputs()[0]
+                self.send_amount_e.setAmount(txo.value)
         fee_text = self.window.format_amount(fee) + ' ' + self.window.base_unit() if fee else ''
         self.fee_label.setText(fee_text)
 
