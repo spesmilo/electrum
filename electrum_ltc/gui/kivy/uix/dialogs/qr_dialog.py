@@ -13,7 +13,7 @@ Builder.load_string('''
     title: ''
     data: ''
     shaded: False
-    show_text: False
+    help_text: ''
     AnchorLayout:
         anchor_x: 'center'
         BoxLayout:
@@ -29,7 +29,7 @@ Builder.load_string('''
                     touch = args[1]
                     if self.collide_point(*touch.pos): self.shaded = not self.shaded
             TopLabel:
-                text: root.data if root.show_text else ''
+                text: root.help_text
             Widget:
                 size_hint: 1, 0.2
             BoxLayout:
@@ -56,12 +56,12 @@ Builder.load_string('''
 
 class QRDialog(Factory.Popup):
     def __init__(self, title, data, show_text, *,
-                 failure_cb=None, text_for_clipboard=None):
+                 failure_cb=None, text_for_clipboard=None, help_text=None):
         Factory.Popup.__init__(self)
         self.app = App.get_running_app()
         self.title = title
         self.data = data
-        self.show_text = show_text
+        self.help_text = data if show_text else help_text
         self.failure_cb = failure_cb
         self.text_for_clipboard = text_for_clipboard if text_for_clipboard else data
 

@@ -462,7 +462,7 @@ class ElectrumWindow(App):
         self.invoice_popup = InvoiceDialog('Invoice', data, key)
         self.invoice_popup.open()
 
-    def qr_dialog(self, title, data, show_text=False, text_for_clipboard=None):
+    def qr_dialog(self, title, data, show_text=False, text_for_clipboard=None, help_text=None):
         from .uix.dialogs.qr_dialog import QRDialog
         def on_qr_failure():
             popup.dismiss()
@@ -471,8 +471,11 @@ class ElectrumWindow(App):
                 msg += '\n' + _('Text copied to clipboard.')
                 self._clipboard.copy(text_for_clipboard)
             Clock.schedule_once(lambda dt: self.show_info(msg))
-        popup = QRDialog(title, data, show_text, failure_cb=on_qr_failure,
-                         text_for_clipboard=text_for_clipboard)
+        popup = QRDialog(
+            title, data, show_text,
+            failure_cb=on_qr_failure,
+            text_for_clipboard=text_for_clipboard,
+            help_text=help_text)
         popup.open()
 
     def scan_qr(self, on_complete):

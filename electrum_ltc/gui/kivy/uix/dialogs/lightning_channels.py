@@ -373,7 +373,13 @@ class ChannelDetailsPopup(Popup):
 
     def export_backup(self):
         text = self.app.wallet.lnworker.export_channel_backup(self.chan.channel_id)
-        self.app.qr_dialog(_("Channel Backup " + self.chan.short_id_for_GUI()), 'channel_backup:'+text)
+        # TODO: some messages are duplicated between Kivy and Qt.
+        help_text = ' '.join([
+            _("Channel backups can be imported in another instance of the same wallet, by scanning this QR code."),
+            _("Please note that channel backups cannot be used to restore your channels."),
+            _("If you lose your wallet file, the only thing you can do with a backup is to request your channel to be closed, so that your funds will be sent on-chain."),
+        ])
+        self.app.qr_dialog(_("Channel Backup " + self.chan.short_id_for_GUI()), 'channel_backup:'+text, help_text=help_text)
 
     def force_close(self):
         Question(_('Force-close channel?'), self._force_close).open()
