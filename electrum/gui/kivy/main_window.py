@@ -250,7 +250,8 @@ class ElectrumWindow(App):
             self.invoice_popup.update_status()
 
     def on_payment_succeeded(self, event, key):
-        self.show_info(_('Payment was sent'))
+        description = self.wallet.get_label(key)
+        self.show_info(_('Payment succeeded') + '\n\n' + description)
         self._trigger_update_history()
 
     def on_payment_failed(self, event, key, reason):

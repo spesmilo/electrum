@@ -1484,8 +1484,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         self.invoice_list.update_item(key, req)
 
-    def on_payment_succeeded(self, key, description=None):
-        self.show_message(_('Payment succeeded'))
+    def on_payment_succeeded(self, key):
+        description = self.wallet.get_label(key)
+        self.show_message(_('Payment succeeded') + '\n\n' + description)
         self.need_update.set()
 
     def on_payment_failed(self, key, reason):
