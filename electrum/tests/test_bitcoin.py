@@ -261,7 +261,7 @@ class Test_bitcoin(ElectrumTestCase):
             crypto.pw_decode(enc, wrong_password, version=1)
 
     @needs_test_with_all_chacha20_implementations
-    def test_chacha20_poly1305_encrypt(self):
+    def test_chacha20_poly1305_encrypt__with_associated_data(self):
         key = bytes.fromhex('37326d9d69a83b815ddfd947d21b0dd39111e5b6a5a44042c44d570ea03e3179')
         nonce = bytes.fromhex('010203040506070809101112')
         associated_data = bytes.fromhex('30c9572d4305d4f3ccb766b1db884da6f1e0086f55136a39740700c272095717')
@@ -270,7 +270,7 @@ class Test_bitcoin(ElectrumTestCase):
                          crypto.chacha20_poly1305_encrypt(key=key, nonce=nonce, associated_data=associated_data, data=data))
 
     @needs_test_with_all_chacha20_implementations
-    def test_chacha20_poly1305_decrypt(self):
+    def test_chacha20_poly1305_decrypt__with_associated_data(self):
         key = bytes.fromhex('37326d9d69a83b815ddfd947d21b0dd39111e5b6a5a44042c44d570ea03e3179')
         nonce = bytes.fromhex('010203040506070809101112')
         associated_data = bytes.fromhex('30c9572d4305d4f3ccb766b1db884da6f1e0086f55136a39740700c272095717')
@@ -279,6 +279,26 @@ class Test_bitcoin(ElectrumTestCase):
                          crypto.chacha20_poly1305_decrypt(key=key, nonce=nonce, associated_data=associated_data, data=data))
         with self.assertRaises(ValueError):
             crypto.chacha20_poly1305_decrypt(key=key, nonce=nonce, associated_data=b'', data=data)
+
+    @needs_test_with_all_chacha20_implementations
+    def test_chacha20_poly1305_encrypt__without_associated_data(self):
+        key = bytes.fromhex('37326d9d69a83b815ddfd947d21b0dd39111e5b6a5a44042c44d570ea03e3179')
+        nonce = bytes.fromhex('010203040506070809101112')
+        data = bytes.fromhex('4a6cd75da76cedf0a8a47e3a5734a328')
+        self.assertEqual(bytes.fromhex('90fb51fcde1fbe4013500bd7a322804469c2be9b1385bc5ded5cd96be510280f'),
+                         crypto.chacha20_poly1305_encrypt(key=key, nonce=nonce, data=data))
+        self.assertEqual(bytes.fromhex('90fb51fcde1fbe4013500bd7a322804469c2be9b1385bc5ded5cd96be510280f'),
+                         crypto.chacha20_poly1305_encrypt(key=key, nonce=nonce, data=data, associated_data=b''))
+
+    @needs_test_with_all_chacha20_implementations
+    def test_chacha20_poly1305_decrypt__without_associated_data(self):
+        key = bytes.fromhex('37326d9d69a83b815ddfd947d21b0dd39111e5b6a5a44042c44d570ea03e3179')
+        nonce = bytes.fromhex('010203040506070809101112')
+        data = bytes.fromhex('90fb51fcde1fbe4013500bd7a322804469c2be9b1385bc5ded5cd96be510280f')
+        self.assertEqual(bytes.fromhex('4a6cd75da76cedf0a8a47e3a5734a328'),
+                         crypto.chacha20_poly1305_decrypt(key=key, nonce=nonce, data=data))
+        self.assertEqual(bytes.fromhex('4a6cd75da76cedf0a8a47e3a5734a328'),
+                         crypto.chacha20_poly1305_decrypt(key=key, nonce=nonce, data=data, associated_data=b''))
 
     @needs_test_with_all_chacha20_implementations
     def test_chacha20_encrypt(self):

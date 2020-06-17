@@ -268,14 +268,21 @@ def hmac_oneshot(key: bytes, msg: bytes, digest) -> bytes:
         return hmac.new(key, msg, digest).digest()
 
 
-def chacha20_poly1305_encrypt(*, key: bytes, nonce: bytes, associated_data: bytes, data: bytes) -> bytes:
+def chacha20_poly1305_encrypt(
+        *,
+        key: bytes,
+        nonce: bytes,
+        associated_data: bytes = None,
+        data: bytes
+) -> bytes:
     assert isinstance(key, (bytes, bytearray))
     assert isinstance(nonce, (bytes, bytearray))
-    assert isinstance(associated_data, (bytes, bytearray))
+    assert isinstance(associated_data, (bytes, bytearray, type(None)))
     assert isinstance(data, (bytes, bytearray))
     if HAS_CRYPTODOME:
         cipher = CD_ChaCha20_Poly1305.new(key=key, nonce=nonce)
-        cipher.update(associated_data)
+        if associated_data is not None:
+            cipher.update(associated_data)
         ciphertext, mac = cipher.encrypt_and_digest(plaintext=data)
         return ciphertext + mac
     if HAS_CRYPTOGRAPHY:
@@ -284,14 +291,21 @@ def chacha20_poly1305_encrypt(*, key: bytes, nonce: bytes, associated_data: byte
     raise Exception("no chacha20 backend found")
 
 
-def chacha20_poly1305_decrypt(*, key: bytes, nonce: bytes, associated_data: bytes, data: bytes) -> bytes:
+def chacha20_poly1305_decrypt(
+        *,
+        key: bytes,
+        nonce: bytes,
+        associated_data: bytes = None,
+        data: bytes
+) -> bytes:
     assert isinstance(key, (bytes, bytearray))
     assert isinstance(nonce, (bytes, bytearray))
-    assert isinstance(associated_data, (bytes, bytearray))
+    assert isinstance(associated_data, (bytes, bytearray, type(None)))
     assert isinstance(data, (bytes, bytearray))
     if HAS_CRYPTODOME:
         cipher = CD_ChaCha20_Poly1305.new(key=key, nonce=nonce)
-        cipher.update(associated_data)
+        if associated_data is not None:
+            cipher.update(associated_data)
         # raises ValueError if not valid (e.g. incorrect MAC)
         return cipher.decrypt_and_verify(ciphertext=data[:-16], received_mac_tag=data[-16:])
     if HAS_CRYPTOGRAPHY:
