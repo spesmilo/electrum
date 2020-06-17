@@ -202,7 +202,8 @@ class ChannelBackupStorage(StoredObject):
         vds = BCDataStream()
         vds.write(s)
         version = vds.read_int16()
-        assert version == CHANNEL_BACKUP_VERSION
+        if version != CHANNEL_BACKUP_VERSION:
+            raise Exception(f"unknown version for channel backup: {version}")
         return ChannelBackupStorage(
             is_initiator = bool(vds.read_bytes(1)),
             privkey = vds.read_bytes(32).hex(),
