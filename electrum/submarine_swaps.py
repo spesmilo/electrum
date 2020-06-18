@@ -25,9 +25,6 @@ if TYPE_CHECKING:
 API_URL = 'https://lightning.electrum.org/api'
 
 
-SWAP_MAX_VALUE_SAT = LN_MAX_HTLC_VALUE_MSAT // 1000
-
-
 WITNESS_TEMPLATE_SWAP = [
     opcodes.OP_HASH160,
     OPPushDataGeneric(lambda x: x == 20),
@@ -118,7 +115,7 @@ class SwapManager(Logger):
         self.lockup_fee = 0
         self.percentage = 0
         self.min_amount = 0
-        self.max_amount = 0
+        self._max_amount = 0
         self.network = network
         self.wallet = wallet
         self.lnworker = wallet.lnworker
@@ -365,12 +362,15 @@ class SwapManager(Logger):
         self.lockup_fee = fees['minerFees']['baseAsset']['reverse']['lockup']
         limits = pairs['pairs']['BTC/BTC']['limits']
         self.min_amount = limits['minimal']
-        self.max_amount = limits['maximal']
+        self._max_amount = limits['maximal']
+
+    def get_max_amount(self):
+        return min(self._max_amount, LN_MAX_HTLC_VALUE_MSAT // 1000)
 
     def get_recv_amount(self, send_amount: Optional[int], is_reverse: bool) -> Optional[int]:
         if send_amount is None:
             return
-        if send_amount < self.min_amount or send_amount > self.max_amount:
+        if send_amount < self.min_amount or send_amount > self._max_amount:
             return
         x = send_amount
         if is_reverse:

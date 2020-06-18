@@ -5,7 +5,6 @@ from PyQt5.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton
 from electrum.i18n import _
 from electrum.lnutil import ln_dummy_address
 from electrum.transaction import PartialTxOutput, PartialTransaction
-from electrum.submarine_swaps import SWAP_MAX_VALUE_SAT
 
 from .util import (WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, ColorScheme, WWLabel, read_QIcon)
@@ -114,16 +113,17 @@ class SwapDialog(WindowModalDialog):
         self.update_tx('!')
         if self.tx:
             amount = self.tx.output_value_for_address(ln_dummy_address())
-            if amount > SWAP_MAX_VALUE_SAT:
-                amount = SWAP_MAX_VALUE_SAT
+            max_amt = self.swap_manager.get_max_amount()
+            if amount > max_amt:
+                amount = max_amt
                 self.update_tx(amount)
             if self.tx:
                 amount = self.tx.output_value_for_address(ln_dummy_address())
-                assert amount <= SWAP_MAX_VALUE_SAT
+                assert amount <= max_amt
                 self.send_amount_e.setAmount(amount)
 
     def _spend_max_reverse_swap(self):
-        amount = min(self.lnworker.num_sats_can_send(), SWAP_MAX_VALUE_SAT)
+        amount = min(self.lnworker.num_sats_can_send(), self.swap_manager.get_max_amount())
         self.send_amount_e.setAmount(amount)
 
     def on_send_edited(self):
