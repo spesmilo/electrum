@@ -308,8 +308,8 @@ class SwapManager(Logger):
             raise Exception(f"rswap check failed: onchain_amount is less than what we expected: "
                             f"{onchain_amount} < {expected_amount}")
         # verify that we will have enough time to get our tx confirmed
-        if locktime - self.network.get_local_height() <= 10:
-            raise Exception("fswap check failed: locktime too close")
+        if locktime - self.network.get_local_height() <= 60:
+            raise Exception("rswap check failed: locktime too close")
         # verify invoice preimage_hash
         lnaddr = self.lnworker._check_invoice(invoice)
         invoice_amount = lnaddr.get_amount_sat()
