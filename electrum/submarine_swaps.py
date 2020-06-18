@@ -142,7 +142,7 @@ class SwapManager(Logger):
             if amount_sat < dust_threshold():
                 self.logger.info('utxo value below dust threshold')
                 continue
-            address = self.wallet.get_unused_address()
+            address = self.wallet.get_receiving_address()
             preimage = swap.preimage if swap.is_reverse else 0
             tx = create_claim_tx(txin, swap.redeem_script, preimage, swap.privkey, address, amount_sat, swap.locktime)
             await self.network.broadcast_transaction(tx)
