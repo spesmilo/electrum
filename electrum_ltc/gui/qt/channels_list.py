@@ -132,7 +132,7 @@ class ChannelsList(MyTreeView):
             _("If you lose your wallet file, the only thing you can do with a backup is to request your channel to be closed, so that your funds will be sent on-chain."),
         ])
         data = self.lnworker.export_channel_backup(channel_id)
-        self.main_window.show_qrcode('channel_backup:' + data, 'channel backup', help_text=msg)
+        self.main_window.show_qrcode(data, 'channel backup', help_text=msg)
 
     def request_force_close(self, channel_id):
         def task():
@@ -276,9 +276,11 @@ class ChannelsList(MyTreeView):
         self.can_send_label = QLabel('')
         h.addWidget(self.can_send_label)
         h.addStretch()
+        self.swap_button = EnterButton(_('Swap'), self.swap_dialog)
         self.new_channel_button = EnterButton(_('Open Channel'), self.new_channel_dialog)
         self.new_channel_button.setEnabled(self.parent.wallet.has_lightning())
         h.addWidget(self.new_channel_button)
+        h.addWidget(self.swap_button)
         return h
 
     def statistics_dialog(self):
@@ -365,3 +367,8 @@ class ChannelsList(MyTreeView):
         if not connect_str or not funding_sat:
             return
         self.parent.open_channel(connect_str, funding_sat, 0)
+
+    def swap_dialog(self):
+        from .swap_dialog import SwapDialog
+        d = SwapDialog(self.parent)
+        d.run()

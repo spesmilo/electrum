@@ -485,7 +485,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             self.fee_warning_icon.setVisible(bool(risk_of_burning_coins))
         self.fee_label.setText(fee_str)
         self.size_label.setText(size_str)
-        if ln_amount is None:
+        if ln_amount is None or ln_amount == 0:
             ln_amount_str = ''
         elif ln_amount > 0:
             ln_amount_str = _('Amount received in channels') + ': ' + format_amount(ln_amount) + ' ' + base_unit

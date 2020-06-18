@@ -206,9 +206,6 @@ def create_sweeptxs_for_our_ctx(*, chan: 'AbstractChannel', ctx: Transaction,
     # other outputs are htlcs
     # if they are spent, we need to generate the script
     # so, second-stage htlc sweep should not be returned here
-    if ctn < chan.get_oldest_unrevoked_ctn(LOCAL):
-        _logger.info("we breached.")
-        return {}
     txs = {}  # type: Dict[str, SweepInfo]
     # to_local
     output_idxs = ctx.get_output_idxs_from_address(to_local_address)
@@ -228,6 +225,13 @@ def create_sweeptxs_for_our_ctx(*, chan: 'AbstractChannel', ctx: Transaction,
                                  csv_delay=to_self_delay,
                                  cltv_expiry=0,
                                  gen_tx=sweep_tx)
+
+    we_breached = ctn < chan.get_oldest_unrevoked_ctn(LOCAL)
+    if we_breached:
+        _logger.info("we breached.")
+        # return only our_ctx_to_local, because we don't keep htlc_signatures for old states
+        return txs
+
     # HTLCs
     def create_txns_for_htlc(*, htlc: 'UpdateAddHtlc', htlc_direction: Direction,
                              ctx_output_idx: int, htlc_relative_idx: int):

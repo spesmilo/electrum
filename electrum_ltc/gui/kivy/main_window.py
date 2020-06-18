@@ -250,7 +250,8 @@ class ElectrumWindow(App):
             self.invoice_popup.update_status()
 
     def on_payment_succeeded(self, event, key):
-        self.show_info(_('Payment was sent'))
+        description = self.wallet.get_label(key)
+        self.show_info(_('Payment succeeded') + '\n\n' + description)
         self._trigger_update_history()
 
     def on_payment_failed(self, event, key, reason):
@@ -414,7 +415,7 @@ class ElectrumWindow(App):
             self.set_URI(data)
             return
         if data.startswith('channel_backup:'):
-            self.import_channel_backup(data[15:])
+            self.import_channel_backup(data)
             return
         bolt11_invoice = maybe_extract_bolt11_invoice(data)
         if bolt11_invoice is not None:

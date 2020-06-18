@@ -35,7 +35,7 @@ from .crypto import sha256
 from .bip32 import BIP32Node
 from .util import bh2u, bfh, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions
 from .util import ignore_exceptions, make_aiohttp_session, SilentTaskGroup
-from .util import timestamp_to_datetime
+from .util import timestamp_to_datetime, random_shuffled_copy
 from .util import MyEncoder
 from .logging import Logger
 from .lntransport import LNTransport, LNResponderTransport
@@ -66,10 +66,11 @@ from .lnrouter import (RouteEdge, LNPaymentRoute, LNPaymentPath, is_route_sane_t
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from . import lnsweep
 from .lnwatcher import LNWalletWatcher
-from .crypto import pw_encode_bytes, pw_decode_bytes, PW_HASH_VERSION_LATEST
+from .crypto import pw_encode_with_version_and_mac, pw_decode_with_version_and_mac
 from .lnutil import ChannelBackupStorage
 from .lnchannel import ChannelBackup
 from .channel_db import UpdateStatus
+from .submarine_swaps import SwapManager
 
 if TYPE_CHECKING:
     from .network import Network
@@ -479,6 +480,8 @@ class LNGossip(LNWorker):
 
 class LNWallet(LNWorker):
 
+    lnwatcher: 'LNWalletWatcher'
+
     def __init__(self, wallet: 'Abstract_Wallet', xprv):
         Logger.__init__(self)
         self.wallet = wallet
@@ -499,7 +502,7 @@ class LNWallet(LNWorker):
         # note: accessing channels (besides simple lookup) needs self.lock!
         self._channels = {}  # type: Dict[bytes, Channel]
         channels = self.db.get_dict("channels")
-        for channel_id, c in channels.items():
+        for channel_id, c in random_shuffled_copy(channels.items()):
             self._channels[bfh(channel_id)] = Channel(c, sweep_address=self.sweep_address, lnworker=self)
 
         self.pending_payments = defaultdict(asyncio.Future)  # type: Dict[bytes, asyncio.Future[BarePaymentAttemptLog]]
@@ -556,6 +559,7 @@ class LNWallet(LNWorker):
         self.lnwatcher = LNWalletWatcher(self, network)
         self.lnwatcher.start_network(network)
         self.network = network
+        self.swap_manager = SwapManager(self.wallet, network)
 
         for chan in self.channels.values():
             self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
@@ -592,6 +596,16 @@ class LNWallet(LNWorker):
                 out[k] += v
         return out
 
+    def get_payment_value(self, info, plist):
+        amount_msat = 0
+        fee_msat = None
+        for chan_id, htlc, _direction in plist:
+            amount_msat += int(_direction) * htlc.amount_msat
+            if _direction == SENT and info and info.amount:
+                fee_msat = (fee_msat or 0) - info.amount*1000 - amount_msat
+        timestamp = min([htlc.timestamp for chan_id, htlc, _direction in plist])
+        return amount_msat, fee_msat, timestamp
+
     def get_lightning_history(self):
         out = {}
         for key, plist in self.get_settled_payments().items():
@@ -599,13 +613,7 @@ class LNWallet(LNWorker):
                 continue
             payment_hash = bytes.fromhex(key)
             info = self.get_payment_info(payment_hash)
-            timestamp = min([htlc.timestamp for chan_id, htlc, _direction in plist])
-            amount_msat = 0
-            fee_msat = None
-            for chan_id, htlc, _direction in plist:
-                amount_msat += int(_direction) * htlc.amount_msat
-                if _direction == SENT and info and info.amount:
-                    fee_msat = (fee_msat or 0) - info.amount*1000 - amount_msat
+            amount_msat, fee_msat, timestamp = self.get_payment_value(info, plist)
             if info is not None:
                 label = self.wallet.get_label(key)
                 direction = ('sent' if info.direction == SENT else 'received') if len(plist)==1 else 'self-payment'
@@ -624,6 +632,16 @@ class LNWallet(LNWorker):
                 'payment_hash': key,
                 'preimage': preimage,
             }
+            # add txid to merge item with onchain item
+            swap = self.swap_manager.get_swap(payment_hash)
+            if swap:
+                if swap.is_reverse:
+                    #item['txid'] = swap.spending_txid
+                    item['label'] = 'Reverse swap' + ' ' + self.config.format_amount_and_units(swap.lightning_amount)
+                else:
+                    #item['txid'] = swap.funding_txid
+                    item['label'] = 'Normal swap' + ' ' + self.config.format_amount_and_units(swap.onchain_amount)
+            # done
             out[payment_hash] = item
         return out
 
@@ -1380,9 +1398,9 @@ class LNWallet(LNWorker):
         xpub = self.wallet.get_fingerprint()
         backup_bytes = self.create_channel_backup(channel_id).to_bytes()
         assert backup_bytes == ChannelBackupStorage.from_bytes(backup_bytes).to_bytes(), "roundtrip failed"
-        encrypted = pw_encode_bytes(backup_bytes, xpub, version=PW_HASH_VERSION_LATEST)
-        assert backup_bytes == pw_decode_bytes(encrypted, xpub, version=PW_HASH_VERSION_LATEST), "encrypt failed"
-        return encrypted
+        encrypted = pw_encode_with_version_and_mac(backup_bytes, xpub)
+        assert backup_bytes == pw_decode_with_version_and_mac(encrypted, xpub), "encrypt failed"
+        return 'channel_backup:' + encrypted
 
 
 class LNBackups(Logger):
@@ -1397,7 +1415,7 @@ class LNBackups(Logger):
         self.wallet = wallet
         self.db = wallet.db
         self.channel_backups = {}
-        for channel_id, cb in self.db.get_dict("channel_backups").items():
+        for channel_id, cb in random_shuffled_copy(self.db.get_dict("channel_backups").items()):
             self.channel_backups[bfh(channel_id)] = ChannelBackup(cb, sweep_address=self.sweep_address, lnworker=self)
 
     @property
@@ -1433,9 +1451,11 @@ class LNBackups(Logger):
         self.lnwatcher.stop()
         self.lnwatcher = None
 
-    def import_channel_backup(self, encrypted):
+    def import_channel_backup(self, data):
+        assert data.startswith('channel_backup:')
+        encrypted = data[15:]
         xpub = self.wallet.get_fingerprint()
-        decrypted = pw_decode_bytes(encrypted, xpub, version=PW_HASH_VERSION_LATEST)
+        decrypted = pw_decode_with_version_and_mac(encrypted, xpub)
         cb_storage = ChannelBackupStorage.from_bytes(decrypted)
         channel_id = cb_storage.channel_id().hex()
         d = self.db.get_dict("channel_backups")

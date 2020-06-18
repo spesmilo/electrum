@@ -379,7 +379,7 @@ class ChannelDetailsPopup(Popup):
             _("Please note that channel backups cannot be used to restore your channels."),
             _("If you lose your wallet file, the only thing you can do with a backup is to request your channel to be closed, so that your funds will be sent on-chain."),
         ])
-        self.app.qr_dialog(_("Channel Backup " + self.chan.short_id_for_GUI()), 'channel_backup:'+text, help_text=help_text)
+        self.app.qr_dialog(_("Channel Backup " + self.chan.short_id_for_GUI()), text, help_text=help_text)
 
     def force_close(self):
         Question(_('Force-close channel?'), self._force_close).open()

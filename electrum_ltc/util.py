@@ -24,7 +24,7 @@ import binascii
 import os, sys, re, json
 from collections import defaultdict, OrderedDict
 from typing import (NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any,
-                    Sequence, Dict, Generic, TypeVar)
+                    Sequence, Dict, Generic, TypeVar, List, Iterable)
 from datetime import datetime
 import decimal
 from decimal import Decimal
@@ -1378,3 +1378,12 @@ class JsonRPCClient:
         async def coro(*args):
             return await self.request(endpoint, *args)
         setattr(self, endpoint, coro)
+
+
+T = TypeVar('T')
+
+def random_shuffled_copy(x: Iterable[T]) -> List[T]:
+    """Returns a shuffled copy of the input."""
+    x_copy = list(x)  # copy
+    random.shuffle(x_copy)  # shuffle in-place
+    return x_copy

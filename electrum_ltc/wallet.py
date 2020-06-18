@@ -1566,19 +1566,28 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
 
     def get_unused_addresses(self) -> Sequence[str]:
         domain = self.get_receiving_addresses()
-        in_use_by_request = [k for k in self.receive_requests.keys() if self.get_request_status(k) != PR_EXPIRED] # we should index receive_requests by id
+        # TODO we should index receive_requests by id
+        in_use_by_request = [k for k in self.receive_requests.keys()
+                             if self.get_request_status(k) != PR_EXPIRED]
+        in_use_by_request = set(in_use_by_request)
         return [addr for addr in domain if not self.is_used(addr)
                 and addr not in in_use_by_request]
 
     @check_returned_address_for_corruption
     def get_unused_address(self) -> Optional[str]:
+        """Get an unused receiving address, if there is one.
+        Note: there might NOT be one available!
+        """
         addrs = self.get_unused_addresses()
         if addrs:
             return addrs[0]
 
     @check_returned_address_for_corruption
     def get_receiving_address(self) -> str:
-        # always return an address
+        """Get a receiving address. Guaranteed to always return an address."""
+        unused_addr = self.get_unused_address()
+        if unused_addr:
+            return unused_addr
         domain = self.get_receiving_addresses()
         if not domain:
             raise Exception("no receiving addresses in wallet?!")

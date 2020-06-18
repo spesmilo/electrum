@@ -299,6 +299,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         Exception_Hook.maybe_setup(config=self.config,
                                    wallet=self.wallet)
 
+    def run_coroutine_from_thread(self, coro, on_result=None):
+        def task():
+            try:
+                f = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+                r = f.result()
+                if on_result:
+                    on_result(r)
+            except Exception as e:
+                self.show_error(str(e))
+        self.wallet.thread.add(task)
+
     def on_fx_history(self):
         self.history_model.refresh('fx_history')
         self.address_list.update()
@@ -1484,8 +1495,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         self.invoice_list.update_item(key, req)
 
-    def on_payment_succeeded(self, key, description=None):
-        self.show_message(_('Payment succeeded'))
+    def on_payment_succeeded(self, key):
+        description = self.wallet.get_label(key)
+        self.notify(_('Payment succeeded') + '\n\n' + description)
         self.need_update.set()
 
     def on_payment_failed(self, key, reason):
@@ -2605,7 +2617,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.pay_to_URI(data)
             return
         if data.startswith('channel_backup:'):
-            self.import_channel_backup(data[15:])
+            self.import_channel_backup(data)
             return
         # else if the user scanned an offline signed tx
         tx = self.tx_from_text(data)
