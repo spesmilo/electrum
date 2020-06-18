@@ -1,10 +1,11 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from PyQt5.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton
 
 from electrum.i18n import _
 from electrum.lnutil import ln_dummy_address
-from electrum.transaction import PartialTxOutput
+from electrum.transaction import PartialTxOutput, PartialTransaction
+from electrum.submarine_swaps import SWAP_MAX_VALUE_SAT
 
 from .util import (WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, ColorScheme, WWLabel, read_QIcon)
@@ -24,6 +25,8 @@ Do you want to continue?
 
 class SwapDialog(WindowModalDialog):
 
+    tx: Optional[PartialTransaction]
+
     def __init__(self, window: 'ElectrumWindow'):
         WindowModalDialog.__init__(self, window, _('Submarine Swap'))
         self.window = window
@@ -31,6 +34,7 @@ class SwapDialog(WindowModalDialog):
         self.lnworker = self.window.wallet.lnworker
         self.swap_manager = self.lnworker.swap_manager
         self.network = window.network
+        self.tx = None
         vbox = QVBoxLayout(self)
         vbox.addWidget(WWLabel('Swap lightning funds for on-chain funds if you need to increase your receiving capacity. This service is powered by the Boltz backend.'))
         self.send_amount_e = BTCAmountEdit(self.window.get_decimal_point)
@@ -99,14 +103,23 @@ class SwapDialog(WindowModalDialog):
         if self.is_reverse:
             return
         if self.max_button.isChecked():
-            self.update_tx('!')
-            if self.tx:
-                txo = self.tx.outputs()[0]
-                self.send_amount_e.setAmount(txo.value)
+            self._spend_max_forward_swap()
         else:
             self.tx = None
             self.send_amount_e.setAmount(None)
             self.update_fee()
+
+    def _spend_max_forward_swap(self):
+        self.update_tx('!')
+        if self.tx:
+            amount = self.tx.output_value_for_address(ln_dummy_address())
+            if amount > SWAP_MAX_VALUE_SAT:
+                amount = SWAP_MAX_VALUE_SAT
+                self.update_tx(amount)
+            if self.tx:
+                amount = self.tx.output_value_for_address(ln_dummy_address())
+                assert amount <= SWAP_MAX_VALUE_SAT
+                self.send_amount_e.setAmount(amount)
 
     def on_send_edited(self):
         if self.send_amount_e.follows:
@@ -154,12 +167,12 @@ class SwapDialog(WindowModalDialog):
             fee = sm.get_claim_fee()
         else:
             is_max = self.max_button.isChecked()
-            onchain_amount = '!' if is_max else self.send_amount_e.get_amount()
-            self.update_tx(onchain_amount)
+            if is_max:
+                self._spend_max_forward_swap()
+            else:
+                onchain_amount = self.send_amount_e.get_amount()
+                self.update_tx(onchain_amount)
             fee = self.tx.get_fee() if self.tx else None
-            if is_max and self.tx:
-                txo = self.tx.outputs()[0]
-                self.send_amount_e.setAmount(txo.value)
         fee_text = self.window.format_amount(fee) + ' ' + self.window.base_unit() if fee else ''
         self.fee_label.setText(fee_text)
 

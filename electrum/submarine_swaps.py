@@ -11,7 +11,7 @@ from .bitcoin import address_to_script, script_to_p2wsh, redeem_script_to_addres
 from .transaction import TxOutpoint, PartialTxInput, PartialTxOutput, PartialTransaction, construct_witness
 from .transaction import script_GetOp, match_script_against_template, OPPushDataGeneric, OPPushDataPubkey
 from .util import log_exceptions
-from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY, ln_dummy_address
+from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY, ln_dummy_address, LN_MAX_HTLC_VALUE_MSAT
 from .bitcoin import dust_threshold
 from .logging import Logger
 from .lnutil import hex_to_bytes
@@ -23,6 +23,9 @@ if TYPE_CHECKING:
 
 
 API_URL = 'https://lightning.electrum.org/api'
+
+
+SWAP_MAX_VALUE_SAT = LN_MAX_HTLC_VALUE_MSAT // 1000
 
 
 WITNESS_TEMPLATE_SWAP = [
