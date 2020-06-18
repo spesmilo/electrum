@@ -35,7 +35,7 @@ from .crypto import sha256
 from .bip32 import BIP32Node
 from .util import bh2u, bfh, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions
 from .util import ignore_exceptions, make_aiohttp_session, SilentTaskGroup
-from .util import timestamp_to_datetime
+from .util import timestamp_to_datetime, random_shuffled_copy
 from .util import MyEncoder
 from .logging import Logger
 from .lntransport import LNTransport, LNResponderTransport
@@ -500,7 +500,7 @@ class LNWallet(LNWorker):
         # note: accessing channels (besides simple lookup) needs self.lock!
         self._channels = {}  # type: Dict[bytes, Channel]
         channels = self.db.get_dict("channels")
-        for channel_id, c in channels.items():
+        for channel_id, c in random_shuffled_copy(channels.items()):
             self._channels[bfh(channel_id)] = Channel(c, sweep_address=self.sweep_address, lnworker=self)
 
         self.pending_payments = defaultdict(asyncio.Future)  # type: Dict[bytes, asyncio.Future[BarePaymentAttemptLog]]
@@ -1413,7 +1413,7 @@ class LNBackups(Logger):
         self.wallet = wallet
         self.db = wallet.db
         self.channel_backups = {}
-        for channel_id, cb in self.db.get_dict("channel_backups").items():
+        for channel_id, cb in random_shuffled_copy(self.db.get_dict("channel_backups").items()):
             self.channel_backups[bfh(channel_id)] = ChannelBackup(cb, sweep_address=self.sweep_address, lnworker=self)
 
     @property
