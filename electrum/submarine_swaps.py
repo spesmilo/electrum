@@ -183,7 +183,6 @@ class SwapManager(Logger):
         callback = lambda: self._claim_swap(swap)
         self.lnwatcher.add_callback(swap.lockup_address, callback)
 
-    @log_exceptions
     async def normal_swap(self, lightning_amount: int, expected_onchain_amount: int,
                           password, *, tx: PartialTransaction = None) -> str:
         """send on-chain BTC, receive on Lightning"""
@@ -264,7 +263,6 @@ class SwapManager(Logger):
         await self.network.broadcast_transaction(tx)
         return tx.txid()
 
-    @log_exceptions
     async def reverse_swap(self, amount_sat: int, expected_amount: int) -> bool:
         """send on Lightning, receive on-chain"""
         privkey = os.urandom(32)
@@ -354,7 +352,6 @@ class SwapManager(Logger):
         success, log = await self.lnworker._pay(invoice, attempts=10)
         return success
 
-    @log_exceptions
     async def get_pairs(self) -> None:
         response = await self.network._send_http_on_proxy(
             'get',

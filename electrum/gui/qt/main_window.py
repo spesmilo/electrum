@@ -158,6 +158,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     alias_received_signal = pyqtSignal()
     computing_privkeys_signal = pyqtSignal()
     show_privkeys_signal = pyqtSignal()
+    show_error_signal = pyqtSignal(str)
 
     def __init__(self, gui_object: 'ElectrumGui', wallet: Abstract_Wallet):
         QMainWindow.__init__(self)
@@ -250,6 +251,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         self.payment_request_ok_signal.connect(self.payment_request_ok)
         self.payment_request_error_signal.connect(self.payment_request_error)
+        self.show_error_signal.connect(self.show_error)
         self.history_list.setFocus(True)
 
         # network callbacks
@@ -307,7 +309,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 if on_result:
                     on_result(r)
             except Exception as e:
-                self.show_error(str(e))
+                self.logger.exception("exception in coro scheduled via window.wallet")
+                self.show_error_signal.emit(str(e))
         self.wallet.thread.add(task)
 
     def on_fx_history(self):
