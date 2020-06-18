@@ -1,26 +1,18 @@
-from PyQt5 import QtCore, QtGui
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit,
-                             QPushButton, QAbstractItemView, QComboBox)
-from PyQt5.QtGui import QFont, QStandardItem, QBrush
+from typing import TYPE_CHECKING
 
-from electrum.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
+from PyQt5.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton
+
 from electrum.i18n import _
-from electrum.lnchannel import AbstractChannel, PeerState
-from electrum.wallet import Abstract_Wallet
-from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id, LN_MAX_FUNDING_SAT
 from electrum.lnutil import ln_dummy_address
-from electrum.lnworker import LNWallet
 from electrum.transaction import PartialTxOutput
 
-from .util import (MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton,
-                   EnterButton, WaitingDialog, MONOSPACE_FONT, ColorScheme)
-from .amountedit import BTCAmountEdit, FreezableLineEdit
-from .util import WWLabel
+from .util import (WindowModalDialog, Buttons, OkButton, CancelButton,
+                   EnterButton, ColorScheme, WWLabel, read_QIcon)
+from .amountedit import BTCAmountEdit
 from .fee_slider import FeeSlider, FeeComboBox
 
-import asyncio
-from .util import read_QIcon
+if TYPE_CHECKING:
+    from .main_window import ElectrumWindow
 
 CANNOT_RECEIVE_WARNING = """
 The requested amount is higher than what you can receive in your currently open channels.
@@ -29,9 +21,10 @@ If the swap cannot be performed after 24h, you will be refunded.
 Do you want to continue?
 """
 
+
 class SwapDialog(WindowModalDialog):
 
-    def __init__(self, window):
+    def __init__(self, window: 'ElectrumWindow'):
         WindowModalDialog.__init__(self, window, _('Submarine Swap'))
         self.window = window
         self.config = window.config
