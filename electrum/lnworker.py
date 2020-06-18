@@ -480,6 +480,8 @@ class LNGossip(LNWorker):
 
 class LNWallet(LNWorker):
 
+    lnwatcher: 'LNWalletWatcher'
+
     def __init__(self, wallet: 'Abstract_Wallet', xprv):
         Logger.__init__(self)
         self.wallet = wallet

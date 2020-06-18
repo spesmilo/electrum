@@ -1,8 +1,9 @@
-import attr
 import asyncio
 import json
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Dict
+
+import attr
 
 from .crypto import sha256, hash_160
 from .ecc import ECPrivkey
@@ -64,20 +65,28 @@ WITNESS_TEMPLATE_REVERSE_SWAP = [
 class SwapData(StoredObject):
     is_reverse = attr.ib(type=bool)
     locktime = attr.ib(type=int)
-    onchain_amount = attr.ib(type=int)
-    lightning_amount = attr.ib(type=int)
+    onchain_amount = attr.ib(type=int)  # in sats
+    lightning_amount = attr.ib(type=int)  # in sats
     redeem_script = attr.ib(type=bytes, converter=hex_to_bytes)
     preimage = attr.ib(type=bytes, converter=hex_to_bytes)
-    prepay_hash = attr.ib(type=bytes, converter=hex_to_bytes)
+    prepay_hash = attr.ib(type=Optional[bytes], converter=hex_to_bytes)
     privkey = attr.ib(type=bytes, converter=hex_to_bytes)
     lockup_address = attr.ib(type=str)
-    funding_txid = attr.ib(type=str)
-    spending_txid = attr.ib(type=str)
+    funding_txid = attr.ib(type=Optional[str])
+    spending_txid = attr.ib(type=Optional[str])
     is_redeemed = attr.ib(type=bool)
 
 
-def create_claim_tx(txin, witness_script, preimage, privkey:bytes, address, amount_sat, locktime):
-    pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
+def create_claim_tx(
+        *,
+        txin: PartialTxInput,
+        witness_script: bytes,
+        preimage: bytes,
+        privkey: bytes,
+        address: str,
+        amount_sat: int,
+        locktime: int,
+) -> PartialTransaction:
     if is_segwit_address(txin.address):
         txin.script_type = 'p2wsh'
         txin.script_sig = b''
@@ -86,7 +95,7 @@ def create_claim_tx(txin, witness_script, preimage, privkey:bytes, address, amou
         txin.redeem_script = bytes.fromhex(p2wsh_nested_script(witness_script.hex()))
         txin.script_sig = bytes.fromhex(push_script(txin.redeem_script.hex()))
     txin.witness_script = witness_script
-    txout = PartialTxOutput(scriptpubkey=bytes.fromhex(address_to_script(address)), value=amount_sat)
+    txout = PartialTxOutput.from_address_and_value(address, amount_sat)
     tx = PartialTransaction.from_io([txin], [txout], version=2, locktime=(None if preimage else locktime))
     #tx.set_rbf(True)
     sig = bytes.fromhex(tx.sign_txin(0, privkey))
@@ -97,7 +106,7 @@ def create_claim_tx(txin, witness_script, preimage, privkey:bytes, address, amou
 
 class SwapManager(Logger):
 
-    def __init__(self, wallet: 'Abstract_Wallet', network:'Network'):
+    def __init__(self, wallet: 'Abstract_Wallet', network: 'Network'):
         Logger.__init__(self)
         self.normal_fee = 0
         self.lockup_fee = 0
@@ -108,8 +117,8 @@ class SwapManager(Logger):
         self.wallet = wallet
         self.lnworker = wallet.lnworker
         self.lnwatcher = self.wallet.lnworker.lnwatcher
-        self.swaps = self.wallet.db.get_dict('submarine_swaps')
-        self.prepayments = {} # fee_preimage -> preimage
+        self.swaps = self.wallet.db.get_dict('submarine_swaps')  # type: Dict[str, SwapData]
+        self.prepayments = {}  # type: Dict[bytes, bytes] # fee_preimage -> preimage
         for k, swap in self.swaps.items():
             if swap.is_reverse and swap.prepay_hash is not None:
                 self.prepayments[swap.prepay_hash] = bytes.fromhex(k)
@@ -118,7 +127,7 @@ class SwapManager(Logger):
             self.add_lnwatcher_callback(swap)
 
     @log_exceptions
-    async def _claim_swap(self, swap):
+    async def _claim_swap(self, swap: SwapData) -> None:
         if not self.lnwatcher.is_up_to_date():
             return
         current_height = self.network.get_local_height()
@@ -128,7 +137,7 @@ class SwapManager(Logger):
             return
         txos = self.lnwatcher.get_addr_outputs(swap.lockup_address)
         for txin in txos.values():
-            if swap.is_reverse and txin._trusted_value_sats < swap.onchain_amount:
+            if swap.is_reverse and txin.value_sats() < swap.onchain_amount:
                 self.logger.info('amount too low, we should not reveal the preimage')
                 continue
             spent_height = txin.spent_height
@@ -138,35 +147,43 @@ class SwapManager(Logger):
                     self.lnwatcher.remove_callback(swap.lockup_address)
                     swap.is_redeemed = True
                 continue
-            amount_sat = txin._trusted_value_sats - self.get_claim_fee()
+            amount_sat = txin.value_sats() - self.get_claim_fee()
             if amount_sat < dust_threshold():
                 self.logger.info('utxo value below dust threshold')
                 continue
             address = self.wallet.get_receiving_address()
             preimage = swap.preimage if swap.is_reverse else 0
-            tx = create_claim_tx(txin, swap.redeem_script, preimage, swap.privkey, address, amount_sat, swap.locktime)
+            tx = create_claim_tx(txin=txin,
+                                 witness_script=swap.redeem_script,
+                                 preimage=preimage,
+                                 privkey=swap.privkey,
+                                 address=address,
+                                 amount_sat=amount_sat,
+                                 locktime=swap.locktime)
             await self.network.broadcast_transaction(tx)
             # save txid
             if swap.is_reverse:
                 swap.spending_txid = tx.txid()
             else:
-                self.wallet.setlabel(tx.txid(), 'Swap refund')
+                self.wallet.set_label(tx.txid(), 'Swap refund')
 
     def get_claim_fee(self):
         return self.lnwatcher.config.estimate_fee(136, allow_fallback_to_static_rates=True)
 
-    def get_swap(self, payment_hash):
+    def get_swap(self, payment_hash: bytes) -> Optional[SwapData]:
         # for history
         swap = self.swaps.get(payment_hash.hex())
         if swap:
             return swap
 
-    def add_lnwatcher_callback(self, swap):
+    def add_lnwatcher_callback(self, swap: SwapData) -> None:
         callback = lambda: self._claim_swap(swap)
         self.lnwatcher.add_callback(swap.lockup_address, callback)
 
     @log_exceptions
-    async def normal_swap(self, lightning_amount, expected_onchain_amount, password, *, tx=None):
+    async def normal_swap(self, lightning_amount: int, expected_onchain_amount: int,
+                          password, *, tx: PartialTransaction = None) -> str:
+        """send on-chain BTC, receive on Lightning"""
         privkey = os.urandom(32)
         pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
         key = await self.lnworker._add_request_coro(lightning_amount, 'swap', expiry=3600*24)
@@ -237,7 +254,8 @@ class SwapManager(Logger):
         return tx.txid()
 
     @log_exceptions
-    async def reverse_swap(self, amount_sat, expected_amount):
+    async def reverse_swap(self, amount_sat: int, expected_amount: int) -> bool:
+        """send on Lightning, receive on-chain"""
         privkey = os.urandom(32)
         pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
         preimage = os.urandom(32)
@@ -315,7 +333,7 @@ class SwapManager(Logger):
         return success
 
     @log_exceptions
-    async def get_pairs(self):
+    async def get_pairs(self) -> None:
         response = await self.network._send_http_on_proxy(
             'get',
             API_URL + '/getpairs',
@@ -329,7 +347,7 @@ class SwapManager(Logger):
         self.min_amount = limits['minimal']
         self.max_amount = limits['maximal']
 
-    def get_recv_amount(self, send_amount, is_reverse):
+    def get_recv_amount(self, send_amount: Optional[int], is_reverse: bool) -> Optional[int]:
         if send_amount is None:
             return
         if send_amount < self.min_amount or send_amount > self.max_amount:
@@ -346,7 +364,7 @@ class SwapManager(Logger):
             return
         return x
 
-    def get_send_amount(self, recv_amount, is_reverse):
+    def get_send_amount(self, recv_amount: Optional[int], is_reverse: bool) -> Optional[int]:
         if not recv_amount:
             return
         x = recv_amount
