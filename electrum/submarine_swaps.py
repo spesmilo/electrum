@@ -348,9 +348,7 @@ class SwapManager(Logger):
         self.add_lnwatcher_callback(swap)
         # initiate payment.
         if fee_invoice:
-            success, log = await self.lnworker._pay(fee_invoice, attempts=10)
-            if not success:
-                return False
+            asyncio.ensure_future(self.lnworker._pay(fee_invoice, attempts=10))
         # initiate payment.
         success, log = await self.lnworker._pay(invoice, attempts=10)
         return success
