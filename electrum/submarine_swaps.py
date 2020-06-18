@@ -1,7 +1,7 @@
 import asyncio
 import json
 import os
-from typing import TYPE_CHECKING, Optional, Dict
+from typing import TYPE_CHECKING, Optional, Dict, Union
 
 import attr
 
@@ -81,12 +81,15 @@ def create_claim_tx(
         *,
         txin: PartialTxInput,
         witness_script: bytes,
-        preimage: bytes,
+        preimage: Union[bytes, int],  # 0 if timing out forward-swap
         privkey: bytes,
         address: str,
         amount_sat: int,
         locktime: int,
 ) -> PartialTransaction:
+    """Create tx to either claim successful reverse-swap,
+    or to get refunded for timed-out forward-swap.
+    """
     if is_segwit_address(txin.address):
         txin.script_type = 'p2wsh'
         txin.script_sig = b''
@@ -214,15 +217,23 @@ class SwapManager(Logger):
         # verify redeem_script is built with our pubkey and preimage
         redeem_script = bytes.fromhex(redeem_script)
         parsed_script = [x for x in script_GetOp(redeem_script)]
-        assert match_script_against_template(redeem_script, WITNESS_TEMPLATE_SWAP)
-        assert script_to_p2wsh(redeem_script.hex()) == lockup_address
-        assert hash_160(preimage) == parsed_script[1][1]
-        assert pubkey == parsed_script[9][1]
-        assert locktime == int.from_bytes(parsed_script[6][1], byteorder='little')
+        if not match_script_against_template(redeem_script, WITNESS_TEMPLATE_SWAP):
+            raise Exception("fswap check failed: scriptcode does not match template")
+        if script_to_p2wsh(redeem_script.hex()) != lockup_address:
+            raise Exception("fswap check failed: inconsistent scriptcode and address")
+        if hash_160(preimage) != parsed_script[1][1]:
+            raise Exception("fswap check failed: our preimage not in script")
+        if pubkey != parsed_script[9][1]:
+            raise Exception("fswap check failed: our pubkey not in script")
+        if locktime != int.from_bytes(parsed_script[6][1], byteorder='little'):
+            raise Exception("fswap check failed: inconsistent locktime and script")
         # check that onchain_amount is not more than what we estimated
-        assert onchain_amount <= expected_onchain_amount, (onchain_amount, expected_onchain_amount)
+        if onchain_amount > expected_onchain_amount:
+            raise Exception(f"fswap check failed: onchain_amount is more than what we estimated: "
+                            f"{onchain_amount} > {expected_onchain_amount}")
         # verify that they are not locking up funds for more than a day
-        assert locktime - self.network.get_local_height() < 144
+        if locktime - self.network.get_local_height() >= 144:
+            raise Exception("fswap check failed: locktime too far in future")
         # create funding tx
         funding_output = PartialTxOutput.from_address_and_value(lockup_address, expected_onchain_amount)
         if tx is None:
@@ -284,19 +295,28 @@ class SwapManager(Logger):
         # verify redeem_script is built with our pubkey and preimage
         redeem_script = bytes.fromhex(redeem_script)
         parsed_script = [x for x in script_GetOp(redeem_script)]
-        assert match_script_against_template(redeem_script, WITNESS_TEMPLATE_REVERSE_SWAP)
-        assert script_to_p2wsh(redeem_script.hex()) == lockup_address
-        assert hash_160(preimage) == parsed_script[5][1]
-        assert pubkey == parsed_script[7][1]
-        assert locktime == int.from_bytes(parsed_script[10][1], byteorder='little')
+        if not match_script_against_template(redeem_script, WITNESS_TEMPLATE_REVERSE_SWAP):
+            raise Exception("rswap check failed: scriptcode does not match template")
+        if script_to_p2wsh(redeem_script.hex()) != lockup_address:
+            raise Exception("rswap check failed: inconsistent scriptcode and address")
+        if hash_160(preimage) != parsed_script[5][1]:
+            raise Exception("rswap check failed: our preimage not in script")
+        if pubkey != parsed_script[7][1]:
+            raise Exception("rswap check failed: our pubkey not in script")
+        if locktime != int.from_bytes(parsed_script[10][1], byteorder='little'):
+            raise Exception("rswap check failed: inconsistent locktime and script")
         # check that the onchain amount is what we expected
-        assert onchain_amount >= expected_amount, (onchain_amount, expected_amount)
-        # verify that we will have enought time to get our tx confirmed
-        assert locktime - self.network.get_local_height() > 10
+        if onchain_amount < expected_amount:
+            raise Exception(f"rswap check failed: onchain_amount is less than what we expected: "
+                            f"{onchain_amount} < {expected_amount}")
+        # verify that we will have enough time to get our tx confirmed
+        if locktime - self.network.get_local_height() <= 10:
+            raise Exception("fswap check failed: locktime too close")
         # verify invoice preimage_hash
         lnaddr = self.lnworker._check_invoice(invoice)
         invoice_amount = lnaddr.get_amount_sat()
-        assert lnaddr.paymenthash == preimage_hash
+        if lnaddr.paymenthash != preimage_hash:
+            raise Exception("rswap check failed: inconsistent RHASH and invoice")
         # check that the lightning amount is what we requested
         if fee_invoice:
             fee_lnaddr = self.lnworker._check_invoice(fee_invoice)
@@ -304,7 +324,9 @@ class SwapManager(Logger):
             prepay_hash = fee_lnaddr.paymenthash
         else:
             prepay_hash = None
-        assert int(invoice_amount) == amount_sat, (invoice_amount, amount_sat)
+        if int(invoice_amount) != amount_sat:
+            raise Exception(f"rswap check failed: invoice_amount ({invoice_amount}) "
+                            f"not what we requested ({amount_sat})")
         # save swap data to wallet file
         swap = SwapData(
             redeem_script = redeem_script,
