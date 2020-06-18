@@ -154,6 +154,8 @@ class ChannelConstraints(StoredObject):
     is_initiator = attr.ib(type=bool)  # note: sometimes also called "funder"
     funding_txn_minimum_depth = attr.ib(type=int)
 
+
+CHANNEL_BACKUP_VERSION = 0
 @attr.s
 class ChannelBackupStorage(StoredObject):
     node_id = attr.ib(type=bytes, converter=hex_to_bytes)
@@ -179,6 +181,7 @@ class ChannelBackupStorage(StoredObject):
 
     def to_bytes(self):
         vds = BCDataStream()
+        vds.write_int16(CHANNEL_BACKUP_VERSION)
         vds.write_boolean(self.is_initiator)
         vds.write_bytes(self.privkey, 32)
         vds.write_bytes(self.channel_seed, 32)
@@ -198,6 +201,9 @@ class ChannelBackupStorage(StoredObject):
     def from_bytes(s):
         vds = BCDataStream()
         vds.write(s)
+        version = vds.read_int16()
+        if version != CHANNEL_BACKUP_VERSION:
+            raise Exception(f"unknown version for channel backup: {version}")
         return ChannelBackupStorage(
             is_initiator = bool(vds.read_bytes(1)),
             privkey = vds.read_bytes(32).hex(),

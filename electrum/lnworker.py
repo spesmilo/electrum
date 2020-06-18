@@ -66,7 +66,7 @@ from .lnrouter import (RouteEdge, LNPaymentRoute, LNPaymentPath, is_route_sane_t
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from . import lnsweep
 from .lnwatcher import LNWalletWatcher
-from .crypto import pw_encode_bytes, pw_decode_bytes, PW_HASH_VERSION_LATEST
+from .crypto import pw_encode_with_version_and_mac, pw_decode_with_version_and_mac
 from .lnutil import ChannelBackupStorage
 from .lnchannel import ChannelBackup
 from .channel_db import UpdateStatus
@@ -1396,9 +1396,9 @@ class LNWallet(LNWorker):
         xpub = self.wallet.get_fingerprint()
         backup_bytes = self.create_channel_backup(channel_id).to_bytes()
         assert backup_bytes == ChannelBackupStorage.from_bytes(backup_bytes).to_bytes(), "roundtrip failed"
-        encrypted = pw_encode_bytes(backup_bytes, xpub, version=PW_HASH_VERSION_LATEST)
-        assert backup_bytes == pw_decode_bytes(encrypted, xpub, version=PW_HASH_VERSION_LATEST), "encrypt failed"
-        return encrypted
+        encrypted = pw_encode_with_version_and_mac(backup_bytes, xpub)
+        assert backup_bytes == pw_decode_with_version_and_mac(encrypted, xpub), "encrypt failed"
+        return 'channel_backup:' + encrypted
 
 
 class LNBackups(Logger):
@@ -1449,9 +1449,11 @@ class LNBackups(Logger):
         self.lnwatcher.stop()
         self.lnwatcher = None
 
-    def import_channel_backup(self, encrypted):
+    def import_channel_backup(self, data):
+        assert data.startswith('channel_backup:')
+        encrypted = data[15:]
         xpub = self.wallet.get_fingerprint()
-        decrypted = pw_decode_bytes(encrypted, xpub, version=PW_HASH_VERSION_LATEST)
+        decrypted = pw_decode_with_version_and_mac(encrypted, xpub)
         cb_storage = ChannelBackupStorage.from_bytes(decrypted)
         channel_id = cb_storage.channel_id().hex()
         d = self.db.get_dict("channel_backups")

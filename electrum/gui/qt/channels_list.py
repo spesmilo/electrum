@@ -132,7 +132,7 @@ class ChannelsList(MyTreeView):
             _("If you lose your wallet file, the only thing you can do with a backup is to request your channel to be closed, so that your funds will be sent on-chain."),
         ])
         data = self.lnworker.export_channel_backup(channel_id)
-        self.main_window.show_qrcode('channel_backup:' + data, 'channel backup', help_text=msg)
+        self.main_window.show_qrcode(data, 'channel backup', help_text=msg)
 
     def request_force_close(self, channel_id):
         def task():

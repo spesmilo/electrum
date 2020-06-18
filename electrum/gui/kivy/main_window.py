@@ -415,7 +415,7 @@ class ElectrumWindow(App):
             self.set_URI(data)
             return
         if data.startswith('channel_backup:'):
-            self.import_channel_backup(data[15:])
+            self.import_channel_backup(data)
             return
         bolt11_invoice = maybe_extract_bolt11_invoice(data)
         if bolt11_invoice is not None:
