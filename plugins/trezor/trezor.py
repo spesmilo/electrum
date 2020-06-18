@@ -67,11 +67,16 @@ class TrezorKeyStore(Hardware_KeyStore):
     def sign_transaction(self, tx, password, *, use_cache=False):
         if tx.is_complete():
             return
+        # previous transactions used as inputs
+        prev_tx = {}
         # path of the xpubs that are involved
         xpub_path = {}
         for txin in tx.inputs():
             pubkeys, x_pubkeys = tx.get_sorted_pubkeys(txin)
             tx_hash = txin['prevout_hash']
+            if txin.get('prev_tx') is None:
+                raise RuntimeError(_('Offline signing with {} is not supported.').format(self.device))
+            prev_tx[tx_hash] = txin['prev_tx']
             for x_pubkey in x_pubkeys:
                 if not is_xpubkey(x_pubkey):
                     continue
@@ -79,11 +84,11 @@ class TrezorKeyStore(Hardware_KeyStore):
                 if xpub == self.get_master_public_key():
                     xpub_path[xpub] = self.get_derivation()
 
-        self.plugin.sign_transaction(self, tx, xpub_path)
+        self.plugin.sign_transaction(self, tx, prev_tx, xpub_path)
 
     def needs_prevtx(self):
-        # Trezor doesn't neeed previous transactions for Bitcoin Cash
-        return False
+        # Trezor does need previous transactions for Bitcoin Cash
+        return True
 
 
 class LibraryFoundButUnusable(Exception):
@@ -103,7 +108,7 @@ class TrezorPlugin(HW_PluginBase):
     minimum_firmware = (1, 5, 2)
     keystore_class = TrezorKeyStore
     minimum_library = (0, 11, 0)
-    maximum_library = (0, 12)
+    maximum_library = (0, 13)
 
     DEVICE_IDS = (TREZOR_PRODUCT_KEY,)
 
@@ -337,12 +342,13 @@ class TrezorPlugin(HW_PluginBase):
         else:
             return InputScriptType.SPENDADDRESS
 
-    def sign_transaction(self, keystore, tx, xpub_path):
+    def sign_transaction(self, keystore, tx, prev_tx, xpub_path):
+        prev_tx = { bfh(txhash): self.electrum_tx_to_txtype(tx, xpub_path) for txhash, tx in prev_tx.items() }
         client = self.get_client(keystore)
         inputs = self.tx_inputs(tx, xpub_path, True)
         outputs = self.tx_outputs(keystore.get_derivation(), tx, client)
         details = SignTx(lock_time=tx.locktime)
-        signatures, signed_tx = client.sign_tx(self.get_coin_name(), inputs, outputs, details=details,prev_txes=defaultdict(TransactionType))
+        signatures, signed_tx = client.sign_tx(self.get_coin_name(), inputs, outputs, details=details, prev_txes=prev_tx)
         signatures = [bh2u(x) for x in signatures]
         tx.update_signatures(signatures)
 
@@ -509,3 +515,15 @@ class TrezorPlugin(HW_PluginBase):
         # for electron-cash previous tx is never needed, since it uses
         # bip-143 signatures.
         return None
+
+    def electrum_tx_to_txtype(self, tx, xpub_path):
+        t = TransactionType()
+        d = deserialize(tx.raw)
+        t.version = d['version']
+        t.lock_time = d['lockTime']
+        t.inputs = self.tx_inputs(tx, xpub_path)
+        t.bin_outputs = [
+            TxOutputBinType(amount=vout['value'], script_pubkey=bfh(vout['scriptPubKey']))
+            for vout in d['outputs']
+        ]
+        return t
