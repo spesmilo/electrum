@@ -279,6 +279,7 @@ class ChannelsList(MyTreeView):
         h.addWidget(self.can_send_label)
         h.addStretch()
         self.swap_button = EnterButton(_('Swap'), self.swap_dialog)
+        self.swap_button.setEnabled(self.parent.wallet.has_lightning())
         self.new_channel_button = EnterButton(_('Open Channel'), self.new_channel_dialog)
         self.new_channel_button.setEnabled(self.parent.wallet.has_lightning())
         h.addWidget(self.new_channel_button)
