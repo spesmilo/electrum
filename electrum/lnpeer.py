@@ -53,7 +53,7 @@ from .lnutil import ln_dummy_address
 from .json_db import StoredDict
 
 if TYPE_CHECKING:
-    from .lnworker import LNWorker, LNGossip, LNWallet
+    from .lnworker import LNWorker, LNGossip, LNWallet, LNBackups
     from .lnrouter import RouteEdge, LNPaymentRoute
     from .transaction import PartialTransaction
 
@@ -64,7 +64,12 @@ LN_P2P_NETWORK_TIMEOUT = 20
 class Peer(Logger):
     LOGGING_SHORTCUT = 'P'
 
-    def __init__(self, lnworker: Union['LNGossip', 'LNWallet'], pubkey:bytes, transport: LNTransportBase):
+    def __init__(
+            self,
+            lnworker: Union['LNGossip', 'LNWallet', 'LNBackups'],
+            pubkey: bytes,
+            transport: LNTransportBase
+    ):
         self._sent_init = False  # type: bool
         self._received_init = False  # type: bool
         self.initialized = asyncio.Future()
@@ -425,9 +430,6 @@ class Peer(Logger):
             first_blocknum=first_block,
             number_of_blocks=num_blocks)
 
-    def encode_short_ids(self, ids):
-        return chr(1) + zlib.compress(bfh(''.join(ids)))
-
     def decode_short_ids(self, encoded):
         if encoded[0] == 0:
             decoded = encoded[1:]
@@ -773,8 +775,8 @@ class Peer(Logger):
         self.send_message(
             "channel_reestablish",
             channel_id=channel_id,
-            next_local_commitment_number=0,
-            next_remote_revocation_number=0,
+            next_commitment_number=0,
+            next_revocation_number=0,
             your_last_per_commitment_secret=0,
             my_current_per_commitment_point=latest_point)
 

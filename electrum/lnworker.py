@@ -20,7 +20,7 @@ from concurrent import futures
 
 import dns.resolver
 import dns.exception
-from aiorpcx import run_in_thread
+from aiorpcx import run_in_thread, TaskGroup
 
 from . import constants, util
 from . import keystore
@@ -1413,7 +1413,6 @@ class LNBackups(Logger):
         self.features = LnFeatures(0)
         self.features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
         self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_OPT
-        self.taskgroup = SilentTaskGroup()
         self.lock = threading.RLock()
         self.wallet = wallet
         self.db = wallet.db
@@ -1442,6 +1441,12 @@ class LNBackups(Logger):
         for chan in channel_backups:
             if chan.funding_outpoint.to_str() == txo:
                 return chan
+
+    def on_peer_successfully_established(self, peer: Peer) -> None:
+        pass
+
+    def channels_for_peer(self, node_id):
+        return {}
 
     def start_network(self, network: 'Network'):
         assert network
@@ -1483,10 +1488,12 @@ class LNBackups(Logger):
     @log_exceptions
     async def request_force_close(self, channel_id):
         cb = self.channel_backups[channel_id].cb
+        # TODO also try network addresses from gossip db (as it might have changed)
         peer_addr = LNPeerAddr(cb.host, cb.port, cb.node_id)
         transport = LNTransport(cb.privkey, peer_addr,
                                 proxy=self.network.proxy)
         peer = Peer(self, cb.node_id, transport)
-        await self.taskgroup.spawn(peer._message_loop())
-        await peer.initialized
-        await self.taskgroup.spawn(peer.trigger_force_close(channel_id))
+        async with TaskGroup() as group:
+            await group.spawn(peer._message_loop())
+            await group.spawn(peer.trigger_force_close(channel_id))
+            # TODO force-exit taskgroup, to clean-up
