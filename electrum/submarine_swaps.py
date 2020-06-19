@@ -16,13 +16,18 @@ from .bitcoin import dust_threshold
 from .logging import Logger
 from .lnutil import hex_to_bytes
 from .json_db import StoredObject
+from . import constants
+
 
 if TYPE_CHECKING:
     from .network import Network
     from .wallet import Abstract_Wallet
 
 
-API_URL = 'https://lightning.electrum.org/api'
+API_URL_MAINNET = 'https://lightning.electrum.org/api'
+API_URL_TESTNET = 'https://lightning.electrum.org/testnet'
+API_URL_REGTEST = 'https://localhost/api'
+
 
 
 WITNESS_TEMPLATE_SWAP = [
@@ -128,6 +133,13 @@ class SwapManager(Logger):
             if swap.is_redeemed:
                 continue
             self.add_lnwatcher_callback(swap)
+        # api url
+        if constants.net == constants.BitcoinMainnet:
+            self.api_url = API_URL_MAINNET
+        elif constants.net == constants.BitcoinTestnet:
+            self.api_url = API_URL_TESTNET
+        else:
+            self.api_url = API_URL_REGTEST
 
     @log_exceptions
     async def _claim_swap(self, swap: SwapData) -> None:
@@ -200,7 +212,7 @@ class SwapManager(Logger):
         }
         response = await self.network._send_http_on_proxy(
             'post',
-            API_URL + '/createswap',
+            self.api_url + '/createswap',
             json=request_data,
             timeout=30)
         data = json.loads(response)
@@ -276,7 +288,7 @@ class SwapManager(Logger):
         }
         response = await self.network._send_http_on_proxy(
             'post',
-            API_URL + '/createswap',
+            self.api_url + '/createswap',
             json=request_data,
             timeout=30)
         data = json.loads(response)
@@ -350,7 +362,7 @@ class SwapManager(Logger):
     async def get_pairs(self) -> None:
         response = await self.network._send_http_on_proxy(
             'get',
-            API_URL + '/getpairs',
+            self.api_url + '/getpairs',
             timeout=30)
         pairs = json.loads(response)
         fees = pairs['pairs']['BTC/BTC']['fees']
