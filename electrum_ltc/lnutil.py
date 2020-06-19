@@ -82,6 +82,7 @@ class Config(StoredObject):
     htlc_minimum_msat = attr.ib(type=int)  # smallest value for INCOMING htlc
 
     def validate_params(self, *, funding_sat: int) -> None:
+        conf_name = type(self).__name__
         for key in (
                 self.payment_basepoint,
                 self.multisig_key,
@@ -90,27 +91,28 @@ class Config(StoredObject):
                 self.revocation_basepoint
         ):
             if not (len(key.pubkey) == 33 and ecc.ECPubkey.is_pubkey_bytes(key.pubkey)):
-                raise Exception("invalid pubkey in channel config")
+                raise Exception(f"{conf_name}. invalid pubkey in channel config")
         if self.reserve_sat < self.dust_limit_sat:
-            raise Exception("MUST set channel_reserve_satoshis greater than or equal to dust_limit_satoshis")
+            raise Exception(f"{conf_name}. MUST set channel_reserve_satoshis greater than or equal to dust_limit_satoshis")
         # technically this could be using the lower DUST_LIMIT_DEFAULT_SAT_SEGWIT
         # but other implementations are checking against this value too; also let's be conservative
         if self.dust_limit_sat < bitcoin.DUST_LIMIT_DEFAULT_SAT_LEGACY:
-            raise Exception(f"dust limit too low: {self.dust_limit_sat} sat")
+            raise Exception(f"{conf_name}. dust limit too low: {self.dust_limit_sat} sat")
         if self.reserve_sat > funding_sat // 100:
-            raise Exception(f'reserve too high: {self.reserve_sat}, funding_sat: {funding_sat}')
+            raise Exception(f"{conf_name}. reserve too high: {self.reserve_sat}, funding_sat: {funding_sat}")
         if self.htlc_minimum_msat > 1_000:
-            raise Exception(f"htlc_minimum_msat too high: {self.htlc_minimum_msat} msat")
-        if self.htlc_minimum_msat < 1:
-            raise Exception(f"htlc_minimum_msat too low: {self.htlc_minimum_msat} msat")
+            raise Exception(f"{conf_name}. htlc_minimum_msat too high: {self.htlc_minimum_msat} msat")
+        HTLC_MINIMUM_MSAT_MIN = 0  # should be at least 1 really, but apparently some nodes are sending zero...
+        if self.htlc_minimum_msat < HTLC_MINIMUM_MSAT_MIN:
+            raise Exception(f"{conf_name}. htlc_minimum_msat too low: {self.htlc_minimum_msat} msat < {HTLC_MINIMUM_MSAT_MIN}")
         if self.max_accepted_htlcs < 1:
-            raise Exception(f"max_accepted_htlcs too low: {self.max_accepted_htlcs}")
+            raise Exception(f"{conf_name}. max_accepted_htlcs too low: {self.max_accepted_htlcs}")
         if self.max_accepted_htlcs > 483:
-            raise Exception(f"max_accepted_htlcs too high: {self.max_accepted_htlcs}")
+            raise Exception(f"{conf_name}. max_accepted_htlcs too high: {self.max_accepted_htlcs}")
         if self.to_self_delay > MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED:
-            raise Exception(f"to_self_delay too high: {self.to_self_delay} > {MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED}")
+            raise Exception(f"{conf_name}. to_self_delay too high: {self.to_self_delay} > {MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED}")
         if self.max_htlc_value_in_flight_msat < min(1000 * funding_sat, 100_000_000):
-            raise Exception(f"max_htlc_value_in_flight_msat is too small: {self.max_htlc_value_in_flight_msat}")
+            raise Exception(f"{conf_name}. max_htlc_value_in_flight_msat is too small: {self.max_htlc_value_in_flight_msat}")
 
 
 @attr.s
@@ -136,6 +138,15 @@ class LocalConfig(Config):
         kwargs['payment_basepoint'] = OnlyPubkeyKeypair(static_remotekey) if static_remotekey else keypair_generator(LnKeyFamily.PAYMENT_BASE)
         return LocalConfig(**kwargs)
 
+    def validate_params(self, *, funding_sat: int) -> None:
+        conf_name = type(self).__name__
+        # run base checks regardless whether LOCAL/REMOTE config
+        super().validate_params(funding_sat=funding_sat)
+        # run some stricter checks on LOCAL config (make sure we ourselves do the sane thing,
+        # even if we are lenient with REMOTE for compatibility reasons)
+        HTLC_MINIMUM_MSAT_MIN = 1
+        if self.htlc_minimum_msat < HTLC_MINIMUM_MSAT_MIN:
+            raise Exception(f"{conf_name}. htlc_minimum_msat too low: {self.htlc_minimum_msat} msat < {HTLC_MINIMUM_MSAT_MIN}")
 
 @attr.s
 class RemoteConfig(Config):
@@ -205,7 +216,7 @@ class ChannelBackupStorage(StoredObject):
         if version != CHANNEL_BACKUP_VERSION:
             raise Exception(f"unknown version for channel backup: {version}")
         return ChannelBackupStorage(
-            is_initiator = bool(vds.read_bytes(1)),
+            is_initiator = vds.read_boolean(),
             privkey = vds.read_bytes(32).hex(),
             channel_seed = vds.read_bytes(32).hex(),
             node_id = vds.read_bytes(33).hex(),

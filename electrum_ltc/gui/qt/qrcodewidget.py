@@ -93,7 +93,16 @@ class QRCodeWidget(QWidget):
 
 class QRDialog(WindowModalDialog):
 
-    def __init__(self, data, parent=None, title = "", show_text=False, help_text=None):
+    def __init__(
+            self,
+            data,
+            parent=None,
+            title="",
+            show_text=False,
+            *,
+            help_text=None,
+            show_copy_text_btn=False,
+    ):
         WindowModalDialog.__init__(self, parent, title)
 
         vbox = QVBoxLayout()
@@ -119,14 +128,23 @@ class QRDialog(WindowModalDialog):
             p.save(filename, 'png')
             self.show_message(_("QR code saved to file") + " " + filename)
 
-        def copy_to_clipboard():
+        def copy_image_to_clipboard():
             p = qrw.grab()
             QApplication.clipboard().setPixmap(p)
             self.show_message(_("QR code copied to clipboard"))
 
-        b = QPushButton(_("Copy"))
+        def copy_text_to_clipboard():
+            QApplication.clipboard().setText(data)
+            self.show_message(_("Text copied to clipboard"))
+
+        b = QPushButton(_("Copy Image"))
         hbox.addWidget(b)
-        b.clicked.connect(copy_to_clipboard)
+        b.clicked.connect(copy_image_to_clipboard)
+
+        if show_copy_text_btn:
+            b = QPushButton(_("Copy Text"))
+            hbox.addWidget(b)
+            b.clicked.connect(copy_text_to_clipboard)
 
         b = QPushButton(_("Save"))
         hbox.addWidget(b)

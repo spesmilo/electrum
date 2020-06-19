@@ -249,12 +249,12 @@ class ElectrumWindow(App):
         if self.invoice_popup and self.invoice_popup.key == key:
             self.invoice_popup.update_status()
 
-    def on_payment_succeeded(self, event, key):
+    def on_payment_succeeded(self, event, wallet, key):
         description = self.wallet.get_label(key)
         self.show_info(_('Payment succeeded') + '\n\n' + description)
         self._trigger_update_history()
 
-    def on_payment_failed(self, event, key, reason):
+    def on_payment_failed(self, event, wallet, key, reason):
         self.show_info(_('Payment failed') + '\n\n' + reason)
 
     def _get_bu(self):
@@ -723,7 +723,7 @@ class ElectrumWindow(App):
             self._channels_dialog = LightningChannelsDialog(self)
         self._channels_dialog.open()
 
-    def on_channel(self, evt, chan):
+    def on_channel(self, evt, wallet, chan):
         if self._channels_dialog:
             Clock.schedule_once(lambda dt: self._channels_dialog.update())
 

@@ -26,7 +26,7 @@ ROLE_CHANNEL_ID = Qt.UserRole
 
 class ChannelsList(MyTreeView):
     update_rows = QtCore.pyqtSignal(Abstract_Wallet)
-    update_single_row = QtCore.pyqtSignal(AbstractChannel)
+    update_single_row = QtCore.pyqtSignal(Abstract_Wallet, AbstractChannel)
     gossip_db_loaded = QtCore.pyqtSignal()
 
     class Columns(IntEnum):
@@ -132,7 +132,8 @@ class ChannelsList(MyTreeView):
             _("If you lose your wallet file, the only thing you can do with a backup is to request your channel to be closed, so that your funds will be sent on-chain."),
         ])
         data = self.lnworker.export_channel_backup(channel_id)
-        self.main_window.show_qrcode(data, 'channel backup', help_text=msg)
+        self.main_window.show_qrcode(data, 'channel backup', help_text=msg,
+                                     show_copy_text_btn=True)
 
     def request_force_close(self, channel_id):
         def task():
@@ -147,6 +148,8 @@ class ChannelsList(MyTreeView):
         menu.setSeparatorsCollapsible(True)  # consecutive separators are merged together
         selected = self.selected_in_column(self.Columns.NODE_ALIAS)
         if not selected:
+            menu.addAction(_("Import channel backup"), lambda: self.parent.do_process_from_text_channel_backup())
+            menu.exec_(self.viewport().mapToGlobal(position))
             return
         multi_select = len(selected) > 1
         if multi_select:
@@ -202,10 +205,9 @@ class ChannelsList(MyTreeView):
             menu.addAction(_("Delete"), lambda: self.remove_channel(channel_id))
         menu.exec_(self.viewport().mapToGlobal(position))
 
-    @QtCore.pyqtSlot(AbstractChannel)
-    def do_update_single_row(self, chan: AbstractChannel):
-        lnworker = self.parent.wallet.lnworker
-        if not lnworker:
+    @QtCore.pyqtSlot(Abstract_Wallet, AbstractChannel)
+    def do_update_single_row(self, wallet: Abstract_Wallet, chan: AbstractChannel):
+        if wallet != self.parent.wallet:
             return
         for row in range(self.model().rowCount()):
             item = self.model().item(row, self.Columns.NODE_ALIAS)
@@ -215,7 +217,8 @@ class ChannelsList(MyTreeView):
                 self.model().item(row, column).setData(v, QtCore.Qt.DisplayRole)
             items = [self.model().item(row, column) for column in self.Columns]
             self._update_chan_frozen_bg(chan=chan, items=items)
-        self.update_can_send(lnworker)
+        if wallet.lnworker:
+            self.update_can_send(wallet.lnworker)
 
     @QtCore.pyqtSlot()
     def on_gossip_db(self):
@@ -277,6 +280,7 @@ class ChannelsList(MyTreeView):
         h.addWidget(self.can_send_label)
         h.addStretch()
         self.swap_button = EnterButton(_('Swap'), self.swap_dialog)
+        self.swap_button.setEnabled(self.parent.wallet.has_lightning())
         self.new_channel_button = EnterButton(_('Open Channel'), self.new_channel_dialog)
         self.new_channel_button.setEnabled(self.parent.wallet.has_lightning())
         h.addWidget(self.new_channel_button)

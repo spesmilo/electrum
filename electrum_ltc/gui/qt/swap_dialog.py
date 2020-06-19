@@ -1,26 +1,18 @@
-from PyQt5 import QtCore, QtGui
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit,
-                             QPushButton, QAbstractItemView, QComboBox)
-from PyQt5.QtGui import QFont, QStandardItem, QBrush
+from typing import TYPE_CHECKING, Optional
 
-from electrum_ltc.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
+from PyQt5.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton
+
 from electrum_ltc.i18n import _
-from electrum_ltc.lnchannel import AbstractChannel, PeerState
-from electrum_ltc.wallet import Abstract_Wallet
-from electrum_ltc.lnutil import LOCAL, REMOTE, format_short_channel_id, LN_MAX_FUNDING_SAT
 from electrum_ltc.lnutil import ln_dummy_address
-from electrum_ltc.lnworker import LNWallet
-from electrum_ltc.transaction import PartialTxOutput
+from electrum_ltc.transaction import PartialTxOutput, PartialTransaction
 
-from .util import (MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton,
-                   EnterButton, WaitingDialog, MONOSPACE_FONT, ColorScheme)
-from .amountedit import BTCAmountEdit, FreezableLineEdit
-from .util import WWLabel
+from .util import (WindowModalDialog, Buttons, OkButton, CancelButton,
+                   EnterButton, ColorScheme, WWLabel, read_QIcon)
+from .amountedit import BTCAmountEdit
 from .fee_slider import FeeSlider, FeeComboBox
 
-import asyncio
-from .util import read_QIcon
+if TYPE_CHECKING:
+    from .main_window import ElectrumWindow
 
 CANNOT_RECEIVE_WARNING = """
 The requested amount is higher than what you can receive in your currently open channels.
@@ -29,15 +21,19 @@ If the swap cannot be performed after 24h, you will be refunded.
 Do you want to continue?
 """
 
+
 class SwapDialog(WindowModalDialog):
 
-    def __init__(self, window):
+    tx: Optional[PartialTransaction]
+
+    def __init__(self, window: 'ElectrumWindow'):
         WindowModalDialog.__init__(self, window, _('Submarine Swap'))
         self.window = window
         self.config = window.config
         self.lnworker = self.window.wallet.lnworker
         self.swap_manager = self.lnworker.swap_manager
         self.network = window.network
+        self.tx = None
         vbox = QVBoxLayout(self)
         vbox.addWidget(WWLabel('Swap lightning funds for on-chain funds if you need to increase your receiving capacity. This service is powered by the Boltz backend.'))
         self.send_amount_e = BTCAmountEdit(self.window.get_decimal_point)
@@ -103,17 +99,32 @@ class SwapDialog(WindowModalDialog):
         self.update()
 
     def spend_max(self):
-        if self.is_reverse:
-            return
         if self.max_button.isChecked():
-            self.update_tx('!')
-            if self.tx:
-                txo = self.tx.outputs()[0]
-                self.send_amount_e.setAmount(txo.value)
+            if self.is_reverse:
+                self._spend_max_reverse_swap()
+            else:
+                self._spend_max_forward_swap()
         else:
             self.tx = None
             self.send_amount_e.setAmount(None)
             self.update_fee()
+
+    def _spend_max_forward_swap(self):
+        self.update_tx('!')
+        if self.tx:
+            amount = self.tx.output_value_for_address(ln_dummy_address())
+            max_amt = self.swap_manager.get_max_amount()
+            if amount > max_amt:
+                amount = max_amt
+                self.update_tx(amount)
+            if self.tx:
+                amount = self.tx.output_value_for_address(ln_dummy_address())
+                assert amount <= max_amt
+                self.send_amount_e.setAmount(amount)
+
+    def _spend_max_reverse_swap(self):
+        amount = min(self.lnworker.num_sats_can_send(), self.swap_manager.get_max_amount())
+        self.send_amount_e.setAmount(amount)
 
     def on_send_edited(self):
         if self.send_amount_e.follows:
@@ -149,24 +160,25 @@ class SwapDialog(WindowModalDialog):
         sm = self.swap_manager
         self.send_button.setIcon(read_QIcon("lightning.png" if self.is_reverse else "bitcoin.png"))
         self.recv_button.setIcon(read_QIcon("lightning.png" if not self.is_reverse else "bitcoin.png"))
-        self.max_button.setEnabled(not self.is_reverse)
         server_mining_fee = sm.lockup_fee if self.is_reverse else sm.normal_fee
         server_fee_str = '%.2f'%sm.percentage + '%  +  '  + self.window.format_amount(server_mining_fee) + ' ' + self.window.base_unit()
         self.server_fee_label.setText(server_fee_str)
         self.update_fee()
 
     def update_fee(self):
+        is_max = self.max_button.isChecked()
         if self.is_reverse:
+            if is_max:
+                self._spend_max_reverse_swap()
             sm = self.swap_manager
             fee = sm.get_claim_fee()
         else:
-            is_max = self.max_button.isChecked()
-            onchain_amount = '!' if is_max else self.send_amount_e.get_amount()
-            self.update_tx(onchain_amount)
+            if is_max:
+                self._spend_max_forward_swap()
+            else:
+                onchain_amount = self.send_amount_e.get_amount()
+                self.update_tx(onchain_amount)
             fee = self.tx.get_fee() if self.tx else None
-            if is_max and self.tx:
-                txo = self.tx.outputs()[0]
-                self.send_amount_e.setAmount(txo.value)
         fee_text = self.window.format_amount(fee) + ' ' + self.window.base_unit() if fee else ''
         self.fee_label.setText(fee_text)
 
