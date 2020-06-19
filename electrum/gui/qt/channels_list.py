@@ -209,9 +209,6 @@ class ChannelsList(MyTreeView):
     def do_update_single_row(self, wallet: Abstract_Wallet, chan: AbstractChannel):
         if wallet != self.parent.wallet:
             return
-        lnworker = wallet.lnworker
-        if not lnworker:
-            return
         for row in range(self.model().rowCount()):
             item = self.model().item(row, self.Columns.NODE_ALIAS)
             if item.data(ROLE_CHANNEL_ID) != chan.channel_id:
@@ -220,7 +217,8 @@ class ChannelsList(MyTreeView):
                 self.model().item(row, column).setData(v, QtCore.Qt.DisplayRole)
             items = [self.model().item(row, column) for column in self.Columns]
             self._update_chan_frozen_bg(chan=chan, items=items)
-        self.update_can_send(lnworker)
+        if wallet.lnworker:
+            self.update_can_send(wallet.lnworker)
 
     @QtCore.pyqtSlot()
     def on_gossip_db(self):

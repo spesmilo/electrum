@@ -1436,7 +1436,7 @@ class LNBackups(Logger):
         pass
 
     async def on_channel_update(self, chan):
-        pass
+        util.trigger_callback('channel', self.wallet, chan)
 
     def channel_by_txo(self, txo):
         with self.lock:
