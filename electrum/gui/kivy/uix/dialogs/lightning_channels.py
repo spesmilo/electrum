@@ -23,10 +23,12 @@ Builder.load_string(r'''
     active: False
     short_channel_id: '<channelId not set>'
     status: ''
+    is_backup: False
     local_balance: ''
     remote_balance: ''
     _chan: None
     BoxLayout:
+        size_hint: 0.7, None
         spacing: '8dp'
         height: '32dp'
         orientation: 'vertical'
@@ -42,17 +44,18 @@ Builder.load_string(r'''
             text: root.status
         Widget
     BoxLayout:
+        size_hint: 0.3, None
         spacing: '8dp'
         height: '32dp'
         orientation: 'vertical'
         Widget
         CardLabel:
-            text: root.local_balance
+            text: root.local_balance if not root.is_backup else ''
             font_size: '13sp'
             halign: 'right'
         Widget
         CardLabel:
-            text: root.remote_balance
+            text: root.remote_balance if not root.is_backup else ''
             font_size: '13sp'
             halign: 'right'
         Widget
@@ -455,7 +458,8 @@ class LightningChannelsDialog(Factory.Popup):
         for i in channels + backups:
             item = Factory.LightningChannelItem()
             item.screen = self
-            item.active = i.node_id in (lnworker.peers if lnworker else [])
+            item.active = not i.is_closed()
+            item.is_backup = i.is_backup()
             item._chan = i
             self.update_item(item)
             channel_cards.add_widget(item)
@@ -464,6 +468,8 @@ class LightningChannelsDialog(Factory.Popup):
     def update_can_send(self):
         lnworker = self.app.wallet.lnworker
         if not lnworker:
+            self.can_send = 'n/a'
+            self.can_receive = 'n/a'
             return
         self.can_send = self.app.format_amount_and_units(lnworker.num_sats_can_send())
         self.can_receive = self.app.format_amount_and_units(lnworker.num_sats_can_receive())
