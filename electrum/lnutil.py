@@ -205,7 +205,7 @@ class ChannelBackupStorage(StoredObject):
         if version != CHANNEL_BACKUP_VERSION:
             raise Exception(f"unknown version for channel backup: {version}")
         return ChannelBackupStorage(
-            is_initiator = bool(vds.read_bytes(1)),
+            is_initiator = vds.read_boolean(),
             privkey = vds.read_bytes(32).hex(),
             channel_seed = vds.read_bytes(32).hex(),
             node_id = vds.read_bytes(33).hex(),
