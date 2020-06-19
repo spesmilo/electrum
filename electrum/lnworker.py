@@ -1470,9 +1470,9 @@ class LNBackups(Logger):
         decrypted = pw_decode_with_version_and_mac(encrypted, xpub)
         cb_storage = ChannelBackupStorage.from_bytes(decrypted)
         channel_id = cb_storage.channel_id().hex()
-        d = self.db.get_dict("channel_backups")
-        if channel_id in d:
+        if channel_id in self.db.get_dict("channels"):
             raise Exception('Channel already in wallet')
+        d = self.db.get_dict("channel_backups")
         d[channel_id] = cb_storage
         self.channel_backups[bfh(channel_id)] = cb = ChannelBackup(cb_storage, sweep_address=self.sweep_address, lnworker=self)
         self.wallet.save_db()
