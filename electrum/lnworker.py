@@ -480,7 +480,7 @@ class LNGossip(LNWorker):
 
 class LNWallet(LNWorker):
 
-    lnwatcher: 'LNWalletWatcher'
+    lnwatcher: Optional['LNWalletWatcher']
 
     def __init__(self, wallet: 'Abstract_Wallet', xprv):
         Logger.__init__(self)
@@ -488,6 +488,7 @@ class LNWallet(LNWorker):
         self.db = wallet.db
         self.config = wallet.config
         LNWorker.__init__(self, xprv)
+        self.lnwatcher = None
         self.features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
         self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_REQ
         self.payments = self.db.get_dict('lightning_payments')     # RHASH -> amount, direction, is_paid
@@ -583,7 +584,7 @@ class LNWallet(LNWorker):
     def peer_closed(self, peer):
         for chan in self.channels_for_peer(peer.pubkey).values():
             chan.peer_state = PeerState.DISCONNECTED
-            util.trigger_callback('channel', chan)
+            util.trigger_callback('channel', self.wallet, chan)
         super().peer_closed(peer)
 
     def get_settled_payments(self):
@@ -716,14 +717,14 @@ class LNWallet(LNWorker):
 
     def channel_state_changed(self, chan):
         self.save_channel(chan)
-        util.trigger_callback('channel', chan)
+        util.trigger_callback('channel', self.wallet, chan)
 
     def save_channel(self, chan):
         assert type(chan) is Channel
         if chan.config[REMOTE].next_per_commitment_point == chan.config[REMOTE].current_per_commitment_point:
             raise Exception("Tried to save channel with next_point == current_point, this should not happen")
         self.wallet.save_db()
-        util.trigger_callback('channel', chan)
+        util.trigger_callback('channel', self.wallet, chan)
 
     def channel_by_txo(self, txo):
         for chan in self.channels.values():
@@ -869,9 +870,9 @@ class LNWallet(LNWorker):
             reason = _('Failed after {} attempts').format(attempts)
         util.trigger_callback('invoice_status', key)
         if success:
-            util.trigger_callback('payment_succeeded', key)
+            util.trigger_callback('payment_succeeded', self.wallet, key)
         else:
-            util.trigger_callback('payment_failed', key, reason)
+            util.trigger_callback('payment_failed', self.wallet, key, reason)
         return success, log
 
     async def _pay_to_route(self, route: LNPaymentRoute, lnaddr: LnAddr) -> PaymentAttemptLog:
@@ -1193,7 +1194,7 @@ class LNWallet(LNWorker):
             chan.logger.info('received unexpected payment_failed, probably from previous session')
             key = payment_hash.hex()
             util.trigger_callback('invoice_status', key)
-            util.trigger_callback('payment_failed', key, '')
+            util.trigger_callback('payment_failed', self.wallet, key, '')
         util.trigger_callback('ln_payment_failed', payment_hash, chan.channel_id)
 
     def payment_sent(self, chan, payment_hash: bytes):
@@ -1209,7 +1210,7 @@ class LNWallet(LNWorker):
             chan.logger.info('received unexpected payment_sent, probably from previous session')
             key = payment_hash.hex()
             util.trigger_callback('invoice_status', key)
-            util.trigger_callback('payment_succeeded', key)
+            util.trigger_callback('payment_succeeded', self.wallet, key)
         util.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
 
     def payment_received(self, chan, payment_hash: bytes):
@@ -1405,6 +1406,8 @@ class LNWallet(LNWorker):
 
 class LNBackups(Logger):
 
+    lnwatcher: Optional['LNWalletWatcher']
+
     def __init__(self, wallet: 'Abstract_Wallet'):
         Logger.__init__(self)
         self.features = LnFeatures(0)
@@ -1414,6 +1417,7 @@ class LNBackups(Logger):
         self.lock = threading.RLock()
         self.wallet = wallet
         self.db = wallet.db
+        self.lnwatcher = None
         self.channel_backups = {}
         for channel_id, cb in random_shuffled_copy(self.db.get_dict("channel_backups").items()):
             self.channel_backups[bfh(channel_id)] = ChannelBackup(cb, sweep_address=self.sweep_address, lnworker=self)
@@ -1424,7 +1428,7 @@ class LNBackups(Logger):
         return self.wallet.get_new_sweep_address_for_channel()
 
     def channel_state_changed(self, chan):
-        util.trigger_callback('channel', chan)
+        util.trigger_callback('channel', self.wallet, chan)
 
     def peer_closed(self, chan):
         pass

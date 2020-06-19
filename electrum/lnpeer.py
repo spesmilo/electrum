@@ -787,7 +787,7 @@ class Peer(Logger):
                              f'already in peer_state {chan.peer_state!r}')
             return
         chan.peer_state = PeerState.REESTABLISHING
-        util.trigger_callback('channel', chan)
+        util.trigger_callback('channel', self.lnworker.wallet, chan)
         # BOLT-02: "A node [...] upon disconnection [...] MUST reverse any uncommitted updates sent by the other side"
         chan.hm.discard_unsigned_remote_updates()
         # ctns
@@ -940,7 +940,7 @@ class Peer(Logger):
         # checks done
         if chan.is_funded() and chan.config[LOCAL].funding_locked_received:
             self.mark_open(chan)
-        util.trigger_callback('channel', chan)
+        util.trigger_callback('channel', self.lnworker.wallet, chan)
         # if we have sent a previous shutdown, it must be retransmitted (Bolt2)
         if chan.get_state() == ChannelState.SHUTDOWN:
             await self.send_shutdown(chan)
@@ -1029,7 +1029,7 @@ class Peer(Logger):
             return
         assert chan.config[LOCAL].funding_locked_received
         chan.set_state(ChannelState.OPEN)
-        util.trigger_callback('channel', chan)
+        util.trigger_callback('channel', self.lnworker.wallet, chan)
         # peer may have sent us a channel update for the incoming direction previously
         pending_channel_update = self.orphan_channel_updates.get(chan.short_channel_id)
         if pending_channel_update:

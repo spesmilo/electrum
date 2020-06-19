@@ -427,18 +427,26 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         elif event == 'gossip_db_loaded':
             self.channels_list.gossip_db_loaded.emit(*args)
         elif event == 'channels_updated':
-            self.channels_list.update_rows.emit(*args)
+            wallet = args[0]
+            if wallet == self.wallet:
+                self.channels_list.update_rows.emit(*args)
         elif event == 'channel':
-            self.channels_list.update_single_row.emit(*args)
-            self.update_status()
+            wallet = args[0]
+            if wallet == self.wallet:
+                self.channels_list.update_single_row.emit(*args)
+                self.update_status()
         elif event == 'request_status':
             self.on_request_status(*args)
         elif event == 'invoice_status':
             self.on_invoice_status(*args)
         elif event == 'payment_succeeded':
-            self.on_payment_succeeded(*args)
+            wallet = args[0]
+            if wallet == self.wallet:
+                self.on_payment_succeeded(*args)
         elif event == 'payment_failed':
-            self.on_payment_failed(*args)
+            wallet = args[0]
+            if wallet == self.wallet:
+                self.on_payment_failed(*args)
         elif event == 'status':
             self.update_status()
         elif event == 'banner':
@@ -1498,12 +1506,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         self.invoice_list.update_item(key, req)
 
-    def on_payment_succeeded(self, key):
+    def on_payment_succeeded(self, wallet, key):
         description = self.wallet.get_label(key)
         self.notify(_('Payment succeeded') + '\n\n' + description)
         self.need_update.set()
 
-    def on_payment_failed(self, key, reason):
+    def on_payment_failed(self, wallet, key, reason):
         self.show_error(_('Payment failed') + '\n\n' + reason)
 
     def read_invoice(self):

@@ -26,7 +26,7 @@ ROLE_CHANNEL_ID = Qt.UserRole
 
 class ChannelsList(MyTreeView):
     update_rows = QtCore.pyqtSignal(Abstract_Wallet)
-    update_single_row = QtCore.pyqtSignal(AbstractChannel)
+    update_single_row = QtCore.pyqtSignal(Abstract_Wallet, AbstractChannel)
     gossip_db_loaded = QtCore.pyqtSignal()
 
     class Columns(IntEnum):
@@ -202,9 +202,11 @@ class ChannelsList(MyTreeView):
             menu.addAction(_("Delete"), lambda: self.remove_channel(channel_id))
         menu.exec_(self.viewport().mapToGlobal(position))
 
-    @QtCore.pyqtSlot(AbstractChannel)
-    def do_update_single_row(self, chan: AbstractChannel):
-        lnworker = self.parent.wallet.lnworker
+    @QtCore.pyqtSlot(Abstract_Wallet, AbstractChannel)
+    def do_update_single_row(self, wallet: Abstract_Wallet, chan: AbstractChannel):
+        if wallet != self.parent.wallet:
+            return
+        lnworker = wallet.lnworker
         if not lnworker:
             return
         for row in range(self.model().rowCount()):
