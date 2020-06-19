@@ -771,7 +771,7 @@ class Peer(Logger):
 
     async def trigger_force_close(self, channel_id):
         await self.initialized
-        latest_point = 0
+        latest_point = secret_to_pubkey(42) # we need a valid point (BOLT2)
         self.send_message(
             "channel_reestablish",
             channel_id=channel_id,
