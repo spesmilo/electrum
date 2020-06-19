@@ -700,14 +700,14 @@ class Channel(AbstractChannel):
 
     def set_frozen_for_sending(self, b: bool) -> None:
         self.storage['frozen_for_sending'] = bool(b)
-        util.trigger_callback('channel', self)
+        util.trigger_callback('channel', self.lnworker.wallet, self)
 
     def is_frozen_for_receiving(self) -> bool:
         return self.storage.get('frozen_for_receiving', False)
 
     def set_frozen_for_receiving(self, b: bool) -> None:
         self.storage['frozen_for_receiving'] = bool(b)
-        util.trigger_callback('channel', self)
+        util.trigger_callback('channel', self.lnworker.wallet, self)
 
     def _assert_can_add_htlc(self, *, htlc_proposer: HTLCOwner, amount_msat: int,
                              ignore_min_htlc_value: bool = False) -> None:
