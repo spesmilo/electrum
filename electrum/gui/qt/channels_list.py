@@ -132,7 +132,8 @@ class ChannelsList(MyTreeView):
             _("If you lose your wallet file, the only thing you can do with a backup is to request your channel to be closed, so that your funds will be sent on-chain."),
         ])
         data = self.lnworker.export_channel_backup(channel_id)
-        self.main_window.show_qrcode(data, 'channel backup', help_text=msg)
+        self.main_window.show_qrcode(data, 'channel backup', help_text=msg,
+                                     show_copy_text_btn=True)
 
     def request_force_close(self, channel_id):
         def task():
@@ -147,6 +148,8 @@ class ChannelsList(MyTreeView):
         menu.setSeparatorsCollapsible(True)  # consecutive separators are merged together
         selected = self.selected_in_column(self.Columns.NODE_ALIAS)
         if not selected:
+            menu.addAction(_("Import channel backup"), lambda: self.parent.do_process_from_text_channel_backup())
+            menu.exec_(self.viewport().mapToGlobal(position))
             return
         multi_select = len(selected) > 1
         if multi_select:

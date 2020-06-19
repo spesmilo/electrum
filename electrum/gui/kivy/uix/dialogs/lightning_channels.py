@@ -9,6 +9,7 @@ from kivy.clock import Clock
 
 from electrum.util import bh2u
 from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id
+from electrum.lnchannel import AbstractChannel, Channel
 from electrum.gui.kivy.i18n import _
 from .question import Question
 
@@ -285,7 +286,7 @@ Builder.load_string(r'''
 
 class ChannelBackupPopup(Popup):
 
-    def __init__(self, chan, app, **kwargs):
+    def __init__(self, chan: AbstractChannel, app: 'ElectrumWindow', **kwargs):
         super(ChannelBackupPopup,self).__init__(**kwargs)
         self.chan = chan
         self.app = app
@@ -320,7 +321,7 @@ class ChannelBackupPopup(Popup):
 
 class ChannelDetailsPopup(Popup):
 
-    def __init__(self, chan, app, **kwargs):
+    def __init__(self, chan: Channel, app: 'ElectrumWindow', **kwargs):
         super(ChannelDetailsPopup,self).__init__(**kwargs)
         self.is_closed = chan.is_closed()
         self.is_redeemed = chan.is_redeemed()

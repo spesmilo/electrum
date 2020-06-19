@@ -585,7 +585,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def select_backup_dir(self, b):
         name = self.config.get('backup_dir', '')
-        dirname = QFileDialog.getExistingDirectory(self, "Select your SSL certificate file", name)
+        dirname = QFileDialog.getExistingDirectory(self, "Select your wallet backup directory", name)
         if dirname:
             self.config.set_key('backup_dir', dirname)
             self.backup_dir_e.setText(dirname)
@@ -2395,10 +2395,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         d = SeedDialog(self, seed, passphrase)
         d.exec_()
 
-    def show_qrcode(self, data, title = _("QR code"), parent=None, help_text=None):
+    def show_qrcode(self, data, title = _("QR code"), parent=None, *,
+                    help_text=None, show_copy_text_btn=False):
         if not data:
             return
-        d = QRDialog(data, parent or self, title, help_text=help_text)
+        d = QRDialog(data, parent or self, title, help_text=help_text,
+                     show_copy_text_btn=show_copy_text_btn)
         d.exec_()
 
     @protected
@@ -2605,7 +2607,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.show_critical(_("Electrum was unable to parse your transaction") + ":\n" + repr(e))
             return
 
-    def import_channel_backup(self, encrypted):
+    def import_channel_backup(self, encrypted: str):
         if not self.question('Import channel backup?'):
             return
         try:
@@ -2657,6 +2659,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         tx = self.tx_from_text(text)
         if tx:
             self.show_transaction(tx)
+
+    def do_process_from_text_channel_backup(self):
+        text = text_dialog(self, _('Input channel backup'), _("Channel Backup:"), _("Load backup"))
+        if not text:
+            return
+        if text.startswith('channel_backup:'):
+            self.import_channel_backup(text)
 
     def do_process_from_file(self):
         tx = self.read_tx_from_file()
