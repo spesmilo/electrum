@@ -80,7 +80,9 @@ class ChannelState(IntEnum):
     OPEN            = 3  # both parties have sent funding_locked
     SHUTDOWN        = 4  # shutdown has been sent.
     CLOSING         = 5  # closing negotiation done. we have a fully signed tx.
-    FORCE_CLOSING   = 6  # we force-closed, and closing tx is unconfirmed. (otherwise we remain OPEN)
+    FORCE_CLOSING   = 6  # we force-closed, and closing tx is unconfirmed. Note that if the
+                         # remote force-closes then we remain OPEN until it gets mined -
+                         # the server could be lying to us with a fake tx.
     CLOSED          = 7  # closing tx has been mined
     REDEEMED        = 8  # we can stop watching
 
