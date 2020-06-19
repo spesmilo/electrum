@@ -1090,7 +1090,7 @@ class LNWallet(LNWorker):
             raise Exception(_("add invoice timed out"))
 
     @log_exceptions
-    async def _add_request_coro(self, amount_sat: Optional[int], message, expiry: int):
+    async def create_invoice(self, amount_sat: Optional[int], message, expiry: int):
         timestamp = int(time.time())
         routing_hints = await self._calc_routing_hints_for_invoice(amount_sat)
         if not routing_hints:
@@ -1098,7 +1098,6 @@ class LNWallet(LNWorker):
                              "Other clients will likely not be able to send to us.")
         payment_preimage = os.urandom(32)
         payment_hash = sha256(payment_preimage)
-
         info = PaymentInfo(payment_hash, amount_sat, RECEIVED, PR_UNPAID)
         amount_btc = amount_sat/Decimal(COIN) if amount_sat else None
         if expiry == 0:
@@ -1113,10 +1112,14 @@ class LNWallet(LNWorker):
                         date=timestamp,
                         payment_secret=derive_payment_secret_from_payment_preimage(payment_preimage))
         invoice = lnencode(lnaddr, self.node_keypair.privkey)
-        key = bh2u(lnaddr.paymenthash)
-        req = LNInvoice.from_bech32(invoice)
         self.save_preimage(payment_hash, payment_preimage)
         self.save_payment_info(info)
+        return lnaddr, invoice
+
+    async def _add_request_coro(self, amount_sat: Optional[int], message, expiry: int):
+        lnaddr, invoice = await self.create_invoice(amount_sat, message, expiry)
+        key = bh2u(lnaddr.paymenthash)
+        req = LNInvoice.from_bech32(invoice)
         self.wallet.add_payment_request(req)
         self.wallet.set_label(key, message)
         return key

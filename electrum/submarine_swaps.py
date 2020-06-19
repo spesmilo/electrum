@@ -188,10 +188,7 @@ class SwapManager(Logger):
         """send on-chain BTC, receive on Lightning"""
         privkey = os.urandom(32)
         pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
-        key = await self.lnworker._add_request_coro(lightning_amount, 'swap', expiry=3600*24)
-        request = self.wallet.get_request(key)
-        invoice = request.invoice
-        lnaddr = self.lnworker._check_invoice(invoice, lightning_amount)
+        lnaddr, invoice = await self.lnworker.create_invoice(lightning_amount, 'swap', expiry=3600*24)
         payment_hash = lnaddr.paymenthash
         preimage = self.lnworker.get_preimage(payment_hash)
         request_data = {
