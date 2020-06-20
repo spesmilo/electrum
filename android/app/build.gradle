@@ -113,6 +113,11 @@ android {
 
 afterEvaluate {
     def stringsTask = task("generateStrings", type: Exec) {
+        // The task runs automatically the first time the app is built. To run it again later,
+        // delete STRINGS_DIR and then rebuild the app.
+        outputs.upToDateWhen {
+            file(STRINGS_DIR).exists()
+        }
         doFirst {
             delete(STRINGS_DIR)
         }
@@ -138,13 +143,8 @@ afterEvaluate {
             }
         }
 
-        // Automatically generate strings the first time the app is built. To regenerate them
-        // later, either delete STRINGS_DIR and rebuild the app, or simply rerun the
-        // `generateStrings` task manually.
-        if (!file(STRINGS_DIR).exists()) {
-            tasks.getByName("generate${variant.name.capitalize()}Resources")
-                .dependsOn(stringsTask)
-        }
+        tasks.getByName("generate${variant.name.capitalize()}Resources")
+            .dependsOn(stringsTask)
     }
 }
 
