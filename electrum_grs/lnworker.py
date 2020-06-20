@@ -86,7 +86,6 @@ NUM_PEERS_TARGET = 4
 FALLBACK_NODE_LIST_TESTNET = (
     LNPeerAddr(host='95.179.140.39', port=9735, pubkey=bfh('0384dee0ec597a7b8235ccf56c68ffa0af5dae72b3455aa3ecb81c4fc4eef9ef2c')),
     LNPeerAddr(host='45.32.236.128', port=9735, pubkey=bfh('02435dea09ad875c36c88f680845277245e7e8bdd28b3bb20470e82e4de0c3cb09')),
-    LNPeerAddr(host='45.32.235.71', port=9735, pubkey=bfh('03397476b50dae183eed13537b01a303991462bea35b08afb4232e19ae5fa78a2e')),
     LNPeerAddr(host='95.179.156.115', port=9196, pubkey=bfh('024d7eff7ab880adf0c69384453e999c01e1b10d6d22c1b52f9ba01e613d40e502')),
     LNPeerAddr(host='108.61.99.169', port=9196, pubkey=bfh('021fedfc02b43971339bf9052e2c639e182be6565435d1606761718352be666f15')),
 )
@@ -95,10 +94,11 @@ FALLBACK_NODE_LIST_TESTNET = (
 # bytes.fromhex('0391c8d0e27fe61ed8cb8784aeae5848bd8b193ea5720dea32ca2694a326fe41f9')
 # verify with b'\x03\x91\xc8\xd0\xe2\x7f\xe6\x1e\xd8\xcb\x87\x84\xae\xaeXH\xbd\x8b\x19>\xa5r\r\xea2\xca&\x94\xa3&\xfeA\xf9'.hex()
 FALLBACK_NODE_LIST_MAINNET = [
-    LNPeerAddr(host='104.236.133.196', port=9735, pubkey=bfh('0391c8d0e27fe61ed8cb8784aeae5848bd8b193ea5720dea32ca2694a326fe41f9')),
-    LNPeerAddr(host='104.236.130.222', port=9735, pubkey=bfh('03046e1650b0e67925d260f4888f809598af6cef58fbfc6446fbd4fddf1828ca3d')),
+    LNPeerAddr(host='104.236.133.196', port=9735, pubkey=bfh('02c0ef8fad8a9d3176424826367a7f9470feb2ad86fa4634d9454190eda876d0ad')),
+    LNPeerAddr(host='104.236.130.222', port=9735, pubkey=bfh('0221af9e2a67c90ffac37db331ab847439509465d599933d4b9b20352ae493c1c1')),
     LNPeerAddr(host='82.196.11.189', port=9196, pubkey=bfh('0226cbef3bef64405046de9fb182acb0fd344e535b524c6e98d2a9131235b8390b')),
     LNPeerAddr(host='82.196.13.206', port=9196, pubkey=bfh('02576fe2dfc26879c751a38f69a1e6b6d6646fa3edf045d5534d8674a188c7da81')),
+    LNPeerAddr(host='104.236.14.225', port=9735, pubkey=bfh('02cfc4c212e4183ca8bd8bd21e18996603f69706553d5f4e1464fdc6cb612b433b')),
 ]
 
 
