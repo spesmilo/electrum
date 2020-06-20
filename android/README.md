@@ -35,7 +35,7 @@ Android-specific strings should be added to
 `app/src/main/python/electroncash_gui/android/strings.py`.
 
 `generateStrings` is run automatically the first time you build the app. If any of the source
-strings change, you'll need to run it again manually to pick them up.
+strings change, delete the directory `app/build/generated/ec_strings` and then rebuild the app.
 
 The Android string IDs are generated from the first 2 words of each string, plus as many more
 words as necessary to make them unique. So if any of the source strings change, you may need to
