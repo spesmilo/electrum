@@ -33,11 +33,12 @@
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.4"
+        "version": "1.4.2"
     },
-    "electrum-ltc.klippb.org": {
+    "electrum-ltc.petrkr.net": {
         "pruning": "-",
-        "s": "50002",
+        "s": "60002",
+        "t": "60001",
         "version": "1.4"
     },
     "electrum-ltc.villocq.com": {
@@ -62,7 +63,7 @@
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.4"
+        "version": "1.4.2"
     },
     "gttvzmfh23pxqiw4.onion": {
         "pruning": "-",
