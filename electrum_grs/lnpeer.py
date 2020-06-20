@@ -1469,7 +1469,7 @@ class Peer(Logger):
         def verify_signature(tx, sig):
             their_pubkey = chan.config[REMOTE].multisig_key.pubkey
             preimage_hex = tx.serialize_preimage(0)
-            pre_hash = sha256d(bfh(preimage_hex))
+            pre_hash = sha256(bfh(preimage_hex))
             return ecc.verify_signature(their_pubkey, sig, pre_hash)
         # the funder sends the first 'closing_signed' message
         if chan.constraints.is_initiator:
