@@ -2,9 +2,9 @@ from typing import TYPE_CHECKING, Optional
 
 from PyQt5.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton
 
-from electrum.i18n import _
-from electrum.lnutil import ln_dummy_address
-from electrum.transaction import PartialTxOutput, PartialTransaction
+from electrum_grs.i18n import _
+from electrum_grs.lnutil import ln_dummy_address
+from electrum_grs.transaction import PartialTxOutput, PartialTransaction
 
 from .util import (WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, ColorScheme, WWLabel, read_QIcon)
