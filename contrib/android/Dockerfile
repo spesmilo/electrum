@@ -154,7 +154,7 @@ RUN cd /opt \
     && cd buildozer \
     && git remote add sombernight https://github.com/SomberNight/buildozer \
     && git fetch --all \
-    && git checkout d0323c165dd5d9aa23d5eb01044474fe006c3420 \
+    && git checkout "d0323c165dd5d9aa23d5eb01044474fe006c3420^{commit}" \
     && python3 -m pip install -e .
 
 # install python-for-android
@@ -163,7 +163,7 @@ RUN cd /opt \
     && cd python-for-android \
     && git remote add sombernight https://github.com/SomberNight/python-for-android \
     && git fetch --all \
-    && git checkout cef08b92268fe69ef331699c2205cbb091e730f0 \
+    && git checkout "cef08b92268fe69ef331699c2205cbb091e730f0^{commit}" \
     && python3 -m pip install -e .
 
 # build env vars

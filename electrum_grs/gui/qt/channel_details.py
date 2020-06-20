@@ -9,9 +9,10 @@ from electrum_grs import util
 from electrum_grs.i18n import _
 from electrum_grs.util import bh2u, format_time
 from electrum_grs.lnutil import format_short_channel_id, LOCAL, REMOTE, UpdateAddHtlc, Direction
-from electrum_grs.lnchannel import htlcsum, Channel
+from electrum_grs.lnchannel import htlcsum, Channel, AbstractChannel
 from electrum_grs.lnaddr import LnAddr, lndecode
 from electrum_grs.bitcoin import COIN
+from electrum_grs.wallet import Abstract_Wallet
 
 from .util import Buttons, CloseButton, ButtonsLineEdit
 
@@ -80,10 +81,12 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
     ln_payment_completed = QtCore.pyqtSignal(str, bytes, bytes)
     ln_payment_failed = QtCore.pyqtSignal(str, bytes, bytes)
     htlc_added = QtCore.pyqtSignal(str, UpdateAddHtlc, LnAddr, Direction)
-    state_changed = QtCore.pyqtSignal(str, Channel)
+    state_changed = QtCore.pyqtSignal(str, Abstract_Wallet, AbstractChannel)
 
-    @QtCore.pyqtSlot(str, Channel)
-    def do_state_changed(self, chan):
+    @QtCore.pyqtSlot(str, Abstract_Wallet, AbstractChannel)
+    def do_state_changed(self, wallet, chan):
+        if wallet != self.wallet:
+            return
         if chan == self.chan:
             self.update()
 
@@ -115,7 +118,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
 
     @QtCore.pyqtSlot(str)
     def show_tx(self, link_text: str):
-        funding_tx = self.window.wallet.db.get_transaction(self.chan.funding_outpoint.txid)
+        funding_tx = self.wallet.db.get_transaction(self.chan.funding_outpoint.txid)
         self.window.show_transaction(funding_tx, tx_desc=_('Funding Transaction'))
 
     def __init__(self, window: 'ElectrumWindow', chan_id: bytes):
@@ -123,6 +126,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
 
         # initialize instance fields
         self.window = window
+        self.wallet = window.wallet
         chan = self.chan = window.wallet.lnworker.channels[chan_id]
         self.format_msat = lambda msat: window.format_amount_and_units(msat / 1000)
 

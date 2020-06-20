@@ -190,23 +190,19 @@ def _hash_password(password: Union[bytes, str], *, version: int) -> bytes:
         raise UnexpectedPasswordHashVersion(version)
 
 
-def pw_encode_bytes(data: bytes, password: Union[bytes, str], *, version: int) -> str:
-    """plaintext bytes -> base64 ciphertext"""
+def _pw_encode_raw(data: bytes, password: Union[bytes, str], *, version: int) -> bytes:
     if version not in KNOWN_PW_HASH_VERSIONS:
         raise UnexpectedPasswordHashVersion(version)
     # derive key from password
     secret = _hash_password(password, version=version)
     # encrypt given data
     ciphertext = EncodeAES_bytes(secret, data)
-    ciphertext_b64 = base64.b64encode(ciphertext)
-    return ciphertext_b64.decode('utf8')
+    return ciphertext
 
 
-def pw_decode_bytes(data: str, password: Union[bytes, str], *, version: int) -> bytes:
-    """base64 ciphertext -> plaintext bytes"""
+def _pw_decode_raw(data_bytes: bytes, password: Union[bytes, str], *, version: int) -> bytes:
     if version not in KNOWN_PW_HASH_VERSIONS:
         raise UnexpectedPasswordHashVersion(version)
-    data_bytes = bytes(base64.b64decode(data))
     # derive key from password
     secret = _hash_password(password, version=version)
     # decrypt given data
@@ -215,6 +211,46 @@ def pw_decode_bytes(data: str, password: Union[bytes, str], *, version: int) -> 
     except Exception as e:
         raise InvalidPassword() from e
     return d
+
+
+def pw_encode_bytes(data: bytes, password: Union[bytes, str], *, version: int) -> str:
+    """plaintext bytes -> base64 ciphertext"""
+    ciphertext = _pw_encode_raw(data, password, version=version)
+    ciphertext_b64 = base64.b64encode(ciphertext)
+    return ciphertext_b64.decode('utf8')
+
+
+def pw_decode_bytes(data: str, password: Union[bytes, str], *, version:int) -> bytes:
+    """base64 ciphertext -> plaintext bytes"""
+    if version not in KNOWN_PW_HASH_VERSIONS:
+        raise UnexpectedPasswordHashVersion(version)
+    data_bytes = bytes(base64.b64decode(data))
+    return _pw_decode_raw(data_bytes, password, version=version)
+
+
+def pw_encode_with_version_and_mac(data: bytes, password: Union[bytes, str]) -> str:
+    """plaintext bytes -> base64 ciphertext"""
+    # https://crypto.stackexchange.com/questions/202/should-we-mac-then-encrypt-or-encrypt-then-mac
+    # Encrypt-and-MAC. The MAC will be used to detect invalid passwords
+    version = PW_HASH_VERSION_LATEST
+    mac = sha256(data)[0:4]
+    ciphertext = _pw_encode_raw(data, password, version=version)
+    ciphertext_b64 = base64.b64encode(bytes([version]) + ciphertext + mac)
+    return ciphertext_b64.decode('utf8')
+
+
+def pw_decode_with_version_and_mac(data: str, password: Union[bytes, str]) -> bytes:
+    """base64 ciphertext -> plaintext bytes"""
+    data_bytes = bytes(base64.b64decode(data))
+    version = int(data_bytes[0])
+    encrypted = data_bytes[1:-4]
+    mac = data_bytes[-4:]
+    if version not in KNOWN_PW_HASH_VERSIONS:
+        raise UnexpectedPasswordHashVersion(version)
+    decrypted = _pw_decode_raw(encrypted, password, version=version)
+    if sha256(decrypted)[0:4] != mac:
+        raise InvalidPassword()
+    return decrypted
 
 
 def pw_encode(data: str, password: Union[bytes, str, None], *, version: int) -> str:
@@ -274,14 +310,21 @@ def hmac_oneshot(key: bytes, msg: bytes, digest) -> bytes:
         return hmac.new(key, msg, digest).digest()
 
 
-def chacha20_poly1305_encrypt(*, key: bytes, nonce: bytes, associated_data: bytes, data: bytes) -> bytes:
+def chacha20_poly1305_encrypt(
+        *,
+        key: bytes,
+        nonce: bytes,
+        associated_data: bytes = None,
+        data: bytes
+) -> bytes:
     assert isinstance(key, (bytes, bytearray))
     assert isinstance(nonce, (bytes, bytearray))
-    assert isinstance(associated_data, (bytes, bytearray))
+    assert isinstance(associated_data, (bytes, bytearray, type(None)))
     assert isinstance(data, (bytes, bytearray))
     if HAS_CRYPTODOME:
         cipher = CD_ChaCha20_Poly1305.new(key=key, nonce=nonce)
-        cipher.update(associated_data)
+        if associated_data is not None:
+            cipher.update(associated_data)
         ciphertext, mac = cipher.encrypt_and_digest(plaintext=data)
         return ciphertext + mac
     if HAS_CRYPTOGRAPHY:
@@ -290,14 +333,21 @@ def chacha20_poly1305_encrypt(*, key: bytes, nonce: bytes, associated_data: byte
     raise Exception("no chacha20 backend found")
 
 
-def chacha20_poly1305_decrypt(*, key: bytes, nonce: bytes, associated_data: bytes, data: bytes) -> bytes:
+def chacha20_poly1305_decrypt(
+        *,
+        key: bytes,
+        nonce: bytes,
+        associated_data: bytes = None,
+        data: bytes
+) -> bytes:
     assert isinstance(key, (bytes, bytearray))
     assert isinstance(nonce, (bytes, bytearray))
-    assert isinstance(associated_data, (bytes, bytearray))
+    assert isinstance(associated_data, (bytes, bytearray, type(None)))
     assert isinstance(data, (bytes, bytearray))
     if HAS_CRYPTODOME:
         cipher = CD_ChaCha20_Poly1305.new(key=key, nonce=nonce)
-        cipher.update(associated_data)
+        if associated_data is not None:
+            cipher.update(associated_data)
         # raises ValueError if not valid (e.g. incorrect MAC)
         return cipher.decrypt_and_verify(ciphertext=data[:-16], received_mac_tag=data[-16:])
     if HAS_CRYPTOGRAPHY:

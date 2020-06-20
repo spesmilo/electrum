@@ -760,20 +760,26 @@ class AddressSynchronizer(Logger):
                     sent[txi] = height
         return received, sent
 
-    def get_addr_utxo(self, address: str) -> Dict[TxOutpoint, PartialTxInput]:
+
+    def get_addr_outputs(self, address: str) -> Dict[TxOutpoint, PartialTxInput]:
         coins, spent = self.get_addr_io(address)
-        for txi in spent:
-            coins.pop(txi)
         out = {}
         for prevout_str, v in coins.items():
             tx_height, value, is_cb = v
             prevout = TxOutpoint.from_str(prevout_str)
-            utxo = PartialTxInput(prevout=prevout,
-                                  is_coinbase_output=is_cb)
+            utxo = PartialTxInput(prevout=prevout, is_coinbase_output=is_cb)
             utxo._trusted_address = address
             utxo._trusted_value_sats = value
             utxo.block_height = tx_height
+            utxo.spent_height = spent.get(prevout_str, None)
             out[prevout] = utxo
+        return out
+
+    def get_addr_utxo(self, address: str) -> Dict[TxOutpoint, PartialTxInput]:
+        out = self.get_addr_outputs(address)
+        for k, v in list(out.items()):
+            if v.spent_height is not None:
+                out.pop(k)
         return out
 
     # return the total amount ever received by an address

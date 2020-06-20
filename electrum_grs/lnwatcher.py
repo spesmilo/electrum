@@ -11,7 +11,7 @@ from typing import NamedTuple, Dict
 from . import util
 from .sql_db import SqlDB, sql
 from .wallet_db import WalletDB
-from .util import bh2u, bfh, log_exceptions, ignore_exceptions, TxMinedInfo
+from .util import bh2u, bfh, log_exceptions, ignore_exceptions, TxMinedInfo, random_shuffled_copy
 from .address_synchronizer import AddressSynchronizer, TX_HEIGHT_LOCAL, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED
 from .transaction import Transaction, TxOutpoint
 
@@ -278,8 +278,8 @@ class WatchTower(LNWatcher):
 
     async def start_watching(self):
         # I need to watch the addresses from sweepstore
-        l = await self.sweepstore.list_channels()
-        for outpoint, address in l:
+        lst = await self.sweepstore.list_channels()
+        for outpoint, address in random_shuffled_copy(lst):
             self.add_channel(outpoint, address)
 
     async def do_breach_remedy(self, funding_outpoint, closing_tx, spenders):

@@ -249,11 +249,12 @@ class ElectrumWindow(App):
         if self.invoice_popup and self.invoice_popup.key == key:
             self.invoice_popup.update_status()
 
-    def on_payment_succeeded(self, event, key):
-        self.show_info(_('Payment was sent'))
+    def on_payment_succeeded(self, event, wallet, key):
+        description = self.wallet.get_label(key)
+        self.show_info(_('Payment succeeded') + '\n\n' + description)
         self._trigger_update_history()
 
-    def on_payment_failed(self, event, key, reason):
+    def on_payment_failed(self, event, wallet, key, reason):
         self.show_info(_('Payment failed') + '\n\n' + reason)
 
     def _get_bu(self):
@@ -414,7 +415,7 @@ class ElectrumWindow(App):
             self.set_URI(data)
             return
         if data.startswith('channel_backup:'):
-            self.import_channel_backup(data[15:])
+            self.import_channel_backup(data)
             return
         bolt11_invoice = maybe_extract_bolt11_invoice(data)
         if bolt11_invoice is not None:
@@ -462,7 +463,7 @@ class ElectrumWindow(App):
         self.invoice_popup = InvoiceDialog('Invoice', data, key)
         self.invoice_popup.open()
 
-    def qr_dialog(self, title, data, show_text=False, text_for_clipboard=None):
+    def qr_dialog(self, title, data, show_text=False, text_for_clipboard=None, help_text=None):
         from .uix.dialogs.qr_dialog import QRDialog
         def on_qr_failure():
             popup.dismiss()
@@ -471,8 +472,11 @@ class ElectrumWindow(App):
                 msg += '\n' + _('Text copied to clipboard.')
                 self._clipboard.copy(text_for_clipboard)
             Clock.schedule_once(lambda dt: self.show_info(msg))
-        popup = QRDialog(title, data, show_text, failure_cb=on_qr_failure,
-                         text_for_clipboard=text_for_clipboard)
+        popup = QRDialog(
+            title, data, show_text,
+            failure_cb=on_qr_failure,
+            text_for_clipboard=text_for_clipboard,
+            help_text=help_text)
         popup.open()
 
     def scan_qr(self, on_complete):
@@ -719,7 +723,7 @@ class ElectrumWindow(App):
             self._channels_dialog = LightningChannelsDialog(self)
         self._channels_dialog.open()
 
-    def on_channel(self, evt, chan):
+    def on_channel(self, evt, wallet, chan):
         if self._channels_dialog:
             Clock.schedule_once(lambda dt: self._channels_dialog.update())
 
