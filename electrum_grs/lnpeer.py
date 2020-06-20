@@ -337,7 +337,7 @@ class Peer(Logger):
 
     def verify_channel_announcements(self, chan_anns):
         for payload in chan_anns:
-            h = sha256(payload['raw'][2+256:])
+            h = sha256d(payload['raw'][2+256:]) # Keep this sha256d for GRS!!
             pubkeys = [payload['node_id_1'], payload['node_id_2'], payload['bitcoin_key_1'], payload['bitcoin_key_2']]
             sigs = [payload['node_signature_1'], payload['node_signature_2'], payload['bitcoin_signature_1'], payload['bitcoin_signature_2']]
             for pubkey, sig in zip(pubkeys, sigs):
@@ -348,7 +348,7 @@ class Peer(Logger):
         for payload in node_anns:
             pubkey = payload['node_id']
             signature = payload['signature']
-            h = sha256(payload['raw'][66:])
+            h = sha256d(payload['raw'][66:]) # Keep this sha256d for GRS!!
             if not ecc.verify_signature(pubkey, signature, h):
                 raise Exception('signature failed')
 
