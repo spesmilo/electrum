@@ -401,5 +401,47 @@
         "s": "50002",
         "t": "50001",
         "version": "1.4"
+    },
+    "electrumx-core.1209k.com": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4.2"
+    },
+    "bitcoin.aranguren.org": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4.2"
+    },
+    "bitcoin.lukechilds.co": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4.2"
+    },
+    "electrum.aantonop.com": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4.2"
+    },
+    "electrum.bitkoins.nl": {
+        "pruning": "-",
+        "s": "50512",
+        "t": "50001",
+        "version": "1.4.2"
+    },
+    "electrum.blockstream.info": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "blockstream.info": {
+        "pruning": "-",
+        "s": "700",
+        "t": "110",
+        "version": "1.4"
     }
 }
