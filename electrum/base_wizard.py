@@ -193,9 +193,9 @@ class BaseWizard(Logger):
         title = _('Specify the staking address')
         message = '\n'.join([
             _('The staking address is the address provided by the node staking on your behalf. This can be an arbitrary address from your own staking node or obtained from a staking pool like NavPool.'),
-            _('Please type it here.'),
+            _('If you don\'t have one and want to use NavCash\' own pool, you can leave the default address. Otherwise, type it here.'),
         ])
-        self.line_dialog(run_next=self.save_staking_address, title=title, message=message, default='', test=lambda x: bitcoin.is_address(x) and   b58_address_to_hash160(x)[0] == constants.net.ADDRTYPE_P2PKH)
+        self.line_dialog(run_next=self.save_staking_address, title=title, message=message, default='NfLgDYL4C3KKXDS8tLRAFM7spvLykV8v9A', test=lambda x: bitcoin.is_address(x) and   b58_address_to_hash160(x)[0] == constants.net.ADDRTYPE_P2PKH)
 
     def save_staking_address(self, address):
         self.data['staking_address'] = address

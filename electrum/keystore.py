@@ -402,7 +402,7 @@ class Xpub:
 
     def derive_pubkey(self, for_change, n) -> str:
         for_change = int(for_change)
-        assert for_change in (0, 1)
+        assert for_change in (0, 1, 2)
         xpub = self.xpub_change if for_change else self.xpub_receive
         if xpub is None:
             rootnode = BIP32Node.from_xkey(self.xpub)
