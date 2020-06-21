@@ -888,7 +888,7 @@ class LNWallet(LNWorker):
                         payment_hash=lnaddr.paymenthash,
                         min_final_cltv_expiry=lnaddr.get_min_final_cltv_expiry(),
                         payment_secret=lnaddr.payment_secret)
-        util.trigger_callback('htlc_added', htlc, lnaddr, SENT)
+        util.trigger_callback('htlc_added', chan, htlc, SENT)
         payment_attempt = await self.await_payment(lnaddr.paymenthash)
         if payment_attempt.success:
             failure_log = None

@@ -46,7 +46,11 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         model = QtGui.QStandardItemModel(0, 2)
         model.setHorizontalHeaderLabels(['HTLC', 'Property value'])
         parentItem = model.invisibleRootItem()
-        folder_types = {'settled': _('Fulfilled HTLCs'), 'inflight': _('HTLCs in current commitment transaction'), 'failed': _('Failed HTLCs')}
+        folder_types = {
+            'settled': _('Fulfilled HTLCs'),
+            'inflight': _('HTLCs in current commitment transaction'),
+            'failed': _('Failed HTLCs'),
+        }
         self.folders = {}
         self.keyname_rows = {}
 
@@ -80,7 +84,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
 
     ln_payment_completed = QtCore.pyqtSignal(str, bytes, bytes)
     ln_payment_failed = QtCore.pyqtSignal(str, bytes, bytes)
-    htlc_added = QtCore.pyqtSignal(str, UpdateAddHtlc, LnAddr, Direction)
+    htlc_added = QtCore.pyqtSignal(str, Channel, UpdateAddHtlc, Direction)
     state_changed = QtCore.pyqtSignal(str, Abstract_Wallet, AbstractChannel)
 
     @QtCore.pyqtSlot(str, Abstract_Wallet, AbstractChannel)
@@ -90,8 +94,10 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         if chan == self.chan:
             self.update()
 
-    @QtCore.pyqtSlot(str, UpdateAddHtlc, LnAddr, Direction)
-    def do_htlc_added(self, evtname, htlc, lnaddr, direction):
+    @QtCore.pyqtSlot(str, Channel, UpdateAddHtlc, Direction)
+    def do_htlc_added(self, evtname, chan, htlc, direction):
+        if chan != self.chan:
+            return
         mapping = self.keyname_rows['inflight']
         mapping[htlc.payment_hash] = len(mapping)
         self.folders['inflight'].appendRow(self.make_htlc_item(htlc, direction))
@@ -151,6 +157,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         vbox.addWidget(QLabel(_('Remote Node ID:')))
         remote_id_e = ButtonsLineEdit(bh2u(chan.node_id))
         remote_id_e.addCopyButton(self.window.app)
+        remote_id_e.setReadOnly(True)
         vbox.addWidget(remote_id_e)
         funding_label_text = f'<a href=click_destination>{chan.funding_outpoint.txid}</a>:{chan.funding_outpoint.output_index}'
         vbox.addWidget(QLabel(_('Funding Outpoint:')))
