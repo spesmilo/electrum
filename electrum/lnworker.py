@@ -692,14 +692,6 @@ class LNWallet(LNWorker):
             item['balance_msat'] = balance_msat
         return out
 
-    def get_and_inc_counter_for_channel_keys(self):
-        with self.lock:
-            ctr = self.db.get('lightning_channel_key_der_ctr', -1)
-            ctr += 1
-            self.db.put('lightning_channel_key_der_ctr', ctr)
-            self.wallet.save_db()
-            return ctr
-
     def suggest_peer(self):
         r = []
         for node_id, peer in self.peers.items():
