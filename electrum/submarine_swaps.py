@@ -104,7 +104,7 @@ def create_claim_tx(
         txin.script_sig = bytes.fromhex(push_script(txin.redeem_script.hex()))
     txin.witness_script = witness_script
     txout = PartialTxOutput.from_address_and_value(address, amount_sat)
-    tx = PartialTransaction.from_io([txin], [txout], version=2, locktime=(None if preimage else locktime))
+    tx = PartialTransaction.from_io([txin], [txout], version=2, locktime=locktime)
     #tx.set_rbf(True)
     sig = bytes.fromhex(tx.sign_txin(0, privkey))
     witness = [sig, preimage, witness_script]
@@ -167,14 +167,21 @@ class SwapManager(Logger):
                 self.logger.info('utxo value below dust threshold')
                 continue
             address = self.wallet.get_receiving_address()
-            preimage = swap.preimage if swap.is_reverse else 0
-            tx = create_claim_tx(txin=txin,
-                                 witness_script=swap.redeem_script,
-                                 preimage=preimage,
-                                 privkey=swap.privkey,
-                                 address=address,
-                                 amount_sat=amount_sat,
-                                 locktime=swap.locktime)
+            if swap.is_reverse:  # successful reverse swap
+                preimage = swap.preimage
+                locktime = 0
+            else:  # timing out forward swap
+                preimage = 0
+                locktime = swap.locktime
+            tx = create_claim_tx(
+                txin=txin,
+                witness_script=swap.redeem_script,
+                preimage=preimage,
+                privkey=swap.privkey,
+                address=address,
+                amount_sat=amount_sat,
+                locktime=locktime,
+            )
             await self.network.broadcast_transaction(tx)
             # save txid
             if swap.is_reverse:
