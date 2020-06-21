@@ -389,11 +389,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         except:
             pass
 
-    def get_server_height(self):
-        interface = self.interface
-        return interface.tip if interface else 0
-
-    async def _server_is_lagging(self):
+    async def _server_is_lagging(self) -> bool:
         sh = self.get_server_height()
         if not sh:
             self.logger.info('no height for main interface')
@@ -631,7 +627,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         '''If auto_connect and lagging, switch interface'''
         if self.auto_connect and await self._server_is_lagging():
             # switch to one that has the correct header (not height)
-            best_header = self.blockchain().read_header(self.get_local_height())
+            best_header = self.blockchain().header_at_tip()
             with self.interfaces_lock: interfaces = list(self.interfaces.values())
             filtered = list(filter(lambda iface: iface.tip_header == best_header, interfaces))
             if filtered:
@@ -1122,7 +1118,16 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         net_params = net_params._replace(server=server)
         await self.set_parameters(net_params)
 
+    def get_server_height(self) -> int:
+        """Length of header chain, as claimed by main interface."""
+        interface = self.interface
+        return interface.tip if interface else 0
+
     def get_local_height(self):
+        """Length of header chain, POW-verified.
+        In case of a chain split, this is for the branch the main interface is on,
+        but it is the tip of that branch (even if main interface is behind).
+        """
         return self.blockchain().height()
 
     def export_checkpoints(self, path):
