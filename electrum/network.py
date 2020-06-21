@@ -32,7 +32,7 @@ import socket
 import json
 import sys
 import asyncio
-from typing import NamedTuple, Optional, Sequence, List, Dict, Tuple, TYPE_CHECKING, Iterable, Set
+from typing import NamedTuple, Optional, Sequence, List, Dict, Tuple, TYPE_CHECKING, Iterable, Set, Any
 import traceback
 import concurrent
 from concurrent import futures
@@ -276,7 +276,9 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         blockchain.read_blockchains(self.config)
         blockchain.init_headers_file_for_best_chain()
         self.logger.info(f"blockchains {list(map(lambda b: b.forkpoint, blockchain.blockchains.values()))}")
-        self._blockchain_preferred_block = self.config.get('blockchain_preferred_block', None)  # type: Optional[Dict]
+        self._blockchain_preferred_block = self.config.get('blockchain_preferred_block', None)  # type: Dict[str, Any]
+        if self._blockchain_preferred_block is None:
+            self._set_preferred_chain(None)
         self._blockchain = blockchain.get_best_chain()
 
         self._allowed_protocols = {PREFERRED_NETWORK_PROTOCOL}
@@ -624,7 +626,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             await self.switch_to_interface(random.choice(servers))
 
     async def switch_lagging_interface(self):
-        '''If auto_connect and lagging, switch interface'''
+        """If auto_connect and lagging, switch interface (only within fork)."""
         if self.auto_connect and await self._server_is_lagging():
             # switch to one that has the correct header (not height)
             best_header = self.blockchain().header_at_tip()
@@ -634,40 +636,32 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 chosen_iface = random.choice(filtered)
                 await self.switch_to_interface(chosen_iface.server)
 
-    async def switch_unwanted_fork_interface(self):
-        """If auto_connect and main interface is not on preferred fork,
-        try to switch to preferred fork.
-        """
+    async def switch_unwanted_fork_interface(self) -> None:
+        """If auto_connect, maybe switch to another fork/chain."""
         if not self.auto_connect or not self.interface:
             return
         with self.interfaces_lock: interfaces = list(self.interfaces.values())
-        # try to switch to preferred fork
-        if self._blockchain_preferred_block:
-            pref_height = self._blockchain_preferred_block['height']
-            pref_hash   = self._blockchain_preferred_block['hash']
-            if self.interface.blockchain.check_hash(pref_height, pref_hash):
-                return  # already on preferred fork
-            filtered = list(filter(lambda iface: iface.blockchain.check_hash(pref_height, pref_hash),
-                                   interfaces))
+        pref_height = self._blockchain_preferred_block['height']
+        pref_hash   = self._blockchain_preferred_block['hash']
+        # shortcut for common case
+        if pref_height == 0:
+            return
+        # maybe try switching chains; starting with most desirable first
+        matching_chains = blockchain.get_chains_that_contain_header(pref_height, pref_hash)
+        chains_to_try = list(matching_chains) + [blockchain.get_best_chain()]
+        for rank, chain in enumerate(chains_to_try):
+            # check if main interface is already on this fork
+            if self.interface.blockchain == chain:
+                return
+            # switch to another random interface that is on this fork, if any
+            filtered = [iface for iface in interfaces
+                        if iface.blockchain == chain]
             if filtered:
-                self.logger.info("switching to preferred fork")
+                self.logger.info(f"switching to (more) preferred fork (rank {rank})")
                 chosen_iface = random.choice(filtered)
                 await self.switch_to_interface(chosen_iface.server)
                 return
-            else:
-                self.logger.info("tried to switch to preferred fork but no interfaces are on it")
-        # try to switch to best chain
-        if self.blockchain().parent is None:
-            return  # already on best chain
-        filtered = list(filter(lambda iface: iface.blockchain.parent is None,
-                               interfaces))
-        if filtered:
-            self.logger.info("switching to best chain")
-            chosen_iface = random.choice(filtered)
-            await self.switch_to_interface(chosen_iface.server)
-        else:
-            # FIXME switch to best available?
-            self.logger.info("tried to switch to best chain but no interfaces are on it")
+        self.logger.info("tried to switch to (more) preferred fork but no interfaces are on any")
 
     async def switch_to_interface(self, server: ServerAddr):
         """Switch to server as our main interface. If no connection exists,
@@ -1083,9 +1077,13 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 out[chain_id] = r
         return out
 
-    def _set_preferred_chain(self, chain: Blockchain):
-        height = chain.get_max_forkpoint()
-        header_hash = chain.get_hash(height)
+    def _set_preferred_chain(self, chain: Optional[Blockchain]):
+        if chain:
+            height = chain.get_max_forkpoint()
+            header_hash = chain.get_hash(height)
+        else:
+            height = 0
+            header_hash = constants.net.GENESIS
         self._blockchain_preferred_block = {
             'height': height,
             'hash': header_hash,

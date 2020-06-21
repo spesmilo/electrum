@@ -646,6 +646,7 @@ class Blockchain(Logger):
 
 
 def check_header(header: dict) -> Optional[Blockchain]:
+    """Returns any Blockchain that contains header, or None."""
     if type(header) is not dict:
         return None
     with blockchains_lock: chains = list(blockchains.values())
@@ -656,8 +657,20 @@ def check_header(header: dict) -> Optional[Blockchain]:
 
 
 def can_connect(header: dict) -> Optional[Blockchain]:
+    """Returns the Blockchain that has a tip that directly links up
+    with header, or None.
+    """
     with blockchains_lock: chains = list(blockchains.values())
     for b in chains:
         if b.can_connect(header):
             return b
     return None
+
+
+def get_chains_that_contain_header(height: int, header_hash: str) -> Sequence[Blockchain]:
+    """Returns a list of Blockchains that contain header, best chain first."""
+    with blockchains_lock: chains = list(blockchains.values())
+    chains = [chain for chain in chains
+              if chain.check_hash(height=height, header_hash=header_hash)]
+    chains = sorted(chains, key=lambda x: x.get_chainwork(), reverse=True)
+    return chains
