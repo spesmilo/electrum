@@ -2196,7 +2196,7 @@ class Voting_Wallet(Simple_Deterministic_Wallet):
 
     def create_new_address(self, for_change=False):
         with self.lock:
-            address = self.derive_address(0, 0)
+            address = self.derive_address(2, 0)
             self.db.add_receiving_address(address)
             self.add_address(address)
 
