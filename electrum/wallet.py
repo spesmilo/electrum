@@ -1614,17 +1614,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         raise Exception("this wallet cannot delete addresses")
 
     def get_payment_status(self, address, amount):
-        local_height = self.get_local_height()
         received, sent = self.get_addr_io(address)
         l = []
         for txo, x in received.items():
             h, v, is_cb = x
             txid, n = txo.split(':')
-            info = self.db.get_verified_tx(txid)
-            if info:
-                conf = local_height - info.height + 1
-            else:
-                conf = 0
+            conf = self.get_tx_height(txid).conf
             l.append((conf, v))
         vsum = 0
         for conf, v in reversed(sorted(l)):
