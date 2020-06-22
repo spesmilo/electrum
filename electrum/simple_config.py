@@ -614,7 +614,13 @@ class SimpleConfig(Logger):
                 pass
 
     def format_amount(self, x, is_diff=False, whitespaces=False):
-        return format_satoshis(x, self.num_zeros, self.decimal_point, is_diff=is_diff, whitespaces=whitespaces)
+        return format_satoshis(
+            x,
+            num_zeros=self.num_zeros,
+            decimal_point=self.decimal_point,
+            is_diff=is_diff,
+            whitespaces=whitespaces,
+        )
 
     def format_amount_and_units(self, amount):
         return self.format_amount(amount) + ' '+ self.get_base_unit()

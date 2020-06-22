@@ -54,8 +54,7 @@ from electrum import (keystore, ecc, constants, util, bitcoin, commands,
 from electrum.bitcoin import COIN, is_address
 from electrum.plugin import run_hook, BasePlugin
 from electrum.i18n import _
-from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
-                           format_satoshis_plain,
+from electrum.util import (format_time,
                            UserCancelled, profiler,
                            bh2u, bfh, InvalidPassword,
                            UserFacingException,
