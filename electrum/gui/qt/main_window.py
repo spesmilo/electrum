@@ -487,7 +487,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def load_wallet(self, wallet):
         wallet.thread = TaskThread(self, self.on_error)
         self.update_recently_visited(wallet.storage.path)
-        if wallet.lnworker:
+        if wallet.has_lightning():
             util.trigger_callback('channels_updated', wallet)
         self.need_update.set()
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
@@ -597,7 +597,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         backup_dir = self.config.get('backup_dir')
         backup_dir_label = HelpLabel(_('Backup directory') + ':', backup_help)
         msg = _('Please select a backup directory')
-        if self.wallet.lnworker and self.wallet.lnworker.channels:
+        if self.wallet.has_lightning() and self.wallet.lnworker.channels:
             msg += '\n\n' + ' '.join([
                 _("Note that lightning channels will be converted to channel backups."),
                 _("You cannot use channel backups to perform lightning payments."),
@@ -962,10 +962,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                     text +=  " [%s unconfirmed]"%(self.format_amount(u, is_diff=True).strip())
                 if x:
                     text +=  " [%s unmatured]"%(self.format_amount(x, is_diff=True).strip())
-                if self.wallet.lnworker:
+                if self.wallet.has_lightning():
                     l = self.wallet.lnworker.get_balance()
                     text += u'    \U0001f5f2 %s'%(self.format_amount_and_units(l).strip())
-
                 # append fiat balance and price
                 if self.fx.is_enabled():
                     text += self.fx.get_fiat_status_text(c + u + x,
@@ -1520,7 +1519,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             invoice_str = self.payto_e.lightning_invoice
             if not invoice_str:
                 return
-            if not self.wallet.lnworker:
+            if not self.wallet.has_lightning():
                 self.show_error(_('Lightning is disabled'))
                 return
             invoice = LNInvoice.from_bech32(invoice_str)
