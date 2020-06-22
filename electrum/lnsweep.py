@@ -6,7 +6,7 @@ from typing import Optional, Dict, List, Tuple, TYPE_CHECKING, NamedTuple, Calla
 from enum import Enum, auto
 
 from .util import bfh, bh2u
-from .bitcoin import redeem_script_to_address, dust_threshold
+from .bitcoin import redeem_script_to_address, dust_threshold, get_locktime_for_new_transaction
 from . import ecc
 from .lnutil import (make_commitment_output_to_remote_address, make_commitment_output_to_local_witness_script,
                      derive_privkey, derive_pubkey, derive_blinded_pubkey, derive_blinded_privkey,
@@ -460,7 +460,8 @@ def create_sweeptx_their_ctx_htlc(ctx: Transaction, witness_script: bytes, sweep
     outvalue = val - fee
     if outvalue <= dust_threshold(): return None
     sweep_outputs = [PartialTxOutput.from_address_and_value(sweep_address, outvalue)]
-    tx = PartialTransaction.from_io(sweep_inputs, sweep_outputs, version=2, locktime=cltv_expiry)
+    locktime = max(cltv_expiry, get_locktime_for_new_transaction())  # anti fee-sniping
+    tx = PartialTransaction.from_io(sweep_inputs, sweep_outputs, version=2, locktime=locktime)
     sig = bfh(tx.sign_txin(0, privkey))
     if not is_revocation:
         witness = construct_witness([sig, preimage, witness_script])
@@ -489,7 +490,8 @@ def create_sweeptx_their_ctx_to_remote(sweep_address: str, ctx: Transaction, out
     outvalue = val - fee
     if outvalue <= dust_threshold(): return None
     sweep_outputs = [PartialTxOutput.from_address_and_value(sweep_address, outvalue)]
-    sweep_tx = PartialTransaction.from_io(sweep_inputs, sweep_outputs)
+    locktime = get_locktime_for_new_transaction()
+    sweep_tx = PartialTransaction.from_io(sweep_inputs, sweep_outputs, locktime=locktime)
     sweep_tx.set_rbf(True)
     sweep_tx.sign({our_payment_pubkey: (our_payment_privkey.get_secret_bytes(), True)})
     if not sweep_tx.is_complete():
@@ -522,7 +524,8 @@ def create_sweeptx_ctx_to_local(*, sweep_address: str, ctx: Transaction, output_
     if outvalue <= dust_threshold():
         return None
     sweep_outputs = [PartialTxOutput.from_address_and_value(sweep_address, outvalue)]
-    sweep_tx = PartialTransaction.from_io(sweep_inputs, sweep_outputs, version=2)
+    locktime = get_locktime_for_new_transaction()
+    sweep_tx = PartialTransaction.from_io(sweep_inputs, sweep_outputs, version=2, locktime=locktime)
     sig = sweep_tx.sign_txin(0, privkey)
     witness = construct_witness([sig, int(is_revocation), witness_script])
     sweep_tx.inputs()[0].witness = bfh(witness)
@@ -548,7 +551,8 @@ def create_sweeptx_that_spends_htlctx_that_spends_htlc_in_ctx(*,
     outvalue = val - fee
     if outvalue <= dust_threshold(): return None
     sweep_outputs = [PartialTxOutput.from_address_and_value(sweep_address, outvalue)]
-    tx = PartialTransaction.from_io(sweep_inputs, sweep_outputs, version=2)
+    locktime = get_locktime_for_new_transaction()
+    tx = PartialTransaction.from_io(sweep_inputs, sweep_outputs, version=2, locktime=locktime)
 
     sig = bfh(tx.sign_txin(0, privkey))
     witness = construct_witness([sig, int(is_revocation), htlctx_witness_script])

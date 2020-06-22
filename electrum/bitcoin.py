@@ -27,6 +27,7 @@ import hashlib
 from typing import List, Tuple, TYPE_CHECKING, Optional, Union
 import enum
 from enum import IntEnum, Enum
+import random
 
 from .util import bfh, bh2u, BitcoinException, assert_bytes, to_bytes, inv_dict
 from . import version
@@ -323,6 +324,25 @@ def dust_threshold(network: 'Network' = None) -> int:
     dust_lim = 182 * 3 * relayfee(network)  # in msat
     # convert to sat, but round up:
     return (dust_lim // 1000) + (dust_lim % 1000 > 0)
+
+
+def get_locktime_for_new_transaction(network: 'Network' = None) -> int:
+    if not network:
+        from .network import Network
+        network = Network.get_instance()
+    # if no network or not up to date, just set locktime to zero
+    if not network:
+        return 0
+    chain = network.blockchain()
+    if chain.is_tip_stale():
+        return 0
+    # discourage "fee sniping"
+    locktime = chain.height()
+    # sometimes pick locktime a bit further back, to help privacy
+    # of setups that need more time (offline/multisig/coinjoin/...)
+    if random.randint(0, 9) == 0:
+        locktime = max(0, locktime - random.randint(0, 99))
+    return locktime
 
 
 def hash_encode(x: bytes) -> str:

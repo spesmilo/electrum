@@ -12,7 +12,7 @@ from .transaction import TxOutpoint, PartialTxInput, PartialTxOutput, PartialTra
 from .transaction import script_GetOp, match_script_against_template, OPPushDataGeneric, OPPushDataPubkey
 from .util import log_exceptions
 from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY, ln_dummy_address, LN_MAX_HTLC_VALUE_MSAT
-from .bitcoin import dust_threshold
+from .bitcoin import dust_threshold, get_locktime_for_new_transaction
 from .logging import Logger
 from .lnutil import hex_to_bytes
 from .json_db import StoredObject
@@ -104,6 +104,7 @@ def create_claim_tx(
         txin.script_sig = bytes.fromhex(push_script(txin.redeem_script.hex()))
     txin.witness_script = witness_script
     txout = PartialTxOutput.from_address_and_value(address, amount_sat)
+    locktime = max(locktime, get_locktime_for_new_transaction())  # anti fee-sniping
     tx = PartialTransaction.from_io([txin], [txout], version=2, locktime=locktime)
     #tx.set_rbf(True)
     sig = bytes.fromhex(tx.sign_txin(0, privkey))

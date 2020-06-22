@@ -56,7 +56,7 @@ from .util import (NotEnoughFunds, UserCancelled, profiler,
                    Fiat, bfh, bh2u, TxMinedInfo, quantize_feerate, create_bip21_uri, OrderedDictWithIndex)
 from .util import get_backup_dir
 from .simple_config import SimpleConfig
-from .bitcoin import COIN, TYPE_ADDRESS
+from .bitcoin import COIN, TYPE_ADDRESS, get_locktime_for_new_transaction
 from .bitcoin import is_address, address_to_script, is_minikey, relayfee, dust_threshold
 from .crypto import sha256d
 from . import keystore
@@ -189,23 +189,6 @@ def sweep(privkeys, *, network: 'Network', config: 'SimpleConfig',
         tx.set_rbf(True)
     tx.sign(keypairs)
     return tx
-
-
-def get_locktime_for_new_transaction(network: 'Network') -> int:
-    # if no network or not up to date, just set locktime to zero
-    if not network:
-        return 0
-    chain = network.blockchain()
-    if chain.is_tip_stale():
-        return 0
-    # discourage "fee sniping"
-    locktime = chain.height()
-    # sometimes pick locktime a bit further back, to help privacy
-    # of setups that need more time (offline/multisig/coinjoin/...)
-    if random.randint(0, 9) == 0:
-        locktime = max(0, locktime - random.randint(0, 99))
-    return locktime
-
 
 
 class CannotBumpFee(Exception): pass
