@@ -807,11 +807,11 @@ class LNWallet(LNWorker):
             raise Exception(_("open_channel timed out"))
         return chan, funding_tx
 
-    def pay(self, invoice: str, amount_sat: int = None, *, attempts: int = 1) -> Tuple[bool, List[PaymentAttemptLog]]:
+    def pay(self, invoice: str, *, amount_msat: int = None, attempts: int = 1) -> Tuple[bool, List[PaymentAttemptLog]]:
         """
         Can be called from other threads
         """
-        coro = self._pay(invoice, amount_sat, attempts=attempts)
+        coro = self._pay(invoice, amount_msat=amount_msat, attempts=attempts)
         fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
         return fut.result()
 
@@ -821,10 +821,15 @@ class LNWallet(LNWorker):
                 return chan
 
     @log_exceptions
-    async def _pay(self, invoice: str, amount_sat: int = None, *,
-                   attempts: int = 1,
-                   full_path: LNPaymentPath = None) -> Tuple[bool, List[PaymentAttemptLog]]:
-        lnaddr = self._check_invoice(invoice, amount_sat)
+    async def _pay(
+            self,
+            invoice: str,
+            *,
+            amount_msat: int = None,
+            attempts: int = 1,
+            full_path: LNPaymentPath = None,
+    ) -> Tuple[bool, List[PaymentAttemptLog]]:
+        lnaddr = self._check_invoice(invoice, amount_msat=amount_msat)
         payment_hash = lnaddr.paymenthash
         key = payment_hash.hex()
         amount = int(lnaddr.amount * COIN)
@@ -968,12 +973,12 @@ class LNWallet(LNWorker):
         return blacklist
 
     @staticmethod
-    def _check_invoice(invoice: str, amount_sat: int = None) -> LnAddr:
+    def _check_invoice(invoice: str, *, amount_msat: int = None) -> LnAddr:
         addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
         if addr.is_expired():
             raise InvoiceError(_("This invoice has expired"))
-        if amount_sat:
-            addr.amount = Decimal(amount_sat) / COIN
+        if amount_msat:
+            addr.amount = Decimal(amount_msat) / COIN / 1000
         if addr.amount is None:
             raise InvoiceError(_("Missing amount"))
         if addr.get_min_final_cltv_expiry() > lnutil.NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE:

@@ -346,11 +346,13 @@ class SendScreen(CScreen):
                 do_pay(False)
 
     def _do_pay_lightning(self, invoice):
-        attempts = 10
         threading.Thread(
             target=self.app.wallet.lnworker.pay,
-            args=(invoice.invoice, invoice.amount),
-            kwargs={'attempts':10}).start()
+            args=(invoice.invoice,),
+            kwargs={
+                'attempts': 10,
+            },
+        ).start()
 
     def _do_pay_onchain(self, invoice, rbf):
         # make unsigned transaction

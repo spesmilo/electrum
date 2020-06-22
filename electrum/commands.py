@@ -1006,7 +1006,7 @@ class Commands:
     @command('wn')
     async def lnpay(self, invoice, attempts=1, timeout=30, wallet: Abstract_Wallet = None):
         lnworker = wallet.lnworker
-        lnaddr = lnworker._check_invoice(invoice, None)
+        lnaddr = lnworker._check_invoice(invoice)
         payment_hash = lnaddr.paymenthash
         wallet.save_invoice(LNInvoice.from_bech32(invoice))
         success, log = await lnworker._pay(invoice, attempts=attempts)

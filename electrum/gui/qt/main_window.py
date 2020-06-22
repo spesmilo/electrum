@@ -62,7 +62,7 @@ from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
                            get_new_wallet_name, send_exception_to_crash_reporter,
                            InvalidBitcoinURI, maybe_extract_bolt11_invoice, NotEnoughFunds,
                            NoDynamicFeeEstimates, MultipleSpendMaxTxOutputs)
-from electrum.invoices import PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING
+from electrum.invoices import PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING, Invoice
 from electrum.invoices import PR_PAID, PR_FAILED, pr_expiration_values, LNInvoice, OnchainInvoice
 from electrum.transaction import (Transaction, PartialTxInput,
                                   PartialTransaction, PartialTxOutput)
@@ -881,6 +881,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         return self.config.format_amount(x, is_diff=is_diff, whitespaces=whitespaces)
 
     def format_amount_and_units(self, amount):
+        # amount is in sats
         text = self.config.format_amount_and_units(amount)
         x = self.fx.format_amount_and_units(amount) if self.fx else None
         if text and x:
@@ -1482,13 +1483,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         return False  # no errors
 
-    def pay_lightning_invoice(self, invoice: str, amount_sat: int):
+    def pay_lightning_invoice(self, invoice: str, *, amount_msat: int):
+        amount_sat = Decimal(amount_msat) / 1000
+        # FIXME this is currently lying to user as we truncate to satoshis
         msg = _("Pay lightning invoice?") + '\n\n' + _("This will send {}?").format(self.format_amount_and_units(amount_sat))
         if not self.question(msg):
             return
         attempts = LN_NUM_PAYMENT_ATTEMPTS
         def task():
-            self.wallet.lnworker.pay(invoice, amount_sat, attempts=attempts)
+            self.wallet.lnworker.pay(invoice, amount_msat=amount_msat, attempts=attempts)
         self.do_clear()
         self.wallet.thread.add(task)
         self.invoice_list.update()
@@ -1567,10 +1570,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             outputs += invoice.outputs
         self.pay_onchain_dialog(self.get_coins(), outputs)
 
-    def do_pay_invoice(self, invoice):
+    def do_pay_invoice(self, invoice: 'Invoice'):
         if invoice.type == PR_TYPE_LN:
-            self.pay_lightning_invoice(invoice.invoice, invoice.amount)
+            assert isinstance(invoice, LNInvoice)
+            amount_msat = int(invoice.amount * 1000)
+            self.pay_lightning_invoice(invoice.invoice, amount_msat=amount_msat)
         elif invoice.type == PR_TYPE_ONCHAIN:
+            assert isinstance(invoice, OnchainInvoice)
             self.pay_onchain_dialog(self.get_coins(), invoice.outputs)
         else:
             raise Exception('unknown invoice type')

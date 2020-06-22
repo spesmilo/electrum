@@ -1,6 +1,7 @@
 import attr
 import time
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional, Union
+from decimal import Decimal
 
 from .json_db import StoredObject
 from .i18n import _
@@ -67,6 +68,13 @@ def _decode_outputs(outputs) -> List[PartialTxOutput]:
         ret.append(output)
     return ret
 
+
+def _as_decimal_or_none(x):
+    if x in (None, '!'):
+        return x
+    return Decimal(x)
+
+
 # hack: BOLT-11 is not really clear on what an expiry of 0 means.
 # It probably interprets it as 0 seconds, so already expired...
 # Our higher level invoices code however uses 0 for "never".
@@ -75,11 +83,15 @@ LN_EXPIRY_NEVER = 100 * 365 * 24 * 60 * 60  # 100 years
 
 @attr.s
 class Invoice(StoredObject):
-    type = attr.ib(type=int)
-    message = attr.ib(type=str)
-    amount = attr.ib(type=int)
-    exp = attr.ib(type=int)
-    time = attr.ib(type=int)
+    type = attr.ib(type=int, kw_only=True)
+    message = attr.ib(type=str, kw_only=True)
+    amount = attr.ib(
+        type=Decimal,
+        kw_only=True,
+        converter=_as_decimal_or_none,
+    )  # type: Union[None, Decimal, str]  # in satoshis. can be '!'
+    exp = attr.ib(type=int, kw_only=True)
+    time = attr.ib(type=int, kw_only=True)
 
     def is_lightning(self):
         return self.type == PR_TYPE_LN
@@ -96,10 +108,10 @@ class Invoice(StoredObject):
 
 @attr.s
 class OnchainInvoice(Invoice):
-    id = attr.ib(type=str)
-    outputs = attr.ib(type=list, converter=_decode_outputs)
-    bip70 = attr.ib(type=str) # may be None
-    requestor = attr.ib(type=str) # may be None
+    id = attr.ib(type=str, kw_only=True)
+    outputs = attr.ib(type=list, kw_only=True, converter=_decode_outputs)
+    bip70 = attr.ib(type=str, kw_only=True)  # type: Optional[str]
+    requestor = attr.ib(type=str, kw_only=True)  # type: Optional[str]
 
     def get_address(self) -> str:
         assert len(self.outputs) == 1
@@ -127,7 +139,7 @@ class LNInvoice(Invoice):
     @classmethod
     def from_bech32(klass, invoice: str) -> 'LNInvoice':
         lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
-        amount = int(lnaddr.amount * COIN) if lnaddr.amount else None
+        amount = Decimal(lnaddr.amount * COIN) if lnaddr.amount else None
         return LNInvoice(
             type = PR_TYPE_LN,
             amount = amount,
