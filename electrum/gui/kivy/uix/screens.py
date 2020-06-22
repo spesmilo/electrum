@@ -4,7 +4,7 @@ from decimal import Decimal
 import re
 import threading
 import traceback, sys
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, List, Optional, Dict, Any
 
 from kivy.app import App
 from kivy.cache import Cache
@@ -26,7 +26,7 @@ from kivy.logger import Logger
 from electrum.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds, Fiat
 from electrum.invoices import (PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING,
                                PR_PAID, PR_UNKNOWN, PR_EXPIRED, PR_INFLIGHT,
-                               LNInvoice, pr_expiration_values)
+                               LNInvoice, pr_expiration_values, Invoice, OnchainInvoice)
 from electrum import bitcoin, constants
 from electrum.transaction import Transaction, tx_from_any, PartialTransaction, PartialTxOutput
 from electrum.util import parse_URI, InvalidBitcoinURI, TxMinedInfo, maybe_extract_bolt11_invoice
@@ -224,17 +224,19 @@ class SendScreen(CScreen):
     def show_item(self, obj):
         self.app.show_invoice(obj.is_lightning, obj.key)
 
-    def get_card(self, item):
+    def get_card(self, item: Invoice):
         status = self.app.wallet.get_invoice_status(item)
         status_str = item.get_status_str(status)
         is_lightning = item.type == PR_TYPE_LN
         if is_lightning:
+            assert isinstance(item, LNInvoice)
             key = item.rhash
             log = self.app.wallet.lnworker.logs.get(key)
             if status == PR_INFLIGHT and log:
                 status_str += '... (%d)'%len(log)
             is_bip70 = False
         else:
+            assert isinstance(item, OnchainInvoice)
             key = item.id
             is_bip70 = bool(item.bip70)
         return {
@@ -245,7 +247,7 @@ class SendScreen(CScreen):
             'status_str': status_str,
             'key': key,
             'memo': item.message,
-            'amount': self.app.format_amount_and_units(item.amount or 0),
+            'amount': self.app.format_amount_and_units(item.get_amount_sat() or 0),
         }
 
     def do_clear(self):
@@ -345,16 +347,18 @@ class SendScreen(CScreen):
             else:
                 do_pay(False)
 
-    def _do_pay_lightning(self, invoice):
-        attempts = 10
+    def _do_pay_lightning(self, invoice: LNInvoice) -> None:
         threading.Thread(
             target=self.app.wallet.lnworker.pay,
-            args=(invoice.invoice, invoice.amount),
-            kwargs={'attempts':10}).start()
+            args=(invoice.invoice,),
+            kwargs={
+                'attempts': 10,
+            },
+        ).start()
 
-    def _do_pay_onchain(self, invoice, rbf):
+    def _do_pay_onchain(self, invoice: OnchainInvoice, rbf: bool) -> None:
         # make unsigned transaction
-        outputs = invoice.outputs  # type: List[PartialTxOutput]
+        outputs = invoice.outputs
         coins = self.app.wallet.get_spendable_coins(None)
         try:
             tx = self.app.wallet.make_unsigned_transaction(coins=coins, outputs=outputs)
@@ -482,15 +486,17 @@ class ReceiveScreen(CScreen):
         self.update()
         self.app.show_request(lightning, key)
 
-    def get_card(self, req):
+    def get_card(self, req: Invoice) -> Dict[str, Any]:
         is_lightning = req.is_lightning()
         if not is_lightning:
+            assert isinstance(req, OnchainInvoice)
             address = req.get_address()
             key = address
         else:
+            assert isinstance(req, LNInvoice)
             key = req.rhash
             address = req.invoice
-        amount = req.amount
+        amount = req.get_amount_sat()
         description = req.message
         status = self.app.wallet.get_request_status(key)
         status_str = req.get_status_str(status)

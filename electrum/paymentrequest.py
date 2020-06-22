@@ -326,7 +326,7 @@ def make_unsigned_request(req: 'OnchainInvoice'):
         time = 0
     if exp and type(exp) != int:
         exp = 0
-    amount = req.amount
+    amount = req.amount_sat
     if amount is None:
         amount = 0
     memo = req.message

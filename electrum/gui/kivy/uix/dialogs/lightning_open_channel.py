@@ -118,7 +118,7 @@ class LightningOpenChannelDialog(Factory.Popup):
             fee = self.app.electrum_config.fee_per_kb()
             if not fee:
                 fee = config.FEERATE_FALLBACK_STATIC_FEE
-            self.amount = self.app.format_amount_and_units(self.lnaddr.amount * COIN + fee * 2)
+            self.amount = self.app.format_amount_and_units(self.lnaddr.amount * COIN + fee * 2)  # FIXME magic number?!
             self.pubkey = bh2u(self.lnaddr.pubkey.serialize())
         if self.msg:
             self.app.show_info(self.msg)

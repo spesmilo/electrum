@@ -44,7 +44,7 @@ Builder.load_string('''
             TopLabel:
                 text: _('Description') + ': ' + root.description or _('None')
             TopLabel:
-                text: _('Amount') + ': ' + app.format_amount_and_units(root.amount)
+                text: _('Amount') + ': ' + app.format_amount_and_units(root.amount_sat)
             TopLabel:
                 text: (_('Address') if not root.is_lightning else _('Payment hash')) + ': '
             RefLabel:
@@ -93,7 +93,7 @@ class RequestDialog(Factory.Popup):
         r = self.app.wallet.get_request(key)
         self.is_lightning = r.is_lightning()
         self.data = r.invoice if self.is_lightning else self.app.wallet.get_request_URI(r)
-        self.amount = r.amount or 0
+        self.amount_sat = r.get_amount_sat() or 0
         self.description = r.message
         self.update_status()
 
@@ -111,7 +111,7 @@ class RequestDialog(Factory.Popup):
         self.status_str = req.get_status_str(self.status)
         self.status_color = pr_color[self.status]
         if self.status == PR_UNPAID and self.is_lightning and self.app.wallet.lnworker:
-            if self.amount and self.amount > self.app.wallet.lnworker.num_sats_can_receive():
+            if self.amount_sat and self.amount_sat > self.app.wallet.lnworker.num_sats_can_receive():
                 self.warning = _('Warning') + ': ' + _('This amount exceeds the maximum you can currently receive with your channels')
 
     def on_dismiss(self):
