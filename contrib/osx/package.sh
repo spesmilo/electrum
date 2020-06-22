@@ -73,7 +73,7 @@ ${genisoimage} \
     -D \
     -l \
     -probe \
-    -V "Electrum" \
+    -V "ElectrumVault" \
     -no-pad \
     -r \
     -dir-mode 0755 \
