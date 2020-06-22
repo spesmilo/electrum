@@ -935,13 +935,13 @@ class LNWallet(LNWorker):
             #       we try decoding both ways here.
             try:
                 message_type, payload = decode_msg(channel_update_typed)
-                assert payload['chain_hash'] == constants.net.rev_genesis_bytes()
+                if not payload['chain_hash'] != constants.net.rev_genesis_bytes(): raise Exception()
                 payload['raw'] = channel_update_typed
             except:  # FIXME: too broad
                 try:
                     message_type, payload = decode_msg(channel_update_as_received)
+                    if not payload['chain_hash'] != constants.net.rev_genesis_bytes(): raise Exception()
                     payload['raw'] = channel_update_as_received
-                    assert payload['chain_hash'] != constants.net.rev_genesis_bytes()
                 except:
                     self.logger.info(f'could not decode channel_update for failed htlc: {channel_update_as_received.hex()}')
                     return True
