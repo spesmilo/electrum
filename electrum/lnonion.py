@@ -405,6 +405,11 @@ class OnionRoutingFailureMessage:
         failure_data = failure_msg[2:]
         return OnionRoutingFailureMessage(failure_code, failure_data)
 
+    def code_name(self) -> str:
+        if isinstance(self.code, OnionFailureCode):
+            return str(self.code.name)
+        return f"Unknown error ({self.code!r})"
+
 
 def construct_onion_error(reason: OnionRoutingFailureMessage,
                           onion_packet: OnionPacket,
