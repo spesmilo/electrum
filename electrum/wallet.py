@@ -1691,7 +1691,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         is_lightning = x.is_lightning()
         d = {
             'is_lightning': is_lightning,
-            'amount': x.get_amount_sat(),
             'amount_BTC': format_satoshis(x.get_amount_sat()),
             'message': x.message,
             'timestamp': x.time,
@@ -1708,6 +1707,9 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 d['can_receive'] = self.lnworker.can_receive_invoice(x)
         else:
             assert isinstance(x, OnchainInvoice)
+            amount_sat = x.get_amount_sat()
+            assert isinstance(amount_sat, (int, str, type(None)))
+            d['amount_sat'] = amount_sat
             addr = x.get_address()
             paid, conf = self.get_payment_status(addr, x.amount_sat)
             d['address'] = addr
@@ -1733,7 +1735,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         is_lightning = x.is_lightning()
         d = {
             'is_lightning': is_lightning,
-            'amount': x.get_amount_sat(),
             'amount_BTC': format_satoshis(x.get_amount_sat()),
             'message': x.message,
             'timestamp': x.time,
@@ -1749,6 +1750,9 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 d['can_pay'] = self.lnworker.can_pay_invoice(x)
         else:
             assert isinstance(x, OnchainInvoice)
+            amount_sat = x.get_amount_sat()
+            assert isinstance(amount_sat, (int, str, type(None)))
+            d['amount_sat'] = amount_sat
             d['outputs'] = [y.to_legacy_tuple() for y in x.outputs]
             if x.bip70:
                 d['bip70'] = x.bip70
