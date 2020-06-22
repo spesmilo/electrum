@@ -54,8 +54,7 @@ from electrum_ltc import (keystore, ecc, constants, util, bitcoin, commands,
 from electrum_ltc.bitcoin import COIN, is_address
 from electrum_ltc.plugin import run_hook, BasePlugin
 from electrum_ltc.i18n import _
-from electrum_ltc.util import (format_time, format_satoshis, format_fee_satoshis,
-                               format_satoshis_plain,
+from electrum_ltc.util import (format_time,
                                UserCancelled, profiler,
                                bh2u, bfh, InvalidPassword,
                                UserFacingException,

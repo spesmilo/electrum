@@ -633,15 +633,15 @@ class LNWallet(LNWorker):
                 'payment_hash': key,
                 'preimage': preimage,
             }
-            # add txid to merge item with onchain item
+            # add group_id to swap transactions
             swap = self.swap_manager.get_swap(payment_hash)
             if swap:
                 if swap.is_reverse:
-                    #item['txid'] = swap.spending_txid
-                    item['label'] = 'Reverse swap' + ' ' + self.config.format_amount_and_units(swap.lightning_amount)
+                    item['group_id'] = swap.spending_txid
+                    item['group_label'] = 'Reverse swap' + ' ' + self.config.format_amount_and_units(swap.lightning_amount)
                 else:
-                    #item['txid'] = swap.funding_txid
-                    item['label'] = 'Normal swap' + ' ' + self.config.format_amount_and_units(swap.onchain_amount)
+                    item['group_id'] = swap.funding_txid
+                    item['group_label'] = 'Forward swap' + ' ' + self.config.format_amount_and_units(swap.onchain_amount)
             # done
             out[payment_hash] = item
         return out
@@ -680,6 +680,31 @@ class LNWallet(LNWorker):
                 'fee_msat': None,
             }
             out[closing_txid] = item
+        # add info about submarine swaps
+        settled_payments = self.get_settled_payments()
+        current_height = self.network.get_local_height()
+        for payment_hash_hex, swap in self.swap_manager.swaps.items():
+            txid = swap.spending_txid if swap.is_reverse else swap.funding_txid
+            if txid is None:
+                continue
+            if payment_hash_hex in settled_payments:
+                plist = settled_payments[payment_hash_hex]
+                info = self.get_payment_info(bytes.fromhex(payment_hash_hex))
+                amount_msat, fee_msat, timestamp = self.get_payment_value(info, plist)
+            else:
+                amount_msat = 0
+            label = 'Reverse swap' if swap.is_reverse else 'Forward swap'
+            delta = current_height - swap.locktime
+            if not swap.is_redeemed and swap.spending_txid is None and delta < 0:
+                label += f' (refundable in {-delta} blocks)' # fixme: only if unspent
+            out[txid] = {
+                'txid': txid,
+                'group_id': txid,
+                'amount_msat': 0,
+                #'amount_msat': amount_msat, # must not be added
+                'type': 'swap',
+                'label': label
+            }
         return out
 
     def get_history(self):
@@ -691,14 +716,6 @@ class LNWallet(LNWorker):
             balance_msat += item['amount_msat']
             item['balance_msat'] = balance_msat
         return out
-
-    def get_and_inc_counter_for_channel_keys(self):
-        with self.lock:
-            ctr = self.db.get('lightning_channel_key_der_ctr', -1)
-            ctr += 1
-            self.db.put('lightning_channel_key_der_ctr', ctr)
-            self.wallet.save_db()
-            return ctr
 
     def suggest_peer(self):
         r = []
@@ -888,7 +905,7 @@ class LNWallet(LNWorker):
                         payment_hash=lnaddr.paymenthash,
                         min_final_cltv_expiry=lnaddr.get_min_final_cltv_expiry(),
                         payment_secret=lnaddr.payment_secret)
-        util.trigger_callback('htlc_added', htlc, lnaddr, SENT)
+        util.trigger_callback('htlc_added', chan, htlc, SENT)
         payment_attempt = await self.await_payment(lnaddr.paymenthash)
         if payment_attempt.success:
             failure_log = None
@@ -943,13 +960,13 @@ class LNWallet(LNWorker):
             #       we try decoding both ways here.
             try:
                 message_type, payload = decode_msg(channel_update_typed)
-                assert payload['chain_hash'] == constants.net.rev_genesis_bytes()
+                if not payload['chain_hash'] != constants.net.rev_genesis_bytes(): raise Exception()
                 payload['raw'] = channel_update_typed
             except:  # FIXME: too broad
                 try:
                     message_type, payload = decode_msg(channel_update_as_received)
+                    if not payload['chain_hash'] != constants.net.rev_genesis_bytes(): raise Exception()
                     payload['raw'] = channel_update_as_received
-                    assert payload['chain_hash'] != constants.net.rev_genesis_bytes()
                 except:
                     self.logger.info(f'could not decode channel_update for failed htlc: {channel_update_as_received.hex()}')
                     return True

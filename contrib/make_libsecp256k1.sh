@@ -49,8 +49,9 @@ info "Building $pkgname..."
             --enable-module-recovery \
             --enable-experimental \
             --enable-module-ecdh \
-            --disable-jni \
+            --disable-benchmark \
             --disable-tests \
+            --disable-exhaustive-tests \
             --disable-static \
             --enable-shared || fail "Could not configure $pkgname. Please make sure you have a C compiler installed and try again."
     fi

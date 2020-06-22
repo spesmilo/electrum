@@ -820,28 +820,27 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         transactions_tmp = OrderedDictWithIndex()
         # add on-chain txns
         onchain_history = self.get_onchain_history(domain=onchain_domain)
+        lnworker_history = self.lnworker.get_onchain_history() if self.lnworker and include_lightning else {}
         for tx_item in onchain_history:
             txid = tx_item['txid']
             transactions_tmp[txid] = tx_item
-        # add LN txns
-        if self.lnworker and include_lightning:
-            lightning_history = self.lnworker.get_history()
-        else:
-            lightning_history = []
-        for i, tx_item in enumerate(lightning_history):
+            # add lnworker info here
+            if txid in lnworker_history:
+                item = lnworker_history[txid]
+                tx_item['group_id'] = item.get('group_id')  # for swaps
+                tx_item['label'] = item['label']
+                tx_item['type'] = item['type']
+                ln_value = Decimal(item['amount_msat']) / 1000   # for channel open/close tx
+                tx_item['ln_value'] = Satoshis(ln_value)
+        # add lightning_transactions
+        lightning_history = self.lnworker.get_lightning_history() if self.lnworker and include_lightning else {}
+        for tx_item in lightning_history.values():
             txid = tx_item.get('txid')
             ln_value = Decimal(tx_item['amount_msat']) / 1000
-            if txid and txid in transactions_tmp:
-                item = transactions_tmp[txid]
-                item['label'] = tx_item['label']
-                item['type'] = tx_item['type']
-                item['channel_id'] = tx_item['channel_id']
-                item['ln_value'] = Satoshis(ln_value)
-            else:
-                tx_item['lightning'] = True
-                tx_item['ln_value'] = Satoshis(ln_value)
-                key = tx_item.get('txid') or tx_item['payment_hash']
-                transactions_tmp[key] = tx_item
+            tx_item['lightning'] = True
+            tx_item['ln_value'] = Satoshis(ln_value)
+            key = tx_item.get('txid') or tx_item['payment_hash']
+            transactions_tmp[key] = tx_item
         # sort on-chain and LN stuff into new dict, by timestamp
         # (we rely on this being a *stable* sort)
         transactions = OrderedDictWithIndex()
@@ -1614,17 +1613,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         raise Exception("this wallet cannot delete addresses")
 
     def get_payment_status(self, address, amount):
-        local_height = self.get_local_height()
         received, sent = self.get_addr_io(address)
         l = []
         for txo, x in received.items():
             h, v, is_cb = x
             txid, n = txo.split(':')
-            info = self.db.get_verified_tx(txid)
-            if info:
-                conf = local_height - info.height + 1
-            else:
-                conf = 0
+            conf = self.get_tx_height(txid).conf
             l.append((conf, v))
         vsum = 0
         for conf, v in reversed(sorted(l)):

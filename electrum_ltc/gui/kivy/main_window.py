@@ -293,7 +293,7 @@ class ElectrumWindow(App):
         if rate.is_nan():
             return ''
         satoshis = int(pow(10,8) * Decimal(fiat_amount) / Decimal(rate))
-        return format_satoshis_plain(satoshis, self.decimal_point())
+        return format_satoshis_plain(satoshis, decimal_point=self.decimal_point())
 
     def get_amount(self, amount_str):
         a, u = amount_str.split()
@@ -909,17 +909,23 @@ class ElectrumWindow(App):
         amount = tx.output_value()
         __, x_fee_amount = run_hook('get_tx_extra_fee', self.wallet, tx) or (None, 0)
         amount_after_all_fees = amount - x_fee_amount
-        return format_satoshis_plain(amount_after_all_fees, self.decimal_point())
+        return format_satoshis_plain(amount_after_all_fees, decimal_point=self.decimal_point())
 
     def format_amount(self, x, is_diff=False, whitespaces=False):
-        return format_satoshis(x, 0, self.decimal_point(), is_diff=is_diff, whitespaces=whitespaces)
+        return format_satoshis(
+            x,
+            num_zeros=0,
+            decimal_point=self.decimal_point(),
+            is_diff=is_diff,
+            whitespaces=whitespaces,
+        )
 
     def format_amount_and_units(self, x) -> str:
         if x is None:
             return 'none'
         if x == '!':
             return 'max'
-        return format_satoshis_plain(x, self.decimal_point()) + ' ' + self.base_unit
+        return format_satoshis_plain(x, decimal_point=self.decimal_point()) + ' ' + self.base_unit
 
     def format_fee_rate(self, fee_rate):
         # fee_rate is in sat/kB

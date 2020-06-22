@@ -1181,6 +1181,7 @@ class Peer(Logger):
             timestamp=int(time.time()),
             htlc_id=htlc_id)
         chan.receive_htlc(htlc, onion_packet)
+        util.trigger_callback('htlc_added', chan, htlc, RECEIVED)
 
     def maybe_forward_htlc(self, chan: Channel, htlc: UpdateAddHtlc, *,
                            onion_packet: OnionPacket, processed_onion: ProcessedOnionPacket

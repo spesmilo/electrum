@@ -269,8 +269,12 @@ class PaymentAttemptLog(NamedTuple):
                 sender_idx = self.failure_details.sender_idx
                 failure_msg = self.failure_details.failure_msg
                 if sender_idx is not None:
-                    short_channel_id = route[sender_idx+1].short_channel_id
-                message = str(failure_msg.code.name)
+                    try:
+                        short_channel_id = route[sender_idx + 1].short_channel_id
+                    except IndexError:
+                        # payment destination reported error
+                        short_channel_id = _("Destination node")
+                message = failure_msg.code_name()
             else:
                 short_channel_id = route[-1].short_channel_id
                 message = _('Success')

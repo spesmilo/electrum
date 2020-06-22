@@ -110,7 +110,7 @@ class BTCAmountEdit(AmountEdit):
         if amount is None:
             self.setText(" ") # Space forces repaint in case units changed
         else:
-            self.setText(format_satoshis_plain(amount, self.decimal_point()))
+            self.setText(format_satoshis_plain(amount, decimal_point=self.decimal_point()))
 
 
 class FeerateEdit(BTCAmountEdit):

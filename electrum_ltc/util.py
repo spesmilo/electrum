@@ -177,6 +177,9 @@ class Satoshis(object):
     def __ne__(self, other):
         return not (self == other)
 
+    def __add__(self, other):
+        return Satoshis(self.value + other.value)
+
 
 # note: this is not a NamedTuple as then its json encoding cannot be customized
 class Fiat(object):
@@ -215,6 +218,10 @@ class Fiat(object):
 
     def __ne__(self, other):
         return not (self == other)
+
+    def __add__(self, other):
+        assert self.ccy == other.ccy
+        return Fiat(self.value + other.value, self.ccy)
 
 
 class MyEncoder(json.JSONEncoder):
@@ -582,7 +589,7 @@ def chunks(items, size: int):
         yield items[i: i + size]
 
 
-def format_satoshis_plain(x, decimal_point = 8) -> str:
+def format_satoshis_plain(x, *, decimal_point=8) -> str:
     """Display a satoshi amount scaled.  Always uses a '.' as a decimal
     point and has no thousands separator"""
     if x == '!':
@@ -594,7 +601,15 @@ def format_satoshis_plain(x, decimal_point = 8) -> str:
 DECIMAL_POINT = localeconv()['decimal_point']  # type: str
 
 
-def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=False, whitespaces=False) -> str:
+def format_satoshis(
+        x,  # in satoshis
+        *,
+        num_zeros=0,
+        decimal_point=8,
+        precision=None,
+        is_diff=False,
+        whitespaces=False,
+) -> str:
     if x is None:
         return 'unknown'
     if x == '!':
