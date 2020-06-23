@@ -167,6 +167,10 @@ class Peer(Logger):
 
     def process_message(self, message):
         message_type, payload = decode_msg(message)
+        # only process INIT if we are a backup
+        from .lnworker import LNBackups
+        if isinstance(self.lnworker, LNBackups) and message_type != 'init':
+            return
         if message_type in self.ordered_messages:
             chan_id = payload.get('channel_id') or payload["temporary_channel_id"]
             self.ordered_message_queues[chan_id].put_nowait((message_type, payload))
