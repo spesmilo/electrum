@@ -1002,7 +1002,10 @@ class LNWallet(LNWorker):
         addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
         if addr.is_expired():
             raise InvoiceError(_("This invoice has expired"))
-        if amount_msat:
+        if amount_msat:  # replace amt in invoice. main usecase is paying zero amt invoices
+            existing_amt_msat = addr.get_amount_msat()
+            if existing_amt_msat and amount_msat < existing_amt_msat:
+                raise Exception("cannot pay lower amt than what is originally in LN invoice")
             addr.amount = Decimal(amount_msat) / COIN / 1000
         if addr.amount is None:
             raise InvoiceError(_("Missing amount"))
