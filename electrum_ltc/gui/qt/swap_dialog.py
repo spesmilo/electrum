@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Optional
 from PyQt5.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton
 
 from electrum_ltc.i18n import _
+from electrum_ltc.util import NotEnoughFunds, NoDynamicFeeEstimates
 from electrum_ltc.lnutil import ln_dummy_address
 from electrum_ltc.transaction import PartialTxOutput, PartialTransaction
 
@@ -73,9 +74,10 @@ class SwapDialog(WindowModalDialog):
         h.addWidget(fee_combo, 6, 2)
         vbox.addLayout(h)
         vbox.addStretch(1)
-        ok_button = OkButton(self)
-        ok_button.setDefault(True)
-        vbox.addLayout(Buttons(CancelButton(self), ok_button))
+        self.ok_button = OkButton(self)
+        self.ok_button.setDefault(True)
+        self.ok_button.setEnabled(False)
+        vbox.addLayout(Buttons(CancelButton(self), self.ok_button))
         self.update()
 
     def fee_slider_callback(self, dyn, pos, fee_rate):
@@ -140,6 +142,7 @@ class SwapDialog(WindowModalDialog):
         self.recv_amount_e.follows = False
         self.send_follows = False
         self.update_fee()
+        self.ok_button.setEnabled(recv_amount is not None)
 
     def on_recv_edited(self):
         if self.recv_amount_e.follows:
@@ -155,6 +158,7 @@ class SwapDialog(WindowModalDialog):
         self.send_amount_e.follows = False
         self.send_follows = True
         self.update_fee()
+        self.ok_button.setEnabled(send_amount is not None)
 
     def update(self):
         sm = self.swap_manager
@@ -206,12 +210,17 @@ class SwapDialog(WindowModalDialog):
     def update_tx(self, onchain_amount):
         if onchain_amount is None:
             self.tx = None
+            self.ok_button.setEnabled(False)
             return
         outputs = [PartialTxOutput.from_address_and_value(ln_dummy_address(), onchain_amount)]
         coins = self.window.get_coins()
-        self.tx = self.window.wallet.make_unsigned_transaction(
-            coins=coins,
-            outputs=outputs)
+        try:
+            self.tx = self.window.wallet.make_unsigned_transaction(
+                coins=coins,
+                outputs=outputs)
+        except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
+            self.tx = None
+            self.ok_button.setEnabled(False)
 
     def do_normal_swap(self, lightning_amount, onchain_amount, password):
         coro = self.swap_manager.normal_swap(lightning_amount, onchain_amount, password, tx=self.tx)
