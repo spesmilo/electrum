@@ -1,11 +1,13 @@
-import attr
 import time
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional, Union, Dict, Any
+from decimal import Decimal
+
+import attr
 
 from .json_db import StoredObject
 from .i18n import _
 from .util import age
-from .lnaddr import lndecode
+from .lnaddr import lndecode, LnAddr
 from . import constants
 from .bitcoin import COIN
 from .transaction import PartialTxOutput
@@ -67,6 +69,7 @@ def _decode_outputs(outputs) -> List[PartialTxOutput]:
         ret.append(output)
     return ret
 
+
 # hack: BOLT-11 is not really clear on what an expiry of 0 means.
 # It probably interprets it as 0 seconds, so already expired...
 # Our higher level invoices code however uses 0 for "never".
@@ -75,11 +78,11 @@ LN_EXPIRY_NEVER = 100 * 365 * 24 * 60 * 60  # 100 years
 
 @attr.s
 class Invoice(StoredObject):
-    type = attr.ib(type=int)
-    message = attr.ib(type=str)
-    amount = attr.ib(type=int)
-    exp = attr.ib(type=int)
-    time = attr.ib(type=int)
+    type = attr.ib(type=int, kw_only=True)
+
+    message: str
+    exp: int
+    time: int
 
     def is_lightning(self):
         return self.type == PR_TYPE_LN
@@ -94,22 +97,42 @@ class Invoice(StoredObject):
                 status_str = _('Pending')
         return status_str
 
+    def get_amount_sat(self) -> Union[int, Decimal, str, None]:
+        """Returns a decimal satoshi amount, or '!' or None."""
+        raise NotImplementedError()
+
+    @classmethod
+    def from_json(cls, x: dict) -> 'Invoice':
+        # note: these raise if x has extra fields
+        if x.get('type') == PR_TYPE_LN:
+            return LNInvoice(**x)
+        else:
+            return OnchainInvoice(**x)
+
+
 @attr.s
 class OnchainInvoice(Invoice):
-    id = attr.ib(type=str)
-    outputs = attr.ib(type=list, converter=_decode_outputs)
-    bip70 = attr.ib(type=str) # may be None
-    requestor = attr.ib(type=str) # may be None
+    message = attr.ib(type=str, kw_only=True)
+    amount_sat = attr.ib(kw_only=True)  # type: Union[None, int, str]  # in satoshis. can be '!'
+    exp = attr.ib(type=int, kw_only=True)
+    time = attr.ib(type=int, kw_only=True)
+    id = attr.ib(type=str, kw_only=True)
+    outputs = attr.ib(kw_only=True, converter=_decode_outputs)  # type: List[PartialTxOutput]
+    bip70 = attr.ib(type=str, kw_only=True)  # type: Optional[str]
+    requestor = attr.ib(type=str, kw_only=True)  # type: Optional[str]
 
     def get_address(self) -> str:
         assert len(self.outputs) == 1
         return self.outputs[0].address
 
+    def get_amount_sat(self) -> Union[int, str, None]:
+        return self.amount_sat
+
     @classmethod
     def from_bip70_payreq(cls, pr: 'PaymentRequest') -> 'OnchainInvoice':
         return OnchainInvoice(
             type=PR_TYPE_ONCHAIN,
-            amount=pr.get_amount(),
+            amount_sat=pr.get_amount(),
             outputs=pr.get_outputs(),
             message=pr.get_memo(),
             id=pr.get_id(),
@@ -121,26 +144,63 @@ class OnchainInvoice(Invoice):
 
 @attr.s
 class LNInvoice(Invoice):
-    rhash = attr.ib(type=str)
     invoice = attr.ib(type=str)
+    amount_msat = attr.ib(kw_only=True)  # type: Optional[int]  # needed for zero amt invoices
+
+    __lnaddr = None
+
+    @property
+    def _lnaddr(self) -> LnAddr:
+        if self.__lnaddr is None:
+            self.__lnaddr = lndecode(self.invoice)
+        return self.__lnaddr
+
+    @property
+    def rhash(self) -> str:
+        return self._lnaddr.paymenthash.hex()
+
+    def get_amount_msat(self) -> Optional[int]:
+        amount_btc = self._lnaddr.amount
+        amount = int(amount_btc * COIN * 1000) if amount_btc else None
+        return amount or self.amount_msat
+
+    def get_amount_sat(self) -> Union[Decimal, None]:
+        amount_msat = self.get_amount_msat()
+        if amount_msat is None:
+            return None
+        return Decimal(amount_msat) / 1000
+
+    @property
+    def exp(self) -> int:
+        return self._lnaddr.get_expiry()
+
+    @property
+    def time(self) -> int:
+        return self._lnaddr.date
+
+    @property
+    def message(self) -> str:
+        return self._lnaddr.get_description()
 
     @classmethod
-    def from_bech32(klass, invoice: str) -> 'LNInvoice':
-        lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
-        amount = int(lnaddr.amount * COIN) if lnaddr.amount else None
+    def from_bech32(cls, invoice: str) -> 'LNInvoice':
+        amount_msat = lndecode(invoice).get_amount_msat()
         return LNInvoice(
-            type = PR_TYPE_LN,
-            amount = amount,
-            message = lnaddr.get_description(),
-            time = lnaddr.date,
-            exp = lnaddr.get_expiry(),
-            rhash = lnaddr.paymenthash.hex(),
-            invoice = invoice,
+            type=PR_TYPE_LN,
+            invoice=invoice,
+            amount_msat=amount_msat,
         )
 
+    def to_debug_json(self) -> Dict[str, Any]:
+        d = self.to_json()
+        d.update({
+            'pubkey': self._lnaddr.pubkey.serialize().hex(),
+            'amount_BTC': self._lnaddr.amount,
+            'rhash': self._lnaddr.paymenthash.hex(),
+            'description': self._lnaddr.get_description(),
+            'exp': self._lnaddr.get_expiry(),
+            'time': self._lnaddr.date,
+            # 'tags': str(lnaddr.tags),
+        })
+        return d
 
-def invoice_from_json(x: dict) -> Invoice:
-    if x.get('type') == PR_TYPE_LN:
-        return LNInvoice(**x)
-    else:
-        return OnchainInvoice(**x)

@@ -44,7 +44,7 @@ Builder.load_string('''
             RefLabel:
                 data: root.description or _('No description')
             TopLabel:
-                text: _('Amount') + ': ' + app.format_amount_and_units(root.amount)
+                text: _('Amount') + ': ' + app.format_amount_and_units(root.amount_sat)
             TopLabel:
                 text: _('Status') + ': ' + root.status_str
                 color: root.status_color
@@ -93,9 +93,9 @@ class InvoiceDialog(Factory.Popup):
         self.data = data
         self.key = key
         invoice = self.app.wallet.get_invoice(key)
-        self.amount = invoice.amount
+        self.amount_sat = invoice.get_amount_sat()
         self.description = invoice.message
-        self.is_lightning = invoice.type == PR_TYPE_LN
+        self.is_lightning = invoice.is_lightning()
         self.update_status()
         self.log = self.app.wallet.lnworker.logs[self.key] if self.is_lightning else []
 
@@ -106,7 +106,7 @@ class InvoiceDialog(Factory.Popup):
         self.status_color = pr_color[self.status]
         self.can_pay = self.status in [PR_UNPAID, PR_FAILED]
         if self.can_pay and self.is_lightning and self.app.wallet.lnworker:
-            if self.amount and self.amount > self.app.wallet.lnworker.num_sats_can_send():
+            if self.amount_sat and self.amount_sat > self.app.wallet.lnworker.num_sats_can_send():
                 self.warning = _('Warning') + ': ' + _('This amount exceeds the maximum you can currently send with your channels')
 
     def on_dismiss(self):

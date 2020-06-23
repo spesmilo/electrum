@@ -92,6 +92,7 @@ class BTCAmountEdit(AmountEdit):
         return decimal_point_to_base_unit_name(self.decimal_point())
 
     def get_amount(self):
+        # returns amt in satoshis
         try:
             x = Decimal(str(self.text()))
         except:
@@ -106,11 +107,11 @@ class BTCAmountEdit(AmountEdit):
         amount = Decimal(max_prec_amount) / pow(10, self.max_precision()-self.decimal_point())
         return Decimal(amount) if not self.is_int else int(amount)
 
-    def setAmount(self, amount):
-        if amount is None:
-            self.setText(" ") # Space forces repaint in case units changed
+    def setAmount(self, amount_sat):
+        if amount_sat is None:
+            self.setText(" ")  # Space forces repaint in case units changed
         else:
-            self.setText(format_satoshis_plain(amount, decimal_point=self.decimal_point()))
+            self.setText(format_satoshis_plain(amount_sat, decimal_point=self.decimal_point()))
 
 
 class FeerateEdit(BTCAmountEdit):

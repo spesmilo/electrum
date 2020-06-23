@@ -793,6 +793,7 @@ def block_explorer_URL(config: 'SimpleConfig', kind: str, item: str) -> Optional
 class InvalidBitcoinURI(Exception): pass
 
 
+# TODO rename to parse_bip21_uri or similar
 def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
     """Raises InvalidBitcoinURI on malformed URI."""
     from . import bitcoin

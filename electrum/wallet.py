@@ -70,7 +70,7 @@ from .transaction import (Transaction, TxInput, UnknownTxinType, TxOutput,
 from .plugin import run_hook
 from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
                                    TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE)
-from .invoices import Invoice, OnchainInvoice, invoice_from_json, LNInvoice
+from .invoices import Invoice, OnchainInvoice, LNInvoice
 from .invoices import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_INFLIGHT, PR_TYPE_ONCHAIN, PR_TYPE_LN
 from .contacts import Contacts
 from .interface import NetworkException
@@ -693,7 +693,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             amount = sum(x.value for x in outputs)
         invoice = OnchainInvoice(
             type=PR_TYPE_ONCHAIN,
-            amount=amount,
+            amount_sat=amount,
             outputs=outputs,
             message=message,
             id=bh2u(sha256(repr(outputs))[0:16]),
@@ -738,7 +738,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def import_requests(self, path):
         data = read_json_file(path)
         for x in data:
-            req = invoice_from_json(x)
+            req = Invoice.from_json(x)
             self.add_payment_request(req)
 
     def export_requests(self, path):
@@ -747,7 +747,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def import_invoices(self, path):
         data = read_json_file(path)
         for x in data:
-            invoice = invoice_from_json(x)
+            invoice = Invoice.from_json(x)
             self.save_invoice(invoice)
 
     def export_invoices(self, path):
@@ -1630,7 +1630,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def get_request_URI(self, req: OnchainInvoice) -> str:
         addr = req.get_address()
         message = self.labels.get(addr, '')
-        amount = req.amount
+        amount = req.amount_sat
         extra_query_params = {}
         if req.time:
             extra_query_params['time'] = str(int(req.time))
@@ -1663,9 +1663,11 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if r is None:
             return PR_UNKNOWN
         if r.is_lightning():
+            assert isinstance(r, LNInvoice)
             status = self.lnworker.get_payment_status(bfh(r.rhash)) if self.lnworker else PR_UNKNOWN
         else:
-            paid, conf = self.get_payment_status(r.get_address(), r.amount)
+            assert isinstance(r, OnchainInvoice)
+            paid, conf = self.get_payment_status(r.get_address(), r.amount_sat)
             status = PR_PAID if paid else PR_UNPAID
         return self.check_expired_status(r, status)
 
@@ -1689,8 +1691,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         is_lightning = x.is_lightning()
         d = {
             'is_lightning': is_lightning,
-            'amount': x.amount,
-            'amount_BTC': format_satoshis(x.amount),
+            'amount_BTC': format_satoshis(x.get_amount_sat()),
             'message': x.message,
             'timestamp': x.time,
             'expiration': x.exp,
@@ -1698,13 +1699,19 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             'status_str': status_str,
         }
         if is_lightning:
+            assert isinstance(x, LNInvoice)
             d['rhash'] = x.rhash
             d['invoice'] = x.invoice
+            d['amount_msat'] = x.get_amount_msat()
             if self.lnworker and status == PR_UNPAID:
                 d['can_receive'] = self.lnworker.can_receive_invoice(x)
         else:
+            assert isinstance(x, OnchainInvoice)
+            amount_sat = x.get_amount_sat()
+            assert isinstance(amount_sat, (int, str, type(None)))
+            d['amount_sat'] = amount_sat
             addr = x.get_address()
-            paid, conf = self.get_payment_status(addr, x.amount)
+            paid, conf = self.get_payment_status(addr, x.amount_sat)
             d['address'] = addr
             d['URI'] = self.get_request_URI(x)
             if conf is not None:
@@ -1728,8 +1735,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         is_lightning = x.is_lightning()
         d = {
             'is_lightning': is_lightning,
-            'amount': x.amount,
-            'amount_BTC': format_satoshis(x.amount),
+            'amount_BTC': format_satoshis(x.get_amount_sat()),
             'message': x.message,
             'timestamp': x.time,
             'expiration': x.exp,
@@ -1739,10 +1745,14 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if is_lightning:
             assert isinstance(x, LNInvoice)
             d['invoice'] = x.invoice
+            d['amount_msat'] = x.get_amount_msat()
             if self.lnworker and status == PR_UNPAID:
                 d['can_pay'] = self.lnworker.can_pay_invoice(x)
         else:
             assert isinstance(x, OnchainInvoice)
+            amount_sat = x.get_amount_sat()
+            assert isinstance(amount_sat, (int, str, type(None)))
+            d['amount_sat'] = amount_sat
             d['outputs'] = [y.to_legacy_tuple() for y in x.outputs]
             if x.bip70:
                 d['bip70'] = x.bip70
@@ -1757,20 +1767,23 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 status = self.get_request_status(addr)
                 util.trigger_callback('request_status', addr, status)
 
-    def make_payment_request(self, address, amount, message, expiration):
-        amount = amount or 0
+    def make_payment_request(self, address, amount_sat, message, expiration):
+        # TODO maybe merge with wallet.create_invoice()...
+        #      note that they use incompatible "id"
+        amount_sat = amount_sat or 0
         timestamp = int(time.time())
         _id = bh2u(sha256d(address + "%d"%timestamp))[0:10]
         return OnchainInvoice(
-            type = PR_TYPE_ONCHAIN,
-            outputs = [(TYPE_ADDRESS, address, amount)],
-            message = message,
-            time = timestamp,
-            amount = amount,
-            exp = expiration,
-            id = _id,
-            bip70 = None,
-            requestor = None)
+            type=PR_TYPE_ONCHAIN,
+            outputs=[(TYPE_ADDRESS, address, amount_sat)],
+            message=message,
+            time=timestamp,
+            amount_sat=amount_sat,
+            exp=expiration,
+            id=_id,
+            bip70=None,
+            requestor=None,
+        )
 
     def sign_payment_request(self, key, alias, alias_addr, password):  # FIXME this is broken
         req = self.receive_requests.get(key)
@@ -1820,7 +1833,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         self.receive_requests.pop(addr)
         return True
 
-    def get_sorted_requests(self):
+    def get_sorted_requests(self) -> List[Invoice]:
         """ sorted by timestamp """
         out = [self.get_request(x) for x in self.receive_requests.keys()]
         out = [x for x in out if x is not None]
