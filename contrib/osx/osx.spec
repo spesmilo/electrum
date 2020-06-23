@@ -142,9 +142,8 @@ pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
-    name=PACKAGE,
+    exclude_binaries=True,
+    name=MAIN_SCRIPT,
     debug=False,
     strip=False,
     upx=True,
@@ -154,6 +153,9 @@ exe = EXE(
 
 app = BUNDLE(
     exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
     version = VERSION,
     name=PACKAGE + '.app',
     icon=electrum+ICONS_FILE,
