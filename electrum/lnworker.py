@@ -17,6 +17,7 @@ from functools import partial
 from collections import defaultdict
 import concurrent
 from concurrent import futures
+import urllib.parse
 
 import dns.resolver
 import dns.exception
@@ -36,7 +37,7 @@ from .bip32 import BIP32Node
 from .util import bh2u, bfh, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions
 from .util import ignore_exceptions, make_aiohttp_session, SilentTaskGroup
 from .util import timestamp_to_datetime, random_shuffled_copy
-from .util import MyEncoder
+from .util import MyEncoder, is_private_netaddress
 from .logging import Logger
 from .lntransport import LNTransport, LNResponderTransport
 from .lnpeer import Peer, LN_P2P_NETWORK_TIMEOUT
@@ -531,10 +532,17 @@ class LNWallet(LNWorker):
     @log_exceptions
     async def sync_with_remote_watchtower(self):
         while True:
+            # periodically poll if the user updated 'watchtower_url'
             await asyncio.sleep(5)
             watchtower_url = self.config.get('watchtower_url')
             if not watchtower_url:
                 continue
+            parsed_url = urllib.parse.urlparse(watchtower_url)
+            if not (parsed_url.scheme == 'https' or is_private_netaddress(parsed_url.hostname)):
+                self.logger.warning(f"got watchtower URL for remote tower but we won't use it! "
+                                    f"can only use HTTPS (except if private IP): not using {watchtower_url!r}")
+                continue
+            # try to sync with the remote watchtower
             try:
                 async with make_aiohttp_session(proxy=self.network.proxy) as session:
                     watchtower = JsonRPCClient(session, watchtower_url)
