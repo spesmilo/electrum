@@ -23,6 +23,7 @@ echo "Found $(ls *.exe | wc -w) files to sign."
 for f in $(ls *.exe); do
     echo "Signing $f..."
     osslsigncode sign \
+      -h sha256 \
       -certs "$CERT_FILE" \
       -key "$KEY_FILE" \
       -n "Electrum" \
