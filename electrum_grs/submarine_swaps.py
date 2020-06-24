@@ -24,8 +24,8 @@ if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
 
 
-API_URL_MAINNET = 'https://swaps.electrum.org/api'
-API_URL_TESTNET = 'https://swaps.electrum.org/testnet'
+API_URL_MAINNET = 'https://swaps.groestlcoin.org/api'
+API_URL_TESTNET = 'https://testnet-swaps.groestlcoin.org/testnet'
 API_URL_REGTEST = 'https://localhost/api'
 
 
@@ -416,4 +416,3 @@ class SwapManager(Logger):
             x = int(x * 100 / (100 - self.percentage)) + 1
             x += self.normal_fee
         return x
-
