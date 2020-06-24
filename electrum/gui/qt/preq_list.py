@@ -136,6 +136,9 @@ class PreqList(QTableWidget):
 
         menu.addAction(_("Copy hash"), lambda: self.parent.do_copy(hash, title="Hash"))
 
+        if hash != "":
+            menu.addAction(_("View on block explorer"), lambda: webopen("https://www.navexplorer.com/community-fund/payment-request/"+hash))
+
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def state_to_string(self, state):

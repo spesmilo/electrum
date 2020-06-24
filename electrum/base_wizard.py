@@ -138,7 +138,6 @@ class BaseWizard(Logger):
         ])
         wallet_kinds = [
             ('standard',  _("Standard wallet")),
-            ('coldstaking', _("Spending wallet for cold staking")),
             ('voting', _("Voting wallet for cold staking")),
             ('multisig',  _("Multi-signature wallet")),
             ('imported',  _("Import Navcoin addresses or private keys")),
@@ -168,15 +167,15 @@ class BaseWizard(Logger):
 
     def on_wallet_type(self, choice):
         self.data['wallet_type'] = self.wallet_type = choice
-        if choice == 'standard' or choice == 'voting':
+        if choice == 'voting':
             action = 'choose_keystore'
         elif choice == 'multisig':
             action = 'choose_multisig'
         elif choice == '2fa':
             self.load_2fa()
             action = self.plugin.get_action(self.data)
-        elif choice == 'coldstaking':
-            action = 'choose_staking_address'
+        elif choice == 'standard':
+            action = 'confirm_staking'
         elif choice == 'imported':
             action = 'import_addresses_or_keys'
         self.run(action)
@@ -189,6 +188,44 @@ class BaseWizard(Logger):
             self.run('choose_keystore')
         self.multisig_dialog(run_next=on_multisig)
 
+    def confirm_staking(self):
+        title = _("Enable cold staking")
+        message = '\n'.join([
+            _("Do you want to enable cold staking?")
+        ])
+        staking_options = [
+            ('yes',  _("Yes, I want to earn rewards on my coins using NavCash pool.")),
+            ('yesother', _("Yes, but I want to specify the staking address.")),
+            ('no',  _("No, I prefer not to earn rewards on my coins.")),
+        ]
+        choices = [pair for pair in staking_options]
+        self.choice_dialog(title=title, message=message, choices=choices, run_next=self.on_staking_type)
+
+    def on_staking_type(self, choice):
+        if choice == "yes":
+            self.show_coldstaking_warning(self.use_navcash_pool)
+        elif choice == "yesother":
+            self.run('choose_staking_address')
+        else:
+            self.run('choose_keystore')
+
+    def use_navcash_pool(self, choice):
+        self.save_staking_address('NfLgDYL4C3KKXDS8tLRAFM7spvLykV8v9A')
+
+    def show_coldstaking_warning(self, after):
+        title = _("NavCash pool use conditions")
+        message = '\n'.join([
+            _("By enabling cold staking and using NavCash pool,\nyou are delegating the staking rights of\nyour coins to a third party."),
+            _("- You will keep all the spending rights of the coins,\nand will be able to withdraw and spend the coins\nat any moment."),
+            _("- NavCash pool will take a 10% fee from your staking\nrewards, which will be used to support the\ndevelopment team."),
+            _("- We encourage you to delegate the voting rights to\nan address that you control, to strengthen\nthe network's decentralization.")
+        ])
+        staking_options = [
+            ('yes',  _("Yes, I understand and agree with the consequences\nof enabling cold staking.")),
+        ]
+        choices = [pair for pair in staking_options]
+        self.choice_dialog(title=title, message=message, choices=choices, run_next=after)
+
     def choose_staking_address(self):
         title = _('Specify the staking address')
         message = '\n'.join([
@@ -199,6 +236,8 @@ class BaseWizard(Logger):
 
     def save_staking_address(self, address):
         self.data['staking_address'] = address
+        self.data['wallet_type'] = 'coldstaking'
+        self.wallet_type = 'coldstaking'
         self.run('choose_voting_address')
 
     def choose_voting_address(self):
@@ -208,7 +247,7 @@ class BaseWizard(Logger):
             _('Please type it here.'),
             _('You can also leave it empty if you want to keep the voting rights in the staking address.'),
         ])
-        self.line_dialog(run_next=self.save_voting_address, title=title, message=message, default='', test=lambda x: bitcoin.is_address(x) and b58_address_to_hash160(x)[0] == constants.net.ADDRTYPE_P2PKH)
+        self.line_dialog(run_next=self.save_voting_address, title=title, message=message, default='', test=lambda x: x == "" or (bitcoin.is_address(x) and b58_address_to_hash160(x)[0] == constants.net.ADDRTYPE_P2PKH))
 
     def save_voting_address(self, address):
         self.data['voting_address'] = address
@@ -221,7 +260,7 @@ class BaseWizard(Logger):
         if self.wallet_type =='standard' or i==0 or self.wallet_type == 'voting':
             message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
             choices = [
-                ('choose_seed_type', _('Create a new seed')),
+                ('create_standard_seed', _('Create a new seed')),
                 ('restore_from_seed', _('I already have a seed')),
                 ('restore_from_key', _('Use a master key')),
             ]

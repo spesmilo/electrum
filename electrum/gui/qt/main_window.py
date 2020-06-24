@@ -1120,8 +1120,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         vbox_g.addStretch()
 
         self.receive_widgets = QTabWidget()
+        self.receive_widgets.addTab(self.receive_address_e, 'Address')
         self.receive_widgets.addTab(self.receive_qr, 'QR Code')
-        self.receive_widgets.addTab(self.receive_address_e, 'Text')
 
         hbox = QHBoxLayout()
         hbox.addLayout(vbox_g)

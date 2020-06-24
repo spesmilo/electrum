@@ -84,7 +84,7 @@ class RequestList(MyTreeView):
             self.update()
             return
         is_lightning = request_type == PR_TYPE_LN
-        text = req.get('invoice') if is_lightning else req.get('URI')
+        text = req.get('invoice') if is_lightning else req.get('address')
         self.parent.receive_address_e.setText(text)
 
     def refresh_status(self):

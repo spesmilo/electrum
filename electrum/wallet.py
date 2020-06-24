@@ -2212,7 +2212,7 @@ class Cold_Staking_Wallet(Simple_Deterministic_Wallet):
             _, pkh = b58_address_to_hash160(storage.get('voting_address'))
             self.voting_pkh = pkh
         else:
-            self.voting_pkg = None
+            self.voting_pkh = None
         Deterministic_Wallet.__init__(self, storage, config=config)
 
     def pubkeys_to_address(self, pubkey):
