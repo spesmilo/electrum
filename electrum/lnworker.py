@@ -7,7 +7,7 @@ import os
 from decimal import Decimal
 import random
 import time
-from typing import Optional, Sequence, Tuple, List, Dict, TYPE_CHECKING, NamedTuple, Union, Mapping
+from typing import Optional, Sequence, Tuple, List, Dict, TYPE_CHECKING, NamedTuple, Union, Mapping, Any
 import threading
 import socket
 import aiohttp
@@ -968,21 +968,10 @@ class LNWallet(LNWorker):
             offset = failure_codes[code]
             channel_update_len = int.from_bytes(data[offset:offset+2], byteorder="big")
             channel_update_as_received = data[offset+2: offset+2+channel_update_len]
-            channel_update_typed = (258).to_bytes(length=2, byteorder="big") + channel_update_as_received
-            # note: some nodes put channel updates in error msgs with the leading msg_type already there.
-            #       we try decoding both ways here.
-            try:
-                message_type, payload = decode_msg(channel_update_typed)
-                if not payload['chain_hash'] != constants.net.rev_genesis_bytes(): raise Exception()
-                payload['raw'] = channel_update_typed
-            except:  # FIXME: too broad
-                try:
-                    message_type, payload = decode_msg(channel_update_as_received)
-                    if not payload['chain_hash'] != constants.net.rev_genesis_bytes(): raise Exception()
-                    payload['raw'] = channel_update_as_received
-                except:
-                    self.logger.info(f'could not decode channel_update for failed htlc: {channel_update_as_received.hex()}')
-                    return True
+            payload = self._decode_channel_update_msg(channel_update_as_received)
+            if payload is None:
+                self.logger.info(f'could not decode channel_update for failed htlc: {channel_update_as_received.hex()}')
+                return True
             r = self.channel_db.add_channel_update(payload)
             blacklist = False
             short_channel_id = ShortChannelID(payload['short_channel_id'])
@@ -1004,6 +993,26 @@ class LNWallet(LNWorker):
         else:
             blacklist = True
         return blacklist
+
+    @classmethod
+    def _decode_channel_update_msg(cls, chan_upd_msg: bytes) -> Optional[Dict[str, Any]]:
+        channel_update_as_received = chan_upd_msg
+        channel_update_typed = (258).to_bytes(length=2, byteorder="big") + channel_update_as_received
+        # note: some nodes put channel updates in error msgs with the leading msg_type already there.
+        #       we try decoding both ways here.
+        try:
+            message_type, payload = decode_msg(channel_update_typed)
+            if payload['chain_hash'] != constants.net.rev_genesis_bytes(): raise Exception()
+            payload['raw'] = channel_update_typed
+            return payload
+        except:  # FIXME: too broad
+            try:
+                message_type, payload = decode_msg(channel_update_as_received)
+                if payload['chain_hash'] != constants.net.rev_genesis_bytes(): raise Exception()
+                payload['raw'] = channel_update_as_received
+                return payload
+            except:
+                return None
 
     @staticmethod
     def _check_invoice(invoice: str, *, amount_msat: int = None) -> LnAddr:
