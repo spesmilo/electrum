@@ -432,7 +432,7 @@ class ElectrumWindow(App):
         from .uix.dialogs.request_dialog import RequestDialog
         request = self.wallet.get_request(key)
         status = request['status']
-        data = request['invoice'] if is_lightning else request['URI']
+        data = request['invoice'] if is_lightning else request['address']
         self.request_popup = RequestDialog('Request', data, key)
         self.request_popup.set_status(request['status'])
         self.request_popup.open()
