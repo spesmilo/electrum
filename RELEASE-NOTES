@@ -1,32 +1,52 @@
-# Release 4.0.0b0 - Codename? (June XX, 2020)
+# Release 4.0 - (not released yet. ETA June 2020)
 
- * Experimental support for the Lightning Network
-   - Lightning is disabled by default. It can be enabled, per-wallet,
-     in the GUI, in Wallet>Information (or init_lightning cmd). Currently
-     Lightning is restricted to HD p2wpkh wallets (including watch-only
-     and hardware wallets).
+ * Lightning Network support (experimental)
+   - Our implementation of Lightning relies on Electrum servers to
+     query channel states. Since servers can lie about the state of a
+     channel, users should either use a server that they trust, or
+     setup a private watchtower (see below). A watchtower is also
+     recommended for lightning wallets that remain offline for
+     extended periods of time (the default CSV 'to_self_delay' is 1
+     week).
+   - Lightning funds cannot be restored from seed. Instead, users need
+     to create static backups of their channels. Static backups cannot
+     be used to perform lightning transactions, they can only be used
+     to trigger a remote-force-close of a channel.
+   - Lightning-enabled wallet files must not be copied. Instead, a
+     backup of the wallet can be created from the Qt menu, and it will
+     contain static backups of all its channels. Backups can also be
+     exported for each channel (e.g. via QR code), and imported in
+     another wallet. Since backups are encrypted with a key derived
+     from the wallet's xpub, they can only be imported into another
+     instance of the same wallet, or a watch-only version of it. The
+     force-close is not triggered automatically when the backup is
+     imported; imported backups can live inside a wallet file.
+   - Lightning can be enabled in the GUI (Wallet>Information) or from
+     the CLI (init_lightning). Lightning is currently restricted to HD
+     p2wpkh wallets (including watch-only and hardware wallets). The
+     Qt GUI, CLI/RPC, and the kivy GUI all have LN support, with
+     feature-richness in that order.
    - LN protocol details: dataloss_protect and static_remotekey are
      required; varonion and payment_secret are implemented, MPP not yet.
      Channels are not announced ('private'), forwarding is disabled.
-     The default 'to_self_delay' CSV is 1 week.
-   - The Qt GUI, CLI/RPC, and the kivy GUI all have LN support,
-     with feature-richness in that order.
+     Gossip queries are not implemented.
    - Submarine swaps: the GUI integrates a service that offers
      atomically exchanging on-chain and lightning bitcoins for a fee.
      Electrum Technologies runs a central server for this, powered by
      the Boltz backend.
-   - Static channel backups: a backup for each channel can be exported
-     that can be used to trigger a remote-force-close. These are
-     encrypted from a key derived from the wallet's xpub, and can
-     be imported into another copy of the same wallet or a watch-only
-     version of it. (the force close is not triggered automatically,
-     imported backups can live inside a wallet file)
-   - watchtowers?
- * Support Partially Signed Bitcoin Transactions (BIP-174) has been
-   fully integrated. (#5721) The previously used custom partial tx
-   format is removed, i.e. the partial transaction format has been
-   incompatibly changed. Users should make sure that all instances of
-   Electrum they use to co-sign or offline sign, are updated together.
+   - Watchtowers: Electrum can run a local watchtower (GUI setting),
+     or it can connect to a remote watchtower. A watchtower contains
+     pre-signed transactions and does not need your private keys. A
+     local watchtower will watch your channels whenever an Electrum
+     instance is running, without needing access to your wallet file.
+     An Electrum daemon can be configured to be used as a remote
+     watchtower by setting 'watchtower_address', 'watchtower_user' and
+     'watchtower_password'.
+ * Partially Signed Bitcoin Transactions (PSBT, BIP-174) are supported
+   (#5721). The previous Electrum partial transaction format is no
+   longer supported, i.e. this is an incompatible change. Users should
+   make sure that all instances of Electrum they use to co-sign or
+   offline sign, are updated together.
  * Hardware wallets: several fixes in general; notable changes:
    - The BitBox02 is now supported (#5993)
    - Multisig support for Coldcard (#5440)
@@ -43,8 +63,9 @@
      e.g. RBF fee-bumping, LN channel opens, submarine swaps.
    - Editable tx preview dialog that allows e.g. changing the locktime,
      toggling RBF, and manual coinjoins.
- * Http PayServer changes: the electrum-merchant repository has been
-   integrated directly into the main codebase.
+ * HTTP PayServer: The configuration of a bitcoin-accepting website
+   using Electrum has been simplified and requires fewer steps (see
+   documentation). The Payserver supports BIP70 and Lightning payments.
  * Android:
    - We now build two APKs, one for ARMv7 and one for ARMv8
    - The kivy GUI now supports importing BIP39 seeds
