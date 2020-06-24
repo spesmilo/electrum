@@ -737,6 +737,8 @@ mainnet_block_explorers = {
                         {'tx': 'transaction/', 'addr': 'address/'}),
     'blockonomics.co': ('https://www.blockonomics.co/',
                         {'tx': 'api/tx?txid=', 'addr': '#/search?q='}),
+    'mempool.space': ('https://mempool.space/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
     'OXT.me': ('https://oxt.me/',
                         {'tx': 'transaction/', 'addr': 'address/'}),
     'smartbit.com.au': ('https://www.smartbit.com.au/',
