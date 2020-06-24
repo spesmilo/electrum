@@ -24,12 +24,12 @@
    - Lightning can be enabled in the GUI (Wallet>Information) or from
      the CLI (init_lightning). Lightning is currently restricted to HD
      p2wpkh wallets (including watch-only and hardware wallets). The
-     Qt GUI, CLI/RPC, and the kivy GUI all have LN support, with
-     feature-richness in that order.
+     Qt GUI, CLI/RPC, and the kivy GUI (Android) all have LN support,
+     with feature-richness in that order.
    - LN protocol details: dataloss_protect and static_remotekey are
      required; varonion and payment_secret are implemented, MPP not yet.
      Channels are not announced ('private'), forwarding is disabled.
-     Gossip queries are not implemented.
+     We do not serve gossip queries, only consume them.
    - Submarine swaps: the GUI integrates a service that offers
      atomically exchanging on-chain and lightning bitcoins for a fee.
      Electrum Technologies runs a central server for this, powered by
