@@ -136,7 +136,7 @@ class RevokeAndAck(NamedTuple):
 class RemoteCtnTooFarInFuture(Exception): pass
 
 
-def htlcsum(htlcs):
+def htlcsum(htlcs: Iterable[UpdateAddHtlc]):
     return sum([x.amount_msat for x in htlcs])
 
 

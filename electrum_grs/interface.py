@@ -306,8 +306,13 @@ class Interface(Logger):
         self.session = None  # type: Optional[NotificationSession]
         self._ipaddr_bucket = None
 
+        # Latest block header and corresponding height, as claimed by the server.
+        # Note that these values are updated before they are verified.
+        # Especially during initial header sync, verification can take a long time.
+        # Failing verification will get the interface closed.
         self.tip_header = None
         self.tip = 0
+
         self.fee_estimates_eta = {}
 
         # Dump network messages (only for this interface).  Set at runtime from the console.
@@ -621,6 +626,8 @@ class Interface(Logger):
                 raise GracefulDisconnect('server tip below max checkpoint')
             self._mark_ready()
             await self._process_header_at_tip()
+            # header processing done
+            util.trigger_callback('blockchain_updated')
             util.trigger_callback('network_updated')
             await self.network.switch_unwanted_fork_interface()
             await self.network.switch_lagging_interface()
@@ -636,7 +643,6 @@ class Interface(Logger):
             # in the simple case, height == self.tip+1
             if height <= self.tip:
                 await self.sync_until(height)
-        util.trigger_callback('blockchain_updated')
 
     async def sync_until(self, height, next_height=None):
         if next_height is None:

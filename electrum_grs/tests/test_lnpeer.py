@@ -586,7 +586,7 @@ class TestPeer(ElectrumTestCase):
             route = w1._create_route_from_invoice(decoded_invoice=lnaddr)
             htlc = p1.pay(route=route,
                           chan=alice_channel,
-                          amount_msat=int(lnaddr.amount * COIN * 1000),
+                          amount_msat=lnaddr.get_amount_msat(),
                           payment_hash=lnaddr.paymenthash,
                           min_final_cltv_expiry=lnaddr.get_min_final_cltv_expiry(),
                           payment_secret=lnaddr.payment_secret)

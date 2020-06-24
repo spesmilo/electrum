@@ -104,7 +104,7 @@ adb logcat | grep -F "`adb shell ps | grep org.groestlcoin.Electrumgrs | cut -c1
 ### Kivy can be run directly on Linux Desktop. How?
 Install Kivy.
 
-Build atlas: `(cd electrum_grs/gui/kivy/; make theming)`
+Build atlas: `(cd contrib/android/; make theming)`
 
 Run electrum-grs with the `-g` switch: `electrum_grs -g kivy`
 

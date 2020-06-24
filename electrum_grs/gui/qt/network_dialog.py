@@ -333,7 +333,7 @@ class NetworkChoiceLayout(object):
         height_str = "%d "%(self.network.get_local_height()) + _('blocks')
         self.height_label.setText(height_str)
         n = len(self.network.get_interfaces())
-        status = _("Connected to {0} nodes.").format(n) if n else _("Not connected")
+        status = _("Connected to {0} nodes.").format(n) if n > 1 else _("Connected to {0} node.").format(n) if n == 1 else _("Not connected")
         self.status_label.setText(status)
         chains = self.network.get_blockchains()
         if len(chains) > 1:

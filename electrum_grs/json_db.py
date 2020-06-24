@@ -60,6 +60,9 @@ class StoredObject:
     def to_json(self):
         d = dict(vars(self))
         d.pop('db', None)
+        # don't expose/store private stuff
+        d = {k: v for k, v in d.items()
+             if not k.startswith('_')}
         return d
 
 

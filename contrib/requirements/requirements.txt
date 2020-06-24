@@ -9,5 +9,5 @@ aiohttp>=3.3.0,<4.0.0
 aiohttp_socks>=0.3
 certifi
 bitstring
-attrs
+attrs>=19.2.0
 groestlcoin_hash

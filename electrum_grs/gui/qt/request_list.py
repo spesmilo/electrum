@@ -32,7 +32,7 @@ from PyQt5.QtCore import Qt, QItemSelectionModel, QModelIndex
 
 from electrum_grs.i18n import _
 from electrum_grs.util import format_time
-from electrum_grs.invoices import PR_TYPE_ONCHAIN, PR_TYPE_LN
+from electrum_grs.invoices import PR_TYPE_ONCHAIN, PR_TYPE_LN, LNInvoice, OnchainInvoice
 from electrum_grs.plugin import run_hook
 
 from .util import MyTreeView, pr_icons, read_QIcon, webopen, MySortModel
@@ -130,21 +130,28 @@ class RequestList(MyTreeView):
         self.std_model.clear()
         self.update_headers(self.__class__.headers)
         for req in self.wallet.get_sorted_requests():
-            key = req.rhash if req.is_lightning() else req.id
+            if req.is_lightning():
+                assert isinstance(req, LNInvoice)
+                key = req.rhash
+            else:
+                assert isinstance(req, OnchainInvoice)
+                key = req.id
             status = self.parent.wallet.get_request_status(key)
             status_str = req.get_status_str(status)
             request_type = req.type
             timestamp = req.time
-            amount = req.amount
+            amount = req.get_amount_sat()
             message = req.message
             date = format_time(timestamp)
             amount_str = self.parent.format_amount(amount) if amount else ""
             labels = [date, message, amount_str, status_str]
             if req.is_lightning():
+                assert isinstance(req, LNInvoice)
                 key = req.rhash
                 icon = read_QIcon("lightning.png")
                 tooltip = 'lightning request'
             else:
+                assert isinstance(req, OnchainInvoice)
                 key = req.get_address()
                 icon = read_QIcon("groestlcoin.png")
                 tooltip = 'onchain request'
