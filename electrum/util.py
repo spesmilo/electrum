@@ -42,6 +42,7 @@ import time
 from typing import NamedTuple, Optional
 import ssl
 import ipaddress
+from ipaddress import IPv4Address, IPv6Address
 import random
 import attr
 
@@ -1236,6 +1237,19 @@ def is_ip_address(x: Union[str, bytes]) -> bool:
         return True
     except ValueError:
         return False
+
+
+def is_private_netaddress(host: str) -> bool:
+    if str(host) in ('localhost', 'localhost.',):
+        return True
+    if host[0] == '[' and host[-1] == ']':  # IPv6
+        host = host[1:-1]
+    try:
+        ip_addr = ipaddress.ip_address(host)  # type: Union[IPv4Address, IPv6Address]
+        return ip_addr.is_private
+    except ValueError:
+        pass  # not an IP
+    return False
 
 
 def list_enabled_bits(x: int) -> Sequence[int]:
