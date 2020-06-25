@@ -990,23 +990,14 @@ class Commands:
         return chan.funding_outpoint.to_str()
 
     @command('')
-    async def decode_invoice(self, invoice):
-        from .lnaddr import lndecode
-        lnaddr = lndecode(invoice)
-        return {
-            'pubkey': lnaddr.pubkey.serialize().hex(),
-            'amount_LTC': lnaddr.amount,
-            'rhash': lnaddr.paymenthash.hex(),
-            'description': lnaddr.get_description(),
-            'exp': lnaddr.get_expiry(),
-            'time': lnaddr.date,
-            #'tags': str(lnaddr.tags),
-        }
+    async def decode_invoice(self, invoice: str):
+        invoice = LNInvoice.from_bech32(invoice)
+        return invoice.to_debug_json()
 
     @command('wn')
     async def lnpay(self, invoice, attempts=1, timeout=30, wallet: Abstract_Wallet = None):
         lnworker = wallet.lnworker
-        lnaddr = lnworker._check_invoice(invoice, None)
+        lnaddr = lnworker._check_invoice(invoice)
         payment_hash = lnaddr.paymenthash
         wallet.save_invoice(LNInvoice.from_bech32(invoice))
         success, log = await lnworker._pay(invoice, attempts=attempts)
@@ -1026,7 +1017,6 @@ class Commands:
     async def list_channels(self, wallet: Abstract_Wallet = None):
         # we output the funding_outpoint instead of the channel_id because lnd uses channel_point (funding outpoint) to identify channels
         from .lnutil import LOCAL, REMOTE, format_short_channel_id
-        encoder = util.MyEncoder()
         l = list(wallet.lnworker.channels.items())
         return [
             {

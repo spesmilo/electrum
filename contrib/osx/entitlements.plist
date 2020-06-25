@@ -15,5 +15,9 @@
     <true/>
     <key>com.apple.security.cs.allow-jit</key>
     <true/>
+
+    <!-- Camera access, to read QR codes -->
+    <key>com.apple.security.device.camera</key>
+    <true/>
 </dict>
 </plist>
