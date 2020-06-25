@@ -341,6 +341,7 @@ class ChannelsList(MyTreeView):
         clear_button = QPushButton(d, text=_('Clear'))
         def on_clear():
             amount_e.setText('')
+            amount_e.setFrozen(False)
             remote_nodeid.setText('')
             max_button.setChecked(False)
         clear_button.clicked.connect(on_clear)
