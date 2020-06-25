@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from electrum_grs.util import (format_satoshis, format_fee_satoshis, parse_URI,
                            is_hash256_str, chunks, is_ip_address, list_enabled_bits,
-                           format_satoshis_plain)
+                           format_satoshis_plain, is_private_netaddress)
 
 from . import ElectrumTestCase
 
@@ -148,3 +148,16 @@ class TestUtil(ElectrumTestCase):
         self.assertFalse(is_ip_address("2001:db8:0:0:g:ff00:42:8329"))
         self.assertFalse(is_ip_address("lol"))
         self.assertFalse(is_ip_address(":@ASD:@AS\x77\x22\xff¬!"))
+
+    def test_is_private_netaddress(self):
+        self.assertTrue(is_private_netaddress("127.0.0.1"))
+        self.assertTrue(is_private_netaddress("127.5.6.7"))
+        self.assertTrue(is_private_netaddress("::1"))
+        self.assertTrue(is_private_netaddress("[::1]"))
+        self.assertTrue(is_private_netaddress("localhost"))
+        self.assertTrue(is_private_netaddress("localhost."))
+        self.assertFalse(is_private_netaddress("[::2]"))
+        self.assertFalse(is_private_netaddress("2a00:1450:400e:80d::200e"))
+        self.assertFalse(is_private_netaddress("[2a00:1450:400e:80d::200e]"))
+        self.assertFalse(is_private_netaddress("8.8.8.8"))
+        self.assertFalse(is_private_netaddress("example.com"))
