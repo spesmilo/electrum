@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 Builder.load_string('''
 <InvoiceDialog@Popup>
     id: popup
-    amount: None
+    amount_str: ''
     title: ''
     data: ''
     description:''
@@ -44,7 +44,7 @@ Builder.load_string('''
             RefLabel:
                 data: root.description or _('No description')
             TopLabel:
-                text: _('Amount') + ': ' + app.format_amount_and_units(root.amount_sat)
+                text: _('Amount') + ': ' + root.amount_str
             TopLabel:
                 text: _('Status') + ': ' + root.status_str
                 color: root.status_color
@@ -94,6 +94,7 @@ class InvoiceDialog(Factory.Popup):
         self.key = key
         invoice = self.app.wallet.get_invoice(key)
         self.amount_sat = invoice.get_amount_sat()
+        self.amount_str = self.app.format_amount_and_units(self.amount_sat)
         self.description = invoice.message
         self.is_lightning = invoice.is_lightning()
         self.update_status()
