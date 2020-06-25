@@ -94,7 +94,7 @@ Builder.load_string(r'''
                 size_hint: 0.3, None
                 height: '48dp'
                 text: _('New...')
-                on_press: popup.app.popup_dialog('lightning_open_channel_dialog')
+                on_release: popup.app.popup_dialog('lightning_open_channel_dialog')
 
 
 <ChannelDetailsPopup@Popup>:
