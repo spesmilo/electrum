@@ -78,7 +78,7 @@ from .mnemonic import Mnemonic
 from .logging import get_logger
 from .lnworker import LNWallet, LNBackups
 from .paymentrequest import PaymentRequest
-from .util import read_json_file, write_json_file
+from .util import read_json_file, write_json_file, UserFacingException
 
 if TYPE_CHECKING:
     from .network import Network
@@ -159,7 +159,7 @@ async def sweep_preparations(privkeys, network: 'Network', imax=100):
                 # we also search for pay-to-pubkey outputs
                 await group.spawn(find_utxos_for_privkey('p2pk', privkey, compressed))
     if not inputs:
-        raise Exception(_('No inputs found.'))
+        raise UserFacingException(_('No inputs found.'))
     return inputs, keypairs
 
 
