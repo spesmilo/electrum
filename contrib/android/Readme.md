@@ -79,9 +79,9 @@ $ adb shell monkey -p org.groestlcoin.electrumgrs 1
 ### How do I get an interactive shell inside docker?
 ```
 $ sudo docker run -it --rm \
-    -v $PWD:/home/user/wspace/electrum_grs \
+    -v $PWD:/home/user/wspace/electrum-grs \
     -v $PWD/.buildozer/.gradle:/home/user/.gradle \
-    --workdir /home/user/wspace/electrum_grs \
+    --workdir /home/user/wspace/electrum-grs \
     electrum-grs-android-builder-img
 ```
 
