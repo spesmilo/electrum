@@ -711,7 +711,7 @@ class LNWallet(LNWorker):
                 'amount_msat': 0,
                 #'amount_msat': amount_msat, # must not be added
                 'type': 'swap',
-                'label': label
+                'label': self.wallet.get_label(txid) or label,
             }
         return out
 
