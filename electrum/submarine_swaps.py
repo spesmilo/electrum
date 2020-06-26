@@ -387,21 +387,24 @@ class SwapManager(Logger):
     def get_max_amount(self):
         return min(self._max_amount, LN_MAX_HTLC_VALUE_MSAT // 1000)
 
+    def check_invoice_amount(self, x):
+        return x >= self.min_amount and x <= self._max_amount
+
     def get_recv_amount(self, send_amount: Optional[int], is_reverse: bool) -> Optional[int]:
         if send_amount is None:
             return
-        if send_amount < self.min_amount or send_amount > self._max_amount:
-            return
         x = send_amount
         if is_reverse:
+            if not self.check_invoice_amount(x):
+                return
             x = int(x * (100 - self.percentage) / 100)
             x -= self.lockup_fee
             x -= self.get_claim_fee()
         else:
             x -= self.normal_fee
             x = int(x * (100 - self.percentage) / 100)
-        if x < 0:
-            return
+            if not self.check_invoice_amount(x):
+                return
         return x
 
     def get_send_amount(self, recv_amount: Optional[int], is_reverse: bool) -> Optional[int]:
@@ -412,7 +415,11 @@ class SwapManager(Logger):
             x += self.lockup_fee
             x += self.get_claim_fee()
             x = int(x * 100 / (100 - self.percentage)) + 1
+            if not self.check_invoice_amount(x):
+                return
         else:
+            if not self.check_invoice_amount(x):
+                return
             x = int(x * 100 / (100 - self.percentage)) + 1
             x += self.normal_fee
         return x
