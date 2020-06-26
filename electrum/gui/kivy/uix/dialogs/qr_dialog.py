@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from kivy.factory import Factory
 from kivy.lang import Builder
 from kivy.core.clipboard import Clipboard
@@ -5,6 +7,9 @@ from kivy.app import App
 from kivy.clock import Clock
 
 from electrum.gui.kivy.i18n import _
+
+if TYPE_CHECKING:
+    from ...main_window import ElectrumWindow
 
 
 Builder.load_string('''
@@ -45,7 +50,7 @@ Builder.load_string('''
                     icon: 'atlas://electrum/gui/kivy/theming/light/share'
                     size_hint: 0.6, None
                     height: '48dp'
-                    on_release: s.parent.do_share()
+                    on_release: root.do_share()
                 Button:
                     size_hint: 1, None
                     height: '48dp'
@@ -58,7 +63,7 @@ class QRDialog(Factory.Popup):
     def __init__(self, title, data, show_text, *,
                  failure_cb=None, text_for_clipboard=None, help_text=None):
         Factory.Popup.__init__(self)
-        self.app = App.get_running_app()
+        self.app = App.get_running_app()  # type: ElectrumWindow
         self.title = title
         self.data = data
         self.help_text = (data if show_text else help_text) or ''
@@ -72,3 +77,7 @@ class QRDialog(Factory.Popup):
         Clipboard.copy(self.text_for_clipboard)
         msg = _('Text copied to clipboard.')
         Clock.schedule_once(lambda dt: self.app.show_info(msg))
+
+    def do_share(self):
+        self.app.do_share(self.text_for_clipboard, self.title)
+        self.dismiss()
