@@ -1671,7 +1671,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             status = self.lnworker.get_payment_status(bfh(r.rhash)) if self.lnworker else PR_UNKNOWN
         else:
             assert isinstance(r, OnchainInvoice)
-            paid, conf = self.get_payment_status(r.get_address(), r.amount_sat)
+            paid, conf = self.get_payment_status(r.get_address(), r.get_amount_sat())
             status = PR_PAID if paid else PR_UNPAID
         return self.check_expired_status(r, status)
 
@@ -1712,10 +1712,9 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         else:
             assert isinstance(x, OnchainInvoice)
             amount_sat = x.get_amount_sat()
-            assert isinstance(amount_sat, (int, str, type(None)))
-            d['amount_sat'] = amount_sat
             addr = x.get_address()
-            paid, conf = self.get_payment_status(addr, x.amount_sat)
+            paid, conf = self.get_payment_status(addr, amount_sat)
+            d['amount_sat'] = amount_sat
             d['address'] = addr
             d['URI'] = self.get_request_URI(x)
             if conf is not None:

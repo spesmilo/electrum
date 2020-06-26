@@ -125,8 +125,8 @@ class OnchainInvoice(Invoice):
         assert len(self.outputs) == 1
         return self.outputs[0].address
 
-    def get_amount_sat(self) -> Union[int, str, None]:
-        return self.amount_sat
+    def get_amount_sat(self) -> Union[int, str]:
+        return self.amount_sat or 0
 
     @classmethod
     def from_bip70_payreq(cls, pr: 'PaymentRequest') -> 'OnchainInvoice':
