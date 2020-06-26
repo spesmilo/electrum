@@ -61,7 +61,7 @@ class QRDialog(Factory.Popup):
         self.app = App.get_running_app()
         self.title = title
         self.data = data
-        self.help_text = data if show_text else help_text
+        self.help_text = (data if show_text else help_text) or ''
         self.failure_cb = failure_cb
         self.text_for_clipboard = text_for_clipboard if text_for_clipboard else data
 
