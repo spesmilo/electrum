@@ -968,7 +968,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                     text +=  " [%s unmatured]"%(self.format_amount(x, is_diff=True).strip())
                 if self.wallet.has_lightning():
                     l = self.wallet.lnworker.get_balance()
-                    text += u'    \U0001f5f2 %s'%(self.format_amount_and_units(l).strip())
+                    text += u'    \U000026a1 %s'%(self.format_amount_and_units(l).strip())
                 # append fiat balance and price
                 if self.fx.is_enabled():
                     text += self.fx.get_fiat_status_text(c + u + x,
