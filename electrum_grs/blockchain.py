@@ -23,6 +23,7 @@
 import os
 import threading
 import time
+from datetime import datetime
 from typing import Optional, Dict, Mapping, Sequence
 
 from . import util
@@ -38,6 +39,8 @@ _logger = get_logger(__name__)
 
 HEADER_SIZE = 80  # bytes
 MAX_TARGET = 0x00000000FFFF0000000000000000000000000000000000000000000000000000
+USE_DIFF_RETARGET = False
+DGW3_START_HEIGHT = 100000
 
 
 class MissingHeader(Exception):
@@ -158,9 +161,6 @@ def get_best_chain() -> 'Blockchain':
 _CHAINWORK_CACHE = {
     "0000000000000000000000000000000000000000000000000000000000000000": 0,  # virtual block at height -1
 }  # type: Dict[str, int]
-
-USE_DIFF_RETARGET = False
-DGW3_START_HEIGHT = 100000
 
 def init_headers_file_for_best_chain():
     b = get_best_chain()
@@ -297,15 +297,20 @@ class Blockchain(Logger):
     def update_size(self) -> None:
         p = self.path()
         self._size = os.path.getsize(p)//HEADER_SIZE if os.path.exists(p) else 0
-
+    
     @classmethod
     def verify_header(cls, header: dict, prev_hash: str, target: int, expected_header_hash: str=None) -> None:
+        height = header.get('block_height')
         _hash = hash_header(header)
         if expected_header_hash and expected_header_hash != _hash:
             raise Exception("hash mismatches with expected: {} vs {}".format(expected_header_hash, _hash))
         if prev_hash != header.get('prev_block_hash'):
             raise Exception("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
-        if constants.net.TESTNET or not USE_DIFF_RETARGET or header['block_height'] < DGW3_START_HEIGHT:
+        # DGWv3 PastBlocksMax = 24 Because checkpoint don't have preblock data.
+        if height // 2016 < len(constants.net.CHECKPOINTS) and height % 2016 != 2015 or \
+                height >= len(constants.net.CHECKPOINTS)*2016 and height <= len(constants.net.CHECKPOINTS)*2016 + 24:
+            return
+        if constants.net.TESTNET or not USE_DIFF_RETARGET or height < DGW3_START_HEIGHT:
             return
         bits = cls.target_to_bits(target)
         if bits != header.get('bits'):
@@ -318,7 +323,7 @@ class Blockchain(Logger):
         num = len(data) // HEADER_SIZE
         start_height = index * 2016
         prev_hash = self.get_hash(start_height - 1)
-        chain = []
+        headers = {}
         for i in range(num):
             height = start_height + i
             try:
@@ -327,12 +332,8 @@ class Blockchain(Logger):
                 expected_header_hash = None
             raw_header = data[i*HEADER_SIZE : (i+1)*HEADER_SIZE]
             header = deserialize_header(raw_header, height)
-            # DGW3 requires access to recent (unsaved) headers.
-            if USE_DIFF_RETARGET:
-                chain.append(header)
-                if not len(chain) % 100:
-                    chain = chain[-100:]
-            target = self.get_target(height, chain)
+            headers[header.get('block_height')] = header
+            target = self.get_target(height, headers)
             self.verify_header(header, prev_hash, target, expected_header_hash)
             prev_hash = hash_header(header)
 
@@ -548,22 +549,20 @@ class Blockchain(Logger):
             bitsBase >>= 8
         return bitsN << 24 | bitsBase
 
-    def get_target_dgw3(self, block_height, chain=None) -> int:
-        if chain is None:
-            chain = []
-
-        last = self.read_header(block_height-1)
+    def get_target_dgw3(self, height, chain=None) -> int:
+        last = None
+        if chain is not None:
+            last = chain.get(height - 1)
         if last is None:
-            for h in chain:
-                if h.get('block_height') == block_height-1:
-                    last = h
-        if not last:
-            raise MissingHeader()
+            last = self.read_header(height - 1)
+            if last is None:
+                if not (height >= len(constants.net.CHECKPOINTS)*2016 and height <= len(constants.net.CHECKPOINTS)*2016 + 24):
+                    raise MissingHeader
 
         # params
         BlockLastSolved = last
         BlockReading = last
-        BlockCreating = block_height
+        BlockCreating = height
         nActualTimespan = 0
         LastBlockTime = 0
         PastBlocksMin = 24
@@ -573,10 +572,11 @@ class Blockchain(Logger):
         PastDifficultyAveragePrev = 0
         bnNum = 0
 
-        max_target = 0x00000FFFF0000000000000000000000000000000000000000000000000000000
-
-        if BlockLastSolved is None or block_height-1 < PastBlocksMin:
-            return max_target
+        #DGWv3 PastBlocksMax = 24 Because checkpoint don't have preblock data.
+        if height < len(constants.net.CHECKPOINTS)*2016 + PastBlocksMax:
+            return 0
+        if BlockLastSolved is None or height-1 < DGW3_START_HEIGHT:
+            return MAX_TARGET
         for i in range(1, PastBlocksMax + 1):
             CountBlocks += 1
 
@@ -593,13 +593,9 @@ class Blockchain(Logger):
                 nActualTimespan += Diff
             LastBlockTime = BlockReading.get('timestamp')
 
-            BlockReading = self.read_header((block_height-1) - CountBlocks)
+            BlockReading = chain.get((height-1) - CountBlocks)
             if BlockReading is None:
-                for br in chain:
-                    if br.get('block_height') == (block_height-1) - CountBlocks:
-                        BlockReading = br
-            if not BlockReading:
-                raise MissingHeader()
+                BlockReading = self.read_header((height-1) - CountBlocks)
 
         bnNew = PastDifficultyAverage
         nTargetTimespan = CountBlocks * 60
@@ -608,21 +604,24 @@ class Blockchain(Logger):
         nActualTimespan = min(nActualTimespan, nTargetTimespan * 3)
 
         # retarget
-        bnNew = int(min(max_target, (bnNew * nActualTimespan) // nTargetTimespan))
+        bnNew = int(min(MAX_TARGET, (bnNew * nActualTimespan) // nTargetTimespan))
         return bnNew
 
-    def get_target(self, block_height, chain=None) -> int:
-        if chain is None:
-            chain = []  # Do not use mutables as default values!
-
+    def get_target(self, height, chain=None) -> int:
         if constants.net.TESTNET:
             return 0
-        if block_height == 0:
+        if height == 0:
             return MAX_TARGET
-        # Enforce DGW3_START_HEIGHT.
-        if not USE_DIFF_RETARGET or block_height < DGW3_START_HEIGHT:
+        #Enforce DGW3_START_HEIGHT.
+        if not USE_DIFF_RETARGET or height < DGW3_START_HEIGHT:
             return 0
-        return self.get_target_dgw3(block_height, chain)
+        elif height // 2016 < len(constants.net.CHECKPOINTS) and height % 2016 == 2015:
+            h, t = constants.net.CHECKPOINTS[height // 2016]
+            return t
+        elif height // 2016 < len(constants.net.CHECKPOINTS) and height % 2016 != 2015:
+            return 0
+        else:
+            return self.get_target_dgw3(height, chain)        
 
     def chainwork_of_header_at_height(self, height: int) -> int:
         """work done by single header at given height"""
@@ -672,8 +671,10 @@ class Blockchain(Logger):
             return False
         if prev_hash != header.get('prev_block_hash'):
             return False
+        headers = {}
+        headers[header.get('block_height')] = header
         try:
-            target = self.get_target(height)
+            target = self.get_target(height, headers)
         except MissingHeader:
             return False
         try:
@@ -699,7 +700,7 @@ class Blockchain(Logger):
         n = self.height() // 2016
         for index in range(n):
             h = self.get_hash((index+1) * 2016 -1)
-            target = self.get_target(index)
+            target = self.get_target((index+1) * 2016 -1)
             cp.append((h, target))
         return cp
 
