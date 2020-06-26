@@ -726,6 +726,10 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         self.invoices = {}
         self.save_db()
 
+    def clear_requests(self):
+        self.receive_requests = {}
+        self.save_db()
+
     def get_invoices(self):
         out = list(self.invoices.values())
         #out = list(filter(None, out)) filter out ln
