@@ -295,7 +295,7 @@ class HistoryModel(CustomModel, Logger):
                         child_data = dict(parent.get_data())
                         node1 = HistoryNode(self, child_data)
                         parent.addChild(node1)
-                        parent._data['label'] = tx_item.get('group_label')
+                        parent._data['label'] = child_data.get('group_label')
                         parent._data['bc_value'] = child_data.get('bc_value', Satoshis(0))
                         parent._data['ln_value'] = child_data.get('ln_value', Satoshis(0))
                     # add child to parent
@@ -303,6 +303,8 @@ class HistoryModel(CustomModel, Logger):
                     # update parent data
                     parent._data['balance'] = tx_item['balance']
                     parent._data['value'] += tx_item['value']
+                    if 'group_label' in tx_item:
+                        parent._data['label'] = tx_item['group_label']
                     if 'bc_value' in tx_item:
                         parent._data['bc_value'] += tx_item['bc_value']
                     if 'ln_value' in tx_item:

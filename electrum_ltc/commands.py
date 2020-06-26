@@ -877,8 +877,8 @@ class Commands:
     @command('w')
     async def clear_requests(self, wallet: Abstract_Wallet = None):
         """Remove all payment requests"""
-        for k in list(wallet.receive_requests.keys()):
-            wallet.remove_payment_request(k)
+        wallet.clear_requests()
+        return True
 
     @command('w')
     async def clear_invoices(self, wallet: Abstract_Wallet = None):

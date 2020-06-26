@@ -715,6 +715,9 @@ class ElectrumWindow(App):
         self._settings_dialog.open()
 
     def lightning_open_channel_dialog(self):
+        if not self.wallet.has_lightning():
+            self.show_error(_('Lightning is not enabled for this wallet'))
+            return
         d = LightningOpenChannelDialog(self)
         d.open()
 
