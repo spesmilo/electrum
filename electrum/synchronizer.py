@@ -174,6 +174,9 @@ class Synchronizer(SynchronizerBase):
         hashes = set(map(lambda item: item['tx_hash'], result))
         hist = list(map(lambda item: (item['tx_hash'], item['height']), result))
         # tx_fees
+        for item in result:
+            if item['height'] in (-1, 0) and 'fee' not in item:
+                raise Exception("server response to get_history contains unconfirmed tx without fee")
         tx_fees = [(item['tx_hash'], item.get('fee')) for item in result]
         tx_fees = dict(filter(lambda x:x[1] is not None, tx_fees))
         # Check that txids are unique
