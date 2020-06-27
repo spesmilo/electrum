@@ -691,14 +691,21 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             amount = '!'
         else:
             amount = sum(x.value for x in outputs)
+        timestamp = None
+        exp = None
+        if URI:
+            timestamp = URI.get('time')
+            exp = URI.get('exp')
+        timestamp = timestamp or int(time.time())
+        exp = exp or 0
         invoice = OnchainInvoice(
             type=PR_TYPE_ONCHAIN,
             amount_sat=amount,
             outputs=outputs,
             message=message,
             id=bh2u(sha256(repr(outputs))[0:16]),
-            time=URI.get('time') if URI else int(time.time()),
-            exp=URI.get('exp') if URI else 0,
+            time=timestamp,
+            exp=exp,
             bip70=None,
             requestor=None,
         )
@@ -1776,6 +1783,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         amount_sat = amount_sat or 0
         timestamp = int(time.time())
         _id = bh2u(sha256d(address + "%d"%timestamp))[0:10]
+        expiration = expiration or 0
         return OnchainInvoice(
             type=PR_TYPE_ONCHAIN,
             outputs=[(TYPE_ADDRESS, address, amount_sat)],
