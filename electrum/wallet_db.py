@@ -83,7 +83,7 @@ class WalletDB(JsonDB):
                 d = ast.literal_eval(s)
                 labels = d.get('labels', {})
             except Exception as e:
-                raise IOError("Cannot read wallet file")
+                raise WalletFileException("Cannot read wallet file. (parsing failed)")
             self.data = {}
             for key, value in d.items():
                 try:
