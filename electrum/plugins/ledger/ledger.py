@@ -44,6 +44,8 @@ MSG_NEEDS_FW_UPDATE_SEGWIT = _('Firmware version (or "Bitcoin" app) too old for 
 MULTI_OUTPUT_SUPPORT = '1.1.4'
 SEGWIT_SUPPORT = '1.1.10'
 SEGWIT_SUPPORT_SPECIAL = '1.0.4'
+SEGWIT_TRUSTEDINPUTS = '1.4.0'
+UTIL_SEGWIT_TRUSTEDINPUTS = '0.1.29'
 
 
 def test_pin_unlocked(func):
@@ -176,6 +178,9 @@ class Ledger_Client(HardwareClientBase):
     def supports_native_segwit(self):
         return self.nativeSegwitSupported
 
+    def supports_segwit_trustedInputs(self):
+        return self.segwitTrustedInputs
+
     def perform_hw1_preflight(self):
         try:
             firmwareInfo = self.dongleObject.getFirmwareVersion()
@@ -183,6 +188,12 @@ class Ledger_Client(HardwareClientBase):
             self.multiOutputSupported = versiontuple(firmware) >= versiontuple(MULTI_OUTPUT_SUPPORT)
             self.nativeSegwitSupported = versiontuple(firmware) >= versiontuple(SEGWIT_SUPPORT)
             self.segwitSupported = self.nativeSegwitSupported or (firmwareInfo['specialVersion'] == 0x20 and versiontuple(firmware) >= versiontuple(SEGWIT_SUPPORT_SPECIAL))
+            try:
+                import btchip
+                utilVersion = btchip.__version__
+            except:
+                utilVersion = "0.0.0"                
+            self.segwitTrustedInputs = versiontuple(firmware) >= versiontuple(SEGWIT_TRUSTEDINPUTS) and versiontuple(utilVersion) >= versiontuple(UTIL_SEGWIT_TRUSTEDINPUTS)
 
             if not checkFirmware(firmwareInfo):
                 self.close()
@@ -437,18 +448,23 @@ class Ledger_KeyStore(Hardware_KeyStore):
             # Get trusted inputs from the original transactions
             for utxo in inputs:
                 sequence = int_to_hex(utxo[5], 4)
-                if segwitTransaction:
+                if segwitTransaction and not client_electrum.supports_segwit_trustedInputs():
                     tmp = bfh(utxo[3])[::-1]
                     tmp += bfh(int_to_hex(utxo[1], 4))
                     tmp += bfh(int_to_hex(utxo[6], 8))  # txin['value']
                     chipInputs.append({'value' : tmp, 'witness' : True, 'sequence' : sequence})
                     redeemScripts.append(bfh(utxo[2]))
-                elif not p2shTransaction:
+                elif (not p2shTransaction) or (p2shTransaction and client_electrum.supports_multi_output()):
                     txtmp = bitcoinTransaction(bfh(utxo[0]))
                     trustedInput = self.get_client().getTrustedInput(txtmp, utxo[1])
                     trustedInput['sequence'] = sequence
+                    if segwitTransaction:
+                        trustedInput['witness'] = True
                     chipInputs.append(trustedInput)
-                    redeemScripts.append(txtmp.outputs[utxo[1]].script)
+                    if p2shTransaction or segwitTransaction:
+                        redeemScripts.append(bfh(utxo[2]))    
+                    else:
+                        redeemScripts.append(txtmp.outputs[utxo[1]].script)
                 else:
                     tmp = bfh(utxo[3])[::-1]
                     tmp += bfh(int_to_hex(utxo[1], 4))
