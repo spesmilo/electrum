@@ -553,6 +553,8 @@ class Blockchain(Logger):
         last = None
         if chain is not None:
             last = chain.get(height - 1)
+        else:
+            chain = {}
         if last is None:
             last = self.read_header(height - 1)
             if last is None:
