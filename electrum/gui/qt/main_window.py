@@ -46,7 +46,7 @@ from PyQt5.QtWidgets import (QMessageBox, QComboBox, QSystemTrayIcon, QTabWidget
                              QHBoxLayout, QPushButton, QScrollArea, QTextEdit,
                              QShortcut, QMainWindow, QCompleter, QInputDialog,
                              QWidget, QSizePolicy, QStatusBar, QToolTip, QDialog,
-                             QMenu, QAction, QStackedWidget)
+                             QMenu, QAction, QStackedWidget, QToolButton)
 
 import electrum
 from electrum import (keystore, ecc, constants, util, bitcoin, commands,
@@ -104,11 +104,14 @@ if TYPE_CHECKING:
 
 LN_NUM_PAYMENT_ATTEMPTS = 10
 
-class StatusBarButton(QPushButton):
+class StatusBarButton(QToolButton):
     def __init__(self, icon, tooltip, func):
-        QPushButton.__init__(self, icon, '')
+        QToolButton.__init__(self)
+        self.setText('')
+        self.setIcon(icon)
         self.setToolTip(tooltip)
-        self.setFlat(True)
+        self.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.setAutoRaise(True)
         self.setMaximumWidth(25)
         self.clicked.connect(self.onPress)
         self.func = func
@@ -2239,7 +2242,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.lightning_button.setText('')
             self.lightning_button.setToolTip(_("The Lightning Network graph is fully synced."))
         else:
-            self.lightning_button.setMaximumWidth(25 + 4 * char_width_in_lineedit())
+            self.lightning_button.setMaximumWidth(25 + 5 * char_width_in_lineedit())
             self.lightning_button.setText(progress_str)
             self.lightning_button.setToolTip(_("The Lightning Network graph is syncing...\n"
                                                "Payments are more likely to succeed with a more complete graph."))
