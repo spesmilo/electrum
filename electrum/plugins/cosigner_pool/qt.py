@@ -188,17 +188,27 @@ class Plugin(BasePlugin):
             except OSError: pass
             window.show_error(_("Failed to send transaction to cosigning pool") + ':\n' + repr(e))
 
+        buffer = []
+        some_window = None
+        # construct messages
         for window, xpub, K, _hash in self.cosigner_list:
             if not self.cosigner_can_sign(tx, xpub):
                 continue
-            # construct message
+            some_window = window
             raw_tx_bytes = tx.serialize_as_bytes()
             public_key = ecc.ECPubkey(K)
             message = public_key.encrypt_message(raw_tx_bytes).decode('ascii')
-            # send message
-            task = lambda: server.put(_hash, message)
-            msg = _('Sending transaction to cosigning pool...')
-            WaitingDialog(window, msg, task, on_success, on_failure)
+            buffer.append((_hash, message))
+        if not buffer:
+            return
+
+        # send messages
+        # note: we send all messages sequentially on the same thread
+        def send_messages_task():
+            for _hash, message in buffer:
+                server.put(_hash, message)
+        msg = _('Sending transaction to cosigning pool...')
+        WaitingDialog(some_window, msg, send_messages_task, on_success, on_failure)
 
     def on_receive(self, keyhash, message):
         self.logger.info(f"signal arrived for {keyhash}")
