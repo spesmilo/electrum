@@ -26,9 +26,11 @@
 import time
 from xmlrpc.client import ServerProxy
 from typing import TYPE_CHECKING, Union, List, Tuple
+import ssl
 
 from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtWidgets import QPushButton
+import certifi
 
 from electrum import util, keystore, ecc, crypto
 from electrum import transaction
@@ -47,7 +49,9 @@ if TYPE_CHECKING:
     from electrum.gui.qt.main_window import ElectrumWindow
 
 
-server = ServerProxy('https://cosigner.electrum.org/', allow_none=True)
+ca_path = certifi.where()
+ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
+server = ServerProxy('https://cosigner.electrum.org/', allow_none=True, context=ssl_context)
 
 
 class Listener(util.DaemonThread):
