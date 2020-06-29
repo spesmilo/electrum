@@ -372,6 +372,9 @@ class Commands:
                 raise Exception("missing prevout for txin")
             txin = PartialTxInput(prevout=prevout)
             txin._trusted_value_sats = int(txin_dict['value'])
+            nsequence = txin_dict.get('nsequence', None)
+            if nsequence is not None:
+                txin.nsequence = nsequence
             sec = txin_dict.get('privkey')
             if sec:
                 txin_type, privkey, compressed = bitcoin.deserialize_privkey(sec)
