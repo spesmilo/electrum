@@ -1,6 +1,8 @@
 # based on https://github.com/kivy/python-for-android/blob/master/Dockerfile
 
-FROM ubuntu:18.04
+FROM ubuntu:20.04
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 ENV ANDROID_HOME="/opt/android"
 
@@ -38,10 +40,11 @@ RUN curl --location --progress-bar \
 ENV ANDROID_SDK_HOME="${ANDROID_HOME}/android-sdk"
 
 # get the latest version from https://developer.android.com/studio/index.html
-ENV ANDROID_SDK_TOOLS_VERSION="4333796"
-ENV ANDROID_SDK_BUILD_TOOLS_VERSION="28.0.3"
-ENV ANDROID_SDK_TOOLS_ARCHIVE="sdk-tools-linux-${ANDROID_SDK_TOOLS_VERSION}.zip"
+ENV ANDROID_SDK_TOOLS_VERSION="6514223"
+ENV ANDROID_SDK_BUILD_TOOLS_VERSION="29.0.3"
+ENV ANDROID_SDK_TOOLS_ARCHIVE="commandlinetools-linux-${ANDROID_SDK_TOOLS_VERSION}_latest.zip"
 ENV ANDROID_SDK_TOOLS_DL_URL="https://dl.google.com/android/repository/${ANDROID_SDK_TOOLS_ARCHIVE}"
+ENV ANDROID_SDK_MANAGER="${ANDROID_SDK_HOME}/tools/bin/sdkmanager --sdk_root=${ANDROID_SDK_HOME}"
 
 # download and install Android SDK
 RUN curl --location --progress-bar \
@@ -58,15 +61,15 @@ RUN mkdir --parents "${ANDROID_SDK_HOME}/.android/" \
 
 # accept Android licenses (JDK necessary!)
 RUN apt -y update -qq \
-    && apt -y install -qq --no-install-recommends openjdk-8-jdk \
+    && apt -y install -qq --no-install-recommends openjdk-13-jdk \
     && apt -y autoremove
-RUN yes | "${ANDROID_SDK_HOME}/tools/bin/sdkmanager" --licenses > /dev/null
+RUN yes | ${ANDROID_SDK_MANAGER} --licenses > /dev/null
 
 # download platforms, API, build tools
-RUN "${ANDROID_SDK_HOME}/tools/bin/sdkmanager" "platforms;android-24" > /dev/null && \
-    "${ANDROID_SDK_HOME}/tools/bin/sdkmanager" "platforms;android-28" > /dev/null && \
-    "${ANDROID_SDK_HOME}/tools/bin/sdkmanager" "build-tools;${ANDROID_SDK_BUILD_TOOLS_VERSION}" > /dev/null && \
-    "${ANDROID_SDK_HOME}/tools/bin/sdkmanager" "extras;android;m2repository" > /dev/null && \
+RUN ${ANDROID_SDK_MANAGER} "platforms;android-24" > /dev/null && \
+    ${ANDROID_SDK_MANAGER} "platforms;android-28" > /dev/null && \
+    ${ANDROID_SDK_MANAGER} "build-tools;${ANDROID_SDK_BUILD_TOOLS_VERSION}" > /dev/null && \
+    ${ANDROID_SDK_MANAGER} "extras;android;m2repository" > /dev/null && \
     chmod +x "${ANDROID_SDK_HOME}/tools/bin/avdmanager"
 
 # download ANT
@@ -96,14 +99,6 @@ RUN apt -y update -qq \
         software-properties-common libssl-dev \
     && apt -y autoremove
 
-# install kivy
-RUN add-apt-repository ppa:kivy-team/kivy \
-    && apt -y update -qq  \
-    && apt -y install -qq --no-install-recommends python3-kivy \
-    && apt -y autoremove \
-    && apt -y clean
-RUN python3 -m pip install image
-
 # build dependencies
 # https://buildozer.readthedocs.io/en/latest/installation.html#android-on-ubuntu-16-04-64bit
 RUN dpkg --add-architecture i386 \
@@ -111,7 +106,7 @@ RUN dpkg --add-architecture i386 \
     && apt -y install -qq --no-install-recommends \
         build-essential ccache git python3 python3-dev \
         libncurses5:i386 libstdc++6:i386 libgtk2.0-0:i386 \
-        libpangox-1.0-0:i386 libpangoxft-1.0-0:i386 libidn11:i386 \
+        libidn11:i386 \
         zip zlib1g-dev zlib1g:i386 \
     && apt -y autoremove \
     && apt -y clean
@@ -140,9 +135,11 @@ RUN chown ${USER} /opt
 USER ${USER}
 
 
-RUN python3 -m pip install --upgrade cython==0.28.6
-RUN python3 -m pip install --upgrade pip
-RUN python3 -m pip install --user wheel
+RUN python3 -m pip install --user --upgrade pip
+RUN python3 -m pip install --user --upgrade wheel
+RUN python3 -m pip install --user --upgrade cython==0.29.19
+RUN python3 -m pip install --user --pre kivy
+RUN python3 -m pip install --user image
 
 # prepare git
 RUN git config --global user.name "John Doe" \
@@ -154,7 +151,7 @@ RUN cd /opt \
     && cd buildozer \
     && git remote add sombernight https://github.com/SomberNight/buildozer \
     && git fetch --all \
-    && git checkout "d0323c165dd5d9aa23d5eb01044474fe006c3420^{commit}" \
+    && git checkout "94cfcb8d591c11d6ad0e11f129b08c1e27a161c5^{commit}" \
     && python3 -m pip install --user -e .
 
 # install python-for-android
@@ -163,7 +160,7 @@ RUN cd /opt \
     && cd python-for-android \
     && git remote add sombernight https://github.com/SomberNight/python-for-android \
     && git fetch --all \
-    && git checkout "cef08b92268fe69ef331699c2205cbb091e730f0^{commit}" \
+    && git checkout "257cfacbdd523af0b5b6bb5b2ba64ab7a5c82d58^{commit}" \
     && python3 -m pip install --user -e .
 
 # build env vars
