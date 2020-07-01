@@ -130,7 +130,7 @@ class SettingsDialog(WindowModalDialog):
         lightning_widgets = []
 
         help_local_wt = _("""If this option is checked, Electrum will
-run a local watchtower to watch your channels if your wallet is not
+run a local watchtower and protect your channels even if your wallet is not
 open. For this to work, your computer needs to be online regularly.""")
         local_wt_cb = QCheckBox(_("Run a local watchtower"))
         local_wt_cb.setToolTip(help_local_wt)
@@ -140,9 +140,10 @@ open. For this to work, your computer needs to be online regularly.""")
         local_wt_cb.stateChanged.connect(on_local_wt_checked)
         lightning_widgets.append((local_wt_cb, None))
 
-        help_persist = _("""If this option is checked, Electrum will persist as a daemon after
-you close all your wallet windows. Use this to keep your local watchtower running""")
-        persist_cb = QCheckBox(_("Run as daemon after the GUI is closed"))
+        help_persist = _("""If this option is checked, Electrum will persist after
+you close all your wallet windows, and the Electrum icon will be visible in the toolbar.
+Use this if you want your local watchtower to keep running after you close your wallet.""")
+        persist_cb = QCheckBox(_("Persist after all windows are closed"))
         persist_cb.setToolTip(help_persist)
         persist_cb.setChecked(bool(self.config.get('persist_daemon', False)))
         def on_persist_checked(x):
