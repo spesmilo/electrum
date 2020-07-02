@@ -535,9 +535,7 @@ class ReceiveScreen(CScreen):
             return
         def callback(c):
             if c:
-                for req in requests:
-                    key = req.get('rhash') or req['address']
-                    self.app.wallet.delete_request(key)
+                self.app.wallet.clear_requests()
                 self.update()
         n = len(requests)
         d = Question(_('Delete {} requests?').format(n), callback)

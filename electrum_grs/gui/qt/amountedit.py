@@ -112,6 +112,7 @@ class BTCAmountEdit(AmountEdit):
             self.setText(" ")  # Space forces repaint in case units changed
         else:
             self.setText(format_satoshis_plain(amount_sat, decimal_point=self.decimal_point()))
+        self.repaint()  # macOS hack for #6269
 
 
 class FeerateEdit(BTCAmountEdit):

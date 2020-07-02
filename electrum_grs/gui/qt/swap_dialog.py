@@ -163,10 +163,13 @@ class SwapDialog(WindowModalDialog):
     def update(self):
         sm = self.swap_manager
         self.send_button.setIcon(read_QIcon("lightning.png" if self.is_reverse else "bitcoin.png"))
+        self.send_button.repaint()  # macOS hack for #6269
         self.recv_button.setIcon(read_QIcon("lightning.png" if not self.is_reverse else "bitcoin.png"))
+        self.recv_button.repaint()  # macOS hack for #6269
         server_mining_fee = sm.lockup_fee if self.is_reverse else sm.normal_fee
         server_fee_str = '%.2f'%sm.percentage + '%  +  '  + self.window.format_amount(server_mining_fee) + ' ' + self.window.base_unit()
         self.server_fee_label.setText(server_fee_str)
+        self.server_fee_label.repaint()  # macOS hack for #6269
         self.update_fee()
 
     def update_fee(self):
@@ -185,6 +188,7 @@ class SwapDialog(WindowModalDialog):
             fee = self.tx.get_fee() if self.tx else None
         fee_text = self.window.format_amount(fee) + ' ' + self.window.base_unit() if fee else ''
         self.fee_label.setText(fee_text)
+        self.fee_label.repaint()  # macOS hack for #6269
 
     def run(self):
         self.window.run_coroutine_from_thread(self.swap_manager.get_pairs(), lambda x: self.update())

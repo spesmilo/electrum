@@ -383,7 +383,7 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
                 addrs = self.channel_db.get_node_addresses(node_id)
                 if not addrs:
                     raise ConnStringFormatError(_('Don\'t know any addresses for node:') + ' ' + bh2u(node_id))
-                host, port, timestamp = self.choose_preferred_address(addrs)
+                host, port, timestamp = self.choose_preferred_address(list(addrs))
             port = int(port)
             # Try DNS-resolving the host (if needed). This is simply so that
             # the caller gets a nice exception if it cannot be resolved.
@@ -682,7 +682,7 @@ class LNWallet(LNWorker):
                 'amount_msat': 0,
                 #'amount_msat': amount_msat, # must not be added
                 'type': 'swap',
-                'label': label
+                'label': self.wallet.get_label(txid) or label,
             }
         return out
 

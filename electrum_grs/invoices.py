@@ -113,9 +113,9 @@ class Invoice(StoredObject):
 @attr.s
 class OnchainInvoice(Invoice):
     message = attr.ib(type=str, kw_only=True)
-    amount_sat = attr.ib(kw_only=True)  # type: Union[None, int, str]  # in satoshis. can be '!'
-    exp = attr.ib(type=int, kw_only=True)
-    time = attr.ib(type=int, kw_only=True)
+    amount_sat = attr.ib(kw_only=True)  # type: Union[int, str]  # in satoshis. can be '!'
+    exp = attr.ib(type=int, kw_only=True, validator=attr.validators.instance_of(int))
+    time = attr.ib(type=int, kw_only=True, validator=attr.validators.instance_of(int))
     id = attr.ib(type=str, kw_only=True)
     outputs = attr.ib(kw_only=True, converter=_decode_outputs)  # type: List[PartialTxOutput]
     bip70 = attr.ib(type=str, kw_only=True)  # type: Optional[str]
@@ -125,8 +125,8 @@ class OnchainInvoice(Invoice):
         assert len(self.outputs) == 1
         return self.outputs[0].address
 
-    def get_amount_sat(self) -> Union[int, str, None]:
-        return self.amount_sat
+    def get_amount_sat(self) -> Union[int, str]:
+        return self.amount_sat or 0
 
     @classmethod
     def from_bip70_payreq(cls, pr: 'PaymentRequest') -> 'OnchainInvoice':

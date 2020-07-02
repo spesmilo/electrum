@@ -63,6 +63,7 @@ Builder.load_string(r'''
 <LightningChannelsDialog@Popup>:
     name: 'lightning_channels'
     title: _('Lightning channels.')
+    has_lightning: False
     can_send: ''
     can_receive: ''
     id: popup
@@ -94,7 +95,8 @@ Builder.load_string(r'''
                 size_hint: 0.3, None
                 height: '48dp'
                 text: _('New...')
-                on_press: popup.app.popup_dialog('lightning_open_channel_dialog')
+                disabled: not root.has_lightning
+                on_release: popup.app.popup_dialog('lightning_open_channel_dialog')
 
 
 <ChannelDetailsPopup@Popup>:
@@ -409,7 +411,7 @@ class LightningChannelsDialog(Factory.Popup):
         super(LightningChannelsDialog, self).__init__()
         self.clocks = []
         self.app = app
-        self.can_send = ''
+        self.has_lightning = app.wallet.has_lightning()
         self.update()
 
     def show_item(self, obj):
