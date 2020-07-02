@@ -727,9 +727,9 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
                     _('Also, when batching RBF transactions, BIP 125 imposes a lower bound on the fee.'))
             self.show_message(title=_('Fee rounding'), msg=text)
 
-        self.feerounding_icon = QPushButton(read_QIcon('info.png'), '')
-        self.feerounding_icon.setFixedWidth(round(2.2 * char_width_in_lineedit()))
-        self.feerounding_icon.setFlat(True)
+        self.feerounding_icon = QToolButton()
+        self.feerounding_icon.setIcon(read_QIcon('info.png'))
+        self.feerounding_icon.setAutoRaise(True)
         self.feerounding_icon.clicked.connect(feerounding_onclick)
         self.feerounding_icon.setVisible(False)
 
