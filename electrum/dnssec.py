@@ -35,6 +35,7 @@
 # import sys
 import time
 import struct
+import hashlib
 
 
 import dns.name
@@ -166,10 +167,23 @@ def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
     raise ValidationFailure('verify failure')
 
 
+class PyCryptodomexHashAlike:
+    def __init__(self, hashlib_func):
+        self._hash = hashlib_func
+    def new(self):
+        return self._hash()
+
+
 # replace validate_rrsig
 dns.dnssec._validate_rrsig = python_validate_rrsig
 dns.dnssec.validate_rrsig = python_validate_rrsig
 dns.dnssec.validate = dns.dnssec._validate
+dns.dnssec._have_ecdsa = True
+dns.dnssec.MD5 = PyCryptodomexHashAlike(hashlib.md5)
+dns.dnssec.SHA1 = PyCryptodomexHashAlike(hashlib.sha1)
+dns.dnssec.SHA256 = PyCryptodomexHashAlike(hashlib.sha256)
+dns.dnssec.SHA384 = PyCryptodomexHashAlike(hashlib.sha384)
+dns.dnssec.SHA512 = PyCryptodomexHashAlike(hashlib.sha512)
 
 
 
