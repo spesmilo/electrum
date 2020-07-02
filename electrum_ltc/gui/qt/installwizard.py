@@ -299,7 +299,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         def run_user_interaction_loop():
             while True:
                 if self.loop.exec_() != 2:  # 2 = next
-                    raise UserCancelled
+                    raise UserCancelled()
                 assert temp_storage
                 if temp_storage.file_exists() and not temp_storage.is_encrypted():
                     break
@@ -423,7 +423,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.set_layout(layout, title, next_enabled)
         result = self.loop.exec_()
         if not result and raise_on_cancel:
-            raise UserCancelled
+            raise UserCancelled()
         if result == 1:
             raise GoBack from None
         self.title.setVisible(False)

@@ -79,7 +79,7 @@ class TrezorClientBase(HardwareClientBase, Logger):
         self.end_flow()
         if e is not None:
             if isinstance(e, Cancelled):
-                raise UserCancelled from e
+                raise UserCancelled() from e
             elif isinstance(e, TrezorFailure):
                 raise RuntimeError(str(e)) from e
             elif isinstance(e, OutdatedFirmwareError):
