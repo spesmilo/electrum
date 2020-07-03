@@ -582,6 +582,30 @@ def is_non_negative_integer(val) -> bool:
     return False
 
 
+def is_integer(val) -> bool:
+    try:
+        int(val)
+    except:
+        return False
+    else:
+        return True
+
+
+def is_real_number(val, *, as_str: bool = False) -> bool:
+    if as_str:  # only accept str
+        if not isinstance(val, str):
+            return False
+    else:  # only accept int/float/etc.
+        if isinstance(val, str):
+            return False
+    try:
+        Decimal(val)
+    except:
+        return False
+    else:
+        return True
+
+
 def chunks(items, size: int):
     """Break up items, an iterable, into chunks of length size."""
     if size < 1:

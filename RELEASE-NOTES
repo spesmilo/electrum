@@ -1,5 +1,4 @@
-# Release 4.0 - (not released yet. ETA June 2020)
-
+# Release 4.0.1 - (July 3, 2020)
  * Lightning Network support (experimental)
    - Our implementation of Lightning relies on Electrum servers to
      query channel states. Since servers can lie about the state of a
@@ -7,7 +6,9 @@
      setup a private watchtower (see below). A watchtower is also
      recommended for lightning wallets that remain offline for
      extended periods of time (the default CSV 'to_self_delay' is 1
-     week).
+     week). Please note that Electrum Personal Server (EPS) cannot be
+     used with lightning wallets, because channels funding addresses
+     are arbitrary.
    - Lightning funds cannot be restored from seed. Instead, users need
      to create static backups of their channels. Static backups cannot
      be used to perform lightning transactions, they can only be used
