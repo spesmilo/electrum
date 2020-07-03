@@ -849,6 +849,17 @@ class ElectrumWindow(App):
             return
         self.use_change = self.wallet.use_change
         self.electrum_config.save_last_wallet(wallet)
+        self.request_focus_for_main_view()
+
+    def request_focus_for_main_view(self):
+        if platform != 'android':
+            return
+        # The main view of the activity might be not have focus
+        # in which case e.g. the OS "back" button would not work.
+        # see #6276 (specifically "method 2" and "method 3")
+        from jnius import autoclass
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
+        PythonActivity.requestFocusForMainView()
 
     def update_status(self, *dt):
         if not self.wallet:
