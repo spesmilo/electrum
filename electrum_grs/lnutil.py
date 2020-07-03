@@ -190,7 +190,7 @@ class ChannelBackupStorage(StoredObject):
         chan_id, _ = channel_id_from_funding_tx(self.funding_txid, self.funding_index)
         return chan_id
 
-    def to_bytes(self):
+    def to_bytes(self) -> bytes:
         vds = BCDataStream()
         vds.write_int16(CHANNEL_BACKUP_VERSION)
         vds.write_boolean(self.is_initiator)
@@ -206,7 +206,7 @@ class ChannelBackupStorage(StoredObject):
         vds.write_int16(self.remote_delay)
         vds.write_string(self.host)
         vds.write_int16(self.port)
-        return vds.input
+        return bytes(vds.input)
 
     @staticmethod
     def from_bytes(s):

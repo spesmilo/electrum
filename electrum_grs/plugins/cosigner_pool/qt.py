@@ -26,9 +26,11 @@
 import time
 from xmlrpc.client import ServerProxy
 from typing import TYPE_CHECKING, Union, List, Tuple
+import ssl
 
 from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtWidgets import QPushButton
+import certifi
 
 from electrum_grs import util, keystore, ecc, crypto
 from electrum_grs import transaction
@@ -47,7 +49,9 @@ if TYPE_CHECKING:
     from electrum_grs.gui.qt.main_window import ElectrumWindow
 
 
-server = ServerProxy('https://cosigner.electrum.org/', allow_none=True)
+ca_path = certifi.where()
+ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
+server = ServerProxy('https://cosigner.electrum.org/', allow_none=True, context=ssl_context)
 
 
 class Listener(util.DaemonThread):
@@ -184,17 +188,27 @@ class Plugin(BasePlugin):
             except OSError: pass
             window.show_error(_("Failed to send transaction to cosigning pool") + ':\n' + repr(e))
 
+        buffer = []
+        some_window = None
+        # construct messages
         for window, xpub, K, _hash in self.cosigner_list:
             if not self.cosigner_can_sign(tx, xpub):
                 continue
-            # construct message
+            some_window = window
             raw_tx_bytes = tx.serialize_as_bytes()
             public_key = ecc.ECPubkey(K)
             message = public_key.encrypt_message(raw_tx_bytes).decode('ascii')
-            # send message
-            task = lambda: server.put(_hash, message)
-            msg = _('Sending transaction to cosigning pool...')
-            WaitingDialog(window, msg, task, on_success, on_failure)
+            buffer.append((_hash, message))
+        if not buffer:
+            return
+
+        # send messages
+        # note: we send all messages sequentially on the same thread
+        def send_messages_task():
+            for _hash, message in buffer:
+                server.put(_hash, message)
+        msg = _('Sending transaction to cosigning pool...')
+        WaitingDialog(some_window, msg, send_messages_task, on_success, on_failure)
 
     def on_receive(self, keyhash, message):
         self.logger.info(f"signal arrived for {keyhash}")

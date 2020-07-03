@@ -2,7 +2,7 @@ pyaes>=0.1a1
 ecdsa>=0.14
 qrcode
 protobuf>=3.12
-dnspython
+dnspython<2.0
 qdarkstyle<2.9
 aiorpcx>=0.18,<0.19
 aiohttp>=3.3.0,<4.0.0

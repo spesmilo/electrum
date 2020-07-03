@@ -65,7 +65,7 @@ folder.
 ## FAQ
 
 ### I changed something but I don't see any differences on the phone. What did I do wrong?
-You probably need to clear the cache: `rm -rf .buildozer/android/platform/build/{build,dists}`
+You probably need to clear the cache: `rm -rf .buildozer/android/platform/build-*/{build,dists}`
 
 
 ### How do I deploy on connected phone for quick testing?

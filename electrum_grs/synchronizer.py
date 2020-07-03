@@ -168,7 +168,7 @@ class Synchronizer(SynchronizerBase):
         self.requested_histories.add((addr, status))
         h = address_to_scripthash(addr)
         self._requests_sent += 1
-        result = await self.network.get_history_for_scripthash(h)
+        result = await self.interface.get_history_for_scripthash(h)
         self._requests_answered += 1
         self.logger.info(f"receiving history {addr} {len(result)}")
         hashes = set(map(lambda item: item['tx_hash'], result))
@@ -211,7 +211,7 @@ class Synchronizer(SynchronizerBase):
     async def _get_transaction(self, tx_hash, *, allow_server_not_finding_tx=False):
         self._requests_sent += 1
         try:
-            raw_tx = await self.network.get_transaction(tx_hash)
+            raw_tx = await self.interface.get_transaction(tx_hash)
         except UntrustedServerReturnedError as e:
             # most likely, "No such mempool or blockchain transaction"
             if allow_server_not_finding_tx:

@@ -22,5 +22,12 @@ def patch_qt_stylesheet(use_dark_theme: bool) -> None:
         padding: 0px;
         show-decoration-selected: 1;
     }
+    /* Checked item in dropdowns have way too much height...
+       see #6281 and https://github.com/ColinDuquesnoy/QDarkStyleSheet/issues/200
+       */
+    QComboBox::item:checked {
+        font-weight: bold;
+        max-height: 30px;
+    }
     '''
     app.setStyleSheet(style_sheet)

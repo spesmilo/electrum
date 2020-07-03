@@ -201,6 +201,7 @@ class ElectrumGui(Logger):
             self.lightning_dialog.close()
         if self.watchtower_dialog:
             self.watchtower_dialog.close()
+        self.app.quit()
 
     def new_window(self, path, uri=None):
         # Use a signal as can be called from daemon thread

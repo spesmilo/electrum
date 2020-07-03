@@ -29,7 +29,7 @@ import sys
 import traceback
 import asyncio
 import socket
-from typing import Tuple, Union, List, TYPE_CHECKING, Optional, Set, NamedTuple
+from typing import Tuple, Union, List, TYPE_CHECKING, Optional, Set, NamedTuple, Any
 from collections import defaultdict
 from ipaddress import IPv4Network, IPv6Network, ip_address, IPv6Address, IPv4Address
 import itertools
@@ -44,16 +44,19 @@ from aiorpcx.jsonrpc import JSONRPC, CodeMessageError
 from aiorpcx.rawsocket import RSClient
 import certifi
 
-from .util import ignore_exceptions, log_exceptions, bfh, SilentTaskGroup, MySocksProxy
+from .util import (ignore_exceptions, log_exceptions, bfh, SilentTaskGroup, MySocksProxy,
+                   is_integer, is_non_negative_integer, is_hash256_str, is_hex_str,
+                   is_real_number)
 from . import util
 from . import x509
 from . import pem
 from . import version
 from . import blockchain
-from .blockchain import Blockchain
+from .blockchain import Blockchain, HEADER_SIZE
 from . import constants
 from .i18n import _
 from .logging import Logger
+from .transaction import Transaction
 
 if TYPE_CHECKING:
     from .network import Network
@@ -81,6 +84,45 @@ class NetworkTimeout:
         NORMAL = 10
         RELAXED = 20
         MOST_RELAXED = 60
+
+
+def assert_non_negative_integer(val: Any) -> None:
+    if not is_non_negative_integer(val):
+        raise RequestCorrupted(f'{val!r} should be a non-negative integer')
+
+
+def assert_integer(val: Any) -> None:
+    if not is_integer(val):
+        raise RequestCorrupted(f'{val!r} should be an integer')
+
+
+def assert_real_number(val: Any, *, as_str: bool = False) -> None:
+    if not is_real_number(val, as_str=as_str):
+        raise RequestCorrupted(f'{val!r} should be a number')
+
+
+def assert_hash256_str(val: Any) -> None:
+    if not is_hash256_str(val):
+        raise RequestCorrupted(f'{val!r} should be a hash256 str')
+
+
+def assert_hex_str(val: Any) -> None:
+    if not is_hex_str(val):
+        raise RequestCorrupted(f'{val!r} should be a hex str')
+
+
+def assert_dict_contains_field(d: Any, *, field_name: str) -> Any:
+    if not isinstance(d, dict):
+        raise RequestCorrupted(f'{d!r} should be a dict')
+    if field_name not in d:
+        raise RequestCorrupted(f'required field {field_name!r} missing from dict')
+    return d[field_name]
+
+
+def assert_list_or_tuple(val: Any) -> None:
+    if not isinstance(val, (list, tuple)):
+        raise RequestCorrupted(f'{val!r} should be a list or tuple')
+
 
 class NotificationSession(RPCSession):
 
@@ -187,7 +229,7 @@ class RequestTimedOut(GracefulDisconnect):
         return _("Network request timed out.")
 
 
-class RequestCorrupted(GracefulDisconnect): pass
+class RequestCorrupted(Exception): pass
 
 class ErrorParsingSSLCert(Exception): pass
 class ErrorGettingSSLCertFromServer(Exception): pass
@@ -529,6 +571,8 @@ class Interface(Logger):
         return blockchain.deserialize_header(bytes.fromhex(res), height)
 
     async def request_chunk(self, height: int, tip=None, *, can_return_early=False):
+        if not is_non_negative_integer(height):
+            raise Exception(f"{repr(height)} is not a block height")
         index = height // 2016
         if can_return_early and index in self._requested_chunks:
             return
@@ -542,6 +586,16 @@ class Interface(Logger):
             res = await self.session.send_request('blockchain.block.headers', [index * 2016, size])
         finally:
             self._requested_chunks.discard(index)
+        assert_dict_contains_field(res, field_name='count')
+        assert_dict_contains_field(res, field_name='hex')
+        assert_dict_contains_field(res, field_name='max')
+        assert_non_negative_integer(res['count'])
+        assert_non_negative_integer(res['max'])
+        assert_hex_str(res['hex'])
+        if len(res['hex']) != HEADER_SIZE * 2 * res['count']:
+            raise RequestCorrupted('inconsistent chunk hex and count')
+        if res['count'] != size:
+            raise RequestCorrupted(f"expected {size} headers but only got {res['count']}")
         conn = self.blockchain.connect_chunk(index, res['hex'])
         if not conn:
             return conn, 0
@@ -818,6 +872,108 @@ class Interface(Logger):
         if not self._ipaddr_bucket:
             self._ipaddr_bucket = do_bucket()
         return self._ipaddr_bucket
+
+    async def get_merkle_for_transaction(self, tx_hash: str, tx_height: int) -> dict:
+        if not is_hash256_str(tx_hash):
+            raise Exception(f"{repr(tx_hash)} is not a txid")
+        if not is_non_negative_integer(tx_height):
+            raise Exception(f"{repr(tx_height)} is not a block height")
+        # do request
+        res = await self.session.send_request('blockchain.transaction.get_merkle', [tx_hash, tx_height])
+        # check response
+        block_height = assert_dict_contains_field(res, field_name='block_height')
+        merkle = assert_dict_contains_field(res, field_name='merkle')
+        pos = assert_dict_contains_field(res, field_name='pos')
+        # note: tx_height was just a hint to the server, don't enforce the response to match it
+        assert_non_negative_integer(block_height)
+        assert_non_negative_integer(pos)
+        assert_list_or_tuple(merkle)
+        for item in merkle:
+            assert_hash256_str(item)
+        return res
+
+    async def get_transaction(self, tx_hash: str, *, timeout=None) -> str:
+        if not is_hash256_str(tx_hash):
+            raise Exception(f"{repr(tx_hash)} is not a txid")
+        raw = await self.session.send_request('blockchain.transaction.get', [tx_hash], timeout=timeout)
+        # validate response
+        tx = Transaction(raw)
+        try:
+            tx.deserialize()  # see if raises
+        except Exception as e:
+            raise RequestCorrupted(f"cannot deserialize received transaction (txid {tx_hash})") from e
+        if tx.txid() != tx_hash:
+            raise RequestCorrupted(f"received tx does not match expected txid {tx_hash} (got {tx.txid()})")
+        return raw
+
+    async def get_history_for_scripthash(self, sh: str) -> List[dict]:
+        if not is_hash256_str(sh):
+            raise Exception(f"{repr(sh)} is not a scripthash")
+        # do request
+        res = await self.session.send_request('blockchain.scripthash.get_history', [sh])
+        # check response
+        assert_list_or_tuple(res)
+        for tx_item in res:
+            assert_dict_contains_field(tx_item, field_name='height')
+            assert_dict_contains_field(tx_item, field_name='tx_hash')
+            assert_integer(tx_item['height'])
+            assert_hash256_str(tx_item['tx_hash'])
+            if tx_item['height'] in (-1, 0):
+                assert_dict_contains_field(tx_item, field_name='fee')
+                assert_non_negative_integer(tx_item['fee'])
+        return res
+
+    async def listunspent_for_scripthash(self, sh: str) -> List[dict]:
+        if not is_hash256_str(sh):
+            raise Exception(f"{repr(sh)} is not a scripthash")
+        # do request
+        res = await self.session.send_request('blockchain.scripthash.listunspent', [sh])
+        # check response
+        assert_list_or_tuple(res)
+        for utxo_item in res:
+            assert_dict_contains_field(utxo_item, field_name='tx_pos')
+            assert_dict_contains_field(utxo_item, field_name='value')
+            assert_dict_contains_field(utxo_item, field_name='tx_hash')
+            assert_dict_contains_field(utxo_item, field_name='height')
+            assert_non_negative_integer(utxo_item['tx_pos'])
+            assert_non_negative_integer(utxo_item['value'])
+            assert_non_negative_integer(utxo_item['height'])
+            assert_hash256_str(utxo_item['tx_hash'])
+        return res
+
+    async def get_balance_for_scripthash(self, sh: str) -> dict:
+        if not is_hash256_str(sh):
+            raise Exception(f"{repr(sh)} is not a scripthash")
+        # do request
+        res = await self.session.send_request('blockchain.scripthash.get_balance', [sh])
+        # check response
+        assert_dict_contains_field(res, field_name='confirmed')
+        assert_dict_contains_field(res, field_name='unconfirmed')
+        assert_non_negative_integer(res['confirmed'])
+        assert_non_negative_integer(res['unconfirmed'])
+        return res
+
+    async def get_txid_from_txpos(self, tx_height: int, tx_pos: int, merkle: bool):
+        if not is_non_negative_integer(tx_height):
+            raise Exception(f"{repr(tx_height)} is not a block height")
+        if not is_non_negative_integer(tx_pos):
+            raise Exception(f"{repr(tx_pos)} should be non-negative integer")
+        # do request
+        res = await self.session.send_request(
+            'blockchain.transaction.id_from_pos',
+            [tx_height, tx_pos, merkle],
+        )
+        # check response
+        if merkle:
+            assert_dict_contains_field(res, field_name='tx_hash')
+            assert_dict_contains_field(res, field_name='merkle')
+            assert_hash256_str(res['tx_hash'])
+            assert_list_or_tuple(res['merkle'])
+            for node_hash in res['merkle']:
+                assert_hash256_str(node_hash)
+        else:
+            assert_hash256_str(res)
+        return res
 
 
 def _assert_header_does_not_check_against_any_chain(header: dict) -> None:

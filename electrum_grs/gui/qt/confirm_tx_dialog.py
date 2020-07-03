@@ -80,7 +80,7 @@ class TxEditor:
     def get_fee_estimator(self):
         return None
 
-    def update_tx(self):
+    def update_tx(self, *, fallback_to_zero_fee: bool = False):
         fee_estimator = self.get_fee_estimator()
         try:
             self.tx = self.make_tx(fee_estimator)
@@ -89,7 +89,13 @@ class TxEditor:
         except NotEnoughFunds:
             self.not_enough_funds = True
             self.tx = None
-            return
+            if fallback_to_zero_fee:
+                try:
+                    self.tx = self.make_tx(0)
+                except BaseException:
+                    return
+            else:
+                return
         except NoDynamicFeeEstimates:
             self.no_dynfee_estimates = True
             self.tx = None
