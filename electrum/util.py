@@ -778,7 +778,7 @@ testnet_block_explorers = {
                        {'tx': '', 'addr': ''}),
     'BlockCypher.com': ('https://live.blockcypher.com/btc-testnet/',
                        {'tx': 'tx/', 'addr': 'address/'}),
-    'Blockchain.info': ('https://www.blockchain.com/btctest/',
+    'Blockchain.info': ('https://www.blockchain.com/btc-testnet/',
                        {'tx': 'tx/', 'addr': 'address/'}),
     'Blockstream.info': ('https://blockstream.info/testnet/',
                         {'tx': 'tx/', 'addr': 'address/'}),
