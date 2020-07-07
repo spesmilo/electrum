@@ -141,7 +141,7 @@ open. For this to work, your computer needs to be online regularly.""")
         lightning_widgets.append((local_wt_cb, None))
 
         help_persist = _("""If this option is checked, Electrum-GRS will persist after
-you close all your wallet windows, and the Electrum-GRS icon will be visible in the toolbar.
+you close all your wallet windows, and the Electrum-GRS icon will be visible in the taskbar.
 Use this if you want your local watchtower to keep running after you close your wallet.""")
         persist_cb = QCheckBox(_("Persist after all windows are closed"))
         persist_cb.setToolTip(help_persist)

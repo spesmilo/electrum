@@ -1094,7 +1094,7 @@ class LNWallet(LNWorker):
         route[-1].node_features |= invoice_features
         return route
 
-    def add_request(self, amount_sat, message, expiry):
+    def add_request(self, amount_sat, message, expiry) -> str:
         coro = self._add_request_coro(amount_sat, message, expiry)
         fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
         try:
@@ -1129,7 +1129,7 @@ class LNWallet(LNWorker):
         self.save_payment_info(info)
         return lnaddr, invoice
 
-    async def _add_request_coro(self, amount_sat: Optional[int], message, expiry: int):
+    async def _add_request_coro(self, amount_sat: Optional[int], message, expiry: int) -> str:
         lnaddr, invoice = await self.create_invoice(amount_sat, message, expiry)
         key = bh2u(lnaddr.paymenthash)
         req = LNInvoice.from_bech32(invoice)

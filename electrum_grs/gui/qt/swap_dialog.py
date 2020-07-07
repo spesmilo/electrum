@@ -35,8 +35,9 @@ class SwapDialog(WindowModalDialog):
         self.swap_manager = self.lnworker.swap_manager
         self.network = window.network
         self.tx = None
+        self.is_reverse = True
         vbox = QVBoxLayout(self)
-        vbox.addWidget(WWLabel('Swap lightning funds for on-chain funds if you need to increase your receiving capacity. This service is powered by the Boltz backend.'))
+        self.description_label = WWLabel(self.get_description())
         self.send_amount_e = BTCAmountEdit(self.window.get_decimal_point)
         self.send_amount_e.shortcut.connect(self.spend_max)
         self.recv_amount_e = BTCAmountEdit(self.window.get_decimal_point)
@@ -46,7 +47,6 @@ class SwapDialog(WindowModalDialog):
         self.send_button = QPushButton('')
         self.recv_button = QPushButton('')
         self.send_follows = False
-        self.is_reverse = True
         self.send_amount_e.follows = False
         self.recv_amount_e.follows = False
         self.send_button.clicked.connect(self.toggle_direction)
@@ -58,6 +58,7 @@ class SwapDialog(WindowModalDialog):
         fee_slider.update()
         self.fee_label = QLabel()
         self.server_fee_label = QLabel()
+        vbox.addWidget(self.description_label)
         h = QGridLayout()
         h.addWidget(QLabel(_('You send')+':'), 1, 0)
         h.addWidget(self.send_amount_e, 1, 1)
@@ -166,6 +167,8 @@ class SwapDialog(WindowModalDialog):
         self.send_button.repaint()  # macOS hack for #6269
         self.recv_button.setIcon(read_QIcon("lightning.png" if not self.is_reverse else "bitcoin.png"))
         self.recv_button.repaint()  # macOS hack for #6269
+        self.description_label.setText(self.get_description())
+        self.description_label.repaint()  # macOS hack for #6269
         server_mining_fee = sm.lockup_fee if self.is_reverse else sm.normal_fee
         server_fee_str = '%.2f'%sm.percentage + '%  +  '  + self.window.format_amount(server_mining_fee) + ' ' + self.window.base_unit()
         self.server_fee_label.setText(server_fee_str)
@@ -229,3 +232,13 @@ class SwapDialog(WindowModalDialog):
     def do_normal_swap(self, lightning_amount, onchain_amount, password):
         coro = self.swap_manager.normal_swap(lightning_amount, onchain_amount, password, tx=self.tx)
         self.window.run_coroutine_from_thread(coro)
+
+    def get_description(self):
+        onchain_funds = "onchain funds"
+        lightning_funds = "lightning funds"
+
+        return "Swap {fromType} for {toType} if you need to increase your {capacityType} capacity. This service is powered by the Boltz backend.".format(
+            fromType=lightning_funds if self.is_reverse else onchain_funds,
+            toType=onchain_funds if self.is_reverse else lightning_funds,
+            capacityType="receiving" if self.is_reverse else "sending",
+        )
