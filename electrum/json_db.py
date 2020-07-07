@@ -31,6 +31,7 @@ from collections import defaultdict
 from typing import Dict, Optional, List, Tuple, Set, Iterable, NamedTuple, Sequence
 
 from . import util, bitcoin
+from .three_keys.transaction import TxType, ThreeKeysTransaction
 from .util import profiler, WalletFileException, multisig_type, TxMinedInfo
 from .keystore import bip44_derivation
 from .transaction import Transaction
@@ -875,6 +876,24 @@ class JsonDB(Logger):
         # convert tx_fees tuples to NamedTuples
         for tx_hash, tuple_ in self.tx_fees.items():
             self.tx_fees[tx_hash] = TxFeesValue(*tuple_)
+
+        self._upgrade_tx_to_3keys_tx()
+
+    def _upgrade_tx_to_3keys_tx(self):
+        """ Convert Transaction to ThreeKeysTransaction"""
+        for tx_history in self.history.values():
+            for item in tx_history:
+                tx_hash = item[0]
+                if len(item) == 3:
+                    tx_type = TxType.from_str(item[2])
+                else:
+                    tx_type = TxType.NONVAULT
+
+                tx = self.transactions.get(tx_hash, None)
+                if tx:
+                    three_keys_tx = ThreeKeysTransaction.from_tx(tx)
+                    three_keys_tx.tx_type = tx_type
+                    self.transactions[tx_hash] = three_keys_tx
 
     @modifier
     def clear_history(self):

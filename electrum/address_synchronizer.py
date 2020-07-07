@@ -145,7 +145,7 @@ class AddressSynchronizer(Logger):
         # review transactions that are in the history
         for addr in self.db.get_history():
             hist = self.db.get_addr_history(addr)
-            for tx_hash, tx_height in hist:
+            for tx_hash, tx_height, *__ in hist:
                 # add it in case it was previously unconfirmed
                 self.add_unverified_tx(tx_hash, tx_height)
 
@@ -344,7 +344,7 @@ class AddressSynchronizer(Logger):
     def receive_history_callback(self, addr: str, hist, tx_fees: Dict[str, int]):
         with self.lock:
             old_hist = self.get_address_history(addr)
-            for tx_hash, height in old_hist:
+            for tx_hash, height, *__ in old_hist:
                 if (tx_hash, height) not in hist:
                     # make tx local
                     self.unverified_tx.pop(tx_hash, None)
@@ -353,7 +353,7 @@ class AddressSynchronizer(Logger):
                         self.verifier.remove_spv_proof_for_tx(tx_hash)
             self.db.set_addr_history(addr, hist)
 
-        for tx_hash, tx_height in hist:
+        for tx_hash, tx_height, *__ in hist:
             # add it in case it was previously unconfirmed
             self.add_unverified_tx(tx_hash, tx_height)
             # if addr is new, we have to recompute txi and txo
@@ -381,7 +381,7 @@ class AddressSynchronizer(Logger):
             self.db.remove_addr_history(addr)
         for addr in hist_addrs_mine:
             hist = self.db.get_addr_history(addr)
-            for tx_hash, tx_height in hist:
+            for tx_hash, tx_height, *__ in hist:
                 if self.db.get_txi_addresses(tx_hash) or self.db.get_txo_addresses(tx_hash):
                     continue
                 tx = self.db.get_transaction(tx_hash)
@@ -434,7 +434,7 @@ class AddressSynchronizer(Logger):
         tx_deltas = defaultdict(int)
         for addr in domain:
             h = self.get_address_history(addr)
-            for tx_hash, height in h:
+            for tx_hash, height, *__ in h:
                 delta = self.get_tx_delta(tx_hash, addr)
                 if delta is None or tx_deltas[tx_hash] is None:
                     tx_deltas[tx_hash] = None
@@ -722,11 +722,11 @@ class AddressSynchronizer(Logger):
             h = self.get_address_history(address)
             received = {}
             sent = {}
-            for tx_hash, height in h:
+            for tx_hash, height, *__ in h:
                 l = self.db.get_txo_addr(tx_hash, address)
                 for n, v, is_cb in l:
                     received[tx_hash + ':%d'%n] = (height, v, is_cb)
-            for tx_hash, height in h:
+            for tx_hash, height, *__ in h:
                 l = self.db.get_txi_addr(tx_hash, address)
                 for txi, v in l:
                     sent[txi] = height

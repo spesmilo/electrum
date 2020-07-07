@@ -30,6 +30,7 @@ import logging
 
 from aiorpcx import TaskGroup, run_in_thread, RPCError
 
+from .three_keys.transaction import ThreeKeysTransaction, TxType
 from .transaction import Transaction
 from .util import bh2u, make_aiohttp_session, NetworkJobOnDefaultServer
 from .bitcoin import address_to_scripthash, is_address
@@ -49,7 +50,7 @@ def history_status(h):
     if not h:
         return None
     status = ''
-    for tx_hash, height in h:
+    for tx_hash, height, *__ in h:
         status += tx_hash + ':%d:' % height
     return bh2u(hashlib.sha256(status.encode('ascii')).digest())
 
@@ -171,7 +172,11 @@ class Synchronizer(SynchronizerBase):
         self._requests_answered += 1
         self.logger.info(f"receiving history {addr} {len(result)}")
         hashes = set(map(lambda item: item['tx_hash'], result))
-        hist = list(map(lambda item: (item['tx_hash'], item['height']), result))
+        hist = list(map(lambda item: (
+            item['tx_hash'],
+            item['height'],
+            item.get('tx_type', TxType.NONVAULT.name)
+        ), result))
         # tx_fees
         tx_fees = [(item['tx_hash'], item.get('fee')) for item in result]
         tx_fees = dict(filter(lambda x:x[1] is not None, tx_fees))
@@ -191,22 +196,30 @@ class Synchronizer(SynchronizerBase):
         self.requested_histories.discard((addr, status))
 
     async def _request_missing_txs(self, hist, *, allow_server_not_finding_tx=False):
-        # "hist" is a list of [tx_hash, tx_height] lists
-        transaction_hashes = []
-        for tx_hash, tx_height in hist:
+        # "hist" is a list of [tx_hash, tx_height, tx_type: Optional[str]] lists
+        transaction_hashes_and_types = []
+        for item in hist:
+            tx_hash = item[0]
+            tx_height = item[1]
+            # keep backward compatibility when fetch history from db where transaction type does not exist
+            try:
+                tx_type = TxType.from_str(item[2])
+            except IndexError:
+                tx_type = TxType.NONVAULT
+
             if tx_hash in self.requested_tx:
                 continue
             if self.wallet.db.get_transaction(tx_hash):
                 continue
-            transaction_hashes.append(tx_hash)
+            transaction_hashes_and_types.append((tx_hash, tx_type))
             self.requested_tx[tx_hash] = tx_height
 
-        if not transaction_hashes: return
+        if not transaction_hashes_and_types: return
         async with TaskGroup() as group:
-            for tx_hash in transaction_hashes:
-                await group.spawn(self._get_transaction(tx_hash, allow_server_not_finding_tx=allow_server_not_finding_tx))
+            for tx_hash, tx_type in transaction_hashes_and_types:
+                await group.spawn(self._get_transaction(tx_hash, tx_type=tx_type, allow_server_not_finding_tx=allow_server_not_finding_tx))
 
-    async def _get_transaction(self, tx_hash, *, allow_server_not_finding_tx=False):
+    async def _get_transaction(self, tx_hash, *, allow_server_not_finding_tx=False, tx_type=TxType.NONVAULT):
         self._requests_sent += 1
         try:
             raw_tx = await self.network.get_transaction(tx_hash)
@@ -219,7 +232,7 @@ class Synchronizer(SynchronizerBase):
                 raise
         finally:
             self._requests_answered += 1
-        tx = Transaction(raw_tx)
+        tx = ThreeKeysTransaction(raw_tx, tx_type=tx_type)
         try:
             tx.deserialize()  # see if raises
         except Exception as e:

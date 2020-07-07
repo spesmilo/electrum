@@ -41,6 +41,7 @@ import binascii
 
 from . import ecc, bitcoin, constants, segwit_addr, bip32
 from .bip32 import BIP32Node
+from .three_keys.multikey_generator import MultiKeyScriptGenerator
 from .util import profiler, to_bytes, bh2u, bfh, chunks, is_hex_str
 from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160,
                       hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr,
@@ -202,6 +203,8 @@ class TxInput:
         self.script_sig = script_sig
         self.nsequence = nsequence
         self.witness = witness
+
+        self.multisig_script_generator = None
 
     def is_coinbase(self) -> bool:
         return self.prevout.is_coinbase()
@@ -501,6 +504,21 @@ class Transaction:
         self.version = 2
 
         self._cached_txid = None  # type: Optional[str]
+        self.multisig_script_generator = None
+
+    @property
+    def multisig_script_generator(self):
+        return self._multisig_script_generator
+
+    @multisig_script_generator.setter
+    def multisig_script_generator(self, generator):
+        if not isinstance(generator, MultiKeyScriptGenerator) and generator is not None:
+            raise TypeError('Cannot set multisig_script_generator. It has to be MultisigScriptGenerator')
+        self._multisig_script_generator = generator
+
+    def update_inputs(self):
+        for input in self._inputs:
+            input.multisig_script_generator = self.multisig_script_generator
 
     def to_json(self) -> dict:
         d = {
@@ -588,7 +606,10 @@ class Transaction:
         if _type in ['p2wpkh', 'p2wpkh-p2sh']:
             return construct_witness([sig_list[0], pubkeys[0]])
         elif _type in ['p2wsh', 'p2wsh-p2sh']:
-            witness_script = multisig_script(pubkeys, txin.num_sig)
+            if txin.multisig_script_generator:
+                witness_script = txin.multisig_script_generator.get_redeem_script(public_keys=pubkeys)
+            else:
+                witness_script = multisig_script(pubkeys, txin.num_sig)
             return construct_witness([0] + sig_list + [witness_script])
         elif _type in ['p2pk', 'p2pkh', 'p2sh']:
             return '00'
@@ -655,6 +676,8 @@ class Transaction:
         if _type == 'p2pk':
             return script
         elif _type == 'p2sh':
+            if txin.multisig_script_generator:
+                return txin.multisig_script_generator.get_script_sig(signatures=sig_list, public_keys=pubkeys)
             # put op_0 before script
             script = '00' + script
             redeem_script = multisig_script(pubkeys, txin.num_sig)
@@ -687,6 +710,8 @@ class Transaction:
 
         pubkeys = [pk.hex() for pk in txin.pubkeys]
         if txin.script_type in ['p2sh', 'p2wsh', 'p2wsh-p2sh']:
+            if txin.multisig_script_generator:
+                return txin.multisig_script_generator.get_redeem_script(public_keys=pubkeys)
             return multisig_script(pubkeys, txin.num_sig)
         elif txin.script_type in ['p2pkh', 'p2wpkh', 'p2wpkh-p2sh']:
             pubkey = pubkeys[0]

@@ -43,6 +43,8 @@ from typing import TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple, Sequ
 from .i18n import _
 from .bip32 import BIP32Node
 from .crypto import sha256
+from .three_keys.script import TwoKeysScriptGenerator
+from .three_keys.transaction import TxType
 from .util import (NotEnoughFunds, UserCancelled, profiler,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
                    WalletFileException, BitcoinException,
@@ -51,7 +53,7 @@ from .util import (NotEnoughFunds, UserCancelled, profiler,
 from .util import PR_TYPE_ONCHAIN, PR_TYPE_LN
 from .simple_config import SimpleConfig
 from .bitcoin import (COIN, is_address, address_to_script,
-                      is_minikey, relayfee, dust_threshold)
+                      is_minikey, relayfee, dust_threshold, push_script)
 from .crypto import sha256d
 from . import keystore
 from .keystore import load_keystore, Hardware_KeyStore, KeyStore
@@ -1082,7 +1084,7 @@ class Abstract_Wallet(AddressSynchronizer):
         max_conf = -1
         h = self.db.get_addr_history(address)
         needs_spv_check = not self.config.get("skipmerklecheck", False)
-        for tx_hash, tx_height in h:
+        for tx_hash, tx_height, *__ in h:
             if needs_spv_check:
                 tx_age = self.get_tx_height(tx_hash).conf
             else:
@@ -1846,10 +1848,10 @@ class Imported_Wallet(Simple_Wallet):
             for addr in self.db.get_history():
                 details = self.db.get_addr_history(addr)
                 if addr == address:
-                    for tx_hash, height in details:
+                    for tx_hash, height, *__ in details:
                         transactions_to_remove.add(tx_hash)
                 else:
-                    for tx_hash, height in details:
+                    for tx_hash, height, *__ in details:
                         transactions_new.add(tx_hash)
             transactions_to_remove -= transactions_new
             self.db.remove_addr_history(address)
@@ -2255,16 +2257,120 @@ class Multisig_Wallet(Deterministic_Wallet):
         return ''.join(sorted(self.get_master_public_keys()))
 
 
-wallet_types = ['standard', 'multisig', 'imported']
+class TwoKeysWallet(Simple_Deterministic_Wallet):
+    TX_STATUS_INDEX_SHIFT = 10
+    TX_TYPES_LIKE_STANDARD = (
+        TxType.NONVAULT,
+        TxType.INSTANT,
+        TxType.ALERT_CONFIRMED,
+    )
+
+    def __init__(self, storage: WalletStorage, *, config: SimpleConfig):
+        self.wallet_type = storage.get('wallet_type')
+        self.multisig_script_generator = TwoKeysScriptGenerator(recovery_pubkey=storage.get('recovery_pubkey'))
+        self.set_alert()
+        # super has to be at the end otherwise wallet breaks
+        super().__init__(storage=storage, config=config)
+
+    def set_alert(self):
+        self.multisig_script_generator.set_alert()
+
+    def set_recovery(self):
+        self.multisig_script_generator.set_recovery()
+
+    def load_keystore(self):
+        super().load_keystore()
+        # force set of txin_type
+        self.txin_type = 'p2sh'
+
+    def pubkeys_to_address(self, pubkey):
+        redeem_script = self.multisig_script_generator.get_redeem_script([pubkey])
+        return bitcoin.redeem_script_to_address(self.txin_type, redeem_script)
+
+    def get_redeem_script(self, address: str) -> Optional[str]:
+        pubkey = super().get_public_key(address)
+        return self.multisig_script_generator.get_redeem_script([pubkey])
+
+    def get_tx_status(self, tx_hash, tx_mined_info: TxMinedInfo):
+        status, status_str = super().get_tx_status(tx_hash, tx_mined_info)
+        if status_str == 'unknown':
+            return status, status_str
+
+        tx = self.db.get_transaction(tx_hash)
+
+        if tx.tx_type in self.TX_TYPES_LIKE_STANDARD:
+            return status, status_str
+
+        confirmations = tx_mined_info.conf
+        # unconfirmed alert
+        if confirmations == 0:
+            return self.TX_STATUS_INDEX_SHIFT, status_str
+        return self.TX_STATUS_INDEX_SHIFT + tx.tx_type, status_str
+
+    def get_spendable_coins(self, domain, *, nonlocal_only=False) -> Sequence[PartialTxInput]:
+        utxos = super().get_spendable_coins(domain=domain, nonlocal_only=nonlocal_only)
+
+        filtered_utxos = []
+        for utxo in utxos:
+            tx_hex = utxo.prevout.txid.hex()
+            tx = self.db.get_transaction(tx_hex)
+            if tx.tx_type in self.TX_TYPES_LIKE_STANDARD:
+                filtered_utxos.append(utxo)
+        return filtered_utxos
+
+    def sign_transaction(self, tx: Transaction, password) -> Optional[PartialTransaction]:
+        if self.is_watching_only():
+            return
+        if not isinstance(tx, PartialTransaction):
+            return
+        # add info to a temporary tx copy; including xpubs
+        # and full derivation paths as hw keystores might want them
+        tmp_tx = copy.deepcopy(tx)
+        # update tmp tx
+        tmp_tx.multisig_script_generator = self.multisig_script_generator
+        tmp_tx.update_inputs()
+
+        tmp_tx.add_info_from_wallet(self, include_xpubs_and_full_paths=True)
+
+        # sign. start with ready keystores.
+        for k in sorted(self.get_keystores(), key=lambda ks: ks.ready_to_sign(), reverse=True):
+            try:
+                if k.can_sign(tmp_tx):
+                    k.sign_transaction(tmp_tx, password)
+            except UserCancelled:
+                continue
+        # remove sensitive info; then copy back details from temporary tx
+        tmp_tx.remove_xpubs_and_bip32_paths()
+        # update tx
+        tx.multisig_script_generator = self.multisig_script_generator
+        tx.update_inputs()
+
+        tx.combine_with_other_psbt(tmp_tx)
+        tx.add_info_from_wallet(self, include_xpubs_and_full_paths=False)
+        return tx
+
+
+wallet_types = [
+    'AR',
+    'AIR',
+    'standard',
+    'multisig',
+    'imported',
+]
+
 
 def register_wallet_type(category):
     wallet_types.append(category)
+
 
 wallet_constructors = {
     'standard': Standard_Wallet,
     'old': Standard_Wallet,
     'xpub': Standard_Wallet,
-    'imported': Imported_Wallet
+    'imported': Imported_Wallet,
+    'AR': TwoKeysWallet,
+    # todo add 3Keys class definition
+    'AIR': None
 }
 
 def register_constructor(wallet_type, constructor):

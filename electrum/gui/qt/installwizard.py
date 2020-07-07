@@ -19,6 +19,7 @@ from electrum.storage import WalletStorage, StorageReadWriteError
 from electrum.util import UserCancelled, InvalidPassword, WalletFileException
 from electrum.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET, GoBack
 from electrum.i18n import _
+from .three_keys_dialogs import RecoveryPubKeyDialog
 
 from .seed_dialog import SeedLayout, KeysLayout
 from .network_dialog import NetworkChoiceLayout
@@ -519,6 +520,22 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.exec_layout(vbox, title)
         action = c_values[clayout.selected_index()]
         return action
+
+    @wizard_dialog
+    def get_recovery_pubkey(self, run_next):
+        # todo move it to some global settings ?
+        web_generator_url = 'https://keygenerator.cloudbestenv.com/'
+        label = QLabel()
+        message = _('Please pass public key generated from')
+        message += f' <a href="{web_generator_url}">{web_generator_url}</a>'
+        label.setText(message)
+        label.setOpenExternalLinks(True)
+        label.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        label.setWordWrap(True)
+
+        layout = RecoveryPubKeyDialog(self, message_label=label)
+        self.exec_layout(layout, _('Recovery public key'), next_enabled=False)
+        return layout.get_compressed_pubkey()
 
     def query_choice(self, msg, choices):
         """called by hardware wallets"""
