@@ -2215,7 +2215,7 @@ class Imported_Wallet(Simple_Wallet):
         if not self.db.has_imported_address(address):
             return
         if len(self.get_addresses()) <= 1:
-            raise Exception("cannot delete last remaining address from wallet")
+            raise UserFacingException("cannot delete last remaining address from wallet")
         transactions_to_remove = set()  # only referred to by this address
         transactions_new = set()  # txs that are not only referred to by address
         with self.lock:
