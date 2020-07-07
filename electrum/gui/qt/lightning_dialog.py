@@ -45,7 +45,7 @@ class LightningDialog(QDialog):
         self.network = gui_object.daemon.network
         assert self.network
         self.setWindowTitle(_('Lightning Network'))
-        self.setMinimumSize(600, 20)
+        self.setMinimumWidth(600)
         vbox = QVBoxLayout(self)
         self.num_peers = QLabel('')
         vbox.addWidget(self.num_peers)
