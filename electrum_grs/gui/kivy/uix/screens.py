@@ -177,12 +177,10 @@ class SendScreen(CScreen):
 
     kvname = 'send'
     payment_request = None  # type: Optional[PaymentRequest]
-    payment_request_queued = None  # type: Optional[str]
     parsed_URI = None
 
     def set_URI(self, text: str):
         if not self.app.wallet:
-            self.payment_request_queued = text
             return
         try:
             uri = parse_URI(text, self.app.on_pr, loop=self.app.asyncio_loop)
@@ -197,7 +195,7 @@ class SendScreen(CScreen):
         self.payment_request = None
         self.is_lightning = False
 
-    def set_ln_invoice(self, invoice):
+    def set_ln_invoice(self, invoice: str):
         try:
             invoice = str(invoice).lower()
             lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
@@ -213,9 +211,6 @@ class SendScreen(CScreen):
     def update(self):
         if self.app.wallet is None:
             return
-        if self.payment_request_queued:
-            self.set_URI(self.payment_request_queued)
-            self.payment_request_queued = None
         _list = self.app.wallet.get_invoices()
         _list.reverse()
         payments_container = self.ids.payments_container

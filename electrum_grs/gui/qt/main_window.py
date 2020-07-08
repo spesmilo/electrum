@@ -1949,8 +1949,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         return self.create_list_tab(l)
 
     def remove_address(self, addr):
-        if self.question(_("Do you want to remove {} from your wallet?").format(addr)):
+        if not self.question(_("Do you want to remove {} from your wallet?").format(addr)):
+            return
+        try:
             self.wallet.delete_address(addr)
+        except UserFacingException as e:
+            self.show_error(str(e))
+        else:
             self.need_update.set()  # history, addresses, coins
             self.clear_receive_tab()
 

@@ -764,11 +764,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def export_invoices(self, path):
         write_json_file(path, list(self.invoices.values()))
 
-    def _get_relevant_invoice_keys_for_tx(self, tx: Transaction) -> Set[str]:
+    def get_relevant_invoice_keys_for_tx(self, tx: Transaction) -> Set[str]:
         relevant_invoice_keys = set()
         for txout in tx.outputs():
             for invoice_key in self._invoices_from_scriptpubkey_map.get(txout.scriptpubkey, set()):
-                relevant_invoice_keys.add(invoice_key)
+                # note: the invoice might have been deleted since, so check now:
+                if invoice_key in self.invoices:
+                    relevant_invoice_keys.add(invoice_key)
         return relevant_invoice_keys
 
     def _prepare_onchain_invoice_paid_detection(self):
@@ -809,7 +811,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         tx_hash = tx.txid()
         with self.transaction_lock:
             labels = []
-            for invoice_key in self._get_relevant_invoice_keys_for_tx(tx):
+            for invoice_key in self.get_relevant_invoice_keys_for_tx(tx):
                 invoice = self.invoices.get(invoice_key)
                 if invoice is None: continue
                 assert isinstance(invoice, OnchainInvoice)
@@ -2213,7 +2215,7 @@ class Imported_Wallet(Simple_Wallet):
         if not self.db.has_imported_address(address):
             return
         if len(self.get_addresses()) <= 1:
-            raise Exception("cannot delete last remaining address from wallet")
+            raise UserFacingException("cannot delete last remaining address from wallet")
         transactions_to_remove = set()  # only referred to by this address
         transactions_new = set()  # txs that are not only referred to by address
         with self.lock:

@@ -96,7 +96,7 @@ class RequestList(MyTreeView):
             self.update()
             return
         if req.is_lightning():
-            self.parent.receive_payreq_e.setText(req.invoice)
+            self.parent.receive_payreq_e.setText(req.invoice)  # TODO maybe prepend "lightning:" ??
             self.parent.receive_address_e.setText(req.invoice)
         else:
             self.parent.receive_payreq_e.setText(self.parent.wallet.get_request_URI(req))

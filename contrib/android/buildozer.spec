@@ -22,16 +22,18 @@ source.exclude_exts = spec
 source.exclude_dirs = bin, build, dist, contrib,
     electrum_grs/tests,
     electrum_grs/gui/qt,
-    electrum_grs/gui/kivy/theming/light
+    electrum_grs/gui/kivy/theming/light,
+    packages/qdarkstyle,
+    packages/qtpy
 # (list) List of exclusions using pattern matching
 source.exclude_patterns = Makefile,setup*
 
 # (str) Application versioning (method 1)
-#version.regex = APK_VERSION = '(.*)'
-#version.filename = %(source.dir)s/electrum_grs/version.py
+version.regex = APK_VERSION = '(.*)'
+version.filename = %(source.dir)s/electrum_grs/version.py
 
 # (str) Application versioning (method 2)
-version = 4.0.0
+#version = 4.0.2
 
 # (list) Application requirements
 requirements =
@@ -46,7 +48,7 @@ requirements =
     libffi,
     libsecp256k1,
     cryptography,
-    # both below are needed for groestl hash
+    # setuptools recipe is needed for groestlcoin_hash
     setuptools,
     groestlcoin_hash
 

@@ -52,7 +52,7 @@ if TYPE_CHECKING:
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 31     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 32     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -179,6 +179,7 @@ class WalletDB(JsonDB):
         self._convert_version_29()
         self._convert_version_30()
         self._convert_version_31()
+        self._convert_version_32()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
         self._after_upgrade_tasks()
@@ -682,6 +683,17 @@ class WalletDB(JsonDB):
                     item['exp'] = item['exp'] or 0
                     item['time'] = item['time'] or 0
         self.data['seed_version'] = 31
+
+    def _convert_version_32(self):
+        if not self._is_upgrade_method_needed(31, 31):
+            return
+
+        from .invoices import PR_TYPE_ONCHAIN
+        invoices_old = self.data.get('invoices', {})
+        invoices_new = {k: item for k, item in invoices_old.items()
+                        if not (item['type'] == PR_TYPE_ONCHAIN and item['outputs'] is None)}
+        self.data['invoices'] = invoices_new
+        self.data['seed_version'] = 32
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
