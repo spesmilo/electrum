@@ -1,3 +1,7 @@
+# Release 4.0.2 - (July 8, 2020)
+ - rm old corrupted non-bip70 invoices (#6345)
+ - other minor fixes
+
 # Release 4.0.1 - (July 3, 2020)
  * Lightning Network support (experimental)
    - Our implementation of Lightning relies on Electrum servers to

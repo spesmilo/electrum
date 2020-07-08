@@ -44,6 +44,12 @@ class ChannelsList(MyTreeView):
         Columns.CHANNEL_STATUS: _('Status'),
     }
 
+    filter_columns = [
+        Columns.SHORT_CHANID,
+        Columns.NODE_ALIAS,
+        Columns.CHANNEL_STATUS,
+    ]
+
     _default_item_bg_brush = None  # type: Optional[QBrush]
 
     def __init__(self, parent):
