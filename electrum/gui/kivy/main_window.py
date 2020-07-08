@@ -201,11 +201,31 @@ class ElectrumWindow(App):
         self.send_screen.set_ln_invoice(invoice)
 
     def on_new_intent(self, intent):
-        data = intent.getDataString()
-        if intent.getScheme() == 'bitcoin':
-            self.set_URI(data)
-        elif intent.getScheme() == 'lightning':
-            self.set_ln_invoice(data)
+        data = str(intent.getDataString())
+        if str(intent.getScheme()).lower() in ('bitcoin', 'lightning'):
+            self._process_invoice_str(data)
+
+    _invoice_intent_queued = None  # type: Optional[str]
+    def _process_invoice_str(self, invoice: str) -> None:
+        if not self.wallet:
+            self._invoice_intent_queued = invoice
+            return
+        if not self.send_screen:
+            self.switch_to('send')
+            self._invoice_intent_queued = invoice
+            return
+        if invoice.lower().startswith('bitcoin:'):
+            self.set_URI(invoice)
+        elif invoice.lower().startswith('lightning:'):
+            self.set_ln_invoice(invoice)
+
+    def _maybe_process_queued_invoice(self, *dt):
+        if not self.wallet:
+            return
+        invoice_queued = self._invoice_intent_queued
+        if invoice_queued:
+            self._invoice_intent_queued = None
+            self._process_invoice_str(invoice_queued)
 
     def on_language(self, instance, language):
         Logger.info('language: {}'.format(language))
@@ -377,6 +397,7 @@ class ElectrumWindow(App):
         self._trigger_update_interfaces = Clock.create_trigger(self.update_interfaces, .5)
 
         self._periodic_update_status_during_sync = Clock.schedule_interval(self.update_wallet_synchronizing_progress, .5)
+        self._periodic_process_queued_invoice = Clock.schedule_interval(self._maybe_process_queued_invoice, .5)
 
         # cached dialogs
         self._settings_dialog = None
