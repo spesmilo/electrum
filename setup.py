@@ -68,6 +68,7 @@ setup(
         'electrum.gui',
         'electrum.gui.qt',
         'electrum.plugins',
+        'electrum.three_keys',
     ] + [('electrum.plugins.'+pkg) for pkg in find_packages('electrum/plugins')],
     package_dir={
         'electrum': 'electrum'

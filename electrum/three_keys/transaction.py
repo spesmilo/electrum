@@ -1,6 +1,6 @@
 from enum import IntEnum
 
-from electrum.transaction import Transaction
+from ..transaction import Transaction
 
 
 class TxType(IntEnum):

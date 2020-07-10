@@ -1,7 +1,7 @@
 from typing import List
 
-from electrum.bitcoin import opcodes, push_script
-from electrum.three_keys.multikey_generator import MultiKeyScriptGenerator
+from ..bitcoin import opcodes, push_script
+from .multikey_generator import MultiKeyScriptGenerator
 
 
 class ThreeKeysError(Exception):
