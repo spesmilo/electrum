@@ -50,7 +50,7 @@ pr_tooltips = {
     PR_ROUTING: _('Computing route...'),
 }
 
-PR_DEFAULT_EXPIRATION_WHEN_CREATING = 24*60*60  # 1 day
+PR_DEFAULT_EXPIRATION_WHEN_CREATING = 0 # Never
 pr_expiration_values = {
     0: _('Never'),
     10*60: _('10 minutes'),
