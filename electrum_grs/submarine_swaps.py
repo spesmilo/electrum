@@ -24,9 +24,9 @@ if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
 
 
-API_URL_MAINNET = 'https://swaps.groestlcoin.org/'
-API_URL_TESTNET = 'https://testnet-swaps.groestlcoin.org/'
-API_URL_REGTEST = 'https://localhost/'
+API_URL_MAINNET = 'https://swaps.groestlcoin.org'
+API_URL_TESTNET = 'https://testnet-swaps.groestlcoin.org'
+API_URL_REGTEST = 'https://localhost'
 
 
 
@@ -207,7 +207,7 @@ class SwapManager(Logger):
 
     async def normal_swap(self, lightning_amount: int, expected_onchain_amount: int,
                           password, *, tx: PartialTransaction = None) -> str:
-        """send on-chain BTC, receive on Lightning"""
+        """send on-chain GRS, receive on Lightning"""
         privkey = os.urandom(32)
         pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
         lnaddr, invoice = await self.lnworker.create_invoice(lightning_amount, 'swap', expiry=3600*24)
@@ -215,7 +215,7 @@ class SwapManager(Logger):
         preimage = self.lnworker.get_preimage(payment_hash)
         request_data = {
             "type": "submarine",
-            "pairId": "BTC/BTC",
+            "pairId": "GRS/GRS",
             "orderSide": "sell",
             "invoice": invoice,
             "refundPublicKey": pubkey.hex()
@@ -290,7 +290,7 @@ class SwapManager(Logger):
         preimage_hash = sha256(preimage)
         request_data = {
             "type": "reversesubmarine",
-            "pairId": "BTC/BTC",
+            "pairId": "GRS/GRS",
             "orderSide": "buy",
             "invoiceAmount": amount_sat,
             "preimageHash": preimage_hash.hex(),
@@ -376,11 +376,11 @@ class SwapManager(Logger):
             self.api_url + '/getpairs',
             timeout=30)
         pairs = json.loads(response)
-        fees = pairs['pairs']['BTC/BTC']['fees']
+        fees = pairs['pairs']['GRS/GRS']['fees']
         self.percentage = fees['percentage']
         self.normal_fee = fees['minerFees']['baseAsset']['normal']
         self.lockup_fee = fees['minerFees']['baseAsset']['reverse']['lockup']
-        limits = pairs['pairs']['BTC/BTC']['limits']
+        limits = pairs['pairs']['GRS/GRS']['limits']
         self.min_amount = limits['minimal']
         self._max_amount = limits['maximal']
 
