@@ -91,10 +91,10 @@ class BitBox02Client(HardwareClientBase):
             # listing the devices.
             return None
         if self.bitbox02_device is None:
-            self.pairing_dialog(wizard=False)
+            self.pairing_dialog()
         return self.bitbox02_device.root_fingerprint().hex()
 
-    def pairing_dialog(self, wizard: bool = True):
+    def pairing_dialog(self):
         def pairing_step(code: str, device_response: Callable[[], bool]) -> bool:
             msg = "Please compare and confirm the pairing code on your BitBox02:\n" + code
             self.handler.show_message(msg)
@@ -206,7 +206,7 @@ class BitBox02Client(HardwareClientBase):
 
     def get_xpub(self, bip32_path: str, xtype: str, *, display: bool = False) -> str:
         if self.bitbox02_device is None:
-            self.pairing_dialog(wizard=False)
+            self.pairing_dialog()
 
         if self.bitbox02_device is None:
             raise Exception(
