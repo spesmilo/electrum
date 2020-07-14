@@ -85,6 +85,15 @@ class BitBox02Client(HardwareClientBase):
             return False
         return True
 
+    def get_soft_device_id(self) -> Optional[str]:
+        if self.handler is None:
+            # Can't do the pairing without the handler. This happens at wallet creation time, when
+            # listing the devices.
+            return None
+        if self.bitbox02_device is None:
+            self.pairing_dialog(wizard=False)
+        return self.bitbox02_device.root_fingerprint().hex()
+
     def pairing_dialog(self, wizard: bool = True):
         def pairing_step(code: str, device_response: Callable[[], bool]) -> bool:
             msg = "Please compare and confirm the pairing code on your BitBox02:\n" + code
