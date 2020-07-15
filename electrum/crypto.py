@@ -28,7 +28,6 @@ import os
 import hashlib
 import hmac
 from typing import Union
-
 import pyaes
 
 from .util import assert_bytes, InvalidPassword, to_bytes, to_string, WalletFileException

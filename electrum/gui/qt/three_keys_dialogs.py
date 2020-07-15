@@ -1,9 +1,12 @@
+import copy
 from enum import IntEnum
-
-from PyQt5.QtWidgets import QVBoxLayout, QTextEdit, QLabel
-
-from electrum.ecc import ECPubkey
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import QVBoxLayout, QTextEdit, QLineEdit, QLabel
+from .qrcodewidget import QRCodeWidget
+from electrum.ecc import ECPubkey, ECPrivkey
 from electrum.i18n import _
+from ...three_keys import short_mnemonic
 
 
 class ValidationState(IntEnum):
@@ -73,7 +76,7 @@ class ErrorLabel(QLabel):
         self.setStyleSheet("font-weight: bold; color: red")
 
 
-class RecoveryPubKeyDialog(QVBoxLayout):
+class InsertPubKeyDialog(QVBoxLayout):
     def __init__(self, parent, message_label):
         super().__init__()
         self.parent = parent
@@ -118,3 +121,35 @@ class RecoveryPubKeyDialog(QVBoxLayout):
         bytes_ = bytes.fromhex(self._get_str())
         pubkey = ECPubkey(bytes_)
         return pubkey.get_public_key_hex(compressed=True)
+
+
+class Qr2FaDialog(QVBoxLayout):
+    def __init__(self, parent, title_label: str, pin_label: str, qr_data: dict):
+        super().__init__()
+        self.parent = parent
+        self.pubkey = ECPrivkey(short_mnemonic.entropy_to_privkey(qr_data['entropy'])).get_public_key_hex()
+        qr = QRCodeWidget(self.prepare_qr_data_for_display(qr_data))
+        self.edit = QLineEdit()
+        self.edit.setMaxLength(4)
+        self.edit.setFixedWidth(50)
+        self.edit.setFont(QFont("Monospace"))
+        self.edit.textChanged.connect(self._on_change)
+        self.addWidget(title_label, alignment=Qt.AlignCenter)
+        self.addWidget(qr, alignment=Qt.AlignCenter)
+        self.addWidget(pin_label, alignment=Qt.AlignCenter)
+        self.addWidget(self.edit, alignment=Qt.AlignCenter)
+
+    def _on_change(self):
+        self.parent.next_button.setEnabled(False)
+        self.pin_candidate = self.edit.text()
+        if self.pubkey[-4:] == self.pin_candidate:
+            self.parent.next_button.setEnabled(True)
+
+    def get_pubkey(self) -> str:
+        return self.pubkey
+
+    @staticmethod
+    def prepare_qr_data_for_display(qr_data: dict) -> dict:
+        new_qr_data = copy.deepcopy(qr_data)
+        new_qr_data['entropy'] = new_qr_data['entropy'].hex()
+        return new_qr_data
