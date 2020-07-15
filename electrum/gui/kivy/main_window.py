@@ -907,9 +907,10 @@ class ElectrumWindow(App):
         else:
             c, u, x = self.wallet.get_balance()
             l = int(self.wallet.lnworker.get_balance()) if self.wallet.lnworker else 0
-            text = self.format_amount(c + x + u + l)
+            balance_sat = c + u + x + l
+            text = self.format_amount(balance_sat)
             self.balance = str(text.strip()) + ' [size=22dp]%s[/size]'% self.base_unit
-            self.fiat_balance = self.fx.format_amount(c+u+x) + ' [size=22dp]%s[/size]'% self.fx.ccy
+            self.fiat_balance = self.fx.format_amount(balance_sat) + ' [size=22dp]%s[/size]'% self.fx.ccy
 
     def update_wallet_synchronizing_progress(self, *dt):
         if not self.wallet:
