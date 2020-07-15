@@ -590,7 +590,7 @@ class WizardDialog(EventsDialog):
         self.app = App.get_running_app()
         self.run_next = kwargs['run_next']
 
-        self._trigger_size_dialog = Clock.create_trigger(self._size_dialog)
+        self._trigger_size_dialog = Clock.create_trigger(self._size_dialog, -1)
         # note: everything bound here needs to be unbound as otherwise the
         # objects will be kept around and keep receiving the callbacks
         Window.bind(size=self._trigger_size_dialog,
