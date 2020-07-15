@@ -251,7 +251,12 @@ class BitBox02Client(HardwareClientBase):
             return super().label()
         if self.bitbox02_device is None:
             self.pairing_dialog()
-        return self.bitbox02_device.device_info()["name"]
+        # We add the fingerprint to the label, as if there are two devices with the same label, the
+        # device manager can mistake one for another and fail.
+        return "%s (%s)" % (
+            self.bitbox02_device.device_info()["name"],
+            self.bitbox02_device.root_fingerprint().hex(),
+        )
 
     def request_root_fingerprint_from_device(self) -> str:
         if self.bitbox02_device is None:
