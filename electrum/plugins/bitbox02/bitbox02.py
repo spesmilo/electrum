@@ -244,6 +244,15 @@ class BitBox02Client(HardwareClientBase):
             display=display,
         )
 
+    def label(self) -> str:
+        if self.handler is None:
+            # Can't do the pairing without the handler. This happens at wallet creation time, when
+            # listing the devices.
+            return super().label()
+        if self.bitbox02_device is None:
+            self.pairing_dialog()
+        return self.bitbox02_device.device_info()["name"]
+
     def request_root_fingerprint_from_device(self) -> str:
         if self.bitbox02_device is None:
             raise Exception(
