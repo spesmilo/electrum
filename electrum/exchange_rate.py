@@ -516,8 +516,11 @@ class FxThread(ThreadJob):
         self.config.set_key('use_exchange_rate', bool(b))
         self.trigger_update()
 
-    def get_history_config(self, *, default=False):
-        return bool(self.config.get('history_rates', default))
+    def get_history_config(self, *, allow_none=False):
+        val = self.config.get('history_rates', None)
+        if val is None and allow_none:
+            return None
+        return bool(val)
 
     def set_history_config(self, b):
         self.config.set_key('history_rates', bool(b))
