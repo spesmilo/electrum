@@ -389,6 +389,20 @@ class Zaif(ExchangeBase):
         return {'JPY': Decimal(json['last_price'])}
 
 
+class Bitragem(ExchangeBase):
+
+    async def get_rates(self,ccy):
+        json = await self.get_json('api.bitragem.com', '/v1/index?asset=BTC&market=BRL')
+        return {'BRL': Decimal(json['response']['index'])}
+
+
+class Biscoint(ExchangeBase):
+
+    async def get_rates(self,ccy):
+        json = await self.get_json('api.biscoint.io', '/v1/ticker?base=BTC&quote=BRL')
+        return {'BRL': Decimal(json['data']['last']['last'])}
+
+
 def dictinvert(d):
     inv = {}
     for k, vlist in d.items():
