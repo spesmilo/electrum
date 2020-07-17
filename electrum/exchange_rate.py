@@ -352,12 +352,6 @@ class MercadoBitcoin(ExchangeBase):
         return {'BRL': Decimal(json['ticker_1h']['exchanges']['MBT']['last'])}
 
 
-class NegocieCoins(ExchangeBase):
-
-    async def get_rates(self,ccy):
-        json = await self.get_json('api.bitvalor.com', '/v1/ticker.json')
-        return {'BRL': Decimal(json['ticker_1h']['exchanges']['NEG']['last'])}
-
 class TheRockTrading(ExchangeBase):
 
     async def get_rates(self, ccy):
