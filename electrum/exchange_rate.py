@@ -315,13 +315,6 @@ class CoinGecko(ExchangeBase):
                      for h in history['prices']])
 
 
-class CointraderMonitor(ExchangeBase):
-
-    async def get_rates(self, ccy):
-        json = await self.get_json('cointradermonitor.com', '/api/pbb/beta/ticker')
-        return {'BRL': Decimal(json['last'])}
-
-
 class itBit(ExchangeBase):
 
     async def get_rates(self, ccy):
