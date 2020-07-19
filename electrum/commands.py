@@ -320,10 +320,10 @@ class Commands:
         return self.config.get_ssl_domain()
 
     @command('')
-    async def make_seed(self, nbits=132, language=None, seed_type=None):
+    async def make_seed(self, nbits=132, language=None, seed_type=None, entropy=None):
         """Create a seed"""
         from .mnemonic import Mnemonic
-        s = Mnemonic(language).make_seed(seed_type, num_bits=nbits)
+        s = Mnemonic(language).make_seed(seed_type, num_bits=nbits, user_entropy=entropy)
         return s
 
     @command('n')
@@ -1224,6 +1224,7 @@ command_options = {
     'to_height':   (None, "Only show transactions that confirmed before given block height"),
     'iknowwhatimdoing': (None, "Acknowledge that I understand the full implications of what I am about to do"),
     'gossip':      (None, "Apply command to gossip node instead of wallet"),
+    'entropy':     (None, "User provided entropy. Only use this option with > 128 bits of true randomness"),
 }
 
 

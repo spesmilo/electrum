@@ -94,6 +94,24 @@ SEED_TEST_CASES = {
         bip32_seed='c274665e5453c72f82b8444e293e048d700c59bf000cacfba597629d202dcf3aab1cf9c00ba8d3456b7943428541fed714d01d8a0a4028fc3a9bb33d981cb49f'),
 }
 
+class DeterministicSeedTestCase(NamedTuple):
+    entropy: str
+    words: str
+
+DETERMINISTIC_SEED_TEST_CASES = [
+    DeterministicSeedTestCase(
+        entropy='BcBeF4AcBf3ba5AbBbD1bFf0C7dEa38a18DD10CcfF2FA0CD06d21c37aafDDA3B',
+        words='law hope answer pistol leisure company erosion blame novel rule evoke tribe able candy comic loop bench mango duck winner resist hello umbrella above'),
+    DeterministicSeedTestCase(
+        entropy='AORakGJlxLBKXAEkXWKnkfVNnEUvegxtOwaEpFXkJeBkGWUSxG',
+        words='idle group shock express hybrid vehicle similar left midnight calm feature twist arrive hedgehog hello cup slim law soap merge future address large absorb'),
+    DeterministicSeedTestCase(
+        entropy='OOHAPJQWsDojtkC94M3QBQC7R5kwKjRk4SwM7vom5vKWZxZOC6meFcStIkdyK59imuOYmDxR3Qk',
+        words='bunker home goose lottery pass pledge blossom make boat turkey fine blade beauty raven save mercy gravity day tourist audit cabbage worry inquiry'),
+    DeterministicSeedTestCase(
+        entropy='4132561243561243651246512416234615243615241625341263416254615234165243615243612461253461523461243612341623412633162461253462146124361246215',
+        words='spare dizzy empower surge hawk throw interest jar scout mixed hip flash social number prefer million there wisdom twin finger long wild ball absorb')
+]
 
 class Test_NewMnemonic(ElectrumTestCase):
 
@@ -124,6 +142,11 @@ class Test_NewMnemonic(ElectrumTestCase):
             i = m.mnemonic_decode(seed)
             self.assertEqual(m.mnemonic_encode(i), seed)
 
+    def test_deterministic_seeds(self):
+        m = mnemonic.Mnemonic(lang='en')
+        for test in DETERMINISTIC_SEED_TEST_CASES:
+            seed = m.make_seed(seed_type = "segwit", user_entropy = test.entropy)
+            self.assertEqual(test.words, seed)
 
 class Test_OldMnemonic(ElectrumTestCase):
 
