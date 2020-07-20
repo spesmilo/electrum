@@ -33,10 +33,6 @@ def get_xpubkey(keystore: BIP32_KeyStore, c, i) -> str:
 def serialize_tx_in_legacy_format(tx: PartialTransaction, *, wallet: Multisig_Wallet) -> str:
     assert isinstance(tx, PartialTransaction)
 
-    # copy tx so we don't mutate the input arg
-    # monkey-patch method of tx instance to change serialization
-    tx = copy.deepcopy(tx)
-
     def get_siglist(txin: 'PartialTxInput', *, estimate_size=False):
         if txin.prevout.is_coinbase():
             return [], []

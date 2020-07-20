@@ -1158,9 +1158,11 @@ def add_global_options(parser):
     group.add_argument("-V", dest="verbosity_shortcuts", help="Set verbosity (shortcut-filter list)", default='')
     group.add_argument("-D", "--dir", dest="electrum_path", help="electrum directory")
     group.add_argument("-P", "--portable", action="store_true", dest="portable", default=False, help="Use local 'electrum_data' directory")
-    group.add_argument("--testnet", action="store_true", dest="testnet", default=False, help="Use Testnet")
-    group.add_argument("--regtest", action="store_true", dest="regtest", default=False, help="Use BTCV Regtest")
-    group.add_argument("--simnet", action="store_true", dest="simnet", default=False, help="Use Simnet")
+    group.add_argument("--testnet", action="store_true", dest="testnet", default=False, help="Use BitcoinVault Testnet")
+    group.add_argument("--regtest", action="store_true", dest="regtest", default=False, help="Use BitcoinVault Regtest")
+    group.add_argument("--btc_testnet", action="store_true", dest="btc_testnet", default=False, help="Use Bitcoin Testnet")
+    group.add_argument("--btc_regtest", action="store_true", dest="btc_regtest", default=False, help="Use Bitcoin Regtest")
+    group.add_argument("--btc_simnet", action="store_true", dest="btc_simnet", default=False, help="Use Bitcoin Simnet")
     group.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
 
 def add_wallet_option(parser):

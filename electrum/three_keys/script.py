@@ -12,6 +12,7 @@ class TwoKeysScriptGenerator(MultiKeyScriptGenerator):
     def __init__(self, recovery_pubkey: str):
         self.recovery_pubkey = recovery_pubkey
         self._recovery_alert_flag = None
+        self.witness_flags = []
 
     def get_redeem_script(self, public_keys: List[str]) -> str:
         if not isinstance(public_keys, list) or len(public_keys) != 1:
@@ -46,10 +47,12 @@ class TwoKeysScriptGenerator(MultiKeyScriptGenerator):
     def set_alert(self):
         # 1 of 2
         self._recovery_alert_flag = opcodes.OP_1.hex()
+        self.witness_flags = [1]
 
     def set_recovery(self):
         # 2 of 2
         self._recovery_alert_flag = opcodes.OP_0.hex()
+        self.witness_flags = [0]
 
 
 class ThreeKeysScriptGenerator(MultiKeyScriptGenerator):
@@ -57,6 +60,7 @@ class ThreeKeysScriptGenerator(MultiKeyScriptGenerator):
         self.recovery_pubkey = recovery_pubkey
         self.instant_pubkey = instant_pubkey
         self._instant_recovery_alert_flag = None
+        self.witness_flags = []
 
     def get_redeem_script(self, public_keys: List[str]) -> str:
         if not isinstance(public_keys, list) or len(public_keys) != 1:
@@ -96,11 +100,14 @@ class ThreeKeysScriptGenerator(MultiKeyScriptGenerator):
     def set_alert(self):
         # 1 of 3
         self._instant_recovery_alert_flag = opcodes.OP_1.hex()
+        self.witness_flags = [0]
 
     def set_recovery(self):
         # 3 of 3
         self._instant_recovery_alert_flag = opcodes.OP_0.hex() + opcodes.OP_0.hex()
+        self.witness_flags = [0, 0]
 
     def set_instant(self):
         # 2 of 3
         self._instant_recovery_alert_flag = opcodes.OP_1.hex() + opcodes.OP_0.hex()
+        self.witness_flags = [1, 0]

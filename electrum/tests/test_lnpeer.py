@@ -23,8 +23,8 @@ from electrum.lnmsg import encode_msg, decode_msg
 from electrum.logging import console_stderr_handler
 from electrum.lnworker import PaymentInfo, RECEIVED, PR_UNPAID
 
-from .test_lnchannel import create_test_channels
-from . import ElectrumTestCase
+from electrum.tests.test_lnchannel import create_test_channels
+from electrum.tests import ElectrumTestCase
 
 def keypair():
     priv = ECPrivkey.generate_random_key().get_secret_bytes()

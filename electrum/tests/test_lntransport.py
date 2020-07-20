@@ -4,7 +4,7 @@ from electrum.ecc import ECPrivkey
 from electrum.lnutil import LNPeerAddr
 from electrum.lntransport import LNResponderTransport, LNTransport
 
-from . import ElectrumTestCase
+from electrum.tests import ElectrumTestCase
 
 
 class TestLNTransport(ElectrumTestCase):

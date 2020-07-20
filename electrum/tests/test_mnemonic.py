@@ -7,8 +7,8 @@ from electrum.util import bh2u, bfh
 from electrum.mnemonic import is_new_seed, is_old_seed, seed_type
 from electrum.version import SEED_PREFIX_SW, SEED_PREFIX
 
-from . import ElectrumTestCase
-from .test_wallet_vertical import UNICODE_HORROR, UNICODE_HORROR_HEX
+from electrum.tests import ElectrumTestCase
+from electrum.tests.test_wallet_vertical import UNICODE_HORROR, UNICODE_HORROR_HEX
 
 
 class SeedTestCase(NamedTuple):

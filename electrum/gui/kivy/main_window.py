@@ -839,7 +839,7 @@ class ElectrumWindow(App):
             self.balance = status
             self.fiat_balance = status
         else:
-            c, u, x = self.wallet.get_balance()
+            c, u, x, *__ = self.wallet.get_balance()
             text = self.format_amount(c+x+u)
             self.balance = str(text.strip()) + ' [size=22dp]%s[/size]'% self.base_unit
             self.fiat_balance = self.fx.format_amount(c+u+x) + ' [size=22dp]%s[/size]'% self.fx.ccy

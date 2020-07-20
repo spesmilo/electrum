@@ -1,6 +1,6 @@
 from electrum.plugins.revealer.revealer import RevealerPlugin
 
-from . import ElectrumTestCase
+from electrum.tests import ElectrumTestCase
 
 
 class TestRevealer(ElectrumTestCase):

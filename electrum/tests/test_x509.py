@@ -2,7 +2,7 @@ import unittest
 
 from electrum.x509 import X509
 
-from . import ElectrumTestCase
+from electrum.tests import ElectrumTestCase
 
 
 class TestX509(ElectrumTestCase):

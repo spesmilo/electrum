@@ -3,7 +3,7 @@ from decimal import Decimal
 from electrum.util import (format_satoshis, format_fee_satoshis, parse_URI,
                            is_hash256_str, chunks, is_ip_address, list_enabled_bits)
 
-from . import ElectrumTestCase
+from electrum.tests import ElectrumTestCase
 
 
 class TestUtil(ElectrumTestCase):

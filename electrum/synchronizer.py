@@ -50,9 +50,27 @@ def history_status(h):
     if not h:
         return None
     status = ''
-    for tx_hash, height, *__ in h:
-        status += tx_hash + ':%d:' % height
+    for tx_hash, height, tx_type in h:
+        status += f'{tx_hash}:{height:d}:{tx_type:s}:'
     return bh2u(hashlib.sha256(status.encode('ascii')).digest())
+
+
+def get_unique_atxid_from_history(raw_history) -> list:
+    # descending sorting over transaction height
+    sorted_history = sorted(
+        raw_history,
+        key=lambda item: (item[0], int(item[1])),
+        reverse=True
+    )
+    history_with_unique_atxid = []
+    tx_ids = []
+    for item in sorted_history:
+        tx_hash = item[0]
+        if tx_hash in tx_ids:
+            continue
+        history_with_unique_atxid.append(item)
+        tx_ids.append(tx_hash)
+    return history_with_unique_atxid
 
 
 class SynchronizerBase(NetworkJobOnDefaultServer):
@@ -177,20 +195,21 @@ class Synchronizer(SynchronizerBase):
             item['height'],
             item.get('tx_type', TxType.NONVAULT.name)
         ), result))
+        filtered_history = get_unique_atxid_from_history(hist)
         # tx_fees
         tx_fees = [(item['tx_hash'], item.get('fee')) for item in result]
         tx_fees = dict(filter(lambda x:x[1] is not None, tx_fees))
         # Check that txids are unique
-        if len(hashes) != len(result):
+        if len(hashes) != len(filtered_history):
             self.logger.info(f"error: server history has non-unique txids: {addr}")
         # Check that the status corresponds to what was announced
         elif history_status(hist) != status:
             self.logger.info(f"error: status mismatch: {addr}")
         else:
             # Store received history
-            self.wallet.receive_history_callback(addr, hist, tx_fees)
+            self.wallet.receive_history_callback(addr, filtered_history, tx_fees)
             # Request transactions we don't have
-            await self._request_missing_txs(hist)
+            await self._request_missing_txs(filtered_history)
 
         # Remove request; this allows up_to_date to be True
         self.requested_histories.discard((addr, status))
@@ -219,7 +238,7 @@ class Synchronizer(SynchronizerBase):
             for tx_hash, tx_type in transaction_hashes_and_types:
                 await group.spawn(self._get_transaction(tx_hash, tx_type=tx_type, allow_server_not_finding_tx=allow_server_not_finding_tx))
 
-    async def _get_transaction(self, tx_hash, *, allow_server_not_finding_tx=False, tx_type=TxType.NONVAULT):
+    async def _get_transaction(self, tx_hash, *, allow_server_not_finding_tx=False, tx_type):
         self._requests_sent += 1
         try:
             raw_tx = await self.network.get_transaction(tx_hash)
@@ -245,7 +264,11 @@ class Synchronizer(SynchronizerBase):
         if tx_hash != tx.txid():
             raise SynchronizerFailure(f"received tx does not match expected txid ({tx_hash} != {tx.txid()})")
         tx_height = self.requested_tx.pop(tx_hash)
-        self.wallet.receive_tx_callback(tx_hash, tx, tx_height)
+        try:
+            self.wallet.receive_tx_callback(tx_hash, tx, tx_height, tx_type=tx_type)
+        except TypeError:
+            # use receive_tx_callback method without tx_type argument support
+            self.wallet.receive_tx_callback(tx_hash, tx, tx_height)
         self.logger.info(f"received tx {tx_hash} height: {tx_height} bytes: {len(raw_tx)}")
         # callbacks
         self.wallet.network.trigger_callback('new_transaction', self.wallet, tx)

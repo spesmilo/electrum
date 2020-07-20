@@ -328,11 +328,19 @@ if __name__ == '__main__':
     config = SimpleConfig(config_options)
 
     if config.get('testnet'):
-        constants.set_testnet()
+        constants.set_btcv_testnet()
     elif config.get('regtest'):
         constants.set_btcv_regtest()
-    elif config.get('simnet'):
+    elif config.get('btc_mainnet'):
+        constants.set_mainnet()
+    elif config.get('btc_testnet'):
+        constants.set_testnet()
+    elif config.get('btc_regtest'):
+        constants.set_regtest()
+    elif config.get('btc_simnet'):
         constants.set_simnet()
+    else:
+        constants.set_btcv_mainnet()
 
     cmdname = config.get('cmd')
 

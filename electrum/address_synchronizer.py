@@ -449,7 +449,7 @@ class AddressSynchronizer(Logger):
             history.append((tx_hash, tx_mined_status, delta, fee))
         history.sort(key = lambda x: self.get_txpos(x[0]), reverse=True)
         # 3. add balance
-        c, u, x = self.get_balance(domain)
+        c, u, x, *__ = self.get_balance(domain)
         balance = c + u + x
         h2 = []
         for tx_hash, tx_mined_status, delta, fee in history:

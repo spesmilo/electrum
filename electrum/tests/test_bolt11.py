@@ -7,7 +7,7 @@ import unittest
 from electrum.lnaddr import shorten_amount, unshorten_amount, LnAddr, lnencode, lndecode, u5_to_bitarray, bitarray_to_u5
 from electrum.segwit_addr import bech32_encode, bech32_decode
 
-from . import ElectrumTestCase
+from electrum.tests import ElectrumTestCase
 
 
 RHASH=unhexlify('0001020304050607080900010203040506070809000102030405060708090102')

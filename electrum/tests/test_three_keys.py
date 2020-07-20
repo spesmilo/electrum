@@ -1,7 +1,7 @@
 from unittest import TestCase
 
 from electrum.bitcoin import redeem_script_to_address
-from electrum.constants import BTCVRegtest
+from electrum.constants import BitcoinVaultRegtest
 from electrum.three_keys.script import TwoKeysScriptGenerator, ThreeKeysScriptGenerator, ThreeKeysError
 
 
@@ -35,7 +35,7 @@ class TestScripts(TestCase):
         address = redeem_script_to_address(
             txin_type='p2sh',
             scriptcode=redeem_script,
-            net=BTCVRegtest
+            net=BitcoinVaultRegtest
         )
         self.assertEqual(
             '2MzJp4FAYMQAdL8XLsvizG8d26vDSHdHH4g',
@@ -48,7 +48,7 @@ class TestScripts(TestCase):
         address = redeem_script_to_address(
             txin_type='p2sh',
             scriptcode=redeem_script,
-            net=BTCVRegtest
+            net=BitcoinVaultRegtest
         )
         self.assertEqual(
             '2NDdnzhZXEjj8HGoY5AKQUfh2KtFpPv3z4u',

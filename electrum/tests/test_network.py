@@ -9,7 +9,7 @@ from electrum.interface import Interface
 from electrum.crypto import sha256
 from electrum.util import bh2u
 
-from . import ElectrumTestCase
+from electrum.tests import ElectrumTestCase
 
 
 class MockTaskGroup:

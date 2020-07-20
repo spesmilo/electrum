@@ -17,7 +17,7 @@ from electrum.bitcoin import COIN
 from electrum.json_db import JsonDB
 from electrum.simple_config import SimpleConfig
 
-from . import ElectrumTestCase
+from electrum.tests import ElectrumTestCase
 
 
 class FakeSynchronizer(object):

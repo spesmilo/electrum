@@ -1,7 +1,7 @@
 from electrum.coinchooser import CoinChooserPrivacy
 from electrum.util import NotEnoughFunds
 
-from . import ElectrumTestCase
+from electrum.tests import ElectrumTestCase
 
 
 class TestCoinChooser(ElectrumTestCase):

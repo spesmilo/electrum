@@ -61,14 +61,14 @@ class BitcoinMainnet(AbstractNet):
 
     TESTNET = False
     WIF_PREFIX = 0x80
-    ADDRTYPE_P2PKH = 78
-    ADDRTYPE_P2SH = 60
-    SEGWIT_HRP = "royale"
-    GENESIS = "0000000028ce26975b32feda3d75ac3fe10372f75062366cfba4e934dcc6a48b"
+    ADDRTYPE_P2PKH = 0
+    ADDRTYPE_P2SH = 5
+    SEGWIT_HRP = "bc"
+    GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
     CHECKPOINTS = read_json('checkpoints.json', [])
-    BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS = 0
+    BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS = 497000
 
     XPRV_HEADERS = {
         'standard':    0x0488ade4,  # xprv
@@ -86,7 +86,7 @@ class BitcoinMainnet(AbstractNet):
         'p2wsh':       0x02aa7ed3,  # Zpub
     }
     XPUB_HEADERS_INV = inv_dict(XPUB_HEADERS)
-    BIP44_COIN_TYPE = 440
+    BIP44_COIN_TYPE = 0
     LN_REALM_BYTE = 0
     LN_DNS_SEEDS = []
 
@@ -133,40 +133,6 @@ class BitcoinRegtest(BitcoinTestnet):
     LN_DNS_SEEDS = []
 
 
-class BTCVRegtest(AbstractNet):
-    TESTNET = True
-    GENESIS = "01cead69f2b51e214e1c2cd50e3744428cae526db87b2ff8f32489ff801d0f1d"
-    CHECKPOINTS = []
-    SEGWIT_HRP = "rtvault"
-
-    DEFAULT_PORTS = {'t': '51001', 's': '51002'}
-    DEFAULT_SERVERS = read_json('servers_regtest.json', {})
-
-    WIF_PREFIX = 0xef
-    ADDRTYPE_P2PKH = 111
-    ADDRTYPE_P2SH = 196
-
-    XPRV_HEADERS = {
-        'standard':    0x04358394,  # tprv
-        'p2wpkh-p2sh': 0x044a4e28,  # uprv
-        'p2wsh-p2sh':  0x024285b5,  # Uprv
-        'p2wpkh':      0x045f18bc,  # vprv
-        'p2wsh':       0x02575048,  # Vprv
-    }
-    XPRV_HEADERS_INV = inv_dict(XPRV_HEADERS)
-    XPUB_HEADERS = {
-        'standard':    0x043587cf,  # tpub
-        'p2wpkh-p2sh': 0x044a5262,  # upub
-        'p2wsh-p2sh':  0x024289ef,  # Upub
-        'p2wpkh':      0x045f1cf6,  # vpub
-        'p2wsh':       0x02575483,  # Vpub
-    }
-    XPUB_HEADERS_INV = inv_dict(XPUB_HEADERS)
-    BIP44_COIN_TYPE = 1
-    LN_REALM_BYTE = 1
-    LN_DNS_SEEDS = []
-
-
 class BitcoinSimnet(BitcoinTestnet):
 
     WIF_PREFIX = 0x64
@@ -179,16 +145,52 @@ class BitcoinSimnet(BitcoinTestnet):
     LN_DNS_SEEDS = []
 
 
+class BitcoinVaultMainnet(BitcoinMainnet):
+
+    WIF_PREFIX = 0x80
+    ADDRTYPE_P2PKH = 78
+    ADDRTYPE_P2SH = 60
+    SEGWIT_HRP = "royale"
+    GENESIS = "0000000028ce26975b32feda3d75ac3fe10372f75062366cfba4e934dcc6a48b"
+    DEFAULT_SERVERS = read_json('servers_btcv.json', {})
+    CHECKPOINTS = read_json('checkpoints_btcv.json', [])
+    BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS = 0
+    BIP44_COIN_TYPE = 440
+
+
+class BitcoinVaultTestnet(BitcoinTestnet):
+
+    GENESIS = "0000000092bdcddd8bcf515ef5820dfc05dafaf708d316b35cd841c59f498637"
+    CHECKPOINTS = []
+    SEGWIT_HRP = "troyale"
+    DEFAULT_SERVERS = read_json('servers_btcv_testnet.json', {})
+    CHECKPOINTS = read_json('checkpoints_btcv_testnet.json', [])
+    LN_DNS_SEEDS = []
+
+
+class BitcoinVaultRegtest(BitcoinVaultTestnet):
+
+    GENESIS = "01cead69f2b51e214e1c2cd50e3744428cae526db87b2ff8f32489ff801d0f1d"
+    CHECKPOINTS = []
+    SEGWIT_HRP = "rtroyale"
+    DEFAULT_SERVERS = read_json('servers_btcv_regtest.json', {})
+    CHECKPOINTS = read_json('checkpoints_btcv_regtest.json', [])
+    LN_DNS_SEEDS = []
+
+
 # don't import net directly, import the module instead (so that net is singleton)
 net = BitcoinMainnet
+
 
 def set_simnet():
     global net
     net = BitcoinSimnet
 
+
 def set_mainnet():
     global net
     net = BitcoinMainnet
+
 
 def set_testnet():
     global net
@@ -199,6 +201,17 @@ def set_regtest():
     global net
     net = BitcoinRegtest
 
+
+def set_btcv_mainnet():
+    global net
+    net = BitcoinVaultMainnet
+
+
+def set_btcv_testnet():
+    global net
+    net = BitcoinVaultTestnet
+
+
 def set_btcv_regtest():
     global net
-    net = BTCVRegtest
+    net = BitcoinVaultRegtest

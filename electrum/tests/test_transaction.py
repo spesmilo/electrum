@@ -13,8 +13,8 @@ from electrum.simple_config import SimpleConfig
 from electrum.plugins.trustedcoin import trustedcoin
 from electrum.plugins.trustedcoin.legacy_tx_format import serialize_tx_in_legacy_format
 
-from . import ElectrumTestCase, TestCaseForTestnet
-from .test_bitcoin import needs_test_with_all_ecc_implementations
+from electrum.tests import ElectrumTestCase, TestCaseForTestnet
+from electrum.tests.test_bitcoin import needs_test_with_all_ecc_implementations
 
 signed_blob = '01000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf38633b424eb4031000000006c493046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d985012102e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6ffffffff0140420f00000000001976a914230ac37834073a42146f11ef8414ae929feaafc388ac00000000'
 v2_blob = "0200000001191601a44a81e061502b7bfbc6eaa1cef6d1e6af5308ef96c9342f71dbf4b9b5000000006b483045022100a6d44d0a651790a477e75334adfb8aae94d6612d01187b2c02526e340a7fd6c8022028bdf7a64a54906b13b145cd5dab21a26bd4b85d6044e9b97bceab5be44c2a9201210253e8e0254b0c95776786e40984c1aa32a7d03efa6bdacdea5f421b774917d346feffffff026b20fa04000000001976a914024db2e87dd7cfd0e5f266c5f212e21a31d805a588aca0860100000000001976a91421919b94ae5cefcdf0271191459157cdb41c4cbf88aca6240700"
@@ -831,7 +831,7 @@ class TestLegacyPartialTxFormat(TestCaseForTestnet):
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
 
     def test_trustedcoin_legacy_2fa_psbt_to_legacy_partial_tx(self):
-        from .test_wallet_vertical import WalletIntegrityHelper
+        from electrum.tests.test_wallet_vertical import WalletIntegrityHelper
         seed_words = 'kiss live scene rude gate step hip quarter bunker oxygen motor glove'
         self.assertEqual(seed_type(seed_words), '2fa')
 
@@ -854,7 +854,7 @@ class TestLegacyPartialTxFormat(TestCaseForTestnet):
                          raw_tx)
 
     def test_trustedcoin_segwit_2fa_psbt_to_legacy_partial_tx(self):
-        from .test_wallet_vertical import WalletIntegrityHelper
+        from electrum.tests.test_wallet_vertical import WalletIntegrityHelper
         seed_words = 'universe topic remind silver february ranch shine worth innocent cattle enhance wise'
         self.assertEqual(seed_type(seed_words), '2fa_segwit')
 

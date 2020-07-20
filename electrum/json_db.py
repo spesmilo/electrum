@@ -695,16 +695,17 @@ class JsonDB(Logger):
     def get_verified_tx(self, txid):
         if txid not in self.verified_tx:
             return None
-        height, timestamp, txpos, header_hash = self.verified_tx[txid]
+        height, timestamp, txpos, header_hash, txtype = self.verified_tx[txid]
         return TxMinedInfo(height=height,
                            conf=None,
                            timestamp=timestamp,
                            txpos=txpos,
-                           header_hash=header_hash)
+                           header_hash=header_hash,
+                           txtype=txtype)
 
     @modifier
     def add_verified_tx(self, txid, info):
-        self.verified_tx[txid] = (info.height, info.timestamp, info.txpos, info.header_hash)
+        self.verified_tx[txid] = (info.height, info.timestamp, info.txpos, info.header_hash, info.txtype)
 
     @modifier
     def remove_verified_tx(self, txid):
@@ -851,7 +852,7 @@ class JsonDB(Logger):
         self.transactions = self.get_data_ref('transactions')   # type: Dict[str, Transaction]
         self.spent_outpoints = self.get_data_ref('spent_outpoints')  # txid -> output_index -> next_txid
         self.history = self.get_data_ref('addr_history')  # address -> list of (txid, height)
-        self.verified_tx = self.get_data_ref('verified_tx3')  # txid -> (height, timestamp, txpos, header_hash)
+        self.verified_tx = self.get_data_ref('verified_tx3')  # txid -> (height, timestamp, txpos, header_hash, txtype)
         self.tx_fees = self.get_data_ref('tx_fees')  # type: Dict[str, TxFeesValue]
         # convert raw hex transactions to Transaction objects
         for tx_hash, raw_tx in self.transactions.items():
@@ -878,6 +879,7 @@ class JsonDB(Logger):
             self.tx_fees[tx_hash] = TxFeesValue(*tuple_)
 
         self._upgrade_tx_to_3keys_tx()
+        self._upgrade_verifier_by_tx_type()
 
     def _upgrade_tx_to_3keys_tx(self):
         """ Convert Transaction to ThreeKeysTransaction"""
@@ -894,6 +896,11 @@ class JsonDB(Logger):
                     three_keys_tx = ThreeKeysTransaction.from_tx(tx)
                     three_keys_tx.tx_type = tx_type
                     self.transactions[tx_hash] = three_keys_tx
+
+    def _upgrade_verifier_by_tx_type(self):
+        for key, value in self.verified_tx.items():
+            if len(value) == 4:
+                value.append(TxType.NONVAULT)
 
     @modifier
     def clear_history(self):
