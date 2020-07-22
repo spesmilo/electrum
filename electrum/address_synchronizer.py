@@ -26,6 +26,7 @@ import threading
 import asyncio
 import itertools
 from collections import defaultdict
+from copy import deepcopy
 from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple, NamedTuple, Sequence
 
 from . import bitcoin
@@ -533,7 +534,7 @@ class AddressSynchronizer(Logger):
     def get_unverified_txs(self):
         '''Returns a map from tx hash to transaction height'''
         with self.lock:
-            return dict(self.unverified_tx)  # copy
+            return deepcopy(self.unverified_tx)  # copy
 
     def undo_verifications(self, blockchain, above_height):
         '''Used by the verifier when a reorg has happened'''
