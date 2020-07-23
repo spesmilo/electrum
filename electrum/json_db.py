@@ -883,6 +883,7 @@ class JsonDB(Logger):
 
     def _upgrade_tx_to_3keys_tx(self):
         """ Convert Transaction to ThreeKeysTransaction"""
+        updated_transactions = []
         for tx_history in self.history.values():
             for item in tx_history:
                 tx_hash = item[0]
@@ -893,9 +894,22 @@ class JsonDB(Logger):
 
                 tx = self.transactions.get(tx_hash, None)
                 if tx:
-                    three_keys_tx = ThreeKeysTransaction.from_tx(tx)
-                    three_keys_tx.tx_type = tx_type
-                    self.transactions[tx_hash] = three_keys_tx
+                    self._update_single_tx(tx, tx_type, tx_hash)
+                    updated_transactions.append(tx_hash)
+
+        non_updated_txs = set(self.transactions.keys()) - set(updated_transactions)
+        for tx_hash in non_updated_txs:
+            tx = self.transactions.get(tx_hash, None)
+            self._update_single_tx(tx, TxType.NONVAULT, tx_hash)
+            updated_transactions.append(tx_hash)
+
+        non_updated_txs = set(self.transactions.keys()) - set(updated_transactions)
+        assert len(non_updated_txs) == 0, f'Transactions {non_updated_txs} not updated to ThreeKeys'
+
+    def _update_single_tx(self, tx, tx_type, tx_hash):
+        three_keys_tx = ThreeKeysTransaction.from_tx(tx)
+        three_keys_tx.tx_type = tx_type
+        self.transactions[tx_hash] = three_keys_tx
 
     def _upgrade_verifier_by_tx_type(self):
         for key, value in self.verified_tx.items():
