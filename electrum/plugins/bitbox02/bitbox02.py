@@ -85,7 +85,16 @@ class BitBox02Client(HardwareClientBase):
             return False
         return True
 
-    def pairing_dialog(self, wizard: bool = True):
+    def get_soft_device_id(self) -> Optional[str]:
+        if self.handler is None:
+            # Can't do the pairing without the handler. This happens at wallet creation time, when
+            # listing the devices.
+            return None
+        if self.bitbox02_device is None:
+            self.pairing_dialog()
+        return self.bitbox02_device.root_fingerprint().hex()
+
+    def pairing_dialog(self):
         def pairing_step(code: str, device_response: Callable[[], bool]) -> bool:
             msg = "Please compare and confirm the pairing code on your BitBox02:\n" + code
             self.handler.show_message(msg)
@@ -197,7 +206,7 @@ class BitBox02Client(HardwareClientBase):
 
     def get_xpub(self, bip32_path: str, xtype: str, *, display: bool = False) -> str:
         if self.bitbox02_device is None:
-            self.pairing_dialog(wizard=False)
+            self.pairing_dialog()
 
         if self.bitbox02_device is None:
             raise Exception(
@@ -233,6 +242,20 @@ class BitBox02Client(HardwareClientBase):
             xpub_type=out_type,
             coin=coin_network,
             display=display,
+        )
+
+    def label(self) -> str:
+        if self.handler is None:
+            # Can't do the pairing without the handler. This happens at wallet creation time, when
+            # listing the devices.
+            return super().label()
+        if self.bitbox02_device is None:
+            self.pairing_dialog()
+        # We add the fingerprint to the label, as if there are two devices with the same label, the
+        # device manager can mistake one for another and fail.
+        return "%s (%s)" % (
+            self.bitbox02_device.device_info()["name"],
+            self.bitbox02_device.root_fingerprint().hex(),
         )
 
     def request_root_fingerprint_from_device(self) -> str:
