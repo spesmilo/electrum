@@ -705,7 +705,7 @@ class NavCoinListWidget(QWidget):
             removeBtn.setVisible(item != None)
 
         def onRemove(item):
-            listWidget.takeItem(self.listWidget.row(self.listWidget.currentItem()))
+            self.listWidget.takeItem(self.listWidget.row(self.listWidget.currentItem()))
             self.onchange.emit()
             self.adjustSize()
 
