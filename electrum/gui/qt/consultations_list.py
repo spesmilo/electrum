@@ -502,7 +502,7 @@ class ConsultationsList(QTableWidget):
                 current_votes = []
                 for a in consultation["answers"]:
                     vote = self.parent.find_vote(a["hash"])
-                    if vote >= -1:
+                    if vote != None and vote >= -1:
                         current_votes.append(a["answer"] if not fConsensus else self.format_value(consultation["min"], a["answer"]))
                 if len(current_votes) > 0:
                     current_vote = ', '.join(current_votes)
