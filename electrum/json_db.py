@@ -797,7 +797,7 @@ class JsonDB(Logger):
     def add_receiving_address(self, addr):
         if addr in self._addr_to_addr_index:
             return
-        type = 0 if self.get('wallet_type') == 'standard' else 2
+        type = 2 if self.get('wallet_type') == 'voting' else 0
         self._addr_to_addr_index[addr] = (type, len(self.receiving_addresses))
         self.receiving_addresses.append(addr)
 
@@ -838,7 +838,7 @@ class JsonDB(Logger):
             self.receiving_addresses = self.data['addresses']['receiving']
             self._addr_to_addr_index = {}  # type: Dict[str, Sequence[int]]  # key: address, value: (is_change, index)
             for i, addr in enumerate(self.receiving_addresses):
-                type = 0 if self.get('wallet_type') == 'standard' else 2
+                type = 2 if self.get('wallet_type') == 'voting' else 0
                 self._addr_to_addr_index[addr] = (type, i)
             for i, addr in enumerate(self.change_addresses):
                 self._addr_to_addr_index[addr] = (1, i)
