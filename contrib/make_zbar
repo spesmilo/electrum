@@ -9,6 +9,10 @@ pkgname="zbar"
 info "Building $pkgname..."
 
 pushd "$here"/$pkgname || fail "Could not chdir to $here/$pkgname"
+if [ "$BUILD_TYPE" = "wine" ] ; then
+    echo "libzbar_la_LDFLAGS += -Wc,-static" >> zbar/Makefile.am
+    echo "LDFLAGS += -Wc,-static" >> Makefile.am
+fi
 if ! [ -x configure ] ; then
     autoreconf -vfi || fail "Could not run autoreconf for $pkgname. Please make sure you have automake and libtool installed, and try again."
 fi
