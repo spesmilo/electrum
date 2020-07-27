@@ -10,4 +10,4 @@ aiohttp_socks>=0.3
 certifi
 bitstring
 attrs>=19.2.0
-groestlcoin_hash
+groestlcoin_hash==1.0.1
