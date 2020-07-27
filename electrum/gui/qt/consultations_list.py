@@ -217,7 +217,7 @@ class ConsultationsList(QTableWidget):
                 cb = QCheckBox(a["answer"] if not fConsensus else self.format_value(a["answer"], consultation["min"]))
                 cb.setProperty("id", a["hash"]);
                 vote = self.parent.find_vote(a["hash"])
-                cb.setChecked(vote >= -1)
+                cb.setChecked(vote != None and vote >= -1)
                 if vote == 1:
                     count = count + 1
                 def on_cb(x):
@@ -400,7 +400,7 @@ class ConsultationsList(QTableWidget):
                 cb = QCheckBox(a["answer"] if not fConsensus else self.format_value(a["answer"], consultation["min"]))
                 cb.setProperty("id", a["hash"]);
                 vote = self.parent.find_vote(a["hash"])
-                cb.setChecked(vote == -3)
+                cb.setChecked(vote != None and vote == -3)
                 def on_cb(x):
                     nonlocal supported
                     nonlocal unsupported
