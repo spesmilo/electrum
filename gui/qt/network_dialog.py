@@ -33,7 +33,7 @@ import PyQt5.QtCore as QtCore
 
 from electroncash.i18n import _, pgettext
 from electroncash import networks
-from electroncash.util import print_error, Weak, PrintError
+from electroncash.util import print_error, Weak, PrintError, in_main_thread
 from electroncash.network import serialize_server, deserialize_server, get_eligible_servers
 from electroncash.plugins import run_hook
 from electroncash.tor import TorController
@@ -571,6 +571,7 @@ class NetworkChoiceLayout(QObject, PrintError):
         elif not run_hook('on_network_dialog_jumpto', self, location):
             self.print_error(f"jumpto: unknown location '{location}'")
 
+    @in_main_thread
     def on_tor_port_changed(self, controller: TorController):
         if not controller.active_socks_port or not controller.is_enabled() or not self.tor_use:
             return
@@ -816,6 +817,7 @@ class NetworkChoiceLayout(QObject, PrintError):
     def set_tor_enabled(self, enabled: bool):
         self.network.tor_controller.set_enabled(enabled)
 
+    @in_main_thread
     def on_tor_status_changed(self, controller):
         if controller.status in (TorController.Status.STARTED, TorController.Status.READY):
             self.tor_enabled.setChecked(True)

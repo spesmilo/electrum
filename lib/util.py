@@ -878,6 +878,13 @@ def do_in_main_thread(func, *args, **kwargs):
     else:
         Handlers.do_in_main_thread(func, *args, **kwargs)
 
+def in_main_thread(func):
+    """
+    Function decorator that runs the decorated function in the main thread.
+    """
+    def wrapper(*args, **kwargs):
+        do_in_main_thread(func, *args, **kwargs)
+    return wrapper
 
 class Weak:
     '''

@@ -1,7 +1,5 @@
 import weakref
 
-from electroncash.util import do_in_main_thread
-
 # Based on: https://stackoverflow.com/a/2022629
 # By Longpoke (https://stackoverflow.com/users/80243)
 class Event(list):
@@ -9,10 +7,6 @@ class Event(list):
 
     A list of callable objects. Calling an instance of this will cause a
     call to each item in the list in ascending order by index.
-
-    Note that in Electron Cash, calling this list (if using the Qt GUI) will
-    guarantee the calls are sent to the main thread's event loop. Thus it's safe
-    to use this as an improvised signal/slot mechanism with GUI code.
 
     The list can also contain WeakMethods using the append_weak and
     insert_weak methods. When a weak method is dead, it will be removed
@@ -51,9 +45,7 @@ class Event(list):
                 else:
                     # it's good, proceed with dereferenced strong_method
                     method = strong_method
-            # contract is callbacks always are in the main thread to make GUI
-            # code's life easier.
-            do_in_main_thread(method, *args, **kwargs)
+            method(*args, **kwargs)
 
     def __repr__(self):
         return "Event(%s)" % list.__repr__(self)
