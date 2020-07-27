@@ -50,7 +50,7 @@ requirements =
     cryptography,
     # setuptools recipe is needed for groestlcoin_hash
     setuptools,
-    groestlcoin_hash
+    groestlcoin_hash==1.0.1
 
 # (str) Presplash of the application
 #presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png
