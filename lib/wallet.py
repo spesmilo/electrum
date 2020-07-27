@@ -1861,18 +1861,20 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                         # ok, none of the inputs are "mine" (why?!) -- fall back
                         # to picking first max_change change_addresses that have
                         # no history
-                        change_addrs = [addr for addr in self.get_change_addresses()
-                                        if self.get_num_tx(addr) == 0][:max_change]
+                        change_addrs = []
+                        for addr in self.get_change_addresses()[-self.gap_limit_for_change:]:
+                            if self.get_num_tx(addr) == 0:
+                                change_addrs.append(addr)
+                                if len(change_addrs) >= max_change:
+                                    break
                         if not change_addrs:
                             # No unused wallet addresses or no change addresses.
                             # Fall back to picking ANY wallet address
                             try:
-                                # Pick a random non-frozen address
-                                change_addrs = [random.choice([a for a in self.get_addresses() if not self.is_frozen(a)])]
+                                # Pick a random address
+                                change_addrs = [random.choice(self.get_addresses())]
                             except IndexError:
-                                # all addresses are frozen, pick a random one
-                                try: change_addrs = random.choice(self.get_addresses())
-                                except IndexError: change_addrs = []  # Address-free wallet?!
+                                change_addrs = []  # Address-free wallet?!
                         # This should never happen
                         if not change_addrs:
                             raise RuntimeError("Can't find a change address!")
