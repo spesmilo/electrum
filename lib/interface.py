@@ -24,6 +24,7 @@
 # SOFTWARE.
 import os
 import re
+import requests
 import socket
 import ssl
 import sys
@@ -31,7 +32,7 @@ import threading
 import time
 import traceback
 
-import requests
+from typing import Optional, Tuple
 
 from .util import print_error
 
@@ -74,28 +75,19 @@ class TcpConnection(threading.Thread, util.PrintError):
     def diagnostic_name(self):
         return self.host
 
-    def check_host_name(self, peercert, name):
-        """Simple certificate/host name checker.  Returns True if the
-        certificate matches, False otherwise.  Does not support
-        wildcards."""
+    def check_host_name(self, peercert, name) -> bool:
+        """Wrapper for ssl.match_hostname that never throws. Returns True if the
+        certificate matches, False otherwise. Supports whatever wildcard certs
+        and other bells and whistles supported by ssl.match_hostname."""
         # Check that the peer has supplied a certificate.
         # None/{} is not acceptable.
         if not peercert:
             return False
-        if 'subjectAltName' in peercert:
-            for typ, val in peercert["subjectAltName"]:
-                if typ == "DNS" and val == name:
-                    return True
-        else:
-            # Only check the subject DN if there is no subject alternative
-            # name.
-            cn = None
-            for attr, val in peercert["subject"]:
-                # Use most-specific (last) commonName attribute.
-                if attr == "commonName":
-                    cn = val
-            if cn is not None:
-                return cn == name
+        try:
+            ssl.match_hostname(peercert, name)
+            return True
+        except ssl.CertificateError as e:
+            self.print_error("SSL certificate hostname mismatch:", str(e))
         return False
 
     def get_simple_socket(self):
@@ -138,29 +130,60 @@ class TcpConnection(threading.Thread, util.PrintError):
 
         return context
 
-    def get_socket(self):
-        if self.use_ssl:
-            cert_path = os.path.join(self.config_path, 'certs', self.host)
-            if not os.path.exists(cert_path):
-                is_new = True
-                s = self.get_simple_socket()
-                if s is None:
-                    return
-                # try with CA first
-                try:
-                    context = self.get_ssl_context(cert_reqs=ssl.CERT_REQUIRED, ca_certs=ca_path)
-                    s = context.wrap_socket(s, do_handshake_on_connect=True)
-                except ssl.SSLError as e:
-                    self.print_error(e)
-                    s = None
-                except:
-                    return
-
+    def _get_socket_and_verify_ca_cert(self) -> Tuple[Optional[ssl.SSLSocket], bool]:
+        ''' Attempts to connect to the remote host, assuming it is using a CA
+        signed certificate. If the cert is valid then a tuple of: (wrapped
+        SSLSocket, True) is returned. Otherwise (None, bool) is returned on
+        error. If the second item in the tuple is True, then the entire
+        operation should be aborted due to low-level error. '''
+        s = self.get_simple_socket()
+        if s is not None:
+            try:
+                context = self.get_ssl_context(cert_reqs=ssl.CERT_REQUIRED, ca_certs=ca_path)
+                s = context.wrap_socket(s, do_handshake_on_connect=True)
+                # validate cert
                 if s and self.check_host_name(s.getpeercert(), self.host):
                     self.print_error("SSL certificate signed by CA")
-                    return s
-                # get server certificate.
-                # Do not use ssl.get_server_certificate because it does not work with proxy
+                    # it's good, return the wrapped socket
+                    return s, False
+                # bad cert or other shenanigans, return None but inform caller
+                # to try alternate "pinned self-signed cert" code path
+                return None, False
+            except ssl.SSLError as e:
+                self.print_error("SSL error:", e)
+                return None, False  # inform caller to continue trying alternate
+            except Exception as e:
+                self.print_error("Unexpected exception in _get_socket_and_verify_ca_cert:", repr(e))
+        return None, True  # inform caller to abort the operation
+
+    def get_socket(self):
+        if self.use_ssl:
+            # Try with CA first, since they are preferred over self-signed certs
+            # and are always accepted (even if a previous pinned self-signed
+            # cert exists).
+            cert_path = os.path.join(self.config_path, 'certs', self.host)
+            s, give_up = self._get_socket_and_verify_ca_cert()
+            if s:
+                if os.path.exists(cert_path):
+                    # Delete pinned cert. They now have a valid CA-signed cert.
+                    # This hopefully undoes the bug in previous EC versions that
+                    # refused to consider CA-signed certs at all if the server
+                    # ever had a self-signed cert in the past.
+                    try:
+                        os.remove(cert_path)
+                        self.print_error("Server is now using a CA-signed certificate, deleted previous self-signed certificate:", cert_path)
+                    except OSError:
+                        pass
+                return s
+            elif give_up:
+                # low-level error in _get_socket_and_verify_ca_cert, give up
+                return
+            # if we get here, certificate is not CA signed, so try the alternate
+            # "pinned self-signed" method.
+            if not os.path.exists(cert_path):
+                is_new = True
+                # get server certificate. Do not use ssl.get_server_certificate
+                # because it does not work with proxy
                 s = self.get_simple_socket()
                 if s is None:
                     return
@@ -186,6 +209,7 @@ class TcpConnection(threading.Thread, util.PrintError):
                     os.fsync(f.fileno())
             else:
                 is_new = False
+                temporary_path = None
 
         s = self.get_simple_socket()
         if s is None:
