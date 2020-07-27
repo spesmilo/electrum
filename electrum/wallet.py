@@ -1315,6 +1315,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 pass
         self._add_input_sig_info(txin, address, only_der_suffix=only_der_suffix)
 
+
     def can_sign(self, tx: Transaction) -> bool:
         if not isinstance(tx, PartialTransaction):
             return False
@@ -2238,11 +2239,11 @@ class Cold_Staking_Wallet(Simple_Deterministic_Wallet):
             fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix,
                                                                                    only_der_suffix=only_der_suffix)
             txin.bip32_paths[bfh(pubkey_hex)] = (fp_bytes, der_full)
-        if txin.script_type in ('p2cs'):
-            txin.pubkeys.insert(0, self.staking_pkh)
-        if txin.script_type in ('p2cs2'):
-            txin.pubkeys.insert(0, self.voting_pkh)
-            txin.pubkeys.insert(0, self.staking_pkh)
+        if txin.script_type in ['p2cs']:
+            txin.pubkeys.insert(0,self.staking_pkh)
+        if txin.script_type in ['p2cs2']:
+            txin.pubkeys.insert(0,self.staking_pkh)
+            txin.pubkeys.insert(0,self.voting_pkh)
 
 
 class Standard_Wallet(Simple_Deterministic_Wallet):
