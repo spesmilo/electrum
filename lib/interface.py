@@ -130,7 +130,7 @@ class TcpConnection(threading.Thread, util.PrintError):
 
         return context
 
-    def _get_socket_and_verify_ca_cert(self) -> Tuple[Optional[ssl.SSLSocket], bool]:
+    def _get_socket_and_verify_ca_cert(self, *, suppress_errors) -> Tuple[Optional[ssl.SSLSocket], bool]:
         ''' Attempts to connect to the remote host, assuming it is using a CA
         signed certificate. If the cert is valid then a tuple of: (wrapped
         SSLSocket, True) is returned. Otherwise (None, bool) is returned on
@@ -150,7 +150,9 @@ class TcpConnection(threading.Thread, util.PrintError):
                 # to try alternate "pinned self-signed cert" code path
                 return None, False
             except ssl.SSLError as e:
-                self.print_error("SSL error:", e)
+                if not suppress_errors:
+                    # Only show error if no pinned self-signed cert exists
+                    self.print_error("SSL error:", e)
                 return None, False  # inform caller to continue trying alternate
             except Exception as e:
                 self.print_error("Unexpected exception in _get_socket_and_verify_ca_cert:", repr(e))
@@ -162,9 +164,10 @@ class TcpConnection(threading.Thread, util.PrintError):
             # and are always accepted (even if a previous pinned self-signed
             # cert exists).
             cert_path = os.path.join(self.config_path, 'certs', self.host)
-            s, give_up = self._get_socket_and_verify_ca_cert()
+            has_pinned_self_signed = os.path.exists(cert_path)
+            s, give_up = self._get_socket_and_verify_ca_cert(suppress_errors=has_pinned_self_signed)
             if s:
-                if os.path.exists(cert_path):
+                if has_pinned_self_signed:
                     # Delete pinned cert. They now have a valid CA-signed cert.
                     # This hopefully undoes the bug in previous EC versions that
                     # refused to consider CA-signed certs at all if the server
@@ -180,7 +183,7 @@ class TcpConnection(threading.Thread, util.PrintError):
                 return
             # if we get here, certificate is not CA signed, so try the alternate
             # "pinned self-signed" method.
-            if not os.path.exists(cert_path):
+            if not has_pinned_self_signed:
                 is_new = True
                 # get server certificate. Do not use ssl.get_server_certificate
                 # because it does not work with proxy
