@@ -35,6 +35,7 @@ import traceback
 from typing import Optional, Tuple
 
 from .util import print_error
+from .utils import Event
 
 ca_path = requests.certs.where()
 
@@ -43,7 +44,7 @@ from . import x509
 from . import pem
 
 
-def Connection(server, queue, config_path):
+def Connection(server, queue, config_path, callback=None):
     """Makes asynchronous connections to a remote electrum server.
     Returns the running thread that is making the connection.
 
@@ -55,11 +56,14 @@ def Connection(server, queue, config_path):
     if not protocol in 'st':
         raise Exception('Unknown protocol: %s' % protocol)
     c = TcpConnection(server, queue, config_path)
+    if callback:
+        callback(c)
     c.start()
     return c
 
 
 class TcpConnection(threading.Thread, util.PrintError):
+    bad_certificate = Event()
 
     def __init__(self, server, queue, config_path):
         threading.Thread.__init__(self)
@@ -232,9 +236,12 @@ class TcpConnection(threading.Thread, util.PrintError):
                     return
                 if is_new:
                     rej = cert_path + '.rej'
-                    if os.path.exists(rej):
-                        os.unlink(rej)
-                    os.rename(temporary_path, rej)
+                    try:
+                        if os.path.exists(rej):
+                            os.unlink(rej)
+                        os.rename(temporary_path, rej)
+                    except OSError as e:
+                        self.print_error("Could not rename rejected certificate:", rej, repr(e))
                 else:
                     util.assert_datadir_available(self.config_path)
                     with open(cert_path, encoding='utf-8') as f:
@@ -247,14 +254,20 @@ class TcpConnection(threading.Thread, util.PrintError):
                             self.print_error("Error checking certificate, traceback follows")
                             traceback.print_exc(file=sys.stderr)
                         self.print_error("wrong certificate")
+                        self.bad_certificate(self.server, cert_path)
                         return
                     try:
                         x.check_date()
                     except:
                         self.print_error("certificate has expired:", cert_path)
-                        os.unlink(cert_path)
+                        try:
+                            os.unlink(cert_path)
+                            self.print_error("Removed expired certificate:", cert_path)
+                        except OSError as e:
+                            self.print_error("Could not remove expired certificate:", cert_path, repr(e))
                         return
                     self.print_error("wrong certificate")
+                    self.bad_certificate(self.server, cert_path)
                 if e.errno == 104:
                     return
                 return
