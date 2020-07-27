@@ -100,7 +100,7 @@ def request(config: SimpleConfig, endpoint, args=(), timeout=60):
         auth = aiohttp.BasicAuth(login=rpc_user, password=rpc_password)
         loop = asyncio.get_event_loop()
         async def request_coroutine():
-            async with aiohttp.ClientSession(auth=auth, loop=loop) as session:
+            async with aiohttp.ClientSession(auth=auth) as session:
                 server = AiohttpClient(session, server_url)
                 f = getattr(server, endpoint)
                 response = await f(*args)

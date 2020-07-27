@@ -2346,13 +2346,14 @@ class TwoKeysWallet(Simple_Deterministic_Wallet):
         return self.TX_STATUS_INDEX_SHIFT + tx.tx_type, status_str
 
     def get_spendable_coins(self, domain, *, nonlocal_only=False) -> Sequence[PartialTxInput]:
+        acceptable_tx_types = self.TX_TYPES_LIKE_STANDARD + (TxType.RECOVERY,)
         utxos = super().get_spendable_coins(domain=domain, nonlocal_only=nonlocal_only)
 
         filtered_utxos = []
         for utxo in utxos:
             tx_hex = utxo.prevout.txid.hex()
             tx = self.db.get_transaction(tx_hex)
-            if tx.tx_type in self.TX_TYPES_LIKE_STANDARD:
+            if tx.tx_type in acceptable_tx_types:
                 filtered_utxos.append(utxo)
         return filtered_utxos
 
@@ -2364,7 +2365,7 @@ class TwoKeysWallet(Simple_Deterministic_Wallet):
             outputs=outputs,
             fee=fee,
             change_addr=change_addr,
-            is_sweep=is_sweep
+            is_sweep=is_sweep,
         )
         self.update_transaction_multisig_generator(tx)
         return tx
@@ -2372,6 +2373,92 @@ class TwoKeysWallet(Simple_Deterministic_Wallet):
     def update_transaction_multisig_generator(self, tx: Transaction):
         tx.multisig_script_generator = self.multisig_script_generator
         tx.update_inputs()
+
+    def get_atxs_to_recovery(self):
+        txi_list = self.db.list_txi()
+        for tx_hash, tx in self.db.transactions.items():
+            mined_info = self.get_tx_height(tx_hash)
+            # skip incoming and mempool alerts
+            if tx.tx_type == TxType.ALERT_PENDING and mined_info.conf > 0 and tx_hash in txi_list:
+                yield tx
+
+    def get_inputs_and_output_for_recovery(self, alert_transactions: ThreeKeysTransaction, destination_address: str):
+        inputs = [PartialTxInput.from_txin(txin) for atx in alert_transactions for txin in atx.inputs()]
+        scriptpubkey = bfh(bitcoin.address_to_script(destination_address))
+        # ! sign sets max value to output
+        output = PartialTxOutput(scriptpubkey=scriptpubkey, value='!')
+        return inputs, output
+
+    def add_recovery_pubkey_to_transaction(self, tx):
+        """Updating transaction inputs pubkeys list by recovery pubkey and adjusting num_sig variable"""
+        for input in tx.inputs():
+            input.pubkeys.append(bytes.fromhex(self.multisig_script_generator.recovery_pubkey))
+            input.num_sig += 1
+            assert len(input.pubkeys) == 2 and input.num_sig == 2, 'Wrong number of pubkeys for performing recovery tx'
+            _logger.info('Updated input by recovery pubkey')
+        return tx
+
+    def prepare_inputs_for_recovery(self, inputs: list):
+        """Methods for modification tx inputs coming from alert transaction to work with recovery tx.
+        Method adds missing address, satoshi and height value from db storage"""
+        updated_inputs = copy.deepcopy(inputs)
+        # cache for not doubling fetching data for repeating address
+        db_address_satoshi_height_cache = {}
+        for input in updated_inputs:
+            tx_hash = input.prevout.txid.hex()
+            prevout_index = input.prevout.out_idx
+            key = (tx_hash, prevout_index)
+            if key not in db_address_satoshi_height_cache:
+                fetched_data = self.db.get_address_satoshi_height_for_tx(tx_hash)
+                db_address_satoshi_height_cache.update(fetched_data)
+                fetched_data = fetched_data[key]
+            else:
+                fetched_data = db_address_satoshi_height_cache[key]
+
+            input._trusted_address = fetched_data['address']
+            input._trusted_value_sats = fetched_data['satoshi']
+            input.block_height = fetched_data['height']
+        return updated_inputs
+
+    def sign_recovery_transaction(self, tx: Transaction, password, recovery_keypairs) -> Optional[PartialTransaction]:
+        if self.is_watching_only():
+            return
+        if not isinstance(tx, PartialTransaction):
+            return
+        # add info to a temporary tx copy; including xpubs
+        # and full derivation paths as hw keystores might want them
+        tmp_tx = copy.deepcopy(tx)
+        # update tmp tx
+        tmp_tx.multisig_script_generator = self.multisig_script_generator
+        tmp_tx.update_inputs()
+
+        # this method modified tx inputs pubkeys and num_sig
+        tmp_tx.add_info_from_wallet(self, include_xpubs_and_full_paths=True)
+        self.add_recovery_pubkey_to_transaction(tmp_tx)
+
+        # sign. start with ready keystores.
+        for k in sorted(self.get_keystores(), key=lambda ks: ks.ready_to_sign(), reverse=True):
+            try:
+                if k.can_sign(tmp_tx):
+                    k.sign_transaction(tmp_tx, password)
+            except UserCancelled:
+                continue
+
+        tmp_tx.sign(recovery_keypairs)
+        if not tmp_tx.is_complete():
+            _logger.error(f'Recovery transaction not completed')
+
+        # remove sensitive info; then copy back details from temporary tx
+        tmp_tx.remove_xpubs_and_bip32_paths()
+        tmp_tx.finalize_psbt()
+        # update tx
+        tx.multisig_script_generator = self.multisig_script_generator
+        tx.update_inputs()
+
+        tx.combine_with_other_psbt(tmp_tx)
+        tx.add_info_from_wallet(self, include_xpubs_and_full_paths=False)
+        tx.finalize_psbt()
+        return tx
 
     def sign_transaction(self, tx: Transaction, password) -> Optional[PartialTransaction]:
         if self.is_watching_only():
@@ -2675,6 +2762,7 @@ class TwoKeysWallet(Simple_Deterministic_Wallet):
             ai += _ai
             ao += _ao
         return cc, uu, xx, ai, ao
+
 
 wallet_types = [
     'AR',

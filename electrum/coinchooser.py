@@ -22,6 +22,7 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+import functools
 from collections import defaultdict
 from math import floor, log10
 from typing import NamedTuple, List, Callable, Sequence, Union, Dict, Tuple
@@ -477,11 +478,13 @@ COIN_CHOOSERS = {
     'Privacy': CoinChooserPrivacy,
 }
 
+
 def get_name(config):
     kind = config.get('coin_chooser')
     if not kind in COIN_CHOOSERS:
         kind = 'Privacy'
     return kind
+
 
 def get_coin_chooser(config):
     klass = COIN_CHOOSERS[get_name(config)]

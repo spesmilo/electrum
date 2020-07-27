@@ -1,4 +1,4 @@
-from unittest import TestCase
+from unittest import TestCase, skip
 
 from electrum.bitcoin import redeem_script_to_address
 from electrum.constants import BitcoinVaultRegtest
@@ -59,17 +59,17 @@ class TestScripts(TestCase):
         pub_key = ['a', 'b', 'c']
         with self.assertRaises(ThreeKeysError) as err:
             generator.get_redeem_script(pub_key)
-        self.assertTrue('Wrong input type! Expected list' in str(err.exception))
+        self.assertTrue('Wrong input type! Expected 1 or 2 elements list' in str(err.exception))
 
         pub_key = []
         with self.assertRaises(ThreeKeysError) as err:
             generator.get_redeem_script(pub_key)
-        self.assertTrue('Wrong input type! Expected list' in str(err.exception))
+        self.assertTrue('Wrong input type! Expected 1 or 2 elements list' in str(err.exception))
 
         pub_key = 'abcdef'
         with self.assertRaises(ThreeKeysError) as err:
             generator.get_redeem_script(pub_key)
-        self.assertTrue('Wrong input type! Expected list' in str(err.exception))
+        self.assertTrue('Wrong input type! Expected 1 or 2 elements list' in str(err.exception))
 
         with self.assertRaises(ThreeKeysError) as err:
             generator.get_script_sig([], [])
@@ -79,6 +79,23 @@ class TestScripts(TestCase):
         generator = TwoKeysScriptGenerator(recovery_pubkey=self.recovery_pub_key)
         self._test_errors(generator)
 
+    def test_2keys_recovery_script(self):
+        generator = TwoKeysScriptGenerator(recovery_pubkey=self.recovery_pub_key)
+
+        pub_keys = ['dummy-key-1', 'dummy-key-2']
+        with self.assertRaises(ThreeKeysError) as error:
+            generator.get_redeem_script(pub_keys)
+        self.assertTrue('Cannot deduce pubkey from' in str(error.exception))
+
+        pub_keys = [self.random_2keys_pub_key, self.recovery_pub_key]
+        generator.get_redeem_script(pub_keys)
+
+        pub_keys = [self.recovery_pub_key, self.recovery_pub_key]
+        with self.assertRaises(ThreeKeysError) as error:
+            generator.get_redeem_script(pub_keys)
+        self.assertTrue('Cannot deduce pubkey from' in str(error.exception))
+
+    @skip('It needs re-implementation in ThreeKeysScriptGenerator class')
     def test_3keys_errors(self):
         generator = ThreeKeysScriptGenerator(recovery_pubkey=self.recovery_pub_key, instant_pubkey=self.instant_pub_key)
         self._test_errors(generator)

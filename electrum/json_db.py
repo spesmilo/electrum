@@ -28,7 +28,7 @@ import json
 import copy
 import threading
 from collections import defaultdict
-from typing import Dict, Optional, List, Tuple, Set, Iterable, NamedTuple, Sequence
+from typing import Dict, Optional, List, Tuple, Set, Iterable, NamedTuple, Sequence, Union
 
 from . import util, bitcoin
 from .three_keys.transaction import TxType, ThreeKeysTransaction
@@ -573,6 +573,28 @@ class JsonDB(Logger):
     def get_txo_addresses(self, tx_hash) -> List[str]:
         """Returns list of is_mine addresses that appear as outputs in tx."""
         return list(self.txo.get(tx_hash, {}).keys())
+
+    @locked
+    def get_address_satoshi_height_for_tx(self, tx_hash) -> Dict[Tuple[str, int], Dict[str, Union[str, int]]]:
+        dict_to_return = {}
+        for address, data in self.txo.get(tx_hash, {}).items():
+            assert len(data) == 1, f'Data from txo is not single element set but set of length {len(data)}'
+            data = tuple(data)[0]  # retrieve tuple element from single set
+            prevout_index = data[0]
+            satoshi = data[1]
+            height = None
+            for item in self.history.get(address, []):
+                # skip pending alerts in history for given utx address
+                if item[0] == tx_hash and item[2] != TxType.ALERT_PENDING.name:
+                    height = item[1]
+                    break
+            assert height is not None, f'Could not find height for {tx_hash}'
+            dict_to_return[(tx_hash, prevout_index)] = {
+                'address': address,
+                'satoshi': satoshi,
+                'height': height
+            }
+        return dict_to_return
 
     @locked
     def get_txi_addr(self, tx_hash, address) -> Iterable[Tuple[str, int]]:

@@ -30,6 +30,7 @@ import traceback
 import threading
 from typing import Optional, TYPE_CHECKING
 
+from .three_keys_windows import ElectrumARWindow
 
 try:
     import PyQt5
@@ -204,7 +205,11 @@ class ElectrumGui(Logger):
         self.network_dialog.show()
 
     def _create_window_for_wallet(self, wallet):
-        w = ElectrumWindow(self, wallet)
+        wallet_type = wallet.wallet_type
+        if wallet_type == 'AR':
+            w = ElectrumARWindow(self, wallet)
+        else:
+            w = ElectrumWindow(self, wallet)
         self.windows.append(w)
         self.build_tray_menu()
         # FIXME: Remove in favour of the load_wallet hook
