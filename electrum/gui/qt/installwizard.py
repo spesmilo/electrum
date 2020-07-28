@@ -1,32 +1,27 @@
 # Copyright (C) 2018 The Electrum developers
 # Distributed under the MIT software license, see the accompanying
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
-import json
 import os
-import sys
 import threading
-import traceback
-from typing import Tuple, List, Callable, NamedTuple, Optional, TYPE_CHECKING
+from typing import Tuple, List, Callable, Optional, TYPE_CHECKING
 
 from PyQt5.QtCore import QRect, QEventLoop, Qt, pyqtSignal
 from PyQt5.QtGui import QPalette, QPen, QPainter, QPixmap
-from PyQt5.QtWidgets import (QWidget, QDialog, QLabel, QHBoxLayout, QMessageBox,
-                             QVBoxLayout, QLineEdit, QFileDialog, QPushButton,
+from PyQt5.QtWidgets import (QWidget, QDialog, QLabel, QHBoxLayout, QVBoxLayout, QLineEdit, QFileDialog, QPushButton,
                              QGridLayout, QSlider, QScrollArea, QApplication)
 
-from electrum.wallet import Wallet, Abstract_Wallet
-from electrum.storage import WalletStorage, StorageReadWriteError
-from electrum.util import UserCancelled, InvalidPassword, WalletFileException
 from electrum.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET, GoBack
 from electrum.i18n import _
-from .three_keys_dialogs import InsertPubKeyDialog, Qr2FaDialog
-
-from .seed_dialog import SeedLayout, KeysLayout
+from electrum.plugin import Plugins
+from electrum.storage import WalletStorage, StorageReadWriteError
+from electrum.util import UserCancelled, InvalidPassword, WalletFileException
+from electrum.wallet import Abstract_Wallet
 from .network_dialog import NetworkChoiceLayout
+from .password_dialog import PasswordLayout, PasswordLayoutForHW, PW_NEW
+from .seed_dialog import SeedLayout, KeysLayout
+from .three_keys_dialogs import InsertPubKeyDialog, Qr2FaDialog
 from .util import (MessageBoxMixin, Buttons, icon_path, ChoicesLayout, WWLabel,
                    InfoButton, char_width_in_lineedit)
-from .password_dialog import PasswordLayout, PasswordLayoutForHW, PW_NEW
-from electrum.plugin import run_hook, Plugins
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -538,7 +533,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return layout.get_compressed_pubkey()
 
     @wizard_dialog
-    def get_instant_pubkey(self, run_next):
+    def get_instant_pubkey(self, run_next, recovery_key):
         # todo move it to some global settings ?
         web_generator_url = 'https://keygenerator.cloudbestenv.com/'
         label = QLabel()
@@ -549,7 +544,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         label.setTextInteractionFlags(Qt.TextBrowserInteraction)
         label.setWordWrap(True)
 
-        layout = InsertPubKeyDialog(self, message_label=label)
+        layout = InsertPubKeyDialog(self, message_label=label, disallowed_keys=[recovery_key])
         self.exec_layout(layout, _('Instant public key'), next_enabled=False)
         return layout.get_compressed_pubkey()
 

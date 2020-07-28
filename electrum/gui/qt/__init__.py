@@ -29,8 +29,7 @@ import sys
 import traceback
 import threading
 from typing import Optional, TYPE_CHECKING
-
-from .three_keys_windows import ElectrumARWindow
+from .three_keys_windows import ElectrumARWindow, ElectrumAIRWindow
 
 try:
     import PyQt5
@@ -208,6 +207,8 @@ class ElectrumGui(Logger):
         wallet_type = wallet.wallet_type
         if wallet_type == 'AR':
             w = ElectrumARWindow(self, wallet)
+        elif wallet_type == 'AIR':
+            w = ElectrumAIRWindow(self, wallet)
         else:
             w = ElectrumWindow(self, wallet)
         self.windows.append(w)

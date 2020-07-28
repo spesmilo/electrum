@@ -1,30 +1,26 @@
-from enum import IntEnum
 from datetime import datetime, timedelta
+from enum import IntEnum
 from functools import partial
-from hashlib import sha256
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import hashes
-
 
 from PyQt5.QtCore import Qt, QItemSelectionModel
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QMouseEvent, QFocusEvent
-from PyQt5.QtWidgets import QPushButton, QLabel, QLineEdit, QWidget,\
-    QCompleter, QAbstractItemView, QStyledItemDelegate,\
+from PyQt5.QtWidgets import QPushButton, QLabel, QLineEdit, QWidget, \
+    QCompleter, QAbstractItemView, QStyledItemDelegate, \
     QVBoxLayout, QGridLayout
 
 from electrum.i18n import _
 from electrum.logging import get_logger
-from electrum.wallet import Abstract_Wallet
 from electrum.util import get_request_status, PR_TYPE_ONCHAIN, PR_TYPE_LN
-
-from .util import MyTreeView, read_QIcon, pr_icons, WaitingDialog
-from .confirm_tx_dialog import ConfirmTxDialog
+from electrum.wallet import Abstract_Wallet
 from .completion_text_edit import CompletionTextEdit
+from .confirm_tx_dialog import ConfirmTxDialog
+from .util import MyTreeView, read_QIcon, pr_icons, WaitingDialog
+from ... import bitcoin
 from ...mnemonic import load_wordlist
 from ...plugin import run_hook
-from ...transaction import PartialTransaction
-from ...util import PR_UNPAID, PR_UNKNOWN
+from ...three_keys import short_mnemonic
+from ...transaction import PartialTxOutput, PartialTxInput, PartialTransaction
+from ...util import bfh, PR_UNPAID, PR_UNKNOWN
 
 _logger = get_logger(__name__)
 
@@ -39,7 +35,6 @@ class RecoveryColumns(IntEnum):
 
 
 class RecoveryView(MyTreeView):
-
     class Columns(IntEnum):
         DATE = 0
         DESCRIPTION = 1
@@ -131,103 +126,30 @@ class RecoveryTab(QWidget):
         self.config = config
         self.wallet = wallet
         QWidget.__init__(self)
-
         self.invoice_list = RecoveryView(self.electrum_main_window)
-
-        self.main_layout = QVBoxLayout()
-
-        label = QLabel(_('Alert transaction to recovery'))
-        self.main_layout.addWidget(label)
-
-        self.main_layout.addWidget(self.invoice_list)
-
-        grid_layout = QGridLayout()
-        # Row 1
-        grid_layout.addWidget(QLabel(_('Recovery address')), 0, 0)
-        self.recovery_address_line = QLineEdit()
-        addr_list = self.wallet.get_receiving_addresses()
-        self.recovery_address_line.setText(addr_list[0])
-        grid_layout.addWidget(self.recovery_address_line, 0, 1)
-        # Row 2
-        grid_layout.addWidget(QLabel(_('Private key Phrase')), 1, 0)
-
-        # wordlist
         self.wordlist = load_wordlist("english.txt")
-        ###
-
-        # complete line edit with suggestions
-        class CompleterDelegate(QStyledItemDelegate):
-            def initStyleOption(self, option, index):
-                super().initStyleOption(option, index)
-
-        self.recovery_privkey_line = CompletionTextEdit()
-        self.recovery_privkey_line.setTabChangesFocus(False)
-        self.recovery_privkey_line.textChanged.connect(self.on_priv_key_line_edit)
-
-        delegate = CompleterDelegate(self.recovery_privkey_line)
-        self.completer = QCompleter(self.wordlist)
-        self.completer.popup().setItemDelegate(delegate)
-        self.recovery_privkey_line.set_completer(self.completer)
-        # size hint other
-        height = self.recovery_address_line.sizeHint().height()
-        self.recovery_privkey_line.setMaximumHeight(height)
-        ###
-
-        grid_layout.addWidget(self.recovery_privkey_line, 1, 1)
-        # Row 3
-        button = QPushButton(_('Recover'))
-        button.clicked.connect(self.recover_action)
-        # if line edit with suggestions size change 3rd argument needs to be adjusted
-        grid_layout.addWidget(button, 2, 0, 1, 3)
-        ###
-
-        self.main_layout.addLayout(grid_layout)
-        self.setLayout(self.main_layout)
 
     def on_priv_key_line_edit(self):
-        for word in self.get_seed()[:-1]:
+        line = self.sender()
+        for word in line.text().split()[:-1]:
             if word not in self.wordlist:
-                self.recovery_privkey_line.disable_suggestions()
+                line.disable_suggestions()
                 return
-        self.recovery_privkey_line.enable_suggestions()
+        line.enable_suggestions()
 
-    def get_seed(self):
+    def get_recovery_seed(self):
         text = self.recovery_privkey_line.text()
         return text.split()
 
-    @staticmethod
-    def generate_encryption_key(salt: bytes, password: bytes) -> [bytes, int]:
-        kdf = PBKDF2HMAC(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=salt,
-            iterations=100000,
-            backend=default_backend()
-        )
-        key = kdf.derive(password)
-        return key
-
     def _get_recovery_keypair(self):
-        recovery_pubkey = self.wallet.storage.get('recovery_pubkey')
-
-        seed = self.get_seed()
-        index_cache = [self.wordlist.index(word) for word in seed]
-
-        payload = 0
-        for i, b in enumerate(reversed(index_cache)):
-            payload = payload | (b << (i * 11))
-
-        payload = payload.to_bytes(17, 'big')
-        checksum = payload[:1]
-        entropy = payload[1:]
-
-        sha256sum = sha256(entropy).digest()
-        if sha256sum.hex()[0] != checksum.hex()[1]:
-            raise ValueError(_('Checksum miss matched'))
-
-        private_key = self.generate_encryption_key(entropy, entropy)
-
-        return {recovery_pubkey: (private_key, True)}
+        stored_recovery_pubkey = self.wallet.storage.get('recovery_pubkey')
+        seed = self.get_recovery_seed()
+        if not short_mnemonic.is_valid(seed):
+            raise ValueError(_("Invalid recovery TX seed"))
+        privkey, pubkey = short_mnemonic.seed_to_keypair(seed)
+        if pubkey != stored_recovery_pubkey:
+            raise Exception(_("Recovery TX seed not matching any key in this wallet"))
+        return {pubkey: (privkey, True)}
 
     def _get_checked_atxs(self):
         return [row.data(ROLE_REQUEST_ID) for row in self.invoice_list.selectedIndexes() if row.data(ROLE_REQUEST_ID)]
@@ -263,6 +185,7 @@ class RecoveryTab(QWidget):
             def sign_done(success):
                 if success:
                     self.electrum_main_window.broadcast_or_show(tx, invoice=invoice)
+
             self.sign_tx_with_password(tx, sign_done, password, recovery_keypairs)
         else:
             self.preview_tx_dialog(make_tx, outputs, external_keypairs=external_keypairs, invoice=invoice)
@@ -276,11 +199,10 @@ class RecoveryTab(QWidget):
             callback(False)
 
         on_success = run_hook('tc_sign_wrapper', self.wallet, tx, on_success, on_failure) or on_success
-
-        if external_keypairs and self.wallet.multisig_script_generator.is_recovery_mode():
+        if external_keypairs and self.wallet.is_recovery_mode():
             task = partial(self.wallet.sign_recovery_transaction, tx, password, external_keypairs)
         else:
-            task = partial(self.wallet.sign_transaction, tx, password)
+            task = partial(self.wallet.sign_transaction, tx, password, external_keypairs)
         msg = _('Signing transaction...')
         WaitingDialog(self, msg, task, on_success, on_failure)
 
@@ -289,7 +211,6 @@ class RecoveryTab(QWidget):
             address = self.recovery_address_line.text()
             recovery_keypair = self._get_recovery_keypair()
             atxs = self._get_checked_atxs()
-
             inputs, output = self.wallet.get_inputs_and_output_for_recovery(atxs, address)
             inputs = self.wallet.prepare_inputs_for_recovery(inputs)
         except Exception as e:
@@ -303,4 +224,135 @@ class RecoveryTab(QWidget):
             recovery_keypairs=recovery_keypair,
         )
 
+        self.recovery_privkey_line.setText('')
+
+    def create_privkey_line(self):
+        class CompleterDelegate(QStyledItemDelegate):
+            def initStyleOption(self, option, index):
+                super().initStyleOption(option, index)
+
+        recovery_privkey_line = CompletionTextEdit()
+        recovery_privkey_line.setTabChangesFocus(False)
+        recovery_privkey_line.textChanged.connect(self.on_priv_key_line_edit)
+
+        delegate = CompleterDelegate(recovery_privkey_line)
+        completer = QCompleter(self.wordlist)
+        completer.popup().setItemDelegate(delegate)
+        recovery_privkey_line.set_completer(completer)
+        # size hint other
+        height = self.recovery_address_line.sizeHint().height()
+        recovery_privkey_line.setMaximumHeight(height)
+        return recovery_privkey_line
+
+
+class RecoveryTabARStandalone(RecoveryTab):
+
+    def __init__(self, parent, wallet: Abstract_Wallet, config):
+        super().__init__(parent, wallet, config)
+        self.main_layout = QVBoxLayout()
+        label = QLabel(_('Alert transaction to recover'))
+        self.main_layout.addWidget(label)
+        self.main_layout.addWidget(self.invoice_list)
+
+        grid_layout = QGridLayout()
+        # Row 1
+        grid_layout.addWidget(QLabel(_('Recovery address')), 0, 0)
+        self.recovery_address_line = QLineEdit()
+        addr_list = self.wallet.get_receiving_addresses()
+        self.recovery_address_line.setText(addr_list[0])
+        grid_layout.addWidget(self.recovery_address_line, 0, 1)
+        # Row 2
+        grid_layout.addWidget(QLabel(_('Recovery tx seed')), 1, 0)
+
+        # wordlist
+        self.wordlist = load_wordlist("english.txt")
+        ###
+        # complete line edit with suggestions
+        self.recovery_privkey_line = self.create_privkey_line()
+        grid_layout.addWidget(self.recovery_privkey_line, 1, 1)
+        # Row 3
+        button = QPushButton(_('Recover'))
+        button.clicked.connect(self.recover_action)
+        # if line edit with suggestions size change 3rd argument needs to be adjusted
+        grid_layout.addWidget(button, 2, 0, 1, 3)
+        ###
+
+        self.main_layout.addLayout(grid_layout)
+        self.setLayout(self.main_layout)
+
+
+class RecoveryTabAIRStandalone(RecoveryTab):
+
+    def __init__(self, parent, wallet: Abstract_Wallet, config):
+        super().__init__(parent, wallet, config)
+        self.main_layout = QVBoxLayout()
+        label = QLabel(_('Alert transaction to recover'))
+        self.main_layout.addWidget(label)
+        self.main_layout.addWidget(self.invoice_list)
+
+        grid_layout = QGridLayout()
+        # Row 1
+        grid_layout.addWidget(QLabel(_('Recovery address')), 0, 0)
+        self.recovery_address_line = QLineEdit()
+        addr_list = self.wallet.get_receiving_addresses()
+        self.recovery_address_line.setText(addr_list[0])
+        grid_layout.addWidget(self.recovery_address_line, 0, 1)
+
+        # Row 2
+        grid_layout.addWidget(QLabel(_('Instant tx seed')), 1, 0)
+        # complete line edit with suggestions
+        self.instant_privkey_line = self.create_privkey_line()
+        grid_layout.addWidget(self.instant_privkey_line, 1, 1)
+
+        # Row 3
+        grid_layout.addWidget(QLabel(_('Recovery tx seed')), 2, 0)
+        # complete line edit with suggestions
+        self.recovery_privkey_line = self.create_privkey_line()
+        grid_layout.addWidget(self.recovery_privkey_line, 2, 1)
+
+        # Row 4
+        button = QPushButton(_('Recover'))
+        button.clicked.connect(self.recover_action)
+        # if line edit with suggestions size change 3rd argument needs to be adjusted
+        grid_layout.addWidget(button, 3, 0, 1, 3)
+        ###
+
+        self.main_layout.addLayout(grid_layout)
+        self.setLayout(self.main_layout)
+
+    def get_instant_seed(self):
+        text = self.instant_privkey_line.text()
+        return text.split()
+
+    def _get_instant_keypair(self):
+        stored_instant_pubkey = self.wallet.storage.get('instant_pubkey')
+        seed = self.get_instant_seed()
+        if not short_mnemonic.is_valid(seed):
+            raise ValueError(_("Invalid instant TX seed"))
+        privkey, pubkey = short_mnemonic.seed_to_keypair(seed)
+        if pubkey != stored_instant_pubkey:
+            raise Exception(_("Instant TX seed not matching any key in this wallet"))
+        return {pubkey: (privkey, True)}
+
+    def recover_action(self):
+        try:
+            address = self.recovery_address_line.text()
+            instant_keypair = self._get_instant_keypair()
+            recovery_keypair = self._get_recovery_keypair()
+            atxs = self._get_checked_atxs()
+
+            inputs, output = self.wallet.get_inputs_and_output_for_recovery(atxs, address)
+            inputs = self.wallet.prepare_inputs_for_recovery(inputs)
+        except Exception as e:
+            self.electrum_main_window.on_error([0, e])
+            return
+
+        self.wallet.set_recovery()
+        recovery_keypair.update(instant_keypair)
+        self.recovery_onchain_dialog(
+            inputs=inputs,
+            outputs=[output],
+            recovery_keypairs=recovery_keypair,
+        )
+        self.instant_privkey_line.setText('')
         self.recovery_privkey_line.setText('')

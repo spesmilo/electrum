@@ -1,7 +1,7 @@
 from typing import List
 
-from ..bitcoin import opcodes, push_script
 from .multikey_generator import MultiKeyScriptGenerator
+from ..bitcoin import opcodes, push_script
 
 
 class ThreeKeysError(Exception):
@@ -42,10 +42,10 @@ class TwoKeysScriptGenerator(MultiKeyScriptGenerator):
             raise ThreeKeysError('Recovery/alert flag not set!')
         sigs = ''.join(push_script(sig) for sig in signatures)
         return (
-            opcodes.OP_0.hex() +
-            sigs +
-            self._recovery_alert_flag +
-            push_script(self.get_redeem_script(public_keys))
+                opcodes.OP_0.hex() +
+                sigs +
+                self._recovery_alert_flag +
+                push_script(self.get_redeem_script(public_keys))
         )
 
     def set_alert(self):
@@ -73,7 +73,7 @@ class ThreeKeysScriptGenerator(MultiKeyScriptGenerator):
         self.witness_flags = []
 
     def get_redeem_script(self, public_keys: List[str]) -> str:
-        if not isinstance(public_keys, list) or len(public_keys) != 1:
+        if not isinstance(public_keys, list) or len(public_keys) > 3:
             raise ThreeKeysError(f"Wrong input type! Expected list not '{public_keys}'")
 
         pub_key = public_keys[0]
@@ -101,10 +101,10 @@ class ThreeKeysScriptGenerator(MultiKeyScriptGenerator):
             raise ThreeKeysError('Recovery/alert/instant flag not set!')
         sigs = ''.join(push_script(sig) for sig in signatures)
         return (
-            opcodes.OP_0.hex() +
-            sigs +
-            self._instant_recovery_alert_flag +
-            push_script(self.get_redeem_script(public_keys))
+                opcodes.OP_0.hex() +
+                sigs +
+                self._instant_recovery_alert_flag +
+                push_script(self.get_redeem_script(public_keys))
         )
 
     def set_alert(self):
@@ -121,3 +121,12 @@ class ThreeKeysScriptGenerator(MultiKeyScriptGenerator):
         # 2 of 3
         self._instant_recovery_alert_flag = opcodes.OP_1.hex() + opcodes.OP_0.hex()
         self.witness_flags = [1, 0]
+
+    def is_recovery_mode(self):
+        return self.witness_flags == [0, 0]
+
+    def is_instant_mode(self):
+        return self.witness_flags == [1, 0]
+
+    def is_alert_mode(self):
+        return self.witness_flags == [1]

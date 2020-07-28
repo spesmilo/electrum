@@ -23,26 +23,26 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import copy
 import os
 import sys
-import copy
 from typing import List, TYPE_CHECKING, Tuple, NamedTuple, Any, Dict, Optional
 
 from . import bitcoin
-from .three_keys import short_mnemonic
 from . import keystore
 from . import mnemonic
 from .bip32 import is_bip32_derivation, xpub_type, normalize_bip32_derivation, BIP32Node
+from .i18n import _
 from .keystore import bip44_derivation, purpose48_derivation
-from .wallet import (wallet_types)
+from .logging import Logger
+from .plugin import Plugins, HardwarePluginLibraryUnavailable
+from .plugins.hw_wallet.plugin import OutdatedHwFirmwareException, HW_PluginBase
+from .simple_config import SimpleConfig
 from .storage import (WalletStorage, StorageEncryptionVersion,
                       get_derivation_used_for_hw_device_encryption)
-from .i18n import _
+from .three_keys import short_mnemonic
 from .util import UserCancelled, InvalidPassword
-from .simple_config import SimpleConfig
-from .plugin import Plugins, HardwarePluginLibraryUnavailable
-from .logging import Logger
-from .plugins.hw_wallet.plugin import OutdatedHwFirmwareException, HW_PluginBase
+from .wallet import (wallet_types)
 
 if TYPE_CHECKING:
     from .plugin import DeviceInfo
@@ -245,7 +245,7 @@ class BaseWizard(Logger):
             self.data['instant_pubkey'] = pubkey
             self.run('choose_keystore')
 
-        self.get_instant_pubkey(run_next=collect_instant_pubkey)
+        self.get_instant_pubkey(run_next=collect_instant_pubkey, recovery_key=self.data['recovery_pubkey'])
 
     def three_keys_2fa(self):
         def collect_recovery_pubkey(pubkey: str):
