@@ -33,6 +33,7 @@ from collections import defaultdict
 import threading
 import socket
 import json
+from typing import Dict
 
 import socks
 from . import util
@@ -44,6 +45,7 @@ from .interface import Connection, Interface
 from . import blockchain
 from . import version
 from .tor import TorController
+from .utils import Event
 
 DEFAULT_AUTO_CONNECT = True
 # Versions prior to 4.0.15 had this set to True, but we opted for False to
@@ -227,6 +229,8 @@ class Network(util.DaemonThread):
         self.whitelisted_servers, self.whitelisted_servers_hostmap = self._compute_whitelist()
         self.print_error("server blacklist: {} server whitelist: {}".format(self.blacklisted_servers, self.whitelisted_servers))
         self.default_server = self.get_config_server()
+        self.bad_certificate_servers: Dict[str, str] = dict()
+        self.server_list_updated = Event()
 
         self.tor_controller = TorController(self.config)
         self.tor_controller.active_port_changed.append(self.on_tor_port_changed)
@@ -578,7 +582,8 @@ class Network(util.DaemonThread):
                 self.print_error("connecting to %s as new interface" % server_key)
                 self.set_status('connecting')
             self.connecting.add(server_key)
-            c = Connection(server_key, self.socket_queue, self.config.path)
+            c = Connection(server_key, self.socket_queue, self.config.path,
+                           lambda x: x.bad_certificate.append_weak(self.on_bad_certificate))
 
     def get_unavailable_servers(self):
         exclude_set = set(self.interfaces)
@@ -1023,6 +1028,7 @@ class Network(util.DaemonThread):
             if server in self.connecting:
                 self.connecting.remove(server)
             if socket:
+                self.remove_bad_certificate(server)
                 self.new_interface(server, socket)
             else:
                 self.connection_down(server)
@@ -1932,6 +1938,37 @@ class Network(util.DaemonThread):
             }
             return proxies
         return None
+
+    def on_bad_certificate(self, server, certificate):
+        if server in self.bad_certificate_servers:
+            return
+        self.bad_certificate_servers[server] = certificate
+        self.server_list_updated()
+
+    def remove_bad_certificate(self, server):
+        if server not in self.bad_certificate_servers:
+            return
+        del self.bad_certificate_servers[server]
+        self.server_list_updated()
+
+    def remove_pinned_certificate(self, server):
+        cert_file = self.bad_certificate_servers.get(server)
+        if not cert_file:
+            return False
+
+        try:
+            os.unlink(cert_file)
+            self.print_error("Removed pinned certificate:", cert_file)
+        except OSError as e:
+            self.print_error("Could not remove pinned certificate:", cert_file, repr(e))
+            if os.path.exists(cert_file):
+                # Don't remove from bad certificate list if we failed to unpin
+                return False
+        self.remove_bad_certificate(server)
+        return True
+
+
+    def server_is_bad_certificate(self, server): return server in self.bad_certificate_servers
 
     def server_set_blacklisted(self, server, b, save=True, skip_connection_logic=False):
         assert isinstance(server, str)

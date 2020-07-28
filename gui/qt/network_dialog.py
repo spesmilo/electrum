@@ -25,6 +25,7 @@
 
 import queue
 import socket
+from functools import partial
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -202,11 +203,22 @@ class NodesListWidget(QTreeWidget):
 
 class ServerFlag:
     ''' Used by ServerListWidget for Server flags & Symbols '''
+    BadCertificate = 4 # Servers with a bad certificate.
     Banned = 2 # Blacklisting/banning was a hidden mechanism inherited from Electrum. We would blacklist misbehaving servers under the hood. Now that facility is exposed (editable by the user). We never connect to blacklisted servers.
     Preferred = 1 # Preferred servers (white-listed) start off as the servers in servers.json and are "more trusted" and optionally the user can elect to connect to only these servers
     NoFlag = 0
-    Symbol = ("", "⭐", "⛔") # indexed using pseudo-enum above
-    UnSymbol = ("", "❌", "✅") # used for "disable X" context menu
+    Symbol = {
+        NoFlag: "",
+        Preferred: "⭐",
+        Banned: "⛔",
+        BadCertificate: "❗️"
+    }
+    UnSymbol = { # used for "disable X" context menu
+        NoFlag: "",
+        Preferred: "❌",
+        Banned: "✅",
+        BadCertificate: ""
+    }
 
 class ServerListWidget(QTreeWidget):
 
@@ -246,7 +258,15 @@ class ServerListWidget(QTreeWidget):
                     optxt_fav = ServerFlag.Symbol[ServerFlag.Preferred] + " " + _("Add to preferred")
                 menu.addAction(optxt_fav, lambda: self.parent.set_whitelisted(server, not iswl))
         menu.addAction(optxt, lambda: self.parent.set_blacklisted(server, not isbl))
+        if flagval & ServerFlag.BadCertificate:
+            optxt = ServerFlag.UnSymbol[ServerFlag.BadCertificate] + " " + _("Remove pinned certificate")
+            menu.addAction(optxt, partial(self.on_remove_pinned_certificate, server))
         menu.exec_(self.viewport().mapToGlobal(position))
+
+    def on_remove_pinned_certificate(self, server):
+        if not self.parent.remove_pinned_certificate(server):
+            QMessageBox.critical(None, _("Remove pinned certificate"),
+                                 _("Failed to remove the pinned certificate. Check the log for errors."))
 
     def set_server(self, s):
         host, port, protocol = deserialize_server(s)
@@ -288,11 +308,27 @@ class ServerListWidget(QTreeWidget):
             port = d.get(protocol)
             if port:
                 server = serialize_server(_host, port, protocol)
-                flag, flagval, tt = (ServerFlag.Symbol[ServerFlag.Banned], ServerFlag.Banned, _("This server is banned")) if network.server_is_blacklisted(server) else ("", 0, "")
-                flag2, flagval2, tt2 = (ServerFlag.Symbol[ServerFlag.Preferred], ServerFlag.Preferred, _("This is a preferred server")) if network.server_is_whitelisted(server) else ("", 0, "")
-                flag = flag or flag2; del flag2
-                tt = tt or tt2; del tt2
-                flagval |= flagval2; del flagval2
+
+                flag = ""
+                flagval = 0
+                tt = ""
+
+                if network.server_is_blacklisted(server):
+                    flagval |= ServerFlag.Banned
+                if network.server_is_whitelisted(server):
+                    flagval |= ServerFlag.Preferred
+                if network.server_is_bad_certificate(server):
+                    flagval |= ServerFlag.BadCertificate
+
+                if flagval & ServerFlag.Banned:
+                    flag = ServerFlag.Symbol[ServerFlag.Banned]
+                    tt = _("This server is banned")
+                elif flagval & ServerFlag.BadCertificate:
+                    flag = ServerFlag.Symbol[ServerFlag.BadCertificate]
+                    tt = _("This server's pinned certificate mismatches its current certificate")
+                elif flagval & ServerFlag.Preferred:
+                    flag = ServerFlag.Symbol[ServerFlag.Preferred]
+                    tt = _("This is a preferred server")
 
                 display_text = _host
                 if is_onion and 'display' in d:
@@ -302,11 +338,12 @@ class ServerListWidget(QTreeWidget):
                 if is_onion:
                     x.setIcon(2, QIcon(":icons/tor_logo.svg"))
                 if tt: x.setToolTip(0, tt)
-                if (wl_only and flagval != ServerFlag.Preferred) or flagval & ServerFlag.Banned:
+                if (wl_only and not flagval & ServerFlag.Preferred) or flagval & ServerFlag.Banned:
                     # lighten the text of servers we can't/won't connect to for the given mode
                     self.lightenItemText(x, range(1,4))
                 x.setData(2, Qt.UserRole, server)
                 x.setData(0, Qt.UserRole, flagval)
+                x.setTextAlignment(0, Qt.AlignHCenter)
                 self.addTopLevelItem(x)
 
         h = self.header()
@@ -555,6 +592,8 @@ class NetworkChoiceLayout(QObject, PrintError):
 
         self.network.tor_controller.active_port_changed.append_weak(self.on_tor_port_changed)
 
+        self.network.server_list_updated.append_weak(self.on_server_list_updated)
+
         self.fill_in_proxy_settings()
         self.update()
 
@@ -579,6 +618,10 @@ class NetworkChoiceLayout(QObject, PrintError):
         # The Network class handles actually changing the port, we just
         # set the value in the text box here.
         self.proxy_port.setText(str(controller.active_socks_port))
+
+    @in_main_thread
+    def on_server_list_updated(self):
+        self.update()
 
     def check_disable_proxy(self, b):
         if not self.config.is_modifiable('proxy'):
@@ -840,6 +883,9 @@ class NetworkChoiceLayout(QObject, PrintError):
 
     def proxy_settings_changed(self):
         self.tor_cb.setChecked(False)
+
+    def remove_pinned_certificate(self, server):
+        return self.network.remove_pinned_certificate(server)
 
     def set_blacklisted(self, server, bl):
         self.network.server_set_blacklisted(server, bl, True)
