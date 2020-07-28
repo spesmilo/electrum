@@ -1953,13 +1953,20 @@ class Network(util.DaemonThread):
 
     def remove_pinned_certificate(self, server):
         cert_file = self.bad_certificate_servers.get(server)
-        if cert_file:
-            try:
-                os.unlink(cert_file)
-                self.print_error("Removed pinned certificate:", cert_file)
-            except OSError as e:
-                self.print_error("Could not remove pinned certificate:", cert_file, repr(e))
-            self.remove_bad_certificate(server)
+        if not cert_file:
+            return False
+
+        try:
+            os.unlink(cert_file)
+            self.print_error("Removed pinned certificate:", cert_file)
+        except OSError as e:
+            self.print_error("Could not remove pinned certificate:", cert_file, repr(e))
+            if os.path.exists(cert_file):
+                # Don't remove from bad certificate list if we failed to unpin
+                return False
+        self.remove_bad_certificate(server)
+        return True
+
 
     def server_is_bad_certificate(self, server): return server in self.bad_certificate_servers
 

@@ -25,6 +25,7 @@
 
 import queue
 import socket
+from functools import partial
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -259,8 +260,13 @@ class ServerListWidget(QTreeWidget):
         menu.addAction(optxt, lambda: self.parent.set_blacklisted(server, not isbl))
         if flagval & ServerFlag.BadCertificate:
             optxt = ServerFlag.UnSymbol[ServerFlag.BadCertificate] + " " + _("Remove pinned certificate")
-            menu.addAction(optxt, lambda: self.parent.remove_pinned_certificate(server))
+            menu.addAction(optxt, partial(self.on_remove_pinned_certificate, server))
         menu.exec_(self.viewport().mapToGlobal(position))
+
+    def on_remove_pinned_certificate(self, server):
+        if not self.parent.remove_pinned_certificate(server):
+            QMessageBox.critical(None, _("Remove pinned certificate"),
+                                 _("Failed to remove the pinned certificate. Check the log for errors."))
 
     def set_server(self, s):
         host, port, protocol = deserialize_server(s)
@@ -879,7 +885,7 @@ class NetworkChoiceLayout(QObject, PrintError):
         self.tor_cb.setChecked(False)
 
     def remove_pinned_certificate(self, server):
-        self.network.remove_pinned_certificate(server)
+        return self.network.remove_pinned_certificate(server)
 
     def set_blacklisted(self, server, bl):
         self.network.server_set_blacklisted(server, bl, True)
