@@ -426,6 +426,37 @@ def get_address_from_output_script(_bytes: bytes, *, net=None) -> Optional[str]:
     if match_decoded(decoded, match):
         return hash160_to_p2sh(decoded[1][1], net=net)
 
+    # cfund
+    match = [opcodes.OP_RETURN, opcodes.OP_CFUND]
+    if match_decoded(decoded, match):
+        return "CFUND"
+
+    match = [opcodes.OP_RETURN, opcodes.OP_CFUND, opcodes.OP_PROP, opcodes.OP_REMOVE, OPPushDataGeneric(lambda x: x == 20)]
+    match1 = [opcodes.OP_RETURN, opcodes.OP_CFUND, opcodes.OP_PROP, opcodes.OP_ABSTAIN, OPPushDataGeneric(lambda x: x == 20)]
+    match2 = [opcodes.OP_RETURN, opcodes.OP_CFUND, opcodes.OP_PROP, opcodes.OP_YES, OPPushDataGeneric(lambda x: x == 20)]
+    match3 = [opcodes.OP_RETURN, opcodes.OP_CFUND, opcodes.OP_PROP, opcodes.OP_NO, OPPushDataGeneric(lambda x: x == 20)]
+    if match_decoded(decoded, match) or match_decoded(decoded, match1) or match_decoded(decoded, match2) or match_decoded(decoded, match3):
+        return "CFUND PROPOSAL VOTE"
+
+    match = [opcodes.OP_RETURN, opcodes.OP_CFUND, opcodes.OP_PREQ, opcodes.OP_REMOVE, OPPushDataGeneric(lambda x: x == 20)]
+    match1 = [opcodes.OP_RETURN, opcodes.OP_CFUND, opcodes.OP_PREQ, opcodes.OP_ABSTAIN, OPPushDataGeneric(lambda x: x == 20)]
+    match2 = [opcodes.OP_RETURN, opcodes.OP_CFUND, opcodes.OP_PREQ, opcodes.OP_YES, OPPushDataGeneric(lambda x: x == 20)]
+    match3 = [opcodes.OP_RETURN, opcodes.OP_CFUND, opcodes.OP_PREQ, opcodes.OP_NO, OPPushDataGeneric(lambda x: x == 20)]
+    if match_decoded(decoded, match) or match_decoded(decoded, match1) or match_decoded(decoded, match2) or match_decoded(decoded, match3):
+        return "CFUND PREQUEST VOTE"
+
+    match = [opcodes.OP_RETURN, opcodes.OP_DAO, opcodes.OP_REMOVE, OPPushDataGeneric(lambda x: x == 20)]
+    match1 = [opcodes.OP_RETURN, opcodes.OP_DAO, opcodes.OP_YES, opcodes.OP_ABSTAIN, OPPushDataGeneric(lambda x: x == 20)]
+    if match_decoded(decoded, match) or match_decoded(decoded, match1):
+        return "CFUND CONSULTATION SUPPORT"
+
+    match = [opcodes.OP_RETURN, opcodes.OP_CONSULTATION, opcodes.OP_ABSTAIN, OPPushDataGeneric(lambda x: x == 20)]
+    match1 = [opcodes.OP_RETURN, opcodes.OP_DAO, opcodes.OP_YES, opcodes.OP_ANSWER, OPPushDataGeneric(lambda x: x == 20)]
+    match1 = [opcodes.OP_RETURN, opcodes.OP_DAO, opcodes.OP_YES, opcodes.OP_ANSWER, OPPushDataGeneric(lambda x: x == 20), OPPushDataGeneric(lambda x: x > 0)]
+    match2 = [opcodes.OP_RETURN, opcodes.OP_DAO, opcodes.OP_YES, opcodes.OP_REMOVE, OPPushDataGeneric(lambda x: x == 20)]
+    if match_decoded(decoded, match) or match_decoded(decoded, match1) or match_decoded(decoded, match2) or match_decoded(decoded, match3):
+        return "CFUND CONSULTATION VOTE"
+
     # segwit address (version 0)
     match = [opcodes.OP_0, OPPushDataGeneric(lambda x: x in (20, 32))]
     if match_decoded(decoded, match):
