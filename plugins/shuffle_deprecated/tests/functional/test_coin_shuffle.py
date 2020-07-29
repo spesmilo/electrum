@@ -4,13 +4,13 @@ import imp
 imp.load_module('electroncash', *imp.find_module('lib'))
 imp.load_module('electroncash_plugins', *imp.find_module('plugins'))
 
-from electroncash_plugins.shuffle.coin import Coin, address_from_public_key
-from electroncash_plugins.shuffle.crypto import Crypto
-from electroncash_plugins.shuffle.messages import Messages
-from electroncash_plugins.shuffle.round import Round
-from electroncash_plugins.shuffle.tests.test import testNetwork, random_sk, make_fake_public_key, make_fake_address, fake_hash
-from electroncash_plugins.shuffle.comms import Channel, ChannelWithPrint
-# from electroncash_plugins.shuffle.phase import Phase
+from electroncash_plugins.shuffle_deprecated.coin import Coin, address_from_public_key
+from electroncash_plugins.shuffle_deprecated.crypto import Crypto
+from electroncash_plugins.shuffle_deprecated.messages import Messages
+from electroncash_plugins.shuffle_deprecated.round import Round
+from electroncash_plugins.shuffle_deprecated.tests.test import testNetwork, random_sk, make_fake_public_key, make_fake_address, fake_hash
+from electroncash_plugins.shuffle_deprecated.comms import Channel, ChannelWithPrint
+# from electroncash_plugins.shuffle_deprecated.phase import Phase
 
 
 class TestRound(unittest.TestCase):

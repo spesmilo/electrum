@@ -4,7 +4,7 @@ import imp
 imp.load_module('electroncash', *imp.find_module('lib'))
 imp.load_module('electroncash_plugins', *imp.find_module('plugins'))
 
-from electroncash_plugins.shuffle.messages import Messages
+from electroncash_plugins.shuffle_deprecated.messages import Messages
 
 class FakeEck(object):
 

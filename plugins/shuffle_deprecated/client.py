@@ -503,8 +503,8 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
                     self.logger.send("forget {}".format(utxo), "MAINLOG")
 
     def check_delayed_unreserve_addresses(self):
-        ''' Expire addresses put in the "delayed unreserve" dict which are
-        >600 seconds old.'''
+        """ Expire addresses put in the "delayed unreserve" dict which are
+        >600 seconds old. """
         if self.stop_flg.is_set():
             return
         now = time.time()
