@@ -1,26 +1,32 @@
-from datetime import datetime, timedelta
 from enum import IntEnum
+from datetime import datetime, timedelta
 from functools import partial
+from hashlib import sha256
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
 
-from PyQt5.QtCore import Qt, QItemSelectionModel
-from PyQt5.QtGui import QStandardItemModel, QStandardItem, QMouseEvent, QFocusEvent
-from PyQt5.QtWidgets import QPushButton, QLabel, QLineEdit, QWidget, \
-    QCompleter, QAbstractItemView, QStyledItemDelegate, \
+from typing import Optional, Union, List, Dict
+
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QStandardItemModel, QStandardItem, QMouseEvent, QFocusEvent, QValidator
+from PyQt5.QtWidgets import QPushButton, QLabel, QWidget, QComboBox, QLineEdit,\
+    QCompleter, QAbstractItemView, QTreeView, QHeaderView, QStyledItemDelegate,\
     QVBoxLayout, QGridLayout
 
 from electrum.i18n import _
 from electrum.logging import get_logger
-from electrum.util import get_request_status, PR_TYPE_ONCHAIN, PR_TYPE_LN
 from electrum.wallet import Abstract_Wallet
-from .completion_text_edit import CompletionTextEdit
+from electrum.util import get_request_status, PR_TYPE_ONCHAIN, PR_TYPE_LN
+
+from .util import read_QIcon, pr_icons, WaitingDialog
 from .confirm_tx_dialog import ConfirmTxDialog
-from .util import MyTreeView, read_QIcon, pr_icons, WaitingDialog
-from ... import bitcoin
+from .completion_text_edit import CompletionTextEdit
 from ...mnemonic import load_wordlist
 from ...plugin import run_hook
+from ...transaction import PartialTransaction
+from ...util import PR_UNPAID, PR_UNKNOWN
 from ...three_keys import short_mnemonic
-from ...transaction import PartialTxOutput, PartialTxInput, PartialTransaction
-from ...util import bfh, PR_UNPAID, PR_UNKNOWN
 
 _logger = get_logger(__name__)
 
@@ -28,13 +34,8 @@ ROLE_REQUEST_TYPE = Qt.UserRole
 ROLE_REQUEST_ID = Qt.UserRole + 1
 
 
-class RecoveryColumns(IntEnum):
-    DATE = 0
-    DESCRIPTION = 1
-    AMOUNT = 2
+class RecoveryView(QTreeView):
 
-
-class RecoveryView(MyTreeView):
     class Columns(IntEnum):
         DATE = 0
         DESCRIPTION = 1
@@ -50,30 +51,23 @@ class RecoveryView(MyTreeView):
     filter_columns = [Columns.DATE, Columns.DESCRIPTION, Columns.AMOUNT]
 
     def __init__(self, parent):
-        super().__init__(parent, self.create_menu,
-                         stretch_column=self.Columns.DESCRIPTION,
-                         editable_columns=[])
+        super().__init__(parent)
+
+        self.wallet = parent.wallet
+        self.main_window = parent
 
         self.required_confirmations = 144
+        self.stretch_column = self.Columns.DESCRIPTION
 
-        self.parent = parent
         self.setSortingEnabled(True)
+        self.setAlternatingRowColors(True)
         self.setModel(QStandardItemModel(self))
-        self.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.setSelectionMode(QTreeView.NoSelection)
+
         now = datetime.now()
         self.to_timestamp = datetime.timestamp(now)
         self.from_timestamp = datetime.timestamp(now + timedelta(days=-2))
-        self.update_data()
 
-    def create_menu(self, position):
-        pass
-
-    def focusInEvent(self, event: QFocusEvent):
-        super().focusInEvent(event)
-        self.update_data()
-
-    def focusOutEvent(self, event: QFocusEvent):
-        super().focusOutEvent(event)
         self.update_data()
 
     def mouseDoubleClickEvent(self, event: QMouseEvent):
@@ -84,7 +78,7 @@ class RecoveryView(MyTreeView):
         self.model().clear()
         self.update_headers(self.__class__.headers)
 
-        for index, txid in enumerate(self.parent.wallet.get_atxs_to_recovery()):
+        for index, txid in enumerate(self.wallet.get_atxs_to_recovery()):
             invoice_type = PR_TYPE_ONCHAIN
             if invoice_type == PR_TYPE_LN:
                 #key = item['rhash']
@@ -96,28 +90,53 @@ class RecoveryView(MyTreeView):
             else:
                 raise Exception('Unsupported type')
 
-            txinfo = self.parent.wallet.get_tx_info(txid)
+            txinfo = self.wallet.get_tx_info(txid)
             if txinfo.tx_mined_status.txtype == 'ALERT_PENDING':
                 status, status_str = get_request_status({'status': PR_UNPAID})
             else:
                 status, status_str = get_request_status({'status': PR_UNKNOWN})
 
             status_str = '{} {}/{}'.format(status_str, txinfo.tx_mined_status.conf, self.required_confirmations)
-            num_status, date_str = self.parent.wallet.get_tx_status(txid.txid(), txinfo.tx_mined_status)
-            amount_str = self.parent.format_amount(txinfo.amount - txinfo.fee, whitespaces=True)
+            num_status, date_str = self.wallet.get_tx_status(txid.txid(), txinfo.tx_mined_status)
+            amount_str = self.main_window.format_amount(txinfo.amount - txinfo.fee, whitespaces=True)
             labels = [date_str, txinfo.label, amount_str, status_str]
 
-            items = [QStandardItem(e) for e in labels]
-            self.set_editability(items)
+            def set_editable(item: QStandardItem) -> QStandardItem:
+                item.setEditable(False)
+                return item
+
+            items = [set_editable(QStandardItem(e)) for e in labels]
             items[self.Columns.DATE].setIcon(read_QIcon(icon_name))
             items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
             items[self.Columns.DATE].setData(invoice_type, role=ROLE_REQUEST_TYPE)
             items[self.Columns.DATE].setData(txid, role=ROLE_REQUEST_ID)
+            items[self.Columns.DATE].setCheckable(True)
+
             self.model().insertRow(index, items)
 
-        self.selectionModel().select(self.model().index(0, 0), QItemSelectionModel.SelectCurrent)
         # sort requests by date
         self.model().sort(self.Columns.DATE)
+
+    def update_headers(self, headers: Union[List[str], Dict[int, str]]):
+        # headers is either a list of column names, or a dict: (col_idx->col_name)
+        if not isinstance(headers, dict):  # convert to dict
+            headers = dict(enumerate(headers))
+        col_names = [headers[col_idx] for col_idx in sorted(headers.keys())]
+        self.model().setHorizontalHeaderLabels(col_names)
+        self.header().setStretchLastSection(False)
+        for col_idx in headers:
+            sm = QHeaderView.Stretch if col_idx == self.stretch_column else QHeaderView.ResizeToContents
+            self.header().setSectionResizeMode(col_idx, sm)
+
+    def selected(self):
+        out = []
+        model = self.model()
+        for i in range(model.rowCount()):
+            m_index = model.index(i, 0)
+            item = model.itemFromIndex(m_index)
+            if item.checkState() == Qt.Checked:
+                out.append(item.data())
+        return out
 
 
 class RecoveryTab(QWidget):
@@ -126,20 +145,64 @@ class RecoveryTab(QWidget):
         self.config = config
         self.wallet = wallet
         QWidget.__init__(self)
+
         self.invoice_list = RecoveryView(self.electrum_main_window)
+
+        # wordlist
         self.wordlist = load_wordlist("english.txt")
+        ###
+
+    def _create_recovery_address(self):
+        class Validator(QValidator):
+            ADDRESS_LENGTH = 35
+
+            def validate(self, input: str, index: int):
+                i_len = len(input)
+                state = QValidator.Acceptable
+
+                if i_len > self.ADDRESS_LENGTH:
+                    state = QValidator.Invalid
+                elif i_len < self.ADDRESS_LENGTH:
+                    state = QValidator.Intermediate
+
+                return state, input, index
+
+        addr_list = self.wallet.get_receiving_addresses()
+
+        obj = QComboBox(self)
+        obj.setDuplicatesEnabled(False)
+        obj.setEditable(True)
+        obj.setInsertPolicy(QComboBox.InsertAtTop)
+
+        for addr in addr_list:
+            obj.addItem(addr)
+
+        obj.setValidator(Validator(obj))
+
+        return obj
 
     def on_priv_key_line_edit(self):
-        line = self.sender()
-        for word in line.text().split()[:-1]:
+        for word in self.get_recovery_seed()[:-1]:
             if word not in self.wordlist:
-                line.disable_suggestions()
+                self.recovery_privkey_line.disable_suggestions()
                 return
-        line.enable_suggestions()
+        self.recovery_privkey_line.enable_suggestions()
 
     def get_recovery_seed(self):
         text = self.recovery_privkey_line.text()
         return text.split()
+
+    @staticmethod
+    def generate_encryption_key(salt: bytes, password: bytes) -> [bytes, int]:
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=100000,
+            backend=default_backend()
+        )
+        key = kdf.derive(password)
+        return key
 
     def _get_recovery_keypair(self):
         stored_recovery_pubkey = self.wallet.storage.get('recovery_pubkey')
@@ -150,9 +213,6 @@ class RecoveryTab(QWidget):
         if pubkey != stored_recovery_pubkey:
             raise Exception(_("Recovery TX seed not matching any key in this wallet"))
         return {pubkey: (privkey, True)}
-
-    def _get_checked_atxs(self):
-        return [row.data(ROLE_REQUEST_ID) for row in self.invoice_list.selectedIndexes() if row.data(ROLE_REQUEST_ID)]
 
     def recovery_onchain_dialog(self, inputs, outputs, recovery_keypairs):
         """Code copied from pay_onchain_dialog"""
@@ -168,7 +228,7 @@ class RecoveryTab(QWidget):
             fee=fee_est,
             is_sweep=is_sweep)
         if self.config.get('advanced_preview'):
-            self.preview_tx_dialog(make_tx, outputs, external_keypairs=external_keypairs, invoice=invoice)
+            self.electrum_main_window.preview_tx_dialog(make_tx, outputs, external_keypairs=external_keypairs, invoice=invoice)
             return
 
         output_values = [x.value for x in outputs]
@@ -185,10 +245,9 @@ class RecoveryTab(QWidget):
             def sign_done(success):
                 if success:
                     self.electrum_main_window.broadcast_or_show(tx, invoice=invoice)
-
             self.sign_tx_with_password(tx, sign_done, password, recovery_keypairs)
         else:
-            self.preview_tx_dialog(make_tx, outputs, external_keypairs=external_keypairs, invoice=invoice)
+            self.electrum_main_window.preview_tx_dialog(make_tx, outputs, external_keypairs=external_keypairs, invoice=invoice)
 
     def sign_tx_with_password(self, tx: PartialTransaction, callback, password, external_keypairs=None):
         def on_success(result):
@@ -199,6 +258,7 @@ class RecoveryTab(QWidget):
             callback(False)
 
         on_success = run_hook('tc_sign_wrapper', self.wallet, tx, on_success, on_failure) or on_success
+
         if external_keypairs and self.wallet.is_recovery_mode():
             task = partial(self.wallet.sign_recovery_transaction, tx, password, external_keypairs)
         else:
@@ -208,9 +268,10 @@ class RecoveryTab(QWidget):
 
     def recover_action(self):
         try:
-            address = self.recovery_address_line.text()
+            atxs = self.invoice_list.selected()
+            address = self.recovery_address_line.currentText()
             recovery_keypair = self._get_recovery_keypair()
-            atxs = self._get_checked_atxs()
+
             inputs, output = self.wallet.get_inputs_and_output_for_recovery(atxs, address)
             inputs = self.wallet.prepare_inputs_for_recovery(inputs)
         except Exception as e:
@@ -226,7 +287,7 @@ class RecoveryTab(QWidget):
 
         self.recovery_privkey_line.setText('')
 
-    def create_privkey_line(self):
+    def _create_privkey_line(self):
         class CompleterDelegate(QStyledItemDelegate):
             def initStyleOption(self, option, index):
                 super().initStyleOption(option, index)
@@ -257,18 +318,13 @@ class RecoveryTabARStandalone(RecoveryTab):
         grid_layout = QGridLayout()
         # Row 1
         grid_layout.addWidget(QLabel(_('Recovery address')), 0, 0)
-        self.recovery_address_line = QLineEdit()
-        addr_list = self.wallet.get_receiving_addresses()
-        self.recovery_address_line.setText(addr_list[0])
+        self.recovery_address_line = self._create_recovery_address()
         grid_layout.addWidget(self.recovery_address_line, 0, 1)
         # Row 2
         grid_layout.addWidget(QLabel(_('Recovery tx seed')), 1, 0)
 
-        # wordlist
-        self.wordlist = load_wordlist("english.txt")
-        ###
         # complete line edit with suggestions
-        self.recovery_privkey_line = self.create_privkey_line()
+        self.recovery_privkey_line = self._create_privkey_line()
         grid_layout.addWidget(self.recovery_privkey_line, 1, 1)
         # Row 3
         button = QPushButton(_('Recover'))
@@ -293,21 +349,19 @@ class RecoveryTabAIRStandalone(RecoveryTab):
         grid_layout = QGridLayout()
         # Row 1
         grid_layout.addWidget(QLabel(_('Recovery address')), 0, 0)
-        self.recovery_address_line = QLineEdit()
-        addr_list = self.wallet.get_receiving_addresses()
-        self.recovery_address_line.setText(addr_list[0])
+        self.recovery_address_line = self._create_recovery_address()
         grid_layout.addWidget(self.recovery_address_line, 0, 1)
 
         # Row 2
         grid_layout.addWidget(QLabel(_('Instant tx seed')), 1, 0)
         # complete line edit with suggestions
-        self.instant_privkey_line = self.create_privkey_line()
+        self.instant_privkey_line = self._create_privkey_line()
         grid_layout.addWidget(self.instant_privkey_line, 1, 1)
 
         # Row 3
         grid_layout.addWidget(QLabel(_('Recovery tx seed')), 2, 0)
         # complete line edit with suggestions
-        self.recovery_privkey_line = self.create_privkey_line()
+        self.recovery_privkey_line = self._create_privkey_line()
         grid_layout.addWidget(self.recovery_privkey_line, 2, 1)
 
         # Row 4
@@ -336,10 +390,10 @@ class RecoveryTabAIRStandalone(RecoveryTab):
 
     def recover_action(self):
         try:
-            address = self.recovery_address_line.text()
+            address = self.recovery_address_line.currentText()
             instant_keypair = self._get_instant_keypair()
             recovery_keypair = self._get_recovery_keypair()
-            atxs = self._get_checked_atxs()
+            atxs = self.invoice_list.selected()
 
             inputs, output = self.wallet.get_inputs_and_output_for_recovery(atxs, address)
             inputs = self.wallet.prepare_inputs_for_recovery(inputs)
