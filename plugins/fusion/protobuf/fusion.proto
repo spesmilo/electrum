@@ -1,0 +1,281 @@
+/*
+ * Electron Cash - a lightweight Bitcoin Cash client
+ * CashFusion - an advanced coin anonymizer
+ *
+ * Copyright (C) 2020 Mark B. Lundeberg
+ *
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation files
+ * (the "Software"), to deal in the Software without restriction,
+ * including without limitation the rights to use, copy, modify, merge,
+ * publish, distribute, sublicense, and/or sell copies of the Software,
+ * and to permit persons to whom the Software is furnished to do so,
+ * subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+syntax = "proto2";
+
+package fusion;
+
+// Some primitives
+
+message InputComponent {
+    required bytes prev_txid = 1; // in 'reverse' order, just like in tx
+    required uint32 prev_index = 2;
+    required bytes pubkey = 3;
+    required uint64 amount = 4;
+    }
+
+message OutputComponent {
+    required bytes scriptpubkey = 1;
+    required uint64 amount = 2;
+    }
+
+message BlankComponent {
+    }
+
+message Component {
+    required bytes salt_commitment = 1; // 32 bytes
+    oneof component {
+        InputComponent input = 2;
+        OutputComponent output = 3;
+        BlankComponent blank = 4;
+        }
+    }
+
+message InitialCommitment {
+    required bytes salted_component_hash = 1; // 32 byte hash
+    required bytes amount_commitment = 2; // uncompressed point
+    required bytes communication_key = 3; // compressed point
+    }
+
+message Proof {
+    // During blame phase, messages of this form are encrypted and sent
+    // to a different player. It is already known which commitment this
+    // should apply to, so we only need to point at the component.
+    required fixed32 component_idx = 1;
+    required bytes salt = 2; // 32 bytes
+    required bytes pedersen_nonce = 3; // 32 bytes
+}
+
+
+
+// Primary communication message types (and flow)
+
+// Setup phase
+
+message ClientHello { // from client
+    required bytes version = 1;
+    optional bytes genesis_hash = 2; // 32 byte hash (bitcoind little-endian memory order)
+}
+
+message ServerHello { // from server
+    repeated uint64 tiers = 1;
+    required uint32 num_components = 2;
+    required uint64 component_feerate = 4; // sats/kB
+    required uint64 min_excess_fee = 5; // sats
+    required uint64 max_excess_fee = 6; // sats
+
+    optional string donation_address = 15; // BCH Address "bitcoincash:qpx..."
+}
+
+message JoinPools { // from client
+    message PoolTag {
+        // These tags can be used to client to stop the server from including
+        // the client too many times in the same fusion. Thus, the client can
+        // connect many times without fear of fusing with themselves.
+        required bytes id = 1; // allowed up to 20 bytes
+        required uint32 limit = 2; // between 1 and 5 inclusive
+        optional bool no_ip = 3; // whether to do an IP-less tag -- this will collide with all other users, make sure it's random so you can't get DoSed.
+    }
+    repeated uint64 tiers = 1;
+    repeated PoolTag tags = 2; // at most five tags.
+}
+
+message TierStatusUpdate { // from server
+    message TierStatus {
+        // in future, we will want server to indicate 'remaining time' and mask number of players.
+        // note: if player is in queue then a status will be ommitted.
+        optional uint32 players = 1;
+        optional uint32 min_players = 2; // minimum required to start (may have delay to allow extra)
+        optional uint32 max_players = 3; // maximum allowed (immediate start)
+        optional uint32 time_remaining = 4;
+    }
+    map<uint64, TierStatus> statuses = 1;
+}
+
+message FusionBegin { // from server
+    required uint64 tier = 1;
+    required bytes covert_domain = 2;
+    required uint32 covert_port = 3;
+    optional bool covert_ssl = 4;
+    required fixed64 server_time = 5; // server unix time when sending this message; can't be too far off from recipient's clock.
+}
+
+
+// Fusion round (repeatable multiple times per connection)
+
+message StartRound { // from server
+    required bytes round_pubkey = 1;
+    repeated bytes blind_nonce_points = 2;
+    required fixed64 server_time = 5; // server unix time when sending this message; can't be too far off from recipient's clock.
+    }
+
+// Phase 3
+message PlayerCommit { // from client
+    repeated bytes initial_commitments = 1; // serialized InitialCommitment messages; server will repeat them later, verbatim.
+    required uint64 excess_fee = 2;
+    required bytes pedersen_total_nonce = 3; // 32 bytes
+    required bytes random_number_commitment = 4; // 32 bytes
+    repeated bytes blind_sig_requests = 5; // 32 byte scalars
+    }
+
+// Phase 4
+message BlindSigResponses { // from server
+    repeated bytes scalars = 1; // 32 byte scalars
+}
+
+message AllCommitments {
+    // All the commitments from all players. At ~140 bytes per commitment and hundreds of commitments, this can be quite large, so it gets sent in its own message during the covert phase.
+    repeated bytes initial_commitments = 1;
+    }
+
+//Phase 5
+message CovertComponent { // from covert client
+    // The round key is used to identify the pool if needed
+    optional bytes round_pubkey = 1;
+    required bytes signature = 2;
+    required bytes component = 3; // bytes so that it can be signed and hashed verbatim
+    }
+
+//Phase 6
+message ShareCovertComponents { // from server
+    // This is a large message! 168 bytes per initial commitment, ~112 bytes per input component.
+    // Can easily reach 100 kB or more.
+    repeated bytes components = 4;
+    optional bool skip_signatures = 5; // if the server already sees a problem in submitted components
+    optional bytes session_hash = 6; // the server's calculation of session hash, so clients can crosscheck.
+}
+
+// Phase 7A
+message CovertTransactionSignature { // from covert client
+    // The round key is used to identify the pool if needed
+    optional bytes round_pubkey = 1;
+    required uint32 which_input = 2;
+    required bytes txsignature = 3;
+    }
+
+// Phase 8
+message FusionResult { // from server
+    required bool ok = 1;
+    repeated bytes txsignatures = 2; // if ok
+    repeated uint32 bad_components = 3; // if not ok
+    }
+
+// Phase 9
+message MyProofsList { // from client
+    repeated bytes encrypted_proofs = 1;
+    required bytes random_number = 2;  // the number we committed to, back in phase 3
+    }
+
+message TheirProofsList { // from server
+    message RelayedProof {
+        required bytes encrypted_proof = 1;
+        required uint32 src_commitment_idx = 2; // which of the commitments is being proven (index in full list)
+        required uint32 dst_key_idx = 3;  // which of the recipient's keys will unlock the encryption (index in player list)
+        }
+    repeated RelayedProof proofs = 1;
+    }
+
+// Phase 10
+message Blames { // from client
+    message BlameProof {
+        required uint32 which_proof = 1;
+        oneof decrypter {
+            bytes session_key = 2; // 32 byte, preferred if the proof decryption works at all
+            bytes privkey = 3; // 32 byte scalar
+            }
+
+        // Some errors can only be discovered by checking the blockchain,
+        // Namely, if an input UTXO is missing/spent/unconfirmed/different
+        // scriptpubkey/different amount, than indicated.
+        optional bool need_lookup_blockchain = 4;
+
+        // The client can indicate why it thinks the blame is deserved. In
+        // case the server finds no issue, this string might help for debugging.
+        optional string blame_reason = 5;
+        }
+    repeated BlameProof blames = 1;
+    }
+
+// Final message of the round
+message RestartRound {
+}
+
+// Fatal error from server, likely we did something wrong (it will disconnect us, but the message may help debugging).
+message Error {
+    optional string message = 1;
+}
+
+// Simple ping, as a keepalive.
+message Ping {
+}
+
+// Simple acknowledgement, nothing more to say.
+message OK {
+}
+
+// Primary communication channel types
+
+message ClientMessage {
+    oneof msg {
+        ClientHello clienthello = 1;
+        JoinPools joinpools = 2;
+        PlayerCommit playercommit = 3;
+        MyProofsList myproofslist = 5;
+        Blames blames = 6;
+        }
+    }
+
+message ServerMessage {
+    oneof msg {
+        ServerHello serverhello = 1;
+        TierStatusUpdate tierstatusupdate = 2;
+        FusionBegin fusionbegin = 3;
+        StartRound startround = 4;
+        BlindSigResponses blindsigresponses = 5;
+        AllCommitments allcommitments = 6;
+        ShareCovertComponents sharecovertcomponents = 7;
+        FusionResult fusionresult = 8;
+        TheirProofsList theirproofslist = 9;
+
+        RestartRound restartround = 14;
+        Error error = 15;
+        }
+    }
+
+message CovertMessage { // client -> server, covertly
+    oneof msg {
+        CovertComponent component = 1;
+        CovertTransactionSignature signature = 2;
+        Ping ping = 3;
+        }
+    }
+
+message CovertResponse { // server -> a covert client
+    oneof msg {
+        OK ok = 1;
+        Error error = 15;
+    }
+}
