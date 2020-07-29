@@ -329,6 +329,13 @@ class QuadrigaCX(ExchangeBase):
         return {'CAD': Decimal(json['last'])}
 
 
+class Bitragem(ExchangeBase):
+
+    async def get_rates(self,ccy):
+        json = await self.get_json('api.bitragem.com', '/v1/index?asset=LTC&market=BRL')
+        return {'BRL': Decimal(json['response']['index'])}
+
+
 def dictinvert(d):
     inv = {}
     for k, vlist in d.items():

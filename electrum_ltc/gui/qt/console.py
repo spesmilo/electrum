@@ -91,17 +91,18 @@ class Console(QtWidgets.QPlainTextEdit):
 
     def showMessage(self, message):
         self.appendPlainText(message)
-        self.newPrompt()
+        self.newPrompt('')
 
     def clear(self):
+        curr_line = self.getCommand()
         self.setPlainText('')
-        self.newPrompt()
+        self.newPrompt(curr_line)
 
-    def newPrompt(self):
+    def newPrompt(self, curr_line):
         if self.construct:
             prompt = '.' * len(self.prompt)
         else:
-            prompt = self.prompt
+            prompt = self.prompt + curr_line
 
         self.completions_pos = self.textCursor().position()
         self.completions_visible = False
@@ -178,7 +179,7 @@ class Console(QtWidgets.QPlainTextEdit):
     def getHistory(self):
         return self.history
 
-    def setHisory(self, history):
+    def setHistory(self, history):
         self.history = history
 
     def addToHistory(self, command):
@@ -244,7 +245,7 @@ class Console(QtWidgets.QPlainTextEdit):
             if type(self.namespace.get(command)) == type(lambda:None):
                 self.appendPlainText("'{}' is a function. Type '{}()' to use it in the Python console."
                                      .format(command, command))
-                self.newPrompt()
+                self.newPrompt('')
                 return
 
             sys.stdout = stdoutProxy(self.appendPlainText)
@@ -269,7 +270,7 @@ class Console(QtWidgets.QPlainTextEdit):
                     traceback_lines.pop(i)
                 self.appendPlainText('\n'.join(traceback_lines))
             sys.stdout = tmp_stdout
-        self.newPrompt()
+        self.newPrompt('')
         self.set_json(False)
 
 
@@ -353,10 +354,3 @@ welcome_message = '''
      Welcome to a primitive Python interpreter.
    ---------------------------------------------------------------
 '''
-
-if __name__ == '__main__':
-    app = QtWidgets.QApplication(sys.argv)
-    console = Console(startup_message=welcome_message)
-    console.updateNamespace({'myVar1' : app, 'myVar2' : 1234})
-    console.show()
-    sys.exit(app.exec_())
