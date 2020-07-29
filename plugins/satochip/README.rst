@@ -14,7 +14,7 @@ Introduction
 This is a fork of Electron Cash modified for use with the Satochip Hardware Wallet. To use it, you need a device with the Satochip Javacard Applet installed.
 If the wallet is not intialized yet, Electron Cash will perform the setup (you only need to do this once). During setup, a seed is created: this seed allows you to recover your wallet at anytime, so make sure to BACKUP THE SEED SECURELY! During setup, a PIN code is also created: this PIN allows to unlock th device to access your funds. If you try too many wrong PIN, your device will be locked indefinitely (it is 'bricked'). If you loose your PIN or brick your device, you can only recover your funds with the seed backup.
 
-The Satochip wallet is currently in Beta, use with caution! In this phase, it is recommended to use the software on the Bitcoin testnet only.
+The Satochip wallet is currently in Beta, use with caution!You can use the software on the Bitcoin testnet using the --testnet option.
 This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this software.
 
 Rem: Electron Cash uses Python 3.x. In case of error, check first that you are not trying to run Electron Cash with Python 2.x or with Python 2.x libraries.
@@ -80,7 +80,7 @@ Pyscard is required to connect to the smartcard::
 (For alternatives, see https://github.com/LudovicRousseau/pyscard/blob/master/INSTALL.md for more detailed installation instructions)
 
 
-To run Electron Cash use::
+To run Electron Cash on the testnet use::
  python3 electron-cash  -v --testnet
 
 

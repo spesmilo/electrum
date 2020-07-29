@@ -169,7 +169,6 @@ setup(
         'electroncash_plugins.virtualkeyboard',
         'electroncash_plugins.shuffle_deprecated',
         'electroncash_plugins.satochip',
-        'electroncash_plugins.satochip_2FA',
         'electroncash_plugins.fusion',
     ],
     package_dir={
