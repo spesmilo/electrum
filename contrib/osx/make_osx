@@ -81,9 +81,10 @@ else
 fi
 
 have_brew=`which brew`
+have_macports=`which port`
 if [ -n "$have_brew" ]; then
     info "Ensuring build prerequisites are installed via brew"
-    for a in autoconf automake coreutils gettext libtool openssl@1.1 readline sqlite3 xz zlib ; do
+    for a in autoconf automake coreutils gettext libtool openssl@1.1 readline sqlite3 xz zlib swig@3 ; do
         brew list $a > /dev/null 2>&1
         if [ "$?" != "0" ]; then
             info "Installing $a"
@@ -92,6 +93,21 @@ if [ -n "$have_brew" ]; then
             info "$a found"
         fi
     done
+elif [ -n "$have_macports" ]; then
+    if [ -z `port installed | grep swig-python` ]; then
+        fail "Please install swig-python: sudo port install swig-python"
+    fi
+else
+    fail "This script requires either brew or MacPorts. Please install either of these package managers and re-run this script."
+fi
+
+have_swig=`which swig`
+if [ -z "$have_swig" ]; then
+    warn "Please install 'swig' to run this script:"
+    info "If using brew: brew install swig@3"
+    info "If using MacPorts: sudo port install swig-python"
+    info "Lastly, ensure 'swig' is in your PATH"
+    fail "'swig' not found in path, cannot proceed"
 fi
 
 info "Installing Python $PYTHON_VERSION"  # NB: $PYTHON_VERSION comes from ../base.sh
