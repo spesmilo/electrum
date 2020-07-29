@@ -178,7 +178,7 @@ class Console(QtWidgets.QPlainTextEdit):
     def getHistory(self):
         return self.history
 
-    def setHisory(self, history):
+    def setHistory(self, history):
         self.history = history
 
     def addToHistory(self, command):
@@ -353,10 +353,3 @@ welcome_message = '''
      Welcome to a primitive Python interpreter.
    ---------------------------------------------------------------
 '''
-
-if __name__ == '__main__':
-    app = QtWidgets.QApplication(sys.argv)
-    console = Console(startup_message=welcome_message)
-    console.updateNamespace({'myVar1' : app, 'myVar2' : 1234})
-    console.show()
-    sys.exit(app.exec_())
