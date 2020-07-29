@@ -125,7 +125,7 @@ class InsertPubKeyDialog(QVBoxLayout):
             self._delete_last_character_from_input()
 
     def _get_str(self) -> str:
-        return self.edit.toPlainText()
+        return self.edit.toPlainText().replace('\n', '')
 
     def get_compressed_pubkey(self):
         bytes_ = bytes.fromhex(self._get_str())

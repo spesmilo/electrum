@@ -73,6 +73,12 @@ def get_unique_atxid_from_history(raw_history) -> list:
     return history_with_unique_atxid
 
 
+def update_unverified_transactions_dict(wallet: 'AddressSynchronizer', history: list):
+    for tx_hash, height, tx_type in history:
+        if wallet.db.get_verified_tx(tx_hash) is None and tx_hash not in wallet.unverified_tx:
+            wallet.add_unverified_tx(tx_hash, height, tx_type)
+
+
 class SynchronizerBase(NetworkJobOnDefaultServer):
     """Subscribe over the network to a set of addresses, and monitor their statuses.
     Every time a status changes, run a coroutine provided by the subclass.
@@ -207,6 +213,7 @@ class Synchronizer(SynchronizerBase):
             self.logger.info(f"error: status mismatch: {addr}")
         else:
             # Store received history
+            update_unverified_transactions_dict(self.wallet, filtered_history)
             self.wallet.receive_history_callback(addr, filtered_history, tx_fees)
             # Request transactions we don't have
             await self._request_missing_txs(filtered_history)

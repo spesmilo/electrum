@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple, NamedTuple, Sequen
 
 from . import bitcoin
 from .bitcoin import COINBASE_MATURITY
+from .three_keys.tx_type import TxType
 from .util import profiler, bfh, TxMinedInfo
 from .transaction import Transaction, TxOutput, TxInput, PartialTxInput, TxOutpoint, PartialTransaction
 from .synchronizer import Synchronizer
@@ -83,7 +84,7 @@ class AddressSynchronizer(Logger):
         self.transaction_lock = threading.RLock()
         self.future_tx = {} # txid -> blocks remaining
         # Transactions pending verification.  txid -> tx_height. Access with self.lock.
-        self.unverified_tx = defaultdict(int)
+        self.unverified_tx = defaultdict(tuple)
         # true when synchronized
         self.up_to_date = False
         # thread local storage for caching stuff
@@ -118,8 +119,8 @@ class AddressSynchronizer(Logger):
         with self.lock, self.transaction_lock:
             related_txns = self._history_local.get(addr, set())
             for tx_hash in related_txns:
-                tx_height = self.get_tx_height(tx_hash).height
-                h.append((tx_hash, tx_height))
+                mined_info = self.get_tx_height(tx_hash)
+                h.append((tx_hash, mined_info.height, mined_info.txtype))
         return h
 
     def get_address_history_len(self, addr: str) -> int:
@@ -146,9 +147,9 @@ class AddressSynchronizer(Logger):
         # review transactions that are in the history
         for addr in self.db.get_history():
             hist = self.db.get_addr_history(addr)
-            for tx_hash, tx_height, *__ in hist:
+            for tx_hash, tx_height, tx_type in hist:
                 # add it in case it was previously unconfirmed
-                self.add_unverified_tx(tx_hash, tx_height)
+                self.add_unverified_tx(tx_hash, tx_height, tx_type)
 
     def start_network(self, network):
         self.network = network
@@ -338,15 +339,15 @@ class AddressSynchronizer(Logger):
                 children |= self.get_depending_transactions(other_hash)
             return children
 
-    def receive_tx_callback(self, tx_hash, tx, tx_height):
-        self.add_unverified_tx(tx_hash, tx_height)
+    def receive_tx_callback(self, tx_hash, tx, tx_height, tx_type=TxType.NONVAULT):
+        self.add_unverified_tx(tx_hash, tx_height, tx_type.name)
         self.add_transaction(tx_hash, tx, allow_unrelated=True)
 
     def receive_history_callback(self, addr: str, hist, tx_fees: Dict[str, int]):
         with self.lock:
             old_hist = self.get_address_history(addr)
-            for tx_hash, height, *__ in old_hist:
-                if (tx_hash, height) not in hist:
+            for tx_hash, height, tx_type in old_hist:
+                if (tx_hash, height, tx_type) not in hist:
                     # make tx local
                     self.unverified_tx.pop(tx_hash, None)
                     self.db.remove_verified_tx(tx_hash)
@@ -354,18 +355,24 @@ class AddressSynchronizer(Logger):
                         self.verifier.remove_spv_proof_for_tx(tx_hash)
             self.db.set_addr_history(addr, hist)
 
-        for tx_hash, tx_height, *__ in hist:
+        for tx_hash, tx_height, tx_type in hist:
             # add it in case it was previously unconfirmed
-            self.add_unverified_tx(tx_hash, tx_height)
+            self.add_unverified_tx(tx_hash, tx_height, tx_type)
             # if addr is new, we have to recompute txi and txo
             tx = self.db.get_transaction(tx_hash)
             if tx is None:
                 continue
+            self._mutate_transaction_type(current_tx=tx, incoming_type=TxType.from_str(tx_type))
             self.add_transaction(tx_hash, tx, allow_unrelated=True)
 
         # Store fees
         for tx_hash, fee_sat in tx_fees.items():
             self.db.add_tx_fee_from_server(tx_hash, fee_sat)
+
+    def _mutate_transaction_type(self, current_tx: 'ThreeKeysTransaction', incoming_type: TxType):
+        current_tx_type = current_tx.tx_type
+        if incoming_type != current_tx_type:
+            current_tx.tx_type = incoming_type
 
     @profiler
     def load_local_history(self):
@@ -407,10 +414,10 @@ class AddressSynchronizer(Logger):
             if verified_tx_mined_info:
                 return verified_tx_mined_info.height, verified_tx_mined_info.txpos
             elif tx_hash in self.unverified_tx:
-                height = self.unverified_tx[tx_hash]
+                height, __ = self.unverified_tx[tx_hash]
                 return (height, -1) if height > 0 else ((1e9 - height), -1)
             else:
-                return (1e9+1, -1)
+                return 1e9 + 1, -1
 
     def with_local_height_cached(func):
         # get local height only once, as it's relatively expensive.
@@ -448,10 +455,10 @@ class AddressSynchronizer(Logger):
             tx_mined_status = self.get_tx_height(tx_hash)
             fee = self.get_tx_fee(tx_hash)
             history.append((tx_hash, tx_mined_status, delta, fee))
-        history.sort(key = lambda x: self.get_txpos(x[0]), reverse=True)
+        history.sort(key=lambda x: self.get_txpos(x[0]), reverse=True)
         # 3. add balance
-        c, u, x, *__ = self.get_balance(domain)
-        balance = c + u + x
+        c, u, x, ao, ai = self.get_balance(domain)
+        balance = c + u + x + ao
         h2 = []
         for tx_hash, tx_mined_status, delta, fee in history:
             h2.append(HistoryItem(txid=tx_hash,
@@ -505,7 +512,7 @@ class AddressSynchronizer(Logger):
         assert self.is_mine(addr), "address needs to be is_mine to be watched"
         await self._address_history_changed_events[addr].wait()
 
-    def add_unverified_tx(self, tx_hash, tx_height):
+    def add_unverified_tx(self, tx_hash, tx_height, tx_type):
         if self.db.is_in_verified_tx(tx_hash):
             if tx_height in (TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT):
                 with self.lock:
@@ -515,7 +522,7 @@ class AddressSynchronizer(Logger):
         else:
             with self.lock:
                 # tx will be verified only if height > 0
-                self.unverified_tx[tx_hash] = tx_height
+                self.unverified_tx[tx_hash] = (tx_height, tx_type)
 
     def remove_unverified_tx(self, tx_hash, tx_height):
         with self.lock:
@@ -577,10 +584,10 @@ class AddressSynchronizer(Logger):
             verified_tx_mined_info = self.db.get_verified_tx(tx_hash)
             if verified_tx_mined_info:
                 conf = max(self.get_local_height() - verified_tx_mined_info.height + 1, 0)
-                return verified_tx_mined_info._replace(conf=conf)
+                return verified_tx_mined_info._replace(conf=conf, txtype=verified_tx_mined_info.txtype)
             elif tx_hash in self.unverified_tx:
-                height = self.unverified_tx[tx_hash]
-                return TxMinedInfo(height=height, conf=0)
+                height, tx_type = self.unverified_tx[tx_hash]
+                return TxMinedInfo(height=height, conf=0, txtype=tx_type)
             elif tx_hash in self.future_tx:
                 # FIXME this is ugly
                 conf = self.future_tx[tx_hash]
@@ -723,19 +730,38 @@ class AddressSynchronizer(Logger):
             h = self.get_address_history(address)
             received = {}
             sent = {}
-            for tx_hash, height, *__ in h:
-                l = self.db.get_txo_addr(tx_hash, address)
-                for n, v, is_cb in l:
-                    received[tx_hash + ':%d'%n] = (height, v, is_cb)
-            for tx_hash, height, *__ in h:
+            alert_incoming = {}
+            alert_outgoing = {}
+            for tx_hash, height, tx_type, *__ in h:
+                for n, v, is_cb in self.db.get_txo_addr(tx_hash, address):
+                    key = tx_hash + ':%d' % n
+                    value = (height, v, is_cb)
+                    if tx_type == TxType.ALERT_PENDING.name:
+                        alert_incoming[key] = value
+                    elif tx_type == TxType.ALERT_CONFIRMED.name or tx_type == TxType.ALERT_RECOVERED.name:
+                        if key in alert_incoming:
+                            del alert_incoming[key]
+                        received[key] = value
+                    else:
+                        received[key] = value
+            for tx_hash, height, tx_type, *__ in h:
                 l = self.db.get_txi_addr(tx_hash, address)
                 for txi, v in l:
-                    sent[txi] = height
-        return received, sent
+                    if tx_type == TxType.ALERT_PENDING.name:
+                        alert_outgoing[txi] = height
+                    elif tx_type == TxType.ALERT_CONFIRMED.name or tx_type == TxType.ALERT_RECOVERED.name:
+                        if txi in alert_outgoing:
+                            del alert_outgoing[txi]
+                        sent[txi] = height
+                    else:
+                        sent[txi] = height
+        return received, sent, alert_incoming, alert_outgoing
 
     def get_addr_utxo(self, address: str) -> Dict[TxOutpoint, PartialTxInput]:
-        coins, spent = self.get_addr_io(address)
+        coins, spent, alert_incoming, alert_outgoing = self.get_addr_io(address)
         for txi in spent:
+            coins.pop(txi)
+        for txi in alert_outgoing:
             coins.pop(txi)
         out = {}
         for prevout_str, v in coins.items():
@@ -750,7 +776,7 @@ class AddressSynchronizer(Logger):
 
     # return the total amount ever received by an address
     def get_addr_received(self, address):
-        received, sent = self.get_addr_io(address)
+        received, *__ = self.get_addr_io(address)
         return sum([v for height, v, is_cb in received.values()])
 
     @with_local_height_cached
@@ -765,8 +791,8 @@ class AddressSynchronizer(Logger):
         if excluded_coins is None:
             excluded_coins = set()
         assert isinstance(excluded_coins, set), f"excluded_coins should be set, not {type(excluded_coins)}"
-        received, sent = self.get_addr_io(address)
-        c = u = x = 0
+        received, sent, alert_incoming, alert_outgoing = self.get_addr_io(address)
+        c = u = x = ai = ao = 0
         mempool_height = self.get_local_height() + 1  # height of next block
         for txo, (tx_height, v, is_cb) in received.items():
             if txo in excluded_coins:
@@ -782,7 +808,18 @@ class AddressSynchronizer(Logger):
                     c -= v
                 else:
                     u -= v
-        result = c, u, x
+            if txo in alert_outgoing:
+                if alert_outgoing[txo] > 0:
+                    c -= v
+                    ao -= v
+                else:
+                    u -= v
+        for txo, (tx_height, v, _) in alert_incoming.items():
+            if tx_height > 0:
+                ai += v
+            else:
+                u += v
+        result = c, u, x, ai, ao
         # cache result.
         if not excluded_coins:
             # Cache needs to be invalidated if a transaction is added to/
@@ -816,20 +853,22 @@ class AddressSynchronizer(Logger):
         return coins
 
     def get_balance(self, domain=None, *, excluded_addresses: Set[str] = None,
-                    excluded_coins: Set[str] = None) -> Tuple[int, int, int]:
+                    excluded_coins: Set[str] = None) -> Tuple[int, int, int, int, int]:
         if domain is None:
             domain = self.get_addresses()
         if excluded_addresses is None:
             excluded_addresses = set()
         assert isinstance(excluded_addresses, set), f"excluded_addresses should be set, not {type(excluded_addresses)}"
         domain = set(domain) - excluded_addresses
-        cc = uu = xx = 0
+        cc = uu = xx = ai = ao = 0
         for addr in domain:
-            c, u, x = self.get_addr_balance(addr, excluded_coins=excluded_coins)
+            c, u, x, _ai, _ao = self.get_addr_balance(addr, excluded_coins=excluded_coins)
             cc += c
             uu += u
             xx += x
-        return cc, uu, xx
+            ai += _ai
+            ao += _ao
+        return cc, uu, xx, ai, ao
 
     def is_used(self, address):
         h = self.db.get_addr_history(address)

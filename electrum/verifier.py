@@ -90,8 +90,8 @@ class SPV(NetworkJobOnDefaultServer):
             # or before headers are available
             if tx_height <= 0 or tx_height > local_height:
                 continue
-            # verify ALERT_PENDING txs without merkle check
-            if tx_type == TxType.ALERT_PENDING.name:
+            # verify ALERT_PENDING & ALERT_RECOVERED txs without merkle check
+            if tx_type == TxType.ALERT_PENDING.name or tx_type == TxType.ALERT_RECOVERED.name:
                 await self.group.spawn(self._mark_as_verified, tx_hash, tx_height, tx_type)
                 continue
             # if it's in the checkpoint region, we still might not have the header
