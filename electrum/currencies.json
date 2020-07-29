@@ -882,14 +882,17 @@
     "MercadoBitcoin": [
         "BRL"
     ],
-    "NegocieCoins": [
-        "BRL"
-    ],
     "TheRockTrading": [
         "EUR"
     ],
     "Zaif": [
         "JPY"
     ],
-    "itBit": []
+    "itBit": [],
+    "Bitragem": [
+        "BRL"
+    ],
+    "Biscoint": [
+        "BRL"
+    ]
 }
