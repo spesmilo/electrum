@@ -158,6 +158,7 @@ class Global:
             Global(config).tor_host = 'localhost'  # setter
     """
     class Defaults:
+        HideHistoryTxs = False
         ServerList : List[Tuple[str, int, bool]] = _get_default_server_list()
         TorHost = 'localhost'
         TorPortAuto = True
@@ -167,6 +168,13 @@ class Global:
     def __init__(self, config):
         assert config
         self.config = config
+
+    @property
+    def hide_history_txs(self) -> bool:
+        return bool(self.config.get('cashfusion_hide_history_txs', self.Defaults.HideHistoryTxs))
+    @hide_history_txs.setter
+    def hide_history_txs(self, b : bool):
+        self.config.set_key('cashfusion_hide_history_txs', bool(b))
 
     @property
     def server(self) -> Tuple[str, int, bool]:

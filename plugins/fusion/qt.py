@@ -66,11 +66,13 @@ class Plugin(FusionPlugin, QObject):
     gui = None
     initted = False
     last_server_status = (True, ("Ok", ''))
+    _hide_history_txs = False
 
     def __init__(self, *args, **kwargs):
         QObject.__init__(self)  # parentless top-level QObject. We need this type for the signal.
         FusionPlugin.__init__(self, *args, **kwargs) # gives us self.config
         self.widgets = weakref.WeakSet() # widgets we made, that need to be hidden & deleted when plugin is disabled
+        self._hide_history_txs = Global(self.config).hide_history_txs
 
     def on_close(self):
         super().on_close()
@@ -394,6 +396,42 @@ class Plugin(FusionPlugin, QObject):
         t.timeout.connect(chk_tor_ok)
         t.setSingleShot(True)
         t.start(5000)
+
+    @hook
+    def history_list_filter(self, history_list, h_item, label):
+        if self._hide_history_txs:
+            return bool(label.startswith("CashFusion "))  # this string is not translated for performance reasons
+        return None
+
+    @hook
+    def history_list_context_menu_setup(self, history_list, menu, item, tx_hash):
+        # NB: We unconditionally create this menu if the plugin is loaded because
+        # it's possible for any wallet, even a watching-only wallet to have
+        # fusion tx's with the correct labels (if the user uses labelsync or
+        # has imported labels).
+        menu.addSeparator()
+        def action_callback():
+            self._hide_history_txs = not self._hide_history_txs
+            Global(self.config).hide_history_txs = self._hide_history_txs
+            action.setChecked(self._hide_history_txs)
+            if self._hide_history_txs:
+                tip = _("Fusion transactions are now hidden")
+            else:
+                tip = _("Fusion transactions are now shown")
+            QToolTip.showText(QCursor.pos(), tip, history_list)
+            history_list.update() # unconditionally update this history list as it may be embedded in the address_detail window and not a global history list..
+            for w in self.gui.windows:
+                # Need to update all the other open windows.
+                # Note: We still miss any other open windows' address-detail
+                #       history lists with this.. but that's ok as most of the
+                #       time it won't be noticed by people and actually
+                #       finding all those windows would just make this code
+                #       less maintainable.
+                if history_list is not w.history_list:  # check if not already updated above
+                    w.history_list.update()
+        action = menu.addAction(_("Hide CashFusions"), action_callback)
+        action.setCheckable(True)
+        action.setChecked(self._hide_history_txs)
 
 
 class PasswordDialog(WindowModalDialog):

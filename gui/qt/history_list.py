@@ -122,8 +122,8 @@ class HistoryList(MyTreeWidget):
         for h_item in h:
             tx_hash, height, conf, timestamp, value, balance = h_item
             label = self.wallet.get_label(tx_hash)
-            should_skip = run_hook("history_list_filter", self, h_item, label)
-            if should_skip:
+            should_skip = run_hook("history_list_filter", self, h_item, label, multi=True) or []
+            if any(should_skip):
                 # For implementation of fast plugin filters (such as CashShuffle
                 # shuffle tx filtering), we short-circuit return. This is
                 # faster than using the MyTreeWidget filter definted in .util
