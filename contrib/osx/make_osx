@@ -94,7 +94,8 @@ if [ -n "$have_brew" ]; then
         fi
     done
 elif [ -n "$have_macports" ]; then
-    if [ -z `port installed | grep swig-python` ]; then
+    have_port_swig_python=`port installed | grep swig-python`
+    if [ -z "$have_port_swig_python" ]; then
         fail "Please install swig-python: sudo port install swig-python"
     fi
 else
