@@ -241,11 +241,7 @@ class BaseWizard(Logger):
         self.get_recovery_pubkey(run_next=collect_recovery_pubkey)
 
     def three_keys_standalone_get_instant_pubkey(self):
-        def collect_instant_pubkey(pubkey: str):
-            self.data['instant_pubkey'] = pubkey
-            self.run('choose_keystore')
-
-        self.get_instant_pubkey(run_next=collect_instant_pubkey, recovery_key=self.data['recovery_pubkey'])
+        self.get_instant_pubkey(run_next=self.on_three_keys, recovery_key=self.data['recovery_pubkey'])
 
     def three_keys_2fa(self):
         def collect_recovery_pubkey(pubkey: str):
@@ -256,10 +252,10 @@ class BaseWizard(Logger):
 
     def three_keys_2fa_generate_instant_privkey(self):
         entropy_2fa = short_mnemonic.generate_entropy()
-        self.display_privkey_qr(run_next=self.on_three_keys, privkey=entropy_2fa)
+        self.display_2fa_pairing_qr(run_next=self.on_three_keys, entropy=entropy_2fa)
 
-    def on_three_keys(self, pubkey: str):
-        self.data['instant_pubkey'] = pubkey
+    def on_three_keys(self, instant_pubkey: str):
+        self.data['instant_pubkey'] = instant_pubkey
         self.run('choose_keystore')
 
     def choose_keystore(self):
