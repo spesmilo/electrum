@@ -7,6 +7,8 @@ import queue
 import traceback
 import os
 import webbrowser
+import itertools
+import string
 
 from functools import partial, lru_cache
 from typing import NamedTuple, Callable, Optional, TYPE_CHECKING, Union, List, Dict
@@ -906,6 +908,11 @@ def webopen(url: str):
             sys.exit(0)
     else:
         webbrowser.open(url)
+
+
+def filter_non_printable(text: str):
+    subset = itertools.chain([ord(x) for x in string.whitespace])
+    return text.translate({char: None for char in subset})
 
 
 if __name__ == "__main__":

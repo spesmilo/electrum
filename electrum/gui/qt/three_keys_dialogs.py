@@ -11,6 +11,7 @@ from electrum.ecc import ECPubkey, ECPrivkey
 from electrum.i18n import _
 from .qrcodewidget import QRCodeWidget
 from ...three_keys import short_mnemonic
+from .util import filter_non_printable
 
 
 class ValidationState(IntEnum):
@@ -37,6 +38,7 @@ class PubKeyValidator:
 
     def validate(self, input_str: str) -> ValidationState:
         # initial set to 3 for parsing and validating first 2 characters
+        input_str = filter_non_printable(input_str)
         pubkey_max_length = 3
         self.error_label.setVisible(False)
 

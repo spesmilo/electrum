@@ -1,25 +1,23 @@
 from enum import IntEnum
 from datetime import datetime, timedelta
 from functools import partial
-from hashlib import sha256
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import hashes
+import re
 
-from typing import Optional, Union, List, Dict
+from typing import Union, List, Dict
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QStandardItemModel, QStandardItem, QMouseEvent, QFocusEvent, QValidator
-from PyQt5.QtWidgets import QPushButton, QLabel, QWidget, QComboBox, QLineEdit,\
-    QCompleter, QAbstractItemView, QTreeView, QHeaderView, QStyledItemDelegate,\
+from PyQt5.QtGui import QStandardItemModel, QStandardItem, QMouseEvent, QValidator
+from PyQt5.QtWidgets import QPushButton, QLabel, QWidget, QComboBox,\
+    QCompleter, QTreeView, QHeaderView, QStyledItemDelegate,\
     QVBoxLayout, QGridLayout
 
 from electrum.i18n import _
 from electrum.logging import get_logger
 from electrum.wallet import Abstract_Wallet
 from electrum.util import get_request_status, PR_TYPE_ONCHAIN, PR_TYPE_LN
+from electrum import bitcoin
 
-from .util import read_QIcon, pr_icons, WaitingDialog
+from .util import read_QIcon, pr_icons, WaitingDialog, filter_non_printable
 from .confirm_tx_dialog import ConfirmTxDialog
 from .completion_text_edit import CompletionTextEdit
 from ...mnemonic import load_wordlist
@@ -139,6 +137,16 @@ class RecoveryView(QTreeView):
         return out
 
 
+def is_address_valid(address):
+    tmp = re.match('([0-9A-Za-z]{1,})', address)
+    if not tmp or tmp.group() != address:
+        return False
+    else:
+        if not bitcoin.is_address(address):
+            return False
+    return True
+
+
 class RecoveryTab(QWidget):
     def __init__(self, parent, wallet: Abstract_Wallet, config):
         self.electrum_main_window = parent
@@ -157,6 +165,7 @@ class RecoveryTab(QWidget):
             ADDRESS_LENGTH = 35
 
             def validate(self, input: str, index: int):
+                input = filter_non_printable(input)
                 i_len = len(input)
                 state = QValidator.Acceptable
 
@@ -164,6 +173,9 @@ class RecoveryTab(QWidget):
                     state = QValidator.Invalid
                 elif i_len < self.ADDRESS_LENGTH:
                     state = QValidator.Intermediate
+                else:
+                    if not is_address_valid(input):
+                        state = QValidator.Invalid
 
                 return state, input, index
 
@@ -191,18 +203,6 @@ class RecoveryTab(QWidget):
     def get_recovery_seed(self):
         text = self.recovery_privkey_line.text()
         return text.split()
-
-    @staticmethod
-    def generate_encryption_key(salt: bytes, password: bytes) -> [bytes, int]:
-        kdf = PBKDF2HMAC(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=salt,
-            iterations=100000,
-            backend=default_backend()
-        )
-        key = kdf.derive(password)
-        return key
 
     def _get_recovery_keypair(self):
         stored_recovery_pubkey = self.wallet.storage.get('recovery_pubkey')
@@ -271,6 +271,9 @@ class RecoveryTab(QWidget):
             atxs = self.invoice_list.selected()
             address = self.recovery_address_line.currentText()
             recovery_keypair = self._get_recovery_keypair()
+
+            if not is_address_valid(address):
+                raise Exception(_('Invalid recovery address'))
 
             inputs, output = self.wallet.get_inputs_and_output_for_recovery(atxs, address)
             inputs = self.wallet.prepare_inputs_for_recovery(inputs)
@@ -394,6 +397,9 @@ class RecoveryTabAIRStandalone(RecoveryTab):
             instant_keypair = self._get_instant_keypair()
             recovery_keypair = self._get_recovery_keypair()
             atxs = self.invoice_list.selected()
+
+            if not is_address_valid(address):
+                raise Exception(_('Invalid recovery address'))
 
             inputs, output = self.wallet.get_inputs_and_output_for_recovery(atxs, address)
             inputs = self.wallet.prepare_inputs_for_recovery(inputs)

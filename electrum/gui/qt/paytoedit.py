@@ -119,6 +119,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         return int(p * Decimal(x.strip()))
 
     def parse_address(self, line):
+        line = util.filter_non_printable(line)
         r = line.strip()
         m = re.match('^'+RE_ALIAS+'$', r)
         address = str(m.group(2) if m else r)
