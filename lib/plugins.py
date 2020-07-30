@@ -650,6 +650,7 @@ class BasePlugin(PrintError):
         self.name = name
         self.config = config
         self.wallet = None
+        self.enabled_use_prefix = INTERNAL_USE_PREFIX
         self._hooks_i_registered = []
         # add self to hooks
         for aname in dir(self):

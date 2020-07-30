@@ -14,16 +14,29 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import (QComboBox, QGridLayout, QLabel, QPushButton)
 
-try:
-    import amodem.audio
-    import amodem.main
-    import amodem.config
-    print_error('Audio MODEM is available.')
-    amodem.log.addHandler(amodem.logging.StreamHandler(sys.stderr))
-    amodem.log.setLevel(amodem.logging.INFO)
-except ImportError:
+
+PLATFORM_LIBS = {
+    'Linux': 'libportaudio.so',
+}
+
+err_reason = 'Audio MODEM is available.'
+
+if platform.system() in PLATFORM_LIBS:
+    try:
+        import amodem.audio
+        import amodem.main
+        import amodem.config
+        print_error(err_reason)
+        amodem.log.addHandler(amodem.logging.StreamHandler(sys.stderr))
+        amodem.log.setLevel(amodem.logging.INFO)
+    except ImportError:
+        amodem = None
+        err_reason = 'Audio MODEM is not found.'
+        print_error(err_reason)
+else:
     amodem = None
-    print_error('Audio MODEM is not found.')
+    err_reason = "Audio modem plugin is not available for this platform"
+    print_error(err_reason)
 
 
 class Plugin(BasePlugin):
@@ -32,9 +45,7 @@ class Plugin(BasePlugin):
         BasePlugin.__init__(self, parent, config, name)
         if self.is_available():
             self.modem_config = amodem.config.slowest()
-            self.library_name = {
-                'Linux': 'libportaudio.so'
-            }[platform.system()]
+            self.library_name = PLATFORM_LIBS[platform.system()]
 
     def is_available(self):
         return amodem is not None
@@ -46,6 +57,9 @@ class Plugin(BasePlugin):
         return EnterButton(_('Settings'), partial(self.settings_dialog, window))
 
     def settings_dialog(self, window):
+        if not self.is_available():
+            window.show_error(err_reason)
+            return
         d = WindowModalDialog(window, _("Audio Modem Settings"))
 
         layout = QGridLayout(d)
