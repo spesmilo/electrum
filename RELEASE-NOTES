@@ -939,3 +939,30 @@ and there is no warning message.
     - On macOS we now disabled the "dark" theme in favor of the system dark
       theme (cculianu)
     - Catalina startup times drastically improved (cculianu)
+
+# Release 4.1.0
+
+- ***CashFusion*** is here! To access it, simply right-click on the CashFusion
+  icon in the bottom-right of the status bar. Thanks to everybody that worked on
+  it, in particular: Mark Lundeberg, Jonald Fyookball, Axel Gembe, Calin Culianu
+  and many more that don't fit here.
+- Tx Signing has been significantly sped up for transactions with many inputs.
+  (Mark Lundeberg, cculianu)
+- Tezor HW Wallet: Updated to support latest firmware. #1900, #1902 (Axel Gembe)
+- Fixes for bugs introduced by newer ecdsa libraries that use gmpy2. In
+  particular on Fedora 32 things would sometimes explode when signing a tx or
+  using CashFusion, due to ecdsa API quirks. (cculianu)
+- Fixed ZBar (QR camera) issues on Windows. #1916 (Axel Gembe)
+- SSL Certs: Accept wildcard certs, accept CA-signed replacing pinned
+  self-signed. Servers can now use wildcard certs or switch from self-signed to
+  CA-signed without losing users! (cculianu)
+- Update criptolayer server. #1874 (imaginaryusername)
+- Add electroncash.de block explorer. #1920 (Axel Gembe)
+- Network: Show problematic pinned certificates and allow unpinning. #1919 (Axel
+  Gembe)
+- Update plugin for Satochip hardware wallet to support latest firmware v0.11.
+  #1915. (Toporin)
+- Tor: Make process shutdown more robust. #1893 (Axel Gembe)
+- AudioModem: Fixed to not crash on unsupported platforms. (cculianu)
+- Various internal refactorings, fixups, and internal API improvements.
+  (cculianu, Axel Gembe, Mark Lundeberg)
