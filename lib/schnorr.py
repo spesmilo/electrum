@@ -165,14 +165,14 @@ def sign(privkey, message_hash):
         R = k * G
         if jacobi(R.y(), fieldsize) == -1:
             k = order - k
-        rbytes = R.x().to_bytes(32,'big')
+        rbytes = int(R.x()).to_bytes(32,'big')
 
         ebytes = hashlib.sha256(rbytes + pubbytes + message_hash).digest()
         e = int.from_bytes(ebytes, 'big')
 
         s = (k + e*secexp) % order
 
-        return rbytes + s.to_bytes(32, 'big')
+        return rbytes + int(s).to_bytes(32, 'big')
 
 
 def verify(pubkey, signature, message_hash):
@@ -244,7 +244,7 @@ def verify(pubkey, signature, message_hash):
         if jacobi(R.y(), fieldsize) != 1:
             return False
 
-        return (R.x().to_bytes(32, 'big') == rbytes)
+        return (int(R.x()).to_bytes(32, 'big') == rbytes)
 
 class BlindSigner:
     """ Schnorr blind signature creator, signer side.
@@ -309,7 +309,7 @@ class BlindSigner:
         e = int.from_bytes(ebytes, 'big')
 
         s = (k + e * x) % self.order
-        return s.to_bytes(32, 'big')
+        return int(s).to_bytes(32, 'big')
 
 
 class BlindSignatureRequest:
@@ -389,7 +389,7 @@ class BlindSignatureRequest:
 
         # multiply & add the points -- takes ~190 microsec
         Rnew = Rpoint + self.a * ecdsa.SECP256k1.generator + self.b * pubpoint
-        self.Rxnew = Rnew.x().to_bytes(32,'big')
+        self.Rxnew = int(Rnew.x()).to_bytes(32,'big')
         y = Rnew.y()
 
         # calculate the jacobi symbol (+1 or -1). ~30 microsec
@@ -399,8 +399,8 @@ class BlindSignatureRequest:
         # Fast version of _calc_initial, using libsecp256k1. About 2.4x faster.
         ctx = seclib.ctx
 
-        abytes = self.a.to_bytes(32,'big')
-        bbytes = self.b.to_bytes(32,'big')
+        abytes = int(self.a).to_bytes(32,'big')
+        bbytes = int(self.b).to_bytes(32,'big')
 
         R_buf = create_string_buffer(64)
         res = seclib.secp256k1_ec_pubkey_parse(ctx, R_buf, self.R, c_size_t(len(self.R)))
@@ -448,7 +448,7 @@ class BlindSignatureRequest:
 
     def get_request(self,):
         """ returns 32 bytes e value, to be sent to the signer """
-        return self.e.to_bytes(32,'big')
+        return int(self.e).to_bytes(32,'big')
 
     def finalize(self, sbytes, check = True):
         """ expects 32 bytes s value, returns 64 byte finished signature
@@ -462,7 +462,7 @@ class BlindSignatureRequest:
 
         snew = (self.c*(s + self.a)) % self.order
 
-        sig = self.Rxnew + snew.to_bytes(32,'big')
+        sig = self.Rxnew + int(snew).to_bytes(32,'big')
         if check and not verify(self.pubkey, sig, self.message_hash):
             raise RuntimeError("Blind signature verification failed.")
         return sig

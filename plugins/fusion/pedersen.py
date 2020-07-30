@@ -232,7 +232,7 @@ class Commitment:
         a = self.amount_mod
 
         # calculate k * (G + H)
-        k_bytes = k.to_bytes(32,'big')
+        k_bytes = int(k).to_bytes(32,'big')
         kHG_buf = create_string_buffer(64)
         kHG_buf.raw = self.setup._seclib_HG #copy
         res = seclib.secp256k1_ec_pubkey_tweak_mul(ctx, kHG_buf, k_bytes)
@@ -243,7 +243,7 @@ class Commitment:
             result_buf = create_string_buffer(64)
 
             # calculate (a - k) * H
-            a_k_bytes = a_k.to_bytes(32,'big')
+            a_k_bytes = int(a_k).to_bytes(32,'big')  # NB: a_k may be gmpy2.mpz here because sometimes it just is due to ecdsa changes.
             akH_buf = create_string_buffer(64)
             akH_buf.raw = self.setup._seclib_H #copy
             res = seclib.secp256k1_ec_pubkey_tweak_mul(ctx, akH_buf, a_k_bytes)

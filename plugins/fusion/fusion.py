@@ -213,7 +213,7 @@ def gen_components(num_blanks, inputs, outputs, feerate):
         proof = pb.Proof()
         # proof.component_idx = <to be filled in later>
         proof.salt = salt
-        proof.pedersen_nonce = pedersencommitment.nonce.to_bytes(32, 'big')
+        proof.pedersen_nonce = int(pedersencommitment.nonce).to_bytes(32, 'big')
 
         resultlist.append((commitser, cnum, compser, proof, privkey))
 
@@ -221,7 +221,7 @@ def gen_components(num_blanks, inputs, outputs, feerate):
     resultlist.sort(key=lambda x:x[0])
 
     sum_nonce = sum_nonce % pedersen.order
-    pedersen_total_nonce = sum_nonce.to_bytes(32, 'big')
+    pedersen_total_nonce = int(sum_nonce).to_bytes(32, 'big')
 
     return zip(*resultlist), sum_amounts, pedersen_total_nonce
 
