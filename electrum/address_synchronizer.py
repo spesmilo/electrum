@@ -21,7 +21,8 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import asyncio
+
+import logging
 import threading
 import asyncio
 import itertools
@@ -29,21 +30,23 @@ from collections import defaultdict
 from copy import deepcopy
 from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple, NamedTuple, Sequence
 
-from . import bitcoin
+
 from .bitcoin import COINBASE_MATURITY
 from .three_keys.tx_type import TxType
-from .util import profiler, bfh, TxMinedInfo
-from .transaction import Transaction, TxOutput, TxInput, PartialTxInput, TxOutpoint, PartialTransaction
+from .util import profiler, TxMinedInfo
+from .transaction import Transaction, TxOutput, TxInput, PartialTxInput, TxOutpoint
 from .synchronizer import Synchronizer
 from .verifier import SPV
 from .blockchain import hash_header
 from .i18n import _
-from .logging import Logger
+from .logging import Logger, get_logger
 
 if TYPE_CHECKING:
     from .network import Network
     from .json_db import JsonDB
 
+_logger = get_logger(__name__)
+_logger.setLevel(logging.INFO)
 
 TX_HEIGHT_FUTURE = -3
 TX_HEIGHT_LOCAL = -2
@@ -91,7 +94,7 @@ class AddressSynchronizer(Logger):
         self.threadlocal_cache = threading.local()
 
         self._get_addr_balance_cache = {}
-
+        self._excluded_recovered_coins = set()
         self.load_and_cleanup()
 
     def with_transaction_lock(func):
@@ -207,7 +210,45 @@ class AddressSynchronizer(Logger):
                     raise Exception('Found conflicting transactions already in wallet history.')
                 if not include_self:
                     conflicting_txns -= {tx_hash}
+            conflicting_txns = self._adjust_conflicting_transactions(tx, conflicting_txns)
             return conflicting_txns
+
+    def _update_excluded_recovered_coins(self, tx_a, tx_b=None):
+        allowed_types = (TxType.ALERT_RECOVERED, TxType.ALERT_PENDING)
+        tx_recovered_hash = ''
+        if tx_b is not None:
+            if tx_a.tx_type in allowed_types and tx_b.tx_type == TxType.RECOVERY:
+                tx_recovered_hash = tx_a.txid()
+            elif tx_b.tx_type in allowed_types and tx_a.tx_type == TxType.RECOVERY:
+                tx_recovered_hash = tx_b.txid()
+        elif tx_a.tx_type in allowed_types:
+            tx_recovered_hash = tx_a.txid()
+        elif not tx_recovered_hash:
+            raise ValueError(f'Transactions are not {allowed_types + (TxType.RECOVERY,)} types')
+
+        txs = [f'{tx_recovered_hash}:{list(item)[0][0]}'
+               for item in self.db.get_data_ref('txo')[tx_recovered_hash].values()]
+        self._excluded_recovered_coins |= set(txs)
+
+    def _adjust_conflicting_transactions(self, tx, conflicting_txns):
+        """Recovery transaction has the same inputs as alert transaction used for it creation. Due to this
+        fact we have to accept this conflict and set it as unconflicted"""
+        allowed_types = (TxType.RECOVERY, TxType.ALERT_RECOVERED, TxType.ALERT_PENDING)
+        if tx.tx_type not in allowed_types:
+            return conflicting_txns
+        elif tx.tx_type == TxType.ALERT_RECOVERED:
+            self._update_excluded_recovered_coins(tx)
+        conflicting_txns_ = set()
+        txin_hashes = [txin.prevout.txid.hex() for txin in tx.inputs()]
+        for conflicted_tx_hash in conflicting_txns:
+            conflicted_tx = self.db.get_transaction(conflicted_tx_hash)
+            if conflicted_tx.tx_type in allowed_types:
+                conflicted_tx_input_hashes = [txin.prevout.txid.hex() for txin in conflicted_tx.inputs()]
+                if set(conflicted_tx_input_hashes) == set(txin_hashes):
+                    self._update_excluded_recovered_coins(tx, conflicted_tx)
+                    continue
+            conflicting_txns_ |= {conflicted_tx_hash}
+        return conflicting_txns_
 
     def add_transaction(self, tx_hash, tx: Transaction, allow_unrelated=False) -> bool:
         """Returns whether the tx was successfully added to the wallet history."""
@@ -457,7 +498,7 @@ class AddressSynchronizer(Logger):
             history.append((tx_hash, tx_mined_status, delta, fee))
         history.sort(key=lambda x: self.get_txpos(x[0]), reverse=True)
         # 3. add balance
-        c, u, x, ao, ai = self.get_balance(domain)
+        c, u, x, ao, ai = self.get_balance(domain, excluded_coins=self._excluded_recovered_coins)
         balance = c + u + x + ao
         h2 = []
         for tx_hash, tx_mined_status, delta, fee in history:
@@ -468,13 +509,15 @@ class AddressSynchronizer(Logger):
                                   balance=balance))
             if balance is None or delta is None:
                 balance = None
-            else:
+            # skip ALERT_RECOVERED transactions
+            elif tx_mined_status.txtype != TxType.ALERT_RECOVERED.name:
                 balance -= delta
         h2.reverse()
         # fixme: this may happen if history is incomplete
         if balance not in [None, 0]:
             self.logger.warning("history not synchronized")
-            return []
+            # todo what to return in case of desynchronized history [] ?
+            return h2
 
         return h2
 
@@ -759,10 +802,13 @@ class AddressSynchronizer(Logger):
 
     def get_addr_utxo(self, address: str) -> Dict[TxOutpoint, PartialTxInput]:
         coins, spent, alert_incoming, alert_outgoing = self.get_addr_io(address)
-        for txi in spent:
-            coins.pop(txi)
-        for txi in alert_outgoing:
-            coins.pop(txi)
+        try:
+            for txi in spent:
+                coins.pop(txi)
+            for txi in alert_outgoing:
+                coins.pop(txi)
+        except KeyError as e:
+            _logger.error(f'Cannot pop {txi} from coins')
         out = {}
         for prevout_str, v in coins.items():
             tx_height, value, is_cb = v
@@ -815,6 +861,8 @@ class AddressSynchronizer(Logger):
                 else:
                     u -= v
         for txo, (tx_height, v, _) in alert_incoming.items():
+            if txo in excluded_coins:
+                continue
             if tx_height > 0:
                 ai += v
             else:
@@ -860,9 +908,13 @@ class AddressSynchronizer(Logger):
             excluded_addresses = set()
         assert isinstance(excluded_addresses, set), f"excluded_addresses should be set, not {type(excluded_addresses)}"
         domain = set(domain) - excluded_addresses
+        if excluded_coins:
+            _excluded_coins = excluded_coins.union(self._excluded_recovered_coins)
+        else:
+            _excluded_coins = self._excluded_recovered_coins
         cc = uu = xx = ai = ao = 0
         for addr in domain:
-            c, u, x, _ai, _ao = self.get_addr_balance(addr, excluded_coins=excluded_coins)
+            c, u, x, _ai, _ao = self.get_addr_balance(addr, excluded_coins=_excluded_coins)
             cc += c
             uu += u
             xx += x

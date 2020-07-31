@@ -24,8 +24,11 @@ def update_tx_status(tx_hash, tx_mined_info: 'TxMinedInfo', status: int, status_
         return status, status_str
 
     confirmations = tx_mined_info.conf
-    # unconfirmed alert
+    # unconfirmed alert or recovery
     if confirmations == 0:
+        if tx.tx_type == TxType.RECOVERY:
+            # last item in TX_ICONS represents unconfirmed recovery tx
+            return TX_STATUS_INDEX_SHIFT + tx.tx_type + 1, status_str
         return TX_STATUS_INDEX_SHIFT, status_str
     return TX_STATUS_INDEX_SHIFT + tx.tx_type, status_str
 

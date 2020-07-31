@@ -81,6 +81,7 @@ TX_ICONS = [
     "alert_pending.png",
     "alert_recovered.png",
     "recovery.png",
+    "recovery_unconfirmed.png",
 ]
 
 class HistoryColumns(IntEnum):

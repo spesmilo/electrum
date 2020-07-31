@@ -679,6 +679,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 transactions[key] = tx_item
         now = time.time()
         balance = 0
+        potential_conflicted_alerts = {}
         for item in transactions.values():
             # add on-chain and lightning values
             value = Decimal(0)
@@ -687,14 +688,37 @@ class Abstract_Wallet(AddressSynchronizer):
             if item.get('ln_value'):
                 value += item.get('ln_value').value
             item['value'] = Satoshis(value)
-            balance += value
-            item['balance'] = Satoshis(balance)
+            tx = self.db.get_transaction(item['txid'])
+            if tx.tx_type == TxType.ALERT_PENDING and item['confirmations'] > 0:
+                potential_conflicted_alerts[tx] = value
+            elif tx.tx_type == TxType.ALERT_RECOVERED:
+                # todo change this value?
+                item['balance'] = Satoshis(0)
+            # mempool recovery tx
+            elif tx.tx_type == TxType.RECOVERY and item['confirmations'] == 0:
+                adjusted_value = self._get_conflicted_alerts_value(tx, potential_conflicted_alerts)
+                balance += value - adjusted_value
+                item['balance'] = Satoshis(balance)
+            else:
+                balance += value
+                item['balance'] = Satoshis(balance)
+
             if fx:
                 timestamp = item['timestamp'] or now
                 fiat_value = value / Decimal(bitcoin.COIN) * fx.timestamp_rate(timestamp)
                 item['fiat_value'] = Fiat(fiat_value, fx.ccy)
                 item['fiat_default'] = True
         return transactions
+
+    def _get_conflicted_alerts_value(self, recovery_tx, conflicted_alerts):
+        value = 0
+        with self.transaction_lock:
+            recovery_inputs = [txin.prevout.txid.hex() for txin in recovery_tx.inputs()]
+            for atx, atx_value in conflicted_alerts.items():
+                inputs = [txin.prevout.txid.hex() for txin in atx.inputs()]
+                if set(recovery_inputs) == set(inputs):
+                    value += atx_value
+        return value
 
     @profiler
     def get_detailed_history(self, from_timestamp=None, to_timestamp=None,

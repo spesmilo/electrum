@@ -22,7 +22,7 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import os
+import logging
 import ast
 import json
 import copy
@@ -35,7 +35,7 @@ from .three_keys.transaction import TxType, ThreeKeysTransaction
 from .util import profiler, WalletFileException, multisig_type, TxMinedInfo
 from .keystore import bip44_derivation
 from .transaction import Transaction
-from .logging import Logger
+from .logging import Logger, get_logger
 
 # seed_version is now used for the version of the wallet file
 
@@ -46,6 +46,9 @@ FINAL_SEED_VERSION = 20     # electrum >= 2.7 will set this to prevent
 
 
 JsonDBJsonEncoder = util.MyEncoder
+
+_logger = get_logger(__name__)
+_logger.setLevel(logging.INFO)
 
 
 class TxFeesValue(NamedTuple):
@@ -661,9 +664,12 @@ class JsonDB(Logger):
     @modifier
     def remove_spent_outpoint(self, prevout_hash, prevout_n):
         prevout_n = str(prevout_n)
-        self.spent_outpoints[prevout_hash].pop(prevout_n, None)
-        if not self.spent_outpoints[prevout_hash]:
-            self.spent_outpoints.pop(prevout_hash)
+        try:
+            self.spent_outpoints[prevout_hash].pop(prevout_n, None)
+            if not self.spent_outpoints[prevout_hash]:
+                self.spent_outpoints.pop(prevout_hash)
+        except KeyError as e:
+            _logger.error(f'Error in removing spent outpoint {e}')
 
     @modifier
     def set_spent_outpoint(self, prevout_hash, prevout_n, tx_hash):
