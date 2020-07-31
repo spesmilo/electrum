@@ -9,3 +9,4 @@ PySocks>=1.6.6
 qdarkstyle==2.6.8
 python-dateutil<2.9
 stem>=1.8.0
+certifi
