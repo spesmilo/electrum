@@ -163,21 +163,29 @@ class Plugin(FusionPlugin, QObject):
         # Called on initial plugin load (if enabled) and every new window; only once per window.
         wallet = window.wallet
 
-        if not (can_fuse_from(wallet) and can_fuse_to(wallet)):
+        can_fuse = can_fuse_from(wallet) and can_fuse_to(wallet)
+        if can_fuse:
+            sbbtn = FusionButton(self, wallet)
+            self.server_status_changed_signal.connect(sbbtn.update_server_error)
+        else:
+            # If we can not fuse we create a dummy fusion button that just displays a message
+            sbmsg = _('This wallet type ({wtype}) cannot be used with CashFusion.\n\nPlease use a standard deterministic spending wallet with CashFusion.').format(wtype=wallet.wallet_type)
+            sbbtn = DisabledFusionButton(wallet, sbmsg)
+
+        # bit of a dirty hack, to insert our status bar icon (always using index 4, should put us just after the password-changer icon)
+        sb = window.statusBar()
+        sb.insertPermanentWidget(4, sbbtn)
+        self.widgets.add(sbbtn)
+        window._cashfusion_button = weakref.ref(sbbtn)
+
+        if not can_fuse:
             # don't do anything with non-fusable wallets
             # (if inter-wallet fusing is added, this should change.)
             return
 
         want_autofuse = Conf(wallet).autofuse
         self.add_wallet(wallet, window.gui_object.get_cached_password(wallet))
-
-        # bit of a dirty hack, to insert our status bar icon (always using index 4, should put us just after the password-changer icon)
-        sb = window.statusBar()
-        sbbtn = FusionButton(self, wallet)
-        self.server_status_changed_signal.connect(sbbtn.update_server_error)
-        sb.insertPermanentWidget(4, sbbtn)
-        self.widgets.add(sbbtn)
-        window._cashfusion_button = weakref.ref(sbbtn)
+        sbbtn.update_state()
 
         # prompt for password if auto-fuse was enabled
         if want_autofuse and not self.is_autofusing(wallet):
@@ -523,6 +531,17 @@ class PasswordDialog(WindowModalDialog):
         self.exec_()
         return self.password
 
+
+class DisabledFusionButton(StatusBarButton):
+    def __init__(self, wallet, message):
+        super().__init__(icon_fusion_logo_gray, 'Fusion', self.show_message)
+        self.wallet = wallet
+        self.message = message
+        self.setToolTip(_("CashFusion (disabled)"))
+
+    def show_message(self):
+        QMessageBox.information(Plugin.get_suitable_dialog_window_parent(self.wallet),
+                                _("CashFusion is diabled"), self.message)
 
 class FusionButton(StatusBarButton):
     def __init__(self, plugin, wallet):
