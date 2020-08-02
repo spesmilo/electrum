@@ -19,8 +19,20 @@ class TestInterface(unittest.TestCase):
         self.assertFalse(i.check_host_name(
             peercert={'subjectAltName': []}, name=''))
         self.assertTrue(i.check_host_name(
-            peercert={'subjectAltName': [('DNS', 'foo.bar.com')]},
+            peercert={'subjectAltName': (('DNS', 'foo.bar.com'),)},
             name='foo.bar.com'))
         self.assertTrue(i.check_host_name(
-            peercert={'subject': [('commonName', 'foo.bar.com')]},
+            peercert={'subjectAltName': (('DNS', '*.bar.com'),)},
             name='foo.bar.com'))
+        self.assertFalse(i.check_host_name(
+            peercert={'subjectAltName': (('DNS', '*.bar.com'),)},
+            name='sub.foo.bar.com'))
+        self.assertTrue(i.check_host_name(
+            peercert={'subject': ((('commonName', 'foo.bar.com'),),)},
+            name='foo.bar.com'))
+        self.assertTrue(i.check_host_name(
+            peercert={'subject': ((('commonName', '*.bar.com'),),)},
+            name='foo.bar.com'))
+        self.assertFalse(i.check_host_name(
+            peercert={'subject': ((('commonName', '*.bar.com'),),)},
+            name='sub.foo.bar.com'))
