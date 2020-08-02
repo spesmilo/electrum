@@ -347,10 +347,3 @@ class Console(QtWidgets.QPlainTextEdit):
                 self.setCommand(beginning + p)
             else:
                 self.show_completions(completions)
-
-
-welcome_message = '''
-   ---------------------------------------------------------------
-     Welcome to a primitive Python interpreter.
-   ---------------------------------------------------------------
-'''
