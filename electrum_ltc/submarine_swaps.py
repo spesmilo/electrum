@@ -24,8 +24,8 @@ if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
 
 
-API_URL_MAINNET = 'https://swaps.electrum.org/api'
-API_URL_TESTNET = 'https://swaps.electrum.org/testnet'
+API_URL_MAINNET = 'https://swaps.electrum-ltc.org/api'
+API_URL_TESTNET = 'https://swaps.electrum-ltc.org/testnet'
 API_URL_REGTEST = 'https://localhost/api'
 
 
