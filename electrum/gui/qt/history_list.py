@@ -226,7 +226,7 @@ class HistoryModel(QAbstractItemModel, Logger):
             v_str = self.parent.format_amount(value, is_diff=True, whitespaces=True)
             return QVariant(v_str)
         elif col == HistoryColumns.BALANCE:
-            balance = tx_item['balance'].value
+            balance = tx_item['balance'].value if 'balance' in tx_item else 0 # todo: check wallet.get_full_history (shouldnt balance always be provided?)
             balance_str = self.parent.format_amount(balance, whitespaces=True)
             return QVariant(balance_str)
         elif col == HistoryColumns.FIAT_VALUE and 'fiat_value' in tx_item:
