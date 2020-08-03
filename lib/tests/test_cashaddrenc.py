@@ -152,14 +152,14 @@ class TestCashAddrAddress(unittest.TestCase):
             # Inject an error
             values = list(cashaddr._CHARSET)
             while True:
-                pos = random.randint(0, len(addr) - 1)
+                pos = random.randint(len(BCH_PREFIX) + 1, len(addr) - 1)
                 choice = random.choice(values)
                 if choice != addrlist[pos] and addrlist[pos] in values:
                     addrlist[pos] = choice
                     break
 
             mangled_addr = ''.join(addrlist)
-            with self.assertRaises(ValueError) as e:
+            with self.assertRaises(ValueError, msg=mangled_addr) as e:
                 cashaddr.decode(mangled_addr)
             self.assertTrue('invalid checksum' in e.exception.args[0])
 
