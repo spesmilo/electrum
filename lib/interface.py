@@ -137,7 +137,7 @@ class TcpConnection(threading.Thread, util.PrintError):
     def _get_socket_and_verify_ca_cert(self, *, suppress_errors) -> Tuple[Optional[ssl.SSLSocket], bool]:
         ''' Attempts to connect to the remote host, assuming it is using a CA
         signed certificate. If the cert is valid then a tuple of: (wrapped
-        SSLSocket, True) is returned. Otherwise (None, bool) is returned on
+        SSLSocket, False) is returned. Otherwise (None, bool) is returned on
         error. If the second item in the tuple is True, then the entire
         operation should be aborted due to low-level error. '''
         s = self.get_simple_socket()

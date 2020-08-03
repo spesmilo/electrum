@@ -31,8 +31,6 @@
 #  https://github.com/rthalley/dnspython/blob/master/tests/test_dnssec.py
 
 
-# import traceback
-# import sys
 import time
 import struct
 
@@ -58,121 +56,136 @@ import dns.rdtypes.IN.A
 import dns.rdtypes.IN.AAAA
 
 
-# Pure-Python version of dns.dnssec._validate_rsig
-import ecdsa
-from . import rsakey
+if not hasattr(dns, 'version'):
+    # Do some monkey patching needed for versions of dnspython < 2
 
+    # Pure-Python version of dns.dnssec._validate_rsig
+    import ecdsa
+    import hashlib
+    from . import rsakey
 
-def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
-    from dns.dnssec import ValidationFailure, ECDSAP256SHA256, ECDSAP384SHA384
-    from dns.dnssec import _find_candidate_keys, _make_hash, _is_ecdsa, _is_rsa, _to_rdata, _make_algorithm_id
+    def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
+        from dns.dnssec import ValidationFailure, ECDSAP256SHA256, ECDSAP384SHA384
+        from dns.dnssec import _find_candidate_keys, _make_hash, _is_ecdsa, _is_rsa, _to_rdata, _make_algorithm_id # pylint: disable=no-name-in-module
 
-    if isinstance(origin, str):
-        origin = dns.name.from_text(origin, dns.name.root)
+        if isinstance(origin, str):
+            origin = dns.name.from_text(origin, dns.name.root)
 
-    for candidate_key in _find_candidate_keys(keys, rrsig):
-        if not candidate_key:
-            raise ValidationFailure('unknown key')
+        for candidate_key in _find_candidate_keys(keys, rrsig):
+            if not candidate_key:
+                raise ValidationFailure('unknown key')
 
-        # For convenience, allow the rrset to be specified as a (name, rdataset)
-        # tuple as well as a proper rrset
-        if isinstance(rrset, tuple):
-            rrname = rrset[0]
-            rdataset = rrset[1]
-        else:
-            rrname = rrset.name
-            rdataset = rrset
-
-        if now is None:
-            now = time.time()
-        if rrsig.expiration < now:
-            raise ValidationFailure('expired')
-        if rrsig.inception > now:
-            raise ValidationFailure('not yet valid')
-
-        hash = _make_hash(rrsig.algorithm)
-
-        if _is_rsa(rrsig.algorithm):
-            keyptr = candidate_key.key
-            (bytes,) = struct.unpack('!B', keyptr[0:1])
-            keyptr = keyptr[1:]
-            if bytes == 0:
-                (bytes,) = struct.unpack('!H', keyptr[0:2])
-                keyptr = keyptr[2:]
-            rsa_e = keyptr[0:bytes]
-            rsa_n = keyptr[bytes:]
-            n = ecdsa.util.string_to_number(rsa_n)
-            e = ecdsa.util.string_to_number(rsa_e)
-            pubkey = rsakey.RSAKey(n, e)
-            sig = rrsig.signature
-
-        elif _is_ecdsa(rrsig.algorithm):
-            if rrsig.algorithm == ECDSAP256SHA256:
-                curve = ecdsa.curves.NIST256p
-                key_len = 32
-                digest_len = 32
-            elif rrsig.algorithm == ECDSAP384SHA384:
-                curve = ecdsa.curves.NIST384p
-                key_len = 48
-                digest_len = 48
+            # For convenience, allow the rrset to be specified as a (name, rdataset)
+            # tuple as well as a proper rrset
+            if isinstance(rrset, tuple):
+                rrname = rrset[0]
+                rdataset = rrset[1]
             else:
-                # shouldn't happen
-                raise ValidationFailure('unknown ECDSA curve')
-            keyptr = candidate_key.key
-            x = ecdsa.util.string_to_number(keyptr[0:key_len])
-            y = ecdsa.util.string_to_number(keyptr[key_len:key_len * 2])
-            assert ecdsa.ecdsa.point_is_valid(curve.generator, x, y)
-            point = ecdsa.ellipticcurve.Point(curve.curve, x, y, curve.order)
-            verifying_key = ecdsa.keys.VerifyingKey.from_public_point(point, curve)
-            r = rrsig.signature[:key_len]
-            s = rrsig.signature[key_len:]
-            sig = ecdsa.ecdsa.Signature(ecdsa.util.string_to_number(r),
-                                        ecdsa.util.string_to_number(s))
+                rrname = rrset.name
+                rdataset = rrset
 
-        else:
-            raise ValidationFailure('unknown algorithm %u' % rrsig.algorithm)
+            if now is None:
+                now = time.time()
+            if rrsig.expiration < now:
+                raise ValidationFailure('expired')
+            if rrsig.inception > now:
+                raise ValidationFailure('not yet valid')
 
-        hash.update(_to_rdata(rrsig, origin)[:18])
-        hash.update(rrsig.signer.to_digestable(origin))
+            hash = _make_hash(rrsig.algorithm)
 
-        if rrsig.labels < len(rrname) - 1:
-            suffix = rrname.split(rrsig.labels + 1)[1]
-            rrname = dns.name.from_text('*', suffix)
-        rrnamebuf = rrname.to_digestable(origin)
-        rrfixed = struct.pack('!HHI', rdataset.rdtype, rdataset.rdclass,
-                              rrsig.original_ttl)
-        rrlist = sorted(rdataset);
-        for rr in rrlist:
-            hash.update(rrnamebuf)
-            hash.update(rrfixed)
-            rrdata = rr.to_digestable(origin)
-            rrlen = struct.pack('!H', len(rrdata))
-            hash.update(rrlen)
-            hash.update(rrdata)
+            if _is_rsa(rrsig.algorithm):
+                keyptr = candidate_key.key
+                (bytes,) = struct.unpack('!B', keyptr[0:1])
+                keyptr = keyptr[1:]
+                if bytes == 0:
+                    (bytes,) = struct.unpack('!H', keyptr[0:2])
+                    keyptr = keyptr[2:]
+                rsa_e = keyptr[0:bytes]
+                rsa_n = keyptr[bytes:]
+                n = ecdsa.util.string_to_number(rsa_n)
+                e = ecdsa.util.string_to_number(rsa_e)
+                pubkey = rsakey.RSAKey(n, e)
+                sig = rrsig.signature
 
-        digest = hash.digest()
+            elif _is_ecdsa(rrsig.algorithm):
+                if rrsig.algorithm == ECDSAP256SHA256:
+                    curve = ecdsa.curves.NIST256p
+                    key_len = 32
+                    digest_len = 32
+                elif rrsig.algorithm == ECDSAP384SHA384:
+                    curve = ecdsa.curves.NIST384p
+                    key_len = 48
+                    digest_len = 48
+                else:
+                    # shouldn't happen
+                    raise ValidationFailure('unknown ECDSA curve')
+                keyptr = candidate_key.key
+                x = ecdsa.util.string_to_number(keyptr[0:key_len])
+                y = ecdsa.util.string_to_number(keyptr[key_len:key_len * 2])
+                assert ecdsa.ecdsa.point_is_valid(curve.generator, x, y)
+                point = ecdsa.ellipticcurve.Point(curve.curve, x, y, curve.order)
+                verifying_key = ecdsa.keys.VerifyingKey.from_public_point(point, curve)
+                r = rrsig.signature[:key_len]
+                s = rrsig.signature[key_len:]
+                sig = ecdsa.ecdsa.Signature(ecdsa.util.string_to_number(r),
+                                            ecdsa.util.string_to_number(s))
 
-        if _is_rsa(rrsig.algorithm):
-            digest = _make_algorithm_id(rrsig.algorithm) + digest
-            if pubkey.verify(bytearray(sig), bytearray(digest)):
-                return
+            else:
+                raise ValidationFailure('unknown algorithm %u' % rrsig.algorithm)
 
-        elif _is_ecdsa(rrsig.algorithm):
-            diglong = ecdsa.util.string_to_number(digest)
-            if verifying_key.pubkey.verifies(diglong, sig):
-                return
+            hash.update(_to_rdata(rrsig, origin)[:18])
+            hash.update(rrsig.signer.to_digestable(origin))
 
-        else:
-            raise ValidationFailure('unknown algorithm %s' % rrsig.algorithm)
+            if rrsig.labels < len(rrname) - 1:
+                suffix = rrname.split(rrsig.labels + 1)[1]
+                rrname = dns.name.from_text('*', suffix)
+            rrnamebuf = rrname.to_digestable(origin)
+            rrfixed = struct.pack('!HHI', rdataset.rdtype, rdataset.rdclass,
+                                rrsig.original_ttl)
+            rrlist = sorted(rdataset);
+            for rr in rrlist:
+                hash.update(rrnamebuf)
+                hash.update(rrfixed)
+                rrdata = rr.to_digestable(origin)
+                rrlen = struct.pack('!H', len(rrdata))
+                hash.update(rrlen)
+                hash.update(rrdata)
 
-    raise ValidationFailure('verify failure')
+            digest = hash.digest()
+
+            if _is_rsa(rrsig.algorithm):
+                digest = _make_algorithm_id(rrsig.algorithm) + digest
+                if pubkey.verify(bytearray(sig), bytearray(digest)):
+                    return
+
+            elif _is_ecdsa(rrsig.algorithm):
+                diglong = ecdsa.util.string_to_number(digest)
+                if verifying_key.pubkey.verifies(diglong, sig):
+                    return
+
+            else:
+                raise ValidationFailure('unknown algorithm %s' % rrsig.algorithm)
+
+        raise ValidationFailure('verify failure')
 
 
-# replace validate_rrsig
-dns.dnssec._validate_rrsig = python_validate_rrsig
-dns.dnssec.validate_rrsig = python_validate_rrsig
-dns.dnssec.validate = dns.dnssec._validate
+    class PyCryptodomexHashAlike:
+        def __init__(self, hashlib_func):
+            self._hash = hashlib_func
+        def new(self):
+            return self._hash()
 
+
+    # replace validate_rrsig
+    dns.dnssec._validate_rrsig = python_validate_rrsig
+    dns.dnssec.validate_rrsig = python_validate_rrsig
+    dns.dnssec.validate = dns.dnssec._validate
+    dns.dnssec._have_ecdsa = True
+    dns.dnssec.MD5 = PyCryptodomexHashAlike(hashlib.md5)
+    dns.dnssec.SHA1 = PyCryptodomexHashAlike(hashlib.sha1)
+    dns.dnssec.SHA256 = PyCryptodomexHashAlike(hashlib.sha256)
+    dns.dnssec.SHA384 = PyCryptodomexHashAlike(hashlib.sha384)
+    dns.dnssec.SHA512 = PyCryptodomexHashAlike(hashlib.sha512)
 
 
 from .util import print_error
