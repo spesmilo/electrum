@@ -1,5 +1,7 @@
 import dns
 
+from dns.dnssec import ValidationFailure
+
 from electroncash import dnssec
 
 from . import ElectronCashTestCase
@@ -37,3 +39,21 @@ class TestDnsSec(ElectronCashTestCase):
 
         # 'None' means it is valid
         self.assertEqual(None, dns.dnssec.validate_rrsig(rrset, rrsig, keys, origin, now))
+
+    def test_validate_rrsig_fail(self):
+        rrset = dns.rrset.from_text("dnssec-failed.org.", 86400, 1, 43,
+                                    "2371 13 2 3b7f818a879ecb9931dae983d4529afedeb53993759d8080735083f954d40bc8",
+                                    "106 5 1 4F219DCE274F820EA81EA1150638DABE21EB27FC")
+        rrsig = dns.rdtypes.ANY.RRSIG.RRSIG.from_text(1, 46,
+            dns.tokenizer.Tokenizer("DS 7 2 86400 20200822152404 20200801142404 21869 org. TdOzuXZkr5dlHiien4T8LSBXszhMkBJoM6E7NrljV/k2xi5d8/AbKTcJ Vsj0Jo2ss/Tak1O4SM8qlOhgHSW2wb4IwYCZTMvuu0bC2b4wWeXkOoQT 5as8ImTEA2SrOm/uoA/v6dWzbiBzOFkkhJk//jAT+SNCRmgF1envhq78 7DQ="))
+
+        rrset2 = dns.rrset.from_text("org.", 866, 1, 48,
+                                     "256 3 7 AwEAAZwBxCB7AIhIWiqjusg2lfHSi8orabyy5BM/UtidQEZKIvU5Mrh7 7eV4C3WyTOwd2AwoGYAUgPjzAC5lFFnCg0LsQpsV7sYy5k+bZBlpxF1o 9KuBOe+iUQt2YM4TjTD38mW1aN8OFf8mkMxkRzo3dfskzsT881CdJRiD Cg18hJJt",
+                                     "256 3 7 AwEAAdZenjsGF9Xmh+hjv1FV0w8rRC6SHKeMNuk53BRsqruVK2xCbLGm gtue1yMElMs5+4B5A+uZY8pj4c5fHgC06h3gd0XoIF+KvWhk5WDqohrv 0nUADQjBBAGRaaO4FDTuu8i19sRg3p3h1LoAgZi+Gcls+JxOdnohVUkp 0by82buT",
+                                     "257 3 7 AwEAAcMnWBKLuvG/LwnPVykcmpvnntwxfshHlHRhlY0F3oz8AMcuF8gw 9McCw+BoC2YxWaiTpNPuxjSNhUlBtcJmcdkz3/r7PIn0oDf14ept1Y9p dPh8SbIBIWx50ZPfVRlj8oQXv2Y6yKiQik7bi3MT37zMRU2kw2oy3cgr sGAzGN4s/C6SFYon5N1Q2O4hGDbeOq538kATOy0GFELjuauV9guX/431 msYu4Rgb5lLuQ3Mx5FSIxXpI/RaAn2mhM4nEZ/5IeRPKZVGydcuLBS8G ZlxW4qbb8MgRZ8bwMg0pqWRHmhirGmJIt3UuzvN1pSFBfX7ysI9PPhSn wXCNDXk0kk0=")
+        keys = {dns.name.Name([b'org', b'']): rrset2}
+        origin = None
+        now = 1596432184.621979
+
+        with self.assertRaises(ValidationFailure):
+            dns.dnssec.validate_rrsig(rrset, rrsig, keys, origin, now)
