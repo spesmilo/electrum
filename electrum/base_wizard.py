@@ -243,14 +243,11 @@ class BaseWizard(Logger):
         self.run('restore_from_seed')
 
     def three_keys_standalone(self):
-        def collect_recovery_pubkey(pubkey: str):
-            self.data['recovery_pubkey'] = pubkey
-            self.run('three_keys_standalone_get_instant_pubkey')
+        def collect_instant_pubkey(instant_pubkey: str):
+            self.data['instant_pubkey'] = instant_pubkey
+            self.run('get_recovery_pubkey', run_next=self.on_three_keys_create, instant_key=self.data['instant_pubkey'])
 
-        self.get_recovery_pubkey(run_next=collect_recovery_pubkey)
-
-    def three_keys_standalone_get_instant_pubkey(self):
-        self.get_instant_pubkey(run_next=self.on_three_keys_create, recovery_key=self.data['recovery_pubkey'])
+        self.get_instant_pubkey(run_next=collect_instant_pubkey)
 
     def three_keys_2fa_create(self):
         def collect_instant_pubkey(instant_pubkey: str):
