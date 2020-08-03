@@ -226,9 +226,10 @@ class AddressSynchronizer(Logger):
         elif not tx_recovered_hash:
             raise ValueError(f'Transactions are not {allowed_types + (TxType.RECOVERY,)} types')
 
-        txs = [f'{tx_recovered_hash}:{list(item)[0][0]}'
-               for item in self.db.get_data_ref('txo')[tx_recovered_hash].values()]
-        self._excluded_recovered_coins |= set(txs)
+        if tx_recovered_hash in self.db.get_data_ref('txo'):
+            txs = [f'{tx_recovered_hash}:{list(item)[0][0]}'
+                   for item in self.db.get_data_ref('txo')[tx_recovered_hash].values()]
+            self._excluded_recovered_coins |= set(txs)
 
     def _adjust_conflicting_transactions(self, tx, conflicting_txns):
         """Recovery transaction has the same inputs as alert transaction used for it creation. Due to this
