@@ -44,7 +44,7 @@ class OverlayLabel(QtWidgets.QLabel):
 
 
 class Console(QtWidgets.QPlainTextEdit):
-    def __init__(self, prompt='>> ', startup_message='', parent=None):
+    def __init__(self, prompt='>>> ', parent=None):
         QtWidgets.QPlainTextEdit.__init__(self, parent)
 
         self.prompt = prompt
@@ -56,7 +56,6 @@ class Console(QtWidgets.QPlainTextEdit):
         self.setWordWrapMode(QtGui.QTextOption.WrapAnywhere)
         self.setUndoRedoEnabled(False)
         self.document().setDefaultFont(QtGui.QFont(MONOSPACE_FONT, 10, QtGui.QFont.Normal))
-        self.showMessage(startup_message)
 
         self.updateNamespace({'run':self.run_script})
         self.set_json(False)
@@ -347,10 +346,3 @@ class Console(QtWidgets.QPlainTextEdit):
                 self.setCommand(beginning + p)
             else:
                 self.show_completions(completions)
-
-
-welcome_message = '''
-   ---------------------------------------------------------------
-     Welcome to a primitive Python interpreter.
-   ---------------------------------------------------------------
-'''
