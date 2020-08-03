@@ -56,7 +56,7 @@ import dns.rdtypes.IN.A
 import dns.rdtypes.IN.AAAA
 
 
-if hasattr(dns.dnssec, '_make_algorithm_id'):
+if not hasattr(dns, 'version'):
     # Do some monkey patching needed for versions of dnspython < 2
 
     # Pure-Python version of dns.dnssec._validate_rsig
@@ -66,7 +66,7 @@ if hasattr(dns.dnssec, '_make_algorithm_id'):
 
     def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
         from dns.dnssec import ValidationFailure, ECDSAP256SHA256, ECDSAP384SHA384
-        from dns.dnssec import _find_candidate_keys, _make_hash, _is_ecdsa, _is_rsa, _to_rdata, _make_algorithm_id
+        from dns.dnssec import _find_candidate_keys, _make_hash, _is_ecdsa, _is_rsa, _to_rdata, _make_algorithm_id # pylint: disable=no-name-in-module
 
         if isinstance(origin, str):
             origin = dns.name.from_text(origin, dns.name.root)
