@@ -112,8 +112,7 @@ class TrezorClientBase(HardwareClientBase, Logger):
             return True
 
         try:
-            res = self.client.ping("electrum pinging device")
-            assert res == "electrum pinging device"
+            self.client.init_device()
         except BaseException:
             return False
         return True
