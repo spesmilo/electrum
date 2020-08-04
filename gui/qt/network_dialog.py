@@ -496,23 +496,16 @@ class NetworkChoiceLayout(QObject, PrintError):
               "In general, connections routed through Tor hide your IP address from servers, at the expense of "
               "performance and network throughput.") + "\n\n" +
             _("For the average user, it's recommended that you leave this option "
-              "disabled and only leave the 'integrated Tor client' option enabled.") )
+              "disabled and only leave the 'Start Tor client' option enabled.") )
         self.tor_cb.setToolTip(tor_proxy_tooltip)
 
-        self.tor_enabled = QCheckBox(_("Start integrated Tor client"))
+        self.tor_enabled = QCheckBox()
         self.tor_enabled.setIcon(QIcon(":icons/tor_logo.svg"))
         self.tor_enabled.clicked.connect(self.set_tor_enabled)
         self.tor_enabled.setChecked(self.network.tor_controller.is_enabled())
-        tor_enabled_tooltip = _("This will enable the integrated Tor proxy.")
-        self.tor_enabled.setToolTip(tor_enabled_tooltip)
-        tor_enabled_help = (
-            tor_enabled_tooltip + "\n\n"
-            + _("If unsure, it's safe to enable this feature, and leave 'Use Tor Proxy' disabled.  "
-                "In that situation, only certain plugins (such as CashFusion) will use Tor, but your "
-                "regular SPV server connections will remain unaffected.") )
+        self.tor_enabled_help = HelpButton('')
 
         self.tor_custom_port_cb = QCheckBox(_("Custom port"))
-        self.tor_custom_port_cb.setEnabled(self.tor_enabled.isChecked())
         self.tor_enabled.clicked.connect(self.tor_custom_port_cb.setEnabled)
         self.tor_custom_port_cb.setChecked(bool(self.network.tor_controller.get_socks_port()))
         self.tor_custom_port_cb.clicked.connect(self.on_custom_port_cb_click)
@@ -526,12 +519,13 @@ class NetworkChoiceLayout(QObject, PrintError):
         self.tor_socks_port.setText(str(self.network.tor_controller.get_socks_port()))
         self.tor_socks_port.setToolTip(custom_port_tooltip)
         self.tor_socks_port.setValidator(UserPortValidator(self.tor_socks_port, accept_zero=True))
-        self.tor_socks_port.setEnabled(self.tor_custom_port_cb.isChecked())
 
-        # Start integrated Tor
+        self.update_tor_enabled()
+
+        # Start Tor
         grid.addWidget(self.tor_enabled, 1, 0, 1, 2)
-        grid.addWidget(HelpButton(tor_enabled_help), 1, 4)
-        # Custom integrated Tor port
+        grid.addWidget(self.tor_enabled_help, 1, 4)
+        # Custom Tor port
         hbox = QHBoxLayout()
         hbox.addSpacing(20)  # indentation
         hbox.addWidget(self.tor_custom_port_cb, 0, Qt.AlignLeft|Qt.AlignVCenter)
@@ -596,6 +590,33 @@ class NetworkChoiceLayout(QObject, PrintError):
 
         self.fill_in_proxy_settings()
         self.update()
+
+    _tor_client_names = {
+        TorController.BinaryType.MISSING: _('Tor'),
+        TorController.BinaryType.SYSTEM: _('system Tor'),
+        TorController.BinaryType.INTEGRATED: _('integrated Tor')
+    }
+
+    def update_tor_enabled(self, *args):
+        tbt = self.network.tor_controller.tor_binary_type
+        tbname = self._tor_client_names[tbt]
+
+        self.tor_enabled.setText(_("Start {tor_binary_name} client").format(tor_binary_name=tbname))
+        avalable = tbt != TorController.BinaryType.MISSING
+        self.tor_enabled.setEnabled(avalable)
+        self.tor_custom_port_cb.setEnabled(avalable and self.tor_enabled.isChecked())
+        self.tor_socks_port.setEnabled(avalable and self.tor_custom_port_cb.isChecked())
+
+        tor_enabled_tooltip = [_("This will start a private instance of the Tor proxy controlled by Electron Cash.")]
+        if not avalable:
+            tor_enabled_tooltip.insert(0, _("This feature is unavailable because no Tor binary was found."))
+        tor_enabled_tooltip_text = ' '.join(tor_enabled_tooltip)
+        self.tor_enabled.setToolTip(tor_enabled_tooltip_text)
+        self.tor_enabled_help.help_text = (
+            tor_enabled_tooltip_text + "\n\n"
+            + _("If unsure, it's safe to enable this feature, and leave 'Use Tor Proxy' disabled.  "
+                "In that situation, only certain plugins (such as CashFusion) will use Tor, but your "
+                "regular SPV server connections will remain unaffected.") )
 
     def jumpto(self, location : str):
         if not isinstance(location, str):
@@ -862,14 +883,10 @@ class NetworkChoiceLayout(QObject, PrintError):
 
     @in_main_thread
     def on_tor_status_changed(self, controller):
-        if controller.status in (TorController.Status.STARTED, TorController.Status.READY):
-            self.tor_enabled.setChecked(True)
-        elif controller.status == TorController.Status.ERRORED and self.tabs.isVisible():
-            QMessageBox.critical(None, _("Tor Client Error"),
-                                 _("The integrated Tor client experienced an error or could not be started."))
-        else:
-            self.tor_enabled.setChecked(False)
-        self.tor_custom_port_cb.setEnabled(self.tor_enabled.isChecked())
+        if controller.status == TorController.Status.ERRORED and self.tabs.isVisible():
+            tbname = self._tor_client_names[self.network.tor_controller.tor_binary_type]
+            msg = _("The {tor_binary_name} client experienced an error or could not be started.").format(tor_binary_name=tbname)
+            QMessageBox.critical(None, _("Tor Client Error"), msg)
 
     def set_tor_socks_port(self):
         socks_port = int(self.tor_socks_port.text())
@@ -983,7 +1000,7 @@ class TorDetector(QThread):
                 stopq = self.stopQ.get(timeout=10.0) # keep trying every 10 seconds
                 if stopq is None:
                     return # we must have gotten a stop signal if we get here, break out of function, ending thread
-                # We were kicked, which means the integrated tor port changed.
+                # We were kicked, which means the tor port changed.
                 # Run the detection after a slight delay which increases the reliability.
                 QThread.msleep(250)
                 continue

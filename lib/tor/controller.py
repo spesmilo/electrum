@@ -28,7 +28,8 @@ import sys
 import threading
 import shutil
 import socket
-from enum import Enum
+from enum import IntEnum, unique
+from typing import Tuple, Optional
 
 import stem.socket
 import stem.process
@@ -54,16 +55,6 @@ def _make_socket_monkey_patch(self):
         raise stem.SocketError(exc)
 stem.socket.ControlPort._make_socket = _make_socket_monkey_patch
 
-if sys.platform in ('windows', 'win32'):
-    _TOR_BINARY_NAME = os.path.join(
-        os.path.dirname(__file__), '..', '..', 'tor.exe')
-else:
-    _TOR_BINARY_NAME = os.path.join(os.path.dirname(__file__), 'bin', 'tor')
-
-if not os.path.isfile(_TOR_BINARY_NAME):
-    # Tor is not packaged / built, try to locate a system tor
-    _TOR_BINARY_NAME = shutil.which('tor')
-
 _TOR_ENABLED_KEY = 'tor_enabled'
 _TOR_ENABLED_DEFAULT = False
 
@@ -71,12 +62,19 @@ _TOR_SOCKS_PORT_KEY = 'tor_socks_port'
 _TOR_SOCKS_PORT_DEFAULT = 0
 
 class TorController(PrintError):
-    class Status(Enum):
+    @unique
+    class Status(IntEnum):
         STOPPING = 0
         STOPPED = 1
         STARTED = 2
         READY = 3
         ERRORED = 4
+
+    @unique
+    class BinaryType(IntEnum):
+        MISSING = 0
+        INTEGRATED = 1
+        SYSTEM = 2
 
     _config: SimpleConfig = None
     _tor_process: subprocess.Popen = None
@@ -90,11 +88,18 @@ class TorController(PrintError):
     active_control_port: int = None
     active_port_changed = Event()
 
+    tor_binary: str
+    tor_binary_type: BinaryType = BinaryType.MISSING
+
     def __init__(self, config: SimpleConfig):
         if not config:
             raise AssertionError('TorController: config must be set')
 
         self._config = config
+
+        if not self.detect_tor() and self.is_enabled():
+            self.print_error("Tor enabled but no usable Tor binary found, disabling")
+            self.set_enabled(False)
 
         socks_port = self._config.get(
             _TOR_SOCKS_PORT_KEY, _TOR_SOCKS_PORT_DEFAULT)
@@ -159,6 +164,33 @@ class TorController(PrintError):
                 kwargs['creationflags'] = 0x08000000 # CREATE_NO_WINDOW, for < Python 3.7
         return TorController._orig_subprocess_popen(*args, **kwargs)
 
+    @staticmethod
+    def _get_tor_binary() -> Tuple[Optional[str], BinaryType]:
+        # Try to locate a bundled tor binary
+        if sys.platform in ('windows', 'win32'):
+            res = os.path.join(os.path.dirname(
+                __file__), '..', '..', 'tor.exe')
+        else:
+            res = os.path.join(os.path.dirname(__file__), 'bin', 'tor')
+        if os.path.isfile(res):
+            return (res, TorController.BinaryType.INTEGRATED)
+
+        # Tor is not packaged / built, try to locate a system tor
+        res = shutil.which('tor')
+        if res and os.path.isfile(res):
+            return (res, TorController.BinaryType.SYSTEM)
+
+        return (None, TorController.BinaryType.MISSING)
+
+    def detect_tor(self) -> bool:
+        path, bintype = self._get_tor_binary()
+        self.tor_binary = path
+        self.tor_binary_type = bintype
+        return self.is_available()
+
+    def is_available(self) -> bool:
+        return self.tor_binary_type != TorController.BinaryType.MISSING
+
     def start(self):
         if self._tor_process:
             # Tor is already running
@@ -168,7 +200,7 @@ class TorController(PrintError):
             # Don't start Tor if not enabled
             return
 
-        if not _TOR_BINARY_NAME:
+        if self.tor_binary_type == TorController.BinaryType.MISSING:
             self.print_error("No Tor binary found")
             self.status = TorController.Status.ERRORED
             self.status_changed(self)
@@ -182,7 +214,7 @@ class TorController(PrintError):
         try:
             subprocess.Popen = TorController._popen_monkey_patch
             self._tor_process = stem.process.launch_tor_with_config(
-                tor_cmd=_TOR_BINARY_NAME,
+                tor_cmd=self.tor_binary,
                 completion_percent=0,  # We will monitor the bootstrap status
                 init_msg_handler=self._tor_msg_handler,
                 take_ownership=True,
@@ -216,7 +248,7 @@ class TorController(PrintError):
                 port=self.active_control_port)
             self._tor_controller.authenticate()
             self._tor_controller.add_event_listener(
-                self._handle_network_liveliness_event, stem.control.EventType.NETWORK_LIVENESS)
+                self._handle_network_liveliness_event, stem.control.EventType.NETWORK_LIVENESS) # pylint: disable=no-member
         except:
             self.print_exception("Failed to connect to Tor control port")
             self.stop()
@@ -239,7 +271,7 @@ class TorController(PrintError):
 
         if self._tor_controller:
             # tell tor to shut down
-            self._tor_controller.signal(stem.Signal.HALT)
+            self._tor_controller.signal(stem.Signal.HALT) # pylint: disable=no-member
             self._tor_controller.close()
             self._tor_controller = None
 
