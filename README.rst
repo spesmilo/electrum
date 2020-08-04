@@ -14,6 +14,14 @@ Electron Cash - Lightweight Bitcoin Cash client
     :alt: Help translate Electron Cash online
 
 
+.. image:: https://img.shields.io/travis/Electron-Cash/Electron-Cash
+    :target: https://travis-ci.org/github/Electron-Cash/Electron-Cash
+    :alt: Travis CI
+
+
+.. image:: https://img.shields.io/coveralls/github/Electron-Cash/Electron-Cash
+    :target: https://coveralls.io/github/Electron-Cash/Electron-Cash
+    :alt: Coveralls code coverage
 
 
 
