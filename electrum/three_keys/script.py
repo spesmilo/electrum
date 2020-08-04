@@ -110,7 +110,7 @@ class ThreeKeysScriptGenerator(MultiKeyScriptGenerator):
     def set_alert(self):
         # 1 of 3
         self._instant_recovery_alert_flag = opcodes.OP_1.hex()
-        self.witness_flags = [0]
+        self.witness_flags = [1]
 
     def set_recovery(self):
         # 3 of 3

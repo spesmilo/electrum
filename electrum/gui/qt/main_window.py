@@ -70,7 +70,8 @@ from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
 from electrum.util import pr_expiration_values
 from electrum.version import ELECTRUM_VERSION
 from electrum.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet,
-                             sweep_preparations, InternalAddressCorruption)
+                             sweep_preparations, InternalAddressCorruption,
+                             ThreeKeysWallet)
 from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, FeerateEdit
 from .channels_list import ChannelsList
 from .confirm_tx_dialog import ConfirmTxDialog
@@ -1501,8 +1502,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             callback(False)
         on_success = run_hook('tc_sign_wrapper', self.wallet, tx, on_success, on_failure) or on_success
         if external_keypairs:
-            # can sign directly
-            task = partial(self.wallet.sign_transaction, tx, password, external_keypairs)
+            if isinstance(self.wallet, ThreeKeysWallet):
+                task = partial(self.wallet.sign_instant_transaction, tx, password, external_keypairs)
+            else:
+                # can sign directly
+                task = partial(tx.sign, external_keypairs)
         else:
             task = partial(self.wallet.sign_transaction, tx, password)
         msg = _('Signing transaction...')

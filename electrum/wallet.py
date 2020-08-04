@@ -2390,15 +2390,6 @@ class MultikeyWallet(Simple_Deterministic_Wallet):
         output = PartialTxOutput(scriptpubkey=scriptpubkey, value='!')
         return inputs, output
 
-    def add_recovery_pubkey_to_transaction(self, tx):
-        """Updating transaction inputs pubkeys list by recovery pubkey and adjusting num_sig variable"""
-        for input in tx.inputs():
-            input.pubkeys.append(bytes.fromhex(self.multisig_script_generator.recovery_pubkey))
-            input.num_sig += 1
-            assert len(input.pubkeys) == 2 and input.num_sig == 2, 'Wrong number of pubkeys for performing recovery tx'
-            _logger.info('Updated input by recovery pubkey')
-        return tx
-
     def prepare_inputs_for_recovery(self, inputs: list):
         """Methods for modification tx inputs coming from alert transaction to work with recovery tx.
         Method adds missing address, satoshi and height value from db storage"""
@@ -2421,7 +2412,7 @@ class MultikeyWallet(Simple_Deterministic_Wallet):
             input.block_height = fetched_data['height']
         return updated_inputs
 
-    def sign_recovery_transaction(self, tx: Transaction, password, recovery_keypairs) -> Optional[PartialTransaction]:
+    def sign_transaction(self, tx: PartialTransaction, password, external_keypairs = None, update_pubkeys_fn = None) -> Optional[PartialTransaction]:
         if self.is_watching_only():
             return
         if not isinstance(tx, PartialTransaction):
@@ -2431,11 +2422,10 @@ class MultikeyWallet(Simple_Deterministic_Wallet):
         tmp_tx = copy.deepcopy(tx)
         # update tmp tx
         self.update_transaction_multisig_generator(tmp_tx)
-
-        # this method modified tx inputs pubkeys and num_sig
         tmp_tx.add_info_from_wallet(self, include_xpubs_and_full_paths=True)
-        self.add_recovery_pubkey_to_transaction(tmp_tx)
-
+        if update_pubkeys_fn:
+            update_pubkeys_fn(tx)
+            update_pubkeys_fn(tmp_tx)
         # sign. start with ready keystores.
         for k in sorted(self.get_keystores(), key=lambda ks: ks.ready_to_sign(), reverse=True):
             try:
@@ -2444,41 +2434,7 @@ class MultikeyWallet(Simple_Deterministic_Wallet):
             except UserCancelled:
                 continue
 
-        tmp_tx.sign(recovery_keypairs)
-        if not tmp_tx.is_complete():
-            _logger.error(f'Recovery transaction not completed')
-
-        # remove sensitive info; then copy back details from temporary tx
-        tmp_tx.remove_xpubs_and_bip32_paths()
-        tmp_tx.finalize_psbt()
-        # update tx
-        self.update_transaction_multisig_generator(tx)
-
-        tx.combine_with_other_psbt(tmp_tx)
-        tx.add_info_from_wallet(self, include_xpubs_and_full_paths=False)
-        tx.finalize_psbt()
-        return tx
-
-    def sign_transaction(self, tx: Transaction, password) -> Optional[PartialTransaction]:
-        if self.is_watching_only():
-            return
-        if not isinstance(tx, PartialTransaction):
-            return
-        # add info to a temporary tx copy; including xpubs
-        # and full derivation paths as hw keystores might want them
-        tmp_tx = copy.deepcopy(tx)
-        # update tmp tx
-        self.update_transaction_multisig_generator(tmp_tx)
-
-        tmp_tx.add_info_from_wallet(self, include_xpubs_and_full_paths=True)
-
-        # sign. start with ready keystores.
-        for k in sorted(self.get_keystores(), key=lambda ks: ks.ready_to_sign(), reverse=True):
-            try:
-                if k.can_sign(tmp_tx):
-                    k.sign_transaction(tmp_tx, password)
-            except UserCancelled:
-                continue
+        tmp_tx.sign(external_keypairs)
         # remove sensitive info; then copy back details from temporary tx
         tmp_tx.remove_xpubs_and_bip32_paths()
         # update tx
@@ -2495,13 +2451,24 @@ class TwoKeysWallet(MultikeyWallet):
         script_generator = TwoKeysScriptGenerator(recovery_pubkey=storage.get('recovery_pubkey'))
         super().__init__(storage=storage, config=config, scriptGenerator=script_generator)
 
-    def add_recovery_pubkey_to_transaction(self, tx):
+    def _add_recovery_pubkey_to_transaction(self, tx):
         """Updating transaction inputs pubkeys list by recovery pubkey and adjusting num_sig variable"""
         for input in tx.inputs():
             input.pubkeys.append(bytes.fromhex(self.multisig_script_generator.recovery_pubkey))
-            input.num_sig += 1
-            assert len(input.pubkeys) == 2 and input.num_sig == 2, 'Wrong number of pubkeys for performing recovery tx'
+            input.num_sig = 2
+            assert len(input.pubkeys) == 2, 'Wrong number of pubkeys for performing recovery tx'
             _logger.info('Updated input by recovery pubkey')
+        return tx
+
+    def sign_recovery_transaction(self, tx: PartialTransaction, password, recovery_keypairs) -> Optional[PartialTransaction]:
+        if not isinstance(tx, PartialTransaction):
+            return
+
+        tx = self.sign_transaction(tx, password, recovery_keypairs, self._add_recovery_pubkey_to_transaction)
+        if not tx.is_complete():
+            _logger.error(f'Recovery transaction not completed')
+
+        tx.finalize_psbt()
         return tx
 
 
@@ -2511,58 +2478,44 @@ class ThreeKeysWallet(MultikeyWallet):
                                                     instant_pubkey=storage.get('instant_pubkey'))
         super().__init__(storage=storage, config=config, scriptGenerator=script_generator)
 
-    def add_recovery_pubkey_to_transaction(self, tx):
+    def _add_recovery_pubkey_to_transaction(self, tx):
         """Updating transaction inputs pubkeys list by recovery pubkey and adjusting num_sig variable"""
         for input in tx.inputs():
             input.pubkeys.append(bytes.fromhex(self.multisig_script_generator.instant_pubkey))
             input.pubkeys.append(bytes.fromhex(self.multisig_script_generator.recovery_pubkey))
-            input.num_sig += 2
-            assert len(input.pubkeys) == 3 and input.num_sig == 3, 'Wrong number of pubkeys for performing recovery tx'
+            input.num_sig = 3
+            assert len(input.pubkeys) == 3, 'Wrong number of pubkeys for performing recovery tx'
             _logger.info('Updated input by recovery pubkey')
         return tx
 
-    def add_instant_pubkey_to_transaction(self, tx):
+    def _add_instant_pubkey_to_transaction(self, tx):
         """Updating transaction inputs pubkeys list by instant pubkey and adjusting num_sig variable"""
         for input in tx.inputs():
             input.pubkeys.append(bytes.fromhex(self.multisig_script_generator.instant_pubkey))
-            input.num_sig += 1
-            assert len(
-                input.pubkeys) == 2 and input.num_sig == 2, 'Wrong number of pubkeys for performing instant tx'
+            input.num_sig = 2
+            assert len(input.pubkeys) == 2, 'Wrong number of pubkeys for performing instant tx'
             _logger.info('Updated input by instant pubkey')
         return tx
 
-    def sign_transaction(self, tx: Transaction, password, external_keypairs=None) -> Optional[PartialTransaction]:
-        if self.is_watching_only():
-            return
+    def sign_instant_transaction(self, tx: PartialTransaction, password, instant_keypairs) -> Optional[PartialTransaction]:
         if not isinstance(tx, PartialTransaction):
             return
-        # add info to a temporary tx copy; including xpubs
-        # and full derivation paths as hw keystores might want them
-        tmp_tx = copy.deepcopy(tx)
-        # update tmp tx
-        self.update_transaction_multisig_generator(tmp_tx)
 
-        tmp_tx.add_info_from_wallet(self, include_xpubs_and_full_paths=True)
-        if self.is_instant_mode():
-            self.add_instant_pubkey_to_transaction(tmp_tx)
-        # sign. start with ready keystores.
-        for k in sorted(self.get_keystores(), key=lambda ks: ks.ready_to_sign(), reverse=True):
-            try:
-                if k.can_sign(tmp_tx):
-                    k.sign_transaction(tmp_tx, password)
-            except UserCancelled:
-                continue
+        tx = self.sign_transaction(tx, password, instant_keypairs, self._add_instant_pubkey_to_transaction)
+        if not tx.is_complete():
+            _logger.error(f'Instant transaction not completed')
 
-        tmp_tx.sign(external_keypairs)
-        # remove sensitive info; then copy back details from temporary tx
-        tmp_tx.remove_xpubs_and_bip32_paths()
-        tmp_tx.finalize_psbt()
-        # update tx
-        tx.multisig_script_generator = self.multisig_script_generator
-        tx.update_inputs()
+        tx.finalize_psbt()
+        return tx
 
-        tx.combine_with_other_psbt(tmp_tx)
-        tx.add_info_from_wallet(self, include_xpubs_and_full_paths=False)
+    def sign_recovery_transaction(self, tx: PartialTransaction, password, recovery_keypairs) -> Optional[PartialTransaction]:
+        if not isinstance(tx, PartialTransaction):
+            return
+
+        tx = self.sign_transaction(tx, password, recovery_keypairs, self._add_recovery_pubkey_to_transaction)
+        if not tx.is_complete():
+            _logger.error(f'Recovery transaction not completed')
+
         tx.finalize_psbt()
         return tx
 
