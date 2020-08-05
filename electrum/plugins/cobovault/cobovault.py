@@ -31,11 +31,11 @@ class CoboVault_KeyStore(Hardware_KeyStore):
 
     def sign_message(self, sequence, message, password):
         # not support sign online for cobo vault
-        return b''
+        raise UserFacingException(_('Sign message currently not supported for {}').format(self.device))
 
     def sign_transaction(self, tx, password):
         # not support sign online for cobo vault
-        return
+        pass
 
 
 class CoboVaultPlugin(HW_PluginBase):
