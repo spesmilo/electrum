@@ -360,6 +360,7 @@ class Commands:
         Inputs must have a redeemPubkey.
         Outputs must be a list of {'address':address, 'value':satoshi_amount}.
         """
+        jsontx = json_decode(jsontx)
         keypairs = {}
         inputs = []  # type: List[PartialTxInput]
         locktime = jsontx.get('lockTime', 0)
