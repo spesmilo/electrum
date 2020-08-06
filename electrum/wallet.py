@@ -2321,7 +2321,7 @@ class MultikeyWallet(Simple_Deterministic_Wallet):
 
     def load_keystore(self):
         self.keystore = load_keystore(self.storage, 'keystore')
-        self.txin_type = TwoKeysWallet.derive_txin_type_from_keystore(self.keystore)
+        self.txin_type = self.derive_txin_type_from_keystore(self.keystore)
 
     @staticmethod
     def derive_txin_type_from_keystore(keystore):
@@ -2332,7 +2332,7 @@ class MultikeyWallet(Simple_Deterministic_Wallet):
 
         if txin_type == 'standard':
             return 'p2sh'
-        if txin_type == 'p2wpkh':
+        if 'p2wpkh' in txin_type:
             return 'p2wsh-p2sh'
         raise UnknownTxinType(f'Cannot derive txin_type from {txin_type}')
 
