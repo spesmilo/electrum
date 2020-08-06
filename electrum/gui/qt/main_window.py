@@ -81,6 +81,7 @@ from .history_list import HistoryList, HistoryModel
 from .installwizard import WIF_HELP_TEXT
 from .qrcodewidget import QRCodeWidget, QRDialog
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
+from .three_keys_dialogs import PSBTDialog
 from .transaction_dialog import PreviewTxDialog
 from .transaction_dialog import show_transaction
 from .update_checker import UpdateCheck, UpdateCheckThread
@@ -926,6 +927,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         '''tx_desc is set only for txs created in the Send tab'''
         show_transaction(tx, parent=self, invoice=invoice, desc=tx_desc)
 
+    def show_psbt_qrcode(self, psbt: PartialTransaction, invoice=None):
+        d = PSBTDialog(psbt, self, invoice)
+        d.exec_()
+
     def create_receive_tab(self):
         # A 4-column grid layout.  All the stretch is in the last column.
         # The exchange rate plugin adds a fiat widget in column 2
@@ -1501,12 +1506,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.on_error(exc_info)
             callback(False)
         on_success = run_hook('tc_sign_wrapper', self.wallet, tx, on_success, on_failure) or on_success
-        if external_keypairs:
-            if isinstance(self.wallet, ThreeKeysWallet):
-                task = partial(self.wallet.sign_instant_transaction, tx, password, external_keypairs)
-            else:
-                # can sign directly
-                task = partial(tx.sign, external_keypairs)
+        if isinstance(self.wallet, ThreeKeysWallet) and self.wallet.is_instant_mode():
+            task = partial(self.wallet.sign_instant_transaction, tx, password, external_keypairs)
+        elif external_keypairs:
+            # can sign directly
+            task = partial(tx.sign, external_keypairs)
         else:
             task = partial(self.wallet.sign_transaction, tx, password)
         msg = _('Signing transaction...')

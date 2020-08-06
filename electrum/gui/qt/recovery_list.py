@@ -170,6 +170,7 @@ class RecoveryTab(QWidget):
         self.electrum_main_window = parent
         self.config = config
         self.wallet = wallet
+        self.is_2fa = self.wallet.storage.get('multikey_type', '') == '2fa'
         QWidget.__init__(self)
 
         self.invoice_list = RecoveryView(self.electrum_main_window)
@@ -245,7 +246,7 @@ class RecoveryTab(QWidget):
         # trusted coin requires this
         if run_hook('abort_send', self):
             return
-        is_sweep = bool(external_keypairs)
+        is_sweep = False
         make_tx = lambda fee_est: self.wallet.make_unsigned_transaction(
             coins=inputs,
             outputs=outputs,
@@ -268,7 +269,10 @@ class RecoveryTab(QWidget):
         if is_send:
             def sign_done(success):
                 if success:
-                    self.electrum_main_window.broadcast_or_show(tx, invoice=invoice)
+                    if self.is_2fa:
+                        self.electrum_main_window.show_psbt_qrcode(tx, invoice=invoice)
+                    else:
+                        self.electrum_main_window.broadcast_or_show(tx, invoice=invoice)
             self.sign_tx_with_password(tx, sign_done, password, recovery_keypairs)
         else:
             self.electrum_main_window.preview_tx_dialog(make_tx, outputs, external_keypairs=external_keypairs, invoice=invoice)
@@ -283,7 +287,7 @@ class RecoveryTab(QWidget):
 
         on_success = run_hook('tc_sign_wrapper', self.wallet, tx, on_success, on_failure) or on_success
 
-        if external_keypairs and self.wallet.is_recovery_mode():
+        if self.wallet.is_recovery_mode():
             task = partial(self.wallet.sign_recovery_transaction, tx, password, external_keypairs)
         else:
             task = partial(self.wallet.sign_transaction, tx, password, external_keypairs)
@@ -294,7 +298,9 @@ class RecoveryTab(QWidget):
         try:
             atxs = self.invoice_list.selected()
             address = self.recovery_address_line.currentText()
-            recovery_keypair = self._get_recovery_keypair()
+            recovery_keypair = None
+            if not self.is_2fa:
+                recovery_keypair = self._get_recovery_keypair()
 
             if not is_address_valid(address):
                 raise Exception(_('Invalid recovery address'))
@@ -312,7 +318,8 @@ class RecoveryTab(QWidget):
             recovery_keypairs=recovery_keypair,
         )
 
-        self.recovery_privkey_line.setText('')
+        if not self.is_2fa:
+            self.recovery_privkey_line.setText('')
 
     def _create_privkey_line(self):
         class CompleterDelegate(QStyledItemDelegate):
@@ -333,7 +340,7 @@ class RecoveryTab(QWidget):
         return recovery_privkey_line
 
 
-class RecoveryTabARStandalone(RecoveryTab):
+class RecoveryTabAR(RecoveryTab):
 
     def __init__(self, parent, wallet: Abstract_Wallet, config):
         super().__init__(parent, wallet, config)
@@ -347,12 +354,14 @@ class RecoveryTabARStandalone(RecoveryTab):
         grid_layout.addWidget(QLabel(_('Recovery address')), 0, 0)
         self.recovery_address_line = self._create_recovery_address()
         grid_layout.addWidget(self.recovery_address_line, 0, 1)
-        # Row 2
-        grid_layout.addWidget(QLabel(_('Recovery tx seed')), 1, 0)
 
-        # complete line edit with suggestions
-        self.recovery_privkey_line = self._create_privkey_line()
-        grid_layout.addWidget(self.recovery_privkey_line, 1, 1)
+        # Row 2
+        if not self.is_2fa:
+            grid_layout.addWidget(QLabel(_('Recovery tx seed')), 1, 0)
+            # complete line edit with suggestions
+            self.recovery_privkey_line = self._create_privkey_line()
+            grid_layout.addWidget(self.recovery_privkey_line, 1, 1)
+
         # Row 3
         button = QPushButton(_('Recover'))
         button.clicked.connect(self.recover_action)
@@ -364,7 +373,7 @@ class RecoveryTabARStandalone(RecoveryTab):
         self.setLayout(self.main_layout)
 
 
-class RecoveryTabAIRStandalone(RecoveryTab):
+class RecoveryTabAIR(RecoveryTab):
 
     def __init__(self, parent, wallet: Abstract_Wallet, config):
         super().__init__(parent, wallet, config)
@@ -380,10 +389,11 @@ class RecoveryTabAIRStandalone(RecoveryTab):
         grid_layout.addWidget(self.recovery_address_line, 0, 1)
 
         # Row 2
-        grid_layout.addWidget(QLabel(_('Instant tx seed')), 1, 0)
-        # complete line edit with suggestions
-        self.instant_privkey_line = self._create_privkey_line()
-        grid_layout.addWidget(self.instant_privkey_line, 1, 1)
+        if not self.is_2fa:
+            grid_layout.addWidget(QLabel(_('Instant tx seed')), 1, 0)
+            # complete line edit with suggestions
+            self.instant_privkey_line = self._create_privkey_line()
+            grid_layout.addWidget(self.instant_privkey_line, 1, 1)
 
         # Row 3
         grid_layout.addWidget(QLabel(_('Recovery tx seed')), 2, 0)
@@ -418,7 +428,9 @@ class RecoveryTabAIRStandalone(RecoveryTab):
     def recover_action(self):
         try:
             address = self.recovery_address_line.currentText()
-            instant_keypair = self._get_instant_keypair()
+            instant_keypair = None
+            if not self.is_2fa:
+                instant_keypair = self._get_instant_keypair()
             recovery_keypair = self._get_recovery_keypair()
             atxs = self.invoice_list.selected()
 
@@ -432,11 +444,14 @@ class RecoveryTabAIRStandalone(RecoveryTab):
             return
 
         self.wallet.set_recovery()
-        recovery_keypair.update(instant_keypair)
+        if not self.is_2fa:
+            recovery_keypair.update(instant_keypair)
+
         self.recovery_onchain_dialog(
             inputs=inputs,
             outputs=[output],
             recovery_keypairs=recovery_keypair,
         )
-        self.instant_privkey_line.setText('')
+        if not self.is_2fa:
+            self.instant_privkey_line.setText('')
         self.recovery_privkey_line.setText('')

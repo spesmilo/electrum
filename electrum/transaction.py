@@ -1304,7 +1304,7 @@ class PartialTxInput(TxInput, PSBTSection):
             self.witness = bfh(Transaction.serialize_witness(self))
             clear_fields_when_finalized()
 
-    def combine_with_other_txin(self, other_txin: 'TxInput') -> None:
+    def combine_with_other_txin(self, other_txin: 'TxInput', skip_finalize: bool = False) -> None:
         assert self.prevout == other_txin.prevout
         if other_txin.script_sig is not None:
             self.script_sig = other_txin.script_sig
@@ -1325,8 +1325,9 @@ class PartialTxInput(TxInput, PSBTSection):
                 self.witness_script = other_txin.witness_script
             self._unknown.update(other_txin._unknown)
         self.ensure_there_is_only_one_utxo()
-        # try to finalize now
-        self.finalize()
+        if not skip_finalize:
+            # try to finalize now
+            self.finalize()
 
     def ensure_there_is_only_one_utxo(self):
         if self.utxo is not None and self.witness_utxo is not None:
@@ -1619,7 +1620,7 @@ class PartialTransaction(Transaction):
         for txin in self.inputs():
             txin.finalize()
 
-    def combine_with_other_psbt(self, other_tx: 'Transaction') -> None:
+    def combine_with_other_psbt(self, other_tx: 'Transaction', skip_finalize: bool = False) -> None:
         """Pulls in all data from other_tx we don't yet have (e.g. signatures).
         other_tx must be concerning the same unsigned tx.
         """
@@ -1633,7 +1634,7 @@ class PartialTransaction(Transaction):
             self._unknown.update(other_tx._unknown)
         # input sections
         for txin, other_txin in zip(self.inputs(), other_tx.inputs()):
-            txin.combine_with_other_txin(other_txin)
+            txin.combine_with_other_txin(other_txin, skip_finalize)
         # output sections
         for txout, other_txout in zip(self.outputs(), other_tx.outputs()):
             txout.combine_with_other_txout(other_txout)

@@ -5,13 +5,16 @@ from typing import List
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
-from PyQt5.QtWidgets import QVBoxLayout, QTextEdit, QLineEdit, QLabel
+from PyQt5.QtWidgets import QVBoxLayout, QTextEdit, QLineEdit, QLabel, \
+    QPushButton
 
 from electrum.ecc import ECPubkey, ECPrivkey
 from electrum.i18n import _
-from .qrcodewidget import QRCodeWidget
+from .qrcodewidget import QRCodeWidget, QRDialog
+from .transaction_dialog import PreviewTxDialog
 from ...three_keys import short_mnemonic
 from .util import filter_non_printable
+from ...transaction import PartialTransaction
 
 
 class ValidationState(IntEnum):
@@ -136,6 +139,7 @@ class InsertPubKeyDialog(QVBoxLayout):
 
 
 class Qr2FaDialog(QVBoxLayout):
+
     def __init__(self, parent, title_label: str, pin_label: str, qr_data: dict):
         super().__init__()
         self.parent = parent
@@ -165,3 +169,45 @@ class Qr2FaDialog(QVBoxLayout):
         new_qr_data = copy.deepcopy(qr_data)
         new_qr_data['entropy'] = new_qr_data['entropy'].hex()
         return json.dumps(new_qr_data)
+
+
+class PSBTDialog(QRDialog):
+
+    def __init__(self, psbt: PartialTransaction, parent: 'ElectrumWindow', invoice):
+
+        self.psbt = psbt
+        self.minimize_psbt()
+
+        title = "Transaction QRCode"
+        qr_data = self.psbt.serialize()
+        super().__init__(qr_data, parent, title)
+
+        self.parent = parent
+        self.invoice = invoice
+
+    def minimize_psbt(self):
+        self.psbt.convert_all_utxos_to_witness_utxos()
+        self.psbt.remove_xpubs_and_bip32_paths()
+
+    def accept(self):
+        if self.invoice:
+            self.parent.delete_invoice(self.invoice['id'])
+        super().accept()
+
+
+class PreviewPsbtTxDialog(PreviewTxDialog):
+
+    def __init__(self, make_tx, outputs, external_keypairs, *, window: 'ElectrumWindow', invoice):
+        super().__init__(make_tx, outputs, external_keypairs, window=window, invoice=invoice)
+
+    def do_broadcast(self):
+        self.main_window.push_top_level_window(self)
+        try:
+            if self.is_2fa and (self.wallet.is_instant_mode() or self.wallet.is_recovery_mode()):
+                self.main_window.show_psbt_qrcode(self.tx, invoice=self.invoice)
+            else:
+                self.main_window.broadcast_transaction(self.tx, invoice=self.invoice, tx_desc=self.desc)
+        finally:
+            self.main_window.pop_top_level_window(self)
+        self.saved = True
+        self.update()
