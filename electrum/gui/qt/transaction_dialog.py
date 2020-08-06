@@ -604,7 +604,7 @@ class TxDialog(BaseTxDialog):
 class PreviewTxDialog(BaseTxDialog, TxEditor):
 
     def __init__(self, make_tx, outputs, external_keypairs, *, window: 'ElectrumWindow', invoice):
-        TxEditor.__init__(self, window, make_tx, outputs, is_sweep=bool(external_keypairs))
+        TxEditor.__init__(self, window, make_tx, outputs, is_sweep=False)
         BaseTxDialog.__init__(self, parent=window, invoice=invoice, desc='', prompt_if_unsaved=False, finalized=False, external_keypairs=external_keypairs)
         self.update_tx()
         self.update()

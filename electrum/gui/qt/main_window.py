@@ -1446,7 +1446,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         # trustedcoin requires this
         if run_hook('abort_send', self):
             return
-        is_sweep = bool(external_keypairs)
+        is_sweep = False # Was bool(external_keypairs). Should be good to keep it false, since we do not use trustedcoin
         make_tx = lambda fee_est: self.wallet.make_unsigned_transaction(
             coins=inputs,
             outputs=outputs,

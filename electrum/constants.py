@@ -166,6 +166,7 @@ class BitcoinVaultTestnet(BitcoinTestnet):
     DEFAULT_SERVERS = read_json('servers_btcv_testnet.json', {})
     CHECKPOINTS = read_json('checkpoints_btcv_testnet.json', [])
     LN_DNS_SEEDS = []
+    BIP44_COIN_TYPE = 440
 
 
 class BitcoinVaultRegtest(BitcoinVaultTestnet):
