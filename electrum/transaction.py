@@ -42,6 +42,7 @@ import binascii
 from . import ecc, bitcoin, constants, segwit_addr, bip32
 from .bip32 import BIP32Node
 from .three_keys.multikey_generator import MultiKeyScriptGenerator
+from .three_keys.script import ThreeKeysScriptGenerator, TwoKeysScriptGenerator
 from .util import profiler, to_bytes, bh2u, bfh, chunks, is_hex_str
 from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160,
                       hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr,
@@ -608,12 +609,20 @@ class Transaction:
         elif _type in ['p2wsh', 'p2wsh-p2sh']:
             if txin.multisig_script_generator:
                 witness_script = txin.multisig_script_generator.get_redeem_script(public_keys=pubkeys)
+                if estimate_size and isinstance(txin.multisig_script_generator, ThreeKeysScriptGenerator):
+                    if txin.multisig_script_generator.is_instant_mode():
+                        sig_list = ["00" * 0x48] * 2
+                    elif txin.multisig_script_generator.is_recovery_mode():
+                        sig_list = ["00" * 0x48] * 3
+                elif estimate_size and isinstance(txin.multisig_script_generator, TwoKeysScriptGenerator):
+                    if txin.multisig_script_generator.is_recovery_mode():
+                        sig_list = ["00" * 0x48] * 2
                 # todo: quick and dirty workaround, please refactor me
                 flags = txin.multisig_script_generator.witness_flags
-                return construct_witness([0] + sig_list + flags + [witness_script])
             else:
                 witness_script = multisig_script(pubkeys, txin.num_sig)
-            return construct_witness([0] + sig_list + [witness_script])
+                flags = []
+            return construct_witness([0] + sig_list + flags + [witness_script])
         elif _type in ['p2pk', 'p2pkh', 'p2sh']:
             return '00'
         raise UnknownTxinType(f'cannot construct witness for txin_type: {_type}')

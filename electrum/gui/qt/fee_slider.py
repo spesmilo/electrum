@@ -19,11 +19,6 @@ class FeeSlider(QSlider):
         self.update()
         self.valueChanged.connect(self.moved)
         self._active = True
-        
-    def reinitialize(self):
-        self.update()
-        _, pos, _ = self.config.get_fee_slider(self.dyn, self.config.use_mempool_fees())
-        self.moved(pos)
 
     def moved(self, pos):
         with self.lock:

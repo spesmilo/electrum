@@ -148,7 +148,6 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
         grid.addWidget(self.extra_fee_value, 2, 1)
 
         self.fee_slider = FeeSlider(self, self.config, self.fee_slider_callback)
-        self.fee_slider.reinitialize()
         grid.addWidget(self.fee_slider, 5, 1)
 
         self.message_label = QLabel(self.default_message())
