@@ -345,12 +345,6 @@ class Console(QtWidgets.QWidget):
             else:
                 return command
 
-    def getHistory(self):
-        return self.history
-
-    def setHisory(self, history):
-        self.history = history
-
     def addToHistory(self, command):
         if command[0:1] == ' ':
             return
@@ -381,11 +375,6 @@ class Console(QtWidgets.QWidget):
         self.editor.moveCursor(QtGui.QTextCursor.StartOfLine)
         for i in range(len(self.prompt) + position):
             self.editor.moveCursor(QtGui.QTextCursor.Right)
-
-    def register_command(self, c, func):
-        methods = { c: func}
-        self.updateNamespace(methods)
-
 
     def runCommand(self):
         command = self.getCommand()
