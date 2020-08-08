@@ -576,6 +576,8 @@ class Transaction:
     def outputs(self) -> Sequence[TxOutput]:
         if self._outputs is None:
             self.deserialize()
+        if self._outputs is None:
+           self._outputs = []
         return self._outputs
 
     def deserialize(self) -> None:
