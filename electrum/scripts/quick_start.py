@@ -6,7 +6,9 @@ from electrum.daemon import Daemon
 from electrum.storage import WalletStorage
 from electrum.wallet import Wallet, create_new_wallet
 from electrum.commands import Commands
+from electrum.util import create_and_start_event_loop
 
+loop, stopping_fut, loop_thread = create_and_start_event_loop()
 
 config = SimpleConfig({"testnet": True})  # to use ~/.electrum/testnet as datadir
 constants.set_testnet()  # to set testnet magic bytes
