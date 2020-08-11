@@ -359,12 +359,12 @@ class Plugin(FusionPlugin, QObject):
                 # prompt user to enable automatic Tor if not enabled and no auto-detected Tor ports were found
                 window = self.gui.windows[-1]
                 network = self.gui.daemon.network
-                if network and not network.tor_controller.is_enabled():
+                if network and network.tor_controller.is_available() and not network.tor_controller.is_enabled():
                     self._integrated_tor_asked[0] = True
                     icon_pm = icon_fusion_logo.pixmap(32)
                     answer = window.question(
                         _('CashFusion requires Tor to operate anonymously. Would'
-                          ' you like to enable the integrated Tor client now?'),
+                          ' you like to enable the Tor client now?'),
                         icon = icon_pm,
                         title = _("Tor Required"),
                         parent = None,
@@ -379,9 +379,9 @@ class Plugin(FusionPlugin, QObject):
                             if controller.status == controller.Status.STARTED:
                                 buttons = [ _('Settings...'), _('Ok') ]
                                 index = window.show_message(
-                                    _('The integrated Tor client has been successfully started.'),
+                                    _('The Tor client has been successfully started.'),
                                     detail_text = (
-                                        _("The integrated Tor client can be stopped at any time from the Network Settings -> Proxy Tab"
+                                        _("The Tor client can be stopped at any time from the Network Settings -> Proxy Tab"
                                           ", however CashFusion does require Tor in order to operate correctly.")
                                     ),
                                     icon = icon_pm,
@@ -396,11 +396,11 @@ class Plugin(FusionPlugin, QObject):
                                     self.gui.show_network_dialog(window, jumpto='tor')
                             else:
                                 controller.set_enabled(False)  # latch it back to False so we may prompt them again in the future
-                                window.show_error(_('There was an error starting the integrated Tor client'))
+                                window.show_error(_('There was an error starting the Tor client'))
                         network.tor_controller.status_changed.append(on_status)
                         network.tor_controller.set_enabled(True)
         self._integrated_tor_asked[1] = t = QTimer()
-        # if in 5 seconds no tor port, ask user if they want to enable the integrated Tor
+        # if in 5 seconds no tor port, ask user if they want to enable the Tor
         t.timeout.connect(chk_tor_ok)
         t.setSingleShot(True)
         t.start(5000)
@@ -664,7 +664,7 @@ class FusionButton(StatusBarButton):
                 if plugin:
                     plugin.show_settings_dialog()
             ShowPopupLabel(name = name,
-                           text="<center><b>{}</b><br><small>{}</small></center>".format(_("Server Error"),_("Click here to resolve")),
+                           text="<center><b>{}</b><br><small>{}</small></center>".format(_("Server Error"),_("Click this popup to resolve")),
                            target=self,
                            timeout=20000, onClick=onClick, onRightClick=onClick,
                            dark_mode = ColorScheme.dark_scheme)
