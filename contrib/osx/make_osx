@@ -55,7 +55,7 @@ VERSION=`git describe --tags`
 
 # Paramterize
 BUILDDIR=/tmp/electron-cash-build
-LIBSECP_VERSION="69ccf0d2f758b1a4df9cde8222459381e08fc1dc"  # using a commit hash guarantees no repository man-in-the-middle funny business as git is secure when verifying hashes.
+LIBSECP_COMMIT="69ccf0d2f758b1a4df9cde8222459381e08fc1dc"
 # Compute major.minor Python version from above using Bash array magic
 MAJ_MIN=(${PYTHON_VERSION//./ })
 MAJ_MIN=${MAJ_MIN[0]}.${MAJ_MIN[1]}
@@ -195,7 +195,7 @@ verify_hash contrib/osx/libzbar.0.dylib 7b82238dd73e56d9f57913230ea5418c247b292c
 
 info "Building libsecp256k1"
 pushd contrib/secp256k1 || fail "Could not chdir to contrib/secp256k1"
-git checkout $LIBSECP_VERSION || fail "Could not check out secp256k1 $LIBSECP_VERSION"
+git checkout "$LIBSECP_COMMIT^{commit}" || fail "Could not check out secp256k1 $LIBSECP_COMMIT"
 git clean -f -x -q
 ./autogen.sh || fail "Could not run autogen for secp256k1"
 ./configure \

@@ -170,7 +170,7 @@ cd scratch || exit 1
 git clone http://www.github.com/cculianu/rubicon-objc
 gitexit="$?"
 cd rubicon-objc
-git checkout send_super_fix
+git checkout "fe054117056d33059a5db8addbc14e8535f08d3b^{commit}" # from branch send_super_fix
 gitexit2="$?"
 cd ..
 cd ..
