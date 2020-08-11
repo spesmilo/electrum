@@ -63,6 +63,20 @@ from math import ceil
 # used for tagging fusions in a way privately derived from wallet name
 tag_seed = secrets.token_bytes(16)
 
+# Safety limits to prevent loss of funds / limit fees:
+# (Note that if we enter multiply into the same fusion, our limits apply
+# separately for each "player".)
+#
+# Deny server that asks for more than this component feerate (sat/kbyte).
+MAX_COMPONENT_FEERATE = 5000
+# The largest 'excess fee' that we are willing to pay in a fusion (fees beyond
+# those needed to pay for our components' inclusion)
+MAX_EXCESS_FEE = 10000
+# Even if the server allows more, put at most this many inputs+outputs.
+MAX_COMPONENTS = 40
+# The largest total fee we are willing to pay (our contribution to transaction
+# size should not exceed 7 kB even with 40 largest components).
+MAX_FEE = MAX_COMPONENT_FEERATE * 7 + MAX_EXCESS_FEE
 
 def can_fuse_from(wallet):
     """We can only fuse from wallets that are p2pkh, and where we are able
@@ -510,10 +524,13 @@ class Fusion(threading.Thread, PrintError):
             strong_plugin.set_remote_donation_address(reply.donation_address)
 
         # Enforce some sensible limits, in case server is crazy
-        if self.component_feerate > 5000:
+        if self.component_feerate > MAX_COMPONENT_FEERATE:
             raise FusionError('excessive component feerate from server')
         if self.min_excess_fee > 400:
+            # note this threshold should be far below MAX_EXCESS_FEE
             raise FusionError('excessive min excess fee from server')
+        if self.min_excess_fee > self.max_excess_fee:
+            raise FusionError('bad config on server: fees')
 
     def allocate_outputs(self,):
         assert self.status[0] in ('setup', 'connecting')
@@ -522,9 +539,10 @@ class Fusion(threading.Thread, PrintError):
         # fix the input selection
         self.inputs = tuple(self.coins.items())
 
-        max_outputs = self.num_components - num_inputs
+        maxcomponents = min(self.num_components, MAX_COMPONENTS)
+        max_outputs = maxcomponents - num_inputs
         if max_outputs < 1:
-            raise FusionError('Too many inputs (%d >= %d)'%(num_inputs, self.num_components))
+            raise FusionError('Too many inputs (%d >= %d)'%(num_inputs, maxcomponents))
 
         # For obfuscation, when there are few inputs we want to have many outputs,
         # and vice versa. Many of both is even better, of course.
@@ -541,17 +559,6 @@ class Fusion(threading.Thread, PrintError):
         fee_per_output = component_fee(34, self.component_feerate)
         offset_per_output = Protocol.MIN_OUTPUT + fee_per_output
 
-        #
-        # TODO Here we can perform fuzzing of the avail_for_outputs amount, keeping in
-        # mind the max_excess_fee limit...
-        # For now, just throw on a few extra sats.
-        #
-        fuzz_fee = secrets.randbelow(10)
-        assert fuzz_fee < 100, 'sanity check: example fuzz fee should be small'
-        avail_for_outputs -= fuzz_fee
-
-        self.excess_fee = sum_inputs_value - input_fees - avail_for_outputs
-
         if avail_for_outputs < offset_per_output:
             # our input amounts are so small that we can't even manage a single output.
             raise FusionError('Selected inputs had too little value')
@@ -560,17 +567,53 @@ class Fusion(threading.Thread, PrintError):
         rng.seed(secrets.token_bytes(32))
 
         tier_outputs = {}
+        excess_fees = {}
         for scale in self.available_tiers:
-            outputs = random_outputs_for_tier(rng, avail_for_outputs, scale, offset_per_output, max_outputs)
+            ### Fuzzing fee range selection ###
+            # To keep privacy at higher tiers, we need to randomize our input-output
+            # linkage somehow, which means throwing away some sats as extra fees beyond
+            # the minimum requirement.
+
+            # For now, just throw on a few unobtrusive extra sats at the higher tiers, at most 9.
+            # TODO: smarter selection for high tiers (how much will users be comfortable paying?)
+            fuzz_fee_max = min(9, scale // 1000000)
+
+            ### End fuzzing fee range selection ###
+
+            # Now choose a random fuzz fee. Uniform random is best for obfuscation.
+            # But before we do, there is a maximum fuzzing fee that is admitted by server, and
+            # a safety maximum that we have ourselves.
+            fuzz_fee_max_reduced = min(fuzz_fee_max,
+                                       MAX_EXCESS_FEE - self.min_excess_fee,
+                                       self.max_excess_fee - self.min_excess_fee)
+            assert fuzz_fee_max_reduced >= 0
+            fuzz_fee = secrets.randbelow(fuzz_fee_max_reduced + 1)
+            assert fuzz_fee <= fuzz_fee_max_reduced and fuzz_fee_max_reduced <= fuzz_fee_max
+
+            # TODO: this can be removed when the above is updated
+            assert fuzz_fee < 100, 'sanity check: example fuzz fee should be small'
+
+            reduced_avail_for_outputs = avail_for_outputs - fuzz_fee
+            if reduced_avail_for_outputs < offset_per_output:
+                continue
+
+            outputs = random_outputs_for_tier(rng, reduced_avail_for_outputs, scale, offset_per_output, max_outputs)
             if not outputs or len(outputs) < min_outputs:
                 # this tier is no good for us.
                 continue
             # subtract off the per-output fees that we provided for, above.
             outputs = tuple(o - fee_per_output for o in outputs)
+
+            assert len(self.inputs) + len(outputs) <= MAX_COMPONENTS
+            excess_fees[scale] = sum_inputs_value - input_fees - reduced_avail_for_outputs
             tier_outputs[scale] = outputs
 
         self.tier_outputs = tier_outputs
         self.print_error(f"Possible tiers: {tier_outputs}")
+
+        # remember these for safety check later on
+        self.safety_sum_in = sum_inputs_value
+        self.safety_excess_fees = excess_fees
 
     def register_and_wait(self,):
         tier_outputs = self.tier_outputs
@@ -691,6 +734,7 @@ class Fusion(threading.Thread, PrintError):
         out_addrs = self.target_wallet.reserve_change_addresses(len(out_amounts), temporary=True)
         self.reserved_addresses = out_addrs
         self.outputs = list(zip(out_amounts, out_addrs))
+        self.safety_excess_fee = self.safety_excess_fees[self.tier]
         self.print_error(f"starting fusion rounds at tier {self.tier}: {len(self.inputs)} inputs and {len(self.outputs)} outputs")
 
     def start_covert(self, ):
@@ -747,6 +791,24 @@ class Fusion(threading.Thread, PrintError):
 
         self.print_error(f"round starting at {time.time()}")
 
+        # Safety against funds loss: re-check our calculations for consistency and
+        # impose sanity limits.
+        input_fees = sum(component_fee(size_of_input(p), self.component_feerate) for (_,_), (p,v) in self.inputs)
+        output_fees = len(self.outputs) * component_fee(34, self.component_feerate)
+        sum_in = sum(amt for (_, _), (pub, amt) in self.inputs)
+        sum_out = sum(amt for amt, addr in self.outputs)
+        total_fee = sum_in - sum_out
+        excess_fee = total_fee - input_fees - output_fees
+        safeties = (
+                sum_in     == self.safety_sum_in,
+                excess_fee == self.safety_excess_fee,
+                excess_fee <= MAX_EXCESS_FEE,
+                total_fee  <= MAX_FEE,
+                )
+        if not all(safeties):
+            # Don't use assert for funds-loss check. We want this check active always.
+            raise RuntimeError(f"(BUG!) Funds re-check failed -- aborting for safety. {safeties}")
+
         round_pubkey = msg.round_pubkey
 
         blind_nonce_points = msg.blind_nonce_points
@@ -756,7 +818,7 @@ class Fusion(threading.Thread, PrintError):
         num_blanks = self.num_components - len(self.inputs) - len(self.outputs)
         (mycommitments, mycomponentslots, mycomponents, myproofs, privkeys), pedersen_amount, pedersen_nonce = gen_components(num_blanks, self.inputs, self.outputs, self.component_feerate)
 
-        assert self.excess_fee == pedersen_amount # sanity check that we didn't mess up the above
+        assert excess_fee == pedersen_amount # sanity check that we didn't mess up the above
         assert len(set(mycomponents)) == len(mycomponents) # no duplicates
 
         blindsigrequests = [schnorr.BlindSignatureRequest(round_pubkey, R, sha256(m))
@@ -770,7 +832,7 @@ class Fusion(threading.Thread, PrintError):
         self.check_coins()
 
         self.send(pb.PlayerCommit(initial_commitments = mycommitments,
-                                  excess_fee = self.excess_fee,
+                                  excess_fee = excess_fee,
                                   pedersen_total_nonce = pedersen_nonce,
                                   random_number_commitment = sha256(random_number),
                                   blind_sig_requests = [r.get_request() for r in blindsigrequests],
@@ -913,10 +975,8 @@ class Fusion(threading.Thread, PrintError):
                 txhex = tx.serialize()
 
                 self.txid = txid = tx.txid()
-                sum_in = sum(amt for (_, _), (pub, amt) in self.inputs)
-                sum_out = sum(amt for amt, addr in self.outputs)
                 sum_in_str = format_satoshis(sum_in, num_zeros=8)
-                fee_str = str(sum_in - sum_out)
+                fee_str = str(total_fee)
                 feeloc = _('fee')
                 label = f"CashFusion {len(self.inputs)}⇢{len(self.outputs)}, {sum_in_str} BCH (−{fee_str} sats {feeloc})"
                 wallets = set(self.source_wallet_info.keys())
