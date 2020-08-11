@@ -350,11 +350,6 @@ class Fusion(threading.Thread, PrintError):
         wallet.set_frozen_coin_state(coinstrs, True, temporary = True)
         self.notify_coins_ui(wallet)
 
-    def add_chooser(self, chooser):
-        """ Add a coin-chooser function. This will be used for initial coin
-        selection and used to reselect coins on every round. """
-        raise NotImplementedError
-
     def check_coins(self):
         for wallet, (coins, mytxids, checked_txids) in self.source_wallet_info.items():
             with wallet.lock:
@@ -555,7 +550,7 @@ class Fusion(threading.Thread, PrintError):
                              - input_fees
                              - self.min_excess_fee)
 
-        # each P2PKH output will need at least this much allocated to it
+        # each P2PKH output will need at least this much allocated to it.
         fee_per_output = component_fee(34, self.component_feerate)
         offset_per_output = Protocol.MIN_OUTPUT + fee_per_output
 
@@ -617,12 +612,12 @@ class Fusion(threading.Thread, PrintError):
 
     def register_and_wait(self,):
         tier_outputs = self.tier_outputs
-        tiers_sorted = sorted(tier_outputs)
+        tiers_sorted = sorted(tier_outputs.keys())
 
         if not tier_outputs:
-            raise FusionError('No outputs available at any tier.')
+            raise FusionError('No outputs available at any tier (selected inputs were too small / too large).')
 
-        self.print_error('registering for tiers: {}'.format(', '.join(str(t) for t in tier_outputs)))
+        self.print_error(f'registering for tiers: {tiers_sorted}')
 
         tags = []
         for wallet in self.source_wallet_info:
@@ -632,7 +627,7 @@ class Fusion(threading.Thread, PrintError):
         ## Join waiting pools
         self.check_stop(running=False)
         self.check_coins()
-        self.send(pb.JoinPools(tiers = tier_outputs, tags=tags))
+        self.send(pb.JoinPools(tiers = tiers_sorted, tags=tags))
 
         self.status = ('waiting', 'Registered for tiers')
 
@@ -712,8 +707,8 @@ class Fusion(threading.Thread, PrintError):
             else:
                 self.status = ('waiting', tiers_string)
 
-        # msg is FusionBegin
-        # Record the time we got it. Later in run_round we will check that the
+        assert isinstance(msg, pb.FusionBegin)
+        # Record the time we got FusionBegin. Later in run_round we will check that the
         # first round comes at a very particular time relative to this message.
         self.t_fusionbegin = time.monotonic()
 
