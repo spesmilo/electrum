@@ -58,6 +58,9 @@ mainnet_block_explorers = {
     'electroncash.de': ('https://explorer.electroncash.de',
                         Address.FMT_CASHADDR,
                         {'tx': 'tx', 'addr': 'address', 'block': 'block-height'}),
+    'Blockchain.com': ('https://www.blockchain.com/bch',
+                       Address.FMT_CASHADDR,
+                       {'tx': 'tx', 'addr': 'address', 'block': 'block'}),
 }
 
 DEFAULT_EXPLORER_TESTNET = 'Bitcoin.com'
@@ -72,6 +75,9 @@ testnet_block_explorers = {
     'electroncash.de': ('https://testnet-explorer.electroncash.de',
                         Address.FMT_CASHADDR,
                         {'tx': 'tx', 'addr': 'address', 'block': 'block-height'}),
+    'Blockchain.com': ('https://www.blockchain.com/bch-testnet',
+                       Address.FMT_CASHADDR,
+                       {'tx': 'tx', 'addr': 'address', 'block': 'block'}),
 }
 
 def BE_info():
