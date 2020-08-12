@@ -130,7 +130,7 @@ prepare_wine() {
             git init
             git remote add origin $PYINSTALLER_REPO
             git fetch --depth 1 origin $PYINSTALLER_COMMIT
-            git checkout -b pinned "${$PYINSTALLER_COMMIT}^{commit}"
+            git checkout -b pinned "${PYINSTALLER_COMMIT}^{commit}"
             rm -fv PyInstaller/bootloader/Windows-*/run*.exe || true  # Make sure EXEs that came with repo are deleted -- we rebuild them and need to detect if build failed
             if [ ${PYI_SKIP_TAG:-0} -eq 0 ] ; then
                 echo "const char *ec_tag = \"tagged by Electron-Cash@$GIT_COMMIT_HASH\";" >> ./bootloader/src/pyi_main.c
