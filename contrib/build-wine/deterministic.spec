@@ -24,6 +24,8 @@ hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
 hiddenimports += collect_submodules('ckcc')
 hiddenimports += collect_submodules('bitbox02')
+hiddenimports += collect_submodules('satochip') 
+hiddenimports += collect_submodules('smartcard') 
 hiddenimports += ['PyQt5.QtPrintSupport']  # needed by Revealer
 
 
@@ -34,6 +36,9 @@ binaries += [b for b in collect_dynamic_libs('PyQt5') if 'qwindowsvista' in b[0]
 
 binaries += [('C:/tmp/libsecp256k1-0.dll', '.')]
 binaries += [('C:/tmp/libusb-1.0.dll', '.')]
+
+# pyscard binaries for Satochip
+binaries += [('C:/python*/Lib/site-packages/smartcard/scard/_scard.cp37-win32.pyd', '.')] #satochip
 
 datas = [
     (home+'electrum/*.json', 'electrum'),
@@ -69,6 +74,7 @@ a = Analysis([home+'run_electrum',
               home+'electrum/plugins/keepkey/qt.py',
               home+'electrum/plugins/ledger/qt.py',
               home+'electrum/plugins/coldcard/qt.py',
+              home+'electrum/plugins/satochip/qt.py',
               #home+'packages/requests/utils.py'
               ],
              binaries=binaries,

@@ -17,6 +17,14 @@ PYINSTALLER_REPO="https://github.com/SomberNight/pyinstaller.git"
 PYINSTALLER_COMMIT="e934539374e30d1500fcdbe8e4eb0860413935b2"
 # ^ tag 3.6, plus a custom commit that fixes cross-compilation with MinGW
 
+# pyscard prebuilt binaries for Satochip 
+# PYSCARD_FILENAME=pyscard-1.9.9-cp36-cp36m-win32.whl  # python 3.6, 32-bit
+# PYSCARD_URL=https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/pyscard-1.9.9-cp36-cp36m-win32.whl
+# PYSCARD_SHA256=99d2b450f322f9ed9682fd2a99d95ce781527e371006cded38327efca8158fe7
+PYSCARD_FILENAME=pyscard-1.9.9-cp37-cp37m-win32.whl # python 3.7, 32-bit
+PYSCARD_URL=https://ci.appveyor.com/api/buildjobs/f9cmce4j8hkau9n4/artifacts/dist/pyscard-1.9.9-cp37-cp37m-win32.whl
+PYSCARD_SHA256=3f7d52dd6694dd369b02e797fe1a3e39b63cf1d1c4b5fc0e1341aafa24f87e7a
+
 PYTHON_VERSION=3.7.7
 
 ## These settings probably don't need change
@@ -67,6 +75,12 @@ info "Installing ZBar."
 download_if_not_exist "$CACHEDIR/$ZBAR_FILENAME" "$ZBAR_URL"
 verify_hash "$CACHEDIR/$ZBAR_FILENAME" "$ZBAR_SHA256"
 wine "$CACHEDIR/$ZBAR_FILENAME" /S
+
+#Satochip install pyscard
+info "Installing pyscard..."
+download_if_not_exist $PYSCARD_FILENAME "$PYSCARD_URL"
+verify_hash $PYSCARD_FILENAME "$PYSCARD_SHA256"
+$PYTHON -m pip install "$CACHEDIR/$PYSCARD_FILENAME"
 
 info "Installing NSIS."
 download_if_not_exist "$CACHEDIR/$NSIS_FILENAME" "$NSIS_URL"

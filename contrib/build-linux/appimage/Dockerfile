@@ -17,6 +17,8 @@ RUN apt-get update -q && \
         zlib1g-dev=1:1.2.8.dfsg-2ubuntu4.3 \
         libffi-dev=3.2.1-4 \
         libncurses5-dev=6.0+20160213-1ubuntu1 \
+        libpcsclite-dev=1.8.14-1ubuntu1.16.04.1 \
+        swig=3.0.8-0ubuntu3 \
         libsqlite3-dev=3.11.0-1ubuntu1.5 \
         libusb-1.0-0-dev=2:1.0.20-1 \
         libudev-dev=229-4ubuntu21.28 \
