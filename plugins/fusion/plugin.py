@@ -265,6 +265,7 @@ class FusionPlugin(BasePlugin):
         super().__init__(*args, **kwargs) # gives us self.config
         self.fusions = weakref.WeakKeyDictionary()
         # Do an initial check on the tor port
+        self.tor_port_good = None
         t = threading.Thread(name = 'Fusion-scan_torport_initial', target = self.scan_torport)
         t.start()
         self.scan_torport_thread = weakref.ref(t)
