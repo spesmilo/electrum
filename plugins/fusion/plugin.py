@@ -263,14 +263,18 @@ class FusionPlugin(BasePlugin):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs) # gives us self.config
-        self.fusions = weakref.WeakKeyDictionary()
         # Do an initial check on the tor port
         self.tor_port_good = None
         t = threading.Thread(name = 'Fusion-scan_torport_initial', target = self.scan_torport)
         t.start()
         self.scan_torport_thread = weakref.ref(t)
+
+        # quick lock for the following two WeakKeyDictionary variables
+        # Locking order wallet.lock -> plugin.lock.
+        self.lock = threading.Lock()
+
+        self.fusions = weakref.WeakKeyDictionary()
         self.autofusing_wallets = weakref.WeakKeyDictionary()  # wallet -> password
-        self.lock = threading.RLock() # always order: plugin.lock -> wallet.lock -> fusion.lock
 
         self.remote_donation_address: str = ''  # optionally announced by the remote server in 'serverhello' message
 
@@ -374,23 +378,37 @@ class FusionPlugin(BasePlugin):
         already 'running' in order to allow for the new change to take effect
         immediately. """
         self.remote_donation_address = ''
-        for wallet in list(self.autofusing_wallets):
+        with self.lock:
+            wallets = list(self.autofusing_wallets.keys())
+        for wallet in wallets:
             self._stop_fusions(wallet, 'Server changed', which='all')
             # FIXME here: restart non-auto fusions on the new server!
 
+    def get_all_fusions(self, ):
+        """ Return all still-live fusion objects that have been created using .create_fusion(),
+        including autofusions and any other fusions. """
+        with self.lock:
+            fusions_and_times = list(self.fusions.items())
+        fusions_and_times.sort(key=lambda x:x[1])
+        return [f for f,t in fusions_and_times]
+
     def _stop_fusions(self, wallet, reason, *, not_if_running=True, which='auto'):
         # which may be 'all' or 'auto'
-        running = []
-        assert which in ('all', 'auto')
-        fusions = list(wallet._fusions_auto) if which == 'auto' else list(wallet._fusions)
-        for f in fusions:
-            f.stop(reason, not_if_running = not_if_running)
-            if f.status[0] == 'running':
-                running.append(f)
-        return running
+        with wallet.lock:
+            if not hasattr(wallet, '_fusions'):
+                return []
+            running = []
+            assert which in ('all', 'auto')
+            fusions = list(wallet._fusions_auto) if which == 'auto' else list(wallet._fusions)
+            for f in fusions:
+                f.stop(reason, not_if_running = not_if_running)
+                if f.status[0] == 'running':
+                    running.append(f)
+            return running
 
     def disable_autofusing(self, wallet):
-        self.autofusing_wallets.pop(wallet, None)
+        with self.lock:
+            self.autofusing_wallets.pop(wallet, None)
         Conf(wallet).autofuse = False
         return self._stop_fusions(wallet, 'Autofusing disabled', which='auto')
 
@@ -399,21 +417,29 @@ class FusionPlugin(BasePlugin):
             raise InvalidPassword()
         else:
             wallet.check_password(password)
-        self.autofusing_wallets[wallet] = password
+        with self.lock:
+            self.autofusing_wallets[wallet] = password
         Conf(wallet).autofuse = True
 
     def is_autofusing(self, wallet):
-        return (wallet in self.autofusing_wallets)
+        with self.lock:
+            return (wallet in self.autofusing_wallets)
 
     def add_wallet(self, wallet, password=None):
         ''' Attach the given wallet to fusion plugin, allowing it to be used in
         fusions with clean shutdown. Also start auto-fusions for wallets that want
         it (if no password).
         '''
-        # all fusions relating to this wallet, in particular the fuse-from type (which have frozen coins!)
-        wallet._fusions = weakref.WeakSet()
-        # fusions that were auto-started.
-        wallet._fusions_auto = weakref.WeakSet()
+        with wallet.lock:
+            # Generate wallet._fusions and wallet._fusions_auto; these must
+            # only be accessed with wallet.lock held.
+
+            # all fusions relating to this wallet, either as source or target
+            # or both.
+            wallet._fusions = weakref.WeakSet()
+            # fusions that were auto-started.
+            wallet._fusions_auto = weakref.WeakSet()
+            # all accesses to the above must be protected by wallet.lock
 
         if Conf(wallet).autofuse:
             try:
@@ -425,17 +451,25 @@ class FusionPlugin(BasePlugin):
         ''' Detach the provided wallet; returns list of active fusions. '''
         with self.lock:
             self.autofusing_wallets.pop(wallet, None)
-        with wallet.lock:
-            fusions = tuple(getattr(wallet, '_fusions', ()))
-            try: del wallet._fusions
-            except AttributeError: pass
-            try: del wallet._fusions_auto
-            except AttributeError: pass
+        fusions = ()
+        try:
+            with wallet.lock:
+                fusions = list(wallet._fusions)
+                del wallet._fusions
+                del wallet._fusions_auto
+        except AttributeError:
+            pass
         return [f for f in fusions if f.status[0] not in ('complete', 'failed')]
 
 
     def create_fusion(self, source_wallet, password, coins, target_wallet = None):
-        # Should be called with plugin.lock and wallet.lock
+        """ Create a new Fusion object with current server/tor settings. Once created
+        you must call fusion.start() to launch it.
+
+        Both source_wallet.lock and target_wallet.lock must be held.
+        FIXME: this condition is begging for a deadlock to happen when the two wallets
+        are different. Need to find a better way if inter-wallet fusing actually happens.
+        """
         if target_wallet is None:
             target_wallet = source_wallet # self-fuse
         assert can_fuse_from(source_wallet)
@@ -457,7 +491,8 @@ class FusionPlugin(BasePlugin):
         target_wallet._fusions.add(fusion)
         source_wallet._fusions.add(fusion)
         fusion.add_coins_from_wallet(source_wallet, password, coins)
-        self.fusions[fusion] = time.time()
+        with self.lock:
+            self.fusions[fusion] = time.time()
         return fusion
 
 
@@ -472,57 +507,66 @@ class FusionPlugin(BasePlugin):
         else:
             self._run_iter = 0
 
+        if not self.active:
+            return
+        torcount = limiter.count
+        # Snapshot of autofusing list; note that remove_wallet may get
+        # called on one of the wallets, after lock is released.
         with self.lock:
-            if not self.active:
-                return
-            torcount = limiter.count
-            if torcount > AUTOFUSE_RECENT_TOR_LIMIT_UPPER:
-                # need tor cooldown, stop the waiting fusions
-                for wallet, password in tuple(self.autofusing_wallets.items()):
-                    with wallet.lock:
-                        autofusions = set(wallet._fusions_auto)
-                        for f in autofusions:
-                            if f.status[0] in ('complete', 'failed'):
-                                wallet._fusions_auto.discard(f)
-                                continue
-                            if not f.stopping:
-                                f.stop('Tor cooldown', not_if_running = True)
-                return
+            wallets_and_passwords = list(self.autofusing_wallets.items())
 
-            if torcount > AUTOFUSE_RECENT_TOR_LIMIT_LOWER:
-                return
-            for wallet, password in tuple(self.autofusing_wallets.items()):
-                num_auto = 0
+        if torcount > AUTOFUSE_RECENT_TOR_LIMIT_UPPER:
+            # need tor cooldown, stop the waiting fusions
+            for wallet, password in wallets_and_passwords:
                 with wallet.lock:
+                    if not hasattr(wallet, '_fusions'):
+                        continue
                     autofusions = set(wallet._fusions_auto)
                     for f in autofusions:
                         if f.status[0] in ('complete', 'failed'):
                             wallet._fusions_auto.discard(f)
-                        else:
-                            num_auto += 1
-                    eligible, ineligible, sum_value, has_unconfirmed, has_coinbase = select_coins(wallet)
-                    target_num_auto, confirmed_only = get_target_params_1(wallet, eligible)
-                    #self.print_error("params1", target_num_auto, confirmed_only)
-                    if confirmed_only and has_unconfirmed:
-                        for f in list(wallet._fusions_auto):
-                            f.stop('Wallet has unconfirmed coins... waiting.', not_if_running = True)
-                        continue
-                    if num_auto < target_num_auto:
-                        # we don't have enough auto-fusions running, so start one
-                        fraction = get_target_params_2(wallet, eligible, sum_value)
-                        #self.print_error("params2", fraction)
-                        coins = [c for l in select_random_coins(wallet, fraction, eligible) for c in l]
-                        if not coins:
-                            self.print_error("auto-fusion skipped due to lack of coins")
                             continue
-                        try:
-                            f = self.create_fusion(wallet, password, coins)
-                            f.start(inactive_timeout = AUTOFUSE_INACTIVE_TIMEOUT)
-                            self.print_error("started auto-fusion")
-                        except RuntimeError as e:
-                            self.print_error(f"auto-fusion skipped due to error: {e}")
-                            return
-                        wallet._fusions_auto.add(f)
+                        if not f.stopping:
+                            f.stop('Tor cooldown', not_if_running = True)
+            return
+
+        if torcount > AUTOFUSE_RECENT_TOR_LIMIT_LOWER:
+            # no urgent need to stop fusions, but don't queue up any more.
+            return
+
+        for wallet, password in wallets_and_passwords:
+            with wallet.lock:
+                if not hasattr(wallet, '_fusions'):
+                    continue
+                num_auto = 0
+                for f in list(wallet._fusions_auto):
+                    if f.status[0] in ('complete', 'failed'):
+                        wallet._fusions_auto.discard(f)
+                    else:
+                        num_auto += 1
+                eligible, ineligible, sum_value, has_unconfirmed, has_coinbase = select_coins(wallet)
+                target_num_auto, confirmed_only = get_target_params_1(wallet, eligible)
+                #self.print_error("params1", target_num_auto, confirmed_only)
+                if confirmed_only and has_unconfirmed:
+                    for f in list(wallet._fusions_auto):
+                        f.stop('Wallet has unconfirmed coins... waiting.', not_if_running = True)
+                    continue
+                if num_auto < target_num_auto:
+                    # we don't have enough auto-fusions running, so start one
+                    fraction = get_target_params_2(wallet, eligible, sum_value)
+                    #self.print_error("params2", fraction)
+                    coins = [c for l in select_random_coins(wallet, fraction, eligible) for c in l]
+                    if not coins:
+                        self.print_error("auto-fusion skipped due to lack of coins")
+                        continue
+                    try:
+                        f = self.create_fusion(wallet, password, coins)
+                        f.start(inactive_timeout = AUTOFUSE_INACTIVE_TIMEOUT)
+                        self.print_error("started auto-fusion")
+                    except RuntimeError as e:
+                        self.print_error(f"auto-fusion skipped due to error: {e}")
+                        return
+                    wallet._fusions_auto.add(f)
 
     def start_fusion_server(self, network, bindhost, port, upnp = None, announcehost = None, donation_address = None):
         if self.fusion_server:

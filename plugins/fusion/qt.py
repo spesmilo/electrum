@@ -1388,8 +1388,7 @@ class FusionsWindow(ServerFusionsBaseMixin, QDialog):
         reselect_fusions.discard(None)
         reselect_items = []
         tree.clear()
-        fusions_and_times = sorted(self.plugin.fusions.items(), key=lambda x:x[1], reverse=True)
-        for fusion,t in fusions_and_times:
+        for fusion in reversed(self.plugin.get_all_fusions()):
             wname = fusion.target_wallet.diagnostic_name()
             status, status_ext = fusion.status
             item = QTreeWidgetItem( [ wname, status, status_ext] )
