@@ -43,7 +43,7 @@ from electroncash import Network
 
 from .conf import Conf, Global
 from .fusion import Fusion, can_fuse_from, can_fuse_to, is_tor_port
-from .server import FusionServer, Params
+from .server import FusionServer
 from .covert import limiter
 
 import random  # only used to select random coins
@@ -64,7 +64,10 @@ AUTOFUSE_INACTIVE_TIMEOUT = 600
 
 # how many random coins to select max in 1 batch -- used by select_random_coins
 DEFAULT_MAX_COINS = 20
-assert DEFAULT_MAX_COINS > 5
+assert DEFAULT_MAX_COINS > 10
+
+# how many autofusions can be running per-wallet
+MAX_AUTOFUSIONS_PER_WALLET = 10
 
 pnp = None
 def get_upnp():
@@ -200,29 +203,21 @@ def select_random_coins(wallet, fraction, eligible):
 
 def get_target_params_1(wallet, eligible):
     """ WIP -- TODO: Rename this function. """
-    def inner(wallet, eligible):
-        wallet_conf = Conf(wallet)
-        mode = wallet_conf.fusion_mode
+    wallet_conf = Conf(wallet)
+    mode = wallet_conf.fusion_mode
 
-        get_n_coins = lambda: sum(len(acoins) for addr,acoins in eligible)
-        if mode == 'normal':
-            n_coins = get_n_coins()
-            return max(2, round(n_coins / DEFAULT_MAX_COINS)), False
-        elif mode == 'fan-out':
-            n_coins = get_n_coins()
-            return max(4, math.ceil(n_coins / (COIN_FRACTION_FUDGE_FACTOR*0.65))), False
-        elif mode == 'consolidate':
-            n_coins = get_n_coins()
-            num_threads = math.trunc(n_coins / (COIN_FRACTION_FUDGE_FACTOR*1.5))
-            return num_threads, num_threads <= 1
-        else:  # 'custom'
-            target_num_auto = wallet_conf.queued_autofuse
-            confirmed_only = wallet_conf.autofuse_confirmed_only
-            return target_num_auto, confirmed_only
-    def sanitize(num_threads, conf_only):
-        num_threads = min(num_threads, Params.max_tier_client_tags)
-        return num_threads, bool(conf_only)
-    return sanitize(*inner(wallet, eligible))
+    n_coins = sum(len(acoins) for addr,acoins in eligible)
+    if mode == 'normal':
+        return max(2, round(n_coins / DEFAULT_MAX_COINS)), False
+    elif mode == 'fan-out':
+        return max(4, math.ceil(n_coins / (COIN_FRACTION_FUDGE_FACTOR*0.65))), False
+    elif mode == 'consolidate':
+        num_threads = math.trunc(n_coins / (COIN_FRACTION_FUDGE_FACTOR*1.5))
+        return num_threads, num_threads <= 1
+    else:  # 'custom'
+        target_num_auto = wallet_conf.queued_autofuse
+        confirmed_only = wallet_conf.autofuse_confirmed_only
+        return int(target_num_auto), bool(confirmed_only)
 
 
 def get_target_params_2(wallet, eligible, sum_value):
@@ -267,7 +262,6 @@ class FusionPlugin(BasePlugin):
         self.tor_port_good = None
         t = threading.Thread(name = 'Fusion-scan_torport_initial', target = self.scan_torport)
         t.start()
-        self.scan_torport_thread = weakref.ref(t)
 
         # quick lock for the following two WeakKeyDictionary variables
         # Locking order wallet.lock -> plugin.lock.
@@ -551,7 +545,7 @@ class FusionPlugin(BasePlugin):
                     for f in list(wallet._fusions_auto):
                         f.stop('Wallet has unconfirmed coins... waiting.', not_if_running = True)
                     continue
-                if num_auto < target_num_auto:
+                if num_auto < min(target_num_auto, MAX_AUTOFUSIONS_PER_WALLET):
                     # we don't have enough auto-fusions running, so start one
                     fraction = get_target_params_2(wallet, eligible, sum_value)
                     #self.print_error("params2", fraction)
