@@ -72,11 +72,14 @@ MAX_COMPONENT_FEERATE = 5000
 # The largest 'excess fee' that we are willing to pay in a fusion (fees beyond
 # those needed to pay for our components' inclusion)
 MAX_EXCESS_FEE = 10000
-# Even if the server allows more, put at most this many inputs+outputs.
+# Even if the server allows more, put at most this many inputs+outputs+blanks
 MAX_COMPONENTS = 40
 # The largest total fee we are willing to pay (our contribution to transaction
 # size should not exceed 7 kB even with 40 largest components).
 MAX_FEE = MAX_COMPONENT_FEERATE * 7 + MAX_EXCESS_FEE
+
+# For privacy reasons, don't submit less than this many inputs+outputs
+MIN_TX_COMPONENTS = 11
 
 def can_fuse_from(wallet):
     """We can only fuse from wallets that are p2pkh, and where we are able
@@ -254,6 +257,7 @@ class Fusion(threading.Thread, PrintError):
     """
     stopping=False
     stopping_if_not_running=False
+    max_outputs = None
     status=('setup', None) # will always be 2-tuple; second param has extra details
 
     def __init__(self, plugin, target_wallet, server_host, server_port, server_ssl, tor_host, tor_port):
@@ -526,22 +530,33 @@ class Fusion(threading.Thread, PrintError):
             raise FusionError('excessive min excess fee from server')
         if self.min_excess_fee > self.max_excess_fee:
             raise FusionError('bad config on server: fees')
+        if self.num_components < MIN_TX_COMPONENTS * 1.5:
+            raise FusionError('bad config on server: num_components')
 
     def allocate_outputs(self,):
         assert self.status[0] in ('setup', 'connecting')
-        num_inputs = len(self.coins)
 
         # fix the input selection
         self.inputs = tuple(self.coins.items())
+        num_inputs = len(self.inputs)
+
+        # For obfuscation, when there are few inputs we want to have many outputs,
+        # and vice versa. Many of both is even better, of course.
+        min_outputs = max(MIN_TX_COMPONENTS - num_inputs, 1)
 
         maxcomponents = min(self.num_components, MAX_COMPONENTS)
         max_outputs = maxcomponents - num_inputs
         if max_outputs < 1:
             raise FusionError('Too many inputs (%d >= %d)'%(num_inputs, maxcomponents))
 
-        # For obfuscation, when there are few inputs we want to have many outputs,
-        # and vice versa. Many of both is even better, of course.
-        min_outputs = max(11 - num_inputs, 1)
+        if self.max_outputs is not None:
+            assert self.max_outputs >= 1
+            if self.max_outputs < min_outputs:
+                raise FusionError('Too few inputs (%d) for output count constraint (<=%d)'%(num_inputs, self.max_outputs))
+            max_outputs = min(self.max_outputs, max_outputs)
+
+        if max_outputs < min_outputs:
+            raise FusionError('Impossible output count range (%d, %d)'%(min_outputs, max_outputs))
 
         # how much input value do we bring to the table (after input & player fees)
         sum_inputs_value = sum(v for (_,_), (p,v) in self.inputs)

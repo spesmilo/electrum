@@ -42,7 +42,7 @@ from electroncash.util import profiler, PrintError, InvalidPassword
 from electroncash import Network
 
 from .conf import Conf, Global
-from .fusion import Fusion, can_fuse_from, can_fuse_to, is_tor_port
+from .fusion import Fusion, can_fuse_from, can_fuse_to, is_tor_port, MIN_TX_COMPONENTS
 from .server import FusionServer
 from .covert import limiter
 
@@ -68,6 +68,8 @@ assert DEFAULT_MAX_COINS > 10
 
 # how many autofusions can be running per-wallet
 MAX_AUTOFUSIONS_PER_WALLET = 10
+
+CONSOLIDATE_MAX_OUTPUTS = MIN_TX_COMPONENTS // 3
 
 pnp = None
 def get_upnp():
@@ -201,28 +203,49 @@ def select_random_coins(wallet, fraction, eligible):
 
     return result
 
-def get_target_params_1(wallet, eligible):
+def get_target_params_1(wallet, wallet_conf, active_autofusions, eligible):
     """ WIP -- TODO: Rename this function. """
     wallet_conf = Conf(wallet)
     mode = wallet_conf.fusion_mode
 
+    # Note each fusion 'consumes' a certain number of coins by freezing them,
+    # so that the next fusion has less eligible coins to work with. So each
+    # call to this may see a smaller n_coins.
     n_coins = sum(len(acoins) for addr,acoins in eligible)
     if mode == 'normal':
         return max(2, round(n_coins / DEFAULT_MAX_COINS)), False
     elif mode == 'fan-out':
         return max(4, math.ceil(n_coins / (COIN_FRACTION_FUDGE_FACTOR*0.65))), False
     elif mode == 'consolidate':
-        num_threads = math.trunc(n_coins / (COIN_FRACTION_FUDGE_FACTOR*1.5))
-        return num_threads, num_threads <= 1
+        if len(eligible) < MIN_TX_COMPONENTS - CONSOLIDATE_MAX_OUTPUTS:
+            # Too few eligible buckets to make an effective consolidation.
+            return 0, False
+
+        # In the latter stages of consolidation, only do one fusion
+        # at a time with all-confirmed rule, to make sure each fusion's outputs
+        # may be consumed by the subsequent one.
+        # To avoid weird loops, try to calculate the TOTAL number of coins
+        # that are either 1) eligible or 2) being fused. (Should stay constant
+        # as fusions are added/cancelled)
+        n_total = n_coins + sum(len(f.inputs) for f in active_autofusions)
+        if n_total < DEFAULT_MAX_COINS*3:
+            return 1, True
+
+        # If coins are scarce then don't make more autofusions unless we
+        # have none.
+        if n_coins < DEFAULT_MAX_COINS*2:
+            return 1, False
+
+        # We still have lots of coins left, so request another autofusion.
+        return MAX_AUTOFUSIONS_PER_WALLET, False
     else:  # 'custom'
         target_num_auto = wallet_conf.queued_autofuse
         confirmed_only = wallet_conf.autofuse_confirmed_only
         return int(target_num_auto), bool(confirmed_only)
 
 
-def get_target_params_2(wallet, eligible, sum_value):
+def get_target_params_2(wallet_conf, sum_value):
     """ WIP -- TODO: Rename this function. """
-    wallet_conf = Conf(wallet)
     mode = wallet_conf.fusion_mode
 
     fraction = 0.1
@@ -456,7 +479,7 @@ class FusionPlugin(BasePlugin):
         return [f for f in fusions if f.status[0] not in ('complete', 'failed')]
 
 
-    def create_fusion(self, source_wallet, password, coins, target_wallet = None):
+    def create_fusion(self, source_wallet, password, coins, target_wallet = None, max_outputs = None):
         """ Create a new Fusion object with current server/tor settings. Once created
         you must call fusion.start() to launch it.
 
@@ -485,6 +508,7 @@ class FusionPlugin(BasePlugin):
         target_wallet._fusions.add(fusion)
         source_wallet._fusions.add(fusion)
         fusion.add_coins_from_wallet(source_wallet, password, coins)
+        fusion.max_outputs = max_outputs
         with self.lock:
             self.fusions[fusion] = time.time()
         return fusion
@@ -532,29 +556,34 @@ class FusionPlugin(BasePlugin):
             with wallet.lock:
                 if not hasattr(wallet, '_fusions'):
                     continue
-                num_auto = 0
                 for f in list(wallet._fusions_auto):
                     if f.status[0] in ('complete', 'failed'):
                         wallet._fusions_auto.discard(f)
-                    else:
-                        num_auto += 1
+                active_autofusions = list(wallet._fusions_auto)
+                num_auto = len(active_autofusions)
+                wallet_conf = Conf(wallet)
                 eligible, ineligible, sum_value, has_unconfirmed, has_coinbase = select_coins(wallet)
-                target_num_auto, confirmed_only = get_target_params_1(wallet, eligible)
-                #self.print_error("params1", target_num_auto, confirmed_only)
+                target_num_auto, confirmed_only = get_target_params_1(wallet, wallet_conf, active_autofusions, eligible)
                 if confirmed_only and has_unconfirmed:
                     for f in list(wallet._fusions_auto):
                         f.stop('Wallet has unconfirmed coins... waiting.', not_if_running = True)
                     continue
                 if num_auto < min(target_num_auto, MAX_AUTOFUSIONS_PER_WALLET):
                     # we don't have enough auto-fusions running, so start one
-                    fraction = get_target_params_2(wallet, eligible, sum_value)
-                    #self.print_error("params2", fraction)
+                    fraction = get_target_params_2(wallet_conf, sum_value)
                     coins = [c for l in select_random_coins(wallet, fraction, eligible) for c in l]
                     if not coins:
                         self.print_error("auto-fusion skipped due to lack of coins")
                         continue
+                    if wallet_conf.fusion_mode == 'consolidate':
+                        max_outputs = CONSOLIDATE_MAX_OUTPUTS
+                        if len(coins) < (MIN_TX_COMPONENTS - max_outputs):
+                            self.print_error("consolidating auto-fusion skipped due to lack of unrelated coins")
+                            continue
+                    else:
+                        max_outputs = None
                     try:
-                        f = self.create_fusion(wallet, password, coins)
+                        f = self.create_fusion(wallet, password, coins, max_outputs = max_outputs)
                         f.start(inactive_timeout = AUTOFUSE_INACTIVE_TIMEOUT)
                         self.print_error("started auto-fusion")
                     except RuntimeError as e:
