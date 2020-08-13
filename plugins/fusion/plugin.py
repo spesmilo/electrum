@@ -487,6 +487,7 @@ class FusionPlugin(BasePlugin):
                                 continue
                             if not f.stopping:
                                 f.stop('Tor cooldown', not_if_running = True)
+                return
 
             if torcount > AUTOFUSE_RECENT_TOR_LIMIT_LOWER:
                 return
@@ -502,12 +503,12 @@ class FusionPlugin(BasePlugin):
                     eligible, ineligible, sum_value, has_unconfirmed, has_coinbase = select_coins(wallet)
                     target_num_auto, confirmed_only = get_target_params_1(wallet, eligible)
                     #self.print_error("params1", target_num_auto, confirmed_only)
+                    if confirmed_only and has_unconfirmed:
+                        for f in list(wallet._fusions_auto):
+                            f.stop('Wallet has unconfirmed coins... waiting.', not_if_running = True)
+                        continue
                     if num_auto < target_num_auto:
                         # we don't have enough auto-fusions running, so start one
-                        if confirmed_only and has_unconfirmed:
-                            for f in list(wallet._fusions_auto):
-                                f.stop('Wallet has unconfirmed coins... waiting.', not_if_running = True)
-                            continue
                         fraction = get_target_params_2(wallet, eligible, sum_value)
                         #self.print_error("params2", fraction)
                         coins = [c for l in select_random_coins(wallet, fraction, eligible) for c in l]
@@ -522,9 +523,6 @@ class FusionPlugin(BasePlugin):
                             self.print_error(f"auto-fusion skipped due to error: {e}")
                             return
                         wallet._fusions_auto.add(f)
-                    elif confirmed_only and has_unconfirmed:
-                        for f in list(wallet._fusions_auto):
-                            f.stop('Wallet has unconfirmed coins... waiting.', not_if_running = True)
 
     def start_fusion_server(self, network, bindhost, port, upnp = None, announcehost = None, donation_address = None):
         if self.fusion_server:
