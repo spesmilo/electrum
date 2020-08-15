@@ -144,7 +144,7 @@ def _get_default_server_list() -> List[Tuple[str, int, bool]]:
     """
     return [
         # first one is the default
-        CashFusionServer('cashfusion.electroncash.dk', 8787, False),
+        CashFusionServer('cashfusion.electroncash.dk', 8788, True),
     ]
 
 

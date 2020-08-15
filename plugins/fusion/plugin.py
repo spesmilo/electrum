@@ -274,6 +274,15 @@ class FusionPlugin(BasePlugin):
 
         self.remote_donation_address: str = ''  # optionally announced by the remote server in 'serverhello' message
 
+        if tuple(self.config.get('cashfusion_server', ())) == ('cashfusion.electroncash.dk', 8787, False):
+            # User's config has the old default non-SSL server. If we see this,
+            # just wipe the config key so that the new default is used.
+            # But only reset once, after that let them go back if that is what
+            # they truly desire.
+            if self.config.get('cashfusion_server_defaultresetted', 0) < 1:
+                self.config.set_key('cashfusion_server', None)
+                self.config.set_key('cashfusion_server_defaultresetted', 1)
+
     def on_close(self,):
         super().on_close()
         self.stop_fusion_server()
