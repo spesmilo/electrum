@@ -4,13 +4,13 @@ import sys
 import traceback
 from typing import Optional, Tuple
 
-from electrum import ecc
+from electrum import ecc, constants
 from electrum import bip32
 from electrum.crypto import hash_160
 from electrum.bitcoin import int_to_hex, var_int, is_segwit_script_type
 from electrum.bip32 import BIP32Node, convert_bip32_intpath_to_strpath
 from electrum.i18n import _
-from electrum.keystore import Hardware_KeyStore
+from electrum.keystore import Hardware_KeyStore, Xpub
 from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
 from electrum.wallet import Standard_Wallet
 from electrum.util import bfh, bh2u, versiontuple, UserFacingException
@@ -113,6 +113,26 @@ class Ledger_Client(HardwareClientBase):
             return False
         return True
 
+    def get_password_for_storage_encryption(self) -> str:
+        # since ledger firware 1.6.1 we need to provide the full derivation path
+        # see https://support.ledger.com/hc/en-us/articles/360015738179-Derivation-path-vulnerability-in-Bitcoin-derivati>
+        derivation = ("m/44'"
+                       "/" + str(constants.net.BIP44_COIN_TYPE) + "'"
+            "/4541509'"      # ascii 'ELE'  as decimal ("BIP43 purpose")
+            "/1112098098'")  # ascii 'BIE2' as decimal
+        # note: using a different password based on hw device type is highly undesirable! see #5993
+        xpub = self.get_xpub(derivation, "standard")
+        password = Xpub.get_pubkey_from_xpub(xpub, ()).hex()
+        return password
+
+    def request_root_fingerprint_from_device(self) -> str:
+        # since ledger firware 1.6.1 we need to provide the full derivation path
+        # see https://support.ledger.com/hc/en-us/articles/360015738179-Derivation-path-vulnerability-in-Bitcoin-derivati>
+        child_of_root_xpub = self.get_xpub("m/44'/" + str(constants.net.BIP44_COIN_TYPE) + "'", xtype='standard')
+        root_fingerprint = BIP32Node.from_xkey(child_of_root_xpub).fingerprint.hex().lower()
+        return root_fingerprint
+
+
     @test_pin_unlocked
     def get_xpub(self, bip32_path, xtype):
         self.checkDevice()
@@ -130,7 +150,7 @@ class Ledger_Client(HardwareClientBase):
         bip32_intpath = bip32.convert_bip32_path_to_list_of_uint32(bip32_path)
         bip32_path = bip32_path[2:]  # cut off "m/"
         if len(bip32_intpath) >= 1:
-            prevPath = bip32.convert_bip32_intpath_to_strpath(bip32_intpath[:-1])[2:]
+            prevPath = bip32.convert_bip32_intpath_to_strpath(bip32_intpath)[2:]
             nodeData = self.dongleObject.getWalletPublicKey(prevPath)
             publicKey = compress_public_key(nodeData['publicKey'])
             fingerprint_bytes = hash_160(publicKey)[0:4]
@@ -638,7 +658,7 @@ class LedgerPlugin(HW_PluginBase):
         device_id = device_info.device.id_
         client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
         wizard.run_task_without_blocking_gui(
-            task=lambda: client.get_xpub("m/44'/0'", 'standard'))  # TODO replace by direct derivation once Nano S > 1.1
+            task=lambda: client.get_xpub("m/44'/" + str(constants.net.BIP44_COIN_TYPE) + "'", 'standard'))  # TODO replace by direct derivation once Nano S > 1.1
         return client
 
     def get_xpub(self, device_id, derivation, xtype, wizard):
