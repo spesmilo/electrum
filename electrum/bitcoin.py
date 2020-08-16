@@ -760,10 +760,12 @@ def is_address(addr: str, *, net=None) -> bool:
 
 def get_staking_address(addr: str, *, net=None) -> str:
     if net is None: net = constants.net
+    if addr == "":
+        return ""
     try:
         addrtype, h = b58_address_to_hash160(addr)
     except Exception as e:
-        return False
+        return ""
     if addrtype == net.ADDRTYPE_P2CS:
         addrtype, h, h2 = b58_address_to_hash160_pair(addr)
         return hash160_to_b58_address(h, net.ADDRTYPE_P2PKH)
@@ -774,10 +776,12 @@ def get_staking_address(addr: str, *, net=None) -> str:
 
 def get_voting_address(addr: str, *, net=None) -> str:
     if net is None: net = constants.net
+    if addr == "":
+        return ""
     try:
         addrtype, h = b58_address_to_hash160(addr)
     except Exception as e:
-        return False
+        return ""
     if addrtype == net.ADDRTYPE_P2CS:
         addrtype, h, h2 = b58_address_to_hash160_pair(addr)
         return hash160_to_b58_address(h, net.ADDRTYPE_P2PKH)
