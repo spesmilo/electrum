@@ -10,7 +10,7 @@ from electrum.mnemonic import load_wordlist
 
 MNEMONIC_LENGTH = 12
 ENTROPY_LEN = 16
-PBKDF_ITERATIONS = 100_000
+PBKDF_ITERATIONS = 512
 
 BIP39_WORDLIST = load_wordlist("english.txt")
 
