@@ -24,6 +24,8 @@
 
 import json, pkgutil
 
+from .asert_daa import ASERTDaa
+
 def _read_json_dict(filename):
     try:
         data = pkgutil.get_data(__name__, filename)
@@ -34,6 +36,7 @@ def _read_json_dict(filename):
 
 class AbstractNet:
     TESTNET = False
+    asert_daa = ASERTDaa()
 
 
 class MainNet(AbstractNet):
@@ -62,8 +65,8 @@ class MainNet(AbstractNet):
     #    network.synchronous_get(("blockchain.block.header", [height, height]))
     #
     # Consult the ElectrumX documentation for more details.
-    VERIFICATION_BLOCK_MERKLE_ROOT = "fcf0ac1b7d7efc16d93e8ec9211def5977827482420b5210718731ecd6c4edb4"
-    VERIFICATION_BLOCK_HEIGHT = 592911
+    VERIFICATION_BLOCK_MERKLE_ROOT = "575401e2c601590926742fc806339d99dfdbd65b867231c3d799ea9a22cf9355"
+    VERIFICATION_BLOCK_HEIGHT = 645000
 
     # Version numbers for BIP32 extended keys
     # standard: xprv, xpub
@@ -78,6 +81,7 @@ class MainNet(AbstractNet):
 
 class TestNet(AbstractNet):
     TESTNET = True
+    asert_daa = ASERTDaa(is_testnet=True)
     WIF_PREFIX = 0xef
     ADDRTYPE_P2PKH = 111
     ADDRTYPE_P2PKH_BITPAY = 111  # Unsure
@@ -94,8 +98,8 @@ class TestNet(AbstractNet):
     BITCOIN_CASH_FORK_BLOCK_HEIGHT = 1155876
     BITCOIN_CASH_FORK_BLOCK_HASH = "00000000000e38fef93ed9582a7df43815d5c2ba9fd37ef70c9a0ea4a285b8f5"
 
-    VERIFICATION_BLOCK_MERKLE_ROOT = "c3cc7a7b6fe5e0ff19b750ae200ae93664b3abf09bf510e26e15ba338afe1f1a"
-    VERIFICATION_BLOCK_HEIGHT = 1273800
+    VERIFICATION_BLOCK_MERKLE_ROOT = "05389f1534c30b86268c5ea87ad9b121ed90db814267e63f5f0c6bd9c089d362"
+    VERIFICATION_BLOCK_HEIGHT = 1400000
 
     # Version numbers for BIP32 extended keys
     # standard: tprv, tpub

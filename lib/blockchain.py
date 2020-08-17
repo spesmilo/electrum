@@ -25,9 +25,12 @@ import os
 import sys
 import threading
 
+from typing import Optional
 
-from . import util
+from . import asert_daa
 from . import networks
+from . import util
+
 from .bitcoin import *
 
 class VerifyError(Exception):
@@ -420,6 +423,37 @@ class Blockchain(util.PrintError):
 
         return blocks1['block_height']
 
+    _cached_asert_anchor: Optional[asert_daa.Anchor] = None  # cached Anchor, per-Blockchain instance
+    def get_asert_anchor(self, prevheader, mtp, chunk=None):
+        if networks.net.asert_daa.anchor is not None:
+            # Checkpointed (hard-coded) value exists, just use that
+            return networks.net.asert_daa.anchor
+        if (self._cached_asert_anchor is not None
+                and self._cached_asert_anchor.height <= prevheader['block_height']):
+            return self._cached_asert_anchor
+        # ****
+        # This may be slow -- we really should be leveraging the hard-coded
+        # checkpointed value. TODO: add hard-coded value to networks.py after
+        # Nov. 15th 2020 HF to ASERT DAA
+        # ****
+        anchor = prevheader
+        activation_mtp = networks.net.asert_daa.MTP_ACTIVATION_TIME
+        while mtp >= activation_mtp:
+            ht = anchor['block_height']
+            prev = self.read_header(ht - 1, chunk)
+            if prev is None:
+                self.print_error("get_asert_anchor missing header {}".format(ht - 1))
+                return None
+            prev_mtp = self.get_median_time_past(ht - 1, chunk)
+            if prev_mtp < activation_mtp:
+                # Ok, use this as anchor -- since it is the first in the chain
+                # after activation.
+                bits = anchor['bits']
+                self._cached_asert_anchor = asert_daa.Anchor(ht, bits, prev['timestamp'])
+                return self._cached_asert_anchor
+            mtp = prev_mtp
+            anchor = prev
+
     def get_bits(self, header, chunk=None):
         '''Return bits for the given height.'''
         # Difficulty adjustment interval?
@@ -433,13 +467,31 @@ class Blockchain(util.PrintError):
             raise Exception("get_bits missing header {} with chunk {!r}".format(height - 1, chunk))
         bits = prior['bits']
 
-        #NOV 13 HF DAA
+        # NOV 13 HF DAA and/or ASERT DAA
 
-        prevheight = height -1
+        prevheight = height - 1
         daa_mtp = self.get_median_time_past(prevheight, chunk)
 
-        #if (daa_mtp >= 1509559291):  #leave this here for testing
-        if (daa_mtp >= 1510600000):
+
+        # ASERTi3-2d DAA activated on Nov. 15th 2020 HF
+        if daa_mtp >= networks.net.asert_daa.MTP_ACTIVATION_TIME:
+            header_ts = header['timestamp']
+            prev_ts = prior['timestamp']
+            if networks.net.TESTNET:
+                # testnet 20 minute rule
+                if header_ts - prev_ts > 20*60:
+                    return MAX_BITS
+
+            anchor = self.get_asert_anchor(prior, daa_mtp, chunk)
+            assert anchor is not None, "Failed to find ASERT anchor block for chain {!r}".format(self)
+
+            return networks.net.asert_daa.next_bits_aserti3_2d(anchor.bits,
+                                                               prev_ts - anchor.prev_time,
+                                                               prevheight - anchor.height)
+
+
+        # Mon Nov 13 19:06:40 2017 DAA HF
+        if daa_mtp >= 1510600000:
 
             if networks.net.TESTNET:
                 # testnet 20 minute rule
