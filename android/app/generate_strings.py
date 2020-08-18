@@ -40,33 +40,35 @@ KOTLIN_KEYWORDS = set([  # "Hard" keywords only.
 KEYWORDS = JAVA_KEYWORDS | KOTLIN_KEYWORDS
 
 
-# Map from gettext plural formula to Android quantity keywords. This will have to be extended
-# as plural translations are added in more languages. Android uses the CLDR rules from
-# http://www.unicode.org/cldr/charts/25/supplemental/language_plural_rules.html.
+# Map from gettext plural formula to Android quantity keywords, based on the CLDR table at
+# https://unicode-org.github.io/cldr-staging/charts/37/supplemental/language_plural_rules.html.
+# New entries will have to be added as plural translations are added in more languages.
 QUANTITIES = {
     # e.g. zh
-    "0": {
-        0: "other"
-    },
+    "0":
+    ["other"],
 
     # e.g. de
-    "(n != 1)": {
-        0: "one",
-        1: "other"
-    },
+    "(n != 1)":
+    ["one", "other"],
 
     # e.g. fr
-    "(n > 1)": {
-        0: "one",   # For these languages, "one" includes zero (see CLDR link above).
-        1: "other"
-    },
+    "(n > 1)":
+    ["one", "other"],
 
     # e.g. ro
-    "(n==1 ? 0 : (n==0 || (n%100>0 && n%100<20)) ? 1 : 2)": {
-        0: "one",
-        1: "few",
-        2: "other"
-    },
+    "(n==1 ? 0 : (n==0 || (n%100>0 && n%100<20)) ? 1 : 2)":
+    ["one", "few", "other"],
+
+    # e.g. ar
+    "(n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : "
+    "n%100>=11 && n%100<=99 ? 4 : 5)":
+    ["zero", "one", "two", "few", "many", "other"],
+
+    # e.g. pl
+    "(n==1 ? 0 : (n%10>=2 && n%10<=4) && (n%100<12 || n%100>14) ? 1 : "
+    "n!=1 && (n%10>=0 && n%10<=1) || (n%10>=5 && n%10<=9) || (n%100>=12 && n%100<=14) ? 2 : 3)":
+    ["one", "few", "many", "other"]
 }
 
 
