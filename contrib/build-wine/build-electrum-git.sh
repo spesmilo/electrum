@@ -21,8 +21,7 @@ here="$(dirname "$(readlink -e "$0")")"
 
 pushd $WINEPREFIX/drive_c/electrum
 
-#VERSION=`git describe --tags --dirty --always`
-VERSION='4.0.0a0'
+VERSION=`git describe --tags --dirty --always`
 info "Last commit: $VERSION"
 
 # Load electrum-locale for this release
