@@ -32,7 +32,7 @@ class ShowQRTextEdit(ButtonsTextEdit):
 
 class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
 
-    def __init__(self, text="", allow_multi=False):
+    def __init__(self, text="", allow_multi=False, placeholder_text=None):
         ButtonsTextEdit.__init__(self, text)
         self.allow_multi = allow_multi
         self.setReadOnly(0)
@@ -40,6 +40,8 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
         icon = "camera_white.png" if ColorScheme.dark_scheme else "camera_dark.png"
         self.addButton(icon, self.qr_input, _("Read QR code"))
         run_hook('scan_text_edit', self)
+        if placeholder_text:
+            self.setPlaceholderText(placeholder_text)
 
     def file_input(self):
         fileName, __ = QFileDialog.getOpenFileName(self, 'select file')

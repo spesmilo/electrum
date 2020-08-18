@@ -442,9 +442,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     def remove_from_recently_open(self, filename):
         self.config.remove_from_recently_open(filename)
 
-    def text_input(self, title, message, is_valid, allow_multi=False):
+    def text_input(self, title, message, is_valid, allow_multi=False, placeholder_text=None):
         slayout = KeysLayout(parent=self, header_layout=message, is_valid=is_valid,
-                             allow_multi=allow_multi)
+                             allow_multi=allow_multi, placeholder_text=placeholder_text)
+
         self.exec_layout(slayout, title, next_enabled=False)
         return slayout.get_text()
 
@@ -470,7 +471,12 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             _('Please enter the master public key (xpub) of your cosigner.'),
             _('Enter their master private key (xprv) if you want to be able to sign for them.')
         ])
-        return self.text_input(title, message, is_valid)
+        placeholder_text =  ' '.join([
+            _('If you do not have this master public key (xpub) yet, leave this '
+              'dialog open and create the required cosigner wallet.'),
+            _('Multi-Signature seeds should not be created on the same device for security reasons.')
+        ])
+        return self.text_input(title, message, is_valid, placeholder_text=placeholder_text)
 
     @wizard_dialog
     def restore_seed_dialog(self, run_next, test):
