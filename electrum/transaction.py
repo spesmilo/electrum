@@ -754,9 +754,9 @@ class Transaction:
             return bitcoin.pubkeyhash_to_p2cs_script(pkh, pkh2)
         elif txin.script_type in ['p2cs2'] and len(pubkeys) == 3:
             pkh = pubkeys[0]
-            pubkey2 = pubkeys[1]
-            pkh2 = bh2u(hash_160(bfh(pubkey2)))
-            pkh3 = pubkeys[2]
+            pkh2 = pubkeys[1]
+            pubkey3 = pubkeys[2]
+            pkh3 = bh2u(hash_160(bfh(pubkey3)))
             return bitcoin.pubkeyhash_to_p2cs2_script(pkh, pkh2, pkh3)
         elif txin.script_type in ['p2pkh', 'p2wpkh', 'p2wpkh-p2sh', 'p2cs']:
             pubkey = pubkeys[0]

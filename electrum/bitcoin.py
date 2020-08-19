@@ -500,7 +500,7 @@ def address_to_script(addr: str, *, net=None) -> str:
         script = pubkeyhash_to_p2cs_script(bh2u(hash_160_), bh2u(hash_160_2))
     elif addrtype == net.ADDRTYPE_P2CS2:
         addrtype, hash_160_, hash_160_2, hash_160_3 = b58_address_to_hash160_triple(addr)
-        script = pubkeyhash_to_p2cs2_script(bh2u(hash_160_), bh2u(hash_160_2), bh2u(hash_160_3))
+        script = pubkeyhash_to_p2cs2_script(bh2u(hash_160_3), bh2u(hash_160_), bh2u(hash_160_2))
     elif addrtype == net.ADDRTYPE_P2SH:
         script = opcodes.OP_HASH160.hex()
         script += push_script(bh2u(hash_160_))
@@ -536,12 +536,12 @@ def pubkeyhash_to_p2cs_script(pubkey_hash160: str, pubkey_hash160_2: str) -> str
     return script
 
 def pubkeyhash_to_p2cs2_script(pubkey_hash160: str, pubkey_hash160_2: str, pubkey_hash160_3: str) -> str:
-    script = push_script(pubkey_hash160_3)
+    script = push_script(pubkey_hash160)
     script += bytes([opcodes.OP_DROP, opcodes.OP_COINSTAKE, opcodes.OP_IF, opcodes.OP_DUP, opcodes.OP_HASH160]).hex()
-    script += push_script(pubkey_hash160)
+    script += push_script(pubkey_hash160_2)
     script += bytes([opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG]).hex()
     script += bytes([opcodes.OP_ELSE, opcodes.OP_DUP, opcodes.OP_HASH160]).hex()
-    script += push_script(pubkey_hash160_2)
+    script += push_script(pubkey_hash160_3)
     script += bytes([opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG, opcodes.OP_ENDIF]).hex()
     return script
 
