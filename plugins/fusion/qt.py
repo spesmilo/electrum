@@ -198,9 +198,6 @@ class Plugin(FusionPlugin, QObject):
             d.show()
             self.widgets.add(d)
 
-        # this runs at most once and only if absolutely no Tor ports are found
-        self._maybe_prompt_user_if_they_want_integrated_tor_if_no_tor_found()
-
     @hook
     def on_close_window(self, window):
         # Invoked when closing wallet or entire application
@@ -344,23 +341,34 @@ class Plugin(FusionPlugin, QObject):
         if window:
             window.gui_object.cache_password(wallet, password)
 
-    _integrated_tor_asked = [False, None]
-    def _maybe_prompt_user_if_they_want_integrated_tor_if_no_tor_found(self):
-        if any(self._integrated_tor_asked):
+    def enable_autofusing(self, wallet, password):
+        """ Overrides super, if super successfully turns on autofusing, kicks
+        off the timer to check that Tor is working. """
+        super().enable_autofusing(wallet, password)
+        if self.is_autofusing(wallet):
+            # ok, autofuse enable success -- kick of the timer task to check if
+            # Tor is good
+            do_in_main_thread(self._maybe_prompt_user_if_they_want_integrated_tor_if_no_tor_found, wallet)
+
+    _integrated_tor_timer = None
+    def _maybe_prompt_user_if_they_want_integrated_tor_if_no_tor_found(self, wallet):
+        if self._integrated_tor_timer:
             # timer already active or already prompted user
             return
         weak_self = weakref.ref(self)
+        weak_window = wallet.weak_window
+        if not weak_window or not weak_window():
+            # Something's wrong -- no window for wallet
+            return;
         def chk_tor_ok():
             self = weak_self()
             if not self:
                 return
-            self._integrated_tor_asked[1] = None  # kill QTimer reference
-            if self.active and self.gui and self.gui.windows and self.tor_port_good is None and not self._integrated_tor_asked[0]:
-                # prompt user to enable automatic Tor if not enabled and no auto-detected Tor ports were found
-                window = self.gui.windows[-1]
+            self._integrated_tor_timer = None  # kill QTimer reference
+            window = weak_window()
+            if window and self.active and self.gui and self.gui.windows and self.tor_port_good is None:
                 network = self.gui.daemon.network
                 if network and network.tor_controller.is_available() and not network.tor_controller.is_enabled():
-                    self._integrated_tor_asked[0] = True
                     icon_pm = icon_fusion_logo.pixmap(32)
                     answer = window.question(
                         _('CashFusion requires Tor to operate anonymously. Would'
@@ -399,11 +407,11 @@ class Plugin(FusionPlugin, QObject):
                                 window.show_error(_('There was an error starting the Tor client'))
                         network.tor_controller.status_changed.append(on_status)
                         network.tor_controller.set_enabled(True)
-        self._integrated_tor_asked[1] = t = QTimer()
+        self._integrated_tor_timer = t = QTimer()
         # if in 5 seconds no tor port, ask user if they want to enable the Tor
         t.timeout.connect(chk_tor_ok)
         t.setSingleShot(True)
-        t.start(5000)
+        t.start(2500)
 
     @hook
     def history_list_filter(self, history_list, h_item, label):
