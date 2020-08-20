@@ -151,25 +151,35 @@ class Binance(ExchangeBase):
     async def get_rates(self, ccy):
         json1 = await self.get_json('binance.com', '/api/v3/ticker/price?symbol=GRSBTC')
         if ccy != "BTC":
-            json2 = await self.get_json('apiv2.bitcoinaverage.com', '/indices/global/ticker/BTC%s' % ccy)
-            return {ccy: Decimal(json1['price'])*Decimal(json2['last'])}
+            json2 = await self.get_json('api.coingecko.com', '/api/v3/simple/price?ids=bitcoin&vs_currencies=%s' % ccy)
+            return {ccy: Decimal(json1['price'])*Decimal(json2['bitcoin'][ccy.lower()])}
         return {ccy: Decimal(json1['price'])}
-
-class BitcoinAverage(ExchangeBase):
-    async def get_rates(self, ccy):
-        json1 = await self.get_json('apiv2.bitcoinaverage.com', '/indices/crypto/ticker/GRSBTC')
-        if ccy != "BTC":
-            json2 = await self.get_json('apiv2.bitcoinaverage.com', '/indices/global/ticker/BTC%s' % ccy)
-            return {ccy: Decimal(json1['last'])*Decimal(json2['last'])}
-        return {ccy: Decimal(json1['last'])}
 
 class Bittrex(ExchangeBase):
     async def get_rates(self, ccy):
         json1 = await self.get_json('bittrex.com', '/api/v1.1/public/getticker?market=btc-grs')
         if ccy != "BTC":
-            json2 = await self.get_json('apiv2.bitcoinaverage.com', '/indices/global/ticker/BTC%s' % ccy)
-            return {ccy: Decimal(json1['result']['Last'])*Decimal(json2['last'])}
+            json2 = await self.get_json('api.coingecko.com', '/api/v3/simple/price?ids=bitcoin&vs_currencies=%s' % ccy)
+            return {ccy: Decimal(json1['result']['Last'])*Decimal(json2['bitcoin'][ccy.lower()])}
         return {ccy: Decimal(json1['result']['Last'])}
+
+class Huobi(ExchangeBase):
+
+    async def get_rates(self, ccy):
+        json1 = await self.get_json('api.huobi.pro', '/market/trade?symbol=grsbtc')
+        if ccy != "BTC":
+            json2 = await self.get_json('api.coingecko.com', '/api/v3/simple/price?ids=bitcoin&vs_currencies=%s' % ccy)
+            return {ccy: Decimal(json1['tick']['data'][0]['price'])*Decimal(json2['bitcoin'][ccy.lower()])}
+        return {ccy: Decimal(json1['tick']['data'][0]['price'])}
+
+class Upbit(ExchangeBase):
+
+    async def get_rates(self, ccy):
+        json1 = await self.get_json('api.upbit.com', '/v1/ticker?markets=BTC-GRS')
+        if ccy != "BTC":
+            json2 = await self.get_json('api.coingecko.com', '/api/v3/simple/price?ids=bitcoin&vs_currencies=%s' % ccy)
+            return {ccy: Decimal(json1[0]['trade_price'])*Decimal(json2['bitcoin'][ccy.lower()])}
+        return {ccy: Decimal(json1[0]['trade_price'])}
 
 class CoinCap(ExchangeBase):
 
@@ -220,24 +230,6 @@ class CryptoCompare(ExchangeBase):
         result = await self.get_json('min-api.cryptocompare.com', '/data/histoday?fsym=GRS&tsym={}&limit=100&aggregate=1&extraParams=ElectrumGRS'.format(ccy))
         result = result.get('Data', [])
         return dict((datetime.fromtimestamp(i['time']).strftime('%Y-%m-%d'), float(i['close'])) for i in result)
-
-class Huobi(ExchangeBase):
-
-    async def get_rates(self, ccy):
-        json1 = await self.get_json('api.huobi.pro', '/market/trade?symbol=grsbtc')
-        if ccy != "BTC":
-            json2 = await self.get_json('apiv2.bitcoinaverage.com', '/indices/global/ticker/BTC%s' % ccy)
-            return {ccy: Decimal(json1['tick']['data'][0]['price'])*Decimal(json2['last'])}
-        return {ccy: Decimal(json1['tick']['data'][0]['price'])}
-
-class Upbit(ExchangeBase):
-
-    async def get_rates(self, ccy):
-        json1 = await self.get_json('api.upbit.com', '/v1/ticker?markets=BTC-GRS')
-        if ccy != "BTC":
-            json2 = await self.get_json('apiv2.bitcoinaverage.com', '/indices/global/ticker/BTC%s' % ccy)
-            return {ccy: Decimal(json1[0]['trade_price'])*Decimal(json2['last'])}
-        return {ccy: Decimal(json1[0]['trade_price'])}
 
 def dictinvert(d):
     inv = {}
@@ -366,8 +358,11 @@ class FxThread(ThreadJob):
         self.config.set_key('use_exchange_rate', bool(b))
         self.trigger_update()
 
-    def get_history_config(self, *, default=False):
-        return bool(self.config.get('history_rates', default))
+    def get_history_config(self, *, allow_none=False):
+        val = self.config.get('history_rates', None)
+        if val is None and allow_none:
+            return None
+        return bool(val)
 
     def set_history_config(self, b):
         self.config.set_key('history_rates', bool(b))
