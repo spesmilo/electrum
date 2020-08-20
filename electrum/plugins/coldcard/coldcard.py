@@ -608,7 +608,8 @@ class ColdcardPlugin(HW_PluginBase):
             pubkey_deriv_info = wallet.get_public_keys_with_deriv_info(address)
             pubkey_hexes = sorted([pk.hex() for pk in list(pubkey_deriv_info)])
             xfp_paths = []
-            for pubkey in pubkey_deriv_info:
+            for pubkey_hex in pubkey_hexes:
+                pubkey = bytes.fromhex(pubkey_hex)
                 ks, der_suffix = pubkey_deriv_info[pubkey]
                 fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix, only_der_suffix=False)
                 xfp_int = xfp_int_from_xfp_bytes(fp_bytes)
