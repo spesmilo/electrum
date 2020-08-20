@@ -1,15 +1,15 @@
 {
-    "188.166.204.85" : {
+    "e1.electrumx.bitcoinvault.global" : {
         "pruning": "-",
         "t": "50001",
 	"s": "443",
-        "version": "1.4"
+        "version": "2.0"
     },
-    "157.245.20.66" : {
+    "e2.electrumx.bitcoinvault.global" : {
         "pruning": "-",
         "t": "50001",
 	"s": "443",
-        "version": "1.4"
+        "version": "2.0"
     }
 
 }
