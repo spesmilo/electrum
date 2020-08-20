@@ -604,9 +604,18 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return clayout.selected_index()
 
     @wizard_dialog
-    def derivation_and_script_type_gui_specific_dialog(self, title: str, message1: str, choices: List[Tuple[str, str, str]],
-                               message2: str, test_text: Callable[[str], int],
-                               run_next, default_choice_idx: int=0, get_account_xpub=None) -> Tuple[str, str]:
+    def derivation_and_script_type_gui_specific_dialog(
+            self,
+            *,
+            title: str,
+            message1: str,
+            choices: List[Tuple[str, str, str]],
+            message2: str,
+            test_text: Callable[[str], int],
+            run_next,
+            default_choice_idx: int = 0,
+            get_account_xpub=None
+    ) -> Tuple[str, str]:
         vbox = QVBoxLayout()
 
         if get_account_xpub:

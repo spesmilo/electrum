@@ -8,8 +8,13 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QGridLayout, QLabel, QListWidg
 from electrum.i18n import _
 from electrum.network import Network
 from electrum.bip39_recovery import account_discovery
+from electrum.logging import get_logger
 
 from .util import WindowModalDialog, MessageBoxMixin, TaskThread, Buttons, CancelButton, OkButton
+
+
+_logger = get_logger(__name__)
+
 
 class Bip39RecoveryDialog(WindowModalDialog):
     def __init__(self, parent: QWidget, get_account_xpub, on_account_select):
@@ -25,10 +30,14 @@ class Bip39RecoveryDialog(WindowModalDialog):
         self.ok_button.clicked.connect(self.on_ok_button_click)
         self.ok_button.setEnabled(False)
         vbox.addLayout(Buttons(CancelButton(self), self.ok_button))
+        self.finished.connect(self.on_finished)
         self.show()
         self.thread = TaskThread(self)
         self.thread.finished.connect(self.deleteLater) # see #3956
         self.thread.add(self.recovery, self.on_recovery_success, None, self.on_recovery_error)
+
+    def on_finished(self):
+        self.thread.stop()
 
     def on_ok_button_click(self):
         item = self.list.currentItem()
@@ -54,10 +63,10 @@ class Bip39RecoveryDialog(WindowModalDialog):
         self.list.clicked.connect(lambda: self.ok_button.setEnabled(True))
         self.content.addWidget(self.list)
 
-    def on_recovery_error(self, error):
+    def on_recovery_error(self, exc_info):
         self.clear_content()
         self.content.addWidget(QLabel(_('Error: Account discovery failed.')))
-        print(error)
+        _logger.error(f"recovery error", exc_info=exc_info)
 
     def clear_content(self):
         for i in reversed(range(self.content.count())):

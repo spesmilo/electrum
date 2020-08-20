@@ -404,7 +404,7 @@ class BaseWizard(Logger):
         else:
             raise Exception('unknown purpose: %s' % purpose)
 
-    def derivation_and_script_type_dialog(self, f, get_account_xpub=None):
+    def derivation_and_script_type_dialog(self, f, *, get_account_xpub=None):
         message1 = _('Choose the type of addresses in your wallet.')
         message2 = ' '.join([
             _('You can override the suggested derivation path.'),
@@ -516,7 +516,7 @@ class BaseWizard(Logger):
             account_node = root_node.subkey_at_private_derivation(account_path)
             account_xpub = account_node.to_xpub()
             return account_xpub
-        self.derivation_and_script_type_dialog(f, get_account_xpub)
+        self.derivation_and_script_type_dialog(f, get_account_xpub=get_account_xpub)
 
     def create_keystore(self, seed, passphrase):
         k = keystore.from_seed(seed, passphrase, self.wallet_type == 'multisig')

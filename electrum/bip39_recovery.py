@@ -2,6 +2,8 @@
 # Distributed under the MIT software license, see the accompanying
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
+from typing import TYPE_CHECKING
+
 from aiorpcx import TaskGroup
 
 from . import bitcoin
@@ -10,7 +12,11 @@ from .bip32 import BIP32_PRIME, BIP32Node
 from .bip32 import convert_bip32_path_to_list_of_uint32 as bip32_str_to_ints
 from .bip32 import convert_bip32_intpath_to_strpath as bip32_ints_to_str
 
-async def account_discovery(network, get_account_xpub):
+if TYPE_CHECKING:
+    from .network import Network
+
+
+async def account_discovery(network: 'Network', get_account_xpub):
     async with TaskGroup() as group:
         account_scan_tasks = []
         for wallet_format in BIP39_WALLET_FORMATS:
@@ -21,13 +27,14 @@ async def account_discovery(network, get_account_xpub):
         active_accounts.extend(task.result())
     return active_accounts
 
-async def scan_for_active_accounts(network, get_account_xpub, wallet_format):
+
+async def scan_for_active_accounts(network: 'Network', get_account_xpub, wallet_format):
     active_accounts = []
     account_path = bip32_str_to_ints(wallet_format["derivation_path"])
     while True:
         account_xpub = get_account_xpub(account_path)
         account_node = BIP32Node.from_xkey(account_xpub)
-        has_history = await account_has_history(network, account_node, wallet_format["script_type"]);
+        has_history = await account_has_history(network, account_node, wallet_format["script_type"])
         if has_history:
             account = format_account(wallet_format, account_path)
             active_accounts.append(account)
@@ -36,7 +43,8 @@ async def scan_for_active_accounts(network, get_account_xpub, wallet_format):
         account_path[-1] = account_path[-1] + 1
     return active_accounts
 
-async def account_has_history(network, account_node, script_type):
+
+async def account_has_history(network: 'Network', account_node: BIP32Node, script_type: str) -> bool:
     gap_limit = 20
     async with TaskGroup() as group:
         get_history_tasks = []
@@ -53,6 +61,7 @@ async def account_has_history(network, account_node, script_type):
         if len(history) > 0:
             return True
     return False
+
 
 def format_account(wallet_format, account_path):
     description = wallet_format["description"]
