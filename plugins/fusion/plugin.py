@@ -210,14 +210,14 @@ def get_target_params_1(wallet, wallet_conf, active_autofusions, eligible):
 
     # Note each fusion 'consumes' a certain number of coins by freezing them,
     # so that the next fusion has less eligible coins to work with. So each
-    # call to this may see a smaller n_coins.
-    n_coins = sum(len(acoins) for addr,acoins in eligible)
+    # call to this may see a smaller n_buckets.
+    n_buckets = len(eligible)
     if mode == 'normal':
-        return max(2, round(n_coins / DEFAULT_MAX_COINS)), False
+        return max(2, round(n_buckets / DEFAULT_MAX_COINS)), False
     elif mode == 'fan-out':
-        return max(4, math.ceil(n_coins / (COIN_FRACTION_FUDGE_FACTOR*0.65))), False
+        return max(4, math.ceil(n_buckets / (COIN_FRACTION_FUDGE_FACTOR*0.65))), False
     elif mode == 'consolidate':
-        if len(eligible) < MIN_TX_COMPONENTS - CONSOLIDATE_MAX_OUTPUTS:
+        if n_buckets < MIN_TX_COMPONENTS - CONSOLIDATE_MAX_OUTPUTS:
             # Too few eligible buckets to make an effective consolidation.
             return 0, False
 
@@ -227,13 +227,14 @@ def get_target_params_1(wallet, wallet_conf, active_autofusions, eligible):
         # To avoid weird loops, try to calculate the TOTAL number of coins
         # that are either 1) eligible or 2) being fused. (Should stay constant
         # as fusions are added/cancelled)
+        n_coins = sum(len(acoins) for addr,acoins in eligible)
         n_total = n_coins + sum(len(f.inputs) for f in active_autofusions)
         if n_total < DEFAULT_MAX_COINS*3:
             return 1, True
 
         # If coins are scarce then don't make more autofusions unless we
         # have none.
-        if n_coins < DEFAULT_MAX_COINS*2:
+        if n_buckets < DEFAULT_MAX_COINS*2:
             return 1, False
 
         # We still have lots of coins left, so request another autofusion.
@@ -571,13 +572,14 @@ class FusionPlugin(BasePlugin):
                 if num_auto < min(target_num_auto, MAX_AUTOFUSIONS_PER_WALLET):
                     # we don't have enough auto-fusions running, so start one
                     fraction = get_target_params_2(wallet_conf, sum_value)
-                    coins = [c for l in select_random_coins(wallet, fraction, eligible) for c in l]
+                    chosen_buckets = select_random_coins(wallet, fraction, eligible)
+                    coins = [c for l in chosen_buckets for c in l]
                     if not coins:
                         self.print_error("auto-fusion skipped due to lack of coins")
                         continue
                     if wallet_conf.fusion_mode == 'consolidate':
                         max_outputs = CONSOLIDATE_MAX_OUTPUTS
-                        if len(coins) < (MIN_TX_COMPONENTS - max_outputs):
+                        if len(chosen_buckets) < (MIN_TX_COMPONENTS - max_outputs):
                             self.print_error("consolidating auto-fusion skipped due to lack of unrelated coins")
                             continue
                     else:

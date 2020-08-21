@@ -78,7 +78,8 @@ MAX_COMPONENTS = 40
 # size should not exceed 7 kB even with 40 largest components).
 MAX_FEE = MAX_COMPONENT_FEERATE * 7 + MAX_EXCESS_FEE
 
-# For privacy reasons, don't submit less than this many inputs+outputs
+# For privacy reasons, don't submit less than this many distinct tx components.
+# (distinct tx inputs, and tx outputs)
 MIN_TX_COMPONENTS = 11
 
 def can_fuse_from(wallet):
@@ -540,10 +541,6 @@ class Fusion(threading.Thread, PrintError):
         self.inputs = tuple(self.coins.items())
         num_inputs = len(self.inputs)
 
-        # For obfuscation, when there are few inputs we want to have many outputs,
-        # and vice versa. Many of both is even better, of course.
-        min_outputs = max(MIN_TX_COMPONENTS - num_inputs, 1)
-
         maxcomponents = min(self.num_components, MAX_COMPONENTS)
         max_outputs = maxcomponents - num_inputs
         if max_outputs < 1:
@@ -551,12 +548,16 @@ class Fusion(threading.Thread, PrintError):
 
         if self.max_outputs is not None:
             assert self.max_outputs >= 1
-            if self.max_outputs < min_outputs:
-                raise FusionError('Too few inputs (%d) for output count constraint (<=%d)'%(num_inputs, self.max_outputs))
             max_outputs = min(self.max_outputs, max_outputs)
 
+        # For obfuscation, when there are few distinct inputs we want to have many
+        # outputs.
+        # Calculate the number of distinct inputs as the number of distinct pubkeys
+        # (i.e. extra inputs from same address don't count as distinct)
+        num_distinct = len(set(pub for (_,_), (pub,_) in self.inputs))
+        min_outputs = max(MIN_TX_COMPONENTS - num_distinct, 1)
         if max_outputs < min_outputs:
-            raise FusionError('Impossible output count range (%d, %d)'%(min_outputs, max_outputs))
+            raise FusionError('Too few distinct inputs selected (%d); cannot satisfy output count constraint (>=%d, <=%d)'%(num_distinct, min_outputs, max_outputs))
 
         # how much input value do we bring to the table (after input & player fees)
         sum_inputs_value = sum(v for (_,_), (p,v) in self.inputs)
