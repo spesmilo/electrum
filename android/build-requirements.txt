@@ -1,0 +1,3 @@
+babel==2.8.0
+polib==1.1.0
+requests==2.23.0

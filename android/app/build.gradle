@@ -115,9 +115,9 @@ afterEvaluate {
     def stringsTask = task("generateStrings", type: Exec) {
         // The task runs automatically the first time the app is built. To run it again later,
         // delete STRINGS_DIR and then rebuild the app.
-        outputs.upToDateWhen {
-            file(STRINGS_DIR).exists()
-        }
+        def scriptFilename = "generate_strings.py"
+        inputs.file scriptFilename
+        outputs.upToDateWhen { file(STRINGS_DIR).exists() }
         doFirst {
             delete(STRINGS_DIR)
         }
@@ -128,7 +128,7 @@ afterEvaluate {
         } else {
             executable "python$pyVersion"
         }
-        args "generate_strings.py", STRINGS_DIR
+        args scriptFilename, STRINGS_DIR
     }
 
     for (variant in android.applicationVariants) {

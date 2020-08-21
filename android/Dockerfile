@@ -27,8 +27,9 @@ RUN apt-get update && \
     ln -s python3.6 /usr/bin/python3
 
 # For generate_strings.py.
+COPY android/build-requirements.txt android/
 RUN wget -O - https://bootstrap.pypa.io/get-pip.py | python3.6 && \
-    pip3 install polib requests
+    pip3 install -r android/build-requirements.txt
 COPY contrib/make_locale contrib/
 COPY gui gui
 COPY ios/ElectronCash/electroncash_gui/ios_native ios/ElectronCash/electroncash_gui/ios_native

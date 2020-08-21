@@ -3,21 +3,19 @@
 # Generates strings.xml files from the gettext files. This script is run automatically by the
 # Gradle task `generateStrings`.
 #
-# This script requires the package `polib`. It also runs contrib/make_locale, which requires
-# the package `requests`, and the external commands `xgettext` and `msgfmt`.
+# This script's requirements are listed in build-requirements.txt. It also runs
+# contrib/make_locale, which requires the external commands `xgettext` and `msgfmt`.
 
 import argparse
+import babel
 from collections import Counter, defaultdict
 from datetime import datetime
 import os
 from os.path import abspath, basename, dirname, isdir, join
+import polib
 import re
 from subprocess import run
 import sys
-
-# We use polib because we need msgid_plural, which the standard library gettext module discards
-# during parsing of .mo files.
-import polib
 
 
 SCRIPT_NAME = basename(__file__)
@@ -40,38 +38,6 @@ KOTLIN_KEYWORDS = set([  # "Hard" keywords only.
 KEYWORDS = JAVA_KEYWORDS | KOTLIN_KEYWORDS
 
 
-# Map from gettext plural formula to Android quantity keywords, based on the CLDR table at
-# https://unicode-org.github.io/cldr-staging/charts/37/supplemental/language_plural_rules.html.
-# New entries will have to be added as plural translations are added in more languages.
-QUANTITIES = {
-    # e.g. zh
-    "0":
-    ["other"],
-
-    # e.g. de
-    "(n != 1)":
-    ["one", "other"],
-
-    # e.g. fr
-    "(n > 1)":
-    ["one", "other"],
-
-    # e.g. ro
-    "(n==1 ? 0 : (n==0 || (n%100>0 && n%100<20)) ? 1 : 2)":
-    ["one", "few", "other"],
-
-    # e.g. ar
-    "(n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : "
-    "n%100>=11 && n%100<=99 ? 4 : 5)":
-    ["zero", "one", "two", "few", "many", "other"],
-
-    # e.g. pl
-    "(n==1 ? 0 : (n%10>=2 && n%10<=4) && (n%100<12 || n%100>14) ? 1 : "
-    "n!=1 && (n%10>=0 && n%10<=1) || (n%10>=5 && n%10<=9) || (n%100>=12 && n%100<=14) ? 2 : 3)":
-    ["one", "few", "many", "other"]
-}
-
-
 def main():
     args = parse_args()
     if not args.no_download:
@@ -83,11 +49,11 @@ def main():
     for lang_region in [name for name in os.listdir(locale_dir)
                         if isdir(join(locale_dir, name)) and name != '__pycache__']:
         lang, region = lang_region.split("_")
-        catalog = read_catalog(join(locale_dir, lang_region, "LC_MESSAGES",
-                                    "electron-cash.mo"))
+        catalog = read_catalog(join(locale_dir, lang_region, "LC_MESSAGES", "electron-cash.mo"),
+                               lang, region)
         lang_strings[lang].append((region, catalog))
 
-    src_strings = read_catalog(join(locale_dir, "messages.pot"))
+    src_strings = read_catalog(join(locale_dir, "messages.pot"), "en", "US")
     ids = make_ids(src_strings)
 
     log(f"Writing to {args.res_dir}")
@@ -102,19 +68,32 @@ def main():
     write_xml(args.res_dir, "", src_strings, ids)
 
 
-def read_catalog(filename):
+def read_catalog(filename, lang, region):
     try:
         is_pot = filename.endswith(".pot")
         f = (polib.mofile if filename.endswith(".mo") else polib.pofile)(filename)
         pf = f.metadata.get("Plural-Forms")
         if pf is None:
             quantities = None
+        elif is_pot:
+            quantities = ["one", "other"]
         else:
-            match = re.search(r"plural=(.+?);", pf)
+            match = re.search(r"nplurals=(\d+);", pf)
             if not match:
                 raise Exception("Failed to parse Plural-Forms")
-            formula = match.group(1)
-            quantities = QUANTITIES.get(formula)
+            nplurals = int(match.group(1))
+
+            try:
+                locale = babel.Locale("{}_{}".format(lang, region))
+            except babel.UnknownLocaleError:
+                locale = babel.Locale(lang)
+
+            quantities = sorted(locale.plural_form.tags | {"other"},
+                                key=["zero", "one", "two", "few", "many", "other"].index)
+            if len(quantities) != nplurals:
+                raise Exception("Plural-Forms says nplurals={}, but Babel has {} plural tags "
+                                "for this language {}"
+                                .format(nplurals, len(quantities), quantities))
 
         catalog = {}
         for entry in f:
@@ -134,16 +113,12 @@ def read_catalog(filename):
 
                 msgid = fix_format(msgid)
                 if entry.msgid_plural:
-                    if is_pot:
-                        catalog[msgid] = {"one": msgid,
-                                          "other": fix_format(entry.msgid_plural)}
-                    else:
-                        if quantities is None:
-                            raise Exception(
-                                "Unknown plural formula '{}': add it to QUANTITIES in {}"
-                                .format(formula, SCRIPT_NAME))
-                        catalog[msgid] = {quantities[i]: fix_format(s)
-                                          for i, s in entry.msgstr_plural.items()}
+                    msgstr_plural = ({0: msgid, 1: entry.msgid_plural} if is_pot
+                                     else entry.msgstr_plural)
+                    if quantities is None:
+                        raise Exception("File contains a plural entry, but has no Plural-Forms")
+                    catalog[msgid] = {quantities[i]: fix_format(s)
+                                      for i, s in msgstr_plural.items()}
                 else:
                     catalog[msgid] = msgid if is_pot else fix_format(entry.msgstr)
             except Exception:
@@ -291,7 +266,8 @@ def write_xml(res_dir, res_suffix, strings, ids):
     with open(join(abs_dir_name, base_name), "w", encoding="UTF-8") as f:
         print('<?xml version="1.0" encoding="utf-8"?>', file=f)
         print('<!-- Generated by {} at {} -->'.format(SCRIPT_NAME, timestamp), file=f)
-        print('<!-- DO NOT EDIT: edit the source Python files instead. -->', file=f)
+        print('<!-- DO NOT EDIT this file directly. Instead, edit the English strings in\n'
+              '     the source Python files, and other languages on Crowdin. -->', file=f)
         print('<resources>', file=f)
         for id, tgt in output:
             if isinstance(tgt, dict):
