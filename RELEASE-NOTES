@@ -1,8 +1,94 @@
-# Release 4.0 - (Not released yet; release notes are incomplete)
+# Release 4.0.2 - (July 8, 2020)
+ - rm old corrupted non-bip70 invoices (#6345)
+ - other minor fixes
 
- * Lightning Network
- * Qt GUI: Separation between output selection and transaction finalization.
- * Http PayServer can be configured from GUI
+# Release 4.0.1 - (July 3, 2020)
+ * Lightning Network support (experimental)
+   - Our implementation of Lightning relies on Electrum servers to
+     query channel states. Since servers can lie about the state of a
+     channel, users should either use a server that they trust, or
+     setup a private watchtower (see below). A watchtower is also
+     recommended for lightning wallets that remain offline for
+     extended periods of time (the default CSV 'to_self_delay' is 1
+     week). Please note that Electrum Personal Server (EPS) cannot be
+     used with lightning wallets, because channels funding addresses
+     are arbitrary.
+   - Lightning funds cannot be restored from seed. Instead, users need
+     to create static backups of their channels. Static backups cannot
+     be used to perform lightning transactions, they can only be used
+     to trigger a remote-force-close of a channel.
+   - Lightning-enabled wallet files must not be copied. Instead, a
+     backup of the wallet can be created from the Qt menu, and it will
+     contain static backups of all its channels. Backups can also be
+     exported for each channel (e.g. via QR code), and imported in
+     another wallet. Since backups are encrypted with a key derived
+     from the wallet's xpub, they can only be imported into another
+     instance of the same wallet, or a watch-only version of it. The
+     force-close is not triggered automatically when the backup is
+     imported; imported backups can live inside a wallet file.
+   - Lightning can be enabled in the GUI (Wallet>Information) or from
+     the CLI (init_lightning). Lightning is currently restricted to HD
+     p2wpkh wallets (including watch-only and hardware wallets). The
+     Qt GUI, CLI/RPC, and the kivy GUI (Android) all have LN support,
+     with feature-richness in that order.
+   - LN protocol details: dataloss_protect and static_remotekey are
+     required; varonion and payment_secret are implemented, MPP not yet.
+     Channels are not announced ('private'), forwarding is disabled.
+     We do not serve gossip queries, only consume them.
+   - Submarine swaps: the GUI integrates a service that offers
+     atomically exchanging on-chain and lightning bitcoins for a fee.
+     Electrum Technologies runs a central server for this, powered by
+     the Boltz backend.
+   - Watchtowers: Electrum can run a local watchtower (GUI setting),
+     or it can connect to a remote watchtower. A watchtower contains
+     pre-signed transactions and does not need your private keys. A
+     local watchtower will watch your channels whenever an Electrum
+     instance is running, without needing access to your wallet file.
+     An Electrum daemon can be configured to be used as a remote
+     watchtower by setting 'watchtower_address', 'watchtower_user' and
+     'watchtower_password'.
+ * Partially Signed Bitcoin Transactions (PSBT, BIP-174) are supported
+   (#5721). The previous Electrum partial transaction format is no
+   longer supported, i.e. this is an incompatible change. Users should
+   make sure that all instances of Electrum they use to co-sign or
+   offline sign, are updated together.
+ * Hardware wallets: several fixes in general; notable changes:
+   - The BitBox02 is now supported (#5993)
+   - Multisig support for Coldcard (#5440)
+   - Compatibility with latest Trezor fw (#6064, #6198, #5692)
+ * Dependencies (see README for install instructions):
+   - libsecp256k1 is now required (previously optional). python-ecdsa
+     remains a dependency but it is now only used for DNSSEC.
+   - Added: either one of pycryptodomex or cryptography is now required,
+     mainly due to LN (previously pycryptodomex was optional, for fast AES)
+   - Removed: jsonrpclib-pelix, the JSON-RPC library used for CLI/daemon
+ * Qt GUI: several changes, notably:
+   - Separation between output selection and transaction finalization.
+   - Coin selection moved to the Coins tab, and it affects all txns,
+     e.g. RBF fee-bumping, LN channel opens, submarine swaps.
+   - Editable tx preview dialog that allows e.g. changing the locktime,
+     toggling RBF, and manual coinjoins.
+ * HTTP PayServer: The configuration of a bitcoin-accepting website
+   using Electrum has been simplified and requires fewer steps (see
+   documentation). The Payserver supports BIP70 and Lightning payments.
+ * Android:
+   - We now build two APKs, one for ARMv7 and one for ARMv8
+   - The kivy GUI now supports importing BIP39 seeds
+   - Each wallet on kivy now can have a separate generic password,
+     using which the wallet files are encrypted. An optional PIN,
+     shared among all wallets, can be added to get prompted for spends.
+ * The API of several CLI/RPC commands have changed, and several new
+   commands have been introduced (mainly for LN).
+ * Distributables:
+   - The .tar.gz source dist is now built reproducibly.
+     Relatedly, we no longer distribute a .zip sdist.
+   - The MacOS binary now conforms to macOS 10.15; it is notarized
+     by Apple. This required bumping the min macOS version to 10.13.
+     Startup times should now be faster on 10.15. (#6128, #6225)
+ * Transactions:
+   - we now grind low R for ECDSA signatures to match bitcoind (#5820)
+ * Lots and lots of other minor bugfixes and improvements.
+
 
 # Release 3.3.8 - (July 11, 2019)
 

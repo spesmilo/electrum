@@ -1,3 +1,2 @@
-PyQt5<5.12
-PyQt5-sip<=4.19.13
+PyQt5<5.15
 pycryptodomex>=3.7

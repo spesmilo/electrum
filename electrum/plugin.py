@@ -30,6 +30,8 @@ import threading
 import sys
 from typing import (NamedTuple, Any, Union, TYPE_CHECKING, Optional, Tuple,
                     Dict, Iterable, List, Sequence)
+import concurrent
+from concurrent import futures
 
 from .i18n import _
 from .util import (profiler, DaemonThread, UserCancelled, ThreadJob, UserFacingException)
@@ -41,6 +43,7 @@ from .logging import get_logger, Logger
 if TYPE_CHECKING:
     from .plugins.hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
     from .keystore import Hardware_KeyStore
+    from .wallet import Abstract_Wallet
 
 
 _logger = get_logger(__name__)
@@ -105,7 +108,7 @@ class Plugins(DaemonThread):
     def count(self):
         return len(self.plugins)
 
-    def load_plugin(self, name):
+    def load_plugin(self, name) -> 'BasePlugin':
         if name in self.plugins:
             return self.plugins[name]
         full_name = f'electrum.plugins.{name}.{self.gui_name}'
@@ -127,14 +130,14 @@ class Plugins(DaemonThread):
     def close_plugin(self, plugin):
         self.remove_jobs(plugin.thread_jobs())
 
-    def enable(self, name):
+    def enable(self, name: str) -> 'BasePlugin':
         self.config.set_key('use_' + name, True, True)
         p = self.get(name)
         if p:
             return p
         return self.load_plugin(name)
 
-    def disable(self, name):
+    def disable(self, name: str) -> None:
         self.config.set_key('use_' + name, False, True)
         p = self.get(name)
         if not p:
@@ -143,11 +146,11 @@ class Plugins(DaemonThread):
         p.close()
         self.logger.info(f"closed {name}")
 
-    def toggle(self, name):
+    def toggle(self, name: str) -> Optional['BasePlugin']:
         p = self.get(name)
         return self.disable(name) if p else self.enable(name)
 
-    def is_available(self, name, w):
+    def is_available(self, name: str, wallet: 'Abstract_Wallet') -> bool:
         d = self.descriptions.get(name)
         if not d:
             return False
@@ -159,7 +162,7 @@ class Plugins(DaemonThread):
                 self.logger.warning(f'Plugin {name} unavailable: {repr(e)}')
                 return False
         requires = d.get('requires_wallet_type', [])
-        return not requires or w.wallet_type in requires
+        return not requires or wallet.wallet_type in requires
 
     def get_hardware_support(self):
         out = []
@@ -268,7 +271,7 @@ class BasePlugin(Logger):
     def on_close(self):
         pass
 
-    def requires_settings(self):
+    def requires_settings(self) -> bool:
         return False
 
     def thread_jobs(self):
@@ -283,8 +286,11 @@ class BasePlugin(Logger):
     def can_user_disable(self):
         return True
 
-    def settings_dialog(self):
-        pass
+    def settings_widget(self, window):
+        raise NotImplementedError()
+
+    def settings_dialog(self, window):
+        raise NotImplementedError()
 
 
 class DeviceUnpairableError(UserFacingException): pass
@@ -319,6 +325,20 @@ class HardwarePluginToScan(NamedTuple):
 
 
 PLACEHOLDER_HW_CLIENT_LABELS = {None, "", " "}
+
+
+# hidapi is not thread-safe
+# see https://github.com/signal11/hidapi/issues/205#issuecomment-527654560
+#     https://github.com/libusb/hidapi/issues/45
+#     https://github.com/signal11/hidapi/issues/45#issuecomment-4434598
+#     https://github.com/signal11/hidapi/pull/414#issuecomment-445164238
+# It is not entirely clear to me, exactly what is safe and what isn't, when
+# using multiple threads...
+# For now, we use a dedicated thread to enumerate devices (_hid_executor),
+# and we synchronize all device opens/closes/enumeration (_hid_lock).
+# FIXME there are still probably threading issues with how we use hidapi...
+_hid_executor = None  # type: Optional[concurrent.futures.Executor]
+_hid_lock = threading.Lock()
 
 
 class DeviceMgr(ThreadJob):
@@ -367,8 +387,14 @@ class DeviceMgr(ThreadJob):
         # locks: if you need to take multiple ones, acquire them in the order they are defined here!
         self._scan_lock = threading.RLock()
         self.lock = threading.RLock()
+        self.hid_lock = _hid_lock
 
         self.config = config
+
+        global _hid_executor
+        if _hid_executor is None:
+            _hid_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1,
+                                                                  thread_name_prefix='hid_enumerate_thread')
 
     def with_scan_lock(func):
         def func_wrapper(self: 'DeviceMgr', *args, **kwargs):
@@ -636,7 +662,15 @@ class DeviceMgr(ThreadJob):
         except ImportError:
             return []
 
-        hid_list = hid.enumerate(0, 0)
+        def hid_enumerate():
+            with self.hid_lock:
+                return hid.enumerate(0, 0)
+
+        hid_list_fut = _hid_executor.submit(hid_enumerate)
+        try:
+            hid_list = hid_list_fut.result()
+        except (concurrent.futures.CancelledError, concurrent.futures.TimeoutError) as e:
+            return []
 
         devices = []
         for d in hid_list:

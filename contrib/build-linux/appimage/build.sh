@@ -13,7 +13,7 @@ CACHEDIR="$CONTRIB_APPIMAGE/.cache/appimage"
 export GCC_STRIP_BINARIES="1"
 
 # pinned versions
-PYTHON_VERSION=3.7.6
+PYTHON_VERSION=3.7.7
 PKG2APPIMAGE_COMMIT="eb8f3acdd9f11ab19b78f5cb15daa772367daf15"
 SQUASHFSKIT_COMMIT="ae0d656efa2d0df2fcac795b6823b44462f19386"
 
@@ -38,7 +38,7 @@ download_if_not_exist "$CACHEDIR/appimagetool" "https://github.com/AppImage/AppI
 verify_hash "$CACHEDIR/appimagetool" "d918b4df547b388ef253f3c9e7f6529ca81a885395c31f619d9aaf7030499a13"
 
 download_if_not_exist "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz"
-verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "55a2cce72049f0794e9a11a84862e9039af9183603b78bc60d89539f82cf533f"
+verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "06a0a9f1bf0d8cd1e4121194d666c4e28ddae4dd54346de6c343206599f02136"
 
 
 
@@ -71,7 +71,7 @@ info "Building squashfskit"
 git clone "https://github.com/squashfskit/squashfskit.git" "$BUILDDIR/squashfskit"
 (
     cd "$BUILDDIR/squashfskit"
-    git checkout "$SQUASHFSKIT_COMMIT"
+    git checkout "${SQUASHFSKIT_COMMIT}^{commit}"
     make -C squashfs-tools mksquashfs || fail "Could not build squashfskit"
 )
 MKSQUASHFS="$BUILDDIR/squashfskit/squashfs-tools/mksquashfs"
@@ -206,13 +206,11 @@ rm -rf "$PYDIR"/site-packages/PyQt5/Qt.so
 
 # these are deleted as they were not deterministic; and are not needed anyway
 find "$APPDIR" -path '*/__pycache__*' -delete
-# note that jsonschema-*.dist-info is needed by that package as it uses 'pkg_resources.get_distribution'
-# also, see https://gitlab.com/python-devs/importlib_metadata/issues/71
-for f in "$PYDIR"/site-packages/jsonschema-*.dist-info; do mv "$f" "$(echo "$f" | sed s/\.dist-info/\.dist-info2/)"; done
+# note that *.dist-info is needed by certain packages.
+# e.g. see https://gitlab.com/python-devs/importlib_metadata/issues/71
 for f in "$PYDIR"/site-packages/importlib_metadata-*.dist-info; do mv "$f" "$(echo "$f" | sed s/\.dist-info/\.dist-info2/)"; done
 rm -rf "$PYDIR"/site-packages/*.dist-info/
 rm -rf "$PYDIR"/site-packages/*.egg-info/
-for f in "$PYDIR"/site-packages/jsonschema-*.dist-info2; do mv "$f" "$(echo "$f" | sed s/\.dist-info2/\.dist-info/)"; done
 for f in "$PYDIR"/site-packages/importlib_metadata-*.dist-info2; do mv "$f" "$(echo "$f" | sed s/\.dist-info2/\.dist-info/)"; done
 
 

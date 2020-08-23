@@ -118,7 +118,7 @@ class LightningOpenChannelDialog(Factory.Popup):
             fee = self.app.electrum_config.fee_per_kb()
             if not fee:
                 fee = config.FEERATE_FALLBACK_STATIC_FEE
-            self.amount = self.app.format_amount_and_units(self.lnaddr.amount * COIN + fee * 2)
+            self.amount = self.app.format_amount_and_units(self.lnaddr.amount * COIN + fee * 2)  # FIXME magic number?!
             self.pubkey = bh2u(self.lnaddr.pubkey.serialize())
         if self.msg:
             self.app.show_info(self.msg)
@@ -146,7 +146,7 @@ class LightningOpenChannelDialog(Factory.Popup):
         if self.ipport:
             conn_str += '@' + self.ipport.strip()
         amount = self.app.get_amount(self.amount)
-        self.app.protected('Enter PIN to create a new channel', self.do_open_channel, (conn_str, amount))
+        self.app.protected('Create a new channel?', self.do_open_channel, (conn_str, amount))
         self.dismiss()
 
     def do_open_channel(self, conn_str, amount, password):

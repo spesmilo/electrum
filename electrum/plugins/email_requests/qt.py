@@ -29,6 +29,7 @@ import base64
 from functools import partial
 import traceback
 import sys
+from typing import Set
 
 import smtplib
 import imaplib
@@ -43,11 +44,14 @@ from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QLineEdit,
 
 from electrum.gui.qt.util import (EnterButton, Buttons, CloseButton, OkButton,
                                   WindowModalDialog, get_parent_main_window)
+from electrum.gui.qt.main_window import ElectrumWindow
 
 from electrum.plugin import BasePlugin, hook
 from electrum.paymentrequest import PaymentRequest
 from electrum.i18n import _
 from electrum.logging import Logger
+from electrum.wallet import Abstract_Wallet
+from electrum.invoices import OnchainInvoice
 
 
 class Processor(threading.Thread, Logger):
@@ -150,7 +154,7 @@ class Plugin(BasePlugin):
             self.processor.start()
         self.obj = QEmailSignalObject()
         self.obj.email_new_invoice_signal.connect(self.new_invoice)
-        self.wallets = set()
+        self.wallets = set()  # type: Set[Abstract_Wallet]
 
     def on_receive(self, pr_str):
         self.logger.info('received payment request')
@@ -166,8 +170,9 @@ class Plugin(BasePlugin):
         self.wallets -= {wallet}
 
     def new_invoice(self):
+        invoice = OnchainInvoice.from_bip70_payreq(self.pr)
         for wallet in self.wallets:
-            wallet.invoices.add(self.pr)
+            wallet.save_invoice(invoice)
         #main_window.invoice_list.update()
 
     @hook
@@ -175,21 +180,24 @@ class Plugin(BasePlugin):
         window = get_parent_main_window(menu)
         menu.addAction(_("Send via e-mail"), lambda: self.send(window, addr))
 
-    def send(self, window, addr):
+    def send(self, window: ElectrumWindow, addr):
         from electrum import paymentrequest
-        r = window.wallet.receive_requests.get(addr)
-        message = r.get('memo', '')
-        if r.get('signature'):
-            pr = paymentrequest.serialize_request(r)
+        req = window.wallet.receive_requests.get(addr)
+        if not isinstance(req, OnchainInvoice):
+            window.show_error("Only on-chain requests are supported.")
+            return
+        message = req.message
+        if req.bip70:
+            payload = bytes.fromhex(req.bip70)
         else:
-            pr = paymentrequest.make_request(self.config, r)
-        if not pr:
+            pr = paymentrequest.make_request(self.config, req)
+            payload = pr.SerializeToString()
+        if not payload:
             return
         recipient, ok = QInputDialog.getText(window, 'Send request', 'Email invoice to:')
         if not ok:
             return
         recipient = str(recipient)
-        payload = pr.SerializeToString()
         self.logger.info(f'sending mail to {recipient}')
         try:
             # FIXME this runs in the GUI thread and blocks it...

@@ -10,14 +10,14 @@ ZBAR_URL=https://sourceforge.net/projects/zbarw/files/$ZBAR_FILENAME/download
 ZBAR_SHA256=177e32b272fa76528a3af486b74e9cb356707be1c5ace4ed3fcee9723e2c2c02
 
 LIBUSB_REPO="https://github.com/libusb/libusb.git"
-LIBUSB_COMMIT=e782eeb2514266f6738e242cdcb18e3ae1ed06fa
+LIBUSB_COMMIT="e782eeb2514266f6738e242cdcb18e3ae1ed06fa"
 # ^ tag v1.0.23
 
 PYINSTALLER_REPO="https://github.com/SomberNight/pyinstaller.git"
-PYINSTALLER_COMMIT=e934539374e30d1500fcdbe8e4eb0860413935b2
+PYINSTALLER_COMMIT="e934539374e30d1500fcdbe8e4eb0860413935b2"
 # ^ tag 3.6, plus a custom commit that fixes cross-compilation with MinGW
 
-PYTHON_VERSION=3.7.6
+PYTHON_VERSION=3.7.7
 
 ## These settings probably don't need change
 export WINEPREFIX=/opt/wine64
@@ -88,7 +88,7 @@ info "Compiling libusb..."
     git init
     git remote add origin $LIBUSB_REPO
     git fetch --depth 1 origin $LIBUSB_COMMIT
-    git checkout -b pinned FETCH_HEAD
+    git checkout -b pinned "${LIBUSB_COMMIT}^{commit}"
     echo "libusb_1_0_la_LDFLAGS += -Wc,-static" >> libusb/Makefile.am
     ./bootstrap.sh || fail "Could not bootstrap libusb"
     host="i686-w64-mingw32"
@@ -119,7 +119,7 @@ info "Building PyInstaller."
     git init
     git remote add origin $PYINSTALLER_REPO
     git fetch --depth 1 origin $PYINSTALLER_COMMIT
-    git checkout -b pinned FETCH_HEAD
+    git checkout -b pinned "${PYINSTALLER_COMMIT}^{commit}"
     rm -fv PyInstaller/bootloader/Windows-*/run*.exe || true
     # add reproducible randomness. this ensures we build a different bootloader for each commit.
     # if we built the same one for all releases, that might also get anti-virus false positives

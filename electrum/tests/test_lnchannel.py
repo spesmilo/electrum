@@ -37,8 +37,9 @@ from electrum.lnutil import SENT, LOCAL, REMOTE, RECEIVED
 from electrum.lnutil import FeeUpdate
 from electrum.ecc import sig_string_from_der_sig
 from electrum.logging import console_stderr_handler
-from electrum.lnchannel import channel_states
+from electrum.lnchannel import ChannelState
 from electrum.json_db import StoredDict
+from electrum.coinchooser import PRNG
 
 from . import ElectrumTestCase
 
@@ -110,8 +111,13 @@ def bip32(sequence):
     assert type(k) is bytes
     return k
 
-def create_test_channels(*, feerate=6000, local_msat=None, remote_msat=None):
-    funding_txid = binascii.hexlify(b"\x01"*32).decode("ascii")
+def create_test_channels(*, feerate=6000, local_msat=None, remote_msat=None,
+                         alice_name="alice", bob_name="bob",
+                         alice_pubkey=b"\x01"*33, bob_pubkey=b"\x02"*33, random_seed=None):
+    if random_seed is None:  # needed for deterministic randomness
+        random_seed = os.urandom(32)
+    random_gen = PRNG(random_seed)
+    funding_txid = binascii.hexlify(random_gen.get_bytes(32)).decode("ascii")
     funding_index = 0
     funding_sat = ((local_msat + remote_msat) // 1000) if local_msat is not None and remote_msat is not None else (bitcoin.COIN * 10)
     local_amount = local_msat if local_msat is not None else (funding_sat * 1000 // 2)
@@ -123,28 +129,28 @@ def create_test_channels(*, feerate=6000, local_msat=None, remote_msat=None):
     alice_pubkeys = [lnutil.OnlyPubkeyKeypair(x.pubkey) for x in alice_privkeys]
     bob_pubkeys = [lnutil.OnlyPubkeyKeypair(x.pubkey) for x in bob_privkeys]
 
-    alice_seed = b"\x01" * 32
-    bob_seed = b"\x02" * 32
+    alice_seed = random_gen.get_bytes(32)
+    bob_seed = random_gen.get_bytes(32)
 
     alice_first = lnutil.secret_to_pubkey(int.from_bytes(lnutil.get_per_commitment_secret_from_seed(alice_seed, lnutil.RevocationStore.START_INDEX), "big"))
     bob_first = lnutil.secret_to_pubkey(int.from_bytes(lnutil.get_per_commitment_secret_from_seed(bob_seed, lnutil.RevocationStore.START_INDEX), "big"))
 
     alice, bob = (
         lnchannel.Channel(
-            create_channel_state(funding_txid, funding_index, funding_sat, True, local_amount, remote_amount, alice_privkeys, bob_pubkeys, alice_seed, None, bob_first, b"\x02"*33, l_dust=200, r_dust=1300, l_csv=5, r_csv=4),
-            name="alice",
+            create_channel_state(funding_txid, funding_index, funding_sat, True, local_amount, remote_amount, alice_privkeys, bob_pubkeys, alice_seed, None, bob_first, other_node_id=bob_pubkey, l_dust=200, r_dust=1300, l_csv=5, r_csv=4),
+            name=bob_name,
             initial_feerate=feerate),
         lnchannel.Channel(
-            create_channel_state(funding_txid, funding_index, funding_sat, False, remote_amount, local_amount, bob_privkeys, alice_pubkeys, bob_seed, None, alice_first, b"\x01"*33, l_dust=1300, r_dust=200, l_csv=4, r_csv=5),
-            name="bob",
+            create_channel_state(funding_txid, funding_index, funding_sat, False, remote_amount, local_amount, bob_privkeys, alice_pubkeys, bob_seed, None, alice_first, other_node_id=alice_pubkey, l_dust=1300, r_dust=200, l_csv=4, r_csv=5),
+            name=alice_name,
             initial_feerate=feerate)
     )
 
     alice.hm.log[LOCAL]['ctn'] = 0
     bob.hm.log[LOCAL]['ctn'] = 0
 
-    alice._state = channel_states.OPEN
-    bob._state = channel_states.OPEN
+    alice._state = ChannelState.OPEN
+    bob._state = ChannelState.OPEN
 
     a_out = alice.get_latest_commitment(LOCAL).outputs()
     b_out = bob.get_next_commitment(REMOTE).outputs()
@@ -616,7 +622,7 @@ class TestChannel(ElectrumTestCase):
 class TestAvailableToSpend(ElectrumTestCase):
     def test_DesyncHTLCs(self):
         alice_channel, bob_channel = create_test_channels()
-        self.assertEqual(499994624000, alice_channel.available_to_spend(LOCAL))
+        self.assertEqual(499986152000, alice_channel.available_to_spend(LOCAL))
         self.assertEqual(500000000000, bob_channel.available_to_spend(LOCAL))
 
         paymentPreimage = b"\x01" * 32
@@ -630,13 +636,13 @@ class TestAvailableToSpend(ElectrumTestCase):
 
         alice_idx = alice_channel.add_htlc(htlc_dict).htlc_id
         bob_idx = bob_channel.receive_htlc(htlc_dict).htlc_id
-        self.assertEqual(89993592000, alice_channel.available_to_spend(LOCAL))
+        self.assertEqual(89984088000, alice_channel.available_to_spend(LOCAL))
         self.assertEqual(500000000000, bob_channel.available_to_spend(LOCAL))
 
         force_state_transition(alice_channel, bob_channel)
         bob_channel.fail_htlc(bob_idx)
         alice_channel.receive_fail_htlc(alice_idx, error_bytes=None)
-        self.assertEqual(89993592000, alice_channel.available_to_spend(LOCAL))
+        self.assertEqual(89984088000, alice_channel.available_to_spend(LOCAL))
         self.assertEqual(500000000000, bob_channel.available_to_spend(LOCAL))
         # Alice now has gotten all her original balance (5 BTC) back, however,
         # adding a new HTLC at this point SHOULD fail, since if she adds the
@@ -656,7 +662,7 @@ class TestAvailableToSpend(ElectrumTestCase):
         # Now do a state transition, which will ACK the FailHTLC, making Alice
         # able to add the new HTLC.
         force_state_transition(alice_channel, bob_channel)
-        self.assertEqual(499994624000, alice_channel.available_to_spend(LOCAL))
+        self.assertEqual(499986152000, alice_channel.available_to_spend(LOCAL))
         self.assertEqual(500000000000, bob_channel.available_to_spend(LOCAL))
         alice_channel.add_htlc(htlc_dict)
 

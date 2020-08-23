@@ -40,10 +40,10 @@ MESSAGES = {
 
 class TrezorClientBase(HardwareClientBase, Logger):
     def __init__(self, transport, handler, plugin):
+        HardwareClientBase.__init__(self, plugin=plugin)
         if plugin.is_outdated_fw_ignored():
             TrezorClient.is_outdated = lambda *args, **kwargs: False
         self.client = TrezorClient(transport, ui=self)
-        self.plugin = plugin
         self.device = plugin.device
         self.handler = handler
         Logger.__init__(self)
@@ -79,7 +79,7 @@ class TrezorClientBase(HardwareClientBase, Logger):
         self.end_flow()
         if e is not None:
             if isinstance(e, Cancelled):
-                raise UserCancelled from e
+                raise UserCancelled() from e
             elif isinstance(e, TrezorFailure):
                 raise RuntimeError(str(e)) from e
             elif isinstance(e, OutdatedFirmwareError):

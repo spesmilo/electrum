@@ -86,6 +86,8 @@ You can also install Electrum on your system, by running this command::
 
 This will download and install the Python dependencies used by
 Electrum instead of using the 'packages' directory.
+It will also place an executable named :code:`electrum` in :code:`~/.local/bin`,
+so make sure that is on your :code:`PATH` variable.
 
 
 Development version (git clone)
@@ -99,7 +101,7 @@ Check out the code from GitHub::
 
 Run install (this should install dependencies)::
 
-    python3 -m pip install --user .
+    python3 -m pip install --user -e .
 
 
 Create translations (optional)::
@@ -107,6 +109,9 @@ Create translations (optional)::
     sudo apt-get install python-requests gettext
     ./contrib/pull_locale
 
+Finally, to start Electrum::
+
+    ./run_electrum
 
 
 
@@ -116,7 +121,7 @@ Creating Binaries
 Linux (tarball)
 ---------------
 
-See :code:`contrib/build-linux/README.md`.
+See :code:`contrib/build-linux/sdist/README.md`.
 
 
 Linux (AppImage)
@@ -140,4 +145,4 @@ See :code:`contrib/build-wine/README.md`.
 Android
 -------
 
-See :code:`electrum/gui/kivy/Readme.md`.
+See :code:`contrib/android/Readme.md`.

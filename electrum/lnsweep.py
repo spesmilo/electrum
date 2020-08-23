@@ -11,7 +11,7 @@ from . import ecc
 from .lnutil import (make_commitment_output_to_remote_address, make_commitment_output_to_local_witness_script,
                      derive_privkey, derive_pubkey, derive_blinded_pubkey, derive_blinded_privkey,
                      make_htlc_tx_witness, make_htlc_tx_with_open_channel, UpdateAddHtlc,
-                     LOCAL, REMOTE, make_htlc_output_witness_script, UnknownPaymentHash,
+                     LOCAL, REMOTE, make_htlc_output_witness_script,
                      get_ordered_channel_configs, privkey_to_pubkey, get_per_commitment_secret_from_seed,
                      RevocationStore, extract_ctn_from_tx_and_chan, UnableToDeriveSecret, SENT, RECEIVED,
                      map_htlcs_to_ctx_output_idxs, Direction)
@@ -21,7 +21,7 @@ from .simple_config import SimpleConfig
 from .logging import get_logger, Logger
 
 if TYPE_CHECKING:
-    from .lnchannel import Channel
+    from .lnchannel import Channel, AbstractChannel
 
 
 _logger = get_logger(__name__)
@@ -41,6 +41,7 @@ def create_sweeptxs_for_watchtower(chan: 'Channel', ctx: Transaction, per_commit
     Sweep 'to_local', and all the HTLCs (two cases: directly from ctx, or from HTLC tx).
     """
     # prep
+    ctn = extract_ctn_from_tx_and_chan(ctx, chan)
     pcp = ecc.ECPrivkey(per_commitment_secret).get_public_key_bytes(compressed=True)
     this_conf, other_conf = get_ordered_channel_configs(chan=chan, for_us=False)
     other_revocation_privkey = derive_blinded_privkey(other_conf.revocation_basepoint.privkey,
@@ -72,6 +73,7 @@ def create_sweeptxs_for_watchtower(chan: 'Channel', ctx: Transaction, per_commit
         htlc_tx_witness_script, htlc_tx = make_htlc_tx_with_open_channel(chan=chan,
                                                                          pcp=pcp,
                                                                          subject=REMOTE,
+                                                                         ctn=ctn,
                                                                          htlc_direction=htlc_direction,
                                                                          commit=ctx,
                                                                          htlc=htlc,
@@ -85,7 +87,6 @@ def create_sweeptxs_for_watchtower(chan: 'Channel', ctx: Transaction, per_commit
             is_revocation=True,
             config=chan.lnworker.config)
 
-    ctn = extract_ctn_from_tx_and_chan(ctx, chan)
     htlc_to_ctx_output_idx_map = map_htlcs_to_ctx_output_idxs(chan=chan,
                                                               ctx=ctx,
                                                               pcp=pcp,
@@ -169,7 +170,7 @@ def create_sweeptx_for_their_revoked_htlc(chan: 'Channel', ctx: Transaction, htl
 
 
 
-def create_sweeptxs_for_our_ctx(*, chan: 'Channel', ctx: Transaction,
+def create_sweeptxs_for_our_ctx(*, chan: 'AbstractChannel', ctx: Transaction,
                                 sweep_address: str) -> Optional[Dict[str, SweepInfo]]:
     """Handle the case where we force close unilaterally with our latest ctx.
     Construct sweep txns for 'to_local', and for all HTLCs (2 txns each).
@@ -192,7 +193,9 @@ def create_sweeptxs_for_our_ctx(*, chan: 'Channel', ctx: Transaction,
     to_local_witness_script = bh2u(make_commitment_output_to_local_witness_script(
         their_revocation_pubkey, to_self_delay, our_localdelayed_pubkey))
     to_local_address = redeem_script_to_address('p2wsh', to_local_witness_script)
-    their_payment_pubkey = derive_pubkey(their_conf.payment_basepoint.pubkey, our_pcp)
+    # to remote address
+    bpk = their_conf.payment_basepoint.pubkey
+    their_payment_pubkey = bpk if chan.is_static_remotekey_enabled() else derive_pubkey(their_conf.payment_basepoint.pubkey, our_pcp)
     to_remote_address = make_commitment_output_to_remote_address(their_payment_pubkey)
     # test ctx
     _logger.debug(f'testing our ctx: {to_local_address} {to_remote_address}')
@@ -203,9 +206,6 @@ def create_sweeptxs_for_our_ctx(*, chan: 'Channel', ctx: Transaction,
     # other outputs are htlcs
     # if they are spent, we need to generate the script
     # so, second-stage htlc sweep should not be returned here
-    if ctn < chan.get_oldest_unrevoked_ctn(LOCAL):
-        _logger.info("we breached.")
-        return {}
     txs = {}  # type: Dict[str, SweepInfo]
     # to_local
     output_idxs = ctx.get_output_idxs_from_address(to_local_address)
@@ -225,15 +225,18 @@ def create_sweeptxs_for_our_ctx(*, chan: 'Channel', ctx: Transaction,
                                  csv_delay=to_self_delay,
                                  cltv_expiry=0,
                                  gen_tx=sweep_tx)
+
+    we_breached = ctn < chan.get_oldest_unrevoked_ctn(LOCAL)
+    if we_breached:
+        _logger.info("we breached.")
+        # return only our_ctx_to_local, because we don't keep htlc_signatures for old states
+        return txs
+
     # HTLCs
     def create_txns_for_htlc(*, htlc: 'UpdateAddHtlc', htlc_direction: Direction,
                              ctx_output_idx: int, htlc_relative_idx: int):
         if htlc_direction == RECEIVED:
-            try:
-                preimage = chan.lnworker.get_preimage(htlc.payment_hash)
-            except UnknownPaymentHash as e:
-                _logger.info(f'trying to sweep htlc from our latest ctx but getting {repr(e)}')
-                return
+            preimage = chan.lnworker.get_preimage(htlc.payment_hash)
         else:
             preimage = None
         htlctx_witness_script, htlc_tx = create_htlctx_that_spends_from_our_ctx(
@@ -372,11 +375,7 @@ def create_sweeptxs_for_their_ctx(*, chan: 'Channel', ctx: Transaction,
     def create_sweeptx_for_htlc(htlc: 'UpdateAddHtlc', is_received_htlc: bool,
                                 ctx_output_idx: int) -> None:
         if not is_received_htlc and not is_revocation:
-            try:
-                preimage = chan.lnworker.get_preimage(htlc.payment_hash)
-            except UnknownPaymentHash as e:
-                _logger.info(f'trying to sweep htlc from their latest ctx but getting {repr(e)}')
-                return
+            preimage = chan.lnworker.get_preimage(htlc.payment_hash)
         else:
             preimage = None
         htlc_output_witness_script = make_htlc_output_witness_script(
@@ -425,9 +424,11 @@ def create_htlctx_that_spends_from_our_ctx(chan: 'Channel', our_pcp: bytes,
                                            ctx_output_idx: int) -> Tuple[bytes, Transaction]:
     assert (htlc_direction == RECEIVED) == bool(preimage), 'preimage is required iff htlc is received'
     preimage = preimage or b''
+    ctn = extract_ctn_from_tx_and_chan(ctx, chan)
     witness_script, htlc_tx = make_htlc_tx_with_open_channel(chan=chan,
                                                              pcp=our_pcp,
                                                              subject=LOCAL,
+                                                             ctn=ctn,
                                                              htlc_direction=htlc_direction,
                                                              commit=ctx,
                                                              htlc=htlc,

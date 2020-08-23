@@ -307,8 +307,10 @@ if __name__ == '__main__':
 
     # config is an object passed to the various constructors (wallet, interface, gui)
     if is_android:
+        from jnius import autoclass
+        build_config = autoclass("org.electrum.electrum.BuildConfig")
         config_options = {
-            'verbosity': '',
+            'verbosity': '*' if build_config.DEBUG else '',
             'cmd': 'gui',
             'gui': 'kivy',
         }
@@ -433,6 +435,7 @@ if __name__ == '__main__':
         print_msg(result)
     elif type(result) is dict and result.get('error'):
         print_stderr(result.get('error'))
+        sys_exit(1)
     elif result is not None:
         print_msg(json_encode(result))
     sys_exit(0)

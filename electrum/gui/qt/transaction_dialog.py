@@ -34,7 +34,7 @@ from decimal import Decimal
 
 from PyQt5.QtCore import QSize, Qt
 from PyQt5.QtGui import QTextCharFormat, QBrush, QFont, QPixmap
-from PyQt5.QtWidgets import (QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget,
+from PyQt5.QtWidgets import (QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QGridLayout,
                              QTextEdit, QFrame, QAction, QToolButton, QMenu, QCheckBox)
 import qrcode
 from qrcode import exceptions
@@ -55,7 +55,7 @@ from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX,
                    BlockingWaitingDialog)
 
-from .fee_slider import FeeSlider
+from .fee_slider import FeeSlider, FeeComboBox
 from .confirm_tx_dialog import TxEditor
 from .amountedit import FeerateEdit, BTCAmountEdit
 from .locktimeedit import LockTimeEdit
@@ -170,9 +170,9 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         ptx_merge_sigs_action = QAction(_("Merge signatures from"), self)
         ptx_merge_sigs_action.triggered.connect(self.merge_sigs)
         partial_tx_actions_menu.addAction(ptx_merge_sigs_action)
-        ptx_join_txs_action = QAction(_("Join inputs/outputs"), self)
-        ptx_join_txs_action.triggered.connect(self.join_tx_with_another)
-        partial_tx_actions_menu.addAction(ptx_join_txs_action)
+        self._ptx_join_txs_action = QAction(_("Join inputs/outputs"), self)
+        self._ptx_join_txs_action.triggered.connect(self.join_tx_with_another)
+        partial_tx_actions_menu.addAction(self._ptx_join_txs_action)
         self.partial_tx_actions_button = QToolButton()
         self.partial_tx_actions_button.setText(_("Combine"))
         self.partial_tx_actions_button.setMenu(partial_tx_actions_menu)
@@ -211,9 +211,10 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             self.tx.deserialize()
         except BaseException as e:
             raise SerializationError(e)
-        # if the wallet can populate the inputs with more info, do it now.
-        # as a result, e.g. we might learn an imported address tx is segwit,
-        # or that a beyond-gap-limit address is is_mine
+        # If the wallet can populate the inputs with more info, do it now.
+        # As a result, e.g. we might learn an imported address tx is segwit,
+        # or that a beyond-gap-limit address is is_mine.
+        # note: this might fetch prev txs over the network.
         tx.add_info_from_wallet(self.wallet)
 
     def do_broadcast(self):
@@ -392,7 +393,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
     def update(self):
         if not self.finalized:
             self.update_fee_fields()
-            self.finalize_button.setEnabled(self.tx is not None)
+            self.finalize_button.setEnabled(self.can_finalize())
         if self.tx is None:
             return
         self.update_io()
@@ -479,11 +480,12 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
                 fee_str += ' - ' + _('Warning') + ': ' + _("high fee") + '!'
         if isinstance(self.tx, PartialTransaction):
             risk_of_burning_coins = (can_sign and fee is not None
-                                     and self.tx.is_there_risk_of_burning_coins_as_fees())
-            self.fee_warning_icon.setVisible(risk_of_burning_coins)
+                                     and self.wallet.get_warning_for_risk_of_burning_coins_as_fees(self.tx))
+            self.fee_warning_icon.setToolTip(str(risk_of_burning_coins))
+            self.fee_warning_icon.setVisible(bool(risk_of_burning_coins))
         self.fee_label.setText(fee_str)
         self.size_label.setText(size_str)
-        if ln_amount is None:
+        if ln_amount is None or ln_amount == 0:
             ln_amount_str = ''
         elif ln_amount > 0:
             ln_amount_str = _('Amount received in channels') + ': ' + format_amount(ln_amount) + ' ' + base_unit
@@ -499,6 +501,8 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
                 widget.menuAction().setVisible(show_psbt_only_widgets)
             else:
                 widget.setVisible(show_psbt_only_widgets)
+        if tx_details.is_lightning_funding_tx:
+            self._ptx_join_txs_action.setEnabled(False)  # would change txid
 
         self.save_button.setEnabled(tx_details.can_save_as_local)
         if tx_details.can_save_as_local:
@@ -594,10 +598,6 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         pixmap_size = round(2 * char_width_in_lineedit())
         pixmap = pixmap.scaled(pixmap_size, pixmap_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
         self.fee_warning_icon.setPixmap(pixmap)
-        self.fee_warning_icon.setToolTip(_("Warning") + ": "
-                                         + _("The fee could not be verified. Signing non-segwit inputs is risky:\n"
-                                             "if this transaction was maliciously modified before you sign,\n"
-                                             "you might end up paying a higher mining fee than displayed."))
         self.fee_warning_icon.setVisible(False)
         fee_hbox.addWidget(self.fee_warning_icon)
         fee_hbox.addStretch(1)
@@ -659,6 +659,9 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
     def set_title(self):
         self.setWindowTitle(_("Create transaction") if not self.finalized else _("Transaction"))
 
+    def can_finalize(self) -> bool:
+        return False
+
     def on_finalize(self):
         pass  # overridden in subclass
 
@@ -688,7 +691,8 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
         TxEditor.__init__(self, window=window, make_tx=make_tx, is_sweep=bool(external_keypairs))
         BaseTxDialog.__init__(self, parent=window, desc='', prompt_if_unsaved=False,
                               finalized=False, external_keypairs=external_keypairs)
-        BlockingWaitingDialog(window, _("Preparing transaction..."), self.update_tx)
+        BlockingWaitingDialog(window, _("Preparing transaction..."),
+                              lambda: self.update_tx(fallback_to_zero_fee=True))
         self.update()
 
     def create_fee_controls(self):
@@ -711,6 +715,7 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
         self.feerate_e.textChanged.connect(self.entry_changed)
 
         self.fee_slider = FeeSlider(self, self.config, self.fee_slider_callback)
+        self.fee_combo = FeeComboBox(self.fee_slider)
         self.fee_slider.setFixedWidth(self.fee_e.width())
 
         def feerounding_onclick():
@@ -722,27 +727,25 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
                     _('Also, when batching RBF transactions, BIP 125 imposes a lower bound on the fee.'))
             self.show_message(title=_('Fee rounding'), msg=text)
 
-        self.feerounding_icon = QPushButton(read_QIcon('info.png'), '')
-        self.feerounding_icon.setFixedWidth(round(2.2 * char_width_in_lineedit()))
-        self.feerounding_icon.setFlat(True)
+        self.feerounding_icon = QToolButton()
+        self.feerounding_icon.setIcon(read_QIcon('info.png'))
+        self.feerounding_icon.setAutoRaise(True)
         self.feerounding_icon.clicked.connect(feerounding_onclick)
         self.feerounding_icon.setVisible(False)
 
-        self.fee_adv_controls = QWidget()
-        hbox = QHBoxLayout(self.fee_adv_controls)
-        hbox.setContentsMargins(0, 0, 0, 0)
-        hbox.addWidget(self.feerate_e)
-        hbox.addWidget(self.size_e)
-        hbox.addWidget(self.fee_e)
-        hbox.addWidget(self.feerounding_icon, Qt.AlignLeft)
-        hbox.addStretch(1)
-
         self.feecontrol_fields = QWidget()
-        vbox_feecontrol = QVBoxLayout(self.feecontrol_fields)
-        vbox_feecontrol.setContentsMargins(0, 0, 0, 0)
-        vbox_feecontrol.addWidget(QLabel(_("Target fee:")))
-        vbox_feecontrol.addWidget(self.fee_adv_controls)
-        vbox_feecontrol.addWidget(self.fee_slider)
+        hbox = QHBoxLayout(self.feecontrol_fields)
+        hbox.setContentsMargins(0, 0, 0, 0)
+        grid = QGridLayout()
+        grid.addWidget(QLabel(_("Target fee:")), 0, 0)
+        grid.addWidget(self.feerate_e, 0, 1)
+        grid.addWidget(self.size_e, 0, 2)
+        grid.addWidget(self.fee_e, 0, 3)
+        grid.addWidget(self.feerounding_icon, 0, 4)
+        grid.addWidget(self.fee_slider, 1, 1)
+        grid.addWidget(self.fee_combo, 1, 2)
+        hbox.addLayout(grid)
+        hbox.addStretch(1)
 
     def fee_slider_callback(self, dyn, pos, fee_rate):
         super().fee_slider_callback(dyn, pos, fee_rate)
@@ -862,13 +865,18 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
         self.feerounding_icon.setToolTip(self.feerounding_text)
         self.feerounding_icon.setVisible(abs(feerounding) >= 1)
 
+    def can_finalize(self):
+        return (self.tx is not None
+                and not self.not_enough_funds)
+
     def on_finalize(self):
-        if not self.tx:
+        if not self.can_finalize():
             return
+        assert self.tx
         self.finalized = True
         self.tx.set_rbf(self.rbf_cb.isChecked())
         self.tx.locktime = self.locktime_e.get_locktime()
-        for widget in [self.fee_slider, self.feecontrol_fields, self.rbf_cb,
+        for widget in [self.fee_slider, self.fee_combo, self.feecontrol_fields, self.rbf_cb,
                        self.locktime_setter_widget, self.locktime_e]:
             widget.setEnabled(False)
             widget.setVisible(False)

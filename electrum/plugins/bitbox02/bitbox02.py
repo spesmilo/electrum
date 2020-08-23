@@ -33,6 +33,7 @@ try:
         HARDENED,
         u2fhid,
         bitbox_api_protocol,
+        FirmwareVersionOutdatedException,
     )
     requirements_ok = True
 except ImportError:
@@ -44,8 +45,9 @@ _logger = get_logger(__name__)
 
 class BitBox02Client(HardwareClientBase):
     # handler is a BitBox02_Handler, importing it would lead to a circular dependency
-    def __init__(self, handler: Any, device: Device, config: SimpleConfig):
-        self.bitbox02_device = None
+    def __init__(self, handler: Any, device: Device, config: SimpleConfig, *, plugin: HW_PluginBase):
+        HardwareClientBase.__init__(self, plugin=plugin)
+        self.bitbox02_device = None  # type: Optional[bitbox02.BitBox02]
         self.handler = handler
         self.device_descriptor = device
         self.config = config
@@ -72,17 +74,27 @@ class BitBox02Client(HardwareClientBase):
         return True
 
     def close(self):
-        try:
-            self.bitbox02_device.close()
-        except:
-            pass
+        with self.device_manager().hid_lock:
+            try:
+                self.bitbox02_device.close()
+            except:
+                pass
 
     def has_usable_connection_with_device(self) -> bool:
         if self.bitbox_hid_info is None:
             return False
         return True
 
-    def pairing_dialog(self, wizard: bool = True):
+    def get_soft_device_id(self) -> Optional[str]:
+        if self.handler is None:
+            # Can't do the pairing without the handler. This happens at wallet creation time, when
+            # listing the devices.
+            return None
+        if self.bitbox02_device is None:
+            self.pairing_dialog()
+        return self.bitbox02_device.root_fingerprint().hex()
+
+    def pairing_dialog(self):
         def pairing_step(code: str, device_response: Callable[[], bool]) -> bool:
             msg = "Please compare and confirm the pairing code on your BitBox02:\n" + code
             self.handler.show_message(msg)
@@ -90,7 +102,8 @@ class BitBox02Client(HardwareClientBase):
                 res = device_response()
             except:
                 # Close the hid device on exception
-                hid_device.close()
+                with self.device_manager().hid_lock:
+                    hid_device.close()
                 raise
             finally:
                 self.handler.finished()
@@ -154,14 +167,21 @@ class BitBox02Client(HardwareClientBase):
                 return set_noise_privkey(privkey)
 
         if self.bitbox02_device is None:
-            hid_device = hid.device()
-            hid_device.open_path(self.bitbox_hid_info["path"])
+            with self.device_manager().hid_lock:
+                hid_device = hid.device()
+                hid_device.open_path(self.bitbox_hid_info["path"])
 
-            self.bitbox02_device = bitbox02.BitBox02(
+
+            bitbox02_device = bitbox02.BitBox02(
                 transport=u2fhid.U2FHid(hid_device),
                 device_info=self.bitbox_hid_info,
                 noise_config=NoiseConfig(),
             )
+            try:
+                bitbox02_device.check_min_version()
+            except FirmwareVersionOutdatedException:
+                raise
+            self.bitbox02_device = bitbox02_device
 
         self.fail_if_not_initialized()
 
@@ -171,13 +191,6 @@ class BitBox02Client(HardwareClientBase):
             raise Exception(
                 "Please initialize the BitBox02 using the BitBox app first before using the BitBox02 in electrum"
             )
-
-    def check_device_firmware_version(self) -> bool:
-        if self.bitbox02_device is None:
-            raise Exception(
-                "Need to setup communication first before attempting any BitBox02 calls"
-            )
-        return self.bitbox02_device.check_firmware_version()
 
     def coin_network_from_electrum_network(self) -> int:
         if constants.net.TESTNET:
@@ -193,7 +206,7 @@ class BitBox02Client(HardwareClientBase):
 
     def get_xpub(self, bip32_path: str, xtype: str, *, display: bool = False) -> str:
         if self.bitbox02_device is None:
-            self.pairing_dialog(wizard=False)
+            self.pairing_dialog()
 
         if self.bitbox02_device is None:
             raise Exception(
@@ -229,6 +242,20 @@ class BitBox02Client(HardwareClientBase):
             xpub_type=out_type,
             coin=coin_network,
             display=display,
+        )
+
+    def label(self) -> str:
+        if self.handler is None:
+            # Can't do the pairing without the handler. This happens at wallet creation time, when
+            # listing the devices.
+            return super().label()
+        if self.bitbox02_device is None:
+            self.pairing_dialog()
+        # We add the fingerprint to the label, as if there are two devices with the same label, the
+        # device manager can mistake one for another and fail.
+        return "%s (%s)" % (
+            self.bitbox02_device.device_info()["name"],
+            self.bitbox02_device.root_fingerprint().hex(),
         )
 
     def request_root_fingerprint_from_device(self) -> str:
@@ -353,11 +380,34 @@ class BitBox02Client(HardwareClientBase):
         # Build BTCInputType list
         inputs = []
         for txin in tx.inputs():
-            _, full_path = keystore.find_my_pubkey_in_txinout(txin)
+            my_pubkey, full_path = keystore.find_my_pubkey_in_txinout(txin)
 
             if full_path is None:
                 raise Exception(
                     "A wallet owned pubkey was not found in the transaction input to be signed"
+                )
+
+            prev_tx = txin.utxo
+            if prev_tx is None:
+                raise UserFacingException(_('Missing previous tx.'))
+
+            prev_inputs: List[bitbox02.BTCPrevTxInputType] = []
+            prev_outputs: List[bitbox02.BTCPrevTxOutputType] = []
+            for prev_txin in prev_tx.inputs():
+                prev_inputs.append(
+                    {
+                        "prev_out_hash": prev_txin.prevout.txid[::-1],
+                        "prev_out_index": prev_txin.prevout.out_idx,
+                        "signature_script": prev_txin.script_sig,
+                        "sequence": prev_txin.nsequence,
+                    }
+                )
+            for prev_txout in prev_tx.outputs():
+                prev_outputs.append(
+                    {
+                        "value": prev_txout.value,
+                        "pubkey_script": prev_txout.scriptpubkey,
+                    }
                 )
 
             inputs.append(
@@ -367,6 +417,13 @@ class BitBox02Client(HardwareClientBase):
                     "prev_out_value": txin.value_sats(),
                     "sequence": txin.nsequence,
                     "keypath": full_path,
+                    "script_config_index": 0,
+                    "prev_tx": {
+                        "version": prev_tx.version,
+                        "locktime": prev_tx.locktime,
+                        "inputs": prev_inputs,
+                        "outputs": prev_outputs,
+                    },
                 }
             )
 
@@ -401,10 +458,10 @@ class BitBox02Client(HardwareClientBase):
             assert txout.address
             # check for change
             if txout.is_change:
-                _, change_pubkey_path = keystore.find_my_pubkey_in_txinout(txout)
+                my_pubkey, change_pubkey_path = keystore.find_my_pubkey_in_txinout(txout)
                 outputs.append(
                     bitbox02.BTCOutputInternal(
-                        keypath=change_pubkey_path, value=txout.value,
+                        keypath=change_pubkey_path, value=txout.value, script_config_index=0,
                     )
                 )
             else:
@@ -442,8 +499,10 @@ class BitBox02Client(HardwareClientBase):
 
         sigs = self.bitbox02_device.btc_sign(
             coin,
-            tx_script_type,
-            keypath_account=keypath_account,
+            [bitbox02.btc.BTCScriptConfigWithKeypath(
+                script_config=tx_script_type,
+                keypath=keypath_account,
+            )],
             inputs=inputs,
             outputs=outputs,
             locktime=tx.locktime,
@@ -532,7 +591,7 @@ class BitBox02_KeyStore(Hardware_KeyStore):
 
 class BitBox02Plugin(HW_PluginBase):
     keystore_class = BitBox02_KeyStore
-    minimum_library = (2, 0, 2)
+    minimum_library = (4, 0, 0)
     DEVICE_IDS = [(0x03EB, 0x2403)]
 
     SUPPORTED_XTYPES = ("p2wpkh-p2sh", "p2wpkh", "p2wsh")
@@ -556,12 +615,11 @@ class BitBox02Plugin(HW_PluginBase):
         else:
             raise ImportError()
 
-
     # handler is a BitBox02_Handler
     def create_client(self, device: Device, handler: Any) -> BitBox02Client:
         if not handler:
             self.handler = handler
-        return BitBox02Client(handler, device, self.config)
+        return BitBox02Client(handler, device, self.config, plugin=self)
 
     def setup_device(
         self, device_info: DeviceInfo, wizard: BaseWizard, purpose: int

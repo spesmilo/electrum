@@ -30,10 +30,6 @@ if TYPE_CHECKING:
 
 
 # global Variables
-is_test = (platform == "linux")
-test_seed = "grape impose jazz bind spatial mind jelly tourist tank today holiday stomach"
-test_seed = "time taxi field recycle tiny license olive virus report rare steel portion achieve"
-test_xpub = "xpub661MyMwAqRbcEbvVtRRSjqxVnaWVUMewVzMiURAKyYratih4TtBpMypzzefmv8zUNebmNVzB3PojdC5sV2P9bDgMoo9B3SARw1MXUUfU1GL"
 
 Builder.load_string('''
 #:import Window kivy.core.window.Window
@@ -594,7 +590,7 @@ class WizardDialog(EventsDialog):
         self.app = App.get_running_app()
         self.run_next = kwargs['run_next']
 
-        self._trigger_size_dialog = Clock.create_trigger(self._size_dialog)
+        self._trigger_size_dialog = Clock.create_trigger(self._size_dialog, -1)
         # note: everything bound here needs to be unbound as otherwise the
         # objects will be kept around and keep receiving the callbacks
         Window.bind(size=self._trigger_size_dialog,
@@ -878,7 +874,7 @@ class RestoreSeedDialog(WizardDialog):
         from electrum.mnemonic import Mnemonic
         from electrum.old_mnemonic import wordlist as old_wordlist
         self.words = set(Mnemonic('en').wordlist).union(set(old_wordlist))
-        self.ids.text_input_seed.text = test_seed if is_test else ''
+        self.ids.text_input_seed.text = ''
         self.message = _('Please type your seed phrase using the virtual keyboard.')
         self.title = _('Enter Seed')
         self.ext = False
@@ -1055,7 +1051,7 @@ class AddXpubDialog(WizardDialog):
         self.app.scan_qr(on_complete)
 
     def do_paste(self):
-        self.ids.text_input.text = test_xpub if is_test else self.app._clipboard.paste()
+        self.ids.text_input.text = self.app._clipboard.paste()
 
     def do_clear(self):
         self.ids.text_input.text = ''
@@ -1119,7 +1115,7 @@ class InstallWizard(BaseWizard, Widget):
     def multisig_dialog(self, **kwargs): WizardMultisigDialog(self, **kwargs).open()
     def show_seed_dialog(self, **kwargs): ShowSeedDialog(self, **kwargs).open()
     def line_dialog(self, **kwargs): LineDialog(self, **kwargs).open()
-    def choice_and_line_dialog(self, **kwargs): ChoiceLineDialog(self, **kwargs).open()
+    def derivation_and_script_type_gui_specific_dialog(self, **kwargs): ChoiceLineDialog(self, **kwargs).open()
 
     def confirm_seed_dialog(self, **kwargs):
         kwargs['title'] = _('Confirm Seed')
@@ -1172,9 +1168,8 @@ class InstallWizard(BaseWizard, Widget):
         def on_failure():
             self.show_error(_('Password mismatch'))
             self.run('request_password', run_next)
-        popup = PasswordDialog()
         app = App.get_running_app()
-        popup.init(
+        popup = PasswordDialog(
             app,
             check_password=lambda x:True,
             on_success=on_success,

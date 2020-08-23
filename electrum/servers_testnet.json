@@ -15,13 +15,12 @@
         "pruning": "-",
         "s": "51002",
         "t": "51001",
-        "version": "1.4"
+        "version": "1.4.2"
     },
     "testnet1.bauerj.eu": {
         "pruning": "-",
         "s": "50002",
-        "t": "50001",
-        "version": "1.4"
+        "version": "1.4.2"
     },
     "tn.not.fyi": {
         "pruning": "-",
@@ -33,6 +32,35 @@
         "pruning": "-",
         "s": "51002",
         "t": "51001",
+        "version": "1.4"
+    },
+    "electrum.blockstream.info": {
+        "pruning": "-",
+        "s": "60002",
+        "t": "60001",
+        "version": "1.4"
+    },
+    "explorerzydxu5ecjrkwceayqybizmpjjznk5izmitf2modhcusuqlid.onion": {
+        "pruning": "-",
+        "t": "143",
+        "version": "1.4"
+    },
+    "testnet.aranguren.org": {
+        "pruning": "-",
+        "s": "51002",
+        "t": "51001",
+        "version": "1.4.2"
+    },
+    "wgzwu3vg3i54wayx.onion": {
+        "pruning": "-",
+        "s": "51002",
+        "t": "51001",
+        "version": "1.4.2"
+    },
+    "blockstream.info": {
+        "pruning": "-",
+        "s": "993",
+        "t": "143",
         "version": "1.4"
     }
 }

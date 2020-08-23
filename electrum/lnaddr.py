@@ -6,6 +6,7 @@ import time
 from hashlib import sha256
 from binascii import hexlify
 from decimal import Decimal
+from typing import Optional
 
 import bitstring
 
@@ -13,7 +14,6 @@ from .bitcoin import hash160_to_b58_address, b58_address_to_hash160
 from .segwit_addr import bech32_encode, bech32_decode, CHARSET
 from . import constants
 from . import ecc
-from .util import PR_TYPE_LN
 from .bitcoin import COIN
 
 
@@ -34,7 +34,7 @@ def shorten_amount(amount):
             break
     return str(amount) + unit
 
-def unshorten_amount(amount):
+def unshorten_amount(amount) -> Decimal:
     """ Given a shortened amount, convert it into a decimal
     """
     # BOLT #11:
@@ -272,8 +272,19 @@ class LnAddr(object):
         self.signature = None
         self.pubkey = None
         self.currency = constants.net.SEGWIT_HRP if currency is None else currency
-        self.amount = amount  # in bitcoins
+        self.amount = amount  # type: Optional[Decimal]  # in bitcoins
         self._min_final_cltv_expiry = 9
+
+    def get_amount_sat(self) -> Optional[Decimal]:
+        # note that this has msat resolution potentially
+        if self.amount is None:
+            return None
+        return self.amount * COIN
+
+    def get_amount_msat(self) -> Optional[int]:
+        if self.amount is None:
+            return None
+        return int(self.amount * COIN * 1000)
 
     def __str__(self):
         return "LnAddr[{}, amount={}{} tags=[{}]]".format(
@@ -469,20 +480,6 @@ def lndecode(invoice: str, *, verbose=False, expected_hrp=None) -> LnAddr:
 
 
 
-
-def parse_lightning_invoice(invoice):
-    lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
-    amount = int(lnaddr.amount * COIN) if lnaddr.amount else None
-    return {
-        'type': PR_TYPE_LN,
-        'invoice': invoice,
-        'amount': amount,
-        'message': lnaddr.get_description(),
-        'time': lnaddr.date,
-        'exp': lnaddr.get_expiry(),
-        'pubkey': lnaddr.pubkey.serialize().hex(),
-        'rhash': lnaddr.paymenthash.hex(),
-    }
 
 if __name__ == '__main__':
     # run using

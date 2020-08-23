@@ -19,14 +19,17 @@ def sql(func):
 
 class SqlDB(Logger):
     
-    def __init__(self, network, path, commit_interval=None):
+    def __init__(self, asyncio_loop, path, commit_interval=None):
         Logger.__init__(self)
-        self.network = network
+        self.asyncio_loop = asyncio_loop
         self.path = path
         self.commit_interval = commit_interval
         self.db_requests = queue.Queue()
         self.sql_thread = threading.Thread(target=self.run_sql)
         self.sql_thread.start()
+
+    def filesize(self):
+        return os.stat(self.path).st_size
 
     def run_sql(self):
         self.logger.info("SQL thread started")
@@ -34,7 +37,7 @@ class SqlDB(Logger):
         self.logger.info("Creating database")
         self.create_database()
         i = 0
-        while self.network.asyncio_loop.is_running():
+        while self.asyncio_loop.is_running():
             try:
                 future, func, args, kwargs = self.db_requests.get(timeout=0.1)
             except queue.Empty:

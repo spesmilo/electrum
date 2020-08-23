@@ -7,8 +7,8 @@ from kivy.app import App
 from kivy.clock import Clock
 
 from electrum.gui.kivy.i18n import _
-from electrum.util import pr_tooltips, pr_color, get_request_status
-from electrum.util import PR_UNKNOWN, PR_UNPAID, PR_FAILED, PR_TYPE_LN
+from electrum.invoices import pr_tooltips, pr_color
+from electrum.invoices import PR_UNKNOWN, PR_UNPAID, PR_FAILED, PR_TYPE_LN
 
 if TYPE_CHECKING:
     from electrum.gui.kivy.main_window import ElectrumWindow
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 Builder.load_string('''
 <InvoiceDialog@Popup>
     id: popup
-    amount: 0
+    amount_str: ''
     title: ''
     data: ''
     description:''
@@ -44,7 +44,7 @@ Builder.load_string('''
             RefLabel:
                 data: root.description or _('No description')
             TopLabel:
-                text: _('Amount') + ': ' + app.format_amount_and_units(root.amount)
+                text: _('Amount') + ': ' + root.amount_str
             TopLabel:
                 text: _('Status') + ': ' + root.status_str
                 color: root.status_color
@@ -92,20 +92,22 @@ class InvoiceDialog(Factory.Popup):
         self.title = title
         self.data = data
         self.key = key
-        r = self.app.wallet.get_invoice(key)
-        self.amount = r.get('amount')
-        self.description = r.get('message') or r.get('memo','')
-        self.is_lightning = r.get('type') == PR_TYPE_LN
+        invoice = self.app.wallet.get_invoice(key)
+        self.amount_sat = invoice.get_amount_sat()
+        self.amount_str = self.app.format_amount_and_units(self.amount_sat)
+        self.description = invoice.message
+        self.is_lightning = invoice.is_lightning()
         self.update_status()
         self.log = self.app.wallet.lnworker.logs[self.key] if self.is_lightning else []
 
     def update_status(self):
-        req = self.app.wallet.get_invoice(self.key)
-        self.status, self.status_str = get_request_status(req)
+        invoice = self.app.wallet.get_invoice(self.key)
+        self.status = self.app.wallet.get_invoice_status(invoice)
+        self.status_str = invoice.get_status_str(self.status)
         self.status_color = pr_color[self.status]
         self.can_pay = self.status in [PR_UNPAID, PR_FAILED]
         if self.can_pay and self.is_lightning and self.app.wallet.lnworker:
-            if self.amount and self.amount > self.app.wallet.lnworker.num_sats_can_send():
+            if self.amount_sat and self.amount_sat > self.app.wallet.lnworker.num_sats_can_send():
                 self.warning = _('Warning') + ': ' + _('This amount exceeds the maximum you can currently send with your channels')
 
     def on_dismiss(self):

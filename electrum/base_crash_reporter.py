@@ -75,7 +75,7 @@ class BaseCrashReporter(Logger):
 
     async def do_post(self, proxy, url, data):
         async with make_aiohttp_session(proxy) as session:
-            async with session.post(url, data=data) as resp:
+            async with session.post(url, data=data, raise_for_status=True) as resp:
                 return await resp.text()
 
     def get_traceback_info(self):
@@ -121,15 +121,18 @@ class BaseCrashReporter(Logger):
             ['git', 'describe', '--always', '--dirty'], cwd=dir)
         return str(version, "utf8").strip()
 
+    def _get_traceback_str(self) -> str:
+        return "".join(traceback.format_exception(*self.exc_args))
+
     def get_report_string(self):
         info = self.get_additional_info()
-        info["traceback"] = "".join(traceback.format_exception(*self.exc_args))
+        info["traceback"] = self._get_traceback_str()
         return self.issue_template.format(**info)
 
     def get_user_description(self):
         raise NotImplementedError
 
-    def get_wallet_type(self):
+    def get_wallet_type(self) -> str:
         raise NotImplementedError
 
 

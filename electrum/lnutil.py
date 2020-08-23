@@ -27,7 +27,7 @@ from .bip32 import BIP32Node, BIP32_PRIME
 from .transaction import BCDataStream
 
 if TYPE_CHECKING:
-    from .lnchannel import Channel
+    from .lnchannel import Channel, AbstractChannel
     from .lnrouter import LNPaymentRoute
     from .lnonion import OnionRoutingFailureMessage
 
@@ -73,13 +73,47 @@ class Config(StoredObject):
     htlc_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
     delayed_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
     revocation_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
-    to_self_delay = attr.ib(type=int)
-    dust_limit_sat = attr.ib(type=int)
-    max_htlc_value_in_flight_msat = attr.ib(type=int)
-    max_accepted_htlcs = attr.ib(type=int)
+    to_self_delay = attr.ib(type=int)  # applies to OTHER ctx
+    dust_limit_sat = attr.ib(type=int)  # applies to SAME ctx
+    max_htlc_value_in_flight_msat = attr.ib(type=int)  # max val of INCOMING htlcs
+    max_accepted_htlcs = attr.ib(type=int)  # max num of INCOMING htlcs
     initial_msat = attr.ib(type=int)
-    reserve_sat = attr.ib(type=int)
-    htlc_minimum_msat = attr.ib(type=int)
+    reserve_sat = attr.ib(type=int)  # applies to OTHER ctx
+    htlc_minimum_msat = attr.ib(type=int)  # smallest value for INCOMING htlc
+
+    def validate_params(self, *, funding_sat: int) -> None:
+        conf_name = type(self).__name__
+        for key in (
+                self.payment_basepoint,
+                self.multisig_key,
+                self.htlc_basepoint,
+                self.delayed_basepoint,
+                self.revocation_basepoint
+        ):
+            if not (len(key.pubkey) == 33 and ecc.ECPubkey.is_pubkey_bytes(key.pubkey)):
+                raise Exception(f"{conf_name}. invalid pubkey in channel config")
+        if self.reserve_sat < self.dust_limit_sat:
+            raise Exception(f"{conf_name}. MUST set channel_reserve_satoshis greater than or equal to dust_limit_satoshis")
+        # technically this could be using the lower DUST_LIMIT_DEFAULT_SAT_SEGWIT
+        # but other implementations are checking against this value too; also let's be conservative
+        if self.dust_limit_sat < bitcoin.DUST_LIMIT_DEFAULT_SAT_LEGACY:
+            raise Exception(f"{conf_name}. dust limit too low: {self.dust_limit_sat} sat")
+        if self.reserve_sat > funding_sat // 100:
+            raise Exception(f"{conf_name}. reserve too high: {self.reserve_sat}, funding_sat: {funding_sat}")
+        if self.htlc_minimum_msat > 1_000:
+            raise Exception(f"{conf_name}. htlc_minimum_msat too high: {self.htlc_minimum_msat} msat")
+        HTLC_MINIMUM_MSAT_MIN = 0  # should be at least 1 really, but apparently some nodes are sending zero...
+        if self.htlc_minimum_msat < HTLC_MINIMUM_MSAT_MIN:
+            raise Exception(f"{conf_name}. htlc_minimum_msat too low: {self.htlc_minimum_msat} msat < {HTLC_MINIMUM_MSAT_MIN}")
+        if self.max_accepted_htlcs < 1:
+            raise Exception(f"{conf_name}. max_accepted_htlcs too low: {self.max_accepted_htlcs}")
+        if self.max_accepted_htlcs > 483:
+            raise Exception(f"{conf_name}. max_accepted_htlcs too high: {self.max_accepted_htlcs}")
+        if self.to_self_delay > MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED:
+            raise Exception(f"{conf_name}. to_self_delay too high: {self.to_self_delay} > {MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED}")
+        if self.max_htlc_value_in_flight_msat < min(1000 * funding_sat, 100_000_000):
+            raise Exception(f"{conf_name}. max_htlc_value_in_flight_msat is too small: {self.max_htlc_value_in_flight_msat}")
+
 
 @attr.s
 class LocalConfig(Config):
@@ -104,6 +138,15 @@ class LocalConfig(Config):
         kwargs['payment_basepoint'] = OnlyPubkeyKeypair(static_remotekey) if static_remotekey else keypair_generator(LnKeyFamily.PAYMENT_BASE)
         return LocalConfig(**kwargs)
 
+    def validate_params(self, *, funding_sat: int) -> None:
+        conf_name = type(self).__name__
+        # run base checks regardless whether LOCAL/REMOTE config
+        super().validate_params(funding_sat=funding_sat)
+        # run some stricter checks on LOCAL config (make sure we ourselves do the sane thing,
+        # even if we are lenient with REMOTE for compatibility reasons)
+        HTLC_MINIMUM_MSAT_MIN = 1
+        if self.htlc_minimum_msat < HTLC_MINIMUM_MSAT_MIN:
+            raise Exception(f"{conf_name}. htlc_minimum_msat too low: {self.htlc_minimum_msat} msat < {HTLC_MINIMUM_MSAT_MIN}")
 
 @attr.s
 class RemoteConfig(Config):
@@ -122,6 +165,8 @@ class ChannelConstraints(StoredObject):
     is_initiator = attr.ib(type=bool)  # note: sometimes also called "funder"
     funding_txn_minimum_depth = attr.ib(type=int)
 
+
+CHANNEL_BACKUP_VERSION = 0
 @attr.s
 class ChannelBackupStorage(StoredObject):
     node_id = attr.ib(type=bytes, converter=hex_to_bytes)
@@ -145,8 +190,9 @@ class ChannelBackupStorage(StoredObject):
         chan_id, _ = channel_id_from_funding_tx(self.funding_txid, self.funding_index)
         return chan_id
 
-    def to_bytes(self):
+    def to_bytes(self) -> bytes:
         vds = BCDataStream()
+        vds.write_int16(CHANNEL_BACKUP_VERSION)
         vds.write_boolean(self.is_initiator)
         vds.write_bytes(self.privkey, 32)
         vds.write_bytes(self.channel_seed, 32)
@@ -160,14 +206,17 @@ class ChannelBackupStorage(StoredObject):
         vds.write_int16(self.remote_delay)
         vds.write_string(self.host)
         vds.write_int16(self.port)
-        return vds.input
+        return bytes(vds.input)
 
     @staticmethod
     def from_bytes(s):
         vds = BCDataStream()
         vds.write(s)
+        version = vds.read_int16()
+        if version != CHANNEL_BACKUP_VERSION:
+            raise Exception(f"unknown version for channel backup: {version}")
         return ChannelBackupStorage(
-            is_initiator = bool(vds.read_bytes(1)),
+            is_initiator = vds.read_boolean(),
             privkey = vds.read_bytes(32).hex(),
             channel_seed = vds.read_bytes(32).hex(),
             node_id = vds.read_bytes(33).hex(),
@@ -220,8 +269,12 @@ class PaymentAttemptLog(NamedTuple):
                 sender_idx = self.failure_details.sender_idx
                 failure_msg = self.failure_details.failure_msg
                 if sender_idx is not None:
-                    short_channel_id = route[sender_idx+1].short_channel_id
-                message = str(failure_msg.code.name)
+                    try:
+                        short_channel_id = route[sender_idx + 1].short_channel_id
+                    except IndexError:
+                        # payment destination reported error
+                        short_channel_id = _("Destination node")
+                message = failure_msg.code_name()
             else:
                 short_channel_id = route[-1].short_channel_id
                 message = _('Success')
@@ -235,9 +288,9 @@ class PaymentAttemptLog(NamedTuple):
 
 class BarePaymentAttemptLog(NamedTuple):
     success: bool
-    preimage: Optional[bytes]
-    error_bytes: Optional[bytes]
-    error_reason: Optional['OnionRoutingFailureMessage'] = None
+    preimage: Optional[bytes] = None
+    error_bytes: Optional[bytes] = None
+    failure_message: Optional['OnionRoutingFailureMessage'] = None
 
 
 class LightningError(Exception): pass
@@ -245,7 +298,6 @@ class LightningPeerConnectionClosed(LightningError): pass
 class UnableToDeriveSecret(LightningError): pass
 class HandshakeFailed(LightningError): pass
 class ConnStringFormatError(LightningError): pass
-class UnknownPaymentHash(LightningError): pass
 class RemoteMisbehaving(LightningError): pass
 
 class NotFoundChanAnnouncementForUpdate(Exception): pass
@@ -253,16 +305,17 @@ class NotFoundChanAnnouncementForUpdate(Exception): pass
 class PaymentFailure(UserFacingException): pass
 
 # TODO make some of these values configurable?
-DEFAULT_TO_SELF_DELAY = 144
-
 REDEEM_AFTER_DOUBLE_SPENT_DELAY = 30
 
 CHANNEL_OPENING_TIMEOUT = 24*60*60
 
+MIN_FUNDING_SAT = 200_000
+
 ##### CLTV-expiry-delta-related values
 # see https://github.com/lightningnetwork/lightning-rfc/blob/master/02-peer-protocol.md#cltv_expiry_delta-selection
 
-# the minimum cltv_expiry accepted for terminal payments
+# the minimum cltv_expiry accepted for newly received HTLCs
+# note: when changing, consider Blockchain.is_tip_stale()
 MIN_FINAL_CLTV_EXPIRY_ACCEPTED = 144
 # set it a tiny bit higher for invoices as blocks could get mined
 # during forward path of payment
@@ -282,14 +335,6 @@ OUR_FEE_BASE_MSAT = 1000
 OUR_FEE_PROPORTIONAL_MILLIONTHS = 1
 
 NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE = 28 * 144
-
-
-# When we open a channel, the remote peer has to support at least this
-# value of mSATs in HTLCs accumulated on the channel, or we refuse opening.
-# Number is based on observed testnet limit https://github.com/spesmilo/electrum/issues/5032
-MINIMUM_MAX_HTLC_VALUE_IN_FLIGHT_ACCEPTED = 19_800 * 1000
-
-MAXIMUM_HTLC_MINIMUM_MSAT_ACCEPTED = 1000
 
 MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED = 2016
 
@@ -504,8 +549,8 @@ def make_htlc_output_witness_script(is_received_htlc: bool, remote_revocation_pu
                                  payment_hash=payment_hash)
 
 
-def get_ordered_channel_configs(chan: 'Channel', for_us: bool) -> Tuple[Union[LocalConfig, RemoteConfig],
-                                                                        Union[LocalConfig, RemoteConfig]]:
+def get_ordered_channel_configs(chan: 'AbstractChannel', for_us: bool) -> Tuple[Union[LocalConfig, RemoteConfig],
+                                                                                Union[LocalConfig, RemoteConfig]]:
     conf =       chan.config[LOCAL] if     for_us else chan.config[REMOTE]
     other_conf = chan.config[LOCAL] if not for_us else chan.config[REMOTE]
     return conf, other_conf
@@ -563,7 +608,7 @@ def map_htlcs_to_ctx_output_idxs(*, chan: 'Channel', ctx: Transaction, pcp: byte
             for htlc_relative_idx, ctx_output_idx in enumerate(sorted(inverse_map))}
 
 
-def make_htlc_tx_with_open_channel(*, chan: 'Channel', pcp: bytes, subject: 'HTLCOwner',
+def make_htlc_tx_with_open_channel(*, chan: 'Channel', pcp: bytes, subject: 'HTLCOwner', ctn: int,
                                    htlc_direction: 'Direction', commit: Transaction, ctx_output_idx: int,
                                    htlc: 'UpdateAddHtlc', name: str = None) -> Tuple[bytes, PartialTransaction]:
     amount_msat, cltv_expiry, payment_hash = htlc.amount_msat, htlc.cltv_expiry, htlc.payment_hash
@@ -579,7 +624,7 @@ def make_htlc_tx_with_open_channel(*, chan: 'Channel', pcp: bytes, subject: 'HTL
     is_htlc_success = htlc_direction == RECEIVED
     witness_script_of_htlc_tx_output, htlc_tx_output = make_htlc_tx_output(
         amount_msat = amount_msat,
-        local_feerate = chan.get_next_feerate(LOCAL if for_us else REMOTE),
+        local_feerate = chan.get_feerate(subject, ctn=ctn),
         revocationpubkey=other_revocation_pubkey,
         local_delayedpubkey=delayedpubkey,
         success = is_htlc_success,
@@ -615,8 +660,12 @@ class HTLCOwner(IntFlag):
     LOCAL = 1
     REMOTE = -LOCAL
 
-    def inverted(self):
-        return HTLCOwner(-self)
+    def inverted(self) -> 'HTLCOwner':
+        return -self
+
+    def __neg__(self) -> 'HTLCOwner':
+        return HTLCOwner(super().__neg__())
+
 
 class Direction(IntFlag):
     SENT = -1     # in the context of HTLCs: "offered" HTLCs
@@ -630,10 +679,14 @@ REMOTE = HTLCOwner.REMOTE
 
 def make_commitment_outputs(*, fees_per_participant: Mapping[HTLCOwner, int], local_amount_msat: int, remote_amount_msat: int,
         local_script: str, remote_script: str, htlcs: List[ScriptHtlc], dust_limit_sat: int) -> Tuple[List[PartialTxOutput], List[PartialTxOutput]]:
-    to_local_amt = local_amount_msat - fees_per_participant[LOCAL]
+    # BOLT-03: "Base commitment transaction fees are extracted from the funder's amount;
+    #           if that amount is insufficient, the entire amount of the funder's output is used."
+    #   -> if funder cannot afford feerate, their output might go negative, so take max(0, x) here:
+    to_local_amt = max(0, local_amount_msat - fees_per_participant[LOCAL])
     to_local = PartialTxOutput(scriptpubkey=bfh(local_script), value=to_local_amt // 1000)
-    to_remote_amt = remote_amount_msat - fees_per_participant[REMOTE]
+    to_remote_amt = max(0, remote_amount_msat - fees_per_participant[REMOTE])
     to_remote = PartialTxOutput(scriptpubkey=bfh(remote_script), value=to_remote_amt // 1000)
+
     non_htlc_outputs = [to_local, to_remote]
     htlc_outputs = []
     for script, htlc in htlcs:
@@ -781,7 +834,7 @@ def extract_ctn_from_tx(tx: Transaction, txin_index: int, funder_payment_basepoi
     obs = ((sequence & 0xffffff) << 24) + (locktime & 0xffffff)
     return get_obscured_ctn(obs, funder_payment_basepoint, fundee_payment_basepoint)
 
-def extract_ctn_from_tx_and_chan(tx: Transaction, chan: 'Channel') -> int:
+def extract_ctn_from_tx_and_chan(tx: Transaction, chan: 'AbstractChannel') -> int:
     funder_conf = chan.config[LOCAL] if     chan.is_initiator() else chan.config[REMOTE]
     fundee_conf = chan.config[LOCAL] if not chan.is_initiator() else chan.config[REMOTE]
     return extract_ctn_from_tx(tx, txin_index=0,

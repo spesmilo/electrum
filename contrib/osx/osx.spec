@@ -83,8 +83,6 @@ datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
 datas += collect_data_files('ckcc')
 datas += collect_data_files('bitbox02')
-datas += collect_data_files('jsonrpcserver')
-datas += collect_data_files('jsonrpcclient')
 
 # Add the QR Scanner helper app
 datas += [(electrum + "contrib/osx/CalinsQRReader/build/Release/CalinsQRReader.app", "./contrib/osx/CalinsQRReader/build/Release/CalinsQRReader.app")]
@@ -141,24 +139,29 @@ if APP_SIGN:
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
-exe = EXE(pyz,
-          a.scripts,
-          a.binaries,
-          a.datas,
-          name=PACKAGE,
-          debug=False,
-          strip=False,
-          upx=True,
-          icon=electrum+ICONS_FILE,
-          console=False)
+exe = EXE(
+    pyz,
+    a.scripts,
+    exclude_binaries=True,
+    name=MAIN_SCRIPT,
+    debug=False,
+    strip=False,
+    upx=True,
+    icon=electrum+ICONS_FILE,
+    console=False,
+)
 
-app = BUNDLE(exe,
-             version = VERSION,
-             name=PACKAGE + '.app',
-             icon=electrum+ICONS_FILE,
-             bundle_identifier=None,
-             info_plist={
-                'NSHighResolutionCapable': 'True',
-                'NSSupportsAutomaticGraphicsSwitching': 'True'
-             }
+app = BUNDLE(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    version = VERSION,
+    name=PACKAGE + '.app',
+    icon=electrum+ICONS_FILE,
+    bundle_identifier=None,
+    info_plist={
+        'NSHighResolutionCapable': 'True',
+        'NSSupportsAutomaticGraphicsSwitching': 'True'
+    },
 )

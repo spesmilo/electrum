@@ -6,13 +6,23 @@ set -e
 venv_dir=~/.electrum-venv
 contrib=$(dirname "$0")
 
-which virtualenv > /dev/null 2>&1 || { echo "Please install virtualenv" && exit 1; }
-python3 -m hashin -h > /dev/null 2>&1 || { python3 -m pip install hashin; }
-other_python=$(which python3)
+# note: we should not use a higher version of python than what the binaries bundle
+if [[ ! "$SYSTEM_PYTHON" ]] ; then
+    SYSTEM_PYTHON=$(which python3.6) || printf ""
+else
+    SYSTEM_PYTHON=$(which $SYSTEM_PYTHON) || printf ""
+fi
+if [[ ! "$SYSTEM_PYTHON" ]] ; then
+    echo "Please specify which python to use in \$SYSTEM_PYTHON" && exit 1;
+fi
 
-for i in '' '-hw' '-binaries' '-wine-build'; do
+which virtualenv > /dev/null 2>&1 || { echo "Please install virtualenv" && exit 1; }
+
+${SYSTEM_PYTHON} -m hashin -h > /dev/null 2>&1 || { ${SYSTEM_PYTHON} -m pip install hashin; }
+
+for i in '' '-hw' '-binaries' '-wine-build' '-mac-build' '-sdist-build'; do
     rm -rf "$venv_dir"
-    virtualenv -p $(which python3) $venv_dir
+    virtualenv -p ${SYSTEM_PYTHON} $venv_dir
 
     source $venv_dir/bin/activate
 
@@ -23,7 +33,7 @@ for i in '' '-hw' '-binaries' '-wine-build'; do
     echo "OK."
 
     requirements=$(pip freeze --all)
-    restricted=$(echo $requirements | $other_python $contrib/deterministic-build/find_restricted_dependencies.py)
+    restricted=$(echo $requirements | ${SYSTEM_PYTHON} $contrib/deterministic-build/find_restricted_dependencies.py)
     requirements="$requirements $restricted"
 
     echo "Generating package hashes..."
@@ -32,7 +42,7 @@ for i in '' '-hw' '-binaries' '-wine-build'; do
 
     for requirement in $requirements; do
         echo -e "\r  Hashing $requirement..."
-        $other_python -m hashin -r $contrib/deterministic-build/requirements${i}.txt ${requirement}
+        ${SYSTEM_PYTHON} -m hashin -r $contrib/deterministic-build/requirements${i}.txt ${requirement}
     done
 
     echo "OK."

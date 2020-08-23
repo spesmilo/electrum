@@ -22,6 +22,7 @@
 # SOFTWARE.
 import os
 import threading
+import time
 from typing import Optional, Dict, Mapping, Sequence
 
 from . import util
@@ -484,6 +485,20 @@ class Blockchain(Logger):
         height = self.height()
         return self.read_header(height)
 
+    def is_tip_stale(self) -> bool:
+        STALE_DELAY = 8 * 60 * 60  # in seconds
+        header = self.header_at_tip()
+        if not header:
+            return True
+        # note: We check the timestamp only in the latest header.
+        #       The Bitcoin consensus has a lot of leeway here:
+        #       - needs to be greater than the median of the timestamps of the past 11 blocks, and
+        #       - up to at most 2 hours into the future compared to local clock
+        #       so there is ~2 hours of leeway in either direction
+        if header['timestamp'] + STALE_DELAY < time.time():
+            return True
+        return False
+
     def get_hash(self, height: int) -> str:
         def is_height_checkpoint():
             within_cp_range = height <= constants.net.max_checkpoint()
@@ -631,6 +646,7 @@ class Blockchain(Logger):
 
 
 def check_header(header: dict) -> Optional[Blockchain]:
+    """Returns any Blockchain that contains header, or None."""
     if type(header) is not dict:
         return None
     with blockchains_lock: chains = list(blockchains.values())
@@ -641,8 +657,20 @@ def check_header(header: dict) -> Optional[Blockchain]:
 
 
 def can_connect(header: dict) -> Optional[Blockchain]:
+    """Returns the Blockchain that has a tip that directly links up
+    with header, or None.
+    """
     with blockchains_lock: chains = list(blockchains.values())
     for b in chains:
         if b.can_connect(header):
             return b
     return None
+
+
+def get_chains_that_contain_header(height: int, header_hash: str) -> Sequence[Blockchain]:
+    """Returns a list of Blockchains that contain header, best chain first."""
+    with blockchains_lock: chains = list(blockchains.values())
+    chains = [chain for chain in chains
+              if chain.check_hash(height=height, header_hash=header_hash)]
+    chains = sorted(chains, key=lambda x: x.get_chainwork(), reverse=True)
+    return chains

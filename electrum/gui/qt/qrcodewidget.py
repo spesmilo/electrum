@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import (
 
 from electrum.i18n import _
 
-from .util import WindowModalDialog, get_parent_main_window
+from .util import WindowModalDialog, get_parent_main_window, WWLabel
 
 
 class QRCodeWidget(QWidget):
@@ -85,24 +85,34 @@ class QRCodeWidget(QWidget):
         for r in range(k):
             for c in range(k):
                 if matrix[r][c]:
-                    qp.drawRect(left+c*boxsize, top+r*boxsize, boxsize - 1, boxsize - 1)
+                    qp.drawRect(int(left+c*boxsize), int(top+r*boxsize),
+                                boxsize - 1, boxsize - 1)
         qp.end()
 
 
 
 class QRDialog(WindowModalDialog):
 
-    def __init__(self, data, parent=None, title = "", show_text=False):
+    def __init__(
+            self,
+            data,
+            parent=None,
+            title="",
+            show_text=False,
+            *,
+            help_text=None,
+            show_copy_text_btn=False,
+    ):
         WindowModalDialog.__init__(self, parent, title)
 
         vbox = QVBoxLayout()
         qrw = QRCodeWidget(data)
         vbox.addWidget(qrw, 1)
-        if show_text:
-            text = QTextEdit()
-            text.setText(data)
-            text.setReadOnly(True)
-            vbox.addWidget(text)
+        help_text = data if show_text else help_text
+        if help_text:
+            text_label = WWLabel()
+            text_label.setText(help_text)
+            vbox.addWidget(text_label)
         hbox = QHBoxLayout()
         hbox.addStretch(1)
 
@@ -118,14 +128,23 @@ class QRDialog(WindowModalDialog):
             p.save(filename, 'png')
             self.show_message(_("QR code saved to file") + " " + filename)
 
-        def copy_to_clipboard():
+        def copy_image_to_clipboard():
             p = qrw.grab()
             QApplication.clipboard().setPixmap(p)
             self.show_message(_("QR code copied to clipboard"))
 
-        b = QPushButton(_("Copy"))
+        def copy_text_to_clipboard():
+            QApplication.clipboard().setText(data)
+            self.show_message(_("Text copied to clipboard"))
+
+        b = QPushButton(_("Copy Image"))
         hbox.addWidget(b)
-        b.clicked.connect(copy_to_clipboard)
+        b.clicked.connect(copy_image_to_clipboard)
+
+        if show_copy_text_btn:
+            b = QPushButton(_("Copy Text"))
+            hbox.addWidget(b)
+            b.clicked.connect(copy_text_to_clipboard)
 
         b = QPushButton(_("Save"))
         hbox.addWidget(b)

@@ -20,6 +20,7 @@ from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.storage import WalletStorage, StorageReadWriteError
 from electrum.util import UserCancelled, InvalidPassword, WalletFileException, get_new_wallet_name
 from electrum.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET, GoBack, ReRunDialog
+from electrum.network import Network
 from electrum.i18n import _
 
 from .seed_dialog import SeedLayout, KeysLayout
@@ -27,6 +28,7 @@ from .network_dialog import NetworkChoiceLayout
 from .util import (MessageBoxMixin, Buttons, icon_path, ChoicesLayout, WWLabel,
                    InfoButton, char_width_in_lineedit, PasswordLineEdit)
 from .password_dialog import PasswordLayout, PasswordLayoutForHW, PW_NEW
+from .bip39_recovery_dialog import Bip39RecoveryDialog
 from electrum.plugin import run_hook, Plugins
 
 if TYPE_CHECKING:
@@ -298,7 +300,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         def run_user_interaction_loop():
             while True:
                 if self.loop.exec_() != 2:  # 2 = next
-                    raise UserCancelled
+                    raise UserCancelled()
                 assert temp_storage
                 if temp_storage.file_exists() and not temp_storage.is_encrypted():
                     break
@@ -422,7 +424,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.set_layout(layout, title, next_enabled)
         result = self.loop.exec_()
         if not result and raise_on_cancel:
-            raise UserCancelled
+            raise UserCancelled()
         if result == 1:
             raise GoBack from None
         self.title.setVisible(False)
@@ -602,10 +604,33 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return clayout.selected_index()
 
     @wizard_dialog
-    def choice_and_line_dialog(self, title: str, message1: str, choices: List[Tuple[str, str, str]],
-                               message2: str, test_text: Callable[[str], int],
-                               run_next, default_choice_idx: int=0) -> Tuple[str, str]:
+    def derivation_and_script_type_gui_specific_dialog(
+            self,
+            *,
+            title: str,
+            message1: str,
+            choices: List[Tuple[str, str, str]],
+            message2: str,
+            test_text: Callable[[str], int],
+            run_next,
+            default_choice_idx: int = 0,
+            get_account_xpub=None
+    ) -> Tuple[str, str]:
         vbox = QVBoxLayout()
+
+        if get_account_xpub:
+            button = QPushButton(_("Detect Existing Accounts"))
+            def on_account_select(account):
+                script_type = account["script_type"]
+                if script_type == "p2pkh":
+                    script_type = "standard"
+                button_index = c_values.index(script_type)
+                button = clayout.group.buttons()[button_index]
+                button.setChecked(True)
+                line.setText(account["derivation_path"])
+            button.clicked.connect(lambda: Bip39RecoveryDialog(self, get_account_xpub, on_account_select))
+            vbox.addWidget(button, alignment=Qt.AlignLeft)
+            vbox.addWidget(QLabel(_("Or")))
 
         c_values = [x[0] for x in choices]
         c_titles = [x[1] for x in choices]
@@ -617,7 +642,6 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                                 checked_index=default_choice_idx)
         vbox.addLayout(clayout.layout())
 
-        vbox.addSpacing(50)
         vbox.addWidget(WWLabel(message2))
 
         line = QLineEdit()
@@ -674,7 +698,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.exec_layout(vbox, _('Master Public Key'))
         return None
 
-    def init_network(self, network):
+    def init_network(self, network: 'Network'):
         message = _("Electrum communicates with remote servers to get "
                   "information about your transactions and addresses. The "
                   "servers all fulfill the same purpose only differing in "
@@ -691,6 +715,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             nlayout = NetworkChoiceLayout(network, self.config, wizard=True)
             if self.exec_layout(nlayout.layout()):
                 nlayout.accept()
+                self.config.set_key('auto_connect', network.auto_connect, True)
         else:
             network.auto_connect = True
             self.config.set_key('auto_connect', True, True)

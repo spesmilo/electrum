@@ -60,7 +60,8 @@ CKCC_SIMULATED_PID = CKCC_PID ^ 0x55aa
 
 class CKCCClient(HardwareClientBase):
 
-    def __init__(self, plugin, handler, dev_path, is_simulator=False):
+    def __init__(self, plugin, handler, dev_path, *, is_simulator=False):
+        HardwareClientBase.__init__(self, plugin=plugin)
         self.device = plugin.device
         self.handler = handler
 
@@ -71,9 +72,9 @@ class CKCCClient(HardwareClientBase):
             self.dev = ElectrumColdcardDevice(dev_path, encrypt=True)
         else:
             # open the real HID device
-            import hid
-            hd = hid.device(path=dev_path)
-            hd.open_path(dev_path)
+            with self.device_manager().hid_lock:
+                hd = hid.device(path=dev_path)
+                hd.open_path(dev_path)
 
             self.dev = ElectrumColdcardDevice(dev=hd, encrypt=True)
 
@@ -126,7 +127,8 @@ class CKCCClient(HardwareClientBase):
 
     def close(self):
         # close the HID device (so can be reused)
-        self.dev.close()
+        with self.device_manager().hid_lock:
+            self.dev.close()
         self.dev = None
 
     def is_initialized(self):
@@ -515,10 +517,10 @@ class ColdcardPlugin(HW_PluginBase):
         # the 'path' is unabiguous, so we'll use that.
         try:
             rv = CKCCClient(self, handler, device.path,
-                    is_simulator=(device.product_key[1] == CKCC_SIMULATED_PID))
+                            is_simulator=(device.product_key[1] == CKCC_SIMULATED_PID))
             return rv
-        except:
-            self.logger.info('late failure connecting to device?')
+        except Exception as e:
+            self.logger.exception('late failure connecting to device?')
             return None
 
     def setup_device(self, device_info, wizard, purpose):
@@ -606,7 +608,8 @@ class ColdcardPlugin(HW_PluginBase):
             pubkey_deriv_info = wallet.get_public_keys_with_deriv_info(address)
             pubkey_hexes = sorted([pk.hex() for pk in list(pubkey_deriv_info)])
             xfp_paths = []
-            for pubkey in pubkey_deriv_info:
+            for pubkey_hex in pubkey_hexes:
+                pubkey = bytes.fromhex(pubkey_hex)
                 ks, der_suffix = pubkey_deriv_info[pubkey]
                 fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix, only_der_suffix=False)
                 xfp_int = xfp_int_from_xfp_bytes(fp_bytes)

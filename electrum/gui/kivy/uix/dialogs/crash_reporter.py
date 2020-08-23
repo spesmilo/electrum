@@ -36,7 +36,7 @@ Builder.load_string('''
             text: 'Show report contents'
             height: '48dp'
             size_hint: 1, None
-            on_press: root.show_contents()
+            on_release: root.show_contents()
         BoxLayout:
             size_hint: 1, 0.1
         Label:

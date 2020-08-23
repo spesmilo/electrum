@@ -46,7 +46,9 @@ class HW_PluginBase(BasePlugin):
     keystore_class: Type['Hardware_KeyStore']
     libraries_available: bool
 
+    # define supported library versions:  minimum_library <= x < maximum_library
     minimum_library = (0, )
+    maximum_library = (float('inf'), )
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
@@ -81,6 +83,8 @@ class HW_PluginBase(BasePlugin):
         for keystore in wallet.get_keystores():
             if isinstance(keystore, self.keystore_class):
                 self.device_manager().unpair_xpub(keystore.xpub)
+                if keystore.thread:
+                    keystore.thread.stop()
 
     def scan_and_create_client_for_device(self, *, device_id: str, wizard: 'BaseWizard') -> 'HardwareClientBase':
         devmgr = self.device_manager()
@@ -147,17 +151,16 @@ class HW_PluginBase(BasePlugin):
             # if no exception so far, we might still raise LibraryFoundButUnusable
             if (library_version == 'unknown'
                     or versiontuple(library_version) < self.minimum_library
-                    or hasattr(self, "maximum_library") and versiontuple(library_version) >= self.maximum_library):
+                    or versiontuple(library_version) >= self.maximum_library):
                 raise LibraryFoundButUnusable(library_version=library_version)
         except ImportError:
             return False
         except LibraryFoundButUnusable as e:
             library_version = e.library_version
-            max_version_str = version_str(self.maximum_library) if hasattr(self, "maximum_library") else "inf"
             self.libraries_available_message = (
                     _("Library version for '{}' is incompatible.").format(self.name)
                     + '\nInstalled: {}, Needed: {} <= x < {}'
-                    .format(library_version, version_str(self.minimum_library), max_version_str))
+                    .format(library_version, version_str(self.minimum_library), version_str(self.maximum_library)))
             self.logger.warning(self.libraries_available_message)
             return False
 
@@ -191,8 +194,13 @@ class HW_PluginBase(BasePlugin):
 
 class HardwareClientBase:
 
-    plugin: 'HW_PluginBase'
     handler = None  # type: Optional['HardwareHandlerBase']
+
+    def __init__(self, *, plugin: 'HW_PluginBase'):
+        self.plugin = plugin
+
+    def device_manager(self) -> 'DeviceMgr':
+        return self.plugin.device_manager()
 
     def is_pairable(self) -> bool:
         raise NotImplementedError()

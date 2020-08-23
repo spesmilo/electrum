@@ -32,13 +32,11 @@ from PyQt5.QtWidgets import QAbstractItemView
 from PyQt5.QtWidgets import QMenu, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QHeaderView
 
 from electrum.i18n import _
-from electrum.util import format_time, PR_UNPAID, PR_PAID, PR_INFLIGHT, PR_FAILED
-from electrum.util import get_request_status
-from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
+from electrum.util import format_time
+from electrum.invoices import Invoice, PR_UNPAID, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_TYPE_ONCHAIN, PR_TYPE_LN
 from electrum.lnutil import PaymentAttemptLog
 
-from .util import (MyTreeView, read_QIcon,
-                   import_meta_gui, export_meta_gui, pr_icons)
+from .util import MyTreeView, read_QIcon, MySortModel, pr_icons
 from .util import CloseButton, Buttons
 from .util import WindowModalDialog
 
@@ -46,6 +44,7 @@ from .util import WindowModalDialog
 
 ROLE_REQUEST_TYPE = Qt.UserRole
 ROLE_REQUEST_ID = Qt.UserRole + 1
+ROLE_SORT_ORDER = Qt.UserRole + 2
 
 
 class InvoiceList(MyTreeView):
@@ -68,13 +67,16 @@ class InvoiceList(MyTreeView):
         super().__init__(parent, self.create_menu,
                          stretch_column=self.Columns.DESCRIPTION,
                          editable_columns=[])
+        self.std_model = QStandardItemModel(self)
+        self.proxy = MySortModel(self, sort_role=ROLE_SORT_ORDER)
+        self.proxy.setSourceModel(self.std_model)
+        self.setModel(self.proxy)
         self.setSortingEnabled(True)
-        self.setModel(QStandardItemModel(self))
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.update()
 
-    def update_item(self, key, req):
-        model = self.model()
+    def update_item(self, key, invoice: Invoice):
+        model = self.std_model
         for row in range(0, model.rowCount()):
             item = model.item(row, 0)
             if item.data(ROLE_REQUEST_ID) == key:
@@ -82,7 +84,8 @@ class InvoiceList(MyTreeView):
         else:
             return
         status_item = model.item(row, self.Columns.STATUS)
-        status, status_str = get_request_status(req)
+        status = self.parent.wallet.get_invoice_status(invoice)
+        status_str = invoice.get_status_str(status)
         if self.parent.wallet.lnworker:
             log = self.parent.wallet.lnworker.logs.get(key)
             if log and status == PR_INFLIGHT:
@@ -92,24 +95,23 @@ class InvoiceList(MyTreeView):
 
     def update(self):
         # not calling maybe_defer_update() as it interferes with conditional-visibility
-        self.model().clear()
+        self.proxy.setDynamicSortFilter(False)  # temp. disable re-sorting after every change
+        self.std_model.clear()
         self.update_headers(self.__class__.headers)
         for idx, item in enumerate(self.parent.wallet.get_invoices()):
-            invoice_type = item['type']
-            if invoice_type == PR_TYPE_LN:
-                key = item['rhash']
+            if item.is_lightning():
+                key = item.rhash
                 icon_name = 'lightning.png'
-            elif invoice_type == PR_TYPE_ONCHAIN:
-                key = item['id']
-                icon_name = 'bitcoin.png'
-                if item.get('bip70'):
-                    icon_name = 'seal.png'
             else:
-                raise Exception('Unsupported type')
-            status, status_str = get_request_status(item)
-            message = item['message']
-            amount = item['amount']
-            timestamp = item.get('time', 0)
+                key = item.id
+                icon_name = 'bitcoin.png'
+                if item.bip70:
+                    icon_name = 'seal.png'
+            status = self.parent.wallet.get_invoice_status(item)
+            status_str = item.get_status_str(status)
+            message = item.message
+            amount = item.get_amount_sat()
+            timestamp = item.time or 0
             date_str = format_time(timestamp) if timestamp else _('Unknown')
             amount_str = self.parent.format_amount(amount, whitespaces=True)
             labels = [date_str, message, amount_str, status_str]
@@ -118,31 +120,26 @@ class InvoiceList(MyTreeView):
             items[self.Columns.DATE].setIcon(read_QIcon(icon_name))
             items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
             items[self.Columns.DATE].setData(key, role=ROLE_REQUEST_ID)
-            items[self.Columns.DATE].setData(invoice_type, role=ROLE_REQUEST_TYPE)
-            self.model().insertRow(idx, items)
-
-        self.selectionModel().select(self.model().index(0,0), QItemSelectionModel.SelectCurrent)
+            items[self.Columns.DATE].setData(item.type, role=ROLE_REQUEST_TYPE)
+            items[self.Columns.DATE].setData(timestamp, role=ROLE_SORT_ORDER)
+            self.std_model.insertRow(idx, items)
+        self.filter()
+        self.proxy.setDynamicSortFilter(True)
         # sort requests by date
         self.sortByColumn(self.Columns.DATE, Qt.DescendingOrder)
         # hide list if empty
         if self.parent.isVisible():
-            b = self.model().rowCount() > 0
+            b = self.std_model.rowCount() > 0
             self.setVisible(b)
             self.parent.invoices_label.setVisible(b)
-        self.filter()
-
-    def import_invoices(self):
-        import_meta_gui(self.parent, _('invoices'), self.parent.invoices.import_file, self.update)
-
-    def export_invoices(self):
-        export_meta_gui(self.parent, _('invoices'), self.parent.invoices.export_file)
 
     def create_menu(self, position):
+        wallet = self.parent.wallet
         items = self.selected_in_column(0)
         if len(items)>1:
             keys = [ item.data(ROLE_REQUEST_ID)  for item in items]
-            invoices = [ self.parent.wallet.get_invoice(key) for key in keys]
-            can_batch_pay = all([ invoice['status'] == PR_UNPAID and invoice['type'] == PR_TYPE_ONCHAIN for invoice in invoices])
+            invoices = [ wallet.invoices.get(key) for key in keys]
+            can_batch_pay = all([i.type == PR_TYPE_ONCHAIN and wallet.get_invoice_status(i) == PR_UNPAID for i in invoices])
             menu = QMenu(self)
             if can_batch_pay:
                 menu.addAction(_("Batch pay invoices"), lambda: self.parent.pay_multiple_invoices(invoices))
@@ -150,19 +147,24 @@ class InvoiceList(MyTreeView):
             menu.exec_(self.viewport().mapToGlobal(position))
             return
         idx = self.indexAt(position)
-        item = self.model().itemFromIndex(idx)
-        item_col0 = self.model().itemFromIndex(idx.sibling(idx.row(), self.Columns.DATE))
+        item = self.item_from_index(idx)
+        item_col0 = self.item_from_index(idx.sibling(idx.row(), self.Columns.DATE))
         if not item or not item_col0:
             return
         key = item_col0.data(ROLE_REQUEST_ID)
-        request_type = item_col0.data(ROLE_REQUEST_TYPE)
+        invoice = self.parent.wallet.get_invoice(key)
         menu = QMenu(self)
         self.add_copy_menu(menu, idx)
-        invoice = self.parent.wallet.get_invoice(key)
-        menu.addAction(_("Details"), lambda: self.parent.show_invoice(key))
-        if invoice['status'] == PR_UNPAID:
+        if invoice.is_lightning():
+            menu.addAction(_("Details"), lambda: self.parent.show_lightning_invoice(invoice))
+        else:
+            if len(invoice.outputs) == 1:
+                menu.addAction(_("Copy Address"), lambda: self.parent.do_copy(invoice.get_address(), title='Bitcoin Address'))
+            menu.addAction(_("Details"), lambda: self.parent.show_onchain_invoice(invoice))
+        status = wallet.get_invoice_status(invoice)
+        if status == PR_UNPAID:
             menu.addAction(_("Pay"), lambda: self.parent.do_pay_invoice(invoice))
-        if invoice['status'] == PR_FAILED:
+        if status == PR_FAILED:
             menu.addAction(_("Retry"), lambda: self.parent.do_pay_invoice(invoice))
         if self.parent.wallet.lnworker:
             log = self.parent.wallet.lnworker.logs.get(key)

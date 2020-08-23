@@ -22,8 +22,9 @@ source.exclude_exts = spec
 source.exclude_dirs = bin, build, dist, contrib,
     electrum/tests,
     electrum/gui/qt,
-    electrum/gui/kivy/tools,
-    electrum/gui/kivy/theming/light
+    electrum/gui/kivy/theming/light,
+    packages/qdarkstyle,
+    packages/qtpy
 # (list) List of exclusions using pattern matching
 source.exclude_patterns = Makefile,setup*
 
@@ -36,7 +37,9 @@ version.filename = %(source.dir)s/electrum/version.py
 
 # (list) Application requirements
 requirements =
-    python3,
+    # note: re python3.8, see #6147
+    hostpython3==3.7.7,
+    python3==3.7.7,
     android,
     openssl,
     plyer,
@@ -121,7 +124,7 @@ android.add_activities = org.electrum.qr.SimpleScannerActivity
 #android.ouya.icon.filename = %(source.dir)s/data/ouya_icon.png
 
 # (str) XML file to include as an intent filters in <activity> tag
-android.manifest.intent_filters = electrum/gui/kivy/tools/bitcoin_intent.xml
+android.manifest.intent_filters = contrib/android/bitcoin_intent.xml
 
 # (str) launchMode to set for the main activity
 android.manifest.launch_mode = singleTask

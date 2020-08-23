@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import (QWidget, QLineEdit, QStyle, QStyleOptionFrame, QCom
 from electrum.i18n import _
 from electrum.bitcoin import NLOCKTIME_MIN, NLOCKTIME_MAX, NLOCKTIME_BLOCKHEIGHT_MAX
 
-from .util import char_width_in_lineedit
+from .util import char_width_in_lineedit, ColorScheme
 
 
 class LockTimeEdit(QWidget):
@@ -133,7 +133,6 @@ class LockTimeHeightEdit(LockTimeRawEdit):
     def __init__(self, parent=None):
         LockTimeRawEdit.__init__(self, parent)
         self.setFixedWidth(20 * char_width_in_lineedit())
-        self.help_palette = QPalette()
 
     def paintEvent(self, event):
         super().paintEvent(event)
@@ -142,12 +141,25 @@ class LockTimeHeightEdit(LockTimeRawEdit):
         textRect = self.style().subElementRect(QStyle.SE_LineEditContents, panel, self)
         textRect.adjust(2, 0, -10, 0)
         painter = QPainter(self)
-        painter.setPen(self.help_palette.brush(QPalette.Disabled, QPalette.Text).color())
+        painter.setPen(ColorScheme.GRAY.as_color())
         painter.drawText(textRect, Qt.AlignRight | Qt.AlignVCenter, "height")
+
+
+def get_max_allowed_timestamp() -> int:
+    ts = NLOCKTIME_MAX
+    # Test if this value is within the valid timestamp limits (which is platform-dependent).
+    # see #6170
+    try:
+        datetime.fromtimestamp(ts)
+    except (OSError, OverflowError):
+        ts = 2 ** 31 - 1  # INT32_MAX
+        datetime.fromtimestamp(ts)  # test if raises
+    return ts
 
 
 class LockTimeDateEdit(QDateTimeEdit, _LockTimeEditor):
     min_allowed_value = NLOCKTIME_BLOCKHEIGHT_MAX + 1
+    max_allowed_value = get_max_allowed_timestamp()
 
     def __init__(self, parent=None):
         QDateTimeEdit.__init__(self, parent)

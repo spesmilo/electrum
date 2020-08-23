@@ -395,6 +395,21 @@ class OnionRoutingFailureMessage:
         ret += self.data
         return ret
 
+    @classmethod
+    def from_bytes(cls, failure_msg: bytes):
+        failure_code = int.from_bytes(failure_msg[:2], byteorder='big')
+        try:
+            failure_code = OnionFailureCode(failure_code)
+        except ValueError:
+            pass  # uknown failure code
+        failure_data = failure_msg[2:]
+        return OnionRoutingFailureMessage(failure_code, failure_data)
+
+    def code_name(self) -> str:
+        if isinstance(self.code, OnionFailureCode):
+            return str(self.code.name)
+        return f"Unknown error ({self.code!r})"
+
 
 def construct_onion_error(reason: OnionRoutingFailureMessage,
                           onion_packet: OnionPacket,
@@ -450,13 +465,8 @@ def get_failure_msg_from_onion_error(decrypted_error_packet: bytes) -> OnionRout
     failure_len = int.from_bytes(decrypted_error_packet[32:34], byteorder='big')
     failure_msg = decrypted_error_packet[34:34+failure_len]
     # create failure message object
-    failure_code = int.from_bytes(failure_msg[:2], byteorder='big')
-    try:
-        failure_code = OnionFailureCode(failure_code)
-    except ValueError:
-        pass  # uknown failure code
-    failure_data = failure_msg[2:]
-    return OnionRoutingFailureMessage(failure_code, failure_data)
+    return OnionRoutingFailureMessage.from_bytes(failure_msg)
+
 
 
 # TODO maybe we should rm this and just use OnionWireSerializer and onion_wire.csv

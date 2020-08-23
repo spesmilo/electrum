@@ -5,12 +5,14 @@ import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtCore as QtCore
 from PyQt5.QtWidgets import QLabel, QLineEdit
 
+from electrum import util
 from electrum.i18n import _
 from electrum.util import bh2u, format_time
 from electrum.lnutil import format_short_channel_id, LOCAL, REMOTE, UpdateAddHtlc, Direction
-from electrum.lnchannel import htlcsum, Channel
+from electrum.lnchannel import htlcsum, Channel, AbstractChannel
 from electrum.lnaddr import LnAddr, lndecode
 from electrum.bitcoin import COIN
+from electrum.wallet import Abstract_Wallet
 
 from .util import Buttons, CloseButton, ButtonsLineEdit
 
@@ -44,7 +46,11 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         model = QtGui.QStandardItemModel(0, 2)
         model.setHorizontalHeaderLabels(['HTLC', 'Property value'])
         parentItem = model.invisibleRootItem()
-        folder_types = {'settled': _('Fulfilled HTLCs'), 'inflight': _('HTLCs in current commitment transaction'), 'failed': _('Failed HTLCs')}
+        folder_types = {
+            'settled': _('Fulfilled HTLCs'),
+            'inflight': _('HTLCs in current commitment transaction'),
+            'failed': _('Failed HTLCs'),
+        }
         self.folders = {}
         self.keyname_rows = {}
 
@@ -78,16 +84,20 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
 
     ln_payment_completed = QtCore.pyqtSignal(str, bytes, bytes)
     ln_payment_failed = QtCore.pyqtSignal(str, bytes, bytes)
-    htlc_added = QtCore.pyqtSignal(str, UpdateAddHtlc, LnAddr, Direction)
-    state_changed = QtCore.pyqtSignal(str, Channel)
+    htlc_added = QtCore.pyqtSignal(str, Channel, UpdateAddHtlc, Direction)
+    state_changed = QtCore.pyqtSignal(str, Abstract_Wallet, AbstractChannel)
 
-    @QtCore.pyqtSlot(str, Channel)
-    def do_state_changed(self, chan):
+    @QtCore.pyqtSlot(str, Abstract_Wallet, AbstractChannel)
+    def do_state_changed(self, wallet, chan):
+        if wallet != self.wallet:
+            return
         if chan == self.chan:
             self.update()
 
-    @QtCore.pyqtSlot(str, UpdateAddHtlc, LnAddr, Direction)
-    def do_htlc_added(self, evtname, htlc, lnaddr, direction):
+    @QtCore.pyqtSlot(str, Channel, UpdateAddHtlc, Direction)
+    def do_htlc_added(self, evtname, chan, htlc, direction):
+        if chan != self.chan:
+            return
         mapping = self.keyname_rows['inflight']
         mapping[htlc.payment_hash] = len(mapping)
         self.folders['inflight'].appendRow(self.make_htlc_item(htlc, direction))
@@ -114,7 +124,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
 
     @QtCore.pyqtSlot(str)
     def show_tx(self, link_text: str):
-        funding_tx = self.window.wallet.db.get_transaction(self.chan.funding_outpoint.txid)
+        funding_tx = self.wallet.db.get_transaction(self.chan.funding_outpoint.txid)
         self.window.show_transaction(funding_tx, tx_desc=_('Funding Transaction'))
 
     def __init__(self, window: 'ElectrumWindow', chan_id: bytes):
@@ -122,6 +132,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
 
         # initialize instance fields
         self.window = window
+        self.wallet = window.wallet
         chan = self.chan = window.wallet.lnworker.channels[chan_id]
         self.format_msat = lambda msat: window.format_amount_and_units(msat / 1000)
 
@@ -132,10 +143,10 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         self.htlc_added.connect(self.do_htlc_added)
 
         # register callbacks for updating
-        window.network.register_callback(self.ln_payment_completed.emit, ['ln_payment_completed'])
-        window.network.register_callback(self.ln_payment_failed.emit, ['ln_payment_failed'])
-        window.network.register_callback(self.htlc_added.emit, ['htlc_added'])
-        window.network.register_callback(self.state_changed.emit, ['channel'])
+        util.register_callback(self.ln_payment_completed.emit, ['ln_payment_completed'])
+        util.register_callback(self.ln_payment_failed.emit, ['ln_payment_failed'])
+        util.register_callback(self.htlc_added.emit, ['htlc_added'])
+        util.register_callback(self.state_changed.emit, ['channel'])
 
         # set attributes of QDialog
         self.setWindowTitle(_('Channel Details'))
@@ -146,6 +157,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         vbox.addWidget(QLabel(_('Remote Node ID:')))
         remote_id_e = ButtonsLineEdit(bh2u(chan.node_id))
         remote_id_e.addCopyButton(self.window.app)
+        remote_id_e.setReadOnly(True)
         vbox.addWidget(remote_id_e)
         funding_label_text = f'<a href=click_destination>{chan.funding_outpoint.txid}</a>:{chan.funding_outpoint.output_index}'
         vbox.addWidget(QLabel(_('Funding Outpoint:')))

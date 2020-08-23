@@ -49,8 +49,6 @@ from electrum.network import Network
 from electrum.base_wizard import BaseWizard, WizardWalletPasswordSetting
 from electrum.logging import Logger
 
-from .legacy_tx_format import serialize_tx_in_legacy_format
-
 
 def get_signing_xpub(xtype):
     if not constants.net.TESTNET:
@@ -345,7 +343,8 @@ class Wallet_2fa(Multisig_Wallet):
             return
         otp = int(otp)
         long_user_id, short_id = self.get_user_id()
-        raw_tx = serialize_tx_in_legacy_format(tx, wallet=self)
+        raw_tx = tx.serialize_as_bytes().hex()
+        assert raw_tx[:10] == "70736274ff", f"bad magic. {raw_tx[:10]}"
         try:
             r = server.sign(short_id, raw_tx, otp)
         except TrustedCoinException as e:
@@ -465,6 +464,9 @@ class TrustedCoinPlugin(BasePlugin):
             assert tx
             self.prompt_user_for_otp(wallet, tx, on_success, on_failure)
         return wrapper
+
+    def prompt_user_for_otp(self, wallet, tx, on_success, on_failure) -> None:
+        raise NotImplementedError()
 
     @hook
     def get_tx_extra_fee(self, wallet, tx: Transaction):
