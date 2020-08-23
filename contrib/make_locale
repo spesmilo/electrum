@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 import os
 from os.path import isdir, join
-import subprocess
 import sys
 import io
 import zipfile
 import requests
+import glob
+import itertools
+from pathlib import Path
 
 assert len(sys.argv) < 3
 
@@ -21,14 +23,22 @@ code_directories = [
     'lib',
     'plugins',
 ]
-cmd = "find {} -type f -name '*.py' -o -name '*.kv'".format(" ".join(code_directories))
+file_types = ('*.py', '*.kv')
 
-files = subprocess.check_output(cmd, shell=True)
+files = zip(
+    itertools.count(start=1),
+    itertools.chain.from_iterable(
+        glob.iglob(f'{code_directory}/**/{file_type}', recursive=True)
+            for code_directory in code_directories
+                for file_type in file_types
+    )
+)
 
-with open("app.fil", "wb") as f:
-    f.write(files)
-
-print("Found {} files to translate".format(len(files.splitlines())))
+with open("app.fil", "w") as f:
+    for n, file in files:
+        f.write(f"{Path(file)}\n")
+    else:
+        print("Found {} files to translate".format(n))
 
 # Generate fresh translation template
 if not os.path.exists('lib/locale'):
