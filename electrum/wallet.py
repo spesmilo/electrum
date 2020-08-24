@@ -983,7 +983,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
         if i_max is None:
             # Let the coin chooser select the coins to spend
-            coin_chooser = coinchooser.get_coin_chooser(self.config)
+            coin_chooser = self.get_coin_chooser()
             # If there is an unconfirmed RBF tx, merge with it
             base_tx = self.get_unconfirmed_base_tx_for_batching()
             if self.config.get('batch_rbf', False) and base_tx:
@@ -1201,7 +1201,7 @@ class Abstract_Wallet(AddressSynchronizer):
             self.add_input_info(item)
         def fee_estimator(size):
             return self.config.estimate_fee_for_feerate(fee_per_kb=new_fee_rate*1000, size=size)
-        coin_chooser = coinchooser.get_coin_chooser(self.config)
+        coin_chooser = self.get_coin_chooser()
         try:
             return coin_chooser.make_tx(coins=coins,
                                         inputs=old_inputs,
@@ -1538,6 +1538,9 @@ class Abstract_Wallet(AddressSynchronizer):
                 req['bip70_url'] = request_url
         return req
 
+    def get_coin_chooser(self):
+        return coinchooser.get_coin_chooser(self.config)
+
     def receive_tx_callback(self, tx_hash, tx, tx_height, tx_type=TxType.NONVAULT):
         super().receive_tx_callback(tx_hash, tx, tx_height, tx_type)
         for txo in tx.outputs():
@@ -1779,6 +1782,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def save_keystore(self):
         raise NotImplementedError()
+
 
 
 class Simple_Wallet(Abstract_Wallet):
@@ -2300,6 +2304,7 @@ class MultikeyWallet(Simple_Deterministic_Wallet):
         self.set_alert()
         # super has to be at the end otherwise wallet breaks
         super().__init__(storage=storage, config=config)
+        self.multiple_change = storage.get('multiple_change', True)
 
     def set_alert(self):
         self.multisig_script_generator.set_alert()
@@ -2447,6 +2452,12 @@ class MultikeyWallet(Simple_Deterministic_Wallet):
             update_pubkeys_fn(tx)
 
         return tx
+
+    def get_coin_chooser(self):
+        if self.is_alert_mode():
+            return coinchooser.get_coin_chooser_alert(self.config)
+        else:
+            return coinchooser.get_coin_chooser(self.config)
 
 
 class TwoKeysWallet(MultikeyWallet):

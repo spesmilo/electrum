@@ -23,6 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import functools
+import os
 from collections import defaultdict
 from math import floor, log10
 from typing import NamedTuple, List, Callable, Sequence, Union, Dict, Tuple
@@ -68,18 +69,18 @@ class PRNG:
     def shuffle(self, x):
         for i in reversed(range(1, len(x))):
             # pick an element in x[:i+1] with which to exchange x[i]
-            j = self.randint(0, i+1)
+            j = self.randint(0, i + 1)
             x[i], x[j] = x[j], x[i]
 
 
 class Bucket(NamedTuple):
     desc: str
-    weight: int                   # as in BIP-141
-    value: int                    # in satoshis
-    effective_value: int          # estimate of value left after subtracting fees. in satoshis
-    coins: List[PartialTxInput]   # UTXOs
-    min_height: int               # min block height where a coin was confirmed
-    witness: bool                 # whether any coin uses segwit
+    weight: int  # as in BIP-141
+    value: int  # in satoshis
+    effective_value: int  # estimate of value left after subtracting fees. in satoshis
+    coins: List[PartialTxInput]  # UTXOs
+    min_height: int  # min block height where a coin was confirmed
+    witness: bool  # whether any coin uses segwit
 
 
 class ScoredCandidate(NamedTuple):
@@ -97,13 +98,12 @@ def strip_unneeded(bkts: List[Bucket], sufficient_funds) -> List[Bucket]:
     bucket_value_sum = 0
     for i in range(len(bkts)):
         bucket_value_sum += (bkts[i]).value
-        if sufficient_funds(bkts[:i+1], bucket_value_sum=bucket_value_sum):
-            return bkts[:i+1]
+        if sufficient_funds(bkts[:i + 1], bucket_value_sum=bucket_value_sum):
+            return bkts[:i + 1]
     raise Exception("keeping all buckets is still not enough")
 
 
 class CoinChooserBase(Logger):
-
     enable_output_value_rounding = False
 
     def __init__(self):
@@ -360,7 +360,7 @@ class CoinChooserRandom(CoinChooserBase):
         # Add all singletons
         for n, bucket in enumerate(buckets):
             if sufficient_funds([bucket], bucket_value_sum=bucket.value):
-                candidates.add((n, ))
+                candidates.add((n,))
 
         # And now some random ones
         attempts = min(100, (len(buckets) - 1) * 10 + 1)
@@ -474,20 +474,66 @@ class CoinChooserPrivacy(CoinChooserRandom):
         return penalty
 
 
+class CoinChooserMinChange(CoinChooserRandom):
+    """Attempts to create a transaction with the smallest fee. Created as a coin chooser for alert transactions, with
+    the main goal of reducing the amount of transaction change, which is locked for 24h.
+    First, every bucket is a single utxo.
+    Second, it penalizes multiple number of inputs
+    Third, it proportionally penalizes every change greater than the minimal.
+    """
+
+    def keys(self, coins):
+        # Give a random indentifier to each bucket.
+        return [os.urandom(16).hex() for _ in coins]
+
+    def penalty_func(self, base_tx, *, tx_from_buckets):
+        min_output = min(o.value for o in base_tx.outputs())
+
+        def penalty(buckets: List[Bucket]) -> ScoredCandidate:
+            # Penalize using many buckets (~inputs)
+            badness = len(buckets) - 1
+            tx, change_outputs = tx_from_buckets(buckets)
+            change = sum(o.value for o in change_outputs)
+            # Penalize change not roughly in output range
+            if change == 0:
+                pass  # no change is great!
+            # Penalize really small change; under 1 mBTC ~= using 1 more input
+            elif change < COIN / 1000:
+                badness += 1
+            # Penalize the change
+            badness += change / min_output
+            return ScoredCandidate(badness, tx, buckets)
+
+        return penalty
+
+
 COIN_CHOOSERS = {
     'Privacy': CoinChooserPrivacy,
+    'MinChange': CoinChooserMinChange,
 }
 
 
-def get_name(config):
-    kind = config.get('coin_chooser')
-    if not kind in COIN_CHOOSERS:
-        kind = 'Privacy'
+def get_name(config, name=""):
+    if name == 'alert':
+        kind = config.get('coin_chooser_alert')
+        if kind not in COIN_CHOOSERS:
+            kind = 'MinChange'
+    else:
+        kind = config.get('coin_chooser')
+        if kind not in COIN_CHOOSERS:
+            kind = 'Privacy'
     return kind
 
 
 def get_coin_chooser(config):
     klass = COIN_CHOOSERS[get_name(config)]
+    coinchooser = klass()
+    coinchooser.enable_output_value_rounding = config.get('coin_chooser_output_rounding', False)
+    return coinchooser
+
+
+def get_coin_chooser_alert(config):
+    klass = COIN_CHOOSERS[get_name(config, 'alert')]
     coinchooser = klass()
     coinchooser.enable_output_value_rounding = config.get('coin_chooser_output_rounding', False)
     return coinchooser
