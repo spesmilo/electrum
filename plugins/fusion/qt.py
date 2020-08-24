@@ -549,7 +549,7 @@ class DisabledFusionButton(StatusBarButton):
 
     def show_message(self):
         QMessageBox.information(Plugin.get_suitable_dialog_window_parent(self.wallet),
-                                _("CashFusion is diabled"), self.message)
+                                _("CashFusion is disabled"), self.message)
 
 class FusionButton(StatusBarButton):
     def __init__(self, plugin, wallet):
