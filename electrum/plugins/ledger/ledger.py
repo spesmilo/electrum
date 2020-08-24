@@ -4,23 +4,26 @@ import sys
 import traceback
 
 from electrum import bitcoin
-from electrum.bitcoin import TYPE_ADDRESS, int_to_hex, var_int
+from electrum.bitcoin import TYPE_ADDRESS, TYPE_SCRIPT, int_to_hex, var_int
 from electrum.i18n import _
 from electrum.plugin import BasePlugin
 from electrum.keystore import Hardware_KeyStore
 from electrum.transaction import Transaction
 from electrum.wallet import Standard_Wallet
+from electrum import constants
 from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import is_any_tx_output_on_change_branch
 from electrum.util import print_error, bfh, bh2u, versiontuple
 from electrum.base_wizard import ScriptTypeNotSupported
+from electrum import ecc 
+import ecdsa
 
 try:
     import hid
     from btchip.btchipComm import HIDDongleHIDAPI, DongleWait
-    from btchip.btchip import btchip
+    from .btchip import btchip_ocean
+    from .oceanTransaction import oceanTransaction
     from btchip.btchipUtils import compress_public_key,format_transaction, get_regular_input_script, get_p2sh_input_script
-    from btchip.bitcoinTransaction import bitcoinTransaction
     from btchip.btchipFirmwareWizard import checkFirmware, updateFirmware
     from btchip.btchipException import BTChipException
     BTCHIP = True
@@ -54,7 +57,7 @@ def test_pin_unlocked(func):
 
 class Ledger_Client():
     def __init__(self, hidDevice):
-        self.dongleObject = btchip(hidDevice)
+        self.dongleObject = btchip_ocean(hidDevice)
         self.preflightDone = False
 
     def is_pairable(self):
@@ -230,6 +233,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
     def get_client_electrum(self):
         return self.plugin.get_client(self)
 
+    def check_password(self, password=None):
+        self.get_client()
+    
     def give_error(self, message, clear_client = False):
         print_error(message)
         if not self.signing:
@@ -328,6 +334,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
 
         # Fetch inputs of the transaction to sign
         derivations = self.get_tx_derivations(tx)
+
         for txin in tx.inputs():
             if txin['type'] == 'coinbase':
                 self.give_error("Coinbase not supported")     # should never happen
@@ -360,6 +367,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
             if txin_prev_tx is None and not Transaction.is_segwit_input(txin):
                 raise Exception(_('Offline signing with {} is not supported for legacy inputs.').format(self.device))
             txin_prev_tx_raw = txin_prev_tx.raw if txin_prev_tx else None
+
+
             inputs.append([txin_prev_tx_raw,
                            txin['prevout_n'],
                            redeemScript,
@@ -378,13 +387,12 @@ class Ledger_KeyStore(Hardware_KeyStore):
 
         txOutput = var_int(len(tx.outputs()))
         for txout in tx.outputs():
-            output_type, addr, amount = txout
+            output_type, addr, amount, *args = txout
             txOutput += int_to_hex(amount, 8)
             script = tx.pay_script(output_type, addr)
             txOutput += var_int(len(script)//2)
             txOutput += script
         txOutput = bfh(txOutput)
-
         # Recognize outputs
         # - only one output and one change is authorized (for hw.1 and nano)
         # - at most one output can bypass confirmation (~change) (for all)
@@ -394,24 +402,34 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     self.give_error("Transaction with more than 2 outputs not supported")
             has_change = False
             any_output_on_change_branch = is_any_tx_output_on_change_branch(tx)
+            #DGLD transactions always contain one OP_RETURN output with the contract hash
+            n_script=0
+            #Contract in key tweak not implemented for ledger
+            assert constants.net.CONTRACTINTX == True
             for o in tx.outputs():
-                assert o.type == TYPE_ADDRESS
-                info = tx.output_info.get(o.address)
-                if (info is not None) and len(tx.outputs()) > 1 \
-                        and not has_change:
-                    index, xpubs, m = info
-                    on_change_branch = index[0] == 1
-                    # prioritise hiding outputs on the 'change' branch from user
-                    # because no more than one change address allowed
-                    if on_change_branch == any_output_on_change_branch:
-                        changePath = self.get_derivation()[2:] + "/%d/%d"%index
-                        has_change = True
+                if o.type == TYPE_SCRIPT:
+                    n_script = n_script+1
+                else:
+                    assert o.type == TYPE_ADDRESS
+                    info = tx.output_info.get(o.address)
+                    if (info is not None) and len(tx.outputs()) > 1 \
+                       and not has_change:
+                        index, xpubs, m = info
+                        on_change_branch = index[0] == 1
+                        # prioritise hiding outputs on the 'change' branch from user
+                        # because no more than one change address allowed
+                        if on_change_branch == any_output_on_change_branch:
+                            changePath = self.get_derivation()[2:] + "/%d/%d"%index
+                            has_change = True
+                        else:
+                            output = o.address
                     else:
                         output = o.address
-                else:
-                    output = o.address
 
-        self.handler.show_message(_("Confirm Transaction on your Ledger device..."))
+            #A fees output and a OP_RETURN output are required
+            assert n_script == 2
+        print(self.handler)
+        self.handler.show_message("Confirm Transaction on your Ledger device...")
         try:
             # Get trusted inputs from the original transactions
             for utxo in inputs:
@@ -423,7 +441,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     chipInputs.append({'value' : tmp, 'witness' : True, 'sequence' : sequence})
                     redeemScripts.append(bfh(utxo[2]))
                 elif not p2shTransaction:
-                    txtmp = bitcoinTransaction(bfh(utxo[0]))
+                    txtmp = oceanTransaction(bfh(utxo[0]))
                     trustedInput = self.get_client().getTrustedInput(txtmp, utxo[1])
                     trustedInput['sequence'] = sequence
                     chipInputs.append(trustedInput)
@@ -437,11 +455,11 @@ class Ledger_KeyStore(Hardware_KeyStore):
             # Sign all inputs
             firstTransaction = True
             inputIndex = 0
-            rawTx = tx.serialize_to_network()
+            rawTx = tx.serialize_to_network(witness=False)
             self.get_client().enableAlternate2fa(False)
             if segwitTransaction:
                 self.get_client().startUntrustedTransaction(True, inputIndex,
-                                                            chipInputs, redeemScripts[inputIndex])
+                                                                 chipInputs, redeemScripts[inputIndex], version=tx.version)
                 if changePath:
                     # we don't set meaningful outputAddress, amount and fees
                     # as we only care about the alternateEncoding==True branch
@@ -461,42 +479,42 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 while inputIndex < len(inputs):
                     singleInput = [ chipInputs[inputIndex] ]
                     self.get_client().startUntrustedTransaction(False, 0,
-                                                            singleInput, redeemScripts[inputIndex])
-                    inputSignature = self.get_client().untrustedHashSign(inputsPaths[inputIndex], pin, lockTime=tx.locktime)
+                                                                     singleInput, redeemScripts[inputIndex], version=tx.version)
+
                     inputSignature[0] = 0x30 # force for 1.4.9+
                     signatures.append(inputSignature)
                     inputIndex = inputIndex + 1
+                    firstTransaction = False
             else:
                 while inputIndex < len(inputs):
+                    tx.pre_hash(inputIndex)
                     self.get_client().startUntrustedTransaction(firstTransaction, inputIndex,
-                                                            chipInputs, redeemScripts[inputIndex])
-                    if changePath:
-                        # we don't set meaningful outputAddress, amount and fees
-                        # as we only care about the alternateEncoding==True branch
-                        outputData = self.get_client().finalizeInput(b'', 0, 0, changePath, bfh(rawTx))
-                    else:
-                        outputData = self.get_client().finalizeInputFull(txOutput)
+                                                                     chipInputs, redeemScripts[inputIndex], version=tx.version)
+                    outputData = self.get_client().finalizeInput(b'', 0, 0, changePath, bfh(rawTx))
                     outputData['outputData'] = txOutput
-                    if firstTransaction:
-                        transactionOutput = outputData['outputData']
                     if outputData['confirmationNeeded']:
                         outputData['address'] = output
                         self.handler.finished()
-                        pin = self.handler.get_auth( outputData ) # does the authenticate dialog and returns pin
+                        pin = self.handler.get_auth( outputData ) # does the authenticate dialog and returns pin               
                         if not pin:
                             raise UserWarning()
-                        if pin != 'paired':
-                            self.handler.show_message(_("Confirmed. Signing Transaction..."))
+                        self.handler.show_message(_("Confirmed. Signing Transaction..."))
                     else:
-                        # Sign input with the provided PIN
+                        # Sign input with the provided PIN                                                                     
                         inputSignature = self.get_client().untrustedHashSign(inputsPaths[inputIndex], pin, lockTime=tx.locktime)
                         inputSignature[0] = 0x30 # force for 1.4.9+
+                        ecPubkey = ecc.ECPubkey(bytes.fromhex(pubKeys[inputIndex][0]));
+                        ecPubkeyBytes=ecPubkey.get_public_key_bytes(compressed=False)
+                        #Construct the verifying key from the uncompressed public key bytes
+                        vk = ecdsa.VerifyingKey.from_string(ecPubkeyBytes[1:], curve=ecdsa.SECP256k1, hashfunc=hashlib.sha256)
+                        if not vk.verify_digest(inputSignature[:-1], tx.pre_hash(inputIndex), ecc.get_r_and_s_from_der_sig):
+                            self.give_error('Error: an incorrect signature was supplied by the ledger device.', True)
                         signatures.append(inputSignature)
                         inputIndex = inputIndex + 1
                     if pin != 'paired':
                         firstTransaction = False
         except UserWarning:
-            self.handler.show_error(_('Cancelled by user'))
+            self.handler.show_error('Cancelled by user')
             return
         except BTChipException as e:
             if e.sw == 0x6985:  # cancelled by user
@@ -504,6 +522,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
             elif e.sw == 0x6982:
                 raise  # pin lock. decorator will catch it
             else:
+                self.handler.show_error(e.message)
                 traceback.print_exc(file=sys.stderr)
                 self.give_error(e, True)
         except BaseException as e:
@@ -515,7 +534,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
         for i, txin in enumerate(tx.inputs()):
             signingPos = inputs[i][4]
             tx.add_signature_to_txin(i, signingPos, bh2u(signatures[i]))
-        tx.raw = tx.serialize()
+        tx.raw = tx.serialize(witness=False)
 
     @test_pin_unlocked
     @set_and_unset_signing

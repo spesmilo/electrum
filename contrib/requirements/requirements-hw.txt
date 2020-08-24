@@ -1,7 +1,10 @@
+btchip-python>=0.1.26
+bitcoin>=1.1.42
 Cython>=0.27
 trezor[hidapi]>=0.9.0
 safet[hidapi]>=0.1.0
 keepkey
-btchip-python
+btchip-python>=0.1.26
+bitcoin>=1.1.42
 websocket-client
 hidapi

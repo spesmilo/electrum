@@ -33,7 +33,7 @@ from . import segwit_addr
 from . import constants
 from . import ecc
 from .crypto import Hash, sha256, hash_160, hmac_oneshot
-
+from enum import IntEnum
 
 ################################## transactions
 
@@ -46,7 +46,6 @@ TYPE_ADDRESS = 0
 TYPE_PUBKEY  = 1
 TYPE_SCRIPT  = 2
 TYPE_DATA    = 3
-
 
 def rev_hex(s):
     return bh2u(bfh(s)[::-1])

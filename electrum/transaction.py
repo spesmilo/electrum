@@ -762,7 +762,7 @@ class Transaction:
     @classmethod
     def get_sorted_pubkeys(self, txin):
         # sort pubkeys and x_pubkeys, using the order of pubkeys
-        if txin['type'] == 'coinbase':
+        if txin['type'] == 'coinbase' or txin['issuance'] != None:
             return [], []
         x_pubkeys = txin['x_pubkeys']
         pubkeys = txin.get('pubkeys')
@@ -1147,7 +1147,7 @@ class Transaction:
             return self._segwit_ser
         return any(self.is_segwit_input(x, guess_for_address=guess_for_address) for x in self.inputs())
 
-    def serialize(self, estimate_size=False, witness=True):
+    def serialize(self, estimate_size=False, witness=False):
         network_ser = self.serialize_to_network(estimate_size, witness)
         if estimate_size:
             return network_ser
@@ -1157,7 +1157,7 @@ class Transaction:
         else:
             return network_ser
 
-    def serialize_to_network(self, estimate_size=False, witness=True):
+    def serialize_to_network(self, estimate_size=False, witness=False):
         nVersion = int_to_hex(self.version, 4)
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
@@ -1188,7 +1188,7 @@ class Transaction:
         self.deserialize()
         if not self.is_complete():
             return None
-        ser = self.serialize_to_network(witness=True)
+        ser = self.serialize_to_network(witness=False)
         return bh2u(Hash(bfh(ser))[::-1])
 
     def add_outputs(self, outputs):
@@ -1202,7 +1202,7 @@ class Transaction:
         return sum(output.value for output in self.outputs())
 
     def get_fee(self):
-        # Ocean fee is an empty script vout
+        # Oceano fee is an empty script vout
         # TO FIX: Future fees will be payed to the federation
         for o in self.outputs():
             if o.type == TYPE_SCRIPT and o.address == '':
@@ -1319,8 +1319,13 @@ class Transaction:
         print_error("is_complete", self.is_complete())
         self.raw = self.serialize()
 
+    def pre_hash(self, txin_index):
+        preimage=self.serialize_preimage(txin_index)
+        pre_hash = Hash(bfh(preimage))
+        return pre_hash
+        
     def sign_txin(self, txin_index, privkey_bytes) -> str:
-        pre_hash = Hash(bfh(self.serialize_preimage(txin_index)))
+        pre_hash=self.pre_hash(txin_index)
         privkey = ecc.ECPrivkey(privkey_bytes)
         sig = privkey.sign_transaction(pre_hash)
         sig = bh2u(sig) + '01'

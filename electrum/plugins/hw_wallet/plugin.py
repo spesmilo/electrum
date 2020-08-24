@@ -82,7 +82,7 @@ class HW_PluginBase(BasePlugin):
 def is_any_tx_output_on_change_branch(tx):
     if not hasattr(tx, 'output_info'):
         return False
-    for _type, address, amount in tx.outputs():
+    for _type, address, amount, *args in tx.outputs():
         info = tx.output_info.get(address)
         if info is not None:
             index, xpubs, m = info
