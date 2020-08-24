@@ -18,6 +18,10 @@ print('Installing')
 for lang in os.listdir('../electrum/locale'):
     if lang.startswith('messages'):
         continue
+    lang_dir = '../electrum/locale/%s' % lang
+    print("Updating .po file for ", lang)
+    cmd = f'msgmerge {lang_dir}/electrum.po ../electrum/locale/messages.pot > {lang_dir}/electrum_new.po && rm {lang_dir}/electrum.po && mv {lang_dir}/electrum_new.po {lang_dir}/electrum.po'
+    os.system(cmd)
     # Check LC_MESSAGES folder
     mo_dir = '../electrum/locale/%s/LC_MESSAGES' % lang
     if not os.path.exists(mo_dir):
