@@ -17,7 +17,7 @@ git submodule update --init
 
 (
     rm -rf "$LOCALE"
-    cd "$CONTRIB/deterministic-build/electrum-grs-locale/"
+    cd "$CONTRIB/deterministic-build/electrum-locale/"
     if ! which msgfmt > /dev/null 2>&1; then
         echo "Please install gettext"
         exit 1
