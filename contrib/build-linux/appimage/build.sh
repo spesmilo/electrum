@@ -100,7 +100,7 @@ info "preparing electrum-grs-locale."
     cd "$PROJECT_ROOT"
     git submodule update --init
 
-    pushd "$CONTRIB"/deterministic-build/electrum-grs-locale
+    pushd "$CONTRIB"/deterministic-build/electrum-locale
     if ! which msgfmt > /dev/null 2>&1; then
         fail "Please install gettext"
     fi
