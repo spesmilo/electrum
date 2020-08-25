@@ -511,34 +511,14 @@ def msg_magic(message):
     return b"\x18Bitcoin Signed Message:\n" + length + message
 
 
-def verify_message(address, sig, message, *, net=None, use_magic=None):
-    if use_magic is None:
-        # Try and auto-detect whether the original message contained the "magic"
-        # preamble. We must do this because some libs produce messages without
-        # this preamble.
-        last_exc, ok = None, False
-        for use_magic in (True, False):
-            try:
-                ok = verify_message(address, sig, message, net=net, use_magic=use_magic)
-                if ok:
-                    # Short-circuit early return on success
-                    return True
-            except Exception as e:
-                last_exc = e
-        # if we couldn't verify, just raise the last exception we saw, if any
-        if not ok and last_exc is not None:
-            raise last_exc
-        # otherwise just return the result (this is likely True here)
-        return ok
-    # Below executes if use_magic is not None
+def verify_message(address, sig, message, *, net=None):
     if net is None: net = networks.net
     assert_bytes(sig, message)
     from .address import Address
     if not isinstance(address, Address):
         address = Address.from_string(address, net=net)
 
-    # use_magic flag controls whether we add the Bitcoin preamble when verifying
-    h = Hash(msg_magic(message)) if use_magic else Hash(message)
+    h = Hash(msg_magic(message))
     public_key, compressed = pubkey_from_signature(sig, h)
     # check public key using the right address
     pubkey = point_to_ser(public_key.pubkey.point, compressed)
@@ -675,39 +655,22 @@ class EC_KEY(object):
         assert public_key.verify_digest(signature, msg_hash, sigdecode = ecdsa.util.sigdecode_string)
         return signature
 
-    def sign_message(self, message, is_compressed, *, use_magic=True):
+    def sign_message(self, message, is_compressed):
         message = to_bytes(message, 'utf8')
-        use_magic = bool(use_magic)  # Normalize to bool just in case.
-        h = Hash(msg_magic(message)) if use_magic else Hash(message)
-        signature = self.sign(h)
+        signature = self.sign(Hash(msg_magic(message)))
         for i in range(4):
             sig = bytes([27 + i + (4 if is_compressed else 0)]) + signature
             try:
-                self.verify_message(sig, message, use_magic=use_magic)
+                self.verify_message(sig, message)
                 return sig
             except Exception as e:
                 continue
         else:
             raise Exception("error: cannot sign message")
 
-    def verify_message(self, sig, message, *, use_magic=None):
-        if use_magic is None:
-            # Try and auto-detect whether the original message contained the
-            # "magic" preamble. We must do this because some libs produce
-            # messages without this preamble.
-            last_exc = None
-            for use_magic in (True, False):
-                try:
-                    self.verify_message(sig, message, use_magic=use_magic)
-                    return  # if we get here, success!
-                except Exception as e:
-                    last_exc = e
-            # if we get here, failure
-            assert last_exc is not None
-            raise last_exc
-        # Below executes if use_magic is a bool and not NoneType
+    def verify_message(self, sig, message):
         assert_bytes(message)
-        h = Hash(msg_magic(message)) if use_magic else Hash(message)
+        h = Hash(msg_magic(message))
         public_key, compressed = pubkey_from_signature(sig, h)
         # check public key
         if point_to_ser(public_key.pubkey.point, compressed) != point_to_ser(self.pubkey.point, compressed):
