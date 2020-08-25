@@ -37,6 +37,9 @@ def _read_json_dict(filename):
 class AbstractNet:
     TESTNET = False
     asert_daa = ASERTDaa()
+    LEGACY_POW_TARGET_TIMESPAN = 14 * 24 * 60 * 60   # 2 weeks
+    LEGACY_POW_TARGET_INTERVAL = 10 * 60  # 10 minutes
+    LEGACY_POW_RETARGET_BLOCKS = LEGACY_POW_TARGET_TIMESPAN // LEGACY_POW_TARGET_INTERVAL  # 2016 blocks
 
 
 class MainNet(AbstractNet):
@@ -56,6 +59,9 @@ class MainNet(AbstractNet):
     # Bitcoin Cash fork block specification
     BITCOIN_CASH_FORK_BLOCK_HEIGHT = 478559
     BITCOIN_CASH_FORK_BLOCK_HASH = "000000000000000000651ef99cb9fcbe0dadde1d424bd9f15ff20136191a5eec"
+
+    # Nov 13. 2017 HF to CW144 DAA height (height of last block mined on old DAA)
+    CW144_HEIGHT = 504031
 
     # Note: this is not the Merkle root of the verification block itself , but a Merkle root of
     # all blockchain headers up until and including this block. To get this value you need to
@@ -94,6 +100,9 @@ class TestNet(AbstractNet):
     DEFAULT_SERVERS = _read_json_dict('servers_testnet.json')  # DO NOT MODIFY IN CLIENT CODE
     TITLE = 'Electron Cash Testnet'
 
+    # Nov 13. 2017 HF to CW144 DAA height (height of last block mined on old DAA)
+    CW144_HEIGHT = 1155875
+
     # Bitcoin Cash fork block specification
     BITCOIN_CASH_FORK_BLOCK_HEIGHT = 1155876
     BITCOIN_CASH_FORK_BLOCK_HASH = "00000000000e38fef93ed9582a7df43815d5c2ba9fd37ef70c9a0ea4a285b8f5"
@@ -112,6 +121,22 @@ class TestNet(AbstractNet):
     }
 
 
+class TestNet4(TestNet):
+    GENESIS = "000000001dd410c49a788668ce26751718cc797474d3152a5fc073dd44fd9f7b"
+    TITLE = 'Electron Cash Testnet4'
+
+    DEFAULT_SERVERS = _read_json_dict('servers_testnet4.json')  # DO NOT MODIFY IN CLIENT CODE
+
+    VERIFICATION_BLOCK_MERKLE_ROOT = "cfb7f86cf574ffc765f1531c9474c4aa74573c8acf085ab239a366570ad57f9d"
+    VERIFICATION_BLOCK_HEIGHT = 2016
+
+    BITCOIN_CASH_FORK_BLOCK_HEIGHT = 6
+    BITCOIN_CASH_FORK_BLOCK_HASH = "00000000d71b9b1f7e13b0c9b218a12df6526c1bcd1b667764b8693ae9a413cb"
+
+    # Nov 13. 2017 HF to CW144 DAA height (height of last block mined on old DAA)
+    CW144_HEIGHT = 3000
+
+
 # All new code should access this to get the current network config.
 net = MainNet
 
@@ -122,6 +147,10 @@ def set_mainnet():
 def set_testnet():
     global net
     net = TestNet
+
+def set_testnet4():
+    global net
+    net = TestNet4
 
 
 # Compatibility

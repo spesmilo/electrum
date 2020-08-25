@@ -384,7 +384,14 @@ if __name__ == '__main__':
 
     set_verbosity(config_options.get('verbose'))
 
+    have_testnet4 = False
+    if config_options.get('testnet4'):
+        networks.set_testnet4()
+        have_testnet4 = True
+
     if config_options.get('testnet'):
+        if have_testnet4:
+            sys.exit("Cannot specify both --testnet and --testnet4")
         networks.set_testnet()
 
     # check uri

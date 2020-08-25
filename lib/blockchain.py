@@ -491,7 +491,7 @@ class Blockchain(util.PrintError):
 
 
         # Mon Nov 13 19:06:40 2017 DAA HF
-        if daa_mtp >= 1510600000:
+        if prevheight >= networks.net.CW144_HEIGHT:
 
             if networks.net.TESTNET:
                 # testnet 20 minute rule
@@ -527,15 +527,18 @@ class Blockchain(util.PrintError):
             return daa_retval
 
         #END OF NOV-2017 DAA
-
-        if height % 2016 == 0:
+        N_BLOCKS = networks.net.LEGACY_POW_RETARGET_BLOCKS  # Normally 2016
+        if height % N_BLOCKS == 0:
             return self.get_new_bits(height, chunk)
 
         if networks.net.TESTNET:
             # testnet 20 minute rule
             if header['timestamp'] - prior['timestamp'] > 20*60:
                 return MAX_BITS
-            return self.read_header(height // 2016 * 2016, chunk)['bits']
+            # special case for a newly started testnet (such as testnet4)
+            if height < N_BLOCKS:
+                return MAX_BITS
+            return self.read_header(height // N_BLOCKS * N_BLOCKS, chunk)['bits']
 
         # bitcoin cash EDA
         # Can't go below minimum, so early bail
@@ -553,15 +556,16 @@ class Blockchain(util.PrintError):
         return target_to_bits(target)
 
     def get_new_bits(self, height, chunk=None):
-        assert height % 2016 == 0
+        N_BLOCKS = networks.net.LEGACY_POW_RETARGET_BLOCKS
+        assert height % N_BLOCKS == 0
         # Genesis
         if height == 0:
             return MAX_BITS
-        first = self.read_header(height - 2016, chunk)
+        first = self.read_header(height - N_BLOCKS, chunk)
         prior = self.read_header(height - 1, chunk)
         prior_target = bits_to_target(prior['bits'])
 
-        target_span = 14 * 24 * 60 * 60
+        target_span = networks.net.LEGACY_POW_TARGET_TIMESPAN # usually: 14 * 24 * 60 * 60 = 2 weeks
         span = prior['timestamp'] - first['timestamp']
         span = min(max(span, target_span // 4), target_span * 4)
         new_target = (prior_target * span) // target_span
