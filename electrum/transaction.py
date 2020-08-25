@@ -1352,6 +1352,7 @@ class Transaction:
         return (addr in self.get_output_addresses()) or (addr in (tx.get("address") for tx in self.inputs()))
 
     def is_whitelist(self):
+        if not constants.net.CHECK_WHITELIST: return True # disable whitelist checking
         return all([txo.asset == constants.net.WHITELISTASSET for txo in self.outputs()])
     
     def as_dict(self):

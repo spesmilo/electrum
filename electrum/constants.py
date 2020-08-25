@@ -118,6 +118,7 @@ class OceanMainnet:
 
     CHALLENGE = VersionedValue({0:"5321024cc60ff6ca8423c8353142fab8b4aa8b42e66eac2ae51a7cde1eaeb54a73a31e21034878127e5f0a5c84e775d754f02bcea9393c17b7fc05a01a2c011f7a419e6f932103b7d99275aba3db614faeeba3920295e8d661a3a0a705d999b8a38aca0f8fc5d321039d1175c43f855f003fd1e980b618b3d504f2099754b8afa3667ead04b9dbb6d921027c2e025fb4d41e7c4b757a722bff6172233fa576b0aac7d5d8e4e32cfbf2a1df55ae"})
     ENCRYPTED_WHITELIST=False
+    CHECK_WHITELIST = True # enable whitelist checks
 
 
 class LocalTestnet:
@@ -172,6 +173,7 @@ class LocalTestnet:
         10: "5121025533f7048ff650e9e2a3de16451aef96638c0d9e57a35ddc7a26595498d8d273210275ae9ab7194e11d55d2d27d0f65577d892d6dc0349fecf9fa31e0bc0f884a56f52ae"
     })
     ENCRYPTED_WHITELIST=False
+    CHECK_WHITELIST = False # disable whitelist checks
 
 
 # Current Testnet purposes
@@ -213,6 +215,7 @@ class OceanTestnet(OceanMainnet):
 
     MAPPING_URL = 'https://s3.eu-west-2.amazonaws.com/cb-mapping/map.json'
     ENCRYPTED_WHITELIST=False
+    CHECK_WHITELIST = True # enable whitelist checks
     
 
 class OceanRegtest(OceanMainnet):
@@ -252,6 +255,7 @@ class OceanRegtest(OceanMainnet):
     BIP44_COIN_TYPE = 1
     BIP44_COIN_TYPE_HW = 1
     ENCRYPTED_WHITELIST=False
+    CHECK_WHITELIST = False # disable whitelist checks
  
 
 # don't import net directly, import the module instead (so that net is singleton)
