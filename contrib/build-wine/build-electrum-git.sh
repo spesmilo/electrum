@@ -20,7 +20,7 @@ here="$(dirname "$(readlink -e "$0")")"
 
 pushd $WINEPREFIX/drive_c/electrum-grs
 
-VERSION=4.0.0
+VERSION=4.0.2
 info "Last commit: $VERSION"
 
 # Load electrum-locale for this release
