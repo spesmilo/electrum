@@ -42,6 +42,7 @@ from .commands import known_commands, Commands
 from .simple_config import SimpleConfig
 from .exchange_rate import FxThread
 from .plugin import run_hook
+from .transaction import Transaction
 
 
 def get_lockfile(config):
@@ -227,6 +228,9 @@ class Daemon(DaemonThread):
         return response
 
     def load_wallet(self, path, password):
+        check_whitelist = self.config.get('check_whitelist', True)
+        Transaction.check_whitelist = check_whitelist
+
         # wizard will be launched if we return
         if path in self.wallets:
             wallet = self.wallets[path]
@@ -243,7 +247,7 @@ class Daemon(DaemonThread):
         if storage.get_action():
             return
         wallet = Wallet(storage, self.config.get('contract_hash'))
-        wallet.start_threads(self.network)
+        wallet.start_threads(self.network, check_whitelist)
         self.wallets[path] = wallet
         return wallet
 

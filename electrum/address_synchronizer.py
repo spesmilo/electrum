@@ -175,11 +175,11 @@ class AddressSynchronizer(PrintError):
                 # add it in case it was previously unconfirmed
                 self.add_unverified_tx(tx_hash, tx_height)
 
-    def start_threads(self, network):
+    def start_threads(self, network, check_whitelist):
         self.network = network
         if self.network is not None:
             self.verifier = SPV(self.network, self)
-            self.synchronizer = Synchronizer(self, network)
+            self.synchronizer = Synchronizer(self, network, check_whitelist)
             network.add_jobs([self.verifier, self.synchronizer])
         else:
             self.verifier = None

@@ -721,12 +721,16 @@ def multisig_script(public_keys: Sequence[str], m: int) -> str:
 
 class Transaction:
 
+    check_whitelist = True
+
     def __str__(self):
         if self.raw is None:
             self.raw = self.serialize()
         return self.raw
 
     def __init__(self, raw):
+        if self.check_whitelist == None: raise ValueError("Initialize `check_whitelist` before creating the first transaction.")
+
         if raw is None:
             self.raw = None
         elif isinstance(raw, str):
@@ -1352,7 +1356,7 @@ class Transaction:
         return (addr in self.get_output_addresses()) or (addr in (tx.get("address") for tx in self.inputs()))
 
     def is_whitelist(self):
-        if not constants.net.CHECK_WHITELIST: return True # disable whitelist checking
+        if not self.check_whitelist: return True # disable whitelist checking
         return all([txo.asset == constants.net.WHITELISTASSET for txo in self.outputs()])
     
     def as_dict(self):

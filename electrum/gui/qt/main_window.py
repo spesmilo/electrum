@@ -3403,6 +3403,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         outrounding_cb.stateChanged.connect(on_outrounding)
         tx_widgets.append((outrounding_cb, None))
 
+        def on_whitelist_checking(x):
+            self.config.set_key('check_whitelist', bool(x))
+        check_whitelist = self.config.get('check_whitelist', True)
+        whitelist_checking_cb = QCheckBox(_('Enable whitelist checks (requires restart)'))
+        whitelist_checking_cb.setToolTip(
+            _('Whitelist checking for addresses and transactions.') + '\n' +
+            _('It is recommended to enable this option.') + '\n' +
+            _('Changing this option requires restart to take effect.'))
+        whitelist_checking_cb.setChecked(check_whitelist)
+        whitelist_checking_cb.stateChanged.connect(on_whitelist_checking)
+        tx_widgets.append((whitelist_checking_cb, None))
+
         # Fiat Currency
         hist_checkbox = QCheckBox()
         hist_capgains_checkbox = QCheckBox()

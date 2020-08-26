@@ -43,7 +43,8 @@ class Synchronizer(ThreadJob):
     External interface: __init__() and add() member functions.
     '''
 
-    def __init__(self, wallet, network):
+    def __init__(self, wallet, network, check_whitelist):
+        self.check_whitelist = check_whitelist
         self.wallet = wallet
         self.network = network
         self.new_addresses = set()
@@ -72,12 +73,12 @@ class Synchronizer(ThreadJob):
         self.network.unsubscribe(self.on_address_status)
 
     def add_whitelist(self, address):
-        if not constants.net.CHECK_WHITELIST: return # disable whitelist checking
+        if not self.check_whitelist: return # disable whitelist checking
         with self.lock:
             self.whitelist_addrs.add(address)
 
     def remove_whitelist(self, address):
-        if not constants.net.CHECK_WHITELIST: return # disable whitelist checking
+        if not self.check_whitelist: return # disable whitelist checking
         with self.lock:
             self.whitelist_addrs.discard(address)
         
@@ -150,7 +151,7 @@ class Synchronizer(ThreadJob):
             self.print_error("error: status mismatch: %s" % addr)
         else:
             # Store received history
-            is_whitelist = (addr in self.whitelist_addrs) if constants.net.CHECK_WHITELIST else True # `not constants.net.CHECK_WHITELIST` - disable whitelist checking
+            is_whitelist = (addr in self.whitelist_addrs) if self.check_whitelist else True # `not self.check_whitelist` - disable whitelist checking
             self.wallet.receive_history_callback(addr, hist, tx_fees, is_whitelist)
             # Request transactions we don't have
             self.request_missing_txs(hist)
