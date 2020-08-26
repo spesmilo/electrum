@@ -2382,11 +2382,21 @@ class MultikeyWallet(Simple_Deterministic_Wallet):
 
     def get_atxs_to_recovery(self):
         txi_list = self.db.list_txi()
+        recovery_mempool_transactions = {
+            history_item.txid: self.db.get_transaction(history_item.txid)
+            for history_item in self.get_history() if history_item.tx_mined_status.conf == 0 and history_item.tx_mined_status.txtype == TxType.RECOVERY.name
+        }
+        with self.transaction_lock:
+            conflicting_alert_inputs = set([
+                txin.prevout.txid.hex()
+                for tx in recovery_mempool_transactions.values() for txin in tx.inputs()
+            ])
         for tx_hash, tx in self.db.transactions.items():
             mined_info = self.get_tx_height(tx_hash)
-            # skip incoming and mempool alerts
+            # skip incoming alerts, mempool alerts and alerts conflicted with recovery mempool
             if tx.tx_type == TxType.ALERT_PENDING and mined_info.conf > 0 and tx_hash in txi_list:
-                yield tx
+                if not set([txin.prevout.txid.hex() for txin in tx.inputs()]).issubset(conflicting_alert_inputs):
+                    yield tx
 
     def get_inputs_and_output_for_recovery(self, alert_transactions: ThreeKeysTransaction, destination_address: str):
         inputs = [PartialTxInput.from_txin(txin) for atx in alert_transactions for txin in atx.inputs()]
@@ -2550,8 +2560,8 @@ class ThreeKeysWallet(MultikeyWallet):
 
 
 wallet_types = [
-    'AR',
-    'AIR',
+    '2-key',
+    '3-key',
     'standard',
     'multisig',
     'imported',
@@ -2567,8 +2577,8 @@ wallet_constructors = {
     'old': Standard_Wallet,
     'xpub': Standard_Wallet,
     'imported': Imported_Wallet,
-    'AR': TwoKeysWallet,
-    'AIR': ThreeKeysWallet
+    '2-key': TwoKeysWallet,
+    '3-key': ThreeKeysWallet
 }
 
 def register_constructor(wallet_type, constructor):

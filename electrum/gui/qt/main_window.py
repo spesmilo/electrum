@@ -859,9 +859,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 if x:
                     text +=  " [%s "%(self.format_amount(x, is_diff=True).strip()) + _("unmatured") + "]"
                 if ai:
-                    text +=  " [%s "%(self.format_amount(ai, is_diff=True).strip()) + _("alert incoming") + "]"
+                    text +=  " [%s "%(self.format_amount(ai, is_diff=True).strip()) + _("standard incoming") + "]"
                 if ao:
-                    text +=  " [%s "%(self.format_amount(ao, is_diff=True).strip()) + _("alert outgoing") + "]"
+                    text +=  " [%s "%(self.format_amount(ao, is_diff=True).strip()) + _("standard outgoing") + "]"
                 if self.wallet.lnworker:
                     l = self.wallet.lnworker.get_balance()
                     text += u'    \U0001f5f2 %s'%(self.format_amount_and_units(l).strip())

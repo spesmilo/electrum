@@ -1,8 +1,6 @@
 import enum
 
-from PyQt5.QtCore import Qt, QRect
-from PyQt5.QtGui import QStandardItem
-from PyQt5.QtWidgets import QVBoxLayout, QLabel, QWidget, QHBoxLayout, QHeaderView, QStyleOptionButton, QStyle, \
+from PyQt5.QtWidgets import QVBoxLayout, QLabel, QWidget, QHBoxLayout, \
     QGridLayout, QCompleter, QComboBox, \
     QStyledItemDelegate
 
@@ -20,56 +18,22 @@ from ...plugin import run_hook
 from ...three_keys import short_mnemonic
 
 
-class CheckableHeader(QHeaderView):
-    def __init__(self, orientation, parent=None):
-        super().__init__(orientation, parent)
-        self.parent = parent
-        self.is_on = False
-
-    def paintSection(self, painter: 'QPainter', rect: 'QRect', logical_index: int):
-        painter.save()
-        super().paintSection(painter, rect, logical_index)
-        painter.restore()
-
-        # assure set only in first column
-        if logical_index == 0:
-            option = QStyleOptionButton()
-            option.rect = QRect(
-                23, 3,
-                14, 14
-            )
-            if self.is_on:
-                option.state = QStyle.State_On
-            else:
-                option.state = QStyle.State_Off
-            self.style().drawPrimitive(QStyle.PE_IndicatorCheckBox, option, painter)
-
-    def mousePressEvent(self, event):
-        if self.is_on:
-            self.is_on = False
-        else:
-            self.is_on = True
-        super().updateSection(0)
-        super().mousePressEvent(event)
-
-
-class TableItem(QStandardItem):
-    def __init__(self, text, if_checkable=False):
-        super().__init__(text)
-        self.setCheckable(if_checkable)
-        self.setTextAlignment(Qt.AlignRight)
-
-
 class ElectrumMultikeyWalletWindow(ElectrumWindow):
-    LABELS = ['Date', 'Confirmation', 'Balance']
+    READY_TO_UPDATE = False
 
     def __init__(self, gui_object: 'ElectrumGui', wallet: 'Abstract_Wallet'):
         self.is_2fa = wallet.storage.get('multikey_type', '') == '2fa'
         super().__init__(gui_object=gui_object, wallet=wallet)
-        self.alert_transactions = []
         self.recovery_tab = self.create_recovery_tab(wallet, self.config)
-        # todo add proper icon
-        self.tabs.addTab(self.recovery_tab, read_QIcon('recovery.png'), _('Recovery'))
+        self.tabs.addTab(self.recovery_tab, read_QIcon('recovery.png'), _('Cancel'))
+        # update recovery tab when description changed in history tab
+        self.history_model.dataChanged.connect(self.update_tabs)
+        self.READY_TO_UPDATE = True
+
+    def timer_actions(self):
+        # synchronizing the timer thread with end of the __init__ call
+        if self.READY_TO_UPDATE:
+            super().timer_actions()
 
     def create_recovery_tab(self, wallet: 'Abstract_Wallet', config):
         raise NotImplementedError()
@@ -80,6 +44,11 @@ class ElectrumMultikeyWalletWindow(ElectrumWindow):
 
     def show_recovery_tab(self):
         self.tabs.setCurrentIndex(self.tabs.indexOf(self.recovery_tab))
+
+    def update_tabs(self, wallet=None):
+        super().update_tabs(wallet=wallet)
+        self.recovery_tab.update_view()
+        self.recovery_tab.update_recovery_button()
 
 
 class ElectrumARWindow(ElectrumMultikeyWalletWindow):
@@ -131,6 +100,7 @@ class ElectrumARWindow(ElectrumMultikeyWalletWindow):
                         self.show_psbt_qrcode(tx, invoice=invoice)
                     else:
                         self.broadcast_or_show(tx, invoice=invoice)
+
             self.sign_tx_with_password(tx, sign_done, password, external_keypairs)
         else:
             self.preview_tx_dialog(make_tx, outputs, external_keypairs=external_keypairs, invoice=invoice)
@@ -145,8 +115,8 @@ class ElectrumARWindow(ElectrumMultikeyWalletWindow):
 
 class ElectrumAIRWindow(ElectrumMultikeyWalletWindow):
     class TX_TYPES(enum.IntEnum):
-        alert = 0
-        instant = 1
+        standard = 0
+        fast = 1
 
     def __init__(self, gui_object: 'ElectrumGui', wallet: 'Abstract_Wallet'):
         self.wordlist = load_wordlist("english.txt")
@@ -209,25 +179,25 @@ class ElectrumAIRWindow(ElectrumMultikeyWalletWindow):
 
         def on_tx_type(index):
             if not self.is_2fa:
-                if self.tx_type_combo.currentIndex() == self.TX_TYPES['alert']:
+                if self.tx_type_combo.currentIndex() == self.TX_TYPES['standard']:
                     self.instant_privkey_line.setEnabled(False)
                     self.instant_privkey_line.clear()
-                elif self.tx_type_combo.currentIndex() == self.TX_TYPES['instant']:
+                elif self.tx_type_combo.currentIndex() == self.TX_TYPES['fast']:
                     self.instant_privkey_line.setEnabled(True)
 
         msg = _('Choose transaction type.') + '\n\n' + \
-              _('Alert - confirmed after 24h, reversible.') + '\n' + \
-              _('Instant - confirmed immediately, non-reversible. Needs an additional signature.')
+              _('Standard - confirmed after 24 hours. Can be canceled within that time.') + '\n' + \
+              _('Fast - confirmed immediately. Cannot be canceled. Requires an additional seed phrase.')
         tx_type_label = HelpLabel(_('Transaction type'), msg)
         self.tx_type_combo = QComboBox()
         self.tx_type_combo.addItems([_(tx_type.name) for tx_type in self.TX_TYPES])
-        self.tx_type_combo.setCurrentIndex(self.TX_TYPES['alert'])
+        self.tx_type_combo.setCurrentIndex(self.TX_TYPES['standard'])
         self.tx_type_combo.currentIndexChanged.connect(on_tx_type)
         grid.addWidget(tx_type_label, 4, 0)
         grid.addWidget(self.tx_type_combo, 4, 1, 1, -1)
 
         if not self.is_2fa:
-            instant_privkey_label = HelpLabel(_('Instant TX seed'), msg)
+            instant_privkey_label = HelpLabel(_('Fast Tx seed'), msg)
             self.instant_privkey_line = CompletionTextEdit()
             self.instant_privkey_line.setTabChangesFocus(False)
             self.instant_privkey_line.setEnabled(False)
@@ -306,10 +276,10 @@ class ElectrumAIRWindow(ElectrumMultikeyWalletWindow):
         stored_instant_pubkey = self.wallet.storage.get('instant_pubkey')
         seed = self.get_instant_seed()
         if not short_mnemonic.is_valid(seed):
-            raise ValueError(_("Invalid instant TX seed"))
+            raise ValueError(_("Invalid fast Tx seed"))
         privkey, pubkey = short_mnemonic.seed_to_keypair(seed)
         if pubkey != stored_instant_pubkey:
-            raise Exception(_("Instant TX seed not matching any key in this wallet"))
+            raise Exception(_("Fast Tx seed not matching any key in this wallet"))
         return {pubkey: (privkey, True)}
 
     def do_pay(self):
@@ -318,7 +288,7 @@ class ElectrumAIRWindow(ElectrumMultikeyWalletWindow):
             return
 
         keypair = None
-        if self.tx_type_combo.currentIndex() == self.TX_TYPES['instant']:
+        if self.tx_type_combo.currentIndex() == self.TX_TYPES['fast']:
             try:
                 if not self.is_2fa:
                     keypair = self.get_instant_keypair()
@@ -345,7 +315,7 @@ class ElectrumAIRWindow(ElectrumMultikeyWalletWindow):
             e.setFrozen(False)
         if not self.is_2fa:
             self.instant_privkey_line.clear()
-        self.tx_type_combo.setCurrentIndex(self.TX_TYPES['alert'])
+        self.tx_type_combo.setCurrentIndex(self.TX_TYPES['standard'])
         self.update_status()
         run_hook('do_clear', self)
 
@@ -380,6 +350,7 @@ class ElectrumAIRWindow(ElectrumMultikeyWalletWindow):
                         self.show_psbt_qrcode(tx, invoice=invoice)
                     else:
                         self.broadcast_or_show(tx, invoice=invoice)
+
             self.sign_tx_with_password(tx, sign_done, password, external_keypairs)
         else:
             self.preview_tx_dialog(make_tx, outputs, external_keypairs=external_keypairs, invoice=invoice)

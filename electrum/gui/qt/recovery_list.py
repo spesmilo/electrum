@@ -49,11 +49,12 @@ class RecoveryView(QTreeView):
     }
     filter_columns = [Columns.DATE, Columns.DESCRIPTION, Columns.AMOUNT]
 
-    def __init__(self, parent):
+    def __init__(self, parent, tab):
         super().__init__(parent)
 
         self.wallet = parent.wallet
         self.main_window = parent
+        self.tab = tab
 
         self.required_confirmations = 144
         self.stretch_column = self.Columns.DESCRIPTION
@@ -63,18 +64,24 @@ class RecoveryView(QTreeView):
         self.setModel(QStandardItemModel(self))
         self.setSelectionMode(QTreeView.NoSelection)
 
+        self.model().dataChanged.connect(self.onItemChecked)
+
         shortcut = QShortcut(QKeySequence(QKeySequence.SelectAll), self, self.onSelectAll)
         self.selected_all = False
 
         now = datetime.now()
         self.to_timestamp = datetime.timestamp(now)
         self.from_timestamp = datetime.timestamp(now + timedelta(days=-2))
-
+        self.invisible_selected_atxs = False
+        self._selected_atxids_cache = set()
         self.update_data()
 
-    def mouseDoubleClickEvent(self, event: QMouseEvent):
-        super().mouseDoubleClickEvent(event)
-        self.update_data()
+    def clear_cache(self):
+        self._selected_atxids_cache = set()
+
+    def onItemChecked(self):
+        self.selected()
+        self.tab.update_recovery_button()
 
     def onSelectAll(self):
         model = self.model()
@@ -94,26 +101,26 @@ class RecoveryView(QTreeView):
         self.model().clear()
         self.update_headers(self.__class__.headers)
 
-        for index, txid in enumerate(self.wallet.get_atxs_to_recovery()):
+        index = 0
+        for alert_transaction in self.wallet.get_atxs_to_recovery():
+            if alert_transaction.txid() in self._selected_atxids_cache and self.invisible_selected_atxs:
+                continue
             invoice_type = PR_TYPE_ONCHAIN
             if invoice_type == PR_TYPE_LN:
-                #key = item['rhash']
                 icon_name = 'lightning.png'
             elif invoice_type == PR_TYPE_ONCHAIN:
                 icon_name = 'bitcoin.png'
-                #if item.get('bip70'):
-                #   icon_name = 'seal.png'
             else:
                 raise Exception('Unsupported type')
 
-            txinfo = self.wallet.get_tx_info(txid)
+            txinfo = self.wallet.get_tx_info(alert_transaction)
             if txinfo.tx_mined_status.txtype == 'ALERT_PENDING':
                 status, status_str = get_request_status({'status': PR_UNPAID})
             else:
                 status, status_str = get_request_status({'status': PR_UNKNOWN})
 
             status_str = '{} {}/{}'.format(status_str, txinfo.tx_mined_status.conf, self.required_confirmations)
-            num_status, date_str = self.wallet.get_tx_status(txid.txid(), txinfo.tx_mined_status)
+            num_status, date_str = self.wallet.get_tx_status(alert_transaction.txid(), txinfo.tx_mined_status)
             amount_str = self.main_window.format_amount(txinfo.amount - txinfo.fee, whitespaces=True)
             labels = [date_str, txinfo.label, amount_str, status_str]
 
@@ -125,10 +132,12 @@ class RecoveryView(QTreeView):
             items[self.Columns.DATE].setIcon(read_QIcon(icon_name))
             items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
             items[self.Columns.DATE].setData(invoice_type, role=ROLE_REQUEST_TYPE)
-            items[self.Columns.DATE].setData(txid, role=ROLE_REQUEST_ID)
+            items[self.Columns.DATE].setData(alert_transaction, role=ROLE_REQUEST_ID)
             items[self.Columns.DATE].setCheckable(True)
-
+            if alert_transaction.txid() in self._selected_atxids_cache:
+                items[self.Columns.DATE].setCheckState(Qt.Checked)
             self.model().insertRow(index, items)
+            index += 1
 
         # sort requests by date
         self.model().sort(self.Columns.DATE)
@@ -150,8 +159,11 @@ class RecoveryView(QTreeView):
         for i in range(model.rowCount()):
             m_index = model.index(i, 0)
             item = model.itemFromIndex(m_index)
+            if item.data(ROLE_REQUEST_ID).txid() in self._selected_atxids_cache and item.checkState() == Qt.Unchecked:
+                self._selected_atxids_cache.remove(item.data(ROLE_REQUEST_ID).txid())
             if item.checkState() == Qt.Checked:
                 out.append(item.data())
+                self._selected_atxids_cache |= set([item.data(ROLE_REQUEST_ID).txid()])
         return out
 
 
@@ -173,11 +185,13 @@ class RecoveryTab(QWidget):
         self.is_2fa = self.wallet.storage.get('multikey_type', '') == '2fa'
         QWidget.__init__(self)
 
-        self.invoice_list = RecoveryView(self.electrum_main_window)
-
-        # wordlist
+        self.invoice_list = RecoveryView(self.electrum_main_window, self)
         self.wordlist = load_wordlist("english.txt")
-        ###
+
+        self.is_address_valid = True
+        self.is_recovery_seed_valid = False
+
+        self.recover_button = QPushButton(_('Cancel transactions'))
 
     def _create_recovery_address(self):
         class Validator(QValidator):
@@ -212,18 +226,51 @@ class RecoveryTab(QWidget):
 
         return obj
 
+    def set_recovery_seed_validity(self, is_valid):
+        self.is_recovery_seed_valid = is_valid
+
+    def update_recovery_button(self):
+        raise NotImplementedError
+
     def onEditTextChanged(self, input: str):
         if not is_address_valid(input):
             self.recovery_address_line.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
+            self.is_address_valid = False
         else:
             self.recovery_address_line.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet(True))
+            self.is_address_valid = True
+        self.update_recovery_button()
 
-    def on_priv_key_line_edit(self):
-        for word in self.get_recovery_seed()[:-1]:
-            if word not in self.wordlist:
-                self.recovery_privkey_line.disable_suggestions()
-                return
-        self.recovery_privkey_line.enable_suggestions()
+    def on_recovery_seed_line_edit(self):
+        return self.on_seed_line_edit(self.recovery_privkey_line,
+                                      self.get_recovery_seed(),
+                                      self.set_recovery_seed_validity)
+
+    def on_seed_line_edit(self, seed_line, seed, validity_fn):
+        def set_style(valid):
+            if valid:
+                seed_line.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet(True))
+            else:
+                seed_line.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
+
+        def validate_words(words):
+            return all([word in self.wordlist for word in words])
+
+        seed_line.enable_suggestions()
+        is_valid = True
+        if 1 < len(seed) < 12:
+            if seed[-2] not in self.wordlist:
+                seed_line.disable_suggestions()
+            is_valid = validate_words(seed[:-1])
+        elif len(seed) == 12:
+            is_valid = validate_words(seed)
+        elif len(seed) > 12:
+            is_valid = False
+
+        set_style(is_valid)
+
+        validity_fn(is_valid and len(seed) == 12)
+        self.update_recovery_button()
 
     def get_recovery_seed(self):
         text = self.recovery_privkey_line.text()
@@ -233,10 +280,10 @@ class RecoveryTab(QWidget):
         stored_recovery_pubkey = self.wallet.storage.get('recovery_pubkey')
         seed = self.get_recovery_seed()
         if not short_mnemonic.is_valid(seed):
-            raise ValueError(_("Invalid recovery TX seed"))
+            raise ValueError(_("Invalid cancel seedphrase"))
         privkey, pubkey = short_mnemonic.seed_to_keypair(seed)
         if pubkey != stored_recovery_pubkey:
-            raise Exception(_("Recovery TX seed not matching any key in this wallet"))
+            raise Exception(_("Cancel seedphrase not matching any key in this wallet"))
         return {pubkey: (privkey, True)}
 
     def recovery_onchain_dialog(self, inputs, outputs, recovery_keypairs):
@@ -279,6 +326,9 @@ class RecoveryTab(QWidget):
 
     def sign_tx_with_password(self, tx: PartialTransaction, callback, password, external_keypairs=None):
         def on_success(result):
+            self.invisible_selected_atxs = True
+            self.update_view()
+            self.clear_cache()
             callback(True)
 
         def on_failure(exc_info):
@@ -303,7 +353,7 @@ class RecoveryTab(QWidget):
                 recovery_keypair = self._get_recovery_keypair()
 
             if not is_address_valid(address):
-                raise Exception(_('Invalid recovery address'))
+                raise Exception(_('Invalid cancellation address'))
 
             inputs, output = self.wallet.get_inputs_and_output_for_recovery(atxs, address)
             inputs = self.wallet.prepare_inputs_for_recovery(inputs)
@@ -321,14 +371,14 @@ class RecoveryTab(QWidget):
         if not self.is_2fa:
             self.recovery_privkey_line.setText('')
 
-    def _create_privkey_line(self):
+    def _create_privkey_line(self, on_edit):
         class CompleterDelegate(QStyledItemDelegate):
             def initStyleOption(self, option, index):
                 super().initStyleOption(option, index)
 
         recovery_privkey_line = CompletionTextEdit()
         recovery_privkey_line.setTabChangesFocus(False)
-        recovery_privkey_line.textChanged.connect(self.on_priv_key_line_edit)
+        recovery_privkey_line.textChanged.connect(on_edit)
 
         delegate = CompleterDelegate(recovery_privkey_line)
         completer = QCompleter(self.wordlist)
@@ -339,31 +389,39 @@ class RecoveryTab(QWidget):
         recovery_privkey_line.setMaximumHeight(height)
         return recovery_privkey_line
 
+    def clear_cache(self):
+        self.invoice_list.invisible_selected_atxs = False
+        self.invoice_list.clear_cache()
+
+    def update_view(self):
+        self.invoice_list.update_data()
+
 
 class RecoveryTabAR(RecoveryTab):
 
     def __init__(self, parent, wallet: Abstract_Wallet, config):
         super().__init__(parent, wallet, config)
         self.main_layout = QVBoxLayout()
-        label = QLabel(_('Alert transaction to recover'))
+        label = QLabel(_('Transactions to cancel'))
         self.main_layout.addWidget(label)
         self.main_layout.addWidget(self.invoice_list)
 
         grid_layout = QGridLayout()
         # Row 1
-        grid_layout.addWidget(QLabel(_('Recovery address')), 0, 0)
+        grid_layout.addWidget(QLabel(_('Cancellation address')), 0, 0)
         self.recovery_address_line = self._create_recovery_address()
         grid_layout.addWidget(self.recovery_address_line, 0, 1)
 
         # Row 2
         if not self.is_2fa:
-            grid_layout.addWidget(QLabel(_('Recovery tx seed')), 1, 0)
+            grid_layout.addWidget(QLabel(_('Cancel seedphrase')), 1, 0)
             # complete line edit with suggestions
-            self.recovery_privkey_line = self._create_privkey_line()
+            self.recovery_privkey_line = self._create_privkey_line(self.on_recovery_seed_line_edit)
             grid_layout.addWidget(self.recovery_privkey_line, 1, 1)
 
         # Row 3
-        button = QPushButton(_('Recover'))
+        button = self.recover_button
+        button.setDisabled(True)
         button.clicked.connect(self.recover_action)
         # if line edit with suggestions size change 3rd argument needs to be adjusted
         grid_layout.addWidget(button, 2, 0, 1, 3)
@@ -372,37 +430,50 @@ class RecoveryTabAR(RecoveryTab):
         self.main_layout.addLayout(grid_layout)
         self.setLayout(self.main_layout)
 
+    def update_recovery_button(self):
+        if self.is_2fa:
+            enabled = self.is_address_valid and len(self.invoice_list.selected())
+        else:
+            enabled = self.is_address_valid \
+                      and self.is_recovery_seed_valid \
+                      and len(self.invoice_list.selected())
+        self.recover_button.setEnabled(enabled)
+
 
 class RecoveryTabAIR(RecoveryTab):
 
     def __init__(self, parent, wallet: Abstract_Wallet, config):
         super().__init__(parent, wallet, config)
+
+        self.is_instant_seed_valid = False
+
         self.main_layout = QVBoxLayout()
-        label = QLabel(_('Alert transaction to recover'))
+        label = QLabel(_('Transactions to cancel'))
         self.main_layout.addWidget(label)
         self.main_layout.addWidget(self.invoice_list)
 
         grid_layout = QGridLayout()
         # Row 1
-        grid_layout.addWidget(QLabel(_('Recovery address')), 0, 0)
+        grid_layout.addWidget(QLabel(_('Cancellation address')), 0, 0)
         self.recovery_address_line = self._create_recovery_address()
         grid_layout.addWidget(self.recovery_address_line, 0, 1)
 
         # Row 2
         if not self.is_2fa:
-            grid_layout.addWidget(QLabel(_('Instant tx seed')), 1, 0)
+            grid_layout.addWidget(QLabel(_('Fast seedphrase')), 1, 0)
             # complete line edit with suggestions
-            self.instant_privkey_line = self._create_privkey_line()
+            self.instant_privkey_line = self._create_privkey_line(self.on_instant_seed_line_edit)
             grid_layout.addWidget(self.instant_privkey_line, 1, 1)
 
         # Row 3
-        grid_layout.addWidget(QLabel(_('Recovery tx seed')), 2, 0)
+        grid_layout.addWidget(QLabel(_('Cancel seedphrase')), 2, 0)
         # complete line edit with suggestions
-        self.recovery_privkey_line = self._create_privkey_line()
+        self.recovery_privkey_line = self._create_privkey_line(self.on_recovery_seed_line_edit)
         grid_layout.addWidget(self.recovery_privkey_line, 2, 1)
 
         # Row 4
-        button = QPushButton(_('Recover'))
+        button = self.recover_button
+        button.setDisabled(True)
         button.clicked.connect(self.recover_action)
         # if line edit with suggestions size change 3rd argument needs to be adjusted
         grid_layout.addWidget(button, 3, 0, 1, 3)
@@ -419,10 +490,10 @@ class RecoveryTabAIR(RecoveryTab):
         stored_instant_pubkey = self.wallet.storage.get('instant_pubkey')
         seed = self.get_instant_seed()
         if not short_mnemonic.is_valid(seed):
-            raise ValueError(_("Invalid instant TX seed"))
+            raise ValueError(_("Invalid fast Tx seed"))
         privkey, pubkey = short_mnemonic.seed_to_keypair(seed)
         if pubkey != stored_instant_pubkey:
-            raise Exception(_("Instant TX seed not matching any key in this wallet"))
+            raise Exception(_("Fast Tx seed not matching any key in this wallet"))
         return {pubkey: (privkey, True)}
 
     def recover_action(self):
@@ -435,7 +506,7 @@ class RecoveryTabAIR(RecoveryTab):
             atxs = self.invoice_list.selected()
 
             if not is_address_valid(address):
-                raise Exception(_('Invalid recovery address'))
+                raise Exception(_('Invalid cancellation address'))
 
             inputs, output = self.wallet.get_inputs_and_output_for_recovery(atxs, address)
             inputs = self.wallet.prepare_inputs_for_recovery(inputs)
@@ -455,3 +526,23 @@ class RecoveryTabAIR(RecoveryTab):
         if not self.is_2fa:
             self.instant_privkey_line.setText('')
         self.recovery_privkey_line.setText('')
+
+    def set_instant_seed_validity(self, is_valid):
+        self.is_instant_seed_valid = is_valid
+
+    def update_recovery_button(self):
+        if self.is_2fa:
+            enabled = self.is_address_valid \
+                      and self.is_recovery_seed_valid \
+                      and len(self.invoice_list.selected())
+        else:
+            enabled = self.is_address_valid \
+                      and self.is_instant_seed_valid \
+                      and self.is_recovery_seed_valid \
+                      and len(self.invoice_list.selected())
+        self.recover_button.setEnabled(enabled)
+
+    def on_instant_seed_line_edit(self):
+        return self.on_seed_line_edit(self.instant_privkey_line,
+                                      self.get_instant_seed(),
+                                      self.set_instant_seed_validity)

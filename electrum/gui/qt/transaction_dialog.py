@@ -139,7 +139,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         self.sign_button = b = QPushButton(_("Sign"))
         b.clicked.connect(self.sign)
 
-        self.broadcast_button = b = QPushButton(_("Broadcast"))
+        self.broadcast_button = b = QPushButton(_("Send"))
         b.clicked.connect(self.do_broadcast)
 
         self.save_button = b = QPushButton(_("Save"))

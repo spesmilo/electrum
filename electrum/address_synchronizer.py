@@ -204,13 +204,13 @@ class AddressSynchronizer(Logger):
                 # annoying assert that has revealed several bugs over time:
                 assert self.db.get_transaction(spending_tx_hash), "spending tx not in wallet db"
                 conflicting_txns |= {spending_tx_hash}
+            conflicting_txns = self._adjust_conflicting_transactions(tx, conflicting_txns)
             if tx_hash in conflicting_txns:
                 # this tx is already in history, so it conflicts with itself
                 if len(conflicting_txns) > 1:
                     raise Exception('Found conflicting transactions already in wallet history.')
                 if not include_self:
                     conflicting_txns -= {tx_hash}
-            conflicting_txns = self._adjust_conflicting_transactions(tx, conflicting_txns)
             return conflicting_txns
 
     def _update_excluded_recovered_coins(self, tx_a, tx_b=None):
@@ -240,12 +240,13 @@ class AddressSynchronizer(Logger):
         elif tx.tx_type == TxType.ALERT_RECOVERED:
             self._update_excluded_recovered_coins(tx)
         conflicting_txns_ = set()
-        txin_hashes = [txin.prevout.txid.hex() for txin in tx.inputs()]
+        txin_hashes = set([txin.prevout.txid.hex() for txin in tx.inputs()])
         for conflicted_tx_hash in conflicting_txns:
             conflicted_tx = self.db.get_transaction(conflicted_tx_hash)
             if conflicted_tx.tx_type in allowed_types:
                 conflicted_tx_input_hashes = [txin.prevout.txid.hex() for txin in conflicted_tx.inputs()]
-                if set(conflicted_tx_input_hashes) == set(txin_hashes):
+                # second condition in or statement added for safety reasons
+                if set(conflicted_tx_input_hashes).issubset(txin_hashes) or txin_hashes.issubset(set(conflicted_tx_input_hashes)):
                     self._update_excluded_recovered_coins(tx, conflicted_tx)
                     continue
             conflicting_txns_ |= {conflicted_tx_hash}

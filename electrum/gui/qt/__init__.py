@@ -205,9 +205,9 @@ class ElectrumGui(Logger):
 
     def _create_window_for_wallet(self, wallet):
         wallet_type = wallet.wallet_type
-        if wallet_type == 'AR':
+        if wallet_type == '2-key':
             w = ElectrumARWindow(self, wallet)
-        elif wallet_type == 'AIR':
+        elif wallet_type == '3-key':
             w = ElectrumAIRWindow(self, wallet)
         else:
             w = ElectrumWindow(self, wallet)

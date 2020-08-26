@@ -132,12 +132,12 @@ class BaseWizard(Logger):
             _("What kind of wallet do you want to create?")
         ])
         wallet_kinds = [
-            ('AR', _('AR wallet')),
-            ('AIR', _('AIR wallet')),
-            ('standard', _("Standard wallet")),
+            ('2-key', _('Two-key wallet')),
+            ('3-key', _('Three-key wallet')),
+            ('standard', _("Legacy wallet")),
             # Needs implementation on TrustedCoin, will be done later
             # ('2fa', _("Wallet with two-factor authentication")),
-            ('multisig', _("Multi-signature wallet")),
+            ('multisig', _("Multi-signature legacy wallet")),
             ('imported', _("Import Bitcoin addresses or private keys")),
         ]
         choices = [pair for pair in wallet_kinds if pair[0] in wallet_types]
@@ -177,7 +177,7 @@ class BaseWizard(Logger):
             action = self.plugin.get_action(self.data)
         elif choice == 'imported':
             action = 'import_addresses_or_keys'
-        elif choice in ['AR', 'AIR']:
+        elif choice in ['2-key', '3-key']:
             action = 'choose_multikey_wallet_type'
         self.run(action)
 
@@ -194,18 +194,18 @@ class BaseWizard(Logger):
         def process_choice(choice):
             if choice == 'multikey_standalone':
                 self.data['multikey_type'] = 'standalone'
-                if self.wallet_type == 'AR':
+                if self.wallet_type == '2-key':
                     action = 'two_keys_standalone'
-                elif self.wallet_type == 'AIR':
+                elif self.wallet_type == '3-key':
                     action = 'three_keys_standalone'
                 else:
                     raise Exception('Invalid multikey wallet type: ' + self.wallet_type)
             elif choice[:12] == 'multikey_2fa':
                 self.data['multikey_type'] = '2fa'
                 sub_action = choice[-7:]
-                if self.wallet_type == 'AR':
+                if self.wallet_type == '2-key':
                     action = 'two_keys_2fa' + sub_action
-                elif self.wallet_type == 'AIR':
+                elif self.wallet_type == '3-key':
                     action = 'three_keys_2fa' + sub_action
                 else:
                     raise Exception('Invalid multikey wallet type: ' + self.wallet_type)
@@ -213,7 +213,7 @@ class BaseWizard(Logger):
                 raise Exception('Invalid choice: ' + choice)
             self.run(action)
 
-        assert self.wallet_type in ['AR', 'AIR'], "Wrong multikey wallet type: " + self.wallet_type
+        assert self.wallet_type in ['2-key', '3-key'], "Wrong multikey wallet type: " + self.wallet_type
         title = _('Multikey wallet type')
         message = _('Do you want to use GoldWallet as a transaction authenticator?')
         choices = [
@@ -273,7 +273,7 @@ class BaseWizard(Logger):
         self.run('restore_from_seed')
 
     def choose_keystore(self):
-        assert self.wallet_type in ['standard', 'multisig', 'AR', 'AIR']
+        assert self.wallet_type in ['standard', 'multisig', '2-key', '3-key']
         i = len(self.keystores)
         title = _('Add cosigner') + ' (%d of %d)' % (i + 1, self.n) if self.wallet_type == 'multisig' else _('Keystore')
         if self.wallet_type == 'multisig' and i > 0:
@@ -550,7 +550,7 @@ class BaseWizard(Logger):
         self.opt_bip39 = True
         self.opt_ext = True
         is_cosigning_seed = lambda x: mnemonic.seed_type(x) in ['standard', 'segwit']
-        test = mnemonic.is_seed if self.wallet_type in ['standard', 'AR', 'AIR'] else is_cosigning_seed
+        test = mnemonic.is_seed if self.wallet_type in ['standard', '2-key', '3-key'] else is_cosigning_seed
         self.restore_seed_dialog(run_next=self.on_restore_seed, test=test)
 
     def on_restore_seed(self, seed, is_bip39, is_ext):
@@ -588,7 +588,7 @@ class BaseWizard(Logger):
         has_xpub = isinstance(k, keystore.Xpub)
         if has_xpub:
             t1 = xpub_type(k.xpub)
-        if self.wallet_type in ['standard', 'AR', 'AIR']:
+        if self.wallet_type in ['standard', '2-key', '3-key']:
             if has_xpub and t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:
                 self.show_error(_('Wrong key type') + ' %s' % t1)
                 self.run('choose_keystore')
@@ -665,7 +665,7 @@ class BaseWizard(Logger):
         for k in self.keystores:
             if k.may_have_password():
                 k.update_password(None, password)
-        if self.wallet_type in ['standard', 'AR', 'AIR']:
+        if self.wallet_type in ['standard', '2-key', '3-key']:
             self.data['seed_type'] = self.seed_type
             keys = self.keystores[0].dump()
             self.data['keystore'] = keys
