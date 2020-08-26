@@ -1539,8 +1539,8 @@ class PartialTxOutput(TxOutput, PSBTSection):
 
 class PartialTransaction(Transaction):
 
-    def __init__(self, raw_unsigned_tx):
-        Transaction.__init__(self, raw_unsigned_tx)
+    def __init__(self):
+        Transaction.__init__(self, None)
         self.xpubs = {}  # type: Dict[BIP32Node, Tuple[bytes, Sequence[int]]]  # intermediate bip32node -> (xfp, der_prefix)
         self._inputs = []  # type: List[PartialTxInput]
         self._outputs = []  # type: List[PartialTxOutput]
@@ -1557,7 +1557,7 @@ class PartialTransaction(Transaction):
 
     @classmethod
     def from_tx(cls, tx: Transaction) -> 'PartialTransaction':
-        res = cls(None)
+        res = cls()
         res._inputs = [PartialTxInput.from_txin(txin) for txin in tx.inputs()]
         res._outputs = [PartialTxOutput.from_txout(txout) for txout in tx.outputs()]
         res.version = tx.version
@@ -1664,7 +1664,7 @@ class PartialTransaction(Transaction):
     @classmethod
     def from_io(cls, inputs: Sequence[PartialTxInput], outputs: Sequence[PartialTxOutput], *,
                 locktime: int = None, version: int = None):
-        self = cls(None)
+        self = cls()
         self._inputs = list(inputs)
         self._outputs = list(outputs)
         if locktime is not None:
