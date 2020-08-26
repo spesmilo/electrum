@@ -592,7 +592,7 @@ class Commands:
 
     @command('wp')
     async def payto(self, destination, amount, fee=None, feerate=None, from_addr=None, from_coins=None, change_addr=None,
-                    nocheck=False, unsigned=False, rbf=None, password=None, locktime=None, for_broadcast=True, wallet: Abstract_Wallet = None):
+                    nocheck=False, unsigned=False, rbf=None, password=None, locktime=None, addtransaction=True, wallet: Abstract_Wallet = None):
         """Create a transaction. """
         self.nocheck = nocheck
         tx_fee = satoshis(fee)
@@ -614,13 +614,13 @@ class Commands:
             password=password,
             locktime=locktime)
         result = tx.serialize()
-        if for_broadcast:
+        if addtransaction:
             await self.addtransaction(result)
         return result
 
     @command('wp')
     async def paytomany(self, outputs, fee=None, feerate=None, from_addr=None, from_coins=None, change_addr=None,
-                        nocheck=False, unsigned=False, rbf=None, password=None, locktime=None, for_broadcast=True, wallet: Abstract_Wallet = None):
+                        nocheck=False, unsigned=False, rbf=None, password=None, locktime=None, addtransaction=True, wallet: Abstract_Wallet = None):
         """Create a multi-output transaction. """
         self.nocheck = nocheck
         tx_fee = satoshis(fee)
@@ -645,7 +645,7 @@ class Commands:
             password=password,
             locktime=locktime)
         result = tx.serialize()
-        if for_broadcast:
+        if addtransaction:
             await self.addtransaction(result)
         return result
 
@@ -1210,7 +1210,7 @@ command_options = {
     'unsigned':    ("-u", "Do not sign transaction"),
     'rbf':         (None, "Whether to signal opt-in Replace-By-Fee in the transaction (true/false)"),
     'locktime':    (None, "Set locktime block number"),
-    'for_broadcast': ('-B','Whether transaction is to be used for broadcasting afterwards. Adds transaction to the wallet'),
+    'addtransaction': (None,'Whether transaction is to be used for broadcasting afterwards. Adds transaction to the wallet'),
     'domain':      ("-D", "List of addresses"),
     'memo':        ("-m", "Description of the request"),
     'expiration':  (None, "Time in seconds"),
@@ -1252,7 +1252,7 @@ arg_types = {
     'fee': lambda x: str(Decimal(x)) if x is not None else None,
     'amount': lambda x: str(Decimal(x)) if x != '!' else '!',
     'locktime': int,
-    'for_broadcast': eval_bool,
+    'addtransaction': eval_bool,
     'fee_method': str,
     'fee_level': json_loads,
     'encrypt_file': eval_bool,
