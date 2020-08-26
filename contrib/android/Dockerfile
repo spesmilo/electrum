@@ -135,11 +135,11 @@ WORKDIR ${WORK_DIR}
 #USER ${USER}
 
 
-RUN python3 -m pip install --user --upgrade pip
-RUN python3 -m pip install --user --upgrade wheel
-RUN python3 -m pip install --user --upgrade cython==0.29.19
-RUN python3 -m pip install --user --pre kivy
-RUN python3 -m pip install --user image
+RUN python3 -m pip install --upgrade pip
+RUN python3 -m pip install --upgrade wheel
+RUN python3 -m pip install --upgrade cython==0.29.19
+RUN python3 -m pip install --pre kivy
+RUN python3 -m pip install image
 
 # prepare git
 RUN git config --global user.name "John Doe" \
