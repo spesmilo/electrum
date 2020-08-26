@@ -119,7 +119,7 @@ class StatusBarButton(QPushButton):
         self.func()
 
     def keyPressEvent(self, e):
-        if e.key() == Qt.Key_Return:
+        if e.key() in [ Qt.Key_Return, Qt.Key_Enter ]:
             self.func()
 
 
