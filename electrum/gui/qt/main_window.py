@@ -1147,6 +1147,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         receive_tabs.addTab(self.receive_qr, _('QR Code'))
         receive_tabs.setCurrentIndex(self.config.get('receive_tabs_index', 0))
         receive_tabs.currentChanged.connect(lambda i: self.config.set_key('receive_tabs_index', i))
+        receive_tabs_sp = receive_tabs.sizePolicy()
+        receive_tabs_sp.setRetainSizeWhenHidden(True)
+        receive_tabs.setSizePolicy(receive_tabs_sp)
+
+        def maybe_hide_receive_tabs():
+            receive_tabs.setVisible(bool(self.receive_payreq_e.text()))
+        self.receive_payreq_e.textChanged.connect(maybe_hide_receive_tabs)
+        maybe_hide_receive_tabs()
 
         # layout
         vbox_g = QVBoxLayout()
