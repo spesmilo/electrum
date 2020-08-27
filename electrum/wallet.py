@@ -2366,6 +2366,7 @@ class MultikeyWallet(Simple_Deterministic_Wallet):
     def make_unsigned_transaction(self, *, coins: Sequence[PartialTxInput],
                                   outputs: List[PartialTxOutput], fee=None,
                                   change_addr: str = None, is_sweep=False) -> PartialTransaction:
+        self.update_tx_input_multisig_generator(coins)
         tx = super().make_unsigned_transaction(
             coins=coins,
             outputs=outputs,
@@ -2379,6 +2380,10 @@ class MultikeyWallet(Simple_Deterministic_Wallet):
     def update_transaction_multisig_generator(self, tx: Transaction):
         tx.multisig_script_generator = self.multisig_script_generator
         tx.update_inputs()
+
+    def update_tx_input_multisig_generator(self, inputs: Sequence[PartialTxInput]):
+        for txin in inputs:
+            txin.multisig_script_generator = self.multisig_script_generator
 
     def get_atxs_to_recovery(self):
         txi_list = self.db.list_txi()
