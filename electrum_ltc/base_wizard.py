@@ -555,7 +555,10 @@ class BaseWizard(Logger):
                     return
             if len(self.keystores) == 0:
                 xpub = k.get_master_public_key()
+                self.reset_stack()
+                self.keystores.append(k)
                 self.run('show_xpub_and_add_cosigners', xpub)
+                return
             self.reset_stack()
             self.keystores.append(k)
             if len(self.keystores) < self.n:
@@ -648,7 +651,7 @@ class BaseWizard(Logger):
         raise NotImplementedError()  # implemented by subclasses
 
     def show_xpub_and_add_cosigners(self, xpub):
-        self.show_xpub_dialog(xpub=xpub, run_next=lambda x: None)
+        self.show_xpub_dialog(xpub=xpub, run_next=lambda x: self.run('choose_keystore'))
 
     def choose_seed_type(self, message=None, choices=None):
         title = _('Choose Seed type')

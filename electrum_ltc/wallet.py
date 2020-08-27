@@ -873,11 +873,16 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             item['value'] = Satoshis(value)
             balance += value
             item['balance'] = Satoshis(balance)
-            if fx:
-                timestamp = item['timestamp'] or now
-                fiat_value = value / Decimal(bitcoin.COIN) * fx.timestamp_rate(timestamp)
-                item['fiat_value'] = Fiat(fiat_value, fx.ccy)
-                item['fiat_default'] = True
+            if fx and fx.is_enabled() and fx.get_history_config():
+                txid = item.get('txid')
+                if not item.get('lightning') and txid:
+                    fiat_fields = self.get_tx_item_fiat(txid, value, fx, item['fee_sat'])
+                    item.update(fiat_fields)
+                else:
+                    timestamp = item['timestamp'] or now
+                    fiat_value = value / Decimal(bitcoin.COIN) * fx.timestamp_rate(timestamp)
+                    item['fiat_value'] = Fiat(fiat_value, fx.ccy)
+                    item['fiat_default'] = True
         return transactions
 
     @profiler
@@ -1973,11 +1978,14 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         lp = sum([coin.value_sats() for coin in coins]) * p / Decimal(COIN)
         return lp - ap
 
-    def average_price(self, txid, price_func, ccy):
+    def average_price(self, txid, price_func, ccy) -> Decimal:
         """ Average acquisition price of the inputs of a transaction """
         input_value = 0
         total_price = 0
-        for addr in self.db.get_txi_addresses(txid):
+        txi_addresses = self.db.get_txi_addresses(txid)
+        if not txi_addresses:
+            return Decimal('NaN')
+        for addr in txi_addresses:
             d = self.db.get_txi_addr(txid, addr)
             for ser, v in d:
                 input_value += v
@@ -1987,7 +1995,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def clear_coin_price_cache(self):
         self._coin_price_cache = {}
 
-    def coin_price(self, txid, price_func, ccy, txin_value):
+    def coin_price(self, txid, price_func, ccy, txin_value) -> Decimal:
         """
         Acquisition price of a coin.
         This assumes that either all inputs are mine, or no input is mine.

@@ -31,7 +31,8 @@ import zlib
 from enum import IntEnum
 
 from . import ecc
-from .util import profiler, InvalidPassword, WalletFileException, bfh, standardize_path
+from .util import (profiler, InvalidPassword, WalletFileException, bfh, standardize_path,
+                   test_read_write_permissions)
 
 from .wallet_db import WalletDB
 from .logging import Logger
@@ -62,7 +63,10 @@ class WalletStorage(Logger):
         self.logger.info(f"wallet path {self.path}")
         self.pubkey = None
         self.decrypted = ''
-        self._test_read_write_permissions(self.path)
+        try:
+            test_read_write_permissions(self.path)
+        except IOError as e:
+            raise StorageReadWriteError(e) from e
         if self.file_exists():
             with open(self.path, "r", encoding='utf-8') as f:
                 self.raw = f.read()
@@ -73,28 +77,6 @@ class WalletStorage(Logger):
 
     def read(self):
         return self.decrypted if self.is_encrypted() else self.raw
-
-    @classmethod
-    def _test_read_write_permissions(cls, path):
-        # note: There might already be a file at 'path'.
-        #       Make sure we do NOT overwrite/corrupt that!
-        temp_path = "%s.tmptest.%s" % (path, os.getpid())
-        echo = "fs r/w test"
-        try:
-            # test READ permissions for actual path
-            if os.path.exists(path):
-                with open(path, "r", encoding='utf-8') as f:
-                    f.read(1)  # read 1 byte
-            # test R/W sanity for "similar" path
-            with open(temp_path, "w", encoding='utf-8') as f:
-                f.write(echo)
-            with open(temp_path, "r", encoding='utf-8') as f:
-                echo2 = f.read()
-            os.remove(temp_path)
-        except Exception as e:
-            raise StorageReadWriteError(e) from e
-        if echo != echo2:
-            raise StorageReadWriteError('echo sanity-check failed')
 
     @profiler
     def write(self, data):

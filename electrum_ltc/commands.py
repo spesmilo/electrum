@@ -394,7 +394,7 @@ class Commands:
     @command('wp')
     async def signtransaction(self, tx, privkey=None, password=None, wallet: Abstract_Wallet = None):
         """Sign a transaction. The wallet keys will be used unless a private key is provided."""
-        tx = PartialTransaction(tx)
+        tx = tx_from_any(tx)
         if privkey:
             txin_type, privkey2, compressed = bitcoin.deserialize_privkey(privkey)
             pubkey = ecc.ECPrivkey(privkey2).get_public_key_bytes(compressed=compressed).hex()
