@@ -478,8 +478,10 @@ that is always connected to the internet. Configure a port if you want it to be 
         fiat_widgets = []
         fiat_widgets.append((QLabel(_('Fiat currency')), ccy_combo))
         fiat_widgets.append((QLabel(_('Source')), ex_combo))
-        fiat_widgets.append((QLabel(_('Show history rates')), hist_checkbox))
-        fiat_widgets.append((QLabel(_('Show capital gains in history')), hist_capgains_checkbox))
+        # No exchange provides historical data in public APIs as of 26 VII 2020. If such data appears on any exchange,
+        # the code below should be uncommented.
+        #fiat_widgets.append((QLabel(_('Show history rates')), hist_checkbox))
+        #fiat_widgets.append((QLabel(_('Show capital gains in history')), hist_capgains_checkbox))
         fiat_widgets.append((QLabel(_('Show Fiat balance for addresses')), fiat_address_checkbox))
 
         tabs_info = [
