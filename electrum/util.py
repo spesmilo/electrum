@@ -1380,19 +1380,30 @@ class NetworkRetryManager(Generic[_NetAddrType]):
     def _on_connection_successfully_established(self, addr: _NetAddrType) -> None:
         self._last_tried_addr[addr] = time.time(), 0
 
-    def _can_retry_addr(self, peer: _NetAddrType, *,
+    def _can_retry_addr(self, addr: _NetAddrType, *,
                         now: float = None, urgent: bool = False) -> bool:
         if now is None:
             now = time.time()
-        last_time, num_attempts = self._last_tried_addr.get(peer, (0, 0))
+        last_time, num_attempts = self._last_tried_addr.get(addr, (0, 0))
         if urgent:
-            delay = min(self._max_retry_delay_urgent,
-                        self._init_retry_delay_urgent * 2 ** num_attempts)
+            max_delay = self._max_retry_delay_urgent
+            init_delay = self._init_retry_delay_urgent
         else:
-            delay = min(self._max_retry_delay_normal,
-                        self._init_retry_delay_normal * 2 ** num_attempts)
+            max_delay = self._max_retry_delay_normal
+            init_delay = self._init_retry_delay_normal
+        delay = self.__calc_delay(multiplier=init_delay, max_delay=max_delay, num_attempts=num_attempts)
         next_time = last_time + delay
         return next_time < now
+
+    @classmethod
+    def __calc_delay(cls, *, multiplier: float, max_delay: float,
+                     num_attempts: int) -> float:
+        num_attempts = min(num_attempts, 100_000)
+        try:
+            res = multiplier * 2 ** num_attempts
+        except OverflowError:
+            return max_delay
+        return max(0, min(max_delay, res))
 
     def _clear_addr_retry_times(self) -> None:
         self._last_tried_addr.clear()
