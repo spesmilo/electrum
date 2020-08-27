@@ -2106,11 +2106,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         wallet_path = self.wallet.storage.path
         basename = os.path.basename(wallet_path)
         r = self.gui_object.daemon.delete_wallet(wallet_path)
-        self.close()
         if r:
             self.show_error(_("Wallet removed: {}").format(basename))
         else:
             self.show_error(_("Wallet file not found: {}").format(basename))
+        self.close()
 
     @protected
     def show_seed_dialog(self, password):
