@@ -2308,7 +2308,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def show_wallet_info(self):
         dialog = WindowModalDialog(self, _("Wallet Information"))
         dialog.setMinimumSize(500, 100)
-        mpk_list = self.wallet.get_master_public_keys()
         vbox = QVBoxLayout()
         wallet_type = self.wallet.db.get('wallet_type', '')
         if self.wallet.is_watching_only():
@@ -2353,17 +2352,30 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         labels_clayout = None
 
         if self.wallet.is_deterministic():
+            keystores = self.wallet.get_keystores()
+
             mpk_text = ShowQRTextEdit()
             mpk_text.setMaximumHeight(150)
             mpk_text.addCopyButton(self.app)
 
-            def show_mpk(index):
-                mpk_text.setText(mpk_list[index])
+            der_path_hbox = QHBoxLayout()
+            der_path_hbox.setContentsMargins(0, 0, 0, 0)
+
+            der_path_hbox.addWidget(QLabel(_("Derivation path") + ':'))
+            der_path_text = QLabel()
+            der_path_text.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            der_path_hbox.addWidget(der_path_text)
+            der_path_hbox.addStretch()
+
+            def select_ks(index):
+                ks = keystores[index]
+                mpk_text.setText(ks.get_master_public_key())
                 mpk_text.repaint()  # macOS hack for #4777
+                der_path_text.setText(ks.get_derivation_prefix() or _("unknown"))
+                der_path_text.repaint()  # macOS hack for #4777
 
             # only show the combobox in case multiple accounts are available
-            if len(mpk_list) > 1:
-                # only show the combobox if multiple master keys are defined
+            if len(keystores) > 1:
                 def label(idx, ks):
                     if isinstance(self.wallet, Multisig_Wallet) and hasattr(ks, 'label'):
                         return _("cosigner") + f' {idx+1}: {ks.get_type_text()} {ks.label}'
@@ -2372,15 +2384,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
                 labels = [label(idx, ks) for idx, ks in enumerate(self.wallet.get_keystores())]
 
-                on_click = lambda clayout: show_mpk(clayout.selected_index())
-                labels_clayout = ChoicesLayout(_("Master Public Keys"), labels, on_click)
+                on_click = lambda clayout: select_ks(clayout.selected_index())
+                labels_clayout = ChoicesLayout(_("Select keystore"), labels, on_click)
                 vbox.addLayout(labels_clayout.layout())
                 labels_clayout.selected_index()
-            else:
-                vbox.addWidget(QLabel(_("Master Public Key")))
 
-            show_mpk(0)
+            select_ks(0)
+            vbox.addWidget(QLabel(_("Master Public Key")))
             vbox.addWidget(mpk_text)
+            vbox.addLayout(der_path_hbox)
 
         vbox.addStretch(1)
         btn_export_info = run_hook('wallet_info_buttons', self, dialog)
