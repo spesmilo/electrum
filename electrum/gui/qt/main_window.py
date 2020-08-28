@@ -46,7 +46,7 @@ from PyQt5.QtWidgets import (QMessageBox, QComboBox, QSystemTrayIcon, QTabWidget
                              QHBoxLayout, QPushButton, QScrollArea, QTextEdit,
                              QShortcut, QMainWindow, QCompleter, QInputDialog,
                              QWidget, QSizePolicy, QStatusBar, QToolTip, QDialog,
-                             QMenu, QAction)
+                             QMenu, QAction, QStackedWidget)
 
 import electrum
 from electrum import (keystore, ecc, constants, util, bitcoin, commands,
@@ -2354,25 +2354,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if self.wallet.is_deterministic():
             keystores = self.wallet.get_keystores()
 
-            mpk_text = ShowQRTextEdit()
-            mpk_text.setMaximumHeight(150)
-            mpk_text.addCopyButton(self.app)
-
-            der_path_hbox = QHBoxLayout()
-            der_path_hbox.setContentsMargins(0, 0, 0, 0)
-
-            der_path_hbox.addWidget(QLabel(_("Derivation path") + ':'))
-            der_path_text = QLabel()
-            der_path_text.setTextInteractionFlags(Qt.TextSelectableByMouse)
-            der_path_hbox.addWidget(der_path_text)
-            der_path_hbox.addStretch()
+            ks_stack = QStackedWidget()
 
             def select_ks(index):
-                ks = keystores[index]
-                mpk_text.setText(ks.get_master_public_key())
-                mpk_text.repaint()  # macOS hack for #4777
-                der_path_text.setText(ks.get_derivation_prefix() or _("unknown"))
-                der_path_text.repaint()  # macOS hack for #4777
+                ks_stack.setCurrentIndex(index)
 
             # only show the combobox in case multiple accounts are available
             if len(keystores) > 1:
@@ -2387,18 +2372,40 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 on_click = lambda clayout: select_ks(clayout.selected_index())
                 labels_clayout = ChoicesLayout(_("Select keystore"), labels, on_click)
                 vbox.addLayout(labels_clayout.layout())
-                labels_clayout.selected_index()
+
+            for ks in keystores:
+                ks_w = QWidget()
+                ks_vbox = QVBoxLayout()
+                ks_vbox.setContentsMargins(0, 0, 0, 0)
+                ks_w.setLayout(ks_vbox)
+
+                mpk_text = ShowQRTextEdit(ks.get_master_public_key())
+                mpk_text.setMaximumHeight(150)
+                mpk_text.addCopyButton(self.app)
+                run_hook('show_xpub_button', mpk_text, ks)
+
+                der_path_hbox = QHBoxLayout()
+                der_path_hbox.setContentsMargins(0, 0, 0, 0)
+
+                der_path_hbox.addWidget(QLabel(_("Derivation path") + ':'))
+                der_path_text = QLabel(ks.get_derivation_prefix() or _("unknown"))
+                der_path_text.setTextInteractionFlags(Qt.TextSelectableByMouse)
+                der_path_hbox.addWidget(der_path_text)
+                der_path_hbox.addStretch()
+
+                ks_vbox.addWidget(QLabel(_("Master Public Key")))
+                ks_vbox.addWidget(mpk_text)
+                ks_vbox.addLayout(der_path_hbox)
+
+                ks_stack.addWidget(ks_w)
 
             select_ks(0)
-            vbox.addWidget(QLabel(_("Master Public Key")))
-            vbox.addWidget(mpk_text)
-            vbox.addLayout(der_path_hbox)
+            vbox.addWidget(ks_stack)
 
         vbox.addStretch(1)
         btn_export_info = run_hook('wallet_info_buttons', self, dialog)
-        btn_show_xpub = run_hook('show_xpub_button', self, dialog, labels_clayout)
         btn_close = CloseButton(dialog)
-        btns = Buttons(btn_export_info, btn_show_xpub, btn_close)
+        btns = Buttons(btn_export_info, btn_close)
         vbox.addLayout(btns)
         dialog.setLayout(vbox)
         dialog.exec_()

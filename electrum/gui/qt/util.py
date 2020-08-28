@@ -735,7 +735,7 @@ class ButtonsWidget(QWidget):
 
     def __init__(self):
         super(QWidget, self).__init__()
-        self.buttons = []
+        self.buttons = []  # type: List[QToolButton]
 
     def resizeButtons(self):
         frameWidth = self.style().pixelMetric(QStyle.PM_DefaultFrameWidth)
