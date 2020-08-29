@@ -130,6 +130,7 @@ class TrezorPlugin(HW_PluginBase):
         if not self.libraries_available:
             return
         self.device_manager().register_enumerate_func(self.enumerate)
+        self._is_bridge_available = None
 
     def get_library_version(self):
         import trezorlib
@@ -142,17 +143,29 @@ class TrezorPlugin(HW_PluginBase):
         else:
             raise LibraryFoundButUnusable(library_version=version)
 
+    def is_bridge_available(self) -> bool:
+        # Testing whether the Bridge is available can take several seconds
+        # (when it is not), as it is slow to timeout, hence we cache it.
+        if self._is_bridge_available is None:
+            try:
+                call_bridge("enumerate")
+            except Exception:
+                self._is_bridge_available = False
+                # never again try with Bridge due to slow timeout
+                BridgeTransport.ENABLED = False
+            else:
+                self._is_bridge_available = True
+        return self._is_bridge_available
+
     def enumerate(self):
         # If there is a bridge, prefer that.
         # On Windows, the bridge runs as Admin (and Electrum usually does not),
         # so the bridge has better chances of finding devices. see #5420
         # This also avoids duplicate entries.
-        try:
-            call_bridge("enumerate")
-        except Exception:
-            devices = trezorlib.transport.enumerate_devices()
-        else:
+        if self.is_bridge_available():
             devices = BridgeTransport.enumerate()
+        else:
+            devices = trezorlib.transport.enumerate_devices()
         return [Device(path=d.get_path(),
                        interface_number=-1,
                        id_=d.get_path(),
