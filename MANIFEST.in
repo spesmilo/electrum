@@ -3,10 +3,17 @@ include README.rst
 include electrum.desktop
 include *.py
 include run_electrum
-include contrib/requirements/requirements.txt
-include contrib/requirements/requirements-hw.txt
 recursive-include packages *.py
 recursive-include packages cacert.pem
+
+include contrib/requirements/requirements.txt
+include contrib/requirements/requirements-hw.txt
+include contrib/requirements/requirements-binaries.txt
+include contrib/deterministic-build/requirements.txt
+include contrib/deterministic-build/requirements-hw.txt
+include contrib/deterministic-build/requirements-binaries.txt
+include contrib/make_libsecp256k1.sh
+include contrib/build_tools_util.sh
 
 graft electrum
 prune electrum/tests
