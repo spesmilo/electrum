@@ -173,13 +173,6 @@ class BitcoinAverage(ExchangeBase):
     #                 for h in history])
 
 
-class Bitmarket(ExchangeBase):
-
-    def get_rates(self, ccy):
-        json = self.get_json('www.bitmarket.pl', '/json/BCCPLN/ticker.json')
-        return {'PLN': PyDecimal(json['last'])}
-
-
 class BitPay(ExchangeBase):
 
     def get_rates(self, ccy):
@@ -222,32 +215,6 @@ class Kraken(ExchangeBase):
                              '/0/public/Ticker?pair=%s' % ','.join(pairs))
         return dict((k[-3:], PyDecimal(float(v['c'][0])))
                      for k, v in json['result'].items())
-
-
-class CoinFloor(ExchangeBase):
-    # CoinFloor API only supports GBP on public API
-    def get_rates(self, ccy):
-        json = self.get_json('webapi.coinfloor.co.uk:8090/bist/BCH/GBP', '/ticker/')
-        return {'GBP': PyDecimal(json['last'])}
-
-
-class WEX(ExchangeBase):
-
-    def get_rates(self, ccy):
-        json_eur = self.get_json('wex.nz', '/api/3/ticker/bch_eur')
-        json_rub = self.get_json('wex.nz', '/api/3/ticker/bch_rur')
-        json_usd = self.get_json('wex.nz', '/api/3/ticker/bch_usd')
-        json_btc = self.get_json('wex.nz', '/api/3/ticker/bch_btc')
-        json_ltc = self.get_json('wex.nz', '/api/3/ticker/bch_ltc')
-        json_eth = self.get_json('wex.nz', '/api/3/ticker/bch_eth')
-        json_dsh = self.get_json('wex.nz', '/api/3/ticker/bch_dsh')
-        return {'EUR': PyDecimal(json_eur['bch_eur']['last']),
-                'RUB': PyDecimal(json_rub['bch_rur']['last']),
-                'USD': PyDecimal(json_usd['bch_usd']['last']),
-                'BTC': PyDecimal(json_btc['bch_btc']['last']),
-                'LTC': PyDecimal(json_ltc['bch_ltc']['last']),
-                'ETH': PyDecimal(json_eth['bch_eth']['last']),
-                'DSH': PyDecimal(json_dsh['bch_dsh']['last'])}
 
 
 class CoinCap(ExchangeBase):

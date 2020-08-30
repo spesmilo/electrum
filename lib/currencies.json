@@ -337,9 +337,6 @@
     "Bitso": [
         "BTC"
     ],
-    "CoinFloor": [
-        "GBP"
-    ],
     "Coinbase": [
         "AED",
         "AFN",
@@ -513,15 +510,6 @@
     ],
     "Kraken": [
         "EUR",
-        "USD"
-    ],
-    "WEX": [
-        "BTC",
-        "DSH",
-        "ETH",
-        "EUR",
-        "LTC",
-        "RUB",
         "USD"
     ],
     "CoinCap": [
