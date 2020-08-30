@@ -6,6 +6,11 @@
     "tbch4.loping.net": {
         "t": "62001",
         "s": "62002"
+    },
+    "5dfr3ossuq3kxyc4zsgwqarh37yzlp7b6jc2j7h2gjq6jp7d7zg6fnid.onion": {
+        "s": "62002",
+        "t": "62001",
+        "display": "tbch4.loping.net"
     }
 }
 
