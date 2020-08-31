@@ -764,7 +764,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def export_invoices(self, path):
         write_json_file(path, list(self.invoices.values()))
 
-    def get_relevant_invoice_keys_for_tx(self, tx: Transaction) -> Set[str]:
+    def _get_relevant_invoice_keys_for_tx(self, tx: Transaction) -> Set[str]:
         relevant_invoice_keys = set()
         for txout in tx.outputs():
             for invoice_key in self._invoices_from_scriptpubkey_map.get(txout.scriptpubkey, set()):
@@ -772,6 +772,14 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 if invoice_key in self.invoices:
                     relevant_invoice_keys.add(invoice_key)
         return relevant_invoice_keys
+
+    def get_relevant_invoices_for_tx(self, tx: Transaction) -> Sequence[OnchainInvoice]:
+        invoice_keys = self._get_relevant_invoice_keys_for_tx(tx)
+        invoices = [self.get_invoice(key) for key in invoice_keys]
+        invoices = [inv for inv in invoices if inv]  # filter out None
+        for inv in invoices:
+            assert isinstance(inv, OnchainInvoice), f"unexpected type {type(inv)}"
+        return invoices
 
     def _prepare_onchain_invoice_paid_detection(self):
         # scriptpubkey -> list(invoice_keys)
@@ -811,10 +819,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         tx_hash = tx.txid()
         with self.transaction_lock:
             labels = []
-            for invoice_key in self.get_relevant_invoice_keys_for_tx(tx):
-                invoice = self.invoices.get(invoice_key)
-                if invoice is None: continue
-                assert isinstance(invoice, OnchainInvoice)
+            for invoice in self.get_relevant_invoices_for_tx(tx):
                 if invoice.message:
                     labels.append(invoice.message)
         if labels:
