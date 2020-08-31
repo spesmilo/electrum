@@ -598,9 +598,9 @@ class Fusion(threading.Thread, PrintError):
             # linkage somehow, which means throwing away some sats as extra fees beyond
             # the minimum requirement.
 
-            # For now, just throw on a few unobtrusive extra sats at the higher tiers, at most 9.
-            # TODO: smarter selection for high tiers (how much will users be comfortable paying?)
-            fuzz_fee_max = min(9, scale // 1000000)
+            # Just use (tier / 10^6) as fuzzing range. For a 10 BCH tier this means
+            # randomly overpaying fees of 0 to 1000 sats.
+            fuzz_fee_max = scale // 1000000
 
             ### End fuzzing fee range selection ###
 
@@ -613,9 +613,6 @@ class Fusion(threading.Thread, PrintError):
             assert fuzz_fee_max_reduced >= 0
             fuzz_fee = secrets.randbelow(fuzz_fee_max_reduced + 1)
             assert fuzz_fee <= fuzz_fee_max_reduced and fuzz_fee_max_reduced <= fuzz_fee_max
-
-            # TODO: this can be removed when the above is updated
-            assert fuzz_fee < 100, 'sanity check: example fuzz fee should be small'
 
             reduced_avail_for_outputs = avail_for_outputs - fuzz_fee
             if reduced_avail_for_outputs < offset_per_output:
