@@ -766,11 +766,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
 
     def _get_relevant_invoice_keys_for_tx(self, tx: Transaction) -> Set[str]:
         relevant_invoice_keys = set()
-        for txout in tx.outputs():
-            for invoice_key in self._invoices_from_scriptpubkey_map.get(txout.scriptpubkey, set()):
-                # note: the invoice might have been deleted since, so check now:
-                if invoice_key in self.invoices:
-                    relevant_invoice_keys.add(invoice_key)
+        with self.transaction_lock:
+            for txout in tx.outputs():
+                for invoice_key in self._invoices_from_scriptpubkey_map.get(txout.scriptpubkey, set()):
+                    # note: the invoice might have been deleted since, so check now:
+                    if invoice_key in self.invoices:
+                        relevant_invoice_keys.add(invoice_key)
         return relevant_invoice_keys
 
     def get_relevant_invoices_for_tx(self, tx: Transaction) -> Sequence[OnchainInvoice]:
@@ -816,12 +817,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         return self._is_onchain_invoice_paid(invoice)[0]
 
     def _maybe_set_tx_label_based_on_invoices(self, tx: Transaction) -> bool:
+        # note: this is not done in 'get_default_label' as that would require deserializing each tx
         tx_hash = tx.txid()
-        with self.transaction_lock:
-            labels = []
-            for invoice in self.get_relevant_invoices_for_tx(tx):
-                if invoice.message:
-                    labels.append(invoice.message)
+        labels = []
+        for invoice in self.get_relevant_invoices_for_tx(tx):
+            if invoice.message:
+                labels.append(invoice.message)
         if labels:
             self.set_label(tx_hash, "; ".join(labels))
         return bool(labels)
