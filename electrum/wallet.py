@@ -823,7 +823,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         for invoice in self.get_relevant_invoices_for_tx(tx):
             if invoice.message:
                 labels.append(invoice.message)
-        if labels:
+        if labels and not self.labels.get(tx_hash, ''):
             self.set_label(tx_hash, "; ".join(labels))
         return bool(labels)
 
