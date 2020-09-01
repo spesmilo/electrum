@@ -682,6 +682,7 @@ class DeviceMgr(ThreadJob):
         return devices
 
     @with_scan_lock
+    @profiler
     def scan_devices(self) -> Sequence['Device']:
         self.logger.info("scanning devices...")
 
@@ -692,8 +693,10 @@ class DeviceMgr(ThreadJob):
         with self.lock:
             enumerate_funcs = list(self._enumerate_func)
         for f in enumerate_funcs:
+            # custom enumerate functions might use hidapi, so use hid thread to be safe
+            new_devices_fut = _hid_executor.submit(f)
             try:
-                new_devices = f()
+                new_devices = new_devices_fut.result()
             except BaseException as e:
                 self.logger.error('custom device enum failed. func {}, error {}'
                                   .format(str(f), repr(e)))
