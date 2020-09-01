@@ -33,7 +33,7 @@ class LockTimeEdit(QWidget):
         self.editors = [self.locktime_raw_e, self.locktime_height_e, self.locktime_date_e]
 
         self.combo = QComboBox()
-        options = [_("Raw"), _("Block height"), _("Date")]
+        options = [_("Raw"), _("Block height"), _("Date (UTC)")]
         option_index_to_editor_map = {
             0: self.locktime_raw_e,
             1: self.locktime_height_e,
@@ -165,7 +165,7 @@ class LockTimeDateEdit(QDateTimeEdit, _LockTimeEditor):
         QDateTimeEdit.__init__(self, parent)
         self.setMinimumDateTime(datetime.fromtimestamp(self.min_allowed_value))
         self.setMaximumDateTime(datetime.fromtimestamp(self.max_allowed_value))
-        self.setDateTime(QDateTime.currentDateTime())
+        self.setDateTime(QDateTime.currentDateTimeUtc())
 
     def get_locktime(self) -> Optional[int]:
         dt = self.dateTime().toPyDateTime()
@@ -174,12 +174,12 @@ class LockTimeDateEdit(QDateTimeEdit, _LockTimeEditor):
 
     def set_locktime(self, x: Any) -> None:
         if not self.is_acceptable_locktime(x):
-            self.setDateTime(QDateTime.currentDateTime())
+            self.setDateTime(QDateTime.currentDateTimeUtc())
             return
         try:
             x = int(x)
         except:
-            self.setDateTime(QDateTime.currentDateTime())
+            self.setDateTime(QDateTime.currentDateTimeUtc())
             return
         dt = datetime.fromtimestamp(x)
         self.setDateTime(dt)
