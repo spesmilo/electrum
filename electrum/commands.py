@@ -846,12 +846,14 @@ class Commands:
         expiration = int(expiration) if expiration else None
         req = wallet.make_payment_request(addr, amount, memo, expiration)
         wallet.add_payment_request(req)
+        wallet.save_db()
         return wallet.export_request(req)
 
     @command('wn')
     async def add_lightning_request(self, amount, memo='', expiration=3600, wallet: Abstract_Wallet = None):
         amount_sat = int(satoshis(amount))
         key = await wallet.lnworker._add_request_coro(amount_sat, memo, expiration)
+        wallet.save_db()
         return wallet.get_formatted_request(key)
 
     @command('w')
@@ -875,7 +877,9 @@ class Commands:
     @command('w')
     async def rmrequest(self, address, wallet: Abstract_Wallet = None):
         """Remove a payment request"""
-        return wallet.remove_payment_request(address)
+        result = wallet.remove_payment_request(address)
+        wallet.save_db()
+        return result
 
     @command('w')
     async def clear_requests(self, wallet: Abstract_Wallet = None):
