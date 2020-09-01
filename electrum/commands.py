@@ -615,7 +615,7 @@ class Commands:
             locktime=locktime)
         result = tx.serialize()
         if addtransaction:
-            await self.addtransaction(result)
+            await self.addtransaction(result, wallet=wallet)
         return result
 
     @command('wp')
@@ -646,7 +646,7 @@ class Commands:
             locktime=locktime)
         result = tx.serialize()
         if addtransaction:
-            await self.addtransaction(result)
+            await self.addtransaction(result, wallet=wallet)
         return result
 
     @command('w')
