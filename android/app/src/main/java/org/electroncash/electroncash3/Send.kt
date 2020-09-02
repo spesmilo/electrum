@@ -138,7 +138,7 @@ class SendDialog : AlertDialogFragment() {
                                      Kwarg("isInvoice", pr != null))
         try {
             return wallet.callAttr("make_unsigned_transaction", inputs, outputs,
-                                   daemonModel.config)
+                                   daemonModel.config, Kwarg("sign_schnorr", true))
         } catch (e: PyException) {
             throw if (e.message!!.startsWith("NotEnoughFunds"))
                 ToastException(R.string.insufficient_funds) else e
