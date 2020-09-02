@@ -647,29 +647,25 @@ class Channel(AbstractChannel):
 
     def get_payments(self):
         out = []
-        for subject in LOCAL, REMOTE:
-            log = self.hm.log[subject]
-            for htlc_id, htlc in log.get('adds', {}).items():
-                if htlc_id in log.get('fails',{}):
-                    status = 'failed'
-                elif htlc_id in log.get('settles',{}):
-                    status = 'settled'
-                else:
-                    status = 'inflight'
-                direction = SENT if subject is LOCAL else RECEIVED
-                rhash = bh2u(htlc.payment_hash)
-                out.append((rhash, self.channel_id, htlc, direction, status))
+        for direction, htlc in self.hm.all_htlcs_ever():
+            htlc_proposer = LOCAL if direction is SENT else REMOTE
+            if self.hm.was_htlc_failed(htlc_id=htlc.htlc_id, htlc_proposer=htlc_proposer):
+                status = 'failed'
+            elif self.hm.was_htlc_preimage_released(htlc_id=htlc.htlc_id, htlc_proposer=htlc_proposer):
+                status = 'settled'
+            else:
+                status = 'inflight'
+            rhash = htlc.payment_hash.hex()
+            out.append((rhash, self.channel_id, htlc, direction, status))
         return out
 
     def get_settled_payments(self):
         out = defaultdict(list)
-        for subject in LOCAL, REMOTE:
-            log = self.hm.log[subject]
-            for htlc_id, htlc in log.get('adds', {}).items():
-                if htlc_id in log.get('settles',{}):
-                    direction = SENT if subject is LOCAL else RECEIVED
-                    rhash = bh2u(htlc.payment_hash)
-                    out[rhash].append((self.channel_id, htlc, direction))
+        for direction, htlc in self.hm.all_htlcs_ever():
+            htlc_proposer = LOCAL if direction is SENT else REMOTE
+            if self.hm.was_htlc_preimage_released(htlc_id=htlc.htlc_id, htlc_proposer=htlc_proposer):
+                rhash = htlc.payment_hash.hex()
+                out[rhash].append((self.channel_id, htlc, direction))
         return out
 
     def open_with_first_pcp(self, remote_pcp: bytes, remote_sig: bytes) -> None:
@@ -1206,15 +1202,13 @@ class Channel(AbstractChannel):
         """
         self.logger.info("settle_htlc")
         assert self.can_send_ctx_updates(), f"cannot update channel. {self.get_state()!r} {self.peer_state!r}"
-        log = self.hm.log[REMOTE]
-        htlc = log['adds'][htlc_id]
+        htlc = self.hm.get_htlc_by_id(REMOTE, htlc_id)
         assert htlc.payment_hash == sha256(preimage)
-        assert htlc_id not in log['settles']
+        assert htlc_id not in self.hm.log[REMOTE]['settles']
         self.hm.send_settle(htlc_id)
 
     def get_payment_hash(self, htlc_id: int) -> bytes:
-        log = self.hm.log[LOCAL]
-        htlc = log['adds'][htlc_id]  # type: UpdateAddHtlc
+        htlc = self.hm.get_htlc_by_id(LOCAL, htlc_id)
         return htlc.payment_hash
 
     def decode_onion_error(self, reason: bytes, route: Sequence['RouteEdge'],
@@ -1230,10 +1224,9 @@ class Channel(AbstractChannel):
         Action must be initiated by REMOTE.
         """
         self.logger.info("receive_htlc_settle")
-        log = self.hm.log[LOCAL]
-        htlc = log['adds'][htlc_id]
+        htlc = self.hm.get_htlc_by_id(LOCAL, htlc_id)
         assert htlc.payment_hash == sha256(preimage)
-        assert htlc_id not in log['settles']
+        assert htlc_id not in self.hm.log[LOCAL]['settles']
         with self.db_lock:
             self.hm.recv_settle(htlc_id)
 
@@ -1419,7 +1412,7 @@ class Channel(AbstractChannel):
                               (REMOTE, SENT, self.get_oldest_unrevoked_ctn(LOCAL)),
                               (REMOTE, SENT, self.get_latest_ctn(LOCAL)),):
             for htlc_id, htlc in self.hm.htlcs_by_direction(subject=sub, direction=dir, ctn=ctn).items():
-                if not self.hm.was_htlc_preimage_released(htlc_id=htlc_id, htlc_sender=REMOTE):
+                if not self.hm.was_htlc_preimage_released(htlc_id=htlc_id, htlc_proposer=REMOTE):
                     continue
                 if htlc.cltv_expiry - recv_htlc_deadline > local_height:
                     continue

@@ -294,6 +294,9 @@ class HTLCManager:
 
     ##### Queries re HTLCs:
 
+    def get_htlc_by_id(self, htlc_proposer: HTLCOwner, htlc_id: int) -> UpdateAddHtlc:
+        return self.log[htlc_proposer]['adds'][htlc_id]
+
     @with_lock
     def is_htlc_active_at_ctn(self, *, ctx_owner: HTLCOwner, ctn: int,
                               htlc_proposer: HTLCOwner, htlc_id: int) -> bool:
@@ -365,11 +368,18 @@ class HTLCManager:
         ctn = self.ctn_latest(subject) + 1
         return self.htlcs(subject, ctn)
 
-    def was_htlc_preimage_released(self, *, htlc_id: int, htlc_sender: HTLCOwner) -> bool:
-        settles = self.log[htlc_sender]['settles']
+    def was_htlc_preimage_released(self, *, htlc_id: int, htlc_proposer: HTLCOwner) -> bool:
+        settles = self.log[htlc_proposer]['settles']
         if htlc_id not in settles:
             return False
-        return settles[htlc_id][htlc_sender] is not None
+        return settles[htlc_id][htlc_proposer] is not None
+
+    def was_htlc_failed(self, *, htlc_id: int, htlc_proposer: HTLCOwner) -> bool:
+        """Returns whether an HTLC has been (or will be if we already know) failed."""
+        fails = self.log[htlc_proposer]['fails']
+        if htlc_id not in fails:
+            return False
+        return fails[htlc_id][htlc_proposer] is not None
 
     @with_lock
     def all_settled_htlcs_ever_by_direction(self, subject: HTLCOwner, direction: Direction,
@@ -400,6 +410,12 @@ class HTLCManager:
             ctn = self.ctn_oldest_unrevoked(subject)
         sent = [(SENT, x) for x in self.all_settled_htlcs_ever_by_direction(subject, SENT, ctn)]
         received = [(RECEIVED, x) for x in self.all_settled_htlcs_ever_by_direction(subject, RECEIVED, ctn)]
+        return sent + received
+
+    @with_lock
+    def all_htlcs_ever(self) -> Sequence[Tuple[Direction, UpdateAddHtlc]]:
+        sent = [(SENT, htlc) for htlc in self.log[LOCAL]['adds'].values()]
+        received = [(RECEIVED, htlc) for htlc in self.log[LOCAL]['adds'].values()]
         return sent + received
 
     @with_lock

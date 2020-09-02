@@ -1541,7 +1541,7 @@ class Peer(Logger):
                     if chan.get_oldest_unrevoked_ctn(REMOTE) <= remote_ctn:
                         continue
                     chan.logger.info(f'found unfulfilled htlc: {htlc_id}')
-                    htlc = chan.hm.log[REMOTE]['adds'][htlc_id]
+                    htlc = chan.hm.get_htlc_by_id(REMOTE, htlc_id)
                     payment_hash = htlc.payment_hash
                     error_reason = None  # type: Optional[OnionRoutingFailureMessage]
                     error_bytes = None  # type: Optional[bytes]
