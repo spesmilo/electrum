@@ -894,7 +894,6 @@ def hardware_keystore(d) -> Hardware_KeyStore:
 
 def load_keystore(db: 'WalletDB', name: str) -> KeyStore:
     d = db.get(name, {})
-    d = dict(d)  # convert to dict from StoredDict (see #6066)
     t = d.get('type')
     if not t:
         raise WalletFileException(
