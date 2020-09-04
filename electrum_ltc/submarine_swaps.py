@@ -18,7 +18,6 @@ from .lnutil import hex_to_bytes
 from .json_db import StoredObject
 from . import constants
 
-
 if TYPE_CHECKING:
     from .network import Network
     from .wallet import Abstract_Wallet
@@ -400,6 +399,8 @@ class SwapManager(Logger):
             x = int(x * (100 - self.percentage) / 100)
             x -= self.lockup_fee
             x -= self.get_claim_fee()
+            if x < dust_threshold():
+                return
         else:
             x -= self.normal_fee
             x = int(x * (100 - self.percentage) / 100)

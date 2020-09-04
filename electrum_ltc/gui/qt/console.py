@@ -99,7 +99,7 @@ class Console(QtWidgets.QPlainTextEdit):
 
     def newPrompt(self, curr_line):
         if self.construct:
-            prompt = '.' * len(self.prompt)
+            prompt = '... '
         else:
             prompt = self.prompt + curr_line
 
@@ -160,9 +160,8 @@ class Console(QtWidgets.QPlainTextEdit):
 
     def getConstruct(self, command):
         if self.construct:
-            prev_command = self.construct[-1]
             self.construct.append(command)
-            if not prev_command and not command:
+            if not command:
                 ret_val = '\n'.join(self.construct)
                 self.construct = []
                 return ret_val

@@ -521,7 +521,7 @@ class BitBox02_KeyStore(Hardware_KeyStore):
     device = "BitBox02"
     plugin: "BitBox02Plugin"
 
-    def __init__(self, d: StoredDict):
+    def __init__(self, d: dict):
         super().__init__(d)
         self.force_watching_only = False
         self.ux_busy = False

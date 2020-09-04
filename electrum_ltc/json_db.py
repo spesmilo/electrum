@@ -103,7 +103,8 @@ class StoredDict(dict):
         elif isinstance(v, dict):
             if self.db:
                 v = self.db._convert_dict(self.path, key, v)
-            v = StoredDict(v, self.db, self.path + [key])
+            if not self.db or self.db._should_convert_to_stored_dict(key):
+                v = StoredDict(v, self.db, self.path + [key])
         # convert_value is called depth-first
         if isinstance(v, dict) or isinstance(v, str):
             if self.db:
@@ -194,3 +195,6 @@ class JsonDB(Logger):
     @locked
     def dump(self):
         return json.dumps(self.data, indent=4, sort_keys=True, cls=JsonDBJsonEncoder)
+
+    def _should_convert_to_stored_dict(self, key) -> bool:
+        return True
