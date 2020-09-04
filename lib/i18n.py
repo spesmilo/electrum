@@ -32,6 +32,7 @@ from collections import namedtuple
 
 LOCALE_DIR = os.path.join(os.path.dirname(__file__), 'locale')
 language = gettext.translation('electron-cash', LOCALE_DIR, fallback=True)
+set_language_called = 0
 
 def _(x):
     global language
@@ -60,7 +61,7 @@ def npgettext(context: str, singular: str, plural: str, n: int) -> str:
     return message if '\x04' in translated else translated
 
 def set_language(x):
-    global language
+    global language, set_language_called
 
     if not x:
         # User hasn't selected a language so we default to the system language
@@ -69,6 +70,8 @@ def set_language(x):
         # Attempt to match passed-in language with a known one if not exact
         # match.
         x = match_language(x) or x
+
+    set_language_called += 1  # Tally the number of times this has been called
 
     if x:
         language = gettext.translation('electron-cash', LOCALE_DIR, fallback=True, languages=[x])

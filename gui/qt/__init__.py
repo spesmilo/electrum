@@ -53,7 +53,8 @@ from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 
-from electroncash.i18n import _, set_language
+from electroncash.i18n import _
+from electroncash import i18n
 from electroncash.plugins import run_hook
 from electroncash import WalletStorage
 from electroncash.util import (UserCancelled, PrintError, print_error,
@@ -86,7 +87,7 @@ class ElectrumGui(QObject, PrintError):
         super(__class__, self).__init__() # QObject init
         assert __class__.instance is None, "ElectrumGui is a singleton, yet an instance appears to already exist! FIXME!"
         __class__.instance = self
-        set_language(config.get('language'))
+        i18n.set_language(config.get('language'))
 
         self.config = config
         self.daemon = daemon
@@ -263,6 +264,24 @@ class ElectrumGui(QObject, PrintError):
                     #QMessageBox.warning(None, _("Warning"), msg)  # this works even if app is not exec_() yet.
 
                 callables.append(undo_hack)
+
+        def setup_layout_direction():
+            """Sets the app layout direction depending on language. To be called
+            after self.app is created successfully. Note this *MUST* be called
+            after set_language has been called."""
+            assert i18n.set_language_called > 0
+            lc = i18n.language.info().get('language')
+            lc = '' if not isinstance(lc, str) else lc
+            lc = lc.split('_')[0]
+            layout_direction = Qt.LeftToRight
+            blurb = "left-to-right"
+            if lc in {'ar', 'fa', 'he', 'ps', 'ug', 'ur'}:  # Right-to-left languages
+                layout_direction = Qt.RightToLeft
+                blurb = "right-to-left"
+            self.print_error("Setting layout direction:", blurb)
+            self.app.setLayoutDirection(layout_direction)
+        # callable will be called after self.app is set-up successfully
+        callables.append(setup_layout_direction)
 
         return ret
 
