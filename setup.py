@@ -54,7 +54,7 @@ extras_require = {
     'hardware': requirements_hw,
     'gui': ['pyqt5'],
     'crypto': ['cryptography>=2.1'],
-    'tests': ['pycryptodomex>=3.7', 'cryptography>=2.1'],
+    'tests': ['pycryptodomex>=3.7', 'cryptography>=2.1', 'pyaes>=0.1a1'],
 }
 # 'full' extra that tries to grab everything an enduser would need (except for libsecp256k1...)
 extras_require['full'] = [pkg for sublist in
