@@ -705,18 +705,20 @@ class DeviceMgr(ThreadJob):
 
         # find out what was disconnected
         pairs = [(dev.path, dev.id_) for dev in devices]
-        disconnected_ids = []
+        disconnected_clients = []
         with self.lock:
             connected = {}
             for client, pair in self.clients.items():
                 if pair in pairs and client.has_usable_connection_with_device():
                     connected[client] = pair
                 else:
-                    disconnected_ids.append(pair[1])
+                    disconnected_clients.append((client, pair[1]))
             self.clients = connected
 
         # Unpair disconnected devices
-        for id_ in disconnected_ids:
+        for client, id_ in disconnected_clients:
             self.unpair_id(id_)
+            if client.handler:
+                client.handler.update_status(False)
 
         return devices
