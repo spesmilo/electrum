@@ -601,7 +601,10 @@ class NetworkChoiceLayout(QObject, PrintError):
         tbt = self.network.tor_controller.tor_binary_type
         tbname = self._tor_client_names[tbt]
 
-        self.tor_enabled.setText(_("Start {tor_binary_name} client").format(tor_binary_name=tbname))
+        self.tor_enabled.setText(_("Start {tor_binary_name} client").format(
+            tor_binary_name=tbname,
+            tor_binary_name_capitalized=tbname[:1].upper() + tbname[1:]
+        ))
         avalable = tbt != TorController.BinaryType.MISSING
         self.tor_enabled.setEnabled(avalable)
         self.tor_custom_port_cb.setEnabled(avalable and self.tor_enabled.isChecked())
