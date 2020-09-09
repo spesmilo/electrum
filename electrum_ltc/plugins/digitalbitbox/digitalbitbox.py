@@ -30,6 +30,7 @@ from electrum_ltc.util import to_string, UserCancelled, UserFacingException, bfh
 from electrum_ltc.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
 from electrum_ltc.network import Network
 from electrum_ltc.logging import get_logger
+from electrum_ltc.plugin import runs_in_hwd_thread, run_in_hwd_thread
 
 from ..hw_wallet import HW_PluginBase, HardwareClientBase
 
@@ -74,19 +75,14 @@ class DigitalBitbox_Client(HardwareClientBase):
         self.setupRunning = False
         self.usbReportSize = 64 # firmware > v2.0.0
 
-
+    @runs_in_hwd_thread
     def close(self):
         if self.opened:
-            with self.device_manager().hid_lock:
-                try:
-                    self.dbb_hid.close()
-                except:
-                    pass
+            try:
+                self.dbb_hid.close()
+            except:
+                pass
         self.opened = False
-
-
-    def timeout(self, cutoff):
-        pass
 
 
     def is_pairable(self):
@@ -110,7 +106,6 @@ class DigitalBitbox_Client(HardwareClientBase):
     def _get_xpub(self, bip32_path):
         if self.check_device_dialog():
             return self.hid_send_encrypt(('{"xpub": "%s"}' % bip32_path).encode('utf8'))
-
 
     def get_xpub(self, bip32_path, xtype):
         assert xtype in self.plugin.SUPPORTED_XTYPES
@@ -171,9 +166,9 @@ class DigitalBitbox_Client(HardwareClientBase):
                 self.password = password.encode('utf8')
                 return True
 
-
     def check_device_dialog(self):
-        match = re.search(r'v([0-9])+\.[0-9]+\.[0-9]+', self.dbb_hid.get_serial_number_string())
+        match = re.search(r'v([0-9])+\.[0-9]+\.[0-9]+',
+                          run_in_hwd_thread(self.dbb_hid.get_serial_number_string))
         if match is None:
             raise Exception("error detecting firmware version")
         major_version = int(match.group(1))
@@ -350,7 +345,7 @@ class DigitalBitbox_Client(HardwareClientBase):
             raise UserFacingException(hid_reply['error']['message'])
         return True
 
-
+    @runs_in_hwd_thread
     def hid_send_frame(self, data):
         HWW_CID = 0xFF000000
         HWW_CMD = 0x80 + 0x40 + 0x01
@@ -370,7 +365,7 @@ class DigitalBitbox_Client(HardwareClientBase):
                 seq += 1
             idx += len(write)
 
-
+    @runs_in_hwd_thread
     def hid_read_frame(self):
         # INIT response
         read = bytearray(self.dbb_hid.read(self.usbReportSize))
@@ -386,7 +381,7 @@ class DigitalBitbox_Client(HardwareClientBase):
             idx += len(read) - 5
         return data
 
-
+    @runs_in_hwd_thread
     def hid_send_plain(self, msg):
         reply = ""
         try:
@@ -408,7 +403,7 @@ class DigitalBitbox_Client(HardwareClientBase):
             _logger.info(f'Exception caught {repr(e)}')
         return reply
 
-
+    @runs_in_hwd_thread
     def hid_send_encrypt(self, msg):
         sha256_byte_len = 32
         reply = ""
@@ -680,11 +675,10 @@ class DigitalBitboxPlugin(HW_PluginBase):
 
         self.digitalbitbox_config = self.config.get('digitalbitbox', {})
 
-
+    @runs_in_hwd_thread
     def get_dbb_device(self, device):
-        with self.device_manager().hid_lock:
-            dev = hid.device()
-            dev.open_path(device.path)
+        dev = hid.device()
+        dev.open_path(device.path)
         return dev
 
 

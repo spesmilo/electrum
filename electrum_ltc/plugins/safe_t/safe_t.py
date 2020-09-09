@@ -7,7 +7,7 @@ from electrum_ltc.util import bfh, bh2u, versiontuple, UserCancelled, UserFacing
 from electrum_ltc.bip32 import BIP32Node
 from electrum_ltc import constants
 from electrum_ltc.i18n import _
-from electrum_ltc.plugin import Device
+from electrum_ltc.plugin import Device, runs_in_hwd_thread
 from electrum_ltc.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
 from electrum_ltc.keystore import Hardware_KeyStore
 from electrum_ltc.base_wizard import ScriptTypeNotSupported
@@ -35,6 +35,7 @@ class SafeTKeyStore(Hardware_KeyStore):
     def decrypt_message(self, sequence, message, password):
         raise UserFacingException(_('Encryption and decryption are not implemented by {}').format(self.device))
 
+    @runs_in_hwd_thread
     def sign_message(self, sequence, message, password):
         client = self.get_client()
         address_path = self.get_derivation_prefix() + "/%d/%d"%sequence
@@ -42,6 +43,7 @@ class SafeTKeyStore(Hardware_KeyStore):
         msg_sig = client.sign_message(self.plugin.get_coin_name(), address_n, message)
         return msg_sig.signature
 
+    @runs_in_hwd_thread
     def sign_transaction(self, tx, password):
         if tx.is_complete():
             return
@@ -96,6 +98,7 @@ class SafeTPlugin(HW_PluginBase):
         except AttributeError:
             return 'unknown'
 
+    @runs_in_hwd_thread
     def enumerate(self):
         devices = self.transport_handler.enumerate_devices()
         return [Device(path=d.get_path(),
@@ -106,6 +109,7 @@ class SafeTPlugin(HW_PluginBase):
                        transport_ui_string=d.get_path())
                 for d in devices]
 
+    @runs_in_hwd_thread
     def create_client(self, device, handler):
         try:
             self.logger.info(f"connecting to device at {device.path}")
@@ -141,6 +145,7 @@ class SafeTPlugin(HW_PluginBase):
 
         return client
 
+    @runs_in_hwd_thread
     def get_client(self, keystore, force_pair=True, *,
                    devices=None, allow_user_interaction=True) -> Optional['SafeTClient']:
         client = super().get_client(keystore, force_pair,
@@ -198,6 +203,7 @@ class SafeTPlugin(HW_PluginBase):
         finally:
             wizard.loop.exit(exit_code)
 
+    @runs_in_hwd_thread
     def _initialize_device(self, settings, method, device_id, wizard, handler):
         item, label, pin_protection, passphrase_protection = settings
 
@@ -289,6 +295,7 @@ class SafeTPlugin(HW_PluginBase):
             return self.types.OutputScriptType.PAYTOMULTISIG
         raise ValueError('unexpected txin type: {}'.format(electrum_txin_type))
 
+    @runs_in_hwd_thread
     def sign_transaction(self, keystore, tx: PartialTransaction, prev_tx):
         self.prev_tx = prev_tx
         client = self.get_client(keystore)
@@ -299,6 +306,7 @@ class SafeTPlugin(HW_PluginBase):
         signatures = [(bh2u(x) + '01') for x in signatures]
         tx.update_signatures(signatures)
 
+    @runs_in_hwd_thread
     def show_address(self, wallet, address, keystore=None):
         if keystore is None:
             keystore = wallet.get_keystore()

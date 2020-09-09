@@ -415,7 +415,7 @@ class HTLCManager:
     @with_lock
     def all_htlcs_ever(self) -> Sequence[Tuple[Direction, UpdateAddHtlc]]:
         sent = [(SENT, htlc) for htlc in self.log[LOCAL]['adds'].values()]
-        received = [(RECEIVED, htlc) for htlc in self.log[LOCAL]['adds'].values()]
+        received = [(RECEIVED, htlc) for htlc in self.log[REMOTE]['adds'].values()]
         return sent + received
 
     @with_lock
