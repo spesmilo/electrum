@@ -1,11 +1,6 @@
 pip
-setuptools<50.0.0   # 50.0.0 might break pyinstaller. see https://github.com/pyinstaller/pyinstaller/commit/e9f9d79d6b23c767512156323d0a5d28c6386a57
+setuptools
 wheel
-
-pyinstaller>=3.6
-
-# needed by pyinstaller:
-macholib
 
 # Note: hidapi requires Cython at build-time (not needed at runtime).
 # For reproducible builds, the version of Cython must be pinned down.

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Parameterize
-PYTHON_VERSION=3.7.7
+PYTHON_VERSION=3.7.9
 BUILDDIR=/tmp/electrum-ltc-build
 PACKAGE=Electrum-LTC
 GIT_REPO=https://github.com/pooler/electrum-ltc

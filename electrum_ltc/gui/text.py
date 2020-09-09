@@ -14,6 +14,7 @@ from electrum_ltc.util import format_satoshis
 from electrum_ltc.bitcoin import is_address, COIN
 from electrum_ltc.transaction import PartialTxOutput
 from electrum_ltc.wallet import Wallet
+from electrum_ltc.wallet_db import WalletDB
 from electrum_ltc.storage import WalletStorage
 from electrum_ltc.network import NetworkParameters, TxBroadcastError, BestEffortRequestFailed
 from electrum_ltc.interface import ServerAddr
@@ -41,7 +42,8 @@ class ElectrumGui:
         if storage.is_encrypted():
             password = getpass.getpass('Password:', stream=None)
             storage.decrypt(password)
-        self.wallet = Wallet(storage, config=config)
+        db = WalletDB(storage.read(), manual_upgrades=False)
+        self.wallet = Wallet(db, storage, config=config)
         self.wallet.start_network(self.network)
         self.contacts = self.wallet.contacts
 
