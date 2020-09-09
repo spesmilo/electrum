@@ -38,8 +38,8 @@ version.filename = %(source.dir)s/electrum/version.py
 # (list) Application requirements
 requirements =
     # note: re python3.8, see #6147
-    hostpython3==3.7.7,
-    python3==3.7.7,
+    hostpython3==3.7.9,
+    python3==3.7.9,
     android,
     openssl,
     plyer,
