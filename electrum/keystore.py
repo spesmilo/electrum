@@ -372,7 +372,7 @@ class MasterPublicKeyMixin(ABC):
         fp_found, path_found = txinout.bip32_paths[pubkey]
         der_suffix = None
         full_path = None
-        # try fp against our root
+        # 1. try fp against our root
         my_root_fingerprint_hex = self.get_root_fingerprint()
         my_der_prefix_str = self.get_derivation_prefix()
         ks_der_prefix = convert_bip32_path_to_list_of_uint32(my_der_prefix_str) if my_der_prefix_str else None
@@ -382,12 +382,16 @@ class MasterPublicKeyMixin(ABC):
                 der_suffix = path_found[len(ks_der_prefix):]
                 if not test_der_suffix_against_pubkey(der_suffix, pubkey):
                     der_suffix = None
-        # try fp against our intermediate fingerprint
+        # 2. try fp against our intermediate fingerprint
         if (der_suffix is None and isinstance(self, Xpub) and
                 fp_found == self.get_bip32_node_for_xpub().calc_fingerprint_of_this_node()):
             der_suffix = path_found
             if not test_der_suffix_against_pubkey(der_suffix, pubkey):
                 der_suffix = None
+        # NOTE: problem: if we don't know our root fp, but tx contains root fp and full path,
+        #       we will miss the pubkey (false negative match). Though it might still work
+        #       within gap limit due to tx.add_info_from_wallet overwriting the fields.
+        #       Example: keystore has intermediate xprv without root fp; tx contains root fp and full path.
         if der_suffix is None:
             return None
         if ks_der_prefix is not None:
