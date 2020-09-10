@@ -261,7 +261,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             # to prevent GC from getting in our way.
             def on_version_received(v):
                 if UpdateCheck.is_newer(v):
-                    self.update_check_button.setText(_("Update to Electrum {} is available").format(v))
+                    self.update_check_button.setText(_("Update to Electrum {version} is available").format(version=v))
                     self.update_check_button.clicked.connect(lambda: self.show_update_check(v))
                     self.update_check_button.show()
             self._update_check_thread = UpdateCheckThread(self)
@@ -290,7 +290,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def toggle_tab(self, tab):
         show = not self.config.get('show_{}_tab'.format(tab.tab_name), False)
         self.config.set_key('show_{}_tab'.format(tab.tab_name), show)
-        item_text = (_("Hide {}") if show else _("Show {}")).format(tab.tab_description)
+        item_text = (_("Hide {tab_description}") if show else _("Show {tab_description}")).format(tab_description=tab.tab_description)
         tab.menu_action.setText(item_text)
         if show:
             # Find out where to place the tab
@@ -715,14 +715,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 if not is_relevant:
                     continue
                 total_amount += v
-            self.notify(_("{} new transactions: Total amount received in the new transactions {}")
-                        .format(len(txns), self.format_amount_and_units(total_amount)))
+            self.notify(_("{number} new transactions: Total amount received in the new transactions {amount}")
+                        .format(number=len(txns), amount=self.format_amount_and_units(total_amount)))
         else:
             for tx in txns:
                 is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
                 if not is_relevant:
                     continue
-                self.notify(_("New transaction: {}").format(self.format_amount_and_units(v)))
+                self.notify(_("New transaction: {amount}").format(amount=self.format_amount_and_units(v)))
 
     def notify(self, message):
         if self.tray:
@@ -844,7 +844,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                         .format(_("Synchronizing..."), num_answered, num_sent))
                 icon = read_QIcon("status_waiting.png")
             elif server_lag > 1:
-                text = _("Server is lagging ({} blocks)").format(server_lag)
+                text = _("Server is lagging ({number} blocks)").format(number=server_lag)
                 icon = read_QIcon("status_lagging%s.png"%fork_str)
             else:
                 balance = self.wallet.get_balance()
@@ -1108,7 +1108,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def do_copy(self, title, content):
         self.app.clipboard().setText(content)
-        self.show_message(_(f"{title} copied to clipboard:\n\n{content}"))
+        self.show_message(_("{title} copied to clipboard:\n\n{content}").format(title=title, content=content))
 
     def export_payment_request(self, addr):
         r = self.wallet.receive_requests.get(addr)
@@ -1374,8 +1374,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
             if self.payto_e.is_alias and self.payto_e.validated is False:
                 alias = self.payto_e.toPlainText()
-                msg = _('WARNING: the alias "{}" could not be validated via an additional '
-                        'security check, DNSSEC, and thus may not be correct.').format(alias) + '\n'
+                msg = _('WARNING: the alias "{alias}" could not be validated via an additional '
+                        'security check, DNSSEC, and thus may not be correct.').format(alias=alias) + '\n'
                 msg += _('Do you wish to continue?')
                 if not self.question(msg):
                     return True
@@ -1589,12 +1589,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             message = '\n'.join([
                 _('Channel established.'),
                 _('Remote peer ID') + ':' + chan.node_id.hex(),
-                _('This channel will be usable after {} confirmations').format(n)
+                _('This channel will be usable after {number} confirmations').format(number=n)
             ])
             self.show_message(message)
         def on_failure(exc_info):
             type_, e, traceback = exc_info
-            self.show_error(_('Could not open channel: {}').format(e))
+            self.show_error(_('Could not open channel: {error_value}').format(error_value=e))
         WaitingDialog(self, _('Opening channel...'), task, on_success, on_failure)
 
     def query_choice(self, msg, choices):
@@ -1751,7 +1751,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         return self.create_list_tab(l)
 
     def remove_address(self, addr):
-        if self.question(_("Do you want to remove {} from your wallet?").format(addr)):
+        if self.question(_("Do you want to remove {address} from your wallet?").format(address=addr)):
             self.wallet.delete_address(addr)
             self.need_update.set()  # history, addresses, coins
             self.clear_receive_tab()
@@ -1790,8 +1790,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         return True
 
     def delete_contacts(self, labels):
-        if not self.question(_("Remove {} from your list of contacts?")
-                             .format(" + ".join(labels))):
+        if not self.question(_("Remove {labels} from your list of contacts?")
+                             .format(labels=" + ".join(labels))):
             return
         for label in labels:
             self.contacts.pop(label)
@@ -2107,9 +2107,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         basename = os.path.basename(wallet_path)
         r = self.gui_object.daemon.delete_wallet(wallet_path)
         if r:
-            self.show_error(_("Wallet removed: {}").format(basename))
+            self.show_error(_("Wallet removed: {name}").format(name=basename))
         else:
-            self.show_error(_("Wallet file not found: {}").format(basename))
+            self.show_error(_("Wallet file not found: {name}").format(name=basename))
         self.close()
 
     @protected

@@ -226,7 +226,7 @@ class AddressList(MyTreeView):
             self.add_copy_menu(menu, idx)
             menu.addAction(_('Details'), lambda: self.parent.show_address(addr))
             persistent = QPersistentModelIndex(addr_idx)
-            menu.addAction(_("Edit {}").format(addr_column_title), lambda p=persistent: self.edit(QModelIndex(p)))
+            menu.addAction(_("Edit {title}").format(title=addr_column_title), lambda p=persistent: self.edit(QModelIndex(p)))
             menu.addAction(_("Request payment"), lambda: self.parent.receive_at(addr))
             if self.wallet.can_export():
                 menu.addAction(_("Private key"), lambda: self.parent.show_private_key(addr))

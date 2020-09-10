@@ -818,7 +818,7 @@ class AcceptFileDragDrop:
 
 def import_meta_gui(electrum_window, title, importer, on_success):
     filter_ = "JSON (*.json);;All files (*)"
-    filename = electrum_window.getOpenFileName(_("Open {} file").format(title), filter_)
+    filename = electrum_window.getOpenFileName(_("Open {title} file").format(title=title), filter_)
     if not filename:
         return
     try:
@@ -826,13 +826,13 @@ def import_meta_gui(electrum_window, title, importer, on_success):
     except FileImportFailed as e:
         electrum_window.show_critical(str(e))
     else:
-        electrum_window.show_message(_("Your {} were successfully imported").format(title))
+        electrum_window.show_message(_("Your {title} were successfully imported").format(title=title))
         on_success()
 
 
 def export_meta_gui(electrum_window, title, exporter):
     filter_ = "JSON (*.json);;All files (*)"
-    filename = electrum_window.getSaveFileName(_("Select file to save your {}").format(title),
+    filename = electrum_window.getSaveFileName(_("Select file to save your {title}").format(title=title),
                                                'electrum_{}.json'.format(title), filter_)
     if not filename:
         return

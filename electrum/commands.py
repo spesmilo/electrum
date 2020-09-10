@@ -1131,8 +1131,8 @@ def subparser_call(self, parser, namespace, values, option_string=None):
     try:
         parser = self._name_parser_map[parser_name]
     except KeyError:
-        tup = parser_name, ', '.join(self._name_parser_map)
-        msg = _('unknown parser {!r} (choices: {})').format(*tup)
+        choices = ', '.join(self._name_parser_map)
+        msg = _('unknown parser {name!r} (choices: {choices})').format(name=parser_name, choices=choices)
         raise ArgumentError(self, msg)
     # parse all the remaining options into the namespace
     # store any unrecognized options on the object, so that the top

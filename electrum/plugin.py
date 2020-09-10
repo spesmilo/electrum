@@ -504,11 +504,11 @@ class DeviceMgr(ThreadJob):
         # The user input has wrong PIN or passphrase, or cancelled input,
         # or it is not pairable
         raise DeviceUnpairableError(
-            _('Electrum cannot pair with your {}.\n\n'
+            _('Electrum cannot pair with your {device}.\n\n'
               'Before you request bitcoins to be sent to addresses in this '
               'wallet, ensure you can pair with your device, or that you have '
               'its seed (and passphrase, if any).  Otherwise all bitcoins you '
-              'receive will be unspendable.').format(plugin.device))
+              'receive will be unspendable.').format(device=plugin.device))
 
     def unpaired_device_infos(self, handler, plugin: 'HW_PluginBase', devices: List['Device'] = None,
                               include_failing_clients=False):
@@ -547,7 +547,7 @@ class DeviceMgr(ThreadJob):
             infos = self.unpaired_device_infos(handler, plugin, devices)
             if infos:
                 break
-            msg = _('Please insert your {}').format(plugin.device)
+            msg = _('Please insert your {device}').format(device=plugin.device)
             if keystore.label:
                 msg += ' ({})'.format(keystore.label)
             msg += '. {}\n\n{}'.format(
@@ -569,7 +569,7 @@ class DeviceMgr(ThreadJob):
                 if info.label == keystore.label:
                     return info
         # ask user to select device
-        msg = _("Please select which {} device to use:").format(plugin.device)
+        msg = _("Please select which {device} device to use:").format(device=plugin.device)
         descriptions = ["{label} ({init}, {transport})"
                         .format(label=info.label,
                                 init=(_("initialized") if info.initialized else _("wiped")),

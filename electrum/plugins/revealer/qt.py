@@ -176,7 +176,7 @@ class Plugin(RevealerPlugin):
         self.rawnoise = False
         version = self.versioned_seed.version
         code_id = self.versioned_seed.checksum
-        dialog.show_message(''.join([_("{} encrypted for Revealer {}_{} saved as PNG and PDF at: ").format(self.was, version, code_id),
+        dialog.show_message(''.join([_("{wallet_seed} encrypted for Revealer {version}_{checksum} saved as PNG and PDF at: ").format(wallet_seed=self.was, version=version, checksum=code_id),
                                      "<b>", self.get_path_to_revealer_file(), "</b>", "<br/>",
                                      "<br/>", "<b>", _("Always check your backups.")]),
                             rich_text=True)
@@ -191,7 +191,7 @@ class Plugin(RevealerPlugin):
     def bdone(self, dialog):
         version = self.versioned_seed.version
         code_id = self.versioned_seed.checksum
-        dialog.show_message(''.join([_("Digital Revealer ({}_{}) saved as PNG and PDF at:").format(version, code_id),
+        dialog.show_message(''.join([_("Digital Revealer ({version}_{code_id}) saved as PNG and PDF at:").format(version=version, code_id=code_id),
                                      "<br/>","<b>", self.get_path_to_revealer_file(), '</b>']),
                             rich_text=True)
 
@@ -218,7 +218,7 @@ class Plugin(RevealerPlugin):
                                  "{risk}")
                                 .format(warning=_("Warning"),
                                         ver0=_("Revealers starting with 0 are not secure due to a vulnerability."),
-                                        url=_("More info at: {}").format(f'<a href="{link}">{link}</a>'),
+                                        url=_("More info at: {link}").format(link=f'<a href="{link}">{link}</a>'),
                                         risk=_("Proceed at your own risk.")),
                                 rich_text=True)
 
@@ -240,14 +240,14 @@ class Plugin(RevealerPlugin):
         logo.setAlignment(Qt.AlignLeft)
         hbox.addSpacing(16)
         self.vbox.addWidget(WWLabel("<b>" + _("Revealer Secret Backup Plugin") + "</b><br>"
-                               + _("Ready to encrypt for revealer {}")
-                                    .format(self.versioned_seed.version+'_'+self.versioned_seed.checksum)))
+                               + _("Ready to encrypt for revealer {version}")
+                                    .format(version=self.versioned_seed.version+'_'+self.versioned_seed.checksum)))
         self.vbox.addSpacing(11)
         hbox.addLayout(self.vbox)
         grid = QGridLayout()
         self.vbox.addLayout(grid)
 
-        cprint = QPushButton(_("Encrypt {}'s seed").format(self.wallet_name))
+        cprint = QPushButton(_("Encrypt {wallet_name}'s seed").format(wallet_name=self.wallet_name))
         cprint.setMaximumWidth(250)
         cprint.clicked.connect(partial(self.seed_img, True))
         self.vbox.addWidget(cprint)
@@ -262,7 +262,7 @@ class Plugin(RevealerPlugin):
         self.char_count.setAlignment(Qt.AlignRight)
         self.vbox.addWidget(self.char_count)
         self.max_chars = WWLabel("<font color='red'>"
-                                 + _("This version supports a maximum of {} characters.").format(self.MAX_PLAINTEXT_LEN)
+                                 + _("This version supports a maximum of {length} characters.").format(length=self.MAX_PLAINTEXT_LEN)
                                  +"</font>")
         self.vbox.addWidget(self.max_chars)
         self.max_chars.setVisible(False)

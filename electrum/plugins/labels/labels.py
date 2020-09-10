@@ -19,7 +19,7 @@ class ErrorConnectingServer(Exception):
         self.reason = reason
 
     def __str__(self):
-        header = _("Error connecting to {} server").format('Labels')
+        header = _("Error connecting to {name} server").format(name='Labels')
         reason = self.reason
         if isinstance(reason, BaseException):
             reason = repr(reason)

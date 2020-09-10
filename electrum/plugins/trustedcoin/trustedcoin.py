@@ -114,7 +114,7 @@ class ErrorConnectingServer(Exception):
         self.reason = reason
 
     def __str__(self):
-        header = _("Error connecting to {} server").format('TrustedCoin')
+        header = _("Error connecting to {name} server").format(name='TrustedCoin')
         reason = self.reason
         if isinstance(reason, BaseException):
             reason = repr(reason)

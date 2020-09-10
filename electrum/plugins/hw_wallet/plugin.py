@@ -115,7 +115,7 @@ class HW_PluginBase(BasePlugin):
             library_version = e.library_version
             max_version_str = version_str(self.maximum_library) if hasattr(self, "maximum_library") else "inf"
             self.libraries_available_message = (
-                    _("Library version for '{}' is incompatible.").format(self.name)
+                    _("Library version for '{name}' is incompatible.").format(name=self.name)
                     + '\nInstalled: {}, Needed: {} <= x < {}'
                     .format(library_version, version_str(self.minimum_library), max_version_str))
             self.logger.warning(self.libraries_available_message)
@@ -127,7 +127,7 @@ class HW_PluginBase(BasePlugin):
         if hasattr(self, 'libraries_available_message'):
             message = self.libraries_available_message
         else:
-            message = _("Missing libraries for {}.").format(self.name)
+            message = _("Missing libraries for {library_name}.").format(library_name=self.name)
         message += '\n' + _("Make sure you install it with python3")
         return message
 

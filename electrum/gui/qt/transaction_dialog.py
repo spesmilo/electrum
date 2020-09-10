@@ -402,11 +402,11 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
 
         if tx_mined_status.timestamp:
             time_str = datetime.datetime.fromtimestamp(tx_mined_status.timestamp).isoformat(' ')[:-3]
-            self.date_label.setText(_("Date: {}").format(time_str))
+            self.date_label.setText(_("Date: {date}").format(date=time_str))
             self.date_label.show()
         elif exp_n:
             text = '%.2f MB'%(exp_n/1000000)
-            self.date_label.setText(_('Position in mempool: {} from tip').format(text))
+            self.date_label.setText(_('Position in mempool: {size} from tip').format(size=text))
             self.date_label.show()
         else:
             self.date_label.hide()
@@ -414,10 +414,10 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         self.rbf_label.setText(_('Replace by fee') + f": {not self.tx.is_final()}")
 
         if tx_mined_status.header_hash:
-            self.block_hash_label.setText(_("Included in block: {}")
-                                          .format(tx_mined_status.header_hash))
-            self.block_height_label.setText(_("At block height: {}")
-                                            .format(tx_mined_status.height))
+            self.block_hash_label.setText(_("Included in block: {header_hash}")
+                                          .format(header_hash=tx_mined_status.header_hash))
+            self.block_height_label.setText(_("At block height: {height}")
+                                            .format(height=tx_mined_status.height))
         else:
             self.block_hash_label.hide()
             self.block_height_label.hide()
@@ -457,7 +457,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         if not self.finalized:
             num_utxos = len(self.main_window.get_manually_selected_coins())
             if num_utxos > 0:
-                inputs_header_text += f"  -  " + _("Coin selection active ({} UTXOs selected)").format(num_utxos)
+                inputs_header_text += f"  -  " + _("Coin selection active ({num_utxos} UTXOs selected)").format(num_utxos=num_utxos)
         self.inputs_header.setText(inputs_header_text)
         ext = QTextCharFormat()
         rec = QTextCharFormat()
@@ -635,7 +635,7 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
             text = (self.feerounding_text + '\n\n' +
                     _('To somewhat protect your privacy, Electrum tries to create change with similar precision to other outputs.') + ' ' +
                     _('At most 100 satoshis might be lost due to this rounding.') + ' ' +
-                    _("You can disable this setting in '{}'.").format(_('Preferences')) + '\n' +
+                    _("You can disable this setting in '{setting_name}'.").format(setting_name=_('Preferences')) + '\n' +
                     _('Also, dust is not kept as change, but added to the fee.')  + '\n' +
                     _('Also, when batching RBF transactions, BIP 125 imposes a lower bound on the fee.'))
             self.show_message(title=_('Fee rounding'), msg=text)
@@ -695,8 +695,8 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
                and (self.feerate_e.text() or self.feerate_e.hasFocus())
 
     def set_feerounding_text(self, num_satoshis_added):
-        self.feerounding_text = (_('Additional {} satoshis are going to be added.')
-                                 .format(num_satoshis_added))
+        self.feerounding_text = (_('Additional {num_satoshis_added} satoshis are going to be added.')
+                                 .format(num_satoshis_added=num_satoshis_added))
 
     def get_fee_estimator(self):
         if self.is_send_fee_frozen():

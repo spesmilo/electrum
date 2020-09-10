@@ -48,8 +48,8 @@ class UpdateCheck(QWidget, Logger):
         self.content.addWidget(self.pb)
 
         versions = QHBoxLayout()
-        versions.addWidget(QLabel(_("Current version: {}".format(version.ELECTRUM_VERSION))))
-        self.latest_version_label = QLabel(_("Latest version: {}".format(" ")))
+        versions.addWidget(QLabel(_("Current version: {version}".format(version=version.ELECTRUM_VERSION))))
+        self.latest_version_label = QLabel(_("Latest version: {version}".format(version=" ")))
         versions.addWidget(self.latest_version_label)
         self.content.addLayout(versions)
 
@@ -81,11 +81,11 @@ class UpdateCheck(QWidget, Logger):
     def update_view(self, latest_version=None):
         if latest_version:
             self.pb.hide()
-            self.latest_version_label.setText(_("Latest version: {}".format(latest_version)))
+            self.latest_version_label.setText(_("Latest version: {version}".format(version=latest_version)))
             if self.is_newer(latest_version):
                 self.heading_label.setText('<h2>' + _("There is a new update available") + '</h2>')
                 url = "<a href='{u}'>{u}</a>".format(u=UpdateCheck.download_url)
-                self.detail_label.setText(_("You can download the new version from {}.").format(url))
+                self.detail_label.setText(_("You can download the new version from {ulr}.").format(url=url))
             else:
                 self.heading_label.setText('<h2>' + _("Already up to date") + '</h2>')
                 self.detail_label.setText(_("You are already on the latest version of Electrum."))

@@ -11,7 +11,7 @@ Popup:
                 height: self.minimum_height
                 padding: '10dp'
                 SettingsItem:
-                    value: _("{} connections.").format(app.lightning_gossip_num_peers) if app.lightning_gossip_num_peers else _("Not connected")
+                    value: _("{number} connections.").format(number=app.lightning_gossip_num_peers) if app.lightning_gossip_num_peers else _("Not connected")
                     title: _("Gossip") + ': ' + self.value
                     description: _("Connections with lightning nodes")
                 CardSeparator

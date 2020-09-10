@@ -31,7 +31,7 @@ class LinkedLabel(QtWidgets.QLabel):
 
 class ChannelDetailsDialog(QtWidgets.QDialog):
     def make_htlc_item(self, i: UpdateAddHtlc, direction: Direction) -> HTLCItem:
-        it = HTLCItem(_('Sent HTLC with ID {}' if Direction.SENT == direction else 'Received HTLC with ID {}').format(i.htlc_id))
+        it = HTLCItem((_('Sent HTLC with ID {id}') if Direction.SENT == direction else _('Received HTLC with ID {id}')).format(id=i.htlc_id))
         it.appendRow([HTLCItem(_('Amount')),HTLCItem(self.format(i.amount_msat))])
         it.appendRow([HTLCItem(_('CLTV expiry')),HTLCItem(str(i.cltv_expiry))])
         it.appendRow([HTLCItem(_('Payment hash')),HTLCItem(bh2u(i.payment_hash))])

@@ -412,7 +412,7 @@ class BaseWizard(Logger):
         choices = []
         for name, info in devices:
             state = _("initialized") if info.initialized else _("wiped")
-            label = info.label or _("An unnamed {}").format(name)
+            label = info.label or _("An unnamed {device_name}").format(device_name=name)
             try:
                 transport_str = info.device.transport_ui_string[:20]
             except:

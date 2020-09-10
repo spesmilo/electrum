@@ -473,7 +473,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 label = self.get_label(tx_hash)
                 if tx_mined_status.height > 0:
                     if tx_mined_status.conf:
-                        status = _("{} confirmations").format(tx_mined_status.conf)
+                        status = _("{number} confirmations").format(number=tx_mined_status.conf)
                     else:
                         status = _('Not verified')
                 elif tx_mined_status.height in (TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED):

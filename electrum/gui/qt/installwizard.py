@@ -297,8 +297,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         path = storage.path
         if storage.requires_split():
             self.hide()
-            msg = _("The wallet '{}' contains multiple accounts, which are no longer supported since Electrum 2.7.\n\n"
-                    "Do you want to split your wallet into multiple files?").format(path)
+            msg = _("The wallet '{path}' contains multiple accounts, which are no longer supported since Electrum 2.7.\n\n"
+                    "Do you want to split your wallet into multiple files?").format(path=path)
             if not self.question(msg):
                 return
             file_list = '\n'.join(storage.split_accounts())
@@ -315,10 +315,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             raise WalletFileException('Incomplete wallet files cannot be upgraded.')
         if action:
             self.hide()
-            msg = _("The file '{}' contains an incompletely created wallet.\n"
-                    "Do you want to complete its creation now?").format(path)
+            msg = _("The file '{path}' contains an incompletely created wallet.\n"
+                    "Do you want to complete its creation now?").format(path=path)
             if not self.question(msg):
-                if self.question(_("Do you want to delete '{}'?").format(path)):
+                if self.question(_("Do you want to delete '{path}'?").format(path=path)):
                     os.remove(path)
                     self.show_warning(_('The file was removed'))
                 return
