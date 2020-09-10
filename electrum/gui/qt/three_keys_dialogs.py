@@ -194,6 +194,10 @@ class PSBTDialog(QRDialog):
             self.parent.delete_invoice(self.invoice['id'])
         super().accept()
 
+    def closeEvent(self, event):
+        self.accept()
+        event.accept()
+
 
 class PreviewPsbtTxDialog(PreviewTxDialog):
 
