@@ -184,6 +184,14 @@ class ElectrumAIRWindow(ElectrumMultikeyWalletWindow):
                     self.instant_privkey_line.clear()
                 elif self.tx_type_combo.currentIndex() == self.TX_TYPES['fast']:
                     self.instant_privkey_line.setEnabled(True)
+            else:
+                if self.tx_type_combo.currentIndex() == self.TX_TYPES['standard']:
+                    description_label.setEnabled(True)
+                    self.message_e.setEnabled(True)
+                elif self.tx_type_combo.currentIndex() == self.TX_TYPES['fast']:
+                    description_label.setEnabled(False)
+                    self.message_e.setEnabled(False)
+
 
         msg = _('Choose transaction type.') + '\n\n' + \
               _('Standard - confirmed after 24 hours. Can be canceled within that time.') + '\n' + \
