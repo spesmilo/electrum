@@ -497,6 +497,9 @@ __b43chars = b'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ$*+-./:'
 assert len(__b43chars) == 43
 
 
+class BaseDecodeError(BitcoinException): pass
+
+
 def base_encode(v: bytes, *, base: int) -> str:
     """ encode v, which is a string of bytes, to base58."""
     assert_bytes(v)
@@ -544,7 +547,7 @@ def base_decode(v: Union[bytes, str], *, base: int, length: int = None) -> Optio
     for c in v[::-1]:
         digit = chars.find(bytes([c]))
         if digit == -1:
-            raise ValueError('Forbidden character {} for base {}'.format(c, base))
+            raise BaseDecodeError('Forbidden character {} for base {}'.format(c, base))
         # naive but slow variant:   long_value += digit * (base**i)
         long_value += digit * power_of_base
         power_of_base *= base
@@ -567,7 +570,7 @@ def base_decode(v: Union[bytes, str], *, base: int, length: int = None) -> Optio
     return bytes(result)
 
 
-class InvalidChecksum(Exception):
+class InvalidChecksum(BaseDecodeError):
     pass
 
 
@@ -633,18 +636,17 @@ def deserialize_privkey(key: str) -> Tuple[str, bytes, bool]:
             raise BitcoinException('unknown script type: {}'.format(txin_type))
     try:
         vch = DecodeBase58Check(key)
-    except BaseException:
+    except Exception as e:
         neutered_privkey = str(key)[:3] + '..' + str(key)[-2:]
-        raise BitcoinException("cannot deserialize privkey {}"
-                               .format(neutered_privkey))
+        raise BaseDecodeError(f"cannot deserialize privkey {neutered_privkey}") from e
 
     if txin_type is None:
         # keys exported in version 3.0.x encoded script type in first byte
         prefix_value = vch[0] - constants.net.WIF_PREFIX
         try:
             txin_type = WIF_SCRIPT_TYPES_INV[prefix_value]
-        except KeyError:
-            raise BitcoinException('invalid prefix ({}) for WIF key (1)'.format(vch[0]))
+        except KeyError as e:
+            raise BitcoinException('invalid prefix ({}) for WIF key (1)'.format(vch[0])) from None
     else:
         # all other keys must have a fixed first byte
         if vch[0] != constants.net.WIF_PREFIX:

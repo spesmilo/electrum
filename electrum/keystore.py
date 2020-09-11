@@ -32,7 +32,7 @@ from functools import lru_cache
 from abc import ABC, abstractmethod
 
 from . import bitcoin, ecc, constants, bip32
-from .bitcoin import deserialize_privkey, serialize_privkey
+from .bitcoin import deserialize_privkey, serialize_privkey, BaseDecodeError
 from .transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput, TxInput
 from .bip32 import (convert_bip32_path_to_list_of_uint32, BIP32_PRIME,
                     is_xpub, is_xprv, BIP32Node, normalize_bip32_derivation,
@@ -251,8 +251,10 @@ class Imported_KeyStore(Software_KeyStore):
 
     def get_private_key(self, pubkey: str, password):
         sec = pw_decode(self.keypairs[pubkey], password, version=self.pw_hash_version)
-        txin_type, privkey, compressed = deserialize_privkey(sec)
-        # this checks the password
+        try:
+            txin_type, privkey, compressed = deserialize_privkey(sec)
+        except BaseDecodeError as e:
+            raise InvalidPassword() from e
         if pubkey != ecc.ECPrivkey(privkey).get_public_key_hex(compressed=compressed):
             raise InvalidPassword()
         return privkey, compressed
@@ -529,7 +531,11 @@ class BIP32_KeyStore(Xpub, Deterministic_KeyStore):
 
     def check_password(self, password):
         xprv = pw_decode(self.xprv, password, version=self.pw_hash_version)
-        if BIP32Node.from_xkey(xprv).chaincode != self.get_bip32_node_for_xpub().chaincode:
+        try:
+            bip32node = BIP32Node.from_xkey(xprv)
+        except BaseDecodeError as e:
+            raise InvalidPassword() from e
+        if bip32node.chaincode != self.get_bip32_node_for_xpub().chaincode:
             raise InvalidPassword()
 
     def update_password(self, old_password, new_password):
