@@ -966,3 +966,46 @@ and there is no warning message.
 - AudioModem: Fixed to not crash on unsupported platforms. (cculianu)
 - Various internal refactorings, fixups, and internal API improvements.
   (cculianu, Axel Gembe, Mark Lundeberg)
+
+# Release 4.1.1
+
+- Added support for the ASERTi3-2d DAA for the Nov. 15th, 2020 upgrade #1954
+  (Calin Culianu)
+- Added testnet4 support, accessible with the --testnet4 CLI option (#1974)
+- Internal build fixes for OSX (Calin Culianu)
+- Internal fix for unit tests #1929 (Axel Gembe)
+- CashFusion: Show icon and add message even on non-fusable wallets #1927 (Axel
+  Gembe)
+- dnssec: fix compat with dnspython 1.16 and 2.0.0 #1934 (Axel Gembe)
+- tests: fix cashaddr checksum test unreliability #1938 (Axel Gembe)
+- CashShuffle: Remove unmaintained tests #1940 (Axel Gembe)
+- Tor: Make the messages refer to a specific Tor binary #1941 (Axel Gembe)
+- git sanity: enforce "git checkout commithash" actually pulls commit #1949
+  (SomberNight, Axel Gembe)
+- CashFusion: Add more tiers for fusion server #1951 (Jonald Fyookball)
+- trezor: bump lib version, implement new passphrase-on-device UI #1947 (Axel
+  Gembe, matejcik)
+- Add Blockchain.com mainnet and testnet explorers #1952 (Axel Gembe)
+- Fusion: Remove example server #1953 (Axel Gembe)
+- CashFusion: Ensure tor_port_good is defined in plugin (Calin Culianu)
+- Build: Fix wine build failing, typo in the git checkout work #1956 (Axel
+  Gembe)
+- CashFusion: Better consolidation logic (Mark Lundeberg)
+- CashFusion: Update default server to use SSL #1959 (Mark Lundeberg)
+- CashFusion: Enhance fuzzing logic; more funds safety checks (Mark Lundeberg)
+- CashFusion: Miscellaneous cleanup (Mark Lundeberg)
+- Made PyQt5 optional by default and installable by [full] or [gui] extra
+  requires (MrNaif2018)
+- Android: add plural formulae for Arabic and Polish (Malcolm Smith)
+- Android: use Babel so we don't need to handle every plural formula separately
+  (Malcolm Smith)
+- Prompt to start Tor only if user has enabled autofuse for wallet (Calin
+  Culianu)
+- Fix make_locale to be more pythonic (agilewalker)
+- Exchange rates: Remove dead exchanges #1982 (Axel Gembe)
+- Android: Sign transaction with schnorr #1988 (Jonas Lundqvist)
+- CashFusion: Include 'distinct coins' concept when enforcing privacy threshold
+  (Mark Lundeberg)
+- Qt: Set the layout direction based on user-configured language, for
+  right-to-left languages (Calin Culianu)
+- Network dialog: Add capitalized Tor binary name #1989 (Axel Gembe)
