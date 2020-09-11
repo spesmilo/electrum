@@ -106,10 +106,7 @@ class WalletStorage(Logger):
             if encryption is disabled completely (self.is_encrypted() == False),
             or if encryption is enabled but the contents have already been decrypted.
         """
-        try:
-            return not self.is_encrypted() or bool(self.decrypted)
-        except AttributeError:
-            return False
+        return not self.is_encrypted() or bool(self.pubkey)
 
     def is_encrypted(self):
         """Return if storage encryption is currently enabled."""
@@ -189,11 +186,14 @@ class WalletStorage(Logger):
             return
         if not self.is_past_initial_decryption():
             self.decrypt(password)  # this sets self.pubkey
-        if self.pubkey and self.pubkey != self.get_eckey_from_password(password).get_public_key_hex():
+        assert self.pubkey is not None
+        if self.pubkey != self.get_eckey_from_password(password).get_public_key_hex():
             raise InvalidPassword()
 
     def set_password(self, password, enc_version=None):
         """Set a password to be used for encrypting this storage."""
+        if not self.is_past_initial_decryption():
+            raise Exception("storage needs to be decrypted before changing password")
         if enc_version is None:
             enc_version = self._encryption_version
         if password and enc_version != StorageEncryptionVersion.PLAINTEXT:
