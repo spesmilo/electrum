@@ -149,6 +149,10 @@ class LNInvoice(Invoice):
 
     __lnaddr = None
 
+    @invoice.validator
+    def check(self, attribute, value):
+        lndecode(value)  # this checks the str can be decoded
+
     @property
     def _lnaddr(self) -> LnAddr:
         if self.__lnaddr is None:

@@ -1,3 +1,22 @@
+# Release 4.0.3 - (Sep 11, 2020)
+ * PSBT: restore compatibility with Bitcoin Core following CVE-2020-14199:
+   we now allow a PSBT input to have both UTXO and WITNESS_UTXO (#6429).
+   (PSBTs created since 4.0.1 already contained UTXO for segwit inputs)
+ * Hardware wallets:
+   - bitbox02: better multisig UX: implement get_soft_device_id (#6386)
+   - coldcard: fix "show address" for multisig (#6517)
+   - all: run all device communication on a dedicated thread (#6561).
+     This should resolve some threading issues.
+ * new feature: "Automated BIP39 recovery" (#6219, #6155)
+   When restoring from a BIP39 seed, add option to scan many known
+   derivation paths for history, and show them to user to choose from.
+ * show derivation path of keystores in Qt GUI Wallet>Information (#4700)
+ * fix "signtransaction" RPC command (#6502)
+ * Dependencies: pyaes is no longer needed (#6563)
+ * The tar.gz source dist now bundles make_libsecp256k1.sh, to help
+   users getting libsecp256k1 (#6323).
+ * A few other minor bugfixes and usability improvements.
+
 # Release 4.0.2 - (July 8, 2020)
  - rm old corrupted non-bip70 invoices (#6345)
  - other minor fixes
