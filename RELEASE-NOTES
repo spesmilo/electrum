@@ -1009,3 +1009,4 @@ and there is no warning message.
 - Qt: Set the layout direction based on user-configured language, for
   right-to-left languages (Calin Culianu)
 - Network dialog: Add capitalized Tor binary name #1989 (Axel Gembe)
+- Run history_list_filter hook on updated labels #1990 (Jonas Lundqvist)
