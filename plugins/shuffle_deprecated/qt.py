@@ -757,6 +757,7 @@ class Plugin(BasePlugin):
 
     @hook
     def history_list_filter(self, history_list, h_item, label):
+        # NB: 'h_item' might be None due to performance reasons
         if self._hide_history_txs:
             return bool(label.startswith("Shuffle ")  # this string is not translated for performance reasons. _make_label also does not translate this string.
                         and ( any( x for x in BackgroundShufflingThread.SCALE_ARROWS

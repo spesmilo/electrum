@@ -415,6 +415,7 @@ class Plugin(FusionPlugin, QObject):
 
     @hook
     def history_list_filter(self, history_list, h_item, label):
+        # NB: 'h_item' might be None due to performance reasons
         if self._hide_history_txs:
             return bool(label.startswith("CashFusion "))  # this string is not translated for performance reasons
         return None

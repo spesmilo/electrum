@@ -61,6 +61,7 @@ class HistoryList(MyTreeWidget):
         self.withdrawalBrush = QBrush(QColor("#BC1E1E"))
         self.invoiceIcon = QIcon(":icons/seal")
         self._item_cache = Weak.ValueDictionary()
+        self.itemChanged.connect(self.item_changed)
 
         self.has_unknown_balances = False
 
@@ -187,8 +188,22 @@ class HistoryList(MyTreeWidget):
         for i in range(child_count):
             item = root.child(i)
             txid = item.data(0, Qt.UserRole)
-            label = self.wallet.get_label(txid)
-            item.setText(3, label)
+            h_label = self.wallet.get_label(txid)
+            current_label = item.text(3)
+            item.setText(3, h_label)
+            if current_label != h_label:
+                self.item_changed(item, 3)
+
+    def item_changed(self, item, column):
+        # Run the label of the changed item thru the filter hook
+        if column != 3:
+            return
+
+        label = item.text(3)
+        # NB: 'h_item' parameter is None due to performance reasons
+        should_skip = run_hook("history_list_filter", self, None, label, multi=True) or []
+        if any(should_skip):
+            item.setHidden(True)
 
     def update_item(self, tx_hash, height, conf, timestamp):
         if not self.wallet: return # can happen on startup if this is called before self.on_update()
