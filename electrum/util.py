@@ -119,6 +119,15 @@ class InvalidPassword(Exception):
         return _("Incorrect password")
 
 
+class AddTransactionException(Exception):
+    pass
+
+
+class UnrelatedTransactionException(AddTransactionException):
+    def __str__(self):
+        return _("Transaction is unrelated to this wallet.")
+
+
 class FileImportFailed(Exception):
     def __init__(self, message=''):
         self.message = str(message)

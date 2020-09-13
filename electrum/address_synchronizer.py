@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple, NamedTuple, Sequen
 
 from . import bitcoin, util
 from .bitcoin import COINBASE_MATURITY
-from .util import profiler, bfh, TxMinedInfo
+from .util import profiler, bfh, TxMinedInfo, UnrelatedTransactionException
 from .transaction import Transaction, TxOutput, TxInput, PartialTxInput, TxOutpoint, PartialTransaction
 from .synchronizer import Synchronizer
 from .verifier import SPV
@@ -47,14 +47,6 @@ TX_HEIGHT_FUTURE = -3
 TX_HEIGHT_LOCAL = -2
 TX_HEIGHT_UNCONF_PARENT = -1
 TX_HEIGHT_UNCONFIRMED = 0
-
-class AddTransactionException(Exception):
-    pass
-
-
-class UnrelatedTransactionException(AddTransactionException):
-    def __str__(self):
-        return _("Transaction is unrelated to this wallet.")
 
 
 class HistoryItem(NamedTuple):
