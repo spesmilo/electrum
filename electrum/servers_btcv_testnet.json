@@ -1,8 +1,8 @@
 {
-    "testnet.bitcoinvault.global": {
+    "electrumx-testnet.bitcoinvault.global": {
         "pruning": "-",
-        "s": "50002",
+        "s": "443",
         "t": "50001",
-        "version": "1.4"
+        "version": "2.0"
     }
 }

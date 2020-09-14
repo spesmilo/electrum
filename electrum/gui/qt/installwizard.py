@@ -519,7 +519,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     @wizard_dialog
     def get_recovery_pubkey(self, run_next, instant_key=None):
         # todo move it to some global settings ?
-        web_generator_url = 'https://keygenerator.cloudbestenv.com/'
+        web_generator_url = 'https://keygenerator.bitcoinvault.global/'
         label = QLabel()
         message = _('Please paste a cancel transaction public key. Use an existing one if you are importing a wallet, '
                     'or generate a new one at')
@@ -537,7 +537,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     @wizard_dialog
     def get_instant_pubkey(self, run_next, recovery_key=None):
         # todo move it to some global settings ?
-        web_generator_url = 'https://keygenerator.cloudbestenv.com/'
+        web_generator_url = 'https://keygenerator.bitcoinvault.global/'
         label = QLabel()
         message = _('Please paste a fast transaction public key. Use an existing one if you are importing a wallet, '
                     'or generate a new one at')
