@@ -5,10 +5,6 @@ NSIS_FILENAME=nsis-3.05-setup.exe
 NSIS_URL=https://downloads.sourceforge.net/project/nsis/NSIS%203/3.05/$NSIS_FILENAME
 NSIS_SHA256=1a3cc9401667547b9b9327a177b13485f7c59c2303d4b6183e7bc9e6c8d6bfdb
 
-ZBAR_FILENAME=zbarw-20121031-setup.exe
-ZBAR_URL=https://downloads.sourceforge.net/project/zbarw/$ZBAR_FILENAME
-ZBAR_SHA256=177e32b272fa76528a3af486b74e9cb356707be1c5ace4ed3fcee9723e2c2c02
-
 LIBUSB_REPO="https://github.com/libusb/libusb.git"
 LIBUSB_COMMIT="e782eeb2514266f6738e242cdcb18e3ae1ed06fa"
 # ^ tag v1.0.23
@@ -63,11 +59,6 @@ $PYTHON -m pip install --no-dependencies --no-warn-script-location -r "$CONTRIB"
 info "Installing dependencies specific to binaries."
 $PYTHON -m pip install --no-dependencies --no-warn-script-location -r "$CONTRIB"/deterministic-build/requirements-binaries.txt
 
-info "Installing ZBar."
-download_if_not_exist "$CACHEDIR/$ZBAR_FILENAME" "$ZBAR_URL"
-verify_hash "$CACHEDIR/$ZBAR_FILENAME" "$ZBAR_SHA256"
-wine "$CACHEDIR/$ZBAR_FILENAME" /S
-
 info "Installing NSIS."
 download_if_not_exist "$CACHEDIR/$NSIS_FILENAME" "$NSIS_URL"
 verify_hash "$CACHEDIR/$NSIS_FILENAME" "$NSIS_SHA256"
@@ -101,8 +92,9 @@ info "Compiling libusb..."
 cp "$CACHEDIR/libusb/libusb/.libs/libusb-1.0.dll" $WINEPREFIX/drive_c/tmp/  || fail "Could not copy libusb to its destination"
 
 
-# copy libsecp dll (already built)
+# copy already built DLLs
 cp "$PROJECT_ROOT/electrum/libsecp256k1-0.dll" $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libsecp to its destination"
+cp "$PROJECT_ROOT/electrum/libzbar-0.dll" $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libzbar to its destination"
 
 
 info "Building PyInstaller."

@@ -17,8 +17,11 @@ RUN apt-get update -q && \
         p7zip-full=16.02+dfsg-6 \
         make=4.1-9.1ubuntu1 \
         mingw-w64=5.0.3-1 \
+        mingw-w64-tools=5.0.3-1 \
+        win-iconv-mingw-w64-dev=0.0.8-2 \
         autotools-dev=20180224.1 \
         autoconf=2.69-11 \
+        autopoint=0.19.8.1-6ubuntu0.3 \
         libtool=2.4.6-2 \
         gettext=0.19.8.1-6
 

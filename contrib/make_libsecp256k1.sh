@@ -34,7 +34,7 @@ info "Building $pkgname..."
         git fetch --all
     fi
     git reset --hard
-    git clean -f -x -q
+    git clean -dfxq
     git checkout "${LIBSECP_VERSION}^{commit}"
 
     if ! [ -x configure ] ; then
