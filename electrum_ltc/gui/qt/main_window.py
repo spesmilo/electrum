@@ -60,12 +60,12 @@ from electrum_ltc.util import (format_time,
                                UserFacingException,
                                get_new_wallet_name, send_exception_to_crash_reporter,
                                InvalidBitcoinURI, maybe_extract_bolt11_invoice, NotEnoughFunds,
-                               NoDynamicFeeEstimates, MultipleSpendMaxTxOutputs)
+                               NoDynamicFeeEstimates, MultipleSpendMaxTxOutputs,
+                               AddTransactionException)
 from electrum_ltc.invoices import PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING, Invoice
 from electrum_ltc.invoices import PR_PAID, PR_FAILED, pr_expiration_values, LNInvoice, OnchainInvoice
 from electrum_ltc.transaction import (Transaction, PartialTxInput,
                                       PartialTransaction, PartialTxOutput)
-from electrum_ltc.address_synchronizer import AddTransactionException
 from electrum_ltc.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet,
                                  sweep_preparations, InternalAddressCorruption)
 from electrum_ltc.version import ELECTRUM_VERSION
