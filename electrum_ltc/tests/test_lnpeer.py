@@ -103,6 +103,9 @@ class MockWallet:
     def is_lightning_backup(self):
         return False
 
+    def is_mine(self, addr):
+        return True
+
 
 class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     def __init__(self, *, local_keypair: Keypair, chans: Iterable['Channel'], tx_queue):

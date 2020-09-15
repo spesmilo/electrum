@@ -144,6 +144,9 @@ class NoPathFound(PaymentFailure):
         return _('No path found')
 
 
+class ErrorAddingPeer(Exception): pass
+
+
 class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
 
     def __init__(self, xprv):
@@ -226,17 +229,22 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
             peers = await self._get_next_peers_to_try()
             for peer in peers:
                 if self._can_retry_addr(peer, now=now):
-                    await self._add_peer(peer.host, peer.port, peer.pubkey)
+                    try:
+                        await self._add_peer(peer.host, peer.port, peer.pubkey)
+                    except ErrorAddingPeer as e:
+                        self.logger.info(f"failed to add peer: {peer}. exc: {e!r}")
 
     async def _add_peer(self, host: str, port: int, node_id: bytes) -> Peer:
         if node_id in self._peers:
             return self._peers[node_id]
         port = int(port)
         peer_addr = LNPeerAddr(host, port, node_id)
-        transport = LNTransport(self.node_keypair.privkey, peer_addr,
-                                proxy=self.network.proxy)
         self._trying_addr_now(peer_addr)
         self.logger.info(f"adding peer {peer_addr}")
+        if node_id == self.node_keypair.pubkey:
+            raise ErrorAddingPeer("cannot connect to self")
+        transport = LNTransport(self.node_keypair.privkey, peer_addr,
+                                proxy=self.network.proxy)
         peer = Peer(self, node_id, transport)
         await self.taskgroup.spawn(peer.main_loop())
         with self.lock:
@@ -494,7 +502,8 @@ class LNWallet(LNWorker):
         self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_REQ
         self.payments = self.db.get_dict('lightning_payments')     # RHASH -> amount, direction, is_paid  # FIXME amt should be msat
         self.preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
-        self.sweep_address = wallet.get_new_sweep_address_for_channel()  # TODO possible address-reuse
+        # note: this sweep_address is only used as fallback; as it might result in address-reuse
+        self.sweep_address = wallet.get_new_sweep_address_for_channel()
         self.logs = defaultdict(list)  # type: Dict[str, List[PaymentAttemptLog]]  # key is RHASH  # (not persisted)
         self.is_routing = set()        # (not persisted) keys of invoices that are in PR_ROUTING state
         # used in tests
