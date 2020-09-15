@@ -14,6 +14,7 @@ from electrum_grs.util import format_satoshis
 from electrum_grs.bitcoin import is_address, COIN
 from electrum_grs.transaction import PartialTxOutput
 from electrum_grs.wallet import Wallet
+from electrum_grs.wallet_db import WalletDB
 from electrum_grs.storage import WalletStorage
 from electrum_grs.network import NetworkParameters, TxBroadcastError, BestEffortRequestFailed
 from electrum_grs.interface import ServerAddr
@@ -41,7 +42,8 @@ class ElectrumGui:
         if storage.is_encrypted():
             password = getpass.getpass('Password:', stream=None)
             storage.decrypt(password)
-        self.wallet = Wallet(storage, config=config)
+        db = WalletDB(storage.read(), manual_upgrades=False)
+        self.wallet = Wallet(db, storage, config=config)
         self.wallet.start_network(self.network)
         self.contacts = self.wallet.contacts
 

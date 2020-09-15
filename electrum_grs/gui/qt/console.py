@@ -99,7 +99,7 @@ class Console(QtWidgets.QPlainTextEdit):
 
     def newPrompt(self, curr_line):
         if self.construct:
-            prompt = '.' * len(self.prompt)
+            prompt = '... '
         else:
             prompt = self.prompt + curr_line
 
@@ -160,9 +160,8 @@ class Console(QtWidgets.QPlainTextEdit):
 
     def getConstruct(self, command):
         if self.construct:
-            prev_command = self.construct[-1]
             self.construct.append(command)
-            if not prev_command and not command:
+            if not command:
                 ret_val = '\n'.join(self.construct)
                 self.construct = []
                 return ret_val
@@ -174,12 +173,6 @@ class Console(QtWidgets.QPlainTextEdit):
                 return ''
             else:
                 return command
-
-    def getHistory(self):
-        return self.history
-
-    def setHistory(self, history):
-        self.history = history
 
     def addToHistory(self, command):
         if command[0:1] == ' ':
@@ -211,11 +204,6 @@ class Console(QtWidgets.QPlainTextEdit):
         self.moveCursor(QtGui.QTextCursor.StartOfLine)
         for i in range(len(self.prompt) + position):
             self.moveCursor(QtGui.QTextCursor.Right)
-
-    def register_command(self, c, func):
-        methods = { c: func}
-        self.updateNamespace(methods)
-
 
     def runCommand(self):
         command = self.getCommand()

@@ -23,7 +23,8 @@ from . import bitcoin, util
 from . import ecc
 from .ecc import sig_string_from_r_and_s, get_r_and_s_from_sig_string, der_sig_from_sig_string
 from . import constants
-from .util import bh2u, bfh, log_exceptions, ignore_exceptions, chunks, SilentTaskGroup
+from .util import (bh2u, bfh, log_exceptions, ignore_exceptions, chunks, SilentTaskGroup,
+                   UnrelatedTransactionException)
 from . import transaction
 from .transaction import Transaction, TxOutput, PartialTxOutput, match_script_against_template
 from .logging import Logger
@@ -1518,7 +1519,10 @@ class Peer(Logger):
             signing_pubkey=chan.config[REMOTE].multisig_key.pubkey.hex(),
             sig=bh2u(der_sig_from_sig_string(their_sig) + b'\x01'))
         # save local transaction and set state
-        self.lnworker.wallet.add_transaction(closing_tx)
+        try:
+            self.lnworker.wallet.add_transaction(closing_tx)
+        except UnrelatedTransactionException:
+            pass  # this can happen if (~all the balance goes to REMOTE)
         chan.set_state(ChannelState.CLOSING)
         # broadcast
         await self.network.try_broadcasting(closing_tx, 'closing')
@@ -1541,7 +1545,7 @@ class Peer(Logger):
                     if chan.get_oldest_unrevoked_ctn(REMOTE) <= remote_ctn:
                         continue
                     chan.logger.info(f'found unfulfilled htlc: {htlc_id}')
-                    htlc = chan.hm.log[REMOTE]['adds'][htlc_id]
+                    htlc = chan.hm.get_htlc_by_id(REMOTE, htlc_id)
                     payment_hash = htlc.payment_hash
                     error_reason = None  # type: Optional[OnionRoutingFailureMessage]
                     error_bytes = None  # type: Optional[bytes]

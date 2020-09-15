@@ -3,17 +3,20 @@ include README.rst
 include electrum-grs.desktop
 include *.py
 include run_electrum_grs
-include contrib/requirements/requirements.txt
-include contrib/requirements/requirements-hw.txt
 recursive-include packages *.py
 recursive-include packages cacert.pem
+
+include contrib/requirements/requirements*.txt
+include contrib/deterministic-build/requirements*.txt
+include contrib/make_libsecp256k1.sh
+include contrib/build_tools_util.sh
 
 graft electrum_grs
 prune electrum_grs/tests
 graft contrib/udev
 
-exclude electrum/*.so
-exclude electrum/*.so.0
+exclude electrum_grs/*.so
+exclude electrum_grs/*.so.0
 
 global-exclude __pycache__
 global-exclude *.py[co~]

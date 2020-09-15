@@ -27,7 +27,8 @@
 from typing import TYPE_CHECKING, Dict, List, Union, Tuple, Sequence, Optional, Type
 from functools import partial
 
-from electrum_grs.plugin import BasePlugin, hook, Device, DeviceMgr, DeviceInfo
+from electrum_grs.plugin import (BasePlugin, hook, Device, DeviceMgr, DeviceInfo,
+                             assert_runs_in_hwd_thread, runs_in_hwd_thread)
 from electrum_grs.i18n import _
 from electrum_grs.bitcoin import is_address, opcodes
 from electrum_grs.util import bfh, versiontuple, UserFacingException
@@ -197,6 +198,7 @@ class HardwareClientBase:
     handler = None  # type: Optional['HardwareHandlerBase']
 
     def __init__(self, *, plugin: 'HW_PluginBase'):
+        assert_runs_in_hwd_thread()
         self.plugin = plugin
 
     def device_manager(self) -> 'DeviceMgr':
@@ -242,6 +244,7 @@ class HardwareClientBase:
     def get_xpub(self, bip32_path: str, xtype) -> str:
         raise NotImplementedError()
 
+    @runs_in_hwd_thread
     def request_root_fingerprint_from_device(self) -> str:
         # digitalbitbox (at least) does not reveal xpubs corresponding to unhardened paths
         # so ask for a direct child, and read out fingerprint from that:
@@ -249,6 +252,7 @@ class HardwareClientBase:
         root_fingerprint = BIP32Node.from_xkey(child_of_root_xpub).fingerprint.hex().lower()
         return root_fingerprint
 
+    @runs_in_hwd_thread
     def get_password_for_storage_encryption(self) -> str:
         # note: using a different password based on hw device type is highly undesirable! see #5993
         derivation = get_derivation_used_for_hw_device_encryption()

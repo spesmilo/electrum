@@ -70,7 +70,7 @@ class EnterButton(QPushButton):
         self.clicked.connect(func)
 
     def keyPressEvent(self, e):
-        if e.key() == Qt.Key_Return:
+        if e.key() in [ Qt.Key_Return, Qt.Key_Enter ]:
             self.func()
 
 
@@ -581,7 +581,7 @@ class MyTreeView(QTreeView):
     def keyPressEvent(self, event):
         if self.itemDelegate().opened:
             return
-        if event.key() in [ Qt.Key_F2, Qt.Key_Return ]:
+        if event.key() in [ Qt.Key_F2, Qt.Key_Return, Qt.Key_Enter ]:
             self.on_activated(self.selectionModel().currentIndex())
             return
         super().keyPressEvent(event)
@@ -735,7 +735,7 @@ class ButtonsWidget(QWidget):
 
     def __init__(self):
         super(QWidget, self).__init__()
-        self.buttons = []
+        self.buttons = []  # type: List[QToolButton]
 
     def resizeButtons(self):
         frameWidth = self.style().pixelMetric(QStyle.PM_DefaultFrameWidth)

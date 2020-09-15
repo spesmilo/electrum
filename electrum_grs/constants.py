@@ -42,6 +42,7 @@ def read_json(filename, default):
 
 GIT_REPO_URL = "https://github.com/Groestlcoin/electrum-grs"
 GIT_REPO_ISSUES_URL = "https://github.com/Groestlcoin/electrum-grs/issues"
+BIP39_WALLET_FORMATS = read_json('bip39_wallet_formats.json', [])
 
 
 class AbstractNet:

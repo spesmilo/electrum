@@ -5,6 +5,7 @@ import logging
 
 from electrum_grs import util
 from electrum_grs import WalletStorage, Wallet
+from electrum_grs.wallet_db import WalletDB
 from electrum_grs.util import format_satoshis
 from electrum_grs.bitcoin import is_address, COIN
 from electrum_grs.transaction import PartialTxOutput
@@ -30,6 +31,8 @@ class ElectrumGui:
             password = getpass.getpass('Password:', stream=None)
             storage.decrypt(password)
 
+        db = WalletDB(storage.read(), manual_upgrades=False)
+
         self.done = 0
         self.last_balance = ""
 
@@ -40,7 +43,7 @@ class ElectrumGui:
         self.str_amount = ""
         self.str_fee = ""
 
-        self.wallet = Wallet(storage, config=config)
+        self.wallet = Wallet(db, storage, config=config)
         self.wallet.start_network(self.network)
         self.contacts = self.wallet.contacts
 

@@ -1,4 +1,4 @@
 #!/bin/bash
 version=`python3 -c "import electrum_grs; print(electrum_grs.version.ELECTRUM_VERSION)"`
-sig=`./run_electrum_grs -w $SIGNING_WALLET signmessage $SIGNING_ADDRESS $version`
+sig=`./run_electrum_grs -o signmessage $SIGNING_ADDRESS $version -w $SIGNING_WALLET`
 echo "{ \"version\":\"$version\", \"signatures\":{ \"$SIGNING_ADDRESS\":\"$sig\"}}"

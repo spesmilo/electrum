@@ -394,7 +394,7 @@ class Commands:
     @command('wp')
     async def signtransaction(self, tx, privkey=None, password=None, wallet: Abstract_Wallet = None):
         """Sign a transaction. The wallet keys will be used unless a private key is provided."""
-        tx = PartialTransaction(tx)
+        tx = tx_from_any(tx)
         if privkey:
             txin_type, privkey2, compressed = bitcoin.deserialize_privkey(privkey)
             pubkey = ecc.ECPrivkey(privkey2).get_public_key_bytes(compressed=compressed).hex()
@@ -592,7 +592,7 @@ class Commands:
 
     @command('wp')
     async def payto(self, destination, amount, fee=None, feerate=None, from_addr=None, from_coins=None, change_addr=None,
-                    nocheck=False, unsigned=False, rbf=None, password=None, locktime=None, wallet: Abstract_Wallet = None):
+                    nocheck=False, unsigned=False, rbf=None, password=None, locktime=None, addtransaction=False, wallet: Abstract_Wallet = None):
         """Create a transaction. """
         self.nocheck = nocheck
         tx_fee = satoshis(fee)
@@ -613,11 +613,14 @@ class Commands:
             rbf=rbf,
             password=password,
             locktime=locktime)
-        return tx.serialize()
+        result = tx.serialize()
+        if addtransaction:
+            await self.addtransaction(result, wallet=wallet)
+        return result
 
     @command('wp')
     async def paytomany(self, outputs, fee=None, feerate=None, from_addr=None, from_coins=None, change_addr=None,
-                        nocheck=False, unsigned=False, rbf=None, password=None, locktime=None, wallet: Abstract_Wallet = None):
+                        nocheck=False, unsigned=False, rbf=None, password=None, locktime=None, addtransaction=False, wallet: Abstract_Wallet = None):
         """Create a multi-output transaction. """
         self.nocheck = nocheck
         tx_fee = satoshis(fee)
@@ -641,7 +644,10 @@ class Commands:
             rbf=rbf,
             password=password,
             locktime=locktime)
-        return tx.serialize()
+        result = tx.serialize()
+        if addtransaction:
+            await self.addtransaction(result, wallet=wallet)
+        return result
 
     @command('w')
     async def onchain_history(self, year=None, show_addresses=False, show_fiat=False, wallet: Abstract_Wallet = None):
@@ -846,12 +852,14 @@ class Commands:
         expiration = int(expiration) if expiration else None
         req = wallet.make_payment_request(addr, amount, memo, expiration)
         wallet.add_payment_request(req)
+        wallet.save_db()
         return wallet.export_request(req)
 
     @command('wn')
     async def add_lightning_request(self, amount, memo='', expiration=3600, wallet: Abstract_Wallet = None):
         amount_sat = int(satoshis(amount))
         key = await wallet.lnworker._add_request_coro(amount_sat, memo, expiration)
+        wallet.save_db()
         return wallet.get_formatted_request(key)
 
     @command('w')
@@ -875,7 +883,9 @@ class Commands:
     @command('w')
     async def rmrequest(self, address, wallet: Abstract_Wallet = None):
         """Remove a payment request"""
-        return wallet.remove_payment_request(address)
+        result = wallet.remove_payment_request(address)
+        wallet.save_db()
+        return result
 
     @command('w')
     async def clear_requests(self, wallet: Abstract_Wallet = None):
@@ -1204,6 +1214,7 @@ command_options = {
     'unsigned':    ("-u", "Do not sign transaction"),
     'rbf':         (None, "Whether to signal opt-in Replace-By-Fee in the transaction (true/false)"),
     'locktime':    (None, "Set locktime block number"),
+    'addtransaction': (None,'Whether transaction is to be used for broadcasting afterwards. Adds transaction to the wallet'),
     'domain':      ("-D", "List of addresses"),
     'memo':        ("-m", "Description of the request"),
     'expiration':  (None, "Time in seconds"),
@@ -1245,6 +1256,7 @@ arg_types = {
     'fee': lambda x: str(Decimal(x)) if x is not None else None,
     'amount': lambda x: str(Decimal(x)) if x != '!' else '!',
     'locktime': int,
+    'addtransaction': eval_bool,
     'fee_method': str,
     'fee_level': json_loads,
     'encrypt_file': eval_bool,

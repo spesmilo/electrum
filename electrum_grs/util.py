@@ -119,6 +119,15 @@ class InvalidPassword(Exception):
         return _("Incorrect password")
 
 
+class AddTransactionException(Exception):
+    pass
+
+
+class UnrelatedTransactionException(AddTransactionException):
+    def __str__(self):
+        return _("Transaction is unrelated to this wallet.")
+
+
 class FileImportFailed(Exception):
     def __init__(self, message=''):
         self.message = str(message)
@@ -1352,19 +1361,30 @@ class NetworkRetryManager(Generic[_NetAddrType]):
     def _on_connection_successfully_established(self, addr: _NetAddrType) -> None:
         self._last_tried_addr[addr] = time.time(), 0
 
-    def _can_retry_addr(self, peer: _NetAddrType, *,
+    def _can_retry_addr(self, addr: _NetAddrType, *,
                         now: float = None, urgent: bool = False) -> bool:
         if now is None:
             now = time.time()
-        last_time, num_attempts = self._last_tried_addr.get(peer, (0, 0))
+        last_time, num_attempts = self._last_tried_addr.get(addr, (0, 0))
         if urgent:
-            delay = min(self._max_retry_delay_urgent,
-                        self._init_retry_delay_urgent * 2 ** num_attempts)
+            max_delay = self._max_retry_delay_urgent
+            init_delay = self._init_retry_delay_urgent
         else:
-            delay = min(self._max_retry_delay_normal,
-                        self._init_retry_delay_normal * 2 ** num_attempts)
+            max_delay = self._max_retry_delay_normal
+            init_delay = self._init_retry_delay_normal
+        delay = self.__calc_delay(multiplier=init_delay, max_delay=max_delay, num_attempts=num_attempts)
         next_time = last_time + delay
         return next_time < now
+
+    @classmethod
+    def __calc_delay(cls, *, multiplier: float, max_delay: float,
+                     num_attempts: int) -> float:
+        num_attempts = min(num_attempts, 100_000)
+        try:
+            res = multiplier * 2 ** num_attempts
+        except OverflowError:
+            return max_delay
+        return max(0, min(max_delay, res))
 
     def _clear_addr_retry_times(self) -> None:
         self._last_tried_addr.clear()
@@ -1437,3 +1457,25 @@ def random_shuffled_copy(x: Iterable[T]) -> List[T]:
     x_copy = list(x)  # copy
     random.shuffle(x_copy)  # shuffle in-place
     return x_copy
+
+
+def test_read_write_permissions(path) -> None:
+    # note: There might already be a file at 'path'.
+    #       Make sure we do NOT overwrite/corrupt that!
+    temp_path = "%s.tmptest.%s" % (path, os.getpid())
+    echo = "fs r/w test"
+    try:
+        # test READ permissions for actual path
+        if os.path.exists(path):
+            with open(path, "rb") as f:
+                f.read(1)  # read 1 byte
+        # test R/W sanity for "similar" path
+        with open(temp_path, "w", encoding='utf-8') as f:
+            f.write(echo)
+        with open(temp_path, "r", encoding='utf-8') as f:
+            echo2 = f.read()
+        os.remove(temp_path)
+    except Exception as e:
+        raise IOError(e) from e
+    if echo != echo2:
+        raise IOError('echo sanity-check failed')

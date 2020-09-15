@@ -9,7 +9,7 @@ from electrum_grs import constants
 from electrum_grs.i18n import _
 from electrum_grs.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
 from electrum_grs.keystore import Hardware_KeyStore
-from electrum_grs.plugin import Device
+from electrum_grs.plugin import Device, runs_in_hwd_thread
 from electrum_grs.base_wizard import ScriptTypeNotSupported
 
 from ..hw_wallet import HW_PluginBase
@@ -37,6 +37,7 @@ class KeepKey_KeyStore(Hardware_KeyStore):
     def decrypt_message(self, sequence, message, password):
         raise UserFacingException(_('Encryption and decryption are not implemented by {}').format(self.device))
 
+    @runs_in_hwd_thread
     def sign_message(self, sequence, message, password):
         client = self.get_client()
         address_path = self.get_derivation_prefix() + "/%d/%d"%sequence
@@ -44,6 +45,7 @@ class KeepKey_KeyStore(Hardware_KeyStore):
         msg_sig = client.sign_message(self.plugin.get_coin_name(), address_n, message)
         return msg_sig.signature
 
+    @runs_in_hwd_thread
     def sign_transaction(self, tx, password):
         if tx.is_complete():
             return
@@ -95,6 +97,7 @@ class KeepKeyPlugin(HW_PluginBase):
         except ImportError:
             self.libraries_available = False
 
+    @runs_in_hwd_thread
     def enumerate(self):
         from keepkeylib.transport_webusb import WebUsbTransport
         results = []
@@ -112,16 +115,19 @@ class KeepKeyPlugin(HW_PluginBase):
     def _dev_to_str(dev: "usb1.USBDevice") -> str:
         return ":".join(str(x) for x in ["%03i" % (dev.getBusNumber(),)] + dev.getPortNumberList())
 
+    @runs_in_hwd_thread
     def hid_transport(self, pair):
         from keepkeylib.transport_hid import HidTransport
         return HidTransport(pair)
 
+    @runs_in_hwd_thread
     def webusb_transport(self, device):
         from keepkeylib.transport_webusb import WebUsbTransport
         for dev in WebUsbTransport.enumerate():
             if device.path == self._dev_to_str(dev):
                 return WebUsbTransport(dev)
 
+    @runs_in_hwd_thread
     def _try_hid(self, device):
         self.logger.info("Trying to connect over USB...")
         if device.interface_number == 1:
@@ -137,6 +143,7 @@ class KeepKeyPlugin(HW_PluginBase):
             self.logger.info(f"cannot connect at {device.path} {e}")
             return None
 
+    @runs_in_hwd_thread
     def _try_webusb(self, device):
         self.logger.info("Trying to connect over WebUSB...")
         try:
@@ -145,6 +152,7 @@ class KeepKeyPlugin(HW_PluginBase):
             self.logger.info(f"cannot connect at {device.path} {e}")
             return None
 
+    @runs_in_hwd_thread
     def create_client(self, device, handler):
         if device.product_key[1] == 2:
             transport = self._try_webusb(device)
@@ -179,6 +187,7 @@ class KeepKeyPlugin(HW_PluginBase):
 
         return client
 
+    @runs_in_hwd_thread
     def get_client(self, keystore, force_pair=True, *,
                    devices=None, allow_user_interaction=True) -> Optional['KeepKeyClient']:
         client = super().get_client(keystore, force_pair,
@@ -236,6 +245,7 @@ class KeepKeyPlugin(HW_PluginBase):
         finally:
             wizard.loop.exit(exit_code)
 
+    @runs_in_hwd_thread
     def _initialize_device(self, settings, method, device_id, wizard, handler):
         item, label, pin_protection, passphrase_protection = settings
 
@@ -315,6 +325,7 @@ class KeepKeyPlugin(HW_PluginBase):
             return self.types.PAYTOMULTISIG
         raise ValueError('unexpected txin type: {}'.format(electrum_txin_type))
 
+    @runs_in_hwd_thread
     def sign_transaction(self, keystore, tx: PartialTransaction, prev_tx):
         self.prev_tx = prev_tx
         client = self.get_client(keystore)
@@ -325,6 +336,7 @@ class KeepKeyPlugin(HW_PluginBase):
         signatures = [(bh2u(x) + '01') for x in signatures]
         tx.update_signatures(signatures)
 
+    @runs_in_hwd_thread
     def show_address(self, wallet, address, keystore=None):
         if keystore is None:
             keystore = wallet.get_keystore()

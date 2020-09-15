@@ -13,6 +13,7 @@ from PyQt5.QtCore import Qt, QMetaObject, Q_RETURN_ARG, pyqtSlot
 from electrum_grs.gui.qt.util import (
     WindowModalDialog,
     OkButton,
+    ButtonsTextEdit,
 )
 
 from electrum_grs.i18n import _
@@ -49,31 +50,19 @@ class Plugin(BitBox02Plugin, QtPluginBase):
 
     @only_hook_if_libraries_available
     @hook
-    def show_xpub_button(self, main_window, dialog, labels_clayout):
+    def show_xpub_button(self, mpk_text: ButtonsTextEdit, keystore):
         # user is about to see the "Wallet Information" dialog
         # - add a button to show the xpub on the BitBox02 device
-        wallet = main_window.wallet
-        if not any(type(ks) == self.keystore_class for ks in wallet.get_keystores()):
-            # doesn't involve a BitBox02 wallet, hide feature
+        if type(keystore) != self.keystore_class:
             return
 
-        btn = QPushButton(_("Show on BitBox02"))
-
         def on_button_click():
-            selected_keystore_index = 0
-            if labels_clayout is not None:
-                selected_keystore_index = labels_clayout.selected_index()
-            keystores = wallet.get_keystores()
-            selected_keystore = keystores[selected_keystore_index]
-            if type(selected_keystore) != self.keystore_class:
-                main_window.show_error("Select a BitBox02 xpub")
-                return
-            selected_keystore.thread.add(
-                partial(self.show_xpub, keystore=selected_keystore)
+            keystore.thread.add(
+                partial(self.show_xpub, keystore=keystore)
             )
 
-        btn.clicked.connect(lambda unused: on_button_click())
-        return btn
+        device_name = "{} ({})".format(self.device, keystore.label)
+        mpk_text.addButton("eye1.png", on_button_click, _("Show on {}").format(device_name))
 
 
 class BitBox02_Handler(QtHandlerBase):

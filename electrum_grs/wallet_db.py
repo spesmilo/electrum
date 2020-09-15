@@ -1211,6 +1211,14 @@ class WalletDB(JsonDB):
             v = Outpoint(**v)
         return v
 
+    def _should_convert_to_stored_dict(self, key) -> bool:
+        if key == 'keystore':
+            return False
+        multisig_keystore_names = [('x%d/' % i) for i in range(1, 16)]
+        if key in multisig_keystore_names:
+            return False
+        return True
+
     def write(self, storage: 'WalletStorage'):
         with self.lock:
             self._write(storage)

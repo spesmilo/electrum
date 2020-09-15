@@ -106,8 +106,13 @@ class QRDialog(WindowModalDialog):
         WindowModalDialog.__init__(self, parent, title)
 
         vbox = QVBoxLayout()
+
         qrw = QRCodeWidget(data)
-        vbox.addWidget(qrw, 1)
+        qr_hbox = QHBoxLayout()
+        qr_hbox.addWidget(qrw)
+        qr_hbox.addStretch(1)
+        vbox.addLayout(qr_hbox)
+
         help_text = data if show_text else help_text
         if help_text:
             text_label = WWLabel()
@@ -124,7 +129,7 @@ class QRDialog(WindowModalDialog):
                 filename, __ = QFileDialog.getSaveFileName(self, _("Select where to save file"), "qrcode.png")
             if not filename:
                 return
-            p = qrw.grab()  # FIXME also grabs neutral colored padding
+            p = qrw.grab()
             p.save(filename, 'png')
             self.show_message(_("QR code saved to file") + " " + filename)
 
