@@ -280,7 +280,9 @@ class ElectrumAIRWindow(ElectrumMultikeyWalletWindow):
 
     def get_instant_seed(self):
         text = self.instant_privkey_line.text()
-        return text.split()
+        words = text.split()
+        del text
+        return words
 
     def get_instant_keypair(self):
         stored_instant_pubkey = self.wallet.storage.get('instant_pubkey')
@@ -288,6 +290,7 @@ class ElectrumAIRWindow(ElectrumMultikeyWalletWindow):
         if not short_mnemonic.is_valid(seed):
             raise ValueError(_("Invalid fast Tx seed"))
         privkey, pubkey = short_mnemonic.seed_to_keypair(seed)
+        del seed
         if pubkey != stored_instant_pubkey:
             raise Exception(_("Fast Tx seed not matching any key in this wallet"))
         return {pubkey: (privkey, True)}

@@ -274,7 +274,9 @@ class RecoveryTab(QWidget):
 
     def get_recovery_seed(self):
         text = self.recovery_privkey_line.text()
-        return text.split()
+        words = text.split()
+        del text
+        return words
 
     def _get_recovery_keypair(self):
         stored_recovery_pubkey = self.wallet.storage.get('recovery_pubkey')
@@ -282,6 +284,7 @@ class RecoveryTab(QWidget):
         if not short_mnemonic.is_valid(seed):
             raise ValueError(_("Invalid cancel seedphrase"))
         privkey, pubkey = short_mnemonic.seed_to_keypair(seed)
+        del seed
         if pubkey != stored_recovery_pubkey:
             raise Exception(_("Cancel seedphrase not matching any key in this wallet"))
         return {pubkey: (privkey, True)}
@@ -494,6 +497,7 @@ class RecoveryTabAIR(RecoveryTab):
         if not short_mnemonic.is_valid(seed):
             raise ValueError(_("Invalid fast Tx seed"))
         privkey, pubkey = short_mnemonic.seed_to_keypair(seed)
+        del seed
         if pubkey != stored_instant_pubkey:
             raise Exception(_("Fast Tx seed not matching any key in this wallet"))
         return {pubkey: (privkey, True)}

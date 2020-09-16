@@ -1761,6 +1761,7 @@ class PartialTransaction(Transaction):
                 self.add_signature_to_txin(txin_idx=i, signing_pubkey=pubkey, sig=sig)
 
         _logger.debug(f"is_complete {self.is_complete()}")
+        del keypairs
         self.invalidate_ser_cache()
 
     def sign_txin(self, txin_index, privkey_bytes, *, bip143_shared_txdigest_fields=None) -> str:

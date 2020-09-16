@@ -46,11 +46,13 @@ def seed_to_privkey(seed: List[str]) -> bytes:
         raise ValueError(_('Invalid seed'))
 
     private_key = entropy_to_privkey(entropy)
-
+    del payload, entropy, checksum, sha256sum
     return private_key
 
 
 def seed_to_keypair(seed: List[str]) -> Tuple[bytes, str]:
     privkey = seed_to_privkey(seed)
     pubkey = ECPrivkey(privkey).get_public_key_hex()
-    return (privkey, pubkey)
+    keypair = (privkey, pubkey)
+    del privkey, pubkey
+    return keypair
