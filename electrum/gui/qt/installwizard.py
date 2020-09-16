@@ -393,8 +393,9 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.exec_layout(slayout, title, next_enabled=False)
         return slayout.get_text()
 
-    def seed_input(self, title, message, is_seed, options):
-        slayout = SeedLayout(title=message, is_seed=is_seed, options=options, parent=self)
+    def seed_input(self, title, message, is_seed, options, import_gold_wallet=False):
+        slayout = SeedLayout(title=message, is_seed=is_seed, options=options, parent=self,
+                             import_gold_wallet=import_gold_wallet)
         self.exec_layout(slayout, title, next_enabled=False)
         return slayout.get_seed(), slayout.is_bip39, slayout.is_ext
 
@@ -426,7 +427,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             options.append('bip39')
         title = _('Enter Seed')
         message = _('Please enter your seed phrase in order to restore your wallet.')
-        return self.seed_input(title, message, test, options)
+        import_gold_wallet = False
+        if self.wallet_type == 'standard':
+            import_gold_wallet = True
+        return self.seed_input(title, message, test, options, import_gold_wallet)
 
     @wizard_dialog
     def confirm_seed_dialog(self, run_next, test):
@@ -583,7 +587,13 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             "entropy": entropy,
         }
         layout = Qr2FaDialog(self, title_label=title_label, pin_label=pin_label, qr_data=qr_data)
-        self.exec_layout(layout, _('Pair your wallet with GoldWallet'), next_enabled=False)
+        if self.wallet_type == '2-key':
+            title = _('Pair your 2 Keys Vault wallet with Gold Wallet')
+        elif self.wallet_type == '3-key':
+            title = _('Pair your 3 Keys Vault wallet with Gold Wallet')
+        else:
+            raise ValueError(f'Wrong wallet type {self.wallet_type}')
+        self.exec_layout(layout, title, next_enabled=False)
         return layout.get_pubkey()
 
     def query_choice(self, msg, choices):

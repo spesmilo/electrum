@@ -85,7 +85,7 @@ class UpdateCheck(QWidget, Logger):
             if self.is_newer(latest_version):
                 self.heading_label.setText('<h2>' + _("There is a new update available") + '</h2>')
                 url = "<a href='{u}'>{u}</a>".format(u=UpdateCheck.download_url)
-                self.detail_label.setText(_("You can download the new version from {ulr}.").format(url=url))
+                self.detail_label.setText(_("You can download the new version from {url}.").format(url=url))
             else:
                 self.heading_label.setText('<h2>' + _("Already up to date") + '</h2>')
                 self.detail_label.setText(_("You are already on the latest version of Electrum."))

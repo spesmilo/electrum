@@ -129,16 +129,14 @@ class BaseWizard(Logger):
     def new(self):
         title = _("Create new wallet")
         message = '\n'.join([
-            _("What kind of wallet do you want to create?")
+            _("Choose the type of wallet")
         ])
         wallet_kinds = [
-            ('2-key', _('Two-key wallet')),
-            ('3-key', _('Three-key wallet')),
-            ('standard', _("Legacy wallet")),
-            # Needs implementation on TrustedCoin, will be done later
-            # ('2fa', _("Wallet with two-factor authentication")),
-            ('multisig', _("Multi-signature legacy wallet")),
-            ('imported', _("Import Bitcoin addresses or private keys")),
+            ('2-key', _('2 Keys Vault wallet')),
+            ('3-key', _('3 Keys Vault wallet')),
+            ('standard', _('Standard wallet')),
+            ('multisig', _('Multi-signature Standard wallet')),
+            ('imported', _('Import external watch-only BTCV addresses or private keys')),
         ]
         choices = [pair for pair in wallet_kinds if pair[0] in wallet_types]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.on_wallet_type)
@@ -214,12 +212,15 @@ class BaseWizard(Logger):
             self.run(action)
 
         assert self.wallet_type in ['2-key', '3-key'], "Wrong multikey wallet type: " + self.wallet_type
-        title = _('Multikey wallet type')
-        message = _('Do you want to use GoldWallet as a transaction authenticator?')
+        if self.wallet_type == '2-key':
+            title = _('2 Keys Vault wallet')
+        else:
+            title = _('3 Keys Vault wallet')
+        message = _('Do you want to use Gold Wallet as a transaction authenticator?')
         choices = [
-            ('multikey_2fa_create', _('Use GoldWallet and create a new wallet')),
-            ('multikey_2fa_import', _('Use GoldWallet and restore the wallet')),
-            ('multikey_standalone', _('Do not use GoldWallet')),
+            ('multikey_2fa_create', _('Use Gold Wallet and create a new wallet')),
+            ('multikey_2fa_import', _('Use Gold Wallet and import the wallet')),
+            ('multikey_standalone', _('Do not use Gold Wallet')),
         ]
 
         self.choice_dialog(title=title, message=message, choices=choices, run_next=process_choice)
@@ -298,9 +299,9 @@ class BaseWizard(Logger):
 
     def import_addresses_or_keys(self):
         v = lambda x: keystore.is_address_list(x) or keystore.is_private_key_list(x, raise_on_error=True)
-        title = _("Import Bitcoin Addresses")
+        title = _("Import BTCV addresses")
         message = _(
-            "Enter a list of Bitcoin addresses (this will create a watching-only wallet), or a list of private keys.")
+            "Enter a list of BTCV addresses (this will create a watching-only wallet), or a list of private keys.")
         self.add_xpub_dialog(title=title, message=message, run_next=self.on_import,
                              is_valid=v, allow_multi=True, show_wif_help=True)
 
@@ -486,16 +487,16 @@ class BaseWizard(Logger):
             # For segwit, a custom path is used, as there is no standard at all.
             default_choice_idx = 2
             choices = [
-                ('standard', 'legacy multisig (p2sh)', normalize_bip32_derivation("m/45'/0")),
-                ('p2wsh-p2sh', 'p2sh-segwit multisig (p2wsh-p2sh)', purpose48_derivation(0, xtype='p2wsh-p2sh')),
-                ('p2wsh', 'native segwit multisig (p2wsh)', purpose48_derivation(0, xtype='p2wsh')),
+                ('standard', 'legacy multisig - p2sh', normalize_bip32_derivation("m/45'/0")),
+                ('p2wsh-p2sh', 'p2sh-segwit multisig - p2wsh-p2sh', purpose48_derivation(0, xtype='p2wsh-p2sh')),
+                ('p2wsh', 'native segwit multisig - p2wsh', purpose48_derivation(0, xtype='p2wsh')),
             ]
         else:
             default_choice_idx = 2
             choices = [
-                ('standard', 'legacy (p2pkh)', bip44_derivation(0, bip43_purpose=44)),
-                ('p2wpkh-p2sh', 'p2sh-segwit (p2wpkh-p2sh)', bip44_derivation(0, bip43_purpose=49)),
-                ('p2wpkh', 'native segwit (p2wpkh)', bip44_derivation(0, bip43_purpose=84)),
+                ('standard', 'legacy - p2pkh', bip44_derivation(0, bip43_purpose=44)),
+                ('p2wpkh-p2sh', 'p2sh-segwit - p2wpkh-p2sh', bip44_derivation(0, bip43_purpose=49)),
+                ('p2wpkh', 'native segwit - p2wpkh', bip44_derivation(0, bip43_purpose=84)),
             ]
         while True:
             try:
