@@ -463,12 +463,14 @@ class RecoveryTabAIR(RecoveryTab):
             grid_layout.addWidget(QLabel(_('Fast seedphrase')), 1, 0)
             # complete line edit with suggestions
             self.instant_privkey_line = self._create_privkey_line(self.on_instant_seed_line_edit)
+            self.instant_privkey_line.setContextMenuPolicy(Qt.PreventContextMenu)
             grid_layout.addWidget(self.instant_privkey_line, 1, 1)
 
         # Row 3
         grid_layout.addWidget(QLabel(_('Cancel seedphrase')), 2, 0)
         # complete line edit with suggestions
         self.recovery_privkey_line = self._create_privkey_line(self.on_recovery_seed_line_edit)
+        self.recovery_privkey_line.setContextMenuPolicy(Qt.PreventContextMenu)
         grid_layout.addWidget(self.recovery_privkey_line, 2, 1)
 
         # Row 4

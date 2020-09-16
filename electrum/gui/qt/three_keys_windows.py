@@ -1,5 +1,6 @@
 import enum
 
+from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QVBoxLayout, QLabel, QWidget, QHBoxLayout, \
     QGridLayout, QCompleter, QComboBox, \
     QStyledItemDelegate
@@ -210,6 +211,7 @@ class ElectrumAIRWindow(ElectrumMultikeyWalletWindow):
             self.instant_privkey_line.setTabChangesFocus(False)
             self.instant_privkey_line.setEnabled(False)
             self.instant_privkey_line.textChanged.connect(self.on_instant_priv_key_line_edit)
+            self.instant_privkey_line.setContextMenuPolicy(Qt.PreventContextMenu)
 
             # complete line edit with suggestions
             class CompleterDelegate(QStyledItemDelegate):
