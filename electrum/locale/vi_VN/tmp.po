@@ -1,0 +1,180 @@
+# Vietnamese translations for PACKAGE package.
+# Copyright (C) 2020 THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# Automatically generated, 2020.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2020-09-17 12:54+0200\n"
+"PO-Revision-Date: 2020-09-17 12:38+0200\n"
+"Last-Translator: Automatically generated\n"
+"Language-Team: none\n"
+"Language: vi\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+msgid " (No FX rate available)"
+msgstr " (Không có sẵn tỷ giá FX khả dụng)"
+
+msgid "2 Keys Vault wallet"
+msgstr "Ví Vault 2 khóa"
+
+msgid "3 Keys Vault wallet"
+msgstr "Ví Vault 3 khóa"
+
+msgid ""
+ "A small fee will be charged on each transaction that uses the remote "
+ "server. You may check and modify your billing preferences once the "
+ "installation is complete."
+msgstr ""
+ "Sẽ tốn một khoản chi phí nhỏ cho những giao dịch sử dụng "
+ "máy chủ từ xa. Có thể kiểm tra và thay đổi phương thức yêu cầu khi "
+ "hoàn tất cài đặt."
+
+msgid "BIP39 seed (Gold Wallet integration)"
+msgstr "BIP39 seed (Gold Wallet hợp nhất)"
+
+msgid ""
+ "Choose coin (UTXO) selection method for alert transactions. The following "
+ "are available:\n"
+ "\n"
+msgstr ""
+ "Vui lòng chọn phương thức lựa chọn coin (UTXO) cho giao dịch được cảnh báo. Có sẵn "
+ "những phương thức sau:\n"
+ "\n"
+
+msgid ""
+ "Choose coin (UTXO) selection method for non-alert transactions. The "
+ "following are available:\n"
+ "\n"
+msgstr ""
+"Vui lòng chọn phương thức lựa chọn coin (UTXO) cho giao dịch không được cảnh báo. Có sẵn "
+ "những phương thức sau:\n"
+ "\n"
+
+msgid "Choose the type of wallet"
+msgstr "Vui lòng chọn loại ví"
+
+msgid "Do not use Gold Wallet"
+msgstr "Không sử dụng Gold Wallet"
+
+msgid "Do you want to use Gold Wallet as a transaction authenticator?"
+msgstr "Quý khách có muốn sử dụng Gold Wallet làm công cụ xác nhận giao dịch hay không?"
+
+msgid ""
+ "Electrum cannot pair with your {device}.\n"
+ "\n"
+ "Before you request bitcoins to be sent to addresses in this wallet, ensure "
+ "you can pair with your device, or that you have its seed (and passphrase, if "
+ "any). Otherwise all bitcoins you receive will be unspendable."
+msgstr ""
+ "Electrum không thể ghép cặp được với {device} của quý khách.\n"
+ "\n"
+ "Trước khi yêu cầu bitcoin được gửi tới những địa chỉ trong ví này, hãy đảm bảo "
+ "rằng thiết bị của quý khách đã được ghép cặp, hoặc quý khách có seed(bao gồm trường hợp nếu "
+ "có passphrase). Nếu không, quý khách sẽ không thể di chuyển tất cả số bitcoin mà mình đã nhận được."
+
+msgid ""
+ "Electrum communicates with remote servers to get information about your "
+ "transactions and addresses. The servers all fulfill the same purpose only "
+ "differing in hardware. In most cases you simply want to let Electrum pick "
+ "one at random. However if you prefer feel free to select a server manually."
+msgstr ""
+ "Electrum kết nối với những máy chủ từ xa để lấy thông tin về "
+ "những địa chỉ và giao dịch của quý khách. Các máy chủ đều hướng tới cùng một mục tiêu duy nhất "
+ "chỉ khác nhau thiết bị phần cứng. Trong hầu hết các trường hợp, người sử dụng thường muốn để Electrum lựa chọn "
+ "một máy chủ ngẫu nhiên. Tuy nhiên, quý khách hoàn toàn có thể lựa chọn máy chủ một cách thủ công nếu mong muốn."
+
+
+msgid ""
+ "Enter a list of BTCV addresses (this will create a watching-only wallet), or "
+ "a list of private keys."
+msgstr  ""
+ "Vui lòng nhập danh sách địa chỉ BTCV (địa chỉ ví chuyên dùng để xác nhận sẽ được thiết lập trong trường hợp này) hoặc "
+ "danh sách khóa cá nhân."
+
+msgid "Import BTCV addresses"
+msgstr "Nhập địa chỉ BTCV"
+
+msgid "Import external watch-only BTCV addresses or private keys"
+msgstr "Nhập địa chỉ BTCV cố định chuyên dùng để xác nhận hoặc khóa cá nhân"
+
+msgid "Multi-signature Standard wallet"
+msgstr "Ví đa chữ ký tiêu chuẩn"
+
+msgid ""
+ "Note that your coins are not locked in this service. You may withdraw your "
+ "funds at any time and at no cost, without the remote server, by using the "
+ "'restore wallet' option with your wallet seed."
+msgstr ""
+ "Hãy lưu ý rằng coin của quý khách sẽ không bị khóa trên thiết bị này. Quý khách có thể rút "
+ "tài sản của mình bất kỳ lúc nào mà không mất phí, không cần máy chủ từ xa bằng cách sử dụng "
+ "chức năng 'ví khôi phục' nhờ có seed của ví."
+
+
+msgid "Pair your 2 Keys Vault wallet with Gold Wallet"
+msgstr "Hãy ghép cặp ví Vault 2 khóa cùng với Gold Wallet"
+
+msgid "Pair your 3 Keys Vault wallet with Gold Wallet"
+msgstr "Hãy ghép cặp ví Vault 3 khóa cùng với Gold Wallet"
+
+msgid "Standard wallet"
+msgstr "Ví tiêu chuẩn"
+
+msgid ""
+ "The next step will generate the seed of your wallet. This seed will NOT be "
+ "saved in your computer, and it must be stored on paper. To be safe from "
+ "malware, you may want to do this on an offline computer, and move your "
+ "wallet later to an online computer."
+msgstr ""
+ "Seed của ví sẽ được tạo ra ở bước tiếp theo. Seed này sẽ KHÔNG "
+ "được lưu trên máy tính của quý khách mà cần được lưu trữ trên giấy. Để bảo vệ thông tin này khỏi "
+ "các phần mềm độc hại, quý khách nên thực hiện điều này trên một máy tính không kết nối mạng và chuyển "
+ "địa chỉ ví của mình tới máy tính kết nối mạng sau đó."
+
+
+msgid ""
+ "This service uses a multi-signature wallet, where you own 2 of 3 keys. The "
+ "third key is stored on a remote server that signs transactions on your "
+ "behalf. A small fee will be charged on each transaction that uses the remote "
+ "server."
+msgstr ""
+ "Thiết bị này sử dụng ví đa chữ ký, nơi quý khách sở hữu 2 trong 3 khóa. Khóa "
+ "thứ 3 được lưu trữ trên một thiết bị từ xa nơi ký các giao dịch thay cho "
+ "quý khách. Sẽ tốn một khoản phí nhỏ cho những giao dịch sử dụng máy chủ "
+ "từ xa." 
+
+
+msgid ""
+ "Two-factor authentication is a service provided by TrustedCoin. It uses a "
+ "multi-signature wallet, where you own 2 of 3 keys. The third key is stored "
+ "on a remote server that signs transactions on your behalf. To use this "
+ "service, you will need a smartphone with Google Authenticator installed."
+msgstr ""
+ "Xác thực hau yếu tố được cung cấp bởi TrustedCoin. Nó sử dụng một " 
+ "ví đa chữ ký, nơi bạn sở hữu 2 trong 3 khóa. Khóa thứ 3 được lưu trữ "
+ "trên một máy chủ từ xa nơi ký các giao dịch thay cho quý khách. Để sử dụng "
+ "chức năng này, quý khách cần có một chiếc điện thoại thông minh có cài đặt Google Authenticator."
+
+
+msgid "Use Gold Wallet and create a new wallet"
+msgstr "Sử dụng Gold Wallet và thiết lập một ví mới"
+
+msgid "Use Gold Wallet and import the wallet"
+msgstr "Sử dụng Gold Wallet và nhập một ví mới"
+
+msgid ""
+ "You need to be online in order to complete the creation of your wallet. If "
+ "you generated your seed on an offline computer, click on \"{button}\" to "
+ "close this window, move your wallet file to an online computer, and reopen "
+ "it with Electrum."
+msgstr ""
+ "Quý khách cần kết nối mạng để có thể hoàn tất việc tạo lập ví. Nếu "
+ "quý khách thiết lập seed trên một máy tính không kết nối mạng, hãy nhấn vào \"{button}\" để "
+ "đóng cửa sổ này, chuyển dữ liệu vé của quý khách tới một máy tính kết nối mạng và mở lại "
+ "nó bằng Electrum."
+
+

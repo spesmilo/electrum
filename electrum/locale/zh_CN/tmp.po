@@ -1,0 +1,164 @@
+# Chinese translations for PACKAGE package.
+# Copyright (C) 2020 THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# Automatically generated, 2020.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2020-09-17 12:54+0200\n"
+"PO-Revision-Date: 2020-09-17 12:38+0200\n"
+"Last-Translator: Automatically generated\n"
+"Language-Team: none\n"
+"Language: zh_CN\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid " (No FX rate available)"
+msgstr "无可用汇率"
+
+msgid "2 Keys Vault wallet"
+msgstr " 2密钥Vault钱包"
+
+msgid "3 Keys Vault wallet"
+msgstr " 3密钥Vault钱包"
+
+msgid ""
+ "A small fee will be charged on each transaction that uses the remote "
+ "server. You may check and modify your billing preferences once the "
+ "installation is complete."
+msgstr ""
+"关于使用远程服务器的每笔交易，将收取小部分手续费""安装完成后，您可以检查和修改结算信息设置。" 
+
+msgid "BIP39 seed (Gold Wallet integration)"
+msgstr "BIP39 种子 (Gold Wallet 通用)"
+
+msgid ""
+ "Choose coin (UTXO) selection method for alert transactions. The following "
+ "are available:\n"
+ "\n"
+msgstr ""
+ "请选择币(UTXO) 的选择方法进行提醒交易。之后"
+"可使用 :\n"
+"\n"
+
+msgid ""
+ "Choose coin (UTXO) selection method for non-alert transactions. The "
+ "following are available:\n"
+ "\n"
+msgstr ""
+ "请选择币(UTXO) 的选择方法进行不提醒交易。之后"
+ "可使用:\n"
+ "\n"
+
+msgid "Choose the type of wallet"
+msgstr "请选择钱包种类"
+
+msgid "Do not use Gold Wallet"
+msgstr "不要使用Gold Wallet"
+
+msgid "Do you want to use Gold Wallet as a transaction authenticator?"
+msgstr "您想将Gold Wallet用作交易验证吗？"
+
+msgid ""
+ "Electrum cannot pair with your {device}.\n"
+ "\n"
+ "Before you request bitcoins to be sent to addresses in this wallet, ensure "
+ "you can pair with your device, or that you have its seed (and passphrase, if "
+ "any). Otherwise all bitcoins you receive will be unspendable."
+msgstr ""
+ "Electrum无法与您的{device}相配对.\n"
+ "\n"
+ "申请将比特币传送至钱包地址之前, 请确保"
+ "是否与设备相配对, 或者请确认是否拥有种子(和密码 ""如果有的话)                    反之，收到汇款的比特币无法传送"
+
+msgid ""
+ "Electrum communicates with remote servers to get information about your "
+ "transactions and addresses. The servers all fulfill the same purpose only "
+ "differing in hardware. In most cases you simply want to let Electrum pick "
+ "one at random. However if you prefer feel free to select a server manually."
+msgstr ""
+ "Electrum为获取有关交易和地址的信息，与远程服务器相通。服务器执行同一个目标 ""只在硬件设备不同. 大部分是Electrum ""选择一个随机服务. 但是可以直接手动选择偏好的服务器。"
+
+msgid ""
+ "Enter a list of BTCV addresses (this will create a watching-only wallet), or "
+ "a list of private keys."
+msgstr ""
+ "请输入BTCV地址目录 (this will create a watching-only wallet),"
+"或者，请输入 个人 钥匙目录."
+
+msgid "Import BTCV addresses"
+msgstr "导入BTCV 地址"
+
+msgid "Import external watch-only BTCV addresses or private keys"
+msgstr "导入外部确认专用 BTCV 地址，或导入个人钥匙 "
+
+msgid "Multi-signature Standard wallet"
+msgstr "多重署名标准地址 "
+
+msgid ""
+ "Note that your coins are not locked in this service. You may withdraw your "
+ "funds at any time and at no cost, without the remote server, by using the "
+ "'restore wallet' option with your wallet seed."
+msgstr ""
+ "在这服务器未锁上币."
+"随时使用钱包种子''重建钱包 "
+"未使用远程服务器也可以提取资金."
+
+msgid "Pair your 2 Keys Vault wallet with Gold Wallet"
+msgstr "请将2密钥Vault钱包与 Gold Wallet相配对"
+
+msgid "Pair your 3 Keys Vault wallet with Gold Wallet"
+msgstr "请将3密钥Vault钱包与 Gold Wallet相配对"
+
+msgid "Standard wallet"
+msgstr "标准钱包"
+
+msgid ""
+ "The next step will generate the seed of your wallet. This seed will NOT be "
+ "saved in your computer, and it must be stored on paper. To be safe from "
+ "malware, you may want to do this on an offline computer, and move your "
+ "wallet later to an online computer."
+msgstr ""
+ "在下一步生成钱包种子. 这种子在"
+"电脑上保存不了，必须写在纸张上保存. "
+"为防止恶性软件，应在离线操作"
+"之后将钱包转移至在线电脑上."
+
+msgid ""
+ "This service uses a multi-signature wallet, where you own 2 of 3 keys. The "
+ "third key is stored on a remote server that signs transactions on your "
+ "behalf. A small fee will be charged on each transaction that uses the remote "
+ "server."
+msgstr ""
+ "此服务使用一个多签名钱包，您在其中拥有3个密钥中的2个。"
+ "第三个钥匙是替代使用者署名交易，并保存在远程服务器上."
+"对于使用远程服务器的交易将收取小部分手续费。."
+
+msgid ""
+ "Two-factor authentication is a service provided by TrustedCoin. It uses a "
+ "multi-signature wallet, where you own 2 of 3 keys. The third key is stored "
+ "on a remote server that signs transactions on your behalf. To use this "
+ "service, you will need a smartphone with Google Authenticator installed."
+msgstr ""
+ "双重身份验证是TrustedCoin提供的一项服务."
+"它使用一个多签名钱包，您在其中拥有3个密钥中的2个。"
+" 第三个密钥是替代使用者署名交易，并保存在远程服务器上. 为了利用该"
+"功能需在手机上安装谷歌认证软件."
+
+msgid "Use Gold Wallet and create a new wallet"
+msgstr "使用Gold Wallet 及创建新的钱包"
+
+msgid "Use Gold Wallet and import the wallet"
+msgstr "使用Gold Wallet 及导入钱包"
+
+msgid ""
+ "You need to be online in order to complete the creation of your wallet. If "
+ "you generated your seed on an offline computer, click on \"{button}\" to "
+ "close this window, move your wallet file to an online computer, and reopen "
+ "it with Electrum."
+msgstr ""
+ "为了完成钱包的生成，需在线状态. 若 ""在离线电脑上生成种子的情况, 为了关闭此窗口点击 \"{button}\"后, 将钱包文件转移至在线电脑上. 之后 将""Electrum重新执行."
+
