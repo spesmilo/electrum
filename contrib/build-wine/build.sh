@@ -11,7 +11,7 @@ export CACHEDIR="$here/.cache"
 export PIP_CACHE_DIR="$CACHEDIR/pip_cache"
 
 export BUILD_TYPE="wine"
-export GCC_TRIPLET_HOST="i686-w64-mingw32"
+export GCC_TRIPLET_HOST="i686-w64-mingw32"  # make sure to clear caches if changing this
 export GCC_TRIPLET_BUILD="x86_64-pc-linux-gnu"
 export GCC_STRIP_BINARIES="1"
 

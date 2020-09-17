@@ -43,12 +43,19 @@ info "Installing Python."
 # keys from https://www.python.org/downloads/#pubkeys
 KEYRING_PYTHON_DEV="keyring-electrum-build-python-dev.gpg"
 gpg --no-default-keyring --keyring $KEYRING_PYTHON_DEV --import "$here"/gpg_keys/7ED10B6531D7C8E1BC296021FC624643487034E5.asc
-PYTHON_DOWNLOADS="$CACHEDIR/python$PYTHON_VERSION"
+if [ "$GCC_TRIPLET_HOST" = "i686-w64-mingw32" ] ; then
+    ARCH="win32"
+elif [ "$GCC_TRIPLET_HOST" = "x86_64-w64-mingw32" ] ; then
+    ARCH="amd64"
+else
+    fail "unexpected GCC_TRIPLET_HOST: $GCC_TRIPLET_HOST"
+fi
+PYTHON_DOWNLOADS="$CACHEDIR/python$PYTHON_VERSION-$ARCH"
 mkdir -p "$PYTHON_DOWNLOADS"
 for msifile in core dev exe lib pip tools; do
     echo "Installing $msifile..."
-    download_if_not_exist "$PYTHON_DOWNLOADS/${msifile}.msi" "https://www.python.org/ftp/python/$PYTHON_VERSION/win32/${msifile}.msi"
-    download_if_not_exist "$PYTHON_DOWNLOADS/${msifile}.msi.asc" "https://www.python.org/ftp/python/$PYTHON_VERSION/win32/${msifile}.msi.asc"
+    download_if_not_exist "$PYTHON_DOWNLOADS/${msifile}.msi" "https://www.python.org/ftp/python/$PYTHON_VERSION/$ARCH/${msifile}.msi"
+    download_if_not_exist "$PYTHON_DOWNLOADS/${msifile}.msi.asc" "https://www.python.org/ftp/python/$PYTHON_VERSION/$ARCH/${msifile}.msi.asc"
     verify_signature "$PYTHON_DOWNLOADS/${msifile}.msi.asc" $KEYRING_PYTHON_DEV
     wine msiexec /i "$PYTHON_DOWNLOADS/${msifile}.msi" /qb TARGETDIR=$PYHOME
 done
@@ -82,10 +89,10 @@ info "Compiling libusb..."
     git checkout -b pinned "${LIBUSB_COMMIT}^{commit}"
     echo "libusb_1_0_la_LDFLAGS += -Wc,-static" >> libusb/Makefile.am
     ./bootstrap.sh || fail "Could not bootstrap libusb"
-    host="i686-w64-mingw32"
+    host="$GCC_TRIPLET_HOST"
     LDFLAGS="-Wl,--no-insert-timestamp" ./configure \
         --host=$host \
-        --build=x86_64-pc-linux-gnu || fail "Could not run ./configure for libusb"
+        --build=$GCC_TRIPLET_BUILD || fail "Could not run ./configure for libusb"
     make -j4 || fail "Could not build libusb"
     ${host}-strip libusb/.libs/libusb-1.0.dll
 ) || fail "libusb build failed"
@@ -118,10 +125,21 @@ info "Building PyInstaller."
     echo "const char *electrum_tag = \"tagged by Electrum@$ELECTRUM_COMMIT_HASH\";" >> ./bootloader/src/pyi_main.c
     pushd bootloader
     # cross-compile to Windows using host python
-    python3 ./waf all CC=i686-w64-mingw32-gcc CFLAGS="-static -Wno-dangling-else -Wno-error=unused-value -Wno-error=implicit-function-declaration"
+    python3 ./waf all CC="${GCC_TRIPLET_HOST}-gcc" \
+                      CFLAGS="-static \
+                              -Wno-dangling-else \
+                              -Wno-error=unused-value \
+                              -Wno-error=implicit-function-declaration \
+                              -Wno-error=int-to-pointer-cast"
     popd
     # sanity check bootloader is there:
-    [[ -e PyInstaller/bootloader/Windows-32bit/runw.exe ]] || fail "Could not find runw.exe in target dir!"
+    if [ "$GCC_TRIPLET_HOST" = "i686-w64-mingw32" ] ; then
+        [[ -e PyInstaller/bootloader/Windows-32bit/runw.exe ]] || fail "Could not find runw.exe in target dir! (32bit)"
+    elif [ "$GCC_TRIPLET_HOST" = "x86_64-w64-mingw32" ] ; then
+        [[ -e PyInstaller/bootloader/Windows-64bit/runw.exe ]] || fail "Could not find runw.exe in target dir! (64bit)"
+    else
+        fail "unexpected GCC_TRIPLET_HOST: $GCC_TRIPLET_HOST"
+    fi
 ) || fail "PyInstaller build failed"
 info "Installing PyInstaller."
 $PYTHON -m pip install --no-dependencies --no-warn-script-location ./pyinstaller
