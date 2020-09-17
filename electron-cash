@@ -384,15 +384,17 @@ if __name__ == '__main__':
 
     set_verbosity(config_options.get('verbose'))
 
-    have_testnet4 = False
-    if config_options.get('testnet4'):
-        networks.set_testnet4()
-        have_testnet4 = True
-
-    if config_options.get('testnet'):
-        if have_testnet4:
-            sys.exit("Cannot specify both --testnet and --testnet4")
+    have_testnet = config_options.get('testnet') or False
+    have_testnet4 = config_options.get('testnet4') or False
+    have_scalenet = config_options.get('scalenet') or False
+    if have_testnet + have_testnet4 + have_scalenet > 1:
+        sys.exit("Invalid combination of --testnet, --testnet4, and/or --scalenet")
+    elif have_testnet:
         networks.set_testnet()
+    elif have_testnet4:
+        networks.set_testnet4()
+    elif have_scalenet:
+        networks.set_scalenet()
 
     # check uri
     uri = config_options.get('url')

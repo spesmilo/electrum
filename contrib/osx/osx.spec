@@ -32,6 +32,7 @@ datas = [
     (home+'lib/servers.json', PYPKG),
     (home+'lib/servers_testnet.json', PYPKG),
     (home+'lib/servers_testnet4.json', PYPKG),
+    (home+'lib/servers_scalenet.json', PYPKG),
     (home+'lib/wordlist/english.txt', PYPKG + '/wordlist'),
     (home+'lib/locale', PYPKG + '/locale'),
     (home+'plugins', PYPKG + '_plugins'),

@@ -53,6 +53,7 @@ datas = [
     (home+'lib/servers.json', 'electroncash'),
     (home+'lib/servers_testnet.json', 'electroncash'),
     (home+'lib/servers_testnet4.json', 'electroncash'),
+    (home+'lib/servers_scalenet.json', 'electroncash'),
     (home+'lib/wordlist/english.txt', 'electroncash/wordlist'),
     (home+'lib/locale', 'electroncash/locale'),
     (home+'gui/qt/data/ecsupplemental_win.ttf', 'electroncash_gui/qt/data'),

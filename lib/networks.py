@@ -50,7 +50,7 @@ class MainNet(AbstractNet):
     ADDRTYPE_P2SH = 5
     ADDRTYPE_P2SH_BITPAY = 40
     CASHADDR_PREFIX = "bitcoincash"
-    HEADERS_URL = "http://bitcoincash.com/files/blockchain_headers"
+    HEADERS_URL = "http://bitcoincash.com/files/blockchain_headers"  # Unused
     GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = _read_json_dict('servers.json')  # DO NOT MODIFY IN CLIENT CODE
@@ -94,7 +94,7 @@ class TestNet(AbstractNet):
     ADDRTYPE_P2SH = 196
     ADDRTYPE_P2SH_BITPAY = 196  # Unsure
     CASHADDR_PREFIX = "bchtest"
-    HEADERS_URL = "http://bitcoincash.com/files/testnet_headers"
+    HEADERS_URL = "http://bitcoincash.com/files/testnet_headers"  # Unused
     GENESIS = "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
     DEFAULT_PORTS = {'t':'51001', 's':'51002'}
     DEFAULT_SERVERS = _read_json_dict('servers_testnet.json')  # DO NOT MODIFY IN CLIENT CODE
@@ -125,13 +125,35 @@ class TestNet4(TestNet):
     GENESIS = "000000001dd410c49a788668ce26751718cc797474d3152a5fc073dd44fd9f7b"
     TITLE = 'Electron Cash Testnet4'
 
+    HEADERS_URL = "http://bitcoincash.com/files/testnet4_headers"  # Unused
+
     DEFAULT_SERVERS = _read_json_dict('servers_testnet4.json')  # DO NOT MODIFY IN CLIENT CODE
+    DEFAULT_PORTS = {'t':'62001', 's':'62002'}
 
     VERIFICATION_BLOCK_MERKLE_ROOT = "cfb7f86cf574ffc765f1531c9474c4aa74573c8acf085ab239a366570ad57f9d"
     VERIFICATION_BLOCK_HEIGHT = 2016
 
     BITCOIN_CASH_FORK_BLOCK_HEIGHT = 6
     BITCOIN_CASH_FORK_BLOCK_HASH = "00000000d71b9b1f7e13b0c9b218a12df6526c1bcd1b667764b8693ae9a413cb"
+
+    # Nov 13. 2017 HF to CW144 DAA height (height of last block mined on old DAA)
+    CW144_HEIGHT = 3000
+
+
+class ScaleNet(TestNet):
+    GENESIS = "00000000e6453dc2dfe1ffa19023f86002eb11dbb8e87d0291a4599f0430be52"
+    TITLE = 'Electron Cash Scalenet'
+
+    HEADERS_URL = "http://bitcoincash.com/files/scalenet_headers"  # Unused
+
+    DEFAULT_SERVERS = _read_json_dict('servers_scalenet.json')  # DO NOT MODIFY IN CLIENT CODE
+    DEFAULT_PORTS = {'t':'63001', 's':'63002'}
+
+    VERIFICATION_BLOCK_MERKLE_ROOT = "41eb32849a353fcb408c8b25e84578c714dbdc5ee774d0fbe25e85755250df6a"
+    VERIFICATION_BLOCK_HEIGHT = 2016
+
+    BITCOIN_CASH_FORK_BLOCK_HEIGHT = 6
+    BITCOIN_CASH_FORK_BLOCK_HASH = "000000000e16730d293050fc5fe5b0978b858f5d9d91192a5ca2793902493597"
 
     # Nov 13. 2017 HF to CW144 DAA height (height of last block mined on old DAA)
     CW144_HEIGHT = 3000
@@ -151,6 +173,10 @@ def set_testnet():
 def set_testnet4():
     global net
     net = TestNet4
+
+def set_scalenet():
+    global net
+    net = ScaleNet
 
 
 # Compatibility
