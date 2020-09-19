@@ -86,8 +86,9 @@ class Console(QtWidgets.QPlainTextEdit):
         self.namespace.update(namespace)
 
     def showMessage(self, message):
+        curr_line = self.getCommand()
         self.appendPlainText(message)
-        self.newPrompt('')
+        self.newPrompt(curr_line)
 
     def clear(self):
         curr_line = self.getCommand()
@@ -96,7 +97,7 @@ class Console(QtWidgets.QPlainTextEdit):
 
     def newPrompt(self, curr_line):
         if self.construct:
-            prompt = '... '
+            prompt = '... ' + curr_line
         else:
             prompt = self.prompt + curr_line
 

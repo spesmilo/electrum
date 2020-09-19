@@ -611,8 +611,7 @@ class SimpleConfig(Logger):
         text = self.get(key)
         if text:
             try:
-                host, port = text.split(':')
-                return NetAddress(host, port)
+                return NetAddress.from_string(text)
             except:
                 pass
 

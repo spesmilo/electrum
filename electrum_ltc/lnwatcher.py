@@ -276,6 +276,9 @@ class WatchTower(LNWatcher):
         # and a queue for seeing which txs are being published
         self.tx_progress = {} # type: Dict[str, ListenerItem]
 
+    def diagnostic_name(self):
+        return "local_tower"
+
     async def start_watching(self):
         # I need to watch the addresses from sweepstore
         lst = await self.sweepstore.list_channels()
@@ -344,9 +347,12 @@ class WatchTower(LNWatcher):
 class LNWalletWatcher(LNWatcher):
 
     def __init__(self, lnworker: 'LNWallet', network: 'Network'):
-        LNWatcher.__init__(self, network)
         self.network = network
         self.lnworker = lnworker
+        LNWatcher.__init__(self, network)
+
+    def diagnostic_name(self):
+        return f"{self.lnworker.wallet.diagnostic_name()}-LNW"
 
     @ignore_exceptions
     @log_exceptions

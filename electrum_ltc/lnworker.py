@@ -891,10 +891,10 @@ class LNWallet(LNWorker):
                 # note: path-finding runs in a separate thread so that we don't block the asyncio loop
                 # graph updates might occur during the computation
                 self.set_invoice_status(key, PR_ROUTING)
-                util.trigger_callback('invoice_status', key)
+                util.trigger_callback('invoice_status', self.wallet, key)
                 route = await run_in_thread(partial(self._create_route_from_invoice, lnaddr, full_path=full_path))
                 self.set_invoice_status(key, PR_INFLIGHT)
-                util.trigger_callback('invoice_status', key)
+                util.trigger_callback('invoice_status', self.wallet, key)
                 payment_attempt_log = await self._pay_to_route(route, lnaddr)
             except Exception as e:
                 log.append(PaymentAttemptLog(success=False, exception=e))
@@ -907,7 +907,7 @@ class LNWallet(LNWorker):
                 break
         else:
             reason = _('Failed after {} attempts').format(attempts)
-        util.trigger_callback('invoice_status', key)
+        util.trigger_callback('invoice_status', self.wallet, key)
         if success:
             util.trigger_callback('payment_succeeded', self.wallet, key)
         else:
@@ -1247,7 +1247,7 @@ class LNWallet(LNWorker):
         else:
             chan.logger.info('received unexpected payment_failed, probably from previous session')
             key = payment_hash.hex()
-            util.trigger_callback('invoice_status', key)
+            util.trigger_callback('invoice_status', self.wallet, key)
             util.trigger_callback('payment_failed', self.wallet, key, '')
         util.trigger_callback('ln_payment_failed', payment_hash, chan.channel_id)
 
@@ -1263,13 +1263,13 @@ class LNWallet(LNWorker):
         else:
             chan.logger.info('received unexpected payment_sent, probably from previous session')
             key = payment_hash.hex()
-            util.trigger_callback('invoice_status', key)
+            util.trigger_callback('invoice_status', self.wallet, key)
             util.trigger_callback('payment_succeeded', self.wallet, key)
         util.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
 
     def payment_received(self, chan, payment_hash: bytes):
         self.set_payment_status(payment_hash, PR_PAID)
-        util.trigger_callback('request_status', payment_hash.hex(), PR_PAID)
+        util.trigger_callback('request_status', self.wallet, payment_hash.hex(), PR_PAID)
         util.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
 
     async def _calc_routing_hints_for_invoice(self, amount_sat: Optional[int]):
