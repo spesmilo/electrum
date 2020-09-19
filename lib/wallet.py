@@ -38,6 +38,7 @@ import time
 import threading
 from collections import defaultdict
 from functools import partial
+import itertools
 
 from .i18n import ngettext
 from .util import NotEnoughFunds, ExcessiveFee, PrintError, UserCancelled, profiler, format_satoshis, format_time, finalization_print_error, to_string
@@ -1436,6 +1437,14 @@ class Abstract_Wallet(PrintError, SPVDelegate):
 
         if self.network:
             self.network.trigger_callback('on_history', self)
+
+    def add_tx_to_history(self, txid):
+        with self.lock:
+            for addr in itertools.chain(list(self.txi.get(txid, {}).keys()), list(self.txo.get(txid, {}).keys())):
+                cur_hist = self._history.get(addr, list())
+                if not any(True for x in cur_hist if x[0] == txid):
+                    cur_hist.append((txid, 0))
+                    self._history[addr] = cur_hist
 
     def get_history(self, domain=None, *, reverse=False):
         # get domain

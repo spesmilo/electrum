@@ -510,7 +510,7 @@ class Commands:
         return bitcoin.verify_message(address, sig, message)
 
     def _mktx(self, outputs, fee=None, change_addr=None, domain=None, nocheck=False,
-              unsigned=False, password=None, locktime=None, op_return=None, op_return_raw=None):
+              unsigned=False, password=None, locktime=None, op_return=None, op_return_raw=None, addtransaction=False):
         if op_return and op_return_raw:
             raise ValueError('Both op_return and op_return_raw cannot be specified together!')
         self.nocheck = nocheck
@@ -540,23 +540,27 @@ class Commands:
         if not unsigned:
             run_hook('sign_tx', self.wallet, tx)
             self.wallet.sign_transaction(tx, password)
+            if addtransaction:
+                self.wallet.add_transaction(tx.txid(), tx)
+                self.wallet.add_tx_to_history(tx.txid())
+                self.wallet.save_transactions()
         return tx
 
     @command('wp')
     def payto(self, destination, amount, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, password=None, locktime=None,
-              op_return=None, op_return_raw=None):
+              op_return=None, op_return_raw=None, addtransaction=False):
         """Create a transaction. """
         tx_fee = satoshis(fee)
         domain = from_addr.split(',') if from_addr else None
-        tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned, password, locktime, op_return, op_return_raw)
+        tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned, password, locktime, op_return, op_return_raw, addtransaction=addtransaction)
         return tx.as_dict()
 
     @command('wp')
-    def paytomany(self, outputs, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, password=None, locktime=None):
+    def paytomany(self, outputs, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, password=None, locktime=None, addtransaction=False):
         """Create a multi-output transaction. """
         tx_fee = satoshis(fee)
         domain = from_addr.split(',') if from_addr else None
-        tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned, password, locktime)
+        tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned, password, locktime, addtransaction=addtransaction)
         return tx.as_dict()
 
     @command('w')
@@ -844,6 +848,7 @@ param_descriptions = {
 }
 
 command_options = {
+    'addtransaction': (None, 'Whether transaction is to be used for broadcasting afterwards. Adds transaction to the wallet'),
     'balance':     ("-b", "Show the balances of listed addresses"),
     'change':      (None, "Show only change addresses"),
     'change_addr': ("-c", "Change address. Default is a spare address, or the source address if it's not in the wallet"),
