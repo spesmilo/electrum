@@ -2,5 +2,14 @@
     "blackie.c3-soft.com": {
         "t": "63001",
         "s": "63002"
+    },
+    "sbch.loping.net": {
+        "t": "63001",
+        "s": "63002"
+    },
+    "5g66mhfnm444pfbbjocrqatv65rrhq7g3hpnvsriu5xjfwcxjqathxid.onion": {
+        "s": "63002",
+        "t": "63001",
+        "display": "sbch.loping.net"
     }
 }
