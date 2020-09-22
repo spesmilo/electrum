@@ -14,7 +14,6 @@ from electrum.util import bfh, bh2u, versiontuple
 from electrum.base_wizard import ScriptTypeNotSupported
 from electrum.crypto import hash_160, sha256d
 from electrum.ecc import CURVE_ORDER, der_sig_from_r_and_s, get_r_and_s_from_der_sig, ECPubkey
-from electrum.mnemonic import Mnemonic
 from electrum.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32, convert_bip32_intpath_to_strpath
 from electrum.logging import get_logger
 from electrum.gui.qt.qrcodewidget import QRCodeWidget, QRDialog
@@ -665,15 +664,16 @@ class SatochipPlugin(HW_PluginBase):
         title = _('Create or restore')
         message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
         choices = [
-            ('create_seed', _('Create a new seed')),
-            ('restore_from_seed', _('I already have a seed')),
+            ('create_seed', _('Create a new BIP39 seed')),
+            ('restore_from_seed', _('I already have a BIP39 seed')),
         ]
         wizard.choice_dialog(title=title, message=message, choices=choices, run_next=wizard.run)
     #create seed
     def create_seed(self, wizard):
-        wizard.seed_type = 'standard'
-        wizard.opt_bip39 = False
-        seed = Mnemonic('en').make_seed(wizard.seed_type)
+        wizard.seed_type = 'bip39'
+        wizard.opt_bip39 = True
+        #seed = mnemonic.Mnemonic('en').make_seed(wizard.seed_type) # Electrum seed
+        seed= self.to_bip39_mnemonic(128)
         f = lambda x: self.request_passphrase(wizard, seed, x)
         wizard.show_seed_dialog(run_next=f, seed_text=seed)
 
@@ -689,7 +689,7 @@ class SatochipPlugin(HW_PluginBase):
         wizard.confirm_seed_dialog(run_next=f, test=lambda x: x==seed)
 
     def confirm_passphrase(self, wizard, seed, passphrase):
-        f = lambda x: self.derive_bip32_seed(seed, x)
+        f = lambda x: self.derive_bip39_seed(seed, x) #f = lambda x: self.derive_bip32_seed(seed, x)
         if passphrase:
             title = _('Confirm Seed Extension')
             message = '\n'.join([
@@ -699,10 +699,7 @@ class SatochipPlugin(HW_PluginBase):
             wizard.line_dialog(run_next=f, title=title, message=message, default='', test=lambda x: x==passphrase)
         else:
             f('')    
-    
-    def derive_bip32_seed(self, seed, passphrase):
-        self.bip32_seed= Mnemonic('en').mnemonic_to_seed(seed, passphrase)
-    
+        
     #restore from seed
     def restore_from_seed(self, wizard):
         wizard.opt_bip39 = True
@@ -711,12 +708,22 @@ class SatochipPlugin(HW_PluginBase):
         f= lambda seed, is_bip39, is_ext: self.on_restore_seed(wizard, seed, is_bip39, is_ext)
         wizard.restore_seed_dialog(run_next=f, test=test)
         
+        
     def on_restore_seed(self, wizard, seed, is_bip39, is_ext):
         wizard.seed_type = 'bip39' if is_bip39 else mnemonic.seed_type(seed)
         if wizard.seed_type == 'bip39':
             f = lambda passphrase: self.derive_bip39_seed(seed, passphrase)
             wizard.passphrase_dialog(run_next=f, is_restoring=True) if is_ext else f('')
         elif wizard.seed_type in ['standard', 'segwit']:
+            # warning message as Electrum seed on hardware is not standard and incompatible with other hw
+            message= '  '.join([
+                _("You are trying to import an Electrum seed to a Satochip hardware wallet."),
+                _("\n\nElectrum seeds are not compatible with the BIP39 seeds typically used in hardware wallets."), 
+                _("This means you may have difficulty to import this seed in another wallet in the future."),
+                _("\n\nProceed with caution! If you are not sure, click on 'Back', enable BIP39 in 'Options' and introduce a BIP39 seed instead."),
+                _("You can also generate a new random BIP39 seed by clicking on 'Back' twice.")
+            ])
+            wizard.confirm_dialog('Warning', message, run_next=lambda x: None)
             f = lambda passphrase: self.derive_bip32_seed(seed, passphrase)
             wizard.passphrase_dialog(run_next=f, is_restoring=True) if is_ext else f('')
         elif wizard.seed_type == 'old':
@@ -726,5 +733,31 @@ class SatochipPlugin(HW_PluginBase):
         else:
             raise Exception('Unknown seed type', wizard.seed_type)
 
+    def derive_bip32_seed(self, seed, passphrase):
+        self.bip32_seed= mnemonic.Mnemonic('en').mnemonic_to_seed(seed, passphrase)
+        
     def derive_bip39_seed(self, seed, passphrase):
         self.bip32_seed=bip39_to_seed(seed, passphrase)
+    
+    # based on https://github.com/trezor/python-mnemonic/blob/master/mnemonic/mnemonic.py
+    def to_bip39_mnemonic(self, strength: int) -> str:
+        wordlist = mnemonic.Wordlist.from_file("english.txt")
+        data= urandom(strength // 8)
+        if len(data) not in [16, 20, 24, 28, 32]:
+            raise ValueError(
+                "Data length should be one of the following: [16, 20, 24, 28, 32], but it is not (%d)."
+                % len(data)
+            )
+        h = hashlib.sha256(data).hexdigest()
+        b = (
+            bin(int.from_bytes(data, byteorder="big"))[2:].zfill(len(data) * 8)
+            + bin(int(h, 16))[2:].zfill(256)[: len(data) * 8 // 32]
+        )
+        result = []
+        for i in range(len(b) // 11):
+            idx = int(b[i * 11 : (i + 1) * 11], 2)
+            result.append(wordlist[idx])
+        result_phrase = " ".join(result)
+        return result_phrase
+
+
