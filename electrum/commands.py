@@ -1043,7 +1043,7 @@ class Commands:
 
     @command('wn')
     async def dumpgraph(self, wallet: Abstract_Wallet = None):
-        return list(map(bh2u, wallet.lnworker.channel_db.nodes.keys()))
+        return wallet.lnworker.channel_db.to_dict()
 
     @command('n')
     async def inject_fees(self, fees):
