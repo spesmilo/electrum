@@ -16,4 +16,4 @@ ckcc-protocol>=0.7.7
 bitbox02>=4.0.0
 hidapi
 pyscard>=1.9.9
-pysatochip>=0.11.2
+pysatochip>=0.11.3
