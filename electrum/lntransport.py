@@ -172,7 +172,10 @@ class LNResponderTransport(LNTransportBase):
         hs = HandshakeState(privkey_to_pubkey(self.privkey))
         act1 = b''
         while len(act1) < 50:
-            act1 += await self.reader.read(50 - len(act1))
+            buf = await self.reader.read(50 - len(act1))
+            if not buf:
+                raise HandshakeFailed('responder disconnected')
+            act1 += buf
         if len(act1) != 50:
             raise HandshakeFailed('responder: short act 1 read, length is ' + str(len(act1)))
         if bytes([act1[0]]) != HandshakeState.handshake_version:
@@ -200,7 +203,10 @@ class LNResponderTransport(LNTransportBase):
         # act 3
         act3 = b''
         while len(act3) < 66:
-            act3 += await self.reader.read(66 - len(act3))
+            buf = await self.reader.read(66 - len(act3))
+            if not buf:
+                raise HandshakeFailed('responder disconnected')
+            act3 += buf
         if len(act3) != 66:
             raise HandshakeFailed('responder: short act 3 read, length is ' + str(len(act3)))
         if bytes([act3[0]]) != HandshakeState.handshake_version:

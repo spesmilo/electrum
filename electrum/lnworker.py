@@ -193,8 +193,8 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
                 transport = LNResponderTransport(self.node_keypair.privkey, reader, writer)
                 try:
                     node_id = await transport.handshake()
-                except:
-                    self.logger.info('handshake failure from incoming connection')
+                except Exception as e:
+                    self.logger.info(f'handshake failure from incoming connection: {e!r}')
                     return
                 peer = Peer(self, node_id, transport)
                 with self.lock:
