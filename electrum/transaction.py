@@ -1422,8 +1422,8 @@ class PartialTxInput(TxInput, PSBTSection):
 
     def convert_utxo_to_witness_utxo(self) -> None:
         if self.utxo:
-            self.witness_utxo = self.utxo.outputs()[self.prevout.out_idx]
-            self.utxo = None  # type: Optional[Transaction]
+            self._witness_utxo = self.utxo.outputs()[self.prevout.out_idx]
+            self._utxo = None  # type: Optional[Transaction]
 
     def is_native_segwit(self) -> Optional[bool]:
         """Whether this input is native segwit. None means inconclusive."""
