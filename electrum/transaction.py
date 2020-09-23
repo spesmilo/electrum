@@ -546,7 +546,8 @@ class Transaction:
         return self._locktime
 
     @locktime.setter
-    def locktime(self, value):
+    def locktime(self, value: int):
+        assert isinstance(value, int), f"locktime must be int, not {value!r}"
         self._locktime = value
         self.invalidate_ser_cache()
 

@@ -875,7 +875,9 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
         assert self.tx
         self.finalized = True
         self.tx.set_rbf(self.rbf_cb.isChecked())
-        self.tx.locktime = self.locktime_e.get_locktime()
+        locktime = self.locktime_e.get_locktime()
+        if locktime is not None:
+            self.tx.locktime = self.locktime_e.get_locktime()
         for widget in [self.fee_slider, self.fee_combo, self.feecontrol_fields, self.rbf_cb,
                        self.locktime_setter_widget, self.locktime_e]:
             widget.setEnabled(False)
