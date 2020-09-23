@@ -38,6 +38,7 @@ from collections import defaultdict
 from enum import IntEnum
 import itertools
 import binascii
+import copy
 
 from . import ecc, bitcoin, constants, segwit_addr, bip32
 from .bip32 import BIP32Node
@@ -46,7 +47,8 @@ from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160,
                       hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr,
                       var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN,
                       int_to_hex, push_script, b58_address_to_hash160,
-                      opcodes, add_number_to_script, base_decode, is_segwit_script_type)
+                      opcodes, add_number_to_script, base_decode, is_segwit_script_type,
+                      base_encode)
 from .crypto import sha256d
 from .logging import get_logger
 
@@ -831,6 +833,15 @@ class Transaction:
             return nVersion + marker + flag + txins + txouts + witness + nLocktime
         else:
             return nVersion + txins + txouts + nLocktime
+
+    def to_qr_data(self) -> str:
+        """Returns tx as data to be put into a QR code. No side-effects."""
+        tx = copy.deepcopy(self)  # make copy as we mutate tx
+        if isinstance(tx, PartialTransaction):
+            # this makes QR codes a lot smaller (or just possible in the first place!)
+            tx.convert_all_utxos_to_witness_utxos()
+        tx_bytes = tx.serialize_as_bytes()
+        return base_encode(tx_bytes, base=43)
 
     def txid(self) -> Optional[str]:
         if self._cached_txid is None:
