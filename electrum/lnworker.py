@@ -21,7 +21,7 @@ import urllib.parse
 
 import dns.resolver
 import dns.exception
-from aiorpcx import run_in_thread, TaskGroup
+from aiorpcx import run_in_thread, TaskGroup, NetAddress
 
 from . import constants, util
 from . import keystore
@@ -162,6 +162,7 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         self.node_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NODE_KEY)
         self._peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer  # needs self.lock
         self.taskgroup = SilentTaskGroup()
+        self.listen_server = None  # type: Optional[asyncio.AbstractServer]
         # set some feature flags as baseline for both LNWallet and LNGossip
         # note that e.g. DATA_LOSS_PROTECT is needed for LNGossip as many peers require it
         self.features = LnFeatures(0)
@@ -185,10 +186,13 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         # FIXME: only one LNWorker can listen at a time (single port)
         listen_addr = self.config.get('lightning_listen')
         if listen_addr:
-            addr, port = listen_addr.rsplit(':', 2)
-            if addr[0] == '[':
-                # ipv6
-                addr = addr[1:-1]
+            self.logger.info(f'lightning_listen enabled. will try to bind: {listen_addr!r}')
+            try:
+                netaddr = NetAddress.from_string(listen_addr)
+            except Exception as e:
+                self.logger.error(f"failed to parse config key 'lightning_listen'. got: {e!r}")
+                return
+            addr = str(netaddr.host)
             async def cb(reader, writer):
                 transport = LNResponderTransport(self.node_keypair.privkey, reader, writer)
                 try:
@@ -201,9 +205,7 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
                     self._peers[node_id] = peer
                 await self.taskgroup.spawn(peer.main_loop())
             try:
-                # FIXME: server.close(), server.wait_closed(), etc... ?
-                # TODO: onion hidden service?
-                server = await asyncio.start_server(cb, addr, int(port))
+                self.listen_server = await asyncio.start_server(cb, addr, netaddr.port)
             except OSError as e:
                 self.logger.error(f"cannot listen for lightning p2p. error: {e!r}")
 
@@ -267,6 +269,8 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
 
     def stop(self):
+        if self.listen_server:
+            self.listen_server.close()
         asyncio.run_coroutine_threadsafe(self.taskgroup.cancel_remaining(), self.network.asyncio_loop)
         util.unregister_callback(self.on_proxy_changed)
 
