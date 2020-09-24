@@ -39,8 +39,8 @@ from decimal import Decimal
 from typing import Optional, TYPE_CHECKING, Dict, List
 
 from .import util, ecc
-from .util import bfh, bh2u, format_satoshis, json_decode, json_encode, is_hash256_str, is_hex_str, to_bytes, timestamp_to_datetime
-from .util import standardize_path
+from .util import (bfh, bh2u, format_satoshis, json_decode, json_normalize,
+                   is_hash256_str, is_hex_str, to_bytes)
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN
 from .bip32 import BIP32Node
@@ -81,13 +81,6 @@ def satoshis(amount):
 
 def format_satoshis(x):
     return str(Decimal(x)/COIN) if x is not None else None
-
-def json_normalize(x):
-    # note: The return value of commands, when going through the JSON-RPC interface,
-    #       is json-encoded. The encoder used there cannot handle some types, e.g. electrum.util.Satoshis.
-    # note: We should not simply do "json_encode(x)" here, as then later x would get doubly json-encoded.
-    # see #5868
-    return json_decode(json_encode(x))
 
 
 class Command:
