@@ -132,7 +132,7 @@ class NotificationSession(RPCSession):
         self.cache = {}
         self.default_timeout = NetworkTimeout.Generic.NORMAL
         self._msg_counter = itertools.count(start=1)
-        self.interface = interface  # type: Interface
+        self.interface = interface
         self.cost_hard_limit = 0  # disable aiorpcx resource limits
 
     async def handle_request(self, request):
@@ -612,7 +612,6 @@ class Interface(Logger):
                              host=self.host, port=self.port,
                              ssl=sslc, proxy=self.proxy) as session:
             self.session = session  # type: NotificationSession
-            self.session.interface = self
             self.session.set_default_timeout(self.network.get_network_timeout_seconds(NetworkTimeout.Generic))
             try:
                 ver = await session.send_request('server.version', [self.client_name(), version.PROTOCOL_VERSION])
