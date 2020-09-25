@@ -271,16 +271,9 @@ class TxDialog(Factory.Popup):
         self.app.broadcast(self.tx)
 
     def show_qr(self):
-        from electrum_ltc.bitcoin import base_encode, bfh
         original_raw_tx = str(self.tx)
-        tx = copy.deepcopy(self.tx)  # make copy as we mutate tx
-        if isinstance(tx, PartialTransaction):
-            # this makes QR codes a lot smaller (or just possible in the first place!)
-            tx.convert_all_utxos_to_witness_utxos()
-
-        text = tx.serialize_as_bytes()
-        text = base_encode(text, base=43)
-        self.app.qr_dialog(_("Raw Transaction"), text, text_for_clipboard=original_raw_tx)
+        qr_data = self.tx.to_qr_data()
+        self.app.qr_dialog(_("Raw Transaction"), qr_data, text_for_clipboard=original_raw_tx)
 
     def remove_local_tx(self):
         txid = self.tx.txid()
