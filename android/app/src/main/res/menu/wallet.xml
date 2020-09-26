@@ -21,6 +21,17 @@
         android:title="@string/show_seed"/>
 
     <item
+        android:id="@+id/menuExportSigned"
+        android:icon="@drawable/ic_key_24dp"
+        android:title="@string/sign_transaction"/>
+
+    <item
+        android:id="@+id/menuLoadSigned"
+        android:icon="@drawable/ic_key_24dp"
+        android:title="@string/load_transaction"/>
+
+
+    <item
         android:id="@+id/menuRename"
         android:icon="@drawable/ic_edit_24dp"
         android:title="@string/Rename_wallet"/>

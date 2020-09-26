@@ -32,6 +32,10 @@ class SendDialog : AlertDialogFragment() {
     }
     val model: Model by viewModels()
 
+    val unbroadcasted by lazy {
+        arguments?.getBoolean("unbroadcasted", false) ?: false
+    }
+
     init {
         if (daemonModel.wallet!!.callAttr("is_watching_only").toBoolean()) {
             throw ToastException(R.string.this_wallet_is)
@@ -44,22 +48,29 @@ class SendDialog : AlertDialogFragment() {
     }
 
     override fun onBuildDialog(builder: AlertDialog.Builder) {
-        builder.setTitle(R.string.send)
-            .setView(R.layout.send)
+        if (!unbroadcasted) {
+            builder.setTitle(R.string.send)
+                .setPositiveButton(R.string.send, null)
+        } else {
+            builder.setTitle(R.string.sign_transaction)
+                .setPositiveButton(R.string.sign, null)
+        }
+        builder.setView(R.layout.send)
             .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(android.R.string.ok, null)
             .setNeutralButton(R.string.qr_code, null)
     }
 
-    override fun onShowDialog() {
+    override fun onFirstShowDialog() {
         if (arguments != null) {
             val address = arguments!!.getString("address")
             if (address != null) {
                 etAddress.setText(address)
                 etAmount.requestFocus()
             }
-            arguments = null
         }
+    }
+
+    override fun onShowDialog() {
         setPaymentRequest(model.paymentRequest)
 
         etAmount.addTextChangedListener(object : TextWatcher {
@@ -286,34 +297,30 @@ class SendPasswordDialog : PasswordDialog<Unit>() {
     override fun onPassword(password: String) {
         val wallet = daemonModel.wallet!!
         wallet.callAttr("sign_transaction", model.tx, password)
-        if (! daemonModel.isConnected()) {
-            throw ToastException(R.string.not_connected)
-        }
-        val pr = sendDialog.model.paymentRequest
-        val result = if (pr != null) {
-            checkExpired(pr)
-            val refundAddr = wallet.callAttr("get_receiving_addresses").asList().get(0)
-            pr.callAttr("send_payment", model.tx.toString(), refundAddr)
-        } else {
-            daemonModel.network.callAttr("broadcast_transaction", model.tx)
-        }.asList()
-
-        val success = result.get(0).toBoolean()
-        if (success) {
-            setDescription(model.tx.callAttr("txid").toString(), model.description)
-        } else {
-            var message = result.get(1).toString()
-            val reError = Regex("^error: (.*)")
-            if (message.contains(reError)) {
-                message = message.replace(reError, "$1")
+        if (!sendDialog.unbroadcasted) {
+            if (!daemonModel.isConnected()) {
+                throw ToastException(R.string.not_connected)
             }
-            throw ToastException(message)
+            val pr = sendDialog.model.paymentRequest
+            val result = if (pr != null) {
+                checkExpired(pr)
+                val refundAddr = wallet.callAttr("get_receiving_addresses").asList().get(0)
+                pr.callAttr("send_payment", model.tx.toString(), refundAddr)
+            } else {
+                daemonModel.network.callAttr("broadcast_transaction", model.tx)
+            }
+            checkBroadcastResult(result)
+            setDescription(model.tx.callAttr("txid").toString(), model.description)
         }
     }
 
     override fun onPostExecute(result: Unit) {
         sendDialog.dismiss()
-        toast(R.string.payment_sent, Toast.LENGTH_SHORT)
+        if (!sendDialog.unbroadcasted) {
+            toast(R.string.payment_sent, Toast.LENGTH_SHORT)
+        } else {
+            copyToClipboard(model.tx.toString(), R.string.signed_transaction)
+        }
     }
 }
 
@@ -321,5 +328,15 @@ class SendPasswordDialog : PasswordDialog<Unit>() {
 private fun checkExpired(pr: PyObject) {
     if (pr.callAttr("has_expired").toBoolean()) {
         throw ToastException(R.string.payment_request_has)
+    }
+}
+
+
+fun checkBroadcastResult(result: PyObject) {
+    val success = result.asList().get(0).toBoolean()
+    if (!success) {
+        var message = result.asList().get(1).toString()
+        message = message.replace(Regex("^error: (.*)"), "$1")
+        throw ToastException(message)
     }
 }
