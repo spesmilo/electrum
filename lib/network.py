@@ -1901,6 +1901,8 @@ class Network(util.DaemonThread):
             return _("The transaction was rejected because it is too small.")
         elif r'version' in server_msg:
             return _("The transaction was rejected because it uses a non-standard version.")
+        elif r'TX decode failed' in server_msg:
+            return _("The transaction could not be decoded.")
         return _("An error occurred broadcasting the transaction")
 
     # Used by the verifier job.
