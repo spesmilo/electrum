@@ -444,12 +444,28 @@ class Ledger_KeyStore(Hardware_KeyStore):
             # Get trusted inputs from the original transactions
             for utxo in inputs:
                 sequence = int_to_hex(utxo[5], 4)
-                txtmp = bitcoinTransaction(bfh(utxo[0]))
-                tmp = bfh(utxo[3])[::-1]
-                tmp += bfh(int_to_hex(utxo[1], 4))
-                tmp += txtmp.outputs[utxo[1]].amount
-                chipInputs.append({'value' : tmp, 'witness' : True, 'sequence' : sequence})
-                redeemScripts.append(bfh(utxo[2]))
+                if self.get_client_electrum().is_hw1():
+                    txtmp = bitcoinTransaction(bfh(utxo[0]))
+                    tmp = bfh(utxo[3])[::-1]
+                    tmp += bfh(int_to_hex(utxo[1], 4))
+                    tmp += txtmp.outputs[utxo[1]].amount
+                    chipInputs.append({'value' : tmp, 'witness' : True, 'sequence' : sequence})
+                    redeemScripts.append(bfh(utxo[2]))
+                elif (not p2shTransaction) or self.get_client_electrum().supports_multi_output():
+                    txtmp = bitcoinTransaction(bfh(utxo[0]))
+                    trustedInput = self.get_client().getTrustedInput(txtmp, utxo[1])
+                    trustedInput['sequence'] = sequence
+                    trustedInput['witness'] = True
+                    chipInputs.append(trustedInput)
+                    if p2shTransaction:
+                        redeemScripts.append(bfh(utxo[2]))
+                    else:
+                        redeemScripts.append(txtmp.outputs[utxo[1]].script)
+                else:
+                    tmp = bfh(utxo[3])[::-1]
+                    tmp += bfh(int_to_hex(utxo[1], 4))
+                    chipInputs.append({'value' : tmp, 'witness': True, 'sequence' : sequence})
+                    redeemScripts.append(bfh(utxo[2]))
 
             # Sign all inputs
             inputIndex = 0
