@@ -1,5 +1,5 @@
-btchip-python==0.1.28 \
-    --hash=sha256:da09d0d7a6180d428833795ea9a233c3b317ddfcccea8cc6f0eba59435e5dd83
+btchip-python==0.1.30 \
+    --hash=sha256:6869c67a712969ae86af23617f6418049076626f8a8c34d1000b1c58a9702ad7
 certifi==2019.9.11 \
     --hash=sha256:fd7c7c74727ddcf00e9acd26bba8da604ffec95bf1c2144e67aff7a8b50e6cef \
     --hash=sha256:e4f3620cfea4f83eedc95b24abd9cd56f3c4b146dd0177e83a21b4eb49e21e50
