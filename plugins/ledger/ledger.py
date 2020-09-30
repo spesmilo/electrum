@@ -36,6 +36,7 @@ BITCOIN_CASH_SUPPORT_HW1 = (1, 0, 4)
 BITCOIN_CASH_SUPPORT = (1, 1, 8)
 CASHADDR_SUPPORT = (1, 2, 5)
 MULTI_OUTPUT_SUPPORT = (1, 1, 4)
+TRUSTED_INPUTS_REQUIRED = (1, 4, 0)
 
 def test_pin_unlocked(func):
     """Function decorator to test the Ledger for being unlocked, and if not,
@@ -158,6 +159,9 @@ class Ledger_Client:
     def supports_multi_output(self):
         return self.multiOutputSupported
 
+    def requires_trusted_inputs(self):
+        return self.trustedInputsRequired
+
     def perform_hw1_preflight(self):
         try:
             firmwareInfo = self.dongleObject.getFirmwareVersion()
@@ -166,6 +170,7 @@ class Ledger_Client:
                 self.is_hw1() and firmwareVersion >= BITCOIN_CASH_SUPPORT_HW1
             self.cashaddrFWSupported = firmwareVersion >= CASHADDR_SUPPORT
             self.multiOutputSupported = firmwareVersion >= MULTI_OUTPUT_SUPPORT
+            self.trustedInputsRequired = firmwareVersion >= TRUSTED_INPUTS_REQUIRED
 
             if not checkFirmware(firmwareInfo) or not self.supports_bitcoin_cash():
                 self.dongleObject.dongle.close()
@@ -444,14 +449,14 @@ class Ledger_KeyStore(Hardware_KeyStore):
             # Get trusted inputs from the original transactions
             for utxo in inputs:
                 sequence = int_to_hex(utxo[5], 4)
-                if self.get_client_electrum().is_hw1():
+                if not self.get_client_electrum().requires_trusted_inputs():
                     txtmp = bitcoinTransaction(bfh(utxo[0]))
                     tmp = bfh(utxo[3])[::-1]
                     tmp += bfh(int_to_hex(utxo[1], 4))
                     tmp += txtmp.outputs[utxo[1]].amount
                     chipInputs.append({'value' : tmp, 'witness' : True, 'sequence' : sequence})
                     redeemScripts.append(bfh(utxo[2]))
-                elif (not p2shTransaction) or self.get_client_electrum().supports_multi_output():
+                else:
                     txtmp = bitcoinTransaction(bfh(utxo[0]))
                     trustedInput = self.get_client().getTrustedInput(txtmp, utxo[1])
                     trustedInput['sequence'] = sequence
@@ -461,11 +466,6 @@ class Ledger_KeyStore(Hardware_KeyStore):
                         redeemScripts.append(bfh(utxo[2]))
                     else:
                         redeemScripts.append(txtmp.outputs[utxo[1]].script)
-                else:
-                    tmp = bfh(utxo[3])[::-1]
-                    tmp += bfh(int_to_hex(utxo[1], 4))
-                    chipInputs.append({'value' : tmp, 'witness': True, 'sequence' : sequence})
-                    redeemScripts.append(bfh(utxo[2]))
 
             # Sign all inputs
             inputIndex = 0
