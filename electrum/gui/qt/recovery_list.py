@@ -463,7 +463,7 @@ class RecoveryTabAIR(RecoveryTab):
 
         # Row 2
         if not self.is_2fa:
-            grid_layout.addWidget(QLabel(_('Fast seedphrase')), 1, 0)
+            grid_layout.addWidget(QLabel(_('Fast Secure seedphrase')), 1, 0)
             # complete line edit with suggestions
             self.instant_privkey_line = self._create_privkey_line(self.on_instant_seed_line_edit)
             self.instant_privkey_line.setContextMenuPolicy(Qt.PreventContextMenu)
@@ -495,11 +495,11 @@ class RecoveryTabAIR(RecoveryTab):
         stored_instant_pubkey = self.wallet.storage.get('instant_pubkey')
         seed = self.get_instant_seed()
         if not short_mnemonic.is_valid(seed):
-            raise ValueError(_("Invalid fast Tx seed"))
+            raise ValueError(_("Invalid Fast Secure Tx seed"))
         privkey, pubkey = short_mnemonic.seed_to_keypair(seed)
         del seed
         if pubkey != stored_instant_pubkey:
-            raise Exception(_("Fast Tx seed not matching any key in this wallet"))
+            raise Exception(_("Fast Secure Tx seed not matching any key in this wallet"))
         return {pubkey: (privkey, True)}
 
     def recover_action(self):
