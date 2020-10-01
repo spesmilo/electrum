@@ -22,6 +22,7 @@ lib/*.so.0
 # tox files
 .cache/
 .coverage
+htmlcov
 
 # MacOSX
 .DS_Store/
