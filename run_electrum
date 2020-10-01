@@ -53,7 +53,6 @@ os.environ['KIVY_DATA_DIR'] = os.path.abspath(os.path.dirname(__file__)) + '/ele
 if is_local or is_android:
     sys.path.insert(0, os.path.join(script_dir, 'packages'))
 
-
 def check_imports():
     # pure-python dependencies need to be imported here for pyinstaller
     try:
@@ -376,7 +375,7 @@ if __name__ == '__main__':
     loop, stop_loop, loop_thread = create_and_start_event_loop()
 
     if cmdname == 'gui':
-        configure_logging(config)
+        configure_logging(config, is_local)
         fd = daemon.get_file_descriptor(config)
         if fd is not None:
             plugins = init_plugins(config, config.get('gui', 'qt'))
@@ -388,7 +387,7 @@ if __name__ == '__main__':
 
     elif cmdname == 'daemon':
 
-        configure_logging(config)
+        configure_logging(config, is_local)
         fd = daemon.get_file_descriptor(config)
         if fd is not None:
             # run daemon

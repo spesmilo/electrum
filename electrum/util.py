@@ -893,6 +893,9 @@ def setup_thread_excepthook():
         def run_with_except_hook(*args2, **kwargs2):
             try:
                 run_original(*args2, **kwargs2)
+            except TypeError:
+                # handle running of sentry thread
+                run_original()
             except Exception:
                 sys.excepthook(*sys.exc_info())
 

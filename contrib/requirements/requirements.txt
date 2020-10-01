@@ -13,3 +13,4 @@ pycryptodomex==3.9.7
 jsonrpcclient==3.3.6
 jsonrpcserver==4.1.3
 cryptography==3.0
+sentry-sdk==0.17.6

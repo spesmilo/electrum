@@ -10,6 +10,7 @@ import os
 import platform
 from typing import Optional
 import copy
+import sentry_sdk
 
 
 class LogFormatterForFiles(logging.Formatter):
@@ -227,7 +228,7 @@ class Logger:
         return ''
 
 
-def configure_logging(config):
+def configure_logging(config, is_local=False):
     verbosity = config.get('verbosity')
     verbosity_shortcuts = config.get('verbosity_shortcuts')
     _configure_verbosity(verbosity=verbosity, verbosity_shortcuts=verbosity_shortcuts)
@@ -241,6 +242,13 @@ def configure_logging(config):
 
     # if using kivy, avoid kivy's own logs to get printed twice
     logging.getLogger('kivy').propagate = False
+
+    sentry_dsn = os.environ.get('SENTRY_DSN', '')
+    sentry_traces_rate = float(os.environ.get('SENTRY_TRACES_RATE', 0.1))
+
+    if not is_local and sentry_dsn != '':
+        # Initialize sentry to capture errors
+        sentry_sdk.init(sentry_dsn, traces_sample_rate=sentry_traces_rate)
 
     from . import ELECTRUM_VERSION
     from .constants import GIT_REPO_URL
