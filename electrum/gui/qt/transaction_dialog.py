@@ -186,7 +186,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         # Action buttons
         self.buttons = [self.partial_tx_actions_button, self.sign_button, self.broadcast_button, self.cancel_button]
         # Transaction sharing buttons
-        self.sharing_buttons = [self.finalize_button, self.export_actions_button, self.save_button]
+        self.sharing_buttons = [self.finalize_button, self.export_actions_button]
         run_hook('transaction_dialog', self)
         if not self.finalized:
             self.create_fee_controls()
@@ -201,7 +201,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         dialogs.append(self)
 
     def set_buttons_visibility(self):
-        for b in [self.export_actions_button, self.save_button, self.sign_button, self.broadcast_button, self.partial_tx_actions_button]:
+        for b in [self.export_actions_button, self.sign_button, self.broadcast_button, self.partial_tx_actions_button]:
             b.setVisible(self.finalized)
         for b in [self.finalize_button]:
             b.setVisible(not self.finalized)

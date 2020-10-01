@@ -17,6 +17,8 @@ from .util import read_QIcon, HelpLabel, EnterButton
 from ...mnemonic import load_wordlist
 from ...plugin import run_hook
 from ...three_keys import short_mnemonic
+from ...three_keys.tx_type import TxType
+from ...util import PR_TYPE_ONCHAIN
 
 
 class ElectrumMultikeyWalletWindow(ElectrumWindow):
@@ -69,6 +71,15 @@ class ElectrumARWindow(ElectrumMultikeyWalletWindow):
         self.do_clear()
         self.wallet.set_alert()
         self.do_pay_invoice(invoice)
+
+    def do_save_invoice(self):
+        invoice = self.read_invoice()
+        if not invoice:
+            return
+        invoice['txtype'] = TxType.ALERT_PENDING.name
+        self.wallet.save_invoice(invoice)
+        self.do_clear()
+        self.invoice_list.update()
 
     def pay_onchain_dialog(self, inputs, outputs, invoice=None, external_keypairs=None):
         # trustedcoin requires this
@@ -302,6 +313,7 @@ class ElectrumAIRWindow(ElectrumMultikeyWalletWindow):
 
         keypair = None
         if self.tx_type_combo.currentIndex() == self.TX_TYPES['fast']:
+            invoice['txtype'] = TxType.INSTANT.name
             try:
                 if not self.is_2fa:
                     keypair = self.get_instant_keypair()
@@ -310,11 +322,41 @@ class ElectrumAIRWindow(ElectrumMultikeyWalletWindow):
                 self.on_error([0, str(e)])
                 return
         else:
+            invoice['txtype'] = TxType.ALERT_PENDING.name
             self.wallet.set_alert()
         self.wallet.save_invoice(invoice)
         self.invoice_list.update()
         self.do_clear()
         self.do_pay_invoice(invoice, external_keypairs=keypair)
+
+    def do_pay_invoice(self, invoice, external_keypairs=None):
+        if invoice['type'] == PR_TYPE_ONCHAIN:
+            self.wallet.set_alert()
+            if invoice['txtype'] == TxType.INSTANT.name:
+                try:
+                    if not self.is_2fa:
+                        external_keypairs = self.get_instant_keypair()
+                    self.wallet.set_instant()
+                except Exception as e:
+                    self.on_error([0, str(e)])
+                    return
+
+            outputs = invoice['outputs']
+            self.pay_onchain_dialog(self.get_coins(), outputs, invoice=invoice, external_keypairs=external_keypairs)
+        else:
+            raise Exception('unknown invoice type')
+
+    def do_save_invoice(self):
+        invoice = self.read_invoice()
+        if not invoice:
+            return
+        if self.tx_type_combo.currentIndex() == self.TX_TYPES['fast']:
+            invoice['txtype'] = TxType.INSTANT.name
+        else:
+            invoice['txtype'] = TxType.ALERT_PENDING.name
+        self.wallet.save_invoice(invoice)
+        self.do_clear()
+        self.invoice_list.update()
 
     def do_clear(self):
         self.max_button.setChecked(False)

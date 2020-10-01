@@ -42,8 +42,7 @@ from .util import (MyTreeView, read_QIcon, MONOSPACE_FONT,
                    import_meta_gui, export_meta_gui, pr_icons)
 from .util import CloseButton, Buttons
 from .util import WindowModalDialog
-
-
+from ...three_keys.tx_type import TxType
 
 ROLE_REQUEST_TYPE = Qt.UserRole
 ROLE_REQUEST_ID = Qt.UserRole + 1
@@ -54,16 +53,18 @@ class InvoiceList(MyTreeView):
     class Columns(IntEnum):
         DATE = 0
         DESCRIPTION = 1
-        AMOUNT = 2
-        STATUS = 3
+        TXTYPE = 2
+        AMOUNT = 3
+        STATUS = 4
 
     headers = {
         Columns.DATE: _('Date'),
         Columns.DESCRIPTION: _('Description'),
+        Columns.TXTYPE: _('Type'),
         Columns.AMOUNT: _('Amount'),
         Columns.STATUS: _('Status'),
     }
-    filter_columns = [Columns.DATE, Columns.DESCRIPTION, Columns.AMOUNT]
+    filter_columns = [Columns.DATE, Columns.DESCRIPTION, Columns.TXTYPE, Columns.AMOUNT]
 
     def __init__(self, parent):
         super().__init__(parent, self.create_menu,
@@ -118,8 +119,9 @@ class InvoiceList(MyTreeView):
             amount = item['amount']
             timestamp = item.get('time', 0)
             date_str = format_time(timestamp) if timestamp else _('Unknown')
+            txtype_str = TxType.NONVAULT.name if 'txtype' not in item else item['txtype']
             amount_str = self.parent.format_amount(amount, whitespaces=True)
-            labels = [date_str, message, amount_str, status_str]
+            labels = [date_str, message, txtype_str, amount_str, status_str]
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
             items[self.Columns.DATE].setIcon(read_QIcon(icon_name))

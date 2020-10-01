@@ -589,6 +589,7 @@ class Abstract_Wallet(AddressSynchronizer):
             'message': message,
             'outputs': outputs,
             'amount': amount,
+            'txtype': TxType.NONVAULT.name
         }
         if pr:
             invoice['bip70'] = pr.raw.hex()
