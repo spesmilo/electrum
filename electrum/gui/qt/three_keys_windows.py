@@ -13,7 +13,7 @@ from .main_window import ElectrumWindow
 from .recovery_list import RecoveryTabAR, RecoveryTabAIR
 from .three_keys_dialogs import PreviewPsbtTxDialog
 from .transaction_dialog import PreviewTxDialog
-from .util import read_QIcon, HelpLabel, EnterButton
+from .util import read_QIcon, HelpLabel, EnterButton, ColorScheme
 from ...mnemonic import load_wordlist
 from ...plugin import run_hook
 from ...three_keys import short_mnemonic
@@ -31,6 +31,7 @@ class ElectrumMultikeyWalletWindow(ElectrumWindow):
         self.tabs.addTab(self.recovery_tab, read_QIcon('recovery.png'), _('Cancel'))
         # update recovery tab when description changed in history tab
         self.history_model.dataChanged.connect(self.update_tabs)
+
         self.READY_TO_UPDATE = True
 
     def timer_actions(self):
@@ -144,6 +145,13 @@ class ElectrumAIRWindow(ElectrumMultikeyWalletWindow):
         grid.setSpacing(8)
         grid.setColumnStretch(3, 1)
 
+        self.label_transaction_limitations = QLabel(_('Warning: Please be aware that in the process of using the Secure \
+Transaction feature, a part of the funds left in your wallet might be blocked. This is a normal procedure linked to UTXO \
+and the blockchain parameters of the Bitcoin Vault wallet. Your funds will be unblocked once the transaction is verified \
+(after approximately 24 hrs) or canceled (within 24 hrs).'))
+        self.label_transaction_limitations.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
+        self.label_transaction_limitations.setWordWrap(True)
+
         from .paytoedit import PayToEdit
         self.amount_e = BTCAmountEdit(self.get_decimal_point)
         self.payto_e = PayToEdit(self)
@@ -194,15 +202,19 @@ class ElectrumAIRWindow(ElectrumMultikeyWalletWindow):
                 if self.tx_type_combo.currentIndex() == self.TX_TYPES['standard']:
                     self.instant_privkey_line.setEnabled(False)
                     self.instant_privkey_line.clear()
+                    self.label_transaction_limitations.show()
                 elif self.tx_type_combo.currentIndex() == self.TX_TYPES['fast']:
                     self.instant_privkey_line.setEnabled(True)
+                    self.label_transaction_limitations.hide()
             else:
                 if self.tx_type_combo.currentIndex() == self.TX_TYPES['standard']:
                     description_label.setEnabled(True)
                     self.message_e.setEnabled(True)
+                    self.label_transaction_limitations.show()
                 elif self.tx_type_combo.currentIndex() == self.TX_TYPES['fast']:
                     description_label.setEnabled(False)
                     self.message_e.setEnabled(False)
+                    self.label_transaction_limitations.hide()
 
 
         msg = _('Choose transaction type.') + '\n\n' + \
@@ -249,6 +261,10 @@ class ElectrumAIRWindow(ElectrumMultikeyWalletWindow):
         buttons.addWidget(self.save_button)
         buttons.addWidget(self.send_button)
         grid.addLayout(buttons, 6, 1, 1, 4)
+
+        hbox_transaction_limits = QHBoxLayout()
+        hbox_transaction_limits.addWidget(self.label_transaction_limitations)
+        grid.addLayout(hbox_transaction_limits, 6, 1, 1, 2)
 
         self.amount_e.shortcut.connect(self.spend_max)
 

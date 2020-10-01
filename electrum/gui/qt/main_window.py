@@ -1241,6 +1241,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         buttons.addWidget(self.send_button)
         grid.addLayout(buttons, 6, 1, 1, 4)
 
+        if (str(type(self)) == "<class 'electrum.gui.qt.three_keys_windows.ElectrumARWindow'>"):
+            self.label_transaction_limitations = QLabel(_('Warning: Please be aware that in the process of using the \
+Secure Transaction feature, a part of the funds left in your wallet might be blocked. This is a normal procedure linked \
+to UTXO and the blockchain parameters of the Bitcoin Vault wallet. Your funds will be unblocked once the transaction is \
+verified (after approximately 24 hrs) or canceled (within 24 hrs).'))
+            self.label_transaction_limitations.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
+            self.label_transaction_limitations.setWordWrap(True)
+
+            hbox_transaction_limits = QHBoxLayout()
+            hbox_transaction_limits.addWidget(self.label_transaction_limitations)
+            grid.addLayout(hbox_transaction_limits, 6, 1, 1, 2)
+
         self.amount_e.shortcut.connect(self.spend_max)
 
         def reset_max(text):
