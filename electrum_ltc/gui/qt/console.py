@@ -173,7 +173,7 @@ class Console(QtWidgets.QPlainTextEdit):
                 return command
 
     def addToHistory(self, command):
-        if command[0:1] == ' ':
+        if not self.construct and command[0:1] == ' ':
             return
 
         if command and (not self.history or self.history[-1] != command):
