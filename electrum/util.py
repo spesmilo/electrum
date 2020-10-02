@@ -379,6 +379,13 @@ def json_decode(x):
     except:
         return x
 
+def json_normalize(x):
+    # note: The return value of commands, when going through the JSON-RPC interface,
+    #       is json-encoded. The encoder used there cannot handle some types, e.g. electrum.util.Satoshis.
+    # note: We should not simply do "json_encode(x)" here, as then later x would get doubly json-encoded.
+    # see #5868
+    return json_decode(json_encode(x))
+
 
 # taken from Django Source Code
 def constant_time_compare(val1, val2):
