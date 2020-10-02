@@ -355,7 +355,12 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             self.channel_db = channel_db.ChannelDB(self)
             self.path_finder = lnrouter.LNPathFinder(self.channel_db)
             self.lngossip = lnworker.LNGossip()
-            self.lngossip.start_network(self)
+
+    def start_gossip(self):
+        self.lngossip.start_network(self)
+
+    def stop_gossip(self):
+        self.lngossip.stop()
 
     def run_from_another_thread(self, coro, *, timeout=None):
         assert self._loop_thread != threading.current_thread(), 'must not be called from network thread'

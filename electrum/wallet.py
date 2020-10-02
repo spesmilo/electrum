@@ -283,10 +283,9 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             self.db.put('wallet_type', self.wallet_type)
         self.contacts = Contacts(self.db)
         self._coin_price_cache = {}
-        # lightning
-        ln_xprv = self.db.get('lightning_privkey2')
-        self.lnworker = LNWallet(self, ln_xprv) if ln_xprv else None
-        self.lnbackups = LNBackups(self)
+
+        self.lnworker = None
+        self.lnbackups = None
 
     def save_db(self):
         if self.storage:
@@ -366,6 +365,9 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             if self.lnworker:
                 network.maybe_init_lightning()
                 self.lnworker.start_network(network)
+                # only start gossiping when we already have channels
+                if self.db.get('channels'):
+                    self.network.start_gossip()
             self.lnbackups.start_network(network)
 
     def load_and_cleanup(self):
@@ -2426,6 +2428,16 @@ class Deterministic_Wallet(Abstract_Wallet):
         # for a few seconds!
         self.synchronize()
 
+        # create lightning keys
+        if self.can_have_lightning():
+            self.init_lightning()
+        ln_xprv = self.db.get('lightning_privkey2')
+        # lnworker can only be initialized once receiving addresses are available
+        # therefore we instantiate lnworker in DeterministicWallet
+        self.lnworker = LNWallet(self, ln_xprv) if ln_xprv else None
+        # does it make sense to instantiate lnbackups without lnworker?
+        self.lnbackups = LNBackups(self)
+
     def has_seed(self):
         return self.keystore.has_seed()
 
@@ -2805,7 +2817,6 @@ def create_new_wallet(*, path, config: SimpleConfig, passphrase=None, password=N
     wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
     wallet.synchronize()
     msg = "Please keep your seed in a safe place; if you lose it, you will not be able to restore your wallet."
-
     wallet.save_db()
     return {'seed': seed, 'wallet': wallet, 'msg': msg}
 
