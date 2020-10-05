@@ -675,7 +675,6 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         tx_URL = block_explorer_URL(self.config, 'tx', tx_hash)
         tx_details = self.wallet.get_tx_info(tx)
         is_unconfirmed = tx_details.tx_mined_status.height <= 0
-        invoice_keys = self.wallet.get_relevant_invoice_keys_for_tx(tx)
         menu = QMenu()
         if tx_details.can_remove:
             menu.addAction(_("Remove"), lambda: self.remove_local_tx(tx_hash))
@@ -699,10 +698,13 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                 child_tx = self.wallet.cpfp(tx, 0)
                 if child_tx:
                     menu.addAction(_("Child pays for parent"), lambda: self.parent.cpfp(tx, child_tx))
-        for key in invoice_keys:
-            invoice = self.parent.wallet.get_invoice(key)
-            if invoice:
-                menu.addAction(_("View invoice"), lambda: self.parent.show_onchain_invoice(invoice))
+        invoices = self.wallet.get_relevant_invoices_for_tx(tx)
+        if len(invoices) == 1:
+            menu.addAction(_("View invoice"), lambda inv=invoices[0]: self.parent.show_onchain_invoice(inv))
+        elif len(invoices) > 1:
+            menu_invs = menu.addMenu(_("Related invoices"))
+            for inv in invoices:
+                menu_invs.addAction(_("View invoice"), lambda inv=inv: self.parent.show_onchain_invoice(inv))
         if tx_URL:
             menu.addAction(_("View on block explorer"), lambda: webopen(tx_URL))
         menu.exec_(self.viewport().mapToGlobal(position))

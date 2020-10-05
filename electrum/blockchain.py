@@ -86,7 +86,7 @@ def hash_raw_header(header: str) -> str:
 # key: blockhash hex at forkpoint
 # the chain at some key is the best chain that includes the given hash
 blockchains = {}  # type: Dict[str, Blockchain]
-blockchains_lock = threading.RLock()
+blockchains_lock = threading.RLock()  # lock order: take this last; so after Blockchain.lock
 
 
 def read_blockchains(config: 'SimpleConfig'):
@@ -222,7 +222,7 @@ class Blockchain(Logger):
 
     def get_parent_heights(self) -> Mapping['Blockchain', int]:
         """Returns map: (parent chain -> height of last common block)"""
-        with blockchains_lock:
+        with self.lock, blockchains_lock:
             result = {self: self.height()}
             chain = self
             while True:

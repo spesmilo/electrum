@@ -196,7 +196,10 @@ class AuthenticatedServer(Logger):
         except Exception as e:
             self.logger.exception("invalid request")
             return web.Response(text='Invalid Request', status=500)
-        response = {'id': _id}
+        response = {
+            'id': _id,
+            'jsonrpc': '2.0',
+        }
         try:
             if isinstance(params, dict):
                 response['result'] = await f(**params)
@@ -318,7 +321,7 @@ class PayServer(Logger):
         # FIXME specify wallet somehow?
         return list(self.daemon.get_wallets().values())[0]
 
-    async def on_payment(self, evt, key, status):
+    async def on_payment(self, evt, wallet, key, status):
         if status == PR_PAID:
             self.pending[key].set()
 

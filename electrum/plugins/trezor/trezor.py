@@ -6,7 +6,7 @@ from electrum.util import bfh, bh2u, versiontuple, UserCancelled, UserFacingExce
 from electrum.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32 as parse_path
 from electrum import constants
 from electrum.i18n import _
-from electrum.plugin import Device
+from electrum.plugin import Device, runs_in_hwd_thread
 from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
 from electrum.keystore import Hardware_KeyStore
 from electrum.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
@@ -130,6 +130,7 @@ class TrezorPlugin(HW_PluginBase):
         if not self.libraries_available:
             return
         self.device_manager().register_enumerate_func(self.enumerate)
+        self._is_bridge_available = None
 
     def get_library_version(self):
         import trezorlib
@@ -142,17 +143,31 @@ class TrezorPlugin(HW_PluginBase):
         else:
             raise LibraryFoundButUnusable(library_version=version)
 
+    @runs_in_hwd_thread
+    def is_bridge_available(self) -> bool:
+        # Testing whether the Bridge is available can take several seconds
+        # (when it is not), as it is slow to timeout, hence we cache it.
+        if self._is_bridge_available is None:
+            try:
+                call_bridge("enumerate")
+            except Exception:
+                self._is_bridge_available = False
+                # never again try with Bridge due to slow timeout
+                BridgeTransport.ENABLED = False
+            else:
+                self._is_bridge_available = True
+        return self._is_bridge_available
+
+    @runs_in_hwd_thread
     def enumerate(self):
         # If there is a bridge, prefer that.
         # On Windows, the bridge runs as Admin (and Electrum usually does not),
         # so the bridge has better chances of finding devices. see #5420
         # This also avoids duplicate entries.
-        try:
-            call_bridge("enumerate")
-        except Exception:
-            devices = trezorlib.transport.enumerate_devices()
-        else:
+        if self.is_bridge_available():
             devices = BridgeTransport.enumerate()
+        else:
+            devices = trezorlib.transport.enumerate_devices()
         return [Device(path=d.get_path(),
                        interface_number=-1,
                        id_=d.get_path(),
@@ -161,6 +176,7 @@ class TrezorPlugin(HW_PluginBase):
                        transport_ui_string=d.get_path())
                 for d in devices]
 
+    @runs_in_hwd_thread
     def create_client(self, device, handler):
         try:
             self.logger.info(f"connecting to device at {device.path}")
@@ -177,6 +193,7 @@ class TrezorPlugin(HW_PluginBase):
         # note that this call can still raise!
         return TrezorClientBase(transport, handler, self)
 
+    @runs_in_hwd_thread
     def get_client(self, keystore, force_pair=True, *,
                    devices=None, allow_user_interaction=True) -> Optional['TrezorClientBase']:
         client = super().get_client(keystore, force_pair,
@@ -225,6 +242,7 @@ class TrezorPlugin(HW_PluginBase):
         finally:
             wizard.loop.exit(exit_code)
 
+    @runs_in_hwd_thread
     def _initialize_device(self, settings: TrezorInitSettings, method, device_id, wizard, handler):
         if method == TIM_RECOVER and settings.recovery_type == RecoveryDeviceType.ScrambledWords:
             handler.show_error(_(
@@ -320,6 +338,7 @@ class TrezorPlugin(HW_PluginBase):
             return OutputScriptType.PAYTOMULTISIG
         raise ValueError('unexpected txin type: {}'.format(electrum_txin_type))
 
+    @runs_in_hwd_thread
     def sign_transaction(self, keystore, tx: PartialTransaction, prev_tx):
         prev_tx = { bfh(txhash): self.electrum_tx_to_txtype(tx) for txhash, tx in prev_tx.items() }
         client = self.get_client(keystore)
@@ -330,6 +349,7 @@ class TrezorPlugin(HW_PluginBase):
         signatures = [(bh2u(x) + '01') for x in signatures]
         tx.update_signatures(signatures)
 
+    @runs_in_hwd_thread
     def show_address(self, wallet, address, keystore=None):
         if keystore is None:
             keystore = wallet.get_keystore()

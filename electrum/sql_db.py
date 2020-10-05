@@ -6,6 +6,7 @@ import asyncio
 import sqlite3
 
 from .logging import Logger
+from .util import test_read_write_permissions
 
 
 def sql(func):
@@ -17,12 +18,14 @@ def sql(func):
         return f
     return wrapper
 
+
 class SqlDB(Logger):
     
     def __init__(self, asyncio_loop, path, commit_interval=None):
         Logger.__init__(self)
         self.asyncio_loop = asyncio_loop
         self.path = path
+        test_read_write_permissions(path)
         self.commit_interval = commit_interval
         self.db_requests = queue.Queue()
         self.sql_thread = threading.Thread(target=self.run_sql)

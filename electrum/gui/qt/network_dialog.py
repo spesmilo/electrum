@@ -117,7 +117,7 @@ class NodesListWidget(QTreeWidget):
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def keyPressEvent(self, event):
-        if event.key() in [ Qt.Key_F2, Qt.Key_Return ]:
+        if event.key() in [ Qt.Key_F2, Qt.Key_Return, Qt.Key_Enter ]:
             self.on_activated(self.currentItem(), self.currentColumn())
         else:
             QTreeWidget.keyPressEvent(self, event)

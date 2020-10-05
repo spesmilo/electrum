@@ -80,17 +80,15 @@ class Console(QtWidgets.QPlainTextEdit):
         with open(filename) as f:
             script = f.read()
 
-        # eval is generally considered bad practice. use it wisely!
-        result = eval(script, self.namespace, self.namespace)
-
-
+        self.exec_command(script)
 
     def updateNamespace(self, namespace):
         self.namespace.update(namespace)
 
     def showMessage(self, message):
+        curr_line = self.getCommand()
         self.appendPlainText(message)
-        self.newPrompt('')
+        self.newPrompt(curr_line)
 
     def clear(self):
         curr_line = self.getCommand()
@@ -99,7 +97,7 @@ class Console(QtWidgets.QPlainTextEdit):
 
     def newPrompt(self, curr_line):
         if self.construct:
-            prompt = '.' * len(self.prompt)
+            prompt = '... ' + curr_line
         else:
             prompt = self.prompt + curr_line
 
@@ -160,9 +158,8 @@ class Console(QtWidgets.QPlainTextEdit):
 
     def getConstruct(self, command):
         if self.construct:
-            prev_command = self.construct[-1]
             self.construct.append(command)
-            if not prev_command and not command:
+            if not command:
                 ret_val = '\n'.join(self.construct)
                 self.construct = []
                 return ret_val
@@ -175,14 +172,8 @@ class Console(QtWidgets.QPlainTextEdit):
             else:
                 return command
 
-    def getHistory(self):
-        return self.history
-
-    def setHistory(self, history):
-        self.history = history
-
     def addToHistory(self, command):
-        if command[0:1] == ' ':
+        if not self.construct and command[0:1] == ' ':
             return
 
         if command and (not self.history or self.history[-1] != command):
@@ -212,66 +203,62 @@ class Console(QtWidgets.QPlainTextEdit):
         for i in range(len(self.prompt) + position):
             self.moveCursor(QtGui.QTextCursor.Right)
 
-    def register_command(self, c, func):
-        methods = { c: func}
-        self.updateNamespace(methods)
-
-
-    def runCommand(self):
+    def run_command(self):
         command = self.getCommand()
         self.addToHistory(command)
 
         command = self.getConstruct(command)
 
         if command:
-            tmp_stdout = sys.stdout
-
-            class stdoutProxy():
-                def __init__(self, write_func):
-                    self.write_func = write_func
-                    self.skip = False
-
-                def flush(self):
-                    pass
-
-                def write(self, text):
-                    if not self.skip:
-                        stripped_text = text.rstrip('\n')
-                        self.write_func(stripped_text)
-                        QtCore.QCoreApplication.processEvents()
-                    self.skip = not self.skip
-
-            if type(self.namespace.get(command)) == type(lambda:None):
-                self.appendPlainText("'{}' is a function. Type '{}()' to use it in the Python console."
-                                     .format(command, command))
-                self.newPrompt('')
-                return
-
-            sys.stdout = stdoutProxy(self.appendPlainText)
-            try:
-                try:
-                    # eval is generally considered bad practice. use it wisely!
-                    result = eval(command, self.namespace, self.namespace)
-                    if result is not None:
-                        if self.is_json:
-                            util.print_msg(util.json_encode(result))
-                        else:
-                            self.appendPlainText(repr(result))
-                except SyntaxError:
-                    # exec is generally considered bad practice. use it wisely!
-                    exec(command, self.namespace, self.namespace)
-            except SystemExit:
-                self.close()
-            except BaseException:
-                traceback_lines = traceback.format_exc().split('\n')
-                # Remove traceback mentioning this file, and a linebreak
-                for i in (3,2,1,-1):
-                    traceback_lines.pop(i)
-                self.appendPlainText('\n'.join(traceback_lines))
-            sys.stdout = tmp_stdout
+            self.exec_command(command)
         self.newPrompt('')
         self.set_json(False)
 
+    def exec_command(self, command):
+        tmp_stdout = sys.stdout
+
+        class stdoutProxy():
+            def __init__(self, write_func):
+                self.write_func = write_func
+                self.skip = False
+
+            def flush(self):
+                pass
+
+            def write(self, text):
+                if not self.skip:
+                    stripped_text = text.rstrip('\n')
+                    self.write_func(stripped_text)
+                    QtCore.QCoreApplication.processEvents()
+                self.skip = not self.skip
+
+        if type(self.namespace.get(command)) == type(lambda:None):
+            self.appendPlainText("'{}' is a function. Type '{}()' to use it in the Python console."
+                                 .format(command, command))
+            return
+
+        sys.stdout = stdoutProxy(self.appendPlainText)
+        try:
+            try:
+                # eval is generally considered bad practice. use it wisely!
+                result = eval(command, self.namespace, self.namespace)
+                if result is not None:
+                    if self.is_json:
+                        util.print_msg(util.json_encode(result))
+                    else:
+                        self.appendPlainText(repr(result))
+            except SyntaxError:
+                # exec is generally considered bad practice. use it wisely!
+                exec(command, self.namespace, self.namespace)
+        except SystemExit:
+            self.close()
+        except BaseException:
+            traceback_lines = traceback.format_exc().split('\n')
+            # Remove traceback mentioning this file, and a linebreak
+            for i in (3,2,1,-1):
+                traceback_lines.pop(i)
+            self.appendPlainText('\n'.join(traceback_lines))
+        sys.stdout = tmp_stdout
 
     def keyPressEvent(self, event):
         if event.key() == QtCore.Qt.Key_Tab:
@@ -281,7 +268,7 @@ class Console(QtWidgets.QPlainTextEdit):
         self.hide_completions()
 
         if event.key() in (QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return):
-            self.runCommand()
+            self.run_command()
             return
         if event.key() == QtCore.Qt.Key_Home:
             self.setCursorPosition(0)

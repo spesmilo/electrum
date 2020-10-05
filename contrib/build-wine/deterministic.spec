@@ -36,6 +36,7 @@ binaries += [b for b in collect_dynamic_libs('PyQt5') if 'qwindowsvista' in b[0]
 
 binaries += [('C:/tmp/libsecp256k1-0.dll', '.')]
 binaries += [('C:/tmp/libusb-1.0.dll', '.')]
+binaries += [('C:/tmp/libzbar-0.dll', '.')]
 
 # pyscard binaries for Satochip
 binaries += [('C:/python*/Lib/site-packages/smartcard/scard/_scard.cp37-win32.pyd', '.')] #satochip
@@ -46,7 +47,6 @@ datas = [
     (home+'electrum/wordlist/english.txt', 'electrum/wordlist'),
     (home+'electrum/locale', 'electrum/locale'),
     (home+'electrum/plugins', 'electrum/plugins'),
-    ('C:\\Program Files (x86)\\ZBar\\bin\\', '.'),
     (home+'electrum/gui/icons', 'electrum/gui/icons'),
 ]
 datas += collect_data_files('trezorlib')

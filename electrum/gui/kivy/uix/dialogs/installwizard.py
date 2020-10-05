@@ -1115,7 +1115,7 @@ class InstallWizard(BaseWizard, Widget):
     def multisig_dialog(self, **kwargs): WizardMultisigDialog(self, **kwargs).open()
     def show_seed_dialog(self, **kwargs): ShowSeedDialog(self, **kwargs).open()
     def line_dialog(self, **kwargs): LineDialog(self, **kwargs).open()
-    def choice_and_line_dialog(self, **kwargs): ChoiceLineDialog(self, **kwargs).open()
+    def derivation_and_script_type_gui_specific_dialog(self, **kwargs): ChoiceLineDialog(self, **kwargs).open()
 
     def confirm_seed_dialog(self, **kwargs):
         kwargs['title'] = _('Confirm Seed')

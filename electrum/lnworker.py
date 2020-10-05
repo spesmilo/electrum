@@ -21,7 +21,7 @@ import urllib.parse
 
 import dns.resolver
 import dns.exception
-from aiorpcx import run_in_thread, TaskGroup
+from aiorpcx import run_in_thread, TaskGroup, NetAddress
 
 from . import constants, util
 from . import keystore
@@ -144,6 +144,9 @@ class NoPathFound(PaymentFailure):
         return _('No path found')
 
 
+class ErrorAddingPeer(Exception): pass
+
+
 class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
 
     def __init__(self, xprv):
@@ -159,6 +162,7 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         self.node_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NODE_KEY)
         self._peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer  # needs self.lock
         self.taskgroup = SilentTaskGroup()
+        self.listen_server = None  # type: Optional[asyncio.AbstractServer]
         # set some feature flags as baseline for both LNWallet and LNGossip
         # note that e.g. DATA_LOSS_PROTECT is needed for LNGossip as many peers require it
         self.features = LnFeatures(0)
@@ -182,25 +186,26 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         # FIXME: only one LNWorker can listen at a time (single port)
         listen_addr = self.config.get('lightning_listen')
         if listen_addr:
-            addr, port = listen_addr.rsplit(':', 2)
-            if addr[0] == '[':
-                # ipv6
-                addr = addr[1:-1]
+            self.logger.info(f'lightning_listen enabled. will try to bind: {listen_addr!r}')
+            try:
+                netaddr = NetAddress.from_string(listen_addr)
+            except Exception as e:
+                self.logger.error(f"failed to parse config key 'lightning_listen'. got: {e!r}")
+                return
+            addr = str(netaddr.host)
             async def cb(reader, writer):
                 transport = LNResponderTransport(self.node_keypair.privkey, reader, writer)
                 try:
                     node_id = await transport.handshake()
-                except:
-                    self.logger.info('handshake failure from incoming connection')
+                except Exception as e:
+                    self.logger.info(f'handshake failure from incoming connection: {e!r}')
                     return
                 peer = Peer(self, node_id, transport)
                 with self.lock:
                     self._peers[node_id] = peer
                 await self.taskgroup.spawn(peer.main_loop())
             try:
-                # FIXME: server.close(), server.wait_closed(), etc... ?
-                # TODO: onion hidden service?
-                server = await asyncio.start_server(cb, addr, int(port))
+                self.listen_server = await asyncio.start_server(cb, addr, netaddr.port)
             except OSError as e:
                 self.logger.error(f"cannot listen for lightning p2p. error: {e!r}")
 
@@ -226,17 +231,22 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
             peers = await self._get_next_peers_to_try()
             for peer in peers:
                 if self._can_retry_addr(peer, now=now):
-                    await self._add_peer(peer.host, peer.port, peer.pubkey)
+                    try:
+                        await self._add_peer(peer.host, peer.port, peer.pubkey)
+                    except ErrorAddingPeer as e:
+                        self.logger.info(f"failed to add peer: {peer}. exc: {e!r}")
 
     async def _add_peer(self, host: str, port: int, node_id: bytes) -> Peer:
         if node_id in self._peers:
             return self._peers[node_id]
         port = int(port)
         peer_addr = LNPeerAddr(host, port, node_id)
-        transport = LNTransport(self.node_keypair.privkey, peer_addr,
-                                proxy=self.network.proxy)
         self._trying_addr_now(peer_addr)
         self.logger.info(f"adding peer {peer_addr}")
+        if node_id == self.node_keypair.pubkey:
+            raise ErrorAddingPeer("cannot connect to self")
+        transport = LNTransport(self.node_keypair.privkey, peer_addr,
+                                proxy=self.network.proxy)
         peer = Peer(self, node_id, transport)
         await self.taskgroup.spawn(peer.main_loop())
         with self.lock:
@@ -259,6 +269,8 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
 
     def stop(self):
+        if self.listen_server:
+            self.listen_server.close()
         asyncio.run_coroutine_threadsafe(self.taskgroup.cancel_remaining(), self.network.asyncio_loop)
         util.unregister_callback(self.on_proxy_changed)
 
@@ -494,7 +506,8 @@ class LNWallet(LNWorker):
         self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_REQ
         self.payments = self.db.get_dict('lightning_payments')     # RHASH -> amount, direction, is_paid  # FIXME amt should be msat
         self.preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
-        self.sweep_address = wallet.get_new_sweep_address_for_channel()  # TODO possible address-reuse
+        # note: this sweep_address is only used as fallback; as it might result in address-reuse
+        self.sweep_address = wallet.get_new_sweep_address_for_channel()
         self.logs = defaultdict(list)  # type: Dict[str, List[PaymentAttemptLog]]  # key is RHASH  # (not persisted)
         self.is_routing = set()        # (not persisted) keys of invoices that are in PR_ROUTING state
         # used in tests
@@ -882,10 +895,10 @@ class LNWallet(LNWorker):
                 # note: path-finding runs in a separate thread so that we don't block the asyncio loop
                 # graph updates might occur during the computation
                 self.set_invoice_status(key, PR_ROUTING)
-                util.trigger_callback('invoice_status', key)
+                util.trigger_callback('invoice_status', self.wallet, key)
                 route = await run_in_thread(partial(self._create_route_from_invoice, lnaddr, full_path=full_path))
                 self.set_invoice_status(key, PR_INFLIGHT)
-                util.trigger_callback('invoice_status', key)
+                util.trigger_callback('invoice_status', self.wallet, key)
                 payment_attempt_log = await self._pay_to_route(route, lnaddr)
             except Exception as e:
                 log.append(PaymentAttemptLog(success=False, exception=e))
@@ -898,7 +911,7 @@ class LNWallet(LNWorker):
                 break
         else:
             reason = _('Failed after {} attempts').format(attempts)
-        util.trigger_callback('invoice_status', key)
+        util.trigger_callback('invoice_status', self.wallet, key)
         if success:
             util.trigger_callback('payment_succeeded', self.wallet, key)
         else:
@@ -1238,7 +1251,7 @@ class LNWallet(LNWorker):
         else:
             chan.logger.info('received unexpected payment_failed, probably from previous session')
             key = payment_hash.hex()
-            util.trigger_callback('invoice_status', key)
+            util.trigger_callback('invoice_status', self.wallet, key)
             util.trigger_callback('payment_failed', self.wallet, key, '')
         util.trigger_callback('ln_payment_failed', payment_hash, chan.channel_id)
 
@@ -1254,13 +1267,13 @@ class LNWallet(LNWorker):
         else:
             chan.logger.info('received unexpected payment_sent, probably from previous session')
             key = payment_hash.hex()
-            util.trigger_callback('invoice_status', key)
+            util.trigger_callback('invoice_status', self.wallet, key)
             util.trigger_callback('payment_succeeded', self.wallet, key)
         util.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
 
     def payment_received(self, chan, payment_hash: bytes):
         self.set_payment_status(payment_hash, PR_PAID)
-        util.trigger_callback('request_status', payment_hash.hex(), PR_PAID)
+        util.trigger_callback('request_status', self.wallet, payment_hash.hex(), PR_PAID)
         util.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
 
     async def _calc_routing_hints_for_invoice(self, amount_sat: Optional[int]):

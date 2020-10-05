@@ -1,4 +1,3 @@
-pyaes>=0.1a1
 ecdsa>=0.14
 qrcode
 protobuf>=3.12

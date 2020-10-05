@@ -46,7 +46,7 @@ from PyQt5.QtWidgets import (QMessageBox, QComboBox, QSystemTrayIcon, QTabWidget
                              QHBoxLayout, QPushButton, QScrollArea, QTextEdit,
                              QShortcut, QMainWindow, QCompleter, QInputDialog,
                              QWidget, QSizePolicy, QStatusBar, QToolTip, QDialog,
-                             QMenu, QAction)
+                             QMenu, QAction, QStackedWidget)
 
 import electrum
 from electrum import (keystore, ecc, constants, util, bitcoin, commands,
@@ -60,12 +60,12 @@ from electrum.util import (format_time,
                            UserFacingException,
                            get_new_wallet_name, send_exception_to_crash_reporter,
                            InvalidBitcoinURI, maybe_extract_bolt11_invoice, NotEnoughFunds,
-                           NoDynamicFeeEstimates, MultipleSpendMaxTxOutputs)
+                           NoDynamicFeeEstimates, MultipleSpendMaxTxOutputs,
+                           AddTransactionException)
 from electrum.invoices import PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING, Invoice
 from electrum.invoices import PR_PAID, PR_FAILED, pr_expiration_values, LNInvoice, OnchainInvoice
 from electrum.transaction import (Transaction, PartialTxInput,
                                   PartialTransaction, PartialTxOutput)
-from electrum.address_synchronizer import AddTransactionException
 from electrum.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet,
                              sweep_preparations, InternalAddressCorruption)
 from electrum.version import ELECTRUM_VERSION
@@ -119,7 +119,7 @@ class StatusBarButton(QPushButton):
         self.func()
 
     def keyPressEvent(self, e):
-        if e.key() == Qt.Key_Return:
+        if e.key() in [ Qt.Key_Return, Qt.Key_Enter ]:
             self.func()
 
 
@@ -1147,6 +1147,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         receive_tabs.addTab(self.receive_qr, _('QR Code'))
         receive_tabs.setCurrentIndex(self.config.get('receive_tabs_index', 0))
         receive_tabs.currentChanged.connect(lambda i: self.config.set_key('receive_tabs_index', i))
+        receive_tabs_sp = receive_tabs.sizePolicy()
+        receive_tabs_sp.setRetainSizeWhenHidden(True)
+        receive_tabs.setSizePolicy(receive_tabs_sp)
+
+        def maybe_hide_receive_tabs():
+            receive_tabs.setVisible(bool(self.receive_payreq_e.text()))
+        self.receive_payreq_e.textChanged.connect(maybe_hide_receive_tabs)
+        maybe_hide_receive_tabs()
 
         # layout
         vbox_g = QVBoxLayout()
@@ -1505,14 +1513,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.wallet.thread.add(task)
         self.invoice_list.update()
 
-    def on_request_status(self, key, status):
+    def on_request_status(self, wallet, key, status):
+        if wallet != self.wallet:
+            return
         if key not in self.wallet.receive_requests:
             return
         if status == PR_PAID:
             self.notify(_('Payment received') + '\n' + key)
             self.need_update.set()
 
-    def on_invoice_status(self, key):
+    def on_invoice_status(self, wallet, key):
+        if wallet != self.wallet:
+            return
         req = self.wallet.get_invoice(key)
         if req is None:
             return
@@ -2300,7 +2312,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def show_wallet_info(self):
         dialog = WindowModalDialog(self, _("Wallet Information"))
         dialog.setMinimumSize(500, 100)
-        mpk_list = self.wallet.get_master_public_keys()
         vbox = QVBoxLayout()
         wallet_type = self.wallet.db.get('wallet_type', '')
         if self.wallet.is_watching_only():
@@ -2345,17 +2356,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         labels_clayout = None
 
         if self.wallet.is_deterministic():
-            mpk_text = ShowQRTextEdit()
-            mpk_text.setMaximumHeight(150)
-            mpk_text.addCopyButton(self.app)
+            keystores = self.wallet.get_keystores()
 
-            def show_mpk(index):
-                mpk_text.setText(mpk_list[index])
-                mpk_text.repaint()  # macOS hack for #4777
+            ks_stack = QStackedWidget()
+
+            def select_ks(index):
+                ks_stack.setCurrentIndex(index)
 
             # only show the combobox in case multiple accounts are available
-            if len(mpk_list) > 1:
-                # only show the combobox if multiple master keys are defined
+            if len(keystores) > 1:
                 def label(idx, ks):
                     if isinstance(self.wallet, Multisig_Wallet) and hasattr(ks, 'label'):
                         return _("cosigner") + f' {idx+1}: {ks.get_type_text()} {ks.label}'
@@ -2364,21 +2373,43 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
                 labels = [label(idx, ks) for idx, ks in enumerate(self.wallet.get_keystores())]
 
-                on_click = lambda clayout: show_mpk(clayout.selected_index())
-                labels_clayout = ChoicesLayout(_("Master Public Keys"), labels, on_click)
+                on_click = lambda clayout: select_ks(clayout.selected_index())
+                labels_clayout = ChoicesLayout(_("Select keystore"), labels, on_click)
                 vbox.addLayout(labels_clayout.layout())
-                labels_clayout.selected_index()
-            else:
-                vbox.addWidget(QLabel(_("Master Public Key")))
 
-            show_mpk(0)
-            vbox.addWidget(mpk_text)
+            for ks in keystores:
+                ks_w = QWidget()
+                ks_vbox = QVBoxLayout()
+                ks_vbox.setContentsMargins(0, 0, 0, 0)
+                ks_w.setLayout(ks_vbox)
+
+                mpk_text = ShowQRTextEdit(ks.get_master_public_key())
+                mpk_text.setMaximumHeight(150)
+                mpk_text.addCopyButton(self.app)
+                run_hook('show_xpub_button', mpk_text, ks)
+
+                der_path_hbox = QHBoxLayout()
+                der_path_hbox.setContentsMargins(0, 0, 0, 0)
+
+                der_path_hbox.addWidget(QLabel(_("Derivation path") + ':'))
+                der_path_text = QLabel(ks.get_derivation_prefix() or _("unknown"))
+                der_path_text.setTextInteractionFlags(Qt.TextSelectableByMouse)
+                der_path_hbox.addWidget(der_path_text)
+                der_path_hbox.addStretch()
+
+                ks_vbox.addWidget(QLabel(_("Master Public Key")))
+                ks_vbox.addWidget(mpk_text)
+                ks_vbox.addLayout(der_path_hbox)
+
+                ks_stack.addWidget(ks_w)
+
+            select_ks(0)
+            vbox.addWidget(ks_stack)
 
         vbox.addStretch(1)
         btn_export_info = run_hook('wallet_info_buttons', self, dialog)
-        btn_show_xpub = run_hook('show_xpub_button', self, dialog, labels_clayout)
         btn_close = CloseButton(dialog)
-        btns = Buttons(btn_export_info, btn_show_xpub, btn_close)
+        btns = Buttons(btn_export_info, btn_close)
         vbox.addLayout(btns)
         dialog.setLayout(vbox)
         dialog.exec_()

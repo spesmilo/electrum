@@ -1036,7 +1036,8 @@ def validate_features(features: int) -> None:
         if (1 << fbit) & LN_FEATURES_IMPLEMENTED == 0 and fbit % 2 == 0:
             raise UnknownEvenFeatureBits(fbit)
     if not features.validate_transitive_dependecies():
-        raise IncompatibleOrInsaneFeatures("not all transitive dependencies are set")
+        raise IncompatibleOrInsaneFeatures(f"not all transitive dependencies are set. "
+                                           f"features={features}")
 
 
 def derive_payment_secret_from_payment_preimage(payment_preimage: bytes) -> bytes:
