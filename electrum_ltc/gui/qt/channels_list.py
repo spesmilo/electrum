@@ -285,12 +285,13 @@ class ChannelsList(MyTreeView):
         self.can_send_label = QLabel('')
         h.addWidget(self.can_send_label)
         h.addStretch()
-        self.swap_button = EnterButton(_('Swap'), self.swap_dialog)
-        self.swap_button.setEnabled(self.parent.wallet.has_lightning())
+        # Litecoin: disable swap for now
+        # self.swap_button = EnterButton(_('Swap'), self.swap_dialog)
+        # self.swap_button.setEnabled(self.parent.wallet.has_lightning())
         self.new_channel_button = EnterButton(_('Open Channel'), self.new_channel_dialog)
         self.new_channel_button.setEnabled(self.parent.wallet.has_lightning())
         h.addWidget(self.new_channel_button)
-        h.addWidget(self.swap_button)
+        # h.addWidget(self.swap_button)
         return h
 
     def statistics_dialog(self):
