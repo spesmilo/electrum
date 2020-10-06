@@ -270,7 +270,7 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
 
     def stop(self):
         if self.listen_server:
-            self.listen_server.close()
+            self.network.asyncio_loop.call_soon_threadsafe(self.listen_server.close)
         asyncio.run_coroutine_threadsafe(self.taskgroup.cancel_remaining(), self.network.asyncio_loop)
         util.unregister_callback(self.on_proxy_changed)
 
