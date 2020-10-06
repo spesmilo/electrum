@@ -413,6 +413,9 @@ class Daemon(Logger):
             fd = get_file_descriptor(config)
             if fd is None:
                 raise Exception('failed to lock daemon; already running?')
+        if 'wallet_path' in config.cmdline_options:
+            self.logger.warning("Ignoring parameter 'wallet_path' for daemon. "
+                                "Use the load_wallet command instead.")
         self.asyncio_loop = asyncio.get_event_loop()
         self.network = None
         if not config.get('offline'):

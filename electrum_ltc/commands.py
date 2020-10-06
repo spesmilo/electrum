@@ -1351,6 +1351,7 @@ def get_parser():
     parser = argparse.ArgumentParser(
         epilog="Run 'electrum-ltc help <command>' to see the help for a command")
     add_global_options(parser)
+    add_wallet_option(parser)
     subparsers = parser.add_subparsers(dest='cmd', metavar='<command>')
     # gui
     parser_gui = subparsers.add_parser('gui', description="Run Electrum's Graphical User Interface.", help="Run GUI (default)")
