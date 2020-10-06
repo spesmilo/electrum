@@ -11,7 +11,7 @@ from .util import test_read_write_permissions
 
 def sql(func):
     """wrapper for sql methods"""
-    def wrapper(self, *args, **kwargs):
+    def wrapper(self: 'SqlDB', *args, **kwargs):
         assert threading.currentThread() != self.sql_thread
         f = asyncio.Future()
         self.db_requests.put((f, func, args, kwargs))
@@ -21,7 +21,7 @@ def sql(func):
 
 class SqlDB(Logger):
     
-    def __init__(self, asyncio_loop, path, commit_interval=None):
+    def __init__(self, asyncio_loop: asyncio.BaseEventLoop, path, commit_interval=None):
         Logger.__init__(self)
         self.asyncio_loop = asyncio_loop
         self.path = path
@@ -48,10 +48,10 @@ class SqlDB(Logger):
             try:
                 result = func(self, *args, **kwargs)
             except BaseException as e:
-                future.set_exception(e)
+                self.asyncio_loop.call_soon_threadsafe(future.set_exception, e)
                 continue
             if not future.cancelled():
-                future.set_result(result)
+                self.asyncio_loop.call_soon_threadsafe(future.set_result, result)
             # note: in sweepstore session.commit() is called inside
             # the sql-decorated methods, so commiting to disk is awaited
             if self.commit_interval:

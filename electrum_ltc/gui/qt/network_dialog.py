@@ -464,13 +464,13 @@ class TorDetector(QThread):
     @staticmethod
     def is_tor_port(net_addr: Tuple[str, int]) -> bool:
         try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(0.1)
-            s.connect(net_addr)
-            # Tor responds uniquely to HTTP-like requests
-            s.send(b"GET\n")
-            if b"Tor is not an HTTP Proxy" in s.recv(1024):
-                return True
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(0.1)
+                s.connect(net_addr)
+                # Tor responds uniquely to HTTP-like requests
+                s.send(b"GET\n")
+                if b"Tor is not an HTTP Proxy" in s.recv(1024):
+                    return True
         except socket.error:
             pass
         return False
