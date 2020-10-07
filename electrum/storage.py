@@ -87,7 +87,13 @@ class WalletStorage(Logger):
             f.flush()
             os.fsync(f.fileno())
 
-        mode = os.stat(self.path).st_mode if self.file_exists() else stat.S_IREAD | stat.S_IWRITE
+        default_mode = stat.S_IREAD | stat.S_IWRITE
+        try:
+            mode = os.stat(self.path).st_mode if self.file_exists() else default_mode
+        except FileNotFoundError:
+            # user might have deleted/renamed file while running
+            mode = default_mode
+
         # assert that wallet file does not exist, to prevent wallet corruption (see issue #5082)
         if not self.file_exists():
             assert not os.path.exists(self.path)
