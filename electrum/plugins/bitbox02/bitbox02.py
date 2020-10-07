@@ -372,6 +372,9 @@ class BitBox02Client(HardwareClientBase):
             display=True,
         )
 
+    def _get_coin(self):
+        return bitbox02.btc.TBTC if constants.net.TESTNET else bitbox02.btc.BTC
+
     @runs_in_hwd_thread
     def sign_transaction(
         self,
@@ -387,10 +390,7 @@ class BitBox02Client(HardwareClientBase):
                 "Need to setup communication first before attempting any BitBox02 calls"
             )
 
-        coin = bitbox02.btc.BTC
-        if constants.net.TESTNET:
-            coin = bitbox02.btc.TBTC
-
+        coin = self._get_coin()
         tx_script_type = None
 
         # Build BTCInputType list
@@ -531,6 +531,31 @@ class BitBox02Client(HardwareClientBase):
         signatures = [bh2u(ecc.der_sig_from_sig_string(x[1])) + "01" for x in sigs]
         tx.update_signatures(signatures)
 
+    def sign_message(self, keypath: str, message: bytes, xtype: str) -> bytes:
+        if self.bitbox02_device is None:
+            raise Exception(
+                "Need to setup communication first before attempting any BitBox02 calls"
+            )
+
+        try:
+            simple_type = {
+                "p2wpkh-p2sh":bitbox02.btc.BTCScriptConfig.P2WPKH_P2SH,
+                "p2wpkh": bitbox02.btc.BTCScriptConfig.P2WPKH,
+            }[xtype]
+        except KeyError:
+            raise UserFacingException("The BitBox02 does not support signing messages for this address type: {}".format(xtype))
+
+        _, _, signature = self.bitbox02_device.btc_sign_msg(
+            self._get_coin(),
+            bitbox02.btc.BTCScriptConfigWithKeypath(
+                script_config=bitbox02.btc.BTCScriptConfig(
+                    simple_type=simple_type,
+                ),
+                keypath=bip32.convert_bip32_path_to_list_of_uint32(keypath),
+            ),
+            message,
+        )
+        return signature
 
 class BitBox02_KeyStore(Hardware_KeyStore):
     hw_type = "bitbox02"
@@ -563,11 +588,13 @@ class BitBox02_KeyStore(Hardware_KeyStore):
         )
 
     def sign_message(self, sequence, message, password):
-        raise UserFacingException(
-            _(
-                "Message encryption, decryption and signing are currently not supported for {}"
-            ).format(self.device)
-        )
+        if password:
+            raise Exception("BitBox02 does not accept a password from the host")
+        client = self.get_client()
+        keypath = self.get_derivation_prefix() + "/%d/%d" % sequence
+        xtype = self.get_bip32_node_for_xpub().xtype
+        return client.sign_message(keypath, message.encode("utf-8"), xtype)
+
 
     @runs_in_hwd_thread
     def sign_transaction(self, tx: PartialTransaction, password: str):
