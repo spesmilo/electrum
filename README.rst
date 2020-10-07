@@ -4,7 +4,6 @@ Electrum Vault - Lightweight Bitcoin Vault wallet
 ::
 
   Licence: MIT Licence
-  Author: Mariusz Twarowski
   Language: Python (>= 3.6)
   Homepage: https://bitcoinvault.global
 
