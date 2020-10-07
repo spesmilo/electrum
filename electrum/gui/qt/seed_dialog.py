@@ -79,11 +79,15 @@ class SeedLayout(QVBoxLayout):
             vbox.addWidget(cb_bip39, alignment=Qt.AlignLeft)
         if 'ext' in self.options:
             cb_ext = QCheckBox(_('Extend this seed with custom words'))
+            cb_ext.toggled.connect(self.toggle_cb_ext)
             cb_ext.setChecked(self.is_ext)
             vbox.addWidget(cb_ext, alignment=Qt.AlignLeft)
         self.addLayout(vbox)
         self.is_ext = cb_ext.isChecked() if 'ext' in self.options else False
         self.is_bip39 = cb_bip39.isChecked() if 'bip39' in self.options else False
+
+    def toggle_cb_ext(self, flag: bool):
+        self.is_ext = flag
 
     def __init__(self, seed=None, title=None, icon=True, msg=None, options=None,
                  is_seed=None, passphrase=None, parent=None, for_seed_words=True, import_gold_wallet=False):
