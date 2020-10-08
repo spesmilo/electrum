@@ -191,7 +191,7 @@ class RecoveryTab(QWidget):
         self.is_address_valid = True
         self.is_recovery_seed_valid = False
 
-        self.recover_button = QPushButton(_('Cancel transactions'))
+        self.recover_button = QPushButton(_('Send cancel transaction'))
 
     def _create_recovery_address(self):
         class Validator(QValidator):
@@ -356,7 +356,7 @@ class RecoveryTab(QWidget):
                 recovery_keypair = self._get_recovery_keypair()
 
             if not is_address_valid(address):
-                raise Exception(_('Invalid cancellation address'))
+                raise Exception(_('Invalid cancelation address'))
 
             inputs, output = self.wallet.get_inputs_and_output_for_recovery(atxs, address)
             inputs = self.wallet.prepare_inputs_for_recovery(inputs)
@@ -411,7 +411,7 @@ class RecoveryTabAR(RecoveryTab):
 
         grid_layout = QGridLayout()
         # Row 1
-        grid_layout.addWidget(QLabel(_('Cancellation address')), 0, 0)
+        grid_layout.addWidget(QLabel(_('Cancelation address')), 0, 0)
         self.recovery_address_line = self._create_recovery_address()
         grid_layout.addWidget(self.recovery_address_line, 0, 1)
 
@@ -441,6 +441,11 @@ class RecoveryTabAR(RecoveryTab):
                       and self.is_recovery_seed_valid \
                       and len(self.invoice_list.selected())
         self.recover_button.setEnabled(enabled)
+        
+        if len(self.invoice_list.selected()) > 1:
+            self.recover_button.setText('Send cancel transactions')
+        else:
+            self.recover_button.setText('Send cancel transaction')
 
 
 class RecoveryTabAIR(RecoveryTab):
@@ -457,7 +462,7 @@ class RecoveryTabAIR(RecoveryTab):
 
         grid_layout = QGridLayout()
         # Row 1
-        grid_layout.addWidget(QLabel(_('Cancellation address')), 0, 0)
+        grid_layout.addWidget(QLabel(_('Cancelation address')), 0, 0)
         self.recovery_address_line = self._create_recovery_address()
         grid_layout.addWidget(self.recovery_address_line, 0, 1)
 
@@ -512,7 +517,7 @@ class RecoveryTabAIR(RecoveryTab):
             atxs = self.invoice_list.selected()
 
             if not is_address_valid(address):
-                raise Exception(_('Invalid cancellation address'))
+                raise Exception(_('Invalid cancelation address'))
 
             inputs, output = self.wallet.get_inputs_and_output_for_recovery(atxs, address)
             inputs = self.wallet.prepare_inputs_for_recovery(inputs)
@@ -547,6 +552,11 @@ class RecoveryTabAIR(RecoveryTab):
                       and self.is_recovery_seed_valid \
                       and len(self.invoice_list.selected())
         self.recover_button.setEnabled(enabled)
+        
+        if len(self.invoice_list.selected()) > 1:
+            self.recover_button.setText('Send cancel transactions')
+        else:
+            self.recover_button.setText('Send cancel transaction')
 
     def on_instant_seed_line_edit(self):
         return self.on_seed_line_edit(self.instant_privkey_line,

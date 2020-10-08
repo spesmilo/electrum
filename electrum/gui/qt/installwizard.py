@@ -168,6 +168,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
         vbox = QVBoxLayout()
         hbox = QHBoxLayout()
+        vbox.addWidget(QLabel(_('Enter the name of the new wallet or load an existing wallet by clicking "Choose".')))
         hbox.addWidget(QLabel(_('Wallet') + ':'))
         self.name_e = QLineEdit()
         hbox.addWidget(self.name_e)
@@ -446,7 +447,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     @wizard_dialog
     def show_seed_dialog(self, run_next, seed_text):
-        title = _("Your wallet generation seed is:")
+        title = _("Your wallet's generated seed is:")
         slayout = SeedLayout(seed=seed_text, title=title, msg=True, options=['ext'])
         self.exec_layout(slayout)
         return slayout.is_ext
@@ -525,7 +526,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         # todo move it to some global settings ?
         web_generator_url = 'https://keygenerator.bitcoinvault.global/'
         label = QLabel()
-        message = _('Please paste a cancel transaction public key. Use an existing one if you are importing a wallet, '
+        message = _('Please paste a cancel transaction public key. Use an existing one, if you are importing a wallet, '
                     'or generate a new one at')
         message += f' <a href="{web_generator_url}">{web_generator_url}</a>'
         label.setText(message)
@@ -543,7 +544,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         # todo move it to some global settings ?
         web_generator_url = 'https://keygenerator.bitcoinvault.global/'
         label = QLabel()
-        message = _('Please paste a Fast Secure transaction public key. Use an existing one if you are importing a wallet, '
+        message = _('Please paste a Fast Secure transaction public key. Use an existing one, if you are importing a wallet, '
                     'or generate a new one at')
         message += f' <a href="{web_generator_url}">{web_generator_url}</a>.'
         label.setText(message)
@@ -740,7 +741,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         vbox.addWidget(cw)
         vbox.addWidget(WWLabel(_("Choose the number of signatures needed to unlock funds in your wallet:")))
         vbox.addLayout(grid)
-        self.exec_layout(vbox, _("Multi-Signature Wallet"))
+        self.exec_layout(vbox, _("Multi-Signature Standard"))
         m = int(m_edit.value())
         n = int(n_edit.value())
         return (m, n)

@@ -132,10 +132,10 @@ class BaseWizard(Logger):
             _("Choose the type of wallet")
         ])
         wallet_kinds = [
-            ('2-key', _('2 Keys Vault wallet')),
-            ('3-key', _('3 Keys Vault wallet')),
-            ('standard', _('Standard wallet')),
-            ('multisig', _('Multi-signature Standard wallet')),
+            ('2-key', _('2-Key Vault')),
+            ('3-key', _('3-Key Vault')),
+            ('standard', _('Standard')),
+            ('multisig', _('Multi-Signature Standard')),
             ('imported', _('Import external watch-only BTCV addresses or private keys')),
         ]
         choices = [pair for pair in wallet_kinds if pair[0] in wallet_types]
@@ -213,13 +213,13 @@ class BaseWizard(Logger):
 
         assert self.wallet_type in ['2-key', '3-key'], "Wrong multikey wallet type: " + self.wallet_type
         if self.wallet_type == '2-key':
-            title = _('2 Keys Vault wallet')
+            title = _('2-Key Vault')
         else:
-            title = _('3 Keys Vault wallet')
+            title = _('3-Key Vault')
         message = _('Do you want to use Gold Wallet as a transaction authenticator?')
         choices = [
             ('multikey_2fa_create', _('Use Gold Wallet and create a new wallet')),
-            ('multikey_2fa_import', _('Use Gold Wallet and import the wallet')),
+            ('multikey_2fa_import', _('Use Gold Wallet and import an existing wallet')),
             ('multikey_standalone', _('Do not use Gold Wallet')),
         ]
 
@@ -286,7 +286,7 @@ class BaseWizard(Logger):
             if not self.is_kivy:
                 choices.append(('choose_hw_device', _('Cosign with hardware device')))
         else:
-            message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
+            message = _('Do you want to create a new seed or to restore a wallet using an existing seed?')
             choices = [
                 ('choose_seed_type', _('Create a new seed')),
                 ('restore_from_seed', _('I already have a seed')),
@@ -301,7 +301,7 @@ class BaseWizard(Logger):
         v = lambda x: keystore.is_address_list(x) or keystore.is_private_key_list(x, raise_on_error=True)
         title = _("Import BTCV addresses")
         message = _(
-            "Enter a list of BTCV addresses (this will create a watching-only wallet), or a list of private keys.")
+            "Enter a list of BTCV addresses (this will create a watching-only wallet) or a list of private keys.")
         self.add_xpub_dialog(title=title, message=message, run_next=self.on_import,
                              is_valid=v, allow_multi=True, show_wif_help=True)
 

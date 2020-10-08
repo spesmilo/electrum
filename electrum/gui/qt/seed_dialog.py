@@ -41,14 +41,14 @@ from .completion_text_edit import CompletionTextEdit
 def seed_warning_msg(seed):
     return ''.join([
         "<p>",
-        _("Please save these {0} words on paper (order is important). "),
+        _("Please save these {0} words on paper (the order is important). "),
         _("This seed will allow you to recover your wallet in case "
-          "of computer failure."),
+          "of a computer failure."),
         "</p>",
         "<b>" + _("WARNING") + ":</b>",
         "<ul>",
         "<li>" + _("Never disclose your seed.") + "</li>",
-        "<li>" + _("Never type it on a website.") + "</li>",
+        "<li>" + _("Never enter it on any website.") + "</li>",
         "<li>" + _("Do not store it electronically.") + "</li>",
         "</ul>"
     ]).format(len(seed.split()))
