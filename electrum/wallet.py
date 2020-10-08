@@ -363,7 +363,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         AddressSynchronizer.start_network(self, network)
         if network:
             if self.lnworker:
-                network.maybe_init_lightning()
                 self.lnworker.start_network(network)
                 # only start gossiping when we already have channels
                 if self.db.get('channels'):

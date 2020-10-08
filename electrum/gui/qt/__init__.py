@@ -208,7 +208,7 @@ class ElectrumGui(Logger):
         self.app.new_window_signal.emit(path, uri)
 
     def show_lightning_dialog(self):
-        if not self.daemon.network.is_lightning_running():
+        if not self.daemon.network.has_channel_db():
             return
         if not self.lightning_dialog:
             self.lightning_dialog = LightningDialog(self)
