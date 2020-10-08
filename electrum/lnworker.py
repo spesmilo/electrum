@@ -460,7 +460,7 @@ class LNGossip(LNWorker):
         self.has_started = True
 
     async def maintain_db(self):
-        await self.channel_db.load_data()
+        await self.channel_db.data_loaded.wait()
         while True:
             if len(self.unknown_ids) == 0:
                 self.channel_db.prune_old_policies(self.max_age)
@@ -584,6 +584,10 @@ class LNWallet(LNWorker):
 
     def start_network(self, network: 'Network'):
         assert network
+        self.network = network
+        self.config = network.config
+        self.channel_db = self.network.channel_db
+
         self.lnwatcher = LNWalletWatcher(self, network)
         self.lnwatcher.start_network(network)
         self.network = network
@@ -592,7 +596,6 @@ class LNWallet(LNWorker):
         for chan in self.channels.values():
             self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
 
-        super().start_network(network)
         for coro in [
                 self.maybe_listen(),
                 self.lnwatcher.on_network_update('network_updated'), # shortcut (don't block) if funding tx locked and verified

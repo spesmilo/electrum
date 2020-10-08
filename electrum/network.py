@@ -344,7 +344,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         """Our guess whether the device has Internet-connectivity."""
         return self._has_ever_managed_to_connect_to_server
 
-    def is_lightning_running(self):
+    def has_channel_db(self):
         return self.channel_db is not None
 
     def maybe_init_lightning(self):
