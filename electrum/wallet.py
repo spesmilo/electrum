@@ -1345,6 +1345,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                             f"target rate was {new_fee_rate}")
 
         tx_new.locktime = get_locktime_for_new_transaction(self.network)
+        tx_new.add_info_from_wallet(self)
         return tx_new
 
     def _bump_fee_through_coinchooser(self, *, tx: Transaction, new_fee_rate: Union[int, Decimal],
@@ -1445,12 +1446,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         item = coins.get(TxOutpoint.from_str(txid+':%d'%i))
         if not item:
             return
-        self.add_input_info(item)
         inputs = [item]
         out_address = self.get_unused_address() or address
         outputs = [PartialTxOutput.from_address_and_value(out_address, value - fee)]
         locktime = get_locktime_for_new_transaction(self.network)
-        return PartialTransaction.from_io(inputs, outputs, locktime=locktime)
+        tx_new = PartialTransaction.from_io(inputs, outputs, locktime=locktime)
+        tx_new.add_info_from_wallet(self)
+        return tx_new
 
     @abstractmethod
     def _add_input_sig_info(self, txin: PartialTxInput, address: str, *, only_der_suffix: bool = True) -> None:
