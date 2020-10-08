@@ -35,6 +35,7 @@ import copy
 import errno
 import traceback
 import operator
+import math
 from functools import partial
 from collections import defaultdict
 from numbers import Number
@@ -211,6 +212,9 @@ def get_locktime_for_new_transaction(network: 'Network') -> int:
 class CannotBumpFee(Exception): pass
 
 
+class CannotDoubleSpendTx(Exception): pass
+
+
 class InternalAddressCorruption(Exception):
     def __str__(self):
         return _("Wallet file corruption detected. "
@@ -223,6 +227,7 @@ class TxWalletDetails(NamedTuple):
     label: str
     can_broadcast: bool
     can_bump: bool
+    can_dscancel: bool  # whether user can double-spend to self
     can_save_as_local: bool
     amount: Optional[int]
     fee: Optional[int]
@@ -566,6 +571,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                       and is_relevant
                       # don't offer during common signing flow, e.g. when watch-only wallet starts creating a tx:
                       and bool(tx_we_already_have_in_db))
+        can_dscancel = False
         if tx.is_complete():
             if tx_we_already_have_in_db:
                 label = self.get_label(tx_hash)
@@ -583,6 +589,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                         fee_per_byte = fee / size
                         exp_n = self.config.fee_to_depth(fee_per_byte)
                     can_bump = is_mine and not tx.is_final()
+                    can_dscancel = (is_mine and not tx.is_final()
+                                    and not all([self.is_mine(txout.address) for txout in tx.outputs()]))
                 else:
                     status = _('Local')
                     can_broadcast = self.network is not None
@@ -614,6 +622,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             label=label,
             can_broadcast=can_broadcast,
             can_bump=can_bump,
+            can_dscancel=can_dscancel,
             can_save_as_local=can_save_as_local,
             amount=amount,
             fee=fee,
@@ -1467,6 +1476,53 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                        or address)
         outputs = [PartialTxOutput.from_address_and_value(out_address, value - fee)]
         locktime = get_locktime_for_new_transaction(self.network)
+        tx_new = PartialTransaction.from_io(inputs, outputs, locktime=locktime)
+        tx_new.add_info_from_wallet(self)
+        return tx_new
+
+    def dscancel(
+            self, *, tx: Transaction, new_fee_rate: Union[int, float, Decimal]
+    ) -> PartialTransaction:
+        """Double-Spend-Cancel: cancel an unconfirmed tx by double-spending
+        its inputs, paying ourselves.
+        'new_fee_rate' is the target min rate in sat/vbyte
+        """
+        if tx.is_final():
+            raise CannotDoubleSpendTx(_('Cannot cancel transaction') + ': ' + _('transaction is final'))
+        new_fee_rate = quantize_feerate(new_fee_rate)  # strip excess precision
+        old_tx_size = tx.estimated_size()
+        old_txid = tx.txid()
+        assert old_txid
+        old_fee = self.get_tx_fee(old_txid)
+        if old_fee is None:
+            raise CannotDoubleSpendTx(_('Cannot cancel transaction') + ': ' + _('current fee unknown'))
+        old_fee_rate = old_fee / old_tx_size  # sat/vbyte
+        if new_fee_rate <= old_fee_rate:
+            raise CannotDoubleSpendTx(_('Cannot cancel transaction') + ': ' + _("The new fee rate needs to be higher than the old fee rate."))
+
+        tx = PartialTransaction.from_tx(tx)
+        tx.add_info_from_wallet(self)
+
+        # grab all ismine inputs
+        inputs = [txin for txin in tx.inputs()
+                  if self.is_mine(self.get_txin_address(txin))]
+        value = sum([txin.value_sats() for txin in tx.inputs()])
+        # figure out output address
+        old_change_addrs = [o.address for o in tx.outputs() if self.is_mine(o.address)]
+        out_address = (self.get_single_change_address_for_new_transaction(old_change_addrs)
+                       or self.get_receiving_address())
+
+        locktime = get_locktime_for_new_transaction(self.network)
+
+        outputs = [PartialTxOutput.from_address_and_value(out_address, value)]
+        tx_new = PartialTransaction.from_io(inputs, outputs, locktime=locktime)
+        new_tx_size = tx_new.estimated_size()
+        new_fee = max(
+            new_fee_rate * new_tx_size,
+            old_fee + self.relayfee() * new_tx_size / Decimal(1000),  # BIP-125 rules 3 and 4
+        )
+        new_fee = int(math.ceil(new_fee))
+        outputs = [PartialTxOutput.from_address_and_value(out_address, value - new_fee)]
         tx_new = PartialTransaction.from_io(inputs, outputs, locktime=locktime)
         tx_new.add_info_from_wallet(self)
         return tx_new

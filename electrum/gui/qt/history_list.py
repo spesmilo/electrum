@@ -698,6 +698,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                 child_tx = self.wallet.cpfp(tx, 0)
                 if child_tx:
                     menu.addAction(_("Child pays for parent"), lambda: self.parent.cpfp(tx, child_tx))
+            if tx_details.can_dscancel and tx_details.fee is not None:
+                menu.addAction(_("Cancel (double-spend)"), lambda: self.parent.dscancel_dialog(tx))
         invoices = self.wallet.get_relevant_invoices_for_tx(tx)
         if len(invoices) == 1:
             menu.addAction(_("View invoice"), lambda inv=invoices[0]: self.parent.show_onchain_invoice(inv))
