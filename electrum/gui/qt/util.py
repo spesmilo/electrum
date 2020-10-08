@@ -230,6 +230,10 @@ class MessageBoxMixin(object):
         return self.msg_box(QMessageBox.Information, parent,
                             title or _('Information'), msg, **kwargs)
 
+    def show_confirmed(self, msg, parent=None, title=None, **kwargs):
+        return self.msg_box(read_QPixmap('confirmed.png'), parent,
+                            title or _('Information'), msg, **kwargs)
+
     def msg_box(self, icon, parent, title, text, *, buttons=QMessageBox.Ok,
                 defaultButton=QMessageBox.NoButton, rich_text=False,
                 checkbox=None):
@@ -869,6 +873,9 @@ def icon_path(icon_basename):
 def read_QIcon(icon_basename):
     return QIcon(icon_path(icon_basename))
 
+@lru_cache(maxsize=1000)
+def read_QPixmap(icon_basename):
+    return QPixmap(icon_path(icon_basename)).scaled(QSize(32, 32))
 
 def get_default_language():
     name = QLocale.system().name()

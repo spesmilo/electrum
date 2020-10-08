@@ -1282,6 +1282,7 @@ verified (after approximately 24 hrs) or canceled (within 24 hrs).'))
         vbox.setStretchFactor(self.invoice_list, 1000)
         w.searchable_list = self.invoice_list
         run_hook('create_send_tab', grid)
+
         return w
 
     def spend_max(self):
@@ -1566,7 +1567,7 @@ verified (after approximately 24 hrs) or canceled (within 24 hrs).'))
             if result:
                 success, msg = result
                 if success:
-                    parent.show_message(_('Payment sent.') + '\n' + msg)
+                    parent.show_confirmed(_('Payment sent.') + '\n' + msg)
                     self.invoice_list.update()
                     self.do_clear()
                 else:
