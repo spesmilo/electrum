@@ -190,12 +190,6 @@
         "t": "50001",
         "version": "1.4"
     },
-    "enode.duckdns.org": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.4"
-    },
     "fedaykin.goip.de": {
         "pruning": "-",
         "s": "50002",
