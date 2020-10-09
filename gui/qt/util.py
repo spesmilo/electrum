@@ -8,6 +8,7 @@ import os
 import webbrowser
 from collections import namedtuple
 from functools import partial, wraps
+from locale import atof
 
 from electroncash.address import Address
 from electroncash.util import print_error, PrintError, Weak, finalization_print_error
@@ -1065,10 +1066,7 @@ class SortableTreeWidgetItem(QTreeWidgetItem):
             # We have set custom data to sort by
             return self_data < other_data
         try:
-            # Is the value something numeric?
-            self_text = self.text(column).replace(',', '')
-            other_text = other.text(column).replace(',', '')
-            return float(self_text) < float(other_text)
+            return atof(self.text(column)) < atof(other.text(column))
         except ValueError:
             # If not, we will just do string comparison
             return self.text(column) < other.text(column)
