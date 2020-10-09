@@ -5,7 +5,7 @@ import PyQt5.QtGui as QtGui
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
     QApplication, QVBoxLayout, QTextEdit, QHBoxLayout, QPushButton, QWidget,
-    QFileDialog,
+    QFileDialog, QLabel
 )
 
 from electrum.i18n import _
@@ -89,11 +89,19 @@ class QRCodeWidget(QWidget):
 
 class QRDialog(WindowModalDialog):
 
-    def __init__(self, data, parent=None, title="", show_text=False):
+    def __init__(self, data, parent=None, title="", show_text=False, description=None):
         WindowModalDialog.__init__(self, parent, title)
 
         vbox = QVBoxLayout()
         qrw = QRCodeWidget(data)
+
+        if description:
+            label = QLabel(description)
+            label.setWordWrap(True)
+            hbox2 = QHBoxLayout()
+            hbox2.addWidget(label)
+            vbox.addLayout(hbox2)
+
         vbox.addWidget(qrw, 1)
         if show_text:
             text = QTextEdit()
@@ -134,4 +142,5 @@ class QRDialog(WindowModalDialog):
         b.setDefault(True)
 
         vbox.addLayout(hbox)
+
         self.setLayout(vbox)

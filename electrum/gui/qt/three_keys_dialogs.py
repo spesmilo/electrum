@@ -180,7 +180,8 @@ class PSBTDialog(QRDialog):
 
         title = "Transaction QRCode"
         qr_data = self.psbt.serialize()
-        super().__init__(qr_data, parent, title)
+        super().__init__(qr_data, parent, title, description=_('In order to confirm the transaction, scan the QR code \
+in the "Authenticators" tab in the Gold Wallet app.'))
 
         self.parent = parent
         self.invoice = invoice
