@@ -1089,7 +1089,9 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             return tx
         return candidate
 
-    def get_change_addresses_for_new_transaction(self, preferred_change_addr=None) -> List[str]:
+    def get_change_addresses_for_new_transaction(
+            self, preferred_change_addr=None, *, allow_reuse: bool = True,
+    ) -> List[str]:
         change_addrs = []
         if preferred_change_addr:
             if isinstance(preferred_change_addr, (list, tuple)):
@@ -1106,6 +1108,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 change_addrs = addrs
             else:
                 # if there are none, take one randomly from the last few
+                if not allow_reuse:
+                    return []
                 addrs = self.get_change_addresses(slice_start=-self.gap_limit_for_change)
                 change_addrs = [random.choice(addrs)] if addrs else []
         for addr in change_addrs:
@@ -1115,6 +1119,17 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             self.check_address_for_corruption(addr)
         max_change = self.max_change_outputs if self.multiple_change else 1
         return change_addrs[:max_change]
+
+    def get_single_change_address_for_new_transaction(
+            self, preferred_change_addr=None, *, allow_reuse: bool = True,
+    ) -> Optional[str]:
+        addrs = self.get_change_addresses_for_new_transaction(
+            preferred_change_addr=preferred_change_addr,
+            allow_reuse=allow_reuse,
+        )
+        if addrs:
+            return addrs[0]
+        return None
 
     @check_returned_address_for_corruption
     def get_new_sweep_address_for_channel(self) -> str:
@@ -1447,7 +1462,9 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if not item:
             return
         inputs = [item]
-        out_address = self.get_unused_address() or address
+        out_address = (self.get_single_change_address_for_new_transaction(allow_reuse=False)
+                       or self.get_unused_address()
+                       or address)
         outputs = [PartialTxOutput.from_address_and_value(out_address, value - fee)]
         locktime = get_locktime_for_new_transaction(self.network)
         tx_new = PartialTransaction.from_io(inputs, outputs, locktime=locktime)
