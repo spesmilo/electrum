@@ -506,17 +506,23 @@ class BaseWizard(Logger):
 
     def restore_from_seed(self):
         self.opt_bip39 = True
+        self.opt_slip39 = True
         self.opt_ext = True
         is_cosigning_seed = lambda x: mnemonic.seed_type(x) in ['standard', 'segwit']
         test = mnemonic.is_seed if self.wallet_type == 'standard' else is_cosigning_seed
         f = lambda *args: self.run('on_restore_seed', *args)
         self.restore_seed_dialog(run_next=f, test=test)
 
-    def on_restore_seed(self, seed, is_bip39, is_ext):
-        self.seed_type = 'bip39' if is_bip39 else mnemonic.seed_type(seed)
+    def on_restore_seed(self, seed, seed_type, is_ext):
+        self.seed_type = seed_type if seed_type != 'electrum' else mnemonic.seed_type(seed)
         if self.seed_type == 'bip39':
             def f(passphrase):
                 root_seed = bip39_to_seed(seed, passphrase)
+                self.on_restore_bip43(root_seed)
+            self.passphrase_dialog(run_next=f, is_restoring=True) if is_ext else f('')
+        elif self.seed_type == 'slip39':
+            def f(passphrase):
+                root_seed = seed.decrypt(passphrase)
                 self.on_restore_bip43(root_seed)
             self.passphrase_dialog(run_next=f, is_restoring=True) if is_ext else f('')
         elif self.seed_type in ['standard', 'segwit']:
@@ -710,6 +716,7 @@ class BaseWizard(Logger):
         self.seed_type = seed_type
         seed = mnemonic.Mnemonic('en').make_seed(seed_type=self.seed_type)
         self.opt_bip39 = False
+        self.opt_slip39 = False
         f = lambda x: self.request_passphrase(seed, x)
         self.show_seed_dialog(run_next=f, seed_text=seed)
 
