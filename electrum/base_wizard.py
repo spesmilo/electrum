@@ -515,7 +515,9 @@ class BaseWizard(Logger):
     def on_restore_seed(self, seed, is_bip39, is_ext):
         self.seed_type = 'bip39' if is_bip39 else mnemonic.seed_type(seed)
         if self.seed_type == 'bip39':
-            f = lambda passphrase: self.run('on_restore_bip39', seed, passphrase)
+            def f(passphrase):
+                root_seed = bip39_to_seed(seed, passphrase)
+                self.on_restore_bip43(root_seed)
             self.passphrase_dialog(run_next=f, is_restoring=True) if is_ext else f('')
         elif self.seed_type in ['standard', 'segwit']:
             f = lambda passphrase: self.run('create_keystore', seed, passphrase)
@@ -528,13 +530,12 @@ class BaseWizard(Logger):
         else:
             raise Exception('Unknown seed type', self.seed_type)
 
-    def on_restore_bip39(self, seed, passphrase):
+    def on_restore_bip43(self, root_seed):
         def f(derivation, script_type):
             derivation = normalize_bip32_derivation(derivation)
-            self.run('on_bip43', seed, passphrase, derivation, script_type)
+            self.run('on_bip43', root_seed, derivation, script_type)
         if self.wallet_type == 'standard':
             def get_account_xpub(account_path):
-                root_seed = bip39_to_seed(seed, passphrase)
                 root_node = BIP32Node.from_rootseed(root_seed, xtype="standard")
                 account_node = root_node.subkey_at_private_derivation(account_path)
                 account_xpub = account_node.to_xpub()
@@ -547,8 +548,8 @@ class BaseWizard(Logger):
         k = keystore.from_seed(seed, passphrase, self.wallet_type == 'multisig')
         self.on_keystore(k)
 
-    def on_bip43(self, seed, passphrase, derivation, script_type):
-        k = keystore.from_bip39_seed(seed, passphrase, derivation, xtype=script_type)
+    def on_bip43(self, root_seed, derivation, script_type):
+        k = keystore.from_bip43_rootseed(root_seed, derivation, xtype=script_type)
         self.on_keystore(k)
 
     def get_script_type_of_wallet(self) -> Optional[str]:
