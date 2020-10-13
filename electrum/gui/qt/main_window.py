@@ -2294,25 +2294,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if d.exec_():
             self.set_contact(line2.text(), line1.text())
 
-    def disable_lightning(self):
-        warning = _('This will delete your lightning private keys')
-        r = self.question(_('Disable Lightning payments?') + '\n\n' + warning)
-        if not r:
-            return
-        self.wallet.remove_lightning()
-        self.show_warning(_('Lightning keys have been removed. This wallet will be closed'))
-        self.close()
-
-    def enable_lightning(self):
-        warning1 = _("Lightning support in Electrum is experimental. Do not put large amounts in lightning channels.")
-        warning2 = _("Funds stored in lightning channels are not recoverable from your seed. You must backup your wallet file everytime you create a new channel.")
-        r = self.question(_('Enable Lightning payments?') + '\n\n' + _('WARNINGS') + ': ' + '\n\n' + warning1 + '\n\n' + warning2)
-        if not r:
-            return
-        self.wallet.init_lightning()
-        self.show_warning(_('Lightning keys have been initialized. This wallet will be closed'))
-        self.close()
-
     def show_wallet_info(self):
         dialog = WindowModalDialog(self, _("Wallet Information"))
         dialog.setMinimumSize(500, 100)
@@ -2339,19 +2320,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         # lightning
         grid.addWidget(QLabel(_('Lightning') + ':'), 5, 0)
         if self.wallet.can_have_lightning():
-            if self.wallet.has_lightning():
-                lightning_b = QPushButton(_('Disable'))
-                lightning_b.clicked.connect(dialog.close)
-                lightning_b.clicked.connect(self.disable_lightning)
-                lightning_label = QLabel(_('Enabled'))
-                lightning_b.setDisabled(bool(self.wallet.lnworker.channels))
-            else:
-                lightning_b = QPushButton(_('Enable'))
-                lightning_b.clicked.connect(dialog.close)
-                lightning_b.clicked.connect(self.enable_lightning)
-                lightning_label = QLabel(_('Disabled'))
-            grid.addWidget(lightning_label, 5, 1)
-            grid.addWidget(lightning_b, 5, 2)
+            grid.addWidget(QLabel(_('Enabled')), 5, 1)
         else:
             grid.addWidget(QLabel(_("Not available for this wallet.")), 5, 1)
             grid.addWidget(HelpButton(_("Lightning is currently restricted to HD wallets with p2wpkh addresses.")), 5, 2)
