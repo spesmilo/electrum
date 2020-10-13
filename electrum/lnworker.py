@@ -861,6 +861,12 @@ class LNWallet(LNWorker):
             chan, funding_tx = fut.result(timeout=timeout)
         except concurrent.futures.TimeoutError:
             raise Exception(_("open_channel timed out"))
+
+        # at this point the channel opening was successful
+        # if this is the first channel that got opened, we start gossiping
+        if self.channels:
+            self.network.start_gossip()
+
         return chan, funding_tx
 
     def pay(self, invoice: str, *, amount_msat: int = None, attempts: int = 1) -> Tuple[bool, List[PaymentAttemptLog]]:
