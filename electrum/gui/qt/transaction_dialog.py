@@ -419,7 +419,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             # note: when not finalized, RBF and locktime changes do not trigger
             #       a make_tx, so the txid is unreliable, hence:
             self.tx_hash_e.setText(_('Unknown'))
-        if desc is None:
+        if not desc:
             self.tx_desc.hide()
         else:
             self.tx_desc.setText(_("Description") + ': ' + desc)
