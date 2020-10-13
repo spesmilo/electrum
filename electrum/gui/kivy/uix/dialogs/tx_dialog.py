@@ -297,7 +297,7 @@ class TxDialog(Factory.Popup):
     def label_dialog(self):
         from .label_dialog import LabelDialog
         key = self.tx.txid()
-        text = self.app.wallet.get_label(key)
+        text = self.app.wallet.get_label_for_txid(key)
         def callback(text):
             self.app.wallet.set_label(key, text)
             self.update()

@@ -678,7 +678,7 @@ class LNWallet(LNWorker):
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'type': 'channel_opening',
-                'label': self.wallet.get_label(funding_txid) or (_('Open channel') + ' ' + chan.get_id_for_log()),
+                'label': self.wallet.get_label_for_txid(funding_txid) or (_('Open channel') + ' ' + chan.get_id_for_log()),
                 'txid': funding_txid,
                 'amount_msat': chan.balance(LOCAL, ctn=0),
                 'direction': 'received',
@@ -693,7 +693,7 @@ class LNWallet(LNWorker):
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'txid': closing_txid,
-                'label': self.wallet.get_label(closing_txid) or (_('Close channel') + ' ' + chan.get_id_for_log()),
+                'label': self.wallet.get_label_for_txid(closing_txid) or (_('Close channel') + ' ' + chan.get_id_for_log()),
                 'type': 'channel_closure',
                 'amount_msat': -chan.balance_minus_outgoing_htlcs(LOCAL),
                 'direction': 'sent',
@@ -724,7 +724,7 @@ class LNWallet(LNWorker):
                 'amount_msat': 0,
                 #'amount_msat': amount_msat, # must not be added
                 'type': 'swap',
-                'label': self.wallet.get_label(txid) or label,
+                'label': self.wallet.get_label_for_txid(txid) or label,
             }
         return out
 

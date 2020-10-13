@@ -263,7 +263,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         # saved fields
         self.use_change            = db.get('use_change', True)
         self.multiple_change       = db.get('multiple_change', False)
-        self.labels                = db.get_dict('labels')
+        self._labels                = db.get_dict('labels')
         self.frozen_addresses      = set(db.get('frozen_addresses', []))
         self.frozen_coins          = set(db.get('frozen_coins', []))  # set of txid:vout strings
         self.fiat_value            = db.get_dict('fiat_value')
@@ -423,20 +423,28 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def is_deterministic(self) -> bool:
         return self.keystore.is_deterministic()
 
+    def _set_label(self, key: str, value: Optional[str]) -> None:
+        with self.lock:
+            if value is None:
+                self._labels.pop(key, None)
+            else:
+                self._labels[key] = value
+
     def set_label(self, name: str, text: str = None) -> bool:
         if not name:
             return False
         changed = False
-        old_text = self.labels.get(name)
-        if text:
-            text = text.replace("\n", " ")
-            if old_text != text:
-                self.labels[name] = text
-                changed = True
-        else:
-            if old_text is not None:
-                self.labels.pop(name)
-                changed = True
+        with self.lock:
+            old_text = self._labels.get(name)
+            if text:
+                text = text.replace("\n", " ")
+                if old_text != text:
+                    self._labels[name] = text
+                    changed = True
+            else:
+                if old_text is not None:
+                    self._labels.pop(name)
+                    changed = True
         if changed:
             run_hook('set_label', self, name, text)
         return changed
@@ -447,7 +455,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             self.set_label(key, value)
 
     def export_labels(self, path):
-        write_json_file(path, self.labels)
+        write_json_file(path, self.get_all_labels())
 
     def set_fiat_value(self, txid, ccy, text, fx, value_sat):
         if not self.db.get_transaction(txid):
@@ -568,7 +576,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                       and bool(tx_we_already_have_in_db))
         if tx.is_complete():
             if tx_we_already_have_in_db:
-                label = self.get_label(tx_hash)
+                label = self.get_label_for_txid(tx_hash)
                 if tx_mined_status.height > 0:
                     if tx_mined_status.conf:
                         status = _("{} confirmations").format(tx_mined_status.conf)
@@ -680,7 +688,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 'bc_value': Satoshis(hist_item.delta),
                 'bc_balance': Satoshis(hist_item.balance),
                 'date': timestamp_to_datetime(hist_item.tx_mined_status.timestamp),
-                'label': self.get_label(hist_item.txid),
+                'label': self.get_label_for_txid(hist_item.txid),
                 'txpos_in_block': hist_item.tx_mined_status.txpos,
             }
 
@@ -823,7 +831,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         for invoice in self.get_relevant_invoices_for_tx(tx):
             if invoice.message:
                 labels.append(invoice.message)
-        if labels and not self.labels.get(tx_hash, ''):
+        if labels and not self._labels.get(tx_hash, ''):
             self.set_label(tx_hash, "; ".join(labels))
         return bool(labels)
 
@@ -994,18 +1002,27 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             item['capital_gain'] = Fiat(cg, fx.ccy)
         return item
 
-    def get_label(self, tx_hash: str) -> str:
-        return self.labels.get(tx_hash, '') or self.get_default_label(tx_hash)
+    def get_label(self, key: str) -> str:
+        # key is typically: address / txid / LN-payment-hash-hex
+        return self._labels.get(key) or ''
 
-    def get_default_label(self, tx_hash) -> str:
+    def get_label_for_txid(self, tx_hash: str) -> str:
+        return self._labels.get(tx_hash) or self._get_default_label_for_txid(tx_hash)
+
+    def _get_default_label_for_txid(self, tx_hash: str) -> str:
+        # if no inputs are ismine, concat labels of output addresses
         if not self.db.get_txi_addresses(tx_hash):
             labels = []
             for addr in self.db.get_txo_addresses(tx_hash):
-                label = self.labels.get(addr)
+                label = self._labels.get(addr)
                 if label:
                     labels.append(label)
             return ', '.join(labels)
         return ''
+
+    def get_all_labels(self) -> Dict[str, str]:
+        with self.lock:
+            return copy.copy(self._labels)
 
     def get_tx_status(self, tx_hash, tx_mined_info: TxMinedInfo):
         extra = []
@@ -1672,7 +1689,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
 
     def get_request_URI(self, req: OnchainInvoice) -> str:
         addr = req.get_address()
-        message = self.labels.get(addr, '')
+        message = self.get_label(addr)
         amount = req.amount_sat
         extra_query_params = {}
         if req.time:

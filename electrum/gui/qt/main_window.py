@@ -3188,7 +3188,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if fee is None:
             self.show_error(_("Can't bump fee: unknown fee for original transaction."))
             return
-        tx_label = self.wallet.get_label(txid)
+        tx_label = self.wallet.get_label_for_txid(txid)
         tx_size = tx.estimated_size()
         old_fee_rate = fee / tx_size  # sat/vbyte
         d = WindowModalDialog(self, _('Bump Fee'))

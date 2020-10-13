@@ -98,7 +98,7 @@ class UTXOList(MyTreeView):
         name = utxo.prevout.to_str()
         name_short = utxo.prevout.txid.hex()[:16] + '...' + ":%d" % utxo.prevout.out_idx
         self._utxo_dict[name] = utxo
-        label = self.wallet.get_label(utxo.prevout.txid.hex())
+        label = self.wallet.get_label_for_txid(utxo.prevout.txid.hex())
         amount = self.parent.format_amount(utxo.value_sats(), whitespaces=True)
         labels = [name_short, address, label, amount, '%d'%height]
         utxo_item = [QStandardItem(x) for x in labels]
@@ -178,7 +178,7 @@ class UTXOList(MyTreeView):
             # "Details"
             tx = self.wallet.db.get_transaction(txid)
             if tx:
-                label = self.wallet.get_label(txid) or None # Prefer None if empty (None hides the Description: field in the window)
+                label = self.wallet.get_label_for_txid(txid) or None # Prefer None if empty (None hides the Description: field in the window)
                 menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx, tx_desc=label))
             # "Copy ..."
             idx = self.indexAt(position)
