@@ -72,11 +72,6 @@ Builder.load_string('''
                 height: '48dp'
                 on_release: app.scan_qr(on_complete=s.on_qr)
             Button:
-                text: _('Suggest')
-                size_hint: 1, None
-                height: '48dp'
-                on_release: s.choose_node()
-            Button:
                 text: _('Clear')
                 size_hint: 1, None
                 height: '48dp'
@@ -101,11 +96,6 @@ class LightningOpenChannelDialog(Factory.Popup, Logger):
             self.ipport = text
         d = LabelDialog(_('IP/port in format:\n[host]:[port]'), self.ipport, callback)
         d.open()
-
-    def choose_node(self):
-        suggested = self.app.wallet.lnworker.suggest_peer()
-        if suggested:
-            self.pubkey = suggested.hex()
 
     def __init__(self, app, lnaddr=None, msg=None):
         Factory.Popup.__init__(self)
