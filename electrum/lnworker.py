@@ -747,16 +747,6 @@ class LNWallet(LNWorker):
             item['balance_msat'] = balance_msat
         return out
 
-    def suggest_peer(self):
-        r = []
-        for node_id, peer in self.peers.items():
-            if not peer.is_initialized():
-                continue
-            if not all([chan.is_closed() for chan in peer.channels.values()]):
-                continue
-            r.append(node_id)
-        return random.choice(r) if r else None
-
     def channels_for_peer(self, node_id):
         assert type(node_id) is bytes
         return {chan_id: chan for (chan_id, chan) in self.channels.items()

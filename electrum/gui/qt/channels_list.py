@@ -342,12 +342,8 @@ class ChannelsList(MyTreeView):
         max_button = EnterButton(_("Max"), spend_max)
         max_button.setFixedWidth(100)
         max_button.setCheckable(True)
-        suggest_button = QPushButton(d, text=_('Suggest'))
-        def on_suggest():
-            remote_nodeid.setText(bh2u(lnworker.suggest_peer() or b''))
-            remote_nodeid.repaint()  # macOS hack for #6269
-        suggest_button.clicked.connect(on_suggest)
         clear_button = QPushButton(d, text=_('Clear'))
+        clear_button.setFixedWidth(100)
         def on_clear():
             amount_e.setText('')
             amount_e.setFrozen(False)
@@ -357,16 +353,16 @@ class ChannelsList(MyTreeView):
             max_button.setChecked(False)
             max_button.repaint()  # macOS hack for #6269
         clear_button.clicked.connect(on_clear)
+
         h = QGridLayout()
         h.addWidget(QLabel(_('Your Node ID')), 0, 0)
-        h.addWidget(local_nodeid, 0, 1, 1, 3)
+        h.addWidget(local_nodeid, 0, 1, 1, 4)
         h.addWidget(QLabel(_('Remote Node ID')), 1, 0)
-        h.addWidget(remote_nodeid, 1, 1, 1, 3)
-        h.addWidget(suggest_button, 2, 1)
-        h.addWidget(clear_button, 2, 2)
+        h.addWidget(remote_nodeid, 1, 1, 1, 4)
         h.addWidget(QLabel('Amount'), 3, 0)
         h.addWidget(amount_e, 3, 1)
         h.addWidget(max_button, 3, 2)
+        h.addWidget(clear_button, 3, 3)
         vbox.addLayout(h)
         ok_button = OkButton(d)
         ok_button.setDefault(True)
