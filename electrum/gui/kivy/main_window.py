@@ -1199,38 +1199,6 @@ class ElectrumWindow(App, Logger):
                 title=_("Confirm action"))
             d.open()
 
-    def toggle_lightning(self):
-        if self.wallet.has_lightning():
-            if not bool(self.wallet.lnworker.channels):
-                warning = _('This will delete your lightning private keys')
-                d = Question(_('Disable Lightning?') + '\n\n' + warning, self._disable_lightning)
-                d.open()
-            else:
-                self.show_info('This wallet has channels')
-        else:
-            warning1 = _("Lightning support in Electrum is experimental. Do not put large amounts in lightning channels.")
-            warning2 = _("Funds stored in lightning channels are not recoverable from your seed. You must backup your wallet file everytime you create a new channel.")
-            d = Question(_('Enable Lightning?') + '\n\n' + warning1 + '\n\n' + warning2, self._enable_lightning)
-            d.open()
-
-    def _enable_lightning(self, b):
-        if not b:
-            return
-        wallet_path = self.get_wallet_path()
-        self.wallet.init_lightning()
-        self.show_info(_('Lightning keys have been initialized.'))
-        self.stop_wallet()
-        self.load_wallet_by_name(wallet_path)
-
-    def _disable_lightning(self, b):
-        if not b:
-            return
-        wallet_path = self.get_wallet_path()
-        self.wallet.remove_lightning()
-        self.show_info(_('Lightning keys have been removed.'))
-        self.stop_wallet()
-        self.load_wallet_by_name(wallet_path)
-
     def delete_wallet(self):
         basename = os.path.basename(self.wallet.storage.path)
         d = Question(_('Delete wallet?') + '\n' + basename, self._delete_wallet)
