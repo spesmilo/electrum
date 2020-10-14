@@ -61,6 +61,9 @@ mainnet_block_explorers = {
     'Blockchain.com': ('https://www.blockchain.com/bch',
                        Address.FMT_CASHADDR,
                        {'tx': 'tx', 'addr': 'address', 'block': 'block'}),
+    'Bitcoin Unlimited': ('https://explorer.bitcoinunlimited.info',
+                       Address.FMT_CASHADDR,
+                       {'tx': 'tx', 'addr': 'address', 'block': 'block-height'}),
 }
 
 DEFAULT_EXPLORER_TESTNET = 'Bitcoin.com'
@@ -78,6 +81,9 @@ testnet_block_explorers = {
     'Blockchain.com': ('https://www.blockchain.com/bch-testnet',
                        Address.FMT_CASHADDR,
                        {'tx': 'tx', 'addr': 'address', 'block': 'block'}),
+    'Bitcoin Unlimited': ('https://texplorer.bitcoinunlimited.info',
+                       Address.FMT_CASHADDR,
+                       {'tx': 'tx', 'addr': 'address', 'block': 'block-height'}),
 }
 
 def BE_info():
