@@ -327,7 +327,7 @@ class NetworkChoiceLayout(object):
         server = net_params.server
         auto_connect = net_params.auto_connect
         if not self.server_e.hasFocus():
-            self.server_e.setText(str(server))
+            self.server_e.setText(server.to_friendly_name())
         self.autoconnect_cb.setChecked(auto_connect)
 
         height_str = "%d "%(self.network.get_local_height()) + _('blocks')

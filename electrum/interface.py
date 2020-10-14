@@ -292,6 +292,12 @@ class ServerAddr:
             protocol = PREFERRED_NETWORK_PROTOCOL
         return ServerAddr(host=host, port=port, protocol=protocol)
 
+    def to_friendly_name(self) -> str:
+        # note: this method is closely linked to from_str_with_inference
+        if self.protocol == 's':  # hide trailing ":s"
+            return self.net_addr_str()
+        return str(self)
+
     def __str__(self):
         return '{}:{}'.format(self.net_addr_str(), self.protocol)
 
