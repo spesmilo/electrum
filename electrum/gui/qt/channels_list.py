@@ -287,11 +287,25 @@ class ChannelsList(MyTreeView):
         h.addStretch()
         self.swap_button = EnterButton(_('Swap'), self.swap_dialog)
         self.swap_button.setEnabled(self.parent.wallet.has_lightning())
-        self.new_channel_button = EnterButton(_('Open Channel'), self.new_channel_dialog)
+        self.new_channel_button = EnterButton(_('Open Channel'), self.new_channel_with_warning)
         self.new_channel_button.setEnabled(self.parent.wallet.has_lightning())
         h.addWidget(self.new_channel_button)
         h.addWidget(self.swap_button)
         return h
+
+    def new_channel_with_warning(self):
+        if not self.parent.wallet.lnworker.channels:
+            warning1 = _("Lightning support in Electrum is experimental. "
+                         "Do not put large amounts in lightning channels.")
+            warning2 = _("Funds stored in lightning channels are not recoverable from your seed. "
+                         "You must backup your wallet file everytime you create a new channel.")
+            answer = self.parent.question(
+                _('Do you want to create your first channel?') + '\n\n' +
+                _('WARNINGS') + ': ' + '\n\n' + warning1 + '\n\n' + warning2)
+            if answer:
+                self.new_channel_dialog()
+        else:
+            self.new_channel_dialog()
 
     def statistics_dialog(self):
         channel_db = self.parent.network.channel_db
