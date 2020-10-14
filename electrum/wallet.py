@@ -1613,7 +1613,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         # will likely be.  If co-signing a transaction it may not have
         # all the input txs, in which case we ask the network.
         tx = self.db.get_transaction(tx_hash)
-        if not tx and self.network:
+        if not tx and self.network and self.network.has_internet_connection():
             try:
                 raw_tx = self.network.run_from_another_thread(
                     self.network.get_transaction(tx_hash, timeout=10))
