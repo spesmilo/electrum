@@ -599,7 +599,7 @@ class BitBox02_KeyStore(Hardware_KeyStore):
 
 class BitBox02Plugin(HW_PluginBase):
     keystore_class = BitBox02_KeyStore
-    minimum_library = (4, 0, 0)
+    minimum_library = (5, 0, 0)
     DEVICE_IDS = [(0x03EB, 0x2403)]
 
     SUPPORTED_XTYPES = ("p2wpkh-p2sh", "p2wpkh", "p2wsh")
