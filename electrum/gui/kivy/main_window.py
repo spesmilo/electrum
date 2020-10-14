@@ -741,8 +741,23 @@ class ElectrumWindow(App, Logger):
         if not self.wallet.has_lightning():
             self.show_error(_('Lightning is not enabled for this wallet'))
             return
-        d = LightningOpenChannelDialog(self)
-        d.open()
+        if not self.wallet.lnworker.channels:
+            warning1 = _("Lightning support in Electrum is experimental. "
+                         "Do not put large amounts in lightning channels.")
+            warning2 = _("Funds stored in lightning channels are not recoverable "
+                         "from your seed. You must backup your wallet file everytime "
+                         "you create a new channel.")
+            d = Question(_('Do you want to create your first channel?') +
+                         '\n\n' + warning1 + '\n\n' + warning2, self.open_channel_dialog_with_warning)
+            d.open()
+        else:
+            d = LightningOpenChannelDialog(self)
+            d.open()
+
+    def open_channel_dialog_with_warning(self, b):
+        if b:
+            d = LightningOpenChannelDialog(self)
+            d.open()
 
     def lightning_channels_dialog(self):
         if self._channels_dialog is None:
