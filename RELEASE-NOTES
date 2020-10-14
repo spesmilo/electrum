@@ -1,3 +1,15 @@
+# Release 4.0.4 - (Oct XX, 2020)
+ * PSBT: fix regression in 4.0.3 where UTXO data was not included in
+   QR codes (#6600)
+ * new feature: "Cancel tx" (#6641). The Qt/kivy GUI allows cancelling
+   an unconfirmed RBF tx by double-spending its inputs to self.
+ * Windows binary:
+   - fix some issues with QR scanning by building zbar ourselves (#6593)
+   - when using setup exe, also install a debug binary (#6603)
+ * Ledger: fix "The derivation path is unusual" warnings (#6512)
+   (needs Bitcoin app 1.4.8+ installed on device)
+ * A few other minor bugfixes and usability improvements.
+
 # Release 4.0.3 - (Sep 11, 2020)
  * PSBT: restore compatibility with Bitcoin Core following CVE-2020-14199:
    we now allow a PSBT input to have both UTXO and WITNESS_UTXO (#6429).
