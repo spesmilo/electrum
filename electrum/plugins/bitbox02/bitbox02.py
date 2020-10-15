@@ -229,6 +229,11 @@ class BitBox02Client(HardwareClientBase):
                 out_type = bitbox02.btc.BTCPubRequest.YPUB
             else:
                 out_type = bitbox02.btc.BTCPubRequest.UPUB
+        elif xtype == "p2wsh-p2sh":
+            if coin_network == bitbox02.btc.BTC:
+                out_type = bitbox02.btc.BTCPubRequest.CAPITAL_YPUB
+            else:
+                out_type = bitbox02.btc.BTCPubRequest.CAPITAL_UPUB
         elif xtype == "p2wsh":
             if coin_network == bitbox02.btc.BTC:
                 out_type = bitbox02.btc.BTCPubRequest.CAPITAL_ZPUB
@@ -276,13 +281,14 @@ class BitBox02Client(HardwareClientBase):
 
     @runs_in_hwd_thread
     def btc_multisig_config(
-        self, coin, bip32_path: List[int], wallet: Multisig_Wallet
+        self, coin, bip32_path: List[int], wallet: Multisig_Wallet, xtype: str,
     ):
         """
         Set and get a multisig config with the current device and some other arbitrary xpubs.
         Registers it on the device if not already registered.
+        xtype: 'p2wsh' | 'p2wsh-p2sh'
         """
-
+        assert xtype in ("p2wsh", "p2wsh-p2sh")
         if self.bitbox02_device is None:
             raise Exception(
                 "Need to setup communication first before attempting any BitBox02 calls"
@@ -291,7 +297,7 @@ class BitBox02Client(HardwareClientBase):
         account_keypath = bip32_path[:4]
         xpubs = wallet.get_master_public_keys()
         our_xpub = self.get_xpub(
-            bip32.convert_bip32_intpath_to_strpath(account_keypath), "p2wsh"
+            bip32.convert_bip32_intpath_to_strpath(account_keypath), xtype
         )
 
         multisig_config = bitbox02.btc.BTCScriptConfig(
@@ -299,6 +305,10 @@ class BitBox02Client(HardwareClientBase):
                 threshold=wallet.m,
                 xpubs=[util.parse_xpub(xpub) for xpub in xpubs],
                 our_xpub_index=xpubs.index(our_xpub),
+                script_type={
+                    "p2wsh": bitbox02.btc.BTCScriptConfig.Multisig.P2WSH,
+                    "p2wsh-p2sh": bitbox02.btc.BTCScriptConfig.Multisig.P2WSH_P2SH,
+                }[xtype]
             )
         )
 
@@ -341,13 +351,13 @@ class BitBox02Client(HardwareClientBase):
             script_config = bitbox02.btc.BTCScriptConfig(
                 simple_type=bitbox02.btc.BTCScriptConfig.P2WPKH_P2SH
             )
-        elif address_type == "p2wsh":
+        elif address_type in ("p2wsh-p2sh", "p2wsh"):
             if type(wallet) is Multisig_Wallet:
                 script_config = self.btc_multisig_config(
-                    coin_network, address_keypath, wallet
+                    coin_network, address_keypath, wallet, address_type,
                 )
             else:
-                raise Exception("Can only use p2wsh with multisig wallets")
+                raise Exception("Can only use p2wsh-p2sh or p2wsh with multisig wallets")
         else:
             raise Exception(
                 "invalid address xtype: {} is not supported by the BitBox02".format(
@@ -361,6 +371,9 @@ class BitBox02Client(HardwareClientBase):
             script_config=script_config,
             display=True,
         )
+
+    def _get_coin(self):
+        return bitbox02.btc.TBTC if constants.net.TESTNET else bitbox02.btc.BTC
 
     @runs_in_hwd_thread
     def sign_transaction(
@@ -377,10 +390,7 @@ class BitBox02Client(HardwareClientBase):
                 "Need to setup communication first before attempting any BitBox02 calls"
             )
 
-        coin = bitbox02.btc.BTC
-        if constants.net.TESTNET:
-            coin = bitbox02.btc.TBTC
-
+        coin = self._get_coin()
         tx_script_type = None
 
         # Build BTCInputType list
@@ -446,11 +456,11 @@ class BitBox02Client(HardwareClientBase):
             tx_script_type = bitbox02.btc.BTCScriptConfig(
                 simple_type=bitbox02.btc.BTCScriptConfig.P2WPKH_P2SH
             )
-        elif tx_script_type == "p2wsh":
+        elif tx_script_type in ("p2wsh-p2sh", "p2wsh"):
             if type(wallet) is Multisig_Wallet:
-                tx_script_type = self.btc_multisig_config(coin, full_path, wallet)
+                tx_script_type = self.btc_multisig_config(coin, full_path, wallet, tx_script_type)
             else:
-                raise Exception("Can only use p2wsh with multisig wallets")
+                raise Exception("Can only use p2wsh-p2sh or p2wsh with multisig wallets")
         else:
             raise UserFacingException(
                 "invalid input script type: {} is not supported by the BitBox02".format(
@@ -521,6 +531,31 @@ class BitBox02Client(HardwareClientBase):
         signatures = [bh2u(ecc.der_sig_from_sig_string(x[1])) + "01" for x in sigs]
         tx.update_signatures(signatures)
 
+    def sign_message(self, keypath: str, message: bytes, xtype: str) -> bytes:
+        if self.bitbox02_device is None:
+            raise Exception(
+                "Need to setup communication first before attempting any BitBox02 calls"
+            )
+
+        try:
+            simple_type = {
+                "p2wpkh-p2sh":bitbox02.btc.BTCScriptConfig.P2WPKH_P2SH,
+                "p2wpkh": bitbox02.btc.BTCScriptConfig.P2WPKH,
+            }[xtype]
+        except KeyError:
+            raise UserFacingException("The BitBox02 does not support signing messages for this address type: {}".format(xtype))
+
+        _, _, signature = self.bitbox02_device.btc_sign_msg(
+            self._get_coin(),
+            bitbox02.btc.BTCScriptConfigWithKeypath(
+                script_config=bitbox02.btc.BTCScriptConfig(
+                    simple_type=simple_type,
+                ),
+                keypath=bip32.convert_bip32_path_to_list_of_uint32(keypath),
+            ),
+            message,
+        )
+        return signature
 
 class BitBox02_KeyStore(Hardware_KeyStore):
     hw_type = "bitbox02"
@@ -553,11 +588,13 @@ class BitBox02_KeyStore(Hardware_KeyStore):
         )
 
     def sign_message(self, sequence, message, password):
-        raise UserFacingException(
-            _(
-                "Message encryption, decryption and signing are currently not supported for {}"
-            ).format(self.device)
-        )
+        if password:
+            raise Exception("BitBox02 does not accept a password from the host")
+        client = self.get_client()
+        keypath = self.get_derivation_prefix() + "/%d/%d" % sequence
+        xtype = self.get_bip32_node_for_xpub().xtype
+        return client.sign_message(keypath, message.encode("utf-8"), xtype)
+
 
     @runs_in_hwd_thread
     def sign_transaction(self, tx: PartialTransaction, password: str):
@@ -599,10 +636,10 @@ class BitBox02_KeyStore(Hardware_KeyStore):
 
 class BitBox02Plugin(HW_PluginBase):
     keystore_class = BitBox02_KeyStore
-    minimum_library = (4, 0, 0)
+    minimum_library = (5, 0, 0)
     DEVICE_IDS = [(0x03EB, 0x2403)]
 
-    SUPPORTED_XTYPES = ("p2wpkh-p2sh", "p2wpkh", "p2wsh")
+    SUPPORTED_XTYPES = ("p2wpkh-p2sh", "p2wpkh", "p2wsh", "p2wsh-p2sh")
 
     def __init__(self, parent: HW_PluginBase, config: SimpleConfig, name: str):
         super().__init__(parent, config, name)
@@ -647,7 +684,7 @@ class BitBox02Plugin(HW_PluginBase):
     ):
         if xtype not in self.SUPPORTED_XTYPES:
             raise ScriptTypeNotSupported(
-                _("This type of script is not supported with {}.").format(self.device)
+                _("This type of script is not supported with {}: {}").format(self.device, xtype)
             )
         client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
         assert isinstance(client, BitBox02Client)
