@@ -1,4 +1,4 @@
-# Release 4.0.4 - (Oct XX, 2020)
+# Release 4.0.4 - (Oct 15, 2020)
  * PSBT: fix regression in 4.0.3 where UTXO data was not included in
    QR codes (#6600)
  * new feature: "Cancel tx" (#6641). The Qt/kivy GUI allows cancelling
