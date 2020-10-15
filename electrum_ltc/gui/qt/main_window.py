@@ -67,7 +67,8 @@ from electrum_ltc.invoices import PR_PAID, PR_FAILED, pr_expiration_values, LNIn
 from electrum_ltc.transaction import (Transaction, PartialTxInput,
                                       PartialTransaction, PartialTxOutput)
 from electrum_ltc.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet,
-                                 sweep_preparations, InternalAddressCorruption)
+                                 sweep_preparations, InternalAddressCorruption,
+                                 CannotDoubleSpendTx)
 from electrum_ltc.version import ELECTRUM_VERSION
 from electrum_ltc.network import Network, TxBroadcastError, BestEffortRequestFailed, UntrustedServerReturnedError
 from electrum_ltc.exchange_rate import FxThread
@@ -486,7 +487,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         run_hook('close_wallet', self.wallet)
 
     @profiler
-    def load_wallet(self, wallet):
+    def load_wallet(self, wallet: Abstract_Wallet):
         wallet.thread = TaskThread(self, self.on_error)
         self.update_recently_visited(wallet.storage.path)
         if wallet.has_lightning():
@@ -3188,7 +3189,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if fee is None:
             self.show_error(_("Can't bump fee: unknown fee for original transaction."))
             return
-        tx_label = self.wallet.get_label(txid)
+        tx_label = self.wallet.get_label_for_txid(txid)
         tx_size = tx.estimated_size()
         old_fee_rate = fee / tx_size  # sat/vbyte
         d = WindowModalDialog(self, _('Bump Fee'))
@@ -3235,6 +3236,56 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if is_final:
             new_tx.set_rbf(False)
         self.show_transaction(new_tx, tx_desc=tx_label)
+
+    def dscancel_dialog(self, tx: Transaction):
+        txid = tx.txid()
+        assert txid
+        fee = self.wallet.get_tx_fee(txid)
+        if fee is None:
+            self.show_error(_('Cannot cancel transaction') + ': ' + _('unknown fee for original transaction'))
+            return
+        tx_size = tx.estimated_size()
+        old_fee_rate = fee / tx_size  # sat/vbyte
+        d = WindowModalDialog(self, _('Cancel transaction'))
+        vbox = QVBoxLayout(d)
+        vbox.addWidget(WWLabel(_("Cancel an unconfirmed RBF transaction by double-spending "
+                                 "its inputs back to your wallet with a higher fee.")))
+
+        grid = QGridLayout()
+        grid.addWidget(QLabel(_('Current Fee') + ':'), 0, 0)
+        grid.addWidget(QLabel(self.format_amount(fee) + ' ' + self.base_unit()), 0, 1)
+        grid.addWidget(QLabel(_('Current Fee rate') + ':'), 1, 0)
+        grid.addWidget(QLabel(self.format_fee_rate(1000 * old_fee_rate)), 1, 1)
+
+        grid.addWidget(QLabel(_('New Fee rate') + ':'), 2, 0)
+        def on_textedit_rate():
+            fee_slider.deactivate()
+        feerate_e = FeerateEdit(lambda: 0)
+        feerate_e.setAmount(max(old_fee_rate * 1.5, old_fee_rate + 1))
+        feerate_e.textEdited.connect(on_textedit_rate)
+        grid.addWidget(feerate_e, 2, 1)
+
+        def on_slider_rate(dyn, pos, fee_rate):
+            fee_slider.activate()
+            if fee_rate is not None:
+                feerate_e.setAmount(fee_rate / 1000)
+        fee_slider = FeeSlider(self, self.config, on_slider_rate)
+        fee_combo = FeeComboBox(fee_slider)
+        fee_slider.deactivate()
+        grid.addWidget(fee_slider, 3, 1)
+        grid.addWidget(fee_combo, 3, 2)
+
+        vbox.addLayout(grid)
+        vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
+        if not d.exec_():
+            return
+        new_fee_rate = feerate_e.get_amount()
+        try:
+            new_tx = self.wallet.dscancel(tx=tx, new_fee_rate=new_fee_rate)
+        except CannotDoubleSpendTx as e:
+            self.show_error(str(e))
+            return
+        self.show_transaction(new_tx)
 
     def save_transaction_into_wallet(self, tx: Transaction):
         win = self.top_level_window()

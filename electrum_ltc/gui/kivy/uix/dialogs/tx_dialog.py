@@ -16,7 +16,7 @@ from electrum_ltc.gui.kivy.i18n import _
 
 from electrum_ltc.util import InvalidPassword
 from electrum_ltc.address_synchronizer import TX_HEIGHT_LOCAL
-from electrum_ltc.wallet import CannotBumpFee
+from electrum_ltc.wallet import CannotBumpFee, CannotDoubleSpendTx
 from electrum_ltc.transaction import Transaction, PartialTransaction
 from ...util import address_colors
 
@@ -151,6 +151,7 @@ class TxDialog(Factory.Popup):
         self.description = tx_details.label
         self.can_broadcast = tx_details.can_broadcast
         self.can_rbf = tx_details.can_bump
+        self.can_dscancel = tx_details.can_dscancel
         self.tx_hash = tx_details.txid or ''
         if tx_mined_status.timestamp:
             self.date_label = _('Date')
@@ -196,6 +197,7 @@ class TxDialog(Factory.Popup):
             ActionButtonOption(text=_('Sign'), func=lambda btn: self.do_sign(), enabled=self.can_sign),
             ActionButtonOption(text=_('Broadcast'), func=lambda btn: self.do_broadcast(), enabled=self.can_broadcast),
             ActionButtonOption(text=_('Bump fee'), func=lambda btn: self.do_rbf(), enabled=self.can_rbf),
+            ActionButtonOption(text=_('Cancel (double-spend)'), func=lambda btn: self.do_dscancel(), enabled=self.can_dscancel),
             ActionButtonOption(text=_('Remove'), func=lambda btn: self.remove_local_tx(), enabled=self.can_remove_tx),
         )
         num_options = sum(map(lambda o: bool(o.enabled), options))
@@ -253,6 +255,29 @@ class TxDialog(Factory.Popup):
         self.update()
         self.do_sign()
 
+    def do_dscancel(self):
+        from .dscancel_dialog import DSCancelDialog
+        is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(self.tx)
+        if fee is None:
+            self.app.show_error(_('Cannot cancel transaction') + ': ' + _('unknown fee for original transaction'))
+            return
+        size = self.tx.estimated_size()
+        d = DSCancelDialog(self.app, fee, size, self._do_dscancel)
+        d.open()
+
+    def _do_dscancel(self, new_fee_rate):
+        if new_fee_rate is None:
+            return
+        try:
+            new_tx = self.wallet.dscancel(tx=self.tx,
+                                          new_fee_rate=new_fee_rate)
+        except CannotDoubleSpendTx as e:
+            self.app.show_error(str(e))
+            return
+        self.tx = new_tx
+        self.update()
+        self.do_sign()
+
     def do_sign(self):
         self.app.protected(_("Sign this transaction?"), self._do_sign, ())
 
@@ -297,7 +322,7 @@ class TxDialog(Factory.Popup):
     def label_dialog(self):
         from .label_dialog import LabelDialog
         key = self.tx.txid()
-        text = self.app.wallet.get_label(key)
+        text = self.app.wallet.get_label_for_txid(key)
         def callback(text):
             self.app.wallet.set_label(key, text)
             self.update()

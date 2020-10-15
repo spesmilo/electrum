@@ -507,6 +507,8 @@ class LNWallet(LNWorker):
 
         self.pending_payments = defaultdict(asyncio.Future)  # type: Dict[bytes, asyncio.Future[BarePaymentAttemptLog]]
 
+        self.swap_manager = SwapManager(wallet=self.wallet, lnworker=self)
+
     @property
     def channels(self) -> Mapping[bytes, Channel]:
         """Returns a read-only copy of channels."""
@@ -566,7 +568,7 @@ class LNWallet(LNWorker):
         self.lnwatcher = LNWalletWatcher(self, network)
         self.lnwatcher.start_network(network)
         self.network = network
-        self.swap_manager = SwapManager(self.wallet, network)
+        self.swap_manager.start_network(network=network, lnwatcher=self.lnwatcher)
 
         for chan in self.channels.values():
             self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
@@ -663,7 +665,7 @@ class LNWallet(LNWorker):
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'type': 'channel_opening',
-                'label': self.wallet.get_label(funding_txid) or (_('Open channel') + ' ' + chan.get_id_for_log()),
+                'label': self.wallet.get_label_for_txid(funding_txid) or (_('Open channel') + ' ' + chan.get_id_for_log()),
                 'txid': funding_txid,
                 'amount_msat': chan.balance(LOCAL, ctn=0),
                 'direction': 'received',
@@ -678,7 +680,7 @@ class LNWallet(LNWorker):
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'txid': closing_txid,
-                'label': self.wallet.get_label(closing_txid) or (_('Close channel') + ' ' + chan.get_id_for_log()),
+                'label': self.wallet.get_label_for_txid(closing_txid) or (_('Close channel') + ' ' + chan.get_id_for_log()),
                 'type': 'channel_closure',
                 'amount_msat': -chan.balance_minus_outgoing_htlcs(LOCAL),
                 'direction': 'sent',
@@ -688,7 +690,7 @@ class LNWallet(LNWorker):
             out[closing_txid] = item
         # add info about submarine swaps
         settled_payments = self.get_settled_payments()
-        current_height = self.network.get_local_height()
+        current_height = self.wallet.get_local_height()
         for payment_hash_hex, swap in self.swap_manager.swaps.items():
             txid = swap.spending_txid if swap.is_reverse else swap.funding_txid
             if txid is None:
@@ -709,7 +711,7 @@ class LNWallet(LNWorker):
                 'amount_msat': 0,
                 #'amount_msat': amount_msat, # must not be added
                 'type': 'swap',
-                'label': self.wallet.get_label(txid) or label,
+                'label': self.wallet.get_label_for_txid(txid) or label,
             }
         return out
 

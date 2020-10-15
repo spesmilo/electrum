@@ -35,6 +35,7 @@ import copy
 import errno
 import traceback
 import operator
+import math
 from functools import partial
 from collections import defaultdict
 from numbers import Number
@@ -211,6 +212,9 @@ def get_locktime_for_new_transaction(network: 'Network') -> int:
 class CannotBumpFee(Exception): pass
 
 
+class CannotDoubleSpendTx(Exception): pass
+
+
 class InternalAddressCorruption(Exception):
     def __str__(self):
         return _("Wallet file corruption detected. "
@@ -223,6 +227,7 @@ class TxWalletDetails(NamedTuple):
     label: str
     can_broadcast: bool
     can_bump: bool
+    can_dscancel: bool  # whether user can double-spend to self
     can_save_as_local: bool
     amount: Optional[int]
     fee: Optional[int]
@@ -263,7 +268,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         # saved fields
         self.use_change            = db.get('use_change', True)
         self.multiple_change       = db.get('multiple_change', False)
-        self.labels                = db.get_dict('labels')
+        self._labels                = db.get_dict('labels')
         self.frozen_addresses      = set(db.get('frozen_addresses', []))
         self.frozen_coins          = set(db.get('frozen_coins', []))  # set of txid:vout strings
         self.fiat_value            = db.get_dict('fiat_value')
@@ -423,20 +428,28 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def is_deterministic(self) -> bool:
         return self.keystore.is_deterministic()
 
+    def _set_label(self, key: str, value: Optional[str]) -> None:
+        with self.lock:
+            if value is None:
+                self._labels.pop(key, None)
+            else:
+                self._labels[key] = value
+
     def set_label(self, name: str, text: str = None) -> bool:
         if not name:
             return False
         changed = False
-        old_text = self.labels.get(name)
-        if text:
-            text = text.replace("\n", " ")
-            if old_text != text:
-                self.labels[name] = text
-                changed = True
-        else:
-            if old_text is not None:
-                self.labels.pop(name)
-                changed = True
+        with self.lock:
+            old_text = self._labels.get(name)
+            if text:
+                text = text.replace("\n", " ")
+                if old_text != text:
+                    self._labels[name] = text
+                    changed = True
+            else:
+                if old_text is not None:
+                    self._labels.pop(name)
+                    changed = True
         if changed:
             run_hook('set_label', self, name, text)
         return changed
@@ -447,7 +460,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             self.set_label(key, value)
 
     def export_labels(self, path):
-        write_json_file(path, self.labels)
+        write_json_file(path, self.get_all_labels())
 
     def set_fiat_value(self, txid, ccy, text, fx, value_sat):
         if not self.db.get_transaction(txid):
@@ -566,9 +579,10 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                       and is_relevant
                       # don't offer during common signing flow, e.g. when watch-only wallet starts creating a tx:
                       and bool(tx_we_already_have_in_db))
+        can_dscancel = False
         if tx.is_complete():
             if tx_we_already_have_in_db:
-                label = self.get_label(tx_hash)
+                label = self.get_label_for_txid(tx_hash)
                 if tx_mined_status.height > 0:
                     if tx_mined_status.conf:
                         status = _("{} confirmations").format(tx_mined_status.conf)
@@ -583,6 +597,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                         fee_per_byte = fee / size
                         exp_n = self.config.fee_to_depth(fee_per_byte)
                     can_bump = is_mine and not tx.is_final()
+                    can_dscancel = (is_mine and not tx.is_final()
+                                    and not all([self.is_mine(txout.address) for txout in tx.outputs()]))
                 else:
                     status = _('Local')
                     can_broadcast = self.network is not None
@@ -614,6 +630,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             label=label,
             can_broadcast=can_broadcast,
             can_bump=can_bump,
+            can_dscancel=can_dscancel,
             can_save_as_local=can_save_as_local,
             amount=amount,
             fee=fee,
@@ -680,7 +697,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 'bc_value': Satoshis(hist_item.delta),
                 'bc_balance': Satoshis(hist_item.balance),
                 'date': timestamp_to_datetime(hist_item.tx_mined_status.timestamp),
-                'label': self.get_label(hist_item.txid),
+                'label': self.get_label_for_txid(hist_item.txid),
                 'txpos_in_block': hist_item.tx_mined_status.txpos,
             }
 
@@ -823,7 +840,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         for invoice in self.get_relevant_invoices_for_tx(tx):
             if invoice.message:
                 labels.append(invoice.message)
-        if labels and not self.labels.get(tx_hash, ''):
+        if labels and not self._labels.get(tx_hash, ''):
             self.set_label(tx_hash, "; ".join(labels))
         return bool(labels)
 
@@ -994,18 +1011,27 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             item['capital_gain'] = Fiat(cg, fx.ccy)
         return item
 
-    def get_label(self, tx_hash: str) -> str:
-        return self.labels.get(tx_hash, '') or self.get_default_label(tx_hash)
+    def get_label(self, key: str) -> str:
+        # key is typically: address / txid / LN-payment-hash-hex
+        return self._labels.get(key) or ''
 
-    def get_default_label(self, tx_hash) -> str:
+    def get_label_for_txid(self, tx_hash: str) -> str:
+        return self._labels.get(tx_hash) or self._get_default_label_for_txid(tx_hash)
+
+    def _get_default_label_for_txid(self, tx_hash: str) -> str:
+        # if no inputs are ismine, concat labels of output addresses
         if not self.db.get_txi_addresses(tx_hash):
             labels = []
             for addr in self.db.get_txo_addresses(tx_hash):
-                label = self.labels.get(addr)
+                label = self._labels.get(addr)
                 if label:
                     labels.append(label)
             return ', '.join(labels)
         return ''
+
+    def get_all_labels(self) -> Dict[str, str]:
+        with self.lock:
+            return copy.copy(self._labels)
 
     def get_tx_status(self, tx_hash, tx_mined_info: TxMinedInfo):
         extra = []
@@ -1471,6 +1497,53 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         tx_new.add_info_from_wallet(self)
         return tx_new
 
+    def dscancel(
+            self, *, tx: Transaction, new_fee_rate: Union[int, float, Decimal]
+    ) -> PartialTransaction:
+        """Double-Spend-Cancel: cancel an unconfirmed tx by double-spending
+        its inputs, paying ourselves.
+        'new_fee_rate' is the target min rate in sat/vbyte
+        """
+        if tx.is_final():
+            raise CannotDoubleSpendTx(_('Cannot cancel transaction') + ': ' + _('transaction is final'))
+        new_fee_rate = quantize_feerate(new_fee_rate)  # strip excess precision
+        old_tx_size = tx.estimated_size()
+        old_txid = tx.txid()
+        assert old_txid
+        old_fee = self.get_tx_fee(old_txid)
+        if old_fee is None:
+            raise CannotDoubleSpendTx(_('Cannot cancel transaction') + ': ' + _('current fee unknown'))
+        old_fee_rate = old_fee / old_tx_size  # sat/vbyte
+        if new_fee_rate <= old_fee_rate:
+            raise CannotDoubleSpendTx(_('Cannot cancel transaction') + ': ' + _("The new fee rate needs to be higher than the old fee rate."))
+
+        tx = PartialTransaction.from_tx(tx)
+        tx.add_info_from_wallet(self)
+
+        # grab all ismine inputs
+        inputs = [txin for txin in tx.inputs()
+                  if self.is_mine(self.get_txin_address(txin))]
+        value = sum([txin.value_sats() for txin in tx.inputs()])
+        # figure out output address
+        old_change_addrs = [o.address for o in tx.outputs() if self.is_mine(o.address)]
+        out_address = (self.get_single_change_address_for_new_transaction(old_change_addrs)
+                       or self.get_receiving_address())
+
+        locktime = get_locktime_for_new_transaction(self.network)
+
+        outputs = [PartialTxOutput.from_address_and_value(out_address, value)]
+        tx_new = PartialTransaction.from_io(inputs, outputs, locktime=locktime)
+        new_tx_size = tx_new.estimated_size()
+        new_fee = max(
+            new_fee_rate * new_tx_size,
+            old_fee + self.relayfee() * new_tx_size / Decimal(1000),  # BIP-125 rules 3 and 4
+        )
+        new_fee = int(math.ceil(new_fee))
+        outputs = [PartialTxOutput.from_address_and_value(out_address, value - new_fee)]
+        tx_new = PartialTransaction.from_io(inputs, outputs, locktime=locktime)
+        tx_new.add_info_from_wallet(self)
+        return tx_new
+
     @abstractmethod
     def _add_input_sig_info(self, txin: PartialTxInput, address: str, *, only_der_suffix: bool = True) -> None:
         pass
@@ -1540,7 +1613,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         # will likely be.  If co-signing a transaction it may not have
         # all the input txs, in which case we ask the network.
         tx = self.db.get_transaction(tx_hash)
-        if not tx and self.network:
+        if not tx and self.network and self.network.has_internet_connection():
             try:
                 raw_tx = self.network.run_from_another_thread(
                     self.network.get_transaction(tx_hash, timeout=10))
@@ -1672,7 +1745,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
 
     def get_request_URI(self, req: OnchainInvoice) -> str:
         addr = req.get_address()
-        message = self.labels.get(addr, '')
+        message = self.get_label(addr)
         amount = req.amount_sat
         extra_query_params = {}
         if req.time:

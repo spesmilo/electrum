@@ -608,6 +608,7 @@ class MyTreeView(QTreeView):
     def on_edited(self, idx: QModelIndex, user_role, text):
         self.parent.wallet.set_label(user_role, text)
         self.parent.history_model.refresh('on_edited in MyTreeView')
+        self.parent.utxo_list.update()
         self.parent.update_completions()
 
     def should_hide(self, row):

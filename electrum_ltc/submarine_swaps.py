@@ -21,6 +21,8 @@ from . import constants
 if TYPE_CHECKING:
     from .network import Network
     from .wallet import Abstract_Wallet
+    from .lnwatcher import LNWalletWatcher
+    from .lnworker import LNWallet
 
 
 API_URL_MAINNET = 'https://swaps.electrum-ltc.org/api'
@@ -113,25 +115,23 @@ def create_claim_tx(
 
 class SwapManager(Logger):
 
-    def __init__(self, wallet: 'Abstract_Wallet', network: 'Network'):
+    network: Optional['Network'] = None
+    lnwatcher: Optional['LNWalletWatcher'] = None
+
+    def __init__(self, *, wallet: 'Abstract_Wallet', lnworker: 'LNWallet'):
         Logger.__init__(self)
         self.normal_fee = 0
         self.lockup_fee = 0
         self.percentage = 0
         self.min_amount = 0
         self._max_amount = 0
-        self.network = network
         self.wallet = wallet
-        self.lnworker = wallet.lnworker
-        self.lnwatcher = self.wallet.lnworker.lnwatcher
+        self.lnworker = lnworker
         self.swaps = self.wallet.db.get_dict('submarine_swaps')  # type: Dict[str, SwapData]
         self.prepayments = {}  # type: Dict[bytes, bytes] # fee_preimage -> preimage
         for k, swap in self.swaps.items():
             if swap.is_reverse and swap.prepay_hash is not None:
                 self.prepayments[swap.prepay_hash] = bytes.fromhex(k)
-            if swap.is_redeemed:
-                continue
-            self.add_lnwatcher_callback(swap)
         # api url
         if constants.net == constants.BitcoinMainnet:
             self.api_url = API_URL_MAINNET
@@ -140,8 +140,20 @@ class SwapManager(Logger):
         else:
             self.api_url = API_URL_REGTEST
 
+    def start_network(self, *, network: 'Network', lnwatcher: 'LNWalletWatcher'):
+        assert network
+        assert lnwatcher
+        self.network = network
+        self.lnwatcher = lnwatcher
+        for k, swap in self.swaps.items():
+            if swap.is_redeemed:
+                continue
+            self.add_lnwatcher_callback(swap)
+
     @log_exceptions
     async def _claim_swap(self, swap: SwapData) -> None:
+        assert self.network
+        assert self.lnwatcher
         if not self.lnwatcher.is_up_to_date():
             return
         current_height = self.network.get_local_height()
@@ -189,7 +201,7 @@ class SwapManager(Logger):
                 self.wallet.set_label(tx.txid(), 'Swap refund')
 
     def get_claim_fee(self):
-        return self.lnwatcher.config.estimate_fee(136, allow_fallback_to_static_rates=True)
+        return self.wallet.config.estimate_fee(136, allow_fallback_to_static_rates=True)
 
     def get_swap(self, payment_hash: bytes) -> Optional[SwapData]:
         # for history
@@ -207,6 +219,8 @@ class SwapManager(Logger):
     async def normal_swap(self, lightning_amount: int, expected_onchain_amount: int,
                           password, *, tx: PartialTransaction = None) -> str:
         """send on-chain LTC, receive on Lightning"""
+        assert self.network
+        assert self.lnwatcher
         privkey = os.urandom(32)
         pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
         lnaddr, invoice = await self.lnworker.create_invoice(lightning_amount, 'swap', expiry=3600*24)
@@ -283,6 +297,8 @@ class SwapManager(Logger):
 
     async def reverse_swap(self, amount_sat: int, expected_amount: int) -> bool:
         """send on Lightning, receive on-chain"""
+        assert self.network
+        assert self.lnwatcher
         privkey = os.urandom(32)
         pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
         preimage = os.urandom(32)
@@ -370,6 +386,7 @@ class SwapManager(Logger):
         return success
 
     async def get_pairs(self) -> None:
+        assert self.network
         response = await self.network._send_http_on_proxy(
             'get',
             self.api_url + '/getpairs',

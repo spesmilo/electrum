@@ -5,7 +5,7 @@ import os
 import stat
 import ssl
 from decimal import Decimal
-from typing import Union, Optional
+from typing import Union, Optional, Dict
 from numbers import Real
 
 from copy import deepcopy
@@ -65,7 +65,7 @@ class SimpleConfig(Logger):
         # a thread-safe way.
         self.lock = threading.RLock()
 
-        self.mempool_fees = {}
+        self.mempool_fees = {}  # type: Dict[Union[float, int], int]
         self.fee_estimates = {}
         self.fee_estimates_last_updated = {}
         self.last_time_fee_estimates_requested = 0  # zero ensures immediate fees
@@ -341,6 +341,8 @@ class SimpleConfig(Logger):
                 fee = int(fee)
         else:
             fee = self.fee_estimates.get(num_blocks)
+            if fee is not None:
+                fee = int(fee)
         return fee
 
     def fee_to_depth(self, target_fee: Real) -> int:
@@ -374,9 +376,10 @@ class SimpleConfig(Logger):
             return 0
         # add one sat/byte as currently that is
         # the max precision of the histogram
+        # (well, in case of ElectrumX at least. not for electrs)
         fee += 1
         # convert to sat/kbyte
-        return fee * 1000
+        return int(fee * 1000)
 
     def depth_target(self, slider_pos):
         slider_pos = max(slider_pos, 0)
@@ -517,7 +520,7 @@ class SimpleConfig(Logger):
             fee_rate = FEERATE_STATIC_VALUES[slider_pos]
         return fee_rate
 
-    def fee_per_kb(self, dyn: bool=None, mempool: bool=None, fee_level: float=None) -> Union[int, None]:
+    def fee_per_kb(self, dyn: bool=None, mempool: bool=None, fee_level: float=None) -> Optional[int]:
         """Returns sat/kvB fee to pay for a txn.
         Note: might return None.
 
@@ -541,6 +544,8 @@ class SimpleConfig(Logger):
                 fee_rate = self.eta_to_fee(self.get_fee_level())
         else:
             fee_rate = self.get('fee_per_kb', FEERATE_FALLBACK_STATIC_FEE)
+        if fee_rate is not None:
+            fee_rate = int(fee_rate)
         return fee_rate
 
     def fee_per_byte(self):

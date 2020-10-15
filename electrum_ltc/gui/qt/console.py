@@ -292,7 +292,8 @@ class Console(QtWidgets.QPlainTextEdit):
         elif event.key() == QtCore.Qt.Key_L and event.modifiers() == QtCore.Qt.ControlModifier:
             self.clear()
         elif event.key() == QtCore.Qt.Key_C and event.modifiers() == QtCore.Qt.ControlModifier:
-            self.keyboard_interrupt()
+            if not self.textCursor().selectedText():
+                self.keyboard_interrupt()
 
         super(Console, self).keyPressEvent(event)
 
