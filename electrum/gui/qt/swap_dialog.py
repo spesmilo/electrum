@@ -194,6 +194,9 @@ class SwapDialog(WindowModalDialog):
         self.fee_label.repaint()  # macOS hack for #6269
 
     def run(self):
+        if not self.network:
+            self.window.show_error(_("You are offline."))
+            return
         self.window.run_coroutine_from_thread(self.swap_manager.get_pairs(), lambda x: self.update())
         if not self.exec_():
             return
