@@ -8,10 +8,10 @@ from typing import Tuple, List, Callable, Optional, TYPE_CHECKING
 from PyQt5.QtCore import QRect, QEventLoop, Qt, pyqtSignal
 from PyQt5.QtGui import QPalette, QPen, QPainter, QPixmap
 from PyQt5.QtWidgets import (QWidget, QDialog, QLabel, QHBoxLayout, QVBoxLayout, QLineEdit, QFileDialog, QPushButton,
-                             QGridLayout, QSlider, QScrollArea, QApplication)
+                             QGridLayout, QSlider, QScrollArea, QApplication, QComboBox)
 
 from electrum.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET, GoBack
-from electrum.i18n import _
+from electrum.i18n import _, languages, set_language
 from electrum.plugin import Plugins
 from electrum.storage import WalletStorage, StorageReadWriteError
 from electrum.util import UserCancelled, InvalidPassword, WalletFileException
@@ -21,7 +21,7 @@ from .password_dialog import PasswordLayout, PasswordLayoutForHW, PW_NEW
 from .seed_dialog import SeedLayout, KeysLayout
 from .three_keys_dialogs import InsertPubKeyDialog, Qr2FaDialog
 from .util import (MessageBoxMixin, Buttons, icon_path, ChoicesLayout, WWLabel,
-                   InfoButton, char_width_in_lineedit)
+                   InfoButton, char_width_in_lineedit, get_default_language)
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -117,19 +117,18 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     def __init__(self, config: 'SimpleConfig', app: QApplication, plugins: 'Plugins'):
         QDialog.__init__(self, None)
         BaseWizard.__init__(self, config, plugins)
-        self.setWindowTitle('Electrum  -  ' + _('Install Wizard'))
         self.app = app
         self.config = config
         self.setMinimumSize(600, 400)
         self.accept_signal.connect(self.accept)
         self.title = QLabel()
         self.main_widget = QWidget()
-        self.back_button = QPushButton(_("Back"), self)
-        self.back_button.setText(_('Back') if self.can_go_back() else _('Cancel'))
-        self.next_button = QPushButton(_("Next"), self)
+        self.back_button = QPushButton(self)
+        self.next_button = QPushButton(self)
+        self.next_button.text()
         self.next_button.setDefault(True)
         self.logo = QLabel()
-        self.please_wait = QLabel(_("Please wait..."))
+        self.please_wait = QLabel()
         self.please_wait.setAlignment(Qt.AlignCenter)
         self.icon_filename = None
         self.loop = QEventLoop()
@@ -160,9 +159,39 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         outer_vbox.addLayout(hbox)
         outer_vbox.addLayout(Buttons(self.back_button, self.next_button))
         self.set_icon('electrum.png')
+        self._set_gui_text()
         self.show()
         self.raise_()
         self.refresh_gui()  # Need for QT on MacOSX.  Lame.
+
+    def _set_gui_text(self):
+        self.setWindowTitle('Electrum  -  ' + _('Install Wizard'))
+        self.back_button.setText(_('Back') if self.can_go_back() else _('Cancel'))
+        self.next_button.setText(_("Next"))
+        self.please_wait.setText(_("Please wait..."))
+
+    def select_and_save_language(self):
+        """Method for selecting and saving language in config file as {'language': <language-abbreviation: str>}"""
+        filtered_languages = dict(filter(lambda item: item[1] != 'Default', languages.items()))
+        language_abbreviations = list(filtered_languages.keys())
+        default_language = get_default_language()
+        vbox = QVBoxLayout()
+        cb = QComboBox()
+        cb.addItems(filtered_languages.values())
+        cb.setCurrentIndex(language_abbreviations.index(default_language))
+        vbox.addWidget(cb)
+
+        def on_change():
+            language_abbreviation = language_abbreviations[cb.currentIndex()]
+            set_language(language_abbreviation)
+            self._set_gui_text()
+            self.config.set_key('language', language_abbreviation)
+            self.refresh_gui()
+
+        cb.currentIndexChanged.connect(on_change)
+        # refresh config language
+        on_change()
+        self.exec_layout(vbox, title=_('Select installation language'))
 
     def select_storage(self, path, get_wallet_from_daemon) -> Tuple[str, Optional[WalletStorage]]:
 

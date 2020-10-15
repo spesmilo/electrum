@@ -56,6 +56,7 @@ def merge_incoming_data(data, path, pot_file='message.pot'):
     os.system(f'msgattrib --no-obsolete -o {path} {path}')
     os.system(f'msgcat --unique --use-first -o {path} {temp_file} {path}')
     os.system(f'msgattrib --translated -o {path} {path}')
+    os.system(f'rm {temp_file}')
     
 
 def compile_po_files_from_csv(csv_file, po_dir):

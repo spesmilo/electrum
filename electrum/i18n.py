@@ -45,8 +45,11 @@ languages = {
     '': _('Default'),
     'en_UK': _('English'),
     'es_ES': _('Spanish'),
+    'id_ID': _('Indonesian'),
     'ja_JP': _('Japanese'),
+    'ko_KR': _('Korean'),
+    'pt_PT': _('Portuguese'),
+    'tr_TR': _('Turkish'),
     'vi_VN': _('Vietnamese'),
     'zh_CN': _('Chinese Simplified'),
-    'ko_KR': _('Korean')
 }
