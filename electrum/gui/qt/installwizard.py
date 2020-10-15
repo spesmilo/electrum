@@ -590,7 +590,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     def get_authenticator_pubkey(self, run_next, disallowed_key=None):
         # todo move it to some global settings ?
         label = QLabel()
-        message = _('Please pass authenticator public key exported from your GoldWallet application')
+        message = _('Please pass authenticator public key exported from your Gold Wallet application')
         label.setText(message)
         label.setOpenExternalLinks(True)
         label.setTextInteractionFlags(Qt.TextBrowserInteraction)
@@ -598,18 +598,18 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
         disallowed_keys = [disallowed_key] if disallowed_key else []
         layout = InsertPubKeyDialog(self, message_label=label, disallowed_keys=disallowed_keys)
-        self.exec_layout(layout, _('GoldWallet authenticator public key'), next_enabled=False)
+        self.exec_layout(layout, _('Gold Wallet authenticator public key'), next_enabled=False)
         return layout.get_compressed_pubkey()
 
     @wizard_dialog
     def display_2fa_pairing_qr(self, run_next, entropy: bytes):
         title_label = QLabel()
-        title_message = _('Generate an authenticator on GoldWallet and scan the following QR code: ')
+        title_message = _('Generate an authenticator on Gold Wallet and scan the following QR code: ')
         title_label.setText(title_message)
         title_label.setWordWrap(True)
 
         pin_label = QLabel()
-        pin_message = _('Confirmation PIN from GoldWallet:')
+        pin_message = _('Confirmation PIN from Gold Wallet:')
         pin_label.setText(pin_message)
 
         qr_data = {
@@ -618,9 +618,9 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         }
         layout = Qr2FaDialog(self, title_label=title_label, pin_label=pin_label, qr_data=qr_data)
         if self.wallet_type == '2-key':
-            title = _('Pair your 2 Keys Vault wallet with Gold Wallet')
+            title = _('Pair your 2-Key Vault wallet with Gold Wallet')
         elif self.wallet_type == '3-key':
-            title = _('Pair your 3 Keys Vault wallet with Gold Wallet')
+            title = _('Pair your 3-Key Vault wallet with Gold Wallet')
         else:
             raise ValueError(f'Wrong wallet type {self.wallet_type}')
         self.exec_layout(layout, title, next_enabled=False)
