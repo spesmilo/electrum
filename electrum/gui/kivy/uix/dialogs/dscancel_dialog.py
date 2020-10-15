@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 Builder.load_string('''
 <DSCancelDialog@Popup>
-    title: _('Cancel transaction')
+    title: _('Cancel (double-spend) transaction')
     size_hint: 0.8, 0.8
     pos_hint: {'top':0.9}
     BoxLayout:
