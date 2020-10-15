@@ -2153,7 +2153,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         sb.addPermanentWidget(self.seed_button)
         self.lightning_button = None
         if self.wallet.has_lightning() and self.network:
-            self.lightning_button = StatusBarButton(read_QIcon("lightning.png"), _("Lightning Network"), self.gui_object.show_lightning_dialog)
+            self.lightning_button = StatusBarButton(read_QIcon("lightning_disconnected.png"), _("Lightning Network"), self.gui_object.show_lightning_dialog)
             self.update_lightning_icon()
             sb.addPermanentWidget(self.lightning_button)
         self.status_button = None
@@ -2193,8 +2193,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def update_lightning_icon(self):
         if self.lightning_button is None:
             return
-        if not self.network.is_lightning_running():
+        if not self.network.lngossip.has_started:
             return
+
+        # display colorful lightning icon to signal connection
+        self.lightning_button.setIcon(read_QIcon("lightning.png"))
+
         cur, total = self.network.lngossip.get_sync_progress_estimate()
         # self.logger.debug(f"updating lngossip sync progress estimate: cur={cur}, total={total}")
         progress_percent = 0
