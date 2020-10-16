@@ -135,10 +135,9 @@ class AddressSynchronizer(Logger):
         prevout_hash = txin.prevout.txid.hex()
         prevout_n = txin.prevout.out_idx
         for addr in self.db.get_txo_addresses(prevout_hash):
-            l = self.db.get_txo_addr(prevout_hash, addr)
-            for n, v, is_cb in l:
-                if n == prevout_n:
-                    return addr
+            d = self.db.get_txo_addr(prevout_hash, addr)
+            if prevout_n in d:
+                return addr
         tx = self.db.get_transaction(prevout_hash)
         if tx:
             return tx.outputs()[prevout_n].address
@@ -153,9 +152,11 @@ class AddressSynchronizer(Logger):
             address = self.get_txin_address(txin)
         if address:
             d = self.db.get_txo_addr(prevout_hash, address)
-            for n, v, cb in d:
-                if n == txin.prevout.out_idx:
-                    return v
+            try:
+                v, cb = d[prevout_n]
+                return v
+            except KeyError:
+                pass
         tx = self.db.get_transaction(prevout_hash)
         if tx:
             return tx.outputs()[prevout_n].value
@@ -285,16 +286,17 @@ class AddressSynchronizer(Logger):
                     self.remove_transaction(tx_hash2)
             # add inputs
             def add_value_from_prev_output():
-                # note: this nested loop takes linear time in num is_mine outputs of prev_tx
-                for addr in self.db.get_txo_addresses(prevout_hash):
+                # note: this takes linear time in num is_mine outputs of prev_tx
+                addr = self.get_txin_address(txi)
+                if addr and self.is_mine(addr):
                     outputs = self.db.get_txo_addr(prevout_hash, addr)
-                    # note: instead of [(n, v, is_cb), ...]; we could store: {n -> (v, is_cb)}
-                    for n, v, is_cb in outputs:
-                        if n == prevout_n:
-                            if addr and self.is_mine(addr):
-                                self.db.add_txi_addr(tx_hash, addr, ser, v)
-                                self._get_addr_balance_cache.pop(addr, None)  # invalidate cache
-                            return
+                    try:
+                        v, is_cb = outputs[prevout_n]
+                    except KeyError:
+                        pass
+                    else:
+                        self.db.add_txi_addr(tx_hash, addr, ser, v)
+                        self._get_addr_balance_cache.pop(addr, None)  # invalidate cache
             for txi in tx.inputs():
                 if txi.is_coinbase_input():
                     continue
@@ -656,7 +658,7 @@ class AddressSynchronizer(Logger):
             delta -= v
         # add the value of the coins received at address
         d = self.db.get_txo_addr(tx_hash, address)
-        for n, v, cb in d:
+        for n, (v, cb) in d.items():
             delta += v
         return delta
 
@@ -670,7 +672,7 @@ class AddressSynchronizer(Logger):
                 delta -= v
         for addr in self.db.get_txo_addresses(txid):
             d = self.db.get_txo_addr(txid, addr)
-            for n, v, cb in d:
+            for n, (v, cb) in d.items():
                 delta += v
         return delta
 
@@ -758,8 +760,8 @@ class AddressSynchronizer(Logger):
             received = {}
             sent = {}
             for tx_hash, height in h:
-                l = self.db.get_txo_addr(tx_hash, address)
-                for n, v, is_cb in l:
+                d = self.db.get_txo_addr(tx_hash, address)
+                for n, (v, is_cb) in d.items():
                     received[tx_hash + ':%d'%n] = (height, v, is_cb)
             for tx_hash, height in h:
                 l = self.db.get_txi_addr(tx_hash, address)
