@@ -91,6 +91,6 @@ info "Building $pkgname..."
     make install || fail "Could not install $pkgname"
     . "$here/$pkgname/dist/lib/libzbar.la"
     host_strip "$here/$pkgname/dist/lib/$dlname"
-    cp -fpv "$here/$pkgname/dist/lib/$dlname" "$PROJECT_ROOT/electrum" || fail "Could not copy the $pkgname binary to its destination"
-    info "$dlname has been placed in the inner 'electrum' folder."
+    cp -fpv "$here/$pkgname/dist/lib/$dlname" "$PROJECT_ROOT/electrum_grs" || fail "Could not copy the $pkgname binary to its destination"
+    info "$dlname has been placed in the inner 'electrum_grs' folder."
 )

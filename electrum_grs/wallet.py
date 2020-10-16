@@ -1502,7 +1502,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     ) -> PartialTransaction:
         """Double-Spend-Cancel: cancel an unconfirmed tx by double-spending
         its inputs, paying ourselves.
-        'new_fee_rate' is the target min rate in sat/vbyte
+        'new_fee_rate' is the target min rate in gro/vbyte
         """
         if tx.is_final():
             raise CannotDoubleSpendTx(_('Cannot cancel transaction') + ': ' + _('transaction is final'))
