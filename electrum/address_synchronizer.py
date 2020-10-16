@@ -144,11 +144,16 @@ class AddressSynchronizer(Logger):
             return tx.outputs()[prevout_n].address
         return None
 
-    def get_txin_value(self, txin: TxInput) -> Optional[int]:
+    def get_txin_value(self, txin: TxInput, *, address: str = None) -> Optional[int]:
         if txin.value_sats() is not None:
             return txin.value_sats()
         prevout_hash = txin.prevout.txid.hex()
         prevout_n = txin.prevout.out_idx
+        if address:
+            d = self.db.get_txo_addr(prevout_hash, address)
+            for n, v, cb in d:
+                if n == txin.prevout.out_idx:
+                    return v
         tx = self.db.get_transaction(prevout_hash)
         if tx:
             return tx.outputs()[prevout_n].value
@@ -670,7 +675,7 @@ class AddressSynchronizer(Logger):
     def get_wallet_delta(self, tx: Transaction):
         """ effect of tx on wallet """
         is_relevant = False  # "related to wallet?"
-        is_mine = False
+        is_mine = False  # "is any input mine?"
         is_pruned = False
         is_partial = False
         v_in = v_out = v_out_mine = 0
@@ -679,15 +684,7 @@ class AddressSynchronizer(Logger):
             if self.is_mine(addr):
                 is_mine = True
                 is_relevant = True
-                d = self.db.get_txo_addr(txin.prevout.txid.hex(), addr)
-                for n, v, cb in d:
-                    if n == txin.prevout.out_idx:
-                        value = v
-                        break
-                else:
-                    value = None
-                if value is None:
-                    value = txin.value_sats()
+                value = self.get_txin_value(txin, address=addr)
                 if value is None:
                     is_pruned = True
                 else:
