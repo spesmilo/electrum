@@ -5,7 +5,7 @@ import os
 import stat
 import ssl
 from decimal import Decimal
-from typing import Union, Optional, Dict
+from typing import Union, Optional, Dict, Sequence, Tuple
 from numbers import Real
 
 from copy import deepcopy
@@ -65,7 +65,7 @@ class SimpleConfig(Logger):
         # a thread-safe way.
         self.lock = threading.RLock()
 
-        self.mempool_fees = {}  # type: Dict[Union[float, int], int]
+        self.mempool_fees = []  # type: Sequence[Tuple[Union[float, int], int]]
         self.fee_estimates = {}
         self.fee_estimates_last_updated = {}
         self.last_time_fee_estimates_requested = 0  # zero ensures immediate fees
