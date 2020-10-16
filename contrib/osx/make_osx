@@ -19,7 +19,7 @@ ROOT_FOLDER="$CONTRIB/.."
 src_dir=$(dirname "$0")
 cd $src_dir/../..
 
-VERSION=4.0.2
+VERSION=4.0.4
 
 which brew > /dev/null 2>&1 || fail "Please install brew from https://brew.sh/ to continue"
 which xcodebuild > /dev/null 2>&1 || fail "Please install Xcode and xcode command line tools to continue"
