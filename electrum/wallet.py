@@ -2049,20 +2049,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def pubkeys_to_address(self, pubkeys: Sequence[str]) -> Optional[str]:
         pass
 
-    def txin_value(self, txin: TxInput) -> Optional[int]:
-        if isinstance(txin, PartialTxInput):
-            v = txin.value_sats()
-            if v: return v
-        txid = txin.prevout.txid.hex()
-        prev_n = txin.prevout.out_idx
-        for addr in self.db.get_txo_addresses(txid):
-            d = self.db.get_txo_addr(txid, addr)
-            for n, v, cb in d:
-                if n == prev_n:
-                    return v
-        # may occur if wallet is not synchronized
-        return None
-
     def price_at_timestamp(self, txid, price_func):
         """Returns fiat price of bitcoin at the time tx got confirmed."""
         timestamp = self.get_tx_height(txid).timestamp
@@ -2072,7 +2058,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         coins = self.get_utxos(domain)
         now = time.time()
         p = price_func(now)
-        ap = sum(self.coin_price(coin.prevout.txid.hex(), price_func, ccy, self.txin_value(coin)) for coin in coins)
+        ap = sum(self.coin_price(coin.prevout.txid.hex(), price_func, ccy, self.get_txin_value(coin)) for coin in coins)
         lp = sum([coin.value_sats() for coin in coins]) * p / Decimal(COIN)
         return lp - ap
 

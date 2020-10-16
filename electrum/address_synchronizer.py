@@ -149,6 +149,8 @@ class AddressSynchronizer(Logger):
             return txin.value_sats()
         prevout_hash = txin.prevout.txid.hex()
         prevout_n = txin.prevout.out_idx
+        if address is None:
+            address = self.get_txin_address(txin)
         if address:
             d = self.db.get_txo_addr(prevout_hash, address)
             for n, v, cb in d:
