@@ -8,6 +8,7 @@ from kivy.uix.popup import Popup
 from kivy.clock import Clock
 
 from electrum.util import bh2u
+from electrum.logging import Logger
 from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id
 from electrum.lnchannel import AbstractChannel, Channel
 from electrum.gui.kivy.i18n import _
@@ -289,10 +290,11 @@ Builder.load_string(r'''
 ''')
 
 
-class ChannelBackupPopup(Popup):
+class ChannelBackupPopup(Popup, Logger):
 
     def __init__(self, chan: AbstractChannel, app: 'ElectrumWindow', **kwargs):
-        super(ChannelBackupPopup,self).__init__(**kwargs)
+        Popup.__init__(self, **kwargs)
+        Logger.__init__(self)
         self.chan = chan
         self.app = app
         self.short_id = format_short_channel_id(chan.short_channel_id)
@@ -312,6 +314,7 @@ class ChannelBackupPopup(Popup):
             coro.result(5)
             self.app.show_info(_('Channel closed'))
         except Exception as e:
+            self.logger.exception("Could not close channel")
             self.app.show_info(_('Could not close channel: ') + repr(e)) # repr because str(Exception()) == ''
 
     def remove_backup(self):
@@ -324,10 +327,11 @@ class ChannelBackupPopup(Popup):
         self.app.wallet.lnbackups.remove_channel_backup(self.chan.channel_id)
         self.dismiss()
 
-class ChannelDetailsPopup(Popup):
+class ChannelDetailsPopup(Popup, Logger):
 
     def __init__(self, chan: Channel, app: 'ElectrumWindow', **kwargs):
-        super(ChannelDetailsPopup,self).__init__(**kwargs)
+        Popup.__init__(self, **kwargs)
+        Logger.__init__(self)
         self.is_closed = chan.is_closed()
         self.is_redeemed = chan.is_redeemed()
         self.app = app
@@ -364,6 +368,7 @@ class ChannelDetailsPopup(Popup):
             coro.result(5)
             self.app.show_info(_('Channel closed'))
         except Exception as e:
+            self.logger.exception("Could not close channel")
             self.app.show_info(_('Could not close channel: ') + repr(e)) # repr because str(Exception()) == ''
 
     def remove_channel(self):
@@ -402,6 +407,7 @@ class ChannelDetailsPopup(Popup):
             coro.result(1)
             self.app.show_info(_('Channel closed, you may need to wait at least {} blocks, because of CSV delays'.format(self.chan.config[REMOTE].to_self_delay)))
         except Exception as e:
+            self.logger.exception("Could not force close channel")
             self.app.show_info(_('Could not force close channel: ') + repr(e)) # repr because str(Exception()) == ''
 
 

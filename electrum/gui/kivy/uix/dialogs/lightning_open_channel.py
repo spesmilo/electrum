@@ -8,6 +8,7 @@ from electrum.lnaddr import lndecode
 from electrum.util import bh2u
 from electrum.bitcoin import COIN
 import electrum.simple_config as config
+from electrum.logging import Logger
 
 from .label_dialog import LabelDialog
 
@@ -94,7 +95,7 @@ Builder.load_string('''
                 disabled: not root.pubkey or not root.amount
 ''')
 
-class LightningOpenChannelDialog(Factory.Popup):
+class LightningOpenChannelDialog(Factory.Popup, Logger):
     def ipport_dialog(self):
         def callback(text):
             self.ipport = text
@@ -107,7 +108,8 @@ class LightningOpenChannelDialog(Factory.Popup):
             self.pubkey = suggested.hex()
 
     def __init__(self, app, lnaddr=None, msg=None):
-        super(LightningOpenChannelDialog, self).__init__()
+        Factory.Popup.__init__(self)
+        Logger.__init__(self)
         self.app = app  # type: ElectrumWindow
         self.lnaddr = lnaddr
         self.msg = msg
@@ -159,6 +161,7 @@ class LightningOpenChannelDialog(Factory.Popup):
                                                                      push_amt_sat=0,
                                                                      password=password)
         except Exception as e:
+            self.logger.exception("Problem opening channel")
             self.app.show_error(_('Problem opening channel: ') + '\n' + repr(e))
             return
         n = chan.constraints.funding_txn_minimum_depth

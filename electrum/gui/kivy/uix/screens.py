@@ -21,7 +21,6 @@ from kivy.uix.image import Image
 from kivy.lang import Builder
 from kivy.factory import Factory
 from kivy.utils import platform
-from kivy.logger import Logger
 
 from electrum.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds, Fiat
 from electrum.invoices import (PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING,
@@ -36,6 +35,7 @@ from electrum import simple_config
 from electrum.simple_config import FEERATE_WARNING_HIGH_FEE, FEE_RATIO_HIGH_WARNING
 from electrum.lnaddr import lndecode
 from electrum.lnutil import RECEIVED, SENT, PaymentFailure
+from electrum.logging import Logger
 
 from .dialogs.question import Question
 from .dialogs.lightning_open_channel import LightningOpenChannelDialog
@@ -173,11 +173,15 @@ class HistoryScreen(CScreen):
         history_card.data = [self.get_card(item) for item in history]
 
 
-class SendScreen(CScreen):
+class SendScreen(CScreen, Logger):
 
     kvname = 'send'
     payment_request = None  # type: Optional[PaymentRequest]
     parsed_URI = None
+
+    def __init__(self):
+        CScreen.__init__(self)
+        Logger.__init__(self)
 
     def set_URI(self, text: str):
         if not self.app.wallet:
@@ -361,7 +365,7 @@ class SendScreen(CScreen):
             self.app.show_error(_("Not enough funds"))
             return
         except Exception as e:
-            Logger.exception('')
+            self.logger.exception('')
             self.app.show_error(repr(e))
             return
         if rbf:
