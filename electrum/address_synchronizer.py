@@ -139,6 +139,19 @@ class AddressSynchronizer(Logger):
             for n, v, is_cb in l:
                 if n == prevout_n:
                     return addr
+        tx = self.db.get_transaction(prevout_hash)
+        if tx:
+            return tx.outputs()[prevout_n].address
+        return None
+
+    def get_txin_value(self, txin: TxInput) -> Optional[int]:
+        if txin.value_sats() is not None:
+            return txin.value_sats()
+        prevout_hash = txin.prevout.txid.hex()
+        prevout_n = txin.prevout.out_idx
+        tx = self.db.get_transaction(prevout_hash)
+        if tx:
+            return tx.outputs()[prevout_n].value
         return None
 
     def get_txout_address(self, txo: TxOutput) -> Optional[str]:
