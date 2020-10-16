@@ -108,7 +108,7 @@ class ElectrumGui:
             else:
                 time_str = 'unconfirmed'
 
-            label = self.wallet.get_label(hist_item.txid)
+            label = self.wallet.get_label_for_txid(hist_item.txid)
             messages.append(format_str % (time_str, label, format_satoshis(delta, whitespaces=True),
                                           format_satoshis(hist_item.balance, whitespaces=True)))
 
@@ -140,7 +140,7 @@ class ElectrumGui:
         self.print_list(messages, "%19s  %25s "%("Key", "Value"))
 
     def print_addresses(self):
-        messages = map(lambda addr: "%30s    %30s       "%(addr, self.wallet.labels.get(addr,"")), self.wallet.get_addresses())
+        messages = map(lambda addr: "%30s    %30s       "%(addr, self.wallet.get_label(addr)), self.wallet.get_addresses())
         self.print_list(messages, "%19s  %25s "%("Address", "Label"))
 
     def print_order(self):
@@ -209,7 +209,7 @@ class ElectrumGui:
             return
 
         if self.str_description:
-            self.wallet.labels[tx.txid()] = self.str_description
+            self.wallet.set_label(tx.txid(), self.str_description)
 
         print(_("Please wait..."))
         try:

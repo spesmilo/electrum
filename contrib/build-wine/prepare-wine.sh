@@ -5,10 +5,6 @@ NSIS_FILENAME=nsis-3.05-setup.exe
 NSIS_URL=https://downloads.sourceforge.net/project/nsis/NSIS%203/3.05/$NSIS_FILENAME
 NSIS_SHA256=1a3cc9401667547b9b9327a177b13485f7c59c2303d4b6183e7bc9e6c8d6bfdb
 
-ZBAR_FILENAME=zbarw-20121031-setup.exe
-ZBAR_URL=https://downloads.sourceforge.net/project/zbarw/$ZBAR_FILENAME
-ZBAR_SHA256=177e32b272fa76528a3af486b74e9cb356707be1c5ace4ed3fcee9723e2c2c02
-
 LIBUSB_REPO="https://github.com/libusb/libusb.git"
 LIBUSB_COMMIT="e782eeb2514266f6738e242cdcb18e3ae1ed06fa"
 # ^ tag v1.0.23
@@ -47,12 +43,19 @@ info "Installing Python."
 # keys from https://www.python.org/downloads/#pubkeys
 #KEYRING_PYTHON_DEV="keyring-electrum-build-python-dev.gpg"
 #gpg --no-default-keyring --keyring $KEYRING_PYTHON_DEV --import "$here"/gpg_keys/7ED10B6531D7C8E1BC296021FC624643487034E5.asc
-PYTHON_DOWNLOADS="$CACHEDIR/python$PYTHON_VERSION"
+if [ "$GCC_TRIPLET_HOST" = "i686-w64-mingw32" ] ; then
+    ARCH="win32"
+elif [ "$GCC_TRIPLET_HOST" = "x86_64-w64-mingw32" ] ; then
+    ARCH="amd64"
+else
+    fail "unexpected GCC_TRIPLET_HOST: $GCC_TRIPLET_HOST"
+fi
+PYTHON_DOWNLOADS="$CACHEDIR/python$PYTHON_VERSION-$ARCH"
 mkdir -p "$PYTHON_DOWNLOADS"
 for msifile in core dev exe lib pip tools; do
     echo "Installing $msifile..."
-    download_if_not_exist "$PYTHON_DOWNLOADS/${msifile}.msi" "https://www.python.org/ftp/python/$PYTHON_VERSION/win32/${msifile}.msi"
-    #download_if_not_exist "$PYTHON_DOWNLOADS/${msifile}.msi.asc" "https://www.python.org/ftp/python/$PYTHON_VERSION/win32/${msifile}.msi.asc"
+    download_if_not_exist "$PYTHON_DOWNLOADS/${msifile}.msi" "https://www.python.org/ftp/python/$PYTHON_VERSION/$ARCH/${msifile}.msi"
+    #download_if_not_exist "$PYTHON_DOWNLOADS/${msifile}.msi.asc" "https://www.python.org/ftp/python/$PYTHON_VERSION/$ARCH/${msifile}.msi.asc"
     #verify_signature "$PYTHON_DOWNLOADS/${msifile}.msi.asc" $KEYRING_PYTHON_DEV
     wine msiexec /i "$PYTHON_DOWNLOADS/${msifile}.msi" /qb TARGETDIR=$PYHOME
 done
@@ -62,11 +65,6 @@ $PYTHON -m pip install --no-dependencies --no-warn-script-location -r "$CONTRIB"
 
 info "Installing dependencies specific to binaries."
 $PYTHON -m pip install --no-dependencies --no-warn-script-location -r "$CONTRIB"/deterministic-build/requirements-binaries.txt
-
-info "Installing ZBar."
-download_if_not_exist "$CACHEDIR/$ZBAR_FILENAME" "$ZBAR_URL"
-verify_hash "$CACHEDIR/$ZBAR_FILENAME" "$ZBAR_SHA256"
-wine "$CACHEDIR/$ZBAR_FILENAME" /S
 
 info "Installing NSIS."
 download_if_not_exist "$CACHEDIR/$NSIS_FILENAME" "$NSIS_URL"
@@ -91,18 +89,19 @@ info "Compiling libusb..."
     git checkout -b pinned "${LIBUSB_COMMIT}^{commit}"
     echo "libusb_1_0_la_LDFLAGS += -Wc,-static" >> libusb/Makefile.am
     ./bootstrap.sh || fail "Could not bootstrap libusb"
-    host="i686-w64-mingw32"
+    host="$GCC_TRIPLET_HOST"
     LDFLAGS="-Wl,--no-insert-timestamp" ./configure \
         --host=$host \
-        --build=x86_64-pc-linux-gnu || fail "Could not run ./configure for libusb"
+        --build=$GCC_TRIPLET_BUILD || fail "Could not run ./configure for libusb"
     make -j4 || fail "Could not build libusb"
     ${host}-strip libusb/.libs/libusb-1.0.dll
 ) || fail "libusb build failed"
 cp "$CACHEDIR/libusb/libusb/.libs/libusb-1.0.dll" $WINEPREFIX/drive_c/tmp/  || fail "Could not copy libusb to its destination"
 
 
-# copy libsecp dll (already built)
+# copy already built DLLs
 cp "$PROJECT_ROOT/electrum_grs/libsecp256k1-0.dll" $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libsecp to its destination"
+cp "$PROJECT_ROOT/electrum_grs/libzbar-0.dll" $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libzbar to its destination"
 
 
 info "Building PyInstaller."
@@ -126,10 +125,21 @@ info "Building PyInstaller."
     echo "const char *electrum_tag = \"tagged by Electrum-GRS@$ELECTRUM_COMMIT_HASH\";" >> ./bootloader/src/pyi_main.c
     pushd bootloader
     # cross-compile to Windows using host python
-    python3 ./waf all CC=i686-w64-mingw32-gcc CFLAGS="-static -Wno-dangling-else -Wno-error=unused-value -Wno-error=implicit-function-declaration"
+    python3 ./waf all CC="${GCC_TRIPLET_HOST}-gcc" \
+                      CFLAGS="-static \
+                              -Wno-dangling-else \
+                              -Wno-error=unused-value \
+                              -Wno-error=implicit-function-declaration \
+                              -Wno-error=int-to-pointer-cast"
     popd
     # sanity check bootloader is there:
-    [[ -e PyInstaller/bootloader/Windows-32bit/runw.exe ]] || fail "Could not find runw.exe in target dir!"
+    if [ "$GCC_TRIPLET_HOST" = "i686-w64-mingw32" ] ; then
+        [[ -e PyInstaller/bootloader/Windows-32bit/runw.exe ]] || fail "Could not find runw.exe in target dir! (32bit)"
+    elif [ "$GCC_TRIPLET_HOST" = "x86_64-w64-mingw32" ] ; then
+        [[ -e PyInstaller/bootloader/Windows-64bit/runw.exe ]] || fail "Could not find runw.exe in target dir! (64bit)"
+    else
+        fail "unexpected GCC_TRIPLET_HOST: $GCC_TRIPLET_HOST"
+    fi
 ) || fail "PyInstaller build failed"
 info "Installing PyInstaller."
 $PYTHON -m pip install --no-dependencies --no-warn-script-location ./pyinstaller

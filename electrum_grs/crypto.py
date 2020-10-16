@@ -32,8 +32,12 @@ from typing import Union
 
 import groestlcoin_hash
 
-from .util import assert_bytes, InvalidPassword, to_bytes, to_string, WalletFileException
+from .util import assert_bytes, InvalidPassword, to_bytes, to_string, WalletFileException, versiontuple
 from .i18n import _
+from .logging import get_logger
+
+
+_logger = get_logger(__name__)
 
 
 HAS_PYAES = False
@@ -45,7 +49,12 @@ else:
     HAS_PYAES = True
 
 HAS_CRYPTODOME = False
+MIN_CRYPTODOME_VERSION = "3.7"
 try:
+    import Cryptodome
+    if versiontuple(Cryptodome.__version__) < versiontuple(MIN_CRYPTODOME_VERSION):
+        _logger.warning(f"found module 'Cryptodome' but it is too old: {Cryptodome.__version__}<{MIN_CRYPTODOME_VERSION}")
+        raise Exception()
     from Cryptodome.Cipher import ChaCha20_Poly1305 as CD_ChaCha20_Poly1305
     from Cryptodome.Cipher import ChaCha20 as CD_ChaCha20
     from Cryptodome.Cipher import AES as CD_AES
@@ -55,8 +64,12 @@ else:
     HAS_CRYPTODOME = True
 
 HAS_CRYPTOGRAPHY = False
+MIN_CRYPTOGRAPHY_VERSION = "2.1"
 try:
     import cryptography
+    if versiontuple(cryptography.__version__) < versiontuple(MIN_CRYPTOGRAPHY_VERSION):
+        _logger.warning(f"found module 'cryptography' but it is too old: {cryptography.__version__}<{MIN_CRYPTOGRAPHY_VERSION}")
+        raise Exception()
     from cryptography import exceptions
     from cryptography.hazmat.primitives.ciphers import Cipher as CG_Cipher
     from cryptography.hazmat.primitives.ciphers import algorithms as CG_algorithms

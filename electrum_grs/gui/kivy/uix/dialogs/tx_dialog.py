@@ -16,7 +16,7 @@ from electrum_grs.gui.kivy.i18n import _
 
 from electrum_grs.util import InvalidPassword
 from electrum_grs.address_synchronizer import TX_HEIGHT_LOCAL
-from electrum_grs.wallet import CannotBumpFee
+from electrum_grs.wallet import CannotBumpFee, CannotDoubleSpendTx
 from electrum_grs.transaction import Transaction, PartialTransaction
 from ...util import address_colors
 
@@ -151,6 +151,7 @@ class TxDialog(Factory.Popup):
         self.description = tx_details.label
         self.can_broadcast = tx_details.can_broadcast
         self.can_rbf = tx_details.can_bump
+        self.can_dscancel = tx_details.can_dscancel
         self.tx_hash = tx_details.txid or ''
         if tx_mined_status.timestamp:
             self.date_label = _('Date')
@@ -196,6 +197,7 @@ class TxDialog(Factory.Popup):
             ActionButtonOption(text=_('Sign'), func=lambda btn: self.do_sign(), enabled=self.can_sign),
             ActionButtonOption(text=_('Broadcast'), func=lambda btn: self.do_broadcast(), enabled=self.can_broadcast),
             ActionButtonOption(text=_('Bump fee'), func=lambda btn: self.do_rbf(), enabled=self.can_rbf),
+            ActionButtonOption(text=_('Cancel (double-spend)'), func=lambda btn: self.do_dscancel(), enabled=self.can_dscancel),
             ActionButtonOption(text=_('Remove'), func=lambda btn: self.remove_local_tx(), enabled=self.can_remove_tx),
         )
         num_options = sum(map(lambda o: bool(o.enabled), options))
@@ -253,6 +255,29 @@ class TxDialog(Factory.Popup):
         self.update()
         self.do_sign()
 
+    def do_dscancel(self):
+        from .dscancel_dialog import DSCancelDialog
+        is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(self.tx)
+        if fee is None:
+            self.app.show_error(_('Cannot cancel transaction') + ': ' + _('unknown fee for original transaction'))
+            return
+        size = self.tx.estimated_size()
+        d = DSCancelDialog(self.app, fee, size, self._do_dscancel)
+        d.open()
+
+    def _do_dscancel(self, new_fee_rate):
+        if new_fee_rate is None:
+            return
+        try:
+            new_tx = self.wallet.dscancel(tx=self.tx,
+                                          new_fee_rate=new_fee_rate)
+        except CannotDoubleSpendTx as e:
+            self.app.show_error(str(e))
+            return
+        self.tx = new_tx
+        self.update()
+        self.do_sign()
+
     def do_sign(self):
         self.app.protected(_("Sign this transaction?"), self._do_sign, ())
 
@@ -271,16 +296,9 @@ class TxDialog(Factory.Popup):
         self.app.broadcast(self.tx)
 
     def show_qr(self):
-        from electrum_grs.bitcoin import base_encode, bfh
         original_raw_tx = str(self.tx)
-        tx = copy.deepcopy(self.tx)  # make copy as we mutate tx
-        if isinstance(tx, PartialTransaction):
-            # this makes QR codes a lot smaller (or just possible in the first place!)
-            tx.convert_all_utxos_to_witness_utxos()
-
-        text = tx.serialize_as_bytes()
-        text = base_encode(text, base=43)
-        self.app.qr_dialog(_("Raw Transaction"), text, text_for_clipboard=original_raw_tx)
+        qr_data = self.tx.to_qr_data()
+        self.app.qr_dialog(_("Raw Transaction"), qr_data, text_for_clipboard=original_raw_tx)
 
     def remove_local_tx(self):
         txid = self.tx.txid()
@@ -304,7 +322,7 @@ class TxDialog(Factory.Popup):
     def label_dialog(self):
         from .label_dialog import LabelDialog
         key = self.tx.txid()
-        text = self.app.wallet.get_label(key)
+        text = self.app.wallet.get_label_for_txid(key)
         def callback(text):
             self.app.wallet.set_label(key, text)
             self.update()

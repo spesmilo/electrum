@@ -11,7 +11,7 @@ export CACHEDIR="$here/.cache"
 export PIP_CACHE_DIR="$CACHEDIR/pip_cache"
 
 export BUILD_TYPE="wine"
-export GCC_TRIPLET_HOST="i686-w64-mingw32"
+export GCC_TRIPLET_HOST="i686-w64-mingw32"  # make sure to clear caches if changing this
 export GCC_TRIPLET_BUILD="x86_64-pc-linux-gnu"
 export GCC_STRIP_BINARIES="1"
 
@@ -27,6 +27,12 @@ if [ -f "$PROJECT_ROOT/electrum_grs/libsecp256k1-0.dll" ]; then
     info "libsecp256k1 already built, skipping"
 else
     "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
+fi
+
+if [ -f "$PROJECT_ROOT/electrum/libzbar-0.dll" ]; then
+    info "libzbar already built, skipping"
+else
+    "$CONTRIB"/make_zbar.sh || fail "Could not build zbar"
 fi
 
 $here/prepare-wine.sh || fail "prepare-wine failed"

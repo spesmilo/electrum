@@ -476,6 +476,9 @@ class ElectrumItemDelegate(QStyledItemDelegate):
         self.opened = None
         def on_closeEditor(editor: QLineEdit, hint):
             self.opened = None
+            self.tv.is_editor_open = False
+            if self.tv._pending_update:
+                self.tv.update()
         def on_commitData(editor: QLineEdit):
             new_text = editor.text()
             idx = QModelIndex(self.opened)
@@ -489,6 +492,7 @@ class ElectrumItemDelegate(QStyledItemDelegate):
 
     def createEditor(self, parent, option, idx):
         self.opened = QPersistentModelIndex(idx)
+        self.tv.is_editor_open = True
         return super().createEditor(parent, option, idx)
 
 
@@ -517,6 +521,7 @@ class MyTreeView(QTreeView):
         self.editable_columns = editable_columns
         self.setItemDelegate(ElectrumItemDelegate(self))
         self.current_filter = ""
+        self.is_editor_open = False
 
         self.setRootIsDecorated(False)  # remove left margin
         self.toolbar_shown = False
@@ -603,6 +608,7 @@ class MyTreeView(QTreeView):
     def on_edited(self, idx: QModelIndex, user_role, text):
         self.parent.wallet.set_label(user_role, text)
         self.parent.history_model.refresh('on_edited in MyTreeView')
+        self.parent.utxo_list.update()
         self.parent.update_completions()
 
     def should_hide(self, row):
@@ -705,7 +711,8 @@ class MyTreeView(QTreeView):
 
     def maybe_defer_update(self) -> bool:
         """Returns whether we should defer an update/refresh."""
-        defer = not self.isVisible() and not self._forced_update
+        defer = (not self._forced_update
+                 and (not self.isVisible() or self.is_editor_open))
         # side-effect: if we decide to defer update, the state will become stale:
         self._pending_update = defer
         return defer

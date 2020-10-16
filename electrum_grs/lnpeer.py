@@ -82,6 +82,7 @@ class Peer(Logger):
         self.features = self.lnworker.features
         self.their_features = 0
         self.node_ids = [self.pubkey, privkey_to_pubkey(self.privkey)]
+        assert self.node_ids[0] != self.node_ids[1]
         self.network = lnworker.network
         self.channel_db = lnworker.network.channel_db
         self.ping_time = 0

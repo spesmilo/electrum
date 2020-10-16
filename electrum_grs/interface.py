@@ -126,13 +126,13 @@ def assert_list_or_tuple(val: Any) -> None:
 
 class NotificationSession(RPCSession):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, interface: 'Interface', **kwargs):
         super(NotificationSession, self).__init__(*args, **kwargs)
         self.subscriptions = defaultdict(list)
         self.cache = {}
         self.default_timeout = NetworkTimeout.Generic.NORMAL
         self._msg_counter = itertools.count(start=1)
-        self.interface = None  # type: Optional[Interface]
+        self.interface = interface
         self.cost_hard_limit = 0  # disable aiorpcx resource limits
 
     async def handle_request(self, request):
@@ -209,7 +209,9 @@ class NotificationSession(RPCSession):
 
     def default_framer(self):
         # overridden so that max_size can be customized
-        return NewlineFramer(max_size=MAX_INCOMING_MSG_SIZE)
+        max_size = int(self.interface.network.config.get('network_max_incoming_msg_size',
+                                                         MAX_INCOMING_MSG_SIZE))
+        return NewlineFramer(max_size=max_size)
 
 
 class NetworkException(Exception): pass
@@ -291,6 +293,12 @@ class ServerAddr:
         else:
             protocol = PREFERRED_NETWORK_PROTOCOL
         return ServerAddr(host=host, port=port, protocol=protocol)
+
+    def to_friendly_name(self) -> str:
+        # note: this method is closely linked to from_str_with_inference
+        if self.protocol == 's':  # hide trailing ":s"
+            return self.net_addr_str()
+        return str(self)
 
     def __str__(self):
         return '{}:{}'.format(self.net_addr_str(), self.protocol)
@@ -605,11 +613,11 @@ class Interface(Logger):
         return self.network.default_server == self.server
 
     async def open_session(self, sslc, exit_early=False):
-        async with _RSClient(session_factory=NotificationSession,
+        session_factory = lambda *args, iface=self, **kwargs: NotificationSession(*args, **kwargs, interface=iface)
+        async with _RSClient(session_factory=session_factory,
                              host=self.host, port=self.port,
                              ssl=sslc, proxy=self.proxy) as session:
             self.session = session  # type: NotificationSession
-            self.session.interface = self
             self.session.set_default_timeout(self.network.get_network_timeout_seconds(NetworkTimeout.Generic))
             try:
                 ver = await session.send_request('server.version', [self.client_name(), version.PROTOCOL_VERSION])

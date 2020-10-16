@@ -328,6 +328,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self.debug = False
 
         self._set_status('disconnected')
+        self._has_ever_managed_to_connect_to_server = False
 
         # lightning network
         self.channel_db = None  # type: Optional[ChannelDB]
@@ -338,6 +339,10 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             self.local_watchtower = lnwatcher.WatchTower(self)
             self.local_watchtower.start_network(self)
             asyncio.ensure_future(self.local_watchtower.start_watching())
+
+    def has_internet_connection(self) -> bool:
+        """Our guess whether the device has Internet-connectivity."""
+        return self._has_ever_managed_to_connect_to_server
 
     def is_lightning_running(self):
         return self.channel_db is not None
@@ -768,6 +773,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         if server == self.default_server:
             await self.switch_to_interface(server)
 
+        self._has_ever_managed_to_connect_to_server = True
         self._add_recent_server(server)
         util.trigger_callback('network_updated')
 

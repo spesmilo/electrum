@@ -172,9 +172,8 @@ def create_test_channels(*, feerate=6000, local_msat=None, remote_msat=None,
     alice.config[REMOTE].next_per_commitment_point = bob_second
     bob.config[REMOTE].next_per_commitment_point = alice_second
 
-    # TODO: sweep_address in lnchannel.py should use static_remotekey
-    alice.sweep_address = bitcoin.pubkey_to_address('p2wpkh', alice.config[LOCAL].payment_basepoint.pubkey.hex())
-    bob.sweep_address = bitcoin.pubkey_to_address('p2wpkh', bob.config[LOCAL].payment_basepoint.pubkey.hex())
+    alice._fallback_sweep_address = bitcoin.pubkey_to_address('p2wpkh', alice.config[LOCAL].payment_basepoint.pubkey.hex())
+    bob._fallback_sweep_address = bitcoin.pubkey_to_address('p2wpkh', bob.config[LOCAL].payment_basepoint.pubkey.hex())
 
     alice._ignore_max_htlc_value = True
     bob._ignore_max_htlc_value = True

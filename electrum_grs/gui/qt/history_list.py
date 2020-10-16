@@ -237,7 +237,7 @@ class HistoryModel(CustomModel, Logger):
 
     def update_label(self, index):
         tx_item = index.internalPointer().get_data()
-        tx_item['label'] = self.parent.wallet.get_label(get_item_key(tx_item))
+        tx_item['label'] = self.parent.wallet.get_label_for_txid(get_item_key(tx_item))
         topLeft = bottomRight = self.createIndex(index.row(), HistoryColumns.DESCRIPTION)
         self.dataChanged.emit(topLeft, bottomRight, [Qt.DisplayRole])
         self.parent.utxo_list.update()
@@ -633,7 +633,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
 
     def show_transaction(self, tx_item, tx):
         tx_hash = tx_item['txid']
-        label = self.wallet.get_label(tx_hash) or None # prefer 'None' if not defined (force tx dialog to hide Description field if missing)
+        label = self.wallet.get_label_for_txid(tx_hash) or None # prefer 'None' if not defined (force tx dialog to hide Description field if missing)
         self.parent.show_transaction(tx, tx_desc=label)
 
     def add_copy_menu(self, menu, idx):
@@ -698,6 +698,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                 child_tx = self.wallet.cpfp(tx, 0)
                 if child_tx:
                     menu.addAction(_("Child pays for parent"), lambda: self.parent.cpfp(tx, child_tx))
+            if tx_details.can_dscancel and tx_details.fee is not None:
+                menu.addAction(_("Cancel (double-spend)"), lambda: self.parent.dscancel_dialog(tx))
         invoices = self.wallet.get_relevant_invoices_for_tx(tx)
         if len(invoices) == 1:
             menu.addAction(_("View invoice"), lambda inv=invoices[0]: self.parent.show_onchain_invoice(inv))

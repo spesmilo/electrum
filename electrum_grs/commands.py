@@ -39,8 +39,8 @@ from decimal import Decimal
 from typing import Optional, TYPE_CHECKING, Dict, List
 
 from .import util, ecc
-from .util import bfh, bh2u, format_satoshis, json_decode, json_encode, is_hash256_str, is_hex_str, to_bytes, timestamp_to_datetime
-from .util import standardize_path
+from .util import (bfh, bh2u, format_satoshis, json_decode, json_normalize,
+                   is_hash256_str, is_hex_str, to_bytes)
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN
 from .bip32 import BIP32Node
@@ -81,13 +81,6 @@ def satoshis(amount):
 
 def format_satoshis(x):
     return str(Decimal(x)/COIN) if x is not None else None
-
-def json_normalize(x):
-    # note: The return value of commands, when going through the JSON-RPC interface,
-    #       is json-encoded. The encoder used there cannot handle some types, e.g. electrum.util.Satoshis.
-    # note: We should not simply do "json_encode(x)" here, as then later x would get doubly json-encoded.
-    # see #5868
-    return json_decode(json_encode(x))
 
 
 class Command:
@@ -730,7 +723,7 @@ class Commands:
             if balance:
                 item += (format_satoshis(sum(wallet.get_addr_balance(addr))),)
             if labels:
-                item += (repr(wallet.labels.get(addr, '')),)
+                item += (repr(wallet.get_label(addr)),)
             out.append(item)
         return out
 
@@ -1050,7 +1043,7 @@ class Commands:
 
     @command('wn')
     async def dumpgraph(self, wallet: Abstract_Wallet = None):
-        return list(map(bh2u, wallet.lnworker.channel_db.nodes.keys()))
+        return wallet.lnworker.channel_db.to_dict()
 
     @command('n')
     async def inject_fees(self, fees):
@@ -1358,6 +1351,7 @@ def get_parser():
     parser = argparse.ArgumentParser(
         epilog="Run 'electrum-grs help <command>' to see the help for a command")
     add_global_options(parser)
+    add_wallet_option(parser)
     subparsers = parser.add_subparsers(dest='cmd', metavar='<command>')
     # gui
     parser_gui = subparsers.add_parser('gui', description="Run Electrum-grs's Graphical User Interface.", help="Run GUI (default)")

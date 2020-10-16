@@ -288,14 +288,9 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
     def show_qr(self, *, tx: Transaction = None):
         if tx is None:
             tx = self.tx
-        tx = copy.deepcopy(tx)  # make copy as we mutate tx
-        if isinstance(tx, PartialTransaction):
-            # this makes QR codes a lot smaller (or just possible in the first place!)
-            tx.convert_all_utxos_to_witness_utxos()
-        text = tx.serialize_as_bytes()
-        text = base_encode(text, base=43)
+        qr_data = tx.to_qr_data()
         try:
-            self.main_window.show_qrcode(text, 'Transaction', parent=self)
+            self.main_window.show_qrcode(qr_data, 'Transaction', parent=self)
         except qrcode.exceptions.DataOverflowError:
             self.show_error(_('Failed to display QR code.') + '\n' +
                             _('Transaction is too large in size.'))
@@ -424,7 +419,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             # note: when not finalized, RBF and locktime changes do not trigger
             #       a make_tx, so the txid is unreliable, hence:
             self.tx_hash_e.setText(_('Unknown'))
-        if desc is None:
+        if not desc:
             self.tx_desc.hide()
         else:
             self.tx_desc.setText(_("Description") + ': ' + desc)
@@ -875,7 +870,9 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
         assert self.tx
         self.finalized = True
         self.tx.set_rbf(self.rbf_cb.isChecked())
-        self.tx.locktime = self.locktime_e.get_locktime()
+        locktime = self.locktime_e.get_locktime()
+        if locktime is not None:
+            self.tx.locktime = locktime
         for widget in [self.fee_slider, self.fee_combo, self.feecontrol_fields, self.rbf_cb,
                        self.locktime_setter_widget, self.locktime_e]:
             widget.setEnabled(False)
