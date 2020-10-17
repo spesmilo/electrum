@@ -58,12 +58,6 @@
         "t": "50001",
         "version": "1.4"
     },
-    "currentlane.lovebitco.in": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.4"
-    },
     "electrum.jochen-hoenicke.de": {
         "pruning": "-",
         "s": "50005",
