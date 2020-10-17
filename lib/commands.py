@@ -36,7 +36,7 @@ from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 from functools import wraps
 
 from . import bitcoin
-from . import rpa_paycode
+from . import rpa
 from . import util
 from .address import Address, AddressError
 from .bitcoin import hash_160, COIN, TYPE_ADDRESS
@@ -547,20 +547,19 @@ class Commands:
                 self.wallet.save_transactions()
         return tx
 
-    @command('')
+    @command('w')
     def rpa_generate_paycode(self):
-        return rpa_paycode.rpa_generate_paycode(self.wallet)
+        return rpa.paycode.generate_paycode(self.wallet)
+
+    @command('w')
+    def rpa_generate_transaction_from_paycode(self, amount, paycode):
+        # WARNING: Amount is in full Bitcoin Cash units
+        return rpa.paycode.generate_transaction_from_paycode(self.wallet, self.config, amount, paycode)
 
     @command('wp')
-    def rpa_generate_transaction_from_paycode(self, amount, paycode=None, fee= None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, password=None, locktime=None,
-                                              op_return=None, op_return_raw=None):
-        # WARNING: Amount is in full Bitcoin Cash units
-        return rpa_paycode.rpa_generate_transaction_from_paycode(self.wallet, self.config, amount, paycode)
-            
-    @command('wp')
-    def rpa_extract_private_key_from_transaction(self, raw_tx, password=None):     
-        return rpa_paycode.rpa_extract_private_key_from_transaction(self.wallet, raw_tx, password)
-        
+    def rpa_extract_private_key_from_transaction(self, raw_tx, password=None):
+        return rpa.paycode.extract_private_key_from_transaction(self.wallet, raw_tx, password)
+
     @command('wp')
     def payto(self, destination, amount, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, password=None, locktime=None,
               op_return=None, op_return_raw=None, addtransaction=False):

@@ -20,6 +20,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+"""
+Implements a custom cashaddr-style encoding for a Reusable Payment Address (RPA)
+"""
+
 _CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 
 def _polymod(values):
@@ -76,9 +80,9 @@ def _convertbits(data, frombits, tobits, pad=True):
 
 def _pack_addr_data(kind, addr_hash):
     """Pack addr data with version byte"""
-     
+
     return _convertbits(addr_hash, 8, 5, True)
- 
+
 
 def _decode_payload(addr):
     """Validate a cashaddr string.
@@ -144,7 +148,7 @@ def decode(address):
     if payload[-1] & ((1 << extrabits) - 1):
         raise ValueError('non-zero padding in address {}'.format(address))
 
-    addr_hash = _convertbits(payload, 5, 8, False) 
+    addr_hash = _convertbits(payload, 5, 8, False)
     return prefix, addr_hash
 
 
