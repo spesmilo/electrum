@@ -118,7 +118,7 @@ def nonce_function_rfc6979(order, privkeybytes, msg32, algo16=b'', ndata=b''):
     return k
 
 
-def sign(privkey, message_hash):
+def sign(privkey, message_hash, *, ndata=None):
     '''Create a Schnorr signature.
 
     Returns a 64-long bytes object (the signature), or raise ValueError
@@ -130,6 +130,9 @@ def sign(privkey, message_hash):
     `message_hash` should be the 32 byte sha256d hash of the tx input (or
     message) you want to sign
     '''
+   
+    if ndata is not None:
+       assert len(ndata) == 32
 
     if not isinstance(privkey, bytes) or len(privkey) != 32:
         raise ValueError('privkey must be a bytes object of length 32')
@@ -139,7 +142,7 @@ def sign(privkey, message_hash):
     if _secp256k1_schnorr_sign:
         sig = create_string_buffer(64)
         res = _secp256k1_schnorr_sign(
-            secp256k1.secp256k1.ctx, sig, message_hash, privkey, None, None
+            secp256k1.secp256k1.ctx, sig, message_hash, privkey, None, ndata
         )
         if not res:
             # Looking at the libsecp256k1 code, we can see that this will
@@ -154,6 +157,10 @@ def sign(privkey, message_hash):
         order = G.order()
         fieldsize = G.curve().p()
 
+        # For pure python (not libsecp256k1), convert an empty ndata to bytes as the required format for concatenation inside the nonce function.
+        if ndata is None:
+            ndata = b''
+            
         secexp = int.from_bytes(privkey, 'big')
         if not 0 < secexp < order:
             raise ValueError('could not sign')
@@ -161,7 +168,7 @@ def sign(privkey, message_hash):
         pubbytes = point_to_ser(pubpoint, comp=True)
 
         k = nonce_function_rfc6979(order, privkey, message_hash,
-                                   algo16=b'Schnorr+SHA256\x20\x20')
+                                   algo16=b'Schnorr+SHA256\x20\x20', ndata=ndata)
         R = k * G
         if jacobi(R.y(), fieldsize) == -1:
             k = order - k
