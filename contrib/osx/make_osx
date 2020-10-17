@@ -266,7 +266,7 @@ if ((DARWIN_VER >= 18 && FORCE_MOJAVE_DARK)); then
 fi
 
 # Sign the Tor binary separately
-DoCodeSignMaybe "tor binary" "dist/${PACKAGE}.app/Contents/Resources/electroncash/tor/bin/tor" "$APP_SIGN"
+DoCodeSignMaybe "tor binary" "dist/${PACKAGE}.app/Contents/MacOS/electroncash/tor/bin/tor" "$APP_SIGN"
 # Finally, codesign the whole thing
 DoCodeSignMaybe ".app bundle" "dist/${PACKAGE}.app" "$APP_SIGN"
 

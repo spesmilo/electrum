@@ -17,7 +17,9 @@ env/
 bin/
 /app.fil
 tmp/
-lib/*.so.0
+electroncash/*.so.0
+electroncash/*.dylib
+contrib/osx/*.dylib
 
 # tox files
 .cache/
@@ -37,7 +39,3 @@ xcuserdata/
 # mypy
 .mypy_cache/
 
-# Some people need to set up these symlinks to get their IDE completion working
-electroncash
-electroncash_gui
-electroncash_plugins

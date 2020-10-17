@@ -100,7 +100,7 @@ info "Preparing electrum-locale"
         fail "Please install gettext"
     fi
     for i in ./locale/*; do
-        dir="$PROJECT_ROOT/lib/$i/LC_MESSAGES"
+        dir="$PROJECT_ROOT/electroncash/$i/LC_MESSAGES"
         mkdir -p $dir
         msgfmt --output-file="$dir/electron-cash.mo" "$i/electron-cash.po" || true
     done

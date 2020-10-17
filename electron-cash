@@ -26,7 +26,8 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import os, sys
+import os
+import sys
 
 # Workaround for PyQt5 5.12.3
 # see https://github.com/pyinstaller/pyinstaller/issues/4293
@@ -91,12 +92,6 @@ def check_imports():
 if not is_android:  # Avoid unnecessarily slowing down app startup.
     check_imports()
 
-# load local lib etc modules as electroncash*
-if is_local:
-    import imp
-    imp.load_module('electroncash', *imp.find_module('lib'))
-    imp.load_module('electroncash_gui', *imp.find_module('gui'))
-    imp.load_module('electroncash_plugins', *imp.find_module('plugins'))
 
 from electroncash import bitcoin, util
 from electroncash import SimpleConfig, Network

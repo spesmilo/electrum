@@ -39,6 +39,6 @@ make -j$WORKER_COUNT || fail "Could not build $pkgname"
 make install || fail "Could not install $pkgname"
 . "$here/$pkgname/dist/lib/libzbar.la"
 host_strip "$here/$pkgname/dist/lib/$dlname"
-cp -fpv "$here/$pkgname/dist/lib/$dlname" "$here/../lib" || fail "Could not copy the $pkgname binary to its destination"
-info "$dlname has been placed in the 'lib' folder."
+cp -fpv "$here/$pkgname/dist/lib/$dlname" "$here/../electroncash/." || fail "Could not copy the $pkgname binary to its destination"
+info "$dlname has been placed in the 'electroncash' folder."
 popd

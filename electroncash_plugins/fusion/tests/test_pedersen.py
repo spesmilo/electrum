@@ -14,9 +14,7 @@ if False:
     imp.load_module('electroncash_gui', *imp.find_module('gui/qt'))
     imp.load_module('electroncash_plugins', *imp.find_module('plugins'))
 
-from plugins.fusion import pedersen
-
-from electroncash.bitcoin import regenerate_key
+from .. import pedersen
 
 order = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141
 assert order == pedersen.order
