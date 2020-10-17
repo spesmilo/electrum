@@ -57,6 +57,14 @@ class HistoryItem(NamedTuple):
     balance: Optional[int]
 
 
+class TxWalletDelta(NamedTuple):
+    is_relevant: bool  # "related to wallet?"
+    is_any_input_ismine: bool
+    is_all_input_ismine: bool
+    delta: int
+    fee: Optional[int]
+
+
 class AddressSynchronizer(Logger):
     """
     inherited by wallet
@@ -652,7 +660,7 @@ class AddressSynchronizer(Logger):
     def get_tx_delta(self, tx_hash, address):
         """effect of tx on address"""
         delta = 0
-        # substract the value of coins sent from address
+        # subtract the value of coins sent from address
         d = self.db.get_txi_addr(tx_hash, address)
         for n, v in d:
             delta -= v
@@ -662,65 +670,43 @@ class AddressSynchronizer(Logger):
             delta += v
         return delta
 
-    @with_transaction_lock
-    def get_tx_value(self, txid):
-        """effect of tx on the entire domain"""
-        delta = 0
-        for addr in self.db.get_txi_addresses(txid):
-            d = self.db.get_txi_addr(txid, addr)
-            for n, v in d:
-                delta -= v
-        for addr in self.db.get_txo_addresses(txid):
-            d = self.db.get_txo_addr(txid, addr)
-            for n, (v, cb) in d.items():
-                delta += v
-        return delta
-
-    def get_wallet_delta(self, tx: Transaction):
-        """ effect of tx on wallet """
+    def get_wallet_delta(self, tx: Transaction) -> TxWalletDelta:
+        """effect of tx on wallet"""
         is_relevant = False  # "related to wallet?"
-        is_mine = False  # "is any input mine?"
-        is_pruned = False
-        is_partial = False
-        v_in = v_out = v_out_mine = 0
-        for txin in tx.inputs():
-            addr = self.get_txin_address(txin)
-            if self.is_mine(addr):
-                is_mine = True
-                is_relevant = True
+        num_input_ismine = 0
+        v_in = v_in_mine = v_out = v_out_mine = 0
+        with self.lock, self.transaction_lock:
+            for txin in tx.inputs():
+                addr = self.get_txin_address(txin)
                 value = self.get_txin_value(txin, address=addr)
+                if self.is_mine(addr):
+                    num_input_ismine += 1
+                    is_relevant = True
+                    assert value is not None
+                    v_in_mine += value
                 if value is None:
-                    is_pruned = True
-                else:
+                    v_in = None
+                elif v_in is not None:
                     v_in += value
-            else:
-                is_partial = True
-        if not is_mine:
-            is_partial = False
-        for o in tx.outputs():
-            v_out += o.value
-            if self.is_mine(o.address):
-                v_out_mine += o.value
-                is_relevant = True
-        if is_pruned:
-            # some inputs are mine:
-            fee = None
-            if is_mine:
-                v = v_out_mine - v_out
-            else:
-                # no input is mine
-                v = v_out_mine
+            for txout in tx.outputs():
+                v_out += txout.value
+                if self.is_mine(txout.address):
+                    v_out_mine += txout.value
+                    is_relevant = True
+        delta = v_out_mine - v_in_mine
+        if v_in is not None:
+            fee = v_in - v_out
         else:
-            v = v_out_mine - v_in
-            if is_partial:
-                # some inputs are mine, but not all
-                fee = None
-            else:
-                # all inputs are mine
-                fee = v_in - v_out
-        if not is_mine:
             fee = None
-        return is_relevant, is_mine, v, fee
+        if fee is None and isinstance(tx, PartialTransaction):
+            fee = tx.get_fee()
+        return TxWalletDelta(
+            is_relevant=is_relevant,
+            is_any_input_ismine=num_input_ismine > 0,
+            is_all_input_ismine=num_input_ismine == len(tx.inputs()),
+            delta=delta,
+            fee=fee,
+        )
 
     def get_tx_fee(self, txid: str) -> Optional[int]:
         """ Returns tx_fee or None. Use server fee only if tx is unconfirmed and not mine"""
@@ -747,8 +733,7 @@ class AddressSynchronizer(Logger):
         tx = self.db.get_transaction(txid)
         if not tx:
             return None
-        with self.lock, self.transaction_lock:
-            is_relevant, is_mine, v, fee = self.get_wallet_delta(tx)
+        fee = self.get_wallet_delta(tx).fee
         # save result
         self.db.add_tx_fee_we_calculated(txid, fee)
         self.db.add_num_inputs_to_tx(txid, len(tx.inputs()))

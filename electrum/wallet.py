@@ -557,10 +557,11 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         """Returns a map: pubkey -> (keystore, derivation_suffix)"""
         return {}
 
-    def get_tx_info(self, tx) -> TxWalletDetails:
-        is_relevant, is_mine, v, fee = self.get_wallet_delta(tx)
-        if fee is None and isinstance(tx, PartialTransaction):
-            fee = tx.get_fee()
+    def get_tx_info(self, tx: Transaction) -> TxWalletDetails:
+        tx_wallet_delta = self.get_wallet_delta(tx)
+        is_relevant = tx_wallet_delta.is_relevant
+        is_any_input_ismine = tx_wallet_delta.is_any_input_ismine
+        fee = tx_wallet_delta.fee
         exp_n = None
         can_broadcast = False
         can_bump = False
@@ -596,28 +597,27 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                         size = tx.estimated_size()
                         fee_per_byte = fee / size
                         exp_n = self.config.fee_to_depth(fee_per_byte)
-                    can_bump = is_mine and not tx.is_final()
-                    can_dscancel = (is_mine and not tx.is_final()
+                    can_bump = is_any_input_ismine and not tx.is_final()
+                    can_dscancel = (is_any_input_ismine and not tx.is_final()
                                     and not all([self.is_mine(txout.address) for txout in tx.outputs()]))
                 else:
                     status = _('Local')
                     can_broadcast = self.network is not None
-                    can_bump = is_mine and not tx.is_final()
+                    can_bump = is_any_input_ismine and not tx.is_final()
             else:
                 status = _("Signed")
                 can_broadcast = self.network is not None
         else:
+            assert isinstance(tx, PartialTransaction)
             s, r = tx.signature_count()
             status = _("Unsigned") if s == 0 else _('Partially signed') + ' (%d/%d)'%(s,r)
 
         if is_relevant:
-            if is_mine:
-                if fee is not None:
-                    amount = v + fee
-                else:
-                    amount = v
+            if tx_wallet_delta.is_all_input_ismine:
+                assert fee is not None
+                amount = tx_wallet_delta.delta + fee
             else:
-                amount = v
+                amount = tx_wallet_delta.delta
         else:
             amount = None
 
