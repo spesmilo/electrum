@@ -77,9 +77,9 @@ done
 
 for f in $c; do
     file=`echo $f | cut -f 3- -d '/'`
-    f1="../lib/${file}"
+    f1="../electroncash/${file}"
     f2="${projdir}/${f}"
-    doIt "$f1" "$f2" "../lib/"
+    doIt "$f1" "$f2" "../electroncash/"
 done
 
 for file in $res; do
