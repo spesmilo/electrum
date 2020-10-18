@@ -28,14 +28,14 @@ hiddenimports += collect_submodules('satochip')    # Satochip
 hiddenimports += collect_submodules('smartcard')   # Satochip
 
 datas = [
-    (home+'lib/currencies.json', PYPKG),
-    (home+'lib/servers.json', PYPKG),
-    (home+'lib/servers_testnet.json', PYPKG),
-    (home+'lib/servers_testnet4.json', PYPKG),
-    (home+'lib/servers_scalenet.json', PYPKG),
-    (home+'lib/wordlist/english.txt', PYPKG + '/wordlist'),
-    (home+'lib/locale', PYPKG + '/locale'),
-    (home+'plugins', PYPKG + '_plugins'),
+    (home+'electroncash/currencies.json', PYPKG),
+    (home+'electroncash/servers.json', PYPKG),
+    (home+'electroncash/servers_testnet.json', PYPKG),
+    (home+'electroncash/servers_testnet4.json', PYPKG),
+    (home+'electroncash/servers_scalenet.json', PYPKG),
+    (home+'electroncash/wordlist/english.txt', PYPKG + '/wordlist'),
+    (home+'electroncash/locale', PYPKG + '/locale'),
+    (home+'electroncash_plugins', PYPKG + '_plugins'),
 ]
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('btchip')
@@ -50,33 +50,33 @@ binaries += [(home + "contrib/osx/libsecp256k1.0.dylib", ".")]
 # LibZBar for QR code scanning
 binaries += [(home + "contrib/osx/libzbar.0.dylib", ".")]
 # Add Tor binary
-binaries += [(home + "lib/tor/bin/tor", ".")]
+binaries += [(home + "electroncash/tor/bin/tor", "electroncash/tor/bin")]
 
 # Workaround for "Retro Look":
 binaries += [b for b in collect_dynamic_libs('PyQt5') if 'macstyle' in b[0]]
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
 a = Analysis([home+MAIN_SCRIPT,
-              home+'gui/qt/main_window.py',
-              home+'gui/qt/qrreader/camera_dialog.py',
-              home+'gui/text.py',
-              home+'lib/util.py',
-              home+'lib/wallet.py',
-              home+'lib/simple_config.py',
-              home+'lib/bitcoin.py',
-              home+'lib/dnssec.py',
-              home+'lib/commands.py',
-              home+'lib/tor/controller.py',
-              home+'plugins/cosigner_pool/qt.py',
-              home+'plugins/email_requests/qt.py',
-              home+'plugins/trezor/clientbase.py',
-              home+'plugins/trezor/trezor.py',
-              home+'plugins/trezor/qt.py',
-              home+'plugins/keepkey/qt.py',
-              home+'plugins/ledger/qt.py',
-              home+'plugins/satochip/qt.py',  # Satochip
-              home+'plugins/fusion/fusion.py', # CashFusion
-              home+'plugins/fusion/qt.py', # CashFusion
+              home+'electroncash_gui/qt/main_window.py',
+              home+'electroncash_gui/qt/qrreader/camera_dialog.py',
+              home+'electroncash_gui/text.py',
+              home+'electroncash/util.py',
+              home+'electroncash/wallet.py',
+              home+'electroncash/simple_config.py',
+              home+'electroncash/bitcoin.py',
+              home+'electroncash/dnssec.py',
+              home+'electroncash/commands.py',
+              home+'electroncash/tor/controller.py',
+              home+'electroncash_plugins/cosigner_pool/qt.py',
+              home+'electroncash_plugins/email_requests/qt.py',
+              home+'electroncash_plugins/trezor/clientbase.py',
+              home+'electroncash_plugins/trezor/trezor.py',
+              home+'electroncash_plugins/trezor/qt.py',
+              home+'electroncash_plugins/keepkey/qt.py',
+              home+'electroncash_plugins/ledger/qt.py',
+              home+'electroncash_plugins/satochip/qt.py',  # Satochip
+              home+'electroncash_plugins/fusion/fusion.py', # CashFusion
+              home+'electroncash_plugins/fusion/qt.py', # CashFusion
               ],
              binaries=binaries,
              datas=datas,

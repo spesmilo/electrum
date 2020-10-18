@@ -49,15 +49,15 @@ binaries += [b for b in collect_dynamic_libs('PyQt5') if 'qwindowsvista' in b[0]
 binaries += [('C:/python*/Lib/site-packages/smartcard/scard/_scard.cp36-win32.pyd', '.')]  # Satochip
 
 datas = [
-    (home+'lib/currencies.json', 'electroncash'),
-    (home+'lib/servers.json', 'electroncash'),
-    (home+'lib/servers_testnet.json', 'electroncash'),
-    (home+'lib/servers_testnet4.json', 'electroncash'),
-    (home+'lib/servers_scalenet.json', 'electroncash'),
-    (home+'lib/wordlist/english.txt', 'electroncash/wordlist'),
-    (home+'lib/locale', 'electroncash/locale'),
-    (home+'gui/qt/data/ecsupplemental_win.ttf', 'electroncash_gui/qt/data'),
-    (home+'plugins', 'electroncash_plugins'),
+    (home+'electroncash/currencies.json', 'electroncash'),
+    (home+'electroncash/servers.json', 'electroncash'),
+    (home+'electroncash/servers_testnet.json', 'electroncash'),
+    (home+'electroncash/servers_testnet4.json', 'electroncash'),
+    (home+'electroncash/servers_scalenet.json', 'electroncash'),
+    (home+'electroncash/wordlist/english.txt', 'electroncash/wordlist'),
+    (home+'electroncash/locale', 'electroncash/locale'),
+    (home+'electroncash_gui/qt/data/ecsupplemental_win.ttf', 'electroncash_gui/qt/data'),
+    (home+'electroncash_plugins', 'electroncash_plugins'),
 ]
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('btchip')
@@ -66,31 +66,29 @@ datas += collect_data_files('mnemonic')  # wordlists used by keepkeylib from lib
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
 a = Analysis([home+'electron-cash',
-              home+'gui/qt/main_window.py',
-              home+'gui/qt/qrreader/camera_dialog.py',
-              home+'gui/text.py',
-              home+'lib/util.py',
-              home+'lib/wallet.py',
-              home+'lib/simple_config.py',
-              home+'lib/bitcoin.py',
-              home+'lib/dnssec.py',
-              home+'lib/commands.py',
-              home+'lib/tor/controller.py',
-              home+'plugins/cosigner_pool/qt.py',
-              home+'plugins/email_requests/qt.py',
-              home+'plugins/trezor/clientbase.py',
-              home+'plugins/trezor/trezor.py',
-              home+'plugins/trezor/qt.py',
-              home+'plugins/keepkey/qt.py',
-              home+'plugins/ledger/qt.py',
-              home+'plugins/satochip/qt.py',  # Satochip
-              home+'plugins/fusion/fusion.py', # CashFusion
-              home+'plugins/fusion/qt.py', # CashFusion
-              #home+'packages/requests/utils.py'
+              home+'electroncash_gui/qt/main_window.py',
+              home+'electroncash_gui/qt/qrreader/camera_dialog.py',
+              home+'electroncash_gui/text.py',
+              home+'electroncash/util.py',
+              home+'electroncash/wallet.py',
+              home+'electroncash/simple_config.py',
+              home+'electroncash/bitcoin.py',
+              home+'electroncash/dnssec.py',
+              home+'electroncash/commands.py',
+              home+'electroncash/tor/controller.py',
+              home+'electroncash_plugins/cosigner_pool/qt.py',
+              home+'electroncash_plugins/email_requests/qt.py',
+              home+'electroncash_plugins/trezor/clientbase.py',
+              home+'electroncash_plugins/trezor/trezor.py',
+              home+'electroncash_plugins/trezor/qt.py',
+              home+'electroncash_plugins/keepkey/qt.py',
+              home+'electroncash_plugins/ledger/qt.py',
+              home+'electroncash_plugins/satochip/qt.py',  # Satochip
+              home+'electroncash_plugins/fusion/fusion.py', # CashFusion
+              home+'electroncash_plugins/fusion/qt.py', # CashFusion
               ],
              binaries=binaries,
              datas=datas,
-             #pathex=[home+'lib', home+'gui', home+'plugins'],
              hiddenimports=hiddenimports,
              hookspath=[])
 

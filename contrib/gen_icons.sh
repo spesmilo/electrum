@@ -34,4 +34,4 @@ for icon in $RASTERIZE ; do
 done
 
 echo "Generating icons.py"
-pyrcc5 icons.qrc -o gui/qt/icons.py
+pyrcc5 icons.qrc -o electroncash_gui/qt/icons.py

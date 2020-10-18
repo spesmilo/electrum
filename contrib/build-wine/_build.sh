@@ -182,9 +182,9 @@ prepare_wine() {
 
         # libsecp256k1, libzbar & libusb
         mkdir -p $WINEPREFIX/drive_c/tmp
-        cp "$here"/../../lib/*.dll $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libraries to their destination"
+        cp "$here"/../../electroncash/*.dll $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libraries to their destination"
         cp libusb/libusb/.libs/libusb-1.0.dll $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libusb to its destination"
-        cp "$here"/../../lib/tor/bin/tor.exe $WINEPREFIX/drive_c/tmp/ || fail "Could not copy tor.exe to its destination"
+        cp "$here"/../../electroncash/tor/bin/tor.exe $WINEPREFIX/drive_c/tmp/ || fail "Could not copy tor.exe to its destination"
 
         info "Installing pyscard..."
         wget -O $PYSCARD_FILENAME "$PYSCARD_URL"
@@ -234,7 +234,7 @@ build_the_app() {
         find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
         popd  # go back to $here
 
-        cp -r "$here"/../electrum-locale/locale $WINEPREFIX/drive_c/electroncash/lib/
+        cp -r "$here"/../electrum-locale/locale $WINEPREFIX/drive_c/electroncash/electroncash/
 
         # Install frozen dependencies
         info "Installing frozen dependencies ..."

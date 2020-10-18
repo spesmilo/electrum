@@ -54,16 +54,16 @@ if [ -d ${compact_name}/electroncash ]; then
 	rm -fr ${compact_name}/electroncash
 fi
 
-echo "Pulling 'electroncash' libs into project from ../lib ..."
-if [ ! -d ../lib/locale ]; then
+echo "Pulling 'electroncash' libs into project from ../electroncash ..."
+if [ ! -d ../electroncash/locale ]; then
 	(cd .. && contrib/make_locale && cd ios)
 	if [ "$?" != 0 ]; then
 		echo ERROR: Could not build locales
 		exit 1
 	fi
 fi
-cp -fpR ../lib ${compact_name}/electroncash
-echo "Removing lib/tests..."
+cp -fpR ../electroncash ${compact_name}/electroncash
+echo "Removing electroncash/tests..."
 rm -fr ${compact_name}/electroncash/tests
 find ${compact_name} -name \*.pyc -exec rm -f {} \;
 

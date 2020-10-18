@@ -23,7 +23,7 @@
 
     <string name="default_bip39_derivation">m/44\'/145\'/0\'</string>
 
-    <!-- See lib/paymentrequest.py. -->
+    <!-- See electroncash/paymentrequest.py. -->
     <string-array name="payment_status">
         <item>@string/pending</item>
         <item>@string/expired</item>

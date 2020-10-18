@@ -17,11 +17,11 @@ os.chdir('..')
 
 code_directories = [
     'android/app/src/main/python',
-    'gui',
+    'electroncash_gui',
     'ios/ElectronCash/electroncash_gui',  # ios/ElectronCash could contain duplicate files
                                           # copied by make_ios_project.sh.
-    'lib',
-    'plugins',
+    'electroncash',
+    'electroncash_plugins',
 ]
 file_types = ('*.py', '*.kv')
 
@@ -41,13 +41,13 @@ with open("app.fil", "w") as f:
         print("Found {} files to translate".format(n))
 
 # Generate fresh translation template
-if not os.path.exists('lib/locale'):
-    os.mkdir('lib/locale')
-cmd = 'xgettext -s --from-code UTF-8 --language Python --no-wrap -f app.fil --keyword=pgettext:1c,2 --keyword=npgettext:1c,2,3 -c --output=lib/locale/messages.pot'
+if not os.path.exists('electroncash/locale'):
+    os.mkdir('electroncash/locale')
+cmd = 'xgettext -s --from-code UTF-8 --language Python --no-wrap -f app.fil --keyword=pgettext:1c,2 --keyword=npgettext:1c,2,3 -c --output=electroncash/locale/messages.pot'
 print('Generate template')
 os.system(cmd)
 
-os.chdir('lib')
+os.chdir('electroncash')
 
 crowdin_identifier = 'electron-cash'
 crowdin_file_name = 'files[electron-cash-client/messages.pot]'
