@@ -813,6 +813,7 @@ class LNWallet(LNWorker):
         util.trigger_callback('channels_updated', self.wallet)
         self.wallet.add_transaction(funding_tx)  # save tx as local into the wallet
         self.wallet.set_label(funding_tx.txid(), _('Open channel'))
+        self.wallet.save_db()
         if funding_tx.is_complete():
             await self.network.try_broadcasting(funding_tx, 'open_channel')
         return chan, funding_tx
