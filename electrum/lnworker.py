@@ -830,7 +830,6 @@ class LNWallet(LNWorker):
         for addr in chan.get_wallet_addresses_channel_might_want_reserved():
             self.wallet.set_reserved_state_of_address(addr, reserved=True)
         self.save_channel(chan)
-        self.wallet.save_backup()
 
     def mktx_for_open_channel(self, *, coins: Sequence[PartialTxInput], funding_sat: int,
                               fee_est=None) -> PartialTransaction:
