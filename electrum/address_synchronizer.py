@@ -96,8 +96,14 @@ class AddressSynchronizer(Logger):
 
         self.load_and_cleanup()
 
+    def with_lock(func):
+        def func_wrapper(self: 'AddressSynchronizer', *args, **kwargs):
+            with self.lock:
+                return func(self, *args, **kwargs)
+        return func_wrapper
+
     def with_transaction_lock(func):
-        def func_wrapper(self, *args, **kwargs):
+        def func_wrapper(self: 'AddressSynchronizer', *args, **kwargs):
             with self.transaction_lock:
                 return func(self, *args, **kwargs)
         return func_wrapper
@@ -468,6 +474,8 @@ class AddressSynchronizer(Logger):
                 self.threadlocal_cache.local_height = orig_val
         return f
 
+    @with_lock
+    @with_transaction_lock
     @with_local_height_cached
     def get_history(self, *, domain=None) -> Sequence[HistoryItem]:
         # get domain
@@ -501,10 +509,9 @@ class AddressSynchronizer(Logger):
                                   balance=balance))
             balance -= delta
         h2.reverse()
-        # fixme: this may happen if history is incomplete
+
         if balance != 0:
-            self.logger.warning("history not synchronized")
-            return []
+            raise Exception("wallet.get_history() failed balance sanity-check")
 
         return h2
 
