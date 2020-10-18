@@ -740,18 +740,18 @@ class LNWallet(LNWorker):
         return {chan_id: chan for (chan_id, chan) in self.channels.items()
                 if chan.node_id == node_id}
 
-    def channel_state_changed(self, chan):
+    def channel_state_changed(self, chan: Channel):
         self.save_channel(chan)
         util.trigger_callback('channel', self.wallet, chan)
 
-    def save_channel(self, chan):
+    def save_channel(self, chan: Channel):
         assert type(chan) is Channel
         if chan.config[REMOTE].next_per_commitment_point == chan.config[REMOTE].current_per_commitment_point:
             raise Exception("Tried to save channel with next_point == current_point, this should not happen")
         self.wallet.save_db()
         util.trigger_callback('channel', self.wallet, chan)
 
-    def channel_by_txo(self, txo):
+    def channel_by_txo(self, txo: str) -> Optional[Channel]:
         for chan in self.channels.values():
             if chan.funding_outpoint.to_str() == txo:
                 return chan
@@ -802,17 +802,18 @@ class LNWallet(LNWorker):
             await self.network.try_broadcasting(funding_tx, 'open_channel')
         return chan, funding_tx
 
-    def add_channel(self, chan):
+    def add_channel(self, chan: Channel):
         with self.lock:
             self._channels[chan.channel_id] = chan
         self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
 
-    def add_new_channel(self, chan):
+    def add_new_channel(self, chan: Channel):
         self.add_channel(chan)
         channels_db = self.db.get_dict('channels')
         channels_db[chan.channel_id.hex()] = chan.storage
         for addr in chan.get_wallet_addresses_channel_might_want_reserved():
             self.wallet.set_reserved_state_of_address(addr, reserved=True)
+        self.save_channel(chan)
         self.wallet.save_backup()
 
     def mktx_for_open_channel(self, *, coins: Sequence[PartialTxInput], funding_sat: int,
@@ -1448,6 +1449,22 @@ class LNWallet(LNWorker):
         assert backup_bytes == pw_decode_with_version_and_mac(encrypted, xpub), "encrypt failed"
         return 'channel_backup:' + encrypted
 
+    async def request_remote_force_close(
+            self, *, funding_txid: str, funding_index: int, connect_str: str,
+    ):
+        """
+        Requests the remote to force close a channel. Can be used without
+        having state or any backup for the channel.
+        Assumes that channel was originally opened with the same local peer (node_keypair).
+        Kept for console use.
+
+        Example:
+        network.run_from_another_thread(wallet.lnworker.request_remote_force_close(funding_txid="11a3b391bc99dbca0b2be4fdd8f18ca641896c81ae4d9596b30cbf1eef17af71", funding_index=1, connect_str="023a8dfe081c6bbd0504e599f33d39d17687de63023a8b20afcb59147d9d77c19d"))
+        """
+        channel_id = lnutil.channel_id_from_funding_tx(funding_txid, funding_index)[0]
+        peer = await self.add_peer(connect_str)
+        await peer.trigger_force_close(channel_id)
+
 
 class LNBackups(Logger):
 
@@ -1531,7 +1548,7 @@ class LNBackups(Logger):
         util.trigger_callback('channels_updated', self.wallet)
 
     @log_exceptions
-    async def request_force_close(self, channel_id):
+    async def request_force_close(self, channel_id: bytes):
         cb = self.channel_backups[channel_id].cb
         # TODO also try network addresses from gossip db (as it might have changed)
         peer_addr = LNPeerAddr(cb.host, cb.port, cb.node_id)

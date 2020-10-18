@@ -1081,6 +1081,7 @@ class InstallWizard(BaseWizard, Widget):
             try:
                 task()
             except Exception as err:
+                self.logger.exception('')
                 self.show_error(str(err))
             # on  completion hide message
             Clock.schedule_once(lambda dt: app.info_bubble.hide(now=True), -1)
@@ -1089,6 +1090,7 @@ class InstallWizard(BaseWizard, Widget):
                     try:
                         on_finished()
                     except Exception as e:
+                        self.logger.exception('')
                         self.show_error(str(e))
                 Clock.schedule_once(lambda dt: protected_on_finished(), -1)
 

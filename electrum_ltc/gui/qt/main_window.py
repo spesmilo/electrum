@@ -50,7 +50,7 @@ from PyQt5.QtWidgets import (QMessageBox, QComboBox, QSystemTrayIcon, QTabWidget
 
 import electrum_ltc as electrum
 from electrum_ltc import (keystore, ecc, constants, util, bitcoin, commands,
-                          paymentrequest)
+                          paymentrequest, lnutil)
 from electrum_ltc.bitcoin import COIN, is_address
 from electrum_ltc.plugin import run_hook, BasePlugin
 from electrum_ltc.i18n import _
@@ -2103,6 +2103,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             'daemon': self.gui_object.daemon,
             'util': util,
             'bitcoin': bitcoin,
+            'lnutil': lnutil,
         })
 
         c = commands.Commands(config=self.config,
