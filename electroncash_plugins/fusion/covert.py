@@ -65,7 +65,7 @@ def is_tor_port(host, port):
     try:
         socketclass = socket.socket
         try:
-            # socket.socket could be monkeypatched (see lib/network.py),
+            # socket.socket could be monkeypatched (see electroncash/network.py),
             # in which case we need to get the real one.
             socketclass = socket._socketobject
         except AttributeError:

@@ -174,11 +174,6 @@ setup(
         'electroncash_plugins.satochip',
         'electroncash_plugins.fusion',
     ],
-    package_dir={
-        'electroncash': 'electroncash',
-        'electroncash_gui': 'electroncash_gui',
-        'electroncash_plugins': 'electroncash_plugins',
-    },
     package_data={
         'electroncash': [
             'servers.json',

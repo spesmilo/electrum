@@ -6,12 +6,11 @@ include *.py
 include electron-cash
 include contrib/requirements/requirements.txt
 include contrib/requirements/requirements-hw.txt
-recursive-include lib *.py
-recursive-include gui *.py
-recursive-include plugins *.py
+recursive-include electroncash *.py
+recursive-include electroncash_gui *.py
+recursive-include electroncash_plugins *.py
 recursive-include packages *.py
 recursive-include packages cacert.pem
 include icons.qrc
 recursive-include icons *
 recursive-include scripts *
-

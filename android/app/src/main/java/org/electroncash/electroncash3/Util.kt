@@ -43,7 +43,7 @@ fun toSatoshis(s: String, places: Int = unitPlaces) : Long {
     }
 }
 
-// We use Locale.US to be consistent with lib/exchange_rate.py, which is also locale-insensitive.
+// We use Locale.US to be consistent with electroncash/exchange_rate.py, which is also locale-insensitive.
 @JvmOverloads  // For data binding call in address_list.xml.
 fun formatSatoshis(amount: Long, places: Int = unitPlaces): String {
     val unit = Math.pow(10.0, places.toDouble())
