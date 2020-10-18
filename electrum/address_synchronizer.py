@@ -52,9 +52,9 @@ TX_HEIGHT_UNCONFIRMED = 0
 class HistoryItem(NamedTuple):
     txid: str
     tx_mined_status: TxMinedInfo
-    delta: Optional[int]
+    delta: int
     fee: Optional[int]
-    balance: Optional[int]
+    balance: int
 
 
 class TxWalletDelta(NamedTuple):
@@ -476,15 +476,11 @@ class AddressSynchronizer(Logger):
         domain = set(domain)
         # 1. Get the history of each address in the domain, maintain the
         #    delta of a tx as the sum of its deltas on domain addresses
-        tx_deltas = defaultdict(int)  # type: Dict[str, Optional[int]]
+        tx_deltas = defaultdict(int)  # type: Dict[str, int]
         for addr in domain:
             h = self.get_address_history(addr)
             for tx_hash, height in h:
-                delta = self.get_tx_delta(tx_hash, addr)
-                if delta is None or tx_deltas[tx_hash] is None:
-                    tx_deltas[tx_hash] = None
-                else:
-                    tx_deltas[tx_hash] += delta
+                tx_deltas[tx_hash] += self.get_tx_delta(tx_hash, addr)
         # 2. create sorted history
         history = []
         for tx_hash in tx_deltas:
@@ -503,13 +499,10 @@ class AddressSynchronizer(Logger):
                                   delta=delta,
                                   fee=fee,
                                   balance=balance))
-            if balance is None or delta is None:
-                balance = None
-            else:
-                balance -= delta
+            balance -= delta
         h2.reverse()
         # fixme: this may happen if history is incomplete
-        if balance not in [None, 0]:
+        if balance != 0:
             self.logger.warning("history not synchronized")
             return []
 
@@ -657,7 +650,7 @@ class AddressSynchronizer(Logger):
             return 0, 0
 
     @with_transaction_lock
-    def get_tx_delta(self, tx_hash, address):
+    def get_tx_delta(self, tx_hash: str, address: str) -> int:
         """effect of tx on address"""
         delta = 0
         # subtract the value of coins sent from address
