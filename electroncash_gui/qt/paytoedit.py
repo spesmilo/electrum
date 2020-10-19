@@ -42,11 +42,9 @@ from . import util
 from . import cashacctqt
 
 RE_ALIAS = r'^(.*?)\s*<\s*([0-9A-Za-z:]{26,})\s*>$'
-RE_COINTEXT = r'^\s*cointext:([-+() 0-9]+)\s*$'
 RE_AMT = r'^.*\s*,\s*([0-9,.]*)\s*$'
 
 RX_ALIAS = re.compile(RE_ALIAS)
-RX_COINTEXT = re.compile(RE_COINTEXT, re.I)
 RX_AMT = re.compile(RE_AMT)
 
 frozen_style = "PayToEdit { border:none;}"
@@ -84,7 +82,6 @@ class PayToEdit(PrintError, ScanQRTextEdit):
         self.scan_f = win.pay_to_URI
         self.update_size()
         self.payto_address = None
-        self.cointext = None
         self._ca_busy = False
         self._original_style_sheet = self.styleSheet() or ''
 
@@ -133,15 +130,6 @@ class PayToEdit(PrintError, ScanQRTextEdit):
             return bitcoin.TYPE_SCRIPT, ScriptOutput.from_string(x)
 
     @staticmethod
-    def parse_cointext(txt):
-        ''' Returns a non-empty string which is the phone number in a cointext:
-        style pseudo-url, if x matches the cointext re (eg: cointext:NUMBERS),
-        otherwise returns None. '''
-        m = RX_COINTEXT.match(txt)
-        if m: return ''.join(x for x in m[1].strip() if x.isdigit()) or None
-        return None
-
-    @staticmethod
     def parse_address(line):
         r = line.strip()
         m = RX_ALIAS.match(r)
@@ -163,7 +151,6 @@ class PayToEdit(PrintError, ScanQRTextEdit):
         outputs = []
         total = 0
         self.payto_address = None
-        self.cointext = None
         if len(lines) == 1:
             data = lines[0]
             lc_data = data.lower()
@@ -173,11 +160,8 @@ class PayToEdit(PrintError, ScanQRTextEdit):
             try:
                 self.payto_address = self.parse_output(data)
             except:
-                try:
-                    self.cointext = self.parse_cointext(data)
-                except:
-                    pass
-            if self.payto_address or self.cointext:
+                pass
+            if self.payto_address:
                 self.win.lock_amount(False)
                 return
 
