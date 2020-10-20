@@ -185,7 +185,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         # clears/inits the opreturn widgets
         self.on_toggled_opreturn(bool(self.config.get('enable_opreturn')))
 
-        def add_optional_tab(tabs, tab, icon, description, name, default=False):
+        def add_optional_tab(tabs, tab, icon, description, name, default=True):
             tab.tab_icon = icon
             tab.tab_description = description
             tab.tab_pos = len(tabs)
@@ -196,8 +196,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         add_optional_tab(tabs, self.addresses_tab, QIcon(":icons/tab_addresses.png"), _("&Addresses"), "addresses")
         add_optional_tab(tabs, self.utxo_tab, QIcon(":icons/tab_coins.png"), _("Co&ins"), "utxo")
         add_optional_tab(tabs, self.contacts_tab, QIcon(":icons/tab_contacts.png"), _("Con&tacts"), "contacts")
-        add_optional_tab(tabs, self.converter_tab, QIcon(":icons/tab_converter.svg"), _("Address Converter"), "converter", True)
-        add_optional_tab(tabs, self.console_tab, QIcon(":icons/tab_console.png"), _("Con&sole"), "console")
+        add_optional_tab(tabs, self.converter_tab, QIcon(":icons/tab_converter.svg"), _("Address Converter"), "converter")
+        add_optional_tab(tabs, self.console_tab, QIcon(":icons/tab_console.png"), _("Con&sole"), "console", False)
 
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
