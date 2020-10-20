@@ -24,6 +24,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import inspect
 from . import bitcoin
 from .bitcoin import *
 
@@ -115,7 +116,16 @@ class Software_KeyStore(KeyStore):
             keypairs[k] = self.get_private_key(v, password)
         # Sign
         if keypairs:
-            tx.sign(keypairs, use_cache=use_cache, ndata=ndata)
+            if ndata is not None:
+                # If we have ndata, check that the Transaction class passed to us supports ndata.
+                # Some extant plugins such as Flipstarter inherit from Transaction (reimplementing `sign`) and do not
+                # support this argument.
+                if 'ndata' not in inspect.signature(tx.sign, follow_wrapped=True).parameters:
+                    raise RuntimeError(f'Transaction subclass "{tx.__class__.__name__}" does not support the "ndata" kwarg')
+                tx.sign(keypairs, use_cache=use_cache, ndata=ndata)
+            else:
+                # Regular transaction sign (no ndata supported or no ndata specified)
+                tx.sign(keypairs, use_cache=use_cache)
 
 
 class Imported_KeyStore(Software_KeyStore):

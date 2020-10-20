@@ -512,18 +512,18 @@ class Transaction:
         return False
 
     def rpa_paycode_swap_dummy_for_destination(self, rpa_dummy_address, rpa_destination_address):
-        # This method was created for RPA - reusable payment address.  
+        # This method was created for RPA - reusable payment address.
         # It swaps out a dummy destination address for the rpa-generated address.
         # WARNING: This is not recommended for use outside of RPA since it could
         # be dangerous to change the destination address of a transaction.
- 
+
         # This method expects cashaddr strings for parameters rpa_dummy_address and rpa_destination_address
-           
-        for i in range(len(self._outputs)): 
+
+        for i in range(len(self._outputs)):
             # Grab the address of each output...
             loop_iteration_output = self._outputs[i]
             loop_iteration_address = loop_iteration_output[1]
-             
+
             # Compare the address to see if its the one we need to swap.  Note: 0 for the to_string = CASHADDR format
             if loop_iteration_address.to_string(Address.FMT_CASHADDR) == rpa_dummy_address:
                 # Do the swap
@@ -531,11 +531,11 @@ class Transaction:
                 rpa_replacement_output = list(loop_iteration_output)
                 rpa_replacement_output[1] = rpa_replacement_address
                 self._outputs[i] = tuple(rpa_replacement_output)
-           
+
         # It is necessary to re-initialize "raw" so the output swap becomes part of transaction when it is later serialized
         self.raw = None
         return 0
-        
+
     def deserialize(self):
         if self.raw is None:
             return
@@ -934,12 +934,11 @@ class Transaction:
         return sig
 
     @staticmethod
-    def _schnorr_sign(pubkey, sec, pre_hash, *, ndata=None): 
+    def _schnorr_sign(pubkey, sec, pre_hash, *, ndata=None):
         pubkey = bytes.fromhex(pubkey)
         sig = schnorr.sign(sec, pre_hash, ndata=ndata)
         assert schnorr.verify(pubkey, sig, pre_hash)  # verify what we just signed
         return sig
-
 
     def sign(self, keypairs, *, use_cache=False, ndata=None):
         for i, txin in enumerate(self.inputs()):
