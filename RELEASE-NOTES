@@ -1010,3 +1010,29 @@ and there is no warning message.
   right-to-left languages (Calin Culianu)
 - Network dialog: Add capitalized Tor binary name #1989 (Axel Gembe)
 - Run history_list_filter hook on updated labels #1990 (Jonas Lundqvist)
+
+# Release 4.2.0
+
+- Added support for scalnet test network, accessed with CLI arg --scalenet.
+  (Calin Culianu)
+- CLI/Server: Added addtransaction arg to payto/paytomany (#1997) (MrNaif2018)
+- Ledger: Fix warning about unverified inputs (#2003) (Axel Gembe)
+- Ledger: Test firmware version for trusted input requirement, fixes failure
+  on older firmware < 1.4.0. (#2008) (Axel Gembe)
+- Ledger: Update python dependencies (#2009) (Axel Gembe)
+- Android: add Load & Sign unbroadcasted tx (#1986) (Matthew Clancy,
+  Malcolm Smith)
+- Added ASERT tests (#2007) (Jonas Lundqvist)
+- Added paymentrequest tests (#2011) (Jonas Lundqvist)
+- Enable coverage HTML report (#2012) (Jonas Lundqvist)
+- Use locale atof when sorting columns (#2015) (Jonas Lundqvist)
+- Add Bitcoin Unlimited block explorer (#2016) (Jonas Lundqvist)
+- CLI: Added RPA paycode support (#2006) (Jonald Fyookball & Calin Culianu)
+- Dockerfile fixes for WINE and Linux AppImage (Calin Culianu)
+- Got rid of `imp` rewriting of lib, plugins, and gui dirs in source tree.
+  (Calin Culianu, Axel Gembe, Malcolm Smith)
+- Disable cointext: support from send tab & remove cointext code (#2022)
+  (Calin Culianu)
+- Qt UI: Made all tabs except for "Console" ON by default (Calin Culianu)
+- TxDialog: Add "Freeze Coins" button to freeze inputs before broadcast
+  (Calin Culianu)
