@@ -32,17 +32,20 @@ import copy
 import errno
 import json
 import inspect
+import itertools
 import os
 import queue
 import random
-import time
 import threading
-from collections import defaultdict
+import time
+from collections import defaultdict, namedtuple
+from enum import Enum, auto
 from functools import partial
-import itertools
+from typing import Set, Tuple, Union
 
 from .i18n import ngettext
-from .util import NotEnoughFunds, ExcessiveFee, PrintError, UserCancelled, profiler, format_satoshis, format_time, finalization_print_error, to_string
+from .util import (NotEnoughFunds, ExcessiveFee, PrintError, UserCancelled, profiler, format_satoshis, format_time,
+                   finalization_print_error, to_string)
 
 from .address import Address, Script, ScriptOutput, PublicKey, OpCodes
 from .bitcoin import *
@@ -69,6 +72,7 @@ from .paymentrequest import InvoiceStore, PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXP
 from .contacts import Contacts
 from . import cashacct
 from . import slp
+
 
 def _(message): return message
 
@@ -761,22 +765,34 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             delta += v
         return delta
 
-    def get_wallet_delta(self, tx):
-        """ effect of tx on wallet """
+    WalletDelta = namedtuple("WalletDelta", "is_relevant, is_mine, v, fee")
+    WalletDelta2 = namedtuple("WalletDelta2", WalletDelta._fields + ("spends_coins_mine",))
+
+    def get_wallet_delta(self, tx) -> WalletDelta:
+        return self._get_wallet_delta(tx, ver=1)
+
+    def _get_wallet_delta(self, tx, *, ver=1) -> Union[WalletDelta, WalletDelta2]:
+        """ Effect of tx on wallet """
+        assert ver in (1, 2)
         is_relevant = False
         is_mine = False
         is_pruned = False
         is_partial = False
         v_in = v_out = v_out_mine = 0
+        spends_coins_mine = list()
         for item in tx.inputs():
             addr = item['address']
             if self.is_mine(addr):
                 is_mine = True
                 is_relevant = True
-                d = self.txo.get(item['prevout_hash'], {}).get(addr, [])
+                prevout_hash = item['prevout_hash']
+                prevout_n = item['prevout_n']
+                d = self.txo.get(prevout_hash, {}).get(addr, [])
                 for n, v, cb in d:
-                    if n == item['prevout_n']:
+                    if n == prevout_n:
                         value = v
+                        if ver == 2:
+                            spends_coins_mine.append(f'{prevout_hash}:{prevout_n}')
                         break
                 else:
                     value = None
@@ -811,14 +827,44 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                 fee = v_in - v_out
         if not is_mine:
             fee = None
-        return is_relevant, is_mine, v, fee
+        if ver == 1:
+            return self.WalletDelta(is_relevant, is_mine, v, fee)
+        return self.WalletDelta2(is_relevant, is_mine, v, fee, spends_coins_mine)
 
-    def get_tx_info(self, tx):
-        is_relevant, is_mine, v, fee = self.get_wallet_delta(tx)
+    TxInfo = namedtuple("TxInfo", "tx_hash, status, label, can_broadcast, amount, fee, height, conf, timestamp, exp_n")
+
+    class StatusEnum(Enum):
+        Unconfirmed = auto()
+        NotVerified = auto()
+        Confirmed = auto()
+        Signed = auto()
+        Unsigned = auto()
+        PartiallySigned = auto()
+
+    TxInfo2 = namedtuple("TxInfo2", TxInfo._fields + ("status_enum",))
+
+    def get_tx_info(self, tx) -> TxInfo:
+        """ Return information for a transaction """
+        return self._get_tx_info(tx, self.get_wallet_delta(tx), ver=1)
+
+    def get_tx_extended_info(self, tx) -> Tuple[WalletDelta2, TxInfo2]:
+        """ Get extended information for a transaction, combined into 1 call (for performance) """
+        delta2 = self._get_wallet_delta(tx, ver=2)
+        info2 = self._get_tx_info(tx, delta2, ver=2)
+        return (delta2, info2)
+
+    def _get_tx_info(self, tx, delta, *, ver=1) -> Union[TxInfo, TxInfo2]:
+        """ get_tx_info implementation """
+        assert ver in (1, 2)
+        if isinstance(delta, self.WalletDelta):
+            is_relevant, is_mine, v, fee = delta
+        else:
+            is_relevant, is_mine, v, fee, __ = delta
         exp_n = None
         can_broadcast = False
         label = ''
         height = conf = timestamp = None
+        status_enum = None
         tx_hash = tx.txid()
         if tx.is_complete():
             if tx_hash in self.transactions:
@@ -827,10 +873,13 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                 if height > 0:
                     if conf:
                         status = ngettext("{conf} confirmation", "{conf} confirmations", conf).format(conf=conf)
+                        status_enum = self.StatusEnum.Confirmed
                     else:
                         status = _('Not verified')
+                        status_enum = self.StatusEnum.NotVerified
                 else:
                     status = _('Unconfirmed')
+                    status_enum = self.StatusEnum.Unconfirmed
                     if fee is None:
                         fee = self.tx_fees.get(tx_hash)
                     if fee and self.network and self.network.config.has_fee_estimates():
@@ -842,10 +891,16 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                         exp_n = self.network.config.reverse_dynfee(fee_per_kb)
             else:
                 status = _("Signed")
+                status_enum = self.StatusEnum.Signed
                 can_broadcast = self.network is not None
         else:
             s, r = tx.signature_count()
-            status = _("Unsigned") if s == 0 else _('Partially signed') + ' (%d/%d)'%(s,r)
+            if s == 0:
+                status = _("Unsigned")
+                status_enum = self.StatusEnum.Unsigned
+            else:
+                status =_('Partially signed') + ' (%d/%d)'%(s,r)
+                status_enum = self.StatusEnum.PartiallySigned
 
         if is_relevant:
             if is_mine:
@@ -858,7 +913,11 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         else:
             amount = None
 
-        return tx_hash, status, label, can_broadcast, amount, fee, height, conf, timestamp, exp_n
+        if ver == 1:
+            return self.TxInfo(tx_hash, status, label, can_broadcast, amount, fee, height, conf, timestamp, exp_n)
+        assert status_enum is not None
+        return self.TxInfo2(tx_hash, status, label, can_broadcast, amount, fee, height, conf, timestamp, exp_n,
+                            status_enum)
 
     def get_addr_io(self, address):
         h = self.get_address_history(address)
@@ -1930,23 +1989,32 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         return tx
 
     def is_frozen(self, addr):
-        ''' Address-level frozen query. Note: this is set/unset independent of
-        'coin' level freezing. '''
+        """ Address-level frozen query. Note: this is set/unset independent of
+        'coin' level freezing. """
         assert isinstance(addr, Address)
         return addr in self.frozen_addresses
 
-    def is_frozen_coin(self, utxo):
-        ''' 'coin' level frozen query. `utxo' is a prevout:n string, or a dict
-        as returned from get_utxos(). Note: this is set/unset independent of
-        'address' level freezing. '''
-        assert isinstance(utxo, (str, dict))
+    def is_frozen_coin(self, utxo: Union[str, dict, Set[str]]) -> Union[bool, Set[str]]:
+        """ 'coin' level frozen query. Note: this is set/unset independent of
+        address-level freezing.
+
+        `utxo` is a prevout:n string, or a dict as returned from get_utxos(),
+        in which case a bool is returned.
+
+        `utxo` may also be a set of prevout:n strings in which case a set is
+        returned which is the intersection of the internal frozen coin sets
+        and the `utxo` set. """
+        assert isinstance(utxo, (str, dict, set))
         if isinstance(utxo, dict):
             name = ("{}:{}".format(utxo['prevout_hash'], utxo['prevout_n']))
             ret = name in self.frozen_coins or name in self.frozen_coins_tmp
             if ret != utxo['is_frozen_coin']:
                 self.print_error("*** WARNING: utxo has stale is_frozen_coin flag", name)
-                utxo['is_frozen_coin'] = ret # update stale flag
+                utxo['is_frozen_coin'] = ret  # update stale flag
             return ret
+        elif isinstance(utxo, set):
+            # set is returned
+            return (self.frozen_coins | self.frozen_coins_tmp) & utxo
         else:
             return utxo in self.frozen_coins or utxo in self.frozen_coins_tmp
 
@@ -1997,11 +2065,11 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             ok = 0
             for utxo in utxos:
                 if isinstance(utxo, str):
-                    apply_operation( utxo )
+                    apply_operation(utxo)
                     ok += 1
                 elif isinstance(utxo, dict) and self.is_mine(utxo['address']):
                     txo = "{}:{}".format(utxo['prevout_hash'], utxo['prevout_n'])
-                    apply_operation( txo )
+                    apply_operation(txo)
                     utxo['is_frozen_coin'] = bool(freeze)
                     ok += 1
             if original_size != len(self.frozen_coins):

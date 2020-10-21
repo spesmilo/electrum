@@ -23,11 +23,12 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import sys
 import copy
 import datetime
 import json
 import time
+
+from enum import Enum, auto
 
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -40,7 +41,7 @@ from electroncash.address import Address, PublicKey, ScriptOutput
 from electroncash.bitcoin import base_encode
 from electroncash.i18n import _, ngettext
 from electroncash.plugins import run_hook
-from electroncash.transaction import Transaction, InputValueMissing
+from electroncash.transaction import InputValueMissing
 
 from electroncash.util import bfh, Weak, PrintError
 from .util import *
@@ -67,6 +68,10 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
     dl_done_sig = pyqtSignal()  # connected to an inner function to get a callback in main thread upon dl completion
 
     BROADCAST_COOLDOWN_SECS = 5.0
+
+    class FreezeOp(Enum):
+        Freeze = auto()
+        Unfreeze = auto()
 
     def __init__(self, tx, parent, desc, prompt_if_unsaved):
         '''Transactions in the wallet will show their description.
@@ -142,28 +147,41 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
 
         self.add_io(vbox)
 
+        self.freeze_button = b = QPushButton(self._make_freeze_button_text())
+        b.setToolTip(_("Lock/unlock the coin(s) being spent in this transaction.\n\n"
+                       "Use this facility if you wish to broadcast this transaction later,\n"
+                       "in order to prevent its inputs from being accidentally spent."))
+        b.clicked.connect(self.do_freeze_unfreeze)
+
         self.sign_button = b = QPushButton(_("&Sign"))
         b.clicked.connect(self.sign)
+        b.setToolTip(_("Sign the transaction"))
 
         self.broadcast_button = b = QPushButton(_("&Broadcast"))
         b.clicked.connect(self.do_broadcast)
+        b.setToolTip(_("Submit the transaction to the blockchain"))
         self.last_broadcast_time = 0
 
         self.save_button = b = QPushButton(_("S&ave"))
+        b.setToolTip(_("Save the transaction to a file"))
         b.clicked.connect(self.save)
 
         self.cancel_button = b = CloseButton(self)
 
         self.qr_button = b = QPushButton()
+        b.setToolTip(_("Show transaction QR code"))
         b.setIcon(QIcon(icon))
         b.clicked.connect(self.show_qr)
         b.setShortcut(QKeySequence(Qt.ALT + Qt.Key_Q))
 
-        self.copy_button = CopyButton(lambda: str(weakSelfRef() and weakSelfRef().tx),
-                                      callback=lambda: weakSelfRef() and weakSelfRef().show_message(_("Transaction raw hex copied to clipboard.")))
+        self.copy_button = b = CopyButton(lambda: str(weakSelfRef() and weakSelfRef().tx),
+                                          callback=lambda: weakSelfRef() and weakSelfRef().show_message(
+                                              _("Transaction raw hex copied to clipboard.")))
+        b.setToolTip(_("Copy transaction raw hex to the clipboard"))
+
 
         # Action buttons
-        self.buttons = [self.sign_button, self.broadcast_button, self.cancel_button]
+        self.buttons = [self.freeze_button, self.sign_button, self.broadcast_button, self.cancel_button]
         # Transaction sharing buttons
         self.sharing_buttons = [self.copy_button, self.qr_button, self.save_button]
 
@@ -188,6 +206,14 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         parent.history_updated_signal.connect(self.update_tx_if_in_wallet)
         parent.labels_updated_signal.connect(self.update_tx_if_in_wallet)
         parent.network_signal.connect(self.got_verified_tx)
+
+    @classmethod
+    def _make_freeze_button_text(cls, op: FreezeOp = FreezeOp.Freeze, num_coins: int = 0) -> str:
+        if op == cls.FreezeOp.Freeze:
+            return ngettext("&Freeze Coin", "&Freeze Coins", num_coins)
+        elif op == cls.FreezeOp.Unfreeze:
+            return ngettext("&Unfeeze Coin", "&Unfeeze Coins", num_coins)
+        raise ValueError(f"Invalid op: {op!r}")
 
     def initiate_fetch_input_data(self, force):
         weakSelfRef = Weak.ref(self)
@@ -227,8 +253,6 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         self.dl_done_sig.connect(dl_done_mainthread, Qt.QueuedConnection)
         self.tx.fetch_input_data(self.wallet, done_callback=dl_done, prog_callback=dl_prog, force=force, use_network=self.is_fetch_input_data())
 
-
-
     def got_verified_tx(self, event, args):
         if ( (event == 'verified2' and args[1] == self.tx_hash)
                 or (event == 'ca_verified_tx' and args[1].txid == self.tx_hash) ):
@@ -254,9 +278,31 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         self.saved = True
         self.update()
 
+    def do_freeze_unfreeze(self):
+        coins = getattr(self.freeze_button, "_coins", [])
+        op = getattr(self.freeze_button, "_op", None)
+        if not coins or op is None:
+            return
+        freeze = op == self.FreezeOp.Freeze
+        # Freeze / Unfreeze
+        self.wallet.set_frozen_coin_state(coins, freeze)
+        delattr(self.freeze_button, "_coins")
+        delattr(self.freeze_button, "_op")
+        self.update()
+        self.main_window.update_tabs()
+        if freeze:
+            # Freeze op success message
+            self.show_message(ngettext("{count} coin has been frozen.",
+                                       "{count} coins have been frozen.", len(coins)).format(count=len(coins))
+                              + "\n" + _("Check the Coins tab to unfreeze."))
+        else:
+            # Unfreeze op success message
+            self.show_message(ngettext("{count} coin has been unfrozen.",
+                                       "{count} coins have been unfrozen.", len(coins)).format(count=len(coins)))
+
     def closeEvent(self, event):
         if (self.prompt_if_unsaved and not self.saved
-            and not self.question(_('This transaction is not saved. Close anyway?'), title=_("Warning"))):
+                and not self.question(_('This transaction is not saved. Close anyway?'), title=_("Warning"))):
             event.ignore()
         else:
             super().closeEvent(event)
@@ -279,9 +325,13 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
                     except TypeError: pass
                 self.cashaddr_signal_slots = []
 
-            __class__._pyqt_bug_gc_workaround = self  # <--- keep this object alive in PyQt until at least after this event handler completes. This is because on some platforms Python deletes the C++ object right away inside this event handler (QObject with no parent) -- which crashes Qt!
+            cls = self.__class__
+            cls._pyqt_bug_gc_workaround = self  # <--- keep this object alive in PyQt until at least after this
+                                                #      event handler completes. This is because on some platforms
+                                                #      Python deletes the C++ object right away inside this event
+                                                #      handler (QObject with no parent) -- which crashes Qt!
             def clr_workaround():
-                __class__._pyqt_bug_gc_workaround = None
+                cls._pyqt_bug_gc_workaround = None
             QTimer.singleShot(0, clr_workaround)
 
             try:
@@ -360,11 +410,27 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         desc = self.desc
         base_unit = self.main_window.base_unit()
         format_amount = self.main_window.format_amount
-        tx_hash, status, label, can_broadcast, amount, fee, height, conf, timestamp, exp_n = self.wallet.get_tx_info(self.tx)
+        delta2, info2 = self.wallet.get_tx_extended_info(self.tx)
+        spends_coins_mine = delta2.spends_coins_mine
+        tx_hash, status, label, can_broadcast, amount, fee, height, conf, timestamp, exp_n, status_enum = info2
         self.tx_height = height or self.tx.ephemeral.get('block_height') or None
         self.tx_hash = tx_hash
         desc = label or desc
         size = self.tx.estimated_size()
+
+        # Update freeze/unfreeze button depending on tx state
+        StatusEnum = self.wallet.StatusEnum
+        if spends_coins_mine:
+            has_frozen = bool(self.wallet.is_frozen_coin(set(spends_coins_mine)))
+            self.freeze_button._coins = spends_coins_mine
+            self.freeze_button._op = op = self.FreezeOp.Freeze if not has_frozen else self.FreezeOp.Unfreeze
+            # Set the proper text (plural / singular form)
+            self.freeze_button.setText(self._make_freeze_button_text(op, len(spends_coins_mine)))
+            # Freeze/Unfreeze enabled only for signed transactions or transactions with frozen coins
+            self.freeze_button.setEnabled(has_frozen or status_enum in (StatusEnum.Signed, StatusEnum.PartiallySigned))
+        else:
+            self.freeze_button.setEnabled(False)
+            self.freeze_button.setText(self._make_freeze_button_text())
 
         # We enable the broadcast button IFF both of the following hold:
         # 1. can_broadcast is true (tx has not been seen yet on the network

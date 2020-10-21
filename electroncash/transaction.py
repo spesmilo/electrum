@@ -879,7 +879,7 @@ class Transaction:
                 continue
             signatures = list(filter(None, txin.get('signatures',[])))
             s += len(signatures)
-            r += txin.get('num_sig',-1)
+            r += txin.get('num_sig', -1)
         return s, r
 
     def is_complete(self):
