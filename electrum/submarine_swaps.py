@@ -218,7 +218,13 @@ class SwapManager(Logger):
 
     async def normal_swap(self, lightning_amount: int, expected_onchain_amount: int,
                           password, *, tx: PartialTransaction = None) -> str:
-        """send on-chain BTC, receive on Lightning"""
+        """send on-chain BTC, receive on Lightning
+
+        - User generates an LN invoice with RHASH, and knows preimage.
+        - User creates on-chain output locked to RHASH.
+        - Server pays LN invoice. User reveals preimage.
+        - Server spends the on-chain output using preimage.
+        """
         assert self.network
         assert self.lnwatcher
         privkey = os.urandom(32)
@@ -296,7 +302,15 @@ class SwapManager(Logger):
         return tx.txid()
 
     async def reverse_swap(self, amount_sat: int, expected_amount: int) -> bool:
-        """send on Lightning, receive on-chain"""
+        """send on Lightning, receive on-chain
+
+        - User generates preimage, RHASH. Sends RHASH to server.
+        - Server creates an LN invoice for RHASH.
+        - User pays LN invoice - except server needs to hold the HTLC as preimage is unknown.
+        - Server creates on-chain output locked to RHASH.
+        - User spends on-chain output, revealing preimage.
+        - Server fulfills HTLC using preimage.
+        """
         assert self.network
         assert self.lnwatcher
         privkey = os.urandom(32)
