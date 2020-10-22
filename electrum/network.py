@@ -349,15 +349,16 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     def maybe_init_lightning(self):
         if self.channel_db is None:
-            from . import lnworker
             from . import lnrouter
             from . import channel_db
             self.channel_db = channel_db.ChannelDB(self)
             self.path_finder = lnrouter.LNPathFinder(self.channel_db)
-            self.lngossip = lnworker.LNGossip()
 
     def start_gossip(self):
-        self.lngossip.start_network(self)
+        if self.lngossip is None:
+            from . import lnworker
+            self.lngossip = lnworker.LNGossip()
+            self.lngossip.start_network(self)
 
     def stop_gossip(self):
         self.lngossip.stop()

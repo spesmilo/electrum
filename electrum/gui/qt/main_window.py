@@ -2193,7 +2193,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def update_lightning_icon(self):
         if self.lightning_button is None:
             return
-        if not self.network.lngossip.has_started:
+        if self.network.lngossip is None:
             return
 
         # display colorful lightning icon to signal connection

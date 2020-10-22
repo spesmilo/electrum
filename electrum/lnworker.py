@@ -449,15 +449,11 @@ class LNGossip(LNWorker):
         self.features |= LnFeatures.GOSSIP_QUERIES_OPT
         self.features |= LnFeatures.GOSSIP_QUERIES_REQ
         self.unknown_ids = set()
-        self.has_started = False
 
     def start_network(self, network: 'Network'):
         assert network
-        if self.has_started:
-            return
         super().start_network(network)
         asyncio.run_coroutine_threadsafe(self.taskgroup.spawn(self.maintain_db()), self.network.asyncio_loop)
-        self.has_started = True
 
     async def maintain_db(self):
         await self.channel_db.data_loaded.wait()
