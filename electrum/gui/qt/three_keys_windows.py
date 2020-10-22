@@ -350,7 +350,7 @@ and the blockchain parameters of the Bitcoin Vault wallet. Your funds will be un
             self.wallet.set_alert()
             if invoice['txtype'] == TxType.INSTANT.name:
                 try:
-                    if not self.is_2fa:
+                    if not self.is_2fa and external_keypairs == None:
                         external_keypairs = self.get_instant_keypair()
                     self.wallet.set_instant()
                 except Exception as e:
