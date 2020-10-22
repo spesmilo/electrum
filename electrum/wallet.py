@@ -285,7 +285,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         self._coin_price_cache = {}
 
         self.lnworker = None
-        self.lnbackups = None
+        # a wallet may have channel backups, regardless of lnworker activation
+        self.lnbackups = LNBackups(self)
 
     def save_db(self):
         if self.storage:
@@ -2434,8 +2435,6 @@ class Deterministic_Wallet(Abstract_Wallet):
         # lnworker can only be initialized once receiving addresses are available
         # therefore we instantiate lnworker in DeterministicWallet
         self.lnworker = LNWallet(self, ln_xprv) if ln_xprv else None
-        # does it make sense to instantiate lnbackups without lnworker?
-        self.lnbackups = LNBackups(self)
 
     def has_seed(self):
         return self.keystore.has_seed()
