@@ -59,7 +59,7 @@ from .lnutil import (Outpoint, LNPeerAddr,
                      BarePaymentAttemptLog, derive_payment_secret_from_payment_preimage)
 from .lnutil import ln_dummy_address, ln_compare_features, IncompatibleLightningFeatures
 from .transaction import PartialTxOutput, PartialTransaction, PartialTxInput
-from .lnonion import OnionFailureCode, process_onion_packet, OnionPacket
+from .lnonion import OnionFailureCode, process_onion_packet, OnionPacket, OnionRoutingFailureMessage
 from .lnmsg import decode_msg
 from .i18n import _
 from .lnrouter import (RouteEdge, LNPaymentRoute, LNPaymentPath, is_route_sane_to_use,
@@ -1241,7 +1241,13 @@ class LNWallet(LNWorker):
         info = info._replace(status=status)
         self.save_payment_info(info)
 
-    def payment_failed(self, chan, payment_hash: bytes, error_bytes: bytes, failure_message):
+    def payment_failed(
+            self,
+            chan: Channel,
+            payment_hash: bytes,
+            error_bytes: Optional[bytes],
+            failure_message: Optional['OnionRoutingFailureMessage'],
+    ):
         self.set_payment_status(payment_hash, PR_UNPAID)
         f = self.pending_payments.get(payment_hash)
         if f and not f.cancelled():
