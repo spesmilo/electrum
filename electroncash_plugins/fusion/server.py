@@ -227,6 +227,8 @@ class FusionServer(GenericServer):
     def __init__(self, config, network, bindhost, port, upnp = None, announcehost = None, donation_address = None):
         assert network
         assert isinstance(donation_address, (Address, type(None)))
+        if not schnorr.has_fast_sign() or not schnorr.has_fast_verify():
+            raise RuntimeError("Fusion requires libsecp256k1")
         super().__init__(bindhost, port, ClientThread, upnp = upnp)
         self.config = config
         self.network = network
