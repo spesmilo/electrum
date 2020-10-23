@@ -59,7 +59,7 @@ from .lnutil import (Outpoint, LNPeerAddr,
                      BarePaymentAttemptLog, derive_payment_secret_from_payment_preimage)
 from .lnutil import ln_dummy_address, ln_compare_features, IncompatibleLightningFeatures
 from .transaction import PartialTxOutput, PartialTransaction, PartialTxInput
-from .lnonion import OnionFailureCode, process_onion_packet, OnionPacket
+from .lnonion import OnionFailureCode, process_onion_packet, OnionPacket, OnionRoutingFailureMessage
 from .lnmsg import decode_msg
 from .i18n import _
 from .lnrouter import (RouteEdge, LNPaymentRoute, LNPaymentPath, is_route_sane_to_use,
@@ -441,7 +441,7 @@ class LNGossip(LNWorker):
         asyncio.run_coroutine_threadsafe(self.taskgroup.spawn(self.maintain_db()), self.network.asyncio_loop)
 
     async def maintain_db(self):
-        await self.channel_db.load_data()
+        await self.channel_db.data_loaded.wait()
         while True:
             if len(self.unknown_ids) == 0:
                 self.channel_db.prune_old_policies(self.max_age)
@@ -565,6 +565,10 @@ class LNWallet(LNWorker):
 
     def start_network(self, network: 'Network'):
         assert network
+        self.network = network
+        self.config = network.config
+        self.channel_db = self.network.channel_db
+
         self.lnwatcher = LNWalletWatcher(self, network)
         self.lnwatcher.start_network(network)
         self.network = network
@@ -573,7 +577,6 @@ class LNWallet(LNWorker):
         for chan in self.channels.values():
             self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
 
-        super().start_network(network)
         for coro in [
                 self.maybe_listen(),
                 self.lnwatcher.on_network_update('network_updated'), # shortcut (don't block) if funding tx locked and verified
@@ -725,16 +728,6 @@ class LNWallet(LNWorker):
             item['balance_msat'] = balance_msat
         return out
 
-    def suggest_peer(self):
-        r = []
-        for node_id, peer in self.peers.items():
-            if not peer.is_initialized():
-                continue
-            if not all([chan.is_closed() for chan in peer.channels.values()]):
-                continue
-            r.append(node_id)
-        return random.choice(r) if r else None
-
     def channels_for_peer(self, node_id):
         assert type(node_id) is bytes
         return {chan_id: chan for (chan_id, chan) in self.channels.items()
@@ -839,6 +832,12 @@ class LNWallet(LNWorker):
             chan, funding_tx = fut.result(timeout=timeout)
         except concurrent.futures.TimeoutError:
             raise Exception(_("open_channel timed out"))
+
+        # at this point the channel opening was successful
+        # if this is the first channel that got opened, we start gossiping
+        if self.channels:
+            self.network.start_gossip()
+
         return chan, funding_tx
 
     def pay(self, invoice: str, *, amount_msat: int = None, attempts: int = 1) -> Tuple[bool, List[PaymentAttemptLog]]:
@@ -1227,7 +1226,13 @@ class LNWallet(LNWorker):
         info = info._replace(status=status)
         self.save_payment_info(info)
 
-    def payment_failed(self, chan, payment_hash: bytes, error_bytes: bytes, failure_message):
+    def payment_failed(
+            self,
+            chan: Channel,
+            payment_hash: bytes,
+            error_bytes: Optional[bytes],
+            failure_message: Optional['OnionRoutingFailureMessage'],
+    ):
         self.set_payment_status(payment_hash, PR_UNPAID)
         f = self.pending_payments.get(payment_hash)
         if f and not f.cancelled():

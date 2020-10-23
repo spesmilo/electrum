@@ -85,11 +85,3 @@ Popup:
                 on_release:
                     root.dismiss()
                     app.save_backup()
-            Button:
-                size_hint: 0.5, None
-                height: '48dp'
-                disabled: not app.wallet.can_have_lightning()
-                text: _('Disable LN') if app.wallet.has_lightning() else _('Enable LN')
-                on_release:
-                    root.dismiss()
-                    app.toggle_lightning()

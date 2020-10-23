@@ -613,6 +613,8 @@ class ChannelDB(SqlDB):
     @sql
     @profiler
     def load_data(self):
+        if self.data_loaded.is_set():
+            return
         # Note: this method takes several seconds... mostly due to lnmsg.decode_msg being slow.
         #       I believe lnmsg (and lightning.json) will need a rewrite anyway, so instead of tweaking
         #       load_data() here, that should be done. see #6006

@@ -661,17 +661,6 @@ class Commands:
         return json_normalize(wallet.get_detailed_history(**kwargs))
 
     @command('w')
-    async def init_lightning(self, wallet: Abstract_Wallet = None):
-        """Enable lightning payments"""
-        wallet.init_lightning()
-        return "Lightning keys have been created."
-
-    @command('w')
-    async def remove_lightning(self, wallet: Abstract_Wallet = None):
-        """Disable lightning payments"""
-        wallet.remove_lightning()
-
-    @command('w')
     async def lightning_history(self, show_fiat=False, wallet: Abstract_Wallet = None):
         """ lightning history """
         lightning_history = wallet.lnworker.get_history() if wallet.lnworker else []

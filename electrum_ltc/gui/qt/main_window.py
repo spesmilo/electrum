@@ -170,6 +170,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.gui_thread = gui_object.gui_thread
         assert wallet, "no wallet"
         self.wallet = wallet
+        if wallet.has_lightning():
+            self.wallet.config.set_key('show_channels_tab', True)
 
         self.setup_exception_hook()
 
@@ -812,18 +814,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if len(txns) >= 3:
             total_amount = 0
             for tx in txns:
-                is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
-                if not is_relevant:
+                tx_wallet_delta = self.wallet.get_wallet_delta(tx)
+                if not tx_wallet_delta.is_relevant:
                     continue
-                total_amount += v
+                total_amount += tx_wallet_delta.delta
             self.notify(_("{} new transactions: Total amount received in the new transactions {}")
                         .format(len(txns), self.format_amount_and_units(total_amount)))
         else:
             for tx in txns:
-                is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
-                if not is_relevant:
+                tx_wallet_delta = self.wallet.get_wallet_delta(tx)
+                if not tx_wallet_delta.is_relevant:
                     continue
-                self.notify(_("New transaction: {}").format(self.format_amount_and_units(v)))
+                self.notify(_("New transaction: {}").format(self.format_amount_and_units(tx_wallet_delta.delta)))
 
     def notify(self, message):
         if self.tray:
@@ -2151,7 +2153,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         sb.addPermanentWidget(self.seed_button)
         self.lightning_button = None
         if self.wallet.has_lightning() and self.network:
-            self.lightning_button = StatusBarButton(read_QIcon("lightning.png"), _("Lightning Network"), self.gui_object.show_lightning_dialog)
+            self.lightning_button = StatusBarButton(read_QIcon("lightning_disconnected.png"), _("Lightning Network"), self.gui_object.show_lightning_dialog)
             self.update_lightning_icon()
             sb.addPermanentWidget(self.lightning_button)
         self.status_button = None
@@ -2191,8 +2193,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def update_lightning_icon(self):
         if self.lightning_button is None:
             return
-        if not self.network.is_lightning_running():
+        if self.network.lngossip is None:
             return
+
+        # display colorful lightning icon to signal connection
+        self.lightning_button.setIcon(read_QIcon("lightning.png"))
+
         cur, total = self.network.lngossip.get_sync_progress_estimate()
         # self.logger.debug(f"updating lngossip sync progress estimate: cur={cur}, total={total}")
         progress_percent = 0
@@ -2292,25 +2298,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if d.exec_():
             self.set_contact(line2.text(), line1.text())
 
-    def disable_lightning(self):
-        warning = _('This will delete your lightning private keys')
-        r = self.question(_('Disable Lightning payments?') + '\n\n' + warning)
-        if not r:
-            return
-        self.wallet.remove_lightning()
-        self.show_warning(_('Lightning keys have been removed. This wallet will be closed'))
-        self.close()
-
-    def enable_lightning(self):
-        warning1 = _("Lightning support in Electrum is experimental. Do not put large amounts in lightning channels.")
-        warning2 = _("Funds stored in lightning channels are not recoverable from your seed. You must backup your wallet file everytime you create a new channel.")
-        r = self.question(_('Enable Lightning payments?') + '\n\n' + _('WARNINGS') + ': ' + '\n\n' + warning1 + '\n\n' + warning2)
-        if not r:
-            return
-        self.wallet.init_lightning()
-        self.show_warning(_('Lightning keys have been initialized. This wallet will be closed'))
-        self.close()
-
     def show_wallet_info(self):
         dialog = WindowModalDialog(self, _("Wallet Information"))
         dialog.setMinimumSize(500, 100)
@@ -2337,19 +2324,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         # lightning
         grid.addWidget(QLabel(_('Lightning') + ':'), 5, 0)
         if self.wallet.can_have_lightning():
-            if self.wallet.has_lightning():
-                lightning_b = QPushButton(_('Disable'))
-                lightning_b.clicked.connect(dialog.close)
-                lightning_b.clicked.connect(self.disable_lightning)
-                lightning_label = QLabel(_('Enabled'))
-                lightning_b.setDisabled(bool(self.wallet.lnworker.channels))
-            else:
-                lightning_b = QPushButton(_('Enable'))
-                lightning_b.clicked.connect(dialog.close)
-                lightning_b.clicked.connect(self.enable_lightning)
-                lightning_label = QLabel(_('Disabled'))
-            grid.addWidget(lightning_label, 5, 1)
-            grid.addWidget(lightning_b, 5, 2)
+            grid.addWidget(QLabel(_('Enabled')), 5, 1)
         else:
             grid.addWidget(QLabel(_("Not available for this wallet.")), 5, 1)
             grid.addWidget(HelpButton(_("Lightning is currently restricted to HD wallets with p2wpkh addresses.")), 5, 2)

@@ -179,8 +179,8 @@ class SendScreen(CScreen, Logger):
     payment_request = None  # type: Optional[PaymentRequest]
     parsed_URI = None
 
-    def __init__(self):
-        CScreen.__init__(self)
+    def __init__(self, **kwargs):
+        CScreen.__init__(self, **kwargs)
         Logger.__init__(self)
 
     def set_URI(self, text: str):
