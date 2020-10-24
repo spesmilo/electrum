@@ -137,8 +137,7 @@ class Plugin(FusionPlugin, QObject):
                     with wallet.lock:
                         if not hasattr(wallet, '_fusions'):
                             return
-                        fusion = self.create_fusion(wallet, password, coins)
-                        fusion.start()
+                        self.start_fusion(wallet, password, coins)
                 except RuntimeError as e:
                     window.show_error(_('CashFusion failed: {error_message}').format(error_message=str(e)))
                     return

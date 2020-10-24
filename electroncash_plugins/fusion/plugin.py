@@ -403,7 +403,7 @@ class FusionPlugin(BasePlugin):
             # FIXME here: restart non-auto fusions on the new server!
 
     def get_all_fusions(self, ):
-        """ Return all still-live fusion objects that have been created using .create_fusion(),
+        """ Return all still-live fusion objects that have been created using .start_fusion(),
         including autofusions and any other fusions. """
         with self.lock:
             fusions_and_times = list(self.fusions.items())
@@ -480,9 +480,8 @@ class FusionPlugin(BasePlugin):
         return [f for f in fusions if f.status[0] not in ('complete', 'failed')]
 
 
-    def create_fusion(self, source_wallet, password, coins, target_wallet = None, max_outputs = None):
-        """ Create a new Fusion object with current server/tor settings. Once created
-        you must call fusion.start() to launch it.
+    def start_fusion(self, source_wallet, password, coins, target_wallet = None, max_outputs = None, inactive_timeout = None):
+        """ Create and start a new Fusion object with current server/tor settings.
 
         Both source_wallet.lock and target_wallet.lock must be held.
         FIXME: this condition is begging for a deadlock to happen when the two wallets
@@ -506,12 +505,13 @@ class FusionPlugin(BasePlugin):
                 self.notify_server_status(False, ("failed", _("Invalid Tor proxy or no Tor proxy found")))
                 raise RuntimeError("can't find tor port")
         fusion = Fusion(self, target_wallet, host, port, ssl, torhost, torport)
-        target_wallet._fusions.add(fusion)
-        source_wallet._fusions.add(fusion)
         fusion.add_coins_from_wallet(source_wallet, password, coins)
         fusion.max_outputs = max_outputs
         with self.lock:
+            fusion.start(inactive_timeout = inactive_timeout)
             self.fusions[fusion] = time.time()
+        target_wallet._fusions.add(fusion)
+        source_wallet._fusions.add(fusion)
         return fusion
 
 
@@ -585,8 +585,7 @@ class FusionPlugin(BasePlugin):
                     else:
                         max_outputs = None
                     try:
-                        f = self.create_fusion(wallet, password, coins, max_outputs = max_outputs)
-                        f.start(inactive_timeout = AUTOFUSE_INACTIVE_TIMEOUT)
+                        f = self.start_fusion(wallet, password, coins, max_outputs = max_outputs, inactive_timeout = AUTOFUSE_INACTIVE_TIMEOUT)
                         self.print_error("started auto-fusion")
                     except RuntimeError as e:
                         self.print_error(f"auto-fusion skipped due to error: {e}")
