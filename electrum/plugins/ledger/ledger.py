@@ -300,18 +300,20 @@ class Ledger_KeyStore(Hardware_KeyStore):
         message = message.encode('utf8')
         message_hash = hashlib.sha256(message).hexdigest().upper()
         # prompt for the PIN before displaying the dialog if necessary
-        client = self.get_client()
+        client_ledger = self.get_client()
+        client_electrum = self.get_client_electrum()
         address_path = self.get_derivation_prefix()[2:] + "/%d/%d"%sequence
         self.handler.show_message("Signing message ...\r\nMessage hash: "+message_hash)
         try:
-            info = self.get_client().signMessagePrepare(address_path, message)
+            info = client_ledger.signMessagePrepare(address_path, message)
             pin = ""
             if info['confirmationNeeded']:
-                pin = self.handler.get_auth( info ) # does the authenticate dialog and returns pin
+                # do the authenticate dialog and get pin:
+                pin = self.handler.get_auth(info, client=client_electrum)
                 if not pin:
                     raise UserWarning(_('Cancelled by user'))
                 pin = str(pin).encode()
-            signature = self.get_client().signMessageSign(pin)
+            signature = client_ledger.signMessageSign(pin)
         except BTChipException as e:
             if e.sw == 0x6a80:
                 self.give_error("Unfortunately, this message cannot be signed by the Ledger wallet. Only alphanumerical messages shorter than 140 characters are supported. Please remove any extra characters (tab, carriage return) and retry.")
@@ -484,7 +486,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 if outputData['confirmationNeeded']:
                     outputData['address'] = output
                     self.handler.finished()
-                    pin = self.handler.get_auth( outputData ) # does the authenticate dialog and returns pin
+                    # do the authenticate dialog and get pin:
+                    pin = self.handler.get_auth(outputData, client=client_electrum)
                     if not pin:
                         raise UserWarning()
                     self.handler.show_message(_("Confirmed. Signing Transaction..."))
@@ -510,7 +513,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     if outputData['confirmationNeeded']:
                         outputData['address'] = output
                         self.handler.finished()
-                        pin = self.handler.get_auth( outputData ) # does the authenticate dialog and returns pin
+                        # do the authenticate dialog and get pin:
+                        pin = self.handler.get_auth(outputData, client=client_electrum)
                         if not pin:
                             raise UserWarning()
                         self.handler.show_message(_("Confirmed. Signing Transaction..."))
