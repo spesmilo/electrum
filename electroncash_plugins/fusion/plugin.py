@@ -294,6 +294,8 @@ class FusionPlugin(BasePlugin):
         self.fusions = weakref.WeakKeyDictionary()
         self.autofusing_wallets = weakref.WeakKeyDictionary()  # wallet -> password
 
+        self.t_last_net_ok = time.monotonic()
+
         self.remote_donation_address: str = ''  # optionally announced by the remote server in 'serverhello' message
 
         if tuple(self.config.get('cashfusion_server', ())) == ('cashfusion.electroncash.dk', 8787, False):
@@ -533,6 +535,25 @@ class FusionPlugin(BasePlugin):
 
         dont_start_fusions = False
 
+        network = Network.get_instance()
+        if network and network.is_connected():
+            self.t_last_net_ok = time.monotonic()
+        else:
+            # Cashfusion needs an accurate picture of the wallet's coin set, so
+            # that we don't reuse addresses and we don't submit already-spent coins.
+            # Currently the network is not synced so we won't start new fusions.
+            dont_start_fusions = True
+            if time.monotonic() - self.t_last_net_ok > 31:
+                # If the network is disconnected for an extended period, we also
+                # shut down all waiting fusions. We can't wait too long because
+                # one fusion might succeed but then enter the 'time_wait' period
+                # where it is waiting to see the transaction on the network.
+                # After 60 seconds it gives up and then will unreserve addresses,
+                # and currently-waiting fusions would then grab those addresses when
+                # they begin rounds.
+                self.stop_all_fusions('Lost connection to Electron Cash server', not_if_running = True)
+                return
+
         # Snapshot of autofusing list; note that remove_wallet may get
         # called on one of the wallets, after lock is released.
         with self.lock:
@@ -551,6 +572,12 @@ class FusionPlugin(BasePlugin):
         for wallet, password in wallets_and_passwords:
             with wallet.lock:
                 if not hasattr(wallet, '_fusions'):
+                    continue
+                if not wallet.up_to_date:
+                    # We want a good view of the wallet so we know which coins
+                    # are unspent and confirmed, and we know which addrs are
+                    # used. Note: this `continue` will bypass the potential .stop()
+                    # below.
                     continue
                 for f in list(wallet._fusions_auto):
                     if not f.is_alive():
