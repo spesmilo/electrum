@@ -31,8 +31,8 @@ from PyQt5.QtGui import QFontMetrics, QFont
 
 from electrum import bitcoin
 from electrum.util import bfh, maybe_extract_bolt11_invoice
-from electrum.transaction import push_script, PartialTxOutput
-from electrum.bitcoin import opcodes
+from electrum.transaction import PartialTxOutput
+from electrum.bitcoin import opcodes, construct_script
 from electrum.logging import Logger
 from electrum.lnaddr import LnDecodeException
 
@@ -111,11 +111,10 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         for word in x.split():
             if word[0:3] == 'OP_':
                 opcode_int = opcodes[word]
-                assert opcode_int < 256  # opcode is single-byte
-                script += bitcoin.int_to_hex(opcode_int)
+                script += construct_script([opcode_int])
             else:
                 bfh(word)  # to test it is hex data
-                script += push_script(word)
+                script += construct_script([word])
         return script
 
     def parse_amount(self, x):

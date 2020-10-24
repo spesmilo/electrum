@@ -1,10 +1,15 @@
 from typing import NamedTuple, Union
 
 from electrum import transaction, bitcoin
-from electrum.transaction import convert_raw_tx_to_hex, tx_from_any, Transaction, PartialTransaction
+from electrum.transaction import (convert_raw_tx_to_hex, tx_from_any, Transaction,
+                                  PartialTransaction, TxOutpoint, PartialTxInput,
+                                  PartialTxOutput)
 from electrum.util import bh2u, bfh
+from electrum.bitcoin import (deserialize_privkey, opcodes,
+                              construct_script, construct_witness)
+from electrum.ecc import ECPrivkey
 
-from . import ElectrumTestCase
+from . import ElectrumTestCase, TestCaseForTestnet
 
 signed_blob = '01000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf38633b424eb4031000000006c493046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d985012102e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6ffffffff0140420f00000000001976a914230ac37834073a42146f11ef8414ae929feaafc388ac00000000'
 v2_blob = "0200000001191601a44a81e061502b7bfbc6eaa1cef6d1e6af5308ef96c9342f71dbf4b9b5000000006b483045022100a6d44d0a651790a477e75334adfb8aae94d6612d01187b2c02526e340a7fd6c8022028bdf7a64a54906b13b145cd5dab21a26bd4b85d6044e9b97bceab5be44c2a9201210253e8e0254b0c95776786e40984c1aa32a7d03efa6bdacdea5f421b774917d346feffffff026b20fa04000000001976a914024db2e87dd7cfd0e5f266c5f212e21a31d805a588aca0860100000000001976a91421919b94ae5cefcdf0271191459157cdb41c4cbf88aca6240700"
@@ -840,3 +845,74 @@ class TestTransaction(ElectrumTestCase):
         self._run_naive_tests_on_tx(raw_tx, txid)
 
 # txns from Bitcoin Core ends <---
+
+
+class TestTransactionTestnet(TestCaseForTestnet):
+
+    def test_spending_op_cltv_p2sh(self):
+        # from https://github.com/brianddk/reddit/blob/8ca383c9e00cb5a4c1201d1bab534d5886d3cb8f/python/elec-p2sh-hodl.py
+        wif = 'cQNjiPwYKMBr2oB3bWzf3rgBsu198xb8Nxxe51k6D3zVTA98L25N'
+        sats = 9999
+        sats_less_fees = sats - 200
+        locktime = 1602565200
+
+        # Build the Transaction Input
+        _, privkey, compressed = deserialize_privkey(wif)
+        pubkey = ECPrivkey(privkey).get_public_key_hex(compressed=compressed)
+        prevout = TxOutpoint(txid=bfh('6d500966f9e494b38a04545f0cea35fc7b3944e341a64b804fed71cdee11d434'), out_idx=1)
+        txin = PartialTxInput(prevout=prevout)
+        txin.nsequence = 2 ** 32 - 3
+        txin.script_type = 'p2sh'
+        redeem_script = bfh(construct_script([
+            locktime, opcodes.OP_CHECKLOCKTIMEVERIFY, opcodes.OP_DROP, pubkey, opcodes.OP_CHECKSIG,
+        ]))
+        txin.redeem_script = redeem_script
+
+        # Build the Transaction Output
+        txout = PartialTxOutput.from_address_and_value(
+            'tb1qv9hg20f0g08d460l67ph6p4ukwt7m0ttqzj7mk', sats_less_fees)
+
+        # Build and sign the transaction
+        tx = PartialTransaction.from_io([txin], [txout], locktime=locktime, version=1)
+        sig = tx.sign_txin(0, privkey)
+        txin.script_sig = bfh(construct_script([sig, redeem_script]))
+
+        # note: in testnet3 chain, signature differs (no low-R grinding),
+        # so txid there is: a8110bbdd40d65351f615897d98c33cbe33e4ebedb4ba2fc9e8c644423dadc93
+        self.assertEqual('3266138b0b79007f35ac9a1824e294763708bd4a6440b5c227f4e1251b66e92b',
+                         tx.txid())
+
+    def test_spending_op_cltv_p2wsh(self):
+        wif = 'cSw3py1CQa2tmzzDm3ghQVrgqqNuFhUyBXjABge5j8KRxzd6kaFj'
+        sats = 99_878
+        sats_less_fees = sats - 300
+        locktime = 1602572140
+
+        # Build the Transaction Input
+        _, privkey, compressed = deserialize_privkey(wif)
+        pubkey = ECPrivkey(privkey).get_public_key_hex(compressed=compressed)
+        witness_script = bfh(construct_script([
+            locktime, opcodes.OP_CHECKLOCKTIMEVERIFY, opcodes.OP_DROP, pubkey, opcodes.OP_CHECKSIG,
+        ]))
+        from_addr = bitcoin.script_to_p2wsh(witness_script.hex())
+        self.assertEqual("tb1q9dn6qke9924xe3zmptmhrdge0s043pjxpjndypgnu2t9fvsd4crs2qjuer", from_addr)
+        prevout = TxOutpoint(txid=bfh('8680971efd5203025cffe746f8598d0a704fae81f236ffe009c2609ec673d59a'), out_idx=0)
+        txin = PartialTxInput(prevout=prevout)
+        txin._trusted_value_sats = sats
+        txin.nsequence = 0
+        txin.script_sig = b''
+        txin.witness_script = witness_script
+
+        # Build the Transaction Output
+        txout = PartialTxOutput.from_address_and_value(
+            'tb1qtgsfkgptcxdn6dz6wh8c4dguk3cezwne5j5c47', sats_less_fees)
+
+        # Build and sign the transaction
+        tx = PartialTransaction.from_io([txin], [txout], locktime=locktime, version=2)
+        sig = tx.sign_txin(0, privkey)
+        txin.witness = bfh(construct_witness([sig, witness_script]))
+
+        self.assertEqual('1cdb274755b144090c7134b6459e8d4cb6b4552fe620102836d751e8389b2694',
+                         tx.txid())
+        self.assertEqual('020000000001019ad573c69e60c209e0ff36f281ae4f700a8d59f846e7ff5c020352fd1e97808600000000000000000001fa840100000000001600145a209b202bc19b3d345a75cf8ab51cb471913a790247304402207b191c1e3ff1a2d3541770b496c9f871406114746b3aa7347ec4ef0423d3a975022043d3a746fa7a794d97e95d74b6d17d618dfc4cd7644476813e08006f271e51bd012a046c4f855fb1752102aec53aa5f347219a7378b13006eb16ce48125f9cf14f04a5509a565ad5e51507ac6c4f855f',
+                         tx.serialize())

@@ -386,7 +386,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
 
             redeemScript = Transaction.get_preimage_script(txin)
             txin_prev_tx = txin.utxo
-            if txin_prev_tx is None and not Transaction.is_segwit_input(txin):
+            if txin_prev_tx is None and not txin.is_segwit():
                 raise UserFacingException(_('Missing previous tx for legacy input.'))
             txin_prev_tx_raw = txin_prev_tx.serialize() if txin_prev_tx else None
             inputs.append([txin_prev_tx_raw,

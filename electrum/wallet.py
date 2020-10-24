@@ -2162,7 +2162,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if all([txin.utxo for txin in tx.inputs()]):
             return None
         # a single segwit input -> fine
-        if len(tx.inputs()) == 1 and Transaction.is_segwit_input(tx.inputs()[0]) and tx.inputs()[0].witness_utxo:
+        if len(tx.inputs()) == 1 and tx.inputs()[0].is_segwit() and tx.inputs()[0].witness_utxo:
             return None
         # coinjoin or similar
         if any([not self.is_mine(txin.address) for txin in tx.inputs()]):
@@ -2170,7 +2170,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                     + _("The input amounts could not be verified as the previous transactions are missing.\n"
                         "The amount of money being spent CANNOT be verified."))
         # some inputs are legacy
-        if any([not Transaction.is_segwit_input(txin) for txin in tx.inputs()]):
+        if any([not txin.is_segwit() for txin in tx.inputs()]):
             return (_("Warning") + ": "
                     + _("The fee could not be verified. Signing non-segwit inputs is risky:\n"
                         "if this transaction was maliciously modified before you sign,\n"
