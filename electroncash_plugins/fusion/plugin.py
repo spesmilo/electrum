@@ -396,11 +396,7 @@ class FusionPlugin(BasePlugin):
         already 'running' in order to allow for the new change to take effect
         immediately. """
         self.remote_donation_address = ''
-        with self.lock:
-            wallets = list(self.autofusing_wallets.keys())
-        for wallet in wallets:
-            self._stop_fusions(wallet, 'Server changed', which='all')
-            # FIXME here: restart non-auto fusions on the new server!
+        self.stop_all_fusions('Server changed', not_if_running=True)
 
     def get_all_fusions(self, ):
         """ Return all still-live fusion objects that have been created using .start_fusion(),
@@ -409,6 +405,11 @@ class FusionPlugin(BasePlugin):
             fusions_and_times = list(self.fusions.items())
         fusions_and_times.sort(key=lambda x:x[1])
         return [f for f,t in fusions_and_times]
+
+    def stop_all_fusions(self, reason, *, not_if_running=True):
+        with self.lock:
+            for f in list(self.fusions):
+                f.stop(reason, not_if_running = not_if_running)
 
     def _stop_fusions(self, wallet, reason, *, not_if_running=True, which='auto'):
         # which may be 'all' or 'auto'
