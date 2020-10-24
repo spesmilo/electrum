@@ -416,6 +416,7 @@ class Fusion(threading.Thread, PrintError):
                     and not is_tor_port(self.tor_host, self.tor_port)):
                 raise FusionError(f"Can't connect to Tor proxy at {self.tor_host}:{self.tor_port}")
 
+            self.check_stop(running = False)
             self.check_coins()
 
             # Connect to the server
@@ -486,11 +487,17 @@ class Fusion(threading.Thread, PrintError):
                     self.notify_server_status(False, self.status)
 
     def stop(self, reason = 'stopped', not_if_running = False):
-        self.stop_reason = reason
+        if self.stopping:
+            return
         if not_if_running:
+            if self.stopping_if_not_running:
+                return
+            self.stop_reason = reason
             self.stopping_if_not_running = True
         else:
+            self.stop_reason = reason
             self.stopping = True
+        # note the reason is only overwritten if we were not already stopping this way.
 
     def check_stop(self, running=True):
         """ Gets called occasionally from fusion thread to allow a stop point. """

@@ -411,15 +411,18 @@ class FusionPlugin(BasePlugin):
             for f in list(self.fusions):
                 f.stop(reason, not_if_running = not_if_running)
 
-    def _stop_fusions(self, wallet, reason, *, not_if_running=True, which='auto'):
-        # which may be 'all' or 'auto'
+    @staticmethod
+    def stop_autofusions(wallet, reason, *, not_if_running=True):
         with wallet.lock:
-            if not hasattr(wallet, '_fusions'):
+            try:
+                fusion_weakset = wallet._fusions_auto
+            except AttributeError:
                 return []
             running = []
-            assert which in ('all', 'auto')
-            fusions = list(wallet._fusions_auto) if which == 'auto' else list(wallet._fusions)
-            for f in fusions:
+            for f in list(fusion_weakset):
+                if f.status[0] in ('complete', 'failed'):
+                    fusion_weakset.discard(f)
+                    continue
                 f.stop(reason, not_if_running = not_if_running)
                 if f.status[0] == 'running':
                     running.append(f)
@@ -429,7 +432,7 @@ class FusionPlugin(BasePlugin):
         with self.lock:
             self.autofusing_wallets.pop(wallet, None)
         Conf(wallet).autofuse = False
-        return self._stop_fusions(wallet, 'Autofusing disabled', which='auto')
+        return self.stop_autofusions(wallet, 'Autofusing disabled', not_if_running=True)
 
     def enable_autofusing(self, wallet, password):
         if password is None and wallet.has_password():
@@ -529,27 +532,18 @@ class FusionPlugin(BasePlugin):
 
         if not self.active:
             return
-        torcount = limiter.count
+
         # Snapshot of autofusing list; note that remove_wallet may get
         # called on one of the wallets, after lock is released.
         with self.lock:
             wallets_and_passwords = list(self.autofusing_wallets.items())
 
+        torcount = limiter.count
         if torcount > AUTOFUSE_RECENT_TOR_LIMIT_UPPER:
-            # need tor cooldown, stop the waiting fusions
+            # need tor cooldown, stop the waiting autofusions
             for wallet, password in wallets_and_passwords:
-                with wallet.lock:
-                    if not hasattr(wallet, '_fusions'):
-                        continue
-                    autofusions = set(wallet._fusions_auto)
-                    for f in autofusions:
-                        if f.status[0] in ('complete', 'failed'):
-                            wallet._fusions_auto.discard(f)
-                            continue
-                        if not f.stopping:
-                            f.stop('Tor cooldown', not_if_running = True)
+                self.stop_autofusions(wallet, 'Tor cooldown', not_if_running = True)
             return
-
         if torcount > AUTOFUSE_RECENT_TOR_LIMIT_LOWER:
             # no urgent need to stop fusions, but don't queue up any more.
             return
