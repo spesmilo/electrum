@@ -531,6 +531,8 @@ class FusionPlugin(BasePlugin):
         if not self.active:
             return
 
+        dont_start_fusions = False
+
         # Snapshot of autofusing list; note that remove_wallet may get
         # called on one of the wallets, after lock is released.
         with self.lock:
@@ -544,7 +546,7 @@ class FusionPlugin(BasePlugin):
             return
         if torcount > AUTOFUSE_RECENT_TOR_LIMIT_LOWER:
             # no urgent need to stop fusions, but don't queue up any more.
-            return
+            dont_start_fusions = True
 
         for wallet, password in wallets_and_passwords:
             with wallet.lock:
@@ -554,6 +556,8 @@ class FusionPlugin(BasePlugin):
                     if not f.is_alive():
                         wallet._fusions_auto.discard(f)
                 active_autofusions = list(wallet._fusions_auto)
+                if dont_start_fusions and not active_autofusions:
+                    continue
                 num_auto = len(active_autofusions)
                 wallet_conf = Conf(wallet)
                 eligible, ineligible, sum_value, has_unconfirmed, has_coinbase = select_coins(wallet)
@@ -562,7 +566,7 @@ class FusionPlugin(BasePlugin):
                     for f in list(wallet._fusions_auto):
                         f.stop('Wallet has unconfirmed coins... waiting.', not_if_running = True)
                     continue
-                if num_auto < min(target_num_auto, MAX_AUTOFUSIONS_PER_WALLET):
+                if not dont_start_fusions and num_auto < min(target_num_auto, MAX_AUTOFUSIONS_PER_WALLET):
                     # we don't have enough auto-fusions running, so start one
                     fraction = get_target_params_2(wallet_conf, sum_value)
                     chosen_buckets = select_random_coins(wallet, fraction, eligible)
