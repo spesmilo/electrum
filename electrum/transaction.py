@@ -720,10 +720,13 @@ class Transaction:
     @classmethod
     def get_preimage_script(cls, txin: 'PartialTxInput') -> str:
         if txin.witness_script:
-            opcodes_in_witness_script = [x[0] for x in script_GetOp(txin.witness_script)]
-            if opcodes.OP_CODESEPARATOR in opcodes_in_witness_script:
+            if opcodes.OP_CODESEPARATOR in [x[0] for x in script_GetOp(txin.witness_script)]:
                 raise Exception('OP_CODESEPARATOR black magic is not supported')
             return txin.witness_script.hex()
+        if not txin.is_segwit() and txin.redeem_script:
+            if opcodes.OP_CODESEPARATOR in [x[0] for x in script_GetOp(txin.redeem_script)]:
+                raise Exception('OP_CODESEPARATOR black magic is not supported')
+            return txin.redeem_script.hex()
 
         pubkeys = [pk.hex() for pk in txin.pubkeys]
         if txin.script_type in ['p2sh', 'p2wsh', 'p2wsh-p2sh']:
