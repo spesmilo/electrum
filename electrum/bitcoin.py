@@ -28,7 +28,7 @@ from typing import List, Tuple, TYPE_CHECKING, Optional, Union, Sequence
 import enum
 from enum import IntEnum, Enum
 
-from .util import bfh, bh2u, BitcoinException, assert_bytes, to_bytes, inv_dict
+from .util import bfh, bh2u, BitcoinException, assert_bytes, to_bytes, inv_dict, is_hex_str
 from . import version
 from . import segwit_addr
 from . import constants
@@ -307,8 +307,28 @@ def construct_witness(items: Sequence[Union[str, int, bytes]]) -> str:
             item = script_num_to_hex(item)
         elif isinstance(item, (bytes, bytearray)):
             item = bh2u(item)
+        else:
+            assert is_hex_str(item)
         witness += witness_push(item)
     return witness
+
+
+def construct_script(items: Sequence[Union[str, int, bytes, opcodes]]) -> str:
+    """Constructs bitcoin script from given items."""
+    script = ''
+    for item in items:
+        if isinstance(item, opcodes):
+            script += item.hex()
+        elif type(item) is int:
+            script += add_number_to_script(item).hex()
+        elif isinstance(item, (bytes, bytearray)):
+            script += push_script(item.hex())
+        elif isinstance(item, str):
+            assert is_hex_str(item)
+            script += push_script(item)
+        else:
+            raise Exception(f'unexpected item for script: {item!r}')
+    return script
 
 
 def relayfee(network: 'Network' = None) -> int:
@@ -386,12 +406,12 @@ def script_to_p2wsh(script: str, *, net=None) -> str:
     return hash_to_segwit_addr(sha256(bfh(script)), witver=0, net=net)
 
 def p2wpkh_nested_script(pubkey: str) -> str:
-    pkh = bh2u(hash_160(bfh(pubkey)))
-    return '00' + push_script(pkh)
+    pkh = hash_160(bfh(pubkey))
+    return construct_script([0, pkh])
 
 def p2wsh_nested_script(witness_script: str) -> str:
-    wsh = bh2u(sha256(bfh(witness_script)))
-    return '00' + push_script(wsh)
+    wsh = sha256(bfh(witness_script))
+    return construct_script([0, wsh])
 
 def pubkey_to_address(txin_type: str, pubkey: str, *, net=None) -> str:
     if net is None: net = constants.net
@@ -436,16 +456,12 @@ def address_to_script(addr: str, *, net=None) -> str:
     if witprog is not None:
         if not (0 <= witver <= 16):
             raise BitcoinException(f'impossible witness version: {witver}')
-        script = bh2u(add_number_to_script(witver))
-        script += push_script(bh2u(bytes(witprog)))
-        return script
+        return construct_script([witver, bytes(witprog)])
     addrtype, hash_160_ = b58_address_to_hash160(addr)
     if addrtype == net.ADDRTYPE_P2PKH:
         script = pubkeyhash_to_p2pkh_script(bh2u(hash_160_))
     elif addrtype == net.ADDRTYPE_P2SH:
-        script = opcodes.OP_HASH160.hex()
-        script += push_script(bh2u(hash_160_))
-        script += opcodes.OP_EQUAL.hex()
+        script = construct_script([opcodes.OP_HASH160, hash_160_, opcodes.OP_EQUAL])
     else:
         raise BitcoinException(f'unknown address type: {addrtype}')
     return script
@@ -493,13 +509,16 @@ def script_to_scripthash(script: str) -> str:
     return bh2u(bytes(reversed(h)))
 
 def public_key_to_p2pk_script(pubkey: str) -> str:
-    return push_script(pubkey) + opcodes.OP_CHECKSIG.hex()
+    return construct_script([pubkey, opcodes.OP_CHECKSIG])
 
 def pubkeyhash_to_p2pkh_script(pubkey_hash160: str) -> str:
-    script = bytes([opcodes.OP_DUP, opcodes.OP_HASH160]).hex()
-    script += push_script(pubkey_hash160)
-    script += bytes([opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG]).hex()
-    return script
+    return construct_script([
+        opcodes.OP_DUP,
+        opcodes.OP_HASH160,
+        pubkey_hash160,
+        opcodes.OP_EQUALVERIFY,
+        opcodes.OP_CHECKSIG
+    ])
 
 
 __b58chars = b'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'

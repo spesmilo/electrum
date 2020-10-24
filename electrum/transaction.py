@@ -48,7 +48,7 @@ from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160,
                       var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN,
                       int_to_hex, push_script, b58_address_to_hash160,
                       opcodes, add_number_to_script, base_decode, is_segwit_script_type,
-                      base_encode, construct_witness)
+                      base_encode, construct_witness, construct_script)
 from .crypto import sha256d
 from .logging import get_logger
 
@@ -500,10 +500,7 @@ def parse_output(vds: BCDataStream) -> TxOutput:
 def multisig_script(public_keys: Sequence[str], m: int) -> str:
     n = len(public_keys)
     assert 1 <= m <= n <= 15, f'm {m}, n {n}'
-    op_m = bh2u(add_number_to_script(m))
-    op_n = bh2u(add_number_to_script(n))
-    keylist = [push_script(k) for k in public_keys]
-    return op_m + ''.join(keylist) + op_n + opcodes.OP_CHECKMULTISIG.hex()
+    return construct_script([m, *public_keys, n, opcodes.OP_CHECKMULTISIG])
 
 
 
@@ -639,7 +636,7 @@ class Transaction:
 
         _type = txin.script_type
         if not cls.is_segwit_input(txin):
-            return '00'
+            return construct_witness([])
 
         if _type in ('address', 'unknown') and estimate_size:
             _type = cls.guess_txintype_from_address(txin.address)
@@ -648,9 +645,9 @@ class Transaction:
             return construct_witness([sig_list[0], pubkeys[0]])
         elif _type in ['p2wsh', 'p2wsh-p2sh']:
             witness_script = multisig_script(pubkeys, txin.num_sig)
-            return construct_witness([0] + sig_list + [witness_script])
+            return construct_witness([0, *sig_list, witness_script])
         elif _type in ['p2pk', 'p2pkh', 'p2sh']:
-            return '00'
+            return construct_witness([])
         raise UnknownTxinType(f'cannot construct witness for txin_type: {_type}')
 
     @classmethod
@@ -702,38 +699,34 @@ class Transaction:
         assert isinstance(txin, PartialTxInput)
 
         if txin.is_p2sh_segwit() and txin.redeem_script:
-            return push_script(txin.redeem_script.hex())
+            return construct_script([txin.redeem_script])
         if txin.is_native_segwit():
             return ''
 
         _type = txin.script_type
         pubkeys, sig_list = self.get_siglist(txin, estimate_size=estimate_size)
-        script = ''.join(push_script(x) for x in sig_list)
         if _type in ('address', 'unknown') and estimate_size:
             _type = self.guess_txintype_from_address(txin.address)
         if _type == 'p2pk':
-            return script
+            return construct_script([sig_list[0]])
         elif _type == 'p2sh':
             # put op_0 before script
-            script = '00' + script
             redeem_script = multisig_script(pubkeys, txin.num_sig)
-            script += push_script(redeem_script)
-            return script
+            return construct_script([0, *sig_list, redeem_script])
         elif _type == 'p2pkh':
-            script += push_script(pubkeys[0])
-            return script
+            return construct_script([sig_list[0], pubkeys[0]])
         elif _type in ['p2wpkh', 'p2wsh']:
             return ''
         elif _type == 'p2wpkh-p2sh':
             redeem_script = bitcoin.p2wpkh_nested_script(pubkeys[0])
-            return push_script(redeem_script)
+            return construct_script([redeem_script])
         elif _type == 'p2wsh-p2sh':
             if estimate_size:
                 witness_script = ''
             else:
                 witness_script = self.get_preimage_script(txin)
             redeem_script = bitcoin.p2wsh_nested_script(witness_script)
-            return push_script(redeem_script)
+            return construct_script([redeem_script])
         raise UnknownTxinType(f'cannot construct scriptSig for txin_type: {_type}')
 
     @classmethod
