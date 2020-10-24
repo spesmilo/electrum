@@ -420,7 +420,7 @@ class FusionPlugin(BasePlugin):
                 return []
             running = []
             for f in list(fusion_weakset):
-                if f.status[0] in ('complete', 'failed'):
+                if not f.is_alive():
                     fusion_weakset.discard(f)
                     continue
                 f.stop(reason, not_if_running = not_if_running)
@@ -470,7 +470,7 @@ class FusionPlugin(BasePlugin):
                 self.disable_autofusing(wallet)
 
     def remove_wallet(self, wallet):
-        ''' Detach the provided wallet; returns list of active fusions. '''
+        ''' Detach the provided wallet; returns list of active fusion threads. '''
         with self.lock:
             self.autofusing_wallets.pop(wallet, None)
         fusions = ()
@@ -481,8 +481,7 @@ class FusionPlugin(BasePlugin):
                 del wallet._fusions_auto
         except AttributeError:
             pass
-        return [f for f in fusions if f.status[0] not in ('complete', 'failed')]
-
+        return [f for f in fusions if f.is_alive()]
 
     def start_fusion(self, source_wallet, password, coins, target_wallet = None, max_outputs = None, inactive_timeout = None):
         """ Create and start a new Fusion object with current server/tor settings.
@@ -518,7 +517,6 @@ class FusionPlugin(BasePlugin):
         source_wallet._fusions.add(fusion)
         return fusion
 
-
     def thread_jobs(self, ):
         return [self]
     def run(self, ):
@@ -553,7 +551,7 @@ class FusionPlugin(BasePlugin):
                 if not hasattr(wallet, '_fusions'):
                     continue
                 for f in list(wallet._fusions_auto):
-                    if f.status[0] in ('complete', 'failed'):
+                    if not f.is_alive():
                         wallet._fusions_auto.discard(f)
                 active_autofusions = list(wallet._fusions_auto)
                 num_auto = len(active_autofusions)
