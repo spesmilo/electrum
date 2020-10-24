@@ -212,6 +212,8 @@ class Plugin(FusionPlugin, QObject):
 
         # Soft-stop background fuse if running.
         # We avoid doing a hard disconnect in the middle of a fusion round.
+        # TODO: only do a gentler 'stop-if-waiting' and have a "STOP SOONER"
+        # button on the waiting dialog for the less patient users.
         def task():
             for f in fusions:
                 f.join()
