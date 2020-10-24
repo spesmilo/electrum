@@ -459,11 +459,16 @@ class Fusion(threading.Thread, PrintError):
 
             self.status = ('complete', 'time_wait')
 
-            # wait up to a minute before unfreezing coins
+            # The server has told us the fusion is complete but we might not
+            # have seen the tx show up in our wallets. So we can't unfreeze
+            # coins or unreserve addresses yet, else they might be used in
+            # another fusion. Wait up to a minute for this to happen.
+            wallets = set(self.source_wallet_info.keys())
+            wallets.add(self.target_wallet)
             for _ in range(60):
                 if self.stopping:
                     break # not an error
-                for w in self.source_wallet_info:
+                for w in wallets:
                     if self.txid not in w.transactions:
                         break
                 else:
