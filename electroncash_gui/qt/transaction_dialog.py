@@ -212,7 +212,7 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
         if op == cls.FreezeOp.Freeze:
             return ngettext("&Freeze Coin", "&Freeze Coins", num_coins)
         elif op == cls.FreezeOp.Unfreeze:
-            return ngettext("&Unfeeze Coin", "&Unfeeze Coins", num_coins)
+            return ngettext("&Unfreeze Coin", "&Unfreeze Coins", num_coins)
         raise ValueError(f"Invalid op: {op!r}")
 
     def initiate_fetch_input_data(self, force):
