@@ -48,7 +48,7 @@ from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160,
                       var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN,
                       int_to_hex, push_script, b58_address_to_hash160,
                       opcodes, add_number_to_script, base_decode, is_segwit_script_type,
-                      base_encode)
+                      base_encode, construct_witness)
 from .crypto import sha256d
 from .logging import get_logger
 
@@ -477,18 +477,6 @@ def parse_input(vds: BCDataStream) -> TxInput:
     script_sig = vds.read_bytes(vds.read_compact_size())
     nsequence = vds.read_uint32()
     return TxInput(prevout=prevout, script_sig=script_sig, nsequence=nsequence)
-
-
-def construct_witness(items: Sequence[Union[str, int, bytes]]) -> str:
-    """Constructs a witness from the given stack items."""
-    witness = var_int(len(items))
-    for item in items:
-        if type(item) is int:
-            item = bitcoin.script_num_to_hex(item)
-        elif isinstance(item, (bytes, bytearray)):
-            item = bh2u(item)
-        witness += bitcoin.witness_push(item)
-    return witness
 
 
 def parse_witness(vds: BCDataStream, txin: TxInput) -> None:

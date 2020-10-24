@@ -24,7 +24,7 @@
 # SOFTWARE.
 
 import hashlib
-from typing import List, Tuple, TYPE_CHECKING, Optional, Union
+from typing import List, Tuple, TYPE_CHECKING, Optional, Union, Sequence
 import enum
 from enum import IntEnum, Enum
 
@@ -297,6 +297,18 @@ def push_script(data: str) -> str:
 
 def add_number_to_script(i: int) -> bytes:
     return bfh(push_script(script_num_to_hex(i)))
+
+
+def construct_witness(items: Sequence[Union[str, int, bytes]]) -> str:
+    """Constructs a witness from the given stack items."""
+    witness = var_int(len(items))
+    for item in items:
+        if type(item) is int:
+            item = script_num_to_hex(item)
+        elif isinstance(item, (bytes, bytearray)):
+            item = bh2u(item)
+        witness += witness_push(item)
+    return witness
 
 
 def relayfee(network: 'Network' = None) -> int:

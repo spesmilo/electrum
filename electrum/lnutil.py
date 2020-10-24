@@ -19,7 +19,7 @@ from .transaction import (Transaction, PartialTransaction, PartialTxInput, TxOut
                           PartialTxOutput, opcodes, TxOutput)
 from .ecc import CURVE_ORDER, sig_string_from_der_sig, ECPubkey, string_to_number
 from . import ecc, bitcoin, crypto, transaction
-from .bitcoin import push_script, redeem_script_to_address, address_to_script
+from .bitcoin import push_script, redeem_script_to_address, address_to_script, construct_witness
 from . import segwit_addr
 from .i18n import _
 from .lnaddr import lndecode
@@ -475,7 +475,7 @@ def make_htlc_tx_witness(remotehtlcsig: bytes, localhtlcsig: bytes,
     assert type(localhtlcsig) is bytes
     assert type(payment_preimage) is bytes
     assert type(witness_script) is bytes
-    return bfh(transaction.construct_witness([0, remotehtlcsig, localhtlcsig, payment_preimage, witness_script]))
+    return bfh(construct_witness([0, remotehtlcsig, localhtlcsig, payment_preimage, witness_script]))
 
 def make_htlc_tx_inputs(htlc_output_txid: str, htlc_output_index: int,
                         amount_msat: int, witness_script: str) -> List[PartialTxInput]:
