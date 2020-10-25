@@ -1486,9 +1486,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if not pr:
             errors = self.payto_e.get_errors()
             if errors:
-                self.show_warning(_("Invalid Lines found:") + "\n\n" +
-                                  '\n'.join([_("Line #") + f"{err.idx+1}: {err.line_content[:40]}... ({repr(err.exc)})"
-                                             for err in errors]))
+                if len(errors) == 1 and not errors[0].is_multiline:
+                    err = errors[0]
+                    self.show_warning(_("Failed to parse 'Pay to' line") + ":\n" +
+                                      f"{err.line_content[:40]}...\n\n"
+                                      f"{err.exc!r}")
+                else:
+                    self.show_warning(_("Invalid Lines found:") + "\n\n" +
+                                      '\n'.join([_("Line #") +
+                                                 f"{err.idx+1}: {err.line_content[:40]}... ({err.exc!r})"
+                                                 for err in errors]))
                 return True
 
             if self.payto_e.is_alias and self.payto_e.validated is False:
