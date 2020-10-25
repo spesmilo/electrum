@@ -39,7 +39,7 @@ from collections import defaultdict
 
 import electroncash.schnorr as schnorr
 from electroncash.address import Address
-from electroncash.util import PrintError, ServerErrorResponse
+from electroncash.util import PrintError, ServerError, TimeoutException
 from . import fusion_pb2 as pb
 from .comms import send_pb, recv_pb, ClientHandlerThread, GenericServer, get_current_genesis_hash
 from .protocol import Protocol
@@ -710,11 +710,17 @@ class FusionController(threading.Thread, PrintError):
                 self.print_error("completed the transaction! " + txid)
 
                 try:
-                    self.network.broadcast_transaction2(tx,)
-                except ServerErrorResponse as e:
+                    self.network.broadcast_transaction2(tx, timeout=3)
+                except ServerError as e:
                     nice_msg, = e.args
                     server_msg = e.server_msg
                     self.print_error(f"could not broadcast the transaction! {nice_msg}")
+                except TimeoutException:
+                    self.print_error("timed out while trying to broadcast transaction! misconfigured?")
+                    # This probably indicates misconfiguration since fusion server ought
+                    # to have a good connection to the EC server. Report this back to clients
+                    # as an 'internal server error'.
+                    raise
                 else:
                     self.print_error("broadcast was successful!")
                     # Give our transaction a small head start in relaying, before sharing the
@@ -830,19 +836,19 @@ class FusionController(threading.Thread, PrintError):
                     assert ret, 'expecting input component'
                     outpoint = ret.prev_txid[::-1].hex() + ':' + str(ret.prev_index)
                     try:
-                        inputchecked = check_input_electrumx(self.network, ret)
+                        check_input_electrumx(self.network, ret)
                     except ValidationError as e:
                         reason = f'{e.args[0]} ({outpoint})'
                         self.print_error(f"blaming[{src_commitment_idx}] for bad input: {reason}")
                         src_client.kill('you provided a bad input: ' + reason)
                         continue
-                    if inputchecked:
+                    except Exception as e:
+                        self.print_error(f"player indicated bad input but checking failed with exception {repr(e)}  ({outpoint})")
+                    else:
                         self.print_error(f"player indicated bad input but it was fine ({outpoint})")
                         # At this point we could blame the originator, however
                         # blockchain checks are somewhat subjective. It would be
                         # appropriate to add some 'ban score' to the player.
-                    else:
-                        self.print_error(f"player indicated bad input but checking failed ({outpoint})")
 
                 # we aren't collecting any results, rather just marking that
                 # 'checking finished' so that if all blames are checked, we
