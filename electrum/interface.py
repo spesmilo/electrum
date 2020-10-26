@@ -993,9 +993,13 @@ class Interface(Logger):
         res = await self.session.send_request('mempool.get_fee_histogram')
         # check response
         assert_list_or_tuple(res)
+        prev_fee = float('inf')
         for fee, s in res:
             assert_non_negative_int_or_float(fee)
             assert_non_negative_integer(s)
+            if fee >= prev_fee:  # check monotonicity
+                raise RequestCorrupted(f'fees must be in decreasing order')
+            prev_fee = fee
         return res
 
     async def get_server_banner(self) -> str:
