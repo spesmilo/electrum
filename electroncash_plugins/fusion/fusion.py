@@ -416,6 +416,7 @@ class Fusion(threading.Thread, PrintError):
                     and not is_tor_port(self.tor_host, self.tor_port)):
                 raise FusionError(f"Can't connect to Tor proxy at {self.tor_host}:{self.tor_port}")
 
+            self.check_stop(running = False)
             self.check_coins()
 
             # Connect to the server
@@ -458,11 +459,16 @@ class Fusion(threading.Thread, PrintError):
 
             self.status = ('complete', 'time_wait')
 
-            # wait up to a minute before unfreezing coins
+            # The server has told us the fusion is complete but we might not
+            # have seen the tx show up in our wallets. So we can't unfreeze
+            # coins or unreserve addresses yet, else they might be used in
+            # another fusion. Wait up to a minute for this to happen.
+            wallets = set(self.source_wallet_info.keys())
+            wallets.add(self.target_wallet)
             for _ in range(60):
                 if self.stopping:
                     break # not an error
-                for w in self.source_wallet_info:
+                for w in wallets:
                     if self.txid not in w.transactions:
                         break
                 else:
@@ -486,11 +492,17 @@ class Fusion(threading.Thread, PrintError):
                     self.notify_server_status(False, self.status)
 
     def stop(self, reason = 'stopped', not_if_running = False):
-        self.stop_reason = reason
+        if self.stopping:
+            return
         if not_if_running:
+            if self.stopping_if_not_running:
+                return
+            self.stop_reason = reason
             self.stopping_if_not_running = True
         else:
+            self.stop_reason = reason
             self.stopping = True
+        # note the reason is only overwritten if we were not already stopping this way.
 
     def check_stop(self, running=True):
         """ Gets called occasionally from fusion thread to allow a stop point. """

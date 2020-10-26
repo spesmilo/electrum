@@ -294,6 +294,8 @@ class FusionPlugin(BasePlugin):
         self.fusions = weakref.WeakKeyDictionary()
         self.autofusing_wallets = weakref.WeakKeyDictionary()  # wallet -> password
 
+        self.t_last_net_ok = time.monotonic()
+
         self.remote_donation_address: str = ''  # optionally announced by the remote server in 'serverhello' message
 
         if tuple(self.config.get('cashfusion_server', ())) == ('cashfusion.electroncash.dk', 8787, False):
@@ -396,29 +398,33 @@ class FusionPlugin(BasePlugin):
         already 'running' in order to allow for the new change to take effect
         immediately. """
         self.remote_donation_address = ''
-        with self.lock:
-            wallets = list(self.autofusing_wallets.keys())
-        for wallet in wallets:
-            self._stop_fusions(wallet, 'Server changed', which='all')
-            # FIXME here: restart non-auto fusions on the new server!
+        self.stop_all_fusions('Server changed', not_if_running=True)
 
     def get_all_fusions(self, ):
-        """ Return all still-live fusion objects that have been created using .create_fusion(),
+        """ Return all still-live fusion objects that have been created using .start_fusion(),
         including autofusions and any other fusions. """
         with self.lock:
             fusions_and_times = list(self.fusions.items())
         fusions_and_times.sort(key=lambda x:x[1])
         return [f for f,t in fusions_and_times]
 
-    def _stop_fusions(self, wallet, reason, *, not_if_running=True, which='auto'):
-        # which may be 'all' or 'auto'
+    def stop_all_fusions(self, reason, *, not_if_running=True):
+        with self.lock:
+            for f in list(self.fusions):
+                f.stop(reason, not_if_running = not_if_running)
+
+    @staticmethod
+    def stop_autofusions(wallet, reason, *, not_if_running=True):
         with wallet.lock:
-            if not hasattr(wallet, '_fusions'):
+            try:
+                fusion_weakset = wallet._fusions_auto
+            except AttributeError:
                 return []
             running = []
-            assert which in ('all', 'auto')
-            fusions = list(wallet._fusions_auto) if which == 'auto' else list(wallet._fusions)
-            for f in fusions:
+            for f in list(fusion_weakset):
+                if not f.is_alive():
+                    fusion_weakset.discard(f)
+                    continue
                 f.stop(reason, not_if_running = not_if_running)
                 if f.status[0] == 'running':
                     running.append(f)
@@ -428,7 +434,7 @@ class FusionPlugin(BasePlugin):
         with self.lock:
             self.autofusing_wallets.pop(wallet, None)
         Conf(wallet).autofuse = False
-        return self._stop_fusions(wallet, 'Autofusing disabled', which='auto')
+        return self.stop_autofusions(wallet, 'Autofusing disabled', not_if_running=True)
 
     def enable_autofusing(self, wallet, password):
         if password is None and wallet.has_password():
@@ -466,7 +472,7 @@ class FusionPlugin(BasePlugin):
                 self.disable_autofusing(wallet)
 
     def remove_wallet(self, wallet):
-        ''' Detach the provided wallet; returns list of active fusions. '''
+        ''' Detach the provided wallet; returns list of active fusion threads. '''
         with self.lock:
             self.autofusing_wallets.pop(wallet, None)
         fusions = ()
@@ -477,12 +483,10 @@ class FusionPlugin(BasePlugin):
                 del wallet._fusions_auto
         except AttributeError:
             pass
-        return [f for f in fusions if f.status[0] not in ('complete', 'failed')]
+        return [f for f in fusions if f.is_alive()]
 
-
-    def create_fusion(self, source_wallet, password, coins, target_wallet = None, max_outputs = None):
-        """ Create a new Fusion object with current server/tor settings. Once created
-        you must call fusion.start() to launch it.
+    def start_fusion(self, source_wallet, password, coins, target_wallet = None, max_outputs = None, inactive_timeout = None):
+        """ Create and start a new Fusion object with current server/tor settings.
 
         Both source_wallet.lock and target_wallet.lock must be held.
         FIXME: this condition is begging for a deadlock to happen when the two wallets
@@ -506,14 +510,14 @@ class FusionPlugin(BasePlugin):
                 self.notify_server_status(False, ("failed", _("Invalid Tor proxy or no Tor proxy found")))
                 raise RuntimeError("can't find tor port")
         fusion = Fusion(self, target_wallet, host, port, ssl, torhost, torport)
-        target_wallet._fusions.add(fusion)
-        source_wallet._fusions.add(fusion)
         fusion.add_coins_from_wallet(source_wallet, password, coins)
         fusion.max_outputs = max_outputs
         with self.lock:
+            fusion.start(inactive_timeout = inactive_timeout)
             self.fusions[fusion] = time.time()
+        target_wallet._fusions.add(fusion)
+        source_wallet._fusions.add(fusion)
         return fusion
-
 
     def thread_jobs(self, ):
         return [self]
@@ -528,39 +532,59 @@ class FusionPlugin(BasePlugin):
 
         if not self.active:
             return
-        torcount = limiter.count
+
+        dont_start_fusions = False
+
+        network = Network.get_instance()
+        if network and network.is_connected():
+            self.t_last_net_ok = time.monotonic()
+        else:
+            # Cashfusion needs an accurate picture of the wallet's coin set, so
+            # that we don't reuse addresses and we don't submit already-spent coins.
+            # Currently the network is not synced so we won't start new fusions.
+            dont_start_fusions = True
+            if time.monotonic() - self.t_last_net_ok > 31:
+                # If the network is disconnected for an extended period, we also
+                # shut down all waiting fusions. We can't wait too long because
+                # one fusion might succeed but then enter the 'time_wait' period
+                # where it is waiting to see the transaction on the network.
+                # After 60 seconds it gives up and then will unreserve addresses,
+                # and currently-waiting fusions would then grab those addresses when
+                # they begin rounds.
+                self.stop_all_fusions('Lost connection to Electron Cash server', not_if_running = True)
+                return
+
         # Snapshot of autofusing list; note that remove_wallet may get
         # called on one of the wallets, after lock is released.
         with self.lock:
             wallets_and_passwords = list(self.autofusing_wallets.items())
 
+        torcount = limiter.count
         if torcount > AUTOFUSE_RECENT_TOR_LIMIT_UPPER:
-            # need tor cooldown, stop the waiting fusions
+            # need tor cooldown, stop the waiting autofusions
             for wallet, password in wallets_and_passwords:
-                with wallet.lock:
-                    if not hasattr(wallet, '_fusions'):
-                        continue
-                    autofusions = set(wallet._fusions_auto)
-                    for f in autofusions:
-                        if f.status[0] in ('complete', 'failed'):
-                            wallet._fusions_auto.discard(f)
-                            continue
-                        if not f.stopping:
-                            f.stop('Tor cooldown', not_if_running = True)
+                self.stop_autofusions(wallet, 'Tor cooldown', not_if_running = True)
             return
-
         if torcount > AUTOFUSE_RECENT_TOR_LIMIT_LOWER:
             # no urgent need to stop fusions, but don't queue up any more.
-            return
+            dont_start_fusions = True
 
         for wallet, password in wallets_and_passwords:
             with wallet.lock:
                 if not hasattr(wallet, '_fusions'):
                     continue
+                if not wallet.up_to_date:
+                    # We want a good view of the wallet so we know which coins
+                    # are unspent and confirmed, and we know which addrs are
+                    # used. Note: this `continue` will bypass the potential .stop()
+                    # below.
+                    continue
                 for f in list(wallet._fusions_auto):
-                    if f.status[0] in ('complete', 'failed'):
+                    if not f.is_alive():
                         wallet._fusions_auto.discard(f)
                 active_autofusions = list(wallet._fusions_auto)
+                if dont_start_fusions and not active_autofusions:
+                    continue
                 num_auto = len(active_autofusions)
                 wallet_conf = Conf(wallet)
                 eligible, ineligible, sum_value, has_unconfirmed, has_coinbase = select_coins(wallet)
@@ -569,7 +593,7 @@ class FusionPlugin(BasePlugin):
                     for f in list(wallet._fusions_auto):
                         f.stop('Wallet has unconfirmed coins... waiting.', not_if_running = True)
                     continue
-                if num_auto < min(target_num_auto, MAX_AUTOFUSIONS_PER_WALLET):
+                if not dont_start_fusions and num_auto < min(target_num_auto, MAX_AUTOFUSIONS_PER_WALLET):
                     # we don't have enough auto-fusions running, so start one
                     fraction = get_target_params_2(wallet_conf, sum_value)
                     chosen_buckets = select_random_coins(wallet, fraction, eligible)
@@ -585,8 +609,7 @@ class FusionPlugin(BasePlugin):
                     else:
                         max_outputs = None
                     try:
-                        f = self.create_fusion(wallet, password, coins, max_outputs = max_outputs)
-                        f.start(inactive_timeout = AUTOFUSE_INACTIVE_TIMEOUT)
+                        f = self.start_fusion(wallet, password, coins, max_outputs = max_outputs, inactive_timeout = AUTOFUSE_INACTIVE_TIMEOUT)
                         self.print_error("started auto-fusion")
                     except RuntimeError as e:
                         self.print_error(f"auto-fusion skipped due to error: {e}")
