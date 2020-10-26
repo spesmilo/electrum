@@ -81,7 +81,7 @@ _logger = get_logger(__name__)
 
 TX_STATUS = [
     _('Unconfirmed'),
-    _('Unconfirmed parent'),
+    _('Unconfirmed Parent'),
     _('Not Verified'),
     _('Local'),
 ]
@@ -1783,6 +1783,9 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def save_keystore(self):
         raise NotImplementedError()
+    
+    def get_wallet_label(self):
+        return self.wallet_type if self.wallet_type != None else ''
 
 
 
@@ -2505,6 +2508,9 @@ class TwoKeysWallet(MultikeyWallet):
             tx.finalize_psbt()
 
         return tx
+    
+    def get_wallet_label(self):
+        return '2-Key Vault'
 
 
 class ThreeKeysWallet(MultikeyWallet):
@@ -2563,6 +2569,9 @@ class ThreeKeysWallet(MultikeyWallet):
             tx.finalize_psbt()
 
         return tx
+    
+    def get_wallet_label(self):
+        return '3-Key Vault'
 
 
 wallet_types = [

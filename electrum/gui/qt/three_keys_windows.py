@@ -129,7 +129,7 @@ class ElectrumARWindow(ElectrumMultikeyWalletWindow):
 class ElectrumAIRWindow(ElectrumMultikeyWalletWindow):
     class TX_TYPES(enum.IntEnum):
         Secure = 0
-        Fast_Secure = 1
+        Secure_Fast = 1
 
     def __init__(self, gui_object: 'ElectrumGui', wallet: 'Abstract_Wallet'):
         self.wordlist = load_wordlist("english.txt")
@@ -203,7 +203,7 @@ and the blockchain parameters of the Bitcoin Vault wallet. Your funds will be un
                     self.instant_privkey_line.setEnabled(False)
                     self.instant_privkey_line.clear()
                     self.label_transaction_limitations.show()
-                elif self.tx_type_combo.currentIndex() == self.TX_TYPES.Fast_Secure:
+                elif self.tx_type_combo.currentIndex() == self.TX_TYPES.Secure_Fast:
                     self.instant_privkey_line.setEnabled(True)
                     self.label_transaction_limitations.hide()
             else:
@@ -211,7 +211,7 @@ and the blockchain parameters of the Bitcoin Vault wallet. Your funds will be un
                     description_label.setEnabled(True)
                     self.message_e.setEnabled(True)
                     self.label_transaction_limitations.show()
-                elif self.tx_type_combo.currentIndex() == self.TX_TYPES.Fast_Secure:
+                elif self.tx_type_combo.currentIndex() == self.TX_TYPES.Secure_Fast:
                     description_label.setEnabled(False)
                     self.message_e.setEnabled(False)
                     self.label_transaction_limitations.hide()
@@ -219,7 +219,7 @@ and the blockchain parameters of the Bitcoin Vault wallet. Your funds will be un
 
         msg = _('Choose transaction type.') + '\n\n' + \
               _('Secure - confirmed after 24 hours. Can be canceled within that time.') + '\n' + \
-              _('Fast Secure - confirmed immediately. Cannot be canceled. Requires an additional seed phrase.')
+              _('Secure Fast - confirmed immediately. Cannot be canceled. Requires an additional seed phrase.')
         tx_type_label = HelpLabel(_('Transaction type'), msg)
         self.tx_type_combo = QComboBox()
         self.tx_type_combo.addItems([_(tx_type.name.replace('_', ' ')) for tx_type in self.TX_TYPES])
@@ -229,7 +229,7 @@ and the blockchain parameters of the Bitcoin Vault wallet. Your funds will be un
         grid.addWidget(self.tx_type_combo, 4, 1, 1, -1)
 
         if not self.is_2fa:
-            instant_privkey_label = HelpLabel(_('Fast Secure Tx seed'), msg)
+            instant_privkey_label = HelpLabel(_('Secure Fast Tx seed'), msg)
             self.instant_privkey_line = CompletionTextEdit()
             self.instant_privkey_line.setTabChangesFocus(False)
             self.instant_privkey_line.setEnabled(False)
@@ -315,11 +315,11 @@ and the blockchain parameters of the Bitcoin Vault wallet. Your funds will be un
         stored_instant_pubkey = self.wallet.storage.get('instant_pubkey')
         seed = self.get_instant_seed()
         if not short_mnemonic.is_valid(seed):
-            raise ValueError(_("Invalid Fast Secure Tx seed"))
+            raise ValueError(_("Invalid Secure Fast Tx seed"))
         privkey, pubkey = short_mnemonic.seed_to_keypair(seed)
         del seed
         if pubkey != stored_instant_pubkey:
-            raise Exception(_("Fast Secure Tx seed not matching any key in this wallet"))
+            raise Exception(_("Secure Fast Tx seed not matching any key in this wallet"))
         return {pubkey: (privkey, True)}
 
     def do_pay(self):
@@ -328,7 +328,7 @@ and the blockchain parameters of the Bitcoin Vault wallet. Your funds will be un
             return
 
         keypair = None
-        if self.tx_type_combo.currentIndex() == self.TX_TYPES.Fast_Secure:
+        if self.tx_type_combo.currentIndex() == self.TX_TYPES.Secure_Fast:
             invoice['txtype'] = TxType.INSTANT.name
             try:
                 if not self.is_2fa:
@@ -366,7 +366,7 @@ and the blockchain parameters of the Bitcoin Vault wallet. Your funds will be un
         invoice = self.read_invoice()
         if not invoice:
             return
-        if self.tx_type_combo.currentIndex() == self.TX_TYPES.Fast_Secure:
+        if self.tx_type_combo.currentIndex() == self.TX_TYPES.Secure_Fast:
             invoice['txtype'] = TxType.INSTANT.name
         else:
             invoice['txtype'] = TxType.ALERT_PENDING.name

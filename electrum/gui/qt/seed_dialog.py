@@ -42,8 +42,7 @@ def seed_warning_msg(seed):
     return ''.join([
         "<p>",
         _("Please save these {0} words on paper (the order is important). "),
-        _("This seed will allow you to recover your wallet in case "
-          "of a computer failure."),
+        _("This seed will allow you to recover your wallet."),
         "</p>",
         "<b>" + _("WARNING") + ":</b>",
         "<ul>",
