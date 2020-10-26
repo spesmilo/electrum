@@ -33,7 +33,7 @@ This module has no GUI dependency.
 from electroncash import schnorr
 from electroncash.bitcoin import public_key_from_private_key
 from electroncash.i18n import _, ngettext, pgettext
-from electroncash.util import format_satoshis, do_in_main_thread, PrintError, ServerError, TxHashMismatch
+from electroncash.util import format_satoshis, do_in_main_thread, PrintError, ServerError, TxHashMismatch, TimeoutException
 from electroncash.wallet import Standard_Wallet, Multisig_Wallet
 
 from . import encrypt
@@ -1042,7 +1042,9 @@ class Fusion(threading.Thread, PrintError):
                     if not any(s in server_msg for s in acceptable_substrings):
                         server_msg = server_msg.replace(txhex, "<...tx hex...>")
                         self.print_error("tx broadcast failed:", repr(server_msg))
-                        raise FusionError(f"could not broadcast the transaction! {nice_msg}") from e
+                        raise FusionError(f"could not broadcast the transaction: {nice_msg}") from e
+                except TimeoutException:
+                    raise FusionError("could not broadcast the transaction due to timeout")
 
                 self.print_error(f"successful broadcast of {txid}")
                 return True
@@ -1096,6 +1098,7 @@ class Fusion(threading.Thread, PrintError):
         self.print_error("receiving proofs")
         msg = self.recv('theirproofslist', timeout = 2 * Protocol.STANDARD_TIMEOUT)
         blames = []
+        count_inputs = 0
         for i, rp in enumerate(msg.proofs):
             try:
                 privkey = privkeys[rp.dst_key_idx]
@@ -1120,21 +1123,17 @@ class Fusion(threading.Thread, PrintError):
                 blames.append(pb.Blames.BlameProof(which_proof = i, session_key = skey, blame_reason = e.args[0]))
                 continue
 
-            if inpcomp is None:
-                self.print_error("verified an output / blank")
-            else:
+            if inpcomp is not None:
+                count_inputs += 1
                 try:
-                    res = check_input_electrumx(self.network, inpcomp)
+                    check_input_electrumx(self.network, inpcomp)
                 except ValidationError as e:
                     self.print_error(f"found a bad input [{rp.src_commitment_idx}]: {e.args[0]} ({inpcomp.prev_txid[::-1].hex()}:{inpcomp.prev_index})")
                     blames.append(pb.Blames.BlameProof(which_proof = i, session_key = skey, blame_reason = 'input does not match blockchain: ' + e.args[0],
                                                        need_lookup_blockchain = True))
-
-                    continue
-                if res:
-                    self.print_error("verified an input fully")
-                else:
-                    self.print_error("verified an input internally, but was unable to check it against blockchain!")
+                except Exception as e:
+                    self.print_error(f"verified an input internally, but was unable to check it against blockchain: {repr(e)}")
+        self.print_error(f"checked {len(msg.proofs)} proofs, {count_inputs} of them inputs")
 
         self.print_error("sending blames")
         self.send(pb.Blames(blames = blames))
