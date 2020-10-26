@@ -162,6 +162,7 @@ class TorController(PrintError):
                 kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
             else:
                 kwargs['creationflags'] = 0x08000000 # CREATE_NO_WINDOW, for < Python 3.7
+        kwargs['start_new_session'] = True
         return TorController._orig_subprocess_popen(*args, **kwargs)
 
     @staticmethod
