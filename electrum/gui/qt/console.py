@@ -12,12 +12,16 @@ from PyQt5 import QtWidgets
 
 from electrum import util
 from electrum.i18n import _
+from electrum.logging import Logger
 
 from .util import MONOSPACE_FONT
 
 # sys.ps1 and sys.ps2 are only declared if an interpreter is in interactive mode.
 sys.ps1 = '>>> '
 sys.ps2 = '... '
+
+
+class SyntaxErrorEOF(Exception): pass
 
 
 class OverlayLabel(QtWidgets.QLabel):
@@ -47,9 +51,10 @@ class OverlayLabel(QtWidgets.QLabel):
         self.setFixedWidth(w - padding)
 
 
-class Console(QtWidgets.QPlainTextEdit):
+class Console(QtWidgets.QPlainTextEdit, Logger):
     def __init__(self, parent=None):
         QtWidgets.QPlainTextEdit.__init__(self, parent)
+        Logger.__init__(self)
 
         self.history = []
         self.namespace = {}
@@ -89,6 +94,8 @@ class Console(QtWidgets.QPlainTextEdit):
         self.namespace.update(namespace)
 
     def showMessage(self, message):
+        # note: 'message' is typically *untrusted* text, coming from a remote server.
+        # Calling newPrompt is security-critical, to avoid executing 'message' as a command.
         curr_line = self.getCommand(strip=False)
         self.appendPlainText(message)
         self.newPrompt(curr_line)
@@ -117,11 +124,22 @@ class Console(QtWidgets.QPlainTextEdit):
 
     def getCommand(self, *, strip=True):
         doc = self.document()
-        curr_line = doc.findBlockByLineNumber(doc.lineCount() - 1).text()
+        cmd = ""
+        for line_num in range(doc.lineCount()-1, -1, -1):
+            curr_line = doc.findBlockByLineNumber(line_num).text()
+            if cmd == "":
+                cmd = curr_line
+            else:
+                cmd = curr_line + "\n" + cmd
+            if cmd.startswith(sys.ps1):
+                cmd = cmd[len(sys.ps1):]
+                break
+            elif cmd.startswith(sys.ps2):
+                cmd = cmd[len(sys.ps2):]
+                break
         if strip:
-            curr_line = curr_line.rstrip()
-        curr_line = curr_line[len(sys.ps1):]
-        return curr_line
+            cmd = cmd.rstrip()
+        return cmd
 
     def setCommand(self, command):
         if self.getCommand() == command:
@@ -219,11 +237,14 @@ class Console(QtWidgets.QPlainTextEdit):
         command = self.getConstruct(command)
 
         if command:
-            self.exec_command(command)
+            try:
+                self.exec_command(command, raise_eof=True)
+            except SyntaxErrorEOF:
+                self.construct.append(command)
         self.newPrompt('')
         self.set_json(False)
 
-    def exec_command(self, command):
+    def exec_command(self, command, *, raise_eof=False):
         tmp_stdout = sys.stdout
 
         class stdoutProxy():
@@ -261,12 +282,16 @@ class Console(QtWidgets.QPlainTextEdit):
                 exec(command, self.namespace, self.namespace)
         except SystemExit:
             self.close()
-        except BaseException:
-            traceback_lines = traceback.format_exc().split('\n')
-            # Remove traceback mentioning this file, and a linebreak
-            for i in (3,2,1,-1):
-                traceback_lines.pop(i)
-            self.appendPlainText('\n'.join(traceback_lines))
+        except BaseException as e:
+            if raise_eof and isinstance(e, SyntaxError):
+                if str(e).startswith("unexpected EOF while parsing"):
+                    raise SyntaxErrorEOF() from e
+            else:
+                traceback_lines = traceback.format_exc().split('\n')
+                # Remove traceback mentioning this file, and a linebreak
+                for i in (3,2,1,-1):
+                    traceback_lines.pop(i)
+                self.appendPlainText('\n'.join(traceback_lines))
         sys.stdout = tmp_stdout
 
     def keyPressEvent(self, event):
