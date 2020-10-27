@@ -65,7 +65,7 @@ class SimpleConfig(Logger):
         # a thread-safe way.
         self.lock = threading.RLock()
 
-        self.mempool_fees = []  # type: Sequence[Tuple[Union[float, int], int]]
+        self.mempool_fees = None  # type: Optional[Sequence[Tuple[Union[float, int], int]]]
         self.fee_estimates = {}
         self.fee_estimates_last_updated = {}
         self.last_time_fee_estimates_requested = 0  # zero ensures immediate fees
@@ -345,11 +345,13 @@ class SimpleConfig(Logger):
                 fee = int(fee)
         return fee
 
-    def fee_to_depth(self, target_fee: Real) -> int:
+    def fee_to_depth(self, target_fee: Real) -> Optional[int]:
         """For a given sat/vbyte fee, returns an estimate of how deep
         it would be in the current mempool in vbytes.
         Pessimistic == overestimates the depth.
         """
+        if self.mempool_fees is None:
+            return None
         depth = 0
         for fee, s in self.mempool_fees:
             depth += s
@@ -357,16 +359,18 @@ class SimpleConfig(Logger):
                 break
         return depth
 
-    def depth_to_fee(self, slider_pos) -> int:
+    def depth_to_fee(self, slider_pos) -> Optional[int]:
         """Returns fee in sat/kbyte."""
         target = self.depth_target(slider_pos)
         return self.depth_target_to_fee(target)
 
     @impose_hard_limits_on_fee
-    def depth_target_to_fee(self, target: int) -> int:
+    def depth_target_to_fee(self, target: int) -> Optional[int]:
         """Returns fee in sat/kbyte.
         target: desired mempool depth in vbytes
         """
+        if self.mempool_fees is None:
+            return None
         depth = 0
         for fee, s in self.mempool_fees:
             depth += s
@@ -381,7 +385,7 @@ class SimpleConfig(Logger):
         # convert to sat/kbyte
         return int(fee * 1000)
 
-    def depth_target(self, slider_pos):
+    def depth_target(self, slider_pos) -> int:
         slider_pos = max(slider_pos, 0)
         slider_pos = min(slider_pos, len(FEE_DEPTH_TARGETS)-1)
         return FEE_DEPTH_TARGETS[slider_pos]
@@ -400,8 +404,11 @@ class SimpleConfig(Logger):
             min_target = -1
         return min_target
 
-    def depth_tooltip(self, depth):
-        return "%.1f MB from tip"%(depth/1000000)
+    def depth_tooltip(self, depth: Optional[int]) -> str:
+        """Returns text tooltip for given mempool depth (in vbytes)."""
+        if depth is None:
+            return "unknown from tip"
+        return "%.1f MB from tip" % (depth/1_000_000)
 
     def eta_tooltip(self, x):
         if x < 0:
@@ -460,7 +467,7 @@ class SimpleConfig(Logger):
         maxp = len(FEE_ETA_TARGETS)  # not (-1) to have "next block"
         return min(maxp, self.get('fee_level', 2))
 
-    def get_fee_slider(self, dyn, mempool):
+    def get_fee_slider(self, dyn, mempool) -> Tuple[int, int, Optional[int]]:
         if dyn:
             if mempool:
                 pos = self.get_depth_level()
@@ -479,7 +486,7 @@ class SimpleConfig(Logger):
     def static_fee(self, i):
         return FEERATE_STATIC_VALUES[i]
 
-    def static_fee_index(self, value):
+    def static_fee_index(self, value) -> int:
         if value is None:
             raise TypeError('static fee cannot be None')
         dist = list(map(lambda x: abs(x - value), FEERATE_STATIC_VALUES))
@@ -488,8 +495,8 @@ class SimpleConfig(Logger):
     def has_fee_etas(self):
         return len(self.fee_estimates) == 4
 
-    def has_fee_mempool(self):
-        return bool(self.mempool_fees)
+    def has_fee_mempool(self) -> bool:
+        return self.mempool_fees is not None
 
     def has_dynamic_fees_ready(self):
         if self.use_mempool_fees():
