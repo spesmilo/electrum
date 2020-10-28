@@ -2199,19 +2199,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         # display colorful lightning icon to signal connection
         self.lightning_button.setIcon(read_QIcon("lightning.png"))
 
-        cur, total = self.network.lngossip.get_sync_progress_estimate()
+        cur, total, progress_percent = self.network.lngossip.get_sync_progress_estimate()
         # self.logger.debug(f"updating lngossip sync progress estimate: cur={cur}, total={total}")
-        progress_percent = 0
         progress_str = "??%"
-        if cur is not None and total is not None and total > 0:
-            # note: Progress is rescaled such that 95% is considered "done".
-            #       "Real" progress can stay around 98-99% for a long time, which
-            #       might needlessly worry users.
-            progress_percent = (1.0 / 0.95 * cur / total) * 100
-            progress_percent = min(progress_percent, 100)
-            progress_percent = round(progress_percent)
+        if progress_percent is not None:
             progress_str = f"{progress_percent}%"
-        if progress_percent >= 100:
+        if progress_percent and progress_percent >= 100:
             self.lightning_button.setMaximumWidth(25)
             self.lightning_button.setText('')
             self.lightning_button.setToolTip(_("The Lightning Network graph is fully synced."))
