@@ -72,6 +72,11 @@ Builder.load_string('''
                 height: '48dp'
                 on_release: app.scan_qr(on_complete=s.on_qr)
             Button:
+                text: _('Suggest')
+                size_hint: 1, None
+                height: '48dp'
+                on_release: s.suggest_node()
+            Button:
                 text: _('Clear')
                 size_hint: 1, None
                 height: '48dp'
@@ -96,6 +101,18 @@ class LightningOpenChannelDialog(Factory.Popup, Logger):
             self.ipport = text
         d = LabelDialog(_('IP/port in format:\n[host]:[port]'), self.ipport, callback)
         d.open()
+
+    def suggest_node(self):
+        self.app.wallet.network.start_gossip()
+        suggested = self.app.wallet.lnworker.lnrater.suggest_peer()
+        _, _, percent = self.app.wallet.network.lngossip.get_sync_progress_estimate()
+
+        if suggested:
+            self.pubkey = suggested.hex()
+        else:
+            if percent is None:
+                percent = "??"
+            self.pubkey = f"Please wait, graph is updating ({percent}% / 30% done)."
 
     def __init__(self, app, lnaddr=None, msg=None):
         Factory.Popup.__init__(self)
