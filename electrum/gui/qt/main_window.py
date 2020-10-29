@@ -1370,7 +1370,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         grid.addWidget(self.max_button, 3, 3)
 
         self.save_button = EnterButton(_("Save"), self.do_save_invoice)
-        self.send_button = EnterButton(_("Pay"), self.do_pay)
+        self.send_button = EnterButton(_("Pay") + "...", self.do_pay)
         self.clear_button = EnterButton(_("Clear"), self.do_clear)
 
         buttons = QHBoxLayout()
