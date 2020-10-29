@@ -197,7 +197,9 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
         vbox = QVBoxLayout()
         hbox = QHBoxLayout()
-        vbox.addWidget(QLabel(_('Enter the name of the new wallet or load an existing wallet by clicking "Choose".')))
+        label = QLabel(_('Enter the name of the new wallet or load an existing wallet by clicking "Choose".'))
+        label.setWordWrap(True)
+        vbox.addWidget(label)
         hbox.addWidget(QLabel(_('Wallet') + ':'))
         self.name_e = QLineEdit()
         hbox.addWidget(self.name_e)
