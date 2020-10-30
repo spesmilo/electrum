@@ -20,6 +20,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
+import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.observe
 import com.chaquo.python.PyException
@@ -29,7 +30,6 @@ import kotlinx.android.synthetic.main.wallet_export.*
 import kotlinx.android.synthetic.main.wallet_open.*
 import kotlinx.android.synthetic.main.wallet_rename.*
 import java.io.File
-import kotlin.properties.Delegates.notNull
 import kotlin.reflect.KClass
 
 
@@ -57,6 +57,7 @@ class MainActivity : AppCompatActivity(R.layout.main) {
     var newIntent = true
     var walletName: String? = null
     var viewStateRestored = false
+    var pendingDrawerItem: MenuItem? = null
 
     override fun onCreate(state: Bundle?) {
         // Remove splash screen: doesn't work if called after super.onCreate.
@@ -81,7 +82,26 @@ class MainActivity : AppCompatActivity(R.layout.main) {
             setHomeAsUpIndicator(R.drawable.ic_menu_24dp)
         }
 
-        navDrawer.setNavigationItemSelectedListener { onDrawerItemSelected(it) }
+        navDrawer.setNavigationItemSelectedListener { item ->
+            closeDrawer()
+            if (item.itemId in ACTIVITIES) {
+                // Delay the activity transition until the drawer close animation completes,
+                // otherwise the user may see it stick in a half-closed position.
+                pendingDrawerItem = item
+            } else {
+                onDrawerItemSelected(item)
+            }
+            false
+        }
+        drawer.addDrawerListener(object : DrawerLayout.SimpleDrawerListener() {
+            override fun onDrawerClosed(drawerView: View) {
+                if (pendingDrawerItem != null) {
+                    onDrawerItemSelected(pendingDrawerItem!!)
+                    pendingDrawerItem = null
+                }
+            }
+        })
+
         navBottom.setOnNavigationItemSelectedListener {
             showFragment(it.itemId)
             true
@@ -204,7 +224,6 @@ class MainActivity : AppCompatActivity(R.layout.main) {
         } else {
             throw Exception("Unknown item $item")
         }
-        closeDrawer()
         return false
     }
 
