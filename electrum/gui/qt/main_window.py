@@ -2318,6 +2318,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         grid.addWidget(QLabel(_('Lightning') + ':'), 5, 0)
         if self.wallet.can_have_lightning():
             grid.addWidget(QLabel(_('Enabled')), 5, 1)
+            local_nodeid = QLabel(bh2u(self.wallet.lnworker.node_keypair.pubkey))
+            local_nodeid.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            grid.addWidget(QLabel(_('Lightning Node ID:')), 6, 0)
+            grid.addWidget(local_nodeid, 6, 1, 1, 3)
         else:
             grid.addWidget(QLabel(_("Not available for this wallet.")), 5, 1)
             grid.addWidget(HelpButton(_("Lightning is currently restricted to HD wallets with p2wpkh addresses.")), 5, 2)
