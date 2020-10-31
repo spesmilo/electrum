@@ -37,7 +37,7 @@ if sys.version_info[:3] < _min_python_version_tuple:
 
 import warnings
 import asyncio
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -95,6 +95,8 @@ from electrum_ltc import keystore
 from electrum_ltc.util import create_and_start_event_loop
 
 if TYPE_CHECKING:
+    import threading
+
     from electrum_ltc.plugin import Plugins
 
 _logger = get_logger(__name__)
@@ -113,7 +115,7 @@ def prompt_password(prompt, confirm=True):
     return password
 
 
-def init_cmdline(config_options, wallet_path, server):
+def init_cmdline(config_options, wallet_path, server, *, config: 'SimpleConfig'):
     cmdname = config.get('cmd')
     cmd = known_commands[cmdname]
 
@@ -259,13 +261,20 @@ def init_plugins(config, gui_name):
     from electrum_ltc.plugin import Plugins
     return Plugins(config, gui_name)
 
+
+loop = None  # type: Optional[asyncio.AbstractEventLoop]
+stop_loop = None  # type: Optional[asyncio.Future]
+loop_thread = None  # type: Optional[threading.Thread]
+
 def sys_exit(i):
     # stop event loop and exit
-    loop.call_soon_threadsafe(stop_loop.set_result, 1)
-    loop_thread.join(timeout=1)
+    if loop:
+        loop.call_soon_threadsafe(stop_loop.set_result, 1)
+        loop_thread.join(timeout=1)
     sys.exit(i)
 
-if __name__ == '__main__':
+
+def main():
     # The hook will only be used in the Qt GUI right now
     util.setup_thread_excepthook()
     # on macOS, delete Process Serial Number arg generated for apps launched in Finder
@@ -368,8 +377,21 @@ if __name__ == '__main__':
             os.dup2(so.fileno(), sys.stdout.fileno())
             os.dup2(se.fileno(), sys.stderr.fileno())
 
+    global loop, stop_loop, loop_thread
     loop, stop_loop, loop_thread = create_and_start_event_loop()
 
+    try:
+        handle_cmd(
+            cmdname=cmdname,
+            config=config,
+            config_options=config_options,
+        )
+    except Exception:
+        _logger.exception("")
+        sys_exit(1)
+
+
+def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
     if cmdname == 'gui':
         configure_logging(config)
         fd = daemon.get_file_descriptor(config)
@@ -404,7 +426,7 @@ if __name__ == '__main__':
         cmd = known_commands[cmdname]
         wallet_path = config.get_wallet_path()
         if not config.get('offline'):
-            init_cmdline(config_options, wallet_path, True)
+            init_cmdline(config_options, wallet_path, True, config=config)
             timeout = config.get('timeout', 60)
             if timeout: timeout = int(timeout)
             try:
@@ -421,7 +443,7 @@ if __name__ == '__main__':
             if cmd.requires_network:
                 print_msg("This command cannot be run offline")
                 sys_exit(1)
-            init_cmdline(config_options, wallet_path, False)
+            init_cmdline(config_options, wallet_path, False, config=config)
             plugins = init_plugins(config, 'cmdline')
             coro = run_offline_command(config, config_options, plugins)
             fut = asyncio.run_coroutine_threadsafe(coro, loop)
@@ -438,3 +460,7 @@ if __name__ == '__main__':
     elif result is not None:
         print_msg(json_encode(result))
     sys_exit(0)
+
+
+if __name__ == '__main__':
+    main()

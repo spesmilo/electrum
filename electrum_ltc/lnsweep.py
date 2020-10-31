@@ -6,7 +6,7 @@ from typing import Optional, Dict, List, Tuple, TYPE_CHECKING, NamedTuple, Calla
 from enum import Enum, auto
 
 from .util import bfh, bh2u
-from .bitcoin import redeem_script_to_address, dust_threshold
+from .bitcoin import redeem_script_to_address, dust_threshold, construct_witness
 from . import ecc
 from .lnutil import (make_commitment_output_to_remote_address, make_commitment_output_to_local_witness_script,
                      derive_privkey, derive_pubkey, derive_blinded_pubkey, derive_blinded_privkey,
@@ -15,7 +15,7 @@ from .lnutil import (make_commitment_output_to_remote_address, make_commitment_o
                      get_ordered_channel_configs, privkey_to_pubkey, get_per_commitment_secret_from_seed,
                      RevocationStore, extract_ctn_from_tx_and_chan, UnableToDeriveSecret, SENT, RECEIVED,
                      map_htlcs_to_ctx_output_idxs, Direction)
-from .transaction import (Transaction, TxOutput, construct_witness, PartialTransaction, PartialTxInput,
+from .transaction import (Transaction, TxOutput, PartialTransaction, PartialTxInput,
                           PartialTxOutput, TxOutpoint)
 from .simple_config import SimpleConfig
 from .logging import get_logger, Logger

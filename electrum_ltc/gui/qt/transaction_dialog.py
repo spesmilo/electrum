@@ -430,7 +430,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             time_str = datetime.datetime.fromtimestamp(tx_mined_status.timestamp).isoformat(' ')[:-3]
             self.date_label.setText(_("Date: {}").format(time_str))
             self.date_label.show()
-        elif exp_n:
+        elif exp_n is not None:
             text = '%.2f MB'%(exp_n/1000000)
             self.date_label.setText(_('Position in mempool: {} from tip').format(text))
             self.date_label.show()

@@ -156,7 +156,7 @@ class TxDialog(Factory.Popup):
         if tx_mined_status.timestamp:
             self.date_label = _('Date')
             self.date_str = datetime.fromtimestamp(tx_mined_status.timestamp).isoformat(' ')[:-3]
-        elif exp_n:
+        elif exp_n is not None:
             self.date_label = _('Mempool depth')
             self.date_str = _('{} from tip').format('%.2f MB'%(exp_n/1000000))
         else:

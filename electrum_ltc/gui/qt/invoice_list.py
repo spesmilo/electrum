@@ -142,7 +142,7 @@ class InvoiceList(MyTreeView):
             can_batch_pay = all([i.type == PR_TYPE_ONCHAIN and wallet.get_invoice_status(i) == PR_UNPAID for i in invoices])
             menu = QMenu(self)
             if can_batch_pay:
-                menu.addAction(_("Batch pay invoices"), lambda: self.parent.pay_multiple_invoices(invoices))
+                menu.addAction(_("Batch pay invoices") + "...", lambda: self.parent.pay_multiple_invoices(invoices))
             menu.addAction(_("Delete invoices"), lambda: self.parent.delete_invoices(keys))
             menu.exec_(self.viewport().mapToGlobal(position))
             return
@@ -163,7 +163,7 @@ class InvoiceList(MyTreeView):
             menu.addAction(_("Details"), lambda: self.parent.show_onchain_invoice(invoice))
         status = wallet.get_invoice_status(invoice)
         if status == PR_UNPAID:
-            menu.addAction(_("Pay"), lambda: self.parent.do_pay_invoice(invoice))
+            menu.addAction(_("Pay") + "...", lambda: self.parent.do_pay_invoice(invoice))
         if status == PR_FAILED:
             menu.addAction(_("Retry"), lambda: self.parent.do_pay_invoice(invoice))
         if self.parent.wallet.lnworker:

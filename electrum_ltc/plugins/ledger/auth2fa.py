@@ -1,4 +1,5 @@
 import copy
+from typing import TYPE_CHECKING
 
 from PyQt5.QtWidgets import (QDialog, QLineEdit, QTextEdit, QVBoxLayout, QLabel,
                              QWidget, QHBoxLayout, QComboBox)
@@ -10,6 +11,9 @@ from electrum_ltc.gui.qt.util import PasswordLineEdit
 from electrum_ltc.i18n import _
 from electrum_ltc import constants, bitcoin
 from electrum_ltc.logging import get_logger
+
+if TYPE_CHECKING:
+    from .ledger import Ledger_Client
 
 
 _logger = get_logger(__name__)
@@ -27,7 +31,7 @@ helpTxt = [_("Your Ledger Wallet wants to tell you a one-time PIN code.<br><br>"
         ]
 
 class LedgerAuthDialog(QDialog):
-    def __init__(self, handler, data):
+    def __init__(self, handler, data, *, client: 'Ledger_Client'):
         '''Ask user for 2nd factor authentication. Support text and security card methods.
         Use last method from settings, but support downgrade.
         '''
@@ -38,7 +42,7 @@ class LedgerAuthDialog(QDialog):
         self.setMinimumWidth(650)
         self.setWindowTitle(_("Ledger Wallet Authentication"))
         self.cfg = copy.deepcopy(self.handler.win.wallet.get_keystore().cfg)
-        self.dongle = self.handler.win.wallet.get_keystore().get_client().dongle
+        self.dongle = client.dongleObject.dongle
         self.pin = ''
         
         self.devmode = self.getDevice2FAMode()

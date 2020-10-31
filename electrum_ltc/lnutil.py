@@ -19,7 +19,8 @@ from .transaction import (Transaction, PartialTransaction, PartialTxInput, TxOut
                           PartialTxOutput, opcodes, TxOutput)
 from .ecc import CURVE_ORDER, sig_string_from_der_sig, ECPubkey, string_to_number
 from . import ecc, bitcoin, crypto, transaction
-from .bitcoin import push_script, redeem_script_to_address, address_to_script
+from .bitcoin import (push_script, redeem_script_to_address, address_to_script,
+                      construct_witness, construct_script)
 from . import segwit_addr
 from .i18n import _
 from .lnaddr import lndecode
@@ -452,13 +453,17 @@ def make_htlc_tx_output(amount_msat, local_feerate, revocationpubkey, local_dela
     assert type(local_feerate) is int
     assert type(revocationpubkey) is bytes
     assert type(local_delayedpubkey) is bytes
-    script = bytes([opcodes.OP_IF]) \
-        + bfh(push_script(bh2u(revocationpubkey))) \
-        + bytes([opcodes.OP_ELSE]) \
-        + bitcoin.add_number_to_script(to_self_delay) \
-        + bytes([opcodes.OP_CHECKSEQUENCEVERIFY, opcodes.OP_DROP]) \
-        + bfh(push_script(bh2u(local_delayedpubkey))) \
-        + bytes([opcodes.OP_ENDIF, opcodes.OP_CHECKSIG])
+    script = bfh(construct_script([
+        opcodes.OP_IF,
+        revocationpubkey,
+        opcodes.OP_ELSE,
+        to_self_delay,
+        opcodes.OP_CHECKSEQUENCEVERIFY,
+        opcodes.OP_DROP,
+        local_delayedpubkey,
+        opcodes.OP_ENDIF,
+        opcodes.OP_CHECKSIG,
+    ]))
 
     p2wsh = bitcoin.redeem_script_to_address('p2wsh', bh2u(script))
     weight = HTLC_SUCCESS_WEIGHT if success else HTLC_TIMEOUT_WEIGHT
@@ -475,7 +480,7 @@ def make_htlc_tx_witness(remotehtlcsig: bytes, localhtlcsig: bytes,
     assert type(localhtlcsig) is bytes
     assert type(payment_preimage) is bytes
     assert type(witness_script) is bytes
-    return bfh(transaction.construct_witness([0, remotehtlcsig, localhtlcsig, payment_preimage, witness_script]))
+    return bfh(construct_witness([0, remotehtlcsig, localhtlcsig, payment_preimage, witness_script]))
 
 def make_htlc_tx_inputs(htlc_output_txid: str, htlc_output_index: int,
                         amount_msat: int, witness_script: str) -> List[PartialTxInput]:
@@ -503,13 +508,35 @@ def make_offered_htlc(revocation_pubkey: bytes, remote_htlcpubkey: bytes,
     assert type(remote_htlcpubkey) is bytes
     assert type(local_htlcpubkey) is bytes
     assert type(payment_hash) is bytes
-    return bytes([opcodes.OP_DUP, opcodes.OP_HASH160]) + bfh(push_script(bh2u(bitcoin.hash_160(revocation_pubkey))))\
-        + bytes([opcodes.OP_EQUAL, opcodes.OP_IF, opcodes.OP_CHECKSIG, opcodes.OP_ELSE]) \
-        + bfh(push_script(bh2u(remote_htlcpubkey)))\
-        + bytes([opcodes.OP_SWAP, opcodes.OP_SIZE]) + bitcoin.add_number_to_script(32) + bytes([opcodes.OP_EQUAL, opcodes.OP_NOTIF, opcodes.OP_DROP])\
-        + bitcoin.add_number_to_script(2) + bytes([opcodes.OP_SWAP]) + bfh(push_script(bh2u(local_htlcpubkey))) + bitcoin.add_number_to_script(2)\
-        + bytes([opcodes.OP_CHECKMULTISIG, opcodes.OP_ELSE, opcodes.OP_HASH160])\
-        + bfh(push_script(bh2u(crypto.ripemd(payment_hash)))) + bytes([opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG, opcodes.OP_ENDIF, opcodes.OP_ENDIF])
+    script = bfh(construct_script([
+        opcodes.OP_DUP,
+        opcodes.OP_HASH160,
+        bitcoin.hash_160(revocation_pubkey),
+        opcodes.OP_EQUAL,
+        opcodes.OP_IF,
+        opcodes.OP_CHECKSIG,
+        opcodes.OP_ELSE,
+        remote_htlcpubkey,
+        opcodes.OP_SWAP,
+        opcodes.OP_SIZE,
+        32,
+        opcodes.OP_EQUAL,
+        opcodes.OP_NOTIF,
+        opcodes.OP_DROP,
+        2,
+        opcodes.OP_SWAP,
+        local_htlcpubkey,
+        2,
+        opcodes.OP_CHECKMULTISIG,
+        opcodes.OP_ELSE,
+        opcodes.OP_HASH160,
+        crypto.ripemd(payment_hash),
+        opcodes.OP_EQUALVERIFY,
+        opcodes.OP_CHECKSIG,
+        opcodes.OP_ENDIF,
+        opcodes.OP_ENDIF,
+    ]))
+    return script
 
 def make_received_htlc(revocation_pubkey: bytes, remote_htlcpubkey: bytes,
                        local_htlcpubkey: bytes, payment_hash: bytes, cltv_expiry: int) -> bytes:
@@ -517,22 +544,38 @@ def make_received_htlc(revocation_pubkey: bytes, remote_htlcpubkey: bytes,
         assert type(i) is bytes
     assert type(cltv_expiry) is int
 
-    return bytes([opcodes.OP_DUP, opcodes.OP_HASH160]) \
-        + bfh(push_script(bh2u(bitcoin.hash_160(revocation_pubkey)))) \
-        + bytes([opcodes.OP_EQUAL, opcodes.OP_IF, opcodes.OP_CHECKSIG, opcodes.OP_ELSE]) \
-        + bfh(push_script(bh2u(remote_htlcpubkey))) \
-        + bytes([opcodes.OP_SWAP, opcodes.OP_SIZE]) \
-        + bitcoin.add_number_to_script(32) \
-        + bytes([opcodes.OP_EQUAL, opcodes.OP_IF, opcodes.OP_HASH160]) \
-        + bfh(push_script(bh2u(crypto.ripemd(payment_hash)))) \
-        + bytes([opcodes.OP_EQUALVERIFY]) \
-        + bitcoin.add_number_to_script(2) \
-        + bytes([opcodes.OP_SWAP]) \
-        + bfh(push_script(bh2u(local_htlcpubkey))) \
-        + bitcoin.add_number_to_script(2) \
-        + bytes([opcodes.OP_CHECKMULTISIG, opcodes.OP_ELSE, opcodes.OP_DROP]) \
-        + bitcoin.add_number_to_script(cltv_expiry) \
-        + bytes([opcodes.OP_CHECKLOCKTIMEVERIFY, opcodes.OP_DROP, opcodes.OP_CHECKSIG, opcodes.OP_ENDIF, opcodes.OP_ENDIF])
+    script = bfh(construct_script([
+        opcodes.OP_DUP,
+        opcodes.OP_HASH160,
+        bitcoin.hash_160(revocation_pubkey),
+        opcodes.OP_EQUAL,
+        opcodes.OP_IF,
+        opcodes.OP_CHECKSIG,
+        opcodes.OP_ELSE,
+        remote_htlcpubkey,
+        opcodes.OP_SWAP,
+        opcodes.OP_SIZE,
+        32,
+        opcodes.OP_EQUAL,
+        opcodes.OP_IF,
+        opcodes.OP_HASH160,
+        crypto.ripemd(payment_hash),
+        opcodes.OP_EQUALVERIFY,
+        2,
+        opcodes.OP_SWAP,
+        local_htlcpubkey,
+        2,
+        opcodes.OP_CHECKMULTISIG,
+        opcodes.OP_ELSE,
+        opcodes.OP_DROP,
+        cltv_expiry,
+        opcodes.OP_CHECKLOCKTIMEVERIFY,
+        opcodes.OP_DROP,
+        opcodes.OP_CHECKSIG,
+        opcodes.OP_ENDIF,
+        opcodes.OP_ENDIF,
+    ]))
+    return script
 
 def make_htlc_output_witness_script(is_received_htlc: bool, remote_revocation_pubkey: bytes, remote_htlc_pubkey: bytes,
                                     local_htlc_pubkey: bytes, payment_hash: bytes, cltv_expiry: Optional[int]) -> bytes:
@@ -796,9 +839,18 @@ def make_commitment(
 
 def make_commitment_output_to_local_witness_script(
         revocation_pubkey: bytes, to_self_delay: int, delayed_pubkey: bytes) -> bytes:
-    local_script = bytes([opcodes.OP_IF]) + bfh(push_script(bh2u(revocation_pubkey))) + bytes([opcodes.OP_ELSE]) + bitcoin.add_number_to_script(to_self_delay) \
-                   + bytes([opcodes.OP_CHECKSEQUENCEVERIFY, opcodes.OP_DROP]) + bfh(push_script(bh2u(delayed_pubkey))) + bytes([opcodes.OP_ENDIF, opcodes.OP_CHECKSIG])
-    return local_script
+    script = bfh(construct_script([
+        opcodes.OP_IF,
+        revocation_pubkey,
+        opcodes.OP_ELSE,
+        to_self_delay,
+        opcodes.OP_CHECKSEQUENCEVERIFY,
+        opcodes.OP_DROP,
+        delayed_pubkey,
+        opcodes.OP_ENDIF,
+        opcodes.OP_CHECKSIG,
+    ]))
+    return script
 
 def make_commitment_output_to_local_address(
         revocation_pubkey: bytes, to_self_delay: int, delayed_pubkey: bytes) -> str:
