@@ -7,4 +7,5 @@
 /build
 /captures
 /keystore.jks
+/release
 .externalNativeBuild

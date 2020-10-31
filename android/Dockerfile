@@ -15,9 +15,9 @@ RUN filename=sdk-tools-linux-4333796.zip && \
     rm $filename
 
 # Indicate that we accept the Android SDK license. The platform version here isn't critical:
-# all versions require the same license, and if app/build.gradle specifies a different version,
-# the build process will automatically download it.
-RUN yes | android-sdk/tools/bin/sdkmanager "platforms;android-28"
+# all versions require the same license, and if app/build.gradle has a different
+# compileSdkVersion, the build process will automatically download it.
+RUN yes | android-sdk/tools/bin/sdkmanager "platforms;android-29"
 
 # Python 3.6 isn't included in this version of Debian, so use a third-party build.
 RUN apt-get update && \

@@ -4,3 +4,4 @@
 .git
 .tox
 android/**/build
+android/release
