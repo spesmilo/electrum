@@ -745,6 +745,8 @@ mainnet_block_explorers = {
                         {'tx': 'transactions/', 'addr': 'addresses/'}),
     'Blockchair.com': ('https://blockchair.com/litecoin/',
                         {'tx': 'transaction/', 'addr': 'address/'}),
+    'Blockchair.com (Tor)': ('http://blkchairbknpn73cfjhevhla7rkp4ed5gg2knctvv7it4lioy22defid.onion/litecoin/',
+                        {'tx': 'transaction/', 'addr': 'address/'}),
     'BlockCypher.com': ('https://live.blockcypher.com/ltc/',
                         {'tx': 'tx/', 'addr': 'address/'}),
     'explorer.litecoin.net': ('http://explorer.litecoin.net/',
