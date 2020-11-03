@@ -287,8 +287,12 @@ class BaseWizard(Logger):
                 choices.append(('choose_hw_device', _('Cosign with hardware device')))
         else:
             message = _('Do you want to create a new seed or to restore a wallet using an existing seed?')
+            run_next_method = 'choose_seed_type'
+            # for 2- & 3- keys wallets we use only segwit type seed
+            if self.wallet_type in ['2-key', '3-key']:
+                run_next_method = 'create_segwit_seed'
             choices = [
-                ('choose_seed_type', _('Create a new seed')),
+                (run_next_method, _('Create a new seed')),
                 ('restore_from_seed', _('I already have a seed')),
                 ('restore_from_key', _('Use a master key')),
             ]
