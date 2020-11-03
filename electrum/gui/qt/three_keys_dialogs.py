@@ -6,14 +6,14 @@ from typing import List
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QVBoxLayout, QTextEdit, QLineEdit, QLabel, \
-    QPushButton
+    QPushButton, QHBoxLayout, QFileDialog, QApplication
 
 from electrum.ecc import ECPubkey, ECPrivkey
 from electrum.i18n import _
 from .qrcodewidget import QRCodeWidget, QRDialog
 from .transaction_dialog import PreviewTxDialog
 from ...three_keys import short_mnemonic
-from .util import filter_non_printable
+from .util import filter_non_printable, WindowModalDialog, get_parent_main_window
 from ...transaction import PartialTransaction
 
 
@@ -171,24 +171,121 @@ class Qr2FaDialog(QVBoxLayout):
         return json.dumps(new_qr_data)
 
 
-class PSBTDialog(QRDialog):
+class PSBTDialog(WindowModalDialog):
+    def __init__(self, data_chunks, parent: 'ElectrumWindow', invoice, title="Transaction QRCode", description=''):
+        WindowModalDialog.__init__(self, parent, title)
 
-    def __init__(self, psbt: PartialTransaction, parent: 'ElectrumWindow', invoice):
+        self.data_chunks = data_chunks
+        self.chunk = 0
 
-        self.psbt = psbt
-        self.minimize_psbt()
+        vbox = QVBoxLayout()
+        self.qrw = QRCodeWidget(self.data_chunks[self.chunk])
+        self.qrw_label = None
 
-        title = "Transaction QRCode"
-        qr_data = self.psbt.serialize()
-        super().__init__(qr_data, parent, title, description=_('In order to confirm the transaction, scan the QR code \
-in the "Authenticators" tab in the Gold Wallet app.'))
+        if description:
+            label = QLabel(description)
+            label.setWordWrap(True)
+            hbox2 = QHBoxLayout()
+            hbox2.addWidget(label)
+            vbox.addLayout(hbox2)
+
+        vbox.addWidget(self.qrw, 1)
+
+        if len(data_chunks) > 1:
+            self.qrw_label = QLabel('')
+            self.qrw_label.setWordWrap(True)
+            self.qrw_label.setAlignment(Qt.AlignRight)
+            self.update_qrw_label()
+            vbox.addWidget(self.qrw_label)
+
+        hbox = QHBoxLayout()
+        hbox.addStretch(1)
+
+        def print_qr():
+            main_window = get_parent_main_window(self)
+            if main_window:
+                filename = main_window.getSaveFileName(_("Select where to save file"), "qrcode.png")
+            else:
+                filename, __ = QFileDialog.getSaveFileName(self, _("Select where to save file"), "qrcode.png")
+            if not filename:
+                return
+            p = self.qrw.grab()  # FIXME also grabs neutral colored padding
+            p.save(filename, 'png')
+            self.show_message(_("QR code saved to file") + " " + filename)
+
+        def copy_to_clipboard():
+            p = self.qrw.grab()
+            QApplication.clipboard().setPixmap(p)
+            self.show_message(_("QR code copied to clipboard"))
+
+        b = QPushButton(_("Copy"))
+        hbox.addWidget(b)
+        b.clicked.connect(copy_to_clipboard)
+
+        b = QPushButton(_("Save"))
+        hbox.addWidget(b)
+        b.clicked.connect(print_qr)
+
+        self.close_button = QPushButton(_("Close"))
+        hbox.addWidget(self.close_button)
+        self.close_button.clicked.connect(self.accept)
+        self.close_button.setDefault(True)
+
+        self.prev_button = QPushButton(_("Previous part"))
+        hbox.addWidget(self.prev_button)
+        self.prev_button.clicked.connect(self.prev_chunk)
+
+        self.next_button = QPushButton(_("Next part"))
+        hbox.addWidget(self.next_button)
+        self.next_button.clicked.connect(self.next_chunk)
+
+        vbox.addLayout(hbox)
+        self.setLayout(vbox)
+
+        self.update_buttons()
 
         self.parent = parent
         self.invoice = invoice
 
-    def minimize_psbt(self):
-        self.psbt.convert_all_utxos_to_witness_utxos()
-        self.psbt.remove_xpubs_and_bip32_paths()
+    def next_chunk(self):
+        self.chunk += 1
+        self.update_qrw()
+        self.update_qrw_label()
+        self.update_buttons()
+
+    def prev_chunk(self):
+        self.chunk -= 1
+        self.update_qrw()
+        self.update_qrw_label()
+        self.update_buttons()
+
+    def update_qrw(self):
+        self.qrw.setData(self.data_chunks[self.chunk])
+
+    def update_qrw_label(self):
+        if not self.qrw_label:
+            return
+
+        chunks_text = _('Transaction part') + ' %d/%d' % (self.chunk + 1, len(self.data_chunks))
+        self.qrw_label.setText(chunks_text)
+
+    def update_buttons(self):
+        if len(self.data_chunks) == 1:
+            self.close_button.setVisible(True)
+            self.prev_button.setHidden(True)
+            self.next_button.setHidden(True)
+        elif self.chunk + 1 == len(self.data_chunks):
+            self.close_button.setVisible(True)
+            self.prev_button.setVisible(True)
+            self.next_button.setHidden(True)
+        elif self.chunk + 1 == 1:
+            self.close_button.setHidden(True)
+            self.prev_button.setHidden(True)
+            self.next_button.setVisible(True)
+        else:
+            self.close_button.setHidden(True)
+            self.prev_button.setVisible(True)
+            self.next_button.setVisible(True)
 
     def accept(self):
         if self.invoice:

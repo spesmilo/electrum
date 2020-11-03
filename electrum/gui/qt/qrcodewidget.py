@@ -71,8 +71,8 @@ class QRCodeWidget(QWidget):
         framesize = min(r.width(), r.height())
         boxsize = int((framesize - 2 * margin) / k)
         size = k * boxsize
-        left = (framesize - size) / 2
-        top = (framesize - size) / 2
+        left = (framesize - size) // 2 + 1
+        top = (framesize - size) // 2 + 1
         # Draw white background with margin
         qp.setBrush(white)
         qp.setPen(white)

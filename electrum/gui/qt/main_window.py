@@ -37,6 +37,7 @@ from decimal import Decimal
 from functools import partial
 from typing import Optional, TYPE_CHECKING, Sequence, List, Union
 
+import qrcode
 from PyQt5.QtCore import Qt, QRect, QStringListModel, QSize, pyqtSignal
 from PyQt5.QtGui import QPixmap, QKeySequence, QIcon, QCursor
 from PyQt5.QtWidgets import (QMessageBox, QComboBox, QSystemTrayIcon, QTabWidget,
@@ -928,8 +929,40 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         show_transaction(tx, parent=self, invoice=invoice, desc=tx_desc)
 
     def show_psbt_qrcode(self, psbt: PartialTransaction, invoice=None):
-        d = PSBTDialog(psbt, self, invoice)
-        d.exec_()
+        def minimize_psbt(psbt):
+            psbt.convert_all_utxos_to_witness_utxos()
+            psbt.remove_xpubs_and_bip32_paths()
+
+        def chop_data(data):
+            max_size = 2000
+            if len(data) <= max_size:
+                return [data]
+
+            chunks = []
+            chunks_count = len(data)//max_size + 1
+            chunk_size = (len(data)//chunks_count) + 1
+            for c in range(chunks_count):
+                # chunk_no ; chunk_count ; chunk_data
+                chunk = str(c + 1) + ';' + str(chunks_count) + ';'
+                chunk += data[c*chunk_size:(c+1)*chunk_size]
+                chunks.append(chunk)
+
+            return chunks
+
+        minimize_psbt(psbt)
+        data = psbt.serialize()
+        chunks = chop_data(data)
+
+        description = _('In order to confirm the transaction, scan the QR codes \
+in the "Authenticators" tab in the Gold Wallet app.')
+        try:
+            d = PSBTDialog(chunks, self, invoice, description=description)
+            d.exec_()
+        except qrcode.exceptions.DataOverflowError:
+            self.show_error(_('Failed to display QR code.') + '\n' +
+                            _('Transaction is too large in size.'))
+        except Exception as e:
+            self.show_error(_('Failed to display QR code.') + '\n' + repr(e))
 
     def create_receive_tab(self):
         # A 4-column grid layout.  All the stretch is in the last column.
