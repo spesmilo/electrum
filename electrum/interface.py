@@ -631,6 +631,9 @@ class Interface(Logger):
                 raise GracefulDisconnect(e)  # probably 'unsupported protocol version'
             if exit_early:
                 return
+            if ver[1] != version.PROTOCOL_VERSION:
+                raise GracefulDisconnect(f'server violated protocol-version-negotiation. '
+                                         f'we asked for {version.PROTOCOL_VERSION!r}, they sent {ver[1]!r}')
             if not self.network.check_interface_against_healthy_spread_of_connected_servers(self):
                 raise GracefulDisconnect(f'too many connected servers already '
                                          f'in bucket {self.bucket_based_on_ipaddress()}')
