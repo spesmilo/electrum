@@ -229,8 +229,7 @@ class BaseWizard(Logger):
         self.get_recovery_pubkey(run_next=self.on_two_keys_create)
 
     def two_keys_2fa_create(self):
-        entropy_2fa = short_mnemonic.generate_entropy()
-        self.display_2fa_pairing_qr(run_next=self.on_two_keys_create, entropy=entropy_2fa)
+        self.get_authenticator_pubkey(run_next=self.on_two_keys_create)
 
     def two_keys_2fa_import(self):
         self.get_authenticator_pubkey(run_next=self.on_two_keys_import)
@@ -255,8 +254,7 @@ class BaseWizard(Logger):
             self.data['instant_pubkey'] = instant_pubkey
             self.run('get_recovery_pubkey', run_next=self.on_three_keys_create, instant_key=self.data['instant_pubkey'])
 
-        entropy_2fa = short_mnemonic.generate_entropy()
-        self.display_2fa_pairing_qr(run_next=collect_instant_pubkey, entropy=entropy_2fa)
+        self.get_authenticator_pubkey(run_next=collect_instant_pubkey)
 
     def three_keys_2fa_import(self):
         def collect_instant_pubkey(instant_pubkey: str):
