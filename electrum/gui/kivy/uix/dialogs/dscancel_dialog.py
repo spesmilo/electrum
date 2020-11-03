@@ -12,8 +12,8 @@ if TYPE_CHECKING:
 
 
 Builder.load_string('''
-<BumpFeeDialog@Popup>
-    title: _('Bump fee')
+<DSCancelDialog@Popup>
+    title: _('Cancel (double-spend) transaction')
     size_hint: 0.8, 0.8
     pos_hint: {'top':0.9}
     BoxLayout:
@@ -46,13 +46,6 @@ Builder.load_string('''
             range: 0, 4
             step: 1
             on_value: root.on_slider(self.value)
-        BoxLayout:
-            orientation: 'horizontal'
-            size_hint: 1, 0.2
-            Label:
-                text: _('Final')
-            CheckBox:
-                id: final_cb
         Widget:
             size_hint: 1, 1
         BoxLayout:
@@ -72,7 +65,7 @@ Builder.load_string('''
                     root.on_ok()
 ''')
 
-class BumpFeeDialog(Factory.Popup):
+class DSCancelDialog(Factory.Popup):
 
     def __init__(self, app: 'ElectrumWindow', fee, size, callback):
         Factory.Popup.__init__(self)
@@ -112,8 +105,7 @@ class BumpFeeDialog(Factory.Popup):
 
     def on_ok(self):
         new_fee_rate = self.get_fee_rate() / 1000
-        is_final = self.ids.final_cb.active
-        self.callback(new_fee_rate, is_final)
+        self.callback(new_fee_rate)
 
     def on_slider(self, value):
         self.update_text()

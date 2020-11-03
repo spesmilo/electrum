@@ -1,2 +1,2 @@
 PyQt5<5.15
-pycryptodomex>=3.7
+cryptography>=2.1

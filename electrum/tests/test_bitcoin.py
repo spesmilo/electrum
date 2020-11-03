@@ -46,18 +46,21 @@ def needs_test_with_all_aes_implementations(func):
             return
         has_cryptodome = crypto.HAS_CRYPTODOME
         has_cryptography = crypto.HAS_CRYPTOGRAPHY
+        has_pyaes = crypto.HAS_PYAES
         try:
-            (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY) = False, False
-            func(*args, **kwargs)  # pyaes
+            if has_pyaes:
+                (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY, crypto.HAS_PYAES) = False, False, True
+                func(*args, **kwargs)  # pyaes
             if has_cryptodome:
-                (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY) = True, False
+                (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY, crypto.HAS_PYAES) = True, False, False
                 func(*args, **kwargs)  # cryptodome
             if has_cryptography:
-                (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY) = False, True
+                (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY, crypto.HAS_PYAES) = False, True, False
                 func(*args, **kwargs)  # cryptography
         finally:
             crypto.HAS_CRYPTODOME = has_cryptodome
             crypto.HAS_CRYPTOGRAPHY = has_cryptography
+            crypto.HAS_PYAES = has_pyaes
     return run_test
 
 
@@ -100,6 +103,10 @@ class Test_bitcoin(ElectrumTestCase):
     def test_cryptography_is_available(self):
         # we want the unit testing framework to test with cryptography available.
         self.assertTrue(bool(crypto.HAS_CRYPTOGRAPHY))
+
+    def test_pyaes_is_available(self):
+        # we want the unit testing framework to test with pyaes available.
+        self.assertTrue(bool(crypto.HAS_PYAES))
 
     @needs_test_with_all_aes_implementations
     def test_crypto(self):

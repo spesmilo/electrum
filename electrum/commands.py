@@ -39,8 +39,8 @@ from decimal import Decimal
 from typing import Optional, TYPE_CHECKING, Dict, List
 
 from .import util, ecc
-from .util import bfh, bh2u, format_satoshis, json_decode, json_encode, is_hash256_str, is_hex_str, to_bytes, timestamp_to_datetime
-from .util import standardize_path
+from .util import (bfh, bh2u, format_satoshis, json_decode, json_normalize,
+                   is_hash256_str, is_hex_str, to_bytes)
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN
 from .bip32 import BIP32Node
@@ -81,13 +81,6 @@ def satoshis(amount):
 
 def format_satoshis(x):
     return str(Decimal(x)/COIN) if x is not None else None
-
-def json_normalize(x):
-    # note: The return value of commands, when going through the JSON-RPC interface,
-    #       is json-encoded. The encoder used there cannot handle some types, e.g. electrum.util.Satoshis.
-    # note: We should not simply do "json_encode(x)" here, as then later x would get doubly json-encoded.
-    # see #5868
-    return json_decode(json_encode(x))
 
 
 class Command:
@@ -394,7 +387,7 @@ class Commands:
     @command('wp')
     async def signtransaction(self, tx, privkey=None, password=None, wallet: Abstract_Wallet = None):
         """Sign a transaction. The wallet keys will be used unless a private key is provided."""
-        tx = PartialTransaction(tx)
+        tx = tx_from_any(tx)
         if privkey:
             txin_type, privkey2, compressed = bitcoin.deserialize_privkey(privkey)
             pubkey = ecc.ECPrivkey(privkey2).get_public_key_bytes(compressed=compressed).hex()
@@ -592,7 +585,7 @@ class Commands:
 
     @command('wp')
     async def payto(self, destination, amount, fee=None, feerate=None, from_addr=None, from_coins=None, change_addr=None,
-                    nocheck=False, unsigned=False, rbf=None, password=None, locktime=None, wallet: Abstract_Wallet = None):
+                    nocheck=False, unsigned=False, rbf=None, password=None, locktime=None, addtransaction=False, wallet: Abstract_Wallet = None):
         """Create a transaction. """
         self.nocheck = nocheck
         tx_fee = satoshis(fee)
@@ -613,11 +606,14 @@ class Commands:
             rbf=rbf,
             password=password,
             locktime=locktime)
-        return tx.serialize()
+        result = tx.serialize()
+        if addtransaction:
+            await self.addtransaction(result, wallet=wallet)
+        return result
 
     @command('wp')
     async def paytomany(self, outputs, fee=None, feerate=None, from_addr=None, from_coins=None, change_addr=None,
-                        nocheck=False, unsigned=False, rbf=None, password=None, locktime=None, wallet: Abstract_Wallet = None):
+                        nocheck=False, unsigned=False, rbf=None, password=None, locktime=None, addtransaction=False, wallet: Abstract_Wallet = None):
         """Create a multi-output transaction. """
         self.nocheck = nocheck
         tx_fee = satoshis(fee)
@@ -641,7 +637,10 @@ class Commands:
             rbf=rbf,
             password=password,
             locktime=locktime)
-        return tx.serialize()
+        result = tx.serialize()
+        if addtransaction:
+            await self.addtransaction(result, wallet=wallet)
+        return result
 
     @command('w')
     async def onchain_history(self, year=None, show_addresses=False, show_fiat=False, wallet: Abstract_Wallet = None):
@@ -660,17 +659,6 @@ class Commands:
             fx = FxThread(self.config, None)
             kwargs['fx'] = fx
         return json_normalize(wallet.get_detailed_history(**kwargs))
-
-    @command('w')
-    async def init_lightning(self, wallet: Abstract_Wallet = None):
-        """Enable lightning payments"""
-        wallet.init_lightning()
-        return "Lightning keys have been created."
-
-    @command('w')
-    async def remove_lightning(self, wallet: Abstract_Wallet = None):
-        """Disable lightning payments"""
-        wallet.remove_lightning()
 
     @command('w')
     async def lightning_history(self, show_fiat=False, wallet: Abstract_Wallet = None):
@@ -724,7 +712,7 @@ class Commands:
             if balance:
                 item += (format_satoshis(sum(wallet.get_addr_balance(addr))),)
             if labels:
-                item += (repr(wallet.labels.get(addr, '')),)
+                item += (repr(wallet.get_label(addr)),)
             out.append(item)
         return out
 
@@ -846,12 +834,14 @@ class Commands:
         expiration = int(expiration) if expiration else None
         req = wallet.make_payment_request(addr, amount, memo, expiration)
         wallet.add_payment_request(req)
+        wallet.save_db()
         return wallet.export_request(req)
 
     @command('wn')
     async def add_lightning_request(self, amount, memo='', expiration=3600, wallet: Abstract_Wallet = None):
         amount_sat = int(satoshis(amount))
         key = await wallet.lnworker._add_request_coro(amount_sat, memo, expiration)
+        wallet.save_db()
         return wallet.get_formatted_request(key)
 
     @command('w')
@@ -875,7 +865,9 @@ class Commands:
     @command('w')
     async def rmrequest(self, address, wallet: Abstract_Wallet = None):
         """Remove a payment request"""
-        return wallet.remove_payment_request(address)
+        result = wallet.remove_payment_request(address)
+        wallet.save_db()
+        return result
 
     @command('w')
     async def clear_requests(self, wallet: Abstract_Wallet = None):
@@ -1040,7 +1032,7 @@ class Commands:
 
     @command('wn')
     async def dumpgraph(self, wallet: Abstract_Wallet = None):
-        return list(map(bh2u, wallet.lnworker.channel_db.nodes.keys()))
+        return wallet.lnworker.channel_db.to_dict()
 
     @command('n')
     async def inject_fees(self, fees):
@@ -1204,6 +1196,7 @@ command_options = {
     'unsigned':    ("-u", "Do not sign transaction"),
     'rbf':         (None, "Whether to signal opt-in Replace-By-Fee in the transaction (true/false)"),
     'locktime':    (None, "Set locktime block number"),
+    'addtransaction': (None,'Whether transaction is to be used for broadcasting afterwards. Adds transaction to the wallet'),
     'domain':      ("-D", "List of addresses"),
     'memo':        ("-m", "Description of the request"),
     'expiration':  (None, "Time in seconds"),
@@ -1245,6 +1238,7 @@ arg_types = {
     'fee': lambda x: str(Decimal(x)) if x is not None else None,
     'amount': lambda x: str(Decimal(x)) if x != '!' else '!',
     'locktime': int,
+    'addtransaction': eval_bool,
     'fee_method': str,
     'fee_level': json_loads,
     'encrypt_file': eval_bool,
@@ -1346,6 +1340,7 @@ def get_parser():
     parser = argparse.ArgumentParser(
         epilog="Run 'electrum help <command>' to see the help for a command")
     add_global_options(parser)
+    add_wallet_option(parser)
     subparsers = parser.add_subparsers(dest='cmd', metavar='<command>')
     # gui
     parser_gui = subparsers.add_parser('gui', description="Run Electrum's Graphical User Interface.", help="Run GUI (default)")

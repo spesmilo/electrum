@@ -24,11 +24,11 @@
 # SOFTWARE.
 
 import hashlib
-from typing import List, Tuple, TYPE_CHECKING, Optional, Union
+from typing import List, Tuple, TYPE_CHECKING, Optional, Union, Sequence
 import enum
 from enum import IntEnum, Enum
 
-from .util import bfh, bh2u, BitcoinException, assert_bytes, to_bytes, inv_dict
+from .util import bfh, bh2u, BitcoinException, assert_bytes, to_bytes, inv_dict, is_hex_str
 from . import version
 from . import segwit_addr
 from . import constants
@@ -299,6 +299,38 @@ def add_number_to_script(i: int) -> bytes:
     return bfh(push_script(script_num_to_hex(i)))
 
 
+def construct_witness(items: Sequence[Union[str, int, bytes]]) -> str:
+    """Constructs a witness from the given stack items."""
+    witness = var_int(len(items))
+    for item in items:
+        if type(item) is int:
+            item = script_num_to_hex(item)
+        elif isinstance(item, (bytes, bytearray)):
+            item = bh2u(item)
+        else:
+            assert is_hex_str(item)
+        witness += witness_push(item)
+    return witness
+
+
+def construct_script(items: Sequence[Union[str, int, bytes, opcodes]]) -> str:
+    """Constructs bitcoin script from given items."""
+    script = ''
+    for item in items:
+        if isinstance(item, opcodes):
+            script += item.hex()
+        elif type(item) is int:
+            script += add_number_to_script(item).hex()
+        elif isinstance(item, (bytes, bytearray)):
+            script += push_script(item.hex())
+        elif isinstance(item, str):
+            assert is_hex_str(item)
+            script += push_script(item)
+        else:
+            raise Exception(f'unexpected item for script: {item!r}')
+    return script
+
+
 def relayfee(network: 'Network' = None) -> int:
     """Returns feerate in sat/kbyte."""
     from .simple_config import FEERATE_DEFAULT_RELAY, FEERATE_MAX_RELAY
@@ -374,12 +406,12 @@ def script_to_p2wsh(script: str, *, net=None) -> str:
     return hash_to_segwit_addr(sha256(bfh(script)), witver=0, net=net)
 
 def p2wpkh_nested_script(pubkey: str) -> str:
-    pkh = bh2u(hash_160(bfh(pubkey)))
-    return '00' + push_script(pkh)
+    pkh = hash_160(bfh(pubkey))
+    return construct_script([0, pkh])
 
 def p2wsh_nested_script(witness_script: str) -> str:
-    wsh = bh2u(sha256(bfh(witness_script)))
-    return '00' + push_script(wsh)
+    wsh = sha256(bfh(witness_script))
+    return construct_script([0, wsh])
 
 def pubkey_to_address(txin_type: str, pubkey: str, *, net=None) -> str:
     if net is None: net = constants.net
@@ -424,16 +456,12 @@ def address_to_script(addr: str, *, net=None) -> str:
     if witprog is not None:
         if not (0 <= witver <= 16):
             raise BitcoinException(f'impossible witness version: {witver}')
-        script = bh2u(add_number_to_script(witver))
-        script += push_script(bh2u(bytes(witprog)))
-        return script
+        return construct_script([witver, bytes(witprog)])
     addrtype, hash_160_ = b58_address_to_hash160(addr)
     if addrtype == net.ADDRTYPE_P2PKH:
         script = pubkeyhash_to_p2pkh_script(bh2u(hash_160_))
     elif addrtype == net.ADDRTYPE_P2SH:
-        script = opcodes.OP_HASH160.hex()
-        script += push_script(bh2u(hash_160_))
-        script += opcodes.OP_EQUAL.hex()
+        script = construct_script([opcodes.OP_HASH160, hash_160_, opcodes.OP_EQUAL])
     else:
         raise BitcoinException(f'unknown address type: {addrtype}')
     return script
@@ -481,13 +509,16 @@ def script_to_scripthash(script: str) -> str:
     return bh2u(bytes(reversed(h)))
 
 def public_key_to_p2pk_script(pubkey: str) -> str:
-    return push_script(pubkey) + opcodes.OP_CHECKSIG.hex()
+    return construct_script([pubkey, opcodes.OP_CHECKSIG])
 
 def pubkeyhash_to_p2pkh_script(pubkey_hash160: str) -> str:
-    script = bytes([opcodes.OP_DUP, opcodes.OP_HASH160]).hex()
-    script += push_script(pubkey_hash160)
-    script += bytes([opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG]).hex()
-    return script
+    return construct_script([
+        opcodes.OP_DUP,
+        opcodes.OP_HASH160,
+        pubkey_hash160,
+        opcodes.OP_EQUALVERIFY,
+        opcodes.OP_CHECKSIG
+    ])
 
 
 __b58chars = b'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
@@ -495,6 +526,9 @@ assert len(__b58chars) == 58
 
 __b43chars = b'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ$*+-./:'
 assert len(__b43chars) == 43
+
+
+class BaseDecodeError(BitcoinException): pass
 
 
 def base_encode(v: bytes, *, base: int) -> str:
@@ -544,7 +578,7 @@ def base_decode(v: Union[bytes, str], *, base: int, length: int = None) -> Optio
     for c in v[::-1]:
         digit = chars.find(bytes([c]))
         if digit == -1:
-            raise ValueError('Forbidden character {} for base {}'.format(c, base))
+            raise BaseDecodeError('Forbidden character {} for base {}'.format(c, base))
         # naive but slow variant:   long_value += digit * (base**i)
         long_value += digit * power_of_base
         power_of_base *= base
@@ -567,7 +601,7 @@ def base_decode(v: Union[bytes, str], *, base: int, length: int = None) -> Optio
     return bytes(result)
 
 
-class InvalidChecksum(Exception):
+class InvalidChecksum(BaseDecodeError):
     pass
 
 
@@ -633,18 +667,17 @@ def deserialize_privkey(key: str) -> Tuple[str, bytes, bool]:
             raise BitcoinException('unknown script type: {}'.format(txin_type))
     try:
         vch = DecodeBase58Check(key)
-    except BaseException:
+    except Exception as e:
         neutered_privkey = str(key)[:3] + '..' + str(key)[-2:]
-        raise BitcoinException("cannot deserialize privkey {}"
-                               .format(neutered_privkey))
+        raise BaseDecodeError(f"cannot deserialize privkey {neutered_privkey}") from e
 
     if txin_type is None:
         # keys exported in version 3.0.x encoded script type in first byte
         prefix_value = vch[0] - constants.net.WIF_PREFIX
         try:
             txin_type = WIF_SCRIPT_TYPES_INV[prefix_value]
-        except KeyError:
-            raise BitcoinException('invalid prefix ({}) for WIF key (1)'.format(vch[0]))
+        except KeyError as e:
+            raise BitcoinException('invalid prefix ({}) for WIF key (1)'.format(vch[0])) from None
     else:
         # all other keys must have a fixed first byte
         if vch[0] != constants.net.WIF_PREFIX:

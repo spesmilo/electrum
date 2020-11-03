@@ -8,6 +8,7 @@ from electrum.lnaddr import lndecode
 from electrum.util import bh2u
 from electrum.bitcoin import COIN
 import electrum.simple_config as config
+from electrum.logging import Logger
 
 from .label_dialog import LabelDialog
 
@@ -71,11 +72,6 @@ Builder.load_string('''
                 height: '48dp'
                 on_release: app.scan_qr(on_complete=s.on_qr)
             Button:
-                text: _('Suggest')
-                size_hint: 1, None
-                height: '48dp'
-                on_release: s.choose_node()
-            Button:
                 text: _('Clear')
                 size_hint: 1, None
                 height: '48dp'
@@ -94,20 +90,16 @@ Builder.load_string('''
                 disabled: not root.pubkey or not root.amount
 ''')
 
-class LightningOpenChannelDialog(Factory.Popup):
+class LightningOpenChannelDialog(Factory.Popup, Logger):
     def ipport_dialog(self):
         def callback(text):
             self.ipport = text
         d = LabelDialog(_('IP/port in format:\n[host]:[port]'), self.ipport, callback)
         d.open()
 
-    def choose_node(self):
-        suggested = self.app.wallet.lnworker.suggest_peer()
-        if suggested:
-            self.pubkey = suggested.hex()
-
     def __init__(self, app, lnaddr=None, msg=None):
-        super(LightningOpenChannelDialog, self).__init__()
+        Factory.Popup.__init__(self)
+        Logger.__init__(self)
         self.app = app  # type: ElectrumWindow
         self.lnaddr = lnaddr
         self.msg = msg
@@ -159,6 +151,7 @@ class LightningOpenChannelDialog(Factory.Popup):
                                                                      push_amt_sat=0,
                                                                      password=password)
         except Exception as e:
+            self.logger.exception("Problem opening channel")
             self.app.show_error(_('Problem opening channel: ') + '\n' + repr(e))
             return
         n = chan.constraints.funding_txn_minimum_depth

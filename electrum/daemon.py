@@ -196,7 +196,10 @@ class AuthenticatedServer(Logger):
         except Exception as e:
             self.logger.exception("invalid request")
             return web.Response(text='Invalid Request', status=500)
-        response = {'id': _id}
+        response = {
+            'id': _id,
+            'jsonrpc': '2.0',
+        }
         try:
             if isinstance(params, dict):
                 response['result'] = await f(**params)
@@ -318,7 +321,7 @@ class PayServer(Logger):
         # FIXME specify wallet somehow?
         return list(self.daemon.get_wallets().values())[0]
 
-    async def on_payment(self, evt, key, status):
+    async def on_payment(self, evt, wallet, key, status):
         if status == PR_PAID:
             self.pending[key].set()
 
@@ -410,6 +413,9 @@ class Daemon(Logger):
             fd = get_file_descriptor(config)
             if fd is None:
                 raise Exception('failed to lock daemon; already running?')
+        if 'wallet_path' in config.cmdline_options:
+            self.logger.warning("Ignoring parameter 'wallet_path' for daemon. "
+                                "Use the load_wallet command instead.")
         self.asyncio_loop = asyncio.get_event_loop()
         self.network = None
         if not config.get('offline'):
@@ -438,6 +444,9 @@ class Daemon(Logger):
             daemon_jobs.append(self.watchtower.run)
         if self.network:
             self.network.start(jobs=[self.fx.run])
+            # prepare lightning functionality, also load channel db early
+            self.network.maybe_init_lightning()
+            self.network.channel_db.load_data()
 
         self.taskgroup = TaskGroup()
         asyncio.run_coroutine_threadsafe(self._run(jobs=daemon_jobs), self.asyncio_loop)

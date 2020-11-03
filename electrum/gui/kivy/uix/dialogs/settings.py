@@ -18,7 +18,6 @@ Builder.load_string('''
 <SettingsDialog@Popup>
     id: settings
     title: _('Electrum Settings')
-    disable_password: False
     has_pin_code: False
     use_encryption: False
     BoxLayout:
@@ -85,7 +84,6 @@ Builder.load_string('''
                     action: partial(root.boolean_dialog, 'use_change', _('Use change addresses'), self.message)
                 CardSeparator
                 SettingsItem:
-                    disabled: root.disable_password
                     title: _('Password')
                     description: _("Change wallet password.")
                     action: root.change_password
@@ -126,7 +124,6 @@ class SettingsDialog(Factory.Popup):
 
     def update(self):
         self.wallet = self.app.wallet
-        self.disable_password = self.wallet.is_watching_only() if self.wallet else True
         self.use_encryption = self.wallet.has_password() if self.wallet else False
         self.has_pin_code = self.app.has_pin_code()
 

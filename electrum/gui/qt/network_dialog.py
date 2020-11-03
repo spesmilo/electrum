@@ -117,7 +117,7 @@ class NodesListWidget(QTreeWidget):
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def keyPressEvent(self, event):
-        if event.key() in [ Qt.Key_F2, Qt.Key_Return ]:
+        if event.key() in [ Qt.Key_F2, Qt.Key_Return, Qt.Key_Enter ]:
             self.on_activated(self.currentItem(), self.currentColumn())
         else:
             QTreeWidget.keyPressEvent(self, event)
@@ -327,7 +327,7 @@ class NetworkChoiceLayout(object):
         server = net_params.server
         auto_connect = net_params.auto_connect
         if not self.server_e.hasFocus():
-            self.server_e.setText(server.net_addr_str())
+            self.server_e.setText(server.to_friendly_name())
         self.autoconnect_cb.setChecked(auto_connect)
 
         height_str = "%d "%(self.network.get_local_height()) + _('blocks')
@@ -464,13 +464,13 @@ class TorDetector(QThread):
     @staticmethod
     def is_tor_port(net_addr: Tuple[str, int]) -> bool:
         try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(0.1)
-            s.connect(net_addr)
-            # Tor responds uniquely to HTTP-like requests
-            s.send(b"GET\n")
-            if b"Tor is not an HTTP Proxy" in s.recv(1024):
-                return True
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(0.1)
+                s.connect(net_addr)
+                # Tor responds uniquely to HTTP-like requests
+                s.send(b"GET\n")
+                if b"Tor is not an HTTP Proxy" in s.recv(1024):
+                    return True
         except socket.error:
             pass
         return False

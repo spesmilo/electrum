@@ -9,6 +9,10 @@
 # $ GCC_TRIPLET_HOST="i686-w64-mingw32" ./contrib/make_libsecp256k1.sh
 # Or for a Windows x86_64 (64-bit) target, run:
 # $ GCC_TRIPLET_HOST="x86_64-w64-mingw32" ./contrib/make_libsecp256k1.sh
+#
+# To cross-compile to Linux x86:
+# sudo apt-get install gcc-multilib g++-multilib
+# $ AUTOCONF_FLAGS="--host=i686-linux-gnu CFLAGS=-m32 CXXFLAGS=-m32 LDFLAGS=-m32" ./contrib/make_libsecp256k1.sh
 
 LIBSECP_VERSION="dbd41db16a0e91b2566820898a3ab2d7dad4fe00"
 
@@ -34,7 +38,7 @@ info "Building $pkgname..."
         git fetch --all
     fi
     git reset --hard
-    git clean -f -x -q
+    git clean -dfxq
     git checkout "${LIBSECP_VERSION}^{commit}"
 
     if ! [ -x configure ] ; then

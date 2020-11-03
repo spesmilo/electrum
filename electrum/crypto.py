@@ -30,14 +30,29 @@ import hashlib
 import hmac
 from typing import Union
 
-import pyaes
-
-from .util import assert_bytes, InvalidPassword, to_bytes, to_string, WalletFileException
+from .util import assert_bytes, InvalidPassword, to_bytes, to_string, WalletFileException, versiontuple
 from .i18n import _
+from .logging import get_logger
 
+
+_logger = get_logger(__name__)
+
+
+HAS_PYAES = False
+try:
+    import pyaes
+except:
+    pass
+else:
+    HAS_PYAES = True
 
 HAS_CRYPTODOME = False
+MIN_CRYPTODOME_VERSION = "3.7"
 try:
+    import Cryptodome
+    if versiontuple(Cryptodome.__version__) < versiontuple(MIN_CRYPTODOME_VERSION):
+        _logger.warning(f"found module 'Cryptodome' but it is too old: {Cryptodome.__version__}<{MIN_CRYPTODOME_VERSION}")
+        raise Exception()
     from Cryptodome.Cipher import ChaCha20_Poly1305 as CD_ChaCha20_Poly1305
     from Cryptodome.Cipher import ChaCha20 as CD_ChaCha20
     from Cryptodome.Cipher import AES as CD_AES
@@ -47,8 +62,12 @@ else:
     HAS_CRYPTODOME = True
 
 HAS_CRYPTOGRAPHY = False
+MIN_CRYPTOGRAPHY_VERSION = "2.1"
 try:
     import cryptography
+    if versiontuple(cryptography.__version__) < versiontuple(MIN_CRYPTOGRAPHY_VERSION):
+        _logger.warning(f"found module 'cryptography' but it is too old: {cryptography.__version__}<{MIN_CRYPTOGRAPHY_VERSION}")
+        raise Exception()
     from cryptography import exceptions
     from cryptography.hazmat.primitives.ciphers import Cipher as CG_Cipher
     from cryptography.hazmat.primitives.ciphers import algorithms as CG_algorithms
@@ -97,10 +116,12 @@ def aes_encrypt_with_iv(key: bytes, iv: bytes, data: bytes) -> bytes:
         cipher = CG_Cipher(CG_algorithms.AES(key), CG_modes.CBC(iv), backend=CG_default_backend())
         encryptor = cipher.encryptor()
         e = encryptor.update(data) + encryptor.finalize()
-    else:
+    elif HAS_PYAES:
         aes_cbc = pyaes.AESModeOfOperationCBC(key, iv=iv)
         aes = pyaes.Encrypter(aes_cbc, padding=pyaes.PADDING_NONE)
         e = aes.feed(data) + aes.feed()  # empty aes.feed() flushes buffer
+    else:
+        raise Exception("no AES backend found")
     return e
 
 
@@ -113,10 +134,12 @@ def aes_decrypt_with_iv(key: bytes, iv: bytes, data: bytes) -> bytes:
         cipher = CG_Cipher(CG_algorithms.AES(key), CG_modes.CBC(iv), backend=CG_default_backend())
         decryptor = cipher.decryptor()
         data = decryptor.update(data) + decryptor.finalize()
-    else:
+    elif HAS_PYAES:
         aes_cbc = pyaes.AESModeOfOperationCBC(key, iv=iv)
         aes = pyaes.Decrypter(aes_cbc, padding=pyaes.PADDING_NONE)
         data = aes.feed(data) + aes.feed()  # empty aes.feed() flushes buffer
+    else:
+        raise Exception("no AES backend found")
     try:
         return strip_PKCS7_padding(data)
     except InvalidPadding:

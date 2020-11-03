@@ -288,14 +288,9 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
     def show_qr(self, *, tx: Transaction = None):
         if tx is None:
             tx = self.tx
-        tx = copy.deepcopy(tx)  # make copy as we mutate tx
-        if isinstance(tx, PartialTransaction):
-            # this makes QR codes a lot smaller (or just possible in the first place!)
-            tx.convert_all_utxos_to_witness_utxos()
-        text = tx.serialize_as_bytes()
-        text = base_encode(text, base=43)
+        qr_data = tx.to_qr_data()
         try:
-            self.main_window.show_qrcode(text, 'Transaction', parent=self)
+            self.main_window.show_qrcode(qr_data, 'Transaction', parent=self)
         except qrcode.exceptions.DataOverflowError:
             self.show_error(_('Failed to display QR code.') + '\n' +
                             _('Transaction is too large in size.'))
@@ -424,7 +419,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             # note: when not finalized, RBF and locktime changes do not trigger
             #       a make_tx, so the txid is unreliable, hence:
             self.tx_hash_e.setText(_('Unknown'))
-        if desc is None:
+        if not desc:
             self.tx_desc.hide()
         else:
             self.tx_desc.setText(_("Description") + ': ' + desc)
@@ -435,7 +430,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             time_str = datetime.datetime.fromtimestamp(tx_mined_status.timestamp).isoformat(' ')[:-3]
             self.date_label.setText(_("Date: {}").format(time_str))
             self.date_label.show()
-        elif exp_n:
+        elif exp_n is not None:
             text = '%.2f MB'%(exp_n/1000000)
             self.date_label.setText(_('Position in mempool: {} from tip').format(text))
             self.date_label.show()
@@ -556,8 +551,9 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
                 if addr is None:
                     addr = ''
                 cursor.insertText(addr, text_format(addr))
-                if isinstance(txin, PartialTxInput) and txin.value_sats() is not None:
-                    cursor.insertText(format_amount(txin.value_sats()), ext)
+                txin_value = self.wallet.get_txin_value(txin)
+                if txin_value is not None:
+                    cursor.insertText(format_amount(txin_value), ext)
             cursor.insertBlock()
 
         self.outputs_header.setText(_("Outputs") + ' (%d)'%len(self.tx.outputs()))
@@ -875,7 +871,9 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
         assert self.tx
         self.finalized = True
         self.tx.set_rbf(self.rbf_cb.isChecked())
-        self.tx.locktime = self.locktime_e.get_locktime()
+        locktime = self.locktime_e.get_locktime()
+        if locktime is not None:
+            self.tx.locktime = locktime
         for widget in [self.fee_slider, self.fee_combo, self.feecontrol_fields, self.rbf_cb,
                        self.locktime_setter_widget, self.locktime_e]:
             widget.setEnabled(False)

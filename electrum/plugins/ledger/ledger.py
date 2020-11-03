@@ -16,6 +16,7 @@ from electrum.wallet import Standard_Wallet
 from electrum.util import bfh, bh2u, versiontuple, UserFacingException
 from electrum.base_wizard import ScriptTypeNotSupported
 from electrum.logging import get_logger
+from electrum.plugin import runs_in_hwd_thread
 
 from ..hw_wallet import HW_PluginBase, HardwareClientBase
 from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, validate_op_return_output, LibraryFoundButUnusable
@@ -74,16 +75,14 @@ class Ledger_Client(HardwareClientBase):
     def is_pairable(self):
         return True
 
+    @runs_in_hwd_thread
     def close(self):
-        with self.device_manager().hid_lock:
-            self.dongleObject.dongle.close()
-
-    def timeout(self, cutoff):
-        pass
+        self.dongleObject.dongle.close()
 
     def is_initialized(self):
         return True
 
+    @runs_in_hwd_thread
     def get_soft_device_id(self):
         if self._soft_device_id is None:
             # modern ledger can provide xpub without user interaction
@@ -106,6 +105,7 @@ class Ledger_Client(HardwareClientBase):
             return "Ledger Nano X"
         return None
 
+    @runs_in_hwd_thread
     def has_usable_connection_with_device(self):
         try:
             self.dongleObject.getFirmwareVersion()
@@ -113,6 +113,7 @@ class Ledger_Client(HardwareClientBase):
             return False
         return True
 
+    @runs_in_hwd_thread
     @test_pin_unlocked
     def get_xpub(self, bip32_path, xtype):
         self.checkDevice()
@@ -180,6 +181,7 @@ class Ledger_Client(HardwareClientBase):
     def supports_segwit_trustedInputs(self):
         return self.segwitTrustedInputs
 
+    @runs_in_hwd_thread
     def perform_hw1_preflight(self):
         try:
             firmwareInfo = self.dongleObject.getFirmwareVersion()
@@ -224,6 +226,7 @@ class Ledger_Client(HardwareClientBase):
                                           "Please make sure that 'Browser support' is disabled on your device.")
             raise e
 
+    @runs_in_hwd_thread
     def checkDevice(self):
         if not self.preflightDone:
             try:
@@ -255,7 +258,6 @@ class Ledger_KeyStore(Hardware_KeyStore):
         self.force_watching_only = False
         self.signing = False
         self.cfg = d.get('cfg', {'mode': 0})
-        self.cfg = dict(self.cfg)  # convert to dict from StoredDict (see #6066)
 
     def dump(self):
         obj = Hardware_KeyStore.dump(self)
@@ -291,24 +293,27 @@ class Ledger_KeyStore(Hardware_KeyStore):
     def decrypt_message(self, pubkey, message, password):
         raise UserFacingException(_('Encryption and decryption are currently not supported for {}').format(self.device))
 
+    @runs_in_hwd_thread
     @test_pin_unlocked
     @set_and_unset_signing
     def sign_message(self, sequence, message, password):
         message = message.encode('utf8')
         message_hash = hashlib.sha256(message).hexdigest().upper()
         # prompt for the PIN before displaying the dialog if necessary
-        client = self.get_client()
+        client_ledger = self.get_client()
+        client_electrum = self.get_client_electrum()
         address_path = self.get_derivation_prefix()[2:] + "/%d/%d"%sequence
         self.handler.show_message("Signing message ...\r\nMessage hash: "+message_hash)
         try:
-            info = self.get_client().signMessagePrepare(address_path, message)
+            info = client_ledger.signMessagePrepare(address_path, message)
             pin = ""
             if info['confirmationNeeded']:
-                pin = self.handler.get_auth( info ) # does the authenticate dialog and returns pin
+                # do the authenticate dialog and get pin:
+                pin = self.handler.get_auth(info, client=client_electrum)
                 if not pin:
                     raise UserWarning(_('Cancelled by user'))
                 pin = str(pin).encode()
-            signature = self.get_client().signMessageSign(pin)
+            signature = client_ledger.signMessageSign(pin)
         except BTChipException as e:
             if e.sw == 0x6a80:
                 self.give_error("Unfortunately, this message cannot be signed by the Ledger wallet. Only alphanumerical messages shorter than 140 characters are supported. Please remove any extra characters (tab, carriage return) and retry.")
@@ -337,6 +342,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
         # And convert it
         return bytes([27 + 4 + (signature[0] & 0x01)]) + r + s
 
+    @runs_in_hwd_thread
     @test_pin_unlocked
     @set_and_unset_signing
     def sign_transaction(self, tx, password):
@@ -380,7 +386,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
 
             redeemScript = Transaction.get_preimage_script(txin)
             txin_prev_tx = txin.utxo
-            if txin_prev_tx is None and not Transaction.is_segwit_input(txin):
+            if txin_prev_tx is None and not txin.is_segwit():
                 raise UserFacingException(_('Missing previous tx for legacy input.'))
             txin_prev_tx_raw = txin_prev_tx.serialize() if txin_prev_tx else None
             inputs.append([txin_prev_tx_raw,
@@ -480,7 +486,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 if outputData['confirmationNeeded']:
                     outputData['address'] = output
                     self.handler.finished()
-                    pin = self.handler.get_auth( outputData ) # does the authenticate dialog and returns pin
+                    # do the authenticate dialog and get pin:
+                    pin = self.handler.get_auth(outputData, client=client_electrum)
                     if not pin:
                         raise UserWarning()
                     self.handler.show_message(_("Confirmed. Signing Transaction..."))
@@ -506,7 +513,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     if outputData['confirmationNeeded']:
                         outputData['address'] = output
                         self.handler.finished()
-                        pin = self.handler.get_auth( outputData ) # does the authenticate dialog and returns pin
+                        # do the authenticate dialog and get pin:
+                        pin = self.handler.get_auth(outputData, client=client_electrum)
                         if not pin:
                             raise UserWarning()
                         self.handler.show_message(_("Confirmed. Signing Transaction..."))
@@ -537,6 +545,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
         finally:
             self.handler.finished()
 
+    @runs_in_hwd_thread
     @test_pin_unlocked
     @set_and_unset_signing
     def show_address(self, sequence, txin_type):
@@ -608,6 +617,7 @@ class LedgerPlugin(HW_PluginBase):
         else:
             raise LibraryFoundButUnusable(library_version=version)
 
+    @runs_in_hwd_thread
     def get_btchip_device(self, device):
         ledger = False
         if device.product_key[0] == 0x2581 and device.product_key[1] == 0x3b7c:
@@ -619,12 +629,12 @@ class LedgerPlugin(HW_PluginBase):
                 ledger = True
             else:
                 return None  # non-compatible interface of a Nano S or Blue
-        with self.device_manager().hid_lock:
-            dev = hid.device()
-            dev.open_path(device.path)
-            dev.set_nonblocking(True)
+        dev = hid.device()
+        dev.open_path(device.path)
+        dev.set_nonblocking(True)
         return HIDDongleHIDAPI(dev, ledger, BTCHIP_DEBUG)
 
+    @runs_in_hwd_thread
     def create_client(self, device, handler):
         if handler:
             self.handler = handler
@@ -638,7 +648,7 @@ class LedgerPlugin(HW_PluginBase):
         device_id = device_info.device.id_
         client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
         wizard.run_task_without_blocking_gui(
-            task=lambda: client.get_xpub("m/44'/0'", 'standard'))  # TODO replace by direct derivation once Nano S > 1.1
+            task=lambda: client.get_xpub("m/0'", 'standard'))  # TODO replace by direct derivation once Nano S > 1.1
         return client
 
     def get_xpub(self, device_id, derivation, xtype, wizard):
@@ -649,6 +659,7 @@ class LedgerPlugin(HW_PluginBase):
         xpub = client.get_xpub(derivation, xtype)
         return xpub
 
+    @runs_in_hwd_thread
     def get_client(self, keystore, force_pair=True, *,
                    devices=None, allow_user_interaction=True):
         # All client interaction should not be in the main GUI thread
@@ -662,6 +673,7 @@ class LedgerPlugin(HW_PluginBase):
             client.checkDevice()
         return client
 
+    @runs_in_hwd_thread
     def show_address(self, wallet, address, keystore=None):
         if keystore is None:
             keystore = wallet.get_keystore()
