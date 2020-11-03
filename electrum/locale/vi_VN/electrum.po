@@ -17,164 +17,306 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-msgid " (No FX rate available)"
-msgstr " (Không có sẵn tỷ giá FX khả dụng)"
-
-msgid "2 Keys Vault wallet"
-msgstr "Ví Vault 2 khóa"
-
-msgid "3 Keys Vault wallet"
-msgstr "Ví Vault 3 khóa"
+msgid "  (No FX rate available)"
+msgstr "(Không có tỷ giá hối đoái)"
 
 msgid ""
-"A small fee will be charged on each transaction that uses the remote server. "
-"You may check and modify your billing preferences once the installation is "
-"complete."
+"'Legacy' is the original address type, while 'Segwit' is the newer address "
+"format with lower fees."
 msgstr ""
-"Sẽ tốn một khoản chi phí nhỏ cho những giao dịch sử dụng máy chủ từ xa. Có "
-"thể kiểm tra và thay đổi phương thức yêu cầu khi hoàn tất cài đặt."
+"'Kế thừa' là loại địa chỉ căn bản đầu tiên, trong khi 'Segwit' là địa chỉ "
+"mới hơn định dạng với phí thấp hơn. "
 
-msgid "BIP39 seed (Gold Wallet integration)"
-msgstr "BIP39 seed (Gold Wallet hợp nhất)"
+msgid "2-Key Vault"
+msgstr "Mã Vault 2 Khóa"
+
+msgid "3-Key Vault"
+msgstr "Mã Vault 3 Khóa"
 
 msgid ""
-"Choose coin (UTXO) selection method for alert transactions. The following "
+"A small fee will be charged on each transaction that uses the remote "
+"server.  You may check and modify your billing preferences once the "
+"installation is complete."
+msgstr ""
+"Một khoản phí nhỏ sẽ được tính cho mỗi giao dịch từ xa Người phục vụ. Bạn có "
+"thể kiểm tra và sửa đổi tùy chọn thanh toán của mình sau khi cài đặt hoàn "
+"tất."
+
+msgid "At most one output can be set to spend max"
+msgstr "Có thể cài đặt một đầu ra lớn nhất để chi tiêu tối đa"
+
+msgid "Cancelation address"
+msgstr "Địa chỉ hủy"
+
+msgid ""
+"Choose coin (UTXO) selection method for alert transactions.  The following "
 "are available:\n"
 "\n"
 msgstr ""
-"Vui lòng chọn phương thức lựa chọn coin (UTXO) cho giao dịch được cảnh báo. "
-"Có sẵn những phương thức sau:\n"
+"Chọn phương pháp lựa chọn tiền xu (UTXO) cho các giao dịch cảnh báo. Phần "
+"tiếp theocó sẵn:\n"
 "\n"
 
 msgid ""
-"Choose coin (UTXO) selection method for non-alert transactions. The "
+"Choose coin (UTXO) selection method for non-alert transactions.  The "
 "following are available:\n"
 "\n"
 msgstr ""
-"Vui lòng chọn phương thức lựa chọn coin (UTXO) cho giao dịch không được cảnh "
-"báo. Có sẵn những phương thức sau:\n"
+"Chọn phương pháp chọn tiền xu (UTXO) cho các giao dịch không cảnh báo. "
+"Phầntiếp theo có tại:\n"
 "\n"
 
-msgid "Choose the type of wallet"
-msgstr "Vui lòng chọn loại ví"
+msgid "Confirmation PIN from Gold Wallet:"
+msgstr "Mã PIN xác nhận từ Gold Wallet:"
 
-msgid "Do not use Gold Wallet"
-msgstr "Không sử dụng Gold Wallet"
-
-msgid "Do you want to use Gold Wallet as a transaction authenticator?"
+msgid ""
+"Do you want to create a new seed or to restore a wallet using an existing "
+"seed?"
 msgstr ""
-"Quý khách có muốn sử dụng Gold Wallet làm công cụ xác nhận giao dịch hay "
-"không?"
+"Bạn muốn tạo một hạt giống mới hay khôi phục ví bằng ví hiện có hạt giống?"
 
 msgid ""
 "Electrum cannot pair with your {device}.\n"
 "\n"
 "Before you request bitcoins to be sent to addresses in this wallet, ensure "
 "you can pair with your device, or that you have its seed (and passphrase, if "
-"any). Otherwise all bitcoins you receive will be unspendable."
+"any).  Otherwise all bitcoins you receive will be unspendable."
 msgstr ""
-"Electrum không thể ghép cặp được với {device} của quý khách.\n"
+"Electrum không thể kết nối với {device} của bạn.\n"
 "\n"
-"Trước khi yêu cầu bitcoin được gửi tới những địa chỉ trong ví này, hãy đảm "
-"bảo rằng thiết bị của quý khách đã được ghép cặp, hoặc quý khách có seed(bao "
-"gồm trường hợp nếu có passphrase). Nếu không, quý khách sẽ không thể di "
-"chuyển tất cả số bitcoin mà mình đã nhận được."
+"Trước khi bạn yêu cầu gửi bitcoin đến các địa chỉ trong ví này, hãy chắc "
+"chắnbạn có thể kết nối với thiết bị của mình hoặc bạn có hạt giống bảo mât "
+"của nó (và cụm mật khẩu, nếu có). Nếu không, tất cả bitcoin bạn nhận sẽ "
+"không thể sử dụng được."
 
 msgid ""
 "Electrum communicates with remote servers to get information about your "
 "transactions and addresses. The servers all fulfill the same purpose only "
 "differing in hardware. In most cases you simply want to let Electrum pick "
-"one at random. However if you prefer feel free to select a server manually."
+"one at random.  However if you prefer feel free to select a server manually."
 msgstr ""
-"Electrum kết nối với những máy chủ từ xa để lấy thông tin về những địa chỉ "
-"và giao dịch của quý khách. Các máy chủ đều hướng tới cùng một mục tiêu duy "
-"nhất chỉ khác nhau thiết bị phần cứng. Trong hầu hết các trường hợp, người "
-"sử dụng thường muốn để Electrum lựa chọn một máy chủ ngẫu nhiên. Tuy nhiên, "
-"quý khách hoàn toàn có thể lựa chọn máy chủ một cách thủ công nếu mong muốn."
+"Electrum kết nối với các máy chủ từ xa để nhận thông tin của bạn vềgiao dịch "
+"và địa chỉ. Tất cả các máy chủ đều chỉ thực hiện cùng một mục đích khác biệt "
+"về phần cứng. Trong hầu hết các trường hợp, bạn chỉ muốn để Electrum chọn "
+"một cách ngẫu nhiên. Tuy nhiên, nếu bạn muốn, hãy chọn máy chủ theo cách thủ "
+"công. "
 
 msgid ""
-"Enter a list of BTCV addresses (this will create a watching-only wallet), or "
+"Electrum's focus is speed, with low resource usage and simplifying Bitcoin "
+"Vault."
+msgstr ""
+"Trọng tâm của Electrum là tốc độ, cùng với việc sử dụng tài nguyên thấp và "
+"đơn giản hóa Bitcoin Vault"
+
+msgid ""
+"Enter a list of BTCV addresses (this will create a watching-only wallet) or "
 "a list of private keys."
 msgstr ""
-"Vui lòng nhập danh sách địa chỉ BTCV (địa chỉ ví chuyên dùng để xác nhận sẽ "
-"được thiết lập trong trường hợp này) hoặc danh sách khóa cá nhân."
-
-msgid "Import BTCV addresses"
-msgstr "Nhập địa chỉ BTCV"
-
-msgid "Import external watch-only BTCV addresses or private keys"
-msgstr "Nhập địa chỉ BTCV cố định chuyên dùng để xác nhận hoặc khóa cá nhân"
-
-msgid "Multi-signature Standard wallet"
-msgstr "Ví đa chữ ký tiêu chuẩn"
+"Nhập danh sách địa chỉ BTCV (điều này sẽ tạo ví chỉ xem) hoặc danh sách các "
+"khóa riêng tư."
 
 msgid ""
-"Note that your coins are not locked in this service. You may withdraw your "
+"Enter the name of the new wallet or load an existing wallet by clicking "
+"\"Choose\"."
+msgstr "Nhập tên của ví mới hoặc tải ví hiện có bằng cách nhấp vào \"Chọn\"."
+
+msgid ""
+"Generate an authenticator on Gold Wallet and scan the following QR code: "
+msgstr "Tạo trình xác thực trên Gold Wallet và quét mã QR sau: "
+
+msgid "Gold Wallet authenticator public key"
+msgstr "Khóa công khai của trình xác thực Gold Wallet"
+
+msgid ""
+"In order to confirm the transaction, scan the QR code in the \"Authenticators"
+"\" tab in the Gold Wallet app."
+msgstr ""
+"Để xác nhận giao dịch, hãy quét mã QR trong \"Trình xác thực \" trong ứng "
+"dụng Gold Wallet. "
+
+msgid "Indonesian"
+msgstr "Tiếng Indonesia"
+
+msgid "Invalid Secure Fast Tx seed"
+msgstr "Bảo mật hạt giống Tx nhanh không hợp lệ"
+
+msgid "Invalid cancelation address"
+msgstr "Địa chỉ hủy không hợp lệ"
+
+msgid "Multi-Signature Standard"
+msgstr "Tiêu chuẩn đa chữ ký"
+
+msgid "Never enter it on any website."
+msgstr "Chưa từng nhập nó trên bất kỳ trang web nào."
+
+msgid ""
+"Note that your coins are not locked in this service.  You may withdraw your "
 "funds at any time and at no cost, without the remote server, by using the "
 "'restore wallet' option with your wallet seed."
 msgstr ""
-"Hãy lưu ý rằng coin của quý khách sẽ không bị khóa trên thiết bị này. Quý "
-"khách có thể rút tài sản của mình bất kỳ lúc nào mà không mất phí, không cần "
-"máy chủ từ xa bằng cách sử dụng chức năng 'ví khôi phục' nhờ có seed của ví."
+"Lưu ý rằng tiền của bạn không bị khóa trong dịch vụ này. Bạn có thể rút của "
+"mình chuyển tiền bất kỳ lúc nào và miễn phí, không cần máy chủ từ xa, bằng "
+"cách sử dụng Tùy chọn 'khôi phục ví' bằng hạt giống"
 
-msgid "Pair your 2 Keys Vault wallet with Gold Wallet"
-msgstr "Hãy ghép cặp ví Vault 2 khóa cùng với Gold Wallet"
+msgid "Pair your 2-Key Vault wallet with Gold Wallet"
+msgstr "Kết nối ví 2 mã khóa Vault của bạn với Gold Wallet."
 
-msgid "Pair your 3 Keys Vault wallet with Gold Wallet"
-msgstr "Hãy ghép cặp ví Vault 3 khóa cùng với Gold Wallet"
-
-msgid "Standard wallet"
-msgstr "Ví tiêu chuẩn"
+msgid "Pair your 3-Key Vault wallet with Gold Wallet"
+msgstr "Kết nối ví 3 mã khóa Vault của bạn với Gold Wallet."
 
 msgid ""
-"The next step will generate the seed of your wallet. This seed will NOT be "
-"saved in your computer, and it must be stored on paper. To be safe from "
+"Please paste a Cancel transaction public key. Use an existing one, if you "
+"are importing a wallet, or generate a new one at"
+msgstr ""
+"Vui lòng dán khóa công khai Hủy giao dịch. Sử dụng khóa hiện có, nếu bạn "
+"đang nhập ví hoặc tạo ví mới tại "
+
+msgid ""
+"Please paste a Secure Fast transaction public key. Use an existing one, if "
+"you are importing a wallet, or generate a new one at"
+msgstr ""
+"Vui lòng dán khóa công khai giao dịch Nhanh An Toàn. Sử dụng một mã hiện có, "
+"nếubạn đang nhập ví hoặc tạo ví mới tại "
+
+msgid ""
+"Please paste authenticator public key exported from your Gold Wallet "
+"application"
+msgstr ""
+"Vui lòng dán khóa công khai của trình xác thực được xuất từ ​​Gold Wallet của "
+"bạnứng dụng"
+
+msgid "Please save these {0} words on paper (the order is important). "
+msgstr "Vui lòng lưu {0} từ này ra giấy (thứ tự các từ rất quan trọng)."
+
+msgid "Portuguese"
+msgstr "Tiếng Bồ Đào Nha"
+
+msgid "Restart"
+msgstr "Khởi động lại"
+
+msgid "Secure - confirmed after 24 hours. Can be canceled within that time."
+msgstr "Bảo mật - được xác nhận sau 24 giờ. Có thể hủy trong thời gian đó."
+
+msgid ""
+"Secure Fast - confirmed immediately. Cannot be canceled. Requires an "
+"additional seed phrase."
+msgstr ""
+"Nhanh An Toàn- được xác nhận ngay lập tức. Không thể bị hủy bỏ. Yêu cầu một "
+"cụm từ hạt giống bổ sung. "
+
+msgid "Secure Fast Tx seed"
+msgstr "Hạt giống Tx nhanh an toàn"
+
+msgid "Secure Fast Tx seed not matching any key in this wallet"
+msgstr "Hạt giống Tx nhanh an toàn không khớp với bất kỳ khóa nào trong ví này"
+
+msgid "Secure Fast seedphrase"
+msgstr "Cụm từ hạt giống nhanh an toàn"
+
+msgid "Secure Fast transaction public key"
+msgstr "Khóa công khai giao dịch nhanh an toàn"
+
+msgid "Secure incoming"
+msgstr "Đến an toàn"
+
+msgid "Secure outgoing"
+msgstr "Gửi đi an toàn"
+
+msgid "Select language"
+msgstr "Chọn ngôn ngữ"
+
+msgid "Send cancel transaction"
+msgstr "Gửi hủy giao dịch"
+
+msgid "Standard"
+msgstr "Tiêu chuẩn"
+
+msgid ""
+"Startup times are instant because it operates in conjunction with high-"
+"performance servers that handle the most complicated parts of the Bitcoin "
+"Vault system."
+msgstr ""
+"Thời gian khởi động nhanh chóng vì nó hoạt động kết hợp với-máy chủ hiệu "
+"suất cao giúp xử lý các phần phức tạp nhất của Bitcoin Hệ thống Vault. "
+
+msgid ""
+"Testnet is separate from the main Bitcoin Vault network. It is used for "
+"testing."
+msgstr ""
+"Testnet tách biệt với mạng Bitcoin Vault chính. Nó được sử dụng cho thử "
+"nghiệm. "
+
+msgid ""
+"The next step will generate the seed of your wallet.  This seed will NOT be "
+"saved in your computer, and it must be stored on paper.  To be safe from "
 "malware, you may want to do this on an offline computer, and move your "
 "wallet later to an online computer."
 msgstr ""
-"Seed của ví sẽ được tạo ra ở bước tiếp theo. Seed này sẽ KHÔNG được lưu trên "
-"máy tính của quý khách mà cần được lưu trữ trên giấy. Để bảo vệ thông tin "
-"này khỏi các phần mềm độc hại, quý khách nên thực hiện điều này trên một máy "
-"tính không kết nối mạng và chuyển địa chỉ ví của mình tới máy tính kết nối "
-"mạng sau đó."
+"Bước tiếp theo sẽ tạo hạt giống cho ví của bạn. Hạt giống này sẽ KHÔNG được "
+"lưu trong máy tính của bạn và bạn phải được lưu nó trên giấy. Để được an "
+"toàn từ phần mềm độc hại, bạn có thể muốn thực hiện việc này trên máy tính "
+"ngoại tuyến và di chuyển của mình ví sau khi vào máy tính trực tuyến. "
+
+msgid "This seed will allow you to recover your wallet."
+msgstr "Hạt giống này sẽ cho phép bạn lấy lại ví của mình."
 
 msgid ""
-"This service uses a multi-signature wallet, where you own 2 of 3 keys. The "
+"This service uses a multi-signature wallet, where you own 2 of 3 keys.  The "
 "third key is stored on a remote server that signs transactions on your "
 "behalf. A small fee will be charged on each transaction that uses the remote "
 "server."
 msgstr ""
-"Thiết bị này sử dụng ví đa chữ ký, nơi quý khách sở hữu 2 trong 3 khóa. Khóa "
-"thứ 3 được lưu trữ trên một thiết bị từ xa nơi ký các giao dịch thay cho quý "
-"khách. Sẽ tốn một khoản phí nhỏ cho những giao dịch sử dụng máy chủ từ xa."
+"Dịch vụ này sử dụng ví có nhiều chữ ký, mà bạn có thể sở hữu 2 trong 3 mã "
+"khóa. khóa thứ ba được lưu trữ trên một máy chủ từ xa có chức năng ký các "
+"giao dịch trên của bạnthay mặt cho. Một khoản phí nhỏ sẽ được tính cho mỗi "
+"giao dịch thanh toán từ xa ."
+
+msgid "Turkish"
+msgstr "Thổ Nhĩ Kỳ"
 
 msgid ""
-"Two-factor authentication is a service provided by TrustedCoin. It uses a "
-"multi-signature wallet, where you own 2 of 3 keys. The third key is stored "
-"on a remote server that signs transactions on your behalf. To use this "
+"Two-factor authentication is a service provided by TrustedCoin.  It uses a "
+"multi-signature wallet, where you own 2 of 3 keys.  The third key is stored "
+"on a remote server that signs transactions on your behalf.  To use this "
 "service, you will need a smartphone with Google Authenticator installed."
 msgstr ""
-"Xác thực hau yếu tố được cung cấp bởi TrustedCoin. Nó sử dụng một ví đa chữ "
-"ký, nơi bạn sở hữu 2 trong 3 khóa. Khóa thứ 3 được lưu trữ trên một máy chủ "
-"từ xa nơi ký các giao dịch thay cho quý khách. Để sử dụng chức năng này, quý "
-"khách cần có một chiếc điện thoại thông minh có cài đặt Google Authenticator."
+"Xác thực hai yếu tố là một dịch vụ được cung cấp bởi TrustedCoin. Nó sử dụng "
+"một ví đa chữ ký, nơi bạn sở hữu 2 trong 3 mã khóa. Khóa thứ ba được lưu trữ "
+"trên máy chủ từ xa đại diện cho bạn ký các giao dịch. Để sử dụng dịch vụ, "
+"bạn sẽ cần một điện thoại thông minh có cài đặt Google Authenticator. "
 
-msgid "Use Gold Wallet and create a new wallet"
-msgstr "Sử dụng Gold Wallet và thiết lập một ví mới"
+msgid "Unconfirmed Parent"
+msgstr "Phụ huynh chưa xác nhận"
 
-msgid "Use Gold Wallet and import the wallet"
-msgstr "Sử dụng Gold Wallet và nhập một ví mới"
+msgid "Use Gold Wallet and import an existing wallet"
+msgstr "Sử dụng Gold Wallet và nhập ví hiện có"
 
 msgid ""
-"You need to be online in order to complete the creation of your wallet. If "
+"Warning: Please be aware that in the process of using the Secure Transaction "
+"feature, a part of the funds left in your wallet might be blocked. This is a "
+"normal procedure linked to UTXO and the blockchain parameters of the Bitcoin "
+"Vault wallet. Your funds will be unblocked once the transaction is verified "
+"(after approximately 24 hrs) or canceled (within 24 hrs)."
+msgstr ""
+"Cảnh báo: Xin lưu ý rằng trong quá trình sử dụng Giao dịch an toàn một phần "
+"số tiền còn lại trong ví của bạn có thể bị chặn. Đây là một quy trình thông "
+"thường được liên kết với UTXO và các tham số blockchain của Bitcoin Ví "
+"Vault. Tiền của bạn sẽ được bỏ chặn sau khi giao dịch được xác minh (sau "
+"khoảng 24 giờ) hoặc bị hủy (trong vòng 24 giờ). "
+
+msgid ""
+"You need to be online in order to complete the creation of your wallet.  If "
 "you generated your seed on an offline computer, click on \"{button}\" to "
 "close this window, move your wallet file to an online computer, and reopen "
 "it with Electrum."
 msgstr ""
-"Quý khách cần kết nối mạng để có thể hoàn tất việc tạo lập ví. Nếu quý khách "
-"thiết lập seed trên một máy tính không kết nối mạng, hãy nhấn vào "
-"\"{button}\" để đóng cửa sổ này, chuyển dữ liệu vé của quý khách tới một máy "
-"tính kết nối mạng và mở lại nó bằng Electrum."
+"Bạn cần phải kết nối trực tuyến để hoàn tất việc tạo ví của mình. Nếu bạn đã "
+"tạo hạt giống của mình trên một máy tính ngoại tuyến, hãy nhấp vào "
+"\"{button}\" để đóng cửa sổ này, di chuyển tệp ví của bạn sang máy tính trực "
+"tuyến và mở lại nó với Electrum. "
+
+msgid "Your wallet's generated seed is:"
+msgstr "Hạt giống được tạo trong ví của bạn là:"
 
 #: ../electrum/gui/qt/history_list.py:198
 msgid " confirmation"
@@ -475,7 +617,7 @@ msgid "Acquisition price"
 msgstr "Giá thu nhập"
 
 #: ../electrum/gui/kivy/uix/dialogs/installwizard.py:1135
-#: ../electrum/gui/qt/installwizard.py:443
+#: ../electrum/gui/qt/installwizard.py:446
 msgid "Add Cosigner"
 msgstr "Thêm Cosigner"
 
@@ -504,13 +646,13 @@ msgstr "Thêm {num_satoshis_added} satoshi sẽ được thêm vào."
 #: ../electrum/gui/qt/main_window_v2.py:1028
 #: ../electrum/gui/qt/main_window_v2.py:2041
 #: ../electrum/gui/qt/main_window_v2.py:2165
-#: ../electrum/gui/qt/main_window_v2.py:2246 ../electrum/gui/qt/util.py:392
+#: ../electrum/gui/qt/main_window_v2.py:2246 ../electrum/gui/qt/util.py:396
 #: ../electrum/gui/qt/address_dialog.py:55
 #: ../electrum/gui/qt/contact_list.py:48 ../electrum/gui/qt/address_list.py:117
 #: ../electrum/gui/qt/utxo_list.py:49 ../electrum/gui/qt/main_window.py:1026
-#: ../electrum/gui/qt/main_window.py:2039
-#: ../electrum/gui/qt/main_window.py:2163
-#: ../electrum/gui/qt/main_window.py:2244
+#: ../electrum/gui/qt/main_window.py:2040
+#: ../electrum/gui/qt/main_window.py:2164
+#: ../electrum/gui/qt/main_window.py:2245
 msgid "Address"
 msgstr "Địa chỉ"
 
@@ -527,7 +669,7 @@ msgid "Address is frozen"
 msgstr "Địa chỉ đã bị đóng băng"
 
 #: ../electrum/gui/qt/main_window_v2.py:2197
-#: ../electrum/gui/qt/main_window.py:2195
+#: ../electrum/gui/qt/main_window.py:2196
 #: ../electrum/plugins/hw_wallet/plugin.py:84 ../electrum/wallet.py:443
 #: ../electrum/wallet.py:1583
 msgid "Address not in wallet."
@@ -603,7 +745,7 @@ msgstr "Luôn kiểm tra các bản sao lưu của quý khách."
 #: ../electrum/gui/qt/recovery_list.py:47 ../electrum/gui/qt/utxo_list.py:51
 #: ../electrum/gui/qt/channel_details.py:35
 #: ../electrum/gui/qt/main_window.py:1217
-#: ../electrum/gui/qt/main_window.py:1832 ../electrum/gui/qt/invoice_list.py:64
+#: ../electrum/gui/qt/main_window.py:1833 ../electrum/gui/qt/invoice_list.py:64
 #: ../electrum/gui/qt/history_list.py:383 ../electrum/gui/stdio.py:111
 #: ../electrum/gui/text.py:111 ../electrum/gui/text.py:183
 msgid "Amount"
@@ -695,7 +837,7 @@ msgstr "Cài đặt Audio Modem"
 msgid "Authorization"
 msgstr "Xác thực"
 
-#: ../electrum/gui/qt/installwizard.py:722
+#: ../electrum/gui/qt/installwizard.py:725
 msgid "Auto connect"
 msgstr "Tự động kết nối"
 
@@ -707,7 +849,11 @@ msgstr "Tự động - kết nối"
 msgid "Automatically check for software updates"
 msgstr "Tự động kiểm tra các bản cập nhật phần mềm"
 
-#: ../electrum/gui/qt/seed_dialog.py:70
+#: ../electrum/gui/qt/seed_dialog.py:75
+msgid "BIP39 seed (Gold Wallet integration)"
+msgstr "BIP39 seed (Gold Wallet hợp nhất)"
+
+#: ../electrum/gui/qt/seed_dialog.py:69
 msgid ""
 "BIP39 seeds can be imported in Electrum, so that users can access funds "
 "locked in other wallets."
@@ -716,7 +862,7 @@ msgstr ""
 "cập vào tiềnbị khóa trong các ví khác. "
 
 #: ../electrum/gui/qt/main_window_v2.py:1829
-#: ../electrum/gui/qt/main_window.py:1827
+#: ../electrum/gui/qt/main_window.py:1828
 msgid "BIP70 Invoice"
 msgstr "Hóa đơn BIP70"
 
@@ -770,7 +916,7 @@ msgid "Bitcoin Address"
 msgstr "Địa chỉ Bitcoin"
 
 #: ../electrum/gui/qt/main_window_v2.py:1363
-#: ../electrum/gui/qt/main_window.py:1361
+#: ../electrum/gui/qt/main_window.py:1362
 msgid "Bitcoin Address is None"
 msgstr "Địa chỉ Bitcoin là Không có"
 
@@ -800,12 +946,12 @@ msgid "Broadcast"
 msgstr "Phát sóng"
 
 #: ../electrum/gui/qt/main_window_v2.py:1578
-#: ../electrum/gui/qt/main_window.py:1576
+#: ../electrum/gui/qt/main_window.py:1577
 msgid "Broadcasting transaction..."
 msgstr "Phát giao dịch..."
 
 #: ../electrum/gui/qt/main_window_v2.py:2838
-#: ../electrum/gui/qt/main_window.py:2836
+#: ../electrum/gui/qt/main_window.py:2837
 msgid "Bump Fee"
 msgstr "Phí bội thu"
 
@@ -817,7 +963,7 @@ msgstr "Phí bội thu"
 msgid "CLTV expiry"
 msgstr "Hết hạn CLTV"
 
-#: ../electrum/gui/qt/util.py:405
+#: ../electrum/gui/qt/util.py:409
 msgid "CSV"
 msgstr "CSV"
 
@@ -834,13 +980,13 @@ msgid "Can send"
 msgstr "Có thể gửi"
 
 #: ../electrum/gui/qt/main_window_v2.py:2754
-#: ../electrum/gui/qt/main_window.py:2752
+#: ../electrum/gui/qt/main_window.py:2753
 msgid "Can't CPFP: unknown fee for parent transaction."
 msgstr "Không thể CPFP: phí không xác định cho giao dịch gốc."
 
 #: ../electrum/gui/kivy/uix/dialogs/tx_dialog.py:229
 #: ../electrum/gui/qt/main_window_v2.py:2833
-#: ../electrum/gui/qt/main_window.py:2831
+#: ../electrum/gui/qt/main_window.py:2832
 msgid "Can't bump fee: unknown fee for original transaction."
 msgstr "Không thể tăng phí: phí không xác định cho giao dịch ban đầu."
 
@@ -850,14 +996,14 @@ msgstr "Không thể đưa ra lịch sử."
 
 #: ../electrum/gui/qt/installwizard.py:90
 #: ../electrum/gui/qt/installwizard.py:169
-#: ../electrum/gui/qt/installwizard.py:725 ../electrum/gui/qt/util.py:187
+#: ../electrum/gui/qt/installwizard.py:728 ../electrum/gui/qt/util.py:187
 #: ../electrum/gui/qt/three_keys_windows.py:31
 #: ../electrum/plugins/trustedcoin/qt.py:221
 msgid "Cancel"
 msgstr "Hủy"
 
 #: ../electrum/gui/qt/recovery_list.py:420
-#: ../electrum/gui/qt/recovery_list.py:473
+#: ../electrum/gui/qt/recovery_list.py:478
 msgid "Cancel seedphrase"
 msgstr "Hủy cụm từ hạt giống"
 
@@ -865,18 +1011,9 @@ msgstr "Hủy cụm từ hạt giống"
 msgid "Cancel seedphrase not matching any key in this wallet"
 msgstr "Hủy cụm từ hạt giống không khớp với bất kỳ khóa nào trong ví này"
 
-#: ../electrum/gui/qt/installwizard.py:567
+#: ../electrum/gui/qt/installwizard.py:570
 msgid "Cancel transaction public key"
 msgstr "Hủy khóa giao dịch công khai"
-
-#: ../electrum/gui/qt/recovery_list.py:194
-msgid "Cancel transactions"
-msgstr "Hủy giao dịch"
-
-#: ../electrum/gui/qt/recovery_list.py:414
-#: ../electrum/gui/qt/recovery_list.py:460
-msgid "Cancellation address"
-msgstr "Hủy địa chỉ"
 
 #: ../electrum/plugins/ledger/ledger.py:277
 #: ../electrum/plugins/ledger/ledger.py:290
@@ -899,22 +1036,22 @@ msgstr "Không thể phát giao dịch"
 msgid "Cannot bump fee"
 msgstr "Không thể tăng phí"
 
-#: ../electrum/gui/qt/__init__.py:272
+#: ../electrum/gui/qt/__init__.py:273
 msgid "Cannot create window for wallet"
 msgstr "Không thể tạo cửa sổ cho ví"
 
-#: ../electrum/gui/qt/__init__.py:245 ../electrum/gui/qt/__init__.py:257
+#: ../electrum/gui/qt/__init__.py:246 ../electrum/gui/qt/__init__.py:258
 msgid "Cannot load wallet"
 msgstr "Không thể tải ví"
 
-#: ../electrum/gui/qt/installwizard.py:241
 #: ../electrum/gui/qt/installwizard.py:244
-#: ../electrum/gui/qt/installwizard.py:265
+#: ../electrum/gui/qt/installwizard.py:247
+#: ../electrum/gui/qt/installwizard.py:268
 msgid "Cannot read file"
 msgstr "Không thể đọc tệp"
 
 #: ../electrum/gui/qt/main_window_v2.py:2201
-#: ../electrum/gui/qt/main_window.py:2199
+#: ../electrum/gui/qt/main_window.py:2200
 msgid "Cannot sign messages with this type of address:"
 msgstr "Không thể ký tin nhắn bằng loại địa chỉ này:"
 
@@ -984,7 +1121,7 @@ msgstr "Chi tiết kênh"
 
 #: ../electrum/gui/kivy/uix/dialogs/lightning_open_channel.py:147
 #: ../electrum/gui/qt/main_window_v2.py:1604
-#: ../electrum/gui/qt/main_window.py:1602
+#: ../electrum/gui/qt/main_window.py:1603
 msgid "Channel established."
 msgstr "Đã thành lập kênh."
 
@@ -1013,7 +1150,7 @@ msgid "Checking for updates..."
 msgstr "Đang kiểm tra các bản cập nhật ..."
 
 #: ../electrum/gui/qt/main_window_v2.py:2756
-#: ../electrum/gui/qt/main_window.py:2754
+#: ../electrum/gui/qt/main_window.py:2755
 msgid "Child Pays for Parent"
 msgstr "Các khoản thanh toán của child cho parent"
 
@@ -1045,13 +1182,17 @@ msgstr "Chọn máy chủ"
 msgid "Choose from peers"
 msgstr "Chọn từ các peers"
 
-#: ../electrum/gui/qt/installwizard.py:770
+#: ../electrum/gui/qt/installwizard.py:773
 msgid "Choose the number of signatures needed to unlock funds in your wallet:"
 msgstr "Chọn số lượng chữ ký cần thiết để mở khóa tiền trong ví của quý khách:"
 
 #: ../electrum/base_wizard.py:479
 msgid "Choose the type of addresses in your wallet."
 msgstr "Chọn loại địa chỉ trong ví của quý khách."
+
+#: ../electrum/base_wizard.py:132
+msgid "Choose the type of wallet"
+msgstr "Vui lòng chọn loại ví"
 
 #: ../electrum/gui/qt/three_keys_windows.py:220
 msgid "Choose transaction type."
@@ -1069,7 +1210,7 @@ msgstr ""
 msgid "Choose your chain"
 msgstr "Chọn chuỗi của quý khách"
 
-#: ../electrum/gui/qt/installwizard.py:203
+#: ../electrum/gui/qt/installwizard.py:206
 msgid "Choose..."
 msgstr "Chọn..."
 
@@ -1101,9 +1242,9 @@ msgstr "Clipboard trống"
 #: ../electrum/gui/qt/main_window_v2.py:2334
 #: ../electrum/gui/qt/update_checker.py:63 ../electrum/gui/qt/util.py:163
 #: ../electrum/gui/qt/transaction_dialog.py:154
-#: ../electrum/gui/qt/qrcodewidget.py:131
-#: ../electrum/gui/qt/main_window.py:2263
-#: ../electrum/gui/qt/main_window.py:2332 ../electrum/gui/qt/__init__.py:158
+#: ../electrum/gui/qt/qrcodewidget.py:139
+#: ../electrum/gui/qt/main_window.py:2264
+#: ../electrum/gui/qt/main_window.py:2333 ../electrum/gui/qt/__init__.py:159
 msgid "Close"
 msgstr "Đóng"
 
@@ -1180,11 +1321,11 @@ msgid "Confirm Password:"
 msgstr "Xác nhận mật khẩu:"
 
 #: ../electrum/gui/kivy/uix/dialogs/installwizard.py:1108
-#: ../electrum/gui/qt/installwizard.py:467
+#: ../electrum/gui/qt/installwizard.py:470
 msgid "Confirm Seed"
 msgstr "Xác nhận hạt giống"
 
-#: ../electrum/base_wizard.py:756
+#: ../electrum/base_wizard.py:754
 msgid "Confirm Seed Extension"
 msgstr "Xác nhận phần mở rộng hạt giống"
 
@@ -1199,10 +1340,6 @@ msgstr "Xác nhận Giao dịch trên thiết bị Ledger của quý khách..."
 #: ../electrum/gui/kivy/uix/dialogs/password_dialog.py:134
 msgid "Confirm new PIN"
 msgstr "Xác nhận mã PIN mới"
-
-#: ../electrum/gui/qt/installwizard.py:611
-msgid "Confirmation PIN from GoldWallet:"
-msgstr "Mã PIN xác nhận từ GoldWallet:"
 
 #: ../electrum/gui/kivy/uix/ui_screens/status.kv:39
 msgid "Confirmed"
@@ -1253,8 +1390,8 @@ msgstr ""
 msgid "Contacts"
 msgstr "Liên hệ"
 
-#: ../electrum/gui/qt/util.py:169 ../electrum/gui/qt/util.py:634
-#: ../electrum/gui/qt/qrcodewidget.py:123
+#: ../electrum/gui/qt/util.py:169 ../electrum/gui/qt/util.py:638
+#: ../electrum/gui/qt/qrcodewidget.py:131
 #: ../electrum/gui/qt/history_list.py:606
 msgid "Copy"
 msgstr "Sao chép"
@@ -1284,7 +1421,7 @@ msgstr ""
 " Sao chép và dán địa chỉ người nhận bằng nút Dán hoặc sử dụng  máy ảnh để "
 "quét mã QR. "
 
-#: ../electrum/gui/qt/util.py:674 ../electrum/gui/qt/transaction_dialog.py:251
+#: ../electrum/gui/qt/util.py:678 ../electrum/gui/qt/transaction_dialog.py:251
 msgid "Copy to clipboard"
 msgstr "Sao chép vào clipboard"
 
@@ -1310,7 +1447,7 @@ msgid "Could not force close channel: "
 msgstr "Không thể bắt buộc đóng kênh:"
 
 #: ../electrum/gui/qt/main_window_v2.py:1611
-#: ../electrum/gui/qt/main_window.py:1609
+#: ../electrum/gui/qt/main_window.py:1610
 #, python-brace-format
 msgid "Could not open channel: {error_value}"
 msgstr "Không thể mở kênh: {error_value}"
@@ -1353,12 +1490,12 @@ msgid "Critical Error"
 msgstr "Lỗi nghiêm trọng"
 
 #: ../electrum/gui/qt/main_window_v2.py:2841
-#: ../electrum/gui/qt/main_window.py:2839
+#: ../electrum/gui/qt/main_window.py:2840
 msgid "Current Fee"
 msgstr "Phí hiện tại"
 
 #: ../electrum/gui/qt/main_window_v2.py:2842
-#: ../electrum/gui/qt/main_window.py:2840
+#: ../electrum/gui/qt/main_window.py:2841
 msgid "Current Fee rate"
 msgstr "Mức phí hiện tại"
 
@@ -1392,7 +1529,7 @@ msgstr "Bí mật tùy chỉnh"
 msgid "Dark"
 msgstr "Tối"
 
-#: ../electrum/gui/qt/__init__.py:159
+#: ../electrum/gui/qt/__init__.py:160
 msgid "Dark/Light"
 msgstr "Tối/Sáng"
 
@@ -1419,7 +1556,7 @@ msgid "Debug message"
 msgstr "Thông báo gỡ lỗi"
 
 #: ../electrum/gui/qt/main_window_v2.py:2330
-#: ../electrum/gui/qt/main_window.py:2328
+#: ../electrum/gui/qt/main_window.py:2329
 msgid "Decrypt"
 msgstr "Giải mã"
 
@@ -1435,7 +1572,7 @@ msgstr "Máy chủ mặc định"
 #: ../electrum/gui/qt/main_window_v2.py:582
 #: ../electrum/gui/qt/main_window_v2.py:1861
 #: ../electrum/gui/qt/request_list.py:173 ../electrum/gui/qt/contact_list.py:96
-#: ../electrum/gui/qt/main_window.py:582 ../electrum/gui/qt/main_window.py:1859
+#: ../electrum/gui/qt/main_window.py:582 ../electrum/gui/qt/main_window.py:1860
 #: ../electrum/gui/qt/invoice_list.py:177
 msgid "Delete"
 msgstr "Xóa"
@@ -1446,7 +1583,7 @@ msgstr "Xóa các yêu cầu đã hết hạn?"
 
 #: ../electrum/gui/kivy/uix/dialogs/invoice_dialog.py:107
 #: ../electrum/gui/qt/main_window_v2.py:1856
-#: ../electrum/gui/qt/main_window.py:1854
+#: ../electrum/gui/qt/main_window.py:1855
 msgid "Delete invoice?"
 msgstr "Xóa hóa đơn?"
 
@@ -1455,7 +1592,7 @@ msgid "Delete request?"
 msgstr "Xóa yêu cầu?"
 
 #: ../electrum/gui/qt/main_window_v2.py:2113
-#: ../electrum/gui/qt/main_window.py:2111
+#: ../electrum/gui/qt/main_window.py:2112
 msgid "Delete wallet file?"
 msgstr "Xóa tệp ví?"
 
@@ -1547,16 +1684,19 @@ msgstr ""
 "Đừng dán mã mà quý khách không hiểu ở đây. Thực thi sai mã  có thể khiến "
 "tiền của quý khách bị mất và không thể phục hồi. "
 
-#: ../electrum/gui/qt/seed_dialog.py:52
+#: ../electrum/gui/qt/seed_dialog.py:51
 msgid "Do not store it electronically."
 msgstr "Không lưu trữ nó dưới dạng điện tử."
+
+#: ../electrum/base_wizard.py:223
+msgid "Do not use Gold Wallet"
+msgstr "Không sử dụng Gold Wallet"
 
 #: ../electrum/plugins/revealer/__init__.py:5
 msgid "Do you have something to hide ?"
 msgstr "Quý khách cómuốn giấu điều gì không?"
 
 #: ../electrum/plugins/trustedcoin/trustedcoin.py:539
-#: ../electrum/base_wizard.py:289
 msgid ""
 "Do you want to create a new seed, or to restore a wallet using an existing "
 "seed?"
@@ -1564,12 +1704,12 @@ msgstr ""
 " Quý khách muốn tạo một hạt giống mới hay khôi phục ví bằng hạt giống hiện "
 "có?"
 
-#: ../electrum/gui/qt/installwizard.py:350
+#: ../electrum/gui/qt/installwizard.py:353
 #, python-brace-format
 msgid "Do you want to delete '{path}'?"
 msgstr "Quý khách có muốn xóa '{path}' không?"
 
-#: ../electrum/gui/qt/installwizard.py:335
+#: ../electrum/gui/qt/installwizard.py:338
 msgid "Do you want to delete the old file"
 msgstr "Quý khách có muốn xóa tệp cũ?"
 
@@ -1582,7 +1722,7 @@ msgid "Do you want to open it now?"
 msgstr "Hiện tại quý khách có muốn mở nó không?"
 
 #: ../electrum/gui/qt/main_window_v2.py:1768
-#: ../electrum/gui/qt/main_window.py:1766
+#: ../electrum/gui/qt/main_window.py:1767
 #, python-brace-format
 msgid "Do you want to remove {address} from your wallet?"
 msgstr "Quý khách có muốn xóa {address} khỏi ví của mình không?"
@@ -1591,8 +1731,14 @@ msgstr "Quý khách có muốn xóa {address} khỏi ví của mình không?"
 msgid "Do you want to send this report?"
 msgstr "Quý khách có muốn gửi báo cáo này không?"
 
+#: ../electrum/base_wizard.py:219
+msgid "Do you want to use Gold Wallet as a transaction authenticator?"
+msgstr ""
+"Quý khách có muốn sử dụng Gold Wallet làm công cụ xác nhận giao dịch hay "
+"không?"
+
 #: ../electrum/gui/qt/main_window_v2.py:1393
-#: ../electrum/gui/qt/main_window.py:1391
+#: ../electrum/gui/qt/main_window.py:1392
 msgid "Do you wish to continue?"
 msgstr "Quý khách còn muốn tiếp tục không?"
 
@@ -1632,7 +1778,7 @@ msgid "Edit {title}"
 msgstr "Chỉnh sửa{title}"
 
 #: ../electrum/gui/qt/main_window_v2.py:2685
-#: ../electrum/gui/qt/main_window.py:2683
+#: ../electrum/gui/qt/main_window.py:2684
 msgid "Electrum Plugins"
 msgstr "Electrum Plugins"
 
@@ -1667,7 +1813,7 @@ msgstr ""
 " Electrum gửi địa chỉ ví của quý khách đến một máy chủ duy nhất, để nhận  "
 "lịch sử giao dịch của quý khách. "
 
-#: ../electrum/gui/qt/installwizard.py:218
+#: ../electrum/gui/qt/installwizard.py:221
 msgid "Electrum wallet"
 msgstr "Ví Electrum "
 
@@ -1682,17 +1828,17 @@ msgid "Electrum was unable to deserialize the transaction:"
 msgstr "Electrum không thể giải mã giao dịch:"
 
 #: ../electrum/gui/qt/main_window_v2.py:2383
-#: ../electrum/gui/qt/main_window.py:2381
+#: ../electrum/gui/qt/main_window.py:2382
 msgid "Electrum was unable to open your transaction file"
 msgstr "Electrum không thể mở tệp giao dịch của quý khách"
 
 #: ../electrum/gui/qt/main_window_v2.py:2352
-#: ../electrum/gui/qt/main_window.py:2350
+#: ../electrum/gui/qt/main_window.py:2351
 msgid "Electrum was unable to parse your transaction"
 msgstr "Electrum không thể phân tích cú pháp giao dịch của quý khách"
 
 #: ../electrum/gui/qt/main_window_v2.py:2496
-#: ../electrum/gui/qt/main_window.py:2494
+#: ../electrum/gui/qt/main_window.py:2495
 msgid "Electrum was unable to produce a private key-export."
 msgstr "Electrum không thể tạo ra một khóa riêng tư."
 
@@ -1701,7 +1847,6 @@ msgid "Electrum was unable to produce a transaction export."
 msgstr "Electrum không thể tạo xuất giao dịch."
 
 #: ../electrum/gui/qt/main_window_v2.py:676
-#: ../electrum/gui/qt/main_window.py:674
 msgid ""
 "Electrum's focus is speed, with low resource usage and simplifying Bitcoin."
 msgstr ""
@@ -1738,7 +1883,7 @@ msgid "Enabled"
 msgstr "Đã được bật"
 
 #: ../electrum/gui/qt/main_window_v2.py:2326
-#: ../electrum/gui/qt/main_window.py:2324
+#: ../electrum/gui/qt/main_window.py:2325
 msgid "Encrypt"
 msgstr "Mã hóa"
 
@@ -1757,7 +1902,7 @@ msgid "Encrypt {wallet_name}'s seed"
 msgstr "Mã hóa hạt giống của {wallet_name}"
 
 #: ../electrum/gui/qt/main_window_v2.py:2301
-#: ../electrum/gui/qt/main_window.py:2299
+#: ../electrum/gui/qt/main_window.py:2300
 msgid "Encrypt/decrypt Message"
 msgstr "Mã hóa / giải mã tin nhắn"
 
@@ -1766,7 +1911,7 @@ msgid "Encrypt/decrypt message"
 msgstr "Mã hóa / giải mã tin nhắn"
 
 #: ../electrum/gui/qt/main_window_v2.py:2321
-#: ../electrum/gui/qt/main_window.py:2319
+#: ../electrum/gui/qt/main_window.py:2320
 msgid "Encrypted"
 msgstr "Được mã hóa"
 
@@ -1811,7 +1956,7 @@ msgid "Enter Remote Node ID or connection string or invoice"
 msgstr "Nhập ID nút từ xa hoặc chuỗi kết nối hoặc hóa đơn"
 
 #: ../electrum/gui/kivy/uix/dialogs/installwizard.py:866
-#: ../electrum/gui/qt/installwizard.py:457
+#: ../electrum/gui/qt/installwizard.py:460
 msgid "Enter Seed"
 msgstr "Nhập hạt giống"
 
@@ -1825,12 +1970,12 @@ msgid "Enter a filename for the copy of your wallet"
 msgstr "Nhập tên tệp cho bản sao ví của quý khách"
 
 #: ../electrum/gui/qt/main_window_v2.py:1777
-#: ../electrum/gui/qt/main_window.py:1775
+#: ../electrum/gui/qt/main_window.py:1776
 msgid "Enter a list of outputs in the 'Pay to' field."
 msgstr "Nhập danh sách kết quả đầu ra trong trường 'Trả cho'."
 
 #: ../electrum/gui/qt/main_window_v2.py:2626
-#: ../electrum/gui/qt/main_window.py:2624
+#: ../electrum/gui/qt/main_window.py:2625
 msgid "Enter addresses"
 msgstr "Nhập địa chỉ"
 
@@ -1851,12 +1996,12 @@ msgid "Enter new PIN"
 msgstr "Nhập mã PIN mới"
 
 #: ../electrum/gui/qt/main_window_v2.py:2635
-#: ../electrum/gui/qt/main_window.py:2633
+#: ../electrum/gui/qt/main_window.py:2634
 msgid "Enter private keys"
 msgstr "Nhập khóa riêng tư"
 
 #: ../electrum/gui/qt/main_window_v2.py:2541
-#: ../electrum/gui/qt/main_window.py:2539
+#: ../electrum/gui/qt/main_window.py:2540
 msgid "Enter private keys:"
 msgstr "Nhập khóa riêng tư:"
 
@@ -1864,7 +2009,7 @@ msgstr "Nhập khóa riêng tư:"
 msgid "Enter the seed for your 2-factor wallet:"
 msgstr "Nhập hạt giống cho ví xác thực 2 yếu tố của quý khách:"
 
-#: ../electrum/gui/qt/installwizard.py:446
+#: ../electrum/gui/qt/installwizard.py:449
 msgid ""
 "Enter their master private key (xprv) if you want to be able to sign for "
 "them."
@@ -1905,7 +2050,7 @@ msgstr "Nhập mã PIN hiện tại của quý khách:"
 msgid "Enter your email address:"
 msgstr "Nhập địa chỉ email của quý khách:"
 
-#: ../electrum/gui/qt/installwizard.py:254
+#: ../electrum/gui/qt/installwizard.py:257
 msgid "Enter your password or choose another file."
 msgstr "Nhập mật khẩu của quý khách hoặc chọn một tệp khác."
 
@@ -1913,12 +2058,12 @@ msgstr "Nhập mật khẩu của quý khách hoặc chọn một tệp khác."
 msgid "Enter your password to proceed"
 msgstr "Nhập mật khẩu của quý khách để tiếp tục"
 
-#: ../electrum/gui/qt/installwizard.py:297
-#: ../electrum/gui/qt/installwizard.py:301
-#: ../electrum/gui/qt/installwizard.py:307
-#: ../electrum/gui/qt/installwizard.py:314 ../electrum/gui/qt/util.py:223
-#: ../electrum/gui/qt/__init__.py:244 ../electrum/gui/qt/__init__.py:256
-#: ../electrum/gui/qt/__init__.py:271
+#: ../electrum/gui/qt/installwizard.py:300
+#: ../electrum/gui/qt/installwizard.py:304
+#: ../electrum/gui/qt/installwizard.py:310
+#: ../electrum/gui/qt/installwizard.py:317 ../electrum/gui/qt/util.py:223
+#: ../electrum/gui/qt/__init__.py:245 ../electrum/gui/qt/__init__.py:257
+#: ../electrum/gui/qt/__init__.py:272
 #: ../electrum/plugins/trustedcoin/trustedcoin.py:686
 #: ../electrum/plugins/trustedcoin/kivy.py:69
 #: ../electrum/plugins/trustedcoin/kivy.py:71
@@ -1954,7 +2099,7 @@ msgid "Error getting TrustedCoin account info."
 msgstr "Lỗi khi nhận thông tin tài khoản TrustedCoin."
 
 #: ../electrum/gui/qt/main_window_v2.py:2410
-#: ../electrum/gui/qt/main_window.py:2408
+#: ../electrum/gui/qt/main_window.py:2409
 msgid "Error getting transaction from network"
 msgstr "Lỗi khi nhận giao dịch từ mạng"
 
@@ -1968,7 +2113,7 @@ msgstr "Lỗi khi mở tệp"
 
 #: ../electrum/gui/kivy/uix/screens.py:195
 #: ../electrum/gui/qt/main_window_v2.py:1689
-#: ../electrum/gui/qt/main_window.py:1687
+#: ../electrum/gui/qt/main_window.py:1688
 msgid "Error parsing URI"
 msgstr "Lỗi phân tích cú pháp URI"
 
@@ -1992,7 +2137,7 @@ msgstr "Lỗi: trùng lặp khóa công khai chính"
 msgid "Estimate"
 msgstr "Ước tính"
 
-#: ../electrum/gui/qt/__init__.py:161
+#: ../electrum/gui/qt/__init__.py:162
 msgid "Exit Electrum"
 msgstr "Thoát Electrum"
 
@@ -2023,7 +2168,7 @@ msgstr ""
 "quý khách, để  miễn phí các địa chỉ Bitcoin tương ứng.  "
 
 #: ../electrum/gui/qt/main_window_v2.py:1843
-#: ../electrum/gui/qt/main_window.py:1841 ../electrum/util.py:122
+#: ../electrum/gui/qt/main_window.py:1842 ../electrum/util.py:122
 msgid "Expires"
 msgstr "Hết hạn"
 
@@ -2032,7 +2177,7 @@ msgstr "Hết hạn"
 #: ../electrum/gui/qt/main_window_v2.py:2443
 #: ../electrum/gui/qt/transaction_dialog.py:166
 #: ../electrum/gui/qt/main_window.py:611 ../electrum/gui/qt/main_window.py:614
-#: ../electrum/gui/qt/main_window.py:2441
+#: ../electrum/gui/qt/main_window.py:2442
 #: ../electrum/gui/qt/history_list.py:696
 msgid "Export"
 msgstr "Xuất"
@@ -2050,13 +2195,13 @@ msgid "Export to file"
 msgstr "Xuất đến tập tin"
 
 #: ../electrum/gui/qt/main_window_v2.py:2430
-#: ../electrum/gui/qt/main_window.py:2428
+#: ../electrum/gui/qt/main_window.py:2429
 msgid "Exposing a single private key can compromise your entire wallet!"
 msgstr ""
 "Để lộ một khóa bảo mật duy nhất có thể ảnh hưởng đến toàn bộ ví của quý "
 "khách!"
 
-#: ../electrum/gui/qt/seed_dialog.py:81
+#: ../electrum/gui/qt/seed_dialog.py:80
 msgid "Extend this seed with custom words"
 msgstr "Mở rộng hạt giống này bằng các từ tùy chỉnh"
 
@@ -2072,7 +2217,7 @@ msgstr "HTLC không thành công"
 msgid "Failed to create a client for this device."
 msgstr "Không tạo khách cho thiết bị này."
 
-#: ../electrum/gui/qt/installwizard.py:308
+#: ../electrum/gui/qt/installwizard.py:311
 msgid "Failed to decrypt using this hardware device."
 msgstr "Không thể giải mã bằng thiết bị phần cứng này."
 
@@ -2095,12 +2240,12 @@ msgid "Failed to send transaction to cosigning pool"
 msgstr "Không thể gửi giao dịch đến cosigning pool"
 
 #: ../electrum/gui/qt/main_window_v2.py:2014
-#: ../electrum/gui/qt/main_window.py:2012
+#: ../electrum/gui/qt/main_window.py:2013
 msgid "Failed to update password"
 msgstr "Không cập nhật được mật khẩu"
 
 #: ../electrum/gui/qt/main_window_v2.py:2058
-#: ../electrum/gui/qt/main_window.py:2056
+#: ../electrum/gui/qt/main_window.py:2057
 msgid "False"
 msgstr "Sai"
 
@@ -2114,7 +2259,7 @@ msgid "Fee estimation"
 msgstr "Ước tính phí"
 
 #: ../electrum/gui/qt/main_window_v2.py:2804
-#: ../electrum/gui/qt/main_window.py:2802
+#: ../electrum/gui/qt/main_window.py:2803
 msgid "Fee for child"
 msgstr "Phí trẻ em"
 
@@ -2135,7 +2280,7 @@ msgstr "Fiat"
 msgid "Fiat currency"
 msgstr "Tiền tệ Fiat"
 
-#: ../electrum/gui/qt/util.py:426
+#: ../electrum/gui/qt/util.py:430
 msgid "File"
 msgstr "Tập tin"
 
@@ -2144,7 +2289,7 @@ msgid "Filter:"
 msgstr "Bộ lọc:"
 
 #: ../electrum/gui/qt/main_window_v2.py:2859
-#: ../electrum/gui/qt/main_window.py:2857
+#: ../electrum/gui/qt/main_window.py:2858
 msgid "Final"
 msgstr "Sau cùng"
 
@@ -2213,12 +2358,12 @@ msgstr "Buộc đóng kênh?"
 msgid "Fork detected at block {fork_point}"
 msgstr "Đã phát hiện fork tại khối {fork_point}"
 
-#: ../electrum/gui/qt/util.py:402
+#: ../electrum/gui/qt/util.py:406
 msgid "Format"
 msgstr "Định dạng"
 
 #: ../electrum/gui/qt/main_window_v2.py:1779
-#: ../electrum/gui/qt/main_window.py:1777
+#: ../electrum/gui/qt/main_window.py:1778
 msgid "Format: address, amount"
 msgstr "Định dạng: địa chỉ, số tiền"
 
@@ -2250,7 +2395,7 @@ msgstr "Đóng băng Coin"
 msgid "From"
 msgstr "Từ"
 
-#: ../electrum/gui/qt/installwizard.py:760
+#: ../electrum/gui/qt/installwizard.py:763
 #, python-brace-format
 msgid "From {0} cosigners"
 msgstr "Từ {0} cosigners"
@@ -2293,15 +2438,6 @@ msgstr "Chung"
 #: ../electrum/gui/qt/main_window.py:990
 msgid "Generate"
 msgstr "Tạo"
-
-#: ../electrum/gui/qt/installwizard.py:606
-msgid ""
-"Generate an authenticator on GoldWallet and scan the following QR code: "
-msgstr " Tạo trình xác thực trên GoldWallet và quét mã QR sau: "
-
-#: ../electrum/gui/qt/installwizard.py:600
-msgid "GoldWallet authenticator public key"
-msgstr "Khóa công khai xác thực GoldWallet"
 
 #: ../electrum/plugins/trustedcoin/qt.py:303
 msgid "Google Authenticator code:"
@@ -2347,7 +2483,7 @@ msgstr "Chào thế giới"
 msgid "Help"
 msgstr "Trợ giúp"
 
-#: ../electrum/gui/qt/installwizard.py:706
+#: ../electrum/gui/qt/installwizard.py:709
 msgid "Here is your master public key."
 msgstr "Đây là khóa công khai chính của quý khách."
 
@@ -2386,7 +2522,7 @@ msgstr "Tên máy chủ"
 msgid "Hostname does not resolve (getaddrinfo failed)"
 msgstr "Tên máy chủ không giải quyết được (getaddrinfo không thành công)"
 
-#: ../electrum/gui/qt/installwizard.py:723
+#: ../electrum/gui/qt/installwizard.py:726
 msgid "How do you want to connect to a server? "
 msgstr "Quý khách muốn kết nối với máy chủ như thế nào?"
 
@@ -2498,11 +2634,11 @@ msgstr ""
 msgid "If you keep experiencing network problems, try using a Tor proxy."
 msgstr "Nếu quý khách vẫn gặp sự cố mạng, hãy thử sử dụng Tor proxy ."
 
-#: ../electrum/gui/qt/installwizard.py:470
+#: ../electrum/gui/qt/installwizard.py:473
 msgid "If you lose your seed, your money will be permanently lost."
 msgstr "Nếu quý khách mất hạt giống, tiền của quý khách sẽ mất vĩnh viễn."
 
-#: ../electrum/gui/qt/installwizard.py:309
+#: ../electrum/gui/qt/installwizard.py:312
 msgid "If you use a passphrase, make sure it is correct."
 msgstr "Nếu quý khách sử dụng cụm mật khẩu, hãy đảm bảo rằng nó chính xác."
 
@@ -2524,7 +2660,7 @@ msgstr ""
 "thiết bị \". Sau đó, cắm thiết bị của quý khách lại lần nữa."
 
 #: ../electrum/gui/qt/main_window_v2.py:2115
-#: ../electrum/gui/qt/main_window.py:2113
+#: ../electrum/gui/qt/main_window.py:2114
 msgid "If your wallet contains funds, make sure you have saved its seed."
 msgstr ""
 "Nếu ví của quý khách chứa tiền, hãy đảm bảo rằng quý khách đã lưu hạt giống "
@@ -2538,27 +2674,35 @@ msgstr "Bỏ qua và tiếp tục?"
 #: ../electrum/gui/qt/main_window_v2.py:613
 #: ../electrum/gui/qt/main_window_v2.py:2605
 #: ../electrum/gui/qt/main_window.py:610 ../electrum/gui/qt/main_window.py:613
-#: ../electrum/gui/qt/main_window.py:2603
+#: ../electrum/gui/qt/main_window.py:2604
 msgid "Import"
 msgstr "Nhập"
 
+#: ../electrum/base_wizard.py:302
+msgid "Import BTCV addresses"
+msgstr "Nhập địa chỉ BTCV"
+
 #: ../electrum/gui/qt/main_window_v2.py:595
 #: ../electrum/gui/qt/main_window_v2.py:2626
-#: ../electrum/gui/qt/main_window.py:595 ../electrum/gui/qt/main_window.py:2624
+#: ../electrum/gui/qt/main_window.py:595 ../electrum/gui/qt/main_window.py:2625
 msgid "Import addresses"
 msgstr "Nhập địa chỉ"
+
+#: ../electrum/base_wizard.py:139
+msgid "Import external watch-only BTCV addresses or private keys"
+msgstr "Nhập địa chỉ BTCV cố định chuyên dùng để xác nhận hoặc khóa cá nhân"
 
 #: ../electrum/gui/qt/contact_list.py:82
 msgid "Import file"
 msgstr "Nhập tệp"
 
 #: ../electrum/gui/qt/main_window_v2.py:2633
-#: ../electrum/gui/qt/main_window.py:2631
+#: ../electrum/gui/qt/main_window.py:2632
 msgid "Import private keys"
 msgstr "Nhập khóa riêng tư"
 
 #: ../electrum/gui/qt/main_window_v2.py:2431
-#: ../electrum/gui/qt/main_window.py:2429
+#: ../electrum/gui/qt/main_window.py:2430
 msgid ""
 "In particular, DO NOT use 'redeem private key' services proposed by third "
 "parties."
@@ -2609,7 +2753,7 @@ msgid "Increase fee"
 msgstr "Tăng phí"
 
 #: ../electrum/gui/qt/main_window_v2.py:2840
-#: ../electrum/gui/qt/main_window.py:2838
+#: ../electrum/gui/qt/main_window.py:2839
 msgid "Increase your transaction's fee to improve its position in mempool."
 msgstr ""
 "Tăng phí giao dịch của quý khách để cải thiện vị trí của nó trong mempool."
@@ -2618,7 +2762,7 @@ msgstr ""
 msgid "Info"
 msgstr "Thông tin"
 
-#: ../electrum/gui/qt/util.py:231
+#: ../electrum/gui/qt/util.py:231 ../electrum/gui/qt/util.py:235
 msgid "Information"
 msgstr "Thông tin"
 
@@ -2635,14 +2779,14 @@ msgid "Initiator"
 msgstr "Người tài trợ"
 
 #: ../electrum/gui/qt/main_window_v2.py:2773
-#: ../electrum/gui/qt/main_window.py:2771
+#: ../electrum/gui/qt/main_window.py:2772
 msgid "Input amount"
 msgstr "Số tiền đầu vào"
 
 #: ../electrum/gui/qt/main_window_v2.py:2389
 #: ../electrum/gui/qt/transaction_dialog.py:344
 #: ../electrum/gui/qt/transaction_dialog.py:362
-#: ../electrum/gui/qt/main_window.py:2387
+#: ../electrum/gui/qt/main_window.py:2388
 msgid "Input raw transaction"
 msgstr "Nhập giao dịch ban đầu"
 
@@ -2667,12 +2811,12 @@ msgid "Insufficient funds"
 msgstr "Không đủ tiền"
 
 #: ../electrum/gui/qt/main_window_v2.py:1797
-#: ../electrum/gui/qt/main_window.py:1795
+#: ../electrum/gui/qt/main_window.py:1796
 msgid "Invalid Address"
 msgstr "Địa chỉ không hợp lệ"
 
 #: ../electrum/gui/qt/main_window_v2.py:1366
-#: ../electrum/gui/qt/main_window.py:1364 ../electrum/gui/stdio.py:179
+#: ../electrum/gui/qt/main_window.py:1365 ../electrum/gui/stdio.py:179
 #: ../electrum/gui/text.py:348
 msgid "Invalid Amount"
 msgstr "Số tiền Không hợp lệ"
@@ -2688,8 +2832,8 @@ msgstr "Địa chỉ Bitcoin không hợp lệ"
 
 #: ../electrum/gui/qt/main_window_v2.py:2191
 #: ../electrum/gui/qt/main_window_v2.py:2219
-#: ../electrum/gui/qt/main_window.py:2189
-#: ../electrum/gui/qt/main_window.py:2217 ../electrum/wallet.py:1581
+#: ../electrum/gui/qt/main_window.py:2190
+#: ../electrum/gui/qt/main_window.py:2218 ../electrum/wallet.py:1581
 msgid "Invalid Bitcoin address."
 msgstr "Địa chỉ Bitcoin không hợp lệ."
 
@@ -2702,7 +2846,7 @@ msgid "Invalid JSON code."
 msgstr "Mã JSON không hợp lệ."
 
 #: ../electrum/gui/qt/main_window_v2.py:1384
-#: ../electrum/gui/qt/main_window.py:1382
+#: ../electrum/gui/qt/main_window.py:1383
 msgid "Invalid Lines found:"
 msgstr "Đã tìm thấy các dòng không hợp lệ:"
 
@@ -2712,7 +2856,7 @@ msgid "Invalid PIN"
 msgstr "Mã PIN không hợp lệ"
 
 #: ../electrum/gui/qt/main_window_v2.py:2295
-#: ../electrum/gui/qt/main_window.py:2293
+#: ../electrum/gui/qt/main_window.py:2294
 msgid "Invalid Public key"
 msgstr "Khóa công khai không hợp lệ"
 
@@ -2727,11 +2871,6 @@ msgstr "Số tiền không hợp lệ"
 #: ../electrum/gui/qt/recovery_list.py:285
 msgid "Invalid cancel seedphrase"
 msgstr "Hủy cụm từ hạt giống không hợp lệ"
-
-#: ../electrum/gui/qt/recovery_list.py:359
-#: ../electrum/gui/qt/recovery_list.py:515
-msgid "Invalid cancellation address"
-msgstr "Hủy địa chỉ không hợp lệ"
 
 #: ../electrum/lnutil.py:729
 msgid "Invalid node ID, must be 33 bytes and hexadecimal"
@@ -2748,12 +2887,12 @@ msgid "Invalid seed"
 msgstr "Hạt giống không hợp lệ"
 
 #: ../electrum/gui/qt/main_window_v2.py:1540
-#: ../electrum/gui/qt/main_window.py:1538
+#: ../electrum/gui/qt/main_window.py:1539
 msgid "Invoice has expired"
 msgstr "Hóa đơn đã hết hạn"
 
 #: ../electrum/gui/qt/main_window_v2.py:1853
-#: ../electrum/gui/qt/main_window.py:1851
+#: ../electrum/gui/qt/main_window.py:1852
 msgid "Invoice saved as "
 msgstr "Hóa đơn được lưu dưới dạng"
 
@@ -2774,13 +2913,13 @@ msgstr ""
 "của quý khách. "
 
 #: ../electrum/gui/qt/main_window_v2.py:2423
-#: ../electrum/gui/qt/main_window.py:2421
+#: ../electrum/gui/qt/main_window.py:2422
 msgid "It cannot be \"backed up\" by simply exporting these private keys."
 msgstr ""
 "Nó không thể được \" sao lưu \"chỉ bằng cách xuất các khóa riêng tư này."
 
 #: ../electrum/gui/qt/main_window_v2.py:2880
-#: ../electrum/gui/qt/main_window.py:2878
+#: ../electrum/gui/qt/main_window.py:2879
 msgid "It conflicts with current history."
 msgstr "Nó đối lập với lịch sử hiện tại."
 
@@ -2811,7 +2950,7 @@ msgid "Keystore"
 msgstr "Kho khóa"
 
 #: ../electrum/gui/qt/main_window_v2.py:2071
-#: ../electrum/gui/qt/main_window.py:2069
+#: ../electrum/gui/qt/main_window.py:2070
 msgid "Keystore type"
 msgstr "Loại kho khóa"
 
@@ -2866,7 +3005,7 @@ msgstr "Xác thực Ví Ledger"
 msgid "Ledger wallet"
 msgstr "Ví Ledger "
 
-#: ../electrum/base_wizard.py:724
+#: ../electrum/base_wizard.py:722
 msgid "Legacy"
 msgstr "Legacy"
 
@@ -2921,14 +3060,14 @@ msgid "Lightning:"
 msgstr "Lightning:"
 
 #: ../electrum/gui/qt/main_window_v2.py:1385
-#: ../electrum/gui/qt/main_window.py:1383
+#: ../electrum/gui/qt/main_window.py:1384
 msgid "Line #"
 msgstr "Dòng #"
 
 #: ../electrum/gui/qt/main_window_v2.py:2389
 #: ../electrum/gui/qt/transaction_dialog.py:346
 #: ../electrum/gui/qt/transaction_dialog.py:364
-#: ../electrum/gui/qt/main_window.py:2387
+#: ../electrum/gui/qt/main_window.py:2388
 msgid "Load transaction"
 msgstr "Tải giao dịch"
 
@@ -2943,7 +3082,7 @@ msgid "Local CTN"
 msgstr "CTN địa phương"
 
 #: ../electrum/gui/qt/main_window_v2.py:2403
-#: ../electrum/gui/qt/main_window.py:2401
+#: ../electrum/gui/qt/main_window.py:2402
 msgid "Lookup transaction"
 msgstr "Tra cứu giao dịch"
 
@@ -2975,13 +3114,13 @@ msgstr ""
 #: ../electrum/gui/kivy/main_window.py:719
 #: ../electrum/gui/kivy/main_window.py:721
 #: ../electrum/gui/qt/main_window_v2.py:2100
-#: ../electrum/gui/qt/installwizard.py:712
-#: ../electrum/gui/qt/main_window.py:2098
+#: ../electrum/gui/qt/installwizard.py:715
+#: ../electrum/gui/qt/main_window.py:2099
 msgid "Master Public Key"
 msgstr "Khóa công khai chính"
 
 #: ../electrum/gui/qt/main_window_v2.py:2097
-#: ../electrum/gui/qt/main_window.py:2095
+#: ../electrum/gui/qt/main_window.py:2096
 msgid "Master Public Keys"
 msgstr "Khóa công khai chính"
 
@@ -2993,7 +3132,7 @@ msgid "Max"
 msgstr "Tối đa"
 
 #: ../electrum/gui/qt/main_window_v2.py:2822
-#: ../electrum/gui/qt/main_window.py:2820
+#: ../electrum/gui/qt/main_window.py:2821
 msgid "Max fee exceeded"
 msgstr "Đã vượt quá phí tối đa"
 
@@ -3006,7 +3145,7 @@ msgid "Maximum value of in-flight HTLCs accepted by peer:"
 msgstr "Giá trị tối đa của HTLC  được chấp nhận bởi peer:"
 
 #: ../electrum/gui/qt/main_window_v2.py:1838
-#: ../electrum/gui/qt/main_window.py:1836
+#: ../electrum/gui/qt/main_window.py:1837
 msgid "Memo"
 msgstr "Memo"
 
@@ -3029,8 +3168,8 @@ msgstr "Hợp nhất chữ ký từ"
 
 #: ../electrum/gui/qt/main_window_v2.py:2240
 #: ../electrum/gui/qt/main_window_v2.py:2308
-#: ../electrum/gui/qt/main_window.py:2238
-#: ../electrum/gui/qt/main_window.py:2306
+#: ../electrum/gui/qt/main_window.py:2239
+#: ../electrum/gui/qt/main_window.py:2307
 #: ../electrum/gui/qt/invoice_list.py:184
 msgid "Message"
 msgstr "Tin nhắn"
@@ -3070,24 +3209,20 @@ msgstr "Thiếu URL báo cáo."
 msgid "More info at: {link}"
 msgstr "Thông tin thêm tại: {link}"
 
-#: ../electrum/gui/qt/installwizard.py:772
-msgid "Multi-Signature Wallet"
-msgstr "Ví đa chữ ký"
-
 #: ../electrum/plugins/ledger/auth2fa.py:88
 #: ../electrum/plugins/ledger/auth2fa.py:130
 msgid "NOT DEVICE PIN - see above"
 msgstr "KHÔNG PHẢI PIN THIẾT BỊ - xem ở trên"
 
 #: ../electrum/gui/qt/main_window_v2.py:2043
-#: ../electrum/gui/qt/contact_list.py:47 ../electrum/gui/qt/main_window.py:2041
+#: ../electrum/gui/qt/contact_list.py:47 ../electrum/gui/qt/main_window.py:2042
 msgid "Name"
 msgstr "Tên"
 
 #: ../electrum/gui/kivy/uix/ui_screens/network.kv:3
 #: ../electrum/gui/kivy/main.kv:452 ../electrum/gui/qt/main_window_v2.py:1940
 #: ../electrum/gui/qt/network_dialog.py:54
-#: ../electrum/gui/qt/main_window.py:1938 ../electrum/gui/text.py:158
+#: ../electrum/gui/qt/main_window.py:1939 ../electrum/gui/text.py:158
 msgid "Network"
 msgstr "Mạng lưới"
 
@@ -3099,23 +3234,19 @@ msgstr "Yêu cầu mạng đã hết thời gian chờ."
 msgid "Never"
 msgstr "Không bao giờ"
 
-#: ../electrum/gui/qt/seed_dialog.py:50
+#: ../electrum/gui/qt/seed_dialog.py:49
 msgid "Never disclose your seed."
 msgstr "Không bao giờ tiết lộ hạt giống của quý khách."
 
-#: ../electrum/gui/qt/seed_dialog.py:51
-msgid "Never type it on a website."
-msgstr "Không bao giờ gõ nó trên một trang web."
-
 #: ../electrum/gui/qt/main_window_v2.py:2033
 #: ../electrum/gui/qt/main_window_v2.py:2035
-#: ../electrum/gui/qt/main_window.py:2031
-#: ../electrum/gui/qt/main_window.py:2033
+#: ../electrum/gui/qt/main_window.py:2032
+#: ../electrum/gui/qt/main_window.py:2034
 msgid "New Contact"
 msgstr "Liên hệ mới"
 
 #: ../electrum/gui/qt/main_window_v2.py:2843
-#: ../electrum/gui/qt/main_window.py:2841
+#: ../electrum/gui/qt/main_window.py:2842
 msgid "New Fee rate"
 msgstr "Mức phí mới"
 
@@ -3184,7 +3315,7 @@ msgid "No inputs found. (Note that inputs need to be confirmed)"
 msgstr "Không tìm thấy đầu vào. (Lưu ý rằng đầu vào cần được xác nhận)"
 
 #: ../electrum/gui/qt/main_window_v2.py:2072
-#: ../electrum/gui/qt/main_window.py:2070
+#: ../electrum/gui/qt/main_window.py:2071
 msgid "No keystore"
 msgstr "Không có kho khóa"
 
@@ -3194,7 +3325,7 @@ msgid "No more addresses in your wallet."
 msgstr "Không còn địa chỉ trong ví của quý khách."
 
 #: ../electrum/gui/qt/main_window_v2.py:1358
-#: ../electrum/gui/qt/main_window.py:1356
+#: ../electrum/gui/qt/main_window.py:1357
 msgid "No outputs"
 msgstr "Không có đầu ra"
 
@@ -3236,7 +3367,7 @@ msgstr "Không"
 #: ../electrum/gui/qt/three_keys_windows.py:104
 #: ../electrum/gui/qt/three_keys_windows.py:412
 #: ../electrum/gui/qt/recovery_list.py:314
-#: ../electrum/gui/qt/main_window.py:1481
+#: ../electrum/gui/qt/main_window.py:1482
 msgid "Not Enough Funds"
 msgstr "Không đủ tiền"
 
@@ -3308,7 +3439,7 @@ msgstr ""
 "của mình để mở ví của quý khác."
 
 #: ../electrum/gui/qt/main_window_v2.py:2890
-#: ../electrum/gui/qt/main_window.py:2888
+#: ../electrum/gui/qt/main_window.py:2889
 msgid ""
 "Note: this is an offline transaction, if you want the network to see it, you "
 "need to broadcast it."
@@ -3348,7 +3479,7 @@ msgstr "HOẶC"
 
 #: ../electrum/gui/kivy/main_window.py:823
 #: ../electrum/gui/qt/main_window_v2.py:833
-#: ../electrum/gui/qt/main_window.py:831 ../electrum/gui/qt/__init__.py:195
+#: ../electrum/gui/qt/main_window.py:831 ../electrum/gui/qt/__init__.py:196
 #: ../electrum/gui/text.py:139
 msgid "Offline"
 msgstr "Offline"
@@ -3360,7 +3491,7 @@ msgstr ""
 "của mình."
 
 #: ../electrum/gui/qt/main_window_v2.py:1778
-#: ../electrum/gui/qt/main_window.py:1776
+#: ../electrum/gui/qt/main_window.py:1777
 msgid "One output per line."
 msgstr "Một đầu ra trên mỗi dòng."
 
@@ -3401,7 +3532,7 @@ msgstr "Mở kênh"
 msgid "Open your cosigner wallet to retrieve it."
 msgstr "Mở ví cosigner của quý khách để lấy nó."
 
-#: ../electrum/gui/qt/util.py:821
+#: ../electrum/gui/qt/util.py:825
 #, python-brace-format
 msgid "Open {title} file"
 msgstr "Mở tệp {title}"
@@ -3416,7 +3547,7 @@ msgid "OpenAlias record, used to receive coins and to sign payment requests."
 msgstr "Bản ghi OpenAlias, được sử dụng để nhận coin và ký yêu cầu thanh toán."
 
 #: ../electrum/gui/qt/main_window_v2.py:1612
-#: ../electrum/gui/qt/main_window.py:1610
+#: ../electrum/gui/qt/main_window.py:1611
 msgid "Opening channel..."
 msgstr "Đang mở kênh..."
 
@@ -3435,7 +3566,7 @@ msgid "Outgoing payments"
 msgstr "Thanh toán đi"
 
 #: ../electrum/gui/qt/main_window_v2.py:2776
-#: ../electrum/gui/qt/main_window.py:2774
+#: ../electrum/gui/qt/main_window.py:2775
 msgid "Output amount"
 msgstr "Số lượng đầu ra"
 
@@ -3478,10 +3609,10 @@ msgstr "Cụm mật khẩu:"
 #: ../electrum/gui/kivy/uix/ui_screens/proxy.kv:47
 #: ../electrum/gui/qt/main_window_v2.py:1934
 #: ../electrum/gui/qt/confirm_tx_dialog.py:156
-#: ../electrum/gui/qt/installwizard.py:213
+#: ../electrum/gui/qt/installwizard.py:216
 #: ../electrum/gui/qt/password_dialog.py:299
 #: ../electrum/gui/qt/network_dialog.py:271
-#: ../electrum/gui/qt/main_window.py:1932
+#: ../electrum/gui/qt/main_window.py:1933
 msgid "Password"
 msgstr "Mật khẩu"
 
@@ -3490,12 +3621,12 @@ msgid "Password Strength"
 msgstr "Mật khẩu mạnh"
 
 #: ../electrum/gui/qt/main_window_v2.py:2016
-#: ../electrum/gui/qt/main_window.py:2014
+#: ../electrum/gui/qt/main_window.py:2015
 msgid "Password is disabled, this wallet is not protected"
 msgstr "Mật khẩu bị vô hiệu hóa, ví này không được bảo vệ"
 
 #: ../electrum/gui/qt/main_window_v2.py:2016
-#: ../electrum/gui/qt/main_window.py:2014
+#: ../electrum/gui/qt/main_window.py:2015
 msgid "Password was updated successfully"
 msgstr "Mật khẩu đã được cập nhật thành công"
 
@@ -3523,7 +3654,7 @@ msgid "Pay to"
 msgstr "Trả cho"
 
 #: ../electrum/gui/qt/main_window_v2.py:1782
-#: ../electrum/gui/qt/main_window.py:1780
+#: ../electrum/gui/qt/main_window.py:1781
 msgid "Pay to many"
 msgstr "Trả cho nhiều người"
 
@@ -3537,7 +3668,7 @@ msgstr "Yêu cầu thanh toán"
 
 #: ../electrum/gui/kivy/main_window.py:232
 #: ../electrum/gui/qt/main_window_v2.py:1414
-#: ../electrum/gui/qt/main_window.py:1412
+#: ../electrum/gui/qt/main_window.py:1413
 msgid "Payment failed"
 msgstr "Thanh toán không thành công"
 
@@ -3551,25 +3682,25 @@ msgstr "Nhật ký thanh toán"
 
 #: ../electrum/gui/kivy/uix/screens.py:430
 #: ../electrum/gui/qt/main_window_v2.py:1403
-#: ../electrum/gui/qt/main_window.py:1401
+#: ../electrum/gui/qt/main_window.py:1402
 msgid "Payment received"
 msgstr "Đã nhận thanh toán "
 
 #: ../electrum/gui/kivy/main_window.py:379
 #: ../electrum/gui/qt/main_window_v2.py:1378
-#: ../electrum/gui/qt/main_window.py:1376
+#: ../electrum/gui/qt/main_window.py:1377
 msgid "Payment request has expired"
 msgstr "Yêu cầu thanh toán đã hết hạn"
 
 #: ../electrum/gui/kivy/main_window.py:1033
 #: ../electrum/gui/qt/main_window_v2.py:1571
-#: ../electrum/gui/qt/main_window.py:1569 ../electrum/gui/stdio.py:220
+#: ../electrum/gui/qt/main_window.py:1570 ../electrum/gui/stdio.py:220
 #: ../electrum/gui/text.py:383
 msgid "Payment sent."
 msgstr "Đã gửi thanh toán."
 
 #: ../electrum/gui/qt/main_window_v2.py:1411
-#: ../electrum/gui/qt/main_window.py:1409
+#: ../electrum/gui/qt/main_window.py:1410
 msgid "Payment succeeded"
 msgstr "Thanh toán thành công"
 
@@ -3615,7 +3746,7 @@ msgstr "Vui lòng xác nhận"
 msgid "Please enter an amount"
 msgstr "Vui lòng nhập số tiền"
 
-#: ../electrum/gui/qt/installwizard.py:445
+#: ../electrum/gui/qt/installwizard.py:448
 msgid "Please enter the master public key (xpub) of your cosigner."
 msgstr "Vui lòng nhập khóa công khai chính (xpub) cosigner của quý khách."
 
@@ -3642,7 +3773,7 @@ msgstr "Xin hãy điền mật khẩu"
 msgid "Please enter your password to decrypt it."
 msgstr "Vui lòng nhập mật khẩu của quý khách để giải mã."
 
-#: ../electrum/gui/qt/installwizard.py:458
+#: ../electrum/gui/qt/installwizard.py:461
 msgid "Please enter your seed phrase in order to restore your wallet."
 msgstr ""
 "Vui lòng nhập cụm từ hạt giống của quý khách để khôi phục ví của quý khách."
@@ -3651,30 +3782,6 @@ msgstr ""
 #, python-brace-format
 msgid "Please insert your {device}"
 msgstr "Vui lòng chèn {device} của quý khách"
-
-#: ../electrum/base_wizard.py:717
-msgid ""
-"Please note that websites and other wallets may not support these addresses "
-"yet."
-msgstr ""
-" Xin lưu ý rằng các trang web và ví khác có thể vẫn chưa hỗ trợ các địa chỉ "
-"này "
-
-#: ../electrum/gui/qt/installwizard.py:592
-msgid ""
-"Please pass authenticator public key exported from your GoldWallet "
-"application"
-msgstr ""
-" Vui lòng chuyển khóa công khai của trình xác thực được xuất từ ​​ứng dụng "
-"GoldWallet của quý khách"
-
-#: ../electrum/gui/qt/installwizard.py:557
-msgid ""
-"Please paste a cancel transaction public key. Use an existing one if you are "
-"importing a wallet, or generate a new one at"
-msgstr ""
-" Vui lòng dán khóa công khai hủy giao dịch. Sử dụng cái hiện có nếu quý "
-"khách  nhập ví hoặc tạo ví mới tại"
 
 #: ../electrum/gui/kivy/uix/dialogs/installwizard.py:1136
 msgid ""
@@ -3694,7 +3801,7 @@ msgid "Please report this issue manually"
 msgstr "Vui lòng báo cáo vấn đề này theo cách thủ công"
 
 #: ../electrum/gui/qt/main_window_v2.py:2658
-#: ../electrum/gui/qt/main_window.py:2656
+#: ../electrum/gui/qt/main_window.py:2657
 msgid "Please restart Electrum to activate the new GUI settings"
 msgstr "Vui lòng khởi động lại Electrum để kích hoạt cài đặt GUI mới"
 
@@ -3703,11 +3810,6 @@ msgid "Please retype your seed phrase, to confirm that you properly saved it"
 msgstr ""
 "Vui lòng nhập lại cụm từ hạt giống của quý khách, để xác nhận rằng quý khách "
 "đã lưu nó đúng cách"
-
-#: ../electrum/gui/qt/seed_dialog.py:44
-#, python-brace-format
-msgid "Please save these {0} words on paper (order is important). "
-msgstr "Vui lòng lưu {0} từ này trên giấy (thứ tự là quan trọng)."
 
 #: ../electrum/gui/kivy/uix/screens.py:297
 msgid "Please scan a Bitcoin address or a payment request"
@@ -3718,7 +3820,7 @@ msgstr "Vui lòng quét địa chỉ Bitcoin hoặc yêu cầu thanh toán"
 msgid "Please select which {device} device to use:"
 msgstr "Vui lòng chọn thiết bị {device} để sử dụng:"
 
-#: ../electrum/gui/qt/installwizard.py:707
+#: ../electrum/gui/qt/installwizard.py:710
 msgid "Please share it with your cosigners."
 msgstr "Xin vui lòng chia sẻ nó với cosigners của quý khách."
 
@@ -3730,7 +3832,7 @@ msgstr "Vui lòng ký giao dịch này để lưu nó"
 msgid "Please try again."
 msgstr "Vui lòng thử lại."
 
-#: ../electrum/base_wizard.py:759
+#: ../electrum/base_wizard.py:757
 msgid "Please type it here."
 msgstr "Vui lòng nhập tại đây."
 
@@ -3739,7 +3841,7 @@ msgid "Please type your seed phrase using the virtual keyboard."
 msgstr ""
 "Vui lòng nhập cụm từ hạt giống của quý khách bằng cách sử dụng bàn phím ảo."
 
-#: ../electrum/gui/qt/util.py:289
+#: ../electrum/gui/qt/util.py:293
 msgid "Please wait"
 msgstr "Vui lòng đợi"
 
@@ -3772,23 +3874,23 @@ msgstr "Vị trí trong mempool: {size} từ đầu"
 #: ../electrum/gui/qt/main_window_v2.py:1937
 #: ../electrum/gui/qt/settings_dialog.py:52
 #: ../electrum/gui/qt/transaction_dialog.py:638
-#: ../electrum/gui/qt/main_window.py:633 ../electrum/gui/qt/main_window.py:1935
+#: ../electrum/gui/qt/main_window.py:633 ../electrum/gui/qt/main_window.py:1936
 msgid "Preferences"
 msgstr "Tùy chọn"
 
-#: ../electrum/gui/qt/installwizard.py:258
+#: ../electrum/gui/qt/installwizard.py:261
 msgid "Press 'Next' to choose device to decrypt."
 msgstr "Nhấn 'Tiếp theo' để chọn thiết bị để giải mã."
 
-#: ../electrum/gui/qt/installwizard.py:250
+#: ../electrum/gui/qt/installwizard.py:253
 msgid "Press 'Next' to create this wallet, or choose another file."
 msgstr "Nhấn 'Tiếp theo' để tạo ví này hoặc chọn một tệp khác."
 
-#: ../electrum/gui/qt/installwizard.py:263
+#: ../electrum/gui/qt/installwizard.py:266
 msgid "Press 'Next' to create/focus window."
 msgstr "Nhấn 'Tiếp theo' để tạo / lấy nét cửa sổ."
 
-#: ../electrum/gui/qt/installwizard.py:260
+#: ../electrum/gui/qt/installwizard.py:263
 msgid "Press 'Next' to open this wallet."
 msgstr "Nhấn 'Tiếp theo' để mở ví này."
 
@@ -3808,18 +3910,18 @@ msgstr "Hiệu chỉnh Máy in"
 #: ../electrum/gui/qt/main_window_v2.py:2162
 #: ../electrum/gui/qt/main_window_v2.py:2167
 #: ../electrum/gui/qt/address_list.py:232
-#: ../electrum/gui/qt/main_window.py:2160
-#: ../electrum/gui/qt/main_window.py:2165
+#: ../electrum/gui/qt/main_window.py:2161
+#: ../electrum/gui/qt/main_window.py:2166
 msgid "Private key"
 msgstr "Khóa riêng tư"
 
 #: ../electrum/gui/qt/main_window_v2.py:2425
-#: ../electrum/gui/qt/main_window.py:2423
+#: ../electrum/gui/qt/main_window.py:2424
 msgid "Private keys"
 msgstr "Khóa riêng tư"
 
 #: ../electrum/gui/qt/main_window_v2.py:2505
-#: ../electrum/gui/qt/main_window.py:2503
+#: ../electrum/gui/qt/main_window.py:2504
 msgid "Private keys exported."
 msgstr "Đã xuất khóa riêng."
 
@@ -3866,7 +3968,7 @@ msgid "PubKey cropped because too long string passed"
 msgstr "PubKey bị cắt vì chuỗi quá dài được truyền qua"
 
 #: ../electrum/gui/qt/main_window_v2.py:2316
-#: ../electrum/gui/qt/main_window.py:2314
+#: ../electrum/gui/qt/main_window.py:2315
 msgid "Public key"
 msgstr "Khóa công khai"
 
@@ -3880,15 +3982,15 @@ msgid "QR Code"
 msgstr "Mã QR "
 
 #: ../electrum/gui/qt/main_window_v2.py:2145
-#: ../electrum/gui/qt/main_window.py:2143
+#: ../electrum/gui/qt/main_window.py:2144
 msgid "QR code"
 msgstr "Mã QR "
 
-#: ../electrum/gui/qt/qrcodewidget.py:121
+#: ../electrum/gui/qt/qrcodewidget.py:129
 msgid "QR code copied to clipboard"
 msgstr "Đã sao chép mã QR vào clipboard"
 
-#: ../electrum/gui/qt/qrcodewidget.py:116
+#: ../electrum/gui/qt/qrcodewidget.py:124
 msgid "QR code saved to file"
 msgstr "Mã QR được lưu vào tệp"
 
@@ -3985,7 +4087,7 @@ msgstr "Giới hạn dust từ xa:"
 
 #: ../electrum/gui/kivy/uix/dialogs/lightning_open_channel.py:148
 #: ../electrum/gui/qt/main_window_v2.py:1605
-#: ../electrum/gui/qt/main_window.py:1603
+#: ../electrum/gui/qt/main_window.py:1604
 msgid "Remote peer ID"
 msgstr "ID peer từ xa"
 
@@ -4000,7 +4102,7 @@ msgid "Remove from wallet"
 msgstr "Xóa khỏi ví"
 
 #: ../electrum/gui/qt/main_window_v2.py:1807
-#: ../electrum/gui/qt/main_window.py:1805
+#: ../electrum/gui/qt/main_window.py:1806
 #, fuzzy, python-brace-format
 msgid "Remove {labels} from your list of contacts?"
 msgstr "Xóa {label} khỏi danh sách liên hệ của quý khách?"
@@ -4064,22 +4166,22 @@ msgid "Requesting account info from TrustedCoin server..."
 msgstr "Yêu cầu thông tin tài khoản từ máy chủ TrustedCoin ..."
 
 #: ../electrum/gui/qt/main_window_v2.py:1832
-#: ../electrum/gui/qt/main_window.py:1830
+#: ../electrum/gui/qt/main_window.py:1831
 msgid "Requestor"
 msgstr "Người yêu cầu"
 
-#: ../electrum/gui/qt/installwizard.py:756
+#: ../electrum/gui/qt/installwizard.py:759
 #, python-brace-format
 msgid "Require {0} signatures"
 msgstr "Yêu cầu {0} chữ ký"
 
 #: ../electrum/gui/qt/main_window_v2.py:2740
-#: ../electrum/gui/qt/main_window.py:2738
+#: ../electrum/gui/qt/main_window.py:2739
 msgid "Requires"
 msgstr "Yêu cầu"
 
 #: ../electrum/gui/qt/main_window_v2.py:1957
-#: ../electrum/gui/qt/main_window.py:1955
+#: ../electrum/gui/qt/main_window.py:1956
 msgid "Reset"
 msgstr "Cài lại"
 
@@ -4141,14 +4243,14 @@ msgstr "Tệp khóa SSL"
 #: ../electrum/gui/qt/main_window_v2.py:1854
 #: ../electrum/gui/qt/transaction_dialog.py:145
 #: ../electrum/gui/qt/three_keys_windows.py:254
-#: ../electrum/gui/qt/qrcodewidget.py:127
+#: ../electrum/gui/qt/qrcodewidget.py:135
 #: ../electrum/gui/qt/main_window.py:1233
-#: ../electrum/gui/qt/main_window.py:1852
+#: ../electrum/gui/qt/main_window.py:1853
 msgid "Save"
 msgstr "Lưu"
 
 #: ../electrum/gui/qt/main_window_v2.py:1848
-#: ../electrum/gui/qt/main_window.py:1846
+#: ../electrum/gui/qt/main_window.py:1847
 msgid "Save invoice to file"
 msgstr "Lưu hóa đơn vào tệp"
 
@@ -4166,8 +4268,8 @@ msgstr ""
 
 #: ../electrum/gui/qt/main_window_v2.py:2066
 #: ../electrum/gui/qt/main_window_v2.py:2166
-#: ../electrum/gui/qt/main_window.py:2064
-#: ../electrum/gui/qt/main_window.py:2164
+#: ../electrum/gui/qt/main_window.py:2065
+#: ../electrum/gui/qt/main_window.py:2165
 msgid "Script type"
 msgstr "Loại tập lệnh"
 
@@ -4182,12 +4284,12 @@ msgstr "Thử thách thẻ bảo mật"
 #: ../electrum/gui/kivy/uix/ui_screens/status.kv:66
 #: ../electrum/gui/kivy/uix/ui_screens/status.kv:70
 #: ../electrum/gui/qt/main_window_v2.py:1938
-#: ../electrum/gui/qt/seed_dialog.py:217 ../electrum/gui/qt/main_window.py:1936
+#: ../electrum/gui/qt/seed_dialog.py:220 ../electrum/gui/qt/main_window.py:1937
 msgid "Seed"
 msgstr "Hạt giống"
 
 #: ../electrum/gui/qt/main_window_v2.py:2068
-#: ../electrum/gui/qt/main_window.py:2066
+#: ../electrum/gui/qt/main_window.py:2067
 msgid "Seed available"
 msgstr "Hạt giống có sẵn"
 
@@ -4195,7 +4297,7 @@ msgstr "Hạt giống có sẵn"
 msgid "Seed extension"
 msgstr "Mở rộng hạt giống"
 
-#: ../electrum/base_wizard.py:723
+#: ../electrum/base_wizard.py:721
 msgid "Segwit"
 msgstr "Segwit"
 
@@ -4216,7 +4318,7 @@ msgid "Select date"
 msgstr "Chọn ngày"
 
 #: ../electrum/gui/qt/main_window_v2.py:2439
-#: ../electrum/gui/qt/main_window.py:2437
+#: ../electrum/gui/qt/main_window.py:2438
 msgid "Select file to export your private keys to"
 msgstr "Chọn tệp để xuất khóa cá nhân của quý khách sang"
 
@@ -4224,7 +4326,7 @@ msgstr "Chọn tệp để xuất khóa cá nhân của quý khách sang"
 msgid "Select file to export your wallet transactions to"
 msgstr "Chọn tệp để xuất các giao dịch ví của quý khách sang"
 
-#: ../electrum/gui/qt/util.py:835
+#: ../electrum/gui/qt/util.py:839
 #, python-brace-format
 msgid "Select file to save your {title}"
 msgstr "Chọn tệp để lưu {title} của quý khách"
@@ -4233,12 +4335,12 @@ msgstr "Chọn tệp để lưu {title} của quý khách"
 msgid "Select server automatically"
 msgstr "Chọn máy chủ tự động"
 
-#: ../electrum/gui/qt/installwizard.py:722
+#: ../electrum/gui/qt/installwizard.py:725
 msgid "Select server manually"
 msgstr "Chọn máy chủ theo cách thủ công"
 
-#: ../electrum/gui/qt/qrcodewidget.py:109
-#: ../electrum/gui/qt/qrcodewidget.py:111
+#: ../electrum/gui/qt/qrcodewidget.py:117
+#: ../electrum/gui/qt/qrcodewidget.py:119
 msgid "Select where to save file"
 msgstr "Chọn nơi lưu tệp"
 
@@ -4260,7 +4362,7 @@ msgid "Select your server automatically"
 msgstr "Chọn máy chủ của quý khách tự động"
 
 #: ../electrum/gui/qt/main_window_v2.py:2375
-#: ../electrum/gui/qt/main_window.py:2373
+#: ../electrum/gui/qt/main_window.py:2374
 msgid "Select your transaction file"
 msgstr "Chọn tệp giao dịch của quý khách"
 
@@ -4435,7 +4537,7 @@ msgstr "Hiển thị nội dung báo cáo"
 msgid "Show {tab_description}"
 msgstr "Hiển thị {tab_description}"
 
-#: ../electrum/gui/qt/__init__.py:157
+#: ../electrum/gui/qt/__init__.py:158
 msgid "Show/Hide"
 msgstr "Hiện/ Ẩn"
 
@@ -4446,12 +4548,12 @@ msgstr "Đang hiển thị địa chỉ ..."
 #: ../electrum/gui/kivy/uix/dialogs/tx_dialog.py:190
 #: ../electrum/gui/qt/main_window_v2.py:2257
 #: ../electrum/gui/qt/transaction_dialog.py:139
-#: ../electrum/gui/qt/main_window.py:2255
+#: ../electrum/gui/qt/main_window.py:2256
 msgid "Sign"
 msgstr "Ký tên"
 
 #: ../electrum/gui/qt/main_window_v2.py:2233
-#: ../electrum/gui/qt/main_window.py:2231
+#: ../electrum/gui/qt/main_window.py:2232
 msgid "Sign/verify Message"
 msgstr "Ký / xác minh tin nhắn"
 
@@ -4461,13 +4563,13 @@ msgstr "Ký / xác minh tin nhắn"
 
 #: ../electrum/gui/qt/main_window_v2.py:1840
 #: ../electrum/gui/qt/main_window_v2.py:2251
-#: ../electrum/gui/qt/main_window.py:1838
-#: ../electrum/gui/qt/main_window.py:2249
+#: ../electrum/gui/qt/main_window.py:1839
+#: ../electrum/gui/qt/main_window.py:2250
 msgid "Signature"
 msgstr "Chữ ký"
 
 #: ../electrum/gui/qt/main_window_v2.py:2228
-#: ../electrum/gui/qt/main_window.py:2226
+#: ../electrum/gui/qt/main_window.py:2227
 msgid "Signature verified"
 msgstr "Đã xác minh chữ ký"
 
@@ -4481,12 +4583,12 @@ msgstr "Đang ký"
 
 #: ../electrum/gui/qt/main_window_v2.py:1530
 #: ../electrum/gui/qt/recovery_list.py:347
-#: ../electrum/gui/qt/main_window.py:1528
+#: ../electrum/gui/qt/main_window.py:1529
 msgid "Signing transaction..."
 msgstr "Đang ký kết giao dịch..."
 
 #: ../electrum/gui/qt/main_window_v2.py:2180
-#: ../electrum/gui/qt/main_window.py:2178
+#: ../electrum/gui/qt/main_window.py:2179
 msgid ""
 "Signing with an address actually means signing with the corresponding "
 "private key, and verifying with the corresponding public key. The address "
@@ -4544,7 +4646,6 @@ msgid "Start"
 msgstr "Bắt đầu"
 
 #: ../electrum/gui/qt/main_window_v2.py:679
-#: ../electrum/gui/qt/main_window.py:677
 msgid ""
 "Startup times are instant because it operates in conjunction with high-"
 "performance servers that handle the most complicated parts of the Bitcoin "
@@ -4575,9 +4676,9 @@ msgstr "Trạng thái:"
 #: ../electrum/gui/qt/main_window_v2.py:2017
 #: ../electrum/gui/qt/main_window_v2.py:2658
 #: ../electrum/gui/qt/main_window_v2.py:2892
-#: ../electrum/gui/qt/main_window.py:2015
-#: ../electrum/gui/qt/main_window.py:2656
-#: ../electrum/gui/qt/main_window.py:2890
+#: ../electrum/gui/qt/main_window.py:2016
+#: ../electrum/gui/qt/main_window.py:2657
+#: ../electrum/gui/qt/main_window.py:2891
 #: ../electrum/gui/qt/invoice_list.py:194
 msgid "Success"
 msgstr "Thành công"
@@ -4595,12 +4696,12 @@ msgid "Summary Text PIN is Disabled"
 msgstr "Mã PIN Văn bản Tóm tắt bị Vô hiệu hóa"
 
 #: ../electrum/gui/qt/main_window_v2.py:2558
-#: ../electrum/gui/qt/main_window.py:2556
+#: ../electrum/gui/qt/main_window.py:2557
 msgid "Sweep"
 msgstr "Quét"
 
 #: ../electrum/gui/qt/main_window_v2.py:2537
-#: ../electrum/gui/qt/main_window.py:2535
+#: ../electrum/gui/qt/main_window.py:2536
 msgid "Sweep private keys"
 msgstr "Quét khóa riêng tư"
 
@@ -4638,13 +4739,12 @@ msgid "Testnet coins are worthless."
 msgstr "Đồng tiền testnet là vô giá trị."
 
 #: ../electrum/gui/qt/main_window_v2.py:503
-#: ../electrum/gui/qt/main_window.py:503
 msgid ""
 "Testnet is separate from the main Bitcoin network. It is used for testing."
 msgstr ""
 " Testnet tách biệt với mạng Bitcoin chính. Nó được dùng để thử nghiệm. "
 
-#: ../electrum/gui/qt/util.py:678
+#: ../electrum/gui/qt/util.py:682
 msgid "Text copied to clipboard"
 msgstr "Đã sao chép văn bản vào clipboard"
 
@@ -4707,7 +4807,7 @@ msgstr ""
 msgid "The fee for this transaction seems unusually high."
 msgstr "Phí cho giao dịch này có vẻ cao bất thường."
 
-#: ../electrum/gui/qt/installwizard.py:347
+#: ../electrum/gui/qt/installwizard.py:350
 #, python-brace-format
 msgid ""
 "The file '{path}' contains an incompletely created wallet.\n"
@@ -4716,8 +4816,8 @@ msgstr ""
 " Tệp '{path}' chứa một ví được tạo chưa hoàn chỉnh. \n"
 " Quý khách có muốn hoàn thành việc tạo ra nó ngay bây giờ không? "
 
-#: ../electrum/gui/qt/installwizard.py:338
-#: ../electrum/gui/qt/installwizard.py:352
+#: ../electrum/gui/qt/installwizard.py:341
+#: ../electrum/gui/qt/installwizard.py:355
 msgid "The file was removed"
 msgstr "Tệp đã bị xóa"
 
@@ -4732,7 +4832,7 @@ msgstr ""
 "tuy nhiên mọi thứ  có khả năng bị hỏng."
 
 #: ../electrum/gui/qt/main_window_v2.py:2613
-#: ../electrum/gui/qt/main_window.py:2611
+#: ../electrum/gui/qt/main_window.py:2612
 msgid "The following addresses were added"
 msgstr "Các địa chỉ sau đã được thêm"
 
@@ -4741,7 +4841,7 @@ msgid "The following alias providers are available:"
 msgstr "Các nhà cung cấp bí danh sau có sẵn:"
 
 #: ../electrum/gui/qt/main_window_v2.py:2618
-#: ../electrum/gui/qt/main_window.py:2616
+#: ../electrum/gui/qt/main_window.py:2617
 msgid "The following inputs could not be imported"
 msgstr "Không thể nhập các đầu vào sau"
 
@@ -4750,7 +4850,7 @@ msgid "The new fee rate needs to be higher than the old fee rate."
 msgstr "Mức phí mới cần phải cao hơn mức phí cũ."
 
 #: ../electrum/gui/qt/main_window_v2.py:2184
-#: ../electrum/gui/qt/main_window.py:2182
+#: ../electrum/gui/qt/main_window.py:2183
 msgid "The operation is undefined. Not just in Electrum, but in general."
 msgstr "Hoạt động không được xác định. Không chỉ trong Electrum, mà nói chung."
 
@@ -4783,7 +4883,7 @@ msgstr ""
 "Loại địa chỉ mà ví của quý khách sử dụng sẽ phụ thuộc vào hạt giống của quý "
 "khách."
 
-#: ../electrum/gui/qt/installwizard.py:329
+#: ../electrum/gui/qt/installwizard.py:332
 #, python-brace-format
 msgid ""
 "The wallet '{path}' contains multiple accounts, which are no longer "
@@ -4832,7 +4932,7 @@ msgstr ""
 
 #: ../electrum/gui/kivy/uix/dialogs/lightning_open_channel.py:149
 #: ../electrum/gui/qt/main_window_v2.py:1606
-#: ../electrum/gui/qt/main_window.py:1604
+#: ../electrum/gui/qt/main_window.py:1605
 #, python-brace-format
 msgid "This channel will be usable after {number} confirmations"
 msgstr "Kênh này sẽ có thể sử dụng được sau khi xác nhận {number}"
@@ -4841,19 +4941,19 @@ msgstr "Kênh này sẽ có thể sử dụng được sau khi xác nhận {numb
 msgid "This feature is not available for watch-only wallets."
 msgstr "Tính năng này không khả dụng cho ví watch-only"
 
-#: ../electrum/gui/qt/installwizard.py:249
+#: ../electrum/gui/qt/installwizard.py:252
 msgid "This file does not exist."
 msgstr "Tập tin này không tồn tại."
 
-#: ../electrum/gui/qt/installwizard.py:262
+#: ../electrum/gui/qt/installwizard.py:265
 msgid "This file is already open in memory."
 msgstr "Tệp này đã được mở trong bộ nhớ."
 
-#: ../electrum/gui/qt/installwizard.py:257
+#: ../electrum/gui/qt/installwizard.py:260
 msgid "This file is encrypted using a hardware device."
 msgstr "Tệp này được mã hóa bằng thiết bị phần cứng."
 
-#: ../electrum/gui/qt/installwizard.py:253
+#: ../electrum/gui/qt/installwizard.py:256
 msgid "This file is encrypted with a password."
 msgstr "Tệp này được mã hóa bằng mật khẩu."
 
@@ -4882,14 +4982,14 @@ msgid "This invoice has expired"
 msgstr "Hóa đơn này đã hết hạn"
 
 #: ../electrum/gui/qt/main_window_v2.py:2418
-#: ../electrum/gui/qt/main_window.py:2416 ../electrum/wallet.py:439
+#: ../electrum/gui/qt/main_window.py:2417 ../electrum/wallet.py:439
 msgid "This is a watching-only wallet"
 msgstr "Đây là ví watch-only"
 
 #: ../electrum/gui/qt/main_window_v2.py:2194
 #: ../electrum/gui/qt/main_window_v2.py:2274
-#: ../electrum/gui/qt/main_window.py:2192
-#: ../electrum/gui/qt/main_window.py:2272
+#: ../electrum/gui/qt/main_window.py:2193
+#: ../electrum/gui/qt/main_window.py:2273
 msgid "This is a watching-only wallet."
 msgstr "Đây là ví watch-only."
 
@@ -4943,13 +5043,6 @@ msgstr "Plugin này tạo điều kiện cho việc sử dụng ví đa chữ k�
 msgid "This public key was already used. Please generate a new one."
 msgstr "Khóa công khai này đã được sử dụng. Vui lòng tạo một khóa mới."
 
-#: ../electrum/gui/qt/seed_dialog.py:45
-msgid ""
-"This seed will allow you to recover your wallet in case of computer failure."
-msgstr ""
-" Hạt giống này sẽ cho phép quý khách khôi phục ví của mình trong trường hợp "
-"máy tính bị lỗi. "
-
 #: ../electrum/gui/qt/settings_dialog.py:215
 msgid "This setting affects the Send tab, and all balance related fields."
 msgstr ""
@@ -4978,7 +5071,7 @@ msgid "This version supports a maximum of {length} characters."
 msgstr "Phiên bản này hỗ trợ tối đa {length} ký tự."
 
 #: ../electrum/gui/qt/main_window_v2.py:2132
-#: ../electrum/gui/qt/main_window.py:2130
+#: ../electrum/gui/qt/main_window.py:2131
 #: ../electrum/plugins/revealer/qt.py:293
 msgid "This wallet has no seed"
 msgstr "Ví này không có hạt giống"
@@ -5018,14 +5111,6 @@ msgstr "Thao tác này sẽ xóa các khóa riêng tư bằng lightning của qu
 msgid "This will save fees."
 msgstr "Điều này sẽ tiết kiệm phí."
 
-#: ../electrum/base_wizard.py:719
-msgid ""
-"Thus, you might want to keep using a non-segwit wallet in order to be able "
-"to receive bitcoins during the transition period."
-msgstr ""
-" Vì vậy, quý khách có thể muốn tiếp tục sử dụng ví không segwit để có thể "
-"nhận bitcoin trong giai đoạn chuyển đổi. "
-
 #: ../electrum/gui/qt/settings_dialog.py:108
 msgid "Time based: fee rate is based on average confirmation time estimates"
 msgstr ""
@@ -5064,7 +5149,7 @@ msgstr ""
 " Để giúp chúng tôi chẩn đoán và khắc phục sự cố, quý khách có thể gửi cho "
 "chúng tôi báo cáo lỗi  chứa thông tin gỡ lỗi hữu ích:  "
 
-#: ../electrum/gui/qt/installwizard.py:471
+#: ../electrum/gui/qt/installwizard.py:474
 msgid ""
 "To make sure that you have properly saved your seed, please retype it here."
 msgstr ""
@@ -5104,17 +5189,17 @@ msgid "Toggle Encryption"
 msgstr "Chuyển đổi mã hóa"
 
 #: ../electrum/gui/qt/main_window_v2.py:2812
-#: ../electrum/gui/qt/main_window.py:2810
+#: ../electrum/gui/qt/main_window.py:2811
 msgid "Total fee"
 msgstr "Tổng phí"
 
 #: ../electrum/gui/qt/main_window_v2.py:2814
-#: ../electrum/gui/qt/main_window.py:2812
+#: ../electrum/gui/qt/main_window.py:2813
 msgid "Total feerate"
 msgstr "Tổng phí"
 
 #: ../electrum/gui/qt/main_window_v2.py:2770
-#: ../electrum/gui/qt/main_window.py:2768
+#: ../electrum/gui/qt/main_window.py:2769
 msgid "Total size"
 msgstr "Tổng kích thước"
 
@@ -5123,7 +5208,7 @@ msgid "Transaction"
 msgstr "Giao dịch"
 
 #: ../electrum/gui/qt/main_window_v2.py:2403
-#: ../electrum/gui/qt/main_window.py:2401
+#: ../electrum/gui/qt/main_window.py:2402
 msgid "Transaction ID"
 msgstr "ID giao dịch"
 
@@ -5132,7 +5217,7 @@ msgid "Transaction ID:"
 msgstr "ID giao dịch:"
 
 #: ../electrum/gui/qt/main_window_v2.py:2889
-#: ../electrum/gui/qt/main_window.py:2887
+#: ../electrum/gui/qt/main_window.py:2888
 msgid "Transaction added to wallet history."
 msgstr "Đã thêm giao dịch vào lịch sử ví."
 
@@ -5141,7 +5226,7 @@ msgid "Transaction could not be broadcast due to dust outputs."
 msgstr "Giao dịch không thể được phát do đầu ra dust."
 
 #: ../electrum/gui/qt/main_window_v2.py:2879
-#: ../electrum/gui/qt/main_window.py:2877
+#: ../electrum/gui/qt/main_window.py:2878
 msgid "Transaction could not be saved."
 msgstr "Không thể lưu giao dịch."
 
@@ -5179,7 +5264,7 @@ msgid "Transaction uses non-standard version."
 msgstr "Giao dịch sử dụng phiên bản không chuẩn."
 
 #: ../electrum/gui/qt/main_window_v2.py:2389
-#: ../electrum/gui/qt/main_window.py:2387
+#: ../electrum/gui/qt/main_window.py:2388
 msgid "Transaction:"
 msgstr "Giao dịch:"
 
@@ -5192,12 +5277,12 @@ msgid "Transactions are encrypted and stored on a remote server."
 msgstr "Các giao dịch được mã hóa và lưu trữ trên một máy chủ từ xa."
 
 #: ../electrum/gui/qt/recovery_list.py:408
-#: ../electrum/gui/qt/recovery_list.py:454
+#: ../electrum/gui/qt/recovery_list.py:459
 msgid "Transactions to cancel"
 msgstr "Giao dịch bị hủy"
 
 #: ../electrum/gui/qt/main_window_v2.py:2058
-#: ../electrum/gui/qt/main_window.py:2056
+#: ../electrum/gui/qt/main_window.py:2057
 msgid "True"
 msgstr "Đúng"
 
@@ -5275,7 +5360,7 @@ msgid "Unable to create backup"
 msgstr "Không thể tạo bản sao lưu"
 
 #: ../electrum/gui/qt/main_window_v2.py:2499
-#: ../electrum/gui/qt/main_window.py:2497
+#: ../electrum/gui/qt/main_window.py:2498
 msgid "Unable to create csv"
 msgstr "Không thể tạo csv"
 
@@ -5284,7 +5369,7 @@ msgid "Unable to export history"
 msgstr "Không thể xuất lịch sử"
 
 #: ../electrum/gui/qt/main_window_v2.py:2384
-#: ../electrum/gui/qt/main_window.py:2382
+#: ../electrum/gui/qt/main_window.py:2383
 msgid "Unable to read file or no transaction found"
 msgstr "Không thể đọc tệp hoặc không tìm thấy giao dịch nào"
 
@@ -5296,10 +5381,6 @@ msgstr "Không thể gửi báo cáo"
 #: ../electrum/wallet.py:480
 msgid "Unconfirmed"
 msgstr "Chưa được xác nhận"
-
-#: ../electrum/wallet.py:84
-msgid "Unconfirmed parent"
-msgstr "Chưa được xác nhận parent"
 
 #: ../electrum/crypto.py:131
 msgid "Unexpected password hash version"
@@ -5377,6 +5458,10 @@ msgstr "Đã có bản cập nhật lên Electrum {version}"
 #: ../electrum/base_wizard.py:160
 msgid "Upgrading wallet format..."
 msgstr "Đang nâng cấp định dạng ví ..."
+
+#: ../electrum/base_wizard.py:221
+msgid "Use Gold Wallet and create a new wallet"
+msgstr "Sử dụng Gold Wallet và thiết lập một ví mới"
 
 #: ../electrum/gui/qt/settings_dialog.py:123
 msgid "Use Replace-By-Fee"
@@ -5466,7 +5551,7 @@ msgid "Verified block headers"
 msgstr "Tiêu đề block đã xác minh"
 
 #: ../electrum/gui/qt/main_window_v2.py:2261
-#: ../electrum/gui/qt/main_window.py:2259
+#: ../electrum/gui/qt/main_window.py:2260
 msgid "Verify"
 msgstr "Xác nhận"
 
@@ -5520,22 +5605,22 @@ msgstr "Xem nhật kí"
 msgid "View on block explorer"
 msgstr "Xem trên trình khám phá khối"
 
-#: ../electrum/gui/qt/seed_dialog.py:48
+#: ../electrum/gui/qt/seed_dialog.py:47
 msgid "WARNING"
 msgstr "CẢNH BÁO"
 
 #: ../electrum/gui/qt/main_window_v2.py:2429
-#: ../electrum/gui/qt/main_window.py:2427
+#: ../electrum/gui/qt/main_window.py:2428
 msgid "WARNING: ALL your private keys are secret."
 msgstr "CẢNH BÁO: TẤT CẢ các khóa riêng tư của quý khách đều là bí mật."
 
 #: ../electrum/gui/qt/main_window_v2.py:2422
-#: ../electrum/gui/qt/main_window.py:2420
+#: ../electrum/gui/qt/main_window.py:2421
 msgid "WARNING: This is a multi-signature wallet."
 msgstr "CẢNH BÁO: Đây là ví có nhiều chữ ký."
 
 #: ../electrum/gui/qt/main_window_v2.py:1391
-#: ../electrum/gui/qt/main_window.py:1389
+#: ../electrum/gui/qt/main_window.py:1390
 #, python-brace-format
 msgid ""
 "WARNING: the alias \"{alias}\" could not be validated via an additional "
@@ -5552,7 +5637,7 @@ msgstr "Các khóa WIF được nhập bằng Electrum, dựa trên loại tập
 msgid "Waiting for TrustedCoin server to sign transaction..."
 msgstr "Đang đợi máy chủ TrustedCoin ký giao dịch ..."
 
-#: ../electrum/gui/qt/installwizard.py:200
+#: ../electrum/gui/qt/installwizard.py:203
 msgid "Wallet"
 msgstr "Ví tiền"
 
@@ -5561,7 +5646,7 @@ msgid "Wallet Info"
 msgstr "Thông tin Ví"
 
 #: ../electrum/gui/qt/main_window_v2.py:2051
-#: ../electrum/gui/qt/main_window.py:2049
+#: ../electrum/gui/qt/main_window.py:2050
 msgid "Wallet Information"
 msgstr "Thông tin Ví"
 
@@ -5587,13 +5672,13 @@ msgstr ""
 "hạt giống và  so sánh địa chỉ trong cả hai tệp "
 
 #: ../electrum/gui/qt/main_window_v2.py:2126
-#: ../electrum/gui/qt/main_window.py:2124
+#: ../electrum/gui/qt/main_window.py:2125
 #, python-brace-format
 msgid "Wallet file not found: {name}"
 msgstr "Không tìm thấy tệp Wallet: {name}"
 
 #: ../electrum/gui/qt/main_window_v2.py:2062
-#: ../electrum/gui/qt/main_window.py:2060
+#: ../electrum/gui/qt/main_window.py:2061
 msgid "Wallet name"
 msgstr "Tên ví"
 
@@ -5603,13 +5688,13 @@ msgstr "Địa chỉ nhận ví"
 
 #: ../electrum/gui/kivy/main_window.py:1148
 #: ../electrum/gui/qt/main_window_v2.py:2124
-#: ../electrum/gui/qt/main_window.py:2122
+#: ../electrum/gui/qt/main_window.py:2123
 #, python-brace-format
 msgid "Wallet removed: {name}"
 msgstr "Đã xóa ví: {name}"
 
 #: ../electrum/gui/qt/main_window_v2.py:2064
-#: ../electrum/gui/qt/main_window.py:2062
+#: ../electrum/gui/qt/main_window.py:2063
 msgid "Wallet type"
 msgstr "Loại ví"
 
@@ -5623,7 +5708,7 @@ msgstr "Loại ví:"
 #: ../electrum/gui/qt/transaction_dialog.py:234
 #: ../electrum/gui/qt/transaction_dialog.py:437
 #: ../electrum/gui/qt/transaction_dialog.py:539
-#: ../electrum/gui/qt/seed_dialog.py:69 ../electrum/plugins/revealer/qt.py:135
+#: ../electrum/gui/qt/seed_dialog.py:68 ../electrum/plugins/revealer/qt.py:135
 #: ../electrum/plugins/revealer/qt.py:188
 #: ../electrum/plugins/revealer/qt.py:221
 msgid "Warning"
@@ -5665,7 +5750,7 @@ msgstr ""
 msgid "Watch-only wallet"
 msgstr "Ví watch-only"
 
-#: ../electrum/gui/qt/seed_dialog.py:71
+#: ../electrum/gui/qt/seed_dialog.py:70
 msgid ""
 "We do not guarantee that BIP39 imports will always be supported in Electrum."
 msgstr ""
@@ -5724,7 +5809,7 @@ msgid "Wrong pubkey format"
 msgstr "Định dạng pubkey sai"
 
 #: ../electrum/gui/qt/main_window_v2.py:2230
-#: ../electrum/gui/qt/main_window.py:2228
+#: ../electrum/gui/qt/main_window.py:2229
 msgid "Wrong signature"
 msgstr "Chữ ký sai"
 
@@ -5754,7 +5839,7 @@ msgstr ""
 msgid "You are offline."
 msgstr "Quý khách đang offline."
 
-#: ../electrum/gui/qt/__init__.py:195
+#: ../electrum/gui/qt/__init__.py:196
 msgid ""
 "You are using Electrum in offline mode; restart Electrum if you want to get "
 "connected"
@@ -5783,7 +5868,7 @@ msgid "You can override the suggested derivation path."
 msgstr "Quý khách có thể ghi đè đường dẫn xuất được đề xuất."
 
 #: ../electrum/gui/qt/main_window_v2.py:1502
-#: ../electrum/gui/qt/main_window.py:1500
+#: ../electrum/gui/qt/main_window.py:1501
 msgid "You can't broadcast a transaction without a live network connection."
 msgstr ""
 "Quý khách không thể phát một giao dịch mà không có kết nối mạng trực tiếp."
@@ -5823,7 +5908,7 @@ msgid "You may extend your seed with custom words."
 msgstr "Quý khách có thể mở rộng hạt giống của mình bằng các từ tùy chỉnh."
 
 #: ../electrum/gui/qt/main_window_v2.py:1780
-#: ../electrum/gui/qt/main_window.py:1778
+#: ../electrum/gui/qt/main_window.py:1779
 msgid "You may load a CSV file using the file icon."
 msgstr "Quý khách có thể tải tệp CSV bằng biểu tượng tệp."
 
@@ -5860,7 +5945,7 @@ msgstr "ID nút của quý khách"
 msgid "Your PIN code was updated"
 msgstr "Mã PIN của quý khách đã được cập nhật"
 
-#: ../electrum/gui/qt/installwizard.py:334
+#: ../electrum/gui/qt/installwizard.py:337
 msgid "Your accounts have been moved to"
 msgstr "Tài khoản của quý khách đã được chuyển đến"
 
@@ -5880,17 +5965,17 @@ msgstr "Thiết bị của quý khách có thể không được hỗ trợ cho 
 msgid "Your labels have been synchronised."
 msgstr "Các nhãn của quý khách đã được đồng bộ hóa."
 
-#: ../electrum/gui/qt/seed_dialog.py:138
+#: ../electrum/gui/qt/seed_dialog.py:141
 msgid "Your seed extension is"
 msgstr "Tiện ích mở rộng hạt giống của quý khách là"
 
-#: ../electrum/base_wizard.py:539 ../electrum/base_wizard.py:758
+#: ../electrum/base_wizard.py:539 ../electrum/base_wizard.py:756
 msgid "Your seed extension must be saved together with your seed."
 msgstr ""
 "Phần mở rộng hạt giống của quý khách phải được lưu cùng với hạt giống của "
 "quý khách."
 
-#: ../electrum/gui/qt/installwizard.py:469
+#: ../electrum/gui/qt/installwizard.py:472
 msgid "Your seed is important!"
 msgstr "Hạt giống của quý khách là quan trọng!"
 
@@ -5920,8 +6005,7 @@ msgstr "Tệp ví của quý khách đã được mã hóa."
 msgid "Your wallet file is: {path}."
 msgstr "Tệp ví của quý khách là: {path}."
 
-#: ../electrum/gui/qt/installwizard.py:478
-#: ../electrum/gui/qt/seed_dialog.py:220
+#: ../electrum/gui/qt/seed_dialog.py:223
 msgid "Your wallet generation seed is:"
 msgstr "Hạt giống tạo ví của quý khách là:"
 
@@ -5942,12 +6026,12 @@ msgstr "Ví của quý khách không được bảo vệ."
 msgid "Your wallet is password protected and encrypted."
 msgstr "Ví của quý khách được bảo vệ bằng mật khẩu và được mã hóa."
 
-#: ../electrum/gui/qt/util.py:844
+#: ../electrum/gui/qt/util.py:848
 #, python-brace-format
 msgid "Your {0} were exported to '{1}'"
 msgstr "{0} của quý khách đã được xuất sang '{1}'"
 
-#: ../electrum/gui/qt/util.py:829
+#: ../electrum/gui/qt/util.py:833
 #, python-brace-format
 msgid "Your {title} were successfully imported"
 msgstr "{title} của quý khách đã được nhập thành công"
@@ -6008,7 +6092,7 @@ msgstr "thêm đầu vào và đầu ra"
 msgid "add invoice timed out"
 msgstr "thêm hóa đơn đã hết thời gian chờ"
 
-#: ../electrum/wallet.py:1865
+#: ../electrum/wallet.py:1868
 msgid "address already in wallet"
 msgstr "địa chỉ đã có trong ví"
 
@@ -6038,7 +6122,7 @@ msgid "contacts"
 msgstr "liên hệ"
 
 #: ../electrum/gui/qt/main_window_v2.py:2090
-#: ../electrum/gui/qt/main_window.py:2088
+#: ../electrum/gui/qt/main_window.py:2089
 msgid "cosigner"
 msgstr "cosigner"
 
@@ -6058,11 +6142,11 @@ msgstr "phí cao"
 msgid "initialized"
 msgstr "khởi tạo"
 
-#: ../electrum/wallet.py:1862
+#: ../electrum/wallet.py:1865
 msgid "invalid address"
 msgstr "Địa chỉ không hợp lệ"
 
-#: ../electrum/wallet.py:1942
+#: ../electrum/wallet.py:1945
 msgid "invalid private key"
 msgstr "khóa cá nhân không hợp lệ"
 
@@ -6071,19 +6155,19 @@ msgstr "khóa cá nhân không hợp lệ"
 msgid "invoices"
 msgstr "hóa đơn"
 
-#: ../electrum/gui/qt/util.py:408
+#: ../electrum/gui/qt/util.py:412
 msgid "json"
 msgstr "json"
 
 #: ../electrum/gui/qt/main_window_v2.py:2092
-#: ../electrum/gui/qt/main_window.py:2090
+#: ../electrum/gui/qt/main_window.py:2091
 msgid "keystore"
 msgstr "kho khóa"
 
 #: ../electrum/gui/qt/main_window_v2.py:2529
 #: ../electrum/gui/qt/main_window_v2.py:2534
-#: ../electrum/gui/qt/main_window.py:2527
-#: ../electrum/gui/qt/main_window.py:2532
+#: ../electrum/gui/qt/main_window.py:2528
+#: ../electrum/gui/qt/main_window.py:2533
 msgid "labels"
 msgstr "nhãn"
 
@@ -6095,7 +6179,7 @@ msgstr ""
 " thêm thông tin tại <a href=\"https://revealer.cc/faq\">https://revealer.cc/"
 "faq</a>"
 
-#: ../electrum/wallet.py:1945
+#: ../electrum/wallet.py:1948
 msgid "not implemented type"
 msgstr "loại không được triển khai"
 
@@ -6108,7 +6192,7 @@ msgid "or type an existing revealer code below and click 'next':"
 msgstr "hoặc nhập mã revealer hiện có bên dưới và nhấp vào 'tiếp theo':"
 
 #: ../electrum/gui/qt/main_window_v2.py:1635
-#: ../electrum/gui/qt/main_window.py:1633
+#: ../electrum/gui/qt/main_window.py:1634
 msgid "please wait..."
 msgstr "vui lòng chờ..."
 
@@ -6134,12 +6218,10 @@ msgid "seed"
 msgstr "hạt giống"
 
 #: ../electrum/gui/qt/main_window_v2.py:864
-#: ../electrum/gui/qt/main_window.py:862
 msgid "standard incoming"
 msgstr "tiêu chuẩn đầu vào"
 
 #: ../electrum/gui/qt/main_window_v2.py:866
-#: ../electrum/gui/qt/main_window.py:864
 msgid "standard outgoing"
 msgstr "tiêu chuẩn đầu ra"
 
@@ -6177,7 +6259,7 @@ msgid "watching only"
 msgstr "watching only"
 
 #: ../electrum/gui/qt/main_window_v2.py:2057
-#: ../electrum/gui/qt/main_window.py:2055
+#: ../electrum/gui/qt/main_window.py:2056
 msgid "watching-only"
 msgstr "watching-only"
 

@@ -191,7 +191,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         cb.currentIndexChanged.connect(on_change)
         # refresh config language
         on_change()
-        #self.exec_layout(vbox, title=_('Select installation language'))
+        self.exec_layout(vbox, title=_('Select installation language'))
 
     def select_storage(self, path, get_wallet_from_daemon) -> Tuple[str, Optional[WalletStorage]]:
 

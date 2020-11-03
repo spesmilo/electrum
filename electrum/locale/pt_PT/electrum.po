@@ -17,167 +17,315 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-msgid " (No FX rate available)"
+msgid "  (No FX rate available)"
 msgstr "(Sem taxa de câmbio disponível)"
 
-msgid "2 Keys Vault wallet"
-msgstr "Carteira Vault de 2 chaves"
-
-msgid "3 Keys Vault wallet"
-msgstr "Carteira Vault de 3 chaves"
-
 msgid ""
-"A small fee will be charged on each transaction that uses the remote server. "
-"You may check and modify your billing preferences once the installation is "
-"complete."
+"'Legacy' is the original address type, while 'Segwit' is the newer address "
+"format with lower fees."
 msgstr ""
-"Uma pequena taxa será cobrada em cada transacção que utilize o "
-"servidorremoto. Pode verificar e modificar as suas preferências de "
-"facturação logo que a instalação esteja concluída. "
+"Legado' é o tipo de endereço original, enquanto 'Segwit' é o endereço mais "
+"recente formato com taxas mais baixas. "
 
-msgid "BIP39 seed (Gold Wallet integration)"
-msgstr "Seed BIP39 (integração Gold Wallet)"
+msgid "2-Key Vault"
+msgstr "Cofre de 2 Chaves"
+
+msgid "3-Key Vault"
+msgstr "Cofre de 3 chaves"
 
 msgid ""
-"Choose coin (UTXO) selection method for alert transactions. The following "
+"A small fee will be charged on each transaction that uses the remote "
+"server.  You may check and modify your billing preferences once the "
+"installation is complete."
+msgstr ""
+"Uma pequena taxa será cobrada em cada transação que usar o controle remoto "
+"servidor. Pode verificar e modificar as suas preferências de faturamento "
+"assim que a  instalação está concluída."
+
+msgid "At most one output can be set to spend max"
+msgstr "No máximo uma saída pode ser definida para gastar o máximo"
+
+msgid "Cancelation address"
+msgstr "Endereço de cancelamento"
+
+msgid ""
+"Choose coin (UTXO) selection method for alert transactions.  The following "
 "are available:\n"
 "\n"
 msgstr ""
-"Escolha o método de seleção de moeda (UTXO) para transacções de alerta. Os "
+"Escolha o método de seleção de moeda (UTXO) para transações de alerta. Os "
 "seguintes estão disponíveis:\n"
 "\n"
 
 msgid ""
-"Choose coin (UTXO) selection method for non-alert transactions. The "
+"Choose coin (UTXO) selection method for non-alert transactions.  The "
 "following are available:\n"
 "\n"
 msgstr ""
-"Escolha o método de seleção de moeda (UTXO) para transações sem alerta. Os "
-"seguintes estão disponíveis: \n"
-" \n"
+"Escolha o método de seleção de moeda (UTXO) para transações sem alerta. O os "
+"seguintes métodos estão disponíveis:\n"
+"\n"
 
-msgid "Choose the type of wallet"
-msgstr "Escolha o tipo de carteira"
+msgid "Confirmation PIN from Gold Wallet:"
+msgstr "PIN de confirmação da Gold Wallet:"
 
-msgid "Do not use Gold Wallet"
-msgstr "Não use Gold Wallet"
-
-msgid "Do you want to use Gold Wallet as a transaction authenticator?"
-msgstr "Deseja usar a Gold Wallet como um autenticador de transacção?"
+msgid ""
+"Do you want to create a new seed or to restore a wallet using an existing "
+"seed?"
+msgstr ""
+"Deseja criar uma nova semente ou restaurar uma carteira usando um "
+"existentesemente?"
 
 msgid ""
 "Electrum cannot pair with your {device}.\n"
 "\n"
 "Before you request bitcoins to be sent to addresses in this wallet, ensure "
 "you can pair with your device, or that you have its seed (and passphrase, if "
-"any). Otherwise all bitcoins you receive will be unspendable."
+"any).  Otherwise all bitcoins you receive will be unspendable."
 msgstr ""
-"Electrum não pode emparelhar com seu {device}. \n"
+"Electrum não pode emparelhar com seu {device}.\n"
 "\n"
 "Antes de solicitar que bitcoins sejam enviados para endereços nesta "
-"carteira, certifique-se de  que pode efectuar o emparelhamento com o seu "
-"dispositivo, ou que você tenha a sua seed (e palavra-passe, sequalquer). "
-"Caso contrário, todos os bitcoins que receber não poderão ser gastos."
+"carteira, certifique-se de que pode emparelhar com o seu dispositivo, ou que "
+"tenha a sua semente (e senha, se qualquer). Caso contrário, todos os "
+"bitcoins que você receber não poderão ser gastos."
 
 msgid ""
 "Electrum communicates with remote servers to get information about your "
 "transactions and addresses. The servers all fulfill the same purpose only "
 "differing in hardware. In most cases you simply want to let Electrum pick "
-"one at random. However if you prefer feel free to select a server manually."
+"one at random.  However if you prefer feel free to select a server manually."
 msgstr ""
-"Electrum comunica-se com servidores remotos para obter informações sobre as "
-"suastransacções e endereços. Todos os servidores cumprem apenas a mesma "
-"finalidadediferindo no hardware. Na maioria dos casos, simplesmente quer "
-"deixar a Electrum escolherum ao acaso. No entanto, se preferir, sinta-se à "
-"vontade para seleccionar um servidor manualmente."
+"Electrum se comunica com servidores remotos para obter informações sobre o "
+"seutransações e endereços. Todos os servidores cumprem a mesma finalidade, "
+"apenasdiferindo no hardware. Na maioria dos casos, você simplesmente quer "
+"deixar Electrum escolher um ao acaso. No entanto, se preferir, fique à "
+"vontade para selecionar um servidor manualmente."
 
 msgid ""
-"Enter a list of BTCV addresses (this will create a watching-only wallet), or "
+"Electrum's focus is speed, with low resource usage and simplifying Bitcoin "
+"Vault."
+msgstr ""
+"O foco da Electrum é a velocidade, com baixo uso de recursos e simplificando "
+"BitcoinCofre."
+
+msgid ""
+"Enter a list of BTCV addresses (this will create a watching-only wallet) or "
 "a list of private keys."
 msgstr ""
-" Introduza uma lista de endereços BTCV (isso irá criar uma carteira somente "
-"para observação) ou uma lista de chaves privadas."
-
-msgid "Import BTCV addresses"
-msgstr "Importar endereços BTCV"
-
-msgid "Import external watch-only BTCV addresses or private keys"
-msgstr ""
-"Importar endereços BTCV externos somente para observação ou chaves privadas"
-
-msgid "Multi-signature Standard wallet"
-msgstr "Carteira padrão com várias assinaturas"
+"Insira uma lista de endereços BTCV (isso criará uma carteira somente para "
+"observação) ou uma lista de chaves privadas."
 
 msgid ""
-"Note that your coins are not locked in this service. You may withdraw your "
+"Enter the name of the new wallet or load an existing wallet by clicking "
+"\"Choose\"."
+msgstr ""
+"Insira o nome da nova carteira ou carregue uma carteira existente clicando "
+"em \"Escolher\"."
+
+msgid ""
+"Generate an authenticator on Gold Wallet and scan the following QR code: "
+msgstr "Gere um autenticador no Gold Wallet e digitalize o seguinte código QR:"
+
+msgid "Gold Wallet authenticator public key"
+msgstr "Chave pública do autenticador Gold Wallet"
+
+msgid ""
+"In order to confirm the transaction, scan the QR code in the \"Authenticators"
+"\" tab in the Gold Wallet app."
+msgstr ""
+"Para confirmar a transação, digitalize o código QR nos \"Autenticadores\" "
+"guia no aplicativo Gold Wallet."
+
+msgid "Indonesian"
+msgstr "Indonésio"
+
+msgid "Invalid Secure Fast Tx seed"
+msgstr "Semente Secure Fast Tx inválido"
+
+msgid "Invalid cancelation address"
+msgstr "Endereço de cancelamento inválido"
+
+msgid "Multi-Signature Standard"
+msgstr "Padrão Multi-Assinatura"
+
+msgid "Never enter it on any website."
+msgstr "Nunca insira em nenhum site."
+
+msgid ""
+"Note that your coins are not locked in this service.  You may withdraw your "
 "funds at any time and at no cost, without the remote server, by using the "
 "'restore wallet' option with your wallet seed."
 msgstr ""
 "Observe que suas moedas não estão bloqueadas neste serviço. Você pode "
-"retirar os seusfundos a qualquer momento e sem nenhum custo, sem o servidor "
-"remoto, utilizando aopção 'restaurar carteira' com a seed da carteira."
+"retirar os seus fundos a qualquer momento e sem nenhum custo, sem o servidor "
+"remoto, usando a opção 'restaurar carteira' com a semente da carteira."
 
-msgid "Pair your 2 Keys Vault wallet with Gold Wallet"
-msgstr ""
-"Faça o emparelhamento da sua carteira de 2 chaves Vault com Gold Wallet"
+msgid "Pair your 2-Key Vault wallet with Gold Wallet"
+msgstr "Emparelhe a sua carteira de 2 chaves Vault com Gold a Wallet"
 
-msgid "Pair your 3 Keys Vault wallet with Gold Wallet"
-msgstr ""
-"Faça o emparelhamento da sua carteira de 3 chaves Vault com Gold Wallet"
-
-msgid "Standard wallet"
-msgstr "Carteira Standard"
+msgid "Pair your 3-Key Vault wallet with Gold Wallet"
+msgstr "Emparelhe a sua carteira de 3 chaves Vault com Gold a Wallet"
 
 msgid ""
-"The next step will generate the seed of your wallet. This seed will NOT be "
-"saved in your computer, and it must be stored on paper. To be safe from "
+"Please paste a Cancel transaction public key. Use an existing one, if you "
+"are importing a wallet, or generate a new one at"
+msgstr ""
+"Por favor, cole uma chave pública para Cancelar transação. Use uma "
+"existente, se você estão a importar uma carteira ou geram uma nova em"
+
+msgid ""
+"Please paste a Secure Fast transaction public key. Use an existing one, if "
+"you are importing a wallet, or generate a new one at"
+msgstr ""
+"Por favor, cole uma chave pública de transação Rápida Segura. Use uma "
+"existente, seestá a importar uma carteira ou gere uma nova em"
+
+msgid ""
+"Please paste authenticator public key exported from your Gold Wallet "
+"application"
+msgstr ""
+"Por favor, cole a chave pública do autenticador exportada da sua carteira "
+"Goldinscrição"
+
+msgid "Please save these {0} words on paper (the order is important). "
+msgstr "Guarde estas {0} palavras no papel (a ordem é importante)."
+
+msgid "Portuguese"
+msgstr "Português"
+
+msgid "Restart"
+msgstr "Reiniciar"
+
+msgid "Secure - confirmed after 24 hours. Can be canceled within that time."
+msgstr ""
+"Segura - confirmado após 24 horas. Pode ser cancelada dentro desse período."
+
+msgid ""
+"Secure Fast - confirmed immediately. Cannot be canceled. Requires an "
+"additional seed phrase."
+msgstr ""
+"Rápida Segura - confirmada imediatamente. Não pode ser cancelada. Requer "
+"umafrase de semente adicional."
+
+msgid "Secure Fast Tx seed"
+msgstr "A Semente Rápida e Segura Tx"
+
+msgid "Secure Fast Tx seed not matching any key in this wallet"
+msgstr ""
+"A Semente Rápida e Segura Tx não corresponde a nenhuma chave nesta carteira"
+
+msgid "Secure Fast seedphrase"
+msgstr "Frase de semente Rápida e Segura"
+
+msgid "Secure Fast transaction public key"
+msgstr "Chave pública de transação segura e rápida"
+
+msgid "Secure incoming"
+msgstr "Entrada segura"
+
+msgid "Secure outgoing"
+msgstr "Saída segura"
+
+msgid "Select language"
+msgstr "Selecione o idioma"
+
+msgid "Send cancel transaction"
+msgstr "Enviar o cancelamento da transação"
+
+msgid "Standard"
+msgstr "Padrão"
+
+msgid ""
+"Startup times are instant because it operates in conjunction with high-"
+"performance servers that handle the most complicated parts of the Bitcoin "
+"Vault system."
+msgstr ""
+"Os tempos de inicialização são instantâneos porque opera em conjunto com "
+"alta-servidores de desempenho que lidam com as partes mais complicadas do "
+"BitcoinSistema Vault."
+
+msgid ""
+"Testnet is separate from the main Bitcoin Vault network. It is used for "
+"testing."
+msgstr ""
+"O Testnet  está separado da principal rede de Bitcoin Vault. É usado paraa "
+"testar."
+
+msgid ""
+"The next step will generate the seed of your wallet.  This seed will NOT be "
+"saved in your computer, and it must be stored on paper.  To be safe from "
 "malware, you may want to do this on an offline computer, and move your "
 "wallet later to an online computer."
 msgstr ""
-"A próxima etapa irá gerar a semente da sua carteira. Esta seed (semente) NÃO "
-"seráguardada no seu computador, devendo ser armazenada em papel. Para estar "
-"protegido(a) contramalware, pode querer fazer isso num computador offline e "
-"mover a suacarteira mais tarde para um computador online."
+"A próxima etapa irá gerar a semente da sua carteira. Esta semente NÃO "
+"seráguardado no seu computador, e deve ser armazenado em papel. Para estar "
+"protegido contraOs perigos de software, pode querer fazer isso  num "
+"computador offline e mover o seucarteira mais tarde para um computador em "
+"linha."
+
+msgid "This seed will allow you to recover your wallet."
+msgstr "Esta semente permitirá recuperar a sua carteira."
 
 msgid ""
-"This service uses a multi-signature wallet, where you own 2 of 3 keys. The "
+"This service uses a multi-signature wallet, where you own 2 of 3 keys.  The "
 "third key is stored on a remote server that signs transactions on your "
 "behalf. A small fee will be charged on each transaction that uses the remote "
 "server."
 msgstr ""
-"Este serviço utiliza uma carteira com várias assinaturas, onde possui 2 de 3 "
+"Este serviço usa uma carteira com várias assinaturas, onde possui 2 de 3 "
 "chaves. Aa terceira chave é armazenada num servidor remoto que assina "
-"transacções em seuem nome. Uma pequena taxa será cobrada em cada transacção "
-"que usar o servidor remoto."
+"transações no seuem nome. Uma pequena taxa será cobrada em cada transação "
+"que usar o controle remotoservidor."
+
+msgid "Turkish"
+msgstr "Turco"
 
 msgid ""
-"Two-factor authentication is a service provided by TrustedCoin. It uses a "
-"multi-signature wallet, where you own 2 of 3 keys. The third key is stored "
-"on a remote server that signs transactions on your behalf. To use this "
+"Two-factor authentication is a service provided by TrustedCoin.  It uses a "
+"multi-signature wallet, where you own 2 of 3 keys.  The third key is stored "
+"on a remote server that signs transactions on your behalf.  To use this "
 "service, you will need a smartphone with Google Authenticator installed."
 msgstr ""
-"A autenticação de dois factores é um serviço fornecido pela TrustedCoin. Ela "
-"utiliza umacarteira com várias assinaturas, onde você possui 2 de 3 chaves. "
-"A terceira chave é armazenadanum servidor remoto que assina transacções em "
-"seu nome. Para usar issoserviço, irá necessitar de um smartphone com o "
-"Google Authenticator instalado."
+"A autenticação de dois fatores é um serviço providenciado pelo TrustedCoin. "
+"Ele usa umacarteira com várias assinaturas, onde possui 2 de 3 chaves. A "
+"terceira chave é armazenadanum  servidor remoto que assina transações no seu "
+"nome. Para usar esteserviço, precisará de um smartphone com o Google "
+"Authenticator instalado."
 
-msgid "Use Gold Wallet and create a new wallet"
-msgstr "Use a Gold Wallet e crie uma nova carteira"
+msgid "Unconfirmed Parent"
+msgstr "Matriz não confirmada"
 
-msgid "Use Gold Wallet and import the wallet"
-msgstr "Use Gold Wallet e importe a carteira"
+msgid "Use Gold Wallet and import an existing wallet"
+msgstr "Use Gold Wallet e importe uma carteira existente"
 
 msgid ""
-"You need to be online in order to complete the creation of your wallet. If "
+"Warning: Please be aware that in the process of using the Secure Transaction "
+"feature, a part of the funds left in your wallet might be blocked. This is a "
+"normal procedure linked to UTXO and the blockchain parameters of the Bitcoin "
+"Vault wallet. Your funds will be unblocked once the transaction is verified "
+"(after approximately 24 hrs) or canceled (within 24 hrs)."
+msgstr ""
+"Aviso: Tenha em conta que no processo de uso da Transação Segurarecurso, uma "
+"parte dos fundos deixados na sua carteira pode ser bloqueada. Este é "
+"umprocedimento normal ligado ao UTXO e aos parâmetros do blockchain do "
+"BitcoinCarteira vault.  Os seus fundos serão desbloqueados assim que a "
+"transação for verificada(aproximadamente após 24 horas) ou cancelado (dentro "
+"de 24 horas)."
+
+msgid ""
+"You need to be online in order to complete the creation of your wallet.  If "
 "you generated your seed on an offline computer, click on \"{button}\" to "
 "close this window, move your wallet file to an online computer, and reopen "
 "it with Electrum."
 msgstr ""
-"Necessita de estar online para concluir a criação da sua carteira. Casotenha "
-"gerado a sua semente num computador offline, clique em "
-"\"{button}\"parafechar esta janela, mover o seu arquivo de carteira para um "
-"computador online e reabracom Electrum."
+" Precisa estar conectado para concluir a criação da sua carteira. Secriar a "
+"sua semente num computador offline, clique em \" {button} \" parafechar esta "
+"janela, mova o seu arquivo de carteira para um computador em linha e "
+"reabracom Electrum."
+
+msgid "Your wallet's generated seed is:"
+msgstr "A semente criada pela sua carteira é:"
 
 #: ../electrum/gui/qt/history_list.py:198
 msgid " confirmation"
@@ -478,7 +626,7 @@ msgid "Acquisition price"
 msgstr "Preço de aquisição"
 
 #: ../electrum/gui/kivy/uix/dialogs/installwizard.py:1135
-#: ../electrum/gui/qt/installwizard.py:443
+#: ../electrum/gui/qt/installwizard.py:446
 msgid "Add Cosigner"
 msgstr "Adicionar fiador"
 
@@ -507,13 +655,13 @@ msgstr "Extras Satoshis {num_satoshis_added} serão adicionados."
 #: ../electrum/gui/qt/main_window_v2.py:1028
 #: ../electrum/gui/qt/main_window_v2.py:2041
 #: ../electrum/gui/qt/main_window_v2.py:2165
-#: ../electrum/gui/qt/main_window_v2.py:2246 ../electrum/gui/qt/util.py:392
+#: ../electrum/gui/qt/main_window_v2.py:2246 ../electrum/gui/qt/util.py:396
 #: ../electrum/gui/qt/address_dialog.py:55
 #: ../electrum/gui/qt/contact_list.py:48 ../electrum/gui/qt/address_list.py:117
 #: ../electrum/gui/qt/utxo_list.py:49 ../electrum/gui/qt/main_window.py:1026
-#: ../electrum/gui/qt/main_window.py:2039
-#: ../electrum/gui/qt/main_window.py:2163
-#: ../electrum/gui/qt/main_window.py:2244
+#: ../electrum/gui/qt/main_window.py:2040
+#: ../electrum/gui/qt/main_window.py:2164
+#: ../electrum/gui/qt/main_window.py:2245
 msgid "Address"
 msgstr "Endereço"
 
@@ -530,7 +678,7 @@ msgid "Address is frozen"
 msgstr "Endereço está congelado"
 
 #: ../electrum/gui/qt/main_window_v2.py:2197
-#: ../electrum/gui/qt/main_window.py:2195
+#: ../electrum/gui/qt/main_window.py:2196
 #: ../electrum/plugins/hw_wallet/plugin.py:84 ../electrum/wallet.py:443
 #: ../electrum/wallet.py:1583
 msgid "Address not in wallet."
@@ -605,7 +753,7 @@ msgstr "Sempre verifique seus backups."
 #: ../electrum/gui/qt/recovery_list.py:47 ../electrum/gui/qt/utxo_list.py:51
 #: ../electrum/gui/qt/channel_details.py:35
 #: ../electrum/gui/qt/main_window.py:1217
-#: ../electrum/gui/qt/main_window.py:1832 ../electrum/gui/qt/invoice_list.py:64
+#: ../electrum/gui/qt/main_window.py:1833 ../electrum/gui/qt/invoice_list.py:64
 #: ../electrum/gui/qt/history_list.py:383 ../electrum/gui/stdio.py:111
 #: ../electrum/gui/text.py:111 ../electrum/gui/text.py:183
 msgid "Amount"
@@ -699,7 +847,7 @@ msgstr "Configurações do Modem de Áudio"
 msgid "Authorization"
 msgstr "Autorização"
 
-#: ../electrum/gui/qt/installwizard.py:722
+#: ../electrum/gui/qt/installwizard.py:725
 msgid "Auto connect"
 msgstr "Conexão automática"
 
@@ -711,7 +859,11 @@ msgstr "Conexão automática"
 msgid "Automatically check for software updates"
 msgstr "Verificar automaticamente se há atualizações de software"
 
-#: ../electrum/gui/qt/seed_dialog.py:70
+#: ../electrum/gui/qt/seed_dialog.py:75
+msgid "BIP39 seed (Gold Wallet integration)"
+msgstr "Seed BIP39 (integração Gold Wallet)"
+
+#: ../electrum/gui/qt/seed_dialog.py:69
 msgid ""
 "BIP39 seeds can be imported in Electrum, so that users can access funds "
 "locked in other wallets."
@@ -720,7 +872,7 @@ msgstr ""
 "usuários possam acessar aos seus fundosbloqueado noutras carteiras."
 
 #: ../electrum/gui/qt/main_window_v2.py:1829
-#: ../electrum/gui/qt/main_window.py:1827
+#: ../electrum/gui/qt/main_window.py:1828
 msgid "BIP70 Invoice"
 msgstr "Fatura BIP70"
 
@@ -774,7 +926,7 @@ msgid "Bitcoin Address"
 msgstr "Endereço Bitcoin"
 
 #: ../electrum/gui/qt/main_window_v2.py:1363
-#: ../electrum/gui/qt/main_window.py:1361
+#: ../electrum/gui/qt/main_window.py:1362
 msgid "Bitcoin Address is None"
 msgstr "Endereço Bitcoin é Nenhum"
 
@@ -804,12 +956,12 @@ msgid "Broadcast"
 msgstr "Transmissão"
 
 #: ../electrum/gui/qt/main_window_v2.py:1578
-#: ../electrum/gui/qt/main_window.py:1576
+#: ../electrum/gui/qt/main_window.py:1577
 msgid "Broadcasting transaction..."
 msgstr "Transmissão da transacção"
 
 #: ../electrum/gui/qt/main_window_v2.py:2838
-#: ../electrum/gui/qt/main_window.py:2836
+#: ../electrum/gui/qt/main_window.py:2837
 msgid "Bump Fee"
 msgstr "Taxa de aumento"
 
@@ -821,7 +973,7 @@ msgstr "Taxa de aumento"
 msgid "CLTV expiry"
 msgstr "Expiração de CLTV"
 
-#: ../electrum/gui/qt/util.py:405
+#: ../electrum/gui/qt/util.py:409
 msgid "CSV"
 msgstr "CSV"
 
@@ -838,13 +990,13 @@ msgid "Can send"
 msgstr "Pode enviar"
 
 #: ../electrum/gui/qt/main_window_v2.py:2754
-#: ../electrum/gui/qt/main_window.py:2752
+#: ../electrum/gui/qt/main_window.py:2753
 msgid "Can't CPFP: unknown fee for parent transaction."
 msgstr "Não é possível CPFP: taxa desconhecida para transação pai."
 
 #: ../electrum/gui/kivy/uix/dialogs/tx_dialog.py:229
 #: ../electrum/gui/qt/main_window_v2.py:2833
-#: ../electrum/gui/qt/main_window.py:2831
+#: ../electrum/gui/qt/main_window.py:2832
 msgid "Can't bump fee: unknown fee for original transaction."
 msgstr ""
 "Não é possível aumentar a taxa: taxa desconhecida para a transação original."
@@ -855,14 +1007,14 @@ msgstr "Não posso traçar a história."
 
 #: ../electrum/gui/qt/installwizard.py:90
 #: ../electrum/gui/qt/installwizard.py:169
-#: ../electrum/gui/qt/installwizard.py:725 ../electrum/gui/qt/util.py:187
+#: ../electrum/gui/qt/installwizard.py:728 ../electrum/gui/qt/util.py:187
 #: ../electrum/gui/qt/three_keys_windows.py:31
 #: ../electrum/plugins/trustedcoin/qt.py:221
 msgid "Cancel"
 msgstr "Cancelar"
 
 #: ../electrum/gui/qt/recovery_list.py:420
-#: ../electrum/gui/qt/recovery_list.py:473
+#: ../electrum/gui/qt/recovery_list.py:478
 msgid "Cancel seedphrase"
 msgstr "Cancelar frase-semente"
 
@@ -871,18 +1023,9 @@ msgid "Cancel seedphrase not matching any key in this wallet"
 msgstr ""
 "Cancelar a frase-semente não corresponde a nenhuma chave nesta carteira"
 
-#: ../electrum/gui/qt/installwizard.py:567
+#: ../electrum/gui/qt/installwizard.py:570
 msgid "Cancel transaction public key"
 msgstr "Cancelar chave pública da transação"
-
-#: ../electrum/gui/qt/recovery_list.py:194
-msgid "Cancel transactions"
-msgstr "Cancelar transações"
-
-#: ../electrum/gui/qt/recovery_list.py:414
-#: ../electrum/gui/qt/recovery_list.py:460
-msgid "Cancellation address"
-msgstr "Cancelamento do Endereço"
 
 #: ../electrum/plugins/ledger/ledger.py:277
 #: ../electrum/plugins/ledger/ledger.py:290
@@ -905,22 +1048,22 @@ msgstr "Não é possível transmitir a transação"
 msgid "Cannot bump fee"
 msgstr "Não é possível aumentar a taxa"
 
-#: ../electrum/gui/qt/__init__.py:272
+#: ../electrum/gui/qt/__init__.py:273
 msgid "Cannot create window for wallet"
 msgstr "Não é possível criar janela para carteira"
 
-#: ../electrum/gui/qt/__init__.py:245 ../electrum/gui/qt/__init__.py:257
+#: ../electrum/gui/qt/__init__.py:246 ../electrum/gui/qt/__init__.py:258
 msgid "Cannot load wallet"
 msgstr "Não é possível carregar carteira"
 
-#: ../electrum/gui/qt/installwizard.py:241
 #: ../electrum/gui/qt/installwizard.py:244
-#: ../electrum/gui/qt/installwizard.py:265
+#: ../electrum/gui/qt/installwizard.py:247
+#: ../electrum/gui/qt/installwizard.py:268
 msgid "Cannot read file"
 msgstr "Não é possível ler o arquivo"
 
 #: ../electrum/gui/qt/main_window_v2.py:2201
-#: ../electrum/gui/qt/main_window.py:2199
+#: ../electrum/gui/qt/main_window.py:2200
 msgid "Cannot sign messages with this type of address:"
 msgstr "Não é possível assinar mensagens com este tipo de endereço:"
 
@@ -990,7 +1133,7 @@ msgstr "Detalhes do canal"
 
 #: ../electrum/gui/kivy/uix/dialogs/lightning_open_channel.py:147
 #: ../electrum/gui/qt/main_window_v2.py:1604
-#: ../electrum/gui/qt/main_window.py:1602
+#: ../electrum/gui/qt/main_window.py:1603
 msgid "Channel established."
 msgstr "Canal estabelecido."
 
@@ -1019,7 +1162,7 @@ msgid "Checking for updates..."
 msgstr "Verificando atualizações ..."
 
 #: ../electrum/gui/qt/main_window_v2.py:2756
-#: ../electrum/gui/qt/main_window.py:2754
+#: ../electrum/gui/qt/main_window.py:2755
 msgid "Child Pays for Parent"
 msgstr "Criança paga pelo pais"
 
@@ -1051,7 +1194,7 @@ msgstr "Escolha um servidor"
 msgid "Choose from peers"
 msgstr "Escolha entre colegas"
 
-#: ../electrum/gui/qt/installwizard.py:770
+#: ../electrum/gui/qt/installwizard.py:773
 msgid "Choose the number of signatures needed to unlock funds in your wallet:"
 msgstr ""
 "Escolha o número de assinaturas necessárias para desbloquear os fundos da "
@@ -1060,6 +1203,10 @@ msgstr ""
 #: ../electrum/base_wizard.py:479
 msgid "Choose the type of addresses in your wallet."
 msgstr "Escolha o tipo de endereços na sua carteira."
+
+#: ../electrum/base_wizard.py:132
+msgid "Choose the type of wallet"
+msgstr "Escolha o tipo de carteira"
 
 #: ../electrum/gui/qt/three_keys_windows.py:220
 msgid "Choose transaction type."
@@ -1077,7 +1224,7 @@ msgstr ""
 msgid "Choose your chain"
 msgstr "Escolha a sua rede"
 
-#: ../electrum/gui/qt/installwizard.py:203
+#: ../electrum/gui/qt/installwizard.py:206
 msgid "Choose..."
 msgstr "Escolher..."
 
@@ -1109,9 +1256,9 @@ msgstr "A Área de transferência está vazia"
 #: ../electrum/gui/qt/main_window_v2.py:2334
 #: ../electrum/gui/qt/update_checker.py:63 ../electrum/gui/qt/util.py:163
 #: ../electrum/gui/qt/transaction_dialog.py:154
-#: ../electrum/gui/qt/qrcodewidget.py:131
-#: ../electrum/gui/qt/main_window.py:2263
-#: ../electrum/gui/qt/main_window.py:2332 ../electrum/gui/qt/__init__.py:158
+#: ../electrum/gui/qt/qrcodewidget.py:139
+#: ../electrum/gui/qt/main_window.py:2264
+#: ../electrum/gui/qt/main_window.py:2333 ../electrum/gui/qt/__init__.py:159
 msgid "Close"
 msgstr "Fechar"
 
@@ -1188,11 +1335,11 @@ msgid "Confirm Password:"
 msgstr "Confirme a Senha:"
 
 #: ../electrum/gui/kivy/uix/dialogs/installwizard.py:1108
-#: ../electrum/gui/qt/installwizard.py:467
+#: ../electrum/gui/qt/installwizard.py:470
 msgid "Confirm Seed"
 msgstr "Confirmar Semente"
 
-#: ../electrum/base_wizard.py:756
+#: ../electrum/base_wizard.py:754
 msgid "Confirm Seed Extension"
 msgstr "Confirmar Extensão de Semente"
 
@@ -1207,10 +1354,6 @@ msgstr "Confirme a transação no seu dispositivo Ledger ..."
 #: ../electrum/gui/kivy/uix/dialogs/password_dialog.py:134
 msgid "Confirm new PIN"
 msgstr "Confirmar novo PIN"
-
-#: ../electrum/gui/qt/installwizard.py:611
-msgid "Confirmation PIN from GoldWallet:"
-msgstr "PIN de confirmação do GoldWallet:"
 
 #: ../electrum/gui/kivy/uix/ui_screens/status.kv:39
 msgid "Confirmed"
@@ -1262,8 +1405,8 @@ msgstr ""
 msgid "Contacts"
 msgstr "Contatos"
 
-#: ../electrum/gui/qt/util.py:169 ../electrum/gui/qt/util.py:634
-#: ../electrum/gui/qt/qrcodewidget.py:123
+#: ../electrum/gui/qt/util.py:169 ../electrum/gui/qt/util.py:638
+#: ../electrum/gui/qt/qrcodewidget.py:131
 #: ../electrum/gui/qt/history_list.py:606
 msgid "Copy"
 msgstr "Copiar"
@@ -1293,7 +1436,7 @@ msgstr ""
 "Copie e cole o endereço do destinatário usando o botão Colar ou use acâmera "
 "para escanear um código QR. "
 
-#: ../electrum/gui/qt/util.py:674 ../electrum/gui/qt/transaction_dialog.py:251
+#: ../electrum/gui/qt/util.py:678 ../electrum/gui/qt/transaction_dialog.py:251
 msgid "Copy to clipboard"
 msgstr "Copiar para área de transferência"
 
@@ -1319,7 +1462,7 @@ msgid "Could not force close channel: "
 msgstr "Não foi possível forçar o fechamento do canal:"
 
 #: ../electrum/gui/qt/main_window_v2.py:1611
-#: ../electrum/gui/qt/main_window.py:1609
+#: ../electrum/gui/qt/main_window.py:1610
 #, python-brace-format
 msgid "Could not open channel: {error_value}"
 msgstr "Não foi possível abrir o canal: {error_value}"
@@ -1362,12 +1505,12 @@ msgid "Critical Error"
 msgstr "Erro crítico"
 
 #: ../electrum/gui/qt/main_window_v2.py:2841
-#: ../electrum/gui/qt/main_window.py:2839
+#: ../electrum/gui/qt/main_window.py:2840
 msgid "Current Fee"
 msgstr "Taxa Atual"
 
 #: ../electrum/gui/qt/main_window_v2.py:2842
-#: ../electrum/gui/qt/main_window.py:2840
+#: ../electrum/gui/qt/main_window.py:2841
 msgid "Current Fee rate"
 msgstr "Taxa de taxa atual"
 
@@ -1401,7 +1544,7 @@ msgstr "Segredo personalizado"
 msgid "Dark"
 msgstr "Escuro"
 
-#: ../electrum/gui/qt/__init__.py:159
+#: ../electrum/gui/qt/__init__.py:160
 msgid "Dark/Light"
 msgstr "Escuro/Claro"
 
@@ -1429,7 +1572,7 @@ msgid "Debug message"
 msgstr "Mensagem de depuração"
 
 #: ../electrum/gui/qt/main_window_v2.py:2330
-#: ../electrum/gui/qt/main_window.py:2328
+#: ../electrum/gui/qt/main_window.py:2329
 msgid "Decrypt"
 msgstr "Descriptografar"
 
@@ -1445,7 +1588,7 @@ msgstr "Servidores Padrão"
 #: ../electrum/gui/qt/main_window_v2.py:582
 #: ../electrum/gui/qt/main_window_v2.py:1861
 #: ../electrum/gui/qt/request_list.py:173 ../electrum/gui/qt/contact_list.py:96
-#: ../electrum/gui/qt/main_window.py:582 ../electrum/gui/qt/main_window.py:1859
+#: ../electrum/gui/qt/main_window.py:582 ../electrum/gui/qt/main_window.py:1860
 #: ../electrum/gui/qt/invoice_list.py:177
 msgid "Delete"
 msgstr "Excluir"
@@ -1456,7 +1599,7 @@ msgstr "Excluir solicitações expiradas?"
 
 #: ../electrum/gui/kivy/uix/dialogs/invoice_dialog.py:107
 #: ../electrum/gui/qt/main_window_v2.py:1856
-#: ../electrum/gui/qt/main_window.py:1854
+#: ../electrum/gui/qt/main_window.py:1855
 msgid "Delete invoice?"
 msgstr "Excluir fatura?"
 
@@ -1465,7 +1608,7 @@ msgid "Delete request?"
 msgstr "Apagar Pedido?"
 
 #: ../electrum/gui/qt/main_window_v2.py:2113
-#: ../electrum/gui/qt/main_window.py:2111
+#: ../electrum/gui/qt/main_window.py:2112
 msgid "Delete wallet file?"
 msgstr "Excluir arquivo de carteira?"
 
@@ -1556,16 +1699,19 @@ msgstr ""
 "Não cole aqui código que você não entenda. Executando o código erradopode ​​"
 "fazer com que suas moedas sejam irreversivelmente perdidas."
 
-#: ../electrum/gui/qt/seed_dialog.py:52
+#: ../electrum/gui/qt/seed_dialog.py:51
 msgid "Do not store it electronically."
 msgstr "Não armazene eletronicamente."
+
+#: ../electrum/base_wizard.py:223
+msgid "Do not use Gold Wallet"
+msgstr "Não use Gold Wallet"
 
 #: ../electrum/plugins/revealer/__init__.py:5
 msgid "Do you have something to hide ?"
 msgstr "Você tem algo a esconder?"
 
 #: ../electrum/plugins/trustedcoin/trustedcoin.py:539
-#: ../electrum/base_wizard.py:289
 msgid ""
 "Do you want to create a new seed, or to restore a wallet using an existing "
 "seed?"
@@ -1573,12 +1719,12 @@ msgstr ""
 "Deseja criar uma nova semente ou restaurar uma carteira usando uma "
 "existentesemente?"
 
-#: ../electrum/gui/qt/installwizard.py:350
+#: ../electrum/gui/qt/installwizard.py:353
 #, python-brace-format
 msgid "Do you want to delete '{path}'?"
 msgstr "Você deseja eliminar '{path}'?"
 
-#: ../electrum/gui/qt/installwizard.py:335
+#: ../electrum/gui/qt/installwizard.py:338
 msgid "Do you want to delete the old file"
 msgstr "Você deseja eliminar o arquivo antigo"
 
@@ -1591,7 +1737,7 @@ msgid "Do you want to open it now?"
 msgstr "Deseja abrir agora?"
 
 #: ../electrum/gui/qt/main_window_v2.py:1768
-#: ../electrum/gui/qt/main_window.py:1766
+#: ../electrum/gui/qt/main_window.py:1767
 #, python-brace-format
 msgid "Do you want to remove {address} from your wallet?"
 msgstr "Deseja remover {address} da sua carteira?"
@@ -1600,8 +1746,12 @@ msgstr "Deseja remover {address} da sua carteira?"
 msgid "Do you want to send this report?"
 msgstr "Quer enviar este relatório?"
 
+#: ../electrum/base_wizard.py:219
+msgid "Do you want to use Gold Wallet as a transaction authenticator?"
+msgstr "Deseja usar a Gold Wallet como um autenticador de transacção?"
+
 #: ../electrum/gui/qt/main_window_v2.py:1393
-#: ../electrum/gui/qt/main_window.py:1391
+#: ../electrum/gui/qt/main_window.py:1392
 msgid "Do you wish to continue?"
 msgstr "Deseja continuar?"
 
@@ -1641,7 +1791,7 @@ msgid "Edit {title}"
 msgstr "Editar {title}"
 
 #: ../electrum/gui/qt/main_window_v2.py:2685
-#: ../electrum/gui/qt/main_window.py:2683
+#: ../electrum/gui/qt/main_window.py:2684
 msgid "Electrum Plugins"
 msgstr "Complementos de Electrum"
 
@@ -1676,7 +1826,7 @@ msgstr ""
 "Electrum envia endereços da sua carteira para um único servidor, a fim de "
 "receber oseu histórico de transações."
 
-#: ../electrum/gui/qt/installwizard.py:218
+#: ../electrum/gui/qt/installwizard.py:221
 msgid "Electrum wallet"
 msgstr "Carteira electrum"
 
@@ -1692,17 +1842,17 @@ msgid "Electrum was unable to deserialize the transaction:"
 msgstr "Electrum não conseguiu desserializar a transação:"
 
 #: ../electrum/gui/qt/main_window_v2.py:2383
-#: ../electrum/gui/qt/main_window.py:2381
+#: ../electrum/gui/qt/main_window.py:2382
 msgid "Electrum was unable to open your transaction file"
 msgstr "Electrum não conseguiu abrir seu arquivo de transação"
 
 #: ../electrum/gui/qt/main_window_v2.py:2352
-#: ../electrum/gui/qt/main_window.py:2350
+#: ../electrum/gui/qt/main_window.py:2351
 msgid "Electrum was unable to parse your transaction"
 msgstr "Electrum não foi capaz de analisar sua transação"
 
 #: ../electrum/gui/qt/main_window_v2.py:2496
-#: ../electrum/gui/qt/main_window.py:2494
+#: ../electrum/gui/qt/main_window.py:2495
 msgid "Electrum was unable to produce a private key-export."
 msgstr "Electrum não conseguiu produzir uma exportação de chave privada."
 
@@ -1711,7 +1861,6 @@ msgid "Electrum was unable to produce a transaction export."
 msgstr "Electrum não conseguiu produzir uma exportação de transação."
 
 #: ../electrum/gui/qt/main_window_v2.py:676
-#: ../electrum/gui/qt/main_window.py:674
 msgid ""
 "Electrum's focus is speed, with low resource usage and simplifying Bitcoin."
 msgstr ""
@@ -1748,7 +1897,7 @@ msgid "Enabled"
 msgstr "Ativado"
 
 #: ../electrum/gui/qt/main_window_v2.py:2326
-#: ../electrum/gui/qt/main_window.py:2324
+#: ../electrum/gui/qt/main_window.py:2325
 msgid "Encrypt"
 msgstr "Criptografar"
 
@@ -1767,7 +1916,7 @@ msgid "Encrypt {wallet_name}'s seed"
 msgstr "Criptografar a semente de {wallet_name}"
 
 #: ../electrum/gui/qt/main_window_v2.py:2301
-#: ../electrum/gui/qt/main_window.py:2299
+#: ../electrum/gui/qt/main_window.py:2300
 msgid "Encrypt/decrypt Message"
 msgstr "Criptografar / descriptografar mensagem"
 
@@ -1776,7 +1925,7 @@ msgid "Encrypt/decrypt message"
 msgstr "Criptografar / descriptografar mensagem"
 
 #: ../electrum/gui/qt/main_window_v2.py:2321
-#: ../electrum/gui/qt/main_window.py:2319
+#: ../electrum/gui/qt/main_window.py:2320
 msgid "Encrypted"
 msgstr "Criptografado"
 
@@ -1823,7 +1972,7 @@ msgid "Enter Remote Node ID or connection string or invoice"
 msgstr "Insira o ID do Nó Remoto ou string de conexão ou fatura"
 
 #: ../electrum/gui/kivy/uix/dialogs/installwizard.py:866
-#: ../electrum/gui/qt/installwizard.py:457
+#: ../electrum/gui/qt/installwizard.py:460
 msgid "Enter Seed"
 msgstr "Insira a Semente"
 
@@ -1837,12 +1986,12 @@ msgid "Enter a filename for the copy of your wallet"
 msgstr "Digite um nome de arquivo para a cópia de sua carteira"
 
 #: ../electrum/gui/qt/main_window_v2.py:1777
-#: ../electrum/gui/qt/main_window.py:1775
+#: ../electrum/gui/qt/main_window.py:1776
 msgid "Enter a list of outputs in the 'Pay to' field."
 msgstr "Insira uma lista de resultados no campo 'Pagar para'."
 
 #: ../electrum/gui/qt/main_window_v2.py:2626
-#: ../electrum/gui/qt/main_window.py:2624
+#: ../electrum/gui/qt/main_window.py:2625
 msgid "Enter addresses"
 msgstr "Insira os endereços"
 
@@ -1863,12 +2012,12 @@ msgid "Enter new PIN"
 msgstr "Insira o novo PIN"
 
 #: ../electrum/gui/qt/main_window_v2.py:2635
-#: ../electrum/gui/qt/main_window.py:2633
+#: ../electrum/gui/qt/main_window.py:2634
 msgid "Enter private keys"
 msgstr "Digite as chaves privadas"
 
 #: ../electrum/gui/qt/main_window_v2.py:2541
-#: ../electrum/gui/qt/main_window.py:2539
+#: ../electrum/gui/qt/main_window.py:2540
 msgid "Enter private keys:"
 msgstr "Digite as chaves privadas:"
 
@@ -1876,7 +2025,7 @@ msgstr "Digite as chaves privadas:"
 msgid "Enter the seed for your 2-factor wallet:"
 msgstr "Insira a semente para a sua carteira de 2 fatores:"
 
-#: ../electrum/gui/qt/installwizard.py:446
+#: ../electrum/gui/qt/installwizard.py:449
 msgid ""
 "Enter their master private key (xprv) if you want to be able to sign for "
 "them."
@@ -1917,7 +2066,7 @@ msgstr "Digite seu PIN atual:"
 msgid "Enter your email address:"
 msgstr "Insira o seu endereço de email:"
 
-#: ../electrum/gui/qt/installwizard.py:254
+#: ../electrum/gui/qt/installwizard.py:257
 msgid "Enter your password or choose another file."
 msgstr "Digite sua senha ou escolha outro arquivo."
 
@@ -1925,12 +2074,12 @@ msgstr "Digite sua senha ou escolha outro arquivo."
 msgid "Enter your password to proceed"
 msgstr "Digite sua senha para prosseguir"
 
-#: ../electrum/gui/qt/installwizard.py:297
-#: ../electrum/gui/qt/installwizard.py:301
-#: ../electrum/gui/qt/installwizard.py:307
-#: ../electrum/gui/qt/installwizard.py:314 ../electrum/gui/qt/util.py:223
-#: ../electrum/gui/qt/__init__.py:244 ../electrum/gui/qt/__init__.py:256
-#: ../electrum/gui/qt/__init__.py:271
+#: ../electrum/gui/qt/installwizard.py:300
+#: ../electrum/gui/qt/installwizard.py:304
+#: ../electrum/gui/qt/installwizard.py:310
+#: ../electrum/gui/qt/installwizard.py:317 ../electrum/gui/qt/util.py:223
+#: ../electrum/gui/qt/__init__.py:245 ../electrum/gui/qt/__init__.py:257
+#: ../electrum/gui/qt/__init__.py:272
 #: ../electrum/plugins/trustedcoin/trustedcoin.py:686
 #: ../electrum/plugins/trustedcoin/kivy.py:69
 #: ../electrum/plugins/trustedcoin/kivy.py:71
@@ -1966,7 +2115,7 @@ msgid "Error getting TrustedCoin account info."
 msgstr "Erro ao obter informações da conta TrustedCoin."
 
 #: ../electrum/gui/qt/main_window_v2.py:2410
-#: ../electrum/gui/qt/main_window.py:2408
+#: ../electrum/gui/qt/main_window.py:2409
 msgid "Error getting transaction from network"
 msgstr "Erro ao obter transação da rede"
 
@@ -1980,7 +2129,7 @@ msgstr "Erro ao abrir arquivo"
 
 #: ../electrum/gui/kivy/uix/screens.py:195
 #: ../electrum/gui/qt/main_window_v2.py:1689
-#: ../electrum/gui/qt/main_window.py:1687
+#: ../electrum/gui/qt/main_window.py:1688
 msgid "Error parsing URI"
 msgstr "Erro ao analisar URI"
 
@@ -2004,7 +2153,7 @@ msgstr "Erro: chave pública mestre duplicada"
 msgid "Estimate"
 msgstr "Estimativa"
 
-#: ../electrum/gui/qt/__init__.py:161
+#: ../electrum/gui/qt/__init__.py:162
 msgid "Exit Electrum"
 msgstr "Exit Electrum"
 
@@ -2035,7 +2184,7 @@ msgstr ""
 "quelibere os endereços Bitcoin correspondentes."
 
 #: ../electrum/gui/qt/main_window_v2.py:1843
-#: ../electrum/gui/qt/main_window.py:1841 ../electrum/util.py:122
+#: ../electrum/gui/qt/main_window.py:1842 ../electrum/util.py:122
 msgid "Expires"
 msgstr "Expira"
 
@@ -2044,7 +2193,7 @@ msgstr "Expira"
 #: ../electrum/gui/qt/main_window_v2.py:2443
 #: ../electrum/gui/qt/transaction_dialog.py:166
 #: ../electrum/gui/qt/main_window.py:611 ../electrum/gui/qt/main_window.py:614
-#: ../electrum/gui/qt/main_window.py:2441
+#: ../electrum/gui/qt/main_window.py:2442
 #: ../electrum/gui/qt/history_list.py:696
 msgid "Export"
 msgstr "Exportar"
@@ -2062,11 +2211,11 @@ msgid "Export to file"
 msgstr "Exportar para arquivo"
 
 #: ../electrum/gui/qt/main_window_v2.py:2430
-#: ../electrum/gui/qt/main_window.py:2428
+#: ../electrum/gui/qt/main_window.py:2429
 msgid "Exposing a single private key can compromise your entire wallet!"
 msgstr "Expor uma única chave privada pode comprometer toda a sua carteira!"
 
-#: ../electrum/gui/qt/seed_dialog.py:81
+#: ../electrum/gui/qt/seed_dialog.py:80
 msgid "Extend this seed with custom words"
 msgstr "Estenda esta semente com palavras personalizadas"
 
@@ -2082,7 +2231,7 @@ msgstr "HTLCs com falha"
 msgid "Failed to create a client for this device."
 msgstr "Falha ao criar um cliente para este dispositivo."
 
-#: ../electrum/gui/qt/installwizard.py:308
+#: ../electrum/gui/qt/installwizard.py:311
 msgid "Failed to decrypt using this hardware device."
 msgstr "Falha ao descriptografar usando este dispositivo de hardware."
 
@@ -2105,12 +2254,12 @@ msgid "Failed to send transaction to cosigning pool"
 msgstr "Falha ao enviar transação para o grupo de fiadores"
 
 #: ../electrum/gui/qt/main_window_v2.py:2014
-#: ../electrum/gui/qt/main_window.py:2012
+#: ../electrum/gui/qt/main_window.py:2013
 msgid "Failed to update password"
 msgstr "Falha ao atualizar senha"
 
 #: ../electrum/gui/qt/main_window_v2.py:2058
-#: ../electrum/gui/qt/main_window.py:2056
+#: ../electrum/gui/qt/main_window.py:2057
 msgid "False"
 msgstr "Falso"
 
@@ -2124,7 +2273,7 @@ msgid "Fee estimation"
 msgstr "Estimativa de taxas"
 
 #: ../electrum/gui/qt/main_window_v2.py:2804
-#: ../electrum/gui/qt/main_window.py:2802
+#: ../electrum/gui/qt/main_window.py:2803
 msgid "Fee for child"
 msgstr "Taxa para criança"
 
@@ -2145,7 +2294,7 @@ msgstr "Fiat"
 msgid "Fiat currency"
 msgstr "moeda fiduciária"
 
-#: ../electrum/gui/qt/util.py:426
+#: ../electrum/gui/qt/util.py:430
 msgid "File"
 msgstr "Arquivo"
 
@@ -2154,7 +2303,7 @@ msgid "Filter:"
 msgstr "Filtro:"
 
 #: ../electrum/gui/qt/main_window_v2.py:2859
-#: ../electrum/gui/qt/main_window.py:2857
+#: ../electrum/gui/qt/main_window.py:2858
 msgid "Final"
 msgstr "Final"
 
@@ -2223,12 +2372,12 @@ msgstr "Forçar fechamento do canal?"
 msgid "Fork detected at block {fork_point}"
 msgstr "Bifurcação detectada no bloco {fork_point}"
 
-#: ../electrum/gui/qt/util.py:402
+#: ../electrum/gui/qt/util.py:406
 msgid "Format"
 msgstr "Formato"
 
 #: ../electrum/gui/qt/main_window_v2.py:1779
-#: ../electrum/gui/qt/main_window.py:1777
+#: ../electrum/gui/qt/main_window.py:1778
 msgid "Format: address, amount"
 msgstr "Formato: endereço, quantidade"
 
@@ -2260,7 +2409,7 @@ msgstr "Moedas Congeladas"
 msgid "From"
 msgstr "De"
 
-#: ../electrum/gui/qt/installwizard.py:760
+#: ../electrum/gui/qt/installwizard.py:763
 #, python-brace-format
 msgid "From {0} cosigners"
 msgstr "De {0} co-signatários"
@@ -2303,16 +2452,6 @@ msgstr "Geral"
 #: ../electrum/gui/qt/main_window.py:990
 msgid "Generate"
 msgstr "Gerar"
-
-#: ../electrum/gui/qt/installwizard.py:606
-msgid ""
-"Generate an authenticator on GoldWallet and scan the following QR code: "
-msgstr ""
-" Gere um autenticador no GoldWallet e digitalize o seguinte código QR: "
-
-#: ../electrum/gui/qt/installwizard.py:600
-msgid "GoldWallet authenticator public key"
-msgstr "Chave pública do autenticador GoldWallet"
 
 #: ../electrum/plugins/trustedcoin/qt.py:303
 msgid "Google Authenticator code:"
@@ -2358,7 +2497,7 @@ msgstr "Olá Mundo"
 msgid "Help"
 msgstr "Ajuda"
 
-#: ../electrum/gui/qt/installwizard.py:706
+#: ../electrum/gui/qt/installwizard.py:709
 msgid "Here is your master public key."
 msgstr "Aqui está sua chave pública mestra."
 
@@ -2397,7 +2536,7 @@ msgstr "Nome de anfitrião"
 msgid "Hostname does not resolve (getaddrinfo failed)"
 msgstr "O nome de host não resolve (getaddrinfo falhou)"
 
-#: ../electrum/gui/qt/installwizard.py:723
+#: ../electrum/gui/qt/installwizard.py:726
 msgid "How do you want to connect to a server? "
 msgstr "Como deseja se conectar a um servidor?"
 
@@ -2508,11 +2647,11 @@ msgstr ""
 msgid "If you keep experiencing network problems, try using a Tor proxy."
 msgstr "Se continuar a ter problemas de rede, tente usar um proxy Tor."
 
-#: ../electrum/gui/qt/installwizard.py:470
+#: ../electrum/gui/qt/installwizard.py:473
 msgid "If you lose your seed, your money will be permanently lost."
 msgstr "Se perder a sua semente, o seu dinheiro será perdido para sempre."
 
-#: ../electrum/gui/qt/installwizard.py:309
+#: ../electrum/gui/qt/installwizard.py:312
 msgid "If you use a passphrase, make sure it is correct."
 msgstr "Se usar uma senha longa, certifique-se de que está correta."
 
@@ -2533,7 +2672,7 @@ msgstr ""
 "dispositivo \". Em seguida, conecte seu dispositivonovamente."
 
 #: ../electrum/gui/qt/main_window_v2.py:2115
-#: ../electrum/gui/qt/main_window.py:2113
+#: ../electrum/gui/qt/main_window.py:2114
 msgid "If your wallet contains funds, make sure you have saved its seed."
 msgstr ""
 "Se a sua carteira contém fundos, certifique-se de que salvou a sua semente."
@@ -2546,27 +2685,36 @@ msgstr "Ignorar e continuar?"
 #: ../electrum/gui/qt/main_window_v2.py:613
 #: ../electrum/gui/qt/main_window_v2.py:2605
 #: ../electrum/gui/qt/main_window.py:610 ../electrum/gui/qt/main_window.py:613
-#: ../electrum/gui/qt/main_window.py:2603
+#: ../electrum/gui/qt/main_window.py:2604
 msgid "Import"
 msgstr "Importar"
 
+#: ../electrum/base_wizard.py:302
+msgid "Import BTCV addresses"
+msgstr "Importar endereços BTCV"
+
 #: ../electrum/gui/qt/main_window_v2.py:595
 #: ../electrum/gui/qt/main_window_v2.py:2626
-#: ../electrum/gui/qt/main_window.py:595 ../electrum/gui/qt/main_window.py:2624
+#: ../electrum/gui/qt/main_window.py:595 ../electrum/gui/qt/main_window.py:2625
 msgid "Import addresses"
 msgstr "Importar endereços"
+
+#: ../electrum/base_wizard.py:139
+msgid "Import external watch-only BTCV addresses or private keys"
+msgstr ""
+"Importar endereços BTCV externos somente para observação ou chaves privadas"
 
 #: ../electrum/gui/qt/contact_list.py:82
 msgid "Import file"
 msgstr "Importar arquivo"
 
 #: ../electrum/gui/qt/main_window_v2.py:2633
-#: ../electrum/gui/qt/main_window.py:2631
+#: ../electrum/gui/qt/main_window.py:2632
 msgid "Import private keys"
 msgstr "Importar chaves privadas"
 
 #: ../electrum/gui/qt/main_window_v2.py:2431
-#: ../electrum/gui/qt/main_window.py:2429
+#: ../electrum/gui/qt/main_window.py:2430
 msgid ""
 "In particular, DO NOT use 'redeem private key' services proposed by third "
 "parties."
@@ -2617,7 +2765,7 @@ msgid "Increase fee"
 msgstr "Aumentar a taxa"
 
 #: ../electrum/gui/qt/main_window_v2.py:2840
-#: ../electrum/gui/qt/main_window.py:2838
+#: ../electrum/gui/qt/main_window.py:2839
 msgid "Increase your transaction's fee to improve its position in mempool."
 msgstr "Aumente a taxa de transação para melhorar sua posição no mempool."
 
@@ -2625,7 +2773,7 @@ msgstr "Aumente a taxa de transação para melhorar sua posição no mempool."
 msgid "Info"
 msgstr "Informação"
 
-#: ../electrum/gui/qt/util.py:231
+#: ../electrum/gui/qt/util.py:231 ../electrum/gui/qt/util.py:235
 msgid "Information"
 msgstr "Informação"
 
@@ -2642,14 +2790,14 @@ msgid "Initiator"
 msgstr "Iniciador"
 
 #: ../electrum/gui/qt/main_window_v2.py:2773
-#: ../electrum/gui/qt/main_window.py:2771
+#: ../electrum/gui/qt/main_window.py:2772
 msgid "Input amount"
 msgstr "Quantidade de entrada"
 
 #: ../electrum/gui/qt/main_window_v2.py:2389
 #: ../electrum/gui/qt/transaction_dialog.py:344
 #: ../electrum/gui/qt/transaction_dialog.py:362
-#: ../electrum/gui/qt/main_window.py:2387
+#: ../electrum/gui/qt/main_window.py:2388
 msgid "Input raw transaction"
 msgstr "Transação bruta de entrada"
 
@@ -2674,12 +2822,12 @@ msgid "Insufficient funds"
 msgstr "Fundos insuficientes"
 
 #: ../electrum/gui/qt/main_window_v2.py:1797
-#: ../electrum/gui/qt/main_window.py:1795
+#: ../electrum/gui/qt/main_window.py:1796
 msgid "Invalid Address"
 msgstr "Endereço inválido"
 
 #: ../electrum/gui/qt/main_window_v2.py:1366
-#: ../electrum/gui/qt/main_window.py:1364 ../electrum/gui/stdio.py:179
+#: ../electrum/gui/qt/main_window.py:1365 ../electrum/gui/stdio.py:179
 #: ../electrum/gui/text.py:348
 msgid "Invalid Amount"
 msgstr "Montante inválido"
@@ -2695,8 +2843,8 @@ msgstr "Endereço Bitcoin inválido"
 
 #: ../electrum/gui/qt/main_window_v2.py:2191
 #: ../electrum/gui/qt/main_window_v2.py:2219
-#: ../electrum/gui/qt/main_window.py:2189
-#: ../electrum/gui/qt/main_window.py:2217 ../electrum/wallet.py:1581
+#: ../electrum/gui/qt/main_window.py:2190
+#: ../electrum/gui/qt/main_window.py:2218 ../electrum/wallet.py:1581
 msgid "Invalid Bitcoin address."
 msgstr "Endereço Bitcoin inválido"
 
@@ -2709,7 +2857,7 @@ msgid "Invalid JSON code."
 msgstr "Código JSON inválido."
 
 #: ../electrum/gui/qt/main_window_v2.py:1384
-#: ../electrum/gui/qt/main_window.py:1382
+#: ../electrum/gui/qt/main_window.py:1383
 msgid "Invalid Lines found:"
 msgstr "Linhas inválidas encontradas:"
 
@@ -2719,7 +2867,7 @@ msgid "Invalid PIN"
 msgstr "PIN inválido"
 
 #: ../electrum/gui/qt/main_window_v2.py:2295
-#: ../electrum/gui/qt/main_window.py:2293
+#: ../electrum/gui/qt/main_window.py:2294
 msgid "Invalid Public key"
 msgstr "Chave pública inválida"
 
@@ -2734,11 +2882,6 @@ msgstr "Montante inválido"
 #: ../electrum/gui/qt/recovery_list.py:285
 msgid "Invalid cancel seedphrase"
 msgstr "Frase-semente de cancelamento inválida"
-
-#: ../electrum/gui/qt/recovery_list.py:359
-#: ../electrum/gui/qt/recovery_list.py:515
-msgid "Invalid cancellation address"
-msgstr "Endereço de cancelamento inválido"
 
 #: ../electrum/lnutil.py:729
 msgid "Invalid node ID, must be 33 bytes and hexadecimal"
@@ -2755,12 +2898,12 @@ msgid "Invalid seed"
 msgstr "Semente inválida"
 
 #: ../electrum/gui/qt/main_window_v2.py:1540
-#: ../electrum/gui/qt/main_window.py:1538
+#: ../electrum/gui/qt/main_window.py:1539
 msgid "Invoice has expired"
 msgstr "A fatura expirou"
 
 #: ../electrum/gui/qt/main_window_v2.py:1853
-#: ../electrum/gui/qt/main_window.py:1851
+#: ../electrum/gui/qt/main_window.py:1852
 msgid "Invoice saved as "
 msgstr "Fatura salva como"
 
@@ -2782,14 +2925,14 @@ msgstr ""
 " Ele também contém sua chave pública mestra que permite ver seus endereços. "
 
 #: ../electrum/gui/qt/main_window_v2.py:2423
-#: ../electrum/gui/qt/main_window.py:2421
+#: ../electrum/gui/qt/main_window.py:2422
 msgid "It cannot be \"backed up\" by simply exporting these private keys."
 msgstr ""
 "Não pode ser feito um \" backup \"simplesmente exportando essas chaves "
 "privadas."
 
 #: ../electrum/gui/qt/main_window_v2.py:2880
-#: ../electrum/gui/qt/main_window.py:2878
+#: ../electrum/gui/qt/main_window.py:2879
 msgid "It conflicts with current history."
 msgstr "Está em conflito com a história atual."
 
@@ -2820,7 +2963,7 @@ msgid "Keystore"
 msgstr "Armazém de Chaves"
 
 #: ../electrum/gui/qt/main_window_v2.py:2071
-#: ../electrum/gui/qt/main_window.py:2069
+#: ../electrum/gui/qt/main_window.py:2070
 msgid "Keystore type"
 msgstr "Tipo de Armazém de Chaves"
 
@@ -2875,7 +3018,7 @@ msgstr "Autenticação de carteira do Ledger"
 msgid "Ledger wallet"
 msgstr "Carteira Ledger"
 
-#: ../electrum/base_wizard.py:724
+#: ../electrum/base_wizard.py:722
 msgid "Legacy"
 msgstr "Legado"
 
@@ -2930,14 +3073,14 @@ msgid "Lightning:"
 msgstr "Lightning:"
 
 #: ../electrum/gui/qt/main_window_v2.py:1385
-#: ../electrum/gui/qt/main_window.py:1383
+#: ../electrum/gui/qt/main_window.py:1384
 msgid "Line #"
 msgstr "Linha #"
 
 #: ../electrum/gui/qt/main_window_v2.py:2389
 #: ../electrum/gui/qt/transaction_dialog.py:346
 #: ../electrum/gui/qt/transaction_dialog.py:364
-#: ../electrum/gui/qt/main_window.py:2387
+#: ../electrum/gui/qt/main_window.py:2388
 msgid "Load transaction"
 msgstr "Carregar transação"
 
@@ -2952,7 +3095,7 @@ msgid "Local CTN"
 msgstr "CTN local"
 
 #: ../electrum/gui/qt/main_window_v2.py:2403
-#: ../electrum/gui/qt/main_window.py:2401
+#: ../electrum/gui/qt/main_window.py:2402
 msgid "Lookup transaction"
 msgstr "Pesquisar transação"
 
@@ -2984,13 +3127,13 @@ msgstr ""
 #: ../electrum/gui/kivy/main_window.py:719
 #: ../electrum/gui/kivy/main_window.py:721
 #: ../electrum/gui/qt/main_window_v2.py:2100
-#: ../electrum/gui/qt/installwizard.py:712
-#: ../electrum/gui/qt/main_window.py:2098
+#: ../electrum/gui/qt/installwizard.py:715
+#: ../electrum/gui/qt/main_window.py:2099
 msgid "Master Public Key"
 msgstr "Chave Pública Mestra"
 
 #: ../electrum/gui/qt/main_window_v2.py:2097
-#: ../electrum/gui/qt/main_window.py:2095
+#: ../electrum/gui/qt/main_window.py:2096
 msgid "Master Public Keys"
 msgstr "Chave Públicas Mestras"
 
@@ -3002,7 +3145,7 @@ msgid "Max"
 msgstr "Max"
 
 #: ../electrum/gui/qt/main_window_v2.py:2822
-#: ../electrum/gui/qt/main_window.py:2820
+#: ../electrum/gui/qt/main_window.py:2821
 msgid "Max fee exceeded"
 msgstr "Taxa máxima excedida"
 
@@ -3015,7 +3158,7 @@ msgid "Maximum value of in-flight HTLCs accepted by peer:"
 msgstr "Valor máximo de HTLCs em voo aceitos pelo par:"
 
 #: ../electrum/gui/qt/main_window_v2.py:1838
-#: ../electrum/gui/qt/main_window.py:1836
+#: ../electrum/gui/qt/main_window.py:1837
 msgid "Memo"
 msgstr "Memo"
 
@@ -3038,8 +3181,8 @@ msgstr "Misturar assinaturas de"
 
 #: ../electrum/gui/qt/main_window_v2.py:2240
 #: ../electrum/gui/qt/main_window_v2.py:2308
-#: ../electrum/gui/qt/main_window.py:2238
-#: ../electrum/gui/qt/main_window.py:2306
+#: ../electrum/gui/qt/main_window.py:2239
+#: ../electrum/gui/qt/main_window.py:2307
 #: ../electrum/gui/qt/invoice_list.py:184
 msgid "Message"
 msgstr "Mensagem"
@@ -3079,24 +3222,20 @@ msgstr "URL de relatório ausente."
 msgid "More info at: {link}"
 msgstr "Mais informações em: {link}"
 
-#: ../electrum/gui/qt/installwizard.py:772
-msgid "Multi-Signature Wallet"
-msgstr "Carteira Multi-Assinatura"
-
 #: ../electrum/plugins/ledger/auth2fa.py:88
 #: ../electrum/plugins/ledger/auth2fa.py:130
 msgid "NOT DEVICE PIN - see above"
 msgstr "PIN NÃO DO DISPOSITIVO - veja acima"
 
 #: ../electrum/gui/qt/main_window_v2.py:2043
-#: ../electrum/gui/qt/contact_list.py:47 ../electrum/gui/qt/main_window.py:2041
+#: ../electrum/gui/qt/contact_list.py:47 ../electrum/gui/qt/main_window.py:2042
 msgid "Name"
 msgstr "Nome"
 
 #: ../electrum/gui/kivy/uix/ui_screens/network.kv:3
 #: ../electrum/gui/kivy/main.kv:452 ../electrum/gui/qt/main_window_v2.py:1940
 #: ../electrum/gui/qt/network_dialog.py:54
-#: ../electrum/gui/qt/main_window.py:1938 ../electrum/gui/text.py:158
+#: ../electrum/gui/qt/main_window.py:1939 ../electrum/gui/text.py:158
 msgid "Network"
 msgstr "Rede"
 
@@ -3108,23 +3247,19 @@ msgstr "A solicitação de rede expirou."
 msgid "Never"
 msgstr "Nunca"
 
-#: ../electrum/gui/qt/seed_dialog.py:50
+#: ../electrum/gui/qt/seed_dialog.py:49
 msgid "Never disclose your seed."
 msgstr "Nunca revele a sua semente."
 
-#: ../electrum/gui/qt/seed_dialog.py:51
-msgid "Never type it on a website."
-msgstr "Nunca digite em um site."
-
 #: ../electrum/gui/qt/main_window_v2.py:2033
 #: ../electrum/gui/qt/main_window_v2.py:2035
-#: ../electrum/gui/qt/main_window.py:2031
-#: ../electrum/gui/qt/main_window.py:2033
+#: ../electrum/gui/qt/main_window.py:2032
+#: ../electrum/gui/qt/main_window.py:2034
 msgid "New Contact"
 msgstr "Novo contato"
 
 #: ../electrum/gui/qt/main_window_v2.py:2843
-#: ../electrum/gui/qt/main_window.py:2841
+#: ../electrum/gui/qt/main_window.py:2842
 msgid "New Fee rate"
 msgstr "Nova taxa de taxa"
 
@@ -3193,7 +3328,7 @@ msgstr ""
 "confirmadas)"
 
 #: ../electrum/gui/qt/main_window_v2.py:2072
-#: ../electrum/gui/qt/main_window.py:2070
+#: ../electrum/gui/qt/main_window.py:2071
 msgid "No keystore"
 msgstr "Sem armazenamento de chaves"
 
@@ -3203,7 +3338,7 @@ msgid "No more addresses in your wallet."
 msgstr "Não há mais endereços em sua carteira."
 
 #: ../electrum/gui/qt/main_window_v2.py:1358
-#: ../electrum/gui/qt/main_window.py:1356
+#: ../electrum/gui/qt/main_window.py:1357
 msgid "No outputs"
 msgstr "Sem saídas"
 
@@ -3245,7 +3380,7 @@ msgstr "Nenhum"
 #: ../electrum/gui/qt/three_keys_windows.py:104
 #: ../electrum/gui/qt/three_keys_windows.py:412
 #: ../electrum/gui/qt/recovery_list.py:314
-#: ../electrum/gui/qt/main_window.py:1481
+#: ../electrum/gui/qt/main_window.py:1482
 msgid "Not Enough Funds"
 msgstr "Fundos insuficientes"
 
@@ -3317,7 +3452,7 @@ msgstr ""
 "dispositivo de hardware abrasua carteira."
 
 #: ../electrum/gui/qt/main_window_v2.py:2890
-#: ../electrum/gui/qt/main_window.py:2888
+#: ../electrum/gui/qt/main_window.py:2889
 msgid ""
 "Note: this is an offline transaction, if you want the network to see it, you "
 "need to broadcast it."
@@ -3357,7 +3492,7 @@ msgstr "OU"
 
 #: ../electrum/gui/kivy/main_window.py:823
 #: ../electrum/gui/qt/main_window_v2.py:833
-#: ../electrum/gui/qt/main_window.py:831 ../electrum/gui/qt/__init__.py:195
+#: ../electrum/gui/qt/main_window.py:831 ../electrum/gui/qt/__init__.py:196
 #: ../electrum/gui/text.py:139
 msgid "Offline"
 msgstr "Desconectado"
@@ -3368,7 +3503,7 @@ msgstr ""
 "No Linux, pode ser necessário adicionar uma nova permissão às regras do udev."
 
 #: ../electrum/gui/qt/main_window_v2.py:1778
-#: ../electrum/gui/qt/main_window.py:1776
+#: ../electrum/gui/qt/main_window.py:1777
 msgid "One output per line."
 msgstr "Uma saída por linha."
 
@@ -3411,7 +3546,7 @@ msgstr "Canal aberto"
 msgid "Open your cosigner wallet to retrieve it."
 msgstr "Abra sua carteira de fiador para recuperá-lo."
 
-#: ../electrum/gui/qt/util.py:821
+#: ../electrum/gui/qt/util.py:825
 #, python-brace-format
 msgid "Open {title} file"
 msgstr "Abrir arquivo {title}"
@@ -3428,7 +3563,7 @@ msgstr ""
 "pagamento."
 
 #: ../electrum/gui/qt/main_window_v2.py:1612
-#: ../electrum/gui/qt/main_window.py:1610
+#: ../electrum/gui/qt/main_window.py:1611
 msgid "Opening channel..."
 msgstr "Abrindo canal ..."
 
@@ -3447,7 +3582,7 @@ msgid "Outgoing payments"
 msgstr "Pagamentos de saída"
 
 #: ../electrum/gui/qt/main_window_v2.py:2776
-#: ../electrum/gui/qt/main_window.py:2774
+#: ../electrum/gui/qt/main_window.py:2775
 msgid "Output amount"
 msgstr "Quantidade de produção"
 
@@ -3490,10 +3625,10 @@ msgstr "Frase de acesso:"
 #: ../electrum/gui/kivy/uix/ui_screens/proxy.kv:47
 #: ../electrum/gui/qt/main_window_v2.py:1934
 #: ../electrum/gui/qt/confirm_tx_dialog.py:156
-#: ../electrum/gui/qt/installwizard.py:213
+#: ../electrum/gui/qt/installwizard.py:216
 #: ../electrum/gui/qt/password_dialog.py:299
 #: ../electrum/gui/qt/network_dialog.py:271
-#: ../electrum/gui/qt/main_window.py:1932
+#: ../electrum/gui/qt/main_window.py:1933
 msgid "Password"
 msgstr "Senha"
 
@@ -3502,12 +3637,12 @@ msgid "Password Strength"
 msgstr "Segurança da palavra-passe"
 
 #: ../electrum/gui/qt/main_window_v2.py:2016
-#: ../electrum/gui/qt/main_window.py:2014
+#: ../electrum/gui/qt/main_window.py:2015
 msgid "Password is disabled, this wallet is not protected"
 msgstr "A senha está desativada, esta carteira não está protegida"
 
 #: ../electrum/gui/qt/main_window_v2.py:2016
-#: ../electrum/gui/qt/main_window.py:2014
+#: ../electrum/gui/qt/main_window.py:2015
 msgid "Password was updated successfully"
 msgstr "A senha foi atualizada com sucesso"
 
@@ -3535,7 +3670,7 @@ msgid "Pay to"
 msgstr "Pagar para"
 
 #: ../electrum/gui/qt/main_window_v2.py:1782
-#: ../electrum/gui/qt/main_window.py:1780
+#: ../electrum/gui/qt/main_window.py:1781
 msgid "Pay to many"
 msgstr "Pague a muitos"
 
@@ -3549,7 +3684,7 @@ msgstr "Pedido de Pagamento"
 
 #: ../electrum/gui/kivy/main_window.py:232
 #: ../electrum/gui/qt/main_window_v2.py:1414
-#: ../electrum/gui/qt/main_window.py:1412
+#: ../electrum/gui/qt/main_window.py:1413
 msgid "Payment failed"
 msgstr "Pagamento falhou"
 
@@ -3563,25 +3698,25 @@ msgstr "Registro de pagamento"
 
 #: ../electrum/gui/kivy/uix/screens.py:430
 #: ../electrum/gui/qt/main_window_v2.py:1403
-#: ../electrum/gui/qt/main_window.py:1401
+#: ../electrum/gui/qt/main_window.py:1402
 msgid "Payment received"
 msgstr "Pagamento recebido"
 
 #: ../electrum/gui/kivy/main_window.py:379
 #: ../electrum/gui/qt/main_window_v2.py:1378
-#: ../electrum/gui/qt/main_window.py:1376
+#: ../electrum/gui/qt/main_window.py:1377
 msgid "Payment request has expired"
 msgstr "Pedido de pagamento expirou"
 
 #: ../electrum/gui/kivy/main_window.py:1033
 #: ../electrum/gui/qt/main_window_v2.py:1571
-#: ../electrum/gui/qt/main_window.py:1569 ../electrum/gui/stdio.py:220
+#: ../electrum/gui/qt/main_window.py:1570 ../electrum/gui/stdio.py:220
 #: ../electrum/gui/text.py:383
 msgid "Payment sent."
 msgstr "Pagamento enviado."
 
 #: ../electrum/gui/qt/main_window_v2.py:1411
-#: ../electrum/gui/qt/main_window.py:1409
+#: ../electrum/gui/qt/main_window.py:1410
 msgid "Payment succeeded"
 msgstr "Pagamento bem sucedido"
 
@@ -3627,7 +3762,7 @@ msgstr "Por favor confirme"
 msgid "Please enter an amount"
 msgstr "Por favor, insira um valor"
 
-#: ../electrum/gui/qt/installwizard.py:445
+#: ../electrum/gui/qt/installwizard.py:448
 msgid "Please enter the master public key (xpub) of your cosigner."
 msgstr "Por favor, insira a chave pública mestra (xpub) do seu fiador."
 
@@ -3654,7 +3789,7 @@ msgstr "Por favor, insira sua senha"
 msgid "Please enter your password to decrypt it."
 msgstr "Por favor, digite sua senha para descriptografá-la."
 
-#: ../electrum/gui/qt/installwizard.py:458
+#: ../electrum/gui/qt/installwizard.py:461
 msgid "Please enter your seed phrase in order to restore your wallet."
 msgstr "Por favor, insira sua frase-semente para restaurar sua carteira."
 
@@ -3662,29 +3797,6 @@ msgstr "Por favor, insira sua frase-semente para restaurar sua carteira."
 #, python-brace-format
 msgid "Please insert your {device}"
 msgstr "Por favor, insira seu {device}"
-
-#: ../electrum/base_wizard.py:717
-msgid ""
-"Please note that websites and other wallets may not support these addresses "
-"yet."
-msgstr ""
-"Observe que sites e outras carteiras podem não suportar esses endereços "
-"ainda."
-
-#: ../electrum/gui/qt/installwizard.py:592
-msgid ""
-"Please pass authenticator public key exported from your GoldWallet "
-"application"
-msgstr ""
-" Passe a chave pública do autenticador exportada de sua GoldWallet aplicação"
-
-#: ../electrum/gui/qt/installwizard.py:557
-msgid ""
-"Please paste a cancel transaction public key. Use an existing one if you are "
-"importing a wallet, or generate a new one at"
-msgstr ""
-"Por favor, cole uma chave pública de cancelamento de transação. Use um "
-"existente se você for "
 
 #: ../electrum/gui/kivy/uix/dialogs/installwizard.py:1136
 msgid ""
@@ -3704,7 +3816,7 @@ msgid "Please report this issue manually"
 msgstr "Por favor, reporte este problema manualmente"
 
 #: ../electrum/gui/qt/main_window_v2.py:2658
-#: ../electrum/gui/qt/main_window.py:2656
+#: ../electrum/gui/qt/main_window.py:2657
 msgid "Please restart Electrum to activate the new GUI settings"
 msgstr "Reinicie Electrum para ativar as novas configurações da GUI"
 
@@ -3713,11 +3825,6 @@ msgid "Please retype your seed phrase, to confirm that you properly saved it"
 msgstr ""
 "Por favor, redigite sua frase semente, para confirmar que você a salvou "
 "corretamente"
-
-#: ../electrum/gui/qt/seed_dialog.py:44
-#, python-brace-format
-msgid "Please save these {0} words on paper (order is important). "
-msgstr "Guarde estas {0} palavras no papel (a ordem é importante)."
 
 #: ../electrum/gui/kivy/uix/screens.py:297
 msgid "Please scan a Bitcoin address or a payment request"
@@ -3729,7 +3836,7 @@ msgstr ""
 msgid "Please select which {device} device to use:"
 msgstr "Por favor, selecione qual dispositivo {device} usar:"
 
-#: ../electrum/gui/qt/installwizard.py:707
+#: ../electrum/gui/qt/installwizard.py:710
 msgid "Please share it with your cosigners."
 msgstr "Por favor, compartilhe com seus fiadores."
 
@@ -3741,7 +3848,7 @@ msgstr "Assine esta transação para salvá-la"
 msgid "Please try again."
 msgstr "Por favor, tente novamente."
 
-#: ../electrum/base_wizard.py:759
+#: ../electrum/base_wizard.py:757
 msgid "Please type it here."
 msgstr "Por favor, digite aqui."
 
@@ -3749,7 +3856,7 @@ msgstr "Por favor, digite aqui."
 msgid "Please type your seed phrase using the virtual keyboard."
 msgstr "Por favor, digite sua frase-semente usando o teclado virtual."
 
-#: ../electrum/gui/qt/util.py:289
+#: ../electrum/gui/qt/util.py:293
 msgid "Please wait"
 msgstr "Por favor, aguarde"
 
@@ -3783,23 +3890,23 @@ msgstr "Posição no mempool: {size} da ponta"
 #: ../electrum/gui/qt/main_window_v2.py:1937
 #: ../electrum/gui/qt/settings_dialog.py:52
 #: ../electrum/gui/qt/transaction_dialog.py:638
-#: ../electrum/gui/qt/main_window.py:633 ../electrum/gui/qt/main_window.py:1935
+#: ../electrum/gui/qt/main_window.py:633 ../electrum/gui/qt/main_window.py:1936
 msgid "Preferences"
 msgstr "Preferências"
 
-#: ../electrum/gui/qt/installwizard.py:258
+#: ../electrum/gui/qt/installwizard.py:261
 msgid "Press 'Next' to choose device to decrypt."
 msgstr "Prima 'Próximo' para escolher o dispositivo a ser descriptografado."
 
-#: ../electrum/gui/qt/installwizard.py:250
+#: ../electrum/gui/qt/installwizard.py:253
 msgid "Press 'Next' to create this wallet, or choose another file."
 msgstr "Prima 'Próximo' para criar esta carteira ou escolha outro arquivo."
 
-#: ../electrum/gui/qt/installwizard.py:263
+#: ../electrum/gui/qt/installwizard.py:266
 msgid "Press 'Next' to create/focus window."
 msgstr "Prima 'Próximo' para criar / focalizar a janela."
 
-#: ../electrum/gui/qt/installwizard.py:260
+#: ../electrum/gui/qt/installwizard.py:263
 msgid "Press 'Next' to open this wallet."
 msgstr "Pressione 'Avançar' para abrir esta carteira."
 
@@ -3819,18 +3926,18 @@ msgstr "Calibragem da impressora"
 #: ../electrum/gui/qt/main_window_v2.py:2162
 #: ../electrum/gui/qt/main_window_v2.py:2167
 #: ../electrum/gui/qt/address_list.py:232
-#: ../electrum/gui/qt/main_window.py:2160
-#: ../electrum/gui/qt/main_window.py:2165
+#: ../electrum/gui/qt/main_window.py:2161
+#: ../electrum/gui/qt/main_window.py:2166
 msgid "Private key"
 msgstr "Chave privada"
 
 #: ../electrum/gui/qt/main_window_v2.py:2425
-#: ../electrum/gui/qt/main_window.py:2423
+#: ../electrum/gui/qt/main_window.py:2424
 msgid "Private keys"
 msgstr "Chaves privadas"
 
 #: ../electrum/gui/qt/main_window_v2.py:2505
-#: ../electrum/gui/qt/main_window.py:2503
+#: ../electrum/gui/qt/main_window.py:2504
 msgid "Private keys exported."
 msgstr "Chaves privadas exportadas."
 
@@ -3877,7 +3984,7 @@ msgid "PubKey cropped because too long string passed"
 msgstr "PubKey cortado porque passou uma cadeia demasiada larga"
 
 #: ../electrum/gui/qt/main_window_v2.py:2316
-#: ../electrum/gui/qt/main_window.py:2314
+#: ../electrum/gui/qt/main_window.py:2315
 msgid "Public key"
 msgstr "Chave pública"
 
@@ -3891,15 +3998,15 @@ msgid "QR Code"
 msgstr "Código QR"
 
 #: ../electrum/gui/qt/main_window_v2.py:2145
-#: ../electrum/gui/qt/main_window.py:2143
+#: ../electrum/gui/qt/main_window.py:2144
 msgid "QR code"
 msgstr "Código QR"
 
-#: ../electrum/gui/qt/qrcodewidget.py:121
+#: ../electrum/gui/qt/qrcodewidget.py:129
 msgid "QR code copied to clipboard"
 msgstr "Código QR copiado para a área de transferência"
 
-#: ../electrum/gui/qt/qrcodewidget.py:116
+#: ../electrum/gui/qt/qrcodewidget.py:124
 msgid "QR code saved to file"
 msgstr "Código QR salvo em arquivo"
 
@@ -3996,7 +4103,7 @@ msgstr "Limite de poeira remota:"
 
 #: ../electrum/gui/kivy/uix/dialogs/lightning_open_channel.py:148
 #: ../electrum/gui/qt/main_window_v2.py:1605
-#: ../electrum/gui/qt/main_window.py:1603
+#: ../electrum/gui/qt/main_window.py:1604
 msgid "Remote peer ID"
 msgstr "ID de par remoto"
 
@@ -4011,7 +4118,7 @@ msgid "Remove from wallet"
 msgstr "Remover da carteira"
 
 #: ../electrum/gui/qt/main_window_v2.py:1807
-#: ../electrum/gui/qt/main_window.py:1805
+#: ../electrum/gui/qt/main_window.py:1806
 #, python-brace-format
 msgid "Remove {labels} from your list of contacts?"
 msgstr "Remover {labels} da sua lista de contatos?"
@@ -4075,22 +4182,22 @@ msgid "Requesting account info from TrustedCoin server..."
 msgstr "Solicitando informações da conta do servidor TrustedCoin ..."
 
 #: ../electrum/gui/qt/main_window_v2.py:1832
-#: ../electrum/gui/qt/main_window.py:1830
+#: ../electrum/gui/qt/main_window.py:1831
 msgid "Requestor"
 msgstr "Solicitante"
 
-#: ../electrum/gui/qt/installwizard.py:756
+#: ../electrum/gui/qt/installwizard.py:759
 #, python-brace-format
 msgid "Require {0} signatures"
 msgstr "Requer {0} assinaturas"
 
 #: ../electrum/gui/qt/main_window_v2.py:2740
-#: ../electrum/gui/qt/main_window.py:2738
+#: ../electrum/gui/qt/main_window.py:2739
 msgid "Requires"
 msgstr "Requer"
 
 #: ../electrum/gui/qt/main_window_v2.py:1957
-#: ../electrum/gui/qt/main_window.py:1955
+#: ../electrum/gui/qt/main_window.py:1956
 msgid "Reset"
 msgstr "Redefinir"
 
@@ -4152,14 +4259,14 @@ msgstr "Arquivo de chave SSL"
 #: ../electrum/gui/qt/main_window_v2.py:1854
 #: ../electrum/gui/qt/transaction_dialog.py:145
 #: ../electrum/gui/qt/three_keys_windows.py:254
-#: ../electrum/gui/qt/qrcodewidget.py:127
+#: ../electrum/gui/qt/qrcodewidget.py:135
 #: ../electrum/gui/qt/main_window.py:1233
-#: ../electrum/gui/qt/main_window.py:1852
+#: ../electrum/gui/qt/main_window.py:1853
 msgid "Save"
 msgstr "Salvar"
 
 #: ../electrum/gui/qt/main_window_v2.py:1848
-#: ../electrum/gui/qt/main_window.py:1846
+#: ../electrum/gui/qt/main_window.py:1847
 msgid "Save invoice to file"
 msgstr "Salvar fatura em arquivo"
 
@@ -4177,8 +4284,8 @@ msgstr ""
 
 #: ../electrum/gui/qt/main_window_v2.py:2066
 #: ../electrum/gui/qt/main_window_v2.py:2166
-#: ../electrum/gui/qt/main_window.py:2064
-#: ../electrum/gui/qt/main_window.py:2164
+#: ../electrum/gui/qt/main_window.py:2065
+#: ../electrum/gui/qt/main_window.py:2165
 msgid "Script type"
 msgstr "Tipo de script"
 
@@ -4193,12 +4300,12 @@ msgstr "Desafío do cartão de segurança"
 #: ../electrum/gui/kivy/uix/ui_screens/status.kv:66
 #: ../electrum/gui/kivy/uix/ui_screens/status.kv:70
 #: ../electrum/gui/qt/main_window_v2.py:1938
-#: ../electrum/gui/qt/seed_dialog.py:217 ../electrum/gui/qt/main_window.py:1936
+#: ../electrum/gui/qt/seed_dialog.py:220 ../electrum/gui/qt/main_window.py:1937
 msgid "Seed"
 msgstr "Semente"
 
 #: ../electrum/gui/qt/main_window_v2.py:2068
-#: ../electrum/gui/qt/main_window.py:2066
+#: ../electrum/gui/qt/main_window.py:2067
 msgid "Seed available"
 msgstr "Semente disponível"
 
@@ -4206,7 +4313,7 @@ msgstr "Semente disponível"
 msgid "Seed extension"
 msgstr "Extensão da semente"
 
-#: ../electrum/base_wizard.py:723
+#: ../electrum/base_wizard.py:721
 msgid "Segwit"
 msgstr "Segwit"
 
@@ -4227,7 +4334,7 @@ msgid "Select date"
 msgstr "Selecione a data"
 
 #: ../electrum/gui/qt/main_window_v2.py:2439
-#: ../electrum/gui/qt/main_window.py:2437
+#: ../electrum/gui/qt/main_window.py:2438
 msgid "Select file to export your private keys to"
 msgstr "Selecione o arquivo para o qual exportar as suas chaves privadas para"
 
@@ -4235,7 +4342,7 @@ msgstr "Selecione o arquivo para o qual exportar as suas chaves privadas para"
 msgid "Select file to export your wallet transactions to"
 msgstr "Selecione o arquivo para exportar as suas transações de carteira para"
 
-#: ../electrum/gui/qt/util.py:835
+#: ../electrum/gui/qt/util.py:839
 #, python-brace-format
 msgid "Select file to save your {title}"
 msgstr "Selecione o arquivo para salvar seu {title}"
@@ -4244,12 +4351,12 @@ msgstr "Selecione o arquivo para salvar seu {title}"
 msgid "Select server automatically"
 msgstr "Selecionar servidor automaticamente"
 
-#: ../electrum/gui/qt/installwizard.py:722
+#: ../electrum/gui/qt/installwizard.py:725
 msgid "Select server manually"
 msgstr "Selecione o servidor manualmente"
 
-#: ../electrum/gui/qt/qrcodewidget.py:109
-#: ../electrum/gui/qt/qrcodewidget.py:111
+#: ../electrum/gui/qt/qrcodewidget.py:117
+#: ../electrum/gui/qt/qrcodewidget.py:119
 msgid "Select where to save file"
 msgstr "Selecione onde salvar o arquivo"
 
@@ -4271,7 +4378,7 @@ msgid "Select your server automatically"
 msgstr "Selecione o seu servidor automaticamente"
 
 #: ../electrum/gui/qt/main_window_v2.py:2375
-#: ../electrum/gui/qt/main_window.py:2373
+#: ../electrum/gui/qt/main_window.py:2374
 msgid "Select your transaction file"
 msgstr "Selecione o seu arquivo de transação"
 
@@ -4446,7 +4553,7 @@ msgstr "Mostrar conteúdos do relatório"
 msgid "Show {tab_description}"
 msgstr "Mostrar {tab_description}"
 
-#: ../electrum/gui/qt/__init__.py:157
+#: ../electrum/gui/qt/__init__.py:158
 msgid "Show/Hide"
 msgstr "Mostrar/ocultar"
 
@@ -4457,12 +4564,12 @@ msgstr "A mostrar o endereço ..."
 #: ../electrum/gui/kivy/uix/dialogs/tx_dialog.py:190
 #: ../electrum/gui/qt/main_window_v2.py:2257
 #: ../electrum/gui/qt/transaction_dialog.py:139
-#: ../electrum/gui/qt/main_window.py:2255
+#: ../electrum/gui/qt/main_window.py:2256
 msgid "Sign"
 msgstr "Assinar"
 
 #: ../electrum/gui/qt/main_window_v2.py:2233
-#: ../electrum/gui/qt/main_window.py:2231
+#: ../electrum/gui/qt/main_window.py:2232
 msgid "Sign/verify Message"
 msgstr "Assinar / verificar mensagem"
 
@@ -4472,13 +4579,13 @@ msgstr "Assinar / verificar mensagem"
 
 #: ../electrum/gui/qt/main_window_v2.py:1840
 #: ../electrum/gui/qt/main_window_v2.py:2251
-#: ../electrum/gui/qt/main_window.py:1838
-#: ../electrum/gui/qt/main_window.py:2249
+#: ../electrum/gui/qt/main_window.py:1839
+#: ../electrum/gui/qt/main_window.py:2250
 msgid "Signature"
 msgstr "Assinatura"
 
 #: ../electrum/gui/qt/main_window_v2.py:2228
-#: ../electrum/gui/qt/main_window.py:2226
+#: ../electrum/gui/qt/main_window.py:2227
 msgid "Signature verified"
 msgstr "Assinatura verificada"
 
@@ -4492,12 +4599,12 @@ msgstr "Assinando"
 
 #: ../electrum/gui/qt/main_window_v2.py:1530
 #: ../electrum/gui/qt/recovery_list.py:347
-#: ../electrum/gui/qt/main_window.py:1528
+#: ../electrum/gui/qt/main_window.py:1529
 msgid "Signing transaction..."
 msgstr "Assinando transação ..."
 
 #: ../electrum/gui/qt/main_window_v2.py:2180
-#: ../electrum/gui/qt/main_window.py:2178
+#: ../electrum/gui/qt/main_window.py:2179
 msgid ""
 "Signing with an address actually means signing with the corresponding "
 "private key, and verifying with the corresponding public key. The address "
@@ -4556,7 +4663,6 @@ msgid "Start"
 msgstr "Começar"
 
 #: ../electrum/gui/qt/main_window_v2.py:679
-#: ../electrum/gui/qt/main_window.py:677
 msgid ""
 "Startup times are instant because it operates in conjunction with high-"
 "performance servers that handle the most complicated parts of the Bitcoin "
@@ -4588,9 +4694,9 @@ msgstr "Estado:"
 #: ../electrum/gui/qt/main_window_v2.py:2017
 #: ../electrum/gui/qt/main_window_v2.py:2658
 #: ../electrum/gui/qt/main_window_v2.py:2892
-#: ../electrum/gui/qt/main_window.py:2015
-#: ../electrum/gui/qt/main_window.py:2656
-#: ../electrum/gui/qt/main_window.py:2890
+#: ../electrum/gui/qt/main_window.py:2016
+#: ../electrum/gui/qt/main_window.py:2657
+#: ../electrum/gui/qt/main_window.py:2891
 #: ../electrum/gui/qt/invoice_list.py:194
 msgid "Success"
 msgstr "Sucesso"
@@ -4608,12 +4714,12 @@ msgid "Summary Text PIN is Disabled"
 msgstr "PIN de texto de resumo está desativado"
 
 #: ../electrum/gui/qt/main_window_v2.py:2558
-#: ../electrum/gui/qt/main_window.py:2556
+#: ../electrum/gui/qt/main_window.py:2557
 msgid "Sweep"
 msgstr "Varrer"
 
 #: ../electrum/gui/qt/main_window_v2.py:2537
-#: ../electrum/gui/qt/main_window.py:2535
+#: ../electrum/gui/qt/main_window.py:2536
 msgid "Sweep private keys"
 msgstr "Varrer chaves privadas"
 
@@ -4651,12 +4757,11 @@ msgid "Testnet coins are worthless."
 msgstr "Moedas Testnet não valem nada."
 
 #: ../electrum/gui/qt/main_window_v2.py:503
-#: ../electrum/gui/qt/main_window.py:503
 msgid ""
 "Testnet is separate from the main Bitcoin network. It is used for testing."
 msgstr "Testnet é separado da rede Bitcoin principal. É usado para teste. "
 
-#: ../electrum/gui/qt/util.py:678
+#: ../electrum/gui/qt/util.py:682
 msgid "Text copied to clipboard"
 msgstr "Texto copiado para a área de transferência"
 
@@ -4719,7 +4824,7 @@ msgstr ""
 msgid "The fee for this transaction seems unusually high."
 msgstr "A taxa para essa transação parece excepcionalmente alta."
 
-#: ../electrum/gui/qt/installwizard.py:347
+#: ../electrum/gui/qt/installwizard.py:350
 #, python-brace-format
 msgid ""
 "The file '{path}' contains an incompletely created wallet.\n"
@@ -4728,8 +4833,8 @@ msgstr ""
 "O arquivo '{path}' contém uma carteira criada incompletamente. \n"
 "Você quer completar sua criação agora?"
 
-#: ../electrum/gui/qt/installwizard.py:338
-#: ../electrum/gui/qt/installwizard.py:352
+#: ../electrum/gui/qt/installwizard.py:341
+#: ../electrum/gui/qt/installwizard.py:355
 msgid "The file was removed"
 msgstr "O arquivo foi removido"
 
@@ -4744,7 +4849,7 @@ msgstr ""
 "coisassão susceptíveis de quebrar."
 
 #: ../electrum/gui/qt/main_window_v2.py:2613
-#: ../electrum/gui/qt/main_window.py:2611
+#: ../electrum/gui/qt/main_window.py:2612
 msgid "The following addresses were added"
 msgstr "Os seguintes endereços foram adicionados"
 
@@ -4753,7 +4858,7 @@ msgid "The following alias providers are available:"
 msgstr "Os seguintes provedores de alias estão disponíveis:"
 
 #: ../electrum/gui/qt/main_window_v2.py:2618
-#: ../electrum/gui/qt/main_window.py:2616
+#: ../electrum/gui/qt/main_window.py:2617
 msgid "The following inputs could not be imported"
 msgstr "As seguintes entradas não puderam ser importadas"
 
@@ -4762,7 +4867,7 @@ msgid "The new fee rate needs to be higher than the old fee rate."
 msgstr "A nova taxa precisa ser maior do que a antiga."
 
 #: ../electrum/gui/qt/main_window_v2.py:2184
-#: ../electrum/gui/qt/main_window.py:2182
+#: ../electrum/gui/qt/main_window.py:2183
 msgid "The operation is undefined. Not just in Electrum, but in general."
 msgstr "A operação é indefinida. Não apenas no Electrum, mas em geral."
 
@@ -4795,7 +4900,7 @@ msgstr "A transação foi rejeitada porque é muito grande (em bytes)."
 msgid "The type of addresses used by your wallet will depend on your seed."
 msgstr "O tipo de endereço usado por sua carteira dependerá de sua semente."
 
-#: ../electrum/gui/qt/installwizard.py:329
+#: ../electrum/gui/qt/installwizard.py:332
 #, python-brace-format
 msgid ""
 "The wallet '{path}' contains multiple accounts, which are no longer "
@@ -4844,7 +4949,7 @@ msgstr ""
 
 #: ../electrum/gui/kivy/uix/dialogs/lightning_open_channel.py:149
 #: ../electrum/gui/qt/main_window_v2.py:1606
-#: ../electrum/gui/qt/main_window.py:1604
+#: ../electrum/gui/qt/main_window.py:1605
 #, python-brace-format
 msgid "This channel will be usable after {number} confirmations"
 msgstr "Este canal poderá ser usado após {number} confirmações"
@@ -4854,19 +4959,19 @@ msgid "This feature is not available for watch-only wallets."
 msgstr ""
 "Este recurso não está disponível para carteiras exclusivas para relógio."
 
-#: ../electrum/gui/qt/installwizard.py:249
+#: ../electrum/gui/qt/installwizard.py:252
 msgid "This file does not exist."
 msgstr "Este arquivo não existe."
 
-#: ../electrum/gui/qt/installwizard.py:262
+#: ../electrum/gui/qt/installwizard.py:265
 msgid "This file is already open in memory."
 msgstr "Este arquivo já está aberto na memória."
 
-#: ../electrum/gui/qt/installwizard.py:257
+#: ../electrum/gui/qt/installwizard.py:260
 msgid "This file is encrypted using a hardware device."
 msgstr "Este arquivo é criptografado usando um dispositivo de hardware."
 
-#: ../electrum/gui/qt/installwizard.py:253
+#: ../electrum/gui/qt/installwizard.py:256
 msgid "This file is encrypted with a password."
 msgstr "Este arquivo está criptografado com uma senha."
 
@@ -4895,14 +5000,14 @@ msgid "This invoice has expired"
 msgstr "Esta fatura expirou"
 
 #: ../electrum/gui/qt/main_window_v2.py:2418
-#: ../electrum/gui/qt/main_window.py:2416 ../electrum/wallet.py:439
+#: ../electrum/gui/qt/main_window.py:2417 ../electrum/wallet.py:439
 msgid "This is a watching-only wallet"
 msgstr "Esta é uma carteira apenas para assistir"
 
 #: ../electrum/gui/qt/main_window_v2.py:2194
 #: ../electrum/gui/qt/main_window_v2.py:2274
-#: ../electrum/gui/qt/main_window.py:2192
-#: ../electrum/gui/qt/main_window.py:2272
+#: ../electrum/gui/qt/main_window.py:2193
+#: ../electrum/gui/qt/main_window.py:2273
 msgid "This is a watching-only wallet."
 msgstr "Esta é uma carteira apenas para observação."
 
@@ -4957,13 +5062,6 @@ msgstr "Este complemento facilita o uso de carteiras com várias assinaturas."
 msgid "This public key was already used. Please generate a new one."
 msgstr "Esta chave pública já foi usada. Por favor, gere uma nova."
 
-#: ../electrum/gui/qt/seed_dialog.py:45
-msgid ""
-"This seed will allow you to recover your wallet in case of computer failure."
-msgstr ""
-"Esta semente permitirá que você recupere sua carteira em caso de falha do "
-"computador."
-
 #: ../electrum/gui/qt/settings_dialog.py:215
 msgid "This setting affects the Send tab, and all balance related fields."
 msgstr ""
@@ -4993,7 +5091,7 @@ msgid "This version supports a maximum of {length} characters."
 msgstr "Esta versão suporta no máximo {length} caracteres."
 
 #: ../electrum/gui/qt/main_window_v2.py:2132
-#: ../electrum/gui/qt/main_window.py:2130
+#: ../electrum/gui/qt/main_window.py:2131
 #: ../electrum/plugins/revealer/qt.py:293
 msgid "This wallet has no seed"
 msgstr "Esta carteira não possui sementes"
@@ -5035,14 +5133,6 @@ msgstr "Isso excluirá suas chaves privadas lightning"
 msgid "This will save fees."
 msgstr "Isso vai economizar taxas."
 
-#: ../electrum/base_wizard.py:719
-msgid ""
-"Thus, you might want to keep using a non-segwit wallet in order to be able "
-"to receive bitcoins during the transition period."
-msgstr ""
-"Portanto, você pode querer continuar usando uma carteira não segwit para "
-"poderpara receber bitcoins durante o período de transição."
-
 #: ../electrum/gui/qt/settings_dialog.py:108
 msgid "Time based: fee rate is based on average confirmation time estimates"
 msgstr ""
@@ -5083,7 +5173,7 @@ msgstr ""
 "Para nos ajudar a diagnosticar e corrigir o problema, poderia nos enviar um "
 "relatório de informação de erros quecontém informações úteis de depuração:"
 
-#: ../electrum/gui/qt/installwizard.py:471
+#: ../electrum/gui/qt/installwizard.py:474
 msgid ""
 "To make sure that you have properly saved your seed, please retype it here."
 msgstr ""
@@ -5123,17 +5213,17 @@ msgid "Toggle Encryption"
 msgstr "Alternar criptografia"
 
 #: ../electrum/gui/qt/main_window_v2.py:2812
-#: ../electrum/gui/qt/main_window.py:2810
+#: ../electrum/gui/qt/main_window.py:2811
 msgid "Total fee"
 msgstr "Custo total"
 
 #: ../electrum/gui/qt/main_window_v2.py:2814
-#: ../electrum/gui/qt/main_window.py:2812
+#: ../electrum/gui/qt/main_window.py:2813
 msgid "Total feerate"
 msgstr "Taxa de tarifa total"
 
 #: ../electrum/gui/qt/main_window_v2.py:2770
-#: ../electrum/gui/qt/main_window.py:2768
+#: ../electrum/gui/qt/main_window.py:2769
 msgid "Total size"
 msgstr "Tamanho total"
 
@@ -5142,7 +5232,7 @@ msgid "Transaction"
 msgstr "Transação"
 
 #: ../electrum/gui/qt/main_window_v2.py:2403
-#: ../electrum/gui/qt/main_window.py:2401
+#: ../electrum/gui/qt/main_window.py:2402
 msgid "Transaction ID"
 msgstr "ID de transação"
 
@@ -5151,7 +5241,7 @@ msgid "Transaction ID:"
 msgstr "ID de transação"
 
 #: ../electrum/gui/qt/main_window_v2.py:2889
-#: ../electrum/gui/qt/main_window.py:2887
+#: ../electrum/gui/qt/main_window.py:2888
 msgid "Transaction added to wallet history."
 msgstr "Transação adicionada ao histórico da carteira."
 
@@ -5160,7 +5250,7 @@ msgid "Transaction could not be broadcast due to dust outputs."
 msgstr "A transação não pôde ser transmitida devido a saídas de poeira."
 
 #: ../electrum/gui/qt/main_window_v2.py:2879
-#: ../electrum/gui/qt/main_window.py:2877
+#: ../electrum/gui/qt/main_window.py:2878
 msgid "Transaction could not be saved."
 msgstr "Não foi possível salvar a transação."
 
@@ -5198,7 +5288,7 @@ msgid "Transaction uses non-standard version."
 msgstr "A transação usa uma versão não padrão."
 
 #: ../electrum/gui/qt/main_window_v2.py:2389
-#: ../electrum/gui/qt/main_window.py:2387
+#: ../electrum/gui/qt/main_window.py:2388
 msgid "Transaction:"
 msgstr "Transação:"
 
@@ -5211,12 +5301,12 @@ msgid "Transactions are encrypted and stored on a remote server."
 msgstr "As transações são criptografadas e armazenadas em um servidor remoto."
 
 #: ../electrum/gui/qt/recovery_list.py:408
-#: ../electrum/gui/qt/recovery_list.py:454
+#: ../electrum/gui/qt/recovery_list.py:459
 msgid "Transactions to cancel"
 msgstr "Transações para cancelar"
 
 #: ../electrum/gui/qt/main_window_v2.py:2058
-#: ../electrum/gui/qt/main_window.py:2056
+#: ../electrum/gui/qt/main_window.py:2057
 msgid "True"
 msgstr "Verdadeiro"
 
@@ -5293,7 +5383,7 @@ msgid "Unable to create backup"
 msgstr "Incapaz de criar uma cópia de segurança"
 
 #: ../electrum/gui/qt/main_window_v2.py:2499
-#: ../electrum/gui/qt/main_window.py:2497
+#: ../electrum/gui/qt/main_window.py:2498
 msgid "Unable to create csv"
 msgstr "Incapaz de criar csv"
 
@@ -5302,7 +5392,7 @@ msgid "Unable to export history"
 msgstr "Incapaz de exportar histórico"
 
 #: ../electrum/gui/qt/main_window_v2.py:2384
-#: ../electrum/gui/qt/main_window.py:2382
+#: ../electrum/gui/qt/main_window.py:2383
 msgid "Unable to read file or no transaction found"
 msgstr "Incapaz de ler o arquivo ou nenhuma transação encontrada"
 
@@ -5314,10 +5404,6 @@ msgstr "Incapaz de enviar relatório"
 #: ../electrum/wallet.py:480
 msgid "Unconfirmed"
 msgstr "Não confirmado"
-
-#: ../electrum/wallet.py:84
-msgid "Unconfirmed parent"
-msgstr "Matriz sem confirmar"
 
 #: ../electrum/crypto.py:131
 msgid "Unexpected password hash version"
@@ -5395,6 +5481,10 @@ msgstr "Electrum {version} está disponível"
 #: ../electrum/base_wizard.py:160
 msgid "Upgrading wallet format..."
 msgstr "Atualizando formato de carteira ..."
+
+#: ../electrum/base_wizard.py:221
+msgid "Use Gold Wallet and create a new wallet"
+msgstr "Use a Gold Wallet e crie uma nova carteira"
 
 #: ../electrum/gui/qt/settings_dialog.py:123
 msgid "Use Replace-By-Fee"
@@ -5484,7 +5574,7 @@ msgid "Verified block headers"
 msgstr "Cabeçalhos de bloco verificados"
 
 #: ../electrum/gui/qt/main_window_v2.py:2261
-#: ../electrum/gui/qt/main_window.py:2259
+#: ../electrum/gui/qt/main_window.py:2260
 msgid "Verify"
 msgstr "Verificar"
 
@@ -5538,22 +5628,22 @@ msgstr "Ver log"
 msgid "View on block explorer"
 msgstr "Ver no explorador de blocos"
 
-#: ../electrum/gui/qt/seed_dialog.py:48
+#: ../electrum/gui/qt/seed_dialog.py:47
 msgid "WARNING"
 msgstr "AVISO"
 
 #: ../electrum/gui/qt/main_window_v2.py:2429
-#: ../electrum/gui/qt/main_window.py:2427
+#: ../electrum/gui/qt/main_window.py:2428
 msgid "WARNING: ALL your private keys are secret."
 msgstr "AVISO: TODAS as suas chaves privadas são secretas."
 
 #: ../electrum/gui/qt/main_window_v2.py:2422
-#: ../electrum/gui/qt/main_window.py:2420
+#: ../electrum/gui/qt/main_window.py:2421
 msgid "WARNING: This is a multi-signature wallet."
 msgstr "AVISO: esta é uma carteira com várias assinaturas."
 
 #: ../electrum/gui/qt/main_window_v2.py:1391
-#: ../electrum/gui/qt/main_window.py:1389
+#: ../electrum/gui/qt/main_window.py:1390
 #, python-brace-format
 msgid ""
 "WARNING: the alias \"{alias}\" could not be validated via an additional "
@@ -5570,7 +5660,7 @@ msgstr "As chaves WIF são digitadas no Electrum, com base no tipo de script."
 msgid "Waiting for TrustedCoin server to sign transaction..."
 msgstr "Aguardando o servidor TrustedCoin assinar a transação ..."
 
-#: ../electrum/gui/qt/installwizard.py:200
+#: ../electrum/gui/qt/installwizard.py:203
 msgid "Wallet"
 msgstr "Carteira"
 
@@ -5579,7 +5669,7 @@ msgid "Wallet Info"
 msgstr "Informações da carteira"
 
 #: ../electrum/gui/qt/main_window_v2.py:2051
-#: ../electrum/gui/qt/main_window.py:2049
+#: ../electrum/gui/qt/main_window.py:2050
 msgid "Wallet Information"
 msgstr "Informações da carteira"
 
@@ -5605,13 +5695,13 @@ msgstr ""
 "seed, ecompare os endereços em ambos os arquivos"
 
 #: ../electrum/gui/qt/main_window_v2.py:2126
-#: ../electrum/gui/qt/main_window.py:2124
+#: ../electrum/gui/qt/main_window.py:2125
 #, python-brace-format
 msgid "Wallet file not found: {name}"
 msgstr "Arquivo da carteira não encontrado: {name}"
 
 #: ../electrum/gui/qt/main_window_v2.py:2062
-#: ../electrum/gui/qt/main_window.py:2060
+#: ../electrum/gui/qt/main_window.py:2061
 msgid "Wallet name"
 msgstr "Nome da carteira"
 
@@ -5621,13 +5711,13 @@ msgstr "Endereço de recebimento da carteira"
 
 #: ../electrum/gui/kivy/main_window.py:1148
 #: ../electrum/gui/qt/main_window_v2.py:2124
-#: ../electrum/gui/qt/main_window.py:2122
+#: ../electrum/gui/qt/main_window.py:2123
 #, python-brace-format
 msgid "Wallet removed: {name}"
 msgstr "Carteira removida: {name}"
 
 #: ../electrum/gui/qt/main_window_v2.py:2064
-#: ../electrum/gui/qt/main_window.py:2062
+#: ../electrum/gui/qt/main_window.py:2063
 msgid "Wallet type"
 msgstr "Tipo de carteira"
 
@@ -5641,7 +5731,7 @@ msgstr "Tipo de carteira"
 #: ../electrum/gui/qt/transaction_dialog.py:234
 #: ../electrum/gui/qt/transaction_dialog.py:437
 #: ../electrum/gui/qt/transaction_dialog.py:539
-#: ../electrum/gui/qt/seed_dialog.py:69 ../electrum/plugins/revealer/qt.py:135
+#: ../electrum/gui/qt/seed_dialog.py:68 ../electrum/plugins/revealer/qt.py:135
 #: ../electrum/plugins/revealer/qt.py:188
 #: ../electrum/plugins/revealer/qt.py:221
 msgid "Warning"
@@ -5681,7 +5771,7 @@ msgstr ""
 msgid "Watch-only wallet"
 msgstr "Carteira somente para observar"
 
-#: ../electrum/gui/qt/seed_dialog.py:71
+#: ../electrum/gui/qt/seed_dialog.py:70
 msgid ""
 "We do not guarantee that BIP39 imports will always be supported in Electrum."
 msgstr ""
@@ -5740,7 +5830,7 @@ msgid "Wrong pubkey format"
 msgstr "Formato de pubkey errado"
 
 #: ../electrum/gui/qt/main_window_v2.py:2230
-#: ../electrum/gui/qt/main_window.py:2228
+#: ../electrum/gui/qt/main_window.py:2229
 msgid "Wrong signature"
 msgstr "Assinatura errada"
 
@@ -5770,7 +5860,7 @@ msgstr ""
 msgid "You are offline."
 msgstr "Você está desconectado."
 
-#: ../electrum/gui/qt/__init__.py:195
+#: ../electrum/gui/qt/__init__.py:196
 msgid ""
 "You are using Electrum in offline mode; restart Electrum if you want to get "
 "connected"
@@ -5801,7 +5891,7 @@ msgid "You can override the suggested derivation path."
 msgstr "Você pode substituir o caminho de derivação sugerido."
 
 #: ../electrum/gui/qt/main_window_v2.py:1502
-#: ../electrum/gui/qt/main_window.py:1500
+#: ../electrum/gui/qt/main_window.py:1501
 msgid "You can't broadcast a transaction without a live network connection."
 msgstr ""
 "Você não pode transmitir uma transação sem uma conexão de rede ao vivo."
@@ -5841,7 +5931,7 @@ msgid "You may extend your seed with custom words."
 msgstr "Você pode estender a sua semente com palavras personalizadas."
 
 #: ../electrum/gui/qt/main_window_v2.py:1780
-#: ../electrum/gui/qt/main_window.py:1778
+#: ../electrum/gui/qt/main_window.py:1779
 msgid "You may load a CSV file using the file icon."
 msgstr "Você pode carregar um arquivo CSV usando o ícone do arquivo."
 
@@ -5878,7 +5968,7 @@ msgstr "O seu Nó ID"
 msgid "Your PIN code was updated"
 msgstr "O seu código PIN foi atualizado"
 
-#: ../electrum/gui/qt/installwizard.py:334
+#: ../electrum/gui/qt/installwizard.py:337
 msgid "Your accounts have been moved to"
 msgstr "As suas contas foram movidas para"
 
@@ -5898,15 +5988,15 @@ msgstr " O seu dispositivo pode não ter suporte para esta funcionalidade."
 msgid "Your labels have been synchronised."
 msgstr "Os seus marcadores foram sincronizados."
 
-#: ../electrum/gui/qt/seed_dialog.py:138
+#: ../electrum/gui/qt/seed_dialog.py:141
 msgid "Your seed extension is"
 msgstr "A sua extensão de semente é"
 
-#: ../electrum/base_wizard.py:539 ../electrum/base_wizard.py:758
+#: ../electrum/base_wizard.py:539 ../electrum/base_wizard.py:756
 msgid "Your seed extension must be saved together with your seed."
 msgstr "Sua extensão de semente deve ser salva junto com sua semente."
 
-#: ../electrum/gui/qt/installwizard.py:469
+#: ../electrum/gui/qt/installwizard.py:472
 msgid "Your seed is important!"
 msgstr "A sua semente é importante!"
 
@@ -5937,8 +6027,7 @@ msgstr "O seu arquivo de carteira está criptografado."
 msgid "Your wallet file is: {path}."
 msgstr "O seu arquivo de carteira é: {path}."
 
-#: ../electrum/gui/qt/installwizard.py:478
-#: ../electrum/gui/qt/seed_dialog.py:220
+#: ../electrum/gui/qt/seed_dialog.py:223
 msgid "Your wallet generation seed is:"
 msgstr "A sua semente de geração de carteira é:"
 
@@ -5959,12 +6048,12 @@ msgstr "A sua carteira não está protegida."
 msgid "Your wallet is password protected and encrypted."
 msgstr "A sua carteira é protegida por senha e criptografada."
 
-#: ../electrum/gui/qt/util.py:844
+#: ../electrum/gui/qt/util.py:848
 #, python-brace-format
 msgid "Your {0} were exported to '{1}'"
 msgstr "Os seus {0} foram exportados para '{1}'"
 
-#: ../electrum/gui/qt/util.py:829
+#: ../electrum/gui/qt/util.py:833
 #, python-brace-format
 msgid "Your {title} were successfully imported"
 msgstr "O seu {title} foi importado com sucesso"
@@ -6025,7 +6114,7 @@ msgstr "adicionar entradas e saídas"
 msgid "add invoice timed out"
 msgstr "adicionar fatura expirada"
 
-#: ../electrum/wallet.py:1865
+#: ../electrum/wallet.py:1868
 msgid "address already in wallet"
 msgstr "endereço já na carteira"
 
@@ -6055,7 +6144,7 @@ msgid "contacts"
 msgstr "Contatos"
 
 #: ../electrum/gui/qt/main_window_v2.py:2090
-#: ../electrum/gui/qt/main_window.py:2088
+#: ../electrum/gui/qt/main_window.py:2089
 msgid "cosigner"
 msgstr "fiador"
 
@@ -6075,11 +6164,11 @@ msgstr "taxa alta"
 msgid "initialized"
 msgstr "inicializado"
 
-#: ../electrum/wallet.py:1862
+#: ../electrum/wallet.py:1865
 msgid "invalid address"
 msgstr "endereço inválido"
 
-#: ../electrum/wallet.py:1942
+#: ../electrum/wallet.py:1945
 msgid "invalid private key"
 msgstr "chave privada inválida"
 
@@ -6088,19 +6177,19 @@ msgstr "chave privada inválida"
 msgid "invoices"
 msgstr "faturas"
 
-#: ../electrum/gui/qt/util.py:408
+#: ../electrum/gui/qt/util.py:412
 msgid "json"
 msgstr "json"
 
 #: ../electrum/gui/qt/main_window_v2.py:2092
-#: ../electrum/gui/qt/main_window.py:2090
+#: ../electrum/gui/qt/main_window.py:2091
 msgid "keystore"
 msgstr "Armazém de Chaves"
 
 #: ../electrum/gui/qt/main_window_v2.py:2529
 #: ../electrum/gui/qt/main_window_v2.py:2534
-#: ../electrum/gui/qt/main_window.py:2527
-#: ../electrum/gui/qt/main_window.py:2532
+#: ../electrum/gui/qt/main_window.py:2528
+#: ../electrum/gui/qt/main_window.py:2533
 msgid "labels"
 msgstr "Etiquetas"
 
@@ -6112,7 +6201,7 @@ msgstr ""
 "mais informações em <a href=\"https://revealer.cc/faq\"> https://revealer."
 "cc/ faq </a> "
 
-#: ../electrum/wallet.py:1945
+#: ../electrum/wallet.py:1948
 msgid "not implemented type"
 msgstr "tipo não implementado"
 
@@ -6126,7 +6215,7 @@ msgstr ""
 "ou digite um código de revelador existente abaixo e clique em 'próximo':"
 
 #: ../electrum/gui/qt/main_window_v2.py:1635
-#: ../electrum/gui/qt/main_window.py:1633
+#: ../electrum/gui/qt/main_window.py:1634
 msgid "please wait..."
 msgstr "por favor, aguarde..."
 
@@ -6152,12 +6241,10 @@ msgid "seed"
 msgstr "semente"
 
 #: ../electrum/gui/qt/main_window_v2.py:864
-#: ../electrum/gui/qt/main_window.py:862
 msgid "standard incoming"
 msgstr "entrada padrão"
 
 #: ../electrum/gui/qt/main_window_v2.py:866
-#: ../electrum/gui/qt/main_window.py:864
 msgid "standard outgoing"
 msgstr "saída padrão"
 
@@ -6195,7 +6282,7 @@ msgid "watching only"
 msgstr "apenas assistindo"
 
 #: ../electrum/gui/qt/main_window_v2.py:2057
-#: ../electrum/gui/qt/main_window.py:2055
+#: ../electrum/gui/qt/main_window.py:2056
 msgid "watching-only"
 msgstr "apenas assistindo"
 

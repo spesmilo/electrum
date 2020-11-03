@@ -16,166 +16,326 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-msgid " (No FX rate available)"
-msgstr " (Kurs FX tidak tersedia) "
-
-msgid "2 Keys Vault wallet"
-msgstr " Wallet Vault 2 Kunci"
-
-msgid "3 Keys Vault wallet"
-msgstr " Wallet Vault 3 Kunci"
+msgid "  (No FX rate available)"
+msgstr "  (Tidak ada kurs FX yang tersedia)"
 
 msgid ""
-"A small fee will be charged on each transaction that uses the remote server. "
-"You may check and modify your billing preferences once the installation is "
-"complete."
+"'Legacy' is the original address type, while 'Segwit' is the newer address "
+"format with lower fees."
 msgstr ""
-"Biaya akan dikenakan untuk setiap transaksi yang menggunakan remoteserver. "
-"Anda dapat memeriksa dan memodifikasi preferensi billing Anda setelahproses "
-"instalasi selesai."
+"'legacy' adalah tipe alamat awal, sedangkan 'segwit' merupakan tipe alamat "
+"yang baruformat dengan biaya yang lebih rendah"
 
-msgid "BIP39 seed (Gold Wallet integration)"
-msgstr "BIP39 seed (integrasi Gold Wallet)"
+msgid "2-Key Vault"
+msgstr "Vault 2-kunci"
+
+msgid "3-Key Vault"
+msgstr "Vault 3-kunci"
 
 msgid ""
-"Choose coin (UTXO) selection method for alert transactions. The following "
+"A small fee will be charged on each transaction that uses the remote "
+"server.  You may check and modify your billing preferences once the "
+"installation is complete."
+msgstr ""
+"Biaya transaksi akan dikenakan pada setiap transaksi yang menggunakan "
+"remoteserver. Anda dapat memeriksa dan mengubah pilihan biling Anda "
+"setelahproses instalasi selesai"
+
+msgid "At most one output can be set to spend max"
+msgstr ""
+"Maksimak hanya satu pengeluaran yang dapat diatur untuk mengeluarkan angka "
+"maksimal transaksi"
+
+msgid "Cancelation address"
+msgstr "alamat pembatalan"
+
+msgid ""
+"Choose coin (UTXO) selection method for alert transactions.  The following "
 "are available:\n"
 "\n"
 msgstr ""
-"Pilih metode seleksi koin (UTXO) untuk transaksi peringatan (alert "
-"transactions). Pilihan berikuttersedia:\n"
+"Pilih metode seleksi koin (UTXO) untuk transaksi alert/peringatan. Pilihan "
+"yangtersedia:\n"
 "\n"
 
 msgid ""
-"Choose coin (UTXO) selection method for non-alert transactions. The "
+"Choose coin (UTXO) selection method for non-alert transactions.  The "
 "following are available:\n"
 "\n"
 msgstr ""
-"Pilih metode seleksi koin (UTXO) untuk transaksi non-peringatan (non-alert "
-"transactions). Pilihan berikuttersedia:\n"
+"Pilih metode seleksi koin (UTXO) untuk transaksi non-alert/non-peringatan. "
+"Pilihan yangtersedia:\n"
 "\n"
 
-msgid "Choose the type of wallet"
-msgstr "Pilih tipe dompet"
+msgid "Confirmation PIN from Gold Wallet:"
+msgstr "PIN Konfirmasi dari Gold Wallet:"
 
-msgid "Do not use Gold Wallet"
-msgstr "Jangan gunakan Gold Wallet"
-
-msgid "Do you want to use Gold Wallet as a transaction authenticator?"
+msgid ""
+"Do you want to create a new seed or to restore a wallet using an existing "
+"seed?"
 msgstr ""
-"Apakah Anda ingin menggunakan Gold Wallet sebagai autentikator transaksi?"
+"Apakah Anda ingin membuat seed baru atau memulihkan (restore) dompet "
+"menggunakan seed yang telahtersedia?"
 
 msgid ""
 "Electrum cannot pair with your {device}.\n"
 "\n"
 "Before you request bitcoins to be sent to addresses in this wallet, ensure "
 "you can pair with your device, or that you have its seed (and passphrase, if "
-"any). Otherwise all bitcoins you receive will be unspendable."
+"any).  Otherwise all bitcoins you receive will be unspendable."
 msgstr ""
 "Electrum tidak dapat menyambungkan dengan {device} Anda.\n"
-"\n"
-"Sebelum Anda meminta Bitcoin untuk dikirim ke dompet ini, pastikanAnda bisa "
-"tersambung dengan perangkat Anda, atau bahwa Anda memiliki seed (dan "
-"passphare, apabilatersedia). Jika tidak semua Bitcoin yang Anda terima tidak "
-"akan bisa digunakan."
+"Sebelum Anda dapat meminta bitcoin untuk dikirimkan ke alamat Anda di dompet "
+"ini, pastikanbahwa Anda dapat tersambung dengan perangkat Anda, atau Anda "
+"telah memiliki seed (dan passphrase, apabilaada). Jika tidak semua bitcoin "
+"yang Anda terima tidak akan dapat digunakan."
 
 msgid ""
 "Electrum communicates with remote servers to get information about your "
 "transactions and addresses. The servers all fulfill the same purpose only "
 "differing in hardware. In most cases you simply want to let Electrum pick "
-"one at random. However if you prefer feel free to select a server manually."
+"one at random.  However if you prefer feel free to select a server manually."
 msgstr ""
-"Electrum berkomunikasi dengan remote servers untuk mendapatkan informasi "
-"mengenaitransaksi dan alamat Anda. Semua server memenuhi tujuan yang sama "
-"hanyaberbeda dalam perangkat keras. Dalam sebagian besar kasus Anda hanya "
-"perlu membiarkan Electrum memilihsatu secara acak. Namun apabila Anda ingin "
-"mengatur server, silahkan pilih server secara manual."
+"Electrum berkomunikasi dengan server jarak jauh untuk mendapatkan informasi "
+"mengenai transaksidan alamat Anda. Semua server memenuhi tujuan yang samadan "
+"hanya berbeda dalam hal perangkat keras. Pada sebagian besar kasus Anda "
+"hanya perlu untuk membiarkan Electrum untuk memilihsatu secara acak. Namun "
+"apabila Anda ingin memilih server sendiri Anda dapat melakukannya secara "
+"manual."
 
 msgid ""
-"Enter a list of BTCV addresses (this will create a watching-only wallet), or "
+"Electrum's focus is speed, with low resource usage and simplifying Bitcoin "
+"Vault."
+msgstr ""
+"Electrum fokus dalam kecepatan, dengan penggunaan sumberdaya yang rendah dan "
+"penyederhanaan BitcoinVault."
+
+msgid ""
+"Enter a list of BTCV addresses (this will create a watching-only wallet) or "
 "a list of private keys."
 msgstr ""
-"Masukkan daftar alamat BTCV (ini akan menghasilkan dompet watching-only, "
-"ataudaftar kunci privat."
-
-msgid "Import BTCV addresses"
-msgstr "Impor alamat BTCV"
-
-msgid "Import external watch-only BTCV addresses or private keys"
-msgstr "Impor alamat BTCV watch-only eksternal atau kunci privat"
-
-msgid "Multi-signature Standard wallet"
-msgstr "Dompet Standar Multi-signature"
+"Masukkan daftar alamat BTCV (proses ini akan menghasilkan dompet watching-"
+"only) ataudaftar kunci privat."
 
 msgid ""
-"Note that your coins are not locked in this service. You may withdraw your "
+"Enter the name of the new wallet or load an existing wallet by clicking "
+"\"Choose\"."
+msgstr ""
+"Masukkan nama dompet baru Anda atau buka file simpanan dompet Anda yang "
+"telah tersedua dengan mengklik tombol\"Pilih\"."
+
+msgid ""
+"Generate an authenticator on Gold Wallet and scan the following QR code: "
+msgstr "Buat autentikator baru di Gold Wallet dan pindai kode QR berikut:"
+
+msgid "Gold Wallet authenticator public key"
+msgstr "Kunci publik autentikator Gold Wallet"
+
+msgid ""
+"In order to confirm the transaction, scan the QR code in the \"Authenticators"
+"\" tab in the Gold Wallet app."
+msgstr ""
+"Guna mengkonfirmasi transaksi, pindai kode QR di tab \"Authenticators\" di "
+"aplikasi Gold Wallet Anda"
+
+msgid "Indonesian"
+msgstr "Bahasa Indonesia"
+
+msgid "Invalid Secure Fast Tx seed"
+msgstr "Seed Tx Secure Fast (Aman Cepat) tidak valid"
+
+msgid "Invalid cancelation address"
+msgstr "Alamat pembatalan tidak valid"
+
+msgid "Multi-Signature Standard"
+msgstr "Standar Multi-Signature"
+
+msgid "Never enter it on any website."
+msgstr "Jangan pernah menuliskan informasi ini di website manapun."
+
+msgid ""
+"Note that your coins are not locked in this service.  You may withdraw your "
 "funds at any time and at no cost, without the remote server, by using the "
 "'restore wallet' option with your wallet seed."
 msgstr ""
 "Mohon dicatat bahwa koin Anda tidak dikunci di layanan ini. Anda dapat "
-"menariksaldo Anda kapan saja dan tampa dipungut biaya, tanpa remote server, "
-"dengan menggunakanpilihan pulihkan dompet dengan seed dompet Anda."
+"menarik saldoAnda kapan saja dan tanpa dipungut biaya, tanpa menggunakan "
+"remote server, dengan menggunakan pilihanpulihkan dompet' dengan seed dompet "
+"Anda"
 
-msgid "Pair your 2 Keys Vault wallet with Gold Wallet"
-msgstr "Sambungkan dompet Vault 2 kunci Anda dengan Gold Wallet"
+msgid "Pair your 2-Key Vault wallet with Gold Wallet"
+msgstr "Sambungkan dompet Vault 2-Kunci Anda dengan Gold Wallet"
 
-msgid "Pair your 3 Keys Vault wallet with Gold Wallet"
-msgstr "Sambungkan dompet Vault 3 kunci Anda dengan Gold Wallet"
-
-msgid "Standard wallet"
-msgstr "dompet standar"
+msgid "Pair your 3-Key Vault wallet with Gold Wallet"
+msgstr "Sambungkan dompet Vault 3-Kunci Anda dengan Gold Wallet"
 
 msgid ""
-"The next step will generate the seed of your wallet. This seed will NOT be "
-"saved in your computer, and it must be stored on paper. To be safe from "
+"Please paste a Cancel transaction public key. Use an existing one, if you "
+"are importing a wallet, or generate a new one at"
+msgstr ""
+"Mohon tempelkan sebuah kunci publik transaksi Pembatalan (Cancel). Gunakan "
+"kunci yang telah ada, apabila Andaingin mengimpor sebuah dompet, atau "
+"membuat dompet baru di"
+
+msgid ""
+"Please paste a Secure Fast transaction public key. Use an existing one, if "
+"you are importing a wallet, or generate a new one at"
+msgstr ""
+"Mohon tempelkan sebuah kunci publik transaksi Cepat (Fast). Gunakan kunci "
+"yang telah ada, apabila Andaingin mengimpor sebuah dompet, atau membuat "
+"dompet baru di"
+
+msgid ""
+"Please paste authenticator public key exported from your Gold Wallet "
+"application"
+msgstr ""
+"Mohon tempelkan kunci autentikator publik yang diekspor dari aplikasi Gold "
+"WalletAnda"
+
+msgid "Please save these {0} words on paper (the order is important). "
+msgstr ""
+"Mohon simpan {0} frase ini di selembar kertas (Urutan frase juga penting "
+"untuk disimpan)."
+
+msgid "Portuguese"
+msgstr "Bahasa Portugis"
+
+msgid "Restart"
+msgstr "Mulai Ulang (Restart)"
+
+msgid "Secure - confirmed after 24 hours. Can be canceled within that time."
+msgstr ""
+"Aman (Secure) - dikonfirmasi setelah 24 jam. Dapat dibatalkan dalam periode "
+"tersebut."
+
+msgid ""
+"Secure Fast - confirmed immediately. Cannot be canceled. Requires an "
+"additional seed phrase."
+msgstr ""
+"Aman Cepat (Secure Fast) - dinkonfirmasi secara langsung. Tidak dapat "
+"dibatalkan. Membutuhkan sebuahfrase seed tambahan."
+
+msgid "Secure Fast Tx seed"
+msgstr "Seed Tx Secure Fast (Aman Cepat)"
+
+msgid "Secure Fast Tx seed not matching any key in this wallet"
+msgstr ""
+"Seed Tx Secure Fast tidak cocok dengan kunci manapun yang tersedia di dompet "
+"ini."
+
+msgid "Secure Fast seedphrase"
+msgstr "Seedphrase Aman Cepat (Secure Fast)"
+
+msgid "Secure Fast transaction public key"
+msgstr "Kunci publik transaksi Aman Cepat (Secure Fast)"
+
+msgid "Secure incoming"
+msgstr "Transaksi Aman Masuk"
+
+msgid "Secure outgoing"
+msgstr "Transaksi Aman Keluar"
+
+msgid "Select language"
+msgstr "Pilih Bahasa"
+
+msgid "Send cancel transaction"
+msgstr "Kirim transaksi pembatalan"
+
+msgid "Standard"
+msgstr "Standar"
+
+msgid ""
+"Startup times are instant because it operates in conjunction with high-"
+"performance servers that handle the most complicated parts of the Bitcoin "
+"Vault system."
+msgstr ""
+"Waktu permulaan tergolong instan karena prosesnya beroperasi bersamaan "
+"dengan serverperforma tinggi yang mengatasi sebagian besar bagian kompleks "
+"dari sistemBitcoin Vault."
+
+msgid ""
+"Testnet is separate from the main Bitcoin Vault network. It is used for "
+"testing."
+msgstr ""
+"Testnet terpisah dari jaringan utama Bitcoin Vault. Server ini hanya "
+"digunakan untukmelakukan pengujian dan percobaan."
+
+msgid ""
+"The next step will generate the seed of your wallet.  This seed will NOT be "
+"saved in your computer, and it must be stored on paper.  To be safe from "
 "malware, you may want to do this on an offline computer, and move your "
 "wallet later to an online computer."
 msgstr ""
-"Langkah selanjutnya akan menghasilkan seed untuk dompet Anda. Seed ini TIDAK "
-"akandisimpan di kompute Anda, dan harus disimpan di kertas. Untuk melindungi "
-"seed ini darimalware, kami sarankan Anda untuk melakukannya di komputer "
-"offline (yang tidak tersambung dengan internet, dan setelah itu "
-"memindahkandompet Anda ke komputer online."
+"Langkah selanjutnya adalah untuk menghasilkan seed dompet Anda. Seed ini "
+"TIDAK akandisimpat di komputer Anda, dan ini harus disimpan di selembar "
+"kertas. Agar terlindung darimalware, kami menyarankan Anda untuk "
+"melakukannya di sebuah komputer yang tidak tersambungkan ke internet, lalu "
+"setelahnya memindahkan dompetAnda ke sebuah komputer online."
+
+msgid "This seed will allow you to recover your wallet."
+msgstr "Seed ini akan memungkan Anda untuk memulihkan dompet Anda."
 
 msgid ""
-"This service uses a multi-signature wallet, where you own 2 of 3 keys. The "
+"This service uses a multi-signature wallet, where you own 2 of 3 keys.  The "
 "third key is stored on a remote server that signs transactions on your "
 "behalf. A small fee will be charged on each transaction that uses the remote "
 "server."
 msgstr ""
-"Layanan ini menggunakan dompet multi-signature, dimana Anda memiliki 2 dari "
-"3 kunci.Kunci ketiga disimpan di remote server yang akan menandatangani "
-"transaksi atas namaAnda. Biaya akan dikenakan untuk setiap transaksi yang "
-"menggunakan remoteserver."
+"Layanan ini menggunakan dompet multi-signature, dimana Anda memegang 2 dari "
+"3 kunci yang tersedia.Kunci ketiga disimpan di sebuah remote server yang "
+"akan menandatangani transaksiatas nama Anda. Biaya kecil akan dikenakan "
+"dalam setiap transaksi yang menggunakan remoteserver."
+
+msgid "Turkish"
+msgstr "Bahasa Turki"
 
 msgid ""
-"Two-factor authentication is a service provided by TrustedCoin. It uses a "
-"multi-signature wallet, where you own 2 of 3 keys. The third key is stored "
-"on a remote server that signs transactions on your behalf. To use this "
+"Two-factor authentication is a service provided by TrustedCoin.  It uses a "
+"multi-signature wallet, where you own 2 of 3 keys.  The third key is stored "
+"on a remote server that signs transactions on your behalf.  To use this "
 "service, you will need a smartphone with Google Authenticator installed."
 msgstr ""
-"Autentikasi dua-faktor adalah layanan yang disediakan oleh TrustedCoin. "
-"Layanan ini menggunakandompet multi signature. Dimana Anda memiliki 2 dari 3 "
-"kunci. Kunci ketiga disimpan diremote server yang akan menandatangani "
-"transaksi atas nama Anda. Untuk menggunakanlayanan ini, Anda membutuhkan "
-"sebuah smartphone ddengan google authenticator terpasang."
+"Layanan Two-factor authentication (Autentikasi Dua-Faktor) adalah layanan "
+"yang disediakan oleh TrustedCoin. Layanan ini menggunakan sebuahdompet multi-"
+"signature, dimana Anda memiliki 2 dari 3 kunci. Kunci ketiga disimpandi "
+"sebuah remote server yang menandatangani transaksi atas nama Anda. Untuk "
+"menggunakanlayanan ini, Anda perlu sebuah smartphone dengan Google "
+"Authenticator terpasang didalamnya."
 
-msgid "Use Gold Wallet and create a new wallet"
-msgstr "Gunakan Gold Wallet dan buat dompet baru"
+msgid "Unconfirmed Parent"
+msgstr "Parent Tidak Terkonfirmasi"
 
-msgid "Use Gold Wallet and import the wallet"
-msgstr "Gunakan Gold Wallet dan impor dompet"
+msgid "Use Gold Wallet and import an existing wallet"
+msgstr "Gunakan Gold Wallet dan impor dompet yang sudah ada"
 
 msgid ""
-"You need to be online in order to complete the creation of your wallet. If "
+"Warning: Please be aware that in the process of using the Secure Transaction "
+"feature, a part of the funds left in your wallet might be blocked. This is a "
+"normal procedure linked to UTXO and the blockchain parameters of the Bitcoin "
+"Vault wallet. Your funds will be unblocked once the transaction is verified "
+"(after approximately 24 hrs) or canceled (within 24 hrs)."
+msgstr ""
+"Peringatan: Mohon diingat bahwa proses ini menggunakan fiturTransaksi Secure "
+"(Aman), dimana sebagian dari saldo yang tersisa di dompet Anda akan diblokir "
+"untuk sementara. Ini merupakan sebuah prosedurnormal yang terhubung dengan "
+"UTXO dan parameter Blockchain milik dompetBitcoin Vault. Saldo Anda akan "
+"dibuka blokirnya (dicairkan) setelah transaksi Anda telah "
+"dikonfirmasi(Setelah kurang lebih 24 jam) atau dibatalkan (Dalam waktu 24 "
+"jam)."
+
+msgid ""
+"You need to be online in order to complete the creation of your wallet.  If "
 "you generated your seed on an offline computer, click on \"{button}\" to "
 "close this window, move your wallet file to an online computer, and reopen "
 "it with Electrum."
 msgstr ""
-"Anda harus online untuk menyelesaikan pembuatan dompet Anda. ApabilaAnda "
-"menghasilkan seed Anda di komputer offline, klik \"{button}\" untukmenutup "
-"jendela ini, pindahkan dompet Anda ke komputer online, dan buka "
-"kembalidompet Anda dengan Electrum."
+"Anda harus online untuk menyelesaikan pembuatan dompet Anda. ApabilaAnd a "
+"membuat seed anda di sebuah komputer yang offline, klik di \"{button}\" "
+"untukmenutup jendela ini, memindahkan file dompet Anda sebuah komputer yang "
+"online, dan membuka kembalidompet Anda dengan Electrum."
+
+msgid "Your wallet's generated seed is:"
+msgstr "Seed dompet Anda adalah:"
 
 #: ../electrum/gui/qt/history_list.py:198
 msgid " confirmation"
@@ -479,7 +639,7 @@ msgid "Acquisition price"
 msgstr "Biaya akuisisi"
 
 #: ../electrum/gui/kivy/uix/dialogs/installwizard.py:1135
-#: ../electrum/gui/qt/installwizard.py:443
+#: ../electrum/gui/qt/installwizard.py:446
 msgid "Add Cosigner"
 msgstr "Tambahkan Cosigner"
 
@@ -508,13 +668,13 @@ msgstr "Tambahan {num_satoshis_added} akan ditambahkan"
 #: ../electrum/gui/qt/main_window_v2.py:1028
 #: ../electrum/gui/qt/main_window_v2.py:2041
 #: ../electrum/gui/qt/main_window_v2.py:2165
-#: ../electrum/gui/qt/main_window_v2.py:2246 ../electrum/gui/qt/util.py:392
+#: ../electrum/gui/qt/main_window_v2.py:2246 ../electrum/gui/qt/util.py:396
 #: ../electrum/gui/qt/address_dialog.py:55
 #: ../electrum/gui/qt/contact_list.py:48 ../electrum/gui/qt/address_list.py:117
 #: ../electrum/gui/qt/utxo_list.py:49 ../electrum/gui/qt/main_window.py:1026
-#: ../electrum/gui/qt/main_window.py:2039
-#: ../electrum/gui/qt/main_window.py:2163
-#: ../electrum/gui/qt/main_window.py:2244
+#: ../electrum/gui/qt/main_window.py:2040
+#: ../electrum/gui/qt/main_window.py:2164
+#: ../electrum/gui/qt/main_window.py:2245
 msgid "Address"
 msgstr "Alamat"
 
@@ -531,7 +691,7 @@ msgid "Address is frozen"
 msgstr "Alamat dibekukan"
 
 #: ../electrum/gui/qt/main_window_v2.py:2197
-#: ../electrum/gui/qt/main_window.py:2195
+#: ../electrum/gui/qt/main_window.py:2196
 #: ../electrum/plugins/hw_wallet/plugin.py:84 ../electrum/wallet.py:443
 #: ../electrum/wallet.py:1583
 msgid "Address not in wallet."
@@ -608,7 +768,7 @@ msgstr "Selalu periksa cadangan Anda"
 #: ../electrum/gui/qt/recovery_list.py:47 ../electrum/gui/qt/utxo_list.py:51
 #: ../electrum/gui/qt/channel_details.py:35
 #: ../electrum/gui/qt/main_window.py:1217
-#: ../electrum/gui/qt/main_window.py:1832 ../electrum/gui/qt/invoice_list.py:64
+#: ../electrum/gui/qt/main_window.py:1833 ../electrum/gui/qt/invoice_list.py:64
 #: ../electrum/gui/qt/history_list.py:383 ../electrum/gui/stdio.py:111
 #: ../electrum/gui/text.py:111 ../electrum/gui/text.py:183
 msgid "Amount"
@@ -700,7 +860,7 @@ msgstr "Pengaturan Modem Audio"
 msgid "Authorization"
 msgstr "Otorisasi"
 
-#: ../electrum/gui/qt/installwizard.py:722
+#: ../electrum/gui/qt/installwizard.py:725
 msgid "Auto connect"
 msgstr "Koneksi otomatis"
 
@@ -712,7 +872,11 @@ msgstr "Koneksi-otomatis"
 msgid "Automatically check for software updates"
 msgstr "Cek pembaruan software secara otomatis"
 
-#: ../electrum/gui/qt/seed_dialog.py:70
+#: ../electrum/gui/qt/seed_dialog.py:75
+msgid "BIP39 seed (Gold Wallet integration)"
+msgstr "BIP39 seed (integrasi Gold Wallet)"
+
+#: ../electrum/gui/qt/seed_dialog.py:69
 msgid ""
 "BIP39 seeds can be imported in Electrum, so that users can access funds "
 "locked in other wallets."
@@ -721,7 +885,7 @@ msgstr ""
 "dikunci di dompet lain."
 
 #: ../electrum/gui/qt/main_window_v2.py:1829
-#: ../electrum/gui/qt/main_window.py:1827
+#: ../electrum/gui/qt/main_window.py:1828
 msgid "BIP70 Invoice"
 msgstr "Invoice BIP70"
 
@@ -774,7 +938,7 @@ msgid "Bitcoin Address"
 msgstr "Alamat Bitcoin"
 
 #: ../electrum/gui/qt/main_window_v2.py:1363
-#: ../electrum/gui/qt/main_window.py:1361
+#: ../electrum/gui/qt/main_window.py:1362
 msgid "Bitcoin Address is None"
 msgstr "Alamat Bitcoin tidak tersedia "
 
@@ -804,12 +968,12 @@ msgid "Broadcast"
 msgstr "Siaran"
 
 #: ../electrum/gui/qt/main_window_v2.py:1578
-#: ../electrum/gui/qt/main_window.py:1576
+#: ../electrum/gui/qt/main_window.py:1577
 msgid "Broadcasting transaction..."
 msgstr "Menyiarkan transaksi"
 
 #: ../electrum/gui/qt/main_window_v2.py:2838
-#: ../electrum/gui/qt/main_window.py:2836
+#: ../electrum/gui/qt/main_window.py:2837
 msgid "Bump Fee"
 msgstr "Bump Fee"
 
@@ -821,7 +985,7 @@ msgstr "Bump fee"
 msgid "CLTV expiry"
 msgstr "CLTV expiry"
 
-#: ../electrum/gui/qt/util.py:405
+#: ../electrum/gui/qt/util.py:409
 msgid "CSV"
 msgstr "CSV"
 
@@ -838,13 +1002,13 @@ msgid "Can send"
 msgstr "Dapat mengirim"
 
 #: ../electrum/gui/qt/main_window_v2.py:2754
-#: ../electrum/gui/qt/main_window.py:2752
+#: ../electrum/gui/qt/main_window.py:2753
 msgid "Can't CPFP: unknown fee for parent transaction."
 msgstr "Tidak dapat CPFP: Biaya dan induk transaksi tidak dikenal"
 
 #: ../electrum/gui/kivy/uix/dialogs/tx_dialog.py:229
 #: ../electrum/gui/qt/main_window_v2.py:2833
-#: ../electrum/gui/qt/main_window.py:2831
+#: ../electrum/gui/qt/main_window.py:2832
 msgid "Can't bump fee: unknown fee for original transaction."
 msgstr ""
 "Tidak dapat bump fee: Biaya transaksi dan transaksi original tidak dikenal"
@@ -855,14 +1019,14 @@ msgstr "Tidak dapat mengatur riwayat."
 
 #: ../electrum/gui/qt/installwizard.py:90
 #: ../electrum/gui/qt/installwizard.py:169
-#: ../electrum/gui/qt/installwizard.py:725 ../electrum/gui/qt/util.py:187
+#: ../electrum/gui/qt/installwizard.py:728 ../electrum/gui/qt/util.py:187
 #: ../electrum/gui/qt/three_keys_windows.py:31
 #: ../electrum/plugins/trustedcoin/qt.py:221
 msgid "Cancel"
 msgstr "Pembatalan"
 
 #: ../electrum/gui/qt/recovery_list.py:420
-#: ../electrum/gui/qt/recovery_list.py:473
+#: ../electrum/gui/qt/recovery_list.py:478
 msgid "Cancel seedphrase"
 msgstr "Seedphrase "
 
@@ -870,18 +1034,9 @@ msgstr "Seedphrase "
 msgid "Cancel seedphrase not matching any key in this wallet"
 msgstr "Seedphrase pembatalan tidak cocok dengan kunci apapun di dompet Anda"
 
-#: ../electrum/gui/qt/installwizard.py:567
+#: ../electrum/gui/qt/installwizard.py:570
 msgid "Cancel transaction public key"
 msgstr "Kunci publik pembatalan transaksi"
-
-#: ../electrum/gui/qt/recovery_list.py:194
-msgid "Cancel transactions"
-msgstr "Transaksi pembatalan"
-
-#: ../electrum/gui/qt/recovery_list.py:414
-#: ../electrum/gui/qt/recovery_list.py:460
-msgid "Cancellation address"
-msgstr "Alamat pembatalan"
 
 #: ../electrum/plugins/ledger/ledger.py:277
 #: ../electrum/plugins/ledger/ledger.py:290
@@ -904,22 +1059,22 @@ msgstr "Tidak dapat menyiarkan transaksi"
 msgid "Cannot bump fee"
 msgstr "Tidak dapat bump fee"
 
-#: ../electrum/gui/qt/__init__.py:272
+#: ../electrum/gui/qt/__init__.py:273
 msgid "Cannot create window for wallet"
 msgstr "Tidak dapat membuat jendela untuk dompet "
 
-#: ../electrum/gui/qt/__init__.py:245 ../electrum/gui/qt/__init__.py:257
+#: ../electrum/gui/qt/__init__.py:246 ../electrum/gui/qt/__init__.py:258
 msgid "Cannot load wallet"
 msgstr "Tidak dapat memuat dompet "
 
-#: ../electrum/gui/qt/installwizard.py:241
 #: ../electrum/gui/qt/installwizard.py:244
-#: ../electrum/gui/qt/installwizard.py:265
+#: ../electrum/gui/qt/installwizard.py:247
+#: ../electrum/gui/qt/installwizard.py:268
 msgid "Cannot read file"
 msgstr "Tidak dapat membaca file "
 
 #: ../electrum/gui/qt/main_window_v2.py:2201
-#: ../electrum/gui/qt/main_window.py:2199
+#: ../electrum/gui/qt/main_window.py:2200
 msgid "Cannot sign messages with this type of address:"
 msgstr "Tidak dapat menandatangani pesan dengan dengan jenis alamat ini:"
 
@@ -989,7 +1144,7 @@ msgstr "Detail Channel"
 
 #: ../electrum/gui/kivy/uix/dialogs/lightning_open_channel.py:147
 #: ../electrum/gui/qt/main_window_v2.py:1604
-#: ../electrum/gui/qt/main_window.py:1602
+#: ../electrum/gui/qt/main_window.py:1603
 msgid "Channel established."
 msgstr "Channel didirikan."
 
@@ -1018,7 +1173,7 @@ msgid "Checking for updates..."
 msgstr "Memeriksa updates"
 
 #: ../electrum/gui/qt/main_window_v2.py:2756
-#: ../electrum/gui/qt/main_window.py:2754
+#: ../electrum/gui/qt/main_window.py:2755
 msgid "Child Pays for Parent"
 msgstr "Anak membayar untuk Induk"
 
@@ -1050,7 +1205,7 @@ msgstr "Pilih sebuah server"
 msgid "Choose from peers"
 msgstr "Pilih dari peers"
 
-#: ../electrum/gui/qt/installwizard.py:770
+#: ../electrum/gui/qt/installwizard.py:773
 msgid "Choose the number of signatures needed to unlock funds in your wallet:"
 msgstr ""
 "Pilih jumlah tanda tangan yang diperlukan untuk membuka dana di dompet Anda:"
@@ -1058,6 +1213,10 @@ msgstr ""
 #: ../electrum/base_wizard.py:479
 msgid "Choose the type of addresses in your wallet."
 msgstr "Pilih jenis alamat di dompet Anda."
+
+#: ../electrum/base_wizard.py:132
+msgid "Choose the type of wallet"
+msgstr "Pilih tipe dompet"
 
 #: ../electrum/gui/qt/three_keys_windows.py:220
 msgid "Choose transaction type."
@@ -1075,7 +1234,7 @@ msgstr ""
 msgid "Choose your chain"
 msgstr "Pilih chain Anda"
 
-#: ../electrum/gui/qt/installwizard.py:203
+#: ../electrum/gui/qt/installwizard.py:206
 msgid "Choose..."
 msgstr "Pilih…"
 
@@ -1107,9 +1266,9 @@ msgstr "Papan klip kosong"
 #: ../electrum/gui/qt/main_window_v2.py:2334
 #: ../electrum/gui/qt/update_checker.py:63 ../electrum/gui/qt/util.py:163
 #: ../electrum/gui/qt/transaction_dialog.py:154
-#: ../electrum/gui/qt/qrcodewidget.py:131
-#: ../electrum/gui/qt/main_window.py:2263
-#: ../electrum/gui/qt/main_window.py:2332 ../electrum/gui/qt/__init__.py:158
+#: ../electrum/gui/qt/qrcodewidget.py:139
+#: ../electrum/gui/qt/main_window.py:2264
+#: ../electrum/gui/qt/main_window.py:2333 ../electrum/gui/qt/__init__.py:159
 msgid "Close"
 msgstr "Tutup"
 
@@ -1186,11 +1345,11 @@ msgid "Confirm Password:"
 msgstr "Konfirmasi Kata Sandi"
 
 #: ../electrum/gui/kivy/uix/dialogs/installwizard.py:1108
-#: ../electrum/gui/qt/installwizard.py:467
+#: ../electrum/gui/qt/installwizard.py:470
 msgid "Confirm Seed"
 msgstr "Konfirmasi Seed"
 
-#: ../electrum/base_wizard.py:756
+#: ../electrum/base_wizard.py:754
 msgid "Confirm Seed Extension"
 msgstr "Konfirmasi Ekstensi Seed"
 
@@ -1205,10 +1364,6 @@ msgstr "Konfirmasi Transaksi di perangkat Ledger Anda…"
 #: ../electrum/gui/kivy/uix/dialogs/password_dialog.py:134
 msgid "Confirm new PIN"
 msgstr "Konfirmasi PIN baru"
-
-#: ../electrum/gui/qt/installwizard.py:611
-msgid "Confirmation PIN from GoldWallet:"
-msgstr "Konfirmasi PIN dari GoldWallet"
 
 #: ../electrum/gui/kivy/uix/ui_screens/status.kv:39
 msgid "Confirmed"
@@ -1258,8 +1413,8 @@ msgstr "Coba sambungkan koneksi dengan server lain, atau perbarui Electrum."
 msgid "Contacts"
 msgstr "Kontak"
 
-#: ../electrum/gui/qt/util.py:169 ../electrum/gui/qt/util.py:634
-#: ../electrum/gui/qt/qrcodewidget.py:123
+#: ../electrum/gui/qt/util.py:169 ../electrum/gui/qt/util.py:638
+#: ../electrum/gui/qt/qrcodewidget.py:131
 #: ../electrum/gui/qt/history_list.py:606
 msgid "Copy"
 msgstr "Salin"
@@ -1289,7 +1444,7 @@ msgstr ""
 "Salin dan tempel alamat penerima menggunakan tombol Tempet, atau "
 "gunakankamera untuk memindai kode QR."
 
-#: ../electrum/gui/qt/util.py:674 ../electrum/gui/qt/transaction_dialog.py:251
+#: ../electrum/gui/qt/util.py:678 ../electrum/gui/qt/transaction_dialog.py:251
 msgid "Copy to clipboard"
 msgstr "Salin ke papan klip"
 
@@ -1315,7 +1470,7 @@ msgid "Could not force close channel: "
 msgstr "Tidak dapat memaksa untuk menutup channel:"
 
 #: ../electrum/gui/qt/main_window_v2.py:1611
-#: ../electrum/gui/qt/main_window.py:1609
+#: ../electrum/gui/qt/main_window.py:1610
 #, python-brace-format
 msgid "Could not open channel: {error_value}"
 msgstr "Tidak dapat membuka channel: {error_value}"
@@ -1358,12 +1513,12 @@ msgid "Critical Error"
 msgstr "Masalah Kritis"
 
 #: ../electrum/gui/qt/main_window_v2.py:2841
-#: ../electrum/gui/qt/main_window.py:2839
+#: ../electrum/gui/qt/main_window.py:2840
 msgid "Current Fee"
 msgstr "Biaya Sekarang:"
 
 #: ../electrum/gui/qt/main_window_v2.py:2842
-#: ../electrum/gui/qt/main_window.py:2840
+#: ../electrum/gui/qt/main_window.py:2841
 msgid "Current Fee rate"
 msgstr "Tarif Biaya sekarang:"
 
@@ -1397,7 +1552,7 @@ msgstr "Kustom rahasia"
 msgid "Dark"
 msgstr "Gelap"
 
-#: ../electrum/gui/qt/__init__.py:159
+#: ../electrum/gui/qt/__init__.py:160
 msgid "Dark/Light"
 msgstr "Gelap/Terang"
 
@@ -1424,7 +1579,7 @@ msgid "Debug message"
 msgstr "Pesan debug"
 
 #: ../electrum/gui/qt/main_window_v2.py:2330
-#: ../electrum/gui/qt/main_window.py:2328
+#: ../electrum/gui/qt/main_window.py:2329
 msgid "Decrypt"
 msgstr "Dekripsi"
 
@@ -1440,7 +1595,7 @@ msgstr "Server Default "
 #: ../electrum/gui/qt/main_window_v2.py:582
 #: ../electrum/gui/qt/main_window_v2.py:1861
 #: ../electrum/gui/qt/request_list.py:173 ../electrum/gui/qt/contact_list.py:96
-#: ../electrum/gui/qt/main_window.py:582 ../electrum/gui/qt/main_window.py:1859
+#: ../electrum/gui/qt/main_window.py:582 ../electrum/gui/qt/main_window.py:1860
 #: ../electrum/gui/qt/invoice_list.py:177
 msgid "Delete"
 msgstr "Hapus "
@@ -1451,7 +1606,7 @@ msgstr "Hapus permintaan habis tempo?"
 
 #: ../electrum/gui/kivy/uix/dialogs/invoice_dialog.py:107
 #: ../electrum/gui/qt/main_window_v2.py:1856
-#: ../electrum/gui/qt/main_window.py:1854
+#: ../electrum/gui/qt/main_window.py:1855
 msgid "Delete invoice?"
 msgstr "Hapus invoice?"
 
@@ -1460,7 +1615,7 @@ msgid "Delete request?"
 msgstr "Hapus permintaan?"
 
 #: ../electrum/gui/qt/main_window_v2.py:2113
-#: ../electrum/gui/qt/main_window.py:2111
+#: ../electrum/gui/qt/main_window.py:2112
 msgid "Delete wallet file?"
 msgstr "Hapus file dompet?"
 
@@ -1552,16 +1707,19 @@ msgstr ""
 "Jangan tempelkan kode yang Anda tidak kenali disini. Menjalankan kode yang "
 "salahdapat menyebabkan kehilangan koin yang tidak dapat dibalikkan."
 
-#: ../electrum/gui/qt/seed_dialog.py:52
+#: ../electrum/gui/qt/seed_dialog.py:51
 msgid "Do not store it electronically."
 msgstr "Jangan simpan secara elektronik"
+
+#: ../electrum/base_wizard.py:223
+msgid "Do not use Gold Wallet"
+msgstr "Jangan gunakan Gold Wallet"
 
 #: ../electrum/plugins/revealer/__init__.py:5
 msgid "Do you have something to hide ?"
 msgstr "Apakah Anda memiliki hal yang Anda sembunyikan?"
 
 #: ../electrum/plugins/trustedcoin/trustedcoin.py:539
-#: ../electrum/base_wizard.py:289
 msgid ""
 "Do you want to create a new seed, or to restore a wallet using an existing "
 "seed?"
@@ -1569,12 +1727,12 @@ msgstr ""
 "Apakah Anda ingin membuat seed baru, atau memulihkan sebuah dompet "
 "menggunakan seed yang sudah Ada?"
 
-#: ../electrum/gui/qt/installwizard.py:350
+#: ../electrum/gui/qt/installwizard.py:353
 #, python-brace-format
 msgid "Do you want to delete '{path}'?"
 msgstr "Apakah Anda ingin menghapus '{path}'?"
 
-#: ../electrum/gui/qt/installwizard.py:335
+#: ../electrum/gui/qt/installwizard.py:338
 msgid "Do you want to delete the old file"
 msgstr "Apakah Anda ingin menghapus file lama?"
 
@@ -1587,7 +1745,7 @@ msgid "Do you want to open it now?"
 msgstr "Apakah Anda inign membukanya sekarang?"
 
 #: ../electrum/gui/qt/main_window_v2.py:1768
-#: ../electrum/gui/qt/main_window.py:1766
+#: ../electrum/gui/qt/main_window.py:1767
 #, python-brace-format
 msgid "Do you want to remove {address} from your wallet?"
 msgstr "Apakah Anda ingin menghapuskan {address} dari dompet Anda?"
@@ -1596,8 +1754,13 @@ msgstr "Apakah Anda ingin menghapuskan {address} dari dompet Anda?"
 msgid "Do you want to send this report?"
 msgstr "Apakah Anda ingin mengirimkan laporan ini?"
 
+#: ../electrum/base_wizard.py:219
+msgid "Do you want to use Gold Wallet as a transaction authenticator?"
+msgstr ""
+"Apakah Anda ingin menggunakan Gold Wallet sebagai autentikator transaksi?"
+
 #: ../electrum/gui/qt/main_window_v2.py:1393
-#: ../electrum/gui/qt/main_window.py:1391
+#: ../electrum/gui/qt/main_window.py:1392
 msgid "Do you wish to continue?"
 msgstr "Apakah Anda ingin melanjutkan?"
 
@@ -1637,7 +1800,7 @@ msgid "Edit {title}"
 msgstr "Ubah {title}"
 
 #: ../electrum/gui/qt/main_window_v2.py:2685
-#: ../electrum/gui/qt/main_window.py:2683
+#: ../electrum/gui/qt/main_window.py:2684
 msgid "Electrum Plugins"
 msgstr "Plugin Electrum"
 
@@ -1672,7 +1835,7 @@ msgstr ""
 "Electrum mengirim alamt dompet Anda ke satu server, guna menerimariwayat "
 "transaksi Anda."
 
-#: ../electrum/gui/qt/installwizard.py:218
+#: ../electrum/gui/qt/installwizard.py:221
 msgid "Electrum wallet"
 msgstr "Dompet Electrum"
 
@@ -1687,17 +1850,17 @@ msgid "Electrum was unable to deserialize the transaction:"
 msgstr "Electrum tidak dapat mendeserialisasikan transaksi:"
 
 #: ../electrum/gui/qt/main_window_v2.py:2383
-#: ../electrum/gui/qt/main_window.py:2381
+#: ../electrum/gui/qt/main_window.py:2382
 msgid "Electrum was unable to open your transaction file"
 msgstr "Electrum tidak dapat membuka file transaksi Anda"
 
 #: ../electrum/gui/qt/main_window_v2.py:2352
-#: ../electrum/gui/qt/main_window.py:2350
+#: ../electrum/gui/qt/main_window.py:2351
 msgid "Electrum was unable to parse your transaction"
 msgstr "Electrum tidak mengurai transaksi Anda"
 
 #: ../electrum/gui/qt/main_window_v2.py:2496
-#: ../electrum/gui/qt/main_window.py:2494
+#: ../electrum/gui/qt/main_window.py:2495
 msgid "Electrum was unable to produce a private key-export."
 msgstr "Electrum tidak dapat menghasikan kunci private-ekspor."
 
@@ -1706,7 +1869,6 @@ msgid "Electrum was unable to produce a transaction export."
 msgstr "Electrum tidak dapat menghasilkan ekspor transaksi."
 
 #: ../electrum/gui/qt/main_window_v2.py:676
-#: ../electrum/gui/qt/main_window.py:674
 msgid ""
 "Electrum's focus is speed, with low resource usage and simplifying Bitcoin."
 msgstr ""
@@ -1743,7 +1905,7 @@ msgid "Enabled"
 msgstr "Diaktifkan"
 
 #: ../electrum/gui/qt/main_window_v2.py:2326
-#: ../electrum/gui/qt/main_window.py:2324
+#: ../electrum/gui/qt/main_window.py:2325
 msgid "Encrypt"
 msgstr "Enkripsi"
 
@@ -1762,7 +1924,7 @@ msgid "Encrypt {wallet_name}'s seed"
 msgstr "Enkripsi seed {wallet_name}"
 
 #: ../electrum/gui/qt/main_window_v2.py:2301
-#: ../electrum/gui/qt/main_window.py:2299
+#: ../electrum/gui/qt/main_window.py:2300
 msgid "Encrypt/decrypt Message"
 msgstr "Enkripsi/dekripsi Pesan"
 
@@ -1771,7 +1933,7 @@ msgid "Encrypt/decrypt message"
 msgstr "Enkripsi/dekripsi pesan"
 
 #: ../electrum/gui/qt/main_window_v2.py:2321
-#: ../electrum/gui/qt/main_window.py:2319
+#: ../electrum/gui/qt/main_window.py:2320
 msgid "Encrypted"
 msgstr "Dienkripsi"
 
@@ -1816,7 +1978,7 @@ msgid "Enter Remote Node ID or connection string or invoice"
 msgstr "Masukkan ID Remote Node atay string koneksi atau invoice"
 
 #: ../electrum/gui/kivy/uix/dialogs/installwizard.py:866
-#: ../electrum/gui/qt/installwizard.py:457
+#: ../electrum/gui/qt/installwizard.py:460
 msgid "Enter Seed"
 msgstr "Masukkan Seed"
 
@@ -1830,12 +1992,12 @@ msgid "Enter a filename for the copy of your wallet"
 msgstr "Masukkan nama file untuk salinan dompet Anda"
 
 #: ../electrum/gui/qt/main_window_v2.py:1777
-#: ../electrum/gui/qt/main_window.py:1775
+#: ../electrum/gui/qt/main_window.py:1776
 msgid "Enter a list of outputs in the 'Pay to' field."
 msgstr "Masukkan list output di kolom 'Bayar ke'."
 
 #: ../electrum/gui/qt/main_window_v2.py:2626
-#: ../electrum/gui/qt/main_window.py:2624
+#: ../electrum/gui/qt/main_window.py:2625
 msgid "Enter addresses"
 msgstr "Masukkan alamat "
 
@@ -1856,12 +2018,12 @@ msgid "Enter new PIN"
 msgstr "Masukkan PIN Baru"
 
 #: ../electrum/gui/qt/main_window_v2.py:2635
-#: ../electrum/gui/qt/main_window.py:2633
+#: ../electrum/gui/qt/main_window.py:2634
 msgid "Enter private keys"
 msgstr "Masukkan kunci privat"
 
 #: ../electrum/gui/qt/main_window_v2.py:2541
-#: ../electrum/gui/qt/main_window.py:2539
+#: ../electrum/gui/qt/main_window.py:2540
 msgid "Enter private keys:"
 msgstr "Masukkan kunci privat:"
 
@@ -1869,7 +2031,7 @@ msgstr "Masukkan kunci privat:"
 msgid "Enter the seed for your 2-factor wallet:"
 msgstr "Masukkan dompet untuk dompet 2-faktor Anda:"
 
-#: ../electrum/gui/qt/installwizard.py:446
+#: ../electrum/gui/qt/installwizard.py:449
 msgid ""
 "Enter their master private key (xprv) if you want to be able to sign for "
 "them."
@@ -1910,7 +2072,7 @@ msgstr "Masukkan PIN sekarang:"
 msgid "Enter your email address:"
 msgstr "Masukkan alamat email Anda:"
 
-#: ../electrum/gui/qt/installwizard.py:254
+#: ../electrum/gui/qt/installwizard.py:257
 msgid "Enter your password or choose another file."
 msgstr "Masukkan kata sandi Anda atau pilih file lain."
 
@@ -1918,12 +2080,12 @@ msgstr "Masukkan kata sandi Anda atau pilih file lain."
 msgid "Enter your password to proceed"
 msgstr "masukkan kata sandi Anda untuk melanjutkan"
 
-#: ../electrum/gui/qt/installwizard.py:297
-#: ../electrum/gui/qt/installwizard.py:301
-#: ../electrum/gui/qt/installwizard.py:307
-#: ../electrum/gui/qt/installwizard.py:314 ../electrum/gui/qt/util.py:223
-#: ../electrum/gui/qt/__init__.py:244 ../electrum/gui/qt/__init__.py:256
-#: ../electrum/gui/qt/__init__.py:271
+#: ../electrum/gui/qt/installwizard.py:300
+#: ../electrum/gui/qt/installwizard.py:304
+#: ../electrum/gui/qt/installwizard.py:310
+#: ../electrum/gui/qt/installwizard.py:317 ../electrum/gui/qt/util.py:223
+#: ../electrum/gui/qt/__init__.py:245 ../electrum/gui/qt/__init__.py:257
+#: ../electrum/gui/qt/__init__.py:272
 #: ../electrum/plugins/trustedcoin/trustedcoin.py:686
 #: ../electrum/plugins/trustedcoin/kivy.py:69
 #: ../electrum/plugins/trustedcoin/kivy.py:71
@@ -1959,7 +2121,7 @@ msgid "Error getting TrustedCoin account info."
 msgstr "Terjadi kesalahan dalam mendapatkan info akun TrustedCoin"
 
 #: ../electrum/gui/qt/main_window_v2.py:2410
-#: ../electrum/gui/qt/main_window.py:2408
+#: ../electrum/gui/qt/main_window.py:2409
 msgid "Error getting transaction from network"
 msgstr "Terjadi kesalahan dalam mendapatkan transaksi dari jaringan"
 
@@ -1973,7 +2135,7 @@ msgstr "Terjadi kesalahan dalam membuka pesan"
 
 #: ../electrum/gui/kivy/uix/screens.py:195
 #: ../electrum/gui/qt/main_window_v2.py:1689
-#: ../electrum/gui/qt/main_window.py:1687
+#: ../electrum/gui/qt/main_window.py:1688
 msgid "Error parsing URI"
 msgstr "Terjadi kesalahan dalam penguraian URI"
 
@@ -1997,7 +2159,7 @@ msgstr "Kesalahan: kunci publik master duplikat"
 msgid "Estimate"
 msgstr "Estimasi"
 
-#: ../electrum/gui/qt/__init__.py:161
+#: ../electrum/gui/qt/__init__.py:162
 msgid "Exit Electrum"
 msgstr "Keluar dari Electrum"
 
@@ -2028,7 +2190,7 @@ msgstr ""
 "untukmembebaskan alamat Bitcoin yang bersangkutan."
 
 #: ../electrum/gui/qt/main_window_v2.py:1843
-#: ../electrum/gui/qt/main_window.py:1841 ../electrum/util.py:122
+#: ../electrum/gui/qt/main_window.py:1842 ../electrum/util.py:122
 msgid "Expires"
 msgstr "Habis tempo"
 
@@ -2037,7 +2199,7 @@ msgstr "Habis tempo"
 #: ../electrum/gui/qt/main_window_v2.py:2443
 #: ../electrum/gui/qt/transaction_dialog.py:166
 #: ../electrum/gui/qt/main_window.py:611 ../electrum/gui/qt/main_window.py:614
-#: ../electrum/gui/qt/main_window.py:2441
+#: ../electrum/gui/qt/main_window.py:2442
 #: ../electrum/gui/qt/history_list.py:696
 msgid "Export"
 msgstr "ekspor"
@@ -2055,11 +2217,11 @@ msgid "Export to file"
 msgstr "Ekspor ke file"
 
 #: ../electrum/gui/qt/main_window_v2.py:2430
-#: ../electrum/gui/qt/main_window.py:2428
+#: ../electrum/gui/qt/main_window.py:2429
 msgid "Exposing a single private key can compromise your entire wallet!"
 msgstr "Mengekspos satu kunci pribadi dapat membahayakan seluruh dompet Anda!"
 
-#: ../electrum/gui/qt/seed_dialog.py:81
+#: ../electrum/gui/qt/seed_dialog.py:80
 msgid "Extend this seed with custom words"
 msgstr "Perpanjang seed ini dengan frase kustom"
 
@@ -2075,7 +2237,7 @@ msgstr "Kegagalam HTLCs"
 msgid "Failed to create a client for this device."
 msgstr "Gagal untuk membuat client untuk perangkat ini."
 
-#: ../electrum/gui/qt/installwizard.py:308
+#: ../electrum/gui/qt/installwizard.py:311
 msgid "Failed to decrypt using this hardware device."
 msgstr "Gagal untuk mendekripsi menggukana perangkat ini"
 
@@ -2098,12 +2260,12 @@ msgid "Failed to send transaction to cosigning pool"
 msgstr "Gagal untuk mengirim transaksi ke cosigning pool"
 
 #: ../electrum/gui/qt/main_window_v2.py:2014
-#: ../electrum/gui/qt/main_window.py:2012
+#: ../electrum/gui/qt/main_window.py:2013
 msgid "Failed to update password"
 msgstr "Gagal untuk memperbarui kata sandi"
 
 #: ../electrum/gui/qt/main_window_v2.py:2058
-#: ../electrum/gui/qt/main_window.py:2056
+#: ../electrum/gui/qt/main_window.py:2057
 msgid "False"
 msgstr "Salah"
 
@@ -2117,7 +2279,7 @@ msgid "Fee estimation"
 msgstr "Estimasi biaya"
 
 #: ../electrum/gui/qt/main_window_v2.py:2804
-#: ../electrum/gui/qt/main_window.py:2802
+#: ../electrum/gui/qt/main_window.py:2803
 msgid "Fee for child"
 msgstr "Biaya untuk anak"
 
@@ -2138,7 +2300,7 @@ msgstr "Fiat"
 msgid "Fiat currency"
 msgstr "Mata uang Fiat"
 
-#: ../electrum/gui/qt/util.py:426
+#: ../electrum/gui/qt/util.py:430
 msgid "File"
 msgstr "File"
 
@@ -2147,7 +2309,7 @@ msgid "Filter:"
 msgstr "Filter:"
 
 #: ../electrum/gui/qt/main_window_v2.py:2859
-#: ../electrum/gui/qt/main_window.py:2857
+#: ../electrum/gui/qt/main_window.py:2858
 msgid "Final"
 msgstr "Akhir"
 
@@ -2216,12 +2378,12 @@ msgstr "Tutup paksa channel ?"
 msgid "Fork detected at block {fork_point}"
 msgstr "Fork dideteksi di blok {fork_point}"
 
-#: ../electrum/gui/qt/util.py:402
+#: ../electrum/gui/qt/util.py:406
 msgid "Format"
 msgstr "Format"
 
 #: ../electrum/gui/qt/main_window_v2.py:1779
-#: ../electrum/gui/qt/main_window.py:1777
+#: ../electrum/gui/qt/main_window.py:1778
 msgid "Format: address, amount"
 msgstr "Format: alamat, jumlah"
 
@@ -2253,7 +2415,7 @@ msgstr "Bekukan Banyak Koin"
 msgid "From"
 msgstr "Dari"
 
-#: ../electrum/gui/qt/installwizard.py:760
+#: ../electrum/gui/qt/installwizard.py:763
 #, python-brace-format
 msgid "From {0} cosigners"
 msgstr "Dari {0} cosigners."
@@ -2296,15 +2458,6 @@ msgstr "Umum"
 #: ../electrum/gui/qt/main_window.py:990
 msgid "Generate"
 msgstr "Hasilkan"
-
-#: ../electrum/gui/qt/installwizard.py:606
-msgid ""
-"Generate an authenticator on GoldWallet and scan the following QR code: "
-msgstr "Hasilkan authenticator di GoldWallet dan pindai kode QR berikut:"
-
-#: ../electrum/gui/qt/installwizard.py:600
-msgid "GoldWallet authenticator public key"
-msgstr "Kunci publik authenticator GoldWallet"
 
 #: ../electrum/plugins/trustedcoin/qt.py:303
 msgid "Google Authenticator code:"
@@ -2350,7 +2503,7 @@ msgstr "Hello World"
 msgid "Help"
 msgstr "Bantuan"
 
-#: ../electrum/gui/qt/installwizard.py:706
+#: ../electrum/gui/qt/installwizard.py:709
 msgid "Here is your master public key."
 msgstr "Ini kunci publik master Anda"
 
@@ -2389,7 +2542,7 @@ msgstr "Hostname"
 msgid "Hostname does not resolve (getaddrinfo failed)"
 msgstr "Hostname tidak diselesaikan (getaddrinfo gagal)"
 
-#: ../electrum/gui/qt/installwizard.py:723
+#: ../electrum/gui/qt/installwizard.py:726
 msgid "How do you want to connect to a server? "
 msgstr "Bagaimana Anda ingin terhubung ke sebuah server?"
 
@@ -2501,11 +2654,11 @@ msgstr ""
 msgid "If you keep experiencing network problems, try using a Tor proxy."
 msgstr "Apabila Anda mengalami masalah jaringan, coba gunakan Tor proxy."
 
-#: ../electrum/gui/qt/installwizard.py:470
+#: ../electrum/gui/qt/installwizard.py:473
 msgid "If you lose your seed, your money will be permanently lost."
 msgstr "Apabila Anda kehilangan seed, uang Anda akan hilang secara permanen"
 
-#: ../electrum/gui/qt/installwizard.py:309
+#: ../electrum/gui/qt/installwizard.py:312
 msgid "If you use a passphrase, make sure it is correct."
 msgstr "Apabila Anda menggunakan passphrase, pastikan bahwa itu benar."
 
@@ -2528,7 +2681,7 @@ msgstr ""
 "pasang perangkat Andalagi."
 
 #: ../electrum/gui/qt/main_window_v2.py:2115
-#: ../electrum/gui/qt/main_window.py:2113
+#: ../electrum/gui/qt/main_window.py:2114
 msgid "If your wallet contains funds, make sure you have saved its seed."
 msgstr ""
 "Apabila terdapat dana di dompet Anda, pastikan bahwa Anda telah menyimpan "
@@ -2542,27 +2695,35 @@ msgstr "Abaikan dan lanjutkan?"
 #: ../electrum/gui/qt/main_window_v2.py:613
 #: ../electrum/gui/qt/main_window_v2.py:2605
 #: ../electrum/gui/qt/main_window.py:610 ../electrum/gui/qt/main_window.py:613
-#: ../electrum/gui/qt/main_window.py:2603
+#: ../electrum/gui/qt/main_window.py:2604
 msgid "Import"
 msgstr "Impor"
 
+#: ../electrum/base_wizard.py:302
+msgid "Import BTCV addresses"
+msgstr "Impor alamat BTCV"
+
 #: ../electrum/gui/qt/main_window_v2.py:595
 #: ../electrum/gui/qt/main_window_v2.py:2626
-#: ../electrum/gui/qt/main_window.py:595 ../electrum/gui/qt/main_window.py:2624
+#: ../electrum/gui/qt/main_window.py:595 ../electrum/gui/qt/main_window.py:2625
 msgid "Import addresses"
 msgstr "Impor banyak Alamat"
+
+#: ../electrum/base_wizard.py:139
+msgid "Import external watch-only BTCV addresses or private keys"
+msgstr "Impor alamat BTCV watch-only eksternal atau kunci privat"
 
 #: ../electrum/gui/qt/contact_list.py:82
 msgid "Import file"
 msgstr "Impor file"
 
 #: ../electrum/gui/qt/main_window_v2.py:2633
-#: ../electrum/gui/qt/main_window.py:2631
+#: ../electrum/gui/qt/main_window.py:2632
 msgid "Import private keys"
 msgstr "Impor kunci pribadi"
 
 #: ../electrum/gui/qt/main_window_v2.py:2431
-#: ../electrum/gui/qt/main_window.py:2429
+#: ../electrum/gui/qt/main_window.py:2430
 msgid ""
 "In particular, DO NOT use 'redeem private key' services proposed by third "
 "parties."
@@ -2613,7 +2774,7 @@ msgid "Increase fee"
 msgstr "Naikkan biaya"
 
 #: ../electrum/gui/qt/main_window_v2.py:2840
-#: ../electrum/gui/qt/main_window.py:2838
+#: ../electrum/gui/qt/main_window.py:2839
 msgid "Increase your transaction's fee to improve its position in mempool."
 msgstr "Naikkan biaya transaksi Anda untuk meningkatkan posisinya di mempool."
 
@@ -2621,7 +2782,7 @@ msgstr "Naikkan biaya transaksi Anda untuk meningkatkan posisinya di mempool."
 msgid "Info"
 msgstr "Info"
 
-#: ../electrum/gui/qt/util.py:231
+#: ../electrum/gui/qt/util.py:231 ../electrum/gui/qt/util.py:235
 msgid "Information"
 msgstr "Informasi"
 
@@ -2638,14 +2799,14 @@ msgid "Initiator"
 msgstr "Inisiator"
 
 #: ../electrum/gui/qt/main_window_v2.py:2773
-#: ../electrum/gui/qt/main_window.py:2771
+#: ../electrum/gui/qt/main_window.py:2772
 msgid "Input amount"
 msgstr "Masukkan jumlah"
 
 #: ../electrum/gui/qt/main_window_v2.py:2389
 #: ../electrum/gui/qt/transaction_dialog.py:344
 #: ../electrum/gui/qt/transaction_dialog.py:362
-#: ../electrum/gui/qt/main_window.py:2387
+#: ../electrum/gui/qt/main_window.py:2388
 msgid "Input raw transaction"
 msgstr "Masukkan transaksi mentah (raw transaction"
 
@@ -2670,12 +2831,12 @@ msgid "Insufficient funds"
 msgstr "Dana tidak mencukupi"
 
 #: ../electrum/gui/qt/main_window_v2.py:1797
-#: ../electrum/gui/qt/main_window.py:1795
+#: ../electrum/gui/qt/main_window.py:1796
 msgid "Invalid Address"
 msgstr "Alamat Tidak Valid"
 
 #: ../electrum/gui/qt/main_window_v2.py:1366
-#: ../electrum/gui/qt/main_window.py:1364 ../electrum/gui/stdio.py:179
+#: ../electrum/gui/qt/main_window.py:1365 ../electrum/gui/stdio.py:179
 #: ../electrum/gui/text.py:348
 msgid "Invalid Amount"
 msgstr "Jumlah Tidak Valid"
@@ -2691,8 +2852,8 @@ msgstr "Alamat Bitcoin Tidak Valid"
 
 #: ../electrum/gui/qt/main_window_v2.py:2191
 #: ../electrum/gui/qt/main_window_v2.py:2219
-#: ../electrum/gui/qt/main_window.py:2189
-#: ../electrum/gui/qt/main_window.py:2217 ../electrum/wallet.py:1581
+#: ../electrum/gui/qt/main_window.py:2190
+#: ../electrum/gui/qt/main_window.py:2218 ../electrum/wallet.py:1581
 msgid "Invalid Bitcoin address."
 msgstr "Alamat Bitcoin Tidak Valid"
 
@@ -2705,7 +2866,7 @@ msgid "Invalid JSON code."
 msgstr "Kode JSON Tidak Valid"
 
 #: ../electrum/gui/qt/main_window_v2.py:1384
-#: ../electrum/gui/qt/main_window.py:1382
+#: ../electrum/gui/qt/main_window.py:1383
 msgid "Invalid Lines found:"
 msgstr "Barisan Tidak Valid ditemukan:"
 
@@ -2715,7 +2876,7 @@ msgid "Invalid PIN"
 msgstr "PIN Tidak Valid"
 
 #: ../electrum/gui/qt/main_window_v2.py:2295
-#: ../electrum/gui/qt/main_window.py:2293
+#: ../electrum/gui/qt/main_window.py:2294
 msgid "Invalid Public key"
 msgstr "Kunci Publik Tidak Valid"
 
@@ -2730,11 +2891,6 @@ msgstr "Jumlah Tidak Valid"
 #: ../electrum/gui/qt/recovery_list.py:285
 msgid "Invalid cancel seedphrase"
 msgstr "Seedphrase Pembatalan tidak valid"
-
-#: ../electrum/gui/qt/recovery_list.py:359
-#: ../electrum/gui/qt/recovery_list.py:515
-msgid "Invalid cancellation address"
-msgstr "Alamat pembatalan tidak valid"
 
 #: ../electrum/lnutil.py:729
 msgid "Invalid node ID, must be 33 bytes and hexadecimal"
@@ -2751,12 +2907,12 @@ msgid "Invalid seed"
 msgstr "Seed tidak valid"
 
 #: ../electrum/gui/qt/main_window_v2.py:1540
-#: ../electrum/gui/qt/main_window.py:1538
+#: ../electrum/gui/qt/main_window.py:1539
 msgid "Invoice has expired"
 msgstr "Invoice telah habis tempo"
 
 #: ../electrum/gui/qt/main_window_v2.py:1853
-#: ../electrum/gui/qt/main_window.py:1851
+#: ../electrum/gui/qt/main_window.py:1852
 msgid "Invoice saved as "
 msgstr "Invoice disimpan sebagai"
 
@@ -2779,12 +2935,12 @@ msgstr ""
 "alamat Anda."
 
 #: ../electrum/gui/qt/main_window_v2.py:2423
-#: ../electrum/gui/qt/main_window.py:2421
+#: ../electrum/gui/qt/main_window.py:2422
 msgid "It cannot be \"backed up\" by simply exporting these private keys."
 msgstr "Tidak dapat di \"backed up\" dengan hanya mengekspor kunci pribadi ini"
 
 #: ../electrum/gui/qt/main_window_v2.py:2880
-#: ../electrum/gui/qt/main_window.py:2878
+#: ../electrum/gui/qt/main_window.py:2879
 msgid "It conflicts with current history."
 msgstr "Konflik dengan riwayat sekarang"
 
@@ -2815,7 +2971,7 @@ msgid "Keystore"
 msgstr "Keystore"
 
 #: ../electrum/gui/qt/main_window_v2.py:2071
-#: ../electrum/gui/qt/main_window.py:2069
+#: ../electrum/gui/qt/main_window.py:2070
 msgid "Keystore type"
 msgstr "Tipe keystore"
 
@@ -2870,7 +3026,7 @@ msgstr " Otentikasi Dompet Ledger"
 msgid "Ledger wallet"
 msgstr "Dompet Ledger"
 
-#: ../electrum/base_wizard.py:724
+#: ../electrum/base_wizard.py:722
 msgid "Legacy"
 msgstr "Legacy"
 
@@ -2925,14 +3081,14 @@ msgid "Lightning:"
 msgstr "Lightning:"
 
 #: ../electrum/gui/qt/main_window_v2.py:1385
-#: ../electrum/gui/qt/main_window.py:1383
+#: ../electrum/gui/qt/main_window.py:1384
 msgid "Line #"
 msgstr "Baris #"
 
 #: ../electrum/gui/qt/main_window_v2.py:2389
 #: ../electrum/gui/qt/transaction_dialog.py:346
 #: ../electrum/gui/qt/transaction_dialog.py:364
-#: ../electrum/gui/qt/main_window.py:2387
+#: ../electrum/gui/qt/main_window.py:2388
 msgid "Load transaction"
 msgstr "Muat transaksi"
 
@@ -2947,7 +3103,7 @@ msgid "Local CTN"
 msgstr "CTN lokal"
 
 #: ../electrum/gui/qt/main_window_v2.py:2403
-#: ../electrum/gui/qt/main_window.py:2401
+#: ../electrum/gui/qt/main_window.py:2402
 msgid "Lookup transaction"
 msgstr "Temukan transaksi"
 
@@ -2979,13 +3135,13 @@ msgstr ""
 #: ../electrum/gui/kivy/main_window.py:719
 #: ../electrum/gui/kivy/main_window.py:721
 #: ../electrum/gui/qt/main_window_v2.py:2100
-#: ../electrum/gui/qt/installwizard.py:712
-#: ../electrum/gui/qt/main_window.py:2098
+#: ../electrum/gui/qt/installwizard.py:715
+#: ../electrum/gui/qt/main_window.py:2099
 msgid "Master Public Key"
 msgstr "Kunci Publik Master"
 
 #: ../electrum/gui/qt/main_window_v2.py:2097
-#: ../electrum/gui/qt/main_window.py:2095
+#: ../electrum/gui/qt/main_window.py:2096
 msgid "Master Public Keys"
 msgstr "Kunci Publik Master"
 
@@ -2997,7 +3153,7 @@ msgid "Max"
 msgstr "Max"
 
 #: ../electrum/gui/qt/main_window_v2.py:2822
-#: ../electrum/gui/qt/main_window.py:2820
+#: ../electrum/gui/qt/main_window.py:2821
 msgid "Max fee exceeded"
 msgstr "Biaya Max terlampaui"
 
@@ -3010,7 +3166,7 @@ msgid "Maximum value of in-flight HTLCs accepted by peer:"
 msgstr "Jumlah maksimum in-flight HTLCs yang diterima oleh peer:"
 
 #: ../electrum/gui/qt/main_window_v2.py:1838
-#: ../electrum/gui/qt/main_window.py:1836
+#: ../electrum/gui/qt/main_window.py:1837
 msgid "Memo"
 msgstr "Memo"
 
@@ -3032,8 +3188,8 @@ msgstr "Gabungkan tandatangan dari"
 
 #: ../electrum/gui/qt/main_window_v2.py:2240
 #: ../electrum/gui/qt/main_window_v2.py:2308
-#: ../electrum/gui/qt/main_window.py:2238
-#: ../electrum/gui/qt/main_window.py:2306
+#: ../electrum/gui/qt/main_window.py:2239
+#: ../electrum/gui/qt/main_window.py:2307
 #: ../electrum/gui/qt/invoice_list.py:184
 msgid "Message"
 msgstr "Pesan"
@@ -3073,24 +3229,20 @@ msgstr "Report URL tidak ditemukan."
 msgid "More info at: {link}"
 msgstr "Informasi lebih lanjut di: {link}"
 
-#: ../electrum/gui/qt/installwizard.py:772
-msgid "Multi-Signature Wallet"
-msgstr "Dompet Multi-Signature"
-
 #: ../electrum/plugins/ledger/auth2fa.py:88
 #: ../electrum/plugins/ledger/auth2fa.py:130
 msgid "NOT DEVICE PIN - see above"
 msgstr "BUKAN PIN PERANGKAT - lihat diatas"
 
 #: ../electrum/gui/qt/main_window_v2.py:2043
-#: ../electrum/gui/qt/contact_list.py:47 ../electrum/gui/qt/main_window.py:2041
+#: ../electrum/gui/qt/contact_list.py:47 ../electrum/gui/qt/main_window.py:2042
 msgid "Name"
 msgstr "Nama"
 
 #: ../electrum/gui/kivy/uix/ui_screens/network.kv:3
 #: ../electrum/gui/kivy/main.kv:452 ../electrum/gui/qt/main_window_v2.py:1940
 #: ../electrum/gui/qt/network_dialog.py:54
-#: ../electrum/gui/qt/main_window.py:1938 ../electrum/gui/text.py:158
+#: ../electrum/gui/qt/main_window.py:1939 ../electrum/gui/text.py:158
 msgid "Network"
 msgstr "Jaringan"
 
@@ -3102,23 +3254,19 @@ msgstr "Permintaan jaringan habis waktu"
 msgid "Never"
 msgstr "Jangan pernah"
 
-#: ../electrum/gui/qt/seed_dialog.py:50
+#: ../electrum/gui/qt/seed_dialog.py:49
 msgid "Never disclose your seed."
 msgstr "Jangan pernah menyebarkan seed Anda"
 
-#: ../electrum/gui/qt/seed_dialog.py:51
-msgid "Never type it on a website."
-msgstr "Jangan pernah menuliskannya di sebush website."
-
 #: ../electrum/gui/qt/main_window_v2.py:2033
 #: ../electrum/gui/qt/main_window_v2.py:2035
-#: ../electrum/gui/qt/main_window.py:2031
-#: ../electrum/gui/qt/main_window.py:2033
+#: ../electrum/gui/qt/main_window.py:2032
+#: ../electrum/gui/qt/main_window.py:2034
 msgid "New Contact"
 msgstr "Kontak Baru"
 
 #: ../electrum/gui/qt/main_window_v2.py:2843
-#: ../electrum/gui/qt/main_window.py:2841
+#: ../electrum/gui/qt/main_window.py:2842
 msgid "New Fee rate"
 msgstr "Tarif biaya baru"
 
@@ -3189,7 +3337,7 @@ msgstr ""
 "dikonfirmasi)"
 
 #: ../electrum/gui/qt/main_window_v2.py:2072
-#: ../electrum/gui/qt/main_window.py:2070
+#: ../electrum/gui/qt/main_window.py:2071
 msgid "No keystore"
 msgstr "Tidak ada keystore"
 
@@ -3199,7 +3347,7 @@ msgid "No more addresses in your wallet."
 msgstr "Tidak ada lagi alamat di dompet Anda "
 
 #: ../electrum/gui/qt/main_window_v2.py:1358
-#: ../electrum/gui/qt/main_window.py:1356
+#: ../electrum/gui/qt/main_window.py:1357
 msgid "No outputs"
 msgstr "Tida ada output"
 
@@ -3241,7 +3389,7 @@ msgstr "Tidak Ada"
 #: ../electrum/gui/qt/three_keys_windows.py:104
 #: ../electrum/gui/qt/three_keys_windows.py:412
 #: ../electrum/gui/qt/recovery_list.py:314
-#: ../electrum/gui/qt/main_window.py:1481
+#: ../electrum/gui/qt/main_window.py:1482
 msgid "Not Enough Funds"
 msgstr "Saldo Tidak Mencukupi"
 
@@ -3313,7 +3461,7 @@ msgstr ""
 "perangkat keras Anda untuk membukadompet Anda."
 
 #: ../electrum/gui/qt/main_window_v2.py:2890
-#: ../electrum/gui/qt/main_window.py:2888
+#: ../electrum/gui/qt/main_window.py:2889
 msgid ""
 "Note: this is an offline transaction, if you want the network to see it, you "
 "need to broadcast it."
@@ -3353,7 +3501,7 @@ msgstr "ATAU"
 
 #: ../electrum/gui/kivy/main_window.py:823
 #: ../electrum/gui/qt/main_window_v2.py:833
-#: ../electrum/gui/qt/main_window.py:831 ../electrum/gui/qt/__init__.py:195
+#: ../electrum/gui/qt/main_window.py:831 ../electrum/gui/qt/__init__.py:196
 #: ../electrum/gui/text.py:139
 msgid "Offline"
 msgstr "Offline"
@@ -3365,7 +3513,7 @@ msgstr ""
 "Anda."
 
 #: ../electrum/gui/qt/main_window_v2.py:1778
-#: ../electrum/gui/qt/main_window.py:1776
+#: ../electrum/gui/qt/main_window.py:1777
 msgid "One output per line."
 msgstr "Satu output per baris."
 
@@ -3407,7 +3555,7 @@ msgstr "Channel terbuka"
 msgid "Open your cosigner wallet to retrieve it."
 msgstr "Buka dompet cosigner Anda untuk menerima."
 
-#: ../electrum/gui/qt/util.py:821
+#: ../electrum/gui/qt/util.py:825
 #, python-brace-format
 msgid "Open {title} file"
 msgstr "Buka file {title}"
@@ -3424,7 +3572,7 @@ msgstr ""
 "permintaan pembayaran."
 
 #: ../electrum/gui/qt/main_window_v2.py:1612
-#: ../electrum/gui/qt/main_window.py:1610
+#: ../electrum/gui/qt/main_window.py:1611
 msgid "Opening channel..."
 msgstr "Membuka channel…"
 
@@ -3443,7 +3591,7 @@ msgid "Outgoing payments"
 msgstr "Pembayaran keluar"
 
 #: ../electrum/gui/qt/main_window_v2.py:2776
-#: ../electrum/gui/qt/main_window.py:2774
+#: ../electrum/gui/qt/main_window.py:2775
 msgid "Output amount"
 msgstr "Jumlah output"
 
@@ -3486,10 +3634,10 @@ msgstr "Passpharase:"
 #: ../electrum/gui/kivy/uix/ui_screens/proxy.kv:47
 #: ../electrum/gui/qt/main_window_v2.py:1934
 #: ../electrum/gui/qt/confirm_tx_dialog.py:156
-#: ../electrum/gui/qt/installwizard.py:213
+#: ../electrum/gui/qt/installwizard.py:216
 #: ../electrum/gui/qt/password_dialog.py:299
 #: ../electrum/gui/qt/network_dialog.py:271
-#: ../electrum/gui/qt/main_window.py:1932
+#: ../electrum/gui/qt/main_window.py:1933
 msgid "Password"
 msgstr "Kata Sandi"
 
@@ -3498,12 +3646,12 @@ msgid "Password Strength"
 msgstr "Kekuatan Kata Sandi"
 
 #: ../electrum/gui/qt/main_window_v2.py:2016
-#: ../electrum/gui/qt/main_window.py:2014
+#: ../electrum/gui/qt/main_window.py:2015
 msgid "Password is disabled, this wallet is not protected"
 msgstr "Kata Sandi dinonaktifkan, dompet ini tidak terlindungi"
 
 #: ../electrum/gui/qt/main_window_v2.py:2016
-#: ../electrum/gui/qt/main_window.py:2014
+#: ../electrum/gui/qt/main_window.py:2015
 msgid "Password was updated successfully"
 msgstr "Kata sandi telah sukses dirubah"
 
@@ -3531,7 +3679,7 @@ msgid "Pay to"
 msgstr "Bayar ke "
 
 #: ../electrum/gui/qt/main_window_v2.py:1782
-#: ../electrum/gui/qt/main_window.py:1780
+#: ../electrum/gui/qt/main_window.py:1781
 msgid "Pay to many"
 msgstr "Bayar ke banyak"
 
@@ -3545,7 +3693,7 @@ msgstr "Permintaan Pembayaran"
 
 #: ../electrum/gui/kivy/main_window.py:232
 #: ../electrum/gui/qt/main_window_v2.py:1414
-#: ../electrum/gui/qt/main_window.py:1412
+#: ../electrum/gui/qt/main_window.py:1413
 msgid "Payment failed"
 msgstr "Pembayaran gagal"
 
@@ -3559,25 +3707,25 @@ msgstr "Log Pembayaran"
 
 #: ../electrum/gui/kivy/uix/screens.py:430
 #: ../electrum/gui/qt/main_window_v2.py:1403
-#: ../electrum/gui/qt/main_window.py:1401
+#: ../electrum/gui/qt/main_window.py:1402
 msgid "Payment received"
 msgstr "Pembayaran diterima"
 
 #: ../electrum/gui/kivy/main_window.py:379
 #: ../electrum/gui/qt/main_window_v2.py:1378
-#: ../electrum/gui/qt/main_window.py:1376
+#: ../electrum/gui/qt/main_window.py:1377
 msgid "Payment request has expired"
 msgstr "Permintaan pembayaran habis tempo"
 
 #: ../electrum/gui/kivy/main_window.py:1033
 #: ../electrum/gui/qt/main_window_v2.py:1571
-#: ../electrum/gui/qt/main_window.py:1569 ../electrum/gui/stdio.py:220
+#: ../electrum/gui/qt/main_window.py:1570 ../electrum/gui/stdio.py:220
 #: ../electrum/gui/text.py:383
 msgid "Payment sent."
 msgstr "Pembayaran dikirimkan."
 
 #: ../electrum/gui/qt/main_window_v2.py:1411
-#: ../electrum/gui/qt/main_window.py:1409
+#: ../electrum/gui/qt/main_window.py:1410
 msgid "Payment succeeded"
 msgstr "Pembayaran sukses."
 
@@ -3623,7 +3771,7 @@ msgstr "Mohon konfirmasi"
 msgid "Please enter an amount"
 msgstr "Mohon masukkan jumlah"
 
-#: ../electrum/gui/qt/installwizard.py:445
+#: ../electrum/gui/qt/installwizard.py:448
 msgid "Please enter the master public key (xpub) of your cosigner."
 msgstr "Mohon masukkan kunci publik master (xpub) cosigner Anda."
 
@@ -3650,7 +3798,7 @@ msgstr "Mohon masukkan kata sandi Anda"
 msgid "Please enter your password to decrypt it."
 msgstr "Mohon masukkan kata sandi Anda untuk mendekripsikannya."
 
-#: ../electrum/gui/qt/installwizard.py:458
+#: ../electrum/gui/qt/installwizard.py:461
 msgid "Please enter your seed phrase in order to restore your wallet."
 msgstr "Mohon masukkan seed phrase Anda untuk memulihkan dompet Anda."
 
@@ -3658,30 +3806,6 @@ msgstr "Mohon masukkan seed phrase Anda untuk memulihkan dompet Anda."
 #, python-brace-format
 msgid "Please insert your {device}"
 msgstr "Mohon masukkan {device} Anda."
-
-#: ../electrum/base_wizard.py:717
-msgid ""
-"Please note that websites and other wallets may not support these addresses "
-"yet."
-msgstr ""
-"Mohon dicatat bahwa website dan dompet lain mungkin belum mendukung alamat "
-"ini."
-
-#: ../electrum/gui/qt/installwizard.py:592
-msgid ""
-"Please pass authenticator public key exported from your GoldWallet "
-"application"
-msgstr ""
-"Mohon teruskan kunci otentikator publik yang diekspor dari aplkasiGoldWallet "
-"Anda"
-
-#: ../electrum/gui/qt/installwizard.py:557
-msgid ""
-"Please paste a cancel transaction public key. Use an existing one if you are "
-"importing a wallet, or generate a new one at"
-msgstr ""
-"Mohon tempel satu kunci publik pembatalan transaksi. Gunakan yang telah ada "
-"apabila Andamengimpor sebuah dompet, atau menghasilkan dompet baru di"
 
 #: ../electrum/gui/kivy/uix/dialogs/installwizard.py:1136
 msgid ""
@@ -3701,7 +3825,7 @@ msgid "Please report this issue manually"
 msgstr "Mohon laporkan masalah ini secara manual"
 
 #: ../electrum/gui/qt/main_window_v2.py:2658
-#: ../electrum/gui/qt/main_window.py:2656
+#: ../electrum/gui/qt/main_window.py:2657
 msgid "Please restart Electrum to activate the new GUI settings"
 msgstr ""
 "Mohon luncurkan kembali (restart) Electrum untuk mengaktifkan pengaturan GUI "
@@ -3713,11 +3837,6 @@ msgstr ""
 "Mohon ketik ulang seed phrase Anda, untuk mengkonfirmasi bahwa Anda telah "
 "benar-benar menyimpannya"
 
-#: ../electrum/gui/qt/seed_dialog.py:44
-#, python-brace-format
-msgid "Please save these {0} words on paper (order is important). "
-msgstr "Mohon simpan {0} kata-kata ini di kerta (urutan kata juga penting)."
-
 #: ../electrum/gui/kivy/uix/screens.py:297
 msgid "Please scan a Bitcoin address or a payment request"
 msgstr "Mohon pindah alamat Bitcoin atau permintaan pembayaran"
@@ -3727,7 +3846,7 @@ msgstr "Mohon pindah alamat Bitcoin atau permintaan pembayaran"
 msgid "Please select which {device} device to use:"
 msgstr "Mohon pilih perangkat {device} mana yang ingin Anda gunakan."
 
-#: ../electrum/gui/qt/installwizard.py:707
+#: ../electrum/gui/qt/installwizard.py:710
 msgid "Please share it with your cosigners."
 msgstr "Mohon bagikan dengan cosigner Anda."
 
@@ -3739,7 +3858,7 @@ msgstr "Mohon tandatangani transaksi ini untuk menyimpannya"
 msgid "Please try again."
 msgstr "Mohon coba lagi."
 
-#: ../electrum/base_wizard.py:759
+#: ../electrum/base_wizard.py:757
 msgid "Please type it here."
 msgstr "Mohon ketik disini."
 
@@ -3747,7 +3866,7 @@ msgstr "Mohon ketik disini."
 msgid "Please type your seed phrase using the virtual keyboard."
 msgstr "Mohon ketik seed phrase Anda menggunakan keyboard virtual."
 
-#: ../electrum/gui/qt/util.py:289
+#: ../electrum/gui/qt/util.py:293
 msgid "Please wait"
 msgstr "Mohon tunggu"
 
@@ -3780,23 +3899,23 @@ msgstr "Posisi di mempool: {size} dari ujung"
 #: ../electrum/gui/qt/main_window_v2.py:1937
 #: ../electrum/gui/qt/settings_dialog.py:52
 #: ../electrum/gui/qt/transaction_dialog.py:638
-#: ../electrum/gui/qt/main_window.py:633 ../electrum/gui/qt/main_window.py:1935
+#: ../electrum/gui/qt/main_window.py:633 ../electrum/gui/qt/main_window.py:1936
 msgid "Preferences"
 msgstr "Preferensi"
 
-#: ../electrum/gui/qt/installwizard.py:258
+#: ../electrum/gui/qt/installwizard.py:261
 msgid "Press 'Next' to choose device to decrypt."
 msgstr "Tekan 'Lanjutkan' untuk memilih perangkat yang akan di dekripsi."
 
-#: ../electrum/gui/qt/installwizard.py:250
+#: ../electrum/gui/qt/installwizard.py:253
 msgid "Press 'Next' to create this wallet, or choose another file."
 msgstr "Tekan 'Lanjutkan' untuk membuat dompet ini, atau pilih file lain."
 
-#: ../electrum/gui/qt/installwizard.py:263
+#: ../electrum/gui/qt/installwizard.py:266
 msgid "Press 'Next' to create/focus window."
 msgstr "Tekan 'Lanjutkan' untuk membuat/memfokuskan jendela/window."
 
-#: ../electrum/gui/qt/installwizard.py:260
+#: ../electrum/gui/qt/installwizard.py:263
 msgid "Press 'Next' to open this wallet."
 msgstr "Tekan 'Lanjutkan' untuk membuka dompet ini."
 
@@ -3816,18 +3935,18 @@ msgstr "Kalibrasi Printer"
 #: ../electrum/gui/qt/main_window_v2.py:2162
 #: ../electrum/gui/qt/main_window_v2.py:2167
 #: ../electrum/gui/qt/address_list.py:232
-#: ../electrum/gui/qt/main_window.py:2160
-#: ../electrum/gui/qt/main_window.py:2165
+#: ../electrum/gui/qt/main_window.py:2161
+#: ../electrum/gui/qt/main_window.py:2166
 msgid "Private key"
 msgstr "Kunci Pribadi"
 
 #: ../electrum/gui/qt/main_window_v2.py:2425
-#: ../electrum/gui/qt/main_window.py:2423
+#: ../electrum/gui/qt/main_window.py:2424
 msgid "Private keys"
 msgstr "Kunci Pribadi"
 
 #: ../electrum/gui/qt/main_window_v2.py:2505
-#: ../electrum/gui/qt/main_window.py:2503
+#: ../electrum/gui/qt/main_window.py:2504
 msgid "Private keys exported."
 msgstr "Kunci Pribadi diekspor"
 
@@ -3874,7 +3993,7 @@ msgid "PubKey cropped because too long string passed"
 msgstr "PubKey dipotong karena string terlalu panjang"
 
 #: ../electrum/gui/qt/main_window_v2.py:2316
-#: ../electrum/gui/qt/main_window.py:2314
+#: ../electrum/gui/qt/main_window.py:2315
 msgid "Public key"
 msgstr "Kunci publik"
 
@@ -3888,15 +4007,15 @@ msgid "QR Code"
 msgstr "Kode QR"
 
 #: ../electrum/gui/qt/main_window_v2.py:2145
-#: ../electrum/gui/qt/main_window.py:2143
+#: ../electrum/gui/qt/main_window.py:2144
 msgid "QR code"
 msgstr "Kode QR"
 
-#: ../electrum/gui/qt/qrcodewidget.py:121
+#: ../electrum/gui/qt/qrcodewidget.py:129
 msgid "QR code copied to clipboard"
 msgstr "Kode QR disalik ke papan klip"
 
-#: ../electrum/gui/qt/qrcodewidget.py:116
+#: ../electrum/gui/qt/qrcodewidget.py:124
 msgid "QR code saved to file"
 msgstr "Kode QR disimpan ke file"
 
@@ -3993,7 +4112,7 @@ msgstr "Batasan remote dust:"
 
 #: ../electrum/gui/kivy/uix/dialogs/lightning_open_channel.py:148
 #: ../electrum/gui/qt/main_window_v2.py:1605
-#: ../electrum/gui/qt/main_window.py:1603
+#: ../electrum/gui/qt/main_window.py:1604
 msgid "Remote peer ID"
 msgstr "Remote peer ID"
 
@@ -4008,7 +4127,7 @@ msgid "Remove from wallet"
 msgstr "Hapus dari dompet"
 
 #: ../electrum/gui/qt/main_window_v2.py:1807
-#: ../electrum/gui/qt/main_window.py:1805
+#: ../electrum/gui/qt/main_window.py:1806
 #, python-brace-format
 msgid "Remove {labels} from your list of contacts?"
 msgstr "Hapus {labels} dari daftar kontak Anda?"
@@ -4072,22 +4191,22 @@ msgid "Requesting account info from TrustedCoin server..."
 msgstr "Meminta info akun dari server TrustedCoin…"
 
 #: ../electrum/gui/qt/main_window_v2.py:1832
-#: ../electrum/gui/qt/main_window.py:1830
+#: ../electrum/gui/qt/main_window.py:1831
 msgid "Requestor"
 msgstr "Pemohon"
 
-#: ../electrum/gui/qt/installwizard.py:756
+#: ../electrum/gui/qt/installwizard.py:759
 #, python-brace-format
 msgid "Require {0} signatures"
 msgstr "Memerlukan {0} tandatangan"
 
 #: ../electrum/gui/qt/main_window_v2.py:2740
-#: ../electrum/gui/qt/main_window.py:2738
+#: ../electrum/gui/qt/main_window.py:2739
 msgid "Requires"
 msgstr "Memerlukan"
 
 #: ../electrum/gui/qt/main_window_v2.py:1957
-#: ../electrum/gui/qt/main_window.py:1955
+#: ../electrum/gui/qt/main_window.py:1956
 msgid "Reset"
 msgstr "Reset"
 
@@ -4149,14 +4268,14 @@ msgstr "File kunci SSL"
 #: ../electrum/gui/qt/main_window_v2.py:1854
 #: ../electrum/gui/qt/transaction_dialog.py:145
 #: ../electrum/gui/qt/three_keys_windows.py:254
-#: ../electrum/gui/qt/qrcodewidget.py:127
+#: ../electrum/gui/qt/qrcodewidget.py:135
 #: ../electrum/gui/qt/main_window.py:1233
-#: ../electrum/gui/qt/main_window.py:1852
+#: ../electrum/gui/qt/main_window.py:1853
 msgid "Save"
 msgstr "Simpan"
 
 #: ../electrum/gui/qt/main_window_v2.py:1848
-#: ../electrum/gui/qt/main_window.py:1846
+#: ../electrum/gui/qt/main_window.py:1847
 msgid "Save invoice to file"
 msgstr "Simpan invoice ke file"
 
@@ -4174,8 +4293,8 @@ msgstr ""
 
 #: ../electrum/gui/qt/main_window_v2.py:2066
 #: ../electrum/gui/qt/main_window_v2.py:2166
-#: ../electrum/gui/qt/main_window.py:2064
-#: ../electrum/gui/qt/main_window.py:2164
+#: ../electrum/gui/qt/main_window.py:2065
+#: ../electrum/gui/qt/main_window.py:2165
 msgid "Script type"
 msgstr "Jenis skrip"
 
@@ -4190,12 +4309,12 @@ msgstr "Tantangan Kartu Keamanan"
 #: ../electrum/gui/kivy/uix/ui_screens/status.kv:66
 #: ../electrum/gui/kivy/uix/ui_screens/status.kv:70
 #: ../electrum/gui/qt/main_window_v2.py:1938
-#: ../electrum/gui/qt/seed_dialog.py:217 ../electrum/gui/qt/main_window.py:1936
+#: ../electrum/gui/qt/seed_dialog.py:220 ../electrum/gui/qt/main_window.py:1937
 msgid "Seed"
 msgstr "Seed"
 
 #: ../electrum/gui/qt/main_window_v2.py:2068
-#: ../electrum/gui/qt/main_window.py:2066
+#: ../electrum/gui/qt/main_window.py:2067
 msgid "Seed available"
 msgstr "Seed tersedia "
 
@@ -4203,7 +4322,7 @@ msgstr "Seed tersedia "
 msgid "Seed extension"
 msgstr "Ekstensi Seed"
 
-#: ../electrum/base_wizard.py:723
+#: ../electrum/base_wizard.py:721
 msgid "Segwit"
 msgstr "Segwit "
 
@@ -4224,7 +4343,7 @@ msgid "Select date"
 msgstr "Pilih tanggal"
 
 #: ../electrum/gui/qt/main_window_v2.py:2439
-#: ../electrum/gui/qt/main_window.py:2437
+#: ../electrum/gui/qt/main_window.py:2438
 msgid "Select file to export your private keys to"
 msgstr "Pilih file tujuan ekspor kunci pribadi Anda"
 
@@ -4232,7 +4351,7 @@ msgstr "Pilih file tujuan ekspor kunci pribadi Anda"
 msgid "Select file to export your wallet transactions to"
 msgstr "Pilih fire tujuan ekspor transaksi dompet Anda"
 
-#: ../electrum/gui/qt/util.py:835
+#: ../electrum/gui/qt/util.py:839
 #, python-brace-format
 msgid "Select file to save your {title}"
 msgstr "Pilih file untuk menyimpan {title} Anda"
@@ -4241,12 +4360,12 @@ msgstr "Pilih file untuk menyimpan {title} Anda"
 msgid "Select server automatically"
 msgstr "Pilih server secara otomatis"
 
-#: ../electrum/gui/qt/installwizard.py:722
+#: ../electrum/gui/qt/installwizard.py:725
 msgid "Select server manually"
 msgstr "Pilih server secara manual"
 
-#: ../electrum/gui/qt/qrcodewidget.py:109
-#: ../electrum/gui/qt/qrcodewidget.py:111
+#: ../electrum/gui/qt/qrcodewidget.py:117
+#: ../electrum/gui/qt/qrcodewidget.py:119
 msgid "Select where to save file"
 msgstr "Pilih dimana Anda ingin menympan file"
 
@@ -4268,7 +4387,7 @@ msgid "Select your server automatically"
 msgstr "Pilih server Anda secara otomatis"
 
 #: ../electrum/gui/qt/main_window_v2.py:2375
-#: ../electrum/gui/qt/main_window.py:2373
+#: ../electrum/gui/qt/main_window.py:2374
 msgid "Select your transaction file"
 msgstr "Pilih file transaksi Anda"
 
@@ -4443,7 +4562,7 @@ msgstr "Tampilkan isi laporan"
 msgid "Show {tab_description}"
 msgstr "Tampilkan {tab_description}"
 
-#: ../electrum/gui/qt/__init__.py:157
+#: ../electrum/gui/qt/__init__.py:158
 msgid "Show/Hide"
 msgstr "Tampilkan/Sembunyikan"
 
@@ -4454,12 +4573,12 @@ msgstr "Sembunyikan alamat…"
 #: ../electrum/gui/kivy/uix/dialogs/tx_dialog.py:190
 #: ../electrum/gui/qt/main_window_v2.py:2257
 #: ../electrum/gui/qt/transaction_dialog.py:139
-#: ../electrum/gui/qt/main_window.py:2255
+#: ../electrum/gui/qt/main_window.py:2256
 msgid "Sign"
 msgstr "Tandatangani"
 
 #: ../electrum/gui/qt/main_window_v2.py:2233
-#: ../electrum/gui/qt/main_window.py:2231
+#: ../electrum/gui/qt/main_window.py:2232
 msgid "Sign/verify Message"
 msgstr "Tandatangani/verifikasi Pesan"
 
@@ -4469,13 +4588,13 @@ msgstr "Tandatangani/verifikasi pesan"
 
 #: ../electrum/gui/qt/main_window_v2.py:1840
 #: ../electrum/gui/qt/main_window_v2.py:2251
-#: ../electrum/gui/qt/main_window.py:1838
-#: ../electrum/gui/qt/main_window.py:2249
+#: ../electrum/gui/qt/main_window.py:1839
+#: ../electrum/gui/qt/main_window.py:2250
 msgid "Signature"
 msgstr "Tandatangan"
 
 #: ../electrum/gui/qt/main_window_v2.py:2228
-#: ../electrum/gui/qt/main_window.py:2226
+#: ../electrum/gui/qt/main_window.py:2227
 msgid "Signature verified"
 msgstr "Tandatangan diverifikasi"
 
@@ -4489,12 +4608,12 @@ msgstr "Menandatangani"
 
 #: ../electrum/gui/qt/main_window_v2.py:1530
 #: ../electrum/gui/qt/recovery_list.py:347
-#: ../electrum/gui/qt/main_window.py:1528
+#: ../electrum/gui/qt/main_window.py:1529
 msgid "Signing transaction..."
 msgstr "Menandatangani transaksi…"
 
 #: ../electrum/gui/qt/main_window_v2.py:2180
-#: ../electrum/gui/qt/main_window.py:2178
+#: ../electrum/gui/qt/main_window.py:2179
 msgid ""
 "Signing with an address actually means signing with the corresponding "
 "private key, and verifying with the corresponding public key. The address "
@@ -4552,7 +4671,6 @@ msgid "Start"
 msgstr "Mulai"
 
 #: ../electrum/gui/qt/main_window_v2.py:679
-#: ../electrum/gui/qt/main_window.py:677
 msgid ""
 "Startup times are instant because it operates in conjunction with high-"
 "performance servers that handle the most complicated parts of the Bitcoin "
@@ -4583,9 +4701,9 @@ msgstr "Status:"
 #: ../electrum/gui/qt/main_window_v2.py:2017
 #: ../electrum/gui/qt/main_window_v2.py:2658
 #: ../electrum/gui/qt/main_window_v2.py:2892
-#: ../electrum/gui/qt/main_window.py:2015
-#: ../electrum/gui/qt/main_window.py:2656
-#: ../electrum/gui/qt/main_window.py:2890
+#: ../electrum/gui/qt/main_window.py:2016
+#: ../electrum/gui/qt/main_window.py:2657
+#: ../electrum/gui/qt/main_window.py:2891
 #: ../electrum/gui/qt/invoice_list.py:194
 msgid "Success"
 msgstr "Sukses"
@@ -4603,12 +4721,12 @@ msgid "Summary Text PIN is Disabled"
 msgstr "Rangkuman PIN Text dinonaktifkan"
 
 #: ../electrum/gui/qt/main_window_v2.py:2558
-#: ../electrum/gui/qt/main_window.py:2556
+#: ../electrum/gui/qt/main_window.py:2557
 msgid "Sweep"
 msgstr "Pindai"
 
 #: ../electrum/gui/qt/main_window_v2.py:2537
-#: ../electrum/gui/qt/main_window.py:2535
+#: ../electrum/gui/qt/main_window.py:2536
 msgid "Sweep private keys"
 msgstr "Pindai kunci pribadi"
 
@@ -4646,14 +4764,13 @@ msgid "Testnet coins are worthless."
 msgstr "Koin Testnet tidak ada harganya."
 
 #: ../electrum/gui/qt/main_window_v2.py:503
-#: ../electrum/gui/qt/main_window.py:503
 msgid ""
 "Testnet is separate from the main Bitcoin network. It is used for testing."
 msgstr ""
 "Testnet terpisah dari jaringan utama Bitcoin. Hal ini digunakan untuk "
 "melakukan test."
 
-#: ../electrum/gui/qt/util.py:678
+#: ../electrum/gui/qt/util.py:682
 msgid "Text copied to clipboard"
 msgstr "Teks disalin ke papan klip"
 
@@ -4719,7 +4836,7 @@ msgstr ""
 msgid "The fee for this transaction seems unusually high."
 msgstr "Biaya untuk transaksi ini terlihat sangat tinggi. "
 
-#: ../electrum/gui/qt/installwizard.py:347
+#: ../electrum/gui/qt/installwizard.py:350
 #, python-brace-format
 msgid ""
 "The file '{path}' contains an incompletely created wallet.\n"
@@ -4728,8 +4845,8 @@ msgstr ""
 "File {path} mengandung dompet yang belum selesai dibuat.\n"
 "Apakah Anda ingin menyelesaikan pembuatannya sekarang?"
 
-#: ../electrum/gui/qt/installwizard.py:338
-#: ../electrum/gui/qt/installwizard.py:352
+#: ../electrum/gui/qt/installwizard.py:341
+#: ../electrum/gui/qt/installwizard.py:355
 msgid "The file was removed"
 msgstr "File telah dihapus"
 
@@ -4744,7 +4861,7 @@ msgstr ""
 "coba untuk melajutkan, namun terdapat kemungkinanterjadinya kerusakan."
 
 #: ../electrum/gui/qt/main_window_v2.py:2613
-#: ../electrum/gui/qt/main_window.py:2611
+#: ../electrum/gui/qt/main_window.py:2612
 msgid "The following addresses were added"
 msgstr "Alamat berikut telah ditambahkan"
 
@@ -4753,7 +4870,7 @@ msgid "The following alias providers are available:"
 msgstr "Penyedia alias berikut tersedia:"
 
 #: ../electrum/gui/qt/main_window_v2.py:2618
-#: ../electrum/gui/qt/main_window.py:2616
+#: ../electrum/gui/qt/main_window.py:2617
 msgid "The following inputs could not be imported"
 msgstr "Input berikut tidak dapat diimpor"
 
@@ -4762,7 +4879,7 @@ msgid "The new fee rate needs to be higher than the old fee rate."
 msgstr "Tarif biaya baru harus lebih tinggi dari tarif biaya lama."
 
 #: ../electrum/gui/qt/main_window_v2.py:2184
-#: ../electrum/gui/qt/main_window.py:2182
+#: ../electrum/gui/qt/main_window.py:2183
 msgid "The operation is undefined. Not just in Electrum, but in general."
 msgstr ""
 "Operasi tidak didefinisikan. Tidak hanya di Electrum, tapi secara umum."
@@ -4797,7 +4914,7 @@ msgid "The type of addresses used by your wallet will depend on your seed."
 msgstr ""
 "Tipe alamat yang digunakan oleh dompet Anda akan tergantung pada seed Anda."
 
-#: ../electrum/gui/qt/installwizard.py:329
+#: ../electrum/gui/qt/installwizard.py:332
 #, python-brace-format
 msgid ""
 "The wallet '{path}' contains multiple accounts, which are no longer "
@@ -4846,7 +4963,7 @@ msgstr ""
 
 #: ../electrum/gui/kivy/uix/dialogs/lightning_open_channel.py:149
 #: ../electrum/gui/qt/main_window_v2.py:1606
-#: ../electrum/gui/qt/main_window.py:1604
+#: ../electrum/gui/qt/main_window.py:1605
 #, python-brace-format
 msgid "This channel will be usable after {number} confirmations"
 msgstr "Channel ini akan dapat digunakan setelah {number} konfirmasi"
@@ -4855,19 +4972,19 @@ msgstr "Channel ini akan dapat digunakan setelah {number} konfirmasi"
 msgid "This feature is not available for watch-only wallets."
 msgstr "Fitur ini tidak tersedia untuk dompet watch-only."
 
-#: ../electrum/gui/qt/installwizard.py:249
+#: ../electrum/gui/qt/installwizard.py:252
 msgid "This file does not exist."
 msgstr "File tidak tersedia."
 
-#: ../electrum/gui/qt/installwizard.py:262
+#: ../electrum/gui/qt/installwizard.py:265
 msgid "This file is already open in memory."
 msgstr "File sedang dibuka di memori"
 
-#: ../electrum/gui/qt/installwizard.py:257
+#: ../electrum/gui/qt/installwizard.py:260
 msgid "This file is encrypted using a hardware device."
 msgstr "File ini dienkripsi menggunakan perangkat keras."
 
-#: ../electrum/gui/qt/installwizard.py:253
+#: ../electrum/gui/qt/installwizard.py:256
 msgid "This file is encrypted with a password."
 msgstr "File ini dienkripsi dengan kata sandi."
 
@@ -4896,14 +5013,14 @@ msgid "This invoice has expired"
 msgstr "Invoice ini telah habis tempo"
 
 #: ../electrum/gui/qt/main_window_v2.py:2418
-#: ../electrum/gui/qt/main_window.py:2416 ../electrum/wallet.py:439
+#: ../electrum/gui/qt/main_window.py:2417 ../electrum/wallet.py:439
 msgid "This is a watching-only wallet"
 msgstr "Ini adalah dompet watching-only"
 
 #: ../electrum/gui/qt/main_window_v2.py:2194
 #: ../electrum/gui/qt/main_window_v2.py:2274
-#: ../electrum/gui/qt/main_window.py:2192
-#: ../electrum/gui/qt/main_window.py:2272
+#: ../electrum/gui/qt/main_window.py:2193
+#: ../electrum/gui/qt/main_window.py:2273
 msgid "This is a watching-only wallet."
 msgstr "Ini adalah dompet watching-only."
 
@@ -4957,13 +5074,6 @@ msgstr "Plugin ini memfasilitasi penggunaan dompet multi-signatur."
 msgid "This public key was already used. Please generate a new one."
 msgstr "Kunci publik telah digunakan sebelumnya. Mohon hasilkan kunci baru."
 
-#: ../electrum/gui/qt/seed_dialog.py:45
-msgid ""
-"This seed will allow you to recover your wallet in case of computer failure."
-msgstr ""
-"Seed ini akan memungkin Anda untuk memulikan dompet Anda apabila terjadi "
-"kerusakan komputer."
-
 #: ../electrum/gui/qt/settings_dialog.py:215
 msgid "This setting affects the Send tab, and all balance related fields."
 msgstr ""
@@ -4993,7 +5103,7 @@ msgid "This version supports a maximum of {length} characters."
 msgstr "Versi ini mendukung maksimum karakter sepanjang {length}."
 
 #: ../electrum/gui/qt/main_window_v2.py:2132
-#: ../electrum/gui/qt/main_window.py:2130
+#: ../electrum/gui/qt/main_window.py:2131
 #: ../electrum/plugins/revealer/qt.py:293
 msgid "This wallet has no seed"
 msgstr "Dompet ini tidak memiliki seed"
@@ -5032,14 +5142,6 @@ msgstr "Hal ini akan menghapuskan kunci lightning pribadi Anda"
 #: ../electrum/gui/qt/settings_dialog.py:140
 msgid "This will save fees."
 msgstr "Ini akan menyimpan biaya Anda."
-
-#: ../electrum/base_wizard.py:719
-msgid ""
-"Thus, you might want to keep using a non-segwit wallet in order to be able "
-"to receive bitcoins during the transition period."
-msgstr ""
-"Oleh karena itu, Anda disarankan untuk tetap menggunakan dompet non-segwit "
-"agar tetap dapatmenerima Bitcoin selama periode transaksi."
 
 #: ../electrum/gui/qt/settings_dialog.py:108
 msgid "Time based: fee rate is based on average confirmation time estimates"
@@ -5081,7 +5183,7 @@ msgstr ""
 "mengirimkan laporan bug kepada kami yangmengandung informasi debug yang "
 "dapat kami gunakan:"
 
-#: ../electrum/gui/qt/installwizard.py:471
+#: ../electrum/gui/qt/installwizard.py:474
 msgid ""
 "To make sure that you have properly saved your seed, please retype it here."
 msgstr ""
@@ -5123,17 +5225,17 @@ msgid "Toggle Encryption"
 msgstr "Nyalakan Enkripsi"
 
 #: ../electrum/gui/qt/main_window_v2.py:2812
-#: ../electrum/gui/qt/main_window.py:2810
+#: ../electrum/gui/qt/main_window.py:2811
 msgid "Total fee"
 msgstr "Biaya total"
 
 #: ../electrum/gui/qt/main_window_v2.py:2814
-#: ../electrum/gui/qt/main_window.py:2812
+#: ../electrum/gui/qt/main_window.py:2813
 msgid "Total feerate"
 msgstr "Feerate total"
 
 #: ../electrum/gui/qt/main_window_v2.py:2770
-#: ../electrum/gui/qt/main_window.py:2768
+#: ../electrum/gui/qt/main_window.py:2769
 msgid "Total size"
 msgstr "Ukuran total"
 
@@ -5142,7 +5244,7 @@ msgid "Transaction"
 msgstr "Transaksi"
 
 #: ../electrum/gui/qt/main_window_v2.py:2403
-#: ../electrum/gui/qt/main_window.py:2401
+#: ../electrum/gui/qt/main_window.py:2402
 msgid "Transaction ID"
 msgstr "ID Transaksi"
 
@@ -5151,7 +5253,7 @@ msgid "Transaction ID:"
 msgstr "ID Transaksi:"
 
 #: ../electrum/gui/qt/main_window_v2.py:2889
-#: ../electrum/gui/qt/main_window.py:2887
+#: ../electrum/gui/qt/main_window.py:2888
 msgid "Transaction added to wallet history."
 msgstr "Transaksi ditambahkan ke riwayat dompet Anda."
 
@@ -5160,7 +5262,7 @@ msgid "Transaction could not be broadcast due to dust outputs."
 msgstr "Transaki tidak dapat disiarkan karena output dust."
 
 #: ../electrum/gui/qt/main_window_v2.py:2879
-#: ../electrum/gui/qt/main_window.py:2877
+#: ../electrum/gui/qt/main_window.py:2878
 msgid "Transaction could not be saved."
 msgstr "Transaksi tidak dapat disimpan."
 
@@ -5198,7 +5300,7 @@ msgid "Transaction uses non-standard version."
 msgstr "Transaksi menggunakan versi non-standar."
 
 #: ../electrum/gui/qt/main_window_v2.py:2389
-#: ../electrum/gui/qt/main_window.py:2387
+#: ../electrum/gui/qt/main_window.py:2388
 msgid "Transaction:"
 msgstr "Transaksi:"
 
@@ -5211,12 +5313,12 @@ msgid "Transactions are encrypted and stored on a remote server."
 msgstr "Transaksi dienkripsi dan disimpan di remote server."
 
 #: ../electrum/gui/qt/recovery_list.py:408
-#: ../electrum/gui/qt/recovery_list.py:454
+#: ../electrum/gui/qt/recovery_list.py:459
 msgid "Transactions to cancel"
 msgstr "Transaksi yang dapat dibatalkan"
 
 #: ../electrum/gui/qt/main_window_v2.py:2058
-#: ../electrum/gui/qt/main_window.py:2056
+#: ../electrum/gui/qt/main_window.py:2057
 msgid "True"
 msgstr "Betul"
 
@@ -5297,7 +5399,7 @@ msgid "Unable to create backup"
 msgstr "Tidak dapat membuat cadangan"
 
 #: ../electrum/gui/qt/main_window_v2.py:2499
-#: ../electrum/gui/qt/main_window.py:2497
+#: ../electrum/gui/qt/main_window.py:2498
 msgid "Unable to create csv"
 msgstr "Tidak dapat membuat csv"
 
@@ -5306,7 +5408,7 @@ msgid "Unable to export history"
 msgstr "Tidak dapat mengekspor riwayat"
 
 #: ../electrum/gui/qt/main_window_v2.py:2384
-#: ../electrum/gui/qt/main_window.py:2382
+#: ../electrum/gui/qt/main_window.py:2383
 msgid "Unable to read file or no transaction found"
 msgstr "Tidak dapat membaca file atau tidak ada transaksi yang ditemukan"
 
@@ -5318,10 +5420,6 @@ msgstr "Tidak dapat mengirimkan laporan"
 #: ../electrum/wallet.py:480
 msgid "Unconfirmed"
 msgstr "Belum dikonfirmasi"
-
-#: ../electrum/wallet.py:84
-msgid "Unconfirmed parent"
-msgstr "Induk belum dikonfirmasi"
 
 #: ../electrum/crypto.py:131
 msgid "Unexpected password hash version"
@@ -5399,6 +5497,10 @@ msgstr "Update Electrum {version} tersedia"
 #: ../electrum/base_wizard.py:160
 msgid "Upgrading wallet format..."
 msgstr "Perbarui format dompet…"
+
+#: ../electrum/base_wizard.py:221
+msgid "Use Gold Wallet and create a new wallet"
+msgstr "Gunakan Gold Wallet dan buat dompet baru"
 
 #: ../electrum/gui/qt/settings_dialog.py:123
 msgid "Use Replace-By-Fee"
@@ -5488,7 +5590,7 @@ msgid "Verified block headers"
 msgstr "Verifikasi header blok"
 
 #: ../electrum/gui/qt/main_window_v2.py:2261
-#: ../electrum/gui/qt/main_window.py:2259
+#: ../electrum/gui/qt/main_window.py:2260
 msgid "Verify"
 msgstr "Verifikasikan"
 
@@ -5542,22 +5644,22 @@ msgstr "Tampilkan log"
 msgid "View on block explorer"
 msgstr "Tampilkan di penjelajah blok"
 
-#: ../electrum/gui/qt/seed_dialog.py:48
+#: ../electrum/gui/qt/seed_dialog.py:47
 msgid "WARNING"
 msgstr "PERINGATAN"
 
 #: ../electrum/gui/qt/main_window_v2.py:2429
-#: ../electrum/gui/qt/main_window.py:2427
+#: ../electrum/gui/qt/main_window.py:2428
 msgid "WARNING: ALL your private keys are secret."
 msgstr "PERINGATAN: Semua kunci pribadi Anda bersifat rahasia."
 
 #: ../electrum/gui/qt/main_window_v2.py:2422
-#: ../electrum/gui/qt/main_window.py:2420
+#: ../electrum/gui/qt/main_window.py:2421
 msgid "WARNING: This is a multi-signature wallet."
 msgstr "PERINGATAN: Ini adalah dompet multi-signatur."
 
 #: ../electrum/gui/qt/main_window_v2.py:1391
-#: ../electrum/gui/qt/main_window.py:1389
+#: ../electrum/gui/qt/main_window.py:1390
 #, python-brace-format
 msgid ""
 "WARNING: the alias \"{alias}\" could not be validated via an additional "
@@ -5574,7 +5676,7 @@ msgstr "Kunci WIF diketik di Electrum, berdasarkan tipe skrip."
 msgid "Waiting for TrustedCoin server to sign transaction..."
 msgstr "Menunggu server TrustedCOin untu menandatangani transaksi…"
 
-#: ../electrum/gui/qt/installwizard.py:200
+#: ../electrum/gui/qt/installwizard.py:203
 msgid "Wallet"
 msgstr "Dompet"
 
@@ -5583,7 +5685,7 @@ msgid "Wallet Info"
 msgstr "Info Dompet"
 
 #: ../electrum/gui/qt/main_window_v2.py:2051
-#: ../electrum/gui/qt/main_window.py:2049
+#: ../electrum/gui/qt/main_window.py:2050
 msgid "Wallet Information"
 msgstr "Informasi Dompet"
 
@@ -5609,13 +5711,13 @@ msgstr ""
 "danbandingkan alamat tertera di kedua file"
 
 #: ../electrum/gui/qt/main_window_v2.py:2126
-#: ../electrum/gui/qt/main_window.py:2124
+#: ../electrum/gui/qt/main_window.py:2125
 #, python-brace-format
 msgid "Wallet file not found: {name}"
 msgstr "File dompet tidak ditemukan: {name}"
 
 #: ../electrum/gui/qt/main_window_v2.py:2062
-#: ../electrum/gui/qt/main_window.py:2060
+#: ../electrum/gui/qt/main_window.py:2061
 msgid "Wallet name"
 msgstr "Nama dompet"
 
@@ -5625,13 +5727,13 @@ msgstr "Alamat penerimaan dompet"
 
 #: ../electrum/gui/kivy/main_window.py:1148
 #: ../electrum/gui/qt/main_window_v2.py:2124
-#: ../electrum/gui/qt/main_window.py:2122
+#: ../electrum/gui/qt/main_window.py:2123
 #, python-brace-format
 msgid "Wallet removed: {name}"
 msgstr "Dompet dihapus: {name}"
 
 #: ../electrum/gui/qt/main_window_v2.py:2064
-#: ../electrum/gui/qt/main_window.py:2062
+#: ../electrum/gui/qt/main_window.py:2063
 msgid "Wallet type"
 msgstr "Tipe dompet"
 
@@ -5645,7 +5747,7 @@ msgstr "Tipe dompet:"
 #: ../electrum/gui/qt/transaction_dialog.py:234
 #: ../electrum/gui/qt/transaction_dialog.py:437
 #: ../electrum/gui/qt/transaction_dialog.py:539
-#: ../electrum/gui/qt/seed_dialog.py:69 ../electrum/plugins/revealer/qt.py:135
+#: ../electrum/gui/qt/seed_dialog.py:68 ../electrum/plugins/revealer/qt.py:135
 #: ../electrum/plugins/revealer/qt.py:188
 #: ../electrum/plugins/revealer/qt.py:221
 msgid "Warning"
@@ -5687,7 +5789,7 @@ msgstr ""
 msgid "Watch-only wallet"
 msgstr "Dompet watch-only"
 
-#: ../electrum/gui/qt/seed_dialog.py:71
+#: ../electrum/gui/qt/seed_dialog.py:70
 msgid ""
 "We do not guarantee that BIP39 imports will always be supported in Electrum."
 msgstr ""
@@ -5744,7 +5846,7 @@ msgid "Wrong pubkey format"
 msgstr "Format pubkey salah"
 
 #: ../electrum/gui/qt/main_window_v2.py:2230
-#: ../electrum/gui/qt/main_window.py:2228
+#: ../electrum/gui/qt/main_window.py:2229
 msgid "Wrong signature"
 msgstr "Tandatangan salah"
 
@@ -5773,7 +5875,7 @@ msgstr ""
 msgid "You are offline."
 msgstr "Anda sedang offline"
 
-#: ../electrum/gui/qt/__init__.py:195
+#: ../electrum/gui/qt/__init__.py:196
 msgid ""
 "You are using Electrum in offline mode; restart Electrum if you want to get "
 "connected"
@@ -5804,7 +5906,7 @@ msgid "You can override the suggested derivation path."
 msgstr "Anda dapat mengganti jalur derivasi yang disarankan."
 
 #: ../electrum/gui/qt/main_window_v2.py:1502
-#: ../electrum/gui/qt/main_window.py:1500
+#: ../electrum/gui/qt/main_window.py:1501
 msgid "You can't broadcast a transaction without a live network connection."
 msgstr "Anda tidak dapat menyiarkan transakti tanpa koneksi jaringan live."
 
@@ -5843,7 +5945,7 @@ msgid "You may extend your seed with custom words."
 msgstr "Anda dapat memperpanjang seed Anda menggunakan kata-kata buatan."
 
 #: ../electrum/gui/qt/main_window_v2.py:1780
-#: ../electrum/gui/qt/main_window.py:1778
+#: ../electrum/gui/qt/main_window.py:1779
 msgid "You may load a CSV file using the file icon."
 msgstr "Anda dapat memuat file CSV menggunakan ikon file."
 
@@ -5880,7 +5982,7 @@ msgstr "ID Node Anda"
 msgid "Your PIN code was updated"
 msgstr "PIN Anda telah diperbarui"
 
-#: ../electrum/gui/qt/installwizard.py:334
+#: ../electrum/gui/qt/installwizard.py:337
 msgid "Your accounts have been moved to"
 msgstr "Akun Anda telah dipindahkan ke"
 
@@ -5900,15 +6002,15 @@ msgstr "Perangkat Anda mungkin tidak mendukung fitur ini."
 msgid "Your labels have been synchronised."
 msgstr "Label Anda telah disinkronisasi"
 
-#: ../electrum/gui/qt/seed_dialog.py:138
+#: ../electrum/gui/qt/seed_dialog.py:141
 msgid "Your seed extension is"
 msgstr "Ekstensi seed Anda adalah"
 
-#: ../electrum/base_wizard.py:539 ../electrum/base_wizard.py:758
+#: ../electrum/base_wizard.py:539 ../electrum/base_wizard.py:756
 msgid "Your seed extension must be saved together with your seed."
 msgstr "Ekstensi seed Anda harus disimpan bersamaan dengan seed Anda."
 
-#: ../electrum/gui/qt/installwizard.py:469
+#: ../electrum/gui/qt/installwizard.py:472
 msgid "Your seed is important!"
 msgstr "Seed Anda sangatlah penting!"
 
@@ -5939,8 +6041,7 @@ msgstr "File dompet Anda dienkripsi."
 msgid "Your wallet file is: {path}."
 msgstr "File dompet Anda adalah: {path}."
 
-#: ../electrum/gui/qt/installwizard.py:478
-#: ../electrum/gui/qt/seed_dialog.py:220
+#: ../electrum/gui/qt/seed_dialog.py:223
 msgid "Your wallet generation seed is:"
 msgstr "Seed generasi dompet Anda adalah:"
 
@@ -5961,12 +6062,12 @@ msgstr "Dompet Anda tidak dilindungi."
 msgid "Your wallet is password protected and encrypted."
 msgstr "Dompet Anda dilindungi dengan kata sandi dan dienkripsi."
 
-#: ../electrum/gui/qt/util.py:844
+#: ../electrum/gui/qt/util.py:848
 #, python-brace-format
 msgid "Your {0} were exported to '{1}'"
 msgstr "{0} Anda diekspor ke '{1}'"
 
-#: ../electrum/gui/qt/util.py:829
+#: ../electrum/gui/qt/util.py:833
 #, python-brace-format
 msgid "Your {title} were successfully imported"
 msgstr "{title} berhasil diimpor"
@@ -6027,7 +6128,7 @@ msgstr "tambahkan input dan output"
 msgid "add invoice timed out"
 msgstr "tambahkan invoince habis tempo"
 
-#: ../electrum/wallet.py:1865
+#: ../electrum/wallet.py:1868
 msgid "address already in wallet"
 msgstr "Alamat sudah ada di dompet"
 
@@ -6058,7 +6159,7 @@ msgid "contacts"
 msgstr "kontak"
 
 #: ../electrum/gui/qt/main_window_v2.py:2090
-#: ../electrum/gui/qt/main_window.py:2088
+#: ../electrum/gui/qt/main_window.py:2089
 msgid "cosigner"
 msgstr "cosigner"
 
@@ -6078,11 +6179,11 @@ msgstr "biaya tinggi"
 msgid "initialized"
 msgstr "diinisialisasi"
 
-#: ../electrum/wallet.py:1862
+#: ../electrum/wallet.py:1865
 msgid "invalid address"
 msgstr "alamat tidak valid"
 
-#: ../electrum/wallet.py:1942
+#: ../electrum/wallet.py:1945
 msgid "invalid private key"
 msgstr "kunci pribadi tidak valid"
 
@@ -6091,19 +6192,19 @@ msgstr "kunci pribadi tidak valid"
 msgid "invoices"
 msgstr "invoice"
 
-#: ../electrum/gui/qt/util.py:408
+#: ../electrum/gui/qt/util.py:412
 msgid "json"
 msgstr "json"
 
 #: ../electrum/gui/qt/main_window_v2.py:2092
-#: ../electrum/gui/qt/main_window.py:2090
+#: ../electrum/gui/qt/main_window.py:2091
 msgid "keystore"
 msgstr "keystore"
 
 #: ../electrum/gui/qt/main_window_v2.py:2529
 #: ../electrum/gui/qt/main_window_v2.py:2534
-#: ../electrum/gui/qt/main_window.py:2527
-#: ../electrum/gui/qt/main_window.py:2532
+#: ../electrum/gui/qt/main_window.py:2528
+#: ../electrum/gui/qt/main_window.py:2533
 msgid "labels"
 msgstr "label"
 
@@ -6115,7 +6216,7 @@ msgstr ""
 "informasi lebih lanjut di <a href=\"https://revealer.cc/faq\">https://"
 "revealer.cc/faq</a>"
 
-#: ../electrum/wallet.py:1945
+#: ../electrum/wallet.py:1948
 msgid "not implemented type"
 msgstr "tipe tidak diimplementasikan"
 
@@ -6129,7 +6230,7 @@ msgstr ""
 "atau ketik kode revealer yang sudah ada di kolom bawah dan klik 'lanjutkan':"
 
 #: ../electrum/gui/qt/main_window_v2.py:1635
-#: ../electrum/gui/qt/main_window.py:1633
+#: ../electrum/gui/qt/main_window.py:1634
 msgid "please wait..."
 msgstr "mohon tunggu…"
 
@@ -6155,12 +6256,10 @@ msgid "seed"
 msgstr "seed"
 
 #: ../electrum/gui/qt/main_window_v2.py:864
-#: ../electrum/gui/qt/main_window.py:862
 msgid "standard incoming"
 msgstr "standar masuk"
 
 #: ../electrum/gui/qt/main_window_v2.py:866
-#: ../electrum/gui/qt/main_window.py:864
 msgid "standard outgoing"
 msgstr "standar keluar"
 
@@ -6198,7 +6297,7 @@ msgid "watching only"
 msgstr "watching only"
 
 #: ../electrum/gui/qt/main_window_v2.py:2057
-#: ../electrum/gui/qt/main_window.py:2055
+#: ../electrum/gui/qt/main_window.py:2056
 msgid "watching-only"
 msgstr "watching-only"
 
