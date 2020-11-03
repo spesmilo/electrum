@@ -1,5 +1,7 @@
 from enum import IntEnum
 
+from electrum.i18n import _
+
 
 class TxType(IntEnum):
     NONVAULT = 0
@@ -17,3 +19,13 @@ class TxType(IntEnum):
             if str(t.value) == str_type:
                 return t
         raise ValueError(f"Cannot get TxType for '{str_type}'")
+
+
+TX_TYPES_DISPLAY_MAP = {
+    TxType.NONVAULT.name: _('Standard'),
+    TxType.ALERT_PENDING.name: _('Secure'),
+    TxType.ALERT_RECOVERED.name: _('Secure'),
+    TxType.RECOVERY.name: _('Cancel'),
+    TxType.INSTANT.name: _('Secure fast'),
+    TxType.ALERT_CONFIRMED.name: _('Secure'),
+}

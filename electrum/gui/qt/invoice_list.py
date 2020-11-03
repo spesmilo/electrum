@@ -42,7 +42,7 @@ from .util import (MyTreeView, read_QIcon, MONOSPACE_FONT,
                    import_meta_gui, export_meta_gui, pr_icons)
 from .util import CloseButton, Buttons
 from .util import WindowModalDialog
-from ...three_keys.tx_type import TxType
+from ...three_keys.tx_type import TxType, TX_TYPES_DISPLAY_MAP
 
 ROLE_REQUEST_TYPE = Qt.UserRole
 ROLE_REQUEST_ID = Qt.UserRole + 1
@@ -120,6 +120,7 @@ class InvoiceList(MyTreeView):
             timestamp = item.get('time', 0)
             date_str = format_time(timestamp) if timestamp else _('Unknown')
             txtype_str = TxType.NONVAULT.name if 'txtype' not in item else item['txtype']
+            txtype_str = TX_TYPES_DISPLAY_MAP[txtype_str]
             amount_str = self.parent.format_amount(amount, whitespaces=True)
             labels = [date_str, message, txtype_str, amount_str, status_str]
             items = [QStandardItem(e) for e in labels]
