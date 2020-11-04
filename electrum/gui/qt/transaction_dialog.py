@@ -92,7 +92,7 @@ def show_transaction(tx: Transaction, *, parent: 'ElectrumWindow', desc=None, pr
 
 class BaseTxDialog(QDialog, MessageBoxMixin):
 
-    def __init__(self, *, parent: 'ElectrumWindow', desc, prompt_if_unsaved, finalized: bool, external_keypairs=None):
+    def __init__(self, *, parent: 'ElectrumWindow', desc, prompt_if_unsaved, finalized: bool, external_keypairs=None, payjoin=None):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
         '''
@@ -637,6 +637,9 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
 
         self.block_height_label = TxDetailLabel()
         vbox_right.addWidget(self.block_height_label)
+        self.payjoin_cb = QCheckBox(_('PayJoin'))
+        self.payjoin_cb.setChecked(bool(self.config.get('use_payjoin', True)))
+        vbox_right.addWidget(self.payjoin_cb)
         vbox_right.addStretch(1)
         hbox_stats.addLayout(vbox_right, 50)
 
@@ -649,6 +652,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         # set visibility after parenting can be determined by Qt
         self.rbf_label.setVisible(self.finalized)
         self.rbf_cb.setVisible(not self.finalized)
+        self.payjoin_cb.setVisible(self.payjoin.is_available())
         self.locktime_final_label.setVisible(self.finalized)
         self.locktime_setter_widget.setVisible(not self.finalized)
 
@@ -683,10 +687,10 @@ class TxDialog(BaseTxDialog):
 
 class PreviewTxDialog(BaseTxDialog, TxEditor):
 
-    def __init__(self, *, make_tx, external_keypairs, window: 'ElectrumWindow'):
+    def __init__(self, *, make_tx, external_keypairs, window: 'ElectrumWindow', payjoin):
         TxEditor.__init__(self, window=window, make_tx=make_tx, is_sweep=bool(external_keypairs))
         BaseTxDialog.__init__(self, parent=window, desc='', prompt_if_unsaved=False,
-                              finalized=False, external_keypairs=external_keypairs)
+                              finalized=False, external_keypairs=external_keypairs, payjoin=payjoin)
         BlockingWaitingDialog(window, _("Preparing transaction..."),
                               lambda: self.update_tx(fallback_to_zero_fee=True))
         self.update()
