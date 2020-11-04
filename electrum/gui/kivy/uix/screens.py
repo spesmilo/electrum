@@ -22,13 +22,13 @@ from kivy.lang import Builder
 from kivy.factory import Factory
 from kivy.utils import platform
 
-from electrum.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds, Fiat
+from electrum.util import profiler, parse_bip21_uri, format_time, InvalidPassword, NotEnoughFunds, Fiat
 from electrum.invoices import (PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING,
                                PR_PAID, PR_UNKNOWN, PR_EXPIRED, PR_INFLIGHT,
                                LNInvoice, pr_expiration_values, Invoice, OnchainInvoice)
 from electrum import bitcoin, constants
 from electrum.transaction import Transaction, tx_from_any, PartialTransaction, PartialTxOutput
-from electrum.util import parse_URI, InvalidBitcoinURI, TxMinedInfo, maybe_extract_bolt11_invoice
+from electrum.util import parse_bip21_uri, InvalidBitcoinURI, TxMinedInfo, maybe_extract_bolt11_invoice
 from electrum.plugin import run_hook
 from electrum.wallet import InternalAddressCorruption
 from electrum import simple_config
@@ -187,7 +187,7 @@ class SendScreen(CScreen, Logger):
         if not self.app.wallet:
             return
         try:
-            uri = parse_URI(text, self.app.on_pr, loop=self.app.asyncio_loop)
+            uri = parse_bip21_uri(text, self.app.on_pr, loop=self.app.asyncio_loop)
         except InvalidBitcoinURI as e:
             self.app.show_info(_("Error parsing URI") + f":\n{e}")
             return
