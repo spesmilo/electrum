@@ -120,6 +120,7 @@ class OnchainInvoice(Invoice):
     outputs = attr.ib(kw_only=True, converter=_decode_outputs)  # type: List[PartialTxOutput]
     bip70 = attr.ib(type=str, kw_only=True)  # type: Optional[str]
     requestor = attr.ib(type=str, kw_only=True)  # type: Optional[str]
+    bip78_payjoin = attr.ib(type=Dict, kw_only=True, default=None)  # type: Optional[Dict]
 
     def get_address(self) -> str:
         assert len(self.outputs) == 1
