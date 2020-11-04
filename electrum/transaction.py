@@ -1876,6 +1876,10 @@ class PartialTransaction(Transaction):
         raw_bytes = self.serialize_as_bytes()
         return base64.b64encode(raw_bytes).decode('ascii')
 
+    def serialize_as_base64(self, force_psbt=True) -> str:
+        raw_bytes = self.serialize_as_bytes(force_psbt=force_psbt)
+        return base64.b64encode(raw_bytes).decode('ascii')
+
     def update_signatures(self, signatures: Sequence[str]):
         """Add new signatures to a transaction
 
