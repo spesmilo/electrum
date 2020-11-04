@@ -45,7 +45,8 @@ from electrum.bitcoin import base_encode, NLOCKTIME_BLOCKHEIGHT_MAX
 from electrum.i18n import _
 from electrum.plugin import run_hook
 from electrum import simple_config
-from electrum.transaction import SerializationError, Transaction, PartialTransaction, PartialTxInput
+from electrum.transaction import (SerializationError, Transaction, PartialTransaction, PartialTxInput, PayjoinTransaction,
+                                  PayJoinProposalValidationException, PayJoinExchangeException)
 from electrum.logging import get_logger
 
 from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
@@ -105,6 +106,8 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         self.config = parent.config
         self.wallet = parent.wallet
         self.prompt_if_unsaved = prompt_if_unsaved
+        self.payjoin = PayjoinTransaction(payjoin)
+        self.payjoin_finished = False
         self.saved = False
         self.desc = desc
         self.setMinimumWidth(950)
@@ -217,7 +220,43 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         # note: this might fetch prev txs over the network.
         tx.add_info_from_wallet(self.wallet)
 
-    def do_broadcast(self):
+    def do_payjoin(self) -> None:
+        def sign_done(success):
+            self.payjoin_finished = True
+            if self.tx.get_fee_rate() < self.payjoin._minfeerate:
+                self.set_tx(original_tx)
+                _logger.warning("The receiver used a too low fee rate.")
+                self.show_error(
+                    _("Error creating a payjoin") + ":\n" +
+                    _("The receiver used a too low fee rate") + "\n" +
+                    _("Sending the original transaction"))
+            self.update()
+            self.main_window.pop_top_level_window(self)
+            self.do_broadcast()
+
+        self.main_window.push_top_level_window(self)
+        original_tx = copy.deepcopy(self.tx)
+        _logger.info(f"Starting Payjoin Session")
+        try:
+            self.payjoin.set_tx(self.tx)
+            self.payjoin.do_payjoin()
+            self.payjoin.payjoin_proposal.add_info_from_wallet(self.wallet)
+            self.payjoin.validate_payjoin_proposal()
+        except (PayJoinProposalValidationException, PayJoinExchangeException) as e:
+            _logger.warning(repr(e))
+            self.payjoin_cb.setChecked(False)
+            self.show_error(_("Error creating a payjoin") + ":\n" + str(e) + "\n" +
+                            _("Sending the original transaction"))
+            self.do_broadcast()
+            return
+        tx = self.payjoin.payjoin_proposal
+        self.set_tx(tx)
+        self.main_window.sign_tx(self.tx, callback=sign_done, external_keypairs=self.external_keypairs)
+
+    def do_broadcast(self) -> None:
+        if self.payjoin_cb.isChecked() and self.payjoin.is_available() and not self.payjoin_finished:
+            self.do_payjoin()
+            return
         self.main_window.push_top_level_window(self)
         try:
             self.main_window.broadcast_transaction(self.tx)
