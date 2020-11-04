@@ -510,12 +510,15 @@ class BaseWizard(Logger):
         def f(derivation, script_type):
             derivation = normalize_bip32_derivation(derivation)
             self.run('on_bip43', seed, passphrase, derivation, script_type)
-        def get_account_xpub(account_path):
-            root_seed = bip39_to_seed(seed, passphrase)
-            root_node = BIP32Node.from_rootseed(root_seed, xtype="standard")
-            account_node = root_node.subkey_at_private_derivation(account_path)
-            account_xpub = account_node.to_xpub()
-            return account_xpub
+        if self.wallet_type == 'standard':
+            def get_account_xpub(account_path):
+                root_seed = bip39_to_seed(seed, passphrase)
+                root_node = BIP32Node.from_rootseed(root_seed, xtype="standard")
+                account_node = root_node.subkey_at_private_derivation(account_path)
+                account_xpub = account_node.to_xpub()
+                return account_xpub
+        else:
+            get_account_xpub = None
         self.derivation_and_script_type_dialog(f, get_account_xpub=get_account_xpub)
 
     def create_keystore(self, seed, passphrase):
