@@ -1950,7 +1950,11 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         return out
 
     @abstractmethod
-    def get_fingerprint(self):
+    def get_fingerprint(self) -> str:
+        """Returns a string that can be used to identify this wallet.
+        Used e.g. by Labels plugin, and LN channel backups.
+        Returns empty string "" for wallets that don't have an ID.
+        """
         pass
 
     def can_import_privkey(self):
