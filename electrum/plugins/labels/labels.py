@@ -176,8 +176,6 @@ class LabelsPlugin(BasePlugin):
 
     def start_wallet(self, wallet: 'Abstract_Wallet'):
         if not wallet.network: return  # 'offline' mode
-        nonce = self.get_nonce(wallet)
-        self.logger.info(f"wallet {wallet.basename()} nonce is {nonce}")
         mpk = wallet.get_fingerprint()
         if not mpk:
             return
@@ -186,6 +184,8 @@ class LabelsPlugin(BasePlugin):
         iv = hashlib.sha256(password).digest()[:16]
         wallet_id = hashlib.sha256(mpk).hexdigest()
         self.wallets[wallet] = (password, iv, wallet_id)
+        nonce = self.get_nonce(wallet)
+        self.logger.info(f"wallet {wallet.basename()} nonce is {nonce}")
         # If there is an auth token we can try to actually start syncing
         asyncio.run_coroutine_threadsafe(self.pull_safe_thread(wallet, False), wallet.network.asyncio_loop)
 
