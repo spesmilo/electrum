@@ -610,9 +610,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         contacts_menu.addAction(_("&New"), self.new_contact_dialog)
         contacts_menu.addAction(_("Import"), lambda: self.contact_list.import_contacts())
         contacts_menu.addAction(_("Export"), lambda: self.contact_list.export_contacts())
-        invoices_menu = wallet_menu.addMenu(_("Invoices"))
-        invoices_menu.addAction(_("Import"), lambda: self.invoice_list.import_invoices())
-        invoices_menu.addAction(_("Export"), lambda: self.invoice_list.export_invoices())
 
         wallet_menu.addSeparator()
         wallet_menu.addAction(_("Find"), self.toggle_search).setShortcut(QKeySequence("Ctrl+F"))
