@@ -9,7 +9,11 @@ from typing import List
 def extract_all_msgid(file_path: str) -> List[str]:
     with open(file_path, 'r') as file:
         finder = re.compile(r'msgid ((.+[\s])+)msgstr', re.MULTILINE)
-        return [item[0][:-1] for item in finder.findall(file.read())]
+        # filter out empty msgids
+        return list(filter(
+            lambda item: item != '""',
+            [item[0][:-1] for item in finder.findall(file.read())]
+        ))
 
 
 def generate_template(template_name):
@@ -21,11 +25,10 @@ def merge_po_into_old(old_file, new_file):
 
 
 def generate_msgid_diff(reference_file):
-    print(reference_file)
     template_file = 'message.pot'
     generate_template(template_file)
     os.system(f'msgmerge -N -o {template_file} {reference_file} {template_file}')
-    os.system(f'msgattrib --untranslated --no-obsolete -o {template_file} {template_file}')
+    os.system(f'msgattrib --untranslated --no-obsolete --force-po -o {template_file} {template_file}')
     return [[item] for item in extract_all_msgid(template_file)]
     
 
@@ -35,6 +38,9 @@ def generate_new_data(template_name='message.pot'):
 
 
 def save_into_csv(data, csv_file):
+    if not data:
+        print(f'{csv_file} not saved due to empty data')
+        return
     with open(csv_file, 'w') as file:
         writer = csv.writer(file)
         writer.writerows(data)
@@ -54,7 +60,7 @@ def merge_incoming_data(data, path, pot_file='message.pot'):
         file.write(header + data)
     merge_po_into_old(path, pot_file)
     os.system(f'msgattrib --no-obsolete -o {path} {path}')
-    os.system(f'msgcat --unique --use-first -o {path} {temp_file} {path}')
+    os.system(f'msgcat --use-first -o {path} {temp_file} {path}')
     os.system(f'msgattrib --translated -o {path} {path}')
     os.system(f'rm {temp_file}')
     

@@ -13,5 +13,5 @@ fi
 
 temp_file=$(mktemp)
 find ../electrum -type f -name "*.py" -o -name "*.kv" > "$temp_file"
-xgettext -s --from-code UTF-8 --no-wrap -L Python -f "$temp_file" -o "$output_file"
+xgettext -s --no-location --from-code UTF-8 --no-wrap -L Python -f "$temp_file" -o "$output_file"
 rm "$temp_file"
