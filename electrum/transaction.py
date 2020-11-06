@@ -1784,6 +1784,11 @@ class PartialTransaction(Transaction):
         except MissingTxInputAmount:
             return None
 
+    def get_fee_rate(self) -> Optional[float]:
+        if self.get_fee() is None:
+            return None
+        return self.get_fee() / self.estimated_size()
+
     def serialize_preimage(self, txin_index: int, *,
                            bip143_shared_txdigest_fields: BIP143SharedTxDigestFields = None) -> str:
         nVersion = int_to_hex(self.version, 4)
