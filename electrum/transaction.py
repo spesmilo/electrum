@@ -1884,7 +1884,7 @@ class PartialTransaction(Transaction):
         raw_bytes = self.serialize_as_bytes()
         return base64.b64encode(raw_bytes).decode('ascii')
 
-    def serialize_as_base64(self, force_psbt=True) -> str:
+    def serialize_as_base64_psbt(self, force_psbt=True) -> str:
         raw_bytes = self.serialize_as_bytes(force_psbt=force_psbt)
         return base64.b64encode(raw_bytes).decode('ascii')
 
@@ -2005,7 +2005,7 @@ class PayjoinTransaction():
     VERSION = 1
     VSIZE_SENDER_TYPE ={'p2wpkh':68,
                         'p2pkh':148,
-                        'p2wpkh - p2sh':91
+                        'p2wpkh-p2sh':91
                         }
 
     def __init__(self, payjoin_link=None):
@@ -2029,7 +2029,7 @@ class PayjoinTransaction():
         self.define_sender_params()
         self.prepare_payjoin_original()
 
-    def define_sender_params(self):
+    def define_sender_params(self) -> None:
         def examine_change_output():
             for i, txout in enumerate(self.payjoin_original.outputs()):
                 if (txout.is_mine and txout.is_change):
@@ -2046,7 +2046,7 @@ class PayjoinTransaction():
         self.vsize_input_type = examine_input_vsize(self.payjoin_original)
         self._maxadditionalfeecontribution = int(self.original_psbt_fee_rate * self.vsize_input_type)
 
-    def prepare_payjoin_original(self):
+    def prepare_payjoin_original(self) -> None:
         assert not self.payjoin_proposal_received
         assert self.payjoin_original.is_complete()
         self.payjoin_original.prepare_for_export_for_coinjoin()
@@ -2054,7 +2054,7 @@ class PayjoinTransaction():
             self.payjoin_original.convert_all_utxos_to_witness_utxos()
 
 
-    def do_payjoin(self):
+    def do_payjoin(self) -> None:
         self.exchange_payjoin_original()
         self.payjoin_proposal = PartialTransaction.from_raw_psbt(self.payjoin_proposal_b64)
         self.payjoin_proposal_received  = True
@@ -2063,7 +2063,7 @@ class PayjoinTransaction():
     def exchange_payjoin_original(self) -> None:
         """ """
         url = self.pj
-        payload = self.payjoin_original.serialize_as_base64()
+        payload = self.payjoin_original.serialize_as_base64_psbt()
         headers = {'content-type': 'text/plain',
                    'content-length': str(len(payload))
                    }
