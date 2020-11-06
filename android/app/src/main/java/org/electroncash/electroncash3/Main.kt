@@ -251,11 +251,15 @@ class MainActivity : AppCompatActivity(R.layout.main) {
                 storage.callAttr("write")
             }
             R.id.menuChangePassword -> showDialog(this, PasswordChangeDialog())
-            R.id.menuShowSeed-> { showDialog(this, SeedPasswordDialog()) }
-            R.id.menuExportSigned-> { showDialog(this, SendDialog().apply {
-                arguments = Bundle().apply {putBoolean("unbroadcasted", true)}
-            }) }
-            R.id.menuLoadSigned-> { showDialog(this, ColdLoadDialog()) }
+            R.id.menuShowSeed -> { showDialog(this, SeedPasswordDialog()) }
+            R.id.menuExportSigned -> {
+                try {
+                    showDialog(this, SendDialog().apply {
+                        arguments = Bundle().apply { putBoolean("unbroadcasted", true) }
+                    })
+                } catch (e: ToastException) { e.show() }
+            }
+            R.id.menuLoadSigned -> { showDialog(this, ColdLoadDialog()) }
             R.id.menuRename -> showDialog(this, WalletRenameDialog().apply {
                 arguments = Bundle().apply { putString("walletName", daemonModel.walletName) }
             })
