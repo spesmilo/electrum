@@ -212,6 +212,7 @@ and the blockchain parameters of the Bitcoin Vault wallet. Your funds will be un
                     self.message_e.setEnabled(True)
                     self.label_transaction_limitations.show()
                 elif self.tx_type_combo.currentIndex() == self.TX_TYPES.Secure_Fast:
+                    self.message_e.setText('')
                     description_label.setEnabled(False)
                     self.message_e.setEnabled(False)
                     self.label_transaction_limitations.hide()

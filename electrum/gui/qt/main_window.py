@@ -96,7 +96,7 @@ from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialo
                    TRANSACTION_FILE_EXTENSION_FILTER)
 
 if TYPE_CHECKING:
-    from . import ElectrumGui
+    from . import ElectrumGui, ElectrumARWindow
 
 LN_NUM_PAYMENT_ATTEMPTS = 10
 
@@ -1271,7 +1271,7 @@ in the "Authenticators" tab in the Gold Wallet app.')
         buttons.addWidget(self.send_button)
         grid.addLayout(buttons, 6, 1, 1, 4)
 
-        if (str(type(self)) == "<class 'electrum.gui.qt.three_keys_windows.ElectrumARWindow'>"):
+        if isinstance(self, ElectrumARWindow):
             self.label_transaction_limitations = QLabel(_('Warning: Please be aware that in the process of using the \
 Secure Transaction feature, a part of the funds left in your wallet might be blocked. This is a normal procedure linked \
 to UTXO and the blockchain parameters of the Bitcoin Vault wallet. Your funds will be unblocked once the transaction is \
