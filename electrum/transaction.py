@@ -1334,6 +1334,8 @@ class PartialTxInput(TxInput, PSBTSection):
             return True
         if self.script_sig is not None and not self.is_segwit():
             return True
+        if self.witness is not None and self.is_segwit():
+            return True
         signatures = list(self.part_sigs.values())
         s = len(signatures)
         # note: The 'script_type' field is currently only set by the wallet,
