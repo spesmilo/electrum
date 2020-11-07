@@ -44,15 +44,15 @@ import ssl
 import ipaddress
 from ipaddress import IPv4Address, IPv6Address
 import random
-import attr
+import secrets
 
+import attr
 import aiohttp
 from aiohttp_socks import ProxyConnector, ProxyType
 import aiorpcx
 from aiorpcx import TaskGroup
 import certifi
 import dns.resolver
-import ecdsa
 
 from .i18n import _
 from .logging import get_logger, Logger
@@ -1306,7 +1306,9 @@ def resolve_dns_srv(host: str):
 def randrange(bound: int) -> int:
     """Return a random integer k such that 1 <= k < bound, uniformly
     distributed across that range."""
-    return ecdsa.util.randrange(bound)
+    # secrets.randbelow(bound) returns a random int: 0 <= r < bound,
+    # hence transformations:
+    return secrets.randbelow(bound - 1) + 1
 
 
 class CallbackManager:
