@@ -760,6 +760,14 @@ class ChannelDB(SqlDB):
     def get_node_info_for_node_id(self, node_id: bytes) -> Optional['NodeInfo']:
         return self._nodes.get(node_id)
 
+    def get_node_infos(self) -> Dict[bytes, NodeInfo]:
+        with self.lock:
+            return self._nodes
+
+    def get_node_policies(self) -> Dict[Tuple[bytes, ShortChannelID], Policy]:
+        with self.lock:
+            return self._policies
+
     def to_dict(self) -> dict:
         """ Generates a graph representation in terms of a dictionary.
 

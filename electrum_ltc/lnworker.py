@@ -45,6 +45,7 @@ from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
 from .lnchannel import Channel
 from .lnchannel import ChannelState, PeerState
+from .lnrater import LNRater
 from . import lnutil
 from .lnutil import funding_output_script
 from .bitcoin import redeem_script_to_address
@@ -464,16 +465,28 @@ class LNGossip(LNWorker):
         util.trigger_callback('ln_gossip_sync_progress')
         return l[0:N]
 
-    def get_sync_progress_estimate(self) -> Tuple[Optional[int], Optional[int]]:
+    def get_sync_progress_estimate(self) -> Tuple[Optional[int], Optional[int], Optional[int]]:
+        """Estimates the gossip synchronization process and returns the number
+        of synchronized channels, the total channels in the network and a
+        rescaled percentage of the synchronization process."""
         if self.num_peers() == 0:
-            return None, None
+            return None, None, None
         nchans_with_0p, nchans_with_1p, nchans_with_2p = self.channel_db.get_num_channels_partitioned_by_policy_count()
         num_db_channels = nchans_with_0p + nchans_with_1p + nchans_with_2p
         # some channels will never have two policies (only one is in gossip?...)
         # so if we have at least 1 policy for a channel, we consider that channel "complete" here
         current_est = num_db_channels - nchans_with_0p
         total_est = len(self.unknown_ids) + num_db_channels
-        return current_est, total_est
+
+        progress = current_est / total_est if total_est and current_est else 0
+        progress_percent = (1.0 / 0.95 * progress) * 100
+        progress_percent = min(progress_percent, 100)
+        progress_percent = round(progress_percent)
+        # take a minimal number of synchronized channels to get a more accurate
+        # percentage estimate
+        if current_est < 200:
+            progress_percent = 0
+        return current_est, total_est, progress_percent
 
 
 class LNWallet(LNWorker):
@@ -487,6 +500,7 @@ class LNWallet(LNWorker):
         self.config = wallet.config
         LNWorker.__init__(self, xprv)
         self.lnwatcher = None
+        self.lnrater: LNRater = None
         self.features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
         self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_REQ
         self.payments = self.db.get_dict('lightning_payments')     # RHASH -> amount, direction, is_paid  # FIXME amt should be msat
@@ -568,11 +582,10 @@ class LNWallet(LNWorker):
         self.network = network
         self.config = network.config
         self.channel_db = self.network.channel_db
-
         self.lnwatcher = LNWalletWatcher(self, network)
         self.lnwatcher.start_network(network)
-        self.network = network
         self.swap_manager.start_network(network=network, lnwatcher=self.lnwatcher)
+        self.lnrater = LNRater(self, network)
 
         for chan in self.channels.values():
             self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
@@ -727,6 +740,10 @@ class LNWallet(LNWorker):
             balance_msat += item['amount_msat']
             item['balance_msat'] = balance_msat
         return out
+
+    def channel_peers(self) -> List[bytes]:
+        node_ids = [chan.node_id for chan in self.channels.values() if not chan.is_closed()]
+        return node_ids
 
     def channels_for_peer(self, node_id):
         assert type(node_id) is bytes

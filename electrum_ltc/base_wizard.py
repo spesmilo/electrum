@@ -410,6 +410,7 @@ class BaseWizard(Logger):
             _('You can override the suggested derivation path.'),
             _('If you are not sure what this is, leave this field unchanged.')
         ])
+        hide_choices = False
         if self.wallet_type == 'multisig':
             # There is no general standard for HD multisig.
             # For legacy, this is partially compatible with BIP45; assumes index=0
@@ -420,6 +421,14 @@ class BaseWizard(Logger):
                 ('p2wsh-p2sh', 'p2sh-segwit multisig (p2wsh-p2sh)', purpose48_derivation(0, xtype='p2wsh-p2sh')),
                 ('p2wsh',      'native segwit multisig (p2wsh)',    purpose48_derivation(0, xtype='p2wsh')),
             ]
+            # if this is not the first cosigner, pre-select the expected script type,
+            # and hide the choices
+            script_type = self.get_script_type_of_wallet()
+            if script_type is not None:
+                script_types = [*zip(*choices)][0]
+                chosen_idx = script_types.index(script_type)
+                default_choice_idx = chosen_idx
+                hide_choices = True
         else:
             default_choice_idx = 2
             choices = [
@@ -430,9 +439,16 @@ class BaseWizard(Logger):
         while True:
             try:
                 self.derivation_and_script_type_gui_specific_dialog(
-                    run_next=f, title=_('Script type and Derivation path'), message1=message1,
-                    message2=message2, choices=choices, test_text=is_bip32_derivation,
-                    default_choice_idx=default_choice_idx, get_account_xpub=get_account_xpub)
+                    run_next=f,
+                    title=_('Script type and Derivation path'),
+                    message1=message1,
+                    message2=message2,
+                    choices=choices,
+                    test_text=is_bip32_derivation,
+                    default_choice_idx=default_choice_idx,
+                    get_account_xpub=get_account_xpub,
+                    hide_choices=hide_choices,
+                )
                 return
             except ScriptTypeNotSupported as e:
                 self.show_error(e)
@@ -510,12 +526,15 @@ class BaseWizard(Logger):
         def f(derivation, script_type):
             derivation = normalize_bip32_derivation(derivation)
             self.run('on_bip43', seed, passphrase, derivation, script_type)
-        def get_account_xpub(account_path):
-            root_seed = bip39_to_seed(seed, passphrase)
-            root_node = BIP32Node.from_rootseed(root_seed, xtype="standard")
-            account_node = root_node.subkey_at_private_derivation(account_path)
-            account_xpub = account_node.to_xpub()
-            return account_xpub
+        if self.wallet_type == 'standard':
+            def get_account_xpub(account_path):
+                root_seed = bip39_to_seed(seed, passphrase)
+                root_node = BIP32Node.from_rootseed(root_seed, xtype="standard")
+                account_node = root_node.subkey_at_private_derivation(account_path)
+                account_xpub = account_node.to_xpub()
+                return account_xpub
+        else:
+            get_account_xpub = None
         self.derivation_and_script_type_dialog(f, get_account_xpub=get_account_xpub)
 
     def create_keystore(self, seed, passphrase):
@@ -526,7 +545,14 @@ class BaseWizard(Logger):
         k = keystore.from_bip39_seed(seed, passphrase, derivation, xtype=script_type)
         self.on_keystore(k)
 
-    def on_keystore(self, k):
+    def get_script_type_of_wallet(self) -> Optional[str]:
+        if len(self.keystores) > 0:
+            ks = self.keystores[0]
+            if isinstance(ks, keystore.Xpub):
+                return xpub_type(ks.xpub)
+        return None
+
+    def on_keystore(self, k: KeyStore):
         has_xpub = isinstance(k, keystore.Xpub)
         if has_xpub:
             t1 = xpub_type(k.xpub)
