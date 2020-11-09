@@ -145,10 +145,11 @@ class ElectrumAIRWindow(ElectrumMultikeyWalletWindow):
         grid.setSpacing(8)
         grid.setColumnStretch(3, 1)
 
-        self.label_transaction_limitations = QLabel(_('Warning: Please be aware that in the process of using the Secure \
+        blocking_warning_text = _('Warning: Please be aware that in the process of using the Secure \
 Transaction feature, a part of the funds left in your wallet might be blocked. This is a normal procedure linked to UTXO \
 and the blockchain parameters of the Bitcoin Vault wallet. Your funds will be unblocked once the transaction is verified \
-(after approximately 24 hrs) or canceled (within 24 hrs).'))
+(after approximately 24 hrs) or canceled (within 24 hrs).')
+        self.label_transaction_limitations = QLabel(blocking_warning_text)
         self.label_transaction_limitations.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
         self.label_transaction_limitations.setWordWrap(True)
 
@@ -210,12 +211,15 @@ and the blockchain parameters of the Bitcoin Vault wallet. Your funds will be un
                 if self.tx_type_combo.currentIndex() == self.TX_TYPES.Secure:
                     description_label.setEnabled(True)
                     self.message_e.setEnabled(True)
+                    self.label_transaction_limitations.setText(blocking_warning_text)
                     self.label_transaction_limitations.show()
                 elif self.tx_type_combo.currentIndex() == self.TX_TYPES.Secure_Fast:
                     self.message_e.setText('')
+                    self.label_transaction_limitations.setText(
+                        _('Description is not supported for Secure Fast transaction')
+                    )
                     description_label.setEnabled(False)
                     self.message_e.setEnabled(False)
-                    self.label_transaction_limitations.hide()
 
 
         msg = _('Choose transaction type.') + '\n\n' + \
