@@ -329,11 +329,6 @@ class ChannelsList(MyTreeView):
         d = WindowModalDialog(self.parent, _('Open Channel'))
         vbox = QVBoxLayout(d)
         vbox.addWidget(QLabel(_('Enter Remote Node ID or connection string or invoice')))
-        local_nodeid = FreezableLineEdit()
-        local_nodeid.setMinimumWidth(700)
-        local_nodeid.setText(bh2u(lnworker.node_keypair.pubkey))
-        local_nodeid.setFrozen(True)
-        local_nodeid.setCursorPosition(0)
         remote_nodeid = QLineEdit()
         remote_nodeid.setMinimumWidth(700)
         amount_e = BTCAmountEdit(self.parent.get_decimal_point)
@@ -356,8 +351,20 @@ class ChannelsList(MyTreeView):
         max_button = EnterButton(_("Max"), spend_max)
         max_button.setFixedWidth(100)
         max_button.setCheckable(True)
+
+        suggest_button = QPushButton(d, text=_('Suggest Peer'))
+        def on_suggest():
+            self.parent.wallet.network.start_gossip()
+            nodeid = bh2u(lnworker.lnrater.suggest_peer() or b'')
+            if not nodeid:
+                remote_nodeid.setText(
+                    "Please wait until the graph is synchronized to 30%.")
+            else:
+                remote_nodeid.setText(nodeid)
+            remote_nodeid.repaint()  # macOS hack for #6269
+        suggest_button.clicked.connect(on_suggest)
+
         clear_button = QPushButton(d, text=_('Clear'))
-        clear_button.setFixedWidth(100)
         def on_clear():
             amount_e.setText('')
             amount_e.setFrozen(False)
@@ -367,16 +374,14 @@ class ChannelsList(MyTreeView):
             max_button.setChecked(False)
             max_button.repaint()  # macOS hack for #6269
         clear_button.clicked.connect(on_clear)
-
         h = QGridLayout()
-        h.addWidget(QLabel(_('Your Node ID')), 0, 0)
-        h.addWidget(local_nodeid, 0, 1, 1, 4)
-        h.addWidget(QLabel(_('Remote Node ID')), 1, 0)
-        h.addWidget(remote_nodeid, 1, 1, 1, 4)
-        h.addWidget(QLabel('Amount'), 3, 0)
-        h.addWidget(amount_e, 3, 1)
-        h.addWidget(max_button, 3, 2)
-        h.addWidget(clear_button, 3, 3)
+        h.addWidget(QLabel(_('Remote Node ID')), 0, 0)
+        h.addWidget(remote_nodeid, 0, 1, 1, 3)
+        h.addWidget(suggest_button, 1, 1)
+        h.addWidget(clear_button, 1, 2)
+        h.addWidget(QLabel('Amount'), 2, 0)
+        h.addWidget(amount_e, 2, 1)
+        h.addWidget(max_button, 2, 2)
         vbox.addLayout(h)
         ok_button = OkButton(d)
         ok_button.setDefault(True)
