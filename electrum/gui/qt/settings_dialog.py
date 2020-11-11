@@ -129,6 +129,17 @@ class SettingsDialog(WindowModalDialog):
         # lightning
         lightning_widgets = []
 
+        help_gossip = _("""If this option is checked, Electrum will download the network
+channels graph and compute payment path locally, instead of using trampoline payments. """)
+        gossip_cb = QCheckBox(_("Download network graph"))
+        gossip_cb.setToolTip(help_gossip)
+        gossip_cb.setChecked(bool(self.config.get('use_gossip', False)))
+        def on_gossip_checked(x):
+            self.config.set_key('use_gossip', bool(x))
+            self.need_restart = True
+        gossip_cb.stateChanged.connect(on_gossip_checked)
+        lightning_widgets.append((gossip_cb, None))
+
         help_local_wt = _("""If this option is checked, Electrum will
 run a local watchtower and protect your channels even if your wallet is not
 open. For this to work, your computer needs to be online regularly.""")

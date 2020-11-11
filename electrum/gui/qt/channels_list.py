@@ -359,7 +359,7 @@ class ChannelsList(MyTreeView):
         suggest_button = QPushButton(d, text=_('Suggest Peer'))
         def on_suggest():
             self.parent.wallet.network.start_gossip()
-            nodeid = bh2u(lnworker.lnrater.suggest_peer() or b'')
+            nodeid = bh2u(lnworker.suggest_peer() or b'')
             if not nodeid:
                 remote_nodeid.setText("")
                 remote_nodeid.setPlaceholderText(

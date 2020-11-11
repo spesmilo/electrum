@@ -137,7 +137,7 @@ class Peer(Logger):
         if isinstance(self.transport, LNTransport):
             await self.transport.handshake()
         # FIXME: "flen" hardcoded but actually it depends on "features"...:
-        self.send_message("init", gflen=0, flen=2, features=self.features.for_init_message(),
+        self.send_message("init", gflen=0, flen=8, features=self.features.for_init_message(),
                           init_tlvs={
                               'networks':
                                   {'chains': constants.net.rev_genesis_bytes()}
@@ -246,14 +246,17 @@ class Peer(Logger):
         self.maybe_set_initialized()
 
     def on_node_announcement(self, payload):
-        self.gossip_queue.put_nowait(('node_announcement', payload))
+        if self.network.config.get('use_gossip'):
+            self.gossip_queue.put_nowait(('node_announcement', payload))
 
     def on_channel_announcement(self, payload):
-        self.gossip_queue.put_nowait(('channel_announcement', payload))
+        if self.network.config.get('use_gossip'):
+            self.gossip_queue.put_nowait(('channel_announcement', payload))
 
     def on_channel_update(self, payload):
         self.maybe_save_remote_update(payload)
-        self.gossip_queue.put_nowait(('channel_update', payload))
+        if self.network.config.get('use_gossip'):
+            self.gossip_queue.put_nowait(('channel_update', payload))
 
     def maybe_save_remote_update(self, payload):
         if not self.channels:
@@ -309,6 +312,8 @@ class Peer(Logger):
             await group.spawn(self.process_gossip())
 
     async def process_gossip(self):
+        if not self.channel_db:
+            return
         while True:
             await asyncio.sleep(5)
             chan_anns = []
@@ -1082,21 +1087,67 @@ class Peer(Logger):
         # add features learned during "init" for direct neighbour:
         route[0].node_features |= self.features
         local_height = self.network.get_local_height()
-        # create onion packet
         final_cltv = local_height + min_final_cltv_expiry
         hops_data, amount_msat, cltv = calc_hops_data_for_payment(route, amount_msat, final_cltv,
                                                                   payment_secret=payment_secret)
+        self.logger.info(f"lnpeer.pay len(route)={len(route)}")
+        for i in range(len(route)):
+            self.logger.info(f"  {i}: edge={route[i].short_channel_id} hop_data={hops_data[i]!r}")
         assert final_cltv <= cltv, (final_cltv, cltv)
-        secret_key = os.urandom(32)
-        onion = new_onion_packet([x.node_id for x in route], secret_key, hops_data, associated_data=payment_hash)
+        session_key = os.urandom(32) # session_key
+        # detect trampoline hops
+        payment_path_pubkeys = [x.node_id for x in route]
+        num_hops = len(payment_path_pubkeys)
+        for i in range(num_hops):
+            route_edge = route[i]
+            if route_edge.is_trampoline():
+                self.logger.info(f'trampoline hop at position {i}')
+                if route_edge.outgoing_node_id:
+                    hops_data[i].payload["outgoing_node_id"] = {"outgoing_node_id":route_edge.outgoing_node_id}
+                if route_edge.invoice_features:
+                    hops_data[i].payload["invoice_features"] = {"invoice_features":route_edge.invoice_features}
+                if route_edge.invoice_routing_info:
+                    hops_data[i].payload["invoice_routing_info"] = {"invoice_routing_info":route_edge.invoice_routing_info}
+
+        # create trampoline onion
+        for i in range(num_hops):
+            route_edge = route[i]
+            if route_edge.is_trampoline():
+                self.logger.info(f'first trampoline hop at position {i}')
+                self.logger.info(f'inner onion: {hops_data[i:]}')
+                trampoline_session_key = os.urandom(32)
+                trampoline_onion = new_onion_packet(payment_path_pubkeys[i:], trampoline_session_key, hops_data[i:], associated_data=payment_hash, trampoline=True)
+                # drop hop_data
+                payment_path_pubkeys = payment_path_pubkeys[:i]
+                hops_data = hops_data[:i]
+                # we must generate a different secret for the outer onion
+                outer_payment_secret = os.urandom(32)
+                # trampoline_payload is a final payload
+                trampoline_payload = hops_data[i-1].payload
+                p = trampoline_payload.pop('short_channel_id')
+                amt_to_forward = trampoline_payload["amt_to_forward"]["amt_to_forward"]
+                trampoline_payload["payment_data"] = {
+                    "payment_secret":outer_payment_secret,
+                    "total_msat": amt_to_forward
+                }
+                trampoline_payload["trampoline_onion_packet"] = {
+                    "version": trampoline_onion.version,
+                    "public_key": trampoline_onion.public_key,
+                    "hops_data": trampoline_onion.hops_data,
+                    "hmac": trampoline_onion.hmac
+                }
+                break
+        # create onion packet
+        onion = new_onion_packet(payment_path_pubkeys, session_key, hops_data, associated_data=payment_hash) # must use another sessionkey
+
+        self.logger.info(f"starting payment. len(route)={len(hops_data)}.")
         # create htlc
         if cltv > local_height + lnutil.NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE:
             raise PaymentFailure(f"htlc expiry too far into future. (in {cltv-local_height} blocks)")
         htlc = UpdateAddHtlc(amount_msat=amount_msat, payment_hash=payment_hash, cltv_expiry=cltv, timestamp=int(time.time()))
         htlc = chan.add_htlc(htlc)
-        chan.set_onion_key(htlc.htlc_id, secret_key)
-        self.logger.info(f"starting payment. len(route)={len(route)}. route: {route}. "
-                         f"htlc: {htlc}. hops_data={hops_data!r}")
+        chan.set_onion_key(htlc.htlc_id, session_key) # should it be the outer onion secret?
+        self.logger.info(f"starting payment. htlc: {htlc}")
         self.send_message(
             "update_add_htlc",
             channel_id=chan.channel_id,

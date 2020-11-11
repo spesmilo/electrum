@@ -7,6 +7,17 @@ tlvdata,tlv_payload,short_channel_id,short_channel_id,short_channel_id,
 tlvtype,tlv_payload,payment_data,8
 tlvdata,tlv_payload,payment_data,payment_secret,byte,32
 tlvdata,tlv_payload,payment_data,total_msat,tu64,
+tlvtype,tlv_payload,invoice_features,66097
+tlvdata,tlv_payload,invoice_features,invoice_features,u64,
+tlvtype,tlv_payload,outgoing_node_id,66098
+tlvdata,tlv_payload,outgoing_node_id,outgoing_node_id,byte,33
+tlvtype,tlv_payload,invoice_routing_info,66099
+tlvdata,tlv_payload,invoice_routing_info,invoice_routing_info,byte,...
+tlvtype,tlv_payload,trampoline_onion_packet,66100
+tlvdata,tlv_payload,trampoline_onion_packet,version,byte,1
+tlvdata,tlv_payload,trampoline_onion_packet,public_key,byte,33
+tlvdata,tlv_payload,trampoline_onion_packet,hops_data,byte,400
+tlvdata,tlv_payload,trampoline_onion_packet,hmac,byte,32
 msgtype,invalid_realm,PERM|1
 msgtype,temporary_node_failure,NODE|2
 msgtype,permanent_node_failure,PERM|NODE|2
