@@ -77,6 +77,7 @@ if [[ $1 == "init" ]]; then
     agent="./run_electrum --regtest -D /tmp/$2"
     $agent create --offline > /dev/null
     $agent setconfig --offline log_to_file True
+    $agent setconfig --offline use_gossip True
     $agent setconfig --offline server 127.0.0.1:51001:t
     $agent setconfig --offline lightning_to_self_delay 144
     # alice is funded, bob is listening

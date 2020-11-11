@@ -107,13 +107,11 @@ class LightningOpenChannelDialog(Factory.Popup, Logger):
         d.open()
 
     def suggest_node(self):
-        self.app.wallet.network.start_gossip()
-        suggested = self.app.wallet.lnworker.lnrater.suggest_peer()
-        _, _, percent = self.app.wallet.network.lngossip.get_sync_progress_estimate()
-
+        suggested = self.app.wallet.lnworker.suggest_peer()
         if suggested:
             self.pubkey = suggested.hex()
         else:
+            _, _, percent = self.app.wallet.network.lngossip.get_sync_progress_estimate()
             if percent is None:
                 percent = "??"
             self.pubkey = f"Please wait, graph is updating ({percent}% / 30% done)."

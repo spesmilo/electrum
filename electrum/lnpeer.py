@@ -247,14 +247,17 @@ class Peer(Logger):
         self.maybe_set_initialized()
 
     def on_node_announcement(self, payload):
-        self.gossip_queue.put_nowait(('node_announcement', payload))
+        if self.lnworker.channel_db:
+            self.gossip_queue.put_nowait(('node_announcement', payload))
 
     def on_channel_announcement(self, payload):
-        self.gossip_queue.put_nowait(('channel_announcement', payload))
+        if self.lnworker.channel_db:
+            self.gossip_queue.put_nowait(('channel_announcement', payload))
 
     def on_channel_update(self, payload):
         self.maybe_save_remote_update(payload)
-        self.gossip_queue.put_nowait(('channel_update', payload))
+        if self.lnworker.channel_db:
+            self.gossip_queue.put_nowait(('channel_update', payload))
 
     def maybe_save_remote_update(self, payload):
         if not self.channels:
@@ -312,6 +315,8 @@ class Peer(Logger):
     async def process_gossip(self):
         while True:
             await asyncio.sleep(5)
+            if not self.network.lngossip:
+                continue
             chan_anns = []
             chan_upds = []
             node_anns = []
@@ -330,7 +335,8 @@ class Peer(Logger):
             # verify in peer's TaskGroup so that we fail the connection
             self.verify_channel_announcements(chan_anns)
             self.verify_node_announcements(node_anns)
-            await self.network.lngossip.process_gossip(chan_anns, node_anns, chan_upds)
+            if self.network.lngossip:
+                await self.network.lngossip.process_gossip(chan_anns, node_anns, chan_upds)
 
     def verify_channel_announcements(self, chan_anns):
         for payload in chan_anns:
@@ -579,6 +585,9 @@ class Peer(Logger):
         """
         # will raise if init fails
         await asyncio.wait_for(self.initialized, LN_P2P_NETWORK_TIMEOUT)
+        # trampoline is not yet in features
+        if not self.lnworker.channel_db and not self.lnworker.is_trampoline_peer(self.pubkey):
+            raise Exception(_('Not a trampoline node') + str(self.their_features))
 
         feerate = self.lnworker.current_feerate_per_kw()
         local_config = self.make_local_config(funding_sat, push_msat, LOCAL)
@@ -1195,21 +1204,68 @@ class Peer(Logger):
         # add features learned during "init" for direct neighbour:
         route[0].node_features |= self.features
         local_height = self.network.get_local_height()
-        # create onion packet
         final_cltv = local_height + min_final_cltv_expiry
         hops_data, amount_msat, cltv = calc_hops_data_for_payment(route, amount_msat, final_cltv,
                                                                   payment_secret=payment_secret)
+        self.logger.info(f"lnpeer.pay len(route)={len(route)}")
+        for i in range(len(route)):
+            self.logger.info(f"  {i}: edge={route[i].short_channel_id} hop_data={hops_data[i]!r}")
         assert final_cltv <= cltv, (final_cltv, cltv)
-        secret_key = os.urandom(32)
-        onion = new_onion_packet([x.node_id for x in route], secret_key, hops_data, associated_data=payment_hash)
+        session_key = os.urandom(32) # session_key
+        # detect trampoline hops
+        payment_path_pubkeys = [x.node_id for x in route]
+        num_hops = len(payment_path_pubkeys)
+        for i in range(num_hops-1):
+            route_edge = route[i]
+            next_edge = route[i+1]
+            if route_edge.is_trampoline():
+                assert next_edge.is_trampoline()
+                self.logger.info(f'trampoline hop at position {i}')
+                hops_data[i].payload["outgoing_node_id"] = {"outgoing_node_id":next_edge.node_id}
+                if route_edge.invoice_features:
+                    hops_data[i].payload["invoice_features"] = {"invoice_features":route_edge.invoice_features}
+                if route_edge.invoice_routing_info:
+                    hops_data[i].payload["invoice_routing_info"] = {"invoice_routing_info":route_edge.invoice_routing_info}
+
+        # create trampoline onion
+        for i in range(num_hops):
+            route_edge = route[i]
+            if route_edge.is_trampoline():
+                self.logger.info(f'first trampoline hop at position {i}')
+                self.logger.info(f'inner onion: {hops_data[i:]}')
+                trampoline_session_key = os.urandom(32)
+                trampoline_onion = new_onion_packet(payment_path_pubkeys[i:], trampoline_session_key, hops_data[i:], associated_data=payment_hash, trampoline=True)
+                # drop hop_data
+                payment_path_pubkeys = payment_path_pubkeys[:i]
+                hops_data = hops_data[:i]
+                # we must generate a different secret for the outer onion
+                outer_payment_secret = os.urandom(32)
+                # trampoline_payload is a final payload
+                trampoline_payload = hops_data[i-1].payload
+                p = trampoline_payload.pop('short_channel_id')
+                amt_to_forward = trampoline_payload["amt_to_forward"]["amt_to_forward"]
+                trampoline_payload["payment_data"] = {
+                    "payment_secret":outer_payment_secret,
+                    "total_msat": amt_to_forward
+                }
+                trampoline_payload["trampoline_onion_packet"] = {
+                    "version": trampoline_onion.version,
+                    "public_key": trampoline_onion.public_key,
+                    "hops_data": trampoline_onion.hops_data,
+                    "hmac": trampoline_onion.hmac
+                }
+                break
+        # create onion packet
+        onion = new_onion_packet(payment_path_pubkeys, session_key, hops_data, associated_data=payment_hash) # must use another sessionkey
+
+        self.logger.info(f"starting payment. len(route)={len(hops_data)}.")
         # create htlc
         if cltv > local_height + lnutil.NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE:
             raise PaymentFailure(f"htlc expiry too far into future. (in {cltv-local_height} blocks)")
         htlc = UpdateAddHtlc(amount_msat=amount_msat, payment_hash=payment_hash, cltv_expiry=cltv, timestamp=int(time.time()))
         htlc = chan.add_htlc(htlc)
-        chan.set_onion_key(htlc.htlc_id, secret_key)
-        self.logger.info(f"starting payment. len(route)={len(route)}. route: {route}. "
-                         f"htlc: {htlc}. hops_data={hops_data!r}")
+        chan.set_onion_key(htlc.htlc_id, session_key) # should it be the outer onion secret?
+        self.logger.info(f"starting payment. htlc: {htlc}")
         self.send_message(
             "update_add_htlc",
             channel_id=chan.channel_id,
@@ -1372,20 +1428,9 @@ class Peer(Logger):
             self, *,
             chan: Channel,
             htlc: UpdateAddHtlc,
-            processed_onion: ProcessedOnionPacket) -> Tuple[Optional[bytes], Optional[OnionRoutingFailure]]:
+            processed_onion: ProcessedOnionPacket,
+            is_trampoline:bool = False) -> Optional[bytes]:
 
-        info = self.lnworker.get_payment_info(htlc.payment_hash)
-        if info is None:
-            raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
-        preimage = self.lnworker.get_preimage(htlc.payment_hash)
-        try:
-            payment_secret_from_onion = processed_onion.hop_data.payload["payment_data"]["payment_secret"]
-        except:
-            pass  # skip
-        else:
-            if payment_secret_from_onion != derive_payment_secret_from_payment_preimage(preimage):
-                raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
-        expected_received_msat = info.amount_msat
         # Check that our blockchain tip is sufficiently recent so that we have an approx idea of the height.
         # We should not release the preimage for an HTLC that its sender could already time out as
         # then they might try to force-close and it becomes a race.
@@ -1412,12 +1457,38 @@ class Peer(Logger):
         except:
             total_msat = amt_to_forward # fall back to "amt_to_forward"
 
-        if amt_to_forward != htlc.amount_msat:
+        if not is_trampoline and amt_to_forward != htlc.amount_msat:
             raise OnionRoutingFailure(
                 code=OnionFailureCode.FINAL_INCORRECT_HTLC_AMOUNT,
                 data=total_msat.to_bytes(8, byteorder="big"))
+
+        # if there is a trampoline_onion, perform the above checks on it
+        if processed_onion.trampoline_onion_packet:
+            trampoline_onion = process_onion_packet(
+                processed_onion.trampoline_onion_packet,
+                associated_data=htlc.payment_hash,
+                our_onion_private_key=self.privkey)
+            return self.maybe_fulfill_htlc(
+                chan=chan,
+                htlc=htlc,
+                processed_onion=trampoline_onion,
+                is_trampoline=True)
+
+        info = self.lnworker.get_payment_info(htlc.payment_hash)
+        if info is None:
+            raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
+        preimage = self.lnworker.get_preimage(htlc.payment_hash)
+        try:
+            payment_secret_from_onion = processed_onion.hop_data.payload["payment_data"]["payment_secret"]
+        except:
+            pass  # skip
+        else:
+            if payment_secret_from_onion != derive_payment_secret_from_payment_preimage(preimage):
+                raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
+        expected_received_msat = info.amount_msat
         if expected_received_msat is None:
             return preimage
+
         if not (expected_received_msat <= total_msat <= 2 * expected_received_msat):
             raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
         accepted, expired = self.lnworker.htlc_received(chan.short_channel_id, htlc, expected_received_msat)
