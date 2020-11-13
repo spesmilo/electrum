@@ -85,12 +85,16 @@ class LNRater(Logger):
         self._last_progress_percent = 0
 
     def maybe_analyze_graph(self):
-        asyncio.run(self._maybe_analyze_graph())
+        loop = asyncio.get_event_loop()
+        fut = asyncio.run_coroutine_threadsafe(self._maybe_analyze_graph(), loop)
+        fut.result()
 
     def analyze_graph(self):
         """Forces a graph analysis, e.g., due to external triggers like
         the graph info reaching 50%."""
-        asyncio.run(self._analyze_graph())
+        loop = asyncio.get_event_loop()
+        fut = asyncio.run_coroutine_threadsafe(self._analyze_graph(), loop)
+        fut.result()
 
     async def _maybe_analyze_graph(self):
         """Analyzes the graph when in early sync stage (>30%) or when caching
