@@ -74,7 +74,7 @@ from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed,
 from electrum.exchange_rate import FxThread
 from electrum.simple_config import SimpleConfig
 from electrum.logging import Logger
-from electrum.lnutil import ln_dummy_address
+from electrum.lnutil import ln_dummy_address, extract_nodeid, ConnStringFormatError
 from electrum.lnaddr import lndecode, LnDecodeException
 
 from .exception_window import Exception_Hook
@@ -1757,6 +1757,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         return make_tx
 
     def open_channel(self, connect_str, funding_sat, push_amt):
+        try:
+            extract_nodeid(connect_str)
+        except ConnStringFormatError as e:
+            self.main_window.show_error(str(e))
+            return
         # use ConfirmTxDialog
         # we need to know the fee before we broadcast, because the txid is required
         make_tx = self.mktx_for_open_channel(funding_sat)
