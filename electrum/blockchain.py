@@ -287,13 +287,6 @@ class Blockchain(Logger):
             raise Exception("hash mismatches with expected: {} vs {}".format(expected_header_hash, _hash))
         if prev_hash != header.get('prev_block_hash'):
             raise Exception("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
-        if constants.net.TESTNET:
-            return
-        bits = cls.target_to_bits(target)
-        if bits != header.get('bits'):
-            raise Exception("bits mismatch: %s vs %s" % (bits, header.get('bits')))
-        if int('0x' + _hash, 16) > target:
-            raise Exception("insufficient proof of work: %s vs target %s" % (int('0x' + _hash, 16), target))
 
     def verify_chunk(self, index: int, data: bytes) -> None:
         num = len(data) // HEADER_SIZE
