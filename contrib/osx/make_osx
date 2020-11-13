@@ -74,7 +74,7 @@ pyenv global $PYTHON_VERSION || \
 fail "Unable to use Python $PYTHON_VERSION"
 
 info "Installing build dependencies"
-python3 -m pip install --no-dependencies -Ir ./contrib/deterministic-build/requirements-mac-build.txt --user \
+python3 -m pip install --no-dependencies -Ir ./contrib/deterministic-build/requirements-build-mac.txt --user \
     || fail "Could not install build dependencies"
 
 info "Using these versions for building $PACKAGE:"

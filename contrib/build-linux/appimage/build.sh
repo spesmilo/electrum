@@ -115,7 +115,7 @@ info "preparing electrum-locale."
 
 info "Installing build dependencies."
 mkdir -p "$CACHEDIR/pip_cache"
-"$python" -m pip install --no-dependencies --no-warn-script-location --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements-appimage-build.txt"
+"$python" -m pip install --no-dependencies --no-warn-script-location --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements-build-appimage.txt"
 
 info "installing electrum and its dependencies."
 "$python" -m pip install --no-dependencies --no-warn-script-location --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements.txt"
