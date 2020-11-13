@@ -1,15 +1,14 @@
 {
-    "e1.electrumx.bitcoinvault.global" : {
+    "electrumx-mainnet1.bitcoinvault.global" : {
         "pruning": "-",
         "t": "50001",
 	"s": "443",
         "version": "2.0"
     },
-    "e2.electrumx.bitcoinvault.global" : {
+    "electrumx-mainnet2.bitcoinvault.global" : {
         "pruning": "-",
         "t": "50001",
 	"s": "443",
         "version": "2.0"
     }
-
 }
