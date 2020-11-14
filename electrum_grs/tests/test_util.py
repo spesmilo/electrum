@@ -2,7 +2,9 @@ from decimal import Decimal
 
 from electrum_grs.util import (format_satoshis, format_fee_satoshis, parse_URI,
                            is_hash256_str, chunks, is_ip_address, list_enabled_bits,
-                           format_satoshis_plain, is_private_netaddress)
+                           format_satoshis_plain, is_private_netaddress, is_hex_str,
+                           is_integer, is_non_negative_integer, is_int_or_float,
+                           is_non_negative_int_or_float)
 
 from . import ElectrumTestCase
 
@@ -120,6 +122,89 @@ class TestUtil(ElectrumTestCase):
         self.assertFalse(is_hash256_str('qweqwe'))
         self.assertFalse(is_hash256_str(None))
         self.assertFalse(is_hash256_str(7))
+
+    def test_is_hex_str(self):
+        self.assertTrue(is_hex_str('09a4'))
+        self.assertTrue(is_hex_str('2A5C3F4062E4F2FCCE7A1C7B4310CB647B327409F580F4ED72CB8FC0B1804DFA'))
+        self.assertTrue(is_hex_str('00' * 33))
+
+        self.assertFalse(is_hex_str('000'))
+        self.assertFalse(is_hex_str('qweqwe'))
+        self.assertFalse(is_hex_str(None))
+        self.assertFalse(is_hex_str(7))
+
+    def test_is_integer(self):
+        self.assertTrue(is_integer(7))
+        self.assertTrue(is_integer(0))
+        self.assertTrue(is_integer(-1))
+        self.assertTrue(is_integer(-7))
+
+        self.assertFalse(is_integer(Decimal("2.0")))
+        self.assertFalse(is_integer(Decimal(2.0)))
+        self.assertFalse(is_integer(Decimal(2)))
+        self.assertFalse(is_integer(0.72))
+        self.assertFalse(is_integer(2.0))
+        self.assertFalse(is_integer(-2.0))
+        self.assertFalse(is_integer('09a4'))
+        self.assertFalse(is_integer('2A5C3F4062E4F2FCCE7A1C7B4310CB647B327409F580F4ED72CB8FC0B1804DFA'))
+        self.assertFalse(is_integer('000'))
+        self.assertFalse(is_integer('qweqwe'))
+        self.assertFalse(is_integer(None))
+
+    def test_is_non_negative_integer(self):
+        self.assertTrue(is_non_negative_integer(7))
+        self.assertTrue(is_non_negative_integer(0))
+
+        self.assertFalse(is_non_negative_integer(Decimal("2.0")))
+        self.assertFalse(is_non_negative_integer(Decimal(2.0)))
+        self.assertFalse(is_non_negative_integer(Decimal(2)))
+        self.assertFalse(is_non_negative_integer(0.72))
+        self.assertFalse(is_non_negative_integer(2.0))
+        self.assertFalse(is_non_negative_integer(-2.0))
+        self.assertFalse(is_non_negative_integer(-1))
+        self.assertFalse(is_non_negative_integer(-7))
+        self.assertFalse(is_non_negative_integer('09a4'))
+        self.assertFalse(is_non_negative_integer('2A5C3F4062E4F2FCCE7A1C7B4310CB647B327409F580F4ED72CB8FC0B1804DFA'))
+        self.assertFalse(is_non_negative_integer('000'))
+        self.assertFalse(is_non_negative_integer('qweqwe'))
+        self.assertFalse(is_non_negative_integer(None))
+
+    def test_is_int_or_float(self):
+        self.assertTrue(is_int_or_float(7))
+        self.assertTrue(is_int_or_float(0))
+        self.assertTrue(is_int_or_float(-1))
+        self.assertTrue(is_int_or_float(-7))
+        self.assertTrue(is_int_or_float(0.72))
+        self.assertTrue(is_int_or_float(2.0))
+        self.assertTrue(is_int_or_float(-2.0))
+
+        self.assertFalse(is_int_or_float(Decimal("2.0")))
+        self.assertFalse(is_int_or_float(Decimal(2.0)))
+        self.assertFalse(is_int_or_float(Decimal(2)))
+        self.assertFalse(is_int_or_float('09a4'))
+        self.assertFalse(is_int_or_float('2A5C3F4062E4F2FCCE7A1C7B4310CB647B327409F580F4ED72CB8FC0B1804DFA'))
+        self.assertFalse(is_int_or_float('000'))
+        self.assertFalse(is_int_or_float('qweqwe'))
+        self.assertFalse(is_int_or_float(None))
+
+    def test_is_non_negative_int_or_float(self):
+        self.assertTrue(is_non_negative_int_or_float(7))
+        self.assertTrue(is_non_negative_int_or_float(0))
+        self.assertTrue(is_non_negative_int_or_float(0.0))
+        self.assertTrue(is_non_negative_int_or_float(0.72))
+        self.assertTrue(is_non_negative_int_or_float(2.0))
+
+        self.assertFalse(is_non_negative_int_or_float(-1))
+        self.assertFalse(is_non_negative_int_or_float(-7))
+        self.assertFalse(is_non_negative_int_or_float(-2.0))
+        self.assertFalse(is_non_negative_int_or_float(Decimal("2.0")))
+        self.assertFalse(is_non_negative_int_or_float(Decimal(2.0)))
+        self.assertFalse(is_non_negative_int_or_float(Decimal(2)))
+        self.assertFalse(is_non_negative_int_or_float('09a4'))
+        self.assertFalse(is_non_negative_int_or_float('2A5C3F4062E4F2FCCE7A1C7B4310CB647B327409F580F4ED72CB8FC0B1804DFA'))
+        self.assertFalse(is_non_negative_int_or_float('000'))
+        self.assertFalse(is_non_negative_int_or_float('qweqwe'))
+        self.assertFalse(is_non_negative_int_or_float(None))
 
     def test_chunks(self):
         self.assertEqual([[1, 2], [3, 4], [5]],

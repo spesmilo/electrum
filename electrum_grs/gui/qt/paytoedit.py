@@ -31,8 +31,8 @@ from PyQt5.QtGui import QFontMetrics, QFont
 
 from electrum_grs import bitcoin
 from electrum_grs.util import bfh, maybe_extract_bolt11_invoice
-from electrum_grs.transaction import push_script, PartialTxOutput
-from electrum_grs.bitcoin import opcodes
+from electrum_grs.transaction import PartialTxOutput
+from electrum_grs.bitcoin import opcodes, construct_script
 from electrum_grs.logging import Logger
 from electrum_grs.lnaddr import LnDecodeException
 
@@ -52,9 +52,10 @@ normal_style = "QPlainTextEdit { }"
 
 
 class PayToLineError(NamedTuple):
-    idx: int  # index of line
     line_content: str
     exc: Exception
+    idx: int = 0  # index of line
+    is_multiline: bool = False
 
 
 class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
@@ -93,7 +94,10 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         self.setStyleSheet(util.ColorScheme.RED.as_stylesheet(True))
 
     def parse_address_and_amount(self, line) -> PartialTxOutput:
-        x, y = line.split(',')
+        try:
+            x, y = line.split(',')
+        except ValueError:
+            raise Exception("expected two comma-separated values: (address, amount)") from None
         scriptpubkey = self.parse_output(x)
         amount = self.parse_amount(y)
         return PartialTxOutput(scriptpubkey=scriptpubkey, value=amount)
@@ -102,20 +106,24 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         try:
             address = self.parse_address(x)
             return bfh(bitcoin.address_to_script(address))
-        except:
+        except Exception:
+            pass
+        try:
             script = self.parse_script(x)
             return bfh(script)
+        except Exception:
+            pass
+        raise Exception("Invalid address or script.")
 
     def parse_script(self, x):
         script = ''
         for word in x.split():
             if word[0:3] == 'OP_':
                 opcode_int = opcodes[word]
-                assert opcode_int < 256  # opcode is single-byte
-                script += bitcoin.int_to_hex(opcode_int)
+                script += construct_script([opcode_int])
             else:
                 bfh(word)  # to test it is hex data
-                script += push_script(word)
+                script += construct_script([word])
         return script
 
     def parse_amount(self, x):
@@ -151,25 +159,27 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
                 try:
                     self.win.parse_lightning_invoice(bolt11_invoice)
                 except LnDecodeException as e:
-                    self.errors.append(PayToLineError(idx=0, line_content=data, exc=e))
+                    self.errors.append(PayToLineError(line_content=data, exc=e))
                 else:
                     self.lightning_invoice = bolt11_invoice
                 return
             try:
                 self.payto_scriptpubkey = self.parse_output(data)
-            except:
-                pass
+            except Exception as e:
+                self.errors.append(PayToLineError(line_content=data, exc=e))
             if self.payto_scriptpubkey:
                 self.win.set_onchain(True)
                 self.win.lock_amount(False)
-                return
+            return
 
+        # there are multiple lines
         is_max = False
         for i, line in enumerate(lines):
             try:
                 output = self.parse_address_and_amount(line)
             except Exception as e:
-                self.errors.append(PayToLineError(idx=i, line_content=line.strip(), exc=e))
+                self.errors.append(PayToLineError(
+                    idx=i, line_content=line.strip(), exc=e, is_multiline=True))
                 continue
             outputs.append(output)
             if output.value == '!':

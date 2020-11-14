@@ -41,7 +41,7 @@ pr_color = {
 }
 
 pr_tooltips = {
-    PR_UNPAID:_('Pending'),
+    PR_UNPAID:_('Unpaid'),
     PR_PAID:_('Paid'),
     PR_UNKNOWN:_('Unknown'),
     PR_EXPIRED:_('Expired'),
@@ -93,8 +93,6 @@ class Invoice(StoredObject):
             if self.exp > 0 and self.exp != LN_EXPIRY_NEVER:
                 expiration = self.exp + self.time
                 status_str = _('Expires') + ' ' + age(expiration, include_seconds=True)
-            else:
-                status_str = _('Pending')
         return status_str
 
     def get_amount_sat(self) -> Union[int, Decimal, str, None]:

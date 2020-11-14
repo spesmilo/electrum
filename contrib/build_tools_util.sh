@@ -119,8 +119,6 @@ export SOURCE_DATE_EPOCH=1530212462
 export PYTHONHASHSEED=22
 # Set the build type, overridden by wine build
 export BUILD_TYPE="${BUILD_TYPE:-$(uname | tr '[:upper:]' '[:lower:]')}"
-# No additional autoconf flags by default
-export AUTOCONF_FLAGS=""
 # Add host / build flags if the triplets are set
 if [ -n "$GCC_TRIPLET_HOST" ] ; then
     export AUTOCONF_FLAGS="$AUTOCONF_FLAGS --host=$GCC_TRIPLET_HOST"

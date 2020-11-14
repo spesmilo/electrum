@@ -613,6 +613,8 @@ class ChannelDB(SqlDB):
     @sql
     @profiler
     def load_data(self):
+        if self.data_loaded.is_set():
+            return
         # Note: this method takes several seconds... mostly due to lnmsg.decode_msg being slow.
         #       I believe lnmsg (and lightning.json) will need a rewrite anyway, so instead of tweaking
         #       load_data() here, that should be done. see #6006
@@ -757,6 +759,14 @@ class ChannelDB(SqlDB):
 
     def get_node_info_for_node_id(self, node_id: bytes) -> Optional['NodeInfo']:
         return self._nodes.get(node_id)
+
+    def get_node_infos(self) -> Dict[bytes, NodeInfo]:
+        with self.lock:
+            return self._nodes
+
+    def get_node_policies(self) -> Dict[Tuple[bytes, ShortChannelID], Policy]:
+        with self.lock:
+            return self._policies
 
     def to_dict(self) -> dict:
         """ Generates a graph representation in terms of a dictionary.

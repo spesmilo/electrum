@@ -120,7 +120,7 @@ class CoinChooserBase(Logger):
         constant_fee = fee_estimator_vb(2000) == fee_estimator_vb(200)
 
         def make_Bucket(desc: str, coins: List[PartialTxInput]):
-            witness = any(Transaction.is_segwit_input(coin, guess_for_address=True) for coin in coins)
+            witness = any(coin.is_segwit(guess_for_address=True) for coin in coins)
             # note that we're guessing whether the tx uses segwit based
             # on this single bucket
             weight = sum(Transaction.estimated_input_weight(coin, witness)

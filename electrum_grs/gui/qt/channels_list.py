@@ -79,7 +79,7 @@ class ChannelsList(MyTreeView):
             labels[subject] = label
         status = chan.get_state_for_GUI()
         closed = chan.is_closed()
-        if self.network and self.network.is_lightning_running():
+        if self.network and self.network.has_channel_db():
             node_info = self.parent.network.channel_db.get_node_info_for_node_id(chan.node_id)
             node_alias = (node_info.alias if node_info else '') or ''
         else:
@@ -287,11 +287,25 @@ class ChannelsList(MyTreeView):
         h.addStretch()
         self.swap_button = EnterButton(_('Swap'), self.swap_dialog)
         self.swap_button.setEnabled(self.parent.wallet.has_lightning())
-        self.new_channel_button = EnterButton(_('Open Channel'), self.new_channel_dialog)
+        self.new_channel_button = EnterButton(_('Open Channel'), self.new_channel_with_warning)
         self.new_channel_button.setEnabled(self.parent.wallet.has_lightning())
         h.addWidget(self.new_channel_button)
         h.addWidget(self.swap_button)
         return h
+
+    def new_channel_with_warning(self):
+        if not self.parent.wallet.lnworker.channels:
+            warning1 = _("Lightning support in Electrum is experimental. "
+                         "Do not put large amounts in lightning channels.")
+            warning2 = _("Funds stored in lightning channels are not recoverable from your seed. "
+                         "You must backup your wallet file everytime you create a new channel.")
+            answer = self.parent.question(
+                _('Do you want to create your first channel?') + '\n\n' +
+                _('WARNINGS') + ': ' + '\n\n' + warning1 + '\n\n' + warning2)
+            if answer:
+                self.new_channel_dialog()
+        else:
+            self.new_channel_dialog()
 
     def statistics_dialog(self):
         channel_db = self.parent.network.channel_db
@@ -315,11 +329,6 @@ class ChannelsList(MyTreeView):
         d = WindowModalDialog(self.parent, _('Open Channel'))
         vbox = QVBoxLayout(d)
         vbox.addWidget(QLabel(_('Enter Remote Node ID or connection string or invoice')))
-        local_nodeid = FreezableLineEdit()
-        local_nodeid.setMinimumWidth(700)
-        local_nodeid.setText(bh2u(lnworker.node_keypair.pubkey))
-        local_nodeid.setFrozen(True)
-        local_nodeid.setCursorPosition(0)
         remote_nodeid = QLineEdit()
         remote_nodeid.setMinimumWidth(700)
         amount_e = BTCAmountEdit(self.parent.get_decimal_point)
@@ -342,11 +351,20 @@ class ChannelsList(MyTreeView):
         max_button = EnterButton(_("Max"), spend_max)
         max_button.setFixedWidth(100)
         max_button.setCheckable(True)
-        suggest_button = QPushButton(d, text=_('Suggest'))
+
+        suggest_button = QPushButton(d, text=_('Suggest Peer'))
         def on_suggest():
-            remote_nodeid.setText(bh2u(lnworker.suggest_peer() or b''))
+            self.parent.wallet.network.start_gossip()
+            nodeid = bh2u(lnworker.lnrater.suggest_peer() or b'')
+            if not nodeid:
+                remote_nodeid.setText("")
+                remote_nodeid.setPlaceholderText(
+                    "Please wait until the graph is synchronized to 30%, and then try again.")
+            else:
+                remote_nodeid.setText(nodeid)
             remote_nodeid.repaint()  # macOS hack for #6269
         suggest_button.clicked.connect(on_suggest)
+
         clear_button = QPushButton(d, text=_('Clear'))
         def on_clear():
             amount_e.setText('')
@@ -358,15 +376,13 @@ class ChannelsList(MyTreeView):
             max_button.repaint()  # macOS hack for #6269
         clear_button.clicked.connect(on_clear)
         h = QGridLayout()
-        h.addWidget(QLabel(_('Your Node ID')), 0, 0)
-        h.addWidget(local_nodeid, 0, 1, 1, 3)
-        h.addWidget(QLabel(_('Remote Node ID')), 1, 0)
-        h.addWidget(remote_nodeid, 1, 1, 1, 3)
-        h.addWidget(suggest_button, 2, 1)
-        h.addWidget(clear_button, 2, 2)
-        h.addWidget(QLabel('Amount'), 3, 0)
-        h.addWidget(amount_e, 3, 1)
-        h.addWidget(max_button, 3, 2)
+        h.addWidget(QLabel(_('Remote Node ID')), 0, 0)
+        h.addWidget(remote_nodeid, 0, 1, 1, 3)
+        h.addWidget(suggest_button, 1, 1)
+        h.addWidget(clear_button, 1, 2)
+        h.addWidget(QLabel('Amount'), 2, 0)
+        h.addWidget(amount_e, 2, 1)
+        h.addWidget(max_button, 2, 2)
         vbox.addLayout(h)
         ok_button = OkButton(d)
         ok_button.setDefault(True)

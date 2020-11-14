@@ -76,7 +76,6 @@ if [[ $1 == "init" ]]; then
     rm -rf /tmp/$2/
     agent="./run_electrum_grs --regtest -D /tmp/$2"
     $agent create --offline > /dev/null
-    $agent -o init_lightning
     $agent setconfig --offline log_to_file True
     $agent setconfig --offline server 127.0.0.1:51001:t
     $agent setconfig --offline lightning_to_self_delay 144

@@ -8,6 +8,7 @@ from electrum_grs.lnaddr import lndecode
 from electrum_grs.util import bh2u
 from electrum_grs.bitcoin import COIN
 import electrum_grs.simple_config as config
+from electrum_grs.logging import Logger
 
 from .label_dialog import LabelDialog
 
@@ -74,7 +75,7 @@ Builder.load_string('''
                 text: _('Suggest')
                 size_hint: 1, None
                 height: '48dp'
-                on_release: s.choose_node()
+                on_release: s.suggest_node()
             Button:
                 text: _('Clear')
                 size_hint: 1, None
@@ -94,20 +95,28 @@ Builder.load_string('''
                 disabled: not root.pubkey or not root.amount
 ''')
 
-class LightningOpenChannelDialog(Factory.Popup):
+class LightningOpenChannelDialog(Factory.Popup, Logger):
     def ipport_dialog(self):
         def callback(text):
             self.ipport = text
         d = LabelDialog(_('IP/port in format:\n[host]:[port]'), self.ipport, callback)
         d.open()
 
-    def choose_node(self):
-        suggested = self.app.wallet.lnworker.suggest_peer()
+    def suggest_node(self):
+        self.app.wallet.network.start_gossip()
+        suggested = self.app.wallet.lnworker.lnrater.suggest_peer()
+        _, _, percent = self.app.wallet.network.lngossip.get_sync_progress_estimate()
+
         if suggested:
             self.pubkey = suggested.hex()
+        else:
+            if percent is None:
+                percent = "??"
+            self.pubkey = f"Please wait, graph is updating ({percent}% / 30% done)."
 
     def __init__(self, app, lnaddr=None, msg=None):
-        super(LightningOpenChannelDialog, self).__init__()
+        Factory.Popup.__init__(self)
+        Logger.__init__(self)
         self.app = app  # type: ElectrumWindow
         self.lnaddr = lnaddr
         self.msg = msg
@@ -159,6 +168,7 @@ class LightningOpenChannelDialog(Factory.Popup):
                                                                      push_amt_sat=0,
                                                                      password=password)
         except Exception as e:
+            self.logger.exception("Problem opening channel")
             self.app.show_error(_('Problem opening channel: ') + '\n' + repr(e))
             return
         n = chan.constraints.funding_txn_minimum_depth

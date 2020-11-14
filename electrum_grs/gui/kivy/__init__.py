@@ -39,7 +39,8 @@ except ImportError:
 
 # minimum required version for kivy
 kivy.require('1.8.0')
-from kivy.logger import Logger
+
+from electrum.logging import Logger
 
 if TYPE_CHECKING:
     from electrum_grs.simple_config import SimpleConfig
@@ -49,10 +50,11 @@ if TYPE_CHECKING:
 
 
 
-class ElectrumGui:
+class ElectrumGui(Logger):
 
     def __init__(self, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
-        Logger.debug('ElectrumGUI: initialising')
+        Logger.__init__(self)
+        self.logger.debug('ElectrumGUI: initialising')
         self.daemon = daemon
         self.network = daemon.network
         self.config = config

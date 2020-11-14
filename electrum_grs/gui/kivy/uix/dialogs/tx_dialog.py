@@ -156,7 +156,7 @@ class TxDialog(Factory.Popup):
         if tx_mined_status.timestamp:
             self.date_label = _('Date')
             self.date_str = datetime.fromtimestamp(tx_mined_status.timestamp).isoformat(' ')[:-3]
-        elif exp_n:
+        elif exp_n is not None:
             self.date_label = _('Mempool depth')
             self.date_str = _('{} from tip').format('%.2f MB'%(exp_n/1000000))
         else:
@@ -232,7 +232,7 @@ class TxDialog(Factory.Popup):
 
     def do_rbf(self):
         from .bump_fee_dialog import BumpFeeDialog
-        is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(self.tx)
+        fee = self.wallet.get_wallet_delta(self.tx).fee
         if fee is None:
             self.app.show_error(_("Can't bump fee: unknown fee for original transaction."))
             return
@@ -257,7 +257,7 @@ class TxDialog(Factory.Popup):
 
     def do_dscancel(self):
         from .dscancel_dialog import DSCancelDialog
-        is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(self.tx)
+        fee = self.wallet.get_wallet_delta(self.tx).fee
         if fee is None:
             self.app.show_error(_('Cannot cancel transaction') + ': ' + _('unknown fee for original transaction'))
             return

@@ -775,7 +775,7 @@ class Peer(Logger):
         chan.set_state(ChannelState.OPENING)
         self.lnworker.add_new_channel(chan)
 
-    async def trigger_force_close(self, channel_id):
+    async def trigger_force_close(self, channel_id: bytes):
         await self.initialized
         latest_point = secret_to_pubkey(42) # we need a valid point (BOLT2)
         self.send_message(

@@ -269,7 +269,7 @@ class HistoryModel(CustomModel, Logger):
             self.parent.fx,
             onchain_domain=self.get_domain(),
             include_lightning=self.should_include_lightning_payments())
-        if transactions == list(self.transactions.values()):
+        if transactions == self.transactions:
             return
         old_length = self._root.childCount()
         if old_length != 0:

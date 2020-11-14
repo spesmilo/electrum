@@ -131,6 +131,10 @@ class Test_SimpleConfig(ElectrumTestCase):
         self.assertEqual( 2 * 1000, config.depth_target_to_fee(10 ** 6))
         self.assertEqual( 2 * 1000, config.depth_target_to_fee(10 ** 7))
         self.assertEqual( 1 * 1000, config.depth_target_to_fee(10 ** 8))
+        config.mempool_fees = []
+        self.assertEqual(1 * 1000, config.depth_target_to_fee(10 ** 5))
+        config.mempool_fees = None
+        self.assertEqual(None, config.depth_target_to_fee(10 ** 5))
 
     def test_fee_to_depth(self):
         config = SimpleConfig(self.options)

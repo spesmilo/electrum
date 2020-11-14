@@ -283,9 +283,9 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             self.db.put('wallet_type', self.wallet_type)
         self.contacts = Contacts(self.db)
         self._coin_price_cache = {}
-        # lightning
-        ln_xprv = self.db.get('lightning_privkey2')
-        self.lnworker = LNWallet(self, ln_xprv) if ln_xprv else None
+
+        self.lnworker = None
+        # a wallet may have channel backups, regardless of lnworker activation
         self.lnbackups = LNBackups(self)
 
     def save_db(self):
@@ -330,15 +330,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         node = BIP32Node.from_rootseed(seed, xtype='standard')
         ln_xprv = node.to_xprv()
         self.db.put('lightning_privkey2', ln_xprv)
-        self.save_db()
-
-    def remove_lightning(self):
-        if not self.db.get('lightning_privkey2'):
-            return
-        if bool(self.lnworker.channels):
-            raise Exception('Error: This wallet has channels')
-        self.db.put('lightning_privkey2', None)
-        self.save_db()
 
     def stop(self):
         super().stop()
@@ -364,8 +355,10 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         AddressSynchronizer.start_network(self, network)
         if network:
             if self.lnworker:
-                network.maybe_init_lightning()
                 self.lnworker.start_network(network)
+                # only start gossiping when we already have channels
+                if self.db.get('channels'):
+                    self.network.start_gossip()
             self.lnbackups.start_network(network)
 
     def load_and_cleanup(self):
@@ -557,10 +550,11 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         """Returns a map: pubkey -> (keystore, derivation_suffix)"""
         return {}
 
-    def get_tx_info(self, tx) -> TxWalletDetails:
-        is_relevant, is_mine, v, fee = self.get_wallet_delta(tx)
-        if fee is None and isinstance(tx, PartialTransaction):
-            fee = tx.get_fee()
+    def get_tx_info(self, tx: Transaction) -> TxWalletDetails:
+        tx_wallet_delta = self.get_wallet_delta(tx)
+        is_relevant = tx_wallet_delta.is_relevant
+        is_any_input_ismine = tx_wallet_delta.is_any_input_ismine
+        fee = tx_wallet_delta.fee
         exp_n = None
         can_broadcast = False
         can_bump = False
@@ -596,28 +590,27 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                         size = tx.estimated_size()
                         fee_per_byte = fee / size
                         exp_n = self.config.fee_to_depth(fee_per_byte)
-                    can_bump = is_mine and not tx.is_final()
-                    can_dscancel = (is_mine and not tx.is_final()
+                    can_bump = is_any_input_ismine and not tx.is_final()
+                    can_dscancel = (is_any_input_ismine and not tx.is_final()
                                     and not all([self.is_mine(txout.address) for txout in tx.outputs()]))
                 else:
                     status = _('Local')
                     can_broadcast = self.network is not None
-                    can_bump = is_mine and not tx.is_final()
+                    can_bump = is_any_input_ismine and not tx.is_final()
             else:
                 status = _("Signed")
                 can_broadcast = self.network is not None
         else:
+            assert isinstance(tx, PartialTransaction)
             s, r = tx.signature_count()
             status = _("Unsigned") if s == 0 else _('Partially signed') + ' (%d/%d)'%(s,r)
 
         if is_relevant:
-            if is_mine:
-                if fee is not None:
-                    amount = v + fee
-                else:
-                    amount = v
+            if tx_wallet_delta.is_all_input_ismine:
+                assert fee is not None
+                amount = tx_wallet_delta.delta + fee
             else:
-                amount = v
+                amount = tx_wallet_delta.delta
         else:
             amount = None
 
@@ -1057,7 +1050,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             if fee is not None and height in (TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED) \
                and self.config.has_fee_mempool():
                 exp_n = self.config.fee_to_depth(fee_per_byte)
-                if exp_n:
+                if exp_n is not None:
                     extra.append('%.2f MB'%(exp_n/1000000))
             if height == TX_HEIGHT_LOCAL:
                 status = 3
@@ -1957,7 +1950,11 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         return out
 
     @abstractmethod
-    def get_fingerprint(self):
+    def get_fingerprint(self) -> str:
+        """Returns a string that can be used to identify this wallet.
+        Used e.g. by Labels plugin, and LN channel backups.
+        Returns empty string "" for wallets that don't have an ID.
+        """
         pass
 
     def can_import_privkey(self):
@@ -2049,20 +2046,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def pubkeys_to_address(self, pubkeys: Sequence[str]) -> Optional[str]:
         pass
 
-    def txin_value(self, txin: TxInput) -> Optional[int]:
-        if isinstance(txin, PartialTxInput):
-            v = txin.value_sats()
-            if v: return v
-        txid = txin.prevout.txid.hex()
-        prev_n = txin.prevout.out_idx
-        for addr in self.db.get_txo_addresses(txid):
-            d = self.db.get_txo_addr(txid, addr)
-            for n, v, cb in d:
-                if n == prev_n:
-                    return v
-        # may occur if wallet is not synchronized
-        return None
-
     def price_at_timestamp(self, txid, price_func):
         """Returns fiat price of groestlcoin at the time tx got confirmed."""
         timestamp = self.get_tx_height(txid).timestamp
@@ -2072,7 +2055,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         coins = self.get_utxos(domain)
         now = time.time()
         p = price_func(now)
-        ap = sum(self.coin_price(coin.prevout.txid.hex(), price_func, ccy, self.txin_value(coin)) for coin in coins)
+        ap = sum(self.coin_price(coin.prevout.txid.hex(), price_func, ccy, self.get_txin_value(coin)) for coin in coins)
         lp = sum([coin.value_sats() for coin in coins]) * p / Decimal(COIN)
         return lp - ap
 
@@ -2183,7 +2166,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if all([txin.utxo for txin in tx.inputs()]):
             return None
         # a single segwit input -> fine
-        if len(tx.inputs()) == 1 and Transaction.is_segwit_input(tx.inputs()[0]) and tx.inputs()[0].witness_utxo:
+        if len(tx.inputs()) == 1 and tx.inputs()[0].is_segwit() and tx.inputs()[0].witness_utxo:
             return None
         # coinjoin or similar
         if any([not self.is_mine(txin.address) for txin in tx.inputs()]):
@@ -2191,7 +2174,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                     + _("The input amounts could not be verified as the previous transactions are missing.\n"
                         "The amount of money being spent CANNOT be verified."))
         # some inputs are legacy
-        if any([not Transaction.is_segwit_input(txin) for txin in tx.inputs()]):
+        if any([not txin.is_segwit() for txin in tx.inputs()]):
             return (_("Warning") + ": "
                     + _("The fee could not be verified. Signing non-segwit inputs is risky:\n"
                         "if this transaction was maliciously modified before you sign,\n"
@@ -2439,6 +2422,14 @@ class Deterministic_Wallet(Abstract_Wallet):
         # generate addresses now. note that without libsecp this might block
         # for a few seconds!
         self.synchronize()
+
+        # create lightning keys
+        if self.can_have_lightning():
+            self.init_lightning()
+        ln_xprv = self.db.get('lightning_privkey2')
+        # lnworker can only be initialized once receiving addresses are available
+        # therefore we instantiate lnworker in DeterministicWallet
+        self.lnworker = LNWallet(self, ln_xprv) if ln_xprv else None
 
     def has_seed(self):
         return self.keystore.has_seed()
@@ -2819,7 +2810,6 @@ def create_new_wallet(*, path, config: SimpleConfig, passphrase=None, password=N
     wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
     wallet.synchronize()
     msg = "Please keep your seed in a safe place; if you lose it, you will not be able to restore your wallet."
-
     wallet.save_db()
     return {'seed': seed, 'wallet': wallet, 'msg': msg}
 

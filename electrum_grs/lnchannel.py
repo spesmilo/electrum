@@ -997,14 +997,22 @@ class Channel(AbstractChannel):
                 self.lnworker.payment_sent(self, htlc.payment_hash)
             failed = self.hm.failed_in_ctn(new_ctn)
             for htlc in failed:
-                error_bytes, failure_message = self._receive_fail_reasons.pop(htlc.htlc_id)
+                try:
+                    error_bytes, failure_message = self._receive_fail_reasons.pop(htlc.htlc_id)
+                except KeyError:
+                    error_bytes, failure_message = None, None
                 # if we are forwarding, save error message to disk
                 if self.lnworker.get_payment_info(htlc.payment_hash) is None:
                     self.save_fail_htlc_reason(htlc.htlc_id, error_bytes, failure_message)
                 else:
                     self.lnworker.payment_failed(self, htlc.payment_hash, error_bytes, failure_message)
 
-    def save_fail_htlc_reason(self, htlc_id, error_bytes, failure_message):
+    def save_fail_htlc_reason(
+            self,
+            htlc_id: int,
+            error_bytes: Optional[bytes],
+            failure_message: Optional['OnionRoutingFailureMessage'],
+    ):
         error_hex = error_bytes.hex() if error_bytes else None
         failure_hex = failure_message.to_bytes().hex() if failure_message else None
         self.hm.log['fail_htlc_reasons'][htlc_id] = (error_hex, failure_hex)

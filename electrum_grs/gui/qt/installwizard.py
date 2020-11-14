@@ -610,11 +610,12 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             title: str,
             message1: str,
             choices: List[Tuple[str, str, str]],
+            hide_choices: bool = False,
             message2: str,
             test_text: Callable[[str], int],
             run_next,
             default_choice_idx: int = 0,
-            get_account_xpub=None
+            get_account_xpub=None,
     ) -> Tuple[str, str]:
         vbox = QVBoxLayout()
 
@@ -640,7 +641,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             line.setText(c_default_text[idx])
         clayout = ChoicesLayout(message1, c_titles, on_choice_click,
                                 checked_index=default_choice_idx)
-        vbox.addLayout(clayout.layout())
+        if not hide_choices:
+            vbox.addLayout(clayout.layout())
 
         vbox.addWidget(WWLabel(message2))
 
