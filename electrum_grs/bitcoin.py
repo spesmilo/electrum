@@ -314,7 +314,7 @@ def construct_witness(items: Sequence[Union[str, int, bytes]]) -> str:
 
 
 def construct_script(items: Sequence[Union[str, int, bytes, opcodes]]) -> str:
-    """Constructs bitcoin script from given items."""
+    """Constructs groestlcoin script from given items."""
     script = ''
     for item in items:
         if isinstance(item, opcodes):

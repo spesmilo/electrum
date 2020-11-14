@@ -40,7 +40,7 @@ except ImportError:
 # minimum required version for kivy
 kivy.require('1.8.0')
 
-from electrum.logging import Logger
+from electrum_grs.logging import Logger
 
 if TYPE_CHECKING:
     from electrum_grs.simple_config import SimpleConfig

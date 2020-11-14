@@ -1027,7 +1027,7 @@ class Interface(Logger):
         return res
 
     async def get_relay_fee(self) -> int:
-        """Returns the min relay feerate in sat/kbyte."""
+        """Returns the min relay feerate in gro/kbyte."""
         # do request
         res = await self.session.send_request('blockchain.relayfee')
         # check response
@@ -1038,7 +1038,7 @@ class Interface(Logger):
 
     async def get_estimatefee(self, num_blocks: int) -> int:
         """Returns a feerate estimate for getting confirmed within
-        num_blocks blocks, in sat/kbyte.
+        num_blocks blocks, in gro/kbyte.
         """
         if not is_non_negative_integer(num_blocks):
             raise Exception(f"{repr(num_blocks)} is not a num_blocks")
