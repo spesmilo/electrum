@@ -150,9 +150,9 @@ class AddressSynchronizer(Logger):
         # review transactions that are in the history
         for addr in self.db.get_history():
             hist = self.db.get_addr_history(addr)
-            for tx_hash, tx_height, tx_type in hist:
+            for tx_hash, tx_height, *tx_type in hist:
                 # add it in case it was previously unconfirmed
-                self.add_unverified_tx(tx_hash, tx_height, tx_type)
+                self.add_unverified_tx(tx_hash, tx_height, tx_type[0] if tx_type else TxType.NONVAULT.name)
 
     def start_network(self, network):
         self.network = network
