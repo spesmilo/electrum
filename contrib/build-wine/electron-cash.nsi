@@ -135,6 +135,8 @@ Section
   ;See #1255 where some users have bad opengl drivers and need to use software-only rendering. Requires we package openglsw32.dll with the app.
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME} (Software OpenGL).lnk" "$INSTDIR\${INTERNAL_NAME}.exe" "--qt_opengl software" "$INSTDIR\${INTERNAL_NAME}.exe" 0
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME} Testnet.lnk" "$INSTDIR\${INTERNAL_NAME}.exe" "--testnet" "$INSTDIR\${INTERNAL_NAME}.exe" 0
+  CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME} Testnet4.lnk" "$INSTDIR\${INTERNAL_NAME}.exe" "--testnet4" "$INSTDIR\${INTERNAL_NAME}.exe" 0
+  CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME} Scalenet.lnk" "$INSTDIR\${INTERNAL_NAME}.exe" "--scalenet" "$INSTDIR\${INTERNAL_NAME}.exe" 0
 
 
   ;Links bitcoincash: URI's to Electron Cash
