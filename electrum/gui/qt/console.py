@@ -59,6 +59,7 @@ class Console(QtWidgets.QPlainTextEdit):
         self.setWordWrapMode(QtGui.QTextOption.WrapAnywhere)
         self.setUndoRedoEnabled(False)
         self.document().setDefaultFont(QtGui.QFont(MONOSPACE_FONT, 10, QtGui.QFont.Normal))
+        self.newPrompt("")  # make sure there is always a prompt, even before first server.banner
 
         self.updateNamespace({'run':self.run_script})
         self.set_json(False)
