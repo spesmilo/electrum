@@ -20,11 +20,11 @@ from electrum.logging import Logger
 
 class UpdateCheck(QWidget, Logger):
     # TODO: update this to server's IP
-    url = "https://bitcoinvault.global/version"
+    url = "https://bitcoinvault.global/electrum_version"
     download_url = "https://bitcoinvault.global"
 
     VERSION_ANNOUNCEMENT_SIGNING_KEYS = (
-        "YhK3ULRcNB7Nrqeif3qLUqsFTcngxJsba9",
+        "YhS6cQ6V955ssLzhgnMBNT3EF5xMjrhb8k",
     )
 
     def __init__(self, main_window, latest_version=None):
@@ -121,8 +121,10 @@ class UpdateCheckThread(QThread, Logger):
                         continue
                     sig = base64.b64decode(sig)
                     msg = version_num.encode('utf-8')
+                    self.logger.info("msg= " + str(version_num))
+                    #self.logger.info("signature= ") + str(sig)
                     if ecc.verify_message_with_address(address=address, sig65=sig, message=msg,
-                                                       net=constants.BitcoinMainnet):
+                                                       net=constants.BitcoinVaultMainnet):
                         self.logger.info(f"valid sig for version announcement '{version_num}' from address '{address}'")
                         break
                 else:
