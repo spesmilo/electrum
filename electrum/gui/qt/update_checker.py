@@ -121,8 +121,6 @@ class UpdateCheckThread(QThread, Logger):
                         continue
                     sig = base64.b64decode(sig)
                     msg = version_num.encode('utf-8')
-                    self.logger.info("msg= " + str(version_num))
-                    #self.logger.info("signature= ") + str(sig)
                     if ecc.verify_message_with_address(address=address, sig65=sig, message=msg,
                                                        net=constants.BitcoinVaultMainnet):
                         self.logger.info(f"valid sig for version announcement '{version_num}' from address '{address}'")
