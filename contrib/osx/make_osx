@@ -136,7 +136,7 @@ python3 -m pip install --no-dependencies -Ir ./contrib/deterministic-build/requi
     || fail "Could not install hardware wallet requirements"
 
 info "Installing dependencies specific to binaries..."
-python3 -m pip install --no-dependencies -Ir ./contrib/deterministic-build/requirements-binaries.txt --user \
+python3 -m pip install --no-dependencies -Ir ./contrib/deterministic-build/requirements-binaries-mac.txt --user \
     || fail "Could not install dependencies specific to binaries"
 
 info "Building $PACKAGE..."
