@@ -841,6 +841,9 @@ class TxDialog(QDialog, MessageBoxMixin, PrintError):
             addr_text = addr.to_ui_string()
             if isinstance(addr, Address) and self.wallet.is_mine(addr):
                 show_list += [ ( _("Address Details"), lambda: self._open_internal_link(addr_text) ) ]
+                addr_URL = web.BE_URL(self.main_window.config, 'addr', addr)
+                if addr_URL:
+                    show_list += [ ( _("View on block explorer"), lambda: webopen(addr_URL) ) ]
             if isinstance(addr, ScriptOutput):
                 action_text = _("Copy Script Text")
             elif isinstance(addr, PublicKey):
