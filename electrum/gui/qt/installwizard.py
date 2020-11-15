@@ -186,13 +186,14 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard, TermsAndConditionsMixi
             language_abbreviation = language_abbreviations[cb.currentIndex()]
             set_language(language_abbreviation)
             self._set_gui_text()
-            self.config.set_key('language', language_abbreviation)
             self.refresh_gui()
 
         cb.currentIndexChanged.connect(on_change)
         # refresh config language
         on_change()
-        self.exec_layout(vbox, title=_('Select installation language'))
+        result = self.exec_layout(vbox, title=_('Select installation language'))
+        if result == 2:
+            self.config.set_key('language', language_abbreviations[cb.currentIndex()])
 
     def select_storage(self, path, get_wallet_from_daemon) -> Tuple[str, Optional[WalletStorage]]:
 

@@ -8,6 +8,10 @@ from electrum.gui.qt.util import WindowModalDialog
 from electrum.i18n import _
 
 
+class TermsNotAccepted(BaseException):
+    pass
+
+
 class WarningDialog(WindowModalDialog):
     def __init__(self, parent, title=_('Warning')):
         super().__init__(parent=parent, title=title)

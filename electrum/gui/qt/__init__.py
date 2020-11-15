@@ -29,6 +29,8 @@ import sys
 import traceback
 import threading
 from typing import Optional, TYPE_CHECKING
+
+from .terms_and_conditions_mixin import TermsNotAccepted
 from .three_keys_windows import ElectrumARWindow, ElectrumAIRWindow
 
 try:
@@ -336,6 +338,7 @@ class ElectrumGui(Logger):
                 self.config.set_key(config_key, True)
             else:
                 self.stop()
+                raise TermsNotAccepted
 
     def choose_language(self):
         if self.config.get('language', None) is None:
@@ -348,9 +351,7 @@ class ElectrumGui(Logger):
             self.accept_terms_and_conditions()
             self.choose_language()
             self.init_network()
-        except UserCancelled:
-            return
-        except GoBack:
+        except (UserCancelled, GoBack, TermsNotAccepted):
             return
         except BaseException as e:
             self.logger.exception('')
