@@ -125,7 +125,6 @@ class ElectrumGui(Logger):
         self.tray.show()
         self.app.new_window_signal.connect(self.start_new_window)
         self.set_dark_theme_if_needed()
-        self._select_language_dialog_toggle = True
         run_hook('init_qt', self)
 
     def set_dark_theme_if_needed(self):
@@ -287,8 +286,6 @@ class ElectrumGui(Logger):
     def _start_wizard_to_select_or_create_wallet(self, path) -> Optional[Abstract_Wallet]:
         wizard = InstallWizard(self.config, self.app, self.plugins)
         try:
-            if self._select_language_dialog_toggle:
-                wizard.select_and_save_language()
             path, storage = wizard.select_storage(path, self.daemon.get_wallet)
             # storage is None if file does not exist
             if storage is None:
@@ -326,13 +323,30 @@ class ElectrumGui(Logger):
         if self.daemon.network:
             if self.config.get('auto_connect') is None:
                 wizard = InstallWizard(self.config, self.app, self.plugins)
-                wizard.select_and_save_language()
-                self._select_language_dialog_toggle = False
                 wizard.init_network(self.daemon.network)
                 wizard.terminate()
 
+    def accept_terms_and_conditions(self):
+        config_key = 'terms_and_conditions_accepted'
+        if not self.config.get(config_key, False):
+            wizard = InstallWizard(self.config, self.app, self.plugins)
+            accepted = wizard.accept_terms_and_conditions()
+            wizard.terminate()
+            if accepted:
+                self.config.set_key(config_key, True)
+            else:
+                self.stop()
+
+    def choose_language(self):
+        if self.config.get('language', None) is None:
+            wizard = InstallWizard(self.config, self.app, self.plugins)
+            wizard.select_and_save_language()
+            wizard.terminate()
+
     def main(self):
         try:
+            self.accept_terms_and_conditions()
+            self.choose_language()
             self.init_network()
         except UserCancelled:
             return
