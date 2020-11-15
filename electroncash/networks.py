@@ -144,6 +144,8 @@ class ScaleNet(TestNet):
     GENESIS = "00000000e6453dc2dfe1ffa19023f86002eb11dbb8e87d0291a4599f0430be52"
     TITLE = 'Electron Cash Scalenet'
 
+    asert_daa = ASERTDaa(is_testnet=False)  # Despite being a "testnet", ScaleNet uses 2d half-life
+
     HEADERS_URL = "http://bitcoincash.com/files/scalenet_headers"  # Unused
 
     DEFAULT_SERVERS = _read_json_dict('servers_scalenet.json')  # DO NOT MODIFY IN CLIENT CODE
