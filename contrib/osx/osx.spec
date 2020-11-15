@@ -70,6 +70,7 @@ datas = [
     (electrum + PYPKG + '/locale', PYPKG + '/locale'),
     (electrum + PYPKG + '/plugins', PYPKG + '/plugins'),
     (electrum + PYPKG + '/gui/icons', PYPKG + '/gui/icons'),
+    (electrum + PYPKG + '/terms_and_conditions/*.txt', PYPKG + '/terms_and_conditions'),
 ]
 datas += collect_data_files('ckcc')
 datas += collect_data_files('jsonrpcserver')
