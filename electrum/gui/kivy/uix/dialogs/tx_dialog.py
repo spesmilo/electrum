@@ -155,7 +155,7 @@ class TxDialog(Factory.Popup):
             self.date_str = datetime.fromtimestamp(tx_mined_status.timestamp).isoformat(' ')[:-3]
         elif exp_n:
             self.date_label = _('Mempool depth')
-            self.date_str = _('{} from tip').format('%.2f MB'%(exp_n/1000000))
+            self.date_str = _('{size} from tip').format(size='%.2f MB'%(exp_n/1000000))
         else:
             self.date_label = ''
             self.date_str = ''
@@ -282,8 +282,8 @@ class TxDialog(Factory.Popup):
         to_delete |= self.wallet.get_depending_transactions(txid)
         question = _("Are you sure you want to remove this transaction?")
         if len(to_delete) > 1:
-            question = (_("Are you sure you want to remove this transaction and {} child transactions?")
-                        .format(len(to_delete) - 1))
+            question = (_("Are you sure you want to remove this transaction and {number} child transactions?")
+                        .format(number=(len(to_delete) - 1)))
 
         def on_prompt(b):
             if b:

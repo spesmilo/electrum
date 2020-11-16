@@ -117,18 +117,13 @@ class CrashReporter(BaseCrashReporter, Factory.Popup):
 
     def send_report(self):
         try:
-            loop = self.main_window.network.asyncio_loop
-            proxy = self.main_window.network.proxy
-            # FIXME network request in GUI thread...
-            response = json.loads(BaseCrashReporter.send_report(self, loop, proxy,
-                                                                "/crash.json", timeout=10))
+            raport = BaseCrashReporter.get_report_string(self)
+            self.logger.error("Crash Report", extra=raport)
         except (ValueError, ClientError):
             #self.logger.debug("", exc_info=True)
             self.show_popup(_('Unable to send report'), _("Please check your network connection."))
         else:
-            self.show_popup(_('Report sent'), response["text"])
-            if response["location"]:
-                self.open_url(response["location"])
+            self.show_popup(_('Report sent'), raport)
         self.dismiss()
 
     def open_url(self, url):

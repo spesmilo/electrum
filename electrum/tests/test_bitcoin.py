@@ -22,9 +22,10 @@ from electrum.keystore import xtype_from_derivation
 
 from electrum import ecc_fast
 
-from . import ElectrumTestCase
-from . import TestCaseForTestnet
-from . import FAST_TESTS
+
+from electrum.tests import ElectrumTestCase
+from electrum.tests import TestCaseForTestnet
+from electrum.tests import FAST_TESTS
 
 
 try:

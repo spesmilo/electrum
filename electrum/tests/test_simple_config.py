@@ -7,7 +7,7 @@ import shutil
 from io import StringIO
 from electrum.simple_config import (SimpleConfig, read_user_config)
 
-from . import ElectrumTestCase
+from electrum.tests import ElectrumTestCase
 
 
 class Test_SimpleConfig(ElectrumTestCase):

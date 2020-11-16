@@ -116,8 +116,7 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
                                     f' <a href="{constants.GIT_REPO_ISSUES_URL}">on GitHub</a>.'),
                                rich_text=True)
 
-        proxy = self.main_window.network.proxy
-        task = lambda: BaseCrashReporter.send_report(self, self.main_window.network.asyncio_loop, proxy)
+        task = lambda: self.logger.error("Crash Report", extra=BaseCrashReporter.get_report_string(self))
         msg = _('Sending crash report...')
         WaitingDialog(self, msg, task, on_success, on_failure)
 

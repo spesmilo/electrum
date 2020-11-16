@@ -85,13 +85,13 @@ class ContactList(MyTreeView):
             column_title = self.model().horizontalHeaderItem(column).text()
             column_data = '\n'.join(self.model().itemFromIndex(s_idx).text()
                                     for s_idx in self.selected_in_column(column))
-            menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
+            menu.addAction(_("Copy {column_title}").format(column_title=column_title), lambda: self.parent.app.clipboard().setText(column_data))
             if column in self.editable_columns:
                 item = self.model().itemFromIndex(idx)
                 if item.isEditable():
                     # would not be editable if openalias
                     persistent = QPersistentModelIndex(idx)
-                    menu.addAction(_("Edit {}").format(column_title), lambda p=persistent: self.edit(QModelIndex(p)))
+                    menu.addAction(_("Edit {title}").format(title=column_title), lambda p=persistent: self.edit(QModelIndex(p)))
             menu.addAction(_("Pay to"), lambda: self.parent.payto_contacts(selected_keys))
             menu.addAction(_("Delete"), lambda: self.parent.delete_contacts(selected_keys))
             URLs = [block_explorer_URL(self.config, 'addr', key) for key in filter(is_address, selected_keys)]

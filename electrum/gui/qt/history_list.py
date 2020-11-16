@@ -76,6 +76,11 @@ TX_ICONS = [
     "clock4.png",
     "clock5.png",
     "confirmed.png",
+    "alert_unconfirmed.png",
+    "alert_pending.png",
+    "alert_recovered.png",
+    "recovery.png",
+    "recovery_unconfirmed.png",
 ]
 
 class HistoryColumns(IntEnum):
@@ -220,7 +225,15 @@ class HistoryModel(QAbstractItemModel, Logger):
             v_str = self.parent.format_amount(value, is_diff=True, whitespaces=True)
             return QVariant(v_str)
         elif col == HistoryColumns.BALANCE:
-            balance = tx_item['balance'].value
+            # if there is no 'balance' key there should be 'bc_balance' key
+            balance = tx_item.get('balance', None)
+            try:
+                if balance is None:
+                    balance = tx_item['bc_balance']
+                balance = balance.value
+            except (KeyError, AttributeError) as e:
+                _logger.error(f'Error {e} during fetching balance. Balance set to 0!')
+                balance = 0
             balance_str = self.parent.format_amount(balance, whitespaces=True)
             return QVariant(balance_str)
         elif col == HistoryColumns.FIAT_VALUE and 'fiat_value' in tx_item:
@@ -627,7 +640,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             label = self.hm.headerData(c, Qt.Horizontal, Qt.DisplayRole)
             # TODO use siblingAtColumn when min Qt version is >=5.11
             persistent = QPersistentModelIndex(org_idx.sibling(org_idx.row(), c))
-            menu.addAction(_("Edit {}").format(label), lambda p=persistent: self.edit(QModelIndex(p)))
+            menu.addAction(_("Edit {title}").format(title=label), lambda p=persistent: self.edit(QModelIndex(p)))
         menu.addAction(_("Details"), lambda: self.show_transaction(tx_hash))
         if is_unconfirmed and tx:
             # note: the current implementation of RBF *needs* the old tx fee
@@ -649,8 +662,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         to_delete |= self.wallet.get_depending_transactions(delete_tx)
         question = _("Are you sure you want to remove this transaction?")
         if len(to_delete) > 1:
-            question = (_("Are you sure you want to remove this transaction and {} child transactions?")
-                        .format(len(to_delete) - 1))
+            question = (_("Are you sure you want to remove this transaction and {number} child transactions?")
+                        .format(number=(len(to_delete) - 1)))
         if not self.parent.question(msg=question,
                                     title=_("Please confirm")):
             return

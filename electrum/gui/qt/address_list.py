@@ -151,7 +151,7 @@ class AddressList(MyTreeView):
         for address in addr_list:
             num = self.wallet.get_address_history_len(address)
             label = self.wallet.labels.get(address, '')
-            c, u, x = self.wallet.get_addr_balance(address)
+            c, u, x, *__ = self.wallet.get_addr_balance(address)
             balance = c + u + x
             is_used_and_empty = self.wallet.is_used(address) and balance == 0
             if self.show_used == AddressUsageStateFilter.UNUSED and (balance or is_used_and_empty):
@@ -226,7 +226,7 @@ class AddressList(MyTreeView):
             self.add_copy_menu(menu, idx)
             menu.addAction(_('Details'), lambda: self.parent.show_address(addr))
             persistent = QPersistentModelIndex(addr_idx)
-            menu.addAction(_("Edit {}").format(addr_column_title), lambda p=persistent: self.edit(QModelIndex(p)))
+            menu.addAction(_("Edit {title}").format(title=addr_column_title), lambda p=persistent: self.edit(QModelIndex(p)))
             menu.addAction(_("Request payment"), lambda: self.parent.receive_at(addr))
             if self.wallet.can_export():
                 menu.addAction(_("Private key"), lambda: self.parent.show_private_key(addr))

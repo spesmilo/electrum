@@ -1,0 +1,4560 @@
+# Indonesian translations for PACKAGE package.
+# Copyright (C) 2020 THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# Automatically generated, 2020.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2020-10-10 02:26+0200\n"
+"PO-Revision-Date: 2020-10-10 02:26+0200\n"
+"Last-Translator: Automatically generated\n"
+"Language-Team: none\n"
+"Language: id\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid ""
+"In order to confirm the transaction, scan the QR codes in the "
+"\"Authenticators\" tab in the Gold Wallet app."
+msgstr ""
+"Untuk mengkonfirmasi transaksi, pindai kode QR di tab \"Autentikator\" di "
+"aplikasi Gold Wallet Anda."
+
+msgid "Failed to display QR code."
+msgstr "Gagal menampilkan kode QR."
+
+msgid "Transaction is too large in size."
+msgstr "Ukuran transaksi terlalu besar."
+
+msgid "Previous part"
+msgstr "Bagian sebelumnya."
+
+msgid "Next part"
+msgstr "Bagian selanjutnya."
+
+msgid "Transaction part"
+msgstr "Bagian transaksi."
+
+msgid "Standard"
+msgstr "Standar"
+
+msgid "Secure"
+msgstr "Aman"
+
+msgid "Secure fast"
+msgstr "Cepat"
+
+msgid "Cancel"
+msgstr "Batal"
+
+msgid "Change language"
+msgstr "Ubah bahasa"
+
+msgid "&Change language"
+msgstr "&Ubah bahasa"
+
+msgid "When you press Ok button application will be restarted"
+msgstr "Aplikasi akan di restart ketika Anda menekan tombol OK"
+
+msgid "Ok"
+msgstr "OK"
+
+msgid "Select installation language"
+msgstr "Pilih Bahasa"
+
+msgid "  (No FX rate available)"
+msgstr "  (Tidak ada kurs FX yang tersedia)"
+
+msgid " confirmation"
+msgstr " Konfimasi"
+
+msgid " is not a valid Lightning invoice: "
+msgstr " bukam merupakan Lightning invoice valid"
+
+msgid "&About"
+msgstr "&Tentang"
+
+msgid "&Addresses"
+msgstr "&Alamat"
+
+msgid "&Check for updates"
+msgstr "&Periksa updates"
+
+msgid "&Documentation"
+msgstr "&Dokumentasi"
+
+msgid "&Donate to server"
+msgstr "&Donasikan ke server"
+
+msgid "&Encrypt/decrypt message"
+msgstr "&Enkripsikan/dekripsikan pesan"
+
+msgid "&Export"
+msgstr "&Export"
+
+msgid "&File"
+msgstr "&File"
+
+msgid "&Filter"
+msgstr "&Filter"
+
+msgid "&From QR code"
+msgstr "&Dari kode QR"
+
+msgid "&From file"
+msgstr "&Dari File"
+
+msgid "&From text"
+msgstr "&Dari teks"
+
+msgid "&From the blockchain"
+msgstr "&Dari blockchain"
+
+msgid "&Help"
+msgstr "&Bantuan"
+
+msgid "&History"
+msgstr "&Riwayat"
+
+msgid "&Import"
+msgstr "&Import"
+
+msgid "&Information"
+msgstr "&Informasi"
+
+msgid "&Labels"
+msgstr "&Label"
+
+msgid "&Load transaction"
+msgstr "&Muat transaksi"
+
+msgid "&Network"
+msgstr "&Jaringan"
+
+msgid "&New"
+msgstr "&Baru"
+
+msgid "&New/Restore"
+msgstr "&Baru/Pulihkan"
+
+msgid "&Official website"
+msgstr "&Website resmi:"
+
+msgid "&Open"
+msgstr "&Buka"
+
+msgid "&Password"
+msgstr "&Kata Sandi"
+
+msgid "&Pay to many"
+msgstr "&Bayar ke banyak"
+
+msgid "&Plot"
+msgstr "&Plot"
+
+msgid "&Plugins"
+msgstr "&Plugins"
+
+msgid "&Private keys"
+msgstr "&Kunci pribadi"
+
+msgid "&Quit"
+msgstr "&Keluar"
+
+msgid "&Recently open"
+msgstr "&Baru dibuka"
+
+msgid "&Report Bug"
+msgstr "&Laporkan Bug"
+
+msgid "&Save Copy"
+msgstr "&Simpan Salinan"
+
+msgid "&Seed"
+msgstr "&Seed"
+
+msgid "&Sign/verify message"
+msgstr "&Tandai/verifikasi pesan"
+
+msgid "&Summary"
+msgstr "&Ringkasan"
+
+msgid "&Sweep"
+msgstr "&Pindai"
+
+msgid "&Tools"
+msgstr "&Alat"
+
+msgid "&View"
+msgstr "&Tampilkan"
+
+msgid "&Wallet"
+msgstr "&Dompet"
+
+msgid ""
+"'Legacy' is the original address type, while 'Segwit' is the newer address "
+"format with lower fees."
+msgstr ""
+"'legacy' adalah tipe alamat awal, sedangkan 'segwit' merupakan tipe alamat "
+"yang baruformat dengan biaya yang lebih rendah"
+
+msgid "+"
+msgstr "+"
+
+msgid "1 day"
+msgstr "1 hari"
+
+msgid "1 hour"
+msgstr "1 jam"
+
+msgid "1 week"
+msgstr "1 minggu"
+
+msgid "1. Place this paper on a flat and well iluminated surface."
+msgstr ""
+"1. Letakkan kertas ini di permukaan yang datar dan memiliki penerangan yang "
+"cukup"
+
+msgid "10 minutes"
+msgstr "10 menit"
+
+msgid "2-Key Vault"
+msgstr "Vault 2-kunci"
+
+msgid ""
+"2. Align your Revealer borderlines to the dashed lines on the top and left."
+msgstr ""
+"2. Luruskan pembatas Revealer Anda dengan garis putus-putus di bagian atas "
+"dan kiri"
+
+msgid "3-Key Vault"
+msgstr "Vault 3-kunci"
+
+msgid ""
+"3. Press slightly the Revealer against the paper and read the numbers that "
+"best match on the opposite sides. "
+msgstr ""
+"3. Tekan revealer ke kertas dengan perlahan dan baca angkayang paling cocok "
+"dengan apa yang ditunjukkan diarah seberang"
+
+msgid "4. Type the numbers in the software"
+msgstr "4. Ketik angka tersebut di perangkat lunak"
+
+msgid "A copy of your wallet file was created in"
+msgstr "Salinan dompet Anda telah dibuat di"
+
+msgid "A few examples"
+msgstr "Beberapa contoh"
+
+msgid "A library is probably missing."
+msgstr "Sebuah perpustakaan mungkin hilang"
+
+msgid "A payment was already initiated for this invoice"
+msgstr "Sebuah pembayaran telah dimulai untuk invoice ini"
+
+msgid ""
+"A small fee will be charged on each transaction that uses the remote "
+"server.  You may check and modify your billing preferences once the "
+"installation is complete."
+msgstr ""
+"Biaya transaksi akan dikenakan pada setiap transaksi yang menggunakan "
+"remoteserver. Anda dapat memeriksa dan mengubah pilihan biling Anda "
+"setelahproses instalasi selesai"
+
+msgid ""
+"A suggested fee is automatically added to this field. You may override it. "
+"The suggested fee increases with the size of the transaction."
+msgstr ""
+"Pilihan biaya transaksi telah diisikan secara otomatis di bidang ini. Anda "
+"dapat merubahnya secara manual.Biaya yang dianjurkan akan meningkat sesuai "
+"dengan ukuran transaksi."
+
+msgid "About"
+msgstr "Tentang"
+
+msgid "About Electrum"
+msgstr "Tentang Electrum"
+
+msgid "Accept"
+msgstr "Terima"
+
+msgid "Acquisition price"
+msgstr "Biaya akuisisi"
+
+msgid "Add Cosigner"
+msgstr "Tambahkan Cosigner"
+
+msgid "Add a cosigner to your multi-sig wallet"
+msgstr "Tambahkan cosigner untuk domper multi-sig Anda"
+
+msgid "Add an optional virtual keyboard to the password dialog."
+msgstr "Tambahkan sebuah keyboard virtual ke dialog password."
+
+msgid "Add cosigner"
+msgstr "Tambahkan cosigner"
+
+msgid "Additional fees"
+msgstr "Biaya tambahan"
+
+#, python-brace-format
+msgid "Additional {num_satoshis_added} satoshis are going to be added."
+msgstr "Tambahan {num_satoshis_added} akan ditambahkan"
+
+msgid "Address"
+msgstr "Alamat"
+
+msgid "Address Details"
+msgstr "Detail Alamat"
+
+msgid "Address copied to clipboard"
+msgstr "Alamat di salin ke papan klip"
+
+msgid "Address is frozen"
+msgstr "Alamat dibekukan"
+
+msgid "Address not in wallet."
+msgstr "Alamat tidak ditemukan di dompet"
+
+msgid "Address:"
+msgstr "Alamat:"
+
+msgid "Addresses"
+msgstr "Banyak Alamat"
+
+msgid "Addresses generated:"
+msgstr "Alamat yang dihasilkan:"
+
+msgid "Advanced"
+msgstr "Lanjutan"
+
+msgid "Advanced preview"
+msgstr "Pratinjau Lanjutan"
+
+msgid "All"
+msgstr "Semua"
+
+msgid "All fields must be filled out"
+msgstr "Semua bidang harus diisi"
+
+msgid ""
+"Allows validating if your transactions have instant confirmations by "
+"GreenAddress"
+msgstr ""
+"Ijinkan validasi apabila transaksi Anda memiliki konfirmasi instan "
+"olehGreenAddress"
+
+msgid "Already up to date"
+msgstr "Sudah yang paling baru"
+
+msgid "Also, dust is not kept as change, but added to the fee."
+msgstr ""
+"Juga, remah tidak disimpan sebagai kembalian, namun ditambahkan sebagai "
+"biaya transaksi."
+
+msgid ""
+"Also, when batching RBF transactions, BIP 125 imposes a lower bound on the "
+"fee."
+msgstr ""
+"Juga, ketika mengelompokkan transaksi RBF, BIP 125 akan mengenakan biaya "
+"transaksi yang lebihrendah."
+
+msgid "Always check your backups."
+msgstr "Selalu periksa cadangan Anda"
+
+msgid "Amount"
+msgstr "Jumlah"
+
+msgid "Amount for OP_RETURN output must be zero."
+msgstr "Jumlah output OP_RETURN harus sama dengan nol "
+
+msgid "Amount received:"
+msgstr "Jumlah diterima:"
+
+msgid "Amount sent:"
+msgstr "Jumlah dikirim:"
+
+msgid "Amount to be sent"
+msgstr "Jumlah yang akan dikirim"
+
+msgid "Amount to be sent."
+msgstr "Jumlah yang akan dikirim."
+
+msgid "An Error Occurred"
+msgstr "Sebuah kesalahan telah terjadi"
+
+msgid "An encrypted transaction was retrieved from cosigning pool."
+msgstr "sebuah transaksi terenkripsi telah diterima dari cosigning pool"
+
+#, python-brace-format
+msgid "An unnamed {device_name}"
+msgstr "{device_name} tidak dinamai"
+
+msgid ""
+"Are you sure you want to delete this channel? This will purge associated "
+"transactions from your wallet history."
+msgstr ""
+"Apakah Anda yakin ingin menghapus channel ini? Ini akan menghilangkan "
+"transaksiyang terhubung dari riwayat dompent Anda."
+
+#, python-brace-format
+msgid ""
+"Are you sure you want to remove this transaction and {number} child "
+"transactions?"
+msgstr ""
+"Apakah Anda yakin ingin menghapus transaksi ini dan {number} anaktransaksi?"
+
+msgid "Are you sure you want to remove this transaction?"
+msgstr "Apakah Anda yakin ingin menghapus transaksi ini?"
+
+#, python-brace-format
+msgid "At block height: {height}"
+msgstr "Pada ketinggian blok: {height}"
+
+msgid "At least a hostname must be supplied after the at symbol."
+msgstr "Paling tidak hostname harus diisi setelah simbol at"
+
+msgid "At most 100 satoshis might be lost due to this rounding."
+msgstr "Paling banyak 100 satoshi dapat hilang pada rounding ini"
+
+msgid "Audio MODEM"
+msgstr "MODEM Audio"
+
+msgid "Audio Modem Settings"
+msgstr "Pengaturan Modem Audio"
+
+msgid "Authorization"
+msgstr "Otorisasi"
+
+msgid "Auto connect"
+msgstr "Koneksi otomatis"
+
+msgid "Auto-connect"
+msgstr "Koneksi-otomatis"
+
+msgid "Automatically check for software updates"
+msgstr "Cek pembaruan software secara otomatis"
+
+msgid "BIP39 seed (Gold Wallet integration)"
+msgstr "BIP39 seed (integrasi Gold Wallet)"
+
+msgid ""
+"BIP39 seeds can be imported in Electrum, so that users can access funds "
+"locked in other wallets."
+msgstr ""
+"BIP39 seed dapat diimpor di Electrum, jadi pengguna dapat mengakses danayang "
+"dikunci di dompet lain."
+
+msgid "BIP70 Invoice"
+msgstr "Invoice BIP70"
+
+msgid "Back"
+msgstr "Kembali"
+
+msgid "Balance"
+msgstr "Saldo"
+
+msgid "Banner"
+msgstr "Banner"
+
+msgid "Base unit"
+msgstr "Unit dasar"
+
+msgid "Base unit of your wallet."
+msgstr "Unit dasar dompet Anda"
+
+msgid "Batch RBF transactions"
+msgstr "Kelompok transaksi RBF"
+
+msgid ""
+"Before reporting a bug, upgrade to the most recent version of Electrum "
+"(latest release or git HEAD), and include the version number in your report."
+msgstr ""
+"Sebelum melaporkan bug, lakukan pembaruan Electrum ke versi terbaru(rilis "
+"terbaru atau git HEAD), dan tambahkan nomor versi ke laporan Anda."
+
+msgid "Bit rate [kbps]: "
+msgstr "Bit rate [kbps]: "
+
+msgid "Bitcoin Address"
+msgstr "Alamat Bitcoin"
+
+msgid "Bitcoin Address is None"
+msgstr "Alamat Bitcoin tidak tersedia "
+
+msgid ""
+"Bitcoin transactions are in general not free. A transaction fee is paid by "
+"the sender of the funds."
+msgstr ""
+"Secara umum transaksi Bitcoin memakan biaya. Biaya tersebut dibayarkan "
+"olehpengirim dana."
+
+msgid "Blacklist"
+msgstr "Blacklist "
+
+msgid "Blockchain"
+msgstr "Blockchain"
+
+msgid "Bottom"
+msgstr "Bawah"
+
+msgid "Broadcast"
+msgstr "Siaran"
+
+msgid "Broadcasting transaction..."
+msgstr "Menyiarkan transaksi"
+
+msgid "Bump Fee"
+msgstr "Bump Fee"
+
+msgid "Bump fee"
+msgstr "Bump fee"
+
+msgid "CLTV expiry"
+msgstr "CLTV expiry"
+
+msgid "CSV"
+msgstr "CSV"
+
+msgid "Calibration sheet"
+msgstr "Lembaran Kalibrasi"
+
+msgid "Calibration values:"
+msgstr "Nilai Kalibrasi"
+
+msgid "Can send"
+msgstr "Dapat mengirim"
+
+msgid "Can't CPFP: unknown fee for parent transaction."
+msgstr "Tidak dapat CPFP: Biaya dan induk transaksi tidak dikenal"
+
+msgid "Can't bump fee: unknown fee for original transaction."
+msgstr ""
+"Tidak dapat bump fee: Biaya transaksi dan transaksi original tidak dikenal"
+
+msgid "Can't plot history."
+msgstr "Tidak dapat mengatur riwayat."
+
+msgid "Cancel seedphrase"
+msgstr "Seedphrase "
+
+msgid "Cancel seedphrase not matching any key in this wallet"
+msgstr "Seedphrase pembatalan tidak cocok dengan kunci apapun di dompet Anda"
+
+msgid "Cancel transaction public key"
+msgstr "Kunci publik pembatalan transaksi"
+
+msgid "Cancelation address"
+msgstr "alamat pembatalan"
+
+msgid "Cancelled by user"
+msgstr "Dibatalkan oleh pengguna"
+
+msgid "Cannot add this cosigner:"
+msgstr "Tidak dapat menambahkan cosigner ini:"
+
+msgid "Cannot broadcast transaction"
+msgstr "Tidak dapat menyiarkan transaksi"
+
+msgid "Cannot bump fee"
+msgstr "Tidak dapat bump fee"
+
+msgid "Cannot create window for wallet"
+msgstr "Tidak dapat membuat jendela untuk dompet "
+
+msgid "Cannot load wallet"
+msgstr "Tidak dapat memuat dompet "
+
+msgid "Cannot read file"
+msgstr "Tidak dapat membaca file "
+
+msgid "Cannot sign messages with this type of address:"
+msgstr "Tidak dapat menandatangani pesan dengan dengan jenis alamat ini:"
+
+msgid "Capacity"
+msgstr "Kapasitas"
+
+msgid "Capital Gains"
+msgstr "Penambahan Kapital"
+
+msgid "Capital gains"
+msgstr "Penambahan kapital"
+
+#, python-brace-format
+msgid "Chain split detected at block {0}"
+msgstr "Chain split dideteksi pada blok {0}"
+
+msgid "Change"
+msgstr "Ubah"
+
+msgid "Change Password"
+msgstr "Ubah Kata sandi"
+
+msgid "Changing PIN code."
+msgstr "Megubah kode PIN"
+
+msgid "Channel Details"
+msgstr "Detail Channel"
+
+msgid "Channel ID"
+msgstr "ID Channel"
+
+msgid "Channel ID:"
+msgstr "ID Channel:"
+
+msgid "Channel already closed"
+msgstr "Channel telah ditutup"
+
+msgid "Channel closed"
+msgstr "Channel ditutup"
+
+#, python-brace-format
+msgid ""
+"Channel closed, you may need to wait at least {number} blocks, because of "
+"CSV delays"
+msgstr ""
+"Channel ditutup, mohon tunggu paling tidak {number} blok, "
+"karenaketerlambatan CSV"
+
+msgid "Channel details"
+msgstr "Detail Channel"
+
+msgid "Channel established."
+msgstr "Channel didirikan."
+
+msgid "Channel updates to query."
+msgstr "Pembaruan channel untuk kueri"
+
+msgid "Channels"
+msgstr "Channel"
+
+msgid "Channels in database."
+msgstr "Channel di database"
+
+msgid ""
+"Check this box to request a new secret. You will need to retype your seed."
+msgstr ""
+"Centang kotak ini untuk meminta rahasia baru. Anda mungkin diminta untuk "
+"mengetik ulang seed Anda."
+
+msgid "Checking for updates..."
+msgstr "Memeriksa updates"
+
+msgid "Child Pays for Parent"
+msgstr "Anak membayar untuk Induk"
+
+msgid "Child pays for parent"
+msgstr "Anak membayar untuk induk"
+
+msgid "Chinese Simplified"
+msgstr "Tiongkok (dipermudah)"
+
+msgid "Choose PIN code"
+msgstr "Pilih kode PIN"
+
+msgid "Choose Seed type"
+msgstr "Pilih jenis Seed"
+
+msgid "Choose a password to encrypt your wallet keys."
+msgstr "Pilih kata sandi baru untuk mengenkripsi kunci dompet Anda."
+
+msgid "Choose a server"
+msgstr "Pilih sebuah server"
+
+msgid ""
+"Choose coin (UTXO) selection method for alert transactions.  The following "
+"are available:\n"
+"\n"
+msgstr ""
+"Pilih metode seleksi koin (UTXO) untuk transaksi alert/peringatan. Pilihan "
+"yangtersedia:\n"
+"\n"
+
+msgid ""
+"Choose coin (UTXO) selection method for non-alert transactions.  The "
+"following are available:\n"
+"\n"
+msgstr ""
+"Pilih metode seleksi koin (UTXO) untuk transaksi non-alert/non-peringatan. "
+"Pilihan yangtersedia:\n"
+"\n"
+
+msgid "Choose from peers"
+msgstr "Pilih dari peers"
+
+msgid "Choose the number of signatures needed to unlock funds in your wallet:"
+msgstr ""
+"Pilih jumlah tanda tangan yang diperlukan untuk membuka dana di dompet Anda:"
+
+msgid "Choose the type of addresses in your wallet."
+msgstr "Pilih jenis alamat di dompet Anda."
+
+msgid "Choose the type of wallet"
+msgstr "Pilih tipe dompet"
+
+msgid "Choose transaction type."
+msgstr "Pilih tipe transaksi."
+
+msgid ""
+"Choose which online block explorer to use for functions that open a web "
+"browser"
+msgstr ""
+"Pilih penjelajah blok online yang ingin Anda gunakan untuk fungsi yang "
+"membuka penjelajahweb"
+
+msgid "Choose your chain"
+msgstr "Pilih chain Anda"
+
+msgid "Choose..."
+msgstr "Pilih…"
+
+msgid "Clear"
+msgstr "Bersihkan"
+
+msgid "Click Send to proceed"
+msgstr "Klik Kirim untuk melanjutkan proses"
+
+msgid "Click here to hide this message."
+msgstr "Klik disini untuk menyembunyikan pesan ini"
+
+msgid "Clipboard is empty"
+msgstr "Papan klip kosong"
+
+msgid "Close"
+msgstr "Tutup"
+
+msgid "Close channel"
+msgstr "Tutup Channel"
+
+msgid "Close channel?"
+msgstr "Tutup Channel?"
+
+msgid "Co&ins"
+msgstr "Ko&in"
+
+msgid "Code"
+msgstr "Kode"
+
+msgid "Coin control active"
+msgstr "Kontrol koin aktif"
+
+msgid "Coin is frozen"
+msgstr "Koin dibekukan"
+
+msgid "Coin selected to be spent"
+msgstr "Koin dipilih untuk digunakan"
+
+msgid "Coin selection"
+msgstr "Seleksi koin"
+
+msgid "Coin selection (alert)"
+msgstr "Seleksi koin (alert)"
+
+msgid "Coin selection (non-alert)"
+msgstr "seleksi koin (non-alert)"
+
+#, python-brace-format
+msgid "Coin selection active ({num_utxos} UTXOs selected)"
+msgstr "Seleksi koin aktif (UTXOs {num_utxos} telah dipilih)"
+
+msgid "Color theme"
+msgstr "Tema warna"
+
+msgid "Combine"
+msgstr "Kombinasikan"
+
+msgid "Con&sole"
+msgstr "Kon&sol"
+
+msgid "Con&tacts"
+msgstr "Kon&tak"
+
+msgid "Confirm Passphrase:"
+msgstr "Konfirmasi Passphrase"
+
+msgid "Confirm Password:"
+msgstr "Konfirmasi Kata Sandi"
+
+msgid "Confirm Seed"
+msgstr "Konfirmasi Seed"
+
+msgid "Confirm Seed Extension"
+msgstr "Konfirmasi Ekstensi Seed"
+
+msgid "Confirm Transaction"
+msgstr "Konfirmasi Transaksi"
+
+msgid "Confirm Transaction on your Ledger device..."
+msgstr "Konfirmasi Transaksi di perangkat Ledger Anda…"
+
+msgid "Confirm new PIN"
+msgstr "Konfirmasi PIN baru"
+
+msgid "Confirmation PIN from Gold Wallet:"
+msgstr "PIN Konfirmasi dari Gold Wallet:"
+
+msgid "Confirmed"
+msgstr "Dikonfirmasi"
+
+msgid "Confirmed. Signing Transaction..."
+msgstr "Dikonfirmasi. Menandatangani Transaksi…"
+
+msgid "Connected node"
+msgstr "Node Terhubung"
+
+msgid "Connected nodes are on the same chain"
+msgstr "Node Terhubung berada di chain yang sama"
+
+#, python-brace-format
+msgid "Connected to {0} nodes."
+msgstr "Terhubung ke {0} node."
+
+msgid "Connecting..."
+msgstr "Menyambungkan…"
+
+msgid "Connection strings must be in <node_pubkey>@<host>:<port> format"
+msgstr "String koneksi haris menggunakan format <node_pubkey>@<host>:<port>"
+
+msgid "Connections with Electrum servers"
+msgstr "Koneksi dengan server Electrum"
+
+msgid "Connections with lightning nodes"
+msgstr "Koneksi dengan node lightning"
+
+msgid "Consider trying to connect to a different server, or updating Electrum."
+msgstr "Coba sambungkan koneksi dengan server lain, atau perbarui Electrum."
+
+msgid "Contacts"
+msgstr "Kontak"
+
+msgid "Copy"
+msgstr "Salin"
+
+msgid "Copy Address"
+msgstr "Salin Alamat"
+
+msgid "Copy Request"
+msgstr "Salin Permintaan"
+
+msgid "Copy Transaction ID"
+msgstr "Salin ID Transaksi"
+
+msgid "Copy and Close"
+msgstr "Salin dan Tutup"
+
+msgid ""
+"Copy and paste the recipient address using the Paste button, or use the "
+"camera to scan a QR code."
+msgstr ""
+"Salin dan tempel alamat penerima menggunakan tombol Tempet, atau "
+"gunakankamera untuk memindai kode QR."
+
+msgid "Copy to clipboard"
+msgstr "Salin ke papan klip"
+
+#, python-brace-format
+msgid "Copy {column_title}"
+msgstr "Salin {column_title}"
+
+msgid "Cosign with hardware device"
+msgstr "Cosign dengan perangkat keras"
+
+msgid "Cosigner Pool"
+msgstr "Cosigner Pool"
+
+msgid "Could not close channel: "
+msgstr "Tidak dapat menutup channel:"
+
+msgid "Could not force close channel: "
+msgstr "Tidak dapat memaksa untuk menutup channel:"
+
+#, python-brace-format
+msgid "Could not open channel: {error_value}"
+msgstr "Tidak dapat membuka channel: {error_value}"
+
+msgid "Could not retrieve Terms of Service:"
+msgstr "Tidak dapat menerima Syarat dan Ketentuan:"
+
+msgid "Crash report"
+msgstr "Laporan kerusakan"
+
+msgid "Create a new Revealer"
+msgstr "Buat Revealer baru"
+
+msgid "Create a new seed"
+msgstr "Buat seed baru"
+
+msgid "Create keystore from a master key"
+msgstr "Buat keystore dari master key"
+
+msgid "Create new wallet"
+msgstr "Buat dompet baru"
+
+msgid "Create or restore"
+msgstr "Buat atau pulihkan"
+
+msgid "Create transaction"
+msgstr "Buat transaksi"
+
+msgid "Critical Error"
+msgstr "Masalah Kritis"
+
+msgid "Current Fee"
+msgstr "Biaya Sekarang:"
+
+msgid "Current Fee rate"
+msgstr "Tarif Biaya sekarang:"
+
+msgid "Current Password:"
+msgstr "Kata Sandi Sekarang:"
+
+msgid "Current feerate"
+msgstr "Tarif Biaya sekarang"
+
+msgid "Current rate"
+msgstr "Kurs sekarang"
+
+#, python-brace-format
+msgid "Current version: {version}"
+msgstr "Versi sekarang: {version}"
+
+msgid "Custom"
+msgstr "Kustom"
+
+msgid "Custom secret"
+msgstr "Kustom rahasia"
+
+msgid "Dark"
+msgstr "Gelap"
+
+msgid "Dark/Light"
+msgstr "Gelap/Terang"
+
+msgid "Date"
+msgstr "Tanggal"
+
+#, python-brace-format
+msgid "Date: {date}"
+msgstr "Tanggal: {date}"
+
+msgid ""
+"Debug logs can be persisted to disk. These are useful for troubleshooting."
+msgstr ""
+"Log debug dapat disimpan ke disk. Ini berguna untuk melakukan troubleshoot."
+
+msgid "Debug message"
+msgstr "Pesan debug"
+
+msgid "Decrypt"
+msgstr "Dekripsi"
+
+msgid "Default"
+msgstr "Default"
+
+msgid "Default Servers"
+msgstr "Server Default "
+
+msgid "Delete"
+msgstr "Hapus "
+
+msgid "Delete expired requests?"
+msgstr "Hapus permintaan habis tempo?"
+
+msgid "Delete invoice?"
+msgstr "Hapus invoice?"
+
+msgid "Delete request?"
+msgstr "Hapus permintaan?"
+
+msgid "Delete wallet file?"
+msgstr "Hapus file dompet?"
+
+msgid "Delete wallet?"
+msgstr "Hapus dompet?"
+
+msgid "Denomination"
+msgstr "Denominasi"
+
+msgid "Description"
+msgstr "Deskripsi"
+
+msgid "Description of the transaction (not mandatory)."
+msgstr "Deskripsi transaksi (tidak wajib)."
+
+msgid "Details"
+msgstr "Detail"
+
+msgid "Details..."
+msgstr "Detail…"
+
+msgid "Developers"
+msgstr "Developers"
+
+msgid "Device not in Bitcoin mode"
+msgstr "Perangkat tidak dalam mode Bitcoin"
+
+#, python-brace-format
+msgid "Digital Revealer ({version}_{code_id}) saved as PNG and PDF at:"
+msgstr ""
+"Revealer Digital ({version}_{code_id}) disimpan sebagai PNG dan PDF di:"
+
+msgid "Disable LN"
+msgstr "Nonaktifkan LN"
+
+msgid "Disable Lightning?"
+msgstr "Nonaktifkan Lightning?"
+
+msgid "Disabled"
+msgstr "Dinonaktifkan"
+
+msgid "Disconnected"
+msgstr "Terputus"
+
+msgid "Distributed by Electrum Technologies GmbH"
+msgstr "Didistribusikan oleh Electrum Technologies GmbH"
+
+msgid ""
+"Do not enter sensitive/private information here. The report will be visible "
+"on the public issue tracker."
+msgstr ""
+"Jangan masukkan informasi sensitif/pribadi disini. Laporan akan dapat "
+"dilihatdi pelacak masalah publik"
+
+msgid ""
+"Do not paste code here that you don't understand. Executing the wrong code "
+"could lead to your coins being irreversibly lost."
+msgstr ""
+"Jangan tempelkan kode yang Anda tidak kenali disini. Menjalankan kode yang "
+"salahdapat menyebabkan kehilangan koin yang tidak dapat dibalikkan."
+
+msgid "Do not store it electronically."
+msgstr "Jangan simpan secara elektronik"
+
+msgid "Do not use Gold Wallet"
+msgstr "Jangan gunakan Gold Wallet"
+
+msgid "Do you have something to hide ?"
+msgstr "Apakah Anda memiliki hal yang Anda sembunyikan?"
+
+msgid ""
+"Do you want to create a new seed or to restore a wallet using an existing "
+"seed?"
+msgstr ""
+"Apakah Anda ingin membuat seed baru atau memulihkan (restore) dompet "
+"menggunakan seed yang telahtersedia?"
+
+msgid ""
+"Do you want to create a new seed, or to restore a wallet using an existing "
+"seed?"
+msgstr ""
+"Apakah Anda ingin membuat seed baru, atau memulihkan sebuah dompet "
+"menggunakan seed yang sudah Ada?"
+
+#, python-brace-format
+msgid "Do you want to delete '{path}'?"
+msgstr "Apakah Anda ingin menghapus '{path}'?"
+
+msgid "Do you want to delete the old file"
+msgstr "Apakah Anda ingin menghapus file lama?"
+
+msgid "Do you want to launch the wizard again?"
+msgstr "Apakah Anda ingin meluncurkan wizard lagi?"
+
+msgid "Do you want to open it now?"
+msgstr "Apakah Anda inign membukanya sekarang?"
+
+#, python-brace-format
+msgid "Do you want to remove {address} from your wallet?"
+msgstr "Apakah Anda ingin menghapuskan {address} dari dompet Anda?"
+
+msgid "Do you want to send this report?"
+msgstr "Apakah Anda ingin mengirimkan laporan ini?"
+
+msgid "Do you want to use Gold Wallet as a transaction authenticator?"
+msgstr ""
+"Apakah Anda ingin menggunakan Gold Wallet sebagai autentikator transaksi?"
+
+msgid "Do you wish to continue?"
+msgstr "Apakah Anda ingin melanjutkan?"
+
+msgid "Don't know any addresses for node:"
+msgstr "Apakah anda mengetahuai alamat node:"
+
+msgid "Don't show this again."
+msgstr "Jangan tampilkan ini lagi."
+
+msgid ""
+"Due to a bug, old versions of Electrum will NOT be creating the same wallet "
+"as newer versions or other software."
+msgstr ""
+"Dikarenakan bug, Electrum versi lama TIDAK akan membuat dompet yang "
+"samadengan versi yang lebih baru atau software lain"
+
+msgid "Dynamic fee estimates not available"
+msgstr "Estimasi biaya dinamis tidak tersedia"
+
+msgid "ETA"
+msgstr "ETA"
+
+msgid "Each revealer should be used only once."
+msgstr "Setiap revealer hanya dapat digunakan sekali"
+
+#, python-brace-format
+msgid "Edit {title}"
+msgstr "Ubah {title}"
+
+msgid "Electrum Plugins"
+msgstr "Plugin Electrum"
+
+#, python-brace-format
+msgid ""
+"Electrum cannot pair with your {device}.\n"
+"\n"
+"Before you request bitcoins to be sent to addresses in this wallet, ensure "
+"you can pair with your device, or that you have its seed (and passphrase, if "
+"any).  Otherwise all bitcoins you receive will be unspendable."
+msgstr ""
+"Electrum tidak dapat menyambungkan dengan {device} Anda.\n"
+"Sebelum Anda dapat meminta bitcoin untuk dikirimkan ke alamat Anda di dompet "
+"ini, pastikanbahwa Anda dapat tersambung dengan perangkat Anda, atau Anda "
+"telah memiliki seed (dan passphrase, apabilaada). Jika tidak semua bitcoin "
+"yang Anda terima tidak akan dapat digunakan."
+
+msgid ""
+"Electrum communicates with remote servers to get information about your "
+"transactions and addresses. The servers all fulfill the same purpose only "
+"differing in hardware. In most cases you simply want to let Electrum pick "
+"one at random.  However if you prefer feel free to select a server manually."
+msgstr ""
+"Electrum berkomunikasi dengan server jarak jauh untuk mendapatkan informasi "
+"mengenai transaksidan alamat Anda. Semua server memenuhi tujuan yang samadan "
+"hanya berbeda dalam hal perangkat keras. Pada sebagian besar kasus Anda "
+"hanya perlu untuk membiarkan Electrum untuk memilihsatu secara acak. Namun "
+"apabila Anda ingin memilih server sendiri Anda dapat melakukannya secara "
+"manual."
+
+msgid ""
+"Electrum connects to several nodes in order to download block headers and "
+"find out the longest blockchain."
+msgstr ""
+"Electrum terhubungung dengan beberapa node untuk mengunduh header blok "
+"danmenemukan blockchain terpanjang."
+
+msgid "Electrum preferences"
+msgstr "Pilihan Electrum"
+
+msgid ""
+"Electrum requests your transaction history from a single server. The "
+"returned history is checked against blockchain headers sent by other nodes, "
+"using Simple Payment Verification (SPV)."
+msgstr ""
+"Electrum mengunduh riwayat transaksi dari satu server. Riwayatpengembalian "
+"diperiksa dengan header blockchain dikirim oleh nodes lain,menggunakan "
+"Simple Payment Verification (SPV)."
+
+msgid ""
+"Electrum sends your wallet addresses to a single server, in order to receive "
+"your transaction history."
+msgstr ""
+"Electrum mengirim alamt dompet Anda ke satu server, guna menerimariwayat "
+"transaksi Anda."
+
+msgid "Electrum wallet"
+msgstr "Dompet Electrum"
+
+msgid "Electrum was unable to copy your wallet file to the specified location."
+msgstr ""
+"Electrum tidak dapat menyalin file dompet Anda ke lokasi yang Anda tentukan"
+
+msgid "Electrum was unable to deserialize the transaction:"
+msgstr "Electrum tidak dapat mendeserialisasikan transaksi:"
+
+msgid "Electrum was unable to open your transaction file"
+msgstr "Electrum tidak dapat membuka file transaksi Anda"
+
+msgid "Electrum was unable to parse your transaction"
+msgstr "Electrum tidak mengurai transaksi Anda"
+
+msgid "Electrum was unable to produce a private key-export."
+msgstr "Electrum tidak dapat menghasikan kunci private-ekspor."
+
+msgid "Electrum was unable to produce a transaction export."
+msgstr "Electrum tidak dapat menghasilkan ekspor transaksi."
+
+msgid ""
+"Electrum's focus is speed, with low resource usage and simplifying Bitcoin "
+"Vault."
+msgstr ""
+"Electrum fokus dalam kecepatan, dengan penggunaan sumberdaya yang rendah dan "
+"penyederhanaan BitcoinVault."
+
+msgid "Email"
+msgstr "Email"
+
+msgid "Email settings"
+msgstr "Pengaturan Email"
+
+msgid "Enable LN"
+msgstr "Aktifkan LN"
+
+msgid "Enable Lightning?"
+msgstr "Aktifkan Lightning?"
+
+msgid "Enable output value rounding"
+msgstr "Aktifkan pembulatan nilai output"
+
+msgid "Enable update check"
+msgstr "Aktifkan cek pembaruan"
+
+msgid "Enabled"
+msgstr "Diaktifkan"
+
+msgid "Encrypt"
+msgstr "Enkripsi"
+
+msgid "Encrypt custom secret"
+msgstr "Enkripsi rahasia kustom"
+
+msgid "Encrypt wallet file"
+msgstr "Enkripsi file dompet"
+
+#, python-brace-format
+msgid "Encrypt {wallet_name}'s seed"
+msgstr "Enkripsi seed {wallet_name}"
+
+msgid "Encrypt/decrypt Message"
+msgstr "Enkripsi/dekripsi Pesan"
+
+msgid "Encrypt/decrypt message"
+msgstr "Enkripsi/dekripsi pesan"
+
+msgid "Encrypted"
+msgstr "Dienkripsi"
+
+#, python-brace-format
+msgid "Encryption and decryption are currently not supported for {device}"
+msgstr "Enkripsi dan dekripsi tidak didukung untuk {device}"
+
+msgid "End"
+msgstr "Akhir"
+
+msgid "English"
+msgstr "Bahasa Inggris "
+
+msgid "Enter PIN"
+msgstr "Masukkan PIN"
+
+msgid "Enter PIN code"
+msgstr "Masukkan kode PIN"
+
+msgid "Enter PIN:"
+msgstr "Masukkan PIN:"
+
+msgid "Enter Passphrase"
+msgstr "Masukkan passphrase"
+
+msgid "Enter Password"
+msgstr "Masukkan Kata Sandi"
+
+msgid "Enter Remote Node ID or connection string or invoice"
+msgstr "Masukkan ID Remote Node atay string koneksi atau invoice"
+
+msgid "Enter Seed"
+msgstr "Masukkan Seed"
+
+msgid "Enter Transaction Label"
+msgstr "Masukkan Label transaksi"
+
+msgid "Enter a filename for the copy of your wallet"
+msgstr "Masukkan nama file untuk salinan dompet Anda"
+
+msgid ""
+"Enter a list of BTCV addresses (this will create a watching-only wallet) or "
+"a list of private keys."
+msgstr ""
+"Masukkan daftar alamat BTCV (proses ini akan menghasilkan dompet watching-"
+"only) ataudaftar kunci privat."
+
+msgid "Enter a list of outputs in the 'Pay to' field."
+msgstr "Masukkan list output di kolom 'Bayar ke'."
+
+msgid "Enter addresses"
+msgstr "Masukkan alamat "
+
+msgid "Enter cosigner key"
+msgstr "Masukkan kunci cosigner"
+
+msgid "Enter cosigner seed"
+msgstr "Masukkan seed cosigner "
+
+msgid "Enter description"
+msgstr "Masukkan deskripsi"
+
+msgid "Enter new PIN"
+msgstr "Masukkan PIN Baru"
+
+msgid "Enter private keys"
+msgstr "Masukkan kunci privat"
+
+msgid "Enter private keys:"
+msgstr "Masukkan kunci privat:"
+
+msgid ""
+"Enter the name of the new wallet or load an existing wallet by clicking "
+"\"Choose\"."
+msgstr ""
+"Masukkan nama dompet baru Anda atau buka file simpanan dompet Anda yang "
+"telah tersedua dengan mengklik tombol\"Pilih\"."
+
+msgid "Enter the seed for your 2-factor wallet:"
+msgstr "Masukkan dompet untuk dompet 2-faktor Anda:"
+
+msgid ""
+"Enter their master private key (xprv) if you want to be able to sign for "
+"them."
+msgstr ""
+"Masukkan kunci pribadi master mereka (xprv) apabila Anda ingin dapat "
+"menandatangani untuk mereka."
+
+msgid "Enter wallet name"
+msgstr "Masukkan nama dompet"
+
+msgid "Enter your PIN code in order to decrypt your private key"
+msgstr "Masukkan kode PIN Anda guna mendekripsikan kunci pribadi Anda"
+
+msgid "Enter your PIN code in order to decrypt your seed"
+msgstr "Masukkan kode PIN Anda guna mendekripsikan seed Anda."
+
+msgid "Enter your PIN code in order to sign this transaction"
+msgstr "Masukkan kode PIN Anda untuk menandatangani transaksi ini"
+
+#, python-brace-format
+msgid "Enter your PIN code to confirm deletion of {wallet}"
+msgstr "Masukkan kode PIN Anda untuk mengkonfirmasi penghapusan {wallet}"
+
+msgid "Enter your PIN code to proceed"
+msgstr "Masukkan PIN Anda untuk melanjutkan"
+
+msgid "Enter your current PIN:"
+msgstr "Masukkan PIN sekarang:"
+
+msgid "Enter your email address:"
+msgstr "Masukkan alamat email Anda:"
+
+msgid "Enter your password or choose another file."
+msgstr "Masukkan kata sandi Anda atau pilih file lain."
+
+msgid "Enter your password to proceed"
+msgstr "masukkan kata sandi Anda untuk melanjutkan"
+
+msgid "Error"
+msgstr "Kesalahan"
+
+msgid "Error adding payment request"
+msgstr "Terjadi kesalahan dalam menambahkan permintaan pembayaran"
+
+msgid "Error combining partial transactions"
+msgstr "Terjadi kesalahan dalam pengombinasian transaksi parsial"
+
+msgid "Error connecting to server"
+msgstr "Terjadi kesalahan dalam menyambungkan ke server"
+
+#, python-brace-format
+msgid "Error connecting to {name} server"
+msgstr "Terjadi kesalahan dalam menyambungkan ke server {name}"
+
+msgid "Error decrypting message"
+msgstr "Terjadi kesalahan dalam pendeskripsian pesan"
+
+msgid "Error getting TrustedCoin account info."
+msgstr "Terjadi kesalahan dalam mendapatkan info akun TrustedCoin"
+
+msgid "Error getting transaction from network"
+msgstr "Terjadi kesalahan dalam mendapatkan transaksi dari jaringan"
+
+msgid "Error joining partial transactions"
+msgstr "Terjadi kesalahan dalam penggabungan transaksi parsial"
+
+msgid "Error opening file"
+msgstr "Terjadi kesalahan dalam membuka pesan"
+
+msgid "Error parsing URI"
+msgstr "Terjadi kesalahan dalam penguraian URI"
+
+msgid "Error scanning devices"
+msgstr "Terjadi kesalahan dalam pemindaian perangkat"
+
+msgid "Error showing address"
+msgstr "Terjadi kesalahan dalam pemunculan alamat"
+
+msgid "Error synchronising labels"
+msgstr "Terjadi kesalahan dalam sinkronisasi label"
+
+msgid "Error: duplicate master public key"
+msgstr "Kesalahan: kunci publik master duplikat"
+
+msgid "Estimate"
+msgstr "Estimasi"
+
+msgid "Exit Electrum"
+msgstr "Keluar dari Electrum"
+
+msgid "Expenditures"
+msgstr "Pengeluaran"
+
+msgid "Expiration date"
+msgstr "Tanggal habis tempo"
+
+msgid "Expiration date of your request."
+msgstr "Tanggal habis tempo permintaan And"
+
+msgid "Expired"
+msgstr "Habis tempo"
+
+msgid ""
+"Expired requests have to be deleted manually from your list, in order to "
+"free the corresponding Bitcoin addresses."
+msgstr ""
+"Transaksi habis tempo harus dihapuskan secara manual dari list Anda, "
+"untukmembebaskan alamat Bitcoin yang bersangkutan."
+
+msgid "Expires"
+msgstr "Habis tempo"
+
+msgid "Export"
+msgstr "ekspor"
+
+msgid "Export History"
+msgstr "Riwayat ekspor "
+
+msgid "Export file"
+msgstr "Ekspor file"
+
+msgid "Export to file"
+msgstr "Ekspor ke file"
+
+msgid "Exposing a single private key can compromise your entire wallet!"
+msgstr "Mengekspos satu kunci pribadi dapat membahayakan seluruh dompet Anda!"
+
+msgid "Extend this seed with custom words"
+msgstr "Perpanjang seed ini dengan frase kustom"
+
+msgid "Failed"
+msgstr "Gagal"
+
+msgid "Failed HTLCs"
+msgstr "Kegagalam HTLCs"
+
+msgid "Failed to create a client for this device."
+msgstr "Gagal untuk membuat client untuk perangkat ini."
+
+msgid "Failed to decrypt using this hardware device."
+msgstr "Gagal untuk mendekripsi menggukana perangkat ini"
+
+msgid "Failed to export to file."
+msgstr "Gagal untuk mengekspor ke file"
+
+msgid "Failed to import from file."
+msgstr "Gagal untuk mengimpor ke file"
+
+msgid "Failed to send transaction to cosigning pool"
+msgstr "Gagal untuk mengirim transaksi ke cosigning pool"
+
+msgid "Failed to update password"
+msgstr "Gagal untuk memperbarui kata sandi"
+
+msgid "False"
+msgstr "Salah"
+
+msgid "Fee"
+msgstr "Biaya"
+
+msgid "Fee estimation"
+msgstr "Estimasi biaya"
+
+msgid "Fee for child"
+msgstr "Biaya untuk anak"
+
+msgid "Fee rounding"
+msgstr "Pembulatan biaya"
+
+msgid "Fees"
+msgstr "Biaya"
+
+msgid "Fiat"
+msgstr "Fiat"
+
+msgid "Fiat currency"
+msgstr "Mata uang Fiat"
+
+msgid "File"
+msgstr "File"
+
+msgid "Filter:"
+msgstr "Filter:"
+
+msgid "Final"
+msgstr "Akhir"
+
+msgid "Final balance"
+msgstr "Saldo Akhir"
+
+msgid "Finalize"
+msgstr "Finalisasi"
+
+msgid "Find"
+msgstr "Temukan"
+
+msgid ""
+"Firmware version (or \"Bitcoin\" app) too old for Segwit support. Please "
+"update at"
+msgstr ""
+"Versi firmware (atau app \"Bitcoin\") terlalu tua untuk dukungan Segwit. "
+"Mohon perbarui di"
+
+msgid "Firmware version too old. Please update at"
+msgstr "Versi firmware terlalu tua. Mohon Perbarui di"
+
+msgid "Fixed rate"
+msgstr "Tarif telah diatur"
+
+msgid "Follow this branch"
+msgstr "Ikuti cabang ini"
+
+msgid "For CoinJoin; strip privates"
+msgstr "Untuk CoinJoin; strip privates"
+
+msgid "For more information, visit"
+msgstr "Untuk informasi lebih lanjut, kunjungi"
+
+msgid ""
+"For security reasons we advise that you always use the latest version of "
+"Electrum."
+msgstr ""
+"Demi keamanan kami menyarankan Anda untuk selalu menggunakan Electrumversi "
+"terbaru."
+
+msgid "Force-close channel"
+msgstr "Tutup paksa channel"
+
+msgid "Force-close channel?"
+msgstr "Tutup paksa channel ?"
+
+#, python-brace-format
+msgid "Fork detected at block {fork_point}"
+msgstr "Fork dideteksi di blok {fork_point}"
+
+msgid "Format"
+msgstr "Format"
+
+msgid "Format: address, amount"
+msgstr "Format: alamat, jumlah"
+
+msgid "Forwarding"
+msgstr "Meneruskan"
+
+msgid "Freeze"
+msgstr "Bekukan"
+
+msgid "Freeze Address"
+msgstr "Bekukan Alamat"
+
+msgid "Freeze Addresses"
+msgstr "Bekukan Banyak Alamat"
+
+msgid "Freeze Coin"
+msgstr "Bekukan Koin"
+
+msgid "Freeze Coins"
+msgstr "Bekukan Banyak Koin"
+
+msgid "From"
+msgstr "Dari"
+
+#, python-brace-format
+msgid "From {0} cosigners"
+msgstr "Dari {0} cosigners."
+
+msgid "Fulfilled HTLCs"
+msgstr "HTLCs terpenuhi"
+
+msgid "Funded"
+msgstr "Dibayarkan"
+
+msgid "Funding Outpoint:"
+msgstr "Membayarkan Outpoint:"
+
+msgid "Funding TXID"
+msgstr "Membayarkan TXID"
+
+msgid "Funding Transaction"
+msgstr "Membayarkan Transaksi"
+
+msgid ""
+"Funds stored in lightning channels are not recoverable from your seed. You "
+"must backup your wallet file everytime you create a new channel."
+msgstr ""
+"Dana yang disimpan di channel lightning tidak dapat di pulihkan dari seed "
+"Anda. Andaharus menyadangkan dompet Anda setiap kami Anda membuat channel "
+"baru."
+
+msgid "General"
+msgstr "Umum"
+
+msgid "Generate"
+msgstr "Hasilkan"
+
+msgid ""
+"Generate an authenticator on Gold Wallet and scan the following QR code: "
+msgstr "Buat autentikator baru di Gold Wallet dan pindai kode QR berikut:"
+
+msgid "Gold Wallet authenticator public key"
+msgstr "Kunci publik autentikator Gold Wallet"
+
+msgid "Google Authenticator code:"
+msgstr "Kode Google Authenticator"
+
+msgid "Gossip"
+msgstr "Gosip"
+
+msgid ""
+"GreenAddress requires your signature \n"
+"to verify that transaction is instant.\n"
+"Please enter your password to sign a\n"
+"verification request."
+msgstr ""
+"GreenAddress memerlukan tandatangan Anda \n"
+"untuk memverifikasi bahwa transaksi Anda adalah transaksi instan.\n"
+"Mohon masukkan kata sandi Anda untuk menandatangani\n"
+"permintaan verifikasi."
+
+msgid "HTLCs in current commitment transaction"
+msgstr "HTLCs berada dalam komitmen transasi terbaru"
+
+msgid "Handler not found for"
+msgstr "Handler tidak ditemukan untuk"
+
+msgid "Hardware Keystore"
+msgstr "Penyimpanan kunci hardware"
+
+msgid "Height"
+msgstr "Tinggi"
+
+msgid "Hello World"
+msgstr "Hello World"
+
+msgid "Help"
+msgstr "Bantuan"
+
+msgid "Here is your master public key."
+msgstr "Ini kunci publik master Anda"
+
+msgid "Hide"
+msgstr "Sembunyikan"
+
+#, python-brace-format
+msgid "Hide {tab_description}"
+msgstr "Sembunyikan {tab_description}"
+
+msgid "History"
+msgstr "Riwayat"
+
+msgid "Homepage"
+msgstr "Halaman utama"
+
+msgid "Host"
+msgstr "Host"
+
+msgid "Hostname"
+msgstr "Hostname"
+
+msgid "Hostname does not resolve (getaddrinfo failed)"
+msgstr "Hostname tidak diselesaikan (getaddrinfo gagal)"
+
+msgid "How do you want to connect to a server? "
+msgstr "Bagaimana Anda ingin terhubung ke sebuah server?"
+
+msgid ""
+"However, hardware wallets do not support message decryption, which makes "
+"them not compatible with the current design of cosigner pool."
+msgstr ""
+"Namun, dompet perangkat keras tidak mendukung dekripsi pesan, yang "
+"membuatperangkat tersebut tidak cocok untuk desain terbaru cosigner pool."
+
+msgid "I already have a seed"
+msgstr "Saya sudah memiliki seed"
+
+msgid "I have lost my Google Authenticator account"
+msgstr "Saya kehilangan akun Google Authenticator saya"
+
+msgid ""
+"IP/port in format:\n"
+"[host]:[port]"
+msgstr ""
+"IP/port di format:\n"
+"[host]:[port]"
+
+msgid ""
+"If auto-connect is enabled, Electrum will always use a server that is on the "
+"longest blockchain."
+msgstr ""
+"Apabila koneksi automatis diaktifkan, Electrum akan selalu menggunakan "
+"server yang berada diblockchain terpanjang."
+
+msgid ""
+"If enabled, at most 100 satoshis might be lost due to this, per transaction."
+msgstr ""
+"Apabila diaktifkan, paling banyak 100 satoshi dapat hilang, pada setiap "
+"transaksi."
+
+msgid ""
+"If it is disabled, you have to choose a server you want to use. Electrum "
+"will warn you if your server is lagging."
+msgstr ""
+"Apabila dinonaktifkan, Anda akan diwajibkan untuk memilih server yang Anda "
+"ingin gunakan. Electrumakan memberi peringatan apabila server Anda lambat."
+
+msgid "If you are not sure what this is, leave this field unchanged."
+msgstr "Apabila Anda tidak yakin apa ini, jangan ubah kolom ini"
+
+#, python-brace-format
+msgid "If you are online, click on \"{button}\" to continue."
+msgstr "Apabila Anda online, klik di \"{button}\" untuk melanjutkan."
+
+msgid "If you check this box, your transactions will be marked as non-final,"
+msgstr ""
+"Apabila Anda mencentang kotak ini, transaksi Anda akan ditandai sebagai non-"
+"final,"
+
+msgid ""
+"If you check this box, your unconfirmed transactions will be consolidated "
+"into a single transaction."
+msgstr ""
+"Apabila Anda mencentang kotak ini, transaksi Anda yang tidak dikonfirmasi "
+"akan dikonsolidasikanmenjadi satu transaksi."
+
+msgid "If you do not know what this is, leave this field empty."
+msgstr "Apabila Anda tidak yakin apa ini, kosongkan kolom ini"
+
+msgid ""
+"If you forget your PIN or lose your device, your seed phrase will be the "
+"only way to recover your funds."
+msgstr ""
+"Apabila Anda lupa PIN atau kehilangan perangkat, seed phrase Anda akan "
+"menjadisatu-satunya cara untuk memulihkan dana Anda."
+
+msgid "If you have an old printer, or want optimal precision"
+msgstr ""
+"Apabila Anda memiliki printer yang lebih tua, atau ingin presisi yang optimal"
+
+msgid ""
+"If you have lost your Google Authenticator account, you can request a new "
+"secret. You will need to retype your seed."
+msgstr ""
+"Apabila Anda kehilangan akun Google Authenticator, Anda dapat meminta "
+"rahasiabaru. Anda akan diminta untuk mengetik ulang seed Anda."
+
+msgid ""
+"If you have lost your second factor, you need to restore your wallet from "
+"seed in order to request a new code."
+msgstr ""
+"Apabila Anda kehilangan faktor kedua, Anda perlu untuk memulihkan dompet "
+"Anda dariseed guna meminta kode baru."
+
+msgid "If you keep experiencing network problems, try using a Tor proxy."
+msgstr "Apabila Anda mengalami masalah jaringan, coba gunakan Tor proxy."
+
+msgid "If you lose your seed, your money will be permanently lost."
+msgstr "Apabila Anda kehilangan seed, uang Anda akan hilang secara permanen"
+
+msgid "If you use a passphrase, make sure it is correct."
+msgstr "Apabila Anda menggunakan passphrase, pastikan bahwa itu benar."
+
+msgid ""
+"If you want to create new addresses, use a deterministic wallet instead."
+msgstr ""
+"Apabila Anda ingin membuat alamat baru, gunakan deterministic sebagai "
+"gantinya."
+
+msgid ""
+"If your device is not detected on Windows, go to \"Settings\", \"Devices\", "
+"\"Connected devices\", and do \"Remove device\". Then, plug your device "
+"again."
+msgstr ""
+"Apabila perangkat Anda tidak terdeteksi di Windows, pergi ke \"Settings\", "
+"\"Devices\",\"Connected devices\", and lakukan \"Remove device\". Lalu, "
+"pasang perangkat Andalagi."
+
+msgid "If your wallet contains funds, make sure you have saved its seed."
+msgstr ""
+"Apabila terdapat dana di dompet Anda, pastikan bahwa Anda telah menyimpan "
+"seed nya."
+
+msgid "Ignore and continue?"
+msgstr "Abaikan dan lanjutkan?"
+
+msgid "Import"
+msgstr "Impor"
+
+msgid "Import BTCV addresses"
+msgstr "Impor alamat BTCV"
+
+msgid "Import addresses"
+msgstr "Impor banyak Alamat"
+
+msgid "Import external watch-only BTCV addresses or private keys"
+msgstr "Impor alamat BTCV watch-only eksternal atau kunci privat"
+
+msgid "Import file"
+msgstr "Impor file"
+
+msgid "Import private keys"
+msgstr "Impor kunci pribadi"
+
+msgid ""
+"In particular, DO NOT use 'redeem private key' services proposed by third "
+"parties."
+msgstr ""
+"Khususnya, JANGAN gunakan layanan 'tebus kunci pribadi' yang ditawarkan oleh "
+"pihakketiga."
+
+msgid "In progress"
+msgstr "Sedang berlangsung"
+
+msgid ""
+"In some cases, use up to 3 change addresses in order to break up large coin "
+"amounts and obfuscate the recipient address."
+msgstr ""
+"Di beberapa kasus, gunakan hingga 3 alamat pengubahan untuk memecahkan koin "
+"dengan jumlahbesar dan gelapkan alamat penerima."
+
+msgid "In the next block"
+msgstr "Di blok selanjutnya"
+
+#, python-brace-format
+msgid "Included in block: {header_hash}"
+msgstr "Termasuk dalam blok: {header_hash}"
+
+msgid "Income"
+msgstr "Pemasukan"
+
+msgid "Incoming payments"
+msgstr "Pembayaran masuk"
+
+msgid "Incorrect password"
+msgstr "Kata Sandi salah"
+
+msgid "Incorrect seed"
+msgstr "Seed salah"
+
+msgid "Increase fee"
+msgstr "Naikkan biaya"
+
+msgid "Increase your transaction's fee to improve its position in mempool."
+msgstr "Naikkan biaya transaksi Anda untuk meningkatkan posisinya di mempool."
+
+msgid "Indonesian"
+msgstr "Bahasa Indonesia"
+
+msgid "Info"
+msgstr "Info"
+
+msgid "Information"
+msgstr "Informasi"
+
+msgid "Initial balance"
+msgstr "Saldo awal"
+
+msgid "Initialization of Ledger HW devices is currently disabled."
+msgstr "Inisialisasi perangkat Ledger HW saat ini dinonaktifkan."
+
+msgid "Initiator"
+msgstr "Inisiator"
+
+msgid "Input amount"
+msgstr "Masukkan jumlah"
+
+msgid "Input raw transaction"
+msgstr "Masukkan transaksi mentah (raw transaction"
+
+msgid "Inputs"
+msgstr "Input"
+
+msgid "Install Wizard"
+msgstr "Pasang Wizard"
+
+msgid "Install the zbar package to enable this."
+msgstr "Pasang paket zbar untuk mengaktifkan fitur ini"
+
+msgid "Instructions:"
+msgstr "Instruksi:"
+
+msgid "Insufficient funds"
+msgstr "Dana tidak mencukupi"
+
+msgid "Invalid Address"
+msgstr "Alamat Tidak Valid"
+
+msgid "Invalid Amount"
+msgstr "Jumlah Tidak Valid"
+
+msgid "Invalid Bitcoin Address"
+msgstr "Alamat Bitcoin Tidak Valid"
+
+msgid "Invalid Bitcoin address"
+msgstr "Alamat Bitcoin Tidak Valid"
+
+msgid "Invalid Bitcoin address."
+msgstr "Alamat Bitcoin Tidak Valid"
+
+msgid "Invalid Fee"
+msgstr "Biaya Tidak Valid"
+
+msgid "Invalid JSON code."
+msgstr "Kode JSON Tidak Valid"
+
+msgid "Invalid Lines found:"
+msgstr "Barisan Tidak Valid ditemukan:"
+
+msgid "Invalid PIN"
+msgstr "PIN Tidak Valid"
+
+msgid "Invalid Public key"
+msgstr "Kunci Publik Tidak Valid"
+
+msgid "Invalid Secure Fast Tx seed"
+msgstr "Seed Tx Secure Fast (Aman Cepat) tidak valid"
+
+msgid "Invalid address"
+msgstr "Alamat Tidak Valid"
+
+msgid "Invalid amount"
+msgstr "Jumlah Tidak Valid"
+
+msgid "Invalid cancel seedphrase"
+msgstr "Seedphrase Pembatalan tidak valid"
+
+msgid "Invalid cancelation address"
+msgstr "Alamat pembatalan tidak valid"
+
+msgid "Invalid node ID, must be 33 bytes and hexadecimal"
+msgstr "Node ID tidak validm, harus sebesar 33 bytes dan hexadesimal"
+
+msgid "Invalid one-time password."
+msgstr "Pasword satu-kali tidak valid"
+
+msgid "Invalid seed"
+msgstr "Seed tidak valid"
+
+msgid "Invoice has expired"
+msgstr "Invoice telah habis tempo"
+
+msgid "Invoice saved as "
+msgstr "Invoice disimpan sebagai"
+
+msgid "Invoice wants us to risk locking funds for unreasonably long."
+msgstr ""
+"Invoice ingin kita untuk merisikokan penguncian dana untuk waktu yang telalu "
+"lama"
+
+msgid "Invoices"
+msgstr "Invoice"
+
+msgid ""
+"It also contains your master public key that allows watching your addresses."
+msgstr ""
+"Juga mengandung kunci publik master Anda yang memungkinkan untuk mengawasi "
+"alamat Anda."
+
+msgid "It cannot be \"backed up\" by simply exporting these private keys."
+msgstr "Tidak dapat di \"backed up\" dengan hanya mengekspor kunci pribadi ini"
+
+msgid "It conflicts with current history."
+msgstr "Konflik dengan riwayat sekarang"
+
+msgid ""
+"It sends and receives partially signed transactions from/to your cosigner "
+"wallet."
+msgstr ""
+"Ini mengirimkan dan menerima transaksi yang ditandatangani secara parsial "
+"dari/ke dompetcosigner Anda."
+
+msgid "Japanese"
+msgstr "Bahasa Jepang"
+
+msgid "Join inputs/outputs"
+msgstr "Gabungkan input/output"
+
+msgid "Keyboard shortcut: type \"!\" to send all your coins."
+msgstr "Pintasan keyboard: ketik \"!\" untuk mengirim semua koin Anda."
+
+msgid "Keystore"
+msgstr "Keystore"
+
+msgid "Keystore type"
+msgstr "Tipe keystore"
+
+msgid "Korean"
+msgstr "Bahasa Korea"
+
+msgid "Label"
+msgstr "Label"
+
+msgid "Label Settings"
+msgstr "Pengaturan label"
+
+msgid "LabelSync"
+msgstr "LabelSync"
+
+msgid ""
+"Labels, transactions IDs and addresses are encrypted before they are sent to "
+"the remote server."
+msgstr ""
+"Label, ID dan alamat transaksi telah diekripsi sebelum dikirim keremote "
+"server."
+
+msgid "Language"
+msgstr "Bahasa"
+
+#, python-brace-format
+msgid "Latest version: {version}"
+msgstr "Versi terbaru: {version}"
+
+msgid "Leave this field empty if you want to disable encryption."
+msgstr "Kosongkan kolom ini apabila Anda ingin mematikan enkripsi"
+
+msgid "Ledger Status"
+msgstr "Status Ledger"
+
+msgid "Ledger Wallet Authentication"
+msgstr " Otentikasi Dompet Ledger"
+
+msgid "Ledger wallet"
+msgstr "Dompet Ledger"
+
+msgid "Legacy"
+msgstr "Legacy"
+
+msgid "Legacy 2FA"
+msgstr "Legacy 2FA"
+
+#, python-brace-format
+msgid "Library version for '{name}' is incompatible."
+msgstr "Versi terbaru untuk '{name}' tidak cocok."
+
+msgid "Licence"
+msgstr "Lisensi"
+
+msgid "Light"
+msgstr "Light "
+
+msgid "Lightning"
+msgstr "Lightning"
+
+msgid "Lightning Network"
+msgstr "Jaringan Lightning"
+
+msgid "Lightning Network Statistics"
+msgstr "Statistik Jaringan lightning"
+
+msgid "Lightning keys have been initialized."
+msgstr "Kunci lightning telah diinisialisasikan"
+
+msgid "Lightning keys have been removed."
+msgstr "Kunci lightning telah dihapuskan."
+
+msgid ""
+"Lightning support in Electrum is experimental. Do not put large amounts in "
+"lightning channels."
+msgstr ""
+"Dukungan lightning di Electrum bersifat eksperimental. Jangan masukkan "
+"jumlah yang besar dalamchannel lightning."
+
+msgid "Lightning:"
+msgstr "Lightning:"
+
+msgid "Line #"
+msgstr "Baris #"
+
+msgid "Load transaction"
+msgstr "Muat transaksi"
+
+msgid "Local"
+msgstr "Lokal"
+
+msgid "Local CTN"
+msgstr "CTN lokal"
+
+msgid "Lookup transaction"
+msgstr "Temukan transaksi"
+
+msgid "Low fee"
+msgstr "Biaya rendah"
+
+msgid "Make sure it is in the correct state."
+msgstr "Pastikan bahwa semuanya benar"
+
+msgid "Make sure you install it with python3"
+msgstr "Pastikan bahwa anda memasangnya dengan menggunakan python3"
+
+msgid ""
+"Make sure you own the seed phrase or the private keys, before you request "
+"Bitcoins to be sent to this wallet."
+msgstr ""
+"Pastikan bahwa Anda memiliki seed phrase atau kunci pribadi, sebelum Anda "
+"memintaBitcoin untuk dikirimkan ke dompet ini."
+
+msgid "Master Public Key"
+msgstr "Kunci Publik Master"
+
+msgid "Master Public Keys"
+msgstr "Kunci Publik Master"
+
+msgid "Max"
+msgstr "Max"
+
+msgid "Max fee exceeded"
+msgstr "Biaya Max terlampaui"
+
+msgid "Maximum number of concurrent HTLCs accepted by peer:"
+msgstr "Jumlah maksimum HTLCs bersamaan yang diterima oleh peer:"
+
+msgid "Maximum value of in-flight HTLCs accepted by peer:"
+msgstr "Jumlah maksimum in-flight HTLCs yang diterima oleh peer:"
+
+msgid "Memo"
+msgstr "Memo"
+
+msgid "Mempool"
+msgstr "Mempool"
+
+msgid "Mempool based: fee rate is targeting a depth in the memory pool"
+msgstr "Dasar Mempool: tarif biaya menargetkan kedalaman di memory pool."
+
+msgid "Mempool depth"
+msgstr "kedalaman Mempool"
+
+msgid "Merge signatures from"
+msgstr "Gabungkan tandatangan dari"
+
+msgid "Message"
+msgstr "Pesan"
+
+msgid "Method:"
+msgstr "Metode:"
+
+msgid "Minimum HTLC value accepted by peer (mSAT):"
+msgstr "Nilai HTLC minimum yang diterima oleh peer (mSAT):"
+
+msgid "Mining fee"
+msgstr "Biaya Penambangan"
+
+msgid "Missing amount"
+msgstr "Jumlah hilang"
+
+#, python-brace-format
+msgid "Missing libraries for {library_name}."
+msgstr "Perpustakaan tidak ditemukan untuk {library_name}."
+
+msgid "Missing previous tx for legacy input."
+msgstr "Input tx sebelumnya untuk legacy input tidak ditemukan"
+
+msgid "Missing report URL."
+msgstr "Report URL tidak ditemukan."
+
+#, python-brace-format
+msgid "More info at: {link}"
+msgstr "Informasi lebih lanjut di: {link}"
+
+msgid "Multi-Signature Standard"
+msgstr "Standar Multi-Signature"
+
+msgid "NOT DEVICE PIN - see above"
+msgstr "BUKAN PIN PERANGKAT - lihat diatas"
+
+msgid "Name"
+msgstr "Nama"
+
+msgid "Network"
+msgstr "Jaringan"
+
+msgid "Network request timed out."
+msgstr "Permintaan jaringan habis waktu"
+
+msgid "Never"
+msgstr "Jangan pernah"
+
+msgid "Never disclose your seed."
+msgstr "Jangan pernah menyebarkan seed Anda"
+
+msgid "Never enter it on any website."
+msgstr "Jangan pernah menuliskan informasi ini di website manapun."
+
+msgid "New Contact"
+msgstr "Kontak Baru"
+
+msgid "New Fee rate"
+msgstr "Tarif biaya baru"
+
+msgid "New Password:"
+msgstr "Kata Sandi Baru:"
+
+msgid "New contact"
+msgstr "Kontak baru"
+
+#, python-brace-format
+msgid "New transaction: {amount}"
+msgstr "Transaksi baru: {amount}"
+
+msgid "Next"
+msgstr "Selanjutnya"
+
+msgid "No Data"
+msgstr "Tidak ada Data"
+
+msgid "No Description"
+msgstr "Tidak ada Deskripsi"
+
+msgid "No Wallet"
+msgstr "Tidak ada Dompet"
+
+msgid "No address available. Please remove some of your pending requests."
+msgstr ""
+"Tidak ada alamat yang tersedia. Mohon hapus sebagian permintaan tertunda "
+"Anda."
+
+msgid "No data"
+msgstr "Tidak ada data"
+
+msgid "No donation address for this server"
+msgstr "Tidak ada alamat donasi untuk alamat ini."
+
+msgid "No exceptions encountered."
+msgstr "Tidak ada pengecualian yang ditemui"
+
+msgid "No fork detected"
+msgstr "Fox tidak terdeteksi"
+
+msgid "No hardware device detected."
+msgstr "Tidak ada perangkat keras yang terdeteksi"
+
+msgid "No inputs found. (Note that inputs need to be confirmed)"
+msgstr ""
+"Tidak ada input yang ditemukan. (Mohon dicatat bahwa input perlu "
+"dikonfirmasi)"
+
+msgid "No keystore"
+msgstr "Tidak ada keystore"
+
+msgid "No more addresses in your wallet."
+msgstr "Tidak ada lagi alamat di dompet Anda "
+
+msgid "No outputs"
+msgstr "Tida ada output"
+
+msgid "No wallet loaded."
+msgstr "Tidak ada walet yang dimuat"
+
+msgid "Node ID"
+msgstr "Node ID"
+
+msgid "Node ID:"
+msgstr "Node ID:"
+
+msgid "Nodes"
+msgstr "Node"
+
+msgid "Nodes in database."
+msgstr "Node di database"
+
+msgid "None"
+msgstr "Tidak Ada"
+
+msgid "Not Enough Funds"
+msgstr "Saldo Tidak Mencukupi"
+
+msgid "Not Now"
+msgstr "Tidak sekarang"
+
+msgid "Not Verified"
+msgstr "Tidak Diverifikasi"
+
+msgid "Not connected"
+msgstr "Tidak disambungkan"
+
+msgid "Not enough funds"
+msgstr "Saldo tidak mencukupi"
+
+msgid "Not enough funds on address."
+msgstr "Alamat tidak memiliki saldo yang mencukupi"
+
+msgid "Not verified"
+msgstr "Tidak diverifikasi"
+
+msgid "Not yet available"
+msgstr "Belum tersedia"
+
+msgid ""
+"Note that if you have frozen some of your addresses, the available funds "
+"will be lower than your total balance."
+msgstr ""
+"Mohon dicatat bahwa apabila Anda membekukan beberapa alamat Anda, saldo yang "
+"tersediaakan lebih rendah daripada total saldo Anda."
+
+msgid ""
+"Note that some merchants do not accept non-final transactions until they are "
+"confirmed."
+msgstr ""
+"Mohon dicatat bahwa beberapa penjual tidak menerima transaksi non-final "
+"hingga transaksi tersebutdikonfirmasi"
+
+msgid "Note that this is NOT your encryption password."
+msgstr "Mohon dicatat bahwa ini BUKAN merupakan kata sandi enkripsi Anda."
+
+msgid ""
+"Note that your coins are not locked in this service.  You may withdraw your "
+"funds at any time and at no cost, without the remote server, by using the "
+"'restore wallet' option with your wallet seed."
+msgstr ""
+"Mohon dicatat bahwa koin Anda tidak dikunci di layanan ini. Anda dapat "
+"menarik saldoAnda kapan saja dan tanpa dipungut biaya, tanpa menggunakan "
+"remote server, dengan menggunakan pilihanpulihkan dompet' dengan seed dompet "
+"Anda"
+
+msgid ""
+"Note: If you enable this setting, you will need your hardware device to open "
+"your wallet."
+msgstr ""
+"Catatan: Apabila Anda mengaktifkan pengaturan ini, Anda akan memerlukan "
+"perangkat keras Anda untuk membukadompet Anda."
+
+msgid ""
+"Note: this is an offline transaction, if you want the network to see it, you "
+"need to broadcast it."
+msgstr ""
+"Catatan: ini adalah transaksi offline, apabila Anda ingin transaksi ini "
+"untuk terlihat di jaringat, Andaharus menyiarkan transaksi."
+
+msgid "Nothing set !"
+msgstr "Tidak ada yang diatur!"
+
+msgid "Nothing to plot."
+msgstr "Tidak ada yang bisa direncanakan."
+
+msgid "Nothing to summarize."
+msgstr "Tidak ada yang bisa dirangkum"
+
+msgid ""
+"Number of zeros displayed after the decimal point. For example, if this is "
+"set to 2, \"1.\" will be displayed as \"1.00\""
+msgstr ""
+"Angka nol ditampilkan setelah angka desimal. Sebagai contoh, apabila "
+"angkadiatur ke 2, \"1.\" akan ditampilkan sebagai \"1.00\""
+
+msgid "OK"
+msgstr "OK"
+
+msgid "OR"
+msgstr "ATAU"
+
+msgid "Offline"
+msgstr "Offline"
+
+msgid "On Linux, you might have to add a new permission to your udev rules."
+msgstr ""
+"Di Linux, Anda mungkin perlu untuk menambahkan perizinan baru ke udev rules "
+"Anda."
+
+msgid "One output per line."
+msgstr "Satu output per baris."
+
+msgid "One-server mode"
+msgstr "Mode satu-server"
+
+msgid "Online Block Explorer"
+msgstr "Penjelajah Blok Online"
+
+msgid "Only OP_RETURN scripts, with one constant push, are supported."
+msgstr "Hanya skrip OP_RETURN, dengan satu constant push, yang didukung."
+
+msgid "Only connect to a single server"
+msgstr "Hanya sambungkan dengan satu server tunggal."
+
+msgid "Open Channel"
+msgstr "Channel Terbuka"
+
+msgid "Open advanced transaction preview dialog when 'Pay' is clicked."
+msgstr ""
+"Buka dialog tinjauan transaksi lanjutkan ketikan tombol 'bayar' di klik."
+
+msgid "Open calibration pdf"
+msgstr "Buka pdf kalibrasi"
+
+msgid "Open channel"
+msgstr "Channel terbuka"
+
+msgid "Open your cosigner wallet to retrieve it."
+msgstr "Buka dompet cosigner Anda untuk menerima."
+
+#, python-brace-format
+msgid "Open {title} file"
+msgstr "Buka file {title}"
+
+msgid "OpenAlias"
+msgstr "OpenAlias"
+
+msgid "OpenAlias record, used to receive coins and to sign payment requests."
+msgstr ""
+"Catatan OpenAlias, digunakan untuk menerima koin dan untuk menandatangani "
+"permintaan pembayaran."
+
+msgid "Opening channel..."
+msgstr "Membuka channel…"
+
+msgid "Options"
+msgstr "Opsi"
+
+msgid "Outdated device firmware"
+msgstr "Firmware perangkat lama"
+
+msgid "Outgoing payments"
+msgstr "Pembayaran keluar"
+
+msgid "Output amount"
+msgstr "Jumlah output"
+
+msgid "Output point"
+msgstr "Titik output"
+
+msgid "Outputs"
+msgstr "Output"
+
+msgid "Overview"
+msgstr "Gambaran luas"
+
+msgid "PIN codes do not match"
+msgstr "Kode PIN tidak cocok"
+
+msgid "PIN mismatch"
+msgstr "PIN tidak cocok"
+
+msgid "Paid"
+msgstr "Dibayarkan"
+
+msgid "Pair your 2-Key Vault wallet with Gold Wallet"
+msgstr "Sambungkan dompet Vault 2-Kunci Anda dengan Gold Wallet"
+
+msgid "Pair your 3-Key Vault wallet with Gold Wallet"
+msgstr "Sambungkan dompet Vault 3-Kunci Anda dengan Gold Wallet"
+
+msgid "Partially signed"
+msgstr "Ditandatangani secara parsial."
+
+msgid "Passphrase"
+msgstr "Passpharase"
+
+msgid "Passphrase:"
+msgstr "Passpharase:"
+
+msgid "Password"
+msgstr "Kata Sandi"
+
+msgid "Password Strength"
+msgstr "Kekuatan Kata Sandi"
+
+msgid "Password is disabled, this wallet is not protected"
+msgstr "Kata Sandi dinonaktifkan, dompet ini tidak terlindungi"
+
+msgid "Password was updated successfully"
+msgstr "Kata sandi telah sukses dirubah"
+
+msgid "Password:"
+msgstr "Kata Sandi:"
+
+msgid "Pay"
+msgstr "Bayar"
+
+msgid "Pay multiple invoices"
+msgstr "Bayar ke beberapa invoice:"
+
+msgid "Pay to"
+msgstr "Bayar ke "
+
+msgid "Pay to many"
+msgstr "Bayar ke banyak"
+
+msgid "Payment Received"
+msgstr "Pembayaran Diterima"
+
+msgid "Payment Request"
+msgstr "Permintaan Pembayaran"
+
+msgid "Payment failed"
+msgstr "Pembayaran gagal"
+
+msgid "Payment hash"
+msgstr "Pembayaran hash"
+
+msgid "Payment log"
+msgstr "Log Pembayaran"
+
+msgid "Payment received"
+msgstr "Pembayaran diterima"
+
+msgid "Payment request has expired"
+msgstr "Permintaan pembayaran habis tempo"
+
+msgid "Payment sent."
+msgstr "Pembayaran dikirimkan."
+
+msgid "Payment succeeded"
+msgstr "Pembayaran sukses."
+
+msgid "Payment was sent"
+msgstr "Pembayaran telah dikirimkan"
+
+msgid "Payments (HTLCs):"
+msgstr "Pembayaran (HTLCs):"
+
+msgid "Pending"
+msgstr "Ditunda"
+
+msgid "Perhaps some dependencies are missing..."
+msgstr "Mungkin beberapa dependensi hilang…"
+
+msgid "Please briefly describe what led to the error (optional):"
+msgstr "Mohon jelaskan secara singkat mengenai penyebab kerusakan (opsional):"
+
+msgid "Please check your connection and credentials."
+msgstr "Mohon periksa koneksi dan kredensial Anda."
+
+msgid "Please check your network connection."
+msgstr "Mohon periksa koneksi jaringan Anda."
+
+#, python-brace-format
+msgid "Please check your {device} device"
+msgstr "Mohon periksa perangkat {device} Anda."
+
+msgid "Please confirm"
+msgstr "Mohon konfirmasi"
+
+msgid "Please enter an amount"
+msgstr "Mohon masukkan jumlah"
+
+msgid "Please enter the master public key (xpub) of your cosigner."
+msgstr "Mohon masukkan kunci publik master (xpub) cosigner Anda."
+
+msgid "Please enter your Google Authenticator code"
+msgstr "Mohon masukkan kode Google Authenticator Anda."
+
+msgid "Please enter your Google Authenticator code:"
+msgstr "Mohon masukkan kode Google Authenticator Anda:"
+
+msgid "Please enter your e-mail address"
+msgstr "Mohon masukkan alamat e-mail Anda"
+
+msgid "Please enter your password"
+msgstr "Mohon masukkan kata sandi Anda"
+
+msgid "Please enter your password to decrypt it."
+msgstr "Mohon masukkan kata sandi Anda untuk mendekripsikannya."
+
+msgid "Please enter your seed phrase in order to restore your wallet."
+msgstr "Mohon masukkan seed phrase Anda untuk memulihkan dompet Anda."
+
+#, python-brace-format
+msgid "Please insert your {device}"
+msgstr "Mohon masukkan {device} Anda."
+
+msgid ""
+"Please paste a Cancel transaction public key. Use an existing one, if you "
+"are importing a wallet, or generate a new one at"
+msgstr ""
+"Mohon tempelkan sebuah kunci publik transaksi Pembatalan (Cancel). Gunakan "
+"kunci yang telah ada, apabila Andaingin mengimpor sebuah dompet, atau "
+"membuat dompet baru di"
+
+msgid ""
+"Please paste a Secure Fast transaction public key. Use an existing one, if "
+"you are importing a wallet, or generate a new one at"
+msgstr ""
+"Mohon tempelkan sebuah kunci publik transaksi Cepat (Fast). Gunakan kunci "
+"yang telah ada, apabila Andaingin mengimpor sebuah dompet, atau membuat "
+"dompet baru di"
+
+msgid ""
+"Please paste authenticator public key exported from your Gold Wallet "
+"application"
+msgstr ""
+"Mohon tempelkan kunci autentikator publik yang diekspor dari aplikasi Gold "
+"WalletAnda"
+
+msgid ""
+"Please paste your cosigners master public key, or scan it using the camera "
+"button."
+msgstr ""
+"Mohon tempel kunci master cosignet publik Anda, atau pindai menggunakan "
+"tombolkamera."
+
+msgid "Please report any bugs as issues on github:<br/>"
+msgstr "Mohon laporkan segala jenis bug sebagai masalah di github:<br/>"
+
+msgid "Please report this issue manually"
+msgstr "Mohon laporkan masalah ini secara manual"
+
+msgid "Please restart Electrum to activate the new GUI settings"
+msgstr ""
+"Mohon luncurkan kembali (restart) Electrum untuk mengaktifkan pengaturan GUI "
+"yang baru"
+
+msgid "Please retype your seed phrase, to confirm that you properly saved it"
+msgstr ""
+"Mohon ketik ulang seed phrase Anda, untuk mengkonfirmasi bahwa Anda telah "
+"benar-benar menyimpannya"
+
+#, python-brace-format
+msgid "Please save these {0} words on paper (the order is important). "
+msgstr ""
+"Mohon simpan {0} frase ini di selembar kertas (Urutan frase juga penting "
+"untuk disimpan)."
+
+msgid "Please scan a Bitcoin address or a payment request"
+msgstr "Mohon pindah alamat Bitcoin atau permintaan pembayaran"
+
+#, python-brace-format
+msgid "Please select which {device} device to use:"
+msgstr "Mohon pilih perangkat {device} mana yang ingin Anda gunakan."
+
+msgid "Please share it with your cosigners."
+msgstr "Mohon bagikan dengan cosigner Anda."
+
+msgid "Please sign this transaction in order to save it"
+msgstr "Mohon tandatangani transaksi ini untuk menyimpannya"
+
+msgid "Please try again."
+msgstr "Mohon coba lagi."
+
+msgid "Please type it here."
+msgstr "Mohon ketik disini."
+
+msgid "Please type your seed phrase using the virtual keyboard."
+msgstr "Mohon ketik seed phrase Anda menggunakan keyboard virtual."
+
+msgid "Please wait"
+msgstr "Mohon tunggu"
+
+msgid "Please wait while Electrum checks for available updates."
+msgstr "Mohon tunggu selagi Electrum memeriksa pembaruan terbaru."
+
+msgid "Please wait..."
+msgstr "Mohon tunggu…"
+
+msgid "Port"
+msgstr "Port"
+
+msgid "Port number must be decimal"
+msgstr "Nomotr port harus dalam bentuk desimal"
+
+msgid "Portuguese"
+msgstr "Bahasa Portugis"
+
+#, python-brace-format
+msgid "Position in mempool: {size} from tip"
+msgstr "Posisi di mempool: {size} dari ujung"
+
+msgid "Preferences"
+msgstr "Preferensi"
+
+msgid "Press 'Next' to choose device to decrypt."
+msgstr "Tekan 'Lanjutkan' untuk memilih perangkat yang akan di dekripsi."
+
+msgid "Press 'Next' to create this wallet, or choose another file."
+msgstr "Tekan 'Lanjutkan' untuk membuat dompet ini, atau pilih file lain."
+
+msgid "Press 'Next' to create/focus window."
+msgstr "Tekan 'Lanjutkan' untuk membuat/memfokuskan jendela/window."
+
+msgid "Press 'Next' to open this wallet."
+msgstr "Tekan 'Lanjutkan' untuk membuka dompet ini."
+
+msgid "Press Enter"
+msgstr "Tekan Enter"
+
+msgid "Press again to exit"
+msgstr "Tekan sekali lagi untuk keluar."
+
+msgid "Printer Calibration"
+msgstr "Kalibrasi Printer"
+
+msgid "Private key"
+msgstr "Kunci Pribadi"
+
+msgid "Private keys"
+msgstr "Kunci Pribadi"
+
+msgid "Private keys exported."
+msgstr "Kunci Pribadi diekspor"
+
+msgid "Problem opening channel: "
+msgstr "Masalah dalam membuka channel:"
+
+msgid "Proceed at your own risk."
+msgstr "Lanjutkan dengan risiko Anda sendiri."
+
+msgid "Provides support for air-gapped transaction signing."
+msgstr "Memberikan dukungan untuk penandatanganan transaksi air-gapped."
+
+msgid "Proxy"
+msgstr "Proxy"
+
+msgid "Proxy configuration"
+msgstr "Konfigurasi Proxi"
+
+msgid "Proxy mode"
+msgstr "Mode Proxy"
+
+msgid ""
+"Proxy settings apply to all connections: with Electrum servers, but also "
+"with third-party services."
+msgstr ""
+" Pengaturan proxy berlaku untuk semua koneksi: dengan server Electrum, "
+"tetapi juga  dengan layanan pihak ketiga. "
+
+msgid "Proxy user"
+msgstr "Pengguna Proxy"
+
+msgid "PubKey cropped because too long string passed"
+msgstr "PubKey dipotong karena string terlalu panjang"
+
+msgid "Public key"
+msgstr "Kunci publik"
+
+msgid "Public keys"
+msgstr "Kunci publik"
+
+msgid "QR Code"
+msgstr "Kode QR"
+
+msgid "QR code"
+msgstr "Kode QR"
+
+msgid "QR code copied to clipboard"
+msgstr "Kode QR disalik ke papan klip"
+
+msgid "QR code saved to file"
+msgstr "Kode QR disimpan ke file"
+
+msgid "Question"
+msgstr "Pertanyaan"
+
+msgid "Quit"
+msgstr "Keluar"
+
+msgid "R/W error accessing path"
+msgstr "R/W masalah dalam mengakses jalur"
+
+msgid "Raw Transaction"
+msgstr "Transaksi Mentah/Raw"
+
+msgid "Read QR code"
+msgstr "Baca kode QR"
+
+msgid "Read file"
+msgstr "Baca file"
+
+msgid "Read from microphone"
+msgstr "Baca dari microphone"
+
+#, python-brace-format
+msgid "Ready to encrypt for revealer {version}"
+msgstr "Baca untuk mengenkripsi revealer {version}"
+
+msgid "Receive"
+msgstr "Terima"
+
+msgid "Received (mSAT):"
+msgstr "Diterima (mSAT):"
+
+#, python-brace-format
+msgid "Received HTLC with ID {id}"
+msgstr "HTLC diterima dengan ID {id}"
+
+msgid "Receiving"
+msgstr "Menerima"
+
+msgid "Recipient"
+msgstr "Penerima"
+
+msgid "Recipient not specified."
+msgstr "Penerima tidak tertera"
+
+msgid "Recipient of the funds."
+msgstr "Penerima dana."
+
+msgid "Redeem Script"
+msgstr "Ambil Skrip"
+
+msgid "Remote"
+msgstr "Remote"
+
+msgid "Remote CTN"
+msgstr "Remote CTN"
+
+msgid "Remote Node ID"
+msgstr "Remote Node ID"
+
+msgid "Remote channel reserve:"
+msgstr "Cadangan remote channel"
+
+msgid "Remote dust limit:"
+msgstr "Batasan remote dust:"
+
+msgid "Remote peer ID"
+msgstr "Remote peer ID"
+
+msgid "Remove"
+msgstr "Hapus"
+
+msgid "Remove from wallet"
+msgstr "Hapus dari dompet"
+
+#, python-brace-format
+msgid "Remove {labels} from your list of contacts?"
+msgstr "Hapus {labels} dari daftar kontak Anda?"
+
+msgid "Replace by fee"
+msgstr "Gantikan dengan biaya"
+
+msgid "Report contents"
+msgstr "Isi laporan"
+
+msgid "Report sent"
+msgstr "Laporan dikirimkan"
+
+msgid "Reporting Bugs"
+msgstr "Laporkan Bugs"
+
+msgid "Request"
+msgstr "Permintaan"
+
+msgid "Request copied to clipboard"
+msgstr "Permintaan disalik ke papan klip"
+
+msgid "Request expires"
+msgstr "Permintaan habis tempo"
+
+msgid "Request payment"
+msgstr "Ajukan permintaan pembayaran"
+
+msgid "Request rejected by server"
+msgstr "Permintaan ditolak oleh server"
+
+msgid "Request saved successfully"
+msgstr "Permintaan sukses disimpan"
+
+msgid "Request sent."
+msgstr "Permintaan dikirim"
+
+msgid "Requested amount"
+msgstr "Jumlah yang diminta"
+
+msgid "Requesting account info from TrustedCoin server..."
+msgstr "Meminta info akun dari server TrustedCoin…"
+
+msgid "Requestor"
+msgstr "Pemohon"
+
+#, python-brace-format
+msgid "Require {0} signatures"
+msgstr "Memerlukan {0} tandatangan"
+
+msgid "Requires"
+msgstr "Memerlukan"
+
+msgid "Reset"
+msgstr "Reset"
+
+msgid "Restore 2FA wallet"
+msgstr "Pulihkan dompet 2FA"
+
+msgid "Restore two-factor Wallet"
+msgstr "Pulihkan Dompet dua-faktor"
+
+msgid "Revealer - Printer calibration settings"
+msgstr "Revealer - Pengaturan kalibrasi printer"
+
+msgid "Revealer Backup Utility"
+msgstr "Revealer Backup Utility"
+
+msgid "Revealer Secret Backup Plugin"
+msgstr "Plugin Backip Rahasia Revealer"
+
+msgid "Revealers starting with 0 are not secure due to a vulnerability."
+msgstr ""
+"Revealer dimulai dengan 0 tidak aman dapat diamankan dikarenakan kerentanan."
+
+msgid "Right side"
+msgstr "Sisi Kanan"
+
+msgid "Route"
+msgstr "Jalur"
+
+msgid "Run PayServer"
+msgstr "Jalankan PayServer"
+
+msgid "Run Watchtower"
+msgstr "Jalankan Watchtower"
+
+msgid "SSL cert file"
+msgstr "File SSL cert"
+
+msgid "SSL domain"
+msgstr "Domain SSL"
+
+msgid "SSL key file"
+msgstr "File kunci SSL"
+
+msgid "Save"
+msgstr "Simpan"
+
+msgid "Save invoice to file"
+msgstr "Simpan invoice ke file"
+
+msgid "Save transaction offline"
+msgstr "Simpan transaksi secara offline"
+
+msgid ""
+"Save your wallet labels on a remote server, and synchronize them across "
+"multiple devices where you use Electrum."
+msgstr ""
+" Simpan label dompet Anda di remote server, dan sinkronkan di  beberapa "
+"perangkat di mana Anda menggunakan Electrum. "
+
+msgid "Script type"
+msgstr "Jenis skrip"
+
+msgid "Script type and Derivation path"
+msgstr "Jenis skrip dan jalur derivasi"
+
+msgid "Secure - confirmed after 24 hours. Can be canceled within that time."
+msgstr ""
+"Aman (Secure) - dikonfirmasi setelah 24 jam. Dapat dibatalkan dalam periode "
+"tersebut."
+
+msgid ""
+"Secure Fast - confirmed immediately. Cannot be canceled. Requires an "
+"additional seed phrase."
+msgstr ""
+"Aman Cepat (Secure Fast) - dinkonfirmasi secara langsung. Tidak dapat "
+"dibatalkan. Membutuhkan sebuahfrase seed tambahan."
+
+msgid "Secure Fast Tx seed"
+msgstr "Seed Tx Secure Fast (Aman Cepat)"
+
+msgid "Secure Fast Tx seed not matching any key in this wallet"
+msgstr ""
+"Seed Tx Secure Fast tidak cocok dengan kunci manapun yang tersedia di dompet "
+"ini."
+
+msgid "Secure Fast seedphrase"
+msgstr "Seedphrase Aman Cepat (Secure Fast)"
+
+msgid "Secure Fast transaction public key"
+msgstr "Kunci publik transaksi Aman Cepat (Secure Fast)"
+
+msgid "Secure incoming"
+msgstr "Transaksi Aman Masuk"
+
+msgid "Secure outgoing"
+msgstr "Transaksi Aman Keluar"
+
+msgid "Security Card Challenge"
+msgstr "Tantangan Kartu Keamanan"
+
+msgid "Seed"
+msgstr "Seed"
+
+msgid "Seed available"
+msgstr "Seed tersedia "
+
+msgid "Seed extension"
+msgstr "Ekstensi Seed"
+
+msgid "Segwit"
+msgstr "Segwit "
+
+msgid "Segwit 2FA"
+msgstr "Segwit 2FA"
+
+msgid "Segwit wallets use bech32 addresses, defined in BIP173."
+msgstr "Dompet Segwit menggunakan alamat bech32, didefinisikan di BIP173."
+
+msgid "Select a device"
+msgstr "Pilih perangkat"
+
+msgid "Select date"
+msgstr "Pilih tanggal"
+
+msgid "Select file to export your private keys to"
+msgstr "Pilih file tujuan ekspor kunci pribadi Anda"
+
+msgid "Select file to export your wallet transactions to"
+msgstr "Pilih fire tujuan ekspor transaksi dompet Anda"
+
+#, python-brace-format
+msgid "Select file to save your {title}"
+msgstr "Pilih file untuk menyimpan {title} Anda"
+
+msgid "Select language"
+msgstr "Pilih Bahasa"
+
+msgid "Select server automatically"
+msgstr "Pilih server secara otomatis"
+
+msgid "Select server manually"
+msgstr "Pilih server secara manual"
+
+msgid "Select where to save file"
+msgstr "Pilih dimana Anda ingin menympan file"
+
+msgid "Select where to save your payment request"
+msgstr "Pilih dimana Anda akan menyimpan permintaan pembayaran"
+
+msgid "Select where to save your signed transaction"
+msgstr "Pilih dimana Anda akan menyimpan transaksi yang telah ditandatangani"
+
+msgid "Select which language is used in the GUI (after restart)."
+msgstr "Pilih bahasa yang akan digunakan di GUI (setelah restart)."
+
+msgid "Select your server automatically"
+msgstr "Pilih server Anda secara otomatis"
+
+msgid "Select your transaction file"
+msgstr "Pilih file transaksi Anda"
+
+msgid "Send"
+msgstr "Kirim"
+
+msgid "Send Bug Report"
+msgstr "Kirimkan Laporan Bug"
+
+msgid "Send and receive payment request with an email account"
+msgstr "Kirim dan terima permintaan pembayaran dengan sebuah akun email"
+
+msgid "Send and receive payment requests via email"
+msgstr "Kirim dan terima permintaan pembayaran via email"
+
+msgid "Send cancel transaction"
+msgstr "Kirim transaksi pembatalan"
+
+msgid "Send to cosigner"
+msgstr "Kirim ke cosigner"
+
+msgid "Send to speaker"
+msgstr "Kirim ke speaker"
+
+msgid "Send via e-mail"
+msgstr "Kirim via e-mail"
+
+msgid "Sending"
+msgstr "Mengirim"
+
+msgid "Sending crash report..."
+msgstr "Mengirim laporan kerusakan…"
+
+msgid "Sending transaction to cosigning pool..."
+msgstr "Mengirimkan transaksi ke cosinging pool…"
+
+msgid "Sent (mSAT):"
+msgstr "Dikirim (mSAT):"
+
+#, python-brace-format
+msgid "Sent HTLC with ID {id}"
+msgstr "HTLC dikitim dengan ID {id}"
+
+msgid "Server"
+msgstr "Server"
+
+msgid "Server hosting your email account"
+msgstr "Server hosting akun Email Anda."
+
+#, python-brace-format
+msgid "Server is lagging ({number} blocks)"
+msgstr "Server lambat ({number} blok)"
+
+msgid "Server not reachable."
+msgstr "Server tidak dapat dijangkau."
+
+msgid "Server peers"
+msgstr "Server peers"
+
+msgid "Server returned unexpected transaction ID."
+msgstr "Server kembali dengan ID transaksi yang tidak terduga,"
+
+msgid "Server used to query your history."
+msgstr "Server digunakan untuk mengkuerikan riwayat Anda."
+
+msgid "Services"
+msgstr "Layanan"
+
+msgid ""
+"Set the value of the change output so that it has similar precision to the "
+"other outputs."
+msgstr ""
+" Setel nilai output perubahan sehingga memiliki presisi yang sama dengan  "
+"output lainnya. "
+
+msgid "Set wallet file encryption."
+msgstr "Setel ekripsi file dompet."
+
+msgid "Settings"
+msgstr "Pengaturan label"
+
+msgid "Share Bitcoin Request"
+msgstr "Bagikan Permintaan Bitcoin"
+
+msgid "Share Invoice"
+msgstr "Bagian Invoice"
+
+msgid "Short Chan ID"
+msgstr "ID Chan Pendek"
+
+msgid "Short Channel ID"
+msgstr "ID Channel Pendek"
+
+msgid "Short Channel ID:"
+msgstr "ID Channel Pendek:"
+
+msgid "Should this transaction be replaceable?"
+msgstr "Apakah Anda ingin membuat transaksi ini dapat diganti? (repraceable)?"
+
+msgid "Show"
+msgstr "Tampilkan"
+
+msgid "Show Fiat balance for addresses"
+msgstr "Tampilkan saldo Fiat untuk alamat"
+
+msgid "Show QR Code"
+msgstr "Tampilkan kode QR"
+
+msgid "Show as QR code"
+msgstr "Tampilkan sebagai kode QR"
+
+msgid "Show on Ledger"
+msgstr "Tampilkan di Ledger"
+
+#, python-brace-format
+msgid "Show on {device}"
+msgstr "Tampilkan di {device}"
+
+msgid "Show report contents"
+msgstr "Tampilkan isi laporan"
+
+#, python-brace-format
+msgid "Show {tab_description}"
+msgstr "Tampilkan {tab_description}"
+
+msgid "Show/Hide"
+msgstr "Tampilkan/Sembunyikan"
+
+msgid "Showing address ..."
+msgstr "Sembunyikan alamat…"
+
+msgid "Sign"
+msgstr "Tandatangani"
+
+msgid "Sign/verify Message"
+msgstr "Tandatangani/verifikasi Pesan"
+
+msgid "Sign/verify message"
+msgstr "Tandatangani/verifikasi pesan"
+
+msgid "Signature"
+msgstr "Tandatangan"
+
+msgid "Signature verified"
+msgstr "Tandatangan diverifikasi"
+
+msgid "Signed"
+msgstr "Ditandatangani"
+
+msgid "Signing"
+msgstr "Menandatangani"
+
+msgid "Signing transaction..."
+msgstr "Menandatangani transaksi…"
+
+msgid ""
+"Signing with an address actually means signing with the corresponding "
+"private key, and verifying with the corresponding public key. The address "
+"you have entered does not have a unique public key, so these operations "
+"cannot be performed."
+msgstr ""
+" Menandatangani dengan alamat sebenarnya berarti menandatangani kunci "
+"pribadi yang sesuai, dan memverifikasi dengan kunci publik yang sesuai. "
+"Alamat  yang Anda masukkan tidak memiliki kunci publik yang unik, jadi "
+"operasi ini  tidak dapat dilakukan."
+
+msgid "Size:"
+msgstr "Ukuran:"
+
+msgid "Something went wrong while executing Electrum."
+msgstr "Terjadi kesalahan ketika mengeksekusi Electrum"
+
+msgid "Sorry!"
+msgstr "Mohon maaf!"
+
+msgid "Sorry, but we were unable to check for updates. Please try again later."
+msgstr ""
+"Mohon maaf, namun kami tidak dapat memriksa pembaruan. Mohon coba lagi nanti."
+
+msgid "Source"
+msgstr "Sumber"
+
+msgid "Spanish"
+msgstr "Bahasa Spanyol"
+
+msgid "Spend"
+msgstr "Gunakan"
+
+msgid "Spend from"
+msgstr "Gunakan dari"
+
+msgid "Spend only confirmed coins"
+msgstr "Gunakan hanya koin yang dikonfirmasi"
+
+msgid "Spend only confirmed inputs."
+msgstr "Gunakan hanya input yang telah dikonfirmasi"
+
+msgid "Start"
+msgstr "Mulai"
+
+msgid ""
+"Startup times are instant because it operates in conjunction with high-"
+"performance servers that handle the most complicated parts of the Bitcoin "
+"Vault system."
+msgstr ""
+"Waktu permulaan tergolong instan karena prosesnya beroperasi bersamaan "
+"dengan serverperforma tinggi yang mengatasi sebagian besar bagian kompleks "
+"dari sistemBitcoin Vault."
+
+msgid "State"
+msgstr "Keadaan"
+
+msgid "Static"
+msgstr "Statis"
+
+msgid "Status"
+msgstr "Status"
+
+msgid "Status:"
+msgstr "Status:"
+
+msgid "Success"
+msgstr "Sukses"
+
+msgid "Summary"
+msgstr "Rangkuman"
+
+msgid "Summary Text PIN (requires dongle replugging)"
+msgstr "Rangkuman PIN Text (diperlukan pemasangan kembali donggle)"
+
+msgid "Summary Text PIN is Disabled"
+msgstr "Rangkuman PIN Text dinonaktifkan"
+
+msgid "Sweep"
+msgstr "Pindai"
+
+msgid "Sweep private keys"
+msgstr "Pindai kunci pribadi"
+
+msgid "Synchronizing..."
+msgstr "Menyinkronkan"
+
+msgid "Tap to show"
+msgstr "Ketuk untuk menampilkan"
+
+msgid "Target"
+msgstr "Target"
+
+msgid "Target fee:"
+msgstr "Biaya Target:"
+
+msgid "Terms of Service"
+msgstr "Syarat dan Ketentuan"
+
+msgid "Testnet"
+msgstr "Testnet"
+
+msgid "Testnet coins are worthless."
+msgstr "Koin Testnet tidak ada harganya."
+
+msgid ""
+"Testnet is separate from the main Bitcoin Vault network. It is used for "
+"testing."
+msgstr ""
+"Testnet terpisah dari jaringan utama Bitcoin Vault. Server ini hanya "
+"digunakan untukmelakukan pengujian dan percobaan."
+
+msgid "Text copied to clipboard"
+msgstr "Teks disalin ke papan klip"
+
+msgid "Text copied to clipboard."
+msgstr "Teks disalin ke papan klip."
+
+msgid ""
+"The amount of fee can be decided freely by the sender. However, transactions "
+"with low fees take more time to be processed."
+msgstr ""
+"Jumlah biaya dapat ditentukan secara bebas oleh pengirim. Namun, "
+"transaksidengan biaya yang rendah akan memakan lebih banyak waktu untuk "
+"diproses."
+
+msgid ""
+"The amount will be displayed in red if you do not have enough funds in your "
+"wallet."
+msgstr ""
+"Jumlah akan ditampilkan dalam warna merah apabila Anda tidak memiliki saldo "
+"yang cukup didompet Anda."
+
+msgid ""
+"The bitcoin address never expires and will always be part of this electrum "
+"wallet."
+msgstr ""
+"Alamat Bitcoin tidak memiliki waktu habis tempo dan akan selalu menjadi "
+"bagian dari dompetElectrum ini."
+
+msgid ""
+"The description is not sent to the recipient of the funds. It is stored in "
+"your wallet file, and displayed in the 'History' tab."
+msgstr ""
+"Deskripsi tidak dikirim ke penerima saldo. Ini disimpan di file dompet Anda, "
+"dan ditampilkan di tab 'Riwayat'."
+
+msgid ""
+"The fee could not be verified. Signing non-segwit inputs is risky:\n"
+"if this transaction was maliciously modified before you sign,\n"
+"you might end up paying a higher mining fee than displayed."
+msgstr ""
+"Biaya tidak dapat diverifikasi. Menandatangani input non-segwit adalah hal "
+"yang sangat berisiko:\n"
+"apabila transaksi ini diubah secara mencurigakan sebelum Anda tandatangani,\n"
+"Anda akan membayar biaya penambangan yang lebih tinggi dari apa yang "
+"ditampilkan."
+
+msgid "The fee for this transaction seems unusually high."
+msgstr "Biaya untuk transaksi ini terlihat sangat tinggi. "
+
+#, python-brace-format
+msgid ""
+"The file '{path}' contains an incompletely created wallet.\n"
+"Do you want to complete its creation now?"
+msgstr ""
+"File {path} mengandung dompet yang belum selesai dibuat.\n"
+"Apakah Anda ingin menyelesaikan pembuatannya sekarang?"
+
+msgid "The file was removed"
+msgstr "File telah dihapus"
+
+msgid ""
+"The firmware of your hardware device is too old. If possible, you should "
+"upgrade it. You can ignore this error and try to continue, however things "
+"are likely to break."
+msgstr ""
+"Firmware perangkat keras anda terlalu tua. Jika memungkingkan, Anda "
+"disarankanuntuk melakukan pembaruan. Anda dapat mengabaikan pesan ini dan "
+"coba untuk melajutkan, namun terdapat kemungkinanterjadinya kerusakan."
+
+msgid "The following addresses were added"
+msgstr "Alamat berikut telah ditambahkan"
+
+msgid "The following alias providers are available:"
+msgstr "Penyedia alias berikut tersedia:"
+
+msgid "The following inputs could not be imported"
+msgstr "Input berikut tidak dapat diimpor"
+
+msgid "The new fee rate needs to be higher than the old fee rate."
+msgstr "Tarif biaya baru harus lebih tinggi dari tarif biaya lama."
+
+msgid ""
+"The next step will generate the seed of your wallet.  This seed will NOT be "
+"saved in your computer, and it must be stored on paper.  To be safe from "
+"malware, you may want to do this on an offline computer, and move your "
+"wallet later to an online computer."
+msgstr ""
+"Langkah selanjutnya adalah untuk menghasilkan seed dompet Anda. Seed ini "
+"TIDAK akandisimpat di komputer Anda, dan ini harus disimpan di selembar "
+"kertas. Agar terlindung darimalware, kami menyarankan Anda untuk "
+"melakukannya di sebuah komputer yang tidak tersambungkan ke internet, lalu "
+"setelahnya memindahkan dompetAnda ke sebuah komputer online."
+
+msgid "The operation is undefined. Not just in Electrum, but in general."
+msgstr ""
+"Operasi tidak didefinisikan. Tidak hanya di Electrum, tapi secara umum."
+
+msgid "The server returned an error when broadcasting the transaction."
+msgstr "Server mengembalikan kesalahan saat menyiarkan transaksi."
+
+msgid "The server returned an error."
+msgstr "Server mengembalikan kesalahan."
+
+msgid ""
+"The server returned an unexpected transaction ID when broadcasting the "
+"transaction."
+msgstr ""
+"Server kembali dengan ID Transaksi yang tidak terduga ketika "
+"menyiarkantransaksi."
+
+msgid ""
+"The transaction was rejected because it contains multiple OP_RETURN outputs."
+msgstr "Transaksi ditolah karena mengandung lebih dari satu OP_RETURN output."
+
+msgid "The transaction was rejected because it is too large (in bytes)."
+msgstr "Transaksi ditolah karena ukurannya terlalu besar (dalam bytes)."
+
+msgid "The type of addresses used by your wallet will depend on your seed."
+msgstr ""
+"Tipe alamat yang digunakan oleh dompet Anda akan tergantung pada seed Anda."
+
+#, python-brace-format
+msgid ""
+"The wallet '{path}' contains multiple accounts, which are no longer "
+"supported since Electrum 2.7.\n"
+"\n"
+"Do you want to split your wallet into multiple files?"
+msgstr ""
+"Dompet '{path}' mengandung lebih dari satu akun, yang tidak lagididukung "
+"sejak Electrum 2.7. \n"
+"\n"
+"Apakah Anda ingin memecah dompet Anda menjadi beberapa file?"
+
+msgid "Then, enter your Google Authenticator code:"
+msgstr "Lalu, masukkan kode Google Authenticator Anda:"
+
+msgid "There is a new update available"
+msgstr "Update baru tersedia"
+
+msgid "There was a problem with the automatic reporting:"
+msgstr "Terjadi masalah dengan automatic reporting:"
+
+msgid "Therefore, two-factor authentication is disabled."
+msgstr "Oleh karena itu, Otentikator dua-faktor dinonaktifkan."
+
+msgid ""
+"This address has already been used. For better privacy, do not reuse it for "
+"new payments."
+msgstr ""
+"Alamat ini telah digunakan. Untuk privasi yang lebih baik, jangan gunanakan "
+"alamat iniuntuk pembayaran baru."
+
+msgid ""
+"This blockchain is used to verify the transactions sent by your transaction "
+"server."
+msgstr ""
+"Blockchain ini digunakan untuk memverifikasi transaksi yang digunakan oleh "
+"servertransaksi Anda."
+
+#, python-brace-format
+msgid "This channel will be usable after {number} confirmations"
+msgstr "Channel ini akan dapat digunakan setelah {number} konfirmasi"
+
+msgid "This feature is not available for watch-only wallets."
+msgstr "Fitur ini tidak tersedia untuk dompet watch-only."
+
+msgid "This file does not exist."
+msgstr "File tidak tersedia."
+
+msgid "This file is already open in memory."
+msgstr "File sedang dibuka di memori"
+
+msgid "This file is encrypted using a hardware device."
+msgstr "File ini dienkripsi menggunakan perangkat keras."
+
+msgid "This file is encrypted with a password."
+msgstr "File ini dienkripsi dengan kata sandi."
+
+#, python-brace-format
+msgid ""
+"This function is only available for standard wallets when using {device}."
+msgstr ""
+"fungsi ini hanya tersedia untuk dompet standar ketika menggunakan {device}."
+
+msgid ""
+"This information is seen by the recipient if you send them a signed payment "
+"request."
+msgstr ""
+"Informasi ini dilihat oleh penerima apabila Anda mengirimkan permintaan "
+"transaksiyang ditandatangani."
+
+msgid "This invoice has been paid already"
+msgstr "Invoice ini telah dibayarkan"
+
+msgid "This invoice has expired"
+msgstr "Invoice ini telah habis tempo"
+
+msgid "This is a watching-only wallet"
+msgstr "Ini adalah dompet watching-only"
+
+msgid "This is a watching-only wallet."
+msgstr "Ini adalah dompet watching-only."
+
+msgid "This is a watching-only wallet. It does not contain private keys."
+msgstr "Ini adalah dompet watching-only. Tidak mengandung kunci pribadi."
+
+msgid "This is discouraged."
+msgstr "Ini tidak dianjurkan."
+
+msgid "This is the height of your local copy of the blockchain."
+msgstr "Ini adalah tinggi salinan lokal blockchain Anda."
+
+msgid "This may result in higher transactions fees."
+msgstr "Ini dapat berujung pada biaya transaksi yang lebih tinggi."
+
+msgid "This means you will not be able to spend Bitcoins with it."
+msgstr "Ini berati Anda tidak akan dapat menggunakan Bitcoin dengan ini."
+
+msgid "This might improve your privacy somewhat."
+msgstr "Hal ini dapat sedikit meningkatkan privasi Anda."
+
+msgid "This payment request will be signed."
+msgstr "Permintaan pembayaran ini akan ditandatangani."
+
+msgid ""
+"This plug-in allows you to create a visually encrypted backup of your wallet "
+"seeds, or of custom alphanumeric secrets."
+msgstr ""
+"Plug-in ini memungkinkan Anda untuk membuat salinan seed dompet Anda yang "
+"dienkripsi secaravisual, atau alfanumerik kustom rahasia."
+
+msgid "This plugin adds two-factor authentication to your wallet."
+msgstr "Plugin ini menambahkan otentikator dua-faktor ke dompet Anda."
+
+msgid "This plugin facilitates the use of multi-signatures wallets."
+msgstr "Plugin ini memfasilitasi penggunaan dompet multi-signatur."
+
+msgid "This public key was already used. Please generate a new one."
+msgstr "Kunci publik telah digunakan sebelumnya. Mohon hasilkan kunci baru."
+
+msgid "This seed will allow you to recover your wallet."
+msgstr "Seed ini akan memungkan Anda untuk memulihkan dompet Anda."
+
+msgid ""
+"This service uses a multi-signature wallet, where you own 2 of 3 keys.  The "
+"third key is stored on a remote server that signs transactions on your "
+"behalf. A small fee will be charged on each transaction that uses the remote "
+"server."
+msgstr ""
+"Layanan ini menggunakan dompet multi-signature, dimana Anda memegang 2 dari "
+"3 kunci yang tersedia.Kunci ketiga disimpan di sebuah remote server yang "
+"akan menandatangani transaksiatas nama Anda. Biaya kecil akan dikenakan "
+"dalam setiap transaksi yang menggunakan remoteserver."
+
+msgid "This setting affects the Send tab, and all balance related fields."
+msgstr ""
+"Pengaturan ini mempengaruhi tab Pengiriman, dan semua saldo yang ada di "
+"bidang yang bersangkutan."
+
+msgid "This transaction is not saved. Close anyway?"
+msgstr "Transaksi ini belum disimpan. Tetap tutup?"
+
+msgid ""
+"This transaction requires a higher fee, or it will not be propagated by your "
+"current server"
+msgstr ""
+"Transaksi Ini membutuhkan biaya yang lebih tinggi, atau tidak akan "
+"disebarkan oleh server Anda yang sekarang."
+
+#, python-brace-format
+msgid "This type of script is not supported with {device}."
+msgstr "Skrip tipe ini tidak didukung oleh {device}"
+
+#, python-brace-format
+msgid "This version supports a maximum of {length} characters."
+msgstr "Versi ini mendukung maksimum karakter sepanjang {length}."
+
+msgid "This wallet has no seed"
+msgstr "Dompet ini tidak memiliki seed"
+
+msgid ""
+"This wallet is already registered with TrustedCoin. To finalize wallet "
+"creation, please enter your Google Authenticator Code."
+msgstr ""
+"Dompet ini telah terdaftar dengan TrustedCoin. Untuk melakukan finalisasi "
+"pembuatandompet, mohon masukkan kode Google Authenticator Anda."
+
+msgid "This wallet is protected by TrustedCoin's two-factor authentication."
+msgstr "Dompet ini dilindungi oleh Otentikator dua-faktor milin TrustedCoin."
+
+msgid "This wallet is watching-only"
+msgstr "Dompet ini adalah watching-only"
+
+msgid "This wallet is watching-only."
+msgstr "Dompet ini adalah watching-only."
+
+msgid ""
+"This wallet was restored from seed, and it contains two master private keys."
+msgstr ""
+"Dompet ini dipulihkan dari seed, dan mengandung dua kunci master pribadi."
+
+msgid "This will delete your lightning private keys"
+msgstr "Hal ini akan menghapuskan kunci lightning pribadi Anda"
+
+msgid "This will save fees."
+msgstr "Ini akan menyimpan biaya Anda."
+
+msgid "Time based: fee rate is based on average confirmation time estimates"
+msgstr ""
+"Berbasis waktu: tarif biaya didasarkan pada perkiraan waktu konfirmasi rata-"
+"rata"
+
+msgid "To"
+msgstr "Ke"
+
+msgid ""
+"To create a spending wallet, please enter a master private key (xprv/yprv/"
+"zprv)."
+msgstr ""
+"Untuk membuat dompet pengeluaran, harap masukkan kunci pribadi utama (xprv/"
+"yprv/zprv)."
+
+msgid ""
+"To create a watching-only wallet, please enter your master public key (xpub/"
+"ypub/zpub)."
+msgstr ""
+"Untuk membuat dompet watching-only, masukkan kunci publik utama Anda (xpub/"
+"ypub/zpub)."
+
+msgid "To encrypt your backup, first we need to load some noise."
+msgstr ""
+"Untuk mengenkripsi backup Anda, pertama kita harus memuat beberapa noise."
+
+msgid ""
+"To help us diagnose and fix the problem, you can send us a bug report that "
+"contains useful debug information:"
+msgstr ""
+"Untuk membantu kami mendiagnosa dan memperbaiki masalah, Anda dapat "
+"mengirimkan laporan bug kepada kami yangmengandung informasi debug yang "
+"dapat kami gunakan:"
+
+msgid ""
+"To make sure that you have properly saved your seed, please retype it here."
+msgstr ""
+"Untuk memastikan bahwa Anda telah menyimpan seed Anda dengan benar, mohon "
+"tulis kembali disini."
+
+msgid ""
+"To setup a local watchtower, you must run Electrum on a machine\n"
+"that is always connected to the internet. Configure a port if you want it to "
+"be public."
+msgstr ""
+"Untuk memasang dan mengatur watchtower lokal, Anda harus menjalankan "
+"Electrum di perangkat\n"
+"yang selalu terhubung ke internet. Atur port apabila Anda inginhal ini "
+"menjadi publik."
+
+msgid ""
+"To somewhat protect your privacy, Electrum tries to create change with "
+"similar precision to other outputs."
+msgstr ""
+"Untuk memberikan sedikit perlindungan terhadap privasi Anda, Electrum "
+"mencoba untuk melakukan perubahan denganpersisi yang mirip dengan output "
+"lain."
+
+msgid "To trigger a rescan, press 'Next'."
+msgstr "Untuk memicu pemindaian ulang, tekan 'Berikutnya'."
+
+msgid "To try to fix this, we will now re-pair with your device."
+msgstr ""
+"Untuk mencoba memperbaiki hal ini, sekarang kami akan terhubung ulang dengan "
+"perangkat Anda."
+
+msgid "Toggle Encryption"
+msgstr "Nyalakan Enkripsi"
+
+msgid "Total fee"
+msgstr "Biaya total"
+
+msgid "Total feerate"
+msgstr "Feerate total"
+
+msgid "Total size"
+msgstr "Ukuran total"
+
+msgid "Transaction"
+msgstr "Transaksi"
+
+msgid "Transaction ID"
+msgstr "ID Transaksi"
+
+msgid "Transaction ID:"
+msgstr "ID Transaksi:"
+
+msgid "Transaction added to wallet history."
+msgstr "Transaksi ditambahkan ke riwayat dompet Anda."
+
+msgid "Transaction could not be broadcast due to dust outputs."
+msgstr "Transaki tidak dapat disiarkan karena output dust."
+
+msgid "Transaction could not be saved."
+msgstr "Transaksi tidak dapat disimpan."
+
+msgid "Transaction exported successfully"
+msgstr "Transaksi sukses diekspor"
+
+msgid "Transaction is unrelated to this wallet."
+msgstr "Transaksi ini tidak berhubungan dompet ini."
+
+msgid "Transaction to join with"
+msgstr "Gabung transaksi dengan"
+
+msgid "Transaction to merge signatures from"
+msgstr "Gabungkan tandatangan dari transaksi"
+
+msgid "Transaction type"
+msgstr "Tipe Transaksi"
+
+msgid "Transaction unrelated to your wallet"
+msgstr "Transaksi tidak berhubungan dengan dompet Anda."
+
+msgid "Transaction uses non-standard version."
+msgstr "Transaksi menggunakan versi non-standar."
+
+msgid "Transaction:"
+msgstr "Transaksi:"
+
+msgid "Transactions"
+msgstr "Transaksi"
+
+msgid "Transactions are encrypted and stored on a remote server."
+msgstr "Transaksi dienkripsi dan disimpan di remote server."
+
+msgid "Transactions to cancel"
+msgstr "Transaksi yang dapat dibatalkan"
+
+msgid "True"
+msgstr "Betul"
+
+msgid "TrustedCoin"
+msgstr "TrustedCoin"
+
+msgid "TrustedCoin (2FA) fee for the next batch of transactions"
+msgstr "Biaya TrustedCoin (2FA) untuk kelompok transaksi selanjutnya"
+
+msgid "TrustedCoin Information"
+msgstr "Informasi TrustedCoin"
+
+msgid ""
+"TrustedCoin charges a small fee to co-sign transactions. The fee depends on "
+"how many prepaid transactions you buy. An extra output is added to your "
+"transaction every time you run out of prepaid transactions."
+msgstr ""
+"TrustedCoin mengenakan sedikit biaya untuk ikut menandatangani transaksi. "
+"Biaya ini tergantung padasebarapa banyak transaksi prabayar yang Anda beli. "
+"Sebuah output ekstra akan ditambahkan ketransaksi Anda setiap kali Anda "
+"kehabisan transaksi prabayar."
+
+msgid "Try to connect again?"
+msgstr "Coba untuk menyambungkan kembali?"
+
+msgid "Try to explain not only what the bug is, but how it occurs."
+msgstr ""
+"Coba untuk berikan penjelasan tidak hanya mengenai jenis bug, namun juga "
+"bagaimana bug tersebut terjadi."
+
+msgid ""
+"Try to raise your transaction fee, or use a server with a lower relay fee."
+msgstr ""
+"Coba untuk menaikkan biaya transaksi Anda, atau gunakan server dengan biaya "
+"relay yang lebih rendah."
+
+msgid "Turkish"
+msgstr "Bahasa Turki"
+
+msgid "Two Factor Authentication"
+msgstr "Otentikator Dua Faktor"
+
+msgid ""
+"Two-factor authentication is a service provided by TrustedCoin.  It uses a "
+"multi-signature wallet, where you own 2 of 3 keys.  The third key is stored "
+"on a remote server that signs transactions on your behalf.  To use this "
+"service, you will need a smartphone with Google Authenticator installed."
+msgstr ""
+"Layanan Two-factor authentication (Autentikasi Dua-Faktor) adalah layanan "
+"yang disediakan oleh TrustedCoin. Layanan ini menggunakan sebuahdompet multi-"
+"signature, dimana Anda memiliki 2 dari 3 kunci. Kunci ketiga disimpandi "
+"sebuah remote server yang menandatangani transaksi atas nama Anda. Untuk "
+"menggunakanlayanan ini, Anda perlu sebuah smartphone dengan Google "
+"Authenticator terpasang didalamnya."
+
+msgid ""
+"Two-factor authentication is a service provided by TrustedCoin. To use it, "
+"you must have a separate device with Google Authenticator."
+msgstr ""
+"Otentikasi dua-faktor adalah layanan yang disediakan oleh TrustedCoin. Untuk "
+"menggunakannya,Anda harus memiliki perangkat terpisah yang dengan Google "
+"Authenticator terpasang."
+
+msgid "Tx"
+msgstr "Tx"
+
+msgid "Type"
+msgstr "Tipe"
+
+#, python-brace-format
+msgid ""
+"Unable to connect to mail server:\n"
+" {error}"
+msgstr ""
+"Tidak dapat terhubung ke mail server:\n"
+"{error}"
+
+msgid "Unable to create backup"
+msgstr "Tidak dapat membuat cadangan"
+
+msgid "Unable to create csv"
+msgstr "Tidak dapat membuat csv"
+
+msgid "Unable to export history"
+msgstr "Tidak dapat mengekspor riwayat"
+
+msgid "Unable to read file or no transaction found"
+msgstr "Tidak dapat membaca file atau tidak ada transaksi yang ditemukan"
+
+msgid "Unable to send report"
+msgstr "Tidak dapat mengirimkan laporan"
+
+msgid "Unconfirmed"
+msgstr "Belum dikonfirmasi"
+
+msgid "Unconfirmed Parent"
+msgstr "Parent Tidak Terkonfirmasi"
+
+msgid "Unexpected password hash version"
+msgstr "Versi kata sandi hash tidak terduga"
+
+msgid "Unfreeze"
+msgstr "Cairkan"
+
+msgid "Unfreeze Address"
+msgstr "Cairkan Alamat"
+
+msgid "Unfreeze Addresses"
+msgstr "Cairkan Banyak Alamat"
+
+msgid "Unfreeze Coin"
+msgstr "Cairkan Koin"
+
+msgid "Unfreeze Coins"
+msgstr "Cairkan Banyak Koin"
+
+msgid "Unknown"
+msgstr "Tidak Diketahui"
+
+msgid "Unknown error"
+msgstr "Kesalahan tidak diketahui"
+
+msgid "Unknown error when broadcasting the transaction."
+msgstr "Terdapat kesalahan yang tidak diketahui ketika menyiarkan transaksi"
+
+msgid "Unmatured"
+msgstr "Belum matang"
+
+msgid "Unrealized gains"
+msgstr "Kenaikan yang belum direalisasi"
+
+msgid "Unsigned"
+msgstr "Belum ditandatangani"
+
+msgid "Unsupported password hash version"
+msgstr "Versi kata sandi hash tidak didukung"
+
+msgid "Unused"
+msgstr "Belum diapkai"
+
+msgid "Update Check"
+msgstr "Periksa Update"
+
+msgid "Update check failed"
+msgstr "Pemeriksaan update gagal"
+
+#, python-brace-format
+msgid "Update to Electrum {version} is available"
+msgstr "Update Electrum {version} tersedia"
+
+msgid "Upgrading wallet format..."
+msgstr "Perbarui format dompet…"
+
+msgid "Use Gold Wallet and create a new wallet"
+msgstr "Gunakan Gold Wallet dan buat dompet baru"
+
+msgid "Use Gold Wallet and import an existing wallet"
+msgstr "Gunakan Gold Wallet dan impor dompet yang sudah ada"
+
+msgid "Use Replace-By-Fee"
+msgstr "Gunakan replace-By-Fee"
+
+msgid "Use Tor Proxy"
+msgstr "Gunakan Tor Proxy"
+
+msgid "Use a hardware device"
+msgstr "Gunakan perangkat keras"
+
+msgid "Use a master key"
+msgstr "Gunakan kunci master"
+
+msgid "Use as server"
+msgstr "Gunakan sebagai server"
+
+msgid "Use change addresses"
+msgstr "Gunakan alamat pengganti"
+
+msgid "Use multiple change addresses"
+msgstr "Gunakan beberapa alamat pengganti"
+
+msgid "Use proxy"
+msgstr "Gunakan proxy"
+
+msgid "Use the camera button to scan a QR code."
+msgstr "gunakan tombol kamera untuk memindai kode QR"
+
+msgid "Use this dialog to add a password to your wallet."
+msgstr "Gunakan dialog ini untuk menambahkan kata sandi ke dompet Anda."
+
+msgid "Use this dialog to change your password."
+msgstr "Gunakan dialog ini untuk merubah kata sandi Anda."
+
+msgid "Use this dialog to toggle encryption."
+msgstr "Gunakan dialog ini untuk mengaktifkan enkripsi."
+
+msgid "Used"
+msgstr "Digunakan"
+
+msgid "Username"
+msgstr "Nama pengguna"
+
+msgid "Uses icons from the Icons8 icon pack (icons8.com)."
+msgstr "Gunakan ikon dari Icons8 icon pack (icons8.com)."
+
+msgid ""
+"Using change addresses makes it more difficult for other people to track "
+"your transactions."
+msgstr ""
+"Menggunakan alamat pengganti dapat membuat orang lain lebih sulit untuk "
+"melacaktransaksi Anda."
+
+msgid "Value"
+msgstr "Nilai"
+
+msgid "Verification failed!"
+msgstr "Verifikasi gagal dilakukan!"
+
+msgid "Verification successful!"
+msgstr "Verifikasi sukses!"
+
+msgid "Verified block headers"
+msgstr "Verifikasi header blok"
+
+msgid "Verify"
+msgstr "Verifikasikan"
+
+msgid "Verify GA instant"
+msgstr "Verifikasi GA instant"
+
+msgid ""
+"Verify the address below.<br>Type the character from your security card "
+"corresponding to the <u><b>BOLD</b></u> character."
+msgstr ""
+"Verifikasi alamat dibawah.<br>Ketik karakter dari kartu keamanan Andayang "
+"sama dengan karakter <u><b>BOLD</b></u>."
+
+msgid ""
+"Verify the cable is connected and that no other application is using it."
+msgstr ""
+"Verifikasi kabel telah terhubung dan tidak ada aplikasi lain yang "
+"menggunakannya."
+
+msgid "Verifying..."
+msgstr "Memferivikasi…"
+
+msgid "Version"
+msgstr "Versi"
+
+msgid "Video Device"
+msgstr "Perangkat Video"
+
+msgid "Vietnamese"
+msgstr "Bahasa Vietnam"
+
+msgid "View in web browser"
+msgstr "Tampilkan di web browser"
+
+msgid "View log"
+msgstr "Tampilkan log"
+
+msgid "View on block explorer"
+msgstr "Tampilkan di penjelajah blok"
+
+msgid "WARNING"
+msgstr "PERINGATAN"
+
+msgid "WARNING: ALL your private keys are secret."
+msgstr "PERINGATAN: Semua kunci pribadi Anda bersifat rahasia."
+
+msgid "WARNING: This is a multi-signature wallet."
+msgstr "PERINGATAN: Ini adalah dompet multi-signatur."
+
+#, python-brace-format
+msgid ""
+"WARNING: the alias \"{alias}\" could not be validated via an additional "
+"security check, DNSSEC, and thus may not be correct."
+msgstr ""
+"PERINGATAN: alias \"{alias}\" tidak dapat divalidasi via pemeriksaankeamanan "
+"tambahan, DNSSEC, dan oleh karenanya mungkin tidak benar."
+
+msgid "WIF keys are typed in Electrum, based on script type."
+msgstr "Kunci WIF diketik di Electrum, berdasarkan tipe skrip."
+
+msgid "Waiting for TrustedCoin server to sign transaction..."
+msgstr "Menunggu server TrustedCOin untu menandatangani transaksi…"
+
+msgid "Wallet"
+msgstr "Dompet"
+
+msgid "Wallet Info"
+msgstr "Info Dompet"
+
+msgid "Wallet Information"
+msgstr "Informasi Dompet"
+
+msgid "Wallet Name"
+msgstr "Nama Dompet"
+
+msgid "Wallet backup created"
+msgstr "Dompet Cadangan Dibuat"
+
+msgid "Wallet change address"
+msgstr "Alamat dompet perubahan"
+
+msgid ""
+"Wallet file corruption detected. Please restore your wallet from seed, and "
+"compare the addresses in both files"
+msgstr ""
+"Kerusakan file dompet terdeteksi. Mohon pulihkan dompet Anda dari seed, "
+"danbandingkan alamat tertera di kedua file"
+
+#, python-brace-format
+msgid "Wallet file not found: {name}"
+msgstr "File dompet tidak ditemukan: {name}"
+
+msgid "Wallet name"
+msgstr "Nama dompet"
+
+msgid "Wallet receive address"
+msgstr "Alamat penerimaan dompet"
+
+#, python-brace-format
+msgid "Wallet removed: {name}"
+msgstr "Dompet dihapus: {name}"
+
+msgid "Wallet type"
+msgstr "Tipe dompet"
+
+msgid "Wallet type:"
+msgstr "Tipe dompet:"
+
+msgid "Warning"
+msgstr "Peringatan"
+
+msgid "Warning!"
+msgstr "Peringatan!"
+
+msgid ""
+"Warning: Please be aware that in the process of using the Secure Transaction "
+"feature, a part of the funds left in your wallet might be blocked. This is a "
+"normal procedure linked to UTXO and the blockchain parameters of the Bitcoin "
+"Vault wallet. Your funds will be unblocked once the transaction is verified "
+"(after approximately 24 hrs) or canceled (within 24 hrs)."
+msgstr ""
+"Peringatan: Mohon diingat bahwa proses ini menggunakan fiturTransaksi Secure "
+"(Aman), dimana sebagian dari saldo yang tersisa di dompet Anda akan diblokir "
+"untuk sementara. Ini merupakan sebuah prosedurnormal yang terhubung dengan "
+"UTXO dan parameter Blockchain milik dompetBitcoin Vault. Saldo Anda akan "
+"dibuka blokirnya (dicairkan) setelah transaksi Anda telah "
+"dikonfirmasi(Setelah kurang lebih 24 jam) atau dibatalkan (Dalam waktu 24 "
+"jam)."
+
+msgid ""
+"Warning: The next address will not be recovered automatically if you restore "
+"your wallet from seed; you may need to add it manually.\n"
+"\n"
+"This occurs because you have too many unused addresses in your wallet. To "
+"avoid this situation, use the existing addresses first.\n"
+"\n"
+"Create anyway?"
+msgstr ""
+"Peringatan: Alamat selanjutnya tidak akan dapat dipulihkan secara otomatis "
+"apabila anda memulihkandompet Anda dari seed; Anda mungkin perlu untuk "
+"menambahkannya secara manual.\n"
+"\n"
+"Hal ini terjadi karena Anda memiliki terlalu banyak alamat didompet Anda "
+"yang tidak digunakan. Untukmenghindari situati ini, pertama gunakan alamat "
+"dompet yang telah tersedia.\n"
+"\n"
+"Tetap buat?"
+
+msgid "Warning: do not use this if it makes you pick a weaker password."
+msgstr ""
+"Peringatan: jangan gunakan ini apabila Anda memilih kata sandi yang lebih "
+"lemah."
+
+msgid "Watch-only wallet"
+msgstr "Dompet watch-only"
+
+msgid ""
+"We do not guarantee that BIP39 imports will always be supported in Electrum."
+msgstr ""
+"Kami tidak dapat memberikan garansi bahwa impor BIP39 akan selalu didukung "
+"di Electrum."
+
+msgid "We encountered an error while connecting to your device:"
+msgstr "Kami menemui kesalahan ketika terhubung dengan perangkat Anda:"
+
+msgid ""
+"While this is less than ideal, it might help if you run Electrum as "
+"Administrator."
+msgstr ""
+"Meskipun kurang ideal, ini dapat membantu Anda menjalankan Electrum "
+"sebagaiAdministrator."
+
+#, python-brace-format
+msgid "Within {number} blocks"
+msgstr "Didalam blok {number}"
+
+msgid "Witness Script"
+msgstr "Witness Script"
+
+msgid ""
+"Would you like to be notified when there is a newer version of Electrum "
+"available?"
+msgstr "Apakah Anda ingin diberitahu ketika versi terbaru Electrumtersedia?"
+
+msgid "Write logs to file"
+msgstr "Tuliskan log ke file"
+
+msgid "Wrong PIN"
+msgstr "PIN salah"
+
+msgid "Wrong key type"
+msgstr "Tipe kunci salah"
+
+msgid "Wrong prefix. It is neither compressed nor uncompressed"
+msgstr "Prefix salah. Prefix tidak dikompresi maupun non kompresi"
+
+msgid "Wrong pubkey format"
+msgstr "Format pubkey salah"
+
+msgid "Wrong signature"
+msgstr "Tandatangan salah"
+
+msgid "You are already on the latest version of Electrum."
+msgstr "Anda sudah memili Electrum versi terbaru."
+
+msgid "You are following branch"
+msgstr "Anda mengikuti branch"
+
+msgid "You are in testnet mode."
+msgstr "Anda berada dalam mode testnet."
+
+msgid ""
+"You are most likely using an outdated version of Electrum. Please update."
+msgstr ""
+"Kemungkinan Anda menggunakan Electrum versi lama. Mohon lakukan pembaruan."
+
+msgid "You are offline."
+msgstr "Anda sedang offline"
+
+msgid ""
+"You are using Electrum in offline mode; restart Electrum if you want to get "
+"connected"
+msgstr ""
+"Anda menggunakan Electrum dalam mode offline; jalankan ulang Electrum "
+"apabila Anda inginterhubung"
+
+msgid ""
+"You are using a non-deterministic wallet, which cannot create new addresses."
+msgstr ""
+"Anda menggunakan dompet non-deterministic, yang tidak dapat membuat alamat "
+"baru."
+
+#, python-brace-format
+msgid "You can disable this setting in '{setting_name}'."
+msgstr "Anda dapat menonaktifkan pengaturan ini di '{setting_name}'."
+
+#, python-brace-format
+msgid "You can download the new version from {url}."
+msgstr "Anda dapat mendapatkan versi baru dari {url}."
+
+msgid "You can override the suggested derivation path."
+msgstr "Anda dapat mengganti jalur derivasi yang disarankan."
+
+msgid "You can't broadcast a transaction without a live network connection."
+msgstr "Anda tidak dapat menyiarkan transakti tanpa koneksi jaringan live."
+
+msgid ""
+"You do not need to perform regular backups, because your wallet can be "
+"recovered from a secret phrase that you can memorize or write on paper."
+msgstr ""
+"Anda tidak perlu melakukan backup secara rutin, karena dompet Anda "
+"dapatdipulihkan dari frasa rahasia yang dapat anda hafalkan atau tulis di "
+"kertas."
+
+msgid ""
+"You have multiple consecutive whitespaces or leading/trailing whitespaces in "
+"your passphrase."
+msgstr ""
+"Anda memiliki beberapa whitespace (spasi) berurutan atau leading/trailing "
+"whitespace (spasi didepan/dibelakang) dipassphrase Anda."
+
+msgid ""
+"You may enter a Bitcoin address, a label from your list of contacts (a list "
+"of completions will be proposed), or an alias (email-like address that "
+"forwards to a Bitcoin address)"
+msgstr ""
+"Anda dapat memasukkan sebuah alamat Bitcoin, sebuah label dari daftar kontak "
+"(daftarpenyelesaian akan dianjurkan), atau sebuah alias (alamat seperti "
+"email yangmeneruskan berbagai hal ke alama Bitcoin.)"
+
+msgid "You may extend your seed with custom words."
+msgstr "Anda dapat memperpanjang seed Anda menggunakan kata-kata buatan."
+
+msgid "You may load a CSV file using the file icon."
+msgstr "Anda dapat memuat file CSV menggunakan ikon file."
+
+msgid "You might have an incompatible library."
+msgstr "Anda mungmin memiliki perpustakaan yang tidak kompatibel."
+
+#, python-brace-format
+msgid ""
+"You need to be online in order to complete the creation of your wallet.  If "
+"you generated your seed on an offline computer, click on \"{button}\" to "
+"close this window, move your wallet file to an online computer, and reopen "
+"it with Electrum."
+msgstr ""
+"Anda harus online untuk menyelesaikan pembuatan dompet Anda. ApabilaAnd a "
+"membuat seed anda di sebuah komputer yang offline, klik di \"{button}\" "
+"untukmenutup jendela ini, memindahkan file dompet Anda sebuah komputer yang "
+"online, dan membuka kembalidompet Anda dengan Electrum."
+
+msgid ""
+"Your Ledger Wallet wants to tell you a one-time PIN code.<br><br>For best "
+"security you should unplug your device, open a text editor on another "
+"computer, put your cursor into it, and plug your device into that computer. "
+"It will output a summary of the transaction being signed and a one-time PIN."
+"<br><br>Verify the transaction summary and type the PIN code here."
+"<br><br>Before pressing enter, plug the device back into this computer.<br>"
+msgstr ""
+"Dompet ledger Anda ingin memberitahu anda sebuah PIN sekali pakai."
+"<br><br>Untuk keamananterbaik Anda harus melepas/mencopot perangkat Anda, "
+"buka editor teks dikomputer lain, masukkan kursor Anda kedalamnya, dan "
+"pasang perangkat Anda di komputer tersebut.Hal ini akan memberikan output "
+"berupa sebuah ringkasan transaksi yang telah ditandatangani dan PIN sekali "
+"pakai.<br><br>Verifikasikan ringkasan transaksi dan ketik kode PIN disini."
+"<br><br>Sebelum menekan enter, pasang perangkat kembali ke komputer ini.<br>"
+
+msgid "Your Ledger is locked. Please unlock it."
+msgstr "Ledger Anda dikunci. Mohon buka kunnci."
+
+msgid "Your Node ID"
+msgstr "ID Node Anda"
+
+msgid "Your PIN code was updated"
+msgstr "PIN Anda telah diperbarui"
+
+msgid "Your accounts have been moved to"
+msgstr "Akun Anda telah dipindahkan ke"
+
+msgid ""
+"Your bitcoins are password protected. However, your wallet file is not "
+"encrypted."
+msgstr ""
+"Bitcoin Anda dilindungi dengan kata sandi. Namun, file dompet Anda "
+"tidakdienkripsi."
+
+msgid "Your device might not have support for this functionality."
+msgstr "Perangkat Anda mungkin tidak mendukung fitur ini."
+
+msgid "Your labels have been synchronised."
+msgstr "Label Anda telah disinkronisasi"
+
+msgid "Your seed extension is"
+msgstr "Ekstensi seed Anda adalah"
+
+msgid "Your seed extension must be saved together with your seed."
+msgstr "Ekstensi seed Anda harus disimpan bersamaan dengan seed Anda."
+
+msgid "Your seed is important!"
+msgstr "Seed Anda sangatlah penting!"
+
+msgid "Your server is on branch"
+msgstr "Server Anda berada di branch"
+
+msgid "Your transaction was sent to the cosigning pool."
+msgstr "Transaksi Anda telah dikirimkan ke cosigning pool."
+
+msgid "Your wallet file does not contain secrets, mostly just metadata. "
+msgstr ""
+"File dompet Anda tidak mengandung rahasia, sebagian besar hanyalah metadata."
+
+msgid "Your wallet file is NOT encrypted."
+msgstr "File dompet Anda TIDAK dienkripsi."
+
+msgid "Your wallet file is encrypted."
+msgstr "File dompet Anda dienkripsi."
+
+#, python-brace-format
+msgid "Your wallet file is: {path}."
+msgstr "File dompet Anda adalah: {path}."
+
+msgid "Your wallet generation seed is:"
+msgstr "Seed generasi dompet Anda adalah:"
+
+#, python-brace-format
+msgid "Your wallet has {number} prepaid transactions."
+msgstr "Dompet Anda memiliki {number} transaksi prabayar."
+
+msgid "Your wallet history has been successfully exported."
+msgstr "Riwayat dompet Anda telah secara sukses diekspor."
+
+msgid "Your wallet is not protected."
+msgstr "Dompet Anda tidak dilindungi."
+
+msgid "Your wallet is password protected and encrypted."
+msgstr "Dompet Anda dilindungi dengan kata sandi dan dienkripsi."
+
+msgid "Your wallet's generated seed is:"
+msgstr "Seed dompet Anda adalah:"
+
+#, python-brace-format
+msgid "Your {0} were exported to '{1}'"
+msgstr "{0} Anda diekspor ke '{1}'"
+
+#, python-brace-format
+msgid "Your {title} were successfully imported"
+msgstr "{title} berhasil diimpor"
+
+msgid "Zeros after decimal point"
+msgstr "Anka nol setelah poin desimal"
+
+msgid "[Clear]"
+msgstr "[Bersihkan]"
+
+msgid "[Send]"
+msgstr "[Kirim]"
+
+msgid "[b] - print server banner"
+msgstr "[b] - cetak banner server"
+
+msgid "[c] - display contacts"
+msgstr "[c] - tampilkan kontak"
+
+msgid "[h] - displays this help text"
+msgstr "[h] - tampilkan teks bantuan"
+
+msgid "[i] - display transaction history"
+msgstr "[i] - tampilkan riwayat transaksi"
+
+msgid "[o] - enter payment order"
+msgstr "[o] - masuk pesanan pembayaran"
+
+msgid "[p] - print stored payment order"
+msgstr "[p] - cetak pesanan pembayaran yang tersimpan"
+
+msgid "[q] - quit"
+msgstr "[q] - keluar"
+
+msgid "[r] - show own receipt addresses"
+msgstr "[r] - tampilkan alamat receipt sendiri"
+
+msgid "[s] - send stored payment order"
+msgstr "[s] - kirimkan pesanan pembayaran tersimpan"
+
+msgid "add inputs and outputs"
+msgstr "tambahkan input dan output"
+
+msgid "add invoice timed out"
+msgstr "tambahkan invoince habis tempo"
+
+msgid "address already in wallet"
+msgstr "Alamat sudah ada di dompet"
+
+msgid ""
+"and you will have the possibility, while they are unconfirmed, to replace "
+"them with transactions that pay higher fees."
+msgstr ""
+"dan Anda akan memiliki kemungkinan, ketika transaksi masih belum dikonfasi, "
+"untuk menggantikantransaksi tersebut dengan tansaksi dengan biaya yang lebih "
+"tinggi."
+
+msgid "are frozen"
+msgstr "dibekukan"
+
+msgid "blocks"
+msgstr "blok"
+
+msgid "change"
+msgstr "ubah"
+
+msgid "contacts"
+msgstr "kontak"
+
+msgid "cosigner"
+msgstr "cosigner"
+
+msgid "could not find suitable outputs"
+msgstr "tidak dapat menemukan output yang seusia"
+
+msgid "current fee unknown"
+msgstr "biaya sekarang tidak diketahui"
+
+msgid "high fee"
+msgstr "biaya tinggi"
+
+msgid "initialized"
+msgstr "diinisialisasi"
+
+msgid "invalid address"
+msgstr "alamat tidak valid"
+
+msgid "invalid private key"
+msgstr "kunci pribadi tidak valid"
+
+msgid "invoices"
+msgstr "invoice"
+
+msgid "json"
+msgstr "json"
+
+msgid "keystore"
+msgstr "keystore"
+
+msgid "labels"
+msgstr "label"
+
+msgid ""
+"more information at <a href=\"https://revealer.cc/faq\">https://revealer.cc/"
+"faq</a>"
+msgstr ""
+"informasi lebih lanjut di <a href=\"https://revealer.cc/faq\">https://"
+"revealer.cc/faq</a>"
+
+msgid "not implemented type"
+msgstr "tipe tidak diimplementasikan"
+
+msgid "open_channel timed out"
+msgstr "open_channel habis tempo"
+
+msgid "or type an existing revealer code below and click 'next':"
+msgstr ""
+"atau ketik kode revealer yang sudah ada di kolom bawah dan klik 'lanjutkan':"
+
+msgid "please wait..."
+msgstr "mohon tunggu…"
+
+msgid "print the calibration pdf and follow the instructions "
+msgstr "cetak pdf kalibrasi dan ikuti instruksi"
+
+msgid "proxy enabled"
+msgstr "proxy diaktifkan"
+
+msgid "receiving"
+msgstr "menerima"
+
+msgid "secret backup utility"
+msgstr "alat backup rahasia"
+
+msgid "seed"
+msgstr "seed"
+
+msgid "transaction is final"
+msgstr "transaksi sudah final"
+
+msgid "type a custom alphanumerical secret below:"
+msgstr "ketik alfanumerik rahasia kustom dibawah:"
+
+msgid "unconfirmed"
+msgstr "belun dikonfirmasi"
+
+msgid "unknown"
+msgstr "tidak dikenal"
+
+msgid "unknown parser {name!r} (choices: {choices})"
+msgstr "parser tidak dikenal {name!r} (choices: {choices})"
+
+msgid "unmatured"
+msgstr "belum matang"
+
+msgid "watching only"
+msgstr "watching only"
+
+msgid "watching-only"
+msgstr "watching-only"
+
+msgid "wiped"
+msgstr "dibersihkan"
+
+msgid ""
+"your seed extension will <b>not</b> be included in the encrypted backup."
+msgstr ""
+"ekstensi seed Anda <b>tidak</b> akan ditambahkan ke bakup terenkripsi Anda."
+
+#, python-brace-format
+msgid "{coins_number} outputs available ({utxos_number} total)"
+msgstr "{coins_number} output tersedia ({utxos_number} total)"
+
+#, python-brace-format
+msgid "{number} confirmations"
+msgstr "{number} konfirmasi"
+
+#, python-brace-format
+msgid "{number} connections."
+msgstr "{number} koneksi."
+
+#, python-brace-format
+msgid ""
+"{number} new transactions: Total amount received in the new transactions "
+"{amount}"
+msgstr ""
+"{number} transaksi baru: Total yang diterima di transaksi baru {amount}"
+
+#, python-brace-format
+msgid "{size} from tip"
+msgstr "{size} dari ujung"
+
+#, python-brace-format
+msgid ""
+"{title} copied to clipboard:\n"
+"\n"
+"{content}"
+msgstr ""
+"{title} disalin ke papan klip:\n"
+"\n"
+"{content}"
+
+#, python-brace-format
+msgid "{txid} is covered by GreenAddress instant confirmation"
+msgstr "{txid} dilindungi oleh konfirmasi instan GreenAddress"
+
+#, python-brace-format
+msgid "{txid} is not covered by GreenAddress instant confirmation"
+msgstr "{txid} tidak dilindungi oleh konfirmasi instan GreenAddress"
+
+#, python-brace-format
+msgid ""
+"{wallet_seed} encrypted for Revealer {version}_{checksum} saved as PNG and "
+"PDF at: "
+msgstr ""
+"{wallet_seed} yang dienkripsi untuk Revealer {version}_{checksum} disimpan "
+"sebagai PNG dan PDF di: "

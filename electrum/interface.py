@@ -176,6 +176,7 @@ class RequestTimedOut(GracefulDisconnect):
 
 class ErrorParsingSSLCert(Exception): pass
 class ErrorGettingSSLCertFromServer(Exception): pass
+class ErrorSelfSignedSSLCert(Exception): pass
 class ConnectError(NetworkException): pass
 
 
@@ -272,38 +273,18 @@ class Interface(Logger):
 
     async def _try_saving_ssl_cert_for_first_time(self, ca_ssl_context):
         ca_signed = await self.is_server_ca_signed(ca_ssl_context)
-        if ca_signed:
-            with open(self.cert_path, 'w') as f:
-                # empty file means this is CA signed, not self-signed
-                f.write('')
-        else:
-            await self.save_certificate()
+        if not ca_signed:
+            raise ErrorSelfSignedSSLCert('Self-signed server certificate')
+        with open(self.cert_path, 'w') as f:
+            # empty file means this is CA signed, not self-signed
+            f.write('')
 
     def _is_saved_ssl_cert_available(self):
         if not os.path.exists(self.cert_path):
             return False
         with open(self.cert_path, 'r') as f:
             contents = f.read()
-        if contents == '':  # CA signed
-            return True
-        # pinned self-signed cert
-        try:
-            b = pem.dePem(contents, 'CERTIFICATE')
-        except SyntaxError as e:
-            self.logger.info(f"error parsing already saved cert: {e}")
-            raise ErrorParsingSSLCert(e) from e
-        try:
-            x = x509.X509(b)
-        except Exception as e:
-            self.logger.info(f"error parsing already saved cert: {e}")
-            raise ErrorParsingSSLCert(e) from e
-        try:
-            x.check_date()
-            return True
-        except x509.CertificateError as e:
-            self.logger.info(f"certificate has expired: {e}")
-            os.unlink(self.cert_path)  # delete pinned cert only in this case
-            return False
+        return contents == ''  # CA signed
 
     async def _get_ssl_context(self):
         if self.protocol != 's':
@@ -315,17 +296,14 @@ class Interface(Logger):
         if not self._is_saved_ssl_cert_available():
             try:
                 await self._try_saving_ssl_cert_for_first_time(ca_sslc)
-            except (OSError, ConnectError, aiorpcx.socks.SOCKSError) as e:
+            except (OSError, ConnectError, aiorpcx.socks.SOCKSError, ErrorSelfSignedSSLCert) as e:
                 raise ErrorGettingSSLCertFromServer(e) from e
         # now we have a file saved in our certificate store
         siz = os.stat(self.cert_path).st_size
-        if siz == 0:
-            # CA signed cert
-            sslc = ca_sslc
-        else:
-            # pinned self-signed cert
-            sslc = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=self.cert_path)
-            sslc.check_hostname = 0
+        if siz != 0:
+            raise ErrorSelfSignedSSLCert('Self-signed server certificate')
+        # CA signed cert
+        sslc = ca_sslc
         return sslc
 
     def handle_disconnect(func):

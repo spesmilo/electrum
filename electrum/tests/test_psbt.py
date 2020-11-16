@@ -5,7 +5,7 @@ from electrum import constants
 from electrum.transaction import (tx_from_any, PartialTransaction, BadHeaderMagic, UnexpectedEndOfStream,
                                   SerializationError, PSBTInputConsistencyFailure)
 
-from . import ElectrumTestCase, TestCaseForTestnet
+from electrum.tests import ElectrumTestCase, TestCaseForTestnet
 
 
 class TestValidPSBT(TestCaseForTestnet):

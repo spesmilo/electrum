@@ -188,7 +188,7 @@ class ChannelDetailsPopup(Popup):
         coro = asyncio.run_coroutine_threadsafe(self.app.wallet.lnworker.force_close_channel(self.chan.channel_id), loop)
         try:
             coro.result(1)
-            self.app.show_info(_('Channel closed, you may need to wait at least {} blocks, because of CSV delays'.format(self.chan.config[REMOTE].to_self_delay)))
+            self.app.show_info(_('Channel closed, you may need to wait at least {number} blocks, because of CSV delays'.format(number=self.chan.config[REMOTE].to_self_delay)))
         except Exception as e:
             self.app.show_info(_('Could not force close channel: ') + repr(e)) # repr because str(Exception()) == ''
 

@@ -7,7 +7,7 @@ from electrum.simple_config import SimpleConfig
 from electrum.blockchain import Blockchain, deserialize_header, hash_header
 from electrum.util import bh2u, bfh, make_dir
 
-from . import ElectrumTestCase
+from electrum.tests import ElectrumTestCase
 
 
 class TestBlockchain(ElectrumTestCase):

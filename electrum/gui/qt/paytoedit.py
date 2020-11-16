@@ -35,6 +35,7 @@ from electrum.transaction import push_script, PartialTxOutput
 from electrum.bitcoin import opcodes
 from electrum.logging import Logger
 from electrum.lnaddr import LnDecodeException
+from electrum.i18n import _
 
 from .qrtextedit import ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
@@ -119,6 +120,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         return int(p * Decimal(x.strip()))
 
     def parse_address(self, line):
+        line = util.filter_non_printable(line)
         r = line.strip()
         m = re.match('^'+RE_ALIAS+'$', r)
         address = str(m.group(2) if m else r)
@@ -127,6 +129,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
 
     def check_text(self):
         self.errors = []
+        self.setStyleSheet(util.ColorScheme.DEFAULT.as_stylesheet(True))
         if self.is_pr:
             return
         # filter out empty lines
@@ -135,6 +138,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         total = 0
         self.payto_scriptpubkey = None
         self.lightning_invoice = None
+
         if len(lines) == 1:
             data = lines[0]
             if data.startswith("bitcoin:"):
@@ -165,7 +169,8 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
             try:
                 output = self.parse_address_and_amount(line)
             except Exception as e:
-                self.errors.append(PayToLineError(idx=i, line_content=line.strip(), exc=e))
+                self.setStyleSheet(util.ColorScheme.RED.as_stylesheet(True))
+                self.errors.append(PayToLineError(idx=i, line_content=_("Invalid address") + ", " + line.strip(), exc=e))
                 continue
             outputs.append(output)
             if output.value == '!':
@@ -178,7 +183,6 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         self.win.max_button.setChecked(is_max)
         self.outputs = outputs
         self.payto_scriptpubkey = None
-
         if self.win.max_button.isChecked():
             self.win.do_update_fee()
         else:

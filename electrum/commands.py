@@ -1131,8 +1131,8 @@ def subparser_call(self, parser, namespace, values, option_string=None):
     try:
         parser = self._name_parser_map[parser_name]
     except KeyError:
-        tup = parser_name, ', '.join(self._name_parser_map)
-        msg = _('unknown parser {!r} (choices: {})').format(*tup)
+        choices = ', '.join(self._name_parser_map)
+        msg = _('unknown parser {name!r} (choices: {choices})').format(name=parser_name, choices=choices)
         raise ArgumentError(self, msg)
     # parse all the remaining options into the namespace
     # store any unrecognized options on the object, so that the top
@@ -1147,7 +1147,7 @@ argparse._SubParsersAction.__call__ = subparser_call
 
 def add_network_options(parser):
     parser.add_argument("-1", "--oneserver", action="store_true", dest="oneserver", default=None, help="connect to one server only")
-    parser.add_argument("-s", "--server", dest="server", default=None, help="set server host:port:protocol, where protocol is either t (tcp) or s (ssl)")
+    parser.add_argument("-s", "--server", dest="server", default=None, help="set server host:port (only communication over ssl protocol is supported")
     parser.add_argument("-p", "--proxy", dest="proxy", default=None, help="set proxy [type:]host[:port], where type is socks4,socks5 or http")
     parser.add_argument("--noonion", action="store_true", dest="noonion", default=None, help="do not try to connect to onion servers")
     parser.add_argument("--skipmerklecheck", action="store_true", dest="skipmerklecheck", default=False, help="Tolerate invalid merkle proofs from server")

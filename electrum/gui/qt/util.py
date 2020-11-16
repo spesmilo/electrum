@@ -7,6 +7,8 @@ import queue
 import traceback
 import os
 import webbrowser
+import itertools
+import string
 
 from functools import partial, lru_cache
 from typing import NamedTuple, Callable, Optional, TYPE_CHECKING, Union, List, Dict
@@ -226,6 +228,10 @@ class MessageBoxMixin(object):
 
     def show_message(self, msg, parent=None, title=None, **kwargs):
         return self.msg_box(QMessageBox.Information, parent,
+                            title or _('Information'), msg, **kwargs)
+
+    def show_confirmed(self, msg, parent=None, title=None, **kwargs):
+        return self.msg_box(read_QPixmap('confirmed.png'), parent,
                             title or _('Information'), msg, **kwargs)
 
     def msg_box(self, icon, parent, title, text, *, buttons=QMessageBox.Ok,
@@ -816,7 +822,7 @@ class AcceptFileDragDrop:
 
 def import_meta_gui(electrum_window, title, importer, on_success):
     filter_ = "JSON (*.json);;All files (*)"
-    filename = electrum_window.getOpenFileName(_("Open {} file").format(title), filter_)
+    filename = electrum_window.getOpenFileName(_("Open {title} file").format(title=title), filter_)
     if not filename:
         return
     try:
@@ -824,13 +830,13 @@ def import_meta_gui(electrum_window, title, importer, on_success):
     except FileImportFailed as e:
         electrum_window.show_critical(str(e))
     else:
-        electrum_window.show_message(_("Your {} were successfully imported").format(title))
+        electrum_window.show_message(_("Your {title} were successfully imported").format(title=title))
         on_success()
 
 
 def export_meta_gui(electrum_window, title, exporter):
     filter_ = "JSON (*.json);;All files (*)"
-    filename = electrum_window.getSaveFileName(_("Select file to save your {}").format(title),
+    filename = electrum_window.getSaveFileName(_("Select file to save your {title}").format(title=title),
                                                'electrum_{}.json'.format(title), filter_)
     if not filename:
         return
@@ -867,6 +873,9 @@ def icon_path(icon_basename):
 def read_QIcon(icon_basename):
     return QIcon(icon_path(icon_basename))
 
+@lru_cache(maxsize=1000)
+def read_QPixmap(icon_basename):
+    return QPixmap(icon_path(icon_basename)).scaled(QSize(32, 32))
 
 def get_default_language():
     name = QLocale.system().name()
@@ -906,6 +915,11 @@ def webopen(url: str):
             sys.exit(0)
     else:
         webbrowser.open(url)
+
+
+def filter_non_printable(text: str):
+    subset = itertools.chain([ord(x) for x in string.whitespace])
+    return text.translate({char: None for char in subset})
 
 
 if __name__ == "__main__":

@@ -146,6 +146,6 @@ class LightningOpenChannelDialog(Factory.Popup):
         message = '\n'.join([
             _('Channel established.'),
             _('Remote peer ID') + ':' + chan.node_id.hex(),
-            _('This channel will be usable after {} confirmations').format(n)
+            _('This channel will be usable after {number} confirmations').format(number=n)
         ])
         self.app.show_info(message)

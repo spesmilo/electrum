@@ -79,7 +79,7 @@ class UTXOList(MyTreeView):
         coins = self._filter_frozen_coins(coins)
         amount = sum(x.value_sats() for x in coins)
         amount_str = self.parent.format_amount_and_units(amount)
-        num_outputs_str = _("{} outputs available ({} total)").format(len(coins), len(utxos))
+        num_outputs_str = _("{coins_number} outputs available ({utxos_number} total)").format(coins_number=len(coins), utxos_number=len(utxos))
         if self.spend_list:
             self.parent.set_coincontrol_msg(_("Coin control active") + f': {num_outputs_str}, {amount_str}')
         else:

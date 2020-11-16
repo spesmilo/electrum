@@ -1,23 +1,22 @@
-import shutil
-import tempfile
-import sys
-import os
 import json
-from decimal import Decimal
+import os
+import shutil
+import sys
+import tempfile
 import time
-
+from decimal import Decimal
 from io import StringIO
-from electrum.storage import WalletStorage
-from electrum.json_db import FINAL_SEED_VERSION
-from electrum.wallet import (Abstract_Wallet, Standard_Wallet, create_new_wallet,
-                             restore_wallet_from_text, Imported_Wallet)
-from electrum.exchange_rate import ExchangeBase, FxThread
-from electrum.util import TxMinedInfo
+
 from electrum.bitcoin import COIN
+from electrum.exchange_rate import ExchangeBase, FxThread
+from electrum.json_db import FINAL_SEED_VERSION
 from electrum.json_db import JsonDB
 from electrum.simple_config import SimpleConfig
-
-from . import ElectrumTestCase
+from electrum.storage import WalletStorage
+from electrum.tests import ElectrumTestCase
+from electrum.util import TxMinedInfo
+from electrum.wallet import (Abstract_Wallet, Standard_Wallet, create_new_wallet,
+                             restore_wallet_from_text, Imported_Wallet)
 
 
 class FakeSynchronizer(object):
@@ -163,7 +162,7 @@ class TestCreateRestoreWallet(WalletTestCase):
         wallet = d['wallet']  # type: Standard_Wallet
         wallet.check_password(password)
         self.assertEqual(passphrase, wallet.keystore.get_passphrase(password))
-        self.assertEqual(d['seed'], wallet.keystore.get_seed(password))
+        self.assertEqual(d['seed'], wallet.keystore.get_recovery_seed(password))
         self.assertEqual(encrypt_file, wallet.storage.is_encrypted())
 
     def test_restore_wallet_from_text_mnemonic(self):
@@ -180,7 +179,7 @@ class TestCreateRestoreWallet(WalletTestCase):
                                      config=self.config)
         wallet = d['wallet']  # type: Standard_Wallet
         self.assertEqual(passphrase, wallet.keystore.get_passphrase(password))
-        self.assertEqual(text, wallet.keystore.get_seed(password))
+        self.assertEqual(text, wallet.keystore.get_recovery_seed(password))
         self.assertEqual(encrypt_file, wallet.storage.is_encrypted())
         self.assertEqual('bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', wallet.get_receiving_addresses()[0])
 

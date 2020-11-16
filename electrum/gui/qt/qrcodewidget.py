@@ -5,7 +5,7 @@ import PyQt5.QtGui as QtGui
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
     QApplication, QVBoxLayout, QTextEdit, QHBoxLayout, QPushButton, QWidget,
-    QFileDialog,
+    QFileDialog, QLabel
 )
 
 from electrum.i18n import _
@@ -15,15 +15,14 @@ from .util import WindowModalDialog, get_parent_main_window
 
 class QRCodeWidget(QWidget):
 
-    def __init__(self, data = None, fixedSize=False):
+    def __init__(self, data=None, fixedSize=False):
         QWidget.__init__(self)
         self.data = None
         self.qr = None
-        self.fixedSize=fixedSize
+        self.fixedSize = fixedSize
         if fixedSize:
             self.setFixedSize(fixedSize, fixedSize)
         self.setData(data)
-
 
     def setData(self, data):
         if self.data != data:
@@ -37,12 +36,11 @@ class QRCodeWidget(QWidget):
             self.qr.add_data(self.data)
             if not self.fixedSize:
                 k = len(self.qr.get_matrix())
-                self.setMinimumSize(k*5,k*5)
+                self.setMinimumSize(k * 5, k * 5)
         else:
             self.qr = None
 
         self.update()
-
 
     def paintEvent(self, e):
         if not self.data:
@@ -71,10 +69,10 @@ class QRCodeWidget(QWidget):
 
         margin = 10
         framesize = min(r.width(), r.height())
-        boxsize = int( (framesize - 2*margin)/k )
-        size = k*boxsize
-        left = (framesize - size)/2
-        top = (framesize - size)/2
+        boxsize = int((framesize - 2 * margin) / k)
+        size = k * boxsize
+        left = (framesize - size) // 2 + 1
+        top = (framesize - size) // 2 + 1
         # Draw white background with margin
         qp.setBrush(white)
         qp.setPen(white)
@@ -85,18 +83,25 @@ class QRCodeWidget(QWidget):
         for r in range(k):
             for c in range(k):
                 if matrix[r][c]:
-                    qp.drawRect(left+c*boxsize, top+r*boxsize, boxsize - 1, boxsize - 1)
+                    qp.drawRect(left + c * boxsize, top + r * boxsize, boxsize - 1, boxsize - 1)
         qp.end()
-
 
 
 class QRDialog(WindowModalDialog):
 
-    def __init__(self, data, parent=None, title = "", show_text=False):
+    def __init__(self, data, parent=None, title="", show_text=False, description=None):
         WindowModalDialog.__init__(self, parent, title)
 
         vbox = QVBoxLayout()
         qrw = QRCodeWidget(data)
+
+        if description:
+            label = QLabel(description)
+            label.setWordWrap(True)
+            hbox2 = QHBoxLayout()
+            hbox2.addWidget(label)
+            vbox.addLayout(hbox2)
+
         vbox.addWidget(qrw, 1)
         if show_text:
             text = QTextEdit()
@@ -137,4 +142,5 @@ class QRDialog(WindowModalDialog):
         b.setDefault(True)
 
         vbox.addLayout(hbox)
+
         self.setLayout(vbox)

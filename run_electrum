@@ -41,6 +41,8 @@ is_bundle = getattr(sys, 'frozen', False)
 is_local = not is_bundle and os.path.exists(os.path.join(script_dir, "electrum.desktop"))
 is_android = 'ANDROID_DATA' in os.environ
 
+disable_plain_tcp = bool(int(os.environ.get('ELECTRUM_DEBUG_DISABLE_PLAIN_TCP', 1)))
+
 if is_local:  # running from source
     # developers should probably see all deprecation warnings.
     warnings.simplefilter('default', DeprecationWarning)
@@ -50,7 +52,6 @@ os.environ['KIVY_DATA_DIR'] = os.path.abspath(os.path.dirname(__file__)) + '/ele
 
 if is_local or is_android:
     sys.path.insert(0, os.path.join(script_dir, 'packages'))
-
 
 def check_imports():
     # pure-python dependencies need to be imported here for pyinstaller
@@ -303,6 +304,16 @@ if __name__ == '__main__':
         f = lambda key: config_options[key] is not None and key not in config_variables.get(args.cmd, {}).keys()
         config_options = {key: config_options[key] for key in filter(f, config_options.keys())}
         if config_options.get('server'):
+            if disable_plain_tcp:
+                # set protocol to a fixed 's' => SSL
+                server_split = str(config_options.get('server')).split(':')
+                if server_split[-1] != 's':
+                    try:
+                        int(server_split[-1])  # check if server ends with port
+                    except ValueError:
+                        server_split = server_split[:-1]
+                    config_options['server'] = ':'.join(server_split + ['s'])
+
             config_options['auto_connect'] = False
 
     config_options['cwd'] = os.getcwd()
@@ -364,7 +375,7 @@ if __name__ == '__main__':
     loop, stop_loop, loop_thread = create_and_start_event_loop()
 
     if cmdname == 'gui':
-        configure_logging(config)
+        configure_logging(config, is_local)
         fd = daemon.get_file_descriptor(config)
         if fd is not None:
             plugins = init_plugins(config, config.get('gui', 'qt'))
@@ -376,7 +387,7 @@ if __name__ == '__main__':
 
     elif cmdname == 'daemon':
 
-        configure_logging(config)
+        configure_logging(config, is_local)
         fd = daemon.get_file_descriptor(config)
         if fd is not None:
             # run daemon

@@ -6,7 +6,7 @@ Popup:
     watching_only: app.wallet.is_watching_only()
     has_seed: app.wallet.has_seed()
     on_parent:
-        self.confirmed, self.unconfirmed, self.unmatured = app.wallet.get_balance()
+        self.confirmed, self.unconfirmed, self.unmatured, *__ = app.wallet.get_balance()
     BoxLayout:
         orientation: 'vertical'
         ScrollView:

@@ -20,11 +20,11 @@ from electrum.logging import Logger
 
 class UpdateCheck(QWidget, Logger):
     # TODO: update this to server's IP
-    url = "http://bitcoinvault.global/version"
+    url = "https://bitcoinvault.global/electrum_version"
     download_url = "https://bitcoinvault.global"
 
     VERSION_ANNOUNCEMENT_SIGNING_KEYS = (
-        "YhK3ULRcNB7Nrqeif3qLUqsFTcngxJsba9",
+        "YhS6cQ6V955ssLzhgnMBNT3EF5xMjrhb8k",
     )
 
     def __init__(self, main_window, latest_version=None):
@@ -48,8 +48,8 @@ class UpdateCheck(QWidget, Logger):
         self.content.addWidget(self.pb)
 
         versions = QHBoxLayout()
-        versions.addWidget(QLabel(_("Current version: {}".format(version.ELECTRUM_VERSION))))
-        self.latest_version_label = QLabel(_("Latest version: {}".format(" ")))
+        versions.addWidget(QLabel(_("Current version: {version}".format(version=version.ELECTRUM_VERSION))))
+        self.latest_version_label = QLabel(_("Latest version: {version}".format(version=" ")))
         versions.addWidget(self.latest_version_label)
         self.content.addLayout(versions)
 
@@ -81,11 +81,11 @@ class UpdateCheck(QWidget, Logger):
     def update_view(self, latest_version=None):
         if latest_version:
             self.pb.hide()
-            self.latest_version_label.setText(_("Latest version: {}".format(latest_version)))
+            self.latest_version_label.setText(_("Latest version: {version}".format(version=latest_version)))
             if self.is_newer(latest_version):
                 self.heading_label.setText('<h2>' + _("There is a new update available") + '</h2>')
                 url = "<a href='{u}'>{u}</a>".format(u=UpdateCheck.download_url)
-                self.detail_label.setText(_("You can download the new version from {}.").format(url))
+                self.detail_label.setText(_("You can download the new version from {url}.").format(url=url))
             else:
                 self.heading_label.setText('<h2>' + _("Already up to date") + '</h2>')
                 self.detail_label.setText(_("You are already on the latest version of Electrum."))
@@ -122,7 +122,7 @@ class UpdateCheckThread(QThread, Logger):
                     sig = base64.b64decode(sig)
                     msg = version_num.encode('utf-8')
                     if ecc.verify_message_with_address(address=address, sig65=sig, message=msg,
-                                                       net=constants.BitcoinMainnet):
+                                                       net=constants.BitcoinVaultMainnet):
                         self.logger.info(f"valid sig for version announcement '{version_num}' from address '{address}'")
                         break
                 else:

@@ -257,7 +257,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
         return wrapper
 
     def decrypt_message(self, pubkey, message, password):
-        raise UserFacingException(_('Encryption and decryption are currently not supported for {}').format(self.device))
+        raise UserFacingException(_('Encryption and decryption are currently not supported for {device}').format(device=self.device))
 
     @test_pin_unlocked
     @set_and_unset_signing
@@ -585,7 +585,7 @@ class LedgerPlugin(HW_PluginBase):
 
     def get_xpub(self, device_id, derivation, xtype, wizard):
         if xtype not in self.SUPPORTED_XTYPES:
-            raise ScriptTypeNotSupported(_('This type of script is not supported with {}.').format(self.device))
+            raise ScriptTypeNotSupported(_('This type of script is not supported with {device}.').format(device=self.device))
         devmgr = self.device_manager()
         client = devmgr.client_by_id(device_id)
         client.handler = self.create_handler(wizard)
@@ -612,7 +612,7 @@ class LedgerPlugin(HW_PluginBase):
         if not self.show_address_helper(wallet, address, keystore):
             return
         if type(wallet) is not Standard_Wallet:
-            keystore.handler.show_error(_('This function is only available for standard wallets when using {}.').format(self.device))
+            keystore.handler.show_error(_('This function is only available for standard wallets when using {device}.').format(device=self.device))
             return
         sequence = wallet.get_address_index(address)
         txin_type = wallet.get_txin_type(address)

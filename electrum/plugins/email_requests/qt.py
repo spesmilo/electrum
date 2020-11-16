@@ -249,7 +249,7 @@ class Plugin(BasePlugin):
 
         check_connection = CheckConnectionThread(server, username, password)
         check_connection.connection_error_signal.connect(lambda e: window.show_message(
-            _("Unable to connect to mail server:\n {}").format(e) + "\n" +
+            _("Unable to connect to mail server:\n {error}").format(error=e) + "\n" +
             _("Please check your connection and credentials.")
         ))
         check_connection.start()

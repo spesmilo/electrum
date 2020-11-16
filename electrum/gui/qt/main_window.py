@@ -22,82 +22,78 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import sys
-import time
-import threading
-import os
-import traceback
-import json
-import shutil
-import weakref
-import csv
-from decimal import Decimal
-import base64
-from functools import partial
-import queue
 import asyncio
+import base64
+import csv
+import json
+import os
+import queue
+import shutil
+import sys
+import threading
+import time
+import weakref
+from decimal import Decimal
+from functools import partial
 from typing import Optional, TYPE_CHECKING, Sequence, List, Union
 
-from PyQt5.QtGui import QPixmap, QKeySequence, QIcon, QCursor, QFont
+import qrcode
 from PyQt5.QtCore import Qt, QRect, QStringListModel, QSize, pyqtSignal
+from PyQt5.QtGui import QPixmap, QKeySequence, QIcon, QCursor
 from PyQt5.QtWidgets import (QMessageBox, QComboBox, QSystemTrayIcon, QTabWidget,
-                             QSpinBox, QMenuBar, QFileDialog, QCheckBox, QLabel,
-                             QVBoxLayout, QGridLayout, QLineEdit, QTreeWidgetItem,
-                             QHBoxLayout, QPushButton, QScrollArea, QTextEdit,
+                             QMenuBar, QFileDialog, QCheckBox, QLabel,
+                             QVBoxLayout, QGridLayout, QLineEdit, QHBoxLayout, QPushButton, QScrollArea, QTextEdit,
                              QShortcut, QMainWindow, QCompleter, QInputDialog,
-                             QWidget, QMenu, QSizePolicy, QStatusBar)
+                             QWidget, QSizePolicy, QStatusBar)
 
 import electrum
-from electrum import (keystore, simple_config, ecc, constants, util, bitcoin, commands,
-                      coinchooser, paymentrequest)
+from electrum import (keystore, ecc, constants, util, bitcoin, commands,
+                      paymentrequest)
+from electrum.address_synchronizer import AddTransactionException
 from electrum.bitcoin import COIN, is_address
-from electrum.plugin import run_hook
+from electrum.exchange_rate import FxThread
 from electrum.i18n import _
-from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
-                           format_satoshis_plain, NotEnoughFunds,
-                           UserCancelled, NoDynamicFeeEstimates, profiler,
-                           export_meta, import_meta, bh2u, bfh, InvalidPassword,
-                           base_units, base_units_list, base_unit_name_to_decimal_point,
-                           decimal_point_to_base_unit_name, quantize_feerate,
-                           UnknownBaseUnit, DECIMAL_POINT_DEFAULT, UserFacingException,
-                           get_new_wallet_name, send_exception_to_crash_reporter,
-                           InvalidBitcoinURI, InvoiceError)
-from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
-from electrum.lnutil import PaymentFailure, SENT, RECEIVED
+from electrum.lnutil import ln_dummy_address
+from electrum.logging import Logger
+from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed
+from electrum.plugin import run_hook
+from electrum.simple_config import SimpleConfig
 from electrum.transaction import (Transaction, PartialTxInput,
                                   PartialTransaction, PartialTxOutput)
-from electrum.address_synchronizer import AddTransactionException
-from electrum.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet,
-                             sweep_preparations, InternalAddressCorruption)
-from electrum.version import ELECTRUM_VERSION
-from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed
-from electrum.exchange_rate import FxThread
-from electrum.simple_config import SimpleConfig
-from electrum.logging import Logger
-from electrum.util import PR_PAID, PR_UNPAID, PR_INFLIGHT, PR_FAILED
+from electrum.util import PR_PAID, PR_FAILED
+from electrum.util import PR_TYPE_ONCHAIN
+from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
+                           format_satoshis_plain, UserCancelled, profiler,
+                           export_meta, import_meta, bfh, InvalidPassword,
+                           decimal_point_to_base_unit_name, UnknownBaseUnit, DECIMAL_POINT_DEFAULT, UserFacingException,
+                           get_new_wallet_name, send_exception_to_crash_reporter,
+                           InvalidBitcoinURI)
 from electrum.util import pr_expiration_values
-from electrum.lnutil import ln_dummy_address
-
-from .exception_window import Exception_Hook
+from electrum.version import ELECTRUM_VERSION
+from electrum.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet,
+                             sweep_preparations, InternalAddressCorruption,
+                             ThreeKeysWallet)
 from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, FeerateEdit
-from .qrcodewidget import QRCodeWidget, QRDialog
-from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
-from .transaction_dialog import show_transaction
-from .fee_slider import FeeSlider
-from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialog,
-                   WindowModalDialog, ChoicesLayout, HelpLabel, FromList, Buttons,
-                   OkButton, InfoButton, WWLabel, TaskThread, CancelButton,
-                   CloseButton, HelpButton, MessageBoxMixin, EnterButton,
-                   ButtonsLineEdit, CopyCloseButton, import_meta_gui, export_meta_gui,
-                   filename_field, address_field, char_width_in_lineedit, webopen,
-                   MONOSPACE_FONT, TRANSACTION_FILE_EXTENSION_FILTER)
-from .util import ButtonsTextEdit
-from .installwizard import WIF_HELP_TEXT
-from .history_list import HistoryList, HistoryModel
-from .update_checker import UpdateCheck, UpdateCheckThread
 from .channels_list import ChannelsList
 from .confirm_tx_dialog import ConfirmTxDialog
+from .exception_window import Exception_Hook
+from .fee_slider import FeeSlider
+from .history_list import HistoryList, HistoryModel
+from .installwizard import WIF_HELP_TEXT
+from .qrcodewidget import QRCodeWidget, QRDialog
+from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
+from .three_keys_dialogs import PSBTDialog
 from .transaction_dialog import PreviewTxDialog
+from .transaction_dialog import show_transaction
+from .update_checker import UpdateCheck, UpdateCheckThread
+from .util import ButtonsTextEdit
+from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialog,
+                   WindowModalDialog, ChoicesLayout, HelpLabel, Buttons,
+                   OkButton, InfoButton, WWLabel, TaskThread, CancelButton,
+                   CloseButton, HelpButton, MessageBoxMixin, EnterButton,
+                   import_meta_gui, export_meta_gui,
+                   filename_field, address_field, char_width_in_lineedit, webopen,
+                   TRANSACTION_FILE_EXTENSION_FILTER)
 
 if TYPE_CHECKING:
     from . import ElectrumGui
@@ -266,7 +262,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             # to prevent GC from getting in our way.
             def on_version_received(v):
                 if UpdateCheck.is_newer(v):
-                    self.update_check_button.setText(_("Update to Electrum {} is available").format(v))
+                    self.update_check_button.setText(_("Update to Electrum {version} is available").format(version=v))
                     self.update_check_button.clicked.connect(lambda: self.show_update_check(v))
                     self.update_check_button.show()
             self._update_check_thread = UpdateCheckThread(self)
@@ -295,7 +291,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def toggle_tab(self, tab):
         show = not self.config.get('show_{}_tab'.format(tab.tab_name), False)
         self.config.set_key('show_{}_tab'.format(tab.tab_name), show)
-        item_text = (_("Hide {}") if show else _("Show {}")).format(tab.tab_description)
+        item_text = (_("Hide {tab_description}") if show else _("Show {tab_description}")).format(tab_description=tab.tab_description)
         tab.menu_action.setText(item_text)
         if show:
             # Find out where to place the tab
@@ -473,7 +469,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         name = "Electrum Vault"
         title = '%s %s  -  %s' % (name, ELECTRUM_VERSION,
                                         self.wallet.basename())
-        extra = [self.wallet.storage.get('wallet_type', '?')]
+        extra = [self.wallet.get_wallet_label()]
         if self.wallet.is_watching_only():
             extra.append(_('watching only'))
         title += '  [%s]'% ', '.join(extra)
@@ -505,7 +501,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         msg = ''.join([
             _("You are in testnet mode."), ' ',
             _("Testnet coins are worthless."), '\n',
-            _("Testnet is separate from the main Bitcoin network. It is used for testing.")
+            _("Testnet is separate from the main Bitcoin Vault network. It is used for testing.")
         ])
         cb = QCheckBox(_("Don't show this again."))
         cb_checked = False
@@ -614,9 +610,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         contacts_menu.addAction(_("&New"), self.new_contact_dialog)
         contacts_menu.addAction(_("Import"), lambda: self.contact_list.import_contacts())
         contacts_menu.addAction(_("Export"), lambda: self.contact_list.export_contacts())
-        invoices_menu = wallet_menu.addMenu(_("Invoices"))
-        invoices_menu.addAction(_("Import"), lambda: self.invoice_list.import_invoices())
-        invoices_menu.addAction(_("Export"), lambda: self.invoice_list.export_invoices())
 
         wallet_menu.addSeparator()
         wallet_menu.addAction(_("Find"), self.toggle_search).setShortcut(QKeySequence("Ctrl+F"))
@@ -676,11 +669,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def show_about(self):
         QMessageBox.about(self, "Electrum Vault",
                           (_("Version")+" %s" % ELECTRUM_VERSION + "\n\n" +
-                           _("Electrum's focus is speed, with low resource usage and simplifying Bitcoin.") + " " +
+                           _("Electrum's focus is speed, with low resource usage and simplifying Bitcoin Vault.") + " " +
                            _("You do not need to perform regular backups, because your wallet can be "
                               "recovered from a secret phrase that you can memorize or write on paper.") + " " +
                            _("Startup times are instant because it operates in conjunction with high-performance "
-                              "servers that handle the most complicated parts of the Bitcoin system.") + "\n\n" +
+                              "servers that handle the most complicated parts of the Bitcoin Vault system.") + "\n\n" +
                            _("Uses icons from the Icons8 icon pack (icons8.com).")))
 
     def show_update_check(self, version=None):
@@ -720,14 +713,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 if not is_relevant:
                     continue
                 total_amount += v
-            self.notify(_("{} new transactions: Total amount received in the new transactions {}")
-                        .format(len(txns), self.format_amount_and_units(total_amount)))
+            self.notify(_("{number} new transactions: Total amount received in the new transactions {amount}")
+                        .format(number=len(txns), amount=self.format_amount_and_units(total_amount)))
         else:
             for tx in txns:
                 is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
                 if not is_relevant:
                     continue
-                self.notify(_("New transaction: {}").format(self.format_amount_and_units(v)))
+                self.notify(_("New transaction: {amount}").format(amount=self.format_amount_and_units(v)))
 
     def notify(self, message):
         if self.tray:
@@ -849,15 +842,24 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                         .format(_("Synchronizing..."), num_answered, num_sent))
                 icon = read_QIcon("status_waiting.png")
             elif server_lag > 1:
-                text = _("Server is lagging ({} blocks)").format(server_lag)
+                text = _("Server is lagging ({number} blocks)").format(number=server_lag)
                 icon = read_QIcon("status_lagging%s.png"%fork_str)
             else:
-                c, u, x = self.wallet.get_balance()
+                balance = self.wallet.get_balance()
+                c, u, x = balance[:3]
+                ai, ao = None, None
+                if len(balance) == 5:
+                    ai, ao = balance[3:]
+
                 text =  _("Balance" ) + ": %s "%(self.format_amount_and_units(c))
                 if u:
                     text +=  " [%s "%(self.format_amount(u, is_diff=True).strip()) + _("unconfirmed") + "]"
                 if x:
                     text +=  " [%s "%(self.format_amount(x, is_diff=True).strip()) + _("unmatured") + "]"
+                if ai:
+                    text +=  " [%s "%(self.format_amount(ai, is_diff=True).strip()) + _("Secure incoming") + "]"
+                if ao:
+                    text +=  " [%s "%(self.format_amount(ao, is_diff=True).strip()) + _("Secure outgoing") + "]"
                 if self.wallet.lnworker:
                     l = self.wallet.lnworker.get_balance()
                     text += u'    \U0001f5f2 %s'%(self.format_amount_and_units(l).strip())
@@ -922,6 +924,42 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def show_transaction(self, tx, *, invoice=None, tx_desc=None):
         '''tx_desc is set only for txs created in the Send tab'''
         show_transaction(tx, parent=self, invoice=invoice, desc=tx_desc)
+
+    def show_psbt_qrcode(self, psbt: PartialTransaction, invoice=None):
+        def minimize_psbt(psbt):
+            psbt.convert_all_utxos_to_witness_utxos()
+            psbt.remove_xpubs_and_bip32_paths()
+
+        def chop_data(data):
+            max_size = 2000
+            if len(data) <= max_size:
+                return [data]
+
+            chunks = []
+            chunks_count = len(data)//max_size + 1
+            chunk_size = (len(data)//chunks_count) + 1
+            for c in range(chunks_count):
+                # chunk_no ; chunk_count ; chunk_data
+                chunk = str(c + 1) + ';' + str(chunks_count) + ';'
+                chunk += data[c*chunk_size:(c+1)*chunk_size]
+                chunks.append(chunk)
+
+            return chunks
+
+        minimize_psbt(psbt)
+        data = psbt.serialize()
+        chunks = chop_data(data)
+
+        description = _('In order to confirm the transaction, scan the QR codes \
+in the "Authenticators" tab in the Gold Wallet app.')
+        try:
+            d = PSBTDialog(chunks, self, invoice, description=description)
+            d.exec_()
+        except qrcode.exceptions.DataOverflowError:
+            self.show_error(_('Failed to display QR code.') + '\n' +
+                            _('Transaction is too large in size.'))
+        except Exception as e:
+            self.show_error(_('Failed to display QR code.') + '\n' + repr(e))
 
     def create_receive_tab(self):
         # A 4-column grid layout.  All the stretch is in the last column.
@@ -1100,7 +1138,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def do_copy(self, title, content):
         self.app.clipboard().setText(content)
-        self.show_message(_(f"{title} copied to clipboard:\n\n{content}"))
+        self.show_message(_("{title} copied to clipboard:\n\n{content}").format(title=title, content=content))
 
     def export_payment_request(self, addr):
         r = self.wallet.receive_requests.get(addr)
@@ -1366,8 +1404,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
             if self.payto_e.is_alias and self.payto_e.validated is False:
                 alias = self.payto_e.toPlainText()
-                msg = _('WARNING: the alias "{}" could not be validated via an additional '
-                        'security check, DNSSEC, and thus may not be correct.').format(alias) + '\n'
+                msg = _('WARNING: the alias "{alias}" could not be validated via an additional '
+                        'security check, DNSSEC, and thus may not be correct.').format(alias=alias) + '\n'
                 msg += _('Do you wish to continue?')
                 if not self.question(msg):
                     return True
@@ -1419,16 +1457,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.do_clear()
         self.do_pay_invoice(invoice)
 
-    def pay_multiple_invoices(self, invoices):
+    def pay_multiple_invoices(self, invoices, external_keypairs=None):
         outputs = []
         for invoice in invoices:
             outputs += invoice['outputs']
-        self.pay_onchain_dialog(self.get_coins(), outputs)
+        self.pay_onchain_dialog(self.get_coins(), outputs, external_keypairs=external_keypairs)
 
-    def do_pay_invoice(self, invoice):
+    def do_pay_invoice(self, invoice, external_keypairs=None):
         if invoice['type'] == PR_TYPE_ONCHAIN:
             outputs = invoice['outputs']
-            self.pay_onchain_dialog(self.get_coins(), outputs, invoice=invoice)
+            self.pay_onchain_dialog(self.get_coins(), outputs, invoice=invoice, external_keypairs=external_keypairs)
         else:
             raise Exception('unknown invoice type')
 
@@ -1443,7 +1481,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         # trustedcoin requires this
         if run_hook('abort_send', self):
             return
-        is_sweep = bool(external_keypairs)
+        is_sweep = False # Was bool(external_keypairs). Should be good to keep it false, since we do not use trustedcoin
         make_tx = lambda fee_est: self.wallet.make_unsigned_transaction(
             coins=inputs,
             outputs=outputs,
@@ -1498,7 +1536,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.on_error(exc_info)
             callback(False)
         on_success = run_hook('tc_sign_wrapper', self.wallet, tx, on_success, on_failure) or on_success
-        if external_keypairs:
+        if isinstance(self.wallet, ThreeKeysWallet) and self.wallet.is_instant_mode():
+            task = partial(self.wallet.sign_instant_transaction, tx, password, external_keypairs)
+        elif external_keypairs:
             # can sign directly
             task = partial(tx.sign, external_keypairs)
         else:
@@ -1544,7 +1584,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if result:
                 success, msg = result
                 if success:
-                    parent.show_message(_('Payment sent.') + '\n' + msg)
+                    parent.show_confirmed(_('Payment sent.') + '\n' + msg)
                     self.invoice_list.update()
                     self.do_clear()
                 else:
@@ -1579,12 +1619,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             message = '\n'.join([
                 _('Channel established.'),
                 _('Remote peer ID') + ':' + chan.node_id.hex(),
-                _('This channel will be usable after {} confirmations').format(n)
+                _('This channel will be usable after {number} confirmations').format(number=n)
             ])
             self.show_message(message)
         def on_failure(exc_info):
             type_, e, traceback = exc_info
-            self.show_error(_('Could not open channel: {}').format(e))
+            self.show_error(_('Could not open channel: {error_value}').format(error_value=e))
         WaitingDialog(self, _('Opening channel...'), task, on_success, on_failure)
 
     def query_choice(self, msg, choices):
@@ -1741,7 +1781,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         return self.create_list_tab(l)
 
     def remove_address(self, addr):
-        if self.question(_("Do you want to remove {} from your wallet?").format(addr)):
+        if self.question(_("Do you want to remove {address} from your wallet?").format(address=addr)):
             self.wallet.delete_address(addr)
             self.need_update.set()  # history, addresses, coins
             self.clear_receive_tab()
@@ -1780,8 +1820,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         return True
 
     def delete_contacts(self, labels):
-        if not self.question(_("Remove {} from your list of contacts?")
-                             .format(" + ".join(labels))):
+        if not self.question(_("Remove {labels} from your list of contacts?")
+                             .format(labels=" + ".join(labels))):
             return
         for label in labels:
             self.contacts.pop(label)
@@ -2028,7 +2068,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         dialog.setMinimumSize(500, 100)
         mpk_list = self.wallet.get_master_public_keys()
         vbox = QVBoxLayout()
-        wallet_type = self.wallet.storage.get('wallet_type', '')
+        wallet_type = self.wallet.get_wallet_label()
         if self.wallet.is_watching_only():
             wallet_type += ' [{}]'.format(_('watching-only'))
         seed_available = _('True') if self.wallet.has_seed() else _('False')
@@ -2096,11 +2136,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         wallet_path = self.wallet.storage.path
         basename = os.path.basename(wallet_path)
         r = self.gui_object.daemon.delete_wallet(wallet_path)
-        self.close()
         if r:
-            self.show_error(_("Wallet removed: {}").format(basename))
+            self.show_error(_("Wallet removed: {name}").format(name=basename))
         else:
-            self.show_error(_("Wallet file not found: {}").format(basename))
+            self.show_error(_("Wallet file not found: {name}").format(name=basename))
+        self.close()
 
     @protected
     def show_seed_dialog(self, password):

@@ -207,19 +207,19 @@ class Plugin(TrustedCoinPlugin):
             i += 1
 
         n = wallet.billing_info.get('tx_remaining', 0)
-        grid.addWidget(QLabel(_("Your wallet has {} prepaid transactions.").format(n)), i, 0)
+        grid.addWidget(QLabel(_("Your wallet has {number} prepaid transactions.").format(number=n)), i, 0)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
 
     def go_online_dialog(self, wizard: InstallWizard):
         msg = [
-            _("Your wallet file is: {}.").format(os.path.abspath(wizard.path)),
+            _("Your wallet file is: {path}.").format(path=os.path.abspath(wizard.path)),
             _("You need to be online in order to complete the creation of "
               "your wallet.  If you generated your seed on an offline "
-              'computer, click on "{}" to close this window, move your '
+              'computer, click on "{button}" to close this window, move your '
               "wallet file to an online computer, and reopen it with "
-              "Electrum.").format(_('Cancel')),
-            _('If you are online, click on "{}" to continue.').format(_('Next'))
+              "Electrum.").format(button=_('Cancel')),
+            _('If you are online, click on "{button}" to continue.').format(button=_('Next'))
         ]
         msg = '\n\n'.join(msg)
         wizard.reset_stack()

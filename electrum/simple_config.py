@@ -379,7 +379,7 @@ class SimpleConfig(Logger):
         elif x == 1:
             return _('In the next block')
         else:
-            return _('Within {} blocks').format(x)
+            return _('Within {number} blocks').format(number=x)
 
     def get_fee_status(self):
         dyn = self.is_dynfee()

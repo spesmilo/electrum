@@ -595,6 +595,7 @@ def sign_and_get_sig_string(tx: PartialTransaction, local_config, remote_config)
 def funding_output_script(local_config, remote_config) -> str:
     return funding_output_script_from_keys(local_config.multisig_key.pubkey, remote_config.multisig_key.pubkey)
 
+# todo check if this doesn't break 2Keys wallet multisig script generation
 def funding_output_script_from_keys(pubkey1: bytes, pubkey2: bytes) -> str:
     pubkeys = sorted([bh2u(pubkey1), bh2u(pubkey2)])
     return transaction.multisig_script(pubkeys, 2)

@@ -35,7 +35,7 @@ from electrum.lnutil import FeeUpdate
 from electrum.ecc import sig_string_from_der_sig
 from electrum.logging import console_stderr_handler
 
-from . import ElectrumTestCase
+from electrum.tests import ElectrumTestCase
 
 
 one_bitcoin_in_msat = bitcoin.COIN * 1000

@@ -41,14 +41,13 @@ from .completion_text_edit import CompletionTextEdit
 def seed_warning_msg(seed):
     return ''.join([
         "<p>",
-        _("Please save these {0} words on paper (order is important). "),
-        _("This seed will allow you to recover your wallet in case "
-          "of computer failure."),
+        _("Please save these {0} words on paper (the order is important). "),
+        _("This seed will allow you to recover your wallet."),
         "</p>",
         "<b>" + _("WARNING") + ":</b>",
         "<ul>",
         "<li>" + _("Never disclose your seed.") + "</li>",
-        "<li>" + _("Never type it on a website.") + "</li>",
+        "<li>" + _("Never enter it on any website.") + "</li>",
         "<li>" + _("Do not store it electronically.") + "</li>",
         "</ul>"
     ]).format(len(seed.split()))
@@ -57,12 +56,8 @@ def seed_warning_msg(seed):
 class SeedLayout(QVBoxLayout):
 
     def seed_options(self):
-        dialog = QDialog()
-        vbox = QVBoxLayout(dialog)
-        if 'ext' in self.options:
-            cb_ext = QCheckBox(_('Extend this seed with custom words'))
-            cb_ext.setChecked(self.is_ext)
-            vbox.addWidget(cb_ext)
+        vbox = QVBoxLayout()
+        # order matters when we align checkboxes to right
         if 'bip39' in self.options:
             def f(b):
                 self.is_seed = (lambda x: bool(x)) if b else self.saved_is_seed
@@ -72,25 +67,29 @@ class SeedLayout(QVBoxLayout):
                     msg = ' '.join([
                         '<b>' + _('Warning') + ':</b>  ',
                         _('BIP39 seeds can be imported in Electrum, so that users can access funds locked in other wallets.'),
-                        _('However, we do not generate BIP39 seeds, because they do not meet our safety standard.'),
-                        _('BIP39 seeds do not include a version number, which compromises compatibility with future software.'),
                         _('We do not guarantee that BIP39 imports will always be supported in Electrum.'),
                     ])
                 else:
                     msg = ''
                 self.seed_warning.setText(msg)
-            cb_bip39 = QCheckBox(_('BIP39 seed'))
+            cb_bip39 = QCheckBox(_('BIP39 seed (Gold Wallet integration)'))
             cb_bip39.toggled.connect(f)
             cb_bip39.setChecked(self.is_bip39)
-            vbox.addWidget(cb_bip39)
-        vbox.addLayout(Buttons(OkButton(dialog)))
-        if not dialog.exec_():
-            return None
+            vbox.addWidget(cb_bip39, alignment=Qt.AlignLeft)
+        if 'ext' in self.options:
+            cb_ext = QCheckBox(_('Extend this seed with custom words'))
+            cb_ext.toggled.connect(self.toggle_cb_ext)
+            cb_ext.setChecked(self.is_ext)
+            vbox.addWidget(cb_ext, alignment=Qt.AlignLeft)
+        self.addLayout(vbox)
         self.is_ext = cb_ext.isChecked() if 'ext' in self.options else False
         self.is_bip39 = cb_bip39.isChecked() if 'bip39' in self.options else False
 
+    def toggle_cb_ext(self, flag: bool):
+        self.is_ext = flag
+
     def __init__(self, seed=None, title=None, icon=True, msg=None, options=None,
-                 is_seed=None, passphrase=None, parent=None, for_seed_words=True):
+                 is_seed=None, passphrase=None, parent=None, for_seed_words=True, import_gold_wallet=False):
         QVBoxLayout.__init__(self)
         self.parent = parent
         self.options = options
@@ -112,28 +111,28 @@ class SeedLayout(QVBoxLayout):
             self.seed_e.textChanged.connect(self.on_edit)
             self.initialize_completer()
 
+        self.seed_e.setContextMenuPolicy(Qt.PreventContextMenu)
         self.seed_e.setMaximumHeight(75)
         hbox = QHBoxLayout()
+        hbox.addWidget(self.seed_e)
         if icon:
             logo = QLabel()
             logo.setPixmap(QPixmap(icon_path("seed.png"))
                            .scaledToWidth(64, mode=Qt.SmoothTransformation))
             logo.setMaximumWidth(60)
             hbox.addWidget(logo)
-        hbox.addWidget(self.seed_e)
+
         self.addLayout(hbox)
-        hbox = QHBoxLayout()
-        hbox.addStretch(1)
-        self.seed_type_label = QLabel('')
-        hbox.addWidget(self.seed_type_label)
+        self.seed_warning = WWLabel('')
 
         # options
         self.is_bip39 = False
         self.is_ext = False
+        if import_gold_wallet:
+            self.is_bip39 = True
+        self.import_gold_wallet = import_gold_wallet
         if options:
-            opt_button = EnterButton(_('Options'), self.seed_options)
-            hbox.addWidget(opt_button)
-            self.addLayout(hbox)
+            self.seed_options()
         if passphrase:
             hbox = QHBoxLayout()
             passphrase_e = QLineEdit()
@@ -143,7 +142,6 @@ class SeedLayout(QVBoxLayout):
             hbox.addWidget(passphrase_e)
             self.addLayout(hbox)
         self.addStretch(1)
-        self.seed_warning = WWLabel('')
         if msg:
             self.seed_warning.setText(seed_warning_msg(seed))
         self.addWidget(self.seed_warning)
@@ -173,20 +171,13 @@ class SeedLayout(QVBoxLayout):
 
     def get_seed(self):
         text = self.seed_e.text()
-        return ' '.join(text.split())
+        seed = ' '.join(text.split())
+        del text
+        return seed
 
     def on_edit(self):
         s = self.get_seed()
         b = self.is_seed(s)
-        if not self.is_bip39:
-            t = seed_type(s)
-            label = _('Seed Type') + ': ' + t if t else ''
-        else:
-            from electrum.keystore import bip39_is_checksum_valid
-            is_checksum, is_wordlist = bip39_is_checksum_valid(s)
-            status = ('checksum: ' + ('ok' if is_checksum else 'failed')) if is_wordlist else 'unknown wordlist'
-            label = 'BIP39' + ' (%s)'%status
-        self.seed_type_label.setText(label)
         self.parent.next_button.setEnabled(b)
 
         # disable suggestions if user already typed an unknown word

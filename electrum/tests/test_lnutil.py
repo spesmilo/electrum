@@ -11,7 +11,7 @@ from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_see
 from electrum.util import bh2u, bfh
 from electrum.transaction import Transaction, PartialTransaction
 
-from . import ElectrumTestCase
+from electrum.tests import ElectrumTestCase
 
 
 funding_tx_id = '8984484a580b825b9972d7adb15050b3ab624ccd731946b3eeddb92f4e7ef6be'

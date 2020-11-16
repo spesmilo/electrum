@@ -50,6 +50,7 @@ import dns.resolver
 
 from .i18n import _
 from .logging import get_logger, Logger
+from .three_keys.tx_type import TxType
 
 if TYPE_CHECKING:
     from .network import Network
@@ -892,6 +893,9 @@ def setup_thread_excepthook():
         def run_with_except_hook(*args2, **kwargs2):
             try:
                 run_original(*args2, **kwargs2)
+            except TypeError:
+                # handle running of sentry thread
+                run_original()
             except Exception:
                 sys.excepthook(*sys.exc_info())
 
@@ -973,11 +977,12 @@ def ignore_exceptions(func):
 
 
 class TxMinedInfo(NamedTuple):
-    height: int                        # height of block that mined tx
-    conf: Optional[int] = None         # number of confirmations (None means unknown)
-    timestamp: Optional[int] = None    # timestamp of block that mined tx
-    txpos: Optional[int] = None        # position of tx in serialized block
-    header_hash: Optional[str] = None  # hash of block that mined tx
+    height: int                                   # height of block that mined tx
+    conf: Optional[int] = None                    # number of confirmations (None means unknown)
+    timestamp: Optional[int] = None               # timestamp of block that mined tx
+    txpos: Optional[int] = None                   # position of tx in serialized block
+    header_hash: Optional[str] = None             # hash of block that mined tx
+    txtype: Optional[str] = TxType.NONVAULT.name  # type of tx
 
 
 def make_aiohttp_session(proxy: Optional[dict], headers=None, timeout=None):

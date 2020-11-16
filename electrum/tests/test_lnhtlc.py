@@ -5,7 +5,7 @@ from typing import NamedTuple
 from electrum.lnutil import RECEIVED, LOCAL, REMOTE, SENT, HTLCOwner, Direction
 from electrum.lnhtlc import HTLCManager
 
-from . import ElectrumTestCase
+from electrum.tests import ElectrumTestCase
 
 
 class H(NamedTuple):

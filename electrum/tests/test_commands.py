@@ -8,7 +8,7 @@ from electrum import storage
 from electrum.wallet import restore_wallet_from_text
 from electrum.simple_config import SimpleConfig
 
-from . import TestCaseForTestnet, ElectrumTestCase
+from electrum.tests import TestCaseForTestnet, ElectrumTestCase
 
 
 class TestCommands(ElectrumTestCase):

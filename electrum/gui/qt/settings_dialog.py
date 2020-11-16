@@ -323,9 +323,9 @@ that is always connected to the internet. Configure a port if you want it to be 
         choosers = sorted(coinchooser.COIN_CHOOSERS.keys())
         if len(choosers) > 1:
             chooser_name = coinchooser.get_name(self.config)
-            msg = _('Choose coin (UTXO) selection method.  The following are available:\n\n')
+            msg = _('Choose coin (UTXO) selection method for non-alert transactions.  The following are available:\n\n')
             msg += '\n\n'.join(fmt_docs(*item) for item in coinchooser.COIN_CHOOSERS.items())
-            chooser_label = HelpLabel(_('Coin selection') + ':', msg)
+            chooser_label = HelpLabel(_('Coin selection (non-alert)') + ':', msg)
             chooser_combo = QComboBox()
             chooser_combo.addItems(choosers)
             i = choosers.index(chooser_name) if chooser_name in choosers else 0
@@ -335,6 +335,20 @@ that is always connected to the internet. Configure a port if you want it to be 
                 self.config.set_key('coin_chooser', chooser_name)
             chooser_combo.currentIndexChanged.connect(on_chooser)
             tx_widgets.append((chooser_label, chooser_combo))
+
+            chooser_name_alert = coinchooser.get_name(self.config, 'alert')
+            msg = _('Choose coin (UTXO) selection method for alert transactions.  The following are available:\n\n')
+            msg += '\n\n'.join(fmt_docs(*item) for item in coinchooser.COIN_CHOOSERS.items())
+            chooser_alert_label = HelpLabel(_('Coin selection (alert)') + ':', msg)
+            chooser_alert_combo = QComboBox()
+            chooser_alert_combo.addItems(choosers)
+            i = choosers.index(chooser_name_alert) if chooser_name_alert in choosers else 0
+            chooser_alert_combo.setCurrentIndex(i)
+            def on_chooser_alert(x):
+                chooser_name = choosers[chooser_combo.currentIndex()]
+                self.config.set_key('coin_chooser_alert', chooser_name)
+            chooser_alert_combo.currentIndexChanged.connect(on_chooser_alert)
+            tx_widgets.append((chooser_alert_label, chooser_alert_combo))
 
         def on_unconf(x):
             self.config.set_key('confirmed_only', bool(x))
@@ -464,8 +478,10 @@ that is always connected to the internet. Configure a port if you want it to be 
         fiat_widgets = []
         fiat_widgets.append((QLabel(_('Fiat currency')), ccy_combo))
         fiat_widgets.append((QLabel(_('Source')), ex_combo))
-        fiat_widgets.append((QLabel(_('Show history rates')), hist_checkbox))
-        fiat_widgets.append((QLabel(_('Show capital gains in history')), hist_capgains_checkbox))
+        # No exchange provides historical data in public APIs as of 26 VII 2020. If such data appears on any exchange,
+        # the code below should be uncommented.
+        #fiat_widgets.append((QLabel(_('Show history rates')), hist_checkbox))
+        #fiat_widgets.append((QLabel(_('Show capital gains in history')), hist_capgains_checkbox))
         fiat_widgets.append((QLabel(_('Show Fiat balance for addresses')), fiat_address_checkbox))
 
         tabs_info = [

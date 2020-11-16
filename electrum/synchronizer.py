@@ -30,6 +30,7 @@ import logging
 
 from aiorpcx import TaskGroup, run_in_thread, RPCError
 
+from .three_keys.transaction import ThreeKeysTransaction, TxType
 from .transaction import Transaction
 from .util import bh2u, make_aiohttp_session, NetworkJobOnDefaultServer
 from .bitcoin import address_to_scripthash, is_address
@@ -49,9 +50,33 @@ def history_status(h):
     if not h:
         return None
     status = ''
-    for tx_hash, height in h:
-        status += tx_hash + ':%d:' % height
+    for tx_hash, height, tx_type in h:
+        status += f'{tx_hash}:{height:d}:{tx_type:s}:'
     return bh2u(hashlib.sha256(status.encode('ascii')).digest())
+
+
+def get_unique_atxid_from_history(raw_history) -> list:
+    # descending sorting over transaction height
+    sorted_history = sorted(
+        raw_history,
+        key=lambda item: (item[0], int(item[1])),
+        reverse=True
+    )
+    history_with_unique_atxid = []
+    tx_ids = []
+    for item in sorted_history:
+        tx_hash = item[0]
+        if tx_hash in tx_ids:
+            continue
+        history_with_unique_atxid.append(item)
+        tx_ids.append(tx_hash)
+    return history_with_unique_atxid
+
+
+def update_unverified_transactions_dict(wallet: 'AddressSynchronizer', history: list):
+    for tx_hash, height, tx_type in history:
+        if wallet.db.get_verified_tx(tx_hash) is None and tx_hash not in wallet.unverified_tx:
+            wallet.add_unverified_tx(tx_hash, height, tx_type)
 
 
 class SynchronizerBase(NetworkJobOnDefaultServer):
@@ -171,42 +196,56 @@ class Synchronizer(SynchronizerBase):
         self._requests_answered += 1
         self.logger.info(f"receiving history {addr} {len(result)}")
         hashes = set(map(lambda item: item['tx_hash'], result))
-        hist = list(map(lambda item: (item['tx_hash'], item['height']), result))
+        hist = list(map(lambda item: (
+            item['tx_hash'],
+            item['height'],
+            item.get('tx_type', TxType.NONVAULT.name)
+        ), result))
+        filtered_history = get_unique_atxid_from_history(hist)
         # tx_fees
         tx_fees = [(item['tx_hash'], item.get('fee')) for item in result]
         tx_fees = dict(filter(lambda x:x[1] is not None, tx_fees))
         # Check that txids are unique
-        if len(hashes) != len(result):
+        if len(hashes) != len(filtered_history):
             self.logger.info(f"error: server history has non-unique txids: {addr}")
         # Check that the status corresponds to what was announced
         elif history_status(hist) != status:
             self.logger.info(f"error: status mismatch: {addr}")
         else:
             # Store received history
-            self.wallet.receive_history_callback(addr, hist, tx_fees)
+            update_unverified_transactions_dict(self.wallet, filtered_history)
+            self.wallet.receive_history_callback(addr, filtered_history, tx_fees)
             # Request transactions we don't have
-            await self._request_missing_txs(hist)
+            await self._request_missing_txs(filtered_history)
 
         # Remove request; this allows up_to_date to be True
         self.requested_histories.discard((addr, status))
 
     async def _request_missing_txs(self, hist, *, allow_server_not_finding_tx=False):
-        # "hist" is a list of [tx_hash, tx_height] lists
-        transaction_hashes = []
-        for tx_hash, tx_height in hist:
+        # "hist" is a list of [tx_hash, tx_height, tx_type: Optional[str]] lists
+        transaction_hashes_and_types = []
+        for item in hist:
+            tx_hash = item[0]
+            tx_height = item[1]
+            # keep backward compatibility when fetch history from db where transaction type does not exist
+            try:
+                tx_type = TxType.from_str(item[2])
+            except IndexError:
+                tx_type = TxType.NONVAULT
+
             if tx_hash in self.requested_tx:
                 continue
             if self.wallet.db.get_transaction(tx_hash):
                 continue
-            transaction_hashes.append(tx_hash)
+            transaction_hashes_and_types.append((tx_hash, tx_type))
             self.requested_tx[tx_hash] = tx_height
 
-        if not transaction_hashes: return
+        if not transaction_hashes_and_types: return
         async with TaskGroup() as group:
-            for tx_hash in transaction_hashes:
-                await group.spawn(self._get_transaction(tx_hash, allow_server_not_finding_tx=allow_server_not_finding_tx))
+            for tx_hash, tx_type in transaction_hashes_and_types:
+                await group.spawn(self._get_transaction(tx_hash, tx_type=tx_type, allow_server_not_finding_tx=allow_server_not_finding_tx))
 
-    async def _get_transaction(self, tx_hash, *, allow_server_not_finding_tx=False):
+    async def _get_transaction(self, tx_hash, *, allow_server_not_finding_tx=False, tx_type):
         self._requests_sent += 1
         try:
             raw_tx = await self.network.get_transaction(tx_hash)
@@ -219,7 +258,7 @@ class Synchronizer(SynchronizerBase):
                 raise
         finally:
             self._requests_answered += 1
-        tx = Transaction(raw_tx)
+        tx = ThreeKeysTransaction(raw_tx, tx_type=tx_type)
         try:
             tx.deserialize()  # see if raises
         except Exception as e:
@@ -232,7 +271,11 @@ class Synchronizer(SynchronizerBase):
         if tx_hash != tx.txid():
             raise SynchronizerFailure(f"received tx does not match expected txid ({tx_hash} != {tx.txid()})")
         tx_height = self.requested_tx.pop(tx_hash)
-        self.wallet.receive_tx_callback(tx_hash, tx, tx_height)
+        try:
+            self.wallet.receive_tx_callback(tx_hash, tx, tx_height, tx_type=tx_type)
+        except TypeError:
+            # use receive_tx_callback method without tx_type argument support
+            self.wallet.receive_tx_callback(tx_hash, tx, tx_height)
         self.logger.info(f"received tx {tx_hash} height: {tx_height} bytes: {len(raw_tx)}")
         # callbacks
         self.wallet.network.trigger_callback('new_transaction', self.wallet, tx)

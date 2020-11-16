@@ -11,7 +11,7 @@ from electrum import bitcoin, lnrouter
 from electrum.constants import BitcoinTestnet
 from electrum.simple_config import SimpleConfig
 
-from . import TestCaseForTestnet
+from electrum.tests import TestCaseForTestnet
 
 class Test_LNRouter(TestCaseForTestnet):
 

@@ -22,19 +22,20 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import os
+import logging
 import ast
 import json
 import copy
 import threading
 from collections import defaultdict
-from typing import Dict, Optional, List, Tuple, Set, Iterable, NamedTuple, Sequence
+from typing import Dict, Optional, List, Tuple, Set, Iterable, NamedTuple, Sequence, Union
 
 from . import util, bitcoin
+from .three_keys.transaction import TxType, ThreeKeysTransaction
 from .util import profiler, WalletFileException, multisig_type, TxMinedInfo
 from .keystore import bip44_derivation
 from .transaction import Transaction
-from .logging import Logger
+from .logging import Logger, get_logger
 
 # seed_version is now used for the version of the wallet file
 
@@ -45,6 +46,9 @@ FINAL_SEED_VERSION = 20     # electrum >= 2.7 will set this to prevent
 
 
 JsonDBJsonEncoder = util.MyEncoder
+
+_logger = get_logger(__name__)
+_logger.setLevel(logging.INFO)
 
 
 class TxFeesValue(NamedTuple):
@@ -574,6 +578,28 @@ class JsonDB(Logger):
         return list(self.txo.get(tx_hash, {}).keys())
 
     @locked
+    def get_address_satoshi_height_for_tx(self, tx_hash) -> Dict[Tuple[str, int], Dict[str, Union[str, int]]]:
+        dict_to_return = {}
+        for address, data in self.txo.get(tx_hash, {}).items():
+            assert len(data) == 1, f'Data from txo is not single element set but set of length {len(data)}'
+            data = tuple(data)[0]  # retrieve tuple element from single set
+            prevout_index = data[0]
+            satoshi = data[1]
+            height = None
+            for item in self.history.get(address, []):
+                # skip pending alerts in history for given utx address
+                if item[0] == tx_hash and item[2] != TxType.ALERT_PENDING.name:
+                    height = item[1]
+                    break
+            assert height is not None, f'Could not find height for {tx_hash}'
+            dict_to_return[(tx_hash, prevout_index)] = {
+                'address': address,
+                'satoshi': satoshi,
+                'height': height
+            }
+        return dict_to_return
+
+    @locked
     def get_txi_addr(self, tx_hash, address) -> Iterable[Tuple[str, int]]:
         """Returns an iterable of (prev_outpoint, value)."""
         return self.txi.get(tx_hash, {}).get(address, []).copy()
@@ -638,9 +664,12 @@ class JsonDB(Logger):
     @modifier
     def remove_spent_outpoint(self, prevout_hash, prevout_n):
         prevout_n = str(prevout_n)
-        self.spent_outpoints[prevout_hash].pop(prevout_n, None)
-        if not self.spent_outpoints[prevout_hash]:
-            self.spent_outpoints.pop(prevout_hash)
+        try:
+            self.spent_outpoints[prevout_hash].pop(prevout_n, None)
+            if not self.spent_outpoints[prevout_hash]:
+                self.spent_outpoints.pop(prevout_hash)
+        except KeyError as e:
+            _logger.error(f'Error in removing spent outpoint {e}')
 
     @modifier
     def set_spent_outpoint(self, prevout_hash, prevout_n, tx_hash):
@@ -694,16 +723,17 @@ class JsonDB(Logger):
     def get_verified_tx(self, txid):
         if txid not in self.verified_tx:
             return None
-        height, timestamp, txpos, header_hash = self.verified_tx[txid]
+        height, timestamp, txpos, header_hash, txtype = self.verified_tx[txid]
         return TxMinedInfo(height=height,
                            conf=None,
                            timestamp=timestamp,
                            txpos=txpos,
-                           header_hash=header_hash)
+                           header_hash=header_hash,
+                           txtype=txtype)
 
     @modifier
     def add_verified_tx(self, txid, info):
-        self.verified_tx[txid] = (info.height, info.timestamp, info.txpos, info.header_hash)
+        self.verified_tx[txid] = (info.height, info.timestamp, info.txpos, info.header_hash, info.txtype)
 
     @modifier
     def remove_verified_tx(self, txid):
@@ -850,7 +880,7 @@ class JsonDB(Logger):
         self.transactions = self.get_data_ref('transactions')   # type: Dict[str, Transaction]
         self.spent_outpoints = self.get_data_ref('spent_outpoints')  # txid -> output_index -> next_txid
         self.history = self.get_data_ref('addr_history')  # address -> list of (txid, height)
-        self.verified_tx = self.get_data_ref('verified_tx3')  # txid -> (height, timestamp, txpos, header_hash)
+        self.verified_tx = self.get_data_ref('verified_tx3')  # txid -> (height, timestamp, txpos, header_hash, txtype)
         self.tx_fees = self.get_data_ref('tx_fees')  # type: Dict[str, TxFeesValue]
         # convert raw hex transactions to Transaction objects
         for tx_hash, raw_tx in self.transactions.items():
@@ -875,6 +905,45 @@ class JsonDB(Logger):
         # convert tx_fees tuples to NamedTuples
         for tx_hash, tuple_ in self.tx_fees.items():
             self.tx_fees[tx_hash] = TxFeesValue(*tuple_)
+
+        self._upgrade_tx_to_3keys_tx()
+        self._upgrade_verifier_by_tx_type()
+
+    def _upgrade_tx_to_3keys_tx(self):
+        """ Convert Transaction to ThreeKeysTransaction"""
+        updated_transactions = []
+        for tx_history in self.history.values():
+            for item in tx_history:
+                tx_hash = item[0]
+                if len(item) == 3:
+                    tx_type = TxType.from_str(item[2])
+                else:
+                    tx_type = TxType.NONVAULT
+                    item.append(tx_type.name)
+
+                tx = self.transactions.get(tx_hash, None)
+                if tx:
+                    self._update_single_tx(tx, tx_type, tx_hash)
+                    updated_transactions.append(tx_hash)
+
+        non_updated_txs = set(self.transactions.keys()) - set(updated_transactions)
+        for tx_hash in non_updated_txs:
+            tx = self.transactions.get(tx_hash, None)
+            self._update_single_tx(tx, TxType.NONVAULT, tx_hash)
+            updated_transactions.append(tx_hash)
+
+        non_updated_txs = set(self.transactions.keys()) - set(updated_transactions)
+        assert len(non_updated_txs) == 0, f'Transactions {non_updated_txs} not updated to ThreeKeys'
+
+    def _update_single_tx(self, tx, tx_type, tx_hash):
+        three_keys_tx = ThreeKeysTransaction.from_tx(tx)
+        three_keys_tx.tx_type = tx_type
+        self.transactions[tx_hash] = three_keys_tx
+
+    def _upgrade_verifier_by_tx_type(self):
+        for key, value in self.verified_tx.items():
+            if len(value) == 4:
+                value.append(TxType.NONVAULT)
 
     @modifier
     def clear_history(self):

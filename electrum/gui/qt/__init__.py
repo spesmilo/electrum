@@ -29,7 +29,7 @@ import sys
 import traceback
 import threading
 from typing import Optional, TYPE_CHECKING
-
+from .three_keys_windows import ElectrumARWindow, ElectrumAIRWindow
 
 try:
     import PyQt5
@@ -125,6 +125,7 @@ class ElectrumGui(Logger):
         self.tray.show()
         self.app.new_window_signal.connect(self.start_new_window)
         self.set_dark_theme_if_needed()
+        self._select_language_dialog_toggle = True
         run_hook('init_qt', self)
 
     def set_dark_theme_if_needed(self):
@@ -204,7 +205,13 @@ class ElectrumGui(Logger):
         self.network_dialog.show()
 
     def _create_window_for_wallet(self, wallet):
-        w = ElectrumWindow(self, wallet)
+        wallet_type = wallet.wallet_type
+        if wallet_type == '2-key':
+            w = ElectrumARWindow(self, wallet)
+        elif wallet_type == '3-key':
+            w = ElectrumAIRWindow(self, wallet)
+        else:
+            w = ElectrumWindow(self, wallet)
         self.windows.append(w)
         self.build_tray_menu()
         # FIXME: Remove in favour of the load_wallet hook
@@ -280,6 +287,8 @@ class ElectrumGui(Logger):
     def _start_wizard_to_select_or_create_wallet(self, path) -> Optional[Abstract_Wallet]:
         wizard = InstallWizard(self.config, self.app, self.plugins)
         try:
+            if self._select_language_dialog_toggle:
+                wizard.select_and_save_language()
             path, storage = wizard.select_storage(path, self.daemon.get_wallet)
             # storage is None if file does not exist
             if storage is None:
@@ -317,6 +326,8 @@ class ElectrumGui(Logger):
         if self.daemon.network:
             if self.config.get('auto_connect') is None:
                 wizard = InstallWizard(self.config, self.app, self.plugins)
+                wizard.select_and_save_language()
+                self._select_language_dialog_toggle = False
                 wizard.init_network(self.daemon.network)
                 wizard.terminate()
 
