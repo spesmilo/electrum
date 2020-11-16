@@ -36,3 +36,11 @@ contrib/android_debug.keystore
 
 # virtual environments
 venv
+
+# MacOs system speciffic file
+.DS_Store
+
+# Temporary bulds files
+contrib/osx/libsecp256k1.0.dylib
+contrib/osx/libusb-1.0.dylib
+prebuilt_qr/

@@ -3,23 +3,24 @@
 . $(dirname "$0")/../build_tools_util.sh
 
 
-function DoCodeSignMaybe { # ARGS: infoName fileOrDirName codesignIdentity
+function DoCodeSignMaybe { # ARGS: infoName fileOrDirName
     infoName="$1"
     file="$2"
-    identity="$3"
     deep=""
-    if [ -z "$identity" ]; then
-        # we are ok with them not passing anything; master script calls us unconditionally even if no identity is specified
+    if [ -z "$CODESIGN_CERT" ]; then
+        # no cert -> we won't codesign
         return
     fi
     if [ -d "$file" ]; then
         deep="--deep"
     fi
-    if [ -z "$infoName" ] || [ -z "$file" ] || [ -z "$identity" ] || [ ! -e "$file" ]; then
+    if [ -z "$infoName" ] || [ -z "$file" ] || [ ! -e "$file" ]; then
         fail "Argument error to internal function DoCodeSignMaybe()"
     fi
+    hardened_arg="--entitlements=${CONTRIB_OSX}/entitlements.plist -o runtime"
+
     info "Code signing ${infoName}..."
-    codesign -f -v $deep -s "$identity" --entitlements "./contrib/osx/entitlements.plist" -o runtime "$file" || fail "Could not code sign ${infoName}"
+    codesign -f -v $deep -s "$CODESIGN_CERT" $hardened_arg "$file" || fail "Could not code sign ${infoName}"
 }
 
 function realpath() {
