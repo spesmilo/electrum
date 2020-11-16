@@ -919,6 +919,7 @@ class JsonDB(Logger):
                     tx_type = TxType.from_str(item[2])
                 else:
                     tx_type = TxType.NONVAULT
+                    item.append(tx_type.name)
 
                 tx = self.transactions.get(tx_hash, None)
                 if tx:
