@@ -102,7 +102,7 @@ class TransactionDialog() : AlertDialogFragment() {
     val wallet by lazy { daemonModel.wallet!! }
     val txid by lazy { arguments!!.getString("txid")!! }
     val tx by lazy { wallet.get("transactions")!!.callAttr("get", txid)!! }
-    val txInfo by lazy { wallet.callAttr("get_tx_info", tx).asList() }
+    val txInfo by lazy { wallet.callAttr("get_tx_info", tx) }
 
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         builder.setView(R.layout.transaction_detail)
@@ -118,27 +118,33 @@ class TransactionDialog() : AlertDialogFragment() {
 
         tvTxid.text = txid
 
-        val timestamp = txInfo.get(8)?.toLong()
-        tvTimestamp.text = if (timestamp == null || timestamp == 0L) getString(R.string.Unknown)
+        // For outgoing transactions, the list view includes the fee in the amount, but the
+        // detail view does not.
+        val amount = txInfo.get("amount")?.toLong()
+        tvAmount.text = if (amount == null) getString(R.string.Unknown)
+                        else formatSatoshisAndUnit(amount, signed=true)
+
+        val timestamp = txInfo.get("timestamp")?.toLong()
+        tvTimestamp.text = if (timestamp in listOf(null, 0L)) getString(R.string.Unknown)
                            else libUtil.callAttr("format_time", timestamp).toString()
 
-        tvStatus.text = txInfo.get(1)!!.toString()
+        tvStatus.text = txInfo.get("status")!!.toString()
 
         val size = tx.callAttr("estimated_size").toInt()
         tvSize.text = getString(R.string.bytes, size)
 
-        val fee = txInfo.get(5)?.toLong()
+        val fee = txInfo.get("fee")?.toLong()
         if (fee == null) {
             tvFee.text = getString(R.string.Unknown)
         } else {
             val feeSpb = (fee.toDouble() / size.toDouble()).roundToInt()
             tvFee.text = String.format("%s (%s)",
-                                              getString(R.string.sat_byte, feeSpb),
-                                              formatSatoshisAndUnit(fee))
+                                       getString(R.string.sat_byte, feeSpb),
+                                       formatSatoshisAndUnit(fee))
         }
     }
 
     override fun onFirstShowDialog() {
-        etDescription.setText(txInfo.get(2)!!.toString())
+        etDescription.setText(txInfo.get("label")!!.toString())
     }
 }

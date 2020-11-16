@@ -13,6 +13,7 @@
     <string name="test_timestamp">2018-04-01 16:20</string>
     <string name="test_txid">f4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16</string>
     <string name="test_value">42.12345678</string>
+    <string name="test_value_signed">+42.12345678</string>
     <string name="test_wallet">alpha</string>
     <string name="test_url">bitcoincash:qpzry9x8gf2tvdw0s3jn54khce6mua7lcw20ayyn?amount=1.23&amp;message=Hello%20world</string>
 

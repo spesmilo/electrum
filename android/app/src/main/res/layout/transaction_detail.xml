@@ -87,16 +87,15 @@
                 tools:text="@string/test_txid"/>
 
             <TextView
-                android:id="@+id/textView14"
+                android:id="@+id/textView19"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/date"
-                app:layout_constraintBaseline_toBaselineOf="@+id/tvTimestamp"
+                android:text="@string/amount"
+                app:layout_constraintBaseline_toBaselineOf="@+id/tvAmount"
                 app:layout_constraintStart_toStartOf="@+id/textView18"/>
 
             <TextView
-                android:id="@+id/tvTimestamp"
-                style="@style/Address"
+                android:id="@+id/tvAmount"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginLeft="6dp"
@@ -106,6 +105,27 @@
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toEndOf="@+id/barrier5"
                 app:layout_constraintTop_toBottomOf="@+id/tvTxid"
+                tools:text="@string/test_value_signed"/>
+
+            <TextView
+                android:id="@+id/textView14"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/date"
+                app:layout_constraintBaseline_toBaselineOf="@+id/tvTimestamp"
+                app:layout_constraintStart_toStartOf="@+id/textView19"/>
+
+            <TextView
+                android:id="@+id/tvTimestamp"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="6dp"
+                android:layout_marginStart="6dp"
+                android:layout_marginTop="6dp"
+                android:textAppearance="@style/Medium"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toEndOf="@+id/barrier5"
+                app:layout_constraintTop_toBottomOf="@+id/tvAmount"
                 tools:text="@string/test_timestamp"/>
 
             <TextView
@@ -118,7 +138,6 @@
 
             <TextView
                 android:id="@+id/tvStatus"
-                style="@style/Address"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginLeft="6dp"
@@ -140,7 +159,6 @@
 
             <TextView
                 android:id="@+id/tvSize"
-                style="@style/Address"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginLeft="6dp"
@@ -162,7 +180,6 @@
 
             <TextView
                 android:id="@+id/tvFee"
-                style="@style/Address"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginLeft="6dp"
@@ -181,7 +198,7 @@
                 android:layout_marginTop="12dp"
                 android:text="@string/description"
                 app:layout_constraintStart_toStartOf="@+id/textView17"
-                app:layout_constraintTop_toBottomOf="@+id/textView17"/>
+                app:layout_constraintTop_toBottomOf="@+id/tvFee" />
 
             <EditText
                 android:id="@+id/etDescription"
@@ -199,7 +216,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 app:barrierDirection="right"
-                app:constraint_referenced_ids="textView14,textView12,textView16,textView17,textView18"
+                app:constraint_referenced_ids="textView14,textView12,textView16,textView17,textView18,textView19"
                 tools:layout_editor_absoluteX="336dp"/>
 
         </androidx.constraintlayout.widget.ConstraintLayout>

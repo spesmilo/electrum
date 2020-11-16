@@ -43,8 +43,8 @@ var unitPlaces = 0
 // if the locale uses a comma as the decimal point, the EditText still only accepts a dot. See
 // https://issuetracker.google.com/issues/36907764, 70008222 and 172776283.
 
-fun toSatoshis(s: String, places: Int = unitPlaces) : Long {
-    val unit = Math.pow(10.0, places.toDouble())
+fun toSatoshis(s: String) : Long {
+    val unit = Math.pow(10.0, unitPlaces.toDouble())
     try {
         // toDouble accepts only the English number format: see comment above.
         return Math.round(s.toDouble() * unit)
@@ -54,18 +54,19 @@ fun toSatoshis(s: String, places: Int = unitPlaces) : Long {
 }
 
 @JvmOverloads  // For data binding.
-fun formatSatoshis(amount: Long, places: Int = unitPlaces): String {
-    val unit = Math.pow(10.0, places.toDouble())
+fun formatSatoshis(amount: Long, signed: Boolean = false): String {
+    val unit = Math.pow(10.0, unitPlaces.toDouble())
     // Locale.US produces the English number format: see comment above.
-    var result = "%.${places}f".format(Locale.US, amount / unit).trimEnd('0')
+    var result = "%${if (signed) "+" else ""}.${unitPlaces}f"
+        .format(Locale.US, amount / unit).trimEnd('0')
     if (result.endsWith(".")) {
         result += "0"
     }
     return result
 }
 
-fun formatSatoshisAndUnit(amount: Long): String {
-    return "${formatSatoshis(amount)} $unitName"
+fun formatSatoshisAndUnit(amount: Long, signed: Boolean = false): String {
+    return "${formatSatoshis(amount, signed)} $unitName"
 }
 
 
