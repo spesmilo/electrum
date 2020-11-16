@@ -78,7 +78,7 @@ setup(
         'electrum': [
             'wordlist/*.txt',
             'locale/*/LC_MESSAGES/electrum.mo',
-            'terms_and_conditions/*.txt',
+            'terms_and_conditions/*.html',
         ],
         'electrum.gui': [
             'icons/*',

@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from PyQt5.QtWidgets import QVBoxLayout, QTextEdit, QLabel, QHBoxLayout, QStyle, QPushButton
+from PyQt5.QtWidgets import QVBoxLayout, QLabel, QHBoxLayout, QStyle, QPushButton, QTextBrowser
 
 from electrum.base_wizard import GoBack
 from electrum.gui.qt.util import WindowModalDialog
@@ -20,10 +20,10 @@ class WarningDialog(WindowModalDialog):
         warning_box = QHBoxLayout()
         # FIXME new line works only with <br> not \n
         warning_label = QLabel(
-            '<b>' + _('Are you sure?') + '</b>' + 1 * '<br>' +
-            _("Note that if you disagree to our Terms & Conditions you won't be able to use"
-              " the Electrum Vault application.") + 1 * '<br>' +
-            _('Are you sure you want to disagree?') + 1 * '<br>'
+            '<b>' + _('Are you sure?') + '</b>' + '<br>' +
+            _("Note that if you disagree to our Terms & Conditions you won't be able to use the Electrum Vault application.")
+            + '<br>' +
+            _('Are you sure you want to disagree?') + '<br>'
         )
         warning_label.setMinimumWidth(450)
         warning_label.setWordWrap(True)
@@ -52,11 +52,12 @@ class WarningDialog(WindowModalDialog):
         self.close()
 
 
-class TermsAndConditionsTextEdit(QTextEdit):
+class TermsAndConditionsTextBrowser(QTextBrowser):
     def __init__(self, next_button, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.next_button = next_button
         self.setReadOnly(True)
+        self.setOpenExternalLinks(True)
         scroll_bar = self.verticalScrollBar()
         scroll_bar.valueChanged.connect(self.scrolled)
         self._scroll_bar_range_hit_max = False
@@ -81,13 +82,12 @@ class TermsAndConditionsTextEdit(QTextEdit):
 
 
 class TermsAndConditionsMixin:
-    # TODO change file with lorem ipsum
     def _read_terms_and_conditions(self) -> str:
         dir_ = Path(os.path.abspath(os.path.dirname(__file__))).parent.parent / 'terms_and_conditions'
         language = self.config.get('language', 'en_UK')
-        path = dir_ / f'{language}.txt'
+        path = dir_ / f'{language}.html'
         if not path.exists():
-            path = path.parent / 'en_UK.txt'
+            path = path.parent / 'en_UK.html'
             if not path.exists():
                 raise FileNotFoundError(f'Cannot open {path}')
         with open(path, 'r') as file:
@@ -95,9 +95,9 @@ class TermsAndConditionsMixin:
 
     def _render_main_dialog(self, text, run_warning=True):
         vbox = QVBoxLayout()
-        text_edit = TermsAndConditionsTextEdit(self.next_button)
-        text_edit.setText(text)
-        vbox.addWidget(text_edit)
+        text_browser = TermsAndConditionsTextBrowser(self.next_button)
+        text_browser.setHtml(text)
+        vbox.addWidget(text_browser)
         self.next_button.setText(_('I agree'))
         self.back_button.setText(_('I disagree'))
         try:

@@ -37,7 +37,7 @@ datas = [
     (home+'electrum/plugins', 'electrum/plugins'),
     ('C:\\Program Files (x86)\\ZBar\\bin\\', '.'),
     (home+'electrum/gui/icons', 'electrum/gui/icons'),
-    (home+'electrum/terms_and_conditions/*.txt', 'electrum/terms_and_conditions'),
+    (home+'electrum/terms_and_conditions/*.html', 'electrum/terms_and_conditions'),
 ]
 datas += collect_data_files('btchip')
 datas += collect_data_files('ckcc')
