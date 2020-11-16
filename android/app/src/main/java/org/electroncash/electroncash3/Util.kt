@@ -8,6 +8,7 @@ import android.view.Menu
 import android.view.MenuInflater
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
+import android.widget.EditText
 import android.widget.PopupMenu
 import android.widget.Toast
 import androidx.core.content.ContextCompat
@@ -33,20 +34,29 @@ val libUtil by lazy { libMod("util") }
 var unitName = ""
 var unitPlaces = 0
 
+// When converting values to and from strings, we only accept and produce the English number
+// format with a dot as the decimal point, and no thousands separators. This is consistent with
+// all the string conversion functions in the back end.
+//
+// When an EditText is set to inputType="numberDecimal", the EditText only allows the user to
+// enter digits and at most one dot. The device locale doesn't seem to make a difference: even
+// if the locale uses a comma as the decimal point, the EditText still only accepts a dot. See
+// https://issuetracker.google.com/issues/36907764, 70008222 and 172776283.
 
 fun toSatoshis(s: String, places: Int = unitPlaces) : Long {
     val unit = Math.pow(10.0, places.toDouble())
     try {
+        // toDouble accepts only the English number format: see comment above.
         return Math.round(s.toDouble() * unit)
     } catch (e: NumberFormatException) {
         throw ToastException(R.string.Invalid_amount)
     }
 }
 
-// We use Locale.US to be consistent with electroncash/exchange_rate.py, which is also locale-insensitive.
-@JvmOverloads  // For data binding call in address_list.xml.
+@JvmOverloads  // For data binding.
 fun formatSatoshis(amount: Long, places: Int = unitPlaces): String {
     val unit = Math.pow(10.0, places.toDouble())
+    // Locale.US produces the English number format: see comment above.
     var result = "%.${places}f".format(Locale.US, amount / unit).trimEnd('0')
     if (result.endsWith(".")) {
         result += "0"
@@ -88,6 +98,20 @@ fun <T: DialogFragment> findDialog(activity: FragmentActivity, fragClass: KClass
         return frag as T?
     }
 }
+
+
+/** Enables or disables an EditText without changing its appearance. */
+fun setEditable(et: EditText, editable: Boolean) {
+    if (editable) {
+        // Implicitly calls setFocusable(true).
+        et.setFocusableInTouchMode(true)
+    } else {
+        // Implicitly calls setFocusableInTouchMode(false).
+        et.setFocusable(false)
+    }
+}
+
+fun isEditable(et: EditText) = et.isFocusable()
 
 
 fun copyToClipboard(text: CharSequence, what: Int? = null) {

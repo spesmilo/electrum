@@ -123,9 +123,8 @@ abstract class AlertDialogFragment : DialogFragment() {
      *  they don't always close the dialog. */
     open fun onShowDialog() {}
 
-    /** Unlike onShowDialog, this will only be called once, even if the dialog is recreated
-     * after a rotation. This can be used to do things like setting the initial state of
-     * editable views. */
+    /** Called after onShowDialog, but only once per dialog lifecycle. This can be used to do
+     * things like setting the initial state of editable views. */
     open fun onFirstShowDialog() {}
 
     override fun getDialog(): AlertDialog {

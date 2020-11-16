@@ -437,13 +437,14 @@ class FxThread(ThreadJob):
         if rate:
             return PyDecimal(rate)
 
-    def format_amount_and_units(self, btc_balance, is_diff=False):
-        amount_str = self.format_amount(btc_balance, is_diff=is_diff)
+    def format_amount_and_units(self, btc_balance, is_diff=False, commas=True):
+        amount_str = self.format_amount(btc_balance, is_diff=is_diff, commas=commmas)
         return '' if not amount_str else "%s %s" % (amount_str, self.ccy)
 
-    def format_amount(self, btc_balance, is_diff=False):
+    def format_amount(self, btc_balance, is_diff=False, commas=True):
         rate = self.exchange_rate()
-        return '' if rate is None else self.value_str(btc_balance, rate, is_diff=is_diff)
+        return ('' if rate is None
+                else self.value_str(btc_balance, rate, is_diff=is_diff, commas=commas))
 
     def get_fiat_status_text(self, btc_balance, base_unit, decimal_point):
         rate = self.exchange_rate()
@@ -453,13 +454,18 @@ class FxThread(ThreadJob):
         return _("  (No FX rate available)") if rate is None else " 1 %s~%s %s" % (base_unit,
             self.value_str(COIN / (10**(8 - decimal_point)), rate, default_prec ), self.ccy )
 
-    def value_str(self, satoshis, rate, default_prec=2, is_diff=False):
+    def value_str(self, satoshis, rate, default_prec=2, is_diff=False, commas=True):
         if satoshis is None:  # Can happen with incomplete history
             return _("Unknown")
         if rate:
             value = PyDecimal(satoshis) / COIN * PyDecimal(rate)
-            return "%s" % (self.ccy_amount_str(value, True, default_prec, is_diff=is_diff))
+            return "%s" % (self.ccy_amount_str(value, commas, default_prec, is_diff=is_diff))
         return _("No data")
+
+    def fiat_to_amount(self, fiat):
+        rate = self.exchange_rate()
+        return (None if rate is None
+                else int(PyDecimal(fiat) / rate * COIN))
 
     def history_rate(self, d_t):
         rate = self.exchange.historical_rate(self.ccy, d_t)

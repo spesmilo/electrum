@@ -9,7 +9,6 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.observe
 import com.chaquo.python.PyObject
-import kotlinx.android.synthetic.main.amount_box.*
 import kotlinx.android.synthetic.main.main.*
 import kotlinx.android.synthetic.main.request_detail.*
 import kotlinx.android.synthetic.main.requests.*
@@ -68,7 +67,7 @@ class RequestsAdapter(val activity: FragmentActivity)
 
 class RequestModel(val request: PyObject) {
     val address = getField("address").toString()
-    val amount = formatSatoshis(getField("amount").toLong())
+    val amount = getField("amount").toLong()
     val timestamp = libUtil.callAttr("format_time", getField("time")).toString()
     val description = getField("memo").toString()
     val status = formatStatus(getField("status").toInt())
@@ -99,6 +98,7 @@ class RequestDialog() : AlertDialogFragment() {
     val existingRequest by lazy {
         wallet.callAttr("get_payment_request", address, daemonModel.config)
     }
+    lateinit var amountBox: AmountBox
 
     constructor(address: String): this() {
         arguments = Bundle().apply { putString("address", address) }
@@ -116,21 +116,19 @@ class RequestDialog() : AlertDialogFragment() {
     }
 
     override fun onShowDialog() {
+        amountBox = AmountBox(dialog)
+        amountBox.listener = { updateUI() }
+
         btnCopy.setOnClickListener {
             copyToClipboard(getUri(), R.string.request_uri)
         }
         tvAddress.text = address.callAttr("to_ui_string").toString()
-        tvUnit.text = unitName
 
-        val tw = object : TextWatcher {
+        etDescription.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) { updateUI() }
-        }
-        for (et in listOf(etAmount, etDescription)) {
-            et.addTextChangedListener(tw)
-        }
-        fiatUpdate.observe(this, { updateUI() })
+        })
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onOK() }
 
         if (existingRequest != null) {
@@ -138,39 +136,35 @@ class RequestDialog() : AlertDialogFragment() {
                 showDialog(this, RequestDeleteDialog(address))
             }
         }
+        updateUI()
     }
 
     override fun onFirstShowDialog() {
         val request = existingRequest
         if (request != null) {
             val model = RequestModel(request)
-            etAmount.setText(model.amount)
+            amountBox.amount = model.amount
             etDescription.setText(model.description)
         }
-        // We don't <requestFocus/> in the layout file, because it's also included by the
-        // Send dialog, where the initial focus should be on the address box.
-        etAmount.requestFocus()
+        amountBox.requestFocus()
     }
 
     private fun updateUI() {
         showQR(imgQR, getUri())
-        amountBoxUpdate(dialog)
     }
 
     private fun getUri(): String {
-        var amount: Long? = null
-        try {
-            amount = amountBoxGet(dialog)
-        } catch (e: ToastException) {}
+        val amount = try {
+            amountBox.amount
+        } catch (e: ToastException) { null }
         return libWeb.callAttr("create_URI", address, amount, description).toString()
     }
 
     private fun onOK() {
         try {
-            val amount = amountBoxGet(dialog)
             wallet.callAttr(
                 "add_payment_request",
-                wallet.callAttr("make_payment_request", address, amount, description),
+                wallet.callAttr("make_payment_request", address, amountBox.amount, description),
                 daemonModel.config)
         } catch (e: ToastException) { e.show() }
 

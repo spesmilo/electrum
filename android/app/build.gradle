@@ -30,7 +30,7 @@ android {
         if (ecVersion == null) {
             throw new GradleException("Couldn't find version number")
         }
-        def BUILD_NUM = 0
+        def BUILD_NUM = 1
         versionName "$ecVersion-$BUILD_NUM"
         def verParsed = ecVersion.split(/\./).collect { Integer.parseInt(it) }
         versionCode((verParsed[0] * 1000000) + (verParsed[1] * 10000) + (verParsed[2] * 100) +

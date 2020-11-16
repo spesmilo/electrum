@@ -4,6 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     tools:context=".RequestsFragment">
     <data>
+        <import type="org.electroncash.electroncash3.UtilKt"/>
         <variable
             name="model"
             type="org.electroncash.electroncash3.RequestModel"/>
@@ -24,7 +25,7 @@
             android:layout_marginRight="8dp"
             android:layout_marginStart="16dp"
             android:layout_marginTop="8dp"
-            android:text="@{model.amount}"
+            android:text="@{UtilKt.formatSatoshis(model.amount)}"
             android:textAppearance="@style/Heavy"
             app:layout_constraintEnd_toStartOf="@+id/tvTimestamp"
             app:layout_constraintStart_toStartOf="parent"

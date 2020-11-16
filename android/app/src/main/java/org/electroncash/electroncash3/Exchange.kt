@@ -1,6 +1,7 @@
 package org.electroncash.electroncash3
 
 import androidx.lifecycle.MediatorLiveData
+import com.chaquo.python.Kwarg
 
 
 val EXCHANGE_CALLBACKS = setOf("on_quotes", "on_history")
@@ -27,6 +28,20 @@ fun initExchange() {
 }
 
 
+fun fiatEnabled() = fx.callAttr("is_enabled").toBoolean()
+
+
+fun fiatToSatoshis(s: String): Long? {
+    if (!fiatEnabled()) return null
+    try {
+        // toDouble accepts only the English number format: see comment in Util.kt.
+        return fx.callAttr("fiat_to_amount", s.toDouble()).toLong()
+    } catch (e: NumberFormatException) {
+        throw ToastException(R.string.Invalid_amount)
+    }
+}
+
+
 fun formatFiatAmountAndUnit(amount: Long): String? {
     val amountStr = formatFiatAmount(amount)
     if (amountStr == null) {
@@ -46,10 +61,8 @@ fun formatSatoshisAndFiat(amount: Long): String {
 }
 
 fun formatFiatAmount(amount: Long): String? {
-    if (!fx.callAttr("is_enabled").toBoolean()) {
-        return null
-    }
-    val amountStr = fx.callAttr("format_amount", amount).toString()
+    if (!fiatEnabled()) return null
+    val amountStr = fx.callAttr("format_amount", amount, Kwarg("commas", false)).toString()
     return if (amountStr.isEmpty()) null else amountStr
 }
 

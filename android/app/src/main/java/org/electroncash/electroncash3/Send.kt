@@ -2,8 +2,6 @@ package org.electroncash.electroncash3
 
 import android.content.Intent
 import android.os.Bundle
-import android.text.Editable
-import android.text.TextWatcher
 import android.view.Menu
 import android.view.MenuItem
 import android.widget.SeekBar
@@ -11,12 +9,10 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.observe
 import com.chaquo.python.Kwarg
 import com.chaquo.python.PyException
 import com.chaquo.python.PyObject
 import com.google.zxing.integration.android.IntentIntegrator
-import kotlinx.android.synthetic.main.amount_box.*
 import kotlinx.android.synthetic.main.send.*
 import kotlin.properties.Delegates.notNull
 
@@ -35,6 +31,8 @@ class SendDialog : AlertDialogFragment() {
     val unbroadcasted by lazy {
         arguments?.getBoolean("unbroadcasted", false) ?: false
     }
+    lateinit var amountBox: AmountBox
+    var settingMax = false  // Prevent infinite recursion.
 
     init {
         if (daemonModel.wallet!!.callAttr("is_watching_only").toBoolean()) {
@@ -60,29 +58,15 @@ class SendDialog : AlertDialogFragment() {
             .setNeutralButton(R.string.qr_code, null)
     }
 
-    override fun onFirstShowDialog() {
-        if (arguments != null) {
-            val address = arguments!!.getString("address")
-            if (address != null) {
-                etAddress.setText(address)
-                etAmount.requestFocus()
+    override fun onShowDialog() {
+        amountBox = AmountBox(dialog)
+        amountBox.listener = {
+            if (!settingMax) {
+                btnMax.isChecked = false
+                updateUI()
             }
         }
-    }
-
-    override fun onShowDialog() {
         setPaymentRequest(model.paymentRequest)
-
-        etAmount.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: Editable?) {
-                if (!btnMax.isChecked) {  // Avoid infinite recursion.
-                    updateUI()
-                }
-            }
-        })
-        tvUnit.setText(unitName)
         btnMax.setOnCheckedChangeListener { _, _ -> updateUI() }
 
         with (sbFee) {
@@ -98,9 +82,19 @@ class SendDialog : AlertDialogFragment() {
                 override fun onStopTrackingTouch(seekBar: SeekBar) {}
             })
         }
-        fiatUpdate.observe(this, { updateUI() })
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onOK() }
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { scanQR(this) }
+        updateUI()
+    }
+
+    override fun onFirstShowDialog() {
+        if (arguments != null) {
+            val address = arguments!!.getString("address")
+            if (address != null) {
+                etAddress.setText(address)
+                amountBox.requestFocus()
+            }
+        }
     }
 
     fun updateUI() {
@@ -112,11 +106,14 @@ class SendDialog : AlertDialogFragment() {
             makeUnsignedTransaction(allowDummy = true)
         } catch (e: ToastException) { null }
 
-        etAmount.isEnabled = !btnMax.isChecked
         if (btnMax.isChecked && tx != null) {
-            etAmount.setText(formatSatoshis(tx.callAttr("output_value").toLong()))
+            try {
+                settingMax = true
+                amountBox.amount = tx.callAttr("output_value").toLong()
+            } finally {
+                settingMax = false
+            }
         }
-        amountBoxUpdate(dialog)
 
         var feeLabel = getString(R.string.sat_byte, feeSpb)
         if (tx != null) {
@@ -140,7 +137,7 @@ class SendDialog : AlertDialogFragment() {
             }
             val output = py.builtins.callAttr(
                 "tuple", arrayOf(libBitcoin.get("TYPE_ADDRESS"), addr,
-                                 if (btnMax.isChecked) "!" else amountBoxGet(dialog)))
+                                 if (btnMax.isChecked) "!" else amountBox.amount))
             outputs = py.builtins.callAttr("list", arrayOf(output))
         }
 
@@ -181,11 +178,16 @@ class SendDialog : AlertDialogFragment() {
             } else {
                 setPaymentRequest(null)
                 etAddress.setText(parsed.callAttr("get", "address")?.toString() ?: "")
+                etDescription.setText(parsed.callAttr("get", "message")?.toString() ?: "")
+
                 val amount = parsed.callAttr("get", "amount")?.toLong()
-                etAmount.setText(if (amount != null) formatSatoshis(amount) else "")
+                if (amount != null) {
+                    amountBox.amount = amount
+                } else {
+                    amountBox.clear()
+                }
+                amountBox.requestFocus()
                 btnMax.isChecked = false
-                etDescription.setText(parsed.callAttr("get", "message")?.toString()
-                                             ?: "")
             }
         } catch (e: ToastException) {
             e.show()
@@ -194,16 +196,16 @@ class SendDialog : AlertDialogFragment() {
 
     fun setPaymentRequest(pr: PyObject?) {
         model.paymentRequest = pr
-        for (et in listOf(etAddress, etAmount, etDescription)) {
-            if (pr == null) {
-                et.setFocusableInTouchMode(true)  // setFocusable(true) isn't good enough.
-            } else {
-                et.setFocusable(false)
-            }
+        for (et in listOf(etAddress, etDescription)) {
+            setEditable(et, (pr == null))
         }
+        amountBox.isEditable = (pr == null)
+        btnMax.isEnabled = (pr == null)
+
         if (pr != null) {
             etAddress.setText(pr.callAttr("get_requestor").toString())
-            etAmount.setText(formatSatoshis(pr.callAttr("get_amount").toLong()))
+            amountBox.amount = pr.callAttr("get_amount").toLong()
+            btnMax.isChecked = false
             etDescription.setText(pr.callAttr("get_memo").toString())
         }
 
@@ -216,7 +218,6 @@ class SendDialog : AlertDialogFragment() {
                 toast(pr.callAttr("get_verify_status").toString())
             }
         }
-        btnMax.setEnabled(pr == null)
     }
 
     fun onOK() {
@@ -271,7 +272,7 @@ class SendContactsDialog : MenuDialog() {
         val address = contacts.get(item.itemId).addr.callAttr("to_ui_string").toString()
         with (findDialog(activity!!, SendDialog::class)!!) {
             etAddress.setText(address)
-            etAmount.requestFocus()
+            amountBox.requestFocus()
         }
     }
 }
