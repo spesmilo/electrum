@@ -187,9 +187,9 @@
                 android:id="@+id/barrier5"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                app:barrierDirection="right"
+                app:barrierDirection="end"
                 app:constraint_referenced_ids="textView14,textView18,textView9,textView19"
-                tools:layout_editor_absoluteX="336dp"/>
+                tools:layout_editor_absoluteX="336dp" />
 
         </androidx.constraintlayout.widget.ConstraintLayout>
     </ScrollView>

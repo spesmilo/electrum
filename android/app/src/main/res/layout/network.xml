@@ -42,8 +42,9 @@
             android:id="@+id/barrier3"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            app:barrierDirection="right"
-            app:constraint_referenced_ids="textView,textView10"/>
+            app:barrierDirection="end"
+            app:constraint_referenced_ids="textView,textView10"
+            tools:layout_editor_absoluteX="280dp" />
 
         <TextView
             android:id="@+id/tvStatus"
