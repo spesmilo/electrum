@@ -87,6 +87,12 @@
         "t": "50001",
         "version": "1.4.2"
     },
+    "greedyhog.mooo.com": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4.1"
+    },
     "7nshufncf3nmp7pa42oqhnj6whsjgo2eok4jveex62tczuhvqur5ciad.onion": {
         "pruning": "-",
         "t": "50001",
