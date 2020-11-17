@@ -91,7 +91,7 @@ def _configure_file_logging(log_directory: pathlib.Path):
     PID = os.getpid()
     _logfile_path = log_directory / f"electrum_ltc_log_{timestamp}_{PID}.log"
 
-    file_handler = logging.FileHandler(_logfile_path)
+    file_handler = logging.FileHandler(_logfile_path, encoding='utf-8')
     file_handler.setFormatter(file_formatter)
     file_handler.setLevel(logging.DEBUG)
     root_logger.addHandler(file_handler)

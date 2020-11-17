@@ -358,8 +358,9 @@ class ChannelsList(MyTreeView):
             self.parent.wallet.network.start_gossip()
             nodeid = bh2u(lnworker.lnrater.suggest_peer() or b'')
             if not nodeid:
-                remote_nodeid.setText(
-                    "Please wait until the graph is synchronized to 30%.")
+                remote_nodeid.setText("")
+                remote_nodeid.setPlaceholderText(
+                    "Please wait until the graph is synchronized to 30%, and then try again.")
             else:
                 remote_nodeid.setText(nodeid)
             remote_nodeid.repaint()  # macOS hack for #6269

@@ -207,7 +207,10 @@ class AuthenticatedServer(Logger):
                 response['result'] = await f(*params)
         except BaseException as e:
             self.logger.exception("internal error while executing RPC")
-            response['error'] = str(e)
+            response['error'] = {
+                'code': 1,
+                'message': str(e),
+            }
         return web.json_response(response)
 
 

@@ -1203,7 +1203,8 @@ def extract_nodeid(connect_contents: str) -> Tuple[bytes, str]:
         raise ConnStringFormatError(_('At least a hostname must be supplied after the at symbol.'))
     try:
         node_id = bfh(nodeid_hex)
-        assert len(node_id) == 33, len(node_id)
+        if len(node_id) != 33:
+            raise Exception()
     except:
         raise ConnStringFormatError(_('Invalid node ID, must be 33 bytes and hexadecimal'))
     return node_id, rest
