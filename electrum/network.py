@@ -731,7 +731,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         util.trigger_callback('network_updated')
 
     def get_network_timeout_seconds(self, request_type=NetworkTimeout.Generic) -> int:
-        if self.oneserver and not self.auto_connect:
+        if self.oneserver:
             return request_type.MOST_RELAXED
         if self.proxy:
             return request_type.RELAXED
