@@ -58,6 +58,7 @@ datas = [
     (home+'electroncash/wordlist/english.txt', 'electroncash/wordlist'),
     (home+'electroncash/locale', 'electroncash/locale'),
     (home+'electroncash_gui/qt/data/ecsupplemental_win.ttf', 'electroncash_gui/qt/data'),
+    (home+'electroncash_gui/qt/data/ard_mone.mp3', 'electroncash_gui/qt/data'),
     (home+'electroncash_plugins', 'electroncash_plugins'),
 ]
 datas += collect_data_files('trezorlib')

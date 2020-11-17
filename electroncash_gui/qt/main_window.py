@@ -151,6 +151,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.externalpluginsdialog = None
         self.hardwarewalletdialog = None
         self.require_fee_update = False
+        self.tx_sound = self.setup_tx_rcv_sound()
         self.cashaddr_toggled_signal = self.gui_object.cashaddr_toggled_signal  # alias for backwards compatibility for plugins -- this signal used to live in each window and has since been refactored to gui-object where it belongs (since it's really an app-global setting)
         self.force_use_single_change_addr = None  # this is set by the CashShuffle plugin to a single string that will go into the tool-tip explaining why this preference option is disabled (see self.settings_dialog)
         self.tl_windows = []
@@ -246,6 +247,29 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         gui_object.timer.timeout.connect(self.timer_actions)
         self.fetch_alias()
+
+    def setup_tx_rcv_sound(self):
+        """Used only in the 'ard moné edition"""
+        if networks.net is not networks.TaxCoinNet:
+            return
+        try:
+            import PyQt5.QtMultimedia
+            from PyQt5.QtCore import QUrl, QResource
+            from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
+            fileName = os.path.join(os.path.dirname(__file__), "data", "ard_mone.mp3")
+            url = QUrl.fromLocalFile(fileName)
+            self.print_error("Sound effect: loading from", url.toLocalFile())
+            player = QMediaPlayer(self)
+            player.setMedia(QMediaContent(url))
+            player.setVolume(100)
+            self.print_error("Sound effect: regustered successfully")
+            return player
+        except Exception as e:
+            self.print_error("Sound effect: Failed:", str(e))
+            return
+
+
+
 
     _first_shown = True
     def showEvent(self, event):
@@ -5300,3 +5324,6 @@ class TxUpdateMgr(QObject, PrintError):
                                           .format(n_cashacct, ca_text))
                         else:
                             parent.notify(_("New transaction: {}").format(ca_text))
+                    # Play the sound effect ('ard moné edition only)
+                    if parent.tx_sound:
+                        parent.tx_sound.play()

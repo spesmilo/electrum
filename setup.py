@@ -118,22 +118,22 @@ class MakeAllBeforeSdist(setuptools.command.sdist.sdist):
         super().run()
 
 
-platform_package_data = {}
+platform_package_data = {
+    'electroncash_gui.qt': [
+        'data/ard_mone.mp3'
+    ],
+}
 
 if sys.platform in ('linux'):
-    platform_package_data = {
-        'electroncash_gui.qt': [
+    platform_package_data['electroncash_gui.qt'] += [
             'data/ecsupplemental_lnx.ttf',
             'data/fonts.xml'
-        ],
-    }
+    ]
 
 if sys.platform in ('win32', 'cygwin'):
-    platform_package_data = {
-        'electroncash_gui.qt': [
+    platform_package_data['electroncash_gui.qt'] += [
             'data/ecsupplemental_win.ttf'
-        ],
-    }
+    ]
 
 setup(
     cmdclass={

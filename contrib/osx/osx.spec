@@ -35,6 +35,7 @@ datas = [
     (home+'electroncash/servers_scalenet.json', PYPKG),
     (home+'electroncash/servers_taxcoin.json', PYPKG),
     (home+'electroncash/wordlist/english.txt', PYPKG + '/wordlist'),
+    (home+'electroncash_gui/data/ard_mone.mp3', PYPKG + '_gui' + '/data'),
     (home+'electroncash/locale', PYPKG + '/locale'),
     (home+'electroncash_plugins', PYPKG + '_plugins'),
 ]
