@@ -39,7 +39,7 @@ from electroncash.bitcoin import COINBASE_MATURITY
 from electroncash.plugins import BasePlugin, hook, daemon_command
 from electroncash.i18n import _, ngettext, pgettext
 from electroncash.util import profiler, PrintError, InvalidPassword
-from electroncash import Network
+from electroncash import Network, networks
 
 from .conf import Conf, Global
 from .fusion import Fusion, can_fuse_from, can_fuse_to, is_tor_port, MIN_TX_COMPONENTS
@@ -317,6 +317,9 @@ class FusionPlugin(BasePlugin):
 
     def description(self):
         return _("CashFusion Protocol")
+
+    def is_available(self):
+        return networks.net is not networks.TaxCoinNet
 
     def set_remote_donation_address(self, address : str):
         self.remote_donation_address = ((isinstance(address, str) and address) or '')[:100]

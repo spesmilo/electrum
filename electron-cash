@@ -382,14 +382,17 @@ if __name__ == '__main__':
     have_testnet = config_options.get('testnet') or False
     have_testnet4 = config_options.get('testnet4') or False
     have_scalenet = config_options.get('scalenet') or False
-    if have_testnet + have_testnet4 + have_scalenet > 1:
-        sys.exit("Invalid combination of --testnet, --testnet4, and/or --scalenet")
+    have_taxcoin = config_options.get('taxcoin') or False
+    if have_testnet + have_testnet4 + have_scalenet + have_taxcoin > 1:
+        sys.exit("Invalid combination of --testnet, --testnet4, --scalenet, and/or --taxcoin")
     elif have_testnet:
         networks.set_testnet()
     elif have_testnet4:
         networks.set_testnet4()
     elif have_scalenet:
         networks.set_scalenet()
+    elif have_taxcoin:
+        networks.set_taxcoin()
 
     # check uri
     uri = config_options.get('url')

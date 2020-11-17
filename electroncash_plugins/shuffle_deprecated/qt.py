@@ -35,6 +35,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
+from electroncash import networks
 from electroncash.plugins import BasePlugin, hook
 from electroncash.i18n import _
 from electroncash.util import print_error, profiler, PrintError, Weak, format_satoshis_plain, finalization_print_error
@@ -544,7 +545,7 @@ class Plugin(BasePlugin):
         return _("CashShuffle Protocol")
 
     def is_available(self):
-        return True
+        return networks.net is not networks.TaxCoinNet
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
@@ -805,13 +806,14 @@ class Plugin(BasePlugin):
             self.on_close_window(window)
         for window in self.disabled_windows.copy():
             self.on_close_window(window)
-        for window in self.gui.windows:
-            # lastly, we do this for ALL the extant wallet windows because all
-            # of their CashShuffle context menus attached to the cashshuffle
-            # status button need updating when the plugin is exited. Note
-            # that there may be windows in this set (incompatible windows)
-            # that aren't in either of the above 2 sets of windows.
-            window.update_status()
+        if self.gui:
+            for window in self.gui.windows:
+                # lastly, we do this for ALL the extant wallet windows because all
+                # of their CashShuffle context menus attached to the cashshuffle
+                # status button need updating when the plugin is exited. Note
+                # that there may be windows in this set (incompatible windows)
+                # that aren't in either of the above 2 sets of windows.
+                window.update_status()
         self.initted = False
         Plugin.instance = None
         self.print_error("Plugin closed")

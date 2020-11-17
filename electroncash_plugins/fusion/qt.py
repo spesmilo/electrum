@@ -33,6 +33,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 
+from electroncash import networks
 from electroncash.i18n import _, ngettext, pgettext
 from electroncash.plugins import hook, run_hook
 from electroncash.util import (
@@ -76,6 +77,8 @@ class Plugin(FusionPlugin, QObject):
 
     def on_close(self):
         super().on_close()
+        if not self.gui:  # can happen if is_available() is False
+            return
         # Shut down plugin.
         # This can be triggered from one wallet's window while
         # other wallets' windows have plugin-related modals open.
@@ -166,6 +169,9 @@ class Plugin(FusionPlugin, QObject):
         if can_fuse:
             sbbtn = FusionButton(self, wallet)
             self.server_status_changed_signal.connect(sbbtn.update_server_error)
+        elif networks.net is networks.TaxCoinNet:
+            sbmsg = _('CashFusion is not available on ABC TaxCoin')
+            sbbtn = DisabledFusionButton(wallet, sbmsg)
         else:
             # If we can not fuse we create a dummy fusion button that just displays a message
             sbmsg = _('This wallet type ({wtype}) cannot be used with CashFusion.\n\nPlease use a standard deterministic spending wallet with CashFusion.').format(wtype=wallet.wallet_type)

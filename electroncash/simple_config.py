@@ -1,4 +1,5 @@
 import json
+import shutil
 import threading
 import time
 import os
@@ -51,6 +52,7 @@ class SimpleConfig(PrintError):
         self.fee_estimates = {}
         self.fee_estimates_last_updated = {}
         self.last_time_fee_estimates_requested = 0  # zero ensures immediate fees
+        self.migrated_from_taxcoin_remove_keys = None
 
         # The following two functions are there for dependency injection when
         # testing.
@@ -73,6 +75,9 @@ class SimpleConfig(PrintError):
         if not self.user_config:
             # avoid new config getting upgraded
             self.user_config = {'config_version': FINAL_CONFIG_VERSION}
+        elif self.migrated_from_taxcoin_remove_keys:
+            for k in self.migrated_from_taxcoin_remove_keys:
+                self.user_config.pop(k, None)
 
         # config "upgrade" - CLI options
         self.rename_config_keys(
@@ -102,6 +107,27 @@ class SimpleConfig(PrintError):
         elif self.get('scalenet'):
             path = os.path.join(path, 'scalenet')
             make_dir(path)
+        elif self.get('taxcoin'):
+            # taxcoin support + migrate settings over
+            taxcoin_path = os.path.join(path, 'taxcoin')
+            if not os.path.exists(taxcoin_path) and os.path.exists(path):
+                make_dir(path)
+                try:
+                    # just copy wallets/ & config
+                    tax_wpath = os.path.join(taxcoin_path, "wallets")
+                    shutil.copytree(os.path.join(path, "wallets"), tax_wpath, symlinks=True)
+                    shutil.copy2(os.path.join(path, "config"), taxcoin_path, follow_symlinks=True)
+                    # delete some keys so that user doesn't open up non-taxcoin wallets.
+                    self.migrated_from_taxcoin_remove_keys = [
+                        'server', 'recently_open', 'gui_last_wallet', 'gui_last_wallet_slp', 'server_blacklist',
+                        'server_whitelist_added', 'server_whitelist_removed', 'auto_connect', 'currency', 'fiat_address',
+                        'use_exchange_rate', 'history_rates', 'use_exchange'
+                    ]
+                except OSError:
+                    pass
+            path = taxcoin_path
+
+
 
         obsolete_file = os.path.join(path, 'recent_servers')
         if os.path.exists(obsolete_file):

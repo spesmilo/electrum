@@ -4523,6 +4523,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         fiat_widgets.append((hist_checkbox, None))
         fiat_widgets.append((fiat_address_checkbox, None))
 
+        # disable fiat for TaxCoin since it's inaccurate
+        if networks.net is networks.TaxCoinNet:
+            for pair in fiat_widgets:
+                for w in pair:
+                    if isinstance(w, QWidget):
+                        w.setEnabled(False)
+
         tabs_info = [
             (gui_widgets, _('General')),
             (misc_widgets, pgettext("The preferences -> Fees,misc tab", 'Fees && Misc.')),

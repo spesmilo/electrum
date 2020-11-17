@@ -1,0 +1,26 @@
+{
+    "taxchain.imaginary.cash": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4.1"
+    },
+    "electrum.bitcoinabc.org": {
+      "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4.1"
+    },
+    "kingbch.com": {
+      "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4.1"
+    },
+    "fulcrum-main.bchjs.cash": {
+      "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4.1"
+    }
+}

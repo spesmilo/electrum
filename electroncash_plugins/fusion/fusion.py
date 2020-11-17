@@ -30,7 +30,7 @@ Client-side fusion logic. See `class Fusion` for the main exposed API.
 This module has no GUI dependency.
 """
 
-from electroncash import schnorr
+from electroncash import networks, schnorr
 from electroncash.bitcoin import public_key_from_private_key
 from electroncash.i18n import _, ngettext, pgettext
 from electroncash.util import format_satoshis, do_in_main_thread, PrintError, ServerError, TxHashMismatch, TimeoutException
@@ -85,12 +85,13 @@ MIN_TX_COMPONENTS = 11
 def can_fuse_from(wallet):
     """We can only fuse from wallets that are p2pkh, and where we are able
     to extract the private key."""
-    return not (wallet.is_watching_only() or wallet.is_hardware() or isinstance(wallet, Multisig_Wallet))
+    return (not (wallet.is_watching_only() or wallet.is_hardware() or isinstance(wallet, Multisig_Wallet))
+            and networks.net is not networks.TaxCoinNet)
 
 def can_fuse_to(wallet):
     """We can only fuse to wallets that are p2pkh with HD generation. We do
     *not* need the private keys."""
-    return isinstance(wallet, Standard_Wallet)
+    return isinstance(wallet, Standard_Wallet) and networks.net is not networks.TaxCoinNet
 
 
 
