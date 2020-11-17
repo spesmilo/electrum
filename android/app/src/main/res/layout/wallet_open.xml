@@ -8,52 +8,45 @@
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginLeft="24dp"
-        android:layout_marginRight="24dp">
+        android:layout_height="wrap_content">
 
         <TextView
             android:id="@+id/tvTitle"
-            style="?android:windowTitleStyle"
+            style="@style/DialogTitle"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="@dimen/fab_dialog_margin_inner"
-            android:layout_marginRight="@dimen/fab_dialog_margin_inner"
-            android:layout_marginTop="20dp"
-            android:maxLines="3"
-            android:singleLine="false"
+            android:layout_marginStart="24dp"
+            android:layout_marginLeft="24dp"
             android:text="@string/lorem"
             app:layout_constraintEnd_toStartOf="@+id/btnRename"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"/>
+            app:layout_constraintTop_toTopOf="parent" />
 
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/btnRename"
-            style="@style/FAB.Dialog"
+            style="@style/FAB.Dialog.Title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="@dimen/fab_dialog_margin_bottom"
             android:layout_marginEnd="@dimen/fab_dialog_margin_inner"
             android:layout_marginRight="@dimen/fab_dialog_margin_inner"
-            android:layout_marginTop="@dimen/fab_dialog_margin_top"
-            android:clickable="true"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toStartOf="@+id/btnExport"
             app:layout_constraintTop_toTopOf="parent"
-            app:srcCompat="@drawable/ic_edit_24dp"/>
+            app:srcCompat="@drawable/ic_edit_24dp"
+            android:contentDescription="@string/Rename_wallet" />
 
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/btnExport"
-            style="@style/FAB.Dialog"
+            style="@style/FAB.Dialog.Title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="@dimen/fab_dialog_margin_bottom"
-            android:layout_marginTop="@dimen/fab_dialog_margin_top"
-            android:clickable="true"
+            android:layout_marginEnd="24dp"
+            android:layout_marginRight="24dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent"
-            app:srcCompat="@drawable/ic_export_24dp"/>
+            app:srcCompat="@drawable/ic_export_24dp"
+            android:contentDescription="@string/export_wallet" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
@@ -65,13 +58,12 @@
             android:id="@+id/textEnterPassword"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginLeft="24dp"
             android:layout_marginStart="24dp"
-            android:layout_marginTop="8dp"
+            android:layout_marginLeft="24dp"
             android:text="@string/Enter_password"
             app:layout_constraintHorizontal_chainStyle="spread"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"/>
+            app:layout_constraintTop_toTopOf="parent" />
 
         <EditText
             android:id="@+id/etPassword"

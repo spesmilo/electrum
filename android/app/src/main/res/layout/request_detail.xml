@@ -9,34 +9,32 @@
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginLeft="24dp"
-        android:layout_marginRight="24dp">
+        android:layout_height="wrap_content">
 
         <TextView
             android:id="@+id/tvTitle"
-            style="?android:windowTitleStyle"
+            style="@style/DialogTitle"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="@dimen/fab_dialog_margin_inner"
-            android:layout_marginRight="@dimen/fab_dialog_margin_inner"
-            android:layout_marginTop="20dp"
+            android:layout_marginStart="24dp"
+            android:layout_marginLeft="24dp"
             android:text="@string/request"
             app:layout_constraintEnd_toStartOf="@+id/btnCopy"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"/>
+            app:layout_constraintTop_toTopOf="parent" />
 
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/btnCopy"
-            style="@style/FAB.Dialog"
+            style="@style/FAB.Dialog.Title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="@dimen/fab_dialog_margin_bottom"
-            android:layout_marginTop="@dimen/fab_dialog_margin_top"
+            android:layout_marginEnd="24dp"
+            android:layout_marginRight="24dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent"
-            app:srcCompat="@drawable/ic_copy_24dp"/>
+            app:srcCompat="@drawable/ic_copy_24dp"
+            android:contentDescription="@string/copy_to" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
@@ -55,15 +53,10 @@
                 android:id="@+id/imgQR"
                 android:layout_width="@dimen/qr_resolution"
                 android:layout_height="@dimen/qr_resolution"
-                android:layout_marginEnd="8dp"
-                android:layout_marginLeft="8dp"
-                android:layout_marginRight="8dp"
-                android:layout_marginStart="8dp"
-                android:layout_marginTop="4dp"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent"
-                tools:srcCompat="@drawable/qr_request"/>
+                tools:srcCompat="@drawable/qr_request" />
 
             <TextView
                 android:id="@+id/textView14"

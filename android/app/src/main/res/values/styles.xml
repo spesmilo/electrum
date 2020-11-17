@@ -38,6 +38,13 @@
         <item name="android:background">?android:attr/selectableItemBackground</item>
     </style>
 
+    <style name="DialogTitle" parent="TextAppearance.AppCompat.Title">
+        <item name="android:layout_marginTop">20dp</item>
+        <item name="android:layout_marginEnd">@dimen/fab_main_margin_inner</item>
+        <item name="android:layout_marginRight">@dimen/fab_main_margin_inner</item>
+        <item name="android:singleLine">true</item>
+    </style>
+
     <!-- FloatingActionButton -->
     <style name="FAB">
         <item name="android:tint">#FFFFFF</item>
@@ -52,6 +59,10 @@
     </style>
     <style name="FAB.Dialog">
         <item name="fabSize">mini</item>
+    </style>
+    <style name="FAB.Dialog.Title">
+        <item name="android:layout_marginTop">@dimen/fab_dialog_margin_top</item>
+        <item name="android:layout_marginBottom">@dimen/fab_dialog_margin_bottom</item>
     </style>
 
     <style name="FilterButton">
