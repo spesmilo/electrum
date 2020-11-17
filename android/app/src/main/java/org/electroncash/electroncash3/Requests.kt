@@ -142,8 +142,9 @@ class RequestDialog() : AlertDialogFragment() {
             val model = RequestModel(request)
             amountBox.amount = model.amount
             etDescription.setText(model.description)
+        } else {
+            amountBox.requestFocus()
         }
-        amountBox.requestFocus()
     }
 
     private fun updateUI() {

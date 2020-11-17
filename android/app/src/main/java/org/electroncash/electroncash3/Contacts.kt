@@ -121,6 +121,8 @@ class ContactDialog : AlertDialogFragment() {
         if (contact != null) {
             etName.setText(contact.name)
             etAddress.setText(contact.addrUiString)
+        } else {
+            etName.requestFocus()
         }
     }
 

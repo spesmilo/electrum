@@ -22,6 +22,10 @@
         <item name="android:windowBackground">@drawable/splash</item>
     </style>
 
+    <style name="NavigationMenuItem">
+        <item name="android:ellipsize">end</item>
+    </style>
+
     <style name="List">
         <item name="android:scrollbars">vertical</item>
     </style>

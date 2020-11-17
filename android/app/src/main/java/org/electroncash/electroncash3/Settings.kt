@@ -84,7 +84,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
         setPreferencesFromResource(R.xml.settings, rootKey)
 
         // Appearance
-        setEntries("base_unit", py.builtins.callAttr("list", libUtil.get("base_units")!!))
+        setEntries("base_unit", libUtil.get("base_units")!!)
         setEntries("block_explorer", libWeb.callAttr("BE_sorted_list"))
 
         // Fiat
@@ -103,8 +103,8 @@ class SettingsFragment : PreferenceFragmentCompat() {
         observeGroup(preferenceScreen)
     }
 
-    fun setEntries(key: String, pyList: PyObject) {
-        val arr = pyList.asList().map { it.toString() }.toTypedArray()
+    fun setEntries(key: String, pySequence: PyObject) {
+        val arr = pySequence.toJava(Array<String>::class.java)
         (findPreference(key) as ListPreference).apply {
             entries = arr
             entryValues = arr

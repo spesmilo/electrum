@@ -80,9 +80,7 @@
                 app:layout_constraintEnd_toEndOf="@+id/textView14"
                 app:layout_constraintStart_toStartOf="@+id/textView14"
                 app:layout_constraintTop_toBottomOf="@+id/textView14"
-                tools:text="@string/test_contact">
-                <requestFocus/>
-            </EditText>
+                tools:text="@string/test_contact" />
 
             <TextView
                 android:id="@+id/textView13"

@@ -83,14 +83,10 @@ class MainActivity : AppCompatActivity(R.layout.main) {
         }
 
         navDrawer.setNavigationItemSelectedListener { item ->
+            // Running two transitions at a time can cause flashing or jank, so delay the
+            // action until the drawer close animation completes,
             closeDrawer()
-            if (item.itemId in ACTIVITIES) {
-                // Delay the activity transition until the drawer close animation completes,
-                // otherwise the user may see it stick in a half-closed position.
-                pendingDrawerItem = item
-            } else {
-                onDrawerItemSelected(item)
-            }
+            pendingDrawerItem = item
             false
         }
         drawer.addDrawerListener(object : DrawerLayout.SimpleDrawerListener() {
