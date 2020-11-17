@@ -55,7 +55,7 @@ fun setDefaultValues(sp: SharedPreferences) {
     setDefaultValue(sp, "cashaddr_format",
                     clsAddress.get("FMT_UI") == clsAddress.get("FMT_CASHADDR"))
     setDefaultValue(sp, "base_unit", libUtil.get("DEFAULT_BASE_UNIT")!!.toString())
-    setDefaultValue(sp, "block_explorer", libWeb.get("DEFAULT_EXPLORER")!!.toString())
+    setDefaultValue(sp, "block_explorer", libWeb.callAttr("BE_default_explorer")!!.toString())
 
     // Fiat
     setDefaultValue(sp, "use_exchange_rate",
