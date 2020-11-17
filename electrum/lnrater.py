@@ -214,9 +214,11 @@ class LNRater(Logger):
             heuristics = []
             heuristics_weights = []
 
-            # example of how we could construct a scalar score for nodes
-            # this is probably not what we want to to, this is roughly
-            # preferential attachment
+            # Construct an average score which leads to recommendation of nodes
+            # with low fees, large capacity and reasonable number of channels.
+            # This is somewhat akin to preferential attachment, but low fee
+            # nodes are more favored. Here we make a compromise between user
+            # comfort and decentralization, tending towards user comfort.
 
             # number of channels
             heuristics.append(stats.number_channels / max_num_chan)
