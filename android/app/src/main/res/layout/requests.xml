@@ -25,6 +25,7 @@
         android:layout_height="wrap_content"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:src="@drawable/ic_add_24dp"/>
+        app:srcCompat="@drawable/ic_add_24dp"
+        android:contentDescription="@string/create" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -37,6 +37,13 @@ KOTLIN_KEYWORDS = set([  # "Hard" keywords only.
 
 KEYWORDS = JAVA_KEYWORDS | KOTLIN_KEYWORDS
 
+# Some language codes have been renamed, but Android only recognizes the old codes in resource
+# directory names.
+RENAMED_LANGUAGES = {
+    "he": "iw",
+    "yi": "ji",
+    "id": "in",
+}
 
 def main():
     args = parse_args()
@@ -252,6 +259,7 @@ def str_to_id(s, *, lower, squash):
 
 
 def write_xml(res_dir, res_suffix, strings, ids):
+    res_suffix = RENAMED_LANGUAGES.get(res_suffix, res_suffix)
     dir_name = "values" + ("-" + res_suffix if res_suffix else "")
     base_name = "strings.xml"
     log("{}/{}: ".format(dir_name, base_name), end="")

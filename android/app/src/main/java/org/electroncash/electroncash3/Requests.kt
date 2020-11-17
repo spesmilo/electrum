@@ -70,11 +70,8 @@ class RequestModel(val request: PyObject) {
     val amount = getField("amount").toLong()
     val timestamp = libUtil.callAttr("format_time", getField("time")).toString()
     val description = getField("memo").toString()
-    val status = formatStatus(getField("status").toInt())
-
-    private fun formatStatus(status: Int): Any {
-        return app.resources.getStringArray(R.array.payment_status)[status]
-    }
+    val status = (app.resources.getStringArray(R.array.payment_status)
+                  [getField("status").toInt()])
 
     private fun getField(key: String): PyObject {
         return request.callAttr("get", key)!!

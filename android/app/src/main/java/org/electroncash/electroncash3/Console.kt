@@ -40,7 +40,6 @@ class ECConsoleActivity : PythonConsoleActivity() {
     class Task(app: Application) : PythonConsoleActivity.Task(app) {
 
         override fun run() {
-            // TODO: integrate console into MainActivity and remove MainActivity.instance.
             guiConsole
                 .callAttr("AndroidConsole", app, daemonModel.commands)
                 .callAttr("interact")

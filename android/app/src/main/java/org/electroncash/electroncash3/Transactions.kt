@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
@@ -77,7 +78,8 @@ class TransactionModel(val txExport: Map<PyObject, PyObject>) {
     fun get(key: String) = txExport.get(PyObject.fromJava(key))!!.toString()
 
     fun getIcon(): Drawable {
-        return ContextCompat.getDrawable(
+        // Support inflation of vector images before API level 21.
+        return AppCompatResources.getDrawable(
             app,
             if (get("value")[0] == '+') R.drawable.ic_add_24dp
             else R.drawable.ic_remove_24dp)!!

@@ -122,6 +122,7 @@ implements ViewTreeObserver.OnGlobalLayoutListener, ViewTreeObserver.OnScrollCha
 
         tvOutput = findViewById(resId("id", "tvOutput"));
         if (Build.VERSION.SDK_INT >= 23) {
+            // noinspection WrongConstant
             tvOutput.setBreakStrategy(Layout.BREAK_STRATEGY_SIMPLE);
         }
         // Don't start observing task.output yet: we need to restore the scroll position first so
