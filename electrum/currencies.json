@@ -341,15 +341,6 @@
         "ZMW",
         "ZWL"
     ],
-    "BitcoinVenezuela": [
-        "ARS",
-        "ETH",
-        "EUR",
-        "LTC",
-        "USD",
-        "VEF",
-        "XMR"
-    ],
     "Bitcointoyou": [
         "BRL"
     ],    
@@ -385,9 +376,6 @@
     ],
     "Bylls": [
         "CAD"
-    ],
-    "CoinCap": [
-        "USD"
     ],
     "CoinDesk": [
         "AED",
@@ -557,62 +545,6 @@
         "ZMK",
         "ZMW",
         "ZWL"
-    ],
-    "CoinGecko": [
-        "AED",
-        "ARS",
-        "AUD",
-        "BCH",
-        "BDT",
-        "BHD",
-        "BMD",
-        "BNB",
-        "BRL",
-        "BTC",
-        "CAD",
-        "CHF",
-        "CLP",
-        "CNY",
-        "CZK",
-        "DKK",
-        "EOS",
-        "ETH",
-        "EUR",
-        "GBP",
-        "HKD",
-        "HUF",
-        "IDR",
-        "ILS",
-        "INR",
-        "JPY",
-        "KRW",
-        "KWD",
-        "LKR",
-        "LTC",
-        "MMK",
-        "MXN",
-        "MYR",
-        "NOK",
-        "NZD",
-        "PHP",
-        "PKR",
-        "PLN",
-        "RUB",
-        "SAR",
-        "SEK",
-        "SGD",
-        "THB",
-        "TRY",
-        "TWD",
-        "USD",
-        "VEF",
-        "VND",
-        "XAG",
-        "XAU",
-        "XDR",
-        "XLM",
-        "XRP",
-        "ZAR"
     ],
     "Coinbase": [
         "AED",
