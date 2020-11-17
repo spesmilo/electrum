@@ -78,6 +78,7 @@ class SimpleConfig(PrintError):
         elif self.migrated_from_taxcoin_remove_keys:
             for k in self.migrated_from_taxcoin_remove_keys:
                 self.user_config.pop(k, None)
+            self.migrated_from_taxcoin_remove_keys = None
 
         # config "upgrade" - CLI options
         self.rename_config_keys(
