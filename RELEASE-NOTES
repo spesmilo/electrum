@@ -1060,3 +1060,9 @@ and there is no warning message.
 - Added checkpoint after HF block, also added CLI arg --taxcoin for ABC's coin.
   (Calin Culianu)
 - Network Dialog: Added advanced request throttling params (Calin Culianu)
+
+# RELEASE NOTES 4.2.2
+
+- Fixed a regression introduced in 4.2.1 where the checkpoint block being after
+  the asert anchor caused the code in blockchain.py to have a bad time.
+  (Calin Culianu)

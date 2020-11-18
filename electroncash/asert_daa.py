@@ -72,6 +72,7 @@ class ASERTDaa:
 
     MAX_TARGET = bits_to_target(MAX_BITS)
 
+    # If left as none, blockchain.py will calculate this at runtime as we read headers.
     anchor: Optional[Anchor] = None
 
     def __init__(self, is_testnet=False):

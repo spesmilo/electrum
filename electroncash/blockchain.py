@@ -423,19 +423,24 @@ class Blockchain(util.PrintError):
 
         return blocks1['block_height']
 
-    _cached_asert_anchor: Optional[asert_daa.Anchor] = None  # cached Anchor, per-Blockchain instance
+    # cached Anchor, per-Blockchain instance, only used if the checkpoint for this network is *behind* the anchor block
+    _cached_asert_anchor: Optional[asert_daa.Anchor] = None
+
     def get_asert_anchor(self, prevheader, mtp, chunk=None):
+        """Returns the asert_anchor either from Networks.net if hardcoded or
+        calculated in realtime if not."""
         if networks.net.asert_daa.anchor is not None:
             # Checkpointed (hard-coded) value exists, just use that
             return networks.net.asert_daa.anchor
+        # Bug note: The below does not work if we don't have all the intervening
+        # headers -- therefore this execution path should only be taken for networks
+        # where the checkpoint block is before the anchor block.  This means that
+        # adding a checkpoint after the anchor block without setting the anchor
+        # block in networks.net.asert_daa.anchor will result in bugs.
         if (self._cached_asert_anchor is not None
                 and self._cached_asert_anchor.height <= prevheader['block_height']):
             return self._cached_asert_anchor
-        # ****
-        # This may be slow -- we really should be leveraging the hard-coded
-        # checkpointed value. TODO: add hard-coded value to networks.py after
-        # Nov. 15th 2020 HF to ASERT DAA
-        # ****
+
         anchor = prevheader
         activation_mtp = networks.net.asert_daa.MTP_ACTIVATION_TIME
         while mtp >= activation_mtp:

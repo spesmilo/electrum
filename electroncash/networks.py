@@ -22,9 +22,10 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import json, pkgutil
+import json
+import pkgutil
 
-from .asert_daa import ASERTDaa
+from .asert_daa import ASERTDaa, Anchor
 
 def _read_json_dict(filename):
     try:
@@ -36,7 +37,6 @@ def _read_json_dict(filename):
 
 class AbstractNet:
     TESTNET = False
-    asert_daa = ASERTDaa()
     LEGACY_POW_TARGET_TIMESPAN = 14 * 24 * 60 * 60   # 2 weeks
     LEGACY_POW_TARGET_INTERVAL = 10 * 60  # 10 minutes
     LEGACY_POW_RETARGET_BLOCKS = LEGACY_POW_TARGET_TIMESPAN // LEGACY_POW_TARGET_INTERVAL  # 2016 blocks
@@ -73,8 +73,13 @@ class MainNet(AbstractNet):
     #    network.synchronous_get(("blockchain.block.header", [height, height]))
     #
     # Consult the ElectrumX documentation for more details.
-    VERIFICATION_BLOCK_MERKLE_ROOT = "45fca167c5d9b7774eab414e1608cefd37737488fb1e11f10c2e42eaf1be370e"
-    VERIFICATION_BLOCK_HEIGHT = 661648
+    VERIFICATION_BLOCK_MERKLE_ROOT = "68077352cf309072547164625deb11e92bd379e759e87f3f9ac6e61d1532c536"
+    VERIFICATION_BLOCK_HEIGHT = 661942
+    asert_daa = ASERTDaa(is_testnet=False)
+    # Note: We *must* specify the anchor if the checkpoint is after the anchor, due to the way
+    # blockchain.py skips headers after the checkpoint.  So all instances that have a checkpoint
+    # after the anchor must specify the anchor as well.
+    asert_daa.anchor = Anchor(height=661647, bits=402971390, prev_time=1605447844)
 
     # Version numbers for BIP32 extended keys
     # standard: xprv, xpub
@@ -89,7 +94,6 @@ class MainNet(AbstractNet):
 
 class TestNet(AbstractNet):
     TESTNET = True
-    asert_daa = ASERTDaa(is_testnet=True)
     WIF_PREFIX = 0xef
     ADDRTYPE_P2PKH = 111
     ADDRTYPE_P2PKH_BITPAY = 111  # Unsure
@@ -113,6 +117,8 @@ class TestNet(AbstractNet):
 
     VERIFICATION_BLOCK_MERKLE_ROOT = "d97d670815829fddcf728fa2d29665de53e83609fd471b0716a49cde383fb888"
     VERIFICATION_BLOCK_HEIGHT = 1421482
+    asert_daa = ASERTDaa(is_testnet=True)
+    asert_daa.anchor = Anchor(height=1421481, bits=486604799, prev_time=1605445400)
 
     # Version numbers for BIP32 extended keys
     # standard: tprv, tpub
@@ -134,14 +140,17 @@ class TestNet4(TestNet):
     DEFAULT_SERVERS = _read_json_dict('servers_testnet4.json')  # DO NOT MODIFY IN CLIENT CODE
     DEFAULT_PORTS = {'t': '62001', 's': '62002'}
 
-    VERIFICATION_BLOCK_MERKLE_ROOT = "9ca8933d4aa7b85093e3ec317e40bdfeda3e2b793fcd7907b38580fa193d9c77"
-    VERIFICATION_BLOCK_HEIGHT = 16845
-
     BITCOIN_CASH_FORK_BLOCK_HEIGHT = 6
     BITCOIN_CASH_FORK_BLOCK_HASH = "00000000d71b9b1f7e13b0c9b218a12df6526c1bcd1b667764b8693ae9a413cb"
 
     # Nov 13. 2017 HF to CW144 DAA height (height of last block mined on old DAA)
     CW144_HEIGHT = 3000
+
+    VERIFICATION_BLOCK_MERKLE_ROOT = "9ca8933d4aa7b85093e3ec317e40bdfeda3e2b793fcd7907b38580fa193d9c77"
+    VERIFICATION_BLOCK_HEIGHT = 16845
+    asert_daa = ASERTDaa(is_testnet=True)  # Redeclare to get instance for this subclass
+    asert_daa.anchor = Anchor(height=16844, bits=486604799, prev_time=1605451779)
+
 
 
 class ScaleNet(TestNet):
@@ -150,21 +159,23 @@ class ScaleNet(TestNet):
     BASE_UNITS = {'sBCH': 8, 'msBCH': 5, 'sbits': 2}
     DEFAULT_UNIT = "tBCH"
 
-    asert_daa = ASERTDaa(is_testnet=False)  # Despite being a "testnet", ScaleNet uses 2d half-life
 
     HEADERS_URL = "http://bitcoincash.com/files/scalenet_headers"  # Unused
 
     DEFAULT_SERVERS = _read_json_dict('servers_scalenet.json')  # DO NOT MODIFY IN CLIENT CODE
     DEFAULT_PORTS = {'t': '63001', 's': '63002'}
 
-    VERIFICATION_BLOCK_MERKLE_ROOT = "41eb32849a353fcb408c8b25e84578c714dbdc5ee774d0fbe25e85755250df6a"
-    VERIFICATION_BLOCK_HEIGHT = 2016
-
     BITCOIN_CASH_FORK_BLOCK_HEIGHT = 6
     BITCOIN_CASH_FORK_BLOCK_HASH = "000000000e16730d293050fc5fe5b0978b858f5d9d91192a5ca2793902493597"
 
     # Nov 13. 2017 HF to CW144 DAA height (height of last block mined on old DAA)
     CW144_HEIGHT = 3000
+
+    VERIFICATION_BLOCK_MERKLE_ROOT = "41eb32849a353fcb408c8b25e84578c714dbdc5ee774d0fbe25e85755250df6a"
+    VERIFICATION_BLOCK_HEIGHT = 2016
+    asert_daa = ASERTDaa(is_testnet=False)  # Despite being a "testnet", ScaleNet uses 2d half-life
+    asert_daa.anchor = None  # Intentionally not specified because it's after checkpoint; blockchain.py will calculate
+
 
 
 class TaxCoinNet(AbstractNet):
@@ -204,6 +215,8 @@ class TaxCoinNet(AbstractNet):
     # Consult the ElectrumX documentation for more details.
     VERIFICATION_BLOCK_MERKLE_ROOT = "d0d925862df595918416020caf5467b7ae67ae8f807daf60626c36755b62f9a2"
     VERIFICATION_BLOCK_HEIGHT = 661648  # ABC fork block
+    asert_daa = ASERTDaa(is_testnet=False)
+    asert_daa.anchor = Anchor(height=661647, bits=402971390, prev_time=1605447844)
 
     # Version numbers for BIP32 extended keys
     # standard: xprv, xpub
