@@ -142,8 +142,8 @@ class SwapDialog(WindowModalDialog):
         self.recv_amount_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
         self.recv_amount_e.follows = False
         self.send_follows = False
-        self.update_fee()
         self.ok_button.setEnabled(recv_amount is not None)
+        self.update_fee()  # note: this might disable the "OK" button
 
     def on_recv_edited(self):
         if self.recv_amount_e.follows:
@@ -158,8 +158,8 @@ class SwapDialog(WindowModalDialog):
         self.send_amount_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
         self.send_amount_e.follows = False
         self.send_follows = True
-        self.update_fee()
         self.ok_button.setEnabled(send_amount is not None)
+        self.update_fee()  # note: this might disable the "OK" button
 
     def update(self):
         sm = self.swap_manager
@@ -233,7 +233,9 @@ class SwapDialog(WindowModalDialog):
             self.ok_button.setEnabled(False)
 
     def do_normal_swap(self, lightning_amount, onchain_amount, password):
-        coro = self.swap_manager.normal_swap(lightning_amount, onchain_amount, password, tx=self.tx)
+        tx = self.tx
+        assert tx
+        coro = self.swap_manager.normal_swap(lightning_amount, onchain_amount, password, tx=tx)
         self.window.run_coroutine_from_thread(coro)
 
     def get_description(self):

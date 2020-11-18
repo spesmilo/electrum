@@ -481,6 +481,12 @@ class BaseWizard(Logger):
             'label': label,
             'soft_device_id': soft_device_id,
         }
+        try:
+            client.manipulate_keystore_dict_during_wizard_setup(d)
+        except Exception as e:
+            self.logger.exception('')
+            self.show_error(e)
+            raise ChooseHwDeviceAgain()
         k = hardware_keystore(d)
         self.on_keystore(k)
 

@@ -1,3 +1,18 @@
+# Release 4.0.5 - (Nov 18, 2020)
+ * Fix .dmg binary hanging on recently released macOS 11 Big Sur (#6461)
+ * Lightning:
+   - bugfix: during LN channel opening, if the client crashed at the
+     wrong moment, the channel might not get fully persisted to disk,
+     and would need manual console-tinkering to recover (#6656)
+   - Lightning is enabled by default. Electrum will not connect to
+     the Lightning Network until the user opens a channel. (#6639)
+   - smarter node recommendation (to open channels with) (#6705)
+ * user interface: some minor changes that aim to improve usability
+ * Ledger:
+   - fix enumerating devices with new bitcoin app (1.5.1) (b78cbcff)
+   - fix compat with HW.1 (200f547a)
+ * A few other minor bugfixes.
+
 # Release 4.0.4 - (Oct 15, 2020)
  * PSBT: fix regression in 4.0.3 where UTXO data was not included in
    QR codes (#6600)
