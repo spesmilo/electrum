@@ -90,7 +90,7 @@ from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialo
                    import_meta_gui, export_meta_gui,
                    filename_field, address_field, char_width_in_lineedit, webopen,
                    TRANSACTION_FILE_EXTENSION_FILTER_ANY, MONOSPACE_FONT)
-from .util import ButtonsTextEdit
+from .util import ButtonsTextEdit, ButtonsLineEdit
 from .installwizard import WIF_HELP_TEXT
 from .history_list import HistoryList, HistoryModel
 from .update_checker import UpdateCheck, UpdateCheckThread
@@ -2085,7 +2085,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         grid.addWidget(QLabel(_("Description") + ':'), 2, 0)
         grid.addWidget(QLabel(invoice.message), 2, 1)
         grid.addWidget(QLabel(_("Hash") + ':'), 3, 0)
-        grid.addWidget(QLabel(lnaddr.paymenthash.hex()), 3, 1)
+        payhash_e = ButtonsLineEdit(lnaddr.paymenthash.hex())
+        payhash_e.addCopyButton(self.app)
+        payhash_e.setReadOnly(True)
+        vbox.addWidget(payhash_e)
+        grid.addWidget(payhash_e, 3, 1)
         if invoice.exp:
             grid.addWidget(QLabel(_("Expires") + ':'), 4, 0)
             grid.addWidget(QLabel(format_time(invoice.time + invoice.exp)), 4, 1)
