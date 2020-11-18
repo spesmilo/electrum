@@ -73,8 +73,8 @@ class MainNet(AbstractNet):
     #    network.synchronous_get(("blockchain.block.header", [height, height]))
     #
     # Consult the ElectrumX documentation for more details.
-    VERIFICATION_BLOCK_MERKLE_ROOT = "68077352cf309072547164625deb11e92bd379e759e87f3f9ac6e61d1532c536"
-    VERIFICATION_BLOCK_HEIGHT = 661942
+    VERIFICATION_BLOCK_MERKLE_ROOT = "45fca167c5d9b7774eab414e1608cefd37737488fb1e11f10c2e42eaf1be370e"
+    VERIFICATION_BLOCK_HEIGHT = 661648
 
     # Version numbers for BIP32 extended keys
     # standard: xprv, xpub
