@@ -1036,3 +1036,27 @@ and there is no warning message.
 - Qt UI: Made all tabs except for "Console" ON by default (Calin Culianu)
 - TxDialog: Add "Freeze Coins" button to freeze inputs before broadcast
   (Calin Culianu)
+
+# RELEASE NOTES 4.2.1
+
+- CashFusion: Server-side checks to ensure "fast schnorr" is available on the
+  server. (Mark Lundeberg)
+- Fixed a typo in the transaction dialog ("Unfeeze" -> "Unfreeze") #2027
+  (Axel Gembe)
+- CashFusion: Various tweaks to starting logic, stopping behavior, bugfixes,
+  better handling for confirmed-only case, better handling when network down,
+  improved logic for wallet waiting to receive fusions. #2028, #2030
+  (Mark Lundeberg)
+- Tor subprocess: Ensure daemonized (Mark Lundeberg)
+- Android: Added fiat send, plus various fixes (Malcolm Smith)
+- Added Loping.net block explorers; added TestNet4 / ScaleNet explorer list
+  #2036 (Axel Gembe)
+- Added a "View on block explorer" option for addresses in the TX dialog #2049
+  (Axel Gembe)
+- Added shortcuts to Windows build for TestNet4 and ScaleNet #2050 (Axel Gembe)
+- Fix for ScaleNet: Turns out it has a 2d half-life, not one hour. Bug caused
+  ScaleNet to stop working post-Nov 15th. Now it should work. (Calin Culianu)
+- Various updates to server list. (Axel Gembe)
+- Added checkpoint after HF block, also added CLI arg --taxcoin for ABC's coin.
+  (Calin Culianu)
+- Network Dialog: Added advanced request throttling params (Calin Culianu)
