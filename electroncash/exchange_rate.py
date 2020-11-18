@@ -438,7 +438,7 @@ class FxThread(ThreadJob):
             return PyDecimal(rate)
 
     def format_amount_and_units(self, btc_balance, is_diff=False, commas=True):
-        amount_str = self.format_amount(btc_balance, is_diff=is_diff, commas=commmas)
+        amount_str = self.format_amount(btc_balance, is_diff=is_diff, commas=commas)
         return '' if not amount_str else "%s %s" % (amount_str, self.ccy)
 
     def format_amount(self, btc_balance, is_diff=False, commas=True):
