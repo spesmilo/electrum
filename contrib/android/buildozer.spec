@@ -70,7 +70,8 @@ fullscreen = False
 # (list) Permissions
 android.permissions = INTERNET, CAMERA, WRITE_EXTERNAL_STORAGE
 
-# (int) Android API to use  (targetSdkVersion)
+# (int) Android API to use  (targetSdkVersion AND compileSdkVersion)
+# note: when changing, Dockerfile also needs to be changed to install corresponding build tools
 android.api = 29
 
 # (int) Minimum API required. You will need to set the android.ndk_api to be as low as this value.
