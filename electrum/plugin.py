@@ -409,6 +409,7 @@ class DeviceMgr(ThreadJob):
         self.clients = {}  # type: Dict[HardwareClientBase, Tuple[Union[str, bytes], str]]
         # What we recognise.  (vendor_id, product_id) -> Plugin
         self._recognised_hardware = {}  # type: Dict[Tuple[int, int], HW_PluginBase]
+        self._recognised_vendor = {}  # type: Dict[int, HW_PluginBase]  # vendor_id -> Plugin
         # Custom enumerate functions for devices we don't know about.
         self._enumerate_func = set()  # Needs self.lock.
 
@@ -432,6 +433,10 @@ class DeviceMgr(ThreadJob):
     def register_devices(self, device_pairs, *, plugin: 'HW_PluginBase'):
         for pair in device_pairs:
             self._recognised_hardware[pair] = plugin
+
+    def register_vendor_ids(self, vendor_ids: Iterable[int], *, plugin: 'HW_PluginBase'):
+        for vendor_id in vendor_ids:
+            self._recognised_vendor[vendor_id] = plugin
 
     def register_enumerate_func(self, func):
         with self.lock:
@@ -589,7 +594,7 @@ class DeviceMgr(ThreadJob):
         devices = [dev for dev in devices if not self.xpub_by_id(dev.id_)]
         infos = []
         for device in devices:
-            if device.product_key not in plugin.DEVICE_IDS:
+            if not plugin.can_recognize_device(device):
                 continue
             try:
                 client = self.create_client(device, handler, plugin)
@@ -680,11 +685,17 @@ class DeviceMgr(ThreadJob):
 
         devices = []
         for d in hid.enumerate(0, 0):
-            product_key = (d['vendor_id'], d['product_id'])
+            vendor_id = d['vendor_id']
+            product_key = (vendor_id, d['product_id'])
+            plugin = None
             if product_key in self._recognised_hardware:
                 plugin = self._recognised_hardware[product_key]
+            elif vendor_id in self._recognised_vendor:
+                plugin = self._recognised_vendor[vendor_id]
+            if plugin:
                 device = plugin.create_device_from_hid_enumeration(d, product_key=product_key)
-                devices.append(device)
+                if device:
+                    devices.append(device)
         return devices
 
     @runs_in_hwd_thread
