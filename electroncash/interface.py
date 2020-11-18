@@ -33,6 +33,7 @@ import time
 import traceback
 
 from typing import Optional, Tuple
+from collections import namedtuple
 
 from .util import print_error
 from .utils import Event
@@ -307,8 +308,9 @@ class Interface(util.PrintError):
     MODE_CATCH_UP = 'catch_up'
     MODE_VERIFICATION = 'verification'
 
-    def __init__(self, server, socket, *, max_message_bytes=0):
+    def __init__(self, server, socket, *, max_message_bytes=0, config=None):
         self.server = server
+        self.config = config
         self.host, self.port, _ = server.rsplit(':', 2)
         self.socket = socket
 
@@ -350,22 +352,45 @@ class Interface(util.PrintError):
             pass
 
     def queue_request(self, *args):  # method, params, _id
-        '''Queue a request, later to be send with send_requests when the
-        socket is available for writing.
-        '''
+        """Queue a request, later to be sent with send_requests when the
+        socket is available for writing."""
         self.request_time = time.time()
         self.unsent_requests.append(args)
 
+
+    ReqThrottleParams = namedtuple("ReqThrottleParams", "max chunkSize")
+    req_throttle_default = ReqThrottleParams(2000, 100)
+
+    @classmethod
+    def get_req_throttle_params(cls, config):
+        tup = config and config.get("network_unanswered_requests_throttle")
+        if not isinstance(tup, (list, tuple)) or len(tup) != 2:
+            tup = cls.req_throttle_default
+        tup = cls.ReqThrottleParams(*tup)
+        return tup
+
+    @classmethod
+    def set_req_throttle_params(cls, config, max=None, chunkSize=None):
+        if not config:
+            return
+        l = list(cls.get_req_throttle_params(config))
+        if max is not None:
+            l[0] = max
+        if chunkSize is not None:
+            l[1] = chunkSize
+        config.set_key("network_unanswered_requests_throttle", l)
+
     def num_requests(self):
-        '''If there are more than 2000 unanswered requests, don't send
-        any more. Otherwise send more requests, but not more than 100 at a
-        time.'''
-        if len(self.unanswered_requests) >= 2000:
+        """If there are more than tup.max (default: 2000) unanswered requests,
+        don't send any more. Otherwise send more requests, but not more than tup.chunkSize
+        (default: 100) at a time."""
+        tup = self.get_req_throttle_params(self.config)
+        if len(self.unanswered_requests) >= tup.max:
             return 0
-        return min(100, len(self.unsent_requests))
+        return min(tup.chunkSize, len(self.unsent_requests))
 
     def send_requests(self):
-        '''Sends queued requests.  Returns False on failure.'''
+        """Sends queued requests. Returns False on failure."""
         try:
             try:
                 self.pipe.send_flush()
@@ -399,11 +424,11 @@ class Interface(util.PrintError):
         return True
 
     def ping_required(self):
-        '''Returns True if a ping should be sent.'''
+        """Returns True if a ping should be sent."""
         return time.time() - self.last_send > 300
 
     def has_timed_out(self):
-        '''Returns True if the interface has timed out.'''
+        """Returns True if the interface has timed out."""
         if (self.unanswered_requests and time.time() - self.request_time > 10
             and self.pipe.idle_time() > 10):
             self.print_error("timeout", len(self.unanswered_requests))
@@ -412,14 +437,14 @@ class Interface(util.PrintError):
         return False
 
     def get_responses(self):
-        '''Call if there is data available on the socket.  Returns a list of
+        """Call if there is data available on the socket.  Returns a list of
         (request, response) pairs.  Notifications are singleton
         unsolicited responses presumably as a result of prior
         subscriptions, so request is None and there is no 'id' member.
         Otherwise it is a response, which has an 'id' member and a
         corresponding request.  If the connection was closed remotely
         or the remote server is misbehaving, a (None, None) will appear.
-        '''
+        """
         responses = []
         while True:
             response = None

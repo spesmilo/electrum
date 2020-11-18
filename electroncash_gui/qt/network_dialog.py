@@ -3,6 +3,9 @@
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2012 thomasv@gitorious
 #
+# Electron Cash - lightweight Bitcoin Cash client
+# Copyright (C) 2020 The Electron Cash Developers
+#
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
 # (the "Software"), to deal in the Software without restriction,
@@ -32,12 +35,13 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 import PyQt5.QtCore as QtCore
 
-from electroncash.i18n import _, pgettext
 from electroncash import networks
-from electroncash.util import print_error, Weak, PrintError, in_main_thread
+from electroncash.i18n import _, pgettext
+from electroncash.interface import Interface
 from electroncash.network import serialize_server, deserialize_server, get_eligible_servers
 from electroncash.plugins import run_hook
 from electroncash.tor import TorController
+from electroncash.util import print_error, Weak, PrintError, in_main_thread
 
 from .util import *
 from .utils import UserPortValidator
@@ -66,6 +70,9 @@ class NetworkDialog(MessageBoxMixin, QDialog):
         self.workaround_timer.timeout.connect(self._workaround_update)
         self.workaround_timer.setSingleShot(True)
         network.register_callback(self.on_network, ['blockchain_updated', 'interfaces', 'status'])
+        self.refresh_timer = QTimer(self)
+        self.refresh_timer.timeout.connect(self.network_updated_signal.emit)
+        self.refresh_timer.setInterval(500)
 
     def jumpto(self, location : str):
         self.nlayout.jumpto(location)
@@ -108,6 +115,7 @@ class NetworkDialog(MessageBoxMixin, QDialog):
         super().hideEvent(e)
         if not self.isVisible():
             self.workaround_timer.stop()
+            self.refresh_timer.stop()
 
     def showEvent(self, e):
         super().showEvent(e)
@@ -115,6 +123,7 @@ class NetworkDialog(MessageBoxMixin, QDialog):
             # Single-shot. Works around Linux/Qt bugs
             # -- see _workaround_update below for description.
             self.workaround_timer.start(500)
+            self.refresh_timer.start()
 
     def _workaround_update(self):
         # Hack to work around strange behavior on some Linux:
@@ -164,14 +173,19 @@ class NodesListWidget(QTreeWidget):
         self.customContextMenuRequested.emit(pt)
 
     def update(self, network, servers):
+        item = self.currentItem()
+        sel = None
+        if item:
+            sel = item.data(1, Qt.UserRole)
         self.clear()
         self.addChild = self.addTopLevelItem
         chains = network.get_blockchains()
         n_chains = len(chains)
+        restore_sel = tuple()
         for k, items in chains.items():
             b = network.blockchains[k]
             name = b.get_name()
-            if n_chains >1:
+            if n_chains > 1:
                 x = QTreeWidgetItem([name + '@%d'%b.get_base_height(), '', '%d'%b.height()])
                 x.setData(0, Qt.UserRole, 1)
                 x.setData(1, Qt.UserRole, b.base_height)
@@ -188,18 +202,25 @@ class NodesListWidget(QTreeWidget):
                 item = QTreeWidgetItem([display_text + star, '', '%d'%i.tip])
                 item.setData(0, Qt.UserRole, 0)
                 item.setData(1, Qt.UserRole, i.server)
+                if i.server == sel:
+                    restore_sel = (x, item)
                 if is_onion:
                     item.setIcon(1, QIcon(":icons/tor_logo.svg"))
                 x.addChild(item)
-            if n_chains>1:
+            if n_chains > 1:
                 self.addTopLevelItem(x)
                 x.setExpanded(True)
+
+        # restore selection, if there was any
+        if restore_sel:
+            restore_sel[0].setCurrentItem(restore_sel[1])
 
         h = self.header()
         h.setStretchLastSection(False)
         h.setSectionResizeMode(0, QHeaderView.Stretch)
         h.setSectionResizeMode(1, QHeaderView.ResizeToContents)
         h.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+
 
 class ServerFlag:
     ''' Used by ServerListWidget for Server flags & Symbols '''
@@ -549,36 +570,87 @@ class NetworkChoiceLayout(QObject, PrintError):
 
         # Blockchain Tab
         grid = QGridLayout(blockchain_tab)
-        msg =  ' '.join([
+        msg = ' '.join([
             _("Electron Cash connects to several nodes in order to download block headers and find out the longest blockchain."),
             _("This blockchain is used to verify the transactions sent by your transaction server.")
         ])
+        row = 0
         self.status_label = QLabel('')
         self.status_label.setTextInteractionFlags(self.status_label.textInteractionFlags() | Qt.TextSelectableByMouse)
-        grid.addWidget(QLabel(_('Status') + ':'), 0, 0)
-        grid.addWidget(self.status_label, 0, 1, 1, 3)
-        grid.addWidget(HelpButton(msg), 0, 4)
+        grid.addWidget(QLabel(_('Status') + ':'), row, 0)
+        grid.addWidget(self.status_label, row, 1, 1, 3)
+        grid.addWidget(HelpButton(msg), row, 4)
+        row += 1
 
         self.server_label = QLabel('')
         self.server_label.setTextInteractionFlags(self.server_label.textInteractionFlags() | Qt.TextSelectableByMouse)
         msg = _("Electron Cash sends your wallet addresses to a single server, in order to receive your transaction history.")
-        grid.addWidget(QLabel(_('Server') + ':'), 1, 0)
-        grid.addWidget(self.server_label, 1, 1, 1, 3)
-        grid.addWidget(HelpButton(msg), 1, 4)
+        grid.addWidget(QLabel(_('Server') + ':'), row, 0)
+        grid.addWidget(self.server_label, row, 1, 1, 3)
+        grid.addWidget(HelpButton(msg), row, 4)
+        row += 1
 
         self.height_label = QLabel('')
         self.height_label.setTextInteractionFlags(self.height_label.textInteractionFlags() | Qt.TextSelectableByMouse)
         msg = _('This is the height of your local copy of the blockchain.')
-        grid.addWidget(QLabel(_('Blockchain') + ':'), 2, 0)
-        grid.addWidget(self.height_label, 2, 1)
-        grid.addWidget(HelpButton(msg), 2, 4)
+        grid.addWidget(QLabel(_('Blockchain') + ':'), row, 0)
+        grid.addWidget(self.height_label, row, 1)
+        grid.addWidget(HelpButton(msg), row, 4)
+        row += 1
+
+        self.reqs_label = QLabel('')
+        self.reqs_label.setTextInteractionFlags(self.height_label.textInteractionFlags() | Qt.TextSelectableByMouse)
+        msg = _('The number of unanswered network requests.\n\n'
+                "You can configure:\n\n"
+                "    - Limit: maximum request backlog size\n"
+                "    - ChunkSize: requests to enqueue every 100ms\n\n"
+                "If the connection drops when synchronizing, you may wish "
+                "to reduce these values to throttle requests to the server.")
+        grid.addWidget(QLabel(_('Pending requests') + ':'), row, 0)
+        hbox = QHBoxLayout()
+        hbox.addWidget(self.reqs_label)
+        hbox.setContentsMargins(0, 0, 12, 0)
+        hbox.addWidget(QLabel(_("Limit:")))
+        self.req_max_sb = sb = QSpinBox()
+        sb.setRange(1, 2000)
+        sb.setFocusPolicy(Qt.TabFocus|Qt.ClickFocus|Qt.WheelFocus)
+        hbox.addWidget(sb)
+        hbox.addWidget(QLabel(_("ChunkSize:")))
+        self.req_chunk_sb = sb = QSpinBox()
+        sb.setRange(1, 100)
+        sb.setFocusPolicy(Qt.TabFocus|Qt.ClickFocus|Qt.WheelFocus)
+        hbox.addWidget(sb)
+        but = QPushButton(_("Reset"))
+        f = but.font()
+        f.setPointSize(f.pointSize()-2)
+        but.setFont(f)
+        but.setDefault(False); but.setAutoDefault(False)
+        hbox.addWidget(but)
+        grid.addLayout(hbox, row, 1, 1, 3)
+        grid.setAlignment(hbox, Qt.AlignLeft|Qt.AlignVCenter)
+        grid.setColumnStretch(3, 1)
+        grid.addWidget(HelpButton(msg), row, 4)
+        row += 1
+        def req_max_changed(val):
+            Interface.set_req_throttle_params(self.config, max=val)
+        def req_chunk_changed(val):
+            Interface.set_req_throttle_params(self.config, chunkSize=val)
+        def req_defaults():
+            p = Interface.req_throttle_default
+            Interface.set_req_throttle_params(self.config, max=p.max, chunkSize=p.chunkSize)
+            self.update()
+        but.clicked.connect(req_defaults)
+        self.req_max_sb.valueChanged.connect(req_max_changed)
+        self.req_chunk_sb.valueChanged.connect(req_chunk_changed)
 
         self.split_label = QLabel('')
         self.split_label.setTextInteractionFlags(self.split_label.textInteractionFlags() | Qt.TextSelectableByMouse)
-        grid.addWidget(self.split_label, 3, 0, 1, 3)
+        grid.addWidget(self.split_label, row, 0, 1, 3)
+        row += 2
 
         self.nodes_list_widget = NodesListWidget(self)
-        grid.addWidget(self.nodes_list_widget, 5, 0, 1, 5)
+        grid.addWidget(self.nodes_list_widget, row, 0, 1, 5)
+        row += 1
 
         vbox = QVBoxLayout()
         vbox.addWidget(tabs)
@@ -735,7 +807,14 @@ class NetworkChoiceLayout(QObject, PrintError):
             msg += ' (%d %s)' % (chain.get_branch_size(), _('blocks'))
         else:
             msg = ''
+
         self.split_label.setText(msg)
+
+        self.reqs_label.setText(str((self.network.interface and len(self.network.interface.unanswered_requests)) or 0))
+        params = Interface.get_req_throttle_params(self.config)
+        self.req_max_sb.setValue(params.max)
+        self.req_chunk_sb.setValue(params.chunkSize)
+
         self.nodes_list_widget.update(self.network, self.servers)
 
     def fill_in_proxy_settings(self):

@@ -306,10 +306,10 @@ class Network(util.DaemonThread):
             self.load_parameters()
 
     def __del__(self):
-        ''' NB: due to Network.INSTANCE keeping the singleton instance alive,
+        """ NB: due to Network.INSTANCE keeping the singleton instance alive,
             this code isn't normally reached, except for in the iOS
             implementation, which kills the daemon and the network before app
-            sleep, and creates a new daemon and netwok on app awake. '''
+            sleep, and creates a new daemon and netwok on app awake. """
         if Network.INSTANCE is self: # This check is important for iOS
             Network.INSTANCE = None # <--- Not normally reached, but here for completeness.
         else:
@@ -319,7 +319,7 @@ class Network(util.DaemonThread):
 
     @staticmethod
     def get_instance():
-        ''' Returns the extant Network singleton, if any, or None if in offline mode '''
+        """ Returns the extant Network singleton, if any, or None if in offline mode """
         return Network.INSTANCE
 
     def callback_listener_count(self, event):
@@ -427,7 +427,7 @@ class Network(util.DaemonThread):
         return self.unanswered_requests == {}
 
     def queue_request(self, method, params, interface=None, *, callback=None, max_qlen=None):
-        ''' If you want to queue a request on any interface it must go through
+        """ If you want to queue a request on any interface it must go through
         this function so message ids are properly tracked.
         Returns the monotonically increasing message id for this request.
         May return None if queue is too full (max_qlen). (max_qlen is only
@@ -442,7 +442,7 @@ class Network(util.DaemonThread):
             - If `callback` is supplied: the request will be enqueued and sent
               later when an interface becomes available
             - If callback is not supplied: an AssertionError exception is raised
-        '''
+        """
         if interface is None:
             interface = self.interface
         elif interface == 'random':
@@ -550,9 +550,9 @@ class Network(util.DaemonThread):
             return self.donation_address
 
     def get_interfaces(self, *, interfaces=False):
-        '''Returns the servers that are in connected state. Despite its name,
+        """Returns the servers that are in connected state. Despite its name,
         this method does not return the actual interfaces unless interfaces=True,
-        but rather returns the server:50002:s style string. '''
+        but rather returns the server:50002:s style string. """
         with self.interface_lock:
             return list(self.interfaces.values() if interfaces
                         else self.interfaces.keys())
@@ -706,7 +706,7 @@ class Network(util.DaemonThread):
         return server
 
     def switch_to_random_interface(self):
-        '''Switch to a random connected server other than the current one'''
+        """Switch to a random connected server other than the current one"""
         servers = self.get_interfaces()    # Those in connected state
         if self.default_server in servers:
             servers.remove(self.default_server)
@@ -714,7 +714,7 @@ class Network(util.DaemonThread):
             self.switch_to_interface(random.choice(servers))
 
     def switch_lagging_interface(self):
-        '''If auto_connect and lagging, switch interface'''
+        """If auto_connect and lagging, switch interface"""
         if self.server_is_lagging() and self.auto_connect:
             # switch to one that has the correct header (not height)
             header = self.blockchain().read_header(self.get_local_height())
@@ -731,10 +731,10 @@ class Network(util.DaemonThread):
     SWITCH_SET_PARAMETERS = 'SWITCH_SET_PARAMETERS'
 
     def switch_to_interface(self, server, switch_reason=None):
-        '''Switch to server as our interface.  If no connection exists nor
+        """Switch to server as our interface.  If no connection exists nor
         being opened, start a thread to connect.  The actual switch will
         happen on receipt of the connection notification.  Do nothing
-        if server already is our interface.'''
+        if server already is our interface."""
         self.default_server = server
         if server not in self.interfaces:
             self.interface = None
@@ -900,7 +900,7 @@ class Network(util.DaemonThread):
         self.send([('blockchain.scripthash.get_history', [sh])], callback)
 
     def send(self, messages, callback):
-        '''Messages is a list of (method, params) tuples'''
+        """Messages is a list of (method, params) tuples"""
         messages = list(messages)
         if messages: # Guard against empty message-list which is a no-op and just wastes CPU to enque/dequeue (not even callback is called). I've seen the code send empty message lists before in synchronizer.py
             with self.pending_sends_lock:
@@ -1002,7 +1002,7 @@ class Network(util.DaemonThread):
     def new_interface(self, server_key, socket):
         self.add_recent_server(server_key)
 
-        interface = Interface(server_key, socket, max_message_bytes=self.MAX_MESSAGE_BYTES)
+        interface = Interface(server_key, socket, max_message_bytes=self.MAX_MESSAGE_BYTES, config=self.config)
         interface.blockchain = None
         interface.tip_header = None
         interface.tip = 0
@@ -1229,7 +1229,7 @@ class Network(util.DaemonThread):
         self.notify('blockchain_updated')
 
     def request_header(self, interface, height):
-        '''
+        """
         This works for all modes except for 'default'.
 
         If it is to be used for piecemeal filling of the sparse blockchain
@@ -1239,7 +1239,7 @@ class Network(util.DaemonThread):
         A server interface does not get associated with a blockchain
         until it gets handled in the response to its first header
         request.
-        '''
+        """
         interface.print_error(f"requesting header {height}")
         if height > networks.net.VERIFICATION_BLOCK_HEIGHT:
             params = [height]
@@ -1249,7 +1249,7 @@ class Network(util.DaemonThread):
         return True
 
     def on_header(self, interface, request, response):
-        '''Handle receiving a single block header'''
+        """Handle receiving a single block header"""
         result = response.get('result')
         if not result:
             interface.print_error(response)
@@ -1516,11 +1516,11 @@ class Network(util.DaemonThread):
         interface.server_version = version_data
 
     def on_notify_header(self, interface, header_dict):
-        '''
+        """
         When we subscribe for 'blockchain.headers.subscribe', a server will send
         us it's topmost header.  After that, it will forward on any additional
         headers as it receives them.
-        '''
+        """
         if (not isinstance(header_dict, dict)
             or 'hex' not in header_dict or 'height' not in header_dict):
             # bad and/or unexpected response from server.
@@ -1648,13 +1648,13 @@ class Network(util.DaemonThread):
         return True
 
     def validate_checkpoint_result(self, interface, merkle_root, merkle_branch, header, header_height):
-        '''
+        """
         header: hex representation of the block header.
         merkle_root: hex representation of the server's calculated merkle root.
         branch: list of hex representations of the server's calculated merkle root branches.
 
         Returns a boolean to represent whether the server's proof is correct.
-        '''
+        """
         received_merkle_root = bytes(reversed(bfh(merkle_root)))
         if networks.net.VERIFICATION_BLOCK_MERKLE_ROOT:
             expected_merkle_root = bytes(reversed(bfh(networks.net.VERIFICATION_BLOCK_MERKLE_ROOT)))
@@ -1724,7 +1724,7 @@ class Network(util.DaemonThread):
         return r.get('result')
 
     def get_raw_tx_for_txid(self, txid, timeout=30):
-        ''' Used by UI code to retrieve a transaction from the blockchain by
+        """ Used by UI code to retrieve a transaction from the blockchain by
         txid.  (Qt Gui: Tools -> Load transaction -> From the blockchain)
 
         param: txid, a transaction hash
@@ -1734,7 +1734,7 @@ class Network(util.DaemonThread):
                  error_msg is suitable to be displayed in a UI as it is not
                  a server string, but rather an error based on what the server
                  replied with (with a generic fallback message is used
-                 if the server message is not recognized). '''
+                 if the server message is not recognized). """
         txid = str(txid).strip()
         try:
             r = self.synchronous_get(('blockchain.transaction.get',[txid]), timeout=timeout)
@@ -1781,12 +1781,12 @@ class Network(util.DaemonThread):
         invocation(callback)
 
     def broadcast_transaction(self, transaction, callback=None):
-        ''' This is the legacy EC/Electrum API that we still need to support
+        """ This is the legacy EC/Electrum API that we still need to support
         for plugins and other code, but it has been improved to not allow for
         phishing attacks by calling broadcast_transaction2 which actually
         deduces a more intelligent and phishing-proof error message.
         If you want the actual server response, use broadcast_transaction2 and
-        catch exceptions. '''
+        catch exceptions. """
 
         if callback:
             command = 'blockchain.transaction.broadcast'
@@ -1801,7 +1801,7 @@ class Network(util.DaemonThread):
         return True, out
 
     def broadcast_transaction2(self, transaction, timeout=30):
-        ''' Very similar to broadcast_transation() but it actually tells calling
+        """ Very similar to broadcast_transation() but it actually tells calling
         code what the nature of the error was in a more explicit manner by
         raising an Exception. Normally a util.TimeoutException,
         util.TxHashMismatch, or util.ServerErrorResonse is raised on broadcast
@@ -1809,7 +1809,7 @@ class Network(util.DaemonThread):
         but that the tx hash returned by the server does not match the tx hash
         of the specified transaction. All other exceptions indicate no broadcast
         has successfully occurred.
-        Does not support using a callback function.'''
+        Does not support using a callback function."""
 
         command = 'blockchain.transaction.broadcast'
         invocation = lambda c: self.send([(command, [str(transaction)])], c)
@@ -1907,18 +1907,18 @@ class Network(util.DaemonThread):
 
     # Used by the verifier job.
     def get_merkle_for_transaction(self, tx_hash, tx_height, callback, max_qlen=10):
-        ''' Asynchronously enqueue a request for a merkle proof for a tx.
+        """ Asynchronously enqueue a request for a merkle proof for a tx.
             Note that the callback param is required.
             May return None if too many requests were enqueued (max_qlen) or
             if there is no interface.
-            Client code should handle the None return case appropriately. '''
+            Client code should handle the None return case appropriately. """
         return self.queue_request('blockchain.transaction.get_merkle',
                                   [tx_hash, tx_height],
                                   callback=callback, max_qlen=max_qlen)
 
     def get_proxies(self):
-        ''' Returns a proxies dictionary suitable to be passed to the requests
-            module, or None if no proxy is set for this instance. '''
+        """ Returns a proxies dictionary suitable to be passed to the requests
+            module, or None if no proxy is set for this instance. """
         proxy = self.proxy and self.proxy.copy() # retain a copy in case another thread messes with it
         if proxy:
             pre = ''
