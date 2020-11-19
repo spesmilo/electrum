@@ -16,52 +16,35 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
+msgid "Are you sure you want to disagree?"
+msgstr "您确定不同意吗？"
+
+msgid "Are you sure?"
+msgstr "您确定吗？"
+
+msgid "Description is not supported for Secure Fast transaction"
+msgstr "描述不支持安全快速交易"
+
+msgid "I agree"
+msgstr "我同意"
+
+msgid "I disagree"
+msgstr "我不同意"
+
+msgid "No, I changed my mind"
+msgstr "不，我改变了主意。"
+
 msgid ""
-"In order to confirm the transaction, scan the QR codes in the "
-"\"Authenticators\" tab in the Gold Wallet app."
-msgstr "为了确认交易，请在Gold Wallet应用程序的“身份验证器”标签中扫描二维码。"
+"Note that if you disagree to our Terms & Conditions you won't be able to use "
+"the Electrum Vault application."
+msgstr ""
+"请注意，如果您不同意我们的条款及细则，将无法使用Electrum Vault应用程序。"
 
-msgid "Failed to display QR code."
-msgstr "无法显示二维码"
+msgid "Terms & Conditions"
+msgstr "条款及细则"
 
-msgid "Transaction is too large in size."
-msgstr "交易规模过大。"
-
-msgid "Previous part"
-msgstr "上一部分"
-
-msgid "Next part"
-msgstr "下一部分"
-
-msgid "Transaction part"
-msgstr "交易部分"
-
-msgid "Standard"
-msgstr "标准"
-
-msgid "Secure"
-msgstr "安全"
-
-msgid "Secure fast"
-msgstr "快速"
-
-msgid "Cancel"
-msgstr "取消"
-
-msgid "Change language"
-msgstr "更改语言"
-
-msgid "&Change language"
-msgstr "&更改语言"
-
-msgid "When you press Ok button application will be restarted"
-msgstr "当您点击“确定”按钮时，应用程序将重新启动"
-
-msgid "Ok"
-msgstr "OK"
-
-msgid "Select installation language"
-msgstr "选择语言"
+msgid "Yes, I disagree"
+msgstr "是的，我不同意。"
 
 msgid "  (No FX rate available)"
 msgstr "  (无可用的外汇兑换率)"
@@ -509,6 +492,9 @@ msgstr "无法 bump fee:：原始交易手续费未知"
 
 msgid "Can't plot history."
 msgstr "无法生成历史记录。"
+
+msgid "Cancel"
+msgstr "取消"
 
 msgid "Cancel seedphrase"
 msgstr "取消助记词"
@@ -1384,6 +1370,9 @@ msgstr "无法为此设备创建客户端。"
 msgid "Failed to decrypt using this hardware device."
 msgstr "无法使用此硬件设备解密。"
 
+msgid "Failed to display QR code."
+msgstr "无法显示二维码"
+
 msgid "Failed to export to file."
 msgstr "无法导出到文件。"
 
@@ -1720,6 +1709,11 @@ msgid "Import private keys"
 msgstr "导入密钥"
 
 msgid ""
+"In order to confirm the transaction, scan the QR codes in the "
+"\"Authenticators\" tab in the Gold Wallet app."
+msgstr "为了确认交易，请在Gold Wallet应用程序的“身份验证器”标签中扫描二维码。"
+
+msgid ""
 "In particular, DO NOT use 'redeem private key' services proposed by third "
 "parties."
 msgstr "尤其不要使用第三方提出的\"兑换密钥\"服务"
@@ -1858,9 +1852,6 @@ msgstr "发票存为"
 
 msgid "Invoice wants us to risk locking funds for unreasonably long."
 msgstr "发票要我们冒险无故锁定资金。"
-
-msgid "Invoices"
-msgstr "发票"
 
 msgid ""
 "It also contains your master public key that allows watching your addresses."
@@ -2100,6 +2091,9 @@ msgstr "新的交易： {amount}"
 
 msgid "Next"
 msgstr "下一步"
+
+msgid "Next part"
+msgstr "下一部分"
 
 msgid "No Data"
 msgstr "无数据"
@@ -2541,6 +2535,9 @@ msgstr "点击Enter"
 msgid "Press again to exit"
 msgstr "再次点击退出"
 
+msgid "Previous part"
+msgstr "上一部分"
+
 msgid "Printer Calibration"
 msgstr "打印机校准"
 
@@ -2790,6 +2787,9 @@ msgstr "脚本类型"
 msgid "Script type and Derivation path"
 msgstr "脚本类型和派生路径"
 
+msgid "Secure"
+msgstr "安全"
+
 msgid "Secure - confirmed after 24 hours. Can be canceled within that time."
 msgstr "安全——24 小时后确认。在此时间内可以取消。"
 
@@ -2809,6 +2809,9 @@ msgstr "安全快速种子口令"
 
 msgid "Secure Fast transaction public key"
 msgstr "安全快速交易公钥"
+
+msgid "Secure fast"
+msgstr "快速"
 
 msgid "Secure incoming"
 msgstr "安全接受"
@@ -2853,7 +2856,7 @@ msgstr "选择要导出钱包交易的文件"
 msgid "Select file to save your {title}"
 msgstr "选择文件来保存{title}"
 
-msgid "Select language"
+msgid "Select installation language"
 msgstr "选择语言"
 
 msgid "Select server automatically"
@@ -3068,6 +3071,9 @@ msgstr "仅能消费已确认的硬币"
 
 msgid "Spend only confirmed inputs."
 msgstr "仅能消费确认的输入值"
+
+msgid "Standard"
+msgstr "标准"
 
 msgid "Start"
 msgstr "开始"
@@ -3490,8 +3496,14 @@ msgstr "无法保存交易"
 msgid "Transaction exported successfully"
 msgstr "交易成功导出"
 
+msgid "Transaction is too large in size."
+msgstr "交易规模过大。"
+
 msgid "Transaction is unrelated to this wallet."
 msgstr "交易与此钱包无关"
+
+msgid "Transaction part"
+msgstr "交易部分"
 
 msgid "Transaction to join with"
 msgstr "要加入的交易"

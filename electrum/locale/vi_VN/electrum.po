@@ -17,54 +17,36 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
+msgid "Are you sure you want to disagree?"
+msgstr "Bạn có chắc chắn không đồng ý không?"
+
+msgid "Are you sure?"
+msgstr "Bạn có chắc chắn không?"
+
+msgid "Description is not supported for Secure Fast transaction"
+msgstr "Mô tả không được hỗ trợ cho giao dịch Nhanh An Toàn"
+
+msgid "I agree"
+msgstr "Tôi đồng ý"
+
+msgid "I disagree"
+msgstr "Tôi không đồng ý"
+
+msgid "No, I changed my mind"
+msgstr "Không, tôi đã đổi ý"
+
 msgid ""
-"In order to confirm the transaction, scan the QR codes in the "
-"\"Authenticators\" tab in the Gold Wallet app."
+"Note that if you disagree to our Terms & Conditions you won't be able to use "
+"the Electrum Vault application."
 msgstr ""
-"Để xác nhận giao dịch, hãy quét mã QR trong tab \"Trình xác thực\" trong ứng "
-"dụng Ví vàng."
+"Lưu ý rằng nếu bạn không đồng ý với Điều khoản & Điều kiện của chúng tôi, "
+"bạn sẽ không thể sử dụng ứng dụng Electrum Vault."
 
-msgid "Failed to display QR code."
-msgstr "Không hiển thị được mã QR."
+msgid "Terms & Conditions"
+msgstr "Điều khoản và điều kiện"
 
-msgid "Transaction is too large in size."
-msgstr "Kích thước giao dịch quá lớn."
-
-msgid "Previous part"
-msgstr "Phần trước"
-
-msgid "Next part"
-msgstr "Phần tiếp theo"
-
-msgid "Transaction part"
-msgstr "Phần giao dịch"
-
-msgid "Standard"
-msgstr "Tiêu chuẩn"
-
-msgid "Secure"
-msgstr "Bảo mật"
-
-msgid "Secure fast"
-msgstr "Nhanh"
-
-msgid "Cancel"
-msgstr "Hủy"
-
-msgid "Change language"
-msgstr "Thay đổi ngôn ngữ"
-
-msgid "&Change language"
-msgstr "&Thay đổi ngôn ngữ"
-
-msgid "When you press Ok button application will be restarted"
-msgstr "Khi bạn nhấn nút Ok ứng dụng sẽ được khởi động lại"
-
-msgid "Ok"
-msgstr "OK"
-
-msgid "Select installation language"
-msgstr "Chọn ngôn ngữ"
+msgid "Yes, I disagree"
+msgstr "Vâng, tôi không đồng ý"
 
 msgid "  (No FX rate available)"
 msgstr "(Không có tỷ giá hối đoái)"
@@ -533,6 +515,9 @@ msgstr "Không thể tăng phí: phí không xác định cho giao dịch ban đ
 
 msgid "Can't plot history."
 msgstr "Không thể đưa ra lịch sử."
+
+msgid "Cancel"
+msgstr "Hủy"
 
 msgid "Cancel seedphrase"
 msgstr "Hủy cụm từ hạt giống"
@@ -1450,6 +1435,9 @@ msgstr "Không tạo khách cho thiết bị này."
 msgid "Failed to decrypt using this hardware device."
 msgstr "Không thể giải mã bằng thiết bị phần cứng này."
 
+msgid "Failed to display QR code."
+msgstr "Không hiển thị được mã QR."
+
 msgid "Failed to export to file."
 msgstr "Không thể xuất sang tệp."
 
@@ -1810,6 +1798,13 @@ msgid "Import private keys"
 msgstr "Nhập khóa riêng tư"
 
 msgid ""
+"In order to confirm the transaction, scan the QR codes in the "
+"\"Authenticators\" tab in the Gold Wallet app."
+msgstr ""
+"Để xác nhận giao dịch, hãy quét mã QR trong tab \"Trình xác thực\" trong ứng "
+"dụng Ví vàng."
+
+msgid ""
 "In particular, DO NOT use 'redeem private key' services proposed by third "
 "parties."
 msgstr ""
@@ -1953,9 +1948,6 @@ msgstr "Hóa đơn được lưu dưới dạng"
 
 msgid "Invoice wants us to risk locking funds for unreasonably long."
 msgstr "Invoice muốn chúng tôi khóa tiền trong thời gian dài một cách vô lý."
-
-msgid "Invoices"
-msgstr "Hóa đơn"
 
 msgid ""
 "It also contains your master public key that allows watching your addresses."
@@ -2207,6 +2199,9 @@ msgstr "Giao dịch mới: {amount}"
 
 msgid "Next"
 msgstr "Tiếp theo"
+
+msgid "Next part"
+msgstr "Phần tiếp theo"
 
 msgid "No Data"
 msgstr "Không dữ liệu"
@@ -2672,6 +2667,9 @@ msgstr "Nhấn Enter"
 msgid "Press again to exit"
 msgstr "Nhấn một lần nữa để thoát"
 
+msgid "Previous part"
+msgstr "Phần trước"
+
 msgid "Printer Calibration"
 msgstr "Hiệu chỉnh Máy in"
 
@@ -2925,6 +2923,9 @@ msgstr "Loại tập lệnh"
 msgid "Script type and Derivation path"
 msgstr "Loại tập lệnh và đường dẫn dẫn xuất"
 
+msgid "Secure"
+msgstr "Bảo mật"
+
 msgid "Secure - confirmed after 24 hours. Can be canceled within that time."
 msgstr "Bảo mật - được xác nhận sau 24 giờ. Có thể hủy trong thời gian đó."
 
@@ -2946,6 +2947,9 @@ msgstr "Cụm từ hạt giống nhanh an toàn"
 
 msgid "Secure Fast transaction public key"
 msgstr "Khóa công khai giao dịch nhanh an toàn"
+
+msgid "Secure fast"
+msgstr "Nhanh"
 
 msgid "Secure incoming"
 msgstr "Đến an toàn"
@@ -2990,7 +2994,7 @@ msgstr "Chọn tệp để xuất các giao dịch ví của quý khách sang"
 msgid "Select file to save your {title}"
 msgstr "Chọn tệp để lưu {title} của quý khách"
 
-msgid "Select language"
+msgid "Select installation language"
 msgstr "Chọn ngôn ngữ"
 
 msgid "Select server automatically"
@@ -3210,6 +3214,9 @@ msgstr "Chỉ tiêu những đồng coin đã xác nhận"
 
 msgid "Spend only confirmed inputs."
 msgstr "Chỉ sử dụng các đầu vào đã xác nhận."
+
+msgid "Standard"
+msgstr "Tiêu chuẩn"
 
 msgid "Start"
 msgstr "Bắt đầu"
@@ -3675,8 +3682,14 @@ msgstr "Không thể lưu giao dịch."
 msgid "Transaction exported successfully"
 msgstr "Giao dịch đã xuất thành công"
 
+msgid "Transaction is too large in size."
+msgstr "Kích thước giao dịch quá lớn."
+
 msgid "Transaction is unrelated to this wallet."
 msgstr "Giao dịch không liên quan đến ví này."
+
+msgid "Transaction part"
+msgstr "Phần giao dịch"
 
 msgid "Transaction to join with"
 msgstr "Giao dịch tham gia với"

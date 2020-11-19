@@ -17,53 +17,36 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
+msgid "Are you sure you want to disagree?"
+msgstr "동의하지 않으시겠습니까?"
+
+msgid "Are you sure?"
+msgstr "확실합니까?"
+
+msgid "Description is not supported for Secure Fast transaction"
+msgstr "빠른 거래에 대한 설명이 지원되지 않습니다."
+
+msgid "I agree"
+msgstr "동의합니다"
+
+msgid "I disagree"
+msgstr "동의하지 않습니다"
+
+msgid "No, I changed my mind"
+msgstr "아니오, 생각이 바뀌었습니다"
+
 msgid ""
-"In order to confirm the transaction, scan the QR codes in the "
-"\"Authenticators\" tab in the Gold Wallet app."
+"Note that if you disagree to our Terms & Conditions you won't be able to use "
+"the Electrum Vault application."
 msgstr ""
-"거래를 승인하기 위해서, 골드 월렛 앱 내 \"인증기\" 탭의 QR 코드를 스캔하세요."
+"이용 약관에 동의하지 않는 경우Electrum Vault 애플리케이션을 사용할 수 없습니"
+"다. "
 
-msgid "Failed to display QR code."
-msgstr "QR 코드 표시에 실패하였습니다. "
+msgid "Terms & Conditions"
+msgstr "이용 약관"
 
-msgid "Transaction is too large in size."
-msgstr "거래의 크기가 너무 큽니다. "
-
-msgid "Previous part"
-msgstr "이전 파트"
-
-msgid "Next part"
-msgstr "다음 파트"
-
-msgid "Transaction part"
-msgstr "거래 파트"
-
-msgid "Standard"
-msgstr "표준"
-
-msgid "Secure"
-msgstr "보안 거래"
-
-msgid "Secure fast"
-msgstr "보안 고속 거래"
-
-msgid "Cancel"
-msgstr "취소"
-
-msgid "Change language"
-msgstr "언어 변경"
-
-msgid "&Change language"
-msgstr "&언어 변경"
-
-msgid "When you press Ok button application will be restarted"
-msgstr "확인 버튼을 누르면 애플리케이션이 다시 시작됩니다"
-
-msgid "Ok"
-msgstr "OK"
-
-msgid "Select installation language"
-msgstr "언어 선택"
+msgid "Yes, I disagree"
+msgstr "네, 동의하지 않습니다"
 
 msgid "  (No FX rate available)"
 msgstr " (사용 가능한 환율 없음)"
@@ -519,6 +502,9 @@ msgstr "수수료 범핑 불가: 기존 거래의 수수료 확인 불가."
 
 msgid "Can't plot history."
 msgstr "내역을 불러올 수 없습니다."
+
+msgid "Cancel"
+msgstr "취소"
 
 msgid "Cancel seedphrase"
 msgstr "시드 프레이즈 취소"
@@ -1422,6 +1408,9 @@ msgstr "이 기기에 클라이언트 생성 실패."
 msgid "Failed to decrypt using this hardware device."
 msgstr "이 하드웨어 기기를 사용하여 복호화 실패."
 
+msgid "Failed to display QR code."
+msgstr "QR 코드 표시에 실패하였습니다. "
+
 msgid "Failed to export to file."
 msgstr "파일로 내보내기 실패."
 
@@ -1770,6 +1759,12 @@ msgid "Import private keys"
 msgstr "프라이빗 키 가져오기"
 
 msgid ""
+"In order to confirm the transaction, scan the QR codes in the "
+"\"Authenticators\" tab in the Gold Wallet app."
+msgstr ""
+"거래를 승인하기 위해서, 골드 월렛 앱 내 \"인증기\" 탭의 QR 코드를 스캔하세요."
+
+msgid ""
 "In particular, DO NOT use 'redeem private key' services proposed by third "
 "parties."
 msgstr "특히, 3자의 추천으로 '프라이빗 키상환'을 사용하지 마십시오."
@@ -1910,9 +1905,6 @@ msgstr "인보이스 다른 이름으로 저장 "
 
 msgid "Invoice wants us to risk locking funds for unreasonably long."
 msgstr "인보이스가 장기간 고정 자금의 위험감수를 원함"
-
-msgid "Invoices"
-msgstr "인보이스"
 
 msgid ""
 "It also contains your master public key that allows watching your addresses."
@@ -2156,6 +2148,9 @@ msgstr "새로운 거래: {amount}"
 
 msgid "Next"
 msgstr "다음"
+
+msgid "Next part"
+msgstr "다음 파트"
 
 msgid "No Data"
 msgstr "데이터 없음"
@@ -2605,6 +2600,9 @@ msgstr "Enter를 눌러주세요"
 msgid "Press again to exit"
 msgstr "종료하기 위해 다시 눌러주세요"
 
+msgid "Previous part"
+msgstr "이전 파트"
+
 msgid "Printer Calibration"
 msgstr "Printer 교정"
 
@@ -2857,6 +2855,9 @@ msgstr "스크립트 타입"
 msgid "Script type and Derivation path"
 msgstr "스크립트 타입과 파생 경로"
 
+msgid "Secure"
+msgstr "보안 거래"
+
 msgid "Secure - confirmed after 24 hours. Can be canceled within that time."
 msgstr "보안 - 24시간 후 확인. 이 시간내에 취소할 수 있습니다."
 
@@ -2877,6 +2878,9 @@ msgstr "빠른 보안 시드phrase"
 
 msgid "Secure Fast transaction public key"
 msgstr "빠른 보안 거래 공용 키"
+
+msgid "Secure fast"
+msgstr "보안 고속 거래"
 
 msgid "Secure incoming"
 msgstr "보안 수신"
@@ -2921,7 +2925,7 @@ msgstr "지갑 거래를 내보낼 파일을 선택하세요"
 msgid "Select file to save your {title}"
 msgstr "{title}을 저장할 파일을 선택하세요"
 
-msgid "Select language"
+msgid "Select installation language"
 msgstr "언어 선택"
 
 msgid "Select server automatically"
@@ -3137,6 +3141,9 @@ msgstr "확인된 코인만 소비하십시오"
 
 msgid "Spend only confirmed inputs."
 msgstr "확인된 입력값만 소비하십시오"
+
+msgid "Standard"
+msgstr "표준"
 
 msgid "Start"
 msgstr "시작"
@@ -3575,8 +3582,14 @@ msgstr "거래가 저장되지 않을 수 있습니다."
 msgid "Transaction exported successfully"
 msgstr "거래 내보내기가 성공적으로 완료되었습니다"
 
+msgid "Transaction is too large in size."
+msgstr "거래의 크기가 너무 큽니다. "
+
 msgid "Transaction is unrelated to this wallet."
 msgstr "지갑과 관련되지 않은 거래입니다."
+
+msgid "Transaction part"
+msgstr "거래 파트"
 
 msgid "Transaction to join with"
 msgstr "거래 참여"

@@ -17,54 +17,36 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+msgid "Are you sure you want to disagree?"
+msgstr "Tem a certeza de que deseja discordar?"
+
+msgid "Are you sure?"
+msgstr "Tem a certeza?"
+
+msgid "Description is not supported for Secure Fast transaction"
+msgstr "A descrição não é compatível com a Transação de Segurança Rápida"
+
+msgid "I agree"
+msgstr "Eu concordo"
+
+msgid "I disagree"
+msgstr "Eu discordo"
+
+msgid "No, I changed my mind"
+msgstr "Não, eu mudei de ideias"
+
 msgid ""
-"In order to confirm the transaction, scan the QR codes in the "
-"\"Authenticators\" tab in the Gold Wallet app."
+"Note that if you disagree to our Terms & Conditions you won't be able to use "
+"the Electrum Vault application."
 msgstr ""
-"Para confirmar a transação, leia os códigos QR na guia \"Autenticadores\" no "
-"aplicativo Gold Wallet."
+"Observe que se discordar com os nossos Termos e Condições, não poderá "
+"utilizar a aplicação Electrum Vault."
 
-msgid "Failed to display QR code."
-msgstr "Falha ao exibir o código QR."
+msgid "Terms & Conditions"
+msgstr "Termos e Condições"
 
-msgid "Transaction is too large in size."
-msgstr "A transação é demasiado grande."
-
-msgid "Previous part"
-msgstr "Parte anterior"
-
-msgid "Next part"
-msgstr "Próxima parte"
-
-msgid "Transaction part"
-msgstr "Parte da transação"
-
-msgid "Standard"
-msgstr "Padrão"
-
-msgid "Secure"
-msgstr "Seguro"
-
-msgid "Secure fast"
-msgstr "Rápido"
-
-msgid "Cancel"
-msgstr "Cancelar"
-
-msgid "Change language"
-msgstr "Mudar o idioma"
-
-msgid "&Change language"
-msgstr "&Mudar o idioma"
-
-msgid "When you press Ok button application will be restarted"
-msgstr "O dispositivo irá reiniciar após pressionar o botão OK."
-
-msgid "Ok"
-msgstr "OK"
-
-msgid "Select installation language"
-msgstr "Selecione o idioma"
+msgid "Yes, I disagree"
+msgstr "Sim, eu discordo"
 
 msgid "  (No FX rate available)"
 msgstr "(Sem taxa de câmbio disponível)"
@@ -535,6 +517,9 @@ msgstr ""
 
 msgid "Can't plot history."
 msgstr "Não posso traçar a história."
+
+msgid "Cancel"
+msgstr "Cancelar"
 
 msgid "Cancel seedphrase"
 msgstr "Cancelar frase-semente"
@@ -1458,6 +1443,9 @@ msgstr "Falha ao criar um cliente para este dispositivo."
 msgid "Failed to decrypt using this hardware device."
 msgstr "Falha ao descriptografar usando este dispositivo de hardware."
 
+msgid "Failed to display QR code."
+msgstr "Falha ao exibir o código QR."
+
 msgid "Failed to export to file."
 msgstr "Falha ao exportar para o arquivo."
 
@@ -1816,6 +1804,13 @@ msgid "Import private keys"
 msgstr "Importar chaves privadas"
 
 msgid ""
+"In order to confirm the transaction, scan the QR codes in the "
+"\"Authenticators\" tab in the Gold Wallet app."
+msgstr ""
+"Para confirmar a transação, leia os códigos QR na guia \"Autenticadores\" no "
+"aplicativo Gold Wallet."
+
+msgid ""
 "In particular, DO NOT use 'redeem private key' services proposed by third "
 "parties."
 msgstr ""
@@ -1960,9 +1955,6 @@ msgid "Invoice wants us to risk locking funds for unreasonably long."
 msgstr ""
 "A fatura quer que corramos o risco de bloquear fundos por um período "
 "excessivamente longo."
-
-msgid "Invoices"
-msgstr "Faturas"
 
 msgid ""
 "It also contains your master public key that allows watching your addresses."
@@ -2214,6 +2206,9 @@ msgstr "Nova transação: {amount}"
 
 msgid "Next"
 msgstr "Próximo"
+
+msgid "Next part"
+msgstr "Próxima parte"
 
 msgid "No Data"
 msgstr "Sem dados"
@@ -2682,6 +2677,9 @@ msgstr "Prima Enter"
 msgid "Press again to exit"
 msgstr "Prima novamente para sair"
 
+msgid "Previous part"
+msgstr "Parte anterior"
+
 msgid "Printer Calibration"
 msgstr "Calibragem da impressora"
 
@@ -2935,6 +2933,9 @@ msgstr "Tipo de script"
 msgid "Script type and Derivation path"
 msgstr "Tipo de script e caminho de derivação"
 
+msgid "Secure"
+msgstr "Seguro"
+
 msgid "Secure - confirmed after 24 hours. Can be canceled within that time."
 msgstr ""
 "Segura - confirmado após 24 horas. Pode ser cancelada dentro desse período."
@@ -2958,6 +2959,9 @@ msgstr "Frase de semente Rápida e Segura"
 
 msgid "Secure Fast transaction public key"
 msgstr "Chave pública de transação segura e rápida"
+
+msgid "Secure fast"
+msgstr "Rápido"
 
 msgid "Secure incoming"
 msgstr "Entrada segura"
@@ -3002,7 +3006,7 @@ msgstr "Selecione o arquivo para exportar as suas transações de carteira para"
 msgid "Select file to save your {title}"
 msgstr "Selecione o arquivo para salvar seu {title}"
 
-msgid "Select language"
+msgid "Select installation language"
 msgstr "Selecione o idioma"
 
 msgid "Select server automatically"
@@ -3223,6 +3227,9 @@ msgstr "Gaste apenas moedas confirmadas"
 
 msgid "Spend only confirmed inputs."
 msgstr "Gaste apenas entradas confirmadas."
+
+msgid "Standard"
+msgstr "Padrão"
 
 msgid "Start"
 msgstr "Começar"
@@ -3697,8 +3704,14 @@ msgstr "Não foi possível salvar a transação."
 msgid "Transaction exported successfully"
 msgstr "Transação exportada com sucesso"
 
+msgid "Transaction is too large in size."
+msgstr "A transação é demasiado grande."
+
 msgid "Transaction is unrelated to this wallet."
 msgstr "A transação não está relacionada a esta carteira."
+
+msgid "Transaction part"
+msgstr "Parte da transação"
 
 msgid "Transaction to join with"
 msgstr "Transação será adicionada a"
