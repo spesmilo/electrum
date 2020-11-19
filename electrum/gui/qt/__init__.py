@@ -348,8 +348,8 @@ class ElectrumGui(Logger):
 
     def main(self):
         try:
-            self.accept_terms_and_conditions()
             self.choose_language()
+            self.accept_terms_and_conditions()
             self.init_network()
         except (UserCancelled, GoBack, TermsNotAccepted):
             return
