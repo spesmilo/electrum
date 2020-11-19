@@ -5,6 +5,7 @@
     tools:context=".TransactionsFragment">
     <data>
         <import type="android.view.View"/>
+        <import type="org.electroncash.electroncash3.UtilKt"/>
         <variable
             name="model"
             type="org.electroncash.electroncash3.TransactionModel"/>
@@ -88,7 +89,7 @@
             android:layout_height="wrap_content"
             android:layout_marginEnd="16dp"
             android:layout_marginRight="16dp"
-            android:text="@{model.get(`date`)}"
+            android:text="@{UtilKt.ltr(model.get(`date`))}"
             android:textAppearance="@style/Medium"
             app:layout_constraintBaseline_toBaselineOf="@+id/tvValue"
             app:layout_constraintEnd_toEndOf="parent"
@@ -101,7 +102,7 @@
             android:text='@{model.confirmationsStr}'
             app:layout_constraintBaseline_toBaselineOf="@+id/tvBalance"
             app:layout_constraintEnd_toEndOf="@+id/tvTimestamp"
-            tools:text="1234 confirmations"/>
+            tools:text="@string/confirmations"/>
 
         <TextView
             android:id="@+id/tvDescription"

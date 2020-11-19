@@ -1,15 +1,13 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
 
     <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
-
-        <!-- Make subtitle more prominent. -->
         <item name="subtitleTextColor">@android:color/white</item>
-
         <item name="preferenceTheme">@style/PreferenceThemeOverlay.v14.Material</item>
         <item name="spinnerStyle">@style/Widget.AppCompat.Spinner.Underlined</item>
+        <item name="android:textDirection" tools:ignore="NewApi">locale</item>
     </style>
 
     <style name="AppTheme.NoActionBar">
@@ -49,16 +47,25 @@
         <item name="android:singleLine">true</item>
     </style>
 
+    <style name="AmountBox">
+        <item name="singleLine">true</item>
+        <item name="android:inputType">numberDecimal</item>
+        <item name="android:textDirection" tools:ignore="NewApi">ltr</item>
+        <item name="android:textAlignment" tools:ignore="NewApi">viewStart</item>
+    </style>
+
     <!-- FloatingActionButton -->
     <style name="FAB">
         <item name="android:tint">#FFFFFF</item>
     </style>
     <style name="FAB.Main">
-        <item name="android:layout_marginRight">@dimen/fab_main_margin_right</item>
+        <item name="android:layout_marginEnd">@dimen/fab_main_margin_end</item>
+        <item name="android:layout_marginRight">@dimen/fab_main_margin_end</item>
         <item name="android:layout_marginBottom">@dimen/fab_main_margin_bottom</item>
         <item name="fabSize">normal</item>
     </style>
     <style name="FAB.Main.Inner">
+        <item name="android:layout_marginEnd">@dimen/fab_main_margin_inner</item>
         <item name="android:layout_marginRight">@dimen/fab_main_margin_inner</item>
     </style>
     <style name="FAB.Dialog">

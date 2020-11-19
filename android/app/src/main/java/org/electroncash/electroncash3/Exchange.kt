@@ -42,20 +42,11 @@ fun fiatToSatoshis(s: String): Long? {
 }
 
 
-fun formatFiatAmountAndUnit(amount: Long): String? {
-    val amountStr = formatFiatAmount(amount)
-    if (amountStr == null) {
-        return null
-    } else {
-        return amountStr + " " + formatFiatUnit()
-    }
-}
-
 fun formatSatoshisAndFiat(amount: Long): String {
     var result = formatSatoshisAndUnit(amount)
-    val fiat = formatFiatAmountAndUnit(amount)
+    val fiat = formatFiatAmount(amount)
     if (fiat != null) {
-        result += " ($fiat)"
+        result += " ($fiat ${formatFiatUnit()})"
     }
     return result
 }

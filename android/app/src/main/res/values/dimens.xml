@@ -2,7 +2,7 @@
 
     <!-- Before API 21, FloatingActionButton draws its own shadow and so takes up much more
          space. Reduce margins to get as close as possible to the desired layout. -->
-    <dimen name="fab_main_margin_right">4dp</dimen>
+    <dimen name="fab_main_margin_end">4dp</dimen>
     <dimen name="fab_main_margin_inner">0dp</dimen>
     <dimen name="fab_main_margin_bottom">0dp</dimen>
     <dimen name="fab_dialog_margin_inner">0dp</dimen>

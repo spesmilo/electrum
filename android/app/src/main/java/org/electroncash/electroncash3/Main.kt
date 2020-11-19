@@ -65,8 +65,7 @@ class MainActivity : AppCompatActivity(R.layout.main) {
 
         // If the system language changes while the app is running, the activity will be
         // restarted, but not the process.
-        @Suppress("DEPRECATION")
-        libMod("i18n").callAttr("set_language", resources.configuration.locale.toString())
+        setLocale(this)
 
         // If the wallet name doesn't match, the process has probably been restarted, so
         // ignore the UI state, including all dialogs.
@@ -160,7 +159,7 @@ class MainActivity : AppCompatActivity(R.layout.main) {
             } else if (wallet.callAttr("is_up_to_date").toBoolean()) {
                 // get_balance returns the tuple (confirmed, unconfirmed, unmatured)
                 val balance = wallet.callAttr("get_balance").asList().get(0).toLong()
-                subtitle = formatSatoshisAndFiat(balance)
+                subtitle = ltr(formatSatoshisAndFiat(balance))
             } else {
                 subtitle = getString(R.string.synchronizing)
             }

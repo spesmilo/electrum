@@ -136,14 +136,14 @@
                 android:id="@+id/tvStatus"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginLeft="6dp"
                 android:layout_marginStart="6dp"
+                android:layout_marginLeft="6dp"
                 android:layout_marginTop="6dp"
                 android:textAppearance="@style/Medium"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toEndOf="@+id/barrier5"
                 app:layout_constraintTop_toBottomOf="@+id/tvTimestamp"
-                tools:text="@string/test_status"/>
+                tools:text="@string/confirmations" />
 
             <TextView
                 android:id="@+id/textView16"
@@ -157,14 +157,14 @@
                 android:id="@+id/tvSize"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginLeft="6dp"
                 android:layout_marginStart="6dp"
+                android:layout_marginLeft="6dp"
                 android:layout_marginTop="6dp"
                 android:textAppearance="@style/Medium"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toEndOf="@+id/barrier5"
                 app:layout_constraintTop_toBottomOf="@+id/tvStatus"
-                tools:text="234 bytes"/>
+                tools:text="@string/bytes" />
 
             <TextView
                 android:id="@+id/textView17"
@@ -178,14 +178,14 @@
                 android:id="@+id/tvFee"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginLeft="6dp"
                 android:layout_marginStart="6dp"
+                android:layout_marginLeft="6dp"
                 android:layout_marginTop="6dp"
                 android:textAppearance="@style/Medium"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toEndOf="@+id/barrier5"
                 app:layout_constraintTop_toBottomOf="@+id/tvSize"
-                tools:text="@string/test_fee"/>
+                tools:text="@string/sat_byte" />
 
             <TextView
                 android:id="@+id/textView22"

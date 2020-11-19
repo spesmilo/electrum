@@ -182,7 +182,7 @@ class AddressDialog() : AlertDialogFragment() {
         }
         tvTxCount.movementMethod = LinkMovementMethod.getInstance()
 
-        tvBalance.text = formatSatoshisAndFiat(addrModel.balance)
+        tvBalance.text = ltr(formatSatoshisAndFiat(addrModel.balance))
     }
 
     override fun onFirstShowDialog() {

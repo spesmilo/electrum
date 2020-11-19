@@ -4,18 +4,15 @@
 
     <string name="test_address">qpzry9x8gf2tvdw0s3jn54khce6mua7lcw20ayyn</string>  <!-- Invalid address from cashaddr spec -->
     <string name="test_contact">Alice Robertson</string>
-    <string name="test_fee">2 sat/byte (0.00003456 BCH)</string>
-    <string name="test_fiat">4,567.89</string>
     <string name="test_server_address">electron.example.com:50002</string>
     <string name="test_seed">legal winner thank year wave sausage worth useful legal winner
         thank yellow</string>  <!-- From BIP39 test vectors -->
-    <string name="test_status">3 confirmations</string>
-    <string name="test_timestamp">2018-04-01 16:20</string>
+    <string name="test_timestamp">&#x200e;2018-04-01 16:20</string>
     <string name="test_txid">f4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16</string>
-    <string name="test_value">42.12345678</string>
-    <string name="test_value_signed">+42.12345678</string>
+    <string name="test_value">&#x200e;42.12345678</string>
+    <string name="test_value_signed">&#x200e;+42.12345678 BCH</string>
+    <string name="test_value_and_fiat">&#x200e;0.12345678 BCH (98765.43 USD)</string>
     <string name="test_wallet">alpha</string>
-    <string name="test_url">bitcoincash:qpzry9x8gf2tvdw0s3jn54khce6mua7lcw20ayyn?amount=1.23&amp;message=Hello%20world</string>
 
     <!-- On a medium-sized phone, with the default text size, this is two lines in portrait and
     one line in landscape. -->

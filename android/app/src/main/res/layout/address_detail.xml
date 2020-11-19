@@ -146,15 +146,15 @@
                 android:id="@+id/tvBalance"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginLeft="6dp"
                 android:layout_marginStart="6dp"
+                android:layout_marginLeft="6dp"
                 android:layout_marginTop="6dp"
                 android:textAppearance="@style/Medium"
                 app:layout_constraintEnd_toEndOf="@+id/tvTxCount"
                 app:layout_constraintHorizontal_bias="1.0"
                 app:layout_constraintStart_toEndOf="@+id/barrier5"
                 app:layout_constraintTop_toBottomOf="@+id/tvTxCount"
-                tools:text="@string/test_value"/>
+                tools:text="@string/test_value_and_fiat" />
 
             <TextView
                 android:id="@+id/textView22"

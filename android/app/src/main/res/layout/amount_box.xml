@@ -30,25 +30,23 @@
 
     <EditText
         android:id="@+id/etAmount"
+        style="@style/AmountBox"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:inputType="numberDecimal"
-        android:singleLine="true"
         app:layout_constraintEnd_toEndOf="@+id/tvUnit"
         app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintStart_toStartOf="@+id/tvUnit"
         app:layout_constraintTop_toBottomOf="@+id/tvUnit"
-        tools:text="12.34567890" />
+        tools:text="@string/test_value" />
 
     <EditText
         android:id="@+id/etFiat"
+        style="@style/AmountBox"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:inputType="numberDecimal"
-        android:singleLine="true"
         app:layout_constraintBaseline_toBaselineOf="@+id/etAmount"
         app:layout_constraintEnd_toEndOf="@+id/tvFiatUnit"
         app:layout_constraintStart_toStartOf="@+id/tvFiatUnit"
-        tools:text="12.34567890" />
+        tools:text="@string/test_value" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

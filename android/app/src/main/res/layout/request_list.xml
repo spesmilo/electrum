@@ -39,7 +39,7 @@
             android:layout_height="wrap_content"
             android:layout_marginEnd="16dp"
             android:layout_marginRight="16dp"
-            android:text="@{model.timestamp}"
+            android:text="@{UtilKt.ltr(model.timestamp)}"
             android:textAppearance="@style/Medium"
             app:layout_constraintBaseline_toBaselineOf="@+id/tvValue"
             app:layout_constraintEnd_toEndOf="parent"

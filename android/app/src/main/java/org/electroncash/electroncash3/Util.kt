@@ -12,6 +12,9 @@ import android.widget.EditText
 import android.widget.PopupMenu
 import android.widget.Toast
 import androidx.core.content.ContextCompat
+import androidx.core.os.ConfigurationCompat
+import androidx.core.text.BidiFormatter
+import androidx.core.text.TextDirectionHeuristicsCompat
 import androidx.databinding.DataBindingUtil
 import androidx.databinding.ViewDataBinding
 import androidx.fragment.app.DialogFragment
@@ -29,10 +32,23 @@ import kotlin.reflect.KClass
 val libBitcoin by lazy { libMod("bitcoin") }
 val libUtil by lazy { libMod("util") }
 
-
 // See Settings.kt
 var unitName = ""
 var unitPlaces = 0
+
+
+lateinit var bidi: BidiFormatter
+
+fun setLocale(context: Context) {
+    val locale = ConfigurationCompat.getLocales(context.resources.configuration).get(0)
+    libMod("i18n").callAttr("set_language", locale.toString())
+    bidi = BidiFormatter.getInstance(locale)
+}
+
+// Concatenating or nesting the return values of this function doesn't always give the desired
+// result, so it's best to call it immediately before passing the text to the UI.
+fun ltr(s: String) = bidi.unicodeWrap(s, TextDirectionHeuristicsCompat.LTR)
+
 
 // When converting values to and from strings, we only accept and produce the English number
 // format with a dot as the decimal point, and no thousands separators. This is consistent with
@@ -65,9 +81,13 @@ fun formatSatoshis(amount: Long, signed: Boolean = false): String {
     return result
 }
 
-fun formatSatoshisAndUnit(amount: Long, signed: Boolean = false): String {
-    return "${formatSatoshis(amount, signed)} $unitName"
-}
+fun formatSatoshisAndUnit(amount: Long?, signed: Boolean = false): String =
+    if (amount == null) app.getString(R.string.Unknown)
+    else "${formatSatoshis(amount, signed)} $unitName"
+
+fun formatTime(time: Long?): String =
+    if (time in listOf(null, 0L)) app.getString(R.string.Unknown)
+    else libUtil.callAttr("format_time", time).toString()
 
 
 fun showDialog(target: Fragment, frag: DialogFragment) {

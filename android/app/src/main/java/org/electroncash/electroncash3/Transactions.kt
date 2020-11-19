@@ -6,7 +6,6 @@ import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.content.res.AppCompatResources
-import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.observe
@@ -122,14 +121,8 @@ class TransactionDialog() : AlertDialogFragment() {
 
         // For outgoing transactions, the list view includes the fee in the amount, but the
         // detail view does not.
-        val amount = txInfo.get("amount")?.toLong()
-        tvAmount.text = if (amount == null) getString(R.string.Unknown)
-                        else formatSatoshisAndUnit(amount, signed=true)
-
-        val timestamp = txInfo.get("timestamp")?.toLong()
-        tvTimestamp.text = if (timestamp in listOf(null, 0L)) getString(R.string.Unknown)
-                           else libUtil.callAttr("format_time", timestamp).toString()
-
+        tvAmount.text = ltr(formatSatoshisAndUnit(txInfo.get("amount")?.toLong(), signed=true))
+        tvTimestamp.text = ltr(formatTime(txInfo.get("timestamp")?.toLong()))
         tvStatus.text = txInfo.get("status")!!.toString()
 
         val size = tx.callAttr("estimated_size").toInt()
@@ -142,7 +135,7 @@ class TransactionDialog() : AlertDialogFragment() {
             val feeSpb = (fee.toDouble() / size.toDouble()).roundToInt()
             tvFee.text = String.format("%s (%s)",
                                        getString(R.string.sat_byte, feeSpb),
-                                       formatSatoshisAndUnit(fee))
+                                       ltr(formatSatoshisAndUnit(fee)))
         }
     }
 

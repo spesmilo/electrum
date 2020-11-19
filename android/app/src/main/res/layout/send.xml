@@ -121,7 +121,7 @@
             app:layout_constraintEnd_toEndOf="@+id/btnContacts"
             app:layout_constraintStart_toEndOf="@+id/textView7"
             app:layout_constraintTop_toTopOf="@+id/textView7"
-            tools:text="@string/test_fee" />
+            tools:text="@string/sat_byte" />
 
         <TextView
             android:id="@+id/textView22"

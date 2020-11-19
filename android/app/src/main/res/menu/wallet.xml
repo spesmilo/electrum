@@ -3,7 +3,6 @@
 
     <item
         android:id="@+id/menuClose"
-        android:icon="@drawable/ic_close_24dp"
         android:title="@string/close_wallet"/>
 
     <item
@@ -17,33 +16,26 @@
 
     <item
         android:id="@+id/menuShowSeed"
-        android:icon="@drawable/ic_key_24dp"
         android:title="@string/show_seed"/>
 
     <item
         android:id="@+id/menuExportSigned"
-        android:icon="@drawable/ic_key_24dp"
         android:title="@string/sign_transaction"/>
 
     <item
         android:id="@+id/menuLoadSigned"
-        android:icon="@drawable/ic_key_24dp"
         android:title="@string/load_transaction"/>
-
 
     <item
         android:id="@+id/menuRename"
-        android:icon="@drawable/ic_edit_24dp"
         android:title="@string/Rename_wallet"/>
 
     <item
         android:id="@+id/menuExport"
-        android:icon="@drawable/ic_export_24dp"
         android:title="@string/export_wallet"/>
 
     <item
         android:id="@+id/menuDelete"
-        android:icon="@drawable/ic_delete_24dp"
         android:title="@string/Delete_wallet"/>
 
 </menu>

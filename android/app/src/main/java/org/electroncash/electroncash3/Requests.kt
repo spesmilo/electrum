@@ -68,7 +68,7 @@ class RequestsAdapter(val activity: FragmentActivity)
 class RequestModel(val request: PyObject) {
     val address = getField("address").toString()
     val amount = getField("amount").toLong()
-    val timestamp = libUtil.callAttr("format_time", getField("time")).toString()
+    val timestamp = formatTime(getField("time").toLong())
     val description = getField("memo").toString()
     val status = (app.resources.getStringArray(R.array.payment_status)
                   [getField("status").toInt()])

@@ -118,7 +118,7 @@ class SendDialog : AlertDialogFragment() {
         var feeLabel = getString(R.string.sat_byte, feeSpb)
         if (tx != null) {
             val fee = tx.callAttr("get_fee").toLong()
-            feeLabel += " (${formatSatoshisAndUnit(fee)})"
+            feeLabel += " (${ltr(formatSatoshisAndUnit(fee))})"
         }
         tvFeeLabel.setText(feeLabel)
     }
