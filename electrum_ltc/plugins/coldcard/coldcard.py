@@ -142,19 +142,19 @@ class CKCCClient(HardwareClientBase):
         else:
             lab = 'Coldcard ' + xfp2str(self.dev.master_fingerprint)
 
-        # Hack zone: during initial setup I need the xfp and master xpub but 
-        # very few objects are passed between the various steps of base_wizard.
-        # Solution: return a string with some hidden metadata
-        # - see <https://stackoverflow.com/questions/7172772/abc-for-string>
-        # - needs to work w/ deepcopy
-        class LabelStr(str):
-            def __new__(cls, s, xfp=None, xpub=None):
-                self = super().__new__(cls, str(s))
-                self.xfp = getattr(s, 'xfp', xfp)
-                self.xpub = getattr(s, 'xpub', xpub)
-                return self
+        return lab
 
-        return LabelStr(lab, self.dev.master_fingerprint, self.dev.master_xpub)
+    def manipulate_keystore_dict_during_wizard_setup(self, d: dict):
+        master_xpub = self.dev.master_xpub
+        if master_xpub is not None:
+            try:
+                node = BIP32Node.from_xkey(master_xpub)
+            except InvalidMasterKeyVersionBytes:
+                raise UserFacingException(
+                    _('Invalid xpub magic. Make sure your {} device is set to the correct chain.').format(self.device) + ' ' +
+                    _('You might have to unplug and plug it in again.')
+                ) from None
+            d['ckcc_xpub'] = master_xpub
 
     @runs_in_hwd_thread
     def has_usable_connection_with_device(self):
@@ -262,8 +262,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
         # we need to know at least the fingerprint of the master xpub to verify against MiTM
         # - device reports these value during encryption setup process
         # - full xpub value now optional
-        lab = d['label']
-        self.ckcc_xpub = getattr(lab, 'xpub', None) or d.get('ckcc_xpub', None)
+        self.ckcc_xpub = d.get('ckcc_xpub', None)
 
     def dump(self):
         # our additions to the stored data about keystore -- only during creation?

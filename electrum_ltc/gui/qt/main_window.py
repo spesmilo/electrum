@@ -90,7 +90,7 @@ from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialo
                    import_meta_gui, export_meta_gui,
                    filename_field, address_field, char_width_in_lineedit, webopen,
                    TRANSACTION_FILE_EXTENSION_FILTER_ANY, MONOSPACE_FONT)
-from .util import ButtonsTextEdit
+from .util import ButtonsTextEdit, ButtonsLineEdit
 from .installwizard import WIF_HELP_TEXT
 from .history_list import HistoryList, HistoryModel
 from .update_checker import UpdateCheck, UpdateCheckThread
@@ -1100,7 +1100,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         self.clear_invoice_button = QPushButton(_('Clear'))
         self.clear_invoice_button.clicked.connect(self.clear_receive_tab)
-        self.create_invoice_button = QPushButton(_('Request'))
+        self.create_invoice_button = QPushButton(_('New Address'))
         self.create_invoice_button.setIcon(read_QIcon("bitcoin.png"))
         self.create_invoice_button.setToolTip('Create on-chain request')
         self.create_invoice_button.clicked.connect(lambda: self.create_invoice(False))
@@ -1109,7 +1109,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         buttons.addWidget(self.clear_invoice_button)
         buttons.addWidget(self.create_invoice_button)
         if self.wallet.has_lightning():
-            self.create_invoice_button.setText(_('On-chain'))
+            self.create_invoice_button.setText(_('New Address'))
             self.create_lightning_invoice_button = QPushButton(_('Lightning'))
             self.create_lightning_invoice_button.setToolTip('Create lightning request')
             self.create_lightning_invoice_button.setIcon(read_QIcon("lightning.png"))
@@ -1217,6 +1217,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         message = self.receive_message_e.text()
         expiry = self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
         if is_lightning:
+            if not self.wallet.lnworker.channels:
+                self.show_error(_("You need to open a Lightning channel first."))
+                return
+            # TODO maybe show a warning if amount exceeds lnworker.num_sats_can_receive (as in kivy)
             key = self.wallet.lnworker.add_request(amount, message, expiry)
         else:
             key = self.create_bitcoin_request(amount, message, expiry)
@@ -2085,7 +2089,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         grid.addWidget(QLabel(_("Description") + ':'), 2, 0)
         grid.addWidget(QLabel(invoice.message), 2, 1)
         grid.addWidget(QLabel(_("Hash") + ':'), 3, 0)
-        grid.addWidget(QLabel(lnaddr.paymenthash.hex()), 3, 1)
+        payhash_e = ButtonsLineEdit(lnaddr.paymenthash.hex())
+        payhash_e.addCopyButton(self.app)
+        payhash_e.setReadOnly(True)
+        vbox.addWidget(payhash_e)
+        grid.addWidget(payhash_e, 3, 1)
         if invoice.exp:
             grid.addWidget(QLabel(_("Expires") + ':'), 4, 0)
             grid.addWidget(QLabel(format_time(invoice.time + invoice.exp)), 4, 1)
