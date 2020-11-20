@@ -448,8 +448,7 @@ class Daemon(Logger):
         if self.network:
             self.network.start(jobs=[self.fx.run])
             # prepare lightning functionality, also load channel db early
-            self.network.maybe_init_lightning()
-            self.network.channel_db.load_data()
+            self.network.init_channel_db()
 
         self.taskgroup = TaskGroup()
         asyncio.run_coroutine_threadsafe(self._run(jobs=daemon_jobs), self.asyncio_loop)
