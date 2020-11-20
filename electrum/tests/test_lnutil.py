@@ -757,21 +757,21 @@ class TestLNUtil(ElectrumTestCase):
             extract_nodeid("00" * 33 + "@")
         self.assertEqual(extract_nodeid("00" * 33 + "@localhost"), (b"\x00" * 33, "localhost"))
 
-    def test_ln_features_validate_transitive_dependecies(self):
+    def test_ln_features_validate_transitive_dependencies(self):
         features = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
-        self.assertTrue(features.validate_transitive_dependecies())
+        self.assertTrue(features.validate_transitive_dependencies())
         features = LnFeatures.PAYMENT_SECRET_OPT
-        self.assertFalse(features.validate_transitive_dependecies())
+        self.assertFalse(features.validate_transitive_dependencies())
         features = LnFeatures.PAYMENT_SECRET_REQ
-        self.assertFalse(features.validate_transitive_dependecies())
+        self.assertFalse(features.validate_transitive_dependencies())
         features = LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_REQ
-        self.assertTrue(features.validate_transitive_dependecies())
+        self.assertTrue(features.validate_transitive_dependencies())
         features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ
-        self.assertFalse(features.validate_transitive_dependecies())
+        self.assertFalse(features.validate_transitive_dependencies())
         features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_OPT
-        self.assertTrue(features.validate_transitive_dependecies())
+        self.assertTrue(features.validate_transitive_dependencies())
         features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_REQ
-        self.assertTrue(features.validate_transitive_dependecies())
+        self.assertTrue(features.validate_transitive_dependencies())
 
     def test_ln_features_for_init_message(self):
         features = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
