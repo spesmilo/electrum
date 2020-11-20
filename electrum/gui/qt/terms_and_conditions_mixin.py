@@ -1,4 +1,5 @@
 import os
+from enum import IntEnum
 from pathlib import Path
 
 from PyQt5.QtWidgets import QVBoxLayout, QLabel, QHBoxLayout, QStyle, QPushButton, QTextBrowser
@@ -10,6 +11,11 @@ from electrum.i18n import _
 
 class TermsNotAccepted(BaseException):
     pass
+
+
+class PushedButton(IntEnum):
+    BACK = 1
+    NEXT = 2
 
 
 class WarningDialog(WindowModalDialog):
@@ -101,10 +107,9 @@ class TermsAndConditionsMixin:
         self.next_button.setText(_('I agree'))
         self.back_button.setText(_('I disagree'))
         try:
-            # if user agreed with terms and conditions then result is 2
-            # otherwise GoBack exception is raised
-            result = self.exec_layout(vbox, title=_('Terms & Conditions'), next_enabled=True)
-            if result == 2:
+            # pushing 'I disagree` raises GoBack exception
+            pushed_button = self.exec_layout(vbox, title=_('Terms & Conditions'), next_enabled=True)
+            if pushed_button == PushedButton.NEXT:
                 return True
             return False
         except GoBack:

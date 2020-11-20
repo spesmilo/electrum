@@ -19,7 +19,7 @@ from electrum.wallet import Abstract_Wallet
 from .network_dialog import NetworkChoiceLayout
 from .password_dialog import PasswordLayout, PasswordLayoutForHW, PW_NEW
 from .seed_dialog import SeedLayout, KeysLayout
-from .terms_and_conditions_mixin import TermsAndConditionsMixin
+from .terms_and_conditions_mixin import TermsAndConditionsMixin, PushedButton
 from .three_keys_dialogs import InsertPubKeyDialog, Qr2FaDialog
 from .util import (MessageBoxMixin, Buttons, icon_path, ChoicesLayout, WWLabel,
                    InfoButton, char_width_in_lineedit, get_default_language)
@@ -191,8 +191,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard, TermsAndConditionsMixi
         cb.currentIndexChanged.connect(on_change)
         # refresh config language
         on_change()
-        result = self.exec_layout(vbox, title=_('Select installation language'))
-        if result == 2:
+        pushed_button = self.exec_layout(vbox, title=_('Select installation language'))
+        if pushed_button == PushedButton.NEXT:
             self.config.set_key('language', language_abbreviations[cb.currentIndex()])
 
     def select_storage(self, path, get_wallet_from_daemon) -> Tuple[str, Optional[WalletStorage]]:
