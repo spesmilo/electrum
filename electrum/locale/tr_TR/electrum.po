@@ -17,54 +17,36 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+msgid "Are you sure you want to disagree?"
+msgstr "Kabul etmediğinizden emin misiniz?"
+
+msgid "Are you sure?"
+msgstr "Emin misiniz?"
+
+msgid "Description is not supported for Secure Fast transaction"
+msgstr "Güvenli Hızlı işlem için açıklama desteklenmiyor"
+
+msgid "I agree"
+msgstr "Kabul ediyorum"
+
+msgid "I disagree"
+msgstr "Kabul etmiyorum"
+
+msgid "No, I changed my mind"
+msgstr "Hayır, fikrimi değiştirdim"
+
 msgid ""
-"In order to confirm the transaction, scan the QR codes in the "
-"\"Authenticators\" tab in the Gold Wallet app."
+"Note that if you disagree to our Terms & Conditions you won't be able to use "
+"the Electrum Vault application."
 msgstr ""
-"İşlemi onaylamak için Gold Wallet uygulamasında \"Kimlik Doğrulayıcılar\" "
-"sekmesindeki QR kodlarını taratın."
+"Hüküm ve Şartlarımızı kabul etmezsenizElectrum Vault uygulamasını "
+"kullanamayacaksınız."
 
-msgid "Failed to display QR code."
-msgstr "QR kodu görüntülenemedi."
+msgid "Terms & Conditions"
+msgstr "Hüküm ve Şartlar"
 
-msgid "Transaction is too large in size."
-msgstr "İşlemin boyutu çok büyük."
-
-msgid "Previous part"
-msgstr "Önceki parça"
-
-msgid "Next part"
-msgstr "Sonraki parça"
-
-msgid "Transaction part"
-msgstr "İşlem parçası"
-
-msgid "Standard"
-msgstr "Standart"
-
-msgid "Secure"
-msgstr "Güvenli"
-
-msgid "Secure fast"
-msgstr "Hızlı"
-
-msgid "Cancel"
-msgstr "İptal Et"
-
-msgid "Change language"
-msgstr "Dili değiştirme"
-
-msgid "&Change language"
-msgstr "&Dili değiştirme"
-
-msgid "When you press Ok button application will be restarted"
-msgstr "OK düğmesine bastığınızda uygulama yeniden başlatılacaktır"
-
-msgid "Ok"
-msgstr "TAMAM"
-
-msgid "Select installation language"
-msgstr "Dili seçin"
+msgid "Yes, I disagree"
+msgstr "Evet, kabul etmiyorum"
 
 msgid "  (No FX rate available)"
 msgstr "  (Kullanılabilir FX kuru yok)"
@@ -531,6 +513,9 @@ msgstr "Ücret arttırılamaz: ana işlem için bilinmeyen ücret."
 
 msgid "Can't plot history."
 msgstr "Geçmiş çizilemiyor."
+
+msgid "Cancel"
+msgstr "İptal Et"
 
 msgid "Cancel seedphrase"
 msgstr "Çekirdek ifadesi iptal edilemiyor"
@@ -1446,6 +1431,9 @@ msgstr "Bu cihaz için bir istemci oluşturulamadı."
 msgid "Failed to decrypt using this hardware device."
 msgstr "Bu donanım cihazı kullanılarak şifre çözülemedi."
 
+msgid "Failed to display QR code."
+msgstr "QR kodu görüntülenemedi."
+
 msgid "Failed to export to file."
 msgstr "Dosyaya aktarılamadı."
 
@@ -1806,6 +1794,13 @@ msgid "Import private keys"
 msgstr "Özel anahtarları içeri aktar"
 
 msgid ""
+"In order to confirm the transaction, scan the QR codes in the "
+"\"Authenticators\" tab in the Gold Wallet app."
+msgstr ""
+"İşlemi onaylamak için Gold Wallet uygulamasında \"Kimlik Doğrulayıcılar\" "
+"sekmesindeki QR kodlarını taratın."
+
+msgid ""
 "In particular, DO NOT use 'redeem private key' services proposed by third "
 "parties."
 msgstr ""
@@ -1950,9 +1945,6 @@ msgid "Invoice wants us to risk locking funds for unreasonably long."
 msgstr ""
 "Fatura fonları makul olmayan uzunlukta fonları kilitlemeyi riske atmamızı "
 "istiyor."
-
-msgid "Invoices"
-msgstr "Faturalar"
 
 msgid ""
 "It also contains your master public key that allows watching your addresses."
@@ -2201,6 +2193,9 @@ msgstr "Yeni işlem: {amount}"
 
 msgid "Next"
 msgstr "İleri"
+
+msgid "Next part"
+msgstr "Sonraki parça"
 
 msgid "No Data"
 msgstr "Veri Yok"
@@ -2670,6 +2665,9 @@ msgstr "Enter’a basın"
 msgid "Press again to exit"
 msgstr "Çıkmak için tekrar basın"
 
+msgid "Previous part"
+msgstr "Önceki parça"
+
 msgid "Printer Calibration"
 msgstr "Yazıcı kalibrasyonu"
 
@@ -2922,6 +2920,9 @@ msgstr "Betik türü"
 msgid "Script type and Derivation path"
 msgstr "Betik türü ve Türetme yolu"
 
+msgid "Secure"
+msgstr "Güvenli"
+
 msgid "Secure - confirmed after 24 hours. Can be canceled within that time."
 msgstr "Güvenli - 24 saat içinde onaylanır. O süre zarfında iptal edilebilir."
 
@@ -2943,6 +2944,9 @@ msgstr "Güvenli Hızlı çekirdek ifadesi"
 
 msgid "Secure Fast transaction public key"
 msgstr "Güvenli Hızlı işlem açık anahtarı"
+
+msgid "Secure fast"
+msgstr "Hızlı"
 
 msgid "Secure incoming"
 msgstr "Güvenli gelen"
@@ -2988,7 +2992,7 @@ msgstr "Cüzdan işlemlerinizi dışarı aktarmak için bir dosya seçin"
 msgid "Select file to save your {title}"
 msgstr "{title} kaydetmek için dosya seçin"
 
-msgid "Select language"
+msgid "Select installation language"
 msgstr "Dili seçin"
 
 msgid "Select server automatically"
@@ -3209,6 +3213,9 @@ msgstr "Yalnızca onaylanmış coinleri harca"
 
 msgid "Spend only confirmed inputs."
 msgstr "Yalnızca onaylanmış girdileri harca"
+
+msgid "Standard"
+msgstr "Standart"
 
 msgid "Start"
 msgstr "Başlat"
@@ -3665,8 +3672,14 @@ msgstr "İşlem kaydedilemedi."
 msgid "Transaction exported successfully"
 msgstr "İşlem başarıyla dışarıya aktarıldı"
 
+msgid "Transaction is too large in size."
+msgstr "İşlemin boyutu çok büyük."
+
 msgid "Transaction is unrelated to this wallet."
 msgstr "İşlem bu cüzdanla ilişkili değil."
+
+msgid "Transaction part"
+msgstr "İşlem parçası"
 
 msgid "Transaction to join with"
 msgstr "İşlem şuna katılacak:"

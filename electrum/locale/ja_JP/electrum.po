@@ -17,54 +17,36 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
+msgid "Are you sure you want to disagree?"
+msgstr "本当に同意しなくてよろしいですか？"
+
+msgid "Are you sure?"
+msgstr "本当によろしですか？"
+
+msgid "Description is not supported for Secure Fast transaction"
+msgstr "保安・クイック取引では説明をサポートしておりません。"
+
+msgid "I agree"
+msgstr "同意する"
+
+msgid "I disagree"
+msgstr "同意しない"
+
+msgid "No, I changed my mind"
+msgstr "いいえ、同意します"
+
 msgid ""
-"In order to confirm the transaction, scan the QR codes in the "
-"\"Authenticators\" tab in the Gold Wallet app."
+"Note that if you disagree to our Terms & Conditions you won't be able to use "
+"the Electrum Vault application."
 msgstr ""
-"取引を承認するために、Gold Walletアプリの「認証システム」タブでQRコードをス"
-"キャンしてください。"
+"利用規約に同意しない場合、Electrum Vaultアプリケーションを使用できないことに"
+"注意してください。"
 
-msgid "Failed to display QR code."
-msgstr "QRコードの表示に失敗しました。"
+msgid "Terms & Conditions"
+msgstr "利用規約"
 
-msgid "Transaction is too large in size."
-msgstr "取引サイズが大きすぎます。"
-
-msgid "Previous part"
-msgstr "前のパート"
-
-msgid "Next part"
-msgstr "次のパート"
-
-msgid "Transaction part"
-msgstr "取引パート"
-
-msgid "Standard"
-msgstr "標準"
-
-msgid "Secure"
-msgstr "安全な"
-
-msgid "Secure fast"
-msgstr "クイック"
-
-msgid "Cancel"
-msgstr "キャンセル"
-
-msgid "Change language"
-msgstr "言語変更"
-
-msgid "&Change language"
-msgstr "&言語変更"
-
-msgid "When you press Ok button application will be restarted"
-msgstr "「OK」ボタンを押すとアプリケーションが再起動します。"
-
-msgid "Ok"
-msgstr "OK"
-
-msgid "Select installation language"
-msgstr "言語選択"
+msgid "Yes, I disagree"
+msgstr "はい、同意しません"
 
 msgid "  (No FX rate available)"
 msgstr " (使用できるレート無し)"
@@ -520,6 +502,9 @@ msgstr "手数料バンピング不可：既存取引の手数料確認不可。
 
 msgid "Can't plot history."
 msgstr "内訳を読み込めません。"
+
+msgid "Cancel"
+msgstr "キャンセル"
 
 msgid "Cancel seedphrase"
 msgstr "シードフレーズキャンセル"
@@ -1427,6 +1412,9 @@ msgstr "このデバイスにクライアント生成失敗"
 msgid "Failed to decrypt using this hardware device."
 msgstr "このハードウェア機器を使って復号化失敗"
 
+msgid "Failed to display QR code."
+msgstr "QRコードの表示に失敗しました。"
+
 msgid "Failed to export to file."
 msgstr "ファイル共有失敗"
 
@@ -1783,6 +1771,13 @@ msgid "Import private keys"
 msgstr "プライベートキーの登録"
 
 msgid ""
+"In order to confirm the transaction, scan the QR codes in the "
+"\"Authenticators\" tab in the Gold Wallet app."
+msgstr ""
+"取引を承認するために、Gold Walletアプリの「認証システム」タブでQRコードをス"
+"キャンしてください。"
+
+msgid ""
 "In particular, DO NOT use 'redeem private key' services proposed by third "
 "parties."
 msgstr "特に第三者の提案で 'プライベートキーの引き換え'は使わないでください。"
@@ -1923,9 +1918,6 @@ msgstr "名前を付けてインボイス保存 "
 
 msgid "Invoice wants us to risk locking funds for unreasonably long."
 msgstr "インボイスが長い間、資金をロックする危険を冒すことを希望する"
-
-msgid "Invoices"
-msgstr "インボイス"
 
 msgid ""
 "It also contains your master public key that allows watching your addresses."
@@ -2172,6 +2164,9 @@ msgstr "新たな取引: {amount}"
 
 msgid "Next"
 msgstr "次"
+
+msgid "Next part"
+msgstr "次のパート"
 
 msgid "No Data"
 msgstr "データ無し"
@@ -2636,6 +2631,9 @@ msgstr "Enterを押してください。"
 msgid "Press again to exit"
 msgstr "終了のため、もう一度押してください。"
 
+msgid "Previous part"
+msgstr "前のパート"
+
 msgid "Printer Calibration"
 msgstr "Printer較正"
 
@@ -2888,6 +2886,9 @@ msgstr "スクリプトタイプ"
 msgid "Script type and Derivation path"
 msgstr "スクリプトタイプや派生経路"
 
+msgid "Secure"
+msgstr "安全な"
+
 msgid "Secure - confirmed after 24 hours. Can be canceled within that time."
 msgstr "セキュリティ - 24時間後確認。この時間内のみキャンセルできます。"
 
@@ -2911,6 +2912,9 @@ msgstr "クイックトセキュリティフレーズ"
 
 msgid "Secure Fast transaction public key"
 msgstr "クイックセキュリティ取引公開キー"
+
+msgid "Secure fast"
+msgstr "クイック"
 
 msgid "Secure incoming"
 msgstr "セキュリティ受信"
@@ -2955,7 +2959,7 @@ msgstr "ウォレットの取引を共有するファイルを選んでくださ
 msgid "Select file to save your {title}"
 msgstr "{title}を保存するファイルを選んでください。"
 
-msgid "Select language"
+msgid "Select installation language"
 msgstr "言語選択"
 
 msgid "Select server automatically"
@@ -3173,6 +3177,9 @@ msgstr "確認されたコインのみ、消費してください。"
 
 msgid "Spend only confirmed inputs."
 msgstr "確認された入力値のみ、消費してください。"
+
+msgid "Standard"
+msgstr "標準"
 
 msgid "Start"
 msgstr "スタート"
@@ -3618,8 +3625,14 @@ msgstr "取引が保存されない場合がございます。"
 msgid "Transaction exported successfully"
 msgstr "取引共有に成功しました"
 
+msgid "Transaction is too large in size."
+msgstr "取引サイズが大きすぎます。"
+
 msgid "Transaction is unrelated to this wallet."
 msgstr "ウォレットとは関係のない取引です。"
+
+msgid "Transaction part"
+msgstr "取引パート"
 
 msgid "Transaction to join with"
 msgstr "取引参加"

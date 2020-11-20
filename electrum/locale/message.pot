@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-11-05 11:23+0100\n"
+"POT-Creation-Date: 2020-11-19 13:13+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -30,9 +30,6 @@ msgid "&About"
 msgstr ""
 
 msgid "&Addresses"
-msgstr ""
-
-msgid "&Change language"
 msgstr ""
 
 msgid "&Check for updates"
@@ -316,11 +313,17 @@ msgstr ""
 msgid "Are you sure you want to delete this channel? This will purge associated transactions from your wallet history."
 msgstr ""
 
+msgid "Are you sure you want to disagree?"
+msgstr ""
+
 #, python-brace-format
 msgid "Are you sure you want to remove this transaction and {number} child transactions?"
 msgstr ""
 
 msgid "Are you sure you want to remove this transaction?"
+msgstr ""
+
+msgid "Are you sure?"
 msgstr ""
 
 #, python-brace-format
@@ -494,9 +497,6 @@ msgid "Change"
 msgstr ""
 
 msgid "Change Password"
-msgstr ""
-
-msgid "Change language"
 msgstr ""
 
 msgid "Changing PIN code."
@@ -859,6 +859,9 @@ msgid "Denomination"
 msgstr ""
 
 msgid "Description"
+msgstr ""
+
+msgid "Description is not supported for Secure Fast transaction"
 msgstr ""
 
 msgid "Description of the transaction (not mandatory)."
@@ -1471,7 +1474,13 @@ msgstr ""
 msgid "However, hardware wallets do not support message decryption, which makes them not compatible with the current design of cosigner pool."
 msgstr ""
 
+msgid "I agree"
+msgstr ""
+
 msgid "I already have a seed"
+msgstr ""
+
+msgid "I disagree"
 msgstr ""
 
 msgid "I have lost my Google Authenticator account"
@@ -1695,9 +1704,6 @@ msgid "Invoice saved as "
 msgstr ""
 
 msgid "Invoice wants us to risk locking funds for unreasonably long."
-msgstr ""
-
-msgid "Invoices"
 msgstr ""
 
 msgid "It also contains your master public key that allows watching your addresses."
@@ -1975,6 +1981,9 @@ msgstr ""
 msgid "No wallet loaded."
 msgstr ""
 
+msgid "No, I changed my mind"
+msgstr ""
+
 msgid "Node ID"
 msgstr ""
 
@@ -2014,6 +2023,9 @@ msgstr ""
 msgid "Not yet available"
 msgstr ""
 
+msgid "Note that if you disagree to our Terms & Conditions you won't be able to use the Electrum Vault application."
+msgstr ""
+
 msgid "Note that if you have frozen some of your addresses, the available funds will be lower than your total balance."
 msgstr ""
 
@@ -2051,9 +2063,6 @@ msgid "OR"
 msgstr ""
 
 msgid "Offline"
-msgstr ""
-
-msgid "Ok"
 msgstr ""
 
 msgid "On Linux, you might have to add a new permission to your udev rules."
@@ -2667,9 +2676,6 @@ msgstr ""
 msgid "Select installation language"
 msgstr ""
 
-msgid "Select language"
-msgstr ""
-
 msgid "Select server automatically"
 msgstr ""
 
@@ -2924,6 +2930,9 @@ msgid "Target"
 msgstr ""
 
 msgid "Target fee:"
+msgstr ""
+
+msgid "Terms & Conditions"
 msgstr ""
 
 msgid "Terms of Service"
@@ -3572,9 +3581,6 @@ msgstr ""
 msgid "We encountered an error while connecting to your device:"
 msgstr ""
 
-msgid "When you press Ok button application will be restarted"
-msgstr ""
-
 msgid "While this is less than ideal, it might help if you run Electrum as Administrator."
 msgstr ""
 
@@ -3604,6 +3610,9 @@ msgid "Wrong pubkey format"
 msgstr ""
 
 msgid "Wrong signature"
+msgstr ""
+
+msgid "Yes, I disagree"
 msgstr ""
 
 msgid "You are already on the latest version of Electrum."

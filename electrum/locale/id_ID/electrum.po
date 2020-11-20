@@ -16,54 +16,36 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
+msgid "Are you sure you want to disagree?"
+msgstr "Apakah Anda masih tidak menyetujui?"
+
+msgid "Are you sure?"
+msgstr "Apakah Anda yakin?"
+
+msgid "Description is not supported for Secure Fast transaction"
+msgstr "Deskripsi tidak didukung untuk transaksi Cepat Aman"
+
+msgid "I agree"
+msgstr "Saya setuju"
+
+msgid "I disagree"
+msgstr "Saya tidak setuju"
+
+msgid "No, I changed my mind"
+msgstr "Tidak, Saya berubah pikiran."
+
 msgid ""
-"In order to confirm the transaction, scan the QR codes in the "
-"\"Authenticators\" tab in the Gold Wallet app."
+"Note that if you disagree to our Terms & Conditions you won't be able to use "
+"the Electrum Vault application."
 msgstr ""
-"Untuk mengkonfirmasi transaksi, pindai kode QR di tab \"Autentikator\" di "
-"aplikasi Gold Wallet Anda."
+"Mohon dicatat bahwa apabila Anda tidak setuju dengan syarat dan ketentuan "
+"kami Anda tidak akan dapat menggunakan aplikasi Electrum Vault."
 
-msgid "Failed to display QR code."
-msgstr "Gagal menampilkan kode QR."
+msgid "Terms & Conditions"
+msgstr "Syarat & Ketentuan"
 
-msgid "Transaction is too large in size."
-msgstr "Ukuran transaksi terlalu besar."
-
-msgid "Previous part"
-msgstr "Bagian sebelumnya."
-
-msgid "Next part"
-msgstr "Bagian selanjutnya."
-
-msgid "Transaction part"
-msgstr "Bagian transaksi."
-
-msgid "Standard"
-msgstr "Standar"
-
-msgid "Secure"
-msgstr "Aman"
-
-msgid "Secure fast"
-msgstr "Cepat"
-
-msgid "Cancel"
-msgstr "Batal"
-
-msgid "Change language"
-msgstr "Ubah bahasa"
-
-msgid "&Change language"
-msgstr "&Ubah bahasa"
-
-msgid "When you press Ok button application will be restarted"
-msgstr "Aplikasi akan di restart ketika Anda menekan tombol OK"
-
-msgid "Ok"
-msgstr "OK"
-
-msgid "Select installation language"
-msgstr "Pilih Bahasa"
+msgid "Yes, I disagree"
+msgstr "Ya, Saya tidak setuju."
 
 msgid "  (No FX rate available)"
 msgstr "  (Tidak ada kurs FX yang tersedia)"
@@ -536,6 +518,9 @@ msgstr ""
 
 msgid "Can't plot history."
 msgstr "Tidak dapat mengatur riwayat."
+
+msgid "Cancel"
+msgstr "Batal"
 
 msgid "Cancel seedphrase"
 msgstr "Seedphrase "
@@ -1453,6 +1438,9 @@ msgstr "Gagal untuk membuat client untuk perangkat ini."
 msgid "Failed to decrypt using this hardware device."
 msgstr "Gagal untuk mendekripsi menggukana perangkat ini"
 
+msgid "Failed to display QR code."
+msgstr "Gagal menampilkan kode QR."
+
 msgid "Failed to export to file."
 msgstr "Gagal untuk mengekspor ke file"
 
@@ -1814,6 +1802,13 @@ msgid "Import private keys"
 msgstr "Impor kunci pribadi"
 
 msgid ""
+"In order to confirm the transaction, scan the QR codes in the "
+"\"Authenticators\" tab in the Gold Wallet app."
+msgstr ""
+"Untuk mengkonfirmasi transaksi, pindai kode QR di tab \"Autentikator\" di "
+"aplikasi Gold Wallet Anda."
+
+msgid ""
 "In particular, DO NOT use 'redeem private key' services proposed by third "
 "parties."
 msgstr ""
@@ -1958,9 +1953,6 @@ msgid "Invoice wants us to risk locking funds for unreasonably long."
 msgstr ""
 "Invoice ingin kita untuk merisikokan penguncian dana untuk waktu yang telalu "
 "lama"
-
-msgid "Invoices"
-msgstr "Invoice"
 
 msgid ""
 "It also contains your master public key that allows watching your addresses."
@@ -2210,6 +2202,9 @@ msgstr "Transaksi baru: {amount}"
 
 msgid "Next"
 msgstr "Selanjutnya"
+
+msgid "Next part"
+msgstr "Bagian selanjutnya."
 
 msgid "No Data"
 msgstr "Tidak ada Data"
@@ -2685,6 +2680,9 @@ msgstr "Tekan Enter"
 msgid "Press again to exit"
 msgstr "Tekan sekali lagi untuk keluar."
 
+msgid "Previous part"
+msgstr "Bagian sebelumnya."
+
 msgid "Printer Calibration"
 msgstr "Kalibrasi Printer"
 
@@ -2938,6 +2936,9 @@ msgstr "Jenis skrip"
 msgid "Script type and Derivation path"
 msgstr "Jenis skrip dan jalur derivasi"
 
+msgid "Secure"
+msgstr "Aman"
+
 msgid "Secure - confirmed after 24 hours. Can be canceled within that time."
 msgstr ""
 "Aman (Secure) - dikonfirmasi setelah 24 jam. Dapat dibatalkan dalam periode "
@@ -2963,6 +2964,9 @@ msgstr "Seedphrase Aman Cepat (Secure Fast)"
 
 msgid "Secure Fast transaction public key"
 msgstr "Kunci publik transaksi Aman Cepat (Secure Fast)"
+
+msgid "Secure fast"
+msgstr "Cepat"
 
 msgid "Secure incoming"
 msgstr "Transaksi Aman Masuk"
@@ -3007,7 +3011,7 @@ msgstr "Pilih fire tujuan ekspor transaksi dompet Anda"
 msgid "Select file to save your {title}"
 msgstr "Pilih file untuk menyimpan {title} Anda"
 
-msgid "Select language"
+msgid "Select installation language"
 msgstr "Pilih Bahasa"
 
 msgid "Select server automatically"
@@ -3227,6 +3231,9 @@ msgstr "Gunakan hanya koin yang dikonfirmasi"
 
 msgid "Spend only confirmed inputs."
 msgstr "Gunakan hanya input yang telah dikonfirmasi"
+
+msgid "Standard"
+msgstr "Standar"
 
 msgid "Start"
 msgstr "Mulai"
@@ -3704,8 +3711,14 @@ msgstr "Transaksi tidak dapat disimpan."
 msgid "Transaction exported successfully"
 msgstr "Transaksi sukses diekspor"
 
+msgid "Transaction is too large in size."
+msgstr "Ukuran transaksi terlalu besar."
+
 msgid "Transaction is unrelated to this wallet."
 msgstr "Transaksi ini tidak berhubungan dompet ini."
+
+msgid "Transaction part"
+msgstr "Bagian transaksi."
 
 msgid "Transaction to join with"
 msgstr "Gabung transaksi dengan"

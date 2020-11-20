@@ -19,6 +19,7 @@ from electrum.wallet import Abstract_Wallet
 from .network_dialog import NetworkChoiceLayout
 from .password_dialog import PasswordLayout, PasswordLayoutForHW, PW_NEW
 from .seed_dialog import SeedLayout, KeysLayout
+from .terms_and_conditions_mixin import TermsAndConditionsMixin, PushedButton
 from .three_keys_dialogs import InsertPubKeyDialog, Qr2FaDialog
 from .util import (MessageBoxMixin, Buttons, icon_path, ChoicesLayout, WWLabel,
                    InfoButton, char_width_in_lineedit, get_default_language)
@@ -111,7 +112,7 @@ class WalletAlreadyOpenInMemory(Exception):
 
 
 # WindowModalDialog must come first as it overrides show_error
-class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
+class InstallWizard(QDialog, MessageBoxMixin, BaseWizard, TermsAndConditionsMixin):
     accept_signal = pyqtSignal()
 
     def __init__(self, config: 'SimpleConfig', app: QApplication, plugins: 'Plugins'):
@@ -185,13 +186,14 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             language_abbreviation = language_abbreviations[cb.currentIndex()]
             set_language(language_abbreviation)
             self._set_gui_text()
-            self.config.set_key('language', language_abbreviation)
             self.refresh_gui()
 
         cb.currentIndexChanged.connect(on_change)
         # refresh config language
         on_change()
-        self.exec_layout(vbox, title=_('Select installation language'))
+        pushed_button = self.exec_layout(vbox, title=_('Select installation language'))
+        if pushed_button == PushedButton.NEXT:
+            self.config.set_key('language', language_abbreviations[cb.currentIndex()])
 
     def select_storage(self, path, get_wallet_from_daemon) -> Tuple[str, Optional[WalletStorage]]:
 
