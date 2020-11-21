@@ -19,7 +19,6 @@ ROOT_FOLDER="$CONTRIB/.."
 src_dir=$(dirname "$0")
 cd $src_dir/../..
 
-VERSION=`git describe --tags --dirty --always`
 
 which brew > /dev/null 2>&1 || fail "Please install brew from https://brew.sh/ to continue"
 which xcodebuild > /dev/null 2>&1 || fail "Please install Xcode and xcode command line tools to continue"
@@ -155,6 +154,8 @@ for d in ~/Library/Python/ ~/.pyenv .; do
   find . -exec touch -t '200101220000' {} +
   popd
 done
+
+VERSION=`git describe --tags --dirty --always`
 
 info "Building binary"
 APP_SIGN="$CODESIGN_CERT" pyinstaller --noconfirm --ascii --clean --name $VERSION contrib/osx/osx.spec || fail "Could not build binary"
