@@ -1,12 +1,12 @@
 import os
 from enum import IntEnum
-from pathlib import Path
 
 from PyQt5.QtWidgets import QVBoxLayout, QLabel, QHBoxLayout, QStyle, QPushButton, QTextBrowser
 
 from electrum.base_wizard import GoBack
 from electrum.gui.qt.util import WindowModalDialog
 from electrum.i18n import _
+from electrum.util import resource_path
 
 
 class TermsNotAccepted(BaseException):
@@ -89,12 +89,12 @@ class TermsAndConditionsTextBrowser(QTextBrowser):
 
 class TermsAndConditionsMixin:
     def _read_terms_and_conditions(self) -> str:
-        dir_ = Path(os.path.abspath(os.path.dirname(__file__))).parent.parent / 'terms_and_conditions'
+        base_dir = 'terms_and_conditions'
         language = self.config.get('language', 'en_UK')
-        path = dir_ / f'{language}.html'
-        if not path.exists():
-            path = path.parent / 'en_UK.html'
-            if not path.exists():
+        path = resource_path(base_dir, f'{language}.html')
+        if not os.path.exists(path):
+            path = resource_path(base_dir, 'en_UK.html')
+            if not os.path.exists(path):
                 raise FileNotFoundError(f'Cannot open {path}')
         with open(path, 'r') as file:
             return file.read()
