@@ -72,6 +72,7 @@ from .crypto import pw_encode_with_version_and_mac, pw_decode_with_version_and_m
 from .lnutil import ChannelBackupStorage
 from .lnchannel import ChannelBackup
 from .channel_db import UpdateStatus
+from .channel_db import get_mychannel_info, get_mychannel_policy
 from .submarine_swaps import SwapManager
 
 if TYPE_CHECKING:
@@ -1323,7 +1324,7 @@ class LNWallet(LNWorker):
                 continue
             chan_id = chan.short_channel_id
             assert isinstance(chan_id, bytes), chan_id
-            channel_info = self.channel_db.get_channel_info(chan_id, my_channels=scid_to_my_channels)
+            channel_info = get_mychannel_info(chan_id, scid_to_my_channels)
             # note: as a fallback, if we don't have a channel update for the
             # incoming direction of our private channel, we fill the invoice with garbage.
             # the sender should still be able to pay us, but will incur an extra round trip
@@ -1333,8 +1334,7 @@ class LNWallet(LNWorker):
             cltv_expiry_delta = 1  # lnd won't even try with zero
             missing_info = True
             if channel_info:
-                policy = self.channel_db.get_policy_for_node(channel_info.short_channel_id, chan.node_id,
-                                                             my_channels=scid_to_my_channels)
+                policy = get_mychannel_policy(channel_info.short_channel_id, chan.node_id, scid_to_my_channels)
                 if policy:
                     fee_base_msat = policy.fee_base_msat
                     fee_proportional_millionths = policy.fee_proportional_millionths

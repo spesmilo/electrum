@@ -220,6 +220,32 @@ class CategorizedChannelUpdates(NamedTuple):
     good: List        # good updates
 
 
+def get_mychannel_info(short_channel_id: ShortChannelID,
+                       my_channels: Dict[ShortChannelID, 'Channel']) -> Optional[ChannelInfo]:
+    chan = my_channels.get(short_channel_id)
+    ci = ChannelInfo.from_raw_msg(chan.construct_channel_announcement_without_sigs())
+    return ci._replace(capacity_sat=chan.constraints.capacity)
+
+def get_mychannel_policy(short_channel_id: bytes, node_id: bytes,
+                         my_channels: Dict[ShortChannelID, 'Channel']) -> Optional[Policy]:
+    chan = my_channels.get(short_channel_id)  # type: Optional[Channel]
+    if not chan:
+        return
+    if node_id == chan.node_id:  # incoming direction (to us)
+        remote_update_raw = chan.get_remote_update()
+        if not remote_update_raw:
+            return
+        now = int(time.time())
+        remote_update_decoded = decode_msg(remote_update_raw)[1]
+        remote_update_decoded['timestamp'] = now
+        remote_update_decoded['start_node'] = node_id
+        return Policy.from_msg(remote_update_decoded)
+    elif node_id == chan.get_local_pubkey():  # outgoing direction (from us)
+        local_update_decoded = decode_msg(chan.get_outgoing_gossip_channel_update())[1]
+        local_update_decoded['start_node'] = node_id
+        return Policy.from_msg(local_update_decoded)
+
+
 create_channel_info = """
 CREATE TABLE IF NOT EXISTS channel_info (
 short_channel_id BLOB(8),
@@ -700,24 +726,8 @@ class ChannelDB(SqlDB):
             if chan_upd_dict:
                 return Policy.from_msg(chan_upd_dict)
         # check if it's one of our own channels
-        if not my_channels:
-            return
-        chan = my_channels.get(short_channel_id)  # type: Optional[Channel]
-        if not chan:
-            return
-        if node_id == chan.node_id:  # incoming direction (to us)
-            remote_update_raw = chan.get_remote_update()
-            if not remote_update_raw:
-                return
-            now = int(time.time())
-            remote_update_decoded = decode_msg(remote_update_raw)[1]
-            remote_update_decoded['timestamp'] = now
-            remote_update_decoded['start_node'] = node_id
-            return Policy.from_msg(remote_update_decoded)
-        elif node_id == chan.get_local_pubkey():  # outgoing direction (from us)
-            local_update_decoded = decode_msg(chan.get_outgoing_gossip_channel_update())[1]
-            local_update_decoded['start_node'] = node_id
-            return Policy.from_msg(local_update_decoded)
+        if my_channels:
+            return get_mychannel_policy(short_channel_id, node_id, my_channels)
 
     def get_channel_info(self, short_channel_id: ShortChannelID, *,
                          my_channels: Dict[ShortChannelID, 'Channel'] = None) -> Optional[ChannelInfo]:
@@ -725,11 +735,8 @@ class ChannelDB(SqlDB):
         if ret:
             return ret
         # check if it's one of our own channels
-        if not my_channels:
-            return
-        chan = my_channels.get(short_channel_id)  # type: Optional[Channel]
-        ci = ChannelInfo.from_raw_msg(chan.construct_channel_announcement_without_sigs())
-        return ci._replace(capacity_sat=chan.constraints.capacity)
+        if my_channels:
+            return get_mychannel_info(short_channel_id, my_channels)
 
     def get_channels_for_node(self, node_id: bytes, *,
                               my_channels: Dict[ShortChannelID, 'Channel'] = None) -> Set[bytes]:
