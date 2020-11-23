@@ -96,7 +96,7 @@ class TermsAndConditionsMixin:
             path = resource_path(base_dir, 'en_UK.html')
             if not os.path.exists(path):
                 raise FileNotFoundError(f'Cannot open {path}')
-        with open(path, 'r') as file:
+        with open(path, 'r', encoding='utf-8') as file:
             return file.read()
 
     def _render_main_dialog(self, text, run_warning=True):
