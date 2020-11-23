@@ -108,6 +108,14 @@ scalenet_block_explorers = {
                    {'tx': 'tx', 'addr': 'address', 'block': 'block-height'}),
 }
 
+DEFAULT_EXPLORER_TAXCOIN = 'The Taxplorer'
+
+taxcoin_block_explorers = {
+    'The Taxplorer': ('https://taxplorer.loping.net',
+                      Address.FMT_CASHADDR,
+                      {'tx': 'tx', 'addr': 'address', 'block': 'block-height'}),
+}
+
 def BE_info():
     if networks.net is networks.TestNet:
         return testnet_block_explorers
@@ -115,6 +123,8 @@ def BE_info():
         return testnet4_block_explorers
     elif networks.net is networks.ScaleNet:
         return scalenet_block_explorers
+    elif networks.net is networks.TaxCoinNet:
+        return taxcoin_block_explorers
     return mainnet_block_explorers
 
 def BE_tuple(config):
@@ -130,6 +140,8 @@ def BE_default_explorer():
         return DEFAULT_EXPLORER_TESTNET4
     elif networks.net is networks.ScaleNet:
         return DEFAULT_EXPLORER_SCALENET
+    elif networks.net is networks.TaxCoinNet:
+        return DEFAULT_EXPLORER_TAXCOIN
     return DEFAULT_EXPLORER
 
 def BE_from_config(config):
