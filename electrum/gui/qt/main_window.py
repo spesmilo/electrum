@@ -2143,7 +2143,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                                              self.password_dialog,
                                              **{**kwargs, 'wallet': self.wallet})
         for m in dir(c):
-            if m[0]=='_' or m in ['network','wallet','config']: continue
+            if m[0]=='_' or m in ['network','wallet','config','daemon']: continue
             methods[m] = mkfunc(c._run, m)
 
         console.updateNamespace(methods)
