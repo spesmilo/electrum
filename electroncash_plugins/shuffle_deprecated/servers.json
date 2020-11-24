@@ -2,21 +2,5 @@
 	"shuffle.servo.cash": {
 		"ssl": true,
 		"info": 8080
-	},
-	"cashshuffle.c3-soft.com": {
-		"ssl": true,
-		"info": 9999
-	},
-	"qvzl7zjviaw6532kn5onvlqluwxrlwhjpybsya4fw33ggvhzrak4z3qd.onion": {
-		"ssl": false,
-		"info": 8081
-	},
-	"shuffle.electroncash.dk": {
-		"ssl": true,
-		"info": 8888
-	},
-	"ecdkxftqvnievsmq.onion": {
-		"ssl": false,
-		"info": 8889
 	}
 }
