@@ -181,7 +181,7 @@ class NodesListWidget(QTreeWidget):
         self.addChild = self.addTopLevelItem
         chains = network.get_blockchains()
         n_chains = len(chains)
-        restore_sel = tuple()
+        restore_sel = None
         for k, items in chains.items():
             b = network.blockchains[k]
             name = b.get_name()
@@ -190,7 +190,7 @@ class NodesListWidget(QTreeWidget):
                 x.setData(0, Qt.UserRole, 1)
                 x.setData(1, Qt.UserRole, b.base_height)
             else:
-                x = self
+                x = self.invisibleRootItem()
             for i in items:
                 star = ' ◀' if i == network.interface else ''
 
@@ -203,7 +203,7 @@ class NodesListWidget(QTreeWidget):
                 item.setData(0, Qt.UserRole, 0)
                 item.setData(1, Qt.UserRole, i.server)
                 if i.server == sel:
-                    restore_sel = (x, item)
+                    restore_sel = item
                 if is_onion:
                     item.setIcon(1, QIcon(":icons/tor_logo.svg"))
                 x.addChild(item)
@@ -213,7 +213,10 @@ class NodesListWidget(QTreeWidget):
 
         # restore selection, if there was any
         if restore_sel:
-            restore_sel[0].setCurrentItem(restore_sel[1])
+            val = self.hasAutoScroll()
+            self.setAutoScroll(False)  # prevent automatic scrolling when we do this which may annoy user / appear glitchy
+            self.setCurrentItem(restore_sel)
+            self.setAutoScroll(True)
 
         h = self.header()
         h.setStretchLastSection(False)
@@ -319,6 +322,9 @@ class ServerListWidget(QTreeWidget):
             item.setForeground(i, brush)
 
     def update(self, network, servers, protocol, use_tor):
+        sel_item = self.currentItem()
+        sel = sel_item.data(2, Qt.UserRole) if sel_item else None
+        restore_sel = None
         self.clear()
         self.setIndentation(0)
         wl_only = network.is_whitelist_only()
@@ -366,6 +372,8 @@ class ServerListWidget(QTreeWidget):
                 x.setData(0, Qt.UserRole, flagval)
                 x.setTextAlignment(0, Qt.AlignHCenter)
                 self.addTopLevelItem(x)
+                if server == sel:
+                    restore_sel = x
 
         h = self.header()
         h.setStretchLastSection(False)
@@ -373,6 +381,13 @@ class ServerListWidget(QTreeWidget):
         h.setSectionResizeMode(1, QHeaderView.Stretch)
         h.setSectionResizeMode(2, QHeaderView.ResizeToContents)
         h.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+
+        # restore selection
+        if restore_sel:
+            val = self.hasAutoScroll()
+            self.setAutoScroll(False)  # prevent automatic scrolling when we do this which may annoy user / appear glitchy
+            self.setCurrentItem(restore_sel)
+            self.setAutoScroll(True)
 
 
 class NetworkChoiceLayout(QObject, PrintError):
