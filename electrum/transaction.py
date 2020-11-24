@@ -52,6 +52,7 @@ from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160,
                       base_encode, construct_witness, construct_script)
 from .crypto import sha256d
 from .logging import get_logger
+import socket
 
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
@@ -2020,6 +2021,9 @@ class PayjoinTransaction():
         self.payjoin_original = None
         self.payjoin_proposal = None
 
+        self.tor_ports = [9050,9150]
+        self.tor_port = self.check_tor_proxys(self.tor_ports)
+
     def is_available(self) -> bool:
         return self.pj is not None and isinstance(self.pj, str)
 
@@ -2053,12 +2057,25 @@ class PayjoinTransaction():
         if self.payjoin_original.is_segwit():
             self.payjoin_original.convert_all_utxos_to_witness_utxos()
 
-
     def do_payjoin(self) -> None:
         self.exchange_payjoin_original()
         self.payjoin_proposal = PartialTransaction.from_raw_psbt(self.payjoin_proposal_b64)
         self.payjoin_proposal_received  = True
         self.payjoin_proposal.invalidate_ser_cache()
+
+    def check_tor_proxys(self, ports) -> bool:
+        for p in ports:
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(0.1)
+                    s.connect(("127.0.0.1", p))
+                    # Tor responds uniquely to HTTP-like requests
+                    s.send(b"GET\n")
+                    if b"Tor is not an HTTP Proxy" in s.recv(1024):
+                        return p
+            except:
+                pass
+        return None
 
     def exchange_payjoin_original(self) -> None:
         """ """
@@ -2073,11 +2090,10 @@ class PayjoinTransaction():
         query_string += '&minfeerate=' + str(self._minfeerate)
         query_string += '&disableoutputsubstitution=' + self._disableoutputsubstitution
         url += query_string
-        _logger.warning(f"url: {url}")#
         session = requests.Session()
-        if self.pj.endswith('.onion'):
-            session.proxies = {'http': 'socks5h://localhost:9050',
-                               'https': 'socks5h://localhost:9050',
+        if self.tor_port is not None:
+            session.proxies = {'http': 'socks5h://127.0.0.1:' + str(self.tor_port),
+                               'https': 'socks5h://127.0.0.1:' + str(self.tor_port),
                                }
         try:
             r = session.post(url, data=payload, headers=headers)
@@ -2121,7 +2137,7 @@ class PayjoinTransaction():
         if len(sequences) != 1:
             raise PayJoinProposalValidationException(f"Payjoin roposal introduced different sequence numbers.")
 
-        #TODO: check the order of inputs and script Type
+        #TODO: check if the order of inputs is important and the validation the script Type is equal is missing
 
         # check the absolute fee was not decreased
         if self.payjoin_original.get_fee() > self.payjoin_proposal.get_fee():
@@ -2141,7 +2157,7 @@ class PayjoinTransaction():
         add_fee = change_output_o.value - change_output_p.value
         if add_fee > self._maxadditionalfeecontribution:
             raise PayJoinProposalValidationException(f"More fee's were added then defined in the payjoin.")
-        # check
+        # check that the change output is the source off the add fee
         if add_fee > (self.payjoin_proposal.get_fee() - self.payjoin_original.get_fee()):
             raise PayJoinProposalValidationException(f"Too much fees were subtracted.")
         # check the case that no additional input was added but the fee raised

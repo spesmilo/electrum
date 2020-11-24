@@ -9,3 +9,4 @@ aiohttp_socks>=0.3
 certifi
 bitstring
 attrs>=19.2.0
+requests
