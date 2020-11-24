@@ -73,7 +73,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         self.c = None
         self.textChanged.connect(self.check_text)
         self.outputs = []  # type: List[PartialTxOutput]
-        self.errors = []  # type: Sequence[PayToLineError]
+        self.errors = []  # type: List[PayToLineError]
         self.is_pr = False
         self.is_alias = False
         self.update_size()
@@ -145,15 +145,18 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
             return
         # filter out empty lines
         lines = [i for i in self.lines() if i]
-        outputs = []  # type: List[PartialTxOutput]
-        total = 0
+
         self.payto_scriptpubkey = None
         self.lightning_invoice = None
+        self.outputs = []
+
         if len(lines) == 1:
             data = lines[0]
+            # try bip21 URI
             if data.startswith("bitcoin:"):
                 self.win.pay_to_URI(data)
                 return
+            # try LN invoice
             bolt11_invoice = maybe_extract_bolt11_invoice(data)
             if bolt11_invoice is not None:
                 try:
@@ -163,24 +166,40 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
                 else:
                     self.lightning_invoice = bolt11_invoice
                 return
+            # try "address, amount" on-chain format
+            try:
+                self._parse_as_multiline(lines, raise_errors=True)
+            except Exception as e:
+                pass
+            else:
+                return
+            # try address/script
             try:
                 self.payto_scriptpubkey = self.parse_output(data)
             except Exception as e:
                 self.errors.append(PayToLineError(line_content=data, exc=e))
-            if self.payto_scriptpubkey:
+            else:
                 self.win.set_onchain(True)
                 self.win.lock_amount(False)
-            return
+                return
+        else:
+            # there are multiple lines
+            self._parse_as_multiline(lines, raise_errors=False)
 
-        # there are multiple lines
+    def _parse_as_multiline(self, lines, *, raise_errors: bool):
+        outputs = []  # type: List[PartialTxOutput]
+        total = 0
         is_max = False
         for i, line in enumerate(lines):
             try:
                 output = self.parse_address_and_amount(line)
             except Exception as e:
-                self.errors.append(PayToLineError(
-                    idx=i, line_content=line.strip(), exc=e, is_multiline=True))
-                continue
+                if raise_errors:
+                    raise
+                else:
+                    self.errors.append(PayToLineError(
+                        idx=i, line_content=line.strip(), exc=e, is_multiline=True))
+                    continue
             outputs.append(output)
             if output.value == '!':
                 is_max = True
