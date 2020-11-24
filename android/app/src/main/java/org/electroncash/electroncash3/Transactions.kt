@@ -44,15 +44,13 @@ class TransactionsFragment : Fragment(R.layout.transactions), MainFragment {
 class TransactionsList(wallet: PyObject, addr: PyObject? = null)
     : AbstractList<TransactionModel>() {
 
-    val history = wallet.callAttr("export_history",
-                                  Kwarg("domain", if (addr == null) null else arrayOf(addr)),
-                                  Kwarg("decimal_point", unitPlaces)).asList()
+    val history = wallet.callAttr("get_history",
+                                  Kwarg("domain", if (addr == null) null else arrayOf(addr)))
+                  .asList()
 
-    override val size
-        get() = history.size
+    override val size by lazy { history.size }
 
-    override fun get(index: Int) =
-        TransactionModel(history.get(index).asMap())
+    override fun get(index: Int) = TransactionModel(history.get(size - index - 1))
 }
 
 
@@ -62,7 +60,7 @@ class TransactionsAdapter(val activity: FragmentActivity)
     override fun onBindViewHolder(holder: BoundViewHolder<TransactionModel>, position: Int) {
         super.onBindViewHolder(holder, position)
         holder.itemView.setOnClickListener {
-            val txid = holder.item.get("txid")
+            val txid = holder.item.txid
             val tx = daemonModel.wallet!!.get("transactions")!!.callAttr("get", txid)
             if (tx == null) {  // Can happen during wallet sync.
                 toast(R.string.Transaction_not, Toast.LENGTH_SHORT)
@@ -73,21 +71,27 @@ class TransactionsAdapter(val activity: FragmentActivity)
     }
 }
 
-class TransactionModel(val txExport: Map<PyObject, PyObject>) {
-    fun get(key: String) = txExport.get(PyObject.fromJava(key))!!.toString()
+class TransactionModel(val txHistory: PyObject) {
+    private fun get(key: String) = txHistory.get(key)!!
 
-    fun getIcon(): Drawable {
+    val txid by lazy { get("tx_hash").toString() }
+    val amount by lazy { get("amount").toLong() }
+    val balance by lazy { get("balance").toLong() }
+    val timestamp by lazy { formatTime(get("timestamp").toLong()) }
+    val label by lazy { getDescription(txid) }
+
+    val icon: Drawable by lazy {
         // Support inflation of vector images before API level 21.
-        return AppCompatResources.getDrawable(
+        AppCompatResources.getDrawable(
             app,
-            if (get("value")[0] == '+') R.drawable.ic_add_24dp
+            if (amount >= 0) R.drawable.ic_add_24dp
             else R.drawable.ic_remove_24dp)!!
     }
 
-    fun getConfirmationsStr(): String {
-        val confirmations = Integer.parseInt(get("confirmations"))
-        return when {
-            confirmations <= 0 -> ""
+    val status: String  by lazy {
+        val confirmations = get("conf").toInt()
+        when {
+            confirmations <= 0 -> app.getString(R.string.Unconfirmed)
             else -> app.resources.getQuantityString(R.plurals.confirmation,
                                                     confirmations, confirmations)
         }

@@ -1506,6 +1506,8 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                     cur_hist.append((txid, 0))
                     self._history[addr] = cur_hist
 
+    TxHistory = namedtuple("TxHistory", "tx_hash, height, conf, timestamp, amount, balance")
+
     def get_history(self, domain=None, *, reverse=False):
         # get domain
         if domain is None:
@@ -1535,7 +1537,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         balance = c + u + x
         h2 = []
         for tx_hash, height, conf, timestamp, delta in history:
-            h2.append((tx_hash, height, conf, timestamp, delta, balance))
+            h2.append(self.TxHistory(tx_hash, height, conf, timestamp, delta, balance))
             if balance is None or delta is None:
                 balance = None
             else:

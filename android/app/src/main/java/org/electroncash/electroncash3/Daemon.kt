@@ -92,6 +92,9 @@ fun makeAddress(addrStr: String): PyObject {
 }
 
 
+fun getDescription(key: String) =
+    daemonModel.wallet!!.callAttr("get_label", key).toString()
+
 fun setDescription(key: String, description: String) {
     val wallet = daemonModel.wallet!!
     wallet.callAttr("set_label", key, description)

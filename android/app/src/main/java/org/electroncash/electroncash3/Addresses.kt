@@ -127,7 +127,7 @@ class AddressModel(val wallet: PyObject, val addr: PyObject) {
         get() = wallet.callAttr("is_change", addr).toBoolean()
 
     val description
-        get() = wallet.callAttr("get_label", toString("storage")).toString()
+        get() = getDescription(toString("storage"))
 }
 
 
