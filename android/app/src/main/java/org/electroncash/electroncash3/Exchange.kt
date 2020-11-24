@@ -1,13 +1,12 @@
 package org.electroncash.electroncash3
 
-import androidx.lifecycle.MediatorLiveData
 import com.chaquo.python.Kwarg
 
 
 val EXCHANGE_CALLBACKS = setOf("on_quotes", "on_history")
 
 val libExchange by lazy { libMod("exchange_rate") }
-val fiatUpdate = MediatorLiveData<Unit>().apply { value = Unit }
+val fiatUpdate = TriggerLiveData()
 
 val fx by lazy { daemonModel.daemon.get("fx")!! }
 
@@ -19,11 +18,10 @@ fun initExchange() {
     settings.getString("use_exchange").observeForever {
         fx.callAttr("set_exchange", it)
     }
-
     with (fiatUpdate) {
-        addSource(settings.getBoolean("use_exchange_rate"), { value = Unit })
-        addSource(settings.getString("currency"), { value = Unit })
-        addSource(settings.getString("use_exchange"), { value = Unit })
+        addSource(settings.getBoolean("use_exchange_rate"))
+        addSource(settings.getString("currency"))
+        addSource(settings.getString("use_exchange"))
     }
 }
 
