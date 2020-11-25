@@ -945,12 +945,13 @@ class LNWallet(LNWorker):
         if not peer:
             raise Exception('Dropped peer')
         await peer.initialized
-        htlc = peer.pay(route=route,
-                        chan=chan,
-                        amount_msat=lnaddr.get_amount_msat(),
-                        payment_hash=lnaddr.paymenthash,
-                        min_final_cltv_expiry=lnaddr.get_min_final_cltv_expiry(),
-                        payment_secret=lnaddr.payment_secret)
+        htlc = peer.pay(
+            route=route,
+            chan=chan,
+            amount_msat=lnaddr.get_amount_msat(),
+            payment_hash=lnaddr.paymenthash,
+            min_final_cltv_expiry=lnaddr.get_min_final_cltv_expiry(),
+            payment_secret=lnaddr.payment_secret)
         util.trigger_callback('htlc_added', chan, htlc, SENT)
         payment_attempt = await self.await_payment(lnaddr.paymenthash)
         if payment_attempt.success:
@@ -1095,13 +1096,15 @@ class LNWallet(LNWorker):
                 path = full_path[:-len(private_route)]
             else:
                 # find path now on public graph, to border node
-                path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, border_node_pubkey, amount_msat,
-                                                                      my_channels=scid_to_my_channels)
+                path = self.network.path_finder.find_path_for_payment(
+                    self.node_keypair.pubkey, border_node_pubkey, amount_msat,
+                    my_channels=scid_to_my_channels)
             if not path:
                 continue
             try:
-                route = self.network.path_finder.create_route_from_path(path, self.node_keypair.pubkey,
-                                                                        my_channels=scid_to_my_channels)
+                route = self.network.path_finder.create_route_from_path(
+                    path, self.node_keypair.pubkey,
+                    my_channels=scid_to_my_channels)
             except NoChannelPolicy:
                 continue
             # we need to shift the node pubkey by one towards the destination:
@@ -1113,20 +1116,23 @@ class LNWallet(LNWorker):
                 short_channel_id = ShortChannelID(short_channel_id)
                 # if we have a routing policy for this edge in the db, that takes precedence,
                 # as it is likely from a previous failure
-                channel_policy = self.channel_db.get_policy_for_node(short_channel_id=short_channel_id,
-                                                                     node_id=prev_node_id,
-                                                                     my_channels=scid_to_my_channels)
+                channel_policy = self.channel_db.get_policy_for_node(
+                    short_channel_id=short_channel_id,
+                    node_id=prev_node_id,
+                    my_channels=scid_to_my_channels)
                 if channel_policy:
                     fee_base_msat = channel_policy.fee_base_msat
                     fee_proportional_millionths = channel_policy.fee_proportional_millionths
                     cltv_expiry_delta = channel_policy.cltv_expiry_delta
                 node_info = self.channel_db.get_node_info_for_node_id(node_id=node_pubkey)
-                route.append(RouteEdge(node_id=node_pubkey,
-                                       short_channel_id=short_channel_id,
-                                       fee_base_msat=fee_base_msat,
-                                       fee_proportional_millionths=fee_proportional_millionths,
-                                       cltv_expiry_delta=cltv_expiry_delta,
-                                       node_features=node_info.features if node_info else 0))
+                route.append(
+                    RouteEdge(
+                        node_id=node_pubkey,
+                        short_channel_id=short_channel_id,
+                        fee_base_msat=fee_base_msat,
+                        fee_proportional_millionths=fee_proportional_millionths,
+                        cltv_expiry_delta=cltv_expiry_delta,
+                        node_features=node_info.features if node_info else 0))
                 prev_node_id = node_pubkey
             # test sanity
             if not is_route_sane_to_use(route, amount_msat, decoded_invoice.get_min_final_cltv_expiry()):
@@ -1139,12 +1145,14 @@ class LNWallet(LNWorker):
             if full_path:  # user pre-selected path
                 path = full_path
             else:  # find path now
-                path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, invoice_pubkey, amount_msat,
-                                                                      my_channels=scid_to_my_channels)
+                path = self.network.path_finder.find_path_for_payment(
+                    self.node_keypair.pubkey, invoice_pubkey, amount_msat,
+                    my_channels=scid_to_my_channels)
             if not path:
                 raise NoPathFound()
-            route = self.network.path_finder.create_route_from_path(path, self.node_keypair.pubkey,
-                                                                    my_channels=scid_to_my_channels)
+            route = self.network.path_finder.create_route_from_path(
+                path, self.node_keypair.pubkey,
+                my_channels=scid_to_my_channels)
             if not is_route_sane_to_use(route, amount_msat, decoded_invoice.get_min_final_cltv_expiry()):
                 self.logger.info(f"rejecting insane route {route}")
                 raise NoPathFound()
