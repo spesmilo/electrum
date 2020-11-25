@@ -278,7 +278,7 @@ class SwapManager(Logger):
             raise Exception(f"fswap check failed: onchain_amount is more than what we estimated: "
                             f"{onchain_amount} > {expected_onchain_amount}")
         # verify that they are not locking up funds for more than a day
-        if locktime - self.network.get_local_height() >= 144:
+        if locktime - self.network.get_local_height() >= 576:
             raise Exception("fswap check failed: locktime too far in future")
         # create funding tx
         funding_output = PartialTxOutput.from_address_and_value(lockup_address, expected_onchain_amount)
