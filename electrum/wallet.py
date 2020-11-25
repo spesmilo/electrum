@@ -1516,7 +1516,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         # grab all ismine inputs
         inputs = [txin for txin in tx.inputs()
                   if self.is_mine(self.get_txin_address(txin))]
-        value = sum([txin.value_sats() for txin in tx.inputs()])
+        value = sum([txin.value_sats() for txin in inputs])
         # figure out output address
         old_change_addrs = [o.address for o in tx.outputs() if self.is_mine(o.address)]
         out_address = (self.get_single_change_address_for_new_transaction(old_change_addrs)
