@@ -1769,7 +1769,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         try:
             extract_nodeid(connect_str)
         except ConnStringFormatError as e:
-            self.main_window.show_error(str(e))
+            self.show_error(str(e))
             return
         # use ConfirmTxDialog
         # we need to know the fee before we broadcast, because the txid is required
