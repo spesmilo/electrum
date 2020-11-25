@@ -11,7 +11,13 @@ from pprint import pformat
 from random import choices
 from statistics import mean, median, stdev
 from typing import TYPE_CHECKING, Dict, NamedTuple, Tuple, List
+import sys
 import time
+
+if sys.version_info[:2] >= (3, 7):
+    from asyncio import get_running_loop
+else:
+    from asyncio import _get_running_loop as get_running_loop  # noqa: F401
 
 from .logging import Logger
 from .util import profiler
@@ -119,7 +125,7 @@ class LNRater(Logger):
     async def _analyze_graph(self):
         await self.channel_db.data_loaded.wait()
         self._collect_policies_by_node()
-        loop = asyncio.get_running_loop()
+        loop = get_running_loop()
         # the analysis is run in an executor because it's costly
         await loop.run_in_executor(None, self._collect_purged_stats)
         self._rate_nodes()

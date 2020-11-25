@@ -227,7 +227,7 @@ class Peer(Logger):
         their_globalfeatures = int.from_bytes(payload['globalfeatures'], byteorder="big")
         self.their_features |= their_globalfeatures
         # check transitive dependencies for received features
-        if not self.their_features.validate_transitive_dependecies():
+        if not self.their_features.validate_transitive_dependencies():
             raise GracefulDisconnect("remote did not set all dependencies for the features they sent")
         # check if features are compatible, and set self.features to what we negotiated
         try:

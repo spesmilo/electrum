@@ -293,6 +293,7 @@ class Commands:
     def _setconfig_normalize_value(cls, key, value):
         if key not in ('rpcuser', 'rpcpassword'):
             value = json_decode(value)
+            # call literal_eval for backward compatibility (see #4225)
             try:
                 value = ast.literal_eval(value)
             except:
@@ -303,6 +304,10 @@ class Commands:
     async def setconfig(self, key, value):
         """Set a configuration variable. 'value' may be a string or a Python expression."""
         value = self._setconfig_normalize_value(key, value)
+        if self.daemon and key == 'rpcuser':
+            self.daemon.commands_server.rpc_user = value
+        if self.daemon and key == 'rpcpassword':
+            self.daemon.commands_server.rpc_password = value
         self.config.set_key(key, value)
         return True
 

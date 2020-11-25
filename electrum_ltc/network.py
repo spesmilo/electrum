@@ -347,12 +347,13 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     def has_channel_db(self):
         return self.channel_db is not None
 
-    def maybe_init_lightning(self):
+    def init_channel_db(self):
         if self.channel_db is None:
             from . import lnrouter
             from . import channel_db
             self.channel_db = channel_db.ChannelDB(self)
             self.path_finder = lnrouter.LNPathFinder(self.channel_db)
+            self.channel_db.load_data()
 
     def start_gossip(self):
         if self.lngossip is None:

@@ -1428,8 +1428,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             is_sweep=False)
 
         try:
-            tx = make_tx(None)
-        except (NotEnoughFunds, NoDynamicFeeEstimates, MultipleSpendMaxTxOutputs) as e:
+            try:
+                tx = make_tx(None)
+            except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
+                # Check if we had enough funds excluding fees,
+                # if so, still provide opportunity to set lower fees.
+                tx = make_tx(0)
+        except (MultipleSpendMaxTxOutputs, NotEnoughFunds) as e:
             self.max_button.setChecked(False)
             self.show_error(str(e))
             return
@@ -1764,7 +1769,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         try:
             extract_nodeid(connect_str)
         except ConnStringFormatError as e:
-            self.main_window.show_error(str(e))
+            self.show_error(str(e))
             return
         # use ConfirmTxDialog
         # we need to know the fee before we broadcast, because the txid is required
@@ -2138,7 +2143,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                                              self.password_dialog,
                                              **{**kwargs, 'wallet': self.wallet})
         for m in dir(c):
-            if m[0]=='_' or m in ['network','wallet','config']: continue
+            if m[0]=='_' or m in ['network','wallet','config','daemon']: continue
             methods[m] = mkfunc(c._run, m)
 
         console.updateNamespace(methods)

@@ -273,7 +273,7 @@ class LnAddr(object):
         self.pubkey = None
         self.currency = constants.net.SEGWIT_HRP if currency is None else currency
         self.amount = amount  # type: Optional[Decimal]  # in bitcoins
-        self._min_final_cltv_expiry = 9
+        self._min_final_cltv_expiry = 18
 
     def get_amount_sat(self) -> Optional[Decimal]:
         # note that this has msat resolution potentially
@@ -393,9 +393,9 @@ def lndecode(invoice: str, *, verbose=False, expected_hrp=None) -> LnAddr:
             while s.pos + 264 + 64 + 32 + 32 + 16 < s.len:
                 route.append((s.read(264).tobytes(),
                               s.read(64).tobytes(),
-                              s.read(32).intbe,
-                              s.read(32).intbe,
-                              s.read(16).intbe))
+                              s.read(32).uintbe,
+                              s.read(32).uintbe,
+                              s.read(16).uintbe))
             addr.tags.append(('r',route))
         elif tag == 'f':
             fallback = parse_fallback(tagdata, addr.currency)
@@ -438,7 +438,7 @@ def lndecode(invoice: str, *, verbose=False, expected_hrp=None) -> LnAddr:
             addr.pubkey = pubkeybytes
 
         elif tag == 'c':
-            addr._min_final_cltv_expiry = tagdata.int
+            addr._min_final_cltv_expiry = tagdata.uint
 
         elif tag == '9':
             features = tagdata.uint

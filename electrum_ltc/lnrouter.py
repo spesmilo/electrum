@@ -56,8 +56,8 @@ def fee_for_edge_msat(forwarded_amount_msat: int, fee_base_msat: int, fee_propor
 @attr.s(slots=True)
 class PathEdge:
     """if you travel through short_channel_id, you will reach node_id"""
-    node_id = attr.ib(type=bytes, kw_only=True)
-    short_channel_id = attr.ib(type=ShortChannelID, kw_only=True)
+    node_id = attr.ib(type=bytes, kw_only=True, repr=lambda val: val.hex())
+    short_channel_id = attr.ib(type=ShortChannelID, kw_only=True, repr=lambda val: str(val))
 
 
 @attr.s
@@ -65,7 +65,7 @@ class RouteEdge(PathEdge):
     fee_base_msat = attr.ib(type=int, kw_only=True)
     fee_proportional_millionths = attr.ib(type=int, kw_only=True)
     cltv_expiry_delta = attr.ib(type=int, kw_only=True)
-    node_features = attr.ib(type=int, kw_only=True)  # note: for end node!
+    node_features = attr.ib(type=int, kw_only=True, repr=lambda val: str(int(val)))  # note: for end node!
 
     def fee_for_edge(self, amount_msat: int) -> int:
         return fee_for_edge_msat(forwarded_amount_msat=amount_msat,
