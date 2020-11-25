@@ -88,7 +88,7 @@ class RouteEdge(PathEdge):
     def is_sane_to_use(self, amount_msat: int) -> bool:
         # TODO revise ad-hoc heuristics
         # cltv cannot be more than 2 weeks
-        if self.cltv_expiry_delta > 14 * 144:
+        if self.cltv_expiry_delta > 14 * 576:
             return False
         total_fee = self.fee_for_edge(amount_msat)
         if not is_fee_sane(total_fee, payment_amount_msat=amount_msat):

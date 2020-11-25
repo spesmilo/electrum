@@ -511,7 +511,7 @@ class Peer(Logger):
         local_config = LocalConfig.from_seed(
             channel_seed=channel_seed,
             static_remotekey=static_remotekey,
-            to_self_delay=self.network.config.get('lightning_to_self_delay', 7 * 144),
+            to_self_delay=self.network.config.get('lightning_to_self_delay', 7 * 576),
             dust_limit_sat=bitcoin.DUST_LIMIT_DEFAULT_SAT_LEGACY,
             max_htlc_value_in_flight_msat=funding_sat * 1000,
             max_accepted_htlcs=5,
