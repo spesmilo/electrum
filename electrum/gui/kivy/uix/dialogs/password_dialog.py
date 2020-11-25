@@ -223,6 +223,8 @@ class AbstractPasswordDialog(Factory.Popup):
                 return True
         else:
             if self.on_success:
+                if 'textinput_generic_password' in self.ids:
+                    self.ids.textinput_generic_password.focus = False
                 args = (self.pw, self.new_password) if self.is_change else (self.pw,)
                 Clock.schedule_once(lambda dt: self.on_success(*args), 0.1)
 
