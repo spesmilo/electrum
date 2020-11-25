@@ -216,7 +216,7 @@ class NodesListWidget(QTreeWidget):
             val = self.hasAutoScroll()
             self.setAutoScroll(False)  # prevent automatic scrolling when we do this which may annoy user / appear glitchy
             self.setCurrentItem(restore_sel)
-            self.setAutoScroll(True)
+            self.setAutoScroll(val)
 
         h = self.header()
         h.setStretchLastSection(False)
@@ -387,7 +387,7 @@ class ServerListWidget(QTreeWidget):
             val = self.hasAutoScroll()
             self.setAutoScroll(False)  # prevent automatic scrolling when we do this which may annoy user / appear glitchy
             self.setCurrentItem(restore_sel)
-            self.setAutoScroll(True)
+            self.setAutoScroll(val)
 
 
 class NetworkChoiceLayout(QObject, PrintError):
