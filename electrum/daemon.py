@@ -120,6 +120,10 @@ def request(config: SimpleConfig, endpoint, args=(), timeout=60):
 def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
     rpc_user = config.get('rpcuser', None)
     rpc_password = config.get('rpcpassword', None)
+    if rpc_user == '':
+        rpc_user = None
+    if rpc_password == '':
+        rpc_password = None
     if rpc_user is None or rpc_password is None:
         rpc_user = 'user'
         bits = 128
@@ -130,8 +134,6 @@ def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
         rpc_password = to_string(pw_b64, 'ascii')
         config.set_key('rpcuser', rpc_user)
         config.set_key('rpcpassword', rpc_password, save=True)
-    elif rpc_password == '':
-        _logger.warning('RPC authentication is disabled.')
     return rpc_user, rpc_password
 
 
