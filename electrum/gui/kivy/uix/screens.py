@@ -230,6 +230,7 @@ class SendScreen(CScreen, Logger):
         if is_lightning:
             assert isinstance(item, LNInvoice)
             key = item.rhash
+            address = key
             log = self.app.wallet.lnworker.logs.get(key)
             if status == PR_INFLIGHT and log:
                 status_str += '... (%d)'%len(log)
@@ -237,6 +238,7 @@ class SendScreen(CScreen, Logger):
         else:
             assert isinstance(item, OnchainInvoice)
             key = item.id
+            address = item.get_address()
             is_bip70 = bool(item.bip70)
         return {
             'is_lightning': is_lightning,
@@ -245,7 +247,8 @@ class SendScreen(CScreen, Logger):
             'status': status,
             'status_str': status_str,
             'key': key,
-            'memo': item.message,
+            'memo': item.message or _('No Description'),
+            'address': address,
             'amount': self.app.format_amount_and_units(item.get_amount_sat() or 0),
         }
 
@@ -505,7 +508,7 @@ class ReceiveScreen(CScreen):
         ci['is_lightning'] = is_lightning
         ci['key'] = key
         ci['amount'] = self.app.format_amount_and_units(amount) if amount else ''
-        ci['memo'] = description
+        ci['memo'] = description or _('No Description')
         ci['status'] = status
         ci['status_str'] = status_str
         return ci
