@@ -252,9 +252,10 @@ class LNRater(Logger):
             if pk not in channel_peers:
                 break
 
-        node_infos = self.channel_db.get_node_infos()
+        node_info = self.channel_db.get_node_infos().get(pk)
+        alias = node_info.alias if node_info else 'unknown node alias'
         self.logger.info(
-            f"node rating for {node_infos[pk].alias}:\n"
+            f"node rating for {alias}:\n"
             f"{pformat(self._node_stats[pk])} (score {self._node_ratings[pk]})")
 
         return pk, self._node_stats[pk]
