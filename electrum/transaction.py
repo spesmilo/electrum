@@ -2012,20 +2012,16 @@ class PayjoinTransaction():
     def __init__(self, payjoin_link=None):
         self.pj = payjoin_link.get('pj') if payjoin_link else None
         self.pjos = payjoin_link.get('pjos') if payjoin_link else None
-
         self._additionalfeeoutputindex = None
         self._maxadditionalfeecontribution = None
         self._minfeerate = None
         self._disableoutputsubstitution = None
-
         self.payjoin_original = None
         self.payjoin_proposal = None
 
-        self.tor_ports = [9050,9150]
-        self.tor_port = self.check_tor_proxys(self.tor_ports)
-
     def is_available(self) -> bool:
-        return self.pj is not None and isinstance(self.pj, str)
+        return self.pj is not None \
+               and isinstance(self.pj, str)
 
     def set_tx(self, tx: PartialTransaction) -> None:
         self.payjoin_original = copy.deepcopy(tx)
@@ -2038,16 +2034,20 @@ class PayjoinTransaction():
             for i, txout in enumerate(self.payjoin_original.outputs()):
                 if (txout.is_mine and txout.is_change):
                     return i
-        def examine_input_vsize(tx):
+        def examine_input_type(tx):
             txin = tx._inputs[0]
-            return self.VSIZE_SENDER_TYPE.get(txin.script_type)
+            return txin.script_type
         # set min fee rate to an int that is rounded down
         self._minfeerate = int(self.payjoin_original.get_fee_rate())
         self._disableoutputsubstitution = 'true' if self.pjos == 0 else 'false'
         self._additionalfeeoutputindex = examine_change_output()
         # use a fee rate that is rounded to a full int
         self.original_psbt_fee_rate = round(self.payjoin_original.get_fee_rate())
-        self.vsize_input_type = examine_input_vsize(self.payjoin_original)
+        self.tx_input_type = examine_input_type(self.payjoin_original)
+        if self.tx_input_type not in self.VSIZE_SENDER_TYPE:
+            raise ValueError(f"Transaction using a type that is unsupported for Payjoin."
+                             f"Type: {self.tx_input_type}")
+        self.vsize_input_type = self.VSIZE_SENDER_TYPE.get(self.tx_input_type)
         self._maxadditionalfeecontribution = int(self.original_psbt_fee_rate * self.vsize_input_type)
 
     def prepare_payjoin_original(self) -> None:
@@ -2063,7 +2063,7 @@ class PayjoinTransaction():
         self.payjoin_proposal_received  = True
         self.payjoin_proposal.invalidate_ser_cache()
 
-    def check_tor_proxys(self, ports) -> bool:
+    def check_tor_proxys(self, ports: list) -> Optional[int]:
         for p in ports:
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -2091,6 +2091,8 @@ class PayjoinTransaction():
         query_string += '&disableoutputsubstitution=' + self._disableoutputsubstitution
         url += query_string
         session = requests.Session()
+        tor_ports = [9050, 9150]
+        self.tor_port = self.check_tor_proxys(tor_ports)
         if self.tor_port is not None:
             session.proxies = {'http': 'socks5h://127.0.0.1:' + str(self.tor_port),
                                'https': 'socks5h://127.0.0.1:' + str(self.tor_port),

@@ -242,7 +242,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             self.payjoin.do_payjoin()
             self.payjoin.payjoin_proposal.add_info_from_wallet(self.wallet)
             self.payjoin.validate_payjoin_proposal()
-        except (PayJoinProposalValidationException, PayJoinExchangeException) as e:
+        except Exception as e:
             _logger.warning(repr(e))
             self.payjoin_cb.setChecked(False)
             self.show_error(_("Error creating a payjoin") + ":\n" + str(e) + "\n" +
