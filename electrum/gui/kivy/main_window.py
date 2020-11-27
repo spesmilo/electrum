@@ -1173,7 +1173,12 @@ class ElectrumWindow(App, Logger):
             amount, u = str(amount).split()
             assert u == self.base_unit
         def cb(amount):
-            screen.amount = amount
+            if amount == '!':
+                screen.is_max = True
+                screen.amount = self.get_max_amount() + ' ' + self.base_unit
+            else:
+                screen.amount = amount
+                screen.is_max = False
         popup = AmountDialog(show_max, amount, cb)
         popup.open()
 

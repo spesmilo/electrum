@@ -196,6 +196,7 @@ class SendScreen(CScreen, Logger):
         self.address = uri.get('address', '')
         self.message = uri.get('message', '')
         self.amount = self.app.format_amount_and_units(amount) if amount else ''
+        self.is_max = False
         self.payment_request = None
         self.is_lightning = False
 
@@ -260,6 +261,7 @@ class SendScreen(CScreen, Logger):
         self.is_lightning = False
         self.is_bip70 = False
         self.parsed_URI = None
+        self.is_max = False
 
     def set_request(self, pr: 'PaymentRequest'):
         self.address = pr.get_requestor()
@@ -298,11 +300,14 @@ class SendScreen(CScreen, Logger):
         if not self.amount:
             self.app.show_error(_('Please enter an amount'))
             return
-        try:
-            amount = self.app.get_amount(self.amount)
-        except:
-            self.app.show_error(_('Invalid amount') + ':\n' + self.amount)
-            return
+        if self.is_max:
+            amount = '!'
+        else:
+            try:
+                amount = self.app.get_amount(self.amount)
+            except:
+                self.app.show_error(_('Invalid amount') + ':\n' + self.amount)
+                return
         message = self.message
         if self.is_lightning:
             return LNInvoice.from_bech32(address)
@@ -439,6 +444,7 @@ class ReceiveScreen(CScreen):
     def clear(self):
         self.address = ''
         self.amount = ''
+        self.is_max = False # not used for receiving (see app.amount_dialog)
         self.message = ''
         self.lnaddr = ''
 
