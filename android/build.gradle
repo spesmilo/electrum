@@ -5,11 +5,18 @@ buildscript {
     repositories {
         google()
         jcenter()
-        maven { url "https://electroncash.org/maven" }
+        maven {
+            // This repository is for Electron Cash only: other apps should use
+            // https://chaquo.com/maven .
+            url "https://electroncash.org/maven"
+        }
     }
     dependencies {
         classpath "com.android.tools.build:gradle:3.5.0"
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion"
+
+        // This version is for Electron Cash only. Other apps should use version 6.3.0, or the
+        // current version from https://chaquo.com/chaquopy/doc/current/android.html .
         classpath "com.chaquo.python:gradle:6.3.1"
     }
 }
