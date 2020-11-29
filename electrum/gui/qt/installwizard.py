@@ -109,8 +109,10 @@ def wizard_dialog(func):
             except GoBack:
                 if not wizard.can_go_back():
                     wizard.close()
-                # to go back from the current dialog, we just let the caller unroll the stack:
-                raise
+                    raise UserCancelled
+                else:
+                    # to go back from the current dialog, we just let the caller unroll the stack:
+                    raise
             # next dialog
             try:
                 while True:
