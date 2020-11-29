@@ -228,7 +228,7 @@ def get_target_params_1(wallet, wallet_conf, active_autofusions, eligible):
         # that are either 1) eligible or 2) being fused. (Should stay constant
         # as fusions are added/cancelled)
         n_coins = sum(len(acoins) for addr,acoins in eligible)
-        n_total = n_coins + sum(len(f.inputs) for f in active_autofusions)
+        n_total = n_coins + sum(len(getattr(f, 'inputs', ())) for f in active_autofusions)
         if n_total < DEFAULT_MAX_COINS*3:
             return 1, True
 
