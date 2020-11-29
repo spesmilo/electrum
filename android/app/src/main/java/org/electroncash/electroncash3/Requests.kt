@@ -1,8 +1,6 @@
 package org.electroncash.electroncash3
 
 import android.os.Bundle
-import android.text.Editable
-import android.text.TextWatcher
 import android.view.View
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.FragmentActivity
@@ -98,11 +96,7 @@ class RequestDialog() : AlertDialogFragment() {
         }
         tvAddress.text = address.callAttr("to_ui_string").toString()
 
-        etDescription.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: Editable?) { updateUI() }
-        })
+        etDescription.addAfterTextChangedListener { updateUI() }
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onOK() }
 
         if (existingRequest != null) {

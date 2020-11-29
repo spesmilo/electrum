@@ -2,12 +2,10 @@ package org.electroncash.electroncash3
 
 import android.app.Dialog
 import android.text.Editable
-import android.text.TextWatcher
 import android.view.View
 import android.widget.EditText
 import android.widget.Toast
 import kotlinx.android.synthetic.main.amount_box.*
-import java.lang.RuntimeException
 
 
 class AmountBox(val dialog: Dialog) {
@@ -25,11 +23,8 @@ class AmountBox(val dialog: Dialog) {
         }
 
         for (et in listOf(dialog.etAmount, dialog.etFiat)) {
-            et.addTextChangedListener(object : TextWatcher {
-                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-                override fun afterTextChanged(s: Editable?) {
-                    if (updating) return
+            et.addAfterTextChangedListener { s: Editable ->
+                if (!updating) {
                     if (fiatEnabled) {
                         val etOther: EditText
                         val formatOther: () -> String
@@ -62,7 +57,7 @@ class AmountBox(val dialog: Dialog) {
                     }
                     listener?.invoke()
                 }
-            })
+            }
         }
     }
 

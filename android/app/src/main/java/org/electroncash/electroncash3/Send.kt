@@ -2,6 +2,7 @@ package org.electroncash.electroncash3
 
 import android.content.Intent
 import android.os.Bundle
+import android.text.Editable
 import android.view.Menu
 import android.view.MenuItem
 import android.widget.SeekBar
@@ -59,6 +60,13 @@ class SendDialog : AlertDialogFragment() {
     }
 
     override fun onShowDialog() {
+        etAddress.addAfterTextChangedListener { s: Editable ->
+            val scheme = libNetworks.get("net")!!.get("CASHADDR_PREFIX")!!.toString()
+            if (s.startsWith(scheme + ":")) {
+                onUri(s.toString())
+            }
+        }
+
         amountBox = AmountBox(dialog)
         amountBox.listener = {
             if (!settingMax) {

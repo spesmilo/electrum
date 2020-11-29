@@ -2,8 +2,6 @@ package org.electroncash.electroncash3
 
 import android.content.ClipboardManager
 import android.content.Intent
-import android.text.Editable
-import android.text.TextWatcher
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.viewModels
@@ -36,11 +34,7 @@ class ColdLoadDialog : AlertDialogFragment() {
 
     override fun onShowDialog() {
         super.onShowDialog()
-        etTransaction.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: Editable?) { updateUI() }
-        })
+        etTransaction.addAfterTextChangedListener{ updateUI() }
         updateUI()
 
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onOK() }

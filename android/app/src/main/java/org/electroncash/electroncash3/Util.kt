@@ -2,6 +2,8 @@ package org.electroncash.electroncash3
 
 import android.content.ClipboardManager
 import android.content.Context
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import android.view.Menu
@@ -119,6 +121,17 @@ fun <T: DialogFragment> findDialog(activity: FragmentActivity, fragClass: KClass
         @Suppress("UNCHECKED_CAST")
         return frag as T?
     }
+}
+
+
+fun EditText.addAfterTextChangedListener(listener: (Editable) -> Unit) {
+    addTextChangedListener(object : TextWatcher {
+        override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+        override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        override fun afterTextChanged(s: Editable) {
+            listener(s)
+        }
+    })
 }
 
 
