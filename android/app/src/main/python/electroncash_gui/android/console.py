@@ -1,20 +1,17 @@
 from __future__ import absolute_import, division, print_function
 
 from code import InteractiveConsole
-import json
 import os
 from os.path import dirname, exists, join, split
 import pkgutil
 from shutil import copyfile
 import unittest
 
-from electroncash import commands, daemon, keystore, simple_config, storage, tests, util
+from electroncash import commands, daemon, keystore, storage, tests, util
 from electroncash.i18n import _
 from electroncash.storage import WalletStorage
 from electroncash.wallet import (ImportedAddressWallet, ImportedPrivkeyWallet, Standard_Wallet,
                                  Wallet)
-
-from android.preference import PreferenceManager
 
 
 CALLBACKS = ["banner", "blockchain_updated", "fee", "interfaces", "new_transaction",
@@ -75,8 +72,8 @@ class Help:
 
 # Adds additional commands which aren't available over JSON RPC.
 class AndroidCommands(commands.Commands):
-    def __init__(self, app):
-        super().__init__(AndroidConfig(app), wallet=None, network=None)
+    def __init__(self, config):
+        super().__init__(config, wallet=None, network=None)
         fd, server = daemon.get_fd_or_server(self.config)
         if not fd:
             raise Exception("Daemon already running")  # Same wording as in daemon.py.
@@ -244,44 +241,3 @@ all_commands = commands.known_commands.copy()
 for name, func in vars(AndroidCommands).items():
     if not name.startswith("_"):
         all_commands[name] = commands.Command(func, "")
-
-
-SP_SET_METHODS = {
-    bool: "putBoolean",
-    float: "putFloat",
-    int: "putLong",
-    str: "putString",
-}
-
-# We store the config in the SharedPreferences because it's very easy to base an Android
-# settings UI on that. The reverse approach would be harder (using PreferenceDataStore to make
-# the settings UI access an Electron Cash config file).
-class AndroidConfig(simple_config.SimpleConfig):
-    def __init__(self, app):
-        self.sp = PreferenceManager.getDefaultSharedPreferences(app)
-        super().__init__()
-
-    def get(self, key, default=None):
-        if self.sp.contains(key):
-            value = self.sp.getAll().get(key)
-            if value == "<json>":
-                json_value = self.sp.getString(key + ".json", None)
-                if json_value is not None:
-                    value = json.loads(json_value)
-            return value
-        else:
-            return default
-
-    def set_key(self, key, value, save=None):
-        spe = self.sp.edit()
-        if value is None:
-            spe.remove(key)
-            spe.remove(key + ".json")
-        else:
-            set_method = SP_SET_METHODS.get(type(value))
-            if set_method:
-                getattr(spe, set_method)(key, value)
-            else:
-                spe.putString(key, "<json>")
-                spe.putString(key + ".json", json.dumps(value))
-        spe.apply()

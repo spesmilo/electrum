@@ -14,15 +14,14 @@ lateinit var daemonModel: DaemonModel
 val daemonUpdate = MutableLiveData<Unit>().apply { value = Unit }
 
 
-fun initDaemon() {
+fun initDaemon(config: PyObject) {
     guiDaemon.callAttr("set_excepthook", mainHandler)
-    daemonModel = DaemonModel()
+    daemonModel = DaemonModel(config)
 }
 
 
-class DaemonModel {
-    val commands = guiConsole.callAttr("AndroidCommands", app)!!
-    val config = commands.get("config")!!
+class DaemonModel(val config: PyObject) {
+    val commands = guiConsole.callAttr("AndroidCommands", config)!!
     val daemon = commands.get("daemon")!!
     val network = commands.get("network")!!
     val wallet: PyObject?

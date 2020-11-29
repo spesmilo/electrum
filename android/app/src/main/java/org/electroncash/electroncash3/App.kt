@@ -60,8 +60,8 @@ class App : Application() {
             libNetworks.callAttr("set_testnet")
         }
 
-        initSettings()
-        initDaemon()
+        val config = initSettings()
+        initDaemon(config)
         initNetwork()
         initExchange()
     }

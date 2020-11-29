@@ -4,9 +4,16 @@ import androidx.lifecycle.MutableLiveData
 import android.content.SharedPreferences
 
 
-class LivePreferences(val sp: SharedPreferences) {
+class LivePreferences(val sp: SharedPreferences, listen: Boolean = true)
+    : SharedPreferences.OnSharedPreferenceChangeListener {
     private val booleans = HashMap<String, LivePreference<Boolean>>()
     private val strings = HashMap<String, LivePreference<String>>()
+
+    init {
+        if (listen) {
+            sp.registerOnSharedPreferenceChangeListener(this)
+        }
+    }
 
     fun getBoolean(key: String) =
         get(booleans, key, { LiveBooleanPreference(sp, key) })
@@ -24,31 +31,29 @@ class LivePreferences(val sp: SharedPreferences) {
             return result
         }
     }
+
+    override fun onSharedPreferenceChanged(sp: SharedPreferences, key: String) {
+        booleans.get(key)?.setFromPreferences()
+        strings.get(key)?.setFromPreferences()
+    }
 }
 
 
 abstract class LivePreference<T>(val sp: SharedPreferences, val key: String)
-    : MutableLiveData<T>(), SharedPreferences.OnSharedPreferenceChangeListener {
+    : MutableLiveData<T>() {
 
     abstract fun spGet(): T
     abstract fun spSet(value: T)
 
     init {
-        update(sp)
-        sp.registerOnSharedPreferenceChangeListener(this)
+        setFromPreferences()
     }
 
     override fun setValue(value: T) {
         spSet(value)
     }
 
-    override fun onSharedPreferenceChanged(sp: SharedPreferences, key: String) {
-        if (key == this.key) {
-            update(sp)
-        }
-    }
-
-    private fun update(sp: SharedPreferences) {
+    fun setFromPreferences() {
         super.setValue(if (sp.contains(key)) spGet() else null)
     }
 }
