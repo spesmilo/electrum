@@ -5,64 +5,47 @@ import android.os.Bundle
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentActivity
-import androidx.lifecycle.observe
 import com.chaquo.python.PyObject
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.android.synthetic.main.contact_detail.*
 import kotlinx.android.synthetic.main.contacts.*
 
-
+val guiContacts by lazy { guiMod("contacts") }
 val libContacts by lazy { libMod("contacts") }
 
 
-class ContactsFragment : Fragment(R.layout.contacts), MainFragment {
+class ContactsFragment : ListFragment(R.layout.contacts, R.id.rvContacts) {
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        setupVerticalList(rvContacts)
-        rvContacts.adapter = ContactsAdapter(activity!!)
-        TriggerLiveData().apply {
-            addSource(daemonUpdate)
-            addSource(settings.getBoolean("cashaddr_format"))
-        }.observe(viewLifecycleOwner, { refresh() })
+        super.onViewCreated(view, savedInstanceState)
+        addSource(daemonUpdate)
+        addSource(settings.getBoolean("cashaddr_format"))
 
         btnAdd.setOnClickListener { showDialog(activity!!, ContactDialog()) }
     }
 
-    fun refresh() {
-        val wallet = daemonModel.wallet
-        (rvContacts.adapter as ContactsAdapter).submitList(
-            if (wallet == null) null else listContacts())
-    }
+    override fun onCreateAdapter() =
+        ListAdapter(this, R.layout.contact_list, ::ContactModel, ::ContactDialog)
+
+    override fun onRefresh(wallet: PyObject) =
+        guiContacts.callAttr("get_contacts", wallet)!!
 }
 
 
-class ContactsAdapter(val activity: FragmentActivity)
-    : BoundAdapter<ContactModel>(R.layout.contact_list) {
-
-    override fun onBindViewHolder(holder: BoundViewHolder<ContactModel>, position: Int) {
-        super.onBindViewHolder(holder, position)
-        holder.itemView.setOnClickListener {
-            showDialog(activity, ContactDialog().apply {
-                arguments = holder.item.toBundle()
-            })
-        }
+class ContactModel(val contact: PyObject) : ListModel {
+    val name by lazy {
+        contact.get("name").toString()
     }
-}
-
-
-class ContactModel(val name: String, val addr: PyObject) {
-    constructor(args: Bundle) : this(args.getString("name")!!,
-                                     makeAddress(args.getString("address")!!))
-    val addrUiString
-        get() = addr.callAttr("to_ui_string").toString()
-    val addrStorageString
-        get() = addr.callAttr("to_storage_string").toString()
-
-    fun toBundle(): Bundle {
-        return Bundle().apply {
+    val addr by lazy {
+        makeAddress(contact.get("address").toString())
+    }
+    val addrUiString by lazy {
+        addr.callAttr("to_ui_string").toString()
+    }
+    override val dialogArguments by lazy {
+        Bundle().apply {
             putString("name", name)
-            putString("address", addrStorageString)
+            putString("address", addrUiString)
         }
     }
 }
@@ -71,7 +54,8 @@ class ContactModel(val name: String, val addr: PyObject) {
 class ContactDialog : AlertDialogFragment() {
     val existingContact by lazy {
         if (arguments == null) null
-        else ContactModel(arguments!!)
+        else ContactModel(makeContact(arguments!!.getString("name")!!,
+                                      arguments!!.getString("address")!!))
     }
 
     override fun onBuildDialog(builder: AlertDialog.Builder) {
@@ -110,7 +94,7 @@ class ContactDialog : AlertDialogFragment() {
             }
             dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
                 showDialog(this, ContactDeleteDialog().apply {
-                    arguments = contact.toBundle()
+                    arguments = contact.dialogArguments
                 })
             }
         }
@@ -142,12 +126,10 @@ class ContactDialog : AlertDialogFragment() {
             if (name.isEmpty()) {
                 throw ToastException(R.string.name_is, Toast.LENGTH_SHORT)
             }
-            val newContact = makeContact(name, makeAddress(address))
-            val oldContact =
-                if (existingContact == null) null
-                else makeContact(existingContact!!.name, existingContact!!.addr)
+            makeAddress(address)  // Throws ToastException if invalid.
             val wallet = daemonModel.wallet!!
-            wallet.get("contacts")!!.callAttr("add", newContact, oldContact)
+            wallet.get("contacts")!!.callAttr(
+                "add", makeContact(name, address), existingContact?.contact)
             wallet.get("storage")!!.callAttr("write")
             daemonUpdate.setValue(Unit)
             dismiss()
@@ -158,13 +140,13 @@ class ContactDialog : AlertDialogFragment() {
 
 class ContactDeleteDialog : AlertDialogFragment() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
-        val contact = ContactModel(arguments!!)
         builder.setTitle(R.string.confirm_delete)
             .setMessage(R.string.are_you_sure_you_wish_to_delete)
             .setPositiveButton(R.string.delete) { _, _ ->
                 val wallet = daemonModel.wallet!!
                 wallet.get("contacts")!!.callAttr(
-                    "remove", makeContact(contact.name, contact.addr))
+                    "remove", makeContact(arguments!!.getString("name")!!,
+                                          arguments!!.getString("address")!!))
                 wallet.get("storage")!!.callAttr("write")
                 daemonUpdate.setValue(Unit)
                 (targetFragment as ContactDialog).dismiss()
@@ -174,18 +156,6 @@ class ContactDeleteDialog : AlertDialogFragment() {
 }
 
 
-fun listContacts(): List<ContactModel> {
-    val contacts = ArrayList<ContactModel>()
-    for (contact in daemonModel.wallet!!.get("contacts")!!.callAttr("get_all").asList()) {
-        contacts.add(ContactModel(contact.get("name").toString(),
-                                  makeAddress(contact.get("address").toString())))
-    }
-    contacts.sortBy { it.name }
-    return contacts
-}
-
-
-fun makeContact(name: String, addr: PyObject): PyObject {
-    return libContacts.callAttr(
-        "Contact", name, addr.callAttr("to_storage_string"), "address")!!
-}
+fun makeContact(name: String, addr: String) =
+    libContacts.callAttr("Contact", name, makeAddress(addr).callAttr("to_storage_string"),
+                         "address")!!

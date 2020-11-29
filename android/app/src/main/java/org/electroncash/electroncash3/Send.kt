@@ -252,12 +252,12 @@ class GetPaymentRequestDialog() : TaskDialog<PyObject>() {
 
 
 class SendContactsDialog : MenuDialog() {
-    val contacts = listContacts()
+    val contacts = guiContacts.callAttr("get_contacts", daemonModel.wallet!!).asList()
 
     override fun onBuildDialog(builder: AlertDialog.Builder, menu: Menu) {
         builder.setTitle(R.string.contacts)
         contacts.forEachIndexed { i, contact ->
-            menu.add(Menu.NONE, i, Menu.NONE, contact.name)
+            menu.add(Menu.NONE, i, Menu.NONE, contact.get("name").toString())
         }
     }
 
@@ -269,9 +269,9 @@ class SendContactsDialog : MenuDialog() {
     }
 
     override fun onMenuItemSelected(item: MenuItem) {
-        val address = contacts.get(item.itemId).addr.callAttr("to_ui_string").toString()
+        val address = makeAddress(contacts.get(item.itemId).get("address").toString())
         with (findDialog(activity!!, SendDialog::class)!!) {
-            etAddress.setText(address)
+            etAddress.setText(address.callAttr("to_ui_string").toString())
             amountBox.requestFocus()
         }
     }

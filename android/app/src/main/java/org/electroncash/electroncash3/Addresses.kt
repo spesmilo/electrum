@@ -12,13 +12,11 @@ import android.view.MenuItem
 import android.view.View
 import android.widget.Button
 import androidx.appcompat.app.AlertDialog
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.observe
+import com.chaquo.python.Kwarg
 import com.chaquo.python.PyObject
 import kotlinx.android.synthetic.main.address_detail.*
 import kotlinx.android.synthetic.main.addresses.*
@@ -26,43 +24,44 @@ import kotlinx.android.synthetic.main.transactions.*
 import kotlin.reflect.KClass
 
 
+val guiAddresses by lazy { guiMod("addresses") }
 val libAddress by lazy { libMod("address") }
 val clsAddress by lazy { libAddress["Address"]!! }
 
 
-class AddressesFragment : Fragment(R.layout.addresses), MainFragment {
+class AddressesFragment : ListFragment(R.layout.addresses, R.id.rvAddresses) {
+
     class Model : ViewModel() {
         val filterType = MutableLiveData<Int>().apply { value = R.id.filterAll }
         val filterStatus = MutableLiveData<Int>().apply { value = R.id.filterAll }
     }
     val model: Model by viewModels()
-    
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
         btnType.setOnClickListener { showFilterDialog(FilterTypeDialog::class) }
         btnStatus.setOnClickListener { showFilterDialog(FilterStatusDialog::class) }
 
-        setupVerticalList(rvAddresses)
-        rvAddresses.adapter = AddressesAdapter(activity!!)
-        TriggerLiveData().apply {
-            addSource(daemonUpdate)
-            addSource(model.filterType)
-            addSource(model.filterStatus)
-            addSource(settings.getBoolean("cashaddr_format"))
-            addSource(settings.getString("base_unit"))
-        }.observe(viewLifecycleOwner, { refresh() })
+        addSource(daemonUpdate)
+        addSource(model.filterType)
+        addSource(model.filterStatus)
+        addSource(settings.getBoolean("cashaddr_format"))
+        addSource(settings.getString("base_unit"))
     }
 
-    fun refresh() {
+    override fun onCreateAdapter() =
+        ListAdapter(this, R.layout.address_list, { AddressModel(daemonModel.wallet!!, it) },
+                    ::AddressDialog)
+
+    override fun refresh() {
+        super.refresh()
         setFilterLabel(btnType, R.string.type, R.menu.filter_type, model.filterType)
         setFilterLabel(btnStatus, R.string.status, R.menu.filter_status, model.filterStatus)
-
-        val wallet = daemonModel.wallet
-        (rvAddresses.adapter as AddressesAdapter).submitList(
-            if (wallet == null) null
-            else wallet.callAttr("get_addresses").asList()
-                .map { AddressModel(wallet, it) }
-                .filter { passesFilter(it) })
     }
+
+    override fun onRefresh(wallet: PyObject) =
+        guiAddresses.callAttr("get_addresses", wallet,
+                              model.filterType.value, model.filterStatus.value)!!
 
     fun setFilterLabel(btn: Button, prefix: Int, menuId: Int, liveData: LiveData<Int>) {
         val menu = inflateMenu(menuId)
@@ -74,67 +73,39 @@ class AddressesFragment : Fragment(R.layout.addresses), MainFragment {
         frag.setTargetFragment(this, 0)
         showDialog(activity!!, frag)
     }
-
-    fun passesFilter(am: AddressModel): Boolean {
-        when (model.filterType.value) {
-            R.id.filterReceiving -> { if (am.isChange) return false }
-            R.id.filterChange -> { if (!am.isChange) return false }
-        }
-        when (model.filterStatus.value) {
-            R.id.filterUnused -> { if (!am.history.isEmpty()) return false }
-            R.id.filterFunded -> { if (am.balance == 0L) return false }
-            R.id.filterUsed -> {
-                if (am.history.isEmpty() || am.balance != 0L) return false
-            }
-        }
-        return true
-    }
 }
 
 
-class AddressesAdapter(val activity: FragmentActivity)
-    : BoundAdapter<AddressModel>(R.layout.address_list) {
-
-    override fun onBindViewHolder(holder: BoundViewHolder<AddressModel>, position: Int) {
-        super.onBindViewHolder(holder, position)
-        holder.itemView.setOnClickListener {
-            showDialog(activity, AddressDialog(holder.item.toString("storage")))
-        }
-    }
-}
-
-
-class AddressModel(val wallet: PyObject, val addr: PyObject) {
+class AddressModel(val wallet: PyObject, val addr: PyObject) : ListModel {
     fun toString(format: String) = addr.callAttr("to_${format}_string").toString()
 
-    val status
-        get() = app.getString(if (history.isEmpty()) R.string.unused
-                              else if (balance != 0L) R.string.balance
-                              else R.string.used)
-
-    // get_addr_balance returns the tuple (confirmed, unconfirmed, unmatured)
-    val balance
-        get() = wallet.callAttr("get_addr_balance", addr).asList().get(0).toLong()
-
-    val history by lazy {
-        wallet.callAttr("get_address_history", addr).asList()
+    val status by lazy {
+        app.getString(if (txCount == 0) R.string.unused
+                      else if (balance != 0L) R.string.balance
+                      else R.string.used)
     }
-
-    val type
-        get() = app.getString(if (isChange) R.string.change else R.string.receiving)
-
-    val isChange
-        get() = wallet.callAttr("is_change", addr).toBoolean()
-
-    val description
-        get() = getDescription(toString("storage"))
+    val balance by lazy {
+        // get_addr_balance returns the tuple (confirmed, unconfirmed, unmatured)
+        wallet.callAttr("get_addr_balance", addr).asList().get(0).toLong()
+    }
+    val txCount by lazy {
+        wallet.callAttr("get_address_history", addr).asList().size
+    }
+    val type by lazy {
+        app.getString(if (wallet.callAttr("is_change", addr).toBoolean()) R.string.change
+                      else R.string.receiving)
+    }
+    val description by lazy {
+        getDescription(toString("storage"))
+    }
+    override val dialogArguments by lazy {
+        Bundle().apply { putString("address", toString("storage")) }
+    }
 }
 
 
-class AddressDialog() : AlertDialogFragment() {
-    constructor(address: String) : this() {
-        arguments = Bundle().apply { putString("address", address) }
-    }
+class AddressDialog : AlertDialogFragment() {
+
     val addrModel by lazy {
         AddressModel(daemonModel.wallet!!,
                      clsAddress.callAttr("from_string",
@@ -165,8 +136,8 @@ class AddressDialog() : AlertDialogFragment() {
         tvType.text = addrModel.type
 
         with (SpannableStringBuilder()) {
-            append(addrModel.history.size.toString())
-            if (!addrModel.history.isEmpty()) {
+            append(addrModel.txCount.toString())
+            if (addrModel.txCount > 0) {
                 append(" (")
                 val link = SpannableString(getString(R.string.show))
                 link.setSpan(object : ClickableSpan() {
@@ -196,6 +167,8 @@ class AddressTransactionsDialog() : AlertDialogFragment() {
         arguments = Bundle().apply { putString("address", address) }
     }
 
+    private val adapter = TransactionsAdapter(this)
+
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         with (builder) {
             setTitle(R.string.transactions)
@@ -210,14 +183,10 @@ class AddressTransactionsDialog() : AlertDialogFragment() {
         rvTransactions.setPadding(0, 0, 0, 0)
 
         setupVerticalList(rvTransactions)
-        rvTransactions.adapter = TransactionsAdapter(activity!!)
-        daemonUpdate.observe(this, { refresh() })
-    }
-
-    fun refresh() {
+        rvTransactions.adapter = adapter
         val addr = clsAddress.callAttr("from_string", arguments!!.getString("address")!!)
-        (rvTransactions.adapter as TransactionsAdapter).submitList(
-            TransactionsList(daemonModel.wallet!!, addr))
+        adapter.submitPyList(
+            daemonModel.wallet!!.callAttr("get_history", Kwarg("domain", arrayOf(addr))))
     }
 }
 

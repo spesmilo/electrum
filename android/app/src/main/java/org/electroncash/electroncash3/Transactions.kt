@@ -3,27 +3,21 @@ package org.electroncash.electroncash3
 import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.view.View
-import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentActivity
-import androidx.lifecycle.observe
-import com.chaquo.python.Kwarg
 import com.chaquo.python.PyObject
 import kotlinx.android.synthetic.main.transaction_detail.*
 import kotlinx.android.synthetic.main.transactions.*
 import kotlin.math.roundToInt
 
 
-class TransactionsFragment : Fragment(R.layout.transactions), MainFragment {
+class TransactionsFragment : ListFragment(R.layout.transactions, R.id.rvTransactions) {
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        setupVerticalList(rvTransactions)
-        rvTransactions.adapter = TransactionsAdapter(activity!!)
-        TriggerLiveData().apply {
-            addSource(daemonUpdate)
-            addSource(settings.getString("base_unit"))
-        }.observe(viewLifecycleOwner, { refresh() })
+        super.onViewCreated(view, savedInstanceState)
+        addSource(daemonUpdate)
+        addSource(settings.getString("base_unit"))
 
         btnSend.setOnClickListener {
             try {
@@ -33,51 +27,27 @@ class TransactionsFragment : Fragment(R.layout.transactions), MainFragment {
         btnRequest.setOnClickListener { newRequest(activity!!) }
     }
 
-    fun refresh() {
-        val wallet = daemonModel.wallet
-        (rvTransactions.adapter as TransactionsAdapter).submitList(
-            if (wallet == null) null else TransactionsList(wallet))
-    }
+    override fun onCreateAdapter() = TransactionsAdapter(this)
+
+    override fun onRefresh(wallet: PyObject) =
+        wallet.callAttr("get_history")!!
 }
 
 
-class TransactionsList(wallet: PyObject, addr: PyObject? = null)
-    : AbstractList<TransactionModel>() {
-
-    val history = wallet.callAttr("get_history",
-                                  Kwarg("domain", if (addr == null) null else arrayOf(addr)))
-                  .asList()
-
-    override val size by lazy { history.size }
-
-    override fun get(index: Int) = TransactionModel(history.get(size - index - 1))
-}
+// Also used in AddressesTransactionsDialog.
+fun TransactionsAdapter(listFragment: Fragment) =
+    ListAdapter(listFragment, R.layout.transaction_list, ::TransactionModel,
+                ::TransactionDialog)
+        .apply { reversed = true }
 
 
-class TransactionsAdapter(val activity: FragmentActivity)
-    : BoundAdapter<TransactionModel>(R.layout.transaction_list) {
+class TransactionModel(val txHistory: PyObject) : ListModel {
+    private fun get(key: String) = txHistory.get(key)
 
-    override fun onBindViewHolder(holder: BoundViewHolder<TransactionModel>, position: Int) {
-        super.onBindViewHolder(holder, position)
-        holder.itemView.setOnClickListener {
-            val txid = holder.item.txid
-            val tx = daemonModel.wallet!!.get("transactions")!!.callAttr("get", txid)
-            if (tx == null) {  // Can happen during wallet sync.
-                toast(R.string.Transaction_not, Toast.LENGTH_SHORT)
-            } else {
-                showDialog(activity, TransactionDialog(txid))
-            }
-        }
-    }
-}
-
-class TransactionModel(val txHistory: PyObject) {
-    private fun get(key: String) = txHistory.get(key)!!
-
-    val txid by lazy { get("tx_hash").toString() }
-    val amount by lazy { get("amount").toLong() }
-    val balance by lazy { get("balance").toLong() }
-    val timestamp by lazy { formatTime(get("timestamp").toLong()) }
+    val txid by lazy { get("tx_hash")!!.toString() }
+    val amount by lazy { get("amount")?.toLong() ?: 0 }
+    val balance by lazy { get("balance")?.toLong() ?: 0 }
+    val timestamp by lazy { formatTime(get("timestamp")?.toLong()) }
     val label by lazy { getDescription(txid) }
 
     val icon: Drawable by lazy {
@@ -89,24 +59,28 @@ class TransactionModel(val txHistory: PyObject) {
     }
 
     val status: String  by lazy {
-        val confirmations = get("conf").toInt()
+        val confirmations = get("conf")!!.toInt()
         when {
             confirmations <= 0 -> app.getString(R.string.Unconfirmed)
             else -> app.resources.getQuantityString(R.plurals.confirmation,
                                                     confirmations, confirmations)
         }
     }
+
+    override val dialogArguments by lazy {
+        Bundle().apply { putString("txid", txid) }
+    }
 }
 
 
-class TransactionDialog() : AlertDialogFragment() {
-    constructor(txid: String) : this() {
-        arguments = Bundle().apply { putString("txid", txid) }
-    }
-
+class TransactionDialog : AlertDialogFragment() {
     val wallet by lazy { daemonModel.wallet!! }
     val txid by lazy { arguments!!.getString("txid")!! }
-    val tx by lazy { wallet.get("transactions")!!.callAttr("get", txid)!! }
+    val tx by lazy {
+        // Transaction lookup sometimes fails during sync.
+        wallet.get("transactions")!!.callAttr("get", txid)
+            ?: throw ToastException(R.string.Transaction_not)
+    }
     val txInfo by lazy { wallet.callAttr("get_tx_info", tx) }
 
     override fun onBuildDialog(builder: AlertDialog.Builder) {

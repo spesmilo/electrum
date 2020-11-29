@@ -5,32 +5,28 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
 import androidx.appcompat.app.AlertDialog
-import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
-import androidx.lifecycle.observe
 import com.chaquo.python.PyObject
 import kotlinx.android.synthetic.main.main.*
 import kotlinx.android.synthetic.main.request_detail.*
 import kotlinx.android.synthetic.main.requests.*
 
 
-class RequestsFragment : Fragment(R.layout.requests), MainFragment {
+class RequestsFragment : ListFragment(R.layout.requests, R.id.rvRequests) {
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        setupVerticalList(rvRequests)
-        rvRequests.adapter = RequestsAdapter(activity!!)
-        TriggerLiveData().apply {
-            addSource(daemonUpdate)
-            addSource(settings.getString("base_unit"))
-        }.observe(viewLifecycleOwner, { refresh() })
+        super.onViewCreated(view, savedInstanceState)
+        addSource(daemonUpdate)
+        addSource(settings.getString("base_unit"))
 
         btnAdd.setOnClickListener { newRequest(activity!!) }
     }
 
-    fun refresh() {
-        val wallet = daemonModel.wallet
-        (rvRequests.adapter as RequestsAdapter).submitList(
-            if (wallet == null) null else RequestsList(wallet))
-    }
+    override fun onCreateAdapter() =
+        ListAdapter(this, R.layout.request_list, ::RequestModel, ::RequestDialog)
+
+    override fun onRefresh(wallet: PyObject) =
+        wallet.callAttr("get_sorted_requests", daemonModel.config)!!
 }
 
 
@@ -43,30 +39,8 @@ fun newRequest(activity: FragmentActivity) {
 }
 
 
-class RequestsList(wallet: PyObject) : AbstractList<RequestModel>() {
-    val requests = wallet.callAttr("get_sorted_requests", daemonModel.config).asList()
-
-    override val size: Int
-        get() = requests.size
-
-    override fun get(index: Int) =
-        RequestModel(requests.get(index))
-}
-
-
-class RequestsAdapter(val activity: FragmentActivity)
-    : BoundAdapter<RequestModel>(R.layout.request_list) {
-
-    override fun onBindViewHolder(holder: BoundViewHolder<RequestModel>, position: Int) {
-        super.onBindViewHolder(holder, position)
-        holder.itemView.setOnClickListener {
-            showDialog(activity, RequestDialog(holder.item.address))
-        }
-    }
-}
-
-class RequestModel(val request: PyObject) {
-    val address = getField("address").toString()
+class RequestModel(val request: PyObject) : ListModel {
+    val address by lazy { getField("address").toString() }
     val amount = getField("amount").toLong()
     val timestamp = formatTime(getField("time").toLong())
     val description = getField("memo").toString()
@@ -76,8 +50,11 @@ class RequestModel(val request: PyObject) {
     private fun getField(key: String): PyObject {
         return request.callAttr("get", key)!!
     }
-}
 
+    override val dialogArguments by lazy {
+        Bundle().apply { putString("address", address) }
+    }
+}
 
 
 class RequestDialog() : AlertDialogFragment() {

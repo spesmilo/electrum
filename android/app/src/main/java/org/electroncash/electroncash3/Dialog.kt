@@ -88,13 +88,18 @@ abstract class AlertDialogFragment : DialogFragment() {
         super.onStart()
         focusOnStop = View.NO_ID
 
-        if (!started) {
-            started = true
-            onShowDialog()
-        }
-        if (!model.started) {
-            model.started = true
-            onFirstShowDialog()
+        try {
+            if (!started) {
+                started = true
+                onShowDialog()
+            }
+            if (!model.started) {
+                model.started = true
+                onFirstShowDialog()
+            }
+        } catch (e: ToastException) {
+            e.show()
+            dismiss()
         }
     }
 
@@ -119,12 +124,18 @@ abstract class AlertDialogFragment : DialogFragment() {
         }
     }
 
-    /** Can be used to do things like configure custom views, or attach listeners to buttons so
-     *  they don't always close the dialog. */
+    /** Called when the dialog is shown. If the dialog is recreated after a configuration
+     * change, it will be called again on the new instance.
+     *
+     * If this method throws a ToastException, it will be displayed, and the dialog will be
+     * closed. */
     open fun onShowDialog() {}
 
-    /** Called after onShowDialog, but only once per dialog lifecycle. This can be used to do
-     * things like setting the initial state of editable views. */
+    /** Called after onShowDialog, but not after a configuration change. This can be used to
+     * set the initial state of editable views.
+     *
+     * If this method throws a ToastException, it will be displayed, and the dialog will be
+     * closed.*/
     open fun onFirstShowDialog() {}
 
     override fun getDialog(): AlertDialog {
