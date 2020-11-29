@@ -72,11 +72,11 @@ class ColdLoadDialog : AlertDialogFragment() {
 
     fun onOK() {
         val tx = libTransaction.callAttr("Transaction", etTransaction.text.toString())
-        if (!daemonModel.isConnected()) {
-            throw ToastException(R.string.not_connected)
-        }
-        val result = daemonModel.network.callAttr("broadcast_transaction", tx)
         try {
+            if (!daemonModel.isConnected()) {
+                throw ToastException(R.string.not_connected)
+            }
+            val result = daemonModel.network.callAttr("broadcast_transaction", tx)
             checkBroadcastResult(result)
             toast(R.string.the_string, Toast.LENGTH_LONG)
             dismiss()
