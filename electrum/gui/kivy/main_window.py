@@ -683,11 +683,7 @@ class ElectrumWindow(App, Logger):
             wizard.bind(on_wizard_complete=self.on_wizard_complete)
             wizard.run('new')
         else:
-            try:
-                storage.decrypt(pw)
-            except StorageReadWriteError:
-                app.show_error(_("R/W error accessing path"))
-                return
+            assert storage.is_past_initial_decryption()
             self.password = pw
             self._on_decrypted_storage(storage)
 
