@@ -992,6 +992,7 @@ class ConfirmSeedDialog(RestoreSeedDialog):
     def __init__(self, *args, **kwargs):
         RestoreSeedDialog.__init__(self, *args, **kwargs)
         self.ids.seed_dialog_header.ids.options_button.disabled = True
+        self.ids.text_input_seed.text = kwargs['seed']
 
     def get_params(self, b):
         return (self.get_text(),)

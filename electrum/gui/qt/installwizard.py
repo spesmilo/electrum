@@ -487,7 +487,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return self.seed_input(title, message, test, options)
 
     @wizard_dialog
-    def confirm_seed_dialog(self, run_next, test):
+    def confirm_seed_dialog(self, run_next, seed, test):
         self.app.clipboard().clear()
         title = _('Confirm Seed')
         message = ' '.join([
