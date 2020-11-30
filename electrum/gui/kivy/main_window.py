@@ -572,7 +572,6 @@ class ElectrumWindow(App, Logger):
         import time
         self.logger.info('Time to on_start: {} <<<<<<<<'.format(time.process_time()))
         Window.bind(size=self.on_size, on_keyboard=self.on_keyboard)
-        Window.bind(on_key_down=self.on_key_down)
         #Window.softinput_mode = 'below_target'
         self.on_size(Window, Window.size)
         self.init_ui()
@@ -700,25 +699,6 @@ class ElectrumWindow(App, Logger):
         if self.wallet:
             self.daemon.stop_wallet(self.wallet.storage.path)
             self.wallet = None
-
-    def on_key_down(self, instance, key, keycode, codepoint, modifiers):
-        if 'ctrl' in modifiers:
-            # q=24 w=25
-            if keycode in (24, 25):
-                self.stop()
-            elif keycode == 27:
-                # r=27
-                # force update wallet
-                self.update_wallet()
-            elif keycode == 112:
-                # pageup
-                #TODO move to next tab
-                pass
-            elif keycode == 117:
-                # pagedown
-                #TODO move to prev tab
-                pass
-        #TODO: alt+tab_number to activate the particular tab
 
     def on_keyboard(self, instance, key, keycode, codepoint, modifiers):
         if key == 27 and self.is_exit is False:
@@ -1233,7 +1213,7 @@ class ElectrumWindow(App, Logger):
             try:
                 self.wallet.check_password(pw)
             except InvalidPassword:
-                self.show_error("Invalid PIN")
+                self.show_error("Invalid password")
                 return
         self.stop_wallet()
         os.unlink(wallet_path)
