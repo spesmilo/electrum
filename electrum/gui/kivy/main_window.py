@@ -462,8 +462,8 @@ class ElectrumWindow(App, Logger):
 
     @profiler
     def update_tabs(self):
-        for tab in ['invoices', 'send', 'history', 'receive', 'address']:
-            self.update_tab(tab)
+        for name in ['send', 'history', 'receive']:
+            self.update_tab(name)
 
     def switch_to(self, name):
         s = getattr(self, name + '_screen', None)
@@ -824,12 +824,8 @@ class ElectrumWindow(App, Logger):
         self.root.manager = self.root.ids['manager']
 
         self.history_screen = None
-        self.contacts_screen = None
         self.send_screen = None
-        self.invoices_screen = None
         self.receive_screen = None
-        self.requests_screen = None
-        self.address_screen = None
         self.icon = "electrum/gui/icons/electrum.png"
         self.tabs = self.root.ids['tabs']
 
