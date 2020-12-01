@@ -631,7 +631,7 @@ class ElectrumWindow(App, Logger):
         else:
             return ''
 
-    def on_wizard_complete(self, wizard, storage, db):
+    def on_wizard_complete(self, storage, db):
         if storage:
             wallet = Wallet(db, storage, config=self.electrum_config)
             wallet.start_network(self.daemon.network)
@@ -669,14 +669,13 @@ class ElectrumWindow(App, Logger):
         if not storage.file_exists():
             wizard = Factory.InstallWizard(self.electrum_config, self.plugins)
             wizard.path = storage.path
-            wizard.bind(on_wizard_complete=self.on_wizard_complete)
             wizard.run('new')
         else:
             assert storage.is_past_initial_decryption()
             self.password = pw
             db = WalletDB(storage.read(), manual_upgrades=False)
             assert not db.requires_upgrade()
-            self.on_wizard_complete(None, storage, db)
+            self.on_wizard_complete(storage, db)
 
     def on_stop(self):
         self.logger.info('on_stop')

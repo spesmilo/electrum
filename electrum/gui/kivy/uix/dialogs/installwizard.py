@@ -600,12 +600,11 @@ class WizardDialog(EventsDialog):
         self._on_release = False
 
     def _size_dialog(self, dt):
-        app = App.get_running_app()
-        if app.ui_mode[0] == 'p':
+        if self.app.ui_mode[0] == 'p':
             self.size = Window.size
         else:
             #tablet
-            if app.orientation[0] == 'p':
+            if self.app.orientation[0] == 'p':
                 #portrait
                 self.size = Window.size[0]/1.67, Window.size[1]/1.4
             else:
@@ -622,10 +621,9 @@ class WizardDialog(EventsDialog):
             if self.wizard.can_go_back():
                 self.wizard.go_back()
             else:
-                app = App.get_running_app()
-                if not app.is_exit:
-                    app.is_exit = True
-                    app.show_info(_('Press again to exit'))
+                if not self.app.is_exit:
+                    self.app.is_exit = True
+                    self.app.show_info(_('Press again to exit'))
                 else:
                     self._on_release = False
                     self.dismiss()
@@ -635,9 +633,8 @@ class WizardDialog(EventsDialog):
         Window.unbind(size=self._trigger_size_dialog,
                       rotation=self._trigger_size_dialog,
                       on_keyboard=self.on_keyboard)
-        app = App.get_running_app()
-        if app.wallet is None and not self._on_release:
-            app.stop()
+        if self.app.wallet is None and not self._on_release:
+            self.app.stop()
 
     def get_params(self, button):
         return (None,)
@@ -646,7 +643,7 @@ class WizardDialog(EventsDialog):
         self._on_release = True
         self.close()
         if not button:
-            self.parent.dispatch('on_wizard_complete', None, None)
+            self.app.on_wizard_complete(None, None)
             return
         if button is self.ids.back:
             self.wizard.go_back()
@@ -750,8 +747,7 @@ class WizardConfirmDialog(WizardDialog):
 
     def on_parent(self, instance, value):
         if value:
-            app = App.get_running_app()
-            self._back = _back = partial(app.dispatch, 'on_back')
+            self._back = _back = partial(self.app.dispatch, 'on_back')
 
     def get_params(self, button):
         return (True,)
@@ -778,8 +774,7 @@ class WizardChoiceDialog(WizardDialog):
 
     def on_parent(self, instance, value):
         if value:
-            app = App.get_running_app()
-            self._back = _back = partial(app.dispatch, 'on_back')
+            self._back = _back = partial(self.app.dispatch, 'on_back')
 
     def get_params(self, button):
         return (button.action,)
@@ -845,7 +840,6 @@ class ShowSeedDialog(WizardDialog):
 
     def on_parent(self, instance, value):
         if value:
-            app = App.get_running_app()
             self._back = _back = partial(self.ids.back.dispatch, 'on_release')
 
     def options_dialog(self):
@@ -963,7 +957,6 @@ class RestoreSeedDialog(WizardDialog):
             #tis._keyboard.bind(on_key_down=self.on_key_down)
             self._back = _back = partial(self.ids.back.dispatch,
                                          'on_release')
-            app = App.get_running_app()
 
     def on_key_down(self, keyboard, keycode, key, modifiers):
         if keycode[0] in (13, 271):
@@ -1061,22 +1054,15 @@ class AddXpubDialog(WizardDialog):
 
 
 class InstallWizard(BaseWizard, Widget):
-    '''
-    events::
-        `on_wizard_complete` Fired when the wizard is done creating/ restoring
-        wallet/s.
-    '''
 
-    __events__ = ('on_wizard_complete', )
-
-    def on_wizard_complete(self, storage, db):
-        """overriden by main_window"""
-        pass
+    def __init__(self, *args, **kwargs):
+        BaseWizard.__init__(self, *args, **kwargs)
+        self.app = App.get_running_app()
 
     def terminate(self, *, storage=None, db=None, aborted=False):
         if storage is None and not aborted:
             storage, db = self.create_storage(self.path)
-        self.dispatch('on_wizard_complete', storage, db)
+        self.app.on_wizard_complete(storage, db)
 
     def choice_dialog(self, **kwargs):
         choices = kwargs['choices']
@@ -1128,8 +1114,7 @@ class InstallWizard(BaseWizard, Widget):
     def show_message(self, msg): self.show_error(msg)
 
     def show_error(self, msg):
-        app = App.get_running_app()  # type: ElectrumWindow
-        Clock.schedule_once(lambda dt: app.show_error(msg))
+        Clock.schedule_once(lambda dt: self.app.show_error(msg))
 
     def request_password(self, run_next, force_disable_encrypt_cb=False):
         if force_disable_encrypt_cb:
@@ -1142,9 +1127,8 @@ class InstallWizard(BaseWizard, Widget):
         def on_failure():
             self.show_error(_('Password mismatch'))
             self.run('request_password', run_next)
-        app = App.get_running_app()
         popup = PasswordDialog(
-            app,
+            self.app,
             check_password=lambda x:True,
             on_success=on_success,
             on_failure=on_failure,
