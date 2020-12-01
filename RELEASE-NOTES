@@ -1066,3 +1066,27 @@ and there is no warning message.
 - Fixed a regression introduced in 4.2.1 where the checkpoint block being after
   the asert anchor caused the code in blockchain.py to have a bad time.
   (Calin Culianu)
+
+# RELEASE NOTES 4.2.3
+
+- Fixed rare None dereference. (Calin Culianu)
+- Android: fix remaining issues with RTL languages such as Arabic
+  (Malcolm Smith)
+- Ledger: Update USB ids for app-bitcoin version >= 1.5.1 (#2061) (Axel Gembe)
+- Taxcoin: Add taxplorer.loping.net block explorer #2067 (Axel Gembe)
+- Taxcoin: Add taxplorer.loping.net server #2066 (Axel Gembe)
+- NetworkDialog: Fix glitches when restoring selection on update()
+  (Calin Culianu)
+- Removed defunct CashShuffle servers (Calin Culianu)
+- Android: move transactions screen from export_history to faster get_history
+  (#2063) (Malcolm Smith)
+- Update macOS build notes (#2073) (Corentin Mercier)
+- Android: refactor common list behavior into a base class (Malcolm Smith)
+- CashFusion: fix minor race leading to exception #2077 (Mark Lundeberg)
+- Android: note that this Chaquopy version is for Electron Cash only
+  (Malcolm Smith)
+- Android: cache config in Python dict for performance (Malcolm Smith)
+- Android: catch "not connected" exception in "Load transaction" (Malcolm Smith)
+- Android: fix deprecated theme attribute in layout (Malcolm Smith)
+- Android: make Send address box automatically parse request URLs
+  (Malcolm Smith)
