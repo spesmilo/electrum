@@ -643,17 +643,6 @@ class ElectrumWindow(App, Logger):
             self.load_wallet_by_name(self.electrum_config.get_wallet_path(use_gui_last_wallet=True),
                                      ask_if_wizard=True)
 
-    def _on_decrypted_storage(self, storage: WalletStorage):
-        assert storage.is_past_initial_decryption()
-        db = WalletDB(storage.read(), manual_upgrades=False)
-        if db.requires_upgrade():
-            wizard = Factory.InstallWizard(self.electrum_config, self.plugins)
-            wizard.path = storage.path
-            wizard.bind(on_wizard_complete=self.on_wizard_complete)
-            wizard.upgrade_storage(storage, db)
-        else:
-            self.on_wizard_complete(None, storage, db)
-
     def load_wallet_by_name(self, path, ask_if_wizard=False):
         if not path:
             return
@@ -685,7 +674,9 @@ class ElectrumWindow(App, Logger):
         else:
             assert storage.is_past_initial_decryption()
             self.password = pw
-            self._on_decrypted_storage(storage)
+            db = WalletDB(storage.read(), manual_upgrades=False)
+            assert not db.requires_upgrade()
+            self.on_wizard_complete(None, storage, db)
 
     def on_stop(self):
         self.logger.info('on_stop')
