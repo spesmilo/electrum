@@ -1073,35 +1073,6 @@ class InstallWizard(BaseWizard, Widget):
         """overriden by main_window"""
         pass
 
-    def waiting_dialog(self, task, msg, on_finished=None):
-        '''Perform a blocking task in the background by running the passed
-        method in a thread.
-        '''
-        def target():
-            # run your threaded function
-            try:
-                task()
-            except Exception as err:
-                self.logger.exception('')
-                self.show_error(str(err))
-            # on  completion hide message
-            Clock.schedule_once(lambda dt: app.info_bubble.hide(now=True), -1)
-            if on_finished:
-                def protected_on_finished():
-                    try:
-                        on_finished()
-                    except Exception as e:
-                        self.logger.exception('')
-                        self.show_error(str(e))
-                Clock.schedule_once(lambda dt: protected_on_finished(), -1)
-
-        app = App.get_running_app()
-        app.show_info_bubble(
-            text=msg, icon='atlas://electrum/gui/kivy/theming/light/important',
-            pos=Window.center, width='200sp', arrow_pos=None, modal=True)
-        t = threading.Thread(target = target)
-        t.start()
-
     def terminate(self, *, storage=None, db=None, aborted=False):
         if storage is None and not aborted:
             storage, db = self.create_storage(self.path)
