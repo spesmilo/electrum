@@ -15,6 +15,7 @@
 
 <PaymentItem@CardItem>
     key: ''
+    address: ''
     memo: ''
     amount: ''
     status: PR_UNKNOWN
@@ -31,7 +32,7 @@
             shorten_from: 'right'
         Widget
         PaymentLabel:
-            text: root.key
+            text: root.address
             color: .699, .699, .699, 1
             font_size: '13sp'
             shorten: True

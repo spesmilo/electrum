@@ -23,6 +23,7 @@ Builder.load_string('''
     title: _('Open Lightning Channel')
     pubkey: ''
     amount: ''
+    is_max: False
     ipport: ''
     BoxLayout
         spacing: '12dp'
@@ -154,7 +155,7 @@ class LightningOpenChannelDialog(Factory.Popup, Logger):
         conn_str = self.pubkey
         if self.ipport:
             conn_str += '@' + self.ipport.strip()
-        amount = self.app.get_amount(self.amount)
+        amount = '!' if self.is_max else self.app.get_amount(self.amount)
         self.app.protected('Create a new channel?', self.do_open_channel, (conn_str, amount))
         self.dismiss()
 

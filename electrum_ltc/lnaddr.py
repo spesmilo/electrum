@@ -217,7 +217,8 @@ def lnencode(addr: 'LnAddr', privkey) -> str:
         elif k == 'f':
             data += encode_fallback(v, addr.currency)
         elif k == 'd':
-            data += tagged_bytes('d', v.encode())
+            # truncate to max length: 1024*5 bits = 639 bytes
+            data += tagged_bytes('d', v.encode()[0:639])
         elif k == 'x':
             expirybits = bitstring.pack('intbe:64', v)
             expirybits = trim_to_min_length(expirybits)
