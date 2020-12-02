@@ -122,81 +122,107 @@ def prompt_password(prompt, confirm=True):
     return password
 
 
+def run_non_rpc(simple_config):
+    " Run non RPC commands "
+    cmd_name = simple_config.get('cmd')
 
-def run_non_RPC(config):
-    cmdname = config.get('cmd')
-
-    storage = WalletStorage(config.get_wallet_path())
+    storage = WalletStorage(simple_config.get_wallet_path())
     if storage.file_exists():
         sys.exit("Error: Remove the existing wallet first!")
 
     def password_dialog():
-        return prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
+        return prompt_password(
+            "Password (hit return if you do not wish to encrypt your wallet):"
+        )
 
-    if cmdname == 'restore':
-        text = config.get('text').strip()
-        passphrase = config.get('passphrase', '')
-        password = password_dialog() if keystore.is_private(text) else None
-        if keystore.is_address_list(text):
-            wallet = ImportedAddressWallet.from_text(storage, text)
-        elif keystore.is_private_key_list(text):
-            wallet = ImportedPrivkeyWallet.from_text(storage, text, password)
-        else:
-            if keystore.is_seed(text):
-                k = keystore.from_seed(text, passphrase)  # seed format will be auto-detected with preference order: old, electrum, bip39
-            elif keystore.is_master_key(text):
-                k = keystore.from_master_key(text)
-            else:
-                sys.exit("Error: Seed or key not recognized")
-            if password:
-                k.update_password(None, password)
-            storage.put('keystore', k.dump())
-            storage.put('wallet_type', 'standard')
-            storage.put('use_encryption', bool(password))
-            seed_type = getattr(k, 'seed_type', None)
-            if seed_type:
-                storage.put('seed_type', seed_type)  # save to top-level storage too so it doesn't get lost if user switches EC versions
-            storage.write()
-            wallet = Wallet(storage)
-        if not config.get('offline'):
-            network = Network(config)
-            network.start()
-            wallet.start_threads(network)
-            print_msg("Recovering wallet...")
-            wallet.synchronize()
-            wallet.wait_until_synchronized()
-            msg = "Recovery successful" if wallet.is_found() else "Found no history for this wallet"
-        else:
-            msg = "This wallet was restored offline. It may contain more addresses than displayed."
-        print_msg(msg)
-
-    elif cmdname == 'create':
-        password = password_dialog()
-        passphrase = config.get('passphrase', '')
-        seed_type = config.get('seed_type', 'bip39')
-        if seed_type == 'bip39':
-            seed = Mnemonic('en').make_seed()
-        elif seed_type in ['electrum', 'standard']:
-            seed_type = 'electrum'
-            seed = Mnemonic_Electrum('en').make_seed()
-        else:
-            raise RuntimeError("Unknown seed_type " + str(seed_type))
-        k = keystore.from_seed(seed, passphrase, seed_type=seed_type)
-        storage.put('seed_type', seed_type)
-        storage.put('keystore', k.dump())
-        storage.put('wallet_type', 'standard')
-        wallet = Wallet(storage)
-        wallet.update_password(None, password, True)
-        wallet.synchronize()
-        print_msg("Your wallet generation seed is:\n    \"%s\"" % seed)
-        print_msg("Wallet seed format:", seed_type)
-        if k.has_derivation() and seed_type != "electrum":
-            print_msg("Your wallet derivation path is:", str(k.derivation))
-        print_msg("Please keep your seed information in a safe place; if you lose it, you will not be able to restore your wallet.")
+    if cmd_name == 'restore':
+        wallet = restore_wallet(simple_config, password_dialog, storage)
+    elif cmd_name == 'create':
+        wallet = create_wallet(simple_config, password_dialog, storage)
 
     wallet.storage.write()
     print_msg("Wallet saved in '%s'" % wallet.storage.path)
     sys.exit(0)
+
+
+def restore_wallet(simple_config, password_dialog, storage):
+    " Restore an existing wallet "
+    text = simple_config.get('text').strip()
+    passphrase = simple_config.get('passphrase', '')
+    password = password_dialog() if keystore.is_private(text) else None
+    if keystore.is_address_list(text):
+        wallet = ImportedAddressWallet.from_text(storage, text)
+    elif keystore.is_private_key_list(text):
+        wallet = ImportedPrivkeyWallet.from_text(storage, text, password)
+    else:
+        if keystore.is_seed(text):
+            # seed format will be auto-detected with preference order:
+            # old, electrum, bip39
+            k = keystore.from_seed(text, passphrase)
+        elif keystore.is_master_key(text):
+            k = keystore.from_master_key(text)
+        else:
+            sys.exit("Error: Seed or key not recognized")
+        if password:
+            k.update_password(None, password)
+        storage.put('keystore', k.dump())
+        storage.put('wallet_type', 'standard')
+        storage.put('use_encryption', bool(password))
+        seed_type = getattr(k, 'seed_type', None)
+        if seed_type:
+            # save to top-level storage too so it doesn't get lost if user
+            # switches EC versions
+            storage.put('seed_type', seed_type)
+        storage.write()
+        wallet = Wallet(storage)
+    if not simple_config.get('offline'):
+        network = Network(simple_config)
+        network.start()
+        wallet.start_threads(network)
+        print_msg("Recovering wallet...")
+        wallet.synchronize()
+        wallet.wait_until_synchronized()
+        if wallet.is_found():
+            msg = "Recovery successful"
+        else:
+            msg = "Found no history for this wallet"
+    else:
+        msg = (
+            "This wallet was restored offline. It may contain more addresses "
+            "than displayed."
+        )
+    print_msg(msg)
+    return wallet
+
+
+def create_wallet(simple_config, password_dialog, storage):
+    " Create a new wallet "
+    password = password_dialog()
+    passphrase = simple_config.get('passphrase', '')
+    seed_type = simple_config.get('seed_type', 'bip39')
+    if seed_type == 'bip39':
+        seed = Mnemonic('en').make_seed()
+    elif seed_type in ['electrum', 'standard']:
+        seed_type = 'electrum'
+        seed = Mnemonic_Electrum('en').make_seed()
+    else:
+        raise RuntimeError("Unknown seed_type " + str(seed_type))
+    k = keystore.from_seed(seed, passphrase, seed_type=seed_type)
+    storage.put('seed_type', seed_type)
+    storage.put('keystore', k.dump())
+    storage.put('wallet_type', 'standard')
+    wallet = Wallet(storage)
+    wallet.update_password(None, password, True)
+    wallet.synchronize()
+    print_msg("Your wallet generation seed is:\n    \"%s\"" % seed)
+    print_msg("Wallet seed format:", seed_type)
+    if k.has_derivation() and seed_type != "electrum":
+        print_msg("Your wallet derivation path is:", str(k.derivation))
+    print_msg(
+        "Please keep your seed information in a safe place; if you lose it, "
+        "you will not be able to restore your wallet."
+    )
+    return wallet
 
 
 def init_daemon(config_options):
@@ -409,7 +435,7 @@ if __name__ == '__main__':
 
     # run non-RPC commands separately
     if cmdname in ['create', 'restore']:
-        run_non_RPC(config)
+        run_non_rpc(config)
         sys.exit(0)
 
     if cmdname == 'gui':
