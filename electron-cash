@@ -5,7 +5,7 @@
 # Copyright (C) 2011 thomasv@gitorious
 #
 # Electron Cash - lightweight Bitcoin Cash client
-# Copyright (C) 2017-2019 The Electron Cash Developers
+# Copyright (C) 2017-2020 The Electron Cash Developers
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -109,8 +109,9 @@ from electroncash.winconsole import create_or_attach_console  # Import ok on oth
 import electroncash_plugins
 import electroncash.web as web
 
-# get password routine
+
 def prompt_password(prompt, confirm=True):
+    """ Get password routine """
     import getpass
     password = getpass.getpass(prompt, stream=None)
     if password and confirm:
@@ -123,7 +124,7 @@ def prompt_password(prompt, confirm=True):
 
 
 def run_non_rpc(simple_config):
-    " Run non RPC commands "
+    """ Run non RPC commands """
     cmd_name = simple_config.get('cmd')
 
     storage = WalletStorage(simple_config.get_wallet_path())
@@ -139,6 +140,8 @@ def run_non_rpc(simple_config):
         wallet = restore_wallet(simple_config, password_dialog, storage)
     elif cmd_name == 'create':
         wallet = create_wallet(simple_config, password_dialog, storage)
+    else:
+        raise RuntimeError(f"run_non_rpc called with invalid cmd: {cmd_name}")
 
     wallet.storage.write()
     print_msg("Wallet saved in '%s'" % wallet.storage.path)
@@ -336,12 +339,15 @@ def run_offline_command(config, config_options):
         wallet.storage.write()
     return result
 
+
 def init_plugins(config, gui_name):
     from electroncash.plugins import Plugins
     return Plugins(config, gui_name)
 
 
-if __name__ == '__main__':
+def main():
+    """ Main entry point into this script """
+
     # The hook will only be used in the Qt GUI right now
     util.setup_thread_excepthook()
 
@@ -350,7 +356,7 @@ if __name__ == '__main__':
         require_console = '-v' in sys.argv or '--verbose' in sys.argv
         console_title = _("Electron Cash - Verbose Output") if require_console else None
         # Attempt to attach to ancestor process console. If create=True we will
-        # create a new conole window if no ancestor process console exists.
+        # create a new console window if no ancestor process console exists.
         # (Presumably if user ran with -v, they expect console output).
         # The below is required to be able to get verbose or console output
         # if running from cmd.exe (see spesmilo#2592, Electron-Cash#1295).
@@ -387,8 +393,11 @@ if __name__ == '__main__':
 
     # config is an object passed to the various constructors (wallet, interface, gui)
     config_options = args.__dict__
-    f = lambda key: config_options[key] is not None and key not in config_variables.get(args.cmd, {}).keys()
-    config_options = {key: config_options[key] for key in filter(f, config_options.keys())}
+
+    def filter_func(key):
+        return config_options[key] is not None and key not in config_variables.get(args.cmd, {}).keys()
+
+    config_options = {key: config_options[key] for key in filter(filter_func, config_options.keys())}
     if config_options.get('server'):
         config_options['auto_connect'] = False
     config_options['cwd'] = os.getcwd()
@@ -514,3 +523,7 @@ if __name__ == '__main__':
     elif result is not None:
         print_msg(json_encode(result))
     sys.exit(0)
+
+
+if __name__ == '__main__':
+    main()
