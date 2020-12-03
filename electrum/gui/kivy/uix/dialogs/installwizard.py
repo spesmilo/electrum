@@ -1060,9 +1060,14 @@ class InstallWizard(BaseWizard, Widget):
         self.app = App.get_running_app()
 
     def terminate(self, *, storage=None, db=None, aborted=False):
-        if storage is None and not aborted:
+        # storage must be None because manual upgrades are disabled on Kivy
+        assert storage is None
+        if not aborted:
+            password = self.pw_args.password
             storage, db = self.create_storage(self.path)
-        self.app.on_wizard_complete(storage, db)
+        else:
+            password = None
+        self.app.on_wizard_complete(storage, db, password)
 
     def choice_dialog(self, **kwargs):
         choices = kwargs['choices']
