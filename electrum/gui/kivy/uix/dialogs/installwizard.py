@@ -303,7 +303,7 @@ Builder.load_string('''
     width: self.texture_size[0]
     height: '30dp'
     on_release:
-        self.parent.new_word(self.text)
+        if self.parent: self.parent.new_word(self.text)
 
 
 <SeedButton@Button>:
