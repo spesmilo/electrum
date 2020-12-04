@@ -643,7 +643,7 @@ class WizardDialog(EventsDialog):
         self._on_release = True
         self.close()
         if not button:
-            self.app.on_wizard_complete(None, None)
+            self.wizard.terminate(aborted=True)
             return
         if button is self.ids.back:
             self.wizard.go_back()
@@ -1065,9 +1065,9 @@ class InstallWizard(BaseWizard, Widget):
         if not aborted:
             password = self.pw_args.password
             storage, db = self.create_storage(self.path)
+            self.app.on_wizard_success(storage, db, password)
         else:
-            password = None
-        self.app.on_wizard_complete(storage, db, password)
+            self.app.on_wizard_aborted()
 
     def choice_dialog(self, **kwargs):
         choices = kwargs['choices']

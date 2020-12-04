@@ -631,14 +631,16 @@ class ElectrumWindow(App, Logger):
         else:
             return ''
 
-    def on_wizard_complete(self, storage, db, password):
+    def on_wizard_success(self, storage, db, password):
         if storage:
             self.password = password
             wallet = Wallet(db, storage, config=self.electrum_config)
             wallet.start_network(self.daemon.network)
             self.daemon.add_wallet(wallet)
             self.load_wallet(wallet)
-        elif not self.wallet:
+
+    def on_wizard_aborted(self):
+        if not self.wallet:
             # wizard did not return a wallet; and there is no wallet open atm
             # try to open last saved wallet (potentially start wizard again)
             self.load_wallet_by_name(self.electrum_config.get_wallet_path(use_gui_last_wallet=True),
@@ -675,7 +677,7 @@ class ElectrumWindow(App, Logger):
             assert storage.is_past_initial_decryption()
             db = WalletDB(storage.read(), manual_upgrades=False)
             assert not db.requires_upgrade()
-            self.on_wizard_complete(storage, db, password)
+            self.on_wizard_success(storage, db, password)
 
     def on_stop(self):
         self.logger.info('on_stop')
