@@ -722,7 +722,6 @@ class WizardTOSDialog(WizardDialog):
         self.ids.next.text = 'Accept'
         self.ids.next.disabled = False
         self.message = kwargs['tos']
-        self.message2 = _('Enter your email address:')
 
 class WizardEmailDialog(WizardDialog):
 
