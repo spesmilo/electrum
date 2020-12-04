@@ -249,7 +249,7 @@ class BaseWizard(Logger):
                 self.data['addresses'][addr] = {'type':txin_type, 'pubkey':pubkey}
             self.keystores.append(k)
         else:
-            return self.terminate()
+            return self.terminate(aborted=True)
         return self.run('create_wallet')
 
     def restore_from_key(self):
