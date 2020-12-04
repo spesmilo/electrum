@@ -639,34 +639,18 @@ class ElectrumWindow(App, Logger):
             self.daemon.add_wallet(wallet)
             self.load_wallet(wallet)
 
-    def on_wizard_aborted(self):
+    def on_wizard_aborted(self, wizard):
+        # wizard did not return a wallet; and there is no wallet open atm
         if not self.wallet:
-            # wizard did not return a wallet; and there is no wallet open atm
-            # try to open last saved wallet (potentially start wizard again)
-            self.load_wallet_by_name(self.electrum_config.get_wallet_path(use_gui_last_wallet=True),
-                                     ask_if_wizard=True)
+            self.stop()
 
-    def load_wallet_by_name(self, path, ask_if_wizard=False):
+    def load_wallet_by_name(self, path):
         if not path:
             return
         if self.wallet and self.wallet.storage.path == path:
             return
-        else:
-            def launch_wizard():
-                d = OpenWalletDialog(self, path, self.on_open_wallet)
-                d.open()
-            if not ask_if_wizard:
-                launch_wizard()
-            else:
-                def handle_answer(b: bool):
-                    if b:
-                        launch_wizard()
-                    else:
-                        try: os.unlink(path)
-                        except FileNotFoundError: pass
-                        self.stop()
-                d = Question(_('Do you want to launch the wizard again?'), handle_answer)
-                d.open()
+        d = OpenWalletDialog(self, path, self.on_open_wallet)
+        d.open()
 
     def on_open_wallet(self, password, storage):
         if not storage.file_exists():

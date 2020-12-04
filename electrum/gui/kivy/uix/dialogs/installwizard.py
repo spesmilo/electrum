@@ -1067,7 +1067,10 @@ class InstallWizard(BaseWizard, Widget):
             storage, db = self.create_storage(self.path)
             self.app.on_wizard_success(storage, db, password)
         else:
-            self.app.on_wizard_aborted()
+            try: os.unlink(self.path)
+            except FileNotFoundError: pass
+            self.reset_stack()
+            self.confirm_dialog(message=_('Wallet creation failed'), run_next=self.app.on_wizard_aborted)
 
     def choice_dialog(self, **kwargs):
         choices = kwargs['choices']
