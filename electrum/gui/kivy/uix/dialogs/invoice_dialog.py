@@ -131,8 +131,8 @@ class InvoiceDialog(Factory.Popup):
         from .question import Question
         def cb(result):
             if result:
-                self.app.wallet.delete_invoice(self.key)
                 self.dismiss()
+                self.app.wallet.delete_invoice(self.key)
                 self.app.send_screen.update()
         d = Question(_('Delete invoice?'), cb)
         d.open()
