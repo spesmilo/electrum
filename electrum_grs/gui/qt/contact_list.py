@@ -73,8 +73,8 @@ class ContactList(MyTreeView):
             selected_keys.append(sel_key)
         if not selected_keys or not idx.isValid():
             menu.addAction(_("New contact"), lambda: self.parent.new_contact_dialog())
-            menu.addAction(_("Import file"), lambda: self.import_contacts())
-            menu.addAction(_("Export file"), lambda: self.export_contacts())
+            menu.addAction(_("Import file"), lambda: self.parent.import_contacts())
+            menu.addAction(_("Export file"), lambda: self.parent.export_contacts())
         else:
             column_title = self.model().horizontalHeaderItem(column).text()
             column_data = '\n'.join(self.model().itemFromIndex(s_idx).text()

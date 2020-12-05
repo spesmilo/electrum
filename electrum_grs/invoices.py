@@ -120,7 +120,7 @@ class OnchainInvoice(Invoice):
     requestor = attr.ib(type=str, kw_only=True)  # type: Optional[str]
 
     def get_address(self) -> str:
-        assert len(self.outputs) == 1
+        """returns the first address, to be displayed in GUI"""
         return self.outputs[0].address
 
     def get_amount_sat(self) -> Union[int, str]:

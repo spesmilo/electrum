@@ -250,7 +250,7 @@ class BaseWizard(Logger):
                 self.data['addresses'][addr] = {'type':txin_type, 'pubkey':pubkey}
             self.keystores.append(k)
         else:
-            return self.terminate()
+            return self.terminate(aborted=True)
         return self.run('create_wallet')
 
     def restore_from_key(self):
@@ -722,7 +722,7 @@ class BaseWizard(Logger):
 
     def confirm_seed(self, seed, passphrase):
         f = lambda x: self.confirm_passphrase(seed, passphrase)
-        self.confirm_seed_dialog(run_next=f, test=lambda x: x==seed)
+        self.confirm_seed_dialog(run_next=f, seed=seed if self.config.get('debug_seed') else '', test=lambda x: x==seed)
 
     def confirm_passphrase(self, seed, passphrase):
         f = lambda x: self.run('create_keystore', seed, x)

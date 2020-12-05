@@ -71,7 +71,6 @@ class CScreen(Factory.Screen):
         pass
 
     def on_activate(self):
-        setattr(self.app, self.kvname + '_screen', self)
         self.update()
 
     def on_leave(self):
@@ -196,6 +195,7 @@ class SendScreen(CScreen, Logger):
         self.address = uri.get('address', '')
         self.message = uri.get('message', '')
         self.amount = self.app.format_amount_and_units(amount) if amount else ''
+        self.is_max = False
         self.payment_request = None
         self.is_lightning = False
 
@@ -230,6 +230,7 @@ class SendScreen(CScreen, Logger):
         if is_lightning:
             assert isinstance(item, LNInvoice)
             key = item.rhash
+            address = key
             log = self.app.wallet.lnworker.logs.get(key)
             if status == PR_INFLIGHT and log:
                 status_str += '... (%d)'%len(log)
@@ -237,6 +238,7 @@ class SendScreen(CScreen, Logger):
         else:
             assert isinstance(item, OnchainInvoice)
             key = item.id
+            address = item.get_address()
             is_bip70 = bool(item.bip70)
         return {
             'is_lightning': is_lightning,
@@ -245,7 +247,8 @@ class SendScreen(CScreen, Logger):
             'status': status,
             'status_str': status_str,
             'key': key,
-            'memo': item.message,
+            'memo': item.message or _('No Description'),
+            'address': address,
             'amount': self.app.format_amount_and_units(item.get_amount_sat() or 0),
         }
 
@@ -257,6 +260,7 @@ class SendScreen(CScreen, Logger):
         self.is_lightning = False
         self.is_bip70 = False
         self.parsed_URI = None
+        self.is_max = False
 
     def set_request(self, pr: 'PaymentRequest'):
         self.address = pr.get_requestor()
@@ -295,11 +299,14 @@ class SendScreen(CScreen, Logger):
         if not self.amount:
             self.app.show_error(_('Please enter an amount'))
             return
-        try:
-            amount = self.app.get_amount(self.amount)
-        except:
-            self.app.show_error(_('Invalid amount') + ':\n' + self.amount)
-            return
+        if self.is_max:
+            amount = '!'
+        else:
+            try:
+                amount = self.app.get_amount(self.amount)
+            except:
+                self.app.show_error(_('Invalid amount') + ':\n' + self.amount)
+                return
         message = self.message
         if self.is_lightning:
             return LNInvoice.from_bech32(address)
@@ -436,6 +443,7 @@ class ReceiveScreen(CScreen):
     def clear(self):
         self.address = ''
         self.amount = ''
+        self.is_max = False # not used for receiving (see app.amount_dialog)
         self.message = ''
         self.lnaddr = ''
 
@@ -505,7 +513,7 @@ class ReceiveScreen(CScreen):
         ci['is_lightning'] = is_lightning
         ci['key'] = key
         ci['amount'] = self.app.format_amount_and_units(amount) if amount else ''
-        ci['memo'] = description
+        ci['memo'] = description or _('No Description')
         ci['status'] = status
         ci['status_str'] = status_str
         return ci
@@ -607,6 +615,7 @@ class TabbedCarousel(Factory.TabbedPanel):
         if carousel.current_slide != slide:
             carousel.current_slide.dispatch('on_leave')
             carousel.load_slide(slide)
+            setattr(slide.app, slide.kvname + '_screen', slide)
             slide.dispatch('on_enter')
 
     def add_widget(self, widget, index=0):

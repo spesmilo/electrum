@@ -672,7 +672,7 @@ class TrustedCoinPlugin(BasePlugin):
             r = server.create(xpub1, xpub2, email)
         except (socket.error, ErrorConnectingServer):
             wizard.show_message('Server not reachable, aborting')
-            wizard.terminate()
+            wizard.terminate(aborted=True)
             return
         except TrustedCoinException as e:
             if e.status_code == 409:
@@ -722,10 +722,10 @@ class TrustedCoinPlugin(BasePlugin):
                 self.request_otp_dialog(wizard, short_id, None, xpub3)
             else:
                 wizard.show_message(str(e))
-                wizard.terminate()
+                wizard.terminate(aborted=True)
         except Exception as e:
             wizard.show_message(repr(e))
-            wizard.terminate()
+            wizard.terminate(aborted=True)
         else:
             k3 = keystore.from_xpub(xpub3)
             wizard.data['x3/'] = k3.dump()

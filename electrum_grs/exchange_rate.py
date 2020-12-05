@@ -11,6 +11,7 @@ from decimal import Decimal
 from typing import Sequence, Optional
 
 from aiorpcx.curio import timeout_after, TaskTimeout, TaskGroup
+import aiohttp
 
 from . import util
 from .bitcoin import COIN
@@ -83,8 +84,11 @@ class ExchangeBase(Logger):
         except asyncio.CancelledError:
             # CancelledError must be passed-through for cancellation to work
             raise
-        except BaseException as e:
+        except aiohttp.ClientError as e:
             self.logger.info(f"failed fx quotes: {repr(e)}")
+            self.quotes = {}
+        except Exception as e:
+            self.logger.exception(f"failed fx quotes: {repr(e)}")
             self.quotes = {}
         self.on_quotes()
 
@@ -111,8 +115,11 @@ class ExchangeBase(Logger):
             self.logger.info(f"requesting fx history for {ccy}")
             h = await self.request_history(ccy)
             self.logger.info(f"received fx history for {ccy}")
-        except BaseException as e:
+        except aiohttp.ClientError as e:
             self.logger.info(f"failed fx history: {repr(e)}")
+            return
+        except Exception as e:
+            self.logger.exception(f"failed fx history: {repr(e)}")
             return
         filename = os.path.join(cache_dir, self.name() + '_' + ccy)
         with open(filename, 'w', encoding='utf-8') as f:

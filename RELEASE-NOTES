@@ -1,3 +1,9 @@
+# Release 4.0.6 - (Dec 4, 2020)
+ * Fix 'Max' button issue for submarine swaps button (#6770)
+ * Fix 'Max' button in kivy (#6169)
+ * Various fixes for Kivy/Android install wizard
+ * More robust account keypath for BitBox02 (#6766)
+
 # Release 4.0.5 - (Nov 18, 2020)
  * Fix .dmg binary hanging on recently released macOS 11 Big Sur (#6461)
  * Lightning:
