@@ -181,6 +181,7 @@ class SendScreen(CScreen, Logger):
     def __init__(self, **kwargs):
         CScreen.__init__(self, **kwargs)
         Logger.__init__(self)
+        self.is_max = False
 
     def set_URI(self, text: str):
         if not self.app.wallet:
@@ -436,6 +437,7 @@ class ReceiveScreen(CScreen):
     def __init__(self, **kwargs):
         super(ReceiveScreen, self).__init__(**kwargs)
         Clock.schedule_interval(lambda dt: self.update(), 5)
+        self.is_max = False # not used for receiving (see app.amount_dialog)
 
     def expiry(self):
         return self.app.electrum_config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
@@ -443,7 +445,6 @@ class ReceiveScreen(CScreen):
     def clear(self):
         self.address = ''
         self.amount = ''
-        self.is_max = False # not used for receiving (see app.amount_dialog)
         self.message = ''
         self.lnaddr = ''
 
