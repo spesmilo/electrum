@@ -329,6 +329,9 @@ class SendScreen(CScreen, Logger):
         invoice = self.read_invoice()
         if not invoice:
             return
+        self.save_invoice(invoice)
+
+    def save_invoice(self, invoice):
         self.app.wallet.save_invoice(invoice)
         self.do_clear()
         self.update()
@@ -337,14 +340,11 @@ class SendScreen(CScreen, Logger):
         invoice = self.read_invoice()
         if not invoice:
             return
-        self.app.wallet.save_invoice(invoice)
-        self.do_clear()
-        self.update()
         self.do_pay_invoice(invoice)
 
     def do_pay_invoice(self, invoice):
         if invoice.is_lightning():
-            self._do_pay_lightning(invoice)
+            self.app.protected(_('Pay lightning invoice?'), self._do_pay_lightning, (invoice,))
             return
         else:
             do_pay = lambda rbf: self._do_pay_onchain(invoice, rbf)
@@ -354,7 +354,8 @@ class SendScreen(CScreen, Logger):
             else:
                 do_pay(False)
 
-    def _do_pay_lightning(self, invoice: LNInvoice) -> None:
+    def _do_pay_lightning(self, invoice: LNInvoice, pw) -> None:
+        self.save_invoice(invoice)
         threading.Thread(
             target=self.app.wallet.lnworker.pay,
             args=(invoice.invoice,),
@@ -397,11 +398,12 @@ class SendScreen(CScreen, Logger):
         elif feerate > FEERATE_WARNING_HIGH_FEE / 1000:
             msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high.")
                        + f' (feerate: {feerate:.2f} sat/byte)')
-        self.app.protected('\n'.join(msg), self.send_tx, (tx,))
+        self.app.protected('\n'.join(msg), self.send_tx, (tx, invoice))
 
-    def send_tx(self, tx, password):
+    def send_tx(self, tx, invoice, password):
         if self.app.wallet.has_password() and password is None:
             return
+        self.save_invoice(invoice)
         def on_success(tx):
             if tx.is_complete():
                 self.app.broadcast(tx)
