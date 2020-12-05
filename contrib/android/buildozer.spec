@@ -33,7 +33,7 @@ version.regex = APK_VERSION = '(.*)'
 version.filename = %(source.dir)s/electrum_grs/version.py
 
 # (str) Application versioning (method 2)
-#version = 4.0.2
+#version = 4.0.6
 
 # (list) Application requirements
 requirements =
