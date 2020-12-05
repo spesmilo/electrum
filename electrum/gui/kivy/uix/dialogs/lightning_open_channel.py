@@ -161,13 +161,15 @@ class LightningOpenChannelDialog(Factory.Popup, Logger):
 
     def do_open_channel(self, conn_str, amount, password):
         coins = self.app.wallet.get_spendable_coins(None, nonlocal_only=True)
-        funding_tx = self.app.wallet.lnworker.mktx_for_open_channel(coins=coins, funding_sat=amount)
+        lnworker = self.app.wallet.lnworker
         try:
-            chan, funding_tx = self.app.wallet.lnworker.open_channel(connect_str=conn_str,
-                                                                     funding_tx=funding_tx,
-                                                                     funding_sat=amount,
-                                                                     push_amt_sat=0,
-                                                                     password=password)
+            funding_tx = lnworker.mktx_for_open_channel(coins=coins, funding_sat=amount)
+            chan, funding_tx = lnworker.open_channel(
+                connect_str=conn_str,
+                funding_tx=funding_tx,
+                funding_sat=amount,
+                push_amt_sat=0,
+                password=password)
         except Exception as e:
             self.logger.exception("Problem opening channel")
             self.app.show_error(_('Problem opening channel: ') + '\n' + repr(e))
