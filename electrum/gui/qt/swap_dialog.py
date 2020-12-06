@@ -1,15 +1,16 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, List
 
-from PyQt5.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton
+from PyQt5.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QSlider, QHBoxLayout, QSpacerItem
+from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtGui import QFont, QPainter, QPen
 
+from electrum.gui.qt.util import HelpButton
 from electrum.i18n import _
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
 from electrum.lnutil import ln_dummy_address
 from electrum.transaction import PartialTxOutput, PartialTransaction
 
-from .util import (WindowModalDialog, Buttons, OkButton, CancelButton,
-                   EnterButton, ColorScheme, WWLabel, read_QIcon)
-from .amountedit import BTCAmountEdit
+from .util import (WindowModalDialog, Buttons, OkButton, CancelButton, read_QIcon)
 from .fee_slider import FeeSlider, FeeComboBox
 
 if TYPE_CHECKING:
@@ -22,9 +23,72 @@ If the swap cannot be performed after 24h, you will be refunded.
 Do you want to continue?
 """
 
+HELP_TEXT = """
+Reverse swap (adds receiving capacity):
+ - User generates preimage and hash of preimage. Sends hash to server.
+ - Server creates an LN invoice for hash.
+ - User pays LN invoice, but server only holds the HTLC as preimage is unknown.
+ - Server creates on-chain output locked to hash.
+ - User spends on-chain output, revealing preimage.
+ - Server fulfills HTLC using preimage.
+  
+Forward swap (adds sending capacity):
+ - User generates an LN invoice with hash, and knows preimage.
+ - User creates on-chain output locked to hash.
+ - Server pays LN invoice. User reveals preimage.
+ - Server spends the on-chain output using preimage.
+ 
+Refund: 
+ If something goes wrong after the onchain part of the swap was published,
+ the onchain amount is being refunded after a certain waiting period.
+"""
+
+bold_font = QFont()
+bold_font.setBold(True)
+
+
+class SwapSlider(QSlider):
+    """A custom slider to indicate forbidden values as red lines above
+    the slider."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(Qt.Horizontal, *args, **kwargs)
+        self.setMinimumHeight(80)
+        self.setMaximumWidth(400)
+        self._forbidden_ranges = []
+
+    def set_forbidden_ranges(self, ranges: List):
+        self._forbidden_ranges = ranges
+        self.update()
+
+    def paintEvent(self, event):
+        # paint the original slider
+        super().paintEvent(event)
+
+        total_amount = abs(self.minimum()) + self.maximum()
+        handle_width = 13
+        total_width = self.rect().width() - handle_width
+        offset = handle_width / 2
+        scale = total_width / total_amount
+        zero_position = abs(self.minimum()) * scale + offset
+        height = self.rect().height()
+
+        painter = QPainter(self)
+        pen = QPen()
+        pen.setWidth(3)
+        pen.setColor(Qt.red)
+        painter.setPen(pen)
+
+        # draw forbidden ranges
+        for start, end in self._forbidden_ranges:
+            start_position = zero_position + start * scale
+            end_position = zero_position + end * scale
+            painter.drawLine(
+                start_position, height/2-10,
+                end_position, height/2-10)
+
 
 class SwapDialog(WindowModalDialog):
-
     tx: Optional[PartialTransaction]
 
     def __init__(self, window: 'ElectrumWindow'):
@@ -36,55 +100,129 @@ class SwapDialog(WindowModalDialog):
         self.network = window.network
         self.tx = None  # for the forward-swap only
         self.is_reverse = True
+        self.send_amount: Optional[int] = None
+        self.receive_amount: Optional[int] = None
+
         vbox = QVBoxLayout(self)
-        self.description_label = WWLabel(self.get_description())
-        self.send_amount_e = BTCAmountEdit(self.window.get_decimal_point)
-        self.recv_amount_e = BTCAmountEdit(self.window.get_decimal_point)
-        self.max_button = EnterButton(_("Max"), self.spend_max)
-        self.max_button.setFixedWidth(100)
-        self.max_button.setCheckable(True)
-        self.send_button = QPushButton('')
-        self.recv_button = QPushButton('')
-        # send_follows is used to know whether the send amount field / receive
-        # amount field should be adjusted after the fee slider was moved
-        self.send_follows = False
-        self.send_amount_e.follows = False
-        self.recv_amount_e.follows = False
-        self.send_button.clicked.connect(self.toggle_direction)
-        self.recv_button.clicked.connect(self.toggle_direction)
-        # textChanged is triggered for both user and automatic action
-        self.send_amount_e.textChanged.connect(self.on_send_edited)
-        self.recv_amount_e.textChanged.connect(self.on_recv_edited)
-        # textEdited is triggered only for user editing of the fields
-        self.send_amount_e.textEdited.connect(self.uncheck_max)
-        self.recv_amount_e.textEdited.connect(self.uncheck_max)
-        fee_slider = FeeSlider(self.window, self.config, self.fee_slider_callback)
+
+        self.swap_slider = SwapSlider()
+        self.swap_slider.valueChanged.connect(self.swap_slider_moved)
+
+        self.swap_action_label = QLabel()
+        self.swap_action_label.setFont(bold_font)
+        self.help_button = HelpButton(HELP_TEXT)
+
+        self.receive_hint = QLabel(_('add receiving\n capacity'))
+        self.receive_hint.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.send_hint = QLabel(_('add sending\n capacity'))
+        self.send_hint.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+
+        self.bitcoin_pixmap = read_QIcon("bitcoin.png").pixmap(QSize(15, 15))
+        self.lightning_pixmap = read_QIcon("lightning.png").pixmap(QSize(15, 15))
+
+        send_pixmap = self.lightning_pixmap
+        receive_pixmap = self.bitcoin_pixmap
+
+        self.send_icon_label = QLabel()
+        self.send_icon_label.setPixmap(send_pixmap)
+        self.send_amount_label = QLabel()
+        self.send_amount_composed = QHBoxLayout()
+        self.send_amount_composed.setAlignment(Qt.AlignLeft)
+        self.send_amount_composed.addWidget(self.send_icon_label)
+        self.send_amount_composed.addWidget(self.send_amount_label)
+        self.send_amount_composed.addStretch(1)
+
+        self.receive_icon_label = QLabel()
+        self.receive_icon_label.setPixmap(receive_pixmap)
+        self.receive_amount_label = QLabel()
+        self.receive_amount_composed = QHBoxLayout()
+        self.receive_amount_composed.setAlignment(Qt.AlignRight)
+        self.receive_amount_composed.addWidget(self.receive_icon_label)
+        self.receive_amount_composed.addWidget(self.receive_amount_label)
+        self.receive_amount_composed.addStretch(1)
+
+        self.service_fee_label = QLabel()
+        self.server_mining_fee_label = QLabel()
+        self.client_mining_fee_label = QLabel()
+        self.total_fee_label = QLabel()
+
+        fee_slider = FeeSlider(self.window, self.config,
+                               self.fee_slider_callback)
         fee_combo = FeeComboBox(fee_slider)
         fee_slider.update()
-        self.fee_label = QLabel()
-        self.server_fee_label = QLabel()
-        vbox.addWidget(self.description_label)
+
+        vbox.addWidget(QLabel(
+            f"Add receiving or sending capacity to your Lightning wallet "
+            f"by doing a swap.\n"))
+
+        # swap slider
+        hbox = QHBoxLayout()
+        hbox.addWidget(self.receive_hint)
+        hbox.addItem(QSpacerItem(20, 1))
+        hbox.addWidget(self.swap_slider)
+        hbox.addItem(QSpacerItem(20, 1))
+        hbox.addWidget(self.send_hint)
+
         h = QGridLayout()
-        h.addWidget(QLabel(_('You send')+':'), 1, 0)
-        h.addWidget(self.send_amount_e, 1, 1)
-        h.addWidget(self.send_button, 1, 2)
-        h.addWidget(self.max_button, 1, 3)
-        h.addWidget(QLabel(_('You receive')+':'), 2, 0)
-        h.addWidget(self.recv_amount_e, 2, 1)
-        h.addWidget(self.recv_button, 2, 2)
-        h.addWidget(QLabel(_('Server fee')+':'), 4, 0)
-        h.addWidget(self.server_fee_label, 4, 1)
-        h.addWidget(QLabel(_('Mining fee')+':'), 5, 0)
-        h.addWidget(self.fee_label, 5, 1)
-        h.addWidget(fee_slider, 6, 1)
-        h.addWidget(fee_combo, 6, 2)
+        # swap details
+        h.addWidget(self.swap_action_label, 2, 1)
+        h.addWidget(self.help_button, 2, 4)
+
+        # you send label
+        h.addWidget(QLabel("You send:"), 3, 0)
+        h.addLayout(self.send_amount_composed, 3, 1)
+
+        # you receive label
+        h.addWidget(QLabel("You receive:"), 4, 0)
+        h.addLayout(self.receive_amount_composed, 4, 1)
+
+        # fee related
+        h.addWidget(QLabel("\nFee breakdown:"), 6, 0)
+        h.addWidget(QLabel(_('Service fee')+':'), 7, 0)
+        h.addWidget(self.service_fee_label, 7, 1)
+        h.addWidget(QLabel(_('Server mining fee')+':'), 8, 0)
+        h.addWidget(self.server_mining_fee_label, 8, 1)
+        h.addWidget(QLabel(_('Client mining fee')+':'), 9, 0)
+        h.addWidget(self.client_mining_fee_label, 9, 1)
+        h.addWidget(QLabel(_('Total fee')+':'), 10, 0)
+        h.addWidget(self.total_fee_label, 10, 1)
+        h.addWidget(QLabel(_('Set client fee:')), 11, 0)
+        h.addWidget(fee_slider, 11, 1)
+        h.addWidget(fee_combo, 11, 2)
+
+        vbox.addLayout(hbox)
         vbox.addLayout(h)
         vbox.addStretch(1)
+
         self.ok_button = OkButton(self)
         self.ok_button.setDefault(True)
         self.ok_button.setEnabled(False)
         vbox.addLayout(Buttons(CancelButton(self), self.ok_button))
-        self.update()
+
+    def update_and_init(self):
+        self.update_swap_slider()
+        self.swap_slider_moved(0)
+
+    def update_swap_slider(self):
+        """Sets the minimal and maximal amount that can be swapped for the swap
+        slider as well as forbidden ranges."""
+        # tx is updated again afterwards with send_amount in case of normal swap
+        # this is just to estimate the maximal spendable onchain amount for HTLC
+        self.update_tx('!')
+        max_onchain_spend = self.tx.output_value_for_address(ln_dummy_address())
+        # TODO: num_sats_can_send/receive currently ignores freezing of channels
+        reverse = int(min(self.lnworker.num_sats_can_send(),
+                          self.swap_manager.get_max_amount()))
+        forward = int(min(self.lnworker.num_sats_can_receive(),
+                          # maximally supported swap amount by provider
+                          self.swap_manager.get_max_amount(),
+                          max_onchain_spend))
+        # we expect setRange to adjust the value of the swap slider to be in the
+        # correct range, i.e., to correct an overflow when reducing the limits
+        self.swap_slider.setRange(-reverse, forward)
+        self.swap_slider.set_forbidden_ranges(
+            [[-self.swap_manager.min_amount, self.swap_manager.min_amount]])
+        self.swap_slider.repaint()
 
     def fee_slider_callback(self, dyn, pos, fee_rate):
         if dyn:
@@ -94,144 +232,84 @@ class SwapDialog(WindowModalDialog):
                 self.config.set_key('fee_level', pos, False)
         else:
             self.config.set_key('fee_per_kb', fee_rate, False)
-        if self.send_follows:
-            self.on_recv_edited()
+
+        self.update_swap_slider()
+        self.swap_slider_moved(self.swap_slider.value())
+
+    def swap_slider_moved(self, position):
+        # pay_amount and receive_amounts are always with fees already included
+        # so it reflects the net balance change after the swap
+        if position < 0:  # reverse swap
+            self.swap_action_label.setText(
+                f"You add Lightning receiving capacity.")
+            self.is_reverse = True
+
+            pay_amount = abs(position)
+            self.send_amount = pay_amount
+            self.send_amount_label.setText(
+                f"{pay_amount} sat" if pay_amount else "0 sat")
+            self.send_icon_label.setPixmap(self.lightning_pixmap)
+
+            receive_amount = self.swap_manager.get_recv_amount(
+                send_amount=pay_amount, is_reverse=True)
+            self.receive_amount = receive_amount
+            self.receive_amount_label.setText(
+                f"{receive_amount} sat" if receive_amount else "0 sat")
+            self.receive_icon_label.setPixmap(self.bitcoin_pixmap)
+
+            # fee breakdown
+            service_fee = int(pay_amount * self.swap_manager.percentage / 100) + 1 \
+                if pay_amount else 0
+            self.service_fee_label.setText(
+                f"{service_fee} sat (0.5%)")
+            self.server_mining_fee_label.setText(
+                f"{self.swap_manager.lockup_fee} sat (lockup fee)")
+            self.client_mining_fee_label.setText(
+                f"{self.swap_manager.get_claim_fee()} sat (claim fee)")
+
+        else:  # forward (normal) swap
+            self.swap_action_label.setText(
+                f"You add Lightning sending capacity.")
+            self.is_reverse = False
+            self.send_amount = position
+
+            self.update_tx(self.send_amount)
+            # add lockup fees, but the swap amount is position
+            pay_amount = position + self.tx.get_fee()
+            self.send_amount_label.setText(
+                f"{pay_amount} sat" if pay_amount else "")
+            self.send_icon_label.setPixmap(self.bitcoin_pixmap)
+
+            receive_amount = self.swap_manager.get_recv_amount(
+                send_amount=position, is_reverse=False)
+            self.receive_amount = receive_amount
+            self.receive_amount_label.setText(
+                f"{receive_amount} sat" if receive_amount else "0 sat")
+            self.receive_icon_label.setPixmap(self.lightning_pixmap)
+
+            # fee breakdown
+            service_fee = int(receive_amount * self.swap_manager.percentage / 100) + 1 \
+                if receive_amount else 0
+            self.service_fee_label.setText(
+                f"{service_fee} sat (0.5%)")
+            self.server_mining_fee_label.setText(
+                f"{self.swap_manager.normal_fee} sat (claim fee)")
+            self.client_mining_fee_label.setText(
+                f"{self.tx.get_fee()} sat (lockup fee)")
+
+        if pay_amount and receive_amount:
+            total_fee = pay_amount - receive_amount
         else:
-            self.on_send_edited()
-        self.update()
+            total_fee = None
+        self.total_fee_label.setText(f"{total_fee} sat" if total_fee else "0 sat")
 
-    def toggle_direction(self):
-        self.is_reverse = not self.is_reverse
-        self.send_amount_e.setAmount(None)
-        self.recv_amount_e.setAmount(None)
-        self.update()
-
-    def spend_max(self):
-        if self.max_button.isChecked():
-            if self.is_reverse:
-                self._spend_max_reverse_swap()
-            else:
-                self._spend_max_forward_swap()
+        if pay_amount and receive_amount:
+            self.ok_button.setEnabled(True)
         else:
-            self.send_amount_e.setAmount(None)
-        self.update_fee()
-
-    def uncheck_max(self):
-        self.max_button.setChecked(False)
-        self.update()
-
-    def _spend_max_forward_swap(self):
-        self.update_tx('!')
-        if self.tx:
-            amount = self.tx.output_value_for_address(ln_dummy_address())
-            max_amt = self.swap_manager.get_max_amount()
-            if amount > max_amt:
-                amount = max_amt
-                self.update_tx(amount)
-            if self.tx:
-                amount = self.tx.output_value_for_address(ln_dummy_address())
-                assert amount <= max_amt
-                # TODO: limit onchain amount if lightning cannot receive this much
-                self.send_amount_e.setAmount(amount)
-
-    def _spend_max_reverse_swap(self):
-        amount = min(self.lnworker.num_sats_can_send(), self.swap_manager.get_max_amount())
-        self.send_amount_e.setAmount(amount)
-
-    def on_send_edited(self):
-        if self.send_amount_e.follows:
-            return
-        self.send_amount_e.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
-        send_amount = self.send_amount_e.get_amount()
-        recv_amount = self.swap_manager.get_recv_amount(send_amount, self.is_reverse)
-        if self.is_reverse and send_amount and send_amount > self.lnworker.num_sats_can_send():
-            # cannot send this much on lightning
-            recv_amount = None
-        if (not self.is_reverse) and recv_amount and recv_amount > self.lnworker.num_sats_can_receive():
-            # cannot receive this much on lightning
-            recv_amount = None
-        self.recv_amount_e.follows = True
-        self.recv_amount_e.setAmount(recv_amount)
-        self.recv_amount_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
-        self.recv_amount_e.follows = False
-        self.send_follows = False
-        self.ok_button.setEnabled((recv_amount is not None)
-                                  and (self.tx is not None or self.is_reverse))
-
-    def on_recv_edited(self):
-        if self.recv_amount_e.follows:
-            return
-        self.recv_amount_e.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
-        recv_amount = self.recv_amount_e.get_amount()
-        send_amount = self.swap_manager.get_send_amount(recv_amount, self.is_reverse)
-        if self.is_reverse and send_amount and send_amount > self.lnworker.num_sats_can_send():
-            send_amount = None
-        self.send_amount_e.follows = True
-        self.send_amount_e.setAmount(send_amount)
-        self.send_amount_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
-        self.send_amount_e.follows = False
-        self.send_follows = True
-        self.ok_button.setEnabled((send_amount is not None)
-                                  and (self.tx is not None or self.is_reverse))
-
-    def update(self):
-        sm = self.swap_manager
-        self.send_button.setIcon(read_QIcon("lightning.png" if self.is_reverse else "bitcoin.png"))
-        self.send_button.repaint()  # macOS hack for #6269
-        self.recv_button.setIcon(read_QIcon("lightning.png" if not self.is_reverse else "bitcoin.png"))
-        self.recv_button.repaint()  # macOS hack for #6269
-        self.description_label.setText(self.get_description())
-        self.description_label.repaint()  # macOS hack for #6269
-        server_mining_fee = sm.lockup_fee if self.is_reverse else sm.normal_fee
-        server_fee_str = '%.2f'%sm.percentage + '%  +  '  + self.window.format_amount(server_mining_fee) + ' ' + self.window.base_unit()
-        self.server_fee_label.setText(server_fee_str)
-        self.server_fee_label.repaint()  # macOS hack for #6269
-        self.update_fee()
-
-    def update_fee(self):
-        self.tx = None
-        is_max = self.max_button.isChecked()
-        if self.is_reverse:
-            if is_max:
-                self._spend_max_reverse_swap()
-            sm = self.swap_manager
-            fee = sm.get_claim_fee()
-        else:
-            if is_max:
-                self._spend_max_forward_swap()
-            else:
-                onchain_amount = self.send_amount_e.get_amount()
-                self.update_tx(onchain_amount)
-            fee = self.tx.get_fee() if self.tx else None
-            if self.tx is None:
-                self.ok_button.setEnabled(False)
-        fee_text = self.window.format_amount(fee) + ' ' + self.window.base_unit() if fee else ''
-        self.fee_label.setText(fee_text)
-        self.fee_label.repaint()  # macOS hack for #6269
-
-    def run(self):
-        if not self.network:
-            self.window.show_error(_("You are offline."))
-            return
-        self.window.run_coroutine_from_thread(self.swap_manager.get_pairs(), lambda x: self.update())
-        if not self.exec_():
-            return
-        if self.is_reverse:
-            lightning_amount = self.send_amount_e.get_amount()
-            onchain_amount = self.recv_amount_e.get_amount()
-            if lightning_amount is None or onchain_amount is None:
-                return
-            coro = self.swap_manager.reverse_swap(lightning_amount, onchain_amount + self.swap_manager.get_claim_fee())
-            self.window.run_coroutine_from_thread(coro)
-        else:
-            lightning_amount = self.recv_amount_e.get_amount()
-            onchain_amount = self.send_amount_e.get_amount()
-            if lightning_amount is None or onchain_amount is None:
-                return
-            if lightning_amount > self.lnworker.num_sats_can_receive():
-                if not self.window.question(CANNOT_RECEIVE_WARNING):
-                    return
-            self.window.protect(self.do_normal_swap, (lightning_amount, onchain_amount))
+            # add more nuanced error reporting?
+            self.swap_action_label.setText(
+                "Swap below minimal swap size, change the slider.")
+            self.ok_button.setEnabled(False)
 
     def update_tx(self, onchain_amount):
         if onchain_amount is None:
@@ -254,12 +332,39 @@ class SwapDialog(WindowModalDialog):
         coro = self.swap_manager.normal_swap(lightning_amount, onchain_amount, password, tx=tx)
         self.window.run_coroutine_from_thread(coro)
 
-    def get_description(self):
-        onchain_funds = "onchain funds"
-        lightning_funds = "lightning funds"
-
-        return "Swap {fromType} for {toType} if you need to increase your {capacityType} capacity. This service is powered by the Boltz backend.".format(
-            fromType=lightning_funds if self.is_reverse else onchain_funds,
-            toType=onchain_funds if self.is_reverse else lightning_funds,
-            capacityType="receiving" if self.is_reverse else "sending",
-        )
+    def run(self):
+        if not self.network:
+            self.window.show_error(_("You are offline."))
+            return
+        self.window.run_coroutine_from_thread(
+            self.swap_manager.get_pairs(), lambda x: self.update_and_init())
+        if not self.exec_():
+            return
+        if self.is_reverse:
+            lightning_amount = self.send_amount
+            onchain_amount = self.receive_amount
+            if lightning_amount is None or onchain_amount is None:
+                return
+            coro = self.swap_manager.reverse_swap(
+                lightning_amount, onchain_amount + self.swap_manager.get_claim_fee())
+            self.window.run_coroutine_from_thread(coro)
+            msg = ''.join([
+                _("Please keep Electrum running until the swap has completed.\n"),
+                _("The swap server will publish a lockup transaction, "
+                  "after which Electrum will send a Lightning payment.")
+            ])
+        else:
+            lightning_amount = self.receive_amount
+            onchain_amount = self.send_amount
+            if lightning_amount is None or onchain_amount is None:
+                return
+            if lightning_amount > self.lnworker.num_sats_can_receive():
+                if not self.window.question(CANNOT_RECEIVE_WARNING):
+                    return
+            self.window.protect(self.do_normal_swap, (lightning_amount, onchain_amount))
+            msg = ''.join([
+                _("Please keep Electrum running until the swap has completed.\n"),
+                _("Electrum publishes a lockup transaction. Once it is confirmed, "
+                  "you will receive a Lightning payment from the swap server.")
+            ])
+        self.window.show_warning(msg, title=_('Swap is processing'))
