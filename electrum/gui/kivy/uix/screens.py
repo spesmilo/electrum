@@ -71,6 +71,7 @@ class CScreen(Factory.Screen):
         pass
 
     def on_activate(self):
+        setattr(self.app, self.kvname + '_screen', self)
         self.update()
 
     def on_leave(self):
@@ -618,7 +619,6 @@ class TabbedCarousel(Factory.TabbedPanel):
         if carousel.current_slide != slide:
             carousel.current_slide.dispatch('on_leave')
             carousel.load_slide(slide)
-            setattr(slide.app, slide.kvname + '_screen', slide)
             slide.dispatch('on_enter')
 
     def add_widget(self, widget, index=0):
