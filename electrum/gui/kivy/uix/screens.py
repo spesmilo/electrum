@@ -218,10 +218,22 @@ class SendScreen(CScreen, Logger):
     def update(self):
         if self.app.wallet is None:
             return
-        _list = self.app.wallet.get_invoices()
+        _list = self.app.wallet.get_unpaid_invoices()
         _list.reverse()
         payments_container = self.ids.payments_container
         payments_container.data = [self.get_card(item) for item in _list]
+
+    def update_item(self, key, invoice):
+        payments_container = self.ids.payments_container
+        data = payments_container.data
+        for item in data:
+            if item['key'] == key:
+                status = self.app.wallet.get_invoice_status(invoice)
+                status_str = invoice.get_status_str(status)
+                item['status'] = status
+                item['status_str'] = status_str
+        payments_container.data = data
+        payments_container.refresh_from_data()
 
     def show_item(self, obj):
         self.app.show_invoice(obj.is_lightning, obj.key)
@@ -421,20 +433,6 @@ class SendScreen(CScreen, Logger):
         else:
             self.app.tx_dialog(tx)
 
-    def clear_invoices_dialog(self):
-        invoices = self.app.wallet.get_invoices()
-        if not invoices:
-            return
-        def callback(c):
-            if c:
-                for req in invoices:
-                    key = req.rhash if req.is_lightning() else req.get_address()
-                    self.app.wallet.delete_invoice(key)
-                self.update()
-        n = len(invoices)
-        d = Question(_('Delete {} invoices?').format(n), callback)
-        d.open()
-
 
 class ReceiveScreen(CScreen):
 
@@ -531,10 +529,22 @@ class ReceiveScreen(CScreen):
     def update(self):
         if self.app.wallet is None:
             return
-        _list = self.app.wallet.get_sorted_requests()
+        _list = self.app.wallet.get_unpaid_requests()
         _list.reverse()
         requests_container = self.ids.requests_container
         requests_container.data = [self.get_card(item) for item in _list]
+
+    def update_item(self, key, request):
+        payments_container = self.ids.requests_container
+        data = payments_container.data
+        for item in data:
+            if item['key'] == key:
+                status = self.app.wallet.get_request_status(key)
+                status_str = request.get_status_str(status)
+                item['status'] = status
+                item['status_str'] = status_str
+        payments_container.data = data # needed?
+        payments_container.refresh_from_data()
 
     def show_item(self, obj):
         self.app.show_request(obj.is_lightning, obj.key)
@@ -545,19 +555,6 @@ class ReceiveScreen(CScreen):
             self.app.electrum_config.set_key('request_expiry', c)
         d = ChoiceDialog(_('Expiration date'), pr_expiration_values, self.expiry(), callback)
         d.open()
-
-    def clear_requests_dialog(self):
-        requests = self.app.wallet.get_sorted_requests()
-        if not requests:
-            return
-        def callback(c):
-            if c:
-                self.app.wallet.clear_requests()
-                self.update()
-        n = len(requests)
-        d = Question(_('Delete {} requests?').format(n), callback)
-        d.open()
-
 
 
 class TabbedCarousel(Factory.TabbedPanel):

@@ -40,6 +40,7 @@ from typing import Optional, TYPE_CHECKING, Sequence, List, Union
 
 from PyQt5.QtGui import QPixmap, QKeySequence, QIcon, QCursor, QFont
 from PyQt5.QtCore import Qt, QRect, QStringListModel, QSize, pyqtSignal
+from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import (QMessageBox, QComboBox, QSystemTrayIcon, QTabWidget,
                              QMenuBar, QFileDialog, QCheckBox, QLabel,
                              QVBoxLayout, QGridLayout, QLineEdit,
@@ -1516,8 +1517,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def on_request_status(self, wallet, key, status):
         if wallet != self.wallet:
             return
-        if key not in self.wallet.receive_requests:
+        req = self.wallet.receive_requests.get(key)
+        if req is None:
             return
+        # update item
+        self.request_list.update_item(key, req)
+        # update list later
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.request_list.update)
+        self.timer.start(3000)
+
         if status == PR_PAID:
             self.notify(_('Payment received') + '\n' + key)
             self.need_update.set()
@@ -1528,7 +1537,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         req = self.wallet.get_invoice(key)
         if req is None:
             return
+        # update item
         self.invoice_list.update_item(key, req)
+        # update list later.
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.invoice_list.update)
+        self.timer.start(3000)
 
     def on_payment_succeeded(self, wallet, key):
         description = self.wallet.get_label(key)

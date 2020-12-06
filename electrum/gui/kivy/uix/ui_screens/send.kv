@@ -151,10 +151,6 @@
             size_hint: 1, None
             height: '48dp'
             IconButton:
-                icon: f'atlas://{KIVY_GUI_PATH}/theming/light/delete'
-                size_hint: 0.5, 1
-                on_release: Clock.schedule_once(lambda dt: s.clear_invoices_dialog())
-            IconButton:
                 size_hint: 0.5, 1
                 on_release: s.do_save()
                 icon: f'atlas://{KIVY_GUI_PATH}/theming/light/save'

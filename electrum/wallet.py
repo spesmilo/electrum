@@ -761,9 +761,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
 
     def get_invoices(self):
         out = list(self.invoices.values())
-        #out = list(filter(None, out)) filter out ln
         out.sort(key=lambda x:x.time)
         return out
+
+    def get_unpaid_invoices(self):
+        invoices = self.get_invoices()
+        return [x for x in invoices if self.get_invoice_status(x) != PR_PAID]
 
     def get_invoice(self, key):
         return self.invoices.get(key)
@@ -2031,6 +2034,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def get_sorted_requests(self) -> List[Invoice]:
         """ sorted by timestamp """
         out = [self.get_request(x) for x in self.receive_requests.keys()]
+        out = [x for x in out if x is not None]
+        out.sort(key=lambda x: x.time)
+        return out
+
+    def get_unpaid_requests(self):
+        out = [self.get_request(x) for x in self.receive_requests.keys() if self.get_request_status(x) != PR_PAID]
         out = [x for x in out if x is not None]
         out.sort(key=lambda x: x.time)
         return out

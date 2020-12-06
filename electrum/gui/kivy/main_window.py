@@ -242,9 +242,12 @@ class ElectrumWindow(App, Logger):
         self._trigger_update_history()
 
     def on_request_status(self, event, wallet, key, status):
-        if key not in self.wallet.receive_requests:
+        req = self.wallet.receive_requests.get(key)
+        if req is None:
             return
-        self.update_tab('receive')
+        if self.receive_screen:
+            self.receive_screen.update_item(key, req)
+            Clock.schedule_once(lambda dt: self.receive_screen.update(), 3)
         if self.request_popup and self.request_popup.key == key:
             self.request_popup.update_status()
         if status == PR_PAID:
@@ -255,9 +258,10 @@ class ElectrumWindow(App, Logger):
         req = self.wallet.get_invoice(key)
         if req is None:
             return
-        status = self.wallet.get_invoice_status(req)
-        # todo: update single item
-        self.update_tab('send')
+        if self.send_screen:
+            self.send_screen.update_item(key, req)
+            Clock.schedule_once(lambda dt: self.send_screen.update(), 3)
+
         if self.invoice_popup and self.invoice_popup.key == key:
             self.invoice_popup.update_status()
 
