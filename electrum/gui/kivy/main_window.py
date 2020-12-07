@@ -641,7 +641,7 @@ class ElectrumWindow(App, Logger):
 
     def on_open_wallet(self, password, storage):
         if not storage.file_exists():
-            wizard = Factory.InstallWizard(self.electrum_config, self.plugins)
+            wizard = InstallWizard(self.electrum_config, self.plugins)
             wizard.path = storage.path
             wizard.run('new')
         else:
