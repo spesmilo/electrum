@@ -187,19 +187,20 @@ class Mnemonic(Logger):
             i = i*n + k
         return i
 
-    def make_seed(self, seed_type=None, *, num_bits=132) -> str:
+    def make_seed(self, *, seed_type=None, num_bits=None) -> str:
         if seed_type is None:
             seed_type = 'segwit'
+        if num_bits is None:
+            num_bits = 132
         prefix = version.seed_prefix(seed_type)
         # increase num_bits in order to obtain a uniform distribution for the last word
         bpw = math.log(len(self.wordlist), 2)
-        # rounding
-        n = int(math.ceil(num_bits/bpw) * bpw)
-        self.logger.info(f"make_seed. prefix: '{prefix}', entropy: {n} bits")
+        num_bits = int(math.ceil(num_bits/bpw) * bpw)
+        self.logger.info(f"make_seed. prefix: '{prefix}', entropy: {num_bits} bits")
         entropy = 1
-        while entropy < pow(2, n - bpw):
+        while entropy < pow(2, num_bits - bpw):
             # try again if seed would not contain enough words
-            entropy = randrange(pow(2, n))
+            entropy = randrange(pow(2, num_bits))
         nonce = 0
         while True:
             nonce += 1

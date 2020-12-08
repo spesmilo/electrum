@@ -524,7 +524,7 @@ class TrustedCoinPlugin(BasePlugin):
     def make_seed(self, seed_type):
         if not is_any_2fa_seed_type(seed_type):
             raise Exception(f'unexpected seed type: {seed_type}')
-        return Mnemonic('english').make_seed(seed_type=seed_type, num_bits=128)
+        return Mnemonic('english').make_seed(seed_type=seed_type)
 
     @hook
     def do_clear(self, window):

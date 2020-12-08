@@ -318,10 +318,10 @@ class Commands:
         return self.config.get_ssl_domain()
 
     @command('')
-    async def make_seed(self, nbits=132, language=None, seed_type=None):
+    async def make_seed(self, nbits=None, language=None, seed_type=None):
         """Create a seed"""
         from .mnemonic import Mnemonic
-        s = Mnemonic(language).make_seed(seed_type, num_bits=nbits)
+        s = Mnemonic(language).make_seed(seed_type=seed_type, num_bits=nbits)
         return s
 
     @command('n')

@@ -2800,7 +2800,7 @@ def create_new_wallet(*, path, config: SimpleConfig, passphrase=None, password=N
         raise Exception("Remove the existing wallet first!")
     db = WalletDB('', manual_upgrades=False)
 
-    seed = Mnemonic('en').make_seed(seed_type)
+    seed = Mnemonic('en').make_seed(seed_type=seed_type)
     k = keystore.from_seed(seed, passphrase)
     db.put('keystore', k.dump())
     db.put('wallet_type', 'standard')
