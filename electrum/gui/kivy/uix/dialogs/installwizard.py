@@ -641,7 +641,7 @@ class WizardDialog(EventsDialog):
 
     def on_release(self, button):
         self._on_release = True
-        self.close()
+        self.dismiss()
         if not button:
             self.wizard.terminate(aborted=True)
             return
