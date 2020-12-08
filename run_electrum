@@ -60,7 +60,6 @@ def check_imports():
     # pure-python dependencies need to be imported here for pyinstaller
     try:
         import dns
-        import ecdsa
         import certifi
         import qrcode
         import google.protobuf
