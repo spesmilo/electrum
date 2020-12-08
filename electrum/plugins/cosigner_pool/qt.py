@@ -38,7 +38,7 @@ from electrum.transaction import Transaction, PartialTransaction, tx_from_any
 from electrum.bip32 import BIP32Node
 from electrum.plugin import BasePlugin, hook
 from electrum.i18n import _
-from electrum.wallet import Multisig_Wallet
+from electrum.wallet import Multisig_Wallet, Abstract_Wallet
 from electrum.util import bh2u, bfh
 
 from electrum.gui.qt.transaction_dialog import show_transaction, TxDialog
@@ -114,10 +114,10 @@ class Plugin(BasePlugin):
             return
         self._init_qt_received = True
         for window in gui.windows:
-            self.on_new_window(window)
+            self.load_wallet(window.wallet, window)
 
     @hook
-    def on_new_window(self, window):
+    def load_wallet(self, wallet: 'Abstract_Wallet', window: 'ElectrumWindow'):
         self.update(window)
 
     @hook

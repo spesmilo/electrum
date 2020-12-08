@@ -233,8 +233,6 @@ class ElectrumGui(Logger):
         w = ElectrumWindow(self, wallet)
         self.windows.append(w)
         self.build_tray_menu()
-        # FIXME: Remove in favour of the load_wallet hook
-        run_hook('on_new_window', w)
         w.warn_if_testnet()
         w.warn_if_watching_only()
         return w

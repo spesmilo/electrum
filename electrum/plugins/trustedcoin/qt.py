@@ -27,6 +27,7 @@ from functools import partial
 import threading
 import sys
 import os
+from typing import TYPE_CHECKING
 
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtCore import QObject, pyqtSignal
@@ -46,6 +47,10 @@ from electrum.logging import Logger
 from electrum.base_wizard import GoBack
 
 from .trustedcoin import TrustedCoinPlugin, server
+
+if TYPE_CHECKING:
+    from electrum.gui.qt.main_window import ElectrumWindow
+    from electrum.wallet import Abstract_Wallet
 
 
 class TOS(QTextEdit):
@@ -84,8 +89,7 @@ class Plugin(TrustedCoinPlugin):
         super().__init__(parent, config, name)
 
     @hook
-    def on_new_window(self, window):
-        wallet = window.wallet
+    def load_wallet(self, wallet: 'Abstract_Wallet', window: 'ElectrumWindow'):
         if not isinstance(wallet, self.wallet_class):
             return
         wallet.handler_2fa = HandlerTwoFactor(self, window)
