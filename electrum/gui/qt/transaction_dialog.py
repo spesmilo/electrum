@@ -219,6 +219,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
 
     def do_broadcast(self):
         self.main_window.push_top_level_window(self)
+        self.main_window.save_pending_invoice()
         try:
             self.main_window.broadcast_transaction(self.tx)
         finally:

@@ -188,6 +188,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.pluginsdialog = None
         self.showing_cert_mismatch_error = False
         self.tl_windows = []
+        self.pending_invoice = None
         Logger.__init__(self)
 
         self.tx_notification_queue = queue.Queue()
@@ -1517,7 +1518,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         return False  # no errors
 
-    def pay_lightning_invoice(self, invoice: str, *, amount_msat: Optional[int], pending_invoice: Optional['Invoice']):
+    def pay_lightning_invoice(self, invoice: str, *, amount_msat: Optional[int]):
         if amount_msat is None:
             raise Exception("missing amount for LN invoice")
         amount_sat = Decimal(amount_msat) / 1000
@@ -1525,8 +1526,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         msg = _("Pay lightning invoice?") + '\n\n' + _("This will send {}?").format(self.format_amount_and_units(amount_sat))
         if not self.question(msg):
             return
-        if pending_invoice:
-            self.save_invoice(pending_invoice)
+        self.save_pending_invoice()
         attempts = LN_NUM_PAYMENT_ATTEMPTS
         def task():
             self.wallet.lnworker.pay(invoice, amount_msat=amount_msat, attempts=attempts)
@@ -1588,21 +1588,24 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 URI=self.payto_URI)
 
     def do_save_invoice(self):
-        invoice = self.read_invoice()
-        if not invoice:
+        self.pending_invoice = self.read_invoice()
+        if not self.pending_invoice:
             return
-        self.save_invoice(invoice)
+        self.save_pending_invoice()
 
-    def save_invoice(self, invoice):
+    def save_pending_invoice(self):
+        if not self.pending_invoice:
+            return
         self.do_clear()
-        self.wallet.save_invoice(invoice)
+        self.wallet.save_invoice(self.pending_invoice)
         self.invoice_list.update()
+        self.pending_invoice = None
 
     def do_pay(self):
-        invoice = self.read_invoice()
-        if not invoice:
+        self.pending_invoice = self.read_invoice()
+        if not self.pending_invoice:
             return
-        self.do_pay_invoice(invoice)
+        self.do_pay_invoice(self.pending_invoice)
 
     def pay_multiple_invoices(self, invoices):
         outputs = []
@@ -1613,10 +1616,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def do_pay_invoice(self, invoice: 'Invoice'):
         if invoice.type == PR_TYPE_LN:
             assert isinstance(invoice, LNInvoice)
-            self.pay_lightning_invoice(invoice.invoice, amount_msat=invoice.get_amount_msat(), pending_invoice=invoice)
+            self.pay_lightning_invoice(invoice.invoice, amount_msat=invoice.get_amount_msat())
         elif invoice.type == PR_TYPE_ONCHAIN:
             assert isinstance(invoice, OnchainInvoice)
-            self.pay_onchain_dialog(self.get_coins(), invoice.outputs, pending_invoice=invoice)
+            self.pay_onchain_dialog(self.get_coins(), invoice.outputs)
         else:
             raise Exception('unknown invoice type')
 
@@ -1637,8 +1640,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def pay_onchain_dialog(
             self, inputs: Sequence[PartialTxInput],
             outputs: List[PartialTxOutput], *,
-            external_keypairs=None,
-            pending_invoice: Optional['Invoice']) -> None:
+            external_keypairs=None) -> None:
         # trustedcoin requires this
         if run_hook('abort_send', self):
             return
@@ -1671,9 +1673,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         cancelled, is_send, password, tx = d.run()
         if cancelled:
             return
-        if pending_invoice:
-            self.save_invoice(pending_invoice)
         if is_send:
+            self.save_pending_invoice()
             def sign_done(success):
                 if success:
                     self.broadcast_or_show(tx)
