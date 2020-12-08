@@ -640,6 +640,8 @@ class WizardDialog(EventsDialog):
         return (None,)
 
     def on_release(self, button):
+        if self._on_release is True:
+            return
         self._on_release = True
         self.dismiss()
         if not button:
