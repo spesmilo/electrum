@@ -1110,7 +1110,8 @@ class ElectrumWindow(App, Logger):
         def cb(amount):
             if amount == '!':
                 screen.is_max = True
-                screen.amount = self.get_max_amount() + ' ' + self.base_unit
+                max_amt = self.get_max_amount()
+                screen.amount = (max_amt + ' ' + self.base_unit) if max_amt else ''
             else:
                 screen.amount = amount
                 screen.is_max = False
