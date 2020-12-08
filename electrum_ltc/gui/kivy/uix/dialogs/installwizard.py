@@ -303,7 +303,7 @@ Builder.load_string('''
     width: self.texture_size[0]
     height: '30dp'
     on_release:
-        self.parent.new_word(self.text)
+        if self.parent: self.parent.new_word(self.text)
 
 
 <SeedButton@Button>:
@@ -641,7 +641,7 @@ class WizardDialog(EventsDialog):
 
     def on_release(self, button):
         self._on_release = True
-        self.close()
+        self.dismiss()
         if not button:
             self.wizard.terminate(aborted=True)
             return

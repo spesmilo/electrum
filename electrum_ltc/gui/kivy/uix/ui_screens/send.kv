@@ -111,8 +111,8 @@
                     id: amount_e
                     default_text: _('Amount')
                     text: s.amount if s.amount else _('Amount')
-                    disabled: root.is_bip70 or (root.is_lightning and not s.amount)
-                    on_release: Clock.schedule_once(lambda dt: app.amount_dialog(s, True))
+                    disabled: root.is_bip70 or (root.is_lightning and s.amount)
+                    on_release: Clock.schedule_once(lambda dt: app.amount_dialog(s, not root.is_lightning))
             CardSeparator:
                 color: blue_bottom.foreground_color
             BoxLayout:

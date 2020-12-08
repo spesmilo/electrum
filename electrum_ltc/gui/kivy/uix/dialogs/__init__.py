@@ -81,9 +81,6 @@ class EventsDialog(Factory.Popup):
     def on_press(self, instance):
         pass
 
-    def close(self):
-        self.dismiss()
-
 
 class SelectionDialog(EventsDialog):
 

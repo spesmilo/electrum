@@ -71,6 +71,7 @@ class CScreen(Factory.Screen):
         pass
 
     def on_activate(self):
+        setattr(self.app, self.kvname + '_screen', self)
         self.update()
 
     def on_leave(self):
@@ -181,6 +182,7 @@ class SendScreen(CScreen, Logger):
     def __init__(self, **kwargs):
         CScreen.__init__(self, **kwargs)
         Logger.__init__(self)
+        self.is_max = False
 
     def set_URI(self, text: str):
         if not self.app.wallet:
@@ -328,6 +330,9 @@ class SendScreen(CScreen, Logger):
         invoice = self.read_invoice()
         if not invoice:
             return
+        self.save_invoice(invoice)
+
+    def save_invoice(self, invoice):
         self.app.wallet.save_invoice(invoice)
         self.do_clear()
         self.update()
@@ -336,14 +341,11 @@ class SendScreen(CScreen, Logger):
         invoice = self.read_invoice()
         if not invoice:
             return
-        self.app.wallet.save_invoice(invoice)
-        self.do_clear()
-        self.update()
         self.do_pay_invoice(invoice)
 
     def do_pay_invoice(self, invoice):
         if invoice.is_lightning():
-            self._do_pay_lightning(invoice)
+            self.app.protected(_('Pay lightning invoice?'), self._do_pay_lightning, (invoice,))
             return
         else:
             do_pay = lambda rbf: self._do_pay_onchain(invoice, rbf)
@@ -353,7 +355,8 @@ class SendScreen(CScreen, Logger):
             else:
                 do_pay(False)
 
-    def _do_pay_lightning(self, invoice: LNInvoice) -> None:
+    def _do_pay_lightning(self, invoice: LNInvoice, pw) -> None:
+        self.save_invoice(invoice)
         threading.Thread(
             target=self.app.wallet.lnworker.pay,
             args=(invoice.invoice,),
@@ -396,11 +399,12 @@ class SendScreen(CScreen, Logger):
         elif feerate > FEERATE_WARNING_HIGH_FEE / 1000:
             msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high.")
                        + f' (feerate: {feerate:.2f} sat/byte)')
-        self.app.protected('\n'.join(msg), self.send_tx, (tx,))
+        self.app.protected('\n'.join(msg), self.send_tx, (tx, invoice))
 
-    def send_tx(self, tx, password):
+    def send_tx(self, tx, invoice, password):
         if self.app.wallet.has_password() and password is None:
             return
+        self.save_invoice(invoice)
         def on_success(tx):
             if tx.is_complete():
                 self.app.broadcast(tx)
@@ -436,6 +440,7 @@ class ReceiveScreen(CScreen):
     def __init__(self, **kwargs):
         super(ReceiveScreen, self).__init__(**kwargs)
         Clock.schedule_interval(lambda dt: self.update(), 5)
+        self.is_max = False # not used for receiving (see app.amount_dialog)
 
     def expiry(self):
         return self.app.electrum_config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
@@ -443,7 +448,6 @@ class ReceiveScreen(CScreen):
     def clear(self):
         self.address = ''
         self.amount = ''
-        self.is_max = False # not used for receiving (see app.amount_dialog)
         self.message = ''
         self.lnaddr = ''
 
@@ -615,7 +619,6 @@ class TabbedCarousel(Factory.TabbedPanel):
         if carousel.current_slide != slide:
             carousel.current_slide.dispatch('on_leave')
             carousel.load_slide(slide)
-            setattr(slide.app, slide.kvname + '_screen', slide)
             slide.dispatch('on_enter')
 
     def add_widget(self, widget, index=0):

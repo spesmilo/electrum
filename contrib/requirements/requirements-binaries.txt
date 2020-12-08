@@ -1,3 +1,6 @@
 PyQt5<5.15
-cryptography>=2.1
 scrypt>=0.6.0
+
+# we need at least cryptography>=2.1 for electrum.crypto,
+# and at least cryptography>=2.6 for dnspython[DNSSEC]
+cryptography>=2.6

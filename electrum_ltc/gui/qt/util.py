@@ -1001,7 +1001,7 @@ def webopen(url: str):
         if os.fork() == 0:
             del os.environ['LD_LIBRARY_PATH']
             webbrowser.open(url)
-            sys.exit(0)
+            os._exit(0)
     else:
         webbrowser.open(url)
 

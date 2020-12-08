@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 from kivy.app import App
+from kivy.clock import Clock
 from kivy.factory import Factory
 from kivy.properties import ObjectProperty
 from kivy.lang import Builder
@@ -206,7 +207,8 @@ class AddressPopup(Popup):
         self.dismiss()
         self.parent_dialog.dismiss()
         self.app.switch_to('receive')
-        self.app.receive_screen.set_address(self.address)
+        # retry until receive_screen is set
+        Clock.schedule_interval(lambda dt: bool(self.app.receive_screen.set_address(self.address) and False) if self.app.receive_screen else True, 0.1)
 
     def do_export(self, pk_label):
         self.app.export_private_keys(pk_label, self.address)

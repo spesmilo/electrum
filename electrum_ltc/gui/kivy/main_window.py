@@ -192,40 +192,28 @@ class ElectrumWindow(App, Logger):
     def on_use_unconfirmed(self, instance, x):
         self.electrum_config.set_key('confirmed_only', not self.use_unconfirmed, True)
 
+    def switch_to_send_screen(func):
+        # try until send_screen is available
+        def wrapper(self, *args):
+            f = lambda dt: (bool(func(self, *args) and False) if self.send_screen else bool(self.switch_to('send') or True)) if self.wallet else True
+            Clock.schedule_interval(f, 0.1)
+        return wrapper
+
+    @switch_to_send_screen
     def set_URI(self, uri):
-        self.switch_to('send')
         self.send_screen.set_URI(uri)
 
+    @switch_to_send_screen
     def set_ln_invoice(self, invoice):
-        self.switch_to('send')
         self.send_screen.set_ln_invoice(invoice)
 
     def on_new_intent(self, intent):
         data = str(intent.getDataString())
-        if str(intent.getScheme()).lower() in ('litecoin', 'lightning'):
-            self._process_invoice_str(data)
-
-    _invoice_intent_queued = None  # type: Optional[str]
-    def _process_invoice_str(self, invoice: str) -> None:
-        if not self.wallet:
-            self._invoice_intent_queued = invoice
-            return
-        if not self.send_screen:
-            self.switch_to('send')
-            self._invoice_intent_queued = invoice
-            return
-        if invoice.lower().startswith('litecoin:'):
-            self.set_URI(invoice)
-        elif invoice.lower().startswith('lightning:'):
-            self.set_ln_invoice(invoice)
-
-    def _maybe_process_queued_invoice(self, *dt):
-        if not self.wallet:
-            return
-        invoice_queued = self._invoice_intent_queued
-        if invoice_queued:
-            self._invoice_intent_queued = None
-            self._process_invoice_str(invoice_queued)
+        scheme = str(intent.getScheme()).lower()
+        if scheme == 'litecoin':
+            self.set_URI(data)
+        elif scheme == 'lightning':
+            self.set_ln_invoice(data)
 
     def on_language(self, instance, language):
         self.logger.info('language: {}'.format(language))
@@ -398,7 +386,6 @@ class ElectrumWindow(App, Logger):
         self._trigger_update_interfaces = Clock.create_trigger(self.update_interfaces, .5)
 
         self._periodic_update_status_during_sync = Clock.schedule_interval(self.update_wallet_synchronizing_progress, .5)
-        self._periodic_process_queued_invoice = Clock.schedule_interval(self._maybe_process_queued_invoice, .5)
 
         # cached dialogs
         self._settings_dialog = None
@@ -654,7 +641,7 @@ class ElectrumWindow(App, Logger):
 
     def on_open_wallet(self, password, storage):
         if not storage.file_exists():
-            wizard = Factory.InstallWizard(self.electrum_config, self.plugins)
+            wizard = InstallWizard(self.electrum_config, self.plugins)
             wizard.path = storage.path
             wizard.run('new')
         else:
@@ -1123,7 +1110,8 @@ class ElectrumWindow(App, Logger):
         def cb(amount):
             if amount == '!':
                 screen.is_max = True
-                screen.amount = self.get_max_amount() + ' ' + self.base_unit
+                max_amt = self.get_max_amount()
+                screen.amount = (max_amt + ' ' + self.base_unit) if max_amt else ''
             else:
                 screen.amount = amount
                 screen.is_max = False
