@@ -5,7 +5,7 @@ from electroncash.plugins import run_hook
 from electroncash import util
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
-from PyQt5.QtWidgets import QFileDialog, QAbstractButton, QWidget, QApplication
+from PyQt5.QtWidgets import QFileDialog, QAbstractButton, QWidget, QApplication, QMenu
 
 from .util import ButtonsTextEdit, MessageBoxMixin, ColorScheme
 
@@ -56,6 +56,10 @@ class ScanQRTextEdit(_QrCodeTextEdit, MessageBoxMixin):
         self.allow_multi = allow_multi
         self.setReadOnly(0)
         self.qr_button = self.addButton(self.get_qr_icon(), self.qr_input, _("Read QR code"))
+        qr_menu = QMenu()
+        qr_menu.addAction(_("Read QR code from camera"), self.qr_input)
+        qr_menu.addAction(_("Read QR from screen"), self.screenshot_input)
+        self.qr_button.setMenu(qr_menu)
         self.addButton(":icons/file.png", self.file_input, _("Read text or image file"))
         run_hook('scan_text_edit', self)
 
@@ -86,18 +90,19 @@ class ScanQRTextEdit(_QrCodeTextEdit, MessageBoxMixin):
         self.setText(data)
 
     def screenshot_input(self):
-        screen = QApplication.instance().primaryScreen()
-        screenshot = screen.grabWindow(0)
-        image = screenshot.toImage()
-        scanned_qrs = self.scan_qr_from_image(image)
-        if not len(scanned_qrs):
-            self.show_error(_("No QR code was found on the current screen."), title=_("No QR code found"))
-            return
-        if len(scanned_qrs) > 1:
-            self.show_error(_("More than one QR code was found ion the current screen."), title=_("More than one QR code found"))
-            return
+        scanned_qr = None
+        for screen in QApplication.instance().screens():
+            scan_result = self.scan_qr_from_image(screen.grabWindow(0).toImage())
+            if len(scan_result) > 0:
+                if (scanned_qr is not None) or len(scan_result) > 1:
+                    self.show_error(_("More than one QR code was found on the screen."), title=_("More than one QR code found"))
+                    return
+                scanned_qr = scan_result
 
-        self.setText(scanned_qrs[0].data)
+        if scanned_qr is None:
+            self.show_error(_("No QR code was found on the screen."), title=_("No QR code found"))
+            return
+        self.setText(scanned_qr[0].data)
 
     def scan_qr_from_image(self, image):
         from electroncash.qrreaders import get_qr_reader
@@ -167,7 +172,7 @@ class ScanQRTextEdit(_QrCodeTextEdit, MessageBoxMixin):
     def contextMenuEvent(self, e):
         m = self.createStandardContextMenu()
         m.addSeparator()
-        m.addAction(_("Read QR code"), self.qr_input)
+        m.addAction(_("Read QR code from camera"), self.qr_input)
         m.addAction(_("Read QR from screen"), self.screenshot_input)
         m.addAction(_("Read text or image file"), self.file_input)
         m.exec_(e.globalPos())
