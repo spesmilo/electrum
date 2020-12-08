@@ -643,7 +643,7 @@ class WizardDialog(EventsDialog):
         self._on_release = True
         self.close()
         if not button:
-            self.app.on_wizard_complete(None, None)
+            self.wizard.terminate(aborted=True)
             return
         if button is self.ids.back:
             self.wizard.go_back()
@@ -722,7 +722,6 @@ class WizardTOSDialog(WizardDialog):
         self.ids.next.text = 'Accept'
         self.ids.next.disabled = False
         self.message = kwargs['tos']
-        self.message2 = _('Enter your email address:')
 
 class WizardEmailDialog(WizardDialog):
 
@@ -1060,9 +1059,17 @@ class InstallWizard(BaseWizard, Widget):
         self.app = App.get_running_app()
 
     def terminate(self, *, storage=None, db=None, aborted=False):
-        if storage is None and not aborted:
+        # storage must be None because manual upgrades are disabled on Kivy
+        assert storage is None
+        if not aborted:
+            password = self.pw_args.password
             storage, db = self.create_storage(self.path)
-        self.app.on_wizard_complete(storage, db)
+            self.app.on_wizard_success(storage, db, password)
+        else:
+            try: os.unlink(self.path)
+            except FileNotFoundError: pass
+            self.reset_stack()
+            self.confirm_dialog(message=_('Wallet creation failed'), run_next=self.app.on_wizard_aborted)
 
     def choice_dialog(self, **kwargs):
         choices = kwargs['choices']

@@ -631,51 +631,37 @@ class ElectrumWindow(App, Logger):
         else:
             return ''
 
-    def on_wizard_complete(self, storage, db):
+    def on_wizard_success(self, storage, db, password):
         if storage:
+            self.password = password
             wallet = Wallet(db, storage, config=self.electrum_config)
             wallet.start_network(self.daemon.network)
             self.daemon.add_wallet(wallet)
             self.load_wallet(wallet)
-        elif not self.wallet:
-            # wizard did not return a wallet; and there is no wallet open atm
-            # try to open last saved wallet (potentially start wizard again)
-            self.load_wallet_by_name(self.electrum_config.get_wallet_path(use_gui_last_wallet=True),
-                                     ask_if_wizard=True)
 
-    def load_wallet_by_name(self, path, ask_if_wizard=False):
+    def on_wizard_aborted(self, wizard):
+        # wizard did not return a wallet; and there is no wallet open atm
+        if not self.wallet:
+            self.stop()
+
+    def load_wallet_by_name(self, path):
         if not path:
             return
         if self.wallet and self.wallet.storage.path == path:
             return
-        else:
-            def launch_wizard():
-                d = OpenWalletDialog(self, path, self.on_open_wallet)
-                d.open()
-            if not ask_if_wizard:
-                launch_wizard()
-            else:
-                def handle_answer(b: bool):
-                    if b:
-                        launch_wizard()
-                    else:
-                        try: os.unlink(path)
-                        except FileNotFoundError: pass
-                        self.stop()
-                d = Question(_('Do you want to launch the wizard again?'), handle_answer)
-                d.open()
+        d = OpenWalletDialog(self, path, self.on_open_wallet)
+        d.open()
 
-    def on_open_wallet(self, pw, storage):
+    def on_open_wallet(self, password, storage):
         if not storage.file_exists():
             wizard = Factory.InstallWizard(self.electrum_config, self.plugins)
             wizard.path = storage.path
             wizard.run('new')
         else:
             assert storage.is_past_initial_decryption()
-            self.password = pw
             db = WalletDB(storage.read(), manual_upgrades=False)
             assert not db.requires_upgrade()
-            self.on_wizard_complete(storage, db)
+            self.on_wizard_success(storage, db, password)
 
     def on_stop(self):
         self.logger.info('on_stop')

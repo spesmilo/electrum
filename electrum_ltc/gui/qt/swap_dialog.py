@@ -39,20 +39,25 @@ class SwapDialog(WindowModalDialog):
         vbox = QVBoxLayout(self)
         self.description_label = WWLabel(self.get_description())
         self.send_amount_e = BTCAmountEdit(self.window.get_decimal_point)
-        self.send_amount_e.shortcut.connect(self.spend_max)
         self.recv_amount_e = BTCAmountEdit(self.window.get_decimal_point)
         self.max_button = EnterButton(_("Max"), self.spend_max)
         self.max_button.setFixedWidth(100)
         self.max_button.setCheckable(True)
         self.send_button = QPushButton('')
         self.recv_button = QPushButton('')
+        # send_follows is used to know whether the send amount field / receive
+        # amount field should be adjusted after the fee slider was moved
         self.send_follows = False
         self.send_amount_e.follows = False
         self.recv_amount_e.follows = False
         self.send_button.clicked.connect(self.toggle_direction)
         self.recv_button.clicked.connect(self.toggle_direction)
+        # textChanged is triggered for both user and automatic action
         self.send_amount_e.textChanged.connect(self.on_send_edited)
         self.recv_amount_e.textChanged.connect(self.on_recv_edited)
+        # textEdited is triggered only for user editing of the fields
+        self.send_amount_e.textEdited.connect(self.uncheck_max)
+        self.recv_amount_e.textEdited.connect(self.uncheck_max)
         fee_slider = FeeSlider(self.window, self.config, self.fee_slider_callback)
         fee_combo = FeeComboBox(fee_slider)
         fee_slider.update()
@@ -110,7 +115,11 @@ class SwapDialog(WindowModalDialog):
         else:
             self.tx = None
             self.send_amount_e.setAmount(None)
-            self.update_fee()
+        self.update_fee()
+
+    def uncheck_max(self):
+        self.max_button.setChecked(False)
+        self.update()
 
     def _spend_max_forward_swap(self):
         self.update_tx('!')
@@ -123,6 +132,7 @@ class SwapDialog(WindowModalDialog):
             if self.tx:
                 amount = self.tx.output_value_for_address(ln_dummy_address())
                 assert amount <= max_amt
+                # TODO: limit onchain amount if lightning cannot receive this much
                 self.send_amount_e.setAmount(amount)
 
     def _spend_max_reverse_swap(self):
@@ -136,14 +146,17 @@ class SwapDialog(WindowModalDialog):
         send_amount = self.send_amount_e.get_amount()
         recv_amount = self.swap_manager.get_recv_amount(send_amount, self.is_reverse)
         if self.is_reverse and send_amount and send_amount > self.lnworker.num_sats_can_send():
+            # cannot send this much on lightning
+            recv_amount = None
+        if (not self.is_reverse) and recv_amount and recv_amount > self.lnworker.num_sats_can_receive():
+            # cannot receive this much on lightning
             recv_amount = None
         self.recv_amount_e.follows = True
         self.recv_amount_e.setAmount(recv_amount)
         self.recv_amount_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
         self.recv_amount_e.follows = False
         self.send_follows = False
-        self.ok_button.setEnabled(recv_amount is not None)
-        self.update_fee()  # note: this might disable the "OK" button
+        self.ok_button.setEnabled((recv_amount is not None) and (self.tx is not None))
 
     def on_recv_edited(self):
         if self.recv_amount_e.follows:
@@ -158,8 +171,7 @@ class SwapDialog(WindowModalDialog):
         self.send_amount_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
         self.send_amount_e.follows = False
         self.send_follows = True
-        self.ok_button.setEnabled(send_amount is not None)
-        self.update_fee()  # note: this might disable the "OK" button
+        self.ok_button.setEnabled((send_amount is not None) and (self.tx is not None))
 
     def update(self):
         sm = self.swap_manager
@@ -189,6 +201,8 @@ class SwapDialog(WindowModalDialog):
                 onchain_amount = self.send_amount_e.get_amount()
                 self.update_tx(onchain_amount)
             fee = self.tx.get_fee() if self.tx else None
+        if self.tx is None:
+            self.ok_button.setEnabled(False)
         fee_text = self.window.format_amount(fee) + ' ' + self.window.base_unit() if fee else ''
         self.fee_label.setText(fee_text)
         self.fee_label.repaint()  # macOS hack for #6269
