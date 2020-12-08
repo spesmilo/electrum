@@ -238,8 +238,11 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         original_tx = copy.deepcopy(self.tx)
         _logger.info(f"Starting Payjoin Session")
         try:
-            self.payjoin.set_tx(self.tx)
-            self.payjoin.do_payjoin()
+            self.payjoin.set_payjoin_original(self.tx)
+            url, headers, payload = self.payjoin.get_payjoin_http_params()
+            payjoin_proposal = self.main_window.send_http_request('post', url, headers=headers, body=payload,
+                                                                  on_finish=self.payjoin.handle_payjoin_response)
+            self.payjoin.set_payjoin_proposal(payjoin_proposal)
             self.payjoin.payjoin_proposal.add_info_from_wallet(self.wallet)
             self.payjoin.validate_payjoin_proposal()
         except Exception as e:

@@ -65,7 +65,7 @@ from electrum.util import (format_time,
 from electrum.invoices import PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING, Invoice
 from electrum.invoices import PR_PAID, PR_FAILED, pr_expiration_values, LNInvoice, OnchainInvoice
 from electrum.transaction import (Transaction, PartialTxInput,
-                                  PartialTransaction, PartialTxOutput, PayjoinTransaction)
+                                  PartialTransaction, PartialTxOutput)
 from electrum.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet,
                              sweep_preparations, InternalAddressCorruption,
                              CannotDoubleSpendTx)
@@ -1750,6 +1750,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         WaitingDialog(self, _('Broadcasting transaction...'),
                       broadcast_thread, broadcast_done, self.on_error)
+
+    def send_http_request(self, method, url, **kwargs):
+        return self.network.send_http_on_proxy(method, url, **kwargs)
 
     def mktx_for_open_channel(self, funding_sat):
         coins = self.get_coins(nonlocal_only=True)

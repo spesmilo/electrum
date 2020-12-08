@@ -38,8 +38,9 @@ from collections import defaultdict
 from enum import IntEnum
 import itertools
 import binascii
-import requests
 import copy
+import asyncio
+from aiohttp import ClientResponse
 
 from . import ecc, bitcoin, constants, segwit_addr, bip32
 from .bip32 import BIP32Node
@@ -52,7 +53,6 @@ from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160,
                       base_encode, construct_witness, construct_script)
 from .crypto import sha256d
 from .logging import get_logger
-import socket
 
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
@@ -2023,11 +2023,17 @@ class PayjoinTransaction():
         return self.pj is not None \
                and isinstance(self.pj, str)
 
-    def set_tx(self, tx: PartialTransaction) -> None:
+    def set_payjoin_original(self, tx: PartialTransaction) -> None:
         self.payjoin_original = copy.deepcopy(tx)
         self.payjoin_proposal_received = False
-        self.define_sender_params()
         self.prepare_payjoin_original()
+
+    def prepare_payjoin_original(self) -> None:
+        assert not self.payjoin_proposal_received
+        assert self.payjoin_original.is_complete()
+        self.payjoin_original.prepare_for_export_for_coinjoin()
+        if self.payjoin_original.is_segwit():
+            self.payjoin_original.convert_all_utxos_to_witness_utxos()
 
     def define_sender_params(self) -> None:
         def examine_change_output():
@@ -2050,35 +2056,8 @@ class PayjoinTransaction():
         self.vsize_input_type = self.VSIZE_SENDER_TYPE.get(self.tx_input_type)
         self._maxadditionalfeecontribution = int(self.original_psbt_fee_rate * self.vsize_input_type)
 
-    def prepare_payjoin_original(self) -> None:
-        assert not self.payjoin_proposal_received
-        assert self.payjoin_original.is_complete()
-        self.payjoin_original.prepare_for_export_for_coinjoin()
-        if self.payjoin_original.is_segwit():
-            self.payjoin_original.convert_all_utxos_to_witness_utxos()
-
-    def do_payjoin(self) -> None:
-        self.exchange_payjoin_original()
-        self.payjoin_proposal = PartialTransaction.from_raw_psbt(self.payjoin_proposal_b64)
-        self.payjoin_proposal_received  = True
-        self.payjoin_proposal.invalidate_ser_cache()
-
-    def check_tor_proxys(self, ports: list) -> Optional[int]:
-        for p in ports:
-            try:
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.settimeout(0.1)
-                    s.connect(("127.0.0.1", p))
-                    # Tor responds uniquely to HTTP-like requests
-                    s.send(b"GET\n")
-                    if b"Tor is not an HTTP Proxy" in s.recv(1024):
-                        return p
-            except:
-                pass
-        return None
-
-    def exchange_payjoin_original(self) -> None:
-        """ """
+    def get_payjoin_http_params(self) -> list:
+        self.define_sender_params()
         url = self.pj
         payload = self.payjoin_original.serialize_as_base64_psbt()
         headers = {'content-type': 'text/plain',
@@ -2090,22 +2069,18 @@ class PayjoinTransaction():
         query_string += '&minfeerate=' + str(self._minfeerate)
         query_string += '&disableoutputsubstitution=' + self._disableoutputsubstitution
         url += query_string
-        session = requests.Session()
-        tor_ports = [9050, 9150]
-        self.tor_port = self.check_tor_proxys(tor_ports)
-        if self.tor_port is not None:
-            session.proxies = {'http': 'socks5h://127.0.0.1:' + str(self.tor_port),
-                               'https': 'socks5h://127.0.0.1:' + str(self.tor_port),
-                               }
-        try:
-            r = session.post(url, data=payload, headers=headers)
-            assert r.status_code==200
-            self.payjoin_proposal_b64 = r.text
-        except AssertionError:
-            raise PayJoinExchangeException(f"Exchange of payjoin failed. {r.status_code}: {r.text}")
-        except Exception as e:
-            raise PayJoinExchangeException(f"Exchange of payjoin failed. {repr(e)}")
+        return url, headers, payload
 
+    async def handle_payjoin_response(self, resp: ClientResponse) -> str:
+        if resp.status != 200:
+            message = await resp.text()
+            raise PayJoinExchangeException(f"Exchange of payjoin failed. {resp.status}: {message}")
+        return await resp.text()
+
+    def set_payjoin_proposal(self, payjoin_proposal: str) -> None:
+        self.payjoin_proposal_received  = True
+        self.payjoin_proposal = PartialTransaction.from_raw_psbt(payjoin_proposal)
+        self.payjoin_proposal.invalidate_ser_cache()
 
     def validate_payjoin_proposal(self) -> None:
 
