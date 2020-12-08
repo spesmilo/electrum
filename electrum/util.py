@@ -1187,6 +1187,7 @@ def create_and_start_event_loop() -> Tuple[asyncio.AbstractEventLoop,
                                          args=(stopping_fut,),
                                          name='EventLoop')
     loop_thread.start()
+    loop._mythread = loop_thread
     return loop, stopping_fut, loop_thread
 
 
