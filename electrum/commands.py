@@ -566,12 +566,14 @@ class Commands:
         privkeys = privkey.split()
         self.nocheck = nocheck
         #dest = self._resolver(destination)
-        tx = sweep(privkeys,
-                   network=self.network,
-                   config=self.config,
-                   to_address=destination,
-                   fee=tx_fee,
-                   imax=imax)
+        tx = await sweep(
+            privkeys,
+            network=self.network,
+            config=self.config,
+            to_address=destination,
+            fee=tx_fee,
+            imax=imax,
+        )
         return tx.serialize() if tx else None
 
     @command('wp')

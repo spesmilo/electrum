@@ -164,10 +164,18 @@ async def sweep_preparations(privkeys, network: 'Network', imax=100):
     return inputs, keypairs
 
 
-def sweep(privkeys, *, network: 'Network', config: 'SimpleConfig',
-          to_address: str, fee: int = None, imax=100,
-          locktime=None, tx_version=None) -> PartialTransaction:
-    inputs, keypairs = network.run_from_another_thread(sweep_preparations(privkeys, network, imax))
+async def sweep(
+        privkeys,
+        *,
+        network: 'Network',
+        config: 'SimpleConfig',
+        to_address: str,
+        fee: int = None,
+        imax=100,
+        locktime=None,
+        tx_version=None
+) -> PartialTransaction:
+    inputs, keypairs = await sweep_preparations(privkeys, network, imax)
     total = sum(txin.value_sats() for txin in inputs)
     if fee is None:
         outputs = [PartialTxOutput(scriptpubkey=bfh(bitcoin.address_to_script(to_address)),

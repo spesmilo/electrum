@@ -419,6 +419,7 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
             d.run_daemon()
             sys_exit(0)
         else:
+            # FIXME this message is lost in detached mode (parent process already exited after forking)
             print_msg("Daemon already running")
             sys_exit(1)
     else:
