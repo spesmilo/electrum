@@ -126,9 +126,10 @@ class HelpLabel(QLabel):
         return QLabel.leaveEvent(self, event)
 
 
-class HelpButton(QPushButton):
+class HelpButton(QToolButton):
     def __init__(self, text):
-        QPushButton.__init__(self, '?')
+        QToolButton.__init__(self)
+        self.setText('?')
         self.help_text = text
         self.setFocusPolicy(Qt.NoFocus)
         self.setFixedWidth(round(2.2 * char_width_in_lineedit()))
