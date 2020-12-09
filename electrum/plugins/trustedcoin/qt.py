@@ -44,7 +44,7 @@ from electrum.i18n import _
 from electrum.plugin import hook
 from electrum.util import is_valid_email
 from electrum.logging import Logger
-from electrum.base_wizard import GoBack
+from electrum.base_wizard import GoBack, UserCancelled
 
 from .trustedcoin import TrustedCoinPlugin, server
 
@@ -229,7 +229,7 @@ class Plugin(TrustedCoinPlugin):
         wizard.reset_stack()
         try:
             wizard.confirm_dialog(title='', message=msg, run_next = lambda x: wizard.run('accept_terms_of_use'))
-        except GoBack:
+        except (GoBack, UserCancelled):
             # user clicked 'Cancel' and decided to move wallet file manually
             storage, db = wizard.create_storage(wizard.path)
             raise
