@@ -345,6 +345,166 @@ def init_plugins(config, gui_name):
     return Plugins(config, gui_name)
 
 
+def run_gui(config, config_options):
+    """Run Electron Cash with GUI"""
+    file_desc, server = daemon.get_fd_or_server(config)
+    if file_desc is not None:
+        plugins = init_plugins(config, config.get("gui", "qt"))
+        daemon_thread = daemon.Daemon(config, file_desc, True, plugins)
+        daemon_thread.start()
+        try:
+            daemon_thread.init_gui()
+        finally:
+            daemon_thread.stop()  # Cleans up lockfile gracefully
+            daemon_thread.join(timeout=5.0)
+        sys.exit(0)
+    return server.gui(config_options)
+
+
+def run_start(config, config_options, subcommand):
+    """Start Electron Cash"""
+    file_desc, server = daemon.get_fd_or_server(config)
+    if file_desc is not None:
+        if subcommand == "start":
+            if sys.platform == "darwin":
+                sys.exit(
+                    "MacOS does not support this usage due to the way the "
+                    "platform libraries work.\n"
+                    "Please run the daemon without the 'start' option and "
+                    "manually detach/background the process."
+                )
+            pid = os.fork()
+            if pid:
+                print_stderr("starting daemon (PID %d)" % pid)
+                # exit without calling atexit handlers, in case there are any
+                # from e.g. a plugin, etc.
+                os._exit(0)  # pylint: disable=W0212
+        plugins = init_plugins(config, "cmdline")
+        daemon_thread = daemon.Daemon(config, file_desc, False, plugins)
+        daemon_thread.start()
+        if config.get("websocket_server"):
+            from electroncash import websockets  # pylint: disable=C0415
+            websockets.WebSocketServer(config, daemon_thread.network).start()
+        if config.get("requests_dir"):
+            requests_path = os.path.join(config.get("requests_dir"), "index.html")
+            if not os.path.exists(requests_path):
+                print("Requests directory not configured.")
+                print(
+                    "You can configure it using https://github.com/spesmilo/electrum-merchant"
+                )
+                sys.exit(1)
+        daemon_thread.join()
+        sys.exit(0)
+    else:
+        return server.daemon(config_options)
+
+
+def run_daemon(config, config_options):
+    """Run the daemon"""
+    subcommand = config.get("subcommand")
+    if subcommand in ["load_wallet"]:
+        init_daemon(config_options)
+    if subcommand in [None, "start"]:
+        return run_start(config, config_options, subcommand)
+    server = daemon.get_server(config)
+    if server is not None:
+        return server.daemon(config_options)
+    print_msg("Daemon not running")
+    sys.exit(1)
+
+
+def run_cmdline(config, config_options, cmdname, result):
+    """Run Electron Cash in command line mode"""
+    server = daemon.get_server(config)
+    init_cmdline(config_options, server)
+    if server is not None:
+        result = server.run_cmdline(config_options)
+    else:
+        cmd = known_commands[cmdname]
+        if cmd.requires_network:
+            print_msg("Daemon not running; try 'electron-cash daemon start'")
+            sys.exit(1)
+        else:
+            init_plugins(config, "cmdline")
+            result = run_offline_command(config, config_options)
+    return result
+
+
+def process_config_options(args):
+    """config is an object passed to the various constructors (wallet,
+    interface, gui)"""
+    config_options = args.__dict__
+
+    def filter_func(key):
+        return (
+            config_options[key] is not None
+            and key not in config_variables.get(args.cmd, {}).keys()
+        )
+
+    config_options = {
+        key: config_options[key] for key in filter(filter_func, config_options.keys())
+    }
+    if config_options.get("server"):
+        config_options["auto_connect"] = False
+    config_options["cwd"] = os.getcwd()
+
+    # fixme: this can probably be achieved with a runtime hook (pyinstaller)
+    try:
+        tmp_folder = os.path.join(
+                sys._MEIPASS,  # pylint: disable=W0212
+                "is_portable"
+        )
+        config_options["portable"] = is_bundle and os.path.exists(tmp_folder)
+    except AttributeError:
+        config_options["portable"] = False
+
+    if config_options.get("portable"):
+        config_options["electron_cash_path"] = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), "electron_cash_data"
+        )
+
+    set_verbosity(config_options.get("verbose"))
+
+    have_testnet = config_options.get("testnet", False)
+    have_testnet4 = config_options.get("testnet4", False)
+    have_scalenet = config_options.get("scalenet", False)
+    have_taxcoin = config_options.get("taxcoin", False)
+    if have_testnet + have_testnet4 + have_scalenet + have_taxcoin > 1:
+        sys.exit(
+            "Invalid combination of --testnet, --testnet4, --scalenet, and/or --taxcoin"
+        )
+    elif have_testnet:
+        networks.set_testnet()
+    elif have_testnet4:
+        networks.set_testnet4()
+    elif have_scalenet:
+        networks.set_scalenet()
+    elif have_taxcoin:
+        networks.set_taxcoin()
+
+    # check uri
+    uri = config_options.get("url")
+    if uri:
+        lc_uri = uri.lower()
+        if not any(
+            lc_uri.startswith(scheme + ":") for scheme in web.parseable_schemes()
+        ):
+            print_stderr("unknown command:", uri)
+            sys.exit(1)
+        config_options["url"] = uri
+    return config_options
+
+
+def print_result(result):
+    """Print result of the execution of main"""
+    if isinstance(result, str):
+        print_msg(result)
+    elif isinstance(result, dict) and result.get("error"):
+        print_stderr(result.get("error"))
+    elif result is not None:
+        print_msg(json_encode(result))
+
+
 def main():
     """ Main entry point into this script """
 
@@ -377,12 +537,11 @@ def main():
     # read arguments from stdin pipe and prompt
     for i, arg in enumerate(sys.argv):
         if arg == '-':
-            if not sys.stdin.isatty():
-                sys.argv[i] = sys.stdin.read()
-                break
-            else:
+            if sys.stdin.isatty():
                 raise BaseException('Cannot get argument from stdin')
-        elif arg == '?':
+            sys.argv[i] = sys.stdin.read()
+            break
+        if arg == '?':
             sys.argv[i] = input("Enter argument:")
         elif arg == ':':
             sys.argv[i] = prompt_password('Enter argument (will not echo):', False)
@@ -391,52 +550,7 @@ def main():
     parser = get_parser()
     args = parser.parse_args()
 
-    # config is an object passed to the various constructors (wallet, interface, gui)
-    config_options = args.__dict__
-
-    def filter_func(key):
-        return config_options[key] is not None and key not in config_variables.get(args.cmd, {}).keys()
-
-    config_options = {key: config_options[key] for key in filter(filter_func, config_options.keys())}
-    if config_options.get('server'):
-        config_options['auto_connect'] = False
-    config_options['cwd'] = os.getcwd()
-
-    # fixme: this can probably be achieved with a runtime hook (pyinstaller)
-    try:
-        if is_bundle and os.path.exists(os.path.join(sys._MEIPASS, 'is_portable')):
-            config_options['portable'] = True
-    except AttributeError:
-        config_options['portable'] = False
-
-    if config_options.get('portable'):
-        config_options['electron_cash_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electron_cash_data')
-
-    set_verbosity(config_options.get('verbose'))
-
-    have_testnet = config_options.get('testnet') or False
-    have_testnet4 = config_options.get('testnet4') or False
-    have_scalenet = config_options.get('scalenet') or False
-    have_taxcoin = config_options.get('taxcoin') or False
-    if have_testnet + have_testnet4 + have_scalenet + have_taxcoin > 1:
-        sys.exit("Invalid combination of --testnet, --testnet4, --scalenet, and/or --taxcoin")
-    elif have_testnet:
-        networks.set_testnet()
-    elif have_testnet4:
-        networks.set_testnet4()
-    elif have_scalenet:
-        networks.set_scalenet()
-    elif have_taxcoin:
-        networks.set_taxcoin()
-
-    # check uri
-    uri = config_options.get('url')
-    if uri:
-        lc_uri = uri.lower()
-        if not any(lc_uri.startswith(scheme + ':') for scheme in web.parseable_schemes()):
-            print_stderr('unknown command:', uri)
-            sys.exit(1)
-        config_options['url'] = uri
+    config_options = process_config_options(args)
 
     # todo: defer this to gui
     config = SimpleConfig(config_options)
@@ -447,81 +561,15 @@ def main():
         run_non_rpc(config)
         sys.exit(0)
 
-    if cmdname == 'gui':
-        fd, server = daemon.get_fd_or_server(config)
-        if fd is not None:
-            plugins = init_plugins(config, config.get('gui', 'qt'))
-            d = daemon.Daemon(config, fd, True, plugins)
-            d.start()
-            try:
-                d.init_gui()
-            finally:
-                d.stop()  # Cleans up lockfile gracefully
-                d.join(timeout=5.0)
-            sys.exit(0)
-        else:
-            result = server.gui(config_options)
-
-    elif cmdname == 'daemon':
-        subcommand = config.get('subcommand')
-        if subcommand in ['load_wallet']:
-            init_daemon(config_options)
-
-        if subcommand in [None, 'start']:
-            fd, server = daemon.get_fd_or_server(config)
-            if fd is not None:
-                if subcommand == 'start':
-                    if sys.platform == 'darwin':
-                        sys.exit("MacOS does not support this usage due to the way the platform libraries work.\n"
-                                 "Please run the daemon without the 'start' option and manually detach/background the process.")
-                    pid = os.fork()
-                    if pid:
-                        print_stderr("starting daemon (PID %d)" % pid)
-                        os._exit(0)  # exit without calling atexit handlers, in case there are any from e.g. a plugin, etc.
-                plugins = init_plugins(config, 'cmdline')
-                d = daemon.Daemon(config, fd, False, plugins)
-                d.start()
-                if config.get('websocket_server'):
-                    from electroncash import websockets
-                    websockets.WebSocketServer(config, d.network).start()
-                if config.get('requests_dir'):
-                    path = os.path.join(config.get('requests_dir'), 'index.html')
-                    if not os.path.exists(path):
-                        print("Requests directory not configured.")
-                        print("You can configure it using https://github.com/spesmilo/electrum-merchant")
-                        sys.exit(1)
-                d.join()
-                sys.exit(0)
-            else:
-                result = server.daemon(config_options)
-        else:
-            server = daemon.get_server(config)
-            if server is not None:
-                result = server.daemon(config_options)
-            else:
-                print_msg("Daemon not running")
-                sys.exit(1)
+    if cmdname == "gui":
+        result = run_gui(config, config_options)
+    elif cmdname == "daemon":
+        result = run_daemon(config, config_options)
     else:
-        # command line
-        server = daemon.get_server(config)
-        init_cmdline(config_options, server)
-        if server is not None:
-            result = server.run_cmdline(config_options)
-        else:
-            cmd = known_commands[cmdname]
-            if cmd.requires_network:
-                print_msg("Daemon not running; try 'electron-cash daemon start'")
-                sys.exit(1)
-            else:
-                init_plugins(config, 'cmdline')
-                result = run_offline_command(config, config_options)
-                # print result
-    if isinstance(result, str):
-        print_msg(result)
-    elif type(result) is dict and result.get('error'):
-        print_stderr(result.get('error'))
-    elif result is not None:
-        print_msg(json_encode(result))
+        result = run_cmdline(config, config_options, cmdname, result)
+
+    # print result
+    print_result(result)
     sys.exit(0)
 
 
