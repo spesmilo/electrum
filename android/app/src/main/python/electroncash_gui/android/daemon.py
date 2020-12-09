@@ -5,6 +5,17 @@ import sys
 import threading
 
 
+# The GIL can be a bottleneck for threads which release and acquire it many times in quick
+# succession (https://bugs.python.org/issue7946). For example, the transaction list has about 8
+# visible items on a phone-sized screen, and rendering each of them currently makes 8 Python
+# calls. This makes onBindViewHolder block the UI thread for the following times (best of 5):
+#
+#     No active background thread: 140 ms
+#     CPU-bound thread with setswitchinterval(0.005) (default): 310 ms
+#     CPU-bound thread with setswitchinterval(0.001): 180 ms
+sys.setswitchinterval(0.001)
+
+
 # To catch programming errors in the back end, WalletStorage._write doesn't allow daemon
 # threads to write the wallet. But on Android, background threads created from Java will also
 # have the daemon attribute set.

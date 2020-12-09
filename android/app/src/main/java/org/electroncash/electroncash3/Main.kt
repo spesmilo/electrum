@@ -156,7 +156,9 @@ class MainActivity : AppCompatActivity(R.layout.main) {
                 subtitle = "${getString(R.string.synchronizing)} $localHeight / $serverHeight"
             } else if (wallet == null) {
                 subtitle = getString(R.string.online)
-            } else if (wallet.callAttr("is_up_to_date").toBoolean()) {
+            }
+            // is_up_to_date takes an unnecessary lock, which may block us for hundreds of ms.
+            else if (wallet.get("up_to_date")!!.toBoolean()) {
                 // get_balance returns the tuple (confirmed, unconfirmed, unmatured)
                 val balance = wallet.callAttr("get_balance").asList().get(0).toLong()
                 subtitle = ltr(formatSatoshisAndFiat(balance))
