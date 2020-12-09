@@ -626,7 +626,7 @@ class ElectrumWindow(App, Logger):
             self.daemon.add_wallet(wallet)
             self.load_wallet(wallet)
 
-    def on_wizard_aborted(self, wizard):
+    def on_wizard_aborted(self):
         # wizard did not return a wallet; and there is no wallet open atm
         if not self.wallet:
             self.stop()
