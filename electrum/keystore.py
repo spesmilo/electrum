@@ -52,6 +52,9 @@ if TYPE_CHECKING:
     from .wallet_db import WalletDB
 
 
+class CannotDerivePubkey(Exception): pass
+
+
 class KeyStore(Logger, ABC):
     type: str
 
@@ -356,16 +359,25 @@ class MasterPublicKeyMixin(ABC):
 
     @abstractmethod
     def derive_pubkey(self, for_change: int, n: int) -> bytes:
+        """Returns pubkey at given path.
+        May raise CannotDerivePubkey.
+        """
         pass
 
-    def get_pubkey_derivation(self, pubkey: bytes,
-                              txinout: Union['PartialTxInput', 'PartialTxOutput'],
-                              *, only_der_suffix=True) \
-            -> Union[Sequence[int], str, None]:
+    def get_pubkey_derivation(
+            self,
+            pubkey: bytes,
+            txinout: Union['PartialTxInput', 'PartialTxOutput'],
+            *,
+            only_der_suffix=True,
+    ) -> Union[Sequence[int], str, None]:
         def test_der_suffix_against_pubkey(der_suffix: Sequence[int], pubkey: bytes) -> bool:
             if len(der_suffix) != 2:
                 return False
-            if pubkey != self.derive_pubkey(*der_suffix):
+            try:
+                if pubkey != self.derive_pubkey(*der_suffix):
+                    return False
+            except CannotDerivePubkey:
                 return False
             return True
 
@@ -488,7 +500,8 @@ class Xpub(MasterPublicKeyMixin):
     @lru_cache(maxsize=None)
     def derive_pubkey(self, for_change: int, n: int) -> bytes:
         for_change = int(for_change)
-        assert for_change in (0, 1)
+        if for_change not in (0, 1):
+            raise CannotDerivePubkey("forbidden path")
         xpub = self.xpub_change if for_change else self.xpub_receive
         if xpub is None:
             rootnode = self.get_bip32_node_for_xpub()
@@ -658,7 +671,8 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
     @lru_cache(maxsize=None)
     def derive_pubkey(self, for_change, n) -> bytes:
         for_change = int(for_change)
-        assert for_change in (0, 1)
+        if for_change not in (0, 1):
+            raise CannotDerivePubkey("forbidden path")
         return self.get_pubkey_from_mpk(self.mpk, for_change, n)
 
     def _get_private_key_from_stretched_exponent(self, for_change, n, secexp):

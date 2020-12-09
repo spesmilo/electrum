@@ -61,7 +61,8 @@ from .bitcoin import COIN, TYPE_ADDRESS
 from .bitcoin import is_address, address_to_script, is_minikey, relayfee, dust_threshold
 from .crypto import sha256d
 from . import keystore
-from .keystore import load_keystore, Hardware_KeyStore, KeyStore, KeyStoreWithMPK, AddressIndexGeneric
+from .keystore import (load_keystore, Hardware_KeyStore, KeyStore, KeyStoreWithMPK,
+                       AddressIndexGeneric, CannotDerivePubkey)
 from .util import multisig_type
 from .storage import StorageEncryptionVersion, WalletStorage
 from .wallet_db import WalletDB
@@ -2611,7 +2612,10 @@ class Deterministic_Wallet(Abstract_Wallet):
                 # note: we already know the pubkey belongs to the keystore,
                 #       but the script template might be different
                 if len(der_suffix) != 2: continue
-                my_address = self.derive_address(*der_suffix)
+                try:
+                    my_address = self.derive_address(*der_suffix)
+                except CannotDerivePubkey:
+                    my_address = None
                 if my_address == address:
                     self._ephemeral_addr_to_addr_index[address] = list(der_suffix)
                     return True
