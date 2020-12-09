@@ -32,6 +32,7 @@ Compatibility checking.
 # nice if plugins could check compatibility in the plugins enable/disable menu
 # (i.e. in the __init__.py)
 from electroncash import schnorr
+from google.protobuf.message import Message
 
 def check():
     # Pure-python schnorr should't be used since fusion requires so many
@@ -40,3 +41,15 @@ def check():
     # side.
     if not schnorr.has_fast_sign() or not schnorr.has_fast_verify():
         raise RuntimeError("Fusion requires libsecp256k1")
+
+    # Old versions of protobuf < 3.7.0 have missing API that we need in
+    # validation.proto_strict_parse.
+    # - .ParseFromString() may fail to return the length parsed. (It will
+    #   actually work properly if the c++ backend is used.)
+    # - .UnknownFields() missing.
+    try:
+        # This check works on >=3.7.0 and fails on <= 3.6.1, regardless of
+        # backend.
+        Message.UnknownFields
+    except AttributeError:
+        raise RuntimeError("Fusion requires python protobuf >= 3.7.0") from None
