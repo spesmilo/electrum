@@ -40,6 +40,7 @@ from . import encrypt
 from . import fusion_pb2 as pb
 from . import pedersen
 from .comms import send_pb, recv_pb, get_current_genesis_hash
+from . import compatibility
 from .connection import open_connection
 from .conf import Conf
 from .covert import CovertSubmitter, is_tor_port
@@ -411,8 +412,10 @@ class Fusion(threading.Thread, PrintError):
     def run(self):
         server_connected_and_greeted = False
         try:
-            if not schnorr.has_fast_sign() or not schnorr.has_fast_verify():
-                raise FusionError("Fusion requires libsecp256k1")
+            try:
+                compatibility.check()
+            except RuntimeError as e:
+                raise FusionError("Incompatible: " + str(e))
             if (self.tor_host is not None and self.tor_port is not None
                     and not is_tor_port(self.tor_host, self.tor_port)):
                 raise FusionError(f"Can't connect to Tor proxy at {self.tor_host}:{self.tor_port}")
