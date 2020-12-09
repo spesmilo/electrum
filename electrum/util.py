@@ -825,6 +825,12 @@ def block_explorer_URL(config: 'SimpleConfig', kind: str, item: str) -> Optional
 #_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
 #urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 
+
+# note: when checking against these, use .lower() to support case-insensitivity
+BITCOIN_BIP21_URI_SCHEME = 'bitcoin'
+LIGHTNING_URI_SCHEME = 'lightning'
+
+
 class InvalidBitcoinURI(Exception): pass
 
 
@@ -843,7 +849,7 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
         return {'address': uri}
 
     u = urllib.parse.urlparse(uri)
-    if u.scheme != 'bitcoin':
+    if u.scheme.lower() != BITCOIN_BIP21_URI_SCHEME:
         raise InvalidBitcoinURI("Not a bitcoin URI")
     address = u.path
 
@@ -931,14 +937,21 @@ def create_bip21_uri(addr, amount_sat: Optional[int], message: Optional[str],
             raise Exception(f"illegal key for URI: {repr(k)}")
         v = urllib.parse.quote(v)
         query.append(f"{k}={v}")
-    p = urllib.parse.ParseResult(scheme='bitcoin', netloc='', path=addr, params='', query='&'.join(query), fragment='')
+    p = urllib.parse.ParseResult(
+        scheme=BITCOIN_BIP21_URI_SCHEME,
+        netloc='',
+        path=addr,
+        params='',
+        query='&'.join(query),
+        fragment='',
+    )
     return str(urllib.parse.urlunparse(p))
 
 
 def maybe_extract_bolt11_invoice(data: str) -> Optional[str]:
     data = data.strip()  # whitespaces
     data = data.lower()
-    if data.startswith('lightning:ln'):
+    if data.startswith(LIGHTNING_URI_SCHEME + ':ln'):
         data = data[10:]
     if data.startswith('ln'):
         return data

@@ -87,7 +87,7 @@ from electrum.wallet_db import WalletDB
 from electrum.wallet import Wallet
 from electrum.storage import WalletStorage
 from electrum.util import print_msg, print_stderr, json_encode, json_decode, UserCancelled
-from electrum.util import InvalidPassword
+from electrum.util import InvalidPassword, BITCOIN_BIP21_URI_SCHEME
 from electrum.commands import get_parser, known_commands, Commands, config_variables
 from electrum import daemon
 from electrum import keystore
@@ -343,7 +343,7 @@ def main():
     # check uri
     uri = config_options.get('url')
     if uri:
-        if not uri.startswith('bitcoin:'):
+        if not uri.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
             print_stderr('unknown command:', uri)
             sys.exit(1)
 

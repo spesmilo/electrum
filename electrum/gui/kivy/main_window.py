@@ -75,7 +75,8 @@ Label.register('Roboto',
                'electrum/gui/kivy/data/fonts/Roboto-Bold.ttf')
 
 
-from electrum.util import (NoDynamicFeeEstimates, NotEnoughFunds)
+from electrum.util import (NoDynamicFeeEstimates, NotEnoughFunds,
+                           BITCOIN_BIP21_URI_SCHEME, LIGHTNING_URI_SCHEME)
 
 from .uix.dialogs.lightning_open_channel import LightningOpenChannelDialog
 from .uix.dialogs.lightning_channels import LightningChannelsDialog
@@ -210,9 +211,9 @@ class ElectrumWindow(App, Logger):
     def on_new_intent(self, intent):
         data = str(intent.getDataString())
         scheme = str(intent.getScheme()).lower()
-        if scheme == 'bitcoin':
+        if scheme == BITCOIN_BIP21_URI_SCHEME:
             self.set_URI(data)
-        elif scheme == 'lightning':
+        elif scheme == LIGHTNING_URI_SCHEME:
             self.set_ln_invoice(data)
 
     def on_language(self, instance, language):
@@ -420,10 +421,10 @@ class ElectrumWindow(App, Logger):
         if is_address(data):
             self.set_URI(data)
             return
-        if data.startswith('bitcoin:'):
+        if data.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
             self.set_URI(data)
             return
-        if data.startswith('channel_backup:'):
+        if data.lower().startswith('channel_backup:'):
             self.import_channel_backup(data)
             return
         bolt11_invoice = maybe_extract_bolt11_invoice(data)

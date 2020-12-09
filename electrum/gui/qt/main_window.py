@@ -61,7 +61,7 @@ from electrum.util import (format_time,
                            get_new_wallet_name, send_exception_to_crash_reporter,
                            InvalidBitcoinURI, maybe_extract_bolt11_invoice, NotEnoughFunds,
                            NoDynamicFeeEstimates, MultipleSpendMaxTxOutputs,
-                           AddTransactionException)
+                           AddTransactionException, BITCOIN_BIP21_URI_SCHEME)
 from electrum.invoices import PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING, Invoice
 from electrum.invoices import PR_PAID, PR_FAILED, pr_expiration_values, LNInvoice, OnchainInvoice
 from electrum.transaction import (Transaction, PartialTxInput,
@@ -2688,10 +2688,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if not data:
             return
         # if the user scanned a bitcoin URI
-        if str(data).startswith("bitcoin:"):
+        if data.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
             self.pay_to_URI(data)
             return
-        if data.startswith('channel_backup:'):
+        if data.lower().startswith('channel_backup:'):
             self.import_channel_backup(data)
             return
         # else if the user scanned an offline signed tx
