@@ -115,13 +115,23 @@ info "preparing electrum-locale."
 
 info "Installing build dependencies."
 mkdir -p "$CACHEDIR/pip_cache"
-"$python" -m pip install --no-dependencies --no-warn-script-location --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements-build-appimage.txt"
+"$python" -m pip install --no-dependencies --no-binary :all: --no-warn-script-location \
+    --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements-build-appimage.txt"
 
 info "installing electrum and its dependencies."
-"$python" -m pip install --no-dependencies --no-warn-script-location --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements.txt"
-"$python" -m pip install --no-dependencies --no-warn-script-location --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements-binaries.txt"
-"$python" -m pip install --no-dependencies --no-warn-script-location --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements-hw.txt"
-"$python" -m pip install --no-dependencies --no-warn-script-location --cache-dir "$CACHEDIR/pip_cache" "$PROJECT_ROOT"
+# note: we prefer compiling C extensions ourselves, instead of using binary wheels,
+#       hence "--no-binary :all:" flags. However, we specifically allow
+#       - PyQt5, as it's harder to build from source
+#       - cryptography, as building it would need openssl 1.1, not available on ubuntu 16.04
+"$python" -m pip install --no-dependencies --no-binary :all: --no-warn-script-location \
+    --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements.txt"
+"$python" -m pip install --no-dependencies --no-binary :all: --only-binary pyqt5,cryptography --no-warn-script-location \
+    --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements-binaries.txt"
+"$python" -m pip install --no-dependencies --no-binary :all: --no-warn-script-location \
+    --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements-hw.txt"
+
+"$python" -m pip install --no-dependencies --no-warn-script-location \
+    --cache-dir "$CACHEDIR/pip_cache" "$PROJECT_ROOT"
 
 # was only needed during build time, not runtime
 "$python" -m pip uninstall -y Cython
