@@ -1295,7 +1295,7 @@ def list_enabled_bits(x: int) -> Sequence[int]:
 
 
 def resolve_dns_srv(host: str):
-    srv_records = dns.resolver.query(host, 'SRV')
+    srv_records = dns.resolver.resolve(host, 'SRV')
     # priority: prefer lower
     # weight: tie breaker; prefer higher
     srv_records = sorted(srv_records, key=lambda x: (x.priority, -x.weight))

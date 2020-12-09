@@ -69,8 +69,8 @@ def _fast_getaddrinfo(host, *args, **kwargs):
         addrs = []
         expected_errors = (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer,
                            concurrent.futures.CancelledError, concurrent.futures.TimeoutError)
-        ipv6_fut = _dns_threads_executor.submit(dns.resolver.query, host, dns.rdatatype.AAAA)
-        ipv4_fut = _dns_threads_executor.submit(dns.resolver.query, host, dns.rdatatype.A)
+        ipv6_fut = _dns_threads_executor.submit(dns.resolver.resolve, host, dns.rdatatype.AAAA)
+        ipv4_fut = _dns_threads_executor.submit(dns.resolver.resolve, host, dns.rdatatype.A)
         # try IPv6
         try:
             answers = ipv6_fut.result()

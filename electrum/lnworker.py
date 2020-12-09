@@ -382,7 +382,7 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         for srv_ans in srv_answers:
             try:
                 # note: this might block for several seconds
-                answers = dns.resolver.query(srv_ans['host'])
+                answers = dns.resolver.resolve(srv_ans['host'])
             except dns.exception.DNSException as e:
                 self.logger.info(f'failed querying (2) dns seed "{dns_seed}" for ln peers: {repr(e)}')
                 continue
