@@ -104,7 +104,9 @@ if TYPE_CHECKING:
 
 LN_NUM_PAYMENT_ATTEMPTS = 10
 
+
 class StatusBarButton(QToolButton):
+    # note: this class has a custom stylesheet applied in stylesheet_patcher.py
     def __init__(self, icon, tooltip, func):
         QToolButton.__init__(self)
         self.setText('')
