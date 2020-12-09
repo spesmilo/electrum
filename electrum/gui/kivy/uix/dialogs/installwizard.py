@@ -619,6 +619,7 @@ class WizardDialog(EventsDialog):
     def on_keyboard(self, instance, key, keycode, codepoint, modifier):
         if key == 27:
             if self.wizard.can_go_back():
+                self.dismiss()
                 self.wizard.go_back()
             else:
                 if not self.app.is_exit:
