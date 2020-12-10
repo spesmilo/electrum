@@ -371,8 +371,9 @@ class MasterPublicKeyMixin(ABC):
             *,
             only_der_suffix=True,
     ) -> Union[Sequence[int], str, None]:
+        EXPECTED_DER_SUFFIX_LEN = 2
         def test_der_suffix_against_pubkey(der_suffix: Sequence[int], pubkey: bytes) -> bool:
-            if len(der_suffix) != 2:
+            if len(der_suffix) != EXPECTED_DER_SUFFIX_LEN:
                 return False
             try:
                 if pubkey != self.derive_pubkey(*der_suffix):
@@ -387,11 +388,11 @@ class MasterPublicKeyMixin(ABC):
         der_suffix = None
         full_path = None
         # 1. try fp against our root
-        my_root_fingerprint_hex = self.get_root_fingerprint()
-        my_der_prefix_str = self.get_derivation_prefix()
-        ks_der_prefix = convert_bip32_path_to_list_of_uint32(my_der_prefix_str) if my_der_prefix_str else None
-        if (my_root_fingerprint_hex is not None and ks_der_prefix is not None and
-                fp_found.hex() == my_root_fingerprint_hex):
+        ks_root_fingerprint_hex = self.get_root_fingerprint()
+        ks_der_prefix_str = self.get_derivation_prefix()
+        ks_der_prefix = convert_bip32_path_to_list_of_uint32(ks_der_prefix_str) if ks_der_prefix_str else None
+        if (ks_root_fingerprint_hex is not None and ks_der_prefix is not None and
+                fp_found.hex() == ks_root_fingerprint_hex):
             if path_found[:len(ks_der_prefix)] == ks_der_prefix:
                 der_suffix = path_found[len(ks_der_prefix):]
                 if not test_der_suffix_against_pubkey(der_suffix, pubkey):
@@ -402,10 +403,17 @@ class MasterPublicKeyMixin(ABC):
             der_suffix = path_found
             if not test_der_suffix_against_pubkey(der_suffix, pubkey):
                 der_suffix = None
-        # NOTE: problem: if we don't know our root fp, but tx contains root fp and full path,
-        #       we will miss the pubkey (false negative match). Though it might still work
-        #       within gap limit due to tx.add_info_from_wallet overwriting the fields.
-        #       Example: keystore has intermediate xprv without root fp; tx contains root fp and full path.
+        # 3. hack/bruteforce: ignore fp and check pubkey anyway
+        #    This is only to resolve the following scenario/problem:
+        #    problem: if we don't know our root fp, but tx contains root fp and full path,
+        #             we will miss the pubkey (false negative match). Though it might still work
+        #             within gap limit due to tx.add_info_from_wallet overwriting the fields.
+        #             Example: keystore has intermediate xprv without root fp; tx contains root fp and full path.
+        if der_suffix is None:
+            der_suffix = path_found[-EXPECTED_DER_SUFFIX_LEN:]
+            if not test_der_suffix_against_pubkey(der_suffix, pubkey):
+                der_suffix = None
+        # if all attempts/methods failed, we give up now:
         if der_suffix is None:
             return None
         if ks_der_prefix is not None:
