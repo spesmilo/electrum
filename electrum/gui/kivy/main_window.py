@@ -623,12 +623,11 @@ class ElectrumWindow(App, Logger):
             return ''
 
     def on_wizard_success(self, storage, db, password):
-        if storage:
-            self.password = password
-            wallet = Wallet(db, storage, config=self.electrum_config)
-            wallet.start_network(self.daemon.network)
-            self.daemon.add_wallet(wallet)
-            self.load_wallet(wallet)
+        self.password = password
+        wallet = Wallet(db, storage, config=self.electrum_config)
+        wallet.start_network(self.daemon.network)
+        self.daemon.add_wallet(wallet)
+        self.load_wallet(wallet)
 
     def on_wizard_aborted(self):
         # wizard did not return a wallet; and there is no wallet open atm
