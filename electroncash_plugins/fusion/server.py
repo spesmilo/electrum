@@ -41,6 +41,7 @@ import electroncash.schnorr as schnorr
 from electroncash.address import Address
 from electroncash.util import PrintError, ServerError, TimeoutException
 from . import fusion_pb2 as pb
+from . import compatibility
 from .comms import send_pb, recv_pb, ClientHandlerThread, GenericServer, get_current_genesis_hash
 from .protocol import Protocol
 from .util import (FusionError, sha256, calc_initial_hash, calc_round_hash, gen_keypair, tx_from_components,
@@ -227,8 +228,7 @@ class FusionServer(GenericServer):
     def __init__(self, config, network, bindhost, port, upnp = None, announcehost = None, donation_address = None):
         assert network
         assert isinstance(donation_address, (Address, type(None)))
-        if not schnorr.has_fast_sign() or not schnorr.has_fast_verify():
-            raise RuntimeError("Fusion requires libsecp256k1")
+        compatibility.check()
         super().__init__(bindhost, port, ClientThread, upnp = upnp)
         self.config = config
         self.network = network
