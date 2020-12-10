@@ -2,6 +2,7 @@
 #:import Window kivy.core.window.Window
 #:import Factory kivy.factory.Factory
 #:import _ electrum.gui.kivy.i18n._
+#:import KIVY_GUI_PATH electrum.gui.kivy.KIVY_GUI_PATH
 
 
 ###########################
@@ -211,7 +212,7 @@
         Color:
             rgba: 0.192, .498, 0.745, 1
         BorderImage:
-            source: 'atlas://electrum/gui/kivy/theming/light/card_bottom'
+            source: f'atlas://{KIVY_GUI_PATH}/theming/light/card_bottom'
             size: self.size
             pos: self.pos
 
@@ -225,7 +226,7 @@
 		Color:
 			rgba: 0.192, .498, 0.745, 1
 		BorderImage:
-			source: 'atlas://electrum/gui/kivy/theming/light/card_bottom'
+			source: f'atlas://{KIVY_GUI_PATH}/theming/light/card_bottom'
 			size: self.size
 			pos: self.pos
 
@@ -238,7 +239,7 @@
 		Color:
 			rgba: 0.192, .498, 0.745, 1
         BorderImage:
-            source: 'atlas://electrum/gui/kivy/theming/light/card_bottom'
+            source: f'atlas://{KIVY_GUI_PATH}/theming/light/card_bottom'
             size: self.size
             pos: self.pos
 
@@ -326,8 +327,8 @@
     valign: 'middle'
     bold: True
     font_size: '12.5sp'
-    background_normal: 'atlas://electrum/gui/kivy/theming/light/tab_btn'
-    background_down: 'atlas://electrum/gui/kivy/theming/light/tab_btn_pressed'
+    background_normal: f'atlas://{KIVY_GUI_PATH}/theming/light/tab_btn'
+    background_down: f'atlas://{KIVY_GUI_PATH}/theming/light/tab_btn_pressed'
 
 
 <ColoredLabel@Label>:
@@ -417,7 +418,7 @@ BoxLayout:
             rgb: .6, .6, .6
         Rectangle:
             size: self.size
-            source: 'electrum/gui/kivy/data/background.png'
+            source: f'{KIVY_GUI_PATH}/data/background.png'
 
     ActionBar:
 

@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 
 
 Builder.load_string('''
+#:import KIVY_GUI_PATH electrum.gui.kivy.KIVY_GUI_PATH
 
 <TxDialog>
     id: popup
@@ -102,7 +103,7 @@ Builder.load_string('''
             IconButton:
                 size_hint: 0.5, None
                 height: '48dp'
-                icon: 'atlas://electrum/gui/kivy/theming/light/qrcode'
+                icon: f'atlas://{KIVY_GUI_PATH}/theming/light/qrcode'
                 on_release: root.show_qr()
             Button:
                 size_hint: 0.5, None

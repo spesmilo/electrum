@@ -49,9 +49,6 @@ if is_local:  # running from source
     # developers should probably see all deprecation warnings.
     warnings.simplefilter('default', DeprecationWarning)
 
-# move this back to gui/kivy/__init.py once plugins are moved
-os.environ['KIVY_DATA_DIR'] = os.path.abspath(os.path.dirname(__file__)) + '/electrum/gui/kivy/data/'
-
 if is_local or is_android:
     sys.path.insert(0, os.path.join(script_dir, 'packages'))
 

@@ -23,6 +23,7 @@ from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed
 from electrum.interface import PREFERRED_NETWORK_PROTOCOL, ServerAddr
 from electrum.logging import Logger
 from .i18n import _
+from . import KIVY_GUI_PATH
 
 from kivy.app import App
 from kivy.core.window import Window
@@ -68,11 +69,13 @@ Factory.register('TabbedCarousel', module='electrum.gui.kivy.uix.screens')
 # Register fonts without this you won't be able to use bold/italic...
 # inside markup.
 from kivy.core.text import Label
-Label.register('Roboto',
-               'electrum/gui/kivy/data/fonts/Roboto.ttf',
-               'electrum/gui/kivy/data/fonts/Roboto.ttf',
-               'electrum/gui/kivy/data/fonts/Roboto-Bold.ttf',
-               'electrum/gui/kivy/data/fonts/Roboto-Bold.ttf')
+Label.register(
+    'Roboto',
+    KIVY_GUI_PATH + '/data/fonts/Roboto.ttf',
+    KIVY_GUI_PATH + '/data/fonts/Roboto.ttf',
+    KIVY_GUI_PATH + '/data/fonts/Roboto-Bold.ttf',
+    KIVY_GUI_PATH + '/data/fonts/Roboto-Bold.ttf',
+)
 
 
 from electrum.util import (NoDynamicFeeEstimates, NotEnoughFunds,
@@ -530,7 +533,7 @@ class ElectrumWindow(App, Logger):
         currentActivity.startActivity(it)
 
     def build(self):
-        return Builder.load_file('electrum/gui/kivy/main.kv')
+        return Builder.load_file(KIVY_GUI_PATH + '/main.kv')
 
     def _pause(self):
         if platform == 'android':
@@ -724,7 +727,7 @@ class ElectrumWindow(App, Logger):
         elif name == 'wallets':
             self.wallets_dialog()
         elif name == 'status':
-            popup = Builder.load_file('electrum/gui/kivy/uix/ui_screens/'+name+'.kv')
+            popup = Builder.load_file(KIVY_GUI_PATH + f'/uix/ui_screens/{name}.kv')
             master_public_keys_layout = popup.ids.master_public_keys
             for xpub in self.wallet.get_master_public_keys()[1:]:
                 master_public_keys_layout.add_widget(TopLabel(text=_('Master Public Key')))
@@ -736,7 +739,7 @@ class ElectrumWindow(App, Logger):
         elif name.endswith("_dialog"):
             getattr(self, name)()
         else:
-            popup = Builder.load_file('electrum/gui/kivy/uix/ui_screens/'+name+'.kv')
+            popup = Builder.load_file(KIVY_GUI_PATH + f'/uix/ui_screens/{name}.kv')
             popup.open()
 
     @profiler
@@ -766,7 +769,7 @@ class ElectrumWindow(App, Logger):
         self.history_screen = None
         self.send_screen = None
         self.receive_screen = None
-        self.icon = "electrum/gui/icons/electrum.png"
+        self.icon = os.path.dirname(KIVY_GUI_PATH) + "/icons/electrum.png"
         self.tabs = self.root.ids['tabs']
 
     def update_interfaces(self, dt):
@@ -968,7 +971,7 @@ class ElectrumWindow(App, Logger):
         self.qr_dialog(label.name, label.data, True)
 
     def show_error(self, error, width='200dp', pos=None, arrow_pos=None,
-                   exit=False, icon='atlas://electrum/gui/kivy/theming/light/error', duration=0,
+                   exit=False, icon=f'atlas://{KIVY_GUI_PATH}/theming/light/error', duration=0,
                    modal=False):
         ''' Show an error Message Bubble.
         '''
@@ -980,7 +983,7 @@ class ElectrumWindow(App, Logger):
                   exit=False, duration=0, modal=False):
         ''' Show an Info Message Bubble.
         '''
-        self.show_error(error, icon='atlas://electrum/gui/kivy/theming/light/important',
+        self.show_error(error, icon=f'atlas://{KIVY_GUI_PATH}/theming/light/important',
             duration=duration, modal=modal, exit=exit, pos=pos,
             arrow_pos=arrow_pos)
 
@@ -1021,7 +1024,7 @@ class ElectrumWindow(App, Logger):
             info_bubble.show_arrow = False
             img.allow_stretch = True
             info_bubble.dim_background = True
-            info_bubble.background_image = 'atlas://electrum/gui/kivy/theming/light/card'
+            info_bubble.background_image = f'atlas://{KIVY_GUI_PATH}/theming/light/card'
         else:
             info_bubble.fs = False
             info_bubble.icon = icon

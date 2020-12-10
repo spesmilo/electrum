@@ -9,6 +9,8 @@ from electrum.gui.kivy.i18n import _
 from electrum.plugin import run_hook
 from electrum import coinchooser
 
+from electrum.gui.kivy import KIVY_GUI_PATH
+
 from .choice_dialog import ChoiceDialog
 
 Builder.load_string('''
@@ -193,7 +195,7 @@ class SettingsDialog(Factory.Popup):
                 net_params = net_params._replace(proxy=proxy)
                 network.run_from_another_thread(network.set_parameters(net_params))
                 item.status = self.proxy_status()
-            popup = Builder.load_file('electrum/gui/kivy/uix/ui_screens/proxy.kv')
+            popup = Builder.load_file(KIVY_GUI_PATH + '/uix/ui_screens/proxy.kv')
             popup.ids.mode.text = proxy.get('mode') if proxy else 'None'
             popup.ids.host.text = proxy.get('host') if proxy else ''
             popup.ids.port.text = proxy.get('port') if proxy else ''
