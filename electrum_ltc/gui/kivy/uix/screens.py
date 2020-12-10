@@ -233,9 +233,10 @@ class SendScreen(CScreen, Logger):
             assert isinstance(item, LNInvoice)
             key = item.rhash
             address = key
-            log = self.app.wallet.lnworker.logs.get(key)
-            if status == PR_INFLIGHT and log:
-                status_str += '... (%d)'%len(log)
+            if self.app.wallet.lnworker:
+                log = self.app.wallet.lnworker.logs.get(key)
+                if status == PR_INFLIGHT and log:
+                    status_str += '... (%d)'%len(log)
             is_bip70 = False
         else:
             assert isinstance(item, OnchainInvoice)
@@ -345,8 +346,10 @@ class SendScreen(CScreen, Logger):
 
     def do_pay_invoice(self, invoice):
         if invoice.is_lightning():
-            self.app.protected(_('Pay lightning invoice?'), self._do_pay_lightning, (invoice,))
-            return
+            if self.app.wallet.lnworker:
+                self.app.protected(_('Pay lightning invoice?'), self._do_pay_lightning, (invoice,))
+            else:
+                self.app.show_error(_("Lightning payments are not available for this wallet"))
         else:
             do_pay = lambda rbf: self._do_pay_onchain(invoice, rbf)
             if self.app.electrum_config.get('use_rbf'):

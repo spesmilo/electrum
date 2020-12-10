@@ -151,7 +151,6 @@ def query(url, rtype):
         validated = True
     except BaseException as e:
         _logger.info(f"DNSSEC error: {repr(e)}")
-        resolver = dns.resolver.get_default_resolver()
-        out = resolver.query(url, rtype)
+        out = dns.resolver.resolve(url, rtype)
         validated = False
     return out, validated

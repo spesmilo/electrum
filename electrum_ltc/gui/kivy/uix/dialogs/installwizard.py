@@ -640,6 +640,8 @@ class WizardDialog(EventsDialog):
         return (None,)
 
     def on_release(self, button):
+        if self._on_release is True:
+            return
         self._on_release = True
         self.dismiss()
         if not button:
@@ -1069,7 +1071,7 @@ class InstallWizard(BaseWizard, Widget):
             try: os.unlink(self.path)
             except FileNotFoundError: pass
             self.reset_stack()
-            self.confirm_dialog(message=_('Wallet creation failed'), run_next=self.app.on_wizard_aborted)
+            self.confirm_dialog(message=_('Wallet creation failed'), run_next=lambda x: self.app.on_wizard_aborted())
 
     def choice_dialog(self, **kwargs):
         choices = kwargs['choices']
