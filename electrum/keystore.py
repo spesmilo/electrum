@@ -349,8 +349,12 @@ class MasterPublicKeyMixin(ABC):
         pass
 
     @abstractmethod
-    def get_fp_and_derivation_to_be_used_in_partial_tx(self, der_suffix: Sequence[int], *,
-                                                       only_der_suffix: bool = True) -> Tuple[bytes, Sequence[int]]:
+    def get_fp_and_derivation_to_be_used_in_partial_tx(
+            self,
+            der_suffix: Sequence[int],
+            *,
+            only_der_suffix: bool,
+    ) -> Tuple[bytes, Sequence[int]]:
         """Returns fingerprint and derivation path corresponding to a derivation suffix.
         The fingerprint is either the root fp or the intermediate fp, depending on what is available
         and 'only_der_suffix', and the derivation path is adjusted accordingly.
@@ -449,8 +453,12 @@ class Xpub(MasterPublicKeyMixin):
     def get_root_fingerprint(self) -> Optional[str]:
         return self._root_fingerprint
 
-    def get_fp_and_derivation_to_be_used_in_partial_tx(self, der_suffix: Sequence[int], *,
-                                                       only_der_suffix: bool = True) -> Tuple[bytes, Sequence[int]]:
+    def get_fp_and_derivation_to_be_used_in_partial_tx(
+            self,
+            der_suffix: Sequence[int],
+            *,
+            only_der_suffix: bool,
+    ) -> Tuple[bytes, Sequence[int]]:
         fingerprint_hex = self.get_root_fingerprint()
         der_prefix_str = self.get_derivation_prefix()
         if not only_der_suffix and fingerprint_hex is not None and der_prefix_str is not None:
@@ -721,8 +729,12 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
             self._root_fingerprint = xfp.hex().lower()
         return self._root_fingerprint
 
-    def get_fp_and_derivation_to_be_used_in_partial_tx(self, der_suffix: Sequence[int], *,
-                                                       only_der_suffix: bool = True) -> Tuple[bytes, Sequence[int]]:
+    def get_fp_and_derivation_to_be_used_in_partial_tx(
+            self,
+            der_suffix: Sequence[int],
+            *,
+            only_der_suffix: bool,
+    ) -> Tuple[bytes, Sequence[int]]:
         fingerprint_hex = self.get_root_fingerprint()
         der_prefix_str = self.get_derivation_prefix()
         fingerprint_bytes = bfh(fingerprint_hex)
