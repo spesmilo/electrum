@@ -4,6 +4,8 @@ from kivy.properties import ObjectProperty
 from kivy.lang import Builder
 
 Builder.load_string('''
+#:import KIVY_GUI_PATH electrum_ltc.gui.kivy.KIVY_GUI_PATH
+
 <LabelDialog@Popup>
     id: popup
     title: ''
@@ -21,8 +23,8 @@ Builder.load_string('''
             pos_hint: {'center_y':.5}
             text:''
             multiline: False
-            background_normal: 'atlas://electrum_ltc/gui/kivy/theming/light/tab_btn'
-            background_active: 'atlas://electrum_ltc/gui/kivy/theming/light/textinput_active'
+            background_normal: f'atlas://{KIVY_GUI_PATH}/theming/light/tab_btn'
+            background_active: f'atlas://{KIVY_GUI_PATH}/theming/light/textinput_active'
             hint_text_color: self.foreground_color
             foreground_color: 1, 1, 1, 1
             font_size: '16dp'

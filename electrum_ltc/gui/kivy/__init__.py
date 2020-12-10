@@ -29,6 +29,9 @@ import sys
 import os
 from typing import TYPE_CHECKING
 
+KIVY_GUI_PATH = os.path.abspath(os.path.dirname(__file__))
+os.environ['KIVY_DATA_DIR'] = os.path.join(KIVY_GUI_PATH, 'data')
+
 try:
     sys.argv = ['']
     import kivy

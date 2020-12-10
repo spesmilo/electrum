@@ -1922,28 +1922,27 @@ class PartialTransaction(Transaction):
         self.invalidate_ser_cache()
 
     def add_info_from_wallet(self, wallet: 'Abstract_Wallet', *,
-                             include_xpubs_and_full_paths: bool = False) -> None:
+                             include_xpubs: bool = False) -> None:
         if self.is_complete():
             return
-        only_der_suffix = not include_xpubs_and_full_paths
         # only include xpubs for multisig wallets; currently only they need it in practice
         # note: coldcard fw have a limitation that if they are included then all
         #       inputs are assumed to be multisig... https://github.com/spesmilo/electrum/pull/5440#issuecomment-549504761
         # note: trezor plugin needs xpubs included, if there are multisig inputs/change_outputs
         from .wallet import Multisig_Wallet
-        if include_xpubs_and_full_paths and isinstance(wallet, Multisig_Wallet):
+        if include_xpubs and isinstance(wallet, Multisig_Wallet):
             from .keystore import Xpub
             for ks in wallet.get_keystores():
                 if isinstance(ks, Xpub):
-                    fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix=[],
-                                                                                           only_der_suffix=only_der_suffix)
-                    xpub = ks.get_xpub_to_be_used_in_partial_tx(only_der_suffix=only_der_suffix)
+                    fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(
+                        der_suffix=[], only_der_suffix=False)
+                    xpub = ks.get_xpub_to_be_used_in_partial_tx(only_der_suffix=False)
                     bip32node = BIP32Node.from_xkey(xpub)
                     self.xpubs[bip32node] = (fp_bytes, der_full)
         for txin in self.inputs():
-            wallet.add_input_info(txin, only_der_suffix=only_der_suffix)
+            wallet.add_input_info(txin, only_der_suffix=False)
         for txout in self.outputs():
-            wallet.add_output_info(txout, only_der_suffix=only_der_suffix)
+            wallet.add_output_info(txout, only_der_suffix=False)
 
     def remove_xpubs_and_bip32_paths(self) -> None:
         self.xpubs.clear()

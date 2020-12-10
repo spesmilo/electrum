@@ -23,6 +23,7 @@ from electrum_ltc.network import Network, TxBroadcastError, BestEffortRequestFai
 from electrum_ltc.interface import PREFERRED_NETWORK_PROTOCOL, ServerAddr
 from electrum_ltc.logging import Logger
 from .i18n import _
+from . import KIVY_GUI_PATH
 
 from kivy.app import App
 from kivy.core.window import Window
@@ -68,14 +69,17 @@ Factory.register('TabbedCarousel', module='electrum_ltc.gui.kivy.uix.screens')
 # Register fonts without this you won't be able to use bold/italic...
 # inside markup.
 from kivy.core.text import Label
-Label.register('Roboto',
-               'electrum_ltc/gui/kivy/data/fonts/Roboto.ttf',
-               'electrum_ltc/gui/kivy/data/fonts/Roboto.ttf',
-               'electrum_ltc/gui/kivy/data/fonts/Roboto-Bold.ttf',
-               'electrum_ltc/gui/kivy/data/fonts/Roboto-Bold.ttf')
+Label.register(
+    'Roboto',
+    KIVY_GUI_PATH + '/data/fonts/Roboto.ttf',
+    KIVY_GUI_PATH + '/data/fonts/Roboto.ttf',
+    KIVY_GUI_PATH + '/data/fonts/Roboto-Bold.ttf',
+    KIVY_GUI_PATH + '/data/fonts/Roboto-Bold.ttf',
+)
 
 
-from electrum_ltc.util import (NoDynamicFeeEstimates, NotEnoughFunds)
+from electrum_ltc.util import (NoDynamicFeeEstimates, NotEnoughFunds,
+                               BITCOIN_BIP21_URI_SCHEME, LIGHTNING_URI_SCHEME)
 
 from .uix.dialogs.lightning_open_channel import LightningOpenChannelDialog
 from .uix.dialogs.lightning_channels import LightningChannelsDialog
@@ -210,9 +214,9 @@ class ElectrumWindow(App, Logger):
     def on_new_intent(self, intent):
         data = str(intent.getDataString())
         scheme = str(intent.getScheme()).lower()
-        if scheme == 'litecoin':
+        if scheme == BITCOIN_BIP21_URI_SCHEME:
             self.set_URI(data)
-        elif scheme == 'lightning':
+        elif scheme == LIGHTNING_URI_SCHEME:
             self.set_ln_invoice(data)
 
     def on_language(self, instance, language):
@@ -420,10 +424,10 @@ class ElectrumWindow(App, Logger):
         if is_address(data):
             self.set_URI(data)
             return
-        if data.startswith('litecoin:'):
+        if data.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
             self.set_URI(data)
             return
-        if data.startswith('channel_backup:'):
+        if data.lower().startswith('channel_backup:'):
             self.import_channel_backup(data)
             return
         bolt11_invoice = maybe_extract_bolt11_invoice(data)
@@ -529,7 +533,7 @@ class ElectrumWindow(App, Logger):
         currentActivity.startActivity(it)
 
     def build(self):
-        return Builder.load_file('electrum_ltc/gui/kivy/main.kv')
+        return Builder.load_file(KIVY_GUI_PATH + '/main.kv')
 
     def _pause(self):
         if platform == 'android':
@@ -619,12 +623,11 @@ class ElectrumWindow(App, Logger):
             return ''
 
     def on_wizard_success(self, storage, db, password):
-        if storage:
-            self.password = password
-            wallet = Wallet(db, storage, config=self.electrum_config)
-            wallet.start_network(self.daemon.network)
-            self.daemon.add_wallet(wallet)
-            self.load_wallet(wallet)
+        self.password = password
+        wallet = Wallet(db, storage, config=self.electrum_config)
+        wallet.start_network(self.daemon.network)
+        self.daemon.add_wallet(wallet)
+        self.load_wallet(wallet)
 
     def on_wizard_aborted(self):
         # wizard did not return a wallet; and there is no wallet open atm
@@ -723,7 +726,7 @@ class ElectrumWindow(App, Logger):
         elif name == 'wallets':
             self.wallets_dialog()
         elif name == 'status':
-            popup = Builder.load_file('electrum_ltc/gui/kivy/uix/ui_screens/'+name+'.kv')
+            popup = Builder.load_file(KIVY_GUI_PATH + f'/uix/ui_screens/{name}.kv')
             master_public_keys_layout = popup.ids.master_public_keys
             for xpub in self.wallet.get_master_public_keys()[1:]:
                 master_public_keys_layout.add_widget(TopLabel(text=_('Master Public Key')))
@@ -735,7 +738,7 @@ class ElectrumWindow(App, Logger):
         elif name.endswith("_dialog"):
             getattr(self, name)()
         else:
-            popup = Builder.load_file('electrum_ltc/gui/kivy/uix/ui_screens/'+name+'.kv')
+            popup = Builder.load_file(KIVY_GUI_PATH + f'/uix/ui_screens/{name}.kv')
             popup.open()
 
     @profiler
@@ -765,7 +768,7 @@ class ElectrumWindow(App, Logger):
         self.history_screen = None
         self.send_screen = None
         self.receive_screen = None
-        self.icon = "electrum_ltc/gui/icons/electrum-ltc.png"
+        self.icon = os.path.dirname(KIVY_GUI_PATH) + "/icons/electrum-ltc.png"
         self.tabs = self.root.ids['tabs']
 
     def update_interfaces(self, dt):
@@ -967,7 +970,7 @@ class ElectrumWindow(App, Logger):
         self.qr_dialog(label.name, label.data, True)
 
     def show_error(self, error, width='200dp', pos=None, arrow_pos=None,
-                   exit=False, icon='atlas://electrum_ltc/gui/kivy/theming/light/error', duration=0,
+                   exit=False, icon=f'atlas://{KIVY_GUI_PATH}/theming/light/error', duration=0,
                    modal=False):
         ''' Show an error Message Bubble.
         '''
@@ -979,7 +982,7 @@ class ElectrumWindow(App, Logger):
                   exit=False, duration=0, modal=False):
         ''' Show an Info Message Bubble.
         '''
-        self.show_error(error, icon='atlas://electrum_ltc/gui/kivy/theming/light/important',
+        self.show_error(error, icon=f'atlas://{KIVY_GUI_PATH}/theming/light/important',
             duration=duration, modal=modal, exit=exit, pos=pos,
             arrow_pos=arrow_pos)
 
@@ -1020,7 +1023,7 @@ class ElectrumWindow(App, Logger):
             info_bubble.show_arrow = False
             img.allow_stretch = True
             info_bubble.dim_background = True
-            info_bubble.background_image = 'atlas://electrum_ltc/gui/kivy/theming/light/card'
+            info_bubble.background_image = f'atlas://{KIVY_GUI_PATH}/theming/light/card'
         else:
             info_bubble.fs = False
             info_bubble.icon = icon

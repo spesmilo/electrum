@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from electrum_ltc.storage import WalletStorage
 
 Builder.load_string('''
+#:import KIVY_GUI_PATH electrum_ltc.gui.kivy.KIVY_GUI_PATH
 
 <PasswordDialog@Popup>
     id: popup
@@ -47,7 +48,7 @@ Builder.load_string('''
             IconButton:
                 size_hint: 0.15, None
                 height: '40dp'
-                icon: 'atlas://electrum_ltc/gui/kivy/theming/light/btn_create_account'
+                icon: f'atlas://{KIVY_GUI_PATH}/theming/light/btn_create_account'
                 on_release: root.select_file()
                 disabled: root.is_change
                 opacity: 0 if root.is_change else 1
@@ -81,7 +82,7 @@ Builder.load_string('''
             IconButton:
                 height: '40dp'
                 size_hint: 0.15, None
-                icon: 'atlas://electrum_ltc/gui/kivy/theming/light/eye1'
+                icon: f'atlas://{KIVY_GUI_PATH}/theming/light/eye1'
                 icon_size: '40dp'
                 on_release:
                     textinput_generic_password.password = False if textinput_generic_password.password else True

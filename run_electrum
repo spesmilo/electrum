@@ -49,9 +49,6 @@ if is_local:  # running from source
     # developers should probably see all deprecation warnings.
     warnings.simplefilter('default', DeprecationWarning)
 
-# move this back to gui/kivy/__init.py once plugins are moved
-os.environ['KIVY_DATA_DIR'] = os.path.abspath(os.path.dirname(__file__)) + '/electrum_ltc/gui/kivy/data/'
-
 if is_local or is_android:
     sys.path.insert(0, os.path.join(script_dir, 'packages'))
 
@@ -87,7 +84,7 @@ from electrum_ltc.wallet_db import WalletDB
 from electrum_ltc.wallet import Wallet
 from electrum_ltc.storage import WalletStorage
 from electrum_ltc.util import print_msg, print_stderr, json_encode, json_decode, UserCancelled
-from electrum_ltc.util import InvalidPassword
+from electrum_ltc.util import InvalidPassword, BITCOIN_BIP21_URI_SCHEME
 from electrum_ltc.commands import get_parser, known_commands, Commands, config_variables
 from electrum_ltc import daemon
 from electrum_ltc import keystore
@@ -343,7 +340,7 @@ def main():
     # check uri
     uri = config_options.get('url')
     if uri:
-        if not uri.startswith('litecoin:'):
+        if not uri.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
             print_stderr('unknown command:', uri)
             sys.exit(1)
 
