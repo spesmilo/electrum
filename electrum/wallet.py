@@ -717,16 +717,18 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             exp = URI.get('exp')
         timestamp = timestamp or int(time.time())
         exp = exp or 0
+        _id = bh2u(sha256d(repr(outputs) + "%d"%timestamp))[0:10]
         invoice = OnchainInvoice(
             type=PR_TYPE_ONCHAIN,
             amount_sat=amount,
             outputs=outputs,
             message=message,
-            id=bh2u(sha256(repr(outputs))[0:16]),
+            id=_id,
             time=timestamp,
             exp=exp,
             bip70=None,
             requestor=None,
+            height=self.get_local_height(),
         )
         return invoice
 
@@ -822,8 +824,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             for invoice_scriptpubkey, invoice_amt in invoice_amounts.items():
                 scripthash = bitcoin.script_to_scripthash(invoice_scriptpubkey.hex())
                 prevouts_and_values = self.db.get_prevouts_by_scripthash(scripthash)
-                relevant_txs += [prevout.txid.hex() for prevout, v in prevouts_and_values]
-                total_received = sum([v for prevout, v in prevouts_and_values])
+                total_received = 0
+                for prevout, v in prevouts_and_values:
+                    height = self.get_tx_height(prevout.txid.hex()).height
+                    if height > 0 and height <= invoice.height:
+                        continue
+                    total_received += v
+                    relevant_txs.append(prevout.txid.hex())
                 # check that there is at least one TXO, and that they pay enough.
                 # note: "at least one TXO" check is needed for zero amount invoice (e.g. OP_RETURN)
                 if len(prevouts_and_values) == 0:
@@ -1901,6 +1908,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             id=_id,
             bip70=None,
             requestor=None,
+            height=self.get_local_height(),
         )
 
     def sign_payment_request(self, key, alias, alias_addr, password):  # FIXME this is broken
