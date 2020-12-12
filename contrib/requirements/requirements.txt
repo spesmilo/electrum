@@ -1,7 +1,5 @@
-ecdsa>=0.14
 qrcode
 protobuf>=3.12
-dnspython<2.0
 qdarkstyle<2.9
 aiorpcx>=0.18,<0.19
 aiohttp>=3.3.0,<4.0.0
@@ -10,3 +8,7 @@ certifi
 bitstring
 attrs>=19.2.0
 groestlcoin_hash==1.0.1
+
+# Note that we also need the dnspython[DNSSEC] extra which pulls in cryptography,
+# but as that is not pure-python it cannot be listed in this file!
+dnspython>=2.0

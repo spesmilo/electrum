@@ -27,12 +27,6 @@ from . import TestCaseForTestnet
 from . import FAST_TESTS
 
 
-try:
-    import ecdsa
-except ImportError:
-    sys.exit("Error: python-ecdsa does not seem to be installed. Try 'sudo python3 -m pip install ecdsa'")
-
-
 def needs_test_with_all_aes_implementations(func):
     """Function decorator to run a unit test multiple times:
     once with each AES implementation.

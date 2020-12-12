@@ -37,9 +37,13 @@ electrum_grs/gui/kivy/theming/light.atlas
 # build workspaces
 contrib/build-wine/tmp/
 contrib/build-wine/fresh_clone/
+contrib/build-linux/sdist/fresh_clone/
 contrib/build-linux/appimage/build/
 contrib/build-linux/appimage/.cache/
 contrib/android_debug.keystore
+contrib/android/android_debug.keystore
+contrib/secp256k1/
+contrib/zbar/
 
 # shared objects
 electrum/*.so

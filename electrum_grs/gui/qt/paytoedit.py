@@ -30,7 +30,7 @@ from typing import NamedTuple, Sequence, Optional, List, TYPE_CHECKING
 from PyQt5.QtGui import QFontMetrics, QFont
 
 from electrum_grs import bitcoin
-from electrum_grs.util import bfh, maybe_extract_bolt11_invoice
+from electrum_grs.util import bfh, maybe_extract_bolt11_invoice, BITCOIN_BIP21_URI_SCHEME
 from electrum_grs.transaction import PartialTxOutput
 from electrum_grs.bitcoin import opcodes, construct_script
 from electrum_grs.logging import Logger
@@ -153,7 +153,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         if len(lines) == 1:
             data = lines[0]
             # try bip21 URI
-            if data.startswith("groestlcoin:"):
+            if data.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
                 self.win.pay_to_URI(data)
                 return
             # try LN invoice
@@ -255,7 +255,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
 
     def qr_input(self):
         data = super(PayToEdit,self).qr_input()
-        if data.startswith("groestlcoin:"):
+        if data.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
             self.win.pay_to_URI(data)
             # TODO: update fee
 

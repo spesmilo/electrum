@@ -795,6 +795,12 @@ def block_explorer_URL(config: 'SimpleConfig', kind: str, item: str) -> Optional
 #_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
 #urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 
+
+# note: when checking against these, use .lower() to support case-insensitivity
+BITCOIN_BIP21_URI_SCHEME = 'groestlcoin'
+LIGHTNING_URI_SCHEME = 'lightning'
+
+
 class InvalidBitcoinURI(Exception): pass
 
 
@@ -813,7 +819,7 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
         return {'address': uri}
 
     u = urllib.parse.urlparse(uri)
-    if u.scheme != 'groestlcoin':
+    if u.scheme.lower() != BITCOIN_BIP21_URI_SCHEME:
         raise InvalidBitcoinURI("Not a groestlcoin URI")
     address = u.path
 
@@ -901,14 +907,21 @@ def create_bip21_uri(addr, amount_sat: Optional[int], message: Optional[str],
             raise Exception(f"illegal key for URI: {repr(k)}")
         v = urllib.parse.quote(v)
         query.append(f"{k}={v}")
-    p = urllib.parse.ParseResult(scheme='groestlcoin', netloc='', path=addr, params='', query='&'.join(query), fragment='')
+    p = urllib.parse.ParseResult(
+        scheme=BITCOIN_BIP21_URI_SCHEME,
+        netloc='',
+        path=addr,
+        params='',
+        query='&'.join(query),
+        fragment='',
+    )
     return str(urllib.parse.urlunparse(p))
 
 
 def maybe_extract_bolt11_invoice(data: str) -> Optional[str]:
     data = data.strip()  # whitespaces
     data = data.lower()
-    if data.startswith('lightning:ln'):
+    if data.startswith(LIGHTNING_URI_SCHEME + ':ln'):
         data = data[10:]
     if data.startswith('ln'):
         return data
@@ -1157,6 +1170,7 @@ def create_and_start_event_loop() -> Tuple[asyncio.AbstractEventLoop,
                                          args=(stopping_fut,),
                                          name='EventLoop')
     loop_thread.start()
+    loop._mythread = loop_thread
     return loop, stopping_fut, loop_thread
 
 
@@ -1264,7 +1278,7 @@ def list_enabled_bits(x: int) -> Sequence[int]:
 
 
 def resolve_dns_srv(host: str):
-    srv_records = dns.resolver.query(host, 'SRV')
+    srv_records = dns.resolver.resolve(host, 'SRV')
     # priority: prefer lower
     # weight: tie breaker; prefer higher
     srv_records = sorted(srv_records, key=lambda x: (x.priority, -x.weight))

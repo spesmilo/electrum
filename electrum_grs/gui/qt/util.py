@@ -126,9 +126,10 @@ class HelpLabel(QLabel):
         return QLabel.leaveEvent(self, event)
 
 
-class HelpButton(QPushButton):
+class HelpButton(QToolButton):
     def __init__(self, text):
-        QPushButton.__init__(self, '?')
+        QToolButton.__init__(self)
+        self.setText('?')
         self.help_text = text
         self.setFocusPolicy(Qt.NoFocus)
         self.setFixedWidth(round(2.2 * char_width_in_lineedit()))
@@ -1001,7 +1002,7 @@ def webopen(url: str):
         if os.fork() == 0:
             del os.environ['LD_LIBRARY_PATH']
             webbrowser.open(url)
-            sys.exit(0)
+            os._exit(0)
     else:
         webbrowser.open(url)
 

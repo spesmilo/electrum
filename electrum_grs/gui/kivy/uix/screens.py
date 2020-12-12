@@ -40,6 +40,7 @@ from electrum_grs.logging import Logger
 from .dialogs.question import Question
 from .dialogs.lightning_open_channel import LightningOpenChannelDialog
 
+from electrum_grs.gui.kivy import KIVY_GUI_PATH
 from electrum_grs.gui.kivy.i18n import _
 
 if TYPE_CHECKING:
@@ -71,6 +72,7 @@ class CScreen(Factory.Screen):
         pass
 
     def on_activate(self):
+        setattr(self.app, self.kvname + '_screen', self)
         self.update()
 
     def on_leave(self):
@@ -95,9 +97,9 @@ TX_ICONS = [
 ]
 
 
-Builder.load_file('electrum_grs/gui/kivy/uix/ui_screens/history.kv')
-Builder.load_file('electrum_grs/gui/kivy/uix/ui_screens/send.kv')
-Builder.load_file('electrum_grs/gui/kivy/uix/ui_screens/receive.kv')
+Builder.load_file(KIVY_GUI_PATH + '/uix/ui_screens/history.kv')
+Builder.load_file(KIVY_GUI_PATH + '/uix/ui_screens/send.kv')
+Builder.load_file(KIVY_GUI_PATH + '/uix/ui_screens/receive.kv')
 
 
 class HistoryScreen(CScreen):
@@ -131,7 +133,7 @@ class HistoryScreen(CScreen):
         if is_lightning:
             status = 0
             status_str = 'unconfirmed' if timestamp is None else format_time(int(timestamp))
-            icon = "atlas://electrum_grs/gui/kivy/theming/light/lightning"
+            icon = f'atlas://{KIVY_GUI_PATH}/theming/light/lightning'
             message = tx_item['label']
             fee_msat = tx_item['fee_msat']
             fee = int(fee_msat/1000) if fee_msat else None
@@ -143,7 +145,7 @@ class HistoryScreen(CScreen):
                                         conf=tx_item['confirmations'],
                                         timestamp=tx_item['timestamp'])
             status, status_str = self.app.wallet.get_tx_status(tx_hash, tx_mined_info)
-            icon = "atlas://electrum_grs/gui/kivy/theming/light/" + TX_ICONS[status]
+            icon = f'atlas://{KIVY_GUI_PATH}/theming/light/' + TX_ICONS[status]
             message = tx_item['label'] or tx_hash
             fee = tx_item['fee_sat']
             fee_text = '' if fee is None else 'fee: %d gro'%fee
@@ -181,6 +183,7 @@ class SendScreen(CScreen, Logger):
     def __init__(self, **kwargs):
         CScreen.__init__(self, **kwargs)
         Logger.__init__(self)
+        self.is_max = False
 
     def set_URI(self, text: str):
         if not self.app.wallet:
@@ -231,9 +234,10 @@ class SendScreen(CScreen, Logger):
             assert isinstance(item, LNInvoice)
             key = item.rhash
             address = key
-            log = self.app.wallet.lnworker.logs.get(key)
-            if status == PR_INFLIGHT and log:
-                status_str += '... (%d)'%len(log)
+            if self.app.wallet.lnworker:
+                log = self.app.wallet.lnworker.logs.get(key)
+                if status == PR_INFLIGHT and log:
+                    status_str += '... (%d)'%len(log)
             is_bip70 = False
         else:
             assert isinstance(item, OnchainInvoice)
@@ -328,6 +332,9 @@ class SendScreen(CScreen, Logger):
         invoice = self.read_invoice()
         if not invoice:
             return
+        self.save_invoice(invoice)
+
+    def save_invoice(self, invoice):
         self.app.wallet.save_invoice(invoice)
         self.do_clear()
         self.update()
@@ -336,15 +343,14 @@ class SendScreen(CScreen, Logger):
         invoice = self.read_invoice()
         if not invoice:
             return
-        self.app.wallet.save_invoice(invoice)
-        self.do_clear()
-        self.update()
         self.do_pay_invoice(invoice)
 
     def do_pay_invoice(self, invoice):
         if invoice.is_lightning():
-            self._do_pay_lightning(invoice)
-            return
+            if self.app.wallet.lnworker:
+                self.app.protected(_('Pay lightning invoice?'), self._do_pay_lightning, (invoice,))
+            else:
+                self.app.show_error(_("Lightning payments are not available for this wallet"))
         else:
             do_pay = lambda rbf: self._do_pay_onchain(invoice, rbf)
             if self.app.electrum_config.get('use_rbf'):
@@ -353,7 +359,8 @@ class SendScreen(CScreen, Logger):
             else:
                 do_pay(False)
 
-    def _do_pay_lightning(self, invoice: LNInvoice) -> None:
+    def _do_pay_lightning(self, invoice: LNInvoice, pw) -> None:
+        self.save_invoice(invoice)
         threading.Thread(
             target=self.app.wallet.lnworker.pay,
             args=(invoice.invoice,),
@@ -396,11 +403,12 @@ class SendScreen(CScreen, Logger):
         elif feerate > FEERATE_WARNING_HIGH_FEE / 1000:
             msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high.")
                        + f' (feerate: {feerate:.2f} gro/byte)')
-        self.app.protected('\n'.join(msg), self.send_tx, (tx,))
+        self.app.protected('\n'.join(msg), self.send_tx, (tx, invoice))
 
-    def send_tx(self, tx, password):
+    def send_tx(self, tx, invoice, password):
         if self.app.wallet.has_password() and password is None:
             return
+        self.save_invoice(invoice)
         def on_success(tx):
             if tx.is_complete():
                 self.app.broadcast(tx)
@@ -436,6 +444,7 @@ class ReceiveScreen(CScreen):
     def __init__(self, **kwargs):
         super(ReceiveScreen, self).__init__(**kwargs)
         Clock.schedule_interval(lambda dt: self.update(), 5)
+        self.is_max = False # not used for receiving (see app.amount_dialog)
 
     def expiry(self):
         return self.app.electrum_config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
@@ -443,7 +452,6 @@ class ReceiveScreen(CScreen):
     def clear(self):
         self.address = ''
         self.amount = ''
-        self.is_max = False # not used for receiving (see app.amount_dialog)
         self.message = ''
         self.lnaddr = ''
 
@@ -615,7 +623,6 @@ class TabbedCarousel(Factory.TabbedPanel):
         if carousel.current_slide != slide:
             carousel.current_slide.dispatch('on_leave')
             carousel.load_slide(slide)
-            setattr(slide.app, slide.kvname + '_screen', slide)
             slide.dispatch('on_enter')
 
     def add_widget(self, widget, index=0):

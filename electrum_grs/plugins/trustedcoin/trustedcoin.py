@@ -525,7 +525,7 @@ class TrustedCoinPlugin(BasePlugin):
     def make_seed(self, seed_type):
         if not is_any_2fa_seed_type(seed_type):
             raise Exception(f'unexpected seed type: {seed_type}')
-        return Mnemonic('english').make_seed(seed_type=seed_type, num_bits=128)
+        return Mnemonic('english').make_seed(seed_type=seed_type)
 
     @hook
     def do_clear(self, window):
@@ -576,20 +576,25 @@ class TrustedCoinPlugin(BasePlugin):
             raise Exception(f'unexpected seed type: {t}')
         words = seed.split()
         n = len(words)
-        # old version use long seed phrases
-        if n >= 20:
-            # note: pre-2.7 2fa seeds were typically 24-25 words, however they
-            # could probabilistically be arbitrarily shorter due to a bug. (see #3611)
-            # the probability of it being < 20 words is about 2^(-(256+12-19*11)) = 2^(-59)
-            if passphrase != '':
-                raise Exception('old 2fa seed cannot have passphrase')
-            xprv1, xpub1 = self.get_xkeys(' '.join(words[0:12]), t, '', "m/")
-            xprv2, xpub2 = self.get_xkeys(' '.join(words[12:]), t, '', "m/")
-        elif not t == '2fa' or n == 12:
+        if t == '2fa':
+            if n >= 20:  # old scheme
+                # note: pre-2.7 2fa seeds were typically 24-25 words, however they
+                # could probabilistically be arbitrarily shorter due to a bug. (see #3611)
+                # the probability of it being < 20 words is about 2^(-(256+12-19*11)) = 2^(-59)
+                if passphrase != '':
+                    raise Exception('old 2fa seed cannot have passphrase')
+                xprv1, xpub1 = self.get_xkeys(' '.join(words[0:12]), t, '', "m/")
+                xprv2, xpub2 = self.get_xkeys(' '.join(words[12:]), t, '', "m/")
+            elif n == 12:  # new scheme
+                xprv1, xpub1 = self.get_xkeys(seed, t, passphrase, "m/0'/")
+                xprv2, xpub2 = self.get_xkeys(seed, t, passphrase, "m/1'/")
+            else:
+                raise Exception(f'unrecognized seed length for "2fa" seed: {n}')
+        elif t == '2fa_segwit':
             xprv1, xpub1 = self.get_xkeys(seed, t, passphrase, "m/0'/")
             xprv2, xpub2 = self.get_xkeys(seed, t, passphrase, "m/1'/")
         else:
-            raise Exception('unrecognized seed length: {} words'.format(n))
+            raise Exception(f'unexpected seed type: {t}')
         return xprv1, xpub1, xprv2, xpub2
 
     def create_keystore(self, wizard, seed, passphrase):

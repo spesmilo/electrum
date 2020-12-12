@@ -1,3 +1,12 @@
+# Release 4.0.7 - (Dec 9, 2020)
+ * kivy: fix open channel with 'max' amount
+ * kivy: fix regression introduced in last release (a9fc440)
+ * other minor GUI fixes
+ * Dependencies: as part of adapting to new dnspython (#6828),
+   - python-ecdsa is no longer needed at all,
+   - cryptography is now required (min 2.6), the user can no
+     longer choose between cryptography and pycryptodomex
+
 # Release 4.0.6 - (Dec 4, 2020)
  * Fix 'Max' button issue for submarine swaps button (#6770)
  * Fix 'Max' button in kivy (#6169)
