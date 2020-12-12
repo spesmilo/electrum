@@ -60,6 +60,8 @@ for msifile in core dev exe lib pip tools; do
     wine msiexec /i "$PYTHON_DOWNLOADS/${msifile}.msi" /qb TARGETDIR=$PYHOME
 done
 
+break_legacy_easy_install
+
 info "Installing build dependencies."
 $PYTHON -m pip install --no-dependencies --no-warn-script-location -r "$CONTRIB"/deterministic-build/requirements-build-wine.txt
 

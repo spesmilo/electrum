@@ -12,6 +12,8 @@ DISTDIR="$PROJECT_ROOT/dist"
 # note that at least py3.7 is needed, to have https://bugs.python.org/issue30693
 python3 --version || fail "python interpreter not found"
 
+break_legacy_easy_install
+
 # upgrade to modern pip so that it knows the flags we need.
 # we will then install a pinned version of pip as part of requirements-build-sdist
 python3 -m pip install --upgrade pip
