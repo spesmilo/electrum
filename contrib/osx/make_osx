@@ -155,7 +155,7 @@ for d in ~/Library/Python/ ~/.pyenv .; do
   popd
 done
 
-VERSION=4.0.6
+VERSION=4.0.7
 
 info "Building binary"
 APP_SIGN="$CODESIGN_CERT" pyinstaller --noconfirm --ascii --clean --name $VERSION contrib/osx/osx.spec || fail "Could not build binary"
