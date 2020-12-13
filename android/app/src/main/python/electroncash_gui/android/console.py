@@ -78,12 +78,14 @@ class AndroidCommands(commands.Commands):
         if not fd:
             raise Exception("Daemon already running")  # Same wording as in daemon.py.
 
-        # Initialize here rather than in start() so the DaemonModel has a chance to register
+        # Create daemon here rather than in start() so the DaemonModel has a chance to register
         # its callback before the daemon threads start.
         self.daemon = daemon.Daemon(self.config, fd, False, None)
+        self.daemon_running = False
+
+        self.gui_callback = None
         self.network = self.daemon.network
         self.network.register_callback(self._on_callback, CALLBACKS)
-        self.daemon_running = False
 
     # BEGIN commands from the argparse interface.
 
@@ -223,8 +225,10 @@ class AndroidCommands(commands.Commands):
             raise Exception("Daemon not running")  # Same wording as in electron-cash script.
 
     # Log callbacks on stderr so they'll appear in the console activity.
-    def _on_callback(self, *args):
-        util.print_stderr("[Callback] " + ", ".join(repr(x) for x in args))
+    def _on_callback(self, event, *args):
+        util.print_stderr(f"[Callback {event}] " + ", ".join(repr(x) for x in args))
+        if self.gui_callback:
+            self.gui_callback(event)
 
     def _wallet_path(self, name=""):
         if name is None:

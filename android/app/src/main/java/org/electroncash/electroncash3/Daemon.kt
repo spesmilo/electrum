@@ -15,7 +15,7 @@ val daemonUpdate = MutableLiveData<Unit>().apply { value = Unit }
 
 
 fun initDaemon(config: PyObject) {
-    guiDaemon.callAttr("set_excepthook", mainHandler)
+    guiDaemon.callAttr("init_stdlib", mainHandler)
     daemonModel = DaemonModel(config)
 }
 
@@ -35,8 +35,7 @@ class DaemonModel(val config: PyObject) {
     lateinit var watchdog: Runnable
 
     init {
-        network.callAttr("register_callback", guiDaemon.callAttr("make_callback", this),
-                         guiConsole.get("CALLBACKS"))
+        commands.put("gui_callback", ::onCallback)
         commands.callAttr("start")
 
         // This is still necessary even with the excepthook, in case a thread exits
@@ -52,9 +51,6 @@ class DaemonModel(val config: PyObject) {
         watchdog.run()
     }
 
-    // This function is called from src/main/python/electroncash_gui/android/daemon.py.
-    // It will sometimes be called on the main thread and sometimes on the network thread.
-    @Suppress("unused")
     fun onCallback(event: String) {
         if (EXCHANGE_CALLBACKS.contains(event)) {
             fiatUpdate.postValue(Unit)
