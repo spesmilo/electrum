@@ -12,19 +12,21 @@ import kotlinx.android.synthetic.main.requests.*
 
 class RequestsFragment : ListFragment(R.layout.requests, R.id.rvRequests) {
 
+    override fun onListModelCreated(listModel: ListModel, wallet: PyObject) {
+        with (listModel) {
+            trigger.addSource(daemonUpdate)
+            trigger.addSource(settings.getString("base_unit"))
+            data.function = { wallet.callAttr("get_sorted_requests", daemonModel.config)!! }
+        }
+    }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        addSource(daemonUpdate)
-        addSource(settings.getString("base_unit"))
-
         btnAdd.setOnClickListener { newRequest(activity!!) }
     }
 
     override fun onCreateAdapter() =
         ListAdapter(this, R.layout.request_list, ::RequestModel, ::RequestDialog)
-
-    override fun onRefresh(wallet: PyObject) =
-        wallet.callAttr("get_sorted_requests", daemonModel.config)!!
 }
 
 
@@ -37,7 +39,7 @@ fun newRequest(activity: FragmentActivity) {
 }
 
 
-class RequestModel(val request: PyObject) : ListModel {
+class RequestModel(wallet: PyObject, val request: PyObject) : ListItemModel(wallet) {
     val address by lazy { getField("address").toString() }
     val amount = getField("amount").toLong()
     val timestamp = formatTime(getField("time").toLong())
@@ -110,7 +112,7 @@ class RequestDialog() : AlertDialogFragment() {
     override fun onFirstShowDialog() {
         val request = existingRequest
         if (request != null) {
-            val model = RequestModel(request)
+            val model = RequestModel(wallet, request)
             amountBox.amount = model.amount
             etDescription.setText(model.description)
         } else {

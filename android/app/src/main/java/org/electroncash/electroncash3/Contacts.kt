@@ -16,23 +16,25 @@ val libContacts by lazy { libMod("contacts") }
 
 class ContactsFragment : ListFragment(R.layout.contacts, R.id.rvContacts) {
 
+    override fun onListModelCreated(listModel: ListModel, wallet: PyObject) {
+        with (listModel) {
+            trigger.addSource(daemonUpdate)
+            trigger.addSource(settings.getBoolean("cashaddr_format"))
+            data.function = { guiContacts.callAttr("get_contacts", wallet)!! }
+        }
+    }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        addSource(daemonUpdate)
-        addSource(settings.getBoolean("cashaddr_format"))
-
         btnAdd.setOnClickListener { showDialog(activity!!, ContactDialog()) }
     }
 
     override fun onCreateAdapter() =
         ListAdapter(this, R.layout.contact_list, ::ContactModel, ::ContactDialog)
-
-    override fun onRefresh(wallet: PyObject) =
-        guiContacts.callAttr("get_contacts", wallet)!!
 }
 
 
-class ContactModel(val contact: PyObject) : ListModel {
+class ContactModel(wallet: PyObject, val contact: PyObject) : ListItemModel(wallet) {
     val name by lazy {
         contact.get("name").toString()
     }
@@ -54,7 +56,8 @@ class ContactModel(val contact: PyObject) : ListModel {
 class ContactDialog : AlertDialogFragment() {
     val existingContact by lazy {
         if (arguments == null) null
-        else ContactModel(makeContact(arguments!!.getString("name")!!,
+        else ContactModel(daemonModel.wallet!!,
+                          makeContact(arguments!!.getString("name")!!,
                                       arguments!!.getString("address")!!))
     }
 

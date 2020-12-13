@@ -22,9 +22,6 @@ import androidx.databinding.ViewDataBinding
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MediatorLiveData
-import androidx.lifecycle.Observer
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -244,38 +241,4 @@ private fun menuToList(menu: Menu): List<String> {
         result.add(menu.getItem(i).title.toString())
     }
     return result
-}
-
-
-// When the TriggerLiveData becomes active, it will call its observers at most once, no matter
-// how many sources it has.
-class TriggerLiveData : MediatorLiveData<Unit>() {
-    enum class State {
-        NORMAL, ACTIVATING, ACTIVE
-    }
-    private var state = State.NORMAL
-
-    // Using postValue would also call observers at most once, but some observers need to be
-    // called synchronously. For example, postponing the setup of a RecyclerView adapter would
-    // cause the view to lose its scroll position on rotation.
-    fun addSource(source: LiveData<*>) {
-        super.addSource(source, {
-            if (state != State.ACTIVE) {
-                setValue(Unit)
-                if (state == State.ACTIVATING) {
-                    state = State.ACTIVE
-                }
-            }
-        })
-    }
-
-    override fun <S> addSource(source: LiveData<S>, onChanged: Observer<in S>) {
-        throw IllegalArgumentException("Use the 1-argument version of this method")
-    }
-
-    override fun onActive() {
-        state = State.ACTIVATING
-        super.onActive()
-        state = State.NORMAL
-    }
 }

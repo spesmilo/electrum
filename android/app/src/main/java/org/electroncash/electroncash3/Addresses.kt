@@ -13,15 +13,13 @@ import android.view.View
 import android.widget.Button
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.viewModels
-import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModel
 import com.chaquo.python.Kwarg
 import com.chaquo.python.PyObject
 import kotlinx.android.synthetic.main.address_detail.*
-import kotlinx.android.synthetic.main.addresses.*
 import kotlinx.android.synthetic.main.transactions.*
-import kotlin.reflect.KClass
 
 
 val guiAddresses by lazy { guiMod("addresses") }
@@ -32,51 +30,57 @@ val clsAddress by lazy { libAddress["Address"]!! }
 class AddressesFragment : ListFragment(R.layout.addresses, R.id.rvAddresses) {
 
     class Model : ViewModel() {
-        val filterType = MutableLiveData<Int>().apply { value = R.id.filterAll }
-        val filterStatus = MutableLiveData<Int>().apply { value = R.id.filterAll }
+        // This corresponds to the order of the arguments to get_addresses.
+        val filters = listOf(R.menu.filter_type, R.menu.filter_status).map {
+            it to MutableLiveData<Int>().apply { value = R.id.filterAll }
+        }.toMap()
     }
     val model: Model by viewModels()
 
+    override fun onListModelCreated(listModel: ListModel, wallet: PyObject) {
+        with (listModel) {
+            trigger.addSource(daemonUpdate)
+            trigger.addSource(settings.getBoolean("cashaddr_format"))
+            trigger.addSource(settings.getString("base_unit"))
+            for (filter in model.filters.values) {
+                trigger.addSource(filter)
+            }
+
+            data.function = {
+                guiAddresses.callAttr("get_addresses", wallet,
+                                      *(model.filters.values.map { it.value }.toTypedArray()))
+            }
+        }
+    }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        btnType.setOnClickListener { showFilterDialog(FilterTypeDialog::class) }
-        btnStatus.setOnClickListener { showFilterDialog(FilterStatusDialog::class) }
-
-        addSource(daemonUpdate)
-        addSource(model.filterType)
-        addSource(model.filterStatus)
-        addSource(settings.getBoolean("cashaddr_format"))
-        addSource(settings.getString("base_unit"))
+        initFilter(R.id.btnType, R.string.type, R.menu.filter_type)
+        initFilter(R.id.btnStatus, R.string.status, R.menu.filter_status)
     }
 
     override fun onCreateAdapter() =
-        ListAdapter(this, R.layout.address_list, { AddressModel(daemonModel.wallet!!, it) },
-                    ::AddressDialog)
+        ListAdapter(this, R.layout.address_list, ::AddressModel, ::AddressDialog)
 
-    override fun refresh() {
-        super.refresh()
-        setFilterLabel(btnType, R.string.type, R.menu.filter_type, model.filterType)
-        setFilterLabel(btnStatus, R.string.status, R.menu.filter_status, model.filterStatus)
-    }
+    private fun initFilter(btnId: Int, labelId: Int, menuId: Int) {
+        val btn = view!!.findViewById<Button>(btnId)
+        btn.setOnClickListener {
+            showDialog(this, FilterDialog().apply { arguments = Bundle().apply {
+                putInt("labelId", labelId)
+                putInt("menuId", menuId)
+            }})
+        }
 
-    override fun onRefresh(wallet: PyObject) =
-        guiAddresses.callAttr("get_addresses", wallet,
-                              model.filterType.value, model.filterStatus.value)!!
-
-    fun setFilterLabel(btn: Button, prefix: Int, menuId: Int, liveData: LiveData<Int>) {
+        val liveData = model.filters.getValue(menuId)
         val menu = inflateMenu(menuId)
-        btn.setText("${getString(prefix)}: ${menu.findItem(liveData.value!!).title}")
-    }
-
-    fun <T: FilterDialog> showFilterDialog(cls: KClass<T>) {
-        val frag = cls.java.newInstance()
-        frag.setTargetFragment(this, 0)
-        showDialog(activity!!, frag)
+        liveData.observe(viewLifecycleOwner, Observer {
+            btn.setText("${getString(labelId)}: ${menu.findItem(liveData.value!!).title}")
+        })
     }
 }
 
 
-class AddressModel(val wallet: PyObject, val addr: PyObject) : ListModel {
+class AddressModel(wallet: PyObject, val addr: PyObject) : ListItemModel(wallet) {
     fun toString(format: String) = addr.callAttr("to_${format}_string").toString()
 
     val status by lazy {
@@ -96,7 +100,7 @@ class AddressModel(val wallet: PyObject, val addr: PyObject) : ListModel {
                       else R.string.receiving)
     }
     val description by lazy {
-        getDescription(toString("storage"))
+        getDescription(wallet, toString("storage"))
     }
     override val dialogArguments by lazy {
         Bundle().apply { putString("address", toString("storage")) }
@@ -106,10 +110,10 @@ class AddressModel(val wallet: PyObject, val addr: PyObject) : ListModel {
 
 class AddressDialog : AlertDialogFragment() {
 
+    val wallet = daemonModel.wallet!!
     val addrModel by lazy {
-        AddressModel(daemonModel.wallet!!,
-                     clsAddress.callAttr("from_string",
-                                         arguments!!.getString("address")!!))
+        AddressModel(wallet, clsAddress.callAttr("from_string",
+                                                 arguments!!.getString("address")!!))
     }
 
     override fun onBuildDialog(builder: AlertDialog.Builder) {
@@ -117,7 +121,7 @@ class AddressDialog : AlertDialogFragment() {
             setView(R.layout.address_detail)
             setNegativeButton(android.R.string.cancel, null)
             setPositiveButton(android.R.string.ok, { _, _  ->
-                setDescription(addrModel.toString("storage"),
+                setDescription(wallet, addrModel.toString("storage"),
                                etDescription.text.toString())
             })
         }
@@ -185,20 +189,22 @@ class AddressTransactionsDialog() : AlertDialogFragment() {
         setupVerticalList(rvTransactions)
         rvTransactions.adapter = adapter
         val addr = clsAddress.callAttr("from_string", arguments!!.getString("address")!!)
-        adapter.submitPyList(
-            daemonModel.wallet!!.callAttr("get_history", Kwarg("domain", arrayOf(addr))))
+        val wallet = daemonModel.wallet!!
+        adapter.submitPyList(wallet, wallet.callAttr("get_history",
+                                                     Kwarg("domain", arrayOf(addr))))
     }
 }
 
 
-abstract class FilterDialog : MenuDialog() {
-    val model by lazy { (targetFragment as AddressesFragment).model }
-    lateinit var liveData: MutableLiveData<Int>
+class FilterDialog : MenuDialog() {
 
-    fun onBuildDialog(builder: AlertDialog.Builder, menu: Menu, titleId: Int, menuId: Int,
-                      liveData: MutableLiveData<Int>) {
-        this.liveData = liveData
-        builder.setTitle(titleId)
+    val menuId by lazy { arguments!!.getInt("menuId") }
+    val liveData by lazy {
+        (targetFragment as AddressesFragment).model.filters.getValue(menuId)
+    }
+
+    override fun onBuildDialog(builder: AlertDialog.Builder, menu: Menu) {
+        builder.setTitle(arguments!!.getInt("labelId"))
         MenuInflater(app).inflate(menuId, menu)
         menu.findItem(liveData.value!!).isChecked = true
     }
@@ -206,18 +212,5 @@ abstract class FilterDialog : MenuDialog() {
     override fun onMenuItemSelected(item: MenuItem) {
         liveData.value = item.itemId
         dismiss()
-    }
-}
-
-class FilterTypeDialog : FilterDialog() {
-    override fun onBuildDialog(builder: AlertDialog.Builder, menu: Menu) {
-        onBuildDialog(builder, menu, R.string.type, R.menu.filter_type, model.filterType)
-    }
-}
-
-class FilterStatusDialog : FilterDialog() {
-    override fun onBuildDialog(builder: AlertDialog.Builder, menu: Menu) {
-        onBuildDialog(builder, menu, R.string.status, R.menu.filter_status,
-                      model.filterStatus)
     }
 }

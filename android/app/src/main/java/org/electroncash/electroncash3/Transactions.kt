@@ -14,11 +14,16 @@ import kotlin.math.roundToInt
 
 class TransactionsFragment : ListFragment(R.layout.transactions, R.id.rvTransactions) {
 
+    override fun onListModelCreated(listModel: ListModel, wallet: PyObject) {
+        with (listModel) {
+            trigger.addSource(daemonUpdate)
+            trigger.addSource(settings.getString("base_unit"))
+            data.function = { wallet.callAttr("get_history")!! }
+        }
+    }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        addSource(daemonUpdate)
-        addSource(settings.getString("base_unit"))
-
         btnSend.setOnClickListener {
             try {
                 showDialog(activity!!, SendDialog())
@@ -28,9 +33,6 @@ class TransactionsFragment : ListFragment(R.layout.transactions, R.id.rvTransact
     }
 
     override fun onCreateAdapter() = TransactionsAdapter(this)
-
-    override fun onRefresh(wallet: PyObject) =
-        wallet.callAttr("get_history")!!
 }
 
 
@@ -41,14 +43,14 @@ fun TransactionsAdapter(listFragment: Fragment) =
         .apply { reversed = true }
 
 
-class TransactionModel(val txHistory: PyObject) : ListModel {
+class TransactionModel(wallet: PyObject, val txHistory: PyObject) : ListItemModel(wallet) {
     private fun get(key: String) = txHistory.get(key)
 
     val txid by lazy { get("tx_hash")!!.toString() }
     val amount by lazy { get("amount")?.toLong() ?: 0 }
     val balance by lazy { get("balance")?.toLong() ?: 0 }
     val timestamp by lazy { formatTime(get("timestamp")?.toLong()) }
-    val label by lazy { getDescription(txid) }
+    val label by lazy { getDescription(wallet, txid) }
 
     val icon: Drawable by lazy {
         // Support inflation of vector images before API level 21.
@@ -87,7 +89,7 @@ class TransactionDialog : AlertDialogFragment() {
         builder.setView(R.layout.transaction_detail)
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(android.R.string.ok, {_, _ ->
-                setDescription(txid, etDescription.text.toString())
+                setDescription(wallet, txid, etDescription.text.toString())
             })
     }
 

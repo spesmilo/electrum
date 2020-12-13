@@ -319,7 +319,7 @@ class SendPasswordDialog : PasswordDialog<Unit>() {
                 daemonModel.network.callAttr("broadcast_transaction", model.tx)
             }
             checkBroadcastResult(result)
-            setDescription(model.tx.callAttr("txid").toString(), model.description)
+            setDescription(wallet, model.tx.callAttr("txid").toString(), model.description)
         }
     }
 

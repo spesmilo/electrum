@@ -1,75 +1,84 @@
 package org.electroncash.electroncash3
 
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.LiveData
+import androidx.fragment.app.viewModels
 import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModel
 import androidx.recyclerview.widget.RecyclerView
 import com.chaquo.python.PyObject
+
+
+// When synchronizing, updates will come in constantly. Avoid refreshing more often than
+// necessary, as lock contention may slow the synchronization process down.
+private val MIN_REFRESH_INTERVAL = 1000L
+
+
+class ListModel : ViewModel() {
+    var started = false
+    val trigger = TriggerLiveData()
+
+    /* Returns a Python sequence whose elements can be passed to ListAdapter.newModel. */
+    val data = BackgroundLiveData<PyObject>()
+}
 
 
 abstract class ListFragment(fragLayout: Int, val rvId: Int) :
     Fragment(fragLayout), MainFragment {
 
+    private val wallet = daemonModel.wallet!!
+    private val model: ListModel by viewModels()
     private val adapter by lazy { onCreateAdapter() }
-    lateinit var trigger: TriggerLiveData
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        if (!model.started) {
+            model.started = true
+            model.data.addSource(model.trigger) {
+                model.data.refresh()
+            }
+            model.data.minInterval = MIN_REFRESH_INTERVAL
+            onListModelCreated(model, daemonModel.wallet!!)
+        }
+    }
+
+    abstract fun onListModelCreated(listModel: ListModel, wallet: PyObject)
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-
         val rv = view.findViewById<RecyclerView>(rvId)
         setupVerticalList(rv)
         rv.adapter = adapter
-
-        trigger = TriggerLiveData().apply {
-            observe(viewLifecycleOwner, Observer { refresh() })
-        }
+        model.data.observe(viewLifecycleOwner, Observer {
+            adapter.submitPyList(wallet, it)
+        })
     }
 
     abstract fun onCreateAdapter(): ListAdapter<*, *>
-
-    fun addSource(source: LiveData<*>) =
-        trigger.addSource(source)
-
-    open fun refresh() {
-        var pyList: PyObject? = null
-        val wallet = daemonModel.wallet
-        if (wallet != null) {
-            pyList = onRefresh(wallet)
-        }
-        adapter.submitPyList(pyList)
-    }
-
-    /* Returns a Python sequence whose elements can be passed to ListAdapter.newModel. */
-    abstract fun onRefresh(wallet: PyObject): PyObject
 }
 
 
-interface ListModel {
-    val dialogArguments: Bundle
-}
-
-
-class ListAdapter<ModelType: ListModel, DialogType: DialogFragment>(
-    val listFragment: Fragment, itemLayout: Int, val newModel: (PyObject) -> ModelType,
+class ListAdapter<ModelType: ListItemModel, DialogType: DialogFragment>(
+    val listFragment: Fragment, itemLayout: Int,
+    val newModel: (PyObject, PyObject) -> ModelType,
     val newDialog: () -> DialogType
 ) : BoundAdapter<ModelType>(itemLayout) {
 
     var reversed = false
 
-    fun submitPyList(pyList: PyObject?) {
+    fun submitPyList(wallet: PyObject, pyList: PyObject?) {
         if (pyList == null) {
             submitList(null)
         } else {
-            var list = pyList.asList()
-            if (reversed) {
-                list = list.asReversed()
-            }
+            val list = pyList.asList()
             submitList(object : AbstractList<ModelType>() {
                 override val size by lazy { list.size }
-                override fun get(index: Int) = newModel(list.get(index))
+                override fun get(index: Int) =
+                    newModel(wallet,
+                             list.get(if (reversed) size - index - 1
+                                      else index))
             })
         }
     }
@@ -82,4 +91,9 @@ class ListAdapter<ModelType: ListModel, DialogType: DialogFragment>(
             })
         }
     }
+}
+
+
+abstract class ListItemModel(val wallet: PyObject) {
+    abstract val dialogArguments: Bundle
 }
