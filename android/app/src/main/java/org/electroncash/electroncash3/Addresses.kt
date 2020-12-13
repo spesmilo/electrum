@@ -171,8 +171,6 @@ class AddressTransactionsDialog() : AlertDialogFragment() {
         arguments = Bundle().apply { putString("address", address) }
     }
 
-    private val adapter = TransactionsAdapter(this)
-
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         with (builder) {
             setTitle(R.string.transactions)
@@ -187,11 +185,16 @@ class AddressTransactionsDialog() : AlertDialogFragment() {
         rvTransactions.setPadding(0, 0, 0, 0)
 
         setupVerticalList(rvTransactions)
+        val adapter = TransactionsAdapter(this)
         rvTransactions.adapter = adapter
         val addr = clsAddress.callAttr("from_string", arguments!!.getString("address")!!)
         val wallet = daemonModel.wallet!!
-        adapter.submitPyList(wallet, wallet.callAttr("get_history",
-                                                     Kwarg("domain", arrayOf(addr))))
+
+        // The list needs to auto-update in case the user sets a transaction description.
+        daemonUpdate.observe(this, Observer {
+            adapter.submitPyList(wallet, wallet.callAttr("get_history",
+                                                         Kwarg("domain", arrayOf(addr))))
+        })
     }
 }
 

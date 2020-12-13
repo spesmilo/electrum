@@ -1,7 +1,6 @@
 package org.electroncash.electroncash3
 
 import android.os.Bundle
-import android.util.Log
 import android.view.View
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.Fragment

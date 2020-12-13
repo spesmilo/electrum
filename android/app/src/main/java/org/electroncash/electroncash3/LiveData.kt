@@ -1,10 +1,8 @@
 package org.electroncash.electroncash3
 
 import android.os.SystemClock
-import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MediatorLiveData
-import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.Observer
 
 
@@ -84,7 +82,6 @@ class BackgroundLiveData<T> : MediatorLiveData<T>() {
                 SystemClock.sleep(sleepTime)
             }
             val result = function()
-            Thread.sleep(1000)
             lastRefreshTime = SystemClock.uptimeMillis()
 
             runOnUiThread {
