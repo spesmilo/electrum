@@ -899,6 +899,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             text += ' (%s)'%x
         return text
 
+    def format_fiat_and_units(self, amount):
+        # amount is in sats
+        return self.fx.format_amount_and_units(amount) if self.fx else ''
+
     def format_fee_rate(self, fee_rate):
         return self.config.format_fee_rate(fee_rate)
 

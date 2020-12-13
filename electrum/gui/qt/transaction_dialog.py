@@ -68,6 +68,9 @@ class TxSizeLabel(QLabel):
     def setAmount(self, byte_size):
         self.setText(('x   %s bytes   =' % byte_size) if byte_size else '')
 
+class TxFiatLabel(QLabel):
+    def setAmount(self, fiat_size):
+        self.setText(('≈  %s' % fiat_size) if fiat_size else '')
 
 class QTextEditWithDefaultSize(QTextEdit):
     def sizeHint(self):
@@ -396,6 +399,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         desc = self.desc
         base_unit = self.main_window.base_unit()
         format_amount = self.main_window.format_amount
+        format_fiat_and_units = self.main_window.format_fiat_and_units
         tx_details = self.wallet.get_tx_info(self.tx)
         tx_mined_status = tx_details.tx_mined_status
         exp_n = tx_details.mempool_depth_bytes
@@ -460,8 +464,10 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             amount_str = ''
         elif amount > 0:
             amount_str = _("Amount received:") + ' %s'% format_amount(amount) + ' ' + base_unit
+            amount_str += ' %s'%  format_fiat_and_units(amount)
         else:
             amount_str = _("Amount sent:") + ' %s'% format_amount(-amount) + ' ' + base_unit
+            amount_str += ' %s'%  format_fiat_and_units(-amount)
         if amount_str:
             self.amount_label.setText(amount_str)
         else:
@@ -699,6 +705,11 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
         self.size_e.setAmount(0)
         self.size_e.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
 
+        self.size_f = TxFiatLabel()
+        self.size_f.setAlignment(Qt.AlignCenter)
+        self.size_f.setAmount(0)
+        self.size_f.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
+
         self.feerate_e = FeerateEdit(lambda: 0)
         self.feerate_e.setAmount(self.config.fee_per_byte())
         self.feerate_e.textEdited.connect(partial(self.on_fee_or_feerate, self.feerate_e, False))
@@ -739,6 +750,7 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
         grid.addWidget(self.size_e, 0, 2)
         grid.addWidget(self.fee_e, 0, 3)
         grid.addWidget(self.feerounding_icon, 0, 4)
+        grid.addWidget(self.size_f, 0, 5)
         grid.addWidget(self.fee_slider, 1, 1)
         grid.addWidget(self.fee_combo, 1, 2)
         hbox.addLayout(grid)
@@ -818,6 +830,8 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
         if self.no_dynfee_estimates:
             size = self.tx.estimated_size()
             self.size_e.setAmount(size)
+            fiat_size = self.main_window.format_fiat_and_units(size)
+            self.size_f.setAmount(fiat_size)
         if self.not_enough_funds or self.no_dynfee_estimates:
             if not freeze_fee:
                 self.fee_e.setAmount(None)
@@ -831,6 +845,8 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
         fee = tx.get_fee()
 
         self.size_e.setAmount(size)
+        fiat_size = self.main_window.format_fiat_and_units(size)
+        self.size_f.setAmount(fiat_size)
 
         # Displayed fee/fee_rate values are set according to user input.
         # Due to rounding or dropping dust in CoinChooser,
