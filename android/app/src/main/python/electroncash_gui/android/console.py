@@ -5,9 +5,8 @@ import os
 from os.path import dirname, exists, join, split
 import pkgutil
 from shutil import copyfile
-import unittest
 
-from electroncash import commands, daemon, keystore, storage, tests, util
+from electroncash import commands, daemon, keystore, storage, util
 from electroncash.i18n import _
 from electroncash.storage import WalletStorage
 from electroncash.wallet import (ImportedAddressWallet, ImportedPrivkeyWallet, Standard_Wallet,
@@ -212,6 +211,11 @@ class AndroidCommands(commands.Commands):
         """Run all unit tests. Expect failures with functionality not present on Android,
         such as Trezor.
         """
+
+        # Speed up startup by not importing test code at module level.
+        from electroncash import tests
+        import unittest
+
         suite = unittest.defaultTestLoader.loadTestsFromNames(
             tests.__name__ + "." + info.name
             for info in pkgutil.iter_modules(tests.__path__)
