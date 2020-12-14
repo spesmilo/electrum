@@ -17,7 +17,7 @@ from .i18n import _
 from .util import PrintError, ThreadJob, print_error, inv_base_units
 
 
-DEFAULT_ENABLED = False
+DEFAULT_ENABLED = True
 DEFAULT_CURRENCY = "USD"
 DEFAULT_EXCHANGE = "CoinGecko"  # Note the exchange here should ideally also support history rates
 
