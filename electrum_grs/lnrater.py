@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from .lnworker import LNWallet
 
 
-MONTH_IN_BLOCKS = 6 * 24 * 30
+MONTH_IN_BLOCKS = 60 * 24 * 30 # GRS
 # the scores are only updated after this time interval
 RATER_UPDATE_TIME_SEC = 10 * 60
 # amount used for calculating an effective relative fee
@@ -38,7 +38,7 @@ FEE_AMOUNT_MSAT = 100_000_000
 
 # define some numbers for minimal requirements of good nodes
 # exclude nodes with less number of channels
-EXCLUDE_NUM_CHANNELS = 2
+EXCLUDE_NUM_CHANNELS = 2 # GRS
 # exclude nodes with less mean capacity
 EXCLUDE_MEAN_CAPACITY_MSAT = 1_000_000_000
 # exclude nodes which are young
