@@ -38,7 +38,7 @@ FEE_AMOUNT_MSAT = 100_000_000
 
 # define some numbers for minimal requirements of good nodes
 # exclude nodes with less number of channels
-EXCLUDE_NUM_CHANNELS = 15
+EXCLUDE_NUM_CHANNELS = 2
 # exclude nodes with less mean capacity
 EXCLUDE_MEAN_CAPACITY_MSAT = 1_000_000_000
 # exclude nodes which are young
