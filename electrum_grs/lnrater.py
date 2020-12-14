@@ -156,14 +156,14 @@ class LNRater(Logger):
                 # analyze block heights
                 block_heights = [p[0].block_height for p in channel_policies]
                 node_age_bh = current_height - min(block_heights)
-                if node_age_bh < EXCLUDE_NODE_AGE:
-                    continue
+                #if node_age_bh < EXCLUDE_NODE_AGE:
+                #    continue
                 mean_channel_age_bh = current_height - mean(block_heights)
-                if mean_channel_age_bh < EXCLUDE_MEAN_CHANNEL_AGE:
-                    continue
+                #if mean_channel_age_bh < EXCLUDE_MEAN_CHANNEL_AGE:
+                #    continue
                 blocks_since_last_channel = current_height - max(block_heights)
-                if blocks_since_last_channel > EXCLUDE_BLOCKS_LAST_CHANNEL:
-                    continue
+                #if blocks_since_last_channel > EXCLUDE_BLOCKS_LAST_CHANNEL:
+                #    continue
 
                 # analyze capacities
                 capacities = [p[1].htlc_maximum_msat for p in channel_policies]
@@ -172,8 +172,8 @@ class LNRater(Logger):
                 total_capacity = sum(capacities)
 
                 mean_capacity = total_capacity / num_channels if num_channels else 0
-                if mean_capacity < EXCLUDE_MEAN_CAPACITY_MSAT:
-                    continue
+                #if mean_capacity < EXCLUDE_MEAN_CAPACITY_MSAT:
+                #    continue
                 median_capacity = median(capacities)
 
                 # analyze fees
@@ -182,8 +182,8 @@ class LNRater(Logger):
                     p[1].fee_base_msat,
                     p[1].fee_proportional_millionths) / FEE_AMOUNT_MSAT for p in channel_policies]
                 mean_fees_rate = mean(effective_fee_rates)
-                if mean_fees_rate > EXCLUCE_EFFECTIVE_FEE_RATE:
-                    continue
+                #if mean_fees_rate > EXCLUCE_EFFECTIVE_FEE_RATE:
+                #    continue
 
                 self._node_stats[n] = NodeStats(
                     number_channels=num_channels,
