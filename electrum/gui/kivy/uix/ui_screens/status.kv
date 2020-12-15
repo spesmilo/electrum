@@ -81,7 +81,8 @@ Popup:
             Button:
                 size_hint: 0.5, None
                 height: '48dp'
-                text: _('Save Backup')
+                text: _('Export Backup')
+                disabled: not app.android_backups
                 on_release:
                     root.dismiss()
                     app.save_backup()
