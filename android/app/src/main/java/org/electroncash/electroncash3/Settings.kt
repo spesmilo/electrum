@@ -83,8 +83,8 @@ fun setDefaultValues(sp: SharedPreferences) {
 fun setDefaultValue(sp: SharedPreferences, key: String, default: Boolean) {
     if (!sp.contains(key)) sp.edit().putBoolean(key, default).apply()
 }
-fun setDefaultValue(sp: SharedPreferences, key: String, default: Long) {
-    if (!sp.contains(key)) sp.edit().putLong(key, default).apply()
+fun setDefaultValue(sp: SharedPreferences, key: String, default: Int) {
+    if (!sp.contains(key)) sp.edit().putInt(key, default).apply()
 }
 fun setDefaultValue(sp: SharedPreferences, key: String, default: String) {
     if (!sp.contains(key)) sp.edit().putString(key, default).apply()

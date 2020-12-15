@@ -6,7 +6,7 @@ from electroncash import simple_config
 SP_SET_METHODS = {
     bool: "putBoolean",
     float: "putFloat",
-    int: "putLong",
+    int: "putInt",
     str: "putString",
 }
 
@@ -59,6 +59,6 @@ class AndroidConfig(simple_config.SimpleConfig):
         # save_user_config.
         super()._set_key_in_user_config(key, value, save)
 
-    # In case the caller expects a synchronous write, we'll use `commit` rather than `apply`.
+    # In case the caller requires a synchronous write, we'll use `commit` rather than `apply`.
     def save_user_config(self):
         self.spe.commit()

@@ -107,7 +107,7 @@ class SendDialog : AlertDialogFragment() {
 
     fun updateUI() {
         val feeSpb = MIN_FEE + sbFee.progress
-        daemonModel.config.callAttr("set_key", "fee_per_kb", feeSpb * 1000)
+        settings.getInt("fee_per_kb").setValue(feeSpb * 1000)
         val tx: PyObject? = try {
             // If the user hasn't entered a valid address, use a dummy address in case we need
             // to calculate the max amount.
