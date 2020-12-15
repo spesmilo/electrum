@@ -72,6 +72,8 @@ PYTHON_CONFIGURE_OPTS="--enable-framework" pyenv install -s $PYTHON_VERSION && \
 pyenv global $PYTHON_VERSION || \
 fail "Unable to use Python $PYTHON_VERSION"
 
+break_legacy_easy_install
+
 # create a fresh virtualenv
 # This helps to avoid older versions of pip-installed dependencies interfering with the build.
 VENV_DIR="$CONTRIB_OSX/build-venv"
