@@ -736,6 +736,9 @@ class ElectrumWindow(App, Logger):
                 ref.data = xpub
                 master_public_keys_layout.add_widget(ref)
             popup.open()
+        elif name == 'lightning_channels_dialog' and not self.wallet.can_have_lightning():
+            self.show_error(_("Not available for this wallet.") + "\n\n" +
+                            _("Lightning is currently restricted to HD wallets with p2wpkh addresses."))
         elif name.endswith("_dialog"):
             getattr(self, name)()
         else:
