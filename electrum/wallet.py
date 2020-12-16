@@ -1737,13 +1737,19 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def delete_address(self, address: str) -> None:
         raise Exception("this wallet cannot delete addresses")
 
-    def get_payment_status(self, address, amount):
+    def get_onchain_request_status(self, r):
+        address = r.get_address()
+        amount = r.get_amount_sat()
         received, sent = self.get_addr_io(address)
         l = []
         for txo, x in received.items():
             h, v, is_cb = x
             txid, n = txo.split(':')
-            conf = self.get_tx_height(txid).conf
+            tx_height = self.get_tx_height(txid)
+            height = tx_height.height
+            if height > 0 and height <= r.height:
+                continue
+            conf = tx_height.conf
             l.append((conf, v))
         vsum = 0
         for conf, v in reversed(sorted(l)):
@@ -1792,7 +1798,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             status = self.lnworker.get_payment_status(bfh(r.rhash)) if self.lnworker else PR_UNKNOWN
         else:
             assert isinstance(r, OnchainInvoice)
-            paid, conf = self.get_payment_status(r.get_address(), r.get_amount_sat())
+            paid, conf = self.get_onchain_request_status(r)
             status = PR_PAID if paid else PR_UNPAID
         return self.check_expired_status(r, status)
 
@@ -1832,11 +1838,9 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 d['can_receive'] = self.lnworker.can_receive_invoice(x)
         else:
             assert isinstance(x, OnchainInvoice)
-            amount_sat = x.get_amount_sat()
-            addr = x.get_address()
-            paid, conf = self.get_payment_status(addr, amount_sat)
-            d['amount_sat'] = amount_sat
-            d['address'] = addr
+            paid, conf = self.get_onchain_request_status(x)
+            d['amount_sat'] = x.get_amount_sat()
+            d['address'] = x.get_address()
             d['URI'] = self.get_request_URI(x)
             if conf is not None:
                 d['confirmations'] = conf
