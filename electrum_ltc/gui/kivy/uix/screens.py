@@ -491,8 +491,11 @@ class ReceiveScreen(CScreen):
         else:
             addr = self.address or self.app.wallet.get_unused_address()
             if not addr:
-                self.app.show_info(_('No address available. Please remove some of your pending requests.'))
-                return
+                if not self.app.wallet.is_deterministic():
+                    addr = self.app.wallet.get_receiving_address()
+                else:
+                    self.app.show_info(_('No address available. Please remove some of your pending requests.'))
+                    return
             self.address = addr
             req = self.app.wallet.make_payment_request(addr, amount, message, self.expiry())
             self.app.wallet.add_payment_request(req)

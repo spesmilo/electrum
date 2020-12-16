@@ -80,7 +80,8 @@ class NetworkTimeout:
     class Generic:
         NORMAL = 30
         RELAXED = 45
-        MOST_RELAXED = 180
+        MOST_RELAXED = 600
+
     class Urgent(Generic):
         NORMAL = 10
         RELAXED = 20
