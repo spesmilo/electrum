@@ -232,7 +232,7 @@ class Synchronizer(SynchronizerBase):
     async def main(self):
         self.wallet.set_up_to_date(False)
         # request missing txns, if any
-        for addr in self.wallet.db.get_history():
+        for addr in random_shuffled_copy(self.wallet.db.get_history()):
             history = self.wallet.db.get_addr_history(addr)
             # Old electrum-grs servers returned ['*'] when all history for the address
             # was pruned. This no longer happens but may remain in old wallets.

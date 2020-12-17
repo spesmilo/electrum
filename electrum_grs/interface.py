@@ -80,7 +80,8 @@ class NetworkTimeout:
     class Generic:
         NORMAL = 30
         RELAXED = 45
-        MOST_RELAXED = 180
+        MOST_RELAXED = 600
+
     class Urgent(Generic):
         NORMAL = 10
         RELAXED = 20
@@ -616,7 +617,8 @@ class Interface(Logger):
         return conn, res['count']
 
     def is_main_server(self) -> bool:
-        return self.network.default_server == self.server
+        return (self.network.interface == self or
+                self.network.interface is None and self.network.default_server == self.server)
 
     async def open_session(self, sslc, exit_early=False):
         session_factory = lambda *args, iface=self, **kwargs: NotificationSession(*args, **kwargs, interface=iface)
@@ -678,6 +680,9 @@ class Interface(Logger):
             await asyncio.sleep(60)
 
     async def close(self):
+        """Closes the connection and waits for it to be closed.
+        We try to flush buffered data to the wire, so this can take some time.
+        """
         if self.session:
             await self.session.close()
         # monitor_connection will cancel tasks

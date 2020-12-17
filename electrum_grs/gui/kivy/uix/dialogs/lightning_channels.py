@@ -90,8 +90,13 @@ Builder.load_string(r'''
             size_hint: 1, None
             height: '48dp'
             Widget:
-                size_hint: 0.7, None
+                size_hint: 0.4, None
                 height: '48dp'
+            Button:
+                size_hint: 0.3, None
+                height: '48dp'
+                text: _('Show Gossip')
+                on_release: popup.app.popup_dialog('lightning')
             Button:
                 size_hint: 0.3, None
                 height: '48dp'

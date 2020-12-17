@@ -94,6 +94,8 @@ python='appdir_python'
 info "installing pip."
 "$python" -m ensurepip
 
+break_legacy_easy_install
+
 
 info "preparing electrum-grs-locale."
 (

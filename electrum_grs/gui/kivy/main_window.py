@@ -381,6 +381,7 @@ class ElectrumWindow(App, Logger):
         self.daemon = self.gui_object.daemon
         self.fx = self.daemon.fx
         self.use_rbf = config.get('use_rbf', True)
+        self.android_backups = config.get('android_backups', False)
         self.use_unconfirmed = not config.get('confirmed_only', False)
 
         # create triggers so as to minimize updating a max of 2 times a sec
@@ -735,6 +736,9 @@ class ElectrumWindow(App, Logger):
                 ref.data = xpub
                 master_public_keys_layout.add_widget(ref)
             popup.open()
+        elif name == 'lightning_channels_dialog' and not self.wallet.can_have_lightning():
+            self.show_error(_("Not available for this wallet.") + "\n\n" +
+                            _("Lightning is currently restricted to HD wallets with p2wpkh addresses."))
         elif name.endswith("_dialog"):
             getattr(self, name)()
         else:
@@ -1244,7 +1248,12 @@ class ElectrumWindow(App, Logger):
         request_permissions([Permission.WRITE_EXTERNAL_STORAGE], cb)
 
     def _save_backup(self):
-        new_path = self.wallet.save_backup()
+        try:
+            new_path = self.wallet.save_backup()
+        except Exception as e:
+            self.logger.exception("Failed to save wallet backup")
+            self.show_error("Failed to save wallet backup" + '\n' + str(e))
+            return
         if new_path:
             self.show_info(_("Backup saved:") + f"\n{new_path}")
         else:
