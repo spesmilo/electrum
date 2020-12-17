@@ -126,14 +126,15 @@ class SwapDialog(WindowModalDialog):
         self._update_tx('!')
         if self.tx:
             amount = self.tx.output_value_for_address(ln_dummy_address())
-            max_amt = self.swap_manager.get_max_amount()
+            max_swap_amt = self.swap_manager.get_max_amount()
+            max_recv_amt = int(self.lnworker.num_sats_can_receive())
+            max_amt = min(max_swap_amt, max_recv_amt)
             if amount > max_amt:
                 amount = max_amt
                 self._update_tx(amount)
             if self.tx:
                 amount = self.tx.output_value_for_address(ln_dummy_address())
                 assert amount <= max_amt
-                # TODO: limit onchain amount if lightning cannot receive this much
                 self.send_amount_e.setAmount(amount)
 
     def _spend_max_reverse_swap(self):

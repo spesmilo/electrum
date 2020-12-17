@@ -225,6 +225,7 @@ class ChannelsList(MyTreeView):
             self._update_chan_frozen_bg(chan=chan, items=items)
         if wallet.lnworker:
             self.update_can_send(wallet.lnworker)
+            self.update_swap_button(wallet.lnworker)
 
     @QtCore.pyqtSlot()
     def on_gossip_db(self):
@@ -280,13 +281,20 @@ class ChannelsList(MyTreeView):
               + ' ' + self.parent.base_unit()
         self.can_send_label.setText(msg)
 
+    def update_swap_button(self, lnworker: LNWallet):
+        if lnworker.num_sats_can_send() or lnworker.num_sats_can_receive():
+            self.swap_button.setEnabled(True)
+        else:
+            self.swap_button.setEnabled(False)
+
     def get_toolbar(self):
         h = QHBoxLayout()
         self.can_send_label = QLabel('')
         h.addWidget(self.can_send_label)
         h.addStretch()
         self.swap_button = EnterButton(_('Swap'), self.swap_dialog)
-        self.swap_button.setEnabled(self.parent.wallet.has_lightning())
+        self.swap_button.setToolTip("Have at least one channel to do swaps.")
+        self.swap_button.setDisabled(True)
         self.new_channel_button = EnterButton(_('Open Channel'), self.new_channel_with_warning)
         self.new_channel_button.setEnabled(self.parent.wallet.has_lightning())
         h.addWidget(self.new_channel_button)
