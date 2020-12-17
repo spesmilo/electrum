@@ -1,3 +1,9 @@
+# Release 4.0.8 - (Dec 17, 2020)
+ * fix decoding BIP21 URIs with uppercase schema (d40bedb2)
+ * psbt: put full derivation paths into PSBT by default (c8155129)
+ * invoices: allow address-reuse (#6609, #6852)
+ * A few other minor bugfixes.
+
 # Release 4.0.7 - (Dec 9, 2020)
  * kivy: fix open channel with 'max' amount
  * kivy: fix regression introduced in last release (a9fc440)
