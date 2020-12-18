@@ -524,7 +524,7 @@ class WalletDB(JsonDB):
         self.data['channels'] = { x['channel_id']: x for x in channels }
         # convert txi & txo
         txi = self.get('txi', {})
-        for tx_hash, d in txi.items():
+        for tx_hash, d in list(txi.items()):
             d2 = {}
             for addr, l in d.items():
                 d2[addr] = {}
@@ -533,7 +533,7 @@ class WalletDB(JsonDB):
             txi[tx_hash] = d2
         self.data['txi'] = txi
         txo = self.get('txo', {})
-        for tx_hash, d in txo.items():
+        for tx_hash, d in list(txo.items()):
             d2 = {}
             for addr, l in d.items():
                 d2[addr] = {}
