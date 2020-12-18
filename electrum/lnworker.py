@@ -556,6 +556,7 @@ class LNWallet(LNWorker):
         self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_REQ
         # we do not want to receive unrequested gossip (see lnpeer.maybe_save_remote_update)
         self.features |= LnFeatures.GOSSIP_QUERIES_REQ
+        self.features |= LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT
 
         self.payments = self.db.get_dict('lightning_payments')     # RHASH -> amount, direction, is_paid  # FIXME amt should be msat
         self.preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
