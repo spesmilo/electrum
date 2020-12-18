@@ -44,7 +44,8 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      RemoteMisbehaving,
                      NBLOCK_OUR_CLTV_EXPIRY_DELTA, format_short_channel_id, ShortChannelID,
                      IncompatibleLightningFeatures, derive_payment_secret_from_payment_preimage,
-                     LN_MAX_FUNDING_SAT, calc_fees_for_commitment_tx)
+                     LN_MAX_FUNDING_SAT, calc_fees_for_commitment_tx,
+                     UpfrontShutdownScriptViolation)
 from .lnutil import FeeUpdate, channel_id_from_funding_tx
 from .lntransport import LNTransport, LNTransportBase
 from .lnmsg import encode_msg, decode_msg
@@ -486,12 +487,33 @@ class Peer(Logger):
     def is_static_remotekey(self):
         return bool(self.features & LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
 
+    def is_upfront_shutdown_script(self):
+        return bool(self.features & LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT)
+
+    def upfront_shutdown_script_from_payload(self, payload, msg_identifier: str) -> Optional[bytes]:
+        if msg_identifier not in ['accept', 'open']:
+            raise ValueError("msg_identifier must be either 'accept' or 'open'")
+
+        uss_tlv = payload[msg_identifier + '_channel_tlvs'].get(
+            'upfront_shutdown_script')
+
+        if uss_tlv and self.is_upfront_shutdown_script():
+            upfront_shutdown_script = uss_tlv['shutdown_scriptpubkey']
+        else:
+            upfront_shutdown_script = b''
+        self.logger.info(f"upfront shutdown script received: {upfront_shutdown_script}")
+        return upfront_shutdown_script
+
     def make_local_config(self, funding_sat: int, push_msat: int, initiator: HTLCOwner) -> LocalConfig:
         channel_seed = os.urandom(32)
         initial_msat = funding_sat * 1000 - push_msat if initiator == LOCAL else push_msat
+
+        static_remotekey = None
+        # sending empty bytes as the upfront_shutdown_script will give us the
+        # flexibility to decide an address at closing time
+        upfront_shutdown_script = b''
+
         if self.is_static_remotekey():
-            # Note: in the future, if a CSV delay is added,
-            # we will want to derive that key
             wallet = self.lnworker.wallet
             assert wallet.txin_type == 'p2wpkh'
             addr = wallet.get_new_sweep_address_for_channel()
@@ -503,6 +525,7 @@ class Peer(Logger):
         local_config = LocalConfig.from_seed(
             channel_seed=channel_seed,
             static_remotekey=static_remotekey,
+            upfront_shutdown_script=upfront_shutdown_script,
             to_self_delay=self.network.config.get('lightning_to_self_delay', 7 * 144),
             dust_limit_sat=dust_limit_sat,
             max_htlc_value_in_flight_msat=funding_sat * 1000,
@@ -546,15 +569,27 @@ class Peer(Logger):
             push_msat: int,
             temp_channel_id: bytes
     ) -> Tuple[Channel, 'PartialTransaction']:
+        """Implements the channel opening flow.
+
+        -> open_channel message
+        <- accept_channel message
+        -> funding_created message
+        <- funding_signed message
+
+        Channel configurations are initialized in this method.
+        """
         await asyncio.wait_for(self.initialized, LN_P2P_NETWORK_TIMEOUT)
+
         feerate = self.lnworker.current_feerate_per_kw()
         local_config = self.make_local_config(funding_sat, push_msat, LOCAL)
+
         if funding_sat > LN_MAX_FUNDING_SAT:
             raise Exception(f"MUST set funding_satoshis to less than 2^24 satoshi. {funding_sat} sat > {LN_MAX_FUNDING_SAT}")
         if push_msat > 1000 * funding_sat:
             raise Exception(f"MUST set push_msat to equal or less than 1000 * funding_satoshis: {push_msat} msat > {1000 * funding_sat} msat")
         if funding_sat < lnutil.MIN_FUNDING_SAT:
             raise Exception(f"funding_sat too low: {funding_sat} < {lnutil.MIN_FUNDING_SAT}")
+
         # for the first commitment transaction
         per_commitment_secret_first = get_per_commitment_secret_from_seed(local_config.per_commitment_secret_seed,
                                                                           RevocationStore.START_INDEX)
@@ -579,7 +614,13 @@ class Peer(Logger):
             channel_flags=0x00,  # not willing to announce channel
             channel_reserve_satoshis=local_config.reserve_sat,
             htlc_minimum_msat=local_config.htlc_minimum_msat,
+            open_channel_tlvs={
+                'upfront_shutdown_script':
+                    {'shutdown_scriptpubkey': local_config.upfront_shutdown_script}
+            }
         )
+
+        # <- accept_channel
         payload = await self.wait_for_message('accept_channel', temp_channel_id)
         remote_per_commitment_point = payload['first_per_commitment_point']
         funding_txn_minimum_depth = payload['minimum_depth']
@@ -587,6 +628,10 @@ class Peer(Logger):
             raise Exception(f"minimum depth too low, {funding_txn_minimum_depth}")
         if funding_txn_minimum_depth > 30:
             raise Exception(f"minimum depth too high, {funding_txn_minimum_depth}")
+
+        upfront_shutdown_script = self.upfront_shutdown_script_from_payload(
+            payload, 'accept')
+
         remote_config = RemoteConfig(
             payment_basepoint=OnlyPubkeyKeypair(payload['payment_basepoint']),
             multisig_key=OnlyPubkeyKeypair(payload["funding_pubkey"]),
@@ -602,6 +647,7 @@ class Peer(Logger):
             htlc_minimum_msat=payload['htlc_minimum_msat'],
             next_per_commitment_point=remote_per_commitment_point,
             current_per_commitment_point=None,
+            upfront_shutdown_script=upfront_shutdown_script
         )
         remote_config.validate_params(funding_sat=funding_sat)
         # if channel_reserve_satoshis is less than dust_limit_satoshis within the open_channel message:
@@ -612,6 +658,8 @@ class Peer(Logger):
         #     MUST reject the channel.
         if local_config.reserve_sat < remote_config.dust_limit_sat:
             raise Exception("violated constraint: local_config.reserve_sat < remote_config.dust_limit_sat")
+
+        # -> funding created
         # replace dummy output in funding tx
         redeem_script = funding_output_script(local_config, remote_config)
         funding_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
@@ -626,7 +674,7 @@ class Peer(Logger):
         funding_txid = funding_tx.txid()
         assert funding_txid
         funding_index = funding_tx.outputs().index(funding_output)
-        # remote commitment transaction
+        # build remote commitment transaction
         channel_id, funding_txid_bytes = channel_id_from_funding_tx(funding_txid, funding_index)
         outpoint = Outpoint(funding_txid, funding_index)
         constraints = ChannelConstraints(capacity=funding_sat, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth)
@@ -640,12 +688,15 @@ class Peer(Logger):
             chan.add_or_update_peer_addr(self.transport.peer_addr)
         sig_64, _ = chan.sign_next_commitment()
         self.temp_id_to_id[temp_channel_id] = channel_id
+
         self.send_message("funding_created",
             temporary_channel_id=temp_channel_id,
             funding_txid=funding_txid_bytes,
             funding_output_index=funding_index,
             signature=sig_64)
         self.funding_created_sent.add(channel_id)
+
+        # <- funding signed
         payload = await self.wait_for_message('funding_signed', channel_id)
         self.logger.info('received funding_signed')
         remote_sig = payload['signature']
@@ -675,6 +726,16 @@ class Peer(Logger):
         return StoredDict(chan_dict, None, [])
 
     async def on_open_channel(self, payload):
+        """Implements the channel acceptance flow.
+
+        <- open_channel message
+        -> accept_channel message
+        <- funding_created message
+        -> funding_signed message
+
+        Channel configurations are initialized in this method.
+        """
+        # <- open_channel
         if payload['chain_hash'] != constants.net.rev_genesis_bytes():
             raise Exception('wrong chain_hash')
         funding_sat = payload['funding_satoshis']
@@ -688,6 +749,10 @@ class Peer(Logger):
             raise Exception(f"MUST set push_msat to equal or less than 1000 * funding_satoshis: {push_msat} msat > {1000 * funding_sat} msat")
         if funding_sat < lnutil.MIN_FUNDING_SAT:
             raise Exception(f"funding_sat too low: {funding_sat} < {lnutil.MIN_FUNDING_SAT}")
+
+        upfront_shutdown_script = self.upfront_shutdown_script_from_payload(
+            payload, 'open')
+
         remote_config = RemoteConfig(
             payment_basepoint=OnlyPubkeyKeypair(payload['payment_basepoint']),
             multisig_key=OnlyPubkeyKeypair(payload['funding_pubkey']),
@@ -703,7 +768,9 @@ class Peer(Logger):
             htlc_minimum_msat=payload['htlc_minimum_msat'],
             next_per_commitment_point=payload['first_per_commitment_point'],
             current_per_commitment_point=None,
+            upfront_shutdown_script=upfront_shutdown_script,
         )
+
         remote_config.validate_params(funding_sat=funding_sat)
         # The receiving node MUST fail the channel if:
         #     the funder's amount for the initial commitment transaction is not sufficient for full fee payment.
@@ -720,12 +787,15 @@ class Peer(Logger):
         # note: we ignore payload['channel_flags'],  which e.g. contains 'announce_channel'.
         #       Notably if the remote sets 'announce_channel' to True, we will ignore that too,
         #       but we will not play along with actually announcing the channel (so we keep it private).
+
+        # -> accept channel
         # for the first commitment transaction
         per_commitment_secret_first = get_per_commitment_secret_from_seed(local_config.per_commitment_secret_seed,
                                                                           RevocationStore.START_INDEX)
         per_commitment_point_first = secret_to_pubkey(int.from_bytes(per_commitment_secret_first, 'big'))
         min_depth = 3
-        self.send_message('accept_channel',
+        self.send_message(
+            'accept_channel',
             temporary_channel_id=temp_chan_id,
             dust_limit_satoshis=local_config.dust_limit_sat,
             max_htlc_value_in_flight_msat=local_config.max_htlc_value_in_flight_msat,
@@ -740,8 +810,16 @@ class Peer(Logger):
             delayed_payment_basepoint=local_config.delayed_basepoint.pubkey,
             htlc_basepoint=local_config.htlc_basepoint.pubkey,
             first_per_commitment_point=per_commitment_point_first,
+            accept_channel_tlvs={
+                'upfront_shutdown_script':
+                    {'shutdown_scriptpubkey': local_config.upfront_shutdown_script}
+            }
         )
+
+        # <- funding created
         funding_created = await self.wait_for_message('funding_created', temp_chan_id)
+
+        # -> funding signed
         funding_idx = funding_created['funding_output_index']
         funding_txid = bh2u(funding_created['funding_txid'][::-1])
         channel_id, funding_txid_bytes = channel_id_from_funding_tx(funding_txid, funding_idx)
@@ -1407,6 +1485,13 @@ class Peer(Logger):
 
     async def on_shutdown(self, chan: Channel, payload):
         their_scriptpubkey = payload['scriptpubkey']
+        their_upfront_scriptpubkey = chan.config[REMOTE].upfront_shutdown_script
+
+        # BOLT-02 check if they use the upfront shutdown script they advertized
+        if their_upfront_scriptpubkey:
+            if not (their_scriptpubkey == their_upfront_scriptpubkey):
+                raise UpfrontShutdownScriptViolation("remote didn't use upfront shutdown script it commited to in channel opening")
+
         # BOLT-02 restrict the scriptpubkey to some templates:
         if not (match_script_against_template(their_scriptpubkey, transaction.SCRIPTPUBKEY_TEMPLATE_WITNESS_V0)
                 or match_script_against_template(their_scriptpubkey, transaction.SCRIPTPUBKEY_TEMPLATE_P2SH)
@@ -1433,7 +1518,13 @@ class Peer(Logger):
     async def send_shutdown(self, chan: Channel):
         if not self.can_send_shutdown(chan):
             raise Exception('cannot send shutdown')
-        scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))
+
+        if chan.config[LOCAL].upfront_shutdown_script:
+            scriptpubkey = chan.config[LOCAL].upfront_shutdown_script
+        else:
+            scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))
+        assert scriptpubkey
+
         # wait until no more pending updates (bolt2)
         chan.set_can_send_ctx_updates(False)
         while chan.has_pending_changes(REMOTE):
@@ -1452,7 +1543,12 @@ class Peer(Logger):
         # if no HTLCs remain, we must not send updates
         chan.set_can_send_ctx_updates(False)
         their_scriptpubkey = payload['scriptpubkey']
-        our_scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))
+        if chan.config[LOCAL].upfront_shutdown_script:
+            our_scriptpubkey = chan.config[LOCAL].upfront_shutdown_script
+        else:
+            our_scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))
+        assert our_scriptpubkey
+
         # estimate fee of closing tx
         our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=0)
         fee_rate = self.network.config.fee_per_kb()

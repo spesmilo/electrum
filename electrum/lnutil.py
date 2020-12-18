@@ -81,6 +81,7 @@ class Config(StoredObject):
     initial_msat = attr.ib(type=int)
     reserve_sat = attr.ib(type=int)  # applies to OTHER ctx
     htlc_minimum_msat = attr.ib(type=int)  # smallest value for INCOMING htlc
+    upfront_shutdown_script = attr.ib(type=bytes, converter=hex_to_bytes)
 
     def validate_params(self, *, funding_sat: int) -> None:
         conf_name = type(self).__name__
@@ -300,6 +301,7 @@ class UnableToDeriveSecret(LightningError): pass
 class HandshakeFailed(LightningError): pass
 class ConnStringFormatError(LightningError): pass
 class RemoteMisbehaving(LightningError): pass
+class UpfrontShutdownScriptViolation(RemoteMisbehaving): pass
 
 class NotFoundChanAnnouncementForUpdate(Exception): pass
 
