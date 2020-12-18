@@ -50,8 +50,9 @@ msgdata,open_channel,delayed_payment_basepoint,point,
 msgdata,open_channel,htlc_basepoint,point,
 msgdata,open_channel,first_per_commitment_point,point,
 msgdata,open_channel,channel_flags,byte,
-msgdata,open_channel,shutdown_len,u16,,option_upfront_shutdown_script
-msgdata,open_channel,shutdown_scriptpubkey,byte,shutdown_len,option_upfront_shutdown_script
+msgdata,open_channel,tlvs,open_channel_tlvs,
+tlvtype,open_channel_tlvs,upfront_shutdown_script,0
+tlvdata,open_channel_tlvs,upfront_shutdown_script,shutdown_scriptpubkey,byte,...
 msgtype,accept_channel,33
 msgdata,accept_channel,temporary_channel_id,byte,32
 msgdata,accept_channel,dust_limit_satoshis,u64,
@@ -67,8 +68,9 @@ msgdata,accept_channel,payment_basepoint,point,
 msgdata,accept_channel,delayed_payment_basepoint,point,
 msgdata,accept_channel,htlc_basepoint,point,
 msgdata,accept_channel,first_per_commitment_point,point,
-msgdata,accept_channel,shutdown_len,u16,,option_upfront_shutdown_script
-msgdata,accept_channel,shutdown_scriptpubkey,byte,shutdown_len,option_upfront_shutdown_script
+msgdata,accept_channel,tlvs,accept_channel_tlvs,
+tlvtype,accept_channel_tlvs,upfront_shutdown_script,0
+tlvdata,accept_channel_tlvs,upfront_shutdown_script,shutdown_scriptpubkey,byte,...
 msgtype,funding_created,34
 msgdata,funding_created,temporary_channel_id,byte,32
 msgdata,funding_created,funding_txid,sha256,
