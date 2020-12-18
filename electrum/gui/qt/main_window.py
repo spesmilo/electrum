@@ -70,7 +70,8 @@ from electrum.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet,
                              sweep_preparations, InternalAddressCorruption,
                              CannotDoubleSpendTx)
 from electrum.version import ELECTRUM_VERSION
-from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed, UntrustedServerReturnedError
+from electrum.network import (Network, TxBroadcastError, BestEffortRequestFailed,
+                              UntrustedServerReturnedError, NetworkException)
 from electrum.exchange_rate import FxThread
 from electrum.simple_config import SimpleConfig
 from electrum.logging import Logger
@@ -90,7 +91,7 @@ from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialo
                    import_meta_gui, export_meta_gui,
                    filename_field, address_field, char_width_in_lineedit, webopen,
                    TRANSACTION_FILE_EXTENSION_FILTER_ANY, MONOSPACE_FONT,
-                   getOpenFileName, getSaveFileName)
+                   getOpenFileName, getSaveFileName, BlockingWaitingDialog)
 from .util import ButtonsTextEdit, ButtonsLineEdit
 from .installwizard import WIF_HELP_TEXT
 from .history_list import HistoryList, HistoryModel
@@ -3189,13 +3190,31 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         new_tx.set_rbf(True)
         self.show_transaction(new_tx)
 
+    def _add_info_to_tx_from_wallet_and_network(self, tx: PartialTransaction) -> bool:
+        """Returns whether successful."""
+        # note side-effect: tx is being mutated
+        assert isinstance(tx, PartialTransaction)
+        try:
+            # note: this might download input utxos over network
+            BlockingWaitingDialog(
+                self,
+                _("Adding info to tx, from wallet and network..."),
+                lambda: tx.add_info_from_wallet(self.wallet, ignore_network_issues=False),
+            )
+        except NetworkException as e:
+            self.show_error(repr(e))
+            return False
+        return True
+
     def bump_fee_dialog(self, tx: Transaction):
         txid = tx.txid()
         assert txid
-        fee = self.wallet.get_tx_fee(txid)
-        if fee is None:
-            self.show_error(_("Can't bump fee: unknown fee for original transaction."))
+        if not isinstance(tx, PartialTransaction):
+            tx = PartialTransaction.from_tx(tx)
+        if not self._add_info_to_tx_from_wallet_and_network(tx):
             return
+        fee = tx.get_fee()
+        assert fee is not None
         tx_label = self.wallet.get_label_for_txid(txid)
         tx_size = tx.estimated_size()
         old_fee_rate = fee / tx_size  # sat/vbyte
@@ -3236,7 +3255,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         is_final = cb.isChecked()
         new_fee_rate = feerate_e.get_amount()
         try:
-            new_tx = self.wallet.bump_fee(tx=tx, new_fee_rate=new_fee_rate, coins=self.get_coins())
+            new_tx = self.wallet.bump_fee(
+                tx=tx,
+                txid=txid,
+                new_fee_rate=new_fee_rate,
+                coins=self.get_coins(),
+            )
         except CannotBumpFee as e:
             self.show_error(str(e))
             return
@@ -3247,10 +3271,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def dscancel_dialog(self, tx: Transaction):
         txid = tx.txid()
         assert txid
-        fee = self.wallet.get_tx_fee(txid)
-        if fee is None:
-            self.show_error(_('Cannot cancel transaction') + ': ' + _('unknown fee for original transaction'))
+        if not isinstance(tx, PartialTransaction):
+            tx = PartialTransaction.from_tx(tx)
+        if not self._add_info_to_tx_from_wallet_and_network(tx):
             return
+        fee = tx.get_fee()
+        assert fee is not None
         tx_size = tx.estimated_size()
         old_fee_rate = fee / tx_size  # sat/vbyte
         d = WindowModalDialog(self, _('Cancel transaction'))

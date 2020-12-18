@@ -1354,21 +1354,38 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             max_conf = max(max_conf, tx_age)
         return max_conf >= req_conf
 
-    def bump_fee(self, *, tx: Transaction, new_fee_rate: Union[int, float, Decimal],
-                 coins: Sequence[PartialTxInput] = None) -> PartialTransaction:
+    def bump_fee(
+            self,
+            *,
+            tx: Transaction,
+            txid: str = None,
+            new_fee_rate: Union[int, float, Decimal],
+            coins: Sequence[PartialTxInput] = None,
+    ) -> PartialTransaction:
         """Increase the miner fee of 'tx'.
         'new_fee_rate' is the target min rate in sat/vbyte
         'coins' is a list of UTXOs we can choose from as potential new inputs to be added
         """
+        txid = txid or tx.txid()
+        assert txid
+        assert tx.txid() in (None, txid)
+        if not isinstance(tx, PartialTransaction):
+            tx = PartialTransaction.from_tx(tx)
+        assert isinstance(tx, PartialTransaction)
+
         if tx.is_final():
             raise CannotBumpFee(_('Cannot bump fee') + ': ' + _('transaction is final'))
         new_fee_rate = quantize_feerate(new_fee_rate)  # strip excess precision
         old_tx_size = tx.estimated_size()
-        old_txid = tx.txid()
-        assert old_txid
-        old_fee = self.get_tx_fee(old_txid)
-        if old_fee is None:
-            raise CannotBumpFee(_('Cannot bump fee') + ': ' + _('current fee unknown'))
+
+        try:
+            # note: this might download input utxos over network
+            tx.add_info_from_wallet(self, ignore_network_issues=False)
+        except NetworkException as e:
+            raise CannotBumpFee(_('Cannot bump fee') + ': ' + repr(e))
+
+        old_fee = tx.get_fee()
+        assert old_fee is not None
         old_fee_rate = old_fee / old_tx_size  # sat/vbyte
         if new_fee_rate <= old_fee_rate:
             raise CannotBumpFee(_('Cannot bump fee') + ': ' + _("The new fee rate needs to be higher than the old fee rate."))
@@ -1377,7 +1394,11 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             # method 1: keep all inputs, keep all not is_mine outputs,
             #           allow adding new inputs
             tx_new = self._bump_fee_through_coinchooser(
-                tx=tx, new_fee_rate=new_fee_rate, coins=coins)
+                tx=tx,
+                txid=txid,
+                new_fee_rate=new_fee_rate,
+                coins=coins,
+            )
             method_used = 1
         except CannotBumpFee:
             # method 2: keep all inputs, no new inputs are added,
@@ -1399,12 +1420,18 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         tx_new.add_info_from_wallet(self)
         return tx_new
 
-    def _bump_fee_through_coinchooser(self, *, tx: Transaction, new_fee_rate: Union[int, Decimal],
-                                      coins: Sequence[PartialTxInput] = None) -> PartialTransaction:
-        old_txid = tx.txid()
-        assert old_txid
-        tx = PartialTransaction.from_tx(tx)
+    def _bump_fee_through_coinchooser(
+            self,
+            *,
+            tx: PartialTransaction,
+            txid: str,
+            new_fee_rate: Union[int, Decimal],
+            coins: Sequence[PartialTxInput] = None,
+    ) -> PartialTransaction:
+        assert txid
+        tx = copy.deepcopy(tx)
         tx.add_info_from_wallet(self)
+        assert tx.get_fee() is not None
         old_inputs = list(tx.inputs())
         old_outputs = list(tx.outputs())
         # change address
@@ -1430,7 +1457,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if coins is None:
             coins = self.get_spendable_coins(None)
         # make sure we don't try to spend output from the tx-to-be-replaced:
-        coins = [c for c in coins if c.prevout.txid.hex() != old_txid]
+        coins = [c for c in coins if c.prevout.txid.hex() != txid]
         for item in coins:
             self.add_input_info(item)
         def fee_estimator(size):
@@ -1446,10 +1473,15 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         except NotEnoughFunds as e:
             raise CannotBumpFee(e)
 
-    def _bump_fee_through_decreasing_outputs(self, *, tx: Transaction,
-                                             new_fee_rate: Union[int, Decimal]) -> PartialTransaction:
-        tx = PartialTransaction.from_tx(tx)
+    def _bump_fee_through_decreasing_outputs(
+            self,
+            *,
+            tx: PartialTransaction,
+            new_fee_rate: Union[int, Decimal],
+    ) -> PartialTransaction:
+        tx = copy.deepcopy(tx)
         tx.add_info_from_wallet(self)
+        assert tx.get_fee() is not None
         inputs = tx.inputs()
         outputs = list(tx.outputs())
 
@@ -1516,21 +1548,26 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         its inputs, paying ourselves.
         'new_fee_rate' is the target min rate in sat/vbyte
         """
+        if not isinstance(tx, PartialTransaction):
+            tx = PartialTransaction.from_tx(tx)
+        assert isinstance(tx, PartialTransaction)
+
         if tx.is_final():
             raise CannotDoubleSpendTx(_('Cannot cancel transaction') + ': ' + _('transaction is final'))
         new_fee_rate = quantize_feerate(new_fee_rate)  # strip excess precision
         old_tx_size = tx.estimated_size()
-        old_txid = tx.txid()
-        assert old_txid
-        old_fee = self.get_tx_fee(old_txid)
-        if old_fee is None:
-            raise CannotDoubleSpendTx(_('Cannot cancel transaction') + ': ' + _('current fee unknown'))
+
+        try:
+            # note: this might download input utxos over network
+            tx.add_info_from_wallet(self, ignore_network_issues=False)
+        except NetworkException as e:
+            raise CannotDoubleSpendTx(_('Cannot cancel transaction') + ': ' + repr(e))
+
+        old_fee = tx.get_fee()
+        assert old_fee is not None
         old_fee_rate = old_fee / old_tx_size  # sat/vbyte
         if new_fee_rate <= old_fee_rate:
             raise CannotDoubleSpendTx(_('Cannot cancel transaction') + ': ' + _("The new fee rate needs to be higher than the old fee rate."))
-
-        tx = PartialTransaction.from_tx(tx)
-        tx.add_info_from_wallet(self)
 
         # grab all ismine inputs
         inputs = [txin for txin in tx.inputs()
@@ -1564,10 +1601,14 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                                      address: str, *, only_der_suffix: bool) -> None:
         pass  # implemented by subclasses
 
-    def _add_input_utxo_info(self, txin: PartialTxInput, address: str) -> None:
+    def _add_input_utxo_info(
+            self,
+            txin: PartialTxInput,
+            *,
+            ignore_network_issues: bool = True,
+    ) -> None:
         if txin.utxo is None:
-            # note: for hw wallets, for legacy inputs, ignore_network_issues used to be False
-            txin.utxo = self.get_input_tx(txin.prevout.txid.hex(), ignore_network_issues=True)
+            txin.utxo = self.get_input_tx(txin.prevout.txid.hex(), ignore_network_issues=ignore_network_issues)
         txin.ensure_there_is_only_one_utxo()
 
     def _learn_derivation_path_for_address_from_txinout(self, txinout: Union[PartialTxInput, PartialTxOutput],
@@ -1578,7 +1619,15 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         """
         return False  # implemented by subclasses
 
-    def add_input_info(self, txin: PartialTxInput, *, only_der_suffix: bool = False) -> None:
+    def add_input_info(
+            self,
+            txin: PartialTxInput,
+            *,
+            only_der_suffix: bool = False,
+            ignore_network_issues: bool = True,
+    ) -> None:
+        # note: we add input utxos regardless of is_mine
+        self._add_input_utxo_info(txin, ignore_network_issues=ignore_network_issues)
         address = self.get_txin_address(txin)
         if not self.is_mine(address):
             is_mine = self._learn_derivation_path_for_address_from_txinout(txin, address)
@@ -1586,7 +1635,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 return
         # set script_type first, as later checks might rely on it:
         txin.script_type = self.get_txin_type(address)
-        self._add_input_utxo_info(txin, address)
         txin.num_sig = self.m if isinstance(self, Multisig_Wallet) else 1
         if txin.redeem_script is None:
             try:
@@ -1636,6 +1684,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                     raise e
             else:
                 tx = Transaction(raw_tx)
+        if not tx and not ignore_network_issues:
+            raise NetworkException('failed to get prev tx from network')
         return tx
 
     def add_output_info(self, txout: PartialTxOutput, *, only_der_suffix: bool = False) -> None:

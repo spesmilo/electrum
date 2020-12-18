@@ -691,14 +691,13 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         if channel_id:
             menu.addAction(_("View Channel"), lambda: self.parent.show_channel(bytes.fromhex(channel_id)))
         if is_unconfirmed and tx:
-            # note: the current implementation of RBF *needs* the old tx fee
-            if tx_details.can_bump and tx_details.fee is not None:
+            if tx_details.can_bump:
                 menu.addAction(_("Increase fee"), lambda: self.parent.bump_fee_dialog(tx))
             else:
                 child_tx = self.wallet.cpfp(tx, 0)
                 if child_tx:
                     menu.addAction(_("Child pays for parent"), lambda: self.parent.cpfp(tx, child_tx))
-            if tx_details.can_dscancel and tx_details.fee is not None:
+            if tx_details.can_dscancel:
                 menu.addAction(_("Cancel (double-spend)"), lambda: self.parent.dscancel_dialog(tx))
         invoices = self.wallet.get_relevant_invoices_for_tx(tx)
         if len(invoices) == 1:
