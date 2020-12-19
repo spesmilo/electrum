@@ -184,6 +184,14 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
     def channels_for_peer(self, node_id):
         return {}
 
+    def get_node_alias(self, node_id):
+        if self.channel_db:
+            node_info = self.channel_db.get_node_info_for_node_id(node_id)
+            node_alias = (node_info.alias if node_info else '') or node_id.hex()
+        else:
+            node_alias = ''
+        return node_alias
+
     async def maybe_listen(self):
         # FIXME: only one LNWorker can listen at a time (single port)
         listen_addr = self.config.get('lightning_listen')
