@@ -12,6 +12,7 @@ import decimal
 from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 from collections import defaultdict
 
+from . import networks
 from .bitcoin import COIN
 from .i18n import _
 from .util import PrintError, ThreadJob, print_error, inv_base_units
@@ -352,8 +353,8 @@ class FxThread(ThreadJob):
         return fmt_str.format(rounded_amount)
 
     def run(self):
-        ''' This runs from the Network thread. It is invoked roughly every
-        100ms (see network.py), with actual work being done every 2.5 minutes. '''
+        """This runs from the Network thread. It is invoked roughly every
+        100ms (see network.py), with actual work being done every 2.5 minutes."""
         if self.is_enabled():
             if self.timeout <= time.time():
                 self.exchange.update(self.ccy)
@@ -369,8 +370,13 @@ class FxThread(ThreadJob):
                 # every ~2.5 minutes
                 self.timeout = time.time() + 150
 
+    @staticmethod
+    def is_supported():
+        """Fiat currency is only supported on BCH MainNet, for all other chains it is not supported."""
+        return not networks.net.TESTNET and networks.net is not networks.TaxCoinNet
+
     def is_enabled(self):
-        return self.config.get('use_exchange_rate', DEFAULT_ENABLED)
+        return self.is_supported() and self.config.get('use_exchange_rate', DEFAULT_ENABLED)
 
     def set_enabled(self, b):
         return self.config.set_key('use_exchange_rate', bool(b))
@@ -388,10 +394,11 @@ class FxThread(ThreadJob):
         self.config.set_key('fiat_address', bool(b))
 
     def get_currency(self):
-        '''Use when dynamic fetching is needed'''
+        """Use when dynamic fetching is needed"""
         return self.config.get("currency", self.default_currency)
 
     def config_exchange(self):
+        """Returns the currently-configured exchange."""
         return self.config.get('use_exchange', self.default_exchange)
 
     def show_history(self):

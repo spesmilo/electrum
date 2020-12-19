@@ -147,8 +147,12 @@ class Daemon(DaemonThread):
         else:
             self.network = Network(config)
             self.network.start()
+        # Create FxThread unconditionally; the rest of this codebase assumes this object exists even if not supported
+        # or if in offline mode
         self.fx = FxThread(config, self.network)
-        if self.network:
+        if self.network and self.fx.is_supported():
+            # We only add the fx object to the network thread as a job if it is supported (if on mainnet).
+            # On the testnets we don't offer exchange rate/fiat display (is_supported() == False).
             self.network.add_jobs([self.fx])
         self.gui = None
         self.wallets = {}

@@ -23,13 +23,17 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import sys, time, threading
-import os, json, traceback
-import copy
-import shutil
-import csv
-from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 import base64
+import copy
+import csv
+import json
+import os
+import shutil
+import sys
+import threading
+import time
+import traceback
+from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 from functools import partial
 from collections import OrderedDict
 from typing import List
@@ -62,12 +66,12 @@ except:
     plot_history = None
 import electroncash.web as web
 
-from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, BTCkBEdit, BTCSatsByteEdit
+from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, BTCSatsByteEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .transaction_dialog import show_transaction
 from .fee_slider import FeeSlider
-from .popup_widget import ShowPopupLabel, KillPopupLabel, PopupWidget
+from .popup_widget import ShowPopupLabel, KillPopupLabel
 from . import cashacctqt
 from .util import *
 
@@ -4025,7 +4029,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         lang_combo.currentIndexChanged.connect(on_lang)
         gui_widgets.append((lang_label, lang_combo))
 
-        nz_help = _('Number of zeros displayed after the decimal point. For example, if this is set to 2, "1." will be displayed as "1.00"')
+        nz_help = _('Number of zeros displayed after the decimal point. For example, if this is set to 2, "1." will be '
+                    'displayed as "1.00"')
         nz_label = HelpLabel(_('Zeros after decimal point') + ':', nz_help)
         nz = QSpinBox()
         nz.setMinimum(0)
@@ -4455,104 +4460,109 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             use_schnorr_cb.setToolTip(no_schnorr_reason[0])
         per_wallet_tx_widgets.append((use_schnorr_cb, None))
 
+        # Fiat Tab (only build it if not on testnet)
+        #
+        # Note that at the present time self.fx is always defined, including for --offline mode;
+        # we will check if self.fx is not None here just in case that changes some day.
+        if self.fx and self.fx.is_supported():
+            def update_currencies():
+                if not self.fx: return
+                currencies = sorted(self.fx.get_currencies(self.fx.get_history_config()))
+                ccy_combo.clear()
+                ccy_combo.addItems([pgettext('Referencing Fiat currency', 'None')] + currencies)
+                if self.fx.is_enabled():
+                    ccy_combo.setCurrentIndex(ccy_combo.findText(self.fx.get_currency()))
 
-        def update_currencies():
-            if not self.fx: return
-            currencies = sorted(self.fx.get_currencies(self.fx.get_history_config()))
-            ccy_combo.clear()
-            ccy_combo.addItems([pgettext('Referencing Fiat currency', 'None')] + currencies)
-            if self.fx.is_enabled():
-                ccy_combo.setCurrentIndex(ccy_combo.findText(self.fx.get_currency()))
+            def update_history_cb():
+                if not self.fx: return
+                hist_checkbox.setChecked(self.fx.get_history_config())
+                hist_checkbox.setEnabled(self.fx.is_enabled())
 
-        def update_history_cb():
-            if not self.fx: return
-            hist_checkbox.setChecked(self.fx.get_history_config())
-            hist_checkbox.setEnabled(self.fx.is_enabled())
+            def update_fiat_address_cb():
+                if not self.fx: return
+                fiat_address_checkbox.setChecked(self.fx.get_fiat_address_config())
 
-        def update_fiat_address_cb():
-            if not self.fx: return
-            fiat_address_checkbox.setChecked(self.fx.get_fiat_address_config())
+            def update_exchanges():
+                if not self.fx: return
+                b = self.fx.is_enabled()
+                ex_combo.setEnabled(b)
+                if b:
+                    c = self.fx.get_currency()
+                    h = self.fx.get_history_config()
+                else:
+                    c, h = self.fx.default_currency, False
+                exchanges = self.fx.get_exchanges_by_ccy(c, h)
+                conf_exchange = self.fx.config_exchange()
+                ex_combo.clear()
+                ex_combo.addItems(sorted(exchanges))
+                idx = ex_combo.findText(conf_exchange)  # try and restore previous exchange if in new list
+                if idx < 0:
+                    # hmm, previous exchange wasn't in new h= setting. Try default exchange.
+                    idx = ex_combo.findText(self.fx.default_exchange)
+                idx = 0 if idx < 0 else idx # if still no success (idx < 0) -> default to the first exchange in combo
+                if exchanges: # don't set index if no exchanges, as any index is illegal. this shouldn't happen.
+                    ex_combo.setCurrentIndex(idx)  # note this will emit a currentIndexChanged signal if it's changed
 
-        def update_exchanges():
-            if not self.fx: return
-            b = self.fx.is_enabled()
-            ex_combo.setEnabled(b)
-            if b:
-                c = self.fx.get_currency()
-                h = self.fx.get_history_config()
-            else:
-                c, h = self.fx.default_currency, False
-            exchanges = self.fx.get_exchanges_by_ccy(c, h)
-            conf_exchange = self.fx.config_exchange()
-            ex_combo.clear()
-            ex_combo.addItems(sorted(exchanges))
-            idx = ex_combo.findText(conf_exchange)  # try and restore previous exchange if in new list
-            if idx < 0:
-                # hmm, previous exchange wasn't in new h= setting. Try default exchange.
-                idx = ex_combo.findText(self.fx.default_exchange)
-            idx = 0 if idx < 0 else idx # if still no success (idx < 0) -> default to the first exchange in combo
-            if exchanges: # don't set index if no exchanges, as any index is illegal. this shouldn't happen.
-                ex_combo.setCurrentIndex(idx)  # note this will emit a currentIndexChanged signal if it's changed
+            def on_currency(hh):
+                if not self.fx: return
+                b = bool(ccy_combo.currentIndex())
+                ccy = str(ccy_combo.currentText()) if b else None
+                self.fx.set_enabled(b)
+                if b and ccy != self.fx.ccy:
+                    self.fx.set_currency(ccy)
+                update_history_cb()
+                update_exchanges()
+                self.update_fiat()
 
+            def on_exchange(idx):
+                exchange = str(ex_combo.currentText())
+                if self.fx and self.fx.is_enabled() and exchange and exchange != self.fx.exchange.name():
+                    self.fx.set_exchange(exchange)
 
-        def on_currency(hh):
-            if not self.fx: return
-            b = bool(ccy_combo.currentIndex())
-            ccy = str(ccy_combo.currentText()) if b else None
-            self.fx.set_enabled(b)
-            if b and ccy != self.fx.ccy:
-                self.fx.set_currency(ccy)
+            def on_history(checked):
+                if not self.fx: return
+                changed = bool(self.fx.get_history_config()) != bool(checked)
+                self.fx.set_history_config(checked)
+                update_exchanges()
+                self.history_list.refresh_headers()
+                if self.fx.is_enabled() and checked:
+                    # reset timeout to get historical rates
+                    self.fx.timeout = 0
+                    if changed:
+                        self.history_list.update()  # this won't happen too often as it's rate-limited
+
+            def on_fiat_address(checked):
+                if not self.fx: return
+                self.fx.set_fiat_address_config(checked)
+                self.address_list.refresh_headers()
+                self.address_list.update()
+
+            update_currencies()
             update_history_cb()
+            update_fiat_address_cb()
             update_exchanges()
-            self.update_fiat()
+            ccy_combo.currentIndexChanged.connect(on_currency)
+            hist_checkbox.stateChanged.connect(on_history)
+            fiat_address_checkbox.stateChanged.connect(on_fiat_address)
+            ex_combo.currentIndexChanged.connect(on_exchange)
 
-        def on_exchange(idx):
-            exchange = str(ex_combo.currentText())
-            if self.fx and self.fx.is_enabled() and exchange and exchange != self.fx.exchange.name():
-                self.fx.set_exchange(exchange)
+            hist_checkbox.setText(_('Show history rates'))
+            fiat_address_checkbox.setText(_('Show fiat balance for addresses'))
 
-        def on_history(checked):
-            if not self.fx: return
-            changed = bool(self.fx.get_history_config()) != bool(checked)
-            self.fx.set_history_config(checked)
-            update_exchanges()
-            self.history_list.refresh_headers()
-            if self.fx.is_enabled() and checked:
-                # reset timeout to get historical rates
-                self.fx.timeout = 0
-                if changed:
-                    self.history_list.update()  # this won't happen too often as it's rate-limited
+            fiat_widgets = []
+            fiat_widgets.append((QLabel(_('Fiat currency:')), ccy_combo))
+            fiat_widgets.append((QLabel(_('Source:')), ex_combo))
+            fiat_widgets.append((hist_checkbox, None))
+            fiat_widgets.append((fiat_address_checkbox, None))
 
-        def on_fiat_address(checked):
-            if not self.fx: return
-            self.fx.set_fiat_address_config(checked)
-            self.address_list.refresh_headers()
-            self.address_list.update()
-
-        update_currencies()
-        update_history_cb()
-        update_fiat_address_cb()
-        update_exchanges()
-        ccy_combo.currentIndexChanged.connect(on_currency)
-        hist_checkbox.stateChanged.connect(on_history)
-        fiat_address_checkbox.stateChanged.connect(on_fiat_address)
-        ex_combo.currentIndexChanged.connect(on_exchange)
-
-        hist_checkbox.setText(_('Show history rates'))
-        fiat_address_checkbox.setText(_('Show fiat balance for addresses'))
-
-        fiat_widgets = []
-        fiat_widgets.append((QLabel(_('Fiat currency:')), ccy_combo))
-        fiat_widgets.append((QLabel(_('Source:')), ex_combo))
-        fiat_widgets.append((hist_checkbox, None))
-        fiat_widgets.append((fiat_address_checkbox, None))
-
-        # disable fiat for TaxCoin since it's inaccurate
-        if networks.net is networks.TaxCoinNet:
-            for pair in fiat_widgets:
-                for w in pair:
-                    if isinstance(w, QWidget):
-                        w.setEnabled(False)
+        else:
+            # For testnet(s) and for --taxcoin we do not support Fiat display
+            lbl = QLabel(_("Fiat display is not supported on this chain."))
+            lbl.setAlignment(Qt.AlignHCenter|Qt.AlignVCenter)
+            f = lbl.font()
+            f.setItalic(True)
+            lbl.setFont(f)
+            fiat_widgets = [(lbl, None)]
 
         tabs_info = [
             (gui_widgets, _('General')),
