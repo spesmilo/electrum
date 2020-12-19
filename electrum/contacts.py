@@ -131,8 +131,11 @@ class Contacts(dict, Logger):
             if not bitcoin.is_address(k):
                 data.pop(k)
             else:
-                _type, _ = v
-                if _type != 'address':
+                try:
+                    _type, _ = v
+                    if _type != 'address':
+                        data.pop(k)
+                except TypeError:
                     data.pop(k)
         return data
 
