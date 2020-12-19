@@ -704,8 +704,9 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             }
 
     def create_invoice(self, *, outputs: List[PartialTxOutput], message, pr, URI) -> Invoice:
+        height=self.get_local_height()
         if pr:
-            return OnchainInvoice.from_bip70_payreq(pr)
+            return OnchainInvoice.from_bip70_payreq(pr, height)
         if '!' in (x.value for x in outputs):
             amount = '!'
         else:
@@ -728,7 +729,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             exp=exp,
             bip70=None,
             requestor=None,
-            height=self.get_local_height(),
+            height=height,
         )
         return invoice
 

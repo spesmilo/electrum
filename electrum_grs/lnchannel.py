@@ -530,6 +530,9 @@ class Channel(AbstractChannel):
     def is_initiator(self):
         return self.constraints.is_initiator
 
+    def is_active(self):
+        return self.get_state() == ChannelState.OPEN and self.peer_state == PeerState.GOOD
+
     def funding_txn_minimum_depth(self):
         return self.constraints.funding_txn_minimum_depth
 

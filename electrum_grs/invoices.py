@@ -128,7 +128,7 @@ class OnchainInvoice(Invoice):
         return self.amount_sat or 0
 
     @classmethod
-    def from_bip70_payreq(cls, pr: 'PaymentRequest') -> 'OnchainInvoice':
+    def from_bip70_payreq(cls, pr: 'PaymentRequest', height:int) -> 'OnchainInvoice':
         return OnchainInvoice(
             type=PR_TYPE_ONCHAIN,
             amount_sat=pr.get_amount(),
@@ -139,6 +139,7 @@ class OnchainInvoice(Invoice):
             exp=pr.get_expiration_date() - pr.get_time(),
             bip70=pr.raw.hex(),
             requestor=pr.get_requestor(),
+            height=height,
         )
 
 @attr.s
