@@ -25,6 +25,7 @@ import re
 import dns
 from dns.exception import DNSException
 
+from electrum.util import FileImportFailed
 from . import bitcoin
 from . import dnssec
 from .util import read_json_file, write_json_file, to_string
@@ -122,6 +123,8 @@ class Contacts(dict, Logger):
             return None
             
     def _validate(self, data):
+        if not isinstance(data, dict):
+            raise FileImportFailed(f'Invalid import data, JSON object expected')
         for k, v in list(data.items()):
             if k == 'contacts':
                 return self._validate(v)
