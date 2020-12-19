@@ -965,8 +965,11 @@ class LnFeatures(IntFlag):
 
     OPTION_TRAMPOLINE_ROUTING_REQ = 1 << 50
     OPTION_TRAMPOLINE_ROUTING_OPT = 1 << 51
-    _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_REQ] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
-    _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_OPT] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
+    # FIXME: end-to-end trampoline is disabled:
+    #  - for sending, because Eclair does not seem to use routing_info
+    #  - for receiving, because Eclair tries to establish direct connection
+    _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_REQ] = (LNFC.INIT | LNFC.NODE_ANN) # | LNFC.INVOICE)
+    _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_OPT] = (LNFC.INIT | LNFC.NODE_ANN) # | LNFC.INVOICE)
 
     def validate_transitive_dependencies(self) -> bool:
         # for all even bit set, set corresponding odd bit:

@@ -1029,7 +1029,7 @@ class LNWallet(LNWorker):
                 if self.channel_db:
                     route = await run_in_thread(partial(self._create_route_from_invoice, lnaddr, full_path=full_path))
                 else:
-                    route = self.create_trampoline_route(lnaddr, i)
+                    route = await self.create_trampoline_route(lnaddr, i)
                 self.set_invoice_status(key, PR_INFLIGHT)
                 util.trigger_callback('invoice_status', self.wallet, key)
                 payment_attempt_log = await self._pay_to_route(route, lnaddr)
@@ -1200,7 +1200,8 @@ class LNWallet(LNWorker):
     def suggest_peer(self):
         return self.lnrater.suggest_peer() if self.channel_db else random.choice(list(TRAMPOLINE_NODES.values())).pubkey
 
-    def create_trampoline_route(self, decoded_invoice: 'LnAddr', attempt:int) -> LNPaymentRoute:
+    @log_exceptions
+    async def create_trampoline_route(self, decoded_invoice: 'LnAddr', attempt:int) -> LNPaymentRoute:
         """ return the route that leads to trampoline, and the trampoline fake edge"""
 
         amount_msat = decoded_invoice.get_amount_msat()
@@ -1212,19 +1213,18 @@ class LNWallet(LNWorker):
             raise NoPathFound()
         # find a trampoline
         # assume direct channel to trampoline
-        for chan in self.channels.values():
+        for chan in list(self.channels.values()):
             if chan.is_active() and chan.can_pay(amount_msat, check_frozen=True):
                 trampoline_short_channel_id = chan.short_channel_id
                 trampoline_node_id = chan.node_id
                 break
         else:
             raise NoPathFound()
-
-        #fee_level = self.last_failed_fee_level.get(trampoline_node_id, -1) + 1
+        # fee level. the same fee is used for all trampolines
         params = TRAMPOLINE_FEES[attempt]
-
         self.logger.info(f'create route with trampoline {trampoline_node_id.hex()}: attempt={attempt}, is legacy: {is_legacy}, params: {params}')
-        trampoline_features = self._peers[trampoline_node_id].features
+        # node_features is only used to determine is_tlv
+        trampoline_features = LnFeatures.VAR_ONION_OPT
         # hop to trampoline
         route = [
             RouteEdge(
@@ -1243,14 +1243,30 @@ class LNWallet(LNWorker):
                 fee_base_msat=params['fee_base_msat'],
                 fee_proportional_millionths=params['fee_proportional_millionths'],
                 cltv_expiry_delta=params['cltv_expiry_delta'],
-                node_features=trampoline_features,
-                outgoing_node_id = invoice_pubkey,
-                invoice_routing_info = invoice_routing_info,
-                invoice_features = invoice_features)
-            # FIXME: invoice_features should not be passed if payment is not legacy,
-            # but Eclair does not use routing hints in that case
-        )
-        # trampoline onion for recipient. (legacy recipients need an onion)
+                node_features=trampoline_features))
+        # add optional second trampoline
+        if self.config.get('use_two_trampolines'):
+            for node_id in list(TRAMPOLINES_BY_ID.keys()):
+                if node_id != trampoline_node_id:
+                    trampoline2 = node_id
+                    self.logger.info(f'second trampoline: {trampoline2}')
+                    break
+            else:
+                trampoline2 = None
+            if trampoline2:
+                route.append(
+                    TrampolineEdge(
+                        node_id=trampoline2,
+                        short_channel_id=0,
+                        fee_base_msat=params['fee_base_msat'],
+                        fee_proportional_millionths=params['fee_proportional_millionths'],
+                        cltv_expiry_delta=params['cltv_expiry_delta'],
+                        node_features=trampoline_features))
+        # FIXME: invoice_features should not be passed if payment is not legacy,
+        # but Eclair does not use routing hints in that case
+        route[-1].invoice_routing_info = invoice_routing_info
+        route[-1].invoice_features = invoice_features
+        # Fake edge (not actually used)
         route.append(
             TrampolineEdge(
                 node_id=invoice_pubkey,
@@ -1258,11 +1274,7 @@ class LNWallet(LNWorker):
                 fee_base_msat=0,
                 fee_proportional_millionths=0,
                 cltv_expiry_delta=0,
-                node_features=invoice_features,
-                outgoing_node_id = None,
-                invoice_routing_info = None,
-                invoice_features = None)
-        )
+                node_features=trampoline_features))
         return route
 
     @profiler

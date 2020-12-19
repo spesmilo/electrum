@@ -1098,12 +1098,13 @@ class Peer(Logger):
         # detect trampoline hops
         payment_path_pubkeys = [x.node_id for x in route]
         num_hops = len(payment_path_pubkeys)
-        for i in range(num_hops):
+        for i in range(num_hops-1):
             route_edge = route[i]
+            next_edge = route[i+1]
             if route_edge.is_trampoline():
+                assert next_edge.is_trampoline()
                 self.logger.info(f'trampoline hop at position {i}')
-                if route_edge.outgoing_node_id:
-                    hops_data[i].payload["outgoing_node_id"] = {"outgoing_node_id":route_edge.outgoing_node_id}
+                hops_data[i].payload["outgoing_node_id"] = {"outgoing_node_id":next_edge.node_id}
                 if route_edge.invoice_features:
                     hops_data[i].payload["invoice_features"] = {"invoice_features":route_edge.invoice_features}
                 if route_edge.invoice_routing_info:

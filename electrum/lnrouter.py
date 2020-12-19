@@ -104,10 +104,8 @@ class RouteEdge(PathEdge):
 
 @attr.s
 class TrampolineEdge(RouteEdge):
-    outgoing_node_id = attr.ib(type=bytes)
-    invoice_routing_info = attr.ib(type=bytes)
-    invoice_features = attr.ib(type=int)
-
+    invoice_routing_info = attr.ib(type=bytes, default=None)
+    invoice_features = attr.ib(type=int, default=None)
     def is_trampoline(self):
         return True
 
