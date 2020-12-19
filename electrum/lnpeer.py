@@ -6,14 +6,10 @@
 
 import zlib
 from collections import OrderedDict, defaultdict
-import json
 import asyncio
 import os
 import time
-from functools import partial
-from typing import List, Tuple, Dict, TYPE_CHECKING, Optional, Callable, Union
-import traceback
-import sys
+from typing import Tuple, Dict, TYPE_CHECKING, Optional, Union
 from datetime import datetime
 
 import aiorpcx
@@ -21,42 +17,42 @@ import aiorpcx
 from .crypto import sha256, sha256d
 from . import bitcoin, util
 from . import ecc
-from .ecc import sig_string_from_r_and_s, get_r_and_s_from_sig_string, der_sig_from_sig_string
+from .ecc import sig_string_from_r_and_s, der_sig_from_sig_string
 from . import constants
 from .util import (bh2u, bfh, log_exceptions, ignore_exceptions, chunks, SilentTaskGroup,
                    UnrelatedTransactionException)
 from . import transaction
-from .transaction import Transaction, TxOutput, PartialTxOutput, match_script_against_template
+from .transaction import PartialTxOutput, match_script_against_template
 from .logging import Logger
-from .lnonion import (new_onion_packet, decode_onion_error, OnionFailureCode, calc_hops_data_for_payment,
+from .lnonion import (new_onion_packet, OnionFailureCode, calc_hops_data_for_payment,
                       process_onion_packet, OnionPacket, construct_onion_error, OnionRoutingFailureMessage,
                       ProcessedOnionPacket, UnsupportedOnionPacketVersion, InvalidOnionMac, InvalidOnionPubkey,
                       OnionFailureCodeMetaFlag)
-from .lnchannel import Channel, RevokeAndAck, htlcsum, RemoteCtnTooFarInFuture, ChannelState, PeerState
+from .lnchannel import Channel, RevokeAndAck, RemoteCtnTooFarInFuture, ChannelState, PeerState
 from . import lnutil
 from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      RemoteConfig, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
                      funding_output_script, get_per_commitment_secret_from_seed,
                      secret_to_pubkey, PaymentFailure, LnFeatures,
-                     LOCAL, REMOTE, HTLCOwner, generate_keypair, LnKeyFamily,
+                     LOCAL, REMOTE, HTLCOwner,
                      ln_compare_features, privkey_to_pubkey, MIN_FINAL_CLTV_EXPIRY_ACCEPTED,
-                     LightningPeerConnectionClosed, HandshakeFailed, NotFoundChanAnnouncementForUpdate,
+                     LightningPeerConnectionClosed, HandshakeFailed,
                      RemoteMisbehaving,
-                     NBLOCK_OUR_CLTV_EXPIRY_DELTA, format_short_channel_id, ShortChannelID,
+                     NBLOCK_OUR_CLTV_EXPIRY_DELTA, ShortChannelID,
                      IncompatibleLightningFeatures, derive_payment_secret_from_payment_preimage,
                      LN_MAX_FUNDING_SAT, calc_fees_for_commitment_tx,
                      UpfrontShutdownScriptViolation)
 from .lnutil import FeeUpdate, channel_id_from_funding_tx
 from .lntransport import LNTransport, LNTransportBase
 from .lnmsg import encode_msg, decode_msg
-from .interface import GracefulDisconnect, NetworkException
+from .interface import GracefulDisconnect
 from .lnrouter import fee_for_edge_msat
 from .lnutil import ln_dummy_address
 from .json_db import StoredDict
 
 if TYPE_CHECKING:
-    from .lnworker import LNWorker, LNGossip, LNWallet, LNBackups
-    from .lnrouter import RouteEdge, LNPaymentRoute
+    from .lnworker import LNGossip, LNWallet, LNBackups
+    from .lnrouter import LNPaymentRoute
     from .transaction import PartialTransaction
 
 
@@ -584,16 +580,23 @@ class Peer(Logger):
         local_config = self.make_local_config(funding_sat, push_msat, LOCAL)
 
         if funding_sat > LN_MAX_FUNDING_SAT:
-            raise Exception(f"MUST set funding_satoshis to less than 2^24 satoshi. {funding_sat} sat > {LN_MAX_FUNDING_SAT}")
+            raise Exception(
+                f"MUST set funding_satoshis to less than 2^24 satoshi. "
+                f"{funding_sat} sat > {LN_MAX_FUNDING_SAT}")
         if push_msat > 1000 * funding_sat:
-            raise Exception(f"MUST set push_msat to equal or less than 1000 * funding_satoshis: {push_msat} msat > {1000 * funding_sat} msat")
+            raise Exception(
+                f"MUST set push_msat to equal or less than 1000 * funding_satoshis: "
+                f"{push_msat} msat > {1000 * funding_sat} msat")
         if funding_sat < lnutil.MIN_FUNDING_SAT:
             raise Exception(f"funding_sat too low: {funding_sat} < {lnutil.MIN_FUNDING_SAT}")
 
         # for the first commitment transaction
-        per_commitment_secret_first = get_per_commitment_secret_from_seed(local_config.per_commitment_secret_seed,
-                                                                          RevocationStore.START_INDEX)
-        per_commitment_point_first = secret_to_pubkey(int.from_bytes(per_commitment_secret_first, 'big'))
+        per_commitment_secret_first = get_per_commitment_secret_from_seed(
+            local_config.per_commitment_secret_seed,
+            RevocationStore.START_INDEX
+        )
+        per_commitment_point_first = secret_to_pubkey(
+            int.from_bytes(per_commitment_secret_first, 'big'))
         self.send_message(
             "open_channel",
             temporary_channel_id=temp_channel_id,
@@ -677,12 +680,19 @@ class Peer(Logger):
         # build remote commitment transaction
         channel_id, funding_txid_bytes = channel_id_from_funding_tx(funding_txid, funding_index)
         outpoint = Outpoint(funding_txid, funding_index)
-        constraints = ChannelConstraints(capacity=funding_sat, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth)
-        chan_dict = self.create_channel_storage(channel_id, outpoint, local_config, remote_config, constraints)
-        chan = Channel(chan_dict,
-                       sweep_address=self.lnworker.sweep_address,
-                       lnworker=self.lnworker,
-                       initial_feerate=feerate)
+        constraints = ChannelConstraints(
+            capacity=funding_sat,
+            is_initiator=True,
+            funding_txn_minimum_depth=funding_txn_minimum_depth
+        )
+        chan_dict = self.create_channel_storage(
+            channel_id, outpoint, local_config, remote_config, constraints)
+        chan = Channel(
+            chan_dict,
+            sweep_address=self.lnworker.sweep_address,
+            lnworker=self.lnworker,
+            initial_feerate=feerate
+        )
         chan.storage['funding_inputs'] = [txin.prevout.to_json() for txin in funding_tx.inputs()]
         if isinstance(self.transport, LNTransport):
             chan.add_or_update_peer_addr(self.transport.peer_addr)
@@ -744,9 +754,13 @@ class Peer(Logger):
         temp_chan_id = payload['temporary_channel_id']
         local_config = self.make_local_config(funding_sat, push_msat, REMOTE)
         if funding_sat > LN_MAX_FUNDING_SAT:
-            raise Exception(f"MUST set funding_satoshis to less than 2^24 satoshi. {funding_sat} sat > {LN_MAX_FUNDING_SAT}")
+            raise Exception(
+                f"MUST set funding_satoshis to less than 2^24 satoshi. "
+                f"{funding_sat} sat > {LN_MAX_FUNDING_SAT}")
         if push_msat > 1000 * funding_sat:
-            raise Exception(f"MUST set push_msat to equal or less than 1000 * funding_satoshis: {push_msat} msat > {1000 * funding_sat} msat")
+            raise Exception(
+                f"MUST set push_msat to equal or less than 1000 * funding_satoshis: "
+                f"{push_msat} msat > {1000 * funding_sat} msat")
         if funding_sat < lnutil.MIN_FUNDING_SAT:
             raise Exception(f"funding_sat too low: {funding_sat} < {lnutil.MIN_FUNDING_SAT}")
 
@@ -773,26 +787,35 @@ class Peer(Logger):
 
         remote_config.validate_params(funding_sat=funding_sat)
         # The receiving node MUST fail the channel if:
-        #     the funder's amount for the initial commitment transaction is not sufficient for full fee payment.
-        if remote_config.initial_msat < calc_fees_for_commitment_tx(num_htlcs=0,
-                                                                    feerate=feerate,
-                                                                    is_local_initiator=False)[REMOTE]:
-            raise Exception("the funder's amount for the initial commitment transaction is not sufficient for full fee payment")
+        #     the funder's amount for the initial commitment transaction is not
+        #     sufficient for full fee payment.
+        if remote_config.initial_msat < calc_fees_for_commitment_tx(
+                num_htlcs=0,
+                feerate=feerate,
+                is_local_initiator=False)[REMOTE]:
+            raise Exception(
+                "the funder's amount for the initial commitment transaction "
+                "is not sufficient for full fee payment")
         # The receiving node MUST fail the channel if:
         #     both to_local and to_remote amounts for the initial commitment transaction are
         #     less than or equal to channel_reserve_satoshis (see BOLT 3).
         if (local_config.initial_msat <= 1000 * payload['channel_reserve_satoshis']
                 and remote_config.initial_msat <= 1000 * payload['channel_reserve_satoshis']):
-            raise Exception("both to_local and to_remote amounts for the initial commitment transaction are less than or equal to channel_reserve_satoshis")
+            raise Exception(
+                "both to_local and to_remote amounts for the initial commitment "
+                "transaction are less than or equal to channel_reserve_satoshis")
         # note: we ignore payload['channel_flags'],  which e.g. contains 'announce_channel'.
         #       Notably if the remote sets 'announce_channel' to True, we will ignore that too,
         #       but we will not play along with actually announcing the channel (so we keep it private).
 
         # -> accept channel
         # for the first commitment transaction
-        per_commitment_secret_first = get_per_commitment_secret_from_seed(local_config.per_commitment_secret_seed,
-                                                                          RevocationStore.START_INDEX)
-        per_commitment_point_first = secret_to_pubkey(int.from_bytes(per_commitment_secret_first, 'big'))
+        per_commitment_secret_first = get_per_commitment_secret_from_seed(
+            local_config.per_commitment_secret_seed,
+            RevocationStore.START_INDEX
+        )
+        per_commitment_point_first = secret_to_pubkey(
+            int.from_bytes(per_commitment_secret_first, 'big'))
         min_depth = 3
         self.send_message(
             'accept_channel',
@@ -823,13 +846,20 @@ class Peer(Logger):
         funding_idx = funding_created['funding_output_index']
         funding_txid = bh2u(funding_created['funding_txid'][::-1])
         channel_id, funding_txid_bytes = channel_id_from_funding_tx(funding_txid, funding_idx)
-        constraints = ChannelConstraints(capacity=funding_sat, is_initiator=False, funding_txn_minimum_depth=min_depth)
+        constraints = ChannelConstraints(
+            capacity=funding_sat,
+            is_initiator=False,
+            funding_txn_minimum_depth=min_depth
+        )
         outpoint = Outpoint(funding_txid, funding_idx)
-        chan_dict = self.create_channel_storage(channel_id, outpoint, local_config, remote_config, constraints)
-        chan = Channel(chan_dict,
-                       sweep_address=self.lnworker.sweep_address,
-                       lnworker=self.lnworker,
-                       initial_feerate=feerate)
+        chan_dict = self.create_channel_storage(
+            channel_id, outpoint, local_config, remote_config, constraints)
+        chan = Channel(
+            chan_dict,
+            sweep_address=self.lnworker.sweep_address,
+            lnworker=self.lnworker,
+            initial_feerate=feerate
+        )
         chan.storage['init_timestamp'] = int(time.time())
         if isinstance(self.transport, LNTransport):
             chan.add_or_update_peer_addr(self.transport.peer_addr)
