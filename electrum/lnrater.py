@@ -10,7 +10,7 @@ from collections import defaultdict
 from pprint import pformat
 from random import choices
 from statistics import mean, median, stdev
-from typing import TYPE_CHECKING, Dict, NamedTuple, Tuple, List
+from typing import TYPE_CHECKING, Dict, NamedTuple, Tuple, List, Optional
 import sys
 import time
 
@@ -22,10 +22,11 @@ else:
 from .logging import Logger
 from .util import profiler
 from .lnrouter import fee_for_edge_msat
+from .lnutil import LnFeatures, ln_compare_features, IncompatibleLightningFeatures
 
 if TYPE_CHECKING:
     from .network import Network
-    from .channel_db import Policy
+    from .channel_db import Policy, NodeInfo
     from .lnchannel import ShortChannelID
     from .lnworker import LNWallet
 
@@ -243,16 +244,24 @@ class LNRater(Logger):
         node_keys = list(self._node_stats.keys())
         node_ratings = list(self._node_ratings.values())
         channel_peers = self.lnworker.channel_peers()
+        node_info: Optional["NodeInfo"] = None
 
         while True:
             # randomly pick nodes weighted by node_rating
             pk = choices(node_keys, weights=node_ratings, k=1)[0]
+            # node should have compatible features
+            node_info = self.channel_db.get_node_infos().get(pk, None)
+            peer_features = LnFeatures(node_info.features)
+            try:
+                ln_compare_features(self.lnworker.features, peer_features)
+            except IncompatibleLightningFeatures as e:
+                self.logger.info("suggested node is incompatible")
+                continue
 
             # don't want to connect to nodes we are already connected to
             if pk not in channel_peers:
                 break
 
-        node_info = self.channel_db.get_node_infos().get(pk)
         alias = node_info.alias if node_info else 'unknown node alias'
         self.logger.info(
             f"node rating for {alias}:\n"
