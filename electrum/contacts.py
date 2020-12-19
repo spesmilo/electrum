@@ -25,10 +25,9 @@ import re
 import dns
 from dns.exception import DNSException
 
-from electrum.util import FileImportFailed
 from . import bitcoin
 from . import dnssec
-from .util import read_json_file, write_json_file, to_string
+from .util import read_json_file, write_json_file, to_string, FileImportFailed
 from .logging import Logger
 
 
