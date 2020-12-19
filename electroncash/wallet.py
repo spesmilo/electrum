@@ -572,19 +572,19 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             return changed
 
     def invalidate_address_set_cache(self):
-        ''' This should be called from functions that add/remove addresses
+        """This should be called from functions that add/remove addresses
         from the wallet to ensure the address set caches are empty, in
         particular from ImportedWallets which may add/delete addresses
         thus the length check in is_mine() may not be accurate.
         Deterministic wallets can neglect to call this function since their
         address sets only grow and never shrink and thus the length check
-        of is_mine below is sufficient.'''
+        of is_mine below is sufficient."""
         self._recv_address_set_cached, self._change_address_set_cached = frozenset(), frozenset()
 
     def is_mine(self, address):
-        ''' Note this method assumes that the entire address set is
+        """Note this method assumes that the entire address set is
         composed of self.get_change_addresses() + self.get_receiving_addresses().
-        In subclasses, if that is not the case -- REIMPLEMENT this method! '''
+        In subclasses, if that is not the case -- REIMPLEMENT this method!"""
         assert not isinstance(address, str)
         # assumption here is get_receiving_addresses and get_change_addresses
         # are cheap constant-time operations returning a list reference.
@@ -605,7 +605,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         # addresses, it starts to add up siince is_mine() is called frequently
         # especially while downloading address history.
         return (address in self._recv_address_set_cached
-                    or address in self._change_address_set_cached)
+                or address in self._change_address_set_cached)
 
     def is_change(self, address):
         assert not isinstance(address, str)
@@ -2021,10 +2021,10 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             return utxo in self.frozen_coins or utxo in self.frozen_coins_tmp
 
     def set_frozen_state(self, addrs, freeze):
-        ''' Set frozen state of the addresses to `freeze`, True or False. Note
+        """Set frozen state of the addresses to `freeze`, True or False. Note
         that address-level freezing is set/unset independent of coin-level
         freezing, however both must be satisfied for a coin to be defined as
-        spendable. '''
+        spendable."""
         if all(self.is_mine(addr) for addr in addrs):
             if freeze:
                 self.frozen_addresses |= set(addrs)
@@ -2036,8 +2036,8 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             return True
         return False
 
-    def set_frozen_coin_state(self, utxos, freeze, *, temporary = False):
-        '''Set frozen state of the `utxos` to `freeze`, True or False. `utxos`
+    def set_frozen_coin_state(self, utxos, freeze, *, temporary=False):
+        """Set frozen state of the `utxos` to `freeze`, True or False. `utxos`
         is a (possibly mixed) list of either "prevout:n" strings and/or
         coin-dicts as returned from get_utxos(). Note that if passing prevout:n
         strings as input, 'is_mine()' status is not checked for the specified
@@ -2054,13 +2054,13 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         Note that setting `freeze = False` effectively unfreezes both the
         temporary and the permanent frozen coin sets all in 1 call. Thus after a
         call to `set_frozen_coin_state(utxos, False), both the temporary and the
-        persistent frozen sets are cleared of all coins in `utxos`. '''
+        persistent frozen sets are cleared of all coins in `utxos`."""
         add_set = self.frozen_coins if not temporary else self.frozen_coins_tmp
         def add(utxo):
-            add_set.add( utxo )
+            add_set.add(utxo)
         def discard(utxo):
-            self.frozen_coins.discard( utxo )
-            self.frozen_coins_tmp.discard( utxo )
+            self.frozen_coins.discard(utxo)
+            self.frozen_coins_tmp.discard(utxo)
         apply_operation = add if freeze else discard
         original_size = len(self.frozen_coins)
         with self.lock:
@@ -2069,7 +2069,13 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                 if isinstance(utxo, str):
                     apply_operation(utxo)
                     ok += 1
-                elif isinstance(utxo, dict) and self.is_mine(utxo['address']):
+                elif isinstance(utxo, dict):
+                    # Note: we could do an is_mine check here for each coin dict here,
+                    # but since all code paths leading to this branch always pass valid
+                    # coins that are "mine", we removed the check to save CPU cycles.
+                    #
+                    # So an O(M logN) algorithm becomes O(M) without the is_mine check,
+                    # where M = number of coins and N = number of addresses.
                     txo = "{}:{}".format(utxo['prevout_hash'], utxo['prevout_n'])
                     apply_operation(txo)
                     utxo['is_frozen_coin'] = bool(freeze)
