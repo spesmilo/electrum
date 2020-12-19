@@ -101,11 +101,22 @@ class WWLabel(QLabel):
 
 class HelpLabel(QLabel):
 
+    STYLESHEET = """
+    HelpLabel {
+        border-bottom-width: 1px;
+        border-bottom-style: dotted;
+        border-radius: 0px;
+    }
+    HelpLabel::hover {
+        border-bottom-style: solid;
+    }
+    """
+
     def __init__(self, text, help_text):
         QLabel.__init__(self, text)
         self.help_text = help_text
         self.app = QCoreApplication.instance()
-        self.font = QFont()
+        self.setStyleSheet(self.STYLESHEET)
 
     def mouseReleaseEvent(self, x):
         custom_message_box(icon=QMessageBox.Information,
@@ -114,14 +125,10 @@ class HelpLabel(QLabel):
                            text=self.help_text)
 
     def enterEvent(self, event):
-        self.font.setUnderline(True)
-        self.setFont(self.font)
         self.app.setOverrideCursor(QCursor(Qt.PointingHandCursor))
         return QLabel.enterEvent(self, event)
 
     def leaveEvent(self, event):
-        self.font.setUnderline(False)
-        self.setFont(self.font)
         self.app.setOverrideCursor(QCursor(Qt.ArrowCursor))
         return QLabel.leaveEvent(self, event)
 
