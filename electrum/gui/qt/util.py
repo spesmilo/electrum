@@ -31,6 +31,7 @@ from electrum.invoices import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UN
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
     from .installwizard import InstallWizard
+    from electrum.simple_config import SimpleConfig
 
 
 if platform.system() == 'Windows':
@@ -351,7 +352,16 @@ def line_dialog(parent, title, label, ok_label, default=None):
     if dialog.exec_():
         return txt.text()
 
-def text_dialog(parent, title, header_layout, ok_label, default=None, allow_multi=False):
+def text_dialog(
+        *,
+        parent,
+        title,
+        header_layout,
+        ok_label,
+        default=None,
+        allow_multi=False,
+        config: 'SimpleConfig',
+):
     from .qrtextedit import ScanQRTextEdit
     dialog = WindowModalDialog(parent, title)
     dialog.setMinimumWidth(600)
@@ -361,7 +371,7 @@ def text_dialog(parent, title, header_layout, ok_label, default=None, allow_mult
         l.addWidget(QLabel(header_layout))
     else:
         l.addLayout(header_layout)
-    txt = ScanQRTextEdit(allow_multi=allow_multi)
+    txt = ScanQRTextEdit(allow_multi=allow_multi, config=config)
     if default:
         txt.setText(default)
     l.addWidget(txt)

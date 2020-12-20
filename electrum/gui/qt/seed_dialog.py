@@ -23,6 +23,8 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+from typing import TYPE_CHECKING
+
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import (QVBoxLayout, QCheckBox, QHBoxLayout, QLineEdit,
@@ -36,6 +38,9 @@ from .util import (Buttons, OkButton, WWLabel, ButtonsTextEdit, icon_path,
                    EnterButton, CloseButton, WindowModalDialog, ColorScheme)
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
+
+if TYPE_CHECKING:
+    from electrum.simple_config import SimpleConfig
 
 
 def seed_warning_msg(seed):
@@ -197,11 +202,19 @@ class SeedLayout(QVBoxLayout):
         self.seed_e.enable_suggestions()
 
 class KeysLayout(QVBoxLayout):
-    def __init__(self, parent=None, header_layout=None, is_valid=None, allow_multi=False):
+    def __init__(
+            self,
+            parent=None,
+            header_layout=None,
+            is_valid=None,
+            allow_multi=False,
+            *,
+            config: 'SimpleConfig',
+    ):
         QVBoxLayout.__init__(self)
         self.parent = parent
         self.is_valid = is_valid
-        self.text_e = ScanQRTextEdit(allow_multi=allow_multi)
+        self.text_e = ScanQRTextEdit(allow_multi=allow_multi, config=config)
         self.text_e.textChanged.connect(self.on_edit)
         if isinstance(header_layout, str):
             self.addWidget(WWLabel(header_layout))

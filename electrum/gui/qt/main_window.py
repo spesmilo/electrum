@@ -2715,7 +2715,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         return self.tx_from_text(file_content)
 
     def do_process_from_text(self):
-        text = text_dialog(self, _('Input raw transaction'), _("Transaction:"), _("Load transaction"))
+        text = text_dialog(
+            parent=self,
+            title=_('Input raw transaction'),
+            header_layout=_("Transaction:"),
+            ok_label=_("Load transaction"),
+            config=self.config,
+        )
         if not text:
             return
         tx = self.tx_from_text(text)
@@ -2723,7 +2729,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.show_transaction(tx)
 
     def do_process_from_text_channel_backup(self):
-        text = text_dialog(self, _('Input channel backup'), _("Channel Backup:"), _("Load backup"))
+        text = text_dialog(
+            parent=self,
+            title=_('Input channel backup'),
+            header_layout=_("Channel Backup:"),
+            ok_label=_("Load backup"),
+            config=self.config,
+        )
         if not text:
             return
         if text.startswith('channel_backup:'):
@@ -2891,7 +2903,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         hbox_top.addWidget(QLabel(_("Enter private keys:")))
         hbox_top.addWidget(InfoButton(WIF_HELP_TEXT), alignment=Qt.AlignRight)
         vbox.addLayout(hbox_top)
-        keys_e = ScanQRTextEdit(allow_multi=True)
+        keys_e = ScanQRTextEdit(allow_multi=True, config=self.config)
         keys_e.setTabChangesFocus(True)
         vbox.addWidget(keys_e)
 
@@ -2956,7 +2968,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         WaitingDialog(self, msg, task, on_success, on_failure)
 
     def _do_import(self, title, header_layout, func):
-        text = text_dialog(self, title, header_layout, _('Import'), allow_multi=True)
+        text = text_dialog(
+            parent=self,
+            title=title,
+            header_layout=header_layout,
+            ok_label=_('Import'),
+            allow_multi=True,
+            config=self.config,
+        )
         if not text:
             return
         keys = str(text).split()

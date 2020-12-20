@@ -238,7 +238,7 @@ def run_hook(name, *args):
 
 class BasePlugin(Logger):
 
-    def __init__(self, parent, config, name):
+    def __init__(self, parent, config: 'SimpleConfig', name):
         self.parent = parent  # type: Plugins  # The plugins object
         self.name = name
         self.config = config

@@ -24,7 +24,7 @@
 # SOFTWARE.
 
 from enum import IntEnum
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import QMenu, QAbstractItemView
@@ -36,6 +36,9 @@ from electrum.invoices import PR_TYPE_ONCHAIN, PR_TYPE_LN, LNInvoice, OnchainInv
 from electrum.plugin import run_hook
 
 from .util import MyTreeView, pr_icons, read_QIcon, webopen, MySortModel
+
+if TYPE_CHECKING:
+    from .main_window import ElectrumWindow
 
 
 ROLE_REQUEST_TYPE = Qt.UserRole
@@ -59,7 +62,7 @@ class RequestList(MyTreeView):
     }
     filter_columns = [Columns.DATE, Columns.DESCRIPTION, Columns.AMOUNT]
 
-    def __init__(self, parent):
+    def __init__(self, parent: 'ElectrumWindow'):
         super().__init__(parent, self.create_menu,
                          stretch_column=self.Columns.DESCRIPTION,
                          editable_columns=[])
@@ -206,5 +209,5 @@ class RequestList(MyTreeView):
         #if 'view_url' in req:
         #    menu.addAction(_("View in web browser"), lambda: webopen(req['view_url']))
         menu.addAction(_("Delete"), lambda: self.parent.delete_requests([key]))
-        run_hook('receive_list_menu', menu, key)
+        run_hook('receive_list_menu', self.parent, menu, key)
         menu.exec_(self.viewport().mapToGlobal(position))

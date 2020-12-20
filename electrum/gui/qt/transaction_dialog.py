@@ -353,9 +353,13 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
     def merge_sigs(self):
         if not isinstance(self.tx, PartialTransaction):
             return
-        text = text_dialog(self, _('Input raw transaction'),
-                           _("Transaction to merge signatures from") + ":",
-                           _("Load transaction"))
+        text = text_dialog(
+            parent=self,
+            title=_('Input raw transaction'),
+            header_layout=_("Transaction to merge signatures from") + ":",
+            ok_label=_("Load transaction"),
+            config=self.config,
+        )
         if not text:
             return
         tx = self.main_window.tx_from_text(text)
@@ -371,9 +375,13 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
     def join_tx_with_another(self):
         if not isinstance(self.tx, PartialTransaction):
             return
-        text = text_dialog(self, _('Input raw transaction'),
-                           _("Transaction to join with") + " (" + _("add inputs and outputs") + "):",
-                           _("Load transaction"))
+        text = text_dialog(
+            parent=self,
+            title=_('Input raw transaction'),
+            header_layout=_("Transaction to join with") + " (" + _("add inputs and outputs") + "):",
+            ok_label=_("Load transaction"),
+            config=self.config,
+        )
         if not text:
             return
         tx = self.main_window.tx_from_text(text)

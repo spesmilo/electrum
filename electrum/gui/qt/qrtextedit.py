@@ -2,8 +2,9 @@ from PyQt5.QtWidgets import QFileDialog
 
 from electrum.i18n import _
 from electrum.plugin import run_hook
+from electrum.simple_config import SimpleConfig
 
-from .util import ButtonsTextEdit, MessageBoxMixin, ColorScheme, get_parent_main_window
+from .util import ButtonsTextEdit, MessageBoxMixin, ColorScheme
 
 
 class ShowQRTextEdit(ButtonsTextEdit):
@@ -32,10 +33,11 @@ class ShowQRTextEdit(ButtonsTextEdit):
 
 class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
 
-    def __init__(self, text="", allow_multi=False):
+    def __init__(self, text="", allow_multi=False, *, config: SimpleConfig):
         ButtonsTextEdit.__init__(self, text)
         self.allow_multi = allow_multi
-        self.setReadOnly(0)
+        self.config = config
+        self.setReadOnly(False)
         self.addButton("file.png", self.file_input, _("Read file"))
         icon = "camera_white.png" if ColorScheme.dark_scheme else "camera_dark.png"
         self.addButton(icon, self.qr_input, _("Read QR code"))
@@ -60,11 +62,8 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
 
     def qr_input(self):
         from electrum import qrscanner
-        window_or_wizard = get_parent_main_window(self, allow_wizard=True)
-        assert window_or_wizard
-        config = window_or_wizard.config
         try:
-            data = qrscanner.scan_barcode(config.get_video_device())
+            data = qrscanner.scan_barcode(self.config.get_video_device())
         except BaseException as e:
             self.show_error(repr(e))
             data = ''
