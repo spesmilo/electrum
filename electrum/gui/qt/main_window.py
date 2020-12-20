@@ -89,7 +89,8 @@ from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialo
                    CloseButton, HelpButton, MessageBoxMixin, EnterButton,
                    import_meta_gui, export_meta_gui,
                    filename_field, address_field, char_width_in_lineedit, webopen,
-                   TRANSACTION_FILE_EXTENSION_FILTER_ANY, MONOSPACE_FONT)
+                   TRANSACTION_FILE_EXTENSION_FILTER_ANY, MONOSPACE_FONT,
+                   getOpenFileName, getSaveFileName)
 from .util import ButtonsTextEdit, ButtonsLineEdit
 from .installwizard import WIF_HELP_TEXT
 from .history_list import HistoryList, HistoryModel
@@ -840,38 +841,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 self.tray.showMessage("Electrum", message, read_QIcon("electrum_dark_icon"), 20000)
             except TypeError:
                 self.tray.showMessage("Electrum", message, QSystemTrayIcon.Information, 20000)
-
-
-
-    # custom wrappers for getOpenFileName and getSaveFileName, that remember the path selected by the user
-    def getOpenFileName(self, title, filter = ""):
-        directory = self.config.get('io_dir', os.path.expanduser('~'))
-        fileName, __ = QFileDialog.getOpenFileName(self, title, directory, filter)
-        if fileName and directory != os.path.dirname(fileName):
-            self.config.set_key('io_dir', os.path.dirname(fileName), True)
-        return fileName
-
-    def getSaveFileName(self, title, filename, filter="",
-                        *, default_extension: str = None,
-                        default_filter: str = None) -> Optional[str]:
-        directory = self.config.get('io_dir', os.path.expanduser('~'))
-        path = os.path.join(directory, filename)
-
-        file_dialog = QFileDialog(self, title, path, filter)
-        file_dialog.setAcceptMode(QFileDialog.AcceptSave)
-        if default_extension:
-            # note: on MacOS, the selected filter's first extension seems to have priority over this...
-            file_dialog.setDefaultSuffix(default_extension)
-        if default_filter:
-            assert default_filter in filter, f"default_filter={default_filter!r} does not appear in filter={filter!r}"
-            file_dialog.selectNameFilter(default_filter)
-        if file_dialog.exec() != QDialog.Accepted:
-            return None
-
-        selected_path = file_dialog.selectedFiles()[0]
-        if selected_path and directory != os.path.dirname(selected_path):
-            self.config.set_key('io_dir', os.path.dirname(selected_path), True)
-        return selected_path
 
     def timer_actions(self):
         self.request_list.refresh_status()
@@ -2077,12 +2046,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             def do_export():
                 key = pr.get_id()
                 name = str(key) + '.bip70'
-                fn = self.getSaveFileName(_("Save invoice to file"), name, filter="*.bip70")
+                fn = getSaveFileName(
+                    parent=self,
+                    title=_("Save invoice to file"),
+                    filename=name,
+                    filter="*.bip70",
+                    config=self.config,
+                )
                 if not fn:
                     return
                 with open(fn, 'wb') as f:
                     data = f.write(pr.raw)
-                self.show_message(_('BIP70 invoice saved as' + ' ' + fn))
+                self.show_message(_('BIP70 invoice saved as {}').format(fn))
             exportButton = EnterButton(_('Export'), do_export)
             buttons = Buttons(exportButton, CloseButton(d))
         else:
@@ -2113,7 +2088,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             grid.addWidget(QLabel(_("Expires") + ':'), 4, 0)
             grid.addWidget(QLabel(format_time(invoice.time + invoice.exp)), 4, 1)
         vbox.addLayout(grid)
-        invoice_e = ShowQRTextEdit()
+        invoice_e = ShowQRTextEdit(config=self.config)
         invoice_e.addCopyButton(self.app)
         invoice_e.setText(invoice.invoice)
         vbox.addWidget(invoice_e)
@@ -2392,7 +2367,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 ks_vbox.setContentsMargins(0, 0, 0, 0)
                 ks_w.setLayout(ks_vbox)
 
-                mpk_text = ShowQRTextEdit(ks.get_master_public_key())
+                mpk_text = ShowQRTextEdit(ks.get_master_public_key(), config=self.config)
                 mpk_text.setMaximumHeight(150)
                 mpk_text.addCopyButton(self.app)
                 run_hook('show_xpub_button', mpk_text, ks)
@@ -2461,8 +2436,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                     help_text=None, show_copy_text_btn=False):
         if not data:
             return
-        d = QRDialog(data, parent or self, title, help_text=help_text,
-                     show_copy_text_btn=show_copy_text_btn)
+        d = QRDialog(
+            data=data,
+            parent=parent or self,
+            title=title,
+            help_text=help_text,
+            show_copy_text_btn=show_copy_text_btn,
+            config=self.config,
+        )
         d.exec_()
 
     @protected
@@ -2482,14 +2463,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         vbox.addWidget(QLabel(_("Address") + ': ' + address))
         vbox.addWidget(QLabel(_("Script type") + ': ' + xtype))
         vbox.addWidget(QLabel(_("Private key") + ':'))
-        keys_e = ShowQRTextEdit(text=pk)
+        keys_e = ShowQRTextEdit(text=pk, config=self.config)
         keys_e.addCopyButton(self.app)
         vbox.addWidget(keys_e)
-        # if redeem_script:
-        #     vbox.addWidget(QLabel(_("Redeem Script") + ':'))
-        #     rds_e = ShowQRTextEdit(text=redeem_script)
-        #     rds_e.addCopyButton(self.app)
-        #     vbox.addWidget(rds_e)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.setLayout(vbox)
         d.exec_()
@@ -2701,8 +2677,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.show_transaction(tx)
 
     def read_tx_from_file(self) -> Optional[Transaction]:
-        fileName = self.getOpenFileName(_("Select your transaction file"),
-                                        TRANSACTION_FILE_EXTENSION_FILTER_ANY)
+        fileName = getOpenFileName(
+            parent=self,
+            title=_("Select your transaction file"),
+            filter=TRANSACTION_FILE_EXTENSION_FILTER_ANY,
+            config=self.config,
+        )
         if not fileName:
             return
         try:

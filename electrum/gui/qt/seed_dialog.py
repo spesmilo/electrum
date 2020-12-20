@@ -105,7 +105,7 @@ class SeedLayout(QVBoxLayout):
             if for_seed_words:
                 self.seed_e = ButtonsTextEdit()
             else:  # e.g. xpub
-                self.seed_e = ShowQRTextEdit()
+                self.seed_e = ShowQRTextEdit(config=self.config)
             self.seed_e.setReadOnly(True)
             self.seed_e.setText(seed)
         else:  # we expect user to enter text

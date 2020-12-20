@@ -4,14 +4,15 @@ from electrum.i18n import _
 from electrum.plugin import run_hook
 from electrum.simple_config import SimpleConfig
 
-from .util import ButtonsTextEdit, MessageBoxMixin, ColorScheme
+from .util import ButtonsTextEdit, MessageBoxMixin, ColorScheme, getOpenFileName
 
 
 class ShowQRTextEdit(ButtonsTextEdit):
 
-    def __init__(self, text=None):
+    def __init__(self, text=None, *, config: SimpleConfig):
         ButtonsTextEdit.__init__(self, text)
-        self.setReadOnly(1)
+        self.config = config
+        self.setReadOnly(True)
         icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
         self.addButton(icon, self.qr_show, _("Show as QR code"))
 
@@ -23,7 +24,11 @@ class ShowQRTextEdit(ButtonsTextEdit):
             s = str(self.toPlainText())
         except:
             s = self.toPlainText()
-        QRDialog(s, parent=self).exec_()
+        QRDialog(
+            data=s,
+            parent=self,
+            config=self.config,
+        ).exec_()
 
     def contextMenuEvent(self, e):
         m = self.createStandardContextMenu()
@@ -44,7 +49,11 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
         run_hook('scan_text_edit', self)
 
     def file_input(self):
-        fileName, __ = QFileDialog.getOpenFileName(self, 'select file')
+        fileName = getOpenFileName(
+            parent=self,
+            title='select file',
+            config=self.config,
+        )
         if not fileName:
             return
         try:

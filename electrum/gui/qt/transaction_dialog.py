@@ -53,7 +53,7 @@ from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    char_width_in_lineedit, TRANSACTION_FILE_EXTENSION_FILTER_SEPARATE,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_COMPLETE_TX,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX,
-                   BlockingWaitingDialog)
+                   BlockingWaitingDialog, getSaveFileName)
 
 from .fee_slider import FeeSlider, FeeComboBox
 from .confirm_tx_dialog import TxEditor
@@ -331,11 +331,15 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             extension = 'psbt'
             default_filter = TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX
         name = f'{name}.{extension}'
-        fileName = self.main_window.getSaveFileName(_("Select where to save your transaction"),
-                                                    name,
-                                                    TRANSACTION_FILE_EXTENSION_FILTER_SEPARATE,
-                                                    default_extension=extension,
-                                                    default_filter=default_filter)
+        fileName = getSaveFileName(
+            parent=self,
+            title=_("Select where to save your transaction"),
+            filename=name,
+            filter=TRANSACTION_FILE_EXTENSION_FILTER_SEPARATE,
+            default_extension=extension,
+            default_filter=default_filter,
+            config=self.config,
+        )
         if not fileName:
             return
         if tx.is_complete():  # network tx hex

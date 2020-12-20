@@ -5,7 +5,8 @@ import copy
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QPushButton, QLabel, QVBoxLayout, QWidget, QGridLayout
 
-from electrum.gui.qt.util import WindowModalDialog, CloseButton, Buttons
+from electrum.gui.qt.util import (WindowModalDialog, CloseButton, Buttons, getOpenFileName,
+                                  getSaveFileName)
 from electrum.gui.qt.transaction_dialog import TxDialog
 from electrum.gui.qt.main_window import ElectrumWindow
 
@@ -64,8 +65,13 @@ class Plugin(ColdcardPlugin, QtPluginBase):
 
         basename = wallet.basename().rsplit('.', 1)[0]        # trim .json
         name = f'{basename}-cc-export.txt'.replace(' ', '-')
-        fileName = main_window.getSaveFileName(_("Select where to save the setup file"),
-                                                        name, "*.txt")
+        fileName = getSaveFileName(
+            parent=main_window,
+            title=_("Select where to save the setup file"),
+            filename=name,
+            filter="*.txt",
+            config=self.config,
+        )
         if fileName:
             with open(fileName, "wt") as f:
                 ColdcardPlugin.export_ms_wallet(wallet, f, basename)
@@ -191,10 +197,14 @@ class CKCCSettingsDialog(WindowModalDialog):
 
     def start_upgrade(self, client):
         # ask for a filename (must have already downloaded it)
-        mw = self.window
         dev = client.dev
 
-        fileName = mw.getOpenFileName("Select upgraded firmware file", "*.dfu")
+        fileName = getOpenFileName(
+            parent=self,
+            title="Select upgraded firmware file",
+            filter="*.dfu",
+            config=self.window.config,
+        )
         if not fileName:
             return
 
@@ -220,7 +230,7 @@ class CKCCSettingsDialog(WindowModalDialog):
             if magic != FW_HEADER_MAGIC:
                 raise ValueError("Bad magic")
         except Exception as exc:
-            mw.show_error("Does not appear to be a Coldcard firmware file.\n\n%s" % exc)
+            self.window.show_error("Does not appear to be a Coldcard firmware file.\n\n%s" % exc)
             return
 
         # TODO: 
@@ -228,7 +238,7 @@ class CKCCSettingsDialog(WindowModalDialog):
         # - warn them about the reboot?
         # - length checks
         # - add progress local bar
-        mw.show_message("Ready to Upgrade.\n\nBe patient. Unit will reboot itself when complete.")
+        self.window.show_message("Ready to Upgrade.\n\nBe patient. Unit will reboot itself when complete.")
 
         def doit():
             dlen, _ = dev.upload_file(firmware, verify=True)
