@@ -78,6 +78,8 @@ from .submarine_swaps import SwapManager
 if TYPE_CHECKING:
     from .network import Network
     from .wallet import Abstract_Wallet
+    from .channel_db import ChannelDB
+    from .simple_config import SimpleConfig
 
 
 SAVED_PR_STATUS = [PR_PAID, PR_UNPAID, PR_INFLIGHT] # status that are persisted
@@ -172,6 +174,10 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_OPT
         self.features |= LnFeatures.VAR_ONION_OPT
         self.features |= LnFeatures.PAYMENT_SECRET_OPT
+
+        self.network = None  # type: Optional[Network]
+        self.config = None  # type: Optional[SimpleConfig]
+        self.channel_db = None  # type: Optional[ChannelDB]
 
         util.register_callback(self.on_proxy_changed, ['proxy_set'])
 
@@ -521,8 +527,8 @@ class LNWallet(LNWorker):
         Logger.__init__(self)
         self.wallet = wallet
         self.db = wallet.db
-        self.config = wallet.config
         LNWorker.__init__(self, xprv)
+        self.config = wallet.config
         self.lnwatcher = None
         self.lnrater: LNRater = None
         self.features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
