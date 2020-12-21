@@ -47,7 +47,7 @@ fun setLocale(context: Context) {
 
 // Concatenating or nesting the return values of this function doesn't always give the desired
 // result, so it's best to call it immediately before passing the text to the UI.
-fun ltr(s: String) = bidi.unicodeWrap(s, TextDirectionHeuristicsCompat.LTR)
+fun ltr(s: String) = bidi.unicodeWrap(s, TextDirectionHeuristicsCompat.LTR)!!
 
 
 // When converting values to and from strings, we only accept and produce the English number

@@ -1,5 +1,6 @@
 package org.electroncash.electroncash3
 
+import android.annotation.SuppressLint
 import android.content.SharedPreferences
 import androidx.lifecycle.MutableLiveData
 import java.lang.ArithmeticException
@@ -50,7 +51,8 @@ class LivePreferences(val sp: SharedPreferences, listen: Boolean = true)
 abstract class LivePreference<T>(val sp: SharedPreferences, val key: String)
     : MutableLiveData<T>() {
 
-    val spe = sp.edit()
+    @SuppressLint("CommitPrefEdits")
+    val spe = sp.edit()!!
 
     abstract fun spGet(): T
     abstract fun spSet(value: T)

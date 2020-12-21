@@ -17,7 +17,7 @@ buildscript {
 
         // This version is for Electron Cash only. Other apps should use one of the versions
         // listed at https://chaquo.com/chaquopy/doc/current/changelog.html .
-        classpath "com.chaquo.python:gradle:9.0.1"
+        classpath "com.chaquo.python:gradle:9.1.0"
     }
 }
 

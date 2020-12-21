@@ -260,7 +260,8 @@ class GetPaymentRequestDialog() : TaskDialog<PyObject>() {
 
 
 class SendContactsDialog : MenuDialog() {
-    val contacts = guiContacts.callAttr("get_contacts", daemonModel.wallet!!).asList()
+    val contacts: List<PyObject> =
+        guiContacts.callAttr("get_contacts", daemonModel.wallet!!).asList()
 
     override fun onBuildDialog(builder: AlertDialog.Builder, menu: Menu) {
         builder.setTitle(R.string.contacts)

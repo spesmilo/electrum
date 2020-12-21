@@ -83,7 +83,7 @@ class TransactionDialog : AlertDialogFragment() {
         wallet.get("transactions")!!.callAttr("get", txid)
             ?: throw ToastException(R.string.Transaction_not)
     }
-    val txInfo by lazy { wallet.callAttr("get_tx_info", tx) }
+    val txInfo by lazy { wallet.callAttr("get_tx_info", tx)!! }
 
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         builder.setView(R.layout.transaction_detail)

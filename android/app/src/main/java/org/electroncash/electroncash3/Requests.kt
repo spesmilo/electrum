@@ -45,7 +45,7 @@ class RequestModel(wallet: PyObject, val request: PyObject) : ListItemModel(wall
     val timestamp = formatTime(getField("time").toLong())
     val description = getField("memo").toString()
     val status = (app.resources.getStringArray(R.array.payment_status)
-                  [getField("status").toInt()])
+                  [getField("status").toInt()])!!
 
     private fun getField(key: String): PyObject {
         return request.callAttr("get", key)!!
@@ -67,9 +67,9 @@ class RequestDialog() : AlertDialogFragment() {
     }
 
     val address by lazy {
-        clsAddress.callAttr("from_string", arguments!!.getString("address"))
+        clsAddress.callAttr("from_string", arguments!!.getString("address"))!!
     }
-    val existingRequest by lazy {
+    val existingRequest: PyObject? by lazy {
         wallet.callAttr("get_payment_request", address, daemonModel.config)
     }
     lateinit var amountBox: AmountBox
