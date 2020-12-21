@@ -1178,12 +1178,8 @@ class LNWallet(LNWorker):
                 f"min_final_cltv_expiry: {addr.get_min_final_cltv_expiry()}"))
         return addr
 
-    def encode_routing_info(self, decoded_invoice):
+    def encode_routing_info(self, r_tags):
         import bitstring
-        # only want 'r' tags
-        r_tags = list(filter(lambda x: x[0] == 'r', decoded_invoice.tags))
-        # strip the tag type, it's implicitly 'r' now
-        r_tags = list(map(lambda x: x[1], r_tags))
         result = bitstring.BitArray()
         for route in r_tags:
             result.append(bitstring.pack('uint:8', len(route)))
@@ -1199,13 +1195,21 @@ class LNWallet(LNWorker):
     async def create_trampoline_route(self, decoded_invoice: 'LnAddr', attempt:int) -> LNPaymentRoute:
         """ return the route that leads to trampoline, and the trampoline fake edge"""
 
+        if attempt >= len(TRAMPOLINE_FEES):
+            raise NoPathFound()
         amount_msat = decoded_invoice.get_amount_msat()
         invoice_pubkey = decoded_invoice.pubkey.serialize()
         invoice_features = decoded_invoice.get_tag('9') or 0
         is_legacy = not bool(invoice_features & LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT)
-        invoice_routing_info = self.encode_routing_info(decoded_invoice)
-        if attempt >= len(TRAMPOLINE_FEES):
-            raise NoPathFound()
+        r_tags = decoded_invoice.get_routing_info()
+        if not is_legacy:
+            #the invoice routing info contains a trampoline node
+            for r_tag in r_tags:
+                if len(r_tag) == 1:
+                    final_edge = r_tag[0]
+                    break
+            else:
+                is_legacy = True
         # find a trampoline
         # assume direct channel to trampoline
         for chan in list(self.channels.values()):
@@ -1240,27 +1244,38 @@ class LNWallet(LNWorker):
                 cltv_expiry_delta=params['cltv_expiry_delta'],
                 node_features=trampoline_features))
         # add optional second trampoline
-        if self.config.get('use_two_trampolines'):
-            for node_id in list(TRAMPOLINES_BY_ID.keys()):
+        if is_legacy and self.config.get('use_two_trampolines'):
+            trampolines = list(TRAMPOLINES_BY_ID.keys())
+            random.shuffle(trampolines)
+            for node_id in trampolines:
                 if node_id != trampoline_node_id:
                     trampoline2 = node_id
                     self.logger.info(f'second trampoline: {trampoline2}')
+                    route.append(
+                        TrampolineEdge(
+                            node_id=trampoline2,
+                            short_channel_id=0,
+                            fee_base_msat=params['fee_base_msat'],
+                            fee_proportional_millionths=params['fee_proportional_millionths'],
+                            cltv_expiry_delta=params['cltv_expiry_delta'],
+                            node_features=trampoline_features))
                     break
-            else:
-                trampoline2 = None
-            if trampoline2:
-                route.append(
-                    TrampolineEdge(
-                        node_id=trampoline2,
-                        short_channel_id=0,
-                        fee_base_msat=params['fee_base_msat'],
-                        fee_proportional_millionths=params['fee_proportional_millionths'],
-                        cltv_expiry_delta=params['cltv_expiry_delta'],
-                        node_features=trampoline_features))
-        # FIXME: invoice_features should not be passed if payment is not legacy,
-        # but Eclair does not use routing hints in that case
-        route[-1].invoice_routing_info = invoice_routing_info
-        route[-1].invoice_features = invoice_features
+        # add routing info
+        if is_legacy:
+            invoice_routing_info = self.encode_routing_info(r_tags)
+            route[-1].invoice_routing_info = invoice_routing_info
+            route[-1].invoice_features = invoice_features
+        else:
+            pubkey, channel, feebase, feerate, cltv = final_edge
+            route.append(
+                TrampolineEdge(
+                    node_id=pubkey,
+                    short_channel_id=0,
+                    fee_base_msat=feebase,
+                    fee_proportional_millionths=feerate,
+                    cltv_expiry_delta=cltv,
+                    node_features=trampoline_features))
+
         # Fake edge (not actually used)
         route.append(
             TrampolineEdge(
@@ -1279,13 +1294,7 @@ class LNWallet(LNWorker):
         invoice_pubkey = decoded_invoice.pubkey.serialize()
         # use 'r' field from invoice
         route = None  # type: Optional[LNPaymentRoute]
-        # only want 'r' tags
-        r_tags = list(filter(lambda x: x[0] == 'r', decoded_invoice.tags))
-        # strip the tag type, it's implicitly 'r' now
-        r_tags = list(map(lambda x: x[1], r_tags))
-        # if there are multiple hints, we will use the first one that works,
-        # from a random permutation
-        random.shuffle(r_tags)
+        r_tags = decoded_invoice.get_routing_info()
         channels = list(self.channels.values())
         scid_to_my_channels = {chan.short_channel_id: chan for chan in channels
                                if chan.short_channel_id is not None}
