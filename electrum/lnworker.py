@@ -1238,7 +1238,6 @@ class LNWallet(LNWorker):
         route.append(
             TrampolineEdge(
                 node_id=trampoline_node_id,
-                short_channel_id=0,
                 fee_base_msat=params['fee_base_msat'],
                 fee_proportional_millionths=params['fee_proportional_millionths'],
                 cltv_expiry_delta=params['cltv_expiry_delta'],
@@ -1254,7 +1253,6 @@ class LNWallet(LNWorker):
                     route.append(
                         TrampolineEdge(
                             node_id=trampoline2,
-                            short_channel_id=0,
                             fee_base_msat=params['fee_base_msat'],
                             fee_proportional_millionths=params['fee_proportional_millionths'],
                             cltv_expiry_delta=params['cltv_expiry_delta'],
@@ -1270,17 +1268,14 @@ class LNWallet(LNWorker):
             route.append(
                 TrampolineEdge(
                     node_id=pubkey,
-                    short_channel_id=0,
                     fee_base_msat=feebase,
                     fee_proportional_millionths=feerate,
                     cltv_expiry_delta=cltv,
                     node_features=trampoline_features))
-
-        # Fake edge (not actually used)
+        # Fake edge (not part of actual route, needed by calc_hops_data)
         route.append(
             TrampolineEdge(
                 node_id=invoice_pubkey,
-                short_channel_id=0,
                 fee_base_msat=0,
                 fee_proportional_millionths=0,
                 cltv_expiry_delta=0,
