@@ -135,8 +135,14 @@ channels graph and compute payment path locally, instead of using trampoline pay
         gossip_cb.setToolTip(help_gossip)
         gossip_cb.setChecked(bool(self.config.get('use_gossip', False)))
         def on_gossip_checked(x):
-            self.config.set_key('use_gossip', bool(x))
-            self.need_restart = True
+            use_gossip = bool(x)
+            self.config.set_key('use_gossip', use_gossip)
+            if use_gossip:
+                self.window.network.start_gossip()
+            else:
+                self.window.network.stop_gossip()
+            self.window.update_lightning_icon()
+
         gossip_cb.stateChanged.connect(on_gossip_checked)
         lightning_widgets.append((gossip_cb, None))
 

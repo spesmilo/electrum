@@ -312,10 +312,10 @@ class Peer(Logger):
             await group.spawn(self.process_gossip())
 
     async def process_gossip(self):
-        if not self.channel_db:
-            return
         while True:
             await asyncio.sleep(5)
+            if not self.network.lngossip:
+                continue
             chan_anns = []
             chan_upds = []
             node_anns = []
@@ -334,7 +334,8 @@ class Peer(Logger):
             # verify in peer's TaskGroup so that we fail the connection
             self.verify_channel_announcements(chan_anns)
             self.verify_node_announcements(node_anns)
-            await self.network.lngossip.process_gossip(chan_anns, node_anns, chan_upds)
+            if self.network.lngossip:
+                await self.network.lngossip.process_gossip(chan_anns, node_anns, chan_upds)
 
     def verify_channel_announcements(self, chan_anns):
         for payload in chan_anns:

@@ -451,7 +451,7 @@ class Daemon(Logger):
             self.network.start(jobs=[self.fx.run])
             # prepare lightning functionality, also load channel db early
             if self.config.get('use_gossip'):
-                self.network.init_channel_db()
+                self.network.start_gossip()
 
         self.taskgroup = TaskGroup()
         asyncio.run_coroutine_threadsafe(self._run(jobs=daemon_jobs), self.asyncio_loop)

@@ -229,9 +229,12 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
 
         self.network = None  # type: Optional[Network]
         self.config = None  # type: Optional[SimpleConfig]
-        self.channel_db = None  # type: Optional[ChannelDB]
 
         util.register_callback(self.on_proxy_changed, ['proxy_set'])
+
+    @property
+    def channel_db(self):
+        return self.network.channel_db if self.network else None
 
     @property
     def peers(self) -> Mapping[bytes, Peer]:
@@ -337,7 +340,6 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         assert network
         self.network = network
         self.config = network.config
-        self.channel_db = self.network.channel_db
         self._add_peers_from_config()
         asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
 
@@ -698,7 +700,6 @@ class LNWallet(LNWorker):
         assert network
         self.network = network
         self.config = network.config
-        self.channel_db = self.network.channel_db
         self.lnwatcher = LNWalletWatcher(self, network)
         self.lnwatcher.start_network(network)
         self.swap_manager.start_network(network=network, lnwatcher=self.lnwatcher)
@@ -974,12 +975,6 @@ class LNWallet(LNWorker):
             chan, funding_tx = fut.result(timeout=timeout)
         except concurrent.futures.TimeoutError:
             raise Exception(_("open_channel timed out"))
-
-        # at this point the channel opening was successful
-        # if this is the first channel that got opened, we start gossiping
-        if self.channels:
-            self.network.start_gossip()
-
         return chan, funding_tx
 
     def pay(self, invoice: str, *, amount_msat: int = None, attempts: int = 1) -> Tuple[bool, List[PaymentAttemptLog]]:
