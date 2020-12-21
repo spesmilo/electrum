@@ -1558,7 +1558,8 @@ class PartialTransaction(Transaction):
     @classmethod
     def from_tx(cls, tx: Transaction) -> 'PartialTransaction':
         res = cls()
-        res._inputs = [PartialTxInput.from_txin(txin) for txin in tx.inputs()]
+        res._inputs = [PartialTxInput.from_txin(txin, strip_witness=True)
+                       for txin in tx.inputs()]
         res._outputs = [PartialTxOutput.from_txout(txout) for txout in tx.outputs()]
         res.version = tx.version
         res.locktime = tx.locktime

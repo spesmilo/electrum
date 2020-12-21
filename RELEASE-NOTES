@@ -1,3 +1,9 @@
+# Release 4.0.9 - (Dec 18, 2020)
+ * fixes a regression introduced in 4.0.8, that prevents from
+   paying BIP70 invoices (#6859)
+ * reflect frozen channels and disconnected peers in the displayed
+   'can send/can receive' amounts.
+
 # Release 4.0.8 - (Dec 17, 2020)
  * fix decoding BIP21 URIs with uppercase schema (d40bedb2)
  * psbt: put full derivation paths into PSBT by default (c8155129)
