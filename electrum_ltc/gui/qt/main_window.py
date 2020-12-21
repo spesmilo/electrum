@@ -70,7 +70,8 @@ from electrum_ltc.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet
                                  sweep_preparations, InternalAddressCorruption,
                                  CannotDoubleSpendTx)
 from electrum_ltc.version import ELECTRUM_VERSION
-from electrum_ltc.network import Network, TxBroadcastError, BestEffortRequestFailed, UntrustedServerReturnedError
+from electrum_ltc.network import (Network, TxBroadcastError, BestEffortRequestFailed,
+                                  UntrustedServerReturnedError, NetworkException)
 from electrum_ltc.exchange_rate import FxThread
 from electrum_ltc.simple_config import SimpleConfig
 from electrum_ltc.logging import Logger
@@ -89,7 +90,8 @@ from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialo
                    CloseButton, HelpButton, MessageBoxMixin, EnterButton,
                    import_meta_gui, export_meta_gui,
                    filename_field, address_field, char_width_in_lineedit, webopen,
-                   TRANSACTION_FILE_EXTENSION_FILTER_ANY, MONOSPACE_FONT)
+                   TRANSACTION_FILE_EXTENSION_FILTER_ANY, MONOSPACE_FONT,
+                   getOpenFileName, getSaveFileName, BlockingWaitingDialog)
 from .util import ButtonsTextEdit, ButtonsLineEdit
 from .installwizard import WIF_HELP_TEXT
 from .history_list import HistoryList, HistoryModel
@@ -840,38 +842,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 self.tray.showMessage("Electrum-LTC", message, read_QIcon("electrum_dark_icon"), 20000)
             except TypeError:
                 self.tray.showMessage("Electrum-LTC", message, QSystemTrayIcon.Information, 20000)
-
-
-
-    # custom wrappers for getOpenFileName and getSaveFileName, that remember the path selected by the user
-    def getOpenFileName(self, title, filter = ""):
-        directory = self.config.get('io_dir', os.path.expanduser('~'))
-        fileName, __ = QFileDialog.getOpenFileName(self, title, directory, filter)
-        if fileName and directory != os.path.dirname(fileName):
-            self.config.set_key('io_dir', os.path.dirname(fileName), True)
-        return fileName
-
-    def getSaveFileName(self, title, filename, filter="",
-                        *, default_extension: str = None,
-                        default_filter: str = None) -> Optional[str]:
-        directory = self.config.get('io_dir', os.path.expanduser('~'))
-        path = os.path.join(directory, filename)
-
-        file_dialog = QFileDialog(self, title, path, filter)
-        file_dialog.setAcceptMode(QFileDialog.AcceptSave)
-        if default_extension:
-            # note: on MacOS, the selected filter's first extension seems to have priority over this...
-            file_dialog.setDefaultSuffix(default_extension)
-        if default_filter:
-            assert default_filter in filter, f"default_filter={default_filter!r} does not appear in filter={filter!r}"
-            file_dialog.selectNameFilter(default_filter)
-        if file_dialog.exec() != QDialog.Accepted:
-            return None
-
-        selected_path = file_dialog.selectedFiles()[0]
-        if selected_path and directory != os.path.dirname(selected_path):
-            self.config.set_key('io_dir', os.path.dirname(selected_path), True)
-        return selected_path
 
     def timer_actions(self):
         self.request_list.refresh_status()
@@ -2077,12 +2047,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             def do_export():
                 key = pr.get_id()
                 name = str(key) + '.bip70'
-                fn = self.getSaveFileName(_("Save invoice to file"), name, filter="*.bip70")
+                fn = getSaveFileName(
+                    parent=self,
+                    title=_("Save invoice to file"),
+                    filename=name,
+                    filter="*.bip70",
+                    config=self.config,
+                )
                 if not fn:
                     return
                 with open(fn, 'wb') as f:
                     data = f.write(pr.raw)
-                self.show_message(_('BIP70 invoice saved as' + ' ' + fn))
+                self.show_message(_('BIP70 invoice saved as {}').format(fn))
             exportButton = EnterButton(_('Export'), do_export)
             buttons = Buttons(exportButton, CloseButton(d))
         else:
@@ -2113,7 +2089,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             grid.addWidget(QLabel(_("Expires") + ':'), 4, 0)
             grid.addWidget(QLabel(format_time(invoice.time + invoice.exp)), 4, 1)
         vbox.addLayout(grid)
-        invoice_e = ShowQRTextEdit()
+        invoice_e = ShowQRTextEdit(config=self.config)
         invoice_e.addCopyButton(self.app)
         invoice_e.setText(invoice.invoice)
         vbox.addWidget(invoice_e)
@@ -2392,7 +2368,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 ks_vbox.setContentsMargins(0, 0, 0, 0)
                 ks_w.setLayout(ks_vbox)
 
-                mpk_text = ShowQRTextEdit(ks.get_master_public_key())
+                mpk_text = ShowQRTextEdit(ks.get_master_public_key(), config=self.config)
                 mpk_text.setMaximumHeight(150)
                 mpk_text.addCopyButton(self.app)
                 run_hook('show_xpub_button', mpk_text, ks)
@@ -2461,8 +2437,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                     help_text=None, show_copy_text_btn=False):
         if not data:
             return
-        d = QRDialog(data, parent or self, title, help_text=help_text,
-                     show_copy_text_btn=show_copy_text_btn)
+        d = QRDialog(
+            data=data,
+            parent=parent or self,
+            title=title,
+            help_text=help_text,
+            show_copy_text_btn=show_copy_text_btn,
+            config=self.config,
+        )
         d.exec_()
 
     @protected
@@ -2482,14 +2464,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         vbox.addWidget(QLabel(_("Address") + ': ' + address))
         vbox.addWidget(QLabel(_("Script type") + ': ' + xtype))
         vbox.addWidget(QLabel(_("Private key") + ':'))
-        keys_e = ShowQRTextEdit(text=pk)
+        keys_e = ShowQRTextEdit(text=pk, config=self.config)
         keys_e.addCopyButton(self.app)
         vbox.addWidget(keys_e)
-        # if redeem_script:
-        #     vbox.addWidget(QLabel(_("Redeem Script") + ':'))
-        #     rds_e = ShowQRTextEdit(text=redeem_script)
-        #     rds_e.addCopyButton(self.app)
-        #     vbox.addWidget(rds_e)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.setLayout(vbox)
         d.exec_()
@@ -2701,8 +2678,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.show_transaction(tx)
 
     def read_tx_from_file(self) -> Optional[Transaction]:
-        fileName = self.getOpenFileName(_("Select your transaction file"),
-                                        TRANSACTION_FILE_EXTENSION_FILTER_ANY)
+        fileName = getOpenFileName(
+            parent=self,
+            title=_("Select your transaction file"),
+            filter=TRANSACTION_FILE_EXTENSION_FILTER_ANY,
+            config=self.config,
+        )
         if not fileName:
             return
         try:
@@ -2715,7 +2696,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         return self.tx_from_text(file_content)
 
     def do_process_from_text(self):
-        text = text_dialog(self, _('Input raw transaction'), _("Transaction:"), _("Load transaction"))
+        text = text_dialog(
+            parent=self,
+            title=_('Input raw transaction'),
+            header_layout=_("Transaction:"),
+            ok_label=_("Load transaction"),
+            config=self.config,
+        )
         if not text:
             return
         tx = self.tx_from_text(text)
@@ -2723,7 +2710,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.show_transaction(tx)
 
     def do_process_from_text_channel_backup(self):
-        text = text_dialog(self, _('Input channel backup'), _("Channel Backup:"), _("Load backup"))
+        text = text_dialog(
+            parent=self,
+            title=_('Input channel backup'),
+            header_layout=_("Channel Backup:"),
+            ok_label=_("Load backup"),
+            config=self.config,
+        )
         if not text:
             return
         if text.startswith('channel_backup:'):
@@ -2891,7 +2884,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         hbox_top.addWidget(QLabel(_("Enter private keys:")))
         hbox_top.addWidget(InfoButton(WIF_HELP_TEXT), alignment=Qt.AlignRight)
         vbox.addLayout(hbox_top)
-        keys_e = ScanQRTextEdit(allow_multi=True)
+        keys_e = ScanQRTextEdit(allow_multi=True, config=self.config)
         keys_e.setTabChangesFocus(True)
         vbox.addWidget(keys_e)
 
@@ -2956,7 +2949,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         WaitingDialog(self, msg, task, on_success, on_failure)
 
     def _do_import(self, title, header_layout, func):
-        text = text_dialog(self, title, header_layout, _('Import'), allow_multi=True)
+        text = text_dialog(
+            parent=self,
+            title=title,
+            header_layout=header_layout,
+            ok_label=_('Import'),
+            allow_multi=True,
+            config=self.config,
+        )
         if not text:
             return
         keys = str(text).split()
@@ -3190,13 +3190,31 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         new_tx.set_rbf(True)
         self.show_transaction(new_tx)
 
+    def _add_info_to_tx_from_wallet_and_network(self, tx: PartialTransaction) -> bool:
+        """Returns whether successful."""
+        # note side-effect: tx is being mutated
+        assert isinstance(tx, PartialTransaction)
+        try:
+            # note: this might download input utxos over network
+            BlockingWaitingDialog(
+                self,
+                _("Adding info to tx, from wallet and network..."),
+                lambda: tx.add_info_from_wallet(self.wallet, ignore_network_issues=False),
+            )
+        except NetworkException as e:
+            self.show_error(repr(e))
+            return False
+        return True
+
     def bump_fee_dialog(self, tx: Transaction):
         txid = tx.txid()
         assert txid
-        fee = self.wallet.get_tx_fee(txid)
-        if fee is None:
-            self.show_error(_("Can't bump fee: unknown fee for original transaction."))
+        if not isinstance(tx, PartialTransaction):
+            tx = PartialTransaction.from_tx(tx)
+        if not self._add_info_to_tx_from_wallet_and_network(tx):
             return
+        fee = tx.get_fee()
+        assert fee is not None
         tx_label = self.wallet.get_label_for_txid(txid)
         tx_size = tx.estimated_size()
         old_fee_rate = fee / tx_size  # sat/vbyte
@@ -3237,7 +3255,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         is_final = cb.isChecked()
         new_fee_rate = feerate_e.get_amount()
         try:
-            new_tx = self.wallet.bump_fee(tx=tx, new_fee_rate=new_fee_rate, coins=self.get_coins())
+            new_tx = self.wallet.bump_fee(
+                tx=tx,
+                txid=txid,
+                new_fee_rate=new_fee_rate,
+                coins=self.get_coins(),
+            )
         except CannotBumpFee as e:
             self.show_error(str(e))
             return
@@ -3248,10 +3271,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def dscancel_dialog(self, tx: Transaction):
         txid = tx.txid()
         assert txid
-        fee = self.wallet.get_tx_fee(txid)
-        if fee is None:
-            self.show_error(_('Cannot cancel transaction') + ': ' + _('unknown fee for original transaction'))
+        if not isinstance(tx, PartialTransaction):
+            tx = PartialTransaction.from_tx(tx)
+        if not self._add_info_to_tx_from_wallet_and_network(tx):
             return
+        fee = tx.get_fee()
+        assert fee is not None
         tx_size = tx.estimated_size()
         old_fee_rate = fee / tx_size  # sat/vbyte
         d = WindowModalDialog(self, _('Cancel transaction'))

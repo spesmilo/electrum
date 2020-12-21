@@ -9,8 +9,9 @@ from PyQt5.QtWidgets import (
 )
 
 from electrum_ltc.i18n import _
+from electrum_ltc.simple_config import SimpleConfig
 
-from .util import WindowModalDialog, get_parent_main_window, WWLabel
+from .util import WindowModalDialog, WWLabel, getSaveFileName
 
 
 class QRCodeWidget(QWidget):
@@ -95,15 +96,17 @@ class QRDialog(WindowModalDialog):
 
     def __init__(
             self,
+            *,
             data,
             parent=None,
             title="",
             show_text=False,
-            *,
             help_text=None,
             show_copy_text_btn=False,
+            config: SimpleConfig,
     ):
         WindowModalDialog.__init__(self, parent, title)
+        self.config = config
 
         vbox = QVBoxLayout()
 
@@ -122,11 +125,12 @@ class QRDialog(WindowModalDialog):
         hbox.addStretch(1)
 
         def print_qr():
-            main_window = get_parent_main_window(self)
-            if main_window:
-                filename = main_window.getSaveFileName(_("Select where to save file"), "qrcode.png")
-            else:
-                filename, __ = QFileDialog.getSaveFileName(self, _("Select where to save file"), "qrcode.png")
+            filename = getSaveFileName(
+                parent=self,
+                title=_("Select where to save file"),
+                filename="qrcode.png",
+                config=self.config,
+            )
             if not filename:
                 return
             p = qrw.grab()

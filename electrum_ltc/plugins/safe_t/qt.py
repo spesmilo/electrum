@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QPushButton,
                              QMessageBox, QFileDialog, QSlider, QTabWidget)
 
 from electrum_ltc.gui.qt.util import (WindowModalDialog, WWLabel, Buttons, CancelButton,
-                                      OkButton, CloseButton)
+                                      OkButton, CloseButton, getOpenFileName)
 from electrum_ltc.i18n import _
 from electrum_ltc.plugin import hook
 from electrum_ltc.util import bh2u
@@ -276,8 +276,11 @@ class SettingsDialog(WindowModalDialog):
             invoke_client('toggle_passphrase', unpair_after=currently_enabled)
 
         def change_homescreen():
-            dialog = QFileDialog(self, _("Choose Homescreen"))
-            filename, __ = dialog.getOpenFileName()
+            filename = getOpenFileName(
+                parent=self,
+                title=_("Choose Homescreen"),
+                config=config,
+            )
             if not filename:
                 return  # user cancelled
 

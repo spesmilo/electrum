@@ -842,7 +842,7 @@ class Transaction:
             return None
         return bh2u(sha256d(bfh(ser))[::-1])
 
-    def add_info_from_wallet(self, wallet: 'Abstract_Wallet') -> None:
+    def add_info_from_wallet(self, wallet: 'Abstract_Wallet', **kwargs) -> None:
         return  # no-op
 
     def is_final(self):
@@ -1922,8 +1922,13 @@ class PartialTransaction(Transaction):
         txin.witness = None
         self.invalidate_ser_cache()
 
-    def add_info_from_wallet(self, wallet: 'Abstract_Wallet', *,
-                             include_xpubs: bool = False) -> None:
+    def add_info_from_wallet(
+            self,
+            wallet: 'Abstract_Wallet',
+            *,
+            include_xpubs: bool = False,
+            ignore_network_issues: bool = True,
+    ) -> None:
         if self.is_complete():
             return
         # only include xpubs for multisig wallets; currently only they need it in practice
@@ -1941,9 +1946,16 @@ class PartialTransaction(Transaction):
                     bip32node = BIP32Node.from_xkey(xpub)
                     self.xpubs[bip32node] = (fp_bytes, der_full)
         for txin in self.inputs():
-            wallet.add_input_info(txin, only_der_suffix=False)
+            wallet.add_input_info(
+                txin,
+                only_der_suffix=False,
+                ignore_network_issues=ignore_network_issues,
+            )
         for txout in self.outputs():
-            wallet.add_output_info(txout, only_der_suffix=False)
+            wallet.add_output_info(
+                txout,
+                only_der_suffix=False,
+            )
 
     def remove_xpubs_and_bip32_paths(self) -> None:
         self.xpubs.clear()

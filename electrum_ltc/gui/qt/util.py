@@ -31,6 +31,7 @@ from electrum_ltc.invoices import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, P
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
     from .installwizard import InstallWizard
+    from electrum_ltc.simple_config import SimpleConfig
 
 
 if platform.system() == 'Windows':
@@ -351,7 +352,16 @@ def line_dialog(parent, title, label, ok_label, default=None):
     if dialog.exec_():
         return txt.text()
 
-def text_dialog(parent, title, header_layout, ok_label, default=None, allow_multi=False):
+def text_dialog(
+        *,
+        parent,
+        title,
+        header_layout,
+        ok_label,
+        default=None,
+        allow_multi=False,
+        config: 'SimpleConfig',
+):
     from .qrtextedit import ScanQRTextEdit
     dialog = WindowModalDialog(parent, title)
     dialog.setMinimumWidth(600)
@@ -361,7 +371,7 @@ def text_dialog(parent, title, header_layout, ok_label, default=None, allow_mult
         l.addWidget(QLabel(header_layout))
     else:
         l.addLayout(header_layout)
-    txt = ScanQRTextEdit(allow_multi=allow_multi)
+    txt = ScanQRTextEdit(allow_multi=allow_multi, config=config)
     if default:
         txt.setText(default)
     l.addWidget(txt)
@@ -448,8 +458,14 @@ def filename_field(parent, config, defaultname, select_msg):
 
     def func():
         text = filename_e.text()
-        _filter = "*.csv" if text.endswith(".csv") else "*.json" if text.endswith(".json") else None
-        p, __ = QFileDialog.getSaveFileName(None, select_msg, text, _filter)
+        _filter = "*.csv" if defaultname.endswith(".csv") else "*.json" if defaultname.endswith(".json") else None
+        p = getSaveFileName(
+            parent=None,
+            title=select_msg,
+            filename=text,
+            filter=_filter,
+            config=config,
+        )
         if p:
             filename_e.setText(p)
 
@@ -925,9 +941,14 @@ class AcceptFileDragDrop:
         raise NotImplementedError()
 
 
-def import_meta_gui(electrum_window, title, importer, on_success):
+def import_meta_gui(electrum_window: 'ElectrumWindow', title, importer, on_success):
     filter_ = "JSON (*.json);;All files (*)"
-    filename = electrum_window.getOpenFileName(_("Open {} file").format(title), filter_)
+    filename = getOpenFileName(
+        parent=electrum_window,
+        title=_("Open {} file").format(title),
+        filter=filter_,
+        config=electrum_window.config,
+    )
     if not filename:
         return
     try:
@@ -939,10 +960,15 @@ def import_meta_gui(electrum_window, title, importer, on_success):
         on_success()
 
 
-def export_meta_gui(electrum_window, title, exporter):
+def export_meta_gui(electrum_window: 'ElectrumWindow', title, exporter):
     filter_ = "JSON (*.json);;All files (*)"
-    filename = electrum_window.getSaveFileName(_("Select file to save your {}").format(title),
-                                               'electrum-ltc_{}.json'.format(title), filter_)
+    filename = getSaveFileName(
+        parent=electrum_window,
+        title=_("Select file to save your {}").format(title),
+        filename='electrum-ltc_{}.json'.format(title),
+        filter=filter_,
+        config=electrum_window.config,
+    )
     if not filename:
         return
     try:
@@ -954,24 +980,44 @@ def export_meta_gui(electrum_window, title, exporter):
                                      .format(title, str(filename)))
 
 
-def get_parent_main_window(
-        widget, *, allow_wizard: bool = False,
-) -> Union[None, 'ElectrumWindow', 'InstallWizard']:
-    """Returns a reference to the ElectrumWindow this widget belongs to."""
-    from .main_window import ElectrumWindow
-    from .transaction_dialog import TxDialog
-    from .installwizard import InstallWizard
-    for _ in range(100):
-        if widget is None:
-            return None
-        if isinstance(widget, ElectrumWindow):
-            return widget
-        if isinstance(widget, TxDialog):
-            return widget.main_window
-        if isinstance(widget, InstallWizard) and allow_wizard:
-            return widget
-        widget = widget.parentWidget()
-    return None
+def getOpenFileName(*, parent, title, filter="", config: 'SimpleConfig') -> Optional[str]:
+    """Custom wrapper for getOpenFileName that remembers the path selected by the user."""
+    directory = config.get('io_dir', os.path.expanduser('~'))
+    fileName, __ = QFileDialog.getOpenFileName(parent, title, directory, filter)
+    if fileName and directory != os.path.dirname(fileName):
+        config.set_key('io_dir', os.path.dirname(fileName), True)
+    return fileName
+
+
+def getSaveFileName(
+        *,
+        parent,
+        title,
+        filename,
+        filter="",
+        default_extension: str = None,
+        default_filter: str = None,
+        config: 'SimpleConfig',
+) -> Optional[str]:
+    """Custom wrapper for getSaveFileName that remembers the path selected by the user."""
+    directory = config.get('io_dir', os.path.expanduser('~'))
+    path = os.path.join(directory, filename)
+
+    file_dialog = QFileDialog(parent, title, path, filter)
+    file_dialog.setAcceptMode(QFileDialog.AcceptSave)
+    if default_extension:
+        # note: on MacOS, the selected filter's first extension seems to have priority over this...
+        file_dialog.setDefaultSuffix(default_extension)
+    if default_filter:
+        assert default_filter in filter, f"default_filter={default_filter!r} does not appear in filter={filter!r}"
+        file_dialog.selectNameFilter(default_filter)
+    if file_dialog.exec() != QDialog.Accepted:
+        return None
+
+    selected_path = file_dialog.selectedFiles()[0]
+    if selected_path and directory != os.path.dirname(selected_path):
+        config.set_key('io_dir', os.path.dirname(selected_path), True)
+    return selected_path
 
 
 def icon_path(icon_basename):

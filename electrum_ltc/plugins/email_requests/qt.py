@@ -43,7 +43,7 @@ from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QLineEdit,
                              QInputDialog)
 
 from electrum_ltc.gui.qt.util import (EnterButton, Buttons, CloseButton, OkButton,
-                                      WindowModalDialog, get_parent_main_window)
+                                      WindowModalDialog)
 from electrum_ltc.gui.qt.main_window import ElectrumWindow
 
 from electrum_ltc.plugin import BasePlugin, hook
@@ -176,8 +176,7 @@ class Plugin(BasePlugin):
         #main_window.invoice_list.update()
 
     @hook
-    def receive_list_menu(self, menu, addr):
-        window = get_parent_main_window(menu)
+    def receive_list_menu(self, window: ElectrumWindow, menu, addr):
         menu.addAction(_("Send via e-mail"), lambda: self.send(window, addr))
 
     def send(self, window: ElectrumWindow, addr):

@@ -1,6 +1,7 @@
 import copy
 from datetime import datetime
 from typing import NamedTuple, Callable, TYPE_CHECKING
+from functools import partial
 
 from kivy.app import App
 from kivy.factory import Factory
@@ -18,6 +19,7 @@ from electrum_ltc.util import InvalidPassword
 from electrum_ltc.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum_ltc.wallet import CannotBumpFee, CannotDoubleSpendTx
 from electrum_ltc.transaction import Transaction, PartialTransaction
+from electrum_ltc.network import NetworkException
 from ...util import address_colors
 
 if TYPE_CHECKING:
@@ -137,6 +139,7 @@ class TxDialog(Factory.Popup):
         # As a result, e.g. we might learn an imported address tx is segwit,
         # or that a beyond-gap-limit address is is_mine.
         # note: this might fetch prev txs over the network.
+        # note: this is a no-op for complete txs
         tx.add_info_from_wallet(self.wallet)
 
     def on_open(self):
@@ -231,22 +234,51 @@ class TxDialog(Factory.Popup):
         action_button = self.ids.action_button
         self._action_button_fn(action_button)
 
+    def _add_info_to_tx_from_wallet_and_network(self, tx: PartialTransaction) -> bool:
+        """Returns whether successful."""
+        # note side-effect: tx is being mutated
+        assert isinstance(tx, PartialTransaction)
+        try:
+            # note: this might download input utxos over network
+            # FIXME network code in gui thread...
+            tx.add_info_from_wallet(self.wallet, ignore_network_issues=False)
+        except NetworkException as e:
+            self.app.show_error(repr(e))
+            return False
+        return True
+
     def do_rbf(self):
         from .bump_fee_dialog import BumpFeeDialog
-        fee = self.wallet.get_wallet_delta(self.tx).fee
-        if fee is None:
-            self.app.show_error(_("Can't bump fee: unknown fee for original transaction."))
+        tx = self.tx
+        txid = tx.txid()
+        assert txid
+        if not isinstance(tx, PartialTransaction):
+            tx = PartialTransaction.from_tx(tx)
+        if not self._add_info_to_tx_from_wallet_and_network(tx):
             return
-        size = self.tx.estimated_size()
-        d = BumpFeeDialog(self.app, fee, size, self._do_rbf)
+        fee = tx.get_fee()
+        assert fee is not None
+        size = tx.estimated_size()
+        cb = partial(self._do_rbf, tx=tx, txid=txid)
+        d = BumpFeeDialog(self.app, fee, size, cb)
         d.open()
 
-    def _do_rbf(self, new_fee_rate, is_final):
+    def _do_rbf(
+            self,
+            new_fee_rate,
+            is_final,
+            *,
+            tx: PartialTransaction,
+            txid: str,
+    ):
         if new_fee_rate is None:
             return
         try:
-            new_tx = self.wallet.bump_fee(tx=self.tx,
-                                          new_fee_rate=new_fee_rate)
+            new_tx = self.wallet.bump_fee(
+                tx=tx,
+                txid=txid,
+                new_fee_rate=new_fee_rate,
+            )
         except CannotBumpFee as e:
             self.app.show_error(str(e))
             return
@@ -258,20 +290,33 @@ class TxDialog(Factory.Popup):
 
     def do_dscancel(self):
         from .dscancel_dialog import DSCancelDialog
-        fee = self.wallet.get_wallet_delta(self.tx).fee
-        if fee is None:
-            self.app.show_error(_('Cannot cancel transaction') + ': ' + _('unknown fee for original transaction'))
+        tx = self.tx
+        txid = tx.txid()
+        assert txid
+        if not isinstance(tx, PartialTransaction):
+            tx = PartialTransaction.from_tx(tx)
+        if not self._add_info_to_tx_from_wallet_and_network(tx):
             return
-        size = self.tx.estimated_size()
-        d = DSCancelDialog(self.app, fee, size, self._do_dscancel)
+        fee = tx.get_fee()
+        assert fee is not None
+        size = tx.estimated_size()
+        cb = partial(self._do_dscancel, tx=tx)
+        d = DSCancelDialog(self.app, fee, size, cb)
         d.open()
 
-    def _do_dscancel(self, new_fee_rate):
+    def _do_dscancel(
+            self,
+            new_fee_rate,
+            *,
+            tx: PartialTransaction,
+    ):
         if new_fee_rate is None:
             return
         try:
-            new_tx = self.wallet.dscancel(tx=self.tx,
-                                          new_fee_rate=new_fee_rate)
+            new_tx = self.wallet.dscancel(
+                tx=tx,
+                new_fee_rate=new_fee_rate,
+            )
         except CannotDoubleSpendTx as e:
             self.app.show_error(str(e))
             return

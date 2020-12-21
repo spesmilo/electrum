@@ -87,14 +87,14 @@ class AddressDialog(WindowModalDialog):
         redeem_script = self.wallet.get_redeem_script(address)
         if redeem_script:
             vbox.addWidget(QLabel(_("Redeem Script") + ':'))
-            redeem_e = ShowQRTextEdit(text=redeem_script)
+            redeem_e = ShowQRTextEdit(text=redeem_script, config=self.config)
             redeem_e.addCopyButton(self.app)
             vbox.addWidget(redeem_e)
 
         witness_script = self.wallet.get_witness_script(address)
         if witness_script:
             vbox.addWidget(QLabel(_("Witness Script") + ':'))
-            witness_e = ShowQRTextEdit(text=witness_script)
+            witness_e = ShowQRTextEdit(text=witness_script, config=self.config)
             witness_e.addCopyButton(self.app)
             vbox.addWidget(witness_e)
 

@@ -53,7 +53,7 @@ from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    char_width_in_lineedit, TRANSACTION_FILE_EXTENSION_FILTER_SEPARATE,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_COMPLETE_TX,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX,
-                   BlockingWaitingDialog)
+                   BlockingWaitingDialog, getSaveFileName)
 
 from .fee_slider import FeeSlider, FeeComboBox
 from .confirm_tx_dialog import TxEditor
@@ -331,11 +331,15 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             extension = 'psbt'
             default_filter = TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX
         name = f'{name}.{extension}'
-        fileName = self.main_window.getSaveFileName(_("Select where to save your transaction"),
-                                                    name,
-                                                    TRANSACTION_FILE_EXTENSION_FILTER_SEPARATE,
-                                                    default_extension=extension,
-                                                    default_filter=default_filter)
+        fileName = getSaveFileName(
+            parent=self,
+            title=_("Select where to save your transaction"),
+            filename=name,
+            filter=TRANSACTION_FILE_EXTENSION_FILTER_SEPARATE,
+            default_extension=extension,
+            default_filter=default_filter,
+            config=self.config,
+        )
         if not fileName:
             return
         if tx.is_complete():  # network tx hex
@@ -353,9 +357,13 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
     def merge_sigs(self):
         if not isinstance(self.tx, PartialTransaction):
             return
-        text = text_dialog(self, _('Input raw transaction'),
-                           _("Transaction to merge signatures from") + ":",
-                           _("Load transaction"))
+        text = text_dialog(
+            parent=self,
+            title=_('Input raw transaction'),
+            header_layout=_("Transaction to merge signatures from") + ":",
+            ok_label=_("Load transaction"),
+            config=self.config,
+        )
         if not text:
             return
         tx = self.main_window.tx_from_text(text)
@@ -371,9 +379,13 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
     def join_tx_with_another(self):
         if not isinstance(self.tx, PartialTransaction):
             return
-        text = text_dialog(self, _('Input raw transaction'),
-                           _("Transaction to join with") + " (" + _("add inputs and outputs") + "):",
-                           _("Load transaction"))
+        text = text_dialog(
+            parent=self,
+            title=_('Input raw transaction'),
+            header_layout=_("Transaction to join with") + " (" + _("add inputs and outputs") + "):",
+            ok_label=_("Load transaction"),
+            config=self.config,
+        )
         if not text:
             return
         tx = self.main_window.tx_from_text(text)

@@ -25,7 +25,7 @@ from aiorpcx import run_in_thread, TaskGroup, NetAddress
 
 from . import constants, util
 from . import keystore
-from .util import profiler
+from .util import profiler, chunks
 from .invoices import PR_TYPE_LN, PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING, LNInvoice, LN_EXPIRY_NEVER
 from .util import NetworkRetryManager, JsonRPCClient
 from .lnutil import LN_MAX_FUNDING_SAT
@@ -78,6 +78,8 @@ from .submarine_swaps import SwapManager
 if TYPE_CHECKING:
     from .network import Network
     from .wallet import Abstract_Wallet
+    from .channel_db import ChannelDB
+    from .simple_config import SimpleConfig
 
 
 SAVED_PR_STATUS = [PR_PAID, PR_UNPAID, PR_INFLIGHT] # status that are persisted
@@ -158,6 +160,10 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         self.features |= LnFeatures.VAR_ONION_OPT
         self.features |= LnFeatures.PAYMENT_SECRET_OPT
 
+        self.network = None  # type: Optional[Network]
+        self.config = None  # type: Optional[SimpleConfig]
+        self.channel_db = None  # type: Optional[ChannelDB]
+
         util.register_callback(self.on_proxy_changed, ['proxy_set'])
 
     @property
@@ -168,6 +174,14 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
 
     def channels_for_peer(self, node_id):
         return {}
+
+    def get_node_alias(self, node_id):
+        if self.channel_db:
+            node_info = self.channel_db.get_node_info_for_node_id(node_id)
+            node_alias = (node_info.alias if node_info else '') or node_id.hex()
+        else:
+            node_alias = ''
+        return node_alias
 
     async def maybe_listen(self):
         # FIXME: only one LNWorker can listen at a time (single port)
@@ -489,6 +503,27 @@ class LNGossip(LNWorker):
             progress_percent = 0
         return current_est, total_est, progress_percent
 
+    async def process_gossip(self, chan_anns, node_anns, chan_upds):
+        await self.channel_db.data_loaded.wait()
+        self.logger.debug(f'process_gossip {len(chan_anns)} {len(node_anns)} {len(chan_upds)}')
+        # note: data processed in chunks to avoid taking sql lock for too long
+        # channel announcements
+        for chan_anns_chunk in chunks(chan_anns, 300):
+            self.channel_db.add_channel_announcement(chan_anns_chunk)
+        # node announcements
+        for node_anns_chunk in chunks(node_anns, 100):
+            self.channel_db.add_node_announcement(node_anns_chunk)
+        # channel updates
+        for chan_upds_chunk in chunks(chan_upds, 1000):
+            categorized_chan_upds = self.channel_db.add_channel_updates(
+                chan_upds_chunk, max_age=self.max_age)
+            orphaned = categorized_chan_upds.orphaned
+            if orphaned:
+                self.logger.info(f'adding {len(orphaned)} unknown channel ids')
+                orphaned_ids = [c['short_channel_id'] for c in orphaned]
+                await self.add_new_ids(orphaned_ids)
+            if categorized_chan_upds.good:
+                self.logger.debug(f'on_channel_update: {len(categorized_chan_upds.good)}/{len(chan_upds_chunk)}')
 
 class LNWallet(LNWorker):
 
@@ -498,8 +533,8 @@ class LNWallet(LNWorker):
         Logger.__init__(self)
         self.wallet = wallet
         self.db = wallet.db
-        self.config = wallet.config
         LNWorker.__init__(self, xprv)
+        self.config = wallet.config
         self.lnwatcher = None
         self.lnrater: LNRater = None
         self.features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ

@@ -79,11 +79,7 @@ class ChannelsList(MyTreeView):
             labels[subject] = label
         status = chan.get_state_for_GUI()
         closed = chan.is_closed()
-        if self.network and self.network.has_channel_db():
-            node_info = self.parent.network.channel_db.get_node_info_for_node_id(chan.node_id)
-            node_alias = (node_info.alias if node_info else '') or chan.node_id.hex()
-        else:
-            node_alias = ''
+        node_alias = self.lnworker.get_node_alias(chan.node_id)
         return [
             chan.short_id_for_GUI(),
             node_alias,
