@@ -47,6 +47,8 @@ def _prepare_windows_dns_hack():
     resolver = dns.resolver.get_default_resolver()
     if resolver.cache is None:
         resolver.cache = dns.resolver.Cache()
+    # ensure overall timeout for requests is long enough
+    resolver.lifetime = max(resolver.lifetime or 1, 30.0)
     # prepare threads
     global _dns_threads_executor
     if _dns_threads_executor is None:
