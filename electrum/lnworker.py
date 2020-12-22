@@ -554,6 +554,9 @@ class LNWallet(LNWorker):
         self.lnrater: LNRater = None
         self.features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
         self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_REQ
+        # we do not want to receive unrequested gossip (see lnpeer.maybe_save_remote_update)
+        self.features |= LnFeatures.GOSSIP_QUERIES_REQ
+
         self.payments = self.db.get_dict('lightning_payments')     # RHASH -> amount, direction, is_paid  # FIXME amt should be msat
         self.preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
         # note: this sweep_address is only used as fallback; as it might result in address-reuse
