@@ -4,8 +4,6 @@ import android.content.ClipboardManager
 import android.content.Intent
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
-import androidx.fragment.app.viewModels
-import androidx.lifecycle.ViewModel
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.android.synthetic.main.load.*
 
@@ -19,11 +17,6 @@ val libTransaction by lazy { libMod("transaction") }
 // Valid transaction quickly show up in transactions.
 
 class ColdLoadDialog : AlertDialogFragment() {
-
-    class Model : ViewModel() {}
-
-    val model: Model by viewModels()
-
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         builder.setTitle(R.string.load_transaction)
                 .setView(R.layout.load)
