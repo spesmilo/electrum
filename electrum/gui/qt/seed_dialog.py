@@ -94,11 +94,24 @@ class SeedLayout(QVBoxLayout):
         self.is_ext = cb_ext.isChecked() if 'ext' in self.options else False
         self.is_bip39 = cb_bip39.isChecked() if 'bip39' in self.options else False
 
-    def __init__(self, seed=None, title=None, icon=True, msg=None, options=None,
-                 is_seed=None, passphrase=None, parent=None, for_seed_words=True):
+    def __init__(
+            self,
+            seed=None,
+            title=None,
+            icon=True,
+            msg=None,
+            options=None,
+            is_seed=None,
+            passphrase=None,
+            parent=None,
+            for_seed_words=True,
+            *,
+            config: 'SimpleConfig',
+    ):
         QVBoxLayout.__init__(self)
         self.parent = parent
         self.options = options
+        self.config = config
         if title:
             self.addWidget(WWLabel(title))
         if seed:  # "read only", we already have the text
@@ -238,11 +251,17 @@ class KeysLayout(QVBoxLayout):
 
 class SeedDialog(WindowModalDialog):
 
-    def __init__(self, parent, seed, passphrase):
+    def __init__(self, parent, seed, passphrase, *, config: 'SimpleConfig'):
         WindowModalDialog.__init__(self, parent, ('Electrum - ' + _('Seed')))
         self.setMinimumWidth(400)
         vbox = QVBoxLayout(self)
         title =  _("Your wallet generation seed is:")
-        slayout = SeedLayout(title=title, seed=seed, msg=True, passphrase=passphrase)
+        slayout = SeedLayout(
+            title=title,
+            seed=seed,
+            msg=True,
+            passphrase=passphrase,
+            config=config,
+        )
         vbox.addLayout(slayout)
         vbox.addLayout(Buttons(CloseButton(self)))
