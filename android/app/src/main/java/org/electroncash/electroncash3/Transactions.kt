@@ -14,7 +14,7 @@ import kotlin.math.roundToInt
 
 class TransactionsFragment : ListFragment(R.layout.transactions, R.id.rvTransactions) {
 
-    override fun onListModelCreated(listModel: ListModel, wallet: PyObject) {
+    override fun onListModelCreated(listModel: ListModel) {
         with (listModel) {
             trigger.addSource(daemonUpdate)
             trigger.addSource(settings.getString("base_unit"))
@@ -26,10 +26,10 @@ class TransactionsFragment : ListFragment(R.layout.transactions, R.id.rvTransact
         super.onViewCreated(view, savedInstanceState)
         btnSend.setOnClickListener {
             try {
-                showDialog(activity!!, SendDialog())
+                showDialog(this, SendDialog())
             } catch (e: ToastException) { e.show() }
         }
-        btnRequest.setOnClickListener { newRequest(activity!!) }
+        btnRequest.setOnClickListener { newRequest(this) }
     }
 
     override fun onCreateAdapter() = TransactionsAdapter(this)
@@ -37,7 +37,7 @@ class TransactionsFragment : ListFragment(R.layout.transactions, R.id.rvTransact
 
 
 // Also used in AddressesTransactionsDialog.
-fun TransactionsAdapter(listFragment: Fragment) =
+fun TransactionsAdapter(listFragment: ListFragment) =
     ListAdapter(listFragment, R.layout.transaction_list, ::TransactionModel,
                 ::TransactionDialog)
         .apply { reversed = true }
@@ -75,8 +75,7 @@ class TransactionModel(wallet: PyObject, val txHistory: PyObject) : ListItemMode
 }
 
 
-class TransactionDialog : AlertDialogFragment() {
-    val wallet by lazy { daemonModel.wallet!! }
+class TransactionDialog : DetailDialog() {
     val txid by lazy { arguments!!.getString("txid")!! }
     val tx by lazy {
         // Transaction lookup sometimes fails during sync.

@@ -16,7 +16,7 @@ val libContacts by lazy { libMod("contacts") }
 
 class ContactsFragment : ListFragment(R.layout.contacts, R.id.rvContacts) {
 
-    override fun onListModelCreated(listModel: ListModel, wallet: PyObject) {
+    override fun onListModelCreated(listModel: ListModel) {
         with (listModel) {
             trigger.addSource(daemonUpdate)
             trigger.addSource(settings.getBoolean("cashaddr_format"))
@@ -26,7 +26,7 @@ class ContactsFragment : ListFragment(R.layout.contacts, R.id.rvContacts) {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        btnAdd.setOnClickListener { showDialog(activity!!, ContactDialog()) }
+        btnAdd.setOnClickListener { showDialog(this, ContactDialog()) }
     }
 
     override fun onCreateAdapter() =
@@ -53,12 +53,11 @@ class ContactModel(wallet: PyObject, val contact: PyObject) : ListItemModel(wall
 }
 
 
-class ContactDialog : AlertDialogFragment() {
+class ContactDialog : DetailDialog() {
     val existingContact by lazy {
         if (arguments == null) null
-        else ContactModel(daemonModel.wallet!!,
-                          makeContact(arguments!!.getString("name")!!,
-                                      arguments!!.getString("address")!!))
+        else ContactModel(wallet, makeContact(arguments!!.getString("name")!!,
+                                              arguments!!.getString("address")!!))
     }
 
     override fun onBuildDialog(builder: AlertDialog.Builder) {
@@ -130,7 +129,6 @@ class ContactDialog : AlertDialogFragment() {
                 throw ToastException(R.string.name_is, Toast.LENGTH_SHORT)
             }
             makeAddress(address)  // Throws ToastException if invalid.
-            val wallet = daemonModel.wallet!!
             wallet.get("contacts")!!.callAttr(
                 "add", makeContact(name, address), existingContact?.contact)
             wallet.get("storage")!!.callAttr("write")
@@ -143,16 +141,16 @@ class ContactDialog : AlertDialogFragment() {
 
 class ContactDeleteDialog : AlertDialogFragment() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
+        val contactDialog = targetFragment as ContactDialog
         builder.setTitle(R.string.confirm_delete)
             .setMessage(R.string.are_you_sure_you_wish_to_delete)
             .setPositiveButton(R.string.delete) { _, _ ->
-                val wallet = daemonModel.wallet!!
-                wallet.get("contacts")!!.callAttr(
+                contactDialog.wallet.get("contacts")!!.callAttr(
                     "remove", makeContact(arguments!!.getString("name")!!,
                                           arguments!!.getString("address")!!))
-                wallet.get("storage")!!.callAttr("write")
+                contactDialog.wallet.get("storage")!!.callAttr("write")
                 daemonUpdate.setValue(Unit)
-                (targetFragment as ContactDialog).dismiss()
+                contactDialog.dismiss()
             }
             .setNegativeButton(android.R.string.cancel, null)
     }

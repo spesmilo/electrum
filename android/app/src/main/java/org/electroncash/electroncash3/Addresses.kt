@@ -37,7 +37,7 @@ class AddressesFragment : ListFragment(R.layout.addresses, R.id.rvAddresses) {
     }
     val model: Model by viewModels()
 
-    override fun onListModelCreated(listModel: ListModel, wallet: PyObject) {
+    override fun onListModelCreated(listModel: ListModel) {
         with (listModel) {
             trigger.addSource(daemonUpdate)
             trigger.addSource(settings.getBoolean("cashaddr_format"))
@@ -108,9 +108,7 @@ class AddressModel(wallet: PyObject, val addr: PyObject) : ListItemModel(wallet)
 }
 
 
-class AddressDialog : AlertDialogFragment() {
-
-    val wallet = daemonModel.wallet!!
+class AddressDialog : DetailDialog() {
     val addrModel by lazy {
         AddressModel(wallet, clsAddress.callAttr("from_string",
                                                  arguments!!.getString("address")!!))
@@ -146,7 +144,7 @@ class AddressDialog : AlertDialogFragment() {
                 val link = SpannableString(getString(R.string.show))
                 link.setSpan(object : ClickableSpan() {
                     override fun onClick(widget: View) {
-                        showDialog(activity!!,
+                        showDialog(this@AddressDialog,
                                    AddressTransactionsDialog(addrModel.toString("storage")))
                     }
                 }, 0, link.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -185,10 +183,11 @@ class AddressTransactionsDialog() : AlertDialogFragment() {
         rvTransactions.setPadding(0, 0, 0, 0)
 
         setupVerticalList(rvTransactions)
-        val adapter = TransactionsAdapter(this)
+        val addressDialog = targetFragment as AddressDialog
+        val adapter = TransactionsAdapter(addressDialog.listFragment)
         rvTransactions.adapter = adapter
         val addr = clsAddress.callAttr("from_string", arguments!!.getString("address")!!)
-        val wallet = daemonModel.wallet!!
+        val wallet = addressDialog.wallet
 
         // The list needs to auto-update in case the user sets a transaction description.
         daemonUpdate.observe(this, Observer {

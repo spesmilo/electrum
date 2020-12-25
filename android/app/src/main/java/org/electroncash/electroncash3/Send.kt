@@ -24,15 +24,15 @@ val MIN_FEE = 1  // sat/byte
 
 
 class SendDialog : TaskLauncherDialog<Unit>() {
+    val wallet = daemonModel.wallet!!
+
     init {
         // The SendDialog shouldn't be dismissed until the SendPasswordDialog succeeds.
         dismissAfterExecute = false
     }
 
     class Model : ViewModel() {
-        val wallet = daemonModel.wallet!!
         var paymentRequest: PyObject? = null
-
         val tx = BackgroundLiveData<TxArgs, TxResult>().apply {
             notifyIncomplete = false  // Only notify transactions which match the UI state.
             function = { it.invoke() }
@@ -141,7 +141,7 @@ class SendDialog : TaskLauncherDialog<Unit>() {
         get() = MIN_FEE + sbFee.progress
 
     fun refreshTx() {
-        model.tx.refresh(TxArgs(model.wallet, model.paymentRequest, etAddress.text.toString(),
+        model.tx.refresh(TxArgs(wallet, model.paymentRequest, etAddress.text.toString(),
                                 amountBox.amount, btnMax.isChecked))
     }
 
@@ -270,7 +270,7 @@ class SendDialog : TaskLauncherDialog<Unit>() {
                                      else R.drawable.ic_check_24dp)
         btnContacts.setOnClickListener {
             if (pr == null) {
-                showDialog(activity!!, SendContactsDialog())
+                showDialog(this, SendContactsDialog())
             } else {
                 toast(pr.callAttr("get_verify_status").toString())
             }
@@ -303,6 +303,8 @@ class SendDialog : TaskLauncherDialog<Unit>() {
 
 
 class GetPaymentRequestDialog() : TaskDialog<PyObject>() {
+    val sendDialog by lazy { targetFragment as SendDialog }
+
     constructor(url: String) : this() {
         arguments = Bundle().apply { putString("url", url) }
     }
@@ -310,7 +312,7 @@ class GetPaymentRequestDialog() : TaskDialog<PyObject>() {
     override fun doInBackground(): PyObject {
         val pr = libPaymentRequest.callAttr("get_payment_request",
                                             arguments!!.getString("url")!!)!!
-        if (!pr.callAttr("verify", daemonModel.wallet!!.get("contacts")!!).toBoolean()) {
+        if (!pr.callAttr("verify", sendDialog.wallet.get("contacts")!!).toBoolean()) {
             throw ToastException(pr.get("error").toString())
         }
         checkExpired(pr)
@@ -318,14 +320,16 @@ class GetPaymentRequestDialog() : TaskDialog<PyObject>() {
     }
 
     override fun onPostExecute(result: PyObject) {
-        (targetFragment as SendDialog).setPaymentRequest(result)
+        sendDialog.setPaymentRequest(result)
     }
 }
 
 
 class SendContactsDialog : MenuDialog() {
-    val contacts: List<PyObject> =
-        guiContacts.callAttr("get_contacts", daemonModel.wallet!!).asList()
+    val sendDialog by lazy { targetFragment as SendDialog }
+    val contacts: List<PyObject> by lazy {
+        guiContacts.callAttr("get_contacts", sendDialog.wallet).asList()
+    }
 
     override fun onBuildDialog(builder: AlertDialog.Builder, menu: Menu) {
         builder.setTitle(R.string.contacts)
@@ -343,7 +347,7 @@ class SendContactsDialog : MenuDialog() {
 
     override fun onMenuItemSelected(item: MenuItem) {
         val address = makeAddress(contacts.get(item.itemId).get("address").toString())
-        with (findDialog(activity!!, SendDialog::class)!!) {
+        with (sendDialog) {
             etAddress.setText(address.callAttr("to_ui_string").toString())
             amountBox.requestFocus()
         }
@@ -356,7 +360,7 @@ class SendPasswordDialog : PasswordDialog<Unit>() {
     val tx by lazy { sendDialog.model.tx.value!!.get() }
 
     override fun onPassword(password: String) {
-        val wallet = daemonModel.wallet!!
+        val wallet = sendDialog.wallet
         wallet.callAttr("sign_transaction", tx, password)
         if (!sendDialog.unbroadcasted) {
             if (!daemonModel.isConnected()) {

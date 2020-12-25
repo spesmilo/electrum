@@ -2,7 +2,6 @@ package org.electroncash.electroncash3
 
 import android.os.Bundle
 import android.view.View
-import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Observer
@@ -28,7 +27,7 @@ class ListModel : ViewModel() {
 abstract class ListFragment(fragLayout: Int, val rvId: Int) :
     Fragment(fragLayout), MainFragment {
 
-    private val wallet = daemonModel.wallet!!
+    val wallet = daemonModel.wallet!!
     private val model: ListModel by viewModels()
     private val adapter by lazy { onCreateAdapter() }
 
@@ -40,11 +39,11 @@ abstract class ListFragment(fragLayout: Int, val rvId: Int) :
                 model.data.refresh(Unit)
             }
             model.data.minInterval = MIN_REFRESH_INTERVAL
-            onListModelCreated(model, daemonModel.wallet!!)
+            onListModelCreated(model)
         }
     }
 
-    abstract fun onListModelCreated(listModel: ListModel, wallet: PyObject)
+    abstract fun onListModelCreated(listModel: ListModel)
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         val rv = view.findViewById<RecyclerView>(rvId)
@@ -59,8 +58,8 @@ abstract class ListFragment(fragLayout: Int, val rvId: Int) :
 }
 
 
-class ListAdapter<ModelType: ListItemModel, DialogType: DialogFragment>(
-    val listFragment: Fragment, itemLayout: Int,
+class ListAdapter<ModelType: ListItemModel, DialogType: DetailDialog> (
+    val listFragment: ListFragment, itemLayout: Int,
     val newModel: (PyObject, PyObject) -> ModelType,
     val newDialog: () -> DialogType
 ) : BoundAdapter<ModelType>(itemLayout) {
@@ -95,4 +94,10 @@ class ListAdapter<ModelType: ListItemModel, DialogType: DialogFragment>(
 
 abstract class ListItemModel(val wallet: PyObject) {
     abstract val dialogArguments: Bundle
+}
+
+
+abstract class DetailDialog : AlertDialogFragment() {
+    val listFragment by lazy { targetFragment as ListFragment }
+    val wallet by lazy { listFragment.wallet }
 }

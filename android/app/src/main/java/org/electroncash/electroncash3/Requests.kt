@@ -3,7 +3,6 @@ package org.electroncash.electroncash3
 import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AlertDialog
-import androidx.fragment.app.FragmentActivity
 import com.chaquo.python.PyObject
 import kotlinx.android.synthetic.main.main.*
 import kotlinx.android.synthetic.main.request_detail.*
@@ -12,7 +11,7 @@ import kotlinx.android.synthetic.main.requests.*
 
 class RequestsFragment : ListFragment(R.layout.requests, R.id.rvRequests) {
 
-    override fun onListModelCreated(listModel: ListModel, wallet: PyObject) {
+    override fun onListModelCreated(listModel: ListModel) {
         with (listModel) {
             trigger.addSource(daemonUpdate)
             trigger.addSource(settings.getString("base_unit"))
@@ -22,7 +21,7 @@ class RequestsFragment : ListFragment(R.layout.requests, R.id.rvRequests) {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        btnAdd.setOnClickListener { newRequest(activity!!) }
+        btnAdd.setOnClickListener { newRequest(this) }
     }
 
     override fun onCreateAdapter() =
@@ -30,11 +29,13 @@ class RequestsFragment : ListFragment(R.layout.requests, R.id.rvRequests) {
 }
 
 
-fun newRequest(activity: FragmentActivity) {
+fun newRequest(listFragment: ListFragment) {
     try {
-        val address = daemonModel.wallet!!.callAttr("get_unused_address")
+        val address = listFragment.wallet.callAttr("get_unused_address")
                       ?: throw ToastException(R.string.no_more)
-        showDialog(activity, RequestDialog(address.callAttr("to_storage_string").toString()))
+        showDialog(listFragment, RequestDialog().apply { arguments = Bundle().apply {
+                       putString("address", address.callAttr("to_storage_string").toString())
+                   }})
     } catch (e: ToastException) { e.show() }
 }
 
@@ -57,11 +58,9 @@ class RequestModel(wallet: PyObject, val request: PyObject) : ListItemModel(wall
 }
 
 
-class RequestDialog() : AlertDialogFragment() {
-    val wallet by lazy { daemonModel.wallet!! }
-
+class RequestDialog : DetailDialog() {
     init {
-        if (wallet.callAttr("is_watching_only").toBoolean()) {
+        if (daemonModel.wallet!!.callAttr("is_watching_only").toBoolean()) {
             throw ToastException(R.string.this_wallet_is)
         }
     }
@@ -73,10 +72,6 @@ class RequestDialog() : AlertDialogFragment() {
         wallet.callAttr("get_payment_request", address, daemonModel.config)
     }
     lateinit var amountBox: AmountBox
-
-    constructor(address: String): this() {
-        arguments = Bundle().apply { putString("address", address) }
-    }
 
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         with (builder) {
@@ -159,14 +154,15 @@ class RequestDeleteDialog() : AlertDialogFragment() {
     }
 
     override fun onBuildDialog(builder: AlertDialog.Builder) {
+        val requestDialog = targetFragment as RequestDialog
         builder.setTitle(R.string.confirm_delete)
             .setMessage(R.string.are_you_sure_you_wish_to_proceed)
             .setPositiveButton(R.string.delete) { _, _ ->
-                daemonModel.wallet!!.callAttr("remove_payment_request",
+                requestDialog.wallet.callAttr("remove_payment_request",
                                               makeAddress(arguments!!.getString("address")!!),
                                               daemonModel.config)
                 daemonUpdate.setValue(Unit)
-                (targetFragment as RequestDialog).dismiss()
+                requestDialog.dismiss()
             }
             .setNegativeButton(android.R.string.cancel, null)
     }
