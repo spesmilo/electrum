@@ -43,31 +43,43 @@ class TriggerLiveData : MediatorLiveData<Unit>() {
 
 /** Generates data by running the given function on a background thread, but only when the
  * LiveData has active observers. */
-class BackgroundLiveData<T> : MediatorLiveData<T>() {
+@Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN")
+class BackgroundLiveData<Args: Any, Result> : MediatorLiveData<Result>() {
 
-    lateinit var function: () -> T
+    lateinit var function: (Args) -> Result
+
+    /** Whether to notify observers of values which are not up to date because another refresh
+     * has been scheduled. */
+    var notifyIncomplete = true
 
     /** Minimum time in ms between the end of one refresh and the start of the next. */
     var minInterval: Long = 0
 
-    private var needRefresh = false
+    private var nextArgs: Args? = null
     private var thread: Thread? = null
     private var lastRefreshTime: Long = 0
 
-    /** Schedules a refresh. If a refresh is already in progress, another one will be started
-     * once it completes. */
-    fun refresh() {
-        runOnUiThread {
-            needRefresh = true
-            if (hasActiveObservers()) {
-                refreshNow()
-            }
+    @Synchronized fun isComplete() =
+        nextArgs == null && thread == null
+
+    @Synchronized fun waitUntilComplete() {
+        while (!isComplete()) {
+            (this as Object).wait()
         }
     }
 
-    override fun onActive() {
+    /** Schedules a refresh. If a refresh is already in progress, another one will be started
+     * once it completes. */
+    @Synchronized fun refresh(args: Args) {
+        nextArgs = args
+        if (hasActiveObservers()) {
+            refreshNow()
+        }
+    }
+
+    @Synchronized override fun onActive() {
         super.onActive()
-        if (needRefresh) {
+        if (!isComplete()) {
             refreshNow()
         }
     }
@@ -75,22 +87,28 @@ class BackgroundLiveData<T> : MediatorLiveData<T>() {
     private fun refreshNow() {
         if (thread != null) return
 
-        needRefresh = false
+        val args = nextArgs!!
+        nextArgs = null
         thread = Thread {
             val sleepTime = (lastRefreshTime + minInterval) - SystemClock.uptimeMillis()
             if (sleepTime > 0) {
                 SystemClock.sleep(sleepTime)
             }
-            val result = function()
+            val result = function(args)
             lastRefreshTime = SystemClock.uptimeMillis()
-
-            runOnUiThread {
-                setValue(result)
-                thread = null
-                if (needRefresh && hasActiveObservers()) {
-                    refreshNow()
-                }
-            }
+            runOnUiThread { refreshDone(result) }
         }.apply { start() }
+    }
+
+    @Synchronized private fun refreshDone(result: Result) {
+        if (nextArgs == null || notifyIncomplete) {
+            setValue(result)
+        }
+        thread = null
+        if (isComplete()) {
+            (this as Object).notifyAll()
+        } else if (hasActiveObservers()) {
+            refreshNow()
+        }
     }
 }

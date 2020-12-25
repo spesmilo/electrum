@@ -4,7 +4,6 @@ import android.app.Dialog
 import android.text.Editable
 import android.view.View
 import android.widget.EditText
-import android.widget.Toast
 import kotlinx.android.synthetic.main.amount_box.*
 
 
@@ -32,7 +31,7 @@ class AmountBox(val dialog: Dialog) {
                             dialog.etAmount -> {
                                 etOther = dialog.etFiat
                                 formatOther = {
-                                    formatFiatAmount(amount) ?: ""
+                                    formatFiatAmount(toSatoshis(s.toString())) ?: ""
                                 }
                             }
                             dialog.etFiat -> {
@@ -61,22 +60,23 @@ class AmountBox(val dialog: Dialog) {
         }
     }
 
-    fun clear() = dialog.etAmount.setText("")
-
-    /** Will throw ToastException if the text box is empty or zero. */
-    var amount: Long
+    var amount: Long?
         get() {
-            val amount = toSatoshis(dialog.etAmount.text.toString())
-            if (amount <= 0) {
-                // Negative amounts should be blocked by inputType, and zero amounts are
-                // invalid in both the Send and Request dialogs.
-                throw ToastException(R.string.Invalid_amount, Toast.LENGTH_SHORT)
+            val amount = try {
+                toSatoshis(dialog.etAmount.text.toString())
+            } catch (e: ToastException) {
+                return null
             }
-            return amount
+            // Both the Send and Request dialogs require a positive number.
+            return if (amount <= 0) null else amount
         }
         set(amount) {
-            dialog.etAmount.setText(formatSatoshis(amount))
-            dialog.etAmount.setSelection(dialog.etAmount.text.length)
+            if (amount == null) {
+                dialog.etAmount.setText("")
+            } else {
+                dialog.etAmount.setText(formatSatoshis(amount))
+                dialog.etAmount.setSelection(dialog.etAmount.text.length)
+            }
         }
 
     var isEditable: Boolean

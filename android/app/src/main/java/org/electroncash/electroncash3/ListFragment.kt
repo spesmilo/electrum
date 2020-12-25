@@ -21,7 +21,7 @@ class ListModel : ViewModel() {
     val trigger = TriggerLiveData()
 
     /* Returns a Python sequence whose elements can be passed to ListAdapter.newModel. */
-    val data = BackgroundLiveData<PyObject>()
+    val data = BackgroundLiveData<Unit, PyObject>()
 }
 
 
@@ -37,7 +37,7 @@ abstract class ListFragment(fragLayout: Int, val rvId: Int) :
         if (!model.started) {
             model.started = true
             model.data.addSource(model.trigger) {
-                model.data.refresh()
+                model.data.refresh(Unit)
             }
             model.data.minInterval = MIN_REFRESH_INTERVAL
             onListModelCreated(model, daemonModel.wallet!!)

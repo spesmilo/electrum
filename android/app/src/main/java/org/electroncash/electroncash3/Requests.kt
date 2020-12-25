@@ -125,26 +125,25 @@ class RequestDialog() : AlertDialogFragment() {
     }
 
     private fun getUri(): String {
-        val amount = try {
-            amountBox.amount
-        } catch (e: ToastException) { null }
-        return libWeb.callAttr("create_URI", address, amount, description).toString()
+        return libWeb.callAttr("create_URI", address, amountBox.amount, description).toString()
     }
 
     private fun onOK() {
-        try {
+        val amount = amountBox.amount
+        if (amount == null) {
+            toast(R.string.Invalid_amount)
+        } else {
             wallet.callAttr(
                 "add_payment_request",
-                wallet.callAttr("make_payment_request", address, amountBox.amount, description),
+                wallet.callAttr("make_payment_request", address, amount, description),
                 daemonModel.config)
-        } catch (e: ToastException) { e.show() }
+            daemonUpdate.setValue(Unit)
+            dismiss()
 
-        daemonUpdate.setValue(Unit)
-        dismiss()
-
-        // If the dialog was opened from the Transactions screen, we should now switch to
-        // the Requests screen so the user can verify that the request has been saved.
-        (activity as MainActivity).navBottom.selectedItemId = R.id.navRequests
+            // If the dialog was opened from the Transactions screen, we should now switch to
+            // the Requests screen so the user can verify that the request has been saved.
+            (activity as MainActivity).navBottom.selectedItemId = R.id.navRequests
+        }
     }
 
     val description

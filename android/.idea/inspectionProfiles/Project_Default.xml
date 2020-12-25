@@ -7,14 +7,15 @@
     <inspection_tool class="AndroidLintTypographyEllipsis" enabled="true" level="WEAK WARNING" enabled_by_default="true" />
     <inspection_tool class="AndroidLintUseSparseArrays" enabled="false" level="WARNING" enabled_by_default="false" />
     <inspection_tool class="AndroidLintValidFragment" enabled="true" level="WEAK WARNING" enabled_by_default="true" />
-    <inspection_tool class="Anonymous2MethodRef" enabled="false" level="WEAK WARNING" enabled_by_default="false" />
-    <inspection_tool class="Convert2Lambda" enabled="false" level="WEAK WARNING" enabled_by_default="false" />
+    <inspection_tool class="Anonymous2MethodRef" enabled="true" level="WEAK WARNING" enabled_by_default="true" />
     <inspection_tool class="FieldCanBeLocal" enabled="true" level="WEAK WARNING" enabled_by_default="true" />
+    <inspection_tool class="FieldMayBeFinal" enabled="true" level="WEAK WARNING" enabled_by_default="true" />
     <inspection_tool class="HasPlatformType" enabled="true" level="WARNING" enabled_by_default="true" />
     <inspection_tool class="MayBeConstant" enabled="false" level="WEAK WARNING" enabled_by_default="false" />
     <inspection_tool class="MemberVisibilityCanBePrivate" enabled="false" level="INFO" enabled_by_default="false" />
     <inspection_tool class="MoveLambdaOutsideParentheses" enabled="false" level="WEAK WARNING" enabled_by_default="false" />
     <inspection_tool class="NestedLambdaShadowedImplicitParameter" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="ReplaceGetOrSet" enabled="true" level="WEAK WARNING" enabled_by_default="true" />
     <inspection_tool class="SameParameterValue" enabled="false" level="WARNING" enabled_by_default="false" />
     <inspection_tool class="SpellCheckingInspection" enabled="false" level="TYPO" enabled_by_default="false">
       <option name="processCode" value="true" />

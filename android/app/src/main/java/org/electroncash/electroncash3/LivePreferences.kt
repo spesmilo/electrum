@@ -63,7 +63,7 @@ abstract class LivePreference<T>(val sp: SharedPreferences, val key: String)
 
     override fun setValue(value: T) {
         spSet(value)
-        spe.commit()  // Will trigger listener, which calls setFromPreferences.
+        spe.apply()  // Triggers listener, which calls setFromPreferences.
     }
 
     fun setFromPreferences() {
