@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import com.chaquo.python.Kwarg
 import com.chaquo.python.PyObject
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.android.synthetic.main.contact_detail.*
@@ -129,10 +130,10 @@ class ContactDialog : DetailDialog() {
                 throw ToastException(R.string.name_is, Toast.LENGTH_SHORT)
             }
             makeAddress(address)  // Throws ToastException if invalid.
-            wallet.get("contacts")!!.callAttr(
-                "add", makeContact(name, address), existingContact?.contact)
-            wallet.get("storage")!!.callAttr("write")
-            daemonUpdate.setValue(Unit)
+            val contacts = wallet.get("contacts")!!
+            contacts.callAttr("add", makeContact(name, address), existingContact?.contact,
+                               Kwarg("save", false))
+            saveContacts(wallet, contacts)
             dismiss()
         } catch (e: ToastException) { e.show() }
     }
@@ -142,14 +143,15 @@ class ContactDialog : DetailDialog() {
 class ContactDeleteDialog : AlertDialogFragment() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         val contactDialog = targetFragment as ContactDialog
+        val wallet = contactDialog.wallet
         builder.setTitle(R.string.confirm_delete)
             .setMessage(R.string.are_you_sure_you_wish_to_delete)
             .setPositiveButton(R.string.delete) { _, _ ->
-                contactDialog.wallet.get("contacts")!!.callAttr(
-                    "remove", makeContact(arguments!!.getString("name")!!,
-                                          arguments!!.getString("address")!!))
-                contactDialog.wallet.get("storage")!!.callAttr("write")
-                daemonUpdate.setValue(Unit)
+                val contacts = wallet.get("contacts")!!
+                contacts.callAttr("remove", makeContact(arguments!!.getString("name")!!,
+                                                        arguments!!.getString("address")!!),
+                                  Kwarg("save", false))
+                saveContacts(wallet, contacts)
                 contactDialog.dismiss()
             }
             .setNegativeButton(android.R.string.cancel, null)
@@ -160,3 +162,9 @@ class ContactDeleteDialog : AlertDialogFragment() {
 fun makeContact(name: String, addr: String) =
     libContacts.callAttr("Contact", name, makeAddress(addr).callAttr("to_storage_string"),
                          "address")!!
+
+
+fun saveContacts(wallet: PyObject, contacts: PyObject) {
+    saveWallet(wallet) { contacts.callAttr("save") }
+    daemonUpdate.setValue(Unit)
+}

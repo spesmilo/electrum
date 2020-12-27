@@ -142,11 +142,14 @@ class WalletStorage(PrintError):
 
     def set_password(self, password, encrypt):
         self.put('use_encryption', bool(password))
+        old_pubkey = self.pubkey
         if encrypt and password:
             ec_key = self.get_key(password)
             self.pubkey = ec_key.get_public_key()
         else:
             self.pubkey = None
+        if self.pubkey != old_pubkey:
+            self.modified = True
 
     def get(self, key, default=None):
         with self.lock:

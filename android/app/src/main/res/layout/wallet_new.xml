@@ -68,7 +68,7 @@
             app:layout_constraintTop_toBottomOf="@+id/etName"/>
 
         <EditText
-            android:id="@+id/etPassword"
+            android:id="@+id/etNewPassword"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:inputType="textPassword"
@@ -92,7 +92,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:inputType="textPassword"
-            app:layout_constraintBaseline_toBaselineOf="@+id/etPassword"
+            app:layout_constraintBaseline_toBaselineOf="@+id/etNewPassword"
             app:layout_constraintEnd_toEndOf="@+id/textView7"
             app:layout_constraintStart_toStartOf="@+id/textView7"
             tools:text="@string/password"/>

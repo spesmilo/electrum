@@ -549,7 +549,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             ret = ret and not self.pruned_txo_values
             return bool(ret)
 
-    def set_label(self, name, text = None):
+    def set_label(self, name, text=None, save=True):
         with self.lock:
             if isinstance(name, Address):
                 name = name.to_storage_string()
@@ -567,9 +567,13 @@ class Abstract_Wallet(PrintError, SPVDelegate):
 
             if changed:
                 run_hook('set_label', self, name, text)
-                self.storage.put('labels', self.labels)
+                if save:
+                    self.save_labels()
 
             return changed
+
+    def save_labels(self):
+        self.storage.put('labels', self.labels)
 
     def invalidate_address_set_cache(self):
         """This should be called from functions that add/remove addresses
@@ -2471,7 +2475,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         result['address'] = r['address'].to_storage_string()
         return result
 
-    def save_payment_requests(self):
+    def save_payment_requests(self, write=True):
         def delete_address(value):
             del value['address']
             return value
@@ -2479,7 +2483,9 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         requests = {addr.to_storage_string() : delete_address(value.copy())
                     for addr, value in self.receive_requests.items()}
         self.storage.put('payment_requests', requests)
-        self.storage.write()
+        self.save_labels()  # In case address labels were set or cleared.
+        if write:
+            self.storage.write()
 
     def sign_payment_request(self, key, alias, alias_addr, password):
         req = self.receive_requests.get(key)
@@ -2491,15 +2497,16 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         self.receive_requests[key] = req
         self.save_payment_requests()
 
-    def add_payment_request(self, req, config, set_address_label=True):
+    def add_payment_request(self, req, config, set_address_label=True, save=True):
         addr = req['address']
         addr_text = addr.to_storage_string()
         amount = req['amount']
         message = req['memo']
         self.receive_requests[addr] = req
-        self.save_payment_requests()
+        if save:
+            self.save_payment_requests()
         if set_address_label:
-            self.set_label(addr_text, message) # should be a default label
+            self.set_label(addr_text, message, save=save) # should be a default label
 
         rdir = config.get('requests_dir')
         if rdir and amount is not None:
@@ -2520,7 +2527,8 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             with open(os.path.join(path, key + '.json'), 'w', encoding='utf-8') as f:
                 f.write(json.dumps(req))
 
-    def remove_payment_request(self, addr, config, clear_address_label_if_no_tx=True):
+    def remove_payment_request(self, addr, config, clear_address_label_if_no_tx=True,
+                               save=True):
         if isinstance(addr, str):
             addr = Address.from_string(addr)
         if addr not in self.receive_requests:
@@ -2530,7 +2538,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             memo = r.get('memo')
             # clear it only if the user didn't overwrite it with something else
             if memo and memo == self.labels.get(addr.to_storage_string()):
-                self.set_label(addr, None)
+                self.set_label(addr, None, save=save)
 
         rdir = config.get('requests_dir')
         if rdir:
@@ -2539,7 +2547,8 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                 n = os.path.join(rdir, 'req', key[0], key[1], key, key + s)
                 if os.path.exists(n):
                     os.unlink(n)
-        self.save_payment_requests()
+        if save:
+            self.save_payment_requests()
         return True
 
     def get_sorted_requests(self, config):

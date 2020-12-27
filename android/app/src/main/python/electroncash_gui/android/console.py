@@ -155,7 +155,7 @@ class AndroidCommands(commands.Commands):
             storage.put('keystore', ks.dump())
             wallet = Standard_Wallet(storage)
 
-        wallet.update_password(None, password, True)
+        wallet.update_password(None, password, encrypt=True)
 
     # END commands from the argparse interface.
 

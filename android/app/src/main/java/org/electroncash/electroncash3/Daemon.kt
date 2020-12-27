@@ -1,9 +1,12 @@
 package org.electroncash.electroncash3
 
-import androidx.lifecycle.MutableLiveData
 import android.widget.Toast
+import androidx.lifecycle.MutableLiveData
 import com.chaquo.python.PyException
 import com.chaquo.python.PyObject
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 
 
 val guiDaemon by lazy { guiMod("daemon") }
@@ -70,6 +73,7 @@ class DaemonModel(val config: PyObject) {
         val prevName = walletName
         commands.callAttr("load_wallet", name, password)
         if (prevName != null && prevName != name) {
+            waitForSave()
             commands.callAttr("close_wallet", prevName)
         }
     }
@@ -91,7 +95,34 @@ fun getDescription(wallet: PyObject, key: String) =
     wallet.callAttr("get_label", key).toString()
 
 fun setDescription(wallet: PyObject, key: String, description: String) {
-    wallet.callAttr("set_label", key, description)
-    wallet.get("storage")!!.callAttr("write")
+    if (wallet.callAttr("set_label", key, description).toBoolean()) {
+        saveWallet(wallet) { wallet.callAttr("save_labels") }
+    }
     daemonUpdate.postValue(Unit)
+}
+
+
+private var saveThread = newSaveThread()
+
+private fun newSaveThread() =
+    ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue<Runnable>())
+
+// Both saving to storage and writing storage to disk should be done on a background thread.
+// Even if the save to storage is usually fast, it may be blocked by a storage.write on the
+// network thread.
+fun saveWallet(wallet: PyObject, saveToStorage: () -> Unit) {
+    saveThread.execute {
+        saveToStorage()
+        if (saveThread.queue.isEmpty()) {
+            wallet.get("storage")!!.callAttr("write")
+        }
+    }
+}
+
+fun waitForSave() {
+    saveThread.shutdown()
+    while (!saveThread.isTerminated()) {
+        saveThread.awaitTermination(1, TimeUnit.SECONDS)
+    }
+    saveThread = newSaveThread()
 }

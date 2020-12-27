@@ -315,7 +315,8 @@ class Contacts(util.PrintError):
             pass
         return False
 
-    def add(self, contact : Contact, replace_old : Contact = None, unique : bool = False) -> bool:
+    def add(self, contact : Contact, replace_old : Contact = None, unique : bool = False,
+            save : bool = True) -> bool:
         ''' Puts a contact in the contact list, appending it at the end.
         Optionally, if replace_old is specified, will replace the entry
         where replace_old resides.  If replace_old cannot be found, will simply
@@ -336,7 +337,8 @@ class Contacts(util.PrintError):
         if unique and contact in self.data:
             return False  # unique add requested, abort because already exists
         self.data.append(contact)
-        self.save()
+        if save:
+            self.save()
         return True
 
     def remove(self, contact : Contact, save : bool = True) -> bool:

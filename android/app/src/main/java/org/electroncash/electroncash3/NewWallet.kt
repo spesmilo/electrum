@@ -84,8 +84,9 @@ fun validateWalletName(name: String) {
 }
 
 
+// Also called from PasswordChangeDialog.
 fun confirmPassword(dialog: Dialog): String {
-    val password = dialog.etPassword.text.toString()
+    val password = dialog.etNewPassword.text.toString()
     if (password.isEmpty()) throw ToastException(R.string.Enter_password, Toast.LENGTH_SHORT)
     if (password != dialog.etConfirmPassword.text.toString()) {
         throw ToastException(R.string.wallet_passwords)

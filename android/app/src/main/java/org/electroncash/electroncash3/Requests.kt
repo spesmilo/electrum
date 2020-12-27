@@ -3,6 +3,7 @@ package org.electroncash.electroncash3
 import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AlertDialog
+import com.chaquo.python.Kwarg
 import com.chaquo.python.PyObject
 import kotlinx.android.synthetic.main.main.*
 import kotlinx.android.synthetic.main.request_detail.*
@@ -131,8 +132,8 @@ class RequestDialog : DetailDialog() {
             wallet.callAttr(
                 "add_payment_request",
                 wallet.callAttr("make_payment_request", address, amount, description),
-                daemonModel.config)
-            daemonUpdate.setValue(Unit)
+                daemonModel.config, Kwarg("save", false))
+            saveRequests(wallet)
             dismiss()
 
             // If the dialog was opened from the Transactions screen, we should now switch to
@@ -155,15 +156,24 @@ class RequestDeleteDialog() : AlertDialogFragment() {
 
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         val requestDialog = targetFragment as RequestDialog
+        val wallet = requestDialog.wallet
         builder.setTitle(R.string.confirm_delete)
             .setMessage(R.string.are_you_sure_you_wish_to_proceed)
             .setPositiveButton(R.string.delete) { _, _ ->
-                requestDialog.wallet.callAttr("remove_payment_request",
-                                              makeAddress(arguments!!.getString("address")!!),
-                                              daemonModel.config)
-                daemonUpdate.setValue(Unit)
+                wallet.callAttr("remove_payment_request",
+                                makeAddress(arguments!!.getString("address")!!),
+                                daemonModel.config, Kwarg("save", false))
+                saveRequests(wallet)
                 requestDialog.dismiss()
             }
             .setNegativeButton(android.R.string.cancel, null)
     }
+}
+
+
+fun saveRequests(wallet: PyObject) {
+    saveWallet(wallet) {
+        wallet.callAttr("save_payment_requests", Kwarg("write", false))
+    }
+    daemonUpdate.setValue(Unit)
 }
