@@ -491,7 +491,11 @@ class ChannelBackup(AbstractChannel):
         return False
 
     def is_static_remotekey_enabled(self) -> bool:
-        return True
+        # Return False so that self.sweep_address will return self._fallback_sweep_address
+        # Since channel backups do not save the static_remotekey, payment_basepoint in
+        # their local config is not static)
+        return False
+
 
 
 class Channel(AbstractChannel):
