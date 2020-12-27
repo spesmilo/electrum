@@ -161,12 +161,6 @@ class WalletStorage(PrintError):
         return v
 
     def put(self, key, value):
-        try:
-            json.dumps(key)
-            json.dumps(value)
-        except:
-            self.print_error("json error: cannot save", key)
-            return
         with self.lock:
             if value is not None:
                 if self.data.get(key) != value:
