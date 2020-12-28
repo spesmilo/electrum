@@ -90,6 +90,14 @@ fun formatTime(time: Long?): String =
     else libUtil.callAttr("format_time", time).toString()
 
 
+fun Context.getQuantityString(id: Int, quantity: Int, vararg args: Any) =
+    resources.getQuantityString(id, quantity, *args)
+
+// For where the quantity is also the single placeholder.
+fun Context.getQuantityString1(id: Int, quantity: Int) =
+    getQuantityString(id, quantity, quantity)
+
+
 fun showDialog(target: Fragment, frag: DialogFragment) {
     showDialog(target.activity!!, frag, target)
 }

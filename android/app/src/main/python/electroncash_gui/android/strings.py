@@ -7,10 +7,10 @@
 #
 # Please keep the strings in alphabetical order.
 
+# This file is never actually imported, but keep syntax checkers happy.
+from gettext import gettext as _, ngettext
 
-def _(s):
-    return s
-
+ngettext("%d address", "%d addresses", 1)
 _("Are you sure you want to delete your wallet \'%s\'?")
 _("BIP39 seed")
 _("Block explorer")
@@ -50,6 +50,7 @@ _("Size")
 _("Signed transaction")
 _("The string you entered has been broadcast. Please check your transactions for confirmation.")
 _("Transaction not found")
+_("%1$d tx (%2$d unverified)")
 _("Type, paste, or scan a valid signed transaction in hex format below:")
 _("Use a master key")
 _("Wallet name is too long")

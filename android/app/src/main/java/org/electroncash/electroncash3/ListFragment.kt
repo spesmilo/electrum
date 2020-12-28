@@ -12,7 +12,7 @@ import com.chaquo.python.PyObject
 
 // When synchronizing, updates will come in constantly. Avoid refreshing more often than
 // necessary, as lock contention may slow the synchronization process down.
-private val MIN_REFRESH_INTERVAL = 1000L
+val MIN_REFRESH_INTERVAL = 1000L
 
 
 class ListModel : ViewModel() {
@@ -21,7 +21,7 @@ class ListModel : ViewModel() {
 
     /* Returns a Python sequence whose elements can be passed to ListAdapter.newModel. */
     val data = BackgroundLiveData<Unit, PyObject>()
-}
+    }
 
 
 abstract class ListFragment(fragLayout: Int, val rvId: Int) :
