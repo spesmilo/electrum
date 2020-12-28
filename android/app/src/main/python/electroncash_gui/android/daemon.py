@@ -4,8 +4,10 @@ import six
 import sys
 import threading
 
+from electroncash import util
 
-def init_stdlib(handler):
+
+def initialize(handler):
     # The GIL can be a bottleneck for threads which release and acquire it many times in quick
     # succession (https://bugs.python.org/issue7946). For example, the transaction list has about 8
     # visible items on a phone-sized screen, and rendering each of them currently makes 8 Python
@@ -26,6 +28,9 @@ def init_stdlib(handler):
     threading._DummyThread.__init__ = DummyThread_init
 
     set_excepthook(handler)
+
+    # Timestamps and thread IDs are already provided by the Logcat service.
+    util.set_verbosity(True, timestamps=False, thread_id=False)
 
 
 # Patch the threading module to reraise any unhandled exceptions on the thread of the given

@@ -18,7 +18,7 @@ val daemonUpdate = MutableLiveData<Unit>().apply { value = Unit }
 
 
 fun initDaemon(config: PyObject) {
-    guiDaemon.callAttr("init_stdlib", mainHandler)
+    guiDaemon.callAttr("initialize", mainHandler)
     daemonModel = DaemonModel(config)
 }
 

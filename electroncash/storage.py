@@ -133,6 +133,7 @@ class WalletStorage(PrintError):
         ec_key = bitcoin.EC_KEY(secret)
         return ec_key
 
+    @profiler
     def decrypt(self, password):
         ec_key = self.get_key(password)
         s = zlib.decompress(ec_key.decrypt_message(self.raw)) if self.raw else None
