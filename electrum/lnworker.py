@@ -1389,6 +1389,14 @@ class LNWallet(LNWorker):
         if not routing_hints:
             self.logger.info("Warning. No routing hints added to invoice. "
                              "Other clients will likely not be able to send to us.")
+
+        # if not all hints are trampoline, do not create trampoline invoice
+        invoice_features = self.features.for_invoice()
+        hints_are_trampoline = [r[1][0][0] in TRAMPOLINES_BY_ID.keys() for r in routing_hints]
+        if not all(hints_are_trampoline):
+            invoice_features &= ~LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT
+        self.logger.info(f'invoice_features: {invoice_features}')
+
         payment_preimage = os.urandom(32)
         payment_hash = sha256(payment_preimage)
         info = PaymentInfo(payment_hash, amount_sat, RECEIVED, PR_UNPAID)
@@ -1400,7 +1408,7 @@ class LNWallet(LNWorker):
                         tags=[('d', message),
                               ('c', MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE),
                               ('x', expiry),
-                              ('9', self.features.for_invoice())]
+                              ('9', invoice_features)]
                         + routing_hints,
                         date=timestamp,
                         payment_secret=derive_payment_secret_from_payment_preimage(payment_preimage))
