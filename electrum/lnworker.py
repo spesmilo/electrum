@@ -145,6 +145,7 @@ TRAMPOLINE_NODES = {
 }
 
 TRAMPOLINES_BY_ID = dict([(x.pubkey, x) for x in TRAMPOLINE_NODES.values()])
+is_trampoline = lambda node_id: node_id in TRAMPOLINES_BY_ID.keys()
 
 # trampoline nodes are supposed to advertise their fee and cltv in node_update message
 TRAMPOLINE_FEES = [
@@ -916,7 +917,7 @@ class LNWallet(LNWorker):
                                       password: Optional[str]) -> Tuple[Channel, PartialTransaction]:
         peer = await self.add_peer(connect_str)
         # until trampoline is advertised in lnfeatures, check against hardcoded list
-        if not self.channel_db and not peer.pubkey in TRAMPOLINES_BY_ID:
+        if not self.channel_db and not is_trampoline(peer.pubkey):
             raise Exception(_('Not a trampoline node'))
         # will raise if init fails
         await asyncio.wait_for(peer.initialized, LN_P2P_NETWORK_TIMEOUT)
@@ -1213,6 +1214,8 @@ class LNWallet(LNWorker):
         # find a trampoline
         # assume direct channel to trampoline
         for chan in list(self.channels.values()):
+            if not is_trampoline(chan.node_id):
+                continue
             if chan.is_active() and chan.can_pay(amount_msat, check_frozen=True):
                 trampoline_short_channel_id = chan.short_channel_id
                 trampoline_node_id = chan.node_id
@@ -1392,7 +1395,7 @@ class LNWallet(LNWorker):
 
         # if not all hints are trampoline, do not create trampoline invoice
         invoice_features = self.features.for_invoice()
-        hints_are_trampoline = [r[1][0][0] in TRAMPOLINES_BY_ID.keys() for r in routing_hints]
+        hints_are_trampoline = [is_trampoline(r[1][0][0]) for r in routing_hints]
         if not all(hints_are_trampoline):
             invoice_features &= ~LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT
         self.logger.info(f'invoice_features: {invoice_features}')
@@ -1661,8 +1664,8 @@ class LNWallet(LNWorker):
             addrs_from_gossip = self.channel_db.get_node_addresses(chan.node_id) or []
             for host, port, ts in addrs_from_gossip:
                 peer_addresses.append(LNPeerAddr(host, port, chan.node_id))
-            # will try addresses stored in channel storage
-            peer_addresses += list(chan.get_peer_addresses())
+        # will try addresses stored in channel storage
+        peer_addresses += list(chan.get_peer_addresses())
         # Done gathering addresses.
         # Now select first one that has not failed recently.
         for peer in peer_addresses:

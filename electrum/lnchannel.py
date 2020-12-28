@@ -727,7 +727,13 @@ class Channel(AbstractChannel):
     def can_send_update_add_htlc(self) -> bool:
         return self.can_send_ctx_updates() and not self.is_closing()
 
+    def is_trampoline(self):
+        from .lnworker import is_trampoline
+        return is_trampoline(self.node_id)
+
     def is_frozen_for_sending(self) -> bool:
+        if self.lnworker.channel_db is None and not self.is_trampoline():
+            return True
         return self.storage.get('frozen_for_sending', False)
 
     def set_frozen_for_sending(self, b: bool) -> None:

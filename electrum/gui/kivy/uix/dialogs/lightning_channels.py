@@ -125,6 +125,7 @@ Builder.load_string(r'''
     can_send:''
     can_receive:''
     is_open:False
+    warning: ''
     BoxLayout:
         padding: '12dp', '12dp', '12dp', '12dp'
         spacing: '12dp'
@@ -137,6 +138,9 @@ Builder.load_string(r'''
                 height: self.minimum_height
                 size_hint_y: None
                 spacing: '5dp'
+                TopLabel:
+                    text: root.warning
+                    color: .905, .709, .509, 1
                 BoxLabel:
                     text: _('Channel ID')
                     value: root.short_id
@@ -360,6 +364,12 @@ class ChannelDetailsPopup(Popup, Logger):
         closed = chan.get_closing_height()
         if closed:
             self.closing_txid, closing_height, closing_timestamp = closed
+        msg = ' '.join([
+            _("Trampoline routing is enabled, but this channel is with a non-trampoline node."),
+            _("This channel may still be used for receiving, but it is frozen for sending."),
+            _("If you want to keep using this channel, you need to disable trampoline routing in your preferences."),
+        ])
+        self.warning = '' if self.app.wallet.lnworker.channel_db or chan.is_trampoline() else _('Warning') + ': ' + msg
 
     def close(self):
         Question(_('Close channel?'), self._close).open()

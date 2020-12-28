@@ -141,7 +141,9 @@ channels graph and compute payment path locally, instead of using trampoline pay
                 self.window.network.start_gossip()
             else:
                 self.window.network.stop_gossip()
-            self.window.update_lightning_icon()
+            util.trigger_callback('ln_gossip_sync_progress')
+            # FIXME: update all wallet windows
+            util.trigger_callback('channels_updated', self.wallet)
 
         gossip_cb.stateChanged.connect(on_gossip_checked)
         lightning_widgets.append((gossip_cb, None))
