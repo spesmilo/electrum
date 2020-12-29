@@ -12,14 +12,15 @@ from typing import Iterable, NamedTuple
 
 from aiorpcx import TaskGroup
 
+from electrum import bitcoin
 from electrum import constants
 from electrum.network import Network
 from electrum.ecc import ECPrivkey
 from electrum import simple_config, lnutil
 from electrum.lnaddr import lnencode, LnAddr, lndecode
 from electrum.bitcoin import COIN, sha256
-from electrum.util import bh2u, create_and_start_event_loop, NetworkRetryManager
-from electrum.lnpeer import Peer
+from electrum.util import bh2u, create_and_start_event_loop, NetworkRetryManager, bfh
+from electrum.lnpeer import Peer, UpfrontShutdownScriptViolation
 from electrum.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
 from electrum.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
 from electrum.lnutil import PaymentFailure, LnFeatures, HTLCOwner
@@ -121,6 +122,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         self.wallet = MockWallet()
         self.features = LnFeatures(0)
         self.features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
+        self.features |= LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT
         self.pending_payments = defaultdict(asyncio.Future)
         for chan in chans:
             chan.lnworker = self
@@ -604,6 +606,76 @@ class TestPeer(ElectrumTestCase):
             await gath
         with self.assertRaises(concurrent.futures.CancelledError):
             run(f())
+
+    @needs_test_with_all_chacha20_implementations
+    def test_close_upfront_shutdown_script(self):
+        alice_channel, bob_channel = create_test_channels()
+
+        # create upfront shutdown script for bob, alice doesn't use upfront
+        # shutdown script
+        bob_uss_pub = lnutil.privkey_to_pubkey(os.urandom(32))
+        bob_uss_addr = bitcoin.pubkey_to_address('p2wpkh', bh2u(bob_uss_pub))
+        bob_uss = bfh(bitcoin.address_to_script(bob_uss_addr))
+
+        # bob commits to close to bob_uss
+        alice_channel.config[HTLCOwner.REMOTE].upfront_shutdown_script = bob_uss
+        # but bob closes to some receiving address, which we achieve by not
+        # setting the upfront shutdown script in the channel config
+        bob_channel.config[HTLCOwner.LOCAL].upfront_shutdown_script = b''
+
+        p1, p2, w1, w2, q1, q2 = self.prepare_peers(alice_channel, bob_channel)
+        w1.network.config.set_key('dynamic_fees', False)
+        w2.network.config.set_key('dynamic_fees', False)
+        w1.network.config.set_key('fee_per_kb', 5000)
+        w2.network.config.set_key('fee_per_kb', 1000)
+
+        async def test():
+            async def close():
+                await asyncio.wait_for(p1.initialized, 1)
+                await asyncio.wait_for(p2.initialized, 1)
+                # bob closes channel with different shutdown script
+                await p1.close_channel(alice_channel.channel_id)
+                gath.cancel()
+
+            async def main_loop(peer):
+                    async with peer.taskgroup as group:
+                        await group.spawn(peer._message_loop())
+                        await group.spawn(peer.htlc_switch())
+
+            coros = [close(), main_loop(p1), main_loop(p2)]
+            gath = asyncio.gather(*coros)
+            await gath
+
+        with self.assertRaises(UpfrontShutdownScriptViolation):
+            run(test())
+
+        # bob sends the same upfront_shutdown_script has he announced
+        alice_channel.config[HTLCOwner.REMOTE].upfront_shutdown_script = bob_uss
+        bob_channel.config[HTLCOwner.LOCAL].upfront_shutdown_script = bob_uss
+
+        p1, p2, w1, w2, q1, q2 = self.prepare_peers(alice_channel, bob_channel)
+        w1.network.config.set_key('dynamic_fees', False)
+        w2.network.config.set_key('dynamic_fees', False)
+        w1.network.config.set_key('fee_per_kb', 5000)
+        w2.network.config.set_key('fee_per_kb', 1000)
+
+        async def test():
+            async def close():
+                await asyncio.wait_for(p1.initialized, 1)
+                await asyncio.wait_for(p2.initialized, 1)
+                await p1.close_channel(alice_channel.channel_id)
+                gath.cancel()
+
+            async def main_loop(peer):
+                async with peer.taskgroup as group:
+                    await group.spawn(peer._message_loop())
+                    await group.spawn(peer.htlc_switch())
+
+            coros = [close(), main_loop(p1), main_loop(p2)]
+            gath = asyncio.gather(*coros)
+            await gath
+        with self.assertRaises(asyncio.CancelledError):
+            run(test())
 
     def test_channel_usage_after_closing(self):
         alice_channel, bob_channel = create_test_channels()
