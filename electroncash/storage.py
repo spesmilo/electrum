@@ -184,7 +184,9 @@ class WalletStorage(PrintError):
             return
         if not self.modified:
             return
-        s = json.dumps(self.data, indent=4, sort_keys=True)
+        s = json.dumps(self.data,
+                       indent=None if self.pubkey else 4,  # Fast settings if encrypted,
+                       sort_keys=not self.pubkey)          # readable settings otherwise.
         if self.pubkey:
             s = bytes(s, 'utf8')
             c = zlib.compress(s)
