@@ -32,15 +32,17 @@ class ChannelsList(MyTreeView):
     class Columns(IntEnum):
         SHORT_CHANID = 0
         NODE_ALIAS = 1
-        LOCAL_BALANCE = 2
-        REMOTE_BALANCE = 3
-        CHANNEL_STATUS = 4
+        CAPACITY = 2
+        LOCAL_BALANCE = 3
+        REMOTE_BALANCE = 4
+        CHANNEL_STATUS = 5
 
     headers = {
         Columns.SHORT_CHANID: _('Short Channel ID'),
         Columns.NODE_ALIAS: _('Node alias'),
-        Columns.LOCAL_BALANCE: _('Local'),
-        Columns.REMOTE_BALANCE: _('Remote'),
+        Columns.CAPACITY: _('Capacity'),
+        Columns.LOCAL_BALANCE: _('Can send'),
+        Columns.REMOTE_BALANCE: _('Can receive'),
         Columns.CHANNEL_STATUS: _('Status'),
     }
 
@@ -69,8 +71,8 @@ class ChannelsList(MyTreeView):
     def format_fields(self, chan):
         labels = {}
         for subject in (REMOTE, LOCAL):
-            bal_minus_htlcs = chan.balance_minus_outgoing_htlcs(subject)//1000
-            label = self.parent.format_amount(bal_minus_htlcs)
+            can_send = chan.available_to_spend(subject) / 1000
+            label = self.parent.format_amount(can_send)
             other = subject.inverted()
             bal_other = chan.balance(other)//1000
             bal_minus_htlcs_other = chan.balance_minus_outgoing_htlcs(other)//1000
@@ -83,6 +85,7 @@ class ChannelsList(MyTreeView):
         return [
             chan.short_id_for_GUI(),
             node_alias,
+            self.parent.format_amount(chan.constraints.capacity),
             '' if closed else labels[LOCAL],
             '' if closed else labels[REMOTE],
             status

@@ -1774,20 +1774,22 @@ class LNWallet(LNWorker):
                                for chan in self.channels.values())) / 1000
 
     def num_sats_can_send(self) -> Decimal:
-        send_values = [Decimal(0)]
+        can_send = Decimal(0)
         with self.lock:
             if self.channels:
                 for c in self.channels.values():
-                    send_values.append(Decimal(c.available_to_spend(LOCAL)) / 1000)
-        return max(send_values)
+                    if c.is_active() and not c.is_frozen_for_sending():
+                        can_send += Decimal(c.available_to_spend(LOCAL)) / 1000
+        return can_send
 
     def num_sats_can_receive(self) -> Decimal:
-        receive_values = [Decimal(0)]
+        can_receive = Decimal(0)
         with self.lock:
             if self.channels:
                 for c in self.channels.values():
-                    receive_values.append(Decimal(c.available_to_spend(REMOTE)) / 1000)
-        return max(receive_values)
+                    if c.is_active() and not c.is_frozen_for_receiving():
+                        can_receive += Decimal(c.available_to_spend(REMOTE)) / 1000
+        return can_receive
 
     def can_pay_invoice(self, invoice: LNInvoice) -> bool:
         return invoice.get_amount_sat() <= self.num_sats_can_send()
