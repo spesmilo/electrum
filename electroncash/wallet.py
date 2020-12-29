@@ -525,6 +525,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         with self.lock:
             self.up_to_date = up_to_date
             if up_to_date:
+                self.save_addresses()
                 self.save_transactions()
                 # if the verifier is also up to date, persist that too;
                 # otherwise it will persist its results when it finishes
@@ -2138,6 +2139,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             # Now no references to the syncronizer or verifier
             # remain so they will be GC-ed
             self.storage.put('stored_height', self.get_local_height())
+        self.save_addresses()
         self.save_transactions()
         self.save_verified_tx()  # implicit cashacct.save
         self.storage.put('frozen_coins', list(self.frozen_coins))
@@ -3044,7 +3046,7 @@ class Deterministic_Wallet(Abstract_Wallet):
                 if n > nmax: nmax = n
         return nmax + 1
 
-    def create_new_address(self, for_change=False):
+    def create_new_address(self, for_change=False, save=True):
         for_change = bool(for_change)
         with self.lock:
             addr_list = self.change_addresses if for_change else self.receiving_addresses
@@ -3052,7 +3054,8 @@ class Deterministic_Wallet(Abstract_Wallet):
             x = self.derive_pubkeys(for_change, n)
             address = self.pubkeys_to_address(x)
             addr_list.append(address)
-            self.save_addresses()
+            if save:
+                self.save_addresses()
             self.add_address(address)
             return address
 
@@ -3061,12 +3064,12 @@ class Deterministic_Wallet(Abstract_Wallet):
         while True:
             addresses = self.get_change_addresses() if for_change else self.get_receiving_addresses()
             if len(addresses) < limit:
-                self.create_new_address(for_change)
+                self.create_new_address(for_change, save=False)
                 continue
             if all(map(lambda a: not self.address_is_old(a), addresses[-limit:] )):
                 break
             else:
-                self.create_new_address(for_change)
+                self.create_new_address(for_change, save=False)
 
     def synchronize(self):
         with self.lock:
