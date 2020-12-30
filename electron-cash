@@ -413,7 +413,7 @@ def run_daemon(config, config_options):
     sys.exit(1)
 
 
-def run_cmdline(config, config_options, cmdname, result):
+def run_cmdline(config, config_options, cmdname):
     """Run Electron Cash in command line mode"""
     server = daemon.get_server(config)
     init_cmdline(config_options, server)
@@ -566,7 +566,7 @@ def main():
     elif cmdname == "daemon":
         result = run_daemon(config, config_options)
     else:
-        result = run_cmdline(config, config_options, cmdname, result)
+        result = run_cmdline(config, config_options, cmdname)
 
     # print result
     print_result(result)
