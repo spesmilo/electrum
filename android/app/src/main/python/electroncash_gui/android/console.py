@@ -5,6 +5,7 @@ import os
 from os.path import dirname, exists, join, split
 import pkgutil
 from shutil import copyfile
+from time import time
 
 from electroncash import commands, daemon, keystore, storage, util
 from electroncash.i18n import _
@@ -79,12 +80,13 @@ class AndroidCommands(commands.Commands):
 
         # Create daemon here rather than in start() so the DaemonModel has a chance to register
         # its callback before the daemon threads start.
-        self.daemon = daemon.Daemon(self.config, fd, False, None)
+        self.daemon = daemon.Daemon(self.config, fd, is_gui=False, plugins=None)
         self.daemon_running = False
 
         self.gui_callback = None
         self.network = self.daemon.network
         self.network.register_callback(self._on_callback, CALLBACKS)
+        self.network.add_jobs([AutoSaver(self.daemon)])
 
     # BEGIN commands from the argparse interface.
 
@@ -247,3 +249,27 @@ all_commands = commands.known_commands.copy()
 for name, func in vars(AndroidCommands).items():
     if not name.startswith("_"):
         all_commands[name] = commands.Command(func, "")
+
+
+AUTO_SAVE_INTERVAL = 300
+
+class AutoSaver(util.ThreadJob):
+    """Save wallets periodically if they've been syncing for a long time. This avoids losing
+    too much progress if the process is killed or the phone is turned off.
+    """
+    def __init__(self, daemon):
+        self.daemon = daemon
+        self.syncing = {}
+
+    def run(self):
+        for name, wallet in self.daemon.wallets.items():
+            if wallet.is_fully_settled_down():
+                self.syncing.pop(name, None)
+            else:
+                last_save = self.syncing.setdefault(name, time())
+                if time() - last_save > AUTO_SAVE_INTERVAL:
+                    wallet.save_network_state()
+                    self.syncing[name] = time()
+
+        for name in [name for name in self.syncing if name not in self.daemon.wallets]:
+            del self.syncing[name]

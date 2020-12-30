@@ -389,8 +389,7 @@ fun getCaption(): Caption {
         } else if (wallet == null) {
             subtitle = app.getString(R.string.online)
         } else {
-            val unverifiedCount = wallet.callAttr("get_unverified_tx_pending_count").toInt()
-            if (unverifiedCount == 0 && wallet.callAttr("is_fully_settled_down").toBoolean()) {
+            if (wallet.callAttr("is_fully_settled_down").toBoolean()) {
                 // get_balance returns the tuple (confirmed, unconfirmed, unmatured)
                 val balance = wallet.callAttr("get_balance").asList().get(0).toLong()
                 subtitle = ltr(formatSatoshisAndFiat(balance))
@@ -398,10 +397,11 @@ fun getCaption(): Caption {
                 // get_addresses copies the list, which may be very large.
                 val addrCount = wallet.callAttr("get_receiving_addresses").asList().size +
                                 wallet.callAttr("get_change_addresses").asList().size
-                subtitle = app.getQuantityString1(R.plurals._d_address, addrCount) + " | " +
-                           app.getString(R.string.tx_unverified,
-                                         wallet.get("transactions")!!.asList().size,
-                                         unverifiedCount)
+                subtitle =
+                    app.getQuantityString1(R.plurals._d_address, addrCount) + " | " +
+                    app.getString(R.string.tx_unverified,
+                                  wallet.get("transactions")!!.asList().size,
+                                  wallet.callAttr("get_unverified_tx_pending_count").toInt())
             }
         }
     }
