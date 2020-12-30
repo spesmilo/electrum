@@ -1201,16 +1201,17 @@ class LNWallet(LNWorker):
         amount_msat = decoded_invoice.get_amount_msat()
         invoice_pubkey = decoded_invoice.pubkey.serialize()
         invoice_features = decoded_invoice.get_tag('9') or 0
-        is_legacy = not bool(invoice_features & LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT)
         r_tags = decoded_invoice.get_routing_info()
-        if not is_legacy:
-            #the invoice routing info contains a trampoline node
-            for r_tag in r_tags:
-                if len(r_tag) == 1:
-                    final_edge = r_tag[0]
-                    break
-            else:
-                is_legacy = True
+        # FIXME: we use our hardcoded list to determine is_legacy,
+        # because we do not generate trampoline invoices yet
+        #is_legacy = not bool(invoice_features & LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT)
+        for r_tag in r_tags:
+            if len(r_tag) == 1 and is_trampoline(r_tag[0][0]):
+                final_edge = r_tag[0]
+                is_legacy = False
+                break
+        else:
+            is_legacy = True
         # find a trampoline
         # assume direct channel to trampoline
         for chan in list(self.channels.values()):
@@ -1395,9 +1396,10 @@ class LNWallet(LNWorker):
 
         # if not all hints are trampoline, do not create trampoline invoice
         invoice_features = self.features.for_invoice()
-        hints_are_trampoline = [is_trampoline(r[1][0][0]) for r in routing_hints]
-        if not all(hints_are_trampoline):
-            invoice_features &= ~LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT
+        # Note: trampoline invoices are disabled until Phoenix handles them
+        #hints_are_trampoline = [is_trampoline(r[1][0][0]) for r in routing_hints]
+        #if not all(hints_are_trampoline):
+        invoice_features &= ~LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT
         self.logger.info(f'invoice_features: {invoice_features}')
 
         payment_preimage = os.urandom(32)
