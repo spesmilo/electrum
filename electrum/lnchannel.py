@@ -1095,6 +1095,9 @@ class Channel(AbstractChannel):
         sender = subject
         receiver = subject.inverted()
         initiator = LOCAL if self.constraints.is_initiator else REMOTE  # the initiator/funder pays on-chain fees
+        is_frozen = self.is_frozen_for_sending() if subject == LOCAL else self.is_frozen_for_receiving()
+        if not self.is_active() or is_frozen:
+            return 0
 
         def consider_ctx(*, ctx_owner: HTLCOwner, is_htlc_dust: bool) -> int:
             ctn = self.get_next_ctn(ctx_owner)
@@ -1488,4 +1491,3 @@ class Channel(AbstractChannel):
             self.logger.info('funding outpoint mismatch')
             return False
         return True
-
