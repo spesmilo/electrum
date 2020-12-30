@@ -97,7 +97,7 @@ class ScanBeyondGap(WindowModalDialog, PrintError):
         self.found_label.setText('')
         def reject():
             super(ScanBeyondGap, self).reject()
-        if self.thread.isAlive():
+        if self.thread.is_alive():
             # We do the below so the user can get the "Canceling..." text
             # before we begin waiting for the worker thread and blocking the
             # UI thread.
