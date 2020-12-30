@@ -1259,7 +1259,8 @@ class Abstract_Wallet(PrintError, SPVDelegate):
     def add_transaction(self, tx_hash, tx):
         if not tx.inputs():
             # bad tx came in off the wire -- all 0's or something, see #987
-            self.print_error("add_transaction: WARNING a tx came in from the network with 0 inputs! Bad server? Ignoring tx:", tx_hash)
+            self.print_error("add_transaction: WARNING a tx came in from the network with 0 inputs!"
+                             " Bad server? Ignoring tx:", tx_hash)
             return
         is_coinbase = tx.inputs()[0]['type'] == 'coinbase'
         with self.lock:
@@ -1274,21 +1275,21 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                     d[addr] = l = []
                 l.append((ser, v))
             def find_in_self_txo(prevout_hash: str, prevout_n: int) -> tuple:
-                ''' Returns a tuple of the (Address,value) for a given
+                """Returns a tuple of the (Address,value) for a given
                 prevout_hash:prevout_n, or (None, None) if not found. If valid
                 return, the Address object is found by scanning self.txo. The
                 lookup below is relatively fast in practice even on pathological
-                wallets. '''
+                wallets."""
                 dd = self.txo.get(prevout_hash, {})
                 for addr2, item in dd.items():
                     for n, v, is_cb in item:
                         if n == prevout_n:
                             return addr2, v
                 return (None, None)
-            def txin_get_info(txin):
+            def txin_get_info(txi):
                 prevout_hash = txi['prevout_hash']
                 prevout_n = txi['prevout_n']
-                ser = prevout_hash + ':%d'%prevout_n
+                ser = f'{prevout_hash}:{prevout_n}'
                 return prevout_hash, prevout_n, ser
             def put_pruned_txo(ser, tx_hash):
                 self.pruned_txo[ser] = tx_hash
