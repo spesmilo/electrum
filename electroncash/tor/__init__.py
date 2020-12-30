@@ -1,5 +1,5 @@
 # Electron Cash - lightweight Bitcoin client
-# Copyright (C) 2019 Axel Gembe <derago@gmail.com>
+# Copyright (C) 2019, 2020 Axel Gembe <derago@gmail.com>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -21,4 +21,4 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from .controller import TorController
+from .controller import TorController, check_proxy_bypass_tor_control

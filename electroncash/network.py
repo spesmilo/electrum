@@ -1,5 +1,6 @@
 # Electrum - Lightweight Bitcoin Client
 # Copyright (c) 2011-2016 Thomas Voegtlin
+# Copyright (C) 2017-2020 The Electron Cash Developers
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -44,7 +45,7 @@ from .i18n import _
 from .interface import Connection, Interface
 from . import blockchain
 from . import version
-from .tor import TorController
+from .tor import TorController, check_proxy_bypass_tor_control
 from .utils import Event
 
 DEFAULT_AUTO_CONNECT = True
@@ -188,6 +189,23 @@ def deserialize_server(server_str):
 
 def serialize_server(host, port, protocol):
     return str(':'.join([host, port, protocol]))
+
+
+bypass_proxy_filters = [check_proxy_bypass_tor_control]
+
+
+def _socksocket_filtered(*args, **kwargs):
+    """
+    This function checks bypass_proxy_filters and if any of the filters returns true
+    a raw socket will be returned, otherwise a socks socket will be returned.
+    """
+    if any(f(*args, **kwargs) for f in bypass_proxy_filters):
+        if socket._socketobject:
+            return socket._socketobject(*args, **kwargs)
+        else:
+            return socket.socket(*args, **kwargs)
+    else:
+        return socks.socksocket(*args, **kwargs)
 
 
 class Network(util.DaemonThread):
@@ -619,7 +637,7 @@ class Network(util.DaemonThread):
                                   # socks.py seems to want either None or a non-empty string
                                   username=(proxy.get("user", "") or None),
                                   password=(proxy.get("password", "") or None))
-            socket.socket = socks.socksocket
+            socket.socket = _socksocket_filtered
             # prevent dns leaks, see http://stackoverflow.com/questions/13184205/dns-over-proxy
             socket.getaddrinfo = lambda *args: [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
         else:
