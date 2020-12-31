@@ -19,13 +19,11 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.TextView
 import android.widget.Toast
-import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.observe
 import com.chaquo.python.Kwarg
 import kotlinx.android.synthetic.main.main.*
@@ -61,14 +59,6 @@ class MainActivity : AppCompatActivity(R.layout.main) {
     var walletName: String? = null
     var viewStateRestored = false
     var pendingDrawerItem: MenuItem? = null
-
-    class Model : ViewModel() {
-        val caption = BackgroundLiveData<Unit, Caption>().apply {
-            function = { getCaption() }
-            minInterval = MIN_REFRESH_INTERVAL
-        }
-    }
-    val model: Model by viewModels()
 
     override fun onCreate(state: Bundle?) {
         // Remove splash screen: doesn't work if called after super.onCreate.
@@ -114,9 +104,7 @@ class MainActivity : AppCompatActivity(R.layout.main) {
         }
 
         daemonUpdate.observe(this, { refresh() })
-        settings.getString("base_unit").observe(this, { updateToolbar() })
-        fiatUpdate.observe(this, { updateToolbar() })
-        model.caption.observe(this, ::onCaption)
+        caption.observe(this, ::onCaption)
 
         // LiveData observers are activated after onStart returns. But this means that if an
         // observer modifies a view, the modification could be undone by
@@ -133,9 +121,7 @@ class MainActivity : AppCompatActivity(R.layout.main) {
     }
 
     fun refresh() {
-        updateToolbar()
         updateDrawer()
-
         val newWalletName = daemonModel.walletName
         if (cleanStart || (newWalletName != walletName)) {
             walletName = newWalletName
@@ -149,22 +135,24 @@ class MainActivity : AppCompatActivity(R.layout.main) {
     override fun onBackPressed() {
         if (drawer.isDrawerOpen(navDrawer)) {
             closeDrawer()
+        } else if (daemonModel.wallet != null) {
+            // We allow the wallet to be closed using the Back button because the Close command
+            // in the top right menu isn't very obvious. However, we require confirmation so
+            // the user doesn't close it accidentally by pressing Back too many times.
+            showDialog(this, WalletCloseConfirmDialog())
         } else {
             super.onBackPressed()
         }
     }
 
-    fun updateToolbar() {
-        model.caption.refresh(Unit)
-    }
-
     fun onCaption(caption: Caption) {
+        val walletName = caption.walletName ?: app.getString(R.string.No_wallet)
         if (resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
-            setTitle(caption.title)
+            setTitle(walletName)
             supportActionBar!!.setSubtitle(caption.subtitle)
         } else {
             // Landscape subtitle is too small, so combine it with the title.
-            setTitle("${caption.title} | ${caption.subtitle}")
+            setTitle("$walletName | ${caption.subtitle}")
         }
     }
 
@@ -374,41 +362,6 @@ class MainActivity : AppCompatActivity(R.layout.main) {
 }
 
 
-class Caption(val title: String, val subtitle: String)
-
-fun getCaption(): Caption {
-    val wallet = daemonModel.wallet
-    val subtitle: String
-    if (! daemonModel.isConnected()) {
-        subtitle = app.getString(R.string.offline)
-    } else {
-        val localHeight = daemonModel.network.callAttr("get_local_height").toInt()
-        val serverHeight = daemonModel.network.callAttr("get_server_height").toInt()
-        if (localHeight < serverHeight) {
-            subtitle = "$localHeight / $serverHeight ${app.getString(R.string.blocks)}"
-        } else if (wallet == null) {
-            subtitle = app.getString(R.string.online)
-        } else {
-            if (wallet.callAttr("is_fully_settled_down").toBoolean()) {
-                // get_balance returns the tuple (confirmed, unconfirmed, unmatured)
-                val balance = wallet.callAttr("get_balance").asList().get(0).toLong()
-                subtitle = ltr(formatSatoshisAndFiat(balance))
-            } else {
-                // get_addresses copies the list, which may be very large.
-                val addrCount = wallet.callAttr("get_receiving_addresses").asList().size +
-                                wallet.callAttr("get_change_addresses").asList().size
-                subtitle =
-                    app.getQuantityString1(R.plurals._d_address, addrCount) + " | " +
-                    app.getString(R.string.tx_unverified,
-                                  wallet.get("transactions")!!.asList().size,
-                                  wallet.callAttr("get_unverified_tx_pending_count").toInt())
-            }
-        }
-    }
-    return Caption(wallet?.toString() ?: app.getString(R.string.No_wallet), subtitle)
-}
-
-
 class WalletNotOpenFragment : Fragment(), MainFragment {
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
                               savedInstanceState: Bundle?): View? {
@@ -519,6 +472,18 @@ class WalletDeleteDialog : WalletCloseDialog() {
     override fun onPostExecute(result: Unit) {
         (activity as MainActivity).updateDrawer()
         super.onPostExecute(result)
+    }
+}
+
+
+class WalletCloseConfirmDialog : AlertDialogFragment() {
+    override fun onBuildDialog(builder: AlertDialog.Builder) {
+        builder.setTitle(daemonModel.walletName!!)
+            .setMessage(R.string.do_you_want_to_close)
+            .setPositiveButton(R.string.close_wallet, { _, _ ->
+                showDialog(activity!!, WalletCloseDialog())
+            })
+            .setNegativeButton(android.R.string.cancel, null)
     }
 }
 

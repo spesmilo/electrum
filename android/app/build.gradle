@@ -117,11 +117,11 @@ android {
 }
 
 afterEvaluate {
-    def stringsTask = task("generateStrings", type: Exec) {
-        // The task runs automatically the first time the app is built. To run it again later,
-        // delete STRINGS_DIR and then rebuild the app.
+    // See "Strings" section in README.md.
+    task("generateStrings", type: Exec) {
         def scriptFilename = "generate_strings.py"
         inputs.file scriptFilename
+        inputs.file "src/main/python/electroncash_gui/android/strings.py"
         outputs.upToDateWhen { file(STRINGS_DIR).exists() }
         doFirst {
             delete(STRINGS_DIR)
@@ -135,10 +135,16 @@ afterEvaluate {
         }
         args scriptFilename, STRINGS_DIR
     }
-
     for (variant in android.applicationVariants) {
         tasks.getByName("generate${variant.name.capitalize()}Resources")
-            .dependsOn(stringsTask)
+            .dependsOn("generateStrings")
+    }
+
+    task("deleteStrings") {
+        doLast { delete(STRINGS_DIR) }
+    }
+    task("regenerateStrings") {
+        dependsOn ("deleteStrings", "generateStrings")
     }
 }
 

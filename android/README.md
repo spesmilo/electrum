@@ -1,6 +1,5 @@
 # Electron Cash Android app
 
-
 ## Release
 
 The Android app can be built on any OS which can run the Android development tools. However,
@@ -20,7 +19,6 @@ Run `build.sh`. The APK will be generated in `release` in this directory.
 
 Between builds it may be helpful to free up disk space with the command `docker system prune`.
 
-
 ## Development
 
 To start developing the app, just open this directory in Android Studio.
@@ -34,8 +32,9 @@ script `contrib/make_locale` to obtain strings from elsewhere in the repository 
 Android-specific strings should be added to
 `app/src/main/python/electroncash_gui/android/strings.py`.
 
-`generateStrings` is run automatically the first time you build the app. If any of the source
-strings change, delete the directory `app/build/generated/ec_strings` and then rebuild the app.
+`generateStrings` is run automatically the first time you build the app, and whenever you edit
+`strings.py`. If you need to pick up new strings from any of the other source files, run the
+task `regenerateStrings`.
 
 The Android string IDs are generated from the first 2 words of each string, plus as many more
 words as necessary to make them unique. So if any of the source strings change, you may need to
