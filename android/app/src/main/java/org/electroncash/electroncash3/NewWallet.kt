@@ -122,6 +122,7 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
     override fun onPostExecute(result: String) {
         (targetFragment as NewWalletDialog1).dismiss()
         daemonModel.commands.callAttr("select_wallet", result)
+        (activity as MainActivity).updateDrawer()
     }
 }
 

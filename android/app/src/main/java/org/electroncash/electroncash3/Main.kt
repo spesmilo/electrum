@@ -97,6 +97,7 @@ class MainActivity : AppCompatActivity(R.layout.main) {
                 }
             }
         })
+        updateDrawer()
 
         navBottom.setOnNavigationItemSelectedListener {
             showFragment(it.itemId)
@@ -121,7 +122,6 @@ class MainActivity : AppCompatActivity(R.layout.main) {
     }
 
     fun refresh() {
-        updateDrawer()
         val newWalletName = daemonModel.walletName
         if (cleanStart || (newWalletName != walletName)) {
             walletName = newWalletName
@@ -405,6 +405,7 @@ class WalletOpenDialog : PasswordDialog<String>() {
 
     override fun onPostExecute(result: String) {
         daemonModel.commands.callAttr("select_wallet", result)
+        (activity as MainActivity).updateDrawer()
     }
 
     override fun onBuildDialog(builder: AlertDialog.Builder) {
@@ -468,11 +469,6 @@ class WalletDeleteDialog : WalletCloseDialog() {
         super.doInBackground()
         daemonModel.commands.callAttr("delete_wallet", walletName)
     }
-
-    override fun onPostExecute(result: Unit) {
-        (activity as MainActivity).updateDrawer()
-        super.onPostExecute(result)
-    }
 }
 
 
@@ -506,7 +502,10 @@ open class WalletCloseDialog : TaskDialog<Unit>() {
     }
 
     override fun onPostExecute(result: Unit) {
-        (activity as MainActivity).openDrawer()
+        with (activity as MainActivity) {
+            updateDrawer()
+            openDrawer()
+        }
     }
 }
 
@@ -578,7 +577,7 @@ class WalletRenameDialog : TaskLauncherDialog<String?>() {
                 arguments = Bundle().apply { putString("walletName", newWalletName) }
             })
         }
-        (activity as MainActivity).refresh()
+        (activity as MainActivity).updateDrawer()
     }
 }
 
