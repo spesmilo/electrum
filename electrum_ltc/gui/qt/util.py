@@ -790,6 +790,14 @@ class ButtonsWidget(QWidget):
         self.app.clipboard().setText(self.text())
         QToolTip.showText(QCursor.pos(), _("Text copied to clipboard"), self)
 
+    def addPasteButton(self, app):
+        self.app = app
+        self.addButton("copy.png", self.on_paste, _("Paste from clipboard"))
+
+    def on_paste(self):
+        self.setText(self.app.clipboard().text())
+
+
 class ButtonsLineEdit(QLineEdit, ButtonsWidget):
     def __init__(self, text=None):
         QLineEdit.__init__(self, text)

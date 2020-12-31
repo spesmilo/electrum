@@ -539,6 +539,9 @@ class LNWallet(LNWorker):
         self.lnrater: LNRater = None
         self.features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
         self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_REQ
+        # we do not want to receive unrequested gossip (see lnpeer.maybe_save_remote_update)
+        self.features |= LnFeatures.GOSSIP_QUERIES_REQ
+
         self.payments = self.db.get_dict('lightning_payments')     # RHASH -> amount, direction, is_paid  # FIXME amt should be msat
         self.preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
         # note: this sweep_address is only used as fallback; as it might result in address-reuse
@@ -1401,8 +1404,7 @@ class LNWallet(LNWorker):
         with self.lock:
             if self.channels:
                 for c in self.channels.values():
-                    if c.is_active() and not c.is_frozen_for_sending():
-                        send_values.append(Decimal(c.available_to_spend(LOCAL)) / 1000)
+                    send_values.append(Decimal(c.available_to_spend(LOCAL)) / 1000)
         return max(send_values)
 
     def num_sats_can_receive(self) -> Decimal:
@@ -1410,8 +1412,7 @@ class LNWallet(LNWorker):
         with self.lock:
             if self.channels:
                 for c in self.channels.values():
-                    if c.is_active() and not c.is_frozen_for_receiving():
-                        receive_values.append(Decimal(c.available_to_spend(REMOTE)) / 1000)
+                    receive_values.append(Decimal(c.available_to_spend(REMOTE)) / 1000)
         return max(receive_values)
 
     def can_pay_invoice(self, invoice: LNInvoice) -> bool:

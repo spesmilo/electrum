@@ -256,6 +256,8 @@ class Peer(Logger):
         self.gossip_queue.put_nowait(('channel_update', payload))
 
     def maybe_save_remote_update(self, payload):
+        if not self.channels:
+            return
         for chan in self.channels.values():
             if chan.short_channel_id == payload['short_channel_id']:
                 chan.set_remote_update(payload['raw'])
@@ -265,7 +267,14 @@ class Peer(Logger):
             # Save (some bounded number of) orphan channel updates for later
             # as it might be for our own direct channel with this peer
             # (and we might not yet know the short channel id for that)
+            # Background: this code is here to deal with a bug in LND,
+            # see https://github.com/lightningnetwork/lnd/issues/3651
+            # and https://github.com/lightningnetwork/lightning-rfc/pull/657
+            # This code assumes gossip_queries is set. BOLT7: "if the
+            # gossip_queries feature is negotiated, [a node] MUST NOT
+            # send gossip it did not generate itself"
             short_channel_id = ShortChannelID(payload['short_channel_id'])
+            self.logger.info(f'received orphan channel update {short_channel_id}')
             self.orphan_channel_updates[short_channel_id] = payload
             while len(self.orphan_channel_updates) > 25:
                 self.orphan_channel_updates.popitem(last=False)
