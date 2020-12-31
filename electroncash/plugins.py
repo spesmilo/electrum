@@ -31,6 +31,7 @@ import sys
 import threading
 import time
 import traceback
+from warnings import warn
 import zipimport
 
 from collections import namedtuple, defaultdict
@@ -581,12 +582,11 @@ def run_hook(name, *args, **kwargs):
 
     this_thread = threading.current_thread()
     if this_thread is not threading.main_thread():
-        msg = (f'Warning: run_hook "{name}" being called from outside the main'
-               f' thread (thr: {this_thread.name}) may lead to undefined'
-                ' behavior. Please use util.do_in_main_thread to call run_hook'
-                ' if the hook in question does not return any results.'
-                '\nTraceback:\n') + ''.join(traceback.format_stack())
-        print_error(msg)
+        warn(f'run_hook "{name}" being called from outside the main'
+             f' thread (thr: {this_thread.name}) may lead to undefined'
+             ' behavior. Please use util.do_in_main_thread to call run_hook'
+             ' if the hook in question does not return any results.',
+             stacklevel=2)
     f_list = hooks.get(name)
     if not f_list:
         # short-circuit return: most of the time this code path is taken
