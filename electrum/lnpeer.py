@@ -194,7 +194,7 @@ class Peer(Logger):
                 payload['raw'] = message
             execution_result = f(*args)
             if asyncio.iscoroutinefunction(f):
-                asyncio.ensure_future(execution_result)
+                asyncio.ensure_future(self.taskgroup.spawn(execution_result))
 
     def on_error(self, payload):
         self.logger.info(f"remote peer sent error [DO NOT TRUST THIS MESSAGE]: {payload['data'].decode('ascii')}")
