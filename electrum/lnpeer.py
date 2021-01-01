@@ -193,7 +193,7 @@ class Peer(Logger):
                 payload['raw'] = message
             execution_result = f(*args)
             if asyncio.iscoroutinefunction(f):
-                asyncio.ensure_future(execution_result)
+                asyncio.ensure_future(self.taskgroup.spawn(execution_result))
 
     def on_error(self, payload):
         self.logger.info(f"remote peer sent error [DO NOT TRUST THIS MESSAGE]: {payload['data'].decode('ascii')}")
@@ -1405,7 +1405,6 @@ class Peer(Logger):
         self.logger.info(f'({chan.get_id_for_log()}) Channel closed {txid}')
         return txid
 
-    @log_exceptions
     async def on_shutdown(self, chan: Channel, payload):
         their_scriptpubkey = payload['scriptpubkey']
         # BOLT-02 restrict the scriptpubkey to some templates:
