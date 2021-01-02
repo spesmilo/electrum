@@ -248,18 +248,21 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             nonlocal temp_storage
             temp_storage = None
             msg = None
-            path = os.path.join(wallet_folder, filename)
-            wallet_from_memory = get_wallet_from_daemon(path)
-            try:
-                if wallet_from_memory:
-                    temp_storage = wallet_from_memory.storage  # type: Optional[WalletStorage]
-                else:
-                    temp_storage = WalletStorage(path)
-            except (StorageReadWriteError, WalletFileException) as e:
-                msg = _('Cannot read file') + f'\n{repr(e)}'
-            except Exception as e:
-                self.logger.exception('')
-                msg = _('Cannot read file') + f'\n{repr(e)}'
+            if filename:
+                path = os.path.join(wallet_folder, filename)
+                wallet_from_memory = get_wallet_from_daemon(path)
+                try:
+                    if wallet_from_memory:
+                        temp_storage = wallet_from_memory.storage  # type: Optional[WalletStorage]
+                    else:
+                        temp_storage = WalletStorage(path)
+                except (StorageReadWriteError, WalletFileException) as e:
+                    msg = _('Cannot read file') + f'\n{repr(e)}'
+                except Exception as e:
+                    self.logger.exception('')
+                    msg = _('Cannot read file') + f'\n{repr(e)}'
+            else:
+                msg = _('')
             self.next_button.setEnabled(temp_storage is not None)
             user_needs_to_enter_password = False
             if temp_storage:
