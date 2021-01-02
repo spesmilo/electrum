@@ -894,7 +894,13 @@ class RestoreSeedDialog(WizardDialog):
                 yield w
 
     def update_next_button(self):
-        self.ids.next.disabled = False if self.is_bip39 else not bool(self._test(self.get_text()))
+        from electrum.keystore import bip39_is_checksum_valid
+        text = self.get_text()
+        if self.is_bip39:
+            is_seed, is_wordlist = bip39_is_checksum_valid(text)
+        else:
+            is_seed = bool(self._test(text))
+        self.ids.next.disabled = not is_seed
 
     def on_text(self, dt):
         self.update_next_button()
