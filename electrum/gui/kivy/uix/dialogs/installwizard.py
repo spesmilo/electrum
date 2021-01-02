@@ -874,16 +874,18 @@ class RestoreSeedDialog(WizardDialog):
         self.ids.text_input_seed.text = ''
         self.message = _('Please type your seed phrase using the virtual keyboard.')
         self.title = _('Enter Seed')
-        self.ext = False
-        self.bip39 = False
+        self.opt_ext = kwargs['opt_ext']
+        self.opt_bip39 = kwargs['opt_bip39']
+        self.is_ext = False
+        self.is_bip39 = False
 
     def options_dialog(self):
         from .seed_options import SeedOptionsDialog
         def callback(ext, bip39):
-            self.ext = ext
-            self.bip39 = bip39
+            self.is_ext = ext
+            self.is_bip39 = bip39
             self.update_next_button()
-        d = SeedOptionsDialog(self.ext, self.bip39, callback)
+        d = SeedOptionsDialog(self.opt_ext, self.opt_bip39, self.is_ext, self.is_bip39, callback)
         d.open()
 
     def get_suggestions(self, prefix):
@@ -892,7 +894,7 @@ class RestoreSeedDialog(WizardDialog):
                 yield w
 
     def update_next_button(self):
-        self.ids.next.disabled = False if self.bip39 else not bool(self._test(self.get_text()))
+        self.ids.next.disabled = False if self.is_bip39 else not bool(self._test(self.get_text()))
 
     def on_text(self, dt):
         self.update_next_button()
@@ -980,7 +982,7 @@ class RestoreSeedDialog(WizardDialog):
             tis.focus = False
 
     def get_params(self, b):
-        return (self.get_text(), self.bip39, self.ext)
+        return (self.get_text(), self.is_bip39, self.is_ext)
 
 
 class ConfirmSeedDialog(RestoreSeedDialog):
@@ -1094,6 +1096,8 @@ class InstallWizard(BaseWizard, Widget):
         ConfirmSeedDialog(self, **kwargs).open()
 
     def restore_seed_dialog(self, **kwargs):
+        kwargs['opt_bip39'] = self.opt_bip39
+        kwargs['opt_ext'] = self.opt_ext
         RestoreSeedDialog(self, **kwargs).open()
 
     def confirm_dialog(self, **kwargs):
