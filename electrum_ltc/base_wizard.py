@@ -509,13 +509,13 @@ class BaseWizard(Logger):
         self.opt_ext = True
         is_cosigning_seed = lambda x: mnemonic.seed_type(x) in ['standard', 'segwit']
         test = mnemonic.is_seed if self.wallet_type == 'standard' else is_cosigning_seed
-        self.restore_seed_dialog(run_next=self.on_restore_seed, test=test)
+        f = lambda *args: self.run('on_restore_seed', *args)
+        self.restore_seed_dialog(run_next=f, test=test)
 
     def on_restore_seed(self, seed, is_bip39, is_ext):
         self.seed_type = 'bip39' if is_bip39 else mnemonic.seed_type(seed)
         if self.seed_type == 'bip39':
-            def f(passphrase):
-                self.on_restore_bip39(seed, passphrase)
+            f = lambda passphrase: self.run('on_restore_bip39', seed, passphrase)
             self.passphrase_dialog(run_next=f, is_restoring=True) if is_ext else f('')
         elif self.seed_type in ['standard', 'segwit']:
             f = lambda passphrase: self.run('create_keystore', seed, passphrase)
