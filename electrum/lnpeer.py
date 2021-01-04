@@ -1441,7 +1441,7 @@ class Peer(Logger):
             await asyncio.sleep(0.1)
         self.send_message('shutdown', channel_id=chan.channel_id, len=len(scriptpubkey), scriptpubkey=scriptpubkey)
         chan.set_state(ChannelState.SHUTDOWN)
-        # can fullfill or fail htlcs. cannot add htlcs, because of CLOSING state
+        # can fullfill or fail htlcs. cannot add htlcs, because state != OPEN
         chan.set_can_send_ctx_updates(True)
 
     @log_exceptions
