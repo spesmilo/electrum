@@ -22,7 +22,7 @@ class RequestsFragment : ListFragment(R.layout.requests, R.id.rvRequests) {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        btnAdd.setOnClickListener { newRequest(this) }
+        btnAdd.setOnClickListener { showDialog(this, NewRequestDialog()) }
     }
 
     override fun onCreateAdapter() =
@@ -30,14 +30,22 @@ class RequestsFragment : ListFragment(R.layout.requests, R.id.rvRequests) {
 }
 
 
-fun newRequest(listFragment: ListFragment) {
-    try {
-        val address = listFragment.wallet.callAttr("get_unused_address")
-                      ?: throw ToastException(R.string.no_more)
+class NewRequestDialog : TaskDialog<PyObject>() {
+    val listFragment by lazy { targetFragment as ListFragment }
+
+    override fun doInBackground(): PyObject {
+        if (listFragment.wallet.callAttr("is_watching_only").toBoolean()) {
+            throw ToastException(R.string.this_wallet_is)
+        }
+        return listFragment.wallet.callAttr("get_unused_address")
+               ?: throw ToastException(R.string.no_more)
+    }
+
+    override fun onPostExecute(result: PyObject) {
         showDialog(listFragment, RequestDialog().apply { arguments = Bundle().apply {
-                       putString("address", address.callAttr("to_storage_string").toString())
-                   }})
-    } catch (e: ToastException) { e.show() }
+           putString("address", result.callAttr("to_storage_string").toString())
+        }})
+    }
 }
 
 
@@ -60,12 +68,6 @@ class RequestModel(wallet: PyObject, val request: PyObject) : ListItemModel(wall
 
 
 class RequestDialog : DetailDialog() {
-    init {
-        if (daemonModel.wallet!!.callAttr("is_watching_only").toBoolean()) {
-            throw ToastException(R.string.this_wallet_is)
-        }
-    }
-
     val address by lazy {
         clsAddress.callAttr("from_string", arguments!!.getString("address"))!!
     }

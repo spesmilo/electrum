@@ -29,7 +29,7 @@ class TransactionsFragment : ListFragment(R.layout.transactions, R.id.rvTransact
                 showDialog(this, SendDialog())
             } catch (e: ToastException) { e.show() }
         }
-        btnRequest.setOnClickListener { newRequest(this) }
+        btnRequest.setOnClickListener { showDialog(this, NewRequestDialog()) }
     }
 
     override fun onCreateAdapter() = TransactionsAdapter(this)
