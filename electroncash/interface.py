@@ -241,8 +241,8 @@ class TcpConnection(threading.Thread, util.PrintError):
                         if os.path.exists(rej):
                             os.unlink(rej)
                         os.rename(temporary_path, rej)
-                    except OSError as e:
-                        self.print_error("Could not rename rejected certificate:", rej, repr(e))
+                    except OSError as e2:
+                        self.print_error("Could not rename rejected certificate:", rej, repr(e2))
                 else:
                     util.assert_datadir_available(self.config_path)
                     with open(cert_path, encoding='utf-8') as f:
@@ -264,8 +264,8 @@ class TcpConnection(threading.Thread, util.PrintError):
                         try:
                             os.unlink(cert_path)
                             self.print_error("Removed expired certificate:", cert_path)
-                        except OSError as e:
-                            self.print_error("Could not remove expired certificate:", cert_path, repr(e))
+                        except OSError as e2:
+                            self.print_error("Could not remove expired certificate:", cert_path, repr(e2))
                         return
                     self.print_error("wrong certificate")
                     self.bad_certificate(self.server, cert_path)
