@@ -215,7 +215,11 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         # As a result, e.g. we might learn an imported address tx is segwit,
         # or that a beyond-gap-limit address is is_mine.
         # note: this might fetch prev txs over the network.
-        tx.add_info_from_wallet(self.wallet)
+        BlockingWaitingDialog(
+            self,
+            _("Adding info to tx, from wallet and network..."),
+            lambda: tx.add_info_from_wallet(self.wallet),
+        )
 
     def do_broadcast(self):
         self.main_window.push_top_level_window(self)
