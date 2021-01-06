@@ -1411,9 +1411,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 # Check if we had enough funds excluding fees,
                 # if so, still provide opportunity to set lower fees.
                 tx = make_tx(0)
-        except (MultipleSpendMaxTxOutputs, NotEnoughFunds) as e:
+        except MultipleSpendMaxTxOutputs as e:
             self.max_button.setChecked(False)
             self.show_error(str(e))
+            return
+        except NotEnoughFunds as e:
+            self.max_button.setChecked(False)
+            text = self.get_text_not_enough_funds_mentioning_frozen()
+            self.show_error(text)
             return
 
         self.max_button.setChecked(True)
@@ -1613,6 +1618,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         """
         return self.utxo_list.get_spend_list()
 
+    def get_text_not_enough_funds_mentioning_frozen(self) -> str:
+        text = _("Not enough funds")
+        frozen_bal = sum(self.wallet.get_frozen_balance())
+        if frozen_bal:
+            text += " ({} {} {})".format(
+                self.format_amount(frozen_bal).strip(), self.base_unit(), _("are frozen")
+            )
+        return text
+
     def pay_onchain_dialog(
             self, inputs: Sequence[PartialTxInput],
             outputs: List[PartialTxOutput], *,
@@ -1637,7 +1651,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             # Check if we had enough funds excluding fees,
             # if so, still provide opportunity to set lower fees.
             if not d.have_enough_funds_assuming_zero_fees():
-                self.show_message(_('Not Enough Funds'))
+                text = self.get_text_not_enough_funds_mentioning_frozen()
+                self.show_message(text)
                 return
 
         # shortcut to advanced preview (after "enough funds" check!)

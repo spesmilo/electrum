@@ -229,12 +229,7 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
         self._update_amount_label()
 
         if self.not_enough_funds:
-            text = _("Not enough funds")
-            c, u, x = self.wallet.get_frozen_balance()
-            if c+u+x:
-                text += " ({} {} {})".format(
-                    self.main_window.format_amount(c + u + x).strip(), self.main_window.base_unit(), _("are frozen")
-                )
+            text = self.main_window.get_text_not_enough_funds_mentioning_frozen()
             self.toggle_send_button(False, message=text)
             return
 
