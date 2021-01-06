@@ -78,8 +78,7 @@ class WalletStorage(Logger):
     def read(self):
         return self.decrypted if self.is_encrypted() else self.raw
 
-    @profiler
-    def write(self, data):
+    def write(self, data: str) -> None:
         s = self.encrypt_before_writing(data)
         temp_path = "%s.tmp.%s" % (self.path, os.getpid())
         with open(temp_path, "w", encoding='utf-8') as f:

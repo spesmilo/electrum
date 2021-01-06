@@ -1238,13 +1238,15 @@ class WalletDB(JsonDB):
         with self.lock:
             self._write(storage)
 
+    @profiler
     def _write(self, storage: 'WalletStorage'):
         if threading.currentThread().isDaemon():
             self.logger.warning('daemon thread cannot write db')
             return
         if not self.modified():
             return
-        storage.write(self.dump())
+        json_str = self.dump(human_readable=not storage.is_encrypted())
+        storage.write(json_str)
         self.set_modified(False)
 
     def is_ready_to_be_used_by_wallet(self):
