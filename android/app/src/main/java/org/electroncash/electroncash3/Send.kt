@@ -26,11 +26,6 @@ val MIN_FEE = 1  // sat/byte
 class SendDialog : TaskLauncherDialog<Unit>() {
     val wallet = daemonModel.wallet!!
 
-    init {
-        // The SendDialog shouldn't be dismissed until the SendPasswordDialog succeeds.
-        dismissAfterExecute = false
-    }
-
     class Model : ViewModel() {
         var paymentRequest: PyObject? = null
         val tx = BackgroundLiveData<TxArgs, TxResult>().apply {
@@ -47,6 +42,9 @@ class SendDialog : TaskLauncherDialog<Unit>() {
     var settingAmount = false  // Prevent infinite recursion.
 
     init {
+        // The SendDialog shouldn't be dismissed until the SendPasswordDialog succeeds.
+        dismissAfterExecute = false
+
         if (daemonModel.wallet!!.callAttr("is_watching_only").toBoolean()) {
             throw ToastException(R.string.this_wallet_is)
         } else if (daemonModel.wallet!!.callAttr("get_receiving_addresses")
@@ -240,9 +238,9 @@ class SendDialog : TaskLauncherDialog<Unit>() {
                 showDialog(this, GetPaymentRequestDialog(r.toString()))
             } else {
                 setPaymentRequest(null)
-                etAddress.setText(parsed.callAttr("get", "address")?.toString() ?: "")
-                etDescription.setText(parsed.callAttr("get", "message")?.toString() ?: "")
-                amountBox.amount = parsed.callAttr("get", "amount")?.toLong()
+                parsed.callAttr("get", "address")?.let { etAddress.setText(it.toString()) }
+                parsed.callAttr("get", "message")?.let { etDescription.setText(it.toString()) }
+                parsed.callAttr("get", "amount")?.let { amountBox.amount = it.toLong() }
                 amountBox.requestFocus()
                 btnMax.isChecked = false
             }
