@@ -640,7 +640,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         locktime_setter_hbox.setSpacing(0)
         locktime_setter_label = TxDetailLabel()
         locktime_setter_label.setText("LockTime: ")
-        self.locktime_e = LockTimeEdit()
+        self.locktime_e = LockTimeEdit(self)
         locktime_setter_hbox.addWidget(locktime_setter_label)
         locktime_setter_hbox.addWidget(self.locktime_e)
         locktime_setter_hbox.addStretch(1)
