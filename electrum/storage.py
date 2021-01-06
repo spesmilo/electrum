@@ -176,7 +176,7 @@ class WalletStorage(Logger):
         s = plaintext
         if self.pubkey:
             s = bytes(s, 'utf8')
-            c = zlib.compress(s)
+            c = zlib.compress(s, level=zlib.Z_BEST_SPEED)
             enc_magic = self._get_encryption_magic()
             public_key = ecc.ECPubkey(bfh(self.pubkey))
             s = public_key.encrypt_message(c, enc_magic)
