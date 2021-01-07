@@ -6,8 +6,8 @@ NSIS_URL=https://downloads.sourceforge.net/project/nsis/NSIS%203/3.05/$NSIS_FILE
 NSIS_SHA256=1a3cc9401667547b9b9327a177b13485f7c59c2303d4b6183e7bc9e6c8d6bfdb
 
 LIBUSB_REPO="https://github.com/libusb/libusb.git"
-LIBUSB_COMMIT="e782eeb2514266f6738e242cdcb18e3ae1ed06fa"
-# ^ tag v1.0.23
+LIBUSB_COMMIT="c6a35c56016ea2ab2f19115d2ea1e85e0edae155"
+# ^ tag v1.0.24
 
 PYINSTALLER_REPO="https://github.com/SomberNight/pyinstaller.git"
 PYINSTALLER_COMMIT="31fda9dc83feb1b3f2ff08c89ff7ae61506fc1ca"
