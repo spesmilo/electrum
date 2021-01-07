@@ -82,7 +82,7 @@ from electrum.util import (NoDynamicFeeEstimates, NotEnoughFunds,
                            BITCOIN_BIP21_URI_SCHEME, LIGHTNING_URI_SCHEME)
 
 from .uix.dialogs.lightning_open_channel import LightningOpenChannelDialog
-from .uix.dialogs.lightning_channels import LightningChannelsDialog
+from .uix.dialogs.lightning_channels import LightningChannelsDialog, SwapDialog
 
 if TYPE_CHECKING:
     from . import ElectrumGui
@@ -696,6 +696,10 @@ class ElectrumWindow(App, Logger):
         else:
             d = LightningOpenChannelDialog(self)
             d.open()
+
+    def swap_dialog(self):
+        d = SwapDialog(self, self.electrum_config)
+        d.open()
 
     def open_channel_dialog_with_warning(self, b):
         if b:
