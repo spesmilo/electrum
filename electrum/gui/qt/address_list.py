@@ -160,7 +160,7 @@ class AddressList(MyTreeView):
         addresses_beyond_gap_limit = self.wallet.get_all_known_addresses_beyond_gap_limit()
         for address in addr_list:
             num = self.wallet.get_address_history_len(address)
-            label = self.wallet.labels.get(address, '')
+            label = self.wallet.get_label(address)
             c, u, x = self.wallet.get_addr_balance(address)
             balance = c + u + x
             is_used_and_empty = self.wallet.is_used(address) and balance == 0

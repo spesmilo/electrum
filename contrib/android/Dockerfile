@@ -67,7 +67,7 @@ RUN yes | ${ANDROID_SDK_MANAGER} --licenses > /dev/null
 
 # download platforms, API, build tools
 RUN ${ANDROID_SDK_MANAGER} "platforms;android-24" > /dev/null && \
-    ${ANDROID_SDK_MANAGER} "platforms;android-28" > /dev/null && \
+    ${ANDROID_SDK_MANAGER} "platforms;android-29" > /dev/null && \
     ${ANDROID_SDK_MANAGER} "build-tools;${ANDROID_SDK_BUILD_TOOLS_VERSION}" > /dev/null && \
     ${ANDROID_SDK_MANAGER} "extras;android;m2repository" > /dev/null && \
     chmod +x "${ANDROID_SDK_HOME}/tools/bin/avdmanager"
@@ -92,29 +92,38 @@ ENV HOME_DIR="/home/${USER}"
 ENV WORK_DIR="${HOME_DIR}/wspace" \
     PATH="${HOME_DIR}/.local/bin:${PATH}"
 
-# install system dependencies
+# install system/build dependencies
+# https://github.com/kivy/buildozer/blob/master/docs/source/installation.rst#android-on-ubuntu-2004-64bit
 RUN apt -y update -qq \
     && apt -y install -qq --no-install-recommends \
-        python3 python3-pip python3-setuptools git wget lbzip2 patch sudo \
-        software-properties-common libssl-dev \
-    && apt -y autoremove
-
-# build dependencies
-# https://buildozer.readthedocs.io/en/latest/installation.html#android-on-ubuntu-16-04-64bit
-RUN dpkg --add-architecture i386 \
-    && apt -y update -qq \
-    && apt -y install -qq --no-install-recommends \
-        build-essential ccache git python3 python3-dev \
-        libncurses5:i386 libstdc++6:i386 libgtk2.0-0:i386 \
-        libidn11:i386 \
-        zip zlib1g-dev zlib1g:i386 \
-    && apt -y autoremove \
-    && apt -y clean
-
-# specific recipes dependencies (e.g. libffi requires autoreconf binary)
-RUN apt -y update -qq \
-    && apt -y install -qq --no-install-recommends \
-        libffi-dev autoconf automake cmake gettext libltdl-dev libtool pkg-config \
+        python3 \
+        python3-dev \
+        python3-pip \
+        python3-setuptools \
+        wget \
+        lbzip2 \
+        patch \
+        sudo \
+        software-properties-common \
+        git \
+        zip \
+        unzip \
+        build-essential \
+        ccache \
+        openjdk-13-jdk \
+        autoconf \
+        libtool \
+        pkg-config \
+        zlib1g-dev \
+        libncurses5-dev \
+        libncursesw5-dev \
+        libtinfo5 \
+        cmake \
+        libffi-dev \
+        libssl-dev \
+        automake \
+        gettext \
+        libltdl-dev \
     && apt -y autoremove \
     && apt -y clean
 

@@ -145,7 +145,7 @@ exe_portable = EXE(
 #####
 # exe and separate files that NSIS uses to build installer "setup" exe
 
-exe_dependent = EXE(
+exe_inside_setup_noconsole = EXE(
     pyz,
     a.scripts,
     exclude_binaries=True,
@@ -156,8 +156,20 @@ exe_dependent = EXE(
     icon=home+'electrum/gui/icons/electrum.ico',
     console=False)
 
+exe_inside_setup_console = EXE(
+    pyz,
+    a.scripts,
+    exclude_binaries=True,
+    name=os.path.join('build\\pyi.win32\\electrum', cmdline_name+"-debug"),
+    debug=False,
+    strip=None,
+    upx=False,
+    icon=home+'electrum/gui/icons/electrum.ico',
+    console=True)
+
 coll = COLLECT(
-    exe_dependent,
+    exe_inside_setup_noconsole,
+    exe_inside_setup_console,
     a.binaries,
     a.zipfiles,
     a.datas,

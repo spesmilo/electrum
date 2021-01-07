@@ -1,3 +1,57 @@
+# Release 4.0.9 - (Dec 18, 2020)
+ * fixes a regression introduced in 4.0.8, that prevents from
+   paying BIP70 invoices (#6859)
+ * reflect frozen channels and disconnected peers in the displayed
+   'can send/can receive' amounts.
+
+# Release 4.0.8 - (Dec 17, 2020)
+ * fix decoding BIP21 URIs with uppercase schema (d40bedb2)
+ * psbt: put full derivation paths into PSBT by default (c8155129)
+ * invoices: allow address-reuse (#6609, #6852)
+ * A few other minor bugfixes.
+
+# Release 4.0.7 - (Dec 9, 2020)
+ * kivy: fix open channel with 'max' amount
+ * kivy: fix regression introduced in last release (a9fc440)
+ * other minor GUI fixes
+ * Dependencies: as part of adapting to new dnspython (#6828),
+   - python-ecdsa is no longer needed at all,
+   - cryptography is now required (min 2.6), the user can no
+     longer choose between cryptography and pycryptodomex
+
+# Release 4.0.6 - (Dec 4, 2020)
+ * Fix 'Max' button issue for submarine swaps button (#6770)
+ * Fix 'Max' button in kivy (#6169)
+ * Various fixes for Kivy/Android install wizard
+ * More robust account keypath for BitBox02 (#6766)
+
+# Release 4.0.5 - (Nov 18, 2020)
+ * Fix .dmg binary hanging on recently released macOS 11 Big Sur (#6461)
+ * Lightning:
+   - bugfix: during LN channel opening, if the client crashed at the
+     wrong moment, the channel might not get fully persisted to disk,
+     and would need manual console-tinkering to recover (#6656)
+   - Lightning is enabled by default. Electrum will not connect to
+     the Lightning Network until the user opens a channel. (#6639)
+   - smarter node recommendation (to open channels with) (#6705)
+ * user interface: some minor changes that aim to improve usability
+ * Ledger:
+   - fix enumerating devices with new bitcoin app (1.5.1) (b78cbcff)
+   - fix compat with HW.1 (200f547a)
+ * A few other minor bugfixes.
+
+# Release 4.0.4 - (Oct 15, 2020)
+ * PSBT: fix regression in 4.0.3 where UTXO data was not included in
+   QR codes (#6600)
+ * new feature: "Cancel tx" (#6641). The Qt/kivy GUI allows cancelling
+   an unconfirmed RBF tx by double-spending its inputs to self.
+ * Windows binary:
+   - fix some issues with QR scanning by building zbar ourselves (#6593)
+   - when using setup exe, also install a debug binary (#6603)
+ * Ledger: fix "The derivation path is unusual" warnings (#6512)
+   (needs Bitcoin app 1.4.8+ installed on device)
+ * A few other minor bugfixes and usability improvements.
+
 # Release 4.0.3 - (Sep 11, 2020)
  * PSBT: restore compatibility with Bitcoin Core following CVE-2020-14199:
    we now allow a PSBT input to have both UTXO and WITNESS_UTXO (#6429).

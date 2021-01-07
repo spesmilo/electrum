@@ -266,7 +266,11 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
         self.asyncio_loop = asyncio.get_event_loop()
         assert self.asyncio_loop.is_running(), "event loop not running"
-        self._loop_thread = None  # type: threading.Thread  # set by caller; only used for sanity checks
+        try:
+            self._loop_thread = self.asyncio_loop._mythread  # type: threading.Thread  # only used for sanity checks
+        except AttributeError as e:
+            self.logger.warning(f"asyncio loop does not have _mythread set: {e!r}")
+            self._loop_thread = None
 
         assert isinstance(config, SimpleConfig), f"config should be a SimpleConfig instead of {type(config)}"
         self.config = config
@@ -328,6 +332,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self.debug = False
 
         self._set_status('disconnected')
+        self._has_ever_managed_to_connect_to_server = False
 
         # lightning network
         self.channel_db = None  # type: Optional[ChannelDB]
@@ -339,18 +344,29 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             self.local_watchtower.start_network(self)
             asyncio.ensure_future(self.local_watchtower.start_watching())
 
-    def is_lightning_running(self):
+    def has_internet_connection(self) -> bool:
+        """Our guess whether the device has Internet-connectivity."""
+        return self._has_ever_managed_to_connect_to_server
+
+    def has_channel_db(self):
         return self.channel_db is not None
 
-    def maybe_init_lightning(self):
+    def init_channel_db(self):
         if self.channel_db is None:
-            from . import lnworker
             from . import lnrouter
             from . import channel_db
             self.channel_db = channel_db.ChannelDB(self)
             self.path_finder = lnrouter.LNPathFinder(self.channel_db)
+            self.channel_db.load_data()
+
+    def start_gossip(self):
+        if self.lngossip is None:
+            from . import lnworker
             self.lngossip = lnworker.LNGossip()
             self.lngossip.start_network(self)
+
+    def stop_gossip(self):
+        self.lngossip.stop()
 
     def run_from_another_thread(self, coro, *, timeout=None):
         assert self._loop_thread != threading.current_thread(), 'must not be called from network thread'
@@ -413,20 +429,15 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     def is_connecting(self):
         return self.connection_status == 'connecting'
 
-    async def _request_server_info(self, interface):
+    async def _request_server_info(self, interface: 'Interface'):
         await interface.ready
         session = interface.session
 
         async def get_banner():
-            self.banner = await session.send_request('server.banner')
+            self.banner = await interface.get_server_banner()
             self.notify('banner')
         async def get_donation_address():
-            addr = await session.send_request('server.donation_address')
-            if not bitcoin.is_address(addr):
-                if addr:  # ignore empty string
-                    self.logger.info(f"invalid donation address from server: {repr(addr)}")
-                addr = ''
-            self.donation_address = addr
+            self.donation_address = await interface.get_donation_address()
         async def get_server_peers():
             server_peers = await session.send_request('server.peers.subscribe')
             random.shuffle(server_peers)
@@ -436,12 +447,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             self.server_peers = parse_servers(server_peers)
             self.notify('servers')
         async def get_relay_fee():
-            relayfee = await session.send_request('blockchain.relayfee')
-            if relayfee is None:
-                self.relay_fee = None
-            else:
-                relayfee = int(relayfee * COIN)
-                self.relay_fee = max(0, relayfee)
+            self.relay_fee = await interface.get_relay_fee()
 
         async with TaskGroup() as group:
             await group.spawn(get_banner)
@@ -451,9 +457,8 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             await group.spawn(self._request_fee_estimates(interface))
 
     async def _request_fee_estimates(self, interface):
-        session = interface.session
         self.config.requested_fee_estimates()
-        histogram = await session.send_request('mempool.get_fee_histogram')
+        histogram = await interface.get_fee_histogram()
         self.config.mempool_fees = histogram
         self.logger.info(f'fee_histogram {histogram}')
         self.notify('fee_histogram')
@@ -677,7 +682,8 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         # However, for headers sub, give preference to this interface
         # over unknown ones, i.e. start it again right away.
         if old_server and old_server != server:
-            await self._close_interface(old_interface)
+            # don't wait for old_interface to close as that might be slow:
+            await self.taskgroup.spawn(self._close_interface(old_interface))
             if len(self.interfaces) <= self.num_server:
                 await self.taskgroup.spawn(self._run_new_interface(old_server))
 
@@ -706,8 +712,9 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             with self.interfaces_lock:
                 if self.interfaces.get(interface.server) == interface:
                     self.interfaces.pop(interface.server)
-            if interface.server == self.default_server:
+            if interface == self.interface:
                 self.interface = None
+            # this can take some time if server/connection is slow:
             await interface.close()
 
     @with_recent_servers_lock
@@ -724,8 +731,8 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         '''A connection to server either went down, or was never made.
         We distinguish by whether it is in self.interfaces.'''
         if not interface: return
-        server = interface.server
-        if server == self.default_server:
+        # note: don't rely on interface.server for comparisons here
+        if interface == self.interface:
             self._set_status('disconnected')
         await self._close_interface(interface)
         util.trigger_callback('network_updated')
@@ -768,6 +775,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         if server == self.default_server:
             await self.switch_to_interface(server)
 
+        self._has_ever_managed_to_connect_to_server = True
         self._add_recent_server(server)
         util.trigger_callback('network_updated')
 

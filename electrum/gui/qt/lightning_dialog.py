@@ -63,8 +63,11 @@ class LightningDialog(QDialog):
         util.register_callback(self.set_num_peers, ['gossip_peers'])
         util.register_callback(self.set_unknown_channels, ['unknown_channels'])
         self.network.channel_db.update_counts() # trigger callback
-        self.set_num_peers('', self.network.lngossip.num_peers())
-        self.set_unknown_channels('', len(self.network.lngossip.unknown_ids))
+        if self.network.lngossip:
+            self.set_num_peers('', self.network.lngossip.num_peers())
+            self.set_unknown_channels('', len(self.network.lngossip.unknown_ids))
+        else:
+            self.num_peers.setText(_('Lightning gossip not active.'))
 
     def on_channel_db(self, event, num_nodes, num_channels, num_policies):
         self.num_nodes.setText(_('{} nodes').format(num_nodes))

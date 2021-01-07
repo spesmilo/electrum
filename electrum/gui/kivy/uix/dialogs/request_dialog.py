@@ -15,6 +15,8 @@ if TYPE_CHECKING:
 
 
 Builder.load_string('''
+#:import KIVY_GUI_PATH electrum.gui.kivy.KIVY_GUI_PATH
+
 <RequestDialog@Popup>
     id: popup
     amount_str: ''
@@ -66,12 +68,12 @@ Builder.load_string('''
                     text: _('Delete')
                     on_release: root.delete_dialog()
                 IconButton:
-                    icon: 'atlas://electrum/gui/kivy/theming/light/copy'
+                    icon: f'atlas://{KIVY_GUI_PATH}/theming/light/copy'
                     size_hint: 0.5, None
                     height: '48dp'
                     on_release: root.copy_to_clipboard()
                 IconButton:
-                    icon: 'atlas://electrum/gui/kivy/theming/light/share'
+                    icon: f'atlas://{KIVY_GUI_PATH}/theming/light/share'
                     size_hint: 0.5, None
                     height: '48dp'
                     on_release: root.do_share()
@@ -114,6 +116,10 @@ class RequestDialog(Factory.Popup):
         if self.status == PR_UNPAID and self.is_lightning and self.app.wallet.lnworker:
             if self.amount_sat and self.amount_sat > self.app.wallet.lnworker.num_sats_can_receive():
                 self.warning = _('Warning') + ': ' + _('This amount exceeds the maximum you can currently receive with your channels')
+        if self.status == PR_UNPAID and not self.is_lightning:
+            address = req.get_address()
+            if self.app.wallet.is_used(address):
+                self.warning = _('Warning') + ': ' + _('This address is being reused')
 
     def on_dismiss(self):
         self.app.request_popup = None

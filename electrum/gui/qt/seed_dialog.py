@@ -23,6 +23,8 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+from typing import TYPE_CHECKING
+
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import (QVBoxLayout, QCheckBox, QHBoxLayout, QLineEdit,
@@ -36,6 +38,9 @@ from .util import (Buttons, OkButton, WWLabel, ButtonsTextEdit, icon_path,
                    EnterButton, CloseButton, WindowModalDialog, ColorScheme)
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
+
+if TYPE_CHECKING:
+    from electrum.simple_config import SimpleConfig
 
 
 def seed_warning_msg(seed):
@@ -89,18 +94,31 @@ class SeedLayout(QVBoxLayout):
         self.is_ext = cb_ext.isChecked() if 'ext' in self.options else False
         self.is_bip39 = cb_bip39.isChecked() if 'bip39' in self.options else False
 
-    def __init__(self, seed=None, title=None, icon=True, msg=None, options=None,
-                 is_seed=None, passphrase=None, parent=None, for_seed_words=True):
+    def __init__(
+            self,
+            seed=None,
+            title=None,
+            icon=True,
+            msg=None,
+            options=None,
+            is_seed=None,
+            passphrase=None,
+            parent=None,
+            for_seed_words=True,
+            *,
+            config: 'SimpleConfig',
+    ):
         QVBoxLayout.__init__(self)
         self.parent = parent
         self.options = options
+        self.config = config
         if title:
             self.addWidget(WWLabel(title))
         if seed:  # "read only", we already have the text
             if for_seed_words:
                 self.seed_e = ButtonsTextEdit()
             else:  # e.g. xpub
-                self.seed_e = ShowQRTextEdit()
+                self.seed_e = ShowQRTextEdit(config=self.config)
             self.seed_e.setReadOnly(True)
             self.seed_e.setText(seed)
         else:  # we expect user to enter text
@@ -197,11 +215,19 @@ class SeedLayout(QVBoxLayout):
         self.seed_e.enable_suggestions()
 
 class KeysLayout(QVBoxLayout):
-    def __init__(self, parent=None, header_layout=None, is_valid=None, allow_multi=False):
+    def __init__(
+            self,
+            parent=None,
+            header_layout=None,
+            is_valid=None,
+            allow_multi=False,
+            *,
+            config: 'SimpleConfig',
+    ):
         QVBoxLayout.__init__(self)
         self.parent = parent
         self.is_valid = is_valid
-        self.text_e = ScanQRTextEdit(allow_multi=allow_multi)
+        self.text_e = ScanQRTextEdit(allow_multi=allow_multi, config=config)
         self.text_e.textChanged.connect(self.on_edit)
         if isinstance(header_layout, str):
             self.addWidget(WWLabel(header_layout))
@@ -225,11 +251,17 @@ class KeysLayout(QVBoxLayout):
 
 class SeedDialog(WindowModalDialog):
 
-    def __init__(self, parent, seed, passphrase):
+    def __init__(self, parent, seed, passphrase, *, config: 'SimpleConfig'):
         WindowModalDialog.__init__(self, parent, ('Electrum - ' + _('Seed')))
         self.setMinimumWidth(400)
         vbox = QVBoxLayout(self)
         title =  _("Your wallet generation seed is:")
-        slayout = SeedLayout(title=title, seed=seed, msg=True, passphrase=passphrase)
+        slayout = SeedLayout(
+            title=title,
+            seed=seed,
+            msg=True,
+            passphrase=passphrase,
+            config=config,
+        )
         vbox.addLayout(slayout)
         vbox.addLayout(Buttons(CloseButton(self)))

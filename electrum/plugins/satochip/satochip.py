@@ -42,7 +42,7 @@ SATOCHIP_PLUGIN_REVISION= 'lib0.11.a-plugin0.1'
 SATOCHIP_VID= 0 #0x096E
 SATOCHIP_PID= 0 #0x0503
 
-MSG_USE_2FA= _("Do you want to use 2-Factor-Authentication (2FA)?\n\nWith 2FA, any transaction must be confirmed on a second device such as your smartphone. First you have to install the Satochip-2FA android app on google play. Then you have to pair your 2FA device with your Satochip by scanning the qr-code on the next screen. Warning: be sure to backup a copy of the qr-code in a safe place, in case you have to reinstall the app!")
+MSG_USE_2FA= _("Do you want to use 2-Factor-Authentication (2FA)?\n\nWith 2FA, any transaction must be confirmed on a second device such as your smartphone. First you have to install the Satochip-2FA android app on google play. Then you have to pair your 2FA device with your Satochip by scanning the qr-code on the next screen. \n\nWARNING: be sure to backup a copy of the qr-code in a safe place, in case you have to reinstall the app!")
 
 # def bip32path2bytes(bip32path:str) -> (int, bytes):
     # splitPath = bip32path.split('/')
@@ -109,9 +109,10 @@ class SatochipClient(HardwareClientBase):
     def has_usable_connection_with_device(self):
         _logger.info(f"has_usable_connection_with_device()")#debugSatochip
         try:
-            (response, sw1, sw2)=self.cc.card_select() #TODO: something else? get ATR?
-        except SWException as e:
-            _logger.exception(f"Exception: {str(e)}")
+            atr= self.cc.card_get_ATR() # (response, sw1, sw2)= self.cc.card_select() #TODO: something else? get ATR?
+            _logger.info("Card ATR: " + bytes(atr).hex() )
+        except Exception as e: #except SWException as e:
+            _logger.exception(f"Exception in has_usable_connection_with_device: {str(e)}")
             return False
         return True
 
@@ -187,8 +188,8 @@ class SatochipClient(HardwareClientBase):
             if len(password) < 4:
                 msg = _("PIN must have at least 4 characters.") + \
                       "\n\n" + _("Enter PIN:")
-            elif len(password) > 64:
-                msg = _("PIN must have less than 64 characters.") + \
+            elif len(password) > 16:
+                msg = _("PIN must have less than 16 characters.") + \
                       "\n\n" + _("Enter PIN:")
             else:
                 password = password.encode('utf8')
@@ -519,7 +520,7 @@ class SatochipPlugin(HW_PluginBase):
         client.handler = self.create_handler(wizard)
         
         # check setup
-        while(True):
+        while(client.cc.card_present):
             (response, sw1, sw2, d)=client.cc.card_get_status()
             
             # check version
@@ -548,9 +549,9 @@ class SatochipPlugin(HW_PluginBase):
                 pin_0= list(pin_0)
                 client.cc.set_pin(0, pin_0) #cache PIN value in client
                 pin_tries_0= 0x05;
-                ublk_tries_0= 0x01;
                 # PUK code can be used when PIN is unknown and the card is locked
                 # We use a random value as the PUK is not used currently in the electrum GUI
+                ublk_tries_0= 0x01;
                 ublk_0= list(urandom(16)); 
                 pin_tries_1= 0x01
                 ublk_tries_1= 0x01
@@ -575,16 +576,16 @@ class SatochipPlugin(HW_PluginBase):
         client.cc.card_verify_PIN()
                 
         # get authentikey
-        while(True):
+        while(client.cc.card_present):
             try:
                 authentikey=client.cc.card_bip32_get_authentikey()
             except UninitializedSeedError:
                 
                 # Option: setup 2-Factor-Authentication (2FA)
                 if not client.cc.needs_2FA:
-                    use_2FA=client.handler.yes_no_question(MSG_USE_2FA)
+                    #use_2FA= client.handler.yes_no_question(MSG_USE_2FA)
+                    use_2FA= False # we put 2FA activation in advanced options as it confuses some users
                     if (use_2FA):
-                        option_flags= 0x8000 # activate 2fa with hmac challenge-response
                         secret_2FA= urandom(20)
                         #secret_2FA=b'\0'*20 #for debug purpose
                         secret_2FA_hex=secret_2FA.hex()
@@ -595,6 +596,7 @@ class SatochipPlugin(HW_PluginBase):
                             d.exec_()
                         except Exception as e:
                             _logger.info("[satochip] SatochipPlugin: setup_device(): setup 2FA: "+str(e))
+                            return
                         # further communications will require an id and an encryption key (for privacy). 
                         # Both are derived from the secret_2FA using a one-way function inside the Satochip
                         amount_limit= 0 # i.e. always use 
@@ -687,7 +689,7 @@ class SatochipPlugin(HW_PluginBase):
 
     def confirm_seed(self, wizard, seed, passphrase):
         f = lambda x: self.confirm_passphrase(wizard, seed, passphrase)
-        wizard.confirm_seed_dialog(run_next=f, test=lambda x: x==seed)
+        wizard.confirm_seed_dialog(run_next=f, seed='', test=lambda x: x==seed)
 
     def confirm_passphrase(self, wizard, seed, passphrase):
         f = lambda x: self.derive_bip39_seed(seed, x) #f = lambda x: self.derive_bip32_seed(seed, x)

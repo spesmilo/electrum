@@ -491,7 +491,11 @@ class ChannelBackup(AbstractChannel):
         return False
 
     def is_static_remotekey_enabled(self) -> bool:
-        return True
+        # Return False so that self.sweep_address will return self._fallback_sweep_address
+        # Since channel backups do not save the static_remotekey, payment_basepoint in
+        # their local config is not static)
+        return False
+
 
 
 class Channel(AbstractChannel):
@@ -529,6 +533,9 @@ class Channel(AbstractChannel):
 
     def is_initiator(self):
         return self.constraints.is_initiator
+
+    def is_active(self):
+        return self.get_state() == ChannelState.OPEN and self.peer_state == PeerState.GOOD
 
     def funding_txn_minimum_depth(self):
         return self.constraints.funding_txn_minimum_depth
@@ -997,14 +1004,22 @@ class Channel(AbstractChannel):
                 self.lnworker.payment_sent(self, htlc.payment_hash)
             failed = self.hm.failed_in_ctn(new_ctn)
             for htlc in failed:
-                error_bytes, failure_message = self._receive_fail_reasons.pop(htlc.htlc_id)
+                try:
+                    error_bytes, failure_message = self._receive_fail_reasons.pop(htlc.htlc_id)
+                except KeyError:
+                    error_bytes, failure_message = None, None
                 # if we are forwarding, save error message to disk
                 if self.lnworker.get_payment_info(htlc.payment_hash) is None:
                     self.save_fail_htlc_reason(htlc.htlc_id, error_bytes, failure_message)
                 else:
                     self.lnworker.payment_failed(self, htlc.payment_hash, error_bytes, failure_message)
 
-    def save_fail_htlc_reason(self, htlc_id, error_bytes, failure_message):
+    def save_fail_htlc_reason(
+            self,
+            htlc_id: int,
+            error_bytes: Optional[bytes],
+            failure_message: Optional['OnionRoutingFailureMessage'],
+    ):
         error_hex = error_bytes.hex() if error_bytes else None
         failure_hex = failure_message.to_bytes().hex() if failure_message else None
         self.hm.log['fail_htlc_reasons'][htlc_id] = (error_hex, failure_hex)
@@ -1080,6 +1095,9 @@ class Channel(AbstractChannel):
         sender = subject
         receiver = subject.inverted()
         initiator = LOCAL if self.constraints.is_initiator else REMOTE  # the initiator/funder pays on-chain fees
+        is_frozen = self.is_frozen_for_sending() if subject == LOCAL else self.is_frozen_for_receiving()
+        if not self.is_active() or is_frozen:
+            return 0
 
         def consider_ctx(*, ctx_owner: HTLCOwner, is_htlc_dust: bool) -> int:
             ctn = self.get_next_ctn(ctx_owner)
@@ -1473,4 +1491,3 @@ class Channel(AbstractChannel):
             self.logger.info('funding outpoint mismatch')
             return False
         return True
-

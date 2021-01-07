@@ -109,8 +109,10 @@ def wizard_dialog(func):
             except GoBack:
                 if not wizard.can_go_back():
                     wizard.close()
-                # to go back from the current dialog, we just let the caller unroll the stack:
-                raise
+                    raise UserCancelled
+                else:
+                    # to go back from the current dialog, we just let the caller unroll the stack:
+                    raise
             # next dialog
             try:
                 while True:
@@ -246,18 +248,21 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             nonlocal temp_storage
             temp_storage = None
             msg = None
-            path = os.path.join(wallet_folder, filename)
-            wallet_from_memory = get_wallet_from_daemon(path)
-            try:
-                if wallet_from_memory:
-                    temp_storage = wallet_from_memory.storage  # type: Optional[WalletStorage]
-                else:
-                    temp_storage = WalletStorage(path)
-            except (StorageReadWriteError, WalletFileException) as e:
-                msg = _('Cannot read file') + f'\n{repr(e)}'
-            except Exception as e:
-                self.logger.exception('')
-                msg = _('Cannot read file') + f'\n{repr(e)}'
+            if filename:
+                path = os.path.join(wallet_folder, filename)
+                wallet_from_memory = get_wallet_from_daemon(path)
+                try:
+                    if wallet_from_memory:
+                        temp_storage = wallet_from_memory.storage  # type: Optional[WalletStorage]
+                    else:
+                        temp_storage = WalletStorage(path)
+                except (StorageReadWriteError, WalletFileException) as e:
+                    msg = _('Cannot read file') + f'\n{repr(e)}'
+                except Exception as e:
+                    self.logger.exception('')
+                    msg = _('Cannot read file') + f'\n{repr(e)}'
+            else:
+                msg = _('')
             self.next_button.setEnabled(temp_storage is not None)
             user_needs_to_enter_password = False
             if temp_storage:
@@ -445,12 +450,18 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     def text_input(self, title, message, is_valid, allow_multi=False):
         slayout = KeysLayout(parent=self, header_layout=message, is_valid=is_valid,
-                             allow_multi=allow_multi)
+                             allow_multi=allow_multi, config=self.config)
         self.exec_layout(slayout, title, next_enabled=False)
         return slayout.get_text()
 
     def seed_input(self, title, message, is_seed, options):
-        slayout = SeedLayout(title=message, is_seed=is_seed, options=options, parent=self)
+        slayout = SeedLayout(
+            title=message,
+            is_seed=is_seed,
+            options=options,
+            parent=self,
+            config=self.config,
+        )
         self.exec_layout(slayout, title, next_enabled=False)
         return slayout.get_seed(), slayout.is_bip39, slayout.is_ext
 
@@ -485,7 +496,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return self.seed_input(title, message, test, options)
 
     @wizard_dialog
-    def confirm_seed_dialog(self, run_next, test):
+    def confirm_seed_dialog(self, run_next, seed, test):
         self.app.clipboard().clear()
         title = _('Confirm Seed')
         message = ' '.join([
@@ -498,8 +509,14 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     @wizard_dialog
     def show_seed_dialog(self, run_next, seed_text):
-        title =  _("Your wallet generation seed is:")
-        slayout = SeedLayout(seed=seed_text, title=title, msg=True, options=['ext'])
+        title = _("Your wallet generation seed is:")
+        slayout = SeedLayout(
+            seed=seed_text,
+            title=title,
+            msg=True,
+            options=['ext'],
+            config=self.config,
+        )
         self.exec_layout(slayout)
         return slayout.is_ext
 
@@ -610,11 +627,12 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             title: str,
             message1: str,
             choices: List[Tuple[str, str, str]],
+            hide_choices: bool = False,
             message2: str,
             test_text: Callable[[str], int],
             run_next,
             default_choice_idx: int = 0,
-            get_account_xpub=None
+            get_account_xpub=None,
     ) -> Tuple[str, str]:
         vbox = QVBoxLayout()
 
@@ -640,7 +658,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             line.setText(c_default_text[idx])
         clayout = ChoicesLayout(message1, c_titles, on_choice_click,
                                 checked_index=default_choice_idx)
-        vbox.addLayout(clayout.layout())
+        if not hide_choices:
+            vbox.addLayout(clayout.layout())
 
         vbox.addWidget(WWLabel(message2))
 
@@ -693,7 +712,13 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             _("Please share it with your cosigners.")
         ])
         vbox = QVBoxLayout()
-        layout = SeedLayout(xpub, title=msg, icon=False, for_seed_words=False)
+        layout = SeedLayout(
+            xpub,
+            title=msg,
+            icon=False,
+            for_seed_words=False,
+            config=self.config,
+        )
         vbox.addLayout(layout.layout())
         self.exec_layout(vbox, _('Master Public Key'))
         return None

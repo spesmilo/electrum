@@ -81,15 +81,8 @@ Popup:
             Button:
                 size_hint: 0.5, None
                 height: '48dp'
-                text: _('Save Backup')
+                text: _('Export Backup')
+                disabled: not app.android_backups
                 on_release:
                     root.dismiss()
                     app.save_backup()
-            Button:
-                size_hint: 0.5, None
-                height: '48dp'
-                disabled: not app.wallet.can_have_lightning()
-                text: _('Disable LN') if app.wallet.has_lightning() else _('Enable LN')
-                on_release:
-                    root.dismiss()
-                    app.toggle_lightning()

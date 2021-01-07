@@ -9,6 +9,8 @@ from electrum.gui.kivy.i18n import _
 from electrum.plugin import run_hook
 from electrum import coinchooser
 
+from electrum.gui.kivy import KIVY_GUI_PATH
+
 from .choice_dialog import ChoiceDialog
 
 Builder.load_string('''
@@ -18,7 +20,6 @@ Builder.load_string('''
 <SettingsDialog@Popup>
     id: settings
     title: _('Electrum Settings')
-    disable_password: False
     has_pin_code: False
     use_encryption: False
     BoxLayout:
@@ -85,7 +86,6 @@ Builder.load_string('''
                     action: partial(root.boolean_dialog, 'use_change', _('Use change addresses'), self.message)
                 CardSeparator
                 SettingsItem:
-                    disabled: root.disable_password
                     title: _('Password')
                     description: _("Change wallet password.")
                     action: root.change_password
@@ -126,7 +126,6 @@ class SettingsDialog(Factory.Popup):
 
     def update(self):
         self.wallet = self.app.wallet
-        self.disable_password = self.wallet.is_watching_only() if self.wallet else True
         self.use_encryption = self.wallet.has_password() if self.wallet else False
         self.has_pin_code = self.app.has_pin_code()
 
@@ -196,7 +195,7 @@ class SettingsDialog(Factory.Popup):
                 net_params = net_params._replace(proxy=proxy)
                 network.run_from_another_thread(network.set_parameters(net_params))
                 item.status = self.proxy_status()
-            popup = Builder.load_file('electrum/gui/kivy/uix/ui_screens/proxy.kv')
+            popup = Builder.load_file(KIVY_GUI_PATH + '/uix/ui_screens/proxy.kv')
             popup.ids.mode.text = proxy.get('mode') if proxy else 'None'
             popup.ids.host.text = proxy.get('host') if proxy else ''
             popup.ids.port.text = proxy.get('port') if proxy else ''

@@ -19,7 +19,6 @@ ROOT_FOLDER="$CONTRIB/.."
 src_dir=$(dirname "$0")
 cd $src_dir/../..
 
-VERSION=`git describe --tags --dirty --always`
 
 which brew > /dev/null 2>&1 || fail "Please install brew from https://brew.sh/ to continue"
 which xcodebuild > /dev/null 2>&1 || fail "Please install Xcode and xcode command line tools to continue"
@@ -73,8 +72,17 @@ PYTHON_CONFIGURE_OPTS="--enable-framework" pyenv install -s $PYTHON_VERSION && \
 pyenv global $PYTHON_VERSION || \
 fail "Unable to use Python $PYTHON_VERSION"
 
+break_legacy_easy_install
+
+# create a fresh virtualenv
+# This helps to avoid older versions of pip-installed dependencies interfering with the build.
+VENV_DIR="$CONTRIB_OSX/build-venv"
+rm -rf "$VENV_DIR"
+python3 -m venv $VENV_DIR
+source $VENV_DIR/bin/activate
+
 info "Installing build dependencies"
-python3 -m pip install --no-dependencies -Ir ./contrib/deterministic-build/requirements-mac-build.txt --user \
+python3 -m pip install --no-dependencies --no-warn-script-location -Ir ./contrib/deterministic-build/requirements-build-mac.txt \
     || fail "Could not install build dependencies"
 
 info "Using these versions for building $PACKAGE:"
@@ -128,19 +136,19 @@ DoCodeSignMaybe "CalinsQRReader.app" "${d}/build/Release/CalinsQRReader.app"
 
 
 info "Installing requirements..."
-python3 -m pip install --no-dependencies -Ir ./contrib/deterministic-build/requirements.txt --user \
+python3 -m pip install --no-dependencies --no-warn-script-location -Ir ./contrib/deterministic-build/requirements.txt \
     || fail "Could not install requirements"
 
 info "Installing hardware wallet requirements..."
-python3 -m pip install --no-dependencies -Ir ./contrib/deterministic-build/requirements-hw.txt --user \
+python3 -m pip install --no-dependencies --no-warn-script-location -Ir ./contrib/deterministic-build/requirements-hw.txt \
     || fail "Could not install hardware wallet requirements"
 
 info "Installing dependencies specific to binaries..."
-python3 -m pip install --no-dependencies -Ir ./contrib/deterministic-build/requirements-binaries.txt --user \
+python3 -m pip install --no-dependencies --no-warn-script-location -Ir ./contrib/deterministic-build/requirements-binaries-mac.txt \
     || fail "Could not install dependencies specific to binaries"
 
 info "Building $PACKAGE..."
-python3 -m pip install --no-dependencies --user . > /dev/null || fail "Could not build $PACKAGE"
+python3 -m pip install --no-dependencies --no-warn-script-location . > /dev/null || fail "Could not build $PACKAGE"
 
 info "Faking timestamps..."
 for d in ~/Library/Python/ ~/.pyenv .; do
@@ -148,6 +156,8 @@ for d in ~/Library/Python/ ~/.pyenv .; do
   find . -exec touch -t '200101220000' {} +
   popd
 done
+
+VERSION=`git describe --tags --dirty --always`
 
 info "Building binary"
 APP_SIGN="$CODESIGN_CERT" pyinstaller --noconfirm --ascii --clean --name $VERSION contrib/osx/osx.spec || fail "Could not build binary"

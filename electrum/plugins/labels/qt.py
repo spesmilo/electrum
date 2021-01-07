@@ -31,12 +31,16 @@ class Plugin(LabelsPlugin):
     def requires_settings(self):
         return True
 
-    def settings_widget(self, window):
+    def settings_widget(self, window: WindowModalDialog):
         return EnterButton(_('Settings'),
                            partial(self.settings_dialog, window))
 
-    def settings_dialog(self, window):
+    def settings_dialog(self, window: WindowModalDialog):
         wallet = window.parent().wallet
+        if not wallet.get_fingerprint():
+            window.show_error(_("{} plugin does not support this type of wallet.")
+                              .format("Label Sync"))
+            return
         d = WindowModalDialog(window, _("Label Settings"))
         hbox = QHBoxLayout()
         hbox.addWidget(QLabel("Label sync options:"))

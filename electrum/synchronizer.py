@@ -34,7 +34,6 @@ from . import util
 from .transaction import Transaction, PartialTransaction
 from .util import bh2u, make_aiohttp_session, NetworkJobOnDefaultServer, random_shuffled_copy
 from .bitcoin import address_to_scripthash, is_address
-from .network import UntrustedServerReturnedError
 from .logging import Logger
 from .interface import GracefulDisconnect
 
@@ -212,7 +211,7 @@ class Synchronizer(SynchronizerBase):
         self._requests_sent += 1
         try:
             raw_tx = await self.interface.get_transaction(tx_hash)
-        except UntrustedServerReturnedError as e:
+        except RPCError as e:
             # most likely, "No such mempool or blockchain transaction"
             if allow_server_not_finding_tx:
                 self.requested_tx.pop(tx_hash)
@@ -233,7 +232,7 @@ class Synchronizer(SynchronizerBase):
     async def main(self):
         self.wallet.set_up_to_date(False)
         # request missing txns, if any
-        for addr in self.wallet.db.get_history():
+        for addr in random_shuffled_copy(self.wallet.db.get_history()):
             history = self.wallet.db.get_addr_history(addr)
             # Old electrum servers returned ['*'] when all history for the address
             # was pruned. This no longer happens but may remain in old wallets.

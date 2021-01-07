@@ -52,7 +52,7 @@ if TYPE_CHECKING:
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 32     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 33     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -180,6 +180,7 @@ class WalletDB(JsonDB):
         self._convert_version_30()
         self._convert_version_31()
         self._convert_version_32()
+        self._convert_version_33()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
         self._after_upgrade_tasks()
@@ -523,7 +524,7 @@ class WalletDB(JsonDB):
         self.data['channels'] = { x['channel_id']: x for x in channels }
         # convert txi & txo
         txi = self.get('txi', {})
-        for tx_hash, d in txi.items():
+        for tx_hash, d in list(txi.items()):
             d2 = {}
             for addr, l in d.items():
                 d2[addr] = {}
@@ -532,7 +533,7 @@ class WalletDB(JsonDB):
             txi[tx_hash] = d2
         self.data['txi'] = txi
         txo = self.get('txo', {})
-        for tx_hash, d in txo.items():
+        for tx_hash, d in list(txo.items()):
             d2 = {}
             for addr, l in d.items():
                 d2[addr] = {}
@@ -695,6 +696,20 @@ class WalletDB(JsonDB):
         self.data['invoices'] = invoices_new
         self.data['seed_version'] = 32
 
+    def _convert_version_33(self):
+        if not self._is_upgrade_method_needed(32, 32):
+            return
+
+        from .invoices import PR_TYPE_ONCHAIN
+        requests = self.data.get('payment_requests', {})
+        invoices = self.data.get('invoices', {})
+        for d in [invoices, requests]:
+            for key, item in list(d.items()):
+                if item['type'] == PR_TYPE_ONCHAIN:
+                    item['height'] = item.get('height') or 0
+
+        self.data['seed_version'] = 33
+
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
             return
@@ -794,12 +809,12 @@ class WalletDB(JsonDB):
         return list(d.items())
 
     @locked
-    def get_txo_addr(self, tx_hash: str, address: str) -> Iterable[Tuple[int, int, bool]]:
-        """Returns an iterable of (output_index, value, is_coinbase)."""
+    def get_txo_addr(self, tx_hash: str, address: str) -> Dict[int, Tuple[int, bool]]:
+        """Returns a dict: output_index -> (value, is_coinbase)."""
         assert isinstance(tx_hash, str)
         assert isinstance(address, str)
         d = self.txo.get(tx_hash, {}).get(address, {})
-        return [(int(n), v, cb) for (n, (v, cb)) in d.items()]
+        return {int(n): (v, cb) for (n, (v, cb)) in d.items()}
 
     @modifier
     def add_txi_addr(self, tx_hash: str, addr: str, ser: str, v: int) -> None:
@@ -1051,7 +1066,7 @@ class WalletDB(JsonDB):
         self.tx_fees.pop(txid, None)
 
     @locked
-    def get_dict(self, name):
+    def get_dict(self, name) -> dict:
         # Warning: interacts un-intuitively with 'put': certain parts
         # of 'data' will have pointers saved as separate variables.
         if name not in self.data:

@@ -1,11 +1,12 @@
 #:import _ electrum.gui.kivy.i18n._
+#:import KIVY_GUI_PATH electrum.gui.kivy.KIVY_GUI_PATH
 #:import pr_color electrum.invoices.pr_color
 #:import PR_UNKNOWN electrum.invoices.PR_UNKNOWN
 #:import Factory kivy.factory.Factory
 #:import Decimal decimal.Decimal
 #:set btc_symbol chr(171)
 #:set mbtc_symbol chr(187)
-#:set font_light 'electrum/gui/kivy/data/fonts/Roboto-Condensed.ttf'
+#:set font_light f'{KIVY_GUI_PATH}/data/fonts/Roboto-Condensed.ttf'
 
 
 <RequestLabel@Label>
@@ -85,7 +86,7 @@
                 height: blue_bottom.item_height
                 spacing: '5dp'
                 Image:
-                    source: 'atlas://electrum/gui/kivy/theming/light/lightning' if root.is_lightning else 'atlas://electrum/gui/kivy/theming/light/globe'
+                    source: f'atlas://{KIVY_GUI_PATH}/theming/light/lightning' if root.is_lightning else f'atlas://{KIVY_GUI_PATH}/theming/light/globe'
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
@@ -102,7 +103,7 @@
                 height: blue_bottom.item_height
                 spacing: '5dp'
                 Image:
-                    source: 'atlas://electrum/gui/kivy/theming/light/calculator'
+                    source: f'atlas://{KIVY_GUI_PATH}/theming/light/calculator'
                     opacity: 0.7
                     size_hint: None, None
                     size: '22dp', '22dp'
@@ -122,7 +123,7 @@
                 height: blue_bottom.item_height
                 spacing: '5dp'
                 Image:
-                    source: 'atlas://electrum/gui/kivy/theming/light/pen'
+                    source: f'atlas://{KIVY_GUI_PATH}/theming/light/pen'
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
@@ -134,12 +135,12 @@
             size_hint: 1, None
             height: '48dp'
             IconButton:
-                icon: 'atlas://electrum/gui/kivy/theming/light/delete'
+                icon: f'atlas://{KIVY_GUI_PATH}/theming/light/delete'
                 size_hint: 0.5, None
                 height: '48dp'
                 on_release: Clock.schedule_once(lambda dt: s.clear_requests_dialog())
             IconButton:
-                icon: 'atlas://electrum/gui/kivy/theming/light/clock1'
+                icon: f'atlas://{KIVY_GUI_PATH}/theming/light/clock1'
                 size_hint: 0.5, None
                 height: '48dp'
                 on_release: Clock.schedule_once(lambda dt: s.expiration_dialog(s))

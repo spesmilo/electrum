@@ -119,8 +119,6 @@ export SOURCE_DATE_EPOCH=1530212462
 export PYTHONHASHSEED=22
 # Set the build type, overridden by wine build
 export BUILD_TYPE="${BUILD_TYPE:-$(uname | tr '[:upper:]' '[:lower:]')}"
-# No additional autoconf flags by default
-export AUTOCONF_FLAGS=""
 # Add host / build flags if the triplets are set
 if [ -n "$GCC_TRIPLET_HOST" ] ; then
     export AUTOCONF_FLAGS="$AUTOCONF_FLAGS --host=$GCC_TRIPLET_HOST"
@@ -130,4 +128,26 @@ if [ -n "$GCC_TRIPLET_BUILD" ] ; then
 fi
 
 export GCC_STRIP_BINARIES="${GCC_STRIP_BINARIES:-0}"
+
+
+function break_legacy_easy_install() {
+    # We don't want setuptools sneakily installing dependencies, invisible to pip.
+    # This ensures that if setuptools calls distutils which then calls easy_install,
+    # easy_install will not download packages over the network.
+    # see https://pip.pypa.io/en/stable/reference/pip_install/#controlling-setup-requires
+    # see https://github.com/pypa/setuptools/issues/1916#issuecomment-743350566
+    info "Intentionally breaking legacy easy_install."
+    DISTUTILS_CFG="${HOME}/.pydistutils.cfg"
+    DISTUTILS_CFG_BAK="${HOME}/.pydistutils.cfg.orig"
+    # If we are not inside docker, we might be overwriting a config file on the user's system...
+    if [ -e "$DISTUTILS_CFG" ] && [ ! -e "$DISTUTILS_CFG_BAK" ]; then
+        warn "Overwriting python distutils config file at '$DISTUTILS_CFG'. A copy will be saved at '$DISTUTILS_CFG_BAK'."
+        mv "$DISTUTILS_CFG" "$DISTUTILS_CFG_BAK"
+    fi
+    cat <<EOF > "$DISTUTILS_CFG"
+[easy_install]
+index_url = ''
+find_links = ''
+EOF
+}
 

@@ -53,7 +53,7 @@ from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    char_width_in_lineedit, TRANSACTION_FILE_EXTENSION_FILTER_SEPARATE,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_COMPLETE_TX,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX,
-                   BlockingWaitingDialog)
+                   BlockingWaitingDialog, getSaveFileName)
 
 from .fee_slider import FeeSlider, FeeComboBox
 from .confirm_tx_dialog import TxEditor
@@ -219,6 +219,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
 
     def do_broadcast(self):
         self.main_window.push_top_level_window(self)
+        self.main_window.save_pending_invoice()
         try:
             self.main_window.broadcast_transaction(self.tx)
         finally:
@@ -269,7 +270,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         if not isinstance(self.tx, PartialTransaction):
             raise Exception("Can only export partial transactions for hardware device.")
         tx = copy.deepcopy(self.tx)
-        tx.add_info_from_wallet(self.wallet, include_xpubs_and_full_paths=True)
+        tx.add_info_from_wallet(self.wallet, include_xpubs=True)
         # log warning if PSBT_*_BIP32_DERIVATION fields cannot be filled with full path due to missing info
         from electrum.keystore import Xpub
         def is_ks_missing_info(ks):
@@ -330,11 +331,15 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             extension = 'psbt'
             default_filter = TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX
         name = f'{name}.{extension}'
-        fileName = self.main_window.getSaveFileName(_("Select where to save your transaction"),
-                                                    name,
-                                                    TRANSACTION_FILE_EXTENSION_FILTER_SEPARATE,
-                                                    default_extension=extension,
-                                                    default_filter=default_filter)
+        fileName = getSaveFileName(
+            parent=self,
+            title=_("Select where to save your transaction"),
+            filename=name,
+            filter=TRANSACTION_FILE_EXTENSION_FILTER_SEPARATE,
+            default_extension=extension,
+            default_filter=default_filter,
+            config=self.config,
+        )
         if not fileName:
             return
         if tx.is_complete():  # network tx hex
@@ -352,9 +357,13 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
     def merge_sigs(self):
         if not isinstance(self.tx, PartialTransaction):
             return
-        text = text_dialog(self, _('Input raw transaction'),
-                           _("Transaction to merge signatures from") + ":",
-                           _("Load transaction"))
+        text = text_dialog(
+            parent=self,
+            title=_('Input raw transaction'),
+            header_layout=_("Transaction to merge signatures from") + ":",
+            ok_label=_("Load transaction"),
+            config=self.config,
+        )
         if not text:
             return
         tx = self.main_window.tx_from_text(text)
@@ -370,9 +379,13 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
     def join_tx_with_another(self):
         if not isinstance(self.tx, PartialTransaction):
             return
-        text = text_dialog(self, _('Input raw transaction'),
-                           _("Transaction to join with") + " (" + _("add inputs and outputs") + "):",
-                           _("Load transaction"))
+        text = text_dialog(
+            parent=self,
+            title=_('Input raw transaction'),
+            header_layout=_("Transaction to join with") + " (" + _("add inputs and outputs") + "):",
+            ok_label=_("Load transaction"),
+            config=self.config,
+        )
         if not text:
             return
         tx = self.main_window.tx_from_text(text)
@@ -419,7 +432,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             # note: when not finalized, RBF and locktime changes do not trigger
             #       a make_tx, so the txid is unreliable, hence:
             self.tx_hash_e.setText(_('Unknown'))
-        if desc is None:
+        if not desc:
             self.tx_desc.hide()
         else:
             self.tx_desc.setText(_("Description") + ': ' + desc)
@@ -430,7 +443,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             time_str = datetime.datetime.fromtimestamp(tx_mined_status.timestamp).isoformat(' ')[:-3]
             self.date_label.setText(_("Date: {}").format(time_str))
             self.date_label.show()
-        elif exp_n:
+        elif exp_n is not None:
             text = '%.2f MB'%(exp_n/1000000)
             self.date_label.setText(_('Position in mempool: {} from tip').format(text))
             self.date_label.show()
@@ -551,8 +564,9 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
                 if addr is None:
                     addr = ''
                 cursor.insertText(addr, text_format(addr))
-                if isinstance(txin, PartialTxInput) and txin.value_sats() is not None:
-                    cursor.insertText(format_amount(txin.value_sats()), ext)
+                txin_value = self.wallet.get_txin_value(txin)
+                if txin_value is not None:
+                    cursor.insertText(format_amount(txin_value), ext)
             cursor.insertBlock()
 
         self.outputs_header.setText(_("Outputs") + ' (%d)'%len(self.tx.outputs()))

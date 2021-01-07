@@ -15,6 +15,10 @@ from electrum.i18n import _
 
 from .util import MONOSPACE_FONT
 
+# sys.ps1 and sys.ps2 are only declared if an interpreter is in interactive mode.
+sys.ps1 = '>>> '
+sys.ps2 = '... '
+
 
 class OverlayLabel(QtWidgets.QLabel):
     STYLESHEET = '''
@@ -44,10 +48,9 @@ class OverlayLabel(QtWidgets.QLabel):
 
 
 class Console(QtWidgets.QPlainTextEdit):
-    def __init__(self, prompt='>>> ', parent=None):
+    def __init__(self, parent=None):
         QtWidgets.QPlainTextEdit.__init__(self, parent)
 
-        self.prompt = prompt
         self.history = []
         self.namespace = {}
         self.construct = []
@@ -56,6 +59,7 @@ class Console(QtWidgets.QPlainTextEdit):
         self.setWordWrapMode(QtGui.QTextOption.WrapAnywhere)
         self.setUndoRedoEnabled(False)
         self.document().setDefaultFont(QtGui.QFont(MONOSPACE_FONT, 10, QtGui.QFont.Normal))
+        self.newPrompt("")  # make sure there is always a prompt, even before first server.banner
 
         self.updateNamespace({'run':self.run_script})
         self.set_json(False)
@@ -86,7 +90,7 @@ class Console(QtWidgets.QPlainTextEdit):
         self.namespace.update(namespace)
 
     def showMessage(self, message):
-        curr_line = self.getCommand()
+        curr_line = self.getCommand(strip=False)
         self.appendPlainText(message)
         self.newPrompt(curr_line)
 
@@ -95,11 +99,16 @@ class Console(QtWidgets.QPlainTextEdit):
         self.setPlainText('')
         self.newPrompt(curr_line)
 
+    def keyboard_interrupt(self):
+        self.construct = []
+        self.appendPlainText('KeyboardInterrupt')
+        self.newPrompt('')
+
     def newPrompt(self, curr_line):
         if self.construct:
-            prompt = '... ' + curr_line
+            prompt = sys.ps2 + curr_line
         else:
-            prompt = self.prompt + curr_line
+            prompt = sys.ps1 + curr_line
 
         self.completions_pos = self.textCursor().position()
         self.completions_visible = False
@@ -107,11 +116,12 @@ class Console(QtWidgets.QPlainTextEdit):
         self.appendPlainText(prompt)
         self.moveCursor(QtGui.QTextCursor.End)
 
-    def getCommand(self):
+    def getCommand(self, *, strip=True):
         doc = self.document()
         curr_line = doc.findBlockByLineNumber(doc.lineCount() - 1).text()
-        curr_line = curr_line.rstrip()
-        curr_line = curr_line[len(self.prompt):]
+        if strip:
+            curr_line = curr_line.rstrip()
+        curr_line = curr_line[len(sys.ps1):]
         return curr_line
 
     def setCommand(self, command):
@@ -121,7 +131,7 @@ class Console(QtWidgets.QPlainTextEdit):
         doc = self.document()
         curr_line = doc.findBlockByLineNumber(doc.lineCount() - 1).text()
         self.moveCursor(QtGui.QTextCursor.End)
-        for i in range(len(curr_line) - len(self.prompt)):
+        for i in range(len(curr_line) - len(sys.ps1)):
             self.moveCursor(QtGui.QTextCursor.Left, QtGui.QTextCursor.KeepAnchor)
 
         self.textCursor().removeSelectedText()
@@ -196,11 +206,11 @@ class Console(QtWidgets.QPlainTextEdit):
 
     def getCursorPosition(self):
         c = self.textCursor()
-        return c.position() - c.block().position() - len(self.prompt)
+        return c.position() - c.block().position() - len(sys.ps1)
 
     def setCursorPosition(self, position):
         self.moveCursor(QtGui.QTextCursor.StartOfLine)
-        for i in range(len(self.prompt) + position):
+        for i in range(len(sys.ps1) + position):
             self.moveCursor(QtGui.QTextCursor.Right)
 
     def run_command(self):
@@ -286,6 +296,9 @@ class Console(QtWidgets.QPlainTextEdit):
             return
         elif event.key() == QtCore.Qt.Key_L and event.modifiers() == QtCore.Qt.ControlModifier:
             self.clear()
+        elif event.key() == QtCore.Qt.Key_C and event.modifiers() == QtCore.Qt.ControlModifier:
+            if not self.textCursor().selectedText():
+                self.keyboard_interrupt()
 
         super(Console, self).keyPressEvent(event)
 

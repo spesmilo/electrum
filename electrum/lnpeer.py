@@ -84,7 +84,6 @@ class Peer(Logger):
         self.node_ids = [self.pubkey, privkey_to_pubkey(self.privkey)]
         assert self.node_ids[0] != self.node_ids[1]
         self.network = lnworker.network
-        self.channel_db = lnworker.network.channel_db
         self.ping_time = 0
         self.reply_channel_range = asyncio.Queue()
         # gossip uses a single queue to preserve message order
@@ -227,7 +226,7 @@ class Peer(Logger):
         their_globalfeatures = int.from_bytes(payload['globalfeatures'], byteorder="big")
         self.their_features |= their_globalfeatures
         # check transitive dependencies for received features
-        if not self.their_features.validate_transitive_dependecies():
+        if not self.their_features.validate_transitive_dependencies():
             raise GracefulDisconnect("remote did not set all dependencies for the features they sent")
         # check if features are compatible, and set self.features to what we negotiated
         try:
@@ -257,10 +256,28 @@ class Peer(Logger):
         self.gossip_queue.put_nowait(('channel_update', payload))
 
     def maybe_save_remote_update(self, payload):
+        if not self.channels:
+            return
         for chan in self.channels.values():
             if chan.short_channel_id == payload['short_channel_id']:
                 chan.set_remote_update(payload['raw'])
                 self.logger.info("saved remote_update")
+                break
+        else:
+            # Save (some bounded number of) orphan channel updates for later
+            # as it might be for our own direct channel with this peer
+            # (and we might not yet know the short channel id for that)
+            # Background: this code is here to deal with a bug in LND,
+            # see https://github.com/lightningnetwork/lnd/issues/3651
+            # and https://github.com/lightningnetwork/lightning-rfc/pull/657
+            # This code assumes gossip_queries is set. BOLT7: "if the
+            # gossip_queries feature is negotiated, [a node] MUST NOT
+            # send gossip it did not generate itself"
+            short_channel_id = ShortChannelID(payload['short_channel_id'])
+            self.logger.info(f'received orphan channel update {short_channel_id}')
+            self.orphan_channel_updates[short_channel_id] = payload
+            while len(self.orphan_channel_updates) > 25:
+                self.orphan_channel_updates.popitem(last=False)
 
     def on_announcement_signatures(self, chan: Channel, payload):
         if chan.config[LOCAL].was_announced:
@@ -292,8 +309,6 @@ class Peer(Logger):
             await group.spawn(self.process_gossip())
 
     async def process_gossip(self):
-        await self.channel_db.data_loaded.wait()
-        # verify in peer's TaskGroup so that we fail the connection
         while True:
             await asyncio.sleep(5)
             chan_anns = []
@@ -311,35 +326,10 @@ class Peer(Logger):
                     raise Exception('unknown message')
                 if self.gossip_queue.empty():
                     break
-            self.logger.debug(f'process_gossip {len(chan_anns)} {len(node_anns)} {len(chan_upds)}')
-            # note: data processed in chunks to avoid taking sql lock for too long
-            # channel announcements
-            for chan_anns_chunk in chunks(chan_anns, 300):
-                self.verify_channel_announcements(chan_anns_chunk)
-                self.channel_db.add_channel_announcement(chan_anns_chunk)
-            # node announcements
-            for node_anns_chunk in chunks(node_anns, 100):
-                self.verify_node_announcements(node_anns_chunk)
-                self.channel_db.add_node_announcement(node_anns_chunk)
-            # channel updates
-            for chan_upds_chunk in chunks(chan_upds, 1000):
-                categorized_chan_upds = self.channel_db.add_channel_updates(
-                    chan_upds_chunk, max_age=self.network.lngossip.max_age)
-                orphaned = categorized_chan_upds.orphaned
-                if orphaned:
-                    self.logger.info(f'adding {len(orphaned)} unknown channel ids')
-                    orphaned_ids = [c['short_channel_id'] for c in orphaned]
-                    await self.network.lngossip.add_new_ids(orphaned_ids)
-                    # Save (some bounded number of) orphan channel updates for later
-                    # as it might be for our own direct channel with this peer
-                    # (and we might not yet know the short channel id for that)
-                    for chan_upd_payload in orphaned:
-                        short_channel_id = ShortChannelID(chan_upd_payload['short_channel_id'])
-                        self.orphan_channel_updates[short_channel_id] = chan_upd_payload
-                        while len(self.orphan_channel_updates) > 25:
-                            self.orphan_channel_updates.popitem(last=False)
-                if categorized_chan_upds.good:
-                    self.logger.debug(f'on_channel_update: {len(categorized_chan_upds.good)}/{len(chan_upds_chunk)}')
+            # verify in peer's TaskGroup so that we fail the connection
+            self.verify_channel_announcements(chan_anns)
+            self.verify_node_announcements(node_anns)
+            await self.network.lngossip.process_gossip(chan_anns, node_anns, chan_upds)
 
     def verify_channel_announcements(self, chan_anns):
         for payload in chan_anns:
@@ -508,15 +498,17 @@ class Peer(Logger):
             static_remotekey = bfh(wallet.get_public_key(addr))
         else:
             static_remotekey = None
+        dust_limit_sat = bitcoin.DUST_LIMIT_DEFAULT_SAT_LEGACY
+        reserve_sat = max(funding_sat // 100, dust_limit_sat)
         local_config = LocalConfig.from_seed(
             channel_seed=channel_seed,
             static_remotekey=static_remotekey,
             to_self_delay=self.network.config.get('lightning_to_self_delay', 7 * 144),
-            dust_limit_sat=bitcoin.DUST_LIMIT_DEFAULT_SAT_LEGACY,
+            dust_limit_sat=dust_limit_sat,
             max_htlc_value_in_flight_msat=funding_sat * 1000,
             max_accepted_htlcs=5,
             initial_msat=initial_msat,
-            reserve_sat=funding_sat // 100,
+            reserve_sat=reserve_sat,
             funding_locked_received=False,
             was_announced=False,
             current_commitment_signature=None,
@@ -775,7 +767,7 @@ class Peer(Logger):
         chan.set_state(ChannelState.OPENING)
         self.lnworker.add_new_channel(chan)
 
-    async def trigger_force_close(self, channel_id):
+    async def trigger_force_close(self, channel_id: bytes):
         await self.initialized
         latest_point = secret_to_pubkey(42) # we need a valid point (BOLT2)
         self.send_message(
@@ -1449,7 +1441,7 @@ class Peer(Logger):
             await asyncio.sleep(0.1)
         self.send_message('shutdown', channel_id=chan.channel_id, len=len(scriptpubkey), scriptpubkey=scriptpubkey)
         chan.set_state(ChannelState.SHUTDOWN)
-        # can fullfill or fail htlcs. cannot add htlcs, because of CLOSING state
+        # can fullfill or fail htlcs. cannot add htlcs, because state != OPEN
         chan.set_can_send_ctx_updates(True)
 
     @log_exceptions
