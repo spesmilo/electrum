@@ -145,6 +145,17 @@ class ChannelsList(MyTreeView):
             self.main_window.show_message('success')
         WaitingDialog(self, 'please wait..', task, on_success, self.on_failure)
 
+    def freeze_channel_for_sending(self, chan, b):
+        if self.lnworker.channel_db or chan.is_trampoline():
+            chan.set_frozen_for_sending(b)
+        else:
+            msg = ' '.join([
+                _("Trampoline routing is enabled, but this channel is with a non-trampoline node."),
+                _("This channel may still be used for receiving, but it is frozen for sending."),
+                _("If you want to keep using this channel, you need to disable trampoline routing in your preferences."),
+            ])
+            self.main_window.show_warning(msg, title=_('Channel is frozen for sending'))
+
     def create_menu(self, position):
         menu = QMenu()
         menu.setSeparatorsCollapsible(True)  # consecutive separators are merged together
@@ -177,9 +188,9 @@ class ChannelsList(MyTreeView):
             channel_id.hex(), title=_("Long Channel ID")))
         if not chan.is_closed():
             if not chan.is_frozen_for_sending():
-                menu.addAction(_("Freeze (for sending)"), lambda: chan.set_frozen_for_sending(True))
+                menu.addAction(_("Freeze (for sending)"), lambda: self.freeze_channel_for_sending(chan, True))
             else:
-                menu.addAction(_("Unfreeze (for sending)"), lambda: chan.set_frozen_for_sending(False))
+                menu.addAction(_("Unfreeze (for sending)"), lambda: self.freeze_channel_for_sending(chan, False))
             if not chan.is_frozen_for_receiving():
                 menu.addAction(_("Freeze (for receiving)"), lambda: chan.set_frozen_for_receiving(True))
             else:
@@ -359,7 +370,7 @@ class ChannelsList(MyTreeView):
         suggest_button = QPushButton(d, text=_('Suggest Peer'))
         def on_suggest():
             self.parent.wallet.network.start_gossip()
-            nodeid = bh2u(lnworker.lnrater.suggest_peer() or b'')
+            nodeid = bh2u(lnworker.suggest_peer() or b'')
             if not nodeid:
                 remote_nodeid.setText("")
                 remote_nodeid.setPlaceholderText(

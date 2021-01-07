@@ -99,6 +99,16 @@ class RouteEdge(PathEdge):
         features = self.node_features
         return bool(features & LnFeatures.VAR_ONION_REQ or features & LnFeatures.VAR_ONION_OPT)
 
+    def is_trampoline(self):
+        return False
+
+@attr.s
+class TrampolineEdge(RouteEdge):
+    invoice_routing_info = attr.ib(type=bytes, default=None)
+    invoice_features = attr.ib(type=int, default=None)
+    short_channel_id = attr.ib(0)
+    def is_trampoline(self):
+        return True
 
 LNPaymentPath = Sequence[PathEdge]
 LNPaymentRoute = Sequence[RouteEdge]

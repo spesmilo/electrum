@@ -24,12 +24,16 @@ class SqlDB(Logger):
     def __init__(self, asyncio_loop: asyncio.BaseEventLoop, path, commit_interval=None):
         Logger.__init__(self)
         self.asyncio_loop = asyncio_loop
+        self.stopping = False
         self.path = path
         test_read_write_permissions(path)
         self.commit_interval = commit_interval
         self.db_requests = queue.Queue()
         self.sql_thread = threading.Thread(target=self.run_sql)
         self.sql_thread.start()
+
+    def stop(self):
+        self.stopping = True
 
     def filesize(self):
         return os.stat(self.path).st_size
@@ -40,7 +44,7 @@ class SqlDB(Logger):
         self.logger.info("Creating database")
         self.create_database()
         i = 0
-        while self.asyncio_loop.is_running():
+        while not self.stopping and self.asyncio_loop.is_running():
             try:
                 future, func, args, kwargs = self.db_requests.get(timeout=0.1)
             except queue.Empty:

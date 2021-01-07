@@ -282,6 +282,17 @@ class LnAddr(object):
             return None
         return self.amount * COIN
 
+    def get_routing_info(self):
+        import random
+        # only want 'r' tags
+        r_tags = list(filter(lambda x: x[0] == 'r', self.tags))
+        # strip the tag type, it's implicitly 'r' now
+        r_tags = list(map(lambda x: x[1], r_tags))
+        # if there are multiple hints, we will use the first one that works,
+        # from a random permutation
+        random.shuffle(r_tags)
+        return r_tags
+
     def get_amount_msat(self) -> Optional[int]:
         if self.amount is None:
             return None

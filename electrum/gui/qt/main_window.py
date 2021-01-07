@@ -741,7 +741,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             tools_menu.addAction(_("Electrum preferences"), self.settings_dialog)
 
         tools_menu.addAction(_("&Network"), self.gui_object.show_network_dialog).setEnabled(bool(self.network))
-        tools_menu.addAction(_("&Lightning Network"), self.gui_object.show_lightning_dialog).setEnabled(bool(self.wallet.has_lightning() and self.network))
+        tools_menu.addAction(_("&Lightning Gossip"), self.gui_object.show_lightning_dialog).setEnabled(bool(self.wallet.has_lightning() and self.network))
         tools_menu.addAction(_("Local &Watchtower"), self.gui_object.show_watchtower_dialog).setEnabled(bool(self.network and self.network.local_watchtower))
         tools_menu.addAction(_("&Plugins"), self.plugins_dialog)
         tools_menu.addSeparator()
@@ -2179,8 +2179,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.seed_button = StatusBarButton(read_QIcon("seed.png"), _("Seed"), self.show_seed_dialog )
         sb.addPermanentWidget(self.seed_button)
         self.lightning_button = None
-        if self.wallet.has_lightning() and self.network:
-            self.lightning_button = StatusBarButton(read_QIcon("lightning_disconnected.png"), _("Lightning Network"), self.gui_object.show_lightning_dialog)
+        if self.wallet.has_lightning():
+            self.lightning_button = StatusBarButton(read_QIcon("lightning.png"), _("Lightning Network"), self.gui_object.show_lightning_dialog)
             self.update_lightning_icon()
             sb.addPermanentWidget(self.lightning_button)
         self.status_button = None
@@ -2221,10 +2221,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if self.lightning_button is None:
             return
         if self.network.lngossip is None:
+            self.lightning_button.setVisible(False)
             return
 
-        # display colorful lightning icon to signal connection
-        self.lightning_button.setIcon(read_QIcon("lightning.png"))
+        self.lightning_button.setVisible(True)
 
         cur, total, progress_percent = self.network.lngossip.get_sync_progress_estimate()
         # self.logger.debug(f"updating lngossip sync progress estimate: cur={cur}, total={total}")
