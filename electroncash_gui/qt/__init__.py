@@ -24,7 +24,13 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import gc, os, platform, shutil, signal, sys, traceback
+import gc
+import os
+import platform
+import shutil
+import signal
+import sys
+import traceback
 
 try:
     import PyQt5
@@ -264,6 +270,21 @@ class ElectrumGui(QObject, PrintError):
                     #QMessageBox.warning(None, _("Warning"), msg)  # this works even if app is not exec_() yet.
 
                 callables.append(undo_hack)
+
+        # macOS Big Sur workaround for Qt>=5.13.2 sometimes not working at all
+        # See: https://bugreports.qt.io/browse/QTBUG-87014
+        # See also: https://stackoverflow.com/questions/64818879/is-there-any-solution-regarding-to-pyqt-library-doesnt-work-in-mac-os-big-sur
+        if sys.platform in ('darwin', ):
+            try:
+                release_tuple = version.normalize_version(platform.uname().release)
+                self.print_error("Darwin kernel version:", '.'.join([str(x) for x in release_tuple]))
+            except Exception as e:
+                release_tuple = (0, 0, 0)
+                self.print_error("Error parsing Darwin kernel version:", repr(e))
+            if release_tuple >= (20, 0, 0) and self.qt_version() > (5, 13, 1):
+                # Setting this env var causes Qt to use some other macOS API that always works on Big Sur
+                os.environ['QT_MAC_WANTS_LAYER'] = '1'
+                self.print_error(f"macOS Big Sur Qt workaround applied")
 
         def setup_layout_direction():
             """Sets the app layout direction depending on language. To be called
