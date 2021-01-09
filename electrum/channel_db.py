@@ -334,11 +334,12 @@ class ChannelDB(SqlDB):
             unshuffled = set(self._nodes.keys()) - node_ids
         return random.sample(unshuffled, min(200, len(unshuffled)))
 
-    def get_last_good_address(self, node_id) -> Optional[LNPeerAddr]:
+    def get_last_good_address(self, node_id: bytes) -> Optional[LNPeerAddr]:
+        """Returns latest address we successfully connected to, for given node."""
         r = self._addresses.get(node_id)
         if not r:
             return None
-        addr = sorted(list(r), key=lambda x: x.timestamp)[0]
+        addr = sorted(list(r), key=lambda x: x.timestamp, reverse=True)[0]
         try:
             return LNPeerAddr(addr.host, addr.port, node_id)
         except ValueError:
