@@ -36,7 +36,8 @@ try:
 
     TREZORLIB = True
 except Exception as e:
-    _logger.exception('error importing trezorlib')
+    if not (isinstance(e, ModuleNotFoundError) and e.name == 'trezorlib'):
+        _logger.exception('error importing trezor plugin deps')
     TREZORLIB = False
 
     class _EnumMissing:
