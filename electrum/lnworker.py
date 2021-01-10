@@ -1140,16 +1140,14 @@ class LNWallet(LNWorker):
                 path = full_path[:-len(private_route)]
             else:
                 # find path now on public graph, to border node
-                path = self.network.path_finder.find_path_for_payment(
-                    self.node_keypair.pubkey, border_node_pubkey, amount_msat,
-                    my_channels=scid_to_my_channels)
-            if not path:
-                continue
+                path = None
             try:
-                route = self.network.path_finder.create_route_from_path(
-                    path, self.node_keypair.pubkey,
-                    my_channels=scid_to_my_channels)
+                route = self.network.path_finder.find_route(
+                    self.node_keypair.pubkey, border_node_pubkey, amount_msat,
+                    path=path, my_channels=scid_to_my_channels)
             except NoChannelPolicy:
+                continue
+            if not route:
                 continue
             # we need to shift the node pubkey by one towards the destination:
             private_route_nodes = [edge[0] for edge in private_route][1:] + [invoice_pubkey]
@@ -1186,17 +1184,11 @@ class LNWallet(LNWorker):
             break
         # if could not find route using any hint; try without hint now
         if route is None:
-            if full_path:  # user pre-selected path
-                path = full_path
-            else:  # find path now
-                path = self.network.path_finder.find_path_for_payment(
-                    self.node_keypair.pubkey, invoice_pubkey, amount_msat,
-                    my_channels=scid_to_my_channels)
-            if not path:
+            route = self.network.path_finder.find_route(
+                self.node_keypair.pubkey, invoice_pubkey, amount_msat,
+                path=full_path, my_channels=scid_to_my_channels)
+            if not route:
                 raise NoPathFound()
-            route = self.network.path_finder.create_route_from_path(
-                path, self.node_keypair.pubkey,
-                my_channels=scid_to_my_channels)
             if not is_route_sane_to_use(route, amount_msat, decoded_invoice.get_min_final_cltv_expiry()):
                 self.logger.info(f"rejecting insane route {route}")
                 raise NoPathFound()

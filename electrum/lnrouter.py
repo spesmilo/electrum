@@ -310,3 +310,10 @@ class LNPathFinder(Logger):
                                                        node_info=node_info))
             prev_node_id = node_id
         return route
+
+    def find_route(self, nodeA: bytes, nodeB: bytes, invoice_amount_msat: int, *,
+                   path = None, my_channels: Dict[ShortChannelID, 'Channel'] = None) -> Optional[LNPaymentRoute]:
+        if not path:
+            path = self.find_path_for_payment(nodeA, nodeB, invoice_amount_msat, my_channels=my_channels)
+        if path:
+            return self.create_route_from_path(path, nodeA, my_channels=my_channels)
