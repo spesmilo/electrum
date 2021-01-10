@@ -27,9 +27,9 @@ class LockTimeEdit(QWidget):
         hbox.setContentsMargins(0, 0, 0, 0)
         hbox.setSpacing(0)
 
-        self.locktime_raw_e = LockTimeRawEdit()
-        self.locktime_height_e = LockTimeHeightEdit()
-        self.locktime_date_e = LockTimeDateEdit()
+        self.locktime_raw_e = LockTimeRawEdit(self)
+        self.locktime_height_e = LockTimeHeightEdit(self)
+        self.locktime_date_e = LockTimeDateEdit(self)
         self.editors = [self.locktime_raw_e, self.locktime_height_e, self.locktime_date_e]
 
         self.combo = QComboBox()

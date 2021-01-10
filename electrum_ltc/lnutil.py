@@ -1106,6 +1106,7 @@ def derive_payment_secret_from_payment_preimage(payment_preimage: bytes) -> byte
 
 
 class LNPeerAddr:
+    # note: while not programmatically enforced, this class is meant to be *immutable*
 
     def __init__(self, host: str, port: int, pubkey: bytes):
         assert isinstance(host, str), repr(host)
@@ -1120,7 +1121,7 @@ class LNPeerAddr:
         self.host = host
         self.port = port
         self.pubkey = pubkey
-        self._net_addr_str = str(net_addr)
+        self._net_addr = net_addr
 
     def __str__(self):
         return '{}@{}'.format(self.pubkey.hex(), self.net_addr_str())
@@ -1128,8 +1129,11 @@ class LNPeerAddr:
     def __repr__(self):
         return f'<LNPeerAddr host={self.host} port={self.port} pubkey={self.pubkey.hex()}>'
 
+    def net_addr(self) -> NetAddress:
+        return self._net_addr
+
     def net_addr_str(self) -> str:
-        return self._net_addr_str
+        return str(self._net_addr)
 
     def __eq__(self, other):
         if not isinstance(other, LNPeerAddr):

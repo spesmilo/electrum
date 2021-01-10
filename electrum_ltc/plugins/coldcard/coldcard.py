@@ -570,28 +570,21 @@ class ColdcardPlugin(HW_PluginBase):
         print(f'Format: {wallet.txin_type.upper()}' , file=fp)
 
         xpubs = []
-        derivs = set()
         for xpub, ks in zip(wallet.get_master_public_keys(), wallet.get_keystores()):  # type: str, KeyStoreWithMPK
             fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix=[], only_der_suffix=False)
             fp_hex = fp_bytes.hex().upper()
             der_prefix_str = bip32.convert_bip32_intpath_to_strpath(der_full)
             xpubs.append( (fp_hex, xpub, der_prefix_str) )
-            derivs.add(der_prefix_str)
 
-        # Derivation doesn't matter too much to the Coldcard, since it
-        # uses key path data from PSBT or USB request as needed. However,
-        # if there is a clear value, provide it.
-        if len(derivs) == 1:
-            print("Derivation: " + derivs.pop(), file=fp)
+        # Before v3.2.1 derivation didn't matter too much to the Coldcard, since it
+        # could use key path data from PSBT or USB request as needed. However,
+        # derivation data is now required.
 
         print('', file=fp)
 
         assert len(xpubs) == wallet.n
         for xfp, xpub, der_prefix in xpubs:
-            if derivs:
-                # show as a comment if unclear
-                print(f'# derivation: {der_prefix}', file=fp)
-
+            print(f'Derivation: {der_prefix}', file=fp)
             print(f'{xfp}: {xpub}\n', file=fp)
 
     def show_address(self, wallet, address, keystore: 'Coldcard_KeyStore' = None):
