@@ -35,7 +35,9 @@ try:
     from btchip.btchipException import BTChipException
     BTCHIP = True
     BTCHIP_DEBUG = False
-except ImportError:
+except ImportError as e:
+    if not (isinstance(e, ModuleNotFoundError) and e.name == 'btchip'):
+        _logger.exception('error importing ledger plugin deps')
     BTCHIP = False
 
 MSG_NEEDS_FW_UPDATE_GENERIC = _('Firmware version too old. Please update at') + \

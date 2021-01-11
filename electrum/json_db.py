@@ -193,8 +193,16 @@ class JsonDB(Logger):
         return False
 
     @locked
-    def dump(self):
-        return json.dumps(self.data, indent=4, sort_keys=True, cls=JsonDBJsonEncoder)
+    def dump(self, *, human_readable: bool = True) -> str:
+        """Serializes the DB as a string.
+        'human_readable': makes the json indented and sorted, but this is ~2x slower
+        """
+        return json.dumps(
+            self.data,
+            indent=4 if human_readable else None,
+            sort_keys=bool(human_readable),
+            cls=JsonDBJsonEncoder,
+        )
 
     def _should_convert_to_stored_dict(self, key) -> bool:
         return True
