@@ -1015,7 +1015,7 @@ class LNWallet(LNWorker):
                     except IndexError:
                         self.logger.info("payment destination reported error")
                     else:
-                        self.logger.info(f'blacklisting channel {short_channel_id}')
+                        self.logger.info(f'blacklisting channel {short_chan_id}')
                         self.network.channel_blacklist.add(short_chan_id)
             else:
                 # probably got "update_fail_malformed_htlc". well... who to penalise now?
