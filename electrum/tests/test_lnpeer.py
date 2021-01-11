@@ -32,6 +32,7 @@ from electrum.lnmsg import encode_msg, decode_msg
 from electrum.logging import console_stderr_handler, Logger
 from electrum.lnworker import PaymentInfo, RECEIVED, PR_UNPAID
 from electrum.lnonion import OnionFailureCode
+from electrum.lnutil import ChannelBlackList
 
 from .test_lnchannel import create_test_channels
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
@@ -62,6 +63,7 @@ class MockNetwork:
         self.path_finder = LNPathFinder(self.channel_db)
         self.tx_queue = tx_queue
         self._blockchain = MockBlockchain()
+        self.channel_blacklist = ChannelBlackList()
 
     @property
     def callback_lock(self):

@@ -7,7 +7,7 @@ import os
 from decimal import Decimal
 import random
 import time
-from typing import Optional, Sequence, Tuple, List, Dict, TYPE_CHECKING, NamedTuple, Union, Mapping, Any
+from typing import Optional, Sequence, Tuple, List, Set, Dict, TYPE_CHECKING, NamedTuple, Union, Mapping, Any
 import threading
 import socket
 import aiohttp
@@ -540,6 +540,7 @@ class LNGossip(LNWorker):
             if categorized_chan_upds.good:
                 self.logger.debug(f'on_channel_update: {len(categorized_chan_upds.good)}/{len(chan_upds_chunk)}')
 
+
 class LNWallet(LNWorker):
 
     lnwatcher: Optional['LNWalletWatcher']
@@ -1014,7 +1015,8 @@ class LNWallet(LNWorker):
                     except IndexError:
                         self.logger.info("payment destination reported error")
                     else:
-                        self.network.path_finder.add_to_blacklist(short_chan_id)
+                        self.logger.info(f'blacklisting channel {short_channel_id}')
+                        self.network.channel_blacklist.add(short_chan_id)
             else:
                 # probably got "update_fail_malformed_htlc". well... who to penalise now?
                 assert payment_attempt.failure_message is not None
@@ -1127,6 +1129,7 @@ class LNWallet(LNWorker):
         channels = list(self.channels.values())
         scid_to_my_channels = {chan.short_channel_id: chan for chan in channels
                                if chan.short_channel_id is not None}
+        blacklist = self.network.channel_blacklist.get_current_list()
         for private_route in r_tags:
             if len(private_route) == 0:
                 continue
@@ -1144,7 +1147,7 @@ class LNWallet(LNWorker):
             try:
                 route = self.network.path_finder.find_route(
                     self.node_keypair.pubkey, border_node_pubkey, amount_msat,
-                    path=path, my_channels=scid_to_my_channels)
+                    path=path, my_channels=scid_to_my_channels, blacklist=blacklist)
             except NoChannelPolicy:
                 continue
             if not route:
@@ -1186,7 +1189,7 @@ class LNWallet(LNWorker):
         if route is None:
             route = self.network.path_finder.find_route(
                 self.node_keypair.pubkey, invoice_pubkey, amount_msat,
-                path=full_path, my_channels=scid_to_my_channels)
+                path=full_path, my_channels=scid_to_my_channels, blacklist=blacklist)
             if not route:
                 raise NoPathFound()
             if not is_route_sane_to_use(route, amount_msat, decoded_invoice.get_min_final_cltv_expiry()):
