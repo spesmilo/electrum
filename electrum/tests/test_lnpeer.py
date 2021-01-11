@@ -674,7 +674,7 @@ class TestPeer(ElectrumTestCase):
             coros = [close(), main_loop(p1), main_loop(p2)]
             gath = asyncio.gather(*coros)
             await gath
-        with self.assertRaises(asyncio.CancelledError):
+        with self.assertRaises(concurrent.futures.CancelledError):
             run(test())
 
     def test_channel_usage_after_closing(self):

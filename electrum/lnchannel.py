@@ -649,9 +649,6 @@ class Channel(AbstractChannel):
     def is_static_remotekey_enabled(self) -> bool:
         return bool(self.storage.get('static_remotekey_enabled'))
 
-    def is_upfront_shutdown_script_enabled(self) -> bool:
-        return bool(self.storage.get('upfront_shutdown_script_enabled'))
-
     def get_wallet_addresses_channel_might_want_reserved(self) -> Sequence[str]:
         ret = []
         if self.is_static_remotekey_enabled():
