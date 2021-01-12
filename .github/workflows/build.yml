@@ -31,6 +31,7 @@ jobs:
       - name: 'Upload Artifact'
         uses: actions/upload-artifact@v2
         with:
+          name: artifact-windows
           path: contrib/build-wine/dist/*.exe
           if-no-files-found: error
           retention-days: 7
@@ -55,6 +56,7 @@ jobs:
       - name: 'Upload Artifact'
         uses: actions/upload-artifact@v2
         with:
+          name: artifact-appimage
           path: dist/*.AppImage
           if-no-files-found: error
           retention-days: 7
@@ -81,6 +83,7 @@ jobs:
       - name: 'Upload Artifact'
         uses: actions/upload-artifact@v2
         with:
+          name: artifact-tarball
           path: dist/*.tar.gz
           if-no-files-found: error
           retention-days: 7
