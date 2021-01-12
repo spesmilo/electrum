@@ -5,8 +5,8 @@ on:
     types:
       - opened
       - synchronize
-  push:
-    branches: '*'
+  schedule:
+    - cron: '0 4 * * 1'
 
 jobs:
   build:

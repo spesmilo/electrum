@@ -1,25 +1,20 @@
-name: "Test"
+name: "Build"
 
 on:
   pull_request:
     types:
       - opened
       - synchronize
-  push:
-    branches: '*'
 
 jobs:
   windows:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: [ 3.7 ]
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: 3.7
       - name: Builder image
         env:
           TARGET_OS: Windows
@@ -29,20 +24,17 @@ jobs:
           TARGET_OS: Windows
         run: docker run --name electrum-wine-builder-cont -v $PWD:/opt/wine64/drive_c/electrum --rm --workdir /opt/wine64/drive_c/electrum/contrib/build-wine electrum-wine-builder-img ./build.sh
       - name: Done
-        run: ls -la dist
+        run: ls -la contrib/build-wine/dist
 
 
   appimage:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: [ 3.7 ]
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: 3.7
       - name: Builder image
         run: docker build --no-cache -t electrum-appimage-builder-img ./contrib/build-linux/appimage/
       - name: Compile Linux appimage
@@ -52,15 +44,12 @@ jobs:
 
   tarball:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: [ 3.7 ]
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: 3.7
       - name: Builder image
         run: docker build --no-cache -t electrum-sdist-builder-img ./contrib/build-linux/sdist/
       - name: Compile Linux appimage
@@ -69,10 +58,4 @@ jobs:
           docker run --name electrum-sdist-builder-cont -v $PWD:/opt/electrum --rm --workdir /opt/electrum/contrib/build-linux/sdist electrum-sdist-builder-img ./build.sh
       - name: Done
         run: ls -la dist
-
-
-
-
-
-
 
