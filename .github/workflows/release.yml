@@ -1,8 +1,8 @@
 name: "Release"
 
 on:
-  push:
-    branches: '*'
+#  push:
+#    branches: '*'
 #      - master
   workflow_run:
     workflows: ["Build"]
