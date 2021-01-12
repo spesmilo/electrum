@@ -2,7 +2,8 @@ name: "Release"
 
 on:
   workflow_run:
-    workflows: [ "Build" ]
+    workflows:
+      - build
 #    branches: [ master ]
     types:
       - completed
