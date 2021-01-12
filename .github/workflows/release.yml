@@ -5,7 +5,7 @@ on:
 #    branches: '*'
 #      - master
   workflow_run:
-    workflows: ["Build"]
+    workflows: [ "Build" ]
     branches: '*'
 #    branches: [ master ]
     types:
@@ -15,7 +15,6 @@ jobs:
   release:
     name: "Release"
     runs-on: ubuntu-latest
-    needs: [ tarball, appimage, windows ]
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - uses: actions/checkout@v2
@@ -30,9 +29,9 @@ jobs:
 
       - name: Display structure of downloaded files
         run: |
-          ls -R
+          ls -lRh
           echo ${{steps.download.outputs.download-path}}
-          ls -R ${{steps.download.outputs.download-path}}
+          ls -lRh ${{steps.download.outputs.download-path}}
 
 #      - name: Python Semantic Release
 #        uses: relekang/python-semantic-release@master

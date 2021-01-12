@@ -15,21 +15,25 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: 3.7
+      - uses: satackey/action-docker-layer-caching@v0.0.11
+        # Ignore the failure of a step and avoid terminating the job.
+        continue-on-error: true
       - name: Builder image
         env:
           TARGET_OS: Windows
         run: docker build --no-cache -t electrum-wine-builder-img ./contrib/build-wine/
-      - name: Compile Linux tarball
+      - name: Compile Windows binary
         env:
           TARGET_OS: Windows
         run: docker run --name electrum-wine-builder-cont -v $PWD:/opt/wine64/drive_c/electrum --rm --workdir /opt/wine64/drive_c/electrum/contrib/build-wine electrum-wine-builder-img ./build.sh
       - name: Done
-        run: ls -la contrib/build-wine/dist
+        run: ls -lha contrib/build-wine/dist
       - name: 'Upload Artifact'
         uses: actions/upload-artifact@v2
         with:
           path: contrib/build-wine/dist/*.exe
           if-no-files-found: error
+          retention-days: 7
 
   appimage:
     runs-on: ubuntu-latest
@@ -39,17 +43,21 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: 3.7
+      - uses: satackey/action-docker-layer-caching@v0.0.11
+        # Ignore the failure of a step and avoid terminating the job.
+        continue-on-error: true
       - name: Builder image
         run: docker build --no-cache -t electrum-appimage-builder-img ./contrib/build-linux/appimage/
-      - name: Compile Linux appimage
+      - name: Compile Linux AppImage
         run: docker run --name electrum-appimage-builder-cont -v $PWD:/opt/electrum --rm --workdir /opt/electrum/contrib/build-linux/appimage electrum-appimage-builder-img ./build.sh
       - name: Done
-        run: ls -la dist
+        run: ls -lha dist
       - name: 'Upload Artifact'
         uses: actions/upload-artifact@v2
         with:
           path: dist/*.AppImage
           if-no-files-found: error
+          retention-days: 7
 
   tarball:
     runs-on: ubuntu-latest
@@ -59,16 +67,20 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: 3.7
+      - uses: satackey/action-docker-layer-caching@v0.0.11
+        # Ignore the failure of a step and avoid terminating the job.
+        continue-on-error: true
       - name: Builder image
         run: docker build --no-cache -t electrum-sdist-builder-img ./contrib/build-linux/sdist/
-      - name: Compile Linux appimage
+      - name: Compile Linux tarball
         run: |
           echo "Building sdist at $PWD"
           docker run --name electrum-sdist-builder-cont -v $PWD:/opt/electrum --rm --workdir /opt/electrum/contrib/build-linux/sdist electrum-sdist-builder-img ./build.sh
       - name: Done
-        run: ls -la dist
+        run: ls -lah dist
       - name: 'Upload Artifact'
         uses: actions/upload-artifact@v2
         with:
           path: dist/*.tar.gz
           if-no-files-found: error
+          retention-days: 7
