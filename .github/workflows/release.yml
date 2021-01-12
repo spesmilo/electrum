@@ -7,6 +7,7 @@ on:
 
 jobs:
   windows:
+    name: "Windows"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -27,6 +28,7 @@ jobs:
 
 
   appimage:
+    name: "Linux: appimage"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -42,6 +44,7 @@ jobs:
         run: ls -la dist
 
   tarball:
+    name: "Linux: tarball"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -59,8 +62,9 @@ jobs:
         run: ls -la dist
 
   release:
-    name: release
+    name: "Release"
     runs-on: ubuntu-latest
+    if: always()
     needs: [ tarball appimage windows ]
     steps:
       - uses: actions/checkout@v2
