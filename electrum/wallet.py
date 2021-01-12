@@ -73,7 +73,7 @@ from .plugin import run_hook
 from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
                                    TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE)
 from .invoices import Invoice, OnchainInvoice, LNInvoice
-from .invoices import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_INFLIGHT, PR_TYPE_ONCHAIN, PR_TYPE_LN
+from .invoices import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_UNCONFIRMED, PR_TYPE_ONCHAIN, PR_TYPE_LN
 from .contacts import Contacts
 from .interface import NetworkException
 from .mnemonic import Mnemonic
@@ -741,7 +741,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         elif invoice_type == PR_TYPE_ONCHAIN:
             assert isinstance(invoice, OnchainInvoice)
             key = invoice.id
-            if self.is_onchain_invoice_paid(invoice):
+            if self.is_onchain_invoice_paid(invoice, 0):
                 self.logger.info("saving invoice... but it is already paid!")
             with self.transaction_lock:
                 for txout in invoice.outputs:
@@ -813,7 +813,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 for txout in invoice.outputs:
                     self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(invoice_key)
 
-    def _is_onchain_invoice_paid(self, invoice: Invoice) -> Tuple[bool, Sequence[str]]:
+    def _is_onchain_invoice_paid(self, invoice: Invoice, conf: int) -> Tuple[bool, Sequence[str]]:
         """Returns whether on-chain invoice is satisfied, and list of relevant TXIDs."""
         assert invoice.type == PR_TYPE_ONCHAIN
         assert isinstance(invoice, OnchainInvoice)
@@ -827,8 +827,10 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 prevouts_and_values = self.db.get_prevouts_by_scripthash(scripthash)
                 total_received = 0
                 for prevout, v in prevouts_and_values:
-                    height = self.get_tx_height(prevout.txid.hex()).height
-                    if height > 0 and height <= invoice.height:
+                    tx_height = self.get_tx_height(prevout.txid.hex())
+                    if tx_height.height > 0 and tx_height.height <= invoice.height:
+                        continue
+                    if tx_height.conf < conf:
                         continue
                     total_received += v
                     relevant_txs.append(prevout.txid.hex())
@@ -840,8 +842,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                     return False, []
         return True, relevant_txs
 
-    def is_onchain_invoice_paid(self, invoice: Invoice) -> bool:
-        return self._is_onchain_invoice_paid(invoice)[0]
+    def is_onchain_invoice_paid(self, invoice: Invoice, conf: int) -> bool:
+        return self._is_onchain_invoice_paid(invoice, conf)[0]
 
     def _maybe_set_tx_label_based_on_invoices(self, tx: Transaction) -> bool:
         # note: this is not done in 'get_default_label' as that would require deserializing each tx
@@ -1839,7 +1841,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if invoice.is_lightning():
             status = self.lnworker.get_invoice_status(invoice) if self.lnworker else PR_UNKNOWN
         else:
-            status = PR_PAID if self.is_onchain_invoice_paid(invoice) else PR_UNPAID
+            if self.is_onchain_invoice_paid(invoice, 1):
+                status =PR_PAID
+            elif self.is_onchain_invoice_paid(invoice, 0):
+                status = PR_UNCONFIRMED
+            else:
+                status = PR_UNPAID
         return self.check_expired_status(invoice, status)
 
     def get_request_status(self, key):
@@ -1852,7 +1859,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         else:
             assert isinstance(r, OnchainInvoice)
             paid, conf = self.get_onchain_request_status(r)
-            status = PR_PAID if paid else PR_UNPAID
+            if not paid:
+                status = PR_UNPAID
+            elif conf == 0:
+                status = PR_UNCONFIRMED
+            else:
+                status = PR_PAID
         return self.check_expired_status(r, status)
 
     def get_request(self, key):

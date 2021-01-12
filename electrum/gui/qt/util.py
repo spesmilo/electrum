@@ -26,7 +26,7 @@ from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
 
 from electrum.i18n import _, languages
 from electrum.util import FileImportFailed, FileExportFailed, make_aiohttp_session, resource_path
-from electrum.invoices import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING
+from electrum.invoices import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING, PR_UNCONFIRMED
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -52,6 +52,7 @@ pr_icons = {
     PR_INFLIGHT:"unconfirmed.png",
     PR_FAILED:"warning.png",
     PR_ROUTING:"unconfirmed.png",
+    PR_UNCONFIRMED:"unconfirmed.png",
 }
 
 
