@@ -1,36 +1,44 @@
-name: "Docker Build & Test"
+name: "Test"
 
 on:
   pull_request:
     types:
       - opened
       - synchronize
-#  push:
-#    branches: '*'
+  push:
+    branches: '*'
 
 jobs:
   build:
+
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.7]
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v2
+      - uses: actions/checkout@v2
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
         with:
-          fetch-depth: 0
-          persist-credentials: false
-          ref: ${{ github.event.pull_request.head.sha }}
+          python-version: ${{ matrix.python-version }}
 
-      # In this step, this action saves a list of existing images,
-      # the cache is created without them in the post run.
-      # It also restores the cache if it exists.
-      - uses: satackey/action-docker-layer-caching@v0.0.11
-        # Ignore the failure of a step and avoid terminating the job.
-        continue-on-error: true
-
-      - name: Build docker image
-        run: docker build -t electric-cash-electrumx-ci .
-
-      - name: pytest
-        run: docker run --rm -w /source -e LOCAL_USER_ID=`id -u` -v "$(PWD):/source" electric-cash-electrumx-ci pytest --cov=electrumx
-
-      - name: pycodestyle
-        run: docker run --rm -w /source -e LOCAL_USER_ID=`id -u` -v "$(PWD):/source" electric-cash-electrumx-ci flake8 --exit-zero --max-line-length 100 --filename "./electrumx/**/*.py,./electrumx/*.py"
+      - name: Install system dependencies
+        run: |
+          sudo add-apt-repository -y ppa:luke-jr/bitcoincore
+          sudo apt-get -qq update
+          sudo apt-get install -yq bitcoind libsecp256k1-0
+          pip install flake8
+      - name: Install dependencies
+        run: |
+          pip install -r contrib/requirements/requirements-travis.txt
+          pip install .[tests]
+          pip install electrumx
+      - name: Before RegTest
+        run: |
+          electrum/tests/regtest/start_bitcoind.sh
+          electrum/tests/regtest/start_electrumx.sh
+      - name: Regtest
+        run: python -m unittest electrum/tests/regtest.py
+      - name: Flake8 linter tests
+        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
