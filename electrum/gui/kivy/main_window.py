@@ -260,7 +260,7 @@ class ElectrumWindow(App, Logger):
         req = self.wallet.get_invoice(key)
         if req is None:
             return
-        status = self.wallet.get_invoice_status(invoice)
+        status = self.wallet.get_invoice_status(req)
         if self.send_screen:
             if status == PR_PAID:
                 self.send_screen.update()
