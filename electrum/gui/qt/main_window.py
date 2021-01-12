@@ -1520,12 +1520,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         req = self.wallet.receive_requests.get(key)
         if req is None:
             return
-        # update item
         self.request_list.update_item(key, req)
-        # update list later
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.request_list.update)
-        self.timer.start(3000)
+        self.request_list.update()
 
         if status == PR_PAID:
             self.notify(_('Payment received') + '\n' + key)
@@ -1537,12 +1533,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         req = self.wallet.get_invoice(key)
         if req is None:
             return
-        # update item
         self.invoice_list.update_item(key, req)
-        # update list later.
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.invoice_list.update)
-        self.timer.start(3000)
+        self.invoice_list.update()
 
     def on_payment_succeeded(self, wallet, key):
         description = self.wallet.get_label(key)

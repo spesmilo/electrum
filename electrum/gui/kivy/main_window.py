@@ -246,8 +246,10 @@ class ElectrumWindow(App, Logger):
         if req is None:
             return
         if self.receive_screen:
-            self.receive_screen.update_item(key, req)
-            Clock.schedule_once(lambda dt: self.receive_screen.update(), 3)
+            if status == PR_PAID:
+                self.receive_screen.update()
+            else:
+                self.receive_screen.update_item(key, req)
         if self.request_popup and self.request_popup.key == key:
             self.request_popup.update_status()
         if status == PR_PAID:
@@ -258,9 +260,12 @@ class ElectrumWindow(App, Logger):
         req = self.wallet.get_invoice(key)
         if req is None:
             return
+        status = self.wallet.get_invoice_status(invoice)
         if self.send_screen:
-            self.send_screen.update_item(key, req)
-            Clock.schedule_once(lambda dt: self.send_screen.update(), 3)
+            if status == PR_PAID:
+                self.send_screen.update()
+            else:
+                self.send_screen.update_item(key, req)
 
         if self.invoice_popup and self.invoice_popup.key == key:
             self.invoice_popup.update_status()
