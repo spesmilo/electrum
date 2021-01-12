@@ -1115,7 +1115,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         qr_icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
         self.receive_address_e.addButton(qr_icon, qr_show, _("Show as QR code"))
 
-        self.receive_requests_label = QLabel(_('Incoming payments'))
+        self.receive_requests_label = QLabel(_('Receive queue'))
 
         from .request_list import RequestList
         self.request_list = RequestList(self)
@@ -1372,7 +1372,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         self.set_onchain(False)
 
-        self.invoices_label = QLabel(_('Outgoing payments'))
+        self.invoices_label = QLabel(_('Send queue'))
         from .invoice_list import InvoiceList
         self.invoice_list = InvoiceList(self)
 
