@@ -26,7 +26,6 @@ jobs:
       - name: Done
         run: ls -la contrib/build-wine/dist
 
-
   appimage:
     name: "Linux: appimage"
     runs-on: ubuntu-latest
@@ -64,8 +63,7 @@ jobs:
   release:
     name: "Release"
     runs-on: ubuntu-latest
-    if: always()
-    needs: [ tarball appimage windows ]
+    needs: [ tarball, appimage, windows ]
     steps:
       - uses: actions/checkout@v2
         with:
