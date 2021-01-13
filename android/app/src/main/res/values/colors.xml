@@ -7,4 +7,6 @@
 
     <!-- Used for some widgets like RadioButton and EditText, and AlertDialog buttons. -->
     <color name="colorAccent">@color/colorPrimary</color>
+
+    <color name="ic_launcher_background">#FFFFFF</color>
 </resources>
