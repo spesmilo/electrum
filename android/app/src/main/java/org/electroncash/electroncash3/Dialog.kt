@@ -3,6 +3,7 @@ package org.electroncash.electroncash3
 import android.app.Dialog
 import android.content.DialogInterface
 import android.os.Bundle
+import android.util.Log
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.Menu
@@ -109,16 +110,21 @@ abstract class AlertDialogFragment : DialogFragment() {
         super.onStop()
     }
 
-    // When changing orientation on targetSdkVersion >= 28, onStop is called before
-    // onSaveInstanceState and the focused view is lost.
-    // (https://issuetracker.google.com/issues/152131900),
+    // When changing orientation on API level 28 or higher, onStop is called before
+    // onSaveInstanceState and the focus is lost (https://issuetracker.google.com/issues/152131900).
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         if (focusOnStop != View.NO_ID) {
             val hierarchy = outState.getBundle("android:savedDialogState")
                 ?.getBundle("android:dialogHierarchy")
-            if (hierarchy != null &&
-                hierarchy.getInt("android:focusedViewId", View.NO_ID) == View.NO_ID) {
+            if (hierarchy == null) {
+                val message = "Failed to get android:dialogHierarchy"
+                if (BuildConfig.DEBUG) {
+                    throw Exception(message)
+                } else {
+                    Log.w("AlertDialogFragment", message)
+                }
+            } else {
                 hierarchy.putInt("android:focusedViewId", focusOnStop)
             }
         }
