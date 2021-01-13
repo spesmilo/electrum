@@ -774,7 +774,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         QMessageBox.about(self, "Electron Cash",
             "<p><font size=+3><b>Electron Cash</b></font></p><p>" + _("Version") + f" {self.wallet.electrum_version}" + "</p>" +
             '<span style="font-size:11pt; font-weight:500;"><p>' +
-            _("Copyright © {year_start}-{year_end} Electron Cash LLC and the Electron Cash developers.").format(year_start=2017, year_end=2020) +
+            _("Copyright © {year_start}-{year_end} Electron Cash LLC and the Electron Cash developers.").format(year_start=2017, year_end=2021) +
             "</p><p>" + _("darkdetect for macOS © 2019 Alberto Sottile") + "</p>"
             "</span>" +
             '<span style="font-weight:200;"><p>' +
