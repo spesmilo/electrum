@@ -45,7 +45,6 @@ from . import util
 from .util import (log_exceptions, ignore_exceptions,
                    bfh, SilentTaskGroup, make_aiohttp_session, send_exception_to_crash_reporter,
                    is_hash256_str, is_non_negative_integer, MyEncoder, NetworkRetryManager)
-
 from .bitcoin import COIN
 from . import constants
 from . import blockchain
@@ -60,6 +59,7 @@ from .version import PROTOCOL_VERSION
 from .simple_config import SimpleConfig
 from .i18n import _
 from .logging import get_logger, Logger
+from .lnutil import ChannelBlackList
 
 if TYPE_CHECKING:
     from .channel_db import ChannelDB
@@ -335,6 +335,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self._has_ever_managed_to_connect_to_server = False
 
         # lightning network
+        self.channel_blacklist = ChannelBlackList()
         self.channel_db = None  # type: Optional[ChannelDB]
         self.lngossip = None  # type: Optional[LNGossip]
         self.local_watchtower = None  # type: Optional[WatchTower]

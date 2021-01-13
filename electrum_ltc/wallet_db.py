@@ -52,7 +52,7 @@ if TYPE_CHECKING:
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 33     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 35     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -181,6 +181,8 @@ class WalletDB(JsonDB):
         self._convert_version_31()
         self._convert_version_32()
         self._convert_version_33()
+        self._convert_version_34()
+        self._convert_version_35()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
         self._after_upgrade_tasks()
@@ -688,8 +690,7 @@ class WalletDB(JsonDB):
     def _convert_version_32(self):
         if not self._is_upgrade_method_needed(31, 31):
             return
-
-        from .invoices import PR_TYPE_ONCHAIN
+        PR_TYPE_ONCHAIN = 0
         invoices_old = self.data.get('invoices', {})
         invoices_new = {k: item for k, item in invoices_old.items()
                         if not (item['type'] == PR_TYPE_ONCHAIN and item['outputs'] is None)}
@@ -699,16 +700,36 @@ class WalletDB(JsonDB):
     def _convert_version_33(self):
         if not self._is_upgrade_method_needed(32, 32):
             return
-
-        from .invoices import PR_TYPE_ONCHAIN
+        PR_TYPE_ONCHAIN = 0
         requests = self.data.get('payment_requests', {})
         invoices = self.data.get('invoices', {})
         for d in [invoices, requests]:
             for key, item in list(d.items()):
                 if item['type'] == PR_TYPE_ONCHAIN:
                     item['height'] = item.get('height') or 0
-
         self.data['seed_version'] = 33
+
+    def _convert_version_34(self):
+        if not self._is_upgrade_method_needed(33, 33):
+            return
+        channels = self.data.get('channels', {})
+        for key, item in channels.items():
+            item['local_config']['upfront_shutdown_script'] = \
+                item['local_config'].get('upfront_shutdown_script') or ""
+            item['remote_config']['upfront_shutdown_script'] = \
+                item['remote_config'].get('upfront_shutdown_script') or ""
+        self.data['seed_version'] = 34
+
+    def _convert_version_35(self):
+        # same as 32, but for payment_requests
+        if not self._is_upgrade_method_needed(34, 34):
+            return
+        PR_TYPE_ONCHAIN = 0
+        requests_old = self.data.get('payment_requests', {})
+        requests_new = {k: item for k, item in requests_old.items()
+                        if not (item['type'] == PR_TYPE_ONCHAIN and item['outputs'] is None)}
+        self.data['payment_requests'] = requests_new
+        self.data['seed_version'] = 35
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):

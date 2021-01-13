@@ -13,7 +13,7 @@ PYINSTALLER_REPO="https://github.com/SomberNight/pyinstaller.git"
 PYINSTALLER_COMMIT="31fda9dc83feb1b3f2ff08c89ff7ae61506fc1ca"
 # ^ tag 4.1, plus a custom commit that fixes cross-compilation with MinGW
 
-PYTHON_VERSION=3.7.9
+PYTHON_VERSION=3.8.7
 
 ## These settings probably don't need change
 export WINEPREFIX=/opt/wine64
@@ -132,7 +132,8 @@ info "Building PyInstaller."
                               -Wno-dangling-else \
                               -Wno-error=unused-value \
                               -Wno-error=implicit-function-declaration \
-                              -Wno-error=int-to-pointer-cast"
+                              -Wno-error=int-to-pointer-cast \
+                              -Wno-error=stringop-truncation"
     popd
     # sanity check bootloader is there:
     if [ "$GCC_TRIPLET_HOST" = "i686-w64-mingw32" ] ; then

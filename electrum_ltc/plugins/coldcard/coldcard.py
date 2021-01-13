@@ -49,7 +49,9 @@ try:
             except:
                 return False
 
-except ImportError:
+except ImportError as e:
+    if not (isinstance(e, ModuleNotFoundError) and e.name == 'ckcc'):
+        _logger.exception('error importing coldcard plugin deps')
     requirements_ok = False
 
     COINKITE_VID = 0xd13e

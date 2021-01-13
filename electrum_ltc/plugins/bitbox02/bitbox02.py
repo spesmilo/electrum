@@ -25,6 +25,9 @@ import electrum_ltc.ecc as ecc
 from ..hw_wallet import HW_PluginBase, HardwareClientBase
 
 
+_logger = get_logger(__name__)
+
+
 try:
     from bitbox02 import bitbox02
     from bitbox02 import util
@@ -36,11 +39,10 @@ try:
         FirmwareVersionOutdatedException,
     )
     requirements_ok = True
-except ImportError:
+except ImportError as e:
+    if not (isinstance(e, ModuleNotFoundError) and e.name == 'bitbox02'):
+        _logger.exception('error importing bitbox02 plugin deps')
     requirements_ok = False
-
-
-_logger = get_logger(__name__)
 
 
 class BitBox02Client(HardwareClientBase):

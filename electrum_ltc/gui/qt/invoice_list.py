@@ -98,7 +98,7 @@ class InvoiceList(MyTreeView):
         self.proxy.setDynamicSortFilter(False)  # temp. disable re-sorting after every change
         self.std_model.clear()
         self.update_headers(self.__class__.headers)
-        for idx, item in enumerate(self.parent.wallet.get_invoices()):
+        for idx, item in enumerate(self.parent.wallet.get_unpaid_invoices()):
             if item.is_lightning():
                 key = item.rhash
                 icon_name = 'lightning.png'

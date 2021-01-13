@@ -317,6 +317,7 @@ def main():
             'verbosity': '*' if build_config.DEBUG else '',
             'cmd': 'gui',
             'gui': 'kivy',
+            'single_password':True,
         }
     else:
         config_options = args.__dict__

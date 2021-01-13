@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING, Optional, Union, Callable, Sequence
 from electrum_ltc.storage import WalletStorage, StorageReadWriteError
 from electrum_ltc.wallet_db import WalletDB
 from electrum_ltc.wallet import Wallet, InternalAddressCorruption, Abstract_Wallet
+from electrum_ltc.wallet import check_password_for_directory, update_password_for_directory
+
 from electrum_ltc.plugin import run_hook
 from electrum_ltc import util
 from electrum_ltc.util import (profiler, InvalidPassword, send_exception_to_crash_reporter,
@@ -242,9 +244,14 @@ class ElectrumWindow(App, Logger):
         self._trigger_update_history()
 
     def on_request_status(self, event, wallet, key, status):
-        if key not in self.wallet.receive_requests:
+        req = self.wallet.receive_requests.get(key)
+        if req is None:
             return
-        self.update_tab('receive')
+        if self.receive_screen:
+            if status == PR_PAID:
+                self.receive_screen.update()
+            else:
+                self.receive_screen.update_item(key, req)
         if self.request_popup and self.request_popup.key == key:
             self.request_popup.update_status()
         if status == PR_PAID:
@@ -256,8 +263,12 @@ class ElectrumWindow(App, Logger):
         if req is None:
             return
         status = self.wallet.get_invoice_status(req)
-        # todo: update single item
-        self.update_tab('send')
+        if self.send_screen:
+            if status == PR_PAID:
+                self.send_screen.update()
+            else:
+                self.send_screen.update_item(key, req)
+
         if self.invoice_popup and self.invoice_popup.key == key:
             self.invoice_popup.update_status()
 
@@ -358,6 +369,7 @@ class ElectrumWindow(App, Logger):
         self.pause_time = 0
         self.asyncio_loop = asyncio.get_event_loop()
         self.password = None
+        self._use_single_password = False
 
         App.__init__(self)#, **kwargs)
         Logger.__init__(self)
@@ -625,6 +637,9 @@ class ElectrumWindow(App, Logger):
 
     def on_wizard_success(self, storage, db, password):
         self.password = password
+        if self.electrum_config.get('single_password'):
+            self._use_single_password = check_password_for_directory(self.electrum_config, password)
+        self.logger.info(f'use single password: {self._use_single_password}')
         wallet = Wallet(db, storage, config=self.electrum_config)
         wallet.start_network(self.daemon.network)
         self.daemon.add_wallet(wallet)
@@ -639,6 +654,12 @@ class ElectrumWindow(App, Logger):
         if not path:
             return
         if self.wallet and self.wallet.storage.path == path:
+            return
+        if self.password and self._use_single_password:
+            storage = WalletStorage(path)
+            # call check_password to decrypt
+            storage.check_password(self.password)
+            self.on_open_wallet(self.password, storage)
             return
         d = OpenWalletDialog(self, path, self.on_open_wallet)
         d.open()
@@ -715,10 +736,13 @@ class ElectrumWindow(App, Logger):
         if self._channels_dialog:
             Clock.schedule_once(lambda dt: self._channels_dialog.update())
 
+    def is_wallet_creation_disabled(self):
+        return bool(self.electrum_config.get('single_password')) and self.password is None
+
     def wallets_dialog(self):
         from .uix.dialogs.wallets import WalletDialog
         dirname = os.path.dirname(self.electrum_config.get_wallet_path())
-        d = WalletDialog(dirname, self.load_wallet_by_name)
+        d = WalletDialog(dirname, self.load_wallet_by_name, self.is_wallet_creation_disabled())
         d.open()
 
     def popup_dialog(self, name):
@@ -1210,9 +1234,18 @@ class ElectrumWindow(App, Logger):
 
     def change_password(self, cb):
         def on_success(old_password, new_password):
-            self.wallet.update_password(old_password, new_password)
+            # called if old_password works on self.wallet
             self.password = new_password
-            self.show_info(_("Your password was updated"))
+            if self._use_single_password:
+                path = self.wallet.storage.path
+                self.stop_wallet()
+                update_password_for_directory(self.electrum_config, old_password, new_password)
+                self.load_wallet_by_name(path)
+                msg = _("Password updated successfully")
+            else:
+                self.wallet.update_password(old_password, new_password)
+                msg = _("Password updated for {}").format(os.path.basename(self.wallet.storage.path))
+            self.show_info(msg)
         on_failure = lambda: self.show_error(_("Password not updated"))
         d = ChangePasswordDialog(self, self.wallet, on_success, on_failure)
         d.open()
