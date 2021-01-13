@@ -551,6 +551,7 @@ Builder.load_string('''
         multiline: False
         size_hint: 1, None
         height: '48dp'
+        on_text: Clock.schedule_once(root.on_text)
     SeedLabel:
         text: root.warning
 
@@ -792,10 +793,17 @@ class LineDialog(WizardDialog):
         WizardDialog.__init__(self, wizard, **kwargs)
         self.title = kwargs.get('title', '')
         self.message = kwargs.get('message', '')
-        self.ids.next.disabled = False
+        self.ids.next.disabled = True
+        self.test = kwargs['test']
+
+    def get_text(self):
+        return self.ids.passphrase_input.text
+
+    def on_text(self, dt):
+        self.ids.next.disabled = not self.test(self.get_text())
 
     def get_params(self, b):
-        return (self.ids.passphrase_input.text,)
+        return (self.get_text(),)
 
 class CLButton(ToggleButton):
     def on_release(self):
