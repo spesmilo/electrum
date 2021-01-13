@@ -117,8 +117,15 @@ class SatochipClient(PrintError):
             atr= self.cc.card_get_ATR() # (response, sw1, sw2)= self.cc.card_select() #TODO: something else? get ATR?
             self.print_error("Card ATR: " + bytes(atr).hex() )
         except Exception as e: #except SWException as e:
-            self.print_error(f"Exception in has_usable_connection_with_device: {str(e)}")
-            return False
+            try:
+                self.print_error(f"giving more time for the card to get ready...")
+                import time
+                time.sleep(1) #sometimes the card needs a bit delay to get ready, otherwise it throws "Card not connected"
+                atr= self.cc.card_get_ATR() # (response, sw1, sw2)= self.cc.card_select() #TODO: something else? get ATR?
+                self.print_error("Card ATR: " + bytes(atr).hex() )
+            except Exception as e: 
+                self.print_error(f"Exception in has_usable_connection_with_device: {str(e)}")
+                return False
         return True
 
     def get_xpub(self, bip32_path, xtype):
@@ -508,7 +515,7 @@ class SatochipPlugin(HW_PluginBase):
         self.print_error("detect_smartcard_reader")#debugSatochip
         self.cardtype = AnyCardType()
         try:
-            cardrequest = CardRequest(timeout=0.1, cardType=self.cardtype)
+            cardrequest = CardRequest(timeout=0, cardType=self.cardtype)
             cardservice = cardrequest.waitforcard()
             self.print_error("detect_smartcard_reader: found card!")#debugSatochip
             return [Device(path="/satochip",
