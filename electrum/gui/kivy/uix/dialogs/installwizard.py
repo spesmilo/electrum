@@ -835,11 +835,12 @@ class ChoiceLineDialog(WizardChoiceDialog):
 class ShowSeedDialog(WizardDialog):
     seed_text = StringProperty('')
     message = _("If you forget your PIN or lose your device, your seed phrase will be the only way to recover your funds.")
-    ext = False
 
     def __init__(self, wizard, **kwargs):
         super(ShowSeedDialog, self).__init__(wizard, **kwargs)
         self.seed_text = kwargs['seed_text']
+        self.opt_ext = True
+        self.is_ext = False
 
     def on_parent(self, instance, value):
         if value:
@@ -848,12 +849,12 @@ class ShowSeedDialog(WizardDialog):
     def options_dialog(self):
         from .seed_options import SeedOptionsDialog
         def callback(ext, _):
-            self.ext = ext
-        d = SeedOptionsDialog(self.ext, None, callback)
+            self.is_ext = ext
+        d = SeedOptionsDialog(self.opt_ext, False, self.is_ext, False, callback)
         d.open()
 
     def get_params(self, b):
-        return (self.ext,)
+        return (self.is_ext,)
 
 
 class WordButton(Button):
@@ -1099,6 +1100,8 @@ class InstallWizard(BaseWizard, Widget):
     def confirm_seed_dialog(self, **kwargs):
         kwargs['title'] = _('Confirm Seed')
         kwargs['message'] = _('Please retype your seed phrase, to confirm that you properly saved it')
+        kwargs['opt_bip39'] = self.opt_bip39
+        kwargs['opt_ext'] = self.opt_ext
         ConfirmSeedDialog(self, **kwargs).open()
 
     def restore_seed_dialog(self, **kwargs):
