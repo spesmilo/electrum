@@ -59,7 +59,7 @@
   VIAddVersionKey ProductName "${PRODUCT_NAME} Installer"
   VIAddVersionKey Comments "The installer for ${PRODUCT_NAME}"
   VIAddVersionKey CompanyName "${PRODUCT_NAME}"
-  VIAddVersionKey LegalCopyright "2013-2020 ${PRODUCT_PUBLISHER} and Electrum Technologies GmbH"
+  VIAddVersionKey LegalCopyright "2013-2021 ${PRODUCT_PUBLISHER} and Electrum Technologies GmbH"
   VIAddVersionKey FileDescription "${PRODUCT_NAME} Installer"
   VIAddVersionKey FileVersion ${PRODUCT_VERSION}
   VIAddVersionKey ProductVersion ${PRODUCT_VERSION}
