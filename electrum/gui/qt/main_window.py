@@ -69,7 +69,7 @@ from electrum.transaction import (Transaction, PartialTxInput,
                                   PartialTransaction, PartialTxOutput)
 from electrum.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet,
                              sweep_preparations, InternalAddressCorruption,
-                             CannotDoubleSpendTx)
+                             CannotDoubleSpendTx, CannotCPFP)
 from electrum.version import ELECTRUM_VERSION
 from electrum.network import (Network, TxBroadcastError, BestEffortRequestFailed,
                               UntrustedServerReturnedError, NetworkException)
@@ -3127,7 +3127,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
 
-    def cpfp(self, parent_tx: Transaction, new_tx: PartialTransaction) -> None:
+    def cpfp_dialog(self, parent_tx: Transaction) -> None:
+        new_tx = self.wallet.cpfp(parent_tx, 0)
         total_size = parent_tx.estimated_size() + new_tx.estimated_size()
         parent_txid = parent_tx.txid()
         assert parent_txid
@@ -3210,7 +3211,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if fee > max_fee:
             self.show_error(_('Max fee exceeded'))
             return
-        new_tx = self.wallet.cpfp(parent_tx, fee)
+        try:
+            new_tx = self.wallet.cpfp(parent_tx, fee)
+        except CannotCPFP as e:
+            self.show_error(str(e))
+            return
         new_tx.set_rbf(True)
         self.show_transaction(new_tx)
 
