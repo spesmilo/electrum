@@ -2968,6 +2968,8 @@ def check_password_for_directory(config, old_password, new_password=None):
         failed = []
         for filename in os.listdir(dirname):
             path = os.path.join(dirname, filename)
+            if not os.path.isfile(path):
+                continue
             basename = os.path.basename(path)
             storage = WalletStorage(path)
             if not storage.is_encrypted():
