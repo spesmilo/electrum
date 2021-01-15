@@ -647,6 +647,7 @@ class RestoreWallet1(NewWalletSeed2):
 
         seedext = self.seedExt.text.strip() if self.seedExt.text else ''
         seed_type = 'bip39' if is_bip39 else mnemonic.seed_type_name(seed)
+        print("seed type:", seed_type)
 
         def PushIt() -> None:
             _SetParam(self, 'seed', seed)
@@ -693,7 +694,7 @@ class RestoreWallet1(NewWalletSeed2):
             else:
                 ToErrIsHuman() # NB: we may already have an alert up from called code above, in which case this is a no-op (hacky but works!)
 
-        elif seed_type == 'standard':
+        elif seed_type in ('standard', 'electrum'):
             print("standard seed type")
             if self.doStandardKeystore(seed, seedext):
                 PushIt()
