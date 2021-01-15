@@ -1,0 +1,37 @@
+name: "Release"
+
+on:
+  workflow_run:
+    workflows:
+      - build
+#    branches: [ master ]
+    types:
+      - completed
+
+jobs:
+  release:
+    name: "Release"
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Download artifacts
+        id: download
+        uses: actions/download-artifact@v2
+        with:
+          path: dist
+
+      - name: Display structure of downloaded files
+        run: |
+          ls -lRh
+          echo ${{steps.download.outputs.download-path}}
+          ls -lRh ${{steps.download.outputs.download-path}}
+
+#      - name: Python Semantic Release
+#        uses: relekang/python-semantic-release@master
+#        with:
+#          github_token: ${{ secrets.GITHUB_TOKEN }}
+#          pypi_token: false
