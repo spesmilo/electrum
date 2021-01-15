@@ -1,5 +1,6 @@
 # This image must be built in the context of the repository root.
 
+# The Android Gradle plugin still requires Java 8, so use a Debian version which includes that.
 FROM debian:stretch-20180831
 SHELL ["/bin/bash", "-c"]
 WORKDIR /root
@@ -19,17 +20,20 @@ RUN filename=sdk-tools-linux-4333796.zip && \
 # compileSdkVersion, the build process will automatically download it.
 RUN yes | android-sdk/tools/bin/sdkmanager "platforms;android-29"
 
-# Python 3.6 isn't included in this version of Debian, so use a third-party build.
+# For .pyc compilation, we must install the same minor Python version as Chaquopy uses.
 RUN apt-get update && \
-    wget https://github.com/chriskuehl/python3.6-debian-stretch/releases/download/v3.6.3-1-deb9u1/{python3.6,python3.6-minimal,libpython3.6,libpython3.6-minimal,libpython3.6-stdlib}_3.6.3-1.deb9u1_amd64.deb && \
-    apt install -y ./*.deb && \
-    rm *.deb && \
-    ln -s python3.6 /usr/bin/python3
+    apt-get install -y gcc libbz2-dev libffi-dev libsqlite3-dev libssl-dev zlib1g-dev make
+RUN version=3.8.7 && \
+    wget https://www.python.org/ftp/python/$version/Python-$version.tgz && \
+    tar -xf Python-$version.tgz && \
+    cd Python-$version && \
+    ./configure && \
+    make -j $(nproc) && \
+    make install
 
 # For generate_strings.py.
 COPY android/build-requirements.txt android/
-RUN wget -O - https://bootstrap.pypa.io/get-pip.py | python3.6 && \
-    pip3 install -r android/build-requirements.txt
+RUN pip3 install -r android/build-requirements.txt
 COPY contrib/make_locale contrib/
 COPY electroncash_gui electroncash_gui
 COPY ios/ElectronCash/electroncash_gui/ios_native ios/ElectronCash/electroncash_gui/ios_native
