@@ -771,7 +771,7 @@ class AddressData:
 def present_modal_address_picker(callback, vc = None, comboPreset : list = None) -> None:
     parent = gui.ElectrumGui.gui
     avc = AddressesVC.alloc().initWithMode_(ModePicker).autorelease()
-    nav = utils.tintify(UINavigationController.alloc().initWithRootViewController_(avc).autorelease())
+    nav = utils.tintify(CustomNavController.alloc().initWithRootViewController_(avc).autorelease())
     avc.comboPreset = list(comboPreset) if isinstance(comboPreset, (tuple, list)) and len(comboPreset) == 2 else None
     def pickedAddress(entry) -> None:
         if callable(callback):

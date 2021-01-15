@@ -1,11 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="14313.18" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES">
-    <device id="retina4_7" orientation="portrait">
-        <adaptation id="fullscreen"/>
-    </device>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="15705" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES">
+    <device id="retina4_7" orientation="portrait" appearance="light"/>
     <dependencies>
         <deployment identifier="iOS"/>
-        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="14283.14"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="15706"/>
         <capability name="Safe area layout guides" minToolsVersion="9.0"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
@@ -15,7 +13,7 @@
             <objects>
                 <viewController hidesBottomBarWhenPushed="YES" id="XMg-nT-La3" customClass="NewWalletMenu" sceneMemberID="viewController">
                     <view key="view" contentMode="scaleToFill" id="Rin-nu-Thi">
-                        <rect key="frame" x="0.0" y="0.0" width="375" height="603"/>
+                        <rect key="frame" x="0.0" y="0.0" width="375" height="623"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
                             <imageView userInteractionEnabled="NO" contentMode="center" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="ElectronCashFunkyBG_4.png" translatesAutoresizingMaskIntoConstraints="NO" id="AsC-5H-u1V">
@@ -58,7 +56,7 @@
                                 <nil key="highlightedColor"/>
                             </label>
                             <button opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" reversesTitleShadowWhenHighlighted="YES" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="NAb-h2-ClK">
-                                <rect key="frame" x="15" y="418" width="345" height="50"/>
+                                <rect key="frame" x="15" y="438" width="345" height="50"/>
                                 <color key="backgroundColor" red="0.33333333329999998" green="0.5450980392" blue="1" alpha="1" colorSpace="deviceRGB"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="50" id="CrV-y7-dW9">
@@ -83,7 +81,7 @@
                                 </connections>
                             </button>
                             <button opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" reversesTitleShadowWhenHighlighted="YES" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="prl-ty-mNN">
-                                <rect key="frame" x="15" y="478" width="345" height="50"/>
+                                <rect key="frame" x="15" y="498" width="345" height="50"/>
                                 <color key="backgroundColor" red="0.33333333329999998" green="0.5450980392" blue="1" alpha="1" colorSpace="deviceRGB"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="50" id="ZzY-he-bX8">
@@ -108,7 +106,7 @@
                                 </connections>
                             </button>
                             <button opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" reversesTitleShadowWhenHighlighted="YES" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="YP3-1J-JYx">
-                                <rect key="frame" x="15" y="538" width="345" height="50"/>
+                                <rect key="frame" x="15" y="558" width="345" height="50"/>
                                 <color key="backgroundColor" red="0.33333333329999998" green="0.5450980392" blue="1" alpha="1" colorSpace="deviceRGB"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="50" id="NXE-QN-S0w">
@@ -133,7 +131,7 @@
                                 </connections>
                             </button>
                             <button opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" reversesTitleShadowWhenHighlighted="YES" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="3OG-wA-wB8">
-                                <rect key="frame" x="15" y="358" width="345" height="50"/>
+                                <rect key="frame" x="15" y="378" width="345" height="50"/>
                                 <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                                 <constraints>
                                     <constraint firstAttribute="width" priority="999" constant="345" id="etq-T3-eh8"/>
@@ -215,9 +213,9 @@
         <!--NewWalletNav-->
         <scene sceneID="En7-6C-Xtw">
             <objects>
-                <navigationController storyboardIdentifier="Add_A_Wallet" title="NewWalletNav" hidesBottomBarWhenPushed="YES" useStoryboardIdentifierAsRestorationIdentifier="YES" id="44d-5G-GLX" customClass="NewWalletNav" sceneMemberID="viewController">
+                <navigationController storyboardIdentifier="Add_A_Wallet" title="NewWalletNav" modalPresentationStyle="fullScreen" hidesBottomBarWhenPushed="YES" useStoryboardIdentifierAsRestorationIdentifier="YES" id="44d-5G-GLX" customClass="NewWalletNav" sceneMemberID="viewController">
                     <navigationBar key="navigationBar" contentMode="scaleToFill" insetsLayoutMarginsFromSafeArea="NO" barStyle="black" translucent="NO" backIndicatorImage="Back_Chevron_White.png" backIndicatorTransitionMaskImage="Back_Chevron_White.png" id="MdR-5o-Cpx">
-                        <rect key="frame" x="0.0" y="20" width="375" height="44"/>
+                        <rect key="frame" x="0.0" y="0.0" width="375" height="44"/>
                         <autoresizingMask key="autoresizingMask"/>
                         <color key="backgroundColor" red="0.33333333329999998" green="0.5450980392" blue="1" alpha="1" colorSpace="deviceRGB"/>
                         <color key="tintColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
@@ -241,11 +239,11 @@
             <objects>
                 <viewController storyboardIdentifier="NewStandardWallet" title="New Wallet" hidesBottomBarWhenPushed="YES" id="FsD-Wr-KwH" userLabel="Standard Wallet" customClass="NewWalletVC" sceneMemberID="viewController">
                     <scrollView key="view" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleToFill" id="Wvn-ZP-j3c">
-                        <rect key="frame" x="0.0" y="0.0" width="375" height="603"/>
+                        <rect key="frame" x="0.0" y="0.0" width="375" height="623"/>
                         <autoresizingMask key="autoresizingMask"/>
                         <subviews>
                             <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="1x2-JD-mMR" userLabel="Content View">
-                                <rect key="frame" x="0.0" y="0.0" width="375" height="603"/>
+                                <rect key="frame" x="0.0" y="0.0" width="375" height="623"/>
                                 <subviews>
                                     <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Wallet Name" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="fnB-C8-Gss">
                                         <rect key="frame" x="15" y="25" width="345" height="18"/>
@@ -329,7 +327,7 @@
                                         </connections>
                                     </textField>
                                     <button opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" reversesTitleShadowWhenHighlighted="YES" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="zuV-JL-yit">
-                                        <rect key="frame" x="15" y="528" width="345" height="50"/>
+                                        <rect key="frame" x="15" y="548" width="345" height="50"/>
                                         <color key="backgroundColor" red="0.33333333329999998" green="0.5450980392" blue="1" alpha="1" colorSpace="deviceRGB"/>
                                         <constraints>
                                             <constraint firstAttribute="width" priority="999" constant="345" id="kgB-Eq-Rq4"/>
@@ -530,7 +528,7 @@
             <objects>
                 <viewController title="Seed" hidesBottomBarWhenPushed="YES" id="ygs-Pa-twa" customClass="NewWalletSeed1" sceneMemberID="viewController">
                     <view key="view" contentMode="scaleToFill" id="huI-Fb-RbB">
-                        <rect key="frame" x="0.0" y="0.0" width="375" height="603"/>
+                        <rect key="frame" x="0.0" y="0.0" width="375" height="623"/>
                         <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                         <subviews>
                             <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Your wallet generation seed is:" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="TGq-PS-2gy">
@@ -601,7 +599,7 @@
                                 </constraints>
                             </view>
                             <button opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" reversesTitleShadowWhenHighlighted="YES" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="1sH-56-wzu">
-                                <rect key="frame" x="15" y="528" width="345" height="50"/>
+                                <rect key="frame" x="15" y="548" width="345" height="50"/>
                                 <color key="backgroundColor" red="0.33333333329999998" green="0.5450980392" blue="1" alpha="1" colorSpace="deviceRGB"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="50" id="NjO-ep-Z1w"/>
@@ -656,11 +654,11 @@
             <objects>
                 <viewController title="Seed Entry" hidesBottomBarWhenPushed="YES" id="hsg-Aj-7Jd" customClass="NewWalletSeed2" sceneMemberID="viewController">
                     <view key="view" contentMode="scaleToFill" id="6TT-vf-vNe">
-                        <rect key="frame" x="0.0" y="0.0" width="375" height="603"/>
+                        <rect key="frame" x="0.0" y="0.0" width="375" height="623"/>
                         <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                         <subviews>
                             <button opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" reversesTitleShadowWhenHighlighted="YES" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="HpL-n9-Q3R">
-                                <rect key="frame" x="15" y="528" width="345" height="50"/>
+                                <rect key="frame" x="15" y="548" width="345" height="50"/>
                                 <color key="backgroundColor" red="0.33333333329999998" green="0.5450980392" blue="1" alpha="1" colorSpace="deviceRGB"/>
                                 <constraints>
                                     <constraint firstAttribute="width" priority="999" constant="345" id="1Mr-Ik-KVK"/>
@@ -780,7 +778,7 @@
                                 <nil key="highlightedColor"/>
                             </label>
                             <containerView opaque="NO" contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="qFt-NH-7Gb">
-                                <rect key="frame" x="0.0" y="321" width="375" height="182"/>
+                                <rect key="frame" x="0.0" y="341" width="375" height="182"/>
                                 <color key="backgroundColor" red="0.87450980389999999" green="0.87450980389999999" blue="0.87450980389999999" alpha="1" colorSpace="deviceRGB"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="182" id="rQu-fU-Ak1"/>
@@ -864,14 +862,14 @@
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
                             <imageView userInteractionEnabled="NO" contentMode="center" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="ElectronCashFunkyBG_4.png" translatesAutoresizingMaskIntoConstraints="NO" id="20E-wH-rET">
-                                <rect key="frame" x="36" y="66" width="283" height="251"/>
+                                <rect key="frame" x="36" y="46" width="283" height="251"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="251" id="5jk-er-QaO"/>
                                     <constraint firstAttribute="width" constant="283" id="lZe-K1-O5x"/>
                                 </constraints>
                             </imageView>
                             <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Get started now" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="6jd-51-cat">
-                                <rect key="frame" x="15" y="41" width="345" height="25"/>
+                                <rect key="frame" x="15" y="21" width="345" height="25"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="25" id="scb-wO-xAo"/>
                                 </constraints>
@@ -880,7 +878,7 @@
                                 <nil key="highlightedColor"/>
                             </label>
                             <imageView userInteractionEnabled="NO" contentMode="scaleToFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="BeLectron_Insignia.png" translatesAutoresizingMaskIntoConstraints="NO" id="XNX-V0-Wvd">
-                                <rect key="frame" x="110.5" y="122.5" width="154" height="138"/>
+                                <rect key="frame" x="110.5" y="102.5" width="154" height="138"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="138" id="CtN-Ty-XWN"/>
                                     <constraint firstAttribute="width" constant="154" id="EUU-Tc-8Lu"/>
@@ -979,10 +977,10 @@
                                 </connections>
                             </button>
                             <view opaque="NO" userInteractionEnabled="NO" contentMode="scaleToFill" horizontalCompressionResistancePriority="250" verticalCompressionResistancePriority="250" translatesAutoresizingMaskIntoConstraints="NO" id="Ge7-ix-gDM" userLabel="VCenterer">
-                                <rect key="frame" x="0.0" y="260.5" width="375" height="161.5"/>
+                                <rect key="frame" x="0.0" y="240.5" width="375" height="181.5"/>
                                 <subviews>
                                     <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" usesAttributedText="YES" lineBreakMode="tailTruncation" numberOfLines="0" baselineAdjustment="alignBaselines" minimumScaleFactor="0.5" translatesAutoresizingMaskIntoConstraints="NO" id="IK0-Xv-mIB">
-                                        <rect key="frame" x="32.5" y="60" width="310" height="42"/>
+                                        <rect key="frame" x="32.5" y="70" width="310" height="42"/>
                                         <constraints>
                                             <constraint firstAttribute="width" constant="310" id="uub-dP-sY1"/>
                                         </constraints>
@@ -1105,10 +1103,10 @@
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
                             <imageView opaque="NO" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="ElectronCashFunkyBG.png" translatesAutoresizingMaskIntoConstraints="NO" id="yud-pJ-xw6">
-                                <rect key="frame" x="64" y="129" width="251" height="283"/>
+                                <rect key="frame" x="64" y="129" width="251" height="566"/>
                             </imageView>
                             <imageView opaque="NO" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="ElecTRONCash.png" translatesAutoresizingMaskIntoConstraints="NO" id="5p7-9Z-k5r">
-                                <rect key="frame" x="17" y="236" width="341" height="112"/>
+                                <rect key="frame" x="17" y="236" width="341" height="224"/>
                             </imageView>
                             <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Welcome to" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="omj-Bk-8vK">
                                 <rect key="frame" x="17" y="107" width="341" height="25"/>
@@ -1120,10 +1118,10 @@
                                 <nil key="highlightedColor"/>
                             </label>
                             <view opaque="NO" contentMode="scaleToFill" horizontalCompressionResistancePriority="250" verticalCompressionResistancePriority="250" translatesAutoresizingMaskIntoConstraints="NO" id="msS-3n-0EQ" userLabel="VCenterer">
-                                <rect key="frame" x="0.0" y="348" width="375" height="254"/>
+                                <rect key="frame" x="0.0" y="460" width="375" height="142"/>
                                 <subviews>
                                     <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" usesAttributedText="YES" lineBreakMode="tailTruncation" numberOfLines="2" baselineAdjustment="alignBaselines" minimumScaleFactor="0.5" translatesAutoresizingMaskIntoConstraints="NO" id="t1Y-o1-Z3K">
-                                        <rect key="frame" x="83.5" y="106" width="208" height="42"/>
+                                        <rect key="frame" x="83.5" y="50" width="208" height="42"/>
                                         <constraints>
                                             <constraint firstAttribute="height" constant="42" id="j6X-Mc-R72"/>
                                             <constraint firstAttribute="width" constant="208" id="lxK-8b-E6P"/>
@@ -1207,11 +1205,11 @@
             <objects>
                 <viewController storyboardIdentifier="RESTORE_SEED_1" title="Seed Restore" hidesBottomBarWhenPushed="YES" id="nKM-Km-cV5" customClass="RestoreWallet1" sceneMemberID="viewController">
                     <view key="view" contentMode="scaleToFill" id="bne-xW-VeX">
-                        <rect key="frame" x="0.0" y="0.0" width="375" height="603"/>
+                        <rect key="frame" x="0.0" y="0.0" width="375" height="623"/>
                         <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                         <subviews>
                             <button opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" reversesTitleShadowWhenHighlighted="YES" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="l1b-Va-qbg">
-                                <rect key="frame" x="15" y="528" width="345" height="50"/>
+                                <rect key="frame" x="15" y="548" width="345" height="50"/>
                                 <color key="backgroundColor" red="0.33333333329999998" green="0.5450980392" blue="1" alpha="1" colorSpace="deviceRGB"/>
                                 <constraints>
                                     <constraint firstAttribute="width" priority="999" constant="345" id="dri-wE-1yR"/>
@@ -1331,7 +1329,7 @@
                                 <nil key="highlightedColor"/>
                             </label>
                             <containerView opaque="NO" contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="2KS-hE-PIN">
-                                <rect key="frame" x="0.0" y="321" width="375" height="182"/>
+                                <rect key="frame" x="0.0" y="341" width="375" height="182"/>
                                 <color key="backgroundColor" red="0.87450980389999999" green="0.87450980389999999" blue="0.87450980389999999" alpha="1" colorSpace="deviceRGB"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="182" id="OIo-rN-UNa"/>
@@ -1447,11 +1445,11 @@
             <objects>
                 <viewController storyboardIdentifier="RESTORE_SEED_2" title="New Wallet" hidesBottomBarWhenPushed="YES" id="h0e-sN-UT0" userLabel="Restore Seed 2" customClass="RestoreWallet2" sceneMemberID="viewController">
                     <scrollView key="view" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleToFill" id="bfB-6W-ZFs">
-                        <rect key="frame" x="0.0" y="0.0" width="375" height="603"/>
+                        <rect key="frame" x="0.0" y="0.0" width="375" height="623"/>
                         <autoresizingMask key="autoresizingMask"/>
                         <subviews>
                             <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="obM-YE-7e1" userLabel="Content View">
-                                <rect key="frame" x="0.0" y="0.0" width="375" height="603"/>
+                                <rect key="frame" x="0.0" y="0.0" width="375" height="623"/>
                                 <subviews>
                                     <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Wallet Name" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="tJq-yv-gWa">
                                         <rect key="frame" x="15" y="25" width="345" height="18"/>
@@ -1535,7 +1533,7 @@
                                         </connections>
                                     </textField>
                                     <button opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" reversesTitleShadowWhenHighlighted="YES" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="bv0-MA-mXh">
-                                        <rect key="frame" x="15" y="528" width="345" height="50"/>
+                                        <rect key="frame" x="15" y="548" width="345" height="50"/>
                                         <color key="backgroundColor" red="0.33333333329999998" green="0.5450980392" blue="1" alpha="1" colorSpace="deviceRGB"/>
                                         <constraints>
                                             <constraint firstAttribute="height" constant="50" id="Wye-TO-dJL">
@@ -1737,7 +1735,7 @@
             <objects>
                 <viewController storyboardIdentifier="IMPORT_KEYS_1" title="Import" hidesBottomBarWhenPushed="YES" id="o3S-U7-906" customClass="Import1" sceneMemberID="viewController">
                     <view key="view" contentMode="scaleToFill" id="jbp-Ry-Ltv">
-                        <rect key="frame" x="0.0" y="0.0" width="375" height="603"/>
+                        <rect key="frame" x="0.0" y="0.0" width="375" height="623"/>
                         <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                         <subviews>
                             <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Import Bitcoin Cash Addresses or Private Keys" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="lho-Xb-O6f">
@@ -1841,7 +1839,7 @@
                                 </constraints>
                             </view>
                             <button opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" reversesTitleShadowWhenHighlighted="YES" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="bnK-2o-hmX">
-                                <rect key="frame" x="15" y="528" width="345" height="50"/>
+                                <rect key="frame" x="15" y="548" width="345" height="50"/>
                                 <color key="backgroundColor" red="0.33333333329999998" green="0.5450980392" blue="1" alpha="1" colorSpace="deviceRGB"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="50" id="2qc-JI-f8C"/>
@@ -1926,11 +1924,11 @@
             <objects>
                 <viewController storyboardIdentifier="IMPORT_KEYS_2" title="Import" hidesBottomBarWhenPushed="YES" id="96q-Qv-HHf" userLabel="Import 2" customClass="Import2" sceneMemberID="viewController">
                     <view key="view" contentMode="scaleToFill" id="V3Z-a6-ze8">
-                        <rect key="frame" x="0.0" y="0.0" width="375" height="603"/>
+                        <rect key="frame" x="0.0" y="0.0" width="375" height="623"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
                             <tableView clipsSubviews="YES" contentMode="scaleToFill" alwaysBounceVertical="YES" dataMode="prototypes" style="plain" separatorStyle="default" allowsSelection="NO" rowHeight="65" estimatedRowHeight="-1" sectionHeaderHeight="28" sectionFooterHeight="28" translatesAutoresizingMaskIntoConstraints="NO" id="Gp7-HV-3kk">
-                                <rect key="frame" x="0.0" y="0.0" width="375" height="388"/>
+                                <rect key="frame" x="0.0" y="0.0" width="375" height="408"/>
                                 <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                                 <inset key="separatorInset" minX="0.0" minY="0.0" maxX="0.0" maxY="0.0"/>
                                 <sections/>
@@ -1940,7 +1938,7 @@
                                 </connections>
                             </tableView>
                             <button opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" reversesTitleShadowWhenHighlighted="YES" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="ywA-2Z-LLo">
-                                <rect key="frame" x="15" y="528" width="345" height="50"/>
+                                <rect key="frame" x="15" y="548" width="345" height="50"/>
                                 <color key="backgroundColor" red="0.33333333329999998" green="0.5450980392" blue="1" alpha="1" colorSpace="deviceRGB"/>
                                 <constraints>
                                     <constraint firstAttribute="width" priority="999" constant="345" id="W3Q-E3-atZ"/>
@@ -1960,7 +1958,7 @@
                                 </connections>
                             </button>
                             <view userInteractionEnabled="NO" contentMode="scaleToFill" verticalHuggingPriority="1000" verticalCompressionResistancePriority="250" translatesAutoresizingMaskIntoConstraints="NO" id="8gy-Dg-wcd" userLabel="InfoView">
-                                <rect key="frame" x="15" y="413" width="345" height="90"/>
+                                <rect key="frame" x="15" y="433" width="345" height="90"/>
                                 <subviews>
                                     <imageView userInteractionEnabled="NO" contentMode="scaleToFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="i_yellow.png" translatesAutoresizingMaskIntoConstraints="NO" id="wMn-ZW-Rhy">
                                         <rect key="frame" x="0.0" y="0.0" width="18" height="18"/>
@@ -1996,7 +1994,7 @@
                                 </constraints>
                             </view>
                             <view hidden="YES" userInteractionEnabled="NO" contentMode="scaleToFill" verticalHuggingPriority="1000" verticalCompressionResistancePriority="250" translatesAutoresizingMaskIntoConstraints="NO" id="wPH-bI-qVN">
-                                <rect key="frame" x="15" y="413" width="345" height="90"/>
+                                <rect key="frame" x="15" y="433" width="345" height="90"/>
                                 <subviews>
                                     <imageView userInteractionEnabled="NO" contentMode="scaleToFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="bang_red.png" translatesAutoresizingMaskIntoConstraints="NO" id="AvY-3l-LzQ">
                                         <rect key="frame" x="0.0" y="0.0" width="18" height="18"/>
@@ -2074,11 +2072,11 @@
             <objects>
                 <viewController storyboardIdentifier="IMPORT_SAVE" title="New Wallet" hidesBottomBarWhenPushed="YES" id="sve-yO-HL9" userLabel="Import 3 (ImportSaveWallet)" customClass="ImportSaveWallet" sceneMemberID="viewController">
                     <scrollView key="view" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleToFill" id="DOT-4n-Xxl">
-                        <rect key="frame" x="0.0" y="0.0" width="375" height="603"/>
+                        <rect key="frame" x="0.0" y="0.0" width="375" height="623"/>
                         <autoresizingMask key="autoresizingMask"/>
                         <subviews>
                             <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="WdZ-2x-nVM" userLabel="Content View">
-                                <rect key="frame" x="0.0" y="0.0" width="375" height="603"/>
+                                <rect key="frame" x="0.0" y="0.0" width="375" height="623"/>
                                 <subviews>
                                     <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Wallet Name" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="4uA-BC-Ngf">
                                         <rect key="frame" x="15" y="25" width="345" height="18"/>
@@ -2162,7 +2160,7 @@
                                         </connections>
                                     </textField>
                                     <button opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" reversesTitleShadowWhenHighlighted="YES" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="Jbr-fh-FVD">
-                                        <rect key="frame" x="15" y="528" width="345" height="50"/>
+                                        <rect key="frame" x="15" y="548" width="345" height="50"/>
                                         <color key="backgroundColor" red="0.33333333329999998" green="0.5450980392" blue="1" alpha="1" colorSpace="deviceRGB"/>
                                         <constraints>
                                             <constraint firstAttribute="height" constant="50" id="3bk-XI-Auw">
@@ -2363,7 +2361,7 @@
             <objects>
                 <viewController storyboardIdentifier="MASTER_KEY_1" title="Import" hidesBottomBarWhenPushed="YES" id="aLq-px-WAT" userLabel="Master Key 1" customClass="Import1" sceneMemberID="viewController">
                     <view key="view" contentMode="scaleToFill" id="bPI-tw-sjX">
-                        <rect key="frame" x="0.0" y="0.0" width="375" height="603"/>
+                        <rect key="frame" x="0.0" y="0.0" width="375" height="623"/>
                         <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                         <subviews>
                             <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Import Bitcoin Cash Addresses or Private Keys" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="U4f-Sw-gz3">
@@ -2467,7 +2465,7 @@
                                 </constraints>
                             </view>
                             <button opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" reversesTitleShadowWhenHighlighted="YES" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="S01-Wi-hPR">
-                                <rect key="frame" x="15" y="528" width="345" height="50"/>
+                                <rect key="frame" x="15" y="548" width="345" height="50"/>
                                 <color key="backgroundColor" red="0.33333333329999998" green="0.5450980392" blue="1" alpha="1" colorSpace="deviceRGB"/>
                                 <constraints>
                                     <constraint firstAttribute="width" priority="999" constant="345" id="5G0-3G-4Qd"/>
@@ -2552,11 +2550,11 @@
             <objects>
                 <viewController storyboardIdentifier="MASTER_KEY_2" title="Import" hidesBottomBarWhenPushed="YES" id="aTX-61-CFR" userLabel="Master Key 2" customClass="Import2" sceneMemberID="viewController">
                     <view key="view" contentMode="scaleToFill" id="dzR-Zc-lRl">
-                        <rect key="frame" x="0.0" y="0.0" width="375" height="603"/>
+                        <rect key="frame" x="0.0" y="0.0" width="375" height="623"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
                             <tableView clipsSubviews="YES" contentMode="scaleToFill" alwaysBounceVertical="YES" dataMode="prototypes" style="plain" separatorStyle="default" allowsSelection="NO" rowHeight="65" estimatedRowHeight="-1" sectionHeaderHeight="28" sectionFooterHeight="28" translatesAutoresizingMaskIntoConstraints="NO" id="2oq-JB-zJe">
-                                <rect key="frame" x="0.0" y="0.0" width="375" height="388"/>
+                                <rect key="frame" x="0.0" y="0.0" width="375" height="408"/>
                                 <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                                 <inset key="separatorInset" minX="0.0" minY="0.0" maxX="0.0" maxY="0.0"/>
                                 <sections/>
@@ -2566,7 +2564,7 @@
                                 </connections>
                             </tableView>
                             <button opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" reversesTitleShadowWhenHighlighted="YES" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="q08-yY-j47">
-                                <rect key="frame" x="15" y="528" width="345" height="50"/>
+                                <rect key="frame" x="15" y="548" width="345" height="50"/>
                                 <color key="backgroundColor" red="0.33333333329999998" green="0.5450980392" blue="1" alpha="1" colorSpace="deviceRGB"/>
                                 <constraints>
                                     <constraint firstAttribute="width" priority="999" constant="345" id="QbK-7u-2C1"/>
@@ -2586,7 +2584,7 @@
                                 </connections>
                             </button>
                             <view userInteractionEnabled="NO" contentMode="scaleToFill" verticalHuggingPriority="1000" verticalCompressionResistancePriority="250" translatesAutoresizingMaskIntoConstraints="NO" id="mVa-c9-WaX" userLabel="InfoView">
-                                <rect key="frame" x="15" y="413" width="345" height="90"/>
+                                <rect key="frame" x="15" y="433" width="345" height="90"/>
                                 <subviews>
                                     <imageView userInteractionEnabled="NO" contentMode="scaleToFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="i_yellow.png" translatesAutoresizingMaskIntoConstraints="NO" id="C3e-EM-SEl">
                                         <rect key="frame" x="0.0" y="0.0" width="18" height="18"/>
@@ -2622,7 +2620,7 @@
                                 </constraints>
                             </view>
                             <view hidden="YES" userInteractionEnabled="NO" contentMode="scaleToFill" verticalHuggingPriority="1000" verticalCompressionResistancePriority="250" translatesAutoresizingMaskIntoConstraints="NO" id="4lu-3m-HcD">
-                                <rect key="frame" x="15" y="413" width="345" height="90"/>
+                                <rect key="frame" x="15" y="433" width="345" height="90"/>
                                 <subviews>
                                     <imageView userInteractionEnabled="NO" contentMode="scaleToFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="bang_red.png" translatesAutoresizingMaskIntoConstraints="NO" id="Hx2-CN-Lyr">
                                         <rect key="frame" x="0.0" y="0.0" width="18" height="18"/>
@@ -2705,11 +2703,11 @@
             <objects>
                 <viewController storyboardIdentifier="MASTER_KEY_SAVE" title="New Wallet" hidesBottomBarWhenPushed="YES" id="h3c-OP-xUC" userLabel="Master Key 3" customClass="ImportSaveWallet" sceneMemberID="viewController">
                     <scrollView key="view" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleToFill" id="d18-a5-PM5">
-                        <rect key="frame" x="0.0" y="0.0" width="375" height="603"/>
+                        <rect key="frame" x="0.0" y="0.0" width="375" height="623"/>
                         <autoresizingMask key="autoresizingMask"/>
                         <subviews>
                             <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="tUV-z3-ixP" userLabel="Content View">
-                                <rect key="frame" x="0.0" y="0.0" width="375" height="603"/>
+                                <rect key="frame" x="0.0" y="0.0" width="375" height="623"/>
                                 <subviews>
                                     <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Wallet Name" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="6zh-Hq-lKh">
                                         <rect key="frame" x="15" y="25" width="345" height="18"/>
@@ -2793,7 +2791,7 @@
                                         </connections>
                                     </textField>
                                     <button opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" reversesTitleShadowWhenHighlighted="YES" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="FlG-uc-1Zl">
-                                        <rect key="frame" x="15" y="528" width="345" height="50"/>
+                                        <rect key="frame" x="15" y="548" width="345" height="50"/>
                                         <color key="backgroundColor" red="0.33333333329999998" green="0.5450980392" blue="1" alpha="1" colorSpace="deviceRGB"/>
                                         <constraints>
                                             <constraint firstAttribute="height" constant="50" id="F3p-LT-o28">
@@ -2998,13 +2996,13 @@
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
                             <imageView opaque="NO" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="ElectronCashFunkyBG_2.png" translatesAutoresizingMaskIntoConstraints="NO" id="mvt-WK-d9u">
-                                <rect key="frame" x="28" y="115" width="306" height="316"/>
+                                <rect key="frame" x="28" y="95" width="306" height="632"/>
                             </imageView>
                             <imageView opaque="NO" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="OnBoardingLock.png" translatesAutoresizingMaskIntoConstraints="NO" id="Dob-Qg-7wJ">
-                                <rect key="frame" x="47.5" y="180" width="280" height="195"/>
+                                <rect key="frame" x="47.5" y="180" width="280" height="390"/>
                             </imageView>
                             <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Control your own private keys" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" minimumScaleFactor="0.5" translatesAutoresizingMaskIntoConstraints="NO" id="c6o-vS-XDJ">
-                                <rect key="frame" x="15" y="100" width="345" height="25"/>
+                                <rect key="frame" x="15" y="80" width="345" height="25"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="25" id="g9E-KH-sto"/>
                                 </constraints>
@@ -3013,10 +3011,10 @@
                                 <nil key="highlightedColor"/>
                             </label>
                             <view opaque="NO" contentMode="scaleToFill" horizontalCompressionResistancePriority="250" verticalCompressionResistancePriority="250" translatesAutoresizingMaskIntoConstraints="NO" id="vSp-io-f6D" userLabel="VCenterer">
-                                <rect key="frame" x="0.0" y="375" width="375" height="227"/>
+                                <rect key="frame" x="0.0" y="570" width="375" height="32"/>
                                 <subviews>
                                     <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" usesAttributedText="YES" lineBreakMode="tailTruncation" numberOfLines="2" baselineAdjustment="alignBaselines" minimumScaleFactor="0.5" translatesAutoresizingMaskIntoConstraints="NO" id="KEs-iU-tfk">
-                                        <rect key="frame" x="77.5" y="92.5" width="220" height="42"/>
+                                        <rect key="frame" x="77.5" y="-5" width="220" height="42"/>
                                         <constraints>
                                             <constraint firstAttribute="height" constant="42" id="W9G-Ak-ZXa"/>
                                             <constraint firstAttribute="width" constant="220" id="sA2-Cy-RDd"/>
@@ -3104,13 +3102,13 @@
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
                             <imageView opaque="NO" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="ElectronCashFunkyBG_3.png" translatesAutoresizingMaskIntoConstraints="NO" id="h8k-qc-p09">
-                                <rect key="frame" x="38" y="115" width="300" height="297"/>
+                                <rect key="frame" x="38" y="95" width="300" height="594"/>
                             </imageView>
                             <imageView opaque="NO" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="OnBoardingShield.png" translatesAutoresizingMaskIntoConstraints="NO" id="PbD-G1-Frg">
-                                <rect key="frame" x="45.5" y="180" width="284" height="212"/>
+                                <rect key="frame" x="45.5" y="180" width="284" height="422"/>
                             </imageView>
                             <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Enjoy high security" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="Zel-6V-tEV">
-                                <rect key="frame" x="15" y="100" width="345" height="25"/>
+                                <rect key="frame" x="15" y="80" width="345" height="25"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="25" id="oLW-MK-4SG"/>
                                 </constraints>
@@ -3119,10 +3117,10 @@
                                 <nil key="highlightedColor"/>
                             </label>
                             <view opaque="NO" contentMode="scaleToFill" horizontalCompressionResistancePriority="250" verticalCompressionResistancePriority="250" translatesAutoresizingMaskIntoConstraints="NO" id="IVB-l2-qMd" userLabel="VCenterer">
-                                <rect key="frame" x="0.0" y="392" width="375" height="210"/>
+                                <rect key="frame" x="0.0" y="602" width="375" height="0.0"/>
                                 <subviews>
                                     <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" usesAttributedText="YES" lineBreakMode="tailTruncation" numberOfLines="2" baselineAdjustment="alignBaselines" minimumScaleFactor="0.5" translatesAutoresizingMaskIntoConstraints="NO" id="ipm-y1-nXa">
-                                        <rect key="frame" x="52.5" y="84" width="270" height="42"/>
+                                        <rect key="frame" x="52.5" y="-21" width="270" height="42"/>
                                         <constraints>
                                             <constraint firstAttribute="width" constant="270" id="A9d-et-tSL"/>
                                             <constraint firstAttribute="height" constant="42" id="x5w-25-IDM"/>

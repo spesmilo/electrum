@@ -16,8 +16,13 @@
 #import "KeyboardVC/KeyboardVC.h"
 #import "ECTextViewDelegate/ECTextViewDelegate.h"
 
+@interface CustomViewController : UIViewController
+@end
 
-@interface AddrConvBase : UIViewController
+@interface CustomNavController : UINavigationController
+@end
+
+@interface AddrConvBase : CustomViewController
 @property (nonatomic, weak) IBOutlet UILabel *blurb, *cashTit, *cash, *legacyTit, *legacy, *addressTit;
 @property (nonatomic, weak) IBOutlet UITextField *address;
 @property (nonatomic, weak) IBOutlet UIButton *qrBut, *qrButShowLegacy, *qrButShowCash, *cpyCashBut, *cpyLegBut;
@@ -30,7 +35,7 @@
 - (IBAction) onAddress:(id)sender;
 @end
 
-@interface NewContactBase : UIViewController
+@interface NewContactBase : CustomViewController
 @property (nonatomic, weak) IBOutlet UIBarButtonItem *okBut;
 @property (nonatomic, weak) IBOutlet UILabel *nameTit;
 @property (nonatomic, weak) IBOutlet UITextField *name;
@@ -63,7 +68,7 @@
 @interface FeeSlider : UISlider
 @end
 
-@interface SendBase : UIViewController
+@interface SendBase : CustomViewController
 @property (nonatomic, weak) IBOutlet UIView *contentView;
 @property (nonatomic, weak) IBOutlet UILabel *payToTit;
 @property (nonatomic, weak) IBOutlet UITextField *payTo;
@@ -99,7 +104,7 @@
 @end
 
 
-@interface TxDetailBase : UIViewController
+@interface TxDetailBase : CustomViewController
 @property (nonatomic, weak) IBOutlet UIView *contentView;
 @property (nonatomic, weak) IBOutlet UILabel *txTit;
 @property (nonatomic, weak) IBOutlet UILabel *txHash;
@@ -277,7 +282,7 @@ typedef NS_ENUM(NSInteger, WalletsStatusMode) {
 @property (nonatomic, weak) IBOutlet UIImageView *chevron;
 @end
 
-@interface ContactsVCBase : UIViewController
+@interface ContactsVCBase : CustomViewController
 @property (nonatomic, weak) IBOutlet UIView *noContacts;
 @property (nonatomic, weak) IBOutlet UILabel *noContactsLabel;
 @property (nonatomic, weak) IBOutlet UIButton *butBottom;
@@ -297,7 +302,7 @@ typedef NS_ENUM(NSInteger, WalletsStatusMode) {
 @property (nonatomic, weak) IBOutlet UILabel *numTxs;
 @end
 
-@interface ContactDetailVCBase: UIViewController
+@interface ContactDetailVCBase: CustomViewController
 @property (nonatomic, weak) IBOutlet UILabel *name;
 @property (nonatomic, weak) IBOutlet UIImageView *qr;
 @property (nonatomic, weak) IBOutlet UILabel *address;
@@ -314,7 +319,7 @@ typedef NS_ENUM(NSInteger, WalletsStatusMode) {
 - (IBAction) onQRImgTap;
 @end
 
-@interface AddressesVCBase : UIViewController
+@interface AddressesVCBase : CustomViewController
 @property (nonatomic, weak) IBOutlet UIView *topComboProxyL, *topComboProxyR;
 @property (nonatomic, weak) IBOutlet UILabel *topLblL, *topLblR;
 @property (nonatomic, weak) IBOutlet UITableView *tableView;
@@ -333,7 +338,7 @@ typedef NS_ENUM(NSInteger, WalletsStatusMode) {
 @property (nonatomic, weak) IBOutlet NSLayoutConstraint *topCS, *midCS;
 @end
 
-@interface AddressDetailBase : UIViewController
+@interface AddressDetailBase : CustomViewController
 @property (nonatomic, strong) IBOutlet ECTextViewDelegate *descDel;
 @property (nonatomic, weak) UIBarButtonItem *optionsBarBut;
 @property (nonatomic, weak) IBOutlet UIImageView *qr;
@@ -374,7 +379,7 @@ typedef NS_ENUM(NSInteger, WalletsStatusMode) {
 @end
 
 
-@interface CoinsDetailBase : UIViewController
+@interface CoinsDetailBase : CustomViewController
 @property (nonatomic, strong) IBOutlet ECTextViewDelegate *descDel;
 @property (nonatomic, weak) UIBarButtonItem *optionsBarBut;
 @property (nonatomic, weak) IBOutlet UIImageView *qr;
@@ -402,13 +407,13 @@ typedef NS_ENUM(NSInteger, WalletsStatusMode) {
 @property (nonatomic, weak) IBOutlet CCActivityIndicator *activityIndicator;
 @end
 
-@interface NewWalletNavBase : UINavigationController
+@interface NewWalletNavBase : CustomNavController
 @property (nonatomic) BOOL onBoardingWizard;
 @end
 @interface NewWalletNav : NewWalletNavBase
 // implemented in python newwallet.py
 @end
-@interface NewWalletVCBase : UIViewController
+@interface NewWalletVCBase : CustomViewController
 @property (nonatomic, weak) IBOutlet UILabel *walletNameTit, *walletPw1Tit, *walletPw2Tit, *errMsg, *touchIdTit;
 @property (nonatomic, weak) IBOutlet UISwitch *touchId;
 @property (nonatomic, weak) IBOutlet UITextField *walletName, *walletPw1, *walletPw2;
@@ -433,7 +438,7 @@ typedef NS_ENUM(NSInteger, WalletsStatusMode) {
 - (IBAction) onSave;
 @end
 
-@interface NewWalletSeedBase : UIViewController
+@interface NewWalletSeedBase : CustomViewController
 @property (nonatomic, weak) IBOutlet UILabel *seedTit, *info;
 @property (nonatomic, weak) IBOutlet UITextView *seedtv;
 @property (nonatomic, weak) IBOutlet UIView *infoView;
@@ -465,7 +470,7 @@ typedef NS_ENUM(NSInteger, WalletsStatusMode) {
 @end
 
 
-@interface NewWalletMenuBase : UIViewController
+@interface NewWalletMenuBase : CustomViewController
 @property (nonatomic, weak) IBOutlet UILabel *tit, *blurb;
 @property (nonatomic, weak) IBOutlet UIButton *std, *restore, *imp, *master;
 - (IBAction) dismiss;
@@ -474,7 +479,7 @@ typedef NS_ENUM(NSInteger, WalletsStatusMode) {
 // implemented in python newwallet.py
 @end
 
-@interface Import1Base : UIViewController
+@interface Import1Base : CustomViewController
 @property (nonatomic, weak) IBOutlet UILabel *tit;
 @property (nonatomic, weak) IBOutlet UITextView *tv;
 @property (nonatomic, weak) IBOutlet UIView *errMsgView, *infoView;
@@ -492,7 +497,7 @@ typedef NS_ENUM(NSInteger, WalletsStatusMode) {
 - (IBAction) onQRBut;
 @end
 
-@interface Import2Base : UIViewController
+@interface Import2Base : CustomViewController
 @property (nonatomic, weak) IBOutlet UITableView *tv;
 @property (nonatomic, weak) IBOutlet UIView *errMsgView, *infoView;
 @property (nonatomic, weak) IBOutlet UILabel *errMsg, *info;
@@ -514,7 +519,7 @@ typedef NS_ENUM(NSInteger, WalletsStatusMode) {
 @property (nonatomic, weak) IBOutlet NSLayoutConstraint *centerYCS;
 @end
 
-@interface OnBoardingWizardBase : UIViewController
+@interface OnBoardingWizardBase : CustomViewController
 @property (nonatomic) NSInteger currentPageIndex;
 @property (nonatomic, weak) IBOutlet NSLayoutConstraint *bottomMarginCS; // on iPhone 5 we set the .constant to 0
 @end
@@ -522,7 +527,7 @@ typedef NS_ENUM(NSInteger, WalletsStatusMode) {
 @interface OnBoardingWizard : OnBoardingWizardBase
 // implemented in python in newwallet.py
 @end
-@interface OnBoardingPageBase : UIViewController
+@interface OnBoardingPageBase : CustomViewController
 @property (nonatomic, weak) IBOutlet UIButton *nextBut;
 @property (nonatomic, weak) IBOutlet UILabel *tit, *blurb;
 @property (nonatomic, weak) OnBoardingWizard *parent;
@@ -554,7 +559,7 @@ typedef NS_ENUM(NSInteger, WalletsStatusMode) {
 @property (nonatomic, weak) IBOutlet UILabel *num, *address, *input, *amount;
 @end
 
-@interface PrivateKeyDialogBase : UIViewController
+@interface PrivateKeyDialogBase : CustomViewController
 @property (nonatomic, weak) IBOutlet UILabel *addressTit, *address, *scriptTypeTit, *scriptType, *privKeyTit, *redeemScriptTit;
 @property (nonatomic, weak) IBOutlet UITextView *privKey, *redeemScript;
 @property (nonatomic, weak) IBOutlet UIButton *cpyAddress, *cpyPrivKey, *cpyRedeemScript, *qrAddress, *qrPrivKey, *qrRedeemScript;
@@ -565,7 +570,7 @@ typedef NS_ENUM(NSInteger, WalletsStatusMode) {
 - (IBAction) onQRBut:(id)sender;
 @end
 
-@interface SignDecryptBase : UIViewController
+@interface SignDecryptBase : CustomViewController
 @property (nonatomic, weak) IBOutlet UILabel *topTit, *midTit, *botTit;
 @property (nonatomic, weak) IBOutlet UITextView *topTv, *botTv;
 @property (nonatomic, weak) IBOutlet UITextField *tf;
@@ -580,7 +585,7 @@ typedef NS_ENUM(NSInteger, WalletsStatusMode) {
 - (IBAction) onExecuteBut:(id)sender;
 @end
 
-@interface ReceiveBase : UIViewController
+@interface ReceiveBase : CustomViewController
 @property (nonatomic, weak) IBOutlet UILabel *addrTit, *descTit, *amtTit, *amtFiatTit, *expiresTit, *expires, *message;
 @property (nonatomic, weak) IBOutlet LinkLabel *addr, *expiresLink;
 @property (nonatomic, weak) IBOutlet UIImageView *qr;
@@ -598,7 +603,7 @@ typedef NS_ENUM(NSInteger, WalletsStatusMode) {
 - (IBAction) onQRImgTap;
 @end
 
-@interface SeedDisplayBase : UIViewController
+@interface SeedDisplayBase : CustomViewController
 @property (nonatomic, strong) NSString *seed, *passphrase;
 @property (nonatomic, weak) IBOutlet UIView *contentView, *warnView;
 @property (nonatomic, weak) IBOutlet UILabel *seedTit, *extTit, *seedLbl, *extLbl, *blurb, *warnTit, *warn1, *warn2, *warn3;
@@ -613,10 +618,10 @@ typedef NS_ENUM(NSInteger, WalletsStatusMode) {
 - (IBAction) onOk:(id)sender;
 @end
 
-@interface CrashReporterNav : UINavigationController
+@interface CrashReporterNav : CustomNavController
 @end
 
-@interface CrashReporterBase : UIViewController
+@interface CrashReporterBase : CustomViewController
 @property (nonatomic, weak) IBOutlet UILabel *errMsg, *reportTit, *descTit;
 @property (nonatomic, weak) IBOutlet UITextView *report, *desc;
 @property (nonatomic, strong) IBOutlet ECTextViewDelegate *descDel;

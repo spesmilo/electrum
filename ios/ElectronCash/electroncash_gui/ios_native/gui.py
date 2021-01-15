@@ -64,7 +64,9 @@ class MyTabBarController(UITabBarController):
     @objc_method
     def init(self) -> ObjCInstance:
         self = ObjCInstance(send_super(__class__, self, 'init'))
-        if self is not None: self.didLayout = False
+        if self is not None:
+            self.didLayout = False
+            self.modalPresentationStyle = UIModalPresentationFullScreen
         return self
 
     @objc_method
@@ -316,10 +318,10 @@ class ElectrumGui(PrintError):
         if not self.walletsNav:
             raise Exception('Wallets Nav is None!')
 
-        self.addressesNav = nav2 = UINavigationController.alloc().initWithRootViewController_(adr).autorelease()
-        self.coinsNav = nav3 = UINavigationController.alloc().initWithRootViewController_(cns).autorelease()
-        self.contactsNav = nav4 = UINavigationController.alloc().initWithRootViewController_(cntcts).autorelease()
-        self.prefsNav = nav5 = UINavigationController.alloc().initWithRootViewController_(self.prefsVC).autorelease()
+        self.addressesNav = nav2 = CustomNavController.alloc().initWithRootViewController_(adr).autorelease()
+        self.coinsNav = nav3 = CustomNavController.alloc().initWithRootViewController_(cns).autorelease()
+        self.contactsNav = nav4 = CustomNavController.alloc().initWithRootViewController_(cntcts).autorelease()
+        self.prefsNav = nav5 = CustomNavController.alloc().initWithRootViewController_(self.prefsVC).autorelease()
 
         self.tabs = [utils.tintify(x) for x in [nav1, nav2, nav3, nav4, nav5]]
         self.rootVCs = dict()
@@ -2114,7 +2116,7 @@ class ElectrumGui(PrintError):
             return
         self.networkVC = network_dialog.NetworkDialogVC.new().autorelease()
         self.networkVC.title = _("Network")
-        self.networkNav = utils.tintify(UINavigationController.alloc().initWithRootViewController_(self.networkVC).autorelease())
+        self.networkNav = utils.tintify(CustomNavController.alloc().initWithRootViewController_(self.networkVC).autorelease())
         def doCleanup(oid : objc_id) -> None:
             if self.networkVC is not None and oid == self.networkVC.ptr:
                 #print("NetworkDialogVC dealloc caught!")
@@ -2130,7 +2132,7 @@ class ElectrumGui(PrintError):
     def send_create_if_none(self) -> None:
         if self.sendVC: return
         self.sendVC = send.SendVC.alloc().init().autorelease()
-        self.sendNav = utils.tintify(UINavigationController.alloc().initWithRootViewController_(self.sendVC).autorelease())
+        self.sendNav = utils.tintify(CustomNavController.alloc().initWithRootViewController_(self.sendVC).autorelease())
         self.sendNav.navigationBar.backIndicatorImage = self.walletsNav.navigationBar.backIndicatorImage
         self.sendNav.navigationBar.backIndicatorTransitionMaskImage = self.walletsNav.navigationBar.backIndicatorTransitionMaskImage
         self.add_navigation_bar_close_to_modal_vc(self.sendVC, leftSide = True, useXIcon = True)
@@ -2182,7 +2184,7 @@ class ElectrumGui(PrintError):
         if self.receiveVC: return
         # Receive modal
         self.receiveVC = receive.ReceiveVC.alloc().init().autorelease()
-        self.receiveNav = utils.tintify(UINavigationController.alloc().initWithRootViewController_(self.receiveVC).autorelease())
+        self.receiveNav = utils.tintify(CustomNavController.alloc().initWithRootViewController_(self.receiveVC).autorelease())
         self.receiveNav.navigationBar.backIndicatorImage = self.walletsNav.navigationBar.backIndicatorImage
         self.receiveNav.navigationBar.backIndicatorTransitionMaskImage = self.walletsNav.navigationBar.backIndicatorTransitionMaskImage
         self.add_navigation_bar_close_to_modal_vc(self.receiveVC, leftSide = True, useXIcon = True)

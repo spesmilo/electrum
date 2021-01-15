@@ -907,7 +907,7 @@ class NSObjCache:
 _qr_cache = NSObjCache(10,"QR UIImage Cache")
 def present_qrcode_vc_for_data(vc : ObjCInstance, data : str, title : str = "QR Code") -> ObjCInstance:
     uiimage = get_qrcode_image_for_data(data)
-    qvc = UIViewController.new().autorelease()
+    qvc = CustomViewController.new().autorelease()
     qvc.title = title
     iv = UIImageView.alloc().initWithImage_(uiimage).autorelease()
     iv.autoresizeMask = UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleHeight|UIViewAutoresizingFlexibleLeftMargin|UIViewAutoresizingFlexibleRightMargin|UIViewAutoresizingFlexibleTopMargin|UIViewAutoresizingFlexibleBottomMargin
@@ -924,7 +924,7 @@ def present_qrcode_vc_for_data(vc : ObjCInstance, data : str, title : str = "QR 
     gr.addBlock_(ActionBlock)
     iv.userInteractionEnabled = True
     qvc.view = iv
-    nav = tintify(UINavigationController.alloc().initWithRootViewController_(qvc).autorelease())
+    nav = tintify(CustomNavController.alloc().initWithRootViewController_(qvc).autorelease())
     vc.presentViewController_animated_completion_(nav,True,None)
     return qvc
 

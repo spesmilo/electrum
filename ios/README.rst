@@ -12,16 +12,17 @@ Quick Start Instructions
 1. Requirements:
 
    * MacOS 10.11 or above is required with Xcode installed
-   * Xcode >= 10.1 -- but *NOT* Xcode 11.x or above!
-   * **IMPORTANT:** Do **not** use Xcode 11 or above. The app will not run correctly if you use this version of Xcode because Apple changed the ViewController API. See: https://medium.com/@hacknicity/view-controller-presentation-changes-in-ios-13-ac8c901ebc4e
+   * Xcode >= 10.1
    * MacPorts is required (Brew may work too but is untested)
    * Python 3.6 must be installed via either MacPorts or Brew
-   * cookiecutter, briefcase, pbxproj, and setuptools python packages must be installed::
+   * cookiecutter, briefcase, pbxproj, older pip, and setuptools python packages must be installed::
 
-           python3 -m pip install 'setuptools==40.6.2' --user
-           python3 -m pip install 'cookiecutter==1.6.0' --user
-           python3 -m pip install 'briefcase==0.2.6' --user
-           python3 -m pip install 'pbxproj==2.5.1' --user
+           python3 -m pip install 'setuptools==40.6.2' --user --upgrade
+           python3 -m pip install 'pip==18.0' --user --upgrade
+           python3 -m pip install 'cookiecutter==1.6.0' --user --upgrade
+           python3 -m pip install 'briefcase==0.2.6' --user --upgrade
+           python3 -m pip install 'pbxproj==2.5.1' --user --upgrade
+           pyrhon3 -m pip install 'rubicon-objc==0.2.10' --user --upgrade
 
            (NOTE: The exact versions specified above are known to work, but you may also try and use newer version as well.)
 

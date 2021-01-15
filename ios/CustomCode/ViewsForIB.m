@@ -19,6 +19,70 @@ static BOOL IS_IPHONE_5(void) {
     return (BOOL)isiPhone5;
 }
 
+static void applyWorkaround(UIViewController *vc) {
+    if (@available(iOS 13, *)) {
+        vc.modalPresentationStyle = UIModalPresentationFullScreen;
+        NSLog(@"iOS 13+ workaround: forcing presentation style to fullscreen for %@", [vc description]);
+    }
+}
+
+@implementation CustomViewController
+- (id) init {
+    self = [super init];
+    applyWorkaround(self);
+    return self;
+}
+- (id) initWithNibName:(NSString *)nibNameOrNil bundle:(NSBundle *)nibBundleOrNil {
+    self = [super initWithNibName:nibNameOrNil bundle:nibBundleOrNil];
+    applyWorkaround(self);
+    return self;
+}
+- (id) initWithCoder:(NSCoder *)coder {
+    self = [super initWithCoder:coder];
+    applyWorkaround(self);
+    return self;
+}
+- (void)presentViewController:(UIViewController *)viewControllerToPresent
+                     animated:(BOOL)flag
+                   completion:(void (^)(void))completion {
+    applyWorkaround(viewControllerToPresent);
+    [super presentViewController:viewControllerToPresent animated:flag completion:completion];
+}
+@end
+
+@implementation CustomNavController
+- (id) init {
+    self = [super init];
+    applyWorkaround(self);
+    return self;
+}
+- (id) initWithNibName:(NSString *)nibNameOrNil bundle:(NSBundle *)nibBundleOrNil {
+    self = [super initWithNibName:nibNameOrNil bundle:nibBundleOrNil];
+    applyWorkaround(self);
+    return self;
+}
+- (id) initWithCoder:(NSCoder *)coder {
+    self = [super initWithCoder:coder];
+    applyWorkaround(self);
+    return self;
+}
+- (id) initWithRootViewController:(UIViewController *)rootViewController {
+    self = [super initWithRootViewController:rootViewController];
+    applyWorkaround(self);
+    return self;
+}
+- (id) initWithNavigationBarClass:(Class)navigationBarClass toolbarClass:(Class)toolbarClass {
+    self = [super initWithNavigationBarClass:navigationBarClass toolbarClass:toolbarClass];
+    applyWorkaround(self);
+    return self;
+}
+- (void)presentViewController:(UIViewController *)viewControllerToPresent
+                     animated:(BOOL)flag
+                   completion:(void (^)(void))completion {
+    applyWorkaround(viewControllerToPresent);
+    [super presentViewController:viewControllerToPresent animated:flag completion:completion];
+}
+@end
 
 @implementation AddrConvBase
 // properties get autosynthesized since Xcode 4.4

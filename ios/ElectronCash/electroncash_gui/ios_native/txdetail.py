@@ -7,7 +7,7 @@
 from electroncash.i18n import _, language
 from . import utils
 from . import gui
-from .custom_objc import TxDetailBase, TxInputsOutputsTVCBase
+from .custom_objc import TxDetailBase, TxInputsOutputsTVCBase, CustomNavController
 from .uikit_bindings import *
 from .history import HistoryEntry, StatusImages
 from . import addresses
@@ -887,7 +887,7 @@ def CreateTxDetailWithEntry(entry : HistoryEntry, on_label = None, on_appear = N
     txvc = txvc.init().autorelease()
     if asModalNav:
         gui.ElectrumGui.gui.add_navigation_bar_close_to_modal_vc(txvc,leftSide = True)
-        return utils.tintify(UINavigationController.alloc().initWithRootViewController_(txvc).autorelease())
+        return utils.tintify(CustomNavController.alloc().initWithRootViewController_(txvc).autorelease())
     return txvc
 
 def CreateTxDetailWithTx(tx : Transaction, on_label = None, on_appear = None, asModalNav = False) -> ObjCInstance:

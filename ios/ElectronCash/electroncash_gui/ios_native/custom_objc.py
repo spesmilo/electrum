@@ -78,6 +78,8 @@ ForwardingDelegate = ObjCClass('ForwardingDelegate')
 CCActivityIndicator = ObjCClass('CCActivityIndicator')
 
 # Some of the below are found in ViewForIB.h, but also in misc other .h files (search project if you really want to track them down)
+CustomViewController = ObjCClass('CustomViewController')
+CustomNavController = ObjCClass('CustomNavController')
 AddrConvBase = ObjCClass('AddrConvBase')
 NewContactBase = ObjCClass('NewContactBase')
 SendBase = ObjCClass('SendBase')

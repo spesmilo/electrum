@@ -133,6 +133,9 @@ if [ -f "${infoplist}" ]; then
 	plutil -insert 'NSPhotoLibraryAddUsageDescription' -string 'Required to save QR images to the photo library' -- ${infoplist}
 	plutil -insert 'NSPhotoLibraryUsageDescription' -string 'Required to save QR images to the photo library' -- ${infoplist}
 	plutil -insert 'LSSupportsOpeningDocumentsInPlace' -bool NO -- ${infoplist}
+
+	# We don't support dark mode, so we must force light mode even if phone is in dark mode on iOS 13+
+	plutil -insert  'UIUserInterfaceStyle' -string 'Light' -- ${infoplist}
 fi
 
 if [ -d overrides/ ]; then
