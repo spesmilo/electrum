@@ -420,7 +420,7 @@ class ChannelBackup(AbstractChannel):
             current_commitment_signature=None,
             current_htlc_signatures=b'',
             htlc_minimum_msat=1,
-        )
+            upfront_shutdown_script='')
         self.config[REMOTE] = RemoteConfig(
             payment_basepoint=OnlyPubkeyKeypair(cb.remote_payment_pubkey),
             revocation_basepoint=OnlyPubkeyKeypair(cb.remote_revocation_pubkey),
@@ -436,8 +436,8 @@ class ChannelBackup(AbstractChannel):
             reserve_sat = None,
             htlc_minimum_msat=None,
             next_per_commitment_point=None,
-            current_per_commitment_point=None)
-
+            current_per_commitment_point=None,
+            upfront_shutdown_script='')
         self.node_id = cb.node_id
         self.channel_id = cb.channel_id()
         self.funding_outpoint = cb.funding_outpoint()
