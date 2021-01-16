@@ -601,6 +601,28 @@ class Address(namedtuple("AddressTuple", "hash160 kind")):
         if net is None: net = networks.net
         return [addr.to_string(fmt, net=net) for addr in addrs]
 
+    @staticmethod
+    def is_legacy(address: str, net=None) -> bool:
+        """Find if the string of the address is in legacy format"""
+        if net is None:
+            net = networks.net
+        try:
+            raw = Base58.decode_check(address)
+        except Base58Error:
+            return False
+
+        if len(raw) != 21:
+            return False
+
+        verbyte = raw[0]
+        legacy_formats = (
+            net.ADDRTYPE_P2PKH,
+            net.ADDRTYPE_P2PKH_BITPAY,
+            net.ADDRTYPE_P2SH,
+            net.ADDRTYPE_P2SH_BITPAY,
+        )
+        return verbyte in legacy_formats
+
     def to_cashaddr(self, *, net=None):
         if net is None: net = networks.net
         if self.kind == self.ADDR_P2PKH:
