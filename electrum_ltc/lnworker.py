@@ -136,9 +136,29 @@ class NoPathFound(PaymentFailure):
 class ErrorAddingPeer(Exception): pass
 
 
+# set some feature flags as baseline for both LNWallet and LNGossip
+# note that e.g. DATA_LOSS_PROTECT is needed for LNGossip as many peers require it
+BASE_FEATURES = LnFeatures(0)\
+    | LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT\
+    | LnFeatures.OPTION_STATIC_REMOTEKEY_OPT\
+    | LnFeatures.VAR_ONION_OPT\
+    | LnFeatures.PAYMENT_SECRET_OPT\
+    | LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT
+
+# we do not want to receive unrequested gossip (see lnpeer.maybe_save_remote_update)
+LNWALLET_FEATURES = BASE_FEATURES\
+    | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ\
+    | LnFeatures.OPTION_STATIC_REMOTEKEY_REQ\
+    | LnFeatures.GOSSIP_QUERIES_REQ
+
+LNGOSSIP_FEATURES = BASE_FEATURES\
+    | LnFeatures.GOSSIP_QUERIES_OPT\
+    | LnFeatures.GOSSIP_QUERIES_REQ
+
+
 class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
 
-    def __init__(self, xprv):
+    def __init__(self, xprv, features):
         Logger.__init__(self)
         NetworkRetryManager.__init__(
             self,
@@ -152,14 +172,7 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         self._peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer  # needs self.lock
         self.taskgroup = SilentTaskGroup()
         self.listen_server = None  # type: Optional[asyncio.AbstractServer]
-        # set some feature flags as baseline for both LNWallet and LNGossip
-        # note that e.g. DATA_LOSS_PROTECT is needed for LNGossip as many peers require it
-        self.features = LnFeatures(0)
-        self.features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
-        self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_OPT
-        self.features |= LnFeatures.VAR_ONION_OPT
-        self.features |= LnFeatures.PAYMENT_SECRET_OPT
-
+        self.features = features
         self.network = None  # type: Optional[Network]
         self.config = None  # type: Optional[SimpleConfig]
         self.channel_db = None  # type: Optional[ChannelDB]
@@ -446,9 +459,7 @@ class LNGossip(LNWorker):
         seed = os.urandom(32)
         node = BIP32Node.from_rootseed(seed, xtype='standard')
         xprv = node.to_xprv()
-        super().__init__(xprv)
-        self.features |= LnFeatures.GOSSIP_QUERIES_OPT
-        self.features |= LnFeatures.GOSSIP_QUERIES_REQ
+        super().__init__(xprv, LNGOSSIP_FEATURES)
         self.unknown_ids = set()
 
     def start_network(self, network: 'Network'):
@@ -534,16 +545,10 @@ class LNWallet(LNWorker):
         Logger.__init__(self)
         self.wallet = wallet
         self.db = wallet.db
-        LNWorker.__init__(self, xprv)
+        LNWorker.__init__(self, xprv, LNWALLET_FEATURES)
         self.config = wallet.config
         self.lnwatcher = None
         self.lnrater: LNRater = None
-        self.features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
-        self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_REQ
-        # we do not want to receive unrequested gossip (see lnpeer.maybe_save_remote_update)
-        self.features |= LnFeatures.GOSSIP_QUERIES_REQ
-        self.features |= LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT
-
         self.payments = self.db.get_dict('lightning_payments')     # RHASH -> amount, direction, is_paid  # FIXME amt should be msat
         self.preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
         # note: this sweep_address is only used as fallback; as it might result in address-reuse
@@ -1547,9 +1552,7 @@ class LNBackups(Logger):
 
     def __init__(self, wallet: 'Abstract_Wallet'):
         Logger.__init__(self)
-        self.features = LnFeatures(0)
-        self.features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
-        self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_OPT
+        self.features = LNWALLET_FEATURES
         self.lock = threading.RLock()
         self.wallet = wallet
         self.db = wallet.db

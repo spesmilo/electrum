@@ -20,5 +20,6 @@ rm -rf ~/.litecoin/regtest
 screen -S litecoind -X quit || true
 screen -S litecoind -m -d litecoind -regtest
 sleep 6
+litecoin-cli createwallet test_wallet
 addr=$(litecoin-cli getnewaddress)
 litecoin-cli generatetoaddress 150 $addr > /dev/null
