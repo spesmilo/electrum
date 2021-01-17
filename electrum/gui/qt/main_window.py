@@ -3252,11 +3252,24 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         vbox.addWidget(WWLabel(help_text))
 
         ok_button = OkButton(d)
+        warning_label = WWLabel('\n')
+        warning_label.setStyleSheet(ColorScheme.RED.as_stylesheet())
         feerate_e = FeerateEdit(lambda: 0)
         feerate_e.setAmount(max(old_fee_rate * 1.5, old_fee_rate + 1))
         def on_feerate():
             fee_rate = feerate_e.get_amount()
-            ok_button.setEnabled(fee_rate is not None)
+            warning_text = '\n'
+            if fee_rate is not None:
+                try:
+                    new_tx = func(fee_rate)
+                except Exception as e:
+                    new_tx = None
+                    warning_text = str(e).replace('\n',' ')
+            else:
+                new_tx = None
+            ok_button.setEnabled(new_tx is not None)
+            warning_label.setText(warning_text)
+
         feerate_e.textChanged.connect(on_feerate)
         def on_slider(dyn, pos, fee_rate):
             fee_slider.activate()
@@ -3279,6 +3292,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         vbox.addLayout(grid)
         cb = QCheckBox(_('Final'))
         vbox.addWidget(cb)
+        vbox.addWidget(warning_label)
         vbox.addLayout(Buttons(CancelButton(d), ok_button))
         if not d.exec_():
             return
