@@ -2,7 +2,7 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
 
     <item android:id="@+id/menuCreateSeed"
-        android:title="@string/create_a_new"/>
+        android:title="@string/create_a_new_seed"/>
 
     <item android:id="@+id/menuRestoreSeed"
         android:title="@string/Restore_from_seed"/>
