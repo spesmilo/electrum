@@ -1394,12 +1394,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if tx.is_final():
             raise CannotBumpFee(_('Transaction is final'))
         new_fee_rate = quantize_feerate(new_fee_rate)  # strip excess precision
-        old_tx_size = tx.estimated_size()
         try:
             # note: this might download input utxos over network
             tx.add_info_from_wallet(self, ignore_network_issues=False)
         except NetworkException as e:
             raise CannotBumpFee(repr(e))
+        old_tx_size = tx.estimated_size()
         old_fee = tx.get_fee()
         assert old_fee is not None
         old_fee_rate = old_fee / old_tx_size  # sat/vbyte
@@ -1573,12 +1573,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if tx.is_final():
             raise CannotDoubleSpendTx(_('Transaction is final'))
         new_fee_rate = quantize_feerate(new_fee_rate)  # strip excess precision
-        old_tx_size = tx.estimated_size()
         try:
             # note: this might download input utxos over network
             tx.add_info_from_wallet(self, ignore_network_issues=False)
         except NetworkException as e:
             raise CannotDoubleSpendTx(repr(e))
+        old_tx_size = tx.estimated_size()
         old_fee = tx.get_fee()
         assert old_fee is not None
         old_fee_rate = old_fee / old_tx_size  # sat/vbyte
