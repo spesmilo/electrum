@@ -45,7 +45,7 @@ Builder.load_string(r'''
             Label:
                 id: send_amount_label
                 size_hint: 0.6, 1
-                text: _('0') 
+                text: _('0')
                 background_color: (0,0,0,0)
         BoxLayout:
             orientation: 'horizontal'
@@ -55,7 +55,7 @@ Builder.load_string(r'''
                 size_hint: 0.4, 1
             Label:
                 id: receive_amount_label
-                text: _('0') 
+                text: _('0')
                 background_color: (0,0,0,0)
                 size_hint: 0.6, 1
         BoxLayout:
@@ -66,7 +66,7 @@ Builder.load_string(r'''
                 size_hint: 0.4, 1
             Label:
                 id: server_fee_label
-                text: _('0') 
+                text: _('0')
                 background_color: (0,0,0,0)
                 size_hint: 0.6, 1
         BoxLayout:
@@ -77,7 +77,7 @@ Builder.load_string(r'''
                 size_hint: 0.4, 1
             Label:
                 id: mining_fee_label
-                text: _('0') 
+                text: _('0')
                 background_color: (0,0,0,0)
                 size_hint: 0.6, 1
         BoxLayout:
@@ -85,7 +85,7 @@ Builder.load_string(r'''
             size_hint: 1, 0.5
             Label:
                 id: swap_action_label
-                text: _('Adds receiving capacity') 
+                text: _('Adds receiving capacity')
                 background_color: (0,0,0,0)
                 font_size: '14dp'
         Slider:
@@ -140,7 +140,7 @@ Builder.load_string(r'''
                 on_release:
                     root.on_ok()
                     root.dismiss()
-                    
+
 <LightningChannelItem@CardItem>
     details: {}
     active: False
