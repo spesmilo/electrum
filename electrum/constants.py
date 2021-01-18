@@ -40,8 +40,8 @@ def read_json(filename, default):
     return r
 
 
-GIT_REPO_URL = "https://github.com/spesmilo/electrum"
-GIT_REPO_ISSUES_URL = "https://github.com/spesmilo/electrum/issues"
+GIT_REPO_URL = "https://github.com/electric-cash/electrum-cash"
+GIT_REPO_ISSUES_URL = "https://github.com/electric-cash/electrum-cash/issues"
 BIP39_WALLET_FORMATS = read_json('bip39_wallet_formats.json', [])
 
 
@@ -152,16 +152,52 @@ class BitcoinSimnet(BitcoinTestnet):
     LN_DNS_SEEDS = []
 
 
+class ElectricCashMainnet(BitcoinMainnet):
+
+    WIF_PREFIX = 0x80
+    ADDRTYPE_P2PKH = 33
+    ADDRTYPE_P2SH = 87
+    SEGWIT_HRP = "elcash"
+    GENESIS = "00000000a9811adc411f15a9c525d667ca467d83dc5461e2d7fc791d1d3926de"
+    DEFAULT_SERVERS = read_json('servers_elcash.json', {})
+    CHECKPOINTS = read_json('checkpoints_elcash.json', [])
+    BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS = 0
+    BIP44_COIN_TYPE = 440
+
+
+class ElectricCashTestnet(BitcoinTestnet):
+
+    ADDRTYPE_P2PKH = 65
+    ADDRTYPE_P2SH = 92
+    SEGWIT_HRP = "telcash"
+    GENESIS = "00000000d491a4c437cab521a329bb967c3a2bcb849a83a2c53f7f3c50179ab6"
+    DEFAULT_SERVERS = read_json('servers_elcash_testnet.json', {})
+    CHECKPOINTS = read_json('checkpoints_elcash_testnet.json', [])
+    LN_DNS_SEEDS = []
+    BIP44_COIN_TYPE = 440
+
+
+class ElectricCashRegtest(ElectricCashTestnet):
+
+    SEGWIT_HRP = "relcash"
+    GENESIS = "4dc8472d9478d135f8f63bcf266ba819ba3a35546d388ee55659233a8d065089"
+    DEFAULT_SERVERS = read_json('servers_elcash_regtest.json', {})
+    CHECKPOINTS = read_json('checkpoints_elcash_regtest.json', [])
+    LN_DNS_SEEDS = []
+
 # don't import net directly, import the module instead (so that net is singleton)
 net = BitcoinMainnet
+
 
 def set_simnet():
     global net
     net = BitcoinSimnet
 
+
 def set_mainnet():
     global net
     net = BitcoinMainnet
+
 
 def set_testnet():
     global net
@@ -171,3 +207,18 @@ def set_testnet():
 def set_regtest():
     global net
     net = BitcoinRegtest
+
+
+def set_elcash_mainnet():
+    global net
+    net = ElectricCashMainnet
+
+
+def set_elcash_testnet():
+    global net
+    net = ElectricCashTestnet
+
+
+def set_elcash_regtest():
+    global net
+    net = ElectricCashRegtest
