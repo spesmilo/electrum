@@ -1,10 +1,9 @@
 import asyncio
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING, Optional, Union
 
 from kivy.lang import Builder
 from kivy.factory import Factory
 from kivy.uix.popup import Popup
-from kivy.clock import Clock
 from .fee_dialog import FeeDialog
 
 from electrum.util import bh2u
@@ -13,7 +12,7 @@ from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id
 from electrum.lnchannel import AbstractChannel, Channel
 from electrum.gui.kivy.i18n import _
 from .question import Question
-from electrum.transaction import PartialTxOutput, PartialTransaction
+from electrum.transaction import PartialTxOutput
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, format_fee_satoshis
 from electrum.lnutil import ln_dummy_address
 
@@ -635,6 +634,7 @@ class SwapDialog(Factory.Popup):
         self.send_amount: Optional[int] = None
         self.receive_amount: Optional[int] = None
         self.tx = None  # only for forward swap
+        self.is_reverse = None
 
         # init swaps and sliders
         asyncio.run(self.swap_manager.get_pairs())
@@ -676,7 +676,7 @@ class SwapDialog(Factory.Popup):
         self.ids.fee_rate.text = f'{fee_per_b} sat/B'
         self.ids.fee_estimate.text = msg
 
-    def update_tx(self, onchain_amount: int):
+    def update_tx(self, onchain_amount: Union[int, str]):
         """Updates the transaction associated with a forward swap."""
         if onchain_amount is None:
             self.tx = None
@@ -688,7 +688,7 @@ class SwapDialog(Factory.Popup):
             self.tx = self.app.wallet.make_unsigned_transaction(
                 coins=coins,
                 outputs=outputs)
-        except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
+        except (NotEnoughFunds, NoDynamicFeeEstimates):
             self.tx = None
             self.ids.ok_button.disabled = True
 

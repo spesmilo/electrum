@@ -325,7 +325,7 @@ class SimpleConfig(Logger):
         slider_pos = max(slider_pos, 0)
         slider_pos = min(slider_pos, len(FEE_ETA_TARGETS))
         if slider_pos < len(FEE_ETA_TARGETS):
-            num_blocks = FEE_ETA_TARGETS[slider_pos]
+            num_blocks = FEE_ETA_TARGETS[int(slider_pos)]
             fee = self.eta_target_to_fee(num_blocks)
         else:
             fee = self.eta_target_to_fee(1)
