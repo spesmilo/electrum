@@ -1,1 +1,7 @@
-{}
+{
+  "electrumx.testnet.ec.stage.rnd.land": {
+      "pruning": "-",
+      "s": "443",
+      "version": "1.4"
+    }
+}
