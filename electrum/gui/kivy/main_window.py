@@ -408,7 +408,7 @@ class ElectrumWindow(App, Logger):
         self._settings_dialog = None
         self._channels_dialog = None
         self._addresses_dialog = None
-        self.fee_status = self.electrum_config.get_fee_status()
+        self.set_fee_status()
         self.invoice_popup = None
         self.request_popup = None
 
@@ -1160,15 +1160,17 @@ class ElectrumWindow(App, Logger):
         self._addresses_dialog.update()
         self._addresses_dialog.open()
 
-    def fee_dialog(self, label, dt):
+    def fee_dialog(self):
         from .uix.dialogs.fee_dialog import FeeDialog
-        def cb():
-            self.fee_status = self.electrum_config.get_fee_status()
-        fee_dialog = FeeDialog(self, self.electrum_config, cb)
+        fee_dialog = FeeDialog(self, self.electrum_config, self.set_fee_status)
         fee_dialog.open()
 
+    def set_fee_status(self):
+        target, tooltip, dyn = self.electrum_config.get_fee_target()
+        self.fee_status = target
+
     def on_fee(self, event, *arg):
-        self.fee_status = self.electrum_config.get_fee_status()
+        self.set_fee_status()
 
     def protected(self, msg, f, args):
         if self.electrum_config.get('pin_code'):

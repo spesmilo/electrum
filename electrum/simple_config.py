@@ -423,12 +423,16 @@ class SimpleConfig(Logger):
         else:
             return _('Within {} blocks').format(x)
 
-    def get_fee_status(self):
+    def get_fee_target(self):
         dyn = self.is_dynfee()
         mempool = self.use_mempool_fees()
         pos = self.get_depth_level() if mempool else self.get_fee_level()
         fee_rate = self.fee_per_kb()
         target, tooltip = self.get_fee_text(pos, dyn, mempool, fee_rate)
+        return target, tooltip, dyn
+
+    def get_fee_status(self):
+        target, tooltip, dyn = self.get_fee_target()
         return tooltip + '  [%s]'%target if dyn else target + '  [Static]'
 
     def get_fee_text(
