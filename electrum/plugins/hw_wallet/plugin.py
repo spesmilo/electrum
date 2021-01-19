@@ -329,15 +329,6 @@ def is_any_tx_output_on_change_branch(tx: PartialTransaction) -> bool:
     return any([txout.is_change for txout in tx.outputs()])
 
 
-def trezor_validate_op_return_output_and_get_data(output: TxOutput) -> bytes:
-    validate_op_return_output(output)
-    script = output.scriptpubkey
-    if not (script[0] == opcodes.OP_RETURN and
-            script[1] == len(script) - 2 and script[1] <= 75):
-        raise UserFacingException(_("Only OP_RETURN scripts, with one constant push, are supported."))
-    return script[2:]
-
-
 def validate_op_return_output(output: TxOutput, *, max_size: int = None) -> None:
     script = output.scriptpubkey
     if script[0] != opcodes.OP_RETURN:
