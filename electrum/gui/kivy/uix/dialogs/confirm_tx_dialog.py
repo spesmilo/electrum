@@ -12,6 +12,7 @@ from decimal import Decimal
 from electrum.simple_config import FEERATE_WARNING_HIGH_FEE, FEE_RATIO_HIGH_WARNING
 from electrum.gui.kivy.i18n import _
 from electrum.plugin import run_hook
+from electrum.util import NotEnoughFunds
 
 from .fee_dialog import FeeSliderDialog, FeeDialog
 
