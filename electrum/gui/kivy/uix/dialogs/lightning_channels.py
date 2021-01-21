@@ -164,10 +164,11 @@ Builder.load_string(r'''
 
 <LightningChannelsDialog@Popup>:
     name: 'lightning_channels'
-    title: _('Lightning channels.')
+    title: _('Lightning Network')
     has_lightning: False
     can_send: ''
     can_receive: ''
+    num_channels_text: ''
     id: popup
     BoxLayout:
         id: box
@@ -175,11 +176,13 @@ Builder.load_string(r'''
         spacing: '2dp'
         padding: '12dp'
         BoxLabel:
-            text: _('Can send') + ':'
+            text: _('You can send') + ':'
             value: root.can_send
         BoxLabel:
-            text: _('Can receive') + ':'
+            text: _('You can receive') + ':'
             value: root.can_receive
+        TopLabel:
+            text: root.num_channels_text
         ScrollView:
             GridLayout:
                 cols: 1
@@ -190,13 +193,10 @@ Builder.load_string(r'''
         BoxLayout:
             size_hint: 1, None
             height: '48dp'
-            Widget:
-                size_hint: 0.4, None
-                height: '48dp'
             Button:
                 size_hint: 0.3, None
                 height: '48dp'
-                text: _('Open')
+                text: _('Open Channel')
                 disabled: not root.has_lightning
                 on_release: popup.app.popup_dialog('lightning_open_channel_dialog')
             Button:
@@ -592,6 +592,7 @@ class LightningChannelsDialog(Factory.Popup):
             self.can_send = 'n/a'
             self.can_receive = 'n/a'
             return
+        self.num_channels_text = _(f'You have {len(lnworker.channels)} channels.')
         self.can_send = self.app.format_amount_and_units(lnworker.num_sats_can_send())
         self.can_receive = self.app.format_amount_and_units(lnworker.num_sats_can_receive())
 
