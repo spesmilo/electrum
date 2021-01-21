@@ -820,20 +820,20 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 assert iface.ready.done(), "interface not ready yet"
                 # try actual request
                 success_fut = asyncio.ensure_future(func(self, *args, **kwargs))
-                await asyncio.wait([success_fut, iface.got_disconnected], return_when=asyncio.FIRST_COMPLETED)
+                await asyncio.wait([success_fut, iface.got_disconnected.wait()], return_when=asyncio.FIRST_COMPLETED)
                 if success_fut.done() and not success_fut.cancelled():
                     if success_fut.exception():
                         try:
                             raise success_fut.exception()
                         except RequestTimedOut:
                             await iface.close()
-                            await iface.got_disconnected
+                            await iface.got_disconnected.wait()
                             continue  # try again
                         except RequestCorrupted as e:
                             # TODO ban server?
                             iface.logger.exception(f"RequestCorrupted: {e}")
                             await iface.close()
-                            await iface.got_disconnected
+                            await iface.got_disconnected.wait()
                             continue  # try again
                     return success_fut.result()
                 # otherwise; try again

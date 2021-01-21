@@ -351,7 +351,7 @@ class Interface(Logger):
 
     def __init__(self, *, network: 'Network', server: ServerAddr, proxy: Optional[dict]):
         self.ready = asyncio.Future()
-        self.got_disconnected = asyncio.Future()
+        self.got_disconnected = asyncio.Event()
         self.server = server
         Logger.__init__(self)
         assert network.config.path
@@ -486,8 +486,7 @@ class Interface(Logger):
                 self.logger.debug(f"(disconnect) trace for {repr(e)}", exc_info=True)
             finally:
                 await self.network.connection_down(self)
-                if not self.got_disconnected.done():
-                    self.got_disconnected.set_result(1)
+                self.got_disconnected.set()
                 # if was not 'ready' yet, schedule waiting coroutines:
                 self.ready.cancel()
         return wrapper_func
