@@ -27,15 +27,11 @@ Builder.load_string(r'''
     title: _('Lightning Swap')
     size_hint: 0.8, 0.8
     pos_hint: {'top':0.9}
+    mining_fee_text: ''
+    fee_rate_text: ''
     method: 0
     BoxLayout:
         orientation: 'vertical'
-        BoxLayout:
-            orientation: 'horizontal'
-            size_hint: 1, 0.5
-            Label:
-                text: _('Swap Settings')
-                background_color: (0,0,0,0)
         BoxLayout:
             orientation: 'horizontal'
             size_hint: 1, 0.5
@@ -73,17 +69,6 @@ Builder.load_string(r'''
             orientation: 'horizontal'
             size_hint: 1, 0.5
             Label:
-                text: _('Mining Fee') + ':'
-                size_hint: 0.4, 1
-            Label:
-                id: mining_fee_label
-                text: _('0')
-                background_color: (0,0,0,0)
-                size_hint: 0.6, 1
-        BoxLayout:
-            orientation: 'horizontal'
-            size_hint: 1, 0.5
-            Label:
                 id: swap_action_label
                 text: _('Adds receiving capacity')
                 background_color: (0,0,0,0)
@@ -99,16 +84,10 @@ Builder.load_string(r'''
             orientation: 'horizontal'
             size_hint: 1, 0.5
             Label:
-                text: _('Onchain Fees')
-                background_color: (0,0,0,0)
-        BoxLayout:
-            orientation: 'horizontal'
-            size_hint: 1, 0.5
-            Label:
-                text: _('Fee rate:')
+                text: _('Mining Fee') + ':'
+                size_hint: 0.4, 1
             Button:
-                id: fee_rate
-                text: '? sat/B'
+                text: root.mining_fee_text + ' (' + root.fee_rate_text + ')'
                 background_color: (0,0,0,0)
                 bold: True
                 on_release:
@@ -673,7 +652,7 @@ class SwapDialog(Factory.Popup):
             msg = f'Info: Your swap is estimated to be processed in {eta} ' \
                   f'block{s} with an onchain fee rate of {fee_per_b} sat/B.'
 
-        self.ids.fee_rate.text = f'{fee_per_b} sat/B'
+        self.fee_rate_text = f'{fee_per_b} sat/B'
         self.ids.fee_estimate.text = msg
 
     def update_tx(self, onchain_amount: Union[int, str]):
@@ -734,7 +713,7 @@ class SwapDialog(Factory.Popup):
             # fee breakdown
             self.ids.server_fee_label.text = \
                 f"{self.swap_manager.percentage:0.1f}% + {self.fmt_amt(self.swap_manager.lockup_fee)}"
-            self.ids.mining_fee_label.text = \
+            self.mining_fee_text = \
                 f"{self.fmt_amt(self.swap_manager.get_claim_fee())}"
 
         else:  # forward (normal) swap
@@ -757,7 +736,7 @@ class SwapDialog(Factory.Popup):
             # fee breakdown
             self.ids.server_fee_label.text = \
                 f"{self.swap_manager.percentage:0.1f}% + {self.fmt_amt(self.swap_manager.normal_fee)}"
-            self.ids.mining_fee_label.text = \
+            self.mining_fee_text = \
                 f"{self.fmt_amt(self.tx.get_fee())}" if self.tx else ""
 
         if pay_amount and receive_amount:
