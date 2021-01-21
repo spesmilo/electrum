@@ -485,8 +485,8 @@ class Interface(Logger):
                 self.logger.warning(f"disconnecting due to {repr(e)}")
                 self.logger.debug(f"(disconnect) trace for {repr(e)}", exc_info=True)
             finally:
-                await self.network.connection_down(self)
                 self.got_disconnected.set()
+                await self.network.connection_down(self)
                 # if was not 'ready' yet, schedule waiting coroutines:
                 self.ready.cancel()
         return wrapper_func
