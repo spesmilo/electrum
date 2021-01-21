@@ -710,17 +710,15 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def remove_local_tx(self, tx_hash: str):
-        to_delete = {tx_hash}
-        to_delete |= self.wallet.get_depending_transactions(tx_hash)
+        num_child_txs = len(self.wallet.get_depending_transactions(tx_hash))
         question = _("Are you sure you want to remove this transaction?")
-        if len(to_delete) > 1:
+        if num_child_txs > 0:
             question = (_("Are you sure you want to remove this transaction and {} child transactions?")
-                        .format(len(to_delete) - 1))
+                        .format(num_child_txs))
         if not self.parent.question(msg=question,
                                     title=_("Please confirm")):
             return
-        for tx in to_delete:
-            self.wallet.remove_transaction(tx)
+        self.wallet.remove_transaction(tx_hash)
         self.wallet.save_db()
         # need to update at least: history_list, utxo_list, address_list
         self.parent.need_update.set()
