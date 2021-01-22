@@ -1337,9 +1337,10 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 return True
         return False
 
-    def set_frozen_state_of_coins(self, utxos: Sequence[PartialTxInput], freeze: bool) -> None:
+    def set_frozen_state_of_coins(self, utxos: Sequence[str], freeze: bool) -> None:
         """Set frozen state of the utxos to FREEZE, True or False"""
-        utxos = {utxo.prevout.to_str() for utxo in utxos}
+        # basic sanity check that input is not garbage: (see if raises)
+        [TxOutpoint.from_str(utxo) for utxo in utxos]
         with self._freeze_lock:
             if freeze:
                 self._frozen_coins |= set(utxos)

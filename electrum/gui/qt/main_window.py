@@ -1953,7 +1953,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.utxo_list.update()
 
     def set_frozen_state_of_coins(self, utxos: Sequence[PartialTxInput], freeze: bool):
-        self.wallet.set_frozen_state_of_coins(utxos, freeze)
+        utxos_str = {utxo.prevout.to_str() for utxo in utxos}
+        self.wallet.set_frozen_state_of_coins(utxos_str, freeze)
         self.utxo_list.update()
 
     def create_list_tab(self, l, toolbar=None):

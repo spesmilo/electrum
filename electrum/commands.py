@@ -423,14 +423,26 @@ class Commands:
         return {'address':address, 'redeemScript':redeem_script}
 
     @command('w')
-    async def freeze(self, address, wallet: Abstract_Wallet = None):
+    async def freeze(self, address: str, wallet: Abstract_Wallet = None):
         """Freeze address. Freeze the funds at one of your wallet\'s addresses"""
         return wallet.set_frozen_state_of_addresses([address], True)
 
     @command('w')
-    async def unfreeze(self, address, wallet: Abstract_Wallet = None):
+    async def unfreeze(self, address: str, wallet: Abstract_Wallet = None):
         """Unfreeze address. Unfreeze the funds at one of your wallet\'s address"""
         return wallet.set_frozen_state_of_addresses([address], False)
+
+    @command('w')
+    async def freeze_utxo(self, coin: str, wallet: Abstract_Wallet = None):
+        """Freeze a UTXO so that the wallet will not spend it."""
+        wallet.set_frozen_state_of_coins([coin], True)
+        return True
+
+    @command('w')
+    async def unfreeze_utxo(self, coin: str, wallet: Abstract_Wallet = None):
+        """Unfreeze a UTXO so that the wallet might spend it."""
+        wallet.set_frozen_state_of_coins([coin], False)
+        return True
 
     @command('wp')
     async def getprivatekeys(self, address, password=None, wallet: Abstract_Wallet = None):
