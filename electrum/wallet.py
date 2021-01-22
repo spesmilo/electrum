@@ -43,6 +43,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple, Sequence, Dict, Any, Set
 from abc import ABC, abstractmethod
 import itertools
+import threading
 
 from aiorpcx import TaskGroup
 
@@ -285,12 +286,14 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         self.use_change            = db.get('use_change', True)
         self.multiple_change       = db.get('multiple_change', False)
         self._labels                = db.get_dict('labels')
-        self.frozen_addresses      = set(db.get('frozen_addresses', []))
-        self.frozen_coins          = set(db.get('frozen_coins', []))  # set of txid:vout strings
+        self._frozen_addresses      = set(db.get('frozen_addresses', []))
+        self._frozen_coins          = set(db.get('frozen_coins', []))  # set of txid:vout strings
         self.fiat_value            = db.get_dict('fiat_value')
         self.receive_requests      = db.get_dict('payment_requests')  # type: Dict[str, Invoice]
         self.invoices              = db.get_dict('invoices')  # type: Dict[str, Invoice]
         self._reserved_addresses   = set(db.get('reserved_addresses', []))
+
+        self._freeze_lock = threading.Lock()  # for mutating/iterating frozen_{addresses,coins}
 
         self._prepare_onchain_invoice_paid_detection()
         self.calc_unused_change_addresses()
@@ -657,8 +660,10 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
 
     def get_spendable_coins(self, domain, *, nonlocal_only=False) -> Sequence[PartialTxInput]:
         confirmed_only = self.config.get('confirmed_only', False)
+        with self._freeze_lock:
+            frozen_addresses = self._frozen_addresses.copy()
         utxos = self.get_utxos(domain,
-                               excluded_addresses=self.frozen_addresses,
+                               excluded_addresses=frozen_addresses,
                                mature_only=True,
                                confirmed_only=confirmed_only,
                                nonlocal_only=nonlocal_only)
@@ -678,11 +683,16 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         return self.get_receiving_addresses(slice_start=0, slice_stop=1)[0]
 
     def get_frozen_balance(self):
-        if not self.frozen_coins:  # shortcut
-            return self.get_balance(self.frozen_addresses)
+        with self._freeze_lock:
+            frozen_addresses = self._frozen_addresses.copy()
+            frozen_coins = self._frozen_coins.copy()
+        if not frozen_coins:  # shortcut
+            return self.get_balance(frozen_addresses)
         c1, u1, x1 = self.get_balance()
-        c2, u2, x2 = self.get_balance(excluded_addresses=self.frozen_addresses,
-                                      excluded_coins=self.frozen_coins)
+        c2, u2, x2 = self.get_balance(
+            excluded_addresses=frozen_addresses,
+            excluded_coins=frozen_coins,
+        )
         return c1-c2, u1-u2, x1-x2
 
     def balance_at_timestamp(self, domain, target_timestamp):
@@ -1309,33 +1319,33 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         return tx
 
     def is_frozen_address(self, addr: str) -> bool:
-        return addr in self.frozen_addresses
+        return addr in self._frozen_addresses
 
     def is_frozen_coin(self, utxo: PartialTxInput) -> bool:
         prevout_str = utxo.prevout.to_str()
-        return prevout_str in self.frozen_coins
+        return prevout_str in self._frozen_coins
 
-    def set_frozen_state_of_addresses(self, addrs, freeze: bool):
+    def set_frozen_state_of_addresses(self, addrs: Sequence[str], freeze: bool) -> bool:
         """Set frozen state of the addresses to FREEZE, True or False"""
         if all(self.is_mine(addr) for addr in addrs):
-            # FIXME take lock?
-            if freeze:
-                self.frozen_addresses |= set(addrs)
-            else:
-                self.frozen_addresses -= set(addrs)
-            self.db.put('frozen_addresses', list(self.frozen_addresses))
-            return True
+            with self._freeze_lock:
+                if freeze:
+                    self._frozen_addresses |= set(addrs)
+                else:
+                    self._frozen_addresses -= set(addrs)
+                self.db.put('frozen_addresses', list(self._frozen_addresses))
+                return True
         return False
 
-    def set_frozen_state_of_coins(self, utxos: Sequence[PartialTxInput], freeze: bool):
+    def set_frozen_state_of_coins(self, utxos: Sequence[PartialTxInput], freeze: bool) -> None:
         """Set frozen state of the utxos to FREEZE, True or False"""
         utxos = {utxo.prevout.to_str() for utxo in utxos}
-        # FIXME take lock?
-        if freeze:
-            self.frozen_coins |= set(utxos)
-        else:
-            self.frozen_coins -= set(utxos)
-        self.db.put('frozen_coins', list(self.frozen_coins))
+        with self._freeze_lock:
+            if freeze:
+                self._frozen_coins |= set(utxos)
+            else:
+                self._frozen_coins -= set(utxos)
+            self.db.put('frozen_coins', list(self._frozen_coins))
 
     def is_address_reserved(self, addr: str) -> bool:
         # note: atm 'reserved' status is only taken into consideration for 'change addresses'
