@@ -130,6 +130,7 @@ class SeedLayout(QVBoxLayout):
             self.seed_e.textChanged.connect(self.on_edit)
             self.initialize_completer()
 
+        self.seed_e.setContextMenuPolicy(Qt.PreventContextMenu)
         self.seed_e.setMaximumHeight(75)
         hbox = QHBoxLayout()
         if icon:
@@ -191,7 +192,9 @@ class SeedLayout(QVBoxLayout):
 
     def get_seed(self):
         text = self.seed_e.text()
-        return ' '.join(text.split())
+        seed = ' '.join(text.split())
+        del text
+        return seed
 
     def on_edit(self):
         s = self.get_seed()

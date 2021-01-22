@@ -66,7 +66,7 @@ class BitcoinMainnet(AbstractNet):
     ADDRTYPE_P2SH = 5
     SEGWIT_HRP = "bc"
     GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
-    DEFAULT_PORTS = {'t': '50001', 's': '50002'}
+    DEFAULT_PORTS = {'s': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
     CHECKPOINTS = read_json('checkpoints.json', [])
     BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS = 497000
@@ -103,7 +103,7 @@ class BitcoinTestnet(AbstractNet):
     ADDRTYPE_P2SH = 196
     SEGWIT_HRP = "tb"
     GENESIS = "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
-    DEFAULT_PORTS = {'t': '51001', 's': '51002'}
+    DEFAULT_PORTS = {'s': '51002'}
     DEFAULT_SERVERS = read_json('servers_testnet.json', {})
     CHECKPOINTS = read_json('checkpoints_testnet.json', [])
 

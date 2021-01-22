@@ -89,7 +89,9 @@ class Plugin(RevealerPlugin):
         if not keystore or not keystore.has_seed():
             return
         self.extension = bool(keystore.get_passphrase(password))
-        return keystore.get_seed(password)
+        seed = keystore.get_seed(password)
+        del password
+        return seed
 
     def setup_dialog(self, window):
         self.wallet = window.parent().wallet
@@ -291,6 +293,7 @@ class Plugin(RevealerPlugin):
                 self.d.show_message(_("This wallet has no seed"))
                 return
             txt = cseed.upper()
+            del cseed
         else:
             txt = self.txt.upper()
 
@@ -318,6 +321,7 @@ class Plugin(RevealerPlugin):
         font.setPixelSize(fontsize)
         painter.setFont(font)
         seed_array = txt.split(' ')
+        del txt
 
         for n in range(max_lines):
             nwords = max_words
@@ -327,6 +331,7 @@ class Plugin(RevealerPlugin):
                temp_seed = seed_array[:nwords]
             painter.drawText(QRect(0, linespace*n , self.SIZE[0], self.SIZE[1]), Qt.AlignHCenter, ' '.join(map(str, temp_seed)))
             del seed_array[:nwords]
+        del seed_array
 
         painter.end()
         img = bitmap.toImage()
