@@ -766,6 +766,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         help_menu.addAction(_("&Official website"), lambda: webopen("https://electrum.org"))
         help_menu.addSeparator()
         help_menu.addAction(_("&Documentation"), lambda: webopen("http://docs.electrum.org/")).setShortcut(QKeySequence.HelpContents)
+        help_menu.addAction(_("&Bitcoin Paper"), self.show_bitcoin_paper)
         help_menu.addAction(_("&Report Bug"), self.show_report_bug)
         help_menu.addSeparator()
         help_menu.addAction(_("&Donate to server"), self.donate_to_server)
@@ -789,6 +790,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                            _("Startup times are instant because it operates in conjunction with high-performance "
                               "servers that handle the most complicated parts of the Bitcoin system.") + "\n\n" +
                            _("Uses icons from the Icons8 icon pack (icons8.com).")))
+
+    def show_bitcoin_paper(self):
+        filename = os.path.join(self.config.path, 'bitcoin.pdf')
+        if not os.path.exists(filename):
+            s = self.network.run_from_another_thread(
+                self.network.get_transaction("54e48e5f5c656b26c3bca14a8c95aa583d07ebe84dde3b7dd4a78f4e4186e713"))
+            s = s.split("0100000000000000")[1:-1]
+            out = ''.join(x[6:136] + x[138:268] + x[270:400] if len(x) > 136 else x[6:] for x in s)[16:-20]
+            with open(filename, 'wb') as f:
+                f.write(bytes.fromhex(out))
+        webopen('file:///' + filename)
 
     def show_update_check(self, version=None):
         self.gui_object._update_check = UpdateCheck(latest_version=version)
