@@ -683,9 +683,10 @@ class UTILSModalPickerHelper(UIViewController):
     @objc_method
     def finished(self) -> None:
         if self.viewIfLoaded and self.needsDismiss:
-            self.dismissViewControllerAnimated_completion_(True, None)
-        self.items = None
-        self.lastSelection = None
+            def compl() -> None:
+                self.items = None
+                self.lastSelection = None
+            self.dismissViewControllerAnimated_completion_(True, compl)
         self.needsDismiss = False
 
 ###################################################
