@@ -23,7 +23,7 @@ Builder.load_string('''
                     background_color: 0, 0, 0, 0
                     id: btc
                     text: kb.amount + ' ' + app.base_unit
-                    color: (0.7, 0.7, 1, 1) if kb.is_fiat else (1, 1, 1, 1)
+                    color: (0.7, 0.7, 0.7, 0.7) if kb.is_fiat else (1, 1, 1, 1)
                     halign: 'right'
                     size_hint: 1, None
                     font_size: '20dp'
@@ -34,7 +34,7 @@ Builder.load_string('''
                     background_color: 0, 0, 0, 0
                     id: fiat
                     text: kb.fiat_amount + ' ' + app.fiat_unit
-                    color: (1, 1, 1, 1) if kb.is_fiat else (0.7, 0.7, 1, 1)
+                    color: (1, 1, 1, 1) if kb.is_fiat else (0.7, 0.7, 0.7, 0.7)
                     halign: 'right'
                     size_hint: 1, None
                     font_size: '20dp'
