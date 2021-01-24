@@ -65,7 +65,7 @@ prepare_wine() {
         NSIS_SHA256=736c9062a02e297e335f82252e648a883171c98e0d5120439f538c81d429552e
 
         LIBUSB_REPO='https://github.com/libusb/libusb.git'
-        LIBUSB_COMMIT=a5990ab10f68e5ec7498f627d1664b1f842fec4e
+        LIBUSB_COMMIT=c6a35c56016ea2ab2f19115d2ea1e85e0edae155 # Version 1.0.24
 
         PYINSTALLER_REPO='https://github.com/EchterAgo/pyinstaller.git'
         PYINSTALLER_COMMIT=1a8b2d47c277c451f4e358d926a47c096a5615ec
