@@ -199,7 +199,7 @@ class BaseWizard(util.PrintError):
                 # FIXME: side-effect: unpaired_device_info sets client.handler
                 u = devmgr.unpaired_device_infos(None, plugin)
             except:
-                devmgr.print_error("error", name)
+                devmgr.print_exception("error", name)
                 continue
             devices += list(map(lambda x: (name, x), u))
         extra_button = None
