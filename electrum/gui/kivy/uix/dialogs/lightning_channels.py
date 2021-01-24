@@ -166,6 +166,7 @@ Builder.load_string(r'''
     name: 'lightning_channels'
     title: _('Lightning Network')
     has_lightning: False
+    has_gossip: False
     can_send: ''
     can_receive: ''
     num_channels_text: ''
@@ -209,6 +210,7 @@ Builder.load_string(r'''
                 size_hint: 0.3, None
                 height: '48dp'
                 text: _('Gossip')
+                disabled: not root.has_gossip
                 on_release: popup.app.popup_dialog('lightning')
 
 
@@ -531,6 +533,7 @@ class LightningChannelsDialog(Factory.Popup):
         self.clocks = []
         self.app = app
         self.has_lightning = app.wallet.has_lightning()
+        self.has_gossip = self.app.network.channel_db is not None
         self.update()
 
     def show_item(self, obj):
