@@ -26,7 +26,7 @@ Builder.load_string('''
                     color: (0.7, 0.7, 0.7, 0.7) if kb.is_fiat else (1, 1, 1, 1)
                     halign: 'right'
                     size_hint: 1, None
-                    font_size: '20dp'
+                    font_size: '20dp' if kb.is_fiat else '40dp'
                     height: '48dp'
                     on_release:
                         kb.is_fiat = False
@@ -37,7 +37,7 @@ Builder.load_string('''
                     color: (1, 1, 1, 1) if kb.is_fiat else (0.7, 0.7, 0.7, 0.7)
                     halign: 'right'
                     size_hint: 1, None
-                    font_size: '20dp'
+                    font_size: '40dp' if kb.is_fiat else '20dp'
                     height: '48dp'
                     disabled: not app.fx.is_enabled()
                     on_release:
