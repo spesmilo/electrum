@@ -23,13 +23,14 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import ast
 from typing import Optional, TYPE_CHECKING
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (QComboBox,  QTabWidget,
                              QSpinBox,  QFileDialog, QCheckBox, QLabel,
                              QVBoxLayout, QGridLayout, QLineEdit,
-                             QPushButton, QWidget)
+                             QPushButton, QWidget, QHBoxLayout)
 
 from electrum.i18n import _
 from electrum import util, coinchooser, paymentrequest
@@ -328,16 +329,45 @@ Use this if you want your local watchtower to keep running after you close your 
         tx_widgets.append((outrounding_cb, None))
 
         block_explorers = sorted(util.block_explorer_info().keys())
+        BLOCK_EX_CUSTOM_ITEM = _("Custom URL")
+        if BLOCK_EX_CUSTOM_ITEM in block_explorers:  # malicious translation?
+            block_explorers.remove(BLOCK_EX_CUSTOM_ITEM)
+        block_explorers.append(BLOCK_EX_CUSTOM_ITEM)
         msg = _('Choose which online block explorer to use for functions that open a web browser')
         block_ex_label = HelpLabel(_('Online Block Explorer') + ':', msg)
         block_ex_combo = QComboBox()
+        block_ex_custom_e = QLineEdit(self.config.get('block_explorer_custom') or '')
         block_ex_combo.addItems(block_explorers)
-        block_ex_combo.setCurrentIndex(block_ex_combo.findText(util.block_explorer(self.config)))
-        def on_be(x):
-            be_result = block_explorers[block_ex_combo.currentIndex()]
-            self.config.set_key('block_explorer', be_result, True)
-        block_ex_combo.currentIndexChanged.connect(on_be)
-        tx_widgets.append((block_ex_label, block_ex_combo))
+        block_ex_combo.setCurrentIndex(
+            block_ex_combo.findText(util.block_explorer(self.config) or BLOCK_EX_CUSTOM_ITEM))
+        def showhide_block_ex_custom_e():
+            block_ex_custom_e.setVisible(block_ex_combo.currentText() == BLOCK_EX_CUSTOM_ITEM)
+        showhide_block_ex_custom_e()
+        def on_be_combo(x):
+            if block_ex_combo.currentText() == BLOCK_EX_CUSTOM_ITEM:
+                on_be_edit()
+            else:
+                be_result = block_explorers[block_ex_combo.currentIndex()]
+                self.config.set_key('block_explorer_custom', None, False)
+                self.config.set_key('block_explorer', be_result, True)
+            showhide_block_ex_custom_e()
+        block_ex_combo.currentIndexChanged.connect(on_be_combo)
+        def on_be_edit():
+            val = block_ex_custom_e.text()
+            try:
+                val = ast.literal_eval(val)  # to also accept tuples
+            except:
+                pass
+            self.config.set_key('block_explorer_custom', val)
+        block_ex_custom_e.editingFinished.connect(on_be_edit)
+        block_ex_hbox = QHBoxLayout()
+        block_ex_hbox.setContentsMargins(0, 0, 0, 0)
+        block_ex_hbox.setSpacing(0)
+        block_ex_hbox.addWidget(block_ex_combo)
+        block_ex_hbox.addWidget(block_ex_custom_e)
+        block_ex_hbox_w = QWidget()
+        block_ex_hbox_w.setLayout(block_ex_hbox)
+        tx_widgets.append((block_ex_label, block_ex_hbox_w))
 
         # Fiat Currency
         hist_checkbox = QCheckBox()
