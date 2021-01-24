@@ -33,7 +33,7 @@ fun fiatToSatoshis(s: String): Long? {
     if (!fiatEnabled()) return null
     try {
         // toDouble accepts only the English number format: see comment in Util.kt.
-        return fx.callAttr("fiat_to_amount", s.toDouble()).toLong()
+        return fx.callAttr("fiat_to_amount", s.toDouble())?.toLong()
     } catch (e: NumberFormatException) {
         throw ToastException(R.string.Invalid_amount)
     }
