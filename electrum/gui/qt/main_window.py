@@ -1520,21 +1520,23 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         req = self.wallet.receive_requests.get(key)
         if req is None:
             return
-        self.request_list.update_item(key, req)
-        self.request_list.update()
-
         if status == PR_PAID:
             self.notify(_('Payment received') + '\n' + key)
-            self.need_update.set()
+            self.request_list.update()
+        else:
+            self.request_list.update_item(key, req)
 
     def on_invoice_status(self, wallet, key):
         if wallet != self.wallet:
             return
-        req = self.wallet.get_invoice(key)
-        if req is None:
+        invoice = self.wallet.get_invoice(key)
+        if invoice is None:
             return
-        self.invoice_list.update_item(key, req)
-        self.invoice_list.update()
+        status = self.wallet.get_invoice_status(invoice)
+        if status == PR_PAID:
+            self.invoice_list.update()
+        else:
+            self.invoice_list.update_item(key, invoice)
 
     def on_payment_succeeded(self, wallet, key):
         description = self.wallet.get_label(key)
