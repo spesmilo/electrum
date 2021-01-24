@@ -663,6 +663,10 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             cc = self.add_copy_menu(menu, idx)
             cc.addAction(_("Payment Hash"), lambda: self.place_text_on_clipboard(tx_item['payment_hash'], title="Payment Hash"))
             cc.addAction(_("Preimage"), lambda: self.place_text_on_clipboard(tx_item['preimage'], title="Preimage"))
+            key = tx_item['payment_hash']
+            log = self.wallet.lnworker.logs.get(key)
+            if log:
+                menu.addAction(_("View log"), lambda: self.parent.invoice_list.show_log(key, log))
             menu.exec_(self.viewport().mapToGlobal(position))
             return
         tx_hash = tx_item['txid']
@@ -710,17 +714,15 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def remove_local_tx(self, tx_hash: str):
-        to_delete = {tx_hash}
-        to_delete |= self.wallet.get_depending_transactions(tx_hash)
+        num_child_txs = len(self.wallet.get_depending_transactions(tx_hash))
         question = _("Are you sure you want to remove this transaction?")
-        if len(to_delete) > 1:
+        if num_child_txs > 0:
             question = (_("Are you sure you want to remove this transaction and {} child transactions?")
-                        .format(len(to_delete) - 1))
+                        .format(num_child_txs))
         if not self.parent.question(msg=question,
                                     title=_("Please confirm")):
             return
-        for tx in to_delete:
-            self.wallet.remove_transaction(tx)
+        self.wallet.remove_transaction(tx_hash)
         self.wallet.save_db()
         # need to update at least: history_list, utxo_list, address_list
         self.parent.need_update.set()

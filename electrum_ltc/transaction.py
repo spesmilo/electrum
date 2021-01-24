@@ -176,6 +176,7 @@ class TxOutpoint(NamedTuple):
     @classmethod
     def from_str(cls, s: str) -> 'TxOutpoint':
         hash_str, idx_str = s.split(':')
+        assert len(hash_str) == 64, f"{hash_str} should be a sha256 hash"
         return TxOutpoint(txid=bfh(hash_str),
                           out_idx=int(idx_str))
 

@@ -348,17 +348,15 @@ class TxDialog(Factory.Popup):
 
     def remove_local_tx(self):
         txid = self.tx.txid()
-        to_delete = {txid}
-        to_delete |= self.wallet.get_depending_transactions(txid)
+        num_child_txs = len(self.wallet.get_depending_transactions(txid))
         question = _("Are you sure you want to remove this transaction?")
-        if len(to_delete) > 1:
+        if num_child_txs > 0:
             question = (_("Are you sure you want to remove this transaction and {} child transactions?")
-                        .format(len(to_delete) - 1))
+                        .format(num_child_txs))
 
         def on_prompt(b):
             if b:
-                for tx in to_delete:
-                    self.wallet.remove_transaction(tx)
+                self.wallet.remove_transaction(txid)
                 self.wallet.save_db()
                 self.app._trigger_update_wallet()  # FIXME private...
                 self.dismiss()

@@ -29,10 +29,8 @@ from electrum_ltc.invoices import (PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIR
 from electrum_ltc import bitcoin, constants
 from electrum_ltc.transaction import Transaction, tx_from_any, PartialTransaction, PartialTxOutput
 from electrum_ltc.util import parse_URI, InvalidBitcoinURI, TxMinedInfo, maybe_extract_bolt11_invoice
-from electrum_ltc.plugin import run_hook
 from electrum_ltc.wallet import InternalAddressCorruption
 from electrum_ltc import simple_config
-from electrum_ltc.simple_config import FEERATE_WARNING_HIGH_FEE, FEE_RATIO_HIGH_WARNING
 from electrum_ltc.lnaddr import lndecode
 from electrum_ltc.lnutil import RECEIVED, SENT, PaymentFailure
 from electrum_ltc.logging import Logger
@@ -364,12 +362,7 @@ class SendScreen(CScreen, Logger):
             else:
                 self.app.show_error(_("Lightning payments are not available for this wallet"))
         else:
-            do_pay = lambda rbf: self._do_pay_onchain(invoice, rbf)
-            if self.app.electrum_config.get('use_rbf'):
-                d = Question(_('Should this transaction be replaceable?'), do_pay)
-                d.open()
-            else:
-                do_pay(False)
+            self._do_pay_onchain(invoice)
 
     def _do_pay_lightning(self, invoice: LNInvoice, pw) -> None:
         def pay_thread():
@@ -380,41 +373,10 @@ class SendScreen(CScreen, Logger):
         self.save_invoice(invoice)
         threading.Thread(target=pay_thread).start()
 
-    def _do_pay_onchain(self, invoice: OnchainInvoice, rbf: bool) -> None:
-        # make unsigned transaction
-        outputs = invoice.outputs
-        coins = self.app.wallet.get_spendable_coins(None)
-        try:
-            tx = self.app.wallet.make_unsigned_transaction(coins=coins, outputs=outputs)
-        except NotEnoughFunds:
-            self.app.show_error(_("Not enough funds"))
-            return
-        except Exception as e:
-            self.logger.exception('')
-            self.app.show_error(repr(e))
-            return
-        if rbf:
-            tx.set_rbf(True)
-        fee = tx.get_fee()
-        amount = sum(map(lambda x: x.value, outputs)) if '!' not in [x.value for x in outputs] else tx.output_value()
-        msg = [
-            _("Amount to be sent") + ": " + self.app.format_amount_and_units(amount),
-            _("Mining fee") + ": " + self.app.format_amount_and_units(fee),
-        ]
-        x_fee = run_hook('get_tx_extra_fee', self.app.wallet, tx)
-        if x_fee:
-            x_fee_address, x_fee_amount = x_fee
-            msg.append(_("Additional fees") + ": " + self.app.format_amount_and_units(x_fee_amount))
-
-        feerate = Decimal(fee) / tx.estimated_size()  # sat/byte
-        fee_ratio = Decimal(fee) / amount if amount else 1
-        if fee_ratio >= FEE_RATIO_HIGH_WARNING:
-            msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high.")
-                       + f' ({fee_ratio*100:.2f}% of amount)')
-        elif feerate > FEERATE_WARNING_HIGH_FEE / 1000:
-            msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high.")
-                       + f' (feerate: {feerate:.2f} sat/byte)')
-        self.app.protected('\n'.join(msg), self.send_tx, (tx, invoice))
+    def _do_pay_onchain(self, invoice: OnchainInvoice) -> None:
+        from .dialogs.confirm_tx_dialog import ConfirmTxDialog
+        d = ConfirmTxDialog(self.app, invoice)
+        d.open()
 
     def send_tx(self, tx, invoice, password):
         if self.app.wallet.has_password() and password is None:

@@ -772,19 +772,43 @@ testnet_block_explorers = {
                        {'tx': 'tx/', 'addr': 'address/'}),
 }
 
+_block_explorer_default_api_loc = {'tx': 'tx/', 'addr': 'address/'}
+
+
 def block_explorer_info():
     from . import constants
     return mainnet_block_explorers if not constants.net.TESTNET else testnet_block_explorers
 
-def block_explorer(config: 'SimpleConfig') -> str:
-    from . import constants
-    default_ = 'Blockchair.com' if not constants.net.TESTNET else 'LiteCore'
+
+def block_explorer(config: 'SimpleConfig') -> Optional[str]:
+    """Returns name of selected block explorer,
+    or None if a custom one (not among hardcoded ones) is configured.
+    """
+    if config.get('block_explorer_custom') is not None:
+        return None
+    default_ = 'LiteCore'
     be_key = config.get('block_explorer', default_)
-    be = block_explorer_info().get(be_key)
-    return be_key if be is not None else default_
+    be_tuple = block_explorer_info().get(be_key)
+    if be_tuple is None:
+        be_key = default_
+    assert isinstance(be_key, str), f"{be_key!r} should be str"
+    return be_key
+
 
 def block_explorer_tuple(config: 'SimpleConfig') -> Optional[Tuple[str, dict]]:
-    return block_explorer_info().get(block_explorer(config))
+    custom_be = config.get('block_explorer_custom')
+    if custom_be:
+        if isinstance(custom_be, str):
+            return custom_be, _block_explorer_default_api_loc
+        if isinstance(custom_be, (tuple, list)) and len(custom_be) == 2:
+            return tuple(custom_be)
+        _logger.warning(f"not using 'block_explorer_custom' from config. "
+                        f"expected a str or a pair but got {custom_be!r}")
+        return None
+    else:
+        # using one of the hardcoded block explorers
+        return block_explorer_info().get(block_explorer(config))
+
 
 def block_explorer_URL(config: 'SimpleConfig', kind: str, item: str) -> Optional[str]:
     be_tuple = block_explorer_tuple(config)
@@ -794,6 +818,8 @@ def block_explorer_URL(config: 'SimpleConfig', kind: str, item: str) -> Optional
     kind_str = explorer_dict.get(kind)
     if kind_str is None:
         return
+    if explorer_url[-1] != "/":
+        explorer_url += "/"
     url_parts = [explorer_url, kind_str, item]
     return ''.join(url_parts)
 

@@ -101,6 +101,9 @@ class TxEditor:
             self.tx = None
             try:
                 self.tx = self.make_tx(0)
+            except NotEnoughFunds:
+                self.not_enough_funds = True
+                return
             except BaseException:
                 return
         except InternalAddressCorruption as e:

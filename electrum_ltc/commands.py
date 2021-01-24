@@ -423,14 +423,26 @@ class Commands:
         return {'address':address, 'redeemScript':redeem_script}
 
     @command('w')
-    async def freeze(self, address, wallet: Abstract_Wallet = None):
+    async def freeze(self, address: str, wallet: Abstract_Wallet = None):
         """Freeze address. Freeze the funds at one of your wallet\'s addresses"""
         return wallet.set_frozen_state_of_addresses([address], True)
 
     @command('w')
-    async def unfreeze(self, address, wallet: Abstract_Wallet = None):
+    async def unfreeze(self, address: str, wallet: Abstract_Wallet = None):
         """Unfreeze address. Unfreeze the funds at one of your wallet\'s address"""
         return wallet.set_frozen_state_of_addresses([address], False)
+
+    @command('w')
+    async def freeze_utxo(self, coin: str, wallet: Abstract_Wallet = None):
+        """Freeze a UTXO so that the wallet will not spend it."""
+        wallet.set_frozen_state_of_coins([coin], True)
+        return True
+
+    @command('w')
+    async def unfreeze_utxo(self, coin: str, wallet: Abstract_Wallet = None):
+        """Unfreeze a UTXO so that the wallet might spend it."""
+        wallet.set_frozen_state_of_coins([coin], False)
+        return True
 
     @command('wp')
     async def getprivatekeys(self, address, password=None, wallet: Abstract_Wallet = None):
@@ -933,13 +945,10 @@ class Commands:
         if not is_hash256_str(txid):
             raise Exception(f"{repr(txid)} is not a txid")
         height = wallet.get_tx_height(txid).height
-        to_delete = {txid}
         if height != TX_HEIGHT_LOCAL:
             raise Exception(f'Only local transactions can be removed. '
                             f'This tx has height: {height} != {TX_HEIGHT_LOCAL}')
-        to_delete |= wallet.get_depending_transactions(txid)
-        for tx_hash in to_delete:
-            wallet.remove_transaction(tx_hash)
+        wallet.remove_transaction(txid)
         wallet.save_db()
 
     @command('wn')
