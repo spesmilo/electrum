@@ -74,7 +74,7 @@ from .plugin import run_hook
 from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
                                    TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE)
 from .invoices import Invoice
-from .invoices import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_UNCONFIRMED
+from .invoices import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_UNCONFIRMED, PR_SCHEDULED
 from .contacts import Contacts
 from .interface import NetworkException
 from .mnemonic import Mnemonic
@@ -82,6 +82,7 @@ from .logging import get_logger
 from .lnworker import LNWallet
 from .paymentrequest import PaymentRequest
 from .util import read_json_file, write_json_file, UserFacingException
+from .lnutil import ln_dummy_address
 
 if TYPE_CHECKING:
     from .network import Network
@@ -811,6 +812,10 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         invoices = self.get_invoices()
         return [x for x in invoices if self.get_invoice_status(x) != PR_PAID]
 
+    def get_scheduled_invoices(self):
+        invoices = self.get_invoices()
+        return [x for x in invoices if self.get_invoice_status(x) == PR_SCHEDULED]
+
     def get_invoice(self, key):
         return self.invoices.get(key)
 
@@ -1317,6 +1322,51 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 selected_addr = self.get_receiving_address()
         assert is_address(selected_addr), f"not valid bitcoin address: {selected_addr}"
         return selected_addr
+
+    def can_pay_onchain(self, outputs, coins=None):
+        try:
+            self.make_unsigned_transaction(
+                coins=coins,
+                outputs=outputs,
+                fee=None)
+        except NotEnoughFunds:
+            return False
+        return True
+
+    def can_pay_with_new_channel(self, amount_sat, coins=None):
+        """ wether we can pay amount_sat after opening a new channel"""
+        if self.lnworker is None:
+            return False, None
+        num_sats_can_send = int(self.lnworker.num_sats_can_send())
+        if amount_sat <= num_sats_can_send:
+            return True, None
+        lightning_needed = amount_sat - num_sats_can_send
+        lightning_needed += (lightning_needed // 20) # operational safety margin
+        channel_funding_sat = lightning_needed + 1000 # channel reserves safety margin
+        try:
+            self.lnworker.mktx_for_open_channel(coins=coins, funding_sat=channel_funding_sat, node_id=bytes(32), fee_est=None)
+        except NotEnoughFunds:
+            return False, None
+        return True, channel_funding_sat
+
+    def can_pay_with_swap(self, amount_sat, coins=None):
+        # fixme: if swap_amount_sat is lower than the minimum swap amount, we need to propose a higher value
+        if self.lnworker is None:
+            return False, None
+        num_sats_can_send = int(self.lnworker.num_sats_can_send())
+        if amount_sat <= num_sats_can_send:
+            return True, None
+        lightning_needed = amount_sat - num_sats_can_send
+        lightning_needed += (lightning_needed // 20) # operational safety margin
+        swap_recv_amount = lightning_needed # the server's percentage fee is presumably within the above margin
+        swap_server_mining_fee = 10000      # guessing, because we have not called get_pairs yet
+        swap_funding_sat = swap_recv_amount + swap_server_mining_fee
+        swap_output = PartialTxOutput.from_address_and_value(ln_dummy_address(), swap_funding_sat)
+        can_do_swap_onchain = self.can_pay_onchain([swap_output], coins=coins)
+        can_do_swap_lightning = self.lnworker.num_sats_can_receive() >= swap_recv_amount
+        if can_do_swap_onchain and can_do_swap_lightning:
+            return True, swap_recv_amount
+        return False, None
 
     def make_unsigned_transaction(
             self, *,

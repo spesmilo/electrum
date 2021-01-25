@@ -1334,6 +1334,8 @@ class Peer(Logger):
         # only allow state transition from "FUNDED" to "OPEN"
         old_state = chan.get_state()
         if old_state == ChannelState.OPEN:
+            if self.lnworker:
+                self.lnworker.pay_scheduled_invoices()
             return
         if old_state != ChannelState.FUNDED:
             self.logger.info(f"cannot mark open ({chan.get_id_for_log()}), current state: {repr(old_state)}")
@@ -1353,6 +1355,8 @@ class Peer(Logger):
             self.logger.info(f"sending channel update for outgoing edge ({chan.get_id_for_log()})")
             chan_upd = chan.get_outgoing_gossip_channel_update()
             self.transport.send_bytes(chan_upd)
+        if self.lnworker:
+            self.lnworker.pay_scheduled_invoices()
 
     def send_announcement_signatures(self, chan: Channel):
         chan_ann = chan.construct_channel_announcement_without_sigs()

@@ -67,7 +67,7 @@ from electrum.util import (format_time,
                            AddTransactionException, BITCOIN_BIP21_URI_SCHEME,
                            InvoiceError, parse_max_spend)
 from electrum.invoices import PR_DEFAULT_EXPIRATION_WHEN_CREATING, Invoice
-from electrum.invoices import PR_PAID, PR_FAILED, pr_expiration_values, Invoice
+from electrum.invoices import PR_PAID, PR_UNPAID, PR_FAILED, PR_SCHEDULED, pr_expiration_values, Invoice
 from electrum.transaction import (Transaction, PartialTxInput,
                                   PartialTransaction, PartialTxOutput)
 from electrum.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet,
@@ -105,6 +105,7 @@ from .confirm_tx_dialog import ConfirmTxDialog
 from .transaction_dialog import PreviewTxDialog
 from .rbf_dialog import BumpFeeDialog, DSCancelDialog
 from .qrreader import scan_qrcode
+from .swap_dialog import SwapDialog
 
 if TYPE_CHECKING:
     from . import ElectrumGui
@@ -1654,16 +1655,65 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         return False  # no errors
 
-    def pay_lightning_invoice(self, invoice: str, *, amount_msat: Optional[int]):
-        if amount_msat is None:
+    def pay_lightning_invoice(self, invoice: Invoice):
+        amount_sat = invoice.get_amount_sat()
+        key = self.wallet.get_key_for_outgoing_invoice(invoice)
+        if amount_sat is None:
             raise Exception("missing amount for LN invoice")
-        amount_sat = Decimal(amount_msat) / 1000
+        num_sats_can_send = int(self.wallet.lnworker.num_sats_can_send())
+        if amount_sat > num_sats_can_send:
+            lightning_needed = amount_sat - num_sats_can_send
+            lightning_needed += (lightning_needed // 20) # operational safety margin
+            coins = self.get_coins(nonlocal_only=True)
+            can_pay_onchain = invoice.get_address() and self.wallet.can_pay_onchain(invoice.get_outputs(), coins=coins)
+            can_pay_with_new_channel, channel_funding_sat = self.wallet.can_pay_with_new_channel(amount_sat, coins=coins)
+            can_pay_with_swap, swap_recv_amount_sat = self.wallet.can_pay_with_swap(amount_sat, coins=coins)
+            choices = {}
+            if can_pay_onchain:
+                msg = ''.join([
+                    _('Pay this invoice onchain'), '\n',
+                    _('Funds will be sent to the invoice fallback address.')
+                ])
+                choices[0] = msg
+            if can_pay_with_new_channel:
+                msg = ''.join([
+                    _('Open a new channel'), '\n',
+                    _('Your payment will be scheduled for when the channel is open.')
+                ])
+                choices[1] = msg
+            if can_pay_with_swap:
+                msg = ''.join([
+                    _('Rebalance your channels with a submarine swap'), '\n',
+                    _('Your payment will be scheduled after the  swap is confirmed.')
+                ])
+                choices[2] = msg
+            if not choices:
+                raise NotEnoughFunds()
+            msg = _('You cannot pay that invoice using Lightning.')
+            if self.wallet.lnworker.channels:
+                msg += '\n' + _('Your channels can send {}.').format(self.format_amount(num_sats_can_send) + self.base_unit())
+
+            r = self.query_choice(msg, choices)
+            if r is not None:
+                self.save_pending_invoice()
+                if r == 0:
+                    self.pay_onchain_dialog(coins, invoice.get_outputs())
+                elif r == 1:
+                    if self.channels_list.new_channel_dialog(amount_sat=channel_funding_sat):
+                        self.wallet.lnworker.set_invoice_status(key, PR_SCHEDULED)
+                elif r == 2:
+                    d = SwapDialog(self, is_reverse=False, recv_amount_sat=swap_recv_amount_sat)
+                    if d.run():
+                        self.wallet.lnworker.set_invoice_status(key, PR_SCHEDULED)
+            return
+
         # FIXME this is currently lying to user as we truncate to satoshis
-        msg = _("Pay lightning invoice?") + '\n\n' + _("This will send {}?").format(self.format_amount_and_units(amount_sat))
+        amount_msat = invoice.get_amount_msat()
+        msg = _("Pay lightning invoice?") + '\n\n' + _("This will send {}?").format(self.format_amount_and_units(Decimal(amount_msat)/1000))
         if not self.question(msg):
             return
         self.save_pending_invoice()
-        coro = self.wallet.lnworker.pay_invoice(invoice, amount_msat=amount_msat, attempts=LN_NUM_PAYMENT_ATTEMPTS)
+        coro = self.wallet.lnworker.pay_invoice(invoice.lightning_invoice, amount_msat=amount_msat, attempts=LN_NUM_PAYMENT_ATTEMPTS)
         self.run_coroutine_from_thread(coro)
 
     def on_request_status(self, wallet, key, status):
@@ -1765,9 +1815,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def do_pay_invoice(self, invoice: 'Invoice'):
         if invoice.is_lightning():
-            self.pay_lightning_invoice(invoice.lightning_invoice, amount_msat=invoice.get_amount_msat())
+            self.pay_lightning_invoice(invoice)
         else:
             self.pay_onchain_dialog(self.get_coins(), invoice.outputs)
+
+    def cancel_scheduled_invoice(self, key):
+        self.wallet.lnworker.set_invoice_status(key, PR_UNPAID)
 
     def get_coins(self, *, nonlocal_only=False) -> Sequence[PartialTxInput]:
         coins = self.get_manually_selected_coins()
@@ -2002,7 +2055,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         clayout = ChoicesLayout(msg, choices)
         vbox = QVBoxLayout(dialog)
         vbox.addLayout(clayout.layout())
-        vbox.addLayout(Buttons(OkButton(dialog)))
+        vbox.addLayout(Buttons(CancelButton(dialog), OkButton(dialog)))
         if not dialog.exec_():
             return None
         return clayout.selected_index()

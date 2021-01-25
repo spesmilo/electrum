@@ -28,7 +28,7 @@ from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
 
 from electrum.i18n import _, languages
 from electrum.util import FileImportFailed, FileExportFailed, make_aiohttp_session, resource_path
-from electrum.invoices import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING, PR_UNCONFIRMED
+from electrum.invoices import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING, PR_UNCONFIRMED, PR_SCHEDULED
 from electrum.logging import Logger
 
 if TYPE_CHECKING:
@@ -56,6 +56,7 @@ pr_icons = {
     PR_FAILED:"warning.png",
     PR_ROUTING:"unconfirmed.png",
     PR_UNCONFIRMED:"unconfirmed.png",
+    PR_SCHEDULED:"unconfirmed.png",
 }
 
 
@@ -396,23 +397,23 @@ class ChoicesLayout(object):
             msg = ""
         gb2 = QGroupBox(msg)
         vbox.addWidget(gb2)
-
         vbox2 = QVBoxLayout()
         gb2.setLayout(vbox2)
-
         self.group = group = QButtonGroup()
-        for i,c in enumerate(choices):
+        if isinstance(choices, list):
+            iterator = enumerate(choices)
+        else:
+            iterator = choices.items()
+        for i, c in iterator:
             button = QRadioButton(gb2)
             button.setText(c)
             vbox2.addWidget(button)
             group.addButton(button)
             group.setId(button, i)
-            if i==checked_index:
+            if i == checked_index:
                 button.setChecked(True)
-
         if on_clicked:
             group.buttonClicked.connect(partial(on_clicked, self))
-
         self.vbox = vbox
 
     def layout(self):
