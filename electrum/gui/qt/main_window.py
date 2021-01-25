@@ -1522,7 +1522,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         if status == PR_PAID:
             self.notify(_('Payment received') + '\n' + key)
-            self.request_list.update()
+            self.need_update.set()
         else:
             self.request_list.update_item(key, req)
 
