@@ -7,7 +7,7 @@ import os
 from decimal import Decimal
 import random
 import time
-from typing import Optional, Sequence, Tuple, List, Dict, TYPE_CHECKING, NamedTuple, Union, Mapping, Any
+from typing import Optional, Sequence, Tuple, List, Set, Dict, TYPE_CHECKING, NamedTuple, Union, Mapping, Any
 import threading
 import socket
 import aiohttp
@@ -151,9 +151,29 @@ class NoPathFound(PaymentFailure):
 class ErrorAddingPeer(Exception): pass
 
 
+# set some feature flags as baseline for both LNWallet and LNGossip
+# note that e.g. DATA_LOSS_PROTECT is needed for LNGossip as many peers require it
+BASE_FEATURES = LnFeatures(0)\
+    | LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT\
+    | LnFeatures.OPTION_STATIC_REMOTEKEY_OPT\
+    | LnFeatures.VAR_ONION_OPT\
+    | LnFeatures.PAYMENT_SECRET_OPT\
+    | LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT
+
+# we do not want to receive unrequested gossip (see lnpeer.maybe_save_remote_update)
+LNWALLET_FEATURES = BASE_FEATURES\
+    | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ\
+    | LnFeatures.OPTION_STATIC_REMOTEKEY_REQ\
+    | LnFeatures.GOSSIP_QUERIES_REQ
+
+LNGOSSIP_FEATURES = BASE_FEATURES\
+    | LnFeatures.GOSSIP_QUERIES_OPT\
+    | LnFeatures.GOSSIP_QUERIES_REQ
+
+
 class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
 
-    def __init__(self, xprv):
+    def __init__(self, xprv, features):
         Logger.__init__(self)
         NetworkRetryManager.__init__(
             self,
@@ -167,14 +187,7 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         self._peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer  # needs self.lock
         self.taskgroup = SilentTaskGroup()
         self.listen_server = None  # type: Optional[asyncio.AbstractServer]
-        # set some feature flags as baseline for both LNWallet and LNGossip
-        # note that e.g. DATA_LOSS_PROTECT is needed for LNGossip as many peers require it
-        self.features = LnFeatures(0)
-        self.features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
-        self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_OPT
-        self.features |= LnFeatures.VAR_ONION_OPT
-        self.features |= LnFeatures.PAYMENT_SECRET_OPT
-
+        self.features = features
         self.network = None  # type: Optional[Network]
         self.config = None  # type: Optional[SimpleConfig]
         self.channel_db = None  # type: Optional[ChannelDB]
@@ -461,9 +474,7 @@ class LNGossip(LNWorker):
         seed = os.urandom(32)
         node = BIP32Node.from_rootseed(seed, xtype='standard')
         xprv = node.to_xprv()
-        super().__init__(xprv)
-        self.features |= LnFeatures.GOSSIP_QUERIES_OPT
-        self.features |= LnFeatures.GOSSIP_QUERIES_REQ
+        super().__init__(xprv, LNGOSSIP_FEATURES)
         self.unknown_ids = set()
 
     def start_network(self, network: 'Network'):
@@ -540,6 +551,7 @@ class LNGossip(LNWorker):
             if categorized_chan_upds.good:
                 self.logger.debug(f'on_channel_update: {len(categorized_chan_upds.good)}/{len(chan_upds_chunk)}')
 
+
 class LNWallet(LNWorker):
 
     lnwatcher: Optional['LNWalletWatcher']
@@ -548,15 +560,10 @@ class LNWallet(LNWorker):
         Logger.__init__(self)
         self.wallet = wallet
         self.db = wallet.db
-        LNWorker.__init__(self, xprv)
+        LNWorker.__init__(self, xprv, LNWALLET_FEATURES)
         self.config = wallet.config
         self.lnwatcher = None
         self.lnrater: LNRater = None
-        self.features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
-        self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_REQ
-        # we do not want to receive unrequested gossip (see lnpeer.maybe_save_remote_update)
-        self.features |= LnFeatures.GOSSIP_QUERIES_REQ
-
         self.payments = self.db.get_dict('lightning_payments')     # RHASH -> amount, direction, is_paid  # FIXME amt should be msat
         self.preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
         # note: this sweep_address is only used as fallback; as it might result in address-reuse
@@ -1013,7 +1020,8 @@ class LNWallet(LNWorker):
                     except IndexError:
                         self.logger.info("payment destination reported error")
                     else:
-                        self.network.path_finder.add_to_blacklist(short_chan_id)
+                        self.logger.info(f'blacklisting channel {short_chan_id}')
+                        self.network.channel_blacklist.add(short_chan_id)
             else:
                 # probably got "update_fail_malformed_htlc". well... who to penalise now?
                 assert payment_attempt.failure_message is not None
@@ -1126,6 +1134,7 @@ class LNWallet(LNWorker):
         channels = list(self.channels.values())
         scid_to_my_channels = {chan.short_channel_id: chan for chan in channels
                                if chan.short_channel_id is not None}
+        blacklist = self.network.channel_blacklist.get_current_list()
         for private_route in r_tags:
             if len(private_route) == 0:
                 continue
@@ -1139,16 +1148,14 @@ class LNWallet(LNWorker):
                 path = full_path[:-len(private_route)]
             else:
                 # find path now on public graph, to border node
-                path = self.network.path_finder.find_path_for_payment(
-                    self.node_keypair.pubkey, border_node_pubkey, amount_msat,
-                    my_channels=scid_to_my_channels)
-            if not path:
-                continue
+                path = None
             try:
-                route = self.network.path_finder.create_route_from_path(
-                    path, self.node_keypair.pubkey,
-                    my_channels=scid_to_my_channels)
+                route = self.network.path_finder.find_route(
+                    self.node_keypair.pubkey, border_node_pubkey, amount_msat,
+                    path=path, my_channels=scid_to_my_channels, blacklist=blacklist)
             except NoChannelPolicy:
+                continue
+            if not route:
                 continue
             # we need to shift the node pubkey by one towards the destination:
             private_route_nodes = [edge[0] for edge in private_route][1:] + [invoice_pubkey]
@@ -1185,17 +1192,11 @@ class LNWallet(LNWorker):
             break
         # if could not find route using any hint; try without hint now
         if route is None:
-            if full_path:  # user pre-selected path
-                path = full_path
-            else:  # find path now
-                path = self.network.path_finder.find_path_for_payment(
-                    self.node_keypair.pubkey, invoice_pubkey, amount_msat,
-                    my_channels=scid_to_my_channels)
-            if not path:
+            route = self.network.path_finder.find_route(
+                self.node_keypair.pubkey, invoice_pubkey, amount_msat,
+                path=full_path, my_channels=scid_to_my_channels, blacklist=blacklist)
+            if not route:
                 raise NoPathFound()
-            route = self.network.path_finder.create_route_from_path(
-                path, self.node_keypair.pubkey,
-                my_channels=scid_to_my_channels)
             if not is_route_sane_to_use(route, amount_msat, decoded_invoice.get_min_final_cltv_expiry()):
                 self.logger.info(f"rejecting insane route {route}")
                 raise NoPathFound()
@@ -1566,9 +1567,7 @@ class LNBackups(Logger):
 
     def __init__(self, wallet: 'Abstract_Wallet'):
         Logger.__init__(self)
-        self.features = LnFeatures(0)
-        self.features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
-        self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_OPT
+        self.features = LNWALLET_FEATURES
         self.lock = threading.RLock()
         self.wallet = wallet
         self.db = wallet.db

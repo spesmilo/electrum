@@ -1,11 +1,10 @@
 import asyncio
-import binascii
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Union
 
 from kivy.lang import Builder
 from kivy.factory import Factory
 from kivy.uix.popup import Popup
-from kivy.clock import Clock
+from .fee_dialog import FeeDialog
 
 from electrum.util import bh2u
 from electrum.logging import Logger
@@ -13,12 +12,114 @@ from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id
 from electrum.lnchannel import AbstractChannel, Channel
 from electrum.gui.kivy.i18n import _
 from .question import Question
+from electrum.transaction import PartialTxOutput
+from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, format_fee_satoshis
+from electrum.lnutil import ln_dummy_address
 
 if TYPE_CHECKING:
     from ...main_window import ElectrumWindow
+    from electrum import SimpleConfig
 
 
 Builder.load_string(r'''
+<SwapDialog@Popup>
+    id: popup
+    title: _('Lightning Swap')
+    size_hint: 0.8, 0.8
+    pos_hint: {'top':0.9}
+    mining_fee_text: ''
+    fee_rate_text: ''
+    method: 0
+    BoxLayout:
+        orientation: 'vertical'
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint: 1, 0.5
+            Label:
+                text: _('You Send') + ':'
+                size_hint: 0.4, 1
+            Label:
+                id: send_amount_label
+                size_hint: 0.6, 1
+                text: _('0')
+                background_color: (0,0,0,0)
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint: 1, 0.5
+            Label:
+                text: _('You Receive') + ':'
+                size_hint: 0.4, 1
+            Label:
+                id: receive_amount_label
+                text: _('0')
+                background_color: (0,0,0,0)
+                size_hint: 0.6, 1
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint: 1, 0.5
+            Label:
+                text: _('Server Fee') + ':'
+                size_hint: 0.4, 1
+            Label:
+                id: server_fee_label
+                text: _('0')
+                background_color: (0,0,0,0)
+                size_hint: 0.6, 1
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint: 1, 0.5
+            Label:
+                id: swap_action_label
+                text: _('Adds receiving capacity')
+                background_color: (0,0,0,0)
+                font_size: '14dp'
+        Slider:
+            id: swap_slider
+            range: 0, 4
+            step: 1
+            on_value: root.swap_slider_moved(self.value)
+        Widget:
+            size_hint: 1, 0.5
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint: 1, 0.5
+            Label:
+                text: _('Mining Fee') + ':'
+                size_hint: 0.4, 1
+            Button:
+                text: root.mining_fee_text + ' (' + root.fee_rate_text + ')'
+                background_color: (0,0,0,0)
+                bold: True
+                on_release:
+                    root.on_fee_button()
+        Widget:
+            size_hint: 1, 0.5
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint: 1, 0.5
+            TopLabel:
+                id: fee_estimate
+                text: ''
+                font_size: '14dp'
+        Widget:
+            size_hint: 1, 0.5
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint: 1, 0.5
+            Button:
+                text: 'Cancel'
+                size_hint: 0.5, None
+                height: '48dp'
+                on_release: root.dismiss()
+            Button:
+                id: ok_button
+                text: 'OK'
+                size_hint: 0.5, None
+                height: '48dp'
+                on_release:
+                    root.on_ok()
+                    root.dismiss()
+
 <LightningChannelItem@CardItem>
     details: {}
     active: False
@@ -63,10 +164,12 @@ Builder.load_string(r'''
 
 <LightningChannelsDialog@Popup>:
     name: 'lightning_channels'
-    title: _('Lightning channels.')
+    title: _('Lightning Network')
     has_lightning: False
+    has_gossip: False
     can_send: ''
     can_receive: ''
+    num_channels_text: ''
     id: popup
     BoxLayout:
         id: box
@@ -74,11 +177,13 @@ Builder.load_string(r'''
         spacing: '2dp'
         padding: '12dp'
         BoxLabel:
-            text: _('Can send') + ':'
+            text: _('You can send') + ':'
             value: root.can_send
         BoxLabel:
-            text: _('Can receive') + ':'
+            text: _('You can receive') + ':'
             value: root.can_receive
+        TopLabel:
+            text: root.num_channels_text
         ScrollView:
             GridLayout:
                 cols: 1
@@ -89,20 +194,24 @@ Builder.load_string(r'''
         BoxLayout:
             size_hint: 1, None
             height: '48dp'
-            Widget:
-                size_hint: 0.4, None
-                height: '48dp'
             Button:
                 size_hint: 0.3, None
                 height: '48dp'
-                text: _('Show Gossip')
-                on_release: popup.app.popup_dialog('lightning')
-            Button:
-                size_hint: 0.3, None
-                height: '48dp'
-                text: _('New...')
+                text: _('Open Channel')
                 disabled: not root.has_lightning
                 on_release: popup.app.popup_dialog('lightning_open_channel_dialog')
+            Button:
+                size_hint: 0.3, None
+                height: '48dp'
+                text: _('Swap')
+                disabled: not root.has_lightning
+                on_release: popup.app.popup_dialog('swap_dialog')
+            Button:
+                size_hint: 0.3, None
+                height: '48dp'
+                text: _('Gossip')
+                disabled: not root.has_gossip
+                on_release: popup.app.popup_dialog('lightning')
 
 
 <ChannelDetailsPopup@Popup>:
@@ -332,6 +441,7 @@ class ChannelBackupPopup(Popup, Logger):
         self.app.wallet.lnbackups.remove_channel_backup(self.chan.channel_id)
         self.dismiss()
 
+
 class ChannelDetailsPopup(Popup, Logger):
 
     def __init__(self, chan: Channel, app: 'ElectrumWindow', **kwargs):
@@ -423,6 +533,7 @@ class LightningChannelsDialog(Factory.Popup):
         self.clocks = []
         self.app = app
         self.has_lightning = app.wallet.has_lightning()
+        self.has_gossip = self.app.network.channel_db is not None
         self.update()
 
     def show_item(self, obj):
@@ -484,5 +595,193 @@ class LightningChannelsDialog(Factory.Popup):
             self.can_send = 'n/a'
             self.can_receive = 'n/a'
             return
+        self.num_channels_text = _(f'You have {len(lnworker.channels)} channels.')
         self.can_send = self.app.format_amount_and_units(lnworker.num_sats_can_send())
         self.can_receive = self.app.format_amount_and_units(lnworker.num_sats_can_receive())
+
+
+# Swaps should be done in due time which is why we recommend a certain fee.
+RECOMMEND_BLOCKS_SWAP = 25
+
+
+class SwapDialog(Factory.Popup):
+    def __init__(self, app: 'ElectrumWindow', config: 'SimpleConfig'):
+        super(SwapDialog, self).__init__()
+        self.app = app
+        self.config = config
+        self.fmt_amt = self.app.format_amount_and_units
+        self.lnworker = self.app.wallet.lnworker
+
+        # swap related
+        self.swap_manager = self.lnworker.swap_manager
+        self.send_amount: Optional[int] = None
+        self.receive_amount: Optional[int] = None
+        self.tx = None  # only for forward swap
+        self.is_reverse = None
+
+        # init swaps and sliders
+        asyncio.run(self.swap_manager.get_pairs())
+        self.update_and_init()
+
+    def update_and_init(self):
+        self.update_fee_text()
+        self.update_swap_slider()
+        self.swap_slider_moved(0)
+
+    def on_fee_button(self):
+        fee_dialog = FeeDialog(self, self.config, self.after_fee_changed)
+        fee_dialog.open()
+
+    def after_fee_changed(self):
+        self.update_fee_text()
+        self.update_swap_slider()
+        self.swap_slider_moved(self.ids.swap_slider.value)
+
+    def update_fee_text(self):
+        fee_per_kb = self.config.fee_per_kb()
+        # eta is -1 when block inclusion cannot be estimated for low fees
+        eta = self.config.fee_to_eta(fee_per_kb)
+
+        fee_per_b = format_fee_satoshis(fee_per_kb / 1000)
+        suggest_fee = self.config.eta_target_to_fee(RECOMMEND_BLOCKS_SWAP)
+        suggest_fee_per_b = format_fee_satoshis(suggest_fee / 1000)
+
+        s = 's' if eta > 1 else ''
+        if eta > RECOMMEND_BLOCKS_SWAP or eta == -1:
+            msg = f'Warning: Your fee rate of {fee_per_b} sat/B may be too ' \
+                  f'low for the swap to succeed before its timeout. ' \
+                  f'The recommended fee rate is at least {suggest_fee_per_b} ' \
+                  f'sat/B.'
+        else:
+            msg = f'Info: Your swap is estimated to be processed in {eta} ' \
+                  f'block{s} with an onchain fee rate of {fee_per_b} sat/B.'
+
+        self.fee_rate_text = f'{fee_per_b} sat/B'
+        self.ids.fee_estimate.text = msg
+
+    def update_tx(self, onchain_amount: Union[int, str]):
+        """Updates the transaction associated with a forward swap."""
+        if onchain_amount is None:
+            self.tx = None
+            self.ids.ok_button.disabled = True
+            return
+        outputs = [PartialTxOutput.from_address_and_value(ln_dummy_address(), onchain_amount)]
+        coins = self.app.wallet.get_spendable_coins(None)
+        try:
+            self.tx = self.app.wallet.make_unsigned_transaction(
+                coins=coins,
+                outputs=outputs)
+        except (NotEnoughFunds, NoDynamicFeeEstimates):
+            self.tx = None
+            self.ids.ok_button.disabled = True
+
+    def update_swap_slider(self):
+        """Sets the minimal and maximal amount that can be swapped for the swap
+        slider."""
+        # tx is updated again afterwards with send_amount in case of normal swap
+        # this is just to estimate the maximal spendable onchain amount for HTLC
+        self.update_tx('!')
+        try:
+            max_onchain_spend = self.tx.output_value_for_address(ln_dummy_address())
+        except AttributeError:  # happens if there are no utxos
+            max_onchain_spend = 0
+        reverse = int(min(self.lnworker.num_sats_can_send(),
+                          self.swap_manager.get_max_amount()))
+        forward = int(min(self.lnworker.num_sats_can_receive(),
+                          # maximally supported swap amount by provider
+                          self.swap_manager.get_max_amount(),
+                          max_onchain_spend))
+        # we expect range to adjust the value of the swap slider to be in the
+        # correct range, i.e., to correct an overflow when reducing the limits
+        self.ids.swap_slider.range = (-reverse, forward)
+
+    def swap_slider_moved(self, position: float):
+        position = int(position)
+        # pay_amount and receive_amounts are always with fees already included
+        # so they reflect the net balance change after the swap
+        if position < 0:  # reverse swap
+            self.ids.swap_action_label.text = "Adds Lightning receiving capacity."
+            self.is_reverse = True
+
+            pay_amount = abs(position)
+            self.send_amount = pay_amount
+            self.ids.send_amount_label.text = \
+                f"{self.fmt_amt(pay_amount)} (offchain)" if pay_amount else ""
+
+            receive_amount = self.swap_manager.get_recv_amount(
+                send_amount=pay_amount, is_reverse=True)
+            self.receive_amount = receive_amount
+            self.ids.receive_amount_label.text = \
+                f"{self.fmt_amt(receive_amount)} (onchain)" if receive_amount else ""
+
+            # fee breakdown
+            self.ids.server_fee_label.text = \
+                f"{self.swap_manager.percentage:0.1f}% + {self.fmt_amt(self.swap_manager.lockup_fee)}"
+            self.mining_fee_text = \
+                f"{self.fmt_amt(self.swap_manager.get_claim_fee())}"
+
+        else:  # forward (normal) swap
+            self.ids.swap_action_label.text = f"Adds Lightning sending capacity."
+            self.is_reverse = False
+            self.send_amount = position
+
+            self.update_tx(self.send_amount)
+            # add lockup fees, but the swap amount is position
+            pay_amount = position + self.tx.get_fee() if self.tx else 0
+            self.ids.send_amount_label.text = \
+                f"{self.fmt_amt(pay_amount)} (onchain)" if self.fmt_amt(pay_amount) else ""
+
+            receive_amount = self.swap_manager.get_recv_amount(
+                send_amount=position, is_reverse=False)
+            self.receive_amount = receive_amount
+            self.ids.receive_amount_label.text = \
+                f"{self.fmt_amt(receive_amount)} (offchain)" if receive_amount else ""
+
+            # fee breakdown
+            self.ids.server_fee_label.text = \
+                f"{self.swap_manager.percentage:0.1f}% + {self.fmt_amt(self.swap_manager.normal_fee)}"
+            self.mining_fee_text = \
+                f"{self.fmt_amt(self.tx.get_fee())}" if self.tx else ""
+
+        if pay_amount and receive_amount:
+            self.ids.ok_button.disabled = False
+        else:
+            # add more nuanced error reporting?
+            self.ids.swap_action_label.text = "Swap below minimal swap size, change the slider."
+            self.ids.ok_button.disabled = True
+
+    def do_normal_swap(self, lightning_amount, onchain_amount, password):
+        tx = self.tx
+        assert tx
+        if lightning_amount is None or onchain_amount is None:
+            return
+        loop = self.app.network.asyncio_loop
+        coro = self.swap_manager.normal_swap(
+            lightning_amount, onchain_amount, password, tx=tx)
+        asyncio.run_coroutine_threadsafe(coro, loop)
+
+    def do_reverse_swap(self, lightning_amount, onchain_amount, password):
+        if lightning_amount is None or onchain_amount is None:
+            return
+        loop = self.app.network.asyncio_loop
+        coro = self.swap_manager.reverse_swap(
+            lightning_amount, onchain_amount + self.swap_manager.get_claim_fee())
+        asyncio.run_coroutine_threadsafe(coro, loop)
+
+    def on_ok(self):
+        if not self.app.network:
+            self.window.show_error(_("You are offline."))
+            return
+        if self.is_reverse:
+            lightning_amount = self.send_amount
+            onchain_amount = self.receive_amount
+            self.app.protected(
+                'Do you want to do a reverse submarine swap?',
+                self.do_reverse_swap, (lightning_amount, onchain_amount))
+        else:
+            lightning_amount = self.receive_amount
+            onchain_amount = self.send_amount
+            self.app.protected(
+                'Do you want to do a submarine swap? '
+                'You will need to wait for the swap transaction to confirm.',
+                self.do_normal_swap, (lightning_amount, onchain_amount))

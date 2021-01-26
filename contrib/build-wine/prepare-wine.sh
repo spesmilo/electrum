@@ -17,11 +17,11 @@ PYINSTALLER_COMMIT="31fda9dc83feb1b3f2ff08c89ff7ae61506fc1ca"
 # PYSCARD_FILENAME=pyscard-1.9.9-cp36-cp36m-win32.whl  # python 3.6, 32-bit
 # PYSCARD_URL=https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/pyscard-1.9.9-cp36-cp36m-win32.whl
 # PYSCARD_SHA256=99d2b450f322f9ed9682fd2a99d95ce781527e371006cded38327efca8158fe7
-PYSCARD_FILENAME=pyscard-1.9.9-cp37-cp37m-win32.whl # python 3.7, 32-bit
-PYSCARD_URL=https://ci.appveyor.com/api/buildjobs/f9cmce4j8hkau9n4/artifacts/dist/pyscard-1.9.9-cp37-cp37m-win32.whl
-PYSCARD_SHA256=3f7d52dd6694dd369b02e797fe1a3e39b63cf1d1c4b5fc0e1341aafa24f87e7a
+# PYSCARD_FILENAME=pyscard-1.9.9-cp37-cp37m-win32.whl # python 3.7, 32-bit
+# PYSCARD_URL=https://ci.appveyor.com/api/buildjobs/f9cmce4j8hkau9n4/artifacts/dist/pyscard-1.9.9-cp37-cp37m-win32.whl
+# PYSCARD_SHA256=3f7d52dd6694dd369b02e797fe1a3e39b63cf1d1c4b5fc0e1341aafa24f87e7a
 
-PYTHON_VERSION=3.7.9
+PYTHON_VERSION=3.8.7
 
 ## These settings probably don't need change
 export WINEPREFIX=/opt/wine64
@@ -78,10 +78,11 @@ $PYTHON -m pip install --no-dependencies --no-warn-script-location -r "$CONTRIB"
 
 
 #Satochip install pyscard
-info "Installing pyscard..."
-download_if_not_exist $PYSCARD_FILENAME "$PYSCARD_URL"
-verify_hash $PYSCARD_FILENAME "$PYSCARD_SHA256"
-$PYTHON -m pip install "$CACHEDIR/$PYSCARD_FILENAME"
+#info "Installing pyscard..."
+#download_if_not_exist $PYSCARD_FILENAME "$PYSCARD_URL"
+#verify_hash $PYSCARD_FILENAME "$PYSCARD_SHA256"
+#$PYTHON -m pip install "$CACHEDIR/$PYSCARD_FILENAME"
+
 info "Installing NSIS."
 download_if_not_exist "$CACHEDIR/$NSIS_FILENAME" "$NSIS_URL"
 verify_hash "$CACHEDIR/$NSIS_FILENAME" "$NSIS_SHA256"
@@ -146,7 +147,8 @@ info "Building PyInstaller."
                               -Wno-dangling-else \
                               -Wno-error=unused-value \
                               -Wno-error=implicit-function-declaration \
-                              -Wno-error=int-to-pointer-cast"
+                              -Wno-error=int-to-pointer-cast \
+                              -Wno-error=stringop-truncation"
     popd
     # sanity check bootloader is there:
     if [ "$GCC_TRIPLET_HOST" = "i686-w64-mingw32" ] ; then

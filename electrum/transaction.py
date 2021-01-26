@@ -176,6 +176,7 @@ class TxOutpoint(NamedTuple):
     @classmethod
     def from_str(cls, s: str) -> 'TxOutpoint':
         hash_str, idx_str = s.split(':')
+        assert len(hash_str) == 64, f"{hash_str} should be a sha256 hash"
         return TxOutpoint(txid=bfh(hash_str),
                           out_idx=int(idx_str))
 
@@ -1171,6 +1172,10 @@ class PartialTxInput(TxInput, PSBTSection):
 
     @classmethod
     def from_txin(cls, txin: TxInput, *, strip_witness: bool = True) -> 'PartialTxInput':
+        # FIXME: if strip_witness is True, res.is_segwit() will return False,
+        # and res.estimated_size() will return an incorrect value. These methods
+        # will return the correct values after we call add_input_info(). (see dscancel and bump_fee)
+        # This is very fragile: the value returned by estimate_size() depends on the calling order.
         res = PartialTxInput(prevout=txin.prevout,
                              script_sig=None if strip_witness else txin.script_sig,
                              nsequence=txin.nsequence,

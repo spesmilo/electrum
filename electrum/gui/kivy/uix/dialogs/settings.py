@@ -50,6 +50,11 @@ Builder.load_string('''
                     action: partial(root.unit_dialog, self)
                 CardSeparator
                 SettingsItem:
+                    title: _('Onchain fees') + ': ' + app.fee_status
+                    description: _('Choose how transaction fees are estimated')
+                    action: lambda dt: app.fee_dialog()
+                CardSeparator
+                SettingsItem:
                     status: root.fx_status()
                     title: _('Fiat Currency') + ': ' + self.status
                     description: _("Display amounts in fiat currency.")
@@ -87,7 +92,7 @@ Builder.load_string('''
                 CardSeparator
                 SettingsItem:
                     title: _('Password')
-                    description: _("Change wallet password.")
+                    description: _('Change your password') if app._use_single_password else _("Change your password for this wallet.")
                     action: root.change_password
                 CardSeparator
                 SettingsItem:
@@ -216,9 +221,6 @@ class SettingsDialog(Factory.Popup):
         fullname = dd.get('fullname')
         d = CheckBoxDialog(fullname, descr, status, callback)
         d.open()
-
-    def fee_status(self):
-        return self.config.get_fee_status()
 
     def boolean_dialog(self, name, title, message, dt):
         from .checkbox_dialog import CheckBoxDialog

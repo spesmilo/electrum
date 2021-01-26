@@ -545,14 +545,8 @@ class TrustedCoinPlugin(BasePlugin):
         wizard.choice_dialog(title=title, message=message, choices=choices, run_next=wizard.run)
 
     def choose_seed_type(self, wizard):
-        choices = [
-            ('create_2fa_segwit_seed', _('Segwit 2FA')),
-            ('create_2fa_seed', _('Legacy 2FA')),
-        ]
-        wizard.choose_seed_type(choices=choices)
-
-    def create_2fa_seed(self, wizard): self.create_seed(wizard, '2fa')
-    def create_2fa_segwit_seed(self, wizard): self.create_seed(wizard, '2fa_segwit')
+        seed_type = '2fa' if self.config.get('nosegwit') else '2fa_segwit'
+        self.create_seed(wizard, seed_type)
 
     def create_seed(self, wizard, seed_type):
         seed = self.make_seed(seed_type)

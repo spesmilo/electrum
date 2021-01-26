@@ -831,8 +831,9 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
     def update_fee_fields(self):
         freeze_fee = self.is_send_fee_frozen()
         freeze_feerate = self.is_send_feerate_frozen()
-        if self.no_dynfee_estimates:
-            size = self.tx.estimated_size()
+        tx = self.tx
+        if self.no_dynfee_estimates and tx:
+            size = tx.estimated_size()
             self.size_e.setAmount(size)
         if self.not_enough_funds or self.no_dynfee_estimates:
             if not freeze_fee:
@@ -842,7 +843,7 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
             self.feerounding_icon.setVisible(False)
             return
 
-        tx = self.tx
+        assert tx is not None
         size = tx.estimated_size()
         fee = tx.get_fee()
 

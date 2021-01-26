@@ -360,7 +360,7 @@ class Commands:
         """
         keypairs = {}
         inputs = []  # type: List[PartialTxInput]
-        locktime = jsontx.get('lockTime', 0)
+        locktime = jsontx.get('locktime', 0)
         for txin_dict in jsontx.get('inputs'):
             if txin_dict.get('prevout_hash') is not None and txin_dict.get('prevout_n') is not None:
                 prevout = TxOutpoint(txid=bfh(txin_dict['prevout_hash']), out_idx=int(txin_dict['prevout_n']))
@@ -369,7 +369,7 @@ class Commands:
             else:
                 raise Exception("missing prevout for txin")
             txin = PartialTxInput(prevout=prevout)
-            txin._trusted_value_sats = int(txin_dict['value'])
+            txin._trusted_value_sats = int(txin_dict.get('value', txin_dict['value_sats']))
             nsequence = txin_dict.get('nsequence', None)
             if nsequence is not None:
                 txin.nsequence = nsequence
@@ -383,7 +383,7 @@ class Commands:
                 txin.num_sig = 1
             inputs.append(txin)
 
-        outputs = [PartialTxOutput.from_address_and_value(txout['address'], int(txout['value']))
+        outputs = [PartialTxOutput.from_address_and_value(txout['address'], int(txout.get('value', txout['value_sats'])))
                    for txout in jsontx.get('outputs')]
         tx = PartialTransaction.from_io(inputs, outputs, locktime=locktime)
         tx.sign(keypairs)
@@ -423,14 +423,26 @@ class Commands:
         return {'address':address, 'redeemScript':redeem_script}
 
     @command('w')
-    async def freeze(self, address, wallet: Abstract_Wallet = None):
+    async def freeze(self, address: str, wallet: Abstract_Wallet = None):
         """Freeze address. Freeze the funds at one of your wallet\'s addresses"""
         return wallet.set_frozen_state_of_addresses([address], True)
 
     @command('w')
-    async def unfreeze(self, address, wallet: Abstract_Wallet = None):
+    async def unfreeze(self, address: str, wallet: Abstract_Wallet = None):
         """Unfreeze address. Unfreeze the funds at one of your wallet\'s address"""
         return wallet.set_frozen_state_of_addresses([address], False)
+
+    @command('w')
+    async def freeze_utxo(self, coin: str, wallet: Abstract_Wallet = None):
+        """Freeze a UTXO so that the wallet will not spend it."""
+        wallet.set_frozen_state_of_coins([coin], True)
+        return True
+
+    @command('w')
+    async def unfreeze_utxo(self, coin: str, wallet: Abstract_Wallet = None):
+        """Unfreeze a UTXO so that the wallet might spend it."""
+        wallet.set_frozen_state_of_coins([coin], False)
+        return True
 
     @command('wp')
     async def getprivatekeys(self, address, password=None, wallet: Abstract_Wallet = None):
@@ -933,13 +945,10 @@ class Commands:
         if not is_hash256_str(txid):
             raise Exception(f"{repr(txid)} is not a txid")
         height = wallet.get_tx_height(txid).height
-        to_delete = {txid}
         if height != TX_HEIGHT_LOCAL:
             raise Exception(f'Only local transactions can be removed. '
                             f'This tx has height: {height} != {TX_HEIGHT_LOCAL}')
-        to_delete |= wallet.get_depending_transactions(txid)
-        for tx_hash in to_delete:
-            wallet.remove_transaction(tx_hash)
+        wallet.remove_transaction(txid)
         wallet.save_db()
 
     @command('wn')
@@ -1356,6 +1365,7 @@ def get_parser():
     parser_gui.add_argument("-m", action="store_true", dest="hide_gui", default=False, help="hide GUI on startup")
     parser_gui.add_argument("-L", "--lang", dest="language", default=None, help="default language used in GUI")
     parser_gui.add_argument("--daemon", action="store_true", dest="daemon", default=False, help="keep daemon running after GUI is closed")
+    parser_gui.add_argument("--nosegwit", action="store_true", dest="nosegwit", default=False, help="Do not create segwit wallets")
     add_wallet_option(parser_gui)
     add_network_options(parser_gui)
     add_global_options(parser_gui)

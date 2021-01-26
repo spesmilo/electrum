@@ -13,6 +13,8 @@ CACHEDIR="$CONTRIB_APPIMAGE/.cache/appimage"
 export GCC_STRIP_BINARIES="1"
 
 # pinned versions
+# note: compiling python 3.8.x requires at least glibc 2.27,
+#       which is first available on ubuntu 18.04
 PYTHON_VERSION=3.7.9
 PKG2APPIMAGE_COMMIT="eb8f3acdd9f11ab19b78f5cb15daa772367daf15"
 SQUASHFSKIT_COMMIT="ae0d656efa2d0df2fcac795b6823b44462f19386"

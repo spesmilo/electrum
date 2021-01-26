@@ -551,6 +551,7 @@ Builder.load_string('''
         multiline: False
         size_hint: 1, None
         height: '48dp'
+        on_text: Clock.schedule_once(root.on_text)
     SeedLabel:
         text: root.warning
 
@@ -792,10 +793,17 @@ class LineDialog(WizardDialog):
         WizardDialog.__init__(self, wizard, **kwargs)
         self.title = kwargs.get('title', '')
         self.message = kwargs.get('message', '')
-        self.ids.next.disabled = False
+        self.ids.next.disabled = True
+        self.test = kwargs['test']
+
+    def get_text(self):
+        return self.ids.passphrase_input.text
+
+    def on_text(self, dt):
+        self.ids.next.disabled = not self.test(self.get_text())
 
     def get_params(self, b):
-        return (self.ids.passphrase_input.text,)
+        return (self.get_text(),)
 
 class CLButton(ToggleButton):
     def on_release(self):
@@ -835,11 +843,12 @@ class ChoiceLineDialog(WizardChoiceDialog):
 class ShowSeedDialog(WizardDialog):
     seed_text = StringProperty('')
     message = _("If you forget your PIN or lose your device, your seed phrase will be the only way to recover your funds.")
-    ext = False
 
     def __init__(self, wizard, **kwargs):
         super(ShowSeedDialog, self).__init__(wizard, **kwargs)
         self.seed_text = kwargs['seed_text']
+        self.opt_ext = True
+        self.is_ext = False
 
     def on_parent(self, instance, value):
         if value:
@@ -848,12 +857,12 @@ class ShowSeedDialog(WizardDialog):
     def options_dialog(self):
         from .seed_options import SeedOptionsDialog
         def callback(ext, _):
-            self.ext = ext
-        d = SeedOptionsDialog(self.ext, None, callback)
+            self.is_ext = ext
+        d = SeedOptionsDialog(self.opt_ext, False, self.is_ext, False, callback)
         d.open()
 
     def get_params(self, b):
-        return (self.ext,)
+        return (self.is_ext,)
 
 
 class WordButton(Button):
@@ -1099,6 +1108,8 @@ class InstallWizard(BaseWizard, Widget):
     def confirm_seed_dialog(self, **kwargs):
         kwargs['title'] = _('Confirm Seed')
         kwargs['message'] = _('Please retype your seed phrase, to confirm that you properly saved it')
+        kwargs['opt_bip39'] = self.opt_bip39
+        kwargs['opt_ext'] = self.opt_ext
         ConfirmSeedDialog(self, **kwargs).open()
 
     def restore_seed_dialog(self, **kwargs):
@@ -1138,9 +1149,8 @@ class InstallWizard(BaseWizard, Widget):
         Clock.schedule_once(lambda dt: self.app.show_error(msg))
 
     def request_password(self, run_next, force_disable_encrypt_cb=False):
-        if force_disable_encrypt_cb:
-            # do not request PIN for watching-only wallets
-            run_next(None, False)
+        if self.app.password is not None:
+            run_next(self.app.password, True)
             return
         def on_success(old_pw, pw):
             assert old_pw is None
