@@ -86,6 +86,7 @@ SAVED_PR_STATUS = [PR_PAID, PR_UNPAID] # status that are persisted
 
 
 NUM_PEERS_TARGET = 4
+MPP_EXPIRY = 120
 
 
 FALLBACK_NODE_LIST_TESTNET = (
@@ -164,7 +165,8 @@ BASE_FEATURES = LnFeatures(0)\
 LNWALLET_FEATURES = BASE_FEATURES\
     | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ\
     | LnFeatures.OPTION_STATIC_REMOTEKEY_REQ\
-    | LnFeatures.GOSSIP_QUERIES_REQ
+    | LnFeatures.GOSSIP_QUERIES_REQ\
+    | LnFeatures.BASIC_MPP_OPT
 
 LNGOSSIP_FEATURES = BASE_FEATURES\
     | LnFeatures.GOSSIP_QUERIES_OPT\
@@ -581,6 +583,7 @@ class LNWallet(LNWorker):
             self._channels[bfh(channel_id)] = Channel(c, sweep_address=self.sweep_address, lnworker=self)
 
         self.pending_payments = defaultdict(asyncio.Future)  # type: Dict[bytes, asyncio.Future[BarePaymentAttemptLog]]
+        self.pending_htlcs = defaultdict(set) # type: Dict[bytes, set]
 
         self.swap_manager = SwapManager(wallet=self.wallet, lnworker=self)
         # detect inflight payments
@@ -1284,6 +1287,24 @@ class LNWallet(LNWorker):
             self.payments[key] = info.amount_msat, info.direction, info.status
         self.wallet.save_db()
 
+    def htlc_received(self, short_channel_id, htlc, expected_msat):
+        status = self.get_payment_status(htlc.payment_hash)
+        if status == PR_PAID:
+            return True, None
+        s = self.pending_htlcs[htlc.payment_hash]
+        if (short_channel_id, htlc) not in s:
+            s.add((short_channel_id, htlc))
+        total = sum([htlc.amount_msat for scid, htlc in s])
+        first_timestamp = min([htlc.timestamp for scid, htlc in s])
+        expired = time.time() - first_timestamp > MPP_EXPIRY
+        if total >= expected_msat and not expired:
+            # status must be persisted
+            self.payment_received(htlc.payment_hash)
+            return True, None
+        if expired:
+            return None, True
+        return None, None
+
     def get_payment_status(self, payment_hash):
         info = self.get_payment_info(payment_hash)
         return info.status if info else PR_UNPAID
@@ -1359,10 +1380,10 @@ class LNWallet(LNWorker):
             util.trigger_callback('payment_succeeded', self.wallet, key)
         util.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
 
-    def payment_received(self, chan, payment_hash: bytes):
+    def payment_received(self, payment_hash: bytes):
         self.set_payment_status(payment_hash, PR_PAID)
         util.trigger_callback('request_status', self.wallet, payment_hash.hex(), PR_PAID)
-        util.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
+        #util.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
 
     async def _calc_routing_hints_for_invoice(self, amount_msat: Optional[int]):
         """calculate routing hints (BOLT-11 'r' field)"""

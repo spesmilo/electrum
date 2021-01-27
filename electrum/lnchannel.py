@@ -969,10 +969,6 @@ class Channel(AbstractChannel):
             raise Exception("refusing to revoke as remote sig does not fit")
         with self.db_lock:
             self.hm.send_rev()
-        if self.lnworker:
-            received = self.hm.received_in_ctn(new_ctn)
-            for htlc in received:
-                self.lnworker.payment_received(self, htlc.payment_hash)
         last_secret, last_point = self.get_secret_and_point(LOCAL, new_ctn - 1)
         next_secret, next_point = self.get_secret_and_point(LOCAL, new_ctn + 1)
         return RevokeAndAck(last_secret, next_point)
@@ -1054,7 +1050,7 @@ class Channel(AbstractChannel):
             if is_sent:
                 self.lnworker.payment_sent(self, payment_hash)
             else:
-                self.lnworker.payment_received(self, payment_hash)
+                self.lnworker.payment_received(payment_hash)
 
     def balance(self, whose: HTLCOwner, *, ctx_owner=HTLCOwner.LOCAL, ctn: int = None) -> int:
         assert type(whose) is HTLCOwner

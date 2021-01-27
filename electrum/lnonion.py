@@ -498,6 +498,7 @@ class OnionFailureCode(IntEnum):
     CHANNEL_DISABLED =                        UPDATE | 20
     EXPIRY_TOO_FAR =                          21
     INVALID_ONION_PAYLOAD =                   PERM | 22
+    MPP_TIMEOUT =                             23
 
 
 # don't use these elsewhere, the names are ambiguous without context
