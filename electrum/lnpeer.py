@@ -1369,9 +1369,12 @@ class Peer(Logger):
             return None, None, OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=data)
         return next_chan_scid, next_htlc.htlc_id, None
 
-    def maybe_fulfill_htlc(self, *, chan: Channel, htlc: UpdateAddHtlc,
-                           onion_packet: OnionPacket, processed_onion: ProcessedOnionPacket,
-                           ) -> Tuple[Optional[bytes], Optional[OnionRoutingFailureMessage]]:
+    def maybe_fulfill_htlc(
+            self, *,
+            chan: Channel,
+            htlc: UpdateAddHtlc,
+            processed_onion: ProcessedOnionPacket) -> Tuple[Optional[bytes], Optional[OnionRoutingFailureMessage]]:
+
         info = self.lnworker.get_payment_info(htlc.payment_hash)
         if info is None:
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
@@ -1697,7 +1700,6 @@ class Peer(Logger):
                             preimage, error_reason = self.maybe_fulfill_htlc(
                                 chan=chan,
                                 htlc=htlc,
-                                onion_packet=onion_packet,
                                 processed_onion=processed_onion)
                         elif not forwarding_info:
                             next_chan_id, next_htlc_id, error_reason = self.maybe_forward_htlc(
