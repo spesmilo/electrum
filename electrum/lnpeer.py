@@ -133,12 +133,16 @@ class Peer(Logger):
     async def initialize(self):
         if isinstance(self.transport, LNTransport):
             await self.transport.handshake()
-        # FIXME: "flen" hardcoded but actually it depends on "features"...:
-        self.send_message("init", gflen=0, flen=2, features=self.features.for_init_message(),
-                          init_tlvs={
-                              'networks':
-                                  {'chains': constants.net.rev_genesis_bytes()}
-                          })
+        features = self.features.for_init_message()
+        b = int.bit_length(features)
+        flen = b // 8 + int(bool(b % 8))
+        self.send_message(
+            "init", gflen=0, flen=flen,
+            features=features,
+            init_tlvs={
+                'networks':
+                {'chains': constants.net.rev_genesis_bytes()}
+            })
         self._sent_init = True
         self.maybe_set_initialized()
 
