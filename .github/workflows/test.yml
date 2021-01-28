@@ -31,6 +31,8 @@ jobs:
         run: |
           pip install -r contrib/requirements/requirements.txt
           pip install electrumx
+      - name: Flake8 linter tests
+        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
 #      - name: Before RegTest
 #        run: |
 #          electrum/tests/regtest/start_bitcoind.sh
@@ -39,5 +41,3 @@ jobs:
 #        run: python -m unittest electrum/tests/regtest.py
       - name: Unittests
         run: python -m unittest -v electrum/tests/test_*.py
-      - name: Flake8 linter tests
-        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
