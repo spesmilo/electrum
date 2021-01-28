@@ -997,6 +997,7 @@ class Channel(AbstractChannel):
             self.hm.recv_rev()
             self.config[REMOTE].current_per_commitment_point=self.config[REMOTE].next_per_commitment_point
             self.config[REMOTE].next_per_commitment_point=revocation.next_per_commitment_point
+        assert new_ctn == self.get_oldest_unrevoked_ctn(REMOTE)
         # lnworker callbacks
         if self.lnworker:
             sent = self.hm.sent_in_ctn(new_ctn)

@@ -1299,6 +1299,7 @@ class LNWallet(LNWorker):
             self.set_payment_status(bfh(key), status)
 
     async def await_payment(self, payment_hash: bytes) -> BarePaymentAttemptLog:
+        # note side-effect: Future is created and added here (defaultdict):
         payment_attempt = await self.pending_payments[payment_hash]
         self.pending_payments.pop(payment_hash)
         return payment_attempt
