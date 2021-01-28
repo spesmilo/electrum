@@ -14,3 +14,4 @@ jsonrpcclient==3.3.6
 jsonrpcserver==4.1.3
 cryptography==3.0
 sentry-sdk==0.17.6
+PyQt5==5.15.0

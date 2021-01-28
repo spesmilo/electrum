@@ -29,14 +29,15 @@ jobs:
           pip install flake8
       - name: Install dependencies
         run: |
-          pip install -r contrib/requirements/requirements-travis.txt
-          pip install .[tests]
+          pip install -r contrib/requirements/requirements.txt
           pip install electrumx
-      - name: Before RegTest
-        run: |
-          electrum/tests/regtest/start_bitcoind.sh
-          electrum/tests/regtest/start_electrumx.sh
-      - name: Regtest
-        run: python -m unittest electrum/tests/regtest.py
+#      - name: Before RegTest
+#        run: |
+#          electrum/tests/regtest/start_bitcoind.sh
+#          electrum/tests/regtest/start_electrumx.sh
+#      - name: Regtest
+#        run: python -m unittest electrum/tests/regtest.py
+      - name: Unittests
+        run: python -m unittest -v electrum/tests/test_*.py
       - name: Flake8 linter tests
         run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
