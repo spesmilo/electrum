@@ -858,6 +858,7 @@ class Channel(AbstractChannel):
             local_ctn = self.get_latest_ctn(LOCAL)
             remote_ctn = self.get_latest_ctn(REMOTE)
             if onion_packet:
+                # TODO neither local_ctn nor remote_ctn are used anymore... no point storing them.
                 self.hm.log['unfulfilled_htlcs'][htlc.htlc_id] = local_ctn, remote_ctn, onion_packet.hex(), False
 
         self.logger.info("receive_htlc")

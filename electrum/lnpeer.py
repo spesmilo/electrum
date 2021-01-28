@@ -1666,10 +1666,7 @@ class Peer(Logger):
                 done = set()
                 unfulfilled = chan.hm.log.get('unfulfilled_htlcs', {})
                 for htlc_id, (local_ctn, remote_ctn, onion_packet_hex, forwarding_info) in unfulfilled.items():
-                    # FIXME this test is not sufficient:
-                    if chan.get_oldest_unrevoked_ctn(LOCAL) <= local_ctn:
-                        continue
-                    if chan.get_oldest_unrevoked_ctn(REMOTE) <= remote_ctn:
+                    if not chan.hm.is_add_htlc_irrevocably_committed_yet(htlc_proposer=REMOTE, htlc_id=htlc_id):
                         continue
                     chan.logger.info(f'found unfulfilled htlc: {htlc_id}')
                     htlc = chan.hm.get_htlc_by_id(REMOTE, htlc_id)
