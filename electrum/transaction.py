@@ -424,6 +424,8 @@ SCRIPTPUBKEY_TEMPLATE_P2PKH = [opcodes.OP_DUP, opcodes.OP_HASH160,
                                opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG]
 SCRIPTPUBKEY_TEMPLATE_P2SH = [opcodes.OP_HASH160, OPPushDataGeneric(lambda x: x == 20), opcodes.OP_EQUAL]
 SCRIPTPUBKEY_TEMPLATE_WITNESS_V0 = [opcodes.OP_0, OPPushDataGeneric(lambda x: x in (20, 32))]
+SCRIPTPUBKEY_TEMPLATE_P2WPKH = [opcodes.OP_0, OPPushDataGeneric(lambda x: x == 20)]
+SCRIPTPUBKEY_TEMPLATE_P2WSH = [opcodes.OP_0, OPPushDataGeneric(lambda x: x == 32)]
 
 
 def match_script_against_template(script, template) -> bool:
@@ -446,6 +448,26 @@ def match_script_against_template(script, template) -> bool:
         if template_item != script_item[0]:
             return False
     return True
+
+
+def get_script_type_from_output_script(_bytes: bytes) -> Optional[str]:
+    if _bytes is None:
+        return None
+    try:
+        decoded = [x for x in script_GetOp(_bytes)]
+    except MalformedBitcoinScript:
+        return None
+    if match_script_against_template(decoded, SCRIPTPUBKEY_TEMPLATE_P2PKH):
+        return 'p2pkh'
+    if match_script_against_template(decoded, SCRIPTPUBKEY_TEMPLATE_P2SH):
+        return 'p2sh'
+    if match_script_against_template(decoded, SCRIPTPUBKEY_TEMPLATE_P2WPKH):
+        return 'p2wpkh'
+    if match_script_against_template(decoded, SCRIPTPUBKEY_TEMPLATE_P2WSH):
+        return 'p2wsh'
+    return None
+
+
 
 
 def get_address_from_output_script(_bytes: bytes, *, net=None) -> Optional[str]:
@@ -1122,7 +1144,6 @@ class PartialTxInput(TxInput, PSBTSection):
         self.witness_script = None  # type: Optional[bytes]
         self._unknown = {}  # type: Dict[bytes, bytes]
 
-        self.script_type = 'unknown'
         self.num_sig = 0  # type: int  # num req sigs for multisig
         self.pubkeys = []  # type: List[bytes]  # note: order matters
         self._trusted_value_sats = None  # type: Optional[int]
@@ -1330,6 +1351,20 @@ class PartialTxInput(TxInput, PSBTSection):
         if self.witness_utxo:
             return self.witness_utxo.scriptpubkey
         return None
+
+    @property
+    def script_type(self) -> Optional[str]:
+        if self.scriptpubkey is None:
+            return 'unknown'
+        type = get_script_type_from_output_script(self.scriptpubkey)
+        if type:
+            if type in ('p2sh', 'p2wsh'):
+                if self.redeem_script is not None:
+                    inner_type = get_script_type_from_output_script(self.redeem_script)
+                    if inner_type:
+                        type = inner_type + '-' + type
+            return type
+        return 'unknown'
 
     def is_complete(self) -> bool:
         if self.script_sig is not None and self.witness is not None:
