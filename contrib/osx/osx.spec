@@ -72,6 +72,7 @@ datas = [
     (electrum + PYPKG + '/locale', PYPKG + '/locale'),
     (electrum + PYPKG + '/plugins', PYPKG + '/plugins'),
     (electrum + PYPKG + '/gui/icons', PYPKG + '/gui/icons'),
+    (electrum + PYPKG + '/terms_and_conditions/*.html', PYPKG + '/terms_and_conditions'),
 ]
 datas += collect_data_files('btchip')
 datas += collect_data_files('ckcc')

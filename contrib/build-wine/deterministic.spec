@@ -39,6 +39,7 @@ datas = [
     (home+'electrum/locale', 'electrum/locale'),
     (home+'electrum/plugins', 'electrum/plugins'),
     (home+'electrum/gui/icons', 'electrum/gui/icons'),
+    (home+'electrum/terms_and_conditions/*.html', 'electrum/terms_and_conditions'),
 ]
 datas += collect_data_files('btchip')
 datas += collect_data_files('ckcc')
