@@ -193,10 +193,14 @@ class NewWalletImportDialog : NewWalletDialog2() {
                 // Can happen at start or end of list.
             } else if (clsAddress.callAttr("is_valid", word).toBoolean()) {
                 foundAddress = true
-            } else if (libBitcoin.callAttr("is_private_key", word).toBoolean()) {
-                foundPrivkey = true
             } else {
-                throw ToastException(getString(R.string.not_a_valid, word))
+                try {
+                    // Use the same function as the wallet creation process (#2133).
+                    libAddress.get("PublicKey")!!.callAttr("from_WIF_privkey", word)
+                    foundPrivkey = true
+                } catch (e: PyException) {
+                    throw ToastException(getString(R.string.not_a_valid, word))
+                }
             }
         }
 
