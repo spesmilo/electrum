@@ -2759,19 +2759,27 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         txid, ok = QInputDialog.getText(self, _('Lookup transaction'), _('Transaction ID') + ':')
         if ok and txid:
             txid = str(txid).strip()
-            try:
-                raw_tx = self.network.run_from_another_thread(
-                    self.network.get_transaction(txid, timeout=10))
-            except UntrustedServerReturnedError as e:
-                self.logger.info(f"Error getting transaction from network: {repr(e)}")
-                self.show_message(_("Error getting transaction from network") + ":\n" + e.get_message_for_gui())
+            raw_tx = self._fetch_tx_from_network(txid)
+            if not raw_tx:
                 return
-            except Exception as e:
-                self.show_message(_("Error getting transaction from network") + ":\n" + repr(e))
-                return
-            else:
-                tx = transaction.Transaction(raw_tx)
-                self.show_transaction(tx)
+            tx = transaction.Transaction(raw_tx)
+            self.show_transaction(tx)
+
+    def _fetch_tx_from_network(self, txid: str) -> Optional[str]:
+        if not self.network:
+            self.show_message(_("You are offline."))
+            return
+        try:
+            raw_tx = self.network.run_from_another_thread(
+                self.network.get_transaction(txid, timeout=10))
+        except UntrustedServerReturnedError as e:
+            self.logger.info(f"Error getting transaction from network: {repr(e)}")
+            self.show_message(_("Error getting transaction from network") + ":\n" + e.get_message_for_gui())
+            return
+        except Exception as e:
+            self.show_message(_("Error getting transaction from network") + ":\n" + repr(e))
+            return
+        return raw_tx
 
     @protected
     def export_privkeys_dialog(self, password):

@@ -314,6 +314,46 @@ class HTLCManager:
         return False
 
     @with_lock
+    def is_add_htlc_irrevocably_committed_yet(
+            self,
+            *,
+            ctx_owner: HTLCOwner = None,
+            htlc_proposer: HTLCOwner,
+            htlc_id: int,
+    ) -> bool:
+        """Returns whether `add_htlc` was irrevocably committed to `ctx_owner's` ctx.
+        If `ctx_owner` is None, both parties' ctxs are checked.
+        """
+        in_local = self._is_add_htlc_irrevocably_committed_yet(
+            ctx_owner=LOCAL, htlc_proposer=htlc_proposer, htlc_id=htlc_id)
+        in_remote = self._is_add_htlc_irrevocably_committed_yet(
+            ctx_owner=REMOTE, htlc_proposer=htlc_proposer, htlc_id=htlc_id)
+        if ctx_owner is None:
+            return in_local and in_remote
+        elif ctx_owner == LOCAL:
+            return in_local
+        elif ctx_owner == REMOTE:
+            return in_remote
+        else:
+            raise Exception(f"unexpected ctx_owner: {ctx_owner!r}")
+
+    @with_lock
+    def _is_add_htlc_irrevocably_committed_yet(
+            self,
+            *,
+            ctx_owner: HTLCOwner,
+            htlc_proposer: HTLCOwner,
+            htlc_id: int,
+    ) -> bool:
+        htlc_id = int(htlc_id)
+        if htlc_id >= self.get_next_htlc_id(htlc_proposer):
+            return False
+        ctns = self.log[htlc_proposer]['locked_in'][htlc_id]
+        if ctns[ctx_owner] is None:
+            return False
+        return ctns[ctx_owner] <= self.ctn_oldest_unrevoked(ctx_owner)
+
+    @with_lock
     def htlcs_by_direction(self, subject: HTLCOwner, direction: Direction,
                            ctn: int = None) -> Dict[int, UpdateAddHtlc]:
         """Return the dict of received or sent (depending on direction) HTLCs

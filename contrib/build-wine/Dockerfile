@@ -45,10 +45,10 @@ RUN wget -nc https://dl.winehq.org/wine-builds/Release.key && \
     apt-add-repository https://dl.winehq.org/wine-builds/ubuntu/ && \
     apt-get update -q && \
     apt-get install -qy \
-        wine-stable-amd64:amd64=5.0.3~focal \
-        wine-stable-i386:i386=5.0.3~focal \
-        wine-stable:amd64=5.0.3~focal \
-        winehq-stable:amd64=5.0.3~focal \
+        wine-stable-amd64:amd64=6.0.0~focal-1 \
+        wine-stable-i386:i386=6.0.0~focal-1 \
+        wine-stable:amd64=6.0.0~focal-1 \
+        winehq-stable:amd64=6.0.0~focal-1 \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \

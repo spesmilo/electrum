@@ -584,8 +584,11 @@ def is_hash256_str(text: Any) -> bool:
 def is_hex_str(text: Any) -> bool:
     if not isinstance(text, str): return False
     try:
-        bytes.fromhex(text)
+        b = bytes.fromhex(text)
     except:
+        return False
+    # forbid whitespaces in text:
+    if len(text) != 2 * len(b):
         return False
     return True
 

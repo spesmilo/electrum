@@ -148,7 +148,7 @@ class NodesListWidget(QTreeWidget):
                 x = connected_servers_item
             for i in interfaces:
                 star = ' *' if i == network.interface else ''
-                item = QTreeWidgetItem([f"{i.server.net_addr_str()}" + star, '%d'%i.tip])
+                item = QTreeWidgetItem([f"{i.server.to_friendly_name()}" + star, '%d'%i.tip])
                 item.setData(0, self.ITEMTYPE_ROLE, self.ItemType.CONNECTED_SERVER)
                 item.setData(0, self.SERVER_ADDR_ROLE, i.server)
                 item.setToolTip(0, str(i.server))

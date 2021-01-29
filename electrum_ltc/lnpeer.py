@@ -133,12 +133,16 @@ class Peer(Logger):
     async def initialize(self):
         if isinstance(self.transport, LNTransport):
             await self.transport.handshake()
-        # FIXME: "flen" hardcoded but actually it depends on "features"...:
-        self.send_message("init", gflen=0, flen=2, features=self.features.for_init_message(),
-                          init_tlvs={
-                              'networks':
-                                  {'chains': constants.net.rev_genesis_bytes()}
-                          })
+        features = self.features.for_init_message()
+        b = int.bit_length(features)
+        flen = b // 8 + int(bool(b % 8))
+        self.send_message(
+            "init", gflen=0, flen=flen,
+            features=features,
+            init_tlvs={
+                'networks':
+                {'chains': constants.net.rev_genesis_bytes()}
+            })
         self._sent_init = True
         self.maybe_set_initialized()
 
@@ -1365,9 +1369,12 @@ class Peer(Logger):
             return None, None, OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=data)
         return next_chan_scid, next_htlc.htlc_id, None
 
-    def maybe_fulfill_htlc(self, *, chan: Channel, htlc: UpdateAddHtlc,
-                           onion_packet: OnionPacket, processed_onion: ProcessedOnionPacket,
-                           ) -> Tuple[Optional[bytes], Optional[OnionRoutingFailureMessage]]:
+    def maybe_fulfill_htlc(
+            self, *,
+            chan: Channel,
+            htlc: UpdateAddHtlc,
+            processed_onion: ProcessedOnionPacket) -> Tuple[Optional[bytes], Optional[OnionRoutingFailureMessage]]:
+
         info = self.lnworker.get_payment_info(htlc.payment_hash)
         if info is None:
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
@@ -1425,6 +1432,7 @@ class Peer(Logger):
     def fulfill_htlc(self, chan: Channel, htlc_id: int, preimage: bytes):
         self.logger.info(f"_fulfill_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
         assert chan.can_send_ctx_updates(), f"cannot send updates: {chan.short_channel_id}"
+        assert chan.hm.is_add_htlc_irrevocably_committed_yet(htlc_proposer=REMOTE, htlc_id=htlc_id)
         chan.settle_htlc(preimage, htlc_id)
         self.send_message("update_fulfill_htlc",
                           channel_id=chan.channel_id,
@@ -1658,9 +1666,7 @@ class Peer(Logger):
                 done = set()
                 unfulfilled = chan.hm.log.get('unfulfilled_htlcs', {})
                 for htlc_id, (local_ctn, remote_ctn, onion_packet_hex, forwarding_info) in unfulfilled.items():
-                    if chan.get_oldest_unrevoked_ctn(LOCAL) <= local_ctn:
-                        continue
-                    if chan.get_oldest_unrevoked_ctn(REMOTE) <= remote_ctn:
+                    if not chan.hm.is_add_htlc_irrevocably_committed_yet(htlc_proposer=REMOTE, htlc_id=htlc_id):
                         continue
                     chan.logger.info(f'found unfulfilled htlc: {htlc_id}')
                     htlc = chan.hm.get_htlc_by_id(REMOTE, htlc_id)
@@ -1693,7 +1699,6 @@ class Peer(Logger):
                             preimage, error_reason = self.maybe_fulfill_htlc(
                                 chan=chan,
                                 htlc=htlc,
-                                onion_packet=onion_packet,
                                 processed_onion=processed_onion)
                         elif not forwarding_info:
                             next_chan_id, next_htlc_id, error_reason = self.maybe_forward_htlc(

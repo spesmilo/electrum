@@ -917,6 +917,8 @@ class Interface(Logger):
             raise Exception(f"{repr(tx_hash)} is not a txid")
         raw = await self.session.send_request('blockchain.transaction.get', [tx_hash], timeout=timeout)
         # validate response
+        if not is_hex_str(raw):
+            raise RequestCorrupted(f"received garbage (non-hex) as tx data (txid {tx_hash}): {raw!r}")
         tx = Transaction(raw)
         try:
             tx.deserialize()  # see if raises
