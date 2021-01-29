@@ -929,6 +929,7 @@ def from_bip39_seed(seed, passphrase, derivation, xtype=None):
 PURPOSE48_SCRIPT_TYPES = {
     'p2wsh-p2sh': 1,  # specifically multisig
     'p2wsh': 2,       # specifically multisig
+    'p2sh': 3,
 }
 PURPOSE48_SCRIPT_TYPES_INV = inv_dict(PURPOSE48_SCRIPT_TYPES)
 
@@ -1048,8 +1049,10 @@ def purpose48_derivation(account_id: int, xtype: str) -> str:
     return normalize_bip32_derivation(der)
 
 
-def from_seed(seed, passphrase, is_p2sh=False):
-    t = seed_type(seed)
+def from_seed(seed, passphrase, is_p2sh=False, seed_type_=None):
+    t = seed_type_
+    if seed_type_ is None:
+        t = seed_type(seed)
     if t == 'old':
         keystore = Old_KeyStore({})
         keystore.add_seed(seed)
@@ -1057,13 +1060,20 @@ def from_seed(seed, passphrase, is_p2sh=False):
         keystore = BIP32_KeyStore({})
         keystore.add_seed(seed)
         keystore.passphrase = passphrase
-        bip32_seed = Mnemonic.mnemonic_to_seed(seed, passphrase)
+        bip32_seed = bip39_to_seed(seed, passphrase)
         if t == 'standard':
-            der = "m/"
+            if is_p2sh:
+                der = purpose48_derivation(account_id=0, xtype='p2sh')
+            else:
+                der = bip44_derivation(account_id=0, bip43_purpose=44)
             xtype = 'standard'
         else:
-            der = "m/1'/" if is_p2sh else "m/0'/"
-            xtype = 'p2wsh' if is_p2sh else 'p2wpkh'
+            if is_p2sh:
+                xtype = 'p2wsh'
+                der = purpose48_derivation(account_id=0, xtype=xtype)
+            else:
+                der = bip44_derivation(account_id=0, bip43_purpose=84)
+                xtype = 'p2wpkh'
         keystore.add_xprv_from_seed(bip32_seed, xtype, der)
     else:
         raise BitcoinException('Unexpected seed type {}'.format(repr(t)))

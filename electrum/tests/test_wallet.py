@@ -18,6 +18,7 @@ from electrum.wallet_db import WalletDB
 from electrum.simple_config import SimpleConfig
 
 from . import ElectrumTestCase
+from .from_seed_patch import from_seed_patch
 
 
 class FakeSynchronizer(object):
@@ -172,6 +173,7 @@ class TestCreateRestoreWallet(WalletTestCase):
         self.assertEqual(d['seed'], wallet.keystore.get_seed(password))
         self.assertEqual(encrypt_file, wallet.storage.is_encrypted())
 
+    @from_seed_patch
     def test_restore_wallet_from_text_mnemonic(self):
         text = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
         passphrase = 'mypassphrase'

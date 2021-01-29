@@ -162,7 +162,7 @@ class ElectricCashMainnet(BitcoinMainnet):
     DEFAULT_SERVERS = read_json('servers_elcash.json', {})
     CHECKPOINTS = read_json('checkpoints_elcash.json', [])
     BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS = 0
-    BIP44_COIN_TYPE = 440
+    BIP44_COIN_TYPE = 2137
 
 
 class ElectricCashTestnet(BitcoinTestnet):
@@ -174,7 +174,7 @@ class ElectricCashTestnet(BitcoinTestnet):
     DEFAULT_SERVERS = read_json('servers_elcash_testnet.json', {})
     CHECKPOINTS = read_json('checkpoints_elcash_testnet.json', [])
     LN_DNS_SEEDS = []
-    BIP44_COIN_TYPE = 440
+    BIP44_COIN_TYPE = 2137
 
 
 class ElectricCashRegtest(ElectricCashTestnet):

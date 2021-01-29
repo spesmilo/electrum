@@ -1337,6 +1337,7 @@ def add_global_options(parser):
     group.add_argument("--regtest", action="store_true", dest="regtest", default=False, help="Use Electric Cash Regtest")
     group.add_argument("--simnet", action="store_true", dest="simnet", default=False, help="Use Simnet")
     group.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
+    group.add_argument("--dev", action="store_true", dest="developer_mode", default=False, help="Run with developer options")
 
 def add_wallet_option(parser):
     parser.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
