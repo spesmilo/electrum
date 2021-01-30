@@ -133,6 +133,8 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         self.enable_htlc_settle = asyncio.Event()
         self.enable_htlc_settle.set()
         self.pending_htlcs = defaultdict(set)
+        self.pending_sent_htlcs = defaultdict(asyncio.Queue)
+        self.htlc_routes = defaultdict(list)
 
     def get_invoice_status(self, key):
         pass
@@ -169,15 +171,13 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     set_payment_status = LNWallet.set_payment_status
     get_payment_status = LNWallet.get_payment_status
     htlc_received = LNWallet.htlc_received
-    await_payment = LNWallet.await_payment
-    payment_received = LNWallet.payment_received
-    payment_sent = LNWallet.payment_sent
-    payment_failed = LNWallet.payment_failed
+    htlc_fulfilled = LNWallet.htlc_fulfilled
+    htlc_failed = LNWallet.htlc_failed
     save_preimage = LNWallet.save_preimage
     get_preimage = LNWallet.get_preimage
-    _create_route_from_invoice = LNWallet._create_route_from_invoice
+    create_routes_from_invoice = LNWallet.create_routes_from_invoice
     _check_invoice = staticmethod(LNWallet._check_invoice)
-    _pay_to_route = LNWallet._pay_to_route
+    pay_to_route = LNWallet.pay_to_route
     _pay = LNWallet._pay
     force_close_channel = LNWallet.force_close_channel
     try_force_closing = LNWallet.try_force_closing
@@ -490,27 +490,27 @@ class TestPeer(ElectrumTestCase):
             lnaddr1 = lndecode(pay_req1, expected_hrp=constants.net.SEGWIT_HRP)
             # alice sends htlc BUT NOT COMMITMENT_SIGNED
             p1.maybe_send_commitment = lambda x: None
+            route1, amount_msat1 = w1.create_routes_from_invoice(lnaddr2.get_amount_msat(), decoded_invoice=lnaddr2)[0]
             p1.pay(
-                route=w1._create_route_from_invoice(decoded_invoice=lnaddr2),
+                route=route1,
                 chan=alice_channel,
                 amount_msat=lnaddr2.get_amount_msat(),
                 payment_hash=lnaddr2.paymenthash,
                 min_final_cltv_expiry=lnaddr2.get_min_final_cltv_expiry(),
                 payment_secret=lnaddr2.payment_secret,
             )
-            w1.pending_payments[lnaddr2.paymenthash] = asyncio.Future()
             p1.maybe_send_commitment = _maybe_send_commitment1
             # bob sends htlc BUT NOT COMMITMENT_SIGNED
             p2.maybe_send_commitment = lambda x: None
+            route2, amount_msat2 = w2.create_routes_from_invoice(lnaddr1.get_amount_msat(), decoded_invoice=lnaddr1)[0]
             p2.pay(
-                route=w2._create_route_from_invoice(decoded_invoice=lnaddr1),
+                route=route2,
                 chan=bob_channel,
                 amount_msat=lnaddr1.get_amount_msat(),
                 payment_hash=lnaddr1.paymenthash,
                 min_final_cltv_expiry=lnaddr1.get_min_final_cltv_expiry(),
                 payment_secret=lnaddr1.payment_secret,
             )
-            w2.pending_payments[lnaddr1.paymenthash] = asyncio.Future()
             p2.maybe_send_commitment = _maybe_send_commitment2
             # sleep a bit so that they both receive msgs sent so far
             await asyncio.sleep(0.1)
@@ -518,10 +518,10 @@ class TestPeer(ElectrumTestCase):
             p1.maybe_send_commitment(alice_channel)
             p2.maybe_send_commitment(bob_channel)
 
-            payment_attempt1 = await w1.await_payment(lnaddr2.paymenthash)
-            assert payment_attempt1.success
-            payment_attempt2 = await w2.await_payment(lnaddr1.paymenthash)
-            assert payment_attempt2.success
+            htlc_log1 = await w1.pending_sent_htlcs[lnaddr2.paymenthash].get()
+            assert htlc_log1.success
+            htlc_log2 = await w2.pending_sent_htlcs[lnaddr1.paymenthash].get()
+            assert htlc_log2.success
             raise PaymentDone()
 
         async def f():
@@ -594,21 +594,20 @@ class TestPeer(ElectrumTestCase):
             with self.subTest(msg="bad path: edges do not chain together"):
                 path = [PathEdge(node_id=graph.w_c.node_keypair.pubkey, short_channel_id=graph.chan_ab.short_channel_id),
                         PathEdge(node_id=graph.w_d.node_keypair.pubkey, short_channel_id=graph.chan_bd.short_channel_id)]
-                result, log = await graph.w_a._pay(pay_req, full_path=path)
-                self.assertFalse(result)
-                self.assertTrue(isinstance(log[0].exception, LNPathInconsistent))
+                with self.assertRaises(LNPathInconsistent):
+                    await graph.w_a._pay(pay_req, full_path=path)
             with self.subTest(msg="bad path: last node id differs from invoice pubkey"):
                 path = [PathEdge(node_id=graph.w_b.node_keypair.pubkey, short_channel_id=graph.chan_ab.short_channel_id)]
-                result, log = await graph.w_a._pay(pay_req, full_path=path)
-                self.assertFalse(result)
-                self.assertTrue(isinstance(log[0].exception, LNPathInconsistent))
+                with self.assertRaises(LNPathInconsistent):
+                    await graph.w_a._pay(pay_req, full_path=path)
             with self.subTest(msg="good path"):
                 path = [PathEdge(node_id=graph.w_b.node_keypair.pubkey, short_channel_id=graph.chan_ab.short_channel_id),
                         PathEdge(node_id=graph.w_d.node_keypair.pubkey, short_channel_id=graph.chan_bd.short_channel_id)]
                 result, log = await graph.w_a._pay(pay_req, full_path=path)
                 self.assertTrue(result)
-                self.assertEqual([edge.short_channel_id for edge in path],
-                                 [edge.short_channel_id for edge in log[0].route])
+                self.assertEqual(
+                    [edge.short_channel_id for edge in path],
+                    [edge.short_channel_id for edge in log[0].route])
             raise PaymentDone()
         async def f():
             async with TaskGroup() as group:
@@ -630,7 +629,7 @@ class TestPeer(ElectrumTestCase):
         async def pay(pay_req):
             result, log = await graph.w_a._pay(pay_req)
             self.assertFalse(result)
-            self.assertEqual(OnionFailureCode.TEMPORARY_NODE_FAILURE, log[0].failure_details.failure_msg.code)
+            self.assertEqual(OnionFailureCode.TEMPORARY_NODE_FAILURE, log[0].failure_msg.code)
             raise PaymentDone()
         async def f():
             async with TaskGroup() as group:
@@ -658,7 +657,7 @@ class TestPeer(ElectrumTestCase):
             await asyncio.wait_for(p1.initialized, 1)
             await asyncio.wait_for(p2.initialized, 1)
             # alice sends htlc
-            route = w1._create_route_from_invoice(decoded_invoice=lnaddr)
+            route, amount_msat = w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr)[0]
             htlc = p1.pay(route=route,
                           chan=alice_channel,
                           amount_msat=lnaddr.get_amount_msat(),
@@ -752,21 +751,22 @@ class TestPeer(ElectrumTestCase):
         p1, p2, w1, w2, q1, q2 = self.prepare_peers(alice_channel, bob_channel)
         pay_req = run(self.prepare_invoice(w2))
 
-        addr = w1._check_invoice(pay_req)
-        route = w1._create_route_from_invoice(decoded_invoice=addr)
+        lnaddr = w1._check_invoice(pay_req)
+        route, amount_msat = w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr)[0]
+        assert amount_msat == lnaddr.get_amount_msat()
 
         run(w1.force_close_channel(alice_channel.channel_id))
         # check if a tx (commitment transaction) was broadcasted:
         assert q1.qsize() == 1
 
         with self.assertRaises(NoPathFound) as e:
-            w1._create_route_from_invoice(decoded_invoice=addr)
+            w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr)
 
         peer = w1.peers[route[0].node_id]
         # AssertionError is ok since we shouldn't use old routes, and the
         # route finding should fail when channel is closed
         async def f():
-            await asyncio.gather(w1._pay_to_route(route, addr), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+            await asyncio.gather(w1.pay_to_route(route, amount_msat, lnaddr), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         with self.assertRaises(PaymentFailure):
             run(f())
 

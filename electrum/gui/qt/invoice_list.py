@@ -34,7 +34,7 @@ from PyQt5.QtWidgets import QMenu, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QH
 from electrum.i18n import _
 from electrum.util import format_time
 from electrum.invoices import Invoice, PR_UNPAID, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_TYPE_ONCHAIN, PR_TYPE_LN
-from electrum.lnutil import PaymentAttemptLog
+from electrum.lnutil import HtlcLog
 
 from .util import MyTreeView, read_QIcon, MySortModel, pr_icons
 from .util import CloseButton, Buttons
@@ -173,7 +173,7 @@ class InvoiceList(MyTreeView):
         menu.addAction(_("Delete"), lambda: self.parent.delete_invoices([key]))
         menu.exec_(self.viewport().mapToGlobal(position))
 
-    def show_log(self, key, log: Sequence[PaymentAttemptLog]):
+    def show_log(self, key, log: Sequence[HtlcLog]):
         d = WindowModalDialog(self, _("Payment log"))
         d.setMinimumWidth(600)
         vbox = QVBoxLayout(d)

@@ -82,8 +82,8 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         dest_mapping = self.keyname_rows[to]
         dest_mapping[payment_hash] = len(dest_mapping)
 
-    ln_payment_completed = QtCore.pyqtSignal(str, bytes, bytes)
-    ln_payment_failed = QtCore.pyqtSignal(str, bytes, bytes)
+    htlc_fulfilled = QtCore.pyqtSignal(str, bytes, bytes)
+    htlc_failed = QtCore.pyqtSignal(str, bytes, bytes)
     htlc_added = QtCore.pyqtSignal(str, Channel, UpdateAddHtlc, Direction)
     state_changed = QtCore.pyqtSignal(str, Abstract_Wallet, AbstractChannel)
 
@@ -95,7 +95,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
             self.update()
 
     @QtCore.pyqtSlot(str, Channel, UpdateAddHtlc, Direction)
-    def do_htlc_added(self, evtname, chan, htlc, direction):
+    def on_htlc_added(self, evtname, chan, htlc, direction):
         if chan != self.chan:
             return
         mapping = self.keyname_rows['inflight']
@@ -103,14 +103,14 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         self.folders['inflight'].appendRow(self.make_htlc_item(htlc, direction))
 
     @QtCore.pyqtSlot(str, bytes, bytes)
-    def do_ln_payment_completed(self, evtname, payment_hash, chan_id):
+    def on_htlc_fulfilled(self, evtname, payment_hash, chan_id):
         if chan_id != self.chan.channel_id:
             return
         self.move('inflight', 'settled', payment_hash)
         self.update()
 
     @QtCore.pyqtSlot(str, bytes, bytes)
-    def do_ln_payment_failed(self, evtname, payment_hash, chan_id):
+    def on_htlc_failed(self, evtname, payment_hash, chan_id):
         if chan_id != self.chan.channel_id:
             return
         self.move('inflight', 'failed', payment_hash)
@@ -137,14 +137,14 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         self.format_msat = lambda msat: window.format_amount_and_units(msat / 1000)
 
         # connect signals with slots
-        self.ln_payment_completed.connect(self.do_ln_payment_completed)
-        self.ln_payment_failed.connect(self.do_ln_payment_failed)
+        self.htlc_fulfilled.connect(self.on_htlc_fulfilled)
+        self.htlc_failed.connect(self.on_htlc_failed_failed)
         self.state_changed.connect(self.do_state_changed)
-        self.htlc_added.connect(self.do_htlc_added)
+        self.htlc_added.connect(self.on_htlc_added)
 
         # register callbacks for updating
-        util.register_callback(self.ln_payment_completed.emit, ['ln_payment_completed'])
-        util.register_callback(self.ln_payment_failed.emit, ['ln_payment_failed'])
+        util.register_callback(self.htlc_fulfilled.emit, ['htlc_fulfilled'])
+        util.register_callback(self.htlc_failed.emit, ['htlc_failed'])
         util.register_callback(self.htlc_added.emit, ['htlc_added'])
         util.register_callback(self.state_changed.emit, ['channel'])
 
