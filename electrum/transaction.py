@@ -449,7 +449,6 @@ def match_script_against_template(script, template) -> bool:
             return False
     return True
 
-
 def get_script_type_from_output_script(_bytes: bytes) -> Optional[str]:
     if _bytes is None:
         return None
@@ -466,9 +465,6 @@ def get_script_type_from_output_script(_bytes: bytes) -> Optional[str]:
     if match_script_against_template(decoded, SCRIPTPUBKEY_TEMPLATE_P2WSH):
         return 'p2wsh'
     return None
-
-
-
 
 def get_address_from_output_script(_bytes: bytes, *, net=None) -> Optional[str]:
     try:
@@ -1144,6 +1140,7 @@ class PartialTxInput(TxInput, PSBTSection):
         self.witness_script = None  # type: Optional[bytes]
         self._unknown = {}  # type: Dict[bytes, bytes]
 
+        self.script_type = 'unknown'
         self.num_sig = 0  # type: int  # num req sigs for multisig
         self.pubkeys = []  # type: List[bytes]  # note: order matters
         self._trusted_value_sats = None  # type: Optional[int]
@@ -1352,19 +1349,18 @@ class PartialTxInput(TxInput, PSBTSection):
             return self.witness_utxo.scriptpubkey
         return None
 
-    @property
-    def script_type(self) -> Optional[str]:
+    def set_script_type(self) -> None:
         if self.scriptpubkey is None:
-            return 'unknown'
+            return
         type = get_script_type_from_output_script(self.scriptpubkey)
-        if type:
+        if type is not None:
             if type in ('p2sh', 'p2wsh'):
                 if self.redeem_script is not None:
                     inner_type = get_script_type_from_output_script(self.redeem_script)
-                    if inner_type:
+                    if inner_type is not None:
                         type = inner_type + '-' + type
-            return type
-        return 'unknown'
+            self.script_type = type
+        return
 
     def is_complete(self) -> bool:
         if self.script_sig is not None and self.witness is not None:
@@ -2035,6 +2031,14 @@ class PartialTransaction(Transaction):
         assert not self.is_complete()
         self.invalidate_ser_cache()
 
+    def update_txin_script_type(self):
+        """Determine the script_type of each input by analyzing the scripts.
+        It updates all tx-Inputs, NOT only the wallet owned, if the
+        scriptpubkey is present.
+        """
+        for txin in self.inputs():
+            if txin.script_type in ('unknown', 'address'):
+                txin.set_script_type()
 
 def pack_bip32_root_fingerprint_and_int_path(xfp: bytes, path: Sequence[int]) -> bytes:
     if len(xfp) != 4:
