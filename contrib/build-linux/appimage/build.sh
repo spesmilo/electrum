@@ -97,7 +97,7 @@ info "installing pip."
 break_legacy_easy_install
 
 
-info "preparing electrum-grs-locale."
+info "preparing electrum-locale."
 (
     cd "$PROJECT_ROOT"
     git submodule update --init
