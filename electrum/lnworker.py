@@ -57,7 +57,7 @@ from .lnutil import (Outpoint, LNPeerAddr,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH, SENT, RECEIVED, HTLCOwner,
                      UpdateAddHtlc, Direction, LnFeatures,
                      ShortChannelID, PaymentAttemptLog, PaymentAttemptFailureDetails,
-                     BarePaymentAttemptLog, derive_payment_secret_from_payment_preimage)
+                     HtlcLog, derive_payment_secret_from_payment_preimage)
 from .lnutil import ln_dummy_address, ln_compare_features, IncompatibleLightningFeatures
 from .transaction import PartialTxOutput, PartialTransaction, PartialTxInput
 from .lnonion import OnionFailureCode, process_onion_packet, OnionPacket, OnionRoutingFailureMessage
@@ -583,7 +583,10 @@ class LNWallet(LNWorker):
             self._channels[bfh(channel_id)] = Channel(c, sweep_address=self.sweep_address, lnworker=self)
 
         self.pending_payments = defaultdict(asyncio.Future)  # type: Dict[bytes, asyncio.Future[BarePaymentAttemptLog]]
+        self.pending_sent_htlcs = defaultdict(asyncio.Queue)  # type: Dict[bytes, asyncio.Future[BarePaymentAttemptLog]]
+
         self.pending_htlcs = defaultdict(set) # type: Dict[bytes, set]
+        self.htlc_routes = defaultdict(list)
 
         self.swap_manager = SwapManager(wallet=self.wallet, lnworker=self)
 
@@ -941,13 +944,11 @@ class LNWallet(LNWorker):
 
     @log_exceptions
     async def _pay(
-            self,
-            invoice: str,
-            *,
+            self, invoice: str, *,
             amount_msat: int = None,
             attempts: int = 1,
-            full_path: LNPaymentPath = None,
-    ) -> Tuple[bool, List[PaymentAttemptLog]]:
+            full_path: LNPaymentPath = None) -> Tuple[bool, List[PaymentAttemptLog]]:
+
         lnaddr = self._check_invoice(invoice, amount_msat=amount_msat)
         payment_hash = lnaddr.paymenthash
         key = payment_hash.hex()
@@ -963,57 +964,54 @@ class LNWallet(LNWorker):
         self.logs[key] = log = []
         success = False
         reason = ''
-        for i in range(attempts):
-            try:
+
+        # initially, try with less htlcs
+        amount_to_pay = lnaddr.get_amount_msat()
+        amount_sent = 0      # what we sent in htlcs
+        amount_received = 0  # what the recipient received
+
+        self.set_invoice_status(key, PR_INFLIGHT)
+        util.trigger_callback('invoice_status', self.wallet, key)
+
+        while True:
+            amount_to_send = amount_to_pay - amount_sent
+            if amount_to_send > 0:
+                # 1. create a set of routes for remaining amount
                 # note: path-finding runs in a separate thread so that we don't block the asyncio loop
                 # graph updates might occur during the computation
-                self.set_invoice_status(key, PR_ROUTING)
-                util.trigger_callback('invoice_status', self.wallet, key)
-                route = await run_in_thread(partial(self._create_route_from_invoice, lnaddr, full_path=full_path))
-                self.set_invoice_status(key, PR_INFLIGHT)
-                util.trigger_callback('invoice_status', self.wallet, key)
-                payment_attempt_log = await self._pay_to_route(route, lnaddr)
-            except Exception as e:
-                log.append(PaymentAttemptLog(success=False, exception=e))
-                self.set_invoice_status(key, PR_UNPAID)
-                reason = str(e)
-                break
-            log.append(payment_attempt_log)
-            success = payment_attempt_log.success
-            if success:
-                break
-        else:
-            reason = _('Failed after {} attempts').format(attempts)
-        util.trigger_callback('invoice_status', self.wallet, key)
-        if success:
-            util.trigger_callback('payment_succeeded', self.wallet, key)
-        else:
-            util.trigger_callback('payment_failed', self.wallet, key, reason)
-        return success, log
-
-    async def _pay_to_route(self, route: LNPaymentRoute, lnaddr: LnAddr) -> PaymentAttemptLog:
-        short_channel_id = route[0].short_channel_id
-        chan = self.get_channel_by_short_id(short_channel_id)
-        peer = self._peers.get(route[0].node_id)
-        if not peer:
-            raise Exception('Dropped peer')
-        await peer.initialized
-        htlc = peer.pay(
-            route=route,
-            chan=chan,
-            amount_msat=lnaddr.get_amount_msat(),
-            payment_hash=lnaddr.paymenthash,
-            min_final_cltv_expiry=lnaddr.get_min_final_cltv_expiry(),
-            payment_secret=lnaddr.payment_secret)
-        util.trigger_callback('htlc_added', chan, htlc, SENT)
-        payment_attempt = await self.await_payment(lnaddr.paymenthash)
-        if payment_attempt.success:
-            failure_log = None
-        else:
-            if payment_attempt.error_bytes:
-                # TODO "decode_onion_error" might raise, catch and maybe blacklist/penalise someone?
-                failure_msg, sender_idx = chan.decode_onion_error(payment_attempt.error_bytes, route, htlc.htlc_id)
-                is_blacklisted = self.handle_error_code_from_failed_htlc(failure_msg, sender_idx, route, peer)
+                try:
+                    routes = await run_in_thread(partial(self.create_routes_from_invoice, amount_to_send, lnaddr, full_path=full_path))
+                except Exception as e:
+                    log.append(PaymentAttemptLog(success=False, exception=e))
+                    reason = str(e)
+                    break
+                # 2. send htlcs
+                for route, amount_msat in routes:
+                    await self.pay_to_route(route, amount_msat, lnaddr)
+                    amount_sent += amount_msat
+            # 3. await a queue
+            htlc_log = await self.pending_sent_htlcs[payment_hash].get()
+            log.append(htlc_log)
+            if htlc_log.success:
+                amount_received += htlc_log.amount_msat
+                if amount_received >= amount_to_pay:
+                    success = True
+                    break
+                else:
+                    continue
+            # failure
+            # if we get a tmp failure, it might work to split the amount and try more routes
+            # if we get a channel update, we might retry the same route and amount
+            # we also need a criterion for giving up
+            if htlc_log.sender_idx:
+                route = htlc_log.route
+                sender_idx = htlc_log.sender_idx
+                failure_msg = htlc_log.failure_msg
+                code, data = failure_msg.code, failure_msg.data
+                self.logger.info(f"UPDATE_FAIL_HTLC {repr(code)} {data}")
+                self.logger.info(f"error reported by {bh2u(route[sender_idx].node_id)}")
+                # apply channel update here
+                is_blacklisted = self.handle_error_code_from_failed_htlc(failure_message, sender_idx, route)
                 if is_blacklisted:
                     # blacklist channel after reporter node
                     # TODO this should depend on the error (even more granularity)
@@ -1022,27 +1020,70 @@ class LNWallet(LNWorker):
                         short_chan_id = route[sender_idx + 1].short_channel_id
                     except IndexError:
                         self.logger.info("payment destination reported error")
+                        short_chan_id = None
                     else:
                         self.logger.info(f'blacklisting channel {short_chan_id}')
                         self.network.channel_blacklist.add(short_chan_id)
+    
+                if code == OnionFailureCode.MPP_TIMEOUT:
+                    # we will need to await all the htlcs
+                    mpp_timeout = True
+                    break
+                elif code == OnionFailureCode.TEMPORARY_CHANNEL_FAILURE:
+                    # add a max to the channel capacity
+                    short_channel_id = htlc_log.short_channel_id
+                    self.temp_channel_failures[short_chan_id] = payment_attempt.amount_msat
+                else:
+                    # giving up
+                    break
+
             else:
                 # probably got "update_fail_malformed_htlc". well... who to penalise now?
-                assert payment_attempt.failure_message is not None
-                sender_idx = None
-                failure_msg = payment_attempt.failure_message
-                is_blacklisted = False
-            failure_log = PaymentAttemptFailureDetails(sender_idx=sender_idx,
-                                                       failure_msg=failure_msg,
-                                                       is_blacklisted=is_blacklisted)
-        return PaymentAttemptLog(route=route,
-                                 success=payment_attempt.success,
-                                 preimage=payment_attempt.preimage,
-                                 failure_details=failure_log)
+                break
 
-    def handle_error_code_from_failed_htlc(self, failure_msg, sender_idx, route, peer):
+            #failure_log = PaymentAttemptFailureDetails(
+            #    sender_idx=sender_idx,
+            #    failure_msg=failure_msg,
+            #    is_blacklisted=False)
+            #payment_attempt_log = PaymentAttemptLog(
+            #    success=payment_attempt.success,
+            #    preimage=payment_attempt.preimage,
+            #    failure_details=failure_log)
+            #log.append(payment_attempt_log)
+
+        if success:
+            #self.payment_sent(payment_hash)
+            self.set_invoice_status(key, PR_PAID)
+            util.trigger_callback('payment_succeeded', self.wallet, key)
+        else:
+            #self.payment_failed(payment_hash)
+            self.set_invoice_status(key, PR_UNPAID)
+            util.trigger_callback('payment_failed', self.wallet, key, reason)
+        util.trigger_callback('invoice_status', self.wallet, key)
+        return success, log
+
+    async def pay_to_route(self, route: LNPaymentRoute, amount_msat:int, lnaddr: LnAddr) -> PaymentAttemptLog:
+        # send a single htlc
+        short_channel_id = route[0].short_channel_id
+        chan = self.get_channel_by_short_id(short_channel_id)
+        peer = self._peers.get(route[0].node_id)
+        payment_hash = lnaddr.paymenthash
+        if not peer:
+            raise Exception('Dropped peer')
+        await peer.initialized
+        htlc = peer.pay(
+            route=route,
+            chan=chan,
+            amount_msat=amount_msat,
+            payment_hash=payment_hash,
+            min_final_cltv_expiry=lnaddr.get_min_final_cltv_expiry(),
+            payment_secret=lnaddr.payment_secret)
+        
+        self.htlc_routes[(payment_hash, short_channel_id, htlc.htlc_id)] = route
+        util.trigger_callback('htlc_added', chan, htlc, SENT)
+
+    def handle_error_code_from_failed_htlc(self, failure_msg, sender_idx, route):
         code, data = failure_msg.code, failure_msg.data
-        self.logger.info(f"UPDATE_FAIL_HTLC {repr(code)} {data}")
-        self.logger.info(f"error reported by {bh2u(route[sender_idx].node_id)}")
         # handle some specific error codes
         failure_codes = {
             OnionFailureCode.TEMPORARY_CHANNEL_FAILURE: 0,
@@ -1065,7 +1106,7 @@ class LNWallet(LNWorker):
             short_channel_id = ShortChannelID(payload['short_channel_id'])
             if r == UpdateStatus.GOOD:
                 self.logger.info(f"applied channel update to {short_channel_id}")
-                peer.maybe_save_remote_update(payload)
+                #peer.maybe_save_remote_update(payload)  FIXME
             elif r == UpdateStatus.ORPHANED:
                 # maybe it is a private channel (and data in invoice was outdated)
                 self.logger.info(f"Could not find {short_channel_id}. maybe update is for private channel?")
@@ -1121,9 +1162,12 @@ class LNWallet(LNWorker):
         return addr
 
     @profiler
-    def _create_route_from_invoice(self, decoded_invoice: 'LnAddr',
-                                   *, full_path: LNPaymentPath = None) -> LNPaymentRoute:
-        amount_msat = decoded_invoice.get_amount_msat()
+    def create_routes_from_invoice(
+            self,
+            amount_msat:int,
+            decoded_invoice: 'LnAddr', 
+            *, full_path: LNPaymentPath = None) -> LNPaymentRoute:
+        # TODO: MPP: return multiples routes if we know that a single one will not work
         invoice_pubkey = decoded_invoice.pubkey.serialize()
         # use 'r' field from invoice
         route = None  # type: Optional[LNPaymentRoute]
@@ -1209,7 +1253,8 @@ class LNWallet(LNWorker):
         # add features from invoice
         invoice_features = decoded_invoice.get_tag('9') or 0
         route[-1].node_features |= invoice_features
-        return route
+        # return a list of routes
+        return [(route, amount_msat)]
 
     def add_request(self, amount_sat, message, expiry) -> str:
         coro = self._add_request_coro(amount_sat, message, expiry)
@@ -1320,11 +1365,11 @@ class LNWallet(LNWorker):
         if status in SAVED_PR_STATUS:
             self.set_payment_status(bfh(key), status)
 
-    async def await_payment(self, payment_hash: bytes) -> BarePaymentAttemptLog:
-        # note side-effect: Future is created and added here (defaultdict):
-        payment_attempt = await self.pending_payments[payment_hash]
-        self.pending_payments.pop(payment_hash)
-        return payment_attempt
+    #async def await_payment(self, payment_hash: bytes) -> PaymentAttemptLog:
+    #    # note side-effect: Future is created and added here (defaultdict):
+    #    payment_attempt = await self.pending_payments[payment_hash]
+    #    self.pending_payments.pop(payment_hash)
+    #    return payment_attempt
 
     def set_payment_status(self, payment_hash: bytes, status):
         info = self.get_payment_info(payment_hash)
@@ -1334,17 +1379,55 @@ class LNWallet(LNWorker):
         info = info._replace(status=status)
         self.save_payment_info(info)
 
+    def htlc_fulfilled(self, chan, payment_hash: bytes, amount_msat:int):
+        htlc_log = HtlcLog(
+            success=True,
+            amount_msat=amount_msat)
+        q = self.pending_sent_htlcs[payment_hash]
+        q.put_nowait(htlc_log)
+        util.trigger_callback('htlc_fulfilled', payment_hash, chan.channel_id)
+
+    def htlc_failed(
+            self,
+            chan,
+            payment_hash: bytes,
+            htlc_id: int,
+            amount_msat:int,
+            error_bytes: Optional[bytes],
+            failure_message: Optional['OnionRoutingFailureMessage']):
+
+        route = self.htlc_routes.get((payment_hash, chan.short_channel_id, htlc_id))
+        if error_bytes and route:
+            self.logger.info(f" {(error_bytes, route, htlc_id)}")
+            # TODO "decode_onion_error" might raise, catch and maybe blacklist/penalise someone?
+            failure_message, sender_idx = chan.decode_onion_error(error_bytes, route, htlc_id)
+        else:
+            # probably got "update_fail_malformed_htlc". well... who to penalise now?
+            assert failure_message is not None
+            sender_idx = None
+
+        htlc_log = HtlcLog(
+            success=False,
+            route=route,
+            amount_msat=amount_msat,
+            error_bytes=error_bytes,
+            failure_msg=failure_message,
+            sender_idx=sender_idx)
+
+        q = self.pending_sent_htlcs[payment_hash]
+        q.put_nowait(htlc_log)
+        util.trigger_callback('htlc_failed', payment_hash, chan.channel_id)
+
     def payment_failed(
             self,
-            chan: Channel,
             payment_hash: bytes,
             error_bytes: Optional[bytes],
-            failure_message: Optional['OnionRoutingFailureMessage'],
-    ):
+            failure_message: Optional['OnionRoutingFailureMessage']):
+
         self.set_payment_status(payment_hash, PR_UNPAID)
         f = self.pending_payments.get(payment_hash)
         if f and not f.cancelled():
-            payment_attempt = BarePaymentAttemptLog(
+            payment_attempt = PaymentAttemptLog(
                 success=False,
                 error_bytes=error_bytes,
                 failure_message=failure_message)
@@ -1354,14 +1437,13 @@ class LNWallet(LNWorker):
             key = payment_hash.hex()
             util.trigger_callback('invoice_status', self.wallet, key)
             util.trigger_callback('payment_failed', self.wallet, key, '')
-        util.trigger_callback('ln_payment_failed', payment_hash, chan.channel_id)
 
-    def payment_sent(self, chan, payment_hash: bytes):
+    def payment_sent(self, payment_hash: bytes):
         self.set_payment_status(payment_hash, PR_PAID)
         preimage = self.get_preimage(payment_hash)
-        f = self.pending_payments.get(payment_hash)
+        f = self.pending_payments[payment_hash]
         if f and not f.cancelled():
-            payment_attempt = BarePaymentAttemptLog(
+            payment_attempt = PaymentAttemptLog(
                 success=True,
                 preimage=preimage)
             f.set_result(payment_attempt)
@@ -1370,7 +1452,6 @@ class LNWallet(LNWorker):
             key = payment_hash.hex()
             util.trigger_callback('invoice_status', self.wallet, key)
             util.trigger_callback('payment_succeeded', self.wallet, key)
-        util.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
 
     def payment_received(self, payment_hash: bytes):
         self.set_payment_status(payment_hash, PR_PAID)
