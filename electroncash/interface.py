@@ -35,6 +35,8 @@ import traceback
 from typing import Optional, Tuple
 from collections import namedtuple
 
+from pathvalidate import sanitize_filename
+
 from .util import print_error
 from .utils import Event
 
@@ -168,7 +170,7 @@ class TcpConnection(threading.Thread, util.PrintError):
             # Try with CA first, since they are preferred over self-signed certs
             # and are always accepted (even if a previous pinned self-signed
             # cert exists).
-            cert_path = os.path.join(self.config_path, 'certs', self.host)
+            cert_path = os.path.join(self.config_path, 'certs', sanitize_filename(self.host, replacement_text='_'))
             has_pinned_self_signed = os.path.exists(cert_path)
             s, give_up = self._get_socket_and_verify_ca_cert(suppress_errors=has_pinned_self_signed)
             if s:
