@@ -73,7 +73,7 @@ ${genisoimage} \
     -D \
     -l \
     -probe \
-    -V "Electrum Cash" \
+    -V "Elcash Wallet" \
     -no-pad \
     -r \
     -dir-mode 0755 \

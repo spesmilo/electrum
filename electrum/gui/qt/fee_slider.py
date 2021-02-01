@@ -12,7 +12,7 @@ class FeeComboBox(QComboBox):
         QComboBox.__init__(self)
         self.config = fee_slider.config
         self.fee_slider = fee_slider
-        self.addItems([_('Static'), _('ETA'), _('Mempool')])
+        self.addItems([_('Static')])
         self.setCurrentIndex((2 if self.config.use_mempool_fees() else 1) if self.config.is_dynfee() else 0)
         self.currentIndexChanged.connect(self.on_fee_type)
         self.help_msg = '\n'.join([

@@ -77,7 +77,7 @@ base_units = {'ELCASH': 8, 'mELCASH': 5, 'bits': 2, 'sat': 0}
 base_units_inverse = inv_dict(base_units)
 base_units_list = ['ELCASH', 'mELCASH', 'bits', 'sat']  # list(dict) does not guarantee order
 
-DECIMAL_POINT_DEFAULT = 5  # mELCASH
+DECIMAL_POINT_DEFAULT = 8  # ELCASH
 
 
 class UnknownBaseUnit(Exception): pass
@@ -554,9 +554,9 @@ def user_dir():
     elif os.name == 'posix':
         return os.path.join(os.environ["HOME"], ".electrum-cash")
     elif "APPDATA" in os.environ:
-        return os.path.join(os.environ["APPDATA"], "Electrum Cash")
+        return os.path.join(os.environ["APPDATA"], "Elcash Wallet")
     elif "LOCALAPPDATA" in os.environ:
-        return os.path.join(os.environ["LOCALAPPDATA"], "Electrum Cash")
+        return os.path.join(os.environ["LOCALAPPDATA"], "Elcash Wallet")
     else:
         #raise Exception("No home directory found in environment variables.")
         return
@@ -739,11 +739,14 @@ def time_difference(distance_in_time, include_seconds):
         return "over %d years" % (round(distance_in_minutes / 525600))
 
 mainnet_block_explorers = {
-    'ElectricCash block explorer': ('https://explorer.electriccash.global/',
+    'Electric Cash block explorer': ('https://explorer.electriccash.global/',
                          {'tx': 'tx/', 'addr': 'address/'}),
 }
 
-testnet_block_explorers = {}
+testnet_block_explorers = {
+    'Electric Cash Testnet block explorer': ('https://explorer.testnet.ec.stage.rnd.land/',
+                         {'tx': 'tx/', 'addr': 'address/'}),
+}
 
 def block_explorer_info():
     from . import constants

@@ -57,12 +57,13 @@ class PayToLineError(NamedTuple):
     idx: int = 0  # index of line
     is_multiline: bool = False
 
-
-class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
+        #todo uncomment when QR Read will be work fine
+#class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
+class PayToEdit(CompletionTextEdit, Logger):
 
     def __init__(self, win: 'ElectrumWindow'):
         CompletionTextEdit.__init__(self)
-        ScanQRTextEdit.__init__(self, config=win.config)
+#        ScanQRTextEdit.__init__(self, config=win.config)
         Logger.__init__(self)
         self.win = win
         self.amount_edit = win.amount_e

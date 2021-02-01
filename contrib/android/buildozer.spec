@@ -1,7 +1,7 @@
 [app]
 
 # (str) Title of your application
-title = Electrum Cash
+title = Elcash Wallet
 
 # (str) Package name
 package.name = Electrum

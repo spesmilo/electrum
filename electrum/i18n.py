@@ -39,6 +39,8 @@ def _(x):
 
 
 def set_language(x):
+    # todo remove it when all translations will be available
+    x = 'en_UK'
     global language
     if x:
         language = gettext.translation('electrum', LOCALE_DIR, fallback=True, languages=[x])
@@ -46,39 +48,16 @@ def set_language(x):
 
 languages = {
     '': _('Default'),
-    'ar_SA': _('Arabic'),
-    'bg_BG': _('Bulgarian'),
-    'cs_CZ': _('Czech'),
-    'da_DK': _('Danish'),
-    'de_DE': _('German'),
-    'el_GR': _('Greek'),
-    'eo_UY': _('Esperanto'),
     'en_UK': _('English'),
-    'es_ES': _('Spanish'),
-    'fa_IR': _('Persian'),
-    'fr_FR': _('French'),
-    'hu_HU': _('Hungarian'),
-    'hy_AM': _('Armenian'),
-    'id_ID': _('Indonesian'),
-    'it_IT': _('Italian'),
-    'ja_JP': _('Japanese'),
-    'ky_KG': _('Kyrgyz'),
-    'lv_LV': _('Latvian'),
-    'nb_NO': _('Norwegian Bokmal'),
-    'nl_NL': _('Dutch'),
-    'pl_PL': _('Polish'),
-    'pt_BR': _('Brasilian'),
-    'pt_PT': _('Portuguese'),
-    'ro_RO': _('Romanian'),
-    'ru_RU': _('Russian'),
-    'sk_SK': _('Slovak'),
-    'sl_SI': _('Slovenian'),
-    'sv_SE': _('Swedish'),
-    'ta_IN': _('Tamil'),
-    'th_TH': _('Thai'),
-    'tr_TR': _('Turkish'),
-    'uk_UA': _('Ukrainian'),
-    'vi_VN': _('Vietnamese'),
-    'zh_CN': _('Chinese Simplified'),
-    'zh_TW': _('Chinese Traditional')
+    # todo uncomment supported languages
+#    'ar_SA': _('Arabic'),
+#    'de_DE': _('German'),
+#    'es_ES': _('Spanish'),
+#    'ja_JP': _('Japanese'),
+#    'ko_KR': _('Korean'),
+#    'pt_PT': _('Portuguese'),
+#    'tr_TR': _('Turkish'),
+#    'vi_VN': _('Vietnamese'),
+#    'zh_CN': _('Chinese Simplified'),
+
 }

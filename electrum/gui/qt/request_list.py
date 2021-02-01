@@ -156,7 +156,7 @@ class RequestList(MyTreeView):
             else:
                 assert isinstance(req, OnchainInvoice)
                 key = req.get_address()
-                icon = read_QIcon("bitcoin.png")
+                icon = read_QIcon("electrum.png")
                 tooltip = 'onchain request'
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)

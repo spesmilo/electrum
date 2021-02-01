@@ -15,20 +15,6 @@ fi
 
 git submodule update --init
 
-(
-    rm -rf "$LOCALE"
-    cd "$CONTRIB/deterministic-build/electrum-locale/"
-    if ! which msgfmt > /dev/null 2>&1; then
-        echo "Please install gettext"
-        exit 1
-    fi
-    for i in ./locale/*; do
-        dir="$ROOT_FOLDER"/electrum/$i/LC_MESSAGES
-        mkdir -p $dir
-        msgfmt --output-file=$dir/electrum.mo $i/electrum.po || true
-        cp $i/electrum.po "$ROOT_FOLDER"/electrum/$i/electrum.po
-    done
-)
 
 (
     cd "$ROOT_FOLDER"

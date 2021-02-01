@@ -13,10 +13,11 @@ class ShowQRTextEdit(ButtonsTextEdit):
         ButtonsTextEdit.__init__(self, text)
         self.config = config
         self.setReadOnly(True)
-        icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
-        self.addButton(icon, self.qr_show, _("Show as QR code"))
-
-        run_hook('show_text_edit', self)
+#todo uncomment when QR Read gonna be fixed
+#        icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
+#        self.addButton(icon, self.qr_show, _("Show as QR code"))
+#
+#        run_hook('show_text_edit', self)
 
     def qr_show(self):
         from .qrcodewidget import QRDialog
@@ -43,10 +44,11 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
         self.allow_multi = allow_multi
         self.config = config
         self.setReadOnly(False)
-        self.addButton("file.png", self.file_input, _("Read file"))
-        icon = "camera_white.png" if ColorScheme.dark_scheme else "camera_dark.png"
-        self.addButton(icon, self.qr_input, _("Read QR code"))
-        run_hook('scan_text_edit', self)
+        #todo uncomment when ReadFile handle only text extension and QR Read gonna be fixed
+#        self.addButton("file.png", self.file_input, _("Read file"))
+#        icon = "camera_white.png" if ColorScheme.dark_scheme else "camera_dark.png"
+#        self.addButton(icon, self.qr_input, _("Read QR code"))
+#        run_hook('scan_text_edit', self)
 
     def file_input(self):
         fileName = getOpenFileName(

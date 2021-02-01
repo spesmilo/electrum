@@ -1,4 +1,4 @@
-Electrum Cash - Lightweight Electric Cash client
+Elcash Wallet - Lightweight Electric Cash client
 ================================================
 
 ::
@@ -11,11 +11,11 @@ Electrum Cash - Lightweight Electric Cash client
 Getting started
 ===============
 
-(*If you've come here looking to simply run Electrum Cash,* `you may download it here`_.)
+(*If you've come here looking to simply run Elcash Wallet,* `you may download it here`_.)
 
 .. _you may download it here: https://electriccash.global/#download
 
-Electrum Cash itself is pure Python, and so are most of the required dependencies,
+Elcash Wallet itself is pure Python, and so are most of the required dependencies,
 but not everything. The following sections describe how to run from source, but here
 is a TL;DR::
 
@@ -55,20 +55,20 @@ Running from tar.gz
 -------------------
 
 If you downloaded the official package (tar.gz), you can run
-Electrum Cash from its root directory without installing it on your
+Elcash Wallet from its root directory without installing it on your
 system; all the pure python dependencies are included in the 'packages'
-directory. To run Electrum Cash from its root directory, just do::
+directory. To run Elcash Wallet from its root directory, just do::
 
     ./run_electrum
 
-You can also install Electrum Cash on your system, by running this command::
+You can also install Elcash Wallet on your system, by running this command::
 
     sudo apt-get install python3-setuptools python3-pip
     python3 -m pip install --user .
 
 This will download and install the Python dependencies used by
-Electrum Cash instead of using the 'packages' directory.
-It will also place an executable named :code:`electrum-cash` in :code:`~/.local/bin`,
+Elcash Wallet instead of using the 'packages' directory.
+It will also place an executable named :code:`elcash-wallet` in :code:`~/.local/bin`,
 so make sure that is on your :code:`PATH` variable.
 
 
@@ -77,8 +77,8 @@ Development version (git clone)
 
 Check out the code from GitHub::
 
-    git clone https://github.com/electric-cash/electrum-cash.git
-    cd electrum-cash
+    git clone https://github.com/electric-cash/elcash-wallet.git
+    cd elcash-wallet
     git submodule update --init
 
 Run install (this should install dependencies)::
@@ -86,7 +86,7 @@ Run install (this should install dependencies)::
     python3 -m pip install --user -e .
 
 
-Finally, to start Electrum Cash::
+Finally, to start Elcash Wallet::
 
     ./run_electrum
 
