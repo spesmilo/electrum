@@ -1024,7 +1024,6 @@ class LNWallet(LNWorker):
                     else:
                         self.logger.info(f'blacklisting channel {short_chan_id}')
                         self.network.channel_blacklist.add(short_chan_id)
-    
                 if code == OnionFailureCode.MPP_TIMEOUT:
                     # we will need to await all the htlcs
                     mpp_timeout = True
@@ -1036,7 +1035,6 @@ class LNWallet(LNWorker):
                 else:
                     # giving up
                     break
-
             else:
                 # probably got "update_fail_malformed_htlc". well... who to penalise now?
                 break
@@ -1106,7 +1104,10 @@ class LNWallet(LNWorker):
             short_channel_id = ShortChannelID(payload['short_channel_id'])
             if r == UpdateStatus.GOOD:
                 self.logger.info(f"applied channel update to {short_channel_id}")
-                #peer.maybe_save_remote_update(payload)  FIXME
+                # TODO: test this
+                for chan in self.channels.values():
+                    if chan.short_channel_id == short_channel_id:
+                        chan.set_remote_update(payload['raw'])
             elif r == UpdateStatus.ORPHANED:
                 # maybe it is a private channel (and data in invoice was outdated)
                 self.logger.info(f"Could not find {short_channel_id}. maybe update is for private channel?")
@@ -1400,7 +1401,11 @@ class LNWallet(LNWorker):
         if error_bytes and route:
             self.logger.info(f" {(error_bytes, route, htlc_id)}")
             # TODO "decode_onion_error" might raise, catch and maybe blacklist/penalise someone?
-            failure_message, sender_idx = chan.decode_onion_error(error_bytes, route, htlc_id)
+            try:
+                failure_message, sender_idx = chan.decode_onion_error(error_bytes, route, htlc_id)
+            except Exception as e:
+                sender_idx = None
+                failure_message = str(e)
         else:
             # probably got "update_fail_malformed_htlc". well... who to penalise now?
             assert failure_message is not None
