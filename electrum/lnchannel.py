@@ -858,6 +858,7 @@ class Channel(AbstractChannel):
             local_ctn = self.get_latest_ctn(LOCAL)
             remote_ctn = self.get_latest_ctn(REMOTE)
             if onion_packet:
+                # TODO neither local_ctn nor remote_ctn are used anymore... no point storing them.
                 self.hm.log['unfulfilled_htlcs'][htlc.htlc_id] = local_ctn, remote_ctn, onion_packet.hex(), False
 
         self.logger.info("receive_htlc")
@@ -997,6 +998,7 @@ class Channel(AbstractChannel):
             self.hm.recv_rev()
             self.config[REMOTE].current_per_commitment_point=self.config[REMOTE].next_per_commitment_point
             self.config[REMOTE].next_per_commitment_point=revocation.next_per_commitment_point
+        assert new_ctn == self.get_oldest_unrevoked_ctn(REMOTE)
         # lnworker callbacks
         if self.lnworker:
             sent = self.hm.sent_in_ctn(new_ctn)

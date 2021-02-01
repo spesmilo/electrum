@@ -39,7 +39,7 @@ binaries += [('C:/tmp/libusb-1.0.dll', '.')]
 binaries += [('C:/tmp/libzbar-0.dll', '.')]
 
 # pyscard binaries for Satochip
-binaries += [('C:/python*/Lib/site-packages/smartcard/scard/_scard.cp37-win32.pyd', '.')] #satochip
+binaries += [('C:/python*/Lib/site-packages/smartcard/scard/_scard.cp38-win32.pyd', '.')] #satochip
 
 datas = [
     (home+'electrum/*.json', 'electrum'),

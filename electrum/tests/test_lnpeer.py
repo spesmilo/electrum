@@ -373,17 +373,17 @@ class TestPeer(ElectrumTestCase):
     async def prepare_invoice(
             w2: MockLNWallet,  # receiver
             *,
-            amount_sat=100_000,
+            amount_msat=100_000_000,
             include_routing_hints=False,
     ):
-        amount_btc = amount_sat/Decimal(COIN)
+        amount_btc = amount_msat/Decimal(COIN*1000)
         payment_preimage = os.urandom(32)
         RHASH = sha256(payment_preimage)
-        info = PaymentInfo(RHASH, amount_sat, RECEIVED, PR_UNPAID)
+        info = PaymentInfo(RHASH, amount_msat, RECEIVED, PR_UNPAID)
         w2.save_preimage(RHASH, payment_preimage)
         w2.save_payment_info(info)
         if include_routing_hints:
-            routing_hints = await w2._calc_routing_hints_for_invoice(amount_sat)
+            routing_hints = await w2._calc_routing_hints_for_invoice(amount_msat)
         else:
             routing_hints = []
         lnaddr = LnAddr(
@@ -467,6 +467,72 @@ class TestPeer(ElectrumTestCase):
         with self.assertRaises(PaymentDone):
             run(f())
 
+    @needs_test_with_all_chacha20_implementations
+    def test_payment_race(self):
+        """Alice and Bob pay each other simultaneously.
+        They both send 'update_add_htlc' and receive each other's update
+        before sending 'commitment_signed'. Neither party should fulfill
+        the respective HTLCs until those are irrevocably committed to.
+        """
+        alice_channel, bob_channel = create_test_channels()
+        p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+        async def pay():
+            await asyncio.wait_for(p1.initialized, 1)
+            await asyncio.wait_for(p2.initialized, 1)
+            # prep
+            _maybe_send_commitment1 = p1.maybe_send_commitment
+            _maybe_send_commitment2 = p2.maybe_send_commitment
+            pay_req2 = await self.prepare_invoice(w2)
+            lnaddr2 = lndecode(pay_req2, expected_hrp=constants.net.SEGWIT_HRP)
+            pay_req1 = await self.prepare_invoice(w1)
+            lnaddr1 = lndecode(pay_req1, expected_hrp=constants.net.SEGWIT_HRP)
+            # alice sends htlc BUT NOT COMMITMENT_SIGNED
+            p1.maybe_send_commitment = lambda x: None
+            p1.pay(
+                route=w1._create_route_from_invoice(decoded_invoice=lnaddr2),
+                chan=alice_channel,
+                amount_msat=lnaddr2.get_amount_msat(),
+                payment_hash=lnaddr2.paymenthash,
+                min_final_cltv_expiry=lnaddr2.get_min_final_cltv_expiry(),
+                payment_secret=lnaddr2.payment_secret,
+            )
+            w1.pending_payments[lnaddr2.paymenthash] = asyncio.Future()
+            p1.maybe_send_commitment = _maybe_send_commitment1
+            # bob sends htlc BUT NOT COMMITMENT_SIGNED
+            p2.maybe_send_commitment = lambda x: None
+            p2.pay(
+                route=w2._create_route_from_invoice(decoded_invoice=lnaddr1),
+                chan=bob_channel,
+                amount_msat=lnaddr1.get_amount_msat(),
+                payment_hash=lnaddr1.paymenthash,
+                min_final_cltv_expiry=lnaddr1.get_min_final_cltv_expiry(),
+                payment_secret=lnaddr1.payment_secret,
+            )
+            w2.pending_payments[lnaddr1.paymenthash] = asyncio.Future()
+            p2.maybe_send_commitment = _maybe_send_commitment2
+            # sleep a bit so that they both receive msgs sent so far
+            await asyncio.sleep(0.1)
+            # now they both send COMMITMENT_SIGNED
+            p1.maybe_send_commitment(alice_channel)
+            p2.maybe_send_commitment(bob_channel)
+
+            payment_attempt1 = await w1.await_payment(lnaddr2.paymenthash)
+            assert payment_attempt1.success
+            payment_attempt2 = await w2.await_payment(lnaddr1.paymenthash)
+            assert payment_attempt2.success
+            raise PaymentDone()
+
+        async def f():
+            async with TaskGroup() as group:
+                await group.spawn(p1._message_loop())
+                await group.spawn(p1.htlc_switch())
+                await group.spawn(p2._message_loop())
+                await group.spawn(p2.htlc_switch())
+                await asyncio.sleep(0.01)
+                await group.spawn(pay())
+        with self.assertRaises(PaymentDone):
+            run(f())
+
     #@unittest.skip("too expensive")
     #@needs_test_with_all_chacha20_implementations
     def test_payments_stresstest(self):
@@ -475,14 +541,14 @@ class TestPeer(ElectrumTestCase):
         alice_init_balance_msat = alice_channel.balance(HTLCOwner.LOCAL)
         bob_init_balance_msat = bob_channel.balance(HTLCOwner.LOCAL)
         num_payments = 50
-        payment_value_sat = 10000  # make it large enough so that there are actually HTLCs on the ctx
+        payment_value_msat = 10_000_000  # make it large enough so that there are actually HTLCs on the ctx
         max_htlcs_in_flight = asyncio.Semaphore(5)
         async def single_payment(pay_req):
             async with max_htlcs_in_flight:
                 await w1._pay(pay_req)
         async def many_payments():
             async with TaskGroup() as group:
-                pay_reqs_tasks = [await group.spawn(self.prepare_invoice(w2, amount_sat=payment_value_sat))
+                pay_reqs_tasks = [await group.spawn(self.prepare_invoice(w2, amount_msat=payment_value_msat))
                                   for i in range(num_payments)]
             async with TaskGroup() as group:
                 for pay_req_task in pay_reqs_tasks:
@@ -494,10 +560,10 @@ class TestPeer(ElectrumTestCase):
             await gath
         with self.assertRaises(concurrent.futures.CancelledError):
             run(f())
-        self.assertEqual(alice_init_balance_msat - num_payments * payment_value_sat * 1000, alice_channel.balance(HTLCOwner.LOCAL))
-        self.assertEqual(alice_init_balance_msat - num_payments * payment_value_sat * 1000, bob_channel.balance(HTLCOwner.REMOTE))
-        self.assertEqual(bob_init_balance_msat + num_payments * payment_value_sat * 1000, bob_channel.balance(HTLCOwner.LOCAL))
-        self.assertEqual(bob_init_balance_msat + num_payments * payment_value_sat * 1000, alice_channel.balance(HTLCOwner.REMOTE))
+        self.assertEqual(alice_init_balance_msat - num_payments * payment_value_msat, alice_channel.balance(HTLCOwner.LOCAL))
+        self.assertEqual(alice_init_balance_msat - num_payments * payment_value_msat, bob_channel.balance(HTLCOwner.REMOTE))
+        self.assertEqual(bob_init_balance_msat + num_payments * payment_value_msat, bob_channel.balance(HTLCOwner.LOCAL))
+        self.assertEqual(bob_init_balance_msat + num_payments * payment_value_msat, alice_channel.balance(HTLCOwner.REMOTE))
 
     @needs_test_with_all_chacha20_implementations
     def test_payment_multihop(self):

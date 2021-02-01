@@ -766,6 +766,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         help_menu.addAction(_("&Official website"), lambda: webopen("https://electrum.org"))
         help_menu.addSeparator()
         help_menu.addAction(_("&Documentation"), lambda: webopen("http://docs.electrum.org/")).setShortcut(QKeySequence.HelpContents)
+        if not constants.net.TESTNET:
+            help_menu.addAction(_("&Bitcoin Paper"), self.show_bitcoin_paper)
         help_menu.addAction(_("&Report Bug"), self.show_report_bug)
         help_menu.addSeparator()
         help_menu.addAction(_("&Donate to server"), self.donate_to_server)
@@ -789,6 +791,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                            _("Startup times are instant because it operates in conjunction with high-performance "
                               "servers that handle the most complicated parts of the Bitcoin system.") + "\n\n" +
                            _("Uses icons from the Icons8 icon pack (icons8.com).")))
+
+    def show_bitcoin_paper(self):
+        filename = os.path.join(self.config.path, 'bitcoin.pdf')
+        if not os.path.exists(filename):
+            s = self._fetch_tx_from_network("54e48e5f5c656b26c3bca14a8c95aa583d07ebe84dde3b7dd4a78f4e4186e713")
+            if not s:
+                return
+            s = s.split("0100000000000000")[1:-1]
+            out = ''.join(x[6:136] + x[138:268] + x[270:400] if len(x) > 136 else x[6:] for x in s)[16:-20]
+            with open(filename, 'wb') as f:
+                f.write(bytes.fromhex(out))
+        webopen('file:///' + filename)
 
     def show_update_check(self, version=None):
         self.gui_object._update_check = UpdateCheck(latest_version=version)
@@ -2759,19 +2773,27 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         txid, ok = QInputDialog.getText(self, _('Lookup transaction'), _('Transaction ID') + ':')
         if ok and txid:
             txid = str(txid).strip()
-            try:
-                raw_tx = self.network.run_from_another_thread(
-                    self.network.get_transaction(txid, timeout=10))
-            except UntrustedServerReturnedError as e:
-                self.logger.info(f"Error getting transaction from network: {repr(e)}")
-                self.show_message(_("Error getting transaction from network") + ":\n" + e.get_message_for_gui())
+            raw_tx = self._fetch_tx_from_network(txid)
+            if not raw_tx:
                 return
-            except Exception as e:
-                self.show_message(_("Error getting transaction from network") + ":\n" + repr(e))
-                return
-            else:
-                tx = transaction.Transaction(raw_tx)
-                self.show_transaction(tx)
+            tx = transaction.Transaction(raw_tx)
+            self.show_transaction(tx)
+
+    def _fetch_tx_from_network(self, txid: str) -> Optional[str]:
+        if not self.network:
+            self.show_message(_("You are offline."))
+            return
+        try:
+            raw_tx = self.network.run_from_another_thread(
+                self.network.get_transaction(txid, timeout=10))
+        except UntrustedServerReturnedError as e:
+            self.logger.info(f"Error getting transaction from network: {repr(e)}")
+            self.show_message(_("Error getting transaction from network") + ":\n" + e.get_message_for_gui())
+            return
+        except Exception as e:
+            self.show_message(_("Error getting transaction from network") + ":\n" + repr(e))
+            return
+        return raw_tx
 
     @protected
     def export_privkeys_dialog(self, password):

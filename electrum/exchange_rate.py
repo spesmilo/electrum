@@ -577,7 +577,7 @@ class FxThread(ThreadJob):
     def show_history(self):
         return self.is_enabled() and self.get_history_config() and self.ccy in self.exchange.history_ccys()
 
-    def set_currency(self, ccy):
+    def set_currency(self, ccy: str):
         self.ccy = ccy
         self.config.set_key('currency', ccy, True)
         self.trigger_update()
@@ -607,6 +607,8 @@ class FxThread(ThreadJob):
 
     def exchange_rate(self) -> Decimal:
         """Returns the exchange rate as a Decimal"""
+        if not self.is_enabled():
+            return Decimal('NaN')
         rate = self.exchange.quotes.get(self.ccy)
         if rate is None:
             return Decimal('NaN')
