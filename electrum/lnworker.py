@@ -138,7 +138,7 @@ FALLBACK_NODE_LIST_MAINNET = [
 
 class PaymentInfo(NamedTuple):
     payment_hash: bytes
-    amount: Optional[int]  # in satoshis  # TODO make it msat and rename to amount_msat
+    amount_msat: Optional[int]
     direction: int
     status: int
 
@@ -564,7 +564,7 @@ class LNWallet(LNWorker):
         self.config = wallet.config
         self.lnwatcher = None
         self.lnrater: LNRater = None
-        self.payments = self.db.get_dict('lightning_payments')     # RHASH -> amount, direction, is_paid  # FIXME amt should be msat
+        self.payments = self.db.get_dict('lightning_payments')     # RHASH -> amount, direction, is_paid
         self.preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
         # note: this sweep_address is only used as fallback; as it might result in address-reuse
         self.sweep_address = wallet.get_new_sweep_address_for_channel()
@@ -687,8 +687,8 @@ class LNWallet(LNWorker):
         fee_msat = None
         for chan_id, htlc, _direction in plist:
             amount_msat += int(_direction) * htlc.amount_msat
-            if _direction == SENT and info and info.amount:
-                fee_msat = (fee_msat or 0) - info.amount*1000 - amount_msat
+            if _direction == SENT and info and info.amount_msat:
+                fee_msat = (fee_msat or 0) - info.amount_msat - amount_msat
         timestamp = min([htlc.timestamp for chan_id, htlc, _direction in plist])
         return amount_msat, fee_msat, timestamp
 
@@ -948,13 +948,13 @@ class LNWallet(LNWorker):
         lnaddr = self._check_invoice(invoice, amount_msat=amount_msat)
         payment_hash = lnaddr.paymenthash
         key = payment_hash.hex()
-        amount = int(lnaddr.amount * COIN)
+        amount_msat = lnaddr.get_amount_msat()
         status = self.get_payment_status(payment_hash)
         if status == PR_PAID:
             raise PaymentFailure(_("This invoice has been paid already"))
         if status == PR_INFLIGHT:
             raise PaymentFailure(_("A payment was already initiated for this invoice"))
-        info = PaymentInfo(lnaddr.paymenthash, amount, SENT, PR_UNPAID)
+        info = PaymentInfo(payment_hash, amount_msat, SENT, PR_UNPAID)
         self.save_payment_info(info)
         self.wallet.set_label(key, lnaddr.get_description())
         self.logs[key] = log = []
@@ -1217,16 +1217,16 @@ class LNWallet(LNWorker):
             raise Exception(_("add invoice timed out"))
 
     @log_exceptions
-    async def create_invoice(self, amount_sat: Optional[int], message, expiry: int):
+    async def create_invoice(self, amount_msat: Optional[int], message, expiry: int):
         timestamp = int(time.time())
-        routing_hints = await self._calc_routing_hints_for_invoice(amount_sat)
+        routing_hints = await self._calc_routing_hints_for_invoice(amount_msat)
         if not routing_hints:
             self.logger.info("Warning. No routing hints added to invoice. "
                              "Other clients will likely not be able to send to us.")
         payment_preimage = os.urandom(32)
         payment_hash = sha256(payment_preimage)
-        info = PaymentInfo(payment_hash, amount_sat, RECEIVED, PR_UNPAID)
-        amount_btc = amount_sat/Decimal(COIN) if amount_sat else None
+        info = PaymentInfo(payment_hash, amount_msat, RECEIVED, PR_UNPAID)
+        amount_btc = amount_msat/Decimal(COIN*1000) if amount_msat else None
         if expiry == 0:
             expiry = LN_EXPIRY_NEVER
         lnaddr = LnAddr(paymenthash=payment_hash,
@@ -1244,7 +1244,8 @@ class LNWallet(LNWorker):
         return lnaddr, invoice
 
     async def _add_request_coro(self, amount_sat: Optional[int], message, expiry: int) -> str:
-        lnaddr, invoice = await self.create_invoice(amount_sat, message, expiry)
+        amount_msat = amount_sat * 1000 if amount_sat is not None else None
+        lnaddr, invoice = await self.create_invoice(amount_msat, message, expiry)
         key = bh2u(lnaddr.paymenthash)
         req = LNInvoice.from_bech32(invoice)
         self.wallet.add_payment_request(req)
@@ -1265,14 +1266,14 @@ class LNWallet(LNWorker):
         key = payment_hash.hex()
         with self.lock:
             if key in self.payments:
-                amount, direction, status = self.payments[key]
-                return PaymentInfo(payment_hash, amount, direction, status)
+                amount_msat, direction, status = self.payments[key]
+                return PaymentInfo(payment_hash, amount_msat, direction, status)
 
     def save_payment_info(self, info: PaymentInfo) -> None:
         key = info.payment_hash.hex()
         assert info.status in SAVED_PR_STATUS
         with self.lock:
-            self.payments[key] = info.amount, info.direction, info.status
+            self.payments[key] = info.amount_msat, info.direction, info.status
         self.wallet.save_db()
 
     def get_payment_status(self, payment_hash):
@@ -1355,16 +1356,14 @@ class LNWallet(LNWorker):
         util.trigger_callback('request_status', self.wallet, payment_hash.hex(), PR_PAID)
         util.trigger_callback('ln_payment_completed', payment_hash, chan.channel_id)
 
-    async def _calc_routing_hints_for_invoice(self, amount_sat: Optional[int]):
+    async def _calc_routing_hints_for_invoice(self, amount_msat: Optional[int]):
         """calculate routing hints (BOLT-11 'r' field)"""
         routing_hints = []
         channels = list(self.channels.values())
         random.shuffle(channels)  # not sure this has any benefit but let's not leak channel order
         scid_to_my_channels = {chan.short_channel_id: chan for chan in channels
                                if chan.short_channel_id is not None}
-        if amount_sat:
-            amount_msat = 1000 * amount_sat
-        else:
+        if not amount_msat:
             # for no amt invoices, check if channel can receive at least 1 msat
             amount_msat = 1
         # note: currently we add *all* our channels; but this might be a privacy leak?

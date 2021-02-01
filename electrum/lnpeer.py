@@ -1388,7 +1388,7 @@ class Peer(Logger):
             if payment_secret_from_onion != derive_payment_secret_from_payment_preimage(preimage):
                 reason = OnionRoutingFailureMessage(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
                 return None, reason
-        expected_received_msat = int(info.amount * 1000) if info.amount is not None else None
+        expected_received_msat = info.amount_msat
         if expected_received_msat is not None and \
                 not (expected_received_msat <= htlc.amount_msat <= 2 * expected_received_msat):
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
@@ -1410,8 +1410,9 @@ class Peer(Logger):
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
             return None, reason
         if cltv_from_onion != htlc.cltv_expiry:
-            reason = OnionRoutingFailureMessage(code=OnionFailureCode.FINAL_INCORRECT_CLTV_EXPIRY,
-                                                data=htlc.cltv_expiry.to_bytes(4, byteorder="big"))
+            reason = OnionRoutingFailureMessage(
+                code=OnionFailureCode.FINAL_INCORRECT_CLTV_EXPIRY,
+                data=htlc.cltv_expiry.to_bytes(4, byteorder="big"))
             return None, reason
         try:
             amount_from_onion = processed_onion.hop_data.payload["amt_to_forward"]["amt_to_forward"]

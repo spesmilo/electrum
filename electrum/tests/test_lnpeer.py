@@ -373,17 +373,17 @@ class TestPeer(ElectrumTestCase):
     async def prepare_invoice(
             w2: MockLNWallet,  # receiver
             *,
-            amount_sat=100_000,
+            amount_msat=100_000_000,
             include_routing_hints=False,
     ):
-        amount_btc = amount_sat/Decimal(COIN)
+        amount_btc = amount_msat/Decimal(COIN*1000)
         payment_preimage = os.urandom(32)
         RHASH = sha256(payment_preimage)
-        info = PaymentInfo(RHASH, amount_sat, RECEIVED, PR_UNPAID)
+        info = PaymentInfo(RHASH, amount_msat, RECEIVED, PR_UNPAID)
         w2.save_preimage(RHASH, payment_preimage)
         w2.save_payment_info(info)
         if include_routing_hints:
-            routing_hints = await w2._calc_routing_hints_for_invoice(amount_sat)
+            routing_hints = await w2._calc_routing_hints_for_invoice(amount_msat)
         else:
             routing_hints = []
         lnaddr = LnAddr(
@@ -541,14 +541,14 @@ class TestPeer(ElectrumTestCase):
         alice_init_balance_msat = alice_channel.balance(HTLCOwner.LOCAL)
         bob_init_balance_msat = bob_channel.balance(HTLCOwner.LOCAL)
         num_payments = 50
-        payment_value_sat = 10000  # make it large enough so that there are actually HTLCs on the ctx
+        payment_value_msat = 10_000_000  # make it large enough so that there are actually HTLCs on the ctx
         max_htlcs_in_flight = asyncio.Semaphore(5)
         async def single_payment(pay_req):
             async with max_htlcs_in_flight:
                 await w1._pay(pay_req)
         async def many_payments():
             async with TaskGroup() as group:
-                pay_reqs_tasks = [await group.spawn(self.prepare_invoice(w2, amount_sat=payment_value_sat))
+                pay_reqs_tasks = [await group.spawn(self.prepare_invoice(w2, amount_msat=payment_value_msat))
                                   for i in range(num_payments)]
             async with TaskGroup() as group:
                 for pay_req_task in pay_reqs_tasks:
@@ -560,10 +560,10 @@ class TestPeer(ElectrumTestCase):
             await gath
         with self.assertRaises(concurrent.futures.CancelledError):
             run(f())
-        self.assertEqual(alice_init_balance_msat - num_payments * payment_value_sat * 1000, alice_channel.balance(HTLCOwner.LOCAL))
-        self.assertEqual(alice_init_balance_msat - num_payments * payment_value_sat * 1000, bob_channel.balance(HTLCOwner.REMOTE))
-        self.assertEqual(bob_init_balance_msat + num_payments * payment_value_sat * 1000, bob_channel.balance(HTLCOwner.LOCAL))
-        self.assertEqual(bob_init_balance_msat + num_payments * payment_value_sat * 1000, alice_channel.balance(HTLCOwner.REMOTE))
+        self.assertEqual(alice_init_balance_msat - num_payments * payment_value_msat, alice_channel.balance(HTLCOwner.LOCAL))
+        self.assertEqual(alice_init_balance_msat - num_payments * payment_value_msat, bob_channel.balance(HTLCOwner.REMOTE))
+        self.assertEqual(bob_init_balance_msat + num_payments * payment_value_msat, bob_channel.balance(HTLCOwner.LOCAL))
+        self.assertEqual(bob_init_balance_msat + num_payments * payment_value_msat, alice_channel.balance(HTLCOwner.REMOTE))
 
     @needs_test_with_all_chacha20_implementations
     def test_payment_multihop(self):
