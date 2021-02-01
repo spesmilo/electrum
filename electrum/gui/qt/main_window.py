@@ -295,9 +295,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         # If the option hasn't been set yet
         if config.get('check_updates') is None:
-            choice = self.question(title="Elcash Wallet - " + _("Enable update check"),
-                                   msg=_("For security reasons we advise that you always use the latest version of Elcash Wallet.") + " " +
-                                       _("Would you like to be notified when there is a newer version of Elcash Wallet available?"))
+            choice = self.question(title="ELCASH Wallet - " + _("Enable update check"),
+                                   msg=_("For security reasons we advise that you always use the latest version of ELCASH Wallet.") + " " +
+                                       _("Would you like to be notified when there is a newer version of ELCASH Wallet available?"))
             config.set_key('check_updates', bool(choice), save=True)
 
         if config.get('check_updates', False):
@@ -305,7 +305,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             # to prevent GC from getting in our way.
             def on_version_received(v):
                 if UpdateCheck.is_newer(v):
-                    self.update_check_button.setText(_("Update to Elcash Wallet {} is available").format(v))
+                    self.update_check_button.setText(_("Update to ELCASH Wallet {} is available").format(v))
                     self.update_check_button.clicked.connect(lambda: self.show_update_check(v))
                     self.update_check_button.show()
             self._update_check_thread = UpdateCheckThread()
@@ -542,7 +542,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.setGeometry(100, 100, 840, 400)
 
     def watching_only_changed(self):
-        name = "Elcash Wallet Testnet" if constants.net.TESTNET else "Elcash Wallet"
+        name = "ELCASH Wallet Testnet" if constants.net.TESTNET else "Elcash Wallet"
         title = '%s %s  -  %s' % (name, ELECTRUM_VERSION,
                                         self.wallet.basename())
         extra = [self.wallet.db.get('wallet_type', '?')]
@@ -634,7 +634,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         try:
             new_path = self.wallet.save_backup()
         except BaseException as reason:
-            self.show_critical(_("Elcash Wallet was unable to copy your wallet file to the specified location.") + "\n" + str(reason), title=_("Unable to create backup"))
+            self.show_critical(_("ELCASH Wallet was unable to copy your wallet file to the specified location.") + "\n" + str(reason), title=_("Unable to create backup"))
             return
         if new_path:
             msg = _("A copy of your wallet file was created in")+" '%s'" % str(new_path)
@@ -780,9 +780,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.setMenuBar(menubar)
 
     def show_about(self):
-        QMessageBox.about(self, "Elcash Wallet",
+        QMessageBox.about(self, "ELCASH Wallet",
                           (_("Version")+" %s" % ELECTRUM_VERSION + "\n\n" +
-                           _("Elcash Wallet's focus is speed, with low resource usage and simplifying Electric Cash.") + " " +
+                           _("ELCASH Wallet's focus is speed, with low resource usage and simplifying Electric Cash.") + " " +
                            _("You do not need to perform regular backups, because your wallet can be "
                               "recovered from a secret phrase that you can memorize or write on paper.") + " " +
                            _("Startup times are instant because it operates in conjunction with high-performance "
@@ -796,10 +796,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         msg = ' '.join([
             _("Please report any bugs as issues on github:<br/>"),
             f'''<a href="{constants.GIT_REPO_ISSUES_URL}">{constants.GIT_REPO_ISSUES_URL}</a><br/><br/>''',
-            _("Before reporting a bug, upgrade to the most recent version of Elcash Wallet (latest release or git HEAD), and include the version number in your report."),
+            _("Before reporting a bug, upgrade to the most recent version of ELCASH Wallet (latest release or git HEAD), and include the version number in your report."),
             _("Try to explain not only what the bug is, but how it occurs.")
          ])
-        self.show_message(msg, title="Elcash Wallet - " + _("Reporting Bugs"), rich_text=True)
+        self.show_message(msg, title="ELCASH Wallet - " + _("Reporting Bugs"), rich_text=True)
 
     def notify_transactions(self):
         if self.tx_notification_queue.qsize() == 0:
@@ -839,9 +839,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if self.tray:
             try:
                 # this requires Qt 5.9
-                self.tray.showMessage("Elcash Wallet", message, read_QIcon("electrum_dark_icon"), 20000)
+                self.tray.showMessage("ELCASH Wallet", message, read_QIcon("electrum_dark_icon"), 20000)
             except TypeError:
-                self.tray.showMessage("Elcash Wallet", message, QSystemTrayIcon.Information, 20000)
+                self.tray.showMessage("ELCASH Wallet", message, QSystemTrayIcon.Information, 20000)
 
     def timer_actions(self):
         self.request_list.refresh_status()
@@ -2494,7 +2494,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 "private key, and verifying with the corresponding public key. The "
                 "address you have entered does not have a unique public key, so these "
                 "operations cannot be performed.") + '\n\n' + \
-               _('The operation is undefined. Not just in Elcash Wallet, but in general.')
+               _('The operation is undefined. Not just in ELCASH Wallet, but in general.')
 
     @protected
     def do_sign(self, address, message, signature, password):
@@ -2662,7 +2662,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         try:
             return tx_from_any(data)
         except BaseException as e:
-            self.show_critical(_("Elcash Wallet was unable to parse your transaction") + ":\n" + repr(e))
+            self.show_critical(_("ELCASH Wallet was unable to parse your transaction") + ":\n" + repr(e))
             return
 
     def import_channel_backup(self, encrypted: str):
@@ -2709,7 +2709,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             with open(fileName, "rb") as f:
                 file_content = f.read()  # type: Union[str, bytes]
         except (ValueError, IOError, os.error) as reason:
-            self.show_critical(_("Elcash Wallet was unable to open your transaction file") + "\n" + str(reason),
+            self.show_critical(_("ELCASH Wallet was unable to open your transaction file") + "\n" + str(reason),
                                title=_("Unable to read file or no transaction found"))
             return
         return self.tx_from_text(file_content)
@@ -2846,7 +2846,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.do_export_privkeys(filename, private_keys, csv_button.isChecked())
         except (IOError, os.error) as reason:
             txt = "\n".join([
-                _("Elcash Wallet was unable to produce a private key-export."),
+                _("ELCASH Wallet was unable to produce a private key-export."),
                 str(reason)
             ])
             self.show_critical(txt, title=_("Unable to create csv"))
@@ -3028,7 +3028,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.fx.trigger_update()
         run_hook('close_settings_dialog')
         if d.need_restart:
-            self.show_warning(_('Please restart Elcash Wallet to activate the new GUI settings'), title=_('Success'))
+            self.show_warning(_('Please restart ELCASH Wallet to activate the new GUI settings'), title=_('Success'))
 
     def closeEvent(self, event):
         # It seems in some rare cases this closeEvent() is called twice
@@ -3365,6 +3365,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.showing_cert_mismatch_error = True
         self.show_critical(title=_("Certificate mismatch"),
                            msg=_("The SSL certificate provided by the main server did not match the fingerprint passed in with the --serverfingerprint option.") + "\n\n" +
-                               _("Elcash Wallet will now exit."))
+                               _("ELCASH Wallet will now exit."))
         self.showing_cert_mismatch_error = False
         self.close()

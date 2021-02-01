@@ -1,4 +1,4 @@
-Elcash Wallet - Lightweight Electric Cash client
+ELCASH Wallet - Lightweight Electric Cash client
 ================================================
 
 ::
@@ -11,11 +11,11 @@ Elcash Wallet - Lightweight Electric Cash client
 Getting started
 ===============
 
-(*If you've come here looking to simply run Elcash Wallet,* `you may download it here`_.)
+(*If you've come here looking to simply run ELCASH Wallet,* `you may download it here`_.)
 
 .. _you may download it here: https://electriccash.global/#download
 
-Elcash Wallet itself is pure Python, and so are most of the required dependencies,
+ELCASH Wallet itself is pure Python, and so are most of the required dependencies,
 but not everything. The following sections describe how to run from source, but here
 is a TL;DR::
 
@@ -55,19 +55,19 @@ Running from tar.gz
 -------------------
 
 If you downloaded the official package (tar.gz), you can run
-Elcash Wallet from its root directory without installing it on your
+ELCASH Wallet from its root directory without installing it on your
 system; all the pure python dependencies are included in the 'packages'
-directory. To run Elcash Wallet from its root directory, just do::
+directory. To run ELCASH Wallet from its root directory, just do::
 
     ./run_electrum
 
-You can also install Elcash Wallet on your system, by running this command::
+You can also install ELCASH Wallet on your system, by running this command::
 
     sudo apt-get install python3-setuptools python3-pip
     python3 -m pip install --user .
 
 This will download and install the Python dependencies used by
-Elcash Wallet instead of using the 'packages' directory.
+ELCASH Wallet instead of using the 'packages' directory.
 It will also place an executable named :code:`elcash-wallet` in :code:`~/.local/bin`,
 so make sure that is on your :code:`PATH` variable.
 
@@ -86,7 +86,7 @@ Run install (this should install dependencies)::
     python3 -m pip install --user -e .
 
 
-Finally, to start Elcash Wallet::
+Finally, to start ELCASH Wallet::
 
     ./run_electrum
 

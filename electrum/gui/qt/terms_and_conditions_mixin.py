@@ -27,7 +27,7 @@ class WarningDialog(WindowModalDialog):
         # FIXME new line works only with <br> not \n
         warning_label = QLabel(
             '<b>' + _('Are you sure?') + '</b>' + '<br>' +
-            _("Note that if you disagree to our Terms & Conditions you won't be able to use the Elcash Wallet application.")
+            _("Note that if you disagree to our Terms & Conditions you won't be able to use the ELCASH Wallet application.")
             + '<br>' +
             _('Are you sure you want to disagree?') + '<br>'
         )
