@@ -51,6 +51,13 @@ jobs:
         - TARGET_OS=Windows
       services:
         - docker
+      before_install:
+        - sudo rm -rf /var/lib/apt/lists/*
+        - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+        - sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+        - sudo apt-get update
+        - sudo apt-get -y -o Dpkg::Options::="--force-confnew" install docker-ce
+        - docker version
       install:
         - sudo docker build --no-cache -t electrum-wine-builder-img ./contrib/build-wine/
       script:
