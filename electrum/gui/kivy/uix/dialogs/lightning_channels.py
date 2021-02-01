@@ -757,7 +757,11 @@ class SwapDialog(Factory.Popup):
             return
         loop = self.app.network.asyncio_loop
         coro = self.swap_manager.normal_swap(
-            lightning_amount, onchain_amount, password, tx=tx)
+            lightning_amount_sat=lightning_amount,
+            expected_onchain_amount_sat=onchain_amount,
+            password=password,
+            tx=tx,
+        )
         asyncio.run_coroutine_threadsafe(coro, loop)
 
     def do_reverse_swap(self, lightning_amount, onchain_amount, password):
@@ -765,7 +769,9 @@ class SwapDialog(Factory.Popup):
             return
         loop = self.app.network.asyncio_loop
         coro = self.swap_manager.reverse_swap(
-            lightning_amount, onchain_amount + self.swap_manager.get_claim_fee())
+            lightning_amount_sat=lightning_amount,
+            expected_onchain_amount_sat=onchain_amount + self.swap_manager.get_claim_fee(),
+        )
         asyncio.run_coroutine_threadsafe(coro, loop)
 
     def on_ok(self):

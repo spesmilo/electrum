@@ -1124,7 +1124,11 @@ class Commands:
         else:
             lightning_amount_sat = satoshis(lightning_amount)
             onchain_amount_sat = satoshis(onchain_amount)
-            txid = await wallet.lnworker.swap_manager.normal_swap(lightning_amount_sat, onchain_amount_sat, password)
+            txid = await wallet.lnworker.swap_manager.normal_swap(
+                lightning_amount_sat=lightning_amount_sat,
+                expected_onchain_amount_sat=onchain_amount_sat,
+                password=password,
+            )
         return {
             'txid': txid,
             'lightning_amount': format_satoshis(lightning_amount_sat),
@@ -1149,7 +1153,10 @@ class Commands:
         else:
             lightning_amount_sat = satoshis(lightning_amount)
             onchain_amount_sat = satoshis(onchain_amount)
-            success = await wallet.lnworker.swap_manager.reverse_swap(lightning_amount_sat, onchain_amount_sat)
+            success = await wallet.lnworker.swap_manager.reverse_swap(
+                lightning_amount_sat=lightning_amount_sat,
+                expected_onchain_amount_sat=onchain_amount_sat,
+            )
         return {
             'success': success,
             'lightning_amount': format_satoshis(lightning_amount_sat),

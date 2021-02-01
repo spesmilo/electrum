@@ -225,8 +225,14 @@ class SwapManager(Logger):
         callback = lambda: self._claim_swap(swap)
         self.lnwatcher.add_callback(swap.lockup_address, callback)
 
-    async def normal_swap(self, lightning_amount: int, expected_onchain_amount: int,
-                          password, *, tx: PartialTransaction = None) -> str:
+    async def normal_swap(
+            self,
+            *,
+            lightning_amount_sat: int,
+            expected_onchain_amount_sat: int,
+            password,
+            tx: PartialTransaction = None,
+    ) -> str:
         """send on-chain BTC, receive on Lightning
 
         - User generates an LN invoice with RHASH, and knows preimage.
@@ -238,7 +244,11 @@ class SwapManager(Logger):
         assert self.lnwatcher
         privkey = os.urandom(32)
         pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
-        lnaddr, invoice = await self.lnworker.create_invoice(lightning_amount*1000, 'swap', expiry=3600*24)
+        lnaddr, invoice = await self.lnworker.create_invoice(
+            amount_msat=lightning_amount_sat * 1000,
+            message='swap',
+            expiry=3600 * 24,
+        )
         payment_hash = lnaddr.paymenthash
         preimage = self.lnworker.get_preimage(payment_hash)
         request_data = {
@@ -274,9 +284,9 @@ class SwapManager(Logger):
         if locktime != int.from_bytes(parsed_script[6][1], byteorder='little'):
             raise Exception("fswap check failed: inconsistent locktime and script")
         # check that onchain_amount is not more than what we estimated
-        if onchain_amount > expected_onchain_amount:
+        if onchain_amount > expected_onchain_amount_sat:
             raise Exception(f"fswap check failed: onchain_amount is more than what we estimated: "
-                            f"{onchain_amount} > {expected_onchain_amount}")
+                            f"{onchain_amount} > {expected_onchain_amount_sat}")
         # verify that they are not locking up funds for more than a day
         if locktime - self.network.get_local_height() >= 144:
             raise Exception("fswap check failed: locktime too far in future")
@@ -285,7 +295,7 @@ class SwapManager(Logger):
         if tx is None:
             tx = self.wallet.create_transaction(outputs=[funding_output], rbf=False, password=password)
         else:
-            dummy_output = PartialTxOutput.from_address_and_value(ln_dummy_address(), expected_onchain_amount)
+            dummy_output = PartialTxOutput.from_address_and_value(ln_dummy_address(), expected_onchain_amount_sat)
             tx.outputs().remove(dummy_output)
             tx.add_outputs([funding_output])
             tx.set_rbf(False)
@@ -298,8 +308,8 @@ class SwapManager(Logger):
             preimage = preimage,
             prepay_hash = None,
             lockup_address = lockup_address,
-            onchain_amount = expected_onchain_amount,
-            lightning_amount = lightning_amount,
+            onchain_amount = expected_onchain_amount_sat,
+            lightning_amount = lightning_amount_sat,
             is_reverse = False,
             is_redeemed = False,
             funding_txid = tx.txid(),
@@ -310,7 +320,12 @@ class SwapManager(Logger):
         await self.network.broadcast_transaction(tx)
         return tx.txid()
 
-    async def reverse_swap(self, lightning_amount: int, expected_onchain_amount: int) -> bool:
+    async def reverse_swap(
+            self,
+            *,
+            lightning_amount_sat: int,
+            expected_onchain_amount_sat: int,
+    ) -> bool:
         """send on Lightning, receive on-chain
 
         - User generates preimage, RHASH. Sends RHASH to server.
@@ -330,7 +345,7 @@ class SwapManager(Logger):
             "type": "reversesubmarine",
             "pairId": "BTC/BTC",
             "orderSide": "buy",
-            "invoiceAmount": lightning_amount,
+            "invoiceAmount": lightning_amount_sat,
             "preimageHash": preimage_hash.hex(),
             "claimPublicKey": pubkey.hex()
         }
@@ -361,9 +376,9 @@ class SwapManager(Logger):
         if locktime != int.from_bytes(parsed_script[10][1], byteorder='little'):
             raise Exception("rswap check failed: inconsistent locktime and script")
         # check that the onchain amount is what we expected
-        if onchain_amount < expected_onchain_amount:
+        if onchain_amount < expected_onchain_amount_sat:
             raise Exception(f"rswap check failed: onchain_amount is less than what we expected: "
-                            f"{onchain_amount} < {expected_onchain_amount}")
+                            f"{onchain_amount} < {expected_onchain_amount_sat}")
         # verify that we will have enough time to get our tx confirmed
         if locktime - self.network.get_local_height() <= 60:
             raise Exception("rswap check failed: locktime too close")
@@ -379,9 +394,9 @@ class SwapManager(Logger):
             prepay_hash = fee_lnaddr.paymenthash
         else:
             prepay_hash = None
-        if int(invoice_amount) != lightning_amount:
+        if int(invoice_amount) != lightning_amount_sat:
             raise Exception(f"rswap check failed: invoice_amount ({invoice_amount}) "
-                            f"not what we requested ({lightning_amount})")
+                            f"not what we requested ({lightning_amount_sat})")
         # save swap data to wallet file
         swap = SwapData(
             redeem_script = redeem_script,
@@ -391,7 +406,7 @@ class SwapManager(Logger):
             prepay_hash = prepay_hash,
             lockup_address = lockup_address,
             onchain_amount = onchain_amount,
-            lightning_amount = lightning_amount,
+            lightning_amount = lightning_amount_sat,
             is_reverse = True,
             is_redeemed = False,
             funding_txid = None,

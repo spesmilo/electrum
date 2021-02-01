@@ -1217,7 +1217,7 @@ class LNWallet(LNWorker):
             raise Exception(_("add invoice timed out"))
 
     @log_exceptions
-    async def create_invoice(self, amount_msat: Optional[int], message, expiry: int):
+    async def create_invoice(self, *, amount_msat: Optional[int], message, expiry: int):
         timestamp = int(time.time())
         routing_hints = await self._calc_routing_hints_for_invoice(amount_msat)
         if not routing_hints:
@@ -1245,7 +1245,11 @@ class LNWallet(LNWorker):
 
     async def _add_request_coro(self, amount_sat: Optional[int], message, expiry: int) -> str:
         amount_msat = amount_sat * 1000 if amount_sat is not None else None
-        lnaddr, invoice = await self.create_invoice(amount_msat, message, expiry)
+        lnaddr, invoice = await self.create_invoice(
+            amount_msat=amount_msat,
+            message=message,
+            expiry=expiry,
+        )
         key = bh2u(lnaddr.paymenthash)
         req = LNInvoice.from_bech32(invoice)
         self.wallet.add_payment_request(req)

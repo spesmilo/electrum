@@ -163,7 +163,7 @@ class FeeUpdate(StoredObject):
 
 @attr.s
 class ChannelConstraints(StoredObject):
-    capacity = attr.ib(type=int)
+    capacity = attr.ib(type=int)  # in sat
     is_initiator = attr.ib(type=bool)  # note: sometimes also called "funder"
     funding_txn_minimum_depth = attr.ib(type=int)
 
