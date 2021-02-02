@@ -38,14 +38,13 @@
         "label": "ELCASH Wallet (${nextRelease.gitTag}) Windows"
       }]
     }],
-    "@semantic-release/release-notes-generator",
     [
       "semantic-release-slack-bot",
       {
         "packageName": "elcash-wallet",
         "notifyOnSuccess": true,
         "notifyOnFail": false,
-        "slackWebhook": "SLACK_WEBHOOK_URL"
+        "slackWebhookEnVar": "SLACK_WEBHOOK_URL"
       }
     ]
   ]
