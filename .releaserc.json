@@ -31,6 +31,15 @@
         "path": "dist/artifact-windows/*.exe",
         "label": "ELCASH Wallet (${nextRelease.gitTag}) Windows"
       }]
-    }]
+    }],
+    "@semantic-release/release-notes-generator",
+    [
+      "semantic-release-slack-bot",
+      {
+        "notifyOnSuccess": true,
+        "notifyOnFail": false,
+        "slackWebhook": "SLACK_WEBHOOK_URL"
+      }
+    ]
   ]
 }
