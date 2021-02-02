@@ -48,13 +48,13 @@ jobs:
           @semantic-release/changelog \
           @semantic-release/git \
           @semantic-release/github \
-      - name: Download all workflow run artifacts
-        uses: actions/download-artifact@v2
-        with:
-          path: dist
-      - name: Display structure of downloaded files
-        run: ls -R
-        working-directory: dist
+#      - name: Download all workflow run artifacts
+#        uses: actions/download-artifact@v2
+#        with:
+#          path: dist
+#      - name: Display structure of downloaded files
+#        run: ls -R
+#        working-directory: dist
       - run: npx semantic-release
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
