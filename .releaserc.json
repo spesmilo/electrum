@@ -36,6 +36,7 @@
     [
       "semantic-release-slack-bot",
       {
+        "packageName": "elcash-wallet",
         "notifyOnSuccess": true,
         "notifyOnFail": false,
         "slackWebhook": "SLACK_WEBHOOK_URL"
