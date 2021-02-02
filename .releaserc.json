@@ -18,6 +18,7 @@
     }],
     "@semantic-release/release-notes-generator",
     ["@semantic-release/exec", {
+      "assets": "electrum/version.py",
       "prepareCmd": "sed -i \"s/ELECTRUM_VERSION = '*.*.*'/ELECTRUM_VERSION = '${nextRelease.version}'/g\" electrum/version.py"
     }],
     ["@semantic-release/changelog", { "changelogTitle": "# Changelog"} ],
