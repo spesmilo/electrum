@@ -19,6 +19,8 @@ jobs:
           commit-filter: 'chore(release)'
   windows:
     runs-on: ubuntu-latest
+    needs: init
+    if: ${{ needs.init.outputs.skip-release == 'false' }}
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python ${{ matrix.python-version }}
@@ -48,6 +50,8 @@ jobs:
 
   appimage:
     runs-on: ubuntu-latest
+    needs: init
+    if: ${{ needs.init.outputs.skip-release == 'false' }}
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python ${{ matrix.python-version }}
@@ -73,6 +77,8 @@ jobs:
 
   tarball:
     runs-on: ubuntu-latest
+    needs: init
+    if: ${{ needs.init.outputs.skip-release == 'false' }}
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python ${{ matrix.python-version }}
@@ -101,13 +107,20 @@ jobs:
   release:
     name: "Release"
     runs-on: ubuntu-latest
-    needs: init
+    needs: [ init, windows, appimage. tarball ]
     if: ${{ needs.init.outputs.skip-release == 'false' }}
     steps:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
           token: ${{ secrets.GH_TOKEN }}
+      - name: Download all workflow run artifacts
+        uses: actions/download-artifact@v2
+        with:
+          path: dist
+      - name: Display structure of downloaded files
+        run: ls -R
+        working-directory: dist
       - name: Python Semantic Release
         uses: relekang/python-semantic-release@master
         with:
