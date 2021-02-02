@@ -25,6 +25,7 @@ from electrum.i18n import _
 
 from .seed_dialog import SeedLayout, KeysLayout
 from .network_dialog import NetworkChoiceLayout
+from .terms_and_conditions_mixin import TermsAndConditionsMixin
 from .util import (MessageBoxMixin, Buttons, icon_path, ChoicesLayout, WWLabel,
                    InfoButton, char_width_in_lineedit, PasswordLineEdit)
 from .password_dialog import PasswordLayout, PasswordLayoutForHW, PW_NEW
@@ -43,7 +44,7 @@ MSG_HW_STORAGE_ENCRYPTION = _("Set wallet file encryption.") + '\n'\
                           + _("Your wallet file does not contain secrets, mostly just metadata. ") \
                           + _("It also contains your master public key that allows watching your addresses.") + '\n\n'\
                           + _("Note: If you enable this setting, you will need your hardware device to open your wallet.")
-WIF_HELP_TEXT = (_('WIF keys are typed in Electrum, based on script type.') + '\n\n' +
+WIF_HELP_TEXT = (_('WIF keys are typed in ELCASH Wallet, based on script type.') + '\n\n' +
                  _('A few examples') + ':\n' +
                  'p2pkh:KxZcY47uGp9a...       \t-> 1DckmggQM...\n' +
                  'p2wpkh-p2sh:KxZcY47uGp9a... \t-> 3NhNeZQXF...\n' +
@@ -53,7 +54,7 @@ MSG_PASSPHRASE_WARN_ISSUE4566 = _("Warning") + ": "\
                               + _("You have multiple consecutive whitespaces or leading/trailing "
                                   "whitespaces in your passphrase.") + " " \
                               + _("This is discouraged.") + " " \
-                              + _("Due to a bug, old versions of Electrum will NOT be creating the "
+                              + _("Due to a bug, old versions of ELCASH Wallet will NOT be creating the "
                                   "same wallet as newer versions or other software.")
 
 
@@ -145,14 +146,14 @@ class WalletAlreadyOpenInMemory(Exception):
 
 
 # WindowModalDialog must come first as it overrides show_error
-class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
+class InstallWizard(QDialog, MessageBoxMixin, BaseWizard, TermsAndConditionsMixin):
 
     accept_signal = pyqtSignal()
 
     def __init__(self, config: 'SimpleConfig', app: QApplication, plugins: 'Plugins', *, gui_object: 'ElectrumGui'):
         QDialog.__init__(self, None)
         BaseWizard.__init__(self, config, plugins)
-        self.setWindowTitle('Electrum  -  ' + _('Install Wizard'))
+        self.setWindowTitle('ELCASH Wallet  -  ' + _('Install Wizard'))
         self.app = app
         self.config = config
         self.gui_thread = gui_object.gui_thread
@@ -233,7 +234,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         vbox_create_new.setContentsMargins(0, 0, 0, 0)
         vbox.addWidget(widget_create_new)
 
-        self.set_layout(vbox, title=_('Electrum wallet'))
+        self.set_layout(vbox, title=_('ELCASH wallet'))
 
         temp_storage = None  # type: Optional[WalletStorage]
         wallet_folder = os.path.dirname(path)
@@ -454,10 +455,9 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.exec_layout(slayout, title, next_enabled=False)
         return slayout.get_text()
 
-    def seed_input(self, title, message, is_seed, options):
+    def seed_input(self, title, message, options):
         slayout = SeedLayout(
             title=message,
-            is_seed=is_seed,
             options=options,
             parent=self,
             config=self.config,
@@ -485,7 +485,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return self.text_input(title, message, is_valid)
 
     @wizard_dialog
-    def restore_seed_dialog(self, run_next, test):
+    def restore_seed_dialog(self, run_next):
         options = []
         if self.opt_ext:
             options.append('ext')
@@ -493,10 +493,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             options.append('bip39')
         title = _('Enter Seed')
         message = _('Please enter your seed phrase in order to restore your wallet.')
-        return self.seed_input(title, message, test, options)
+        return self.seed_input(title, message, options)
 
     @wizard_dialog
-    def confirm_seed_dialog(self, run_next, seed, test):
+    def confirm_seed_dialog(self, run_next, seed):
         self.app.clipboard().clear()
         title = _('Confirm Seed')
         message = ' '.join([
@@ -504,7 +504,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             _('If you lose your seed, your money will be permanently lost.'),
             _('To make sure that you have properly saved your seed, please retype it here.')
         ])
-        seed, is_bip39, is_ext = self.seed_input(title, message, test, None)
+        seed, is_bip39, is_ext = self.seed_input(title, message, None)
         return seed
 
     @wizard_dialog
@@ -724,10 +724,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return None
 
     def init_network(self, network: 'Network'):
-        message = _("Electrum communicates with remote servers to get "
+        message = _("ELCASH Wallet communicates with remote servers to get "
                   "information about your transactions and addresses. The "
                   "servers all fulfill the same purpose only differing in "
-                  "hardware. In most cases you simply want to let Electrum "
+                  "hardware. In most cases you simply want to let ELCASH Wallet "
                   "pick one at random.  However if you prefer feel free to "
                   "select a server manually.")
         choices = [_("Auto connect"), _("Select server manually")]

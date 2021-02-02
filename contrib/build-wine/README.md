@@ -35,8 +35,8 @@ folder.
         sudo rm -rf $FRESH_CLONE && \
         mkdir -p $FRESH_CLONE && \
         cd $FRESH_CLONE  && \
-        git clone https://github.com/spesmilo/electrum.git && \
-        cd electrum
+        git clone https://github.com/electric-cash/elcash-wallet.git && \
+        cd elcash-wallet
     ```
 
     And then build from this directory:

@@ -9,6 +9,7 @@ from electrum.wallet import restore_wallet_from_text
 from electrum.simple_config import SimpleConfig
 
 from . import TestCaseForTestnet, ElectrumTestCase
+from .from_seed_patch import from_seed_patch
 
 
 class TestCommands(ElectrumTestCase):
@@ -107,6 +108,7 @@ class TestCommands(ElectrumTestCase):
         self.assertEqual(['p2wpkh:L4jkdiXszG26SUYvwwJhzGwg37H2nLhrbip7u6crmgNeJysv5FHL', 'p2wpkh:L4rYY5QpfN6wJEF4SEKDpcGhTPnCe9zcGs6hiSnhpprZqVywFifN'],
                          cmds._run('getprivatekeys', (['bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', 'bc1q9pzjpjq4nqx5ycnywekcmycqz0wjp2nq604y2n'], ), wallet=wallet))
 
+    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_export_private_key_deterministic(self, mock_save_db):
         wallet = restore_wallet_from_text('bitter grass shiver impose acquire brush forget axis eager alone wine silver',
@@ -203,6 +205,7 @@ class TestCommandsTestnet(TestCaseForTestnet):
         self.assertEqual("0200000000010139c5375fe9da7bd377c1783002b129f8c57d3e724d62f5eacb9739ca691a229d0100000000fdffffff01301b0f0000000000160014ac0e2d229200bffb2167ed6fd196aef9d687d8bb0247304402201c551df0458528d19ba1dd79b134dcf0055f7b029dfc3d0d024e6253d069d13e02206d03cfc85a6fc648acb6fc6be630e4567d1dd00ddbcdee551ee0711414e2f33f0121021f110909ded653828a254515b58498a6bafc96799fb0851554463ed44ca7d9da00000000",
                          cmds._run('serialize', (jsontx,)))
 
+    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_getprivatekeyforpath(self, mock_save_db):
         wallet = restore_wallet_from_text('north rent dawn bunker hamster invest wagon market romance pig either squeeze',

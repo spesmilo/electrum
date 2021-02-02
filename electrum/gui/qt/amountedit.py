@@ -3,8 +3,8 @@
 from decimal import Decimal
 from typing import Union
 
-from PyQt5.QtCore import pyqtSignal, Qt
-from PyQt5.QtGui import QPalette, QPainter
+from PyQt5.QtCore import pyqtSignal, Qt, QRegExp
+from PyQt5.QtGui import QPalette, QPainter, QKeySequence, QRegExpValidator
 from PyQt5.QtWidgets import (QLineEdit, QStyle, QStyleOptionFrame)
 
 from .util import char_width_in_lineedit, ColorScheme
@@ -33,6 +33,11 @@ class AmountEdit(FreezableLineEdit):
         self.is_int = is_int
         self.is_shortcut = False
         self.extra_precision = 0
+        regex_str = '\d{0,8}($|\.\d{0,' + str(self.max_precision()) + '})'
+        self.setValidator(QRegExpValidator(
+            QRegExp(regex_str),
+            self
+        ))
 
     def decimal_point(self):
         return 8
@@ -79,6 +84,16 @@ class AmountEdit(FreezableLineEdit):
 
     def setAmount(self, x):
         self.setText("%d"%x)
+
+    def contextMenuEvent(self, event):
+        """Suppress context menu"""
+        pass
+
+    def keyPressEvent(self, event):
+        """Suppress ctrl+c, ctrl+v ctrl+x"""
+        if event.matches(QKeySequence.Paste) or event.matches(QKeySequence.Copy) or event.matches(QKeySequence.Cut):
+            return
+        super().keyPressEvent(event)
 
 
 class BTCAmountEdit(AmountEdit):

@@ -1,0 +1,7 @@
+{
+  "electrum.testnet.electriccash.global": {
+      "pruning": "-",
+      "s": "443",
+      "version": "1.4"
+    }
+}

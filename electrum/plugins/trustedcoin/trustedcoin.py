@@ -618,7 +618,7 @@ class TrustedCoinPlugin(BasePlugin):
         wizard.opt_ext = True
         title = _("Restore two-factor Wallet")
         f = lambda seed, is_bip39, is_ext: wizard.run('on_restore_seed', seed, is_ext)
-        wizard.restore_seed_dialog(run_next=f, test=self.is_valid_seed)
+        wizard.restore_seed_dialog(run_next=f)
 
     def on_restore_seed(self, wizard, seed, is_ext):
         f = lambda x: self.restore_choice(wizard, seed, x)
@@ -710,7 +710,7 @@ class TrustedCoinPlugin(BasePlugin):
             wizard.opt_bip39 = False
             wizard.opt_ext = True
             f = lambda seed, is_bip39, is_ext: wizard.run('on_reset_seed', short_id, seed, is_ext, xpub3)
-            wizard.restore_seed_dialog(run_next=f, test=self.is_valid_seed)
+            wizard.restore_seed_dialog(run_next=f)
 
     def on_reset_seed(self, wizard, short_id, seed, is_ext, xpub3):
         f = lambda passphrase: wizard.run('on_reset_auth', short_id, seed, passphrase, xpub3)

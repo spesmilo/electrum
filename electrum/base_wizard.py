@@ -52,6 +52,9 @@ if TYPE_CHECKING:
 
 # hardware device setup purpose
 HWD_SETUP_NEW_WALLET, HWD_SETUP_DECRYPT_WALLET = range(0, 2)
+# length of entropy bits for bip39 mnemonic
+# 128 corresponds to 12-words mnemonic
+ENTROPY_BIT_LENGTH = 128
 
 
 class ScriptTypeNotSupported(Exception): pass
@@ -145,9 +148,8 @@ class BaseWizard(Logger):
         ])
         wallet_kinds = [
             ('standard',  _("Standard wallet")),
-            ('2fa', _("Wallet with two-factor authentication")),
             ('multisig',  _("Multi-signature wallet")),
-            ('imported',  _("Import Bitcoin addresses or private keys")),
+            ('imported',  _("Import external watch-only ELCASH addresses or private keys")),
         ]
         choices = [pair for pair in wallet_kinds if pair[0] in wallet_types]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.on_wallet_type)
@@ -206,8 +208,9 @@ class BaseWizard(Logger):
         title = _('Add cosigner') + ' (%d of %d)'%(i+1, self.n) if self.wallet_type=='multisig' else _('Keystore')
         if self.wallet_type =='standard' or i==0:
             message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
+            create_new_seed_action = 'choose_seed_type' if self.config.get('developer_mode', False) else 'create_segwit_seed'
             choices = [
-                ('choose_seed_type', _('Create a new seed')),
+                (create_new_seed_action, _('Create a new seed')),
                 ('restore_from_seed', _('I already have a seed')),
                 ('restore_from_key', _('Use a master key')),
             ]
@@ -226,8 +229,8 @@ class BaseWizard(Logger):
 
     def import_addresses_or_keys(self):
         v = lambda x: keystore.is_address_list(x) or keystore.is_private_key_list(x, raise_on_error=True)
-        title = _("Import Bitcoin Addresses")
-        message = _("Enter a list of Bitcoin addresses (this will create a watching-only wallet), or a list of private keys.")
+        title = _("Import ELCASH addresses")
+        message = _("Enter a list of ELCASH addresses (this will create a watching-only wallet), or a list of private keys.")
         self.add_xpub_dialog(title=title, message=message, run_next=self.on_import,
                              is_valid=v, allow_multi=True, show_wif_help=True)
 
@@ -417,7 +420,7 @@ class BaseWizard(Logger):
             # For segwit, a custom path is used, as there is no standard at all.
             default_choice_idx = 2
             choices = [
-                ('standard',   'legacy multisig (p2sh)',            normalize_bip32_derivation("m/45'/0")),
+                ('standard',   'legacy multisig (p2sh)',            purpose48_derivation(0, xtype='p2sh')),
                 ('p2wsh-p2sh', 'p2sh-segwit multisig (p2wsh-p2sh)', purpose48_derivation(0, xtype='p2wsh-p2sh')),
                 ('p2wsh',      'native segwit multisig (p2wsh)',    purpose48_derivation(0, xtype='p2wsh')),
             ]
@@ -507,13 +510,14 @@ class BaseWizard(Logger):
     def restore_from_seed(self):
         self.opt_bip39 = True
         self.opt_ext = True
-        is_cosigning_seed = lambda x: mnemonic.seed_type(x) in ['standard', 'segwit']
-        test = mnemonic.is_seed if self.wallet_type == 'standard' else is_cosigning_seed
         f = lambda *args: self.run('on_restore_seed', *args)
-        self.restore_seed_dialog(run_next=f, test=test)
+        self.restore_seed_dialog(run_next=f)
 
     def on_restore_seed(self, seed, is_bip39, is_ext):
         self.seed_type = 'bip39' if is_bip39 else mnemonic.seed_type(seed)
+        if not self.config.get('developer_mode'):
+            assert self.seed_type == 'bip39', f'Unsupported seed type {self.seed_type}'
+            self.seed_type = 'segwit'
         if self.seed_type == 'bip39':
             f = lambda passphrase: self.run('on_restore_bip39', seed, passphrase)
             self.passphrase_dialog(run_next=f, is_restoring=True) if is_ext else f('')
@@ -544,7 +548,7 @@ class BaseWizard(Logger):
         self.derivation_and_script_type_dialog(f, get_account_xpub=get_account_xpub)
 
     def create_keystore(self, seed, passphrase):
-        k = keystore.from_seed(seed, passphrase, self.wallet_type == 'multisig')
+        k = keystore.from_seed(seed, passphrase, self.wallet_type == 'multisig', self.seed_type)
         self.on_keystore(k)
 
     def on_bip43(self, seed, passphrase, derivation, script_type):
@@ -707,8 +711,8 @@ class BaseWizard(Logger):
     def create_seed(self, seed_type):
         from . import mnemonic
         self.seed_type = seed_type
-        seed = mnemonic.Mnemonic('en').make_seed(seed_type=self.seed_type)
-        self.opt_bip39 = False
+        seed = mnemonic.create_bip39_mnemonic(bit_length=ENTROPY_BIT_LENGTH)
+        self.opt_bip39 = True
         f = lambda x: self.request_passphrase(seed, x)
         self.show_seed_dialog(run_next=f, seed_text=seed)
 
@@ -721,7 +725,7 @@ class BaseWizard(Logger):
 
     def confirm_seed(self, seed, passphrase):
         f = lambda x: self.confirm_passphrase(seed, passphrase)
-        self.confirm_seed_dialog(run_next=f, seed=seed if self.config.get('debug_seed') else '', test=lambda x: x==seed)
+        self.confirm_seed_dialog(run_next=f, seed=seed if self.config.get('debug_seed') else '')
 
     def confirm_passphrase(self, seed, passphrase):
         f = lambda x: self.run('create_keystore', seed, x)

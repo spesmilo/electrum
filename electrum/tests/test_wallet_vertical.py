@@ -19,7 +19,8 @@ from electrum.plugins.trustedcoin import trustedcoin
 
 from . import TestCaseForTestnet
 from . import ElectrumTestCase
-
+from .from_seed_patch import from_seed_patch
+from ..wallet_db import WalletDB
 
 UNICODE_HORROR_HEX = 'e282bf20f09f988020f09f98882020202020e3818620e38191e3819fe381be20e3828fe3828b2077cda2cda2cd9d68cda16fcda2cda120ccb8cda26bccb5cd9f6eccb4cd98c7ab77ccb8cc9b73cd9820cc80cc8177cd98cda2e1b8a9ccb561d289cca1cda27420cca7cc9568cc816fccb572cd8fccb5726f7273cca120ccb6cda1cda06cc4afccb665cd9fcd9f20ccb6cd9d696ecda220cd8f74cc9568ccb7cca1cd9f6520cd9fcd9f64cc9b61cd9c72cc95cda16bcca2cca820cda168ccb465cd8f61ccb7cca2cca17274cc81cd8f20ccb4ccb7cda0c3b2ccb5ccb666ccb82075cca7cd986ec3adcc9bcd9c63cda2cd8f6fccb7cd8f64ccb8cda265cca1cd9d3fcd9e'
 UNICODE_HORROR = bfh(UNICODE_HORROR_HEX).decode('utf-8')
@@ -46,7 +47,7 @@ class WalletIntegrityHelper:
 
     @classmethod
     def create_standard_wallet(cls, ks, *, config: SimpleConfig, gap_limit=None):
-        db = storage.WalletDB('', manual_upgrades=False)
+        db = WalletDB('', manual_upgrades=False)
         db.put('keystore', ks.dump())
         db.put('gap_limit', gap_limit or cls.gap_limit)
         w = Standard_Wallet(db, None, config=config)
@@ -55,7 +56,7 @@ class WalletIntegrityHelper:
 
     @classmethod
     def create_imported_wallet(cls, *, config: SimpleConfig, privkeys: bool):
-        db = storage.WalletDB('', manual_upgrades=False)
+        db = WalletDB('', manual_upgrades=False)
         if privkeys:
             k = keystore.Imported_KeyStore({})
             db.put('keystore', k.dump())
@@ -66,7 +67,7 @@ class WalletIntegrityHelper:
     def create_multisig_wallet(cls, keystores: Sequence, multisig_type: str, *,
                                config: SimpleConfig, gap_limit=None):
         """Creates a multisig wallet."""
-        db = storage.WalletDB('', manual_upgrades=True)
+        db = WalletDB('', manual_upgrades=True)
         for i, ks in enumerate(keystores):
             cosigner_index = i + 1
             db.put('x%d/' % cosigner_index, ks.dump())
@@ -83,6 +84,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         super().setUp()
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
 
+    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_electrum_seed_standard(self, mock_save_db):
         seed_words = 'cycle rocket west magnet parrot shuffle foot correct salt library feed song'
@@ -102,6 +104,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         self.assertEqual(w.get_receiving_addresses()[0], '1NNkttn1YvVGdqBW4PR6zvc3Zx3H5owKRf')
         self.assertEqual(w.get_change_addresses()[0], '1KSezYMhAJMWqFbVFB2JshYg69UpmEXR4D')
 
+    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_electrum_seed_segwit(self, mock_save_db):
         seed_words = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
@@ -121,6 +124,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         self.assertEqual(w.get_receiving_addresses()[0], 'bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af')
         self.assertEqual(w.get_change_addresses()[0], 'bc1qdy94n2q5qcp0kg7v9yzwe6wvfkhnvyzje7nx2p')
 
+    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_electrum_seed_segwit_passphrase(self, mock_save_db):
         seed_words = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
@@ -335,6 +339,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         self.assertEqual(w.get_receiving_addresses()[0], 'bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu')
         self.assertEqual(w.get_change_addresses()[0], 'bc1q8c6fshw2dlwun7ekn9qwf37cu2rn755upcp6el')
 
+    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_electrum_multisig_seed_standard(self, mock_save_db):
         seed_words = 'blast uniform dragon fiscal ensure vast young utility dinosaur abandon rookie sure'
@@ -357,6 +362,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         self.assertEqual(w.get_receiving_addresses()[0], '32ji3QkAgXNz6oFoRfakyD3ys1XXiERQYN')
         self.assertEqual(w.get_change_addresses()[0], '36XWwEHrrVCLnhjK5MrVVGmUHghr9oWTN1')
 
+    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_electrum_multisig_seed_segwit(self, mock_save_db):
         seed_words = 'snow nest raise royal more walk demise rotate smooth spirit canyon gun'
@@ -581,6 +587,7 @@ class TestWalletSending(TestCaseForTestnet):
         ks = keystore.from_seed(seed_words, '', False)
         return WalletIntegrityHelper.create_standard_wallet(ks, gap_limit=gap_limit, config=config)
 
+    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_sending_between_p2wpkh_and_compressed_p2pkh(self, mock_save_db):
         wallet1 = self.create_standard_wallet_from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver')
@@ -637,6 +644,7 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual((0, funding_output_value - 250000 - 5000 + 100000, 0), wallet1.get_balance())
         self.assertEqual((0, 250000 - 5000 - 100000, 0), wallet2.get_balance())
 
+    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_sending_between_p2sh_2of3_and_uncompressed_p2pkh(self, mock_save_db):
         wallet1a = WalletIntegrityHelper.create_multisig_wallet(
@@ -717,6 +725,7 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual((0, funding_output_value - 370000 - 5000 + 100000, 0), wallet1a.get_balance())
         self.assertEqual((0, 370000 - 5000 - 100000, 0), wallet2.get_balance())
 
+    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_sending_between_p2wsh_2of3_and_p2wsh_p2sh_2of2(self, mock_save_db):
         wallet1a = WalletIntegrityHelper.create_multisig_wallet(
@@ -826,6 +835,7 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual((0, funding_output_value - 165000 - 5000 + 100000, 0), wallet1a.get_balance())
         self.assertEqual((0, 165000 - 5000 - 100000, 0), wallet2a.get_balance())
 
+    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_sending_between_p2sh_1of2_and_p2wpkh_p2sh(self, mock_save_db):
         wallet1a = WalletIntegrityHelper.create_multisig_wallet(
@@ -895,6 +905,7 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual((0, funding_output_value - 1000000 - 5000 + 300000, 0), wallet1a.get_balance())
         self.assertEqual((0, 1000000 - 5000 - 300000, 0), wallet2.get_balance())
 
+    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_rbf(self, mock_save_db):
         self.maxDiff = None
@@ -1044,7 +1055,7 @@ class TestWalletSending(TestCaseForTestnet):
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 454100, 0), wallet.get_balance())
 
-
+    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_cpfp_p2pkh(self, mock_save_db):
         wallet = self.create_standard_wallet_from_seed('fold object utility erase deputy output stadium feed stereo usage modify bean')
@@ -1575,6 +1586,7 @@ class TestWalletSending(TestCaseForTestnet):
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 3_900_000, 0), wallet.get_balance())
 
+    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_cpfp_p2wpkh(self, mock_save_db):
         wallet = self.create_standard_wallet_from_seed('frost repair depend effort salon ring foam oak cancel receive save usage')
@@ -1636,6 +1648,7 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual('7f827fc5256c274fd1094eb7e020c8ded0baf820356f61aa4f14a9093b0ea0ee', tx_copy.txid())
         self.assertEqual('7f827fc5256c274fd1094eb7e020c8ded0baf820356f61aa4f14a9093b0ea0ee', tx_copy.wtxid())
 
+    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_coinjoin_between_two_p2wpkh_electrum_seeds(self, mock_save_db):
         wallet1 = WalletIntegrityHelper.create_standard_wallet(
@@ -1772,6 +1785,7 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertFalse(any([wallet_frost.is_mine(txin.address) for txin in tx.inputs()]))
         self.assertFalse(any([wallet_frost.is_mine(txout.address) for txout in tx.outputs()]))
 
+    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_dscancel(self, mock_save_db):
         self.maxDiff = None
@@ -2549,6 +2563,7 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
         self.assertEqual('f8039bd85279f2b5698f15d47f2e338d067d09af391bd8a19467aa94d03f280c', tx.txid())
         self.assertEqual('3b7cc3c3352bbb43ddc086487ac696e09f2863c3d9e8636721851b8008a83ffa', tx.wtxid())
 
+    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_sending_offline_hd_multisig_online_addr_p2sh(self, mock_save_db):
         # 2-of-3 legacy p2sh multisig
@@ -2685,6 +2700,7 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
         self.assertEqual('6a58a51591142429203b62b6ddf6b799a6926882efac229998c51bee6c3573eb', tx.txid())
         self.assertEqual('96d0bca1001778c54e4c3a07929fab5562c5b5a23fd1ca3aa3870cc5df2bf97d', tx.wtxid())
 
+    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_sending_offline_hd_multisig_online_addr_p2wsh(self, mock_save_db):
         # 2-of-3 p2wsh multisig
@@ -2886,6 +2902,7 @@ class TestWalletHistory_DoubleSpend(TestCaseForTestnet):
         super().setUp()
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
 
+    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_restoring_wallet_without_manual_delete(self, mock_save_db):
         w = restore_wallet_from_text("small rapid pattern language comic denial donate extend tide fever burden barrel",
@@ -2900,6 +2917,7 @@ class TestWalletHistory_DoubleSpend(TestCaseForTestnet):
         # txn C is double-spending txn B, to a wallet address
         self.assertEqual(999890, sum(w.get_balance()))
 
+    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_restoring_wallet_with_manual_delete(self, mock_save_db):
         w = restore_wallet_from_text("small rapid pattern language comic denial donate extend tide fever burden barrel",

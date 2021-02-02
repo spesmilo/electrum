@@ -3,8 +3,8 @@
 # Parameterize
 PYTHON_VERSION=3.7.9
 BUILDDIR=/tmp/electrum-build
-PACKAGE=Electrum
-GIT_REPO=https://github.com/spesmilo/electrum
+PACKAGE=ElectrumCash
+GIT_REPO=https://github.com/electric-cash/electrum-cash
 
 export GCC_STRIP_BINARIES="1"
 

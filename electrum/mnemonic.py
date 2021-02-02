@@ -264,3 +264,28 @@ def is_seed(x: str) -> bool:
 
 def is_any_2fa_seed_type(seed_type: str) -> bool:
     return seed_type in ['2fa', '2fa_segwit']
+
+
+def entropy_to_bip39_mnemonic(entropy: bytes):
+    entropy_size = len(entropy) * 8
+    entropy_sha = hashlib.sha256(entropy).hexdigest()
+    checksum = bin(int(entropy_sha, 16))[2:].zfill(256)[:entropy_size // 32]
+    bin_data = bin(int(entropy.hex(), 16))[2:].zfill(entropy_size) + checksum
+    wordlist = Wordlist.from_file(filenames.get('en'))
+    mnemonic = ''
+    for i in range(len(bin_data) // 11):
+        bin_word = bin_data[i * 11: (i + 1) * 11]
+        mnemonic += wordlist[int(bin_word, 2)] + ' '
+    return mnemonic[:-1]
+
+
+def gen_entropy(bit_length=128):
+    assert bit_length % 32 == 0, f'entropy of bit length {bit_length} is not multiple of 32 bits'
+    return randrange(pow(2, bit_length)).to_bytes(length=bit_length // 8, byteorder='big')
+
+
+def create_bip39_mnemonic(bit_length=128):
+    entropy = gen_entropy(bit_length)
+    mnemonic = entropy_to_bip39_mnemonic(entropy)
+    del entropy
+    return mnemonic

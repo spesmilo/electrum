@@ -17,13 +17,9 @@ home = 'C:\\electrum\\'
 # see https://github.com/pyinstaller/pyinstaller/issues/2005
 hiddenimports = []
 hiddenimports += collect_submodules('pkg_resources')  # workaround for https://github.com/pypa/setuptools/issues/1963
-hiddenimports += collect_submodules('trezorlib')
-hiddenimports += collect_submodules('safetlib')
 hiddenimports += collect_submodules('btchip')
-hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
 hiddenimports += collect_submodules('ckcc')
-hiddenimports += collect_submodules('bitbox02')
 hiddenimports += ['PyQt5.QtPrintSupport']  # needed by Revealer
 
 
@@ -43,13 +39,10 @@ datas = [
     (home+'electrum/locale', 'electrum/locale'),
     (home+'electrum/plugins', 'electrum/plugins'),
     (home+'electrum/gui/icons', 'electrum/gui/icons'),
+    (home+'electrum/terms_and_conditions/*.html', 'electrum/terms_and_conditions'),
 ]
-datas += collect_data_files('trezorlib')
-datas += collect_data_files('safetlib')
 datas += collect_data_files('btchip')
-datas += collect_data_files('keepkeylib')
 datas += collect_data_files('ckcc')
-datas += collect_data_files('bitbox02')
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
 a = Analysis([home+'run_electrum',
@@ -63,12 +56,7 @@ a = Analysis([home+'run_electrum',
               home+'electrum/commands.py',
               home+'electrum/plugins/cosigner_pool/qt.py',
               home+'electrum/plugins/email_requests/qt.py',
-              home+'electrum/plugins/trezor/qt.py',
-              home+'electrum/plugins/safe_t/client.py',
-              home+'electrum/plugins/safe_t/qt.py',
-              home+'electrum/plugins/keepkey/qt.py',
               home+'electrum/plugins/ledger/qt.py',
-              home+'electrum/plugins/coldcard/qt.py',
               #home+'packages/requests/utils.py'
               ],
              binaries=binaries,

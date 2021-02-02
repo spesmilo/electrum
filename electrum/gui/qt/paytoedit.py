@@ -57,18 +57,19 @@ class PayToLineError(NamedTuple):
     idx: int = 0  # index of line
     is_multiline: bool = False
 
-
-class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
+        #todo uncomment when QR Read will be work fine
+#class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
+class PayToEdit(CompletionTextEdit, Logger):
 
     def __init__(self, win: 'ElectrumWindow'):
         CompletionTextEdit.__init__(self)
-        ScanQRTextEdit.__init__(self, config=win.config)
+#        ScanQRTextEdit.__init__(self, config=win.config)
         Logger.__init__(self)
         self.win = win
         self.amount_edit = win.amount_e
         self.setFont(QFont(MONOSPACE_FONT))
         self.document().contentsChanged.connect(self.update_size)
-        self.heightMin = 0
+        self.heightMin = 35
         self.heightMax = 150
         self.c = None
         self.textChanged.connect(self.check_text)
@@ -80,6 +81,11 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         self.payto_scriptpubkey = None  # type: Optional[bytes]
         self.lightning_invoice = None
         self.previous_payto = ''
+
+    def keyPressEvent(self, event):
+        # suppress pressing "-" key
+        if event.text() != '-':
+            super().keyPressEvent(event)
 
     def setFrozen(self, b):
         self.setReadOnly(b)
@@ -139,6 +145,15 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         assert bitcoin.is_address(address)
         return address
 
+    def _check_minus_sign(self, lines):
+        for i, line in enumerate(lines):
+            if '-' in line:
+                self.errors.append(PayToLineError(
+                    line_content=line,
+                    exc=ValueError('- sign is not allowed'),
+                    idx=i,
+                ))
+
     def check_text(self):
         self.errors = []
         if self.is_pr:
@@ -146,6 +161,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         # filter out empty lines
         lines = [i for i in self.lines() if i]
 
+        self._check_minus_sign(lines)
         self.payto_scriptpubkey = None
         self.lightning_invoice = None
         self.outputs = []
@@ -219,6 +235,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         self.win.lock_amount(self.win.max_button.isChecked() or bool(outputs))
 
     def get_errors(self) -> Sequence[PayToLineError]:
+        self.errors = sorted(self.errors, key=lambda item: item.idx)
         return self.errors
 
     def get_destination_scriptpubkey(self) -> Optional[bytes]:

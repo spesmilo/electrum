@@ -4,7 +4,7 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules, coll
 
 import sys, os
 
-PACKAGE='Electrum'
+PACKAGE='ELCASHWallet'
 PYPKG='electrum'
 MAIN_SCRIPT='run_electrum'
 ICONS_FILE=PYPKG + '/gui/icons/electrum.icns'
@@ -60,13 +60,9 @@ block_cipher = None
 # see https://github.com/pyinstaller/pyinstaller/issues/2005
 hiddenimports = []
 hiddenimports += collect_submodules('pkg_resources')  # workaround for https://github.com/pypa/setuptools/issues/1963
-hiddenimports += collect_submodules('trezorlib')
-hiddenimports += collect_submodules('safetlib')
 hiddenimports += collect_submodules('btchip')
-hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
 hiddenimports += collect_submodules('ckcc')
-hiddenimports += collect_submodules('bitbox02')
 hiddenimports += ['PyQt5.QtPrintSupport']  # needed by Revealer
 
 datas = [
@@ -76,13 +72,10 @@ datas = [
     (electrum + PYPKG + '/locale', PYPKG + '/locale'),
     (electrum + PYPKG + '/plugins', PYPKG + '/plugins'),
     (electrum + PYPKG + '/gui/icons', PYPKG + '/gui/icons'),
+    (electrum + PYPKG + '/terms_and_conditions/*.html', PYPKG + '/terms_and_conditions'),
 ]
-datas += collect_data_files('trezorlib')
-datas += collect_data_files('safetlib')
 datas += collect_data_files('btchip')
-datas += collect_data_files('keepkeylib')
 datas += collect_data_files('ckcc')
-datas += collect_data_files('bitbox02')
 
 # Add the QR Scanner helper app
 datas += [(electrum + "contrib/osx/CalinsQRReader/build/Release/CalinsQRReader.app", "./contrib/osx/CalinsQRReader/build/Release/CalinsQRReader.app")]
@@ -106,12 +99,7 @@ a = Analysis([electrum+ MAIN_SCRIPT,
               electrum+'electrum/commands.py',
               electrum+'electrum/plugins/cosigner_pool/qt.py',
               electrum+'electrum/plugins/email_requests/qt.py',
-              electrum+'electrum/plugins/trezor/qt.py',
-              electrum+'electrum/plugins/safe_t/client.py',
-              electrum+'electrum/plugins/safe_t/qt.py',
-              electrum+'electrum/plugins/keepkey/qt.py',
               electrum+'electrum/plugins/ledger/qt.py',
-              electrum+'electrum/plugins/coldcard/qt.py',
               ],
              binaries=binaries,
              datas=datas,

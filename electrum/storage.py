@@ -34,7 +34,6 @@ from . import ecc
 from .util import (profiler, InvalidPassword, WalletFileException, bfh, standardize_path,
                    test_read_write_permissions)
 
-from .wallet_db import WalletDB
 from .logging import Logger
 
 

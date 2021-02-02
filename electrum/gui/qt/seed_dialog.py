@@ -38,6 +38,7 @@ from .util import (Buttons, OkButton, WWLabel, ButtonsTextEdit, icon_path,
                    EnterButton, CloseButton, WindowModalDialog, ColorScheme)
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
+from ...keystore import bip39_is_checksum_valid
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -68,31 +69,10 @@ class SeedLayout(QVBoxLayout):
             cb_ext = QCheckBox(_('Extend this seed with custom words'))
             cb_ext.setChecked(self.is_ext)
             vbox.addWidget(cb_ext)
-        if 'bip39' in self.options:
-            def f(b):
-                self.is_seed = (lambda x: bool(x)) if b else self.saved_is_seed
-                self.is_bip39 = b
-                self.on_edit()
-                if b:
-                    msg = ' '.join([
-                        '<b>' + _('Warning') + ':</b>  ',
-                        _('BIP39 seeds can be imported in Electrum, so that users can access funds locked in other wallets.'),
-                        _('However, we do not generate BIP39 seeds, because they do not meet our safety standard.'),
-                        _('BIP39 seeds do not include a version number, which compromises compatibility with future software.'),
-                        _('We do not guarantee that BIP39 imports will always be supported in Electrum.'),
-                    ])
-                else:
-                    msg = ''
-                self.seed_warning.setText(msg)
-            cb_bip39 = QCheckBox(_('BIP39 seed'))
-            cb_bip39.toggled.connect(f)
-            cb_bip39.setChecked(self.is_bip39)
-            vbox.addWidget(cb_bip39)
         vbox.addLayout(Buttons(OkButton(dialog)))
         if not dialog.exec_():
             return None
         self.is_ext = cb_ext.isChecked() if 'ext' in self.options else False
-        self.is_bip39 = cb_bip39.isChecked() if 'bip39' in self.options else False
 
     def __init__(
             self,
@@ -101,7 +81,6 @@ class SeedLayout(QVBoxLayout):
             icon=True,
             msg=None,
             options=None,
-            is_seed=None,
             passphrase=None,
             parent=None,
             for_seed_words=True,
@@ -125,11 +104,10 @@ class SeedLayout(QVBoxLayout):
             assert for_seed_words
             self.seed_e = CompletionTextEdit()
             self.seed_e.setTabChangesFocus(False)  # so that tab auto-completes
-            self.is_seed = is_seed
-            self.saved_is_seed = self.is_seed
             self.seed_e.textChanged.connect(self.on_edit)
             self.initialize_completer()
 
+        self.seed_e.setContextMenuPolicy(Qt.PreventContextMenu)
         self.seed_e.setMaximumHeight(75)
         hbox = QHBoxLayout()
         if icon:
@@ -146,7 +124,7 @@ class SeedLayout(QVBoxLayout):
         hbox.addWidget(self.seed_type_label)
 
         # options
-        self.is_bip39 = False
+        self.is_bip39 = True
         self.is_ext = False
         if options:
             opt_button = EnterButton(_('Options'), self.seed_options)
@@ -191,16 +169,17 @@ class SeedLayout(QVBoxLayout):
 
     def get_seed(self):
         text = self.seed_e.text()
-        return ' '.join(text.split())
+        seed = ' '.join(text.split())
+        del text
+        return seed
 
     def on_edit(self):
         s = self.get_seed()
-        b = self.is_seed(s)
+        b = bip39_is_checksum_valid(s)[0]
         if not self.is_bip39:
             t = seed_type(s)
             label = _('Seed Type') + ': ' + t if t else ''
         else:
-            from electrum.keystore import bip39_is_checksum_valid
             is_checksum, is_wordlist = bip39_is_checksum_valid(s)
             status = ('checksum: ' + ('ok' if is_checksum else 'failed')) if is_wordlist else 'unknown wordlist'
             label = 'BIP39' + ' (%s)'%status

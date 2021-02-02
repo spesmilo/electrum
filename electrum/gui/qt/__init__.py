@@ -30,6 +30,7 @@ import traceback
 import threading
 from typing import Optional, TYPE_CHECKING, List
 
+from .terms_and_conditions_mixin import TermsNotAccepted
 
 try:
     import PyQt5
@@ -345,12 +346,23 @@ class ElectrumGui(Logger):
                 wizard.init_network(self.daemon.network)
                 wizard.terminate()
 
+    def accept_terms_and_conditions(self):
+        config_key = 'terms_and_conditions_accepted'
+        if not self.config.get(config_key, False):
+            wizard = InstallWizard(self.config, self.app, self.plugins, gui_object=self)
+            accepted = wizard.accept_terms_and_conditions()
+            wizard.terminate()
+            if accepted:
+                self.config.set_key(config_key, True)
+            else:
+                self.stop()
+                raise TermsNotAccepted
+
     def main(self):
         try:
+            self.accept_terms_and_conditions()
             self.init_network()
-        except UserCancelled:
-            return
-        except GoBack:
+        except (UserCancelled, GoBack, TermsNotAccepted):
             return
         except BaseException as e:
             self.logger.exception('')

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-NAME_ROOT=electrum
+NAME_ROOT=elcash-wallet
 
 # These settings probably don't need any change
 export WINEPREFIX=/opt/wine64
@@ -26,11 +26,13 @@ info "Last commit: $VERSION"
 # Load electrum-locale for this release
 git submodule update --init
 
+cp -r ./electrum/locale ./contrib/deterministic-build/electrum-locale/
+
 pushd ./contrib/deterministic-build/electrum-locale
 if ! which msgfmt > /dev/null 2>&1; then
     fail "Please install gettext"
 fi
-for i in ./locale/*; do
+for i in $(find ./locale -maxdepth 1 -mindepth 1 -type d -printf '%f\n'); do
     dir=$WINEPREFIX/drive_c/electrum/electrum/$i/LC_MESSAGES
     mkdir -p $dir
     msgfmt --output-file=$dir/electrum.mo $i/electrum.po || true
@@ -69,7 +71,7 @@ info "building NSIS installer"
 wine "$WINEPREFIX/drive_c/Program Files (x86)/NSIS/makensis.exe" /DPRODUCT_VERSION=$VERSION electrum.nsi
 
 cd dist
-mv electrum-setup.exe $NAME_ROOT-$VERSION-setup.exe
+mv elcash-wallet-setup.exe $NAME_ROOT-$VERSION-setup.exe
 cd ..
 
 info "Padding binaries to 8-byte boundaries, and fixing COFF image checksum in PE header"
@@ -114,4 +116,4 @@ EOF
     done
 )
 
-sha256sum dist/electrum*.exe
+sha256sum dist/elcash-wallet*.exe
