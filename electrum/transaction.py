@@ -1353,12 +1353,14 @@ class PartialTxInput(TxInput, PSBTSection):
         if self.scriptpubkey is None:
             return
         type = get_script_type_from_output_script(self.scriptpubkey)
+        inner_type = None
         if type is not None:
-            if type in ('p2sh', 'p2wsh'):
-                if self.redeem_script is not None:
-                    inner_type = get_script_type_from_output_script(self.redeem_script)
-                    if inner_type is not None:
-                        type = inner_type + '-' + type
+            if type == 'p2sh':
+                inner_type = get_script_type_from_output_script(self.redeem_script)
+            elif type == 'p2wsh':
+                inner_type = get_script_type_from_output_script(self.witness_script)
+            if inner_type is not None:
+                type = inner_type + '-' + type
             self.script_type = type
         return
 
