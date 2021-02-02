@@ -17,6 +17,7 @@ jobs:
         uses: mstachniuk/ci-skip@v1
         with:
           commit-filter: 'chore(release)'
+
   windows:
     runs-on: ubuntu-latest
     needs: init
@@ -107,7 +108,7 @@ jobs:
   release:
     name: "Release"
     runs-on: ubuntu-latest
-    needs: [ init, windows, appimage. tarball ]
+    needs: [ init, windows, appimage, tarball ]
     if: ${{ needs.init.outputs.skip-release == 'false' }}
     steps:
       - uses: actions/checkout@v2
