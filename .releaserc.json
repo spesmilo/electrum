@@ -1,14 +1,19 @@
 {
-  "preset": "conventionalcommits",
   "plugins": [
     ["@semantic-release/commit-analyzer", {
+      "preset": "conventionalcommits",
       "releaseRules": [
-        { "release": "major" , "breaking": true },
-        { "release": "minor", "type": "feat" },
-        { "release": "patch", "type": "fix" },
-        { "scope": "no-release", "release": false },
-        { "type": "*", "release": "patch" }
-      ]
+        { "breaking": true, "release": "major" },
+        { "type": "feat",  "release": "minor" },
+        { "type": "fix", "release": "patch" },
+        { "type": "docs", "scope":"*README*", "release": "patch" },
+        { "type": "refactor", "release": "patch" },
+        { "type": "style", "release": "patch" },
+        { "scope": "no-release", "release": false }
+      ],
+      "parserOpts": {
+        "noteKeywords": ["BREAKING CHANGE", "BREAKING CHANGES"]
+      }
     }],
     "@semantic-release/release-notes-generator",
     ["@semantic-release/exec", {
