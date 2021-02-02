@@ -30,9 +30,61 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: error
           retention-days: 7
+
+  windows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.7
+      - uses: satackey/action-docker-layer-caching@v0.0.11
+        # Ignore the failure of a step and avoid terminating the job.
+        continue-on-error: true
+      - name: Builder image
+        env:
+          TARGET_OS: Windows
+        run: docker build --no-cache -t electrum-wine-builder-img ./contrib/build-wine/
+      - name: Compile Windows binary
+        env:
+          TARGET_OS: Windows
+        run: docker run --name electrum-wine-builder-cont -v $PWD:/opt/wine64/drive_c/electrum --rm --workdir /opt/wine64/drive_c/electrum/contrib/build-wine electrum-wine-builder-img ./build.sh
+      - name: 'Upload Artifact'
+        uses: actions/upload-artifact@v2
+        with:
+          name: artifact-windows
+          path: contrib/build-wine/dist/*.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  appimage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.7
+      - uses: satackey/action-docker-layer-caching@v0.0.11
+        # Ignore the failure of a step and avoid terminating the job.
+        continue-on-error: true
+      - name: Builder image
+        run: docker build --no-cache -t electrum-appimage-builder-img ./contrib/build-linux/appimage/
+      - name: Compile Linux AppImage
+        run: docker run --name electrum-appimage-builder-cont -v $PWD:/opt/electrum --rm --workdir /opt/electrum/contrib/build-linux/appimage electrum-appimage-builder-img ./build.sh
+      - name: 'Upload Artifact'
+        uses: actions/upload-artifact@v2
+        with:
+          name: artifact-appimage
+          path: dist/*.AppImage
+          if-no-files-found: error
+          retention-days: 7
+
+
   release:
     name: "Release"
-    needs: [ tarball ]
+    needs: [ tarball, windows, appimage ]
     runs-on: ubuntu-16.04
     steps:
       - uses: actions/checkout@v2

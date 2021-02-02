@@ -18,11 +18,16 @@
     }],
     "@semantic-release/release-notes-generator",
     ["@semantic-release/exec", {
-      "assets": "electrum/version.py",
       "prepareCmd": "sed -i \"s/ELECTRUM_VERSION = '*.*.*'/ELECTRUM_VERSION = '${nextRelease.version}'/g\" electrum/version.py"
     }],
-    ["@semantic-release/changelog", { "changelogTitle": "# Changelog"} ],
-    ["@semantic-release/git", { "message": "chore(release): Release v${nextRelease.version}" }],
+    ["@semantic-release/changelog", {
+      "changelogFile": "CHANGELOG.md",
+      "changelogTitle": "# Changelog"
+    }],
+    ["@semantic-release/git", {
+      "assets": ["electrum/version.py", "CHANGELOG.md"],
+      "message": "chore(release): Release v${nextRelease.version}"
+    }],
     ["@semantic-release/github", {
       "labels": ["build failing"],
       "addReleases": "bottom",
@@ -35,7 +40,16 @@
         "name": "elcash-wallet-${nextRelease.gitTag}.tar.gz",
         "label": "ELCASH Wallet (${nextRelease.gitTag}) Linux - tarball"
       }, {
-        "path": "dist/artifact-windows/*.exe",
+        "path": "dist/artifact-windows/*-portable.exe",
+        "name": "elcash-wallet-${nextRelease.gitTag}-portable.exe",
+        "label": "ELCASH Wallet (${nextRelease.gitTag}) Windows - portable"
+      }, {
+        "path": "dist/artifact-windows/*-setup.exe",
+        "name": "elcash-wallet-${nextRelease.gitTag}-setup.exe",
+        "label": "ELCASH Wallet (${nextRelease.gitTag}) Windows - setup"
+      }, {
+        "path": "dist/artifact-windows/elcash-wallet-???????.exe",
+        "name": "elcash-wallet-${nextRelease.gitTag}.exe",
         "label": "ELCASH Wallet (${nextRelease.gitTag}) Windows"
       }]
     }],
@@ -43,6 +57,7 @@
       "semantic-release-slack-bot",
       {
         "packageName": "elcash-wallet",
+        "markdownReleaseNotes": true,
         "notifyOnSuccess": true,
         "notifyOnFail": false,
         "slackWebhookEnVar": "SLACK_WEBHOOK_URL"
