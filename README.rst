@@ -107,19 +107,8 @@ Linux (AppImage)
 See :code:`contrib/build-linux/appimage/README.md`.
 
 
-Mac OS X / macOS
-----------------
-
-See :code:`contrib/osx/README.md`.
-
 
 Windows
 -------
 
 See :code:`contrib/build-wine/README.md`.
-
-
-Android
--------
-
-See :code:`contrib/android/Readme.md`.
