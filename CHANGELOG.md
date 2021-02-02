@@ -1,5 +1,7 @@
 # Changelog
 
+## [4.0.14](https://github.com/electric-cash/elcash-wallet/compare/v4.0.13...v4.0.14) (2021-02-02)
+
 ## [4.0.13](https://github.com/electric-cash/elcash-wallet/compare/v4.0.12...v4.0.13) (2021-02-02)
 
 ## [4.0.12](https://github.com/electric-cash/elcash-wallet/compare/v4.0.11...v4.0.12) (2021-02-02)
