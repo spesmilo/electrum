@@ -4,33 +4,33 @@ on:
   push
 
 jobs:
-#  tarball:
-#    runs-on: ubuntu-latest
-#    steps:
-#      - uses: actions/checkout@v2
-#      - name: Set up Python ${{ matrix.python-version }}
-#        uses: actions/setup-python@v2
-#        with:
-#          python-version: 3.7
-#      - uses: satackey/action-docker-layer-caching@v0.0.11
-#        # Ignore the failure of a step and avoid terminating the job.
-#        continue-on-error: true
-#      - name: Builder image
-#        run: docker build --no-cache -t electrum-sdist-builder-img ./contrib/build-linux/sdist/
-#      - name: Compile Linux tarball
-#        run: |
-#          echo "Building sdist at $PWD"
-#          docker run --name electrum-sdist-builder-cont -v $PWD:/opt/electrum --rm --workdir /opt/electrum/contrib/build-linux/sdist electrum-sdist-builder-img ./build.sh
-#      - name: 'Upload Artifact'
-#        uses: actions/upload-artifact@v2
-#        with:
-#          name: artifact-tarball
-#          path: dist/*.tar.gz
-#          if-no-files-found: error
-#          retention-days: 7
+  tarball:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.7
+      - uses: satackey/action-docker-layer-caching@v0.0.11
+        # Ignore the failure of a step and avoid terminating the job.
+        continue-on-error: true
+      - name: Builder image
+        run: docker build --no-cache -t electrum-sdist-builder-img ./contrib/build-linux/sdist/
+      - name: Compile Linux tarball
+        run: |
+          echo "Building sdist at $PWD"
+          docker run --name electrum-sdist-builder-cont -v $PWD:/opt/electrum --rm --workdir /opt/electrum/contrib/build-linux/sdist electrum-sdist-builder-img ./build.sh
+      - name: 'Upload Artifact'
+        uses: actions/upload-artifact@v2
+        with:
+          name: artifact-tarball
+          path: dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
   release:
     name: "Release"
-#    needs: [ tarball ]
+    needs: [ tarball ]
     runs-on: ubuntu-16.04
     steps:
       - uses: actions/checkout@v2
@@ -50,13 +50,13 @@ jobs:
           @semantic-release/github \
           semantic-release-slack-bot \
           conventional-changelog-conventionalcommits
-#      - name: Download all workflow run artifacts
-#        uses: actions/download-artifact@v2
-#        with:
-#          path: dist
-#      - name: Display structure of downloaded files
-#        run: ls -R
-#        working-directory: dist
+      - name: Download all workflow run artifacts
+        uses: actions/download-artifact@v2
+        with:
+          path: dist
+      - name: Display structure of downloaded files
+        run: ls -R
+        working-directory: dist
       - run: npx semantic-release
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
