@@ -55,7 +55,7 @@ jobs:
 #      - name: Display structure of downloaded files
 #        run: ls -R
 #        working-directory: dist
-      - run: npx semantic-release
+      - run: npx semantic-release --noop --major -v DEBUG publish
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
