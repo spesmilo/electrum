@@ -1,85 +1,10 @@
 name: "Release"
 
 on:
-  push:
-    branches: [ master ]
 
 jobs:
-  init:
-    runs-on: ubuntu-latest
-    outputs:
-      skip-release: ${{ steps.ci-skip-step.outputs.ci-skip }}
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          fetch-depth: 0
-      - id: ci-skip-step
-        uses: mstachniuk/ci-skip@v1
-        with:
-          commit-filter: 'chore(release)'
-
-  windows:
-    runs-on: ubuntu-latest
-    needs: init
-    if: ${{ needs.init.outputs.skip-release == 'false' }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.7
-      - uses: satackey/action-docker-layer-caching@v0.0.11
-        # Ignore the failure of a step and avoid terminating the job.
-        continue-on-error: true
-      - name: Builder image
-        env:
-          TARGET_OS: Windows
-        run: docker build --no-cache -t electrum-wine-builder-img ./contrib/build-wine/
-      - name: Compile Windows binary
-        env:
-          TARGET_OS: Windows
-        run: docker run --name electrum-wine-builder-cont -v $PWD:/opt/wine64/drive_c/electrum --rm --workdir /opt/wine64/drive_c/electrum/contrib/build-wine electrum-wine-builder-img ./build.sh
-      - name: Done
-        run: ls -lha contrib/build-wine/dist
-      - name: 'Upload Artifact'
-        uses: actions/upload-artifact@v2
-        with:
-          name: artifact-windows
-          path: contrib/build-wine/dist/*.exe
-          if-no-files-found: error
-          retention-days: 7
-
-  appimage:
-    runs-on: ubuntu-latest
-    needs: init
-    if: ${{ needs.init.outputs.skip-release == 'false' }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.7
-      - uses: satackey/action-docker-layer-caching@v0.0.11
-        # Ignore the failure of a step and avoid terminating the job.
-        continue-on-error: true
-      - name: Builder image
-        run: docker build --no-cache -t electrum-appimage-builder-img ./contrib/build-linux/appimage/
-      - name: Compile Linux AppImage
-        run: docker run --name electrum-appimage-builder-cont -v $PWD:/opt/electrum --rm --workdir /opt/electrum/contrib/build-linux/appimage electrum-appimage-builder-img ./build.sh
-      - name: Done
-        run: ls -lha dist
-      - name: 'Upload Artifact'
-        uses: actions/upload-artifact@v2
-        with:
-          name: artifact-appimage
-          path: dist/*.AppImage
-          if-no-files-found: error
-          retention-days: 7
-
   tarball:
     runs-on: ubuntu-latest
-    needs: init
-    if: ${{ needs.init.outputs.skip-release == 'false' }}
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python ${{ matrix.python-version }}
@@ -95,8 +20,6 @@ jobs:
         run: |
           echo "Building sdist at $PWD"
           docker run --name electrum-sdist-builder-cont -v $PWD:/opt/electrum --rm --workdir /opt/electrum/contrib/build-linux/sdist electrum-sdist-builder-img ./build.sh
-      - name: Done
-        run: ls -lah dist
       - name: 'Upload Artifact'
         uses: actions/upload-artifact@v2
         with:
@@ -104,17 +27,19 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: error
           retention-days: 7
-
   release:
     name: "Release"
-    runs-on: ubuntu-latest
-    needs: [ init, windows, appimage, tarball ]
-    if: ${{ needs.init.outputs.skip-release == 'false' }}
+    needs: [ tarball ]
+    runs-on: ubuntu-16.04
     steps:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
-          token: ${{ secrets.GH_TOKEN }}
+          persist-credentials: false
+      - uses: actions/setup-node@v1
+        with:
+          node-version: '12'
+      - run: npm install semantic-release
       - name: Download all workflow run artifacts
         uses: actions/download-artifact@v2
         with:
@@ -122,8 +47,7 @@ jobs:
       - name: Display structure of downloaded files
         run: ls -R
         working-directory: dist
-      - name: Python Semantic Release
-        uses: relekang/python-semantic-release@master
-        with:
-          github_token: ${{ secrets.GH_TOKEN }}
-          pypi_token: false
+      - run: npx semantic-release
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

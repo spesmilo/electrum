@@ -1,0 +1,36 @@
+{
+  "preset": "conventionalcommits",
+  "plugins": [
+    ["@semantic-release/commit-analyzer", {
+      "releaseRules": [
+        { "release": "major" , "breaking": true },
+        { "release": "minor", "type": "feat" },
+        { "release": "patch", "type": "fix" },
+        { "scope": "no-release", "release": false },
+        { "type": "*", "release": "patch" }
+      ]
+    }],
+    "@semantic-release/release-notes-generator",
+    ["@semantic-release/exec", {
+      "prepareCmd": "sed -i \"s/ELECTRUM_VERSION = '*.*.*'/ELECTRUM_VERSION = '${nextRelease.version}'/g\" electrum/version.py"
+    }],
+    ["@semantic-release/changelog", { "changelogTitle": "# Changelog"} ],
+    ["@semantic-release/git", { "message": "chore(release): Release v${nextRelease.version}" }],
+    ["@semantic-release/github", {
+      "labels": ["build failing"],
+      "addReleases": "bottom",
+      "assets": [{
+        "path": "dist/artifact-appimage/*.AppImage",
+        "name": "elcash-wallet-${nextRelease.gitTag}.AppImage",
+        "label": "ELCASH Wallet (${nextRelease.gitTag}) Linux - AppImage"
+      }, {
+        "path": "dist/artifact-tarball/*.tar.gz",
+        "name": "elcash-wallet-${nextRelease.gitTag}.tar.gz",
+        "label": "ELCASH Wallet (${nextRelease.gitTag}) Linux - tarball"
+      }, {
+        "path": "dist/artifact-windows/*.exe",
+        "label": "ELCASH Wallet (${nextRelease.gitTag}) Windows"
+      }]
+    }]
+  ]
+}
