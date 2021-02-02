@@ -542,7 +542,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.setGeometry(100, 100, 840, 400)
 
     def watching_only_changed(self):
-        name = "ELCASH Wallet Testnet" if constants.net.TESTNET else "Elcash Wallet"
+        name = "ELCASH Wallet Testnet" if constants.net.TESTNET else "ELCASH Wallet"
         title = '%s %s  -  %s' % (name, ELECTRUM_VERSION,
                                         self.wallet.basename())
         extra = [self.wallet.db.get('wallet_type', '?')]

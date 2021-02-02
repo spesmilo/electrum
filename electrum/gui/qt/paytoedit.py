@@ -69,7 +69,7 @@ class PayToEdit(CompletionTextEdit, Logger):
         self.amount_edit = win.amount_e
         self.setFont(QFont(MONOSPACE_FONT))
         self.document().contentsChanged.connect(self.update_size)
-        self.heightMin = 0
+        self.heightMin = 35
         self.heightMax = 150
         self.c = None
         self.textChanged.connect(self.check_text)
