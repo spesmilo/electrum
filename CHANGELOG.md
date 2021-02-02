@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.16](https://github.com/electric-cash/elcash-wallet/compare/v4.0.15...v4.0.16) (2021-02-02)
+
+
+### Bug Fixes
+
+* **builds:** release all binares ([0f4af68](https://github.com/electric-cash/elcash-wallet/commit/0f4af68b5e9105b66cdacc29d5d73a4fdecbbdc2))
+
 ## [4.0.15](https://github.com/electric-cash/elcash-wallet/compare/v4.0.14...v4.0.15) (2021-02-02)
 
 
