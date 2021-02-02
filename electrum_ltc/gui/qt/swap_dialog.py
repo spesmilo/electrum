@@ -218,7 +218,10 @@ class SwapDialog(WindowModalDialog):
             onchain_amount = self.recv_amount_e.get_amount()
             if lightning_amount is None or onchain_amount is None:
                 return
-            coro = self.swap_manager.reverse_swap(lightning_amount, onchain_amount + self.swap_manager.get_claim_fee())
+            coro = self.swap_manager.reverse_swap(
+                lightning_amount_sat=lightning_amount,
+                expected_onchain_amount_sat=onchain_amount + self.swap_manager.get_claim_fee(),
+            )
             self.window.run_coroutine_from_thread(coro)
         else:
             lightning_amount = self.recv_amount_e.get_amount()
@@ -269,7 +272,12 @@ class SwapDialog(WindowModalDialog):
     def do_normal_swap(self, lightning_amount, onchain_amount, password):
         tx = self.tx
         assert tx
-        coro = self.swap_manager.normal_swap(lightning_amount, onchain_amount, password, tx=tx)
+        coro = self.swap_manager.normal_swap(
+            lightning_amount_sat=lightning_amount,
+            expected_onchain_amount_sat=onchain_amount,
+            password=password,
+            tx=tx,
+        )
         self.window.run_coroutine_from_thread(coro)
 
     def get_description(self):

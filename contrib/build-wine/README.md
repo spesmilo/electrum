@@ -17,6 +17,10 @@ folder.
     $ sudo apt-get install -y docker-ce
     ```
 
+    Note: older versions of Docker might not work well
+    (see [#6971](https://github.com/spesmilo/electrum/issues/6971)).
+    If having problems, try to upgrade to at least `docker 20.10`.
+
 2. Build image
 
     ```
