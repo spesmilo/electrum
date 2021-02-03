@@ -451,9 +451,8 @@ def get_address_from_output_script(_bytes: bytes, *, net=None) -> Optional[str]:
         return "CFUND CONSULTATION SUPPORT"
 
     match = [opcodes.OP_RETURN, opcodes.OP_CONSULTATION, opcodes.OP_ABSTAIN, OPPushDataGeneric(lambda x: x == 32)]
-    match1 = [opcodes.OP_RETURN, opcodes.OP_DAO, opcodes.OP_YES, opcodes.OP_ANSWER, OPPushDataGeneric(lambda x: x == 32)]
-    match1 = [opcodes.OP_RETURN, opcodes.OP_DAO, opcodes.OP_YES, opcodes.OP_ANSWER, OPPushDataGeneric(lambda x: x == 32), OPPushDataGeneric(lambda x: x > 0)]
-    match2 = [opcodes.OP_RETURN, opcodes.OP_DAO, opcodes.OP_YES, opcodes.OP_REMOVE, OPPushDataGeneric(lambda x: x == 32)]
+    match1 = [opcodes.OP_RETURN, opcodes.OP_CONSULTATION, opcodes.OP_ANSWER, OPPushDataGeneric(lambda x: x == 32)]
+    match1 = [opcodes.OP_RETURN, opcodes.OP_CONSULTATION, opcodes.OP_ANSWER, OPPushDataGeneric(lambda x: x == 32), OPPushDataGeneric(lambda x: x > 0)]
     if match_decoded(decoded, match) or match_decoded(decoded, match1) or match_decoded(decoded, match2) or match_decoded(decoded, match3):
         return "CFUND CONSULTATION VOTE"
 
