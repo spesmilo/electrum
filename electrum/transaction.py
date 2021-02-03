@@ -1361,7 +1361,8 @@ class PartialTxInput(TxInput, PSBTSection):
                 inner_type = get_script_type_from_output_script(self.witness_script)
             if inner_type is not None:
                 type = inner_type + '-' + type
-            self.script_type = type
+            if type in ('p2pkh', 'p2wpkh-p2sh', 'p2wpkh'):
+                self.script_type = type
         return
 
     def is_complete(self) -> bool:
