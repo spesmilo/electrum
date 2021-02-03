@@ -2204,6 +2204,10 @@ class Voting_Wallet(Simple_Deterministic_Wallet):
             return address
 
 
+        def derive_pubkeys(self, c, i):
+            return self.keystore.derive_pubkey(2, 0)
+
+
 class Cold_Staking_Wallet(Simple_Deterministic_Wallet):
     def __init__(self, storage, *, config):
         self.wallet_type = storage.get('wallet_type')
