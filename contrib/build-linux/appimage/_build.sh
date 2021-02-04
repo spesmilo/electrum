@@ -124,7 +124,7 @@ cp -fp "$PROJECT_ROOT/icons/electron-cash.png" "$APPDIR/electron-cash.png"
 
 # add launcher
 info "Adding launcher"
-cp -fp "$CONTRIB/build-linux/appimage/scripts/common.conf" "$APPDIR/common.conf" || fail "Could not copy python script"
+cp -fp "$CONTRIB/build-linux/appimage/scripts/common.sh" "$APPDIR/common.sh" || fail "Could not copy python script"
 cp -fp "$CONTRIB/build-linux/appimage/scripts/apprun.sh" "$APPDIR/AppRun" || fail "Could not copy AppRun script"
 cp -fp "$CONTRIB/build-linux/appimage/scripts/python.sh" "$APPDIR/python" || fail "Could not copy python script"
 
@@ -150,17 +150,6 @@ info "Copying additional libraries"
 
 # On some systems it can cause problems to use the system libusb
 cp -fp /usr/lib/x86_64-linux-gnu/libusb-1.0.so "$APPDIR"/usr/lib/x86_64-linux-gnu/. || fail "Could not copy libusb"
-
-# Ubuntu 14.04 lacks a recent enough libfreetype / libfontconfig, so we include one here
-mkdir -p "$APPDIR"/usr/lib/fonts/freetype
-mkdir -p "$APPDIR"/usr/lib/fonts/fontconfig
-cp -fp /usr/lib/x86_64-linux-gnu/libfreetype.so.6 "$APPDIR"/usr/lib/fonts/freetype/. || fail "Could not copy libfreetype"
-cp -fp /usr/lib/x86_64-linux-gnu/libfontconfig.so.1 "$APPDIR"/usr/lib/fonts/fontconfig/. || fail "Could not copy libfontconfig"
-cp -f "$CONTRIB/build-linux/appimage/scripts/test-freetype.py" "$APPDIR" || fail "Could not copy test-freetype.py"
-cp -f "$CONTRIB/build-linux/appimage/scripts/test-fontconfig.py" "$APPDIR" || fail "Could not copy test-fontconfig.py"
-
-# libfreetype needs a recent enough zlib
-cp -f /lib/x86_64-linux-gnu/libz.so.1 "$APPDIR"/usr/lib/x86_64-linux-gnu || fail "Could not copy zlib"
 
 # some distros lack libxkbcommon-x11
 cp -f /usr/lib/x86_64-linux-gnu/libxkbcommon-x11.so.0 "$APPDIR"/usr/lib/x86_64-linux-gnu || fail "Could not copy libxkbcommon-x11"

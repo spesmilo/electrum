@@ -46,18 +46,7 @@ if [ -z ${SUDO+x} ] ; then
     fi
 fi
 
-# Ubuntu 18.04 based docker file. Seems to have trouble on older systems
-# due to incompatible GLIBC and other libs being too new inside the squashfs.
-# BUT it has OpenSSL 1.1.  We will switch to this one sometime in the future
-# "when the time is ripe".
-#DOCKER_SUFFIX=ub1804
-# Ubuntu 16.04 based docker file. Works on a wide variety of older and newer
-# systems but only has OpenSSL 1.0. We will use this one for now until
-# the world upgrades -- and since OpenSSL 1.1 isn't a hard requirement
-# for us, we'll live.  (Note that it's also possible to build our own OpenSSL
-# in the docker image if we get desperate for OpenSSL 1.1 but still want to
-# benefit from the compatibility granted to us by using an older Ubuntu).
-DOCKER_SUFFIX=ub1604
+DOCKER_SUFFIX=ub1804
 
 info "Creating docker image ..."
 $SUDO docker build -t electroncash-appimage-builder-img-$DOCKER_SUFFIX \
