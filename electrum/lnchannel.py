@@ -670,27 +670,19 @@ class Channel(AbstractChannel):
     def get_next_feerate(self, subject: HTLCOwner) -> int:
         return self.hm.get_feerate_in_next_ctx(subject)
 
-    def get_payments(self):
-        out = []
-        for direction, htlc in self.hm.all_htlcs_ever():
-            htlc_proposer = LOCAL if direction is SENT else REMOTE
-            if self.hm.was_htlc_failed(htlc_id=htlc.htlc_id, htlc_proposer=htlc_proposer):
-                status = 'failed'
-            elif self.hm.was_htlc_preimage_released(htlc_id=htlc.htlc_id, htlc_proposer=htlc_proposer):
-                status = 'settled'
-            else:
-                status = 'inflight'
-            rhash = htlc.payment_hash.hex()
-            out.append((rhash, self.channel_id, htlc, direction, status))
-        return out
-
-    def get_settled_payments(self):
+    def get_payments(self, status=None):
         out = defaultdict(list)
         for direction, htlc in self.hm.all_htlcs_ever():
             htlc_proposer = LOCAL if direction is SENT else REMOTE
-            if self.hm.was_htlc_preimage_released(htlc_id=htlc.htlc_id, htlc_proposer=htlc_proposer):
-                rhash = htlc.payment_hash.hex()
-                out[rhash].append((self.channel_id, htlc, direction))
+            if self.hm.was_htlc_failed(htlc_id=htlc.htlc_id, htlc_proposer=htlc_proposer):
+                _status = 'failed'
+            elif self.hm.was_htlc_preimage_released(htlc_id=htlc.htlc_id, htlc_proposer=htlc_proposer):
+                _status = 'settled'
+            else:
+                _status = 'inflight'
+            if status and status != _status:
+                continue
+            out[htlc.payment_hash].append((self.channel_id, htlc, direction, _status))
         return out
 
     def open_with_first_pcp(self, remote_pcp: bytes, remote_sig: bytes) -> None:

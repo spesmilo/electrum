@@ -195,7 +195,11 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         vbox.addWidget(QLabel(_('Payments (HTLCs):')))
         w = QtWidgets.QTreeView(self)
         htlc_dict = chan.get_payments()
-        w.setModel(self.make_model(htlc_dict))
+        htlc_list = []
+        for rhash, _list in htlc_dict.items():
+            for _tuple in _list:
+                htlc_list.append((rhash.hex(),) + _tuple)
+        w.setModel(self.make_model(htlc_list))
         w.header().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
         vbox.addWidget(w)
         vbox.addLayout(Buttons(CloseButton(self)))

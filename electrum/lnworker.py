@@ -82,7 +82,7 @@ if TYPE_CHECKING:
     from .simple_config import SimpleConfig
 
 
-SAVED_PR_STATUS = [PR_PAID, PR_UNPAID, PR_INFLIGHT] # status that are persisted
+SAVED_PR_STATUS = [PR_PAID, PR_UNPAID] # status that are persisted
 
 
 NUM_PEERS_TARGET = 4
@@ -583,6 +583,9 @@ class LNWallet(LNWorker):
         self.pending_payments = defaultdict(asyncio.Future)  # type: Dict[bytes, asyncio.Future[BarePaymentAttemptLog]]
 
         self.swap_manager = SwapManager(wallet=self.wallet, lnworker=self)
+        # detect inflight payments
+        for payment_hash in self.get_payments(status='inflight').keys():
+            self.set_invoice_status(payment_hash.hex(), PR_INFLIGHT)
 
     @property
     def channels(self) -> Mapping[bytes, Channel]:
@@ -672,12 +675,12 @@ class LNWallet(LNWorker):
             util.trigger_callback('channel', self.wallet, chan)
         super().peer_closed(peer)
 
-    def get_settled_payments(self):
+    def get_payments(self, *, status=None):
         # return one item per payment_hash
         # note: with AMP we will have several channels per payment
         out = defaultdict(list)
         for chan in self.channels.values():
-            d = chan.get_settled_payments()
+            d = chan.get_payments(status=status)
             for k, v in d.items():
                 out[k] += v
         return out
@@ -685,19 +688,19 @@ class LNWallet(LNWorker):
     def get_payment_value(self, info: Optional['PaymentInfo'], plist):
         amount_msat = 0
         fee_msat = None
-        for chan_id, htlc, _direction in plist:
+        for chan_id, htlc, _direction, _status in plist:
             amount_msat += int(_direction) * htlc.amount_msat
             if _direction == SENT and info and info.amount_msat:
                 fee_msat = (fee_msat or 0) - info.amount_msat - amount_msat
-        timestamp = min([htlc.timestamp for chan_id, htlc, _direction in plist])
+        timestamp = min([htlc.timestamp for chan_id, htlc, _direction, _status in plist])
         return amount_msat, fee_msat, timestamp
 
     def get_lightning_history(self):
         out = {}
-        for key, plist in self.get_settled_payments().items():
+        for payment_hash, plist in self.get_payments(status='settled').items():
             if len(plist) == 0:
                 continue
-            payment_hash = bytes.fromhex(key)
+            key = payment_hash.hex()
             info = self.get_payment_info(payment_hash)
             amount_msat, fee_msat, timestamp = self.get_payment_value(info, plist)
             if info is not None:
@@ -766,15 +769,16 @@ class LNWallet(LNWorker):
             }
             out[closing_txid] = item
         # add info about submarine swaps
-        settled_payments = self.get_settled_payments()
+        settled_payments = self.get_payments(status='settled')
         current_height = self.wallet.get_local_height()
         for payment_hash_hex, swap in self.swap_manager.swaps.items():
             txid = swap.spending_txid if swap.is_reverse else swap.funding_txid
             if txid is None:
                 continue
-            if payment_hash_hex in settled_payments:
-                plist = settled_payments[payment_hash_hex]
-                info = self.get_payment_info(bytes.fromhex(payment_hash_hex))
+            payment_hash = bytes.fromhex(payment_hash_hex)
+            if payment_hash in settled_payments:
+                plist = settled_payments[payment_hash]
+                info = self.get_payment_info(payment_hash)
                 amount_msat, fee_msat, timestamp = self.get_payment_value(info, plist)
             else:
                 amount_msat = 0
