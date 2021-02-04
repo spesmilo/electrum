@@ -2,10 +2,18 @@
 
 set -e
 
-CONFIG_OPTIONS="no-bf no-camellia no-capieng no-cast no-cms no-des no-dsa
-no-dso no-engines no-err no-hw no-idea no-jpake no-krb5 no-md2 no-mdc2 no-md4
-no-psk no-rc2 no-rc4 no-rc5 no-seed no-shared no-srp no-ssl2 no-ssl3 no-test
-no-zlib"
+CONFIG_OPTIONS="no-autoalginit no-autoerrinit no-autoload-config no-capieng
+no-cms no-comp no-ct no-deprecated no-dso no-dynamic-engine no-engine no-err
+no-filenames no-gost no-hw-padlock no-ocsp no-psk no-shared no-srp no-tests
+no-ts no-ui no-zlib"
+
+# Disable SSLv2 & SSLv3
+CONFIG_OPTIONS="$CONFIG_OPTIONS no-ssl2 no-ssl2-method no-ssl3 no-ssl3-method"
+
+# Disable algorithms
+CONFIG_OPTIONS="no-aria no-bf no-blake2 no-camellia no-cast no-cmac no-des
+no-dsa no-idea no-md4 no-mdc2 no-ocb no-rc2 no-rc4 no-rmd160 no-scrypt no-seed
+no-siphash no-sm2 no-sm3 no-sm4 no-whirlpool"
 
 here=$(dirname $(realpath "$0" 2> /dev/null || grealpath "$0"))
 . "$here"/base.sh || (echo "Could not source contrib/base.sh" && exit 1)
