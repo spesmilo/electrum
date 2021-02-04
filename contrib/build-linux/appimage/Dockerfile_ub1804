@@ -1,28 +1,36 @@
-FROM ubuntu:18.04@sha256:5f4bdc3467537cbbe563e80db2c3ec95d548a9145d64453b06939c4592d67b6d
+FROM ubuntu:18.04@sha256:2aeed98f2fa91c365730dc5d70d18e95e8d53ad4f1bbf4269c3bb625060383f0
 
 ENV LC_ALL=C.UTF-8 LANG=C.UTF-8
 
-RUN apt-get update -q && \
+RUN echo deb mirror://mirrors.ubuntu.com/mirrors.txt bionic main restricted universe multiverse > /etc/apt/sources.list && \
+    echo deb mirror://mirrors.ubuntu.com/mirrors.txt bionic-updates main restricted universe multiverse >> /etc/apt/sources.list && \
+    echo deb mirror://mirrors.ubuntu.com/mirrors.txt bionic-backports main restricted universe multiverse >> /etc/apt/sources.list && \
+    echo deb mirror://mirrors.ubuntu.com/mirrors.txt bionic-security main restricted universe multiverse >> /etc/apt/sources.list && \
+    apt-get update -q && \
     apt-get install -qy \
-        git=1:2.17.1-1ubuntu0.5 \
-        wget=1.19.4-1ubuntu2.1 \
+        git=1:2.17.1-1ubuntu0.7 \
+        wget=1.19.4-1ubuntu2.2 \
         make=4.1-9.1ubuntu1 \
         autotools-dev=20180224.1 \
         autoconf=2.69-11 \
         libtool=2.4.6-2 \
         xz-utils=5.2.2-1.3 \
-        libssl-dev=1.1.0g-2ubuntu4.3 \
-        zlib1g-dev=1:1.2.11.dfsg-0ubuntu2 \
-        libffi6=3.2.1-8 \
         libffi-dev=3.2.1-8 \
         libncurses5-dev=6.1-1ubuntu1.18.04 \
-        libsqlite3-dev=3.22.0-1 \
+        libsqlite3-dev=3.22.0-1ubuntu0.4 \
         libusb-1.0-0-dev=2:1.0.21-2 \
-        libudev-dev=237-3ubuntu10.38 \
-        gettext=0.19.8.1-6ubuntu0.1 \
-        libzbar0=0.10+doc-10.1build2 \
-        faketime=0.9.7-2 \
-        libxkbcommon-x11-0=0.8.0-1ubuntu0.1 \
+        libudev-dev=237-3ubuntu10.44 \
+        gettext=0.19.8.1-6ubuntu0.3 \
+        pkg-config=0.29.1-0ubuntu2 \
+        libdbus-1-3=1.12.2-1ubuntu1.2 \
+        libpcsclite-dev=1.8.23-1 \
+        swig=3.0.12-1 \
+        libxkbcommon-x11-0=0.8.2-1~ubuntu18.04.1 \
+        autopoint=0.19.8.1-6ubuntu0.3 \
+        zlib1g-dev=1:1.2.11.dfsg-0ubuntu2 \
+        libfreetype6=2.8.1-2ubuntu2.1 \
+        libfontconfig1=2.12.6-0ubuntu2 \
+        libssl-dev=1.1.1-1ubuntu2.1~18.04.7 \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \
