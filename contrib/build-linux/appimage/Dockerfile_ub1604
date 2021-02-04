@@ -22,6 +22,7 @@ RUN apt-get update -q && \
         swig=3.0.8-0ubuntu3 \
         software-properties-common=0.96.20.10 \
         libxkbcommon-x11-0=0.5.0-1ubuntu2.1 \
+        autopoint=0.19.7-2ubuntu3.1 \
         && \
     add-apt-repository ppa:git-core/ppa && \
     apt-get update -q && \

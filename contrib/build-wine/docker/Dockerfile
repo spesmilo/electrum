@@ -22,7 +22,8 @@ RUN apt-get update -q && \
         libtool=2.4.6-2 \
         gettext=0.19.8.1-6 \
         mingw-w64-tools=5.0.3-1 \
-        win-iconv-mingw-w64-dev=0.0.8-2
+        win-iconv-mingw-w64-dev=0.0.8-2 \
+        autopoint=0.19.8.1-6ubuntu0.3
 
 RUN wget -nc https://dl.winehq.org/wine-builds/Release.key && \
         echo "c51bcb8cc4a12abfbd7c7660eaf90f49674d15e222c262f27e6c96429111b822 Release.key" | sha256sum -c - && \
