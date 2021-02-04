@@ -10,7 +10,7 @@
 This implements the functionality for RPA (Reusable Payment Address) aka Paycodes
 '''
 
-from decimal import Decimal as PyDecimal
+import decimal
 
 from . import addr
 from .. import bitcoin
@@ -24,7 +24,7 @@ from ..util import print_msg
 
 def _satoshis(amount):
     # satoshi conversion must not be performed by the parser
-    return int(COIN * PyDecimal(amount)) if amount not in ['!', None] else amount
+    return int(COIN * decimal.Decimal(amount)) if amount not in ['!', None] else amount
 
 
 def _resolver(wallet, x, nocheck):
@@ -131,6 +131,31 @@ def _generate_privkey_from_secret(parent_privkey, secret):
     return bitcoin.CKD_priv(parent_privkey, secret, 0)[0].hex()
 
 
+def _tx_swap_dummy_for_destination(tx, rpa_dummy_address, rpa_destination_address):
+    """This function was created for RPA - reusable payment address.
+    It swaps out a dummy destination address for the rpa-generated address.
+    WARNING: This is not recommended for use outside of RPA since it could
+    be dangerous to change the destination address of a transaction."""
+
+    # Convert string to Address object (may throw if bad input)
+    if not isinstance(rpa_dummy_address, Address):
+        rpa_dummy_address = Address.from_string(rpa_dummy_address)
+    if not isinstance(rpa_destination_address, Address):
+        rpa_destination_address = Address.from_string(rpa_destination_address)
+
+    for i, output in enumerate(tx._outputs.copy()):
+        # Grab the address of each output...
+        typ, address, value = output
+
+        # Compare the address to see if its the one we need to swap
+        if address == rpa_dummy_address:
+            # Do the swap
+            tx._outputs[i] = (typ, rpa_destination_address, value)
+
+    # It is necessary to re-initialize "raw" to force a re-serialization later for the changes to take effect
+    tx.raw = None
+
+
 def generate_paycode(wallet, prefix_size="08"):
     """prefix size should be either 0x04 , 0x08, 0x0C, 0x10"""
 
@@ -156,7 +181,7 @@ def generate_transaction_from_paycode(wallet, config, amount, rpa_paycode=None, 
                                       op_return=None, op_return_raw=None):
     if not wallet.is_schnorr_enabled():
         print_msg("You must enable schnorr signing on this wallet for RPA.  Exiting.")
-        return 0
+        return
 
     # Initialize variable for the final return value.
     final_raw_tx = 0
@@ -232,7 +257,7 @@ def generate_transaction_from_paycode(wallet, config, amount, rpa_paycode=None, 
             Address.FMT_CASHADDR)
 
         # Swap the dummy destination for the real destination
-        tx.rpa_paycode_swap_dummy_for_destination(rpa_dummy_address, rpa_destination_address)
+        _tx_swap_dummy_for_destination(tx, rpa_dummy_address, rpa_destination_address)
 
         # Sort the inputs and outputs deterministically
         tx.BIP_LI01_sort()
@@ -263,8 +288,8 @@ def generate_transaction_from_paycode(wallet, config, amount, rpa_paycode=None, 
 
 
 def extract_private_key_from_transaction(wallet, raw_tx, password=None):
-    # Initialize return value.  Will return 0 if no private key can be found.
-    retval = 0
+    # Initialize return value.  Will return None if no private key can be found.
+    retval = None
 
     # Deserialize the raw transaction
     unpacked_tx = Transaction.deserialize(Transaction(raw_tx))
