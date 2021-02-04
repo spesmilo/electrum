@@ -117,10 +117,23 @@ class TorController(PrintError):
         self.status_changed.clear()
         self.active_port_changed.clear()
 
-    # Opened Socks listener on 127.0.0.1:53544
-    # Opened Control listener on 127.0.0.1:3300
-    _listener_re = re.compile(r".*\[notice\] Opened ([^ ]*) listener on (.*)$")
-    _endpoint_re = re.compile(r".*:(\d*)")
+    # Version 0.4.5.5
+    # [notice] Opening Socks listener on 127.0.0.1:0
+    # [notice] Socks listener listening on port 36103.
+    # [notice] Opened Socks listener connection (ready) on 127.0.0.1:36103
+    # [notice] Opening Control listener on 127.0.0.1:0
+    # [notice] Control listener listening on port 36104.
+    # [notice] Opened Control listener connection (ready) on 127.0.0.1:36104
+
+    # Version 0.4.2.5
+    # [notice] Opening Socks listener on 127.0.0.1:0
+    # [notice] Socks listener listening on port 36103.
+    # [notice] Opened Socks listener on 127.0.0.1:36103
+    # [notice] Opening Control listener on 127.0.0.1:0
+    # [notice] Control listener listening on port 36104.
+    # [notice] Opened Control listener on 127.0.0.1:36104
+
+    _listener_re = re.compile(r".*\[notice\] ([^ ]*) listener listening on port ([0-9]+)\.?$")
 
     # If a log string matches any of the included regex it is ignored
     _ignored_res = [
@@ -137,17 +150,13 @@ class TorController(PrintError):
         listener_match = TorController._listener_re.match(message)
         if listener_match:
             listener_type = listener_match.group(1)
-            listener_endpoint = listener_match.group(2)
-            endpoint_match = TorController._endpoint_re.match(
-                listener_endpoint)
-            if endpoint_match:
-                endpoint_port = int(endpoint_match.group(1))
-                if listener_type == 'Socks':
-                    self.active_socks_port = endpoint_port
-                elif listener_type == 'Control':
-                    self.active_control_port = endpoint_port
-                    # The control port is the last port opened, so only notify after it
-                    self.active_port_changed(self)
+            listener_port = int(listener_match.group(2))
+            if listener_type == 'Socks':
+                self.active_socks_port = listener_port
+            elif listener_type == 'Control':
+                self.active_control_port = listener_port
+                # The control port is the last port opened, so only notify after it
+                self.active_port_changed(self)
 
     def _read_tor_msg(self):
         try:
