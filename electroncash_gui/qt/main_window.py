@@ -2088,19 +2088,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 msg1 = (
                     _("You are about to send BCH to a legacy address.")
                     + "<br><br>"
-                    + _(
-                        "Legacy addresses are deprecated for Bitcoin Cash "
-                        "(BCH), and used by Bitcoin (BTC)."
-                    )
+                    + _("Legacy addresses are deprecated for Bitcoin Cash "
+                        "(BCH), but they are used by Bitcoin (BTC).")
                 )
-                msg2 = _(
-                    "Proceed if what you are intending to do is sending BCH."
-                )
-                msg3 = _(
-                    "If you are intending to send BTC, close the "
-                    "application and use a BTC wallet instead.  Electron "
-                    "Cash is a BCH wallet, not a BTC wallet."
-                )
+                msg2 = _("Proceed if what you intend to do is to send BCH.")
+                msg3 = _("If you intend to send BTC, close the application "
+                         "and use a BTC wallet instead. Electron Cash is a "
+                         "BCH wallet, not a BTC wallet.")
                 res = self.msg_box(
                     parent=self,
                     icon=QMessageBox.Warning,
