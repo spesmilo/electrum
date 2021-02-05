@@ -1,11 +1,13 @@
 FROM ubuntu:18.04@sha256:2aeed98f2fa91c365730dc5d70d18e95e8d53ad4f1bbf4269c3bb625060383f0
 
+ARG UBUNTU_MIRROR=http://archive.ubuntu.com/ubuntu/
+
 ENV LC_ALL=C.UTF-8 LANG=C.UTF-8
 
-RUN echo deb mirror://mirrors.ubuntu.com/mirrors.txt bionic main restricted universe multiverse > /etc/apt/sources.list && \
-    echo deb mirror://mirrors.ubuntu.com/mirrors.txt bionic-updates main restricted universe multiverse >> /etc/apt/sources.list && \
-    echo deb mirror://mirrors.ubuntu.com/mirrors.txt bionic-backports main restricted universe multiverse >> /etc/apt/sources.list && \
-    echo deb mirror://mirrors.ubuntu.com/mirrors.txt bionic-security main restricted universe multiverse >> /etc/apt/sources.list && \
+RUN echo deb ${UBUNTU_MIRROR} bionic main restricted universe multiverse > /etc/apt/sources.list && \
+    echo deb ${UBUNTU_MIRROR} bionic-updates main restricted universe multiverse >> /etc/apt/sources.list && \
+    echo deb ${UBUNTU_MIRROR} bionic-backports main restricted universe multiverse >> /etc/apt/sources.list && \
+    echo deb ${UBUNTU_MIRROR} bionic-security main restricted universe multiverse >> /etc/apt/sources.list && \
     apt-get update -q && \
     apt-get install -qy \
         git=1:2.17.1-1ubuntu0.7 \
