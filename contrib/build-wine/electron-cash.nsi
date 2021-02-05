@@ -1,7 +1,8 @@
 ;--------------------------------
-;Include Modern UI
-  !include "TextFunc.nsh" ;Needed for the $GetSize fuction. I know, doesn't sound logical, it isn't.
-  !include "MUI2.nsh"
+;Settings
+
+  ; ANSI is deprecated
+  Unicode True
 
 ;--------------------------------
 ;Variables
@@ -10,7 +11,15 @@
   !define INTERNAL_NAME "Electron-Cash"
   !define PRODUCT_WEB_SITE "https://github.com/Electron-Cash/Electron-Cash"
   !define PRODUCT_PUBLISHER "Electron Cash LLC"
-  !define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
+  !define INSTDIR_REG_ROOT "HKCU"
+  !define INSTDIR_REG_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
+
+;--------------------------------
+;Includes
+  !include "LogicLib.nsh"
+  !include "TextFunc.nsh" ;Needed for the $GetSize fuction. I know, doesn't sound logical, it isn't.
+  !include "MUI2.nsh"
+  !include "AdvUninstLog.nsh"
 
 ;--------------------------------
 ;General
@@ -23,7 +32,7 @@
   InstallDir "$PROGRAMFILES\${PRODUCT_NAME}"
 
   ;Get installation folder from registry if available
-  InstallDirRegKey HKCU "Software\${PRODUCT_NAME}" ""
+  InstallDirRegKey ${INSTDIR_REG_ROOT} "Software\${PRODUCT_NAME}" ""
 
   ;Request application privileges for Windows Vista
   RequestExecutionLevel admin
@@ -68,6 +77,11 @@
   VIAddVersionKey OriginalFilename "${PRODUCT_NAME}.exe"
 
 ;--------------------------------
+;Uninstall Settings
+
+  !insertmacro UNATTENDED_UNINSTALL
+
+;--------------------------------
 ;Interface Settings
 
   !define MUI_ABORTWARNING
@@ -93,31 +107,39 @@
 
 ;Check if we have Administrator rights
 Function .onInit
-	UserInfo::GetAccountType
-	pop $0
-	${If} $0 != "admin" ;Require admin rights on NT4+
-		MessageBox mb_iconstop "Administrator rights required!"
-		SetErrorLevel 740 ;ERROR_ELEVATION_REQUIRED
-		Quit
-	${EndIf}
+  !insertmacro UNINSTALL.LOG_PREPARE_INSTALL
+
+  ; Request uninstallation of an old Electron Cash installation
+  ReadRegStr $R0 ${INSTDIR_REG_ROOT} "${INSTDIR_REG_KEY}" UninstallString
+  ReadRegStr $R1 ${INSTDIR_REG_ROOT} "${INSTDIR_REG_KEY}" DisplayName
+  ${If} $R0 != ""
+  ${AndIf} ${Cmd} ${|} MessageBox MB_YESNO|MB_ICONEXCLAMATION "$R1 has already been installed. $\nDo you want to remove the previous version before installing $(^Name)?" /SD IDNO IDYES ${|}
+    ExecWait $R0
+  ${EndIf}
+
+  ; Check for administrator rights
+  UserInfo::GetAccountType
+  pop $0
+  ${If} $0 != "admin" ;Require admin rights on NT4+
+    MessageBox mb_iconstop "Administrator rights required!"
+    SetErrorLevel 740 ;ERROR_ELEVATION_REQUIRED
+    Quit
+  ${EndIf}
 FunctionEnd
 
 Section
-  ;Uninstall previous version files
-  Push $INSTDIR
-  Call RemoveAskIfExists
-
   SetOutPath $INSTDIR ; side-effect is it creates dir if not exist
 
-  Delete "$DESKTOP\${PRODUCT_NAME}.lnk"
-  Delete "$SMPROGRAMS\${PRODUCT_NAME}\*.*"
+  !insertmacro UNINSTALL.LOG_OPEN_INSTALL
 
   ;Files to pack into the installer
   File /r "dist\electroncash\*.*"
   File "..\..\icons\electron.ico"
 
+  !insertmacro UNINSTALL.LOG_CLOSE_INSTALL
+
   ;Store installation folder
-  WriteRegStr HKCU "Software\${PRODUCT_NAME}" "" $INSTDIR
+  WriteRegStr ${INSTDIR_REG_ROOT} "Software\${PRODUCT_NAME}" "" $INSTDIR
 
   ;Create uninstaller
   DetailPrint "Creating uninstaller..."
@@ -130,7 +152,7 @@ Section
   ;Create start-menu items
   DetailPrint "Creating start-menu items..."
   CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
-  CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Uninstall.lnk" "$INSTDIR\Uninstall.exe" "" "$INSTDIR\Uninstall.exe" 0
+  CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Uninstall.lnk" "${UNINST_EXE}" "" "${UNINST_EXE}" 0
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME}.lnk" "$INSTDIR\${INTERNAL_NAME}.exe" "" "$INSTDIR\${INTERNAL_NAME}.exe" 0
   ;See #1255 where some users have bad opengl drivers and need to use software-only rendering. Requires we package openglsw32.dll with the app.
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME} (Software OpenGL).lnk" "$INSTDIR\${INTERNAL_NAME}.exe" "--qt_opengl software" "$INSTDIR\${INTERNAL_NAME}.exe" 0
@@ -140,43 +162,35 @@ Section
 
 
   ;Links bitcoincash: URI's to Electron Cash
-  WriteRegStr HKCU "Software\Classes\bitcoincash" "" "URL:bitcoincash Protocol"
-  WriteRegStr HKCU "Software\Classes\bitcoincash" "URL Protocol" ""
-  WriteRegStr HKCU "Software\Classes\bitcoincash" "DefaultIcon" "$\"$INSTDIR\electron.ico, 0$\""
-  WriteRegStr HKCU "Software\Classes\bitcoincash\shell\open\command" "" "$\"$INSTDIR\${INTERNAL_NAME}.exe$\" $\"%1$\""
+  WriteRegStr ${INSTDIR_REG_ROOT} "Software\Classes\bitcoincash" "" "URL:bitcoincash Protocol"
+  WriteRegStr ${INSTDIR_REG_ROOT} "Software\Classes\bitcoincash" "URL Protocol" ""
+  WriteRegStr ${INSTDIR_REG_ROOT} "Software\Classes\bitcoincash" "DefaultIcon" "$\"$INSTDIR\electron.ico, 0$\""
+  WriteRegStr ${INSTDIR_REG_ROOT} "Software\Classes\bitcoincash\shell\open\command" "" "$\"$INSTDIR\${INTERNAL_NAME}.exe$\" $\"%1$\""
   ;Links cashacct: URI's to Electron Cash
-  WriteRegStr HKCU "Software\Classes\cashacct" "" "URL:cashacct Protocol"
-  WriteRegStr HKCU "Software\Classes\cashacct" "URL Protocol" ""
-  WriteRegStr HKCU "Software\Classes\cashacct" "DefaultIcon" "$\"$INSTDIR\electron.ico, 0$\""
-  WriteRegStr HKCU "Software\Classes\cashacct\shell\open\command" "" "$\"$INSTDIR\${INTERNAL_NAME}.exe$\" $\"%1$\""
+  WriteRegStr ${INSTDIR_REG_ROOT} "Software\Classes\cashacct" "" "URL:cashacct Protocol"
+  WriteRegStr ${INSTDIR_REG_ROOT} "Software\Classes\cashacct" "URL Protocol" ""
+  WriteRegStr ${INSTDIR_REG_ROOT} "Software\Classes\cashacct" "DefaultIcon" "$\"$INSTDIR\electron.ico, 0$\""
+  WriteRegStr ${INSTDIR_REG_ROOT} "Software\Classes\cashacct\shell\open\command" "" "$\"$INSTDIR\${INTERNAL_NAME}.exe$\" $\"%1$\""
 
   ;Adds an uninstaller possibilty to Windows Uninstall or change a program section
-  WriteRegStr HKCU "${PRODUCT_UNINST_KEY}" "DisplayName" "$(^Name)"
-  WriteRegStr HKCU "${PRODUCT_UNINST_KEY}" "UninstallString" "$INSTDIR\Uninstall.exe"
-  WriteRegStr HKCU "${PRODUCT_UNINST_KEY}" "DisplayVersion" "${PRODUCT_VERSION}"
-  WriteRegStr HKCU "${PRODUCT_UNINST_KEY}" "URLInfoAbout" "${PRODUCT_WEB_SITE}"
-  WriteRegStr HKCU "${PRODUCT_UNINST_KEY}" "Publisher" "${PRODUCT_PUBLISHER}"
-  WriteRegStr HKCU "${PRODUCT_UNINST_KEY}" "DisplayIcon" "$INSTDIR\electron.ico"
+  WriteRegStr ${INSTDIR_REG_ROOT} "${INSTDIR_REG_KEY}" "DisplayName" "$(^Name)"
+  WriteRegStr ${INSTDIR_REG_ROOT} "${INSTDIR_REG_KEY}" "UninstallString" "${UNINST_EXE}"
+  WriteRegStr ${INSTDIR_REG_ROOT} "${INSTDIR_REG_KEY}" "DisplayVersion" "${PRODUCT_VERSION}"
+  WriteRegStr ${INSTDIR_REG_ROOT} "${INSTDIR_REG_KEY}" "URLInfoAbout" "${PRODUCT_WEB_SITE}"
+  WriteRegStr ${INSTDIR_REG_ROOT} "${INSTDIR_REG_KEY}" "Publisher" "${PRODUCT_PUBLISHER}"
+  WriteRegStr ${INSTDIR_REG_ROOT} "${INSTDIR_REG_KEY}" "DisplayIcon" "$INSTDIR\electron.ico"
 
   ;Fixes Windows broken size estimates
   ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
   IntFmt $0 "0x%08X" $0
-  WriteRegDWORD HKCU "${PRODUCT_UNINST_KEY}" "EstimatedSize" "$0"
+  WriteRegDWORD ${INSTDIR_REG_ROOT} "${INSTDIR_REG_KEY}" "EstimatedSize" "$0"
 SectionEnd
 
-; Ask the user if they want to blow away an existing directory
-Function RemoveAskIfExists
-    Pop $R0
-    IfFileExists "$R0\*.*" DoesExist DoesNotExist
-    DoesExist:
-        MessageBox MB_YESNO `"$R0" already exists, delete its content and continue installing?` IDYES yes IDNO no
-            no:
-                Abort "Select a different install destination and try again."
-            yes:
-                RMDir /r "$R0\*.*"
-    DoesNotExist:
-        Return
-FunctionEnd
+Section -FinalizeInstallation ; Hidden, writes Uninstall.dat
+  DetailPrint "Finalizing installation"
+
+  !insertmacro UNINSTALL.LOG_UPDATE_INSTALL
+SectionEnd
 
 ;--------------------------------
 ;Descriptions
@@ -185,16 +199,18 @@ FunctionEnd
 ;Uninstaller Section
 
 Section "Uninstall"
-  RMDir /r "$INSTDIR\*.*"
-
-  RMDir "$INSTDIR"
+  !insertmacro UNINSTALL.LOG_UNINSTALL "$INSTDIR"
 
   Delete "$DESKTOP\${PRODUCT_NAME}.lnk"
   Delete "$SMPROGRAMS\${PRODUCT_NAME}\*.*"
   RMDir  "$SMPROGRAMS\${PRODUCT_NAME}"
 
-  DeleteRegKey HKCU "Software\Classes\bitcoincash"
-  DeleteRegKey HKCU "Software\Classes\cashacct"
-  DeleteRegKey HKCU "Software\${PRODUCT_NAME}"
-  DeleteRegKey HKCU "${PRODUCT_UNINST_KEY}"
+  DeleteRegKey ${INSTDIR_REG_ROOT} "Software\Classes\bitcoincash"
+  DeleteRegKey ${INSTDIR_REG_ROOT} "Software\Classes\cashacct"
+  DeleteRegKey ${INSTDIR_REG_ROOT} "Software\${PRODUCT_NAME}"
+  DeleteRegKey ${INSTDIR_REG_ROOT} "${INSTDIR_REG_KEY}"
 SectionEnd
+
+Function UN.onInit
+  !insertmacro UNINSTALL.LOG_BEGIN_UNINSTALL
+FunctionEnd
