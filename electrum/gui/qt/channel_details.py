@@ -138,7 +138,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
 
         # connect signals with slots
         self.htlc_fulfilled.connect(self.on_htlc_fulfilled)
-        self.htlc_failed.connect(self.on_htlc_failed_failed)
+        self.htlc_failed.connect(self.on_htlc_failed)
         self.state_changed.connect(self.do_state_changed)
         self.htlc_added.connect(self.on_htlc_added)
 
