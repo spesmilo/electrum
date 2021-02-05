@@ -275,7 +275,7 @@ class ElectrumGui(QObject, PrintError):
         # macOS Big Sur workaround for Qt>=5.13.2 sometimes not working at all
         # See: https://bugreports.qt.io/browse/QTBUG-87014
         # See also: https://stackoverflow.com/questions/64818879/is-there-any-solution-regarding-to-pyqt-library-doesnt-work-in-mac-os-big-sur
-        if mac_ver and mac_ver >= (10, 16) and self.qt_version() >= (5, 13, 2):
+        if mac_ver and mac_ver >= (10, 16) and self.qt_version() >= (5, 13, 2) and self.qt_version() < (5, 15, 2):
             # Setting this env var causes Qt to use some other macOS API that always works on Big Sur
             os.environ['QT_MAC_WANTS_LAYER'] = '1'
             self.print_error(f"macOS Big Sur Qt workaround applied")
