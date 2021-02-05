@@ -161,7 +161,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     def save_channel(self, chan):
         print("Ignoring channel save")
 
-    is_routing = set()
+    inflight_payments = set()
     preimages = {}
     get_payment_info = LNWallet.get_payment_info
     save_payment_info = LNWallet.save_payment_info
