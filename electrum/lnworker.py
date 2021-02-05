@@ -571,7 +571,6 @@ class LNWallet(LNWorker):
         # note: this sweep_address is only used as fallback; as it might result in address-reuse
         self.sweep_address = wallet.get_new_sweep_address_for_channel()
         self.logs = defaultdict(list)  # type: Dict[str, List[PaymentAttemptLog]]  # key is RHASH  # (not persisted)
-        self.is_routing = set()        # (not persisted) keys of invoices that are in PR_ROUTING state
         # used in tests
         self.enable_htlc_settle = asyncio.Event()
         self.enable_htlc_settle.set()
@@ -587,6 +586,7 @@ class LNWallet(LNWorker):
 
         self.swap_manager = SwapManager(wallet=self.wallet, lnworker=self)
         # detect inflight payments
+        self.inflight_payments = set()        # (not persisted) keys of invoices that are in PR_INFLIGHT state
         for payment_hash in self.get_payments(status='inflight').keys():
             self.set_invoice_status(payment_hash.hex(), PR_INFLIGHT)
 
@@ -971,15 +971,12 @@ class LNWallet(LNWorker):
             try:
                 # note: path-finding runs in a separate thread so that we don't block the asyncio loop
                 # graph updates might occur during the computation
-                self.set_invoice_status(key, PR_ROUTING)
-                util.trigger_callback('invoice_status', self.wallet, key)
-                route = await run_in_thread(partial(self._create_route_from_invoice, lnaddr, full_path=full_path))
                 self.set_invoice_status(key, PR_INFLIGHT)
                 util.trigger_callback('invoice_status', self.wallet, key)
+                route = await run_in_thread(partial(self._create_route_from_invoice, lnaddr, full_path=full_path))
                 payment_attempt_log = await self._pay_to_route(route, lnaddr)
             except Exception as e:
                 log.append(PaymentAttemptLog(success=False, exception=e))
-                self.set_invoice_status(key, PR_UNPAID)
                 reason = str(e)
                 break
             log.append(payment_attempt_log)
@@ -988,6 +985,7 @@ class LNWallet(LNWorker):
                 break
         else:
             reason = _('Failed after {} attempts').format(attempts)
+        self.set_invoice_status(key, PR_PAID if success else PR_UNPAID)
         util.trigger_callback('invoice_status', self.wallet, key)
         if success:
             util.trigger_callback('payment_succeeded', self.wallet, key)
@@ -1312,8 +1310,8 @@ class LNWallet(LNWorker):
     def get_invoice_status(self, invoice):
         key = invoice.rhash
         log = self.logs[key]
-        if key in self.is_routing:
-            return PR_ROUTING
+        if key in self.inflight_payments:
+            return PR_INFLIGHT
         # status may be PR_FAILED
         status = self.get_payment_status(bfh(key))
         if status == PR_UNPAID and log:
@@ -1321,10 +1319,10 @@ class LNWallet(LNWorker):
         return status
 
     def set_invoice_status(self, key, status):
-        if status == PR_ROUTING:
-            self.is_routing.add(key)
-        elif key in self.is_routing:
-            self.is_routing.remove(key)
+        if status == PR_INFLIGHT:
+            self.inflight_payments.add(key)
+        elif key in self.inflight_payments:
+            self.inflight_payments.remove(key)
         if status in SAVED_PR_STATUS:
             self.set_payment_status(bfh(key), status)
 
