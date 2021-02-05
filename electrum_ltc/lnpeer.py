@@ -1389,10 +1389,6 @@ class Peer(Logger):
                 reason = OnionRoutingFailureMessage(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
                 return None, reason
         expected_received_msat = info.amount_msat
-        if expected_received_msat is not None and \
-                not (expected_received_msat <= htlc.amount_msat <= 2 * expected_received_msat):
-            reason = OnionRoutingFailureMessage(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
-            return None, reason
         # Check that our blockchain tip is sufficiently recent so that we have an approx idea of the height.
         # We should not release the preimage for an HTLC that its sender could already time out as
         # then they might try to force-close and it becomes a race.
@@ -1415,20 +1411,34 @@ class Peer(Logger):
                 data=htlc.cltv_expiry.to_bytes(4, byteorder="big"))
             return None, reason
         try:
-            amount_from_onion = processed_onion.hop_data.payload["amt_to_forward"]["amt_to_forward"]
+            amt_to_forward = processed_onion.hop_data.payload["amt_to_forward"]["amt_to_forward"]
         except:
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
             return None, reason
         try:
-            amount_from_onion = processed_onion.hop_data.payload["payment_data"]["total_msat"]
+            total_msat = processed_onion.hop_data.payload["payment_data"]["total_msat"]
         except:
-            pass  # fall back to "amt_to_forward"
-        if amount_from_onion > htlc.amount_msat:
-            reason = OnionRoutingFailureMessage(code=OnionFailureCode.FINAL_INCORRECT_HTLC_AMOUNT,
-                                                data=htlc.amount_msat.to_bytes(8, byteorder="big"))
+            total_msat = amt_to_forward # fall back to "amt_to_forward"
+
+        if amt_to_forward != htlc.amount_msat:
+            reason = OnionRoutingFailureMessage(
+                code=OnionFailureCode.FINAL_INCORRECT_HTLC_AMOUNT,
+                data=total_msat.to_bytes(8, byteorder="big"))
             return None, reason
-        # all good
-        return preimage, None
+        if expected_received_msat is None:
+            return preimage, None
+        if not (expected_received_msat <= total_msat <= 2 * expected_received_msat):
+            reason = OnionRoutingFailureMessage(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
+            return None, reason
+        accepted, expired = self.lnworker.htlc_received(chan.short_channel_id, htlc, expected_received_msat)
+        if accepted:
+            return preimage, None
+        elif expired:
+            reason = OnionRoutingFailureMessage(code=OnionFailureCode.MPP_TIMEOUT)
+            return None, reason
+        else:
+            # waiting for more htlcs
+            return None, None
 
     def fulfill_htlc(self, chan: Channel, htlc_id: int, preimage: bytes):
         self.logger.info(f"_fulfill_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
@@ -1669,7 +1679,7 @@ class Peer(Logger):
                 for htlc_id, (local_ctn, remote_ctn, onion_packet_hex, forwarding_info) in unfulfilled.items():
                     if not chan.hm.is_add_htlc_irrevocably_committed_yet(htlc_proposer=REMOTE, htlc_id=htlc_id):
                         continue
-                    chan.logger.info(f'found unfulfilled htlc: {htlc_id}')
+                    #chan.logger.info(f'found unfulfilled htlc: {htlc_id}')
                     htlc = chan.hm.get_htlc_by_id(REMOTE, htlc_id)
                     payment_hash = htlc.payment_hash
                     error_reason = None  # type: Optional[OnionRoutingFailureMessage]
@@ -1694,7 +1704,6 @@ class Peer(Logger):
                             error_reason = OnionRoutingFailureMessage(code=OnionFailureCode.INVALID_ONION_VERSION, data=sha256(onion_packet_bytes))
                         if self.network.config.get('test_fail_htlcs_with_temp_node_failure'):
                             error_reason = OnionRoutingFailureMessage(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
-
                     if not error_reason:
                         if processed_onion.are_we_final:
                             preimage, error_reason = self.maybe_fulfill_htlc(

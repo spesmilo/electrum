@@ -670,27 +670,19 @@ class Channel(AbstractChannel):
     def get_next_feerate(self, subject: HTLCOwner) -> int:
         return self.hm.get_feerate_in_next_ctx(subject)
 
-    def get_payments(self):
-        out = []
-        for direction, htlc in self.hm.all_htlcs_ever():
-            htlc_proposer = LOCAL if direction is SENT else REMOTE
-            if self.hm.was_htlc_failed(htlc_id=htlc.htlc_id, htlc_proposer=htlc_proposer):
-                status = 'failed'
-            elif self.hm.was_htlc_preimage_released(htlc_id=htlc.htlc_id, htlc_proposer=htlc_proposer):
-                status = 'settled'
-            else:
-                status = 'inflight'
-            rhash = htlc.payment_hash.hex()
-            out.append((rhash, self.channel_id, htlc, direction, status))
-        return out
-
-    def get_settled_payments(self):
+    def get_payments(self, status=None):
         out = defaultdict(list)
         for direction, htlc in self.hm.all_htlcs_ever():
             htlc_proposer = LOCAL if direction is SENT else REMOTE
-            if self.hm.was_htlc_preimage_released(htlc_id=htlc.htlc_id, htlc_proposer=htlc_proposer):
-                rhash = htlc.payment_hash.hex()
-                out[rhash].append((self.channel_id, htlc, direction))
+            if self.hm.was_htlc_failed(htlc_id=htlc.htlc_id, htlc_proposer=htlc_proposer):
+                _status = 'failed'
+            elif self.hm.was_htlc_preimage_released(htlc_id=htlc.htlc_id, htlc_proposer=htlc_proposer):
+                _status = 'settled'
+            else:
+                _status = 'inflight'
+            if status and status != _status:
+                continue
+            out[htlc.payment_hash].append((self.channel_id, htlc, direction, _status))
         return out
 
     def open_with_first_pcp(self, remote_pcp: bytes, remote_sig: bytes) -> None:
@@ -977,10 +969,6 @@ class Channel(AbstractChannel):
             raise Exception("refusing to revoke as remote sig does not fit")
         with self.db_lock:
             self.hm.send_rev()
-        if self.lnworker:
-            received = self.hm.received_in_ctn(new_ctn)
-            for htlc in received:
-                self.lnworker.payment_received(self, htlc.payment_hash)
         last_secret, last_point = self.get_secret_and_point(LOCAL, new_ctn - 1)
         next_secret, next_point = self.get_secret_and_point(LOCAL, new_ctn + 1)
         return RevokeAndAck(last_secret, next_point)
@@ -1003,7 +991,7 @@ class Channel(AbstractChannel):
         if self.lnworker:
             sent = self.hm.sent_in_ctn(new_ctn)
             for htlc in sent:
-                self.lnworker.payment_sent(self, htlc.payment_hash)
+                self.lnworker.htlc_fulfilled(self, htlc.payment_hash, htlc.htlc_id, htlc.amount_msat)
             failed = self.hm.failed_in_ctn(new_ctn)
             for htlc in failed:
                 try:
@@ -1014,7 +1002,7 @@ class Channel(AbstractChannel):
                 if self.lnworker.get_payment_info(htlc.payment_hash) is None:
                     self.save_fail_htlc_reason(htlc.htlc_id, error_bytes, failure_message)
                 else:
-                    self.lnworker.payment_failed(self, htlc.payment_hash, error_bytes, failure_message)
+                    self.lnworker.htlc_failed(self, htlc.payment_hash, htlc.htlc_id, htlc.amount_msat, error_bytes, failure_message)
 
     def save_fail_htlc_reason(
             self,
@@ -1060,9 +1048,9 @@ class Channel(AbstractChannel):
         info = self.lnworker.get_payment_info(payment_hash)
         if info is not None and info.status != PR_PAID:
             if is_sent:
-                self.lnworker.payment_sent(self, payment_hash)
+                self.lnworker.htlc_fulfilled(self, payment_hash, htlc.htlc_id, htlc.amount_msat)
             else:
-                self.lnworker.payment_received(self, payment_hash)
+                self.lnworker.htlc_received(self, payment_hash)
 
     def balance(self, whose: HTLCOwner, *, ctx_owner=HTLCOwner.LOCAL, ctn: int = None) -> int:
         assert type(whose) is HTLCOwner
