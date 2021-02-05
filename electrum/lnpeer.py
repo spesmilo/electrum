@@ -1434,7 +1434,7 @@ class Peer(Logger):
         if accepted:
             return preimage, None
         elif expired:
-            reason = OnionRoutingFailureMessage(code=OnionFailureCode.MPP_TIMEOUT)
+            reason = OnionRoutingFailureMessage(code=OnionFailureCode.MPP_TIMEOUT, data=b'')
             return None, reason
         else:
             # waiting for more htlcs
