@@ -132,8 +132,8 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         # used in tests
         self.enable_htlc_settle = asyncio.Event()
         self.enable_htlc_settle.set()
-        self.pending_htlcs = defaultdict(set)
-        self.pending_sent_htlcs = defaultdict(asyncio.Queue)
+        self.received_htlcs = defaultdict(set)
+        self.sent_htlcs = defaultdict(asyncio.Queue)
         self.htlc_routes = defaultdict(list)
 
     def get_invoice_status(self, key):
@@ -518,9 +518,9 @@ class TestPeer(ElectrumTestCase):
             p1.maybe_send_commitment(alice_channel)
             p2.maybe_send_commitment(bob_channel)
 
-            htlc_log1 = await w1.pending_sent_htlcs[lnaddr2.paymenthash].get()
+            htlc_log1 = await w1.sent_htlcs[lnaddr2.paymenthash].get()
             assert htlc_log1.success
-            htlc_log2 = await w2.pending_sent_htlcs[lnaddr1.paymenthash].get()
+            htlc_log2 = await w2.sent_htlcs[lnaddr1.paymenthash].get()
             assert htlc_log2.success
             raise PaymentDone()
 

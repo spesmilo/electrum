@@ -580,11 +580,9 @@ class LNWallet(LNWorker):
         for channel_id, c in random_shuffled_copy(channels.items()):
             self._channels[bfh(channel_id)] = Channel(c, sweep_address=self.sweep_address, lnworker=self)
 
-        self.pending_payments = defaultdict(asyncio.Future)  # type: Dict[bytes, asyncio.Future[HtlcLog]]
-        self.pending_sent_htlcs = defaultdict(asyncio.Queue)  # type: Dict[bytes, asyncio.Future[HtlcLog]]
-
-        self.pending_htlcs = defaultdict(set) # type: Dict[bytes, set]
-        self.htlc_routes = defaultdict(list)
+        self.sent_htlcs = defaultdict(asyncio.Queue)  # type: Dict[bytes, asyncio.Queue[HtlcLog]]
+        self.received_htlcs = defaultdict(set) # type: Dict[bytes, set]
+        self.htlc_routes = dict()
 
         self.swap_manager = SwapManager(wallet=self.wallet, lnworker=self)
         # detect inflight payments
@@ -955,19 +953,18 @@ class LNWallet(LNWorker):
         lnaddr = self._check_invoice(invoice, amount_msat=amount_msat)
         payment_hash = lnaddr.paymenthash
         key = payment_hash.hex()
-        amount_msat = lnaddr.get_amount_msat()
+        amount_to_pay = lnaddr.get_amount_msat()
         status = self.get_payment_status(payment_hash)
         if status == PR_PAID:
             raise PaymentFailure(_("This invoice has been paid already"))
         if status == PR_INFLIGHT:
             raise PaymentFailure(_("A payment was already initiated for this invoice"))
-        info = PaymentInfo(payment_hash, amount_msat, SENT, PR_UNPAID)
+        info = PaymentInfo(payment_hash, amount_to_pay, SENT, PR_UNPAID)
         self.save_payment_info(info)
         self.wallet.set_label(key, lnaddr.get_description())
         self.logs[key] = log = []
         success = False
         reason = ''
-        amount_to_pay = lnaddr.get_amount_msat()
         amount_inflight = 0 # what we sent in htlcs
 
         self.set_invoice_status(key, PR_INFLIGHT)
@@ -990,7 +987,7 @@ class LNWallet(LNWorker):
                     amount_inflight += amount_msat
                 util.trigger_callback('invoice_status', self.wallet, key)
             # 3. await a queue
-            htlc_log = await self.pending_sent_htlcs[payment_hash].get()
+            htlc_log = await self.sent_htlcs[payment_hash].get()
             amount_inflight -= htlc_log.amount_msat
             log.append(htlc_log)
             if htlc_log.success:
@@ -1318,7 +1315,7 @@ class LNWallet(LNWorker):
         status = self.get_payment_status(htlc.payment_hash)
         if status == PR_PAID:
             return True, None
-        s = self.pending_htlcs[htlc.payment_hash]
+        s = self.received_htlcs[htlc.payment_hash]
         if (short_channel_id, htlc) not in s:
             s.add((short_channel_id, htlc))
         total = sum([htlc.amount_msat for scid, htlc in s])
@@ -1370,7 +1367,7 @@ class LNWallet(LNWorker):
             success=True,
             route=route,
             amount_msat=amount_msat)
-        q = self.pending_sent_htlcs[payment_hash]
+        q = self.sent_htlcs[payment_hash]
         q.put_nowait(htlc_log)
         util.trigger_callback('htlc_fulfilled', payment_hash, chan.channel_id)
 
@@ -1405,7 +1402,7 @@ class LNWallet(LNWorker):
             failure_msg=failure_message,
             sender_idx=sender_idx)
 
-        q = self.pending_sent_htlcs[payment_hash]
+        q = self.sent_htlcs[payment_hash]
         q.put_nowait(htlc_log)
         util.trigger_callback('htlc_failed', payment_hash, chan.channel_id)
 
