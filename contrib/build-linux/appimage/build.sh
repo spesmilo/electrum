@@ -51,6 +51,7 @@ DOCKER_SUFFIX=ub1804
 info "Creating docker image ..."
 $SUDO docker build -t electroncash-appimage-builder-img-$DOCKER_SUFFIX \
     -f contrib/build-linux/appimage/Dockerfile_$DOCKER_SUFFIX \
+    --build-arg UBUNTU_MIRROR=$UBUNTU_MIRROR \
     contrib/build-linux/appimage \
     || fail "Failed to create docker image"
 

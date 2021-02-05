@@ -1,8 +1,14 @@
 FROM ubuntu:18.04@sha256:5f4bdc3467537cbbe563e80db2c3ec95d548a9145d64453b06939c4592d67b6d
 
+ARG UBUNTU_MIRROR=http://archive.ubuntu.com/ubuntu/
+
 ENV LC_ALL=C.UTF-8 LANG=C.UTF-8
 
-RUN dpkg --add-architecture i386 && \
+RUN echo deb ${UBUNTU_MIRROR} bionic main restricted universe multiverse > /etc/apt/sources.list && \
+    echo deb ${UBUNTU_MIRROR} bionic-updates main restricted universe multiverse >> /etc/apt/sources.list && \
+    echo deb ${UBUNTU_MIRROR} bionic-backports main restricted universe multiverse >> /etc/apt/sources.list && \
+    echo deb ${UBUNTU_MIRROR} bionic-security main restricted universe multiverse >> /etc/apt/sources.list && \
+    dpkg --add-architecture i386 && \
     apt-get update -q && \
     apt-get install -qy \
         wget=1.19.4-1ubuntu2.2 \

@@ -58,6 +58,7 @@ info "Creating docker image ..."
 $SUDO docker build -t $IMGNAME \
             --build-arg USER_ID=$USER_ID \
             --build-arg GROUP_ID=$GROUP_ID \
+            --build-arg UBUNTU_MIRROR=$UBUNTU_MIRROR \
             contrib/build-wine/docker \
     || fail "Failed to create docker image"
 
