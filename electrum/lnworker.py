@@ -1055,28 +1055,29 @@ class LNWallet(LNWorker):
             payload = self._decode_channel_update_msg(channel_update_as_received)
             if payload is None:
                 self.logger.info(f'could not decode channel_update for failed htlc: {channel_update_as_received.hex()}')
-                return True
-            r = self.channel_db.add_channel_update(payload)
-            blacklist = False
-            short_channel_id = ShortChannelID(payload['short_channel_id'])
-            if r == UpdateStatus.GOOD:
-                self.logger.info(f"applied channel update to {short_channel_id}")
-                # TODO: test this
-                for chan in self.channels.values():
-                    if chan.short_channel_id == short_channel_id:
-                        chan.set_remote_update(payload['raw'])
-            elif r == UpdateStatus.ORPHANED:
-                # maybe it is a private channel (and data in invoice was outdated)
-                self.logger.info(f"Could not find {short_channel_id}. maybe update is for private channel?")
-                start_node_id = route[sender_idx].node_id
-                self.channel_db.add_channel_update_for_private_channel(payload, start_node_id)
-            elif r == UpdateStatus.EXPIRED:
                 blacklist = True
-            elif r == UpdateStatus.DEPRECATED:
-                self.logger.info(f'channel update is not more recent.')
-                blacklist = True
-            elif r == UpdateStatus.UNCHANGED:
-                blacklist = True
+            else:
+                r = self.channel_db.add_channel_update(payload)
+                blacklist = False
+                short_channel_id = ShortChannelID(payload['short_channel_id'])
+                if r == UpdateStatus.GOOD:
+                    self.logger.info(f"applied channel update to {short_channel_id}")
+                    # TODO: test this
+                    for chan in self.channels.values():
+                        if chan.short_channel_id == short_channel_id:
+                            chan.set_remote_update(payload['raw'])
+                elif r == UpdateStatus.ORPHANED:
+                    # maybe it is a private channel (and data in invoice was outdated)
+                    self.logger.info(f"Could not find {short_channel_id}. maybe update is for private channel?")
+                    start_node_id = route[sender_idx].node_id
+                    self.channel_db.add_channel_update_for_private_channel(payload, start_node_id)
+                elif r == UpdateStatus.EXPIRED:
+                    blacklist = True
+                elif r == UpdateStatus.DEPRECATED:
+                    self.logger.info(f'channel update is not more recent.')
+                    blacklist = True
+                elif r == UpdateStatus.UNCHANGED:
+                    blacklist = True
         else:
             blacklist = True
         # blacklist channel after reporter node
