@@ -3,7 +3,6 @@ ecdsa>=0.9
 requests
 qrcode
 protobuf>=3.7.1
-dnspython[DNSSEC]
 jsonrpclib-pelix
 PySocks>=1.6.6
 qdarkstyle==2.6.8
@@ -11,3 +10,7 @@ python-dateutil<2.9
 stem>=1.8.0
 certifi
 pathvalidate
+
+# Note that we also need the dnspython[DNSSEC] extra which pulls in cryptography,
+# but as that is not pure-python it cannot be listed in this file!
+dnspython>=2.0
