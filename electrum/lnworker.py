@@ -1144,15 +1144,8 @@ class LNWallet(LNWorker):
         # TODO: return multiples routes if we know that a single one will not work
         # initially, try with less htlcs
         invoice_pubkey = decoded_invoice.pubkey.serialize()
-        # use 'r' field from invoice
+        r_tags = decoded_invoice.get_routing_info('r')
         route = None  # type: Optional[LNPaymentRoute]
-        # only want 'r' tags
-        r_tags = list(filter(lambda x: x[0] == 'r', decoded_invoice.tags))
-        # strip the tag type, it's implicitly 'r' now
-        r_tags = list(map(lambda x: x[1], r_tags))
-        # if there are multiple hints, we will use the first one that works,
-        # from a random permutation
-        random.shuffle(r_tags)
         channels = list(self.channels.values())
         scid_to_my_channels = {chan.short_channel_id: chan for chan in channels
                                if chan.short_channel_id is not None}
