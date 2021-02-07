@@ -418,9 +418,9 @@ class SwapManager(Logger):
         # initiate payment.
         if fee_invoice:
             self.prepayments[prepay_hash] = preimage_hash
-            asyncio.ensure_future(self.lnworker._pay(fee_invoice, attempts=10))
+            asyncio.ensure_future(self.lnworker.pay_invoice(fee_invoice, attempts=10))
         # initiate payment.
-        success, log = await self.lnworker._pay(invoice, attempts=10)
+        success, log = await self.lnworker.pay_invoice(invoice, attempts=10)
         return success
 
     async def get_pairs(self) -> None:

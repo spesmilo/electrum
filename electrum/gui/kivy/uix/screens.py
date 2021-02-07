@@ -367,7 +367,9 @@ class SendScreen(CScreen, Logger):
     def _do_pay_lightning(self, invoice: LNInvoice, pw) -> None:
         def pay_thread():
             try:
-                self.app.wallet.lnworker.pay(invoice.invoice, attempts=10)
+                coro = self.app.wallet.lnworker.pay_invoice(invoice.invoice, attempts=10)
+                fut = asyncio.run_coroutine_threadsafe(coro, self.app.network.asyncio_loop)
+                fut.result()
             except Exception as e:
                 self.app.show_error(repr(e))
         self.save_invoice(invoice)

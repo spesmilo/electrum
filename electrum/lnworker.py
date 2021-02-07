@@ -930,21 +930,13 @@ class LNWallet(LNWorker):
 
         return chan, funding_tx
 
-    def pay(self, invoice: str, *, amount_msat: int = None, attempts: int = 1) -> Tuple[bool, List[HtlcLog]]:
-        """
-        Can be called from other threads
-        """
-        coro = self._pay(invoice, amount_msat=amount_msat, attempts=attempts)
-        fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
-        return fut.result()
-
     def get_channel_by_short_id(self, short_channel_id: bytes) -> Optional[Channel]:
         for chan in self.channels.values():
             if chan.short_channel_id == short_channel_id:
                 return chan
 
     @log_exceptions
-    async def _pay(
+    async def pay_invoice(
             self, invoice: str, *,
             amount_msat: int = None,
             attempts: int = 1,
