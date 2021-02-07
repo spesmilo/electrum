@@ -175,9 +175,11 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     htlc_failed = LNWallet.htlc_failed
     save_preimage = LNWallet.save_preimage
     get_preimage = LNWallet.get_preimage
+    create_routes_for_payment = LNWallet.create_routes_for_payment
     create_routes_from_invoice = LNWallet.create_routes_from_invoice
     _check_invoice = staticmethod(LNWallet._check_invoice)
     pay_to_route = LNWallet.pay_to_route
+    pay_to_node = LNWallet.pay_to_node
     pay_invoice = LNWallet.pay_invoice
     force_close_channel = LNWallet.force_close_channel
     try_force_closing = LNWallet.try_force_closing
@@ -766,7 +768,11 @@ class TestPeer(ElectrumTestCase):
         # AssertionError is ok since we shouldn't use old routes, and the
         # route finding should fail when channel is closed
         async def f():
-            await asyncio.gather(w1.pay_to_route(route, amount_msat, lnaddr), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+            min_cltv_expiry = lnaddr.get_min_final_cltv_expiry()
+            payment_hash = lnaddr.paymenthash
+            payment_secret = lnaddr.payment_secret
+            pay = w1.pay_to_route(route, amount_msat, payment_hash, payment_secret, min_cltv_expiry)
+            await asyncio.gather(pay, p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         with self.assertRaises(PaymentFailure):
             run(f())
 
