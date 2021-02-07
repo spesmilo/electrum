@@ -2126,7 +2126,6 @@ class PayjoinTransaction():
         self.payjoin_proposal.invalidate_ser_cache()
 
     def validate_payjoin_proposal(self) -> None:
-
         # check transaction version
         if self.payjoin_original.version != self.payjoin_proposal.version:
             raise PayJoinProposalValidationException(f"The transactin version in payjoin proposal was modified.")
@@ -2146,18 +2145,22 @@ class PayjoinTransaction():
                 raise PayJoinProposalValidationException(f"Inputs nsequence from the original payjoin was modified.")
 
         sequences = set()
+        input_types = set()
         # check wheter the new Inputs are finalized and utxo data is filled
         for txin in self.payjoin_proposal.inputs():
             if not txin.prevout.to_str() in [x.prevout.to_str() for x in self.payjoin_original.inputs()]:
                 if not txin.is_complete():
                     raise PayJoinProposalValidationException(f"Newly added input is not finalized.")
             sequences.add(txin.nsequence)
-
+            input_types.add(txin.script_type)
         # check that all inputs use the same sequence number
         if len(sequences) != 1:
-            raise PayJoinProposalValidationException(f"Payjoin roposal introduced different sequence numbers.")
+            raise PayJoinProposalValidationException(f"Payjoin proposal introduced different sequence numbers.")
+        # check that all inputs use the same type of inputs
+        if len(input_types) != 1:
+            raise PayJoinProposalValidationException(f"Payjoin proposal used varying types in the transaction input.")
 
-        #TODO: check if the order of inputs is important and the validation the script Type is equal is missing
+        #TODO: check if the order of inputs is important
 
         # check the absolute fee was not decreased
         if self.payjoin_original.get_fee() > self.payjoin_proposal.get_fee():

@@ -244,6 +244,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
                                                                   on_finish=self.payjoin.handle_payjoin_response)
             self.payjoin.set_payjoin_proposal(payjoin_proposal)
             self.payjoin.payjoin_proposal.add_info_from_wallet(self.wallet)
+            self.payjoin.payjoin_proposal.update_txin_script_type()
             self.payjoin.validate_payjoin_proposal()
         except Exception as e:
             _logger.warning(repr(e))
