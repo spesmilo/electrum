@@ -2,3 +2,6 @@ PyQt5>=5.12.3
 pycryptodomex<3.7
 websocket-client
 psutil==5.6.1
+
+# we need at least cryptography>=2.6 for dnspython[DNSSEC]
+cryptography>=2.6
