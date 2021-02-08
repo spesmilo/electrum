@@ -1100,8 +1100,13 @@ class ElectrumWindow(App, Logger):
         on_success = run_hook('tc_sign_wrapper', self.wallet, tx, on_success, on_failure) or on_success
         Clock.schedule_once(lambda dt: on_success(tx))
 
-    def _broadcast_thread(self, tx, on_complete):
+    def _broadcast_thread(self, tx, pr, on_complete):
         status = False
+        if pr and pr.has_expired():
+            self.send_screen.payment_request = None
+            status, msg = False, _("Invoice has expired")
+            Clock.schedule_once(lambda dt: on_complete(status, msg))
+            return
         try:
             self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
         except TxBroadcastError as e:
@@ -1109,10 +1114,17 @@ class ElectrumWindow(App, Logger):
         except BestEffortRequestFailed as e:
             msg = repr(e)
         else:
+            if pr:
+                self.send_screen.payment_request = None
+                refund_address = self.wallet.get_receiving_address()
+                coro = pr.send_payment_and_receive_paymentack(tx.serialize(), refund_address)
+                fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+                ack_status, ack_msg = fut.result(timeout=20)
+                self.logger.info(f"Payment ACK: {ack_status}. Ack message: {ack_msg}")
             status, msg = True, tx.txid()
         Clock.schedule_once(lambda dt: on_complete(status, msg))
 
-    def broadcast(self, tx):
+    def broadcast(self, tx, pr=None):
         def on_complete(ok, msg):
             if ok:
                 self.show_info(_('Payment sent.'))
@@ -1124,7 +1136,7 @@ class ElectrumWindow(App, Logger):
 
         if self.network and self.network.is_connected():
             self.show_info(_('Sending'))
-            threading.Thread(target=self._broadcast_thread, args=(tx, on_complete)).start()
+            threading.Thread(target=self._broadcast_thread, args=(tx, pr, on_complete)).start()
         else:
             self.show_info(_('Cannot broadcast transaction') + ':\n' + _('Not connected'))
 

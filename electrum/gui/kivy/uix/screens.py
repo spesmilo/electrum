@@ -383,19 +383,20 @@ class SendScreen(CScreen, Logger):
     def send_tx(self, tx, invoice, password):
         if self.app.wallet.has_password() and password is None:
             return
+        pr = self.payment_request
         self.save_invoice(invoice)
         def on_success(tx):
             if tx.is_complete():
-                self.app.broadcast(tx)
+                self.app.broadcast(tx, pr)
             else:
-                self.app.tx_dialog(tx)
+                self.app.tx_dialog(tx, pr)
         def on_failure(error):
             self.app.show_error(error)
         if self.app.wallet.can_sign(tx):
             self.app.show_info("Signing...")
             self.app.sign_tx(tx, password, on_success, on_failure)
         else:
-            self.app.tx_dialog(tx)
+            self.app.tx_dialog(tx, pr)
 
 
 class ReceiveScreen(CScreen):
