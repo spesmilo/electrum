@@ -1688,10 +1688,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if cancelled:
             return
         if is_send:
+            pr = self.payment_request
             self.save_pending_invoice()
             def sign_done(success):
                 if success:
-                    self.broadcast_or_show(tx)
+                    self.broadcast_or_show(tx, pr)
             self.sign_tx_with_password(tx, callback=sign_done, password=password,
                                        external_keypairs=external_keypairs)
         else:
@@ -1703,7 +1704,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                             window=self)
         d.show()
 
-    def broadcast_or_show(self, tx: Transaction):
+    def broadcast_or_show(self, tx: Transaction,
+                          pr: Optional[paymentrequest.PaymentRequest]):
         if not tx.is_complete():
             self.show_transaction(tx)
             return
@@ -1711,7 +1713,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.show_error(_("You can't broadcast a transaction without a live network connection."))
             self.show_transaction(tx)
             return
-        self.broadcast_transaction(tx)
+        self.broadcast_transaction(tx, pr)
 
     @protected
     def sign_tx(self, tx, *, callback, external_keypairs, password):
@@ -1735,11 +1737,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         msg = _('Signing transaction...')
         WaitingDialog(self, msg, task, on_success, on_failure)
 
-    def broadcast_transaction(self, tx: Transaction):
+    def broadcast_transaction(self, tx: Transaction,
+                              pr: Optional[paymentrequest.PaymentRequest]):
 
         def broadcast_thread():
             # non-GUI thread
-            pr = self.payment_request
             if pr and pr.has_expired():
                 self.payment_request = None
                 return False, _("Invoice has expired")
