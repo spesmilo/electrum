@@ -339,6 +339,8 @@ def make_unsigned_request(req: 'OnchainInvoice'):
     script = bfh(address_to_script(addr))
     outputs = [(script, amount)]
     pd = pb2.PaymentDetails()
+    if constants.net.TESTNET:
+        pd.network = 'test'
     for script, amount in outputs:
         pd.outputs.add(amount=amount, script=script)
     pd.time = time
