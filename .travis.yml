@@ -5,6 +5,7 @@ python:
     - 3.6
     - 3.7
     - 3.8
+    - 3.9
 install:
   - pip install -r contrib/requirements/requirements-travis.txt
 cache:
