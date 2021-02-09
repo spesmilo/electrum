@@ -1,0 +1,11 @@
+pip
+setuptools
+wheel
+
+# Below is needed by PyInstaller
+altgraph
+pyinstaller-hooks-contrib>=2020.6
+pefile
+pywin32-ctypes
+future
+toml
