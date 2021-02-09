@@ -51,7 +51,7 @@ function DoCodeSignMaybe { # ARGS: infoName fileOrDirName codesignIdentity
 
 cd $build_dir/../..
 
-VERSION=`git describe --tags`
+VERSION=`git_describe_filtered`
 
 # Paramterize
 BUILDDIR=/tmp/electron-cash-build

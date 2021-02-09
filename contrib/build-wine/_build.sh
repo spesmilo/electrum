@@ -31,6 +31,7 @@ set -e
 git checkout "$to_build" || fail "Could not branch or tag $to_build"
 
 GIT_COMMIT_HASH=$(git rev-parse HEAD)
+VERSION=`git_describe_filtered`
 
 info "Clearing $here/build and $here/dist..."
 rm "$here"/build/* -fr
@@ -221,7 +222,6 @@ build_the_app() {
         pushd "$here"/../..  # go to top level
 
 
-        VERSION=`git describe --tags`
         info "Version to release: $VERSION"
         info "Fudging timestamps on all files for determinism ..."
         find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
