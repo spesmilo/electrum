@@ -20,7 +20,7 @@ SQUASHFSKIT_COMMIT="ae0d656efa2d0df2fcac795b6823b44462f19386"
 PKG2APPIMAGE_COMMIT="eb8f3acdd9f11ab19b78f5cb15daa772367daf15"
 
 
-VERSION=`git describe --tags --dirty --always`
+VERSION=`git_describe_filtered`
 APPIMAGE="$DISTDIR/Electron-Cash-$VERSION-x86_64.AppImage"
 
 rm -rf "$BUILDDIR"

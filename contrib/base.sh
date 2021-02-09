@@ -172,6 +172,15 @@ function verlt()
     [ "$1" = "$2" ] && return 1 || verlte $1 $2
 }
 
+function git_describe_filtered()
+{
+    if [ ! -z ${1+x} ] ; then
+        git describe --tags --match "$1" --dirty --always
+    else
+        git describe --tags --exclude 'android-*' --exclude 'ios_*' --dirty --always
+    fi
+}
+
 if [ -n "$_BASE_SH_SOURCED" ] ; then
     # Base.sh has been sourced already, no need to source it again
     return 0
