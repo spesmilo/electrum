@@ -4,4 +4,4 @@ keepkey>=6.1
 btchip-python
 hidapi
 pyscard>=1.9.9
-pysatochip>=0.11.2
+pysatochip>=0.11.4
