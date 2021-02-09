@@ -1196,7 +1196,8 @@ class Peer(Logger):
         self.send_message("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs))
 
     def pay(self, *, route: 'LNPaymentRoute', chan: Channel, amount_msat: int,
-            payment_hash: bytes, min_final_cltv_expiry: int, payment_secret: bytes = None) -> UpdateAddHtlc:
+            payment_hash: bytes, min_final_cltv_expiry: int,
+            payment_secret: bytes = None, fwd_trampoline_onion=None) -> UpdateAddHtlc:
         assert amount_msat > 0, "amount_msat is not greater zero"
         assert len(route) > 0
         if not chan.can_send_update_add_htlc():
@@ -1226,6 +1227,25 @@ class Peer(Logger):
                     hops_data[i].payload["invoice_features"] = {"invoice_features":route_edge.invoice_features}
                 if route_edge.invoice_routing_info:
                     hops_data[i].payload["invoice_routing_info"] = {"invoice_routing_info":route_edge.invoice_routing_info}
+
+                # only for final, legacy
+                if i == num_hops - 2:
+                    self.logger.info(f'adding payment secret for legacy trampoline')
+                    hops_data[i].payload["payment_data"] = {
+                        "payment_secret":payment_secret,
+                        "total_msat": amount_msat,
+                    }
+
+        # if we are forwarding a trampoline payment, add trampoline onion
+        if fwd_trampoline_onion:
+            self.logger.info(f'adding trampoline onion to final payload')
+            trampoline_payload = hops_data[num_hops-2].payload
+            trampoline_payload["trampoline_onion_packet"] = {
+                "version": fwd_trampoline_onion.version,
+                "public_key": fwd_trampoline_onion.public_key,
+                "hops_data": fwd_trampoline_onion.hops_data,
+                "hmac": fwd_trampoline_onion.hmac
+            }
 
         # create trampoline onion
         for i in range(num_hops):
@@ -1424,6 +1444,62 @@ class Peer(Logger):
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=data)
         return next_chan_scid, next_htlc.htlc_id
 
+    def maybe_forward_trampoline(
+            self, *,
+            chan: Channel,
+            htlc: UpdateAddHtlc,
+            trampoline_onion: ProcessedOnionPacket):
+
+        payload = trampoline_onion.hop_data.payload
+        payment_hash = htlc.payment_hash
+        try:
+            outgoing_node_id = payload["outgoing_node_id"]["outgoing_node_id"]
+            payment_secret = payload["payment_data"]["payment_secret"]
+            amt_to_forward = payload["amt_to_forward"]["amt_to_forward"]
+            cltv_from_onion = payload["outgoing_cltv_value"]["outgoing_cltv_value"]
+            if "invoice_features" in payload:
+                self.logger.info('forward_trampoline: legacy')
+                next_trampoline_onion = None
+                invoice_features = payload["invoice_features"]["invoice_features"]
+                invoice_routing_info = payload["invoice_routing_info"]["invoice_routing_info"]
+            else:
+                self.logger.info('forward_trampoline: end-to-end')
+                invoice_features = 0
+                next_trampoline_onion = trampoline_onion.next_packet
+        except Exception as e:
+            self.logger.exception('')
+            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
+
+        trampoline_cltv_delta = htlc.cltv_expiry - cltv_from_onion
+        trampoline_fee = htlc.amount_msat - amt_to_forward
+
+        @log_exceptions
+        async def forward_trampoline_payment():
+            try:
+                await self.lnworker.pay_to_node(
+                    node_pubkey=outgoing_node_id,
+                    payment_hash=payment_hash,
+                    payment_secret=payment_secret,
+                    amount_to_pay=amt_to_forward,
+                    min_cltv_expiry=cltv_from_onion,
+                    r_tags=[],
+                    t_tags=[],
+                    invoice_features=invoice_features,
+                    trampoline_onion=next_trampoline_onion,
+                    trampoline_fee=trampoline_fee,
+                    trampoline_cltv_delta=trampoline_cltv_delta,
+                    attempts=1)
+            except OnionRoutingFailure as e:
+                # FIXME: cannot use payment_hash as key
+                self.lnworker.trampoline_forwarding_failures[payment_hash] = e
+            except PaymentFailure as e:
+                # FIXME: adapt the error code
+                error_reason = OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT, data=b'')
+                self.lnworker.trampoline_forwarding_failures[payment_hash] = error_reason
+
+        asyncio.ensure_future(forward_trampoline_payment())
+
+
     def maybe_fulfill_htlc(
             self, *,
             chan: Channel,
@@ -1444,10 +1520,12 @@ class Peer(Logger):
             cltv_from_onion = processed_onion.hop_data.payload["outgoing_cltv_value"]["outgoing_cltv_value"]
         except:
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
-        if cltv_from_onion != htlc.cltv_expiry:
-            raise OnionRoutingFailure(
-                code=OnionFailureCode.FINAL_INCORRECT_CLTV_EXPIRY,
-                data=htlc.cltv_expiry.to_bytes(4, byteorder="big"))
+
+        if not is_trampoline:
+            if cltv_from_onion != htlc.cltv_expiry:
+                raise OnionRoutingFailure(
+                    code=OnionFailureCode.FINAL_INCORRECT_CLTV_EXPIRY,
+                    data=htlc.cltv_expiry.to_bytes(4, byteorder="big"))
         try:
             amt_to_forward = processed_onion.hop_data.payload["amt_to_forward"]["amt_to_forward"]
         except:
@@ -1461,6 +1539,10 @@ class Peer(Logger):
             raise OnionRoutingFailure(
                 code=OnionFailureCode.FINAL_INCORRECT_HTLC_AMOUNT,
                 data=total_msat.to_bytes(8, byteorder="big"))
+
+        outgoing_node_id = processed_onion.hop_data.payload.get("outgoing_node_id")
+        if is_trampoline and outgoing_node_id:
+            return
 
         # if there is a trampoline_onion, perform the above checks on it
         if processed_onion.trampoline_onion_packet:
@@ -1787,6 +1869,27 @@ class Peer(Logger):
                 chan=chan,
                 htlc=htlc,
                 processed_onion=processed_onion)
+            # trampoline forwarding
+            if not preimage and processed_onion.trampoline_onion_packet:
+                if not forwarding_info:
+                    trampoline_onion = self.process_onion_packet(
+                        processed_onion.trampoline_onion_packet,
+                        htlc.payment_hash,
+                        onion_packet_bytes,
+                        is_trampoline=True)
+                    self.maybe_forward_trampoline(
+                        chan=chan,
+                        htlc=htlc,
+                        trampoline_onion=trampoline_onion)
+                    # we return True so that this code gets executed only once
+                    return None, True, None
+                else:
+                    preimage = self.lnworker.get_preimage(payment_hash)
+                    error_reason = self.lnworker.trampoline_forwarding_failures.pop(payment_hash, None)
+                    if error_reason:
+                        self.logger.info(f'trampoline forwarding failure {error_reason}')
+                        raise error_reason
+
         elif not forwarding_info:
             next_chan_id, next_htlc_id = self.maybe_forward_htlc(
                 chan=chan,
@@ -1810,10 +1913,14 @@ class Peer(Logger):
             return preimage, None, None
         return None, None, None
 
-    def process_onion_packet(self, onion_packet, payment_hash, onion_packet_bytes):
+    def process_onion_packet(self, onion_packet, payment_hash, onion_packet_bytes, is_trampoline=False):
         failure_data = sha256(onion_packet_bytes)
         try:
-            processed_onion = process_onion_packet(onion_packet, associated_data=payment_hash, our_onion_private_key=self.privkey)
+            processed_onion = process_onion_packet(
+                onion_packet,
+                associated_data=payment_hash,
+                our_onion_private_key=self.privkey,
+                is_trampoline=is_trampoline)
         except UnsupportedOnionPacketVersion:
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_VERSION, data=failure_data)
         except InvalidOnionPubkey:

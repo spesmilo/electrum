@@ -660,6 +660,8 @@ class LNWallet(LNWorker):
         for payment_hash in self.get_payments(status='inflight').keys():
             self.set_invoice_status(payment_hash.hex(), PR_INFLIGHT)
 
+        self.trampoline_forwarding_failures = {} # todo: should be persisted
+
     @property
     def channels(self) -> Mapping[bytes, Channel]:
         """Returns a read-only copy of channels."""
@@ -1063,8 +1065,16 @@ class LNWallet(LNWorker):
 
     async def pay_to_node(
             self, node_pubkey, payment_hash, payment_secret, amount_to_pay,
-            min_cltv_expiry, r_tags, t_tags, invoice_features, *, attempts: int = 1,
-            full_path: LNPaymentPath = None):
+            min_cltv_expiry, r_tags, t_tags, invoice_features, *,
+            attempts: int = 1, full_path: LNPaymentPath=None,
+            trampoline_onion=None, trampoline_fee=None, trampoline_cltv_delta=None):
+
+        if trampoline_onion:
+            # todo: compare to the fee of the actual route we found
+            if trampoline_fee < 1000:
+                raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT, data=b'')
+            if trampoline_cltv_delta < 576:
+                raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON, data=b'')
 
         self.logs[payment_hash.hex()] = log = []
         amount_inflight = 0 # what we sent in htlcs
@@ -1084,7 +1094,7 @@ class LNWallet(LNWorker):
                     routes = [(route, amount_to_send)]
                 # 2. send htlcs
                 for route, amount_msat in routes:
-                    await self.pay_to_route(route, amount_msat, payment_hash, payment_secret, min_cltv_expiry)
+                    await self.pay_to_route(route, amount_msat, payment_hash, payment_secret, min_cltv_expiry, trampoline_onion)
                     amount_inflight += amount_msat
                 util.trigger_callback('invoice_status', self.wallet, payment_hash.hex())
             # 3. await a queue
@@ -1101,7 +1111,7 @@ class LNWallet(LNWorker):
             self.handle_error_code_from_failed_htlc(htlc_log)
 
 
-    async def pay_to_route(self, route: LNPaymentRoute, amount_msat:int, payment_hash:bytes, payment_secret:bytes, min_cltv_expiry:int):
+    async def pay_to_route(self, route: LNPaymentRoute, amount_msat:int, payment_hash:bytes, payment_secret:bytes, min_cltv_expiry:int, trampoline_onion:bytes =None):
         # send a single htlc
         short_channel_id = route[0].short_channel_id
         chan = self.get_channel_by_short_id(short_channel_id)
@@ -1115,7 +1125,8 @@ class LNWallet(LNWorker):
             amount_msat=amount_msat,
             payment_hash=payment_hash,
             min_final_cltv_expiry=min_cltv_expiry,
-            payment_secret=payment_secret)
+            payment_secret=payment_secret,
+            fwd_trampoline_onion=trampoline_onion)
         self.htlc_routes[(payment_hash, short_channel_id, htlc.htlc_id)] = route
         util.trigger_callback('htlc_added', chan, htlc, SENT)
 
@@ -1383,6 +1394,7 @@ class LNWallet(LNWorker):
         channels = list(self.channels.values())
         scid_to_my_channels = {chan.short_channel_id: chan for chan in channels
                                if chan.short_channel_id is not None}
+
         blacklist = self.network.channel_blacklist.get_current_list()
         for private_route in r_tags:
             if len(private_route) == 0:

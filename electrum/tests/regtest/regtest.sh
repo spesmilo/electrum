@@ -128,6 +128,32 @@ if [[ $1 == "forwarding" ]]; then
     $carol close_channel $chan2
 fi
 
+if [[ $1 == "trampoline" ]]; then
+    $alice stop
+    $alice setconfig -o use_gossip False
+    $alice daemon -d
+    $alice load_wallet
+    sleep 1
+    $bob setconfig lightning_forward_payments true
+    bob_node=$($bob nodeid)
+    channel_id1=$($alice open_channel $bob_node 0.002 --push_amount 0.001)
+    channel_id2=$($carol open_channel $bob_node 0.002 --push_amount 0.001)
+    echo "mining 3 blocks"
+    new_blocks 3
+    sleep 10 # time for channelDB
+    request=$($carol add_lightning_request 0.0001 -m "blah" | jq -r ".invoice")
+    $alice lnpay --attempts=2 $request
+    carol_balance=$($carol list_channels | jq -r '.[0].local_balance')
+    echo "carol balance: $carol_balance"
+    if [[ $carol_balance != 110000 ]]; then
+        exit 1
+    fi
+    chan1=$($alice list_channels | jq -r ".[0].channel_point")
+    chan2=$($carol list_channels | jq -r ".[0].channel_point")
+    $alice close_channel $chan1
+    $carol close_channel $chan2
+fi
+
 # alice sends two payments, then broadcast ctx after first payment.
 # thus, bob needs to redeem both to_local and to_remote
 
