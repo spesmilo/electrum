@@ -15,8 +15,6 @@ cache:
   - pip: true
   - directories:
     - /tmp/electrum-grs-build
-script:
-    - tox
 after_success:
     - if [ "$TRAVIS_BRANCH" = "master" ]; then pip install requests && contrib/push_locale; fi
     - coveralls
