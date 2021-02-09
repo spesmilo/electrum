@@ -1,8 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 from json import loads, dumps
 from sys import exit, argv
 import base64
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 
 if len(argv) < 3:
     print('Arguments: <rpc_username> <rpc_password> [<rpc_port>]')
@@ -33,12 +33,12 @@ def rpc(method, params):
     if len(argv) > 3:
         port = argv[3]
     url = "http://127.0.0.1:{}/".format(port)
-    req = urllib2.Request(url, data_json, {'content-type': 'application/json'})
+    req = urllib.request.Request(url, data_json, {'content-type': 'application/json'})
 
     base64string = base64.encodestring('%s:%s' % (username, password)).replace('\n', '')
     req.add_header("Authorization", "Basic %s" % base64string)
 
-    response_stream = urllib2.urlopen(req)
+    response_stream = urllib.request.urlopen(req)
     json_response = response_stream.read()
 
     return loads(json_response)
@@ -49,7 +49,7 @@ INTERVAL = 2016
 
 checkpoints = []
 block_count = int(rpc('getblockcount', [])['result'])
-print('Blocks: {}'.format(block_count))
+print(('Blocks: {}'.format(block_count)))
 while True:
     h = rpc('getblockhash', [i])['result']
     block = rpc('getblock', [h])['result']
