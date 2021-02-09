@@ -17,3 +17,6 @@ setuptools==41.0.1 \
 wheel==0.33.4 \
     --hash=sha256:5e79117472686ac0c4aef5bad5172ea73a1c2d1646b808c35926bd26bdfb0c08 \
     --hash=sha256:62fcfa03d45b5b722539ccbc07b190e4bfff4bb9e3a4d470dd9f6a0981002565
+pyinstaller-hooks-contrib==2020.11 \
+    --hash=sha256:fa8280b79d8a2b267a2e43ff44f73b3e4a68fc8d205b8d34e8e06c960f7c2fcf \
+    --hash=sha256:fc3290a2ca337d1d58c579c223201360bfe74caed6454eaf5a2550b77dbda45c

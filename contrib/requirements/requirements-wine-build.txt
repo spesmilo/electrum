@@ -5,3 +5,4 @@ altgraph>=0.15
 future
 pefile>=2017.8.1
 pywin32-ctypes>=0.2.0
+pyinstaller-hooks-contrib>=2020.6
