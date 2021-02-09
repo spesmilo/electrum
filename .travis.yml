@@ -10,14 +10,12 @@ before_install:
   - git tag
 install:
   - sudo apt-get -y install libsecp256k1-0
-  - pip install -r contrib/requirements/requirements-travis.txt
 cache:
   - pip: true
   - directories:
     - /tmp/electrum-grs-build
 after_success:
     - if [ "$TRAVIS_BRANCH" = "master" ]; then pip install requests && contrib/push_locale; fi
-    - coveralls
 jobs:
   include:
     - name: "Flake8 linter tests"
