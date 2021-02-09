@@ -33,6 +33,7 @@ RUN echo deb ${UBUNTU_MIRROR} bionic main restricted universe multiverse > /etc/
         libfreetype6=2.8.1-2ubuntu2.1 \
         libfontconfig1=2.12.6-0ubuntu2 \
         libssl-dev=1.1.1-1ubuntu2.1~18.04.7 \
+        rustc=1.47.0+dfsg1+llvm-1ubuntu1~18.04.1 \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \
