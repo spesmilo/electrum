@@ -59,7 +59,7 @@ from .lnutil import (Outpoint, LNPeerAddr,
                      HtlcLog, derive_payment_secret_from_payment_preimage)
 from .lnutil import ln_dummy_address, ln_compare_features, IncompatibleLightningFeatures
 from .transaction import PartialTxOutput, PartialTransaction, PartialTxInput
-from .lnonion import OnionFailureCode, process_onion_packet, OnionPacket, OnionRoutingFailureMessage
+from .lnonion import OnionFailureCode, process_onion_packet, OnionPacket, OnionRoutingFailure
 from .lnmsg import decode_msg
 from .i18n import _
 from .lnrouter import (RouteEdge, LNPaymentRoute, LNPaymentPath, is_route_sane_to_use,
@@ -1379,7 +1379,7 @@ class LNWallet(LNWorker):
             htlc_id: int,
             amount_msat:int,
             error_bytes: Optional[bytes],
-            failure_message: Optional['OnionRoutingFailureMessage']):
+            failure_message: Optional['OnionRoutingFailure']):
 
         route = self.htlc_routes.get((payment_hash, chan.short_channel_id, htlc_id))
         if not route:
@@ -1392,7 +1392,7 @@ class LNWallet(LNWorker):
                 failure_message, sender_idx = chan.decode_onion_error(error_bytes, route, htlc_id)
             except Exception as e:
                 sender_idx = None
-                failure_message = OnionRoutingFailureMessage(-1, str(e))
+                failure_message = OnionRoutingFailure(-1, str(e))
         else:
             # probably got "update_fail_malformed_htlc". well... who to penalise now?
             assert failure_message is not None

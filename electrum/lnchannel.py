@@ -41,7 +41,7 @@ from .bitcoin import redeem_script_to_address
 from .crypto import sha256, sha256d
 from .transaction import Transaction, PartialTransaction, TxInput
 from .logging import Logger
-from .lnonion import decode_onion_error, OnionFailureCode, OnionRoutingFailureMessage
+from .lnonion import decode_onion_error, OnionFailureCode, OnionRoutingFailure
 from . import lnutil
 from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKeypair, ChannelConstraints,
                      get_per_commitment_secret_from_seed, secret_to_pubkey, derive_privkey, make_closing_tx,
@@ -528,7 +528,7 @@ class Channel(AbstractChannel):
         self._chan_ann_without_sigs = None  # type: Optional[bytes]
         self.revocation_store = RevocationStore(state["revocation_store"])
         self._can_send_ctx_updates = True  # type: bool
-        self._receive_fail_reasons = {}  # type: Dict[int, (bytes, OnionRoutingFailureMessage)]
+        self._receive_fail_reasons = {}  # type: Dict[int, (bytes, OnionRoutingFailure)]
         self._ignore_max_htlc_value = False  # used in tests
 
     def is_initiator(self):
@@ -1008,8 +1008,7 @@ class Channel(AbstractChannel):
             self,
             htlc_id: int,
             error_bytes: Optional[bytes],
-            failure_message: Optional['OnionRoutingFailureMessage'],
-    ):
+            failure_message: Optional['OnionRoutingFailure']):
         error_hex = error_bytes.hex() if error_bytes else None
         failure_hex = failure_message.to_bytes().hex() if failure_message else None
         self.hm.log['fail_htlc_reasons'][htlc_id] = (error_hex, failure_hex)
@@ -1017,7 +1016,7 @@ class Channel(AbstractChannel):
     def pop_fail_htlc_reason(self, htlc_id):
         error_hex, failure_hex = self.hm.log['fail_htlc_reasons'].pop(htlc_id, (None, None))
         error_bytes = bytes.fromhex(error_hex) if error_hex else None
-        failure_message = OnionRoutingFailureMessage.from_bytes(bytes.fromhex(failure_hex)) if failure_hex else None
+        failure_message = OnionRoutingFailure.from_bytes(bytes.fromhex(failure_hex)) if failure_hex else None
         return error_bytes, failure_message
 
     def extract_preimage_from_htlc_txin(self, txin: TxInput) -> None:
@@ -1238,7 +1237,7 @@ class Channel(AbstractChannel):
         return htlc.payment_hash
 
     def decode_onion_error(self, reason: bytes, route: Sequence['RouteEdge'],
-                           htlc_id: int) -> Tuple[OnionRoutingFailureMessage, int]:
+                           htlc_id: int) -> Tuple[OnionRoutingFailure, int]:
         failure_msg, sender_idx = decode_onion_error(
             reason,
             [x.node_id for x in route],
@@ -1267,7 +1266,7 @@ class Channel(AbstractChannel):
 
     def receive_fail_htlc(self, htlc_id: int, *,
                           error_bytes: Optional[bytes],
-                          reason: Optional[OnionRoutingFailureMessage] = None) -> None:
+                          reason: Optional[OnionRoutingFailure] = None) -> None:
         """Fail a pending offered HTLC.
         Action must be initiated by REMOTE.
         """
