@@ -21,6 +21,7 @@ Builder.load_string('''
 #:import KIVY_GUI_PATH electrum.gui.kivy.KIVY_GUI_PATH
 
 <LightningOpenChannelDialog@Popup>
+    use_gossip: False
     id: s
     name: 'lightning_open_channel'
     title: _('Open Lightning Channel')
@@ -45,8 +46,9 @@ Builder.load_string('''
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
                 BlueButton:
-                    text: s.pubkey if s.pubkey else _('Node ID')
+                    text: s.pubkey if s.pubkey else (_('Node ID') if root.use_gossip else _('Trampoline node'))
                     shorten: True
+                    on_release: s.suggest_node()
             CardSeparator:
                 color: blue_bottom.foreground_color
             BoxLayout:
@@ -61,7 +63,7 @@ Builder.load_string('''
                     text: s.amount if s.amount else _('Amount')
                     on_release: app.amount_dialog(s, True)
         TopLabel:
-            text: _('Paste or scan a node ID, a connection string or a lightning invoice.')
+            text: _('Paste or scan a node ID, a connection string or a lightning invoice.') if root.use_gossip else _('Choose a trampoline node and the amount')
         BoxLayout:
             size_hint: 1, None
             height: '48dp'
@@ -107,14 +109,19 @@ class LightningOpenChannelDialog(Factory.Popup, Logger):
         d.open()
 
     def suggest_node(self):
-        suggested = self.app.wallet.lnworker.suggest_peer()
-        if suggested:
-            self.pubkey = suggested.hex()
+        if self.use_gossip:
+            suggested = self.app.wallet.lnworker.suggest_peer()
+            if suggested:
+                self.pubkey = suggested.hex()
+            else:
+                _, _, percent = self.app.wallet.network.lngossip.get_sync_progress_estimate()
+                if percent is None:
+                    percent = "??"
+                self.pubkey = f"Please wait, graph is updating ({percent}% / 30% done)."
         else:
-            _, _, percent = self.app.wallet.network.lngossip.get_sync_progress_estimate()
-            if percent is None:
-                percent = "??"
-            self.pubkey = f"Please wait, graph is updating ({percent}% / 30% done)."
+            self.trampoline_index += 1
+            self.trampoline_index = self.trampoline_index % len(self.trampoline_names)
+            self.pubkey = self.trampoline_names[self.trampoline_index]
 
     def __init__(self, app, lnaddr=None, msg=None):
         Factory.Popup.__init__(self)
@@ -122,6 +129,13 @@ class LightningOpenChannelDialog(Factory.Popup, Logger):
         self.app = app  # type: ElectrumWindow
         self.lnaddr = lnaddr
         self.msg = msg
+        self.use_gossip = bool(self.app.network.channel_db)
+        if not self.use_gossip:
+            from electrum.lnworker import hardcoded_trampoline_nodes
+            self.trampolines = hardcoded_trampoline_nodes()
+            self.trampoline_names = list(self.trampolines.keys())
+            self.trampoline_index = 0
+            self.pubkey = ''
 
     def open(self, *args, **kwargs):
         super(LightningOpenChannelDialog, self).open(*args, **kwargs)
@@ -153,9 +167,12 @@ class LightningOpenChannelDialog(Factory.Popup, Logger):
         if not self.pubkey or not self.amount:
             self.app.show_info(_('All fields must be filled out'))
             return
-        conn_str = self.pubkey
-        if self.ipport:
-            conn_str += '@' + self.ipport.strip()
+        if self.use_gossip:
+            conn_str = self.pubkey
+            if self.ipport:
+                conn_str += '@' + self.ipport.strip()
+        else:
+            conn_str = str(self.trampolines[self.pubkey])
         amount = '!' if self.is_max else self.app.get_amount(self.amount)
         self.app.protected('Create a new channel?', self.do_open_channel, (conn_str, amount))
         self.dismiss()

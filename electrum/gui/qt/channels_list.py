@@ -6,7 +6,7 @@ from typing import Sequence, Optional
 from PyQt5 import QtCore, QtGui
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit,
-                             QPushButton, QAbstractItemView)
+                             QPushButton, QAbstractItemView, QComboBox)
 from PyQt5.QtGui import QFont, QStandardItem, QBrush
 
 from electrum.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
@@ -343,9 +343,30 @@ class ChannelsList(MyTreeView):
         lnworker = self.parent.wallet.lnworker
         d = WindowModalDialog(self.parent, _('Open Channel'))
         vbox = QVBoxLayout(d)
-        vbox.addWidget(QLabel(_('Enter Remote Node ID or connection string or invoice')))
-        remote_nodeid = QLineEdit()
-        remote_nodeid.setMinimumWidth(700)
+        if self.parent.network.channel_db:
+            vbox.addWidget(QLabel(_('Enter Remote Node ID or connection string or invoice')))
+            remote_nodeid = QLineEdit()
+            remote_nodeid.setMinimumWidth(700)
+            suggest_button = QPushButton(d, text=_('Suggest Peer'))
+            def on_suggest():
+                self.parent.wallet.network.start_gossip()
+                nodeid = bh2u(lnworker.suggest_peer() or b'')
+                if not nodeid:
+                    remote_nodeid.setText("")
+                    remote_nodeid.setPlaceholderText(
+                        "Please wait until the graph is synchronized to 30%, and then try again.")
+                else:
+                    remote_nodeid.setText(nodeid)
+                remote_nodeid.repaint()  # macOS hack for #6269
+            suggest_button.clicked.connect(on_suggest)
+        else:
+            from electrum.lnworker import hardcoded_trampoline_nodes
+            trampolines = hardcoded_trampoline_nodes()
+            trampoline_names = list(trampolines.keys())
+            trampoline_combo = QComboBox()
+            trampoline_combo.addItems(trampoline_names)
+            trampoline_combo.setCurrentIndex(1)
+
         amount_e = BTCAmountEdit(self.parent.get_decimal_point)
         # max button
         def spend_max():
@@ -367,37 +388,31 @@ class ChannelsList(MyTreeView):
         max_button.setFixedWidth(100)
         max_button.setCheckable(True)
 
-        suggest_button = QPushButton(d, text=_('Suggest Peer'))
-        def on_suggest():
-            self.parent.wallet.network.start_gossip()
-            nodeid = bh2u(lnworker.suggest_peer() or b'')
-            if not nodeid:
-                remote_nodeid.setText("")
-                remote_nodeid.setPlaceholderText(
-                    "Please wait until the graph is synchronized to 30%, and then try again.")
-            else:
-                remote_nodeid.setText(nodeid)
-            remote_nodeid.repaint()  # macOS hack for #6269
-        suggest_button.clicked.connect(on_suggest)
-
         clear_button = QPushButton(d, text=_('Clear'))
         def on_clear():
             amount_e.setText('')
             amount_e.setFrozen(False)
             amount_e.repaint()  # macOS hack for #6269
-            remote_nodeid.setText('')
-            remote_nodeid.repaint()  # macOS hack for #6269
+            if self.parent.network.channel_db:
+                remote_nodeid.setText('')
+                remote_nodeid.repaint()  # macOS hack for #6269
             max_button.setChecked(False)
             max_button.repaint()  # macOS hack for #6269
         clear_button.clicked.connect(on_clear)
+        clear_button.setFixedWidth(100)
         h = QGridLayout()
-        h.addWidget(QLabel(_('Remote Node ID')), 0, 0)
-        h.addWidget(remote_nodeid, 0, 1, 1, 3)
-        h.addWidget(suggest_button, 1, 1)
-        h.addWidget(clear_button, 1, 2)
+        if self.parent.network.channel_db:
+            h.addWidget(QLabel(_('Remote Node ID')), 0, 0)
+            h.addWidget(remote_nodeid, 0, 1, 1, 4)
+            h.addWidget(suggest_button, 0, 5)
+        else:
+            h.addWidget(QLabel(_('Trampoline Node')), 0, 0)
+            h.addWidget(trampoline_combo, 0, 1, 1, 3)
+
         h.addWidget(QLabel('Amount'), 2, 0)
         h.addWidget(amount_e, 2, 1)
         h.addWidget(max_button, 2, 2)
+        h.addWidget(clear_button, 2, 3)
         vbox.addLayout(h)
         ok_button = OkButton(d)
         ok_button.setDefault(True)
@@ -411,7 +426,11 @@ class ChannelsList(MyTreeView):
             funding_sat = '!'
         else:
             funding_sat = amount_e.get_amount()
-        connect_str = str(remote_nodeid.text()).strip()
+        if self.parent.network.channel_db:
+            connect_str = str(remote_nodeid.text()).strip()
+        else:
+            name = trampoline_names[trampoline_combo.currentIndex()]
+            connect_str = str(trampolines[name])
         if not connect_str or not funding_sat:
             return
         self.parent.open_channel(connect_str, funding_sat, 0)
