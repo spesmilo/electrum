@@ -381,7 +381,7 @@ def process_onion_packet(onion_packet: OnionPacket, associated_data: bytes,
 class FailedToDecodeOnionError(Exception): pass
 
 
-class OnionRoutingFailureMessage:
+class OnionRoutingFailure(Exception):
 
     def __init__(self, code: int, data: bytes):
         self.code = code
@@ -403,15 +403,14 @@ class OnionRoutingFailureMessage:
         except ValueError:
             pass  # uknown failure code
         failure_data = failure_msg[2:]
-        return OnionRoutingFailureMessage(failure_code, failure_data)
+        return OnionRoutingFailure(failure_code, failure_data)
 
     def code_name(self) -> str:
         if isinstance(self.code, OnionFailureCode):
             return str(self.code.name)
         return f"Unknown error ({self.code!r})"
 
-
-def construct_onion_error(reason: OnionRoutingFailureMessage,
+def construct_onion_error(reason: OnionRoutingFailure,
                           onion_packet: OnionPacket,
                           our_onion_private_key: bytes) -> bytes:
     # create payload
@@ -453,19 +452,19 @@ def _decode_onion_error(error_packet: bytes, payment_path_pubkeys: Sequence[byte
 
 
 def decode_onion_error(error_packet: bytes, payment_path_pubkeys: Sequence[bytes],
-                       session_key: bytes) -> (OnionRoutingFailureMessage, int):
+                       session_key: bytes) -> (OnionRoutingFailure, int):
     """Returns the failure message, and the index of the sender of the error."""
     decrypted_error, sender_index = _decode_onion_error(error_packet, payment_path_pubkeys, session_key)
     failure_msg = get_failure_msg_from_onion_error(decrypted_error)
     return failure_msg, sender_index
 
 
-def get_failure_msg_from_onion_error(decrypted_error_packet: bytes) -> OnionRoutingFailureMessage:
+def get_failure_msg_from_onion_error(decrypted_error_packet: bytes) -> OnionRoutingFailure:
     # get failure_msg bytes from error packet
     failure_len = int.from_bytes(decrypted_error_packet[32:34], byteorder='big')
     failure_msg = decrypted_error_packet[34:34+failure_len]
     # create failure message object
-    return OnionRoutingFailureMessage.from_bytes(failure_msg)
+    return OnionRoutingFailure.from_bytes(failure_msg)
 
 
 

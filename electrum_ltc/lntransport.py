@@ -123,7 +123,9 @@ class LNTransportBase:
                         break
                 try:
                     s = await self.reader.read(2**10)
-                except:
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
                     s = None
                 if not s:
                     raise LightningPeerConnectionClosed()

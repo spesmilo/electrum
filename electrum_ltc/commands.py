@@ -1011,7 +1011,7 @@ class Commands:
         lnaddr = lnworker._check_invoice(invoice)
         payment_hash = lnaddr.paymenthash
         wallet.save_invoice(LNInvoice.from_bech32(invoice))
-        success, log = await lnworker._pay(invoice, attempts=attempts)
+        success, log = await lnworker.pay_invoice(invoice, attempts=attempts)
         return {
             'payment_hash': payment_hash.hex(),
             'success': success,
