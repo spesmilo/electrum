@@ -282,8 +282,7 @@ class TxDialog(Factory.Popup):
         except CannotBumpFee as e:
             self.app.show_error(str(e))
             return
-        if is_final:
-            new_tx.set_rbf(False)
+        new_tx.set_rbf(not is_final)
         self.tx = new_tx
         self.update()
         self.do_sign()
