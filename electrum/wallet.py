@@ -1480,6 +1480,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 f"got {actual_fee}, expected >={target_min_fee}. "
                 f"target rate was {new_fee_rate}")
         tx_new.locktime = get_locktime_for_new_transaction(self.network)
+        tx_new.set_rbf(True)
         tx_new.add_info_from_wallet(self)
         return tx_new
 
