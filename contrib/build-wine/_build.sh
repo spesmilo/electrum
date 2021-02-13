@@ -14,12 +14,6 @@ export GIT_SUBMODULE_FLAGS="--recommend-shallow --depth 1"
 
 . "$here"/../base.sh # functions we use below (fail, et al)
 
-# Note: 3.6.9 is our PYTHON_VERSION in other builds, but for some reason
-# Python.org didn't bother to build Python 3.6.9 for Windows (and no .msi files
-# exist for this release).  So, we hard-code 3.6.8 for Windows builds.
-# See: https://www.python.org/downloads/windows/
-PYTHON_VERSION=3.6.8  # override setting in base.sh
-
 if [ ! -z "$1" ]; then
     to_build="$1"
 else
@@ -64,11 +58,6 @@ prepare_wine() {
         PYINSTALLER_REPO='https://github.com/EchterAgo/pyinstaller.git'
         PYINSTALLER_COMMIT=d6f3d02365ba68ffc84169c56c292701f346110e # Version 4.2 + a patch to drop an unused .rc file
 
-        # Satochip pyscard
-        PYSCARD_FILENAME=pyscard-1.9.9-cp36-cp36m-win32.whl  # python 3.6, 32-bit
-        PYSCARD_URL=https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/pyscard-1.9.9-cp36-cp36m-win32.whl
-        PYSCARD_SHA256=99d2b450f322f9ed9682fd2a99d95ce781527e371006cded38327efca8158fe7
-
         ## These settings probably don't need change
         export WINEPREFIX=$HOME/wine64
         #export WINEARCH='win32'
@@ -110,11 +99,11 @@ prepare_wine() {
             wine msiexec /i "${msifile}.msi" /qn TARGETDIR=$PYHOME || fail "Failed to install Python component: ${msifile}"
         done
 
-        # The below requirements-wine-build.txt uses hashed packages that we
+        # The below requirements-build-wine.txt uses hashed packages that we
         # need for pyinstaller and other parts of the build.  Using a hashed
         # requirements file hardens the build against dependency attacks.
-        info "Installing build requirements from requirements-wine-build.txt ..."
-        $PYTHON -m pip install --no-warn-script-location -I -U -r $here/requirements-wine-build.txt || fail "Failed to install build requirements"
+        info "Installing build requirements from requirements-build-wine.txt ..."
+        $PYTHON -m pip install --no-deps --no-warn-script-location -r $here/../deterministic-build/requirements-build-wine.txt || fail "Failed to install build requirements"
 
         info "Compiling PyInstaller bootloader with AntiVirus False-Positive Protection™ ..."
         mkdir pyinstaller
@@ -142,12 +131,12 @@ prepare_wine() {
             [ -e PyInstaller/bootloader/Windows-32bit/runw.exe ] || fail "Could not find runw.exe in target dir!"
         ) || fail "PyInstaller bootloader build failed"
         info "Installing PyInstaller ..."
-        $PYTHON -m pip install --no-warn-script-location ./pyinstaller || fail "PyInstaller install failed"
+        $PYTHON -m pip install --no-deps --no-warn-script-location ./pyinstaller || fail "PyInstaller install failed"
 
         wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" -v || fail "Pyinstaller installed but cannot be run."
 
         info "Installing Packages from requirements-binaries ..."
-        $PYTHON -m pip install --no-warn-script-location -r $here/../deterministic-build/requirements-binaries.txt || fail "Failed to install requirements-binaries"
+        $PYTHON -m pip install --no-deps --no-warn-script-location -r $here/../deterministic-build/requirements-binaries.txt || fail "Failed to install requirements-binaries"
 
         info "Installing NSIS ..."
         # Install NSIS installer
@@ -179,11 +168,6 @@ prepare_wine() {
         cp "$here"/../../electroncash/*.dll $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libraries to their destination"
         cp libusb/libusb/.libs/libusb-1.0.dll $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libusb to its destination"
         cp "$here"/../../electroncash/tor/bin/tor.exe $WINEPREFIX/drive_c/tmp/ || fail "Could not copy tor.exe to its destination"
-
-        info "Installing pyscard..."
-        wget -O $PYSCARD_FILENAME "$PYSCARD_URL"
-        verify_hash $PYSCARD_FILENAME "$PYSCARD_SHA256"
-        $PYTHON -m pip install --no-warn-script-location $PYSCARD_FILENAME || fail "Could not install pyscard"
 
         popd  # out of homedir/tmp
         popd  # out of $here
@@ -231,8 +215,8 @@ build_the_app() {
 
         # Install frozen dependencies
         info "Installing frozen dependencies ..."
-        $PYTHON -m pip install --no-warn-script-location -r "$here"/../deterministic-build/requirements.txt || fail "Failed to install requirements"
-        $PYTHON -m pip install --no-warn-script-location -r "$here"/../deterministic-build/requirements-hw.txt || fail "Failed to install requirements-hw"
+        $PYTHON -m pip install --no-deps --no-warn-script-location -r "$here"/../deterministic-build/requirements.txt || fail "Failed to install requirements"
+        $PYTHON -m pip install --no-deps --no-warn-script-location -r "$here"/../deterministic-build/requirements-hw.txt || fail "Failed to install requirements-hw"
 
         pushd $WINEPREFIX/drive_c/electroncash
         $PYTHON setup.py install || fail "Failed setup.py install"

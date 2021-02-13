@@ -12,7 +12,7 @@ which virtualenv > /dev/null 2>&1 || fail "Please install virtualenv"
 python3 -m hashin -h > /dev/null 2>&1 || { python3 -m pip install hashin --user; }
 other_python=$(which python3)
 
-for i in '' '-hw' '-binaries'; do
+for i in '' '-hw' '-binaries' '-build-wine' ; do
     rm -rf "$venv_dir"
     virtualenv -p $(which python3) $venv_dir
 
@@ -25,9 +25,10 @@ for i in '' '-hw' '-binaries'; do
 
     info "OK."
 
-    # --all is required because protobuf depends on setuptools. However, we exclude pip because
-    # it's unnecessary and quite large.
-    requirements=$(pip freeze --all | grep -v 0.0.0 | grep -v '^pip==')
+    # pkg-resources needs to be excluded
+    # see https://github.com/pypa/pip/issues/4022
+    # see https://bugs.launchpad.net/ubuntu/+source/python-pip/+bug/1635463
+    requirements=$(pip freeze --all | grep -v ^pkg-resources)
     restricted=$(echo $requirements | $other_python $contrib/deterministic-build/find_restricted_dependencies.py)
     requirements="$requirements $restricted"
 
