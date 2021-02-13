@@ -47,6 +47,9 @@ from . import x509
 from . import pem
 
 
+PING_INTERVAL = 300
+
+
 def Connection(server, queue, config_path, callback=None):
     """Makes asynchronous connections to a remote electrum server.
     Returns the running thread that is making the connection.
@@ -427,7 +430,7 @@ class Interface(util.PrintError):
 
     def ping_required(self):
         """Returns True if a ping should be sent."""
-        return time.time() - self.last_send > 300
+        return time.time() - self.last_send > PING_INTERVAL
 
     def has_timed_out(self):
         """Returns True if the interface has timed out."""

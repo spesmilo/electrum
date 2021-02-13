@@ -7,7 +7,7 @@ import pkgutil
 from shutil import copyfile
 from time import time
 
-from electroncash import commands, daemon, keystore, storage, util
+from electroncash import commands, daemon, interface, keystore, storage, util
 from electroncash.i18n import _
 from electroncash.storage import WalletStorage
 from electroncash.wallet import (ImportedAddressWallet, ImportedPrivkeyWallet, Standard_Wallet,
@@ -87,6 +87,10 @@ class AndroidCommands(commands.Commands):
         self.network = self.daemon.network
         self.network.register_callback(self._on_callback, CALLBACKS)
         self.network.add_jobs([AutoSaver(self.daemon)])
+
+        # Reduce network timeouts (#971).
+        self.network.NODES_RETRY_INTERVAL = self.network.SERVER_RETRY_INTERVAL = 5
+        interface.PING_INTERVAL = 60
 
     # BEGIN commands from the argparse interface.
 
