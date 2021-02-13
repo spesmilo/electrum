@@ -130,43 +130,15 @@ PYTHON_CONFIGURE_OPTS="--enable-framework" pyenv install -s $PYTHON_VERSION && \
 # We use a hashed requirements file for even the build tools to prevent
 # dependency attacks even in the build process
 info "Installing dmgbuild, requests, and other build tools we need..."
-# Ensure we have wheel even though below installs it again
+# Ensure we have wheel because otherwise we get warnings about not having it (even though below installs it again)
 python3 -m pip install --user --upgrade wheel || fail "Failed to install wheel"
 python3 -m pip install -I --user -r contrib/osx/requirements-osx-build.txt \
     || fail "Could not install osx-requirements"
 
-# This is for the Satochip hardware wallet which relies on the python module
-# 'smartcard' which contains a binary which is annoying to build. So we just
-# pre-built it and download the wheel from our Electron-Cash-Build-Tools repo.
-# Note: when we upgrade to Python 3.7 we will need to re-build this module for
-# python 3.7.
-USE_CUSTOM_PYSCARD=0
-if ((USE_CUSTOM_PYSCARD)); then
-    info "Installing Python Smartcard Module (pyscard)"
-    mkdir -p $BUILDDIR
-    PYSCARD_FNAME="pyscard-1.9.9-cp36-cp36m-macosx_10_11_x86_64.whl"
-    curl -L https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/$PYSCARD_FNAME > $BUILDDIR/$PYSCARD_FNAME
-    verify_hash $BUILDDIR/$PYSCARD_FNAME 336b1cc335049e3ac5fad125c63d4e8fd4d25e85147f999359cdc6a9fde36fa7
-    python3 -m pip install $BUILDDIR/$PYSCARD_FNAME --user && pyenv rehash \
-        || fail "Could not install pyscard"
-# else ... we just use pyscard 2.0.0 from requiredments-hw.txt
-fi
 
 info "Installing PyInstaller"
-USE_CUSTOM_PYINSTALLER=0  # We no longer need to use the custom one. PyInstaller 4.2 now includes the AppleEvents patch.
-if ((USE_CUSTOM_PYINSTALLER)); then
-    # We use a custom PyInstaller that has AppleEvents forwarding. Note this
-    # patch has been submitted to the PyInstaller project but has yet to be
-    # merged-in (they are very backlogged).
-    mkdir -p $BUILDDIR
-    curl -L https://github.com/cculianu/pyinstaller/releases/download/v3.6_AE_Release_1/PyInstaller36_AppleEvents.zip > $BUILDDIR/PyInstaller36_AppleEvents.zip
-    verify_hash $BUILDDIR/PyInstaller36_AppleEvents.zip 0b2865c6e788abf26717a1c72f0164cba34d10836b9263a4e777a19ee8a79a2c
-    python3 -m pip install $BUILDDIR/PyInstaller36_AppleEvents.zip --user --upgrade && pyenv rehash \
-        || fail "Could not install PyInstaller"
-else
-    # Just use regular, latest PyInstaller 4.2+
-    python3 -m pip install pyinstaller --user --upgrade && pyenv rehash || fail "Coule not install PyInstaller"
-fi
+# Just use regular, latest PyInstaller 4.2+ from pypi
+python3 -m pip install pyinstaller --user --upgrade && pyenv rehash || fail "Could not install PyInstaller"
 
 info "Using these versions for building $PACKAGE:"  # NB: PACKAGE var comes from ../base.sh
 sw_vers
@@ -189,7 +161,7 @@ verify_hash $BUILDDIR/libusb/1.0.21/lib/libusb-1.0.dylib d147e7382dfa676d93e8b17
 cp -fp $BUILDDIR/libusb/1.0.21/lib/libusb-1.0.dylib contrib/osx || fail "Could not copy libusb"
 
 # Build ZBar
-contrib/make_zbar && mv -vf electroncash/libzbar.0.dylib contrib/osx/. || faile "Coule not build ZBar"
+contrib/make_zbar && mv -vf electroncash/libzbar.0.dylib contrib/osx/. || fail "Could not build ZBar"
 
 info "Building libsecp256k1"
 pushd contrib/secp256k1 || fail "Could not chdir to contrib/secp256k1"
