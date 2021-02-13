@@ -8,14 +8,8 @@ test -n "$build_dir" -a -d "$build_dir" || (echo "Cannot determine build dir. FI
 OSX_COMPAT=""
 OSX_REQ_BIN="-osx"
 DARWIN_VER=$(uname -r | cut -f 1 -d .)
-if ((DARWIN_VER < 15)); then
-    fail "Minimum OSX El Capitan is required to build"
-elif ((DARWIN_VER == 15)); then
-    # If El Capitan, we use a different requirements-binaries file (for Qt 5.11)
-    # and we will produce a file with -elcapitan-macosx.dmg as a suffix.
-    OSX_COMPAT="-elcapitan"
-    OSX_REQ_BIN="$OSX_COMPAT"
-    info "Building for El Capitan (compatibility version)"
+if ((DARWIN_VER < 17)); then
+    fail "Minimum OSX High Sierra is required to build"
 fi
 REQUIREMENTS_BINARIES="requirements-binaries${OSX_REQ_BIN}.txt"
 
@@ -136,6 +130,8 @@ PYTHON_CONFIGURE_OPTS="--enable-framework" pyenv install -s $PYTHON_VERSION && \
 # We use a hashed requirements file for even the build tools to prevent
 # dependency attacks even in the build process
 info "Installing dmgbuild, requests, and other build tools we need..."
+# Ensure we have wheel even though below installs it again
+python3 -m pip install --user --upgrade wheel || fail "Failed to install wheel"
 python3 -m pip install -I --user -r contrib/osx/requirements-osx-build.txt \
     || fail "Could not install osx-requirements"
 
@@ -144,16 +140,20 @@ python3 -m pip install -I --user -r contrib/osx/requirements-osx-build.txt \
 # pre-built it and download the wheel from our Electron-Cash-Build-Tools repo.
 # Note: when we upgrade to Python 3.7 we will need to re-build this module for
 # python 3.7.
-info "Installing Python Smartcard Module (pyscard)"
-mkdir -p $BUILDDIR
-PYSCARD_FNAME="pyscard-1.9.9-cp36-cp36m-macosx_10_11_x86_64.whl"
-curl -L https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/$PYSCARD_FNAME > $BUILDDIR/$PYSCARD_FNAME
-verify_hash $BUILDDIR/$PYSCARD_FNAME 336b1cc335049e3ac5fad125c63d4e8fd4d25e85147f999359cdc6a9fde36fa7
-python3 -m pip install $BUILDDIR/$PYSCARD_FNAME --user && pyenv rehash \
-    || fail "Could not install pyscard"
+USE_CUSTOM_PYSCARD=0
+if ((USE_CUSTOM_PYSCARD)); then
+    info "Installing Python Smartcard Module (pyscard)"
+    mkdir -p $BUILDDIR
+    PYSCARD_FNAME="pyscard-1.9.9-cp36-cp36m-macosx_10_11_x86_64.whl"
+    curl -L https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/$PYSCARD_FNAME > $BUILDDIR/$PYSCARD_FNAME
+    verify_hash $BUILDDIR/$PYSCARD_FNAME 336b1cc335049e3ac5fad125c63d4e8fd4d25e85147f999359cdc6a9fde36fa7
+    python3 -m pip install $BUILDDIR/$PYSCARD_FNAME --user && pyenv rehash \
+        || fail "Could not install pyscard"
+# else ... we just use pyscard 2.0.0 from requiredments-hw.txt
+fi
 
 info "Installing PyInstaller"
-USE_CUSTOM_PYINSTALLER=1
+USE_CUSTOM_PYINSTALLER=0  # We no longer need to use the custom one. PyInstaller 4.2 now includes the AppleEvents patch.
 if ((USE_CUSTOM_PYINSTALLER)); then
     # We use a custom PyInstaller that has AppleEvents forwarding. Note this
     # patch has been submitted to the PyInstaller project but has yet to be
@@ -164,7 +164,7 @@ if ((USE_CUSTOM_PYINSTALLER)); then
     python3 -m pip install $BUILDDIR/PyInstaller36_AppleEvents.zip --user --upgrade && pyenv rehash \
         || fail "Could not install PyInstaller"
 else
-    # Just use regular, latest PyInstaller 3.6+
+    # Just use regular, latest PyInstaller 4.2+
     python3 -m pip install pyinstaller --user --upgrade && pyenv rehash || fail "Coule not install PyInstaller"
 fi
 
@@ -188,10 +188,8 @@ curl -L https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/
 verify_hash $BUILDDIR/libusb/1.0.21/lib/libusb-1.0.dylib d147e7382dfa676d93e8b17d160d50f68e4b01f58f3647c90a8899a7a0519ca3  # this exits on failure
 cp -fp $BUILDDIR/libusb/1.0.21/lib/libusb-1.0.dylib contrib/osx || fail "Could not copy libusb"
 
-info "Downloading ZBar dylib..."
-curl -L https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/v0.23-libzbar.0.dylib.xz | \
-    xz -d -c > contrib/osx/libzbar.0.dylib || fail "Could not download libzbar"
-verify_hash contrib/osx/libzbar.0.dylib 7b82238dd73e56d9f57913230ea5418c247b292cf96c8996becda961ab001c85
+# Build ZBar
+contrib/make_zbar && mv -vf electroncash/libzbar.0.dylib contrib/osx/. || faile "Coule not build ZBar"
 
 info "Building libsecp256k1"
 pushd contrib/secp256k1 || fail "Could not chdir to contrib/secp256k1"
@@ -217,11 +215,11 @@ contrib/make_zlib && contrib/make_libevent && contrib/make_openssl && contrib/ma
 
 
 info "Installing requirements..."
-python3 -m pip install -Ir ./contrib/deterministic-build/requirements.txt --user || fail "Could not install requirements"
-python3 -m pip install -Ir ./contrib/deterministic-build/${REQUIREMENTS_BINARIES} --user || fail "Could not install binary requirements"
+python3 -m pip install -r ./contrib/deterministic-build/requirements.txt --user || fail "Could not install requirements"
+python3 -m pip install -r ./contrib/deterministic-build/${REQUIREMENTS_BINARIES} --user || fail "Could not install binary requirements"
 
 info "Installing hardware wallet requirements..."
-python3 -m pip install -Ir ./contrib/deterministic-build/requirements-hw.txt --user || \
+python3 -m pip install -r ./contrib/deterministic-build/requirements-hw.txt --user || \
 fail "Could not install hardware wallet requirements"
 
 info "Building $PACKAGE..."
