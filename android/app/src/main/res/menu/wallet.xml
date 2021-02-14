@@ -20,7 +20,7 @@
 
     <item
         android:id="@+id/menuExportSigned"
-        android:title="@string/sign_transaction"/>
+        android:title="@string/save_transaction"/>
 
     <item
         android:id="@+id/menuLoadSigned"

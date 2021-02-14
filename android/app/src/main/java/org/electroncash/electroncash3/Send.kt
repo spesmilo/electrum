@@ -60,7 +60,7 @@ class SendDialog : TaskLauncherDialog<Unit>() {
             builder.setTitle(R.string.send)
                 .setPositiveButton(R.string.send, null)
         } else {
-            builder.setTitle(R.string.sign_transaction)
+            builder.setTitle(R.string.save_transaction)
                 .setPositiveButton(R.string.sign, null)
         }
         builder.setView(R.layout.send)
