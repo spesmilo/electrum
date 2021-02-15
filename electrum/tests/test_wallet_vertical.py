@@ -10,7 +10,8 @@ from electrum import storage, bitcoin, keystore, bip32, wallet
 from electrum import Transaction
 from electrum import SimpleConfig
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
-from electrum.wallet import sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet, restore_wallet_from_text, Abstract_Wallet
+from electrum.wallet import (sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet,
+                             restore_wallet_from_text, Abstract_Wallet, BumpFeeStrategy)
 from electrum.util import bfh, bh2u, create_and_start_event_loop
 from electrum.transaction import TxOutput, Transaction, PartialTransaction, PartialTxOutput, PartialTxInput, tx_from_any
 from electrum.mnemonic import seed_type
@@ -937,6 +938,14 @@ class TestWalletSending(TestCaseForTestnet):
                 self._bump_fee_when_not_all_inputs_are_ismine_subcase_all_outputs_are_ismine(
                     simulate_moving_txs=simulate_moving_txs,
                     config=config)
+            with self.subTest(msg="_bump_fee_p2wpkh_decrease_payment", simulate_moving_txs=simulate_moving_txs):
+                self._bump_fee_p2wpkh_decrease_payment(
+                    simulate_moving_txs=simulate_moving_txs,
+                    config=config)
+            with self.subTest(msg="_bump_fee_p2wpkh_decrease_payment_batch", simulate_moving_txs=simulate_moving_txs):
+                self._bump_fee_p2wpkh_decrease_payment_batch(
+                    simulate_moving_txs=simulate_moving_txs,
+                    config=config)
 
     def _bump_fee_p2pkh_when_there_is_a_change_address(self, *, simulate_moving_txs, config):
         wallet = self.create_standard_wallet_from_seed('fold object utility erase deputy output stadium feed stereo usage modify bean',
@@ -1044,6 +1053,89 @@ class TestWalletSending(TestCaseForTestnet):
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 461600, 0), wallet.get_balance())
 
+    def _bump_fee_p2wpkh_decrease_payment(self, *, simulate_moving_txs, config):
+        wallet = self.create_standard_wallet_from_seed('leader company camera enlist crash sleep insane aware anger hole hammer label',
+                                                       config=config)
+
+        # bootstrap wallet
+        funding_tx = Transaction('020000000001022ea8f7940c2e4bca2f34f21ba15a5c8d5e3c93d9c6deb17983412feefa0f1f6d0100000000fdffffff9d4ba5ab41951d506a7fa8272ef999ce3df166fe28f6f885aa791f012a0924cf0000000000fdffffff027485010000000000160014f80e86af4246960a24cd21c275a8e8842973fbcaa0860100000000001600149c6b743752604b98d30f1a5d27a5d5ce8919f4400247304402203bf6dd875a775f356d4bb8c4e295a2cd506338c100767518f2b31fb85db71c1302204dc4ebca5584fc1cc08bd7f7171135d1b67ca6c8812c3723cd332eccaa7b848101210360bdbd16d9ef390fd3e804c421e6f30e6b065ac314f4d2b9a80d2f0682ad1431024730440220126b442d7988c5883ca17c2429f51ce770e3a57895524c8dfe07b539e483019e02200b50feed4f42f0035c9a9ddd044820607281e45e29e41a29233c2b8be6080bac01210245d47d08915816a5ecc934cff1b17e00071ca06172f51d632ba95392e8aad4fdd38a1d00')
+        funding_txid = funding_tx.txid()
+        self.assertEqual('dd0bf0d1563cd588b4c93cc1a9623c051ddb1c4f4581cf8ef43cfd27f031f246', funding_txid)
+        wallet.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
+
+        orig_rbf_tx = Transaction('0200000000010146f231f027fd3cf48ecf81454f1cdb1d053c62a9c13cc9b488d53c56d1f00bdd0100000000fdffffff02c8af000000000000160014999a95482213a896c72a251b6cc9f3d137b0a45850c3000000000000160014ea76d391236726af7d7a9c10abe600129154eb5a02473044022076d298537b524a926a8fadad0e9ded5868c8f4cf29246048f76f00eb4afa56310220739ad9e0417e97ce03fad98a454b4977972c2805cef37bfa822c6d6c56737c870121024196fb7b766ac987a08b69a5e108feae8513b7e72bc9e47899e27b36100f2af4d48a1d00')
+        orig_rbf_txid = orig_rbf_tx.txid()
+        self.assertEqual('db2f77709a4a04417b3a45838c21470877fe7c182a4f81005a21ce1315c6a5e6', orig_rbf_txid)
+        wallet.receive_tx_callback(orig_rbf_txid, orig_rbf_tx, TX_HEIGHT_UNCONFIRMED)
+
+        # bump tx
+        tx = wallet.bump_fee(
+            tx=tx_from_any(orig_rbf_tx.serialize()),
+            new_fee_rate=60,
+            strategies=[BumpFeeStrategy.DECREASE_PAYMENT],
+        )
+        tx.locktime = 1936085
+        tx.version = 2
+        if simulate_moving_txs:
+            partial_tx = tx.serialize_as_bytes().hex()
+            self.assertEqual("70736274ff010071020000000146f231f027fd3cf48ecf81454f1cdb1d053c62a9c13cc9b488d53c56d1f00bdd0100000000fdffffff02c8af000000000000160014999a95482213a896c72a251b6cc9f3d137b0a458ccb5000000000000160014ea76d391236726af7d7a9c10abe600129154eb5ad58a1d00000100fd7201020000000001022ea8f7940c2e4bca2f34f21ba15a5c8d5e3c93d9c6deb17983412feefa0f1f6d0100000000fdffffff9d4ba5ab41951d506a7fa8272ef999ce3df166fe28f6f885aa791f012a0924cf0000000000fdffffff027485010000000000160014f80e86af4246960a24cd21c275a8e8842973fbcaa0860100000000001600149c6b743752604b98d30f1a5d27a5d5ce8919f4400247304402203bf6dd875a775f356d4bb8c4e295a2cd506338c100767518f2b31fb85db71c1302204dc4ebca5584fc1cc08bd7f7171135d1b67ca6c8812c3723cd332eccaa7b848101210360bdbd16d9ef390fd3e804c421e6f30e6b065ac314f4d2b9a80d2f0682ad1431024730440220126b442d7988c5883ca17c2429f51ce770e3a57895524c8dfe07b539e483019e02200b50feed4f42f0035c9a9ddd044820607281e45e29e41a29233c2b8be6080bac01210245d47d08915816a5ecc934cff1b17e00071ca06172f51d632ba95392e8aad4fdd38a1d002206024196fb7b766ac987a08b69a5e108feae8513b7e72bc9e47899e27b36100f2af410ce2dd7cb00000080000000000000000000220203ecb63cc22d200c96225671b88a51a71deb053c6445dbd4694f61166e3e5bd05910ce2dd7cb0000008001000000000000000000",
+                             partial_tx)
+            tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
+        self.assertFalse(tx.is_complete())
+
+        wallet.sign_transaction(tx, password=None)
+        self.assertTrue(tx.is_complete())
+        self.assertTrue(tx.is_segwit())
+        tx_copy = tx_from_any(tx.serialize())
+        self.assertEqual('0200000000010146f231f027fd3cf48ecf81454f1cdb1d053c62a9c13cc9b488d53c56d1f00bdd0100000000fdffffff02c8af000000000000160014999a95482213a896c72a251b6cc9f3d137b0a458ccb5000000000000160014ea76d391236726af7d7a9c10abe600129154eb5a024730440220063a2d330f0d659b3f686cc291722a87cc37371d3520c946e74da8dbbd4c57e00220604b0f387754988f71af47db78263698a513173e8ce3b27a696b9e3954ba757b0121024196fb7b766ac987a08b69a5e108feae8513b7e72bc9e47899e27b36100f2af4d58a1d00',
+                         str(tx_copy))
+        self.assertEqual('6b03c00f47cb145ffb632c3ce54dece29b9a980949ef5c574321f7fc83fa2238', tx_copy.txid())
+        self.assertEqual('cb1f123231a3de5b02babddb43208f0273cb0df8addd4275583234eb50c7a87d', tx_copy.wtxid())
+
+        wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
+        self.assertEqual((0, 45000, 0), wallet.get_balance())
+
+    def _bump_fee_p2wpkh_decrease_payment_batch(self, *, simulate_moving_txs, config):
+        wallet = self.create_standard_wallet_from_seed('leader company camera enlist crash sleep insane aware anger hole hammer label',
+                                                       config=config)
+
+        # bootstrap wallet
+        funding_tx = Transaction('020000000001022ea8f7940c2e4bca2f34f21ba15a5c8d5e3c93d9c6deb17983412feefa0f1f6d0100000000fdffffff9d4ba5ab41951d506a7fa8272ef999ce3df166fe28f6f885aa791f012a0924cf0000000000fdffffff027485010000000000160014f80e86af4246960a24cd21c275a8e8842973fbcaa0860100000000001600149c6b743752604b98d30f1a5d27a5d5ce8919f4400247304402203bf6dd875a775f356d4bb8c4e295a2cd506338c100767518f2b31fb85db71c1302204dc4ebca5584fc1cc08bd7f7171135d1b67ca6c8812c3723cd332eccaa7b848101210360bdbd16d9ef390fd3e804c421e6f30e6b065ac314f4d2b9a80d2f0682ad1431024730440220126b442d7988c5883ca17c2429f51ce770e3a57895524c8dfe07b539e483019e02200b50feed4f42f0035c9a9ddd044820607281e45e29e41a29233c2b8be6080bac01210245d47d08915816a5ecc934cff1b17e00071ca06172f51d632ba95392e8aad4fdd38a1d00')
+        funding_txid = funding_tx.txid()
+        self.assertEqual('dd0bf0d1563cd588b4c93cc1a9623c051ddb1c4f4581cf8ef43cfd27f031f246', funding_txid)
+        wallet.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
+
+        orig_rbf_tx = Transaction('0200000000010146f231f027fd3cf48ecf81454f1cdb1d053c62a9c13cc9b488d53c56d1f00bdd0100000000fdffffff05e803000000000000160014a01f6b2a4bdaf3fb61f2a45e5eac92fcc58daee3881300000000000016001470fcde1ed0159ba5af97baec085ceb857098cedb0c49000000000000160014999a95482213a896c72a251b6cc9f3d137b0a458a86100000000000016001440c234c451fbd9ddf7824d6b8f0dc968a220946450c3000000000000160014ea76d391236726af7d7a9c10abe600129154eb5a024730440220782fb75f2398997ac77cd1b5c0d78f30a66b83df1d2d21c7a06cb03eb592d91702200540cf329c4b21e26aaba79a0c0ebdf465c4befb76a61e4eec924bc482cbf2930121024196fb7b766ac987a08b69a5e108feae8513b7e72bc9e47899e27b36100f2af4a58a1d00')
+        orig_rbf_txid = orig_rbf_tx.txid()
+        self.assertEqual('9e0c7d890053c47c7cd653be984bc4b9a5dab8acf9a6ae075a00113d3077ad74', orig_rbf_txid)
+        wallet.receive_tx_callback(orig_rbf_txid, orig_rbf_tx, TX_HEIGHT_UNCONFIRMED)
+
+        # bump tx
+        tx = wallet.bump_fee(
+            tx=tx_from_any(orig_rbf_tx.serialize()),
+            new_fee_rate=60,
+            strategies=[BumpFeeStrategy.DECREASE_PAYMENT],
+        )
+        tx.locktime = 1936095
+        tx.version = 2
+        if simulate_moving_txs:
+            partial_tx = tx.serialize_as_bytes().hex()
+            self.assertEqual("70736274ff0100af020000000146f231f027fd3cf48ecf81454f1cdb1d053c62a9c13cc9b488d53c56d1f00bdd0100000000fdffffff045d0500000000000016001470fcde1ed0159ba5af97baec085ceb857098cedb0c49000000000000160014999a95482213a896c72a251b6cc9f3d137b0a4587d5300000000000016001440c234c451fbd9ddf7824d6b8f0dc968a220946425b5000000000000160014ea76d391236726af7d7a9c10abe600129154eb5adf8a1d00000100fd7201020000000001022ea8f7940c2e4bca2f34f21ba15a5c8d5e3c93d9c6deb17983412feefa0f1f6d0100000000fdffffff9d4ba5ab41951d506a7fa8272ef999ce3df166fe28f6f885aa791f012a0924cf0000000000fdffffff027485010000000000160014f80e86af4246960a24cd21c275a8e8842973fbcaa0860100000000001600149c6b743752604b98d30f1a5d27a5d5ce8919f4400247304402203bf6dd875a775f356d4bb8c4e295a2cd506338c100767518f2b31fb85db71c1302204dc4ebca5584fc1cc08bd7f7171135d1b67ca6c8812c3723cd332eccaa7b848101210360bdbd16d9ef390fd3e804c421e6f30e6b065ac314f4d2b9a80d2f0682ad1431024730440220126b442d7988c5883ca17c2429f51ce770e3a57895524c8dfe07b539e483019e02200b50feed4f42f0035c9a9ddd044820607281e45e29e41a29233c2b8be6080bac01210245d47d08915816a5ecc934cff1b17e00071ca06172f51d632ba95392e8aad4fdd38a1d002206024196fb7b766ac987a08b69a5e108feae8513b7e72bc9e47899e27b36100f2af410ce2dd7cb0000008000000000000000000000220203ecb63cc22d200c96225671b88a51a71deb053c6445dbd4694f61166e3e5bd05910ce2dd7cb000000800100000000000000000000",
+                             partial_tx)
+            tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
+        self.assertFalse(tx.is_complete())
+
+        wallet.sign_transaction(tx, password=None)
+        self.assertTrue(tx.is_complete())
+        self.assertTrue(tx.is_segwit())
+        tx_copy = tx_from_any(tx.serialize())
+        self.assertEqual('0200000000010146f231f027fd3cf48ecf81454f1cdb1d053c62a9c13cc9b488d53c56d1f00bdd0100000000fdffffff045d0500000000000016001470fcde1ed0159ba5af97baec085ceb857098cedb0c49000000000000160014999a95482213a896c72a251b6cc9f3d137b0a4587d5300000000000016001440c234c451fbd9ddf7824d6b8f0dc968a220946425b5000000000000160014ea76d391236726af7d7a9c10abe600129154eb5a024730440220477ff315d3ac58de3bc1ec0b44b90a90da9bc09c440982fd9a1563eae98df0dc0220574033b0e306d388edcc77e4c2b39338fc8f182c747014aef3ce2c99cf9e5e960121024196fb7b766ac987a08b69a5e108feae8513b7e72bc9e47899e27b36100f2af4df8a1d00',
+                         str(tx_copy))
+        self.assertEqual('bc86f4f14fea5305b197c02ae7b0d6b04c5f49144d9ad37c9f64ec0ec6d34594', tx_copy.txid())
+        self.assertEqual('368e4c0429b38e66ac64ac9dbb66145c9f28dfaf2fad60f6424db32c379a12da', tx_copy.wtxid())
+
+        wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
+        self.assertEqual((0, 18700, 0), wallet.get_balance())
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_cpfp_p2pkh(self, mock_save_db):

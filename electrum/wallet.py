@@ -44,6 +44,7 @@ from typing import TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple, Sequ
 from abc import ABC, abstractmethod
 import itertools
 import threading
+import enum
 
 from aiorpcx import TaskGroup
 
@@ -95,6 +96,12 @@ TX_STATUS = [
     _('Not Verified'),
     _('Local'),
 ]
+
+
+class BumpFeeStrategy(enum.Enum):
+    COINCHOOSER = enum.auto()
+    DECREASE_CHANGE = enum.auto()
+    DECREASE_PAYMENT = enum.auto()
 
 
 async def _append_utxos_to_inputs(*, inputs: List[PartialTxInput], network: 'Network',
@@ -1439,6 +1446,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             txid: str = None,
             new_fee_rate: Union[int, float, Decimal],
             coins: Sequence[PartialTxInput] = None,
+            strategies: Sequence[BumpFeeStrategy] = None,
     ) -> PartialTransaction:
         """Increase the miner fee of 'tx'.
         'new_fee_rate' is the target min rate in sat/vbyte
@@ -1465,29 +1473,42 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         old_fee_rate = old_fee / old_tx_size  # sat/vbyte
         if new_fee_rate <= old_fee_rate:
             raise CannotBumpFee(_("The new fee rate needs to be higher than the old fee rate."))
-        try:
-            # method 1: keep all inputs, keep all not is_mine outputs,
-            #           allow adding new inputs
-            tx_new = self._bump_fee_through_coinchooser(
-                tx=tx,
-                txid=txid,
-                new_fee_rate=new_fee_rate,
-                coins=coins,
-            )
-            method_used = 1
-        except CannotBumpFee:
-            # method 2: keep all inputs, no new inputs are added,
-            #           allow decreasing and removing outputs (change is decreased first)
-            # This is less "safe" as it might end up decreasing e.g. a payment to a merchant;
-            # but e.g. if the user has sent "Max" previously, this is the only way to RBF.
-            tx_new = self._bump_fee_through_decreasing_outputs(
-                tx=tx, new_fee_rate=new_fee_rate)
-            method_used = 2
+
+        if not strategies:
+            strategies = [BumpFeeStrategy.COINCHOOSER, BumpFeeStrategy.DECREASE_CHANGE]
+        tx_new = None
+        exc = None
+        for strat in strategies:
+            try:
+                if strat == BumpFeeStrategy.COINCHOOSER:
+                    tx_new = self._bump_fee_through_coinchooser(
+                        tx=tx,
+                        txid=txid,
+                        new_fee_rate=new_fee_rate,
+                        coins=coins,
+                    )
+                elif strat == BumpFeeStrategy.DECREASE_CHANGE:
+                    tx_new = self._bump_fee_through_decreasing_change(
+                        tx=tx, new_fee_rate=new_fee_rate)
+                elif strat == BumpFeeStrategy.DECREASE_PAYMENT:
+                    tx_new = self._bump_fee_through_decreasing_payment(
+                        tx=tx, new_fee_rate=new_fee_rate)
+                else:
+                    raise NotImplementedError(f"unexpected strategy: {strat}")
+            except CannotBumpFee as e:
+                exc = e
+            else:
+                strat_used = strat
+                break
+        if tx_new is None:
+            assert exc
+            raise exc  # all strategies failed, re-raise last exception
+
         target_min_fee = new_fee_rate * tx_new.estimated_size()
         actual_fee = tx_new.get_fee()
         if actual_fee + 1 < target_min_fee:
             raise CannotBumpFee(
-                f"bump_fee fee target was not met (method: {method_used}). "
+                f"bump_fee fee target was not met (strategy: {strat_used}). "
                 f"got {actual_fee}, expected >={target_min_fee}. "
                 f"target rate was {new_fee_rate}")
         tx_new.locktime = get_locktime_for_new_transaction(self.network)
@@ -1503,6 +1524,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             new_fee_rate: Union[int, Decimal],
             coins: Sequence[PartialTxInput] = None,
     ) -> PartialTransaction:
+        """Increase the miner fee of 'tx'.
+
+        - keeps all inputs
+        - keeps all not is_mine outputs,
+        - allows adding new inputs
+        """
         assert txid
         tx = copy.deepcopy(tx)
         tx.add_info_from_wallet(self)
@@ -1549,12 +1576,21 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         except NotEnoughFunds as e:
             raise CannotBumpFee(e)
 
-    def _bump_fee_through_decreasing_outputs(
+    def _bump_fee_through_decreasing_change(
             self,
             *,
             tx: PartialTransaction,
             new_fee_rate: Union[int, Decimal],
     ) -> PartialTransaction:
+        """Increase the miner fee of 'tx'.
+
+        - keeps all inputs
+        - no new inputs are added
+        - allows decreasing and removing outputs (change is decreased first)
+        This is less "safe" than "coinchooser" method as it might end up decreasing
+        e.g. a payment to a merchant; but e.g. if the user has sent "Max" previously,
+        this is the only way to RBF.
+        """
         tx = copy.deepcopy(tx)
         tx.add_info_from_wallet(self)
         assert tx.get_fee() is not None
@@ -1592,6 +1628,67 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if delta > 0:
             raise CannotBumpFee(_('Could not find suitable outputs'))
 
+        return PartialTransaction.from_io(inputs, outputs)
+
+    def _bump_fee_through_decreasing_payment(
+            self,
+            *,
+            tx: PartialTransaction,
+            new_fee_rate: Union[int, Decimal],
+    ) -> PartialTransaction:
+        """Increase the miner fee of 'tx'.
+
+        - keeps all inputs
+        - no new inputs are added
+        - decreases payment outputs (not change!). Each non-ismine output is decreased
+          proportionally to their byte-size.
+        """
+        tx = copy.deepcopy(tx)
+        tx.add_info_from_wallet(self)
+        assert tx.get_fee() is not None
+        inputs = tx.inputs()
+        outputs = tx.outputs()
+
+        # select non-ismine outputs
+        s = [(idx, out) for (idx, out) in enumerate(outputs)
+             if not self.is_mine(out.address)]
+        # exempt 2fa fee output if present
+        x_fee = run_hook('get_tx_extra_fee', self, tx)
+        if x_fee:
+            x_fee_address, x_fee_amount = x_fee
+            s = [(idx, out) for (idx, out) in s if out.address != x_fee_address]
+        if not s:
+            raise CannotBumpFee("Cannot find payment output")
+
+        del_out_idxs = set()
+        tx_size = tx.estimated_size()
+        cur_fee = tx.get_fee()
+        # Main loop. Each iteration decreases value of all selected outputs.
+        # The number of iterations is bounded by len(s) as only the final iteration
+        # can *not remove* any output.
+        for __ in range(len(s) + 1):
+            target_fee = int(math.ceil(tx_size * new_fee_rate))
+            delta_total = target_fee - cur_fee
+            if delta_total <= 0:
+                break
+            out_size_total = sum(Transaction.estimated_output_size_for_script(out.scriptpubkey.hex())
+                                 for (idx, out) in s if idx not in del_out_idxs)
+            for idx, out in s:
+                out_size = Transaction.estimated_output_size_for_script(out.scriptpubkey.hex())
+                delta = int(math.ceil(delta_total * out_size / out_size_total))
+                if out.value - delta >= self.dust_threshold():
+                    new_output_value = out.value - delta
+                    assert isinstance(new_output_value, int)
+                    outputs[idx].value = new_output_value
+                    cur_fee += delta
+                else:  # remove output
+                    tx_size -= out_size
+                    cur_fee += out.value
+                    del_out_idxs.add(idx)
+        if delta_total > 0:
+            raise CannotBumpFee(_('Could not find suitable outputs'))
+
+        outputs = [out for (idx, out) in enumerate(outputs) if idx not in del_out_idxs]
         return PartialTransaction.from_io(inputs, outputs)
 
     def cpfp(self, tx: Transaction, fee: int) -> Optional[PartialTransaction]:
