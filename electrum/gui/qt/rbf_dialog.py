@@ -4,14 +4,17 @@
 
 from typing import TYPE_CHECKING
 
-from PyQt5.QtWidgets import QCheckBox, QLabel, QVBoxLayout, QGridLayout
+from PyQt5.QtWidgets import (QCheckBox, QLabel, QVBoxLayout, QGridLayout, QWidget,
+                             QPushButton, QHBoxLayout, QComboBox)
 
-from electrum.i18n import _
-from electrum.transaction import PartialTransaction
 from .amountedit import FeerateEdit
 from .fee_slider import FeeSlider, FeeComboBox
 from .util import (ColorScheme, WindowModalDialog, Buttons,
                    OkButton, WWLabel, CancelButton)
+
+from electrum.i18n import _
+from electrum.transaction import PartialTransaction
+from electrum.wallet import BumpFeeStrategy
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -43,6 +46,7 @@ class _BaseRBFDialog(WindowModalDialog):
         vbox.addWidget(WWLabel(help_text))
 
         ok_button = OkButton(self)
+        self.adv_button = QPushButton(_("Show advanced settings"))
         warning_label = WWLabel('\n')
         warning_label.setStyleSheet(ColorScheme.RED.as_stylesheet())
         self.feerate_e = FeerateEdit(lambda: 0)
@@ -84,13 +88,35 @@ class _BaseRBFDialog(WindowModalDialog):
         grid.addWidget(fee_slider, 3, 1)
         grid.addWidget(fee_combo, 3, 2)
         vbox.addLayout(grid)
-        self.cb_is_final = QCheckBox(_('Final'))
-        vbox.addWidget(self.cb_is_final)
+        self._add_advanced_options_cont(vbox)
         vbox.addWidget(warning_label)
-        vbox.addLayout(Buttons(CancelButton(self), ok_button))
+
+        btns_hbox = QHBoxLayout()
+        btns_hbox.addWidget(self.adv_button)
+        btns_hbox.addStretch(1)
+        btns_hbox.addWidget(CancelButton(self))
+        btns_hbox.addWidget(ok_button)
+        vbox.addLayout(btns_hbox)
 
     def rbf_func(self, fee_rate) -> PartialTransaction:
         raise NotImplementedError()  # implemented by subclasses
+
+    def _add_advanced_options_cont(self, vbox: QVBoxLayout) -> None:
+        adv_vbox = QVBoxLayout()
+        adv_vbox.setContentsMargins(0, 0, 0, 0)
+        adv_widget = QWidget()
+        adv_widget.setLayout(adv_vbox)
+        adv_widget.setVisible(False)
+        def show_adv_settings():
+            self.adv_button.setEnabled(False)
+            adv_widget.setVisible(True)
+        self.adv_button.clicked.connect(show_adv_settings)
+        self._add_advanced_options(adv_vbox)
+        vbox.addWidget(adv_widget)
+
+    def _add_advanced_options(self, adv_vbox: QVBoxLayout) -> None:
+        self.cb_is_final = QCheckBox(_('Final'))
+        adv_vbox.addWidget(self.cb_is_final)
 
     def run(self) -> None:
         if not self.exec_():
@@ -133,7 +159,31 @@ class BumpFeeDialog(_BaseRBFDialog):
             txid=self.txid,
             new_fee_rate=fee_rate,
             coins=self.window.get_coins(),
+            strategies=self.option_index_to_strats[self.strat_combo.currentIndex()],
         )
+
+    def _add_advanced_options(self, adv_vbox: QVBoxLayout) -> None:
+        self.cb_is_final = QCheckBox(_('Final'))
+        adv_vbox.addWidget(self.cb_is_final)
+
+        self.strat_combo = QComboBox()
+        options = [
+            _("decrease change, or add new inputs, or decrease any outputs"),
+            _("decrease change, or decrease any outputs"),
+            _("decrease payment"),
+        ]
+        self.option_index_to_strats = {
+            0: [BumpFeeStrategy.COINCHOOSER, BumpFeeStrategy.DECREASE_CHANGE],
+            1: [BumpFeeStrategy.DECREASE_CHANGE],
+            2: [BumpFeeStrategy.DECREASE_PAYMENT],
+        }
+        self.strat_combo.addItems(options)
+        self.strat_combo.setCurrentIndex(0)
+        strat_hbox = QHBoxLayout()
+        strat_hbox.addWidget(QLabel(_("Strategy") + ":"))
+        strat_hbox.addWidget(self.strat_combo)
+        strat_hbox.addStretch(1)
+        adv_vbox.addLayout(strat_hbox)
 
 
 class DSCancelDialog(_BaseRBFDialog):
