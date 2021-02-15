@@ -861,20 +861,21 @@ class LNWallet(LNWorker):
                 await self.network.try_broadcasting(force_close_tx, 'force-close')
 
     @log_exceptions
-    async def _open_channel_coroutine(self, *, connect_str: str, funding_tx: PartialTransaction,
-                                      funding_sat: int, push_sat: int,
-                                      password: Optional[str]) -> Tuple[Channel, PartialTransaction]:
+    async def _open_channel_coroutine(
+            self, *, connect_str: str,
+            funding_tx: PartialTransaction,
+            funding_sat: int, push_sat: int,
+            password: Optional[str]) -> Tuple[Channel, PartialTransaction]:
         peer = await self.add_peer(connect_str)
-        # will raise if init fails
-        await asyncio.wait_for(peer.initialized, LN_P2P_NETWORK_TIMEOUT)
-        chan, funding_tx = await peer.channel_establishment_flow(
-            password=password,
+        coro = peer.channel_establishment_flow(
             funding_tx=funding_tx,
             funding_sat=funding_sat,
             push_msat=push_sat * 1000,
             temp_channel_id=os.urandom(32))
+        chan, funding_tx = await asyncio.wait_for(coro, LN_P2P_NETWORK_TIMEOUT)
         util.trigger_callback('channels_updated', self.wallet)
         self.wallet.add_transaction(funding_tx)  # save tx as local into the wallet
+        self.wallet.sign_transaction(funding_tx, password)
         self.wallet.set_label(funding_tx.txid(), _('Open channel'))
         if funding_tx.is_complete():
             await self.network.try_broadcasting(funding_tx, 'open_channel')
@@ -911,15 +912,15 @@ class LNWallet(LNWorker):
         return tx
 
     def open_channel(self, *, connect_str: str, funding_tx: PartialTransaction,
-                     funding_sat: int, push_amt_sat: int, password: str = None,
-                     timeout: Optional[int] = 20) -> Tuple[Channel, PartialTransaction]:
+                     funding_sat: int, push_amt_sat: int, password: str = None) -> Tuple[Channel, PartialTransaction]:
         if funding_sat > LN_MAX_FUNDING_SAT:
             raise Exception(_("Requested channel capacity is over protocol allowed maximum."))
-        coro = self._open_channel_coroutine(connect_str=connect_str, funding_tx=funding_tx, funding_sat=funding_sat,
-                                            push_sat=push_amt_sat, password=password)
+        coro = self._open_channel_coroutine(
+            connect_str=connect_str, funding_tx=funding_tx, funding_sat=funding_sat,
+            push_sat=push_amt_sat, password=password)
         fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
         try:
-            chan, funding_tx = fut.result(timeout=timeout)
+            chan, funding_tx = fut.result()
         except concurrent.futures.TimeoutError:
             raise Exception(_("open_channel timed out"))
         # at this point the channel opening was successful
