@@ -1440,6 +1440,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if not isinstance(tx, PartialTransaction):
             tx = PartialTransaction.from_tx(tx)
         assert isinstance(tx, PartialTransaction)
+        tx.remove_signatures()
         if tx.is_final():
             raise CannotBumpFee(_('Transaction is final'))
         new_fee_rate = quantize_feerate(new_fee_rate)  # strip excess precision

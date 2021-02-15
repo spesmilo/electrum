@@ -968,6 +968,8 @@ class WalletDB(JsonDB):
         assert isinstance(tx_hash, str)
         assert isinstance(tx, Transaction), tx
         # note that tx might be a PartialTransaction
+        # serialize and de-serialize tx now. this might e.g. convert a complete PartialTx to a Tx
+        tx = tx_from_any(str(tx))
         if not tx_hash:
             raise Exception("trying to add tx to db without txid")
         if tx_hash != tx.txid():
