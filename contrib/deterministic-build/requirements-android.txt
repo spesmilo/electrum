@@ -20,6 +20,11 @@ coincurve==13.0.0 \
     --hash=sha256:79acb40c5af9d323570d28e8b3bd1155cca30d157aa32effc71431e1c02edb18 \
     --hash=sha256:4c7617b18abbfdc1dcb396e552df23fbc79e90f5f741382c9a59a3ea039a612f \
     --hash=sha256:24e564ad90f196731165a1237d76e9cfa4ab2091eb4290db9420125317e9e0e7
+cryptography==2.8 \
+    --hash=sha256:6fc359f52737967badc9dd2122f05e7d971aefe7fac92447bcfb9d92e7bc05f3 \
+    --hash=sha256:d1ff320140efbb25ae14881125dd3de9cbb644f73c5484c3344ec64fdeef47de \
+    --hash=sha256:ebfc7a6288cbb033b543e442ba3cbc3f50b0deecaa97363f6c7f4cab41b66242 \
+    --hash=sha256:b6759a93e961e5e21e4ac08cf90d3e7a3523f10fbd15d02cf1a47e32020761df
 pycparser==2.19 \
     --hash=sha256:a988718abfad80b6b157acce7bf130a30876d27603738ac39f140993246b25b3
 pycryptodomex==3.9.4 \
