@@ -1620,6 +1620,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if not isinstance(tx, PartialTransaction):
             tx = PartialTransaction.from_tx(tx)
         assert isinstance(tx, PartialTransaction)
+        tx.remove_signatures()
 
         if tx.is_final():
             raise CannotDoubleSpendTx(_('Transaction is final'))
