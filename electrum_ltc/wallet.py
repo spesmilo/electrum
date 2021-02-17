@@ -1440,6 +1440,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if not isinstance(tx, PartialTransaction):
             tx = PartialTransaction.from_tx(tx)
         assert isinstance(tx, PartialTransaction)
+        tx.remove_signatures()
         if tx.is_final():
             raise CannotBumpFee(_('Transaction is final'))
         new_fee_rate = quantize_feerate(new_fee_rate)  # strip excess precision
@@ -1548,7 +1549,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         tx.add_info_from_wallet(self)
         assert tx.get_fee() is not None
         inputs = tx.inputs()
-        outputs = list(tx.outputs())
+        outputs = tx._outputs  # note: we will mutate this directly
 
         # use own outputs
         s = list(filter(lambda o: self.is_mine(o.address), outputs))
@@ -1558,14 +1559,14 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             x_fee = run_hook('get_tx_extra_fee', self, tx)
             if x_fee:
                 x_fee_address, x_fee_amount = x_fee
-                s = filter(lambda o: o.address != x_fee_address, s)
+                s = list(filter(lambda o: o.address != x_fee_address, s))
         if not s:
             raise CannotBumpFee('No outputs at all??')
 
         # prioritize low value outputs, to get rid of dust
         s = sorted(s, key=lambda o: o.value)
         for o in s:
-            target_fee = int(round(tx.estimated_size() * new_fee_rate))
+            target_fee = int(math.ceil(tx.estimated_size() * new_fee_rate))
             delta = target_fee - tx.get_fee()
             i = outputs.index(o)
             if o.value - delta >= self.dust_threshold():
@@ -1576,9 +1577,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 break
             else:
                 del outputs[i]
-                delta -= o.value
-                # note: delta might be negative now, in which case
-                # the value of the next output will be increased
+                # note: we mutated the outputs of tx, which will affect
+                #       tx.estimated_size() in the next iteration
         if delta > 0:
             raise CannotBumpFee(_('Could not find suitable outputs'))
 
@@ -1620,6 +1620,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if not isinstance(tx, PartialTransaction):
             tx = PartialTransaction.from_tx(tx)
         assert isinstance(tx, PartialTransaction)
+        tx.remove_signatures()
 
         if tx.is_final():
             raise CannotDoubleSpendTx(_('Transaction is final'))

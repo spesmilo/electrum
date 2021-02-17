@@ -563,7 +563,6 @@ class Peer(Logger):
     @temporarily_reserve_funding_tx_change_address
     async def channel_establishment_flow(
             self, *,
-            password: Optional[str],
             funding_tx: 'PartialTransaction',
             funding_sat: int,
             push_msat: int,
@@ -578,6 +577,7 @@ class Peer(Logger):
 
         Channel configurations are initialized in this method.
         """
+        # will raise if init fails
         await asyncio.wait_for(self.initialized, LN_P2P_NETWORK_TIMEOUT)
 
         feerate = self.lnworker.current_feerate_per_kw()
@@ -675,9 +675,8 @@ class Peer(Logger):
         funding_tx.outputs().remove(dummy_output)
         funding_tx.add_outputs([funding_output])
         funding_tx.set_rbf(False)
-        self.lnworker.wallet.sign_transaction(funding_tx, password)
-        if not funding_tx.is_complete() and not funding_tx.is_segwit():
-            raise Exception('Funding transaction is not complete')
+        if not funding_tx.is_segwit():
+            raise Exception('Funding transaction is not segwit')
         funding_txid = funding_tx.txid()
         assert funding_txid
         funding_index = funding_tx.outputs().index(funding_output)
