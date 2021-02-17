@@ -137,7 +137,7 @@ class BaseWizard(util.PrintError):
         title = _("Import Bitcoin Addresses")
         message = _("Enter a list of Bitcoin Cash addresses (this will create a watching-only wallet), or a list of private keys.")
         if bitcoin.is_bip38_available():
-            message += " " + _("BIP38 encrpted keys are supported.")
+            message += " " + _("BIP38 encrypted keys are supported.")
         self.add_xpub_dialog(title=title, message=message, run_next=self.on_import,
                              is_valid=v, allow_multi=True)
 
