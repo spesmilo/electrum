@@ -463,23 +463,23 @@ class Test_xprv_xpub(ElectrumTestCase):
          'xtype': 'p2wpkh'},
     )
 
-    def _do_test_bip32(self, seed: str, sequence):
+    def _do_test_bip32(self, seed: str, sequence: str):
         node = BIP32Node.from_rootseed(bfh(seed), xtype='standard')
         xprv, xpub = node.to_xprv(), node.to_xpub()
-        self.assertEqual("m/", sequence[0:2])
-        sequence = sequence[2:]
-        for n in sequence.split('/'):
-            if n[-1] != "'":
-                xpub2 = BIP32Node.from_xkey(xpub).subkey_at_public_derivation(n).to_xpub()
-            node = BIP32Node.from_xkey(xprv).subkey_at_private_derivation(n)
+        int_path = convert_bip32_path_to_list_of_uint32(sequence)
+        for n in int_path:
+            if n & bip32.BIP32_PRIME == 0:
+                xpub2 = BIP32Node.from_xkey(xpub).subkey_at_public_derivation([n]).to_xpub()
+            node = BIP32Node.from_xkey(xprv).subkey_at_private_derivation([n])
             xprv, xpub = node.to_xprv(), node.to_xpub()
-            if n[-1] != "'":
+            if n & bip32.BIP32_PRIME == 0:
                 self.assertEqual(xpub, xpub2)
 
         return xpub, xprv
 
     def test_bip32(self):
         # see https://en.bitcoin.it/wiki/BIP_0032_TestVectors
+        # and https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki#Test_Vectors
         xpub, xprv = self._do_test_bip32("000102030405060708090a0b0c0d0e0f", "m/0'/1/2'/2/1000000000")
         self.assertEqual("xpub6H1LXWLaKsWFhvm6RVpEL9P4KfRZSW7abD2ttkWP3SSQvnyA8FSVqNTEcYFgJS2UaFcxupHiYkro49S8yGasTvXEYBVPamhGW6cFJodrTHy", xpub)
         self.assertEqual("xprvA41z7zogVVwxVSgdKUHDy1SKmdb533PjDz7J6N6mV6uS3ze1ai8FHa8kmHScGpWmj4WggLyQjgPie1rFSruoUihUZREPSL39UNdE3BBDu76", xprv)
@@ -487,6 +487,14 @@ class Test_xprv_xpub(ElectrumTestCase):
         xpub, xprv = self._do_test_bip32("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542","m/0/2147483647'/1/2147483646'/2")
         self.assertEqual("xpub6FnCn6nSzZAw5Tw7cgR9bi15UV96gLZhjDstkXXxvCLsUXBGXPdSnLFbdpq8p9HmGsApME5hQTZ3emM2rnY5agb9rXpVGyy3bdW6EEgAtqt", xpub)
         self.assertEqual("xprvA2nrNbFZABcdryreWet9Ea4LvTJcGsqrMzxHx98MMrotbir7yrKCEXw7nadnHM8Dq38EGfSh6dqA9QWTyefMLEcBYJUuekgW4BYPJcr9E7j", xprv)
+
+        xpub, xprv = self._do_test_bip32("4b381541583be4423346c643850da4b320e46a87ae3d2a4e6da11eba819cd4acba45d239319ac14f863b8d5ab5a0d0c64d2e8a1e7d1457df2e5a3c51c73235be", "m/0h")
+        self.assertEqual("xpub68NZiKmJWnxxS6aaHmn81bvJeTESw724CRDs6HbuccFQN9Ku14VQrADWgqbhhTHBaohPX4CjNLf9fq9MYo6oDaPPLPxSb7gwQN3ih19Zm4Y", xpub)
+        self.assertEqual("xprv9uPDJpEQgRQfDcW7BkF7eTya6RPxXeJCqCJGHuCJ4GiRVLzkTXBAJMu2qaMWPrS7AANYqdq6vcBcBUdJCVVFceUvJFjaPdGZ2y9WACViL4L", xprv)
+
+        xpub, xprv = self._do_test_bip32("3ddd5602285899a946114506157c7997e5444528f3003f6134712147db19b678", "m/0h/1h")
+        self.assertEqual("xpub6BJA1jSqiukeaesWfxe6sNK9CCGaujFFSJLomWHprUL9DePQ4JDkM5d88n49sMGJxrhpjazuXYWdMf17C9T5XnxkopaeS7jGk1GyyVziaMt", xpub)
+        self.assertEqual("xprv9xJocDuwtYCMNAo3Zw76WENQeAS6WGXQ55RCy7tDJ8oALr4FWkuVoHJeHVAcAqiZLE7Je3vZJHxspZdFHfnBEjHqU5hG1Jaj32dVoS6XLT1", xprv)
 
     def test_xpub_from_xprv(self):
         """We can derive the xpub key from a xprv."""
