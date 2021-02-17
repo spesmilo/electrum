@@ -126,8 +126,8 @@ Builder.load_string(r'''
     short_channel_id: '<channelId not set>'
     status: ''
     is_backup: False
-    local_balance: ''
-    remote_balance: ''
+    balances: ''
+    node_alias: ''
     _chan: None
     BoxLayout:
         size_hint: 0.7, None
@@ -143,7 +143,7 @@ Builder.load_string(r'''
         CardLabel:
             font_size: '13sp'
             shorten: True
-            text: root.status
+            text: root.node_alias
         Widget
     BoxLayout:
         size_hint: 0.3, None
@@ -152,12 +152,12 @@ Builder.load_string(r'''
         orientation: 'vertical'
         Widget
         CardLabel:
-            text: root.local_balance if not root.is_backup else ''
+            text: root.status
             font_size: '13sp'
             halign: 'right'
         Widget
         CardLabel:
-            text: root.remote_balance if not root.is_backup else ''
+            text: root.balances if not root.is_backup else ''
             font_size: '13sp'
             halign: 'right'
         Widget
@@ -566,8 +566,7 @@ class LightningChannelsDialog(Factory.Popup):
         item.status = chan.get_state_for_GUI()
         item.short_channel_id = chan.short_id_for_GUI()
         l, r = self.format_fields(chan)
-        item.local_balance = _('Local') + ':' + l
-        item.remote_balance = _('Remote') + ': ' + r
+        item.balances = l + '/' + r
         self.update_can_send()
 
     def update(self):
@@ -585,6 +584,7 @@ class LightningChannelsDialog(Factory.Popup):
             item.active = not i.is_closed()
             item.is_backup = i.is_backup()
             item._chan = i
+            item.node_alias = lnworker.get_node_alias(i.node_id)
             self.update_item(item)
             channel_cards.add_widget(item)
         self.update_can_send()
