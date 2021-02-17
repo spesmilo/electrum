@@ -587,7 +587,7 @@ class Peer(Logger):
         await asyncio.wait_for(self.initialized, LN_P2P_NETWORK_TIMEOUT)
         # trampoline is not yet in features
         if not self.lnworker.channel_db and not self.lnworker.is_trampoline_peer(self.pubkey):
-            raise Exception(_('Not a trampoline node') + str(self.their_features))
+            raise Exception('Not a trampoline node: ' + str(self.their_features))
 
         feerate = self.lnworker.current_feerate_per_kw()
         local_config = self.make_local_config(funding_sat, push_msat, LOCAL)
