@@ -608,6 +608,9 @@ class Interface(Logger):
         assert_hex_str(res['hex'])
         if len(res['hex']) != HEADER_SIZE * 2 * res['count']:
             raise RequestCorrupted('inconsistent chunk hex and count')
+        # we never request more than 2016 headers, but we enforce those fit in a single response
+        if res['max'] < 2016:
+            raise RequestCorrupted(f"server uses too low 'max' count for block.headers: {res['max']} < 2016")
         if res['count'] != size:
             raise RequestCorrupted(f"expected {size} headers but only got {res['count']}")
         conn = self.blockchain.connect_chunk(index, res['hex'])
