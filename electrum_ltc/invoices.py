@@ -9,7 +9,7 @@ from .i18n import _
 from .util import age
 from .lnaddr import lndecode, LnAddr
 from . import constants
-from .bitcoin import COIN
+from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 from .transaction import PartialTxOutput
 
 if TYPE_CHECKING:
@@ -130,6 +130,17 @@ class OnchainInvoice(Invoice):
     def get_amount_sat(self) -> Union[int, str]:
         return self.amount_sat or 0
 
+    @amount_sat.validator
+    def _validate_amount(self, attribute, value):
+        if isinstance(value, int):
+            if not (0 <= value <= TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN):
+                raise ValueError(f"amount is out-of-bounds: {value!r} sat")
+        elif isinstance(value, str):
+            if value != "!":
+                raise ValueError(f"unexpected amount: {value!r}")
+        else:
+            raise ValueError(f"unexpected amount: {value!r}")
+
     @classmethod
     def from_bip70_payreq(cls, pr: 'PaymentRequest', height:int) -> 'OnchainInvoice':
         return OnchainInvoice(
@@ -153,8 +164,18 @@ class LNInvoice(Invoice):
     __lnaddr = None
 
     @invoice.validator
-    def check(self, attribute, value):
+    def _validate_invoice_str(self, attribute, value):
         lndecode(value)  # this checks the str can be decoded
+
+    @amount_msat.validator
+    def _validate_amount(self, attribute, value):
+        if value is None:
+            return
+        if isinstance(value, int):
+            if not (0 <= value <= TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN * 1000):
+                raise ValueError(f"amount is out-of-bounds: {value!r} msat")
+        else:
+            raise ValueError(f"unexpected amount: {value!r}")
 
     @property
     def _lnaddr(self) -> LnAddr:

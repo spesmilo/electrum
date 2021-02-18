@@ -77,6 +77,7 @@ if [[ $1 == "init" ]]; then
     agent="./run_electrum --regtest -D /tmp/$2"
     $agent create --offline > /dev/null
     $agent setconfig --offline log_to_file True
+    $agent setconfig --offline use_gossip True
     $agent setconfig --offline server 127.0.0.1:51001:t
     $agent setconfig --offline lightning_to_self_delay 144
     # alice is funded, bob is listening
@@ -116,6 +117,32 @@ if [[ $1 == "forwarding" ]]; then
     request2=$($carol add_lightning_request 0.0001 -m "blah" | jq -r ".invoice")
     $carol setconfig test_fail_malformed_htlc false
     $alice lnpay $request2
+    carol_balance=$($carol list_channels | jq -r '.[0].local_balance')
+    echo "carol balance: $carol_balance"
+    if [[ $carol_balance != 110000 ]]; then
+        exit 1
+    fi
+    chan1=$($alice list_channels | jq -r ".[0].channel_point")
+    chan2=$($carol list_channels | jq -r ".[0].channel_point")
+    $alice close_channel $chan1
+    $carol close_channel $chan2
+fi
+
+if [[ $1 == "trampoline" ]]; then
+    $alice stop
+    $alice setconfig -o use_gossip False
+    $alice daemon -d
+    $alice load_wallet
+    sleep 1
+    $bob setconfig lightning_forward_payments true
+    bob_node=$($bob nodeid)
+    channel_id1=$($alice open_channel $bob_node 0.002 --push_amount 0.001)
+    channel_id2=$($carol open_channel $bob_node 0.002 --push_amount 0.001)
+    echo "mining 3 blocks"
+    new_blocks 3
+    sleep 10 # time for channelDB
+    request=$($carol add_lightning_request 0.0001 -m "blah" | jq -r ".invoice")
+    $alice lnpay --attempts=2 $request
     carol_balance=$($carol list_channels | jq -r '.[0].local_balance')
     echo "carol balance: $carol_balance"
     if [[ $carol_balance != 110000 ]]; then
