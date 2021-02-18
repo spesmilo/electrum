@@ -479,7 +479,7 @@ class ChannelDetailsPopup(Popup, Logger):
             _("This channel may still be used for receiving, but it is frozen for sending."),
             _("If you want to keep using this channel, you need to disable trampoline routing in your preferences."),
         ])
-        self.warning = '' if self.app.wallet.lnworker.channel_db or chan.is_trampoline() else _('Warning') + ': ' + msg
+        self.warning = '' if self.app.wallet.lnworker.channel_db or self.app.wallet.lnworker.is_trampoline_peer(chan.node_id) else _('Warning') + ': ' + msg
 
     def close(self):
         Question(_('Close channel?'), self._close).open()
