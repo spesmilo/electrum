@@ -10,12 +10,17 @@ Builder.load_string('''
 <ChoiceDialog@Popup>
     id: popup
     title: ''
+    description: ''
     size_hint: 0.8, 0.8
     pos_hint: {'top':0.9}
     BoxLayout:
         orientation: 'vertical'
-        Widget:
-            size_hint: 1, 0.1
+        Label:
+            size_hint: 1, None
+            text: root.description
+            halign: 'left'
+            text_size: self.width, None
+            size: self.texture_size
         ScrollView:
             orientation: 'vertical'
             size_hint: 1, 0.8
@@ -44,8 +49,9 @@ Builder.load_string('''
 
 class ChoiceDialog(Factory.Popup):
 
-    def __init__(self, title, choices, key, callback, keep_choice_order=False):
+    def __init__(self, title, choices, key, callback, *, description='', keep_choice_order=False):
         Factory.Popup.__init__(self)
+        self.description = description
         if keep_choice_order:
             orig_index = {choice: i for (i, choice) in enumerate(choices)}
             sort_key = lambda x: orig_index[x[0]]

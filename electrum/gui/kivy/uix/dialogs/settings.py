@@ -99,12 +99,7 @@ Builder.load_string('''
                     status: _('Trampoline') if not app.use_gossip else _('Gossip')
                     title: _('Lightning Routing') + ': ' + self.status
                     description: _("Use trampoline routing or gossip.")
-                    message:
-                        _('Lightning payments require finding a path through the Lightning Network.')\
-                        + ' ' + ('You may use trampoline routing, or local routing (gossip).')\
-                        + ' ' + ('Downloading the network gossip uses quite some bandwidth and storage, and is not recommended on mobile devices.')\
-                        + ' ' + ('If you use trampoline, you can only open channels with trampoline nodes.')
-                    action: partial(root.boolean_dialog, 'use_gossip', _('Download Gossip'), self.message)
+                    action: partial(root.routing_dialog, self)
                 CardSeparator
                 SettingsItem:
                     status: _('Yes') if app.android_backups else _('No')
@@ -172,6 +167,22 @@ class SettingsDialog(Factory.Popup):
             self._unit_dialog = ChoiceDialog(_('Denomination'), base_units_list,
                                              self.app.base_unit, cb, keep_choice_order=True)
         self._unit_dialog.open()
+
+    def routing_dialog(self, item, dt):
+        description = \
+            _('Lightning payments require finding a path through the Lightning Network.')\
+            + ' ' + ('You may use trampoline routing, or local routing (gossip).')\
+            + ' ' + ('Downloading the network gossip uses quite some bandwidth and storage, and is not recommended on mobile devices.')\
+            + ' ' + ('If you use trampoline, you can only open channels with trampoline nodes.')
+        def cb(text):
+            self.app.use_gossip = (text == 'Gossip')
+        dialog = ChoiceDialog(
+            _('Lightning Routing'),
+            ['Trampoline', 'Gossip'],
+            'Gossip' if self.app.use_gossip else 'Trampoline',
+            cb, description=description,
+            keep_choice_order=True)
+        dialog.open()
 
     def coinselect_status(self):
         return coinchooser.get_name(self.app.electrum_config)
