@@ -83,7 +83,6 @@ class LNRater(Logger):
         Logger.__init__(self)
         self.lnworker = lnworker
         self.network = network
-        self.channel_db = self.network.channel_db
 
         self._node_stats: Dict[bytes, NodeStats] = {}  # node_id -> NodeStats
         self._node_ratings: Dict[bytes, float] = {}  # node_id -> float
@@ -112,7 +111,7 @@ class LNRater(Logger):
         # gossip sync progress state could be None when not started, but channel
         # db already knows something about the graph, which is why we allow to
         # evaluate the graph early
-        if progress_percent is not None or self.channel_db.num_nodes > 500:
+        if progress_percent is not None or self.network.channel_db.num_nodes > 500:
             progress_percent = progress_percent or 0  # convert None to 0
             now = time.time()
             # graph should have changed significantly during the sync progress
@@ -124,7 +123,7 @@ class LNRater(Logger):
                 self._last_analyzed = now
 
     async def _analyze_graph(self):
-        await self.channel_db.data_loaded.wait()
+        await self.network.channel_db.data_loaded.wait()
         self._collect_policies_by_node()
         loop = get_running_loop()
         # the analysis is run in an executor because it's costly
@@ -134,7 +133,7 @@ class LNRater(Logger):
         self._last_analyzed = now
 
     def _collect_policies_by_node(self):
-        policies = self.channel_db.get_node_policies()
+        policies = self.network.channel_db.get_node_policies()
         for pv, p in policies.items():
             # append tuples of ShortChannelID and Policy
             self._policies_by_nodes[pv[0]].append((pv[1], p))
@@ -143,7 +142,7 @@ class LNRater(Logger):
     def _collect_purged_stats(self):
         """Traverses through the graph and sorts out nodes."""
         current_height = self.network.get_local_height()
-        node_infos = self.channel_db.get_node_infos()
+        node_infos = self.network.channel_db.get_node_infos()
 
         for n, channel_policies in self._policies_by_nodes.items():
             try:
@@ -250,7 +249,7 @@ class LNRater(Logger):
             # randomly pick nodes weighted by node_rating
             pk = choices(node_keys, weights=node_ratings, k=1)[0]
             # node should have compatible features
-            node_info = self.channel_db.get_node_infos().get(pk, None)
+            node_info = self.network.channel_db.get_node_infos().get(pk, None)
             peer_features = LnFeatures(node_info.features)
             try:
                 ln_compare_features(self.lnworker.features, peer_features)
