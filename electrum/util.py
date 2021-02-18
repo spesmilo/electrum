@@ -630,6 +630,13 @@ def format_satoshis_plain(x, *, decimal_point=8) -> str:
     return "{:.8f}".format(Decimal(x) / scale_factor).rstrip('0').rstrip('.')
 
 
+# Check that Decimal precision is sufficient.
+# We need at the very least ~20, as we deal with msat amounts, and
+# log10(21_000_000 * 10**8 * 1000) ~= 18.3
+# decimal.DefaultContext.prec == 28 by default, but it is mutable.
+# We enforce that we have at least that available.
+assert decimal.getcontext().prec >= 28, f"PyDecimal precision too low: {decimal.getcontext().prec}"
+
 DECIMAL_POINT = localeconv()['decimal_point']  # type: str
 
 
