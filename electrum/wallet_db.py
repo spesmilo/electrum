@@ -52,7 +52,7 @@ if TYPE_CHECKING:
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 37     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 38     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -185,6 +185,7 @@ class WalletDB(JsonDB):
         self._convert_version_35()
         self._convert_version_36()
         self._convert_version_37()
+        self._convert_version_38()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
         self._after_upgrade_tasks()
@@ -751,6 +752,31 @@ class WalletDB(JsonDB):
             payments[k] = amount_msat, direction, status
         self.data['lightning_payments'] = payments
         self.data['seed_version'] = 37
+
+    def _convert_version_38(self):
+        if not self._is_upgrade_method_needed(37, 37):
+            return
+        PR_TYPE_ONCHAIN = 0
+        PR_TYPE_LN = 2
+        from .bitcoin import TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN
+        max_sats = TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN
+        requests = self.data.get('payment_requests', {})
+        invoices = self.data.get('invoices', {})
+        for d in [invoices, requests]:
+            for key, item in list(d.items()):
+                if item['type'] == PR_TYPE_ONCHAIN:
+                    amount_sat = item['amount_sat']
+                    if amount_sat == '!':
+                        continue
+                    if not (isinstance(amount_sat, int) and 0 <= amount_sat <= max_sats):
+                        del d[key]
+                elif item['type'] == PR_TYPE_LN:
+                    amount_msat = item['amount_msat']
+                    if not amount_msat:
+                        continue
+                    if not (isinstance(amount_msat, int) and 0 <= amount_msat <= max_sats * 1000):
+                        del d[key]
+        self.data['seed_version'] = 38
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):

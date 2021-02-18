@@ -11,7 +11,7 @@ from typing import Optional
 import random
 import bitstring
 
-from .bitcoin import hash160_to_b58_address, b58_address_to_hash160
+from .bitcoin import hash160_to_b58_address, b58_address_to_hash160, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 from .segwit_addr import bech32_encode, bech32_decode, CHARSET
 from . import constants
 from . import ecc
@@ -175,13 +175,7 @@ def pull_tagged(stream):
 
 def lnencode(addr: 'LnAddr', privkey) -> str:
     if addr.amount:
-        amount = Decimal(str(addr.amount))
-        # We can only send down to millisatoshi.
-        if amount * 10**12 % 10:
-            raise ValueError("Cannot encode {}: too many decimal places".format(
-                addr.amount))
-
-        amount = addr.currency + shorten_amount(amount)
+        amount = addr.currency + shorten_amount(addr.amount)
     else:
         amount = addr.currency if addr.currency else ''
 
@@ -278,8 +272,27 @@ class LnAddr(object):
         self.signature = None
         self.pubkey = None
         self.currency = constants.net.SEGWIT_HRP if currency is None else currency
-        self.amount = amount  # type: Optional[Decimal]  # in bitcoins
+        self._amount = amount  # type: Optional[Decimal]  # in bitcoins
         self._min_final_cltv_expiry = 18
+
+    @property
+    def amount(self) -> Optional[Decimal]:
+        return self._amount
+
+    @amount.setter
+    def amount(self, value):
+        if not (isinstance(value, Decimal) or value is None):
+            raise ValueError(f"amount must be Decimal or None, not {value!r}")
+        if value is None:
+            self._amount = None
+            return
+        assert isinstance(value, Decimal)
+        if value.is_nan() or not (0 <= value <= TOTAL_COIN_SUPPLY_LIMIT_IN_BTC):
+            raise ValueError(f"amount is out-of-bounds: {value!r} BTC")
+        if value * 10**12 % 10:
+            # max resolution is millisatoshi
+            raise ValueError(f"Cannot encode {value!r}: too many decimal places")
+        self._amount = value
 
     def get_amount_sat(self) -> Optional[Decimal]:
         # note that this has msat resolution potentially
