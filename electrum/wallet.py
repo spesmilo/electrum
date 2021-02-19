@@ -950,9 +950,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
 
     @profiler
     def get_detailed_history(self, from_timestamp=None, to_timestamp=None,
-                             fx=None, show_addresses=False):
+                             fx=None, show_addresses=False, from_height=None, to_height=None):
         # History with capital gains, using utxo pricing
         # FIXME: Lightning capital gains would requires FIFO
+        if (from_timestamp is not None or to_timestamp is not None) \
+                and (from_height is not None or to_height is not None):
+            raise Exception('timestamp and block height based filtering cannot be used together')
         out = []
         income = 0
         expenditures = 0
@@ -965,6 +968,11 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             if from_timestamp and (timestamp or now) < from_timestamp:
                 continue
             if to_timestamp and (timestamp or now) >= to_timestamp:
+                continue
+            height = item['height']
+            if from_height is not None and from_height > height > 0:
+                continue
+            if to_height is not None and (height >= to_height or height <= 0):
                 continue
             tx_hash = item['txid']
             tx = self.db.get_transaction(tx_hash)
@@ -1005,6 +1013,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             summary = {
                 'start_date': start_date,
                 'end_date': end_date,
+                'from_height': from_height,
+                'to_height': to_height,
                 'start_balance': Satoshis(start_balance),
                 'end_balance': Satoshis(end_balance),
                 'incoming': Satoshis(income),
