@@ -56,7 +56,8 @@ from .lnutil import (Outpoint, LNPeerAddr,
                      MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH, SENT, RECEIVED, HTLCOwner,
                      UpdateAddHtlc, Direction, LnFeatures, ShortChannelID,
-                     HtlcLog, derive_payment_secret_from_payment_preimage)
+                     HtlcLog, derive_payment_secret_from_payment_preimage,
+                     NoPathFound)
 from .lnutil import ln_dummy_address, ln_compare_features, IncompatibleLightningFeatures
 from .lnrouter import TrampolineEdge
 from .transaction import PartialTxOutput, PartialTransaction, PartialTxInput
@@ -197,11 +198,6 @@ class PaymentInfo(NamedTuple):
     amount_msat: Optional[int]
     direction: int
     status: int
-
-
-class NoPathFound(PaymentFailure):
-    def __str__(self):
-        return _('No path found')
 
 
 class ErrorAddingPeer(Exception): pass

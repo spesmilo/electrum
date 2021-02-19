@@ -290,6 +290,9 @@ class UpfrontShutdownScriptViolation(RemoteMisbehaving): pass
 class NotFoundChanAnnouncementForUpdate(Exception): pass
 
 class PaymentFailure(UserFacingException): pass
+class NoPathFound(PaymentFailure):
+    def __str__(self):
+        return _('No path found')
 
 # TODO make some of these values configurable?
 REDEEM_AFTER_DOUBLE_SPENT_DELAY = 30
