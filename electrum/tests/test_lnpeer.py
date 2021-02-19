@@ -175,6 +175,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     htlc_failed = LNWallet.htlc_failed
     save_preimage = LNWallet.save_preimage
     get_preimage = LNWallet.get_preimage
+    create_route_for_payment = LNWallet.create_route_for_payment
     create_routes_for_payment = LNWallet.create_routes_for_payment
     create_routes_from_invoice = LNWallet.create_routes_from_invoice
     _check_invoice = staticmethod(LNWallet._check_invoice)
@@ -189,6 +190,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     channels_for_peer = LNWallet.channels_for_peer
     _calc_routing_hints_for_invoice = LNWallet._calc_routing_hints_for_invoice
     handle_error_code_from_failed_htlc = LNWallet.handle_error_code_from_failed_htlc
+    channels_with_funds = LNWallet.channels_with_funds
 
 
 class MockTransport:
