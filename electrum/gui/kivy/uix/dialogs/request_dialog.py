@@ -50,7 +50,8 @@ Builder.load_string('''
             TopLabel:
                 text: (_('Address') if not root.is_lightning else _('Payment hash')) + ': '
             RefLabel:
-                text: root.key
+                data: root.key
+                name: (_('Address') if not root.is_lightning else _('Payment hash'))
             TopLabel:
                 text: _('Status') + ': ' + root.status_str
                 color: root.status_color
