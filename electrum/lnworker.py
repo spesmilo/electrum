@@ -1090,7 +1090,7 @@ class LNWallet(LNWorker):
                     routes = [(route, amount_to_send)]
                 # 2. send htlcs
                 for route, amount_msat in routes:
-                    await self.pay_to_route(route, amount_msat, payment_hash, payment_secret, min_cltv_expiry, trampoline_onion)
+                    await self.pay_to_route(route, amount_msat, amount_to_pay, payment_hash, payment_secret, min_cltv_expiry, trampoline_onion)
                     amount_inflight += amount_msat
                 util.trigger_callback('invoice_status', self.wallet, payment_hash.hex())
             # 3. await a queue
@@ -1106,8 +1106,9 @@ class LNWallet(LNWorker):
             # if we get a channel update, we might retry the same route and amount
             self.handle_error_code_from_failed_htlc(htlc_log)
 
-
-    async def pay_to_route(self, route: LNPaymentRoute, amount_msat:int, payment_hash:bytes, payment_secret:bytes, min_cltv_expiry:int, trampoline_onion:bytes =None):
+    async def pay_to_route(self, route: LNPaymentRoute, amount_msat: int,
+                           total_msat: int, payment_hash: bytes, payment_secret: bytes,
+                           min_cltv_expiry: int, trampoline_onion: bytes=None):
         # send a single htlc
         short_channel_id = route[0].short_channel_id
         chan = self.get_channel_by_short_id(short_channel_id)
@@ -1119,6 +1120,7 @@ class LNWallet(LNWorker):
             route=route,
             chan=chan,
             amount_msat=amount_msat,
+            total_msat=total_msat,
             payment_hash=payment_hash,
             min_final_cltv_expiry=min_cltv_expiry,
             payment_secret=payment_secret,

@@ -497,6 +497,7 @@ class TestPeer(ElectrumTestCase):
                 route=route1,
                 chan=alice_channel,
                 amount_msat=lnaddr2.get_amount_msat(),
+                total_msat=lnaddr2.get_amount_msat(),
                 payment_hash=lnaddr2.paymenthash,
                 min_final_cltv_expiry=lnaddr2.get_min_final_cltv_expiry(),
                 payment_secret=lnaddr2.payment_secret,
@@ -509,6 +510,7 @@ class TestPeer(ElectrumTestCase):
                 route=route2,
                 chan=bob_channel,
                 amount_msat=lnaddr1.get_amount_msat(),
+                total_msat=lnaddr1.get_amount_msat(),
                 payment_hash=lnaddr1.paymenthash,
                 min_final_cltv_expiry=lnaddr1.get_min_final_cltv_expiry(),
                 payment_secret=lnaddr1.payment_secret,
@@ -663,6 +665,7 @@ class TestPeer(ElectrumTestCase):
             htlc = p1.pay(route=route,
                           chan=alice_channel,
                           amount_msat=lnaddr.get_amount_msat(),
+                          total_msat=lnaddr.get_amount_msat(),
                           payment_hash=lnaddr.paymenthash,
                           min_final_cltv_expiry=lnaddr.get_min_final_cltv_expiry(),
                           payment_secret=lnaddr.payment_secret)
@@ -771,7 +774,7 @@ class TestPeer(ElectrumTestCase):
             min_cltv_expiry = lnaddr.get_min_final_cltv_expiry()
             payment_hash = lnaddr.paymenthash
             payment_secret = lnaddr.payment_secret
-            pay = w1.pay_to_route(route, amount_msat, payment_hash, payment_secret, min_cltv_expiry)
+            pay = w1.pay_to_route(route, amount_msat, amount_msat, payment_hash, payment_secret, min_cltv_expiry)
             await asyncio.gather(pay, p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         with self.assertRaises(PaymentFailure):
             run(f())

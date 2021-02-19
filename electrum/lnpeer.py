@@ -1196,7 +1196,7 @@ class Peer(Logger):
         self.send_message("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs))
 
     def pay(self, *, route: 'LNPaymentRoute', chan: Channel, amount_msat: int,
-            payment_hash: bytes, min_final_cltv_expiry: int,
+            total_msat: int, payment_hash: bytes, min_final_cltv_expiry: int,
             payment_secret: bytes = None, fwd_trampoline_onion=None) -> UpdateAddHtlc:
         assert amount_msat > 0, "amount_msat is not greater zero"
         assert len(route) > 0
@@ -1206,8 +1206,13 @@ class Peer(Logger):
         route[0].node_features |= self.features
         local_height = self.network.get_local_height()
         final_cltv = local_height + min_final_cltv_expiry
-        hops_data, amount_msat, cltv = calc_hops_data_for_payment(route, amount_msat, final_cltv,
-                                                                  payment_secret=payment_secret)
+        hops_data, amount_msat, cltv = calc_hops_data_for_payment(
+            route,
+            amount_msat,
+            total_msat,
+            final_cltv,
+            payment_secret=payment_secret
+        )
         self.logger.info(f"lnpeer.pay len(route)={len(route)}")
         for i in range(len(route)):
             self.logger.info(f"  {i}: edge={route[i].short_channel_id} hop_data={hops_data[i]!r}")
