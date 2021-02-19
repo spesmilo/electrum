@@ -967,12 +967,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             timestamp = item['timestamp']
             if from_timestamp and (timestamp or now) < from_timestamp:
                 continue
-            if to_timestamp and (timestamp or now) >= to_timestamp:
+            if to_timestamp and (timestamp or now) > to_timestamp:
                 continue
             height = item['height']
-            if from_height is not None and height < from_height:
+            if from_height is not None and (height < from_height and height != 0):
                 continue
-            if to_height is not None and height >= to_height:
+            if to_height is not None and (height >= to_height or height == 0):
                 continue
             tx_hash = item['txid']
             tx = self.db.get_transaction(tx_hash)
