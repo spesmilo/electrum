@@ -323,8 +323,9 @@ def prompt_password_asynch(vc : ObjCInstance, onOk : Callable, prompt : str = No
             if tup[0].ptr.value == alert.ptr.value:
                 _extant_pw_dialogs.pop(i)
                 break
-        tf.release()
-        tf = None
+        if tf is not None:
+            tf.release()
+            tf = None
         #print("*** alert cleaned up",alert.ptr.value, " dlgs len =", len(_extant_pw_dialogs))
         alert = None
     def MyOnOk() -> None:
