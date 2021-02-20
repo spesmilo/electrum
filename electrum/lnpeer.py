@@ -1540,21 +1540,9 @@ class Peer(Logger):
                 code=OnionFailureCode.FINAL_INCORRECT_HTLC_AMOUNT,
                 data=total_msat.to_bytes(8, byteorder="big"))
 
-        outgoing_node_id = processed_onion.hop_data.payload.get("outgoing_node_id")
-        if is_trampoline and outgoing_node_id:
-            return
-
         # if there is a trampoline_onion, perform the above checks on it
         if processed_onion.trampoline_onion_packet:
-            trampoline_onion = process_onion_packet(
-                processed_onion.trampoline_onion_packet,
-                associated_data=htlc.payment_hash,
-                our_onion_private_key=self.privkey)
-            return self.maybe_fulfill_htlc(
-                chan=chan,
-                htlc=htlc,
-                processed_onion=trampoline_onion,
-                is_trampoline=True)
+            return
 
         info = self.lnworker.get_payment_info(htlc.payment_hash)
         if info is None:
@@ -1877,12 +1865,19 @@ class Peer(Logger):
                         htlc.payment_hash,
                         onion_packet_bytes,
                         is_trampoline=True)
-                    self.maybe_forward_trampoline(
-                        chan=chan,
-                        htlc=htlc,
-                        trampoline_onion=trampoline_onion)
-                    # we return True so that this code gets executed only once
-                    return None, True, None
+                    if trampoline_onion.are_we_final:
+                        preimage = self.maybe_fulfill_htlc(
+                            chan=chan,
+                            htlc=htlc,
+                            processed_onion=trampoline_onion,
+                            is_trampoline=True)
+                    else:
+                        self.maybe_forward_trampoline(
+                            chan=chan,
+                            htlc=htlc,
+                            trampoline_onion=trampoline_onion)
+                        # return True so that this code gets executed only once
+                        return None, True, None
                 else:
                     preimage = self.lnworker.get_preimage(payment_hash)
                     error_reason = self.lnworker.trampoline_forwarding_failures.pop(payment_hash, None)
