@@ -425,8 +425,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.please_wait.setVisible(False)
 
     def exec_layout(self, layout, title=None, raise_on_cancel=True,
-                        next_enabled=True):
+                        next_enabled=True, focused_widget=None):
         self.set_layout(layout, title, next_enabled)
+        if focused_widget:
+            focused_widget.setFocus()
         result = self.loop.exec_()
         if not result and raise_on_cancel:
             raise UserCancelled()
@@ -521,14 +523,15 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return slayout.is_ext
 
     def pw_layout(self, msg, kind, force_disable_encrypt_cb):
-        playout = PasswordLayout(msg=msg, kind=kind, OK_button=self.next_button,
-                                 force_disable_encrypt_cb=force_disable_encrypt_cb)
-        playout.encrypt_cb.setChecked(True)
+        pw_layout = PasswordLayout(
+            msg=msg, kind=kind, OK_button=self.next_button,
+            force_disable_encrypt_cb=force_disable_encrypt_cb)
+        pw_layout.encrypt_cb.setChecked(True)
         try:
-            self.exec_layout(playout.layout())
-            return playout.new_password(), playout.encrypt_cb.isChecked()
+            self.exec_layout(pw_layout.layout(), focused_widget=pw_layout.new_pw)
+            return pw_layout.new_password(), pw_layout.encrypt_cb.isChecked()
         finally:
-            playout.clear_password_fields()
+            pw_layout.clear_password_fields()
 
     @wizard_dialog
     def request_password(self, run_next, force_disable_encrypt_cb=False):
