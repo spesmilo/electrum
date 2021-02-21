@@ -902,23 +902,28 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         # server_msg is untrusted input so it should not be shown to the user. see #4968
         server_msg = str(server_msg)
         server_msg = server_msg.replace("\n", r"\n")
-        # https://github.com/bitcoin/bitcoin/blob/cd42553b1178a48a16017eff0b70669c84c3895c/src/policy/policy.cpp
+        # https://github.com/bitcoin/bitcoin/blob/5bb64acd9d3ced6e6f95df282a1a0f8b98522cb0/src/policy/policy.cpp
         # grep "reason ="
         policy_error_messages = {
             r"version": _("Transaction uses non-standard version."),
             r"tx-size": _("The transaction was rejected because it is too large (in bytes)."),
             r"scriptsig-size": None,
             r"scriptsig-not-pushonly": None,
-            r"scriptpubkey": None,
+            r"scriptpubkey":
+                ("scriptpubkey\n" +
+                 _("Some of the outputs pay to a non-standard script.")),
             r"bare-multisig": None,
-            r"dust": _("Transaction could not be broadcast due to dust outputs."),
+            r"dust":
+                (_("Transaction could not be broadcast due to dust outputs.\n"
+                   "Some of the outputs are too small in value, probably lower than 1000 satoshis.\n"
+                   "Check the units, make sure you haven't confused e.g. mBTC and BTC.")),
             r"multi-op-return": _("The transaction was rejected because it contains multiple OP_RETURN outputs."),
         }
         for substring in policy_error_messages:
             if substring in server_msg:
                 msg = policy_error_messages[substring]
                 return msg if msg else substring
-        # https://github.com/bitcoin/bitcoin/blob/cd42553b1178a48a16017eff0b70669c84c3895c/src/script/script_error.cpp
+        # https://github.com/bitcoin/bitcoin/blob/5bb64acd9d3ced6e6f95df282a1a0f8b98522cb0/src/script/script_error.cpp
         script_error_messages = {
             r"Script evaluated without error but finished with a false/empty top stack element",
             r"Script failed an OP_VERIFY operation",
@@ -950,7 +955,11 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             r"Signature must be zero for failed CHECK(MULTI)SIG operation",
             r"NOPx reserved for soft-fork upgrades",
             r"Witness version reserved for soft-fork upgrades",
+            r"Taproot version reserved for soft-fork upgrades",
+            r"OP_SUCCESSx reserved for soft-fork upgrades",
+            r"Public key version reserved for soft-fork upgrades",
             r"Public key is neither compressed or uncompressed",
+            r"Stack size must be exactly one after execution",
             r"Extra items left on stack after execution",
             r"Witness program has incorrect length",
             r"Witness program was passed an empty witness",
@@ -959,78 +968,104 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             r"Witness requires only-redeemscript scriptSig",
             r"Witness provided for non-witness script",
             r"Using non-compressed keys in segwit",
+            r"Invalid Schnorr signature size",
+            r"Invalid Schnorr signature hash type",
+            r"Invalid Schnorr signature",
+            r"Invalid Taproot control block size",
+            r"Too much signature validation relative to witness weight",
+            r"OP_CHECKMULTISIG(VERIFY) is not available in tapscript",
+            r"OP_IF/NOTIF argument must be minimal in tapscript",
             r"Using OP_CODESEPARATOR in non-witness script",
             r"Signature is found in scriptCode",
         }
         for substring in script_error_messages:
             if substring in server_msg:
                 return substring
-        # https://github.com/bitcoin/bitcoin/blob/cd42553b1178a48a16017eff0b70669c84c3895c/src/validation.cpp
+        # https://github.com/bitcoin/bitcoin/blob/5bb64acd9d3ced6e6f95df282a1a0f8b98522cb0/src/validation.cpp
         # grep "REJECT_"
+        # grep "TxValidationResult"
         # should come after script_error.cpp (due to e.g. non-mandatory-script-verify-flag)
         validation_error_messages = {
-            r"coinbase",
-            r"tx-size-small",
-            r"non-final",
-            r"txn-already-in-mempool",
-            r"txn-mempool-conflict",
-            r"txn-already-known",
-            r"non-BIP68-final",
-            r"bad-txns-nonstandard-inputs",
-            r"bad-witness-nonstandard",
-            r"bad-txns-too-many-sigops",
-            r"mempool min fee not met",
-            r"min relay fee not met",
-            r"absurdly-high-fee",
-            r"too-long-mempool-chain",
-            r"bad-txns-spends-conflicting-tx",
-            r"insufficient fee",
-            r"too many potential replacements",
-            r"replacement-adds-unconfirmed",
-            r"mempool full",
-            r"non-mandatory-script-verify-flag",
-            r"mandatory-script-verify-flag-failed",
+            r"coinbase": None,
+            r"tx-size-small": None,
+            r"non-final": None,
+            r"txn-already-in-mempool": None,
+            r"txn-mempool-conflict": None,
+            r"txn-already-known": None,
+            r"non-BIP68-final": None,
+            r"bad-txns-nonstandard-inputs": None,
+            r"bad-witness-nonstandard": None,
+            r"bad-txns-too-many-sigops": None,
+            r"mempool min fee not met":
+                ("mempool min fee not met\n" +
+                 _("Your transaction is paying a fee that is so low that the bitcoin node cannot "
+                   "fit it into its mempool. The mempool is already full of hundreds of megabytes "
+                   "of transactions that all pay higher fees. Try to increase the fee.")),
+            r"min relay fee not met": None,
+            r"absurdly-high-fee": None,
+            r"max-fee-exceeded": None,
+            r"too-long-mempool-chain": None,
+            r"bad-txns-spends-conflicting-tx": None,
+            r"insufficient fee": ("insufficient fee\n" +
+                 _("Your transaction is trying to replace another one in the mempool but it "
+                   "does not meet the rules to do so. Try to increase the fee.")),
+            r"too many potential replacements": None,
+            r"replacement-adds-unconfirmed": None,
+            r"mempool full": None,
+            r"non-mandatory-script-verify-flag": None,
+            r"mandatory-script-verify-flag-failed": None,
+            r"Transaction check failed": None,
         }
         for substring in validation_error_messages:
             if substring in server_msg:
-                return substring
-        # https://github.com/bitcoin/bitcoin/blob/cd42553b1178a48a16017eff0b70669c84c3895c/src/rpc/rawtransaction.cpp
+                msg = validation_error_messages[substring]
+                return msg if msg else substring
+        # https://github.com/bitcoin/bitcoin/blob/5bb64acd9d3ced6e6f95df282a1a0f8b98522cb0/src/rpc/rawtransaction.cpp
+        # https://github.com/bitcoin/bitcoin/blob/5bb64acd9d3ced6e6f95df282a1a0f8b98522cb0/src/util/error.cpp
         # grep "RPC_TRANSACTION"
         # grep "RPC_DESERIALIZATION_ERROR"
-        # https://github.com/bitcoin/bitcoin/blob/d7d7d315060620446bd363ca50f95f79d3260db7/src/util/error.cpp
         rawtransaction_error_messages = {
-            r"Missing inputs",
-            r"transaction already in block chain",
-            r"Transaction already in block chain",
-            r"TX decode failed",
-            r"Peer-to-peer functionality missing or disabled",
-            r"Transaction rejected by AcceptToMemoryPool",
-            r"AcceptToMemoryPool failed",
+            r"Missing inputs": None,
+            r"Inputs missing or spent": None,
+            r"transaction already in block chain": None,
+            r"Transaction already in block chain": None,
+            r"TX decode failed": None,
+            r"Peer-to-peer functionality missing or disabled": None,
+            r"Transaction rejected by AcceptToMemoryPool": None,
+            r"AcceptToMemoryPool failed": None,
+            r"Fee exceeds maximum configured by user": None,
         }
         for substring in rawtransaction_error_messages:
             if substring in server_msg:
-                return substring
-        # https://github.com/bitcoin/bitcoin/blob/cd42553b1178a48a16017eff0b70669c84c3895c/src/consensus/tx_verify.cpp
+                msg = rawtransaction_error_messages[substring]
+                return msg if msg else substring
+        # https://github.com/bitcoin/bitcoin/blob/5bb64acd9d3ced6e6f95df282a1a0f8b98522cb0/src/consensus/tx_verify.cpp
+        # https://github.com/bitcoin/bitcoin/blob/c7ad94428ab6f54661d7a5441e1fdd0ebf034903/src/consensus/tx_check.cpp
         # grep "REJECT_"
+        # grep "TxValidationResult"
         tx_verify_error_messages = {
-            r"bad-txns-vin-empty",
-            r"bad-txns-vout-empty",
-            r"bad-txns-oversize",
-            r"bad-txns-vout-negative",
-            r"bad-txns-vout-toolarge",
-            r"bad-txns-txouttotal-toolarge",
-            r"bad-txns-inputs-duplicate",
-            r"bad-cb-length",
-            r"bad-txns-prevout-null",
-            r"bad-txns-inputs-missingorspent",
-            r"bad-txns-premature-spend-of-coinbase",
-            r"bad-txns-inputvalues-outofrange",
-            r"bad-txns-in-belowout",
-            r"bad-txns-fee-outofrange",
+            r"bad-txns-vin-empty": None,
+            r"bad-txns-vout-empty": None,
+            r"bad-txns-oversize": None,
+            r"bad-txns-vout-negative": None,
+            r"bad-txns-vout-toolarge": None,
+            r"bad-txns-txouttotal-toolarge": None,
+            r"bad-txns-inputs-duplicate": None,
+            r"bad-cb-length": None,
+            r"bad-txns-prevout-null": None,
+            r"bad-txns-inputs-missingorspent":
+                ("bad-txns-inputs-missingorspent\n" +
+                 _("You might have a local transaction in your wallet that this transaction "
+                   "builds on top. You need to either broadcast or remove the local tx.")),
+            r"bad-txns-premature-spend-of-coinbase": None,
+            r"bad-txns-inputvalues-outofrange": None,
+            r"bad-txns-in-belowout": None,
+            r"bad-txns-fee-outofrange": None,
         }
         for substring in tx_verify_error_messages:
             if substring in server_msg:
-                return substring
+                msg = tx_verify_error_messages[substring]
+                return msg if msg else substring
         # otherwise:
         return _("Unknown error")
 
