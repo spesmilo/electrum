@@ -190,7 +190,6 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     channels_for_peer = LNWallet.channels_for_peer
     _calc_routing_hints_for_invoice = LNWallet._calc_routing_hints_for_invoice
     handle_error_code_from_failed_htlc = LNWallet.handle_error_code_from_failed_htlc
-    channels_with_funds = LNWallet.channels_with_funds
 
 
 class MockTransport:
