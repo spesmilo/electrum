@@ -1004,6 +1004,7 @@ class LNWallet(LNWorker):
             invoice_pubkey=decoded_invoice.pubkey.serialize(),
             min_cltv_expiry=decoded_invoice.get_min_final_cltv_expiry(),
             r_tags=decoded_invoice.get_routing_info('r'),
+            t_tags=decoded_invoice.get_routing_info('t'),
             invoice_features=decoded_invoice.get_tag('9') or 0,
             full_path=full_path)
 
@@ -1081,14 +1082,9 @@ class LNWallet(LNWorker):
                 # 1. create a set of routes for remaining amount.
                 # note: path-finding runs in a separate thread so that we don't block the asyncio loop
                 # graph updates might occur during the computation
-                if self.channel_db:
-                    routes = await run_in_thread(partial(
-                        self.create_routes_for_payment, amount_to_send, node_pubkey,
-                        min_cltv_expiry, r_tags, invoice_features, full_path=full_path))
-                else:
-                    route = await self.create_trampoline_route(
-                        amount_to_send, node_pubkey, invoice_features, r_tags, t_tags)
-                    routes = [(route, amount_to_send)]
+                routes = await run_in_thread(partial(
+                    self.create_routes_for_payment, amount_to_send, node_pubkey,
+                    min_cltv_expiry, r_tags, t_tags, invoice_features, full_path=full_path))
                 # 2. send htlcs
                 for route, amount_msat in routes:
                     await self.pay_to_route(route, amount_msat, amount_to_pay, payment_hash, payment_secret, min_cltv_expiry, trampoline_onion)
@@ -1275,9 +1271,11 @@ class LNWallet(LNWorker):
     def suggest_peer(self):
         return self.lnrater.suggest_peer() if self.channel_db else random.choice(list(hardcoded_trampoline_nodes().values())).pubkey
 
-    @log_exceptions
-    async def create_trampoline_route(
-            self, amount_msat:int, invoice_pubkey:bytes, invoice_features:int,
+    def create_trampoline_route(
+            self, amount_msat:int,
+            invoice_pubkey:bytes,
+            invoice_features:int,
+            channels: List[Channel],
             r_tags, t_tags) -> LNPaymentRoute:
         """ return the route that leads to trampoline, and the trampoline fake edge"""
 
@@ -1297,7 +1295,7 @@ class LNWallet(LNWorker):
             is_legacy = True
 
         # Find a trampoline. We assume we have a direct channel to trampoline
-        for chan in list(self.channels.values()):
+        for chan in channels:
             if not self.is_trampoline_peer(chan.node_id):
                 continue
             if chan.is_active() and chan.can_pay(amount_msat, check_frozen=True):
@@ -1384,7 +1382,7 @@ class LNWallet(LNWorker):
             amount_msat: int,
             invoice_pubkey,
             min_cltv_expiry,
-            r_tags,
+            r_tags, t_tags,
             invoice_features,
             *, full_path: LNPaymentPath = None) -> Sequence[Tuple[LNPaymentRoute, int]]:
         """Creates multiple routes for splitting a payment over the available
@@ -1398,7 +1396,7 @@ class LNWallet(LNWorker):
                 amount_msat,
                 invoice_pubkey,
                 min_cltv_expiry,
-                r_tags,
+                r_tags, t_tags,
                 invoice_features,
                 None,
                 full_path=full_path
@@ -1427,7 +1425,7 @@ class LNWallet(LNWorker):
                                 part_amount_msat,
                                 invoice_pubkey,
                                 min_cltv_expiry,
-                                r_tags,
+                                r_tags, t_tags,
                                 invoice_features,
                                 channel,
                                 full_path=None)
@@ -1444,19 +1442,22 @@ class LNWallet(LNWorker):
             amount_msat: int,
             invoice_pubkey,
             min_cltv_expiry,
-            r_tags,
+            r_tags, t_tags,
             invoice_features,
             outgoing_channel: Channel = None,
             *, full_path: Optional[LNPaymentPath]) -> Tuple[LNPaymentRoute, int]:
-        route = None
-        # we can constrain the payment to a single outgoing channel
-        if outgoing_channel:
-            channels = [outgoing_channel]
-        else:
-            channels = list(self.channels.values())
-        scid_to_my_channels = {chan.short_channel_id: chan for chan in channels
-                               if chan.short_channel_id is not None}
 
+        channels = [outgoing_channel] if outgoing_channel else list(self.channels.values())
+        if not self.channel_db:
+            route = self.create_trampoline_route(
+                amount_msat, invoice_pubkey, invoice_features, channels, r_tags, t_tags)
+            return route, amount_msat
+
+        route = None
+        scid_to_my_channels = {
+            chan.short_channel_id: chan for chan in channels
+            if chan.short_channel_id is not None
+        }
         blacklist = self.network.channel_blacklist.get_current_list()
         for private_route in r_tags:
             if len(private_route) == 0:
@@ -1528,7 +1529,6 @@ class LNWallet(LNWorker):
             raise LNPathInconsistent("last node_id != invoice pubkey")
         # add features from invoice
         route[-1].node_features |= invoice_features
-        # return a list of routes
         return route, amount_msat
 
     def add_request(self, amount_sat, message, expiry) -> str:
