@@ -76,8 +76,8 @@ class Peer(Logger):
         self.pubkey = pubkey  # remote pubkey
         self.lnworker = lnworker
         self.privkey = self.transport.privkey  # local privkey
-        self.features = self.lnworker.features
-        self.their_features = 0
+        self.features = self.lnworker.features  # type: LnFeatures
+        self.their_features = LnFeatures(0)  # type: LnFeatures
         self.node_ids = [self.pubkey, privkey_to_pubkey(self.privkey)]
         assert self.node_ids[0] != self.node_ids[1]
         self.network = lnworker.network
@@ -491,10 +491,10 @@ class Peer(Logger):
         self.lnworker.peer_closed(self)
 
     def is_static_remotekey(self):
-        return bool(self.features & LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
+        return self.features.supports(LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
 
     def is_upfront_shutdown_script(self):
-        return bool(self.features & LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT)
+        return self.features.supports(LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT)
 
     def upfront_shutdown_script_from_payload(self, payload, msg_identifier: str) -> Optional[bytes]:
         if msg_identifier not in ['accept', 'open']:
@@ -917,7 +917,7 @@ class Peer(Logger):
         oldest_unrevoked_remote_ctn = chan.get_oldest_unrevoked_ctn(REMOTE)
         latest_remote_ctn = chan.get_latest_ctn(REMOTE)
         next_remote_ctn = chan.get_next_ctn(REMOTE)
-        assert self.features & LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
+        assert self.features.supports(LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT)
         # send message
         if chan.is_static_remotekey_enabled():
             latest_secret, latest_point = chan.get_secret_and_point(LOCAL, 0)

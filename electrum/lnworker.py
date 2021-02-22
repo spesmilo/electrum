@@ -228,7 +228,7 @@ LNGOSSIP_FEATURES = BASE_FEATURES\
 
 class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
 
-    def __init__(self, xprv, features):
+    def __init__(self, xprv, features: LnFeatures):
         Logger.__init__(self)
         NetworkRetryManager.__init__(
             self,
@@ -1264,7 +1264,7 @@ class LNWallet(LNWorker):
         if is_hardcoded_trampoline(node_id):
             return True
         peer = self._peers.get(node_id)
-        if peer and bool(peer.their_features & LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT):
+        if peer and peer.their_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT):
             return True
         return False
 
@@ -1279,9 +1279,11 @@ class LNWallet(LNWorker):
             r_tags, t_tags) -> LNPaymentRoute:
         """ return the route that leads to trampoline, and the trampoline fake edge"""
 
+        invoice_features = LnFeatures(invoice_features)
+
         # We do not set trampoline_routing_opt in our invoices, because the spec is not ready
         # Do not use t_tags if the flag is set, because we the format is not decided yet
-        if invoice_features & LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT:
+        if invoice_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT):
             is_legacy = False
             if len(r_tags) > 0 and len(r_tags[0]) == 1:
                 pubkey, scid, feebase, feerate, cltv = r_tags[0][0]
@@ -1390,6 +1392,7 @@ class LNWallet(LNWorker):
 
         We first try to conduct the payment over a single channel. If that fails
         and mpp is supported by the receiver, we will split the payment."""
+        invoice_features = LnFeatures(invoice_features)
         # try to send over a single channel
         try:
             routes = [self.create_route_for_payment(
@@ -1402,7 +1405,7 @@ class LNWallet(LNWorker):
                 full_path=full_path
             )]
         except NoPathFound:
-            if not invoice_features & LnFeatures.BASIC_MPP_OPT:
+            if not invoice_features.supports(LnFeatures.BASIC_MPP_OPT):
                 raise
             channels_with_funds = dict([
                 (cid, int(chan.available_to_spend(HTLCOwner.LOCAL)))

@@ -8,7 +8,8 @@ from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_see
                              make_htlc_tx_inputs, secret_to_pubkey, derive_blinded_pubkey, derive_privkey,
                              derive_pubkey, make_htlc_tx, extract_ctn_from_tx, UnableToDeriveSecret,
                              get_compressed_pubkey_from_bech32, split_host_port, ConnStringFormatError,
-                             ScriptHtlc, extract_nodeid, calc_fees_for_commitment_tx, UpdateAddHtlc, LnFeatures)
+                             ScriptHtlc, extract_nodeid, calc_fees_for_commitment_tx, UpdateAddHtlc, LnFeatures,
+                             ln_compare_features, IncompatibleLightningFeatures)
 from electrum.util import bh2u, bfh, MyEncoder
 from electrum.transaction import Transaction, PartialTransaction
 from electrum.lnworker import LNWallet
@@ -806,6 +807,69 @@ class TestLNUtil(ElectrumTestCase):
                          features.for_invoice())
         features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_REQ
         self.assertEqual(features, features.for_invoice())
+
+    def test_ln_compare_features(self):
+        f1 = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ | LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
+        f2 = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        self.assertEqual(LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ | LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT,
+                         ln_compare_features(f1, f2))
+        self.assertEqual(LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ | LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT,
+                         ln_compare_features(f2, f1))
+        # note that the args are not commutative; if we (first arg) REQ a feature, OPT will get auto-set
+        f1 = LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
+        f2 = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        self.assertEqual(LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT,
+                         ln_compare_features(f1, f2))
+        self.assertEqual(LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ | LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT,
+                         ln_compare_features(f2, f1))
+
+        f1 = LnFeatures(0)
+        f2 = LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
+        self.assertEqual(LnFeatures(0), ln_compare_features(f1, f2))
+        self.assertEqual(LnFeatures(0), ln_compare_features(f2, f1))
+
+        f1 = LnFeatures(0)
+        f2 = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        with self.assertRaises(IncompatibleLightningFeatures):
+            ln_compare_features(f1, f2)
+        with self.assertRaises(IncompatibleLightningFeatures):
+            ln_compare_features(f2, f1)
+
+        f1 = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT | LnFeatures.VAR_ONION_OPT
+        f2 = LnFeatures.PAYMENT_SECRET_OPT | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ | LnFeatures.VAR_ONION_OPT
+        self.assertEqual(LnFeatures.PAYMENT_SECRET_OPT |
+                         LnFeatures.PAYMENT_SECRET_REQ |
+                         LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT |
+                         LnFeatures.VAR_ONION_OPT,
+                         ln_compare_features(f1, f2))
+        self.assertEqual(LnFeatures.PAYMENT_SECRET_OPT |
+                         LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT |
+                         LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ |
+                         LnFeatures.VAR_ONION_OPT,
+                         ln_compare_features(f2, f1))
+
+    def test_ln_features_supports(self):
+        f_null = LnFeatures(0)
+        f_opt = LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
+        f_req = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        f_optreq = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ | LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
+        self.assertFalse(f_null.supports(LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT))
+        self.assertFalse(f_null.supports(LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ))
+        self.assertTrue(f_opt.supports(LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT))
+        self.assertTrue(f_opt.supports(LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ))
+        self.assertTrue(f_req.supports(LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT))
+        self.assertTrue(f_req.supports(LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ))
+        self.assertTrue(f_optreq.supports(LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT))
+        self.assertTrue(f_optreq.supports(LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ))
+        with self.assertRaises(ValueError):
+            f_opt.supports(f_optreq)
+        with self.assertRaises(ValueError):
+            f_optreq.supports(f_optreq)
+        f1 = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT | LnFeatures.VAR_ONION_OPT
+        self.assertTrue(f1.supports(LnFeatures.PAYMENT_SECRET_OPT))
+        self.assertTrue(f1.supports(LnFeatures.BASIC_MPP_REQ))
+        self.assertFalse(f1.supports(LnFeatures.OPTION_STATIC_REMOTEKEY_OPT))
+        self.assertFalse(f1.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_REQ))
 
     def test_lnworker_decode_channel_update_msg(self):
         msg_without_prefix = bytes.fromhex("439b71c8ddeff63004e4ff1f9764a57dcf20232b79d9d669aef0e31c42be8e44208f7d868d0133acb334047f30e9399dece226ccd98e5df5330adf7f356290516fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d619000000000008762700054a00005ef2cf9c0101009000000000000003e80000000000000001000000002367b880")

@@ -1013,6 +1013,23 @@ class LnFeatures(IntFlag):
                 features |= (1 << flag)
         return features
 
+    def supports(self, feature: 'LnFeatures') -> bool:
+        """Returns whether given feature is enabled.
+
+        Helper function that tries to hide the complexity of even/odd bits.
+        For example, instead of:
+          bool(myfeatures & LnFeatures.VAR_ONION_OPT or myfeatures & LnFeatures.VAR_ONION_REQ)
+        you can do:
+          myfeatures.supports(LnFeatures.VAR_ONION_OPT)
+        """
+        enabled_bits = list_enabled_bits(feature)
+        if len(enabled_bits) != 1:
+            raise ValueError(f"'feature' cannot be a combination of features: {feature}")
+        flag = enabled_bits[0]
+        our_flags = set(list_enabled_bits(self))
+        return (flag in our_flags
+                or get_ln_flag_pair_of_bit(flag) in our_flags)
+
 
 del LNFC  # name is ambiguous without context
 
