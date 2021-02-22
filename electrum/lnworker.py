@@ -1378,16 +1378,6 @@ class LNWallet(LNWorker):
                 node_features=trampoline_features))
         return route
 
-    def channels_with_funds(self) -> Dict[bytes, int]:
-        """Determines a dict of channels (keyed by channel id in bytes) that
-        maps to their spendable amounts."""
-        with self.lock:
-            channels = {}
-            for cid, chan in self._channels.items():
-                spend_amount = int(chan.available_to_spend(HTLCOwner.LOCAL))
-                channels[cid] = spend_amount
-            return channels
-
     @profiler
     def create_routes_for_payment(
             self,
@@ -1402,8 +1392,8 @@ class LNWallet(LNWorker):
 
         We first try to conduct the payment over a single channel. If that fails
         and mpp is supported by the receiver, we will split the payment."""
-
-        try:  # to send over a single channel
+        # try to send over a single channel
+        try:
             routes = [self.create_route_for_payment(
                 amount_msat,
                 invoice_pubkey,
@@ -1414,49 +1404,40 @@ class LNWallet(LNWorker):
                 full_path=full_path
             )]
         except NoPathFound:
-            if invoice_features & LnFeatures.BASIC_MPP_OPT:
-                # Create split configurations that are rated according to our
-                # preference (low rating=high preference).
-                split_configurations = suggest_splits(
-                    amount_msat,
-                    self.channels_with_funds()
-                )
-
-                self.logger.info("Created the following splitting configurations.")
-                for s in split_configurations:
-                    self.logger.info(f"{s[0]} rating: {s[1]}")
-
-                routes = []
-                for s in split_configurations:
-                    try:
-                        for chanid, part_amount_msat in s[0].items():
-                            if part_amount_msat:
-                                channel = self.channels[chanid]
-                                # It could happen that the pathfinding uses a channel
-                                # in the graph multiple times, meaning we could exhaust
-                                # its capacity. This could be dealt with by temporarily
-                                # iteratively blacklisting channels for this mpp attempt.
-                                route, amt = self.create_route_for_payment(
-                                    part_amount_msat,
-                                    invoice_pubkey,
-                                    min_cltv_expiry,
-                                    r_tags,
-                                    invoice_features,
-                                    channel,
-                                    full_path=None
-                                )
-                                routes.append((route, amt))
-                        break
-                    except NoPathFound:
-                        routes = []
-                        continue
-            else:
+            if not invoice_features & LnFeatures.BASIC_MPP_OPT:
                 raise
-
-        if not routes:
-            raise NoPathFound
-        else:
-            return routes
+            channels_with_funds = dict([
+                (cid, int(chan.available_to_spend(HTLCOwner.LOCAL)))
+                for cid, chan in self._channels.items()])
+            # Create split configurations that are rated according to our
+            # preference -funds = (low rating=high preference).
+            split_configurations = suggest_splits(amount_msat, channels_with_funds)
+            for s in split_configurations:
+                self.logger.info(f"trying split configuration: {s[0]} rating: {s[1]}")
+                routes = []
+                try:
+                    for chanid, part_amount_msat in s[0].items():
+                        if part_amount_msat:
+                            channel = self.channels[chanid]
+                            # It could happen that the pathfinding uses a channel
+                            # in the graph multiple times, meaning we could exhaust
+                            # its capacity. This could be dealt with by temporarily
+                            # iteratively blacklisting channels for this mpp attempt.
+                            route, amt = self.create_route_for_payment(
+                                part_amount_msat,
+                                invoice_pubkey,
+                                min_cltv_expiry,
+                                r_tags,
+                                invoice_features,
+                                channel,
+                                full_path=None)
+                            routes.append((route, amt))
+                    break
+                except NoPathFound:
+                    continue
+            else:
+                raise NoPathFound
+        return routes
 
     def create_route_for_payment(
             self,
