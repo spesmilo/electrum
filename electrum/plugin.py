@@ -598,6 +598,8 @@ class DeviceMgr(ThreadJob):
                 continue
             try:
                 client = self.create_client(device, handler, plugin)
+                if not client:
+                    continue
                 label = client.label()
                 is_initialized = client.is_initialized()
                 soft_device_id = client.get_soft_device_id()
@@ -606,8 +608,6 @@ class DeviceMgr(ThreadJob):
                 self.logger.error(f'failed to create client for {plugin.name} at {device.path}: {repr(e)}')
                 if include_failing_clients:
                     infos.append(DeviceInfo(device=device, exception=e, plugin_name=plugin.name))
-                continue
-            if not client:
                 continue
             infos.append(DeviceInfo(device=device,
                                     label=label,
