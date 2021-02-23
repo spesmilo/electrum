@@ -290,6 +290,9 @@ class UpfrontShutdownScriptViolation(RemoteMisbehaving): pass
 class NotFoundChanAnnouncementForUpdate(Exception): pass
 
 class PaymentFailure(UserFacingException): pass
+class NoPathFound(PaymentFailure):
+    def __str__(self):
+        return _('No path found')
 
 # TODO make some of these values configurable?
 REDEEM_AFTER_DOUBLE_SPENT_DELAY = 30
@@ -946,8 +949,8 @@ class LnFeatures(IntFlag):
 
     OPTION_SUPPORT_LARGE_CHANNEL_REQ = 1 << 18
     OPTION_SUPPORT_LARGE_CHANNEL_OPT = 1 << 19
-    _ln_feature_contexts[OPTION_SUPPORT_LARGE_CHANNEL_OPT] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.CHAN_ANN_ALWAYS_EVEN)
-    _ln_feature_contexts[OPTION_SUPPORT_LARGE_CHANNEL_REQ] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.CHAN_ANN_ALWAYS_EVEN)
+    _ln_feature_contexts[OPTION_SUPPORT_LARGE_CHANNEL_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
+    _ln_feature_contexts[OPTION_SUPPORT_LARGE_CHANNEL_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
 
     OPTION_TRAMPOLINE_ROUTING_REQ = 1 << 50
     OPTION_TRAMPOLINE_ROUTING_OPT = 1 << 51
@@ -1010,6 +1013,23 @@ class LnFeatures(IntFlag):
                 features |= (1 << flag)
         return features
 
+    def supports(self, feature: 'LnFeatures') -> bool:
+        """Returns whether given feature is enabled.
+
+        Helper function that tries to hide the complexity of even/odd bits.
+        For example, instead of:
+          bool(myfeatures & LnFeatures.VAR_ONION_OPT or myfeatures & LnFeatures.VAR_ONION_REQ)
+        you can do:
+          myfeatures.supports(LnFeatures.VAR_ONION_OPT)
+        """
+        enabled_bits = list_enabled_bits(feature)
+        if len(enabled_bits) != 1:
+            raise ValueError(f"'feature' cannot be a combination of features: {feature}")
+        flag = enabled_bits[0]
+        our_flags = set(list_enabled_bits(self))
+        return (flag in our_flags
+                or get_ln_flag_pair_of_bit(flag) in our_flags)
+
 
 del LNFC  # name is ambiguous without context
 
@@ -1023,6 +1043,7 @@ LN_FEATURES_IMPLEMENTED = (
         | LnFeatures.OPTION_STATIC_REMOTEKEY_OPT | LnFeatures.OPTION_STATIC_REMOTEKEY_REQ
         | LnFeatures.VAR_ONION_OPT | LnFeatures.VAR_ONION_REQ
         | LnFeatures.PAYMENT_SECRET_OPT | LnFeatures.PAYMENT_SECRET_REQ
+        | LnFeatures.BASIC_MPP_OPT | LnFeatures.BASIC_MPP_REQ
         | LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT | LnFeatures.OPTION_TRAMPOLINE_ROUTING_REQ
 )
 

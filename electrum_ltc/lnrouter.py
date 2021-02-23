@@ -96,8 +96,8 @@ class RouteEdge(PathEdge):
         return True
 
     def has_feature_varonion(self) -> bool:
-        features = self.node_features
-        return bool(features & LnFeatures.VAR_ONION_REQ or features & LnFeatures.VAR_ONION_OPT)
+        features = LnFeatures(self.node_features)
+        return features.supports(LnFeatures.VAR_ONION_OPT)
 
     def is_trampoline(self):
         return False
