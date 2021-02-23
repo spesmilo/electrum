@@ -292,11 +292,7 @@ class AddressSynchronizer(Logger):
                     # this is a local tx that conflicts with non-local txns; drop.
                     return False
                 # keep this txn and remove all conflicting
-                to_remove = set()
-                to_remove |= conflicting_txns
-                for conflicting_tx_hash in conflicting_txns:
-                    to_remove |= self.get_depending_transactions(conflicting_tx_hash)
-                for tx_hash2 in to_remove:
+                for tx_hash2 in conflicting_txns:
                     self.remove_transaction(tx_hash2)
             # add inputs
             def add_value_from_prev_output():
@@ -342,6 +338,19 @@ class AddressSynchronizer(Logger):
             return True
 
     def remove_transaction(self, tx_hash: str) -> None:
+        """Removes a transaction AND all its dependents/children
+        from the wallet history.
+        """
+        with self.lock, self.transaction_lock:
+            to_remove = {tx_hash}
+            to_remove |= self.get_depending_transactions(tx_hash)
+            for txid in to_remove:
+                self._remove_transaction(txid)
+
+    def _remove_transaction(self, tx_hash: str) -> None:
+        """Removes a single transaction from the wallet history, and attempts
+         to undo all effects of the tx (spending inputs, creating outputs, etc).
+        """
         def remove_from_spent_outpoints():
             # undo spends in spent_outpoints
             if tx is not None:

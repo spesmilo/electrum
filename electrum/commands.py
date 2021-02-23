@@ -293,6 +293,7 @@ class Commands:
     def _setconfig_normalize_value(cls, key, value):
         if key not in ('rpcuser', 'rpcpassword'):
             value = json_decode(value)
+            # call literal_eval for backward compatibility (see #4225)
             try:
                 value = ast.literal_eval(value)
             except:
@@ -303,6 +304,10 @@ class Commands:
     async def setconfig(self, key, value):
         """Set a configuration variable. 'value' may be a string or a Python expression."""
         value = self._setconfig_normalize_value(key, value)
+        if self.daemon and key == 'rpcuser':
+            self.daemon.commands_server.rpc_user = value
+        if self.daemon and key == 'rpcpassword':
+            self.daemon.commands_server.rpc_password = value
         self.config.set_key(key, value)
         return True
 
@@ -313,10 +318,10 @@ class Commands:
         return self.config.get_ssl_domain()
 
     @command('')
-    async def make_seed(self, nbits=132, language=None, seed_type=None):
+    async def make_seed(self, nbits=None, language=None, seed_type=None):
         """Create a seed"""
         from .mnemonic import Mnemonic
-        s = Mnemonic(language).make_seed(seed_type, num_bits=nbits)
+        s = Mnemonic(language).make_seed(seed_type=seed_type, num_bits=nbits)
         return s
 
     @command('n')
@@ -355,7 +360,7 @@ class Commands:
         """
         keypairs = {}
         inputs = []  # type: List[PartialTxInput]
-        locktime = jsontx.get('lockTime', 0)
+        locktime = jsontx.get('locktime', 0)
         for txin_dict in jsontx.get('inputs'):
             if txin_dict.get('prevout_hash') is not None and txin_dict.get('prevout_n') is not None:
                 prevout = TxOutpoint(txid=bfh(txin_dict['prevout_hash']), out_idx=int(txin_dict['prevout_n']))
@@ -364,7 +369,7 @@ class Commands:
             else:
                 raise Exception("missing prevout for txin")
             txin = PartialTxInput(prevout=prevout)
-            txin._trusted_value_sats = int(txin_dict['value'])
+            txin._trusted_value_sats = int(txin_dict.get('value', txin_dict['value_sats']))
             nsequence = txin_dict.get('nsequence', None)
             if nsequence is not None:
                 txin.nsequence = nsequence
@@ -378,7 +383,7 @@ class Commands:
                 txin.num_sig = 1
             inputs.append(txin)
 
-        outputs = [PartialTxOutput.from_address_and_value(txout['address'], int(txout['value']))
+        outputs = [PartialTxOutput.from_address_and_value(txout['address'], int(txout.get('value', txout['value_sats'])))
                    for txout in jsontx.get('outputs')]
         tx = PartialTransaction.from_io(inputs, outputs, locktime=locktime)
         tx.sign(keypairs)
@@ -418,14 +423,26 @@ class Commands:
         return {'address':address, 'redeemScript':redeem_script}
 
     @command('w')
-    async def freeze(self, address, wallet: Abstract_Wallet = None):
+    async def freeze(self, address: str, wallet: Abstract_Wallet = None):
         """Freeze address. Freeze the funds at one of your wallet\'s addresses"""
         return wallet.set_frozen_state_of_addresses([address], True)
 
     @command('w')
-    async def unfreeze(self, address, wallet: Abstract_Wallet = None):
+    async def unfreeze(self, address: str, wallet: Abstract_Wallet = None):
         """Unfreeze address. Unfreeze the funds at one of your wallet\'s address"""
         return wallet.set_frozen_state_of_addresses([address], False)
+
+    @command('w')
+    async def freeze_utxo(self, coin: str, wallet: Abstract_Wallet = None):
+        """Freeze a UTXO so that the wallet will not spend it."""
+        wallet.set_frozen_state_of_coins([coin], True)
+        return True
+
+    @command('w')
+    async def unfreeze_utxo(self, coin: str, wallet: Abstract_Wallet = None):
+        """Unfreeze a UTXO so that the wallet might spend it."""
+        wallet.set_frozen_state_of_coins([coin], False)
+        return True
 
     @command('wp')
     async def getprivatekeys(self, address, password=None, wallet: Abstract_Wallet = None):
@@ -561,12 +578,14 @@ class Commands:
         privkeys = privkey.split()
         self.nocheck = nocheck
         #dest = self._resolver(destination)
-        tx = sweep(privkeys,
-                   network=self.network,
-                   config=self.config,
-                   to_address=destination,
-                   fee=tx_fee,
-                   imax=imax)
+        tx = await sweep(
+            privkeys,
+            network=self.network,
+            config=self.config,
+            to_address=destination,
+            fee=tx_fee,
+            imax=imax,
+        )
         return tx.serialize() if tx else None
 
     @command('wp')
@@ -643,10 +662,13 @@ class Commands:
         return result
 
     @command('w')
-    async def onchain_history(self, year=None, show_addresses=False, show_fiat=False, wallet: Abstract_Wallet = None):
+    async def onchain_history(self, year=None, show_addresses=False, show_fiat=False, wallet: Abstract_Wallet = None,
+                              from_height=None, to_height=None):
         """Wallet onchain history. Returns the transaction history of your wallet."""
         kwargs = {
             'show_addresses': show_addresses,
+            'from_height': from_height,
+            'to_height': to_height,
         }
         if year:
             import time
@@ -658,6 +680,7 @@ class Commands:
             from .exchange_rate import FxThread
             fx = FxThread(self.config, None)
             kwargs['fx'] = fx
+
         return json_normalize(wallet.get_detailed_history(**kwargs))
 
     @command('w')
@@ -926,13 +949,10 @@ class Commands:
         if not is_hash256_str(txid):
             raise Exception(f"{repr(txid)} is not a txid")
         height = wallet.get_tx_height(txid).height
-        to_delete = {txid}
         if height != TX_HEIGHT_LOCAL:
             raise Exception(f'Only local transactions can be removed. '
                             f'This tx has height: {height} != {TX_HEIGHT_LOCAL}')
-        to_delete |= wallet.get_depending_transactions(txid)
-        for tx_hash in to_delete:
-            wallet.remove_transaction(tx_hash)
+        wallet.remove_transaction(txid)
         wallet.save_db()
 
     @command('wn')
@@ -995,7 +1015,7 @@ class Commands:
         lnaddr = lnworker._check_invoice(invoice)
         payment_hash = lnaddr.paymenthash
         wallet.save_invoice(LNInvoice.from_bech32(invoice))
-        success, log = await lnworker._pay(invoice, attempts=attempts)
+        success, log = await lnworker.pay_invoice(invoice, attempts=attempts)
         return {
             'payment_hash': payment_hash.hex(),
             'success': success,
@@ -1108,7 +1128,11 @@ class Commands:
         else:
             lightning_amount_sat = satoshis(lightning_amount)
             onchain_amount_sat = satoshis(onchain_amount)
-            txid = await wallet.lnworker.swap_manager.normal_swap(lightning_amount_sat, onchain_amount_sat, password)
+            txid = await wallet.lnworker.swap_manager.normal_swap(
+                lightning_amount_sat=lightning_amount_sat,
+                expected_onchain_amount_sat=onchain_amount_sat,
+                password=password,
+            )
         return {
             'txid': txid,
             'lightning_amount': format_satoshis(lightning_amount_sat),
@@ -1133,7 +1157,10 @@ class Commands:
         else:
             lightning_amount_sat = satoshis(lightning_amount)
             onchain_amount_sat = satoshis(onchain_amount)
-            success = await wallet.lnworker.swap_manager.reverse_swap(lightning_amount_sat, onchain_amount_sat)
+            success = await wallet.lnworker.swap_manager.reverse_swap(
+                lightning_amount_sat=lightning_amount_sat,
+                expected_onchain_amount_sat=onchain_amount_sat,
+            )
         return {
             'success': success,
             'lightning_amount': format_satoshis(lightning_amount_sat),
@@ -1349,6 +1376,7 @@ def get_parser():
     parser_gui.add_argument("-m", action="store_true", dest="hide_gui", default=False, help="hide GUI on startup")
     parser_gui.add_argument("-L", "--lang", dest="language", default=None, help="default language used in GUI")
     parser_gui.add_argument("--daemon", action="store_true", dest="daemon", default=False, help="keep daemon running after GUI is closed")
+    parser_gui.add_argument("--nosegwit", action="store_true", dest="nosegwit", default=False, help="Do not create segwit wallets")
     add_wallet_option(parser_gui)
     add_network_options(parser_gui)
     add_global_options(parser_gui)

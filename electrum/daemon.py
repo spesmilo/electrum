@@ -120,6 +120,10 @@ def request(config: SimpleConfig, endpoint, args=(), timeout=60):
 def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
     rpc_user = config.get('rpcuser', None)
     rpc_password = config.get('rpcpassword', None)
+    if rpc_user == '':
+        rpc_user = None
+    if rpc_password == '':
+        rpc_password = None
     if rpc_user is None or rpc_password is None:
         rpc_user = 'user'
         bits = 128
@@ -130,8 +134,6 @@ def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
         rpc_password = to_string(pw_b64, 'ascii')
         config.set_key('rpcuser', rpc_user)
         config.set_key('rpcpassword', rpc_password, save=True)
-    elif rpc_password == '':
-        _logger.warning('RPC authentication is disabled.')
     return rpc_user, rpc_password
 
 
@@ -207,7 +209,10 @@ class AuthenticatedServer(Logger):
                 response['result'] = await f(*params)
         except BaseException as e:
             self.logger.exception("internal error while executing RPC")
-            response['error'] = str(e)
+            response['error'] = {
+                'code': 1,
+                'message': str(e),
+            }
         return web.json_response(response)
 
 
@@ -445,8 +450,8 @@ class Daemon(Logger):
         if self.network:
             self.network.start(jobs=[self.fx.run])
             # prepare lightning functionality, also load channel db early
-            self.network.maybe_init_lightning()
-            self.network.channel_db.load_data()
+            if self.config.get('use_gossip', False):
+                self.network.start_gossip()
 
         self.taskgroup = TaskGroup()
         asyncio.run_coroutine_threadsafe(self._run(jobs=daemon_jobs), self.asyncio_loop)

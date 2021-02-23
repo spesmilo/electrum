@@ -115,10 +115,15 @@ class TestBolt11(ElectrumTestCase):
                           expected_hrp="sb")
         self.assertEqual(144, lnaddr.get_min_final_cltv_expiry())
 
+        lnaddr = lndecode("lntb15u1p0m6lzupp5zqjthgvaad9mewmdjuehwddyze9d8zyxcc43zhaddeegt37sndgsdq4xysyymr0vd4kzcmrd9hx7cqp7xqrrss9qy9qsqsp5vlhcs24hwm747w8f3uau2tlrdkvjaglffnsstwyamj84cxuhrn2s8tut3jqumepu42azyyjpgqa4w9w03204zp9h4clk499y2umstl6s29hqyj8vv4as6zt5567ux7l3f66m8pjhk65zjaq2esezk7ll2kcpljewkg",
+                          expected_hrp="tb")
+        self.assertEqual(30, lnaddr.get_min_final_cltv_expiry())
+
     def test_min_final_cltv_expiry_roundtrip(self):
-        lnaddr = LnAddr(paymenthash=RHASH, amount=Decimal('0.001'), tags=[('d', '1 cup coffee'), ('x', 60), ('c', 150)])
-        invoice = lnencode(lnaddr, PRIVKEY)
-        self.assertEqual(150, lndecode(invoice).get_min_final_cltv_expiry())
+        for cltv in (1, 15, 16, 31, 32, 33, 150, 511, 512, 513, 1023, 1024, 1025):
+            lnaddr = LnAddr(paymenthash=RHASH, amount=Decimal('0.001'), tags=[('d', '1 cup coffee'), ('x', 60), ('c', cltv)])
+            invoice = lnencode(lnaddr, PRIVKEY)
+            self.assertEqual(cltv, lndecode(invoice).get_min_final_cltv_expiry())
 
     def test_features(self):
         lnaddr = lndecode("lnbc25m1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq5vdhkven9v5sxyetpdees9qzsze992adudgku8p05pstl6zh7av6rx2f297pv89gu5q93a0hf3g7lynl3xq56t23dpvah6u7y9qey9lccrdml3gaqwc6nxsl5ktzm464sq73t7cl")

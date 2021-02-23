@@ -47,6 +47,8 @@ def _prepare_windows_dns_hack():
     resolver = dns.resolver.get_default_resolver()
     if resolver.cache is None:
         resolver.cache = dns.resolver.Cache()
+    # ensure overall timeout for requests is long enough
+    resolver.lifetime = max(resolver.lifetime or 1, 30.0)
     # prepare threads
     global _dns_threads_executor
     if _dns_threads_executor is None:
@@ -69,8 +71,8 @@ def _fast_getaddrinfo(host, *args, **kwargs):
         addrs = []
         expected_errors = (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer,
                            concurrent.futures.CancelledError, concurrent.futures.TimeoutError)
-        ipv6_fut = _dns_threads_executor.submit(dns.resolver.query, host, dns.rdatatype.AAAA)
-        ipv4_fut = _dns_threads_executor.submit(dns.resolver.query, host, dns.rdatatype.A)
+        ipv6_fut = _dns_threads_executor.submit(dns.resolver.resolve, host, dns.rdatatype.AAAA)
+        ipv4_fut = _dns_threads_executor.submit(dns.resolver.resolve, host, dns.rdatatype.A)
         # try IPv6
         try:
             answers = ipv6_fut.result()

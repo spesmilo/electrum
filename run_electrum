@@ -49,9 +49,6 @@ if is_local:  # running from source
     # developers should probably see all deprecation warnings.
     warnings.simplefilter('default', DeprecationWarning)
 
-# move this back to gui/kivy/__init.py once plugins are moved
-os.environ['KIVY_DATA_DIR'] = os.path.abspath(os.path.dirname(__file__)) + '/electrum/gui/kivy/data/'
-
 if is_local or is_android:
     sys.path.insert(0, os.path.join(script_dir, 'packages'))
 
@@ -60,7 +57,6 @@ def check_imports():
     # pure-python dependencies need to be imported here for pyinstaller
     try:
         import dns
-        import ecdsa
         import certifi
         import qrcode
         import google.protobuf
@@ -88,7 +84,7 @@ from electrum.wallet_db import WalletDB
 from electrum.wallet import Wallet
 from electrum.storage import WalletStorage
 from electrum.util import print_msg, print_stderr, json_encode, json_decode, UserCancelled
-from electrum.util import InvalidPassword
+from electrum.util import InvalidPassword, BITCOIN_BIP21_URI_SCHEME
 from electrum.commands import get_parser, known_commands, Commands, config_variables
 from electrum import daemon
 from electrum import keystore
@@ -321,6 +317,7 @@ def main():
             'verbosity': '*' if build_config.DEBUG else '',
             'cmd': 'gui',
             'gui': 'kivy',
+            'single_password':True,
         }
     else:
         config_options = args.__dict__
@@ -344,7 +341,7 @@ def main():
     # check uri
     uri = config_options.get('url')
     if uri:
-        if not uri.startswith('bitcoin:'):
+        if not uri.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
             print_stderr('unknown command:', uri)
             sys.exit(1)
 
@@ -419,6 +416,7 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
             d.run_daemon()
             sys_exit(0)
         else:
+            # FIXME this message is lost in detached mode (parent process already exited after forking)
             print_msg("Daemon already running")
             sys_exit(1)
     else:

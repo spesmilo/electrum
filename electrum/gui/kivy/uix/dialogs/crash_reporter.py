@@ -131,6 +131,9 @@ class CrashReporter(BaseCrashReporter, Factory.Popup):
                 self.open_url(response["location"])
         self.dismiss()
 
+    def on_dismiss(self):
+        self.main_window.on_wizard_aborted()
+
     def open_url(self, url):
         if platform != 'android':
             return

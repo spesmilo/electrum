@@ -67,7 +67,7 @@ RUN yes | ${ANDROID_SDK_MANAGER} --licenses > /dev/null
 
 # download platforms, API, build tools
 RUN ${ANDROID_SDK_MANAGER} "platforms;android-24" > /dev/null && \
-    ${ANDROID_SDK_MANAGER} "platforms;android-28" > /dev/null && \
+    ${ANDROID_SDK_MANAGER} "platforms;android-29" > /dev/null && \
     ${ANDROID_SDK_MANAGER} "build-tools;${ANDROID_SDK_BUILD_TOOLS_VERSION}" > /dev/null && \
     ${ANDROID_SDK_MANAGER} "extras;android;m2repository" > /dev/null && \
     chmod +x "${ANDROID_SDK_HOME}/tools/bin/avdmanager"

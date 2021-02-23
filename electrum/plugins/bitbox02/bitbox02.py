@@ -25,6 +25,9 @@ import electrum.ecc as ecc
 from ..hw_wallet import HW_PluginBase, HardwareClientBase
 
 
+_logger = get_logger(__name__)
+
+
 try:
     from bitbox02 import bitbox02
     from bitbox02 import util
@@ -36,11 +39,10 @@ try:
         FirmwareVersionOutdatedException,
     )
     requirements_ok = True
-except ImportError:
+except ImportError as e:
+    if not (isinstance(e, ModuleNotFoundError) and e.name == 'bitbox02'):
+        _logger.exception('error importing bitbox02 plugin deps')
     requirements_ok = False
-
-
-_logger = get_logger(__name__)
 
 
 class BitBox02Client(HardwareClientBase):
@@ -293,8 +295,7 @@ class BitBox02Client(HardwareClientBase):
             raise Exception(
                 "Need to setup communication first before attempting any BitBox02 calls"
             )
-
-        account_keypath = bip32_path[:4]
+        account_keypath = bip32_path[:-2]
         xpubs = wallet.get_master_public_keys()
         our_xpub = self.get_xpub(
             bip32.convert_bip32_intpath_to_strpath(account_keypath), xtype
@@ -504,15 +505,7 @@ class BitBox02Client(HardwareClientBase):
                     )
                 )
 
-        if type(wallet) is Standard_Wallet:
-            keypath_account = full_path[:3]
-        elif type(wallet) is Multisig_Wallet:
-            keypath_account = full_path[:4]
-        else:
-            raise Exception(
-                "BitBox02 does not support this wallet type: {}".format(type(wallet))
-            )
-
+        keypath_account = full_path[:-2]
         sigs = self.bitbox02_device.btc_sign(
             coin,
             [bitbox02.btc.BTCScriptConfigWithKeypath(

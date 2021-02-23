@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from electrum.storage import WalletStorage
 
 Builder.load_string('''
+#:import KIVY_GUI_PATH electrum.gui.kivy.KIVY_GUI_PATH
 
 <PasswordDialog@Popup>
     id: popup
@@ -28,6 +29,7 @@ Builder.load_string('''
     message: ''
     basename:''
     is_change: False
+    hide_wallet_label: False
     require_password: True
     BoxLayout:
         size_hint: 1, 1
@@ -44,13 +46,15 @@ Builder.load_string('''
                 font_size: '20dp'
                 text: _('Wallet') + ': ' + root.basename
                 text_size: self.width, None
+                disabled: root.hide_wallet_label
+                opacity: 0 if root.hide_wallet_label else 1
             IconButton:
                 size_hint: 0.15, None
                 height: '40dp'
-                icon: 'atlas://electrum/gui/kivy/theming/light/btn_create_account'
+                icon: f'atlas://{KIVY_GUI_PATH}/theming/light/btn_create_account'
                 on_release: root.select_file()
-                disabled: root.is_change
-                opacity: 0 if root.is_change else 1
+                disabled: root.hide_wallet_label or root.is_change
+                opacity: 0 if root.hide_wallet_label or root.is_change else 1
         Widget:
             size_hint: 1, 0.05
         Label:
@@ -81,7 +85,7 @@ Builder.load_string('''
             IconButton:
                 height: '40dp'
                 size_hint: 0.15, None
-                icon: 'atlas://electrum/gui/kivy/theming/light/eye1'
+                icon: f'atlas://{KIVY_GUI_PATH}/theming/light/eye1'
                 icon_size: '40dp'
                 on_release:
                     textinput_generic_password.password = False if textinput_generic_password.password else True
@@ -266,6 +270,7 @@ class PasswordDialog(AbstractPasswordDialog):
 
     def __init__(self, app, **kwargs):
         AbstractPasswordDialog.__init__(self, app, **kwargs)
+        self.hide_wallet_label = app._use_single_password
 
     def clear_password(self):
         self.ids.textinput_generic_password.text = ''
@@ -319,6 +324,7 @@ class ChangePasswordDialog(PasswordDialog):
 
 
 class OpenWalletDialog(PasswordDialog):
+    """This dialog will let the user choose another wallet file if they don't remember their the password"""
 
     def __init__(self, app, path, callback):
         self.app = app
@@ -330,7 +336,7 @@ class OpenWalletDialog(PasswordDialog):
 
     def select_file(self):
         dirname = os.path.dirname(self.app.electrum_config.get_wallet_path())
-        d = WalletDialog(dirname, self.init_storage_from_path)
+        d = WalletDialog(dirname, self.init_storage_from_path, self.app.is_wallet_creation_disabled())
         d.open()
 
     def init_storage_from_path(self, path):
@@ -342,9 +348,14 @@ class OpenWalletDialog(PasswordDialog):
         elif self.storage.is_encrypted():
             if not self.storage.is_encrypted_with_user_pw():
                 raise Exception("Kivy GUI does not support this type of encrypted wallet files.")
-            self.require_password = True
             self.pw_check = self.storage.check_password
-            self.message = self.enter_pw_message
+            if self.app.password and self.check_password(self.app.password):
+                self.pw = self.app.password # must be set so that it is returned in callback
+                self.require_password = False
+                self.message = _('Press Next to open')
+            else:
+                self.require_password = True
+                self.message = self.enter_pw_message
         else:
             # it is a bit wasteful load the wallet here and load it again in main_window,
             # but that is fine, because we are progressively enforcing storage encryption.

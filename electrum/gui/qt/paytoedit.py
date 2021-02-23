@@ -24,13 +24,14 @@
 # SOFTWARE.
 
 import re
+import decimal
 from decimal import Decimal
 from typing import NamedTuple, Sequence, Optional, List, TYPE_CHECKING
 
 from PyQt5.QtGui import QFontMetrics, QFont
 
 from electrum import bitcoin
-from electrum.util import bfh, maybe_extract_bolt11_invoice
+from electrum.util import bfh, maybe_extract_bolt11_invoice, BITCOIN_BIP21_URI_SCHEME
 from electrum.transaction import PartialTxOutput
 from electrum.bitcoin import opcodes, construct_script
 from electrum.logging import Logger
@@ -62,7 +63,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
 
     def __init__(self, win: 'ElectrumWindow'):
         CompletionTextEdit.__init__(self)
-        ScanQRTextEdit.__init__(self)
+        ScanQRTextEdit.__init__(self, config=win.config)
         Logger.__init__(self)
         self.win = win
         self.amount_edit = win.amount_e
@@ -73,7 +74,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         self.c = None
         self.textChanged.connect(self.check_text)
         self.outputs = []  # type: List[PartialTxOutput]
-        self.errors = []  # type: Sequence[PayToLineError]
+        self.errors = []  # type: List[PayToLineError]
         self.is_pr = False
         self.is_alias = False
         self.update_size()
@@ -127,10 +128,16 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         return script
 
     def parse_amount(self, x):
-        if x.strip() == '!':
+        x = x.strip()
+        if not x:
+            raise Exception("Amount is empty")
+        if x == '!':
             return '!'
         p = pow(10, self.amount_edit.decimal_point())
-        return int(p * Decimal(x.strip()))
+        try:
+            return int(p * Decimal(x))
+        except decimal.InvalidOperation:
+            raise Exception("Invalid amount")
 
     def parse_address(self, line):
         r = line.strip()
@@ -145,15 +152,18 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
             return
         # filter out empty lines
         lines = [i for i in self.lines() if i]
-        outputs = []  # type: List[PartialTxOutput]
-        total = 0
+
         self.payto_scriptpubkey = None
         self.lightning_invoice = None
+        self.outputs = []
+
         if len(lines) == 1:
             data = lines[0]
-            if data.startswith("bitcoin:"):
+            # try bip21 URI
+            if data.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
                 self.win.pay_to_URI(data)
                 return
+            # try LN invoice
             bolt11_invoice = maybe_extract_bolt11_invoice(data)
             if bolt11_invoice is not None:
                 try:
@@ -163,24 +173,40 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
                 else:
                     self.lightning_invoice = bolt11_invoice
                 return
+            # try "address, amount" on-chain format
+            try:
+                self._parse_as_multiline(lines, raise_errors=True)
+            except Exception as e:
+                pass
+            else:
+                return
+            # try address/script
             try:
                 self.payto_scriptpubkey = self.parse_output(data)
             except Exception as e:
                 self.errors.append(PayToLineError(line_content=data, exc=e))
-            if self.payto_scriptpubkey:
+            else:
                 self.win.set_onchain(True)
                 self.win.lock_amount(False)
-            return
+                return
+        else:
+            # there are multiple lines
+            self._parse_as_multiline(lines, raise_errors=False)
 
-        # there are multiple lines
+    def _parse_as_multiline(self, lines, *, raise_errors: bool):
+        outputs = []  # type: List[PartialTxOutput]
+        total = 0
         is_max = False
         for i, line in enumerate(lines):
             try:
                 output = self.parse_address_and_amount(line)
             except Exception as e:
-                self.errors.append(PayToLineError(
-                    idx=i, line_content=line.strip(), exc=e, is_multiline=True))
-                continue
+                if raise_errors:
+                    raise
+                else:
+                    self.errors.append(PayToLineError(
+                        idx=i, line_content=line.strip(), exc=e, is_multiline=True))
+                    continue
             outputs.append(output)
             if output.value == '!':
                 is_max = True
@@ -236,7 +262,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
 
     def qr_input(self):
         data = super(PayToEdit,self).qr_input()
-        if data.startswith("bitcoin:"):
+        if data.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
             self.win.pay_to_URI(data)
             # TODO: update fee
 

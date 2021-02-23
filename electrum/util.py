@@ -44,15 +44,15 @@ import ssl
 import ipaddress
 from ipaddress import IPv4Address, IPv6Address
 import random
-import attr
+import secrets
 
+import attr
 import aiohttp
 from aiohttp_socks import ProxyConnector, ProxyType
 import aiorpcx
 from aiorpcx import TaskGroup
 import certifi
 import dns.resolver
-import ecdsa
 
 from .i18n import _
 from .logging import get_logger, Logger
@@ -219,6 +219,8 @@ class Fiat(object):
             return "{:.2f}".format(self.value) + ' ' + self.ccy
 
     def __eq__(self, other):
+        if not isinstance(other, Fiat):
+            return False
         if self.ccy != other.ccy:
             return False
         if isinstance(self.value, Decimal) and isinstance(other.value, Decimal) \
@@ -582,8 +584,11 @@ def is_hash256_str(text: Any) -> bool:
 def is_hex_str(text: Any) -> bool:
     if not isinstance(text, str): return False
     try:
-        bytes.fromhex(text)
+        b = bytes.fromhex(text)
     except:
+        return False
+    # forbid whitespaces in text:
+    if len(text) != 2 * len(b):
         return False
     return True
 
@@ -624,6 +629,13 @@ def format_satoshis_plain(x, *, decimal_point=8) -> str:
     scale_factor = pow(10, decimal_point)
     return "{:.8f}".format(Decimal(x) / scale_factor).rstrip('0').rstrip('.')
 
+
+# Check that Decimal precision is sufficient.
+# We need at the very least ~20, as we deal with msat amounts, and
+# log10(21_000_000 * 10**8 * 1000) ~= 18.3
+# decimal.DefaultContext.prec == 28 by default, but it is mutable.
+# We enforce that we have at least that available.
+assert decimal.getcontext().prec >= 28, f"PyDecimal precision too low: {decimal.getcontext().prec}"
 
 DECIMAL_POINT = localeconv()['decimal_point']  # type: str
 
@@ -765,6 +777,8 @@ mainnet_block_explorers = {
                         {'tx': 'api/tx?txid=', 'addr': '#/search?q='}),
     'mempool.space': ('https://mempool.space/',
                         {'tx': 'tx/', 'addr': 'address/'}),
+    'mempool.emzy.de': ('https://mempool.emzy.de/',
+                        {'tx': 'tx/', 'addr': 'address/'}),  
     'OXT.me': ('https://oxt.me/',
                         {'tx': 'transaction/', 'addr': 'address/'}),
     'smartbit.com.au': ('https://www.smartbit.com.au/',
@@ -792,19 +806,43 @@ testnet_block_explorers = {
                        {'tx': 'tx/', 'addr': 'address/'}),
 }
 
+_block_explorer_default_api_loc = {'tx': 'tx/', 'addr': 'address/'}
+
+
 def block_explorer_info():
     from . import constants
     return mainnet_block_explorers if not constants.net.TESTNET else testnet_block_explorers
 
-def block_explorer(config: 'SimpleConfig') -> str:
-    from . import constants
+
+def block_explorer(config: 'SimpleConfig') -> Optional[str]:
+    """Returns name of selected block explorer,
+    or None if a custom one (not among hardcoded ones) is configured.
+    """
+    if config.get('block_explorer_custom') is not None:
+        return None
     default_ = 'Blockstream.info'
     be_key = config.get('block_explorer', default_)
-    be = block_explorer_info().get(be_key)
-    return be_key if be is not None else default_
+    be_tuple = block_explorer_info().get(be_key)
+    if be_tuple is None:
+        be_key = default_
+    assert isinstance(be_key, str), f"{be_key!r} should be str"
+    return be_key
+
 
 def block_explorer_tuple(config: 'SimpleConfig') -> Optional[Tuple[str, dict]]:
-    return block_explorer_info().get(block_explorer(config))
+    custom_be = config.get('block_explorer_custom')
+    if custom_be:
+        if isinstance(custom_be, str):
+            return custom_be, _block_explorer_default_api_loc
+        if isinstance(custom_be, (tuple, list)) and len(custom_be) == 2:
+            return tuple(custom_be)
+        _logger.warning(f"not using 'block_explorer_custom' from config. "
+                        f"expected a str or a pair but got {custom_be!r}")
+        return None
+    else:
+        # using one of the hardcoded block explorers
+        return block_explorer_info().get(block_explorer(config))
+
 
 def block_explorer_URL(config: 'SimpleConfig', kind: str, item: str) -> Optional[str]:
     be_tuple = block_explorer_tuple(config)
@@ -814,12 +852,20 @@ def block_explorer_URL(config: 'SimpleConfig', kind: str, item: str) -> Optional
     kind_str = explorer_dict.get(kind)
     if kind_str is None:
         return
+    if explorer_url[-1] != "/":
+        explorer_url += "/"
     url_parts = [explorer_url, kind_str, item]
     return ''.join(url_parts)
 
 # URL decode
 #_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
 #urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
+
+
+# note: when checking against these, use .lower() to support case-insensitivity
+BITCOIN_BIP21_URI_SCHEME = 'bitcoin'
+LIGHTNING_URI_SCHEME = 'lightning'
+
 
 class InvalidBitcoinURI(Exception): pass
 
@@ -838,7 +884,7 @@ def parse_bip21_uri(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
         return {'address': uri}
 
     u = urllib.parse.urlparse(uri)
-    if u.scheme != 'bitcoin':
+    if u.scheme.lower() != BITCOIN_BIP21_URI_SCHEME:
         raise InvalidBitcoinURI("Not a bitcoin URI")
     address = u.path
 
@@ -932,14 +978,21 @@ def create_bip21_uri(addr, amount_sat: Optional[int], message: Optional[str],
             raise Exception(f"illegal key for URI: {repr(k)}")
         v = urllib.parse.quote(v)
         query.append(f"{k}={v}")
-    p = urllib.parse.ParseResult(scheme='bitcoin', netloc='', path=addr, params='', query='&'.join(query), fragment='')
+    p = urllib.parse.ParseResult(
+        scheme=BITCOIN_BIP21_URI_SCHEME,
+        netloc='',
+        path=addr,
+        params='',
+        query='&'.join(query),
+        fragment='',
+    )
     return str(urllib.parse.urlunparse(p))
 
 
 def maybe_extract_bolt11_invoice(data: str) -> Optional[str]:
     data = data.strip()  # whitespaces
     data = data.lower()
-    if data.startswith('lightning:ln'):
+    if data.startswith(LIGHTNING_URI_SCHEME + ':ln'):
         data = data[10:]
     if data.startswith('ln'):
         return data
@@ -1188,6 +1241,7 @@ def create_and_start_event_loop() -> Tuple[asyncio.AbstractEventLoop,
                                          args=(stopping_fut,),
                                          name='EventLoop')
     loop_thread.start()
+    loop._mythread = loop_thread
     return loop, stopping_fut, loop_thread
 
 
@@ -1295,7 +1349,7 @@ def list_enabled_bits(x: int) -> Sequence[int]:
 
 
 def resolve_dns_srv(host: str):
-    srv_records = dns.resolver.query(host, 'SRV')
+    srv_records = dns.resolver.resolve(host, 'SRV')
     # priority: prefer lower
     # weight: tie breaker; prefer higher
     srv_records = sorted(srv_records, key=lambda x: (x.priority, -x.weight))
@@ -1311,7 +1365,9 @@ def resolve_dns_srv(host: str):
 def randrange(bound: int) -> int:
     """Return a random integer k such that 1 <= k < bound, uniformly
     distributed across that range."""
-    return ecdsa.util.randrange(bound)
+    # secrets.randbelow(bound) returns a random int: 0 <= r < bound,
+    # hence transformations:
+    return secrets.randbelow(bound - 1) + 1
 
 
 class CallbackManager:

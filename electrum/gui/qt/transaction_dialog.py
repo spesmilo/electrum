@@ -54,7 +54,7 @@ from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    char_width_in_lineedit, TRANSACTION_FILE_EXTENSION_FILTER_SEPARATE,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_COMPLETE_TX,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX,
-                   BlockingWaitingDialog)
+                   BlockingWaitingDialog, getSaveFileName)
 
 from .fee_slider import FeeSlider, FeeComboBox
 from .confirm_tx_dialog import TxEditor
@@ -218,7 +218,11 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         # As a result, e.g. we might learn an imported address tx is segwit,
         # or that a beyond-gap-limit address is is_mine.
         # note: this might fetch prev txs over the network.
-        tx.add_info_from_wallet(self.wallet)
+        BlockingWaitingDialog(
+            self,
+            _("Adding info to tx, from wallet and network..."),
+            lambda: tx.add_info_from_wallet(self.wallet),
+        )
 
     def do_payjoin(self) -> None:
         def sign_done(success):
@@ -262,6 +266,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             self.do_payjoin()
             return
         self.main_window.push_top_level_window(self)
+        self.main_window.save_pending_invoice()
         try:
             self.main_window.broadcast_transaction(self.tx)
         finally:
@@ -312,7 +317,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         if not isinstance(self.tx, PartialTransaction):
             raise Exception("Can only export partial transactions for hardware device.")
         tx = copy.deepcopy(self.tx)
-        tx.add_info_from_wallet(self.wallet, include_xpubs_and_full_paths=True)
+        tx.add_info_from_wallet(self.wallet, include_xpubs=True)
         # log warning if PSBT_*_BIP32_DERIVATION fields cannot be filled with full path due to missing info
         from electrum.keystore import Xpub
         def is_ks_missing_info(ks):
@@ -373,11 +378,15 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             extension = 'psbt'
             default_filter = TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX
         name = f'{name}.{extension}'
-        fileName = self.main_window.getSaveFileName(_("Select where to save your transaction"),
-                                                    name,
-                                                    TRANSACTION_FILE_EXTENSION_FILTER_SEPARATE,
-                                                    default_extension=extension,
-                                                    default_filter=default_filter)
+        fileName = getSaveFileName(
+            parent=self,
+            title=_("Select where to save your transaction"),
+            filename=name,
+            filter=TRANSACTION_FILE_EXTENSION_FILTER_SEPARATE,
+            default_extension=extension,
+            default_filter=default_filter,
+            config=self.config,
+        )
         if not fileName:
             return
         if tx.is_complete():  # network tx hex
@@ -395,9 +404,13 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
     def merge_sigs(self):
         if not isinstance(self.tx, PartialTransaction):
             return
-        text = text_dialog(self, _('Input raw transaction'),
-                           _("Transaction to merge signatures from") + ":",
-                           _("Load transaction"))
+        text = text_dialog(
+            parent=self,
+            title=_('Input raw transaction'),
+            header_layout=_("Transaction to merge signatures from") + ":",
+            ok_label=_("Load transaction"),
+            config=self.config,
+        )
         if not text:
             return
         tx = self.main_window.tx_from_text(text)
@@ -413,9 +426,13 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
     def join_tx_with_another(self):
         if not isinstance(self.tx, PartialTransaction):
             return
-        text = text_dialog(self, _('Input raw transaction'),
-                           _("Transaction to join with") + " (" + _("add inputs and outputs") + "):",
-                           _("Load transaction"))
+        text = text_dialog(
+            parent=self,
+            title=_('Input raw transaction'),
+            header_layout=_("Transaction to join with") + " (" + _("add inputs and outputs") + "):",
+            ok_label=_("Load transaction"),
+            config=self.config,
+        )
         if not text:
             return
         tx = self.main_window.tx_from_text(text)
@@ -670,7 +687,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         locktime_setter_hbox.setSpacing(0)
         locktime_setter_label = TxDetailLabel()
         locktime_setter_label.setText("LockTime: ")
-        self.locktime_e = LockTimeEdit()
+        self.locktime_e = LockTimeEdit(self)
         locktime_setter_hbox.addWidget(locktime_setter_label)
         locktime_setter_hbox.addWidget(self.locktime_e)
         locktime_setter_hbox.addStretch(1)
@@ -861,8 +878,9 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
     def update_fee_fields(self):
         freeze_fee = self.is_send_fee_frozen()
         freeze_feerate = self.is_send_feerate_frozen()
-        if self.no_dynfee_estimates:
-            size = self.tx.estimated_size()
+        tx = self.tx
+        if self.no_dynfee_estimates and tx:
+            size = tx.estimated_size()
             self.size_e.setAmount(size)
         if self.not_enough_funds or self.no_dynfee_estimates:
             if not freeze_fee:
@@ -872,7 +890,7 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
             self.feerounding_icon.setVisible(False)
             return
 
-        tx = self.tx
+        assert tx is not None
         size = tx.estimated_size()
         fee = tx.get_fee()
 

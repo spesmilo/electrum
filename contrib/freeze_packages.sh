@@ -20,15 +20,15 @@ which virtualenv > /dev/null 2>&1 || { echo "Please install virtualenv" && exit 
 
 ${SYSTEM_PYTHON} -m hashin -h > /dev/null 2>&1 || { ${SYSTEM_PYTHON} -m pip install hashin; }
 
-for i in '' '-hw' '-binaries' '-wine-build' '-mac-build' '-sdist-build' '-appimage-build'; do
+for i in '' '-hw' '-binaries' '-binaries-mac' '-build-wine' '-build-mac' '-build-sdist' '-build-appimage'; do
     rm -rf "$venv_dir"
     virtualenv -p ${SYSTEM_PYTHON} $venv_dir
 
     source $venv_dir/bin/activate
 
-    echo "Installing $m dependencies"
+    echo "Installing dependencies... (requirements${i}.txt)"
 
-    python -m pip install -r $contrib/requirements/requirements${i}.txt --upgrade
+    python -m pip install -r "$contrib/requirements/requirements${i}.txt" --upgrade
 
     echo "OK."
 
@@ -36,13 +36,13 @@ for i in '' '-hw' '-binaries' '-wine-build' '-mac-build' '-sdist-build' '-appima
     restricted=$(echo $requirements | ${SYSTEM_PYTHON} $contrib/deterministic-build/find_restricted_dependencies.py)
     requirements="$requirements $restricted"
 
-    echo "Generating package hashes..."
-    rm $contrib/deterministic-build/requirements${i}.txt
-    touch $contrib/deterministic-build/requirements${i}.txt
+    echo "Generating package hashes... (requirements${i}.txt)"
+    rm "$contrib/deterministic-build/requirements${i}.txt"
+    touch "$contrib/deterministic-build/requirements${i}.txt"
 
     for requirement in $requirements; do
         echo -e "\r  Hashing $requirement..."
-        ${SYSTEM_PYTHON} -m hashin -r $contrib/deterministic-build/requirements${i}.txt ${requirement}
+        ${SYSTEM_PYTHON} -m hashin -r "$contrib/deterministic-build/requirements${i}.txt" "${requirement}"
     done
 
     echo "OK."

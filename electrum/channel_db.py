@@ -34,6 +34,7 @@ import asyncio
 import threading
 from enum import IntEnum
 
+from aiorpcx import NetAddress
 
 from .sql_db import SqlDB, sql
 from . import constants, util
@@ -51,14 +52,6 @@ if TYPE_CHECKING:
 
 FLAG_DISABLE   = 1 << 1
 FLAG_DIRECTION = 1 << 0
-
-
-class NodeAddress(NamedTuple):
-    """Holds address information of Lightning nodes
-    and how up to date this info is."""
-    host: str
-    port: int
-    timestamp: int
 
 
 class ChannelInfo(NamedTuple):
@@ -220,6 +213,32 @@ class CategorizedChannelUpdates(NamedTuple):
     good: List        # good updates
 
 
+def get_mychannel_info(short_channel_id: ShortChannelID,
+                       my_channels: Dict[ShortChannelID, 'Channel']) -> Optional[ChannelInfo]:
+    chan = my_channels.get(short_channel_id)
+    ci = ChannelInfo.from_raw_msg(chan.construct_channel_announcement_without_sigs())
+    return ci._replace(capacity_sat=chan.constraints.capacity)
+
+def get_mychannel_policy(short_channel_id: bytes, node_id: bytes,
+                         my_channels: Dict[ShortChannelID, 'Channel']) -> Optional[Policy]:
+    chan = my_channels.get(short_channel_id)  # type: Optional[Channel]
+    if not chan:
+        return
+    if node_id == chan.node_id:  # incoming direction (to us)
+        remote_update_raw = chan.get_remote_update()
+        if not remote_update_raw:
+            return
+        now = int(time.time())
+        remote_update_decoded = decode_msg(remote_update_raw)[1]
+        remote_update_decoded['timestamp'] = now
+        remote_update_decoded['start_node'] = node_id
+        return Policy.from_msg(remote_update_decoded)
+    elif node_id == chan.get_local_pubkey():  # outgoing direction (from us)
+        local_update_decoded = decode_msg(chan.get_outgoing_gossip_channel_update())[1]
+        local_update_decoded['start_node'] = node_id
+        return Policy.from_msg(local_update_decoded)
+
+
 create_channel_info = """
 CREATE TABLE IF NOT EXISTS channel_info (
 short_channel_id BLOB(8),
@@ -269,8 +288,8 @@ class ChannelDB(SqlDB):
         self._channels = {}  # type: Dict[ShortChannelID, ChannelInfo]
         self._policies = {}  # type: Dict[Tuple[bytes, ShortChannelID], Policy]  # (node_id, scid) -> Policy
         self._nodes = {}  # type: Dict[bytes, NodeInfo]  # node_id -> NodeInfo
-        # node_id -> (host, port, ts)
-        self._addresses = defaultdict(set)  # type: Dict[bytes, Set[NodeAddress]]
+        # node_id -> NetAddress -> timestamp
+        self._addresses = defaultdict(dict)  # type: Dict[bytes, Dict[NetAddress, int]]
         self._channels_for_node = defaultdict(set)  # type: Dict[bytes, Set[ShortChannelID]]
         self._recent_peers = []  # type: List[bytes]  # list of node_ids
         self._chans_with_0_policies = set()  # type: Set[ShortChannelID]
@@ -295,7 +314,7 @@ class ChannelDB(SqlDB):
         now = int(time.time())
         node_id = peer.pubkey
         with self.lock:
-            self._addresses[node_id].add(NodeAddress(peer.host, peer.port, now))
+            self._addresses[node_id][peer.net_addr()] = now
             # list is ordered
             if node_id in self._recent_peers:
                 self._recent_peers.remove(node_id)
@@ -308,13 +327,14 @@ class ChannelDB(SqlDB):
             unshuffled = set(self._nodes.keys()) - node_ids
         return random.sample(unshuffled, min(200, len(unshuffled)))
 
-    def get_last_good_address(self, node_id) -> Optional[LNPeerAddr]:
-        r = self._addresses.get(node_id)
-        if not r:
+    def get_last_good_address(self, node_id: bytes) -> Optional[LNPeerAddr]:
+        """Returns latest address we successfully connected to, for given node."""
+        addr_to_ts = self._addresses.get(node_id)
+        if not addr_to_ts:
             return None
-        addr = sorted(list(r), key=lambda x: x.timestamp)[0]
+        addr = sorted(list(addr_to_ts), key=lambda a: addr_to_ts[a], reverse=True)[0]
         try:
-            return LNPeerAddr(addr.host, addr.port, node_id)
+            return LNPeerAddr(str(addr.host), addr.port, node_id)
         except ValueError:
             return None
 
@@ -556,7 +576,8 @@ class ChannelDB(SqlDB):
                 self._db_save_node_info(node_id, msg_payload['raw'])
             with self.lock:
                 for addr in node_addresses:
-                    self._addresses[node_id].add(NodeAddress(addr.host, addr.port, 0))
+                    net_addr = NetAddress(addr.host, addr.port)
+                    self._addresses[node_id][net_addr] = self._addresses[node_id].get(net_addr) or 0
             self._db_save_node_addresses(node_addresses)
 
         self.logger.debug("on_node_announcement: %d/%d"%(len(new_nodes), len(msg_payloads)))
@@ -607,8 +628,13 @@ class ChannelDB(SqlDB):
         # delete from database
         self._db_delete_channel(short_channel_id)
 
-    def get_node_addresses(self, node_id):
-        return self._addresses.get(node_id)
+    def get_node_addresses(self, node_id: bytes) -> Sequence[Tuple[str, int, int]]:
+        """Returns list of (host, port, timestamp)."""
+        addr_to_ts = self._addresses.get(node_id)
+        if not addr_to_ts:
+            return []
+        return [(str(net_addr.host), net_addr.port, ts)
+                for net_addr, ts in addr_to_ts.items()]
 
     @sql
     @profiler
@@ -616,17 +642,19 @@ class ChannelDB(SqlDB):
         if self.data_loaded.is_set():
             return
         # Note: this method takes several seconds... mostly due to lnmsg.decode_msg being slow.
-        #       I believe lnmsg (and lightning.json) will need a rewrite anyway, so instead of tweaking
-        #       load_data() here, that should be done. see #6006
         c = self.conn.cursor()
         c.execute("""SELECT * FROM address""")
         for x in c:
             node_id, host, port, timestamp = x
-            self._addresses[node_id].add(NodeAddress(str(host), int(port), int(timestamp or 0)))
+            try:
+                net_addr = NetAddress(host, port)
+            except Exception:
+                continue
+            self._addresses[node_id][net_addr] = int(timestamp or 0)
         def newest_ts_for_node_id(node_id):
             newest_ts = 0
-            for addr in self._addresses[node_id]:
-                newest_ts = max(newest_ts, addr.timestamp)
+            for addr, ts in self._addresses[node_id].items():
+                newest_ts = max(newest_ts, ts)
             return newest_ts
         sorted_node_ids = sorted(self._addresses.keys(), key=newest_ts_for_node_id, reverse=True)
         self._recent_peers = sorted_node_ids[:self.NUM_MAX_RECENT_PEERS]
@@ -700,24 +728,8 @@ class ChannelDB(SqlDB):
             if chan_upd_dict:
                 return Policy.from_msg(chan_upd_dict)
         # check if it's one of our own channels
-        if not my_channels:
-            return
-        chan = my_channels.get(short_channel_id)  # type: Optional[Channel]
-        if not chan:
-            return
-        if node_id == chan.node_id:  # incoming direction (to us)
-            remote_update_raw = chan.get_remote_update()
-            if not remote_update_raw:
-                return
-            now = int(time.time())
-            remote_update_decoded = decode_msg(remote_update_raw)[1]
-            remote_update_decoded['timestamp'] = now
-            remote_update_decoded['start_node'] = node_id
-            return Policy.from_msg(remote_update_decoded)
-        elif node_id == chan.get_local_pubkey():  # outgoing direction (from us)
-            local_update_decoded = decode_msg(chan.get_outgoing_gossip_channel_update())[1]
-            local_update_decoded['start_node'] = node_id
-            return Policy.from_msg(local_update_decoded)
+        if my_channels:
+            return get_mychannel_policy(short_channel_id, node_id, my_channels)
 
     def get_channel_info(self, short_channel_id: ShortChannelID, *,
                          my_channels: Dict[ShortChannelID, 'Channel'] = None) -> Optional[ChannelInfo]:
@@ -725,11 +737,8 @@ class ChannelDB(SqlDB):
         if ret:
             return ret
         # check if it's one of our own channels
-        if not my_channels:
-            return
-        chan = my_channels.get(short_channel_id)  # type: Optional[Channel]
-        ci = ChannelInfo.from_raw_msg(chan.construct_channel_announcement_without_sigs())
-        return ci._replace(capacity_sat=chan.constraints.capacity)
+        if my_channels:
+            return get_mychannel_info(short_channel_id, my_channels)
 
     def get_channels_for_node(self, node_id: bytes, *,
                               my_channels: Dict[ShortChannelID, 'Channel'] = None) -> Set[bytes]:
@@ -760,6 +769,14 @@ class ChannelDB(SqlDB):
     def get_node_info_for_node_id(self, node_id: bytes) -> Optional['NodeInfo']:
         return self._nodes.get(node_id)
 
+    def get_node_infos(self) -> Dict[bytes, NodeInfo]:
+        with self.lock:
+            return self._nodes.copy()
+
+    def get_node_policies(self) -> Dict[Tuple[bytes, ShortChannelID], Policy]:
+        with self.lock:
+            return self._policies.copy()
+
     def to_dict(self) -> dict:
         """ Generates a graph representation in terms of a dictionary.
 
@@ -775,7 +792,10 @@ class ChannelDB(SqlDB):
                 graph['nodes'].append(
                     nodeinfo._asdict(),
                 )
-                graph['nodes'][-1]['addresses'] = [addr._asdict() for addr in self._addresses[pk]]
+                graph['nodes'][-1]['addresses'] = [
+                    {'host': str(addr.host), 'port': addr.port, 'timestamp': ts}
+                    for addr, ts in self._addresses[pk].items()
+                ]
 
             # gather channels
             for cid, channelinfo in self._channels.items():

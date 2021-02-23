@@ -1,6 +1,7 @@
 #:import _ electrum.gui.kivy.i18n._
+#:import KIVY_GUI_PATH electrum.gui.kivy.KIVY_GUI_PATH
 #:import Factory kivy.factory.Factory
-#:set font_light 'electrum/gui/kivy/data/fonts/Roboto-Condensed.ttf'
+#:set font_light f'{KIVY_GUI_PATH}/data/fonts/Roboto-Condensed.ttf'
 #:set btc_symbol chr(171)
 #:set mbtc_symbol chr(187)
 
@@ -15,7 +16,7 @@
 
 
 <HistoryItem@CardItem>
-    icon: 'atlas://electrum/gui/kivy/theming/light/important'
+    icon: f'atlas://{KIVY_GUI_PATH}/theming/light/important'
     message: ''
     fee_text: ''
     is_mine: True

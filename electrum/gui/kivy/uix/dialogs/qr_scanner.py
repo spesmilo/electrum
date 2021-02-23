@@ -21,6 +21,8 @@ class QrScannerDialog(Factory.AnimatedPopup):
 
 
 Builder.load_string('''
+#:import KIVY_GUI_PATH electrum.gui.kivy.KIVY_GUI_PATH
+
 <QrScannerDialog>
     title:
         _(\
@@ -33,7 +35,7 @@ Builder.load_string('''
     #separator_color: .89, .89, .89, 1
     #separator_height: '1.2dp'
     #title_color: .437, .437, .437, 1
-    #background: 'atlas://electrum/gui/kivy/theming/light/dialog'
+    #background: f'atlas://{KIVY_GUI_PATH}/theming/light/dialog'
     on_activate:
         qrscr.start()
         qrscr.size = self.size

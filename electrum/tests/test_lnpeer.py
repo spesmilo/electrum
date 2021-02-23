@@ -12,14 +12,15 @@ from typing import Iterable, NamedTuple
 
 from aiorpcx import TaskGroup
 
+from electrum import bitcoin
 from electrum import constants
 from electrum.network import Network
 from electrum.ecc import ECPrivkey
 from electrum import simple_config, lnutil
 from electrum.lnaddr import lnencode, LnAddr, lndecode
 from electrum.bitcoin import COIN, sha256
-from electrum.util import bh2u, create_and_start_event_loop, NetworkRetryManager
-from electrum.lnpeer import Peer
+from electrum.util import bh2u, create_and_start_event_loop, NetworkRetryManager, bfh
+from electrum.lnpeer import Peer, UpfrontShutdownScriptViolation
 from electrum.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
 from electrum.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
 from electrum.lnutil import PaymentFailure, LnFeatures, HTLCOwner
@@ -31,6 +32,7 @@ from electrum.lnmsg import encode_msg, decode_msg
 from electrum.logging import console_stderr_handler, Logger
 from electrum.lnworker import PaymentInfo, RECEIVED, PR_UNPAID
 from electrum.lnonion import OnionFailureCode
+from electrum.lnutil import ChannelBlackList
 
 from .test_lnchannel import create_test_channels
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
@@ -61,6 +63,7 @@ class MockNetwork:
         self.path_finder = LNPathFinder(self.channel_db)
         self.tx_queue = tx_queue
         self._blockchain = MockBlockchain()
+        self.channel_blacklist = ChannelBlackList()
 
     @property
     def callback_lock(self):
@@ -121,6 +124,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         self.wallet = MockWallet()
         self.features = LnFeatures(0)
         self.features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
+        self.features |= LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT
         self.pending_payments = defaultdict(asyncio.Future)
         for chan in chans:
             chan.lnworker = self
@@ -128,6 +132,9 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         # used in tests
         self.enable_htlc_settle = asyncio.Event()
         self.enable_htlc_settle.set()
+        self.received_htlcs = defaultdict(set)
+        self.sent_htlcs = defaultdict(asyncio.Queue)
+        self.htlc_routes = defaultdict(list)
 
     def get_invoice_status(self, key):
         pass
@@ -156,23 +163,25 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     def save_channel(self, chan):
         print("Ignoring channel save")
 
-    is_routing = set()
+    inflight_payments = set()
     preimages = {}
     get_payment_info = LNWallet.get_payment_info
     save_payment_info = LNWallet.save_payment_info
     set_invoice_status = LNWallet.set_invoice_status
     set_payment_status = LNWallet.set_payment_status
     get_payment_status = LNWallet.get_payment_status
-    await_payment = LNWallet.await_payment
-    payment_received = LNWallet.payment_received
-    payment_sent = LNWallet.payment_sent
-    payment_failed = LNWallet.payment_failed
+    htlc_received = LNWallet.htlc_received
+    htlc_fulfilled = LNWallet.htlc_fulfilled
+    htlc_failed = LNWallet.htlc_failed
     save_preimage = LNWallet.save_preimage
     get_preimage = LNWallet.get_preimage
-    _create_route_from_invoice = LNWallet._create_route_from_invoice
+    create_route_for_payment = LNWallet.create_route_for_payment
+    create_routes_for_payment = LNWallet.create_routes_for_payment
+    create_routes_from_invoice = LNWallet.create_routes_from_invoice
     _check_invoice = staticmethod(LNWallet._check_invoice)
-    _pay_to_route = LNWallet._pay_to_route
-    _pay = LNWallet._pay
+    pay_to_route = LNWallet.pay_to_route
+    pay_to_node = LNWallet.pay_to_node
+    pay_invoice = LNWallet.pay_invoice
     force_close_channel = LNWallet.force_close_channel
     try_force_closing = LNWallet.try_force_closing
     get_first_timestamp = lambda self: 0
@@ -369,17 +378,17 @@ class TestPeer(ElectrumTestCase):
     async def prepare_invoice(
             w2: MockLNWallet,  # receiver
             *,
-            amount_sat=100_000,
+            amount_msat=100_000_000,
             include_routing_hints=False,
     ):
-        amount_btc = amount_sat/Decimal(COIN)
+        amount_btc = amount_msat/Decimal(COIN*1000)
         payment_preimage = os.urandom(32)
         RHASH = sha256(payment_preimage)
-        info = PaymentInfo(RHASH, amount_sat, RECEIVED, PR_UNPAID)
+        info = PaymentInfo(RHASH, amount_msat, RECEIVED, PR_UNPAID)
         w2.save_preimage(RHASH, payment_preimage)
         w2.save_payment_info(info)
         if include_routing_hints:
-            routing_hints = await w2._calc_routing_hints_for_invoice(amount_sat)
+            routing_hints = await w2._calc_routing_hints_for_invoice(amount_msat)
         else:
             routing_hints = []
         lnaddr = LnAddr(
@@ -416,7 +425,7 @@ class TestPeer(ElectrumTestCase):
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
         pay_req = run(self.prepare_invoice(w2))
         async def pay():
-            result, log = await w1._pay(pay_req)
+            result, log = await w1.pay_invoice(pay_req)
             self.assertEqual(result, True)
             gath.cancel()
         gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
@@ -448,7 +457,7 @@ class TestPeer(ElectrumTestCase):
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
         async def pay(pay_req):
-            result, log = await w1._pay(pay_req)
+            result, log = await w1.pay_invoice(pay_req)
             self.assertTrue(result)
             raise PaymentDone()
         async def f():
@@ -463,6 +472,74 @@ class TestPeer(ElectrumTestCase):
         with self.assertRaises(PaymentDone):
             run(f())
 
+    @needs_test_with_all_chacha20_implementations
+    def test_payment_race(self):
+        """Alice and Bob pay each other simultaneously.
+        They both send 'update_add_htlc' and receive each other's update
+        before sending 'commitment_signed'. Neither party should fulfill
+        the respective HTLCs until those are irrevocably committed to.
+        """
+        alice_channel, bob_channel = create_test_channels()
+        p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+        async def pay():
+            await asyncio.wait_for(p1.initialized, 1)
+            await asyncio.wait_for(p2.initialized, 1)
+            # prep
+            _maybe_send_commitment1 = p1.maybe_send_commitment
+            _maybe_send_commitment2 = p2.maybe_send_commitment
+            pay_req2 = await self.prepare_invoice(w2)
+            lnaddr2 = lndecode(pay_req2, expected_hrp=constants.net.SEGWIT_HRP)
+            pay_req1 = await self.prepare_invoice(w1)
+            lnaddr1 = lndecode(pay_req1, expected_hrp=constants.net.SEGWIT_HRP)
+            # alice sends htlc BUT NOT COMMITMENT_SIGNED
+            p1.maybe_send_commitment = lambda x: None
+            route1, amount_msat1 = w1.create_routes_from_invoice(lnaddr2.get_amount_msat(), decoded_invoice=lnaddr2)[0]
+            p1.pay(
+                route=route1,
+                chan=alice_channel,
+                amount_msat=lnaddr2.get_amount_msat(),
+                total_msat=lnaddr2.get_amount_msat(),
+                payment_hash=lnaddr2.paymenthash,
+                min_final_cltv_expiry=lnaddr2.get_min_final_cltv_expiry(),
+                payment_secret=lnaddr2.payment_secret,
+            )
+            p1.maybe_send_commitment = _maybe_send_commitment1
+            # bob sends htlc BUT NOT COMMITMENT_SIGNED
+            p2.maybe_send_commitment = lambda x: None
+            route2, amount_msat2 = w2.create_routes_from_invoice(lnaddr1.get_amount_msat(), decoded_invoice=lnaddr1)[0]
+            p2.pay(
+                route=route2,
+                chan=bob_channel,
+                amount_msat=lnaddr1.get_amount_msat(),
+                total_msat=lnaddr1.get_amount_msat(),
+                payment_hash=lnaddr1.paymenthash,
+                min_final_cltv_expiry=lnaddr1.get_min_final_cltv_expiry(),
+                payment_secret=lnaddr1.payment_secret,
+            )
+            p2.maybe_send_commitment = _maybe_send_commitment2
+            # sleep a bit so that they both receive msgs sent so far
+            await asyncio.sleep(0.1)
+            # now they both send COMMITMENT_SIGNED
+            p1.maybe_send_commitment(alice_channel)
+            p2.maybe_send_commitment(bob_channel)
+
+            htlc_log1 = await w1.sent_htlcs[lnaddr2.paymenthash].get()
+            assert htlc_log1.success
+            htlc_log2 = await w2.sent_htlcs[lnaddr1.paymenthash].get()
+            assert htlc_log2.success
+            raise PaymentDone()
+
+        async def f():
+            async with TaskGroup() as group:
+                await group.spawn(p1._message_loop())
+                await group.spawn(p1.htlc_switch())
+                await group.spawn(p2._message_loop())
+                await group.spawn(p2.htlc_switch())
+                await asyncio.sleep(0.01)
+                await group.spawn(pay())
+        with self.assertRaises(PaymentDone):
+            run(f())
+
     #@unittest.skip("too expensive")
     #@needs_test_with_all_chacha20_implementations
     def test_payments_stresstest(self):
@@ -471,14 +548,14 @@ class TestPeer(ElectrumTestCase):
         alice_init_balance_msat = alice_channel.balance(HTLCOwner.LOCAL)
         bob_init_balance_msat = bob_channel.balance(HTLCOwner.LOCAL)
         num_payments = 50
-        payment_value_sat = 10000  # make it large enough so that there are actually HTLCs on the ctx
+        payment_value_msat = 10_000_000  # make it large enough so that there are actually HTLCs on the ctx
         max_htlcs_in_flight = asyncio.Semaphore(5)
         async def single_payment(pay_req):
             async with max_htlcs_in_flight:
-                await w1._pay(pay_req)
+                await w1.pay_invoice(pay_req)
         async def many_payments():
             async with TaskGroup() as group:
-                pay_reqs_tasks = [await group.spawn(self.prepare_invoice(w2, amount_sat=payment_value_sat))
+                pay_reqs_tasks = [await group.spawn(self.prepare_invoice(w2, amount_msat=payment_value_msat))
                                   for i in range(num_payments)]
             async with TaskGroup() as group:
                 for pay_req_task in pay_reqs_tasks:
@@ -490,17 +567,17 @@ class TestPeer(ElectrumTestCase):
             await gath
         with self.assertRaises(concurrent.futures.CancelledError):
             run(f())
-        self.assertEqual(alice_init_balance_msat - num_payments * payment_value_sat * 1000, alice_channel.balance(HTLCOwner.LOCAL))
-        self.assertEqual(alice_init_balance_msat - num_payments * payment_value_sat * 1000, bob_channel.balance(HTLCOwner.REMOTE))
-        self.assertEqual(bob_init_balance_msat + num_payments * payment_value_sat * 1000, bob_channel.balance(HTLCOwner.LOCAL))
-        self.assertEqual(bob_init_balance_msat + num_payments * payment_value_sat * 1000, alice_channel.balance(HTLCOwner.REMOTE))
+        self.assertEqual(alice_init_balance_msat - num_payments * payment_value_msat, alice_channel.balance(HTLCOwner.LOCAL))
+        self.assertEqual(alice_init_balance_msat - num_payments * payment_value_msat, bob_channel.balance(HTLCOwner.REMOTE))
+        self.assertEqual(bob_init_balance_msat + num_payments * payment_value_msat, bob_channel.balance(HTLCOwner.LOCAL))
+        self.assertEqual(bob_init_balance_msat + num_payments * payment_value_msat, alice_channel.balance(HTLCOwner.REMOTE))
 
     @needs_test_with_all_chacha20_implementations
     def test_payment_multihop(self):
         graph = self.prepare_chans_and_peers_in_square()
         peers = graph.all_peers()
         async def pay(pay_req):
-            result, log = await graph.w_a._pay(pay_req)
+            result, log = await graph.w_a.pay_invoice(pay_req)
             self.assertTrue(result)
             raise PaymentDone()
         async def f():
@@ -522,21 +599,20 @@ class TestPeer(ElectrumTestCase):
             with self.subTest(msg="bad path: edges do not chain together"):
                 path = [PathEdge(node_id=graph.w_c.node_keypair.pubkey, short_channel_id=graph.chan_ab.short_channel_id),
                         PathEdge(node_id=graph.w_d.node_keypair.pubkey, short_channel_id=graph.chan_bd.short_channel_id)]
-                result, log = await graph.w_a._pay(pay_req, full_path=path)
-                self.assertFalse(result)
-                self.assertTrue(isinstance(log[0].exception, LNPathInconsistent))
+                with self.assertRaises(LNPathInconsistent):
+                    await graph.w_a.pay_invoice(pay_req, full_path=path)
             with self.subTest(msg="bad path: last node id differs from invoice pubkey"):
                 path = [PathEdge(node_id=graph.w_b.node_keypair.pubkey, short_channel_id=graph.chan_ab.short_channel_id)]
-                result, log = await graph.w_a._pay(pay_req, full_path=path)
-                self.assertFalse(result)
-                self.assertTrue(isinstance(log[0].exception, LNPathInconsistent))
+                with self.assertRaises(LNPathInconsistent):
+                    await graph.w_a.pay_invoice(pay_req, full_path=path)
             with self.subTest(msg="good path"):
                 path = [PathEdge(node_id=graph.w_b.node_keypair.pubkey, short_channel_id=graph.chan_ab.short_channel_id),
                         PathEdge(node_id=graph.w_d.node_keypair.pubkey, short_channel_id=graph.chan_bd.short_channel_id)]
-                result, log = await graph.w_a._pay(pay_req, full_path=path)
+                result, log = await graph.w_a.pay_invoice(pay_req, full_path=path)
                 self.assertTrue(result)
-                self.assertEqual([edge.short_channel_id for edge in path],
-                                 [edge.short_channel_id for edge in log[0].route])
+                self.assertEqual(
+                    [edge.short_channel_id for edge in path],
+                    [edge.short_channel_id for edge in log[0].route])
             raise PaymentDone()
         async def f():
             async with TaskGroup() as group:
@@ -556,9 +632,9 @@ class TestPeer(ElectrumTestCase):
         graph.w_c.network.config.set_key('test_fail_htlcs_with_temp_node_failure', True)
         peers = graph.all_peers()
         async def pay(pay_req):
-            result, log = await graph.w_a._pay(pay_req)
+            result, log = await graph.w_a.pay_invoice(pay_req)
             self.assertFalse(result)
-            self.assertEqual(OnionFailureCode.TEMPORARY_NODE_FAILURE, log[0].failure_details.failure_msg.code)
+            self.assertEqual(OnionFailureCode.TEMPORARY_NODE_FAILURE, log[0].failure_msg.code)
             raise PaymentDone()
         async def f():
             async with TaskGroup() as group:
@@ -586,10 +662,11 @@ class TestPeer(ElectrumTestCase):
             await asyncio.wait_for(p1.initialized, 1)
             await asyncio.wait_for(p2.initialized, 1)
             # alice sends htlc
-            route = w1._create_route_from_invoice(decoded_invoice=lnaddr)
+            route, amount_msat = w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr)[0]
             htlc = p1.pay(route=route,
                           chan=alice_channel,
                           amount_msat=lnaddr.get_amount_msat(),
+                          total_msat=lnaddr.get_amount_msat(),
                           payment_hash=lnaddr.paymenthash,
                           min_final_cltv_expiry=lnaddr.get_min_final_cltv_expiry(),
                           payment_secret=lnaddr.payment_secret)
@@ -605,26 +682,101 @@ class TestPeer(ElectrumTestCase):
         with self.assertRaises(concurrent.futures.CancelledError):
             run(f())
 
+    @needs_test_with_all_chacha20_implementations
+    def test_close_upfront_shutdown_script(self):
+        alice_channel, bob_channel = create_test_channels()
+
+        # create upfront shutdown script for bob, alice doesn't use upfront
+        # shutdown script
+        bob_uss_pub = lnutil.privkey_to_pubkey(os.urandom(32))
+        bob_uss_addr = bitcoin.pubkey_to_address('p2wpkh', bh2u(bob_uss_pub))
+        bob_uss = bfh(bitcoin.address_to_script(bob_uss_addr))
+
+        # bob commits to close to bob_uss
+        alice_channel.config[HTLCOwner.REMOTE].upfront_shutdown_script = bob_uss
+        # but bob closes to some receiving address, which we achieve by not
+        # setting the upfront shutdown script in the channel config
+        bob_channel.config[HTLCOwner.LOCAL].upfront_shutdown_script = b''
+
+        p1, p2, w1, w2, q1, q2 = self.prepare_peers(alice_channel, bob_channel)
+        w1.network.config.set_key('dynamic_fees', False)
+        w2.network.config.set_key('dynamic_fees', False)
+        w1.network.config.set_key('fee_per_kb', 5000)
+        w2.network.config.set_key('fee_per_kb', 1000)
+
+        async def test():
+            async def close():
+                await asyncio.wait_for(p1.initialized, 1)
+                await asyncio.wait_for(p2.initialized, 1)
+                # bob closes channel with different shutdown script
+                await p1.close_channel(alice_channel.channel_id)
+                gath.cancel()
+
+            async def main_loop(peer):
+                    async with peer.taskgroup as group:
+                        await group.spawn(peer._message_loop())
+                        await group.spawn(peer.htlc_switch())
+
+            coros = [close(), main_loop(p1), main_loop(p2)]
+            gath = asyncio.gather(*coros)
+            await gath
+
+        with self.assertRaises(UpfrontShutdownScriptViolation):
+            run(test())
+
+        # bob sends the same upfront_shutdown_script has he announced
+        alice_channel.config[HTLCOwner.REMOTE].upfront_shutdown_script = bob_uss
+        bob_channel.config[HTLCOwner.LOCAL].upfront_shutdown_script = bob_uss
+
+        p1, p2, w1, w2, q1, q2 = self.prepare_peers(alice_channel, bob_channel)
+        w1.network.config.set_key('dynamic_fees', False)
+        w2.network.config.set_key('dynamic_fees', False)
+        w1.network.config.set_key('fee_per_kb', 5000)
+        w2.network.config.set_key('fee_per_kb', 1000)
+
+        async def test():
+            async def close():
+                await asyncio.wait_for(p1.initialized, 1)
+                await asyncio.wait_for(p2.initialized, 1)
+                await p1.close_channel(alice_channel.channel_id)
+                gath.cancel()
+
+            async def main_loop(peer):
+                async with peer.taskgroup as group:
+                    await group.spawn(peer._message_loop())
+                    await group.spawn(peer.htlc_switch())
+
+            coros = [close(), main_loop(p1), main_loop(p2)]
+            gath = asyncio.gather(*coros)
+            await gath
+        with self.assertRaises(concurrent.futures.CancelledError):
+            run(test())
+
     def test_channel_usage_after_closing(self):
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, q1, q2 = self.prepare_peers(alice_channel, bob_channel)
         pay_req = run(self.prepare_invoice(w2))
 
-        addr = w1._check_invoice(pay_req)
-        route = w1._create_route_from_invoice(decoded_invoice=addr)
+        lnaddr = w1._check_invoice(pay_req)
+        route, amount_msat = w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr)[0]
+        assert amount_msat == lnaddr.get_amount_msat()
 
         run(w1.force_close_channel(alice_channel.channel_id))
         # check if a tx (commitment transaction) was broadcasted:
         assert q1.qsize() == 1
 
         with self.assertRaises(NoPathFound) as e:
-            w1._create_route_from_invoice(decoded_invoice=addr)
+            w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr)
 
         peer = w1.peers[route[0].node_id]
         # AssertionError is ok since we shouldn't use old routes, and the
         # route finding should fail when channel is closed
         async def f():
-            await asyncio.gather(w1._pay_to_route(route, addr), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+            min_cltv_expiry = lnaddr.get_min_final_cltv_expiry()
+            payment_hash = lnaddr.paymenthash
+            payment_secret = lnaddr.payment_secret
+            pay = w1.pay_to_route(route, amount_msat, amount_msat, payment_hash, payment_secret, min_cltv_expiry)
+            await asyncio.gather(pay, p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         with self.assertRaises(PaymentFailure):
             run(f())
 

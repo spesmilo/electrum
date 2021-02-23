@@ -101,6 +101,9 @@ class TxEditor:
             self.tx = None
             try:
                 self.tx = self.make_tx(0)
+            except NotEnoughFunds:
+                self.not_enough_funds = True
+                return
             except BaseException:
                 return
         except InternalAddressCorruption as e:
@@ -108,8 +111,7 @@ class TxEditor:
             self.main_window.show_error(str(e))
             raise
         use_rbf = bool(self.config.get('use_rbf', True))
-        if use_rbf:
-            self.tx.set_rbf(True)
+        self.tx.set_rbf(use_rbf)
 
     def have_enough_funds_assuming_zero_fees(self) -> bool:
         try:
@@ -229,12 +231,7 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
         self._update_amount_label()
 
         if self.not_enough_funds:
-            text = _("Not enough funds")
-            c, u, x = self.wallet.get_frozen_balance()
-            if c+u+x:
-                text += " ({} {} {})".format(
-                    self.main_window.format_amount(c + u + x).strip(), self.main_window.base_unit(), _("are frozen")
-                )
+            text = self.main_window.get_text_not_enough_funds_mentioning_frozen()
             self.toggle_send_button(False, message=text)
             return
 

@@ -6,7 +6,7 @@ from typing import Sequence, Optional
 from PyQt5 import QtCore, QtGui
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit,
-                             QPushButton, QAbstractItemView)
+                             QPushButton, QAbstractItemView, QComboBox)
 from PyQt5.QtGui import QFont, QStandardItem, QBrush
 
 from electrum.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
@@ -32,15 +32,17 @@ class ChannelsList(MyTreeView):
     class Columns(IntEnum):
         SHORT_CHANID = 0
         NODE_ALIAS = 1
-        LOCAL_BALANCE = 2
-        REMOTE_BALANCE = 3
-        CHANNEL_STATUS = 4
+        CAPACITY = 2
+        LOCAL_BALANCE = 3
+        REMOTE_BALANCE = 4
+        CHANNEL_STATUS = 5
 
     headers = {
         Columns.SHORT_CHANID: _('Short Channel ID'),
         Columns.NODE_ALIAS: _('Node alias'),
-        Columns.LOCAL_BALANCE: _('Local'),
-        Columns.REMOTE_BALANCE: _('Remote'),
+        Columns.CAPACITY: _('Capacity'),
+        Columns.LOCAL_BALANCE: _('Can send'),
+        Columns.REMOTE_BALANCE: _('Can receive'),
         Columns.CHANNEL_STATUS: _('Status'),
     }
 
@@ -69,8 +71,8 @@ class ChannelsList(MyTreeView):
     def format_fields(self, chan):
         labels = {}
         for subject in (REMOTE, LOCAL):
-            bal_minus_htlcs = chan.balance_minus_outgoing_htlcs(subject)//1000
-            label = self.parent.format_amount(bal_minus_htlcs)
+            can_send = chan.available_to_spend(subject) / 1000
+            label = self.parent.format_amount(can_send)
             other = subject.inverted()
             bal_other = chan.balance(other)//1000
             bal_minus_htlcs_other = chan.balance_minus_outgoing_htlcs(other)//1000
@@ -79,14 +81,11 @@ class ChannelsList(MyTreeView):
             labels[subject] = label
         status = chan.get_state_for_GUI()
         closed = chan.is_closed()
-        if self.network and self.network.has_channel_db():
-            node_info = self.parent.network.channel_db.get_node_info_for_node_id(chan.node_id)
-            node_alias = (node_info.alias if node_info else '') or ''
-        else:
-            node_alias = ''
+        node_alias = self.lnworker.get_node_alias(chan.node_id)
         return [
             chan.short_id_for_GUI(),
             node_alias,
+            self.parent.format_amount(chan.constraints.capacity),
             '' if closed else labels[LOCAL],
             '' if closed else labels[REMOTE],
             status
@@ -149,6 +148,17 @@ class ChannelsList(MyTreeView):
             self.main_window.show_message('success')
         WaitingDialog(self, 'please wait..', task, on_success, self.on_failure)
 
+    def freeze_channel_for_sending(self, chan, b):
+        if self.lnworker.channel_db or self.lnworker.is_trampoline_peer(chan.node_id):
+            chan.set_frozen_for_sending(b)
+        else:
+            msg = ' '.join([
+                _("Trampoline routing is enabled, but this channel is with a non-trampoline node."),
+                _("This channel may still be used for receiving, but it is frozen for sending."),
+                _("If you want to keep using this channel, you need to disable trampoline routing in your preferences."),
+            ])
+            self.main_window.show_warning(msg, title=_('Channel is frozen for sending'))
+
     def create_menu(self, position):
         menu = QMenu()
         menu.setSeparatorsCollapsible(True)  # consecutive separators are merged together
@@ -181,9 +191,9 @@ class ChannelsList(MyTreeView):
             channel_id.hex(), title=_("Long Channel ID")))
         if not chan.is_closed():
             if not chan.is_frozen_for_sending():
-                menu.addAction(_("Freeze (for sending)"), lambda: chan.set_frozen_for_sending(True))
+                menu.addAction(_("Freeze (for sending)"), lambda: self.freeze_channel_for_sending(chan, True))
             else:
-                menu.addAction(_("Unfreeze (for sending)"), lambda: chan.set_frozen_for_sending(False))
+                menu.addAction(_("Unfreeze (for sending)"), lambda: self.freeze_channel_for_sending(chan, False))
             if not chan.is_frozen_for_receiving():
                 menu.addAction(_("Freeze (for receiving)"), lambda: chan.set_frozen_for_receiving(True))
             else:
@@ -279,6 +289,13 @@ class ChannelsList(MyTreeView):
               + _('can receive') + ' ' + self.parent.format_amount(lnworker.num_sats_can_receive())\
               + ' ' + self.parent.base_unit()
         self.can_send_label.setText(msg)
+        self.update_swap_button(lnworker)
+
+    def update_swap_button(self, lnworker: LNWallet):
+        if lnworker.num_sats_can_send() or lnworker.num_sats_can_receive():
+            self.swap_button.setEnabled(True)
+        else:
+            self.swap_button.setEnabled(False)
 
     def get_toolbar(self):
         h = QHBoxLayout()
@@ -286,7 +303,8 @@ class ChannelsList(MyTreeView):
         h.addWidget(self.can_send_label)
         h.addStretch()
         self.swap_button = EnterButton(_('Swap'), self.swap_dialog)
-        self.swap_button.setEnabled(self.parent.wallet.has_lightning())
+        self.swap_button.setToolTip("Have at least one channel to do swaps.")
+        self.swap_button.setDisabled(True)
         self.new_channel_button = EnterButton(_('Open Channel'), self.new_channel_with_warning)
         self.new_channel_button.setEnabled(self.parent.wallet.has_lightning())
         h.addWidget(self.new_channel_button)
@@ -328,14 +346,30 @@ class ChannelsList(MyTreeView):
         lnworker = self.parent.wallet.lnworker
         d = WindowModalDialog(self.parent, _('Open Channel'))
         vbox = QVBoxLayout(d)
-        vbox.addWidget(QLabel(_('Enter Remote Node ID or connection string or invoice')))
-        local_nodeid = FreezableLineEdit()
-        local_nodeid.setMinimumWidth(700)
-        local_nodeid.setText(bh2u(lnworker.node_keypair.pubkey))
-        local_nodeid.setFrozen(True)
-        local_nodeid.setCursorPosition(0)
-        remote_nodeid = QLineEdit()
-        remote_nodeid.setMinimumWidth(700)
+        if self.parent.network.channel_db:
+            vbox.addWidget(QLabel(_('Enter Remote Node ID or connection string or invoice')))
+            remote_nodeid = QLineEdit()
+            remote_nodeid.setMinimumWidth(700)
+            suggest_button = QPushButton(d, text=_('Suggest Peer'))
+            def on_suggest():
+                self.parent.wallet.network.start_gossip()
+                nodeid = bh2u(lnworker.suggest_peer() or b'')
+                if not nodeid:
+                    remote_nodeid.setText("")
+                    remote_nodeid.setPlaceholderText(
+                        "Please wait until the graph is synchronized to 30%, and then try again.")
+                else:
+                    remote_nodeid.setText(nodeid)
+                remote_nodeid.repaint()  # macOS hack for #6269
+            suggest_button.clicked.connect(on_suggest)
+        else:
+            from electrum.lnworker import hardcoded_trampoline_nodes
+            trampolines = hardcoded_trampoline_nodes()
+            trampoline_names = list(trampolines.keys())
+            trampoline_combo = QComboBox()
+            trampoline_combo.addItems(trampoline_names)
+            trampoline_combo.setCurrentIndex(1)
+
         amount_e = BTCAmountEdit(self.parent.get_decimal_point)
         # max button
         def spend_max():
@@ -356,27 +390,32 @@ class ChannelsList(MyTreeView):
         max_button = EnterButton(_("Max"), spend_max)
         max_button.setFixedWidth(100)
         max_button.setCheckable(True)
+
         clear_button = QPushButton(d, text=_('Clear'))
-        clear_button.setFixedWidth(100)
         def on_clear():
             amount_e.setText('')
             amount_e.setFrozen(False)
             amount_e.repaint()  # macOS hack for #6269
-            remote_nodeid.setText('')
-            remote_nodeid.repaint()  # macOS hack for #6269
+            if self.parent.network.channel_db:
+                remote_nodeid.setText('')
+                remote_nodeid.repaint()  # macOS hack for #6269
             max_button.setChecked(False)
             max_button.repaint()  # macOS hack for #6269
         clear_button.clicked.connect(on_clear)
-
+        clear_button.setFixedWidth(100)
         h = QGridLayout()
-        h.addWidget(QLabel(_('Your Node ID')), 0, 0)
-        h.addWidget(local_nodeid, 0, 1, 1, 4)
-        h.addWidget(QLabel(_('Remote Node ID')), 1, 0)
-        h.addWidget(remote_nodeid, 1, 1, 1, 4)
-        h.addWidget(QLabel('Amount'), 3, 0)
-        h.addWidget(amount_e, 3, 1)
-        h.addWidget(max_button, 3, 2)
-        h.addWidget(clear_button, 3, 3)
+        if self.parent.network.channel_db:
+            h.addWidget(QLabel(_('Remote Node ID')), 0, 0)
+            h.addWidget(remote_nodeid, 0, 1, 1, 4)
+            h.addWidget(suggest_button, 0, 5)
+        else:
+            h.addWidget(QLabel(_('Trampoline Node')), 0, 0)
+            h.addWidget(trampoline_combo, 0, 1, 1, 3)
+
+        h.addWidget(QLabel('Amount'), 2, 0)
+        h.addWidget(amount_e, 2, 1)
+        h.addWidget(max_button, 2, 2)
+        h.addWidget(clear_button, 2, 3)
         vbox.addLayout(h)
         ok_button = OkButton(d)
         ok_button.setDefault(True)
@@ -390,7 +429,11 @@ class ChannelsList(MyTreeView):
             funding_sat = '!'
         else:
             funding_sat = amount_e.get_amount()
-        connect_str = str(remote_nodeid.text()).strip()
+        if self.parent.network.channel_db:
+            connect_str = str(remote_nodeid.text()).strip()
+        else:
+            name = trampoline_names[trampoline_combo.currentIndex()]
+            connect_str = str(trampolines[name])
         if not connect_str or not funding_sat:
             return
         self.parent.open_channel(connect_str, funding_sat, 0)

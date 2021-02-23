@@ -9,6 +9,7 @@ from electrum.util import bh2u
 from electrum.bitcoin import COIN
 import electrum.simple_config as config
 from electrum.logging import Logger
+from electrum.lnutil import ln_dummy_address
 
 from .label_dialog import LabelDialog
 
@@ -17,12 +18,16 @@ if TYPE_CHECKING:
 
 
 Builder.load_string('''
+#:import KIVY_GUI_PATH electrum.gui.kivy.KIVY_GUI_PATH
+
 <LightningOpenChannelDialog@Popup>
+    use_gossip: False
     id: s
     name: 'lightning_open_channel'
     title: _('Open Lightning Channel')
     pubkey: ''
     amount: ''
+    is_max: False
     ipport: ''
     BoxLayout
         spacing: '12dp'
@@ -36,20 +41,21 @@ Builder.load_string('''
                 size_hint: 1, None
                 height: blue_bottom.item_height
                 Image:
-                    source: 'atlas://electrum/gui/kivy/theming/light/globe'
+                    source: f'atlas://{KIVY_GUI_PATH}/theming/light/globe'
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
                 BlueButton:
-                    text: s.pubkey if s.pubkey else _('Node ID')
+                    text: s.pubkey if s.pubkey else (_('Node ID') if root.use_gossip else _('Trampoline node'))
                     shorten: True
+                    on_release: s.suggest_node()
             CardSeparator:
                 color: blue_bottom.foreground_color
             BoxLayout:
                 size_hint: 1, None
                 height: blue_bottom.item_height
                 Image:
-                    source: 'atlas://electrum/gui/kivy/theming/light/calculator'
+                    source: f'atlas://{KIVY_GUI_PATH}/theming/light/calculator'
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
@@ -57,20 +63,25 @@ Builder.load_string('''
                     text: s.amount if s.amount else _('Amount')
                     on_release: app.amount_dialog(s, True)
         TopLabel:
-            text: _('Paste or scan a node ID, a connection string or a lightning invoice.')
+            text: _('Paste or scan a node ID, a connection string or a lightning invoice.') if root.use_gossip else _('Choose a trampoline node and the amount')
         BoxLayout:
             size_hint: 1, None
             height: '48dp'
             IconButton:
-                icon: 'atlas://electrum/gui/kivy/theming/light/copy'
+                icon: f'atlas://{KIVY_GUI_PATH}/theming/light/copy'
                 size_hint: 0.5, None
                 height: '48dp'
                 on_release: s.do_paste()
             IconButton:
-                icon: 'atlas://electrum/gui/kivy/theming/light/camera'
+                icon: f'atlas://{KIVY_GUI_PATH}/theming/light/camera'
                 size_hint: 0.5, None
                 height: '48dp'
                 on_release: app.scan_qr(on_complete=s.on_qr)
+            Button:
+                text: _('Suggest')
+                size_hint: 1, None
+                height: '48dp'
+                on_release: s.suggest_node()
             Button:
                 text: _('Clear')
                 size_hint: 1, None
@@ -97,12 +108,34 @@ class LightningOpenChannelDialog(Factory.Popup, Logger):
         d = LabelDialog(_('IP/port in format:\n[host]:[port]'), self.ipport, callback)
         d.open()
 
+    def suggest_node(self):
+        if self.use_gossip:
+            suggested = self.app.wallet.lnworker.suggest_peer()
+            if suggested:
+                self.pubkey = suggested.hex()
+            else:
+                _, _, percent = self.app.wallet.network.lngossip.get_sync_progress_estimate()
+                if percent is None:
+                    percent = "??"
+                self.pubkey = f"Please wait, graph is updating ({percent}% / 30% done)."
+        else:
+            self.trampoline_index += 1
+            self.trampoline_index = self.trampoline_index % len(self.trampoline_names)
+            self.pubkey = self.trampoline_names[self.trampoline_index]
+
     def __init__(self, app, lnaddr=None, msg=None):
         Factory.Popup.__init__(self)
         Logger.__init__(self)
         self.app = app  # type: ElectrumWindow
         self.lnaddr = lnaddr
         self.msg = msg
+        self.use_gossip = bool(self.app.network.channel_db)
+        if not self.use_gossip:
+            from electrum.lnworker import hardcoded_trampoline_nodes
+            self.trampolines = hardcoded_trampoline_nodes()
+            self.trampoline_names = list(self.trampolines.keys())
+            self.trampoline_index = 0
+            self.pubkey = ''
 
     def open(self, *args, **kwargs):
         super(LightningOpenChannelDialog, self).open(*args, **kwargs)
@@ -134,22 +167,34 @@ class LightningOpenChannelDialog(Factory.Popup, Logger):
         if not self.pubkey or not self.amount:
             self.app.show_info(_('All fields must be filled out'))
             return
-        conn_str = self.pubkey
-        if self.ipport:
-            conn_str += '@' + self.ipport.strip()
-        amount = self.app.get_amount(self.amount)
+        if self.use_gossip:
+            conn_str = self.pubkey
+            if self.ipport:
+                conn_str += '@' + self.ipport.strip()
+        else:
+            conn_str = str(self.trampolines[self.pubkey])
+        amount = '!' if self.is_max else self.app.get_amount(self.amount)
         self.app.protected('Create a new channel?', self.do_open_channel, (conn_str, amount))
         self.dismiss()
 
     def do_open_channel(self, conn_str, amount, password):
         coins = self.app.wallet.get_spendable_coins(None, nonlocal_only=True)
-        funding_tx = self.app.wallet.lnworker.mktx_for_open_channel(coins=coins, funding_sat=amount)
+        lnworker = self.app.wallet.lnworker
         try:
-            chan, funding_tx = self.app.wallet.lnworker.open_channel(connect_str=conn_str,
-                                                                     funding_tx=funding_tx,
-                                                                     funding_sat=amount,
-                                                                     push_amt_sat=0,
-                                                                     password=password)
+            funding_tx = lnworker.mktx_for_open_channel(coins=coins, funding_sat=amount)
+        except Exception as e:
+            self.logger.exception("Problem opening channel")
+            self.app.show_error(_('Problem opening channel: ') + '\n' + repr(e))
+            return
+        # read funding_sat from tx; converts '!' to int value
+        funding_sat = funding_tx.output_value_for_address(ln_dummy_address())
+        try:
+            chan, funding_tx = lnworker.open_channel(
+                connect_str=conn_str,
+                funding_tx=funding_tx,
+                funding_sat=funding_sat,
+                push_amt_sat=0,
+                password=password)
         except Exception as e:
             self.logger.exception("Problem opening channel")
             self.app.show_error(_('Problem opening channel: ') + '\n' + repr(e))

@@ -178,6 +178,7 @@ class TxOutpoint(NamedTuple):
     @classmethod
     def from_str(cls, s: str) -> 'TxOutpoint':
         hash_str, idx_str = s.split(':')
+        assert len(hash_str) == 64, f"{hash_str} should be a sha256 hash"
         return TxOutpoint(txid=bfh(hash_str),
                           out_idx=int(idx_str))
 
@@ -862,10 +863,11 @@ class Transaction:
             return None
         return bh2u(sha256d(bfh(ser))[::-1])
 
-    def add_info_from_wallet(self, wallet: 'Abstract_Wallet') -> None:
+    def add_info_from_wallet(self, wallet: 'Abstract_Wallet', **kwargs) -> None:
         return  # no-op
 
-    def is_final(self):
+    def is_final(self) -> bool:
+        """Whether RBF is disabled."""
         return not any([txin.nsequence < 0xffffffff - 1 for txin in self.inputs()])
 
     def estimated_size(self):
@@ -1191,6 +1193,10 @@ class PartialTxInput(TxInput, PSBTSection):
 
     @classmethod
     def from_txin(cls, txin: TxInput, *, strip_witness: bool = True) -> 'PartialTxInput':
+        # FIXME: if strip_witness is True, res.is_segwit() will return False,
+        # and res.estimated_size() will return an incorrect value. These methods
+        # will return the correct values after we call add_input_info(). (see dscancel and bump_fee)
+        # This is very fragile: the value returned by estimate_size() depends on the calling order.
         res = PartialTxInput(prevout=txin.prevout,
                              script_sig=None if strip_witness else txin.script_sig,
                              nsequence=txin.nsequence,
@@ -1596,7 +1602,8 @@ class PartialTransaction(Transaction):
     @classmethod
     def from_tx(cls, tx: Transaction) -> 'PartialTransaction':
         res = cls()
-        res._inputs = [PartialTxInput.from_txin(txin) for txin in tx.inputs()]
+        res._inputs = [PartialTxInput.from_txin(txin, strip_witness=True)
+                       for txin in tx.inputs()]
         res._outputs = [PartialTxOutput.from_txout(txout) for txout in tx.outputs()]
         res.version = tx.version
         res.locktime = tx.locktime
@@ -1968,29 +1975,40 @@ class PartialTransaction(Transaction):
         txin.witness = None
         self.invalidate_ser_cache()
 
-    def add_info_from_wallet(self, wallet: 'Abstract_Wallet', *,
-                             include_xpubs_and_full_paths: bool = False) -> None:
+    def add_info_from_wallet(
+            self,
+            wallet: 'Abstract_Wallet',
+            *,
+            include_xpubs: bool = False,
+            ignore_network_issues: bool = True,
+    ) -> None:
         if self.is_complete():
             return
-        only_der_suffix = not include_xpubs_and_full_paths
         # only include xpubs for multisig wallets; currently only they need it in practice
         # note: coldcard fw have a limitation that if they are included then all
         #       inputs are assumed to be multisig... https://github.com/spesmilo/electrum/pull/5440#issuecomment-549504761
         # note: trezor plugin needs xpubs included, if there are multisig inputs/change_outputs
         from .wallet import Multisig_Wallet
-        if include_xpubs_and_full_paths and isinstance(wallet, Multisig_Wallet):
+        if include_xpubs and isinstance(wallet, Multisig_Wallet):
             from .keystore import Xpub
             for ks in wallet.get_keystores():
                 if isinstance(ks, Xpub):
-                    fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix=[],
-                                                                                           only_der_suffix=only_der_suffix)
-                    xpub = ks.get_xpub_to_be_used_in_partial_tx(only_der_suffix=only_der_suffix)
+                    fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(
+                        der_suffix=[], only_der_suffix=False)
+                    xpub = ks.get_xpub_to_be_used_in_partial_tx(only_der_suffix=False)
                     bip32node = BIP32Node.from_xkey(xpub)
                     self.xpubs[bip32node] = (fp_bytes, der_full)
         for txin in self.inputs():
-            wallet.add_input_info(txin, only_der_suffix=only_der_suffix)
+            wallet.add_input_info(
+                txin,
+                only_der_suffix=False,
+                ignore_network_issues=ignore_network_issues,
+            )
         for txout in self.outputs():
-            wallet.add_output_info(txout, only_der_suffix=only_der_suffix)
+            wallet.add_output_info(
+                txout,
+                only_der_suffix=False,
+            )
 
     def remove_xpubs_and_bip32_paths(self) -> None:
         self.xpubs.clear()
@@ -2038,6 +2056,7 @@ class PartialTransaction(Transaction):
         for txin in self.inputs():
             if txin.script_type in ('unknown', 'address'):
                 txin.set_script_type()
+<<<<<<< HEAD
 
 class PayJoinExchangeException(Exception):
     pass
@@ -2210,6 +2229,8 @@ class PayjoinTransaction():
                     raise PayJoinProposalValidationException(f"Receiver modified the payment outputs, but it was forbidden.")
                 if receiver_o[0].value < txout.value:
                     raise PayJoinProposalValidationException(f"The amount of the payment ouput was decreased.")
+=======
+>>>>>>> origin/master
 
 def pack_bip32_root_fingerprint_and_int_path(xfp: bytes, path: Sequence[int]) -> bytes:
     if len(xfp) != 4:

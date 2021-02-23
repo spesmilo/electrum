@@ -24,7 +24,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from typing import TYPE_CHECKING, Dict, List, Union, Tuple, Sequence, Optional, Type
+from typing import TYPE_CHECKING, Dict, List, Union, Tuple, Sequence, Optional, Type, Iterable, Any
 from functools import partial
 
 from electrum.plugin import (BasePlugin, hook, Device, DeviceMgr, DeviceInfo,
@@ -51,6 +51,8 @@ class HW_PluginBase(BasePlugin):
     minimum_library = (0, )
     maximum_library = (float('inf'), )
 
+    DEVICE_IDS: Iterable[Any]
+
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
         self.device = self.keystore_class.device
@@ -63,7 +65,7 @@ class HW_PluginBase(BasePlugin):
     def device_manager(self) -> 'DeviceMgr':
         return self.parent.device_manager
 
-    def create_device_from_hid_enumeration(self, d: dict, *, product_key) -> 'Device':
+    def create_device_from_hid_enumeration(self, d: dict, *, product_key) -> Optional['Device']:
         # Older versions of hid don't provide interface_number
         interface_number = d.get('interface_number', -1)
         usage_page = d['usage_page']
@@ -192,6 +194,12 @@ class HW_PluginBase(BasePlugin):
         # note: in Qt GUI, 'window' is either an ElectrumWindow or an InstallWizard
         raise NotImplementedError()
 
+    def can_recognize_device(self, device: Device) -> bool:
+        """Whether the plugin thinks it can handle the given device.
+        Used for filtering all connected hardware devices to only those by this vendor.
+        """
+        return device.product_key in self.DEVICE_IDS
+
 
 class HardwareClientBase:
 
@@ -265,6 +273,13 @@ class HardwareClientBase:
         E.g. for Trezor, "Trezor One" or "Trezor T".
         """
         return None
+
+    def manipulate_keystore_dict_during_wizard_setup(self, d: dict) -> None:
+        """Called during wallet creation in the wizard, before the keystore
+        is constructed for the first time. 'd' is the dict that will be
+        passed to the keystore constructor.
+        """
+        pass
 
 
 class HardwareHandlerBase:
