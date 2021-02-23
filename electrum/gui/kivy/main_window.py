@@ -516,7 +516,7 @@ class ElectrumWindow(App, Logger):
 
     def scan_qr(self, on_complete):
         if platform != 'android':
-            return
+            return self.scan_qr_non_android(on_complete)
         from jnius import autoclass, cast
         from android import activity
         PythonActivity = autoclass('org.kivy.android.PythonActivity')
@@ -538,6 +538,15 @@ class ElectrumWindow(App, Logger):
                 activity.unbind(on_activity_result=on_qr_result)
         activity.bind(on_activity_result=on_qr_result)
         PythonActivity.mActivity.startActivityForResult(intent, 0)
+
+    def scan_qr_non_android(self, on_complete):
+        from electrum import qrscanner
+        try:
+            video_dev = self.electrum_config.get_video_device()
+            data = qrscanner.scan_barcode(video_dev)
+            on_complete(data)
+        except BaseException as e:
+            self.show_error(repr(e))
 
     def do_share(self, data, title):
         if platform != 'android':
