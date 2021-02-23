@@ -2056,7 +2056,6 @@ class PartialTransaction(Transaction):
         for txin in self.inputs():
             if txin.script_type in ('unknown', 'address'):
                 txin.set_script_type()
-<<<<<<< HEAD
 
 class PayJoinExchangeException(Exception):
     pass
@@ -2229,8 +2228,6 @@ class PayjoinTransaction():
                     raise PayJoinProposalValidationException(f"Receiver modified the payment outputs, but it was forbidden.")
                 if receiver_o[0].value < txout.value:
                     raise PayJoinProposalValidationException(f"The amount of the payment ouput was decreased.")
-=======
->>>>>>> origin/master
 
 def pack_bip32_root_fingerprint_and_int_path(xfp: bytes, path: Sequence[int]) -> bytes:
     if len(xfp) != 4:

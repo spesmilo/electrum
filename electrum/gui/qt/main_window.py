@@ -1640,12 +1640,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         """
         return self.utxo_list.get_spend_list()
 
-<<<<<<< HEAD
-    def pay_onchain_dialog(self, inputs: Sequence[PartialTxInput],
-                           outputs: List[PartialTxOutput], *,
-                           payjoin=None,
-                           external_keypairs=None) -> None:
-=======
     def get_text_not_enough_funds_mentioning_frozen(self) -> str:
         text = _("Not enough funds")
         frozen_bal = sum(self.wallet.get_frozen_balance())
@@ -1655,11 +1649,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             )
         return text
 
-    def pay_onchain_dialog(
-            self, inputs: Sequence[PartialTxInput],
-            outputs: List[PartialTxOutput], *,
-            external_keypairs=None) -> None:
->>>>>>> origin/master
+    def pay_onchain_dialog(self, inputs: Sequence[PartialTxInput],
+                           outputs: List[PartialTxOutput], *,
+                           payjoin=None,
+                           external_keypairs=None) -> None:
         # trustedcoin requires this
         if run_hook('abort_send', self):
             return

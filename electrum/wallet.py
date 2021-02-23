@@ -757,11 +757,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             exp=exp,
             bip70=None,
             requestor=None,
-<<<<<<< HEAD
             bip78_payjoin=bip78_payjoin,
-=======
             height=height,
->>>>>>> origin/master
         )
         return invoice
 
