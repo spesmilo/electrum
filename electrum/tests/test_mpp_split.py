@@ -1,5 +1,3 @@
-import random
-
 import electrum.mpp_split as mpp_split  # side effect for PART_PENALTY
 from electrum.lnutil import NoPathFound
 
@@ -11,8 +9,6 @@ PART_PENALTY = mpp_split.PART_PENALTY
 class TestMppSplit(ElectrumTestCase):
     def setUp(self):
         super().setUp()
-        random.seed(0)  # split should only weakly depend on the seed
-        # test is dependent on the python version used, here 3.8
         # undo side effect
         mpp_split.PART_PENALTY = PART_PENALTY
         self.channels_with_funds = {
@@ -29,8 +25,7 @@ class TestMppSplit(ElectrumTestCase):
 
         with self.subTest(msg="do a payment with a larger amount than what is supported by a single channel"):
             splits = mpp_split.suggest_splits(1_100_000_000, self.channels_with_funds, exclude_single_parts=True)
-            self.assertEqual({0: 798_000_000, 1: 0, 2: 302_000_000, 3: 0}, splits[0][0])
-            self.assertEqual({0: 908_000_000, 1: 0, 2: 192_000_000, 3: 0}, splits[1][0])
+            self.assertEqual(2, mpp_split.number_nonzero_parts(splits[0][0]))
 
         with self.subTest(msg="do a payment with the maximal amount spendable over all channels"):
             splits = mpp_split.suggest_splits(sum(self.channels_with_funds.values()), self.channels_with_funds, exclude_single_parts=True)
@@ -54,14 +49,19 @@ class TestMppSplit(ElectrumTestCase):
         in the number of parts a payment is split. A configuration which has
         about equally distributed amounts will result."""
         with self.subTest(msg="split payments with intermediate part penalty"):
+            mpp_split.PART_PENALTY = 1.0
+            splits = mpp_split.suggest_splits(1_100_000_000, self.channels_with_funds)
+            self.assertEqual(2, mpp_split.number_nonzero_parts(splits[0][0]))
+
+        with self.subTest(msg="split payments with intermediate part penalty"):
             mpp_split.PART_PENALTY = 0.3
             splits = mpp_split.suggest_splits(1_100_000_000, self.channels_with_funds)
-            self.assertEqual({0: 408_000_000, 1: 390_000_000, 2: 302_000_000, 3: 0}, splits[0][0])
+            self.assertEqual(3, mpp_split.number_nonzero_parts(splits[0][0]))
 
         with self.subTest(msg="split payments with no part penalty"):
             mpp_split.PART_PENALTY = 0.0
             splits = mpp_split.suggest_splits(1_100_000_000, self.channels_with_funds)
-            self.assertEqual({0: 307_000_000, 1: 390_000_000, 2: 302_000_000, 3: 101_000_000}, splits[0][0])
+            self.assertEqual(4, mpp_split.number_nonzero_parts(splits[0][0]))
 
     def test_suggest_splits_single_channel(self):
         channels_with_funds = {
