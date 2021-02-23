@@ -2701,7 +2701,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         from electrum import qrscanner
         try:
             data = qrscanner.scan_barcode(self.config.get_video_device())
+        except UserFacingException as e:
+            self.show_error(e)
+            return
         except BaseException as e:
+            self.logger.exception('camera error')
             self.show_error(repr(e))
             return
         if not data:

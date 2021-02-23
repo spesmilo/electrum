@@ -81,7 +81,8 @@ Label.register(
 
 
 from electrum.util import (NoDynamicFeeEstimates, NotEnoughFunds,
-                           BITCOIN_BIP21_URI_SCHEME, LIGHTNING_URI_SCHEME)
+                           BITCOIN_BIP21_URI_SCHEME, LIGHTNING_URI_SCHEME,
+                           UserFacingException)
 
 from .uix.dialogs.lightning_open_channel import LightningOpenChannelDialog
 from .uix.dialogs.lightning_channels import LightningChannelsDialog, SwapDialog
@@ -545,7 +546,10 @@ class ElectrumWindow(App, Logger):
             video_dev = self.electrum_config.get_video_device()
             data = qrscanner.scan_barcode(video_dev)
             on_complete(data)
+        except UserFacingException as e:
+            self.show_error(e)
         except BaseException as e:
+            self.logger.exception('camera error')
             self.show_error(repr(e))
 
     def do_share(self, data, title):
