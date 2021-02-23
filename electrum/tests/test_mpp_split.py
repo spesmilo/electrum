@@ -29,8 +29,8 @@ class TestMppSplit(ElectrumTestCase):
 
         with self.subTest(msg="do a payment with a larger amount than what is supported by a single channel"):
             splits = mpp_split.suggest_splits(1_100_000_000, self.channels_with_funds, exclude_single_parts=True)
-            self.assertEqual({0: 798_000_000, 1: 0, 2: 302_000_000, 3: 0}, splits[0][0])
-            self.assertEqual({0: 908_000_000, 1: 0, 2: 192_000_000, 3: 0}, splits[1][0])
+            self.assertEqual({0: 600_000_000, 1: 500_000_000, 2: 0, 3: 0}, splits[0][0])
+            self.assertEqual({0: 710_000_000, 1: 390_000_000, 2: 0, 3: 0}, splits[1][0])
 
         with self.subTest(msg="do a payment with the maximal amount spendable over all channels"):
             splits = mpp_split.suggest_splits(sum(self.channels_with_funds.values()), self.channels_with_funds, exclude_single_parts=True)

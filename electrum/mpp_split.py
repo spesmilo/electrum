@@ -24,7 +24,7 @@ def unique_hierarchy(hierarchy: Dict[int, List[Dict[bytes, int]]]) -> Dict[int, 
         for config in configs:
             # config dict can be out of order, so sort, otherwise not unique
             unique_configs.add(tuple((c, config[c]) for c in sorted(config.keys())))
-        for unique_config in unique_configs:
+        for unique_config in sorted(unique_configs):
             new_hierarchy[number_parts].append(
                 {t[0]: t[1] for t in unique_config})
     return new_hierarchy
