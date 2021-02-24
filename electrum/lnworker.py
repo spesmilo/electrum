@@ -1473,6 +1473,7 @@ class LNWallet(LNWorker):
         # first try with routing hints, then without
         for private_path in r_tags + [[]]:
             private_route = []
+            amount_for_node = amount_msat
             path = full_path
             if len(private_path) > NUM_MAX_EDGES_IN_PAYMENT_PATH:
                 continue
@@ -1507,6 +1508,8 @@ class LNWallet(LNWorker):
                             cltv_expiry_delta=cltv_expiry_delta,
                             node_features=node_info.features if node_info else 0))
                     prev_node_id = node_pubkey
+                for edge in private_route[::-1]:
+                    amount_for_node += edge.fee_for_edge(amount_for_node)
                 if full_path:
                     # user pre-selected path. check that end of given path coincides with private_route:
                     if [edge.short_channel_id for edge in full_path[-len(private_path):]] != [edge[1] for edge in private_path]:
@@ -1514,7 +1517,7 @@ class LNWallet(LNWorker):
                     path = full_path[:-len(private_path)]
             try:
                 route = self.network.path_finder.find_route(
-                    self.node_keypair.pubkey, border_node_pubkey, amount_msat,
+                    self.node_keypair.pubkey, border_node_pubkey, amount_for_node,
                     path=path, my_channels=scid_to_my_channels, blacklist=blacklist)
             except NoChannelPolicy:
                 continue
