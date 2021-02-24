@@ -1,3 +1,5 @@
+import random
+
 import electrum.mpp_split as mpp_split  # side effect for PART_PENALTY
 from electrum.lnutil import NoPathFound
 
@@ -9,6 +11,8 @@ PART_PENALTY = mpp_split.PART_PENALTY
 class TestMppSplit(ElectrumTestCase):
     def setUp(self):
         super().setUp()
+        # to make tests reproducible:
+        random.seed(0)
         # undo side effect
         mpp_split.PART_PENALTY = PART_PENALTY
         self.channels_with_funds = {
