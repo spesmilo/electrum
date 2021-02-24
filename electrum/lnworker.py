@@ -1470,20 +1470,48 @@ class LNWallet(LNWorker):
             if chan.short_channel_id is not None
         }
         blacklist = self.network.channel_blacklist.get_current_list()
-        for private_route in r_tags:
-            if len(private_route) == 0:
+        # first try with routing hints, then without
+        for private_path in r_tags + [[]]:
+            private_route = []
+            path = full_path
+            if len(private_path) > NUM_MAX_EDGES_IN_PAYMENT_PATH:
                 continue
-            if len(private_route) > NUM_MAX_EDGES_IN_PAYMENT_PATH:
-                continue
-            border_node_pubkey = private_route[0][0]
-            if full_path:
-                # user pre-selected path. check that end of given path coincides with private_route:
-                if [edge.short_channel_id for edge in full_path[-len(private_route):]] != [edge[1] for edge in private_route]:
-                    continue
-                path = full_path[:-len(private_route)]
+            if len(private_path) == 0:
+                border_node_pubkey = invoice_pubkey
             else:
-                # find path now on public graph, to border node
-                path = None
+                border_node_pubkey = private_path[0][0]
+                # we need to shift the node pubkey by one towards the destination:
+                private_path_nodes = [edge[0] for edge in private_path][1:] + [invoice_pubkey]
+                private_path_rest = [edge[1:] for edge in private_path]
+                prev_node_id = border_node_pubkey
+                for node_pubkey, edge_rest in zip(private_path_nodes, private_path_rest):
+                    short_channel_id, fee_base_msat, fee_proportional_millionths, cltv_expiry_delta = edge_rest
+                    short_channel_id = ShortChannelID(short_channel_id)
+                    # if we have a routing policy for this edge in the db, that takes precedence,
+                    # as it is likely from a previous failure
+                    channel_policy = self.channel_db.get_policy_for_node(
+                        short_channel_id=short_channel_id,
+                        node_id=prev_node_id,
+                        my_channels=scid_to_my_channels)
+                    if channel_policy:
+                        fee_base_msat = channel_policy.fee_base_msat
+                        fee_proportional_millionths = channel_policy.fee_proportional_millionths
+                        cltv_expiry_delta = channel_policy.cltv_expiry_delta
+                    node_info = self.channel_db.get_node_info_for_node_id(node_id=node_pubkey)
+                    private_route.append(
+                        RouteEdge(
+                            node_id=node_pubkey,
+                            short_channel_id=short_channel_id,
+                            fee_base_msat=fee_base_msat,
+                            fee_proportional_millionths=fee_proportional_millionths,
+                            cltv_expiry_delta=cltv_expiry_delta,
+                            node_features=node_info.features if node_info else 0))
+                    prev_node_id = node_pubkey
+                if full_path:
+                    # user pre-selected path. check that end of given path coincides with private_route:
+                    if [edge.short_channel_id for edge in full_path[-len(private_path):]] != [edge[1] for edge in private_path]:
+                        continue
+                    path = full_path[:-len(private_path)]
             try:
                 route = self.network.path_finder.find_route(
                     self.node_keypair.pubkey, border_node_pubkey, amount_msat,
@@ -1492,49 +1520,14 @@ class LNWallet(LNWorker):
                 continue
             if not route:
                 continue
-            # we need to shift the node pubkey by one towards the destination:
-            private_route_nodes = [edge[0] for edge in private_route][1:] + [invoice_pubkey]
-            private_route_rest = [edge[1:] for edge in private_route]
-            prev_node_id = border_node_pubkey
-            for node_pubkey, edge_rest in zip(private_route_nodes, private_route_rest):
-                short_channel_id, fee_base_msat, fee_proportional_millionths, cltv_expiry_delta = edge_rest
-                short_channel_id = ShortChannelID(short_channel_id)
-                # if we have a routing policy for this edge in the db, that takes precedence,
-                # as it is likely from a previous failure
-                channel_policy = self.channel_db.get_policy_for_node(
-                    short_channel_id=short_channel_id,
-                    node_id=prev_node_id,
-                    my_channels=scid_to_my_channels)
-                if channel_policy:
-                    fee_base_msat = channel_policy.fee_base_msat
-                    fee_proportional_millionths = channel_policy.fee_proportional_millionths
-                    cltv_expiry_delta = channel_policy.cltv_expiry_delta
-                node_info = self.channel_db.get_node_info_for_node_id(node_id=node_pubkey)
-                route.append(
-                    RouteEdge(
-                        node_id=node_pubkey,
-                        short_channel_id=short_channel_id,
-                        fee_base_msat=fee_base_msat,
-                        fee_proportional_millionths=fee_proportional_millionths,
-                        cltv_expiry_delta=cltv_expiry_delta,
-                        node_features=node_info.features if node_info else 0))
-                prev_node_id = node_pubkey
+            route = route + private_route
             # test sanity
             if not is_route_sane_to_use(route, amount_msat, min_cltv_expiry):
                 self.logger.info(f"rejecting insane route {route}")
-                route = None
                 continue
             break
-        # if could not find route using any hint; try without hint now
-        if route is None:
-            route = self.network.path_finder.find_route(
-                self.node_keypair.pubkey, invoice_pubkey, amount_msat,
-                path=full_path, my_channels=scid_to_my_channels, blacklist=blacklist)
-            if not route:
-                raise NoPathFound()
-            if not is_route_sane_to_use(route, amount_msat, min_cltv_expiry):
-                self.logger.info(f"rejecting insane route {route}")
-                raise NoPathFound()
+        else:
+            raise NoPathFound()
         assert len(route) > 0
         if route[-1].node_id != invoice_pubkey:
             raise LNPathInconsistent("last node_id != invoice pubkey")
