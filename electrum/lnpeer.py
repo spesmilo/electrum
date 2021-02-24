@@ -1373,9 +1373,12 @@ class Peer(Logger):
         chan.receive_htlc(htlc, onion_packet)
         util.trigger_callback('htlc_added', chan, htlc, RECEIVED)
 
-    def maybe_forward_htlc(self, chan: Channel, htlc: UpdateAddHtlc, *,
-                           onion_packet: OnionPacket, processed_onion: ProcessedOnionPacket
-                           ) -> Tuple[Optional[bytes], Optional[int], Optional[OnionRoutingFailure]]:
+    def maybe_forward_htlc(
+            self,
+            *,
+            htlc: UpdateAddHtlc,
+            processed_onion: ProcessedOnionPacket,
+    ) -> Tuple[bytes, int]:
         # Forward HTLC
         # FIXME: there are critical safety checks MISSING here
         forwarding_enabled = self.network.config.get('lightning_forward_payments', False)
@@ -1662,7 +1665,7 @@ class Peer(Logger):
         self.shutdown_received[chan_id] = asyncio.Future()
         await self.send_shutdown(chan)
         payload = await self.shutdown_received[chan_id]
-        txid = await self._shutdown(chan, payload, True)
+        txid = await self._shutdown(chan, payload, is_local=True)
         self.logger.info(f'({chan.get_id_for_log()}) Channel closed {txid}')
         return txid
 
@@ -1686,10 +1689,10 @@ class Peer(Logger):
         else:
             chan = self.channels[chan_id]
             await self.send_shutdown(chan)
-            txid = await self._shutdown(chan, payload, False)
+            txid = await self._shutdown(chan, payload, is_local=False)
             self.logger.info(f'({chan.get_id_for_log()}) Channel closed by remote peer {txid}')
 
-    def can_send_shutdown(self, chan):
+    def can_send_shutdown(self, chan: Channel):
         if chan.get_state() >= ChannelState.OPENING:
             return True
         if chan.constraints.is_initiator and chan.channel_id in self.funding_created_sent:
@@ -1718,7 +1721,7 @@ class Peer(Logger):
         chan.set_can_send_ctx_updates(True)
 
     @log_exceptions
-    async def _shutdown(self, chan: Channel, payload, is_local):
+    async def _shutdown(self, chan: Channel, payload, *, is_local: bool):
         # wait until no HTLCs remain in either commitment transaction
         while len(chan.hm.htlcs(LOCAL)) + len(chan.hm.htlcs(REMOTE)) > 0:
             self.logger.info(f'(chan: {chan.short_channel_id}) waiting for htlcs to settle...')
@@ -1826,7 +1829,12 @@ class Peer(Logger):
                         error_reason = e
                     else:
                         try:
-                            preimage, fw_info, error_bytes = self.process_unfulfilled_htlc(chan, htlc_id, htlc, forwarding_info, onion_packet_bytes, onion_packet)
+                            preimage, fw_info, error_bytes = self.process_unfulfilled_htlc(
+                                chan=chan,
+                                htlc=htlc,
+                                forwarding_info=forwarding_info,
+                                onion_packet_bytes=onion_packet_bytes,
+                                onion_packet=onion_packet)
                         except OnionRoutingFailure as e:
                             error_bytes = construct_onion_error(e, onion_packet, our_onion_private_key=self.privkey)
                     if fw_info:
@@ -1850,13 +1858,24 @@ class Peer(Logger):
                 for htlc_id in done:
                     unfulfilled.pop(htlc_id)
 
-    def process_unfulfilled_htlc(self, chan, htlc_id, htlc, forwarding_info, onion_packet_bytes, onion_packet):
+    def process_unfulfilled_htlc(
+            self,
+            *,
+            chan: Channel,
+            htlc: UpdateAddHtlc,
+            forwarding_info: Tuple[str, int],
+            onion_packet_bytes: bytes,
+            onion_packet: OnionPacket,
+    ) -> Tuple[Optional[bytes], Union[bool, None, Tuple[str, int]], Optional[bytes]]:
         """
         returns either preimage or fw_info or error_bytes or (None, None, None)
         raise an OnionRoutingFailure if we need to fail the htlc
         """
         payment_hash = htlc.payment_hash
-        processed_onion = self.process_onion_packet(onion_packet, payment_hash, onion_packet_bytes)
+        processed_onion = self.process_onion_packet(
+            onion_packet,
+            payment_hash=payment_hash,
+            onion_packet_bytes=onion_packet_bytes)
         if processed_onion.are_we_final:
             preimage = self.maybe_fulfill_htlc(
                 chan=chan,
@@ -1867,8 +1886,8 @@ class Peer(Logger):
                 if not forwarding_info:
                     trampoline_onion = self.process_onion_packet(
                         processed_onion.trampoline_onion_packet,
-                        htlc.payment_hash,
-                        onion_packet_bytes,
+                        payment_hash=htlc.payment_hash,
+                        onion_packet_bytes=onion_packet_bytes,
                         is_trampoline=True)
                     if trampoline_onion.are_we_final:
                         preimage = self.maybe_fulfill_htlc(
@@ -1892,13 +1911,10 @@ class Peer(Logger):
 
         elif not forwarding_info:
             next_chan_id, next_htlc_id = self.maybe_forward_htlc(
-                chan=chan,
                 htlc=htlc,
-                onion_packet=onion_packet,
                 processed_onion=processed_onion)
-            if next_chan_id:
-                fw_info = (next_chan_id.hex(), next_htlc_id)
-                return None, fw_info, None
+            fw_info = (next_chan_id.hex(), next_htlc_id)
+            return None, fw_info, None
         else:
             preimage = self.lnworker.get_preimage(payment_hash)
             next_chan_id_hex, htlc_id = forwarding_info
@@ -1913,7 +1929,14 @@ class Peer(Logger):
             return preimage, None, None
         return None, None, None
 
-    def process_onion_packet(self, onion_packet, payment_hash, onion_packet_bytes, is_trampoline=False):
+    def process_onion_packet(
+            self,
+            onion_packet: OnionPacket,
+            *,
+            payment_hash: bytes,
+            onion_packet_bytes: bytes,
+            is_trampoline: bool = False,
+    ) -> ProcessedOnionPacket:
         failure_data = sha256(onion_packet_bytes)
         try:
             processed_onion = process_onion_packet(

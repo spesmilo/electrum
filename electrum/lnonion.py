@@ -437,9 +437,12 @@ class OnionRoutingFailure(Exception):
             return str(self.code.name)
         return f"Unknown error ({self.code!r})"
 
-def construct_onion_error(reason: OnionRoutingFailure,
-                          onion_packet: OnionPacket,
-                          our_onion_private_key: bytes) -> bytes:
+
+def construct_onion_error(
+        reason: OnionRoutingFailure,
+        onion_packet: OnionPacket,
+        our_onion_private_key: bytes,
+) -> bytes:
     # create payload
     failure_msg = reason.to_bytes()
     failure_len = len(failure_msg)

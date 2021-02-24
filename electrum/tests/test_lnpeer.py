@@ -775,7 +775,13 @@ class TestPeer(ElectrumTestCase):
             min_cltv_expiry = lnaddr.get_min_final_cltv_expiry()
             payment_hash = lnaddr.paymenthash
             payment_secret = lnaddr.payment_secret
-            pay = w1.pay_to_route(route, amount_msat, amount_msat, payment_hash, payment_secret, min_cltv_expiry)
+            pay = w1.pay_to_route(
+                route,
+                amount_msat=amount_msat,
+                total_msat=amount_msat,
+                payment_hash=payment_hash,
+                payment_secret=payment_secret,
+                min_cltv_expiry=min_cltv_expiry)
             await asyncio.gather(pay, p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         with self.assertRaises(PaymentFailure):
             run(f())

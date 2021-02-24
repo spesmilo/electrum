@@ -268,7 +268,10 @@ class LNRater(Logger):
 
         return pk, self._node_stats[pk]
 
-    def suggest_peer(self):
+    def suggest_peer(self) -> Optional[bytes]:
+        """Suggests a LN node to open a channel with.
+        Returns a node ID (pubkey).
+        """
         self.maybe_analyze_graph()
         if self._node_ratings:
             return self.suggest_node_channel_open()[0]
