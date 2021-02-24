@@ -1281,6 +1281,7 @@ class LNWallet(LNWorker):
 
     def create_trampoline_route(
             self, amount_msat:int,
+            min_cltv_expiry:int,
             invoice_pubkey:bytes,
             invoice_features:int,
             channels: List[Channel],
@@ -1304,86 +1305,92 @@ class LNWallet(LNWorker):
         else:
             is_legacy = True
 
-        # Find a trampoline. We assume we have a direct channel to trampoline
-        for chan in channels:
-            if not self.is_trampoline_peer(chan.node_id):
-                continue
-            if chan.is_active() and chan.can_pay(amount_msat, check_frozen=True):
-                trampoline_short_channel_id = chan.short_channel_id
-                trampoline_node_id = chan.node_id
-                break
-        else:
-            raise NoPathFound()
-        # use attempt number to decide fee and second trampoline
-        # we need a state with the list of nodes we have not tried
-        # add optional second trampoline
-        trampoline2 = None
-        if is_legacy:
-            for node_id in self.trampoline2_list:
-                if node_id != trampoline_node_id:
-                    trampoline2 = node_id
-                    break
         # fee level. the same fee is used for all trampolines
         if self.trampoline_fee_level < len(TRAMPOLINE_FEES):
             params = TRAMPOLINE_FEES[self.trampoline_fee_level]
         else:
             raise NoPathFound()
-        self.logger.info(f'create route with trampoline: fee_level={self.trampoline_fee_level}, is legacy: {is_legacy}')
-        self.logger.info(f'first trampoline: {trampoline_node_id.hex()}')
-        self.logger.info(f'second trampoline: {trampoline2.hex() if trampoline2 else None}')
-        self.logger.info(f'params: {params}')
-        # node_features is only used to determine is_tlv
-        trampoline_features = LnFeatures.VAR_ONION_OPT
-        # hop to trampoline
-        route = [
-            RouteEdge(
-                node_id=trampoline_node_id,
-                short_channel_id=trampoline_short_channel_id,
-                fee_base_msat=0,
-                fee_proportional_millionths=0,
-                cltv_expiry_delta=0,
-                node_features=trampoline_features)
-        ]
-        # trampoline hop
-        route.append(
-            TrampolineEdge(
-                node_id=trampoline_node_id,
-                fee_base_msat=params['fee_base_msat'],
-                fee_proportional_millionths=params['fee_proportional_millionths'],
-                cltv_expiry_delta=params['cltv_expiry_delta'],
-                node_features=trampoline_features))
-        if trampoline2:
+        # Find a trampoline. We assume we have a direct channel to trampoline
+        for chan in channels:
+            if not self.is_trampoline_peer(chan.node_id):
+                continue
+            trampoline_short_channel_id = chan.short_channel_id
+            trampoline_node_id = chan.node_id
+            # use attempt number to decide fee and second trampoline
+            # we need a state with the list of nodes we have not tried
+            # add optional second trampoline
+            trampoline2 = None
+            if is_legacy:
+                for node_id in self.trampoline2_list:
+                    if node_id != trampoline_node_id:
+                        trampoline2 = node_id
+                        break
+            # node_features is only used to determine is_tlv
+            trampoline_features = LnFeatures.VAR_ONION_OPT
+            # hop to trampoline
+            route = [
+                RouteEdge(
+                    node_id=trampoline_node_id,
+                    short_channel_id=trampoline_short_channel_id,
+                    fee_base_msat=0,
+                    fee_proportional_millionths=0,
+                    cltv_expiry_delta=0,
+                    node_features=trampoline_features)
+            ]
+            # trampoline hop
             route.append(
                 TrampolineEdge(
-                    node_id=trampoline2,
+                    node_id=trampoline_node_id,
                     fee_base_msat=params['fee_base_msat'],
                     fee_proportional_millionths=params['fee_proportional_millionths'],
                     cltv_expiry_delta=params['cltv_expiry_delta'],
                     node_features=trampoline_features))
-        # add routing info
-        if is_legacy:
-            invoice_routing_info = self.encode_routing_info(r_tags)
-            route[-1].invoice_routing_info = invoice_routing_info
-            route[-1].invoice_features = invoice_features
+            if trampoline2:
+                route.append(
+                    TrampolineEdge(
+                        node_id=trampoline2,
+                        fee_base_msat=params['fee_base_msat'],
+                        fee_proportional_millionths=params['fee_proportional_millionths'],
+                        cltv_expiry_delta=params['cltv_expiry_delta'],
+                        node_features=trampoline_features))
+            # add routing info
+            if is_legacy:
+                invoice_routing_info = self.encode_routing_info(r_tags)
+                route[-1].invoice_routing_info = invoice_routing_info
+                route[-1].invoice_features = invoice_features
+            else:
+                if t_tag:
+                    pubkey, feebase, feerate, cltv = t_tag
+                    if route[-1].node_id != pubkey:
+                        route.append(
+                            TrampolineEdge(
+                                node_id=pubkey,
+                                fee_base_msat=feebase,
+                                fee_proportional_millionths=feerate,
+                                cltv_expiry_delta=cltv,
+                                node_features=trampoline_features))
+            # Fake edge (not part of actual route, needed by calc_hops_data)
+            route.append(
+                TrampolineEdge(
+                    node_id=invoice_pubkey,
+                    fee_base_msat=0,
+                    fee_proportional_millionths=0,
+                    cltv_expiry_delta=0,
+                    node_features=trampoline_features))
+            # check that we can pay amount and fees
+            for edge in route[::-1]:
+                amount_msat += edge.fee_for_edge(amount_msat)
+            if not chan.can_pay(amount_msat, check_frozen=True):
+                continue
+            if not is_route_sane_to_use(route, amount_msat, min_cltv_expiry):
+                continue
+            break
         else:
-            if t_tag:
-                pubkey, feebase, feerate, cltv = t_tag
-                if route[-1].node_id != pubkey:
-                    route.append(
-                        TrampolineEdge(
-                            node_id=pubkey,
-                            fee_base_msat=feebase,
-                            fee_proportional_millionths=feerate,
-                            cltv_expiry_delta=cltv,
-                            node_features=trampoline_features))
-        # Fake edge (not part of actual route, needed by calc_hops_data)
-        route.append(
-            TrampolineEdge(
-                node_id=invoice_pubkey,
-                fee_base_msat=0,
-                fee_proportional_millionths=0,
-                cltv_expiry_delta=0,
-                node_features=trampoline_features))
+            raise NoPathFound()
+        self.logger.info(f'created route with trampoline: fee_level={self.trampoline_fee_level}, is legacy: {is_legacy}')
+        self.logger.info(f'first trampoline: {trampoline_node_id.hex()}')
+        self.logger.info(f'second trampoline: {trampoline2.hex() if trampoline2 else None}')
+        self.logger.info(f'params: {params}')
         return route
 
     @profiler
@@ -1422,7 +1429,6 @@ class LNWallet(LNWorker):
             # preference -funds = (low rating=high preference).
             split_configurations = suggest_splits(amount_msat, channels_with_funds)
             for s in split_configurations:
-                self.logger.info(f"trying split configuration: {s[0]} rating: {s[1]}")
                 routes = []
                 try:
                     for chanid, part_amount_msat in s[0].items():
@@ -1441,11 +1447,12 @@ class LNWallet(LNWorker):
                                 channel,
                                 full_path=None)
                             routes.append((route, amt))
+                    self.logger.info(f"found acceptable split configuration: {list(s[0].values())} rating: {s[1]}")
                     break
                 except NoPathFound:
                     continue
             else:
-                raise NoPathFound
+                raise NoPathFound()
         return routes
 
     def create_route_for_payment(
@@ -1461,7 +1468,7 @@ class LNWallet(LNWorker):
         channels = [outgoing_channel] if outgoing_channel else list(self.channels.values())
         if not self.channel_db:
             route = self.create_trampoline_route(
-                amount_msat, invoice_pubkey, invoice_features, channels, r_tags, t_tags)
+                amount_msat, min_cltv_expiry, invoice_pubkey, invoice_features, channels, r_tags, t_tags)
             return route, amount_msat
 
         route = None
