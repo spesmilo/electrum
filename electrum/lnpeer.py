@@ -1559,7 +1559,10 @@ class Peer(Logger):
         try:
             payment_secret_from_onion = processed_onion.hop_data.payload["payment_data"]["payment_secret"]
         except:
-            pass  # skip
+            if total_msat > amt_to_forward:
+                # payment_secret is required for MPP
+                raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
+            # TODO fail here if invoice has set PAYMENT_SECRET_REQ
         else:
             if payment_secret_from_onion != derive_payment_secret_from_payment_preimage(preimage):
                 raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
