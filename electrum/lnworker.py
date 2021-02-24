@@ -1692,7 +1692,7 @@ class LNWallet(LNWorker):
         total = sum([htlc.amount_msat for scid, htlc in s])
         first_timestamp = min([htlc.timestamp for scid, htlc in s])
         expired = time.time() - first_timestamp > MPP_EXPIRY
-        if total >= expected_msat and not expired:
+        if total == expected_msat and not expired:
             # status must be persisted
             self.set_payment_status(htlc.payment_hash, PR_PAID)
             util.trigger_callback('request_status', self.wallet, htlc.payment_hash.hex(), PR_PAID)
