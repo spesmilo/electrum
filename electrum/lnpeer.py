@@ -1209,8 +1209,8 @@ class Peer(Logger):
         hops_data, amount_msat, cltv = calc_hops_data_for_payment(
             route,
             amount_msat,
-            total_msat,
             final_cltv,
+            total_msat=total_msat,
             payment_secret=payment_secret
         )
         self.logger.info(f"lnpeer.pay len(route)={len(route)}")
