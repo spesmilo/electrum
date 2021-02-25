@@ -39,6 +39,8 @@ from enum import IntEnum
 import itertools
 import binascii
 import copy
+import asyncio
+from aiohttp import ClientResponse
 
 from . import ecc, bitcoin, constants, segwit_addr, bip32
 from .bip32 import BIP32Node
@@ -1373,6 +1375,8 @@ class PartialTxInput(TxInput, PSBTSection):
             return True
         if self.script_sig is not None and not self.is_segwit():
             return True
+        if self.witness is not None and self.is_segwit():
+            return True
         signatures = list(self.part_sigs.values())
         s = len(signatures)
         # note: The 'script_type' field is currently only set by the wallet,
@@ -1824,6 +1828,11 @@ class PartialTransaction(Transaction):
         except MissingTxInputAmount:
             return None
 
+    def get_fee_rate(self) -> Optional[float]:
+        if self.get_fee() is None:
+            return None
+        return self.get_fee() / self.estimated_size()
+
     def serialize_preimage(self, txin_index: int, *,
                            bip143_shared_txdigest_fields: BIP143SharedTxDigestFields = None) -> str:
         nVersion = int_to_hex(self.version, 4)
@@ -1915,6 +1924,10 @@ class PartialTransaction(Transaction):
 
     def _serialize_as_base64(self) -> str:
         raw_bytes = self.serialize_as_bytes()
+        return base64.b64encode(raw_bytes).decode('ascii')
+
+    def serialize_as_base64_psbt(self, force_psbt=True) -> str:
+        raw_bytes = self.serialize_as_bytes(force_psbt=force_psbt)
         return base64.b64encode(raw_bytes).decode('ascii')
 
     def update_signatures(self, signatures: Sequence[str]):
@@ -2043,6 +2056,178 @@ class PartialTransaction(Transaction):
         for txin in self.inputs():
             if txin.script_type in ('unknown', 'address'):
                 txin.set_script_type()
+
+class PayJoinExchangeException(Exception):
+    pass
+
+class PayJoinProposalValidationException(Exception):
+    pass
+
+class PayjoinTransaction():
+    VERSION = 1
+    VSIZE_SENDER_TYPE ={'p2wpkh':68,
+                        'p2pkh':148,
+                        'p2wpkh-p2sh':91
+                        }
+
+    def __init__(self, payjoin_link=None):
+        self.pj = payjoin_link.get('pj') if payjoin_link else None
+        self.pjos = payjoin_link.get('pjos') if payjoin_link else None
+        self._additionalfeeoutputindex = None
+        self._maxadditionalfeecontribution = None
+        self._minfeerate = None
+        self._disableoutputsubstitution = None
+        self.payjoin_original = None
+        self.payjoin_proposal = None
+
+    def is_available(self) -> bool:
+        return self.pj is not None \
+               and isinstance(self.pj, str)
+
+    def set_payjoin_original(self, tx: PartialTransaction) -> None:
+        self.payjoin_original = copy.deepcopy(tx)
+        self.payjoin_proposal_received = False
+        self.prepare_payjoin_original()
+
+    def prepare_payjoin_original(self) -> None:
+        assert not self.payjoin_proposal_received
+        assert self.payjoin_original.is_complete()
+        self.payjoin_original.prepare_for_export_for_coinjoin()
+        if self.payjoin_original.is_segwit():
+            self.payjoin_original.convert_all_utxos_to_witness_utxos()
+
+    def define_sender_params(self) -> None:
+        def examine_change_output():
+            for i, txout in enumerate(self.payjoin_original.outputs()):
+                if (txout.is_mine and txout.is_change):
+                    return i
+        def examine_input_type(tx):
+            txin = tx._inputs[0]
+            return txin.script_type
+        # set min fee rate to an int that is rounded down
+        self._minfeerate = int(self.payjoin_original.get_fee_rate())
+        self._disableoutputsubstitution = 'true' if self.pjos == 0 else 'false'
+        self._additionalfeeoutputindex = examine_change_output()
+        # use a fee rate that is rounded to a full int
+        self.original_psbt_fee_rate = round(self.payjoin_original.get_fee_rate())
+        self.tx_input_type = examine_input_type(self.payjoin_original)
+        if self.tx_input_type not in self.VSIZE_SENDER_TYPE:
+            raise ValueError(f"Transaction using a type that is unsupported for Payjoin."
+                             f"Type: {self.tx_input_type}")
+        self.vsize_input_type = self.VSIZE_SENDER_TYPE.get(self.tx_input_type)
+        self._maxadditionalfeecontribution = int(self.original_psbt_fee_rate * self.vsize_input_type)
+
+    def get_payjoin_http_params(self) -> list:
+        self.define_sender_params()
+        url = self.pj
+        payload = self.payjoin_original.serialize_as_base64_psbt()
+        headers = {'content-type': 'text/plain',
+                   'content-length': str(len(payload))
+                   }
+        query_string = '?v=' + str(self.VERSION)
+        query_string += '&additionalfeeoutputindex=' + str(self._additionalfeeoutputindex)
+        query_string += '&maxadditionalfeecontribution=' + str(self._maxadditionalfeecontribution)
+        query_string += '&minfeerate=' + str(self._minfeerate)
+        query_string += '&disableoutputsubstitution=' + self._disableoutputsubstitution
+        url += query_string
+        return url, headers, payload
+
+    async def handle_payjoin_response(self, resp: ClientResponse) -> str:
+        if resp.status != 200:
+            message = await resp.text()
+            raise PayJoinExchangeException(f"Exchange of payjoin failed. {resp.status}: {message}")
+        return await resp.text()
+
+    def set_payjoin_proposal(self, payjoin_proposal: str) -> None:
+        self.payjoin_proposal_received  = True
+        self.payjoin_proposal = PartialTransaction.from_raw_psbt(payjoin_proposal)
+        self.payjoin_proposal.invalidate_ser_cache()
+
+    def validate_payjoin_proposal(self) -> None:
+        # check transaction version
+        if self.payjoin_original.version != self.payjoin_proposal.version:
+            raise PayJoinProposalValidationException(f"The transactin version in payjoin proposal was modified.")
+        # check transaction locktime
+        if self.payjoin_original.locktime != self.payjoin_proposal.locktime:
+            raise PayJoinProposalValidationException(f"The transactin locktime in payjoin proposal was modified.")
+
+        # check whether all inputs from the original psbt are present in the proposal
+        for txin in self.payjoin_original.inputs():
+            sender_input_index = [i for i, x in enumerate(self.payjoin_proposal.inputs()) if txin.prevout.to_str() == x.prevout.to_str()]
+            if len(sender_input_index) != 1:
+                raise PayJoinProposalValidationException(f"Inputs from the original payjoin missing in payjoin proposal.")
+            sender_input = self.payjoin_proposal._inputs[sender_input_index[0]]
+            if sender_input.is_complete():
+                raise PayJoinProposalValidationException(f"Inputs from the original payjoin is already finalized.")
+            if txin.nsequence != sender_input.nsequence:
+                raise PayJoinProposalValidationException(f"Inputs nsequence from the original payjoin was modified.")
+
+        sequences = set()
+        input_types = set()
+        # check wheter the new Inputs are finalized and utxo data is filled
+        for txin in self.payjoin_proposal.inputs():
+            if not txin.prevout.to_str() in [x.prevout.to_str() for x in self.payjoin_original.inputs()]:
+                if not txin.is_complete():
+                    raise PayJoinProposalValidationException(f"Newly added input is not finalized.")
+            sequences.add(txin.nsequence)
+            input_types.add(txin.script_type)
+        # check that all inputs use the same sequence number
+        if len(sequences) != 1:
+            raise PayJoinProposalValidationException(f"Payjoin proposal introduced different sequence numbers.")
+        # check that all inputs use the same type of inputs
+        if len(input_types) != 1:
+            raise PayJoinProposalValidationException(f"Payjoin proposal used varying types in the transaction input.")
+
+        #TODO: check if the order of inputs is important
+
+        # check the absolute fee was not decreased
+        if self.payjoin_original.get_fee() > self.payjoin_proposal.get_fee():
+            raise PayJoinProposalValidationException(f"The total fee was decreased in the payjoin proposal.")
+
+        # check change output
+        change_output_o = self.payjoin_original._outputs[self._additionalfeeoutputindex]
+        change_output_p = None
+        for txout in self.payjoin_proposal.outputs():
+            if change_output_o.scriptpubkey.hex() == txout.scriptpubkey.hex():
+                change_output_p = txout
+                break
+        # check that the change output still exists
+        if not change_output_p:
+            raise PayJoinProposalValidationException(f"Change outputs is missing in the payjoin proposal.")
+        # check that not too much fees were subtracted
+        add_fee = change_output_o.value - change_output_p.value
+        if add_fee > self._maxadditionalfeecontribution:
+            raise PayJoinProposalValidationException(f"More fee's were added then defined in the payjoin.")
+        # check that the change output is the source off the add fee
+        if add_fee > (self.payjoin_proposal.get_fee() - self.payjoin_original.get_fee()):
+            raise PayJoinProposalValidationException(f"Too much fees were subtracted.")
+        # check the case that no additional input was added but the fee raised
+        if add_fee > (self.original_psbt_fee_rate * self.vsize_input_type *
+                      (len(self.payjoin_proposal.inputs()) - len(self.payjoin_original.inputs()))):
+            raise PayJoinProposalValidationException(f"Fee's were added but no receiver Inputs.")
+
+        # check additional sender outputs are present in the proposal
+        for txout in self.payjoin_original.outputs():
+            if txout.is_change:
+                continue
+            if txout.is_mine:
+                sender_o = [x for x in self.payjoin_proposal.outputs() if txout.scriptpubkey.hex() == x.scriptpubkey.hex()]
+                if len(sender_o) != 1:
+                    raise PayJoinProposalValidationException(f"Sender outputs from the original payjoin missing in payjoin proposal.")
+                # check that the amount from the sender that is not fee output was not decreased
+                if sender_o[0].value < txout.value:
+                    raise PayJoinProposalValidationException(f"The ouput amount for us was decreased in the payjoin.")
+
+        # if output substitution if forbidden, check the outputs and values for the receiver
+        if self.pjos == 0:
+            for txout in self.payjoin_proposal.outputs():
+                if txout.is_mine or txout.is_change:
+                    continue
+                receiver_o = [x for x in self.payjoin_original.outputs() if txout.scriptpubkey.hex() == x.scriptpubkey.hex()]
+                if len(receiver_o) != 1:
+                    raise PayJoinProposalValidationException(f"Receiver modified the payment outputs, but it was forbidden.")
+                if receiver_o[0].value < txout.value:
+                    raise PayJoinProposalValidationException(f"The amount of the payment ouput was decreased.")
 
 def pack_bip32_root_fingerprint_and_int_path(xfp: bytes, path: Sequence[int]) -> bytes:
     if len(xfp) != 4:

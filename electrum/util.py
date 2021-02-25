@@ -870,8 +870,7 @@ LIGHTNING_URI_SCHEME = 'lightning'
 class InvalidBitcoinURI(Exception): pass
 
 
-# TODO rename to parse_bip21_uri or similar
-def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
+def parse_bip21_uri(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
     """Raises InvalidBitcoinURI on malformed URI."""
     from . import bitcoin
     from .bitcoin import COIN
@@ -935,6 +934,12 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
             out['sig'] = bh2u(bitcoin.base_decode(out['sig'], base=58))
         except Exception as e:
             raise InvalidBitcoinURI(f"failed to parse 'sig' field: {repr(e)}") from e
+    if 'pj' in out:
+        try:
+            out['pj'] = str(out.get('pj'))
+            out['pjos'] = int(out.get('pjos', 1))
+        except Exception as e:
+            raise InvalidBitcoinURI(f"failed to parse 'pj' field: {repr(e)}") from e
 
     r = out.get('r')
     sig = out.get('sig')

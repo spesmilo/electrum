@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from electrum.util import (format_satoshis, format_fee_satoshis, parse_URI,
+from electrum.util import (format_satoshis, format_fee_satoshis, parse_bip21_uri,
                            is_hash256_str, chunks, is_ip_address, list_enabled_bits,
                            format_satoshis_plain, is_private_netaddress, is_hex_str,
                            is_integer, is_non_negative_integer, is_int_or_float,
@@ -64,7 +64,7 @@ class TestUtil(ElectrumTestCase):
         self.assertEqual("0.01234", format_satoshis_plain(1234, decimal_point=5))
 
     def _do_test_parse_URI(self, uri, expected):
-        result = parse_URI(uri)
+        result = parse_bip21_uri(uri)
         self.assertEqual(expected, result)
 
     def test_parse_URI_address(self):
@@ -105,13 +105,13 @@ class TestUtil(ElectrumTestCase):
                                 {'r': 'http://domain.tld/page?h=2a8628fc2fbe'})
 
     def test_parse_URI_invalid_address(self):
-        self.assertRaises(BaseException, parse_URI, 'bitcoin:invalidaddress')
+        self.assertRaises(BaseException, parse_bip21_uri, 'bitcoin:invalidaddress')
 
     def test_parse_URI_invalid(self):
-        self.assertRaises(BaseException, parse_URI, 'notbitcoin:15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma')
+        self.assertRaises(BaseException, parse_bip21_uri, 'notbitcoin:15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma')
 
     def test_parse_URI_parameter_polution(self):
-        self.assertRaises(Exception, parse_URI, 'bitcoin:15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma?amount=0.0003&label=test&amount=30.0')
+        self.assertRaises(Exception, parse_bip21_uri, 'bitcoin:15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma?amount=0.0003&label=test&amount=30.0')
 
     def test_is_hash256_str(self):
         self.assertTrue(is_hash256_str('09a4c03e3bdf83bbe3955f907ee52da4fc12f4813d459bc75228b64ad08617c7'))

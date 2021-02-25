@@ -45,7 +45,8 @@ from electrum.bitcoin import base_encode, NLOCKTIME_BLOCKHEIGHT_MAX
 from electrum.i18n import _
 from electrum.plugin import run_hook
 from electrum import simple_config
-from electrum.transaction import SerializationError, Transaction, PartialTransaction, PartialTxInput
+from electrum.transaction import (SerializationError, Transaction, PartialTransaction, PartialTxInput, PayjoinTransaction,
+                                  PayJoinProposalValidationException, PayJoinExchangeException)
 from electrum.logging import get_logger
 
 from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
@@ -92,7 +93,7 @@ def show_transaction(tx: Transaction, *, parent: 'ElectrumWindow', desc=None, pr
 
 class BaseTxDialog(QDialog, MessageBoxMixin):
 
-    def __init__(self, *, parent: 'ElectrumWindow', desc, prompt_if_unsaved, finalized: bool, external_keypairs=None):
+    def __init__(self, *, parent: 'ElectrumWindow', desc, prompt_if_unsaved, finalized: bool, external_keypairs=None, payjoin=None):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
         '''
@@ -105,6 +106,8 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         self.config = parent.config
         self.wallet = parent.wallet
         self.prompt_if_unsaved = prompt_if_unsaved
+        self.payjoin = PayjoinTransaction(payjoin)
+        self.payjoin_finished = False
         self.saved = False
         self.desc = desc
         self.setMinimumWidth(950)
@@ -221,7 +224,47 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             lambda: tx.add_info_from_wallet(self.wallet),
         )
 
-    def do_broadcast(self):
+    def do_payjoin(self) -> None:
+        def sign_done(success):
+            self.payjoin_finished = True
+            if self.tx.get_fee_rate() < self.payjoin._minfeerate:
+                self.set_tx(original_tx)
+                _logger.warning("The receiver used a too low fee rate.")
+                self.show_error(
+                    _("Error creating a payjoin") + ":\n" +
+                    _("The receiver used a too low fee rate") + "\n" +
+                    _("Sending the original transaction"))
+            self.update()
+            self.main_window.pop_top_level_window(self)
+            self.do_broadcast()
+
+        self.main_window.push_top_level_window(self)
+        original_tx = copy.deepcopy(self.tx)
+        _logger.info(f"Starting Payjoin Session")
+        try:
+            self.payjoin.set_payjoin_original(self.tx)
+            url, headers, payload = self.payjoin.get_payjoin_http_params()
+            payjoin_proposal = self.main_window.send_http_request('post', url, headers=headers, body=payload,
+                                                                  on_finish=self.payjoin.handle_payjoin_response)
+            self.payjoin.set_payjoin_proposal(payjoin_proposal)
+            self.payjoin.payjoin_proposal.add_info_from_wallet(self.wallet)
+            self.payjoin.payjoin_proposal.update_txin_script_type()
+            self.payjoin.validate_payjoin_proposal()
+        except Exception as e:
+            _logger.warning(repr(e))
+            self.payjoin_cb.setChecked(False)
+            self.show_error(_("Error creating a payjoin") + ":\n" + str(e) + "\n" +
+                            _("Sending the original transaction"))
+            self.do_broadcast()
+            return
+        tx = self.payjoin.payjoin_proposal
+        self.set_tx(tx)
+        self.main_window.sign_tx(self.tx, callback=sign_done, external_keypairs=self.external_keypairs)
+
+    def do_broadcast(self) -> None:
+        if self.payjoin_cb.isChecked() and self.payjoin.is_available() and not self.payjoin_finished:
+            self.do_payjoin()
+            return
         self.main_window.push_top_level_window(self)
         self.main_window.save_pending_invoice()
         try:
@@ -654,6 +697,9 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
 
         self.block_height_label = TxDetailLabel()
         vbox_right.addWidget(self.block_height_label)
+        self.payjoin_cb = QCheckBox(_('PayJoin'))
+        self.payjoin_cb.setChecked(bool(self.config.get('use_payjoin', True)))
+        vbox_right.addWidget(self.payjoin_cb)
         vbox_right.addStretch(1)
         hbox_stats.addLayout(vbox_right, 50)
 
@@ -666,6 +712,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         # set visibility after parenting can be determined by Qt
         self.rbf_label.setVisible(self.finalized)
         self.rbf_cb.setVisible(not self.finalized)
+        self.payjoin_cb.setVisible(self.payjoin.is_available())
         self.locktime_final_label.setVisible(self.finalized)
         self.locktime_setter_widget.setVisible(not self.finalized)
 
@@ -700,10 +747,10 @@ class TxDialog(BaseTxDialog):
 
 class PreviewTxDialog(BaseTxDialog, TxEditor):
 
-    def __init__(self, *, make_tx, external_keypairs, window: 'ElectrumWindow'):
+    def __init__(self, *, make_tx, external_keypairs, window: 'ElectrumWindow', payjoin):
         TxEditor.__init__(self, window=window, make_tx=make_tx, is_sweep=bool(external_keypairs))
         BaseTxDialog.__init__(self, parent=window, desc='', prompt_if_unsaved=False,
-                              finalized=False, external_keypairs=external_keypairs)
+                              finalized=False, external_keypairs=external_keypairs, payjoin=payjoin)
         BlockingWaitingDialog(window, _("Preparing transaction..."),
                               lambda: self.update_tx(fallback_to_zero_fee=True))
         self.update()
