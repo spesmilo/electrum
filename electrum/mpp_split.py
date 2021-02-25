@@ -12,9 +12,9 @@ REDISTRIBUTION_FRACTION = 10
 SPLIT_FRACTION = 10
 
 # these parameters affect the computational work in the probabilistic algorithm
-STARTING_CONFIGS = 30
-CANDIDATES_PER_LEVEL = 20
-REDISTRIBUTE = 5
+STARTING_CONFIGS = 50
+CANDIDATES_PER_LEVEL = 10
+REDISTRIBUTE = 10
 
 
 def unique_hierarchy(hierarchy: Dict[int, List[Dict[bytes, int]]]) -> Dict[int, List[Dict[bytes, int]]]:
