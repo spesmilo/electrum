@@ -13,14 +13,17 @@ class TestMppSplit(ElectrumTestCase):
         super().setUp()
         # to make tests reproducible:
         random.seed(0)
-        # undo side effect
-        mpp_split.PART_PENALTY = PART_PENALTY
         self.channels_with_funds = {
             0: 1_000_000_000,
             1: 500_000_000,
             2: 302_000_000,
             3: 101_000_000,
         }
+
+    def tearDown(self):
+        super().tearDown()
+        # undo side effect
+        mpp_split.PART_PENALTY = PART_PENALTY
 
     def test_suggest_splits(self):
         with self.subTest(msg="do a payment with the maximal amount spendable over a single channel"):
