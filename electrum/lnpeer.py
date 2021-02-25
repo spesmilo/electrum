@@ -1566,13 +1566,10 @@ class Peer(Logger):
         else:
             if payment_secret_from_onion != derive_payment_secret_from_payment_preimage(preimage):
                 raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
-        expected_received_msat = info.amount_msat
-        if expected_received_msat is None:
-            return preimage
-
-        if not (expected_received_msat <= total_msat <= 2 * expected_received_msat):
+        invoice_msat = info.amount_msat
+        if not (invoice_msat is None or invoice_msat <= total_msat <= 2 * invoice_msat):
             raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
-        accepted, expired = self.lnworker.htlc_received(chan.short_channel_id, htlc, expected_received_msat)
+        accepted, expired = self.lnworker.htlc_received(chan.short_channel_id, htlc, total_msat)
         if accepted:
             return preimage
         elif expired:
