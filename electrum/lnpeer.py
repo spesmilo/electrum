@@ -1553,7 +1553,7 @@ class Peer(Logger):
         if not is_trampoline and amt_to_forward != htlc.amount_msat:
             raise OnionRoutingFailure(
                 code=OnionFailureCode.FINAL_INCORRECT_HTLC_AMOUNT,
-                data=total_msat.to_bytes(8, byteorder="big"))
+                data=htlc.amount_msat.to_bytes(8, byteorder="big"))
 
         # if there is a trampoline_onion, perform the above checks on it
         if processed_onion.trampoline_onion_packet:
