@@ -1,3 +1,5 @@
+import random
+
 import electrum_ltc.mpp_split as mpp_split  # side effect for PART_PENALTY
 from electrum_ltc.lnutil import NoPathFound
 
@@ -9,14 +11,19 @@ PART_PENALTY = mpp_split.PART_PENALTY
 class TestMppSplit(ElectrumTestCase):
     def setUp(self):
         super().setUp()
-        # undo side effect
-        mpp_split.PART_PENALTY = PART_PENALTY
+        # to make tests reproducible:
+        random.seed(0)
         self.channels_with_funds = {
             0: 1_000_000_000,
             1: 500_000_000,
             2: 302_000_000,
             3: 101_000_000,
         }
+
+    def tearDown(self):
+        super().tearDown()
+        # undo side effect
+        mpp_split.PART_PENALTY = PART_PENALTY
 
     def test_suggest_splits(self):
         with self.subTest(msg="do a payment with the maximal amount spendable over a single channel"):

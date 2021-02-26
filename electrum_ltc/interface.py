@@ -953,6 +953,12 @@ class Interface(Logger):
                 if height < prev_height:
                     raise RequestCorrupted(f'heights of confirmed txs must be in increasing order')
                 prev_height = height
+        hashes = set(map(lambda item: item['tx_hash'], res))
+        if len(hashes) != len(res):
+            # Either server is sending garbage... or maybe if server is race-prone
+            # a recently mined tx could be included in both last block and mempool?
+            # Still, it's simplest to just disregard the response.
+            raise RequestCorrupted(f"server history has non-unique txids for sh={sh}")
         return res
 
     async def listunspent_for_scripthash(self, sh: str) -> List[dict]:

@@ -1051,7 +1051,9 @@ class Channel(AbstractChannel):
             if is_sent:
                 self.lnworker.htlc_fulfilled(self, payment_hash, htlc.htlc_id, htlc.amount_msat)
             else:
-                self.lnworker.htlc_received(self, payment_hash)
+                # FIXME
+                #self.lnworker.htlc_received(self, payment_hash)
+                pass
 
     def balance(self, whose: HTLCOwner, *, ctx_owner=HTLCOwner.LOCAL, ctn: int = None) -> int:
         assert type(whose) is HTLCOwner

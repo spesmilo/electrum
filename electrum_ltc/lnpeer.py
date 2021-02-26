@@ -1209,8 +1209,8 @@ class Peer(Logger):
         hops_data, amount_msat, cltv = calc_hops_data_for_payment(
             route,
             amount_msat,
-            total_msat,
             final_cltv,
+            total_msat=total_msat,
             payment_secret=payment_secret
         )
         self.logger.info(f"lnpeer.pay len(route)={len(route)}")
@@ -1373,9 +1373,12 @@ class Peer(Logger):
         chan.receive_htlc(htlc, onion_packet)
         util.trigger_callback('htlc_added', chan, htlc, RECEIVED)
 
-    def maybe_forward_htlc(self, chan: Channel, htlc: UpdateAddHtlc, *,
-                           onion_packet: OnionPacket, processed_onion: ProcessedOnionPacket
-                           ) -> Tuple[Optional[bytes], Optional[int], Optional[OnionRoutingFailure]]:
+    def maybe_forward_htlc(
+            self,
+            *,
+            htlc: UpdateAddHtlc,
+            processed_onion: ProcessedOnionPacket,
+    ) -> Tuple[bytes, int]:
         # Forward HTLC
         # FIXME: there are critical safety checks MISSING here
         forwarding_enabled = self.network.config.get('lightning_forward_payments', False)
@@ -1504,13 +1507,21 @@ class Peer(Logger):
 
         asyncio.ensure_future(forward_trampoline_payment())
 
-
     def maybe_fulfill_htlc(
             self, *,
             chan: Channel,
             htlc: UpdateAddHtlc,
             processed_onion: ProcessedOnionPacket,
-            is_trampoline:bool = False) -> Optional[bytes]:
+            is_trampoline: bool = False,
+    ) -> Optional[bytes]:
+        """As a final recipient of an HTLC, decide if we should fulfill it.
+        Returns the preimage if yes, or None.
+        """
+
+        try:
+            amt_to_forward = processed_onion.hop_data.payload["amt_to_forward"]["amt_to_forward"]
+        except:
+            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
 
         # Check that our blockchain tip is sufficiently recent so that we have an approx idea of the height.
         # We should not release the preimage for an HTLC that its sender could already time out as
@@ -1519,8 +1530,11 @@ class Peer(Logger):
         if chain.is_tip_stale():
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
         local_height = chain.height()
+        exc_incorrect_or_unknown_pd = OnionRoutingFailure(
+                code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS,
+                data=amt_to_forward.to_bytes(8, byteorder="big") + local_height.to_bytes(4, byteorder="big"))
         if local_height + MIN_FINAL_CLTV_EXPIRY_ACCEPTED > htlc.cltv_expiry:
-            raise OnionRoutingFailure(code=OnionFailureCode.FINAL_EXPIRY_TOO_SOON, data=b'')
+            raise exc_incorrect_or_unknown_pd
         try:
             cltv_from_onion = processed_onion.hop_data.payload["outgoing_cltv_value"]["outgoing_cltv_value"]
         except:
@@ -1532,10 +1546,6 @@ class Peer(Logger):
                     code=OnionFailureCode.FINAL_INCORRECT_CLTV_EXPIRY,
                     data=htlc.cltv_expiry.to_bytes(4, byteorder="big"))
         try:
-            amt_to_forward = processed_onion.hop_data.payload["amt_to_forward"]["amt_to_forward"]
-        except:
-            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
-        try:
             total_msat = processed_onion.hop_data.payload["payment_data"]["total_msat"]
         except:
             total_msat = amt_to_forward # fall back to "amt_to_forward"
@@ -1543,7 +1553,7 @@ class Peer(Logger):
         if not is_trampoline and amt_to_forward != htlc.amount_msat:
             raise OnionRoutingFailure(
                 code=OnionFailureCode.FINAL_INCORRECT_HTLC_AMOUNT,
-                data=total_msat.to_bytes(8, byteorder="big"))
+                data=htlc.amount_msat.to_bytes(8, byteorder="big"))
 
         # if there is a trampoline_onion, perform the above checks on it
         if processed_onion.trampoline_onion_packet:
@@ -1551,22 +1561,22 @@ class Peer(Logger):
 
         info = self.lnworker.get_payment_info(htlc.payment_hash)
         if info is None:
-            raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
+            raise exc_incorrect_or_unknown_pd
         preimage = self.lnworker.get_preimage(htlc.payment_hash)
         try:
             payment_secret_from_onion = processed_onion.hop_data.payload["payment_data"]["payment_secret"]
         except:
-            pass  # skip
+            if total_msat > amt_to_forward:
+                # payment_secret is required for MPP
+                raise exc_incorrect_or_unknown_pd
+            # TODO fail here if invoice has set PAYMENT_SECRET_REQ
         else:
             if payment_secret_from_onion != derive_payment_secret_from_payment_preimage(preimage):
-                raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
-        expected_received_msat = info.amount_msat
-        if expected_received_msat is None:
-            return preimage
-
-        if not (expected_received_msat <= total_msat <= 2 * expected_received_msat):
-            raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS, data=b'')
-        accepted, expired = self.lnworker.htlc_received(chan.short_channel_id, htlc, expected_received_msat)
+                raise exc_incorrect_or_unknown_pd
+        invoice_msat = info.amount_msat
+        if not (invoice_msat is None or invoice_msat <= total_msat <= 2 * invoice_msat):
+            raise exc_incorrect_or_unknown_pd
+        accepted, expired = self.lnworker.htlc_received(chan.short_channel_id, htlc, total_msat)
         if accepted:
             return preimage
         elif expired:
@@ -1662,7 +1672,7 @@ class Peer(Logger):
         self.shutdown_received[chan_id] = asyncio.Future()
         await self.send_shutdown(chan)
         payload = await self.shutdown_received[chan_id]
-        txid = await self._shutdown(chan, payload, True)
+        txid = await self._shutdown(chan, payload, is_local=True)
         self.logger.info(f'({chan.get_id_for_log()}) Channel closed {txid}')
         return txid
 
@@ -1686,10 +1696,10 @@ class Peer(Logger):
         else:
             chan = self.channels[chan_id]
             await self.send_shutdown(chan)
-            txid = await self._shutdown(chan, payload, False)
+            txid = await self._shutdown(chan, payload, is_local=False)
             self.logger.info(f'({chan.get_id_for_log()}) Channel closed by remote peer {txid}')
 
-    def can_send_shutdown(self, chan):
+    def can_send_shutdown(self, chan: Channel):
         if chan.get_state() >= ChannelState.OPENING:
             return True
         if chan.constraints.is_initiator and chan.channel_id in self.funding_created_sent:
@@ -1718,7 +1728,7 @@ class Peer(Logger):
         chan.set_can_send_ctx_updates(True)
 
     @log_exceptions
-    async def _shutdown(self, chan: Channel, payload, is_local):
+    async def _shutdown(self, chan: Channel, payload, *, is_local: bool):
         # wait until no HTLCs remain in either commitment transaction
         while len(chan.hm.htlcs(LOCAL)) + len(chan.hm.htlcs(REMOTE)) > 0:
             self.logger.info(f'(chan: {chan.short_channel_id}) waiting for htlcs to settle...')
@@ -1826,7 +1836,12 @@ class Peer(Logger):
                         error_reason = e
                     else:
                         try:
-                            preimage, fw_info, error_bytes = self.process_unfulfilled_htlc(chan, htlc_id, htlc, forwarding_info, onion_packet_bytes, onion_packet)
+                            preimage, fw_info, error_bytes = self.process_unfulfilled_htlc(
+                                chan=chan,
+                                htlc=htlc,
+                                forwarding_info=forwarding_info,
+                                onion_packet_bytes=onion_packet_bytes,
+                                onion_packet=onion_packet)
                         except OnionRoutingFailure as e:
                             error_bytes = construct_onion_error(e, onion_packet, our_onion_private_key=self.privkey)
                     if fw_info:
@@ -1850,13 +1865,24 @@ class Peer(Logger):
                 for htlc_id in done:
                     unfulfilled.pop(htlc_id)
 
-    def process_unfulfilled_htlc(self, chan, htlc_id, htlc, forwarding_info, onion_packet_bytes, onion_packet):
+    def process_unfulfilled_htlc(
+            self,
+            *,
+            chan: Channel,
+            htlc: UpdateAddHtlc,
+            forwarding_info: Tuple[str, int],
+            onion_packet_bytes: bytes,
+            onion_packet: OnionPacket,
+    ) -> Tuple[Optional[bytes], Union[bool, None, Tuple[str, int]], Optional[bytes]]:
         """
         returns either preimage or fw_info or error_bytes or (None, None, None)
         raise an OnionRoutingFailure if we need to fail the htlc
         """
         payment_hash = htlc.payment_hash
-        processed_onion = self.process_onion_packet(onion_packet, payment_hash, onion_packet_bytes)
+        processed_onion = self.process_onion_packet(
+            onion_packet,
+            payment_hash=payment_hash,
+            onion_packet_bytes=onion_packet_bytes)
         if processed_onion.are_we_final:
             preimage = self.maybe_fulfill_htlc(
                 chan=chan,
@@ -1867,8 +1893,8 @@ class Peer(Logger):
                 if not forwarding_info:
                     trampoline_onion = self.process_onion_packet(
                         processed_onion.trampoline_onion_packet,
-                        htlc.payment_hash,
-                        onion_packet_bytes,
+                        payment_hash=htlc.payment_hash,
+                        onion_packet_bytes=onion_packet_bytes,
                         is_trampoline=True)
                     if trampoline_onion.are_we_final:
                         preimage = self.maybe_fulfill_htlc(
@@ -1892,13 +1918,10 @@ class Peer(Logger):
 
         elif not forwarding_info:
             next_chan_id, next_htlc_id = self.maybe_forward_htlc(
-                chan=chan,
                 htlc=htlc,
-                onion_packet=onion_packet,
                 processed_onion=processed_onion)
-            if next_chan_id:
-                fw_info = (next_chan_id.hex(), next_htlc_id)
-                return None, fw_info, None
+            fw_info = (next_chan_id.hex(), next_htlc_id)
+            return None, fw_info, None
         else:
             preimage = self.lnworker.get_preimage(payment_hash)
             next_chan_id_hex, htlc_id = forwarding_info
@@ -1913,7 +1936,14 @@ class Peer(Logger):
             return preimage, None, None
         return None, None, None
 
-    def process_onion_packet(self, onion_packet, payment_hash, onion_packet_bytes, is_trampoline=False):
+    def process_onion_packet(
+            self,
+            onion_packet: OnionPacket,
+            *,
+            payment_hash: bytes,
+            onion_packet_bytes: bytes,
+            is_trampoline: bool = False,
+    ) -> ProcessedOnionPacket:
         failure_data = sha256(onion_packet_bytes)
         try:
             processed_onion = process_onion_packet(

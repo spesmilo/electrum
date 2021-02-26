@@ -31,11 +31,11 @@ class ElectrumTestCase(SequentialTestCase):
     """Base class for our unit tests."""
 
     def setUp(self):
-        super().setUpClass()
+        super().setUp()
         self.electrum_path = tempfile.mkdtemp()
 
     def tearDown(self):
-        super().tearDownClass()
+        super().tearDown()
         shutil.rmtree(self.electrum_path)
 
 

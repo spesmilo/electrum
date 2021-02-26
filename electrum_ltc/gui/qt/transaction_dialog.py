@@ -53,7 +53,7 @@ from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    char_width_in_lineedit, TRANSACTION_FILE_EXTENSION_FILTER_SEPARATE,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_COMPLETE_TX,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX,
-                   BlockingWaitingDialog, getSaveFileName)
+                   BlockingWaitingDialog, getSaveFileName, ColorSchemeItem)
 
 from .fee_slider import FeeSlider, FeeComboBox
 from .confirm_tx_dialog import TxEditor
@@ -131,10 +131,27 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         vbox.addWidget(self.inputs_header)
         self.inputs_textedit = QTextEditWithDefaultSize()
         vbox.addWidget(self.inputs_textedit)
+
+        self.txo_color_recv = TxOutputColoring(
+            legend=_("Receiving Address"), color=ColorScheme.GREEN, tooltip=_("Wallet receive address"))
+        self.txo_color_change = TxOutputColoring(
+            legend=_("Change Address"), color=ColorScheme.YELLOW, tooltip=_("Wallet change address"))
+        self.txo_color_2fa = TxOutputColoring(
+            legend=_("TrustedCoin (2FA) batch fee"), color=ColorScheme.BLUE, tooltip=_("TrustedCoin (2FA) fee for the next batch of transactions"))
+
+        outheader_hbox = QHBoxLayout()
+        outheader_hbox.setContentsMargins(0, 0, 0, 0)
+        vbox.addLayout(outheader_hbox)
         self.outputs_header = QLabel()
-        vbox.addWidget(self.outputs_header)
+        outheader_hbox.addWidget(self.outputs_header)
+        outheader_hbox.addStretch(2)
+        outheader_hbox.addWidget(self.txo_color_recv.legend_label)
+        outheader_hbox.addWidget(self.txo_color_change.legend_label)
+        outheader_hbox.addWidget(self.txo_color_2fa.legend_label)
+
         self.outputs_textedit = QTextEditWithDefaultSize()
         vbox.addWidget(self.outputs_textedit)
+
         self.sign_button = b = QPushButton(_("Sign"))
         b.clicked.connect(self.sign)
 
@@ -531,22 +548,21 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             if selected_coins is not None:
                 inputs_header_text += f"  -  " + _("Coin selection active ({} UTXOs selected)").format(len(selected_coins))
         self.inputs_header.setText(inputs_header_text)
-        ext = QTextCharFormat()
-        rec = QTextCharFormat()
-        rec.setBackground(QBrush(ColorScheme.GREEN.as_color(background=True)))
-        rec.setToolTip(_("Wallet receive address"))
-        chg = QTextCharFormat()
-        chg.setBackground(QBrush(ColorScheme.YELLOW.as_color(background=True)))
-        chg.setToolTip(_("Wallet change address"))
-        twofactor = QTextCharFormat()
-        twofactor.setBackground(QBrush(ColorScheme.BLUE.as_color(background=True)))
-        twofactor.setToolTip(_("TrustedCoin (2FA) fee for the next batch of transactions"))
 
+        ext = QTextCharFormat()
+        tf_used_recv, tf_used_change, tf_used_2fa = False, False, False
         def text_format(addr):
+            nonlocal tf_used_recv, tf_used_change, tf_used_2fa
             if self.wallet.is_mine(addr):
-                return chg if self.wallet.is_change(addr) else rec
+                if self.wallet.is_change(addr):
+                    tf_used_change = True
+                    return self.txo_color_change.text_char_format
+                else:
+                    tf_used_recv = True
+                    return self.txo_color_recv.text_char_format
             elif self.wallet.is_billing_address(addr):
-                return twofactor
+                tf_used_2fa = True
+                return self.txo_color_2fa.text_char_format
             return ext
 
         def format_amount(amt):
@@ -586,6 +602,10 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
                 cursor.insertText('\t', ext)
                 cursor.insertText(format_amount(v), ext)
             cursor.insertBlock()
+
+        self.txo_color_recv.legend_label.setVisible(tf_used_recv)
+        self.txo_color_change.legend_label.setVisible(tf_used_change)
+        self.txo_color_2fa.legend_label.setVisible(tf_used_2fa)
 
     def add_tx_stats(self, vbox):
         hbox_stats = QHBoxLayout()
@@ -688,6 +708,31 @@ class TxDetailLabel(QLabel):
         self.setTextInteractionFlags(Qt.TextSelectableByMouse)
         if word_wrap is not None:
             self.setWordWrap(word_wrap)
+
+
+class TxOutputColoring:
+    # used for both inputs and outputs
+
+    def __init__(
+            self,
+            *,
+            legend: str,
+            color: ColorSchemeItem,
+            tooltip: str,
+    ):
+        self.color = color.as_color(background=True)
+        self.legend_label = QLabel("<font color={color}>{box_char}</font> = {label}".format(
+            color=self.color.name(),
+            box_char="█",
+            label=legend,
+        ))
+        font = self.legend_label.font()
+        font.setPointSize(font.pointSize() - 1)
+        self.legend_label.setFont(font)
+        self.legend_label.setVisible(False)
+        self.text_char_format = QTextCharFormat()
+        self.text_char_format.setBackground(QBrush(self.color))
+        self.text_char_format.setToolTip(tooltip)
 
 
 class TxDialog(BaseTxDialog):
