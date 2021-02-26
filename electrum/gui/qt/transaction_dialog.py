@@ -28,7 +28,7 @@ import copy
 import datetime
 import traceback
 import time
-from typing import TYPE_CHECKING, Callable, Optional, List
+from typing import TYPE_CHECKING, Callable, Optional, List, Union
 from functools import partial
 from decimal import Decimal
 
@@ -502,11 +502,22 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         size_str = _("Size:") + ' %d bytes'% size
         fee_str = _("Fee") + ': %s' % (format_amount(fee) + ' ' + base_unit if fee is not None else _('unknown'))
         if fee is not None:
-            fee_rate = fee/size*1000
-            fee_str += '  ( %s ) ' % self.main_window.format_fee_rate(fee_rate)
-            feerate_warning = simple_config.FEERATE_WARNING_HIGH_FEE
-            if fee_rate > feerate_warning:
-                fee_str += ' - ' + _('Warning') + ': ' + _("high fee") + '!'
+            fee_rate = Decimal(fee) / size  # sat/byte
+            fee_str += '  ( %s ) ' % self.main_window.format_fee_rate(fee_rate * 1000)
+            if isinstance(self.tx, PartialTransaction):
+                if isinstance(self, PreviewTxDialog):
+                    invoice_amt = self.tx.output_value() if self.output_value == '!' else self.output_value
+                else:
+                    invoice_amt = amount
+                fee_warning_tuple = self.wallet.get_tx_fee_warning(
+                    invoice_amt=invoice_amt, tx_size=size, fee=fee)
+                if fee_warning_tuple:
+                    allow_send, long_warning, short_warning = fee_warning_tuple
+                    fee_str += " - <font color={color}>{header}: {body}</font>".format(
+                        header=_('Warning'),
+                        body=short_warning,
+                        color=ColorScheme.RED.as_color().name(),
+                    )
         if isinstance(self.tx, PartialTransaction):
             risk_of_burning_coins = (can_sign and fee is not None
                                      and self.wallet.get_warning_for_risk_of_burning_coins_as_fees(self.tx))
@@ -742,11 +753,23 @@ class TxDialog(BaseTxDialog):
         self.update()
 
 
-
 class PreviewTxDialog(BaseTxDialog, TxEditor):
 
-    def __init__(self, *, make_tx, external_keypairs, window: 'ElectrumWindow'):
-        TxEditor.__init__(self, window=window, make_tx=make_tx, is_sweep=bool(external_keypairs))
+    def __init__(
+            self,
+            *,
+            make_tx,
+            external_keypairs,
+            window: 'ElectrumWindow',
+            output_value: Union[int, str],
+    ):
+        TxEditor.__init__(
+            self,
+            window=window,
+            make_tx=make_tx,
+            is_sweep=bool(external_keypairs),
+            output_value=output_value,
+        )
         BaseTxDialog.__init__(self, parent=window, desc='', prompt_if_unsaved=False,
                               finalized=False, external_keypairs=external_keypairs)
         BlockingWaitingDialog(window, _("Preparing transaction..."),

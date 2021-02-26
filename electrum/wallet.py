@@ -58,7 +58,7 @@ from .util import (NotEnoughFunds, UserCancelled, profiler,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
                    Fiat, bfh, bh2u, TxMinedInfo, quantize_feerate, create_bip21_uri, OrderedDictWithIndex)
 from .util import get_backup_dir
-from .simple_config import SimpleConfig
+from .simple_config import SimpleConfig, FEE_RATIO_HIGH_WARNING, FEERATE_WARNING_HIGH_FEE
 from .bitcoin import COIN, TYPE_ADDRESS
 from .bitcoin import is_address, address_to_script, is_minikey, relayfee, dust_threshold
 from .crypto import sha256d
@@ -2450,6 +2450,40 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 + _("If you received this transaction from an untrusted device, "
                     "do not accept to sign it more than once,\n"
                     "otherwise you could end up paying a different fee."))
+
+    def get_tx_fee_warning(
+            self,
+            *,
+            invoice_amt: int,
+            tx_size: int,
+            fee: int,
+    ) -> Optional[Tuple[bool, str, str]]:
+        feerate = Decimal(fee) / tx_size  # sat/byte
+        fee_ratio = Decimal(fee) / invoice_amt if invoice_amt else 1
+        long_warning = None
+        short_warning = None
+        allow_send = True
+        if feerate < self.relayfee() / 1000:
+            long_warning = (
+                    _("This transaction requires a higher fee, or it will not be propagated by your current server") + "\n"
+                    + _("Try to raise your transaction fee, or use a server with a lower relay fee.")
+            )
+            short_warning = _("below relay fee") + "!"
+            allow_send = False
+        elif fee_ratio >= FEE_RATIO_HIGH_WARNING:
+            long_warning = (
+                    _('Warning') + ': ' + _("The fee for this transaction seems unusually high.")
+                    + f'\n({fee_ratio*100:.2f}% of amount)')
+            short_warning = _("high fee ratio") + "!"
+        elif feerate > FEERATE_WARNING_HIGH_FEE / 1000:
+            long_warning = (
+                    _('Warning') + ': ' + _("The fee for this transaction seems unusually high.")
+                    + f'\n(feerate: {feerate:.2f} sat/byte)')
+            short_warning = _("high fee rate") + "!"
+        if long_warning is None:
+            return None
+        else:
+            return allow_send, long_warning, short_warning
 
 
 class Simple_Wallet(Abstract_Wallet):

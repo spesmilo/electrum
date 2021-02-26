@@ -1670,22 +1670,26 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
 
         output_value = '!' if '!' in output_values else sum(output_values)
-        d = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=output_value, is_sweep=is_sweep)
-        if d.not_enough_funds:
+        conf_dlg = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=output_value, is_sweep=is_sweep)
+        if conf_dlg.not_enough_funds:
             # Check if we had enough funds excluding fees,
             # if so, still provide opportunity to set lower fees.
-            if not d.have_enough_funds_assuming_zero_fees():
+            if not conf_dlg.have_enough_funds_assuming_zero_fees():
                 text = self.get_text_not_enough_funds_mentioning_frozen()
                 self.show_message(text)
                 return
 
         # shortcut to advanced preview (after "enough funds" check!)
         if self.config.get('advanced_preview'):
-            self.preview_tx_dialog(make_tx=make_tx,
-                                   external_keypairs=external_keypairs)
+            preview_dlg = PreviewTxDialog(
+                window=self,
+                make_tx=make_tx,
+                external_keypairs=external_keypairs,
+                output_value=output_value)
+            preview_dlg.show()
             return
 
-        cancelled, is_send, password, tx = d.run()
+        cancelled, is_send, password, tx = conf_dlg.run()
         if cancelled:
             return
         if is_send:
@@ -1696,13 +1700,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.sign_tx_with_password(tx, callback=sign_done, password=password,
                                        external_keypairs=external_keypairs)
         else:
-            self.preview_tx_dialog(make_tx=make_tx,
-                                   external_keypairs=external_keypairs)
-
-    def preview_tx_dialog(self, *, make_tx, external_keypairs=None):
-        d = PreviewTxDialog(make_tx=make_tx, external_keypairs=external_keypairs,
-                            window=self)
-        d.show()
+            preview_dlg = PreviewTxDialog(
+                window=self,
+                make_tx=make_tx,
+                external_keypairs=external_keypairs,
+                output_value=output_value)
+            preview_dlg.show()
 
     def broadcast_or_show(self, tx: Transaction):
         if not tx.is_complete():

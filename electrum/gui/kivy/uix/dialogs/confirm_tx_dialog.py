@@ -1,3 +1,6 @@
+from decimal import Decimal
+from typing import TYPE_CHECKING
+
 from kivy.app import App
 from kivy.factory import Factory
 from kivy.properties import ObjectProperty
@@ -7,14 +10,15 @@ from kivy.uix.label import Label
 from kivy.uix.widget import Widget
 from kivy.clock import Clock
 
-from decimal import Decimal
-
 from electrum.simple_config import FEERATE_WARNING_HIGH_FEE, FEE_RATIO_HIGH_WARNING
 from electrum.gui.kivy.i18n import _
 from electrum.plugin import run_hook
 from electrum.util import NotEnoughFunds
 
 from .fee_dialog import FeeSliderDialog, FeeDialog
+
+if TYPE_CHECKING:
+    from electrum.gui.kivy.main_window import ElectrumWindow
 
 Builder.load_string('''
 <ConfirmTxDialog@Popup>
@@ -106,7 +110,7 @@ Builder.load_string('''
 
 class ConfirmTxDialog(FeeSliderDialog, Factory.Popup):
 
-    def __init__(self, app, invoice):
+    def __init__(self, app: 'ElectrumWindow', invoice):
 
         Factory.Popup.__init__(self)
         FeeSliderDialog.__init__(self, app.electrum_config, self.ids.slider)
@@ -133,8 +137,9 @@ class ConfirmTxDialog(FeeSliderDialog, Factory.Popup):
         rbf = not bool(self.ids.final_cb.active) if self.show_final else False
         tx.set_rbf(rbf)
         amount = sum(map(lambda x: x.value, outputs)) if '!' not in [x.value for x in outputs] else tx.output_value()
+        tx_size = tx.estimated_size()
         fee = tx.get_fee()
-        feerate = Decimal(fee) / tx.estimated_size()  # sat/byte
+        feerate = Decimal(fee) / tx_size  # sat/byte
         self.ids.fee_label.text = self.app.format_amount_and_units(fee) + f' ({feerate:.1f} sat/B)'
         self.ids.amount_label.text = self.app.format_amount_and_units(amount)
         x_fee = run_hook('get_tx_extra_fee', self.app.wallet, tx)
@@ -143,11 +148,11 @@ class ConfirmTxDialog(FeeSliderDialog, Factory.Popup):
             self.extra_fee = self.app.format_amount_and_units(x_fee_amount)
         else:
             self.extra_fee = ''
-        fee_ratio = Decimal(fee) / amount if amount else 1
-        if fee_ratio >= FEE_RATIO_HIGH_WARNING:
-            self.warning = _('Warning') + ': ' + _("The fee for this transaction seems unusually high.") + f' ({fee_ratio*100:.2f}% of amount)'
-        elif feerate > FEERATE_WARNING_HIGH_FEE / 1000:
-            self.warning = _('Warning') + ': ' + _("The fee for this transaction seems unusually high.") + f' (feerate: {feerate:.2f} sat/byte)'
+        fee_warning_tuple = self.app.wallet.get_tx_fee_warning(
+            invoice_amt=amount, tx_size=tx_size, fee=fee)
+        if fee_warning_tuple:
+            allow_send, long_warning, short_warning = fee_warning_tuple
+            self.warning = long_warning
         else:
             self.warning = ''
         self.tx = tx
