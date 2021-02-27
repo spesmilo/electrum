@@ -11,7 +11,7 @@ from PyQt5.QtGui import QFont, QStandardItem, QBrush
 
 from electrum.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
 from electrum.i18n import _
-from electrum.lnchannel import AbstractChannel, PeerState
+from electrum.lnchannel import AbstractChannel, PeerState, ChannelBackup, Channel
 from electrum.wallet import Abstract_Wallet
 from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id, LN_MAX_FUNDING_SAT
 from electrum.lnworker import LNWallet
@@ -68,24 +68,32 @@ class ChannelsList(MyTreeView):
         self.lnbackups = self.parent.wallet.lnbackups
         self.setSortingEnabled(True)
 
-    def format_fields(self, chan):
+    def format_fields(self, chan: AbstractChannel) -> Sequence[str]:
         labels = {}
         for subject in (REMOTE, LOCAL):
-            can_send = chan.available_to_spend(subject) / 1000
-            label = self.parent.format_amount(can_send)
-            other = subject.inverted()
-            bal_other = chan.balance(other)//1000
-            bal_minus_htlcs_other = chan.balance_minus_outgoing_htlcs(other)//1000
-            if bal_other != bal_minus_htlcs_other:
-                label += ' (+' + self.parent.format_amount(bal_other - bal_minus_htlcs_other) + ')'
+            if isinstance(chan, Channel):
+                can_send = chan.available_to_spend(subject) / 1000
+                label = self.parent.format_amount(can_send)
+                other = subject.inverted()
+                bal_other = chan.balance(other)//1000
+                bal_minus_htlcs_other = chan.balance_minus_outgoing_htlcs(other)//1000
+                if bal_other != bal_minus_htlcs_other:
+                    label += ' (+' + self.parent.format_amount(bal_other - bal_minus_htlcs_other) + ')'
+            else:
+                assert isinstance(chan, ChannelBackup)
+                label = ''
             labels[subject] = label
         status = chan.get_state_for_GUI()
         closed = chan.is_closed()
         node_alias = self.lnworker.get_node_alias(chan.node_id)
+        if isinstance(chan, Channel):
+            capacity_str = self.parent.format_amount(chan.constraints.capacity)
+        else:
+            capacity_str = ''
         return [
             chan.short_id_for_GUI(),
             node_alias,
-            self.parent.format_amount(chan.constraints.capacity),
+            capacity_str,
             '' if closed else labels[LOCAL],
             '' if closed else labels[REMOTE],
             status
