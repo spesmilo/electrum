@@ -165,6 +165,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
 
     inflight_payments = set()
     preimages = {}
+    get_payments = LNWallet.get_payments
     get_payment_info = LNWallet.get_payment_info
     save_payment_info = LNWallet.save_payment_info
     set_invoice_status = LNWallet.set_invoice_status
@@ -776,7 +777,7 @@ class TestPeer(ElectrumTestCase):
             payment_hash = lnaddr.paymenthash
             payment_secret = lnaddr.payment_secret
             pay = w1.pay_to_route(
-                route,
+                route=route,
                 amount_msat=amount_msat,
                 total_msat=amount_msat,
                 payment_hash=payment_hash,
