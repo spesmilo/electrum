@@ -68,6 +68,9 @@ class TxSizeLabel(QLabel):
     def setAmount(self, byte_size):
         self.setText(('x   %s bytes   =' % byte_size) if byte_size else '')
 
+class TxFiatLabel(QLabel):
+    def setAmount(self, fiat_fee):
+        self.setText(('≈  %s' % fiat_fee) if fiat_fee else '')
 
 class QTextEditWithDefaultSize(QTextEdit):
     def sizeHint(self):
@@ -429,12 +432,18 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         desc = self.desc
         base_unit = self.main_window.base_unit()
         format_amount = self.main_window.format_amount
+        format_fiat_and_units = self.main_window.format_fiat_and_units
         tx_details = self.wallet.get_tx_info(self.tx)
         tx_mined_status = tx_details.tx_mined_status
         exp_n = tx_details.mempool_depth_bytes
         amount, fee = tx_details.amount, tx_details.fee
         size = self.tx.estimated_size()
         txid = self.tx.txid()
+        fx = self.main_window.fx
+        tx_item_fiat = None
+        if (self.finalized  # ensures we don't use historical rates for tx being constructed *now*
+                and txid is not None and fx.is_enabled() and amount is not None):
+            tx_item_fiat = self.wallet.get_tx_item_fiat(txid, abs(amount), fx, fee)
         lnworker_history = self.wallet.lnworker.get_onchain_history() if self.wallet.lnworker else {}
         if txid in lnworker_history:
             item = lnworker_history[txid]
@@ -491,16 +500,31 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             amount_str = _("Transaction unrelated to your wallet")
         elif amount is None:
             amount_str = ''
-        elif amount > 0:
-            amount_str = _("Amount received:") + ' %s'% format_amount(amount) + ' ' + base_unit
         else:
-            amount_str = _("Amount sent:") + ' %s'% format_amount(-amount) + ' ' + base_unit
+            if amount > 0:
+                amount_str = _("Amount received:") + ' %s'% format_amount(amount) + ' ' + base_unit
+            else:
+                amount_str = _("Amount sent:") + ' %s' % format_amount(-amount) + ' ' + base_unit
+            if fx.is_enabled():
+                if tx_item_fiat:
+                    amount_str += ' (%s)' % tx_item_fiat['fiat_value'].to_ui_string()
+                else:
+                    amount_str += ' (%s)' % format_fiat_and_units(abs(amount))
         if amount_str:
             self.amount_label.setText(amount_str)
         else:
             self.amount_label.hide()
         size_str = _("Size:") + ' %d bytes'% size
-        fee_str = _("Fee") + ': %s' % (format_amount(fee) + ' ' + base_unit if fee is not None else _('unknown'))
+        if fee is None:
+            fee_str = _("Fee") + ': ' + _("unknown")
+        else:
+            fee_str = _("Fee") + f': {format_amount(fee)} {base_unit}'
+            if fx.is_enabled():
+                if tx_item_fiat:
+                    fiat_fee_str = tx_item_fiat['fiat_fee'].to_ui_string()
+                else:
+                    fiat_fee_str = format_fiat_and_units(fee)
+                fee_str += f' ({fiat_fee_str})'
         if fee is not None:
             fee_rate = Decimal(fee) / size  # sat/byte
             fee_str += '  ( %s ) ' % self.main_window.format_fee_rate(fee_rate * 1000)
@@ -529,7 +553,8 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             ln_amount_str = ''
         elif ln_amount > 0:
             ln_amount_str = _('Amount received in channels') + ': ' + format_amount(ln_amount) + ' ' + base_unit
-        elif ln_amount < 0:
+        else:
+            assert ln_amount < 0, f"{ln_amount!r}"
             ln_amount_str = _('Amount withdrawn from channels') + ': ' + format_amount(-ln_amount) + ' ' + base_unit
         if ln_amount_str:
             self.ln_amount_label.setText(ln_amount_str)
@@ -783,6 +808,11 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
         self.size_e.setAmount(0)
         self.size_e.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
 
+        self.fiat_fee_label = TxFiatLabel()
+        self.fiat_fee_label.setAlignment(Qt.AlignCenter)
+        self.fiat_fee_label.setAmount(0)
+        self.fiat_fee_label.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
+
         self.feerate_e = FeerateEdit(lambda: 0)
         self.feerate_e.setAmount(self.config.fee_per_byte())
         self.feerate_e.textEdited.connect(partial(self.on_fee_or_feerate, self.feerate_e, False))
@@ -823,6 +853,7 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
         grid.addWidget(self.size_e, 0, 2)
         grid.addWidget(self.fee_e, 0, 3)
         grid.addWidget(self.feerounding_icon, 0, 4)
+        grid.addWidget(self.fiat_fee_label, 0, 5)
         grid.addWidget(self.fee_slider, 1, 1)
         grid.addWidget(self.fee_combo, 1, 2)
         hbox.addLayout(grid)
@@ -916,6 +947,8 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
         fee = tx.get_fee()
 
         self.size_e.setAmount(size)
+        fiat_fee = self.main_window.format_fiat_and_units(fee)
+        self.fiat_fee_label.setAmount(fiat_fee)
 
         # Displayed fee/fee_rate values are set according to user input.
         # Due to rounding or dropping dust in CoinChooser,
