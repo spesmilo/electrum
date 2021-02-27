@@ -1576,10 +1576,10 @@ class Peer(Logger):
         invoice_msat = info.amount_msat
         if not (invoice_msat is None or invoice_msat <= total_msat <= 2 * invoice_msat):
             raise exc_incorrect_or_unknown_pd
-        accepted, expired = self.lnworker.htlc_received(chan.short_channel_id, htlc, total_msat)
-        if accepted:
+        mpp_status = self.lnworker.add_received_htlc(chan.short_channel_id, htlc, total_msat)
+        if mpp_status == True:
             return preimage
-        elif expired:
+        elif mpp_status == False:
             raise OnionRoutingFailure(code=OnionFailureCode.MPP_TIMEOUT, data=b'')
         else:
             return None
