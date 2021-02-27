@@ -1195,9 +1195,16 @@ class Peer(Logger):
         sig_64, htlc_sigs = chan.sign_next_commitment()
         self.send_message("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs))
 
-    def pay(self, *, route: 'LNPaymentRoute', chan: Channel, amount_msat: int,
-            total_msat: int, payment_hash: bytes, min_final_cltv_expiry: int,
-            payment_secret: bytes = None, fwd_trampoline_onion=None) -> UpdateAddHtlc:
+    def pay(self, *,
+            route: 'LNPaymentRoute',
+            chan: Channel,
+            amount_msat: int,
+            total_msat: int,
+            payment_hash: bytes,
+            min_final_cltv_expiry: int,
+            payment_secret: bytes = None,
+            trampoline_onion=None) -> UpdateAddHtlc:
+
         assert amount_msat > 0, "amount_msat is not greater zero"
         assert len(route) > 0
         if not chan.can_send_update_add_htlc():
@@ -1211,78 +1218,26 @@ class Peer(Logger):
             amount_msat,
             final_cltv,
             total_msat=total_msat,
-            payment_secret=payment_secret
-        )
+            payment_secret=payment_secret)
+        num_hops = len(hops_data)
         self.logger.info(f"lnpeer.pay len(route)={len(route)}")
         for i in range(len(route)):
             self.logger.info(f"  {i}: edge={route[i].short_channel_id} hop_data={hops_data[i]!r}")
         assert final_cltv <= cltv, (final_cltv, cltv)
         session_key = os.urandom(32) # session_key
-        # detect trampoline hops
-        payment_path_pubkeys = [x.node_id for x in route]
-        num_hops = len(payment_path_pubkeys)
-        for i in range(num_hops-1):
-            route_edge = route[i]
-            next_edge = route[i+1]
-            if route_edge.is_trampoline():
-                assert next_edge.is_trampoline()
-                self.logger.info(f'trampoline hop at position {i}')
-                hops_data[i].payload["outgoing_node_id"] = {"outgoing_node_id":next_edge.node_id}
-                if route_edge.invoice_features:
-                    hops_data[i].payload["invoice_features"] = {"invoice_features":route_edge.invoice_features}
-                if route_edge.invoice_routing_info:
-                    hops_data[i].payload["invoice_routing_info"] = {"invoice_routing_info":route_edge.invoice_routing_info}
-
-                # only for final, legacy
-                if i == num_hops - 2:
-                    self.logger.info(f'adding payment secret for legacy trampoline')
-                    hops_data[i].payload["payment_data"] = {
-                        "payment_secret":payment_secret,
-                        "total_msat": amount_msat,
-                    }
-
         # if we are forwarding a trampoline payment, add trampoline onion
-        if fwd_trampoline_onion:
+        if trampoline_onion:
             self.logger.info(f'adding trampoline onion to final payload')
             trampoline_payload = hops_data[num_hops-2].payload
             trampoline_payload["trampoline_onion_packet"] = {
-                "version": fwd_trampoline_onion.version,
-                "public_key": fwd_trampoline_onion.public_key,
-                "hops_data": fwd_trampoline_onion.hops_data,
-                "hmac": fwd_trampoline_onion.hmac
+                "version": trampoline_onion.version,
+                "public_key": trampoline_onion.public_key,
+                "hops_data": trampoline_onion.hops_data,
+                "hmac": trampoline_onion.hmac
             }
-
-        # create trampoline onion
-        for i in range(num_hops):
-            route_edge = route[i]
-            if route_edge.is_trampoline():
-                self.logger.info(f'first trampoline hop at position {i}')
-                self.logger.info(f'inner onion: {hops_data[i:]}')
-                trampoline_session_key = os.urandom(32)
-                trampoline_onion = new_onion_packet(payment_path_pubkeys[i:], trampoline_session_key, hops_data[i:], associated_data=payment_hash, trampoline=True)
-                # drop hop_data
-                payment_path_pubkeys = payment_path_pubkeys[:i]
-                hops_data = hops_data[:i]
-                # we must generate a different secret for the outer onion
-                outer_payment_secret = os.urandom(32)
-                # trampoline_payload is a final payload
-                trampoline_payload = hops_data[i-1].payload
-                p = trampoline_payload.pop('short_channel_id')
-                amt_to_forward = trampoline_payload["amt_to_forward"]["amt_to_forward"]
-                trampoline_payload["payment_data"] = {
-                    "payment_secret":outer_payment_secret,
-                    "total_msat": amt_to_forward
-                }
-                trampoline_payload["trampoline_onion_packet"] = {
-                    "version": trampoline_onion.version,
-                    "public_key": trampoline_onion.public_key,
-                    "hops_data": trampoline_onion.hops_data,
-                    "hmac": trampoline_onion.hmac
-                }
-                break
         # create onion packet
+        payment_path_pubkeys = [x.node_id for x in route]
         onion = new_onion_packet(payment_path_pubkeys, session_key, hops_data, associated_data=payment_hash) # must use another sessionkey
-
         self.logger.info(f"starting payment. len(route)={len(hops_data)}.")
         # create htlc
         if cltv > local_height + lnutil.NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE:

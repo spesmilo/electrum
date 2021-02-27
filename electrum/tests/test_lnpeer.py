@@ -135,6 +135,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         self.received_htlcs = dict()
         self.sent_htlcs = defaultdict(asyncio.Queue)
         self.sent_htlcs_routes = dict()
+        self.sent_buckets = defaultdict(set)
 
     def get_invoice_status(self, key):
         pass
@@ -497,7 +498,7 @@ class TestPeer(ElectrumTestCase):
             q2 = w2.sent_htlcs[lnaddr1.paymenthash]
             # alice sends htlc BUT NOT COMMITMENT_SIGNED
             p1.maybe_send_commitment = lambda x: None
-            route1, amount_msat1 = w1.create_routes_from_invoice(lnaddr2.get_amount_msat(), decoded_invoice=lnaddr2)[0]
+            route1, amount_msat1 = w1.create_routes_from_invoice(lnaddr2.get_amount_msat(), decoded_invoice=lnaddr2)[0][0:2]
             await w1.pay_to_route(
                 route=route1,
                 amount_msat=lnaddr2.get_amount_msat(),
@@ -509,7 +510,7 @@ class TestPeer(ElectrumTestCase):
             p1.maybe_send_commitment = _maybe_send_commitment1
             # bob sends htlc BUT NOT COMMITMENT_SIGNED
             p2.maybe_send_commitment = lambda x: None
-            route2, amount_msat2 = w2.create_routes_from_invoice(lnaddr1.get_amount_msat(), decoded_invoice=lnaddr1)[0]
+            route2, amount_msat2 = w2.create_routes_from_invoice(lnaddr1.get_amount_msat(), decoded_invoice=lnaddr1)[0][0:2]
             await w2.pay_to_route(
                 route=route2,
                 amount_msat=lnaddr1.get_amount_msat(),
@@ -664,7 +665,7 @@ class TestPeer(ElectrumTestCase):
             await asyncio.wait_for(p1.initialized, 1)
             await asyncio.wait_for(p2.initialized, 1)
             # alice sends htlc
-            route, amount_msat = w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr)[0]
+            route, amount_msat = w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr)[0][0:2]
             htlc = p1.pay(route=route,
                           chan=alice_channel,
                           amount_msat=lnaddr.get_amount_msat(),
@@ -760,7 +761,7 @@ class TestPeer(ElectrumTestCase):
         pay_req = run(self.prepare_invoice(w2))
 
         lnaddr = w1._check_invoice(pay_req)
-        route, amount_msat = w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr)[0]
+        route, amount_msat = w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr)[0][0:2]
         assert amount_msat == lnaddr.get_amount_msat()
 
         run(w1.force_close_channel(alice_channel.channel_id))
