@@ -23,6 +23,7 @@
 
 
 CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
+_CHARSET_INVERSE = {x: CHARSET.find(x) for x in CHARSET}
 
 
 def bech32_polymod(values):
@@ -72,7 +73,7 @@ def bech32_decode(bech, ignore_long_length=False):
     if not all(x in CHARSET for x in bech[pos+1:]):
         return (None, None)
     hrp = bech[:pos]
-    data = [CHARSET.find(x) for x in bech[pos+1:]]
+    data = [_CHARSET_INVERSE[x] for x in bech[pos+1:]]
     if not bech32_verify_checksum(hrp, data):
         return (None, None)
     return (hrp, data[:-6])
