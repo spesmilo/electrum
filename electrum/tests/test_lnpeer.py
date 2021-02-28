@@ -519,7 +519,7 @@ class TestPeer(ElectrumTestCase):
             )
             p2.maybe_send_commitment = _maybe_send_commitment2
             # sleep a bit so that they both receive msgs sent so far
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.2)
             # now they both send COMMITMENT_SIGNED
             p1.maybe_send_commitment(alice_channel)
             p2.maybe_send_commitment(bob_channel)
