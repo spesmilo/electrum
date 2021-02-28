@@ -492,6 +492,9 @@ class TestPeer(ElectrumTestCase):
             lnaddr2 = lndecode(pay_req2, expected_hrp=constants.net.SEGWIT_HRP)
             pay_req1 = await self.prepare_invoice(w1)
             lnaddr1 = lndecode(pay_req1, expected_hrp=constants.net.SEGWIT_HRP)
+            # create the htlc queues now (side-effecting defaultdict)
+            q1 = w1.sent_htlcs[lnaddr2.paymenthash]
+            q2 = w2.sent_htlcs[lnaddr1.paymenthash]
             # alice sends htlc BUT NOT COMMITMENT_SIGNED
             p1.maybe_send_commitment = lambda x: None
             route1, amount_msat1 = w1.create_routes_from_invoice(lnaddr2.get_amount_msat(), decoded_invoice=lnaddr2)[0]
@@ -524,9 +527,9 @@ class TestPeer(ElectrumTestCase):
             p1.maybe_send_commitment(alice_channel)
             p2.maybe_send_commitment(bob_channel)
 
-            htlc_log1 = await w1.sent_htlcs[lnaddr2.paymenthash].get()
+            htlc_log1 = await q1.get()
             assert htlc_log1.success
-            htlc_log2 = await w2.sent_htlcs[lnaddr1.paymenthash].get()
+            htlc_log2 = await q2.get()
             assert htlc_log2.success
             raise PaymentDone()
 
