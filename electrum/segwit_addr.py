@@ -61,19 +61,23 @@ def bech32_encode(hrp, data):
     return hrp + '1' + ''.join([CHARSET[d] for d in combined])
 
 
-def bech32_decode(bech, ignore_long_length=False):
+def bech32_decode(bech: str, ignore_long_length=False):
     """Validate a Bech32 string, and determine HRP and data."""
-    if ((any(ord(x) < 33 or ord(x) > 126 for x in bech)) or
-            (bech.lower() != bech and bech.upper() != bech)):
+    bech_lower = bech.lower()
+    if bech_lower != bech and bech.upper() != bech:
         return (None, None)
-    bech = bech.lower()
     pos = bech.rfind('1')
     if pos < 1 or pos + 7 > len(bech) or (not ignore_long_length and len(bech) > 90):
         return (None, None)
-    if not all(x in CHARSET for x in bech[pos+1:]):
+    # check that HRP only consists of sane ASCII chars
+    if any(ord(x) < 33 or ord(x) > 126 for x in bech[:pos+1]):
         return (None, None)
+    bech = bech_lower
     hrp = bech[:pos]
-    data = [_CHARSET_INVERSE[x] for x in bech[pos+1:]]
+    try:
+        data = [_CHARSET_INVERSE[x] for x in bech[pos+1:]]
+    except KeyError:
+        return (None, None)
     if not bech32_verify_checksum(hrp, data):
         return (None, None)
     return (hrp, data[:-6])
