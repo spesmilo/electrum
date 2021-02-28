@@ -1042,6 +1042,8 @@ class LNWallet(LNWorker):
             raise PaymentFailure(_("This invoice has been paid already"))
         if status == PR_INFLIGHT:
             raise PaymentFailure(_("A payment was already initiated for this invoice"))
+        if payment_hash in self.get_payments(status='inflight'):
+            raise PaymentFailure(_("A previous attempt to pay this invoice did not clear"))
         info = PaymentInfo(payment_hash, amount_to_pay, SENT, PR_UNPAID)
         self.save_payment_info(info)
         self.wallet.set_label(key, lnaddr.get_description())
@@ -1069,11 +1071,6 @@ class LNWallet(LNWorker):
             self.logger.exception('')
             success = False
             reason = str(e)
-        # keep invoice status INFLIGHT as long as HTLCs are inflight
-        # maybe we could add an extra state for the waiting time.
-        while payment_hash in self.get_payments(status='inflight'):
-            self.logger.info('waiting for inflight HTLCs...')
-            await self.sent_htlcs[payment_hash].get()
         if success:
             self.set_invoice_status(key, PR_PAID)
             util.trigger_callback('payment_succeeded', self.wallet, key)
@@ -1750,10 +1747,9 @@ class LNWallet(LNWorker):
                 amount_msat=amount_msat)
             q.put_nowait(htlc_log)
         else:
-            if payment_hash not in self.get_payments(status='inflight'):
-                key = payment_hash.hex()
-                self.set_invoice_status(key, PR_PAID)
-                util.trigger_callback('payment_succeeded', self.wallet, key)
+            key = payment_hash.hex()
+            self.set_invoice_status(key, PR_PAID)
+            util.trigger_callback('payment_succeeded', self.wallet, key)
 
     def htlc_failed(
             self,
@@ -1790,10 +1786,9 @@ class LNWallet(LNWorker):
             q.put_nowait(htlc_log)
         else:
             self.logger.info(f"received unknown htlc_failed, probably from previous session")
-            if payment_hash not in self.get_payments(status='inflight'):
-                key = payment_hash.hex()
-                self.set_invoice_status(key, PR_UNPAID)
-                util.trigger_callback('payment_failed', self.wallet, key, '')
+            key = payment_hash.hex()
+            self.set_invoice_status(key, PR_UNPAID)
+            util.trigger_callback('payment_failed', self.wallet, key, '')
 
     async def _calc_routing_hints_for_invoice(self, amount_msat: Optional[int]):
         """calculate routing hints (BOLT-11 'r' field)"""
