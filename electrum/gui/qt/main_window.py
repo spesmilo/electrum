@@ -2260,7 +2260,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def update_lightning_icon(self):
         if self.lightning_button is None:
             return
-        if self.network.lngossip is None:
+        if self.network is None or self.network.channel_db is None:
             self.lightning_button.setVisible(False)
             return
 
