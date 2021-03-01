@@ -594,7 +594,7 @@ class LightningChannelsDialog(Factory.Popup):
             item.active = not i.is_closed()
             item.is_backup = i.is_backup()
             item._chan = i
-            item.node_alias = lnworker.get_node_alias(i.node_id)
+            item.node_alias = lnworker.get_node_alias(i.node_id) or i.node_id.hex()
             self.update_item(item)
             channel_cards.add_widget(item)
         self.update_can_send()

@@ -270,17 +270,18 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
     def channels_for_peer(self, node_id: bytes) -> Dict[bytes, Channel]:
         return {}
 
-    def get_node_alias(self, node_id: bytes) -> str:
+    def get_node_alias(self, node_id: bytes) -> Optional[str]:
+        """Returns the alias of the node, or None if unknown."""
+        node_alias = None
         if self.channel_db:
             node_info = self.channel_db.get_node_info_for_node_id(node_id)
-            node_alias = (node_info.alias if node_info else '') or node_id.hex()
+            if node_info:
+                node_alias = node_info.alias
         else:
             for k, v in hardcoded_trampoline_nodes().items():
                 if v.pubkey == node_id:
                     node_alias = k
                     break
-            else:
-                node_alias = 'unknown'
         return node_alias
 
     async def maybe_listen(self):

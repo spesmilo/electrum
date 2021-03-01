@@ -85,7 +85,7 @@ class ChannelsList(MyTreeView):
             labels[subject] = label
         status = chan.get_state_for_GUI()
         closed = chan.is_closed()
-        node_alias = self.lnworker.get_node_alias(chan.node_id)
+        node_alias = self.lnworker.get_node_alias(chan.node_id) or chan.node_id.hex()
         if isinstance(chan, Channel):
             capacity_str = self.parent.format_amount(chan.constraints.capacity)
         else:
