@@ -1171,6 +1171,10 @@ class NetworkJobOnDefaultServer(Logger):
         self.network = network
         self.interface = None  # type: Interface
         self._restart_lock = asyncio.Lock()
+        # Ensure fairness between NetworkJobs. e.g. if multiple wallets
+        # are open, a large wallet's Synchronizer should not starve the small wallets:
+        self._network_request_semaphore = asyncio.Semaphore(100)
+
         self._reset()
         asyncio.run_coroutine_threadsafe(self._restart(), network.asyncio_loop)
         register_callback(self._restart, ['default_server_changed'])
