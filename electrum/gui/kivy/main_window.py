@@ -1018,10 +1018,10 @@ class ElectrumWindow(App, Logger):
         self._orientation = 'landscape' if width > height else 'portrait'
         self._ui_mode = 'tablet' if min(width, height) > inch(3.51) else 'phone'
 
-    def on_ref_label(self, label):
+    def on_ref_label(self, label, *, show_text_with_qr: bool = True):
         if not label.data:
             return
-        self.qr_dialog(label.name, label.data, True)
+        self.qr_dialog(label.name, label.data, show_text_with_qr)
 
     def show_error(self, error, width='200dp', pos=None, arrow_pos=None,
                    exit=False, icon=f'atlas://{KIVY_GUI_PATH}/theming/light/error', duration=0,
