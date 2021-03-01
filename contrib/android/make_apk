@@ -47,10 +47,10 @@ else
             -keypass "$P4A_DEBUG_KEYALIAS_PASSWD"
     fi
     # build two apks (only one on Travis CI)
-    export APP_ANDROID_ARCH=armeabi-v7a
+    export APP_ANDROID_ARCH=arm64-v8a
     make apk
     if [ ! $CI ]; then
-        export APP_ANDROID_ARCH=arm64-v8a
+        export APP_ANDROID_ARCH=armeabi-v7a
         make apk
     fi
 fi
