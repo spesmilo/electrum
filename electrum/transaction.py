@@ -909,6 +909,11 @@ class Transaction:
     def virtual_size_from_weight(cls, weight):
         return weight // 4 + (weight % 4 > 0)
 
+    @classmethod
+    def satperbyte_from_satperkw(cls, feerate_kw):
+        """Converts feerate from sat/kw to sat/vbyte."""
+        return feerate_kw * 4 / 1000
+
     def estimated_total_size(self):
         """Return an estimated total transaction size in bytes."""
         if not self.is_complete() or self._cached_network_ser is None:

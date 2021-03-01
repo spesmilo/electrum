@@ -12,8 +12,8 @@ from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id
 from electrum.lnchannel import AbstractChannel, Channel
 from electrum.gui.kivy.i18n import _
 from .question import Question
-from electrum.transaction import PartialTxOutput
-from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, format_fee_satoshis
+from electrum.transaction import PartialTxOutput, Transaction
+from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, format_fee_satoshis, quantize_feerate
 from electrum.lnutil import ln_dummy_address
 
 if TYPE_CHECKING:
@@ -276,7 +276,7 @@ Builder.load_string(r'''
                     value: 'Local: %d\nRemote: %d' % (root.local_ctn, root.remote_ctn)
                 BoxLabel:
                     text: _('Fee rate')
-                    value: '%d sat/kilobyte' % (root.feerate)
+                    value: '{} sat/byte'.format(root.feerate)
                 Widget:
                     size_hint: 1, 0.1
                 TopLabel:
@@ -467,7 +467,8 @@ class ChannelDetailsPopup(Popup, Logger):
         self.local_csv = chan.config[LOCAL].to_self_delay
         self.remote_csv = chan.config[REMOTE].to_self_delay
         self.initiator = 'Local' if chan.constraints.is_initiator else 'Remote'
-        self.feerate = chan.get_latest_feerate(LOCAL)
+        feerate_kw = chan.get_latest_feerate(LOCAL)
+        self.feerate = str(quantize_feerate(Transaction.satperbyte_from_satperkw(feerate_kw)))
         self.can_send = self.app.format_amount_and_units(chan.available_to_spend(LOCAL) // 1000)
         self.can_receive = self.app.format_amount_and_units(chan.available_to_spend(REMOTE) // 1000)
         self.is_open = chan.is_open()
