@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import traceback
 from enum import IntEnum
-from typing import Sequence, Optional
+from typing import Sequence, Optional, Dict
 
 from PyQt5 import QtCore, QtGui
 from PyQt5.QtCore import Qt
@@ -68,7 +68,7 @@ class ChannelsList(MyTreeView):
         self.lnbackups = self.parent.wallet.lnbackups
         self.setSortingEnabled(True)
 
-    def format_fields(self, chan: AbstractChannel) -> Sequence[str]:
+    def format_fields(self, chan: AbstractChannel) -> Dict['ChannelsList.Columns', str]:
         labels = {}
         for subject in (REMOTE, LOCAL):
             if isinstance(chan, Channel):
@@ -90,14 +90,14 @@ class ChannelsList(MyTreeView):
             capacity_str = self.parent.format_amount(chan.constraints.capacity)
         else:
             capacity_str = ''
-        return [
-            chan.short_id_for_GUI(),
-            node_alias,
-            capacity_str,
-            '' if closed else labels[LOCAL],
-            '' if closed else labels[REMOTE],
-            status
-        ]
+        return {
+            self.Columns.SHORT_CHANID: chan.short_id_for_GUI(),
+            self.Columns.NODE_ALIAS: node_alias,
+            self.Columns.CAPACITY: capacity_str,
+            self.Columns.LOCAL_BALANCE: '' if closed else labels[LOCAL],
+            self.Columns.REMOTE_BALANCE: '' if closed else labels[REMOTE],
+            self.Columns.CHANNEL_STATUS: status,
+        }
 
     def on_success(self, txid):
         self.main_window.show_error('Channel closed' + '\n' + txid)
@@ -237,7 +237,7 @@ class ChannelsList(MyTreeView):
             item = self.model().item(row, self.Columns.NODE_ALIAS)
             if item.data(ROLE_CHANNEL_ID) != chan.channel_id:
                 continue
-            for column, v in enumerate(self.format_fields(chan)):
+            for column, v in self.format_fields(chan).items():
                 self.model().item(row, column).setData(v, QtCore.Qt.DisplayRole)
             items = [self.model().item(row, column) for column in self.Columns]
             self._update_chan_frozen_bg(chan=chan, items=items)
@@ -259,7 +259,8 @@ class ChannelsList(MyTreeView):
         self.model().clear()
         self.update_headers(self.headers)
         for chan in channels + backups:
-            items = [QtGui.QStandardItem(x) for x in self.format_fields(chan)]
+            field_map = self.format_fields(chan)
+            items = [QtGui.QStandardItem(field_map[col]) for col in sorted(field_map)]
             self.set_editability(items)
             if self._default_item_bg_brush is None:
                 self._default_item_bg_brush = items[self.Columns.NODE_ALIAS].background()
