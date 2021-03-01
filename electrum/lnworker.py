@@ -1800,16 +1800,11 @@ class LNWallet(LNWorker):
         random.shuffle(channels)  # not sure this has any benefit but let's not leak channel order
         scid_to_my_channels = {chan.short_channel_id: chan for chan in channels
                                if chan.short_channel_id is not None}
-        if not amount_msat:
-            # for no amt invoices, check if channel can receive at least 1 msat
-            amount_msat = 1
         # note: currently we add *all* our channels; but this might be a privacy leak?
         for chan in channels:
             # do minimal filtering of channels.
             # we include channels that cannot *right now* receive (e.g. peer disconnected or balance insufficient)
             if not (chan.is_open() and not chan.is_frozen_for_receiving()):
-                continue
-            if amount_msat > 1000 * chan.constraints.capacity:
                 continue
             chan_id = chan.short_channel_id
             assert isinstance(chan_id, bytes), chan_id
