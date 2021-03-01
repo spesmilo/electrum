@@ -251,7 +251,8 @@ class CoinGecko(ExchangeBase):
                 'GBP', 'HKD', 'HUF', 'IDR', 'ILS', 'INR', 'JPY', 'KRW',
                 'KWD', 'LKR', 'LTC', 'MMK', 'MXH', 'MYR', 'NOK', 'NZD',
                 'PHP', 'PKR', 'PLN', 'RUB', 'SAR', 'SEK', 'SGD', 'THB',
-                'TRY', 'TWD', 'USD', 'VEF', 'XAG', 'XAU', 'XDR', 'ZAR']
+                'TRY', 'TWD', 'USD', 'VEF', 'VND', 'XAG', 'XAU', 'XDR',
+                'ZAR']
 
     def request_history(self, ccy):
         history = self.get_json('api.coingecko.com', '/api/v3/coins/bitcoin-cash/market_chart?vs_currency=%s&days=max' % ccy)
