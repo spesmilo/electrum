@@ -230,7 +230,7 @@ Builder.load_string(r'''
     remote_ctn:0
     local_csv:0
     remote_csv:0
-    feerate:0
+    feerate:''
     can_send:''
     can_receive:''
     is_open:False
