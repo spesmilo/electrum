@@ -1797,15 +1797,17 @@ class LNWallet(LNWorker):
         """calculate routing hints (BOLT-11 'r' field)"""
         routing_hints = []
         channels = list(self.channels.values())
-        random.shuffle(channels)  # not sure this has any benefit but let's not leak channel order
+        # do minimal filtering of channels.
+        # we include channels that cannot *right now* receive (e.g. peer disconnected or balance insufficient)
+        channels = [chan for chan in channels
+                    if (chan.is_open() and not chan.is_frozen_for_receiving())]
+        # cap max channels to include to keep QR code reasonably scannable
+        channels = sorted(channels, key=lambda chan: (not chan.is_active(), -chan.available_to_spend(REMOTE)))
+        channels = channels[:15]
+        random.shuffle(channels)  # let's not leak channel order
         scid_to_my_channels = {chan.short_channel_id: chan for chan in channels
                                if chan.short_channel_id is not None}
-        # note: currently we add *all* our channels; but this might be a privacy leak?
         for chan in channels:
-            # do minimal filtering of channels.
-            # we include channels that cannot *right now* receive (e.g. peer disconnected or balance insufficient)
-            if not (chan.is_open() and not chan.is_frozen_for_receiving()):
-                continue
             chan_id = chan.short_channel_id
             assert isinstance(chan_id, bytes), chan_id
             channel_info = get_mychannel_info(chan_id, scid_to_my_channels)
