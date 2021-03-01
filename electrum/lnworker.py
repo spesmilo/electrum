@@ -1224,8 +1224,8 @@ class LNWallet(LNWorker):
                     # maybe it is a private channel (and data in invoice was outdated)
                     self.logger.info(f"Could not find {short_channel_id}. maybe update is for private channel?")
                     start_node_id = route[sender_idx].node_id
-                    self.channel_db.add_channel_update_for_private_channel(payload, start_node_id)
-                    #update = True  # FIXME: we need to check if we actually updated something
+                    update = self.channel_db.add_channel_update_for_private_channel(payload, start_node_id)
+                    blacklist = not update
                 elif r == UpdateStatus.EXPIRED:
                     blacklist = True
                 elif r == UpdateStatus.DEPRECATED:
@@ -1568,6 +1568,8 @@ class LNWallet(LNWorker):
                     if [edge.short_channel_id for edge in full_path[-len(private_path):]] != [edge[1] for edge in private_path]:
                         continue
                     path = full_path[:-len(private_path)]
+            if any(edge.short_channel_id in blacklist for edge in private_route):
+                continue
             try:
                 route = self.network.path_finder.find_route(
                     self.node_keypair.pubkey, border_node_pubkey, amount_for_node,
