@@ -32,7 +32,8 @@ from electrum.lnmsg import encode_msg, decode_msg
 from electrum.logging import console_stderr_handler, Logger
 from electrum.lnworker import PaymentInfo, RECEIVED, PR_UNPAID
 from electrum.lnonion import OnionFailureCode
-from electrum.lnutil import ChannelBlackList
+from electrum.lnutil import ChannelBlackList, derive_payment_secret_from_payment_preimage
+from electrum.lnutil import LOCAL, REMOTE
 
 from .test_lnchannel import create_test_channels
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
@@ -125,6 +126,8 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         self.features = LnFeatures(0)
         self.features |= LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
         self.features |= LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT
+        self.features |= LnFeatures.VAR_ONION_OPT
+        self.features |= LnFeatures.PAYMENT_SECRET_OPT
         self.pending_payments = defaultdict(asyncio.Future)
         for chan in chans:
             chan.lnworker = self
@@ -235,11 +238,11 @@ def transport_pair(k1, k2, name1, name2):
 
 
 class SquareGraph(NamedTuple):
-    #        A
-    #      /   \
-    #     B     C
-    #      \   /
-    #        D
+    #                A
+    #     high fee /   \ low fee
+    #             B     C
+    #     high fee \   / low fee
+    #                D
     w_a: MockLNWallet
     w_b: MockLNWallet
     w_c: MockLNWallet
@@ -340,6 +343,16 @@ class TestPeer(ElectrumTestCase):
         w_b.network.config.set_key('lightning_forward_payments', True)
         w_c.network.config.set_key('lightning_forward_payments', True)
 
+        # forwarding fees, etc
+        chan_ab.forwarding_fee_proportional_millionths *= 500
+        chan_ab.forwarding_fee_base_msat *= 500
+        chan_ba.forwarding_fee_proportional_millionths *= 500
+        chan_ba.forwarding_fee_base_msat *= 500
+        chan_bd.forwarding_fee_proportional_millionths *= 500
+        chan_bd.forwarding_fee_base_msat *= 500
+        chan_db.forwarding_fee_proportional_millionths *= 500
+        chan_db.forwarding_fee_base_msat *= 500
+
         # mark_open won't work if state is already OPEN.
         # so set it to FUNDED
         for chan in [chan_ab, chan_ac, chan_ba, chan_bd, chan_ca, chan_cd, chan_db, chan_dc]:
@@ -393,12 +406,20 @@ class TestPeer(ElectrumTestCase):
             routing_hints = await w2._calc_routing_hints_for_invoice(amount_msat)
         else:
             routing_hints = []
+        invoice_features = w2.features.for_invoice()
+        if invoice_features.supports(LnFeatures.PAYMENT_SECRET_OPT):
+            payment_secret = derive_payment_secret_from_payment_preimage(payment_preimage)
+        else:
+            payment_secret = None
         lnaddr = LnAddr(
                     paymenthash=RHASH,
                     amount=amount_btc,
                     tags=[('c', lnutil.MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE),
-                          ('d', 'coffee')
-                         ] + routing_hints)
+                          ('d', 'coffee'),
+                          ('9', invoice_features),
+                         ] + routing_hints,
+                    payment_secret=payment_secret,
+        )
         return lnencode(lnaddr, w2.node_keypair.privkey)
 
     def test_reestablish(self):
@@ -656,6 +677,41 @@ class TestPeer(ElectrumTestCase):
                     await group.spawn(peer.htlc_switch())
                 await asyncio.sleep(0.2)
                 pay_req = await self.prepare_invoice(graph.w_d, include_routing_hints=True)
+                await group.spawn(pay(pay_req))
+        with self.assertRaises(PaymentDone):
+            run(f())
+
+    @needs_test_with_all_chacha20_implementations
+    def test_payment_multihop_route_around_failure(self):
+        # Alice will pay Dave. Alice first tries A->C->D route, due to lower fees, but Carol
+        # will fail the htlc and get blacklisted. Alice will then try A->B->D and succeed.
+        graph = self.prepare_chans_and_peers_in_square()
+        graph.w_c.network.config.set_key('test_fail_htlcs_with_temp_node_failure', True)
+        peers = graph.all_peers()
+        async def pay(pay_req):
+            self.assertEqual(500000000000, graph.chan_ab.balance(LOCAL))
+            self.assertEqual(500000000000, graph.chan_db.balance(LOCAL))
+            result, log = await graph.w_a.pay_invoice(pay_req, attempts=2)
+            self.assertEqual(2, len(log))
+            self.assertTrue(result)
+            self.assertEqual([graph.chan_ac.short_channel_id, graph.chan_cd.short_channel_id],
+                             [edge.short_channel_id for edge in log[0].route])
+            self.assertEqual([graph.chan_ab.short_channel_id, graph.chan_bd.short_channel_id],
+                             [edge.short_channel_id for edge in log[1].route])
+            self.assertEqual(OnionFailureCode.TEMPORARY_NODE_FAILURE, log[0].failure_msg.code)
+            self.assertEqual(499899450000, graph.chan_ab.balance(LOCAL))
+            await asyncio.sleep(0.2)  # wait for COMMITMENT_SIGNED / REVACK msgs to update balance
+            self.assertEqual(500100000000, graph.chan_db.balance(LOCAL))
+            raise PaymentDone()
+        async def f():
+            async with TaskGroup() as group:
+                for peer in peers:
+                    await group.spawn(peer._message_loop())
+                    await group.spawn(peer.htlc_switch())
+                await asyncio.sleep(0.2)
+                pay_req = await self.prepare_invoice(graph.w_d, include_routing_hints=True)
+                invoice_features = LnFeatures(lndecode(pay_req).get_tag('9') or 0)
+                self.assertFalse(invoice_features.supports(LnFeatures.BASIC_MPP_OPT))
                 await group.spawn(pay(pay_req))
         with self.assertRaises(PaymentDone):
             run(f())

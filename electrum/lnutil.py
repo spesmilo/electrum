@@ -251,7 +251,7 @@ class Outpoint(StoredObject):
 
 class HtlcLog(NamedTuple):
     success: bool
-    amount_msat: int
+    amount_msat: int  # amount for receiver (e.g. from invoice)
     route: Optional['LNPaymentRoute'] = None
     preimage: Optional[bytes] = None
     error_bytes: Optional[bytes] = None

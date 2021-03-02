@@ -1103,6 +1103,7 @@ class LNWallet(LNWorker):
             # 3. await a queue
             htlc_log = await self.sent_htlcs[payment_hash].get()
             amount_inflight -= htlc_log.amount_msat
+            assert amount_inflight >= 0, f"amount_inflight={amount_inflight} < 0"
             log.append(htlc_log)
             if htlc_log.success:
                 return
