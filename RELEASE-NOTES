@@ -1090,3 +1090,46 @@ and there is no warning message.
 - Android: fix deprecated theme attribute in layout (Malcolm Smith)
 - Android: make Send address box automatically parse request URLs
   (Malcolm Smith)
+
+# RELEASE NOTES dev
+
+- Trezor: Fixed connecting autolocked device #2085 (Daniel Gonzalez Gasull)
+- Fixed icon directory and added scalable icon #2089 (Emily Roberts)
+- Added option to scan current screen for QR code #2091 #2093 (Jonas Lundqvist)
+- Android: updated to Chaquopy 9.1.1 (Malcolm Smith)
+- Android: improved performance and UI responsiveness (Malcolm Smith)
+- Enabled fiat by default #2099 (Malcolm Smith)
+- Improved performance of (un)freezing coins (Calin Culianu)
+- Disabled Fiat display for testnets (Calin Culianu)
+- Reduced time spent saving wallets #2106 #2110 (Malcolm Smith)
+- Android: added more details when synchronizing (Malcolm Smith)
+- Reduced synchronization time by reducing address saves #2113 (Malcolm Smith)
+- Tor: Fixed proxy bypass for stem version >= 1.8.0 (Axel Gembe)
+- Android: save wallets periodically during synchronization (Malcolm Smith)
+- Android: when a wallet is loded, run a foreground service to prevent the
+  process from being killed (Malcolm Smith)
+- macOS: Workaround for Qt UI not working on Big Sur (Calin Culianu)
+- Satochip: use BIP39 by default & improve user interface #2127 (Toporin)
+- Android: added adaptive icon (Malcolm Smith)
+- Updated copyright year to 2021 #2126 (Marius Kjærstad)
+- iOS: Fixed inability to restore Electrum seed wallet (Calin Culianu)
+- Warn if a legacy addres is used #2129 (Daniel Gonzalez Gasull)
+- AppImage: Build using Ubuntu 18.04 (Bionic) #2144 (Axel Gembe)
+- Tor: Updated message parser to support version 0.4.5.x #2145 (Axel Gembe)
+- Tor: Updated to version 0.4.5.5-rc with some patches #2145 #2147 (Axel Gembe)
+- OpenSSL: Updated to version 1.1.1i #2148 (Axel Gembe)
+- NSIS: Updated to version 3.06.1 #2150 (Axel Gembe)
+- NSIS: Added an installer log. This fixes silent installation and accidental
+  file deletion #2153 (Axel Gembe)
+- macOS: Updated PyQt5 to version 5.15.2 to fix Big Sur (Calin Culianu)
+- AppImage: Build all binaries except PyQt5 from source #2159 (Axel Gembe)
+- Windows: Updated PyInstaller to version 4.2 #2161 (Axel Gembe)
+- Build: Updated Python to version 3.8.7 #2162 (Axel Gembe, Calin Culianu)
+- Android: reduced network timeouts #971 (Malcolm Smith)
+- Android: changed "sign transaction" to "save transaction" #2032 (Malcolm Smith)
+- Reverted RPA paycode support #2170 (Mark B Lundeberg)
+- Zbar: Updated to version 0.23.91 #2171 (Axel Gembe)
+- Added Vietnamese Dong to CoinGecko exchange pairs #2178 (Hieu Van)
+- Various internal bugfixes and code refactoring #2087 #2095 #2097 #2117 #2140
+  #2143 #2151 #2155 #2156 #2158 #2160 #2154 #2176 (Daniel Gonzalez Gasull,
+  Calin Culianu, Axel Gembe, Mark B Lundeberg, Malcolm Smith, Pierre K, Toporin)
