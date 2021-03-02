@@ -1471,10 +1471,14 @@ class Peer(Logger):
         """As a final recipient of an HTLC, decide if we should fulfill it.
         Returns the preimage if yes, or None.
         """
+        def log_fail_reason(reason: str):
+            self.logger.info(f"maybe_fulfill_htlc. will FAIL HTLC: chan {chan.short_channel_id}. "
+                             f"{reason}. htlc={str(htlc)}. onion_payload={processed_onion.hop_data.payload}")
 
         try:
             amt_to_forward = processed_onion.hop_data.payload["amt_to_forward"]["amt_to_forward"]
         except:
+            log_fail_reason(f"'amt_to_forward' missing from onion")
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
 
         # Check that our blockchain tip is sufficiently recent so that we have an approx idea of the height.
@@ -1482,21 +1486,24 @@ class Peer(Logger):
         # then they might try to force-close and it becomes a race.
         chain = self.network.blockchain()
         if chain.is_tip_stale():
+            log_fail_reason(f"our chain tip is stale")
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
         local_height = chain.height()
         exc_incorrect_or_unknown_pd = OnionRoutingFailure(
             code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS,
             data=amt_to_forward.to_bytes(8, byteorder="big") + local_height.to_bytes(4, byteorder="big"))
         if local_height + MIN_FINAL_CLTV_EXPIRY_ACCEPTED > htlc.cltv_expiry:
-            self.logger.info('cltv expiry too soon')
+            log_fail_reason(f"htlc.cltv_expiry is unreasonably close")
             raise exc_incorrect_or_unknown_pd
         try:
             cltv_from_onion = processed_onion.hop_data.payload["outgoing_cltv_value"]["outgoing_cltv_value"]
         except:
+            log_fail_reason(f"'outgoing_cltv_value' missing from onion")
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
 
         if not is_trampoline:
             if cltv_from_onion != htlc.cltv_expiry:
+                log_fail_reason(f"cltv_from_onion != htlc.cltv_expiry")
                 raise OnionRoutingFailure(
                     code=OnionFailureCode.FINAL_INCORRECT_CLTV_EXPIRY,
                     data=htlc.cltv_expiry.to_bytes(4, byteorder="big"))
@@ -1506,6 +1513,7 @@ class Peer(Logger):
             total_msat = amt_to_forward # fall back to "amt_to_forward"
 
         if not is_trampoline and amt_to_forward != htlc.amount_msat:
+            log_fail_reason(f"amt_to_forward != htlc.amount_msat")
             raise OnionRoutingFailure(
                 code=OnionFailureCode.FINAL_INCORRECT_HTLC_AMOUNT,
                 data=htlc.amount_msat.to_bytes(8, byteorder="big"))
@@ -1516,7 +1524,7 @@ class Peer(Logger):
 
         info = self.lnworker.get_payment_info(htlc.payment_hash)
         if info is None:
-            self.logger.info('unknown payment hash')
+            log_fail_reason(f"no payment_info found for RHASH {htlc.payment_hash.hex()}")
             raise exc_incorrect_or_unknown_pd
         preimage = self.lnworker.get_preimage(htlc.payment_hash)
         try:
@@ -1524,21 +1532,23 @@ class Peer(Logger):
         except:
             if total_msat > amt_to_forward:
                 # payment_secret is required for MPP
-                self.logger.info('total_msat > amt to forward')
+                log_fail_reason(f"'payment_secret' missing from onion")
                 raise exc_incorrect_or_unknown_pd
             # TODO fail here if invoice has set PAYMENT_SECRET_REQ
         else:
             if payment_secret_from_onion != derive_payment_secret_from_payment_preimage(preimage):
-                self.logger.info(f'incorrect payment secret {payment_secret_from_onion.hex()} != {derive_payment_secret_from_payment_preimage(preimage).hex()}')
+                log_fail_reason(f'incorrect payment secret {payment_secret_from_onion.hex()} != {derive_payment_secret_from_payment_preimage(preimage).hex()}')
                 raise exc_incorrect_or_unknown_pd
         invoice_msat = info.amount_msat
         if not (invoice_msat is None or invoice_msat <= total_msat <= 2 * invoice_msat):
-            self.logger.info('incorrect total msat')
+            log_fail_reason(f"total_msat={total_msat} too different from invoice_msat={invoice_msat}")
             raise exc_incorrect_or_unknown_pd
         mpp_status = self.lnworker.add_received_htlc(chan.short_channel_id, htlc, total_msat)
-        if mpp_status == True:
+        if mpp_status is True:
+            self.logger.info(f"maybe_fulfill_htlc. will FULFILL HTLC: chan {chan.short_channel_id}. htlc={str(htlc)}")
             return preimage
-        elif mpp_status == False:
+        elif mpp_status is False:
+            log_fail_reason(f"MPP_TIMEOUT")
             raise OnionRoutingFailure(code=OnionFailureCode.MPP_TIMEOUT, data=b'')
         else:
             return None
