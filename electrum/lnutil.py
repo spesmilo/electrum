@@ -319,11 +319,6 @@ NBLOCK_DEADLINE_AFTER_EXPIRY_FOR_OFFERED_HTLCS = 1
 # the deadline after which the channel has to be failed and the HTLC fulfilled on-chain before its cltv_expiry
 NBLOCK_DEADLINE_BEFORE_EXPIRY_FOR_RECEIVED_HTLCS = 72
 
-# the cltv_expiry_delta for channels when we are forwarding payments
-NBLOCK_OUR_CLTV_EXPIRY_DELTA = 144
-OUR_FEE_BASE_MSAT = 1000
-OUR_FEE_PROPORTIONAL_MILLIONTHS = 1
-
 NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE = 28 * 144
 
 MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED = 2016

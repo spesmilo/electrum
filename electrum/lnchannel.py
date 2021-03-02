@@ -503,6 +503,11 @@ class Channel(AbstractChannel):
     #       they are ambiguous. Use "oldest_unrevoked" or "latest" or "next".
     #       TODO enforce this ^
 
+    # our forwarding parameters for forwarding HTLCs through this channel
+    forwarding_cltv_expiry_delta = 144
+    forwarding_fee_base_msat = 1000
+    forwarding_fee_proportional_millionths = 1
+
     def __init__(self, state: 'StoredDict', *, sweep_address=None, name=None, lnworker=None, initial_feerate=None):
         self.name = name
         Logger.__init__(self)
@@ -600,11 +605,11 @@ class Channel(AbstractChannel):
             short_channel_id=self.short_channel_id,
             channel_flags=channel_flags,
             message_flags=b'\x01',
-            cltv_expiry_delta=lnutil.NBLOCK_OUR_CLTV_EXPIRY_DELTA,
+            cltv_expiry_delta=self.forwarding_cltv_expiry_delta,
             htlc_minimum_msat=self.config[REMOTE].htlc_minimum_msat,
             htlc_maximum_msat=htlc_maximum_msat,
-            fee_base_msat=lnutil.OUR_FEE_BASE_MSAT,
-            fee_proportional_millionths=lnutil.OUR_FEE_PROPORTIONAL_MILLIONTHS,
+            fee_base_msat=self.forwarding_fee_base_msat,
+            fee_proportional_millionths=self.forwarding_fee_proportional_millionths,
             chain_hash=constants.net.rev_genesis_bytes(),
             timestamp=now,
         )
