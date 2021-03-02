@@ -993,7 +993,7 @@ class Channel(AbstractChannel):
         if self.lnworker:
             sent = self.hm.sent_in_ctn(new_ctn)
             for htlc in sent:
-                self.lnworker.htlc_fulfilled(self, htlc.payment_hash, htlc.htlc_id, htlc.amount_msat)
+                self.lnworker.htlc_fulfilled(self, htlc.payment_hash, htlc.htlc_id)
             failed = self.hm.failed_in_ctn(new_ctn)
             for htlc in failed:
                 try:
@@ -1004,7 +1004,7 @@ class Channel(AbstractChannel):
                 if self.lnworker.get_payment_info(htlc.payment_hash) is None:
                     self.save_fail_htlc_reason(htlc.htlc_id, error_bytes, failure_message)
                 else:
-                    self.lnworker.htlc_failed(self, htlc.payment_hash, htlc.htlc_id, htlc.amount_msat, error_bytes, failure_message)
+                    self.lnworker.htlc_failed(self, htlc.payment_hash, htlc.htlc_id, error_bytes, failure_message)
 
     def save_fail_htlc_reason(
             self,
@@ -1049,7 +1049,7 @@ class Channel(AbstractChannel):
         info = self.lnworker.get_payment_info(payment_hash)
         if info is not None and info.status != PR_PAID:
             if is_sent:
-                self.lnworker.htlc_fulfilled(self, payment_hash, htlc.htlc_id, htlc.amount_msat)
+                self.lnworker.htlc_fulfilled(self, payment_hash, htlc.htlc_id)
             else:
                 # FIXME
                 #self.lnworker.htlc_received(self, payment_hash)

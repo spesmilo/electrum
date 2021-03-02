@@ -658,7 +658,7 @@ class LNWallet(LNWorker):
             self._channels[bfh(channel_id)] = Channel(c, sweep_address=self.sweep_address, lnworker=self)
 
         self.sent_htlcs = defaultdict(asyncio.Queue)  # type: Dict[bytes, asyncio.Queue[HtlcLog]]
-        self.sent_htlcs_routes = dict()               # (RHASH, scid, htlc_id) -> route
+        self.sent_htlcs_routes = dict()               # (RHASH, scid, htlc_id) -> route, amount_for_receiver
         self.received_htlcs = dict()                  # RHASH -> mpp_status, htlc_set
 
         self.swap_manager = SwapManager(wallet=self.wallet, lnworker=self)
@@ -1166,7 +1166,7 @@ class LNWallet(LNWorker):
             min_final_cltv_expiry=min_cltv_expiry,
             payment_secret=payment_secret,
             fwd_trampoline_onion=trampoline_onion)
-        self.sent_htlcs_routes[(payment_hash, short_channel_id, htlc.htlc_id)] = route
+        self.sent_htlcs_routes[(payment_hash, short_channel_id, htlc.htlc_id)] = route, amount_msat
         util.trigger_callback('htlc_added', chan, htlc, SENT)
 
     def handle_error_code_from_failed_htlc(self, htlc_log):
@@ -1739,11 +1739,11 @@ class LNWallet(LNWorker):
         info = info._replace(status=status)
         self.save_payment_info(info)
 
-    def htlc_fulfilled(self, chan, payment_hash: bytes, htlc_id:int, amount_msat:int):
+    def htlc_fulfilled(self, chan, payment_hash: bytes, htlc_id:int):
         util.trigger_callback('htlc_fulfilled', payment_hash, chan.channel_id)
         q = self.sent_htlcs.get(payment_hash)
         if q:
-            route = self.sent_htlcs_routes[(payment_hash, chan.short_channel_id, htlc_id)]
+            route, amount_msat = self.sent_htlcs_routes[(payment_hash, chan.short_channel_id, htlc_id)]
             htlc_log = HtlcLog(
                 success=True,
                 route=route,
@@ -1759,14 +1759,13 @@ class LNWallet(LNWorker):
             chan: Channel,
             payment_hash: bytes,
             htlc_id: int,
-            amount_msat:int,
             error_bytes: Optional[bytes],
             failure_message: Optional['OnionRoutingFailure']):
 
         util.trigger_callback('htlc_failed', payment_hash, chan.channel_id)
         q = self.sent_htlcs.get(payment_hash)
         if q:
-            route = self.sent_htlcs_routes[(payment_hash, chan.short_channel_id, htlc_id)]
+            route, amount_msat = self.sent_htlcs_routes[(payment_hash, chan.short_channel_id, htlc_id)]
             if error_bytes:
                 # TODO "decode_onion_error" might raise, catch and maybe blacklist/penalise someone?
                 try:

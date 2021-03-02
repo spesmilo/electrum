@@ -134,7 +134,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         self.enable_htlc_settle.set()
         self.received_htlcs = dict()
         self.sent_htlcs = defaultdict(asyncio.Queue)
-        self.sent_htlcs_routes = defaultdict(list)
+        self.sent_htlcs_routes = dict()
 
     def get_invoice_status(self, key):
         pass
@@ -498,26 +498,24 @@ class TestPeer(ElectrumTestCase):
             # alice sends htlc BUT NOT COMMITMENT_SIGNED
             p1.maybe_send_commitment = lambda x: None
             route1, amount_msat1 = w1.create_routes_from_invoice(lnaddr2.get_amount_msat(), decoded_invoice=lnaddr2)[0]
-            p1.pay(
+            await w1.pay_to_route(
                 route=route1,
-                chan=alice_channel,
                 amount_msat=lnaddr2.get_amount_msat(),
                 total_msat=lnaddr2.get_amount_msat(),
                 payment_hash=lnaddr2.paymenthash,
-                min_final_cltv_expiry=lnaddr2.get_min_final_cltv_expiry(),
+                min_cltv_expiry=lnaddr2.get_min_final_cltv_expiry(),
                 payment_secret=lnaddr2.payment_secret,
             )
             p1.maybe_send_commitment = _maybe_send_commitment1
             # bob sends htlc BUT NOT COMMITMENT_SIGNED
             p2.maybe_send_commitment = lambda x: None
             route2, amount_msat2 = w2.create_routes_from_invoice(lnaddr1.get_amount_msat(), decoded_invoice=lnaddr1)[0]
-            p2.pay(
+            await w2.pay_to_route(
                 route=route2,
-                chan=bob_channel,
                 amount_msat=lnaddr1.get_amount_msat(),
                 total_msat=lnaddr1.get_amount_msat(),
                 payment_hash=lnaddr1.paymenthash,
-                min_final_cltv_expiry=lnaddr1.get_min_final_cltv_expiry(),
+                min_cltv_expiry=lnaddr1.get_min_final_cltv_expiry(),
                 payment_secret=lnaddr1.payment_secret,
             )
             p2.maybe_send_commitment = _maybe_send_commitment2
