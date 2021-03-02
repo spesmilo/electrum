@@ -859,17 +859,27 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.payto_e.resolve()
         self.notify_transactions()
 
-    def format_amount(self, x, is_diff=False, whitespaces=False):
-        # x is in sats
-        return self.config.format_amount(x, is_diff=is_diff, whitespaces=whitespaces)
+    def format_amount(self, amount_sat, is_diff=False, whitespaces=False) -> str:
+        """Formats amount as string, converting to desired unit.
+        E.g. 500_000 -> '0.005'
+        """
+        return self.config.format_amount(amount_sat, is_diff=is_diff, whitespaces=whitespaces)
 
-    def format_amount_and_units(self, amount):
-        # amount is in sats
-        text = self.config.format_amount_and_units(amount)
-        x = self.fx.format_amount_and_units(amount) if self.fx else None
+    def format_amount_and_units(self, amount_sat) -> str:
+        """Returns string with both bitcoin and fiat amounts, in desired units.
+        E.g. 500_000 -> '0.005 BTC (191.42 EUR)'
+        """
+        text = self.config.format_amount_and_units(amount_sat)
+        x = self.fx.format_amount_and_units(amount_sat) if self.fx else None
         if text and x:
             text += ' (%s)'%x
         return text
+
+    def format_fiat_and_units(self, amount_sat) -> str:
+        """Returns string of FX fiat amount, in desired units.
+        E.g. 500_000 -> '191.42 EUR'
+        """
+        return self.fx.format_amount_and_units(amount_sat) if self.fx else ''
 
     def format_fee_rate(self, fee_rate):
         return self.config.format_fee_rate(fee_rate)
@@ -1656,22 +1666,26 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
 
         output_value = '!' if '!' in output_values else sum(output_values)
-        d = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=output_value, is_sweep=is_sweep)
-        if d.not_enough_funds:
+        conf_dlg = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=output_value, is_sweep=is_sweep)
+        if conf_dlg.not_enough_funds:
             # Check if we had enough funds excluding fees,
             # if so, still provide opportunity to set lower fees.
-            if not d.have_enough_funds_assuming_zero_fees():
+            if not conf_dlg.have_enough_funds_assuming_zero_fees():
                 text = self.get_text_not_enough_funds_mentioning_frozen()
                 self.show_message(text)
                 return
 
         # shortcut to advanced preview (after "enough funds" check!)
         if self.config.get('advanced_preview'):
-            self.preview_tx_dialog(make_tx=make_tx,
-                                   external_keypairs=external_keypairs)
+            preview_dlg = PreviewTxDialog(
+                window=self,
+                make_tx=make_tx,
+                external_keypairs=external_keypairs,
+                output_value=output_value)
+            preview_dlg.show()
             return
 
-        cancelled, is_send, password, tx = d.run()
+        cancelled, is_send, password, tx = conf_dlg.run()
         if cancelled:
             return
         if is_send:
@@ -1682,13 +1696,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.sign_tx_with_password(tx, callback=sign_done, password=password,
                                        external_keypairs=external_keypairs)
         else:
-            self.preview_tx_dialog(make_tx=make_tx,
-                                   external_keypairs=external_keypairs)
-
-    def preview_tx_dialog(self, *, make_tx, external_keypairs=None):
-        d = PreviewTxDialog(make_tx=make_tx, external_keypairs=external_keypairs,
-                            window=self)
-        d.show()
+            preview_dlg = PreviewTxDialog(
+                window=self,
+                make_tx=make_tx,
+                external_keypairs=external_keypairs,
+                output_value=output_value)
+            preview_dlg.show()
 
     def broadcast_or_show(self, tx: Transaction):
         if not tx.is_complete():
@@ -2233,7 +2246,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def update_lightning_icon(self):
         if self.lightning_button is None:
             return
-        if self.network.lngossip is None:
+        if self.network is None or self.network.channel_db is None:
             self.lightning_button.setVisible(False)
             return
 

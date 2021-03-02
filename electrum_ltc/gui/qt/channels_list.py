@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import traceback
 from enum import IntEnum
-from typing import Sequence, Optional
+from typing import Sequence, Optional, Dict
 
 from PyQt5 import QtCore, QtGui
 from PyQt5.QtCore import Qt
@@ -11,7 +11,7 @@ from PyQt5.QtGui import QFont, QStandardItem, QBrush
 
 from electrum_ltc.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
 from electrum_ltc.i18n import _
-from electrum_ltc.lnchannel import AbstractChannel, PeerState
+from electrum_ltc.lnchannel import AbstractChannel, PeerState, ChannelBackup, Channel
 from electrum_ltc.wallet import Abstract_Wallet
 from electrum_ltc.lnutil import LOCAL, REMOTE, format_short_channel_id, LN_MAX_FUNDING_SAT
 from electrum_ltc.lnworker import LNWallet
@@ -68,28 +68,36 @@ class ChannelsList(MyTreeView):
         self.lnbackups = self.parent.wallet.lnbackups
         self.setSortingEnabled(True)
 
-    def format_fields(self, chan):
+    def format_fields(self, chan: AbstractChannel) -> Dict['ChannelsList.Columns', str]:
         labels = {}
         for subject in (REMOTE, LOCAL):
-            can_send = chan.available_to_spend(subject) / 1000
-            label = self.parent.format_amount(can_send)
-            other = subject.inverted()
-            bal_other = chan.balance(other)//1000
-            bal_minus_htlcs_other = chan.balance_minus_outgoing_htlcs(other)//1000
-            if bal_other != bal_minus_htlcs_other:
-                label += ' (+' + self.parent.format_amount(bal_other - bal_minus_htlcs_other) + ')'
+            if isinstance(chan, Channel):
+                can_send = chan.available_to_spend(subject) / 1000
+                label = self.parent.format_amount(can_send)
+                other = subject.inverted()
+                bal_other = chan.balance(other)//1000
+                bal_minus_htlcs_other = chan.balance_minus_outgoing_htlcs(other)//1000
+                if bal_other != bal_minus_htlcs_other:
+                    label += ' (+' + self.parent.format_amount(bal_other - bal_minus_htlcs_other) + ')'
+            else:
+                assert isinstance(chan, ChannelBackup)
+                label = ''
             labels[subject] = label
         status = chan.get_state_for_GUI()
         closed = chan.is_closed()
-        node_alias = self.lnworker.get_node_alias(chan.node_id)
-        return [
-            chan.short_id_for_GUI(),
-            node_alias,
-            self.parent.format_amount(chan.constraints.capacity),
-            '' if closed else labels[LOCAL],
-            '' if closed else labels[REMOTE],
-            status
-        ]
+        node_alias = self.lnworker.get_node_alias(chan.node_id) or chan.node_id.hex()
+        if isinstance(chan, Channel):
+            capacity_str = self.parent.format_amount(chan.constraints.capacity)
+        else:
+            capacity_str = ''
+        return {
+            self.Columns.SHORT_CHANID: chan.short_id_for_GUI(),
+            self.Columns.NODE_ALIAS: node_alias,
+            self.Columns.CAPACITY: capacity_str,
+            self.Columns.LOCAL_BALANCE: '' if closed else labels[LOCAL],
+            self.Columns.REMOTE_BALANCE: '' if closed else labels[REMOTE],
+            self.Columns.CHANNEL_STATUS: status,
+        }
 
     def on_success(self, txid):
         self.main_window.show_error('Channel closed' + '\n' + txid)
@@ -229,7 +237,7 @@ class ChannelsList(MyTreeView):
             item = self.model().item(row, self.Columns.NODE_ALIAS)
             if item.data(ROLE_CHANNEL_ID) != chan.channel_id:
                 continue
-            for column, v in enumerate(self.format_fields(chan)):
+            for column, v in self.format_fields(chan).items():
                 self.model().item(row, column).setData(v, QtCore.Qt.DisplayRole)
             items = [self.model().item(row, column) for column in self.Columns]
             self._update_chan_frozen_bg(chan=chan, items=items)
@@ -251,7 +259,8 @@ class ChannelsList(MyTreeView):
         self.model().clear()
         self.update_headers(self.headers)
         for chan in channels + backups:
-            items = [QtGui.QStandardItem(x) for x in self.format_fields(chan)]
+            field_map = self.format_fields(chan)
+            items = [QtGui.QStandardItem(field_map[col]) for col in sorted(field_map)]
             self.set_editability(items)
             if self._default_item_bg_brush is None:
                 self._default_item_bg_brush = items[self.Columns.NODE_ALIAS].background()

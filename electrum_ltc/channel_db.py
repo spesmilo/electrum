@@ -610,12 +610,20 @@ class ChannelDB(SqlDB):
             self.update_counts()
             self.logger.info(f'Deleting {len(orphaned_chans)} orphaned channels')
 
-    def add_channel_update_for_private_channel(self, msg_payload: dict, start_node_id: bytes):
+    def add_channel_update_for_private_channel(self, msg_payload: dict, start_node_id: bytes) -> bool:
+        """Returns True iff the channel update was successfully added and it was different than
+        what we had before (if any).
+        """
         if not verify_sig_for_channel_update(msg_payload, start_node_id):
-            return  # ignore
+            return False  # ignore
         short_channel_id = ShortChannelID(msg_payload['short_channel_id'])
         msg_payload['start_node'] = start_node_id
-        self._channel_updates_for_private_channels[(start_node_id, short_channel_id)] = msg_payload
+        key = (start_node_id, short_channel_id)
+        prev_chanupd = self._channel_updates_for_private_channels.get(key)
+        if prev_chanupd == msg_payload:
+            return False
+        self._channel_updates_for_private_channels[key] = msg_payload
+        return True
 
     def remove_channel(self, short_channel_id: ShortChannelID):
         # FIXME what about rm-ing policies?

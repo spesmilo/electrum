@@ -239,6 +239,7 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
             return
 
         fee = tx.get_fee()
+        assert fee is not None
         self.fee_label.setText(self.main_window.format_amount_and_units(fee))
         x_fee = run_hook('get_tx_extra_fee', self.wallet, tx)
         if x_fee:
@@ -248,21 +249,11 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
             self.extra_fee_value.setText(self.main_window.format_amount_and_units(x_fee_amount))
 
         amount = tx.output_value() if self.output_value == '!' else self.output_value
-        feerate = Decimal(fee) / tx.estimated_size()  # sat/byte
-        fee_ratio = Decimal(fee) / amount if amount else 1
-        if feerate < self.wallet.relayfee() / 1000:
-            msg = '\n'.join([
-                _("This transaction requires a higher fee, or it will not be propagated by your current server"),
-                _("Try to raise your transaction fee, or use a server with a lower relay fee.")
-            ])
-            self.toggle_send_button(False, message=msg)
-        elif fee_ratio >= FEE_RATIO_HIGH_WARNING:
-            self.toggle_send_button(True,
-                                    message=_('Warning') + ': ' + _("The fee for this transaction seems unusually high.")
-                                            + f'\n({fee_ratio*100:.2f}% of amount)')
-        elif feerate > FEERATE_WARNING_HIGH_FEE / 1000:
-            self.toggle_send_button(True,
-                                    message=_('Warning') + ': ' + _("The fee for this transaction seems unusually high.")
-                                            + f'\n(feerate: {feerate:.2f} sat/byte)')
+        tx_size = tx.estimated_size()
+        fee_warning_tuple = self.wallet.get_tx_fee_warning(
+            invoice_amt=amount, tx_size=tx_size, fee=fee)
+        if fee_warning_tuple:
+            allow_send, long_warning, short_warning = fee_warning_tuple
+            self.toggle_send_button(allow_send, message=long_warning)
         else:
             self.toggle_send_button(True)

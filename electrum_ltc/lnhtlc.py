@@ -537,10 +537,11 @@ class HTLCManager:
                                                                log_action='fails')
 
     ##### Queries re Fees:
+    # note: feerates are in sat/kw everywhere in this file
 
     @with_lock
     def get_feerate(self, subject: HTLCOwner, ctn: int) -> int:
-        """Return feerate used in subject's commitment txn at ctn."""
+        """Return feerate (sat/kw) used in subject's commitment txn at ctn."""
         ctn = max(0, ctn)  # FIXME rm this
         # only one party can update fees; use length of logs to figure out which:
         assert not (len(self.log[LOCAL]['fee_updates']) > 1 and len(self.log[REMOTE]['fee_updates']) > 1)

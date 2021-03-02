@@ -157,7 +157,8 @@
     touched: False
     padding: '10dp', '10dp'
     background_color: .3, .3, .3, 1
-    touch_callback: lambda: app.on_ref_label(self)
+    show_text_with_qr: True
+    touch_callback: lambda: app.on_ref_label(self, show_text_with_qr=self.show_text_with_qr)
     on_touch_down:
         touch = args[1]
         touched = bool(self.collide_point(*touch.pos))

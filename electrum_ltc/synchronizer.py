@@ -61,9 +61,6 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
     def __init__(self, network: 'Network'):
         self.asyncio_loop = network.asyncio_loop
         self._reset_request_counters()
-        # Ensure fairness between Synchronizers. e.g. if multiple wallets
-        # are open, a large wallet should not starve the small wallets:
-        self._network_request_semaphore = asyncio.Semaphore(100)
 
         NetworkJobOnDefaultServer.__init__(self, network)
 

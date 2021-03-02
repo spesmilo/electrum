@@ -63,12 +63,12 @@ def unshorten_amount(amount) -> Decimal:
     else:
         return Decimal(amount)
 
+_INT_TO_BINSTR = {a: '0' * (5-len(bin(a)[2:])) + bin(a)[2:] for a in range(32)}
+
 # Bech32 spits out array of 5-bit values.  Shim here.
 def u5_to_bitarray(arr):
-    ret = bitstring.BitArray()
-    for a in arr:
-        ret += bitstring.pack("uint:5", a)
-    return ret
+    b = ''.join(_INT_TO_BINSTR[a] for a in arr)
+    return bitstring.BitArray(bin=b)
 
 def bitarray_to_u5(barr):
     assert barr.len % 5 == 0

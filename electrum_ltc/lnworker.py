@@ -255,17 +255,18 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
     def channels_for_peer(self, node_id: bytes) -> Dict[bytes, Channel]:
         return {}
 
-    def get_node_alias(self, node_id: bytes) -> str:
+    def get_node_alias(self, node_id: bytes) -> Optional[str]:
+        """Returns the alias of the node, or None if unknown."""
+        node_alias = None
         if self.channel_db:
             node_info = self.channel_db.get_node_info_for_node_id(node_id)
-            node_alias = (node_info.alias if node_info else '') or node_id.hex()
+            if node_info:
+                node_alias = node_info.alias
         else:
             for k, v in hardcoded_trampoline_nodes().items():
                 if v.pubkey == node_id:
                     node_alias = k
                     break
-            else:
-                node_alias = 'unknown'
         return node_alias
 
     async def maybe_listen(self):
@@ -642,8 +643,8 @@ class LNWallet(LNWorker):
             self._channels[bfh(channel_id)] = Channel(c, sweep_address=self.sweep_address, lnworker=self)
 
         self.sent_htlcs = defaultdict(asyncio.Queue)  # type: Dict[bytes, asyncio.Queue[HtlcLog]]
-        self.received_htlcs = defaultdict(set) # type: Dict[bytes, set]
-        self.htlc_routes = dict()
+        self.sent_htlcs_routes = dict()               # (RHASH, scid, htlc_id) -> route
+        self.received_htlcs = dict()                  # RHASH -> mpp_status, htlc_set
 
         self.swap_manager = SwapManager(wallet=self.wallet, lnworker=self)
         # detect inflight payments
@@ -924,14 +925,13 @@ class LNWallet(LNWorker):
 
     @log_exceptions
     async def _open_channel_coroutine(
-            self,
-            *,
+            self, *,
             connect_str: str,
             funding_tx: PartialTransaction,
             funding_sat: int,
             push_sat: int,
-            password: Optional[str],
-    ) -> Tuple[Channel, PartialTransaction]:
+            password: Optional[str]) -> Tuple[Channel, PartialTransaction]:
+
         peer = await self.add_peer(connect_str)
         coro = peer.channel_establishment_flow(
             funding_tx=funding_tx,
@@ -1028,6 +1028,8 @@ class LNWallet(LNWorker):
             raise PaymentFailure(_("This invoice has been paid already"))
         if status == PR_INFLIGHT:
             raise PaymentFailure(_("A payment was already initiated for this invoice"))
+        if payment_hash in self.get_payments(status='inflight'):
+            raise PaymentFailure(_("A previous attempt to pay this invoice did not clear"))
         info = PaymentInfo(payment_hash, amount_to_pay, SENT, PR_UNPAID)
         self.save_payment_info(info)
         self.wallet.set_label(key, lnaddr.get_description())
@@ -1038,7 +1040,6 @@ class LNWallet(LNWorker):
             random.shuffle(self.trampoline2_list)
 
         self.set_invoice_status(key, PR_INFLIGHT)
-        util.trigger_callback('invoice_status', self.wallet, key)
         try:
             await self.pay_to_node(
                 node_pubkey=invoice_pubkey,
@@ -1066,8 +1067,7 @@ class LNWallet(LNWorker):
         return success, log
 
     async def pay_to_node(
-            self,
-            *,
+            self, *,
             node_pubkey: bytes,
             payment_hash: bytes,
             payment_secret: Optional[bytes],
@@ -1080,8 +1080,7 @@ class LNWallet(LNWorker):
             full_path: LNPaymentPath = None,
             trampoline_onion=None,
             trampoline_fee=None,
-            trampoline_cltv_delta=None,
-    ) -> None:
+            trampoline_cltv_delta=None) -> None:
 
         if trampoline_onion:
             # todo: compare to the fee of the actual route we found
@@ -1104,7 +1103,7 @@ class LNWallet(LNWorker):
                 # 2. send htlcs
                 for route, amount_msat in routes:
                     await self.pay_to_route(
-                        route,
+                        route=route,
                         amount_msat=amount_msat,
                         total_msat=amount_to_pay,
                         payment_hash=payment_hash,
@@ -1127,16 +1126,15 @@ class LNWallet(LNWorker):
             self.handle_error_code_from_failed_htlc(htlc_log)
 
     async def pay_to_route(
-            self,
+            self, *,
             route: LNPaymentRoute,
-            *,
             amount_msat: int,
             total_msat: int,
             payment_hash: bytes,
             payment_secret: Optional[bytes],
             min_cltv_expiry: int,
-            trampoline_onion: bytes = None,
-    ) -> None:
+            trampoline_onion: bytes = None) -> None:
+
         # send a single htlc
         short_channel_id = route[0].short_channel_id
         chan = self.get_channel_by_short_id(short_channel_id)
@@ -1153,7 +1151,7 @@ class LNWallet(LNWorker):
             min_final_cltv_expiry=min_cltv_expiry,
             payment_secret=payment_secret,
             fwd_trampoline_onion=trampoline_onion)
-        self.htlc_routes[(payment_hash, short_channel_id, htlc.htlc_id)] = route
+        self.sent_htlcs_routes[(payment_hash, short_channel_id, htlc.htlc_id)] = route
         util.trigger_callback('htlc_added', chan, htlc, SENT)
 
     def handle_error_code_from_failed_htlc(self, htlc_log):
@@ -1211,8 +1209,8 @@ class LNWallet(LNWorker):
                     # maybe it is a private channel (and data in invoice was outdated)
                     self.logger.info(f"Could not find {short_channel_id}. maybe update is for private channel?")
                     start_node_id = route[sender_idx].node_id
-                    self.channel_db.add_channel_update_for_private_channel(payload, start_node_id)
-                    #update = True  # FIXME: we need to check if we actually updated something
+                    update = self.channel_db.add_channel_update_for_private_channel(payload, start_node_id)
+                    blacklist = not update
                 elif r == UpdateStatus.EXPIRED:
                     blacklist = True
                 elif r == UpdateStatus.DEPRECATED:
@@ -1555,6 +1553,8 @@ class LNWallet(LNWorker):
                     if [edge.short_channel_id for edge in full_path[-len(private_path):]] != [edge[1] for edge in private_path]:
                         continue
                     path = full_path[:-len(private_path)]
+            if any(edge.short_channel_id in blacklist for edge in private_route):
+                continue
             try:
                 route = self.network.path_finder.find_route(
                     self.node_keypair.pubkey, border_node_pubkey, amount_for_node,
@@ -1667,24 +1667,30 @@ class LNWallet(LNWorker):
             self.payments[key] = info.amount_msat, info.direction, info.status
         self.wallet.save_db()
 
-    def htlc_received(self, short_channel_id, htlc: UpdateAddHtlc, expected_msat: int):
-        status = self.get_payment_status(htlc.payment_hash)
-        if status == PR_PAID:
-            return True, None
-        s = self.received_htlcs[htlc.payment_hash]
-        if (short_channel_id, htlc) not in s:
-            s.add((short_channel_id, htlc))
-        total = sum([htlc.amount_msat for scid, htlc in s])
-        first_timestamp = min([htlc.timestamp for scid, htlc in s])
-        expired = time.time() - first_timestamp > MPP_EXPIRY
-        if total == expected_msat and not expired:
-            # status must be persisted
-            self.set_payment_status(htlc.payment_hash, PR_PAID)
-            util.trigger_callback('request_status', self.wallet, htlc.payment_hash.hex(), PR_PAID)
-            return True, None
-        if expired:
-            return None, True
-        return None, None
+    def add_received_htlc(self, short_channel_id, htlc: UpdateAddHtlc, expected_msat: int) -> Optional[bool]:
+        """ return MPP status: True (accepted), False (expired) or None """
+        payment_hash = htlc.payment_hash
+        mpp_status, htlc_set = self.received_htlcs.get(payment_hash, (None, set()))
+        key = (short_channel_id, htlc)
+        if key not in htlc_set:
+            htlc_set.add(key)
+        if mpp_status is None:
+            total = sum([_htlc.amount_msat for scid, _htlc in htlc_set])
+            first_timestamp = min([_htlc.timestamp for scid, _htlc in htlc_set])
+            expired = time.time() - first_timestamp > MPP_EXPIRY
+            if expired:
+                mpp_status = False
+            elif total == expected_msat:
+                mpp_status = True
+                self.set_payment_status(payment_hash, PR_PAID)
+                util.trigger_callback('request_status', self.wallet, payment_hash.hex(), PR_PAID)
+        if mpp_status is not None:
+            htlc_set.remove(key)
+        if len(htlc_set) > 0:
+            self.received_htlcs[payment_hash] = mpp_status, htlc_set
+        elif payment_hash in self.received_htlcs:
+            self.received_htlcs.pop(payment_hash)
+        return mpp_status
 
     def get_payment_status(self, payment_hash):
         info = self.get_payment_info(payment_hash)
@@ -1708,6 +1714,7 @@ class LNWallet(LNWorker):
             self.inflight_payments.remove(key)
         if status in SAVED_PR_STATUS:
             self.set_payment_status(bfh(key), status)
+        util.trigger_callback('invoice_status', self.wallet, key)
 
     def set_payment_status(self, payment_hash: bytes, status):
         info = self.get_payment_info(payment_hash)
@@ -1718,73 +1725,74 @@ class LNWallet(LNWorker):
         self.save_payment_info(info)
 
     def htlc_fulfilled(self, chan, payment_hash: bytes, htlc_id:int, amount_msat:int):
-        route = self.htlc_routes.get((payment_hash, chan.short_channel_id, htlc_id))
-        htlc_log = HtlcLog(
-            success=True,
-            route=route,
-            amount_msat=amount_msat)
-        q = self.sent_htlcs[payment_hash]
-        q.put_nowait(htlc_log)
         util.trigger_callback('htlc_fulfilled', payment_hash, chan.channel_id)
+        q = self.sent_htlcs.get(payment_hash)
+        if q:
+            route = self.sent_htlcs_routes[(payment_hash, chan.short_channel_id, htlc_id)]
+            htlc_log = HtlcLog(
+                success=True,
+                route=route,
+                amount_msat=amount_msat)
+            q.put_nowait(htlc_log)
+        else:
+            key = payment_hash.hex()
+            self.set_invoice_status(key, PR_PAID)
+            util.trigger_callback('payment_succeeded', self.wallet, key)
 
     def htlc_failed(
             self,
-            chan,
+            chan: Channel,
             payment_hash: bytes,
             htlc_id: int,
             amount_msat:int,
             error_bytes: Optional[bytes],
             failure_message: Optional['OnionRoutingFailure']):
 
-        route = self.htlc_routes.get((payment_hash, chan.short_channel_id, htlc_id))
-        if not route:
-            self.logger.info(f"received unknown htlc_failed, probably from previous session")
-            return
-        if error_bytes:
-            self.logger.info(f" {(error_bytes, route, htlc_id)}")
-            # TODO "decode_onion_error" might raise, catch and maybe blacklist/penalise someone?
-            try:
-                failure_message, sender_idx = chan.decode_onion_error(error_bytes, route, htlc_id)
-            except Exception as e:
-                sender_idx = None
-                failure_message = OnionRoutingFailure(-1, str(e))
-        else:
-            # probably got "update_fail_malformed_htlc". well... who to penalise now?
-            assert failure_message is not None
-            sender_idx = None
-
-        htlc_log = HtlcLog(
-            success=False,
-            route=route,
-            amount_msat=amount_msat,
-            error_bytes=error_bytes,
-            failure_msg=failure_message,
-            sender_idx=sender_idx)
-
-        q = self.sent_htlcs[payment_hash]
-        q.put_nowait(htlc_log)
         util.trigger_callback('htlc_failed', payment_hash, chan.channel_id)
-
-
+        q = self.sent_htlcs.get(payment_hash)
+        if q:
+            route = self.sent_htlcs_routes[(payment_hash, chan.short_channel_id, htlc_id)]
+            if error_bytes:
+                # TODO "decode_onion_error" might raise, catch and maybe blacklist/penalise someone?
+                try:
+                    failure_message, sender_idx = chan.decode_onion_error(error_bytes, route, htlc_id)
+                except Exception as e:
+                    sender_idx = None
+                    failure_message = OnionRoutingFailure(-1, str(e))
+            else:
+                # probably got "update_fail_malformed_htlc". well... who to penalise now?
+                assert failure_message is not None
+                sender_idx = None
+            self.logger.info(f"htlc_failed {failure_message}")
+            htlc_log = HtlcLog(
+                success=False,
+                route=route,
+                amount_msat=amount_msat,
+                error_bytes=error_bytes,
+                failure_msg=failure_message,
+                sender_idx=sender_idx)
+            q.put_nowait(htlc_log)
+        else:
+            self.logger.info(f"received unknown htlc_failed, probably from previous session")
+            key = payment_hash.hex()
+            self.set_invoice_status(key, PR_UNPAID)
+            util.trigger_callback('payment_failed', self.wallet, key, '')
 
     async def _calc_routing_hints_for_invoice(self, amount_msat: Optional[int]):
         """calculate routing hints (BOLT-11 'r' field)"""
         routing_hints = []
         channels = list(self.channels.values())
-        random.shuffle(channels)  # not sure this has any benefit but let's not leak channel order
+        # do minimal filtering of channels.
+        # we include channels that cannot *right now* receive (e.g. peer disconnected or balance insufficient)
+        channels = [chan for chan in channels
+                    if (chan.is_open() and not chan.is_frozen_for_receiving())]
+        # cap max channels to include to keep QR code reasonably scannable
+        channels = sorted(channels, key=lambda chan: (not chan.is_active(), -chan.available_to_spend(REMOTE)))
+        channels = channels[:15]
+        random.shuffle(channels)  # let's not leak channel order
         scid_to_my_channels = {chan.short_channel_id: chan for chan in channels
                                if chan.short_channel_id is not None}
-        if not amount_msat:
-            # for no amt invoices, check if channel can receive at least 1 msat
-            amount_msat = 1
-        # note: currently we add *all* our channels; but this might be a privacy leak?
         for chan in channels:
-            # do minimal filtering of channels.
-            # we include channels that cannot *right now* receive (e.g. peer disconnected or balance insufficient)
-            if not (chan.is_open() and not chan.is_frozen_for_receiving()):
-                continue
-            if amount_msat > 1000 * chan.constraints.capacity:
-                continue
             chan_id = chan.short_channel_id
             assert isinstance(chan_id, bytes), chan_id
             channel_info = get_mychannel_info(chan_id, scid_to_my_channels)
