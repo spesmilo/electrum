@@ -1512,8 +1512,8 @@ class Peer(Logger):
             chan: Channel,
             htlc: UpdateAddHtlc,
             processed_onion: ProcessedOnionPacket,
-            is_trampoline: bool = False,
-    ) -> Optional[bytes]:
+            is_trampoline: bool = False) -> Optional[bytes]:
+
         """As a final recipient of an HTLC, decide if we should fulfill it.
         Returns the preimage if yes, or None.
         """
@@ -1531,9 +1531,10 @@ class Peer(Logger):
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
         local_height = chain.height()
         exc_incorrect_or_unknown_pd = OnionRoutingFailure(
-                code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS,
-                data=amt_to_forward.to_bytes(8, byteorder="big") + local_height.to_bytes(4, byteorder="big"))
+            code=OnionFailureCode.INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS,
+            data=amt_to_forward.to_bytes(8, byteorder="big") + local_height.to_bytes(4, byteorder="big"))
         if local_height + MIN_FINAL_CLTV_EXPIRY_ACCEPTED > htlc.cltv_expiry:
+            self.logger.info('cltv expiry too soon')
             raise exc_incorrect_or_unknown_pd
         try:
             cltv_from_onion = processed_onion.hop_data.payload["outgoing_cltv_value"]["outgoing_cltv_value"]
@@ -1561,6 +1562,7 @@ class Peer(Logger):
 
         info = self.lnworker.get_payment_info(htlc.payment_hash)
         if info is None:
+            self.logger.info('unknown payment hash')
             raise exc_incorrect_or_unknown_pd
         preimage = self.lnworker.get_preimage(htlc.payment_hash)
         try:
@@ -1568,13 +1570,16 @@ class Peer(Logger):
         except:
             if total_msat > amt_to_forward:
                 # payment_secret is required for MPP
+                self.logger.info('total_msat > amt to forward')
                 raise exc_incorrect_or_unknown_pd
             # TODO fail here if invoice has set PAYMENT_SECRET_REQ
         else:
             if payment_secret_from_onion != derive_payment_secret_from_payment_preimage(preimage):
+                self.logger.info(f'incorrect payment secret {payment_secret_from_onion.hex()} != {derive_payment_secret_from_payment_preimage(preimage).hex()}')
                 raise exc_incorrect_or_unknown_pd
         invoice_msat = info.amount_msat
         if not (invoice_msat is None or invoice_msat <= total_msat <= 2 * invoice_msat):
+            self.logger.info('incorrect total msat')
             raise exc_incorrect_or_unknown_pd
         mpp_status = self.lnworker.add_received_htlc(chan.short_channel_id, htlc, total_msat)
         if mpp_status == True:
