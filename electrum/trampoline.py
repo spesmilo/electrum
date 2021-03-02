@@ -61,11 +61,13 @@ def encode_routing_info(r_tags):
 
 
 def create_trampoline_route(
+        *,
         amount_msat:int,
         bucket_amount_msat:int,
         min_cltv_expiry:int,
         invoice_pubkey:bytes,
         invoice_features:int,
+        my_pubkey: bytes,
         trampoline_node_id,
         r_tags, t_tags,
         trampoline_fee_level,
@@ -106,7 +108,8 @@ def create_trampoline_route(
     # trampoline hop
     route.append(
         TrampolineEdge(
-            node_id=trampoline_node_id,
+            start_node=my_pubkey,
+            end_node=trampoline_node_id,
             fee_base_msat=params['fee_base_msat'],
             fee_proportional_millionths=params['fee_proportional_millionths'],
             cltv_expiry_delta=params['cltv_expiry_delta'],
@@ -114,7 +117,8 @@ def create_trampoline_route(
     if trampoline2:
         route.append(
             TrampolineEdge(
-                node_id=trampoline2,
+                start_node=trampoline_node_id,
+                end_node=trampoline2,
                 fee_base_msat=params['fee_base_msat'],
                 fee_proportional_millionths=params['fee_proportional_millionths'],
                 cltv_expiry_delta=params['cltv_expiry_delta'],
@@ -130,7 +134,8 @@ def create_trampoline_route(
             if route[-1].node_id != pubkey:
                 route.append(
                     TrampolineEdge(
-                        node_id=pubkey,
+                        start_node=route[-1].node_id,
+                        end_node=pubkey,
                         fee_base_msat=feebase,
                         fee_proportional_millionths=feerate,
                         cltv_expiry_delta=cltv,
@@ -138,7 +143,8 @@ def create_trampoline_route(
     # Fake edge (not part of actual route, needed by calc_hops_data)
     route.append(
         TrampolineEdge(
-            node_id=invoice_pubkey,
+            start_node=route[-1].end_node,
+            end_node=invoice_pubkey,
             fee_base_msat=0,
             fee_proportional_millionths=0,
             cltv_expiry_delta=0,
@@ -194,6 +200,7 @@ def create_trampoline_route_and_onion(
         min_cltv_expiry,
         invoice_pubkey,
         invoice_features,
+        my_pubkey: bytes,
         node_id,
         r_tags, t_tags,
         payment_hash,
@@ -203,15 +210,17 @@ def create_trampoline_route_and_onion(
         trampoline2_list):
     # create route for the trampoline_onion
     trampoline_route = create_trampoline_route(
-        amount_msat,
-        bucket_amount_msat,
-        min_cltv_expiry,
-        invoice_pubkey,
-        invoice_features,
-        node_id,
-        r_tags, t_tags,
-        trampoline_fee_level,
-        trampoline2_list)
+        amount_msat=amount_msat,
+        bucket_amount_msat=bucket_amount_msat,
+        min_cltv_expiry=min_cltv_expiry,
+        my_pubkey=my_pubkey,
+        invoice_pubkey=invoice_pubkey,
+        invoice_features=invoice_features,
+        trampoline_node_id=node_id,
+        r_tags=r_tags,
+        t_tags=t_tags,
+        trampoline_fee_level=trampoline_fee_level,
+        trampoline2_list=trampoline2_list)
     # compute onion and fees
     final_cltv = local_height + min_cltv_expiry
     trampoline_onion, bucket_amount_with_fees, bucket_cltv = create_trampoline_onion(

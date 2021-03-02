@@ -600,17 +600,27 @@ class TestPeer(ElectrumTestCase):
         peers = graph.all_peers()
         async def pay(pay_req):
             with self.subTest(msg="bad path: edges do not chain together"):
-                path = [PathEdge(node_id=graph.w_c.node_keypair.pubkey, short_channel_id=graph.chan_ab.short_channel_id),
-                        PathEdge(node_id=graph.w_d.node_keypair.pubkey, short_channel_id=graph.chan_bd.short_channel_id)]
+                path = [PathEdge(start_node=graph.w_a.node_keypair.pubkey,
+                                 end_node=graph.w_c.node_keypair.pubkey,
+                                 short_channel_id=graph.chan_ab.short_channel_id),
+                        PathEdge(start_node=graph.w_b.node_keypair.pubkey,
+                                 end_node=graph.w_d.node_keypair.pubkey,
+                                 short_channel_id=graph.chan_bd.short_channel_id)]
                 with self.assertRaises(LNPathInconsistent):
                     await graph.w_a.pay_invoice(pay_req, full_path=path)
             with self.subTest(msg="bad path: last node id differs from invoice pubkey"):
-                path = [PathEdge(node_id=graph.w_b.node_keypair.pubkey, short_channel_id=graph.chan_ab.short_channel_id)]
+                path = [PathEdge(start_node=graph.w_a.node_keypair.pubkey,
+                                 end_node=graph.w_b.node_keypair.pubkey,
+                                 short_channel_id=graph.chan_ab.short_channel_id)]
                 with self.assertRaises(LNPathInconsistent):
                     await graph.w_a.pay_invoice(pay_req, full_path=path)
             with self.subTest(msg="good path"):
-                path = [PathEdge(node_id=graph.w_b.node_keypair.pubkey, short_channel_id=graph.chan_ab.short_channel_id),
-                        PathEdge(node_id=graph.w_d.node_keypair.pubkey, short_channel_id=graph.chan_bd.short_channel_id)]
+                path = [PathEdge(start_node=graph.w_a.node_keypair.pubkey,
+                                 end_node=graph.w_b.node_keypair.pubkey,
+                                 short_channel_id=graph.chan_ab.short_channel_id),
+                        PathEdge(start_node=graph.w_b.node_keypair.pubkey,
+                                 end_node=graph.w_d.node_keypair.pubkey,
+                                 short_channel_id=graph.chan_bd.short_channel_id)]
                 result, log = await graph.w_a.pay_invoice(pay_req, full_path=path)
                 self.assertTrue(result)
                 self.assertEqual(
