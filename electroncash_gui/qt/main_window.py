@@ -623,7 +623,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def init_menubar(self):
         menubar = self.menuBar()
         menubar.setObjectName(self.diagnostic_name() + ".QMenuBar")
-        destroyed_print_error(menubar)
 
         file_menu = menubar.addMenu(_("&File"))
         self.recently_visited_menu = file_menu.addMenu(_("Open &Recent"))
