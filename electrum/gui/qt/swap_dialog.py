@@ -8,7 +8,7 @@ from electrum.lnutil import ln_dummy_address
 from electrum.transaction import PartialTxOutput, PartialTransaction
 
 from .util import (WindowModalDialog, Buttons, OkButton, CancelButton,
-                   EnterButton, ColorScheme, WWLabel, read_QIcon)
+                   EnterButton, ColorScheme, WWLabel, read_QIcon, IconLabel)
 from .amountedit import BTCAmountEdit
 from .fee_slider import FeeSlider, FeeComboBox
 
@@ -43,15 +43,13 @@ class SwapDialog(WindowModalDialog):
         self.max_button = EnterButton(_("Max"), self.spend_max)
         self.max_button.setFixedWidth(100)
         self.max_button.setCheckable(True)
-        self.send_button = QPushButton('')
-        self.recv_button = QPushButton('')
+        self.toggle_button = QPushButton(u'\U000021c4')
         # send_follows is used to know whether the send amount field / receive
         # amount field should be adjusted after the fee slider was moved
         self.send_follows = False
         self.send_amount_e.follows = False
         self.recv_amount_e.follows = False
-        self.send_button.clicked.connect(self.toggle_direction)
-        self.recv_button.clicked.connect(self.toggle_direction)
+        self.toggle_button.clicked.connect(self.toggle_direction)
         # textChanged is triggered for both user and automatic action
         self.send_amount_e.textChanged.connect(self.on_send_edited)
         self.recv_amount_e.textChanged.connect(self.on_recv_edited)
@@ -65,17 +63,18 @@ class SwapDialog(WindowModalDialog):
         self.server_fee_label = QLabel()
         vbox.addWidget(self.description_label)
         h = QGridLayout()
-        h.addWidget(QLabel(_('You send')+':'), 1, 0)
+        self.send_label = IconLabel(text=_('You send')+':')
+        self.recv_label = IconLabel(text=_('You receive')+':')
+        h.addWidget(self.send_label, 1, 0)
         h.addWidget(self.send_amount_e, 1, 1)
-        h.addWidget(self.send_button, 1, 2)
-        h.addWidget(self.max_button, 1, 3)
-        h.addWidget(QLabel(_('You receive')+':'), 2, 0)
+        h.addWidget(self.max_button, 1, 2)
+        h.addWidget(self.toggle_button, 1, 3)
+        h.addWidget(self.recv_label, 2, 0)
         h.addWidget(self.recv_amount_e, 2, 1)
-        h.addWidget(self.recv_button, 2, 2)
         h.addWidget(QLabel(_('Server fee')+':'), 4, 0)
-        h.addWidget(self.server_fee_label, 4, 1)
+        h.addWidget(self.server_fee_label, 4, 1, 1, 2)
         h.addWidget(QLabel(_('Mining fee')+':'), 5, 0)
-        h.addWidget(self.fee_label, 5, 1)
+        h.addWidget(self.fee_label, 5, 1, 1, 2)
         h.addWidget(fee_slider, 6, 1)
         h.addWidget(fee_combo, 6, 2)
         vbox.addLayout(h)
@@ -180,11 +179,12 @@ class SwapDialog(WindowModalDialog):
         self.update_ok_button()
 
     def update(self):
+        from .util import IconLabel
         sm = self.swap_manager
-        self.send_button.setIcon(read_QIcon("lightning.png" if self.is_reverse else "bitcoin.png"))
-        self.send_button.repaint()  # macOS hack for #6269
-        self.recv_button.setIcon(read_QIcon("lightning.png" if not self.is_reverse else "bitcoin.png"))
-        self.recv_button.repaint()  # macOS hack for #6269
+        send_icon = read_QIcon("lightning.png" if self.is_reverse else "bitcoin.png")
+        self.send_label.setIcon(send_icon)
+        recv_icon = read_QIcon("lightning.png" if not self.is_reverse else "bitcoin.png")
+        self.recv_label.setIcon(recv_icon)
         self.description_label.setText(self.get_description())
         self.description_label.repaint()  # macOS hack for #6269
         server_mining_fee = sm.lockup_fee if self.is_reverse else sm.normal_fee
@@ -284,7 +284,7 @@ class SwapDialog(WindowModalDialog):
         onchain_funds = "onchain funds"
         lightning_funds = "lightning funds"
 
-        return "Swap {fromType} for {toType} if you need to increase your {capacityType} capacity. This service is powered by the Boltz backend.".format(
+        return "Swap {fromType} for {toType}. This will increase your {capacityType} capacity. This service is powered by the Boltz backend.".format(
             fromType=lightning_funds if self.is_reverse else onchain_funds,
             toType=onchain_funds if self.is_reverse else lightning_funds,
             capacityType="receiving" if self.is_reverse else "sending",
