@@ -9,6 +9,7 @@ RUN apt-get update -q && \
         make \
         autotools-dev \
         autoconf \
+        autopoint \
         libtool \
         xz-utils \
         libssl-dev \
