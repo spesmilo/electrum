@@ -977,6 +977,7 @@ class LNWallet(LNWorker):
     def create_routes_from_invoice(self, amount_msat: int, decoded_invoice: LnAddr, *, full_path=None):
         return self.create_routes_for_payment(
             amount_msat=amount_msat,
+            final_total_msat=amount_msat,
             invoice_pubkey=decoded_invoice.pubkey.serialize(),
             min_cltv_expiry=decoded_invoice.get_min_final_cltv_expiry(),
             r_tags=decoded_invoice.get_routing_info('r'),
@@ -1080,6 +1081,7 @@ class LNWallet(LNWorker):
                 routes = await run_in_thread(partial(
                     self.create_routes_for_payment,
                     amount_msat=amount_to_send,
+                    final_total_msat=amount_to_pay,
                     invoice_pubkey=node_pubkey,
                     min_cltv_expiry=min_cltv_expiry,
                     r_tags=r_tags,
@@ -1288,7 +1290,8 @@ class LNWallet(LNWorker):
     @profiler
     def create_routes_for_payment(
             self, *,
-            amount_msat: int,
+            amount_msat: int,        # part of payment amount we want routes for now
+            final_total_msat: int,   # total payment amount final receiver will get
             invoice_pubkey,
             min_cltv_expiry,
             r_tags, t_tags,
@@ -1296,6 +1299,7 @@ class LNWallet(LNWorker):
             payment_hash,
             payment_secret,
             full_path: LNPaymentPath = None) -> Sequence[Tuple[LNPaymentRoute, int]]:
+        # FIXME trampoline case broken if amount_msat != final_total_msat
 
         """Creates multiple routes for splitting a payment over the available
         private channels.
@@ -1358,7 +1362,7 @@ class LNWallet(LNWorker):
                     r_tags=r_tags, t_tags=t_tags,
                     invoice_features=invoice_features,
                     outgoing_channel=None, full_path=full_path)
-                routes = [(route, amount_msat, amount_msat, min_cltv_expiry, payment_secret, None)]
+                routes = [(route, amount_msat, final_total_msat, min_cltv_expiry, payment_secret, None)]
         except NoPathFound:
             if not invoice_features.supports(LnFeatures.BASIC_MPP_OPT):
                 raise
@@ -1431,7 +1435,7 @@ class LNWallet(LNWorker):
                                     r_tags=r_tags, t_tags=t_tags,
                                     invoice_features=invoice_features,
                                     outgoing_channel=channel, full_path=None)
-                                routes.append((route, part_amount_msat, amount_msat, min_cltv_expiry, payment_secret, None))
+                                routes.append((route, part_amount_msat, final_total_msat, min_cltv_expiry, payment_secret, None))
                     self.logger.info(f"found acceptable split configuration: {list(s[0].values())} rating: {s[1]}")
                     break
                 except NoPathFound:
@@ -1702,12 +1706,13 @@ class LNWallet(LNWorker):
                 sender_idx = None
             self.logger.info(f"htlc_failed {failure_message}")
 
-            if payment_secret in self.sent_buckets:
-                self.sent_buckets[payment_secret] -= amount_msat
-                if self.sent_buckets[payment_secret] > 0:
-                    return
-                else:
-                    amount_msat = bucket_msat
+            # FIXME: maybe only check this bucketing stuff if not using trampoline?
+            # if payment_secret in self.sent_buckets:
+            #     self.sent_buckets[payment_secret] -= amount_msat
+            #     if self.sent_buckets[payment_secret] > 0:
+            #         return
+            #     else:
+            #         amount_msat = bucket_msat
             htlc_log = HtlcLog(
                 success=False,
                 route=route,
