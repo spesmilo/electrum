@@ -1091,7 +1091,7 @@ and there is no warning message.
 - Android: make Send address box automatically parse request URLs
   (Malcolm Smith)
 
-# RELEASE NOTES dev
+# RELEASE NOTES 4.2.4
 
 - Trezor: Fixed connecting autolocked device #2085 (Daniel Gonzalez Gasull)
 - Fixed icon directory and added scalable icon #2089 (Emily Roberts)
