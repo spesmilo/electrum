@@ -1130,6 +1130,7 @@ and there is no warning message.
 - Reverted RPA paycode support #2170 (Mark B Lundeberg)
 - Zbar: Updated to version 0.23.91 #2171 (Axel Gembe)
 - Added Vietnamese Dong to CoinGecko exchange pairs #2178 (Hieu Van)
+- macOS: Fix to mysterious and intermittent Segfault-on-exit (Calin Culianu)
 - Various internal bugfixes and code refactoring #2087 #2095 #2097 #2117 #2140
   #2143 #2151 #2155 #2156 #2158 #2160 #2154 #2176 (Daniel Gonzalez Gasull,
   Calin Culianu, Axel Gembe, Mark B Lundeberg, Malcolm Smith, Pierre K, Toporin)
