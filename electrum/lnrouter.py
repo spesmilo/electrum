@@ -275,6 +275,8 @@ class LNPathFinder(Logger):
                     continue
                 channel_info = self.channel_db.get_channel_info(
                     edge_channel_id, my_channels=my_channels, private_route_edges=private_route_edges)
+                if channel_info is None:
+                    continue
                 edge_startnode = channel_info.node2_id if channel_info.node1_id == edge_endnode else channel_info.node1_id
                 is_mine = edge_channel_id in my_channels
                 if is_mine:
