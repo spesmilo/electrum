@@ -87,7 +87,7 @@ class ChannelsList(MyTreeView):
         closed = chan.is_closed()
         node_alias = self.lnworker.get_node_alias(chan.node_id) or chan.node_id.hex()
         if isinstance(chan, Channel):
-            capacity_str = self.parent.format_amount(chan.constraints.capacity)
+            capacity_str = self.parent.format_amount(chan.constraints.capacity, whitespaces=True)
         else:
             capacity_str = ''
         return {
@@ -268,6 +268,7 @@ class ChannelsList(MyTreeView):
             items[self.Columns.NODE_ALIAS].setFont(QFont(MONOSPACE_FONT))
             items[self.Columns.LOCAL_BALANCE].setFont(QFont(MONOSPACE_FONT))
             items[self.Columns.REMOTE_BALANCE].setFont(QFont(MONOSPACE_FONT))
+            items[self.Columns.CAPACITY].setFont(QFont(MONOSPACE_FONT))
             self._update_chan_frozen_bg(chan=chan, items=items)
             self.model().insertRow(0, items)
 
