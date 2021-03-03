@@ -40,7 +40,9 @@ Builder.load_string('''
                 text: _('Invoice data')+ ':'
             RefLabel:
                 data: root.data
+                text: root.data[:40] + "..."
                 name: _('Data')
+                show_text_with_qr: False
             TopLabel:
                 text: _('Description') + ':'
             RefLabel:

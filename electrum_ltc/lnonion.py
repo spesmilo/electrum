@@ -261,15 +261,18 @@ def new_onion_packet(payment_path_pubkeys: Sequence[bytes], session_key: bytes,
         hmac=next_hmac)
 
 
-def calc_hops_data_for_payment(route: 'LNPaymentRoute', amount_msat: int, final_cltv: int, *,
-                               total_msat=None, payment_secret: bytes = None) \
-        -> Tuple[List[OnionHopsDataSingle], int, int]:
+def calc_hops_data_for_payment(
+        route: 'LNPaymentRoute',
+        amount_msat: int,
+        final_cltv: int, *,
+        total_msat=None,
+        payment_secret: bytes = None) -> Tuple[List[OnionHopsDataSingle], int, int]:
+
     """Returns the hops_data to be used for constructing an onion packet,
     and the amount_msat and cltv to be used on our immediate channel.
     """
     if len(route) > NUM_MAX_EDGES_IN_PAYMENT_PATH:
         raise PaymentFailure(f"too long route ({len(route)} edges)")
-
     # payload that will be seen by the last hop:
     amt = amount_msat
     cltv = final_cltv
@@ -277,7 +280,7 @@ def calc_hops_data_for_payment(route: 'LNPaymentRoute', amount_msat: int, final_
         "amt_to_forward": {"amt_to_forward": amt},
         "outgoing_cltv_value": {"outgoing_cltv_value": cltv},
     }
-    # for multipart payments we need to tell the reciever about the total and
+    # for multipart payments we need to tell the receiver about the total and
     # partial amounts
     if payment_secret is not None:
         hop_payload["payment_data"] = {
@@ -285,8 +288,8 @@ def calc_hops_data_for_payment(route: 'LNPaymentRoute', amount_msat: int, final_
             "total_msat": total_msat,
             "amount_msat": amt
         }
-    hops_data = [OnionHopsDataSingle(is_tlv_payload=route[-1].has_feature_varonion(),
-                                     payload=hop_payload)]
+    hops_data = [OnionHopsDataSingle(
+        is_tlv_payload=route[-1].has_feature_varonion(), payload=hop_payload)]
     # payloads, backwards from last hop (but excluding the first edge):
     for edge_index in range(len(route) - 1, 0, -1):
         route_edge = route[edge_index]

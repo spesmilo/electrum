@@ -41,7 +41,13 @@ class HTLCManager:
                 if not log[sub]['fee_updates']:
                     log[sub]['fee_updates'][0] = FeeUpdate(rate=initial_feerate, ctn_local=0, ctn_remote=0)
         self.log = log
-        self.lock = threading.RLock()
+
+        # We need a lock as many methods of HTLCManager are accessed by both the asyncio thread and the GUI.
+        # lnchannel sometimes calls us with Channel.db_lock (== log.lock) already taken,
+        # and we ourselves often take log.lock (via StoredDict.__getitem__).
+        # Hence, to avoid deadlocks, we reuse this same lock.
+        self.lock = log.lock
+
         self._init_maybe_active_htlc_ids()
 
     def with_lock(func):

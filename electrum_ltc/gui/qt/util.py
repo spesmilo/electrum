@@ -1042,6 +1042,26 @@ def icon_path(icon_basename):
 def read_QIcon(icon_basename):
     return QIcon(icon_path(icon_basename))
 
+class IconLabel(QWidget):
+    IconSize = QSize(16, 16)
+    HorizontalSpacing = 2
+    def __init__(self, *, text='', final_stretch=True):
+        super(QWidget, self).__init__()
+        layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(layout)
+        self.icon = QLabel()
+        self.label = QLabel(text)
+        layout.addWidget(self.label)
+        layout.addSpacing(self.HorizontalSpacing)
+        layout.addWidget(self.icon)
+        if final_stretch:
+            layout.addStretch()
+    def setText(self, text):
+        self.label.setText(text)
+    def setIcon(self, icon):
+        self.icon.setPixmap(icon.pixmap(self.IconSize))
+        self.icon.repaint()  # macOS hack for #6269
 
 def get_default_language():
     name = QLocale.system().name()

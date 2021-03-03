@@ -219,24 +219,21 @@ class SendScreen(CScreen, Logger):
         _list = self.app.wallet.get_unpaid_invoices()
         _list.reverse()
         payments_container = self.ids.payments_container
-        payments_container.data = [self.get_card(item) for item in _list]
+        payments_container.data = [self.get_card(invoice) for invoice in _list]
 
     def update_item(self, key, invoice):
         payments_container = self.ids.payments_container
         data = payments_container.data
         for item in data:
             if item['key'] == key:
-                status = self.app.wallet.get_invoice_status(invoice)
-                status_str = invoice.get_status_str(status)
-                item['status'] = status
-                item['status_str'] = status_str
+                item.update(self.get_card(invoice))
         payments_container.data = data
         payments_container.refresh_from_data()
 
     def show_item(self, obj):
         self.app.show_invoice(obj.is_lightning, obj.key)
 
-    def get_card(self, item: Invoice):
+    def get_card(self, item: Invoice) -> Dict[str, Any]:
         status = self.app.wallet.get_invoice_status(item)
         status_str = item.get_status_str(status)
         is_lightning = item.type == PR_TYPE_LN
