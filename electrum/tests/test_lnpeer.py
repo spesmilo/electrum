@@ -717,6 +717,34 @@ class TestPeer(ElectrumTestCase):
             run(f())
 
     @needs_test_with_all_chacha20_implementations
+    def test_multipart_payment(self):
+        graph = self.prepare_chans_and_peers_in_square()
+        self.assertEqual(500_000_000_000, graph.chan_ab.balance(LOCAL))
+        self.assertEqual(500_000_000_000, graph.chan_ac.balance(LOCAL))
+        amount_to_pay = 600_000_000_000
+        peers = graph.all_peers()
+        async def pay():
+            pay_req = await self.prepare_invoice(graph.w_d, include_routing_hints=True, amount_msat=amount_to_pay)
+            result, log = await graph.w_a.pay_invoice(pay_req, attempts=1)
+            if result:
+                raise PaymentDone()
+            else:
+                raise NoPathFound()
+        async def f():
+            async with TaskGroup() as group:
+                for peer in peers:
+                    await group.spawn(peer._message_loop())
+                    await group.spawn(peer.htlc_switch())
+                await asyncio.sleep(0.2)
+                await group.spawn(pay())
+        self.assertFalse(graph.w_d.features.supports(LnFeatures.BASIC_MPP_OPT))
+        with self.assertRaises(NoPathFound):
+            run(f())
+        graph.w_d.features |= LnFeatures.BASIC_MPP_OPT
+        with self.assertRaises(PaymentDone):
+            run(f())
+
+    @needs_test_with_all_chacha20_implementations
     def test_close(self):
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
