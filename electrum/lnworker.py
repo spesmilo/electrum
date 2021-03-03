@@ -1419,7 +1419,7 @@ class LNWallet(LNWorker):
                                 self.logger.info(f'adding route {part_amount_msat} {delta_fee} {margin}')
                                 routes.append((route, part_amount_msat_with_fees, bucket_amount_with_fees, bucket_cltv_delta, bucket_payment_secret, trampoline_onion))
                             if trampoline_fee > 0:
-                                self.logger.info('not enough marging to pay trampoline fee')
+                                self.logger.info('not enough margin to pay trampoline fee')
                                 raise NoPathFound()
                         else:
                             # then we need bucket_amount_msat that includes the trampoline fees.. then create small routes here
@@ -1526,43 +1526,42 @@ class LNWallet(LNWorker):
 
     @log_exceptions
     async def create_invoice(
-            self,
-            *,
+            self, *,
             amount_msat: Optional[int],
-            message,
-            expiry: int,
-    ) -> Tuple[LnAddr, str]:
+            message: str,
+            expiry: int) -> Tuple[LnAddr, str]:
+
         timestamp = int(time.time())
         routing_hints = await self._calc_routing_hints_for_invoice(amount_msat)
         if not routing_hints:
-            self.logger.info("Warning. No routing hints added to invoice. "
-                             "Other clients will likely not be able to send to us.")
-
+            self.logger.info(
+                "Warning. No routing hints added to invoice. "
+                "Other clients will likely not be able to send to us.")
         # if not all hints are trampoline, do not create trampoline invoice
         invoice_features = self.features.for_invoice()
-        #
         trampoline_hints = []
         for r in routing_hints:
             node_id, short_channel_id, fee_base_msat, fee_proportional_millionths, cltv_expiry_delta = r[1][0]
             if len(r[1])== 1 and self.is_trampoline_peer(node_id):
                 trampoline_hints.append(('t', (node_id, fee_base_msat, fee_proportional_millionths, cltv_expiry_delta)))
-
         payment_preimage = os.urandom(32)
         payment_hash = sha256(payment_preimage)
         info = PaymentInfo(payment_hash, amount_msat, RECEIVED, PR_UNPAID)
         amount_btc = amount_msat/Decimal(COIN*1000) if amount_msat else None
         if expiry == 0:
             expiry = LN_EXPIRY_NEVER
-        lnaddr = LnAddr(paymenthash=payment_hash,
-                        amount=amount_btc,
-                        tags=[('d', message),
-                              ('c', MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE),
-                              ('x', expiry),
-                              ('9', invoice_features)]
-                        + routing_hints
-                        + trampoline_hints,
-                        date=timestamp,
-                        payment_secret=derive_payment_secret_from_payment_preimage(payment_preimage))
+        lnaddr = LnAddr(
+            paymenthash=payment_hash,
+            amount=amount_btc,
+            tags=[
+                ('d', message),
+                ('c', MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE),
+                ('x', expiry),
+                ('9', invoice_features)]
+            + routing_hints
+            + trampoline_hints,
+            date=timestamp,
+            payment_secret=derive_payment_secret_from_payment_preimage(payment_preimage))
         invoice = lnencode(lnaddr, self.node_keypair.privkey)
         self.save_preimage(payment_hash, payment_preimage)
         self.save_payment_info(info)
@@ -1573,8 +1572,7 @@ class LNWallet(LNWorker):
         lnaddr, invoice = await self.create_invoice(
             amount_msat=amount_msat,
             message=message,
-            expiry=expiry,
-        )
+            expiry=expiry)
         key = bh2u(lnaddr.paymenthash)
         req = LNInvoice.from_bech32(invoice)
         self.wallet.add_payment_request(req)
@@ -1759,13 +1757,15 @@ class LNWallet(LNWorker):
                     cltv_expiry_delta = policy.cltv_expiry_delta
                     missing_info = False
             if missing_info:
-                self.logger.info(f"Warning. Missing channel update for our channel {chan_id}; "
-                                 f"filling invoice with incorrect data.")
-            routing_hints.append(('r', [(chan.node_id,
-                                         chan_id,
-                                         fee_base_msat,
-                                         fee_proportional_millionths,
-                                         cltv_expiry_delta)]))
+                self.logger.info(
+                    f"Warning. Missing channel update for our channel {chan_id}; "
+                    f"filling invoice with incorrect data.")
+            routing_hints.append(('r', [(
+                chan.node_id,
+                chan_id,
+                fee_base_msat,
+                fee_proportional_millionths,
+                cltv_expiry_delta)]))
         return routing_hints
 
     def delete_payment(self, payment_hash_hex: str):
@@ -1778,8 +1778,9 @@ class LNWallet(LNWorker):
 
     def get_balance(self):
         with self.lock:
-            return Decimal(sum(chan.balance(LOCAL) if not chan.is_closed() else 0
-                               for chan in self.channels.values())) / 1000
+            return Decimal(sum(
+                chan.balance(LOCAL) if not chan.is_closed() else 0
+                for chan in self.channels.values())) / 1000
 
     def num_sats_can_send(self) -> Decimal:
         can_send = Decimal(0)
@@ -1918,8 +1919,7 @@ class LNWallet(LNWorker):
         return 'channel_backup:' + encrypted
 
     async def request_remote_force_close(
-            self, *, funding_txid: str, funding_index: int, connect_str: str,
-    ):
+            self, *, funding_txid: str, funding_index: int, connect_str: str):
         """
         Requests the remote to force close a channel. Can be used without
         having state or any backup for the channel.
