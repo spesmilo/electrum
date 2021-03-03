@@ -1059,11 +1059,11 @@ class LNWallet(LNWorker):
             invoice_features: int,
             attempts: int = 1,
             full_path: LNPaymentPath = None,
-            trampoline_onion=None,
+            fwd_trampoline_onion=None,
             trampoline_fee=None,
             trampoline_cltv_delta=None) -> None:
 
-        if trampoline_onion:
+        if fwd_trampoline_onion:
             # todo: compare to the fee of the actual route we found
             if trampoline_fee < 1000:
                 raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT, data=b'')
@@ -1089,7 +1089,8 @@ class LNWallet(LNWorker):
                     invoice_features=invoice_features,
                     full_path=full_path,
                     payment_hash=payment_hash,
-                    payment_secret=payment_secret))
+                    payment_secret=payment_secret,
+                    fwd_trampoline_onion=fwd_trampoline_onion))
                 # 2. send htlcs
                 for route, amount_msat, total_msat, cltv_delta, bucket_payment_secret, trampoline_onion in routes:
                     await self.pay_to_route(
@@ -1301,6 +1302,7 @@ class LNWallet(LNWorker):
             invoice_features: int,
             payment_hash,
             payment_secret,
+            fwd_trampoline_onion=None,
             full_path: LNPaymentPath = None) -> Sequence[Tuple[LNPaymentRoute, int]]:
 
         """Creates multiple routes for splitting a payment over the available
@@ -1364,7 +1366,7 @@ class LNWallet(LNWorker):
                     r_tags=r_tags, t_tags=t_tags,
                     invoice_features=invoice_features,
                     outgoing_channel=None, full_path=full_path)
-                routes = [(route, amount_msat, final_total_msat, min_cltv_expiry, payment_secret, None)]
+                routes = [(route, amount_msat, final_total_msat, min_cltv_expiry, payment_secret, fwd_trampoline_onion)]
         except NoPathFound:
             if not invoice_features.supports(LnFeatures.BASIC_MPP_OPT):
                 raise
@@ -1438,7 +1440,7 @@ class LNWallet(LNWorker):
                                     r_tags=r_tags, t_tags=t_tags,
                                     invoice_features=invoice_features,
                                     outgoing_channel=channel, full_path=None)
-                                routes.append((route, part_amount_msat, final_total_msat, min_cltv_expiry, payment_secret, None))
+                                routes.append((route, part_amount_msat, final_total_msat, min_cltv_expiry, payment_secret, fwd_trampoline_onion))
                     self.logger.info(f"found acceptable split configuration: {list(s[0].values())} rating: {s[1]}")
                     break
                 except NoPathFound:
