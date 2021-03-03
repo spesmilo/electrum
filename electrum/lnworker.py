@@ -1422,7 +1422,6 @@ class LNWallet(LNWorker):
                                 self.logger.info('not enough margin to pay trampoline fee')
                                 raise NoPathFound()
                         else:
-                            # then we need bucket_amount_msat that includes the trampoline fees.. then create small routes here
                             for chan_id, part_amount_msat in bucket:
                                 channel = self.channels[chan_id]
                                 route = self.create_route_for_payment(
@@ -1432,7 +1431,7 @@ class LNWallet(LNWorker):
                                     r_tags=r_tags, t_tags=t_tags,
                                     invoice_features=invoice_features,
                                     outgoing_channel=channel, full_path=None)
-                                routes.append((route, part_amount_msat, bucket_amount_msat, bucket_payment_secret))
+                                routes.append((route, part_amount_msat, amount_msat, min_cltv_expiry, payment_secret, None))
                     self.logger.info(f"found acceptable split configuration: {list(s[0].values())} rating: {s[1]}")
                     break
                 except NoPathFound:
