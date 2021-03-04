@@ -1168,8 +1168,16 @@ class PartialTxInput(TxInput, PSBTSection):
         return self._utxo
 
     @utxo.setter
-    def utxo(self, value: Optional[Transaction]):
-        self._utxo = value
+    def utxo(self, tx: Optional[Transaction]):
+        if tx is None:
+            return
+        # note that tx might be a PartialTransaction
+        # serialize and de-serialize tx now. this might e.g. convert a complete PartialTx to a Tx
+        tx = tx_from_any(str(tx))
+        # 'utxo' field in PSBT cannot be another PSBT:
+        if not tx.is_complete():
+            return
+        self._utxo = tx
         self.validate_data()
         self.ensure_there_is_only_one_utxo()
 

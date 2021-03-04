@@ -1781,8 +1781,19 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             self,
             txin: PartialTxInput,
             *,
+            address: str = None,
             ignore_network_issues: bool = True,
     ) -> None:
+        # We prefer to include UTXO (full tx) for every input.
+        # We cannot include UTXO if the prev tx is not signed yet though (chain of unsigned txs),
+        # in which case we might include a WITNESS_UTXO.
+        address = address or txin.address
+        if txin.witness_utxo is None and txin.is_segwit() and address:
+            received, spent = self.get_addr_io(address)
+            item = received.get(txin.prevout.to_str())
+            if item:
+                txin_value = item[1]
+                txin.witness_utxo = TxOutput.from_address_and_value(address, txin_value)
         if txin.utxo is None:
             txin.utxo = self.get_input_tx(txin.prevout.txid.hex(), ignore_network_issues=ignore_network_issues)
         txin.ensure_there_is_only_one_utxo()
@@ -1802,9 +1813,9 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             only_der_suffix: bool = False,
             ignore_network_issues: bool = True,
     ) -> None:
-        # note: we add input utxos regardless of is_mine
-        self._add_input_utxo_info(txin, ignore_network_issues=ignore_network_issues)
         address = self.get_txin_address(txin)
+        # note: we add input utxos regardless of is_mine
+        self._add_input_utxo_info(txin, ignore_network_issues=ignore_network_issues, address=address)
         if not self.is_mine(address):
             is_mine = self._learn_derivation_path_for_address_from_txinout(txin, address)
             if not is_mine:
