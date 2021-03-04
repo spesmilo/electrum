@@ -1221,7 +1221,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self.logger.info("stopping network")
         try:
             # note: cancel_remaining ~cannot be cancelled, it suppresses CancelledError
-            await asyncio.wait_for(self.taskgroup.cancel_remaining(log=True), timeout=2)
+            await asyncio.wait_for(self.taskgroup.cancel_remaining(), timeout=2)
         except (asyncio.TimeoutError, asyncio.CancelledError) as e:
             self.logger.info(f"exc during main_taskgroup cancellation: {repr(e)}")
         self.taskgroup = None
