@@ -458,6 +458,7 @@ class AddressSynchronizer(Logger):
             with self.transaction_lock:
                 self.db.clear_history()
                 self._history_local.clear()
+                self._get_addr_balance_cache = {}  # invalidate cache
 
     def get_txpos(self, tx_hash):
         """Returns (height, txpos) tuple, even if the tx is unverified."""
