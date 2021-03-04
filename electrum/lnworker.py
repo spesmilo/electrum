@@ -1378,14 +1378,14 @@ class LNWallet(LNWorker):
                 self.logger.info(f"trying split configuration: {s[0].values()} rating: {s[1]}")
                 routes = []
                 try:
-                    buckets = defaultdict(list)
-                    for chan_id, part_amount_msat in s[0].items():
-                        chan = self.channels[chan_id]
-                        if part_amount_msat:
-                            buckets[chan.node_id].append((chan_id, part_amount_msat))
-                    for node_id, bucket in buckets.items():
-                        bucket_amount_msat = sum([x[1] for x in bucket])
-                        if not self.channel_db:
+                    if not self.channel_db:
+                        buckets = defaultdict(list)
+                        for chan_id, part_amount_msat in s[0].items():
+                            chan = self.channels[chan_id]
+                            if part_amount_msat:
+                                buckets[chan.node_id].append((chan_id, part_amount_msat))
+                        for node_id, bucket in buckets.items():
+                            bucket_amount_msat = sum([x[1] for x in bucket])
                             trampoline_onion, trampoline_fee, bucket_amount_with_fees, bucket_cltv_delta = create_trampoline_route_and_onion(
                                 amount_msat=amount_msat,
                                 bucket_amount_msat=bucket_amount_msat,
@@ -1425,8 +1425,9 @@ class LNWallet(LNWorker):
                             if trampoline_fee > 0:
                                 self.logger.info('not enough margin to pay trampoline fee')
                                 raise NoPathFound()
-                        else:
-                            for chan_id, part_amount_msat in bucket:
+                    else:
+                        for chan_id, part_amount_msat in s[0].items():
+                            if part_amount_msat:
                                 channel = self.channels[chan_id]
                                 route = self.create_route_for_payment(
                                     amount_msat=part_amount_msat,
