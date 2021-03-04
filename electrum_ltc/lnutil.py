@@ -1266,6 +1266,18 @@ class ShortChannelID(bytes):
         return ShortChannelID(bh + tpos + oi)
 
     @classmethod
+    def from_str(cls, scid: str) -> 'ShortChannelID':
+        """Parses a formatted scid str, e.g. '643920x356x0'."""
+        components = scid.split("x")
+        if len(components) != 3:
+            raise ValueError(f"failed to parse ShortChannelID: {scid!r}")
+        try:
+            components = [int(x) for x in components]
+        except ValueError:
+            raise ValueError(f"failed to parse ShortChannelID: {scid!r}") from None
+        return ShortChannelID.from_components(*components)
+
+    @classmethod
     def normalize(cls, data: Union[None, str, bytes, 'ShortChannelID']) -> Optional['ShortChannelID']:
         if isinstance(data, ShortChannelID) or data is None:
             return data

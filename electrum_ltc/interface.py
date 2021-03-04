@@ -35,6 +35,7 @@ from ipaddress import IPv4Network, IPv6Network, ip_address, IPv6Address, IPv4Add
 import itertools
 import logging
 import hashlib
+import functools
 
 import aiorpcx
 from aiorpcx import TaskGroup
@@ -375,9 +376,12 @@ class Interface(Logger):
         # Dump network messages (only for this interface).  Set at runtime from the console.
         self.debug = False
 
-        asyncio.run_coroutine_threadsafe(
-            self.network.taskgroup.spawn(self.run()), self.network.asyncio_loop)
         self.taskgroup = SilentTaskGroup()
+
+        async def spawn_task():
+            task = await self.network.taskgroup.spawn(self.run())
+            task.set_name(f"interface::{str(server)}")
+        asyncio.run_coroutine_threadsafe(spawn_task(), self.network.asyncio_loop)
 
     @property
     def host(self):
@@ -476,6 +480,7 @@ class Interface(Logger):
         return sslc
 
     def handle_disconnect(func):
+        @functools.wraps(func)
         async def wrapper_func(self: 'Interface', *args, **kwargs):
             try:
                 return await func(self, *args, **kwargs)
@@ -681,12 +686,17 @@ class Interface(Logger):
             self.network.update_fee_estimates()
             await asyncio.sleep(60)
 
-    async def close(self):
+    async def close(self, *, force_after: int = None):
         """Closes the connection and waits for it to be closed.
         We try to flush buffered data to the wire, so this can take some time.
         """
+        if force_after is None:
+            # We give up after a while and just abort the connection.
+            # Note: specifically if the server is running Fulcrum, waiting seems hopeless,
+            #       the connection must be aborted (see https://github.com/cculianu/Fulcrum/issues/76)
+            force_after = 2  # seconds
         if self.session:
-            await self.session.close()
+            await self.session.close(force_after=force_after)
         # monitor_connection will cancel tasks
 
     async def run_fetch_blocks(self):

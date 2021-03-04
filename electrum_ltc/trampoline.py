@@ -63,7 +63,6 @@ def encode_routing_info(r_tags):
 def create_trampoline_route(
         *,
         amount_msat:int,
-        bucket_amount_msat:int,
         min_cltv_expiry:int,
         invoice_pubkey:bytes,
         invoice_features:int,
@@ -128,6 +127,7 @@ def create_trampoline_route(
         invoice_routing_info = encode_routing_info(r_tags)
         route[-1].invoice_routing_info = invoice_routing_info
         route[-1].invoice_features = invoice_features
+        route[-1].outgoing_node_id = invoice_pubkey
     else:
         if t_tag:
             pubkey, feebase, feerate, cltv = t_tag
@@ -140,7 +140,7 @@ def create_trampoline_route(
                         fee_proportional_millionths=feerate,
                         cltv_expiry_delta=cltv,
                         node_features=trampoline_features))
-    # Fake edge (not part of actual route, needed by calc_hops_data)
+    # Final edge (not part of the route if payment is legacy, but eclair requires an encrypted blob)
     route.append(
         TrampolineEdge(
             start_node=route[-1].end_node,
@@ -161,7 +161,7 @@ def create_trampoline_route(
     return route
 
 
-def create_trampoline_onion(route, amount_msat, final_cltv, total_msat, payment_hash, payment_secret):
+def create_trampoline_onion(*, route, amount_msat, final_cltv, total_msat, payment_hash, payment_secret):
     # all edges are trampoline
     hops_data, amount_msat, cltv = calc_hops_data_for_payment(
         route,
@@ -172,22 +172,30 @@ def create_trampoline_onion(route, amount_msat, final_cltv, total_msat, payment_
     # detect trampoline hops.
     payment_path_pubkeys = [x.node_id for x in route]
     num_hops = len(payment_path_pubkeys)
-    for i in range(num_hops-1):
+    for i in range(num_hops):
         route_edge = route[i]
-        next_edge = route[i+1]
         assert route_edge.is_trampoline()
-        assert next_edge.is_trampoline()
-        hops_data[i].payload["outgoing_node_id"] = {"outgoing_node_id":next_edge.node_id}
-        if route_edge.invoice_features:
-            hops_data[i].payload["invoice_features"] = {"invoice_features":route_edge.invoice_features}
-        if route_edge.invoice_routing_info:
-            hops_data[i].payload["invoice_routing_info"] = {"invoice_routing_info":route_edge.invoice_routing_info}
-        # only for final, legacy
-        if i == num_hops - 2:
-            hops_data[i].payload["payment_data"] = {
+        payload = hops_data[i].payload
+        if i < num_hops - 1:
+            payload.pop('short_channel_id')
+            next_edge = route[i+1]
+            assert next_edge.is_trampoline()
+            hops_data[i].payload["outgoing_node_id"] = {"outgoing_node_id":next_edge.node_id}
+        # only for final
+        if i == num_hops - 1:
+            payload["payment_data"] = {
                 "payment_secret":payment_secret,
-                "total_msat": total_msat,
+                "total_msat": total_msat
             }
+        # legacy
+        if i == num_hops - 2 and route_edge.invoice_features:
+            payload["invoice_features"] = {"invoice_features":route_edge.invoice_features}
+            payload["invoice_routing_info"] = {"invoice_routing_info":route_edge.invoice_routing_info}
+            payload["payment_data"] = {
+                "payment_secret":payment_secret,
+                "total_msat": total_msat
+            }
+        _logger.info(f'payload {i} {payload}')
     trampoline_session_key = os.urandom(32)
     trampoline_onion = new_onion_packet(payment_path_pubkeys, trampoline_session_key, hops_data, associated_data=payment_hash, trampoline=True)
     return trampoline_onion, amount_msat, cltv
@@ -196,7 +204,7 @@ def create_trampoline_onion(route, amount_msat, final_cltv, total_msat, payment_
 def create_trampoline_route_and_onion(
         *,
         amount_msat,
-        bucket_amount_msat,
+        total_msat,
         min_cltv_expiry,
         invoice_pubkey,
         invoice_features,
@@ -211,7 +219,6 @@ def create_trampoline_route_and_onion(
     # create route for the trampoline_onion
     trampoline_route = create_trampoline_route(
         amount_msat=amount_msat,
-        bucket_amount_msat=bucket_amount_msat,
         min_cltv_expiry=min_cltv_expiry,
         my_pubkey=my_pubkey,
         invoice_pubkey=invoice_pubkey,
@@ -223,15 +230,15 @@ def create_trampoline_route_and_onion(
         trampoline2_list=trampoline2_list)
     # compute onion and fees
     final_cltv = local_height + min_cltv_expiry
-    trampoline_onion, bucket_amount_with_fees, bucket_cltv = create_trampoline_onion(
-        trampoline_route,
-        bucket_amount_msat,
-        final_cltv,
-        amount_msat,
-        payment_hash,
-        payment_secret)
+    trampoline_onion, amount_with_fees, bucket_cltv = create_trampoline_onion(
+        route=trampoline_route,
+        amount_msat=amount_msat,
+        final_cltv=final_cltv,
+        total_msat=total_msat,
+        payment_hash=payment_hash,
+        payment_secret=payment_secret)
     bucket_cltv_delta = bucket_cltv - local_height
     bucket_cltv_delta += trampoline_route[0].cltv_expiry_delta
     # trampoline fee for this very trampoline
-    trampoline_fee = trampoline_route[0].fee_for_edge(bucket_amount_with_fees)
-    return trampoline_onion, trampoline_fee, bucket_amount_with_fees, bucket_cltv_delta
+    trampoline_fee = trampoline_route[0].fee_for_edge(amount_with_fees)
+    return trampoline_onion, trampoline_fee, amount_with_fees, bucket_cltv_delta
