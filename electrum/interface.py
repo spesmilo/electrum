@@ -686,12 +686,17 @@ class Interface(Logger):
             self.network.update_fee_estimates()
             await asyncio.sleep(60)
 
-    async def close(self):
+    async def close(self, *, force_after: int = None):
         """Closes the connection and waits for it to be closed.
         We try to flush buffered data to the wire, so this can take some time.
         """
+        if force_after is None:
+            # We give up after a while and just abort the connection.
+            # Note: specifically if the server is running Fulcrum, waiting seems hopeless,
+            #       the connection must be aborted (see https://github.com/cculianu/Fulcrum/issues/76)
+            force_after = 2  # seconds
         if self.session:
-            await self.session.close()
+            await self.session.close(force_after=force_after)
         # monitor_connection will cancel tasks
 
     async def run_fetch_blocks(self):
