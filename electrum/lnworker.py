@@ -1614,27 +1614,26 @@ class LNWallet(LNWorker):
     def add_received_htlc(self, short_channel_id, htlc: UpdateAddHtlc, expected_msat: int) -> Optional[bool]:
         """ return MPP status: True (accepted), False (expired) or None """
         payment_hash = htlc.payment_hash
-        mpp_status, htlc_set = self.received_htlcs.get(payment_hash, (None, set()))
+        is_accepted = (self.get_payment_status(payment_hash) == PR_PAID)
+        is_expired, htlc_set = self.received_htlcs.get(payment_hash, (False, set()))
         key = (short_channel_id, htlc)
         if key not in htlc_set:
             htlc_set.add(key)
-        if mpp_status is None:
+        if not is_accepted and not is_expired:
             total = sum([_htlc.amount_msat for scid, _htlc in htlc_set])
             first_timestamp = min([_htlc.timestamp for scid, _htlc in htlc_set])
-            expired = time.time() - first_timestamp > MPP_EXPIRY
-            if expired:
-                mpp_status = False
-            elif total == expected_msat:
-                mpp_status = True
+            is_expired = time.time() - first_timestamp > MPP_EXPIRY
+            if not is_expired and total == expected_msat:
+                is_accepted = True
                 self.set_payment_status(payment_hash, PR_PAID)
                 util.trigger_callback('request_status', self.wallet, payment_hash.hex(), PR_PAID)
-        if mpp_status is not None:
+        if is_accepted or is_expired:
             htlc_set.remove(key)
         if len(htlc_set) > 0:
-            self.received_htlcs[payment_hash] = mpp_status, htlc_set
+            self.received_htlcs[payment_hash] = is_expired, htlc_set
         elif payment_hash in self.received_htlcs:
             self.received_htlcs.pop(payment_hash)
-        return mpp_status
+        return True if is_accepted else (False if is_expired else None)
 
     def get_payment_status(self, payment_hash):
         info = self.get_payment_info(payment_hash)
