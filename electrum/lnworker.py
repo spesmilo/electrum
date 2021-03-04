@@ -1145,7 +1145,10 @@ class LNWallet(LNWorker):
 
         key = (payment_hash, short_channel_id, htlc.htlc_id)
         self.sent_htlcs_routes[key] = route, payment_secret, amount_msat, total_msat
-        self.sent_buckets[payment_secret] = total_msat
+        # if we sent MPP to a trampoline, add item to sent_buckets
+        if not self.channel_db and amount_msat != total_msat:
+            if payment_secret not in self.sent_buckets:
+                self.sent_buckets[payment_secret] = total_msat
         util.trigger_callback('htlc_added', chan, htlc, SENT)
 
     def handle_error_code_from_failed_htlc(self, htlc_log):
@@ -1299,7 +1302,6 @@ class LNWallet(LNWorker):
             payment_hash,
             payment_secret,
             full_path: LNPaymentPath = None) -> Sequence[Tuple[LNPaymentRoute, int]]:
-        # FIXME trampoline case broken if amount_msat != final_total_msat
 
         """Creates multiple routes for splitting a payment over the available
         private channels.
@@ -1323,7 +1325,7 @@ class LNWallet(LNWorker):
                         continue
                     trampoline_onion, trampoline_fee, amount_with_fees, cltv_delta = create_trampoline_route_and_onion(
                         amount_msat=amount_msat,
-                        bucket_amount_msat=amount_msat,
+                        total_msat=final_total_msat,
                         min_cltv_expiry=min_cltv_expiry,
                         my_pubkey=self.node_keypair.pubkey,
                         invoice_pubkey=invoice_pubkey,
@@ -1387,8 +1389,8 @@ class LNWallet(LNWorker):
                         for node_id, bucket in buckets.items():
                             bucket_amount_msat = sum([x[1] for x in bucket])
                             trampoline_onion, trampoline_fee, bucket_amount_with_fees, bucket_cltv_delta = create_trampoline_route_and_onion(
-                                amount_msat=amount_msat,
-                                bucket_amount_msat=bucket_amount_msat,
+                                amount_msat=bucket_amount_msat,
+                                total_msat=final_total_msat,
                                 min_cltv_expiry=min_cltv_expiry,
                                 my_pubkey=self.node_keypair.pubkey,
                                 invoice_pubkey=invoice_pubkey,
@@ -1707,13 +1709,14 @@ class LNWallet(LNWorker):
                 sender_idx = None
             self.logger.info(f"htlc_failed {failure_message}")
 
-            # FIXME: maybe only check this bucketing stuff if not using trampoline?
-            # if payment_secret in self.sent_buckets:
-            #     self.sent_buckets[payment_secret] -= amount_msat
-            #     if self.sent_buckets[payment_secret] > 0:
-            #         return
-            #     else:
-            #         amount_msat = bucket_msat
+            # check sent_buckets if we use trampoline
+            if self.channel_db is None and payment_secret in self.sent_buckets:
+                self.sent_buckets[payment_secret] -= amount_msat
+                if self.sent_buckets[payment_secret] > 0:
+                    return
+                else:
+                    amount_msat = bucket_msat
+
             htlc_log = HtlcLog(
                 success=False,
                 route=route,

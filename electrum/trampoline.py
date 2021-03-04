@@ -63,7 +63,6 @@ def encode_routing_info(r_tags):
 def create_trampoline_route(
         *,
         amount_msat:int,
-        bucket_amount_msat:int,
         min_cltv_expiry:int,
         invoice_pubkey:bytes,
         invoice_features:int,
@@ -161,7 +160,7 @@ def create_trampoline_route(
     return route
 
 
-def create_trampoline_onion(route, amount_msat, final_cltv, total_msat, payment_hash, payment_secret):
+def create_trampoline_onion(*, route, amount_msat, final_cltv, total_msat, payment_hash, payment_secret):
     # all edges are trampoline
     hops_data, amount_msat, cltv = calc_hops_data_for_payment(
         route,
@@ -196,7 +195,7 @@ def create_trampoline_onion(route, amount_msat, final_cltv, total_msat, payment_
 def create_trampoline_route_and_onion(
         *,
         amount_msat,
-        bucket_amount_msat,
+        total_msat,
         min_cltv_expiry,
         invoice_pubkey,
         invoice_features,
@@ -211,7 +210,6 @@ def create_trampoline_route_and_onion(
     # create route for the trampoline_onion
     trampoline_route = create_trampoline_route(
         amount_msat=amount_msat,
-        bucket_amount_msat=bucket_amount_msat,
         min_cltv_expiry=min_cltv_expiry,
         my_pubkey=my_pubkey,
         invoice_pubkey=invoice_pubkey,
@@ -223,15 +221,15 @@ def create_trampoline_route_and_onion(
         trampoline2_list=trampoline2_list)
     # compute onion and fees
     final_cltv = local_height + min_cltv_expiry
-    trampoline_onion, bucket_amount_with_fees, bucket_cltv = create_trampoline_onion(
-        trampoline_route,
-        bucket_amount_msat,
-        final_cltv,
-        amount_msat,
-        payment_hash,
-        payment_secret)
+    trampoline_onion, amount_with_fees, bucket_cltv = create_trampoline_onion(
+        route=trampoline_route,
+        amount_msat=amount_msat,
+        final_cltv=final_cltv,
+        total_msat=total_msat,
+        payment_hash=payment_hash,
+        payment_secret=payment_secret)
     bucket_cltv_delta = bucket_cltv - local_height
     bucket_cltv_delta += trampoline_route[0].cltv_expiry_delta
     # trampoline fee for this very trampoline
-    trampoline_fee = trampoline_route[0].fee_for_edge(bucket_amount_with_fees)
-    return trampoline_onion, trampoline_fee, bucket_amount_with_fees, bucket_cltv_delta
+    trampoline_fee = trampoline_route[0].fee_for_edge(amount_with_fees)
+    return trampoline_onion, trampoline_fee, amount_with_fees, bucket_cltv_delta
