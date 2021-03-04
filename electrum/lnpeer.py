@@ -11,6 +11,7 @@ import os
 import time
 from typing import Tuple, Dict, TYPE_CHECKING, Optional, Union
 from datetime import datetime
+import functools
 
 import aiorpcx
 
@@ -289,6 +290,7 @@ class Peer(Logger):
             self.announcement_signatures[chan.channel_id].put_nowait(payload)
 
     def handle_disconnect(func):
+        @functools.wraps(func)
         async def wrapper_func(self, *args, **kwargs):
             try:
                 return await func(self, *args, **kwargs)
@@ -550,6 +552,7 @@ class Peer(Logger):
         # During the channel open flow, if we initiated, we might have used a change address
         # of ours in the funding tx. The funding tx is not part of the wallet history
         # at that point yet, but we should already consider this change address as 'used'.
+        @functools.wraps(func)
         async def wrapper(self: 'Peer', *args, **kwargs):
             funding_tx = kwargs['funding_tx']  # type: PartialTransaction
             wallet = self.lnworker.wallet
