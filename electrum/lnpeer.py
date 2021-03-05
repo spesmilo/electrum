@@ -1452,8 +1452,8 @@ class Peer(Logger):
                     t_tags=[],
                     invoice_features=invoice_features,
                     fwd_trampoline_onion=next_trampoline_onion,
-                    trampoline_fee=trampoline_fee,
-                    trampoline_cltv_delta=trampoline_cltv_delta,
+                    fwd_trampoline_fee=trampoline_fee,
+                    fwd_trampoline_cltv_delta=trampoline_cltv_delta,
                     attempts=1)
             except OnionRoutingFailure as e:
                 # FIXME: cannot use payment_hash as key
