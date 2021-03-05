@@ -24,6 +24,7 @@
 # SOFTWARE.
 
 import re
+import decimal
 from decimal import Decimal
 from typing import NamedTuple, Sequence, Optional, List, TYPE_CHECKING
 
@@ -62,7 +63,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
 
     def __init__(self, win: 'ElectrumWindow'):
         CompletionTextEdit.__init__(self)
-        ScanQRTextEdit.__init__(self)
+        ScanQRTextEdit.__init__(self, config=win.config)
         Logger.__init__(self)
         self.win = win
         self.amount_edit = win.amount_e
@@ -127,10 +128,16 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         return script
 
     def parse_amount(self, x):
-        if x.strip() == '!':
+        x = x.strip()
+        if not x:
+            raise Exception("Amount is empty")
+        if x == '!':
             return '!'
         p = pow(10, self.amount_edit.decimal_point())
-        return int(p * Decimal(x.strip()))
+        try:
+            return int(p * Decimal(x))
+        except decimal.InvalidOperation:
+            raise Exception("Invalid amount")
 
     def parse_address(self, line):
         r = line.strip()

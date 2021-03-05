@@ -8,7 +8,7 @@ import json
 from collections import namedtuple, defaultdict
 from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set, Sequence
 import re
-
+import time
 import attr
 from aiorpcx import NetAddress
 
@@ -81,6 +81,7 @@ class Config(StoredObject):
     initial_msat = attr.ib(type=int)
     reserve_sat = attr.ib(type=int)  # applies to OTHER ctx
     htlc_minimum_msat = attr.ib(type=int)  # smallest value for INCOMING htlc
+    upfront_shutdown_script = attr.ib(type=bytes, converter=hex_to_bytes)
 
     def validate_params(self, *, funding_sat: int) -> None:
         conf_name = type(self).__name__
@@ -162,7 +163,7 @@ class FeeUpdate(StoredObject):
 
 @attr.s
 class ChannelConstraints(StoredObject):
-    capacity = attr.ib(type=int)
+    capacity = attr.ib(type=int)  # in sat
     is_initiator = attr.ib(type=bool)  # note: sometimes also called "funder"
     funding_txn_minimum_depth = attr.ib(type=int)
 
@@ -248,50 +249,34 @@ class Outpoint(StoredObject):
         return "{}:{}".format(self.txid, self.output_index)
 
 
-class PaymentAttemptFailureDetails(NamedTuple):
-    sender_idx: Optional[int]
-    failure_msg: 'OnionRoutingFailureMessage'
-    is_blacklisted: bool
-
-
-class PaymentAttemptLog(NamedTuple):
+class HtlcLog(NamedTuple):
     success: bool
+    amount_msat: int  # amount for receiver (e.g. from invoice)
     route: Optional['LNPaymentRoute'] = None
     preimage: Optional[bytes] = None
-    failure_details: Optional[PaymentAttemptFailureDetails] = None
-    exception: Optional[Exception] = None
+    error_bytes: Optional[bytes] = None
+    failure_msg: Optional['OnionRoutingFailureMessage'] = None
+    sender_idx: Optional[int] = None
 
     def formatted_tuple(self):
-        if not self.exception:
-            route = self.route
-            route_str = '%d'%len(route)
-            short_channel_id = None
-            if not self.success:
-                sender_idx = self.failure_details.sender_idx
-                failure_msg = self.failure_details.failure_msg
-                if sender_idx is not None:
-                    try:
-                        short_channel_id = route[sender_idx + 1].short_channel_id
-                    except IndexError:
-                        # payment destination reported error
-                        short_channel_id = _("Destination node")
-                message = failure_msg.code_name()
-            else:
-                short_channel_id = route[-1].short_channel_id
-                message = _('Success')
-            chan_str = str(short_channel_id) if short_channel_id else _("Unknown")
+        route = self.route
+        route_str = '%d'%len(route)
+        short_channel_id = None
+        if not self.success:
+            sender_idx = self.sender_idx
+            failure_msg = self.failure_msg
+            if sender_idx is not None:
+                try:
+                    short_channel_id = route[sender_idx + 1].short_channel_id
+                except IndexError:
+                    # payment destination reported error
+                    short_channel_id = _("Destination node")
+            message = failure_msg.code_name()
         else:
-            route_str = 'None'
-            chan_str = 'N/A'
-            message = str(self.exception)
+            short_channel_id = route[-1].short_channel_id
+            message = _('Success')
+        chan_str = str(short_channel_id) if short_channel_id else _("Unknown")
         return route_str, chan_str, message
-
-
-class BarePaymentAttemptLog(NamedTuple):
-    success: bool
-    preimage: Optional[bytes] = None
-    error_bytes: Optional[bytes] = None
-    failure_message: Optional['OnionRoutingFailureMessage'] = None
 
 
 class LightningError(Exception): pass
@@ -300,10 +285,14 @@ class UnableToDeriveSecret(LightningError): pass
 class HandshakeFailed(LightningError): pass
 class ConnStringFormatError(LightningError): pass
 class RemoteMisbehaving(LightningError): pass
+class UpfrontShutdownScriptViolation(RemoteMisbehaving): pass
 
 class NotFoundChanAnnouncementForUpdate(Exception): pass
 
 class PaymentFailure(UserFacingException): pass
+class NoPathFound(PaymentFailure):
+    def __str__(self):
+        return _('No path found')
 
 # TODO make some of these values configurable?
 REDEEM_AFTER_DOUBLE_SPENT_DELAY = 30
@@ -329,11 +318,6 @@ NBLOCK_DEADLINE_AFTER_EXPIRY_FOR_OFFERED_HTLCS = 1
 # the deadline for received HTLCs this node has fulfilled:
 # the deadline after which the channel has to be failed and the HTLC fulfilled on-chain before its cltv_expiry
 NBLOCK_DEADLINE_BEFORE_EXPIRY_FOR_RECEIVED_HTLCS = 72
-
-# the cltv_expiry_delta for channels when we are forwarding payments
-NBLOCK_OUR_CLTV_EXPIRY_DELTA = 144
-OUR_FEE_BASE_MSAT = 1000
-OUR_FEE_PROPORTIONAL_MILLIONTHS = 1
 
 NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE = 28 * 144
 
@@ -960,8 +944,17 @@ class LnFeatures(IntFlag):
 
     OPTION_SUPPORT_LARGE_CHANNEL_REQ = 1 << 18
     OPTION_SUPPORT_LARGE_CHANNEL_OPT = 1 << 19
-    _ln_feature_contexts[OPTION_SUPPORT_LARGE_CHANNEL_OPT] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.CHAN_ANN_ALWAYS_EVEN)
-    _ln_feature_contexts[OPTION_SUPPORT_LARGE_CHANNEL_REQ] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.CHAN_ANN_ALWAYS_EVEN)
+    _ln_feature_contexts[OPTION_SUPPORT_LARGE_CHANNEL_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
+    _ln_feature_contexts[OPTION_SUPPORT_LARGE_CHANNEL_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
+
+    OPTION_TRAMPOLINE_ROUTING_REQ = 1 << 50
+    OPTION_TRAMPOLINE_ROUTING_OPT = 1 << 51
+
+    # We do not set trampoline_routing_opt in invoices, because the spec is not ready.
+    # This ensures that current version of Phoenix can pay us
+    # It also prevents Electrum from using t_tags from future implementations
+    _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_REQ] = (LNFC.INIT | LNFC.NODE_ANN) # | LNFC.INVOICE)
+    _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_OPT] = (LNFC.INIT | LNFC.NODE_ANN) # | LNFC.INVOICE)
 
     def validate_transitive_dependencies(self) -> bool:
         # for all even bit set, set corresponding odd bit:
@@ -1015,6 +1008,23 @@ class LnFeatures(IntFlag):
                 features |= (1 << flag)
         return features
 
+    def supports(self, feature: 'LnFeatures') -> bool:
+        """Returns whether given feature is enabled.
+
+        Helper function that tries to hide the complexity of even/odd bits.
+        For example, instead of:
+          bool(myfeatures & LnFeatures.VAR_ONION_OPT or myfeatures & LnFeatures.VAR_ONION_REQ)
+        you can do:
+          myfeatures.supports(LnFeatures.VAR_ONION_OPT)
+        """
+        enabled_bits = list_enabled_bits(feature)
+        if len(enabled_bits) != 1:
+            raise ValueError(f"'feature' cannot be a combination of features: {feature}")
+        flag = enabled_bits[0]
+        our_flags = set(list_enabled_bits(self))
+        return (flag in our_flags
+                or get_ln_flag_pair_of_bit(flag) in our_flags)
+
 
 del LNFC  # name is ambiguous without context
 
@@ -1028,6 +1038,8 @@ LN_FEATURES_IMPLEMENTED = (
         | LnFeatures.OPTION_STATIC_REMOTEKEY_OPT | LnFeatures.OPTION_STATIC_REMOTEKEY_REQ
         | LnFeatures.VAR_ONION_OPT | LnFeatures.VAR_ONION_REQ
         | LnFeatures.PAYMENT_SECRET_OPT | LnFeatures.PAYMENT_SECRET_REQ
+        | LnFeatures.BASIC_MPP_OPT | LnFeatures.BASIC_MPP_REQ
+        | LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT | LnFeatures.OPTION_TRAMPOLINE_ROUTING_REQ
 )
 
 
@@ -1106,6 +1118,7 @@ def derive_payment_secret_from_payment_preimage(payment_preimage: bytes) -> byte
 
 
 class LNPeerAddr:
+    # note: while not programmatically enforced, this class is meant to be *immutable*
 
     def __init__(self, host: str, port: int, pubkey: bytes):
         assert isinstance(host, str), repr(host)
@@ -1120,7 +1133,7 @@ class LNPeerAddr:
         self.host = host
         self.port = port
         self.pubkey = pubkey
-        self._net_addr_str = str(net_addr)
+        self._net_addr = net_addr
 
     def __str__(self):
         return '{}@{}'.format(self.pubkey.hex(), self.net_addr_str())
@@ -1128,8 +1141,11 @@ class LNPeerAddr:
     def __repr__(self):
         return f'<LNPeerAddr host={self.host} port={self.port} pubkey={self.pubkey.hex()}>'
 
+    def net_addr(self) -> NetAddress:
+        return self._net_addr
+
     def net_addr_str(self) -> str:
-        return self._net_addr_str
+        return str(self._net_addr)
 
     def __eq__(self, other):
         if not isinstance(other, LNPeerAddr):
@@ -1250,6 +1266,18 @@ class ShortChannelID(bytes):
         return ShortChannelID(bh + tpos + oi)
 
     @classmethod
+    def from_str(cls, scid: str) -> 'ShortChannelID':
+        """Parses a formatted scid str, e.g. '643920x356x0'."""
+        components = scid.split("x")
+        if len(components) != 3:
+            raise ValueError(f"failed to parse ShortChannelID: {scid!r}")
+        try:
+            components = [int(x) for x in components]
+        except ValueError:
+            raise ValueError(f"failed to parse ShortChannelID: {scid!r}") from None
+        return ShortChannelID.from_components(*components)
+
+    @classmethod
     def normalize(cls, data: Union[None, str, bytes, 'ShortChannelID']) -> Optional['ShortChannelID']:
         if isinstance(data, ShortChannelID) or data is None:
             return data
@@ -1284,7 +1312,7 @@ def format_short_channel_id(short_channel_id: Optional[bytes]):
 @attr.s(frozen=True)
 class UpdateAddHtlc:
     amount_msat = attr.ib(type=int, kw_only=True)
-    payment_hash = attr.ib(type=bytes, kw_only=True, converter=hex_to_bytes)
+    payment_hash = attr.ib(type=bytes, kw_only=True, converter=hex_to_bytes, repr=lambda val: val.hex())
     cltv_expiry = attr.ib(type=int, kw_only=True)
     timestamp = attr.ib(type=int, kw_only=True)
     htlc_id = attr.ib(type=int, kw_only=True, default=None)
@@ -1306,3 +1334,18 @@ class OnionFailureCodeMetaFlag(IntFlag):
     PERM     = 0x4000
     NODE     = 0x2000
     UPDATE   = 0x1000
+
+
+class ChannelBlackList:
+
+    def __init__(self):
+        self.blacklist = dict() # short_chan_id -> timestamp
+
+    def add(self, short_channel_id: ShortChannelID):
+        now = int(time.time())
+        self.blacklist[short_channel_id] = now
+
+    def get_current_list(self) -> Set[ShortChannelID]:
+        BLACKLIST_DURATION = 3600
+        now = int(time.time())
+        return set(k for k, t in self.blacklist.items() if now - t < BLACKLIST_DURATION)

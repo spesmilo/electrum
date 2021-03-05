@@ -248,18 +248,21 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             nonlocal temp_storage
             temp_storage = None
             msg = None
-            path = os.path.join(wallet_folder, filename)
-            wallet_from_memory = get_wallet_from_daemon(path)
-            try:
-                if wallet_from_memory:
-                    temp_storage = wallet_from_memory.storage  # type: Optional[WalletStorage]
-                else:
-                    temp_storage = WalletStorage(path)
-            except (StorageReadWriteError, WalletFileException) as e:
-                msg = _('Cannot read file') + f'\n{repr(e)}'
-            except Exception as e:
-                self.logger.exception('')
-                msg = _('Cannot read file') + f'\n{repr(e)}'
+            if filename:
+                path = os.path.join(wallet_folder, filename)
+                wallet_from_memory = get_wallet_from_daemon(path)
+                try:
+                    if wallet_from_memory:
+                        temp_storage = wallet_from_memory.storage  # type: Optional[WalletStorage]
+                    else:
+                        temp_storage = WalletStorage(path)
+                except (StorageReadWriteError, WalletFileException) as e:
+                    msg = _('Cannot read file') + f'\n{repr(e)}'
+                except Exception as e:
+                    self.logger.exception('')
+                    msg = _('Cannot read file') + f'\n{repr(e)}'
+            else:
+                msg = _('')
             self.next_button.setEnabled(temp_storage is not None)
             user_needs_to_enter_password = False
             if temp_storage:
@@ -422,8 +425,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.please_wait.setVisible(False)
 
     def exec_layout(self, layout, title=None, raise_on_cancel=True,
-                        next_enabled=True):
+                        next_enabled=True, focused_widget=None):
         self.set_layout(layout, title, next_enabled)
+        if focused_widget:
+            focused_widget.setFocus()
         result = self.loop.exec_()
         if not result and raise_on_cancel:
             raise UserCancelled()
@@ -447,12 +452,18 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     def text_input(self, title, message, is_valid, allow_multi=False):
         slayout = KeysLayout(parent=self, header_layout=message, is_valid=is_valid,
-                             allow_multi=allow_multi)
+                             allow_multi=allow_multi, config=self.config)
         self.exec_layout(slayout, title, next_enabled=False)
         return slayout.get_text()
 
     def seed_input(self, title, message, is_seed, options):
-        slayout = SeedLayout(title=message, is_seed=is_seed, options=options, parent=self)
+        slayout = SeedLayout(
+            title=message,
+            is_seed=is_seed,
+            options=options,
+            parent=self,
+            config=self.config,
+        )
         self.exec_layout(slayout, title, next_enabled=False)
         return slayout.get_seed(), slayout.is_bip39, slayout.is_ext
 
@@ -500,20 +511,27 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     @wizard_dialog
     def show_seed_dialog(self, run_next, seed_text):
-        title =  _("Your wallet generation seed is:")
-        slayout = SeedLayout(seed=seed_text, title=title, msg=True, options=['ext'])
+        title = _("Your wallet generation seed is:")
+        slayout = SeedLayout(
+            seed=seed_text,
+            title=title,
+            msg=True,
+            options=['ext'],
+            config=self.config,
+        )
         self.exec_layout(slayout)
         return slayout.is_ext
 
     def pw_layout(self, msg, kind, force_disable_encrypt_cb):
-        playout = PasswordLayout(msg=msg, kind=kind, OK_button=self.next_button,
-                                 force_disable_encrypt_cb=force_disable_encrypt_cb)
-        playout.encrypt_cb.setChecked(True)
+        pw_layout = PasswordLayout(
+            msg=msg, kind=kind, OK_button=self.next_button,
+            force_disable_encrypt_cb=force_disable_encrypt_cb)
+        pw_layout.encrypt_cb.setChecked(True)
         try:
-            self.exec_layout(playout.layout())
-            return playout.new_password(), playout.encrypt_cb.isChecked()
+            self.exec_layout(pw_layout.layout(), focused_widget=pw_layout.new_pw)
+            return pw_layout.new_password(), pw_layout.encrypt_cb.isChecked()
         finally:
-            playout.clear_password_fields()
+            pw_layout.clear_password_fields()
 
     @wizard_dialog
     def request_password(self, run_next, force_disable_encrypt_cb=False):
@@ -697,7 +715,13 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             _("Please share it with your cosigners.")
         ])
         vbox = QVBoxLayout()
-        layout = SeedLayout(xpub, title=msg, icon=False, for_seed_words=False)
+        layout = SeedLayout(
+            xpub,
+            title=msg,
+            icon=False,
+            for_seed_words=False,
+            config=self.config,
+        )
         vbox.addLayout(layout.layout())
         self.exec_layout(vbox, _('Master Public Key'))
         return None

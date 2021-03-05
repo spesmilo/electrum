@@ -36,6 +36,7 @@ from typing import NamedTuple, Optional, Sequence, List, Dict, Tuple, TYPE_CHECK
 import traceback
 import concurrent
 from concurrent import futures
+import copy
 
 import aiorpcx
 from aiorpcx import TaskGroup
@@ -45,7 +46,6 @@ from . import util
 from .util import (log_exceptions, ignore_exceptions,
                    bfh, SilentTaskGroup, make_aiohttp_session, send_exception_to_crash_reporter,
                    is_hash256_str, is_non_negative_integer, MyEncoder, NetworkRetryManager)
-
 from .bitcoin import COIN
 from . import constants
 from . import blockchain
@@ -60,6 +60,7 @@ from .version import PROTOCOL_VERSION
 from .simple_config import SimpleConfig
 from .i18n import _
 from .logging import get_logger, Logger
+from .lnutil import ChannelBlackList
 
 if TYPE_CHECKING:
     from .channel_db import ChannelDB
@@ -246,7 +247,8 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     taskgroup: Optional[TaskGroup]
     interface: Optional[Interface]
     interfaces: Dict[ServerAddr, Interface]
-    _connecting: Set[ServerAddr]
+    _connecting_ifaces: Set[ServerAddr]
+    _closing_ifaces: Set[ServerAddr]
     default_server: ServerAddr
     _recent_servers: List[ServerAddr]
 
@@ -321,10 +323,16 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         # the main server we are currently communicating with
         self.interface = None
         self.default_server_changed_event = asyncio.Event()
-        # set of servers we have an ongoing connection with
-        self.interfaces = {}
+        # Set of servers we have an ongoing connection with.
+        # For any ServerAddr, at most one corresponding Interface object
+        # can exist at any given time. Depending on the state of that Interface,
+        # the ServerAddr can be found in one of the following sets.
+        # Note: during a transition, the ServerAddr can appear in two sets momentarily.
+        self._connecting_ifaces = set()
+        self.interfaces = {}  # these are the ifaces in "initialised and usable" state
+        self._closing_ifaces = set()
+
         self.auto_connect = self.config.get('auto_connect', True)
-        self._connecting = set()
         self.proxy = None
         self._maybe_set_oneserver()
 
@@ -335,6 +343,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self._has_ever_managed_to_connect_to_server = False
 
         # lightning network
+        self.channel_blacklist = ChannelBlackList()
         self.channel_db = None  # type: Optional[ChannelDB]
         self.lngossip = None  # type: Optional[LNGossip]
         self.local_watchtower = None  # type: Optional[WatchTower]
@@ -351,22 +360,25 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     def has_channel_db(self):
         return self.channel_db is not None
 
-    def init_channel_db(self):
-        if self.channel_db is None:
-            from . import lnrouter
-            from . import channel_db
+    def start_gossip(self):
+        from . import lnrouter
+        from . import channel_db
+        from . import lnworker
+        if not self.config.get('use_gossip'):
+            return
+        if self.lngossip is None:
             self.channel_db = channel_db.ChannelDB(self)
             self.path_finder = lnrouter.LNPathFinder(self.channel_db)
             self.channel_db.load_data()
-
-    def start_gossip(self):
-        if self.lngossip is None:
-            from . import lnworker
             self.lngossip = lnworker.LNGossip()
             self.lngossip.start_network(self)
 
     def stop_gossip(self):
-        self.lngossip.stop()
+        if self.lngossip:
+            self.lngossip.stop()
+            self.lngossip = None
+            self.channel_db.stop()
+            self.channel_db = None
 
     def run_from_another_thread(self, coro, *, timeout=None):
         assert self._loop_thread != threading.current_thread(), 'must not be called from network thread'
@@ -520,7 +532,9 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         e = self.get_fee_estimates()
         for nblock_target, fee in e.items():
             self.config.update_fee_estimates(nblock_target, fee)
-        self.logger.info(f'fee_estimates {e}')
+        if not hasattr(self, "_prev_fee_est") or self._prev_fee_est != e:
+            self._prev_fee_est = copy.copy(e)
+            self.logger.info(f'fee_estimates {e}')
         self.notify('fee')
 
     @with_recent_servers_lock
@@ -550,7 +564,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     def _get_next_server_to_try(self) -> Optional[ServerAddr]:
         now = time.time()
         with self.interfaces_lock:
-            connected_servers = set(self.interfaces) | self._connecting
+            connected_servers = set(self.interfaces) | self._connecting_ifaces | self._closing_ifaces
         # First try from recent servers. (which are persisted)
         # As these are servers we successfully connected to recently, they are
         # most likely to work. This also makes servers "sticky".
@@ -679,13 +693,9 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
         # Stop any current interface in order to terminate subscriptions,
         # and to cancel tasks in interface.taskgroup.
-        # However, for headers sub, give preference to this interface
-        # over unknown ones, i.e. start it again right away.
         if old_server and old_server != server:
             # don't wait for old_interface to close as that might be slow:
             await self.taskgroup.spawn(self._close_interface(old_interface))
-            if len(self.interfaces) <= self.num_server:
-                await self.taskgroup.spawn(self._run_new_interface(old_server))
 
         if server not in self.interfaces:
             self.interface = None
@@ -707,15 +717,23 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             if blockchain_updated:
                 util.trigger_callback('blockchain_updated')
 
-    async def _close_interface(self, interface: Interface):
-        if interface:
-            with self.interfaces_lock:
-                if self.interfaces.get(interface.server) == interface:
-                    self.interfaces.pop(interface.server)
-            if interface == self.interface:
-                self.interface = None
+    async def _close_interface(self, interface: Optional[Interface]):
+        if not interface:
+            return
+        if interface.server in self._closing_ifaces:
+            return
+        self._closing_ifaces.add(interface.server)
+        with self.interfaces_lock:
+            if self.interfaces.get(interface.server) == interface:
+                self.interfaces.pop(interface.server)
+        if interface == self.interface:
+            self.interface = None
+        try:
             # this can take some time if server/connection is slow:
             await interface.close()
+            await interface.got_disconnected.wait()
+        finally:
+            self._closing_ifaces.discard(interface.server)
 
     @with_recent_servers_lock
     def _add_recent_server(self, server: ServerAddr) -> None:
@@ -731,8 +749,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         '''A connection to server either went down, or was never made.
         We distinguish by whether it is in self.interfaces.'''
         if not interface: return
-        # note: don't rely on interface.server for comparisons here
-        if interface == self.interface:
+        if interface.server == self.default_server:
             self._set_status('disconnected')
         await self._close_interface(interface)
         util.trigger_callback('network_updated')
@@ -747,9 +764,11 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     @ignore_exceptions  # do not kill outer taskgroup
     @log_exceptions
     async def _run_new_interface(self, server: ServerAddr):
-        if server in self.interfaces or server in self._connecting:
+        if (server in self.interfaces
+                or server in self._connecting_ifaces
+                or server in self._closing_ifaces):
             return
-        self._connecting.add(server)
+        self._connecting_ifaces.add(server)
         if server == self.default_server:
             self.logger.info(f"connecting to {server} as new interface")
             self._set_status('connecting')
@@ -769,8 +788,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 assert server not in self.interfaces
                 self.interfaces[server] = interface
         finally:
-            try: self._connecting.remove(server)
-            except KeyError: pass
+            self._connecting_ifaces.discard(server)
 
         if server == self.default_server:
             await self.switch_to_interface(server)
@@ -819,20 +837,20 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 assert iface.ready.done(), "interface not ready yet"
                 # try actual request
                 success_fut = asyncio.ensure_future(func(self, *args, **kwargs))
-                await asyncio.wait([success_fut, iface.got_disconnected], return_when=asyncio.FIRST_COMPLETED)
+                await asyncio.wait([success_fut, iface.got_disconnected.wait()], return_when=asyncio.FIRST_COMPLETED)
                 if success_fut.done() and not success_fut.cancelled():
                     if success_fut.exception():
                         try:
                             raise success_fut.exception()
                         except RequestTimedOut:
                             await iface.close()
-                            await iface.got_disconnected
+                            await iface.got_disconnected.wait()
                             continue  # try again
                         except RequestCorrupted as e:
                             # TODO ban server?
                             iface.logger.exception(f"RequestCorrupted: {e}")
                             await iface.close()
-                            await iface.got_disconnected
+                            await iface.got_disconnected.wait()
                             continue  # try again
                     return success_fut.result()
                 # otherwise; try again
@@ -887,23 +905,28 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         # server_msg is untrusted input so it should not be shown to the user. see #4968
         server_msg = str(server_msg)
         server_msg = server_msg.replace("\n", r"\n")
-        # https://github.com/bitcoin/bitcoin/blob/cd42553b1178a48a16017eff0b70669c84c3895c/src/policy/policy.cpp
+        # https://github.com/bitcoin/bitcoin/blob/5bb64acd9d3ced6e6f95df282a1a0f8b98522cb0/src/policy/policy.cpp
         # grep "reason ="
         policy_error_messages = {
             r"version": _("Transaction uses non-standard version."),
             r"tx-size": _("The transaction was rejected because it is too large (in bytes)."),
             r"scriptsig-size": None,
             r"scriptsig-not-pushonly": None,
-            r"scriptpubkey": None,
+            r"scriptpubkey":
+                ("scriptpubkey\n" +
+                 _("Some of the outputs pay to a non-standard script.")),
             r"bare-multisig": None,
-            r"dust": _("Transaction could not be broadcast due to dust outputs."),
+            r"dust":
+                (_("Transaction could not be broadcast due to dust outputs.\n"
+                   "Some of the outputs are too small in value, probably lower than 1000 satoshis.\n"
+                   "Check the units, make sure you haven't confused e.g. mBTC and BTC.")),
             r"multi-op-return": _("The transaction was rejected because it contains multiple OP_RETURN outputs."),
         }
         for substring in policy_error_messages:
             if substring in server_msg:
                 msg = policy_error_messages[substring]
                 return msg if msg else substring
-        # https://github.com/bitcoin/bitcoin/blob/cd42553b1178a48a16017eff0b70669c84c3895c/src/script/script_error.cpp
+        # https://github.com/bitcoin/bitcoin/blob/5bb64acd9d3ced6e6f95df282a1a0f8b98522cb0/src/script/script_error.cpp
         script_error_messages = {
             r"Script evaluated without error but finished with a false/empty top stack element",
             r"Script failed an OP_VERIFY operation",
@@ -935,7 +958,11 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             r"Signature must be zero for failed CHECK(MULTI)SIG operation",
             r"NOPx reserved for soft-fork upgrades",
             r"Witness version reserved for soft-fork upgrades",
+            r"Taproot version reserved for soft-fork upgrades",
+            r"OP_SUCCESSx reserved for soft-fork upgrades",
+            r"Public key version reserved for soft-fork upgrades",
             r"Public key is neither compressed or uncompressed",
+            r"Stack size must be exactly one after execution",
             r"Extra items left on stack after execution",
             r"Witness program has incorrect length",
             r"Witness program was passed an empty witness",
@@ -944,78 +971,104 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             r"Witness requires only-redeemscript scriptSig",
             r"Witness provided for non-witness script",
             r"Using non-compressed keys in segwit",
+            r"Invalid Schnorr signature size",
+            r"Invalid Schnorr signature hash type",
+            r"Invalid Schnorr signature",
+            r"Invalid Taproot control block size",
+            r"Too much signature validation relative to witness weight",
+            r"OP_CHECKMULTISIG(VERIFY) is not available in tapscript",
+            r"OP_IF/NOTIF argument must be minimal in tapscript",
             r"Using OP_CODESEPARATOR in non-witness script",
             r"Signature is found in scriptCode",
         }
         for substring in script_error_messages:
             if substring in server_msg:
                 return substring
-        # https://github.com/bitcoin/bitcoin/blob/cd42553b1178a48a16017eff0b70669c84c3895c/src/validation.cpp
+        # https://github.com/bitcoin/bitcoin/blob/5bb64acd9d3ced6e6f95df282a1a0f8b98522cb0/src/validation.cpp
         # grep "REJECT_"
+        # grep "TxValidationResult"
         # should come after script_error.cpp (due to e.g. non-mandatory-script-verify-flag)
         validation_error_messages = {
-            r"coinbase",
-            r"tx-size-small",
-            r"non-final",
-            r"txn-already-in-mempool",
-            r"txn-mempool-conflict",
-            r"txn-already-known",
-            r"non-BIP68-final",
-            r"bad-txns-nonstandard-inputs",
-            r"bad-witness-nonstandard",
-            r"bad-txns-too-many-sigops",
-            r"mempool min fee not met",
-            r"min relay fee not met",
-            r"absurdly-high-fee",
-            r"too-long-mempool-chain",
-            r"bad-txns-spends-conflicting-tx",
-            r"insufficient fee",
-            r"too many potential replacements",
-            r"replacement-adds-unconfirmed",
-            r"mempool full",
-            r"non-mandatory-script-verify-flag",
-            r"mandatory-script-verify-flag-failed",
+            r"coinbase": None,
+            r"tx-size-small": None,
+            r"non-final": None,
+            r"txn-already-in-mempool": None,
+            r"txn-mempool-conflict": None,
+            r"txn-already-known": None,
+            r"non-BIP68-final": None,
+            r"bad-txns-nonstandard-inputs": None,
+            r"bad-witness-nonstandard": None,
+            r"bad-txns-too-many-sigops": None,
+            r"mempool min fee not met":
+                ("mempool min fee not met\n" +
+                 _("Your transaction is paying a fee that is so low that the bitcoin node cannot "
+                   "fit it into its mempool. The mempool is already full of hundreds of megabytes "
+                   "of transactions that all pay higher fees. Try to increase the fee.")),
+            r"min relay fee not met": None,
+            r"absurdly-high-fee": None,
+            r"max-fee-exceeded": None,
+            r"too-long-mempool-chain": None,
+            r"bad-txns-spends-conflicting-tx": None,
+            r"insufficient fee": ("insufficient fee\n" +
+                 _("Your transaction is trying to replace another one in the mempool but it "
+                   "does not meet the rules to do so. Try to increase the fee.")),
+            r"too many potential replacements": None,
+            r"replacement-adds-unconfirmed": None,
+            r"mempool full": None,
+            r"non-mandatory-script-verify-flag": None,
+            r"mandatory-script-verify-flag-failed": None,
+            r"Transaction check failed": None,
         }
         for substring in validation_error_messages:
             if substring in server_msg:
-                return substring
-        # https://github.com/bitcoin/bitcoin/blob/cd42553b1178a48a16017eff0b70669c84c3895c/src/rpc/rawtransaction.cpp
+                msg = validation_error_messages[substring]
+                return msg if msg else substring
+        # https://github.com/bitcoin/bitcoin/blob/5bb64acd9d3ced6e6f95df282a1a0f8b98522cb0/src/rpc/rawtransaction.cpp
+        # https://github.com/bitcoin/bitcoin/blob/5bb64acd9d3ced6e6f95df282a1a0f8b98522cb0/src/util/error.cpp
         # grep "RPC_TRANSACTION"
         # grep "RPC_DESERIALIZATION_ERROR"
-        # https://github.com/bitcoin/bitcoin/blob/d7d7d315060620446bd363ca50f95f79d3260db7/src/util/error.cpp
         rawtransaction_error_messages = {
-            r"Missing inputs",
-            r"transaction already in block chain",
-            r"Transaction already in block chain",
-            r"TX decode failed",
-            r"Peer-to-peer functionality missing or disabled",
-            r"Transaction rejected by AcceptToMemoryPool",
-            r"AcceptToMemoryPool failed",
+            r"Missing inputs": None,
+            r"Inputs missing or spent": None,
+            r"transaction already in block chain": None,
+            r"Transaction already in block chain": None,
+            r"TX decode failed": None,
+            r"Peer-to-peer functionality missing or disabled": None,
+            r"Transaction rejected by AcceptToMemoryPool": None,
+            r"AcceptToMemoryPool failed": None,
+            r"Fee exceeds maximum configured by user": None,
         }
         for substring in rawtransaction_error_messages:
             if substring in server_msg:
-                return substring
-        # https://github.com/bitcoin/bitcoin/blob/cd42553b1178a48a16017eff0b70669c84c3895c/src/consensus/tx_verify.cpp
+                msg = rawtransaction_error_messages[substring]
+                return msg if msg else substring
+        # https://github.com/bitcoin/bitcoin/blob/5bb64acd9d3ced6e6f95df282a1a0f8b98522cb0/src/consensus/tx_verify.cpp
+        # https://github.com/bitcoin/bitcoin/blob/c7ad94428ab6f54661d7a5441e1fdd0ebf034903/src/consensus/tx_check.cpp
         # grep "REJECT_"
+        # grep "TxValidationResult"
         tx_verify_error_messages = {
-            r"bad-txns-vin-empty",
-            r"bad-txns-vout-empty",
-            r"bad-txns-oversize",
-            r"bad-txns-vout-negative",
-            r"bad-txns-vout-toolarge",
-            r"bad-txns-txouttotal-toolarge",
-            r"bad-txns-inputs-duplicate",
-            r"bad-cb-length",
-            r"bad-txns-prevout-null",
-            r"bad-txns-inputs-missingorspent",
-            r"bad-txns-premature-spend-of-coinbase",
-            r"bad-txns-inputvalues-outofrange",
-            r"bad-txns-in-belowout",
-            r"bad-txns-fee-outofrange",
+            r"bad-txns-vin-empty": None,
+            r"bad-txns-vout-empty": None,
+            r"bad-txns-oversize": None,
+            r"bad-txns-vout-negative": None,
+            r"bad-txns-vout-toolarge": None,
+            r"bad-txns-txouttotal-toolarge": None,
+            r"bad-txns-inputs-duplicate": None,
+            r"bad-cb-length": None,
+            r"bad-txns-prevout-null": None,
+            r"bad-txns-inputs-missingorspent":
+                ("bad-txns-inputs-missingorspent\n" +
+                 _("You might have a local transaction in your wallet that this transaction "
+                   "builds on top. You need to either broadcast or remove the local tx.")),
+            r"bad-txns-premature-spend-of-coinbase": None,
+            r"bad-txns-inputvalues-outofrange": None,
+            r"bad-txns-in-belowout": None,
+            r"bad-txns-fee-outofrange": None,
         }
         for substring in tx_verify_error_messages:
             if substring in server_msg:
-                return substring
+                msg = tx_verify_error_messages[substring]
+                return msg if msg else substring
         # otherwise:
         return _("Unknown error")
 
@@ -1128,7 +1181,8 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         assert not self.taskgroup
         self.taskgroup = taskgroup = SilentTaskGroup()
         assert not self.interface and not self.interfaces
-        assert not self._connecting
+        assert not self._connecting_ifaces
+        assert not self._closing_ifaces
         self.logger.info('starting network')
         self._clear_addr_retry_times()
         self._set_proxy(deserialize_proxy(self.config.get('proxy')))
@@ -1166,13 +1220,15 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     async def _stop(self, full_shutdown=False):
         self.logger.info("stopping network")
         try:
+            # note: cancel_remaining ~cannot be cancelled, it suppresses CancelledError
             await asyncio.wait_for(self.taskgroup.cancel_remaining(), timeout=2)
         except (asyncio.TimeoutError, asyncio.CancelledError) as e:
             self.logger.info(f"exc during main_taskgroup cancellation: {repr(e)}")
         self.taskgroup = None
         self.interface = None
         self.interfaces = {}
-        self._connecting.clear()
+        self._connecting_ifaces.clear()
+        self._closing_ifaces.clear()
         if not full_shutdown:
             util.trigger_callback('network_updated')
 
@@ -1196,7 +1252,8 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     async def _maintain_sessions(self):
         async def maybe_start_new_interfaces():
-            for i in range(self.num_server - len(self.interfaces) - len(self._connecting)):
+            num_existing_ifaces = len(self.interfaces) + len(self._connecting_ifaces) + len(self._closing_ifaces)
+            for i in range(self.num_server - num_existing_ifaces):
                 # FIXME this should try to honour "healthy spread of connected servers"
                 server = self._get_next_server_to_try()
                 if server:
