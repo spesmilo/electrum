@@ -1460,7 +1460,7 @@ class Peer(Logger):
                 self.lnworker.trampoline_forwarding_failures[payment_hash] = e
             except PaymentFailure as e:
                 # FIXME: adapt the error code
-                error_reason = OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT, data=b'')
+                error_reason = OnionRoutingFailure(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
                 self.lnworker.trampoline_forwarding_failures[payment_hash] = error_reason
 
         asyncio.ensure_future(forward_trampoline_payment())
