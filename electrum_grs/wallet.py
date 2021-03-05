@@ -2489,7 +2489,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         elif feerate > FEERATE_WARNING_HIGH_FEE / 1000:
             long_warning = (
                     _('Warning') + ': ' + _("The fee for this transaction seems unusually high.")
-                    + f'\n(feerate: {feerate:.2f} sat/byte)')
+                    + f'\n(feerate: {feerate:.2f} gro/byte)')
             short_warning = _("high fee rate") + "!"
         if long_warning is None:
             return None

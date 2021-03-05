@@ -911,7 +911,7 @@ class Transaction:
 
     @classmethod
     def satperbyte_from_satperkw(cls, feerate_kw):
-        """Converts feerate from sat/kw to sat/vbyte."""
+        """Converts feerate from sat/kw to gro/vbyte."""
         return feerate_kw * 4 / 1000
 
     def estimated_total_size(self):

@@ -12,9 +12,9 @@ from electrum_grs.lnutil import LOCAL, REMOTE, format_short_channel_id
 from electrum_grs.lnchannel import AbstractChannel, Channel
 from electrum_grs.gui.kivy.i18n import _
 from .question import Question
-from electrum.transaction import PartialTxOutput, Transaction
-from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, format_fee_satoshis, quantize_feerate
-from electrum.lnutil import ln_dummy_address
+from electrum_grs.transaction import PartialTxOutput, Transaction
+from electrum_grs.util import NotEnoughFunds, NoDynamicFeeEstimates, format_fee_satoshis, quantize_feerate
+from electrum_grs.lnutil import ln_dummy_address
 
 if TYPE_CHECKING:
     from ...main_window import ElectrumWindow
@@ -659,15 +659,15 @@ class SwapDialog(Factory.Popup):
 
         s = 's' if eta > 1 else ''
         if eta > RECOMMEND_BLOCKS_SWAP or eta == -1:
-            msg = f'Warning: Your fee rate of {fee_per_b} sat/B may be too ' \
+            msg = f'Warning: Your fee rate of {fee_per_b} gro/B may be too ' \
                   f'low for the swap to succeed before its timeout. ' \
                   f'The recommended fee rate is at least {suggest_fee_per_b} ' \
-                  f'sat/B.'
+                  f'gro/B.'
         else:
             msg = f'Info: Your swap is estimated to be processed in {eta} ' \
-                  f'block{s} with an onchain fee rate of {fee_per_b} sat/B.'
+                  f'block{s} with an onchain fee rate of {fee_per_b} gro/B.'
 
-        self.fee_rate_text = f'{fee_per_b} sat/B'
+        self.fee_rate_text = f'{fee_per_b} gro/B'
         self.ids.fee_estimate.text = msg
 
     def update_tx(self, onchain_amount: Union[int, str]):
