@@ -1536,13 +1536,14 @@ class Peer(Logger):
             # TODO fail here if invoice has set PAYMENT_SECRET_REQ
             payment_secret_from_onion = None
 
-        mpp_status = self.lnworker.add_received_htlc(chan.short_channel_id, htlc, total_msat)
-        if mpp_status is None:
-            return None, None
-        if mpp_status is False:
-            log_fail_reason(f"MPP_TIMEOUT")
-            raise OnionRoutingFailure(code=OnionFailureCode.MPP_TIMEOUT, data=b'')
-        assert mpp_status is True
+        if total_msat > amt_to_forward:
+            mpp_status = self.lnworker.add_received_htlc(payment_secret_from_onion, chan.short_channel_id, htlc, total_msat)
+            if mpp_status is None:
+                return None, None
+            if mpp_status is False:
+                log_fail_reason(f"MPP_TIMEOUT")
+                raise OnionRoutingFailure(code=OnionFailureCode.MPP_TIMEOUT, data=b'')
+            assert mpp_status is True
 
         # if there is a trampoline_onion, maybe_fulfill_htlc will be called again
         if processed_onion.trampoline_onion_packet:
