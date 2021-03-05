@@ -373,7 +373,7 @@ class ChannelsList(MyTreeView):
                 remote_nodeid.repaint()  # macOS hack for #6269
             suggest_button.clicked.connect(on_suggest)
         else:
-            from electrum.lnworker import hardcoded_trampoline_nodes
+            from electrum_grs.lnworker import hardcoded_trampoline_nodes
             trampolines = hardcoded_trampoline_nodes()
             trampoline_names = list(trampolines.keys())
             trampoline_combo = QComboBox()

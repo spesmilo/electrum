@@ -131,7 +131,7 @@ class LightningOpenChannelDialog(Factory.Popup, Logger):
         self.msg = msg
         self.use_gossip = bool(self.app.network.channel_db)
         if not self.use_gossip:
-            from electrum.lnworker import hardcoded_trampoline_nodes
+            from electrum_grs.lnworker import hardcoded_trampoline_nodes
             self.trampolines = hardcoded_trampoline_nodes()
             self.trampoline_names = list(self.trampolines.keys())
             self.trampoline_index = 0
