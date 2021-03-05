@@ -139,6 +139,8 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         self.sent_htlcs_routes = dict()
         self.sent_buckets = defaultdict(set)
         self.trampoline_forwarding_failures = {}
+        self.inflight_payments = set()
+        self.preimages = {}
 
     def get_invoice_status(self, key):
         pass
@@ -171,8 +173,6 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     def save_channel(self, chan):
         print("Ignoring channel save")
 
-    inflight_payments = set()
-    preimages = {}
     get_payments = LNWallet.get_payments
     get_payment_info = LNWallet.get_payment_info
     save_payment_info = LNWallet.save_payment_info
