@@ -74,9 +74,10 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
         self.add_queue = asyncio.Queue()
         self.status_queue = asyncio.Queue()
 
-    async def _start_tasks(self):
+    async def _run_tasks(self, *, taskgroup):
+        await super()._run_tasks(taskgroup=taskgroup)
         try:
-            async with self.taskgroup as group:
+            async with taskgroup as group:
                 await group.spawn(self.send_subscriptions())
                 await group.spawn(self.handle_status())
                 await group.spawn(self.main())
