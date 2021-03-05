@@ -53,25 +53,25 @@ TRAMPOLINE_FEES = [
 
 # hardcoded list
 # TODO for some pubkeys, there are multiple network addresses we could try
-#TRAMPOLINE_NODES_MAINNET = {
-#    'ACINQ': LNPeerAddr(host='34.239.230.56', port=9735, pubkey=bytes.fromhex('03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f')),
-#    'Electrum trampoline': LNPeerAddr(host='144.76.99.209', port=9740, pubkey=bytes.fromhex('03ecef675be448b615e6176424070673ef8284e0fd19d8be062a6cb5b130a0a0d1')),
-#}
-#TRAMPOLINE_NODES_TESTNET = {
-#    'endurance': LNPeerAddr(host='34.250.234.192', port=9735, pubkey=bytes.fromhex('03933884aaf1d6b108397e5efe5c86bcf2d8ca8d2f700eda99db9214fc2712b134')),
-#}
+TRAMPOLINE_NODES_MAINNET = {
+    'ACINQ': LNPeerAddr(host='34.239.230.56', port=9735, pubkey=bytes.fromhex('03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f')),
+    'Electrum trampoline': LNPeerAddr(host='144.76.99.209', port=9740, pubkey=bytes.fromhex('03ecef675be448b615e6176424070673ef8284e0fd19d8be062a6cb5b130a0a0d1')),
+}
+TRAMPOLINE_NODES_TESTNET = {
+    'endurance': LNPeerAddr(host='34.250.234.192', port=9735, pubkey=bytes.fromhex('03933884aaf1d6b108397e5efe5c86bcf2d8ca8d2f700eda99db9214fc2712b134')),
+}
 
-#def hardcoded_trampoline_nodes():
-#    if constants.net in (constants.BitcoinMainnet, ):
-#        return TRAMPOLINE_NODES_MAINNET
-#    if constants.net in (constants.BitcoinTestnet, ):
-#        return TRAMPOLINE_NODES_TESTNET
-#    return {}
+def hardcoded_trampoline_nodes():
+    if constants.net in (constants.BitcoinMainnet, ):
+        return TRAMPOLINE_NODES_MAINNET
+    if constants.net in (constants.BitcoinTestnet, ):
+        return TRAMPOLINE_NODES_TESTNET
+    return {}
 
-#def trampolines_by_id():
-#    return dict([(x.pubkey, x) for x in hardcoded_trampoline_nodes().values()])
+def trampolines_by_id():
+    return dict([(x.pubkey, x) for x in hardcoded_trampoline_nodes().values()])
 
-#is_hardcoded_trampoline = lambda node_id: node_id in trampolines_by_id().keys()
+is_hardcoded_trampoline = lambda node_id: node_id in trampolines_by_id().keys()
 
 def encode_routing_info(r_tags):
     result = bitstring.BitArray()
