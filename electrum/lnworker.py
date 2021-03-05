@@ -1084,6 +1084,7 @@ class LNWallet(LNWorker):
                         min_cltv_expiry=cltv_delta,
                         trampoline_onion=trampoline_onion)
                     amount_inflight += amount_msat
+                    assert amount_inflight <= amount_to_pay, f"amount_inflight {amount_inflight} > amount_to_pay {amount_to_pay}"
                 util.trigger_callback('invoice_status', self.wallet, payment_hash.hex())
             # 3. await a queue
             htlc_log = await self.sent_htlcs[payment_hash].get()
