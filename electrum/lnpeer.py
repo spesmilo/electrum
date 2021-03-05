@@ -529,6 +529,10 @@ class Peer(Logger):
             static_remotekey = None
         dust_limit_sat = bitcoin.DUST_LIMIT_DEFAULT_SAT_LEGACY
         reserve_sat = max(funding_sat // 100, dust_limit_sat)
+        # for comparison of defaults, see
+        # https://github.com/ACINQ/eclair/blob/afa378fbb73c265da44856b4ad0f2128a88ae6c6/eclair-core/src/main/resources/reference.conf#L66
+        # https://github.com/ElementsProject/lightning/blob/0056dd75572a8857cff36fcbdb1a2295a1ac9253/lightningd/options.c#L657
+        # https://github.com/lightningnetwork/lnd/blob/56b61078c5b2be007d318673a5f3b40c6346883a/config.go#L81
         local_config = LocalConfig.from_seed(
             channel_seed=channel_seed,
             static_remotekey=static_remotekey,
@@ -536,7 +540,7 @@ class Peer(Logger):
             to_self_delay=self.network.config.get('lightning_to_self_delay', 7 * 144),
             dust_limit_sat=dust_limit_sat,
             max_htlc_value_in_flight_msat=funding_sat * 1000,
-            max_accepted_htlcs=5,
+            max_accepted_htlcs=30,
             initial_msat=initial_msat,
             reserve_sat=reserve_sat,
             funding_locked_received=False,
