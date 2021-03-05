@@ -763,7 +763,7 @@ class TestPeer(ElectrumTestCase):
         graph.w_a.network.channel_db.stop()
         graph.w_a.network.channel_db = None
         # Note: first attempt will fail with insufficient trampoline fee
-        self._test_multipart_payment(graph, attempts=2)
+        self._test_multipart_payment(graph, attempts=3)
 
     @needs_test_with_all_chacha20_implementations
     def test_close(self):
