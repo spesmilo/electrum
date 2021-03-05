@@ -54,11 +54,15 @@ TRAMPOLINE_FEES = [
 # hardcoded list
 # TODO for some pubkeys, there are multiple network addresses we could try
 TRAMPOLINE_NODES_MAINNET = {
-    'ACINQ': LNPeerAddr(host='34.239.230.56', port=9735, pubkey=bytes.fromhex('03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f')),
-    'Electrum trampoline': LNPeerAddr(host='144.76.99.209', port=9740, pubkey=bytes.fromhex('03ecef675be448b615e6176424070673ef8284e0fd19d8be062a6cb5b130a0a0d1')),
+    'grspay': LNPeerAddr(host='104.236.133.196', port=9735, pubkey=bytes.fromhex('02c0ef8fad8a9d3176424826367a7f9470feb2ad86fa4634d9454190eda876d0ad')),
+    'lnmainnet': LNPeerAddr(host='104.236.130.222', port=9735, pubkey=bytes.fromhex('0221af9e2a67c90ffac37db331ab847439509465d599933d4b9b20352ae493c1c1')),
+    'lndhub': LNPeerAddr(host='104.236.14.225', port=9735, pubkey=bytes.fromhex('02cfc4c212e4183ca8bd8bd21e18996603f69706553d5f4e1464fdc6cb612b433b')),
+    'swaps': LNPeerAddr(host='104.236.15.120', port=9735, pubkey=bytes.fromhex('02f31ea82a5c07387abec0274b457db35355ef874e21bb2fdc4f4abb3f5d0d82ce')),
 }
 TRAMPOLINE_NODES_TESTNET = {
-    'endurance': LNPeerAddr(host='34.250.234.192', port=9735, pubkey=bytes.fromhex('03933884aaf1d6b108397e5efe5c86bcf2d8ca8d2f700eda99db9214fc2712b134')),
+    'grspay testnet': LNPeerAddr(host='95.179.140.39', port=9735, pubkey=bytes.fromhex('0384dee0ec597a7b8235ccf56c68ffa0af5dae72b3455aa3ecb81c4fc4eef9ef2c')),
+    'lntestnet': LNPeerAddr(host='45.32.236.128', port=9735, pubkey=bytes.fromhex('02435dea09ad875c36c88f680845277245e7e8bdd28b3bb20470e82e4de0c3cb09')),
+    'testnet swaps': LNPeerAddr(host='78.141.220.223', port=9735, pubkey=bytes.fromhex('025da2bb1df5afad0f31680414755800d13eb382423ad59e984d93c68c1ea78542')),
 }
 
 def hardcoded_trampoline_nodes():
