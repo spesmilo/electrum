@@ -1891,7 +1891,7 @@ class Peer(Logger):
                     preimage = self.lnworker.get_preimage(payment_hash)
                     error_reason = self.lnworker.trampoline_forwarding_failures.pop(payment_hash, None)
                     if error_reason:
-                        self.logger.info(f'trampoline forwarding failure {error_reason}')
+                        self.logger.info(f'trampoline forwarding failure: {error_reason.code_name()}')
                         raise error_reason
 
         elif not forwarding_info:
