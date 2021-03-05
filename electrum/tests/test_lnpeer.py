@@ -117,9 +117,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         NetworkRetryManager.__init__(self, max_retry_delay_normal=1, init_retry_delay_normal=1)
         self.node_keypair = local_keypair
         self.network = MockNetwork(tx_queue)
-        self.channel_db = self.network.channel_db
-        self._channels = {chan.channel_id: chan
-                          for chan in chans}
+        self._channels = {chan.channel_id: chan for chan in chans}
         self.payments = {}
         self.logs = defaultdict(list)
         self.wallet = MockWallet()
@@ -128,6 +126,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         self.features |= LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT
         self.features |= LnFeatures.VAR_ONION_OPT
         self.features |= LnFeatures.PAYMENT_SECRET_OPT
+        self.features |= LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT
         self.pending_payments = defaultdict(asyncio.Future)
         for chan in chans:
             chan.lnworker = self
@@ -139,6 +138,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         self.sent_htlcs = defaultdict(asyncio.Queue)
         self.sent_htlcs_routes = dict()
         self.sent_buckets = defaultdict(set)
+        self.trampoline_forwarding_failures = {}
 
     def get_invoice_status(self, key):
         pass
@@ -146,6 +146,10 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     @property
     def lock(self):
         return noop_lock()
+
+    @property
+    def channel_db(self):
+        return self.network.channel_db if self.network else None
 
     @property
     def channels(self):
@@ -195,6 +199,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     channels_for_peer = LNWallet.channels_for_peer
     _calc_routing_hints_for_invoice = LNWallet._calc_routing_hints_for_invoice
     handle_error_code_from_failed_htlc = LNWallet.handle_error_code_from_failed_htlc
+    is_trampoline_peer = LNWallet.is_trampoline_peer
 
 
 class MockTransport:
@@ -406,6 +411,11 @@ class TestPeer(ElectrumTestCase):
             routing_hints = await w2._calc_routing_hints_for_invoice(amount_msat)
         else:
             routing_hints = []
+        trampoline_hints = []
+        for r in routing_hints:
+            node_id, short_channel_id, fee_base_msat, fee_proportional_millionths, cltv_expiry_delta = r[1][0]
+            if len(r[1])== 1 and w2.is_trampoline_peer(node_id):
+                trampoline_hints.append(('t', (node_id, fee_base_msat, fee_proportional_millionths, cltv_expiry_delta)))
         invoice_features = w2.features.for_invoice()
         if invoice_features.supports(LnFeatures.PAYMENT_SECRET_OPT):
             payment_secret = derive_payment_secret_from_payment_preimage(payment_preimage)
@@ -417,7 +427,7 @@ class TestPeer(ElectrumTestCase):
                     tags=[('c', lnutil.MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE),
                           ('d', 'coffee'),
                           ('9', invoice_features),
-                         ] + routing_hints,
+                         ] + routing_hints + trampoline_hints,
                     payment_secret=payment_secret,
         )
         return lnencode(lnaddr, w2.node_keypair.privkey)
@@ -716,16 +726,14 @@ class TestPeer(ElectrumTestCase):
         with self.assertRaises(PaymentDone):
             run(f())
 
-    @needs_test_with_all_chacha20_implementations
-    def test_multipart_payment(self):
-        graph = self.prepare_chans_and_peers_in_square()
+    def _test_multipart_payment(self, graph, *, attempts):
         self.assertEqual(500_000_000_000, graph.chan_ab.balance(LOCAL))
         self.assertEqual(500_000_000_000, graph.chan_ac.balance(LOCAL))
         amount_to_pay = 600_000_000_000
         peers = graph.all_peers()
         async def pay():
             pay_req = await self.prepare_invoice(graph.w_d, include_routing_hints=True, amount_msat=amount_to_pay)
-            result, log = await graph.w_a.pay_invoice(pay_req, attempts=1)
+            result, log = await graph.w_a.pay_invoice(pay_req, attempts=attempts)
             if result:
                 raise PaymentDone()
             else:
@@ -743,6 +751,19 @@ class TestPeer(ElectrumTestCase):
         graph.w_d.features |= LnFeatures.BASIC_MPP_OPT
         with self.assertRaises(PaymentDone):
             run(f())
+
+    @needs_test_with_all_chacha20_implementations
+    def test_multipart_payment(self):
+        graph = self.prepare_chans_and_peers_in_square()
+        self._test_multipart_payment(graph, attempts=1)
+
+    @needs_test_with_all_chacha20_implementations
+    def test_multipart_payment_with_trampoline(self):
+        graph = self.prepare_chans_and_peers_in_square()
+        graph.w_a.network.channel_db.stop()
+        graph.w_a.network.channel_db = None
+        # Note: first attempt will fail with insufficient trampoline fee
+        self._test_multipart_payment(graph, attempts=2)
 
     @needs_test_with_all_chacha20_implementations
     def test_close(self):
