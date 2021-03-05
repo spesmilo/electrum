@@ -93,10 +93,11 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
         asyncio.run_coroutine_threadsafe(self._add_address(addr), self.asyncio_loop)
 
     async def _add_address(self, addr: str):
+        # note: this method is async as add_queue.put_nowait is not thread-safe.
         if not is_address(addr): raise ValueError(f"invalid bitcoin address {addr}")
         if addr in self.requested_addrs: return
         self.requested_addrs.add(addr)
-        await self.add_queue.put(addr)
+        self.add_queue.put_nowait(addr)
 
     async def _on_address_status(self, addr, status):
         """Handle the change of the status of an address."""
