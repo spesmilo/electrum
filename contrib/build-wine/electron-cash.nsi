@@ -103,11 +103,44 @@
   !insertmacro MUI_LANGUAGE "English"
 
 ;--------------------------------
+;Functions
+
+!macro CreateEnsureNotRunning prefix operation
+
+Function ${prefix}EnsureNotRunning
+  Pop $R0
+  IfFileExists "$R0\${INTERNAL_NAME}.exe" 0 noexe
+    ; Check if we can append to the .exe file. If we can't that means it is still running.
+    retryopen:
+    FileOpen $0 "$R0\${INTERNAL_NAME}.exe" a
+    IfErrors 0 closeexe
+      MessageBox MB_RETRYCANCEL "Can not ${operation} because ${PRODUCT_NAME} is still running. Close it and retry." /SD IDCANCEL IDRETRY retryopen
+      Abort
+    closeexe:
+    FileClose $0
+  noexe:
+FunctionEnd
+
+!macroend
+
+; The function has to be created twice, once for the installer and once for the uninstaller
+!insertmacro CreateEnsureNotRunning "" "install"
+!insertmacro CreateEnsureNotRunning "un." "uninstall"
+
+;--------------------------------
 ;Installer Sections
 
 ;Check if we have Administrator rights
 Function .onInit
   !insertmacro UNINSTALL.LOG_PREPARE_INSTALL
+
+  ; Check if already installed and ensure the process is not running if it is
+  ReadRegStr $R0 ${INSTDIR_REG_ROOT} "${INSTDIR_REG_KEY}" "UninstallDirectory"
+  IfErrors noinstdir 0
+    Push $R0
+    Call EnsureNotRunning
+  noinstdir:
+  ClearErrors
 
   ; Request uninstallation of an old Electron Cash installation
   ReadRegStr $R0 ${INSTDIR_REG_ROOT} "${INSTDIR_REG_KEY}" UninstallString
@@ -215,5 +248,9 @@ Section "Uninstall"
 SectionEnd
 
 Function UN.onInit
+  ; Ensure the process is not running in the uninstallation directory
+  Push $INSTDIR
+  Call un.EnsureNotRunning
+
   !insertmacro UNINSTALL.LOG_BEGIN_UNINSTALL
 FunctionEnd
