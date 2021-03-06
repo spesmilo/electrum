@@ -114,7 +114,10 @@ Function .onInit
   ReadRegStr $R1 ${INSTDIR_REG_ROOT} "${INSTDIR_REG_KEY}" DisplayName
   ${If} $R0 != ""
   ${AndIf} ${Cmd} ${|} MessageBox MB_YESNO|MB_ICONEXCLAMATION "$R1 has already been installed. $\nDo you want to remove the previous version before installing $(^Name)?" /SD IDNO IDYES ${|}
-    ExecWait $R0
+    GetFullPathName $R1 "$R0\.."
+    ExecWait '$R0 _?=$R1'
+    IfErrors 0 +2
+      Abort
   ${EndIf}
 
   ; Check for administrator rights
