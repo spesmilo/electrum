@@ -1051,7 +1051,7 @@ class LNWallet(LNWorker):
         trampoline_fee_level = 0   # only used for trampoline payments
         use_two_trampolines = True # only used for pay to legacy
 
-        amount_inflight = 0 # what we sent in htlcs
+        amount_inflight = 0  # what we sent in htlcs (that receiver gets, without fees)
         while True:
             amount_to_send = amount_to_pay - amount_inflight
             if amount_to_send > 0:
@@ -1075,6 +1075,9 @@ class LNWallet(LNWorker):
                     fwd_trampoline_onion=fwd_trampoline_onion))
                 # 2. send htlcs
                 for route, amount_msat, total_msat, amount_receiver_msat, cltv_delta, bucket_payment_secret, trampoline_onion in routes:
+                    amount_inflight += amount_receiver_msat
+                    if amount_inflight > amount_to_pay:  # safety belts
+                        raise Exception(f"amount_inflight={amount_inflight} > amount_to_pay={amount_to_pay}")
                     await self.pay_to_route(
                         route=route,
                         amount_msat=amount_msat,
@@ -1084,14 +1087,13 @@ class LNWallet(LNWorker):
                         payment_secret=bucket_payment_secret,
                         min_cltv_expiry=cltv_delta,
                         trampoline_onion=trampoline_onion)
-                    amount_inflight += amount_receiver_msat
-                    assert amount_inflight <= amount_to_pay, f"amount_inflight {amount_inflight} > amount_to_pay {amount_to_pay}"
                 util.trigger_callback('invoice_status', self.wallet, payment_hash.hex())
             # 3. await a queue
             self.logger.info(f"amount inflight {amount_inflight}")
             htlc_log = await self.sent_htlcs[payment_hash].get()
             amount_inflight -= htlc_log.amount_msat
-            assert amount_inflight >= 0, f"amount_inflight={amount_inflight} < 0"
+            if amount_inflight < 0:
+                raise Exception(f"amount_inflight={amount_inflight} < 0")
             log.append(htlc_log)
             if htlc_log.success:
                 return
