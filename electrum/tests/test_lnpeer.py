@@ -529,11 +529,13 @@ class TestPeer(ElectrumTestCase):
             q2 = w2.sent_htlcs[lnaddr1.paymenthash]
             # alice sends htlc BUT NOT COMMITMENT_SIGNED
             p1.maybe_send_commitment = lambda x: None
-            route1, amount_msat1 = w1.create_routes_from_invoice(lnaddr2.get_amount_msat(), decoded_invoice=lnaddr2)[0][0:2]
+            route1 = w1.create_routes_from_invoice(lnaddr2.get_amount_msat(), decoded_invoice=lnaddr2)[0][0]
+            amount_msat = lnaddr2.get_amount_msat()
             await w1.pay_to_route(
                 route=route1,
-                amount_msat=lnaddr2.get_amount_msat(),
-                total_msat=lnaddr2.get_amount_msat(),
+                amount_msat=amount_msat,
+                total_msat=amount_msat,
+                amount_receiver_msat=amount_msat,
                 payment_hash=lnaddr2.paymenthash,
                 min_cltv_expiry=lnaddr2.get_min_final_cltv_expiry(),
                 payment_secret=lnaddr2.payment_secret,
@@ -541,11 +543,13 @@ class TestPeer(ElectrumTestCase):
             p1.maybe_send_commitment = _maybe_send_commitment1
             # bob sends htlc BUT NOT COMMITMENT_SIGNED
             p2.maybe_send_commitment = lambda x: None
-            route2, amount_msat2 = w2.create_routes_from_invoice(lnaddr1.get_amount_msat(), decoded_invoice=lnaddr1)[0][0:2]
+            route2 = w2.create_routes_from_invoice(lnaddr1.get_amount_msat(), decoded_invoice=lnaddr1)[0][0]
+            amount_msat = lnaddr1.get_amount_msat()
             await w2.pay_to_route(
                 route=route2,
-                amount_msat=lnaddr1.get_amount_msat(),
-                total_msat=lnaddr1.get_amount_msat(),
+                amount_msat=amount_msat,
+                total_msat=amount_msat,
+                amount_receiver_msat=amount_msat,
                 payment_hash=lnaddr1.paymenthash,
                 min_cltv_expiry=lnaddr1.get_min_final_cltv_expiry(),
                 payment_secret=lnaddr1.payment_secret,
@@ -897,6 +901,7 @@ class TestPeer(ElectrumTestCase):
                 route=route,
                 amount_msat=amount_msat,
                 total_msat=amount_msat,
+                amount_receiver_msat=amount_msat,
                 payment_hash=payment_hash,
                 payment_secret=payment_secret,
                 min_cltv_expiry=min_cltv_expiry)
