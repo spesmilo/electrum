@@ -37,14 +37,13 @@ version.filename = %(source.dir)s/electrum/version.py
 
 # (list) Application requirements
 requirements =
-    # note: re python3.8, see #6147
-    hostpython3==3.7.9,
-    python3==3.7.9,
+    hostpython3==3.8.8,
+    python3==3.8.8,
     android,
     openssl,
     plyer,
-    # kivy 1.11.1
-    kivy==39c17457bae91baf8fe710dc989791e45879f136,
+    # kivy 2.0.0
+    kivy==dedcb6bcabe3d8d6758dcee607e8c33b174d782b,
     libffi,
     libsecp256k1,
     cryptography
