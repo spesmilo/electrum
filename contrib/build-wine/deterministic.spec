@@ -10,8 +10,6 @@ for i, x in enumerate(sys.argv):
 else:
     raise Exception('no name')
 
-PYHOME = 'c:/python3'
-
 home = 'C:\\electrum\\'
 
 # see https://github.com/pyinstaller/pyinstaller/issues/2005

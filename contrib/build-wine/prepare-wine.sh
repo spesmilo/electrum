@@ -15,14 +15,6 @@ PYINSTALLER_COMMIT="80ee4d613ecf75a1226b960a560ee01459e65ddb"
 
 PYTHON_VERSION=3.8.7
 
-## These settings probably don't need change
-export WINEPREFIX=/opt/wine64
-export WINEDEBUG=-all
-
-PYTHON_FOLDER="python3"
-PYHOME="c:/$PYTHON_FOLDER"
-PYTHON="wine $PYHOME/python.exe -OO -B"
-
 
 # Let's begin!
 set -e
@@ -57,13 +49,13 @@ for msifile in core dev exe lib pip tools; do
     download_if_not_exist "$PYTHON_DOWNLOADS/${msifile}.msi" "https://www.python.org/ftp/python/$PYTHON_VERSION/$PYARCH/${msifile}.msi"
     download_if_not_exist "$PYTHON_DOWNLOADS/${msifile}.msi.asc" "https://www.python.org/ftp/python/$PYTHON_VERSION/$PYARCH/${msifile}.msi.asc"
     verify_signature "$PYTHON_DOWNLOADS/${msifile}.msi.asc" $KEYRING_PYTHON_DEV
-    wine msiexec /i "$PYTHON_DOWNLOADS/${msifile}.msi" /qb TARGETDIR=$PYHOME
+    wine msiexec /i "$PYTHON_DOWNLOADS/${msifile}.msi" /qb TARGETDIR=$WINE_PYHOME
 done
 
 break_legacy_easy_install
 
 info "Installing build dependencies."
-$PYTHON -m pip install --no-dependencies --no-warn-script-location \
+$WINE_PYTHON -m pip install --no-dependencies --no-warn-script-location \
     --cache-dir "$WINE_PIP_CACHE_DIR" -r "$CONTRIB"/deterministic-build/requirements-build-wine.txt
 
 info "Installing NSIS."
@@ -143,6 +135,6 @@ info "Building PyInstaller."
     fi
 ) || fail "PyInstaller build failed"
 info "Installing PyInstaller."
-$PYTHON -m pip install --no-dependencies --no-warn-script-location ./pyinstaller
+$WINE_PYTHON -m pip install --no-dependencies --no-warn-script-location ./pyinstaller
 
 info "Wine is configured."
