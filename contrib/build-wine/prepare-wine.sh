@@ -43,19 +43,19 @@ info "Installing Python."
 # keys from https://www.python.org/downloads/#pubkeys
 KEYRING_PYTHON_DEV="keyring-electrum-build-python-dev.gpg"
 gpg --no-default-keyring --keyring $KEYRING_PYTHON_DEV --import "$here"/gpg_keys/7ED10B6531D7C8E1BC296021FC624643487034E5.asc
-if [ "$GCC_TRIPLET_HOST" = "i686-w64-mingw32" ] ; then
-    ARCH="win32"
-elif [ "$GCC_TRIPLET_HOST" = "x86_64-w64-mingw32" ] ; then
-    ARCH="amd64"
+if [ "$WIN_ARCH" = "win32" ] ; then
+    PYARCH="win32"
+elif [ "$WIN_ARCH" = "win64" ] ; then
+    PYARCH="amd64"
 else
-    fail "unexpected GCC_TRIPLET_HOST: $GCC_TRIPLET_HOST"
+    fail "unexpected WIN_ARCH: $WIN_ARCH"
 fi
-PYTHON_DOWNLOADS="$CACHEDIR/python$PYTHON_VERSION-$ARCH"
+PYTHON_DOWNLOADS="$CACHEDIR/python$PYTHON_VERSION"
 mkdir -p "$PYTHON_DOWNLOADS"
 for msifile in core dev exe lib pip tools; do
     echo "Installing $msifile..."
-    download_if_not_exist "$PYTHON_DOWNLOADS/${msifile}.msi" "https://www.python.org/ftp/python/$PYTHON_VERSION/$ARCH/${msifile}.msi"
-    download_if_not_exist "$PYTHON_DOWNLOADS/${msifile}.msi.asc" "https://www.python.org/ftp/python/$PYTHON_VERSION/$ARCH/${msifile}.msi.asc"
+    download_if_not_exist "$PYTHON_DOWNLOADS/${msifile}.msi" "https://www.python.org/ftp/python/$PYTHON_VERSION/$PYARCH/${msifile}.msi"
+    download_if_not_exist "$PYTHON_DOWNLOADS/${msifile}.msi.asc" "https://www.python.org/ftp/python/$PYTHON_VERSION/$PYARCH/${msifile}.msi.asc"
     verify_signature "$PYTHON_DOWNLOADS/${msifile}.msi.asc" $KEYRING_PYTHON_DEV
     wine msiexec /i "$PYTHON_DOWNLOADS/${msifile}.msi" /qb TARGETDIR=$PYHOME
 done
@@ -102,8 +102,8 @@ cp "$CACHEDIR/libusb/libusb/.libs/libusb-1.0.dll" $WINEPREFIX/drive_c/tmp/  || f
 
 
 # copy already built DLLs
-cp "$PROJECT_ROOT/electrum/libsecp256k1-0.dll" $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libsecp to its destination"
-cp "$PROJECT_ROOT/electrum/libzbar-0.dll" $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libzbar to its destination"
+cp "$DLL_TARGET_DIR/libsecp256k1-0.dll" $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libsecp to its destination"
+cp "$DLL_TARGET_DIR/libzbar-0.dll" $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libzbar to its destination"
 
 
 info "Building PyInstaller."
@@ -136,12 +136,12 @@ info "Building PyInstaller."
                               -Wno-error=stringop-truncation"
     popd
     # sanity check bootloader is there:
-    if [ "$GCC_TRIPLET_HOST" = "i686-w64-mingw32" ] ; then
+    if [ "$WIN_ARCH" = "win32" ] ; then
         [[ -e PyInstaller/bootloader/Windows-32bit/runw.exe ]] || fail "Could not find runw.exe in target dir! (32bit)"
-    elif [ "$GCC_TRIPLET_HOST" = "x86_64-w64-mingw32" ] ; then
+    elif [ "$WIN_ARCH" = "win64" ] ; then
         [[ -e PyInstaller/bootloader/Windows-64bit/runw.exe ]] || fail "Could not find runw.exe in target dir! (64bit)"
     else
-        fail "unexpected GCC_TRIPLET_HOST: $GCC_TRIPLET_HOST"
+        fail "unexpected WIN_ARCH: $WIN_ARCH"
     fi
 ) || fail "PyInstaller build failed"
 info "Installing PyInstaller."
