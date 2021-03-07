@@ -24,6 +24,7 @@
 # SOFTWARE.
 
 import os
+import json
 import sys
 import copy
 import traceback
@@ -40,7 +41,8 @@ from .wallet import (Imported_Wallet, Standard_Wallet, Multisig_Wallet,
 from .storage import WalletStorage, StorageEncryptionVersion
 from .wallet_db import WalletDB
 from .i18n import _
-from .util import UserCancelled, InvalidPassword, WalletFileException, UserFacingException
+from .util import (UserCancelled, InvalidPassword, WalletFileException,
+                   UserFacingException, multisig_type)
 from .simple_config import SimpleConfig
 from .plugin import Plugins, HardwarePluginLibraryUnavailable
 from .logging import Logger
@@ -58,6 +60,9 @@ class ScriptTypeNotSupported(Exception): pass
 
 
 class GoBack(Exception): pass
+
+
+class SaveAndExit(Exception): pass
 
 
 class ReRunDialog(Exception): pass
@@ -94,6 +99,9 @@ class BaseWizard(Logger):
         self.keystores = []  # type: List[KeyStore]
         self.is_kivy = config.get('gui') == 'kivy'
         self.seed_type = None
+        self.unfinished_multisig = False
+        self.unfinished_enc_version = None
+        self.unfinished_check_password = None
 
     def set_icon(self, icon):
         pass
@@ -204,6 +212,7 @@ class BaseWizard(Logger):
         assert self.wallet_type in ['standard', 'multisig']
         i = len(self.keystores)
         title = _('Add cosigner') + ' (%d of %d)'%(i+1, self.n) if self.wallet_type=='multisig' else _('Keystore')
+        can_save = (self.wallet_type == 'multisig' and len(self.keystores))
         if self.wallet_type =='standard' or i==0:
             message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
             choices = [
@@ -222,7 +231,8 @@ class BaseWizard(Logger):
             if not self.is_kivy:
                 choices.append(('choose_hw_device',  _('Cosign with hardware device')))
 
-        self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
+        self.choice_dialog(title=title, message=message, choices=choices,
+                           run_next=self.run, can_save=can_save)
 
     def import_addresses_or_keys(self):
         v = lambda x: keystore.is_address_list(x) or keystore.is_private_key_list(x, raise_on_error=True)
@@ -558,6 +568,44 @@ class BaseWizard(Logger):
                 return xpub_type(ks.xpub)
         return None
 
+    def continue_multisig_setup(self, storage):
+        self.wallet_type = 'multisig'
+        storage_data = json.loads(storage.read())
+        self.data['wallet_type'] = wallet_type = storage_data['wallet_type']
+        m, n = multisig_type(wallet_type)
+        self.n = n
+
+        enc_version = storage.get_encryption_version()
+        self.unfinished_multisig = True
+        self.unfinished_enc_version = enc_version
+        if enc_version == StorageEncryptionVersion.USER_PASSWORD:
+            self.unfinished_check_password = storage.check_password
+
+        self.keystores = []
+        for i in range(1, n):
+            keystore_name = f'x{i}/'
+            if keystore_name not in storage_data:
+                continue
+            ki = keystore.load_keystore(storage_data, keystore_name)
+            self.data[keystore_name] = ki.dump()
+            self.keystores.append(ki)
+
+        self.continue_multisig_setup_dialog(m=m, n=n, keystores=self.keystores,
+                                            run_next=self.choose_keystore)
+
+    def check_need_confirm_password(self):
+        if self.unfinished_check_password is not None:
+            return True
+        for k in self.keystores:
+            if not k.may_have_password():
+                continue
+            try:
+                k.check_password(None)
+            except InvalidPassword:
+                if not self.unfinished_check_password:
+                    self.unfinished_check_password = k.check_password
+        return self.unfinished_check_password is not None
+
     def on_keystore(self, k: KeyStore):
         has_xpub = isinstance(k, keystore.Xpub)
         if has_xpub:
@@ -626,20 +674,39 @@ class BaseWizard(Logger):
         else:
             # reset stack to disable 'back' button in password dialog
             self.reset_stack()
-            # prompt the user to set an arbitrary password
-            self.request_password(
-                run_next=lambda password, encrypt_storage: self.on_password(
-                    password,
-                    encrypt_storage=encrypt_storage,
-                    storage_enc_version=StorageEncryptionVersion.USER_PASSWORD,
-                    encrypt_keystore=encrypt_keystore),
-                force_disable_encrypt_cb=not encrypt_keystore)
+            if self.check_need_confirm_password():
+                enc_version = self.unfinished_enc_version
+                if enc_version == StorageEncryptionVersion.USER_PASSWORD:
+                    encrypt_storage = True
+                else:
+                    encrypt_storage = False
+                # prompt the user to confirm wallet password
+                self.unfinished_confirm_password(
+                    run_next=lambda password: self.on_password(
+                        password,
+                        encrypt_storage=encrypt_storage,
+                        storage_enc_version=StorageEncryptionVersion.USER_PASSWORD,
+                        encrypt_keystore=True))
+            else:
+                # prompt the user to set an arbitrary password
+                self.request_password(
+                    run_next=lambda password, encrypt_storage: self.on_password(
+                        password,
+                        encrypt_storage=encrypt_storage,
+                        storage_enc_version=StorageEncryptionVersion.USER_PASSWORD,
+                        encrypt_keystore=encrypt_keystore),
+                    force_disable_encrypt_cb=not encrypt_keystore)
 
     def on_password(self, password, *, encrypt_storage: bool,
                     storage_enc_version=StorageEncryptionVersion.USER_PASSWORD,
                     encrypt_keystore: bool):
         for k in self.keystores:
             if k.may_have_password():
+                if self.unfinished_multisig:
+                    try:
+                        k.check_password(None)
+                    except InvalidPassword:
+                        continue
                 k.update_password(None, password)
         if self.wallet_type == 'standard':
             self.data['seed_type'] = self.seed_type
@@ -661,12 +728,14 @@ class BaseWizard(Logger):
         self.terminate()
 
     def create_storage(self, path) -> Tuple[WalletStorage, WalletDB]:
-        if os.path.exists(path):
+        if os.path.exists(path) and not self.unfinished_multisig:
             raise Exception('file already exists at path')
         assert self.pw_args, f"pw_args not set?!"
         pw_args = self.pw_args
         self.pw_args = None  # clean-up so that it can get GC-ed
         storage = WalletStorage(path)
+        if self.unfinished_multisig and storage.is_encrypted_with_user_pw():
+            storage.decrypt(pw_args.password)
         if pw_args.encrypt_storage:
             storage.set_password(pw_args.password, enc_version=pw_args.storage_enc_version)
         db = WalletDB('', manual_upgrades=False)

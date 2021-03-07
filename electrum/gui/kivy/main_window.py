@@ -696,7 +696,12 @@ class ElectrumWindow(App, Logger):
             assert storage.is_past_initial_decryption()
             db = WalletDB(storage.read(), manual_upgrades=False)
             assert not db.requires_upgrade()
-            self.on_wizard_success(storage, db, password)
+            if db.check_unfinished_multisig():
+                wizard = InstallWizard(self.electrum_config, self.plugins)
+                wizard.path = storage.path
+                wizard.continue_multisig_setup(storage)
+            else:
+                self.on_wizard_success(storage, db, password)
 
     def on_stop(self):
         self.logger.info('on_stop')

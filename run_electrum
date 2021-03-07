@@ -222,6 +222,9 @@ async def run_offline_command(config, config_options, plugins: 'Plugins'):
                 config_options['password'] = password
             storage.decrypt(password)
         db = WalletDB(storage.read(), manual_upgrades=False)
+        if db.check_unfinished_multisig():
+            print_msg("Error: Can not open unfinished multisig wallet.")
+            sys.exit(1)
         wallet = Wallet(db, storage, config=config)
         config_options['wallet'] = wallet
     else:

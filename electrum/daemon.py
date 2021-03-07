@@ -495,6 +495,8 @@ class Daemon(Logger):
             return
         if db.get_action():
             return
+        if db.check_unfinished_multisig():
+            return
         wallet = Wallet(db, storage, config=self.config)
         wallet.start_network(self.network)
         self._wallets[path] = wallet

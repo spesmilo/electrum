@@ -32,6 +32,9 @@ class ElectrumGui:
             storage.decrypt(password)
 
         db = WalletDB(storage.read(), manual_upgrades=False)
+        if db.check_unfinished_multisig():
+            print('Can not open unfinished multisig wallet')
+            exit()
 
         self.done = 0
         self.last_balance = ""

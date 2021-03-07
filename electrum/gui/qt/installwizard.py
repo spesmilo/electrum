@@ -14,12 +14,14 @@ from PyQt5.QtCore import QRect, QEventLoop, Qt, pyqtSignal
 from PyQt5.QtGui import QPalette, QPen, QPainter, QPixmap
 from PyQt5.QtWidgets import (QWidget, QDialog, QLabel, QHBoxLayout, QMessageBox,
                              QVBoxLayout, QLineEdit, QFileDialog, QPushButton,
-                             QGridLayout, QSlider, QScrollArea, QApplication)
+                             QGridLayout, QSlider, QScrollArea, QApplication,
+                             QComboBox)
 
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.storage import WalletStorage, StorageReadWriteError
 from electrum.util import UserCancelled, InvalidPassword, WalletFileException, get_new_wallet_name
-from electrum.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET, GoBack, ReRunDialog
+from electrum.base_wizard import (BaseWizard, HWD_SETUP_DECRYPT_WALLET, GoBack,
+                                  ReRunDialog, SaveAndExit)
 from electrum.network import Network
 from electrum.i18n import _
 
@@ -101,6 +103,7 @@ def wizard_dialog(func):
         while True:
             #wizard.logger.debug(f"dialog stack. len: {len(wizard._stack)}. stack: {wizard._stack}")
             wizard.back_button.setText(_('Back') if wizard.can_go_back() else _('Cancel'))
+            wizard.save_button.hide()
             # current dialog
             try:
                 out = func(*args, **kwargs)
@@ -113,6 +116,9 @@ def wizard_dialog(func):
                 else:
                     # to go back from the current dialog, we just let the caller unroll the stack:
                     raise
+            except SaveAndExit:
+                out = tuple()
+                run_next = wizard.create_wallet
             # next dialog
             try:
                 while True:
@@ -160,6 +166,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.accept_signal.connect(self.accept)
         self.title = QLabel()
         self.main_widget = QWidget()
+        self.save_button = QPushButton(_('Save and exit'), self)
+        self.save_button.hide()
         self.back_button = QPushButton(_("Back"), self)
         self.back_button.setText(_('Back') if self.can_go_back() else _('Cancel'))
         self.next_button = QPushButton(_("Next"), self)
@@ -172,6 +180,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.rejected.connect(lambda: self.loop.exit(0))
         self.back_button.clicked.connect(lambda: self.loop.exit(1))
         self.next_button.clicked.connect(lambda: self.loop.exit(2))
+        self.save_button.clicked.connect(lambda: self.loop.exit(3))
         outer_vbox = QVBoxLayout(self)
         inner_vbox = QVBoxLayout()
         inner_vbox.addWidget(self.title)
@@ -194,7 +203,11 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         hbox.addWidget(scroll)
         hbox.setStretchFactor(scroll, 1)
         outer_vbox.addLayout(hbox)
-        outer_vbox.addLayout(Buttons(self.back_button, self.next_button))
+        btns_hbox = QHBoxLayout()
+        btns_hbox.addWidget(self.save_button)
+        btns_hbox.addStretch(1)
+        btns_hbox.addLayout(Buttons(self.back_button, self.next_button))
+        outer_vbox.addLayout(btns_hbox)
         self.set_icon('electrum.png')
         self.show()
         self.raise_()
@@ -434,6 +447,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             raise UserCancelled()
         if result == 1:
             raise GoBack from None
+        if result == 3:
+            raise SaveAndExit from None
         self.title.setVisible(False)
         self.back_button.setEnabled(False)
         self.next_button.setEnabled(False)
@@ -540,6 +555,87 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return self.pw_layout(MSG_ENTER_PASSWORD, PW_NEW, force_disable_encrypt_cb)
 
     @wizard_dialog
+    def continue_multisig_setup_dialog(self, m, n, keystores, run_next):
+        msg = ' '.join([
+            _("This wallet is unfinished multisig wallet"
+              " with {} cosigners and {} required signatures.").format(n, m),
+            _("Press 'Next' to finish creation of the wallet.")
+        ])
+        vbox = QVBoxLayout()
+        msg_label = WWLabel(msg)
+        vbox.addWidget(msg_label)
+        cosigners_combobox = QComboBox(self)
+        xpub_label = WWLabel('')
+        xpub_layout = SeedLayout('xpub', icon=False, for_seed_words=False,
+                                 config=self.config)
+
+        def on_cosigner_changed(i):
+            xpub = keystores[i].xpub
+            xpub_layout.seed_e.setText(xpub)
+            if i == 0:
+                msg = ' '.join([
+                    _("Here is your master public key."),
+                    _("Please share it with your cosigners.")
+                ])
+            else:
+                msg = _("Here is your cosigner {} public key.").format(i+1)
+            xpub_label.setText(msg)
+
+        cosigners_combobox.currentIndexChanged.connect(on_cosigner_changed)
+        mpk_ks = keystores[0]
+        mpk_item = _('Master Public Key')
+        if hasattr(mpk_ks, 'label'):
+            mpk_item += f': {mpk_ks.get_type_text()} {mpk_ks.label}'
+        cosigners_combobox.addItem(mpk_item)
+        for i in range(len(keystores)):
+            if i > 0:
+                ks = keystores[i]
+                cs_item = _('Cosigner {}').format(i+1)
+                if hasattr(ks, 'label'):
+                    cs_item += f': {ks.get_type_text()} {ks.label}'
+                cosigners_combobox.addItem(cs_item)
+        vbox.addWidget(cosigners_combobox)
+        vbox.addWidget(xpub_label)
+        vbox.addLayout(xpub_layout.layout())
+
+        self.exec_layout(vbox, _('Continue multisig wallet setup'))
+        return tuple()
+
+    @wizard_dialog
+    def unfinished_confirm_password(self, run_next):
+        vbox = QVBoxLayout()
+        msg_label = WWLabel(_('Please enter wallet password before continue'))
+        vbox.addWidget(msg_label)
+        hbox = QHBoxLayout()
+        pw_e = PasswordLineEdit('', self)
+        pw_e.setFixedWidth(17 * char_width_in_lineedit())
+        pw_label = QLabel(_('Password') + ':')
+        hbox.addWidget(pw_label)
+        hbox.addWidget(pw_e)
+        hbox.addStretch()
+        vbox.addLayout(hbox)
+        self.set_layout(vbox, title=_('Confirm wallet password'))
+        try:
+            while True:
+                pw_e.setFocus()
+                if self.loop.exec_() != 2:  # 2 = next
+                    raise UserCancelled()
+                password = pw_e.text()
+                try:
+                    self.unfinished_check_password(password)
+                    break
+                except InvalidPassword as e:
+                    self.show_message(title=_('Error'), msg=str(e))
+                    continue
+                except BaseException as e:
+                    self.logger.exception('')
+                    self.show_message(title=_('Error'), msg=repr(e))
+                    raise UserCancelled()
+        finally:
+            pw_e.clear()
+        return password
+
+    @wizard_dialog
     def request_storage_encryption(self, run_next):
         playout = PasswordLayoutForHW(MSG_HW_STORAGE_ENCRYPTION)
         playout.encrypt_cb.setChecked(True)
@@ -605,7 +701,9 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             raise exc
 
     @wizard_dialog
-    def choice_dialog(self, title, message, choices, run_next):
+    def choice_dialog(self, title, message, choices, run_next, can_save=False):
+        if can_save:
+            self.save_button.show()
         c_values = [x[0] for x in choices]
         c_titles = [x[1] for x in choices]
         clayout = ChoicesLayout(message, c_titles)
@@ -710,6 +808,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     @wizard_dialog
     def show_xpub_dialog(self, xpub, run_next):
+        self.save_button.show()
         msg = ' '.join([
             _("Here is your master public key."),
             _("Please share it with your cosigners.")

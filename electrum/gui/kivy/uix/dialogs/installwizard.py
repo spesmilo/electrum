@@ -10,6 +10,8 @@ from kivy.lang import Builder
 from kivy.properties import ObjectProperty, StringProperty, OptionProperty
 from kivy.core.window import Window
 from kivy.uix.button import Button
+from kivy.uix.label import Label
+from kivy.uix.popup import Popup
 from kivy.uix.togglebutton import ToggleButton
 from kivy.utils import platform
 from kivy.uix.widget import Widget
@@ -35,6 +37,7 @@ Builder.load_string('''
 #:import Window kivy.core.window.Window
 #:import _ electrum.gui.kivy.i18n._
 #:import KIVY_GUI_PATH electrum.gui.kivy.KIVY_GUI_PATH
+#:import ComboBox electrum.gui.kivy.uix.combobox.ComboBox
 
 
 <WizardTextInput@TextInput>
@@ -101,6 +104,13 @@ Builder.load_string('''
             spacing: '1dp'
         Widget:
             size_hint: 1, 0.3
+        WizardButton:
+            id: save_btn
+            visible: False
+            text: _('Save and exit')
+            root: root
+            disabled: not self.visible
+            opacity: 1 if self.visible else 0
         GridLayout:
             rows: 1
             spacing: '12dp'
@@ -516,6 +526,50 @@ Builder.load_string('''
             text: _('Share')
             on_release: root.do_share()
 
+
+<ShowContinueMultisigSetupDialog>
+    xpub: ''
+    xpub_name: ''
+    message: ''
+    xpub_message: ''
+    Label:
+        text: root.message
+        color: root.text_color
+        size_hint: 1, None
+        text_size: self.width, None
+        height: self.texture_size[1]
+    GridLayout
+        cols: 1
+        padding: 0, '12dp'
+        spacing: '12dp'
+        size_hint: 1, None
+        height: self.minimum_height
+        ComboBox
+            id: combo
+            size_hint: 1, None
+            height: '48sp'
+            on_key: root.on_xpub_select()
+        SeedButton:
+            id: text_input
+            text: root.xpub
+        SeedLabel:
+            text: root.xpub_message
+    GridLayout
+        rows: 1
+        spacing: '12dp'
+        size_hint: 1, None
+        height: self.minimum_height
+        WizardButton:
+            text: _('QR code')
+            on_release: root.do_qr()
+        WizardButton:
+            text: _('Copy')
+            on_release: root.do_copy()
+        WizardButton:
+            text: _('Share')
+            on_release: root.do_share()
+
+
 <ShowSeedDialog>
     spacing: '12dp'
     value: 'next'
@@ -645,6 +699,9 @@ class WizardDialog(EventsDialog):
         if button is self.ids.back:
             self.wizard.go_back()
             return
+        if button is self.ids.save_btn:
+            self.wizard.run('create_wallet')
+            return
         params = self.get_params(button)
         self.run_next(*params)
 
@@ -753,6 +810,8 @@ class WizardChoiceDialog(WizardDialog):
 
     def __init__(self, wizard, **kwargs):
         super(WizardChoiceDialog, self).__init__(wizard, **kwargs)
+        if kwargs.get('can_save', False):
+            self.ids.save_btn.visible = True
         self.title = kwargs.get('message', '')
         self.message = kwargs.get('message', '')
         choices = kwargs.get('choices', [])
@@ -1011,6 +1070,7 @@ class ShowXpubDialog(WizardDialog):
         WizardDialog.__init__(self, wizard, **kwargs)
         self.xpub = kwargs['xpub']
         self.ids.next.disabled = False
+        self.ids.save_btn.visible = True
 
     def do_copy(self):
         self.app._clipboard.copy(self.xpub)
@@ -1021,6 +1081,65 @@ class ShowXpubDialog(WizardDialog):
     def do_qr(self):
         from .qr_dialog import QRDialog
         popup = QRDialog(_("Master Public Key"), self.xpub, True)
+        popup.open()
+
+
+class ShowContinueMultisigSetupDialog(WizardDialog):
+
+    def __init__(self, wizard, **kwargs):
+        WizardDialog.__init__(self, wizard, **kwargs)
+        self.keystores = keystores = kwargs['keystores']
+        m = kwargs['m']
+        n = kwargs['n']
+        combo = self.ids.combo
+        mpk_ks = keystores[0]
+        mpk_item = _('Master Public Key')
+        if hasattr(mpk_ks, 'label'):
+            mpk_item += f': {mpk_ks.get_type_text()} {mpk_ks.label}'
+        combo.items = [(0, mpk_item)]
+        self.message = ' '.join([
+            _("This wallet is unfinished multisig wallet"
+              " with {} cosigners and {} required signatures.").format(n, m),
+            _("Press 'Next' to finish creation of the wallet.")
+        ])
+        for i in range(len(self.keystores)):
+            if i > 0:
+                ks = keystores[i]
+                cs_item = _('Cosigner {}').format(i+1)
+                if hasattr(ks, 'label'):
+                    cs_item += f': {ks.get_type_text()} {ks.label}'
+                combo.items.append((i, cs_item))
+        combo.key = 0
+        self.ids.next.disabled = False
+
+    def get_params(self, button):
+        return tuple()
+
+    def on_xpub_select(self, *args, **kwargs):
+        combo = self.ids.combo
+        if not combo.items:
+            return
+        i = combo.key
+        self.xpub = self.keystores[i].xpub
+        self.xpub_name = combo.items[i][1]
+        if i == 0:
+            self.xpub_message = ' '.join([
+                _("Here is your master public key."),
+                _("Please share it with your cosigners.")
+            ])
+        else:
+            self.xpub_message = \
+                _("Here is your cosigner {} public key.").format(i+1)
+
+    def do_copy(self):
+        self.app._clipboard.copy(self.xpub)
+
+    def do_share(self):
+        self.app.do_share(self.xpub, self.xpub_name)
+
+    def do_qr(self):
+        from .qr_dialog import QRDialog
+        popup = QRDialog(self.xpub_name, self.xpub, True)
         popup.open()
 
 
@@ -1077,7 +1196,14 @@ class InstallWizard(BaseWizard, Widget):
         if not aborted:
             password = self.pw_args.password
             storage, db = self.create_storage(self.path)
-            self.app.on_wizard_success(storage, db, password)
+            if db.check_unfinished_multisig():
+                lb = Label(text=_('Saved unfinished multisig wallet'))
+                popup = Popup(content=lb, size_hint=(1, 1))
+                popup.bind(on_dismiss=lambda x: self.app.on_wizard_aborted())
+                popup.content.bind(on_touch_down=lambda x, y: popup.dismiss())
+                popup.open()
+            else:
+                self.app.on_wizard_success(storage, db, password)
         else:
             try: os.unlink(self.path)
             except FileNotFoundError: pass
@@ -1134,6 +1260,21 @@ class InstallWizard(BaseWizard, Widget):
         AddXpubDialog(self, **kwargs).open()
 
     def show_xpub_dialog(self, **kwargs): ShowXpubDialog(self, **kwargs).open()
+
+    def continue_multisig_setup_dialog(self, **kwargs):
+        ShowContinueMultisigSetupDialog(self, **kwargs).open()
+
+    def unfinished_confirm_password(self, run_next):
+        def on_success(pw):
+            run_next(pw)
+        popup = PasswordDialog(
+            self.app,
+            check_password=self.unfinished_check_password,
+            on_success=on_success,
+            is_change=False,
+            is_password=True,
+            message=_('Please enter wallet password before continue'))
+        popup.open()
 
     def show_message(self, msg): self.show_error(msg)
 

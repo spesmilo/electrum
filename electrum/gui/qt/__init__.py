@@ -310,9 +310,18 @@ class ElectrumGui(Logger):
                 wizard.path = path  # needed by trustedcoin plugin
                 wizard.run('new')
                 storage, db = wizard.create_storage(path)
+                if db.check_unfinished_multisig():
+                    wizard.show_message(_('Saved unfinished multisig wallet'))
+                    return
             else:
                 db = WalletDB(storage.read(), manual_upgrades=False)
                 wizard.run_upgrades(storage, db)
+            if db.check_unfinished_multisig():
+                wizard.continue_multisig_setup(storage)
+                storage, db = wizard.create_storage(storage.path)
+                if db.check_unfinished_multisig():
+                    wizard.show_message(_('Saved unfinished multisig wallet'))
+                    return
         except (UserCancelled, GoBack):
             return
         except WalletAlreadyOpenInMemory as e:
