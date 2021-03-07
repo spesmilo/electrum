@@ -10,8 +10,8 @@ LIBUSB_COMMIT="c6a35c56016ea2ab2f19115d2ea1e85e0edae155"
 # ^ tag v1.0.24
 
 PYINSTALLER_REPO="https://github.com/SomberNight/pyinstaller.git"
-PYINSTALLER_COMMIT="31fda9dc83feb1b3f2ff08c89ff7ae61506fc1ca"
-# ^ tag 4.1, plus a custom commit that fixes cross-compilation with MinGW
+PYINSTALLER_COMMIT="80ee4d613ecf75a1226b960a560ee01459e65ddb"
+# ^ tag 4.2, plus a custom commit that fixes cross-compilation with MinGW
 
 PYTHON_VERSION=3.8.7
 
