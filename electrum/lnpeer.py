@@ -1473,7 +1473,7 @@ class Peer(Logger):
             chan: Channel,
             htlc: UpdateAddHtlc,
             processed_onion: ProcessedOnionPacket,
-            is_trampoline: bool = False) -> Tuple[Optional[bytes], Optional[bytes]]:
+            is_trampoline: bool = False) -> Tuple[Optional[bytes], Optional[OnionPacket]]:
 
         """As a final recipient of an HTLC, decide if we should fulfill it.
         Return (preimage, trampoline_onion_packet) with at most a single element not None

@@ -577,9 +577,9 @@ class LNWallet(LNWorker):
     lnwatcher: Optional['LNWalletWatcher']
 
     def __init__(self, wallet: 'Abstract_Wallet', xprv):
-        Logger.__init__(self)
         self.wallet = wallet
         self.db = wallet.db
+        Logger.__init__(self)
         LNWorker.__init__(self, xprv, LNWALLET_FEATURES)
         self.config = wallet.config
         self.lnwatcher = None
@@ -620,6 +620,9 @@ class LNWallet(LNWorker):
 
     def get_channel_by_id(self, channel_id: bytes) -> Optional[Channel]:
         return self._channels.get(channel_id, None)
+
+    def diagnostic_name(self):
+        return self.wallet.diagnostic_name()
 
     @ignore_exceptions
     @log_exceptions
