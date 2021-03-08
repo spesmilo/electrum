@@ -724,7 +724,7 @@ class TestPeer(ElectrumTestCase):
                     await group.spawn(peer.htlc_switch())
                 await asyncio.sleep(0.2)
                 pay_req = await self.prepare_invoice(graph.w_d, include_routing_hints=True)
-                invoice_features = LnFeatures(lndecode(pay_req).get_tag('9') or 0)
+                invoice_features = lndecode(pay_req).get_features()
                 self.assertFalse(invoice_features.supports(LnFeatures.BASIC_MPP_OPT))
                 await group.spawn(pay(pay_req))
         with self.assertRaises(PaymentDone):

@@ -961,7 +961,7 @@ class LNWallet(LNWorker):
             invoice_pubkey=decoded_invoice.pubkey.serialize(),
             min_cltv_expiry=decoded_invoice.get_min_final_cltv_expiry(),
             r_tags=decoded_invoice.get_routing_info('r'),
-            invoice_features=decoded_invoice.get_tag('9') or 0,
+            invoice_features=decoded_invoice.get_features(),
             trampoline_fee_level=0,
             use_two_trampolines=False,
             payment_hash=decoded_invoice.paymenthash,
@@ -981,7 +981,7 @@ class LNWallet(LNWorker):
         key = payment_hash.hex()
         payment_secret = lnaddr.payment_secret
         invoice_pubkey = lnaddr.pubkey.serialize()
-        invoice_features = LnFeatures(lnaddr.get_tag('9') or 0)
+        invoice_features = lnaddr.get_features()
         r_tags = lnaddr.get_routing_info('r')
         amount_to_pay = lnaddr.get_amount_msat()
         status = self.get_payment_status(payment_hash)
@@ -1625,11 +1625,11 @@ class LNWallet(LNWorker):
             self.received_htlcs.pop(payment_secret)
         return True if is_accepted else (False if is_expired else None)
 
-    def get_payment_status(self, payment_hash):
+    def get_payment_status(self, payment_hash: bytes) -> int:
         info = self.get_payment_info(payment_hash)
         return info.status if info else PR_UNPAID
 
-    def get_invoice_status(self, invoice):
+    def get_invoice_status(self, invoice: LNInvoice) -> int:
         key = invoice.rhash
         log = self.logs[key]
         if key in self.inflight_payments:
@@ -1640,7 +1640,7 @@ class LNWallet(LNWorker):
             status = PR_FAILED
         return status
 
-    def set_invoice_status(self, key, status):
+    def set_invoice_status(self, key: str, status: int) -> None:
         if status == PR_INFLIGHT:
             self.inflight_payments.add(key)
         elif key in self.inflight_payments:
@@ -1649,7 +1649,7 @@ class LNWallet(LNWorker):
             self.set_payment_status(bfh(key), status)
         util.trigger_callback('invoice_status', self.wallet, key)
 
-    def set_payment_status(self, payment_hash: bytes, status):
+    def set_payment_status(self, payment_hash: bytes, status: int) -> None:
         info = self.get_payment_info(payment_hash)
         if info is None:
             # if we are forwarding

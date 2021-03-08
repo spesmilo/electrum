@@ -6,7 +6,7 @@ import time
 from hashlib import sha256
 from binascii import hexlify
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 import random
 import bitstring
@@ -16,6 +16,9 @@ from .segwit_addr import bech32_encode, bech32_decode, CHARSET
 from . import constants
 from . import ecc
 from .bitcoin import COIN
+
+if TYPE_CHECKING:
+    from .lnutil import LnFeatures
 
 
 # BOLT #11:
@@ -314,6 +317,10 @@ class LnAddr(object):
         if self.amount is None:
             return None
         return int(self.amount * COIN * 1000)
+
+    def get_features(self) -> 'LnFeatures':
+        from .lnutil import LnFeatures
+        return LnFeatures(self.get_tag('9') or 0)
 
     def __str__(self):
         return "LnAddr[{}, amount={}{} tags=[{}]]".format(
