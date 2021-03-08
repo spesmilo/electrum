@@ -1712,15 +1712,16 @@ class LNWallet(LNWorker):
                 amount_sent, amount_failed = self.sent_buckets[payment_secret]
                 amount_failed += amount_receiver_msat
                 self.sent_buckets[payment_secret] = amount_sent, amount_failed
-                if amount_sent == amount_failed:
+                if amount_sent != amount_failed:
                     self.logger.info('bucket still active...')
                     return
                 self.logger.info('bucket failed')
+                amount_receiver_msat = amount_sent
 
             htlc_log = HtlcLog(
                 success=False,
                 route=route,
-                amount_msat=amount_sent,
+                amount_msat=amount_receiver_msat,
                 error_bytes=error_bytes,
                 failure_msg=failure_message,
                 sender_idx=sender_idx)
