@@ -100,6 +100,17 @@ info "Building PyInstaller."
 # we build our own PyInstaller boot loader as the default one has high
 # anti-virus false positives
 (
+    if [ "$WIN_ARCH" = "win32" ] ; then
+        PYINST_ARCH="32bit"
+    elif [ "$WIN_ARCH" = "win64" ] ; then
+        PYINST_ARCH="64bit"
+    else
+        fail "unexpected WIN_ARCH: $WIN_ARCH"
+    fi
+    if [ -f "$CACHEDIR/pyinstaller/PyInstaller/bootloader/Windows-$PYINST_ARCH/runw.exe" ]; then
+        info "pyinstaller already built, skipping"
+        exit 0
+    fi
     cd "$WINEPREFIX/drive_c/electrum"
     ELECTRUM_COMMIT_HASH=$(git rev-parse HEAD)
     cd "$CACHEDIR"
@@ -126,13 +137,7 @@ info "Building PyInstaller."
                               -Wno-error=stringop-truncation"
     popd
     # sanity check bootloader is there:
-    if [ "$WIN_ARCH" = "win32" ] ; then
-        [[ -e PyInstaller/bootloader/Windows-32bit/runw.exe ]] || fail "Could not find runw.exe in target dir! (32bit)"
-    elif [ "$WIN_ARCH" = "win64" ] ; then
-        [[ -e PyInstaller/bootloader/Windows-64bit/runw.exe ]] || fail "Could not find runw.exe in target dir! (64bit)"
-    else
-        fail "unexpected WIN_ARCH: $WIN_ARCH"
-    fi
+    [[ -e "PyInstaller/bootloader/Windows-$PYINST_ARCH/runw.exe" ]] || fail "Could not find runw.exe in target dir!"
 ) || fail "PyInstaller build failed"
 info "Installing PyInstaller."
 $WINE_PYTHON -m pip install --no-dependencies --no-warn-script-location ./pyinstaller
