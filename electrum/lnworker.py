@@ -1401,7 +1401,7 @@ class LNWallet(LNWorker):
                             for chan_id, part_amount_msat in bucket:
                                 chan = self.channels[chan_id]
                                 margin = chan.available_to_spend(LOCAL, strict=True) - part_amount_msat
-                                delta_fee = min(bucket_fees, margin) # fixme: we have to pay all trampolines
+                                delta_fee = min(bucket_fees, margin)
                                 part_amount_msat_with_fees = part_amount_msat + delta_fee
                                 bucket_fees -= delta_fee
                                 route = [
