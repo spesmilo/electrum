@@ -594,9 +594,15 @@ class BaseWizard(Logger):
             self.reset_stack()
             self.keystores.append(k)
             if len(self.keystores) < self.n:
-                self.run('choose_keystore')
+                if k.type == 'hardware':
+                    self.run('show_xpub_for_hw_cosigner', k)
+                else:
+                    self.run('choose_keystore')
             else:
-                self.run('create_wallet')
+                if k.type == 'hardware':
+                    self.run('show_xpub_for_hw_cosigner', k)
+                else:
+                    self.run('create_wallet')
 
     def create_wallet(self):
         encrypt_keystore = any(k.may_have_password() for k in self.keystores)
@@ -684,6 +690,15 @@ class BaseWizard(Logger):
 
     def show_xpub_and_add_cosigners(self, xpub):
         self.show_xpub_dialog(xpub=xpub, run_next=lambda x: self.run('choose_keystore'))
+
+    def show_xpub_for_hw_cosigner(self, k: KeyStore):
+        def run_next(x):
+            if len(self.keystores) < self.n:
+                self.run('choose_keystore')
+            else:
+                self.run('create_wallet')
+        hw_info = f'{k.hw_type} ({k.label})' if k.label else f'{k.hw_type}'
+        self.show_xpub_dialog(xpub=k.xpub, run_next=run_next, hw_info=hw_info)
 
     def choose_seed_type(self):
         seed_type = 'standard' if self.config.get('nosegwit') else 'segwit'
