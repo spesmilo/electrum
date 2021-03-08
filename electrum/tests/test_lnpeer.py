@@ -8,7 +8,7 @@ import logging
 import concurrent
 from concurrent import futures
 import unittest
-from typing import Iterable, NamedTuple
+from typing import Iterable, NamedTuple, Tuple
 
 from aiorpcx import TaskGroup
 
@@ -400,7 +400,7 @@ class TestPeer(ElectrumTestCase):
             *,
             amount_msat=100_000_000,
             include_routing_hints=False,
-    ):
+    ) -> Tuple[LnAddr, str]:
         amount_btc = amount_msat/Decimal(COIN*1000)
         payment_preimage = os.urandom(32)
         RHASH = sha256(payment_preimage)
@@ -421,7 +421,7 @@ class TestPeer(ElectrumTestCase):
             payment_secret = derive_payment_secret_from_payment_preimage(payment_preimage)
         else:
             payment_secret = None
-        lnaddr = LnAddr(
+        lnaddr1 = LnAddr(
                     paymenthash=RHASH,
                     amount=amount_btc,
                     tags=[('c', lnutil.MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE),
@@ -430,7 +430,9 @@ class TestPeer(ElectrumTestCase):
                          ] + routing_hints + trampoline_hints,
                     payment_secret=payment_secret,
         )
-        return lnencode(lnaddr, w2.node_keypair.privkey)
+        invoice = lnencode(lnaddr1, w2.node_keypair.privkey)
+        lnaddr2 = lndecode(invoice)  # unlike lnaddr1, this now has a pubkey set
+        return lnaddr2, invoice
 
     def test_reestablish(self):
         alice_channel, bob_channel = create_test_channels()
@@ -456,7 +458,7 @@ class TestPeer(ElectrumTestCase):
         alice_channel, bob_channel = create_test_channels(random_seed=random_seed)
         alice_channel_0, bob_channel_0 = create_test_channels(random_seed=random_seed)  # these are identical
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
-        pay_req = run(self.prepare_invoice(w2))
+        lnaddr, pay_req = run(self.prepare_invoice(w2))
         async def pay():
             result, log = await w1.pay_invoice(pay_req)
             self.assertEqual(result, True)
@@ -500,7 +502,7 @@ class TestPeer(ElectrumTestCase):
                 await group.spawn(p2._message_loop())
                 await group.spawn(p2.htlc_switch())
                 await asyncio.sleep(0.01)
-                pay_req = await self.prepare_invoice(w2)
+                lnaddr, pay_req = await self.prepare_invoice(w2)
                 await group.spawn(pay(pay_req))
         with self.assertRaises(PaymentDone):
             run(f())
@@ -520,10 +522,8 @@ class TestPeer(ElectrumTestCase):
             # prep
             _maybe_send_commitment1 = p1.maybe_send_commitment
             _maybe_send_commitment2 = p2.maybe_send_commitment
-            pay_req2 = await self.prepare_invoice(w2)
-            lnaddr2 = lndecode(pay_req2, expected_hrp=constants.net.SEGWIT_HRP)
-            pay_req1 = await self.prepare_invoice(w1)
-            lnaddr1 = lndecode(pay_req1, expected_hrp=constants.net.SEGWIT_HRP)
+            lnaddr2, pay_req2 = await self.prepare_invoice(w2)
+            lnaddr1, pay_req1 = await self.prepare_invoice(w1)
             # create the htlc queues now (side-effecting defaultdict)
             q1 = w1.sent_htlcs[lnaddr2.paymenthash]
             q2 = w2.sent_htlcs[lnaddr1.paymenthash]
@@ -597,7 +597,7 @@ class TestPeer(ElectrumTestCase):
                                   for i in range(num_payments)]
             async with TaskGroup() as group:
                 for pay_req_task in pay_reqs_tasks:
-                    pay_req = pay_req_task.result()
+                    lnaddr, pay_req = pay_req_task.result()
                     await group.spawn(single_payment(pay_req))
             gath.cancel()
         gath = asyncio.gather(many_payments(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
@@ -624,7 +624,7 @@ class TestPeer(ElectrumTestCase):
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
                 await asyncio.sleep(0.2)
-                pay_req = await self.prepare_invoice(graph.w_d, include_routing_hints=True)
+                lnaddr, pay_req = await self.prepare_invoice(graph.w_d, include_routing_hints=True)
                 await group.spawn(pay(pay_req))
         with self.assertRaises(PaymentDone):
             run(f())
@@ -668,7 +668,7 @@ class TestPeer(ElectrumTestCase):
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
                 await asyncio.sleep(0.2)
-                pay_req = await self.prepare_invoice(graph.w_d, include_routing_hints=True)
+                lnaddr, pay_req = await self.prepare_invoice(graph.w_d, include_routing_hints=True)
                 await group.spawn(pay(pay_req))
         with self.assertRaises(PaymentDone):
             run(f())
@@ -690,7 +690,7 @@ class TestPeer(ElectrumTestCase):
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
                 await asyncio.sleep(0.2)
-                pay_req = await self.prepare_invoice(graph.w_d, include_routing_hints=True)
+                lnaddr, pay_req = await self.prepare_invoice(graph.w_d, include_routing_hints=True)
                 await group.spawn(pay(pay_req))
         with self.assertRaises(PaymentDone):
             run(f())
@@ -723,8 +723,8 @@ class TestPeer(ElectrumTestCase):
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
                 await asyncio.sleep(0.2)
-                pay_req = await self.prepare_invoice(graph.w_d, include_routing_hints=True)
-                invoice_features = lndecode(pay_req).get_features()
+                lnaddr, pay_req = await self.prepare_invoice(graph.w_d, include_routing_hints=True)
+                invoice_features = lnaddr.get_features()
                 self.assertFalse(invoice_features.supports(LnFeatures.BASIC_MPP_OPT))
                 await group.spawn(pay(pay_req))
         with self.assertRaises(PaymentDone):
@@ -736,7 +736,7 @@ class TestPeer(ElectrumTestCase):
         amount_to_pay = 600_000_000_000
         peers = graph.all_peers()
         async def pay():
-            pay_req = await self.prepare_invoice(graph.w_d, include_routing_hints=True, amount_msat=amount_to_pay)
+            lnaddr, pay_req = await self.prepare_invoice(graph.w_d, include_routing_hints=True, amount_msat=amount_to_pay)
             result, log = await graph.w_a.pay_invoice(pay_req, attempts=attempts)
             if result:
                 raise PaymentDone()
@@ -778,8 +778,7 @@ class TestPeer(ElectrumTestCase):
         w1.network.config.set_key('fee_per_kb', 5000)
         w2.network.config.set_key('fee_per_kb', 1000)
         w2.enable_htlc_settle.clear()
-        pay_req = run(self.prepare_invoice(w2))
-        lnaddr = lndecode(pay_req, expected_hrp=constants.net.SEGWIT_HRP)
+        lnaddr, pay_req = run(self.prepare_invoice(w2))
         async def pay():
             await asyncio.wait_for(p1.initialized, 1)
             await asyncio.wait_for(p2.initialized, 1)
@@ -877,7 +876,7 @@ class TestPeer(ElectrumTestCase):
     def test_channel_usage_after_closing(self):
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, q1, q2 = self.prepare_peers(alice_channel, bob_channel)
-        pay_req = run(self.prepare_invoice(w2))
+        lnaddr, pay_req = run(self.prepare_invoice(w2))
 
         lnaddr = w1._check_invoice(pay_req)
         route, amount_msat = w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr)[0][0:2]
