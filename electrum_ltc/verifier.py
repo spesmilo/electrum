@@ -58,8 +58,9 @@ class SPV(NetworkJobOnDefaultServer):
         self.merkle_roots = {}  # txid -> merkle root (once it has been verified)
         self.requested_merkle = set()  # txid set of pending requests
 
-    async def _start_tasks(self):
-        async with self.taskgroup as group:
+    async def _run_tasks(self, *, taskgroup):
+        await super()._run_tasks(taskgroup=taskgroup)
+        async with taskgroup as group:
             await group.spawn(self.main)
 
     def diagnostic_name(self):

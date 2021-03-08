@@ -1,12 +1,14 @@
 import os
 import bitstring
+import random
 
+from .logging import get_logger, Logger
 from .lnutil import LnFeatures
 from .lnonion import calc_hops_data_for_payment, new_onion_packet
 from .lnrouter import RouteEdge, TrampolineEdge, LNPaymentRoute, is_route_sane_to_use
-from .lnutil import NoPathFound
+from .lnutil import NoPathFound, LNPeerAddr
+from . import constants
 
-from .logging import get_logger, Logger
 
 _logger = get_logger(__name__)
 
@@ -49,6 +51,27 @@ TRAMPOLINE_FEES = [
     },
 ]
 
+# hardcoded list
+# TODO for some pubkeys, there are multiple network addresses we could try
+TRAMPOLINE_NODES_MAINNET = {
+    'ACINQ': LNPeerAddr(host='34.239.230.56', port=9735, pubkey=bytes.fromhex('03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f')),
+    'Electrum trampoline': LNPeerAddr(host='144.76.99.209', port=9740, pubkey=bytes.fromhex('03ecef675be448b615e6176424070673ef8284e0fd19d8be062a6cb5b130a0a0d1')),
+}
+TRAMPOLINE_NODES_TESTNET = {
+    'endurance': LNPeerAddr(host='34.250.234.192', port=9735, pubkey=bytes.fromhex('03933884aaf1d6b108397e5efe5c86bcf2d8ca8d2f700eda99db9214fc2712b134')),
+}
+
+def hardcoded_trampoline_nodes():
+    if constants.net in (constants.BitcoinMainnet, ):
+        return TRAMPOLINE_NODES_MAINNET
+    if constants.net in (constants.BitcoinTestnet, ):
+        return TRAMPOLINE_NODES_TESTNET
+    return {}
+
+def trampolines_by_id():
+    return dict([(x.pubkey, x) for x in hardcoded_trampoline_nodes().values()])
+
+is_hardcoded_trampoline = lambda node_id: node_id in trampolines_by_id().keys()
 
 def encode_routing_info(r_tags):
     result = bitstring.BitArray()
@@ -69,8 +92,8 @@ def create_trampoline_route(
         my_pubkey: bytes,
         trampoline_node_id,
         r_tags, t_tags,
-        trampoline_fee_level,
-        trampoline2_list) -> LNPaymentRoute:
+        trampoline_fee_level: int,
+        use_two_trampolines: bool) -> LNPaymentRoute:
 
     invoice_features = LnFeatures(invoice_features)
     # We do not set trampoline_routing_opt in our invoices, because the spec is not ready
@@ -79,12 +102,11 @@ def create_trampoline_route(
         is_legacy = False
         if len(r_tags) > 0 and len(r_tags[0]) == 1:
             pubkey, scid, feebase, feerate, cltv = r_tags[0][0]
-            t_tag = pubkey, feebase, feerate, cltv
+            t_tags = [pubkey, feebase, feerate, cltv]
         else:
-            t_tag = None
+            t_tags = None
     elif len(t_tags) > 0:
         is_legacy = False
-        t_tag = t_tags[0]
     else:
         is_legacy = True
 
@@ -95,7 +117,9 @@ def create_trampoline_route(
         raise NoPathFound()
     # add optional second trampoline
     trampoline2 = None
-    if is_legacy:
+    if is_legacy and use_two_trampolines:
+        trampoline2_list = list(trampolines_by_id().keys())
+        random.shuffle(trampoline2_list)
         for node_id in trampoline2_list:
             if node_id != trampoline_node_id:
                 trampoline2 = node_id
@@ -129,8 +153,14 @@ def create_trampoline_route(
         route[-1].invoice_features = invoice_features
         route[-1].outgoing_node_id = invoice_pubkey
     else:
-        if t_tag:
+        last_trampoline = route[-1].end_node
+        for t_tag in t_tags:
             pubkey, feebase, feerate, cltv = t_tag
+            if pubkey == trampoline_node_id:
+                break
+        else:
+            random.shuffle(t_tags)
+            pubkey, feebase, feerate, cltv = t_tags[0]
             if route[-1].node_id != pubkey:
                 route.append(
                     TrampolineEdge(
@@ -140,6 +170,7 @@ def create_trampoline_route(
                         fee_proportional_millionths=feerate,
                         cltv_expiry_delta=cltv,
                         node_features=trampoline_features))
+
     # Final edge (not part of the route if payment is legacy, but eclair requires an encrypted blob)
     route.append(
         TrampolineEdge(
@@ -214,8 +245,8 @@ def create_trampoline_route_and_onion(
         payment_hash,
         payment_secret,
         local_height:int,
-        trampoline_fee_level,
-        trampoline2_list):
+        trampoline_fee_level: int,
+        use_two_trampolines: bool):
     # create route for the trampoline_onion
     trampoline_route = create_trampoline_route(
         amount_msat=amount_msat,
@@ -227,7 +258,7 @@ def create_trampoline_route_and_onion(
         r_tags=r_tags,
         t_tags=t_tags,
         trampoline_fee_level=trampoline_fee_level,
-        trampoline2_list=trampoline2_list)
+        use_two_trampolines=use_two_trampolines)
     # compute onion and fees
     final_cltv = local_height + min_cltv_expiry
     trampoline_onion, amount_with_fees, bucket_cltv = create_trampoline_onion(
@@ -241,4 +272,5 @@ def create_trampoline_route_and_onion(
     bucket_cltv_delta += trampoline_route[0].cltv_expiry_delta
     # trampoline fee for this very trampoline
     trampoline_fee = trampoline_route[0].fee_for_edge(amount_with_fees)
-    return trampoline_onion, trampoline_fee, amount_with_fees, bucket_cltv_delta
+    amount_with_fees += trampoline_fee
+    return trampoline_onion, amount_with_fees, bucket_cltv_delta

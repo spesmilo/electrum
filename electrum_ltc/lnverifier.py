@@ -74,8 +74,9 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
             self.unverified_channel_info[short_channel_id] = msg
             return True
 
-    async def _start_tasks(self):
-        async with self.taskgroup as group:
+    async def _run_tasks(self, *, taskgroup):
+        await super()._run_tasks(taskgroup=taskgroup)
+        async with taskgroup as group:
             await group.spawn(self.main)
 
     async def main(self):

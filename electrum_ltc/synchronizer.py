@@ -74,9 +74,10 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
         self.add_queue = asyncio.Queue()
         self.status_queue = asyncio.Queue()
 
-    async def _start_tasks(self):
+    async def _run_tasks(self, *, taskgroup):
+        await super()._run_tasks(taskgroup=taskgroup)
         try:
-            async with self.taskgroup as group:
+            async with taskgroup as group:
                 await group.spawn(self.send_subscriptions())
                 await group.spawn(self.handle_status())
                 await group.spawn(self.main())
@@ -92,10 +93,11 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
         asyncio.run_coroutine_threadsafe(self._add_address(addr), self.asyncio_loop)
 
     async def _add_address(self, addr: str):
+        # note: this method is async as add_queue.put_nowait is not thread-safe.
         if not is_address(addr): raise ValueError(f"invalid bitcoin address {addr}")
         if addr in self.requested_addrs: return
         self.requested_addrs.add(addr)
-        await self.add_queue.put(addr)
+        self.add_queue.put_nowait(addr)
 
     async def _on_address_status(self, addr, status):
         """Handle the change of the status of an address."""

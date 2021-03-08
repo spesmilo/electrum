@@ -529,6 +529,10 @@ class Peer(Logger):
             static_remotekey = None
         dust_limit_sat = bitcoin.DUST_LIMIT_DEFAULT_SAT_LEGACY
         reserve_sat = max(funding_sat // 100, dust_limit_sat)
+        # for comparison of defaults, see
+        # https://github.com/ACINQ/eclair/blob/afa378fbb73c265da44856b4ad0f2128a88ae6c6/eclair-core/src/main/resources/reference.conf#L66
+        # https://github.com/ElementsProject/lightning/blob/0056dd75572a8857cff36fcbdb1a2295a1ac9253/lightningd/options.c#L657
+        # https://github.com/lightningnetwork/lnd/blob/56b61078c5b2be007d318673a5f3b40c6346883a/config.go#L81
         local_config = LocalConfig.from_seed(
             channel_seed=channel_seed,
             static_remotekey=static_remotekey,
@@ -536,7 +540,7 @@ class Peer(Logger):
             to_self_delay=self.network.config.get('lightning_to_self_delay', 7 * 576),
             dust_limit_sat=dust_limit_sat,
             max_htlc_value_in_flight_msat=funding_sat * 1000,
-            max_accepted_htlcs=5,
+            max_accepted_htlcs=30,
             initial_msat=initial_msat,
             reserve_sat=reserve_sat,
             funding_locked_received=False,
@@ -1452,15 +1456,15 @@ class Peer(Logger):
                     t_tags=[],
                     invoice_features=invoice_features,
                     fwd_trampoline_onion=next_trampoline_onion,
-                    trampoline_fee=trampoline_fee,
-                    trampoline_cltv_delta=trampoline_cltv_delta,
+                    fwd_trampoline_fee=trampoline_fee,
+                    fwd_trampoline_cltv_delta=trampoline_cltv_delta,
                     attempts=1)
             except OnionRoutingFailure as e:
                 # FIXME: cannot use payment_hash as key
                 self.lnworker.trampoline_forwarding_failures[payment_hash] = e
             except PaymentFailure as e:
                 # FIXME: adapt the error code
-                error_reason = OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT, data=b'')
+                error_reason = OnionRoutingFailure(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
                 self.lnworker.trampoline_forwarding_failures[payment_hash] = error_reason
 
         asyncio.ensure_future(forward_trampoline_payment())
@@ -1532,13 +1536,14 @@ class Peer(Logger):
             # TODO fail here if invoice has set PAYMENT_SECRET_REQ
             payment_secret_from_onion = None
 
-        mpp_status = self.lnworker.add_received_htlc(chan.short_channel_id, htlc, total_msat)
-        if mpp_status is None:
-            return None, None
-        if mpp_status is False:
-            log_fail_reason(f"MPP_TIMEOUT")
-            raise OnionRoutingFailure(code=OnionFailureCode.MPP_TIMEOUT, data=b'')
-        assert mpp_status is True
+        if total_msat > amt_to_forward:
+            mpp_status = self.lnworker.add_received_htlc(payment_secret_from_onion, chan.short_channel_id, htlc, total_msat)
+            if mpp_status is None:
+                return None, None
+            if mpp_status is False:
+                log_fail_reason(f"MPP_TIMEOUT")
+                raise OnionRoutingFailure(code=OnionFailureCode.MPP_TIMEOUT, data=b'')
+            assert mpp_status is True
 
         # if there is a trampoline_onion, maybe_fulfill_htlc will be called again
         if processed_onion.trampoline_onion_packet:
@@ -1886,7 +1891,7 @@ class Peer(Logger):
                     preimage = self.lnworker.get_preimage(payment_hash)
                     error_reason = self.lnworker.trampoline_forwarding_failures.pop(payment_hash, None)
                     if error_reason:
-                        self.logger.info(f'trampoline forwarding failure {error_reason}')
+                        self.logger.info(f'trampoline forwarding failure: {error_reason.code_name()}')
                         raise error_reason
 
         elif not forwarding_info:
