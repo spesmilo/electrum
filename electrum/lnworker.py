@@ -961,7 +961,6 @@ class LNWallet(LNWorker):
             invoice_pubkey=decoded_invoice.pubkey.serialize(),
             min_cltv_expiry=decoded_invoice.get_min_final_cltv_expiry(),
             r_tags=decoded_invoice.get_routing_info('r'),
-            t_tags=decoded_invoice.get_routing_info('t'),
             invoice_features=decoded_invoice.get_tag('9') or 0,
             trampoline_fee_level=0,
             use_two_trampolines=False,
@@ -984,7 +983,6 @@ class LNWallet(LNWorker):
         invoice_pubkey = lnaddr.pubkey.serialize()
         invoice_features = LnFeatures(lnaddr.get_tag('9') or 0)
         r_tags = lnaddr.get_routing_info('r')
-        t_tags = lnaddr.get_routing_info('t')
         amount_to_pay = lnaddr.get_amount_msat()
         status = self.get_payment_status(payment_hash)
         if status == PR_PAID:
@@ -1006,7 +1004,6 @@ class LNWallet(LNWorker):
                 amount_to_pay=amount_to_pay,
                 min_cltv_expiry=min_cltv_expiry,
                 r_tags=r_tags,
-                t_tags=t_tags,
                 invoice_features=invoice_features,
                 attempts=attempts,
                 full_path=full_path)
@@ -1032,7 +1029,6 @@ class LNWallet(LNWorker):
             amount_to_pay: int,  # in msat
             min_cltv_expiry: int,
             r_tags,
-            t_tags,
             invoice_features: int,
             attempts: int = 1,
             full_path: LNPaymentPath = None,
@@ -1065,7 +1061,6 @@ class LNWallet(LNWorker):
                     invoice_pubkey=node_pubkey,
                     min_cltv_expiry=min_cltv_expiry,
                     r_tags=r_tags,
-                    t_tags=t_tags,
                     invoice_features=invoice_features,
                     full_path=full_path,
                     payment_hash=payment_hash,
@@ -1288,7 +1283,7 @@ class LNWallet(LNWorker):
             final_total_msat: int,   # total payment amount final receiver will get
             invoice_pubkey,
             min_cltv_expiry,
-            r_tags, t_tags,
+            r_tags,
             invoice_features: int,
             payment_hash,
             payment_secret,
@@ -1326,7 +1321,6 @@ class LNWallet(LNWorker):
                         invoice_features=invoice_features,
                         node_id=chan.node_id,
                         r_tags=r_tags,
-                        t_tags=t_tags,
                         payment_hash=payment_hash,
                         payment_secret=payment_secret,
                         local_height=local_height,
@@ -1354,7 +1348,7 @@ class LNWallet(LNWorker):
                     amount_msat=amount_msat,
                     invoice_pubkey=invoice_pubkey,
                     min_cltv_expiry=min_cltv_expiry,
-                    r_tags=r_tags, t_tags=t_tags,
+                    r_tags=r_tags,
                     invoice_features=invoice_features,
                     outgoing_channel=None, full_path=full_path)
                 routes = [(route, amount_msat, final_total_msat, amount_msat, min_cltv_expiry, payment_secret, fwd_trampoline_onion)]
@@ -1390,7 +1384,6 @@ class LNWallet(LNWorker):
                                 invoice_features=invoice_features,
                                 node_id=node_id,
                                 r_tags=r_tags,
-                                t_tags=t_tags,
                                 payment_hash=payment_hash,
                                 payment_secret=payment_secret,
                                 local_height=local_height,
@@ -1429,7 +1422,7 @@ class LNWallet(LNWorker):
                                     amount_msat=part_amount_msat,
                                     invoice_pubkey=invoice_pubkey,
                                     min_cltv_expiry=min_cltv_expiry,
-                                    r_tags=r_tags, t_tags=t_tags,
+                                    r_tags=r_tags,
                                     invoice_features=invoice_features,
                                     outgoing_channel=channel, full_path=None)
                                 routes.append((route, part_amount_msat, final_total_msat, part_amount_msat, min_cltv_expiry, payment_secret, fwd_trampoline_onion))
@@ -1446,7 +1439,7 @@ class LNWallet(LNWorker):
             amount_msat: int,
             invoice_pubkey: bytes,
             min_cltv_expiry: int,
-            r_tags, t_tags,
+            r_tags,
             invoice_features: int,
             outgoing_channel: Channel = None,
             full_path: Optional[LNPaymentPath]) -> Tuple[LNPaymentRoute, int]:

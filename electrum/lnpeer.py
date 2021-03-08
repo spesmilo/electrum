@@ -1453,7 +1453,6 @@ class Peer(Logger):
                     amount_to_pay=amt_to_forward,
                     min_cltv_expiry=cltv_from_onion,
                     r_tags=[],
-                    t_tags=[],
                     invoice_features=invoice_features,
                     fwd_trampoline_onion=next_trampoline_onion,
                     fwd_trampoline_fee=trampoline_fee,
