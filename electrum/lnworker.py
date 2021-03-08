@@ -601,7 +601,7 @@ class LNWallet(LNWorker):
 
         self.sent_htlcs = defaultdict(asyncio.Queue)  # type: Dict[bytes, asyncio.Queue[HtlcLog]]
         self.sent_htlcs_routes = dict()               # (RHASH, scid, htlc_id) -> route, payment_secret, amount_msat, bucket_msat
-        self.sent_buckets = dict()
+        self.sent_buckets = dict()                    # payment_secret -> (amount_sent, amount_failed)
         self.received_htlcs = dict()                  # RHASH -> mpp_status, htlc_set
 
         self.swap_manager = SwapManager(wallet=self.wallet, lnworker=self)
@@ -1156,8 +1156,10 @@ class LNWallet(LNWorker):
         # if we sent MPP to a trampoline, add item to sent_buckets
         if not self.channel_db and amount_msat != total_msat:
             if payment_secret not in self.sent_buckets:
-                self.sent_buckets[payment_secret] = 0
-            self.sent_buckets[payment_secret] += amount_receiver_msat
+                self.sent_buckets[payment_secret] = (0, 0)
+            amount_sent, amount_failed = self.sent_buckets[payment_secret]
+            amount_sent += amount_receiver_msat
+            self.sent_buckets[payment_secret] = amount_sent, amount_failed
         util.trigger_callback('htlc_added', chan, htlc, SENT)
 
 
@@ -1707,15 +1709,18 @@ class LNWallet(LNWorker):
 
             # check sent_buckets if we use trampoline
             if self.channel_db is None and payment_secret in self.sent_buckets:
-                self.sent_buckets[payment_secret] -= amount_receiver_msat
-                if self.sent_buckets[payment_secret] > 0:
+                amount_sent, amount_failed = self.sent_buckets[payment_secret]
+                amount_failed += amount_receiver_msat
+                self.sent_buckets[payment_secret] = amount_sent, amount_failed
+                if amount_sent == amount_failed:
+                    self.logger.info('bucket still active...')
                     return
-                assert self.sent_buckets[payment_secret] == 0
+                self.logger.info('bucket failed')
 
             htlc_log = HtlcLog(
                 success=False,
                 route=route,
-                amount_msat=amount_receiver_msat,
+                amount_msat=amount_sent,
                 error_bytes=error_bytes,
                 failure_msg=failure_message,
                 sender_idx=sender_idx)
