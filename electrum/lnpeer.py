@@ -1315,22 +1315,22 @@ class Peer(Logger):
     def on_update_add_htlc(self, chan: Channel, payload):
         payment_hash = payload["payment_hash"]
         htlc_id = payload["id"]
-        self.logger.info(f"on_update_add_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
         cltv_expiry = payload["cltv_expiry"]
         amount_msat_htlc = payload["amount_msat"]
         onion_packet = payload["onion_routing_packet"]
-        if chan.get_state() != ChannelState.OPEN:
-            raise RemoteMisbehaving(f"received update_add_htlc while chan.get_state() != OPEN. state was {chan.get_state()!r}")
-        if cltv_expiry > bitcoin.NLOCKTIME_BLOCKHEIGHT_MAX:
-            asyncio.ensure_future(self.lnworker.try_force_closing(chan.channel_id))
-            raise RemoteMisbehaving(f"received update_add_htlc with cltv_expiry > BLOCKHEIGHT_MAX. value was {cltv_expiry}")
-        # add htlc
         htlc = UpdateAddHtlc(
             amount_msat=amount_msat_htlc,
             payment_hash=payment_hash,
             cltv_expiry=cltv_expiry,
             timestamp=int(time.time()),
             htlc_id=htlc_id)
+        self.logger.info(f"on_update_add_htlc. chan {chan.short_channel_id}. htlc={str(htlc)}")
+        if chan.get_state() != ChannelState.OPEN:
+            raise RemoteMisbehaving(f"received update_add_htlc while chan.get_state() != OPEN. state was {chan.get_state()!r}")
+        if cltv_expiry > bitcoin.NLOCKTIME_BLOCKHEIGHT_MAX:
+            asyncio.ensure_future(self.lnworker.try_force_closing(chan.channel_id))
+            raise RemoteMisbehaving(f"received update_add_htlc with cltv_expiry > BLOCKHEIGHT_MAX. value was {cltv_expiry}")
+        # add htlc
         chan.receive_htlc(htlc, onion_packet)
         util.trigger_callback('htlc_added', chan, htlc, RECEIVED)
 
@@ -1562,6 +1562,7 @@ class Peer(Logger):
         if not (invoice_msat is None or invoice_msat <= total_msat <= 2 * invoice_msat):
             log_fail_reason(f"total_msat={total_msat} too different from invoice_msat={invoice_msat}")
             raise exc_incorrect_or_unknown_pd
+        self.logger.info(f"maybe_fulfill_htlc. will FULFILL HTLC: chan {chan.short_channel_id}. htlc={str(htlc)}")
         return preimage, None
 
     def fulfill_htlc(self, chan: Channel, htlc_id: int, preimage: bytes):
