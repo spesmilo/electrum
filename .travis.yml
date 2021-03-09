@@ -46,7 +46,7 @@ jobs:
         # kill background sleep loop
         - kill %1
         - ls -la bin
-        - if [ $(ls bin | grep -c Electrum-GRS-*) -eq 0 ]; then exit 1; fi
+        - if [ $(ls bin | grep -c ElectrumGRS-*) -eq 0 ]; then exit 1; fi
       after_success: true
       # disabled for now as travis started to always time out:
     - if: false AND ((branch = master) OR (tag IS present))
