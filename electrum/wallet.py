@@ -86,6 +86,7 @@ from .util import read_json_file, write_json_file, UserFacingException
 
 if TYPE_CHECKING:
     from .network import Network
+    from .exchange_rate import FxThread
 
 
 _logger = get_logger(__name__)
@@ -947,7 +948,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             if fx and fx.is_enabled() and fx.get_history_config():
                 txid = item.get('txid')
                 if not item.get('lightning') and txid:
-                    fiat_fields = self.get_tx_item_fiat(txid, value, fx, item['fee_sat'])
+                    fiat_fields = self.get_tx_item_fiat(tx_hash=txid, amount_sat=value, fx=fx, tx_fee=item['fee_sat'])
                     item.update(fiat_fields)
                 else:
                     timestamp = item['timestamp'] or now
@@ -998,7 +999,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 income += value
             # fiat computations
             if fx and fx.is_enabled() and fx.get_history_config():
-                fiat_fields = self.get_tx_item_fiat(tx_hash, value, fx, tx_fee)
+                fiat_fields = self.get_tx_item_fiat(tx_hash=tx_hash, amount_sat=value, fx=fx, tx_fee=tx_fee)
                 fiat_value = fiat_fields['fiat_value'].value
                 item.update(fiat_fields)
                 if value < 0:
@@ -1049,20 +1050,27 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def default_fiat_value(self, tx_hash, fx, value_sat):
         return value_sat / Decimal(COIN) * self.price_at_timestamp(tx_hash, fx.timestamp_rate)
 
-    def get_tx_item_fiat(self, tx_hash, value, fx, tx_fee):
+    def get_tx_item_fiat(
+            self,
+            *,
+            tx_hash: str,
+            amount_sat: int,
+            fx: 'FxThread',
+            tx_fee: Optional[int],
+    ) -> Dict[str, Any]:
         item = {}
         fiat_value = self.get_fiat_value(tx_hash, fx.ccy)
         fiat_default = fiat_value is None
         fiat_rate = self.price_at_timestamp(tx_hash, fx.timestamp_rate)
-        fiat_value = fiat_value if fiat_value is not None else self.default_fiat_value(tx_hash, fx, value)
+        fiat_value = fiat_value if fiat_value is not None else self.default_fiat_value(tx_hash, fx, amount_sat)
         fiat_fee = tx_fee / Decimal(COIN) * fiat_rate if tx_fee is not None else None
         item['fiat_currency'] = fx.ccy
         item['fiat_rate'] = Fiat(fiat_rate, fx.ccy)
         item['fiat_value'] = Fiat(fiat_value, fx.ccy)
         item['fiat_fee'] = Fiat(fiat_fee, fx.ccy) if fiat_fee else None
         item['fiat_default'] = fiat_default
-        if value < 0:
-            acquisition_price = - value / Decimal(COIN) * self.average_price(tx_hash, fx.timestamp_rate, fx.ccy)
+        if amount_sat < 0:
+            acquisition_price = - amount_sat / Decimal(COIN) * self.average_price(tx_hash, fx.timestamp_rate, fx.ccy)
             liquidation_price = - fiat_value
             item['acquisition_price'] = Fiat(acquisition_price, fx.ccy)
             cg = liquidation_price - acquisition_price
