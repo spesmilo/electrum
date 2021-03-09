@@ -50,6 +50,11 @@ Builder.load_string('''
                     action: partial(root.unit_dialog, self)
                 CardSeparator
                 SettingsItem:
+                    title: _('Onchain fees') + ': ' + app.fee_status
+                    description: _('Choose how transaction fees are estimated')
+                    action: lambda dt: app.fee_dialog()
+                CardSeparator
+                SettingsItem:
                     status: root.fx_status()
                     title: _('Fiat Currency') + ': ' + self.status
                     description: _("Display amounts in fiat currency.")
@@ -81,8 +86,14 @@ Builder.load_string('''
                 CardSeparator
                 SettingsItem:
                     title: _('Password')
-                    description: _("Change wallet password.")
+                    description: _('Change your password') if app._use_single_password else _("Change your password for this wallet.")
                     action: root.change_password
+                CardSeparator
+                SettingsItem:
+                    status: _('Trampoline') if not app.use_gossip else _('Gossip')
+                    title: _('Lightning Routing') + ': ' + self.status
+                    description: _("Use trampoline routing or gossip.")
+                    action: partial(root.routing_dialog, self)
                 CardSeparator
                 SettingsItem:
                     status: _('Yes') if app.android_backups else _('No')
@@ -157,6 +168,22 @@ class SettingsDialog(Factory.Popup):
                                              self.app.base_unit, cb, keep_choice_order=True)
         self._unit_dialog.open()
 
+    def routing_dialog(self, item, dt):
+        description = \
+            _('Lightning payments require finding a path through the Lightning Network.')\
+            + ' ' + ('You may use trampoline routing, or local routing (gossip).')\
+            + ' ' + ('Downloading the network gossip uses quite some bandwidth and storage, and is not recommended on mobile devices.')\
+            + ' ' + ('If you use trampoline, you can only open channels with trampoline nodes.')
+        def cb(text):
+            self.app.use_gossip = (text == 'Gossip')
+        dialog = ChoiceDialog(
+            _('Lightning Routing'),
+            ['Trampoline', 'Gossip'],
+            'Gossip' if self.app.use_gossip else 'Trampoline',
+            cb, description=description,
+            keep_choice_order=True)
+        dialog.open()
+
     def coinselect_status(self):
         return coinchooser.get_name(self.app.electrum_config)
 
@@ -216,9 +243,6 @@ class SettingsDialog(Factory.Popup):
         fullname = dd.get('fullname')
         d = CheckBoxDialog(fullname, descr, status, callback)
         d.open()
-
-    def fee_status(self):
-        return self.config.get_fee_status()
 
     def boolean_dialog(self, name, title, message, dt):
         from .checkbox_dialog import CheckBoxDialog

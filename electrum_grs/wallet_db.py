@@ -52,7 +52,7 @@ if TYPE_CHECKING:
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 33     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 38     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -181,6 +181,11 @@ class WalletDB(JsonDB):
         self._convert_version_31()
         self._convert_version_32()
         self._convert_version_33()
+        self._convert_version_34()
+        self._convert_version_35()
+        self._convert_version_36()
+        self._convert_version_37()
+        self._convert_version_38()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
         self._after_upgrade_tasks()
@@ -524,7 +529,7 @@ class WalletDB(JsonDB):
         self.data['channels'] = { x['channel_id']: x for x in channels }
         # convert txi & txo
         txi = self.get('txi', {})
-        for tx_hash, d in txi.items():
+        for tx_hash, d in list(txi.items()):
             d2 = {}
             for addr, l in d.items():
                 d2[addr] = {}
@@ -533,7 +538,7 @@ class WalletDB(JsonDB):
             txi[tx_hash] = d2
         self.data['txi'] = txi
         txo = self.get('txo', {})
-        for tx_hash, d in txo.items():
+        for tx_hash, d in list(txo.items()):
             d2 = {}
             for addr, l in d.items():
                 d2[addr] = {}
@@ -688,8 +693,7 @@ class WalletDB(JsonDB):
     def _convert_version_32(self):
         if not self._is_upgrade_method_needed(31, 31):
             return
-
-        from .invoices import PR_TYPE_ONCHAIN
+        PR_TYPE_ONCHAIN = 0
         invoices_old = self.data.get('invoices', {})
         invoices_new = {k: item for k, item in invoices_old.items()
                         if not (item['type'] == PR_TYPE_ONCHAIN and item['outputs'] is None)}
@@ -699,16 +703,80 @@ class WalletDB(JsonDB):
     def _convert_version_33(self):
         if not self._is_upgrade_method_needed(32, 32):
             return
-
-        from .invoices import PR_TYPE_ONCHAIN
+        PR_TYPE_ONCHAIN = 0
         requests = self.data.get('payment_requests', {})
         invoices = self.data.get('invoices', {})
         for d in [invoices, requests]:
             for key, item in list(d.items()):
                 if item['type'] == PR_TYPE_ONCHAIN:
                     item['height'] = item.get('height') or 0
-
         self.data['seed_version'] = 33
+
+    def _convert_version_34(self):
+        if not self._is_upgrade_method_needed(33, 33):
+            return
+        channels = self.data.get('channels', {})
+        for key, item in channels.items():
+            item['local_config']['upfront_shutdown_script'] = \
+                item['local_config'].get('upfront_shutdown_script') or ""
+            item['remote_config']['upfront_shutdown_script'] = \
+                item['remote_config'].get('upfront_shutdown_script') or ""
+        self.data['seed_version'] = 34
+
+    def _convert_version_35(self):
+        # same as 32, but for payment_requests
+        if not self._is_upgrade_method_needed(34, 34):
+            return
+        PR_TYPE_ONCHAIN = 0
+        requests_old = self.data.get('payment_requests', {})
+        requests_new = {k: item for k, item in requests_old.items()
+                        if not (item['type'] == PR_TYPE_ONCHAIN and item['outputs'] is None)}
+        self.data['payment_requests'] = requests_new
+        self.data['seed_version'] = 35
+
+    def _convert_version_36(self):
+        if not self._is_upgrade_method_needed(35, 35):
+            return
+        old_frozen_coins = self.data.get('frozen_coins', [])
+        new_frozen_coins = {coin: True for coin in old_frozen_coins}
+        self.data['frozen_coins'] = new_frozen_coins
+        self.data['seed_version'] = 36
+
+    def _convert_version_37(self):
+        if not self._is_upgrade_method_needed(36, 36):
+            return
+        payments = self.data.get('lightning_payments', {})
+        for k, v in list(payments.items()):
+            amount_sat, direction, status = v
+            amount_msat = amount_sat * 1000 if amount_sat is not None else None
+            payments[k] = amount_msat, direction, status
+        self.data['lightning_payments'] = payments
+        self.data['seed_version'] = 37
+
+    def _convert_version_38(self):
+        if not self._is_upgrade_method_needed(37, 37):
+            return
+        PR_TYPE_ONCHAIN = 0
+        PR_TYPE_LN = 2
+        from .bitcoin import TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN
+        max_sats = TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN
+        requests = self.data.get('payment_requests', {})
+        invoices = self.data.get('invoices', {})
+        for d in [invoices, requests]:
+            for key, item in list(d.items()):
+                if item['type'] == PR_TYPE_ONCHAIN:
+                    amount_sat = item['amount_sat']
+                    if amount_sat == '!':
+                        continue
+                    if not (isinstance(amount_sat, int) and 0 <= amount_sat <= max_sats):
+                        del d[key]
+                elif item['type'] == PR_TYPE_LN:
+                    amount_msat = item['amount_msat']
+                    if not amount_msat:
+                        continue
+                    if not (isinstance(amount_msat, int) and 0 <= amount_msat <= max_sats * 1000):
+                        del d[key]
+        self.data['seed_version'] = 38
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
@@ -926,6 +994,8 @@ class WalletDB(JsonDB):
         assert isinstance(tx_hash, str)
         assert isinstance(tx, Transaction), tx
         # note that tx might be a PartialTransaction
+        # serialize and de-serialize tx now. this might e.g. convert a complete PartialTx to a Tx
+        tx = tx_from_any(str(tx))
         if not tx_hash:
             raise Exception("trying to add tx to db without txid")
         if tx_hash != tx.txid():
@@ -1238,13 +1308,15 @@ class WalletDB(JsonDB):
         with self.lock:
             self._write(storage)
 
+    @profiler
     def _write(self, storage: 'WalletStorage'):
         if threading.currentThread().isDaemon():
             self.logger.warning('daemon thread cannot write db')
             return
         if not self.modified():
             return
-        storage.write(self.dump())
+        json_str = self.dump(human_readable=not storage.is_encrypted())
+        storage.write(json_str)
         self.set_modified(False)
 
     def is_ready_to_be_used_by_wallet(self):

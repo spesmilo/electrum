@@ -20,5 +20,6 @@ rm -rf ~/.groestlcoin/regtest
 screen -S groestlcoind -X quit || true
 screen -S groestlcoind -m -d groestlcoind -regtest
 sleep 6
+groestlcoin-cli createwallet test_wallet
 addr=$(groestlcoin-cli getnewaddress)
 groestlcoin-cli generatetoaddress 150 $addr > /dev/null

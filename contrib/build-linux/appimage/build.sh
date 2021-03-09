@@ -9,10 +9,13 @@ DISTDIR="$PROJECT_ROOT/dist"
 BUILDDIR="$CONTRIB_APPIMAGE/build/appimage"
 APPDIR="$BUILDDIR/electrum-grs.AppDir"
 CACHEDIR="$CONTRIB_APPIMAGE/.cache/appimage"
+PIP_CACHE_DIR="$CACHEDIR/pip_cache"
 
 export GCC_STRIP_BINARIES="1"
 
 # pinned versions
+# note: compiling python 3.8.x requires at least glibc 2.27,
+#       which is first available on ubuntu 18.04
 PYTHON_VERSION=3.7.9
 PKG2APPIMAGE_COMMIT="eb8f3acdd9f11ab19b78f5cb15daa772367daf15"
 SQUASHFSKIT_COMMIT="ae0d656efa2d0df2fcac795b6823b44462f19386"
@@ -24,7 +27,7 @@ APPIMAGE="$DISTDIR/electrum-grs-$VERSION-x86_64.AppImage"
 . "$CONTRIB"/build_tools_util.sh
 
 rm -rf "$BUILDDIR"
-mkdir -p "$APPDIR" "$CACHEDIR" "$DISTDIR"
+mkdir -p "$APPDIR" "$CACHEDIR" "$PIP_CACHE_DIR" "$DISTDIR"
 
 # potential leftover from setuptools that might make pip put garbage in binary
 rm -rf "$PROJECT_ROOT/build"
@@ -116,9 +119,8 @@ info "preparing electrum-locale."
 
 
 info "Installing build dependencies."
-mkdir -p "$CACHEDIR/pip_cache"
 "$python" -m pip install --no-dependencies --no-binary :all: --no-warn-script-location \
-    --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements-build-appimage.txt"
+    --cache-dir "$PIP_CACHE_DIR" -r "$CONTRIB/deterministic-build/requirements-build-appimage.txt"
 
 info "installing electrum-grs and its dependencies."
 # note: we prefer compiling C extensions ourselves, instead of using binary wheels,
@@ -126,14 +128,14 @@ info "installing electrum-grs and its dependencies."
 #       - PyQt5, as it's harder to build from source
 #       - cryptography, as building it would need openssl 1.1, not available on ubuntu 16.04
 "$python" -m pip install --no-dependencies --no-binary :all: --no-warn-script-location \
-    --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements.txt"
+    --cache-dir "$PIP_CACHE_DIR" -r "$CONTRIB/deterministic-build/requirements.txt"
 "$python" -m pip install --no-dependencies --no-binary :all: --only-binary pyqt5,cryptography --no-warn-script-location \
-    --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements-binaries.txt"
+    --cache-dir "$PIP_CACHE_DIR" -r "$CONTRIB/deterministic-build/requirements-binaries.txt"
 "$python" -m pip install --no-dependencies --no-binary :all: --no-warn-script-location \
-    --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements-hw.txt"
+    --cache-dir "$PIP_CACHE_DIR" -r "$CONTRIB/deterministic-build/requirements-hw.txt"
 
 "$python" -m pip install --no-dependencies --no-warn-script-location \
-    --cache-dir "$CACHEDIR/pip_cache" "$PROJECT_ROOT"
+    --cache-dir "$PIP_CACHE_DIR" "$PROJECT_ROOT"
 
 # was only needed during build time, not runtime
 "$python" -m pip uninstall -y Cython

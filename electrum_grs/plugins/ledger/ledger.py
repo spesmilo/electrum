@@ -7,7 +7,7 @@ from typing import Optional, Tuple
 from electrum_grs import ecc
 from electrum_grs import bip32
 from electrum_grs.crypto import hash_160
-from electrum_grs.bitcoin import int_to_hex, var_int, is_segwit_script_type
+from electrum_grs.bitcoin import int_to_hex, var_int, is_segwit_script_type, is_b58_address
 from electrum_grs.bip32 import BIP32Node, convert_bip32_intpath_to_strpath
 from electrum_grs.i18n import _
 from electrum_grs.keystore import Hardware_KeyStore
@@ -35,7 +35,9 @@ try:
     from btchip.btchipException import BTChipException
     BTCHIP = True
     BTCHIP_DEBUG = False
-except ImportError:
+except ImportError as e:
+    if not (isinstance(e, ModuleNotFoundError) and e.name == 'btchip'):
+        _logger.exception('error importing ledger plugin deps')
     BTCHIP = False
 
 MSG_NEEDS_FW_UPDATE_GENERIC = _('Firmware version too old. Please update at') + \
@@ -332,7 +334,12 @@ class Ledger_KeyStore(Hardware_KeyStore):
         if sLength == 33:
             s = s[1:]
         # And convert it
-        return bytes([27 + 4 + (signature[0] & 0x01)]) + r + s
+
+        # Pad r and s points with 0x00 bytes when the point is small to get valid signature.
+        r_padded = bytes([0x00]) * (32 - len(r)) + r
+        s_padded = bytes([0x00]) * (32 - len(s)) + s
+
+        return bytes([27 + 4 + (signature[0] & 0x01)]) + r_padded + s_padded
 
     @runs_in_hwd_thread
     @test_pin_unlocked
@@ -408,6 +415,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
             if len(tx.outputs()) > 2:
                 self.give_error("Transaction with more than 2 outputs not supported")
         for txout in tx.outputs():
+            if client_electrum.is_hw1() and txout.address and not is_b58_address(txout.address):
+                self.give_error(_("This {} device can only send to base58 addresses.").format(self.device))
             if not txout.address:
                 if client_electrum.is_hw1():
                     self.give_error(_("Only address outputs are supported by {}").format(self.device))
@@ -569,7 +578,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
 
 class LedgerPlugin(HW_PluginBase):
     keystore_class = Ledger_KeyStore
-    minimum_library = (0, 1, 30)
+    minimum_library = (0, 1, 32)
     client = None
     DEVICE_IDS = [
                    (0x2581, 0x1807), # HW.1 legacy btchip

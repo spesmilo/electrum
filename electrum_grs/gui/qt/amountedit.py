@@ -69,7 +69,7 @@ class AmountEdit(FreezableLineEdit):
             textRect.adjust(2, 0, -10, 0)
             painter = QPainter(self)
             painter.setPen(ColorScheme.GRAY.as_color())
-            painter.drawText(textRect, Qt.AlignRight | Qt.AlignVCenter, self.base_unit())
+            painter.drawText(textRect, int(Qt.AlignRight | Qt.AlignVCenter), self.base_unit())
 
     def get_amount(self) -> Union[None, Decimal, int]:
         try:

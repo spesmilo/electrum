@@ -41,7 +41,13 @@ class HTLCManager:
                 if not log[sub]['fee_updates']:
                     log[sub]['fee_updates'][0] = FeeUpdate(rate=initial_feerate, ctn_local=0, ctn_remote=0)
         self.log = log
-        self.lock = threading.RLock()
+
+        # We need a lock as many methods of HTLCManager are accessed by both the asyncio thread and the GUI.
+        # lnchannel sometimes calls us with Channel.db_lock (== log.lock) already taken,
+        # and we ourselves often take log.lock (via StoredDict.__getitem__).
+        # Hence, to avoid deadlocks, we reuse this same lock.
+        self.lock = log.lock
+
         self._init_maybe_active_htlc_ids()
 
     def with_lock(func):
@@ -314,6 +320,46 @@ class HTLCManager:
         return False
 
     @with_lock
+    def is_add_htlc_irrevocably_committed_yet(
+            self,
+            *,
+            ctx_owner: HTLCOwner = None,
+            htlc_proposer: HTLCOwner,
+            htlc_id: int,
+    ) -> bool:
+        """Returns whether `add_htlc` was irrevocably committed to `ctx_owner's` ctx.
+        If `ctx_owner` is None, both parties' ctxs are checked.
+        """
+        in_local = self._is_add_htlc_irrevocably_committed_yet(
+            ctx_owner=LOCAL, htlc_proposer=htlc_proposer, htlc_id=htlc_id)
+        in_remote = self._is_add_htlc_irrevocably_committed_yet(
+            ctx_owner=REMOTE, htlc_proposer=htlc_proposer, htlc_id=htlc_id)
+        if ctx_owner is None:
+            return in_local and in_remote
+        elif ctx_owner == LOCAL:
+            return in_local
+        elif ctx_owner == REMOTE:
+            return in_remote
+        else:
+            raise Exception(f"unexpected ctx_owner: {ctx_owner!r}")
+
+    @with_lock
+    def _is_add_htlc_irrevocably_committed_yet(
+            self,
+            *,
+            ctx_owner: HTLCOwner,
+            htlc_proposer: HTLCOwner,
+            htlc_id: int,
+    ) -> bool:
+        htlc_id = int(htlc_id)
+        if htlc_id >= self.get_next_htlc_id(htlc_proposer):
+            return False
+        ctns = self.log[htlc_proposer]['locked_in'][htlc_id]
+        if ctns[ctx_owner] is None:
+            return False
+        return ctns[ctx_owner] <= self.ctn_oldest_unrevoked(ctx_owner)
+
+    @with_lock
     def htlcs_by_direction(self, subject: HTLCOwner, direction: Direction,
                            ctn: int = None) -> Dict[int, UpdateAddHtlc]:
         """Return the dict of received or sent (depending on direction) HTLCs
@@ -497,10 +543,11 @@ class HTLCManager:
                                                                log_action='fails')
 
     ##### Queries re Fees:
+    # note: feerates are in sat/kw everywhere in this file
 
     @with_lock
     def get_feerate(self, subject: HTLCOwner, ctn: int) -> int:
-        """Return feerate used in subject's commitment txn at ctn."""
+        """Return feerate (sat/kw) used in subject's commitment txn at ctn."""
         ctn = max(0, ctn)  # FIXME rm this
         # only one party can update fees; use length of logs to figure out which:
         assert not (len(self.log[LOCAL]['fee_updates']) > 1 and len(self.log[REMOTE]['fee_updates']) > 1)

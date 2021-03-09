@@ -35,6 +35,7 @@ from ipaddress import IPv4Network, IPv6Network, ip_address, IPv6Address, IPv4Add
 import itertools
 import logging
 import hashlib
+import functools
 
 import aiorpcx
 from aiorpcx import TaskGroup
@@ -351,7 +352,7 @@ class Interface(Logger):
 
     def __init__(self, *, network: 'Network', server: ServerAddr, proxy: Optional[dict]):
         self.ready = asyncio.Future()
-        self.got_disconnected = asyncio.Future()
+        self.got_disconnected = asyncio.Event()
         self.server = server
         Logger.__init__(self)
         assert network.config.path
@@ -375,9 +376,13 @@ class Interface(Logger):
         # Dump network messages (only for this interface).  Set at runtime from the console.
         self.debug = False
 
-        asyncio.run_coroutine_threadsafe(
-            self.network.taskgroup.spawn(self.run()), self.network.asyncio_loop)
         self.taskgroup = SilentTaskGroup()
+
+        async def spawn_task():
+            task = await self.network.taskgroup.spawn(self.run())
+            if sys.version_info >= (3, 8):
+                task.set_name(f"interface::{str(server)}")
+        asyncio.run_coroutine_threadsafe(spawn_task(), self.network.asyncio_loop)
 
     @property
     def host(self):
@@ -476,6 +481,7 @@ class Interface(Logger):
         return sslc
 
     def handle_disconnect(func):
+        @functools.wraps(func)
         async def wrapper_func(self: 'Interface', *args, **kwargs):
             try:
                 return await func(self, *args, **kwargs)
@@ -485,9 +491,8 @@ class Interface(Logger):
                 self.logger.warning(f"disconnecting due to {repr(e)}")
                 self.logger.debug(f"(disconnect) trace for {repr(e)}", exc_info=True)
             finally:
+                self.got_disconnected.set()
                 await self.network.connection_down(self)
-                if not self.got_disconnected.done():
-                    self.got_disconnected.set_result(1)
                 # if was not 'ready' yet, schedule waiting coroutines:
                 self.ready.cancel()
         return wrapper_func
@@ -609,6 +614,9 @@ class Interface(Logger):
         assert_hex_str(res['hex'])
         if len(res['hex']) != HEADER_SIZE * 2 * res['count']:
             raise RequestCorrupted('inconsistent chunk hex and count')
+        # we never request more than 2016 headers, but we enforce those fit in a single response
+        if res['max'] < 2016:
+            raise RequestCorrupted(f"server uses too low 'max' count for block.headers: {res['max']} < 2016")
         if res['count'] != size:
             raise RequestCorrupted(f"expected {size} headers but only got {res['count']}")
         conn = self.blockchain.connect_chunk(index, res['hex'])
@@ -679,12 +687,17 @@ class Interface(Logger):
             self.network.update_fee_estimates()
             await asyncio.sleep(60)
 
-    async def close(self):
+    async def close(self, *, force_after: int = None):
         """Closes the connection and waits for it to be closed.
         We try to flush buffered data to the wire, so this can take some time.
         """
+        if force_after is None:
+            # We give up after a while and just abort the connection.
+            # Note: specifically if the server is running Fulcrum, waiting seems hopeless,
+            #       the connection must be aborted (see https://github.com/cculianu/Fulcrum/issues/76)
+            force_after = 2  # seconds
         if self.session:
-            await self.session.close()
+            await self.session.close(force_after=force_after)
         # monitor_connection will cancel tasks
 
     async def run_fetch_blocks(self):
@@ -918,6 +931,8 @@ class Interface(Logger):
             raise Exception(f"{repr(tx_hash)} is not a txid")
         raw = await self.session.send_request('blockchain.transaction.get', [tx_hash], timeout=timeout)
         # validate response
+        if not is_hex_str(raw):
+            raise RequestCorrupted(f"received garbage (non-hex) as tx data (txid {tx_hash}): {raw!r}")
         tx = Transaction(raw)
         try:
             tx.deserialize()  # see if raises
@@ -934,14 +949,27 @@ class Interface(Logger):
         res = await self.session.send_request('blockchain.scripthash.get_history', [sh])
         # check response
         assert_list_or_tuple(res)
+        prev_height = 1
         for tx_item in res:
-            assert_dict_contains_field(tx_item, field_name='height')
+            height = assert_dict_contains_field(tx_item, field_name='height')
             assert_dict_contains_field(tx_item, field_name='tx_hash')
-            assert_integer(tx_item['height'])
+            assert_integer(height)
             assert_hash256_str(tx_item['tx_hash'])
-            if tx_item['height'] in (-1, 0):
+            if height in (-1, 0):
                 assert_dict_contains_field(tx_item, field_name='fee')
                 assert_non_negative_integer(tx_item['fee'])
+                prev_height = - float("inf")  # this ensures confirmed txs can't follow mempool txs
+            else:
+                # check monotonicity of heights
+                if height < prev_height:
+                    raise RequestCorrupted(f'heights of confirmed txs must be in increasing order')
+                prev_height = height
+        hashes = set(map(lambda item: item['tx_hash'], res))
+        if len(hashes) != len(res):
+            # Either server is sending garbage... or maybe if server is race-prone
+            # a recently mined tx could be included in both last block and mempool?
+            # Still, it's simplest to just disregard the response.
+            raise RequestCorrupted(f"server history has non-unique txids for sh={sh}")
         return res
 
     async def listunspent_for_scripthash(self, sh: str) -> List[dict]:
