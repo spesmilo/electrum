@@ -1,3 +1,4 @@
+from math import inf
 import unittest
 import tempfile
 import shutil
@@ -11,7 +12,7 @@ from electrum.lnonion import (OnionHopsDataSingle, new_onion_packet,
 from electrum import bitcoin, lnrouter
 from electrum.constants import BitcoinTestnet
 from electrum.simple_config import SimpleConfig
-from electrum.lnrouter import PathEdge
+from electrum.lnrouter import PathEdge, LiquidityHintMgr, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH, DEFAULT_PENALTY_BASE_MSAT, fee_for_edge_msat
 
 from . import TestCaseForTestnet
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
@@ -152,6 +153,104 @@ class Test_LNRouter(TestCaseForTestnet):
 
         self.cdb.stop()
         asyncio.run_coroutine_threadsafe(self.cdb.stopped_event.wait(), self.asyncio_loop).result()
+
+    def test_find_path_liquidity_hints_failure(self):
+        self.prepare_graph()
+        amount_to_send = 100000
+
+        """
+        assume failure over channel 2, B -> E
+        A -3-> B |-2-> E
+        A -6-> D -5-> E  <= chosen path
+        A -6-> D -4-> C -7-> E
+        A -3-> B -1-> C -7-> E
+        A -6-> D -4-> C -1-> B -2-> E
+        A -3-> B -1-> C -4-> D -5-> E
+        """
+        self.path_finder.liquidity_hints.update_cannot_send(node('b'), node('e'), channel(2), amount_to_send - 1)
+        path = self.path_finder.find_path_for_payment(
+            nodeA=node('a'),
+            nodeB=node('e'),
+            invoice_amount_msat=amount_to_send)
+        self.assertEqual(channel(6), path[0].short_channel_id)
+        self.assertEqual(channel(5), path[1].short_channel_id)
+
+        """
+        assume failure over channel 5, D -> E
+        A -3-> B |-2-> E
+        A -6-> D |-5-> E
+        A -6-> D -4-> C -7-> E
+        A -3-> B -1-> C -7-> E  <= chosen path
+        A -6-> D -4-> C -1-> B |-2-> E
+        A -3-> B -1-> C -4-> D |-5-> E
+        """
+        self.path_finder.liquidity_hints.update_cannot_send(node('d'), node('e'), channel(5), amount_to_send - 1)
+        path = self.path_finder.find_path_for_payment(
+            nodeA=node('a'),
+            nodeB=node('e'),
+            invoice_amount_msat=amount_to_send)
+        self.assertEqual(channel(3), path[0].short_channel_id)
+        self.assertEqual(channel(1), path[1].short_channel_id)
+        self.assertEqual(channel(7), path[2].short_channel_id)
+
+        """
+        assume success over channel 4, D -> C
+        A -3-> B |-2-> E
+        A -6-> D |-5-> E
+        A -6-> D -4-> C -7-> E  <= chosen path
+        A -3-> B -1-> C -7-> E
+        A -6-> D -4-> C -1-> B |-2-> E
+        A -3-> B -1-> C -4-> D |-5-> E
+        """
+        self.path_finder.liquidity_hints.update_can_send(node('d'), node('c'), channel(4), amount_to_send + 1000)
+        path = self.path_finder.find_path_for_payment(
+            nodeA=node('a'),
+            nodeB=node('e'),
+            invoice_amount_msat=amount_to_send)
+        self.assertEqual(channel(6), path[0].short_channel_id)
+        self.assertEqual(channel(4), path[1].short_channel_id)
+        self.assertEqual(channel(7), path[2].short_channel_id)
+
+        self.cdb.stop()
+        asyncio.run_coroutine_threadsafe(self.cdb.stopped_event.wait(), self.asyncio_loop).result()
+
+    def test_liquidity_hints(self):
+        liquidity_hints = LiquidityHintMgr()
+        node_from = bytes(0)
+        node_to = bytes(1)
+        channel_id = ShortChannelID.from_components(0, 0, 0)
+        amount_to_send = 1_000_000
+
+        # check default penalty
+        self.assertEqual(
+            fee_for_edge_msat(amount_to_send, DEFAULT_PENALTY_BASE_MSAT, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH),
+            liquidity_hints.penalty(node_from, node_to, channel_id, amount_to_send)
+        )
+        liquidity_hints.update_can_send(node_from, node_to, channel_id, 1_000_000)
+        liquidity_hints.update_cannot_send(node_from, node_to, channel_id, 2_000_000)
+        hint = liquidity_hints.get_hint(channel_id)
+        self.assertEqual(1_000_000, hint.can_send(node_from < node_to))
+        self.assertEqual(None, hint.cannot_send(node_to < node_from))
+        self.assertEqual(2_000_000, hint.cannot_send(node_from < node_to))
+        # the can_send backward hint is set automatically
+        self.assertEqual(2_000_000, hint.can_send(node_to < node_from))
+
+        # check penalties
+        self.assertEqual(0., liquidity_hints.penalty(node_from, node_to, channel_id, 1_000_000))
+        self.assertEqual(650, liquidity_hints.penalty(node_from, node_to, channel_id, 1_500_000))
+        self.assertEqual(inf, liquidity_hints.penalty(node_from, node_to, channel_id, 2_000_000))
+
+        # test that we don't overwrite significant info with less significant info
+        liquidity_hints.update_can_send(node_from, node_to, channel_id, 500_000)
+        hint = liquidity_hints.get_hint(channel_id)
+        self.assertEqual(1_000_000, hint.can_send(node_from < node_to))
+
+        # test case when can_send > cannot_send
+        liquidity_hints.update_can_send(node_from, node_to, channel_id, 3_000_000)
+        hint = liquidity_hints.get_hint(channel_id)
+        self.assertEqual(3_000_000, hint.can_send(node_from < node_to))
+        self.assertEqual(None, hint.cannot_send(node_from < node_to))
+
 
     @needs_test_with_all_chacha20_implementations
     def test_new_onion_packet_legacy(self):
