@@ -95,23 +95,14 @@ def create_trampoline_route(
         invoice_features:int,
         my_pubkey: bytes,
         trampoline_node_id,
-        r_tags, t_tags,
+        r_tags,
         trampoline_fee_level: int,
         use_two_trampolines: bool) -> LNPaymentRoute:
 
     invoice_features = LnFeatures(invoice_features)
-    # We do not set trampoline_routing_opt in our invoices, because the spec is not ready
-    # Do not use t_tags if the flag is set, because we the format is not decided yet
-    if invoice_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT):
+    if invoice_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT)\
+        or invoice_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR):
         is_legacy = False
-        if len(r_tags) > 0 and len(r_tags[0]) == 1:
-            pubkey, scid, feebase, feerate, cltv = r_tags[0][0]
-            t_tag = pubkey, feebase, feerate, cltv
-        else:
-            t_tag = None
-    elif len(t_tags) > 0:
-        is_legacy = False
-        t_tag = t_tags[0]
     else:
         is_legacy = True
 
@@ -158,8 +149,15 @@ def create_trampoline_route(
         route[-1].invoice_features = invoice_features
         route[-1].outgoing_node_id = invoice_pubkey
     else:
-        if t_tag:
-            pubkey, feebase, feerate, cltv = t_tag
+        last_trampoline = route[-1].end_node
+        r_tags = [x for x in r_tags if len(x) == 1]
+        random.shuffle(r_tags)
+        for r_tag in r_tags:
+            pubkey, scid, feebase, feerate, cltv = r_tag[0]
+            if pubkey == trampoline_node_id:
+                break
+        else:
+            pubkey, scid, feebase, feerate, cltv = r_tag[0]
             if route[-1].node_id != pubkey:
                 route.append(
                     TrampolineEdge(
@@ -169,6 +167,7 @@ def create_trampoline_route(
                         fee_proportional_millionths=feerate,
                         cltv_expiry_delta=cltv,
                         node_features=trampoline_features))
+
     # Final edge (not part of the route if payment is legacy, but eclair requires an encrypted blob)
     route.append(
         TrampolineEdge(
@@ -239,7 +238,7 @@ def create_trampoline_route_and_onion(
         invoice_features,
         my_pubkey: bytes,
         node_id,
-        r_tags, t_tags,
+        r_tags,
         payment_hash,
         payment_secret,
         local_height:int,
@@ -254,7 +253,6 @@ def create_trampoline_route_and_onion(
         invoice_features=invoice_features,
         trampoline_node_id=node_id,
         r_tags=r_tags,
-        t_tags=t_tags,
         trampoline_fee_level=trampoline_fee_level,
         use_two_trampolines=use_two_trampolines)
     # compute onion and fees
@@ -270,4 +268,5 @@ def create_trampoline_route_and_onion(
     bucket_cltv_delta += trampoline_route[0].cltv_expiry_delta
     # trampoline fee for this very trampoline
     trampoline_fee = trampoline_route[0].fee_for_edge(amount_with_fees)
-    return trampoline_onion, trampoline_fee, amount_with_fees, bucket_cltv_delta
+    amount_with_fees += trampoline_fee
+    return trampoline_onion, amount_with_fees, bucket_cltv_delta

@@ -10,18 +10,10 @@ LIBUSB_COMMIT="c6a35c56016ea2ab2f19115d2ea1e85e0edae155"
 # ^ tag v1.0.24
 
 PYINSTALLER_REPO="https://github.com/SomberNight/pyinstaller.git"
-PYINSTALLER_COMMIT="31fda9dc83feb1b3f2ff08c89ff7ae61506fc1ca"
-# ^ tag 4.1, plus a custom commit that fixes cross-compilation with MinGW
+PYINSTALLER_COMMIT="80ee4d613ecf75a1226b960a560ee01459e65ddb"
+# ^ tag 4.2, plus a custom commit that fixes cross-compilation with MinGW
 
 PYTHON_VERSION=3.8.7
-
-## These settings probably don't need change
-export WINEPREFIX=/opt/wine64
-export WINEDEBUG=-all
-
-PYTHON_FOLDER="python3"
-PYHOME="c:/$PYTHON_FOLDER"
-PYTHON="wine $PYHOME/python.exe -OO -B"
 
 
 # Let's begin!
@@ -43,30 +35,28 @@ info "Installing Python."
 # keys from https://www.python.org/downloads/#pubkeys
 #KEYRING_PYTHON_DEV="keyring-electrum-build-python-dev.gpg"
 #gpg --no-default-keyring --keyring $KEYRING_PYTHON_DEV --import "$here"/gpg_keys/7ED10B6531D7C8E1BC296021FC624643487034E5.asc
-if [ "$GCC_TRIPLET_HOST" = "i686-w64-mingw32" ] ; then
-    ARCH="win32"
-elif [ "$GCC_TRIPLET_HOST" = "x86_64-w64-mingw32" ] ; then
-    ARCH="amd64"
+if [ "$WIN_ARCH" = "win32" ] ; then
+    PYARCH="win32"
+elif [ "$WIN_ARCH" = "win64" ] ; then
+    PYARCH="amd64"
 else
-    fail "unexpected GCC_TRIPLET_HOST: $GCC_TRIPLET_HOST"
+    fail "unexpected WIN_ARCH: $WIN_ARCH"
 fi
-PYTHON_DOWNLOADS="$CACHEDIR/python$PYTHON_VERSION-$ARCH"
+PYTHON_DOWNLOADS="$CACHEDIR/python$PYTHON_VERSION"
 mkdir -p "$PYTHON_DOWNLOADS"
 for msifile in core dev exe lib pip tools; do
     echo "Installing $msifile..."
-    download_if_not_exist "$PYTHON_DOWNLOADS/${msifile}.msi" "https://www.python.org/ftp/python/$PYTHON_VERSION/$ARCH/${msifile}.msi"
-    #download_if_not_exist "$PYTHON_DOWNLOADS/${msifile}.msi.asc" "https://www.python.org/ftp/python/$PYTHON_VERSION/$ARCH/${msifile}.msi.asc"
+    download_if_not_exist "$PYTHON_DOWNLOADS/${msifile}.msi" "https://www.python.org/ftp/python/$PYTHON_VERSION/$PYARCH/${msifile}.msi"
+    #download_if_not_exist "$PYTHON_DOWNLOADS/${msifile}.msi.asc" "https://www.python.org/ftp/python/$PYTHON_VERSION/$PYARCH/${msifile}.msi.asc"
     #verify_signature "$PYTHON_DOWNLOADS/${msifile}.msi.asc" $KEYRING_PYTHON_DEV
-    wine msiexec /i "$PYTHON_DOWNLOADS/${msifile}.msi" /qb TARGETDIR=$PYHOME
+    wine msiexec /i "$PYTHON_DOWNLOADS/${msifile}.msi" /qb TARGETDIR=$WINE_PYHOME
 done
 
 break_legacy_easy_install
 
 info "Installing build dependencies."
-$PYTHON -m pip install --no-dependencies --no-warn-script-location -r "$CONTRIB"/deterministic-build/requirements-build-wine.txt
-
-info "Installing dependencies specific to binaries."
-$PYTHON -m pip install --no-dependencies --no-warn-script-location -r "$CONTRIB"/deterministic-build/requirements-binaries.txt
+$WINE_PYTHON -m pip install --no-dependencies --no-warn-script-location \
+    --cache-dir "$WINE_PIP_CACHE_DIR" -r "$CONTRIB"/deterministic-build/requirements-build-wine.txt
 
 info "Installing NSIS."
 download_if_not_exist "$CACHEDIR/$NSIS_FILENAME" "$NSIS_URL"
@@ -102,14 +92,25 @@ cp "$CACHEDIR/libusb/libusb/.libs/libusb-1.0.dll" $WINEPREFIX/drive_c/tmp/  || f
 
 
 # copy already built DLLs
-cp "$PROJECT_ROOT/electrum_grs/libsecp256k1-0.dll" $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libsecp to its destination"
-cp "$PROJECT_ROOT/electrum_grs/libzbar-0.dll" $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libzbar to its destination"
+cp "$DLL_TARGET_DIR/libsecp256k1-0.dll" $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libsecp to its destination"
+cp "$DLL_TARGET_DIR/libzbar-0.dll" $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libzbar to its destination"
 
 
 info "Building PyInstaller."
 # we build our own PyInstaller boot loader as the default one has high
 # anti-virus false positives
 (
+    if [ "$WIN_ARCH" = "win32" ] ; then
+        PYINST_ARCH="32bit"
+    elif [ "$WIN_ARCH" = "win64" ] ; then
+        PYINST_ARCH="64bit"
+    else
+        fail "unexpected WIN_ARCH: $WIN_ARCH"
+    fi
+    if [ -f "$CACHEDIR/pyinstaller/PyInstaller/bootloader/Windows-$PYINST_ARCH/runw.exe" ]; then
+        info "pyinstaller already built, skipping"
+        exit 0
+    fi
     cd "$WINEPREFIX/drive_c/electrum-grs"
     ELECTRUM_COMMIT_HASH=$(git rev-parse HEAD)
     cd "$CACHEDIR"
@@ -136,15 +137,9 @@ info "Building PyInstaller."
                               -Wno-error=stringop-truncation"
     popd
     # sanity check bootloader is there:
-    if [ "$GCC_TRIPLET_HOST" = "i686-w64-mingw32" ] ; then
-        [[ -e PyInstaller/bootloader/Windows-32bit/runw.exe ]] || fail "Could not find runw.exe in target dir! (32bit)"
-    elif [ "$GCC_TRIPLET_HOST" = "x86_64-w64-mingw32" ] ; then
-        [[ -e PyInstaller/bootloader/Windows-64bit/runw.exe ]] || fail "Could not find runw.exe in target dir! (64bit)"
-    else
-        fail "unexpected GCC_TRIPLET_HOST: $GCC_TRIPLET_HOST"
-    fi
+    [[ -e "PyInstaller/bootloader/Windows-$PYINST_ARCH/runw.exe" ]] || fail "Could not find runw.exe in target dir!"
 ) || fail "PyInstaller build failed"
 info "Installing PyInstaller."
-$PYTHON -m pip install --no-dependencies --no-warn-script-location ./pyinstaller
+$WINE_PYTHON -m pip install --no-dependencies --no-warn-script-location ./pyinstaller
 
 info "Wine is configured."
