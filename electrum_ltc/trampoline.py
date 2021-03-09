@@ -91,21 +91,13 @@ def create_trampoline_route(
         invoice_features:int,
         my_pubkey: bytes,
         trampoline_node_id,
-        r_tags, t_tags,
+        r_tags,
         trampoline_fee_level: int,
         use_two_trampolines: bool) -> LNPaymentRoute:
 
     invoice_features = LnFeatures(invoice_features)
-    # We do not set trampoline_routing_opt in our invoices, because the spec is not ready
-    # Do not use t_tags if the flag is set, because we the format is not decided yet
-    if invoice_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT):
-        is_legacy = False
-        if len(r_tags) > 0 and len(r_tags[0]) == 1:
-            pubkey, scid, feebase, feerate, cltv = r_tags[0][0]
-            t_tags = [pubkey, feebase, feerate, cltv]
-        else:
-            t_tags = None
-    elif len(t_tags) > 0:
+    if invoice_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT)\
+        or invoice_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR):
         is_legacy = False
     else:
         is_legacy = True
@@ -154,13 +146,14 @@ def create_trampoline_route(
         route[-1].outgoing_node_id = invoice_pubkey
     else:
         last_trampoline = route[-1].end_node
-        for t_tag in t_tags:
-            pubkey, feebase, feerate, cltv = t_tag
+        r_tags = [x for x in r_tags if len(x) == 1]
+        random.shuffle(r_tags)
+        for r_tag in r_tags:
+            pubkey, scid, feebase, feerate, cltv = r_tag[0]
             if pubkey == trampoline_node_id:
                 break
         else:
-            random.shuffle(t_tags)
-            pubkey, feebase, feerate, cltv = t_tags[0]
+            pubkey, scid, feebase, feerate, cltv = r_tag[0]
             if route[-1].node_id != pubkey:
                 route.append(
                     TrampolineEdge(
@@ -241,7 +234,7 @@ def create_trampoline_route_and_onion(
         invoice_features,
         my_pubkey: bytes,
         node_id,
-        r_tags, t_tags,
+        r_tags,
         payment_hash,
         payment_secret,
         local_height:int,
@@ -256,7 +249,6 @@ def create_trampoline_route_and_onion(
         invoice_features=invoice_features,
         trampoline_node_id=node_id,
         r_tags=r_tags,
-        t_tags=t_tags,
         trampoline_fee_level=trampoline_fee_level,
         use_two_trampolines=use_two_trampolines)
     # compute onion and fees

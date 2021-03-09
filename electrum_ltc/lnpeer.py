@@ -49,9 +49,10 @@ from .interface import GracefulDisconnect
 from .lnrouter import fee_for_edge_msat
 from .lnutil import ln_dummy_address
 from .json_db import StoredDict
+from .invoices import PR_PAID
 
 if TYPE_CHECKING:
-    from .lnworker import LNGossip, LNWallet, LNBackups
+    from .lnworker import LNGossip, LNWallet
     from .lnrouter import LNPaymentRoute
     from .transaction import PartialTransaction
 
@@ -64,10 +65,12 @@ class Peer(Logger):
 
     def __init__(
             self,
-            lnworker: Union['LNGossip', 'LNWallet', 'LNBackups'],
+            lnworker: Union['LNGossip', 'LNWallet'],
             pubkey: bytes,
-            transport: LNTransportBase
-    ):
+            transport: LNTransportBase,
+            *, is_channel_backup= False):
+
+        self.is_channel_backup = is_channel_backup
         self._sent_init = False  # type: bool
         self._received_init = False  # type: bool
         self.initialized = asyncio.Future()
@@ -170,8 +173,7 @@ class Peer(Logger):
     def process_message(self, message):
         message_type, payload = decode_msg(message)
         # only process INIT if we are a backup
-        from .lnworker import LNBackups
-        if isinstance(self.lnworker, LNBackups) and message_type != 'init':
+        if self.is_channel_backup is True and message_type != 'init':
             return
         if message_type in self.ordered_messages:
             chan_id = payload.get('channel_id') or payload["temporary_channel_id"]
@@ -1315,22 +1317,22 @@ class Peer(Logger):
     def on_update_add_htlc(self, chan: Channel, payload):
         payment_hash = payload["payment_hash"]
         htlc_id = payload["id"]
-        self.logger.info(f"on_update_add_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
         cltv_expiry = payload["cltv_expiry"]
         amount_msat_htlc = payload["amount_msat"]
         onion_packet = payload["onion_routing_packet"]
-        if chan.get_state() != ChannelState.OPEN:
-            raise RemoteMisbehaving(f"received update_add_htlc while chan.get_state() != OPEN. state was {chan.get_state()!r}")
-        if cltv_expiry > bitcoin.NLOCKTIME_BLOCKHEIGHT_MAX:
-            asyncio.ensure_future(self.lnworker.try_force_closing(chan.channel_id))
-            raise RemoteMisbehaving(f"received update_add_htlc with cltv_expiry > BLOCKHEIGHT_MAX. value was {cltv_expiry}")
-        # add htlc
         htlc = UpdateAddHtlc(
             amount_msat=amount_msat_htlc,
             payment_hash=payment_hash,
             cltv_expiry=cltv_expiry,
             timestamp=int(time.time()),
             htlc_id=htlc_id)
+        self.logger.info(f"on_update_add_htlc. chan {chan.short_channel_id}. htlc={str(htlc)}")
+        if chan.get_state() != ChannelState.OPEN:
+            raise RemoteMisbehaving(f"received update_add_htlc while chan.get_state() != OPEN. state was {chan.get_state()!r}")
+        if cltv_expiry > bitcoin.NLOCKTIME_BLOCKHEIGHT_MAX:
+            asyncio.ensure_future(self.lnworker.try_force_closing(chan.channel_id))
+            raise RemoteMisbehaving(f"received update_add_htlc with cltv_expiry > BLOCKHEIGHT_MAX. value was {cltv_expiry}")
+        # add htlc
         chan.receive_htlc(htlc, onion_packet)
         util.trigger_callback('htlc_added', chan, htlc, RECEIVED)
 
@@ -1453,7 +1455,6 @@ class Peer(Logger):
                     amount_to_pay=amt_to_forward,
                     min_cltv_expiry=cltv_from_onion,
                     r_tags=[],
-                    t_tags=[],
                     invoice_features=invoice_features,
                     fwd_trampoline_onion=next_trampoline_onion,
                     fwd_trampoline_fee=trampoline_fee,
@@ -1474,7 +1475,7 @@ class Peer(Logger):
             chan: Channel,
             htlc: UpdateAddHtlc,
             processed_onion: ProcessedOnionPacket,
-            is_trampoline: bool = False) -> Tuple[Optional[bytes], Optional[bytes]]:
+            is_trampoline: bool = False) -> Tuple[Optional[bytes], Optional[OnionPacket]]:
 
         """As a final recipient of an HTLC, decide if we should fulfill it.
         Return (preimage, trampoline_onion_packet) with at most a single element not None
@@ -1562,6 +1563,8 @@ class Peer(Logger):
         if not (invoice_msat is None or invoice_msat <= total_msat <= 2 * invoice_msat):
             log_fail_reason(f"total_msat={total_msat} too different from invoice_msat={invoice_msat}")
             raise exc_incorrect_or_unknown_pd
+        self.logger.info(f"maybe_fulfill_htlc. will FULFILL HTLC: chan {chan.short_channel_id}. htlc={str(htlc)}")
+        self.lnworker.set_request_status(htlc.payment_hash, PR_PAID)
         return preimage, None
 
     def fulfill_htlc(self, chan: Channel, htlc_id: int, preimage: bytes):
@@ -1569,10 +1572,11 @@ class Peer(Logger):
         assert chan.can_send_ctx_updates(), f"cannot send updates: {chan.short_channel_id}"
         assert chan.hm.is_add_htlc_irrevocably_committed_yet(htlc_proposer=REMOTE, htlc_id=htlc_id)
         chan.settle_htlc(preimage, htlc_id)
-        self.send_message("update_fulfill_htlc",
-                          channel_id=chan.channel_id,
-                          id=htlc_id,
-                          payment_preimage=preimage)
+        self.send_message(
+            "update_fulfill_htlc",
+            channel_id=chan.channel_id,
+            id=htlc_id,
+            payment_preimage=preimage)
 
     def fail_htlc(self, *, chan: Channel, htlc_id: int, error_bytes: bytes):
         self.logger.info(f"fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}.")

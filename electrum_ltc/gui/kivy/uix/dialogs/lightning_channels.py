@@ -410,11 +410,12 @@ Builder.load_string(r'''
 
 class ChannelBackupPopup(Popup, Logger):
 
-    def __init__(self, chan: AbstractChannel, app: 'ElectrumWindow', **kwargs):
+    def __init__(self, chan: AbstractChannel, channels_list, **kwargs):
         Popup.__init__(self, **kwargs)
         Logger.__init__(self)
         self.chan = chan
-        self.app = app
+        self.channels_list = channels_list
+        self.app = channels_list.app
         self.short_id = format_short_channel_id(chan.short_channel_id)
         self.state = chan.get_state_for_GUI()
         self.title = _('Channel Backup')
@@ -427,7 +428,7 @@ class ChannelBackupPopup(Popup, Logger):
         if not b:
             return
         loop = self.app.wallet.network.asyncio_loop
-        coro = asyncio.run_coroutine_threadsafe(self.app.wallet.lnbackups.request_force_close(self.chan.channel_id), loop)
+        coro = asyncio.run_coroutine_threadsafe(self.app.wallet.lnworker.request_force_close_from_backup(self.chan.channel_id), loop)
         try:
             coro.result(5)
             self.app.show_info(_('Channel closed'))
@@ -442,7 +443,7 @@ class ChannelBackupPopup(Popup, Logger):
     def _remove_backup(self, b):
         if not b:
             return
-        self.app.wallet.lnbackups.remove_channel_backup(self.chan.channel_id)
+        self.app.wallet.lnworker.remove_channel_backup(self.chan.channel_id)
         self.dismiss()
 
 
@@ -550,9 +551,9 @@ class LightningChannelsDialog(Factory.Popup):
     def show_item(self, obj):
         chan = obj._chan
         if chan.is_backup():
-            p = ChannelBackupPopup(chan, self.app)
+            p = ChannelBackupPopup(chan, self)
         else:
-            p = ChannelDetailsPopup(chan, self.app)
+            p = ChannelDetailsPopup(chan, self)
         p.open()
 
     def format_fields(self, chan):
@@ -587,8 +588,7 @@ class LightningChannelsDialog(Factory.Popup):
             return
         lnworker = self.app.wallet.lnworker
         channels = list(lnworker.channels.values()) if lnworker else []
-        lnbackups = self.app.wallet.lnbackups
-        backups = list(lnbackups.channel_backups.values())
+        backups = list(lnworker.channel_backups.values()) if lnworker else []
         for i in channels + backups:
             item = Factory.LightningChannelItem()
             item.screen = self

@@ -80,7 +80,7 @@ from .contacts import Contacts
 from .interface import NetworkException
 from .mnemonic import Mnemonic
 from .logging import get_logger
-from .lnworker import LNWallet, LNBackups
+from .lnworker import LNWallet
 from .paymentrequest import PaymentRequest
 from .util import read_json_file, write_json_file, UserFacingException
 
@@ -273,7 +273,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     txin_type: str
     wallet_type: str
     lnworker: Optional['LNWallet']
-    lnbackups: Optional['LNBackups']
 
     def __init__(self, db: WalletDB, storage: Optional[WalletStorage], *, config: SimpleConfig):
         if not db.is_ready_to_be_used_by_wallet():
@@ -310,8 +309,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         self._coin_price_cache = {}
 
         self.lnworker = None
-        # a wallet may have channel backups, regardless of lnworker activation
-        self.lnbackups = LNBackups(self)
 
     def save_db(self):
         if self.storage:
@@ -364,7 +361,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             if self.lnworker:
                 self.lnworker.stop()
                 self.lnworker = None
-            self.lnbackups.stop()
         self.save_db()
 
     def set_up_to_date(self, b):
@@ -383,7 +379,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 # only start gossiping when we already have channels
                 if self.db.get('channels'):
                     self.network.start_gossip()
-            self.lnbackups.start_network(network)
 
     def load_and_cleanup(self):
         self.load_keystore()

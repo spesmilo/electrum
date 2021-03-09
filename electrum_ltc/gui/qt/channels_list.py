@@ -65,7 +65,6 @@ class ChannelsList(MyTreeView):
         self.update_single_row.connect(self.do_update_single_row)
         self.network = self.parent.network
         self.lnworker = self.parent.wallet.lnworker
-        self.lnbackups = self.parent.wallet.lnbackups
         self.setSortingEnabled(True)
 
     def format_fields(self, chan: AbstractChannel) -> Dict['ChannelsList.Columns', str]:
@@ -136,7 +135,7 @@ class ChannelsList(MyTreeView):
 
     def remove_channel_backup(self, channel_id):
         if self.main_window.question(_('Remove channel backup?')):
-            self.lnbackups.remove_channel_backup(channel_id)
+            self.lnworker.remove_channel_backup(channel_id)
 
     def export_channel_backup(self, channel_id):
         msg = ' '.join([
@@ -150,7 +149,7 @@ class ChannelsList(MyTreeView):
 
     def request_force_close(self, channel_id):
         def task():
-            coro = self.lnbackups.request_force_close(channel_id)
+            coro = self.lnworker.request_force_close_from_backup(channel_id)
             return self.network.run_from_another_thread(coro)
         def on_success(b):
             self.main_window.show_message('success')
@@ -185,7 +184,7 @@ class ChannelsList(MyTreeView):
         if not item:
             return
         channel_id = idx.sibling(idx.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
-        if channel_id in self.lnbackups.channel_backups:
+        if channel_id in self.lnworker.channel_backups:
             menu.addAction(_("Request force-close"), lambda: self.request_force_close(channel_id))
             menu.addAction(_("Delete"), lambda: self.remove_channel_backup(channel_id))
             menu.exec_(self.viewport().mapToGlobal(position))
@@ -253,7 +252,7 @@ class ChannelsList(MyTreeView):
         if wallet != self.parent.wallet:
             return
         channels = list(wallet.lnworker.channels.values()) if wallet.lnworker else []
-        backups = list(wallet.lnbackups.channel_backups.values())
+        backups = list(wallet.lnworker.channel_backups.values()) if wallet.lnworker else []
         if wallet.lnworker:
             self.update_can_send(wallet.lnworker)
         self.model().clear()
