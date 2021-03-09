@@ -1205,11 +1205,9 @@ class NetworkJobOnDefaultServer(Logger, ABC):
         if taskgroup != self.taskgroup:
             raise asyncio.CancelledError()
 
-    async def stop(self):
-        unregister_callback(self._restart)
-        await self._stop()
-
-    async def _stop(self):
+    async def stop(self, *, full_shutdown: bool = True):
+        if full_shutdown:
+            unregister_callback(self._restart)
         await self.taskgroup.cancel_remaining()
 
     @log_exceptions
@@ -1219,7 +1217,7 @@ class NetworkJobOnDefaultServer(Logger, ABC):
             return  # we should get called again soon
 
         async with self._restart_lock:
-            await self._stop()
+            await self.stop(full_shutdown=False)
             self._reset()
             await self._start(interface)
 

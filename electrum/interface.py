@@ -695,7 +695,7 @@ class Interface(Logger):
             # We give up after a while and just abort the connection.
             # Note: specifically if the server is running Fulcrum, waiting seems hopeless,
             #       the connection must be aborted (see https://github.com/cculianu/Fulcrum/issues/76)
-            force_after = 2  # seconds
+            force_after = 1  # seconds
         if self.session:
             await self.session.close(force_after=force_after)
         # monitor_connection will cancel tasks

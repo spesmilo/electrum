@@ -28,6 +28,8 @@ import itertools
 from collections import defaultdict
 from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple, NamedTuple, Sequence, List
 
+from aiorpcx import TaskGroup
+
 from . import bitcoin, util
 from .bitcoin import COINBASE_MATURITY
 from .util import profiler, bfh, TxMinedInfo, UnrelatedTransactionException
@@ -197,16 +199,19 @@ class AddressSynchronizer(Logger):
     def on_blockchain_updated(self, event, *args):
         self._get_addr_balance_cache = {}  # invalidate cache
 
-    def stop(self):
+    async def stop(self):
         if self.network:
-            if self.synchronizer:
-                asyncio.run_coroutine_threadsafe(self.synchronizer.stop(), self.network.asyncio_loop)
+            try:
+                async with TaskGroup() as group:
+                    if self.synchronizer:
+                        await group.spawn(self.synchronizer.stop())
+                    if self.verifier:
+                        await group.spawn(self.verifier.stop())
+            finally:  # even if we get cancelled
                 self.synchronizer = None
-            if self.verifier:
-                asyncio.run_coroutine_threadsafe(self.verifier.stop(), self.network.asyncio_loop)
                 self.verifier = None
-            util.unregister_callback(self.on_blockchain_updated)
-            self.db.put('stored_height', self.get_local_height())
+                util.unregister_callback(self.on_blockchain_updated)
+                self.db.put('stored_height', self.get_local_height())
 
     def add_address(self, address):
         if not self.db.get_addr_history(address):

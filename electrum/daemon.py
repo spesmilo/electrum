@@ -29,7 +29,7 @@ import time
 import traceback
 import sys
 import threading
-from typing import Dict, Optional, Tuple, Iterable, Callable, Union, Sequence, Mapping
+from typing import Dict, Optional, Tuple, Iterable, Callable, Union, Sequence, Mapping, TYPE_CHECKING
 from base64 import b64decode, b64encode
 from collections import defaultdict
 import concurrent
@@ -38,7 +38,7 @@ import json
 
 import aiohttp
 from aiohttp import web, client_exceptions
-from aiorpcx import TaskGroup
+from aiorpcx import TaskGroup, timeout_after, TaskTimeout
 
 from . import util
 from .network import Network
@@ -52,6 +52,9 @@ from .commands import known_commands, Commands
 from .simple_config import SimpleConfig
 from .exchange_rate import FxThread
 from .logging import get_logger, Logger
+
+if TYPE_CHECKING:
+    from electrum import gui
 
 
 _logger = get_logger(__name__)
@@ -407,6 +410,7 @@ class PayServer(Logger):
 class Daemon(Logger):
 
     network: Optional[Network]
+    gui_object: Optional[Union['gui.qt.ElectrumGui', 'gui.kivy.ElectrumGui']]
 
     @profiler
     def __init__(self, config: SimpleConfig, fd=None, *, listen_jsonrpc=True):
@@ -523,7 +527,8 @@ class Daemon(Logger):
         wallet = self._wallets.pop(path, None)
         if not wallet:
             return False
-        wallet.stop()
+        fut = asyncio.run_coroutine_threadsafe(wallet.stop(), self.asyncio_loop)
+        fut.result()
         return True
 
     def run_daemon(self):
@@ -544,20 +549,28 @@ class Daemon(Logger):
             self.running = False
 
     def on_stop(self):
+        self.logger.info("on_stop() entered. initiating shutdown")
         if self.gui_object:
             self.gui_object.stop()
-        # stop network/wallets
-        for k, wallet in self._wallets.items():
-            wallet.stop()
-        if self.network:
-            self.logger.info("shutting down network")
-            self.network.stop()
-        self.logger.info("stopping taskgroup")
-        fut = asyncio.run_coroutine_threadsafe(self.taskgroup.cancel_remaining(), self.asyncio_loop)
-        try:
-            fut.result(timeout=2)
-        except (concurrent.futures.TimeoutError, concurrent.futures.CancelledError, asyncio.CancelledError):
-            pass
+
+        @log_exceptions
+        async def stop_async():
+            self.logger.info("stopping all wallets")
+            async with TaskGroup() as group:
+                for k, wallet in self._wallets.items():
+                    await group.spawn(wallet.stop())
+            self.logger.info("stopping network and taskgroup")
+            try:
+                async with timeout_after(2):
+                    async with TaskGroup() as group:
+                        if self.network:
+                            await group.spawn(self.network.stop(full_shutdown=True))
+                        await group.spawn(self.taskgroup.cancel_remaining())
+            except TaskTimeout:
+                pass
+
+        fut = asyncio.run_coroutine_threadsafe(stop_async(), self.asyncio_loop)
+        fut.result()
         self.logger.info("removing lockfile")
         remove_lockfile(get_lockfile(self.config))
         self.logger.info("stopped")

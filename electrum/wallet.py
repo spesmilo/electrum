@@ -46,7 +46,7 @@ import itertools
 import threading
 import enum
 
-from aiorpcx import TaskGroup
+from aiorpcx import TaskGroup, timeout_after, TaskTimeout
 
 from .i18n import _
 from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath, convert_bip32_path_to_list_of_uint32
@@ -353,15 +353,21 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         ln_xprv = node.to_xprv()
         self.db.put('lightning_privkey2', ln_xprv)
 
-    def stop(self):
-        super().stop()
-        if any([ks.is_requesting_to_be_rewritten_to_wallet_file for ks in self.get_keystores()]):
-            self.save_keystore()
-        if self.network:
-            if self.lnworker:
-                self.lnworker.stop()
-                self.lnworker = None
-        self.save_db()
+    async def stop(self):
+        """Stop all networking and save DB to disk."""
+        try:
+            async with timeout_after(5):
+                await super().stop()
+                if self.network:
+                    if self.lnworker:
+                        await self.lnworker.stop()
+                        self.lnworker = None
+        except TaskTimeout:
+            pass
+        finally:  # even if we get cancelled
+            if any([ks.is_requesting_to_be_rewritten_to_wallet_file for ks in self.get_keystores()]):
+                self.save_keystore()
+            self.save_db()
 
     def set_up_to_date(self, b):
         super().set_up_to_date(b)

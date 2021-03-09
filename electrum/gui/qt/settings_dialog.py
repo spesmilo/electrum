@@ -141,7 +141,8 @@ channels graph and compute payment path locally, instead of using trampoline pay
             if use_gossip:
                 self.window.network.start_gossip()
             else:
-                self.window.network.stop_gossip()
+                self.window.network.run_from_another_thread(
+                    self.window.network.stop_gossip())
             util.trigger_callback('ln_gossip_sync_progress')
             # FIXME: update all wallet windows
             util.trigger_callback('channels_updated', self.wallet)

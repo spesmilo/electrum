@@ -311,11 +311,11 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         self._add_peers_from_config()
         asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
 
-    def stop(self):
+    async def stop(self):
         if self.listen_server:
-            self.network.asyncio_loop.call_soon_threadsafe(self.listen_server.close)
-        asyncio.run_coroutine_threadsafe(self.taskgroup.cancel_remaining(), self.network.asyncio_loop)
+            self.listen_server.close()
         util.unregister_callback(self.on_proxy_changed)
+        await self.taskgroup.cancel_remaining()
 
     def _add_peers_from_config(self):
         peer_list = self.config.get('lightning_peers', [])
@@ -704,9 +704,9 @@ class LNWallet(LNWorker):
             tg_coro = self.taskgroup.spawn(coro)
             asyncio.run_coroutine_threadsafe(tg_coro, self.network.asyncio_loop)
 
-    def stop(self):
-        super().stop()
-        self.lnwatcher.stop()
+    async def stop(self):
+        await super().stop()
+        await self.lnwatcher.stop()
         self.lnwatcher = None
 
     def peer_closed(self, peer):

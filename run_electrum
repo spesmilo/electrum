@@ -345,7 +345,6 @@ def main():
             print_stderr('unknown command:', uri)
             sys.exit(1)
 
-    # singleton
     config = SimpleConfig(config_options)
 
     if config.get('testnet'):

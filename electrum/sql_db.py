@@ -25,6 +25,7 @@ class SqlDB(Logger):
         Logger.__init__(self)
         self.asyncio_loop = asyncio_loop
         self.stopping = False
+        self.stopped_event = asyncio.Event()
         self.path = path
         test_read_write_permissions(path)
         self.commit_interval = commit_interval
@@ -65,6 +66,8 @@ class SqlDB(Logger):
         # write
         self.conn.commit()
         self.conn.close()
+
+        self.asyncio_loop.call_soon_threadsafe(self.stopped_event.set)
         self.logger.info("SQL thread terminated")
 
     def create_database(self):
