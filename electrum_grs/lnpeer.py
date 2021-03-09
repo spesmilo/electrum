@@ -52,7 +52,7 @@ from .json_db import StoredDict
 from .invoices import PR_PAID
 
 if TYPE_CHECKING:
-    from .lnworker import LNGossip, LNWallet, LNBackups
+    from .lnworker import LNGossip, LNWallet
     from .lnrouter import LNPaymentRoute
     from .transaction import PartialTransaction
 
@@ -65,10 +65,12 @@ class Peer(Logger):
 
     def __init__(
             self,
-            lnworker: Union['LNGossip', 'LNWallet', 'LNBackups'],
+            lnworker: Union['LNGossip', 'LNWallet'],
             pubkey: bytes,
-            transport: LNTransportBase
-    ):
+            transport: LNTransportBase,
+            *, is_channel_backup= False):
+
+        self.is_channel_backup = is_channel_backup
         self._sent_init = False  # type: bool
         self._received_init = False  # type: bool
         self.initialized = asyncio.Future()
@@ -171,8 +173,7 @@ class Peer(Logger):
     def process_message(self, message):
         message_type, payload = decode_msg(message)
         # only process INIT if we are a backup
-        from .lnworker import LNBackups
-        if isinstance(self.lnworker, LNBackups) and message_type != 'init':
+        if self.is_channel_backup is True and message_type != 'init':
             return
         if message_type in self.ordered_messages:
             chan_id = payload.get('channel_id') or payload["temporary_channel_id"]
