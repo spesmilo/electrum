@@ -129,19 +129,19 @@ RUN apt -y update -qq \
 
 
 # prepare non root env
-#RUN useradd --create-home --shell /bin/bash ${USER}
+RUN useradd --create-home --shell /bin/bash ${USER}
 
 # with sudo access and no password
-#RUN usermod -append --groups sudo ${USER}
-#RUN echo "%sudo ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+RUN usermod -append --groups sudo ${USER}
+RUN echo "%sudo ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
 
 WORKDIR ${WORK_DIR}
 
 # user needs ownership/write access to these directories
-#RUN chown --recursive ${USER} ${WORK_DIR} ${ANDROID_SDK_HOME}
-#RUN chown ${USER} /opt
-#USER ${USER}
+RUN chown --recursive ${USER} ${WORK_DIR} ${ANDROID_SDK_HOME}
+RUN chown ${USER} /opt
+USER ${USER}
 
 
 RUN python3 -m pip install --upgrade pip
