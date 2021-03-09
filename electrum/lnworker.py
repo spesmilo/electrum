@@ -32,10 +32,13 @@ from .util import NetworkRetryManager, JsonRPCClient
 from .lnutil import LN_MAX_FUNDING_SAT
 from .keystore import BIP32_KeyStore
 from .bitcoin import COIN
+from .bitcoin import opcodes, make_op_return, address_to_script
 from .transaction import Transaction
+from .transaction import get_script_type_from_output_script
 from .crypto import sha256
 from .bip32 import BIP32Node
 from .util import bh2u, bfh, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions
+from .crypto import chacha20_encrypt, chacha20_decrypt
 from .util import ignore_exceptions, make_aiohttp_session, SilentTaskGroup
 from .util import timestamp_to_datetime, random_shuffled_copy
 from .util import MyEncoder, is_private_netaddress
@@ -71,7 +74,7 @@ from .address_synchronizer import TX_HEIGHT_LOCAL
 from . import lnsweep
 from .lnwatcher import LNWalletWatcher
 from .crypto import pw_encode_with_version_and_mac, pw_decode_with_version_and_mac
-from .lnutil import ChannelBackupStorage
+from .lnutil import ImportedChannelBackupStorage, OnchainChannelBackupStorage
 from .lnchannel import ChannelBackup
 from .channel_db import UpdateStatus
 from .channel_db import get_mychannel_info, get_mychannel_policy
@@ -91,6 +94,10 @@ SAVED_PR_STATUS = [PR_PAID, PR_UNPAID] # status that are persisted
 
 
 NUM_PEERS_TARGET = 4
+
+# onchain channel backup data
+CB_VERSION = 0
+CB_MAGIC_BYTES = bytes([0, 0, 0, CB_VERSION])
 
 
 FALLBACK_NODE_LIST_TESTNET = (
@@ -189,6 +196,7 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         )
         self.lock = threading.RLock()
         self.node_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NODE_KEY)
+        self.backup_key = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.BACKUP_CIPHER).privkey
         self._peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer  # needs self.lock
         self.taskgroup = SilentTaskGroup()
         self.listen_server = None  # type: Optional[asyncio.AbstractServer]
@@ -612,9 +620,11 @@ class LNWallet(LNWorker):
             self._channels[bfh(channel_id)] = Channel(c, sweep_address=self.sweep_address, lnworker=self)
 
         self._channel_backups = {}  # type: Dict[bytes, ChannelBackup]
-        channel_backups = self.db.get_dict("channel_backups")
-        for channel_id, cb in random_shuffled_copy(channel_backups.items()):
-            self._channel_backups[bfh(channel_id)] = ChannelBackup(cb, sweep_address=self.sweep_address, lnworker=self)
+        # order is important: imported should overwrite onchain
+        for name in ["onchain_channel_backups", "imported_channel_backups"]:
+            channel_backups = self.db.get_dict(name)
+            for channel_id, storage in channel_backups.items():
+                self._channel_backups[bfh(channel_id)] = ChannelBackup(storage, sweep_address=self.sweep_address, lnworker=self)
 
         self.sent_htlcs = defaultdict(asyncio.Queue)  # type: Dict[bytes, asyncio.Queue[HtlcLog]]
         self.sent_htlcs_routes = dict()               # (RHASH, scid, htlc_id) -> route, payment_secret, amount_msat, bucket_msat
@@ -628,6 +638,15 @@ class LNWallet(LNWorker):
             self.set_invoice_status(payment_hash.hex(), PR_INFLIGHT)
 
         self.trampoline_forwarding_failures = {} # todo: should be persisted
+
+    def has_deterministic_node_id(self):
+        return bool(self.db.get('lightning_xprv'))
+
+    def has_recoverable_channels(self):
+        # TODO: expose use_recoverable_channels in preferences
+        return self.has_deterministic_node_id() \
+            and self.config.get('use_recoverable_channels', True) \
+            and not (self.config.get('lightning_listen'))
 
     @property
     def channels(self) -> Mapping[bytes, Channel]:
@@ -990,13 +1009,29 @@ class LNWallet(LNWorker):
             self.remove_channel(chan.channel_id)
             raise
 
+    def cb_data(self, node_id):
+        return CB_MAGIC_BYTES + node_id[0:16]
+
+    def decrypt_cb_data(self, encrypted_data, funding_address):
+        funding_scriptpubkey = bytes.fromhex(address_to_script(funding_address))
+        nonce = funding_scriptpubkey[0:12]
+        return chacha20_decrypt(key=self.backup_key, data=encrypted_data, nonce=nonce)
+
+    def encrypt_cb_data(self, data, funding_address):
+        funding_scriptpubkey = bytes.fromhex(address_to_script(funding_address))
+        nonce = funding_scriptpubkey[0:12]
+        return chacha20_encrypt(key=self.backup_key, data=data, nonce=nonce)
+
     def mktx_for_open_channel(
             self, *,
             coins: Sequence[PartialTxInput],
             funding_sat: int,
+            node_id: bytes,
             fee_est=None) -> PartialTransaction:
-        dummy_address = ln_dummy_address()
-        outputs = [PartialTxOutput.from_address_and_value(dummy_address, funding_sat)]
+        outputs = [PartialTxOutput.from_address_and_value(ln_dummy_address(), funding_sat)]
+        if self.has_recoverable_channels():
+            dummy_scriptpubkey = make_op_return(self.cb_data(node_id))
+            outputs.append(PartialTxOutput(scriptpubkey=dummy_scriptpubkey, value=0))
         tx = self.wallet.make_unsigned_transaction(
             coins=coins,
             outputs=outputs,
@@ -1986,7 +2021,7 @@ class LNWallet(LNWorker):
         assert chan.is_static_remotekey_enabled()
         peer_addresses = list(chan.get_peer_addresses())
         peer_addr = peer_addresses[0]
-        return ChannelBackupStorage(
+        return ImportedChannelBackupStorage(
             node_id = chan.node_id,
             privkey = self.node_keypair.privkey,
             funding_txid = chan.funding_outpoint.txid,
@@ -2004,7 +2039,7 @@ class LNWallet(LNWorker):
     def export_channel_backup(self, channel_id):
         xpub = self.wallet.get_fingerprint()
         backup_bytes = self.create_channel_backup(channel_id).to_bytes()
-        assert backup_bytes == ChannelBackupStorage.from_bytes(backup_bytes).to_bytes(), "roundtrip failed"
+        assert backup_bytes == ImportedChannelBackupStorage.from_bytes(backup_bytes).to_bytes(), "roundtrip failed"
         encrypted = pw_encode_with_version_and_mac(backup_bytes, xpub)
         assert backup_bytes == pw_decode_with_version_and_mac(encrypted, xpub), "encrypt failed"
         return 'channel_backup:' + encrypted
@@ -2030,22 +2065,22 @@ class LNWallet(LNWorker):
         encrypted = data[15:]
         xpub = self.wallet.get_fingerprint()
         decrypted = pw_decode_with_version_and_mac(encrypted, xpub)
-        cb_storage = ChannelBackupStorage.from_bytes(decrypted)
+        cb_storage = ImportedChannelBackupStorage.from_bytes(decrypted)
         channel_id = cb_storage.channel_id()
         if channel_id.hex() in self.db.get_dict("channels"):
             raise Exception('Channel already in wallet')
         self.logger.info(f'importing channel backup: {channel_id.hex()}')
-        cb = ChannelBackup(cb_storage, sweep_address=self.sweep_address, lnworker=self)
-        d = self.db.get_dict("channel_backups")
+        d = self.db.get_dict("imported_channel_backups")
         d[channel_id.hex()] = cb_storage
         with self.lock:
+            cb = ChannelBackup(cb_storage, sweep_address=self.sweep_address, lnworker=self)
             self._channel_backups[channel_id] = cb
         self.wallet.save_db()
         util.trigger_callback('channels_updated', self.wallet)
         self.lnwatcher.add_channel(cb.funding_outpoint.to_str(), cb.get_funding_address())
 
     def remove_channel_backup(self, channel_id):
-        d = self.db.get_dict("channel_backups")
+        d = self.db.get_dict("imported_channel_backups")
         if channel_id.hex() not in d:
             raise Exception('Channel not found')
         with self.lock:
@@ -2061,11 +2096,65 @@ class LNWallet(LNWorker):
             raise Exception(f'channel backup not found {self.channel_backups}')
         cb = cb.cb # storage
         self.logger.info(f'requesting channel force close: {channel_id.hex()}')
-        # TODO also try network addresses from gossip db (as it might have changed)
-        peer_addr = LNPeerAddr(cb.host, cb.port, cb.node_id)
-        transport = LNTransport(cb.privkey, peer_addr, proxy=self.network.proxy)
-        peer = Peer(self, cb.node_id, transport, is_channel_backup=True)
-        async with TaskGroup(wait=any) as group:
-            await group.spawn(peer._message_loop())
-            await group.spawn(peer.trigger_force_close(channel_id))
-        return True
+        if isinstance(cb, ImportedChannelBackupStorage):
+            node_id = cb.node_id
+            addresses = [(cb.host, cb.port, 0)]
+            # TODO also try network addresses from gossip db (as it might have changed)
+        else:
+            assert isinstance(cb, OnchainChannelBackupStorage)
+            if not self.channel_db:
+                raise Exception('Enable gossip first')
+            node_id = self.network.channel_db.get_node_by_prefix(cb.node_id_prefix)
+            addresses = self.network.channel_db.get_node_addresses(node_id)
+            if not addresses:
+                raise Exception('Peer not found in gossip database')
+        for host, port, timestamp in addresses:
+            peer_addr = LNPeerAddr(host, port, node_id)
+            transport = LNTransport(self.node_keypair.privkey, peer_addr, proxy=self.network.proxy)
+            peer = Peer(self, node_id, transport, is_channel_backup=True)
+            try:
+                async with TaskGroup(wait=any) as group:
+                    await group.spawn(peer._message_loop())
+                    await group.spawn(peer.trigger_force_close(channel_id))
+                return
+            except Exception as e:
+                self.logger.info(f'failed to connect {host} {e}')
+                continue
+        else:
+            raise Exception('failed to connect')
+
+    def maybe_add_backup_from_tx(self, tx):
+        funding_address = None
+        node_id_prefix = None
+        for i, o in enumerate(tx.outputs()):
+            script_type = get_script_type_from_output_script(o.scriptpubkey)
+            if script_type == 'p2wsh':
+                funding_index = i
+                funding_address = o.address
+                for o2 in tx.outputs():
+                    if o2.scriptpubkey.startswith(bytes([opcodes.OP_RETURN])):
+                        encrypted_data = o2.scriptpubkey[2:]
+                        data = self.decrypt_cb_data(encrypted_data, funding_address)
+                        if data.startswith(CB_MAGIC_BYTES):
+                            node_id_prefix = data[4:]
+        if node_id_prefix is None:
+            return
+        funding_txid = tx.txid()
+        cb_storage = OnchainChannelBackupStorage(
+            node_id_prefix = node_id_prefix,
+            funding_txid = funding_txid,
+            funding_index = funding_index,
+            funding_address = funding_address,
+            is_initiator = True)
+        channel_id = cb_storage.channel_id().hex()
+        if channel_id in self.db.get_dict("channels"):
+            return
+        self.logger.info(f"adding backup from tx")
+        d = self.db.get_dict("onchain_channel_backups")
+        d[channel_id] = cb_storage
+        cb = ChannelBackup(cb_storage, sweep_address=self.sweep_address, lnworker=self)
+        self.wallet.save_db()
+        with self.lock:
+            self._channel_backups[bfh(channel_id)] = cb
+        util.trigger_callback('channels_updated', self.wallet)
+        self.lnwatcher.add_channel(cb.funding_outpoint.to_str(), cb.get_funding_address())

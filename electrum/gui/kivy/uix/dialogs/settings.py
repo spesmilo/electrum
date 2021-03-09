@@ -16,6 +16,7 @@ from .choice_dialog import ChoiceDialog
 Builder.load_string('''
 #:import partial functools.partial
 #:import _ electrum.gui.kivy.i18n._
+#:import messages electrum.gui.messages
 
 <SettingsDialog@Popup>
     id: settings
@@ -79,6 +80,13 @@ Builder.load_string('''
                     title: _('Password')
                     description: _('Change your password') if app._use_single_password else _("Change your password for this wallet.")
                     action: root.change_password
+                CardSeparator
+                SettingsItem:
+                    status: _('Yes') if app.use_recoverable_channels else _('No')
+                    title: _('Use recoverable channels') + ': ' + self.status
+                    description: _("Add channel recovery data to funding transaction.")
+                    message: _(messages.MSG_RECOVERABLE_CHANNELS)
+                    action: partial(root.boolean_dialog, 'use_recoverable_channels', _('Use recoverable_channels'), self.message)
                 CardSeparator
                 SettingsItem:
                     status: _('Trampoline') if not app.use_gossip else _('Gossip')

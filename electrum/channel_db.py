@@ -867,6 +867,13 @@ class ChannelDB(SqlDB):
         with self.lock:
             return self._policies.copy()
 
+    def get_node_by_prefix(self, prefix):
+        with self.lock:
+            for k in self._addresses.keys():
+                if k.startswith(prefix):
+                    return k
+        raise Exception('node not found')
+
     def to_dict(self) -> dict:
         """ Generates a graph representation in terms of a dictionary.
 

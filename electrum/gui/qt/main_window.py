@@ -1796,23 +1796,24 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         WaitingDialog(self, _('Broadcasting transaction...'),
                       broadcast_thread, broadcast_done, self.on_error)
 
-    def mktx_for_open_channel(self, funding_sat):
+    def mktx_for_open_channel(self, funding_sat, node_id):
         coins = self.get_coins(nonlocal_only=True)
         make_tx = lambda fee_est: self.wallet.lnworker.mktx_for_open_channel(
             coins=coins,
             funding_sat=funding_sat,
+            node_id=node_id,
             fee_est=fee_est)
         return make_tx
 
     def open_channel(self, connect_str, funding_sat, push_amt):
         try:
-            extract_nodeid(connect_str)
+            node_id, rest = extract_nodeid(connect_str)
         except ConnStringFormatError as e:
             self.show_error(str(e))
             return
         # use ConfirmTxDialog
         # we need to know the fee before we broadcast, because the txid is required
-        make_tx = self.mktx_for_open_channel(funding_sat)
+        make_tx = self.mktx_for_open_channel(funding_sat, node_id)
         d = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=funding_sat, is_sweep=False)
         # disable preview button because the user must not broadcast tx before establishment_flow
         d.preview_button.setEnabled(False)
@@ -2365,9 +2366,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if d.exec_():
             self.set_contact(line2.text(), line1.text())
 
+    def init_lightning_dialog(self):
+        if self.question(_(
+                "Warning: this wallet type does not support channel recovery from seed. "
+                "You will need to backup your wallet everytime you create a new wallet. "
+                "Create lightning keys?")):
+            self.wallet.init_lightning()
+            self.show_message("Lightning keys created. Please restart Electrum")
+
     def show_wallet_info(self):
         dialog = WindowModalDialog(self, _("Wallet Information"))
-        dialog.setMinimumSize(500, 100)
+        dialog.setMinimumSize(800, 100)
         vbox = QVBoxLayout()
         wallet_type = self.wallet.db.get('wallet_type', '')
         if self.wallet.is_watching_only():
@@ -2390,15 +2399,42 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             grid.addWidget(QLabel(ks_type), 4, 1)
         # lightning
         grid.addWidget(QLabel(_('Lightning') + ':'), 5, 0)
-        if self.wallet.can_have_lightning():
-            grid.addWidget(QLabel(_('Enabled')), 5, 1)
-            local_nodeid = QLabel(bh2u(self.wallet.lnworker.node_keypair.pubkey))
-            local_nodeid.setTextInteractionFlags(Qt.TextSelectableByMouse)
-            grid.addWidget(QLabel(_('Lightning Node ID:')), 6, 0)
-            grid.addWidget(local_nodeid, 6, 1, 1, 3)
+        from .util import IconLabel
+        if self.wallet.has_lightning():
+            if self.wallet.lnworker.has_deterministic_node_id():
+                grid.addWidget(QLabel(_('Enabled')), 5, 1)
+            else:
+                label = IconLabel(text='Enabled, non-recoverable channels')
+                label.setIcon(read_QIcon('warning.png'))
+                grid.addWidget(label, 5, 1)
+                if self.wallet.db.get('seed_type') == 'segwit':
+                    msg = _("Your channels cannot be recovered from seed, because they were created with an old version of Electrum. "
+                            "This means that you must save a backup of your wallet everytime you create a new channel.\n\n"
+                            "If you want this wallet to have recoverable channels, you must close your existing channels and restore this wallet from seed")
+                else:
+                    msg = _("Your channels cannot be recovered from seed. "
+                            "This means that you must save a backup of your wallet everytime you create a new channel.\n\n"
+                            "If you want to have recoverable channels, you must create a new wallet with an Electrum seed")
+                grid.addWidget(HelpButton(msg), 5, 3)
+            grid.addWidget(QLabel(_('Lightning Node ID:')), 7, 0)
+            # TODO: ButtonsLineEdit should have a addQrButton method
+            nodeid_text = self.wallet.lnworker.node_keypair.pubkey.hex()
+            nodeid_e = ButtonsLineEdit(nodeid_text)
+            qr_icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
+            nodeid_e.addButton(qr_icon, lambda: self.show_qrcode(nodeid_text, _("Node ID")), _("Show QR Code"))
+            nodeid_e.addCopyButton(self.app)
+            nodeid_e.setReadOnly(True)
+            nodeid_e.setFont(QFont(MONOSPACE_FONT))
+            grid.addWidget(nodeid_e, 8, 0, 1, 4)
         else:
-            grid.addWidget(QLabel(_("Not available for this wallet.")), 5, 1)
-            grid.addWidget(HelpButton(_("Lightning is currently restricted to HD wallets with p2wpkh addresses.")), 5, 2)
+            if self.wallet.can_have_lightning():
+                grid.addWidget(QLabel('Not enabled'), 5, 1)
+                button = QPushButton(_("Enable"))
+                button.pressed.connect(self.init_lightning_dialog)
+                grid.addWidget(button, 5, 3)
+            else:
+                grid.addWidget(QLabel(_("Not available for this wallet.")), 5, 1)
+                grid.addWidget(HelpButton(_("Lightning is currently restricted to HD wallets with p2wpkh addresses.")), 5, 2)
         vbox.addLayout(grid)
 
         labels_clayout = None

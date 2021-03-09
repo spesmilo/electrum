@@ -59,7 +59,7 @@ from .lnhtlc import HTLCManager
 from .lnmsg import encode_msg, decode_msg
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from .lnutil import CHANNEL_OPENING_TIMEOUT
-from .lnutil import ChannelBackupStorage
+from .lnutil import ChannelBackupStorage, ImportedChannelBackupStorage
 from .lnutil import format_short_channel_id
 
 if TYPE_CHECKING:
@@ -301,9 +301,15 @@ class AbstractChannel(Logger, ABC):
             if conf > 0:
                 self.set_state(ChannelState.CLOSED)
             else:
-                # we must not trust the server with unconfirmed transactions
-                # if the remote force closed, we remain OPEN until the closing tx is confirmed
-                pass
+                if not self.is_backup():
+                    # we must not trust the server with unconfirmed transactions,
+                    # because the state transition is irreversible. if the remote
+                    # force closed, we remain OPEN until the closing tx is confirmed
+                    pass
+                else:
+                    # for a backup, that state change will only affect the GUI
+                    self.set_state(ChannelState.FORCE_CLOSING)
+
         if self.get_state() == ChannelState.CLOSED and not keep_watching:
             self.set_state(ChannelState.REDEEMED)
 
@@ -400,11 +406,21 @@ class ChannelBackup(AbstractChannel):
         self.name = None
         Logger.__init__(self)
         self.cb = cb
+        self.is_imported = isinstance(self.cb, ImportedChannelBackupStorage)
         self._sweep_info = {}
         self._fallback_sweep_address = sweep_address
         self.storage = {} # dummy storage
         self._state = ChannelState.OPENING
+        self.node_id = cb.node_id if self.is_imported else cb.node_id_prefix
+        self.channel_id = cb.channel_id()
+        self.funding_outpoint = cb.funding_outpoint()
+        self.lnworker = lnworker
+        self.short_channel_id = None
         self.config = {}
+        if self.is_imported:
+            self.init_config(cb)
+
+    def init_config(self, cb):
         self.config[LOCAL] = LocalConfig.from_seed(
             channel_seed=cb.channel_seed,
             to_self_delay=cb.local_delay,
@@ -440,11 +456,6 @@ class ChannelBackup(AbstractChannel):
             next_per_commitment_point=None,
             current_per_commitment_point=None,
             upfront_shutdown_script='')
-        self.node_id = cb.node_id
-        self.channel_id = cb.channel_id()
-        self.funding_outpoint = cb.funding_outpoint()
-        self.lnworker = lnworker
-        self.short_channel_id = None
 
     def get_capacity(self):
         return self.lnworker.lnwatcher.get_tx_delta(self.funding_outpoint.txid, self.cb.funding_address)
@@ -454,6 +465,13 @@ class ChannelBackup(AbstractChannel):
 
     def create_sweeptxs_for_their_ctx(self, ctx):
         return {}
+
+    def create_sweeptxs_for_our_ctx(self, ctx):
+        if self.is_imported:
+            return create_sweeptxs_for_our_ctx(chan=self, ctx=ctx, sweep_address=self.sweep_address)
+        else:
+            # backup from op_return
+            return {}
 
     def get_funding_address(self):
         return self.cb.funding_address

@@ -54,6 +54,7 @@ from .address_synchronizer import TX_HEIGHT_LOCAL
 from .mnemonic import Mnemonic
 from .lnutil import SENT, RECEIVED
 from .lnutil import LnFeatures
+from .lnutil import extract_nodeid
 from .lnpeer import channel_id_from_funding_tx
 from .plugin import run_hook
 from .version import ELECTRUM_VERSION
@@ -997,9 +998,11 @@ class Commands:
         funding_sat = satoshis(amount)
         push_sat = satoshis(push_amount)
         coins = wallet.get_spendable_coins(None)
+        node_id, rest = extract_nodeid(connection_string)
         funding_tx = wallet.lnworker.mktx_for_open_channel(
             coins=coins,
             funding_sat=funding_sat,
+            node_id=node_id,
             fee_est=None)
         chan, funding_tx = await wallet.lnworker._open_channel_coroutine(
             connect_str=connection_string,

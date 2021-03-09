@@ -613,6 +613,11 @@ class BIP32_KeyStore(Xpub, Deterministic_KeyStore):
         cK = ecc.ECPrivkey(k).get_public_key_bytes()
         return cK, k
 
+    def get_lightning_xprv(self, password):
+        xprv = self.get_master_private_key(password)
+        rootnode = BIP32Node.from_xkey(xprv)
+        node = rootnode.subkey_at_private_derivation("m/67'/")
+        return node.to_xprv()
 
 class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
 

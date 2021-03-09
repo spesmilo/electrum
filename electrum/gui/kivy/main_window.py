@@ -208,6 +208,10 @@ class ElectrumWindow(App, Logger):
     def on_use_unconfirmed(self, instance, x):
         self.electrum_config.set_key('confirmed_only', not self.use_unconfirmed, True)
 
+    use_recoverable_channels = BooleanProperty(True)
+    def on_use_recoverable_channels(self, instance, x):
+        self.electrum_config.set_key('use_recoverable_channels', self.use_recoverable_channels, True)
+
     def switch_to_send_screen(func):
         # try until send_screen is available
         def wrapper(self, *args):
@@ -1352,3 +1356,59 @@ class ElectrumWindow(App, Logger):
             self.show_error("failed to import backup" + '\n' + str(e))
             return
         self.lightning_channels_dialog()
+
+    def lightning_status(self):
+        if self.wallet.has_lightning():
+            if self.wallet.lnworker.has_deterministic_node_id():
+                status = _('Enabled')
+            else:
+                status = _('Enabled, non-recoverable channels')
+                if self.wallet.db.get('seed_type') == 'segwit':
+                    msg = _("Your channels cannot be recovered from seed, because they were created with an old version of Electrum. "
+                            "This means that you must save a backup of your wallet everytime you create a new channel.\n\n"
+                            "If you want this wallet to have recoverable channels, you must close your existing channels and restore this wallet from seed")
+                else:
+                    msg = _("Your channels cannot be recovered from seed. "
+                            "This means that you must save a backup of your wallet everytime you create a new channel.\n\n"
+                            "If you want to have recoverable channels, you must create a new wallet with an Electrum seed")
+        else:
+            if self.wallet.can_have_lightning():
+                status = _('Not enabled')
+            else:
+                status = _("Not available for this wallet.")
+        return status
+
+    def on_lightning_status(self, root):
+        if self.wallet.has_lightning():
+            if self.wallet.lnworker.has_deterministic_node_id():
+                pass
+            else:
+                if self.wallet.db.get('seed_type') == 'segwit':
+                    msg = _("Your channels cannot be recovered from seed, because they were created with an old version of Electrum. "
+                            "This means that you must save a backup of your wallet everytime you create a new channel.\n\n"
+                            "If you want this wallet to have recoverable channels, you must close your existing channels and restore this wallet from seed")
+                else:
+                    msg = _("Your channels cannot be recovered from seed. "
+                            "This means that you must save a backup of your wallet everytime you create a new channel.\n\n"
+                            "If you want to have recoverable channels, you must create a new wallet with an Electrum seed")
+                self.show_info(msg)
+        else:
+            if self.wallet.can_have_lightning():
+                root.dismiss()
+                msg = _(
+                    "Warning: this wallet type does not support channel recovery from seed. "
+                    "You will need to backup your wallet everytime you create a new wallet. "
+                    "Create lightning keys?")
+                d = Question(msg, self._enable_lightning, title=_('Enable Lightning?'))
+                d.open()
+            else:
+                pass
+
+    def _enable_lightning(self, b):
+        if not b:
+            return
+        wallet_path = self.get_wallet_path()
+        self.wallet.init_lightning()
+        self.show_info(_('Lightning keys have been initialized.'))
+        self.stop_wallet()
+        self.load_wallet_by_name(wallet_path)

@@ -528,7 +528,7 @@ class ChannelDetailsPopup(Popup, Logger):
         to_self_delay = self.chan.config[REMOTE].to_self_delay
         help_text = ' '.join([
             _('If you force-close this channel, the funds you have in it will not be available for {} blocks.').format(to_self_delay),
-            _('During that time, funds will not be recoverabe from your seed, and may be lost if you lose your device.'),
+            _('During that time, funds will not be recoverable from your seed, and may be lost if you lose your device.'),
             _('To prevent that, please save this channel backup.'),
             _('It may be imported in another wallet with the same seed.')
         ])

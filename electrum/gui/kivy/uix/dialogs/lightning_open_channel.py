@@ -9,7 +9,7 @@ from electrum.util import bh2u
 from electrum.bitcoin import COIN
 import electrum.simple_config as config
 from electrum.logging import Logger
-from electrum.lnutil import ln_dummy_address
+from electrum.lnutil import ln_dummy_address, extract_nodeid
 
 from .label_dialog import LabelDialog
 from .confirm_tx_dialog import ConfirmTxDialog
@@ -178,9 +178,11 @@ class LightningOpenChannelDialog(Factory.Popup, Logger):
         self.dismiss()
         lnworker = self.app.wallet.lnworker
         coins = self.app.wallet.get_spendable_coins(None, nonlocal_only=True)
+        node_id, rest = extract_nodeid(conn_str)
         make_tx = lambda rbf: lnworker.mktx_for_open_channel(
             coins=coins,
             funding_sat=amount,
+            node_id=node_id,
             fee_est=None)
         on_pay = lambda tx: self.app.protected('Create a new channel?', self.do_open_channel, (tx, conn_str))
         d = ConfirmTxDialog(

@@ -169,21 +169,13 @@ class ChannelConstraints(StoredObject):
 
 
 CHANNEL_BACKUP_VERSION = 0
+
 @attr.s
 class ChannelBackupStorage(StoredObject):
-    node_id = attr.ib(type=bytes, converter=hex_to_bytes)
-    privkey = attr.ib(type=bytes, converter=hex_to_bytes)
     funding_txid = attr.ib(type=str)
     funding_index = attr.ib(type=int, converter=int)
     funding_address = attr.ib(type=str)
-    host = attr.ib(type=str)
-    port = attr.ib(type=int, converter=int)
     is_initiator = attr.ib(type=bool)
-    channel_seed = attr.ib(type=bytes, converter=hex_to_bytes)
-    local_delay = attr.ib(type=int, converter=int)
-    remote_delay = attr.ib(type=int, converter=int)
-    remote_payment_pubkey = attr.ib(type=bytes, converter=hex_to_bytes)
-    remote_revocation_pubkey = attr.ib(type=bytes, converter=hex_to_bytes)
 
     def funding_outpoint(self):
         return Outpoint(self.funding_txid, self.funding_index)
@@ -191,6 +183,22 @@ class ChannelBackupStorage(StoredObject):
     def channel_id(self):
         chan_id, _ = channel_id_from_funding_tx(self.funding_txid, self.funding_index)
         return chan_id
+
+@attr.s
+class OnchainChannelBackupStorage(ChannelBackupStorage):
+    node_id_prefix = attr.ib(type=bytes, converter=hex_to_bytes)
+
+@attr.s
+class ImportedChannelBackupStorage(ChannelBackupStorage):
+    node_id = attr.ib(type=bytes, converter=hex_to_bytes)
+    privkey = attr.ib(type=bytes, converter=hex_to_bytes)
+    host = attr.ib(type=str)
+    port = attr.ib(type=int, converter=int)
+    channel_seed = attr.ib(type=bytes, converter=hex_to_bytes)
+    local_delay = attr.ib(type=int, converter=int)
+    remote_delay = attr.ib(type=int, converter=int)
+    remote_payment_pubkey = attr.ib(type=bytes, converter=hex_to_bytes)
+    remote_revocation_pubkey = attr.ib(type=bytes, converter=hex_to_bytes)
 
     def to_bytes(self) -> bytes:
         vds = BCDataStream()
@@ -217,7 +225,7 @@ class ChannelBackupStorage(StoredObject):
         version = vds.read_int16()
         if version != CHANNEL_BACKUP_VERSION:
             raise Exception(f"unknown version for channel backup: {version}")
-        return ChannelBackupStorage(
+        return ImportedChannelBackupStorage(
             is_initiator = vds.read_boolean(),
             privkey = vds.read_bytes(32).hex(),
             channel_seed = vds.read_bytes(32).hex(),
@@ -1245,6 +1253,7 @@ class LnKeyFamily(IntEnum):
     DELAY_BASE = 4 | BIP32_PRIME
     REVOCATION_ROOT = 5 | BIP32_PRIME
     NODE_KEY = 6
+    BACKUP_CIPHER = 7 | BIP32_PRIME
 
 
 def generate_keypair(node: BIP32Node, key_family: LnKeyFamily) -> Keypair:
