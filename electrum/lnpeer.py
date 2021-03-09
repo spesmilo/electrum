@@ -49,6 +49,7 @@ from .interface import GracefulDisconnect
 from .lnrouter import fee_for_edge_msat
 from .lnutil import ln_dummy_address
 from .json_db import StoredDict
+from .invoices import PR_PAID
 
 if TYPE_CHECKING:
     from .lnworker import LNGossip, LNWallet, LNBackups
@@ -1562,6 +1563,7 @@ class Peer(Logger):
             log_fail_reason(f"total_msat={total_msat} too different from invoice_msat={invoice_msat}")
             raise exc_incorrect_or_unknown_pd
         self.logger.info(f"maybe_fulfill_htlc. will FULFILL HTLC: chan {chan.short_channel_id}. htlc={str(htlc)}")
+        self.lnworker.set_request_status(htlc.payment_hash, PR_PAID)
         return preimage, None
 
     def fulfill_htlc(self, chan: Channel, htlc_id: int, preimage: bytes):
@@ -1569,10 +1571,11 @@ class Peer(Logger):
         assert chan.can_send_ctx_updates(), f"cannot send updates: {chan.short_channel_id}"
         assert chan.hm.is_add_htlc_irrevocably_committed_yet(htlc_proposer=REMOTE, htlc_id=htlc_id)
         chan.settle_htlc(preimage, htlc_id)
-        self.send_message("update_fulfill_htlc",
-                          channel_id=chan.channel_id,
-                          id=htlc_id,
-                          payment_preimage=preimage)
+        self.send_message(
+            "update_fulfill_htlc",
+            channel_id=chan.channel_id,
+            id=htlc_id,
+            payment_preimage=preimage)
 
     def fail_htlc(self, *, chan: Channel, htlc_id: int, error_bytes: bytes):
         self.logger.info(f"fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}.")

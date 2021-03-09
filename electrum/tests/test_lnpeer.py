@@ -182,6 +182,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     get_payment_info = LNWallet.get_payment_info
     save_payment_info = LNWallet.save_payment_info
     set_invoice_status = LNWallet.set_invoice_status
+    set_request_status = LNWallet.set_request_status
     set_payment_status = LNWallet.set_payment_status
     get_payment_status = LNWallet.get_payment_status
     add_received_htlc = LNWallet.add_received_htlc

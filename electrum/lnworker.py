@@ -1617,9 +1617,6 @@ class LNWallet(LNWorker):
                 is_expired = True
             elif total == expected_msat:
                 is_accepted = True
-                if self.get_payment_info(payment_hash) is not None:
-                    self.set_payment_status(payment_hash, PR_PAID)
-                    util.trigger_callback('request_status', self.wallet, payment_hash.hex(), PR_PAID)
         if is_accepted or is_expired:
             htlc_set.remove(key)
         if len(htlc_set) > 0:
@@ -1651,6 +1648,11 @@ class LNWallet(LNWorker):
         if status in SAVED_PR_STATUS:
             self.set_payment_status(bfh(key), status)
         util.trigger_callback('invoice_status', self.wallet, key)
+
+    def set_request_status(self, payment_hash: bytes, status: int) -> None:
+        if self.get_payment_status(payment_hash) != status:
+            self.set_payment_status(payment_hash, status)
+            util.trigger_callback('request_status', self.wallet, payment_hash.hex(), status)
 
     def set_payment_status(self, payment_hash: bytes, status: int) -> None:
         info = self.get_payment_info(payment_hash)
