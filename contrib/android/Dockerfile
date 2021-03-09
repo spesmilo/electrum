@@ -87,7 +87,7 @@ RUN curl --location --progress-bar \
     && rm -rf "${APACHE_ANT_ARCHIVE}"
 
 
-ENV USER="root"
+ENV USER="user"
 ENV HOME_DIR="/home/${USER}"
 ENV WORK_DIR="${HOME_DIR}/wspace" \
     PATH="${HOME_DIR}/.local/bin:${PATH}"
