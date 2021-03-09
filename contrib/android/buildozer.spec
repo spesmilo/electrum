@@ -47,8 +47,6 @@ requirements =
     libffi,
     libsecp256k1,
     cryptography,
-    # setuptools recipe is needed for groestlcoin_hash
-    setuptools,
     groestlcoin_hash==1.0.1
 
 # (str) Presplash of the application
