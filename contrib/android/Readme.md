@@ -49,7 +49,7 @@ folder.
         --name electrum-grs-android-builder-cont \
         -v $PWD:/home/user/wspace/electrum-grs \
         -v $PWD/.buildozer/.gradle:/home/user/.gradle \
-        -v ~/.keystore:/root/.keystore \
+        -v ~/.keystore:/home/user/.keystore \
         --workdir /home/user/wspace/electrum-grs \
         electrum-grs-android-builder-img \
         ./contrib/android/make_apk
