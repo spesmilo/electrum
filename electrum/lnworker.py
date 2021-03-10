@@ -1990,5 +1990,11 @@ class LNWallet(LNWorker):
     async def request_force_close_from_backup(self, channel_id: bytes):
         cb = self.channel_backups[channel_id].cb
         # TODO also try network addresses from gossip db (as it might have changed)
-        peer = await self._add_peer(cb.host, cb.port, cb.node_id)
-        await peer.trigger_force_close(channel_id)
+        peer_addr = LNPeerAddr(cb.host, cb.port, cb.node_id)
+        transport = LNTransport(cb.privkey, peer_addr,
+                                proxy=self.network.proxy)
+        peer = Peer(self, cb.node_id, transport, is_channel_backup=True)
+        async with TaskGroup() as group:
+            await group.spawn(peer._message_loop())
+            await group.spawn(peer.trigger_force_close(channel_id))
+            # TODO force-exit taskgroup, to clean-up
