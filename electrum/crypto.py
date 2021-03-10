@@ -338,6 +338,8 @@ def chacha20_poly1305_encrypt(
     assert isinstance(nonce, (bytes, bytearray))
     assert isinstance(associated_data, (bytes, bytearray, type(None)))
     assert isinstance(data, (bytes, bytearray))
+    assert len(key) == 32, f"unexpected key size: {len(nonce)} (expected: 32)"
+    assert len(nonce) == 12, f"unexpected nonce size: {len(nonce)} (expected: 12)"
     if HAS_CRYPTODOME:
         cipher = CD_ChaCha20_Poly1305.new(key=key, nonce=nonce)
         if associated_data is not None:
@@ -361,6 +363,8 @@ def chacha20_poly1305_decrypt(
     assert isinstance(nonce, (bytes, bytearray))
     assert isinstance(associated_data, (bytes, bytearray, type(None)))
     assert isinstance(data, (bytes, bytearray))
+    assert len(key) == 32, f"unexpected key size: {len(nonce)} (expected: 32)"
+    assert len(nonce) == 12, f"unexpected nonce size: {len(nonce)} (expected: 12)"
     if HAS_CRYPTODOME:
         cipher = CD_ChaCha20_Poly1305.new(key=key, nonce=nonce)
         if associated_data is not None:
@@ -380,14 +384,33 @@ def chacha20_encrypt(*, key: bytes, nonce: bytes, data: bytes) -> bytes:
     assert isinstance(key, (bytes, bytearray))
     assert isinstance(nonce, (bytes, bytearray))
     assert isinstance(data, (bytes, bytearray))
-    assert len(nonce) == 8, f"unexpected nonce size: {len(nonce)} (expected: 8)"
+    assert len(key) == 32, f"unexpected key size: {len(nonce)} (expected: 32)"
+    assert len(nonce) in (8, 12), f"unexpected nonce size: {len(nonce)} (expected: 8 or 12)"
     if HAS_CRYPTODOME:
         cipher = CD_ChaCha20.new(key=key, nonce=nonce)
         return cipher.encrypt(data)
     if HAS_CRYPTOGRAPHY:
-        nonce = bytes(8) + nonce  # cryptography wants 16 byte nonces
+        nonce = bytes(16 - len(nonce)) + nonce  # cryptography wants 16 byte nonces
         algo = CG_algorithms.ChaCha20(key=key, nonce=nonce)
         cipher = CG_Cipher(algo, mode=None, backend=CG_default_backend())
         encryptor = cipher.encryptor()
         return encryptor.update(data)
+    raise Exception("no chacha20 backend found")
+
+
+def chacha20_decrypt(*, key: bytes, nonce: bytes, data: bytes) -> bytes:
+    assert isinstance(key, (bytes, bytearray))
+    assert isinstance(nonce, (bytes, bytearray))
+    assert isinstance(data, (bytes, bytearray))
+    assert len(key) == 32, f"unexpected key size: {len(nonce)} (expected: 32)"
+    assert len(nonce) in (8, 12), f"unexpected nonce size: {len(nonce)} (expected: 8 or 12)"
+    if HAS_CRYPTODOME:
+        cipher = CD_ChaCha20.new(key=key, nonce=nonce)
+        return cipher.decrypt(data)
+    if HAS_CRYPTOGRAPHY:
+        nonce = bytes(16 - len(nonce)) + nonce  # cryptography wants 16 byte nonces
+        algo = CG_algorithms.ChaCha20(key=key, nonce=nonce)
+        cipher = CG_Cipher(algo, mode=None, backend=CG_default_backend())
+        decryptor = cipher.decryptor()
+        return decryptor.update(data)
     raise Exception("no chacha20 backend found")
