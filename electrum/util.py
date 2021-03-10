@@ -1568,3 +1568,24 @@ def test_read_write_permissions(path) -> None:
         raise IOError(e) from e
     if echo != echo2:
         raise IOError('echo sanity-check failed')
+
+
+class nullcontext:
+    """Context manager that does no additional processing.
+    This is a ~backport of contextlib.nullcontext from Python 3.10
+    """
+
+    def __init__(self, enter_result=None):
+        self.enter_result = enter_result
+
+    def __enter__(self):
+        return self.enter_result
+
+    def __exit__(self, *excinfo):
+        pass
+
+    async def __aenter__(self):
+        return self.enter_result
+
+    async def __aexit__(self, *excinfo):
+        pass

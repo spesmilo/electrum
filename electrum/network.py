@@ -39,13 +39,14 @@ from concurrent import futures
 import copy
 
 import aiorpcx
-from aiorpcx import TaskGroup
+from aiorpcx import TaskGroup, ignore_after
 from aiohttp import ClientResponse
 
 from . import util
 from .util import (log_exceptions, ignore_exceptions,
                    bfh, SilentTaskGroup, make_aiohttp_session, send_exception_to_crash_reporter,
-                   is_hash256_str, is_non_negative_integer, MyEncoder, NetworkRetryManager)
+                   is_hash256_str, is_non_negative_integer, MyEncoder, NetworkRetryManager,
+                   nullcontext)
 from .bitcoin import COIN
 from . import constants
 from . import blockchain
@@ -1223,11 +1224,13 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     @log_exceptions
     async def stop(self, *, full_shutdown: bool = True):
         self.logger.info("stopping network")
-        try:
-            # note: cancel_remaining ~cannot be cancelled, it suppresses CancelledError
-            await asyncio.wait_for(self.taskgroup.cancel_remaining(), timeout=1)
-        except (asyncio.TimeoutError, asyncio.CancelledError) as e:
-            self.logger.info(f"exc during taskgroup cancellation: {repr(e)}")
+        # timeout: if full_shutdown, it is up to the caller to time us out,
+        #          otherwise if e.g. restarting due to proxy changes, we time out fast
+        async with (nullcontext() if full_shutdown else ignore_after(1)):
+            async with TaskGroup() as group:
+                await group.spawn(self.taskgroup.cancel_remaining())
+                if full_shutdown:
+                    await group.spawn(self.stop_gossip(full_shutdown=full_shutdown))
         self.taskgroup = None
         self.interface = None
         self.interfaces = {}
@@ -1235,8 +1238,6 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self._closing_ifaces.clear()
         if not full_shutdown:
             util.trigger_callback('network_updated')
-        if full_shutdown:
-            await self.stop_gossip(full_shutdown=full_shutdown)
 
     async def _ensure_there_is_a_main_interface(self):
         if self.is_connected():
