@@ -67,8 +67,8 @@ class SqlDB(Logger):
         self.conn.commit()
         self.conn.close()
 
-        self.asyncio_loop.call_soon_threadsafe(self.stopped_event.set)
         self.logger.info("SQL thread terminated")
+        self.asyncio_loop.call_soon_threadsafe(self.stopped_event.set)
 
     def create_database(self):
         raise NotImplementedError()

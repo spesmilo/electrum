@@ -94,10 +94,8 @@ class Test_LNRouter(TestCaseForTestnet):
         self.assertEqual(b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', route[0].node_id)
         self.assertEqual(bfh('0000000000000003'),                 route[0].short_channel_id)
 
-        # need to duplicate tear_down here, as we also need to wait for the sql thread to stop
-        self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
-        self._loop_thread.join(timeout=1)
-        cdb.sql_thread.join(timeout=1)
+        cdb.stop()
+        asyncio.run_coroutine_threadsafe(cdb.stopped_event.wait(), self.asyncio_loop).result()
 
     @needs_test_with_all_chacha20_implementations
     def test_new_onion_packet_legacy(self):
