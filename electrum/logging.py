@@ -10,6 +10,7 @@ import os
 import platform
 from typing import Optional
 import copy
+import subprocess
 
 
 class LogFormatterForFiles(logging.Formatter):
@@ -268,3 +269,14 @@ def describe_os_version() -> str:
         return "Android {} on {} {} ({})".format(bv.RELEASE, b.BRAND, b.DEVICE, b.DISPLAY)
     else:
         return platform.platform()
+
+
+def get_git_version() -> Optional[str]:
+    dir = os.path.dirname(os.path.realpath(__file__))
+    try:
+        version = subprocess.check_output(
+            ['git', 'describe', '--always', '--dirty'], cwd=dir)
+        version = str(version, "utf8").strip()
+    except Exception:
+        version = None
+    return version
