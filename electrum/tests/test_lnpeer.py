@@ -113,7 +113,8 @@ class MockWallet:
 
 
 class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
-    MPP_EXPIRY = 1
+    MPP_EXPIRY = 2 # HTLC timestamps are cast to int, so this cannot be 1
+
     def __init__(self, *, local_keypair: Keypair, chans: Iterable['Channel'], tx_queue, name):
         self.name = name
         Logger.__init__(self)
@@ -779,6 +780,7 @@ class TestPeer(ElectrumTestCase):
         with self.assertRaises(NoPathFound):
            run(self._run_mpp(graph, attempts=1))
         graph.w_b.enable_htlc_forwarding.set()
+        run(asyncio.sleep(1)) # sleep to that the other htlc can fail
         with self.assertRaises(PaymentDone):
            run(self._run_mpp(graph, attempts=1))
 
