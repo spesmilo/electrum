@@ -315,6 +315,10 @@ def ripemd(x):
         md.update(x)
         return md.digest()
     except BaseException:
+        # ripemd160 is not guaranteed to be available in hashlib on all platforms.
+        # Historically, our Android builds had hashlib/openssl which did not have it.
+        # see https://github.com/spesmilo/electrum/issues/7093
+        # We bundle a pure python implementation as fallback that gets used now:
         from . import ripemd
         md = ripemd.new(x)
         return md.digest()
