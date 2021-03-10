@@ -130,7 +130,6 @@ Builder.load_string('''
     Widget
         size_hint: 1, 1
     GridLayout:
-        orientation: 'vertical'
         cols: 2
         spacing: '14dp'
         size_hint: 1, 1
@@ -179,7 +178,6 @@ Builder.load_string('''
         size_hint: 1, 1
     GridLayout:
         row_default_height: '48dp'
-        orientation: 'vertical'
         id: choices
         cols: 1
         spacing: '14dp'
@@ -333,7 +331,6 @@ Builder.load_string('''
     text: ''
     options_dialog: None
     rows: 1
-    orientation: 'horizontal'
     size_hint: 1, None
     height: self.minimum_height
     BigLabel:
@@ -358,7 +355,6 @@ Builder.load_string('''
     GridLayout:
         cols: 1
         padding: 0, '12dp'
-        orientation: 'vertical'
         spacing: '12dp'
         size_hint: 1, None
         height: self.minimum_height
@@ -461,7 +457,6 @@ Builder.load_string('''
     GridLayout
         cols: 1
         padding: 0, '12dp'
-        orientation: 'vertical'
         spacing: '12dp'
         size_hint: 1, None
         height: self.minimum_height
@@ -498,7 +493,6 @@ Builder.load_string('''
     GridLayout
         cols: 1
         padding: 0, '12dp'
-        orientation: 'vertical'
         spacing: '12dp'
         size_hint: 1, None
         height: self.minimum_height
@@ -534,7 +528,6 @@ Builder.load_string('''
         pos_hint: {'center_y': .5}
         size_hint_y: None
         height: self.minimum_height
-        orientation: 'vertical'
         spacing: '12dp'
         SeedButton:
             text: root.seed_text
@@ -562,7 +555,6 @@ Builder.load_string('''
         text: root.message1
     GridLayout:
         row_default_height: '48dp'
-        orientation: 'vertical'
         id: choices
         cols: 1
         spacing: '14dp'

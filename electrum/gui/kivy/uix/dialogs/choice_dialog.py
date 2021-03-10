@@ -26,7 +26,6 @@ Builder.load_string('''
             size_hint: 1, 0.8
             GridLayout:
                 row_default_height: '48dp'
-                orientation: 'vertical'
                 id: choices
                 cols: 2
                 size_hint: 1, None
