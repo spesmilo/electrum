@@ -46,7 +46,7 @@ import itertools
 import threading
 import enum
 
-from aiorpcx import TaskGroup, timeout_after, TaskTimeout
+from aiorpcx import TaskGroup, timeout_after, TaskTimeout, ignore_after
 
 from .i18n import _
 from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath, convert_bip32_path_to_list_of_uint32
@@ -357,14 +357,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     async def stop(self):
         """Stop all networking and save DB to disk."""
         try:
-            async with timeout_after(5):
+            async with ignore_after(5):
                 await super().stop()
                 if self.network:
                     if self.lnworker:
                         await self.lnworker.stop()
                         self.lnworker = None
-        except TaskTimeout:
-            pass
         finally:  # even if we get cancelled
             if any([ks.is_requesting_to_be_rewritten_to_wallet_file for ks in self.get_keystores()]):
                 self.save_keystore()
