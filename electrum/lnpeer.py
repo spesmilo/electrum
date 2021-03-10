@@ -1820,7 +1820,7 @@ class Peer(Logger):
                         error_reason = e
                     else:
                         try:
-                            preimage, fw_info, error_bytes = self.process_unfulfilled_htlc(
+                            preimage, fw_info, error_bytes = await self.process_unfulfilled_htlc(
                                 chan=chan,
                                 htlc=htlc,
                                 forwarding_info=forwarding_info,
@@ -1849,7 +1849,7 @@ class Peer(Logger):
                 for htlc_id in done:
                     unfulfilled.pop(htlc_id)
 
-    def process_unfulfilled_htlc(
+    async def process_unfulfilled_htlc(
             self, *,
             chan: Channel,
             htlc: UpdateAddHtlc,
@@ -1885,6 +1885,7 @@ class Peer(Logger):
                             processed_onion=trampoline_onion,
                             is_trampoline=True)
                     else:
+                        await self.lnworker.enable_htlc_forwarding.wait()
                         self.maybe_forward_trampoline(
                             chan=chan,
                             htlc=htlc,
@@ -1899,6 +1900,7 @@ class Peer(Logger):
                         raise error_reason
 
         elif not forwarding_info:
+            await self.lnworker.enable_htlc_forwarding.wait()
             next_chan_id, next_htlc_id = self.maybe_forward_htlc(
                 htlc=htlc,
                 processed_onion=processed_onion)

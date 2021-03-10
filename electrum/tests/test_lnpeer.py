@@ -113,6 +113,7 @@ class MockWallet:
 
 
 class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
+    MPP_EXPIRY = 1
     def __init__(self, *, local_keypair: Keypair, chans: Iterable['Channel'], tx_queue, name):
         self.name = name
         Logger.__init__(self)
@@ -136,6 +137,8 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         # used in tests
         self.enable_htlc_settle = asyncio.Event()
         self.enable_htlc_settle.set()
+        self.enable_htlc_forwarding = asyncio.Event()
+        self.enable_htlc_forwarding.set()
         self.received_htlcs = dict()
         self.sent_htlcs = defaultdict(asyncio.Queue)
         self.sent_htlcs_routes = dict()
@@ -747,7 +750,7 @@ class TestPeer(ElectrumTestCase):
         with self.assertRaises(PaymentDone):
             run(f())
 
-    def _test_multipart_payment(self, graph, *, attempts):
+    async def _run_mpp(self, graph, *, attempts):
         self.assertEqual(500_000_000_000, graph.chan_ab.balance(LOCAL))
         self.assertEqual(500_000_000_000, graph.chan_ac.balance(LOCAL))
         amount_to_pay = 600_000_000_000
@@ -761,32 +764,45 @@ class TestPeer(ElectrumTestCase):
                 raise PaymentDone()
             else:
                 raise NoPathFound()
-        async def f():
-            async with TaskGroup() as group:
-                for peer in peers:
-                    await group.spawn(peer._message_loop())
-                    await group.spawn(peer.htlc_switch())
-                await asyncio.sleep(0.2)
-                await group.spawn(pay())
-        self.assertFalse(graph.w_d.features.supports(LnFeatures.BASIC_MPP_OPT))
-        with self.assertRaises(NoPathFound):
-            run(f())
+        async with TaskGroup() as group:
+            for peer in peers:
+                await group.spawn(peer._message_loop())
+                await group.spawn(peer.htlc_switch())
+            await asyncio.sleep(0.2)
+            await group.spawn(pay())
+
+    @needs_test_with_all_chacha20_implementations
+    def test_multipart_payment_with_timeout(self):
+        graph = self.prepare_chans_and_peers_in_square()
         graph.w_d.features |= LnFeatures.BASIC_MPP_OPT
+        graph.w_b.enable_htlc_forwarding.clear()
+        with self.assertRaises(NoPathFound):
+           run(self._run_mpp(graph, attempts=1))
+        graph.w_b.enable_htlc_forwarding.set()
         with self.assertRaises(PaymentDone):
-            run(f())
+           run(self._run_mpp(graph, attempts=1))
 
     @needs_test_with_all_chacha20_implementations
     def test_multipart_payment(self):
         graph = self.prepare_chans_and_peers_in_square()
-        self._test_multipart_payment(graph, attempts=1)
+        self.assertFalse(graph.w_d.features.supports(LnFeatures.BASIC_MPP_OPT))
+        with self.assertRaises(NoPathFound):
+           run(self._run_mpp(graph, attempts=1))
+        graph.w_d.features |= LnFeatures.BASIC_MPP_OPT
+        with self.assertRaises(PaymentDone):
+           run(self._run_mpp(graph, attempts=1))
 
     @needs_test_with_all_chacha20_implementations
     def test_multipart_payment_with_trampoline(self):
         graph = self.prepare_chans_and_peers_in_square()
+        graph.w_d.features |= LnFeatures.BASIC_MPP_OPT
         graph.w_a.network.channel_db.stop()
         graph.w_a.network.channel_db = None
-        # Note: first attempt will fail with insufficient trampoline fee
-        self._test_multipart_payment(graph, attempts=3)
+        # Note: single attempt will fail with insufficient trampoline fee
+        with self.assertRaises(NoPathFound):
+           run(self._run_mpp(graph, attempts=1))
+        with self.assertRaises(PaymentDone):
+           run(self._run_mpp(graph, attempts=3))
 
     @needs_test_with_all_chacha20_implementations
     def test_close(self):

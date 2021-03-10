@@ -91,7 +91,6 @@ SAVED_PR_STATUS = [PR_PAID, PR_UNPAID] # status that are persisted
 
 
 NUM_PEERS_TARGET = 4
-MPP_EXPIRY = 120
 
 
 FALLBACK_NODE_LIST_TESTNET = (
@@ -575,6 +574,7 @@ class LNGossip(LNWorker):
 class LNWallet(LNWorker):
 
     lnwatcher: Optional['LNWalletWatcher']
+    MPP_EXPIRY = 120
 
     def __init__(self, wallet: 'Abstract_Wallet', xprv):
         self.wallet = wallet
@@ -592,6 +592,8 @@ class LNWallet(LNWorker):
         # used in tests
         self.enable_htlc_settle = asyncio.Event()
         self.enable_htlc_settle.set()
+        self.enable_htlc_forwarding = asyncio.Event()
+        self.enable_htlc_forwarding.set()
 
         # note: accessing channels (besides simple lookup) needs self.lock!
         self._channels = {}  # type: Dict[bytes, Channel]
@@ -1633,7 +1635,7 @@ class LNWallet(LNWorker):
         if not is_accepted and not is_expired:
             total = sum([_htlc.amount_msat for scid, _htlc in htlc_set])
             first_timestamp = min([_htlc.timestamp for scid, _htlc in htlc_set])
-            if time.time() - first_timestamp > MPP_EXPIRY:
+            if time.time() - first_timestamp > self.MPP_EXPIRY:
                 is_expired = True
             elif total == expected_msat:
                 is_accepted = True
