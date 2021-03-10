@@ -5,6 +5,7 @@ import json
 from typing import Optional
 import asyncio
 
+import electrum
 from electrum.wallet_db import WalletDB
 from electrum.wallet import Wallet
 from electrum import constants
@@ -312,6 +313,8 @@ class TestStorageUpgrade(WalletTestCase):
 
 ##########
 
+    plugins: 'electrum.plugin.Plugins'
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -323,12 +326,14 @@ class TestStorageUpgrade(WalletTestCase):
 
         gui_name = 'cmdline'
         # TODO it's probably wasteful to load all plugins... only need Trezor
-        Plugins(config, gui_name)
+        cls.plugins = Plugins(config, gui_name)
 
     @classmethod
     def tearDownClass(cls):
         super().tearDownClass()
         shutil.rmtree(cls.__electrum_path)
+        cls.plugins.stop()
+        cls.plugins.stopped_event.wait()
 
     def _upgrade_storage(self, wallet_json, accounts=1) -> Optional[WalletDB]:
         if accounts == 1:
@@ -358,8 +363,8 @@ class TestStorageUpgrade(WalletTestCase):
     def _sanity_check_upgraded_db(self, db):
         self.assertFalse(db.requires_split())
         self.assertFalse(db.requires_upgrade())
-        w = Wallet(db, None, config=self.config)
-        w.stop()
+        wallet = Wallet(db, None, config=self.config)
+        asyncio.run_coroutine_threadsafe(wallet.stop(), self.asyncio_loop).result()
 
     @staticmethod
     def _load_db_from_json_string(*, wallet_json, manual_upgrades):
