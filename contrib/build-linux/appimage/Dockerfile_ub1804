@@ -10,7 +10,7 @@ RUN echo deb ${UBUNTU_MIRROR} bionic main restricted universe multiverse > /etc/
     echo deb ${UBUNTU_MIRROR} bionic-security main restricted universe multiverse >> /etc/apt/sources.list && \
     apt-get update -q && \
     apt-get install -qy \
-        git=1:2.17.1-1ubuntu0.7 \
+        git=1:2.17.1-1ubuntu0.8 \
         wget=1.19.4-1ubuntu2.2 \
         make=4.1-9.1ubuntu1 \
         autotools-dev=20180224.1 \
