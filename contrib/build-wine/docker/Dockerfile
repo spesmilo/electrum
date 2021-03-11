@@ -33,7 +33,7 @@ RUN echo deb ${UBUNTU_MIRROR} bionic main restricted universe multiverse > /etc/
     apt-get update -q && \
     apt-get install -qy \
         wget=1.19.4-1ubuntu2.2 \
-        git=1:2.17.1-1ubuntu0.7 \
+        git=1:2.17.1-1ubuntu0.8 \
         p7zip-full=16.02+dfsg-6 \
         make=4.1-9.1ubuntu1 \
         autotools-dev=20180224.1 \
