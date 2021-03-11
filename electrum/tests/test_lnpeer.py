@@ -774,12 +774,29 @@ class TestPeer(ElectrumTestCase):
         with self.assertRaises(PaymentDone):
             run(f())
 
-    async def _run_mpp(self, graph, *, attempts):
+    def _run_mpp(self, graph, kwargs1, kwargs2):
         self.assertEqual(500_000_000_000, graph.chan_ab.balance(LOCAL))
         self.assertEqual(500_000_000_000, graph.chan_ac.balance(LOCAL))
         amount_to_pay = 600_000_000_000
         peers = graph.all_peers()
-        async def pay():
+        async def pay(attempts=1,
+                      alice_uses_trampoline=False,
+                      bob_forwarding=True,
+                      mpp_invoice=True):
+            if mpp_invoice:
+                graph.w_d.features |= LnFeatures.BASIC_MPP_OPT
+            if bob_forwarding:
+                graph.w_b.enable_htlc_forwarding.set()
+            else:
+                graph.w_b.logger.info(f'disabling forwarding')
+                graph.w_b.enable_htlc_forwarding.clear()
+            if alice_uses_trampoline:
+                if graph.w_a.network.channel_db:
+                    graph.w_a.network.channel_db.stop()
+                    await graph.w_a.network.channel_db.stopped_event.wait()
+                    graph.w_a.network.channel_db = None
+            else:
+                assert graph.w_a.network.channel_db is not None
             lnaddr, pay_req = await self.prepare_invoice(graph.w_d, include_routing_hints=True, amount_msat=amount_to_pay)
             self.assertEqual(PR_UNPAID, graph.w_d.get_payment_status(lnaddr.paymenthash))
             result, log = await graph.w_a.pay_invoice(pay_req, attempts=attempts)
@@ -788,47 +805,35 @@ class TestPeer(ElectrumTestCase):
                 raise PaymentDone()
             else:
                 raise NoPathFound()
-        async with TaskGroup() as group:
-            for peer in peers:
-                await group.spawn(peer._message_loop())
-                await group.spawn(peer.htlc_switch())
-            await asyncio.sleep(0.2)
-            await group.spawn(pay())
+
+        async def f(kwargs):
+            async with TaskGroup() as group:
+                for peer in peers:
+                    await group.spawn(peer._message_loop())
+                    await group.spawn(peer.htlc_switch())
+                await asyncio.sleep(0.2)
+                await group.spawn(pay(**kwargs))
+
+        with self.assertRaises(NoPathFound):
+            run(f(kwargs1))
+        with self.assertRaises(PaymentDone):
+            run(f(kwargs2))
 
     @needs_test_with_all_chacha20_implementations
     def test_multipart_payment_with_timeout(self):
         graph = self.prepare_chans_and_peers_in_square()
-        graph.w_d.features |= LnFeatures.BASIC_MPP_OPT
-        graph.w_b.enable_htlc_forwarding.clear()
-        with self.assertRaises(NoPathFound):
-           run(self._run_mpp(graph, attempts=1))
-        graph.w_b.enable_htlc_forwarding.set()
-        run(asyncio.sleep(1)) # sleep to that the other htlc can fail
-        with self.assertRaises(PaymentDone):
-           run(self._run_mpp(graph, attempts=1))
+        self._run_mpp(graph, {'bob_forwarding':False}, {'bob_forwarding':True})
 
     @needs_test_with_all_chacha20_implementations
     def test_multipart_payment(self):
         graph = self.prepare_chans_and_peers_in_square()
-        self.assertFalse(graph.w_d.features.supports(LnFeatures.BASIC_MPP_OPT))
-        with self.assertRaises(NoPathFound):
-           run(self._run_mpp(graph, attempts=1))
-        graph.w_d.features |= LnFeatures.BASIC_MPP_OPT
-        with self.assertRaises(PaymentDone):
-           run(self._run_mpp(graph, attempts=1))
+        self._run_mpp(graph, {'mpp_invoice':False}, {'mpp_invoice':True})
 
     @needs_test_with_all_chacha20_implementations
     def test_multipart_payment_with_trampoline(self):
+        # single attempt will fail with insufficient trampoline fee
         graph = self.prepare_chans_and_peers_in_square()
-        graph.w_d.features |= LnFeatures.BASIC_MPP_OPT
-        graph.w_a.network.channel_db.stop()
-        run(graph.w_a.network.channel_db.stopped_event.wait())
-        graph.w_a.network.channel_db = None
-        # Note: single attempt will fail with insufficient trampoline fee
-        with self.assertRaises(NoPathFound):
-           run(self._run_mpp(graph, attempts=1))
-        with self.assertRaises(PaymentDone):
-           run(self._run_mpp(graph, attempts=3))
+        self._run_mpp(graph, {'alice_uses_trampoline':True, 'attempts':1}, {'alice_uses_trampoline':True, 'attempts':3})
 
     @needs_test_with_all_chacha20_implementations
     def test_close(self):
