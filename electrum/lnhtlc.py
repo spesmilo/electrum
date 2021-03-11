@@ -320,7 +320,7 @@ class HTLCManager:
         return False
 
     @with_lock
-    def is_add_htlc_irrevocably_committed_yet(
+    def is_htlc_irrevocably_added_yet(
             self,
             *,
             ctx_owner: HTLCOwner = None,
@@ -330,9 +330,9 @@ class HTLCManager:
         """Returns whether `add_htlc` was irrevocably committed to `ctx_owner's` ctx.
         If `ctx_owner` is None, both parties' ctxs are checked.
         """
-        in_local = self._is_add_htlc_irrevocably_committed_yet(
+        in_local = self._is_htlc_irrevocably_added_yet(
             ctx_owner=LOCAL, htlc_proposer=htlc_proposer, htlc_id=htlc_id)
-        in_remote = self._is_add_htlc_irrevocably_committed_yet(
+        in_remote = self._is_htlc_irrevocably_added_yet(
             ctx_owner=REMOTE, htlc_proposer=htlc_proposer, htlc_id=htlc_id)
         if ctx_owner is None:
             return in_local and in_remote
@@ -344,7 +344,7 @@ class HTLCManager:
             raise Exception(f"unexpected ctx_owner: {ctx_owner!r}")
 
     @with_lock
-    def _is_add_htlc_irrevocably_committed_yet(
+    def _is_htlc_irrevocably_added_yet(
             self,
             *,
             ctx_owner: HTLCOwner,
