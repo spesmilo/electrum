@@ -578,6 +578,7 @@ class LNWallet(LNWorker):
 
     lnwatcher: Optional['LNWalletWatcher']
     MPP_EXPIRY = 120
+    TIMEOUT_SHUTDOWN_FAIL_PENDING_HTLCS = 3  # seconds
 
     def __init__(self, wallet: 'Abstract_Wallet', xprv):
         self.wallet = wallet
@@ -713,11 +714,12 @@ class LNWallet(LNWorker):
         self.stopping_soon = True
         if self.listen_server:  # stop accepting new peers
             self.listen_server.close()
-        async with ignore_after(3):
+        async with ignore_after(self.TIMEOUT_SHUTDOWN_FAIL_PENDING_HTLCS):
             await self.wait_for_received_pending_htlcs_to_get_removed()
-        await super().stop()
-        await self.lnwatcher.stop()
-        self.lnwatcher = None
+        await LNWorker.stop(self)
+        if self.lnwatcher:
+            await self.lnwatcher.stop()
+            self.lnwatcher = None
 
     async def wait_for_received_pending_htlcs_to_get_removed(self):
         assert self.stopping_soon is True
