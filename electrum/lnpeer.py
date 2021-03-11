@@ -1343,6 +1343,9 @@ class Peer(Logger):
 
         # Forward HTLC
         # FIXME: there are critical safety checks MISSING here
+        #        - for example; atm we forward first and then persist "forwarding_info",
+        #          so if we segfault in-between and restart, we might forward an HTLC twice...
+        #          (same for trampoline forwarding)
         forwarding_enabled = self.network.config.get('lightning_forward_payments', False)
         if not forwarding_enabled:
             self.logger.info(f"forwarding is disabled. failing htlc.")
