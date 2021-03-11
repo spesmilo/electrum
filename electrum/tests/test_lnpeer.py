@@ -147,6 +147,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         self.trampoline_forwarding_failures = {}
         self.inflight_payments = set()
         self.preimages = {}
+        self.stopping_soon = False
 
     def get_invoice_status(self, key):
         pass

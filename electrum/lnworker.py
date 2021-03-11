@@ -22,7 +22,7 @@ import urllib.parse
 
 import dns.resolver
 import dns.exception
-from aiorpcx import run_in_thread, TaskGroup, NetAddress
+from aiorpcx import run_in_thread, TaskGroup, NetAddress, ignore_after
 
 from . import constants, util
 from . import keystore
@@ -195,6 +195,7 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         self.features = features
         self.network = None  # type: Optional[Network]
         self.config = None  # type: Optional[SimpleConfig]
+        self.stopping_soon = False  # whether we are being shut down
 
         util.register_callback(self.on_proxy_changed, ['proxy_set'])
 
@@ -268,6 +269,8 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
     async def _maintain_connectivity(self):
         while True:
             await asyncio.sleep(1)
+            if self.stopping_soon:
+                return
             now = time.time()
             if len(self._peers) >= NUM_PEERS_TARGET:
                 continue
@@ -707,9 +710,31 @@ class LNWallet(LNWorker):
             asyncio.run_coroutine_threadsafe(tg_coro, self.network.asyncio_loop)
 
     async def stop(self):
+        self.stopping_soon = True
+        if self.listen_server:  # stop accepting new peers
+            self.listen_server.close()
+        async with ignore_after(3):
+            await self.wait_for_received_pending_htlcs_to_get_removed()
         await super().stop()
         await self.lnwatcher.stop()
         self.lnwatcher = None
+
+    async def wait_for_received_pending_htlcs_to_get_removed(self):
+        assert self.stopping_soon is True
+        # We try to fail pending MPP HTLCs, and wait a bit for them to get removed.
+        # Note: even without MPP, if we just failed/fulfilled an HTLC, it is good
+        #       to wait a bit for it to become irrevocably removed.
+        # Note: we don't wait for *all htlcs* to get removed, only for those
+        #       that we can already fail/fulfill. e.g. forwarded htlcs cannot be removed
+        async with TaskGroup() as group:
+            for peer in self.peers.values():
+                await group.spawn(peer.wait_one_htlc_switch_iteration())
+        while True:
+            if all(not peer.received_htlcs_pending_removal for peer in self.peers.values()):
+                break
+            async with TaskGroup(wait=any) as group:
+                for peer in self.peers.values():
+                    await group.spawn(peer.received_htlc_removed_event.wait())
 
     def peer_closed(self, peer):
         for chan in self.channels_for_peer(peer.pubkey).values():
@@ -1635,7 +1660,9 @@ class LNWallet(LNWorker):
         if not is_accepted and not is_expired:
             total = sum([_htlc.amount_msat for scid, _htlc in htlc_set])
             first_timestamp = min([_htlc.timestamp for scid, _htlc in htlc_set])
-            if time.time() - first_timestamp > self.MPP_EXPIRY:
+            if self.stopping_soon:
+                is_expired = True  # try to time out pending HTLCs before shutting down
+            elif time.time() - first_timestamp > self.MPP_EXPIRY:
                 is_expired = True
             elif total == expected_msat:
                 is_accepted = True
@@ -1897,6 +1924,8 @@ class LNWallet(LNWorker):
     async def reestablish_peers_and_channels(self):
         while True:
             await asyncio.sleep(1)
+            if self.stopping_soon:
+                return
             for chan in self.channels.values():
                 if chan.is_closed():
                     continue

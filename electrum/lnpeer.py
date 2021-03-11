@@ -9,11 +9,12 @@ from collections import OrderedDict, defaultdict
 import asyncio
 import os
 import time
-from typing import Tuple, Dict, TYPE_CHECKING, Optional, Union
+from typing import Tuple, Dict, TYPE_CHECKING, Optional, Union, Set
 from datetime import datetime
 import functools
 
 import aiorpcx
+from aiorpcx import TaskGroup
 
 from .crypto import sha256, sha256d
 from . import bitcoin, util
@@ -74,6 +75,7 @@ class Peer(Logger):
         self._sent_init = False  # type: bool
         self._received_init = False  # type: bool
         self.initialized = asyncio.Future()
+        self.got_disconnected = asyncio.Event()
         self.querying = asyncio.Event()
         self.transport = transport
         self.pubkey = pubkey  # remote pubkey
@@ -98,6 +100,11 @@ class Peer(Logger):
         self.orphan_channel_updates = OrderedDict()
         Logger.__init__(self)
         self.taskgroup = SilentTaskGroup()
+        # HTLCs offered by REMOTE, that we started removing but are still active:
+        self.received_htlcs_pending_removal = set()  # type: Set[Tuple[Channel, int]]
+        self.received_htlc_removed_event = asyncio.Event()
+        self._htlc_switch_iterstart_event = asyncio.Event()
+        self._htlc_switch_iterdone_event = asyncio.Event()
 
     def send_message(self, message_name: str, **kwargs):
         assert type(message_name) is str
@@ -492,6 +499,7 @@ class Peer(Logger):
         except:
             pass
         self.lnworker.peer_closed(self)
+        self.got_disconnected.set()
 
     def is_static_remotekey(self):
         return self.features.supports(LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
@@ -1575,6 +1583,7 @@ class Peer(Logger):
         self.logger.info(f"_fulfill_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
         assert chan.can_send_ctx_updates(), f"cannot send updates: {chan.short_channel_id}"
         assert chan.hm.is_htlc_irrevocably_added_yet(htlc_proposer=REMOTE, htlc_id=htlc_id)
+        self.received_htlcs_pending_removal.add((chan, htlc_id))
         chan.settle_htlc(preimage, htlc_id)
         self.send_message(
             "update_fulfill_htlc",
@@ -1585,6 +1594,7 @@ class Peer(Logger):
     def fail_htlc(self, *, chan: Channel, htlc_id: int, error_bytes: bytes):
         self.logger.info(f"fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}.")
         assert chan.can_send_ctx_updates(), f"cannot send updates: {chan.short_channel_id}"
+        self.received_htlcs_pending_removal.add((chan, htlc_id))
         chan.fail_htlc(htlc_id)
         self.send_message(
             "update_fail_htlc",
@@ -1596,9 +1606,10 @@ class Peer(Logger):
     def fail_malformed_htlc(self, *, chan: Channel, htlc_id: int, reason: OnionRoutingFailure):
         self.logger.info(f"fail_malformed_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}.")
         assert chan.can_send_ctx_updates(), f"cannot send updates: {chan.short_channel_id}"
-        chan.fail_htlc(htlc_id)
         if not (reason.code & OnionFailureCodeMetaFlag.BADONION and len(reason.data) == 32):
             raise Exception(f"unexpected reason when sending 'update_fail_malformed_htlc': {reason!r}")
+        self.received_htlcs_pending_removal.add((chan, htlc_id))
+        chan.fail_htlc(htlc_id)
         self.send_message(
             "update_fail_malformed_htlc",
             channel_id=chan.channel_id,
@@ -1800,8 +1811,13 @@ class Peer(Logger):
     async def htlc_switch(self):
         await self.initialized
         while True:
-            await asyncio.sleep(0.1)
+            self._htlc_switch_iterdone_event.set()
+            self._htlc_switch_iterdone_event.clear()
+            await asyncio.sleep(0.1)  # TODO maybe make this partly event-driven
+            self._htlc_switch_iterstart_event.set()
+            self._htlc_switch_iterstart_event.clear()
             self.ping_if_required()
+            self._maybe_cleanup_received_htlcs_pending_removal()
             for chan_id, chan in self.channels.items():
                 if not chan.can_send_ctx_updates():
                     continue
@@ -1852,6 +1868,29 @@ class Peer(Logger):
                 # cleanup
                 for htlc_id in done:
                     unfulfilled.pop(htlc_id)
+
+    def _maybe_cleanup_received_htlcs_pending_removal(self) -> None:
+        done = set()
+        for chan, htlc_id in self.received_htlcs_pending_removal:
+            if chan.hm.is_htlc_irrevocably_removed_yet(htlc_proposer=REMOTE, htlc_id=htlc_id):
+                done.add((chan, htlc_id))
+        if done:
+            for key in done:
+                self.received_htlcs_pending_removal.remove(key)
+            self.received_htlc_removed_event.set()
+            self.received_htlc_removed_event.clear()
+
+    async def wait_one_htlc_switch_iteration(self) -> None:
+        """Waits until the HTLC switch does a full iteration or the peer disconnects,
+        whichever happens first.
+        """
+        async def htlc_switch_iteration():
+            await self._htlc_switch_iterstart_event.wait()
+            await self._htlc_switch_iterdone_event.wait()
+
+        async with TaskGroup(wait=any) as group:
+            await group.spawn(htlc_switch_iteration())
+            await group.spawn(self.got_disconnected.wait())
 
     async def process_unfulfilled_htlc(
             self, *,

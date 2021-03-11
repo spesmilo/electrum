@@ -360,6 +360,55 @@ class HTLCManager:
         return ctns[ctx_owner] <= self.ctn_oldest_unrevoked(ctx_owner)
 
     @with_lock
+    def is_htlc_irrevocably_removed_yet(
+            self,
+            *,
+            ctx_owner: HTLCOwner = None,
+            htlc_proposer: HTLCOwner,
+            htlc_id: int,
+    ) -> bool:
+        """Returns whether the removal of an htlc was irrevocably committed to `ctx_owner's` ctx.
+        The removal can either be a fulfill/settle or a fail; they are not distinguished.
+        If `ctx_owner` is None, both parties' ctxs are checked.
+        """
+        in_local = self._is_htlc_irrevocably_removed_yet(
+            ctx_owner=LOCAL, htlc_proposer=htlc_proposer, htlc_id=htlc_id)
+        in_remote = self._is_htlc_irrevocably_removed_yet(
+            ctx_owner=REMOTE, htlc_proposer=htlc_proposer, htlc_id=htlc_id)
+        if ctx_owner is None:
+            return in_local and in_remote
+        elif ctx_owner == LOCAL:
+            return in_local
+        elif ctx_owner == REMOTE:
+            return in_remote
+        else:
+            raise Exception(f"unexpected ctx_owner: {ctx_owner!r}")
+
+    @with_lock
+    def _is_htlc_irrevocably_removed_yet(
+            self,
+            *,
+            ctx_owner: HTLCOwner,
+            htlc_proposer: HTLCOwner,
+            htlc_id: int,
+    ) -> bool:
+        htlc_id = int(htlc_id)
+        if htlc_id >= self.get_next_htlc_id(htlc_proposer):
+            return False
+        if htlc_id in self.log[htlc_proposer]['settles']:
+            ctn_of_settle = self.log[htlc_proposer]['settles'][htlc_id][ctx_owner]
+        else:
+            ctn_of_settle = None
+        if htlc_id in self.log[htlc_proposer]['fails']:
+            ctn_of_fail = self.log[htlc_proposer]['fails'][htlc_id][ctx_owner]
+        else:
+            ctn_of_fail = None
+        ctn_of_rm = ctn_of_settle or ctn_of_fail or None
+        if ctn_of_rm is None:
+            return False
+        return ctn_of_rm <= self.ctn_oldest_unrevoked(ctx_owner)
+
+    @with_lock
     def htlcs_by_direction(self, subject: HTLCOwner, direction: Direction,
                            ctn: int = None) -> Dict[int, UpdateAddHtlc]:
         """Return the dict of received or sent (depending on direction) HTLCs
