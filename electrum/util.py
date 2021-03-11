@@ -1380,7 +1380,9 @@ def randrange(bound: int) -> int:
 
 
 class CallbackManager:
-        # callbacks set by the GUI
+    # callbacks set by the GUI or any thread
+    # guarantee: the callbacks will always get triggered from the asyncio thread.
+
     def __init__(self):
         self.callback_lock = threading.Lock()
         self.callbacks = defaultdict(list)      # note: needs self.callback_lock
@@ -1398,6 +1400,10 @@ class CallbackManager:
                     callbacks.remove(callback)
 
     def trigger_callback(self, event, *args):
+        """Trigger a callback with given arguments.
+        Can be called from any thread. The callback itself will get scheduled
+        on the event loop.
+        """
         if self.asyncio_loop is None:
             self.asyncio_loop = asyncio.get_event_loop()
             assert self.asyncio_loop.is_running(), "event loop not running"
