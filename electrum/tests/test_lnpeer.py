@@ -785,10 +785,7 @@ class TestPeer(ElectrumTestCase):
                       mpp_invoice=True):
             if mpp_invoice:
                 graph.w_d.features |= LnFeatures.BASIC_MPP_OPT
-            if bob_forwarding:
-                graph.w_b.enable_htlc_forwarding.set()
-            else:
-                graph.w_b.logger.info(f'disabling forwarding')
+            if not bob_forwarding:
                 graph.w_b.enable_htlc_forwarding.clear()
             if alice_uses_trampoline:
                 if graph.w_a.network.channel_db:
@@ -800,6 +797,10 @@ class TestPeer(ElectrumTestCase):
             lnaddr, pay_req = await self.prepare_invoice(graph.w_d, include_routing_hints=True, amount_msat=amount_to_pay)
             self.assertEqual(PR_UNPAID, graph.w_d.get_payment_status(lnaddr.paymenthash))
             result, log = await graph.w_a.pay_invoice(pay_req, attempts=attempts)
+            if not bob_forwarding:
+                # reset to previous state, sleep 2s so that the second htlc can time out
+                graph.w_b.enable_htlc_forwarding.set()
+                await asyncio.sleep(2)
             if result:
                 self.assertEqual(PR_PAID, graph.w_d.get_payment_status(lnaddr.paymenthash))
                 raise PaymentDone()
