@@ -140,7 +140,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         self.enable_htlc_settle.set()
         self.enable_htlc_forwarding = asyncio.Event()
         self.enable_htlc_forwarding.set()
-        self.received_htlcs = dict()
+        self.received_mpp_htlcs = dict()
         self.sent_htlcs = defaultdict(asyncio.Queue)
         self.sent_htlcs_routes = dict()
         self.sent_buckets = defaultdict(set)
@@ -194,7 +194,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     set_request_status = LNWallet.set_request_status
     set_payment_status = LNWallet.set_payment_status
     get_payment_status = LNWallet.get_payment_status
-    add_received_htlc = LNWallet.add_received_htlc
+    check_received_mpp_htlc = LNWallet.check_received_mpp_htlc
     htlc_fulfilled = LNWallet.htlc_fulfilled
     htlc_failed = LNWallet.htlc_failed
     save_preimage = LNWallet.save_preimage

@@ -1538,7 +1538,7 @@ class Peer(Logger):
             payment_secret_from_onion = None
 
         if total_msat > amt_to_forward:
-            mpp_status = self.lnworker.add_received_htlc(payment_secret_from_onion, chan.short_channel_id, htlc, total_msat)
+            mpp_status = self.lnworker.check_received_mpp_htlc(payment_secret_from_onion, chan.short_channel_id, htlc, total_msat)
             if mpp_status is None:
                 return None, None
             if mpp_status is False:
@@ -1548,6 +1548,7 @@ class Peer(Logger):
 
         # if there is a trampoline_onion, maybe_fulfill_htlc will be called again
         if processed_onion.trampoline_onion_packet:
+            # TODO: we should check that all trampoline_onions are the same
             return None, processed_onion.trampoline_onion_packet
 
         info = self.lnworker.get_payment_info(htlc.payment_hash)

@@ -609,7 +609,7 @@ class LNWallet(LNWorker):
         self.sent_htlcs = defaultdict(asyncio.Queue)  # type: Dict[bytes, asyncio.Queue[HtlcLog]]
         self.sent_htlcs_routes = dict()               # (RHASH, scid, htlc_id) -> route, payment_secret, amount_msat, bucket_msat
         self.sent_buckets = dict()                    # payment_secret -> (amount_sent, amount_failed)
-        self.received_htlcs = dict()                  # RHASH -> mpp_status, htlc_set
+        self.received_mpp_htlcs = dict()                  # RHASH -> mpp_status, htlc_set
 
         self.swap_manager = SwapManager(wallet=self.wallet, lnworker=self)
         # detect inflight payments
@@ -1621,10 +1621,10 @@ class LNWallet(LNWorker):
             self.payments[key] = info.amount_msat, info.direction, info.status
         self.wallet.save_db()
 
-    def add_received_htlc(self, payment_secret, short_channel_id, htlc: UpdateAddHtlc, expected_msat: int) -> Optional[bool]:
+    def check_received_mpp_htlc(self, payment_secret, short_channel_id, htlc: UpdateAddHtlc, expected_msat: int) -> Optional[bool]:
         """ return MPP status: True (accepted), False (expired) or None """
         payment_hash = htlc.payment_hash
-        is_expired, is_accepted, htlc_set = self.received_htlcs.get(payment_secret, (False, False, set()))
+        is_expired, is_accepted, htlc_set = self.received_mpp_htlcs.get(payment_secret, (False, False, set()))
         if self.get_payment_status(payment_hash) == PR_PAID:
             # payment_status is persisted
             is_accepted = True
@@ -1642,9 +1642,9 @@ class LNWallet(LNWorker):
         if is_accepted or is_expired:
             htlc_set.remove(key)
         if len(htlc_set) > 0:
-            self.received_htlcs[payment_secret] = is_expired, is_accepted, htlc_set
-        elif payment_secret in self.received_htlcs:
-            self.received_htlcs.pop(payment_secret)
+            self.received_mpp_htlcs[payment_secret] = is_expired, is_accepted, htlc_set
+        elif payment_secret in self.received_mpp_htlcs:
+            self.received_mpp_htlcs.pop(payment_secret)
         return True if is_accepted else (False if is_expired else None)
 
     def get_payment_status(self, payment_hash: bytes) -> int:
