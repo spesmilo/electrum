@@ -2003,12 +2003,15 @@ class LNWallet(LNWorker):
         xpub = self.wallet.get_fingerprint()
         decrypted = pw_decode_with_version_and_mac(encrypted, xpub)
         cb_storage = ChannelBackupStorage.from_bytes(decrypted)
-        channel_id = cb_storage.channel_id().hex()
-        if channel_id in self.db.get_dict("channels"):
+        channel_id = cb_storage.channel_id()
+        if channel_id.hex() in self.db.get_dict("channels"):
             raise Exception('Channel already in wallet')
+        self.logger.info(f'importing channel backup: {channel_id.hex()}')
+        cb = ChannelBackup(cb_storage, sweep_address=self.sweep_address, lnworker=self)
         d = self.db.get_dict("channel_backups")
-        d[channel_id] = cb_storage
-        self.channel_backups[bfh(channel_id)] = cb = ChannelBackup(cb_storage, sweep_address=self.sweep_address, lnworker=self)
+        d[channel_id.hex()] = cb_storage
+        with self.lock:
+            self._channel_backups[channel_id] = cb
         self.wallet.save_db()
         util.trigger_callback('channels_updated', self.wallet)
         self.lnwatcher.add_channel(cb.funding_outpoint.to_str(), cb.get_funding_address())
@@ -2025,13 +2028,16 @@ class LNWallet(LNWorker):
 
     @log_exceptions
     async def request_force_close_from_backup(self, channel_id: bytes):
-        cb = self.channel_backups[channel_id].cb
+        cb = self.channel_backups.get(channel_id)
+        if not cb:
+            raise Exception(f'channel backup not found {self.channel_backups}')
+        cb = cb.cb # storage
+        self.logger.info(f'requesting channel force close: {channel_id.hex()}')
         # TODO also try network addresses from gossip db (as it might have changed)
         peer_addr = LNPeerAddr(cb.host, cb.port, cb.node_id)
-        transport = LNTransport(cb.privkey, peer_addr,
-                                proxy=self.network.proxy)
+        transport = LNTransport(cb.privkey, peer_addr, proxy=self.network.proxy)
         peer = Peer(self, cb.node_id, transport, is_channel_backup=True)
-        async with TaskGroup() as group:
+        async with TaskGroup(wait=any) as group:
             await group.spawn(peer._message_loop())
             await group.spawn(peer.trigger_force_close(channel_id))
-            # TODO force-exit taskgroup, to clean-up
+        return True
