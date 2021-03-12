@@ -1909,12 +1909,13 @@ class Peer(Logger):
             payment_hash=payment_hash,
             onion_packet_bytes=onion_packet_bytes)
         if processed_onion.are_we_final:
+            # either we are final recipient; or if trampoline, see cases below
             preimage, trampoline_onion_packet = self.maybe_fulfill_htlc(
                 chan=chan,
                 htlc=htlc,
                 processed_onion=processed_onion)
-            # trampoline forwarding
             if trampoline_onion_packet:
+                # trampoline- recipient or forwarding
                 if not forwarding_info:
                     trampoline_onion = self.process_onion_packet(
                         trampoline_onion_packet,
@@ -1922,12 +1923,14 @@ class Peer(Logger):
                         onion_packet_bytes=onion_packet_bytes,
                         is_trampoline=True)
                     if trampoline_onion.are_we_final:
+                        # trampoline- we are final recipient of HTLC
                         preimage, _ = self.maybe_fulfill_htlc(
                             chan=chan,
                             htlc=htlc,
                             processed_onion=trampoline_onion,
                             is_trampoline=True)
                     else:
+                        # trampoline- HTLC we are supposed to forward, but haven't forwarded yet
                         await self.lnworker.enable_htlc_forwarding.wait()
                         self.maybe_forward_trampoline(
                             chan=chan,
@@ -1936,6 +1939,7 @@ class Peer(Logger):
                         # return True so that this code gets executed only once
                         return None, True, None
                 else:
+                    # trampoline- HTLC we are supposed to forward, and have already forwarded
                     preimage = self.lnworker.get_preimage(payment_hash)
                     error_reason = self.lnworker.trampoline_forwarding_failures.pop(payment_hash, None)
                     if error_reason:
@@ -1943,6 +1947,7 @@ class Peer(Logger):
                         raise error_reason
 
         elif not forwarding_info:
+            # HTLC we are supposed to forward, but haven't forwarded yet
             await self.lnworker.enable_htlc_forwarding.wait()
             next_chan_id, next_htlc_id = self.maybe_forward_htlc(
                 htlc=htlc,
@@ -1950,6 +1955,7 @@ class Peer(Logger):
             fw_info = (next_chan_id.hex(), next_htlc_id)
             return None, fw_info, None
         else:
+            # HTLC we are supposed to forward, and have already forwarded
             preimage = self.lnworker.get_preimage(payment_hash)
             next_chan_id_hex, htlc_id = forwarding_info
             next_chan = self.lnworker.get_channel_by_short_id(bytes.fromhex(next_chan_id_hex))
