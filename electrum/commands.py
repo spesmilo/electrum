@@ -804,7 +804,8 @@ class Commands:
             f = None
         out = wallet.get_sorted_requests()
         if f is not None:
-            out = list(filter(lambda x: x.status==f, out))
+            out = [req for req in out
+                   if f == wallet.get_request_status(wallet.get_key_for_receive_request(req))]
         return [wallet.export_request(x) for x in out]
 
     @command('w')
