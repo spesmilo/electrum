@@ -422,7 +422,9 @@ class ChannelBackup(AbstractChannel):
             htlc_minimum_msat=1,
             upfront_shutdown_script='')
         self.config[REMOTE] = RemoteConfig(
+            # payment_basepoint needed to deobfuscate ctn in our_ctx
             payment_basepoint=OnlyPubkeyKeypair(cb.remote_payment_pubkey),
+            # revocation_basepoint is used to claim to_local in our ctx
             revocation_basepoint=OnlyPubkeyKeypair(cb.remote_revocation_pubkey),
             to_self_delay=cb.remote_delay,
             # dummy values
