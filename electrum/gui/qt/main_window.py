@@ -1085,13 +1085,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         def on_expiry(i):
             self.config.set_key('request_expiry', evl_keys[i])
         self.expires_combo.currentIndexChanged.connect(on_expiry)
-        msg = ' '.join([
-            _('Expiration date of your request.'),
+        msg = ''.join([
+            _('Expiration date of your request.'), ' ',
             _('This information is seen by the recipient if you send them a signed payment request.'),
-            _('Expired requests have to be deleted manually from your list, in order to free the corresponding Bitcoin addresses.'),
-            _('The bitcoin address never expires and will always be part of this electrum wallet.'),
+            '\n\n',
+            _('For on-chain requests, the address gets reserved until expiration. After that, it might get reused.'), ' ',
+            _('The bitcoin address never expires and will always be part of this electrum wallet.'), ' ',
+            _('You can reuse a bitcoin address any number of times but it is not good for your privacy.'),
+            '\n\n',
+            _('For Lightning requests, payments will not be accepted after the expiration.'),
         ])
-        grid.addWidget(HelpLabel(_('Expires after'), msg), 2, 0)
+        grid.addWidget(HelpLabel(_('Expires after') + ' (?)', msg), 2, 0)
         grid.addWidget(self.expires_combo, 2, 1)
         self.expires_label = QLineEdit('')
         self.expires_label.setReadOnly(1)
