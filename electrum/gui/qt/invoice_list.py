@@ -99,11 +99,10 @@ class InvoiceList(MyTreeView):
         self.std_model.clear()
         self.update_headers(self.__class__.headers)
         for idx, item in enumerate(self.parent.wallet.get_unpaid_invoices()):
+            key = self.parent.wallet.get_key_for_outgoing_invoice(item)
             if item.is_lightning():
-                key = item.rhash
                 icon_name = 'lightning.png'
             else:
-                key = item.id
                 icon_name = 'bitcoin.png'
                 if item.bip70:
                     icon_name = 'seal.png'

@@ -766,20 +766,14 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         return invoice
 
     def save_invoice(self, invoice: Invoice) -> None:
-        invoice_type = invoice.type
-        if invoice_type == PR_TYPE_LN:
-            assert isinstance(invoice, LNInvoice)
-            key = invoice.rhash
-        elif invoice_type == PR_TYPE_ONCHAIN:
+        key = self.get_key_for_outgoing_invoice(invoice)
+        if not invoice.is_lightning():
             assert isinstance(invoice, OnchainInvoice)
-            key = invoice.id
             if self.is_onchain_invoice_paid(invoice, 0):
                 self.logger.info("saving invoice... but it is already paid!")
             with self.transaction_lock:
                 for txout in invoice.outputs:
                     self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(key)
-        else:
-            raise Exception('Unsupported invoice type')
         self.invoices[key] = invoice
         self.save_db()
 
@@ -2073,12 +2067,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             return self.export_request(x)
 
     def export_request(self, x: Invoice) -> Dict[str, Any]:
-        if x.is_lightning():
-            assert isinstance(x, LNInvoice)
-            key = x.rhash
-        else:
-            assert isinstance(x, OnchainInvoice)
-            key = x.get_address()
+        key = self.get_key_for_receive_request(x)
         status = self.get_request_status(key)
         status_str = x.get_status_str(status)
         is_lightning = x.is_lightning()
@@ -2188,21 +2177,38 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         req['sig'] = bh2u(pr.signature)
         self.receive_requests[key] = req
 
-    def add_payment_request(self, req: Invoice):
+    @classmethod
+    def get_key_for_outgoing_invoice(cls, invoice: Invoice) -> str:
+        """Return the key to use for this invoice in self.invoices."""
+        if invoice.is_lightning():
+            assert isinstance(invoice, LNInvoice)
+            key = invoice.rhash
+        else:
+            assert isinstance(invoice, OnchainInvoice)
+            key = invoice.id
+        return key
+
+    def get_key_for_receive_request(self, req: Invoice, *, sanity_checks: bool = False) -> str:
+        """Return the key to use for this invoice in self.receive_requests."""
         if not req.is_lightning():
             assert isinstance(req, OnchainInvoice)
             addr = req.get_address()
-            if not bitcoin.is_address(addr):
-                raise Exception(_('Invalid Bitcoin address.'))
-            if not self.is_mine(addr):
-                raise Exception(_('Address not in wallet.'))
+            if sanity_checks:
+                if not bitcoin.is_address(addr):
+                    raise Exception(_('Invalid Bitcoin address.'))
+                if not self.is_mine(addr):
+                    raise Exception(_('Address not in wallet.'))
             key = addr
         else:
             assert isinstance(req, LNInvoice)
             key = req.rhash
+        return key
+
+    def add_payment_request(self, req: Invoice):
+        key = self.get_key_for_receive_request(req, sanity_checks=True)
         message = req.message
         self.receive_requests[key] = req
-        self.set_label(key, message) # should be a default label
+        self.set_label(key, message)  # should be a default label
         return req
 
     def delete_request(self, key):
