@@ -1330,13 +1330,17 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         run_hook('make_unsigned_transaction', self, tx)
         return tx
 
-    def mktx(self, *, outputs: List[PartialTxOutput], password=None, fee=None, change_addr=None,
-             domain=None, rbf=False, nonlocal_only=False, tx_version=None, sign=True) -> PartialTransaction:
+    def mktx(self, *,
+             outputs: List[PartialTxOutput],
+             password=None, fee=None, change_addr=None,
+             domain=None, rbf=False, nonlocal_only=False,
+             tx_version=None, sign=True) -> PartialTransaction:
         coins = self.get_spendable_coins(domain, nonlocal_only=nonlocal_only)
-        tx = self.make_unsigned_transaction(coins=coins,
-                                            outputs=outputs,
-                                            fee=fee,
-                                            change_addr=change_addr)
+        tx = self.make_unsigned_transaction(
+            coins=coins,
+            outputs=outputs,
+            fee=fee,
+            change_addr=change_addr)
         tx.set_rbf(rbf)
         if tx_version is not None:
             tx.version = tx_version

@@ -984,8 +984,11 @@ class LNWallet(LNWorker):
             self.remove_channel(chan.channel_id)
             raise
 
-    def mktx_for_open_channel(self, *, coins: Sequence[PartialTxInput], funding_sat: int,
-                              fee_est=None) -> PartialTransaction:
+    def mktx_for_open_channel(
+            self, *,
+            coins: Sequence[PartialTxInput],
+            funding_sat: int,
+            fee_est=None) -> PartialTransaction:
         dummy_address = ln_dummy_address()
         outputs = [PartialTxOutput.from_address_and_value(dummy_address, funding_sat)]
         tx = self.wallet.make_unsigned_transaction(

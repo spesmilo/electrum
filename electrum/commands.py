@@ -54,7 +54,6 @@ from .address_synchronizer import TX_HEIGHT_LOCAL
 from .mnemonic import Mnemonic
 from .lnutil import SENT, RECEIVED
 from .lnutil import LnFeatures
-from .lnutil import ln_dummy_address
 from .lnpeer import channel_id_from_funding_tx
 from .plugin import run_hook
 from .version import ELECTRUM_VERSION
@@ -996,13 +995,17 @@ class Commands:
     async def open_channel(self, connection_string, amount, push_amount=0, password=None, wallet: Abstract_Wallet = None):
         funding_sat = satoshis(amount)
         push_sat = satoshis(push_amount)
-        dummy_output = PartialTxOutput.from_address_and_value(ln_dummy_address(), funding_sat)
-        funding_tx = wallet.mktx(outputs = [dummy_output], rbf=False, sign=False, nonlocal_only=True)
-        chan, funding_tx = await wallet.lnworker._open_channel_coroutine(connect_str=connection_string,
-                                                                         funding_tx=funding_tx,
-                                                                         funding_sat=funding_sat,
-                                                                         push_sat=push_sat,
-                                                                         password=password)
+        coins = wallet.get_spendable_coins(None)
+        funding_tx = wallet.lnworker.mktx_for_open_channel(
+            coins=coins,
+            funding_sat=funding_sat,
+            fee_est=None)
+        chan, funding_tx = await wallet.lnworker._open_channel_coroutine(
+            connect_str=connection_string,
+            funding_tx=funding_tx,
+            funding_sat=funding_sat,
+            push_sat=push_sat,
+            password=password)
         return chan.funding_outpoint.to_str()
 
     @command('')
