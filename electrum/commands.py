@@ -1031,13 +1031,15 @@ class Commands:
 
     @command('w')
     async def list_channels(self, wallet: Abstract_Wallet = None):
-        # we output the funding_outpoint instead of the channel_id because lnd uses channel_point (funding outpoint) to identify channels
+        # FIXME: we need to be online to display capacity of backups
         from .lnutil import LOCAL, REMOTE, format_short_channel_id
-        l = list(wallet.lnworker.channels.items())
+        channels = list(wallet.lnworker.channels.items())
+        backups = list(wallet.lnworker.channel_backups.items())
         return [
             {
+                'type': 'CHANNEL',
                 'short_channel_id': format_short_channel_id(chan.short_channel_id) if chan.short_channel_id else None,
-                'channel_id': bh2u(chan.channel_id),
+                'channel_id': chan.channel_id.hex(),
                 'channel_point': chan.funding_outpoint.to_str(),
                 'state': chan.get_state().name,
                 'peer_state': chan.peer_state.name,
@@ -1048,7 +1050,15 @@ class Commands:
                 'remote_reserve': chan.config[LOCAL].reserve_sat,
                 'local_unsettled_sent': chan.balance_tied_up_in_htlcs_by_direction(LOCAL, direction=SENT) // 1000,
                 'remote_unsettled_sent': chan.balance_tied_up_in_htlcs_by_direction(REMOTE, direction=SENT) // 1000,
-            } for channel_id, chan in l
+            } for channel_id, chan in channels
+        ] + [
+            {
+                'type': 'BACKUP',
+                'short_channel_id': format_short_channel_id(chan.short_channel_id) if chan.short_channel_id else None,
+                'channel_id': chan.channel_id.hex(),
+                'channel_point': chan.funding_outpoint.to_str(),
+                'state': chan.get_state().name,
+            } for channel_id, chan in backups
         ]
 
     @command('wn')
