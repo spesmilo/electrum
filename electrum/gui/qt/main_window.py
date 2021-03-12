@@ -878,14 +878,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         """
         return self.config.format_amount(amount_sat, is_diff=is_diff, whitespaces=whitespaces)
 
-    def format_amount_and_units(self, amount_sat) -> str:
+    def format_amount_and_units(self, amount_sat, *, timestamp: int = None) -> str:
         """Returns string with both bitcoin and fiat amounts, in desired units.
         E.g. 500_000 -> '0.005 BTC (191.42 EUR)'
         """
         text = self.config.format_amount_and_units(amount_sat)
-        x = self.fx.format_amount_and_units(amount_sat) if self.fx else None
-        if text and x:
-            text += ' (%s)'%x
+        fiat = self.fx.format_amount_and_units(amount_sat, timestamp=timestamp) if self.fx else None
+        if text and fiat:
+            text += f' ({fiat})'
         return text
 
     def format_fiat_and_units(self, amount_sat) -> str:

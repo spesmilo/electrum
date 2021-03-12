@@ -64,11 +64,12 @@ class LightningTxDialog(WindowModalDialog):
         vbox = QVBoxLayout()
         self.setLayout(vbox)
 
-        # FIXME fiat values here are using today's FX rate instead of historical
-        vbox.addWidget(QLabel(_("Amount") + ": " + self.parent.format_amount_and_units(self.amount)))
+        amount_str = self.parent.format_amount_and_units(self.amount, timestamp=self.timestamp)
+        vbox.addWidget(QLabel(_("Amount") + f": {amount_str}"))
         if self.is_sent:
             fee = Decimal(tx_item['fee_msat']) / 1000
-            vbox.addWidget(QLabel(_("Fee") + ": " + self.parent.format_amount_and_units(fee)))
+            fee_str = self.parent.format_amount_and_units(fee, timestamp=self.timestamp)
+            vbox.addWidget(QLabel(_("Fee") + f": {fee_str}"))
         time_str = datetime.datetime.fromtimestamp(self.timestamp).isoformat(' ')[:-3]
         vbox.addWidget(QLabel(_("Date") + ": " + time_str))
 
