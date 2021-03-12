@@ -446,6 +446,9 @@ class ChannelBackup(AbstractChannel):
         self.lnworker = lnworker
         self.short_channel_id = None
 
+    def get_capacity(self):
+        return self.lnworker.lnwatcher.get_tx_delta(self.funding_outpoint.txid, self.cb.funding_address)
+
     def is_backup(self):
         return True
 
@@ -537,6 +540,9 @@ class Channel(AbstractChannel):
         self._can_send_ctx_updates = True  # type: bool
         self._receive_fail_reasons = {}  # type: Dict[int, (bytes, OnionRoutingFailure)]
         self._ignore_max_htlc_value = False  # used in tests
+
+    def get_capacity(self):
+        return self.constraints.capacity
 
     def is_initiator(self):
         return self.constraints.is_initiator

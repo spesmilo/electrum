@@ -461,7 +461,7 @@ class ChannelDetailsPopup(Popup, Logger):
         self.channel_id = bh2u(chan.channel_id)
         self.funding_txid = chan.funding_outpoint.txid
         self.short_id = format_short_channel_id(chan.short_channel_id)
-        self.capacity = self.app.format_amount_and_units(chan.constraints.capacity)
+        self.capacity = self.app.format_amount_and_units(chan.get_capacity())
         self.state = chan.get_state_for_GUI()
         self.local_ctn = chan.get_latest_ctn(LOCAL)
         self.remote_ctn = chan.get_latest_ctn(REMOTE)
