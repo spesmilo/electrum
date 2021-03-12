@@ -812,6 +812,7 @@ class LNWallet(LNWorker):
             if item is None:
                 continue
             funding_txid, funding_height, funding_timestamp = item
+            tx_height = self.lnwatcher.get_tx_height(funding_txid)
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'type': 'channel_opening',
@@ -819,16 +820,17 @@ class LNWallet(LNWorker):
                 'txid': funding_txid,
                 'amount_msat': chan.balance(LOCAL, ctn=0),
                 'direction': 'received',
-                'timestamp': funding_timestamp,
+                'timestamp': tx_height.timestamp,
                 'fee_msat': None,
-                'height': funding_height,
-                'confirmations': max(current_height - funding_height + 1, 0),
+                'height': tx_height.height,
+                'confirmations': tx_height.conf,
             }
             out[funding_txid] = item
             item = chan.get_closing_height()
             if item is None:
                 continue
             closing_txid, closing_height, closing_timestamp = item
+            tx_height = self.lnwatcher.get_tx_height(closing_txid)
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'txid': closing_txid,
@@ -836,10 +838,10 @@ class LNWallet(LNWorker):
                 'type': 'channel_closure',
                 'amount_msat': -chan.balance_minus_outgoing_htlcs(LOCAL),
                 'direction': 'sent',
-                'timestamp': closing_timestamp,
+                'timestamp': tx_height.timestamp,
                 'fee_msat': None,
-                'height': closing_height,
-                'confirmations': max(current_height - closing_height + 1, 0),
+                'height': tx_height.height,
+                'confirmations': tx_height.conf,
             }
             out[closing_txid] = item
         # add info about submarine swaps
