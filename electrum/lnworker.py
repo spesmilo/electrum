@@ -804,6 +804,7 @@ class LNWallet(LNWorker):
         return out
 
     def get_onchain_history(self):
+        current_height = self.wallet.get_local_height()
         out = {}
         # add funding events
         for chan in self.channels.values():
@@ -820,6 +821,8 @@ class LNWallet(LNWorker):
                 'direction': 'received',
                 'timestamp': funding_timestamp,
                 'fee_msat': None,
+                'height': funding_height,
+                'confirmations': max(current_height - funding_height + 1, 0),
             }
             out[funding_txid] = item
             item = chan.get_closing_height()
@@ -835,11 +838,12 @@ class LNWallet(LNWorker):
                 'direction': 'sent',
                 'timestamp': closing_timestamp,
                 'fee_msat': None,
+                'height': closing_height,
+                'confirmations': max(current_height - closing_height + 1, 0),
             }
             out[closing_txid] = item
         # add info about submarine swaps
         settled_payments = self.get_payments(status='settled')
-        current_height = self.wallet.get_local_height()
         for payment_hash_hex, swap in self.swap_manager.swaps.items():
             txid = swap.spending_txid if swap.is_reverse else swap.funding_txid
             if txid is None:

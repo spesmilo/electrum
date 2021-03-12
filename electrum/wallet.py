@@ -903,18 +903,23 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         transactions_tmp = OrderedDictWithIndex()
         # add on-chain txns
         onchain_history = self.get_onchain_history(domain=onchain_domain)
-        lnworker_history = self.lnworker.get_onchain_history() if self.lnworker and include_lightning else {}
         for tx_item in onchain_history:
             txid = tx_item['txid']
             transactions_tmp[txid] = tx_item
-            # add lnworker info here
-            if txid in lnworker_history:
-                item = lnworker_history[txid]
+        # add lnworker onchain transactions
+        lnworker_history = self.lnworker.get_onchain_history() if self.lnworker and include_lightning else {}
+        for txid, item in lnworker_history.items():
+            if txid in transactions_tmp:
+                tx_item = transactions_tmp[txid]
                 tx_item['group_id'] = item.get('group_id')  # for swaps
                 tx_item['label'] = item['label']
                 tx_item['type'] = item['type']
                 ln_value = Decimal(item['amount_msat']) / 1000   # for channel open/close tx
                 tx_item['ln_value'] = Satoshis(ln_value)
+            else:
+                transactions_tmp[txid] = item
+                ln_value = Decimal(item['amount_msat']) / 1000   # for channel open/close tx
+                item['ln_value'] = Satoshis(ln_value)
         # add lightning_transactions
         lightning_history = self.lnworker.get_lightning_history() if self.lnworker and include_lightning else {}
         for tx_item in lightning_history.values():
