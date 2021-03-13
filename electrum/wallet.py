@@ -183,8 +183,8 @@ async def sweep(
         fee: int = None,
         imax=100,
         locktime=None,
-        tx_version=None
-) -> PartialTransaction:
+        tx_version=None) -> PartialTransaction:
+
     inputs, keypairs = await sweep_preparations(privkeys, network, imax)
     total = sum(txin.value_sats() for txin in inputs)
     if fee is None:
@@ -1236,9 +1236,14 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         assert is_address(selected_addr), f"not valid bitcoin address: {selected_addr}"
         return selected_addr
 
-    def make_unsigned_transaction(self, *, coins: Sequence[PartialTxInput],
-                                  outputs: List[PartialTxOutput], fee=None,
-                                  change_addr: str = None, is_sweep=False) -> PartialTransaction:
+    def make_unsigned_transaction(
+            self, *,
+            coins: Sequence[PartialTxInput],
+            outputs: List[PartialTxOutput],
+            fee=None,
+            change_addr: str = None,
+            is_sweep=False,
+            rbf=False) -> PartialTransaction:
 
         if any([c.already_has_some_signatures() for c in coins]):
             raise Exception("Some inputs already contain signatures!")
@@ -1298,12 +1303,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 old_change_addrs = []
             # change address. if empty, coin_chooser will set it
             change_addrs = self.get_change_addresses_for_new_transaction(change_addr or old_change_addrs)
-            tx = coin_chooser.make_tx(coins=coins,
-                                      inputs=txi,
-                                      outputs=list(outputs) + txo,
-                                      change_addrs=change_addrs,
-                                      fee_estimator_vb=fee_estimator,
-                                      dust_threshold=self.dust_threshold())
+            tx = coin_chooser.make_tx(
+                coins=coins,
+                inputs=txi,
+                outputs=list(outputs) + txo,
+                change_addrs=change_addrs,
+                fee_estimator_vb=fee_estimator,
+                dust_threshold=self.dust_threshold())
         else:
             # "spend max" branch
             # note: This *will* spend inputs with negative effective value (if there are any).
@@ -1325,7 +1331,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         # Timelock tx to current height.
         tx.locktime = get_locktime_for_new_transaction(self.network)
 
-        tx.set_rbf(False)  # caller can set RBF manually later
+        tx.set_rbf(rbf)
         tx.add_info_from_wallet(self)
         run_hook('make_unsigned_transaction', self, tx)
         return tx
@@ -1340,8 +1346,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             coins=coins,
             outputs=outputs,
             fee=fee,
-            change_addr=change_addr)
-        tx.set_rbf(rbf)
+            change_addr=change_addr,
+            rbf=rbf)
         if tx_version is not None:
             tx.version = tx_version
         if sign:

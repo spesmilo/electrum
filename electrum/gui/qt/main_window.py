@@ -1796,9 +1796,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def mktx_for_open_channel(self, funding_sat):
         coins = self.get_coins(nonlocal_only=True)
-        make_tx = lambda fee_est: self.wallet.lnworker.mktx_for_open_channel(coins=coins,
-                                                                             funding_sat=funding_sat,
-                                                                             fee_est=fee_est)
+        make_tx = lambda fee_est: self.wallet.lnworker.mktx_for_open_channel(
+            coins=coins,
+            funding_sat=funding_sat,
+            fee_est=fee_est)
         return make_tx
 
     def open_channel(self, connect_str, funding_sat, push_amt):
@@ -1821,11 +1822,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         # read funding_sat from tx; converts '!' to int value
         funding_sat = funding_tx.output_value_for_address(ln_dummy_address())
         def task():
-            return self.wallet.lnworker.open_channel(connect_str=connect_str,
-                                                     funding_tx=funding_tx,
-                                                     funding_sat=funding_sat,
-                                                     push_amt_sat=push_amt,
-                                                     password=password)
+            return self.wallet.lnworker.open_channel(
+                connect_str=connect_str,
+                funding_tx=funding_tx,
+                funding_sat=funding_sat,
+                push_amt_sat=push_amt,
+                password=password)
         def on_success(args):
             chan, funding_tx = args
             n = chan.constraints.funding_txn_minimum_depth

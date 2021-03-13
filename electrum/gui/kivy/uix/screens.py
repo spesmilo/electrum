@@ -36,7 +36,7 @@ from electrum.lnutil import RECEIVED, SENT, PaymentFailure
 from electrum.logging import Logger
 
 from .dialogs.question import Question
-from .dialogs.lightning_open_channel import LightningOpenChannelDialog
+from .dialogs.confirm_tx_dialog import ConfirmTxDialog
 
 from electrum.gui.kivy import KIVY_GUI_PATH
 from electrum.gui.kivy.i18n import _
@@ -372,8 +372,12 @@ class SendScreen(CScreen, Logger):
         threading.Thread(target=pay_thread).start()
 
     def _do_pay_onchain(self, invoice: OnchainInvoice) -> None:
-        from .dialogs.confirm_tx_dialog import ConfirmTxDialog
-        d = ConfirmTxDialog(self.app, invoice)
+        outputs = invoice.outputs
+        amount = sum(map(lambda x: x.value, outputs)) if '!' not in [x.value for x in outputs] else '!'
+        coins = self.app.wallet.get_spendable_coins(None)
+        make_tx = lambda rbf: self.app.wallet.make_unsigned_transaction(coins=coins, outputs=outputs, rbf=rbf)
+        on_pay = lambda tx: self.app.protected(_('Send payment?'), self.send_tx, (tx, invoice))
+        d = ConfirmTxDialog(self.app, amount=amount, make_tx=make_tx, on_pay=on_pay)
         d.open()
 
     def send_tx(self, tx, invoice, password):

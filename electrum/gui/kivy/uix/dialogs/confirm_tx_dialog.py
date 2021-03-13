@@ -97,11 +97,12 @@ Builder.load_string('''
                 on_release:
                     popup.dismiss()
             Button:
+                id: ok_button
                 text: _('OK')
                 size_hint: 0.5, None
                 height: '48dp'
                 on_release:
-                    root.pay()
+                    root.on_pay(root.tx)
                     popup.dismiss()
 ''')
 
@@ -110,33 +111,35 @@ Builder.load_string('''
 
 class ConfirmTxDialog(FeeSliderDialog, Factory.Popup):
 
-    def __init__(self, app: 'ElectrumWindow', invoice):
+    def __init__(self, app: 'ElectrumWindow', amount, make_tx, on_pay, *, show_final=True):
 
         Factory.Popup.__init__(self)
         FeeSliderDialog.__init__(self, app.electrum_config, self.ids.slider)
         self.app = app
-        self.show_final = bool(self.config.get('use_rbf'))
-        self.invoice = invoice
+        self.amount = amount
+        self.make_tx = make_tx
+        self.on_pay = on_pay
+        self.show_final = show_final
         self.update_slider()
         self.update_text()
         self.update_tx()
 
     def update_tx(self):
-        outputs = self.invoice.outputs
+        rbf = not bool(self.ids.final_cb.active) if self.show_final else False
         try:
             # make unsigned transaction
-            coins = self.app.wallet.get_spendable_coins(None)
-            tx = self.app.wallet.make_unsigned_transaction(coins=coins, outputs=outputs)
+            tx = self.make_tx(rbf)
         except NotEnoughFunds:
             self.warning = _("Not enough funds")
+            self.ids.ok_button.disabled = True
             return
         except Exception as e:
-            self.logger.exception('')
+            self.ids.ok_button.disabled = True
+            self.app.logger.exception('')
             self.app.show_error(repr(e))
             return
-        rbf = not bool(self.ids.final_cb.active) if self.show_final else False
-        tx.set_rbf(rbf)
-        amount = sum(map(lambda x: x.value, outputs)) if '!' not in [x.value for x in outputs] else tx.output_value()
+        self.ids.ok_button.disabled = False
+        amount = self.amount if self.amount != '!' else tx.output_value()
         tx_size = tx.estimated_size()
         fee = tx.get_fee()
         feerate = Decimal(fee) / tx_size  # sat/byte
@@ -165,9 +168,6 @@ class ConfirmTxDialog(FeeSliderDialog, Factory.Popup):
     def update_text(self):
         target, tooltip, dyn = self.config.get_fee_target()
         self.ids.fee_button.text = target
-
-    def pay(self):
-        self.app.protected(_('Send payment?'), self.app.send_screen.send_tx, (self.tx, self.invoice))
 
     def on_fee_button(self):
         fee_dialog = FeeDialog(self, self.config, self.after_fee_changed)

@@ -12,6 +12,7 @@ from electrum.logging import Logger
 from electrum.lnutil import ln_dummy_address
 
 from .label_dialog import LabelDialog
+from .confirm_tx_dialog import ConfirmTxDialog
 
 if TYPE_CHECKING:
     from ...main_window import ElectrumWindow
@@ -174,20 +175,26 @@ class LightningOpenChannelDialog(Factory.Popup, Logger):
         else:
             conn_str = str(self.trampolines[self.pubkey])
         amount = '!' if self.is_max else self.app.get_amount(self.amount)
-        self.app.protected('Create a new channel?', self.do_open_channel, (conn_str, amount))
         self.dismiss()
-
-    def do_open_channel(self, conn_str, amount, password):
-        coins = self.app.wallet.get_spendable_coins(None, nonlocal_only=True)
         lnworker = self.app.wallet.lnworker
-        try:
-            funding_tx = lnworker.mktx_for_open_channel(coins=coins, funding_sat=amount)
-        except Exception as e:
-            self.logger.exception("Problem opening channel")
-            self.app.show_error(_('Problem opening channel: ') + '\n' + repr(e))
-            return
+        coins = self.app.wallet.get_spendable_coins(None, nonlocal_only=True)
+        make_tx = lambda rbf: lnworker.mktx_for_open_channel(
+            coins=coins,
+            funding_sat=amount,
+            fee_est=None)
+        on_pay = lambda tx: self.app.protected('Create a new channel?', self.do_open_channel, (tx, conn_str))
+        d = ConfirmTxDialog(
+            self.app,
+            amount = amount,
+            make_tx=make_tx,
+            on_pay=on_pay,
+            show_final=False)
+        d.open()
+
+    def do_open_channel(self, funding_tx, conn_str, password):
         # read funding_sat from tx; converts '!' to int value
         funding_sat = funding_tx.output_value_for_address(ln_dummy_address())
+        lnworker = self.app.wallet.lnworker
         try:
             chan, funding_tx = lnworker.open_channel(
                 connect_str=conn_str,
@@ -196,7 +203,7 @@ class LightningOpenChannelDialog(Factory.Popup, Logger):
                 push_amt_sat=0,
                 password=password)
         except Exception as e:
-            self.logger.exception("Problem opening channel")
+            self.app.logger.exception("Problem opening channel")
             self.app.show_error(_('Problem opening channel: ') + '\n' + repr(e))
             return
         n = chan.constraints.funding_txn_minimum_depth
