@@ -28,6 +28,12 @@ for i in '' '-hw' '-binaries' '-binaries-mac' '-build-wine' '-build-mac' '-build
 
     echo "Installing dependencies... (requirements${i}.txt)"
 
+    # We pin all python packaging tools (pip and friends). Some of our dependencies might
+    # pull some of them in (e.g. protobuf->setuptools), and all transitive dependencies
+    # must be pinned, so we might as well pin all packaging tools. This however means
+    # that we should explicitly install them now, so that we pin latest versions if possible.
+    python -m pip install --upgrade pip setuptools wheel
+
     python -m pip install -r "$contrib/requirements/requirements${i}.txt" --upgrade
 
     echo "OK."
