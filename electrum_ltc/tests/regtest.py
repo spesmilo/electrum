@@ -36,6 +36,9 @@ class TestLightning(unittest.TestCase):
 class TestLightningAB(TestLightning):
     agents = ['alice', 'bob']
 
+    def test_backup(self):
+        self.run_shell(['backup'])
+
     def test_breach(self):
         self.run_shell(['breach'])
 

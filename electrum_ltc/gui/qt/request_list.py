@@ -148,12 +148,7 @@ class RequestList(MyTreeView):
         self.std_model.clear()
         self.update_headers(self.__class__.headers)
         for req in self.wallet.get_unpaid_requests():
-            if req.is_lightning():
-                assert isinstance(req, LNInvoice)
-                key = req.rhash
-            else:
-                assert isinstance(req, OnchainInvoice)
-                key = req.id
+            key = self.wallet.get_key_for_receive_request(req)
             status = self.parent.wallet.get_request_status(key)
             status_str = req.get_status_str(status)
             request_type = req.type
@@ -164,13 +159,9 @@ class RequestList(MyTreeView):
             amount_str = self.parent.format_amount(amount) if amount else ""
             labels = [date, message, amount_str, status_str]
             if req.is_lightning():
-                assert isinstance(req, LNInvoice)
-                key = req.rhash
                 icon = read_QIcon("lightning.png")
                 tooltip = 'lightning request'
             else:
-                assert isinstance(req, OnchainInvoice)
-                key = req.get_address()
                 icon = read_QIcon("bitcoin.png")
                 tooltip = 'onchain request'
             items = [QStandardItem(e) for e in labels]

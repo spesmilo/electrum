@@ -422,7 +422,9 @@ class ChannelBackup(AbstractChannel):
             htlc_minimum_msat=1,
             upfront_shutdown_script='')
         self.config[REMOTE] = RemoteConfig(
+            # payment_basepoint needed to deobfuscate ctn in our_ctx
             payment_basepoint=OnlyPubkeyKeypair(cb.remote_payment_pubkey),
+            # revocation_basepoint is used to claim to_local in our ctx
             revocation_basepoint=OnlyPubkeyKeypair(cb.remote_revocation_pubkey),
             to_self_delay=cb.remote_delay,
             # dummy values
@@ -443,6 +445,9 @@ class ChannelBackup(AbstractChannel):
         self.funding_outpoint = cb.funding_outpoint()
         self.lnworker = lnworker
         self.short_channel_id = None
+
+    def get_capacity(self):
+        return self.lnworker.lnwatcher.get_tx_delta(self.funding_outpoint.txid, self.cb.funding_address)
 
     def is_backup(self):
         return True
@@ -535,6 +540,9 @@ class Channel(AbstractChannel):
         self._can_send_ctx_updates = True  # type: bool
         self._receive_fail_reasons = {}  # type: Dict[int, (bytes, OnionRoutingFailure)]
         self._ignore_max_htlc_value = False  # used in tests
+
+    def get_capacity(self):
+        return self.constraints.capacity
 
     def is_initiator(self):
         return self.constraints.is_initiator
