@@ -410,12 +410,11 @@ Builder.load_string(r'''
 
 class ChannelBackupPopup(Popup, Logger):
 
-    def __init__(self, chan: AbstractChannel, channels_list, **kwargs):
+    def __init__(self, chan: AbstractChannel, app, **kwargs):
         Popup.__init__(self, **kwargs)
         Logger.__init__(self)
         self.chan = chan
-        self.channels_list = channels_list
-        self.app = channels_list.app
+        self.app = app
         self.short_id = format_short_channel_id(chan.short_channel_id)
         self.state = chan.get_state_for_GUI()
         self.title = _('Channel Backup')
@@ -551,9 +550,9 @@ class LightningChannelsDialog(Factory.Popup):
     def show_item(self, obj):
         chan = obj._chan
         if chan.is_backup():
-            p = ChannelBackupPopup(chan, self)
+            p = ChannelBackupPopup(chan, self.app)
         else:
-            p = ChannelDetailsPopup(chan, self)
+            p = ChannelDetailsPopup(chan, self.app)
         p.open()
 
     def format_fields(self, chan):
