@@ -41,9 +41,11 @@ from . import constants, util
 from .util import bh2u, profiler, get_headers_dir, is_ip_address, json_normalize
 from .logging import Logger
 from .lnutil import (LNPeerAddr, format_short_channel_id, ShortChannelID,
-                     validate_features, IncompatibleOrInsaneFeatures)
+                     validate_features, IncompatibleOrInsaneFeatures, InvalidGossipMsg)
 from .lnverifier import LNChannelVerifier, verify_sig_for_channel_update
 from .lnmsg import decode_msg
+from . import ecc
+from .crypto import sha256d
 
 if TYPE_CHECKING:
     from .network import Network
@@ -378,7 +380,7 @@ class ChannelDB(SqlDB):
     #       even slower; especially as servers will start throttling us.
     #       It would probably put significant strain on servers if all clients
     #       verified the complete gossip.
-    def add_channel_announcement(self, msg_payloads, *, trusted=True):
+    def add_channel_announcements(self, msg_payloads, *, trusted=True):
         # note: signatures have already been verified.
         if type(msg_payloads) is dict:
             msg_payloads = [msg_payloads]
@@ -452,7 +454,8 @@ class ChannelDB(SqlDB):
             self.logger.info(f'policy unchanged: {old_policy.timestamp} -> {new_policy.timestamp}')
         return changed
 
-    def add_channel_update(self, payload, max_age=None, verify=False, verbose=True):
+    def add_channel_update(
+            self, payload, *, max_age=None, verify=True, verbose=True) -> UpdateStatus:
         now = int(time.time())
         short_channel_id = ShortChannelID(payload['short_channel_id'])
         timestamp = payload['timestamp']
@@ -468,8 +471,6 @@ class ChannelDB(SqlDB):
         start_node = channel_info.node1_id if direction == 0 else channel_info.node2_id
         payload['start_node'] = start_node
         # compare updates to existing database entries
-        timestamp = payload['timestamp']
-        start_node = payload['start_node']
         short_channel_id = ShortChannelID(payload['short_channel_id'])
         key = (start_node, short_channel_id)
         old_policy = self._policies.get(key)
@@ -495,7 +496,7 @@ class ChannelDB(SqlDB):
         unchanged = []
         good = []
         for payload in payloads:
-            r = self.add_channel_update(payload, max_age=max_age, verbose=False)
+            r = self.add_channel_update(payload, max_age=max_age, verbose=False, verify=True)
             if r == UpdateStatus.ORPHANED:
                 orphaned.append(payload)
             elif r == UpdateStatus.EXPIRED:
@@ -567,15 +568,33 @@ class ChannelDB(SqlDB):
             if r == []:
                 c.execute("INSERT INTO address (node_id, host, port, timestamp) VALUES (?,?,?,?)", (addr.pubkey, addr.host, addr.port, 0))
 
-    def verify_channel_update(self, payload):
+    @classmethod
+    def verify_channel_update(cls, payload) -> None:
         short_channel_id = payload['short_channel_id']
         short_channel_id = ShortChannelID(short_channel_id)
         if constants.net.rev_genesis_bytes() != payload['chain_hash']:
-            raise Exception('wrong chain hash')
+            raise InvalidGossipMsg('wrong chain hash')
         if not verify_sig_for_channel_update(payload, payload['start_node']):
-            raise Exception(f'failed verifying channel update for {short_channel_id}')
+            raise InvalidGossipMsg(f'failed verifying channel update for {short_channel_id}')
 
-    def add_node_announcement(self, msg_payloads):
+    @classmethod
+    def verify_channel_announcement(cls, payload) -> None:
+        h = sha256d(payload['raw'][2+256:])
+        pubkeys = [payload['node_id_1'], payload['node_id_2'], payload['bitcoin_key_1'], payload['bitcoin_key_2']]
+        sigs = [payload['node_signature_1'], payload['node_signature_2'], payload['bitcoin_signature_1'], payload['bitcoin_signature_2']]
+        for pubkey, sig in zip(pubkeys, sigs):
+            if not ecc.verify_signature(pubkey, sig, h):
+                raise InvalidGossipMsg('signature failed')
+
+    @classmethod
+    def verify_node_announcement(cls, payload) -> None:
+        pubkey = payload['node_id']
+        signature = payload['signature']
+        h = sha256d(payload['raw'][66:])
+        if not ecc.verify_signature(pubkey, signature, h):
+            raise InvalidGossipMsg('signature failed')
+
+    def add_node_announcements(self, msg_payloads):
         # note: signatures have already been verified.
         if type(msg_payloads) is dict:
             msg_payloads = [msg_payloads]

@@ -58,7 +58,7 @@ from .lnutil import (Outpoint, LNPeerAddr,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH, SENT, RECEIVED, HTLCOwner,
                      UpdateAddHtlc, Direction, LnFeatures, ShortChannelID,
                      HtlcLog, derive_payment_secret_from_payment_preimage,
-                     NoPathFound)
+                     NoPathFound, InvalidGossipMsg)
 from .lnutil import ln_dummy_address, ln_compare_features, IncompatibleLightningFeatures
 from .lnrouter import TrampolineEdge
 from .transaction import PartialTxOutput, PartialTransaction, PartialTxInput
@@ -552,15 +552,21 @@ class LNGossip(LNWorker):
         return current_est, total_est, progress_percent
 
     async def process_gossip(self, chan_anns, node_anns, chan_upds):
+        # note: we run in the originating peer's TaskGroup, so we can safely raise here
+        #       and disconnect only from that peer
         await self.channel_db.data_loaded.wait()
         self.logger.debug(f'process_gossip {len(chan_anns)} {len(node_anns)} {len(chan_upds)}')
         # note: data processed in chunks to avoid taking sql lock for too long
         # channel announcements
+        for payload in chan_anns:
+            self.channel_db.verify_channel_announcement(payload)
         for chan_anns_chunk in chunks(chan_anns, 300):
-            self.channel_db.add_channel_announcement(chan_anns_chunk)
+            self.channel_db.add_channel_announcements(chan_anns_chunk)
         # node announcements
+        for payload in node_anns:
+            self.channel_db.verify_node_announcement(payload)
         for node_anns_chunk in chunks(node_anns, 100):
-            self.channel_db.add_node_announcement(node_anns_chunk)
+            self.channel_db.add_node_announcements(node_anns_chunk)
         # channel updates
         for chan_upds_chunk in chunks(chan_upds, 1000):
             categorized_chan_upds = self.channel_db.add_channel_updates(
@@ -1269,7 +1275,10 @@ class LNWallet(LNWorker):
     def _handle_chanupd_from_failed_htlc(self, payload, *, route, sender_idx) -> Tuple[bool, bool]:
         blacklist = False
         update = False
-        r = self.channel_db.add_channel_update(payload)
+        try:
+            r = self.channel_db.add_channel_update(payload, verify=True)
+        except InvalidGossipMsg:
+            return True, False  # blacklist
         short_channel_id = ShortChannelID(payload['short_channel_id'])
         if r == UpdateStatus.GOOD:
             self.logger.info(f"applied channel update to {short_channel_id}")

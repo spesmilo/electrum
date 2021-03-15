@@ -342,28 +342,8 @@ class Peer(Logger):
                     raise Exception('unknown message')
                 if self.gossip_queue.empty():
                     break
-            # verify in peer's TaskGroup so that we fail the connection
-            self.verify_channel_announcements(chan_anns)
-            self.verify_node_announcements(node_anns)
             if self.network.lngossip:
                 await self.network.lngossip.process_gossip(chan_anns, node_anns, chan_upds)
-
-    def verify_channel_announcements(self, chan_anns):
-        for payload in chan_anns:
-            h = sha256d(payload['raw'][2+256:])
-            pubkeys = [payload['node_id_1'], payload['node_id_2'], payload['bitcoin_key_1'], payload['bitcoin_key_2']]
-            sigs = [payload['node_signature_1'], payload['node_signature_2'], payload['bitcoin_signature_1'], payload['bitcoin_signature_2']]
-            for pubkey, sig in zip(pubkeys, sigs):
-                if not ecc.verify_signature(pubkey, sig, h):
-                    raise Exception('signature failed')
-
-    def verify_node_announcements(self, node_anns):
-        for payload in node_anns:
-            pubkey = payload['node_id']
-            signature = payload['signature']
-            h = sha256d(payload['raw'][66:])
-            if not ecc.verify_signature(pubkey, signature, h):
-                raise Exception('signature failed')
 
     async def query_gossip(self):
         try:

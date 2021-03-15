@@ -288,6 +288,8 @@ class RemoteMisbehaving(LightningError): pass
 class UpfrontShutdownScriptViolation(RemoteMisbehaving): pass
 
 class NotFoundChanAnnouncementForUpdate(Exception): pass
+class InvalidGossipMsg(Exception):
+    """e.g. signature check failed"""
 
 class PaymentFailure(UserFacingException): pass
 class NoPathFound(PaymentFailure):
