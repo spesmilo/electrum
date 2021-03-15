@@ -468,8 +468,10 @@ class ChannelBackup(AbstractChannel):
             return 'BACKUP'
 
     def get_state_for_GUI(self):
-        cs = self.get_state()
-        return cs.name
+        if self.lnworker:
+            return self.lnworker.lnwatcher.get_channel_status(self.funding_outpoint.to_str())
+        else:
+            return 'unknown'
 
     def get_oldest_unrevoked_ctn(self, who):
         return -1
