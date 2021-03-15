@@ -15,7 +15,7 @@ from electrum.gui.kivy.i18n import _
 from electrum.plugin import run_hook
 from electrum.util import NotEnoughFunds
 
-from .fee_dialog import FeeSliderDialog, FeeDialog
+from .fee_dialog import FeeSliderDialog
 
 if TYPE_CHECKING:
     from electrum.gui.kivy.main_window import ElectrumWindow
@@ -30,6 +30,7 @@ Builder.load_string('''
     show_final: False
     size_hint: 0.8, 0.8
     pos_hint: {'top':0.9}
+    method: 0
     BoxLayout:
         orientation: 'vertical'
         BoxLayout:
@@ -59,14 +60,23 @@ Builder.load_string('''
             orientation: 'horizontal'
             size_hint: 1, 0.5
             Label:
-                text: _('Fee target:')
+                text: _('Fee rate:')
+            Label:
+                id: feerate_label
+                text: ''
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint: 1, 0.5
+            Label:
+                text: _('Target') + ' (%s):' % (_('mempool') if root.method == 2 else _('ETA') if root.method == 1 else _('static'))
             Button:
                 id: fee_button
                 text: ''
                 background_color: (0,0,0,0)
                 bold: True
                 on_release:
-                    root.on_fee_button()
+                    root.method  = (root.method + 1) % 3
+                    root.on_slider(root.slider.value)
         Slider:
             id: slider
             range: 0, 4
@@ -142,8 +152,9 @@ class ConfirmTxDialog(FeeSliderDialog, Factory.Popup):
         amount = self.amount if self.amount != '!' else tx.output_value()
         tx_size = tx.estimated_size()
         fee = tx.get_fee()
+        self.ids.fee_label.text = self.app.format_amount_and_units(fee)
         feerate = Decimal(fee) / tx_size  # sat/byte
-        self.ids.fee_label.text = self.app.format_amount_and_units(fee) + f' ({feerate:.1f} sat/B)'
+        self.ids.feerate_label.text = f'{feerate:.1f} sat/B'
         self.ids.amount_label.text = self.app.format_amount_and_units(amount)
         x_fee = run_hook('get_tx_extra_fee', self.app.wallet, tx)
         if x_fee:
@@ -168,13 +179,3 @@ class ConfirmTxDialog(FeeSliderDialog, Factory.Popup):
     def update_text(self):
         target, tooltip, dyn = self.config.get_fee_target()
         self.ids.fee_button.text = target
-
-    def on_fee_button(self):
-        fee_dialog = FeeDialog(self, self.config, self.after_fee_changed)
-        fee_dialog.open()
-
-    def after_fee_changed(self):
-        self.read_config()
-        self.update_slider()
-        self.update_text()
-        Clock.schedule_once(lambda dt: self.update_tx())
