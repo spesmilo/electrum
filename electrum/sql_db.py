@@ -13,7 +13,7 @@ def sql(func):
     """wrapper for sql methods"""
     def wrapper(self: 'SqlDB', *args, **kwargs):
         assert threading.currentThread() != self.sql_thread
-        f = asyncio.Future()
+        f = self.asyncio_loop.create_future()
         self.db_requests.put((f, func, args, kwargs))
         return f
     return wrapper
