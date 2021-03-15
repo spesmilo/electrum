@@ -52,7 +52,7 @@ Builder.load_string('''
                 on_release:
                     root.method  = (root.method + 1) % 3
                     root.update_slider()
-                    root.update_text()
+                    root.on_slider(root.slider.value)
         Slider:
             id: slider
             range: 0, 4

@@ -76,6 +76,7 @@ Builder.load_string('''
                 bold: True
                 on_release:
                     root.method  = (root.method + 1) % 3
+                    root.update_slider()
                     root.on_slider(root.slider.value)
         Slider:
             id: slider
