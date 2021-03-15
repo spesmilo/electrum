@@ -125,18 +125,29 @@ class ChannelsList(MyTreeView):
         WaitingDialog(self, 'please wait..', task, self.on_success, self.on_failure)
 
     def force_close(self, channel_id):
+        self.save_backup = True
+        backup_cb = QCheckBox('Create a backup now', checked=True)
+        def on_checked(b):
+            self.save_backup = bool(b)
+        backup_cb.stateChanged.connect(on_checked)
         chan = self.lnworker.channels[channel_id]
         to_self_delay = chan.config[REMOTE].to_self_delay
-        msg = _('Force-close channel?') + '\n\n'\
-              + _('Funds retrieved from this channel will not be available before {} blocks after forced closure.').format(to_self_delay) + ' '\
-              + _('After that delay, funds will be sent to an address derived from your wallet seed.') + '\n\n'\
-              + _('In the meantime, channel funds will not be recoverable from your seed, and might be lost if you lose your wallet.') + ' '\
-              + _('To prevent that, you should have a backup of this channel on another device.')
-        if self.parent.question(msg):
-            def task():
-                coro = self.lnworker.force_close_channel(channel_id)
-                return self.network.run_from_another_thread(coro)
-            WaitingDialog(self, 'please wait..', task, self.on_success, self.on_failure)
+        msg = '<b>' + _('Force-close channel?') + '</b><br/>'\
+            + '<p>' + _('If you force-close this channel, the funds you have in it will not be available for {} blocks.').format(to_self_delay) + ' '\
+            + _('After that delay, funds will be swept to an address derived from your wallet seed.') + '</p>'\
+            + '<u>' + _('Please create a backup of your wallet file!') + '</u> '\
+            + '<p>' + _('Funds in this channel will not be recoverable from seed until they are swept back into your wallet, and might be lost if you lose your wallet file.') + ' '\
+            + _('To prevent that, you should save a backup of your wallet on another device.') + '</p>'
+        if not self.parent.question(msg, title=_('Force-close channel'), rich_text=True, checkbox=backup_cb):
+            return
+        if self.save_backup:
+            if not self.parent.backup_wallet():
+                return
+        return
+        def task():
+            coro = self.lnworker.force_close_channel(channel_id)
+            return self.network.run_from_another_thread(coro)
+        WaitingDialog(self, 'please wait..', task, self.on_success, self.on_failure)
 
     def remove_channel(self, channel_id):
         if self.main_window.question(_('Are you sure you want to delete this channel? This will purge associated transactions from your wallet history.')):
