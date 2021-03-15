@@ -143,7 +143,6 @@ class ChannelsList(MyTreeView):
         if self.save_backup:
             if not self.parent.backup_wallet():
                 return
-        return
         def task():
             coro = self.lnworker.force_close_channel(channel_id)
             return self.network.run_from_another_thread(coro)
