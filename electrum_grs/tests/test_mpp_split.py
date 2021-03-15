@@ -28,7 +28,7 @@ class TestMppSplit(ElectrumTestCase):
     def test_suggest_splits(self):
         with self.subTest(msg="do a payment with the maximal amount spendable over a single channel"):
             splits = mpp_split.suggest_splits(1_000_000_000, self.channels_with_funds, exclude_single_parts=True)
-            self.assertEqual({0: 500_000_000, 1: 500_000_000, 2: 0, 3: 0}, splits[0][0])
+            self.assertEqual({0: 660_000_000, 1: 340_000_000, 2: 0, 3: 0}, splits[0][0])
 
         with self.subTest(msg="do a payment with a larger amount than what is supported by a single channel"):
             splits = mpp_split.suggest_splits(1_100_000_000, self.channels_with_funds, exclude_single_parts=True)
@@ -42,6 +42,18 @@ class TestMppSplit(ElectrumTestCase):
             splits = mpp_split.suggest_splits(101_000_000, self.channels_with_funds, exclude_single_parts=False)
             for s in splits[:4]:
                 self.assertEqual(1, mpp_split.number_nonzero_parts(s[0]))
+
+    def test_saturation(self):
+        """Split configurations which spend the full amount in a channel should be avoided."""
+        channels_with_funds = {0: 159_799_733_076, 1: 499_986_152_000}
+        splits = mpp_split.suggest_splits(600_000_000_000, channels_with_funds, exclude_single_parts=True)
+
+        uses_full_amount = False
+        for c, a in splits[0][0].items():
+            if a == channels_with_funds[c]:
+                uses_full_amount |= True
+
+        self.assertFalse(uses_full_amount)
 
     def test_payment_below_min_part_size(self):
         amount = mpp_split.MIN_PART_MSAT // 2

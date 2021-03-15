@@ -6,7 +6,7 @@ from typing import Sequence, Optional, Dict
 from PyQt5 import QtCore, QtGui
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit,
-                             QPushButton, QAbstractItemView, QComboBox)
+                             QPushButton, QAbstractItemView, QComboBox, QCheckBox)
 from PyQt5.QtGui import QFont, QStandardItem, QBrush
 
 from electrum_grs.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
@@ -85,10 +85,7 @@ class ChannelsList(MyTreeView):
         status = chan.get_state_for_GUI()
         closed = chan.is_closed()
         node_alias = self.lnworker.get_node_alias(chan.node_id) or chan.node_id.hex()
-        if isinstance(chan, Channel):
-            capacity_str = self.parent.format_amount(chan.constraints.capacity, whitespaces=True)
-        else:
-            capacity_str = ''
+        capacity_str = self.parent.format_amount(chan.get_capacity(), whitespaces=True)
         return {
             self.Columns.SHORT_CHANID: chan.short_id_for_GUI(),
             self.Columns.NODE_ALIAS: node_alias,
@@ -107,11 +104,23 @@ class ChannelsList(MyTreeView):
         self.main_window.show_error('Failed to close channel:\n{}'.format(repr(e)))
 
     def close_channel(self, channel_id):
+        self.is_force_close = False
         msg = _('Close channel?')
-        if not self.parent.question(msg):
+        force_cb = QCheckBox('Request force close from remote peer')
+        tooltip = _(
+            'If you check this option, your node will pretend that it has lost its data and ask the remote node to broadcast their latest state. '
+            'Doing so from time to time helps make sure that nodes are honest, because your node can punish them if they broadcast a revoked state.')
+        def on_checked(b):
+            self.is_force_close = bool(b)
+        force_cb.stateChanged.connect(on_checked)
+        force_cb.setToolTip(tooltip)
+        if not self.parent.question(msg, checkbox=force_cb):
             return
         def task():
-            coro = self.lnworker.close_channel(channel_id)
+            if self.is_force_close:
+                coro = self.lnworker.request_remote_force_close(channel_id)
+            else:
+                coro = self.lnworker.close_channel(channel_id)
             return self.network.run_from_another_thread(coro)
         WaitingDialog(self, 'please wait..', task, self.on_success, self.on_failure)
 

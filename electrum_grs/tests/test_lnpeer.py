@@ -8,9 +8,9 @@ import logging
 import concurrent
 from concurrent import futures
 import unittest
-from typing import Iterable, NamedTuple, Tuple
+from typing import Iterable, NamedTuple, Tuple, List
 
-from aiorpcx import TaskGroup
+from aiorpcx import TaskGroup, timeout_after, TaskTimeout
 
 from electrum_grs import bitcoin
 from electrum_grs import constants
@@ -113,12 +113,18 @@ class MockWallet:
 
 
 class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
+    MPP_EXPIRY = 2  # HTLC timestamps are cast to int, so this cannot be 1
+    TIMEOUT_SHUTDOWN_FAIL_PENDING_HTLCS = 0
+
     def __init__(self, *, local_keypair: Keypair, chans: Iterable['Channel'], tx_queue, name):
         self.name = name
         Logger.__init__(self)
         NetworkRetryManager.__init__(self, max_retry_delay_normal=1, init_retry_delay_normal=1)
         self.node_keypair = local_keypair
         self.network = MockNetwork(tx_queue)
+        self.taskgroup = TaskGroup()
+        self.lnwatcher = None
+        self.listen_server = None
         self._channels = {chan.channel_id: chan for chan in chans}
         self.payments = {}
         self.logs = defaultdict(list)
@@ -136,13 +142,16 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         # used in tests
         self.enable_htlc_settle = asyncio.Event()
         self.enable_htlc_settle.set()
-        self.received_htlcs = dict()
+        self.enable_htlc_forwarding = asyncio.Event()
+        self.enable_htlc_forwarding.set()
+        self.received_mpp_htlcs = dict()
         self.sent_htlcs = defaultdict(asyncio.Queue)
         self.sent_htlcs_routes = dict()
         self.sent_buckets = defaultdict(set)
         self.trampoline_forwarding_failures = {}
         self.inflight_payments = set()
         self.preimages = {}
+        self.stopping_soon = False
 
     def get_invoice_status(self, key):
         pass
@@ -178,6 +187,12 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     def diagnostic_name(self):
         return self.name
 
+    async def stop(self):
+        await LNWallet.stop(self)
+        if self.channel_db:
+            self.channel_db.stop()
+            await self.channel_db.stopped_event.wait()
+
     get_payments = LNWallet.get_payments
     get_payment_info = LNWallet.get_payment_info
     save_payment_info = LNWallet.save_payment_info
@@ -185,7 +200,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     set_request_status = LNWallet.set_request_status
     set_payment_status = LNWallet.set_payment_status
     get_payment_status = LNWallet.get_payment_status
-    add_received_htlc = LNWallet.add_received_htlc
+    check_received_mpp_htlc = LNWallet.check_received_mpp_htlc
     htlc_fulfilled = LNWallet.htlc_fulfilled
     htlc_failed = LNWallet.htlc_failed
     save_preimage = LNWallet.save_preimage
@@ -206,6 +221,8 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     _calc_routing_hints_for_invoice = LNWallet._calc_routing_hints_for_invoice
     handle_error_code_from_failed_htlc = LNWallet.handle_error_code_from_failed_htlc
     is_trampoline_peer = LNWallet.is_trampoline_peer
+    wait_for_received_pending_htlcs_to_get_removed = LNWallet.wait_for_received_pending_htlcs_to_get_removed
+    on_proxy_changed = LNWallet.on_proxy_changed
 
 
 class MockTransport:
@@ -278,8 +295,12 @@ class SquareGraph(NamedTuple):
     def all_peers(self) -> Iterable[Peer]:
         return self.peer_ab, self.peer_ac, self.peer_ba, self.peer_bd, self.peer_ca, self.peer_cd, self.peer_db, self.peer_dc
 
+    def all_lnworkers(self) -> Iterable[MockLNWallet]:
+        return self.w_a, self.w_b, self.w_c, self.w_d
+
 
 class PaymentDone(Exception): pass
+class TestSuccess(Exception): pass
 
 
 class TestPeer(ElectrumTestCase):
@@ -292,11 +313,19 @@ class TestPeer(ElectrumTestCase):
     def setUp(self):
         super().setUp()
         self.asyncio_loop, self._stop_loop, self._loop_thread = create_and_start_event_loop()
+        self._lnworkers_created = []  # type: List[MockLNWallet]
 
     def tearDown(self):
-        super().tearDown()
+        async def cleanup_lnworkers():
+            async with TaskGroup() as group:
+                for lnworker in self._lnworkers_created:
+                    await group.spawn(lnworker.stop())
+            self._lnworkers_created.clear()
+        run(cleanup_lnworkers())
+
         self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
         self._loop_thread.join(timeout=1)
+        super().tearDown()
 
     def prepare_peers(self, alice_channel, bob_channel):
         k1, k2 = keypair(), keypair()
@@ -306,6 +335,7 @@ class TestPeer(ElectrumTestCase):
         q1, q2 = asyncio.Queue(), asyncio.Queue()
         w1 = MockLNWallet(local_keypair=k1, chans=[alice_channel], tx_queue=q1, name=bob_channel.name)
         w2 = MockLNWallet(local_keypair=k2, chans=[bob_channel], tx_queue=q2, name=alice_channel.name)
+        self._lnworkers_created.extend([w1, w2])
         p1 = Peer(w1, k2.pubkey, t1)
         p2 = Peer(w2, k1.pubkey, t2)
         w1._peers[p1.pubkey] = p1
@@ -334,6 +364,7 @@ class TestPeer(ElectrumTestCase):
         w_b = MockLNWallet(local_keypair=key_b, chans=[chan_ba, chan_bd], tx_queue=txq_b, name="bob")
         w_c = MockLNWallet(local_keypair=key_c, chans=[chan_ca, chan_cd], tx_queue=txq_c, name="carol")
         w_d = MockLNWallet(local_keypair=key_d, chans=[chan_db, chan_dc], tx_queue=txq_d, name="dave")
+        self._lnworkers_created.extend([w_a, w_b, w_c, w_d])
         peer_ab = Peer(w_a, key_b.pubkey, trans_ab)
         peer_ac = Peer(w_a, key_c.pubkey, trans_ac)
         peer_ba = Peer(w_b, key_a.pubkey, trans_ba)
@@ -747,20 +778,101 @@ class TestPeer(ElectrumTestCase):
         with self.assertRaises(PaymentDone):
             run(f())
 
-    def _test_multipart_payment(self, graph, *, attempts):
+    def _run_mpp(self, graph, kwargs1, kwargs2):
         self.assertEqual(500_000_000_000, graph.chan_ab.balance(LOCAL))
         self.assertEqual(500_000_000_000, graph.chan_ac.balance(LOCAL))
         amount_to_pay = 600_000_000_000
         peers = graph.all_peers()
-        async def pay():
+        async def pay(attempts=1,
+                      alice_uses_trampoline=False,
+                      bob_forwarding=True,
+                      mpp_invoice=True):
+            if mpp_invoice:
+                graph.w_d.features |= LnFeatures.BASIC_MPP_OPT
+            if not bob_forwarding:
+                graph.w_b.enable_htlc_forwarding.clear()
+            if alice_uses_trampoline:
+                if graph.w_a.network.channel_db:
+                    graph.w_a.network.channel_db.stop()
+                    await graph.w_a.network.channel_db.stopped_event.wait()
+                    graph.w_a.network.channel_db = None
+            else:
+                assert graph.w_a.network.channel_db is not None
             lnaddr, pay_req = await self.prepare_invoice(graph.w_d, include_routing_hints=True, amount_msat=amount_to_pay)
             self.assertEqual(PR_UNPAID, graph.w_d.get_payment_status(lnaddr.paymenthash))
             result, log = await graph.w_a.pay_invoice(pay_req, attempts=attempts)
+            if not bob_forwarding:
+                # reset to previous state, sleep 2s so that the second htlc can time out
+                graph.w_b.enable_htlc_forwarding.set()
+                await asyncio.sleep(2)
             if result:
                 self.assertEqual(PR_PAID, graph.w_d.get_payment_status(lnaddr.paymenthash))
                 raise PaymentDone()
             else:
                 raise NoPathFound()
+
+        async def f(kwargs):
+            async with TaskGroup() as group:
+                for peer in peers:
+                    await group.spawn(peer._message_loop())
+                    await group.spawn(peer.htlc_switch())
+                await asyncio.sleep(0.2)
+                await group.spawn(pay(**kwargs))
+
+        with self.assertRaises(NoPathFound):
+            run(f(kwargs1))
+        with self.assertRaises(PaymentDone):
+            run(f(kwargs2))
+
+    @needs_test_with_all_chacha20_implementations
+    def test_multipart_payment_with_timeout(self):
+        graph = self.prepare_chans_and_peers_in_square()
+        self._run_mpp(graph, {'bob_forwarding':False}, {'bob_forwarding':True})
+
+    @needs_test_with_all_chacha20_implementations
+    def test_multipart_payment(self):
+        graph = self.prepare_chans_and_peers_in_square()
+        self._run_mpp(graph, {'mpp_invoice':False}, {'mpp_invoice':True})
+
+    @needs_test_with_all_chacha20_implementations
+    def test_multipart_payment_with_trampoline(self):
+        # single attempt will fail with insufficient trampoline fee
+        graph = self.prepare_chans_and_peers_in_square()
+        self._run_mpp(graph, {'alice_uses_trampoline':True, 'attempts':1}, {'alice_uses_trampoline':True, 'attempts':3})
+
+    @needs_test_with_all_chacha20_implementations
+    def test_fail_pending_htlcs_on_shutdown(self):
+        """Alice tries to pay Dave via MPP. Dave receives some HTLCs but not all.
+        Dave shuts down (stops wallet).
+        We test if Dave fails the pending HTLCs during shutdown.
+        """
+        graph = self.prepare_chans_and_peers_in_square()
+        self.assertEqual(500_000_000_000, graph.chan_ab.balance(LOCAL))
+        self.assertEqual(500_000_000_000, graph.chan_ac.balance(LOCAL))
+        amount_to_pay = 600_000_000_000
+        peers = graph.all_peers()
+        graph.w_d.MPP_EXPIRY = 120
+        graph.w_d.TIMEOUT_SHUTDOWN_FAIL_PENDING_HTLCS = 3
+        async def pay():
+            graph.w_d.features |= LnFeatures.BASIC_MPP_OPT
+            graph.w_b.enable_htlc_forwarding.clear()  # Bob will hold forwarded HTLCs
+            assert graph.w_a.network.channel_db is not None
+            lnaddr, pay_req = await self.prepare_invoice(graph.w_d, include_routing_hints=True, amount_msat=amount_to_pay)
+            try:
+                async with timeout_after(0.5):
+                    result, log = await graph.w_a.pay_invoice(pay_req, attempts=1)
+            except TaskTimeout:
+                # by now Dave hopefully received some HTLCs:
+                self.assertTrue(len(graph.chan_dc.hm.htlcs(LOCAL)) > 0)
+                self.assertTrue(len(graph.chan_dc.hm.htlcs(REMOTE)) > 0)
+            else:
+                self.fail(f"pay_invoice finished but was not supposed to. result={result}")
+            await graph.w_d.stop()
+            # Dave is supposed to have failed the pending incomplete MPP HTLCs
+            self.assertEqual(0, len(graph.chan_dc.hm.htlcs(LOCAL)))
+            self.assertEqual(0, len(graph.chan_dc.hm.htlcs(REMOTE)))
+            raise TestSuccess()
+
         async def f():
             async with TaskGroup() as group:
                 for peer in peers:
@@ -768,25 +880,9 @@ class TestPeer(ElectrumTestCase):
                     await group.spawn(peer.htlc_switch())
                 await asyncio.sleep(0.2)
                 await group.spawn(pay())
-        self.assertFalse(graph.w_d.features.supports(LnFeatures.BASIC_MPP_OPT))
-        with self.assertRaises(NoPathFound):
-            run(f())
-        graph.w_d.features |= LnFeatures.BASIC_MPP_OPT
-        with self.assertRaises(PaymentDone):
-            run(f())
 
-    @needs_test_with_all_chacha20_implementations
-    def test_multipart_payment(self):
-        graph = self.prepare_chans_and_peers_in_square()
-        self._test_multipart_payment(graph, attempts=1)
-
-    @needs_test_with_all_chacha20_implementations
-    def test_multipart_payment_with_trampoline(self):
-        graph = self.prepare_chans_and_peers_in_square()
-        graph.w_a.network.channel_db.stop()
-        graph.w_a.network.channel_db = None
-        # Note: first attempt will fail with insufficient trampoline fee
-        self._test_multipart_payment(graph, attempts=3)
+        with self.assertRaises(TestSuccess):
+            run(f())
 
     @needs_test_with_all_chacha20_implementations
     def test_close(self):

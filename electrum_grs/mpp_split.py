@@ -1,20 +1,26 @@
 import random
+import math
 from typing import List, Tuple, Optional, Sequence, Dict
 from collections import defaultdict
+
 from .util import profiler
 from .lnutil import NoPathFound
 
 PART_PENALTY = 1.0  # 1.0 results in avoiding splits
 MIN_PART_MSAT = 10_000_000  # we don't want to split indefinitely
+EXHAUST_DECAY_FRACTION = 10  # fraction of the local balance that should be reserved if possible
 
 # these parameters determine the granularity of the newly suggested configurations
-REDISTRIBUTION_FRACTION = 10
-SPLIT_FRACTION = 10
+REDISTRIBUTION_FRACTION = 50
+SPLIT_FRACTION = 50
 
 # these parameters affect the computational work in the probabilistic algorithm
 STARTING_CONFIGS = 50
 CANDIDATES_PER_LEVEL = 10
-REDISTRIBUTE = 10
+REDISTRIBUTE = 20
+
+# maximum number of parts for splitting
+MAX_PARTS = 5
 
 
 def unique_hierarchy(hierarchy: Dict[int, List[Dict[bytes, int]]]) -> Dict[int, List[Dict[bytes, int]]]:
@@ -167,12 +173,16 @@ def suggest_splits(amount_msat: int, channels_with_funds, exclude_single_parts=T
         amounts that are equally distributed and have less parts are rated
         lowest."""
         F = 0
-        amount = sum([v for v in config.values()])
+        total_amount = sum([v for v in config.values()])
 
-        for channel, value in config.items():
-            if value:
-                value /= amount  # normalize
-                F += value * value + PART_PENALTY * PART_PENALTY
+        for channel, amount in config.items():
+            funds = channels_with_funds[channel]
+            if amount:
+                F += amount * amount / (total_amount * total_amount)  # a penalty to favor distribution of amounts
+                F += PART_PENALTY * PART_PENALTY  # a penalty for each part
+                decay = funds / EXHAUST_DECAY_FRACTION
+                F += math.exp((amount - funds) / decay)  # a penalty for channel saturation
+
         return F
 
     def rated_sorted_configurations(hierarchy: dict) -> Sequence[Tuple[Dict[bytes, int], float]]:
@@ -189,9 +199,8 @@ def suggest_splits(amount_msat: int, channels_with_funds, exclude_single_parts=T
     # create initial guesses
     split_hierarchy = create_starting_split_hierarchy(amount_msat, channels_with_funds)
 
-    # randomize initial guesses
-    MAX_PARTS = 5
-    # generate splittings of different split levels up to number of channels
+    # randomize initial guesses and generate splittings of different split
+    # levels up to number of channels
     for level in range(2, min(MAX_PARTS, len(channels_with_funds) + 1)):
         # generate a set of random configurations for each level
         for _ in range(CANDIDATES_PER_LEVEL):

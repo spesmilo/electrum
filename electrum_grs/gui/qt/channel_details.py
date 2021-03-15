@@ -169,7 +169,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         form_layout.addRow(_('State:'), SelectableLabel(chan.get_state_for_GUI()))
         self.initiator = 'Local' if chan.constraints.is_initiator else 'Remote'
         form_layout.addRow(_('Initiator:'), SelectableLabel(self.initiator))
-        self.capacity = self.window.format_amount_and_units(chan.constraints.capacity)
+        self.capacity = self.window.format_amount_and_units(chan.get_capacity())
         form_layout.addRow(_('Capacity:'), SelectableLabel(self.capacity))
         self.can_send_label = SelectableLabel()
         self.can_receive_label = SelectableLabel()

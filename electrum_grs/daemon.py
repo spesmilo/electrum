@@ -32,13 +32,11 @@ import threading
 from typing import Dict, Optional, Tuple, Iterable, Callable, Union, Sequence, Mapping, TYPE_CHECKING
 from base64 import b64decode, b64encode
 from collections import defaultdict
-import concurrent
-from concurrent import futures
 import json
 
 import aiohttp
 from aiohttp import web, client_exceptions
-from aiorpcx import TaskGroup, timeout_after, TaskTimeout
+from aiorpcx import TaskGroup, timeout_after, TaskTimeout, ignore_after
 
 from . import util
 from .network import Network
@@ -560,14 +558,11 @@ class Daemon(Logger):
                 for k, wallet in self._wallets.items():
                     await group.spawn(wallet.stop())
             self.logger.info("stopping network and taskgroup")
-            try:
-                async with timeout_after(2):
-                    async with TaskGroup() as group:
-                        if self.network:
-                            await group.spawn(self.network.stop(full_shutdown=True))
-                        await group.spawn(self.taskgroup.cancel_remaining())
-            except TaskTimeout:
-                pass
+            async with ignore_after(2):
+                async with TaskGroup() as group:
+                    if self.network:
+                        await group.spawn(self.network.stop(full_shutdown=True))
+                    await group.spawn(self.taskgroup.cancel_remaining())
 
         fut = asyncio.run_coroutine_threadsafe(stop_async(), self.asyncio_loop)
         fut.result()

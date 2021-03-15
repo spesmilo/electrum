@@ -36,7 +36,7 @@ from electrum_grs.lnutil import RECEIVED, SENT, PaymentFailure
 from electrum_grs.logging import Logger
 
 from .dialogs.question import Question
-from .dialogs.lightning_open_channel import LightningOpenChannelDialog
+from .dialogs.confirm_tx_dialog import ConfirmTxDialog
 
 from electrum_grs.gui.kivy import KIVY_GUI_PATH
 from electrum_grs.gui.kivy.i18n import _
@@ -237,10 +237,10 @@ class SendScreen(CScreen, Logger):
         status = self.app.wallet.get_invoice_status(item)
         status_str = item.get_status_str(status)
         is_lightning = item.type == PR_TYPE_LN
+        key = self.app.wallet.get_key_for_outgoing_invoice(item)
         if is_lightning:
             assert isinstance(item, LNInvoice)
-            key = item.rhash
-            address = key
+            address = item.rhash
             if self.app.wallet.lnworker:
                 log = self.app.wallet.lnworker.logs.get(key)
                 if status == PR_INFLIGHT and log:
@@ -248,7 +248,6 @@ class SendScreen(CScreen, Logger):
             is_bip70 = False
         else:
             assert isinstance(item, OnchainInvoice)
-            key = item.id
             address = item.get_address()
             is_bip70 = bool(item.bip70)
         return {
@@ -373,8 +372,12 @@ class SendScreen(CScreen, Logger):
         threading.Thread(target=pay_thread).start()
 
     def _do_pay_onchain(self, invoice: OnchainInvoice) -> None:
-        from .dialogs.confirm_tx_dialog import ConfirmTxDialog
-        d = ConfirmTxDialog(self.app, invoice)
+        outputs = invoice.outputs
+        amount = sum(map(lambda x: x.value, outputs)) if '!' not in [x.value for x in outputs] else '!'
+        coins = self.app.wallet.get_spendable_coins(None)
+        make_tx = lambda rbf: self.app.wallet.make_unsigned_transaction(coins=coins, outputs=outputs, rbf=rbf)
+        on_pay = lambda tx: self.app.protected(_('Send payment?'), self.send_tx, (tx, invoice))
+        d = ConfirmTxDialog(self.app, amount=amount, make_tx=make_tx, on_pay=on_pay)
         d.open()
 
     def send_tx(self, tx, invoice, password):
@@ -467,11 +470,10 @@ class ReceiveScreen(CScreen):
         if not is_lightning:
             assert isinstance(req, OnchainInvoice)
             address = req.get_address()
-            key = address
         else:
             assert isinstance(req, LNInvoice)
-            key = req.rhash
             address = req.invoice
+        key = self.app.wallet.get_key_for_receive_request(req)
         amount = req.get_amount_sat()
         description = req.message
         status = self.app.wallet.get_request_status(key)

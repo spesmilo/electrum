@@ -54,7 +54,6 @@ from .address_synchronizer import TX_HEIGHT_LOCAL
 from .mnemonic import Mnemonic
 from .lnutil import SENT, RECEIVED
 from .lnutil import LnFeatures
-from .lnutil import ln_dummy_address
 from .lnpeer import channel_id_from_funding_tx
 from .plugin import run_hook
 from .version import ELECTRUM_VERSION
@@ -804,7 +803,8 @@ class Commands:
             f = None
         out = wallet.get_sorted_requests()
         if f is not None:
-            out = list(filter(lambda x: x.status==f, out))
+            out = [req for req in out
+                   if f == wallet.get_request_status(wallet.get_key_for_receive_request(req))]
         return [wallet.export_request(x) for x in out]
 
     @command('w')
@@ -995,13 +995,17 @@ class Commands:
     async def open_channel(self, connection_string, amount, push_amount=0, password=None, wallet: Abstract_Wallet = None):
         funding_sat = satoshis(amount)
         push_sat = satoshis(push_amount)
-        dummy_output = PartialTxOutput.from_address_and_value(ln_dummy_address(), funding_sat)
-        funding_tx = wallet.mktx(outputs = [dummy_output], rbf=False, sign=False, nonlocal_only=True)
-        chan, funding_tx = await wallet.lnworker._open_channel_coroutine(connect_str=connection_string,
-                                                                         funding_tx=funding_tx,
-                                                                         funding_sat=funding_sat,
-                                                                         push_sat=push_sat,
-                                                                         password=password)
+        coins = wallet.get_spendable_coins(None)
+        funding_tx = wallet.lnworker.mktx_for_open_channel(
+            coins=coins,
+            funding_sat=funding_sat,
+            fee_est=None)
+        chan, funding_tx = await wallet.lnworker._open_channel_coroutine(
+            connect_str=connection_string,
+            funding_tx=funding_tx,
+            funding_sat=funding_sat,
+            push_sat=push_sat,
+            password=password)
         return chan.funding_outpoint.to_str()
 
     @command('')
@@ -1030,13 +1034,15 @@ class Commands:
 
     @command('w')
     async def list_channels(self, wallet: Abstract_Wallet = None):
-        # we output the funding_outpoint instead of the channel_id because lnd uses channel_point (funding outpoint) to identify channels
+        # FIXME: we need to be online to display capacity of backups
         from .lnutil import LOCAL, REMOTE, format_short_channel_id
-        l = list(wallet.lnworker.channels.items())
+        channels = list(wallet.lnworker.channels.items())
+        backups = list(wallet.lnworker.channel_backups.items())
         return [
             {
+                'type': 'CHANNEL',
                 'short_channel_id': format_short_channel_id(chan.short_channel_id) if chan.short_channel_id else None,
-                'channel_id': bh2u(chan.channel_id),
+                'channel_id': chan.channel_id.hex(),
                 'channel_point': chan.funding_outpoint.to_str(),
                 'state': chan.get_state().name,
                 'peer_state': chan.peer_state.name,
@@ -1047,7 +1053,15 @@ class Commands:
                 'remote_reserve': chan.config[LOCAL].reserve_sat,
                 'local_unsettled_sent': chan.balance_tied_up_in_htlcs_by_direction(LOCAL, direction=SENT) // 1000,
                 'remote_unsettled_sent': chan.balance_tied_up_in_htlcs_by_direction(REMOTE, direction=SENT) // 1000,
-            } for channel_id, chan in l
+            } for channel_id, chan in channels
+        ] + [
+            {
+                'type': 'BACKUP',
+                'short_channel_id': format_short_channel_id(chan.short_channel_id) if chan.short_channel_id else None,
+                'channel_id': chan.channel_id.hex(),
+                'channel_point': chan.funding_outpoint.to_str(),
+                'state': chan.get_state().name,
+            } for channel_id, chan in backups
         ]
 
     @command('wn')
@@ -1081,6 +1095,12 @@ class Commands:
         coro = wallet.lnworker.force_close_channel(chan_id) if force else wallet.lnworker.close_channel(chan_id)
         return await coro
 
+    @command('wn')
+    async def request_force_close(self, channel_point, wallet: Abstract_Wallet = None):
+        txid, index = channel_point.split(':')
+        chan_id, _ = channel_id_from_funding_tx(txid, int(index))
+        return await wallet.lnworker.request_force_close_from_backup(chan_id)
+
     @command('w')
     async def export_channel_backup(self, channel_point, wallet: Abstract_Wallet = None):
         txid, index = channel_point.split(':')
@@ -1089,7 +1109,7 @@ class Commands:
 
     @command('w')
     async def import_channel_backup(self, encrypted, wallet: Abstract_Wallet = None):
-        return wallet.lnbackups.import_channel_backup(encrypted)
+        return wallet.lnworker.import_channel_backup(encrypted)
 
     @command('wn')
     async def get_channel_ctx(self, channel_point, iknowwhatimdoing=False, wallet: Abstract_Wallet = None):

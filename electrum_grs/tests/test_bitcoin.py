@@ -302,12 +302,22 @@ class Test_bitcoin(ElectrumTestCase):
                          crypto.chacha20_poly1305_decrypt(key=key, nonce=nonce, data=data, associated_data=b''))
 
     @needs_test_with_all_chacha20_implementations
-    def test_chacha20_encrypt(self):
+    def test_chacha20_encrypt__8_byte_nonce(self):
         key = bytes.fromhex('37326d9d69a83b815ddfd947d21b0dd39111e5b6a5a44042c44d570ea03e3179')
         nonce = bytes.fromhex('0102030405060708')
         data = bytes.fromhex('38a0e0a7c865fe9ca31f0730cfcab610f18e6da88dc3790f1d243f711a257c78')
-        self.assertEqual(bytes.fromhex('f62fbd74d197323c7c3d5658476a884d38ee6f4b5500add1e8dc80dcd9c15dff'),
-                         crypto.chacha20_encrypt(key=key, nonce=nonce, data=data))
+        ciphertext = crypto.chacha20_encrypt(key=key, nonce=nonce, data=data)
+        self.assertEqual(bytes.fromhex('f62fbd74d197323c7c3d5658476a884d38ee6f4b5500add1e8dc80dcd9c15dff'), ciphertext)
+        self.assertEqual(data, crypto.chacha20_decrypt(key=key, nonce=nonce, data=ciphertext))
+
+    @needs_test_with_all_chacha20_implementations
+    def test_chacha20_encrypt__12_byte_nonce(self):
+        key = bytes.fromhex('37326d9d69a83b815ddfd947d21b0dd39111e5b6a5a44042c44d570ea03e3179')
+        nonce = bytes.fromhex('010203040506070809101112')
+        data = bytes.fromhex('38a0e0a7c865fe9ca31f0730cfcab610f18e6da88dc3790f1d243f711a257c78')
+        ciphertext = crypto.chacha20_encrypt(key=key, nonce=nonce, data=data)
+        self.assertEqual(bytes.fromhex('c0b1cb75c3c23c13f47dab393add738c92c62c4e2546cb3bf2b48269a4184028'), ciphertext)
+        self.assertEqual(data, crypto.chacha20_decrypt(key=key, nonce=nonce, data=ciphertext))
 
     def test_sha256d(self):
         self.assertEqual(b'\x95MZI\xfdp\xd9\xb8\xbc\xdb5\xd2R&x)\x95\x7f~\xf7\xfalt\xf8\x84\x19\xbd\xc5\xe8"\t\xf4',
