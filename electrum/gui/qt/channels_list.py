@@ -110,6 +110,7 @@ class ChannelsList(MyTreeView):
         tooltip = _(
             'If you check this option, your node will pretend that it has lost its data and ask the remote node to broadcast their latest state. '
             'Doing so from time to time helps make sure that nodes are honest, because your node can punish them if they broadcast a revoked state.')
+        tooltip = '<qt>' + tooltip + '</qt>' # rich text is word wrapped
         def on_checked(b):
             self.is_force_close = bool(b)
         force_cb.stateChanged.connect(on_checked)
