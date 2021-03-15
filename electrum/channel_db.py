@@ -721,7 +721,7 @@ class ChannelDB(SqlDB):
         (nchans_with_0p, nchans_with_1p, nchans_with_2p) = self.get_num_channels_partitioned_by_policy_count()
         self.logger.info(f'num_channels_partitioned_by_policy_count. '
                          f'0p: {nchans_with_0p}, 1p: {nchans_with_1p}, 2p: {nchans_with_2p}')
-        self.data_loaded.set()
+        self.asyncio_loop.call_soon_threadsafe(self.data_loaded.set)
         util.trigger_callback('gossip_db_loaded')
 
     def _update_num_policies_for_chan(self, short_channel_id: ShortChannelID) -> None:
