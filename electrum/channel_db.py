@@ -569,12 +569,14 @@ class ChannelDB(SqlDB):
                 c.execute("INSERT INTO address (node_id, host, port, timestamp) VALUES (?,?,?,?)", (addr.pubkey, addr.host, addr.port, 0))
 
     @classmethod
-    def verify_channel_update(cls, payload) -> None:
+    def verify_channel_update(cls, payload, *, start_node: bytes = None) -> None:
         short_channel_id = payload['short_channel_id']
         short_channel_id = ShortChannelID(short_channel_id)
         if constants.net.rev_genesis_bytes() != payload['chain_hash']:
             raise InvalidGossipMsg('wrong chain hash')
-        if not verify_sig_for_channel_update(payload, payload['start_node']):
+        start_node = payload.get('start_node', None) or start_node
+        assert start_node is not None
+        if not verify_sig_for_channel_update(payload, start_node):
             raise InvalidGossipMsg(f'failed verifying channel update for {short_channel_id}')
 
     @classmethod

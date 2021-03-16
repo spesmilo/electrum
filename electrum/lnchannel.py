@@ -580,7 +580,14 @@ class Channel(AbstractChannel):
             raise Exception('lnworker not set for channel!')
         return self.lnworker.node_keypair.pubkey
 
-    def set_remote_update(self, raw: bytes) -> None:
+    def set_remote_update(self, payload: dict) -> None:
+        """Save the ChannelUpdate message for the incoming direction of this channel.
+        This message contains info we need to populate private route hints when
+        creating invoices.
+        """
+        from .channel_db import ChannelDB
+        ChannelDB.verify_channel_update(payload, start_node=self.node_id)
+        raw = payload['raw']
         self.storage['remote_update'] = raw.hex()
 
     def get_remote_update(self) -> Optional[bytes]:

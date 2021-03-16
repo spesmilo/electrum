@@ -97,7 +97,7 @@ class Peer(Logger):
         self.funding_signed_sent = set()  # for channels in PREOPENING
         self.shutdown_received = {} # chan_id -> asyncio.Future()
         self.announcement_signatures = defaultdict(asyncio.Queue)
-        self.orphan_channel_updates = OrderedDict()
+        self.orphan_channel_updates = OrderedDict()  # type: OrderedDict[ShortChannelID, dict]
         Logger.__init__(self)
         self.taskgroup = SilentTaskGroup()
         # HTLCs offered by REMOTE, that we started removing but are still active:
@@ -273,7 +273,7 @@ class Peer(Logger):
             return
         for chan in self.channels.values():
             if chan.short_channel_id == payload['short_channel_id']:
-                chan.set_remote_update(payload['raw'])
+                chan.set_remote_update(payload)
                 self.logger.info("saved remote_update")
                 break
         else:
@@ -1149,7 +1149,7 @@ class Peer(Logger):
         # peer may have sent us a channel update for the incoming direction previously
         pending_channel_update = self.orphan_channel_updates.get(chan.short_channel_id)
         if pending_channel_update:
-            chan.set_remote_update(pending_channel_update['raw'])
+            chan.set_remote_update(pending_channel_update)
         self.logger.info(f"CHANNEL OPENING COMPLETED ({chan.get_id_for_log()})")
         forwarding_enabled = self.network.config.get('lightning_forward_payments', False)
         if forwarding_enabled:

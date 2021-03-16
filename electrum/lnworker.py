@@ -1284,10 +1284,11 @@ class LNWallet(LNWorker):
         short_channel_id = ShortChannelID(payload['short_channel_id'])
         if r == UpdateStatus.GOOD:
             self.logger.info(f"applied channel update to {short_channel_id}")
-            # TODO: test this
+            # TODO: add test for this
+            # FIXME: this does not work for our own unannounced channels.
             for chan in self.channels.values():
                 if chan.short_channel_id == short_channel_id:
-                    chan.set_remote_update(payload['raw'])
+                    chan.set_remote_update(payload)
             update = True
         elif r == UpdateStatus.ORPHANED:
             # maybe it is a private channel (and data in invoice was outdated)
