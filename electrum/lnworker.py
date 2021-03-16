@@ -44,7 +44,7 @@ from .lntransport import LNTransport, LNResponderTransport
 from .lnpeer import Peer, LN_P2P_NETWORK_TIMEOUT
 from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
-from .lnchannel import Channel
+from .lnchannel import Channel, AbstractChannel
 from .lnchannel import ChannelState, PeerState
 from .lnrater import LNRater
 from . import lnutil
@@ -613,7 +613,7 @@ class LNWallet(LNWorker):
         for channel_id, c in random_shuffled_copy(channels.items()):
             self._channels[bfh(channel_id)] = Channel(c, sweep_address=self.sweep_address, lnworker=self)
 
-        self._channel_backups = {}  # type: Dict[bytes, Channel]
+        self._channel_backups = {}  # type: Dict[bytes, ChannelBackup]
         channel_backups = self.db.get_dict("channel_backups")
         for channel_id, cb in random_shuffled_copy(channel_backups.items()):
             self._channel_backups[bfh(channel_id)] = ChannelBackup(cb, sweep_address=self.sweep_address, lnworker=self)
@@ -638,7 +638,7 @@ class LNWallet(LNWorker):
             return self._channels.copy()
 
     @property
-    def channel_backups(self) -> Mapping[bytes, Channel]:
+    def channel_backups(self) -> Mapping[bytes, ChannelBackup]:
         """Returns a read-only copy of channels."""
         with self.lock:
             return self._channel_backups.copy()
@@ -912,7 +912,7 @@ class LNWallet(LNWorker):
         self.wallet.save_db()
         util.trigger_callback('channel', self.wallet, chan)
 
-    def channel_by_txo(self, txo: str) -> Optional[Channel]:
+    def channel_by_txo(self, txo: str) -> Optional[AbstractChannel]:
         for chan in self.channels.values():
             if chan.funding_outpoint.to_str() == txo:
                 return chan
@@ -2023,9 +2023,9 @@ class LNWallet(LNWorker):
         peer = await self.add_peer(connect_str)
         await peer.trigger_force_close(channel_id)
 
-    async def request_force_close(self, channel_id: bytes):
+    async def request_force_close(self, channel_id: bytes) -> None:
         if channel_id in self.channels:
-            chan = self.channels[chan_id]
+            chan = self.channels[channel_id]
             peer = self._peers.get(chan.node_id)
             if not peer:
                 raise Exception('Peer not found')
