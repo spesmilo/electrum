@@ -28,6 +28,8 @@ RUN echo deb ${UBUNTU_MIRROR} bionic main restricted universe multiverse > /etc/
         libpcsclite-dev=1.8.23-1 \
         swig=3.0.12-1 \
         libxkbcommon-x11-0=0.8.2-1~ubuntu18.04.1 \
+        libxcb-util1=0.4.0-0ubuntu3 \
+        libxcb-xinerama0=1.13-2~ubuntu18.04 \
         autopoint=0.19.8.1-6ubuntu0.3 \
         zlib1g-dev=1:1.2.11.dfsg-0ubuntu2 \
         libfreetype6=2.8.1-2ubuntu2.1 \
