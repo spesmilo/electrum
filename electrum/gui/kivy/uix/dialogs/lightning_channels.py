@@ -16,6 +16,8 @@ from electrum.transaction import PartialTxOutput, Transaction
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, format_fee_satoshis, quantize_feerate
 from electrum.lnutil import ln_dummy_address
 
+from .qr_dialog import QRDialog
+
 if TYPE_CHECKING:
     from ...main_window import ElectrumWindow
     from electrum import SimpleConfig
@@ -520,13 +522,37 @@ class ChannelDetailsPopup(Popup, Logger):
         self.app.qr_dialog(_("Channel Backup " + self.chan.short_id_for_GUI()), text, help_text=help_text)
 
     def force_close(self):
-        Question(_('Force-close channel?'), self._force_close).open()
-
-    def _force_close(self, b):
-        if not b:
-            return
         if self.chan.is_closed():
             self.app.show_error(_('Channel already closed'))
+            return
+        to_self_delay = self.chan.config[REMOTE].to_self_delay
+        help_text = ' '.join([
+            _('If you force-close this channel, the funds you have in it will not be available for {} blocks.').format(to_self_delay),
+            _('During that time, funds will not be recoverabe from your seed, and may be lost if you lose your device.'),
+            _('To prevent that, please save this channel backup.'),
+            _('It may be imported in another wallet with the same seed.')
+        ])
+        title = _('Save backup and force-close')
+        data = self.app.wallet.lnworker.export_channel_backup(self.chan.channel_id)
+        popup = QRDialog(
+            title, data,
+            show_text=False,
+            text_for_clipboard=data,
+            help_text=help_text,
+            close_button_text=_('Next'),
+            on_close=self._confirm_force_close)
+        popup.open()
+
+    def _confirm_force_close(self):
+        Question(
+            _('Confirm force close?'),
+            self._do_force_close,
+            title=_('Force-close channel'),
+            no_str=_('Cancel'),
+            yes_str=_('Proceed')).open()
+
+    def _do_force_close(self, b):
+        if not b:
             return
         loop = self.app.wallet.network.asyncio_loop
         coro = asyncio.run_coroutine_threadsafe(self.app.wallet.lnworker.force_close_channel(self.chan.channel_id), loop)
