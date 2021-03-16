@@ -119,7 +119,7 @@ class ChannelsList(MyTreeView):
             return
         def task():
             if self.is_force_close:
-                coro = self.lnworker.request_remote_force_close(channel_id)
+                coro = self.lnworker.request_force_close(channel_id)
             else:
                 coro = self.lnworker.close_channel(channel_id)
             return self.network.run_from_another_thread(coro)

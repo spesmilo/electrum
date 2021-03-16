@@ -2022,6 +2022,18 @@ class LNWallet(LNWorker):
         peer = await self.add_peer(connect_str)
         await peer.trigger_force_close(channel_id)
 
+    async def request_force_close(self, channel_id: bytes):
+        if channel_id in self.channels:
+            chan = self.channels[chan_id]
+            peer = self._peers.get(chan.node_id)
+            if not peer:
+                raise Exception('Peer not found')
+            await peer.trigger_force_close(channel_id)
+        elif channel_id in self.channel_backups:
+            await self.request_force_close_from_backup(channel_id)
+        else:
+            raise Exception(f'Unknown channel {channel_id.hex()}')
+
     def import_channel_backup(self, data):
         assert data.startswith('channel_backup:')
         encrypted = data[15:]
