@@ -416,6 +416,7 @@ class ChannelBackupPopup(Popup, Logger):
         self.chan = chan
         self.app = app
         self.short_id = format_short_channel_id(chan.short_channel_id)
+        self.capacity = self.app.format_amount_and_units(chan.get_capacity())
         self.state = chan.get_state_for_GUI()
         self.title = _('Channel Backup')
 
