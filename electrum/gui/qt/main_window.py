@@ -2713,7 +2713,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if not self.question('Import channel backup?'):
             return
         try:
-            self.wallet.lnbackups.import_channel_backup(encrypted)
+            self.wallet.lnworker.import_channel_backup(encrypted)
         except Exception as e:
             self.show_error("failed to import backup" + '\n' + str(e))
             return
