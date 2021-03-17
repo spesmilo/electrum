@@ -1439,7 +1439,7 @@ class LNWallet(LNWorker):
                 raise
 
             channels_with_funds = {(cid, chan.node_id): int(chan.available_to_spend(HTLCOwner.LOCAL))
-                for cid, chan in self._channels.items() if not chan.is_frozen_for_sending()}
+                for cid, chan in self.channels.items() if not chan.is_frozen_for_sending()}
             self.logger.info(f"channels_with_funds: {channels_with_funds}")
             # for trampoline mpp payments we have to restrict ourselves to pay
             # to a single node due to some incompatibility in Eclair, see:
