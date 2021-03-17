@@ -1346,7 +1346,7 @@ class ElectrumWindow(App, Logger):
         if not b:
             return
         try:
-            self.wallet.lnbackups.import_channel_backup(encrypted)
+            self.wallet.lnworker.import_channel_backup(encrypted)
         except Exception as e:
             self.logger.exception("failed to import backup")
             self.show_error("failed to import backup" + '\n' + str(e))

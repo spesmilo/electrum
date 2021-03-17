@@ -687,7 +687,7 @@ class Transaction:
         # the estimation will not be precise.
         if addr is None:
             return 'p2wpkh'
-        witver, witprog = segwit_addr.decode(constants.net.SEGWIT_HRP, addr)
+        witver, witprog = segwit_addr.decode_segwit_address(constants.net.SEGWIT_HRP, addr)
         if witprog is not None:
             return 'p2wpkh'
         addrtype, hash_160_ = b58_address_to_hash160(addr)

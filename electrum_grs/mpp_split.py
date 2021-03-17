@@ -1,6 +1,6 @@
 import random
 import math
-from typing import List, Tuple, Optional, Sequence, Dict
+from typing import List, Tuple, Optional, Sequence, Dict, TYPE_CHECKING
 from collections import defaultdict
 
 from .util import profiler
@@ -23,7 +23,7 @@ REDISTRIBUTE = 20
 MAX_PARTS = 5
 
 
-def unique_hierarchy(hierarchy: Dict[int, List[Dict[bytes, int]]]) -> Dict[int, List[Dict[bytes, int]]]:
+def unique_hierarchy(hierarchy: Dict[int, List[Dict[Tuple[bytes, bytes], int]]]) -> Dict[int, List[Dict[Tuple[bytes, bytes], int]]]:
     new_hierarchy = defaultdict(list)
     for number_parts, configs in hierarchy.items():
         unique_configs = set()
@@ -36,11 +36,26 @@ def unique_hierarchy(hierarchy: Dict[int, List[Dict[bytes, int]]]) -> Dict[int, 
     return new_hierarchy
 
 
-def number_nonzero_parts(configuration: Dict[bytes, int]):
+def single_node_hierarchy(hierarchy: Dict[int, List[Dict[Tuple[bytes, bytes], int]]]) -> Dict[int, List[Dict[Tuple[bytes, bytes], int]]]:
+    new_hierarchy = defaultdict(list)
+    for number_parts, configs in hierarchy.items():
+        for config in configs:
+            # determine number of nodes in configuration
+            if number_nonzero_nodes(config) > 1:
+                continue
+            new_hierarchy[number_parts].append(config)
+    return new_hierarchy
+
+
+def number_nonzero_parts(configuration: Dict[Tuple[bytes, bytes], int]) -> int:
     return len([v for v in configuration.values() if v])
 
 
-def create_starting_split_hierarchy(amount_msat: int, channels_with_funds: Dict[bytes, int]):
+def number_nonzero_nodes(configuration: Dict[Tuple[bytes, bytes], int]) -> int:
+    return len({nodeid for (_, nodeid), amount in configuration.items() if amount > 0})
+
+
+def create_starting_split_hierarchy(amount_msat: int, channels_with_funds: Dict[Tuple[bytes, bytes], int]):
     """Distributes the amount to send to a single or more channels in several
     ways (randomly)."""
     # TODO: find all possible starting configurations deterministically
@@ -81,8 +96,8 @@ def balances_are_not_ok(proposed_balance_from, channel_from, proposed_balance_to
     return check
 
 
-def propose_new_configuration(channels_with_funds: Dict[bytes, int], configuration: Dict[bytes, int],
-                              amount_msat: int, preserve_number_parts=True) -> Dict[bytes, int]:
+def propose_new_configuration(channels_with_funds: Dict[Tuple[bytes, bytes], int], configuration: Dict[Tuple[bytes, bytes], int],
+                              amount_msat: int, preserve_number_parts=True) -> Dict[Tuple[bytes, bytes], int]:
     """Randomly alters a split configuration. If preserve_number_parts, the
     configuration stays within the same class of number of splits."""
 
@@ -162,9 +177,13 @@ def propose_new_configuration(channels_with_funds: Dict[bytes, int], configurati
 
 
 @profiler
-def suggest_splits(amount_msat: int, channels_with_funds, exclude_single_parts=True) -> Sequence[Tuple[Dict[bytes, int], float]]:
+def suggest_splits(amount_msat: int, channels_with_funds: Dict[Tuple[bytes, bytes], int],
+                   exclude_single_parts=True, single_node=False) \
+        -> Sequence[Tuple[Dict[Tuple[bytes, bytes], int], float]]:
     """Creates split configurations for a payment over channels. Single channel
-    payments are excluded by default."""
+    payments are excluded by default. channels_with_funds is keyed by
+    (channelid, nodeid)."""
+
     def rate_configuration(config: dict) -> float:
         """Defines an objective function to rate a split configuration.
 
@@ -185,7 +204,7 @@ def suggest_splits(amount_msat: int, channels_with_funds, exclude_single_parts=T
 
         return F
 
-    def rated_sorted_configurations(hierarchy: dict) -> Sequence[Tuple[Dict[bytes, int], float]]:
+    def rated_sorted_configurations(hierarchy: dict) -> Sequence[Tuple[Dict[Tuple[bytes, bytes], int], float]]:
         """Cleans up duplicate splittings, rates and sorts them according to
         the rating. A lower rating is a better configuration."""
         hierarchy = unique_hierarchy(hierarchy)
@@ -232,5 +251,9 @@ def suggest_splits(amount_msat: int, channels_with_funds, exclude_single_parts=T
             del split_hierarchy[1]
         except:
             pass
+
+    if single_node:
+        # we only take configurations that send to a single node
+        split_hierarchy = single_node_hierarchy(split_hierarchy)
 
     return rated_sorted_configurations(split_hierarchy)

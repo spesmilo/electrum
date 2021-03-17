@@ -97,7 +97,7 @@ class Peer(Logger):
         self.funding_signed_sent = set()  # for channels in PREOPENING
         self.shutdown_received = {} # chan_id -> asyncio.Future()
         self.announcement_signatures = defaultdict(asyncio.Queue)
-        self.orphan_channel_updates = OrderedDict()
+        self.orphan_channel_updates = OrderedDict()  # type: OrderedDict[ShortChannelID, dict]
         Logger.__init__(self)
         self.taskgroup = SilentTaskGroup()
         # HTLCs offered by REMOTE, that we started removing but are still active:
@@ -273,7 +273,7 @@ class Peer(Logger):
             return
         for chan in self.channels.values():
             if chan.short_channel_id == payload['short_channel_id']:
-                chan.set_remote_update(payload['raw'])
+                chan.set_remote_update(payload)
                 self.logger.info("saved remote_update")
                 break
         else:
@@ -342,28 +342,8 @@ class Peer(Logger):
                     raise Exception('unknown message')
                 if self.gossip_queue.empty():
                     break
-            # verify in peer's TaskGroup so that we fail the connection
-            self.verify_channel_announcements(chan_anns)
-            self.verify_node_announcements(node_anns)
             if self.network.lngossip:
                 await self.network.lngossip.process_gossip(chan_anns, node_anns, chan_upds)
-
-    def verify_channel_announcements(self, chan_anns):
-        for payload in chan_anns:
-            h = sha256d(payload['raw'][2+256:]) # Keep this sha256d for GRS!!
-            pubkeys = [payload['node_id_1'], payload['node_id_2'], payload['bitcoin_key_1'], payload['bitcoin_key_2']]
-            sigs = [payload['node_signature_1'], payload['node_signature_2'], payload['bitcoin_signature_1'], payload['bitcoin_signature_2']]
-            for pubkey, sig in zip(pubkeys, sigs):
-                if not ecc.verify_signature(pubkey, sig, h):
-                    raise Exception('signature failed')
-
-    def verify_node_announcements(self, node_anns):
-        for payload in node_anns:
-            pubkey = payload['node_id']
-            signature = payload['signature']
-            h = sha256d(payload['raw'][66:]) # Keep this sha256d for GRS!!
-            if not ecc.verify_signature(pubkey, signature, h):
-                raise Exception('signature failed')
 
     async def query_gossip(self):
         try:
@@ -917,6 +897,10 @@ class Peer(Logger):
     async def reestablish_channel(self, chan: Channel):
         await self.initialized
         chan_id = chan.channel_id
+        if chan.should_request_force_close:
+            await self.trigger_force_close(chan_id)
+            chan.should_request_force_close = False
+            return
         assert ChannelState.PREOPENING < chan.get_state() < ChannelState.FORCE_CLOSING
         if chan.peer_state != PeerState.DISCONNECTED:
             self.logger.info(f'reestablish_channel was called but channel {chan.get_id_for_log()} '
@@ -961,6 +945,10 @@ class Peer(Logger):
             except asyncio.TimeoutError:
                 self.logger.info('waiting to receive channel_reestablish...')
                 continue
+            except Exception as e:
+                # do not kill connection, because we might have other channels with that peer
+                self.logger.info(f'channel_reestablish failed, {e}')
+                return
         their_next_local_ctn = msg["next_commitment_number"]
         their_oldest_unrevoked_remote_ctn = msg["next_revocation_number"]
         their_local_pcp = msg.get("my_current_per_commitment_point")
@@ -1169,7 +1157,7 @@ class Peer(Logger):
         # peer may have sent us a channel update for the incoming direction previously
         pending_channel_update = self.orphan_channel_updates.get(chan.short_channel_id)
         if pending_channel_update:
-            chan.set_remote_update(pending_channel_update['raw'])
+            chan.set_remote_update(pending_channel_update)
         self.logger.info(f"CHANNEL OPENING COMPLETED ({chan.get_id_for_log()})")
         forwarding_enabled = self.network.config.get('lightning_forward_payments', False)
         if forwarding_enabled:

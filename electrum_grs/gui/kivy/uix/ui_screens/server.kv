@@ -23,7 +23,7 @@ Popup:
                 height: '36dp'
                 size_hint_x: 3
                 size_hint_y: None
-                text: app.network.get_parameters().server.net_addr_str()
+                text: app.network.get_parameters().server.to_friendly_name()
             Widget
             Button:
                 id: chooser

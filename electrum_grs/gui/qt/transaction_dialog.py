@@ -110,7 +110,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         self.prompt_if_unsaved = prompt_if_unsaved
         self.saved = False
         self.desc = desc
-        self.setMinimumWidth(950)
+        self.setMinimumWidth(1200)
         self.set_title()
 
         self.psbt_only_widgets = []  # type: List[QWidget]
