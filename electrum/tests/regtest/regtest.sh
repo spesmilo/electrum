@@ -154,6 +154,7 @@ if [[ $1 == "backup" ]]; then
     $alice load_wallet
     $alice import_channel_backup $backup
     $alice request_force_close $channel
+    wait_for_balance alice 0.989
 fi
 
 
