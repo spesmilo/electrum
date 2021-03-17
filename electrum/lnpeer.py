@@ -1352,34 +1352,36 @@ class Peer(Logger):
             raise OnionRoutingFailure(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
         outgoing_chan_upd = next_chan.get_outgoing_gossip_channel_update()[2:]
         outgoing_chan_upd_len = len(outgoing_chan_upd).to_bytes(2, byteorder="big")
+        outgoing_chan_upd_message = outgoing_chan_upd_len + outgoing_chan_upd
         if not next_chan.can_send_update_add_htlc():
             self.logger.info(f"cannot forward htlc. next_chan {next_chan_scid} cannot send ctx updates. "
                              f"chan state {next_chan.get_state()!r}, peer state: {next_chan.peer_state!r}")
-            data = outgoing_chan_upd_len + outgoing_chan_upd
-            raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=data)
+            raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
+        try:
+            next_amount_msat_htlc = processed_onion.hop_data.payload["amt_to_forward"]["amt_to_forward"]
+        except:
+            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
+        if not next_chan.can_pay(next_amount_msat_htlc):
+            self.logger.info(f"cannot forward htlc due to transient errors (likely due to insufficient funds)")
+            raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
         try:
             next_cltv_expiry = processed_onion.hop_data.payload["outgoing_cltv_value"]["outgoing_cltv_value"]
         except:
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
         if htlc.cltv_expiry - next_cltv_expiry < next_chan.forwarding_cltv_expiry_delta:
-            data = htlc.cltv_expiry.to_bytes(4, byteorder="big") + outgoing_chan_upd_len + outgoing_chan_upd
+            data = htlc.cltv_expiry.to_bytes(4, byteorder="big") + outgoing_chan_upd_message
             raise OnionRoutingFailure(code=OnionFailureCode.INCORRECT_CLTV_EXPIRY, data=data)
         if htlc.cltv_expiry - lnutil.MIN_FINAL_CLTV_EXPIRY_ACCEPTED <= local_height \
                 or next_cltv_expiry <= local_height:
-            data = outgoing_chan_upd_len + outgoing_chan_upd
-            raise OnionRoutingFailure(code=OnionFailureCode.EXPIRY_TOO_SOON, data=data)
+            raise OnionRoutingFailure(code=OnionFailureCode.EXPIRY_TOO_SOON, data=outgoing_chan_upd_message)
         if max(htlc.cltv_expiry, next_cltv_expiry) > local_height + lnutil.NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE:
             raise OnionRoutingFailure(code=OnionFailureCode.EXPIRY_TOO_FAR, data=b'')
-        try:
-            next_amount_msat_htlc = processed_onion.hop_data.payload["amt_to_forward"]["amt_to_forward"]
-        except:
-            raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
         forwarding_fees = fee_for_edge_msat(
             forwarded_amount_msat=next_amount_msat_htlc,
             fee_base_msat=next_chan.forwarding_fee_base_msat,
             fee_proportional_millionths=next_chan.forwarding_fee_proportional_millionths)
         if htlc.amount_msat - next_amount_msat_htlc < forwarding_fees:
-            data = next_amount_msat_htlc.to_bytes(8, byteorder="big") + outgoing_chan_upd_len + outgoing_chan_upd
+            data = next_amount_msat_htlc.to_bytes(8, byteorder="big") + outgoing_chan_upd_message
             raise OnionRoutingFailure(code=OnionFailureCode.FEE_INSUFFICIENT, data=data)
         self.logger.info(f'forwarding htlc to {next_chan.node_id}')
         next_htlc = UpdateAddHtlc(
@@ -1401,8 +1403,7 @@ class Peer(Logger):
             )
         except BaseException as e:
             self.logger.info(f"failed to forward htlc: error sending message. {e}")
-            data = outgoing_chan_upd_len + outgoing_chan_upd
-            raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=data)
+            raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
         return next_chan_scid, next_htlc.htlc_id
 
     def maybe_forward_trampoline(
