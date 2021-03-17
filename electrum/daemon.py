@@ -413,8 +413,6 @@ class Daemon(Logger):
     @profiler
     def __init__(self, config: SimpleConfig, fd=None, *, listen_jsonrpc=True):
         Logger.__init__(self)
-        self.running = False
-        self.running_lock = threading.Lock()
         self.config = config
         if fd is None and listen_jsonrpc:
             fd = get_file_descriptor(config)
@@ -455,6 +453,7 @@ class Daemon(Logger):
             if self.config.get('use_gossip', False):
                 self.network.start_gossip()
 
+        self.stopping_soon = threading.Event()
         self.stopped_event = asyncio.Event()
         self.taskgroup = TaskGroup()
         asyncio.run_coroutine_threadsafe(self._run(jobs=daemon_jobs), self.asyncio_loop)
@@ -474,6 +473,7 @@ class Daemon(Logger):
             self.logger.exception("taskgroup died.")
         finally:
             self.logger.info("taskgroup stopped.")
+            self.stopping_soon.set()
 
     def load_wallet(self, path, password, *, manual_upgrades=True) -> Optional[Abstract_Wallet]:
         path = standardize_path(path)
@@ -531,21 +531,14 @@ class Daemon(Logger):
         return True
 
     def run_daemon(self):
-        self.running = True
         try:
-            while self.is_running():
-                time.sleep(0.1)
+            self.stopping_soon.wait()
         except KeyboardInterrupt:
-            self.running = False
+            self.stopping_soon.set()
         self.on_stop()
 
-    def is_running(self):
-        with self.running_lock:
-            return self.running and not self.taskgroup.closed()
-
     async def stop(self):
-        with self.running_lock:
-            self.running = False
+        self.stopping_soon.set()
         await self.stopped_event.wait()
 
     def on_stop(self):

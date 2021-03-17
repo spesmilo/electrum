@@ -71,7 +71,7 @@ class Listener(util.DaemonThread):
         self.received.remove(keyhash)
 
     def run(self):
-        while self.running:
+        while self.is_running():
             if not self.keyhashes:
                 time.sleep(2)
                 continue
