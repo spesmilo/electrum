@@ -636,6 +636,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 await self.switch_to_interface(server)
             else:
                 await self.switch_lagging_interface()
+        util.trigger_callback('network_updated')
 
     def _maybe_set_oneserver(self) -> None:
         oneserver = bool(self.config.get('oneserver', False))
