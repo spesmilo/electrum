@@ -455,6 +455,7 @@ class Daemon(Logger):
             if self.config.get('use_gossip', False):
                 self.network.start_gossip()
 
+        self.stopped_event = asyncio.Event()
         self.taskgroup = TaskGroup()
         asyncio.run_coroutine_threadsafe(self._run(jobs=daemon_jobs), self.asyncio_loop)
 
@@ -542,33 +543,36 @@ class Daemon(Logger):
         with self.running_lock:
             return self.running and not self.taskgroup.closed()
 
-    def stop(self):
+    async def stop(self):
         with self.running_lock:
             self.running = False
+        await self.stopped_event.wait()
 
     def on_stop(self):
-        self.logger.info("on_stop() entered. initiating shutdown")
-        if self.gui_object:
-            self.gui_object.stop()
+        try:
+            self.logger.info("on_stop() entered. initiating shutdown")
+            if self.gui_object:
+                self.gui_object.stop()
 
-        @log_exceptions
-        async def stop_async():
-            self.logger.info("stopping all wallets")
-            async with TaskGroup() as group:
-                for k, wallet in self._wallets.items():
-                    await group.spawn(wallet.stop())
-            self.logger.info("stopping network and taskgroup")
-            async with ignore_after(2):
+            async def stop_async():
+                self.logger.info("stopping all wallets")
                 async with TaskGroup() as group:
-                    if self.network:
-                        await group.spawn(self.network.stop(full_shutdown=True))
-                    await group.spawn(self.taskgroup.cancel_remaining())
+                    for k, wallet in self._wallets.items():
+                        await group.spawn(wallet.stop())
+                self.logger.info("stopping network and taskgroup")
+                async with ignore_after(2):
+                    async with TaskGroup() as group:
+                        if self.network:
+                            await group.spawn(self.network.stop(full_shutdown=True))
+                        await group.spawn(self.taskgroup.cancel_remaining())
 
-        fut = asyncio.run_coroutine_threadsafe(stop_async(), self.asyncio_loop)
-        fut.result()
-        self.logger.info("removing lockfile")
-        remove_lockfile(get_lockfile(self.config))
-        self.logger.info("stopped")
+            fut = asyncio.run_coroutine_threadsafe(stop_async(), self.asyncio_loop)
+            fut.result()
+        finally:
+            self.logger.info("removing lockfile")
+            remove_lockfile(get_lockfile(self.config))
+            self.logger.info("stopped")
+            self.asyncio_loop.call_soon_threadsafe(self.stopped_event.set)
 
     def run_gui(self, config, plugins):
         threading.current_thread().setName('GUI')
