@@ -95,8 +95,11 @@ class ChannelsList(MyTreeView):
             self.Columns.CHANNEL_STATUS: status,
         }
 
-    def on_success(self, txid):
+    def on_channel_closed(self, txid):
         self.main_window.show_error('Channel closed' + '\n' + txid)
+
+    def on_request_sent(self, b):
+        self.main_window.show_message(_('Request sent'))
 
     def on_failure(self, exc_info):
         type_, e, tb = exc_info
@@ -117,13 +120,15 @@ class ChannelsList(MyTreeView):
         force_cb.setToolTip(tooltip)
         if not self.parent.question(msg, checkbox=force_cb):
             return
+        if self.is_force_close:
+            coro = self.lnworker.request_force_close(channel_id)
+            on_success = self.on_request_sent
+        else:
+            coro = self.lnworker.close_channel(channel_id)
+            on_success = self.on_channel_closed
         def task():
-            if self.is_force_close:
-                coro = self.lnworker.request_force_close(channel_id)
-            else:
-                coro = self.lnworker.close_channel(channel_id)
             return self.network.run_from_another_thread(coro)
-        WaitingDialog(self, 'please wait..', task, self.on_success, self.on_failure)
+        WaitingDialog(self, 'please wait..', task, on_success, self.on_failure)
 
     def force_close(self, channel_id):
         self.save_backup = True
@@ -147,7 +152,7 @@ class ChannelsList(MyTreeView):
         def task():
             coro = self.lnworker.force_close_channel(channel_id)
             return self.network.run_from_another_thread(coro)
-        WaitingDialog(self, 'please wait..', task, self.on_success, self.on_failure)
+        WaitingDialog(self, 'please wait..', task, self.on_channel_closed, self.on_failure)
 
     def remove_channel(self, channel_id):
         if self.main_window.question(_('Are you sure you want to delete this channel? This will purge associated transactions from your wallet history.')):
@@ -171,9 +176,7 @@ class ChannelsList(MyTreeView):
         def task():
             coro = self.lnworker.request_force_close_from_backup(channel_id)
             return self.network.run_from_another_thread(coro)
-        def on_success(b):
-            self.main_window.show_message('success')
-        WaitingDialog(self, 'please wait..', task, on_success, self.on_failure)
+        WaitingDialog(self, 'please wait..', task, self.on_request_sent, self.on_failure)
 
     def freeze_channel_for_sending(self, chan, b):
         if self.lnworker.channel_db or self.lnworker.is_trampoline_peer(chan.node_id):
