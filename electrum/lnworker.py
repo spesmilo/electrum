@@ -2008,23 +2008,11 @@ class LNWallet(LNWorker):
         assert backup_bytes == pw_decode_with_version_and_mac(encrypted, xpub), "encrypt failed"
         return 'channel_backup:' + encrypted
 
-    async def request_remote_force_close(
-            self, *, funding_txid: str, funding_index: int, connect_str: str):
-        """
-        Requests the remote to force close a channel. Can be used without
-        having state or any backup for the channel.
-        Assumes that channel was originally opened with the same local peer (node_keypair).
-        Kept for console use.
-
-        Example:
-        network.run_from_another_thread(wallet.lnworker.request_remote_force_close(funding_txid="11a3b391bc99dbca0b2be4fdd8f18ca641896c81ae4d9596b30cbf1eef17af71", funding_index=1, connect_str="023a8dfe081c6bbd0504e599f33d39d17687de63023a8b20afcb59147d9d77c19d"))
-        """
-        channel_id = lnutil.channel_id_from_funding_tx(funding_txid, funding_index)[0]
-        peer = await self.add_peer(connect_str)
-        await peer.trigger_force_close(channel_id)
-
-    async def request_force_close(self, channel_id: bytes) -> None:
-        if channel_id in self.channels:
+    async def request_force_close(self, channel_id: bytes, *, connect_str=None) -> None:
+        if connect_str:
+            peer = await self.add_peer(connect_str)
+            await peer.trigger_force_close(channel_id)
+        elif channel_id in self.channels:
             chan = self.channels[channel_id]
             peer = self._peers.get(chan.node_id)
             if not peer:

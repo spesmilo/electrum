@@ -1096,10 +1096,15 @@ class Commands:
         return await coro
 
     @command('wn')
-    async def request_force_close(self, channel_point, wallet: Abstract_Wallet = None):
+    async def request_force_close(self, channel_point, connection_string=None, wallet: Abstract_Wallet = None):
+        """
+        Requests the remote to force close a channel.
+        If a connection string is passed, can be used without having state or any backup for the channel.
+        Assumes that channel was originally opened with the same local peer (node_keypair).
+        """
         txid, index = channel_point.split(':')
         chan_id, _ = channel_id_from_funding_tx(txid, int(index))
-        return await wallet.lnworker.request_force_close(chan_id)
+        await wallet.lnworker.request_force_close(chan_id, connect_str=connection_string)
 
     @command('w')
     async def export_channel_backup(self, channel_point, wallet: Abstract_Wallet = None):
@@ -1264,6 +1269,7 @@ command_options = {
     'to_height':   (None, "Only show transactions that confirmed before given block height"),
     'iknowwhatimdoing': (None, "Acknowledge that I understand the full implications of what I am about to do"),
     'gossip':      (None, "Apply command to gossip node instead of wallet"),
+    'connection_string':      (None, "Lightning network node ID or network address"),
 }
 
 
