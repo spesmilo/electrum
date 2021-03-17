@@ -897,6 +897,10 @@ class Peer(Logger):
     async def reestablish_channel(self, chan: Channel):
         await self.initialized
         chan_id = chan.channel_id
+        if chan.should_request_force_close:
+            await self.trigger_force_close(chan_id)
+            chan.should_request_force_close = False
+            return
         assert ChannelState.PREOPENING < chan.get_state() < ChannelState.FORCE_CLOSING
         if chan.peer_state != PeerState.DISCONNECTED:
             self.logger.info(f'reestablish_channel was called but channel {chan.get_id_for_log()} '
@@ -941,6 +945,10 @@ class Peer(Logger):
             except asyncio.TimeoutError:
                 self.logger.info('waiting to receive channel_reestablish...')
                 continue
+            except Exception as e:
+                # do not kill connection, because we might have other channels with that peer
+                self.logger.info(f'channel_reestablish failed, {e}')
+                return
         their_next_local_ctn = msg["next_commitment_number"]
         their_oldest_unrevoked_remote_ctn = msg["next_revocation_number"]
         their_local_pcp = msg.get("my_current_per_commitment_point")

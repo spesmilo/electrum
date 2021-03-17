@@ -542,6 +542,7 @@ class Channel(AbstractChannel):
         self._can_send_ctx_updates = True  # type: bool
         self._receive_fail_reasons = {}  # type: Dict[int, (bytes, OnionRoutingFailure)]
         self._ignore_max_htlc_value = False  # used in tests
+        self.should_request_force_close = False
 
     def get_capacity(self):
         return self.constraints.capacity
