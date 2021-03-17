@@ -38,7 +38,7 @@ from electrum.invoices import PR_PAID, PR_UNPAID
 
 from .test_lnchannel import create_test_channels
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
-from . import ElectrumTestCase
+from . import TestCaseForTestnet
 
 def keypair():
     priv = ECPrivkey.generate_random_key().get_secret_bytes()
@@ -303,7 +303,7 @@ class PaymentDone(Exception): pass
 class TestSuccess(Exception): pass
 
 
-class TestPeer(ElectrumTestCase):
+class TestPeer(TestCaseForTestnet):
 
     @classmethod
     def setUpClass(cls):

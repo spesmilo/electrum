@@ -1177,7 +1177,7 @@ class LNWallet(LNWorker):
             if code == OnionFailureCode.MPP_TIMEOUT:
                 raise PaymentFailure(failure_msg.code_name())
             # trampoline
-            if self.channel_db is None:
+            if not self.channel_db:
                 if code == OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT:
                     # todo: parse the node parameters here (not returned by eclair yet)
                     trampoline_fee_level += 1
@@ -1437,21 +1437,24 @@ class LNWallet(LNWorker):
         except NoPathFound:
             if not invoice_features.supports(LnFeatures.BASIC_MPP_OPT):
                 raise
-            channels_with_funds = dict([
-                (cid, int(chan.available_to_spend(HTLCOwner.LOCAL)))
-                for cid, chan in self._channels.items() if not chan.is_frozen_for_sending()])
+
+            channels_with_funds = {(cid, chan.node_id): int(chan.available_to_spend(HTLCOwner.LOCAL))
+                for cid, chan in self._channels.items() if not chan.is_frozen_for_sending()}
             self.logger.info(f"channels_with_funds: {channels_with_funds}")
-            # Create split configurations that are rated according to our
-            # preference -funds = (low rating=high preference).
-            split_configurations = suggest_splits(amount_msat, channels_with_funds)
+            # for trampoline mpp payments we have to restrict ourselves to pay
+            # to a single node due to some incompatibility in Eclair, see:
+            # https://github.com/ACINQ/eclair/issues/1723
+            use_singe_node = not self.channel_db and constants.net is constants.BitcoinMainnet
+            split_configurations = suggest_splits(amount_msat, channels_with_funds, single_node=use_singe_node)
             self.logger.info(f'suggest_split {amount_msat} returned {len(split_configurations)} configurations')
+
             for s in split_configurations:
                 self.logger.info(f"trying split configuration: {s[0].values()} rating: {s[1]}")
                 routes = []
                 try:
                     if not self.channel_db:
                         buckets = defaultdict(list)
-                        for chan_id, part_amount_msat in s[0].items():
+                        for (chan_id, _), part_amount_msat in s[0].items():
                             chan = self.channels[chan_id]
                             if part_amount_msat:
                                 buckets[chan.node_id].append((chan_id, part_amount_msat))
@@ -1497,7 +1500,7 @@ class LNWallet(LNWorker):
                                 self.logger.info('not enough margin to pay trampoline fee')
                                 raise NoPathFound()
                     else:
-                        for chan_id, part_amount_msat in s[0].items():
+                        for (chan_id, _), part_amount_msat in s[0].items():
                             if part_amount_msat:
                                 channel = self.channels[chan_id]
                                 route = self.create_route_for_payment(
@@ -1787,7 +1790,7 @@ class LNWallet(LNWorker):
             self.logger.info(f"htlc_failed {failure_message}")
 
             # check sent_buckets if we use trampoline
-            if self.channel_db is None and payment_secret in self.sent_buckets:
+            if not self.channel_db and payment_secret in self.sent_buckets:
                 amount_sent, amount_failed = self.sent_buckets[payment_secret]
                 amount_failed += amount_receiver_msat
                 self.sent_buckets[payment_secret] = amount_sent, amount_failed
