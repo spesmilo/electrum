@@ -677,7 +677,9 @@ class Peer(Logger):
         funding_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
         funding_output = PartialTxOutput.from_address_and_value(funding_address, funding_sat)
         dummy_output = PartialTxOutput.from_address_and_value(ln_dummy_address(), funding_sat)
-        funding_tx.outputs().remove(dummy_output)
+        if dummy_output not in funding_tx.outputs(): raise Exception("LN dummy output (err 1)")
+        funding_tx._outputs.remove(dummy_output)
+        if dummy_output in funding_tx.outputs(): raise Exception("LN dummy output (err 2)")
         funding_tx.add_outputs([funding_output])
         funding_tx.set_rbf(False)
         if not funding_tx.is_segwit():
