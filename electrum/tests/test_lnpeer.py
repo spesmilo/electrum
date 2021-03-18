@@ -140,10 +140,8 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
             chan.lnworker = self
         self._peers = {}  # bytes -> Peer
         # used in tests
-        self.enable_htlc_settle = asyncio.Event()
-        self.enable_htlc_settle.set()
-        self.enable_htlc_forwarding = asyncio.Event()
-        self.enable_htlc_forwarding.set()
+        self.enable_htlc_settle = True
+        self.enable_htlc_forwarding = True
         self.received_mpp_htlcs = dict()
         self.sent_htlcs = defaultdict(asyncio.Queue)
         self.sent_htlcs_routes = dict()
@@ -790,7 +788,7 @@ class TestPeer(TestCaseForTestnet):
             if mpp_invoice:
                 graph.w_d.features |= LnFeatures.BASIC_MPP_OPT
             if not bob_forwarding:
-                graph.w_b.enable_htlc_forwarding.clear()
+                graph.w_b.enable_htlc_forwarding = False
             if alice_uses_trampoline:
                 if graph.w_a.network.channel_db:
                     graph.w_a.network.channel_db.stop()
@@ -803,7 +801,7 @@ class TestPeer(TestCaseForTestnet):
             result, log = await graph.w_a.pay_invoice(pay_req, attempts=attempts)
             if not bob_forwarding:
                 # reset to previous state, sleep 2s so that the second htlc can time out
-                graph.w_b.enable_htlc_forwarding.set()
+                graph.w_b.enable_htlc_forwarding = True
                 await asyncio.sleep(2)
             if result:
                 self.assertEqual(PR_PAID, graph.w_d.get_payment_status(lnaddr.paymenthash))
@@ -855,7 +853,7 @@ class TestPeer(TestCaseForTestnet):
         graph.w_d.TIMEOUT_SHUTDOWN_FAIL_PENDING_HTLCS = 3
         async def pay():
             graph.w_d.features |= LnFeatures.BASIC_MPP_OPT
-            graph.w_b.enable_htlc_forwarding.clear()  # Bob will hold forwarded HTLCs
+            graph.w_b.enable_htlc_forwarding = False  # Bob will hold forwarded HTLCs
             assert graph.w_a.network.channel_db is not None
             lnaddr, pay_req = await self.prepare_invoice(graph.w_d, include_routing_hints=True, amount_msat=amount_to_pay)
             try:
@@ -892,7 +890,7 @@ class TestPeer(TestCaseForTestnet):
         w2.network.config.set_key('dynamic_fees', False)
         w1.network.config.set_key('fee_per_kb', 5000)
         w2.network.config.set_key('fee_per_kb', 1000)
-        w2.enable_htlc_settle.clear()
+        w2.enable_htlc_settle = False
         lnaddr, pay_req = run(self.prepare_invoice(w2))
         async def pay():
             await asyncio.wait_for(p1.initialized, 1)
@@ -911,7 +909,7 @@ class TestPeer(TestCaseForTestnet):
             gath.cancel()
         async def set_settle():
             await asyncio.sleep(0.1)
-            w2.enable_htlc_settle.set()
+            w2.enable_htlc_settle = True
         gath = asyncio.gather(pay(), set_settle(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         async def f():
             await gath

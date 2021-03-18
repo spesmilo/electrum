@@ -602,10 +602,8 @@ class LNWallet(LNWorker):
         self.sweep_address = wallet.get_new_sweep_address_for_channel()
         self.logs = defaultdict(list)  # type: Dict[str, List[HtlcLog]]  # key is RHASH  # (not persisted)
         # used in tests
-        self.enable_htlc_settle = asyncio.Event()
-        self.enable_htlc_settle.set()
-        self.enable_htlc_forwarding = asyncio.Event()
-        self.enable_htlc_forwarding.set()
+        self.enable_htlc_settle = True
+        self.enable_htlc_forwarding = True
 
         # note: accessing channels (besides simple lookup) needs self.lock!
         self._channels = {}  # type: Dict[bytes, Channel]

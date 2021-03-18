@@ -1828,7 +1828,7 @@ class Peer(Logger):
                         error_reason = e
                     else:
                         try:
-                            preimage, fw_info, error_bytes = await self.process_unfulfilled_htlc(
+                            preimage, fw_info, error_bytes = self.process_unfulfilled_htlc(
                                 chan=chan,
                                 htlc=htlc,
                                 forwarding_info=forwarding_info,
@@ -1840,7 +1840,8 @@ class Peer(Logger):
                         unfulfilled[htlc_id] = local_ctn, remote_ctn, onion_packet_hex, fw_info
                     elif preimage or error_reason or error_bytes:
                         if preimage:
-                            await self.lnworker.enable_htlc_settle.wait()
+                            if not self.lnworker.enable_htlc_settle:
+                                continue
                             self.fulfill_htlc(chan, htlc.htlc_id, preimage)
                         elif error_bytes:
                             self.fail_htlc(
@@ -1880,7 +1881,7 @@ class Peer(Logger):
             await group.spawn(htlc_switch_iteration())
             await group.spawn(self.got_disconnected.wait())
 
-    async def process_unfulfilled_htlc(
+    def process_unfulfilled_htlc(
             self, *,
             chan: Channel,
             htlc: UpdateAddHtlc,
@@ -1919,7 +1920,8 @@ class Peer(Logger):
                             is_trampoline=True)
                     else:
                         # trampoline- HTLC we are supposed to forward, but haven't forwarded yet
-                        await self.lnworker.enable_htlc_forwarding.wait()
+                        if not self.lnworker.enable_htlc_forwarding:
+                            return None, None, None
                         self.maybe_forward_trampoline(
                             chan=chan,
                             htlc=htlc,
@@ -1936,7 +1938,8 @@ class Peer(Logger):
 
         elif not forwarding_info:
             # HTLC we are supposed to forward, but haven't forwarded yet
-            await self.lnworker.enable_htlc_forwarding.wait()
+            if not self.lnworker.enable_htlc_forwarding:
+                return None, None, None
             next_chan_id, next_htlc_id = self.maybe_forward_htlc(
                 htlc=htlc,
                 processed_onion=processed_onion)
