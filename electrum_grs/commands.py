@@ -1077,8 +1077,7 @@ class Commands:
 
     @command('wn')
     async def enable_htlc_settle(self, b: bool, wallet: Abstract_Wallet = None):
-        e = wallet.lnworker.enable_htlc_settle
-        e.set() if b else e.clear()
+        wallet.lnworker.enable_htlc_settle = b
 
     @command('n')
     async def clear_ln_blacklist(self):

@@ -147,7 +147,6 @@ if [[ $1 == "backup" ]]; then
     $alice lnpay $request
     seed=$($alice getseed)
     $alice stop
-    sleep 2 # FIXME: we should not have to do that..
     mv /tmp/alice/regtest/wallets/default_wallet /tmp/alice/regtest/wallets/default_wallet.old
     $alice -o restore "$seed"
     $alice daemon -d
