@@ -158,12 +158,13 @@ class TestTransaction(ElectrumTestCase):
         # the inverse of this test is in test_bitcoin: test_address_to_script
         addr_from_script = lambda script: transaction.get_address_from_output_script(bfh(script))
 
-        # bech32 native segwit
-        # test vectors from BIP-0173
+        # bech32/bech32m native segwit
+        # test vectors from BIP-0173/BIP-0350
         self.assertEqual('ltc1qw508d6qejxtdg4y5r3zarvary0c5xw7kgmn4n9', addr_from_script('0014751e76e8199196d454941c45d1b3a323f1433bd6'))
-        self.assertEqual('ltc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7k0tul4w', addr_from_script('5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6'))
-        self.assertEqual('ltc1sw50qzgydf5', addr_from_script('6002751e'))
-        self.assertEqual('ltc1zw508d6qejxtdg4y5r3zarvaryvdzur3w', addr_from_script('5210751e76e8199196d454941c45d1b3a323'))
+        self.assertEqual('ltc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7k6hvnsv', addr_from_script('5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6'))
+        self.assertEqual('ltc1sw50qh55pvk', addr_from_script('6002751e'))
+        self.assertEqual('ltc1zw508d6qejxtdg4y5r3zarvaryvc7v05v', addr_from_script('5210751e76e8199196d454941c45d1b3a323'))
+        self.assertEqual('ltc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqpj6zg2', addr_from_script('512079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'))
         # almost but not quite
         self.assertEqual(None, addr_from_script('0013751e76e8199196d454941c45d1b3a323f1433b'))
 

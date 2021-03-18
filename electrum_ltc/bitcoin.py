@@ -395,7 +395,9 @@ def public_key_to_p2pkh(public_key: bytes, *, net=None) -> str:
 
 def hash_to_segwit_addr(h: bytes, witver: int, *, net=None) -> str:
     if net is None: net = constants.net
-    return segwit_addr.encode(net.SEGWIT_HRP, witver, h)
+    addr = segwit_addr.encode_segwit_address(net.SEGWIT_HRP, witver, h)
+    assert addr is not None
+    return addr
 
 def public_key_to_p2wpkh(public_key: bytes, *, net=None) -> str:
     if net is None: net = constants.net
@@ -452,7 +454,7 @@ def address_to_script(addr: str, *, net=None) -> str:
     if net is None: net = constants.net
     if not is_address(addr, net=net):
         raise BitcoinException(f"invalid bitcoin address: {addr}")
-    witver, witprog = segwit_addr.decode(net.SEGWIT_HRP, addr)
+    witver, witprog = segwit_addr.decode_segwit_address(net.SEGWIT_HRP, addr)
     if witprog is not None:
         if not (0 <= witver <= 16):
             raise BitcoinException(f'impossible witness version: {witver}')
@@ -482,7 +484,7 @@ def address_to_hash(addr: str, *, net=None) -> Tuple[OnchainOutputType, bytes]:
     if net is None: net = constants.net
     if not is_address(addr, net=net):
         raise BitcoinException(f"invalid bitcoin address: {addr}")
-    witver, witprog = segwit_addr.decode(net.SEGWIT_HRP, addr)
+    witver, witprog = segwit_addr.decode_segwit_address(net.SEGWIT_HRP, addr)
     if witprog is not None:
         if witver != 0:
             raise BitcoinException(f"not implemented handling for witver={witver}")
@@ -714,7 +716,7 @@ def address_from_private_key(sec: str) -> str:
 def is_segwit_address(addr: str, *, net=None) -> bool:
     if net is None: net = constants.net
     try:
-        witver, witprog = segwit_addr.decode(net.SEGWIT_HRP, addr)
+        witver, witprog = segwit_addr.decode_segwit_address(net.SEGWIT_HRP, addr)
     except Exception as e:
         return False
     return witprog is not None

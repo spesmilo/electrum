@@ -468,8 +468,10 @@ class ChannelBackup(AbstractChannel):
             return 'BACKUP'
 
     def get_state_for_GUI(self):
-        cs = self.get_state()
-        return cs.name
+        if self.lnworker:
+            return self.lnworker.lnwatcher.get_channel_status(self.funding_outpoint.to_str())
+        else:
+            return 'unknown'
 
     def get_oldest_unrevoked_ctn(self, who):
         return -1
@@ -540,6 +542,7 @@ class Channel(AbstractChannel):
         self._can_send_ctx_updates = True  # type: bool
         self._receive_fail_reasons = {}  # type: Dict[int, (bytes, OnionRoutingFailure)]
         self._ignore_max_htlc_value = False  # used in tests
+        self.should_request_force_close = False
 
     def get_capacity(self):
         return self.constraints.capacity
@@ -578,7 +581,14 @@ class Channel(AbstractChannel):
             raise Exception('lnworker not set for channel!')
         return self.lnworker.node_keypair.pubkey
 
-    def set_remote_update(self, raw: bytes) -> None:
+    def set_remote_update(self, payload: dict) -> None:
+        """Save the ChannelUpdate message for the incoming direction of this channel.
+        This message contains info we need to populate private route hints when
+        creating invoices.
+        """
+        from .channel_db import ChannelDB
+        ChannelDB.verify_channel_update(payload, start_node=self.node_id)
+        raw = payload['raw']
         self.storage['remote_update'] = raw.hex()
 
     def get_remote_update(self) -> Optional[bytes]:

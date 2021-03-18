@@ -13,6 +13,7 @@ import bitstring
 
 from .bitcoin import hash160_to_b58_address, b58_address_to_hash160, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 from .segwit_addr import bech32_encode, bech32_decode, CHARSET
+from . import segwit_addr
 from . import constants
 from . import ecc
 from .bitcoin import COIN
@@ -81,18 +82,14 @@ def bitarray_to_u5(barr):
         ret.append(s.read(5).uint)
     return ret
 
-def encode_fallback(fallback, currency):
+
+def encode_fallback(fallback: str, currency):
     """ Encode all supported fallback addresses.
     """
     if currency in [constants.BitcoinMainnet.SEGWIT_HRP, constants.BitcoinTestnet.SEGWIT_HRP]:
-        fbhrp, witness = bech32_decode(fallback, ignore_long_length=True)
-        if fbhrp:
-            if fbhrp != currency:
-                raise ValueError("Not a bech32 address for this currency")
-            wver = witness[0]
-            if wver > 16:
-                raise ValueError("Invalid witness version {}".format(witness[0]))
-            wprog = u5_to_bitarray(witness[1:])
+        wver, wprog_ints = segwit_addr.decode_segwit_address(currency, fallback)
+        if wver is not None:
+            wprog = bytes(wprog_ints)
         else:
             addrtype, addr = b58_address_to_hash160(fallback)
             if is_p2pkh(currency, addrtype):
@@ -106,6 +103,7 @@ def encode_fallback(fallback, currency):
     else:
         raise NotImplementedError("Support for currency {} not implemented".format(currency))
 
+
 def parse_fallback(fallback, currency):
     if currency in [constants.BitcoinMainnet.SEGWIT_HRP, constants.BitcoinTestnet.SEGWIT_HRP]:
         wver = fallback[0:5].uint
@@ -114,7 +112,10 @@ def parse_fallback(fallback, currency):
         elif wver == 18:
             addr=hash160_to_b58_address(fallback[5:].tobytes(), base58_prefix_map[currency][1])
         elif wver <= 16:
-            addr=bech32_encode(currency, bitarray_to_u5(fallback))
+            witprog = fallback[5:]  # cut witver
+            witprog = witprog[:len(witprog) // 8 * 8]  # can only be full bytes
+            witprog = witprog.tobytes()
+            addr = segwit_addr.encode_segwit_address(currency, wver, witprog)
         else:
             return None
     else:
@@ -262,7 +263,7 @@ def lnencode(addr: 'LnAddr', privkey) -> str:
     sig = bytes(sig[1:]) + recovery_flag
     data += sig
 
-    return bech32_encode(hrp, bitarray_to_u5(data))
+    return bech32_encode(segwit_addr.Encoding.BECH32, hrp, bitarray_to_u5(data))
 
 class LnAddr(object):
     def __init__(self, *, paymenthash: bytes = None, amount=None, currency=None, tags=None, date=None,
@@ -365,9 +366,13 @@ class SerializableKey:
 def lndecode(invoice: str, *, verbose=False, expected_hrp=None) -> LnAddr:
     if expected_hrp is None:
         expected_hrp = constants.net.SEGWIT_HRP
-    hrp, data = bech32_decode(invoice, ignore_long_length=True)
-    if not hrp:
+    decoded_bech32 = bech32_decode(invoice, ignore_long_length=True)
+    hrp = decoded_bech32.hrp
+    data = decoded_bech32.data
+    if decoded_bech32.encoding is None:
         raise ValueError("Bad bech32 checksum")
+    if decoded_bech32.encoding != segwit_addr.Encoding.BECH32:
+        raise ValueError("Bad bech32 encoding: must be using vanilla BECH32")
 
     # BOLT #11:
     #

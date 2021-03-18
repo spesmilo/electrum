@@ -234,6 +234,8 @@ class LNWatcher(AddressSynchronizer):
             self.channel_status[outpoint] = 'closed (deep)'
         tx = self.db.get_transaction(txid)
         for i, o in enumerate(tx.outputs()):
+            if o.address is None:
+                continue
             if not self.is_mine(o.address):
                 self.add_address(o.address)
             elif n < 2:

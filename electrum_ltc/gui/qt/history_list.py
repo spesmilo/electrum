@@ -69,7 +69,7 @@ except:
 TX_ICONS = [
     "unconfirmed.png",
     "warning.png",
-    "unconfirmed.png",
+    "offline_tx.png",
     "offline_tx.png",
     "clock1.png",
     "clock2.png",

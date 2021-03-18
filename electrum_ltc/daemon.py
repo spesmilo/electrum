@@ -413,8 +413,6 @@ class Daemon(Logger):
     @profiler
     def __init__(self, config: SimpleConfig, fd=None, *, listen_jsonrpc=True):
         Logger.__init__(self)
-        self.running = False
-        self.running_lock = threading.Lock()
         self.config = config
         if fd is None and listen_jsonrpc:
             fd = get_file_descriptor(config)
@@ -455,6 +453,8 @@ class Daemon(Logger):
             if self.config.get('use_gossip', False):
                 self.network.start_gossip()
 
+        self.stopping_soon = threading.Event()
+        self.stopped_event = asyncio.Event()
         self.taskgroup = TaskGroup()
         asyncio.run_coroutine_threadsafe(self._run(jobs=daemon_jobs), self.asyncio_loop)
 
@@ -473,6 +473,7 @@ class Daemon(Logger):
             self.logger.exception("taskgroup died.")
         finally:
             self.logger.info("taskgroup stopped.")
+            self.stopping_soon.set()
 
     def load_wallet(self, path, password, *, manual_upgrades=True) -> Optional[Abstract_Wallet]:
         path = standardize_path(path)
@@ -530,45 +531,41 @@ class Daemon(Logger):
         return True
 
     def run_daemon(self):
-        self.running = True
         try:
-            while self.is_running():
-                time.sleep(0.1)
+            self.stopping_soon.wait()
         except KeyboardInterrupt:
-            self.running = False
+            self.stopping_soon.set()
         self.on_stop()
 
-    def is_running(self):
-        with self.running_lock:
-            return self.running and not self.taskgroup.closed()
-
-    def stop(self):
-        with self.running_lock:
-            self.running = False
+    async def stop(self):
+        self.stopping_soon.set()
+        await self.stopped_event.wait()
 
     def on_stop(self):
-        self.logger.info("on_stop() entered. initiating shutdown")
-        if self.gui_object:
-            self.gui_object.stop()
+        try:
+            self.logger.info("on_stop() entered. initiating shutdown")
+            if self.gui_object:
+                self.gui_object.stop()
 
-        @log_exceptions
-        async def stop_async():
-            self.logger.info("stopping all wallets")
-            async with TaskGroup() as group:
-                for k, wallet in self._wallets.items():
-                    await group.spawn(wallet.stop())
-            self.logger.info("stopping network and taskgroup")
-            async with ignore_after(2):
+            async def stop_async():
+                self.logger.info("stopping all wallets")
                 async with TaskGroup() as group:
-                    if self.network:
-                        await group.spawn(self.network.stop(full_shutdown=True))
-                    await group.spawn(self.taskgroup.cancel_remaining())
+                    for k, wallet in self._wallets.items():
+                        await group.spawn(wallet.stop())
+                self.logger.info("stopping network and taskgroup")
+                async with ignore_after(2):
+                    async with TaskGroup() as group:
+                        if self.network:
+                            await group.spawn(self.network.stop(full_shutdown=True))
+                        await group.spawn(self.taskgroup.cancel_remaining())
 
-        fut = asyncio.run_coroutine_threadsafe(stop_async(), self.asyncio_loop)
-        fut.result()
-        self.logger.info("removing lockfile")
-        remove_lockfile(get_lockfile(self.config))
-        self.logger.info("stopped")
+            fut = asyncio.run_coroutine_threadsafe(stop_async(), self.asyncio_loop)
+            fut.result()
+        finally:
+            self.logger.info("removing lockfile")
+            remove_lockfile(get_lockfile(self.config))
+            self.logger.info("stopped")
+            self.asyncio_loop.call_soon_threadsafe(self.stopped_event.set)
 
     def run_gui(self, config, plugins):
         threading.current_thread().setName('GUI')

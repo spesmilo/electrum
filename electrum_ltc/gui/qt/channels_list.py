@@ -6,7 +6,7 @@ from typing import Sequence, Optional, Dict
 from PyQt5 import QtCore, QtGui
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit,
-                             QPushButton, QAbstractItemView, QComboBox)
+                             QPushButton, QAbstractItemView, QComboBox, QCheckBox)
 from PyQt5.QtGui import QFont, QStandardItem, QBrush
 
 from electrum_ltc.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
@@ -95,8 +95,11 @@ class ChannelsList(MyTreeView):
             self.Columns.CHANNEL_STATUS: status,
         }
 
-    def on_success(self, txid):
+    def on_channel_closed(self, txid):
         self.main_window.show_error('Channel closed' + '\n' + txid)
+
+    def on_request_sent(self, b):
+        self.main_window.show_message(_('Request sent'))
 
     def on_failure(self, exc_info):
         type_, e, tb = exc_info
@@ -104,27 +107,52 @@ class ChannelsList(MyTreeView):
         self.main_window.show_error('Failed to close channel:\n{}'.format(repr(e)))
 
     def close_channel(self, channel_id):
+        self.is_force_close = False
         msg = _('Close channel?')
-        if not self.parent.question(msg):
+        force_cb = QCheckBox('Request force close from remote peer')
+        tooltip = _(
+            'If you check this option, your node will pretend that it has lost its data and ask the remote node to broadcast their latest state. '
+            'Doing so from time to time helps make sure that nodes are honest, because your node can punish them if they broadcast a revoked state.')
+        tooltip = '<qt>' + tooltip + '</qt>' # rich text is word wrapped
+        def on_checked(b):
+            self.is_force_close = bool(b)
+        force_cb.stateChanged.connect(on_checked)
+        force_cb.setToolTip(tooltip)
+        if not self.parent.question(msg, checkbox=force_cb):
             return
-        def task():
+        if self.is_force_close:
+            coro = self.lnworker.request_force_close(channel_id)
+            on_success = self.on_request_sent
+        else:
             coro = self.lnworker.close_channel(channel_id)
+            on_success = self.on_channel_closed
+        def task():
             return self.network.run_from_another_thread(coro)
-        WaitingDialog(self, 'please wait..', task, self.on_success, self.on_failure)
+        WaitingDialog(self, 'please wait..', task, on_success, self.on_failure)
 
     def force_close(self, channel_id):
+        self.save_backup = True
+        backup_cb = QCheckBox('Create a backup now', checked=True)
+        def on_checked(b):
+            self.save_backup = bool(b)
+        backup_cb.stateChanged.connect(on_checked)
         chan = self.lnworker.channels[channel_id]
         to_self_delay = chan.config[REMOTE].to_self_delay
-        msg = _('Force-close channel?') + '\n\n'\
-              + _('Funds retrieved from this channel will not be available before {} blocks after forced closure.').format(to_self_delay) + ' '\
-              + _('After that delay, funds will be sent to an address derived from your wallet seed.') + '\n\n'\
-              + _('In the meantime, channel funds will not be recoverable from your seed, and might be lost if you lose your wallet.') + ' '\
-              + _('To prevent that, you should have a backup of this channel on another device.')
-        if self.parent.question(msg):
-            def task():
-                coro = self.lnworker.force_close_channel(channel_id)
-                return self.network.run_from_another_thread(coro)
-            WaitingDialog(self, 'please wait..', task, self.on_success, self.on_failure)
+        msg = '<b>' + _('Force-close channel?') + '</b><br/>'\
+            + '<p>' + _('If you force-close this channel, the funds you have in it will not be available for {} blocks.').format(to_self_delay) + ' '\
+            + _('After that delay, funds will be swept to an address derived from your wallet seed.') + '</p>'\
+            + '<u>' + _('Please create a backup of your wallet file!') + '</u> '\
+            + '<p>' + _('Funds in this channel will not be recoverable from seed until they are swept back into your wallet, and might be lost if you lose your wallet file.') + ' '\
+            + _('To prevent that, you should save a backup of your wallet on another device.') + '</p>'
+        if not self.parent.question(msg, title=_('Force-close channel'), rich_text=True, checkbox=backup_cb):
+            return
+        if self.save_backup:
+            if not self.parent.backup_wallet():
+                return
+        def task():
+            coro = self.lnworker.force_close_channel(channel_id)
+            return self.network.run_from_another_thread(coro)
+        WaitingDialog(self, 'please wait..', task, self.on_channel_closed, self.on_failure)
 
     def remove_channel(self, channel_id):
         if self.main_window.question(_('Are you sure you want to delete this channel? This will purge associated transactions from your wallet history.')):
@@ -148,9 +176,7 @@ class ChannelsList(MyTreeView):
         def task():
             coro = self.lnworker.request_force_close_from_backup(channel_id)
             return self.network.run_from_another_thread(coro)
-        def on_success(b):
-            self.main_window.show_message('success')
-        WaitingDialog(self, 'please wait..', task, on_success, self.on_failure)
+        WaitingDialog(self, 'please wait..', task, self.on_request_sent, self.on_failure)
 
     def freeze_channel_for_sending(self, chan, b):
         if self.lnworker.channel_db or self.lnworker.is_trampoline_peer(chan.node_id):

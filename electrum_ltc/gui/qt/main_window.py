@@ -626,7 +626,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         vbox.addWidget(WWLabel(msg))
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
         if not d.exec_():
-            return
+            return False
         try:
             new_path = self.wallet.save_backup()
         except BaseException as reason:
@@ -635,8 +635,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if new_path:
             msg = _("A copy of your wallet file was created in")+" '%s'" % str(new_path)
             self.show_message(msg, title=_("Wallet backup created"))
+            return True
         else:
             self.show_message(_("You need to configure a backup directory in your preferences"), title=_("Backup not created"))
+            return False
 
     def update_recently_visited(self, filename):
         recent = self.config.get('recently_open', [])
@@ -2697,7 +2699,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if not self.question('Import channel backup?'):
             return
         try:
-            self.wallet.lnbackups.import_channel_backup(encrypted)
+            self.wallet.lnworker.import_channel_backup(encrypted)
         except Exception as e:
             self.show_error("failed to import backup" + '\n' + str(e))
             return

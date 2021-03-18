@@ -2491,12 +2491,11 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                     "otherwise you could end up paying a different fee."))
 
     def get_tx_fee_warning(
-            self,
-            *,
+            self, *,
             invoice_amt: int,
             tx_size: int,
-            fee: int,
-    ) -> Optional[Tuple[bool, str, str]]:
+            fee: int) -> Optional[Tuple[bool, str, str]]:
+
         feerate = Decimal(fee) / tx_size  # sat/byte
         fee_ratio = Decimal(fee) / invoice_amt if invoice_amt else 1
         long_warning = None
@@ -2504,20 +2503,19 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         allow_send = True
         if feerate < self.relayfee() / 1000:
             long_warning = (
-                    _("This transaction requires a higher fee, or it will not be propagated by your current server") + "\n"
-                    + _("Try to raise your transaction fee, or use a server with a lower relay fee.")
-            )
+                    _("This transaction requires a higher fee, or it will not be propagated by your current server.") + " "
+                    + _("Try to raise your transaction fee, or use a server with a lower relay fee."))
             short_warning = _("below relay fee") + "!"
             allow_send = False
         elif fee_ratio >= FEE_RATIO_HIGH_WARNING:
             long_warning = (
                     _('Warning') + ': ' + _("The fee for this transaction seems unusually high.")
-                    + f'\n({fee_ratio*100:.2f}% of amount)')
+                    + f' ({fee_ratio*100:.2f}% of amount)')
             short_warning = _("high fee ratio") + "!"
         elif feerate > FEERATE_WARNING_HIGH_FEE / 1000:
             long_warning = (
                     _('Warning') + ': ' + _("The fee for this transaction seems unusually high.")
-                    + f'\n(feerate: {feerate:.2f} sat/byte)')
+                    + f' (feerate: {feerate:.2f} sat/byte)')
             short_warning = _("high fee rate") + "!"
         if long_warning is None:
             return None
