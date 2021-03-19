@@ -57,7 +57,6 @@ from .util import (NotEnoughFunds, UserCancelled, profiler,
                    WalletFileException, BitcoinException, MultipleSpendMaxTxOutputs,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
                    Fiat, bfh, bh2u, TxMinedInfo, quantize_feerate, create_bip21_uri, OrderedDictWithIndex)
-from .util import get_backup_dir
 from .simple_config import SimpleConfig, FEE_RATIO_HIGH_WARNING, FEERATE_WARNING_HIGH_FEE
 from .bitcoin import COIN, TYPE_ADDRESS
 from .bitcoin import is_address, address_to_script, is_minikey, relayfee, dust_threshold
@@ -315,10 +314,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if self.storage:
             self.db.write(self.storage)
 
-    def save_backup(self):
-        backup_dir = get_backup_dir(self.config)
-        if backup_dir is None:
-            return
+    def save_backup(self, backup_dir):
         new_db = WalletDB(self.db.dump(), manual_upgrades=False)
 
         if self.lnworker:

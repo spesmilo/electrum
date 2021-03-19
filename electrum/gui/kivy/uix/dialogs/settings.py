@@ -93,13 +93,6 @@ Builder.load_string('''
                     title: _('Lightning Routing') + ': ' + self.status
                     description: _("Use trampoline routing or gossip.")
                     action: partial(root.routing_dialog, self)
-                CardSeparator
-                SettingsItem:
-                    status: _('Yes') if app.android_backups else _('No')
-                    title: _('Backups') + ': ' + self.status
-                    description: _("Backup wallet to external storage.")
-                    message: _("If this option is checked, a backup of your wallet will be written to external storage everytime you create a new channel. Make sure your wallet is protected with a strong password before you enable this option.")
-                    action: partial(root.boolean_dialog, 'android_backups', _('Backups'), self.message)
 
                 # disabled: there is currently only one coin selection policy
                 #CardSeparator

@@ -627,18 +627,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
         if not d.exec_():
             return False
+        backup_dir = get_backup_dir(self.config)
+        if backup_dir is not None:
+            self.show_message(_("You need to configure a backup directory in your preferences"), title=_("Backup not configured"))
+            return
         try:
-            new_path = self.wallet.save_backup()
+            new_path = self.wallet.save_backup(backup_dir)
         except BaseException as reason:
             self.show_critical(_("Electrum was unable to copy your wallet file to the specified location.") + "\n" + str(reason), title=_("Unable to create backup"))
             return
-        if new_path:
-            msg = _("A copy of your wallet file was created in")+" '%s'" % str(new_path)
-            self.show_message(msg, title=_("Wallet backup created"))
-            return True
-        else:
-            self.show_message(_("You need to configure a backup directory in your preferences"), title=_("Backup not created"))
-            return False
+        msg = _("A copy of your wallet file was created in")+" '%s'" % str(new_path)
+        self.show_message(msg, title=_("Wallet backup created"))
+        return True
 
     def update_recently_visited(self, filename):
         recent = self.config.get('recently_open', [])

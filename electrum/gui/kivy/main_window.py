@@ -193,10 +193,6 @@ class ElectrumWindow(App, Logger):
             self.network.run_from_another_thread(
                 self.network.stop_gossip())
 
-    android_backups = BooleanProperty(False)
-    def on_android_backups(self, instance, x):
-        self.electrum_config.set_key('android_backups', self.android_backups, True)
-
     use_change = BooleanProperty(False)
     def on_use_change(self, instance, x):
         if self.wallet:
@@ -407,7 +403,6 @@ class ElectrumWindow(App, Logger):
         self.daemon = self.gui_object.daemon
         self.fx = self.daemon.fx
         self.use_rbf = config.get('use_rbf', True)
-        self.android_backups = config.get('android_backups', False)
         self.use_gossip = config.get('use_gossip', False)
         self.use_unconfirmed = not config.get('confirmed_only', False)
 
@@ -1300,9 +1295,14 @@ class ElectrumWindow(App, Logger):
 
     def save_backup(self):
         if platform != 'android':
-            self._save_backup()
+            backup_dir = util.get_backup_dir(self.electrum_config)
+            if backup_dir:
+                self._save_backup(backup_dir)
+            else:
+                self.show_error(_("Backup NOT saved. Backup directory not configured."))
             return
 
+        backup_dir = util.android_backup_dir()
         from android.permissions import request_permissions, Permission
         def cb(permissions, grant_results: Sequence[bool]):
             if not grant_results or not grant_results[0]:
@@ -1313,17 +1313,14 @@ class ElectrumWindow(App, Logger):
             Clock.schedule_once(lambda dt: self._save_backup())
         request_permissions([Permission.WRITE_EXTERNAL_STORAGE], cb)
 
-    def _save_backup(self):
+    def _save_backup(self, backup_dir):
         try:
-            new_path = self.wallet.save_backup()
+            new_path = self.wallet.save_backup(backup_dir)
         except Exception as e:
             self.logger.exception("Failed to save wallet backup")
             self.show_error("Failed to save wallet backup" + '\n' + str(e))
             return
-        if new_path:
-            self.show_info(_("Backup saved:") + f"\n{new_path}")
-        else:
-            self.show_error(_("Backup NOT saved. Backup directory not configured."))
+        self.show_info(_("Backup saved:") + f"\n{new_path}")
 
     def export_private_keys(self, pk_label, addr):
         if self.wallet.is_watching_only():

@@ -26,7 +26,7 @@ from aiorpcx import run_in_thread, TaskGroup, NetAddress, ignore_after
 
 from . import constants, util
 from . import keystore
-from .util import profiler, chunks
+from .util import profiler, chunks, get_backup_dir
 from .invoices import PR_TYPE_LN, PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING, LNInvoice, LN_EXPIRY_NEVER
 from .util import NetworkRetryManager, JsonRPCClient
 from .lnutil import LN_MAX_FUNDING_SAT
@@ -1003,7 +1003,9 @@ class LNWallet(LNWorker):
             self.wallet.set_reserved_state_of_address(addr, reserved=True)
         try:
             self.save_channel(chan)
-            self.wallet.save_backup()
+            backup_dir = get_backup_dir(self.config)
+            if backup_dir is not None:
+                self.wallet.save_backup(backup_dir)
         except:
             chan.set_state(ChannelState.REDEEMED)
             self.remove_channel(chan.channel_id)
