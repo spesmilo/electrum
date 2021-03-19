@@ -30,7 +30,7 @@ from .transaction import BCDataStream
 if TYPE_CHECKING:
     from .lnchannel import Channel, AbstractChannel
     from .lnrouter import LNPaymentRoute
-    from .lnonion import OnionRoutingFailureMessage
+    from .lnonion import OnionRoutingFailure
 
 
 # defined in BOLT-03:
@@ -263,7 +263,7 @@ class HtlcLog(NamedTuple):
     route: Optional['LNPaymentRoute'] = None
     preimage: Optional[bytes] = None
     error_bytes: Optional[bytes] = None
-    failure_msg: Optional['OnionRoutingFailureMessage'] = None
+    failure_msg: Optional['OnionRoutingFailure'] = None
     sender_idx: Optional[int] = None
 
     def formatted_tuple(self):

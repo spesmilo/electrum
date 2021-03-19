@@ -7,7 +7,11 @@ from collections import OrderedDict
 from .lnutil import OnionFailureCodeMetaFlag
 
 
-class MalformedMsg(Exception): pass
+class FailedToParseMsg(Exception): pass
+
+class MalformedMsg(FailedToParseMsg): pass
+class UnknownMsgType(FailedToParseMsg): pass
+
 class UnknownMsgFieldType(MalformedMsg): pass
 class UnexpectedEndOfStream(MalformedMsg): pass
 class FieldEncodingNotMinimal(MalformedMsg): pass
@@ -465,13 +469,17 @@ class LNSerializer:
         Decode Lightning message by reading the first
         two bytes to determine message type.
 
-        Returns message type string and parsed message contents dict
+        Returns message type string and parsed message contents dict,
+        or raises FailedToParseMsg.
         """
         #print(f"decode_msg >>> {data.hex()}")
         assert len(data) >= 2
         msg_type_bytes = data[:2]
         msg_type_int = int.from_bytes(msg_type_bytes, byteorder="big", signed=False)
-        scheme = self.msg_scheme_from_type[msg_type_bytes]
+        try:
+            scheme = self.msg_scheme_from_type[msg_type_bytes]
+        except KeyError:
+            raise UnknownMsgType(f"msg_type={msg_type_int}")  # TODO even/odd type?
         assert scheme[0][2] == msg_type_int
         msg_type_name = scheme[0][1]
         parsed = {}

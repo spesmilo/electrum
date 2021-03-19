@@ -65,7 +65,7 @@ from .lnutil import (Outpoint, LNPeerAddr,
 from .lnutil import ln_dummy_address, ln_compare_features, IncompatibleLightningFeatures
 from .lnrouter import TrampolineEdge
 from .transaction import PartialTxOutput, PartialTransaction, PartialTxInput
-from .lnonion import OnionFailureCode, process_onion_packet, OnionPacket, OnionRoutingFailure
+from .lnonion import OnionFailureCode, OnionRoutingFailure
 from .lnmsg import decode_msg
 from .i18n import _
 from .lnrouter import (RouteEdge, LNPaymentRoute, LNPaymentPath, is_route_sane_to_use,
@@ -1115,7 +1115,7 @@ class LNWallet(LNWorker):
                 full_path=full_path)
             success = True
         except PaymentFailure as e:
-            self.logger.exception('')
+            self.logger.info(f'payment failure: {e!r}')
             success = False
             reason = str(e)
         if success:
@@ -1207,7 +1207,8 @@ class LNWallet(LNWorker):
             sender_idx = htlc_log.sender_idx
             failure_msg = htlc_log.failure_msg
             code, data = failure_msg.code, failure_msg.data
-            self.logger.info(f"UPDATE_FAIL_HTLC {repr(code)} {data}")
+            self.logger.info(f"UPDATE_FAIL_HTLC. code={repr(code)}. "
+                             f"decoded_data={failure_msg.decode_data()}. data={data.hex()}")
             self.logger.info(f"error reported by {bh2u(route[sender_idx].node_id)}")
             if code == OnionFailureCode.MPP_TIMEOUT:
                 raise PaymentFailure(failure_msg.code_name())
@@ -1222,7 +1223,8 @@ class LNWallet(LNWorker):
                 else:
                     raise PaymentFailure(failure_msg.code_name())
             else:
-                self.handle_error_code_from_failed_htlc(route, sender_idx, failure_msg, code, data)
+                self.handle_error_code_from_failed_htlc(
+                    route=route, sender_idx=sender_idx, failure_msg=failure_msg)
 
     async def pay_to_route(
             self, *,
@@ -1263,8 +1265,13 @@ class LNWallet(LNWorker):
             self.sent_buckets[payment_secret] = amount_sent, amount_failed
         util.trigger_callback('htlc_added', chan, htlc, SENT)
 
-
-    def handle_error_code_from_failed_htlc(self, route, sender_idx, failure_msg, code, data):
+    def handle_error_code_from_failed_htlc(
+            self,
+            *,
+            route: LNPaymentRoute,
+            sender_idx: int,
+            failure_msg: OnionRoutingFailure) -> None:
+        code, data = failure_msg.code, failure_msg.data
         # handle some specific error codes
         failure_codes = {
             OnionFailureCode.TEMPORARY_CHANNEL_FAILURE: 0,
@@ -1299,7 +1306,7 @@ class LNWallet(LNWorker):
             try:
                 short_chan_id = route[sender_idx + 1].short_channel_id
             except IndexError:
-                raise PaymentFailure('payment destination reported error')
+                raise PaymentFailure(f'payment destination reported error: {failure_msg.code_name()}') from None
             # TODO: for MPP we need to save the amount for which
             # we saw temporary channel failure
             self.logger.info(f'blacklisting channel {short_chan_id}')
