@@ -479,17 +479,9 @@ class ChannelBackup(AbstractChannel):
     def is_initiator(self):
         return self.cb.is_initiator
 
-    def short_id_for_GUI(self) -> str:
-        if self.short_channel_id:
-            return 'BACKUP of ' + format_short_channel_id(self.short_channel_id)
-        else:
-            return 'BACKUP'
-
     def get_state_for_GUI(self):
-        if self.lnworker:
-            return self.lnworker.lnwatcher.get_channel_status(self.funding_outpoint.to_str())
-        else:
-            return 'unknown'
+        cs = self.get_state()
+        return 'BACKUP' + ', '+ cs.name
 
     def get_oldest_unrevoked_ctn(self, who):
         return -1

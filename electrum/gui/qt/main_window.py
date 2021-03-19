@@ -55,7 +55,7 @@ from electrum import (keystore, ecc, constants, util, bitcoin, commands,
 from electrum.bitcoin import COIN, is_address
 from electrum.plugin import run_hook, BasePlugin
 from electrum.i18n import _
-from electrum.util import (format_time,
+from electrum.util import (format_time, get_backup_dir,
                            UserCancelled, profiler,
                            bh2u, bfh, InvalidPassword,
                            UserFacingException,
@@ -628,7 +628,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if not d.exec_():
             return False
         backup_dir = get_backup_dir(self.config)
-        if backup_dir is not None:
+        if backup_dir is None:
             self.show_message(_("You need to configure a backup directory in your preferences"), title=_("Backup not configured"))
             return
         try:
