@@ -9,9 +9,11 @@ from .lnutil import OnionFailureCodeMetaFlag
 
 class FailedToParseMsg(Exception): pass
 
-class MalformedMsg(FailedToParseMsg): pass
 class UnknownMsgType(FailedToParseMsg): pass
+class UnknownOptionalMsgType(UnknownMsgType): pass
+class UnknownMandatoryMsgType(UnknownMsgType): pass
 
+class MalformedMsg(FailedToParseMsg): pass
 class UnknownMsgFieldType(MalformedMsg): pass
 class UnexpectedEndOfStream(MalformedMsg): pass
 class FieldEncodingNotMinimal(MalformedMsg): pass
@@ -479,7 +481,10 @@ class LNSerializer:
         try:
             scheme = self.msg_scheme_from_type[msg_type_bytes]
         except KeyError:
-            raise UnknownMsgType(f"msg_type={msg_type_int}")  # TODO even/odd type?
+            if msg_type_int % 2 == 0:  # even types must be understood: "mandatory"
+                raise UnknownMandatoryMsgType(f"msg_type={msg_type_int}")
+            else:  # odd types are ok not to understand: "optional"
+                raise UnknownOptionalMsgType(f"msg_type={msg_type_int}")
         assert scheme[0][2] == msg_type_int
         msg_type_name = scheme[0][1]
         parsed = {}

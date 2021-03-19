@@ -46,7 +46,7 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      UpfrontShutdownScriptViolation)
 from .lnutil import FeeUpdate, channel_id_from_funding_tx
 from .lntransport import LNTransport, LNTransportBase
-from .lnmsg import encode_msg, decode_msg
+from .lnmsg import encode_msg, decode_msg, UnknownOptionalMsgType
 from .interface import GracefulDisconnect
 from .lnrouter import fee_for_edge_msat
 from .lnutil import ln_dummy_address
@@ -179,7 +179,11 @@ class Peer(Logger):
             self.ping_time = time.time()
 
     def process_message(self, message):
-        message_type, payload = decode_msg(message)
+        try:
+            message_type, payload = decode_msg(message)
+        except UnknownOptionalMsgType as e:
+            self.logger.info(f"received unknown message from peer. ignoring: {e!r}")
+            return
         # only process INIT if we are a backup
         if self.is_channel_backup is True and message_type != 'init':
             return
