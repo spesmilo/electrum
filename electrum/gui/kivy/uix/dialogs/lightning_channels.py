@@ -9,7 +9,7 @@ from .fee_dialog import FeeDialog
 from electrum.util import bh2u
 from electrum.logging import Logger
 from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id
-from electrum.lnchannel import AbstractChannel, Channel
+from electrum.lnchannel import AbstractChannel, Channel, ChannelState
 from electrum.gui.kivy.i18n import _
 from .question import Question
 from electrum.transaction import PartialTxOutput, Transaction
@@ -334,8 +334,8 @@ Builder.load_string(r'''
 <ChannelBackupPopup@Popup>:
     id: popuproot
     data: []
-    is_closed: False
-    is_redeemed: False
+    is_funded: False
+    is_imported: False
     node_id:''
     short_id:''
     initiator:''
@@ -401,12 +401,13 @@ Builder.load_string(r'''
                 height: '48dp'
                 text: _('Request force-close')
                 on_release: root.request_force_close()
-                disabled: root.is_closed
+                disabled: not root.is_funded
             Button:
                 size_hint: 0.5, None
                 height: '48dp'
                 text: _('Delete')
                 on_release: root.remove_backup()
+                disabled: not root.is_imported
 ''')
 
 
@@ -416,6 +417,9 @@ class ChannelBackupPopup(Popup, Logger):
         Popup.__init__(self, **kwargs)
         Logger.__init__(self)
         self.chan = chan
+        self.is_funded = chan.get_state() == ChannelState.FUNDED
+        self.is_imported = chan.is_imported
+        self.funding_txid = chan.funding_outpoint.txid
         self.app = app
         self.short_id = format_short_channel_id(chan.short_channel_id)
         self.capacity = self.app.format_amount_and_units(chan.get_capacity())
