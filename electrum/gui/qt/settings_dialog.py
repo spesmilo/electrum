@@ -144,7 +144,7 @@ class SettingsDialog(WindowModalDialog):
 
         help_gossip = _("""If this option is enabled, Electrum will download the network
 channels graph and compute payment path locally, instead of using trampoline payments. """)
-        gossip_cb = QCheckBox(_("Download network graph"))
+        gossip_cb = QCheckBox(_("Enable gossip (disable trampoline)"))
         gossip_cb.setToolTip(help_gossip)
         gossip_cb.setChecked(bool(self.config.get('use_gossip', False)))
         def on_gossip_checked(x):
