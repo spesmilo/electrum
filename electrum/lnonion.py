@@ -33,7 +33,8 @@ from .crypto import sha256, hmac_oneshot, chacha20_encrypt
 from .util import bh2u, profiler, xor_bytes, bfh
 from .lnutil import (get_ecdh, PaymentFailure, NUM_MAX_HOPS_IN_PAYMENT_PATH,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID, OnionFailureCodeMetaFlag)
-from .lnmsg import OnionWireSerializer, read_bigsize_int, write_bigsize_int, UnknownMsgType
+from .lnmsg import OnionWireSerializer, read_bigsize_int, write_bigsize_int
+from . import lnmsg
 
 if TYPE_CHECKING:
     from .lnrouter import LNPaymentRoute
@@ -443,7 +444,7 @@ class OnionRoutingFailure(Exception):
     def decode_data(self) -> Optional[Dict[str, Any]]:
         try:
             message_type, payload = OnionWireSerializer.decode_msg(self.to_bytes())
-        except UnknownMsgType:
+        except lnmsg.FailedToParseMsg:
             payload = None
         return payload
 
