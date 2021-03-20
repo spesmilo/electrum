@@ -748,7 +748,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             exp = URI.get('exp')
         timestamp = timestamp or int(time.time())
         exp = exp or 0
-        _id = bh2u(sha256d(repr(outputs) + "%d"%timestamp))[0:10]
+        _id = bh2u(sha256(repr(outputs) + "%d"%timestamp))[0:10]
         invoice = OnchainInvoice(
             type=PR_TYPE_ONCHAIN,
             amount_sat=amount,
