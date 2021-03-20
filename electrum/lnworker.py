@@ -1242,7 +1242,7 @@ class LNWallet(LNWorker):
         chan = self.get_channel_by_short_id(short_channel_id)
         peer = self._peers.get(route[0].node_id)
         if not peer:
-            raise Exception('Dropped peer')
+            raise PaymentFailure('Dropped peer')
         await peer.initialized
         htlc = peer.pay(
             route=route,
