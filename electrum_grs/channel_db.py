@@ -45,7 +45,7 @@ from .lnutil import (LNPeerAddr, format_short_channel_id, ShortChannelID,
 from .lnverifier import LNChannelVerifier, verify_sig_for_channel_update
 from .lnmsg import decode_msg
 from . import ecc
-from .crypto import sha256, sha256d
+from .crypto import sha256d
 
 if TYPE_CHECKING:
     from .network import Network
@@ -581,7 +581,7 @@ class ChannelDB(SqlDB):
 
     @classmethod
     def verify_channel_announcement(cls, payload) -> None:
-        h = sha256(payload['raw'][2+256:])
+        h = sha256d(payload['raw'][2+256:]) # Keep this sha256d for GRS!!
         pubkeys = [payload['node_id_1'], payload['node_id_2'], payload['bitcoin_key_1'], payload['bitcoin_key_2']]
         sigs = [payload['node_signature_1'], payload['node_signature_2'], payload['bitcoin_signature_1'], payload['bitcoin_signature_2']]
         for pubkey, sig in zip(pubkeys, sigs):
@@ -592,7 +592,7 @@ class ChannelDB(SqlDB):
     def verify_node_announcement(cls, payload) -> None:
         pubkey = payload['node_id']
         signature = payload['signature']
-        h = sha256(payload['raw'][66:])
+        h = sha256d(payload['raw'][66:]) # Keep this sha256d for GRS!!
         if not ecc.verify_signature(pubkey, signature, h):
             raise InvalidGossipMsg('signature failed')
 
