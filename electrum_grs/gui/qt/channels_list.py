@@ -15,6 +15,7 @@ from electrum_grs.lnchannel import AbstractChannel, PeerState, ChannelBackup, Ch
 from electrum_grs.wallet import Abstract_Wallet
 from electrum_grs.lnutil import LOCAL, REMOTE, format_short_channel_id, LN_MAX_FUNDING_SAT
 from electrum_grs.lnworker import LNWallet
+from electrum_grs import ecc
 
 from .util import (MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, WaitingDialog, MONOSPACE_FONT, ColorScheme)
@@ -414,7 +415,8 @@ class ChannelsList(MyTreeView):
             amount_e.setFrozen(max_button.isChecked())
             if not max_button.isChecked():
                 return
-            make_tx = self.parent.mktx_for_open_channel('!')
+            dummy_nodeid = ecc.GENERATOR.get_public_key_bytes(compressed=True)
+            make_tx = self.parent.mktx_for_open_channel(funding_sat='!', node_id=dummy_nodeid)
             try:
                 tx = make_tx(None)
             except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
