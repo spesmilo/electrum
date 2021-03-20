@@ -9,10 +9,11 @@ from electrum_grs.util import bh2u
 from electrum_grs.bitcoin import COIN
 import electrum_grs.simple_config as config
 from electrum_grs.logging import Logger
-from electrum_grs.lnutil import ln_dummy_address
+from electrum_grs.lnutil import ln_dummy_address, extract_nodeid
 
 from .label_dialog import LabelDialog
 from .confirm_tx_dialog import ConfirmTxDialog
+from .qr_dialog import QRDialog
 
 if TYPE_CHECKING:
     from ...main_window import ElectrumWindow
@@ -178,9 +179,11 @@ class LightningOpenChannelDialog(Factory.Popup, Logger):
         self.dismiss()
         lnworker = self.app.wallet.lnworker
         coins = self.app.wallet.get_spendable_coins(None, nonlocal_only=True)
+        node_id, rest = extract_nodeid(conn_str)
         make_tx = lambda rbf: lnworker.mktx_for_open_channel(
             coins=coins,
             funding_sat=amount,
+            node_id=node_id,
             fee_est=None)
         on_pay = lambda tx: self.app.protected('Create a new channel?', self.do_open_channel, (tx, conn_str))
         d = ConfirmTxDialog(
@@ -206,6 +209,27 @@ class LightningOpenChannelDialog(Factory.Popup, Logger):
             self.app.logger.exception("Problem opening channel")
             self.app.show_error(_('Problem opening channel: ') + '\n' + repr(e))
             return
+        # TODO: it would be nice to show this before broadcasting
+        if lnworker.has_recoverable_channels():
+            self.maybe_show_funding_tx(chan, funding_tx)
+        else:
+            title = _('Save backup')
+            help_text = ' '.join([
+                _('Your wallet does not have recoverable channels.'),
+                _('Please save this channel backup on another device.'),
+                _('It may be imported in another Electrum-GRS wallet with the same seed.')
+            ])
+            data = lnworker.export_channel_backup(chan.channel_id)
+            popup = QRDialog(
+                title, data,
+                show_text=False,
+                text_for_clipboard=data,
+                help_text=help_text,
+                close_button_text=_('OK'),
+                on_close=lambda: self.maybe_show_funding_tx(chan, funding_tx))
+            popup.open()
+
+    def maybe_show_funding_tx(self, chan, funding_tx):
         n = chan.constraints.funding_txn_minimum_depth
         message = '\n'.join([
             _('Channel established.'),
@@ -215,5 +239,6 @@ class LightningOpenChannelDialog(Factory.Popup, Logger):
         if not funding_tx.is_complete():
             message += '\n\n' + _('Please sign and broadcast the funding transaction')
         self.app.show_info(message)
+
         if not funding_tx.is_complete():
             self.app.tx_dialog(funding_tx)

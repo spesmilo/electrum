@@ -295,6 +295,10 @@ def push_script(data: str) -> str:
     return _op_push(data_len) + bh2u(data)
 
 
+def make_op_return(x:bytes) -> bytes:
+    return bytes([opcodes.OP_RETURN]) + bytes.fromhex(push_script(x.hex()))
+
+
 def add_number_to_script(i: int) -> bytes:
     return bfh(push_script(script_num_to_hex(i)))
 

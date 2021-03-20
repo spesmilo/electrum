@@ -9,7 +9,7 @@ from .fee_dialog import FeeDialog
 from electrum_grs.util import bh2u
 from electrum_grs.logging import Logger
 from electrum_grs.lnutil import LOCAL, REMOTE, format_short_channel_id
-from electrum_grs.lnchannel import AbstractChannel, Channel
+from electrum_grs.lnchannel import AbstractChannel, Channel, ChannelState
 from electrum_grs.gui.kivy.i18n import _
 from .question import Question
 from electrum_grs.transaction import PartialTxOutput, Transaction
@@ -20,7 +20,7 @@ from .qr_dialog import QRDialog
 
 if TYPE_CHECKING:
     from ...main_window import ElectrumWindow
-    from electrum import SimpleConfig
+    from electrum_grs import SimpleConfig
 
 
 Builder.load_string(r'''
@@ -334,8 +334,8 @@ Builder.load_string(r'''
 <ChannelBackupPopup@Popup>:
     id: popuproot
     data: []
-    is_closed: False
-    is_redeemed: False
+    is_funded: False
+    is_imported: False
     node_id:''
     short_id:''
     initiator:''
@@ -401,12 +401,13 @@ Builder.load_string(r'''
                 height: '48dp'
                 text: _('Request force-close')
                 on_release: root.request_force_close()
-                disabled: root.is_closed
+                disabled: not root.is_funded
             Button:
                 size_hint: 0.5, None
                 height: '48dp'
                 text: _('Delete')
                 on_release: root.remove_backup()
+                disabled: not root.is_imported
 ''')
 
 
@@ -416,6 +417,9 @@ class ChannelBackupPopup(Popup, Logger):
         Popup.__init__(self, **kwargs)
         Logger.__init__(self)
         self.chan = chan
+        self.is_funded = chan.get_state() == ChannelState.FUNDED
+        self.is_imported = chan.is_imported
+        self.funding_txid = chan.funding_outpoint.txid
         self.app = app
         self.short_id = format_short_channel_id(chan.short_channel_id)
         self.capacity = self.app.format_amount_and_units(chan.get_capacity())
@@ -528,7 +532,7 @@ class ChannelDetailsPopup(Popup, Logger):
         to_self_delay = self.chan.config[REMOTE].to_self_delay
         help_text = ' '.join([
             _('If you force-close this channel, the funds you have in it will not be available for {} blocks.').format(to_self_delay),
-            _('During that time, funds will not be recoverabe from your seed, and may be lost if you lose your device.'),
+            _('During that time, funds will not be recoverable from your seed, and may be lost if you lose your device.'),
             _('To prevent that, please save this channel backup.'),
             _('It may be imported in another wallet with the same seed.')
         ])
