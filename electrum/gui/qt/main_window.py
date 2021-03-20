@@ -1796,7 +1796,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         WaitingDialog(self, _('Broadcasting transaction...'),
                       broadcast_thread, broadcast_done, self.on_error)
 
-    def mktx_for_open_channel(self, funding_sat, node_id):
+    def mktx_for_open_channel(self, *, funding_sat, node_id):
         coins = self.get_coins(nonlocal_only=True)
         make_tx = lambda fee_est: self.wallet.lnworker.mktx_for_open_channel(
             coins=coins,
@@ -1813,7 +1813,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         # use ConfirmTxDialog
         # we need to know the fee before we broadcast, because the txid is required
-        make_tx = self.mktx_for_open_channel(funding_sat, node_id)
+        make_tx = self.mktx_for_open_channel(funding_sat=funding_sat, node_id=node_id)
         d = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=funding_sat, is_sweep=False)
         # disable preview button because the user must not broadcast tx before establishment_flow
         d.preview_button.setEnabled(False)
