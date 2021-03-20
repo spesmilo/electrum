@@ -181,7 +181,7 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
 def verify_sig_for_channel_update(chan_upd: dict, node_id: bytes) -> bool:
     msg_bytes = chan_upd['raw']
     pre_hash = msg_bytes[2+64:]
-    h = sha256(pre_hash)
+    h = sha256d(pre_hash) # Keep this sha256d for GRS!!
     sig = chan_upd['signature']
     if not ecc.verify_signature(node_id, sig, h):
         return False
