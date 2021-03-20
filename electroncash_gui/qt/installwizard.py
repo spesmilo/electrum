@@ -499,6 +499,37 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return ' '.join(line.text().split())
 
     @wizard_dialog
+    def derivation_path_dialog(self, run_next, title, message, default, test, warning='', seed='', scannable=False):
+        def on_derivation_scan(derivation_line, seed):
+            derivation_scan_dialog = DerivationDialog(self, seed, DerivationPathScanner.DERIVATION_PATHS)
+            selected_path = derivation_scan_dialog.get_selected_path()
+            if selected_path:
+                derivation_line.setText(selected_path)
+
+        vbox = QVBoxLayout()
+        vbox.addWidget(WWLabel(message))
+        line = QLineEdit()
+        line.setText(default)
+        def f(text):
+            self.next_button.setEnabled(test(text))
+        line.textEdited.connect(f)
+        vbox.addWidget(line)
+        vbox.addWidget(WWLabel(warning))
+
+        if scannable:
+            hbox = QHBoxLayout()
+            hbox.setContentsMargins(12,24,12,12)
+            but = QPushButton(_("Scan for derivation paths"))
+            hbox.addStretch(1)
+            hbox.addWidget(but)
+            vbox.addLayout(hbox)
+            but.clicked.connect(lambda: on_derivation_scan(line, seed))
+
+        self.exec_layout(vbox, title, next_enabled=test(default))
+        return ' '.join(line.text().split())
+
+
+    @wizard_dialog
     def show_xpub_dialog(self, xpub, run_next):
         msg = ' '.join([
             _("Here is your master public key."),
@@ -603,3 +634,113 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                                           "After selecting a server, select a wallet file to open."))
             QTimer.singleShot(10, do_dialog)
         return ret
+
+class DerivationPathScanner(QThread):
+
+    DERIVATION_PATHS = [
+        "m/44'/145'/0'",
+        "m/144'/44'/0'",
+        "m/144'/0'/0'",
+        "m/44'/0'/0'/0",
+        "m/0'/0",
+        "m/0",
+        "m/0'/0'",
+        "m/44'/145'/0'/0",
+        "m/44'/245'/0"]
+
+    def __init__(self, parent, seed, update_table_cb):
+        QThread.__init__(self, parent)
+        self.update_table_cb = update_table_cb
+        self.parent = parent
+        self.seed = seed
+        self.aborting = False
+
+    def run(self):
+        from electroncash.network import Network
+        network = Network.get_instance()
+        if not network:
+            for i, p in enumerate(self.DERIVATION_PATHS):
+                self.update_table_cb(i, _('Offline'))
+            return
+
+        for i, p in enumerate(self.DERIVATION_PATHS):
+            if self.aborting:
+                return
+            from electroncash import keystore
+            from electroncash.wallet import Standard_Wallet
+            from electroncash.storage import WalletStorage
+            k = keystore.from_seed(self.seed, '', derivation=p, seed_type=self.parent.seed_type)
+            storage_path = self.parent.config.get_wallet_path() + "_not_saved_on_disk"
+            tmp_storage = WalletStorage(storage_path, in_memory_only=True)
+            tmp_storage.put('seed_type', self.parent.seed_type)
+            keys = k.dump()
+            tmp_storage.put('keystore', keys)
+            wallet = Standard_Wallet(tmp_storage)
+            wallet.start_threads(network)
+            wallet.synchronize()
+            wallet.wait_until_synchronized()
+            while network.is_connecting():
+                time.sleep(0.1)
+            num_tx = len(wallet.get_history())
+            wallet.clear_history()
+            self.update_table_cb(i, str(num_tx))
+
+class DerivationDialog(QDialog):
+    scan_result_signal = pyqtSignal(object, object)
+    def __init__(self, parent, seed, paths):
+        QDialog.__init__(self, parent)
+
+        self.setWindowTitle(_('Select derivation path'))
+        vbox = QVBoxLayout()
+        self.setLayout(vbox)
+        vbox.setContentsMargins(25, 25, 25, 25)
+
+        self.table = QTableWidget(self)
+        self.table.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table.verticalHeader().setVisible(False)
+        self.table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents) 
+        self.table.setSortingEnabled(False)
+        self.table.setColumnCount(2)
+        self.table.setRowCount(len(paths))
+        self.table.setHorizontalHeaderItem(0, QTableWidgetItem(_('Path')))
+        self.table.setHorizontalHeaderItem(1, QTableWidgetItem(_('Transactions')))
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+
+        for row, d_path in enumerate(paths):
+            path_item = QTableWidgetItem(d_path)
+            path_item.setFlags(Qt.ItemIsSelectable|Qt.ItemIsEnabled)
+            self.table.setItem(row, 0, path_item)
+            transaction_count_item = QTableWidgetItem(_('Scanning...'))
+            transaction_count_item.setFlags(Qt.ItemIsSelectable|Qt.ItemIsEnabled)
+            self.table.setItem(row, 1, transaction_count_item)
+
+        self.table.cellDoubleClicked.connect(self.accept)
+        self.table.selectRow(0)
+        vbox.addWidget(self.table)
+        ok_but = OkButton(self)
+        buts = Buttons(CancelButton(self), ok_but)
+        vbox.addLayout(buts)
+        vbox.addStretch(1)
+        ok_but.setEnabled(True)
+        self.scan_result_signal.connect(self.update_table)
+        self.t = DerivationPathScanner(parent, seed, self.update_table_cb)
+        self.t.start()
+
+    def update_table_cb(self, row, scan_result):
+        self.scan_result_signal.emit(row, scan_result)
+
+    def update_table(self, row, scan_result):
+        self.table.item(row, 1).setText(scan_result)
+
+    def get_selected_path(self):
+        if self.exec_():
+            self.t.aborting = True
+            pathstr = self.table.selectionModel().selectedRows()
+            row = pathstr[0].row()
+            path_to_return =  self.table.item(row, 0).text()
+            return path_to_return
+
+        self.t.aborting = True
+        return None

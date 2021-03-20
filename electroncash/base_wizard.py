@@ -272,7 +272,7 @@ class BaseWizard(util.PrintError):
             default_derivation = keystore.bip44_derivation_145(0)
         self.derivation_dialog(f, default_derivation)
 
-    def derivation_dialog(self, f, default_derivation):
+    def derivation_dialog(self, f, default_derivation, seed=''):
         message = '\n'.join([
             _('Enter your wallet derivation here.'),
             _('If you are not sure what this is, leave this field unchanged.'),
@@ -280,7 +280,8 @@ class BaseWizard(util.PrintError):
             _("If you want the wallet to use Bitcoin Cash addresses use m/44'/145'/0'"),
             _("The placeholder value of {} is the default derivation for {} wallets.").format(default_derivation, self.wallet_type),
         ])
-        self.line_dialog(run_next=f, title=_('Derivation for {} wallet').format(self.wallet_type), message=message, default=default_derivation, test=bitcoin.is_bip32_derivation)
+        scannable = True if self.wallet_type == 'standard' else False
+        self.derivation_path_dialog(run_next=f, title=_('Derivation for {} wallet').format(self.wallet_type), message=message, default=default_derivation, test=bitcoin.is_bip32_derivation, seed=seed, scannable=scannable)
 
     def on_hw_derivation(self, name, device_info, derivation):
         from .keystore import hardware_keystore
@@ -334,7 +335,7 @@ class BaseWizard(util.PrintError):
 
     def on_restore_bip39(self, seed, passphrase):
         f = lambda x: self.run('on_bip44', seed, passphrase, str(x))
-        self.derivation_dialog(f, keystore.bip44_derivation_145(0))
+        self.derivation_dialog(f, keystore.bip44_derivation_145(0), seed)
 
     def create_keystore(self, seed, passphrase):
         # auto-detect, prefers old, electrum, bip39 in that order. Since we
