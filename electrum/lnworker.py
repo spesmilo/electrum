@@ -1428,13 +1428,12 @@ class LNWallet(LNWorker):
         invoice_features = LnFeatures(invoice_features)
         trampoline_features = LnFeatures.VAR_ONION_OPT
         local_height = self.network.get_local_height()
+        active_channels = [chan for chan in self.channels.values() if chan.is_active() and not chan.is_frozen_for_sending()]
         try:
             # try to send over a single channel
             if not self.channel_db:
-                for chan in self.channels.values():
+                for chan in active_channels:
                     if not self.is_trampoline_peer(chan.node_id):
-                        continue
-                    if chan.is_frozen_for_sending():
                         continue
                     trampoline_onion, amount_with_fees, cltv_delta = create_trampoline_route_and_onion(
                         amount_msat=amount_msat,
@@ -1474,14 +1473,15 @@ class LNWallet(LNWorker):
                     min_cltv_expiry=min_cltv_expiry,
                     r_tags=r_tags,
                     invoice_features=invoice_features,
-                    outgoing_channel=None, full_path=full_path)
+                    channels=active_channels,
+                    full_path=full_path)
                 routes = [(route, amount_msat, final_total_msat, amount_msat, min_cltv_expiry, payment_secret, fwd_trampoline_onion)]
         except NoPathFound:
             if not invoice_features.supports(LnFeatures.BASIC_MPP_OPT):
                 raise
-
-            channels_with_funds = {(cid, chan.node_id): int(chan.available_to_spend(HTLCOwner.LOCAL))
-                for cid, chan in self.channels.items() if not chan.is_frozen_for_sending()}
+            channels_with_funds = {
+                (chan.channel_id, chan.node_id): int(chan.available_to_spend(HTLCOwner.LOCAL))
+                for chan in active_channels}
             self.logger.info(f"channels_with_funds: {channels_with_funds}")
             # for trampoline mpp payments we have to restrict ourselves to pay
             # to a single node due to some incompatibility in Eclair, see:
@@ -1551,7 +1551,8 @@ class LNWallet(LNWorker):
                                     min_cltv_expiry=min_cltv_expiry,
                                     r_tags=r_tags,
                                     invoice_features=invoice_features,
-                                    outgoing_channel=channel, full_path=None)
+                                    channels=[channel],
+                                    full_path=None)
                                 routes.append((route, part_amount_msat, final_total_msat, part_amount_msat, min_cltv_expiry, payment_secret, fwd_trampoline_onion))
                     self.logger.info(f"found acceptable split configuration: {list(s[0].values())} rating: {s[1]}")
                     break
@@ -1568,10 +1569,9 @@ class LNWallet(LNWorker):
             min_cltv_expiry: int,
             r_tags,
             invoice_features: int,
-            outgoing_channel: Channel = None,
+            channels = [],
             full_path: Optional[LNPaymentPath]) -> Tuple[LNPaymentRoute, int]:
 
-        channels = [outgoing_channel] if outgoing_channel else list(self.channels.values())
         scid_to_my_channels = {
             chan.short_channel_id: chan for chan in channels
             if chan.short_channel_id is not None
