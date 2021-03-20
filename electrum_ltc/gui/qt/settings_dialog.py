@@ -41,6 +41,7 @@ from .util import (ColorScheme, WindowModalDialog, HelpLabel, Buttons,
 
 from electrum_ltc.i18n import languages
 from electrum_ltc import qrscanner
+from electrum_ltc.gui import messages
 
 if TYPE_CHECKING:
     from electrum_ltc.simple_config import SimpleConfig
@@ -130,9 +131,20 @@ class SettingsDialog(WindowModalDialog):
         # lightning
         lightning_widgets = []
 
+        if self.wallet.lnworker and self.wallet.lnworker.has_deterministic_node_id():
+            help_recov = _(messages.MSG_RECOVERABLE_CHANNELS)
+            recov_cb = QCheckBox(_("Create recoverable channels"))
+            recov_cb.setToolTip(help_recov)
+            recov_cb.setChecked(bool(self.config.get('use_recoverable_channels', True)))
+            def on_recov_checked(x):
+                self.config.set_key('use_recoverable_channels', bool(x))
+            recov_cb.stateChanged.connect(on_recov_checked)
+            recov_cb.setEnabled(not bool(self.config.get('lightning_listen')))
+            lightning_widgets.append((recov_cb, None))
+
         help_gossip = _("""If this option is enabled, Electrum will download the network
 channels graph and compute payment path locally, instead of using trampoline payments. """)
-        gossip_cb = QCheckBox(_("Download network graph"))
+        gossip_cb = QCheckBox(_("Enable gossip (disable trampoline)"))
         gossip_cb.setToolTip(help_gossip)
         gossip_cb.setChecked(bool(self.config.get('use_gossip', False)))
         def on_gossip_checked(x):

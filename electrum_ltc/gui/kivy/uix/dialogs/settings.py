@@ -16,6 +16,7 @@ from .choice_dialog import ChoiceDialog
 Builder.load_string('''
 #:import partial functools.partial
 #:import _ electrum_ltc.gui.kivy.i18n._
+#:import messages electrum_ltc.gui.messages
 
 <SettingsDialog@Popup>
     id: settings
@@ -81,17 +82,17 @@ Builder.load_string('''
                     action: root.change_password
                 CardSeparator
                 SettingsItem:
+                    status: _('Yes') if app.use_recoverable_channels else _('No')
+                    title: _('Use recoverable channels') + ': ' + self.status
+                    description: _("Add channel recovery data to funding transaction.")
+                    message: _(messages.MSG_RECOVERABLE_CHANNELS)
+                    action: partial(root.boolean_dialog, 'use_recoverable_channels', _('Use recoverable_channels'), self.message)
+                CardSeparator
+                SettingsItem:
                     status: _('Trampoline') if not app.use_gossip else _('Gossip')
                     title: _('Lightning Routing') + ': ' + self.status
                     description: _("Use trampoline routing or gossip.")
                     action: partial(root.routing_dialog, self)
-                CardSeparator
-                SettingsItem:
-                    status: _('Yes') if app.android_backups else _('No')
-                    title: _('Backups') + ': ' + self.status
-                    description: _("Backup wallet to external storage.")
-                    message: _("If this option is checked, a backup of your wallet will be written to external storage everytime you create a new channel. Make sure your wallet is protected with a strong password before you enable this option.")
-                    action: partial(root.boolean_dialog, 'android_backups', _('Backups'), self.message)
 
                 # disabled: there is currently only one coin selection policy
                 #CardSeparator

@@ -24,6 +24,7 @@ from . import constants
 from .util import (bh2u, bfh, log_exceptions, ignore_exceptions, chunks, SilentTaskGroup,
                    UnrelatedTransactionException)
 from . import transaction
+from .bitcoin import make_op_return
 from .transaction import PartialTxOutput, match_script_against_template
 from .logging import Logger
 from .lnonion import (new_onion_packet, OnionFailureCode, calc_hops_data_for_payment,
@@ -45,7 +46,7 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      UpfrontShutdownScriptViolation)
 from .lnutil import FeeUpdate, channel_id_from_funding_tx
 from .lntransport import LNTransport, LNTransportBase
-from .lnmsg import encode_msg, decode_msg
+from .lnmsg import encode_msg, decode_msg, UnknownOptionalMsgType
 from .interface import GracefulDisconnect
 from .lnrouter import fee_for_edge_msat
 from .lnutil import ln_dummy_address
@@ -178,7 +179,11 @@ class Peer(Logger):
             self.ping_time = time.time()
 
     def process_message(self, message):
-        message_type, payload = decode_msg(message)
+        try:
+            message_type, payload = decode_msg(message)
+        except UnknownOptionalMsgType as e:
+            self.logger.info(f"received unknown message from peer. ignoring: {e!r}")
+            return
         # only process INIT if we are a backup
         if self.is_channel_backup is True and message_type != 'init':
             return
@@ -681,6 +686,19 @@ class Peer(Logger):
         funding_tx._outputs.remove(dummy_output)
         if dummy_output in funding_tx.outputs(): raise Exception("LN dummy output (err 2)")
         funding_tx.add_outputs([funding_output])
+        # find and encrypt op_return data associated to funding_address
+        if self.lnworker and self.lnworker.has_recoverable_channels():
+            backup_data = self.lnworker.cb_data(self.pubkey)
+            dummy_scriptpubkey = make_op_return(backup_data)
+            for o in funding_tx.outputs():
+                if o.scriptpubkey == dummy_scriptpubkey:
+                    encrypted_data = self.lnworker.encrypt_cb_data(backup_data, funding_address)
+                    assert len(encrypted_data) == len(backup_data)
+                    o.scriptpubkey = make_op_return(encrypted_data)
+                    break
+            else:
+                raise Exception('op_return output not found in funding tx')
+        # must not be malleable
         funding_tx.set_rbf(False)
         if not funding_tx.is_segwit():
             raise Exception('Funding transaction is not segwit')
@@ -755,6 +773,9 @@ class Peer(Logger):
 
         Channel configurations are initialized in this method.
         """
+        if self.lnworker.has_recoverable_channels():
+            # FIXME: we might want to keep the connection open
+            raise Exception('not accepting channels')
         # <- open_channel
         if payload['chain_hash'] != constants.net.rev_genesis_bytes():
             raise Exception('wrong chain_hash')
@@ -1645,6 +1666,11 @@ class Peer(Logger):
             self.logger.info("FEES HAVE FALLEN")
         elif feerate_per_kw > chan_fee * 2:
             self.logger.info("FEES HAVE RISEN")
+        elif chan.get_oldest_unrevoked_ctn(REMOTE) == 0:
+            # workaround eclair issue https://github.com/ACINQ/eclair/issues/1730
+            self.logger.info("updating fee to bump remote ctn")
+            if feerate_per_kw == chan_fee:
+                feerate_per_kw += 1
         else:
             return
         self.logger.info(f"(chan: {chan.get_id_for_log()}) current pending feerate {chan_fee}. "

@@ -11,7 +11,7 @@ from PyQt5.QtGui import QFont, QStandardItem, QBrush
 
 from electrum_ltc.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
 from electrum_ltc.i18n import _
-from electrum_ltc.lnchannel import AbstractChannel, PeerState, ChannelBackup, Channel
+from electrum_ltc.lnchannel import AbstractChannel, PeerState, ChannelBackup, Channel, ChannelState
 from electrum_ltc.wallet import Abstract_Wallet
 from electrum_ltc.lnutil import LOCAL, REMOTE, format_short_channel_id, LN_MAX_FUNDING_SAT
 from electrum_ltc.lnworker import LNWallet
@@ -207,9 +207,14 @@ class ChannelsList(MyTreeView):
         if not item:
             return
         channel_id = idx.sibling(idx.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
-        if channel_id in self.lnworker.channel_backups:
-            menu.addAction(_("Request force-close"), lambda: self.request_force_close(channel_id))
-            menu.addAction(_("Delete"), lambda: self.remove_channel_backup(channel_id))
+        chan = self.lnworker.channel_backups.get(channel_id)
+        if chan:
+            funding_tx = self.parent.wallet.db.get_transaction(chan.funding_outpoint.txid)
+            menu.addAction(_("View funding transaction"), lambda: self.parent.show_transaction(funding_tx))
+            if chan.get_state() == ChannelState.FUNDED:
+                menu.addAction(_("Request force-close"), lambda: self.request_force_close(channel_id))
+            if chan.is_imported:
+                menu.addAction(_("Delete"), lambda: self.remove_channel_backup(channel_id))
             menu.exec_(self.viewport().mapToGlobal(position))
             return
         chan = self.lnworker.channels[channel_id]
@@ -346,13 +351,14 @@ class ChannelsList(MyTreeView):
 
     def new_channel_with_warning(self):
         if not self.parent.wallet.lnworker.channels:
-            warning1 = _("Lightning support in Electrum is experimental. "
+            warning = _("Lightning support in Electrum is experimental. "
                          "Do not put large amounts in lightning channels.")
-            warning2 = _("Funds stored in lightning channels are not recoverable from your seed. "
-                         "You must backup your wallet file everytime you create a new channel.")
+            if not self.parent.wallet.lnworker.has_recoverable_channels():
+                warning += _("Funds stored in lightning channels are not recoverable from your seed. "
+                             "You must backup your wallet file everytime you create a new channel.")
             answer = self.parent.question(
                 _('Do you want to create your first channel?') + '\n\n' +
-                _('WARNINGS') + ': ' + '\n\n' + warning1 + '\n\n' + warning2)
+                _('WARNING') + ': ' + '\n\n' + warning)
             if answer:
                 self.new_channel_dialog()
         else:

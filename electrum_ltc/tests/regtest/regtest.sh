@@ -141,7 +141,6 @@ if [[ $1 == "backup" ]]; then
     echo "channel point: $channel"
     new_blocks 3
     wait_until_channel_open alice
-    backup=$($alice export_channel_backup $channel)
     request=$($bob add_lightning_request 0.01 -m "blah" | jq -r ".invoice")
     echo "alice pays"
     $alice lnpay $request
@@ -151,7 +150,6 @@ if [[ $1 == "backup" ]]; then
     $alice -o restore "$seed"
     $alice daemon -d
     $alice load_wallet
-    $alice import_channel_backup $backup
     $alice request_force_close $channel
     wait_for_balance alice 0.989
 fi

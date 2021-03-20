@@ -1,3 +1,19 @@
+# Release 4.1.0 - (not released yet; release notes are a draft)
+ * The wallet creation wizard will no longer ask for seed type,
+   and create segwit wallets. Older seed types can still be
+   created wit the command line.
+ * Lightning:
+    - support multi-part-payment
+    - support trampoline routing (enabled by default)
+    - channel backups can be recovered from seed (enabled by default)
+    - submarine swaps are available on kivy/android.
+    - support upfront_shutdown_script
+ * GUI: invoices (both incoming and outgoing) are automatically
+   removed from the list once they are paid. Invoice details can
+   still be accessed from the transaction history.
+ * Android: if possible, use the same password for all wallets
+
+
 # Release 4.0.9 - (Dec 18, 2020)
  * fixes a regression introduced in 4.0.8, that prevents from
    paying BIP70 invoices (#6859)

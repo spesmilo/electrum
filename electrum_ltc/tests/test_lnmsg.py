@@ -3,7 +3,9 @@ import io
 from electrum_ltc.lnmsg import (read_bigsize_int, write_bigsize_int, FieldEncodingNotMinimal,
                                 UnexpectedEndOfStream, LNSerializer, UnknownMandatoryTLVRecordType,
                                 MalformedMsg, MsgTrailingGarbage, MsgInvalidFieldOrder, encode_msg,
-                                decode_msg, UnexpectedFieldSizeForEncoder)
+                                decode_msg, UnexpectedFieldSizeForEncoder, OnionWireSerializer,
+                                UnknownMsgType)
+from electrum_ltc.lnonion import OnionRoutingFailure
 from electrum_ltc.util import bfh
 from electrum_ltc.lnutil import ShortChannelID, LnFeatures
 from electrum_ltc import constants
@@ -383,3 +385,16 @@ class TestLNMsg(TestCaseForTestnet):
                                   {'chains': b'\xa0)>N\xeb=\xa6\xe6\xf5o\x81\xedY_W\x88\r\x1a!V\x9e\x13\xee\xfd\xd9Q(KZbfI'}
                           }}),
                          decode_msg(bfh("001000022200000302aaa20120a0293e4eeb3da6e6f56f81ed595f57880d1a21569e13eefdd951284b5a626649")))
+
+    def test_decode_onion_error(self):
+        orf = OnionRoutingFailure.from_bytes(bfh("400f0000000017d2d8b0001d9458"))
+        self.assertEqual(('incorrect_or_unknown_payment_details', {'htlc_msat': 399694000, 'height': 1938520}),
+                         OnionWireSerializer.decode_msg(orf.to_bytes()))
+        self.assertEqual({'htlc_msat': 399694000, 'height': 1938520},
+                         orf.decode_data())
+
+        orf2 = OnionRoutingFailure(26399, bytes.fromhex("0000000017d2d8b0001d9458"))
+        with self.assertRaises(UnknownMsgType):
+            OnionWireSerializer.decode_msg(orf2.to_bytes())
+        self.assertEqual(None, orf2.decode_data())
+
