@@ -432,6 +432,7 @@ class LNWalletWatcher(LNWatcher):
         tx = sweep_info.gen_tx()
         if tx is None:
             self.logger.info(f'{name} could not claim output: {prevout}, dust')
+            return
         self.lnworker.wallet.set_label(tx.txid(), name)
         if broadcast:
             await self.network.try_broadcasting(tx, name)
