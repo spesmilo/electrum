@@ -503,9 +503,11 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     def derivation_path_dialog(self, run_next, title, message, default, test, warning='', seed='', scannable=False):
         def on_derivation_scan(derivation_line, seed):
             derivation_scan_dialog = DerivationDialog(self, seed, DerivationPathScanner.DERIVATION_PATHS)
+            destroyed_print_error(derivation_scan_dialog)
             selected_path = derivation_scan_dialog.get_selected_path()
             if selected_path:
                 derivation_line.setText(selected_path)
+            derivation_scan_dialog.deleteLater()
 
         vbox = QVBoxLayout()
         vbox.addWidget(WWLabel(message))
