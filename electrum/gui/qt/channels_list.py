@@ -16,6 +16,7 @@ from electrum.wallet import Abstract_Wallet
 from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id, LN_MAX_FUNDING_SAT
 from electrum.lnworker import LNWallet
 from electrum import ecc
+from electrum.gui import messages
 
 from .util import (MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, WaitingDialog, MONOSPACE_FONT, ColorScheme)
@@ -111,9 +112,7 @@ class ChannelsList(MyTreeView):
         self.is_force_close = False
         msg = _('Close channel?')
         force_cb = QCheckBox('Request force close from remote peer')
-        tooltip = _(
-            'If you check this option, your node will pretend that it has lost its data and ask the remote node to broadcast their latest state. '
-            'Doing so from time to time helps make sure that nodes are honest, because your node can punish them if they broadcast a revoked state.')
+        tooltip = _(messages.MSG_REQUEST_FORCE_CLOSE)
         tooltip = '<qt>' + tooltip + '</qt>' # rich text is word wrapped
         def on_checked(b):
             self.is_force_close = bool(b)

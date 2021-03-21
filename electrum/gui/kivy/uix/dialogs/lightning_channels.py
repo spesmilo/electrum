@@ -15,8 +15,10 @@ from .question import Question
 from electrum.transaction import PartialTxOutput, Transaction
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, format_fee_satoshis, quantize_feerate
 from electrum.lnutil import ln_dummy_address
+from electrum.gui import messages
 
 from .qr_dialog import QRDialog
+from .choice_dialog import ChoiceDialog
 
 if TYPE_CHECKING:
     from ...main_window import ElectrumWindow
@@ -437,7 +439,7 @@ class ChannelBackupPopup(Popup, Logger):
         coro = asyncio.run_coroutine_threadsafe(self.app.wallet.lnworker.request_force_close_from_backup(self.chan.channel_id), loop)
         try:
             coro.result(5)
-            self.app.show_info(_('Channel closed'))
+            self.app.show_info(_('Request sent'))
         except Exception as e:
             self.logger.exception("Could not close channel")
             self.app.show_info(_('Could not close channel: ') + repr(e)) # repr because str(Exception()) == ''
@@ -490,16 +492,26 @@ class ChannelDetailsPopup(Popup, Logger):
         self.warning = '' if self.app.wallet.lnworker.channel_db or self.app.wallet.lnworker.is_trampoline_peer(chan.node_id) else _('Warning') + ': ' + msg
 
     def close(self):
-        Question(_('Close channel?'), self._close).open()
+        dialog = ChoiceDialog(
+            title=_('Close channel'),
+            choices={0:_('Cooperative close'), 1:_('Request force-close')}, key=0,
+            callback=self._close,
+            description=_(messages.MSG_REQUEST_FORCE_CLOSE),
+            keep_choice_order=True)
+        dialog.open()
 
-    def _close(self, b):
-        if not b:
-            return
+    def _close(self, choice):
         loop = self.app.wallet.network.asyncio_loop
-        coro = asyncio.run_coroutine_threadsafe(self.app.wallet.lnworker.close_channel(self.chan.channel_id), loop)
+        if choice == 1:
+            coro = self.app.wallet.lnworker.request_force_close_from_backup(self.chan.channel_id)
+            msg = _('Request sent')
+        else:
+            coro = self.app.wallet.lnworker.close_channel(self.chan.channel_id)
+            msg = _('Channel closed')
+        f = asyncio.run_coroutine_threadsafe(coro, loop)
         try:
-            coro.result(5)
-            self.app.show_info(_('Channel closed'))
+            f.result(5)
+            self.app.show_info(msg)
         except Exception as e:
             self.logger.exception("Could not close channel")
             self.app.show_info(_('Could not close channel: ') + repr(e)) # repr because str(Exception()) == ''
