@@ -281,7 +281,9 @@ class BaseWizard(util.PrintError):
             _("The placeholder value of {} is the default derivation for {} wallets.").format(default_derivation, self.wallet_type),
         ])
         scannable = True if self.wallet_type == 'standard' else False
-        self.derivation_path_dialog(run_next=f, title=_('Derivation for {} wallet').format(self.wallet_type), message=message, default=default_derivation, test=bitcoin.is_bip32_derivation, seed=seed, scannable=scannable)
+        self.derivation_path_dialog(run_next=f, title=_('Derivation for {} wallet').format(self.wallet_type),
+                                    message=message, default=default_derivation, test=bitcoin.is_bip32_derivation,
+                                    seed=seed, scannable=scannable)
 
     def on_hw_derivation(self, name, device_info, derivation):
         from .keystore import hardware_keystore
