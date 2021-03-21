@@ -170,7 +170,7 @@ class OnionPacket:
 
     def __init__(self, public_key: bytes, hops_data: bytes, hmac: bytes):
         assert len(public_key) == 33
-        assert len(hops_data) in [ HOPS_DATA_SIZE, TRAMPOLINE_HOPS_DATA_SIZE ]
+        assert len(hops_data) in [HOPS_DATA_SIZE, TRAMPOLINE_HOPS_DATA_SIZE]
         assert len(hmac) == PER_HOP_HMAC_SIZE
         self.version = 0
         self.public_key = public_key
@@ -184,13 +184,13 @@ class OnionPacket:
         ret += self.public_key
         ret += self.hops_data
         ret += self.hmac
-        if len(ret) - 66 not in [ HOPS_DATA_SIZE, TRAMPOLINE_HOPS_DATA_SIZE ]:
+        if len(ret) - 66 not in [HOPS_DATA_SIZE, TRAMPOLINE_HOPS_DATA_SIZE]:
             raise Exception('unexpected length {}'.format(len(ret)))
         return ret
 
     @classmethod
     def from_bytes(cls, b: bytes):
-        if len(b) - 66 not in [ HOPS_DATA_SIZE, TRAMPOLINE_HOPS_DATA_SIZE ]:
+        if len(b) - 66 not in [HOPS_DATA_SIZE, TRAMPOLINE_HOPS_DATA_SIZE]:
             raise Exception('unexpected length {}'.format(len(b)))
         version = b[0]
         if version != 0:

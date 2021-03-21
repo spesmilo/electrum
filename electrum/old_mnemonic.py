@@ -1666,7 +1666,7 @@ assert n == 1626
 # Note about US patent no 5892470: Here each word does not represent a given digit.
 # Instead, the digit represented by a word is variable, it depends on the previous word.
 
-def mn_encode( message ):
+def mn_encode(message):
     assert len(message) % 8 == 0
     out = []
     for i in range(len(message)//8):
@@ -1675,11 +1675,11 @@ def mn_encode( message ):
         w1 = (x%n)
         w2 = ((x//n) + w1)%n
         w3 = ((x//n//n) + w2)%n
-        out += [ wordlist[w1], wordlist[w2], wordlist[w3] ]
+        out += [wordlist[w1], wordlist[w2], wordlist[w3]]
     return out
 
 
-def mn_decode( wlist ):
+def mn_decode(wlist):
     out = ''
     for i in range(len(wlist)//3):
         word1, word2, word3 = wlist[3*i:3*i+3]

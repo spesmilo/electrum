@@ -358,7 +358,7 @@ class CoinChooserRandom(CoinChooserBase):
         # Add all singletons
         for n, bucket in enumerate(buckets):
             if sufficient_funds([bucket], bucket_value_sum=bucket.value):
-                candidates.add((n, ))
+                candidates.add((n,))
 
         # And now some random ones
         attempts = min(100, (len(buckets) - 1) * 10 + 1)

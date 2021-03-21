@@ -288,7 +288,7 @@ class CoinDesk(ExchangeBase):
         return result
 
     def history_starts(self):
-        return { 'USD': '2012-11-30', 'EUR': '2013-09-01' }
+        return {'USD': '2012-11-30', 'EUR': '2013-09-01'}
 
     def history_ccys(self):
         return self.history_starts().keys()
