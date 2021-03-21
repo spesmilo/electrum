@@ -167,7 +167,7 @@ def deserialize_proxy(s: str) -> Optional[dict]:
         return None
     if s.lower() == 'none':
         return None
-    proxy = { "mode":"socks5", "host":"localhost" }
+    proxy = {"mode":"socks5", "host":"localhost"}
     # FIXME raw IPv6 address fails here
     args = s.split(':')
     n = 0

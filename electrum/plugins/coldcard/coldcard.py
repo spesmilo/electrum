@@ -97,7 +97,7 @@ class CKCCClient(HardwareClientBase):
         if expected_xpub is None:
             expected_xpub = self.dev.master_xpub
 
-        if ( (self._expected_device is not None) 
+        if ((self._expected_device is not None)
                 or (self.dev.master_fingerprint != expected_xfp)
                 or (self.dev.master_xpub != expected_xpub)):
             # probably indicating programing error, not hacking
@@ -569,14 +569,14 @@ class ColdcardPlugin(HW_PluginBase):
         print('# Exported from Electrum', file=fp)
         print(f'Name: {name:.20s}', file=fp)
         print(f'Policy: {wallet.m} of {wallet.n}', file=fp)
-        print(f'Format: {wallet.txin_type.upper()}' , file=fp)
+        print(f'Format: {wallet.txin_type.upper()}', file=fp)
 
         xpubs = []
         for xpub, ks in zip(wallet.get_master_public_keys(), wallet.get_keystores()):  # type: str, KeyStoreWithMPK
             fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix=[], only_der_suffix=False)
             fp_hex = fp_bytes.hex().upper()
             der_prefix_str = bip32.convert_bip32_intpath_to_strpath(der_full)
-            xpubs.append( (fp_hex, xpub, der_prefix_str) )
+            xpubs.append((fp_hex, xpub, der_prefix_str))
 
         # Before v3.2.1 derivation didn't matter too much to the Coldcard, since it
         # could use key path data from PSBT or USB request as needed. However,

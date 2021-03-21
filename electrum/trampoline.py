@@ -62,9 +62,9 @@ TRAMPOLINE_NODES_TESTNET = {
 }
 
 def hardcoded_trampoline_nodes():
-    if constants.net in (constants.BitcoinMainnet, ):
+    if constants.net in (constants.BitcoinMainnet,):
         return TRAMPOLINE_NODES_MAINNET
-    if constants.net in (constants.BitcoinTestnet, ):
+    if constants.net in (constants.BitcoinTestnet,):
         return TRAMPOLINE_NODES_TESTNET
     return {}
 

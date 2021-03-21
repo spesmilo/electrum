@@ -6,7 +6,7 @@ Factory.register('QRScanner', module='electrum.gui.kivy.qr_scanner')
 
 class QrScannerDialog(Factory.AnimatedPopup):
 
-    __events__ = ('on_complete', )
+    __events__ = ('on_complete',)
 
     def on_symbols(self, instance, value):
         instance.stop()

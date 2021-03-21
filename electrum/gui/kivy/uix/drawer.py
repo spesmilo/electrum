@@ -188,7 +188,7 @@ class Drawer(Factory.RelativeLayout):
         if app.ui_mode[0] == 't':
             return super(Drawer, self).on_touch_up(touch)
 
-        self.old_x = [1, ] * 10
+        self.old_x = [1,] * 10
         self.speed = sum((
             (self.old_x[x + 1] - self.old_x[x]) for x in range(9))) / 9.
 

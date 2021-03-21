@@ -117,7 +117,7 @@ class NodesListWidget(QTreeWidget):
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def keyPressEvent(self, event):
-        if event.key() in [ Qt.Key_F2, Qt.Key_Return, Qt.Key_Enter ]:
+        if event.key() in [Qt.Key_F2, Qt.Key_Return, Qt.Key_Enter]:
             self.on_activated(self.currentItem(), self.currentColumn())
         else:
             QTreeWidget.keyPressEvent(self, event)
@@ -396,11 +396,11 @@ class NetworkChoiceLayout(object):
     def set_proxy(self):
         net_params = self.network.get_parameters()
         if self.proxy_cb.isChecked():
-            proxy = { 'mode':str(self.proxy_mode.currentText()).lower(),
-                      'host':str(self.proxy_host.text()),
-                      'port':str(self.proxy_port.text()),
-                      'user':str(self.proxy_user.text()),
-                      'password':str(self.proxy_password.text())}
+            proxy = {'mode':str(self.proxy_mode.currentText()).lower(),
+                     'host':str(self.proxy_host.text()),
+                     'port':str(self.proxy_port.text()),
+                     'user':str(self.proxy_user.text()),
+                     'password':str(self.proxy_password.text())}
         else:
             proxy = None
             self.tor_cb.setChecked(False)
