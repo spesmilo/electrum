@@ -11,6 +11,7 @@ import androidx.fragment.app.DialogFragment
 import com.chaquo.python.Kwarg
 import com.chaquo.python.PyException
 import com.google.zxing.integration.android.IntentIntegrator
+import kotlinx.android.synthetic.main.choose_keystore.*
 import kotlinx.android.synthetic.main.wallet_new.*
 import kotlinx.android.synthetic.main.wallet_new_2.*
 import kotlin.properties.Delegates.notNull
@@ -30,7 +31,8 @@ class NewWalletDialog1 : AlertDialogFragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        spnType.adapter = MenuAdapter(context!!, R.menu.wallet_type)
+        // spnType.adapter = MenuAdapter(context!!, R.menu.wallet_type)
+        spnWalletKind.adapter = MenuAdapter(context!!, R.menu.wallet_kind)
     }
 
     override fun onShowDialog() {
@@ -45,21 +47,19 @@ class NewWalletDialog1 : AlertDialogFragment() {
                     putString("password", password)
                 }
 
-                val walletType = spnType.selectedItemId.toInt()
-                if (walletType in listOf(R.id.menuCreateSeed, R.id.menuRestoreSeed)) {
-                    nextDialog = NewWalletSeedDialog()
-                    val seed = if (walletType == R.id.menuCreateSeed)
-                                   daemonModel.commands.callAttr("make_seed").toString()
-                               else null
-                    arguments.putString("seed", seed)
-                } else if (walletType == R.id.menuImport) {
-                    nextDialog = NewWalletImportDialog()
-                } else if (walletType == R.id.menuImportMaster) {
-                    nextDialog = NewWalletImportMasterDialog()
-                } else {
-                    throw Exception("Unknown item: ${spnType.selectedItem}")
+                when (spnWalletKind.selectedItemId.toInt()) {
+                    R.id.menuStandardWallet -> {
+                        nextDialog = KeystoreDialog()
+                        showDialog(this, nextDialog.apply { setArguments(arguments) })
+                    }
+                    R.id.menuMultisigWallet -> {
+                        // TODO
+                    }
+                    else -> {
+                        throw Exception("Unknown item: ${spnWalletKind.selectedItem}")
+                    }
                 }
-                showDialog(this, nextDialog.apply { setArguments(arguments) })
+
             } catch (e: ToastException) { e.show() }
         }
     }
@@ -94,15 +94,61 @@ fun confirmPassword(dialog: Dialog): String {
     return password
 }
 
+// Choose the way of generating the wallet (new seed, import seed, etc.)
+class KeystoreDialog : TaskLauncherDialog<String>() {
+    var input: String by notNull()
+
+    override fun onBuildDialog(builder: AlertDialog.Builder) {
+        builder.setTitle(R.string.New_wallet)
+                .setView(R.layout.choose_keystore)
+                .setPositiveButton(android.R.string.ok, null)
+                .setNegativeButton(R.string.back, null)
+    }
+
+    override fun doInBackground(): String {
+        TODO("Not yet implemented")
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        spnType.adapter = MenuAdapter(context!!, R.menu.wallet_type)
+    }
+
+    override fun onShowDialog() {
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            try {
+
+                val nextDialog: DialogFragment
+                val keystoreType = spnType.selectedItemId.toInt()
+
+                if (keystoreType in listOf(R.id.menuCreateSeed, R.id.menuRestoreSeed)) {
+                    nextDialog = NewWalletSeedDialog()
+                    val seed = if (keystoreType == R.id.menuCreateSeed)
+                        daemonModel.commands.callAttr("make_seed").toString()
+                    else null
+                    arguments!!.putString("seed", seed)
+                } else if (keystoreType == R.id.menuImport) {
+                    nextDialog = NewWalletImportDialog()
+                } else if (keystoreType == R.id.menuImportMaster) {
+                    nextDialog = NewWalletImportMasterDialog()
+                } else {
+                    throw Exception("Unknown item: ${spnType.selectedItem}")
+                }
+                nextDialog.setArguments(arguments)
+                showDialog(this, nextDialog)
+            } catch (e: ToastException) { e.show() }
+        }
+    }
+}
 
 abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
     var input: String by notNull()
 
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         builder.setTitle(R.string.New_wallet)
-            .setView(R.layout.wallet_new_2)
-            .setPositiveButton(android.R.string.ok, null)
-            .setNegativeButton(R.string.back, null)
+                .setView(R.layout.wallet_new_2)
+                .setPositiveButton(android.R.string.ok, null)
+                .setNegativeButton(R.string.back, null)
     }
 
     override fun onPreExecute() {
@@ -120,7 +166,8 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
     abstract fun onCreateWallet(name: String, password: String)
 
     override fun onPostExecute(result: String) {
-        (targetFragment as NewWalletDialog1).dismiss()
+        (targetFragment as KeystoreDialog).dismiss()
+        (targetFragment!!.targetFragment as NewWalletDialog1).dismiss()
         daemonModel.commands.callAttr("select_wallet", result)
         (activity as MainActivity).updateDrawer()
     }
