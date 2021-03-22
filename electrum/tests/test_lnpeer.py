@@ -116,6 +116,7 @@ class MockWallet:
 class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     MPP_EXPIRY = 2  # HTLC timestamps are cast to int, so this cannot be 1
     TIMEOUT_SHUTDOWN_FAIL_PENDING_HTLCS = 0
+    INITIAL_TRAMPOLINE_FEE_LEVEL = 0
 
     def __init__(self, *, local_keypair: Keypair, chans: Iterable['Channel'], tx_queue, name):
         self.name = name
