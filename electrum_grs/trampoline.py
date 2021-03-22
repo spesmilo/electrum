@@ -113,7 +113,7 @@ def create_trampoline_route(
         raise NoPathFound()
     # temporary fix: until ACINQ uses a proper feature bit to detect
     # Phoenix, they might try to open channels when payments fail
-    if trampoline_node_id == TRAMPOLINE_NODES_MAINNET['ACINQ'].pubkey:
+    if trampoline_node_id == TRAMPOLINE_NODES_MAINNET['grspay'].pubkey:
         is_legacy = True
         use_two_trampolines = False
     # add optional second trampoline
