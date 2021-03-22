@@ -1569,7 +1569,7 @@ class LNWallet(LNWorker):
             min_cltv_expiry: int,
             r_tags,
             invoice_features: int,
-            channels = [],
+            channels: List[Channel],
             full_path: Optional[LNPaymentPath]) -> Tuple[LNPaymentRoute, int]:
 
         scid_to_my_channels = {
