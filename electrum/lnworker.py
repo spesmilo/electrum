@@ -1435,21 +1435,29 @@ class LNWallet(LNWorker):
                 for chan in active_channels:
                     if not self.is_trampoline_peer(chan.node_id):
                         continue
-                    trampoline_onion, amount_with_fees, cltv_delta = create_trampoline_route_and_onion(
-                        amount_msat=amount_msat,
-                        total_msat=final_total_msat,
-                        min_cltv_expiry=min_cltv_expiry,
-                        my_pubkey=self.node_keypair.pubkey,
-                        invoice_pubkey=invoice_pubkey,
-                        invoice_features=invoice_features,
-                        node_id=chan.node_id,
-                        r_tags=r_tags,
-                        payment_hash=payment_hash,
-                        payment_secret=payment_secret,
-                        local_height=local_height,
-                        trampoline_fee_level=trampoline_fee_level,
-                        use_two_trampolines=use_two_trampolines)
-                    trampoline_payment_secret = os.urandom(32)
+                    if chan.node_id == invoice_pubkey:
+                        trampoline_onion = None
+                        trampoline_payment_secret = payment_secret
+                        trampoline_total_msat = final_total_msat
+                        amount_with_fees = amount_msat
+                        cltv_delta = min_cltv_expiry
+                    else:
+                        trampoline_onion, amount_with_fees, cltv_delta = create_trampoline_route_and_onion(
+                            amount_msat=amount_msat,
+                            total_msat=final_total_msat,
+                            min_cltv_expiry=min_cltv_expiry,
+                            my_pubkey=self.node_keypair.pubkey,
+                            invoice_pubkey=invoice_pubkey,
+                            invoice_features=invoice_features,
+                            node_id=chan.node_id,
+                            r_tags=r_tags,
+                            payment_hash=payment_hash,
+                            payment_secret=payment_secret,
+                            local_height=local_height,
+                            trampoline_fee_level=trampoline_fee_level,
+                            use_two_trampolines=use_two_trampolines)
+                        trampoline_payment_secret = os.urandom(32)
+                        trampoline_total_msat = amount_with_fees
                     if chan.available_to_spend(LOCAL, strict=True) < amount_with_fees:
                         continue
                     route = [
@@ -1462,7 +1470,7 @@ class LNWallet(LNWorker):
                             cltv_expiry_delta=0,
                             node_features=trampoline_features)
                     ]
-                    routes = [(route, amount_with_fees, amount_with_fees, amount_msat, cltv_delta, trampoline_payment_secret, trampoline_onion)]
+                    routes = [(route, amount_with_fees, trampoline_total_msat, amount_msat, cltv_delta, trampoline_payment_secret, trampoline_onion)]
                     break
                 else:
                     raise NoPathFound()
