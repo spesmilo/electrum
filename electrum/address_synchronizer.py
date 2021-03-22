@@ -86,7 +86,7 @@ class AddressSynchronizer(Logger):
         # locks: if you need to take multiple ones, acquire them in the order they are defined here!
         self.lock = threading.RLock()
         self.transaction_lock = threading.RLock()
-        self.future_tx = {}  # type: Dict[str, int]  # txid -> blocks remaining
+        self.future_tx = {}  # type: Dict[str, int]  # txid -> wanted height
         # Transactions pending verification.  txid -> tx_height. Access with self.lock.
         self.unverified_tx = defaultdict(int)
         # true when synchronized
@@ -626,12 +626,11 @@ class AddressSynchronizer(Logger):
             return cached_local_height
         return self.network.get_local_height() if self.network else self.db.get('stored_height', 0)
 
-    def add_future_tx(self, tx: Transaction, num_blocks: int) -> bool:
-        assert num_blocks > 0, num_blocks
+    def add_future_tx(self, tx: Transaction, wanted_height: int) -> bool:
         with self.lock:
             tx_was_added = self.add_transaction(tx)
             if tx_was_added:
-                self.future_tx[tx.txid()] = num_blocks
+                self.future_tx[tx.txid()] = wanted_height
             return tx_was_added
 
     def get_tx_height(self, tx_hash: str) -> TxMinedInfo:
@@ -646,9 +645,11 @@ class AddressSynchronizer(Logger):
                 height = self.unverified_tx[tx_hash]
                 return TxMinedInfo(height=height, conf=0)
             elif tx_hash in self.future_tx:
-                num_blocks_remainining = self.future_tx[tx_hash]
-                assert num_blocks_remainining > 0, num_blocks_remainining
-                return TxMinedInfo(height=TX_HEIGHT_FUTURE, conf=-num_blocks_remainining)
+                num_blocks_remainining = self.future_tx[tx_hash] - self.get_local_height()
+                if num_blocks_remainining > 0:
+                    return TxMinedInfo(height=TX_HEIGHT_FUTURE, conf=-num_blocks_remainining)
+                else:
+                    return TxMinedInfo(height=TX_HEIGHT_LOCAL, conf=0)
             else:
                 # local transaction
                 return TxMinedInfo(height=TX_HEIGHT_LOCAL, conf=0)
