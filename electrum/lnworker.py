@@ -1970,8 +1970,8 @@ class LNWallet(LNWorker):
         await self.network.try_broadcasting(tx, 'force-close')
 
     def remove_channel(self, chan_id):
-        chan = self._channels[chan_id]
-        assert chan.get_state() == ChannelState.REDEEMED
+        chan = self.channels[chan_id]
+        assert chan.can_be_deleted()
         with self.lock:
             self._channels.pop(chan_id)
             self.db.get('channels').pop(chan_id.hex())
@@ -2099,11 +2099,17 @@ class LNWallet(LNWorker):
         self.lnwatcher.add_channel(cb.funding_outpoint.to_str(), cb.get_funding_address())
 
     def remove_channel_backup(self, channel_id):
-        d = self.db.get_dict("imported_channel_backups")
-        if channel_id.hex() not in d:
+        chan = self.channel_backups[channel_id]
+        assert chan.can_be_deleted()
+        onchain_backups = self.db.get_dict("onchain_channel_backups")
+        imported_backups = self.db.get_dict("onchain_channel_backups")
+        if channel_id.hex() in onchain_backups:
+            onchain_backups.pop(channel_id.hex())
+        elif channel_id.hex() in imported_backups:
+            imported_backups.pop(channel_id.hex())
+        else:
             raise Exception('Channel not found')
         with self.lock:
-            d.pop(channel_id.hex())
             self._channel_backups.pop(channel_id)
         self.wallet.save_db()
         util.trigger_callback('channels_updated', self.wallet)

@@ -225,7 +225,7 @@ Builder.load_string(r'''
     id: popuproot
     data: []
     is_closed: False
-    is_redeemed: False
+    can_be_deleted: False
     node_id:''
     short_id:''
     initiator:''
@@ -334,13 +334,13 @@ Builder.load_string(r'''
                 height: '48dp'
                 text: _('Delete')
                 on_release: root.remove_channel()
-                disabled: not root.is_redeemed
+                disabled: not root.can_be_deleted
 
 <ChannelBackupPopup@Popup>:
     id: popuproot
     data: []
     is_funded: False
-    is_imported: False
+    can_be_deleted: False
     node_id:''
     short_id:''
     initiator:''
@@ -412,7 +412,7 @@ Builder.load_string(r'''
                 height: '48dp'
                 text: _('Delete')
                 on_release: root.remove_backup()
-                disabled: not root.is_imported
+                disabled: not root.can_be_deleted
 ''')
 
 
@@ -423,7 +423,7 @@ class ChannelBackupPopup(Popup, Logger):
         Logger.__init__(self)
         self.chan = chan
         self.is_funded = chan.get_state() == ChannelState.FUNDED
-        self.is_imported = chan.is_imported
+        self.can_be_deleted = chan.can_be_deleted()
         self.funding_txid = chan.funding_outpoint.txid
         self.app = app
         self.short_id = format_short_channel_id(chan.short_channel_id)
@@ -464,7 +464,7 @@ class ChannelDetailsPopup(Popup, Logger):
         Popup.__init__(self, **kwargs)
         Logger.__init__(self)
         self.is_closed = chan.is_closed()
-        self.is_redeemed = chan.is_redeemed()
+        self.can_be_deleted = chan.can_be_deleted()
         self.app = app
         self.chan = chan
         self.title = _('Channel details')

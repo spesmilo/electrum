@@ -214,7 +214,7 @@ class ChannelsList(MyTreeView):
             menu.addAction(_("View funding transaction"), lambda: self.parent.show_transaction(funding_tx))
             if chan.get_state() == ChannelState.FUNDED:
                 menu.addAction(_("Request force-close"), lambda: self.request_force_close(channel_id))
-            if chan.is_imported:
+            if chan.can_be_deleted():
                 menu.addAction(_("Delete"), lambda: self.remove_channel_backup(channel_id))
             menu.exec_(self.viewport().mapToGlobal(position))
             return
@@ -252,7 +252,7 @@ class ChannelsList(MyTreeView):
                     menu.addAction(_("View closing transaction"), lambda: self.parent.show_transaction(closing_tx))
         menu.addSeparator()
         menu.addAction(_("Export backup"), lambda: self.export_channel_backup(channel_id))
-        if chan.is_redeemed():
+        if chan.can_be_deleted():
             menu.addSeparator()
             menu.addAction(_("Delete"), lambda: self.remove_channel(channel_id))
         menu.exec_(self.viewport().mapToGlobal(position))

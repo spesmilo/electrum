@@ -456,6 +456,9 @@ class ChannelBackup(AbstractChannel):
             current_per_commitment_point=None,
             upfront_shutdown_script='')
 
+    def can_be_deleted(self):
+        return self.is_imported or self.is_redeemed()
+
     def get_capacity(self):
         return self.lnworker.lnwatcher.get_tx_delta(self.funding_outpoint.txid, self.cb.funding_address)
 
@@ -549,6 +552,9 @@ class Channel(AbstractChannel):
         self._ignore_max_htlc_value = False  # used in tests
         self.should_request_force_close = False
         self.force_close_detected = False # not a state, only for GUI
+
+    def can_be_deleted(self):
+        return self.is_redeemed()
 
     def get_capacity(self):
         return self.constraints.capacity
