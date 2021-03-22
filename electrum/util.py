@@ -776,7 +776,7 @@ mainnet_block_explorers = {
     'mempool.space': ('https://mempool.space/',
                         {'tx': 'tx/', 'addr': 'address/'}),
     'mempool.emzy.de': ('https://mempool.emzy.de/',
-                        {'tx': 'tx/', 'addr': 'address/'}),  
+                        {'tx': 'tx/', 'addr': 'address/'}),
     'OXT.me': ('https://oxt.me/',
                         {'tx': 'transaction/', 'addr': 'address/'}),
     'smartbit.com.au': ('https://www.smartbit.com.au/',
@@ -797,7 +797,7 @@ testnet_block_explorers = {
     'Blockstream.info': ('https://blockstream.info/testnet/',
                         {'tx': 'tx/', 'addr': 'address/'}),
     'mempool.space': ('https://mempool.space/testnet/',
-                        {'tx': 'tx/', 'addr': 'address/'}),    
+                        {'tx': 'tx/', 'addr': 'address/'}),
     'smartbit.com.au': ('https://testnet.smartbit.com.au/',
                        {'tx': 'tx/', 'addr': 'address/'}),
     'system default': ('blockchain://000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943/',
@@ -1114,6 +1114,14 @@ def ignore_exceptions(func):
         except Exception as e:
             pass
     return wrapper
+
+
+def with_lock(func):
+    """Decorator to enforce a lock on a function call."""
+    def func_wrapper(self, *args, **kwargs):
+        with self.lock:
+            return func(self, *args, **kwargs)
+    return func_wrapper
 
 
 class TxMinedInfo(NamedTuple):
