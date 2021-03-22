@@ -129,7 +129,7 @@ class StatusBarButton(QToolButton):
         self.func()
 
     def keyPressEvent(self, e):
-        if e.key() in [ Qt.Key_Return, Qt.Key_Enter ]:
+        if e.key() in [Qt.Key_Return, Qt.Key_Enter]:
             self.func()
 
 
@@ -967,7 +967,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 icon = read_QIcon("status_lagging%s.png"%fork_str)
             else:
                 c, u, x = self.wallet.get_balance()
-                text =  _("Balance" ) + ": %s "%(self.format_amount_and_units(c))
+                text =  _("Balance") + ": %s "%(self.format_amount_and_units(c))
                 if u:
                     text +=  " [%s unconfirmed]"%(self.format_amount(u, is_diff=True).strip())
                 if x:
@@ -993,7 +993,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.tray.setToolTip("%s (%s)" % (text, self.wallet.basename()))
         self.balance_label.setText(text)
         if self.status_button:
-            self.status_button.setIcon( icon )
+            self.status_button.setIcon(icon)
 
     def update_wallet(self):
         self.update_status()
@@ -2220,11 +2220,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.update_check_button.hide()
         sb.addPermanentWidget(self.update_check_button)
 
-        self.password_button = StatusBarButton(QIcon(), _("Password"), self.change_password_dialog )
+        self.password_button = StatusBarButton(QIcon(), _("Password"), self.change_password_dialog)
         sb.addPermanentWidget(self.password_button)
 
-        sb.addPermanentWidget(StatusBarButton(read_QIcon("preferences.png"), _("Preferences"), self.settings_dialog ) )
-        self.seed_button = StatusBarButton(read_QIcon("seed.png"), _("Seed"), self.show_seed_dialog )
+        sb.addPermanentWidget(StatusBarButton(read_QIcon("preferences.png"), _("Preferences"), self.settings_dialog))
+        self.seed_button = StatusBarButton(read_QIcon("seed.png"), _("Seed"), self.show_seed_dialog)
         sb.addPermanentWidget(self.seed_button)
         self.lightning_button = None
         if self.wallet.has_lightning():
@@ -2906,7 +2906,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 self.show_privkeys_signal.emit()
 
         def show_privkeys():
-            s = "\n".join( map( lambda x: x[0] + "\t"+ x[1], private_keys.items()))
+            s = "\n".join(map(lambda x: x[0] + "\t"+ x[1], private_keys.items()))
             e.setText(s)
             b.setEnabled(True)
             self.show_privkeys_signal.disconnect()

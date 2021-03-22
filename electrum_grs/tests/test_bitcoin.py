@@ -347,7 +347,7 @@ class Test_bitcoin(ElectrumTestCase):
 
     def test_var_int(self):
         for i in range(0xfd):
-            self.assertEqual(var_int(i), "{:02x}".format(i) )
+            self.assertEqual(var_int(i), "{:02x}".format(i))
 
         self.assertEqual(var_int(0xfd), "fdfd00")
         self.assertEqual(var_int(0xfe), "fdfe00")
@@ -422,7 +422,7 @@ class Test_bitcoin(ElectrumTestCase):
         self.assertEqual(add_number_to_script(32768), bfh('03008000'))
         self.assertEqual(add_number_to_script(8388607), bfh('03ffff7f'))
         self.assertEqual(add_number_to_script(-2147483647), bfh('04ffffffff'))
-        self.assertEqual(add_number_to_script(-8388608 ), bfh('0400008080'))
+        self.assertEqual(add_number_to_script(-8388608), bfh('0400008080'))
         self.assertEqual(add_number_to_script(8388608), bfh('0400008000'))
         self.assertEqual(add_number_to_script(2147483647), bfh('04ffffff7f'))
 

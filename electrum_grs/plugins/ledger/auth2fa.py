@@ -26,7 +26,7 @@ helpTxt = [_("Your Ledger Wallet wants to tell you a one-time PIN code.<br><br>"
             "put your cursor into it, and plug your device into that computer. " \
             "It will output a summary of the transaction being signed and a one-time PIN.<br><br>" \
             "Verify the transaction summary and type the PIN code here.<br><br>" \
-            "Before pressing enter, plug the device back into this computer.<br>" ),
+            "Before pressing enter, plug the device back into this computer.<br>"),
         _("Verify the address below.<br>Type the character from your security card corresponding to the <u><b>BOLD</b></u> character."),
         ]
 
@@ -161,7 +161,7 @@ class LedgerAuthDialog(QDialog):
     def getDevice2FAMode(self):
         apdu = [0xe0, 0x24, 0x01, 0x00, 0x00, 0x01] # get 2fa mode
         try:
-            mode = self.dongle.exchange( bytearray(apdu) )
+            mode = self.dongle.exchange(bytearray(apdu))
             return mode
         except BTChipException as e:
             _logger.debug('Device getMode Failed')

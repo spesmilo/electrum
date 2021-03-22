@@ -72,7 +72,7 @@ class QRCodeWidget(QWidget):
 
         margin = 10
         framesize = min(r.width(), r.height())
-        boxsize = int( (framesize - 2*margin)/k )
+        boxsize = int((framesize - 2*margin)/k)
         size = k*boxsize
         left = (framesize - size)/2
         top = (framesize - size)/2

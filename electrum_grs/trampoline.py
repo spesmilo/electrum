@@ -66,9 +66,9 @@ TRAMPOLINE_NODES_TESTNET = {
 }
 
 def hardcoded_trampoline_nodes():
-    if constants.net in (constants.BitcoinMainnet, ):
+    if constants.net in (constants.BitcoinMainnet,):
         return TRAMPOLINE_NODES_MAINNET
-    if constants.net in (constants.BitcoinTestnet, ):
+    if constants.net in (constants.BitcoinTestnet,):
         return TRAMPOLINE_NODES_TESTNET
     return {}
 
@@ -111,6 +111,11 @@ def create_trampoline_route(
         params = TRAMPOLINE_FEES[trampoline_fee_level]
     else:
         raise NoPathFound()
+    # temporary fix: until ACINQ uses a proper feature bit to detect
+    # Phoenix, they might try to open channels when payments fail
+    if trampoline_node_id == TRAMPOLINE_NODES_MAINNET['ACINQ'].pubkey:
+        is_legacy = True
+        use_two_trampolines = False
     # add optional second trampoline
     trampoline2 = None
     if is_legacy and use_two_trampolines:

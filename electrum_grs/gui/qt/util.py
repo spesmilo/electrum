@@ -72,7 +72,7 @@ class EnterButton(QPushButton):
         self.clicked.connect(func)
 
     def keyPressEvent(self, e):
-        if e.key() in [ Qt.Key_Return, Qt.Key_Enter ]:
+        if e.key() in [Qt.Key_Return, Qt.Key_Enter]:
             self.func()
 
 
@@ -458,7 +458,7 @@ def filename_field(parent, config, defaultname, select_msg):
     hbox = QHBoxLayout()
 
     directory = config.get('io_dir', os.path.expanduser('~'))
-    path = os.path.join( directory, defaultname )
+    path = os.path.join(directory, defaultname)
     filename_e = QLineEdit()
     filename_e.setText(path)
 
@@ -609,7 +609,7 @@ class MyTreeView(QTreeView):
     def keyPressEvent(self, event):
         if self.itemDelegate().opened:
             return
-        if event.key() in [ Qt.Key_F2, Qt.Key_Return, Qt.Key_Enter ]:
+        if event.key() in [Qt.Key_F2, Qt.Key_Return, Qt.Key_Enter]:
             self.on_activated(self.selectionModel().currentIndex())
             return
         super().keyPressEvent(event)

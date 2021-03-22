@@ -193,7 +193,7 @@ class Ledger_Client(HardwareClientBase):
             except BTChipException as e:
                 if (e.sw == 0x6985):
                     self.close()
-                    self.handler.get_setup( )
+                    self.handler.get_setup()
                     # Acquire the new client on the next run
                 else:
                     raise e
@@ -493,7 +493,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                         raise UserWarning()
                     self.handler.show_message(_("Confirmed. Signing Transaction..."))
                 while inputIndex < len(inputs):
-                    singleInput = [ chipInputs[inputIndex] ]
+                    singleInput = [chipInputs[inputIndex]]
                     client_ledger.startUntrustedTransaction(False, 0,
                                                             singleInput, redeemScripts[inputIndex], version=tx.version)
                     inputSignature = client_ledger.untrustedHashSign(inputsPaths[inputIndex], pin, lockTime=tx.locktime)
@@ -595,7 +595,7 @@ class LedgerPlugin(HW_PluginBase):
                    (0x2c97, 0x0009), # RFU
                    (0x2c97, 0x000a)  # RFU
                  ]
-    VENDOR_IDS = (0x2c97, )
+    VENDOR_IDS = (0x2c97,)
     LEDGER_MODEL_IDS = {
         0x10: "Ledger Nano S",
         0x40: "Ledger Nano X",

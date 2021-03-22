@@ -103,9 +103,9 @@ class TestCommands(ElectrumTestCase):
                          cmds._run('getprivatekeys', ("bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw",), wallet=wallet))
         # list of addresses tests
         with self.assertRaises(Exception):
-            cmds._run('getprivatekeys', (['bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', 'asd'], ), wallet=wallet)
+            cmds._run('getprivatekeys', (['bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', 'asd'],), wallet=wallet)
         self.assertEqual(['p2wpkh:L4jkdiXszG26SUYvwwJhzGwg37H2nLhrbip7u6crmgNeJysv5FHL', 'p2wpkh:L4rYY5QpfN6wJEF4SEKDpcGhTPnCe9zcGs6hiSnhpprZqVywFifN'],
-                         cmds._run('getprivatekeys', (['bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', 'bc1q9pzjpjq4nqx5ycnywekcmycqz0wjp2nq604y2n'], ), wallet=wallet))
+                         cmds._run('getprivatekeys', (['bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', 'bc1q9pzjpjq4nqx5ycnywekcmycqz0wjp2nq604y2n'],), wallet=wallet))
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_export_private_key_deterministic(self, mock_save_db):
@@ -125,7 +125,7 @@ class TestCommands(ElectrumTestCase):
         with self.assertRaises(Exception):
             cmds._run('getprivatekeys', (['bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af', 'asd'],), wallet=wallet)
         self.assertEqual(['p2wpkh:L15oxP24NMNAXxq5r2aom24pHPtt3Fet8ZutgL155Bad93GSubM2', 'p2wpkh:L4rYY5QpfN6wJEF4SEKDpcGhTPnCe9zcGs6hiSnhpprZqVywFifN'],
-                         cmds._run('getprivatekeys', (['bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af', 'bc1q9pzjpjq4nqx5ycnywekcmycqz0wjp2nq604y2n'], ), wallet=wallet))
+                         cmds._run('getprivatekeys', (['bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af', 'bc1q9pzjpjq4nqx5ycnywekcmycqz0wjp2nq604y2n'],), wallet=wallet))
 
 
 class TestCommandsTestnet(TestCaseForTestnet):

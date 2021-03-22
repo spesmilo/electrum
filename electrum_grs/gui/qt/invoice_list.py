@@ -136,8 +136,8 @@ class InvoiceList(MyTreeView):
         wallet = self.parent.wallet
         items = self.selected_in_column(0)
         if len(items)>1:
-            keys = [ item.data(ROLE_REQUEST_ID)  for item in items]
-            invoices = [ wallet.invoices.get(key) for key in keys]
+            keys = [item.data(ROLE_REQUEST_ID) for item in items]
+            invoices = [wallet.invoices.get(key) for key in keys]
             can_batch_pay = all([i.type == PR_TYPE_ONCHAIN and wallet.get_invoice_status(i) == PR_UNPAID for i in invoices])
             menu = QMenu(self)
             if can_batch_pay:

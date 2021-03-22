@@ -1028,7 +1028,7 @@ class ElectrumWindow(App, Logger):
                    modal=False):
         ''' Show an error Message Bubble.
         '''
-        self.show_info_bubble( text=error, icon=icon, width=width,
+        self.show_info_bubble(text=error, icon=icon, width=width,
             pos=pos or Window.center, arrow_pos=arrow_pos, exit=exit,
             duration=duration, modal=modal)
 

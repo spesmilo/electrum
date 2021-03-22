@@ -528,7 +528,7 @@ class WalletDB(JsonDB):
             r['buckets'] = d
             c['revocation_store'] = r
         # convert channels to dict
-        self.data['channels'] = { x['channel_id']: x for x in channels }
+        self.data['channels'] = {x['channel_id']: x for x in channels}
         # convert txi & txo
         txi = self.get('txi', {})
         for tx_hash, d in list(txi.items()):

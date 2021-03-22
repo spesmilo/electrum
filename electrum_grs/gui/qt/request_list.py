@@ -189,7 +189,7 @@ class RequestList(MyTreeView):
     def create_menu(self, position):
         items = self.selected_in_column(0)
         if len(items)>1:
-            keys = [ item.data(ROLE_KEY)  for item in items]
+            keys = [item.data(ROLE_KEY)  for item in items]
             menu = QMenu(self)
             menu.addAction(_("Delete requests"), lambda: self.parent.delete_requests(keys))
             menu.exec_(self.viewport().mapToGlobal(position))

@@ -136,7 +136,7 @@ class CKCCSettingsDialog(WindowModalDialog):
 <br><a href="https://coldcardwallet.com">coldcardwallet.com</a>''')
         title.setTextInteractionFlags(Qt.LinksAccessibleByMouse)
 
-        grid.addWidget(title , 0,0, 1,2, Qt.AlignHCenter)
+        grid.addWidget(title, 0,0, 1,2, Qt.AlignHCenter)
         y = 3
 
         rows = [

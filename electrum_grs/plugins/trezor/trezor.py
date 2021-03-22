@@ -322,9 +322,9 @@ class TrezorPlugin(HW_PluginBase):
             return InputScriptType.SPENDWITNESS
         if electrum_txin_type in ('p2wpkh-p2sh', 'p2wsh-p2sh'):
             return InputScriptType.SPENDP2SHWITNESS
-        if electrum_txin_type in ('p2pkh', ):
+        if electrum_txin_type in ('p2pkh',):
             return InputScriptType.SPENDADDRESS
-        if electrum_txin_type in ('p2sh', ):
+        if electrum_txin_type in ('p2sh',):
             return InputScriptType.SPENDMULTISIG
         raise ValueError('unexpected txin type: {}'.format(electrum_txin_type))
 
@@ -333,15 +333,15 @@ class TrezorPlugin(HW_PluginBase):
             return OutputScriptType.PAYTOWITNESS
         if electrum_txin_type in ('p2wpkh-p2sh', 'p2wsh-p2sh'):
             return OutputScriptType.PAYTOP2SHWITNESS
-        if electrum_txin_type in ('p2pkh', ):
+        if electrum_txin_type in ('p2pkh',):
             return OutputScriptType.PAYTOADDRESS
-        if electrum_txin_type in ('p2sh', ):
+        if electrum_txin_type in ('p2sh',):
             return OutputScriptType.PAYTOMULTISIG
         raise ValueError('unexpected txin type: {}'.format(electrum_txin_type))
 
     @runs_in_hwd_thread
     def sign_transaction(self, keystore, tx: PartialTransaction, prev_tx):
-        prev_tx = { bfh(txhash): self.electrum_tx_to_txtype(tx) for txhash, tx in prev_tx.items() }
+        prev_tx = {bfh(txhash): self.electrum_tx_to_txtype(tx) for txhash, tx in prev_tx.items()}
         client = self.get_client(keystore)
         inputs = self.tx_inputs(tx, for_sig=True, keystore=keystore)
         outputs = self.tx_outputs(tx, keystore=keystore)
