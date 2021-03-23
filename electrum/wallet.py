@@ -3201,12 +3201,13 @@ def restore_wallet_from_text(text, *, path, config: SimpleConfig,
     return {'wallet': wallet, 'msg': msg}
 
 
-def check_password_for_directory(config: SimpleConfig, old_password, new_password=None) -> bool:
-    """Checks password against all wallets and returns True if they can all be updated.
+def check_password_for_directory(config: SimpleConfig, old_password, new_password=None) -> Tuple[bool, bool]:
+    """Checks password against all wallets, returns whether they can be unified and whether they are already.
     If new_password is not None, update all wallet passwords to new_password.
     """
     dirname = os.path.dirname(config.get_wallet_path())
     failed = []
+    is_unified = True
     for filename in os.listdir(dirname):
         path = os.path.join(dirname, filename)
         if not os.path.isfile(path):
@@ -3214,6 +3215,7 @@ def check_password_for_directory(config: SimpleConfig, old_password, new_passwor
         basename = os.path.basename(path)
         storage = WalletStorage(path)
         if not storage.is_encrypted():
+            is_unified = False
             # it is a bit wasteful load the wallet here, but that is fine
             # because we are progressively enforcing storage encryption.
             db = WalletDB(storage.read(), manual_upgrades=False)
@@ -3247,10 +3249,20 @@ def check_password_for_directory(config: SimpleConfig, old_password, new_passwor
             continue
         if new_password:
             wallet.update_password(old_password, new_password)
-    return failed == []
+    can_be_unified = failed == []
+    is_unified = can_be_unified and is_unified
+    return can_be_unified, is_unified
 
 
 def update_password_for_directory(config: SimpleConfig, old_password, new_password) -> bool:
-    assert new_password is not None
-    assert check_password_for_directory(config, old_password, None)
-    return check_password_for_directory(config, old_password, new_password)
+    " returns whether password is unified "
+    if new_password is None:
+        # we opened a non-encrypted wallet
+        return False
+    can_be_unified, is_unified = check_password_for_directory(config, old_password, None)
+    if not can_be_unified:
+        return False
+    if is_unified and old_password == new_password:
+        return True
+    check_password_for_directory(config, old_password, new_password)
+    return True

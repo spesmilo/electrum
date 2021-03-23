@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Optional, Union, Callable, Sequence
 from electrum.storage import WalletStorage, StorageReadWriteError
 from electrum.wallet_db import WalletDB
 from electrum.wallet import Wallet, InternalAddressCorruption, Abstract_Wallet
-from electrum.wallet import check_password_for_directory, update_password_for_directory
+from electrum.wallet import update_password_for_directory
 
 from electrum.plugin import run_hook
 from electrum import util
@@ -660,7 +660,7 @@ class ElectrumWindow(App, Logger):
     def on_wizard_success(self, storage, db, password):
         self.password = password
         if self.electrum_config.get('single_password'):
-            self._use_single_password = check_password_for_directory(self.electrum_config, password)
+            self._use_single_password = update_password_for_directory(self.electrum_config, password, password)
         self.logger.info(f'use single password: {self._use_single_password}')
         wallet = Wallet(db, storage, config=self.electrum_config)
         wallet.start_network(self.daemon.network)
