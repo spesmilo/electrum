@@ -1574,6 +1574,8 @@ class Peer(Logger):
             # TODO: we should check that all trampoline_onions are the same
             return None, processed_onion.trampoline_onion_packet
 
+        # TODO don't accept payments twice for same invoice
+        # TODO check invoice expiry
         info = self.lnworker.get_payment_info(htlc.payment_hash)
         if info is None:
             log_fail_reason(f"no payment_info found for RHASH {htlc.payment_hash.hex()}")

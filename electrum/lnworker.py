@@ -1210,7 +1210,7 @@ class LNWallet(LNWorker):
             failure_msg = htlc_log.failure_msg
             code, data = failure_msg.code, failure_msg.data
             self.logger.info(f"UPDATE_FAIL_HTLC. code={repr(code)}. "
-                             f"decoded_data={failure_msg.decode_data()}. data={data.hex()}")
+                             f"decoded_data={failure_msg.decode_data()}. data={data.hex()!r}")
             self.logger.info(f"error reported by {bh2u(route[sender_idx].node_id)}")
             if code == OnionFailureCode.MPP_TIMEOUT:
                 raise PaymentFailure(failure_msg.code_name())
@@ -1274,6 +1274,8 @@ class LNWallet(LNWorker):
             sender_idx: int,
             failure_msg: OnionRoutingFailure) -> None:
         code, data = failure_msg.code, failure_msg.data
+        # TODO can we use lnmsg.OnionWireSerializer here?
+        # TODO update onion_wire.csv
         # handle some specific error codes
         failure_codes = {
             OnionFailureCode.TEMPORARY_CHANNEL_FAILURE: 0,
