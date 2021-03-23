@@ -301,14 +301,10 @@ class AbstractChannel(Logger, ABC):
             if conf > 0:
                 self.set_state(ChannelState.CLOSED)
             else:
-                if not self.is_backup():
-                    # we must not trust the server with unconfirmed transactions,
-                    # because the state transition is irreversible. if the remote
-                    # force closed, we remain OPEN until the closing tx is confirmed
-                    pass
-                else:
-                    # for a backup, that state change will only affect the GUI
-                    self.set_state(ChannelState.FORCE_CLOSING)
+                # we must not trust the server with unconfirmed transactions,
+                # because the state transition is irreversible. if the remote
+                # force closed, we remain OPEN until the closing tx is confirmed
+                self.force_close_detected = True
 
         if self.get_state() == ChannelState.CLOSED and not keep_watching:
             self.set_state(ChannelState.REDEEMED)
@@ -341,7 +337,10 @@ class AbstractChannel(Logger, ABC):
 
     @abstractmethod
     def get_state_for_GUI(self) -> str:
-        pass
+        cs = self.get_state()
+        if cs < ChannelState.CLOSED and self.force_close_detected:
+            return 'FORCE_CLOSING'
+        return cs.name
 
     @abstractmethod
     def get_oldest_unrevoked_ctn(self, subject: HTLCOwner) -> int:
@@ -419,6 +418,7 @@ class ChannelBackup(AbstractChannel):
         self.config = {}
         if self.is_imported:
             self.init_config(cb)
+        self.force_close_detected = False # not a state, only for GUI
 
     def init_config(self, cb):
         self.config[LOCAL] = LocalConfig.from_seed(
@@ -480,8 +480,8 @@ class ChannelBackup(AbstractChannel):
         return self.cb.is_initiator
 
     def get_state_for_GUI(self):
-        cs = self.get_state()
-        return 'BACKUP' + ', '+ cs.name
+        cs_name = super().get_state_for_GUI()
+        return 'BACKUP' + ', '+ cs_name
 
     def get_oldest_unrevoked_ctn(self, who):
         return -1
@@ -553,6 +553,7 @@ class Channel(AbstractChannel):
         self._receive_fail_reasons = {}  # type: Dict[int, (bytes, OnionRoutingFailure)]
         self._ignore_max_htlc_value = False  # used in tests
         self.should_request_force_close = False
+        self.force_close_detected = False # not a state, only for GUI
 
     def get_capacity(self):
         return self.constraints.capacity
@@ -727,14 +728,13 @@ class Channel(AbstractChannel):
             self.peer_state = PeerState.GOOD
 
     def get_state_for_GUI(self):
-        # status displayed in the GUI
-        cs = self.get_state()
+        cs_name = super().get_state_for_GUI()
         if self.is_closed():
-            return cs.name
+            return cs_name
         ps = self.peer_state
         if ps != PeerState.GOOD:
             return ps.name
-        return cs.name
+        return cs_name
 
     def set_can_send_ctx_updates(self, b: bool) -> None:
         self._can_send_ctx_updates = b
