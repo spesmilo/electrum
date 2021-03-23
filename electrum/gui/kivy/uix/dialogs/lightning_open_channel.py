@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 from kivy.lang import Builder
 from kivy.factory import Factory
 
+from electrum.gui import messages
 from electrum.gui.kivy.i18n import _
 from electrum.lnaddr import lndecode
 from electrum.util import bh2u
@@ -214,11 +215,7 @@ class LightningOpenChannelDialog(Factory.Popup, Logger):
             self.maybe_show_funding_tx(chan, funding_tx)
         else:
             title = _('Save backup')
-            help_text = ' '.join([
-                _('Your wallet does not have recoverable channels.'),
-                _('Please save this channel backup on another device.'),
-                _('It may be imported in another Electrum wallet with the same seed.')
-            ])
+            help_text = _(messages.MSG_CREATED_NON_RECOVERABLE_CHANNEL)
             data = lnworker.export_channel_backup(chan.channel_id)
             popup = QRDialog(
                 title, data,

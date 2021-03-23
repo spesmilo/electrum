@@ -24,6 +24,8 @@ from electrum import blockchain
 from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed
 from electrum.interface import PREFERRED_NETWORK_PROTOCOL, ServerAddr
 from electrum.logging import Logger
+
+from electrum.gui import messages
 from .i18n import _
 from . import KIVY_GUI_PATH
 
@@ -727,14 +729,10 @@ class ElectrumWindow(App, Logger):
         if not self.wallet.has_lightning():
             self.show_error(_('Lightning is not enabled for this wallet'))
             return
-        if not self.wallet.lnworker.channels:
-            warning1 = _("Lightning support in Electrum is experimental. "
-                         "Do not put large amounts in lightning channels.")
-            warning2 = _("Funds stored in lightning channels are not recoverable "
-                         "from your seed. You must backup your wallet file everytime "
-                         "you create a new channel.")
+        if not self.wallet.lnworker.channels and not self.wallet.lnworker.channel_backups:
+            warning = _(messages.MSG_LIGHTNING_WARNING)
             d = Question(_('Do you want to create your first channel?') +
-                         '\n\n' + warning1 + '\n\n' + warning2, self.open_channel_dialog_with_warning)
+                         '\n\n' + warning, self.open_channel_dialog_with_warning)
             d.open()
         else:
             d = LightningOpenChannelDialog(self)
@@ -1295,7 +1293,7 @@ class ElectrumWindow(App, Logger):
 
     def save_backup(self):
         if platform != 'android':
-            backup_dir = util.get_backup_dir(self.electrum_config)
+            backup_dir = self.electrum_config.get_backup_dir()
             if backup_dir:
                 self._save_backup(backup_dir)
             else:

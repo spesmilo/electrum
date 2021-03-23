@@ -50,12 +50,13 @@ from PyQt5.QtWidgets import (QMessageBox, QComboBox, QSystemTrayIcon, QTabWidget
                              QMenu, QAction, QStackedWidget, QToolButton)
 
 import electrum
+from electrum.gui import messages
 from electrum import (keystore, ecc, constants, util, bitcoin, commands,
                       paymentrequest, lnutil)
 from electrum.bitcoin import COIN, is_address
 from electrum.plugin import run_hook, BasePlugin
 from electrum.i18n import _
-from electrum.util import (format_time, get_backup_dir,
+from electrum.util import (format_time,
                            UserCancelled, profiler,
                            bh2u, bfh, InvalidPassword,
                            UserFacingException,
@@ -627,7 +628,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
         if not d.exec_():
             return False
-        backup_dir = get_backup_dir(self.config)
+        backup_dir = self.config.get_backup_dir()
         if backup_dir is None:
             self.show_message(_("You need to configure a backup directory in your preferences"), title=_("Backup not configured"))
             return
@@ -1831,24 +1832,37 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 funding_sat=funding_sat,
                 push_amt_sat=push_amt,
                 password=password)
-        def on_success(args):
-            chan, funding_tx = args
-            n = chan.constraints.funding_txn_minimum_depth
-            message = '\n'.join([
-                _('Channel established.'),
-                _('Remote peer ID') + ':' + chan.node_id.hex(),
-                _('This channel will be usable after {} confirmations').format(n)
-            ])
-            if not funding_tx.is_complete():
-                message += '\n\n' + _('Please sign and broadcast the funding transaction')
-            self.show_message(message)
-            if not funding_tx.is_complete():
-                self.show_transaction(funding_tx)
-
         def on_failure(exc_info):
             type_, e, traceback = exc_info
             self.show_error(_('Could not open channel: {}').format(repr(e)))
-        WaitingDialog(self, _('Opening channel...'), task, on_success, on_failure)
+        WaitingDialog(self, _('Opening channel...'), task, self.on_open_channel_success, on_failure)
+
+    def on_open_channel_success(self, args):
+        chan, funding_tx = args
+        lnworker = self.wallet.lnworker
+        if not lnworker.has_recoverable_channels():
+            backup_dir = self.config.get_backup_dir()
+            if backup_dir is not None:
+                self.show_message(_(f'Your wallet backup has been updated in {backup_dir}'))
+            else:
+                data = lnworker.export_channel_backup(chan.channel_id)
+                help_text = _(messages.MSG_CREATED_NON_RECOVERABLE_CHANNEL)
+                self.show_qrcode(
+                    data, _('Save channel backup'),
+                    help_text=help_text,
+                    show_copy_text_btn=True)
+        n = chan.constraints.funding_txn_minimum_depth
+        message = '\n'.join([
+            _('Channel established.'),
+            _('Remote peer ID') + ':' + chan.node_id.hex(),
+            _('This channel will be usable after {} confirmations').format(n)
+        ])
+        if not funding_tx.is_complete():
+            message += '\n\n' + _('Please sign and broadcast the funding transaction')
+            self.show_message(message)
+            self.show_transaction(funding_tx)
+        else:
+            self.show_message(message)
 
     def query_choice(self, msg, choices):
         # Needed by QtHandler for hardware wallets

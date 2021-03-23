@@ -356,15 +356,11 @@ class ChannelsList(MyTreeView):
         return h
 
     def new_channel_with_warning(self):
-        if not self.parent.wallet.lnworker.channels:
-            warning = _("Lightning support in Electrum is experimental. "
-                         "Do not put large amounts in lightning channels.")
-            if not self.parent.wallet.lnworker.has_recoverable_channels():
-                warning += _("Funds stored in lightning channels are not recoverable from your seed. "
-                             "You must backup your wallet file everytime you create a new channel.")
+        lnworker = self.parent.wallet.lnworker
+        if not lnworker.channels and not lnworker.channel_backups:
+            warning = _(messages.MSG_LIGHTNING_WARNING)
             answer = self.parent.question(
-                _('Do you want to create your first channel?') + '\n\n' +
-                _('WARNING') + ': ' + '\n\n' + warning)
+                _('Do you want to create your first channel?') + '\n\n' + warning)
             if answer:
                 self.new_channel_dialog()
         else:
