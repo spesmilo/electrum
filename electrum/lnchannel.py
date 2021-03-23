@@ -335,7 +335,6 @@ class AbstractChannel(Logger, ABC):
     def get_funding_address(self) -> str:
         pass
 
-    @abstractmethod
     def get_state_for_GUI(self) -> str:
         cs = self.get_state()
         if cs < ChannelState.CLOSED and self.force_close_detected:
@@ -478,10 +477,6 @@ class ChannelBackup(AbstractChannel):
 
     def is_initiator(self):
         return self.cb.is_initiator
-
-    def get_state_for_GUI(self):
-        cs_name = super().get_state_for_GUI()
-        return 'BACKUP' + ', '+ cs_name
 
     def get_oldest_unrevoked_ctn(self, who):
         return -1

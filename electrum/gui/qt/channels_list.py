@@ -21,6 +21,7 @@ from electrum.gui import messages
 from .util import (MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, WaitingDialog, MONOSPACE_FONT, ColorScheme)
 from .amountedit import BTCAmountEdit, FreezableLineEdit
+from .util import read_QIcon
 
 
 ROLE_CHANNEL_ID = Qt.UserRole
@@ -296,6 +297,8 @@ class ChannelsList(MyTreeView):
             items[self.Columns.LOCAL_BALANCE].setFont(QFont(MONOSPACE_FONT))
             items[self.Columns.REMOTE_BALANCE].setFont(QFont(MONOSPACE_FONT))
             items[self.Columns.CAPACITY].setFont(QFont(MONOSPACE_FONT))
+            icon = "lightning" if not chan.is_backup() else "network"
+            items[self.Columns.SHORT_CHANID].setIcon(read_QIcon(icon))
             self._update_chan_frozen_bg(chan=chan, items=items)
             self.model().insertRow(0, items)
 
