@@ -21,6 +21,7 @@ from electrum_grs.gui import messages
 from .util import (MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, WaitingDialog, MONOSPACE_FONT, ColorScheme)
 from .amountedit import BTCAmountEdit, FreezableLineEdit
+from .util import read_QIcon
 
 
 ROLE_CHANNEL_ID = Qt.UserRole
@@ -213,7 +214,7 @@ class ChannelsList(MyTreeView):
             menu.addAction(_("View funding transaction"), lambda: self.parent.show_transaction(funding_tx))
             if chan.get_state() == ChannelState.FUNDED:
                 menu.addAction(_("Request force-close"), lambda: self.request_force_close(channel_id))
-            if chan.is_imported:
+            if chan.can_be_deleted():
                 menu.addAction(_("Delete"), lambda: self.remove_channel_backup(channel_id))
             menu.exec_(self.viewport().mapToGlobal(position))
             return
@@ -251,7 +252,7 @@ class ChannelsList(MyTreeView):
                     menu.addAction(_("View closing transaction"), lambda: self.parent.show_transaction(closing_tx))
         menu.addSeparator()
         menu.addAction(_("Export backup"), lambda: self.export_channel_backup(channel_id))
-        if chan.is_redeemed():
+        if chan.can_be_deleted():
             menu.addSeparator()
             menu.addAction(_("Delete"), lambda: self.remove_channel(channel_id))
         menu.exec_(self.viewport().mapToGlobal(position))
@@ -296,6 +297,10 @@ class ChannelsList(MyTreeView):
             items[self.Columns.LOCAL_BALANCE].setFont(QFont(MONOSPACE_FONT))
             items[self.Columns.REMOTE_BALANCE].setFont(QFont(MONOSPACE_FONT))
             items[self.Columns.CAPACITY].setFont(QFont(MONOSPACE_FONT))
+            icon = "lightning" if not chan.is_backup() else "lightning_disconnected"
+            items[self.Columns.SHORT_CHANID].setIcon(read_QIcon(icon))
+            tooltip = _("Channel") if not chan.is_backup() else _("Channel backup")
+            items[self.Columns.SHORT_CHANID].setToolTip(tooltip)
             self._update_chan_frozen_bg(chan=chan, items=items)
             self.model().insertRow(0, items)
 

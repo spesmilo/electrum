@@ -130,7 +130,7 @@ Builder.load_string(r'''
     short_channel_id: '<channelId not set>'
     status: ''
     is_backup: False
-    balances: ''
+    capacity: ''
     node_alias: ''
     _chan: None
     BoxLayout:
@@ -140,14 +140,15 @@ Builder.load_string(r'''
         orientation: 'vertical'
         Widget
         CardLabel:
-            color: (.5,.5,.5,1) if not root.active else (1,1,1,1)
-            text: root.short_channel_id
             font_size: '15sp'
+            text: root.node_alias
+            shorten: True
+            color: (.5,.5,.5,1) if not root.active else (1,1,1,1)
         Widget
         CardLabel:
             font_size: '13sp'
-            shorten: True
-            text: root.node_alias
+            text: root.short_channel_id
+            color: (.5,.5,.5,1)
         Widget
     BoxLayout:
         size_hint: 0.3, None
@@ -159,11 +160,13 @@ Builder.load_string(r'''
             text: root.status
             font_size: '13sp'
             halign: 'right'
+            color: (.5,.5,.5,1) if not root.active else (1,1,1,1)
         Widget
         CardLabel:
-            text: root.balances if not root.is_backup else ''
+            text: root.capacity
             font_size: '13sp'
             halign: 'right'
+            color: (.5,.5,.5,1)
         Widget
 
 <LightningChannelsDialog@Popup>:
@@ -180,14 +183,14 @@ Builder.load_string(r'''
         orientation: 'vertical'
         spacing: '2dp'
         padding: '12dp'
+        TopLabel:
+            text: root.num_channels_text
         BoxLabel:
             text: _('You can send') + ':'
             value: root.can_send
         BoxLabel:
             text: _('You can receive') + ':'
             value: root.can_receive
-        TopLabel:
-            text: root.num_channels_text
         ScrollView:
             GridLayout:
                 cols: 1
@@ -222,7 +225,7 @@ Builder.load_string(r'''
     id: popuproot
     data: []
     is_closed: False
-    is_redeemed: False
+    can_be_deleted: False
     node_id:''
     short_id:''
     initiator:''
@@ -331,13 +334,13 @@ Builder.load_string(r'''
                 height: '48dp'
                 text: _('Delete')
                 on_release: root.remove_channel()
-                disabled: not root.is_redeemed
+                disabled: not root.can_be_deleted
 
 <ChannelBackupPopup@Popup>:
     id: popuproot
     data: []
     is_funded: False
-    is_imported: False
+    can_be_deleted: False
     node_id:''
     short_id:''
     initiator:''
@@ -409,7 +412,7 @@ Builder.load_string(r'''
                 height: '48dp'
                 text: _('Delete')
                 on_release: root.remove_backup()
-                disabled: not root.is_imported
+                disabled: not root.can_be_deleted
 ''')
 
 
@@ -420,7 +423,7 @@ class ChannelBackupPopup(Popup, Logger):
         Logger.__init__(self)
         self.chan = chan
         self.is_funded = chan.get_state() == ChannelState.FUNDED
-        self.is_imported = chan.is_imported
+        self.can_be_deleted = chan.can_be_deleted()
         self.funding_txid = chan.funding_outpoint.txid
         self.app = app
         self.short_id = format_short_channel_id(chan.short_channel_id)
@@ -461,7 +464,7 @@ class ChannelDetailsPopup(Popup, Logger):
         Popup.__init__(self, **kwargs)
         Logger.__init__(self)
         self.is_closed = chan.is_closed()
-        self.is_redeemed = chan.is_redeemed()
+        self.can_be_deleted = chan.can_be_deleted()
         self.app = app
         self.chan = chan
         self.title = _('Channel details')
@@ -598,29 +601,11 @@ class LightningChannelsDialog(Factory.Popup):
             p = ChannelDetailsPopup(chan, self.app)
         p.open()
 
-    def format_fields(self, chan):
-        labels = {}
-        for subject in (REMOTE, LOCAL):
-            bal_minus_htlcs = chan.balance_minus_outgoing_htlcs(subject)//1000
-            label = self.app.format_amount(bal_minus_htlcs)
-            other = subject.inverted()
-            bal_other = chan.balance(other)//1000
-            bal_minus_htlcs_other = chan.balance_minus_outgoing_htlcs(other)//1000
-            if bal_other != bal_minus_htlcs_other:
-                label += ' (+' + self.app.format_amount(bal_other - bal_minus_htlcs_other) + ')'
-            labels[subject] = label
-        closed = chan.is_closed()
-        return [
-            'n/a' if closed else labels[LOCAL],
-            'n/a' if closed else labels[REMOTE],
-        ]
-
     def update_item(self, item):
         chan = item._chan
         item.status = chan.get_state_for_GUI()
         item.short_channel_id = chan.short_id_for_GUI()
-        l, r = self.format_fields(chan)
-        item.balances = l + '/' + r
+        item.capacity = self.app.format_amount_and_units(chan.get_capacity())
         self.update_can_send()
 
     def update(self):

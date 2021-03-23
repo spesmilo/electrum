@@ -154,6 +154,8 @@ LNGOSSIP_FEATURES = BASE_FEATURES\
 
 class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
 
+    INITIAL_TRAMPOLINE_FEE_LEVEL = 1 # only used for trampoline payments. set to 0 in tests.
+
     def __init__(self, xprv, features: LnFeatures):
         Logger.__init__(self)
         NetworkRetryManager.__init__(
@@ -1119,7 +1121,7 @@ class LNWallet(LNWorker):
                 raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON, data=b'')
 
         self.logs[payment_hash.hex()] = log = []
-        trampoline_fee_level = 0   # only used for trampoline payments
+        trampoline_fee_level = self.INITIAL_TRAMPOLINE_FEE_LEVEL
         use_two_trampolines = True # only used for pay to legacy
 
         amount_inflight = 0  # what we sent in htlcs (that receiver gets, without fees)
@@ -1177,7 +1179,7 @@ class LNWallet(LNWorker):
             failure_msg = htlc_log.failure_msg
             code, data = failure_msg.code, failure_msg.data
             self.logger.info(f"UPDATE_FAIL_HTLC. code={repr(code)}. "
-                             f"decoded_data={failure_msg.decode_data()}. data={data.hex()}")
+                             f"decoded_data={failure_msg.decode_data()}. data={data.hex()!r}")
             self.logger.info(f"error reported by {bh2u(route[sender_idx].node_id)}")
             if code == OnionFailureCode.MPP_TIMEOUT:
                 raise PaymentFailure(failure_msg.code_name())
@@ -1241,6 +1243,8 @@ class LNWallet(LNWorker):
             sender_idx: int,
             failure_msg: OnionRoutingFailure) -> None:
         code, data = failure_msg.code, failure_msg.data
+        # TODO can we use lnmsg.OnionWireSerializer here?
+        # TODO update onion_wire.csv
         # handle some specific error codes
         failure_codes = {
             OnionFailureCode.TEMPORARY_CHANNEL_FAILURE: 0,
@@ -1937,8 +1941,8 @@ class LNWallet(LNWorker):
         await self.network.try_broadcasting(tx, 'force-close')
 
     def remove_channel(self, chan_id):
-        chan = self._channels[chan_id]
-        assert chan.get_state() == ChannelState.REDEEMED
+        chan = self.channels[chan_id]
+        assert chan.can_be_deleted()
         with self.lock:
             self._channels.pop(chan_id)
             self.db.get('channels').pop(chan_id.hex())
@@ -2066,11 +2070,17 @@ class LNWallet(LNWorker):
         self.lnwatcher.add_channel(cb.funding_outpoint.to_str(), cb.get_funding_address())
 
     def remove_channel_backup(self, channel_id):
-        d = self.db.get_dict("imported_channel_backups")
-        if channel_id.hex() not in d:
+        chan = self.channel_backups[channel_id]
+        assert chan.can_be_deleted()
+        onchain_backups = self.db.get_dict("onchain_channel_backups")
+        imported_backups = self.db.get_dict("onchain_channel_backups")
+        if channel_id.hex() in onchain_backups:
+            onchain_backups.pop(channel_id.hex())
+        elif channel_id.hex() in imported_backups:
+            imported_backups.pop(channel_id.hex())
+        else:
             raise Exception('Channel not found')
         with self.lock:
-            d.pop(channel_id.hex())
             self._channel_backups.pop(channel_id)
         self.wallet.save_db()
         util.trigger_callback('channels_updated', self.wallet)

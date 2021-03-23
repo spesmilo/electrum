@@ -116,6 +116,7 @@ class MockWallet:
 class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     MPP_EXPIRY = 2  # HTLC timestamps are cast to int, so this cannot be 1
     TIMEOUT_SHUTDOWN_FAIL_PENDING_HTLCS = 0
+    INITIAL_TRAMPOLINE_FEE_LEVEL = 0
 
     def __init__(self, *, local_keypair: Keypair, chans: Iterable['Channel'], tx_queue, name):
         self.name = name
@@ -301,7 +302,7 @@ class SquareGraph(NamedTuple):
 
 
 class PaymentDone(Exception): pass
-class TestSuccess(Exception): pass
+class SuccessfulTest(Exception): pass
 
 
 class TestPeer(TestCaseForTestnet):
@@ -935,7 +936,7 @@ class TestPeer(TestCaseForTestnet):
             # Dave is supposed to have failed the pending incomplete MPP HTLCs
             self.assertEqual(0, len(graph.chan_dc.hm.htlcs(LOCAL)))
             self.assertEqual(0, len(graph.chan_dc.hm.htlcs(REMOTE)))
-            raise TestSuccess()
+            raise SuccessfulTest()
 
         async def f():
             async with TaskGroup() as group:
@@ -945,7 +946,7 @@ class TestPeer(TestCaseForTestnet):
                 await asyncio.sleep(0.2)
                 await group.spawn(pay())
 
-        with self.assertRaises(TestSuccess):
+        with self.assertRaises(SuccessfulTest):
             run(f())
 
     @needs_test_with_all_chacha20_implementations
@@ -1105,7 +1106,7 @@ class TestPeer(TestCaseForTestnet):
             raw_msg2 = (43333).to_bytes(length=2, byteorder="big") + bytes(range(55))
             p1.transport.send_bytes(raw_msg2)
             await asyncio.sleep(0.05)
-            raise TestSuccess()
+            raise SuccessfulTest()
 
         async def f():
             async with TaskGroup() as group:
@@ -1115,7 +1116,7 @@ class TestPeer(TestCaseForTestnet):
                 await asyncio.sleep(0.2)
                 await group.spawn(send_weird_messages())
 
-        with self.assertRaises(TestSuccess):
+        with self.assertRaises(SuccessfulTest):
             run(f())
 
     @needs_test_with_all_chacha20_implementations

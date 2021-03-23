@@ -445,3 +445,11 @@ class LNWalletWatcher(LNWatcher):
             if tx_was_added:
                 self.logger.info(f'added future tx: {name}. prevout: {prevout}')
                 util.trigger_callback('wallet_updated', self.lnworker.wallet)
+
+    def add_verified_tx(self, tx_hash: str, info: TxMinedInfo):
+        # this method is overloaded so that we have the GUI refreshed
+        # TODO: LNWatcher should not be an AddressSynchronizer,
+        # we should use the existing wallet instead, and results would be persisted
+        super().add_verified_tx(tx_hash, info)
+        tx_mined_status = self.get_tx_height(tx_hash)
+        util.trigger_callback('verified', self.lnworker.wallet, tx_hash, tx_mined_status)
