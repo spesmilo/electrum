@@ -297,8 +297,10 @@ class ChannelsList(MyTreeView):
             items[self.Columns.LOCAL_BALANCE].setFont(QFont(MONOSPACE_FONT))
             items[self.Columns.REMOTE_BALANCE].setFont(QFont(MONOSPACE_FONT))
             items[self.Columns.CAPACITY].setFont(QFont(MONOSPACE_FONT))
-            icon = "lightning" if not chan.is_backup() else "network"
+            icon = "lightning" if not chan.is_backup() else "lightning_disconnected"
             items[self.Columns.SHORT_CHANID].setIcon(read_QIcon(icon))
+            tooltip = _("Channel") if not chan.is_backup() else _("Channel backup")
+            items[self.Columns.SHORT_CHANID].setToolTip(tooltip)
             self._update_chan_frozen_bg(chan=chan, items=items)
             self.model().insertRow(0, items)
 
