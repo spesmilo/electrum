@@ -180,7 +180,7 @@ class Ledger_Client:
             except BTChipException as e:
                 if (e.sw == 0x6985):
                     self.dongleObject.dongle.close()
-                    self.handler.get_setup( )
+                    self.handler.get_setup()
                     # Acquire the new client on the next run
                 else:
                     raise e

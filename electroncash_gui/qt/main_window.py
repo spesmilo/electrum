@@ -968,7 +968,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     _("Balance: {amount_and_unit}").format(
                         amount_and_unit=self.format_amount_and_units(c))
                 ]
-
                 if u:
                     text_items.append(_("[{amount} unconfirmed]").format(
                         amount=self.format_amount(u, True).strip()))
@@ -1006,10 +1005,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.tray.setToolTip("%s (%s)" % (text, self.wallet.basename()))
         self.balance_label.setText(text)
-        self.status_button.setIcon( icon )
+        self.status_button.setIcon(icon)
         self.status_button.setStatusTip( status_tip )
         run_hook('window_update_status', self)
-
 
     def update_wallet(self):
         self.need_update.set() # will enqueue an _update_wallet() call in at most 0.5 seconds from now.
@@ -2876,7 +2874,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.update_available_button.setVisible(bool(self.gui_object.new_version_available))  # if hidden now gets unhidden by on_update_available when a new version comes in
 
         self.lock_icon = QIcon()
-        self.password_button = StatusBarButton(self.lock_icon, _("Password"), self.change_password_dialog )
+        self.password_button = StatusBarButton(self.lock_icon, _("Password"), self.change_password_dialog)
         sb.addPermanentWidget(self.password_button)
 
         self.addr_converter_button = StatusBarButton(
@@ -2889,8 +2887,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.addr_converter_button.setHidden(self.gui_object.is_cashaddr_status_button_hidden())
         self.gui_object.cashaddr_status_button_hidden_signal.connect(self.addr_converter_button.setHidden)
 
-        sb.addPermanentWidget(StatusBarButton(QIcon(":icons/preferences.svg"), _("Preferences"), self.settings_dialog ) )
-        self.seed_button = StatusBarButton(QIcon(":icons/seed.png"), _("Seed"), self.show_seed_dialog )
+        q_icon_prefs = QIcon(":icons/preferences.svg"), _("Preferences"), self.settings_dialog)
+        sb.addPermanentWidget(StatusBarButton(q_icon_prefs))
+        q_icon_seed = QIcon(":icons/seed.png"), _("Seed"), self.show_seed_dialog)
+        self.seed_button = StatusBarButton(q_icon_seed)
         sb.addPermanentWidget(self.seed_button)
         weakSelf = Weak.ref(self)
         gui_object = self.gui_object

@@ -33,7 +33,7 @@ def plot_history(wallet, history):
 
     f, axarr = plt.subplots(2, sharex=True)
     plt.subplots_adjust(bottom=0.2)
-    plt.xticks( rotation=25 )
+    plt.xticks(rotation=25)
     ax = plt.gca()
     plt.ylabel('BCH')
     plt.xlabel('Month')

@@ -531,7 +531,7 @@ def filename_field(config, defaultname, select_msg):
     hbox = QHBoxLayout()
 
     directory = config.get('io_dir', os.path.expanduser('~'))
-    path = os.path.join( directory, defaultname )
+    path = os.path.join(directory, defaultname)
     filename_e = QLineEdit()
     filename_e.setText(path)
 
@@ -660,7 +660,7 @@ class MyTreeWidget(QTreeWidget):
             item.setFlags(item.flags() & ~Qt.ItemIsEditable)
 
     def keyPressEvent(self, event):
-        if event.key() in [ Qt.Key_F2, Qt.Key_Return ] and self.editor is None:
+        if event.key() in {Qt.Key_F2, Qt.Key_Return} and self.editor is None:
             item, col = self.currentItem(), self.currentColumn()
             if item and col > -1:
                 self.on_activated(item, col)
