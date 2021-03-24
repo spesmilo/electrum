@@ -1840,7 +1840,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def on_open_channel_success(self, args):
         chan, funding_tx = args
         lnworker = self.wallet.lnworker
-        if not lnworker.has_recoverable_channels():
+        if not chan.has_onchain_backup():
             backup_dir = self.config.get_backup_dir()
             if backup_dir is not None:
                 self.show_message(_(f'Your wallet backup has been updated in {backup_dir}'))

@@ -687,7 +687,8 @@ class Peer(Logger):
         if dummy_output in funding_tx.outputs(): raise Exception("LN dummy output (err 2)")
         funding_tx.add_outputs([funding_output])
         # find and encrypt op_return data associated to funding_address
-        if self.lnworker and self.lnworker.has_recoverable_channels():
+        has_onchain_backup = self.lnworker and self.lnworker.has_recoverable_channels()
+        if has_onchain_backup:
             backup_data = self.lnworker.cb_data(self.pubkey)
             dummy_scriptpubkey = make_op_return(backup_data)
             for o in funding_tx.outputs():
@@ -713,15 +714,16 @@ class Peer(Logger):
             is_initiator=True,
             funding_txn_minimum_depth=funding_txn_minimum_depth
         )
-        chan_dict = self.create_channel_storage(
+        storage = self.create_channel_storage(
             channel_id, outpoint, local_config, remote_config, constraints)
         chan = Channel(
-            chan_dict,
+            storage,
             sweep_address=self.lnworker.sweep_address,
             lnworker=self.lnworker,
             initial_feerate=feerate
         )
         chan.storage['funding_inputs'] = [txin.prevout.to_json() for txin in funding_tx.inputs()]
+        chan.storage['has_onchain_backup'] = has_onchain_backup
         if isinstance(self.transport, LNTransport):
             chan.add_or_update_peer_addr(self.transport.peer_addr)
         sig_64, _ = chan.sign_next_commitment()

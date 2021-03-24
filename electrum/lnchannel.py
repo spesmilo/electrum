@@ -553,6 +553,9 @@ class Channel(AbstractChannel):
         self.should_request_force_close = False
         self.force_close_detected = False # not a state, only for GUI
 
+    def has_onchain_backup(self):
+        return self.storage.get('has_onchain_backup', False)
+
     def can_be_deleted(self):
         return self.is_redeemed()
 

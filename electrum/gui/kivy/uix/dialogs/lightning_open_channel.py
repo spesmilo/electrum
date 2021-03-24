@@ -211,7 +211,7 @@ class LightningOpenChannelDialog(Factory.Popup, Logger):
             self.app.show_error(_('Problem opening channel: ') + '\n' + repr(e))
             return
         # TODO: it would be nice to show this before broadcasting
-        if lnworker.has_recoverable_channels():
+        if chan.has_onchain_backup():
             self.maybe_show_funding_tx(chan, funding_tx)
         else:
             title = _('Save backup')

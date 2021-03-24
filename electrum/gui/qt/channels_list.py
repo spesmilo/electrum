@@ -538,11 +538,13 @@ class ChannelFeatureIcons:
         feats = []
         if chan.is_backup():
             feats.append(ChanFeatBackup())
+            if chan.is_imported:
+                feats.append(ChanFeatNoOnchainBackup())
         else:
             feats.append(ChanFeatChannel())
             if chan.lnworker.is_trampoline_peer(chan.node_id):
                 feats.append(ChanFeatTrampoline())
-            if not chan.lnworker.has_recoverable_channels():
+            if not chan.has_onchain_backup():
                 feats.append(ChanFeatNoOnchainBackup())
         return ChannelFeatureIcons(feats)
 
