@@ -393,11 +393,16 @@ class Commands:
     @command('wp')
     async def signtransaction(self, tx, privkey=None, password=None, wallet: Abstract_Wallet = None):
         """Sign a transaction. The wallet keys will be used unless a private key is provided."""
+        # TODO this command should be split in two... (1) *_with_wallet, (2) *_with_privkey
         tx = tx_from_any(tx)
         if privkey:
             txin_type, privkey2, compressed = bitcoin.deserialize_privkey(privkey)
-            pubkey = ecc.ECPrivkey(privkey2).get_public_key_bytes(compressed=compressed).hex()
-            tx.sign({pubkey:(privkey2, compressed)})
+            pubkey = ecc.ECPrivkey(privkey2).get_public_key_bytes(compressed=compressed)
+            for txin in tx.inputs():
+                if txin.address and txin.address == bitcoin.pubkey_to_address(txin_type, pubkey.hex()):
+                    txin.pubkeys = [pubkey]
+                    txin.script_type = txin_type
+            tx.sign({pubkey.hex(): (privkey2, compressed)})
         else:
             wallet.sign_transaction(tx, password)
         return tx.serialize()
