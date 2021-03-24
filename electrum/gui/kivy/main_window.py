@@ -1007,12 +1007,12 @@ class ElectrumWindow(App, Logger):
             return
         now = time.time()
         if self.wallet and self.has_pin_code() and now - self.pause_time > 5*60:
-            def on_success():
+            def on_success(x):
                 self.resume_dialog = None
             d = PincodeDialog(
                 self,
                 check_password=self.check_pin_code,
-                on_success=None,
+                on_success=on_success,
                 on_failure=self.stop)
             self.resume_dialog = d
             d.open()
