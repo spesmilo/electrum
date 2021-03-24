@@ -633,7 +633,8 @@ class LightningChannelsDialog(Factory.Popup):
             self.can_send = 'n/a'
             self.can_receive = 'n/a'
             return
-        self.num_channels_text = _(f'You have {len(lnworker.channels)} channels.')
+        n = len([c for c in lnworker.channels.values() if c.is_open()])
+        self.num_channels_text = _(f'You have {n} open channels.')
         self.can_send = self.app.format_amount_and_units(lnworker.num_sats_can_send())
         self.can_receive = self.app.format_amount_and_units(lnworker.num_sats_can_receive())
 
