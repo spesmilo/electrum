@@ -280,7 +280,7 @@ class BaseWizard(util.PrintError):
             _("If you want the wallet to use Bitcoin Cash addresses use m/44'/145'/0'"),
             _("The placeholder value of {} is the default derivation for {} wallets.").format(default_derivation, self.wallet_type),
         ])
-        scannable = (self.wallet_type == "standard") and bool(seed)
+        scannable = self.wallet_type == "standard" and bool(seed)
         self.derivation_path_dialog(run_next=f, title=_('Derivation for {} wallet').format(self.wallet_type),
                                     message=message, default=default_derivation, test=bitcoin.is_bip32_derivation,
                                     seed=seed, scannable=scannable)
