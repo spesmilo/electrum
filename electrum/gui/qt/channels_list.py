@@ -539,17 +539,15 @@ class ChannelFeatureIcons:
 
     @classmethod
     def from_channel(cls, chan: AbstractChannel) -> 'ChannelFeatureIcons':
-        if not isinstance(chan, Channel):
-            return ChannelFeatureIcons([])
         feats = []
         if chan.is_backup():
             feats.append(ChanFeatBackup())
         else:
             feats.append(ChanFeatChannel())
-        if chan.lnworker.is_trampoline_peer(chan.node_id):
-            feats.append(ChanFeatTrampoline())
-        if not chan.lnworker.has_recoverable_channels():
-            feats.append(ChanFeatNoOnchainBackup())
+            if chan.lnworker.is_trampoline_peer(chan.node_id):
+                feats.append(ChanFeatTrampoline())
+            if not chan.lnworker.has_recoverable_channels():
+                feats.append(ChanFeatNoOnchainBackup())
         return ChannelFeatureIcons(feats)
 
     def paint(self, painter: QPainter, rect: QRect) -> None:
