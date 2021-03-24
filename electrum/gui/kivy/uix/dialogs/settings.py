@@ -133,7 +133,7 @@ class SettingsDialog(Factory.Popup):
         self.app.change_password(self.update)
 
     def change_pin_code(self, label, dt):
-        self.app.change_pin_code(self.update)
+        self.app.pin_code_dialog(self.update)
 
     def language_dialog(self, item, dt):
         if self._language_dialog is None:
