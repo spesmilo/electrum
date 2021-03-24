@@ -669,7 +669,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         utxos = self.get_utxos(domain,
                                excluded_addresses=frozen_addresses,
                                mature_only=True,
-                               confirmed_only=confirmed_only,
+                               confirmed_funding_only=confirmed_only,
                                nonlocal_only=nonlocal_only)
         utxos = [utxo for utxo in utxos if not self.is_frozen_coin(utxo)]
         return utxos
