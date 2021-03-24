@@ -35,9 +35,9 @@ class ChannelsList(MyTreeView):
     gossip_db_loaded = QtCore.pyqtSignal()
 
     class Columns(IntEnum):
-        SHORT_CHANID = 0
-        NODE_ALIAS = 1
-        FEATURES = 2
+        FEATURES = 0
+        SHORT_CHANID = 1
+        NODE_ALIAS = 2
         CAPACITY = 3
         LOCAL_BALANCE = 4
         REMOTE_BALANCE = 5
@@ -46,7 +46,7 @@ class ChannelsList(MyTreeView):
     headers = {
         Columns.SHORT_CHANID: _('Short Channel ID'),
         Columns.NODE_ALIAS: _('Node alias'),
-        Columns.FEATURES: _('Features'),
+        Columns.FEATURES: _(''),
         Columns.CAPACITY: _('Capacity'),
         Columns.LOCAL_BALANCE: _('Can send'),
         Columns.REMOTE_BALANCE: _('Can receive'),
@@ -303,10 +303,6 @@ class ChannelsList(MyTreeView):
             items[self.Columns.REMOTE_BALANCE].setFont(QFont(MONOSPACE_FONT))
             items[self.Columns.FEATURES].setData(ChannelFeatureIcons.from_channel(chan), self.ROLE_CUSTOM_PAINT)
             items[self.Columns.CAPACITY].setFont(QFont(MONOSPACE_FONT))
-            icon = "lightning" if not chan.is_backup() else "lightning_disconnected"
-            items[self.Columns.SHORT_CHANID].setIcon(read_QIcon(icon))
-            tooltip = _("Channel") if not chan.is_backup() else _("Channel backup")
-            items[self.Columns.SHORT_CHANID].setToolTip(tooltip)
             self._update_chan_frozen_bg(chan=chan, items=items)
             self.model().insertRow(0, items)
 
@@ -507,6 +503,20 @@ class ChannelFeature(ABC):
         pass
 
 
+class ChanFeatChannel(ChannelFeature):
+    def tooltip(self) -> str:
+        return _("This is a complete channel")
+    def icon(self) -> QIcon:
+        return read_QIcon("lightning")
+
+
+class ChanFeatBackup(ChannelFeature):
+    def tooltip(self) -> str:
+        return _("This is a static channel backup")
+    def icon(self) -> QIcon:
+        return read_QIcon("lightning_disconnected")
+
+
 class ChanFeatTrampoline(ChannelFeature):
     def tooltip(self) -> str:
         return _("The channel peer can route Trampoline payments.")
@@ -532,6 +542,10 @@ class ChannelFeatureIcons:
         if not isinstance(chan, Channel):
             return ChannelFeatureIcons([])
         feats = []
+        if chan.is_backup():
+            feats.append(ChanFeatBackup())
+        else:
+            feats.append(ChanFeatChannel())
         if chan.lnworker.is_trampoline_peer(chan.node_id):
             feats.append(ChanFeatTrampoline())
         if not chan.lnworker.has_recoverable_channels():
