@@ -19,7 +19,6 @@ from electrum.plugins.trustedcoin import trustedcoin
 
 from . import TestCaseForTestnet
 from . import ElectrumTestCase
-from .from_seed_patch import from_seed_patch
 from ..wallet_db import WalletDB
 
 UNICODE_HORROR_HEX = 'e282bf20f09f988020f09f98882020202020e3818620e38191e3819fe381be20e3828fe3828b2077cda2cda2cd9d68cda16fcda2cda120ccb8cda26bccb5cd9f6eccb4cd98c7ab77ccb8cc9b73cd9820cc80cc8177cd98cda2e1b8a9ccb561d289cca1cda27420cca7cc9568cc816fccb572cd8fccb5726f7273cca120ccb6cda1cda06cc4afccb665cd9fcd9f20ccb6cd9d696ecda220cd8f74cc9568ccb7cca1cd9f6520cd9fcd9f64cc9b61cd9c72cc95cda16bcca2cca820cda168ccb465cd8f61ccb7cca2cca17274cc81cd8f20ccb4ccb7cda0c3b2ccb5ccb666ccb82075cca7cd986ec3adcc9bcd9c63cda2cd8f6fccb7cd8f64ccb8cda265cca1cd9d3fcd9e'
@@ -84,7 +83,6 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         super().setUp()
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
 
-    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_electrum_seed_standard(self, mock_save_db):
         seed_words = 'cycle rocket west magnet parrot shuffle foot correct salt library feed song'
@@ -94,17 +92,17 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
 
         WalletIntegrityHelper.check_seeded_keystore_sanity(self, ks)
         self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
+        self.assertEqual(ks.get_derivation_prefix(), "m/44'/0'/0'")
 
-        self.assertEqual(ks.xprv, 'xprv9s21ZrQH143K32jECVM729vWgGq4mUDJCk1ozqAStTphzQtCTuoFmFafNoG1g55iCnBTXUzz3zWnDb5CVLGiFvmaZjuazHDL8a81cPQ8KL6')
-        self.assertEqual(ks.xpub, 'xpub661MyMwAqRbcFWohJWt7PHsFEJfZAvw9ZxwQoDa4SoMgsDDM1T7WK3u9E4edkC4ugRnZ8E4xDZRpk8Rnts3Nbt97dPwT52CwBdDWroaZf8U')
+        self.assertEqual(ks.xprv, 'xprv9yyDwTkEmoKLY2yo57nVLkCec99mxMCKVyMaPfG6aHNzaGxUTndHiwjZfPNHywjsBG7FrDAJWxTmQstKb79mHKE7Syz6N8bRHRadMRo75ST')
+        self.assertEqual(ks.xpub, 'xpub6CxaLyH8cAsdkX4GB9KVht9PAAzGMovAsCHBC3fi8cuyT5Hd1KwYGk43WfYiKiok4cNtLqiSNLJGUJyEmDQsaZYRozer5qEYiUHw8K3wASo')
 
         w = WalletIntegrityHelper.create_standard_wallet(ks, config=self.config)
         self.assertEqual(w.txin_type, 'p2pkh')
 
-        self.assertEqual(w.get_receiving_addresses()[0], '1NNkttn1YvVGdqBW4PR6zvc3Zx3H5owKRf')
-        self.assertEqual(w.get_change_addresses()[0], '1KSezYMhAJMWqFbVFB2JshYg69UpmEXR4D')
+        self.assertEqual(w.get_receiving_addresses()[0], '19DbUEjYRKNfN7FdrKYmsrsSWo78ebev1i')
+        self.assertEqual(w.get_change_addresses()[0], '18kLBne18VwvL63RB142GNNdGSPrh8YPik')
 
-    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_electrum_seed_segwit(self, mock_save_db):
         seed_words = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
@@ -114,17 +112,17 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
 
         WalletIntegrityHelper.check_seeded_keystore_sanity(self, ks)
         self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
+        self.assertEqual(ks.get_derivation_prefix(), "m/84'/0'/0'")
 
-        self.assertEqual(ks.xprv, 'zprvAZswDvNeJeha8qZ8g7efN3FXYVJLaEUsE9TW6qXDEbVe74AZ75c2sZFZXPNFzxnhChDQ89oC8C5AjWwHmH1HeRKE1c4kKBQAmjUDdKDUZw2')
-        self.assertEqual(ks.xpub, 'zpub6nsHdRuY92FsMKdbn9BfjBCG6X8pyhCibNP6uDvpnw2cyrVhecvHRMa3Ne8kdJZxjxgwnpbHLkcR4bfnhHy6auHPJyDTQ3kianeuVLdkCYQ')
+        self.assertEqual(ks.xprv, 'zprvAdfMEGGCjX5JZF3DcuKaMvgbES4cNpXWSkfuW6uxDujgLFxWKMAvATT5H3PJNWsEAoQoVroTTb15E26T1RyXHDMEw1fGDQBRKj7Hzaa6qdE')
+        self.assertEqual(ks.xpub, 'zpub6rehdmo6Ztdbmj7givraj4dKnTu6nHFMoybWJVKZnFGfD4HertVAiFmZ8LSjvKSnm9CQ2DAsoYvjkCGtfPyaJg2ji5j1FLeYrjtwJ9GKsFJ')
 
         w = WalletIntegrityHelper.create_standard_wallet(ks, config=self.config)
         self.assertEqual(w.txin_type, 'p2wpkh')
 
-        self.assertEqual(w.get_receiving_addresses()[0], 'bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af')
-        self.assertEqual(w.get_change_addresses()[0], 'bc1qdy94n2q5qcp0kg7v9yzwe6wvfkhnvyzje7nx2p')
+        self.assertEqual(w.get_receiving_addresses()[0], 'bc1qdlgh4gp7rsty5vt49alv9can6jalz37z0sy7t3')
+        self.assertEqual(w.get_change_addresses()[0], 'bc1qzdfkr9u2l9jsq2s6kqhjr7j7t0qzkgpjtydfse')
 
-    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_electrum_seed_segwit_passphrase(self, mock_save_db):
         seed_words = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
@@ -135,14 +133,14 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         WalletIntegrityHelper.check_seeded_keystore_sanity(self, ks)
         self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
 
-        self.assertEqual(ks.xprv, 'zprvAZDmEQiCLUcZXPfrBXoksCD2R6RMAzAre7SUyBotibisy9c7vGhLYvHaP3d9rYU12DKAWdZfscPNA7qEPgTkCDqX5sE93ryAJAQvkDbfLxU')
-        self.assertEqual(ks.xpub, 'zpub6nD7dvF6ArArjskKHZLmEL9ky8FqaSti1LN5maDWGwFrqwwGTp1b6ic4EHwciFNaYDmCXcQYxXSiF9BjcLCMPcaYkVN2nQD6QjYQ8vpSR3Z')
+        self.assertEqual(ks.xprv, 'zprvAdnSMa78eh8jTTJqKRBRVT6PC6qeTB4ZAaBAVN9wrdoCZitPsc8UDBoHV5YqmYM1JbGH5kJAWtxTpUxnFLiz4aZzZqpu2GPTwV7hUoyo1jR')
+        self.assertEqual(ks.xpub, 'zpub6rmnm5e2V4h2fwPJRSiRrb37k8g8rdnQXo6mHkZZQyLBSXDYR9Sikz7mLNfHmxWJLD26cPnpcGatsyEdT5gBEn6PzN6Pq4PfTdv1aoLNVMq')
 
         w = WalletIntegrityHelper.create_standard_wallet(ks, config=self.config)
         self.assertEqual(w.txin_type, 'p2wpkh')
 
-        self.assertEqual(w.get_receiving_addresses()[0], 'bc1qx94dutas7ysn2my645cyttujrms5d9p57f6aam')
-        self.assertEqual(w.get_change_addresses()[0], 'bc1qcywwsy87sdp8vz5rfjh3sxdv6rt95kujdqq38g')
+        self.assertEqual(w.get_receiving_addresses()[0], 'bc1qmuhp3q2lj29u2hud3nfskc82fgpwv5ez50l0c7')
+        self.assertEqual(w.get_change_addresses()[0], 'bc1qhdlzs77mtva89waur3jk0xd25tqn2zky65y64n')
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_electrum_seed_old(self, mock_save_db):
@@ -339,7 +337,6 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         self.assertEqual(w.get_receiving_addresses()[0], 'bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu')
         self.assertEqual(w.get_change_addresses()[0], 'bc1q8c6fshw2dlwun7ekn9qwf37cu2rn755upcp6el')
 
-    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_electrum_multisig_seed_standard(self, mock_save_db):
         seed_words = 'blast uniform dragon fiscal ensure vast young utility dinosaur abandon rookie sure'
@@ -348,8 +345,9 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         ks1 = keystore.from_seed(seed_words, '', True)
         WalletIntegrityHelper.check_seeded_keystore_sanity(self, ks1)
         self.assertTrue(isinstance(ks1, keystore.BIP32_KeyStore))
-        self.assertEqual(ks1.xprv, 'xprv9s21ZrQH143K3t9vo23J3hajRbzvkRLJ6Y1zFrUFAfU3t8oooMPfb7f87cn5KntgqZs5nipZkCiBFo5ZtaSD2eDo7j7CMuFV8Zu6GYLTpY6')
-        self.assertEqual(ks1.xpub, 'xpub661MyMwAqRbcGNEPu3aJQqXTydqR9t49Tkwb4Esrj112kw8xLthv8uybxvaki4Ygt9xiwZUQGeFTG7T2TUzR3eA4Zp3aq5RXsABHFBUrq4c')
+        self.assertEqual(ks1.get_derivation_prefix(), "m/48'/0'/0'/3'")
+        self.assertEqual(ks1.xprv, 'xprv9zuqi2eUqvN8xQANAtZiLRUKv5ctHWPXcfR72WKoRf2dRAaJ3Q3DEX8rGrKi2Ecnmv33YP1G5yu7psmWhi8NAp3YvYcqfrfuknpzrNrD3to')
+        self.assertEqual(ks1.xpub, 'xpub6DuC7YBNgHvSAtEqGv6ihZR4U7TNgy7NytLhptjQyzZcHxuSawMTnKTL86fpmEBfL1Gi2dLCz9KQPrcYjAxMR6LWBagje7oUDcqFMkLja48')
 
         # electrum seed: ghost into match ivory badge robot record tackle radar elbow traffic loud
         ks2 = keystore.from_xpub('xpub661MyMwAqRbcGfCPEkkyo5WmcrhTq8mi3xuBS7VEZ3LYvsgY1cCFDbenT33bdD12axvrmXhuX3xkAbKci3yZY9ZEk8vhLic7KNhLjqdh5ec')
@@ -359,10 +357,9 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         w = WalletIntegrityHelper.create_multisig_wallet([ks1, ks2], '2of2', config=self.config)
         self.assertEqual(w.txin_type, 'p2sh')
 
-        self.assertEqual(w.get_receiving_addresses()[0], '32ji3QkAgXNz6oFoRfakyD3ys1XXiERQYN')
-        self.assertEqual(w.get_change_addresses()[0], '36XWwEHrrVCLnhjK5MrVVGmUHghr9oWTN1')
+        self.assertEqual(w.get_receiving_addresses()[0], '3QuMoYn1C3haSoaJzn9WyQ1RLpt6Vr9NjS')
+        self.assertEqual(w.get_change_addresses()[0], '3Q75FbsuSdABNLq4o9cacGWnbCD7kjkbzC')
 
-    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_electrum_multisig_seed_segwit(self, mock_save_db):
         seed_words = 'snow nest raise royal more walk demise rotate smooth spirit canyon gun'
@@ -371,8 +368,9 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         ks1 = keystore.from_seed(seed_words, '', True)
         WalletIntegrityHelper.check_seeded_keystore_sanity(self, ks1)
         self.assertTrue(isinstance(ks1, keystore.BIP32_KeyStore))
-        self.assertEqual(ks1.xprv, 'ZprvAjxLRqPiDfPDxXrm8JvcoCGRAW6xUtktucG6AMtdzaEbTEJN8qcECvujfhtDU3jLJ9g3Dr3Gz5m1ypfMs8iSUh62gWyHZ73bYLRWyeHf6y4')
-        self.assertEqual(ks1.xpub, 'Zpub6xwgqLvc42wXB1wEELTdALD9iXwStMUkGqBgxkJFYumaL2dWgNvUkjEDWyDFZD3fZuDWDzd1KQJ4NwVHS7hs6H6QkpNYSShfNiUZsgMdtNg')
+        self.assertEqual(ks1.get_derivation_prefix(), "m/48'/0'/0'/2'")
+        self.assertEqual(ks1.xprv, 'ZprvAr5kqbDTjd3gfbEqVYc8AyWr7e6EwFn3Q872fL6HPvamwjTcxgCZGqeE9wdLcH5Zz9RYsxkkwYpSzej7bMpoCPnxp8ixFYjpMZqYZrZ8r6B')
+        self.assertEqual(ks1.xpub, 'Zpub7557F6kMZzbyt5KJba98Y7TaffvjLiVtmM2dTiVtxG7kpXnmWDWopdxi1EEPk7KhQHhK25vzH9iUnGe2JFrL233fAMw27uurpgoYneJvsBZ')
 
         # electrum seed: hedgehog sunset update estate number jungle amount piano friend donate upper wool
         ks2 = keystore.from_xpub('Zpub6y4oYeETXAbzLNg45wcFDGwEG3vpgsyMJybiAfi2pJtNF3i3fJVxK2BeZJaw7VeKZm192QHvXP3uHDNpNmNDbQft9FiMzkKUhNXQafUMYUY')
@@ -382,8 +380,8 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         w = WalletIntegrityHelper.create_multisig_wallet([ks1, ks2], '2of2', config=self.config)
         self.assertEqual(w.txin_type, 'p2wsh')
 
-        self.assertEqual(w.get_receiving_addresses()[0], 'bc1qvzezdcv6vs5h45ugkavp896e0nde5c5lg5h0fwe2xyfhnpkxq6gq7pnwlc')
-        self.assertEqual(w.get_change_addresses()[0], 'bc1qxqf840dqswcmu7a8v82fj6ej0msx08flvuy6kngr7axstjcaq6us9hrehd')
+        self.assertEqual(w.get_receiving_addresses()[0], 'bc1qrk0jf56um55t0pcnpc6nm20n58jpyaxa6kr29mkz9xrhvdv3wa0qt8jxd6')
+        self.assertEqual(w.get_change_addresses()[0], 'bc1qv8qmpxeeew45ym9dy7fv2rl2jkwal4dx9fmtpy7yjnv3xk8lza4s95p3hx')
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_bip39_multisig_seed_bip45_standard(self, mock_save_db):
@@ -587,17 +585,16 @@ class TestWalletSending(TestCaseForTestnet):
         ks = keystore.from_seed(seed_words, '', False)
         return WalletIntegrityHelper.create_standard_wallet(ks, gap_limit=gap_limit, config=config)
 
-    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_sending_between_p2wpkh_and_compressed_p2pkh(self, mock_save_db):
         wallet1 = self.create_standard_wallet_from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver')
         wallet2 = self.create_standard_wallet_from_seed('cycle rocket west magnet parrot shuffle foot correct salt library feed song')
 
         # bootstrap wallet1
-        funding_tx = Transaction('01000000014576dacce264c24d81887642b726f5d64aa7825b21b350c7b75a57f337da6845010000006b483045022100a3f8b6155c71a98ad9986edd6161b20d24fad99b6463c23b463856c0ee54826d02200f606017fd987696ebbe5200daedde922eee264325a184d5bbda965ba5160821012102e5c473c051dae31043c335266d0ef89c1daab2f34d885cc7706b267f3269c609ffffffff0240420f00000000001600148a28bddb7f61864bdcf58b2ad13d5aeb3abc3c42a2ddb90e000000001976a914c384950342cb6f8df55175b48586838b03130fad88ac00000000')
+        funding_tx = Transaction('01000000014576dacce264c24d81887642b726f5d64aa7825b21b350c7b75a57f337da6845010000006b483045022100a3f8b6155c71a98ad9986edd6161b20d24fad99b6463c23b463856c0ee54826d02200f606017fd987696ebbe5200daedde922eee264325a184d5bbda965ba5160821012102e5c473c051dae31043c335266d0ef89c1daab2f34d885cc7706b267f3269c609ffffffff0240420f0000000000160014e30a3abc69ed5957220a66242ed33a4f024e9ef4a2ddb90e000000001976a914c384950342cb6f8df55175b48586838b03130fad88ac00000000')
         funding_txid = funding_tx.txid()
         funding_output_value = 1000000
-        self.assertEqual('add2535aedcbb5ba79cc2260868bb9e57f328738ca192937f2c92e0e94c19203', funding_txid)
+        self.assertEqual('f6090ca3877200ef357d5e892f7eb5cba493c4456a9b298e10871f146f930723', funding_txid)
         wallet1.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
 
         # wallet1 -> wallet2
@@ -611,10 +608,10 @@ class TestWalletSending(TestCaseForTestnet):
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet1.is_mine(wallet1.get_txin_address(tx_copy.inputs()[0])))
 
-        self.assertEqual('010000000001010392c1940e2ec9f2372919ca3887327fe5b98b866022cc79bab5cbed5a53d2ad0000000000feffffff0290d00300000000001976a914ea7804a2c266063572cc009a63dc25dcc0e9d9b588ac285e0b0000000000160014690b59a8140602fb23cc2904ece9cc4daf361052024730440220608a5339ca894592da82119e1e4a1d09335d70a552c683687223b8ed724465e902201b3f0feccf391b1b6257e4b18970ae57d7ca060af2dae519b3690baad2b2a34e0121030faee9b4a25b7db82023ca989192712cdd4cb53d3d9338591c7909e581ae1c0c00000000',
+        self.assertEqual('010000000001012307936f141f87108e299b6a45c493a4cbb57e2f895e7d35ef007287a30c09f60000000000feffffff0290d00300000000001976a914b14e9d2a698468b3a14f19d90a01b4748fe335ef88ac285e0b0000000000160014bf3746189739d1b7c05966789563543921df1d950247304402205a097f146c29d82e0754f3ff9b406bc58737f0ba4b3ba96e87de0b3903b6466f02205aa11696db03f5706d2e58943f720adb8cf5f319149c7a0938b61044959892d8012102e25b4b0f4f521e04a87fc0edad2b0ca7dc33362599e469625928c1c26af9aaf200000000',
                          str(tx_copy))
-        self.assertEqual('3c06ae4d9be8226a472b3e7f7c127c7e3016f525d658d26106b80b4c7e3228e2', tx_copy.txid())
-        self.assertEqual('d8d930ae91dce73118c3fffabbdfcfb87f5d91673fb4c7dfd0fbe7cf03bf426b', tx_copy.wtxid())
+        self.assertEqual('cdcb825dc40e0ec4fca6b0d94de66d311483669b01ccb34c10fe4e7eb945ccbf', tx_copy.txid())
+        self.assertEqual('b79726607dda89b81b2ee1a09426bc79875781db16446ebc1ecf3c353509bd4b', tx_copy.wtxid())
         self.assertEqual(tx.wtxid(), tx_copy.wtxid())
 
         wallet1.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)  # TX_HEIGHT_UNCONF_PARENT but nvm
@@ -631,10 +628,10 @@ class TestWalletSending(TestCaseForTestnet):
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet2.is_mine(wallet2.get_txin_address(tx_copy.inputs()[0])))
 
-        self.assertEqual('0100000001e228327e4c0bb80661d258d625f516307e7c127c7f3e2b476a22e89b4dae063c000000006a47304402200c7b06ff882db5ffe9d6e2a3cc2cabf5cd1b4224f1453d1e3dadd13b3d391e2c02201d23fde8482b05837f27d43021d17a1be2ee619dfc889ee80d4c2761e7c7ffb20121030b482838721a38d94847699fed8818b5c5f56500ef72f13489e365b65e5749cffeffffff02a086010000000000160014284520c815980d426264766d8d930013dd20aa6068360200000000001976a914ca4c60999c46c2108326590b125aefd476dcb11888ac00000000',
+        self.assertEqual('0100000001bfcc45b97e4efe104cb3cc019b668314316de64dd9b0a6fcc40e0ec45d82cbcd000000006a473044022063320fa9cd89709ad8cd14a26e8d322867136b5eab31258868fa348beba17739022008a18ff833e619c5e761a05829ef5e9e1c9c5bcd53362386ded4dfbe175c592d01210282b66a1d006588fb03fbab2aebbd55cb00d5898e61ad28b802e871e61d41e649feffffff02a086010000000000160014974d83198565cd2c2ddf06e14ff8848659e5a22068360200000000001976a9147a089ed42012b3a697cc6a8ad44ecf68c91af2f688ac00000000',
                          str(tx_copy))
-        self.assertEqual('4ff22c31dd884dedbb905fae275508d1f7bb4948c1c979d2567132848fdff24a', tx_copy.txid())
-        self.assertEqual('4ff22c31dd884dedbb905fae275508d1f7bb4948c1c979d2567132848fdff24a', tx_copy.wtxid())
+        self.assertEqual('c859fc26f6c19cec41a08ed51793046e077cc4639513857a35e23e809c3ffc5c', tx_copy.txid())
+        self.assertEqual('c859fc26f6c19cec41a08ed51793046e077cc4639513857a35e23e809c3ffc5c', tx_copy.wtxid())
         self.assertEqual(tx.wtxid(), tx_copy.wtxid())
 
         wallet1.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
@@ -644,14 +641,14 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual((0, funding_output_value - 250000 - 5000 + 100000, 0), wallet1.get_balance())
         self.assertEqual((0, 250000 - 5000 - 100000, 0), wallet2.get_balance())
 
-    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_sending_between_p2sh_2of3_and_uncompressed_p2pkh(self, mock_save_db):
+        # wallets 1a and 1b have to have the same addresses
         wallet1a = WalletIntegrityHelper.create_multisig_wallet(
             [
                 keystore.from_seed('blast uniform dragon fiscal ensure vast young utility dinosaur abandon rookie sure', '', True),
                 keystore.from_xpub('tpubD6NzVbkrYhZ4YTPEgwk4zzr8wyo7pXGmbbVUnfYNtx6SgAMF5q3LN3Kch58P9hxGNsTmP7Dn49nnrmpE6upoRb1Xojg12FGLuLHkVpVtS44'),
-                keystore.from_xpub('tpubD6NzVbkrYhZ4XJzYkhsCbDCcZRmDAKSD7bXi9mdCni7acVt45fxbTVZyU6jRGh29ULKTjoapkfFsSJvQHitcVKbQgzgkkYsAmaovcro7Mhf')
+                keystore.from_xpub('tpubDEFidU8b6BSF76ayNMr2Qy7TmRokQZ4TdBZNxTVJskzg5PzxxDwSewRfu7jbZ51onSYgnSPMunPVRqR7LqVpJFVSNfUNrmRmtyzizLY6TQ8')
             ],
             '2of3', gap_limit=2,
             config=self.config
@@ -660,7 +657,7 @@ class TestWalletSending(TestCaseForTestnet):
             [
                 keystore.from_seed('cycle rocket west magnet parrot shuffle foot correct salt library feed song', '', True),
                 keystore.from_xpub('tpubD6NzVbkrYhZ4YTPEgwk4zzr8wyo7pXGmbbVUnfYNtx6SgAMF5q3LN3Kch58P9hxGNsTmP7Dn49nnrmpE6upoRb1Xojg12FGLuLHkVpVtS44'),
-                keystore.from_xpub('tpubD6NzVbkrYhZ4YARFMEZPckrqJkw59GZD1PXtQnw14ukvWDofR7Z1HMeSCxfYEZVvg4VdZ8zGok5VxHwdrLqew5cMdQntWc5mT7mh1CSgrnX')
+                keystore.from_xpub('tpubDEnMyw5xQncRD1ZCPPt45qUckZuyA93XJBYxDacUFHnCx9g9kmx7tjvNYKXTehnA2ULMh7PnBgsN3mgrR77To65MLKZjkjEvHAqVz3ZcD8d')
             ],
             '2of3', gap_limit=2,
             config=self.config
@@ -669,17 +666,17 @@ class TestWalletSending(TestCaseForTestnet):
         wallet2 = self.create_standard_wallet_from_seed('powerful random nobody notice nothing important anyway look away hidden message over')
 
         # bootstrap wallet1
-        funding_tx = Transaction('010000000001014121f99dc02f0364d2dab3d08905ff4c36fc76c55437fd90b769c35cc18618280100000000fdffffff02d4c22d00000000001600143fd1bc5d32245850c8cb5be5b09c73ccbb9a0f75001bb7000000000017a91480c2353f6a7bc3c71e99e062655b19adb3dd2e4887024830450221008781c78df0c9d4b5ea057333195d5d76bc29494d773f14fa80e27d2f288b2c360220762531614799b6f0fb8d539b18cb5232ab4253dd4385435157b28a44ff63810d0121033de77d21926e09efd04047ae2d39dbd3fb9db446e8b7ed53e0f70f9c9478f735dac11300')
+        funding_tx = Transaction('010000000001014121f99dc02f0364d2dab3d08905ff4c36fc76c55437fd90b769c35cc18618280100000000fdffffff02d4c22d00000000001600143fd1bc5d32245850c8cb5be5b09c73ccbb9a0f75001bb7000000000017a9140ac2fcf6a8d473c0a6921384c8a56a42f452ef6587024830450221008781c78df0c9d4b5ea057333195d5d76bc29494d773f14fa80e27d2f288b2c360220762531614799b6f0fb8d539b18cb5232ab4253dd4385435157b28a44ff63810d0121033de77d21926e09efd04047ae2d39dbd3fb9db446e8b7ed53e0f70f9c9478f735dac11300')
         funding_txid = funding_tx.txid()
         funding_output_value = 12000000
-        self.assertEqual('b25cd55687c9e528c2cfd546054f35fb6741f7cf32d600f07dfecdf2e1d42071', funding_txid)
+        self.assertEqual('61e11d7cb89c6ee22cffa005647cc46961bed42df4a3d1d2311e6eccdde743a9', funding_txid)
         wallet1a.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
 
         # wallet1 -> wallet2
         outputs = [PartialTxOutput.from_address_and_value(wallet2.get_receiving_address(), 370000)]
         tx = wallet1a.mktx(outputs=outputs, password=None, fee=5000, tx_version=1)
         partial_tx = tx.serialize_as_bytes().hex()
-        self.assertEqual("70736274ff01007501000000017120d4e1f2cdfe7df000d632cff74167fb354f0546d5cfc228e5c98756d55cb20100000000feffffff0250a50500000000001976a9149cd3dfb0d87a861770ae4e268e74b45335cf00ab88ac2862b1000000000017a9142e517854aa54668128c0e9a3fdd4dec13ad571368700000000000100e0010000000001014121f99dc02f0364d2dab3d08905ff4c36fc76c55437fd90b769c35cc18618280100000000fdffffff02d4c22d00000000001600143fd1bc5d32245850c8cb5be5b09c73ccbb9a0f75001bb7000000000017a91480c2353f6a7bc3c71e99e062655b19adb3dd2e4887024830450221008781c78df0c9d4b5ea057333195d5d76bc29494d773f14fa80e27d2f288b2c360220762531614799b6f0fb8d539b18cb5232ab4253dd4385435157b28a44ff63810d0121033de77d21926e09efd04047ae2d39dbd3fb9db446e8b7ed53e0f70f9c9478f735dac11300220202afb4af9a91264e1c6dce3ebe5312801723270ac0ba8134b7b49129328fcb0f284730440220751ee3599e59debb8b2aeef61bb5f574f26379cd961caf382d711a507bc632390220598d53e62557c4a5ab8cfb2f8948f37cca06a861714b55c781baf2c3d7a580b501010469522102afb4af9a91264e1c6dce3ebe5312801723270ac0ba8134b7b49129328fcb0f2821030b482838721a38d94847699fed8818b5c5f56500ef72f13489e365b65e5749cf2103e5db7969ae2f2576e6a061bf3bb2db16571e77ffb41e0b27170734359235cbce53ae220602afb4af9a91264e1c6dce3ebe5312801723270ac0ba8134b7b49129328fcb0f280c0036e9ac00000000000000002206030b482838721a38d94847699fed8818b5c5f56500ef72f13489e365b65e5749cf0c48adc7a00000000000000000220603e5db7969ae2f2576e6a061bf3bb2db16571e77ffb41e0b27170734359235cbce0cdb692427000000000000000000000100695221022ec6f62b0f3b7c2446f44346bff0a6f06b5fdbc27368be8a36478e0287fe47be21024238f21f90527dc87e945f389f3d1711943b06f0a738d5baab573fc0ab6c98582102b7139e93747d7c77f62af5a38b8a2b009f3456aa94dea9bf21f73a6298c867a253ae2202022ec6f62b0f3b7c2446f44346bff0a6f06b5fdbc27368be8a36478e0287fe47be0cdb69242701000000000000002202024238f21f90527dc87e945f389f3d1711943b06f0a738d5baab573fc0ab6c98580c0036e9ac0100000000000000220202b7139e93747d7c77f62af5a38b8a2b009f3456aa94dea9bf21f73a6298c867a20c48adc7a0010000000000000000",
+        self.assertEqual("70736274ff0100750100000001a943e7ddcc6e1e31d2d1a3f42dd4be6169c47c6405a0ff2ce26e9cb87c1de1610100000000feffffff0250a50500000000001976a9149cd3dfb0d87a861770ae4e268e74b45335cf00ab88ac2862b1000000000017a9148fd5d06c662ca1418c14c38386b9e1ebbecb1c4c8700000000000100e0010000000001014121f99dc02f0364d2dab3d08905ff4c36fc76c55437fd90b769c35cc18618280100000000fdffffff02d4c22d00000000001600143fd1bc5d32245850c8cb5be5b09c73ccbb9a0f75001bb7000000000017a9140ac2fcf6a8d473c0a6921384c8a56a42f452ef6587024830450221008781c78df0c9d4b5ea057333195d5d76bc29494d773f14fa80e27d2f288b2c360220762531614799b6f0fb8d539b18cb5232ab4253dd4385435157b28a44ff63810d0121033de77d21926e09efd04047ae2d39dbd3fb9db446e8b7ed53e0f70f9c9478f735dac11300220203a4682ef2bf15960975a06b77477862b70bc111d54d38a9b8f19d03dc05d00354473044022068f708f866bcba487a603f3714085c9288da36e7d832d5e59620b5e3d802132402204efe96354e50d1de6d85eff138dfa208424db77607759f155a35ab9b4a960261010104695221029443e921a19ff5c6a6354e0c07c142489772b6d075627098b5068c51a401a5212103a4682ef2bf15960975a06b77477862b70bc111d54d38a9b8f19d03dc05d003542103e5db7969ae2f2576e6a061bf3bb2db16571e77ffb41e0b27170734359235cbce53ae2206029443e921a19ff5c6a6354e0c07c142489772b6d075627098b5068c51a401a5210ca87f849e0000000000000000220603a4682ef2bf15960975a06b77477862b70bc111d54d38a9b8f19d03dc05d003541c6367747e300000800100008000000080030000800000000000000000220603e5db7969ae2f2576e6a061bf3bb2db16571e77ffb41e0b27170734359235cbce0cdb692427000000000000000000000100695221022ec6f62b0f3b7c2446f44346bff0a6f06b5fdbc27368be8a36478e0287fe47be2102feef6e2c84ab847b557407479dc20a8aad4dfc607cea279d491308a7c502988f2103cfa3bc934789054807fee4d254f747b8fab1cab60d210b61148053d10cc1b14553ae2202022ec6f62b0f3b7c2446f44346bff0a6f06b5fdbc27368be8a36478e0287fe47be0cdb6924270100000000000000220202feef6e2c84ab847b557407479dc20a8aad4dfc607cea279d491308a7c502988f0ca87f849e0100000000000000220203cfa3bc934789054807fee4d254f747b8fab1cab60d210b61148053d10cc1b1451c6367747e30000080010000800000008003000080010000000000000000",
                          partial_tx)
         tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         self.assertFalse(tx.is_complete())
@@ -692,10 +689,10 @@ class TestWalletSending(TestCaseForTestnet):
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet1a.is_mine(wallet1a.get_txin_address(tx_copy.inputs()[0])))
 
-        self.assertEqual('01000000017120d4e1f2cdfe7df000d632cff74167fb354f0546d5cfc228e5c98756d55cb201000000fc004730440220751ee3599e59debb8b2aeef61bb5f574f26379cd961caf382d711a507bc632390220598d53e62557c4a5ab8cfb2f8948f37cca06a861714b55c781baf2c3d7a580b501473044022023b55c679397bdf3a04d545adc6193eabc11b3a28850d3d46049a51a30c6732402205dbfdade5620e9072ae4aa7577c5f0fd294f59a6b0064cc7105093c0fe7a6d24014c69522102afb4af9a91264e1c6dce3ebe5312801723270ac0ba8134b7b49129328fcb0f2821030b482838721a38d94847699fed8818b5c5f56500ef72f13489e365b65e5749cf2103e5db7969ae2f2576e6a061bf3bb2db16571e77ffb41e0b27170734359235cbce53aefeffffff0250a50500000000001976a9149cd3dfb0d87a861770ae4e268e74b45335cf00ab88ac2862b1000000000017a9142e517854aa54668128c0e9a3fdd4dec13ad571368700000000',
+        self.assertEqual('0100000001a943e7ddcc6e1e31d2d1a3f42dd4be6169c47c6405a0ff2ce26e9cb87c1de16101000000fc004730440220013d4b6374c237aa7ecaf12143614d86814ac56c10a923c1f5b10fe49d6016ea02204ef6deb81ee0c00b3ce8b875f0daee1a4b9748dbec3eff237e50d8e95b49f0c601473044022068f708f866bcba487a603f3714085c9288da36e7d832d5e59620b5e3d802132402204efe96354e50d1de6d85eff138dfa208424db77607759f155a35ab9b4a960261014c695221029443e921a19ff5c6a6354e0c07c142489772b6d075627098b5068c51a401a5212103a4682ef2bf15960975a06b77477862b70bc111d54d38a9b8f19d03dc05d003542103e5db7969ae2f2576e6a061bf3bb2db16571e77ffb41e0b27170734359235cbce53aefeffffff0250a50500000000001976a9149cd3dfb0d87a861770ae4e268e74b45335cf00ab88ac2862b1000000000017a9148fd5d06c662ca1418c14c38386b9e1ebbecb1c4c8700000000',
                          str(tx_copy))
-        self.assertEqual('b508ee1908181e55d2a18a5b2a3904dffbc7cb6b6320bbfba4433578d0f7831e', tx_copy.txid())
-        self.assertEqual('b508ee1908181e55d2a18a5b2a3904dffbc7cb6b6320bbfba4433578d0f7831e', tx_copy.wtxid())
+        self.assertEqual('858b970aebe84d1c8b62f76f8fd4a3fa5d30da62f0c577d07049422a154eeb32', tx_copy.txid())
+        self.assertEqual('858b970aebe84d1c8b62f76f8fd4a3fa5d30da62f0c577d07049422a154eeb32', tx_copy.wtxid())
         self.assertEqual(tx.wtxid(), tx_copy.wtxid())
 
         wallet1a.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
@@ -712,10 +709,10 @@ class TestWalletSending(TestCaseForTestnet):
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet2.is_mine(wallet2.get_txin_address(tx_copy.inputs()[0])))
 
-        self.assertEqual('01000000011e83f7d0783543a4fbbb20636bcbc7fbdf04392a5b8aa1d2551e180819ee08b5000000008a473044022007569f938b5d7a7f529ceccc413363d84325c11d589c1897660bebfd5fd1cc4302203ef71fa42f9b31bb1e816af13b0bf725c493a0405433390c783cd9374713c5880141045f7ba332df2a7b4f5d13f246e307c9174cfa9b8b05f3b83410a3c23ef8958d610be285963d67c7bc1feb082f168fa9877c25999963ff8b56b242a852b23e25edfeffffff02a08601000000000017a914efe136b8275f49bc0f9871eebb9a48d0516229fd87280b0400000000001976a914ca14915184a2662b5d1505ce7142c8ca066c70e288ac00000000',
+        self.assertEqual('010000000132eb4e152a424970d077c5f062da305dfaa3d48f6ff7628b1c4de8eb0a978b85000000008a47304402203084729fcf44654e83969ed36a1dff3f41bb6274c567fe6fb0718ffbbae93818022047b03b8fe1c4f4a78ba4fa366bea9d0dc5fe68177d6fd73ddbef8190f31b425d0141045f7ba332df2a7b4f5d13f246e307c9174cfa9b8b05f3b83410a3c23ef8958d610be285963d67c7bc1feb082f168fa9877c25999963ff8b56b242a852b23e25edfeffffff02a08601000000000017a91477b52b7ad76c2d63a22d57417bc9e9a254ccd70587280b0400000000001976a914ca14915184a2662b5d1505ce7142c8ca066c70e288ac00000000',
                          str(tx_copy))
-        self.assertEqual('30f6eec4db5e6b1dfe572dfbc7077661df9a15a2a1b7701612b906d3e1bee3d8', tx_copy.txid())
-        self.assertEqual('30f6eec4db5e6b1dfe572dfbc7077661df9a15a2a1b7701612b906d3e1bee3d8', tx_copy.wtxid())
+        self.assertEqual('5f90ac92269ca27509a38dc4ac16c899dea2deda43d450c7749f491c58a38be8', tx_copy.txid())
+        self.assertEqual('5f90ac92269ca27509a38dc4ac16c899dea2deda43d450c7749f491c58a38be8', tx_copy.wtxid())
         self.assertEqual(tx.wtxid(), tx_copy.wtxid())
 
         wallet1a.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
@@ -725,13 +722,12 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual((0, funding_output_value - 370000 - 5000 + 100000, 0), wallet1a.get_balance())
         self.assertEqual((0, 370000 - 5000 - 100000, 0), wallet2.get_balance())
 
-    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_sending_between_p2wsh_2of3_and_p2wsh_p2sh_2of2(self, mock_save_db):
         wallet1a = WalletIntegrityHelper.create_multisig_wallet(
             [
                 keystore.from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver', '', True),
-                keystore.from_xpub('Vpub5fcdcgEwTJmbmqAktuK8Kyq92fMf7sWkcP6oqAii2tG47dNbfkGEGUbfS9NuZaRywLkHE6EmUksrqo32ZL3ouLN1HTar6oRiHpDzKMAF1tf'),
+                keystore.from_xpub('Vpub5m2umuck9quzfuk9VzpY6koALrxHe34yZ4sE1Enm4Kk64FLJb7WiGAXJQXz8dafFzzJzK5AFwpop3r6CHw1rc1Vi3GvQwkqPCM95Fv7cEjo'),
                 keystore.from_xpub('Vpub5fjkKyYnvSS4wBuakWTkNvZDaBM2vQ1MeXWq368VJHNr2eT8efqhpmZ6UUkb7s2dwCXv2Vuggjdhk4vZVyiAQTwUftvff73XcUGq2NQmWra')
             ],
             '2of3', gap_limit=2,
@@ -741,7 +737,7 @@ class TestWalletSending(TestCaseForTestnet):
             [
                 keystore.from_seed('snow nest raise royal more walk demise rotate smooth spirit canyon gun', '', True),
                 keystore.from_xpub('Vpub5fjkKyYnvSS4wBuakWTkNvZDaBM2vQ1MeXWq368VJHNr2eT8efqhpmZ6UUkb7s2dwCXv2Vuggjdhk4vZVyiAQTwUftvff73XcUGq2NQmWra'),
-                keystore.from_xpub('Vpub5gSKXzxK7FeKQedu2q1z9oJWxqvX72AArW3HSWpEhc8othDH8xMDu28gr7gf17sp492BuJod8Tn7anjvJrKpETwqnQqX7CS8fcYyUtedEMk')
+                keystore.from_xpub('Vpub5krr57PihzEoDp9Hp89XBNtJLd1fs3oD5eXe3wdaXBXLiMH6TnZo1T8hJwAhLUCo4ozq1AtwEddxW6mz33mywF3cD4bz8e9vHAWv2CNnikX')
             ],
             '2of3', gap_limit=2,
             config=self.config
@@ -767,10 +763,10 @@ class TestWalletSending(TestCaseForTestnet):
         )
 
         # bootstrap wallet1
-        funding_tx = Transaction('01000000000101a41aae475d026c9255200082c7fad26dc47771275b0afba238dccda98a597bd20000000000fdffffff02400d0300000000002200203c43ac80d6e3015cf378bf6bac0c22456723d6050bef324ec641e7762440c63c9dcd410000000000160014824626055515f3ed1d2cfc9152d2e70685c71e8f02483045022100b9f39fad57d07ce1e18251424034f21f10f20e59931041b5167ae343ce973cf602200fefb727fa0ffd25b353f1bcdae2395898fe407b692c62f5885afbf52fa06f5701210301a28f68511ace43114b674371257bb599fd2c686c4b19544870b1799c954b40e9c11300')
+        funding_tx = Transaction('01000000000101a41aae475d026c9255200082c7fad26dc47771275b0afba238dccda98a597bd20000000000fdffffff02400d030000000000220020d4c392901f774b75fa1a0c36fb9ec6d2f5a112e0d1edb21591a84f76ca0fd9719dcd410000000000160014824626055515f3ed1d2cfc9152d2e70685c71e8f02483045022100b9f39fad57d07ce1e18251424034f21f10f20e59931041b5167ae343ce973cf602200fefb727fa0ffd25b353f1bcdae2395898fe407b692c62f5885afbf52fa06f5701210301a28f68511ace43114b674371257bb599fd2c686c4b19544870b1799c954b40e9c11300')
         funding_txid = funding_tx.txid()
         funding_output_value = 200000
-        self.assertEqual('d2bd6c9d332db8e2c50aa521cd50f963fba214645aab2f7556e061a412103e21', funding_txid)
+        self.assertEqual('63c837727cb2738ffea8743b49572d4a36206590dd151ba2deab3768aa50f8c6', funding_txid)
         wallet1a.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
 
         # wallet1 -> wallet2
@@ -778,7 +774,7 @@ class TestWalletSending(TestCaseForTestnet):
         tx = wallet1a.mktx(outputs=outputs, password=None, fee=5000, tx_version=1)
         txid = tx.txid()
         partial_tx = tx.serialize_as_bytes().hex()
-        self.assertEqual("70736274ff01007e0100000001213e1012a461e056752fab5a6414a2fb63f950cd21a50ac5e2b82d339d6cbdd20000000000feffffff023075000000000000220020cc5e4cc05a76d0648cd0742768556317e9f8cc729aed077134287909035dba88888402000000000017a914187842cea9c15989a51ce7ca889a08b824bf87438700000000000100eb01000000000101a41aae475d026c9255200082c7fad26dc47771275b0afba238dccda98a597bd20000000000fdffffff02400d0300000000002200203c43ac80d6e3015cf378bf6bac0c22456723d6050bef324ec641e7762440c63c9dcd410000000000160014824626055515f3ed1d2cfc9152d2e70685c71e8f02483045022100b9f39fad57d07ce1e18251424034f21f10f20e59931041b5167ae343ce973cf602200fefb727fa0ffd25b353f1bcdae2395898fe407b692c62f5885afbf52fa06f5701210301a28f68511ace43114b674371257bb599fd2c686c4b19544870b1799c954b40e9c1130022020223f815ab09f6bfc8519165c5232947ae89d9d43d678fb3486f3b28382a2371fa473044022055cb04fa71c4b5955724d7ac5da90436d75212e7847fc121cb588f54bcdffdc4022064eca1ad639b7c748101059dc69f2893abb3b396bcf9c13f670415076f93ddbf0101056952210223f815ab09f6bfc8519165c5232947ae89d9d43d678fb3486f3b28382a2371fa210273c529c2c9a99592f2066cebc2172a48991af2b471cb726b9df78c6497ce984e2102aa8fc578b445a1e4257be6b978fcece92980def98dce0e1eb89e7364635ae94153ae22060223f815ab09f6bfc8519165c5232947ae89d9d43d678fb3486f3b28382a2371fa10b2e35a7d01000080000000000000000022060273c529c2c9a99592f2066cebc2172a48991af2b471cb726b9df78c6497ce984e1053b77ddb010000800000000000000000220602aa8fc578b445a1e4257be6b978fcece92980def98dce0e1eb89e7364635ae9411043067d6301000080000000000000000000010169522102174696a58a8dcd6c6455bd25e0749e9a6fc7d84ee09e192ab37b0d0b18c2de1a2102c807a19ca6783261f8c198ffcc437622e7ecba8d6c5692f3a5e7f1e45af53fd52102eee40c7e24d89639182db32f5e9188613e4bc212da2ee9b4ccc85d9b82e1a98053ae220202174696a58a8dcd6c6455bd25e0749e9a6fc7d84ee09e192ab37b0d0b18c2de1a1053b77ddb010000800100000000000000220202c807a19ca6783261f8c198ffcc437622e7ecba8d6c5692f3a5e7f1e45af53fd51043067d63010000800100000000000000220202eee40c7e24d89639182db32f5e9188613e4bc212da2ee9b4ccc85d9b82e1a98010b2e35a7d0100008001000000000000000000",
+        self.assertEqual("70736274ff01007e0100000001c6f850aa6837abdea21b15dd906520364a2d57493b74a8fe8f73b27c7237c8630000000000feffffff02307500000000000022002041d1f8e8856e9111244b21f27c70afb533b037225e29a78d9ddb555b540b60dc888402000000000017a914187842cea9c15989a51ce7ca889a08b824bf87438700000000000100eb01000000000101a41aae475d026c9255200082c7fad26dc47771275b0afba238dccda98a597bd20000000000fdffffff02400d030000000000220020d4c392901f774b75fa1a0c36fb9ec6d2f5a112e0d1edb21591a84f76ca0fd9719dcd410000000000160014824626055515f3ed1d2cfc9152d2e70685c71e8f02483045022100b9f39fad57d07ce1e18251424034f21f10f20e59931041b5167ae343ce973cf602200fefb727fa0ffd25b353f1bcdae2395898fe407b692c62f5885afbf52fa06f5701210301a28f68511ace43114b674371257bb599fd2c686c4b19544870b1799c954b40e9c113002202029b24deed96233c116f9afb963bb66cd71e93c48f0f3c36ed8b45ae22f75f1914473044022057ffcd40595e13b6883377c52867a8c25cd7219a8cc50d3d2e5409177439a6020220618585d22a4fa862589e02b962ff206ba3fb5d83551600c81ecc52ba5a51fd280101056952210273c529c2c9a99592f2066cebc2172a48991af2b471cb726b9df78c6497ce984e21029b24deed96233c116f9afb963bb66cd71e93c48f0f3c36ed8b45ae22f75f191421036e078a5d2255b222403cc8fac1daccf581a08835940b6ed7c4a8e5bc1d482da853ae22060273c529c2c9a99592f2066cebc2172a48991af2b471cb726b9df78c6497ce984e1053b77ddb0100008000000000000000002206029b24deed96233c116f9afb963bb66cd71e93c48f0f3c36ed8b45ae22f75f19141c32123ddf3000008001000080000000800200008000000000000000002206036e078a5d2255b222403cc8fac1daccf581a08835940b6ed7c4a8e5bc1d482da80cb487e805000000000000000000010169522102174696a58a8dcd6c6455bd25e0749e9a6fc7d84ee09e192ab37b0d0b18c2de1a210228a7d10bb0353cb6e43ed48f20751d10b7856b9f2acfd78bd6d99dab38d10ad421028bdd688916f2e3ebd66a9ad668733cad842a26e3ecb295aa0223452aa634510253ae220202174696a58a8dcd6c6455bd25e0749e9a6fc7d84ee09e192ab37b0d0b18c2de1a1053b77ddb01000080010000000000000022020228a7d10bb0353cb6e43ed48f20751d10b7856b9f2acfd78bd6d99dab38d10ad40cb487e80501000000000000002202028bdd688916f2e3ebd66a9ad668733cad842a26e3ecb295aa0223452aa63451021c32123ddf3000008001000080000000800200008001000000000000000000",
                          partial_tx)
         tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         self.assertEqual(txid, tx.txid())
@@ -792,10 +788,10 @@ class TestWalletSending(TestCaseForTestnet):
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet1a.is_mine(wallet1a.get_txin_address(tx_copy.inputs()[0])))
 
-        self.assertEqual('01000000000101213e1012a461e056752fab5a6414a2fb63f950cd21a50ac5e2b82d339d6cbdd20000000000feffffff023075000000000000220020cc5e4cc05a76d0648cd0742768556317e9f8cc729aed077134287909035dba88888402000000000017a914187842cea9c15989a51ce7ca889a08b824bf8743870400473044022055cb04fa71c4b5955724d7ac5da90436d75212e7847fc121cb588f54bcdffdc4022064eca1ad639b7c748101059dc69f2893abb3b396bcf9c13f670415076f93ddbf01473044022009230e456724f2a4c10d886c836eeec599b21db0bf078aa8fc8c95868b8920ec02200dfda835a66acb5af50f0d95fcc4b76c6e8f4789a7184c182275b087d1efe556016952210223f815ab09f6bfc8519165c5232947ae89d9d43d678fb3486f3b28382a2371fa210273c529c2c9a99592f2066cebc2172a48991af2b471cb726b9df78c6497ce984e2102aa8fc578b445a1e4257be6b978fcece92980def98dce0e1eb89e7364635ae94153ae00000000',
+        self.assertEqual('01000000000101c6f850aa6837abdea21b15dd906520364a2d57493b74a8fe8f73b27c7237c8630000000000feffffff02307500000000000022002041d1f8e8856e9111244b21f27c70afb533b037225e29a78d9ddb555b540b60dc888402000000000017a914187842cea9c15989a51ce7ca889a08b824bf8743870400473044022057ffcd40595e13b6883377c52867a8c25cd7219a8cc50d3d2e5409177439a6020220618585d22a4fa862589e02b962ff206ba3fb5d83551600c81ecc52ba5a51fd2801473044022061665945603ff5991d44e3c7dabb82c060295989403c1f78437f469832c83ebc02206822f861d758d36e0d0c9a4e6d96b0f49ca9d35cc7ee839d684e115280cd1ca1016952210273c529c2c9a99592f2066cebc2172a48991af2b471cb726b9df78c6497ce984e21029b24deed96233c116f9afb963bb66cd71e93c48f0f3c36ed8b45ae22f75f191421036e078a5d2255b222403cc8fac1daccf581a08835940b6ed7c4a8e5bc1d482da853ae00000000',
                          str(tx_copy))
-        self.assertEqual('6e9c3cd8788bdb970a124ea06136d52bc01cec4f9b1e217627d5e90ebe77d049', tx_copy.txid())
-        self.assertEqual('dfd568f4fe0d41f8679b665d2d65e514315bcd5ac3ff63ef1b1596e5313740a3', tx_copy.wtxid())
+        self.assertEqual('2a73a25b28609f67864a2cdb2da74a554293a5e1449c8e91a9b477a7b1f01c3f', tx_copy.txid())
+        self.assertEqual('a2d55a1604065a16eb6e53cc417979fb3e66c7c513656f2e35629121dfe7b1a4', tx_copy.wtxid())
         self.assertEqual(tx.wtxid(), tx_copy.wtxid())
         self.assertEqual(txid, tx_copy.txid())
 
@@ -807,7 +803,7 @@ class TestWalletSending(TestCaseForTestnet):
         tx = wallet2a.mktx(outputs=outputs, password=None, fee=5000, tx_version=1)
         txid = tx.txid()
         partial_tx = tx.serialize_as_bytes().hex()
-        self.assertEqual("70736274ff01007e010000000149d077be0ee9d52776211e9b4fec1cc02bd53661a04e120a97db8b78d83c9c6e0100000000feffffff0260ea00000000000017a9143025051b6b5ccd4baf30dfe2de8aa84f0dd567ed87a086010000000000220020f7b6b30c3073ae2680a7e90c589bbfec5303331be68bbab843eed5d51ba0123900000000000100fd7c0101000000000101213e1012a461e056752fab5a6414a2fb63f950cd21a50ac5e2b82d339d6cbdd20000000000feffffff023075000000000000220020cc5e4cc05a76d0648cd0742768556317e9f8cc729aed077134287909035dba88888402000000000017a914187842cea9c15989a51ce7ca889a08b824bf8743870400473044022055cb04fa71c4b5955724d7ac5da90436d75212e7847fc121cb588f54bcdffdc4022064eca1ad639b7c748101059dc69f2893abb3b396bcf9c13f670415076f93ddbf01473044022009230e456724f2a4c10d886c836eeec599b21db0bf078aa8fc8c95868b8920ec02200dfda835a66acb5af50f0d95fcc4b76c6e8f4789a7184c182275b087d1efe556016952210223f815ab09f6bfc8519165c5232947ae89d9d43d678fb3486f3b28382a2371fa210273c529c2c9a99592f2066cebc2172a48991af2b471cb726b9df78c6497ce984e2102aa8fc578b445a1e4257be6b978fcece92980def98dce0e1eb89e7364635ae94153ae00000000220202119f899075a131d4d519d4cdcf5de5907dc2df3b93d54b53ded852211d2b6cb14730440220091ea67af7c1131f51f62fe9596dff0a60c8b45bfc5be675389e193912e8a71802201bf813bbf83933a35ecc46e2d5b0442bd8758fa82e0f8ed16392c10d51f7f7660101042200204311edae835c7a5aa712c8ca644180f13a3b2f3b420fa879b181474724d6163c010547522102119f899075a131d4d519d4cdcf5de5907dc2df3b93d54b53ded852211d2b6cb12102fdb0f6775d4b6619257c43343ba5e7807b0164f1eb3f00f2b594ab9e53ab812652ae220602119f899075a131d4d519d4cdcf5de5907dc2df3b93d54b53ded852211d2b6cb10cd1dbcc210000000000000000220602fdb0f6775d4b6619257c43343ba5e7807b0164f1eb3f00f2b594ab9e53ab81260c17cea9140000000000000000000100220020717ab7037b81797cb3e192a8a1b4d88083444bbfcd26934cadf3bcf890f14e05010147522102987c184fcd8ace2e2a314250e04a15a4b8c885fb4eb778ab82c45838bcbcbdde21034084c4a0493c248783e60d8415cd30b3ba2c3b7a79201e38b953adea2bc44f9952ae220202987c184fcd8ace2e2a314250e04a15a4b8c885fb4eb778ab82c45838bcbcbdde0c17cea91401000000000000002202034084c4a0493c248783e60d8415cd30b3ba2c3b7a79201e38b953adea2bc44f990cd1dbcc2101000000000000000000",
+        self.assertEqual("70736274ff01007e01000000013f1cf0b1a777b4a9918e9c44e1a59342554aa72ddb2c4a86679f60285ba2732a0100000000feffffff0260ea00000000000017a9143025051b6b5ccd4baf30dfe2de8aa84f0dd567ed87a08601000000000022002038493fa8a466ee9bfdba6a8602635c1a5dfc92b9606863855790afb8d849ce2c00000000000100fd7c0101000000000101c6f850aa6837abdea21b15dd906520364a2d57493b74a8fe8f73b27c7237c8630000000000feffffff02307500000000000022002041d1f8e8856e9111244b21f27c70afb533b037225e29a78d9ddb555b540b60dc888402000000000017a914187842cea9c15989a51ce7ca889a08b824bf8743870400473044022057ffcd40595e13b6883377c52867a8c25cd7219a8cc50d3d2e5409177439a6020220618585d22a4fa862589e02b962ff206ba3fb5d83551600c81ecc52ba5a51fd2801473044022061665945603ff5991d44e3c7dabb82c060295989403c1f78437f469832c83ebc02206822f861d758d36e0d0c9a4e6d96b0f49ca9d35cc7ee839d684e115280cd1ca1016952210273c529c2c9a99592f2066cebc2172a48991af2b471cb726b9df78c6497ce984e21029b24deed96233c116f9afb963bb66cd71e93c48f0f3c36ed8b45ae22f75f191421036e078a5d2255b222403cc8fac1daccf581a08835940b6ed7c4a8e5bc1d482da853ae00000000220202119f899075a131d4d519d4cdcf5de5907dc2df3b93d54b53ded852211d2b6cb147304402206c3f35f5776f602b79521e033de3861b072b4255bac4d23d7f0a9c4188b18a7a022038f533c37a47939d1fbd5f3f58d3b087061bdd30cebc016e2d130b24be6e64af0101042200204311edae835c7a5aa712c8ca644180f13a3b2f3b420fa879b181474724d6163c010547522102119f899075a131d4d519d4cdcf5de5907dc2df3b93d54b53ded852211d2b6cb12102fdb0f6775d4b6619257c43343ba5e7807b0164f1eb3f00f2b594ab9e53ab812652ae220602119f899075a131d4d519d4cdcf5de5907dc2df3b93d54b53ded852211d2b6cb10cd1dbcc210000000000000000220602fdb0f6775d4b6619257c43343ba5e7807b0164f1eb3f00f2b594ab9e53ab81260c17cea9140000000000000000000100220020717ab7037b81797cb3e192a8a1b4d88083444bbfcd26934cadf3bcf890f14e05010147522102987c184fcd8ace2e2a314250e04a15a4b8c885fb4eb778ab82c45838bcbcbdde21034084c4a0493c248783e60d8415cd30b3ba2c3b7a79201e38b953adea2bc44f9952ae220202987c184fcd8ace2e2a314250e04a15a4b8c885fb4eb778ab82c45838bcbcbdde0c17cea91401000000000000002202034084c4a0493c248783e60d8415cd30b3ba2c3b7a79201e38b953adea2bc44f990cd1dbcc2101000000000000000000",
                          partial_tx)
         tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         self.assertEqual(txid, tx.txid())
@@ -821,10 +817,10 @@ class TestWalletSending(TestCaseForTestnet):
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet2a.is_mine(wallet2a.get_txin_address(tx_copy.inputs()[0])))
 
-        self.assertEqual('0100000000010149d077be0ee9d52776211e9b4fec1cc02bd53661a04e120a97db8b78d83c9c6e01000000232200204311edae835c7a5aa712c8ca644180f13a3b2f3b420fa879b181474724d6163cfeffffff0260ea00000000000017a9143025051b6b5ccd4baf30dfe2de8aa84f0dd567ed87a086010000000000220020f7b6b30c3073ae2680a7e90c589bbfec5303331be68bbab843eed5d51ba0123904004730440220091ea67af7c1131f51f62fe9596dff0a60c8b45bfc5be675389e193912e8a71802201bf813bbf83933a35ecc46e2d5b0442bd8758fa82e0f8ed16392c10d51f7f7660147304402203ecf75b0316a449dd31bc549251b687dc904194aa551941bd5e8c67603661bdb02204ed58b3a6b070ec138d2127093bebcc6581495818fa611583e1c81cd9b2cf5ee0147522102119f899075a131d4d519d4cdcf5de5907dc2df3b93d54b53ded852211d2b6cb12102fdb0f6775d4b6619257c43343ba5e7807b0164f1eb3f00f2b594ab9e53ab812652ae00000000',
+        self.assertEqual('010000000001013f1cf0b1a777b4a9918e9c44e1a59342554aa72ddb2c4a86679f60285ba2732a01000000232200204311edae835c7a5aa712c8ca644180f13a3b2f3b420fa879b181474724d6163cfeffffff0260ea00000000000017a9143025051b6b5ccd4baf30dfe2de8aa84f0dd567ed87a08601000000000022002038493fa8a466ee9bfdba6a8602635c1a5dfc92b9606863855790afb8d849ce2c040047304402206c3f35f5776f602b79521e033de3861b072b4255bac4d23d7f0a9c4188b18a7a022038f533c37a47939d1fbd5f3f58d3b087061bdd30cebc016e2d130b24be6e64af01473044022039c933c843f39b2a10bbb8f17f981cbc9641036e358cfc0e32790c6114816d0202206b8fec1d1725201276321579997490890809bae4a8f9653b6a0c1b2e07c3a85b0147522102119f899075a131d4d519d4cdcf5de5907dc2df3b93d54b53ded852211d2b6cb12102fdb0f6775d4b6619257c43343ba5e7807b0164f1eb3f00f2b594ab9e53ab812652ae00000000',
                          str(tx_copy))
-        self.assertEqual('df92f0179b2bd4d0845472a8492edcaa3c24883ec4c7816dcd634183e0f89f29', tx_copy.txid())
-        self.assertEqual('614a3c2d908229e5421364b5ac9802eb4636ead08c080cae3c7ca6ba4ad5f3cf', tx_copy.wtxid())
+        self.assertEqual('372fbef1f383a353e1f754fed0f855593b8ee7ef08ea15e622b9edef576abceb', tx_copy.txid())
+        self.assertEqual('065ea222759b328fc3962ec77684ceb0e8b838310c4dd59905261251d2efa574', tx_copy.wtxid())
         self.assertEqual(tx.wtxid(), tx_copy.wtxid())
         self.assertEqual(txid, tx_copy.txid())
 
@@ -835,7 +831,6 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual((0, funding_output_value - 165000 - 5000 + 100000, 0), wallet1a.get_balance())
         self.assertEqual((0, 165000 - 5000 - 100000, 0), wallet2a.get_balance())
 
-    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_sending_between_p2sh_1of2_and_p2wpkh_p2sh(self, mock_save_db):
         wallet1a = WalletIntegrityHelper.create_multisig_wallet(
@@ -855,10 +850,10 @@ class TestWalletSending(TestCaseForTestnet):
         )
 
         # bootstrap wallet1
-        funding_tx = Transaction('010000000001027e20990282eb29588375ad04936e1e991af3bc5b9c6f1ab62eca8c25becaef6a01000000171600140e6a17fadc8bafba830f3467a889f6b211d69a00fdffffff51847fd6bcbdfd1d1ea2c2d95c2d8de1e34c5f2bd9493e88a96a4e229f564e800100000017160014ecdf9fa06856f9643b1a73144bc76c24c67774a6fdffffff021e8501000000000017a91451991bfa68fbcb1e28aa0b1e060b7d24003352e38700093d000000000017a914b0b9f31bace76cdfae2c14abc03e223403d7dc4b870247304402205e19721b92c6afd70cd932acb50815a36ee32ab46a934147d62f02c13aeacf4702207289c4a4131ef86e27058ff70b6cb6bf0e8e81c6cbab6dddd7b0a9bc732960e4012103fe504411c21f7663caa0bbf28931f03fae7e0def7bc54851e0194dfb1e2c85ef02483045022100e969b65096fba4f8b24eb5bc622d2282076241621f3efe922cc2067f7a8a6be702203ec4047dd2a71b9c83eb6a0875a6d66b4d65864637576c06ed029d3d1a8654b0012102bbc8100dca67ba0297aba51296a4184d714204a5fc2eda34708360f37019a3dccfcc1300')
+        funding_tx = Transaction('010000000001027e20990282eb29588375ad04936e1e991af3bc5b9c6f1ab62eca8c25becaef6a01000000171600140e6a17fadc8bafba830f3467a889f6b211d69a00fdffffff51847fd6bcbdfd1d1ea2c2d95c2d8de1e34c5f2bd9493e88a96a4e229f564e800100000017160014ecdf9fa06856f9643b1a73144bc76c24c67774a6fdffffff021e8501000000000017a91451991bfa68fbcb1e28aa0b1e060b7d24003352e38700093d000000000017a914fb85ad2184e7dd60a2c5acc9f6a66ec210c16b96870247304402205e19721b92c6afd70cd932acb50815a36ee32ab46a934147d62f02c13aeacf4702207289c4a4131ef86e27058ff70b6cb6bf0e8e81c6cbab6dddd7b0a9bc732960e4012103fe504411c21f7663caa0bbf28931f03fae7e0def7bc54851e0194dfb1e2c85ef02483045022100e969b65096fba4f8b24eb5bc622d2282076241621f3efe922cc2067f7a8a6be702203ec4047dd2a71b9c83eb6a0875a6d66b4d65864637576c06ed029d3d1a8654b0012102bbc8100dca67ba0297aba51296a4184d714204a5fc2eda34708360f37019a3dccfcc1300')
         funding_txid = funding_tx.txid()
         funding_output_value = 4000000
-        self.assertEqual('1137c12de4ce0f5b08de8846ba14c0814351a7f0f31457c8ea51a5d4b3c891a3', funding_txid)
+        self.assertEqual('5a089fd8677c51da23d2dc9fa79455256cd35b058b86377fe3da50f0c81c4ce2', funding_txid)
         wallet1a.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
 
         # wallet1 -> wallet2
@@ -872,10 +867,10 @@ class TestWalletSending(TestCaseForTestnet):
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet1a.is_mine(wallet1a.get_txin_address(tx_copy.inputs()[0])))
 
-        self.assertEqual('0100000001a391c8b3d4a551eac85714f3f0a7514381c014ba4688de085b0fcee42dc1371101000000910047304402204f1e1821b93b80a2033d3045325fe5c123d7ef54c2050aa356712eb32111ee670220039825c63cfe5879e808bf95aa365967d06a5f4072154955448becb65b8c5926014751210245c90e040d4f9d1fc136b3d4d6b7535bbb5df2bd27666c21977042cc1e05b5b02103c9a6bebfce6294488315e58137a279b2efe09f1f528ecf93b40675ded3cf0e5f52aefeffffff0240420f000000000017a9149573eb50f3136dff141ac304190f41c8becc92ce8738b32d000000000017a914b815d1b430ae9b632e3834ed537f7956325ee2a98700000000',
+        self.assertEqual('0100000001e24c1cc8f050dae37f37868b055bd36c255594a79fdcd223da517c67d89f085a01000000910047304402207e25a392971968895f02bdfd7e4a5fa6feeda056fcb02b22e468bb627dab8b5902205c46537fcb0cc8fc1eefb0667a6ba5e657109b21da9e3a36634098d1f74ecd33014751210245c90e040d4f9d1fc136b3d4d6b7535bbb5df2bd27666c21977042cc1e05b5b02103ffb8cffa5672e0ef7c6c4e44250f3c2c5a8a1ad9673ac4d9caae76fbdaebf3f152aefeffffff0240420f000000000017a9149573eb50f3136dff141ac304190f41c8becc92ce8738b32d000000000017a9146421e8c8e44231d0ffef831a9dcf7625fcf4ff6b8700000000',
                          str(tx_copy))
-        self.assertEqual('4649d6b6f8f967a84309de15c6d7403e628aa92ecb4f4d6d21299156fddff9e6', tx_copy.txid())
-        self.assertEqual('4649d6b6f8f967a84309de15c6d7403e628aa92ecb4f4d6d21299156fddff9e6', tx_copy.wtxid())
+        self.assertEqual('54741928414866c37cafa78ee5f1e58194039a4a84b2be725976b67f1148b34f', tx_copy.txid())
+        self.assertEqual('54741928414866c37cafa78ee5f1e58194039a4a84b2be725976b67f1148b34f', tx_copy.wtxid())
         self.assertEqual(tx.wtxid(), tx_copy.wtxid())
 
         wallet1a.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
@@ -892,10 +887,10 @@ class TestWalletSending(TestCaseForTestnet):
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet2.is_mine(wallet2.get_txin_address(tx_copy.inputs()[0])))
 
-        self.assertEqual('01000000000101e6f9dffd569129216d4d4fcb2ea98a623e40d7c615de0943a867f9f8b6d6494600000000171600149fad840ed174584ee054bd26f3e411817338c5edfeffffff02e09304000000000017a9145ae3933a6e13100f301f23227b98b0bdb5d16b8487d89a0a000000000017a9148ccd0efb2be5b412c4033715f560ed8f446c8ceb8702473044022020a3c46886b72f4ec561c5983a789098202307eae9679ff74fcb0879f65fff1d0220242ec3bfa747c513ef31874670d9c68ad235892588be55564696dd6690952e5a0121038362bbf0b4918b37e9d7c75930ed3a78e3d445724cb5c37ade4a59b6e411fe4e00000000',
+        self.assertEqual('010000000001014fb348117fb6765972beb2844a9a039481e5f1e58ea7af7cc36648412819745400000000171600149fad840ed174584ee054bd26f3e411817338c5edfeffffff02e09304000000000017a91479e200a898dac8592c386c7f88207989c3e5351787d89a0a000000000017a9148ccd0efb2be5b412c4033715f560ed8f446c8ceb870247304402207886a71208564462de48145f3512b099da3e3ae03673655da91919cfc2079671022058c5286adc34674ebfc27ad8f5ede26b4375e3ea2e05135ca61016e54eafee340121038362bbf0b4918b37e9d7c75930ed3a78e3d445724cb5c37ade4a59b6e411fe4e00000000',
                          str(tx_copy))
-        self.assertEqual('ae5dcacdf9e3067e18fcfd33582c24f60f844730e7872049bb627796929879ee', tx_copy.txid())
-        self.assertEqual('f70bce6418fc44dcab41cbd466086aea54283821487189e4d15c4d1e2d1e267d', tx_copy.wtxid())
+        self.assertEqual('26602d607ed36384d6bc595d6f716b37511b207a94b28065f496e4a9f648f431', tx_copy.txid())
+        self.assertEqual('d9f2f6db089ef8a7187f8510a2b6e37982dadff618d3b195c6fa9f58beec5334', tx_copy.wtxid())
         self.assertEqual(tx.wtxid(), tx_copy.wtxid())
 
         wallet1a.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
@@ -905,7 +900,6 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual((0, funding_output_value - 1000000 - 5000 + 300000, 0), wallet1a.get_balance())
         self.assertEqual((0, 1000000 - 5000 - 300000, 0), wallet2.get_balance())
 
-    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_rbf(self, mock_save_db):
         self.maxDiff = None
@@ -954,10 +948,10 @@ class TestWalletSending(TestCaseForTestnet):
                                                        config=config)
 
         # bootstrap wallet
-        funding_tx = Transaction('010000000001011f4db0ecd81f4388db316bc16efb4e9daf874cf4950d54ecb4c0fb372433d68500000000171600143d57fd9e88ef0e70cddb0d8b75ef86698cab0d44fdffffff0280969800000000001976a91472e34cebab371967b038ce41d0e8fa1fb983795e88ac86a0ae020000000017a9149188bc82bdcae077060ebb4f02201b73c806edc887024830450221008e0725d531bd7dee4d8d38a0f921d7b1213e5b16c05312a80464ecc2b649598d0220596d309cf66d5f47cb3df558dbb43c5023a7796a80f5a88b023287e45a4db6b9012102c34d61ceafa8c216f01e05707672354f8119334610f7933a3f80dd7fb6290296bd391400')
+        funding_tx = Transaction('010000000001011f4db0ecd81f4388db316bc16efb4e9daf874cf4950d54ecb4c0fb372433d68500000000171600143d57fd9e88ef0e70cddb0d8b75ef86698cab0d44fdffffff0280969800000000001976a914147c2a2eca0ce9b8bbb2ad5c1326d44eabcaba1d88ac86a0ae020000000017a9149188bc82bdcae077060ebb4f02201b73c806edc887024830450221008e0725d531bd7dee4d8d38a0f921d7b1213e5b16c05312a80464ecc2b649598d0220596d309cf66d5f47cb3df558dbb43c5023a7796a80f5a88b023287e45a4db6b9012102c34d61ceafa8c216f01e05707672354f8119334610f7933a3f80dd7fb6290296bd391400')
         funding_txid = funding_tx.txid()
         funding_output_value = 10000000
-        self.assertEqual('03052739fcfa2ead5f8e57e26021b0c2c546bcd3d74c6e708d5046dc58d90762', funding_txid)
+        self.assertEqual('d698f3146d5f5a0637c3d76e890f179cb66b845a46b7ff6fa63b57db38ced2a9', funding_txid)
         wallet.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
 
         # create tx
@@ -969,7 +963,7 @@ class TestWalletSending(TestCaseForTestnet):
         tx.version = 1
         if simulate_moving_txs:
             partial_tx = tx.serialize_as_bytes().hex()
-            self.assertEqual("70736274ff01007501000000016207d958dc46508d706e4cd7d3bc46c5c2b02160e2578e5fad2efafc392705030000000000fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987585d7200000000001976a914aab9af3fbee0ab4e5c00d53e92f66d4bcb44f1bd88acbd391400000100fa010000000001011f4db0ecd81f4388db316bc16efb4e9daf874cf4950d54ecb4c0fb372433d68500000000171600143d57fd9e88ef0e70cddb0d8b75ef86698cab0d44fdffffff0280969800000000001976a91472e34cebab371967b038ce41d0e8fa1fb983795e88ac86a0ae020000000017a9149188bc82bdcae077060ebb4f02201b73c806edc887024830450221008e0725d531bd7dee4d8d38a0f921d7b1213e5b16c05312a80464ecc2b649598d0220596d309cf66d5f47cb3df558dbb43c5023a7796a80f5a88b023287e45a4db6b9012102c34d61ceafa8c216f01e05707672354f8119334610f7933a3f80dd7fb6290296bd391400220602a807c07bd7975211078e916bdda061d97e98d59a3631a804aada2f9a3f5b587a0c8296e57100000000000000000000220203aa6a5d43c6de66d60f50942cf34f20e02c2c6f55349548fbf2cde5dd5d69b9180c8296e571010000000000000000",
+            self.assertEqual("70736274ff0100750100000001a9d2ce38db573ba66fffb7465a846bb69c170f896ed7c337065a5f6d14f398d60000000000fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987585d7200000000001976a914c853bc38db9bfc63e7846bd3fe4c3cafda432d9e88acbd391400000100fa010000000001011f4db0ecd81f4388db316bc16efb4e9daf874cf4950d54ecb4c0fb372433d68500000000171600143d57fd9e88ef0e70cddb0d8b75ef86698cab0d44fdffffff0280969800000000001976a914147c2a2eca0ce9b8bbb2ad5c1326d44eabcaba1d88ac86a0ae020000000017a9149188bc82bdcae077060ebb4f02201b73c806edc887024830450221008e0725d531bd7dee4d8d38a0f921d7b1213e5b16c05312a80464ecc2b649598d0220596d309cf66d5f47cb3df558dbb43c5023a7796a80f5a88b023287e45a4db6b9012102c34d61ceafa8c216f01e05707672354f8119334610f7933a3f80dd7fb6290296bd39140022060274e7eb45f626119a7bef49787c534867bfd0b2ba3d74a9f6af10eb6bc01addc718b4dadb982c000080010000800000008000000000000000000000220203590ec35d67bae6fabc22cce8f6ac36b00d959ca9fb45a161a23a8ad64782eeca18b4dadb982c0000800100008000000080010000000000000000",
                              partial_tx)
             tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         wallet.sign_transaction(tx, password=None)
@@ -982,10 +976,10 @@ class TestWalletSending(TestCaseForTestnet):
 
         self.assertEqual(tx.txid(), tx_copy.txid())
         self.assertEqual(tx.wtxid(), tx_copy.wtxid())
-        self.assertEqual('01000000016207d958dc46508d706e4cd7d3bc46c5c2b02160e2578e5fad2efafc39270503000000006a473044022003660461e018c78c2cc73e12c367062a51f71c79b5123b1508765980cbe131bd02205c09bf00e629ea166e2b810a220a20bf4327b4479fb8d841e0c9bca0f843a009012102a807c07bd7975211078e916bdda061d97e98d59a3631a804aada2f9a3f5b587afdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987585d7200000000001976a914aab9af3fbee0ab4e5c00d53e92f66d4bcb44f1bd88acbd391400',
+        self.assertEqual('0100000001a9d2ce38db573ba66fffb7465a846bb69c170f896ed7c337065a5f6d14f398d6000000006a473044022048f0b45e6438a0917b3311f4b08ffd6c2656b6c74fec572eccde9ffc9affedd30220078af6a6fab6d44f8c2618c2e57b4c05d5dcdeac0e75a54989ba5a17ca93635901210274e7eb45f626119a7bef49787c534867bfd0b2ba3d74a9f6af10eb6bc01addc7fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987585d7200000000001976a914c853bc38db9bfc63e7846bd3fe4c3cafda432d9e88acbd391400',
                          str(tx_copy))
-        self.assertEqual('212cd9aca604cfb4f2c43161b94e32c1a6bc9773fced360e5d4dda98e84b168d', tx_copy.txid())
-        self.assertEqual('212cd9aca604cfb4f2c43161b94e32c1a6bc9773fced360e5d4dda98e84b168d', tx_copy.wtxid())
+        self.assertEqual('b7fa2f2cc6e51f621556f09c6a8091884ce3118ee2a5b168d244a14adf1ddec9', tx_copy.txid())
+        self.assertEqual('b7fa2f2cc6e51f621556f09c6a8091884ce3118ee2a5b168d244a14adf1ddec9', tx_copy.wtxid())
 
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, funding_output_value - 2500000 - 5000, 0), wallet.get_balance())
@@ -996,7 +990,7 @@ class TestWalletSending(TestCaseForTestnet):
         tx.version = 1
         if simulate_moving_txs:
             partial_tx = tx.serialize_as_bytes().hex()
-            self.assertEqual("70736274ff01007501000000016207d958dc46508d706e4cd7d3bc46c5c2b02160e2578e5fad2efafc392705030000000000fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987a0337200000000001976a914aab9af3fbee0ab4e5c00d53e92f66d4bcb44f1bd88acbd391400000100fa010000000001011f4db0ecd81f4388db316bc16efb4e9daf874cf4950d54ecb4c0fb372433d68500000000171600143d57fd9e88ef0e70cddb0d8b75ef86698cab0d44fdffffff0280969800000000001976a91472e34cebab371967b038ce41d0e8fa1fb983795e88ac86a0ae020000000017a9149188bc82bdcae077060ebb4f02201b73c806edc887024830450221008e0725d531bd7dee4d8d38a0f921d7b1213e5b16c05312a80464ecc2b649598d0220596d309cf66d5f47cb3df558dbb43c5023a7796a80f5a88b023287e45a4db6b9012102c34d61ceafa8c216f01e05707672354f8119334610f7933a3f80dd7fb6290296bd391400220602a807c07bd7975211078e916bdda061d97e98d59a3631a804aada2f9a3f5b587a0c8296e57100000000000000000000220203aa6a5d43c6de66d60f50942cf34f20e02c2c6f55349548fbf2cde5dd5d69b9180c8296e571010000000000000000",
+            self.assertEqual("70736274ff0100750100000001a9d2ce38db573ba66fffb7465a846bb69c170f896ed7c337065a5f6d14f398d60000000000fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987a0337200000000001976a914c853bc38db9bfc63e7846bd3fe4c3cafda432d9e88acbd391400000100fa010000000001011f4db0ecd81f4388db316bc16efb4e9daf874cf4950d54ecb4c0fb372433d68500000000171600143d57fd9e88ef0e70cddb0d8b75ef86698cab0d44fdffffff0280969800000000001976a914147c2a2eca0ce9b8bbb2ad5c1326d44eabcaba1d88ac86a0ae020000000017a9149188bc82bdcae077060ebb4f02201b73c806edc887024830450221008e0725d531bd7dee4d8d38a0f921d7b1213e5b16c05312a80464ecc2b649598d0220596d309cf66d5f47cb3df558dbb43c5023a7796a80f5a88b023287e45a4db6b9012102c34d61ceafa8c216f01e05707672354f8119334610f7933a3f80dd7fb6290296bd39140022060274e7eb45f626119a7bef49787c534867bfd0b2ba3d74a9f6af10eb6bc01addc718b4dadb982c000080010000800000008000000000000000000000220203590ec35d67bae6fabc22cce8f6ac36b00d959ca9fb45a161a23a8ad64782eeca18b4dadb982c0000800100008000000080010000000000000000",
                              partial_tx)
             tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         self.assertFalse(tx.is_complete())
@@ -1005,10 +999,10 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertTrue(tx.is_complete())
         self.assertFalse(tx.is_segwit())
         tx_copy = tx_from_any(tx.serialize())
-        self.assertEqual('01000000016207d958dc46508d706e4cd7d3bc46c5c2b02160e2578e5fad2efafc39270503000000006a4730440220228deafd10b344371cb828eda507707f0b01f8b421feae5b079396aef72fa08f02205c63a540ac54b483cb59275ff191c89997be02fcf548a216ed1b1045c5d21041012102a807c07bd7975211078e916bdda061d97e98d59a3631a804aada2f9a3f5b587afdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987a0337200000000001976a914aab9af3fbee0ab4e5c00d53e92f66d4bcb44f1bd88acbd391400',
+        self.assertEqual('0100000001a9d2ce38db573ba66fffb7465a846bb69c170f896ed7c337065a5f6d14f398d6000000006a473044022000e8f92964a341ead8450fff31b9304eda65be1126091409da64738ba4c51973022023499f7fd470bb167f5e08d6e71faaa34f4103c91e3e725972f2cfe8e3f6f3c101210274e7eb45f626119a7bef49787c534867bfd0b2ba3d74a9f6af10eb6bc01addc7fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987a0337200000000001976a914c853bc38db9bfc63e7846bd3fe4c3cafda432d9e88acbd391400',
                          str(tx_copy))
-        self.assertEqual('fa1eba447d88bd84c6ceca16f2767232c488c73a25b51989b2fc6aacaa05d16f', tx_copy.txid())
-        self.assertEqual('fa1eba447d88bd84c6ceca16f2767232c488c73a25b51989b2fc6aacaa05d16f', tx_copy.wtxid())
+        self.assertEqual('ec6c174da067819b40dc5beed39f01506de54dcc2fc69e18fb6bec586a2c16f0', tx_copy.txid())
+        self.assertEqual('ec6c174da067819b40dc5beed39f01506de54dcc2fc69e18fb6bec586a2c16f0', tx_copy.wtxid())
 
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 7484320, 0), wallet.get_balance())
@@ -1021,14 +1015,14 @@ class TestWalletSending(TestCaseForTestnet):
                                                        config=config)
 
         # bootstrap wallet
-        funding_tx = Transaction('02000000000101a3a9d94039c1051102e36b835764b89985602608a3e121c91cb63d67277355080100000000fdffffff0220a10700000000001976a9143decc30f4f7eec45c5775347050b85a43ac7ee0b88ac203c3500000000001600149d91f0053172fab394d277ae27e9fa5c5a4921090247304402207a2b4abe2c4128fe80db297d636b81487feda2ee3c51a95bc670b7b377b09ca402205147bc550dfdff72e9159554c19045111daf6d95f556a4f4dc370c90aa37a3e0012102cccad56b36e7bd1ae44c37d69019d006d8911b43071725d6dcbbdfcade05650313f71c00')
+        funding_tx = Transaction('02000000000101a3a9d94039c1051102e36b835764b89985602608a3e121c91cb63d67277355080100000000fdffffff0220a10700000000001976a9141c366ffcf013e85329e311d6e0c82cde417822d488ac203c3500000000001600149d91f0053172fab394d277ae27e9fa5c5a4921090247304402207a2b4abe2c4128fe80db297d636b81487feda2ee3c51a95bc670b7b377b09ca402205147bc550dfdff72e9159554c19045111daf6d95f556a4f4dc370c90aa37a3e0012102cccad56b36e7bd1ae44c37d69019d006d8911b43071725d6dcbbdfcade05650313f71c00')
         funding_txid = funding_tx.txid()
-        self.assertEqual('0d98d8615f7b711beff2efcd4cf6b9f7ecd3b16a53fb9374e6a81d852492674e', funding_txid)
+        self.assertEqual('864d118de80228b5c4970c3764cf29822f6078633a138d889fb43c11cfe322d0', funding_txid)
         wallet.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
 
-        orig_rbf_tx = Transaction('02000000014e679224851da8e67493fb536ab1d3ecf7b9f64ccdeff2ef1b717b5f61d8980d000000006a4730440220361b332f0488501e0605b9a5385edda762e761c00f95195f308e2baea5e12f9d0220051be1c834f0de69ecf084b0311abf541687436cb34311a002efa4f104a722a3012103d4ce4ba5be0b861d2ee7c715b84ab0e791ccd36530bd8652babae37eda693c39fdffffff02bc020000000000001976a914093107975170d4416bd2dad961414ac0a5c9b3de88ac389d0700000000001976a914ac55156f62fa9085c114fc6496aee5ab153cb22888ac13f71c00')
+        orig_rbf_tx = Transaction('0200000001d022e3cf113cb49f888d133a6378602f8229cf64370c97c4b52802e88d114d86000000006a4730440220361b332f0488501e0605b9a5385edda762e761c00f95195f308e2baea5e12f9d0220051be1c834f0de69ecf084b0311abf541687436cb34311a002efa4f104a722a3012103d4ce4ba5be0b861d2ee7c715b84ab0e791ccd36530bd8652babae37eda693c39fdffffff02bc020000000000001976a914e510e3a0ba6c49407d90338f8ba006f32fa9066d88ac389d0700000000001976a914d1fe9fa0d86ecff756b95600033a41149a78487588ac13f71c00')
         orig_rbf_txid = orig_rbf_tx.txid()
-        self.assertEqual('2bce74c17a2b4c1f57b454604c87006173716e92028de60463182c344f3e2180', orig_rbf_txid)
+        self.assertEqual('1f6358e9ca69932ce862ef57908bb6f21a0a80778630b98f8f9a07a7e8f71fe7', orig_rbf_txid)
         wallet.receive_tx_callback(orig_rbf_txid, orig_rbf_tx, TX_HEIGHT_UNCONFIRMED)
 
         # bump tx
@@ -1038,7 +1032,7 @@ class TestWalletSending(TestCaseForTestnet):
         tx.version = 2
         if simulate_moving_txs:
             partial_tx = tx.serialize_as_bytes().hex()
-            self.assertEqual("70736274ff01005502000000014e679224851da8e67493fb536ab1d3ecf7b9f64ccdeff2ef1b717b5f61d8980d0000000000fdffffff01d4ed0600000000001976a914ac55156f62fa9085c114fc6496aee5ab153cb22888ac14f71c00000100e102000000000101a3a9d94039c1051102e36b835764b89985602608a3e121c91cb63d67277355080100000000fdffffff0220a10700000000001976a9143decc30f4f7eec45c5775347050b85a43ac7ee0b88ac203c3500000000001600149d91f0053172fab394d277ae27e9fa5c5a4921090247304402207a2b4abe2c4128fe80db297d636b81487feda2ee3c51a95bc670b7b377b09ca402205147bc550dfdff72e9159554c19045111daf6d95f556a4f4dc370c90aa37a3e0012102cccad56b36e7bd1ae44c37d69019d006d8911b43071725d6dcbbdfcade05650313f71c00220603d4ce4ba5be0b861d2ee7c715b84ab0e791ccd36530bd8652babae37eda693c390c11aad9ae000000000000000000220203feceda5212994b3552847c93288c47490404784d90f1966b7d02e009ba40680e0c11aad9ae000000000100000000",
+            self.assertEqual("70736274ff0100550200000001d022e3cf113cb49f888d133a6378602f8229cf64370c97c4b52802e88d114d860000000000fdffffff01d4ed0600000000001976a914d1fe9fa0d86ecff756b95600033a41149a78487588ac14f71c00000100e102000000000101a3a9d94039c1051102e36b835764b89985602608a3e121c91cb63d67277355080100000000fdffffff0220a10700000000001976a9141c366ffcf013e85329e311d6e0c82cde417822d488ac203c3500000000001600149d91f0053172fab394d277ae27e9fa5c5a4921090247304402207a2b4abe2c4128fe80db297d636b81487feda2ee3c51a95bc670b7b377b09ca402205147bc550dfdff72e9159554c19045111daf6d95f556a4f4dc370c90aa37a3e0012102cccad56b36e7bd1ae44c37d69019d006d8911b43071725d6dcbbdfcade05650313f71c0022060259c561fb9fbc621a1e3aa6cf7936f2af704861bbf06baaa4b5508dcf350965ca1857b131532c00008001000080000000800000000000000000002202032c6c77ebdc933a0dcb1191b2586d8a73446ebbd0df38d80cc8e79720a7ebc0701857b131532c0000800100008000000080000000000100000000",
                              partial_tx)
             tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         self.assertFalse(tx.is_complete())
@@ -1047,24 +1041,23 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertTrue(tx.is_complete())
         self.assertFalse(tx.is_segwit())
         tx_copy = tx_from_any(tx.serialize())
-        self.assertEqual('02000000014e679224851da8e67493fb536ab1d3ecf7b9f64ccdeff2ef1b717b5f61d8980d000000006a473044022024ce838fb02d482ca33872197175a15fed66cf139ebcdb4cc840e227273a15f70220466306a037f2b9f9702b4a331672efcadde32a4df25dc4e28abd019b68eb2761012103d4ce4ba5be0b861d2ee7c715b84ab0e791ccd36530bd8652babae37eda693c39fdffffff01d4ed0600000000001976a914ac55156f62fa9085c114fc6496aee5ab153cb22888ac14f71c00',
+        self.assertEqual('0200000001d022e3cf113cb49f888d133a6378602f8229cf64370c97c4b52802e88d114d86000000006a47304402201a0687db336680124fc07dc4c65a0a958c5f8bda4e47cb42f2315dc2577484ff02204ed2c4abb80bfea844202ade7215bd5476e62eef3ddd0cae9d395a67dd6a286901210259c561fb9fbc621a1e3aa6cf7936f2af704861bbf06baaa4b5508dcf350965cafdffffff01d4ed0600000000001976a914d1fe9fa0d86ecff756b95600033a41149a78487588ac14f71c00',
                          str(tx_copy))
-        self.assertEqual('198d85f7a2ab342f1d98c6838ef1d68fb79d10cb1c1842a5b152d4fffefbe483', tx_copy.txid())
-        self.assertEqual('198d85f7a2ab342f1d98c6838ef1d68fb79d10cb1c1842a5b152d4fffefbe483', tx_copy.wtxid())
+        self.assertEqual('b28772269bf899b482d4773de3b906e05fcc0ebf498189573ba8ff4ddb7ab56b', tx_copy.txid())
+        self.assertEqual('b28772269bf899b482d4773de3b906e05fcc0ebf498189573ba8ff4ddb7ab56b', tx_copy.wtxid())
 
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 454100, 0), wallet.get_balance())
 
-    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_cpfp_p2pkh(self, mock_save_db):
         wallet = self.create_standard_wallet_from_seed('fold object utility erase deputy output stadium feed stereo usage modify bean')
 
         # bootstrap wallet
-        funding_tx = Transaction('010000000001010f40064d66d766144e17bb3276d96042fd5aee2196bcce7e415f839e55a83de800000000171600147b6d7c7763b9185b95f367cf28e4dc6d09441e73fdffffff02404b4c00000000001976a9141df43441a3a3ee563e560d3ddc7e07cc9f9c3cdb88ac009871000000000017a9143873281796131b1996d2f94ab265327ee5e9d6e28702473044022029c124e5a1e2c6fa12e45ccdbdddb45fec53f33b982389455b110fdb3fe4173102203b3b7656bca07e4eae3554900aa66200f46fec0af10e83daaa51d9e4e62a26f4012103c8f0460c245c954ef563df3b1743ea23b965f98b120497ac53bd6b8e8e9e0f9bbe391400')
+        funding_tx = Transaction('010000000001010f40064d66d766144e17bb3276d96042fd5aee2196bcce7e415f839e55a83de800000000171600147b6d7c7763b9185b95f367cf28e4dc6d09441e73fdffffff02404b4c00000000001976a9140e31d6ccb3d675a525f93a1ee3e5c58a3324fcd088ac009871000000000017a9143873281796131b1996d2f94ab265327ee5e9d6e28702473044022029c124e5a1e2c6fa12e45ccdbdddb45fec53f33b982389455b110fdb3fe4173102203b3b7656bca07e4eae3554900aa66200f46fec0af10e83daaa51d9e4e62a26f4012103c8f0460c245c954ef563df3b1743ea23b965f98b120497ac53bd6b8e8e9e0f9bbe391400')
         funding_txid = funding_tx.txid()
         funding_output_value = 5000000
-        self.assertEqual('9973bf8918afa349b63934432386f585613b51034db6c8628b61ba2feb8a3668', funding_txid)
+        self.assertEqual('b32dc7d36c54ab67538e0f04d73214b0c4a19e9a86cea3efbf8a0b3c8528af23', funding_txid)
         wallet.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
 
         # cpfp tx
@@ -1081,10 +1074,10 @@ class TestWalletSending(TestCaseForTestnet):
 
         self.assertEqual(tx.txid(), tx_copy.txid())
         self.assertEqual(tx.wtxid(), tx_copy.wtxid())
-        self.assertEqual('010000000168368aeb2fba618b62c8b64d03513b6185f58623433439b649a3af1889bf7399000000006a473044022014139c4c8dd4148851c1306c4901b759799e87a22885a3c23f6a6472a3c580dd02205df8037a19261a80157143ee61d24b64b8f60c3cb196e36e758920669f88eb56012102a7536f0bfbc60c5a8e86e2b9df26431fc062f9f454016dbc26f2467e0bc98b3ffdffffff01f0874b00000000001976a914aab9af3fbee0ab4e5c00d53e92f66d4bcb44f1bd88acbe391400',
+        self.assertEqual('010000000123af28853c0b8abfefa3ce869a9ea1c4b01432d7040f8e5367ab546cd3c72db3000000006a473044022058165778b6b2dc292bb45de6e2e29891450eb853e2bed31529ea7e6c3297462002205c409a5679374883961a793023407d441df558a64ca5fe710d3dad89ff445b640121038740d71b5e1a381cdd91174f7fbe3985ce96fcc32b6083d91b3943b6c03e1f20fdffffff01f0874b00000000001976a914c853bc38db9bfc63e7846bd3fe4c3cafda432d9e88acbe391400',
                          str(tx_copy))
-        self.assertEqual('c064c0dd89077de615f0ff8a626d4a62092c02649ed8266ed4c54302918e87d5', tx_copy.txid())
-        self.assertEqual('c064c0dd89077de615f0ff8a626d4a62092c02649ed8266ed4c54302918e87d5', tx_copy.wtxid())
+        self.assertEqual('79f17abb6198e77ec379d48ef5978503ed8e15141b565ad3792cc7606cee96e2', tx_copy.txid())
+        self.assertEqual('79f17abb6198e77ec379d48ef5978503ed8e15141b565ad3792cc7606cee96e2', tx_copy.wtxid())
 
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, funding_output_value - 50000, 0), wallet.get_balance())
@@ -1094,10 +1087,10 @@ class TestWalletSending(TestCaseForTestnet):
                                                        config=config)
 
         # bootstrap wallet
-        funding_tx = Transaction('01000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400')
+        funding_tx = Transaction('01000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a1418780969800000000001600142b87b2e2633e973351e0619ffc8b0e1537055c8a02483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400')
         funding_txid = funding_tx.txid()
         funding_output_value = 10000000
-        self.assertEqual('52e669a20a26c8b3df5b41e5e6309b18bcde8e1ad7ea17a18f63b6dc6c8becc0', funding_txid)
+        self.assertEqual('390dc4fb9dfc715a91f0dc025919fd4bf46001750e93573defa54324aa3833b1', funding_txid)
         wallet.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
 
         # create tx
@@ -1109,7 +1102,7 @@ class TestWalletSending(TestCaseForTestnet):
         tx.version = 1
         if simulate_moving_txs:
             partial_tx = tx.serialize_as_bytes().hex()
-            self.assertEqual("70736274ff0100720100000001c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987585d720000000000160014f0fe5c1867a174a12e70165e728a072619455ed5bb391400000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb3914002206028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c510e8a903980000008000000000000000000000220202105dd9133f33cbd4e50443ef9af428c0be61f097f8942aaa916f50b530125aea10e8a9039800000080010000000000000000",
+            self.assertEqual("70736274ff0100720100000001b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987585d72000000000016001454d6269f3ac74e14c43f57eb673156ffeb136f34bb391400000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a1418780969800000000001600142b87b2e2633e973351e0619ffc8b0e1537055c8a02483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400220603b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354182e2859e954000080010000800000008000000000000000000000220202709aaf71b5f3bb313032e823032f204c16936ba8ccb69f58e7061c1a928c4e03182e2859e9540000800100008000000080010000000000000000",
                              partial_tx)
             tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         wallet.sign_transaction(tx, password=None)
@@ -1122,10 +1115,10 @@ class TestWalletSending(TestCaseForTestnet):
 
         self.assertEqual(tx.txid(), tx_copy.txid())
         self.assertEqual(tx.wtxid(), tx_copy.wtxid())
-        self.assertEqual('01000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987585d720000000000160014f0fe5c1867a174a12e70165e728a072619455ed50247304402205442705e988abe74bf391b293bb1b886674284a92ed0788c33024f9336d60aef022013a93049d3bed693254cd31a704d70bb988a36750f0b74d0a5b4d9e29c54ca9d0121028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c5bb391400',
+        self.assertEqual('01000000000101b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987585d72000000000016001454d6269f3ac74e14c43f57eb673156ffeb136f3402473044022040d9f2ff7130713e8a91db1ab9a80aa48821593a95d960073ed36abd3fa63c1d02203bad9c64071018ffa1c989a5cbf52a6048c7fe4a8b96adc65dea8e95da44e3c1012103b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354bb391400',
                          str(tx_copy))
-        self.assertEqual('b019bbad45a46ed25365e46e4cae6428fb12ae425977eb93011ffb294cb4977e', tx_copy.txid())
-        self.assertEqual('ba87313e2b3b42f1cc478843d4d53c72d6e06f6c66ac8cfbe2a59cdac2fd532d', tx_copy.wtxid())
+        self.assertEqual('3d97f0a155a07ac522a0a4ee3d0046bd180a8a92bb40d9776b8fcfae3244d640', tx_copy.txid())
+        self.assertEqual('044272ffbd9e9b6a98adb6c33300f26d1e00bdd5a965cdffedab6706f0709875', tx_copy.wtxid())
 
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, funding_output_value - 2500000 - 5000, 0), wallet.get_balance())
@@ -1136,7 +1129,7 @@ class TestWalletSending(TestCaseForTestnet):
         tx.version = 1
         if simulate_moving_txs:
             partial_tx = tx.serialize_as_bytes().hex()
-            self.assertEqual("70736274ff0100720100000001c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f9870c4a720000000000160014f0fe5c1867a174a12e70165e728a072619455ed5bc391400000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb3914002206028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c510e8a903980000008000000000000000000000220202105dd9133f33cbd4e50443ef9af428c0be61f097f8942aaa916f50b530125aea10e8a9039800000080010000000000000000",
+            self.assertEqual("70736274ff0100720100000001b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f9870c4a72000000000016001454d6269f3ac74e14c43f57eb673156ffeb136f34bc391400000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a1418780969800000000001600142b87b2e2633e973351e0619ffc8b0e1537055c8a02483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400220603b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354182e2859e954000080010000800000008000000000000000000000220202709aaf71b5f3bb313032e823032f204c16936ba8ccb69f58e7061c1a928c4e03182e2859e9540000800100008000000080010000000000000000",
                              partial_tx)
             tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         self.assertFalse(tx.is_complete())
@@ -1145,10 +1138,10 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertTrue(tx.is_complete())
         self.assertTrue(tx.is_segwit())
         tx_copy = tx_from_any(tx.serialize())
-        self.assertEqual('01000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f9870c4a720000000000160014f0fe5c1867a174a12e70165e728a072619455ed50247304402202a7e412d37f7a54f7ede0f85e58c7f9dc0f7244d222a4f50a90f87b05badeed40220788d4a4a13f660de7d5464dce5e79419361fdd5d1853c7da65469cd32f7981a90121028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c5bc391400',
+        self.assertEqual('01000000000101b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f9870c4a72000000000016001454d6269f3ac74e14c43f57eb673156ffeb136f340247304402204f1ecb077b8cfa14bce0ff7468bb2f254c1a724acf472a58591975d6ce1b2d180220114204cc4f12ce9a66363bc1efe927a27073f26bb50b60061fbce19b9c035059012103b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354bc391400',
                          str(tx_copy))
-        self.assertEqual('dad75ab7078b9ce9698a83e7a954c1c38b235d3a4ab79bcb340245e3d9b62b93', tx_copy.txid())
-        self.assertEqual('05a484c64a094724b1c58a15463c8c772a98f084cc23ee636204ad9c4d9e5b51', tx_copy.wtxid())
+        self.assertEqual('86de30088ff959a59ac23fa9a150ab0718f0d2a8b6195f09bb32c8fd8af57623', tx_copy.txid())
+        self.assertEqual('43d907ad3f1a20696afab1ec6a9cf1b2d6d16f014f42e087a03bc350f971f342', tx_copy.wtxid())
 
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 7490060, 0), wallet.get_balance())
@@ -1184,14 +1177,14 @@ class TestWalletSending(TestCaseForTestnet):
         wallet.network = NetworkMock()
 
         # bootstrap wallet
-        funding_tx = Transaction('02000000000101a5883f3de780d260e6f26cf85144403c7744a65a44cd38f9ff45aecadf010c540100000000fdffffff0220a1070000000000160014db44724ac632ae47ee5765954d64796dd5fec72708de3c000000000016001424b32aadb42a89016c4de8f11741c3b29b15f21c02473044022045cc6c1cc875cbb0c0d8fe323dc1de9716e49ed5659741b0fb3dd9a196894066022077c242640071d12ec5763c5870f482a4823d8713e4bd14353dd621ed29a7f96d012102aea8d439a0f79d8b58e8d7bda83009f587e1f3da350adaa484329bf47cd03465fef61c00')
+        funding_tx = Transaction('02000000000101a5883f3de780d260e6f26cf85144403c7744a65a44cd38f9ff45aecadf010c540100000000fdffffff0220a10700000000001600145f4cfb0e1d2a7055634074bfbc9f546ac019e47f08de3c000000000016001424b32aadb42a89016c4de8f11741c3b29b15f21c02473044022045cc6c1cc875cbb0c0d8fe323dc1de9716e49ed5659741b0fb3dd9a196894066022077c242640071d12ec5763c5870f482a4823d8713e4bd14353dd621ed29a7f96d012102aea8d439a0f79d8b58e8d7bda83009f587e1f3da350adaa484329bf47cd03465fef61c00')
         funding_txid = funding_tx.txid()
-        self.assertEqual('08557327673db61cc921e1a30826608599b86457836be3021105c13940d9a9a3', funding_txid)
+        self.assertEqual('bf0272eb0cd61ef36a7d69b4714ea4291bf5cbab229abd4bcb67c5111f92bb01', funding_txid)
         wallet.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
 
-        orig_rbf_tx = Transaction('02000000000102a3a9d94039c1051102e36b835764b89985602608a3e121c91cb63d67277355080000000000fdfffffffd57af9ecf29b1cb42cb91087cf0d1d9fce59a3ca0b25bbfa7d27c07f99870590200000000fdffffff03b2a00700000000001600145dc80fd43eb70fd21a6c4446e3ce043df94f100cb2a00700000000001600147db4ab480b7d2218fba561ff304178f4afcbc972be358900000000001600149d91f0053172fab394d277ae27e9fa5c5a49210902473044022003999f03be8b9e299b2cd3bc7bce05e273d5d9ce24fc47af8754f26a7a13e13f022004e668499a67061789f6ebd2932c969ece74417ae3f2307bf696428bbed4fe36012102a1c9b25b37aa31ccbb2d72caaffce81ec8253020a74017d92bbfc14a832fc9cb0247304402207121358a66c0e716e2ba2be928076736261c691b4fbf89ea8d255449a4f5837b022042cadf9fe1b4f3c03ede3cef6783b42f0ba319f2e0273b624009cd023488c4c1012103a5ba95fb1e0043428ed70680fc17db254b3f701dfccf91e48090aa17c1b7ea40fef61c00')
+        orig_rbf_tx = Transaction('0200000000010201bb921f11c567cb4bbd9a22abcbf51b29a44e71b4697d6af31ed60ceb7202bf0000000000fdfffffffd57af9ecf29b1cb42cb91087cf0d1d9fce59a3ca0b25bbfa7d27c07f99870590200000000fdffffff03b2a00700000000001600141d68d5b83c2b21f924c92a4fd2dfaf63e9bf19d4b2a00700000000001600147db4ab480b7d2218fba561ff304178f4afcbc972be358900000000001600149d91f0053172fab394d277ae27e9fa5c5a49210902473044022003999f03be8b9e299b2cd3bc7bce05e273d5d9ce24fc47af8754f26a7a13e13f022004e668499a67061789f6ebd2932c969ece74417ae3f2307bf696428bbed4fe36012102a1c9b25b37aa31ccbb2d72caaffce81ec8253020a74017d92bbfc14a832fc9cb0247304402207121358a66c0e716e2ba2be928076736261c691b4fbf89ea8d255449a4f5837b022042cadf9fe1b4f3c03ede3cef6783b42f0ba319f2e0273b624009cd023488c4c1012103a5ba95fb1e0043428ed70680fc17db254b3f701dfccf91e48090aa17c1b7ea40fef61c00')
         orig_rbf_txid = orig_rbf_tx.txid()
-        self.assertEqual('6057690010ddac93a371629e1f41866400623e13a9cd336d280fc3239086a983', orig_rbf_txid)
+        self.assertEqual('445a4408eba38686126bf0f1ae7836038d997dceb2f3eeb407c131255b118985', orig_rbf_txid)
         wallet.receive_tx_callback(orig_rbf_txid, orig_rbf_tx, TX_HEIGHT_UNCONFIRMED)
 
         # bump tx
@@ -1200,7 +1193,7 @@ class TestWalletSending(TestCaseForTestnet):
         tx.version = 2
         if simulate_moving_txs:
             partial_tx = tx.serialize_as_bytes().hex()
-            self.assertEqual("70736274ff0100b90200000002a3a9d94039c1051102e36b835764b89985602608a3e121c91cb63d67277355080000000000fdfffffffd57af9ecf29b1cb42cb91087cf0d1d9fce59a3ca0b25bbfa7d27c07f99870590200000000fdffffff031660070000000000160014a36590fb127d05cf17a07a84a17f2f2d6cc90a7bb2a00700000000001600147db4ab480b7d2218fba561ff304178f4afcbc972be358900000000001600149d91f0053172fab394d277ae27e9fa5c5a4921091cf71c00000100de02000000000101a5883f3de780d260e6f26cf85144403c7744a65a44cd38f9ff45aecadf010c540100000000fdffffff0220a1070000000000160014db44724ac632ae47ee5765954d64796dd5fec72708de3c000000000016001424b32aadb42a89016c4de8f11741c3b29b15f21c02473044022045cc6c1cc875cbb0c0d8fe323dc1de9716e49ed5659741b0fb3dd9a196894066022077c242640071d12ec5763c5870f482a4823d8713e4bd14353dd621ed29a7f96d012102aea8d439a0f79d8b58e8d7bda83009f587e1f3da350adaa484329bf47cd03465fef61c00220602a1c9b25b37aa31ccbb2d72caaffce81ec8253020a74017d92bbfc14a832fc9cb109c9fff98000000800000000000000000000100fd910102000000000102a5883f3de780d260e6f26cf85144403c7744a65a44cd38f9ff45aecadf010c540000000000fdffffffbdeb0175b1c51c96843d1952f7e1c49c1703717d7d020048d4de0a8eed94dad50000000000fdffffff03b2a00700000000001600140cd6c9f8ce0aa73d77fcf7f156c74f5cbec6906bb2a00700000000001600146435504ddc95e6019a90bb7dfc7ca81a88a8633106d790000000000016001444bd3017ee214370abf683abaa7f6204c9f40210024730440220652a04a2a301d9a031a034f3ae48174e204e17acf7bfc27f0dcab14243f73e2202207b29e964c434dfb2c515232d36566a40dccd4dd93ccb7fd15260ecbda10f0d9801210231994e564a0530068d17a9b0f85bec58d1352517a2861ea99e5b3070d2c5dbda02473044022072186473874919019da0e3d92b6e0aa4f88cba448ed5434615e5a3c8e2b7c42a02203ec05cef66960d5bc45d0f3d25675190cf8035b11a05ed4b719fd9c3a894899b012102f5fdca8c4e30ba0a1babf9cf9ebe62519b08aead351c349ed1ffc8316c24f542d7f61c0000220203b1b437d6d3366441e63e387594ffacb80676d7d518971d1d284b775cd7d8c38b109c9fff98000000800100000000000000000000",
+            self.assertEqual("70736274ff0100b90200000002fd57af9ecf29b1cb42cb91087cf0d1d9fce59a3ca0b25bbfa7d27c07f99870590200000000fdffffff01bb921f11c567cb4bbd9a22abcbf51b29a44e71b4697d6af31ed60ceb7202bf0000000000fdffffff0316600700000000001600140c1972cebcb22e95b01bf332981b30eb07db1528b2a00700000000001600147db4ab480b7d2218fba561ff304178f4afcbc972be358900000000001600149d91f0053172fab394d277ae27e9fa5c5a4921091cf71c00000100fd910102000000000102a5883f3de780d260e6f26cf85144403c7744a65a44cd38f9ff45aecadf010c540000000000fdffffffbdeb0175b1c51c96843d1952f7e1c49c1703717d7d020048d4de0a8eed94dad50000000000fdffffff03b2a00700000000001600140cd6c9f8ce0aa73d77fcf7f156c74f5cbec6906bb2a00700000000001600146435504ddc95e6019a90bb7dfc7ca81a88a8633106d790000000000016001444bd3017ee214370abf683abaa7f6204c9f40210024730440220652a04a2a301d9a031a034f3ae48174e204e17acf7bfc27f0dcab14243f73e2202207b29e964c434dfb2c515232d36566a40dccd4dd93ccb7fd15260ecbda10f0d9801210231994e564a0530068d17a9b0f85bec58d1352517a2861ea99e5b3070d2c5dbda02473044022072186473874919019da0e3d92b6e0aa4f88cba448ed5434615e5a3c8e2b7c42a02203ec05cef66960d5bc45d0f3d25675190cf8035b11a05ed4b719fd9c3a894899b012102f5fdca8c4e30ba0a1babf9cf9ebe62519b08aead351c349ed1ffc8316c24f542d7f61c00000100de02000000000101a5883f3de780d260e6f26cf85144403c7744a65a44cd38f9ff45aecadf010c540100000000fdffffff0220a10700000000001600145f4cfb0e1d2a7055634074bfbc9f546ac019e47f08de3c000000000016001424b32aadb42a89016c4de8f11741c3b29b15f21c02473044022045cc6c1cc875cbb0c0d8fe323dc1de9716e49ed5659741b0fb3dd9a196894066022077c242640071d12ec5763c5870f482a4823d8713e4bd14353dd621ed29a7f96d012102aea8d439a0f79d8b58e8d7bda83009f587e1f3da350adaa484329bf47cd03465fef61c002206037b1e0ebf1b2a21b9c4803bb0d84af4049c3477afb86f7c5838d47ab62d45332618fce77fd85400008001000080000000800000000000000000002202039396ddaf55d5a834110a3117f255b50b74074a1573fba5f0cc1b5408f759265918fce77fd85400008001000080000000800100000000000000000000",
                              partial_tx)
             tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         self.assertFalse(tx.is_complete())
@@ -1209,9 +1202,9 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertFalse(tx.is_complete())
         self.assertTrue(tx.is_segwit())
         tx_copy = tx_from_any(tx.serialize())
-        self.assertEqual('70736274ff0100b90200000002a3a9d94039c1051102e36b835764b89985602608a3e121c91cb63d67277355080000000000fdfffffffd57af9ecf29b1cb42cb91087cf0d1d9fce59a3ca0b25bbfa7d27c07f99870590200000000fdffffff031660070000000000160014a36590fb127d05cf17a07a84a17f2f2d6cc90a7bb2a00700000000001600147db4ab480b7d2218fba561ff304178f4afcbc972be358900000000001600149d91f0053172fab394d277ae27e9fa5c5a4921091cf71c00000100de02000000000101a5883f3de780d260e6f26cf85144403c7744a65a44cd38f9ff45aecadf010c540100000000fdffffff0220a1070000000000160014db44724ac632ae47ee5765954d64796dd5fec72708de3c000000000016001424b32aadb42a89016c4de8f11741c3b29b15f21c02473044022045cc6c1cc875cbb0c0d8fe323dc1de9716e49ed5659741b0fb3dd9a196894066022077c242640071d12ec5763c5870f482a4823d8713e4bd14353dd621ed29a7f96d012102aea8d439a0f79d8b58e8d7bda83009f587e1f3da350adaa484329bf47cd03465fef61c0001070001086b0247304402201f5ea643f6bc59c96ab8f1a3935b455e8f9395a67b74d618d121d16ae76f7b440220574d05df88740f915798e7993158c08e544801a044d19ef140574da19c1937d7012102a1c9b25b37aa31ccbb2d72caaffce81ec8253020a74017d92bbfc14a832fc9cb000100fd910102000000000102a5883f3de780d260e6f26cf85144403c7744a65a44cd38f9ff45aecadf010c540000000000fdffffffbdeb0175b1c51c96843d1952f7e1c49c1703717d7d020048d4de0a8eed94dad50000000000fdffffff03b2a00700000000001600140cd6c9f8ce0aa73d77fcf7f156c74f5cbec6906bb2a00700000000001600146435504ddc95e6019a90bb7dfc7ca81a88a8633106d790000000000016001444bd3017ee214370abf683abaa7f6204c9f40210024730440220652a04a2a301d9a031a034f3ae48174e204e17acf7bfc27f0dcab14243f73e2202207b29e964c434dfb2c515232d36566a40dccd4dd93ccb7fd15260ecbda10f0d9801210231994e564a0530068d17a9b0f85bec58d1352517a2861ea99e5b3070d2c5dbda02473044022072186473874919019da0e3d92b6e0aa4f88cba448ed5434615e5a3c8e2b7c42a02203ec05cef66960d5bc45d0f3d25675190cf8035b11a05ed4b719fd9c3a894899b012102f5fdca8c4e30ba0a1babf9cf9ebe62519b08aead351c349ed1ffc8316c24f542d7f61c0000220203b1b437d6d3366441e63e387594ffacb80676d7d518971d1d284b775cd7d8c38b109c9fff98000000800100000000000000000000',
+        self.assertEqual('70736274ff0100b90200000002fd57af9ecf29b1cb42cb91087cf0d1d9fce59a3ca0b25bbfa7d27c07f99870590200000000fdffffff01bb921f11c567cb4bbd9a22abcbf51b29a44e71b4697d6af31ed60ceb7202bf0000000000fdffffff0316600700000000001600140c1972cebcb22e95b01bf332981b30eb07db1528b2a00700000000001600147db4ab480b7d2218fba561ff304178f4afcbc972be358900000000001600149d91f0053172fab394d277ae27e9fa5c5a4921091cf71c00000100fd910102000000000102a5883f3de780d260e6f26cf85144403c7744a65a44cd38f9ff45aecadf010c540000000000fdffffffbdeb0175b1c51c96843d1952f7e1c49c1703717d7d020048d4de0a8eed94dad50000000000fdffffff03b2a00700000000001600140cd6c9f8ce0aa73d77fcf7f156c74f5cbec6906bb2a00700000000001600146435504ddc95e6019a90bb7dfc7ca81a88a8633106d790000000000016001444bd3017ee214370abf683abaa7f6204c9f40210024730440220652a04a2a301d9a031a034f3ae48174e204e17acf7bfc27f0dcab14243f73e2202207b29e964c434dfb2c515232d36566a40dccd4dd93ccb7fd15260ecbda10f0d9801210231994e564a0530068d17a9b0f85bec58d1352517a2861ea99e5b3070d2c5dbda02473044022072186473874919019da0e3d92b6e0aa4f88cba448ed5434615e5a3c8e2b7c42a02203ec05cef66960d5bc45d0f3d25675190cf8035b11a05ed4b719fd9c3a894899b012102f5fdca8c4e30ba0a1babf9cf9ebe62519b08aead351c349ed1ffc8316c24f542d7f61c00000100de02000000000101a5883f3de780d260e6f26cf85144403c7744a65a44cd38f9ff45aecadf010c540100000000fdffffff0220a10700000000001600145f4cfb0e1d2a7055634074bfbc9f546ac019e47f08de3c000000000016001424b32aadb42a89016c4de8f11741c3b29b15f21c02473044022045cc6c1cc875cbb0c0d8fe323dc1de9716e49ed5659741b0fb3dd9a196894066022077c242640071d12ec5763c5870f482a4823d8713e4bd14353dd621ed29a7f96d012102aea8d439a0f79d8b58e8d7bda83009f587e1f3da350adaa484329bf47cd03465fef61c0001070001086b0247304402201b1356c9b80c82f1d7cac27becdd89387ef9dfac768ba1cb3ed5f6b53fd7717602207354cd2331ff7062dd7b3b12ca697e0b4afacb1c081880a55c01e4b47951c73d0121037b1e0ebf1b2a21b9c4803bb0d84af4049c3477afb86f7c5838d47ab62d453326002202039396ddaf55d5a834110a3117f255b50b74074a1573fba5f0cc1b5408f759265918fce77fd85400008001000080000000800100000000000000000000',
                          tx_copy.serialize_as_bytes().hex())
-        self.assertEqual('6a8ed07cd97a10ace851b67a65035f04ff477d67cde62bb8679007e87b214e79', tx_copy.txid())
+        self.assertEqual('3420802719b8b4486eae0f4b58db7aee62928fb495ea0cba0f1b0374ed06b58e', tx_copy.txid())
 
     def _bump_fee_when_not_all_inputs_are_ismine_subcase_all_outputs_are_ismine(self, *, simulate_moving_txs, config):
         class NetworkMock:
@@ -1247,14 +1240,14 @@ class TestWalletSending(TestCaseForTestnet):
         wallet.network = NetworkMock()
 
         # bootstrap wallet
-        funding_tx = Transaction('02000000000102c247447533b530cacc3e716aae84621857f04a483252374cbdccfdf8b4ef816b0000000000fdffffffc247447533b530cacc3e716aae84621857f04a483252374cbdccfdf8b4ef816b0100000000fdffffff01d63f0f00000000001600141ef4658adb12ec745a1a1fef6ab8897f04bade060247304402201dc5be86749d8ce33571a6f1a2f8bbfceba89b9dbf2b4683e66c8c17cf7df6090220729199516cb894569ebbe3e998d47fc74030231ed30f110c9babd8a9dc361115012102728251a5f5f55375eef3c14fe59ab0755ba4d5f388619895238033ac9b51aad20247304402202e5d416489c20810e96e931b98a84b0c0c4fc32d2d34d3470b7ee16810246a4c022040f86cf8030d2117d6487bbe6e23d68d6d70408b002d8055de1f33d038d3a0550121039c009e7e7dad07e74ec5a8ac9f9e3499420dd9fe9709995525c714170152512620f71c00')
+        funding_tx = Transaction('02000000000102c247447533b530cacc3e716aae84621857f04a483252374cbdccfdf8b4ef816b0000000000fdffffffc247447533b530cacc3e716aae84621857f04a483252374cbdccfdf8b4ef816b0100000000fdffffff01d63f0f000000000016001442e16971a5846a868aa570516b21833e6c3631620247304402201dc5be86749d8ce33571a6f1a2f8bbfceba89b9dbf2b4683e66c8c17cf7df6090220729199516cb894569ebbe3e998d47fc74030231ed30f110c9babd8a9dc361115012102728251a5f5f55375eef3c14fe59ab0755ba4d5f388619895238033ac9b51aad20247304402202e5d416489c20810e96e931b98a84b0c0c4fc32d2d34d3470b7ee16810246a4c022040f86cf8030d2117d6487bbe6e23d68d6d70408b002d8055de1f33d038d3a0550121039c009e7e7dad07e74ec5a8ac9f9e3499420dd9fe9709995525c714170152512620f71c00')
         funding_txid = funding_tx.txid()
-        self.assertEqual('59ff0dd3962db651444d9fa6a61311302e47158533714d006e7e024ce45777da', funding_txid)
+        self.assertEqual('7489076254ff503db742f1258772ffb6b73b1156263f278e52c20adf2ce05a3b', funding_txid)
         wallet.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
 
-        orig_rbf_tx = Transaction('02000000000102a3a9d94039c1051102e36b835764b89985602608a3e121c91cb63d67277355080000000000fdffffffda7757e44c027e6e004d71338515472e301113a6a69f4d4451b62d96d30dff590000000000fdffffff02b2a00700000000001600144710cfecc31828d31e68ad101dd022fe091a02b1683f0f00000000001600145fd89e3ff2f32c48d85ac65edb4fdf40112ffdfb02473044022032a64a01b0975b65b0adfee53baa6dfb2ca9917714ae3f3acbe609397cc4912d02207da348511a156f6b6eab9d4c762a421e629784108c61d128ad9409483c1e4819012102a1c9b25b37aa31ccbb2d72caaffce81ec8253020a74017d92bbfc14a832fc9cb024730440220620795910e9d96680a2d869024fc5048cb80d038e60a5b92850de65eb938a49c02201a550737b18eda5f93ce3ce0c5907d7b0a9856bbc3bb81cec14349c5b6c97c08012102999b1062a5acf7071a43fd6f2bd37a4e0f7162182490661949dbeeb7d1b03401eef61c00')
+        orig_rbf_tx = Transaction('02000000000102a3a9d94039c1051102e36b835764b89985602608a3e121c91cb63d67277355080000000000fdffffff3b5ae02cdf0ac2528e273f2656113bb7b6ff728725f142b73d50ff54620789740000000000fdffffff02b2a0070000000000160014fc000401b7dd980122572dc9694e2f560d48d7e8683f0f0000000000160014ea6f5a55a5058b251d6772fb84d35b5f5f3509d902473044022032a64a01b0975b65b0adfee53baa6dfb2ca9917714ae3f3acbe609397cc4912d02207da348511a156f6b6eab9d4c762a421e629784108c61d128ad9409483c1e4819012102a1c9b25b37aa31ccbb2d72caaffce81ec8253020a74017d92bbfc14a832fc9cb024730440220620795910e9d96680a2d869024fc5048cb80d038e60a5b92850de65eb938a49c02201a550737b18eda5f93ce3ce0c5907d7b0a9856bbc3bb81cec14349c5b6c97c08012102999b1062a5acf7071a43fd6f2bd37a4e0f7162182490661949dbeeb7d1b03401eef61c00')
         orig_rbf_txid = orig_rbf_tx.txid()
-        self.assertEqual('2dcc543035c90c25734c9381096cc2f211ac1c2467e072170bc9e51e4580029b', orig_rbf_txid)
+        self.assertEqual('079ef25e75c918e01438c9ae7ed69e122fdc9273631c7f24d82e5491d5ad8bfd', orig_rbf_txid)
         wallet.receive_tx_callback(orig_rbf_txid, orig_rbf_tx, TX_HEIGHT_UNCONFIRMED)
 
         # bump tx
@@ -1263,7 +1256,7 @@ class TestWalletSending(TestCaseForTestnet):
         tx.version = 2
         if simulate_moving_txs:
             partial_tx = tx.serialize_as_bytes().hex()
-            self.assertEqual("70736274ff01009a0200000002a3a9d94039c1051102e36b835764b89985602608a3e121c91cb63d67277355080000000000fdffffffda7757e44c027e6e004d71338515472e301113a6a69f4d4451b62d96d30dff590000000000fdffffff02bc780700000000001600144710cfecc31828d31e68ad101dd022fe091a02b1683f0f00000000001600145fd89e3ff2f32c48d85ac65edb4fdf40112ffdfb21f71c00000100de02000000000101a5883f3de780d260e6f26cf85144403c7744a65a44cd38f9ff45aecadf010c540100000000fdffffff0220a1070000000000160014db44724ac632ae47ee5765954d64796dd5fec72708de3c000000000016001424b32aadb42a89016c4de8f11741c3b29b15f21c02473044022045cc6c1cc875cbb0c0d8fe323dc1de9716e49ed5659741b0fb3dd9a196894066022077c242640071d12ec5763c5870f482a4823d8713e4bd14353dd621ed29a7f96d012102aea8d439a0f79d8b58e8d7bda83009f587e1f3da350adaa484329bf47cd03465fef61c00000100fd530102000000000102c247447533b530cacc3e716aae84621857f04a483252374cbdccfdf8b4ef816b0000000000fdffffffc247447533b530cacc3e716aae84621857f04a483252374cbdccfdf8b4ef816b0100000000fdffffff01d63f0f00000000001600141ef4658adb12ec745a1a1fef6ab8897f04bade060247304402201dc5be86749d8ce33571a6f1a2f8bbfceba89b9dbf2b4683e66c8c17cf7df6090220729199516cb894569ebbe3e998d47fc74030231ed30f110c9babd8a9dc361115012102728251a5f5f55375eef3c14fe59ab0755ba4d5f388619895238033ac9b51aad20247304402202e5d416489c20810e96e931b98a84b0c0c4fc32d2d34d3470b7ee16810246a4c022040f86cf8030d2117d6487bbe6e23d68d6d70408b002d8055de1f33d038d3a0550121039c009e7e7dad07e74ec5a8ac9f9e3499420dd9fe9709995525c714170152512620f71c00220602999b1062a5acf7071a43fd6f2bd37a4e0f7162182490661949dbeeb7d1b0340110277f031200000080000000000000000000220202519a4072fd8c29362693439f441bd7a45c0d8dea26ce88872a4bca7e5d07cb4510277f03120000008000000000020000000022020314c9b46fce4c6111e4bbe89bb06b3dd29c6cbac586a4914bb18fe8bb7e0a463c10277f031200000080000000000100000000",
+            self.assertEqual("70736274ff01009a0200000002a3a9d94039c1051102e36b835764b89985602608a3e121c91cb63d67277355080000000000fdffffff3b5ae02cdf0ac2528e273f2656113bb7b6ff728725f142b73d50ff54620789740000000000fdffffff02bc78070000000000160014fc000401b7dd980122572dc9694e2f560d48d7e8683f0f0000000000160014ea6f5a55a5058b251d6772fb84d35b5f5f3509d921f71c00000100de02000000000101a5883f3de780d260e6f26cf85144403c7744a65a44cd38f9ff45aecadf010c540100000000fdffffff0220a1070000000000160014db44724ac632ae47ee5765954d64796dd5fec72708de3c000000000016001424b32aadb42a89016c4de8f11741c3b29b15f21c02473044022045cc6c1cc875cbb0c0d8fe323dc1de9716e49ed5659741b0fb3dd9a196894066022077c242640071d12ec5763c5870f482a4823d8713e4bd14353dd621ed29a7f96d012102aea8d439a0f79d8b58e8d7bda83009f587e1f3da350adaa484329bf47cd03465fef61c00000100fd530102000000000102c247447533b530cacc3e716aae84621857f04a483252374cbdccfdf8b4ef816b0000000000fdffffffc247447533b530cacc3e716aae84621857f04a483252374cbdccfdf8b4ef816b0100000000fdffffff01d63f0f000000000016001442e16971a5846a868aa570516b21833e6c3631620247304402201dc5be86749d8ce33571a6f1a2f8bbfceba89b9dbf2b4683e66c8c17cf7df6090220729199516cb894569ebbe3e998d47fc74030231ed30f110c9babd8a9dc361115012102728251a5f5f55375eef3c14fe59ab0755ba4d5f388619895238033ac9b51aad20247304402202e5d416489c20810e96e931b98a84b0c0c4fc32d2d34d3470b7ee16810246a4c022040f86cf8030d2117d6487bbe6e23d68d6d70408b002d8055de1f33d038d3a0550121039c009e7e7dad07e74ec5a8ac9f9e3499420dd9fe9709995525c714170152512620f71c002206030e1536feb9e925ab5e097432405f56773579fc61d194210186ab847898a3f3051859b7bb5c5400008001000080000000800000000000000000002202033a50c9f99937db17e00c8cf08fa12b7bb2dd9508919b0d4b993da890d91d66aa1859b7bb5c540000800100008000000080000000000200000000220202c17cfcf84fec08d1bff95f5d20ebe5e73152291787c950fba21bc8a48bc6b91d1859b7bb5c540000800100008000000080000000000100000000",
                              partial_tx)
             tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         self.assertFalse(tx.is_complete())
@@ -1272,31 +1265,30 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertFalse(tx.is_complete())
         self.assertTrue(tx.is_segwit())
         tx_copy = tx_from_any(tx.serialize())
-        self.assertEqual('70736274ff01009a0200000002a3a9d94039c1051102e36b835764b89985602608a3e121c91cb63d67277355080000000000fdffffffda7757e44c027e6e004d71338515472e301113a6a69f4d4451b62d96d30dff590000000000fdffffff02bc780700000000001600144710cfecc31828d31e68ad101dd022fe091a02b1683f0f00000000001600145fd89e3ff2f32c48d85ac65edb4fdf40112ffdfb21f71c00000100de02000000000101a5883f3de780d260e6f26cf85144403c7744a65a44cd38f9ff45aecadf010c540100000000fdffffff0220a1070000000000160014db44724ac632ae47ee5765954d64796dd5fec72708de3c000000000016001424b32aadb42a89016c4de8f11741c3b29b15f21c02473044022045cc6c1cc875cbb0c0d8fe323dc1de9716e49ed5659741b0fb3dd9a196894066022077c242640071d12ec5763c5870f482a4823d8713e4bd14353dd621ed29a7f96d012102aea8d439a0f79d8b58e8d7bda83009f587e1f3da350adaa484329bf47cd03465fef61c00000100fd530102000000000102c247447533b530cacc3e716aae84621857f04a483252374cbdccfdf8b4ef816b0000000000fdffffffc247447533b530cacc3e716aae84621857f04a483252374cbdccfdf8b4ef816b0100000000fdffffff01d63f0f00000000001600141ef4658adb12ec745a1a1fef6ab8897f04bade060247304402201dc5be86749d8ce33571a6f1a2f8bbfceba89b9dbf2b4683e66c8c17cf7df6090220729199516cb894569ebbe3e998d47fc74030231ed30f110c9babd8a9dc361115012102728251a5f5f55375eef3c14fe59ab0755ba4d5f388619895238033ac9b51aad20247304402202e5d416489c20810e96e931b98a84b0c0c4fc32d2d34d3470b7ee16810246a4c022040f86cf8030d2117d6487bbe6e23d68d6d70408b002d8055de1f33d038d3a0550121039c009e7e7dad07e74ec5a8ac9f9e3499420dd9fe9709995525c714170152512620f71c0001070001086b0247304402206842258bbe37829facadef81fa17eb1c97e6f9a4c66717c0cea37b61c9be804902203d291a2c9e3df57e3422f9b90589c2350f0168867c3320e994258169b8da402b012102999b1062a5acf7071a43fd6f2bd37a4e0f7162182490661949dbeeb7d1b0340100220202519a4072fd8c29362693439f441bd7a45c0d8dea26ce88872a4bca7e5d07cb4510277f03120000008000000000020000000022020314c9b46fce4c6111e4bbe89bb06b3dd29c6cbac586a4914bb18fe8bb7e0a463c10277f031200000080000000000100000000',
+        self.assertEqual('70736274ff01009a0200000002a3a9d94039c1051102e36b835764b89985602608a3e121c91cb63d67277355080000000000fdffffff3b5ae02cdf0ac2528e273f2656113bb7b6ff728725f142b73d50ff54620789740000000000fdffffff02bc78070000000000160014fc000401b7dd980122572dc9694e2f560d48d7e8683f0f0000000000160014ea6f5a55a5058b251d6772fb84d35b5f5f3509d921f71c00000100de02000000000101a5883f3de780d260e6f26cf85144403c7744a65a44cd38f9ff45aecadf010c540100000000fdffffff0220a1070000000000160014db44724ac632ae47ee5765954d64796dd5fec72708de3c000000000016001424b32aadb42a89016c4de8f11741c3b29b15f21c02473044022045cc6c1cc875cbb0c0d8fe323dc1de9716e49ed5659741b0fb3dd9a196894066022077c242640071d12ec5763c5870f482a4823d8713e4bd14353dd621ed29a7f96d012102aea8d439a0f79d8b58e8d7bda83009f587e1f3da350adaa484329bf47cd03465fef61c00000100fd530102000000000102c247447533b530cacc3e716aae84621857f04a483252374cbdccfdf8b4ef816b0000000000fdffffffc247447533b530cacc3e716aae84621857f04a483252374cbdccfdf8b4ef816b0100000000fdffffff01d63f0f000000000016001442e16971a5846a868aa570516b21833e6c3631620247304402201dc5be86749d8ce33571a6f1a2f8bbfceba89b9dbf2b4683e66c8c17cf7df6090220729199516cb894569ebbe3e998d47fc74030231ed30f110c9babd8a9dc361115012102728251a5f5f55375eef3c14fe59ab0755ba4d5f388619895238033ac9b51aad20247304402202e5d416489c20810e96e931b98a84b0c0c4fc32d2d34d3470b7ee16810246a4c022040f86cf8030d2117d6487bbe6e23d68d6d70408b002d8055de1f33d038d3a0550121039c009e7e7dad07e74ec5a8ac9f9e3499420dd9fe9709995525c714170152512620f71c0001070001086b024730440220225a837e81ead00443c4be18aecf9ae8859c81f08a1e7ea93aed3d2a15175fc3022015a9639552ffcf312435415408309227a0783ae315a1d533f59be6a5fcf3925a0121030e1536feb9e925ab5e097432405f56773579fc61d194210186ab847898a3f305002202033a50c9f99937db17e00c8cf08fa12b7bb2dd9508919b0d4b993da890d91d66aa1859b7bb5c540000800100008000000080000000000200000000220202c17cfcf84fec08d1bff95f5d20ebe5e73152291787c950fba21bc8a48bc6b91d1859b7bb5c540000800100008000000080000000000100000000',
                          tx_copy.serialize_as_bytes().hex())
-        self.assertEqual('b46cdce7e7564dfd09618ab9008ec3a921c6372f3dcdab2f6094735b024485f0', tx_copy.txid())
-
+        self.assertEqual('ead25c781aaf29c0599bfa2600b9c8acc75c53ddd4c3a22251959647893dca05', tx_copy.txid())
 
     def _bump_fee_p2wpkh_when_there_is_only_a_single_output_and_that_is_a_change_address(self, *, simulate_moving_txs, config):
         wallet = self.create_standard_wallet_from_seed('frost repair depend effort salon ring foam oak cancel receive save usage',
                                                        config=config)
 
         # bootstrap wallet
-        funding_tx = Transaction('01000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400')
+        funding_tx = Transaction('01000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a1418780969800000000001600142b87b2e2633e973351e0619ffc8b0e1537055c8a02483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400')
         funding_txid = funding_tx.txid()
         funding_output_value = 10000000
-        self.assertEqual('52e669a20a26c8b3df5b41e5e6309b18bcde8e1ad7ea17a18f63b6dc6c8becc0', funding_txid)
+        self.assertEqual('390dc4fb9dfc715a91f0dc025919fd4bf46001750e93573defa54324aa3833b1', funding_txid)
         wallet.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
 
         # create tx
-        outputs = [PartialTxOutput.from_address_and_value('tb1q7rl9cxr85962ztnsze089zs8ycv52hk43f3m9n', '!')]
+        outputs = [PartialTxOutput.from_address_and_value('tb1q2ntzd8e6ca8pf3pl2l4kwv2kll43xme5prc73s', '!')]
         coins = wallet.get_spendable_coins(domain=None)
         tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=5000)
         tx.set_rbf(True)
         tx.locktime = 1325499
         if simulate_moving_txs:
             partial_tx = tx.serialize_as_bytes().hex()
-            self.assertEqual("70736274ff0100520200000001c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff01f882980000000000160014f0fe5c1867a174a12e70165e728a072619455ed5bb391400000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb3914002206028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c510e8a9039800000080000000000000000000220202105dd9133f33cbd4e50443ef9af428c0be61f097f8942aaa916f50b530125aea10e8a9039800000080010000000000000000",
+            self.assertEqual("70736274ff0100520200000001b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdffffff01f88298000000000016001454d6269f3ac74e14c43f57eb673156ffeb136f34bb391400000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a1418780969800000000001600142b87b2e2633e973351e0619ffc8b0e1537055c8a02483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400220603b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354182e2859e9540000800100008000000080000000000000000000220202709aaf71b5f3bb313032e823032f204c16936ba8ccb69f58e7061c1a928c4e03182e2859e9540000800100008000000080010000000000000000",
                              partial_tx)
             tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         wallet.sign_transaction(tx, password=None)
@@ -1309,10 +1301,10 @@ class TestWalletSending(TestCaseForTestnet):
 
         self.assertEqual(tx.txid(), tx_copy.txid())
         self.assertEqual(tx.wtxid(), tx_copy.wtxid())
-        self.assertEqual('02000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff01f882980000000000160014f0fe5c1867a174a12e70165e728a072619455ed50247304402201050a398878098e695e2fcef181383d529d0bd0c959554bc01c35cc1791dd83b02202a193fbc77ab47879093d01c131fd4f2c80dd76750b7f0be027751ca970b84a50121028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c5bb391400',
+        self.assertEqual('02000000000101b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdffffff01f88298000000000016001454d6269f3ac74e14c43f57eb673156ffeb136f340247304402202543480632064e9b776211505dd627c65bfaf1111253dd583d88bc5df62eeb2502200f010e5762726b785bf242633856719cd68c53539b659ef7c33f22d552cdac45012103b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354bb391400',
                          str(tx_copy))
-        self.assertEqual('839b4d7ec2480975126ffa0c2a4552a85dd43435b23b375536391943e1f27074', tx_copy.txid())
-        self.assertEqual('b6fc78267494951771d935ef0338f50b13e62258e54265ad4989fe9ffe98b018', tx_copy.wtxid())
+        self.assertEqual('ce2a43441afd7d9b5f894291f06d07f13eb6fbaf312fb0471efae94bf22c2033', tx_copy.txid())
+        self.assertEqual('a810d42cdeae7b902d4e230ccec48b305acef3168b351267a8ba8a27b2468b38', tx_copy.wtxid())
 
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, funding_output_value - 5000, 0), wallet.get_balance())
@@ -1322,7 +1314,7 @@ class TestWalletSending(TestCaseForTestnet):
         tx.locktime = 1325500
         if simulate_moving_txs:
             partial_tx = tx.serialize_as_bytes().hex()
-            self.assertEqual("70736274ff0100520200000001c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff014676980000000000160014f0fe5c1867a174a12e70165e728a072619455ed5bc391400000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb3914002206028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c510e8a9039800000080000000000000000000220202105dd9133f33cbd4e50443ef9af428c0be61f097f8942aaa916f50b530125aea10e8a9039800000080010000000000000000",
+            self.assertEqual("70736274ff0100520200000001b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdffffff01467698000000000016001454d6269f3ac74e14c43f57eb673156ffeb136f34bc391400000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a1418780969800000000001600142b87b2e2633e973351e0619ffc8b0e1537055c8a02483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400220603b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354182e2859e9540000800100008000000080000000000000000000220202709aaf71b5f3bb313032e823032f204c16936ba8ccb69f58e7061c1a928c4e03182e2859e9540000800100008000000080010000000000000000",
                              partial_tx)
             tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         self.assertFalse(tx.is_complete())
@@ -1331,10 +1323,10 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertTrue(tx.is_complete())
         self.assertTrue(tx.is_segwit())
         tx_copy = tx_from_any(tx.serialize())
-        self.assertEqual('02000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff014676980000000000160014f0fe5c1867a174a12e70165e728a072619455ed502473044022008bcb6fab261e9f4d5ccdd11c389b0620de1a1f493e97df6ec83f0c1a261e96c02205e352d3096cc68d4b1279f05dd4a2b1f9d1134dd01f761d01e21f4a88e608cca0121028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c5bc391400',
+        self.assertEqual('02000000000101b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdffffff01467698000000000016001454d6269f3ac74e14c43f57eb673156ffeb136f340247304402202a60df9a42855f164c687a4ff1b36d5da97c0bed8f1a421bdaac68b30360432b0220607178d67cf25a49e28be2367e2d2b3185f469b0d63bd54f760cb093d2f3247a012103b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354bc391400',
                          str(tx_copy))
-        self.assertEqual('0787da6829907ede8a322273d19ba47943ac234ad7fd1cb1821f6a0e78fcc003', tx_copy.txid())
-        self.assertEqual('65760ae60ed5feedfd10a9198b44e483ea64dcfa116d32cf247f45d474ee5ce0', tx_copy.wtxid())
+        self.assertEqual('ad7762b23387ab60ddc06e26a801f3466d683d79b4cb65b3973029df1ade6798', tx_copy.txid())
+        self.assertEqual('e232eb4501188cd2d8af22b87cc8b0bdccb2f928e997cea9579c947e13ac013b', tx_copy.wtxid())
 
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 9991750, 0), wallet.get_balance())
@@ -1344,9 +1336,9 @@ class TestWalletSending(TestCaseForTestnet):
                                                        config=config)
 
         # bootstrap wallet
-        funding_tx = Transaction('01000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400')
+        funding_tx = Transaction('01000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a1418780969800000000001600142b87b2e2633e973351e0619ffc8b0e1537055c8a02483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400')
         funding_txid = funding_tx.txid()
-        self.assertEqual('52e669a20a26c8b3df5b41e5e6309b18bcde8e1ad7ea17a18f63b6dc6c8becc0', funding_txid)
+        self.assertEqual('390dc4fb9dfc715a91f0dc025919fd4bf46001750e93573defa54324aa3833b1', funding_txid)
         wallet.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
 
         # create tx
@@ -1358,7 +1350,7 @@ class TestWalletSending(TestCaseForTestnet):
         tx.version = 1
         if simulate_moving_txs:
             partial_tx = tx.serialize_as_bytes().hex()
-            self.assertEqual("70736274ff0100530100000001c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff01f88298000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987bb391400000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb3914002206028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c510e8a903980000008000000000000000000000",
+            self.assertEqual("70736274ff0100530100000001b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdffffff01f88298000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987bb391400000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a1418780969800000000001600142b87b2e2633e973351e0619ffc8b0e1537055c8a02483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400220603b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354182e2859e954000080010000800000008000000000000000000000",
                              partial_tx)
             tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         wallet.sign_transaction(tx, password=None)
@@ -1371,10 +1363,10 @@ class TestWalletSending(TestCaseForTestnet):
 
         self.assertEqual(tx.txid(), tx_copy.txid())
         self.assertEqual(tx.wtxid(), tx_copy.wtxid())
-        self.assertEqual('01000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff01f88298000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987024730440220520ab41536d5d0fac8ad44e6aa4a8258a266121bab1eb6599f1ee86bbc65719d02205944c2fb765fca4753a850beadac49f5305c6722410c347c08cec4d90e3eb4430121028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c5bb391400',
+        self.assertEqual('01000000000101b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdffffff01f88298000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987024730440220266f065c219cb8e99b985453f784baf0635cc91741aca2a4ed8f709cd51d0ffc02200e6a0c4bfb987be590449f9aa035f532f4d5c032927fedc5b32447332ea7b2ac012103b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354bb391400',
                          str(tx_copy))
-        self.assertEqual('dc4b622f3225f00edb886011fa02b74630cdbc24cebdd3210d5ea3b68bef5cc9', tx_copy.txid())
-        self.assertEqual('a00340ee8c90673e05f2cf368601b6bba6a7f0513bd974feb218a326e39b1874', tx_copy.wtxid())
+        self.assertEqual('83cc46dee2e52b94c364e7b8987d37519dce7eac18aa62add6930bd12216ccb9', tx_copy.txid())
+        self.assertEqual('c9a26848039673cf1c95d737bf621e8bc6646368161b8d458e7049cdb992e3e1', tx_copy.wtxid())
 
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 0, 0), wallet.get_balance())
@@ -1385,7 +1377,7 @@ class TestWalletSending(TestCaseForTestnet):
         tx.version = 1
         if simulate_moving_txs:
             partial_tx = tx.serialize_as_bytes().hex()
-            self.assertEqual("70736274ff0100530100000001c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff01267898000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987bc391400000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb3914002206028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c510e8a903980000008000000000000000000000",
+            self.assertEqual("70736274ff0100530100000001b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdffffff01267898000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987bc391400000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a1418780969800000000001600142b87b2e2633e973351e0619ffc8b0e1537055c8a02483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400220603b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354182e2859e954000080010000800000008000000000000000000000",
                              partial_tx)
             tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         self.assertFalse(tx.is_complete())
@@ -1394,10 +1386,10 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertTrue(tx.is_complete())
         self.assertTrue(tx.is_segwit())
         tx_copy = tx_from_any(tx.serialize())
-        self.assertEqual('01000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff01267898000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f98702473044022069412007c3a6509fdfcfbe90679395c202c973740b0530b8ff366bc86ebff99d02206a02e3c0beb0921fa7d30379db4999d685d4b97239a2b8c7dd839531c72863110121028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c5bc391400',
+        self.assertEqual('01000000000101b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdffffff01267898000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987024730440220777bdd66d6aa5d84b56dedf75f3bacd66a608db332c089ef045c99c8401bd5be02205c8712a84ea1c32e2fb480a853f5f3fe7b218311152e90d954fc199e28d9e5bd012103b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354bc391400',
                          str(tx_copy))
-        self.assertEqual('53824cc67e8fe973b0dfa1b8cc10f4e2441b9b4b2b1eb92576fbba7000c2908a', tx_copy.txid())
-        self.assertEqual('bb137a5a810bb44d3b1cc77fb4f840e7c8c0f84771f7ce4671c3b1a9f5f93724', tx_copy.wtxid())
+        self.assertEqual('2eab03f52b7ffd0893ef36b1c8df910aff3e9bdcd07088da77a9ca8b6abd186b', tx_copy.txid())
+        self.assertEqual('b260fff6c537b3dac3ac0e859a2b937d94d60aaf57a4abb82b34574bf1a58225', tx_copy.wtxid())
 
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 0, 0), wallet.get_balance())
@@ -1407,10 +1399,9 @@ class TestWalletSending(TestCaseForTestnet):
                                                        config=config)
 
         # bootstrap wallet (incoming funding_tx1)
-        funding_tx1 = Transaction('01000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400')
+        funding_tx1 = Transaction('01000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a1418780969800000000001600142b87b2e2633e973351e0619ffc8b0e1537055c8a02483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400')
         funding_txid1 = funding_tx1.txid()
-        #funding_output_value = 10_000_000
-        self.assertEqual('52e669a20a26c8b3df5b41e5e6309b18bcde8e1ad7ea17a18f63b6dc6c8becc0', funding_txid1)
+        self.assertEqual('390dc4fb9dfc715a91f0dc025919fd4bf46001750e93573defa54324aa3833b1', funding_txid1)
         wallet.receive_tx_callback(funding_txid1, funding_tx1, TX_HEIGHT_UNCONFIRMED)
 
         # create tx
@@ -1422,7 +1413,7 @@ class TestWalletSending(TestCaseForTestnet):
         tx.version = 1
         if simulate_moving_txs:
             partial_tx = tx.serialize_as_bytes().hex()
-            self.assertEqual("70736274ff0100530100000001c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff01f88298000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987bb391400000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb3914002206028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c510e8a903980000008000000000000000000000",
+            self.assertEqual("70736274ff0100530100000001b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdffffff01f88298000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987bb391400000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a1418780969800000000001600142b87b2e2633e973351e0619ffc8b0e1537055c8a02483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400220603b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354182e2859e954000080010000800000008000000000000000000000",
                              partial_tx)
             tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         wallet.sign_transaction(tx, password=None)
@@ -1435,19 +1426,18 @@ class TestWalletSending(TestCaseForTestnet):
 
         self.assertEqual(tx.txid(), tx_copy.txid())
         self.assertEqual(tx.wtxid(), tx_copy.wtxid())
-        self.assertEqual('01000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff01f88298000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987024730440220520ab41536d5d0fac8ad44e6aa4a8258a266121bab1eb6599f1ee86bbc65719d02205944c2fb765fca4753a850beadac49f5305c6722410c347c08cec4d90e3eb4430121028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c5bb391400',
+        self.assertEqual('01000000000101b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdffffff01f88298000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987024730440220266f065c219cb8e99b985453f784baf0635cc91741aca2a4ed8f709cd51d0ffc02200e6a0c4bfb987be590449f9aa035f532f4d5c032927fedc5b32447332ea7b2ac012103b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354bb391400',
                          str(tx_copy))
-        self.assertEqual('dc4b622f3225f00edb886011fa02b74630cdbc24cebdd3210d5ea3b68bef5cc9', tx_copy.txid())
-        self.assertEqual('a00340ee8c90673e05f2cf368601b6bba6a7f0513bd974feb218a326e39b1874', tx_copy.wtxid())
+        self.assertEqual('83cc46dee2e52b94c364e7b8987d37519dce7eac18aa62add6930bd12216ccb9', tx_copy.txid())
+        self.assertEqual('c9a26848039673cf1c95d737bf621e8bc6646368161b8d458e7049cdb992e3e1', tx_copy.wtxid())
 
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 0, 0), wallet.get_balance())
 
         # another incoming transaction (funding_tx2)
-        funding_tx2 = Transaction('01000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520000000017160014ba9ca815474a674ff1efb3fc82cf0f3460de8c57fdffffff0230390f000000000017a9148b59abaca8215c0d4b18cbbf715550aa2b50c85b87404b4c000000000016001483c3bc7234f17a209cc5dcce14903b54ee4dab9002473044022038a05f7d38bcf810dfebb39f1feda5cc187da4cf5d6e56986957ddcccedc75d302203ab67ccf15431b4e2aeeab1582b9a5a7821e7ac4be8ebf512505dbfdc7e094fd0121032168234e0ba465b8cedc10173ea9391725c0f6d9fa517641af87926626a5144abd391400')
+        funding_tx2 = Transaction('01000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520000000017160014ba9ca815474a674ff1efb3fc82cf0f3460de8c57fdffffff0230390f000000000017a9148b59abaca8215c0d4b18cbbf715550aa2b50c85b87404b4c0000000000160014ed2cffc525b3eeb6140f0ba358005bd09937be3002473044022038a05f7d38bcf810dfebb39f1feda5cc187da4cf5d6e56986957ddcccedc75d302203ab67ccf15431b4e2aeeab1582b9a5a7821e7ac4be8ebf512505dbfdc7e094fd0121032168234e0ba465b8cedc10173ea9391725c0f6d9fa517641af87926626a5144abd391400')
         funding_txid2 = funding_tx2.txid()
-        #funding_output_value = 5_000_000
-        self.assertEqual('c36a6e1cd54df108e69574f70bc9b88dc13beddc70cfad9feb7f8f6593255d4a', funding_txid2)
+        self.assertEqual('c5821b98aafcc6aa813a9c7b1b0b61d46ec60db9bd3a54c5f8fa1a3a2cded9f8', funding_txid2)
         wallet.receive_tx_callback(funding_txid2, funding_tx2, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 5_000_000, 0), wallet.get_balance())
 
@@ -1457,7 +1447,7 @@ class TestWalletSending(TestCaseForTestnet):
         tx.version = 1
         if simulate_moving_txs:
             partial_tx = tx.serialize_as_bytes().hex()
-            self.assertEqual("70736274ff01009b0100000002c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff4a5d2593658f7feb9fadcf70dced3bc18db8c90bf77495e608f14dd51c6e6ac30100000000feffffff025c254c0000000000160014f0fe5c1867a174a12e70165e728a072619455ed5f88298000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987bc391400000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb3914002206028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c510e8a90398000000800000000000000000000100f601000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520000000017160014ba9ca815474a674ff1efb3fc82cf0f3460de8c57fdffffff0230390f000000000017a9148b59abaca8215c0d4b18cbbf715550aa2b50c85b87404b4c000000000016001483c3bc7234f17a209cc5dcce14903b54ee4dab9002473044022038a05f7d38bcf810dfebb39f1feda5cc187da4cf5d6e56986957ddcccedc75d302203ab67ccf15431b4e2aeeab1582b9a5a7821e7ac4be8ebf512505dbfdc7e094fd0121032168234e0ba465b8cedc10173ea9391725c0f6d9fa517641af87926626a5144abd391400220602a6ff1ffc189b4776b78e20edca969cc45da3e610cc0cc79925604be43fee469f10e8a9039800000080000000000100000000220202105dd9133f33cbd4e50443ef9af428c0be61f097f8942aaa916f50b530125aea10e8a903980000008001000000000000000000",
+            self.assertEqual("70736274ff01009b0100000002b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdfffffff8d9de2c3a1afaf8c5543abdb90dc66ed4610b1b7b9c3a81aac6fcaa981b82c50100000000feffffff025c254c000000000016001454d6269f3ac74e14c43f57eb673156ffeb136f34f88298000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987bc391400000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a1418780969800000000001600142b87b2e2633e973351e0619ffc8b0e1537055c8a02483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400220603b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354182e2859e95400008001000080000000800000000000000000000100f601000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520000000017160014ba9ca815474a674ff1efb3fc82cf0f3460de8c57fdffffff0230390f000000000017a9148b59abaca8215c0d4b18cbbf715550aa2b50c85b87404b4c0000000000160014ed2cffc525b3eeb6140f0ba358005bd09937be3002473044022038a05f7d38bcf810dfebb39f1feda5cc187da4cf5d6e56986957ddcccedc75d302203ab67ccf15431b4e2aeeab1582b9a5a7821e7ac4be8ebf512505dbfdc7e094fd0121032168234e0ba465b8cedc10173ea9391725c0f6d9fa517641af87926626a5144abd3914002206020a91c2bcd1fef759e11d2f1f220b14ca8275b4daa7551426709b8aa344fdeab3182e2859e9540000800100008000000080000000000100000000220202709aaf71b5f3bb313032e823032f204c16936ba8ccb69f58e7061c1a928c4e03182e2859e954000080010000800000008001000000000000000000",
                              partial_tx)
             tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         self.assertFalse(tx.is_complete())
@@ -1466,10 +1456,10 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertTrue(tx.is_complete())
         self.assertTrue(tx.is_segwit())
         tx_copy = tx_from_any(tx.serialize())
-        self.assertEqual('01000000000102c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff4a5d2593658f7feb9fadcf70dced3bc18db8c90bf77495e608f14dd51c6e6ac30100000000feffffff025c254c0000000000160014f0fe5c1867a174a12e70165e728a072619455ed5f88298000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987024730440220075992f2696076ca14265372c797fa5c6116ef9b8023f36fa7500442fe3e21430220252677cce7b009d8a65681e8f50b78c9a31c6461f67c995b8804041a290893660121028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c502473044022018379b52ea52436eaeef1593e08aba78db1fd624b804ab747722f748203d553702204cbe4c87a010c8b67be9034014b503354e72f9c8205172269c00de20883fac61012102a6ff1ffc189b4776b78e20edca969cc45da3e610cc0cc79925604be43fee469fbc391400',
+        self.assertEqual('01000000000102b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdfffffff8d9de2c3a1afaf8c5543abdb90dc66ed4610b1b7b9c3a81aac6fcaa981b82c50100000000feffffff025c254c000000000016001454d6269f3ac74e14c43f57eb673156ffeb136f34f88298000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f9870247304402201fc1e772e431756feab87a4a48eac76a1dc65ec7f8a85c871e50b982043649d102201c860b1f617a05f1b0dcfb45a146ee331a881681a1f3328a526cec8e8c3f5f0b012103b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354024730440220658cf7aacd02cfa6976307fa94ab593ecbe8a52fd439fd8d048f240a1f56436602206e444bd746994cc5794ea078ebeb63b5c3aec9333254be59ce1498d09e825de30121020a91c2bcd1fef759e11d2f1f220b14ca8275b4daa7551426709b8aa344fdeab3bc391400',
                          str(tx_copy))
-        self.assertEqual('056aaf5ec628a492742b083ad7790836e2d12e89061f32d5b517679764fdaff1', tx_copy.txid())
-        self.assertEqual('0c26d17386408d0111ebc94a5d05f6afd681add632dfbcd986658f9d9fe25ff7', tx_copy.wtxid())
+        self.assertEqual('9ed7eac2ccb0df4832c853bb53da42593225ec7ecd2e904894a38d43d4b6920c', tx_copy.txid())
+        self.assertEqual('f93e73be5b1e04dd7f4bd58bf7fc7c1f24ba828861c94548184a6ad36d58285e', tx_copy.wtxid())
 
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 4_990_300, 0), wallet.get_balance())
@@ -1480,10 +1470,9 @@ class TestWalletSending(TestCaseForTestnet):
         wallet.config.set_key('batch_rbf', True)
 
         # bootstrap wallet (incoming funding_tx1)
-        funding_tx1 = Transaction('01000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400')
+        funding_tx1 = Transaction('01000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a1418780969800000000001600142b87b2e2633e973351e0619ffc8b0e1537055c8a02483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400')
         funding_txid1 = funding_tx1.txid()
-        #funding_output_value = 10_000_000
-        self.assertEqual('52e669a20a26c8b3df5b41e5e6309b18bcde8e1ad7ea17a18f63b6dc6c8becc0', funding_txid1)
+        self.assertEqual('390dc4fb9dfc715a91f0dc025919fd4bf46001750e93573defa54324aa3833b1', funding_txid1)
         wallet.receive_tx_callback(funding_txid1, funding_tx1, TX_HEIGHT_UNCONFIRMED)
 
         # create tx
@@ -1495,7 +1484,7 @@ class TestWalletSending(TestCaseForTestnet):
         tx.version = 1
         if simulate_moving_txs:
             partial_tx = tx.serialize_as_bytes().hex()
-            self.assertEqual("70736274ff0100720100000001c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987585d720000000000160014f0fe5c1867a174a12e70165e728a072619455ed5bb391400000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb3914002206028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c510e8a903980000008000000000000000000000220202105dd9133f33cbd4e50443ef9af428c0be61f097f8942aaa916f50b530125aea10e8a9039800000080010000000000000000",
+            self.assertEqual("70736274ff0100720100000001b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987585d72000000000016001454d6269f3ac74e14c43f57eb673156ffeb136f34bb391400000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a1418780969800000000001600142b87b2e2633e973351e0619ffc8b0e1537055c8a02483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400220603b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354182e2859e954000080010000800000008000000000000000000000220202709aaf71b5f3bb313032e823032f204c16936ba8ccb69f58e7061c1a928c4e03182e2859e9540000800100008000000080010000000000000000",
                              partial_tx)
             tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         wallet.sign_transaction(tx, password=None)
@@ -1508,19 +1497,18 @@ class TestWalletSending(TestCaseForTestnet):
 
         self.assertEqual(tx.txid(), tx_copy.txid())
         self.assertEqual(tx.wtxid(), tx_copy.wtxid())
-        self.assertEqual('01000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987585d720000000000160014f0fe5c1867a174a12e70165e728a072619455ed50247304402205442705e988abe74bf391b293bb1b886674284a92ed0788c33024f9336d60aef022013a93049d3bed693254cd31a704d70bb988a36750f0b74d0a5b4d9e29c54ca9d0121028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c5bb391400',
+        self.assertEqual('01000000000101b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987585d72000000000016001454d6269f3ac74e14c43f57eb673156ffeb136f3402473044022040d9f2ff7130713e8a91db1ab9a80aa48821593a95d960073ed36abd3fa63c1d02203bad9c64071018ffa1c989a5cbf52a6048c7fe4a8b96adc65dea8e95da44e3c1012103b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354bb391400',
                          str(tx_copy))
-        self.assertEqual('b019bbad45a46ed25365e46e4cae6428fb12ae425977eb93011ffb294cb4977e', tx_copy.txid())
-        self.assertEqual('ba87313e2b3b42f1cc478843d4d53c72d6e06f6c66ac8cfbe2a59cdac2fd532d', tx_copy.wtxid())
+        self.assertEqual('3d97f0a155a07ac522a0a4ee3d0046bd180a8a92bb40d9776b8fcfae3244d640', tx_copy.txid())
+        self.assertEqual('044272ffbd9e9b6a98adb6c33300f26d1e00bdd5a965cdffedab6706f0709875', tx_copy.wtxid())
 
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 7_495_000, 0), wallet.get_balance())
 
         # another incoming transaction (funding_tx2)
-        funding_tx2 = Transaction('01000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520000000017160014ba9ca815474a674ff1efb3fc82cf0f3460de8c57fdffffff0230390f000000000017a9148b59abaca8215c0d4b18cbbf715550aa2b50c85b87404b4c000000000016001483c3bc7234f17a209cc5dcce14903b54ee4dab9002473044022038a05f7d38bcf810dfebb39f1feda5cc187da4cf5d6e56986957ddcccedc75d302203ab67ccf15431b4e2aeeab1582b9a5a7821e7ac4be8ebf512505dbfdc7e094fd0121032168234e0ba465b8cedc10173ea9391725c0f6d9fa517641af87926626a5144abd391400')
+        funding_tx2 = Transaction('01000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520000000017160014ba9ca815474a674ff1efb3fc82cf0f3460de8c57fdffffff0230390f000000000017a9148b59abaca8215c0d4b18cbbf715550aa2b50c85b87404b4c0000000000160014ed2cffc525b3eeb6140f0ba358005bd09937be3002473044022038a05f7d38bcf810dfebb39f1feda5cc187da4cf5d6e56986957ddcccedc75d302203ab67ccf15431b4e2aeeab1582b9a5a7821e7ac4be8ebf512505dbfdc7e094fd0121032168234e0ba465b8cedc10173ea9391725c0f6d9fa517641af87926626a5144abd391400')
         funding_txid2 = funding_tx2.txid()
-        #funding_output_value = 5_000_000
-        self.assertEqual('c36a6e1cd54df108e69574f70bc9b88dc13beddc70cfad9feb7f8f6593255d4a', funding_txid2)
+        self.assertEqual('c5821b98aafcc6aa813a9c7b1b0b61d46ec60db9bd3a54c5f8fa1a3a2cded9f8', funding_txid2)
         wallet.receive_tx_callback(funding_txid2, funding_tx2, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 12_495_000, 0), wallet.get_balance())
 
@@ -1534,7 +1522,7 @@ class TestWalletSending(TestCaseForTestnet):
         tx.version = 1
         if simulate_moving_txs:
             partial_tx = tx.serialize_as_bytes().hex()
-            self.assertEqual("70736274ff0100910100000001c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff03a025260000000000160014268db6c8ba651a25c64f3dd187d0968dbeb0427ba02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f98720fd4b0000000000160014f0fe5c1867a174a12e70165e728a072619455ed5bb391400000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb3914002206028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c510e8a90398000000800000000000000000000000220202105dd9133f33cbd4e50443ef9af428c0be61f097f8942aaa916f50b530125aea10e8a9039800000080010000000000000000",
+            self.assertEqual("70736274ff0100910100000001b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdffffff03a025260000000000160014268db6c8ba651a25c64f3dd187d0968dbeb0427ba02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f98720fd4b000000000016001454d6269f3ac74e14c43f57eb673156ffeb136f34bb391400000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a1418780969800000000001600142b87b2e2633e973351e0619ffc8b0e1537055c8a02483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400220603b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354182e2859e95400008001000080000000800000000000000000000000220202709aaf71b5f3bb313032e823032f204c16936ba8ccb69f58e7061c1a928c4e03182e2859e9540000800100008000000080010000000000000000",
                              partial_tx)
             tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         wallet.sign_transaction(tx, password=None)
@@ -1547,10 +1535,10 @@ class TestWalletSending(TestCaseForTestnet):
 
         self.assertEqual(tx.txid(), tx_copy.txid())
         self.assertEqual(tx.wtxid(), tx_copy.wtxid())
-        self.assertEqual('01000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff03a025260000000000160014268db6c8ba651a25c64f3dd187d0968dbeb0427ba02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f98720fd4b0000000000160014f0fe5c1867a174a12e70165e728a072619455ed50247304402206add1d6fc8b5fc6fd1bbf50d06fe432e65b16a9d715dbfe7f2d26473f48a128302207983d8db3508e3b953e6e26581d2bbba5a7ca0ff0dd07361de60977dc61ed1580121028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c5bb391400',
+        self.assertEqual('01000000000101b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdffffff03a025260000000000160014268db6c8ba651a25c64f3dd187d0968dbeb0427ba02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f98720fd4b000000000016001454d6269f3ac74e14c43f57eb673156ffeb136f34024730440220417322d6282e87935cd4975900cc3c4376dff1546e3591dd75653c0fe56d98c402205c074e7852a57141f6ed6103fbbbd262cddd415fbba0c18359f577a6c3ee6252012103b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354bb391400',
                          str(tx_copy))
-        self.assertEqual('21112d35fa08b9577bfe46405ad17720d0fa85bcefab0b0a1cffe79b9d6167c4', tx_copy.txid())
-        self.assertEqual('d49ffdaa832a35d88f3f43bcfb08306347c2342200098f450e41ccb289b26db3', tx_copy.wtxid())
+        self.assertEqual('93038b3ae770dae71a89451e495afd1b4c070352e7aad1b75f20e19a9e5bb6b3', tx_copy.txid())
+        self.assertEqual('a144d540a9c0cb80f13aca5d6e073b5f3051baa712a7731f77e17c9ea1019df1', tx_copy.wtxid())
 
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 9_980_000, 0), wallet.get_balance())
@@ -1565,7 +1553,7 @@ class TestWalletSending(TestCaseForTestnet):
         tx.version = 1
         if simulate_moving_txs:
             partial_tx = tx.serialize_as_bytes().hex()
-            self.assertEqual("70736274ff0100da0100000002c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff4a5d2593658f7feb9fadcf70dced3bc18db8c90bf77495e608f14dd51c6e6ac30100000000fdffffff04a025260000000000160014268db6c8ba651a25c64f3dd187d0968dbeb0427ba02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f98760823b0000000000160014f0fe5c1867a174a12e70165e728a072619455ed5808d5b000000000017a914d332f2f63019da6f2d23ee77bbe30eed7739790587bb391400000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb3914002206028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c510e8a90398000000800000000000000000000100f601000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520000000017160014ba9ca815474a674ff1efb3fc82cf0f3460de8c57fdffffff0230390f000000000017a9148b59abaca8215c0d4b18cbbf715550aa2b50c85b87404b4c000000000016001483c3bc7234f17a209cc5dcce14903b54ee4dab9002473044022038a05f7d38bcf810dfebb39f1feda5cc187da4cf5d6e56986957ddcccedc75d302203ab67ccf15431b4e2aeeab1582b9a5a7821e7ac4be8ebf512505dbfdc7e094fd0121032168234e0ba465b8cedc10173ea9391725c0f6d9fa517641af87926626a5144abd391400220602a6ff1ffc189b4776b78e20edca969cc45da3e610cc0cc79925604be43fee469f10e8a90398000000800000000001000000000000220202105dd9133f33cbd4e50443ef9af428c0be61f097f8942aaa916f50b530125aea10e8a903980000008001000000000000000000",
+            self.assertEqual("70736274ff0100da0100000002b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdfffffff8d9de2c3a1afaf8c5543abdb90dc66ed4610b1b7b9c3a81aac6fcaa981b82c50100000000fdffffff04a025260000000000160014268db6c8ba651a25c64f3dd187d0968dbeb0427ba02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f98760823b000000000016001454d6269f3ac74e14c43f57eb673156ffeb136f34808d5b000000000017a914d332f2f63019da6f2d23ee77bbe30eed7739790587bb391400000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a1418780969800000000001600142b87b2e2633e973351e0619ffc8b0e1537055c8a02483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400220603b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354182e2859e95400008001000080000000800000000000000000000100f601000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520000000017160014ba9ca815474a674ff1efb3fc82cf0f3460de8c57fdffffff0230390f000000000017a9148b59abaca8215c0d4b18cbbf715550aa2b50c85b87404b4c0000000000160014ed2cffc525b3eeb6140f0ba358005bd09937be3002473044022038a05f7d38bcf810dfebb39f1feda5cc187da4cf5d6e56986957ddcccedc75d302203ab67ccf15431b4e2aeeab1582b9a5a7821e7ac4be8ebf512505dbfdc7e094fd0121032168234e0ba465b8cedc10173ea9391725c0f6d9fa517641af87926626a5144abd3914002206020a91c2bcd1fef759e11d2f1f220b14ca8275b4daa7551426709b8aa344fdeab3182e2859e95400008001000080000000800000000001000000000000220202709aaf71b5f3bb313032e823032f204c16936ba8ccb69f58e7061c1a928c4e03182e2859e954000080010000800000008001000000000000000000",
                              partial_tx)
             tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         wallet.sign_transaction(tx, password=None)
@@ -1578,24 +1566,23 @@ class TestWalletSending(TestCaseForTestnet):
 
         self.assertEqual(tx.txid(), tx_copy.txid())
         self.assertEqual(tx.wtxid(), tx_copy.wtxid())
-        self.assertEqual('01000000000102c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff4a5d2593658f7feb9fadcf70dced3bc18db8c90bf77495e608f14dd51c6e6ac30100000000fdffffff04a025260000000000160014268db6c8ba651a25c64f3dd187d0968dbeb0427ba02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f98760823b0000000000160014f0fe5c1867a174a12e70165e728a072619455ed5808d5b000000000017a914d332f2f63019da6f2d23ee77bbe30eed7739790587024730440220730ac17af4ac14f008ee5d0a7be524d8ca344afc19b548faa9ac8c21a216df81022010d9cc878402103c1dd6b06e97e7910a23b7ec88251627f47ed1d5a8d741beba0121028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c50247304402201005fc1e9091ac36d98b60c1c8b65aada0d4fe4da438d69b3262028644005cfc02207353c987be9e33d1e8702689960df76ac28adacc2f9093d731bc56c9578c5458012102a6ff1ffc189b4776b78e20edca969cc45da3e610cc0cc79925604be43fee469fbb391400',
+        self.assertEqual('01000000000102b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdfffffff8d9de2c3a1afaf8c5543abdb90dc66ed4610b1b7b9c3a81aac6fcaa981b82c50100000000fdffffff04a025260000000000160014268db6c8ba651a25c64f3dd187d0968dbeb0427ba02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f98760823b000000000016001454d6269f3ac74e14c43f57eb673156ffeb136f34808d5b000000000017a914d332f2f63019da6f2d23ee77bbe30eed7739790587024730440220280e4ac7fbce354299dbca3ebed06739497bf9e8759040ac8150ac86fa3a25c80220042bb651e2c946c085e6dfa24756a60bdda3153ac66e63458691fff6f7e7c123012103b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e3540247304402202975d3a8fc399d8733bdbf665bd12cb429f2e91948edd9a3443b3e05a1e804d3022057f2815059c3fe7e25c3e711b04cd4bd6eae33596cd75d93ce6b3cf6fcd03a810121020a91c2bcd1fef759e11d2f1f220b14ca8275b4daa7551426709b8aa344fdeab3bb391400',
                          str(tx_copy))
-        self.assertEqual('88791bcd352b50592a5521c15595972b14b5d6be165be2df0e57ea19e588c025', tx_copy.txid())
-        self.assertEqual('7c5e5bff601e5467036b574b41090681a86de403867dd2b14097920b95e392ed', tx_copy.wtxid())
+        self.assertEqual('b63fb93d60828b0df230021c795af535f24a045eff3c151c8678c0b956e3cf9f', tx_copy.txid())
+        self.assertEqual('abb8c1fe50f33cfae81d31090e177348b813eb813d9b6dd8c10dcc7dd10f4394', tx_copy.wtxid())
 
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 3_900_000, 0), wallet.get_balance())
 
-    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_cpfp_p2wpkh(self, mock_save_db):
         wallet = self.create_standard_wallet_from_seed('frost repair depend effort salon ring foam oak cancel receive save usage')
 
         # bootstrap wallet
-        funding_tx = Transaction('01000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520000000017160014ba9ca815474a674ff1efb3fc82cf0f3460de8c57fdffffff0230390f000000000017a9148b59abaca8215c0d4b18cbbf715550aa2b50c85b87404b4c000000000016001483c3bc7234f17a209cc5dcce14903b54ee4dab9002473044022038a05f7d38bcf810dfebb39f1feda5cc187da4cf5d6e56986957ddcccedc75d302203ab67ccf15431b4e2aeeab1582b9a5a7821e7ac4be8ebf512505dbfdc7e094fd0121032168234e0ba465b8cedc10173ea9391725c0f6d9fa517641af87926626a5144abd391400')
+        funding_tx = Transaction('01000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520000000017160014ba9ca815474a674ff1efb3fc82cf0f3460de8c57fdffffff0230390f000000000017a9148b59abaca8215c0d4b18cbbf715550aa2b50c85b87404b4c0000000000160014ed2cffc525b3eeb6140f0ba358005bd09937be3002473044022038a05f7d38bcf810dfebb39f1feda5cc187da4cf5d6e56986957ddcccedc75d302203ab67ccf15431b4e2aeeab1582b9a5a7821e7ac4be8ebf512505dbfdc7e094fd0121032168234e0ba465b8cedc10173ea9391725c0f6d9fa517641af87926626a5144abd391400')
         funding_txid = funding_tx.txid()
         funding_output_value = 5000000
-        self.assertEqual('c36a6e1cd54df108e69574f70bc9b88dc13beddc70cfad9feb7f8f6593255d4a', funding_txid)
+        self.assertEqual('c5821b98aafcc6aa813a9c7b1b0b61d46ec60db9bd3a54c5f8fa1a3a2cded9f8', funding_txid)
         wallet.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
 
         # cpfp tx
@@ -1612,10 +1599,10 @@ class TestWalletSending(TestCaseForTestnet):
 
         self.assertEqual(tx.txid(), tx_copy.txid())
         self.assertEqual(tx.wtxid(), tx_copy.wtxid())
-        self.assertEqual('010000000001014a5d2593658f7feb9fadcf70dced3bc18db8c90bf77495e608f14dd51c6e6ac30100000000fdffffff01f0874b0000000000160014f0fe5c1867a174a12e70165e728a072619455ed502473044022029314c8fb5e05dcd6e94d26f7d96bd9824290977bdc0602b2ef1faf8aa7da53c022003c0477a2b45f05ec4e06e4669a9c3a9e8d9ad0ab78ed85a37b93064c5358e9a012102a6ff1ffc189b4776b78e20edca969cc45da3e610cc0cc79925604be43fee469fbd391400',
+        self.assertEqual('01000000000101f8d9de2c3a1afaf8c5543abdb90dc66ed4610b1b7b9c3a81aac6fcaa981b82c50100000000fdffffff01f0874b000000000016001454d6269f3ac74e14c43f57eb673156ffeb136f340247304402205c501fc3c15d9e2e7f790811f92b004926c40e0872bbe6bdceb72bc48ea59b8602207b3e1ba0890dae320d35439791505b40124db561f24b6f02fa606d61c2da127f0121020a91c2bcd1fef759e11d2f1f220b14ca8275b4daa7551426709b8aa344fdeab3bd391400',
                          str(tx_copy))
-        self.assertEqual('6bb0490b29b65c7292f6bb1715982fe4474417b4fbdcf8a4675a0994ce12d156', tx_copy.txid())
-        self.assertEqual('ce94905afcb396d7bc6de28e4d102dcefc85224abae7df16399b2789f5596db8', tx_copy.wtxid())
+        self.assertEqual('a0ee9ed900dd3a3ecd4dfedd8d79c2f19772a001e6f9e377369586310cfa9432', tx_copy.txid())
+        self.assertEqual('5c2c958a96d8385cd7288338ae59ed3dc0b9dd528dbe986fa020db609853f1b5', tx_copy.wtxid())
 
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, funding_output_value - 50000, 0), wallet.get_balance())
@@ -1648,7 +1635,6 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual('7f827fc5256c274fd1094eb7e020c8ded0baf820356f61aa4f14a9093b0ea0ee', tx_copy.txid())
         self.assertEqual('7f827fc5256c274fd1094eb7e020c8ded0baf820356f61aa4f14a9093b0ea0ee', tx_copy.wtxid())
 
-    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_coinjoin_between_two_p2wpkh_electrum_seeds(self, mock_save_db):
         wallet1 = WalletIntegrityHelper.create_standard_wallet(
@@ -1663,55 +1649,55 @@ class TestWalletSending(TestCaseForTestnet):
         )
 
         # bootstrap wallet1
-        funding_tx = Transaction('0200000000010162ecbac2f0c8662f53505d9410fdc56c84c5642ddbd3358d9a27d564e26731130200000000fdffffff02c0d8a70000000000160014aba1c9faecc3f8882e641583e8734a3f9d01b15ab89ed5000000000016001470afbd97b2dc351bd167f714e294b2fd3b60aedf02483045022100c93449989510e279eb14a0193d5c262ae93034b81376a1f6be259c6080d3ba5d0220536ab394f7c20f301d7ec2ef11be6e7b6d492053dce56458931c1b54218ec0fd012103b8f5a11df8e68cf335848e83a41fdad3c7413dc42148248a3799b58c93919ca010851800')
+        funding_tx = Transaction('0200000000010162ecbac2f0c8662f53505d9410fdc56c84c5642ddbd3358d9a27d564e26731130200000000fdffffff02c0d8a70000000000160014c2d5466cd845568745417b40d24deca06304d242b89ed5000000000016001470afbd97b2dc351bd167f714e294b2fd3b60aedf02483045022100c93449989510e279eb14a0193d5c262ae93034b81376a1f6be259c6080d3ba5d0220536ab394f7c20f301d7ec2ef11be6e7b6d492053dce56458931c1b54218ec0fd012103b8f5a11df8e68cf335848e83a41fdad3c7413dc42148248a3799b58c93919ca010851800')
         funding_txid = funding_tx.txid()
-        self.assertEqual('d8f8186379085cffc9a3fd747e7a7527435db974d1e2941f52f063be8e4fbdd5', funding_txid)
+        self.assertEqual('fd52d4373b727d3cab65ab0e727443f84cecab066b2b8696dc70bfc956cca18e', funding_txid)
         wallet1.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
 
         # bootstrap wallet2
-        funding_tx = Transaction('02000000000101d5bd4f8ebe63f0521f94e2d174b95d4327757a7e74fda3c9ff5c08796318f8d80100000000fdffffff025066350000000000160014e3aa82aa2e754507d5585c0b6db06cc0cb4927b7a037a000000000001600140719d12228c61cab793ecd659c09cfe565a845c302483045022100f42e27519bd2379c22951c16b038fa6d49164fe6802854f2fdc7ee87fe31a8bc02204ea71e9324781b44bf7fea2f318caf3bedc5b497cbd1b4313fa71f833500bcb7012103a7853e1ee02a1629c8e870ec694a1420aeb98e6f5d071815257028f62d6f784169851800')
+        funding_tx = Transaction('02000000000101d5bd4f8ebe63f0521f94e2d174b95d4327757a7e74fda3c9ff5c08796318f8d80100000000fdffffff025066350000000000160014e3aa82aa2e754507d5585c0b6db06cc0cb4927b7a037a000000000001600141b975c304ff855f7ac12fad62ec576346e2fa6c002483045022100f42e27519bd2379c22951c16b038fa6d49164fe6802854f2fdc7ee87fe31a8bc02204ea71e9324781b44bf7fea2f318caf3bedc5b497cbd1b4313fa71f833500bcb7012103a7853e1ee02a1629c8e870ec694a1420aeb98e6f5d071815257028f62d6f784169851800')
         funding_txid = funding_tx.txid()
-        self.assertEqual('934f26a72c840293f06c37dc10a358df056dfe245cdf072ae836977c0abc46e5', funding_txid)
+        self.assertEqual('7e279b524ab031ebd5847e26e7296b91e744b8b36e399d48869a491d67bc5438', funding_txid)
         wallet2.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
 
         # wallet1 creates tx1, with output back to himself
-        outputs = [PartialTxOutput.from_address_and_value("tb1qhye4wfp26kn0l7ynpn5a4hvt539xc3zf0n76t3", 10_000_000)]
+        outputs = [PartialTxOutput.from_address_and_value("tb1q9hn6zwxcm20c97ynyqv8skqlead7q6tncvzf6v", 10_000_000)]
         tx1 = wallet1.mktx(outputs=outputs, fee=5000, tx_version=2, rbf=True, sign=False)
         tx1.locktime = 1607022
         partial_tx1 = tx1.serialize_as_bytes().hex()
-        self.assertEqual("70736274ff0100710200000001d5bd4f8ebe63f0521f94e2d174b95d4327757a7e74fda3c9ff5c08796318f8d80000000000fdffffff02b82e0f0000000000160014250dbabd5761d7e0773d6147699938dd08ec2eb88096980000000000160014b93357242ad5a6fff8930ce9dadd8ba44a6c44496e851800000100df0200000000010162ecbac2f0c8662f53505d9410fdc56c84c5642ddbd3358d9a27d564e26731130200000000fdffffff02c0d8a70000000000160014aba1c9faecc3f8882e641583e8734a3f9d01b15ab89ed5000000000016001470afbd97b2dc351bd167f714e294b2fd3b60aedf02483045022100c93449989510e279eb14a0193d5c262ae93034b81376a1f6be259c6080d3ba5d0220536ab394f7c20f301d7ec2ef11be6e7b6d492053dce56458931c1b54218ec0fd012103b8f5a11df8e68cf335848e83a41fdad3c7413dc42148248a3799b58c93919ca01085180022060205e8db1b1906219782fadb18e763c0874a3118a17ce931e01707cbde194e041510775087560000008000000000000000000022020240ef5d2efee3b04b313a254df1b13a0b155451581e73943b21f3346bf6e1ba351077508756000000800100000000000000002202024a410b1212e88573561887b2bc38c90c074e4be425b9f3d971a9207825d9d3c8107750875600000080000000000100000000",
+        self.assertEqual("70736274ff01007102000000018ea1cc56c9bf70dc96862b6b06abec4cf84374720eab65ab3c7d723b37d452fd0000000000fdffffff02b82e0f0000000000160014a67dcf4f44d4462f85222dc5b04100b08e4ca38380969800000000001600142de7a138d8da9f82f893201878581fcf5be069736e851800000100df0200000000010162ecbac2f0c8662f53505d9410fdc56c84c5642ddbd3358d9a27d564e26731130200000000fdffffff02c0d8a70000000000160014c2d5466cd845568745417b40d24deca06304d242b89ed5000000000016001470afbd97b2dc351bd167f714e294b2fd3b60aedf02483045022100c93449989510e279eb14a0193d5c262ae93034b81376a1f6be259c6080d3ba5d0220536ab394f7c20f301d7ec2ef11be6e7b6d492053dce56458931c1b54218ec0fd012103b8f5a11df8e68cf335848e83a41fdad3c7413dc42148248a3799b58c93919ca010851800220603713d650a7978a06a9aba94045dc5d56461b1fb37f52721a84a4c096a527c16f018c7a22ee35400008001000080000000800000000000000000002202020ea57c410b4b2222ba3c129eaaaa53cbb6765e547937f39765e6e2917e4f9a5818c7a22ee354000080010000800000008001000000000000000022020397c236d1fd8634558ca3f32cc787d08c4f864024647b2af1b7e8946a2de660e418c7a22ee3540000800100008000000080000000000100000000",
                          partial_tx1)
         tx1.prepare_for_export_for_coinjoin()
         partial_tx1 = tx1.serialize_as_bytes().hex()
-        self.assertEqual("70736274ff0100710200000001d5bd4f8ebe63f0521f94e2d174b95d4327757a7e74fda3c9ff5c08796318f8d80000000000fdffffff02b82e0f0000000000160014250dbabd5761d7e0773d6147699938dd08ec2eb88096980000000000160014b93357242ad5a6fff8930ce9dadd8ba44a6c44496e851800000100df0200000000010162ecbac2f0c8662f53505d9410fdc56c84c5642ddbd3358d9a27d564e26731130200000000fdffffff02c0d8a70000000000160014aba1c9faecc3f8882e641583e8734a3f9d01b15ab89ed5000000000016001470afbd97b2dc351bd167f714e294b2fd3b60aedf02483045022100c93449989510e279eb14a0193d5c262ae93034b81376a1f6be259c6080d3ba5d0220536ab394f7c20f301d7ec2ef11be6e7b6d492053dce56458931c1b54218ec0fd012103b8f5a11df8e68cf335848e83a41fdad3c7413dc42148248a3799b58c93919ca010851800000000",
+        self.assertEqual("70736274ff01007102000000018ea1cc56c9bf70dc96862b6b06abec4cf84374720eab65ab3c7d723b37d452fd0000000000fdffffff02b82e0f0000000000160014a67dcf4f44d4462f85222dc5b04100b08e4ca38380969800000000001600142de7a138d8da9f82f893201878581fcf5be069736e851800000100df0200000000010162ecbac2f0c8662f53505d9410fdc56c84c5642ddbd3358d9a27d564e26731130200000000fdffffff02c0d8a70000000000160014c2d5466cd845568745417b40d24deca06304d242b89ed5000000000016001470afbd97b2dc351bd167f714e294b2fd3b60aedf02483045022100c93449989510e279eb14a0193d5c262ae93034b81376a1f6be259c6080d3ba5d0220536ab394f7c20f301d7ec2ef11be6e7b6d492053dce56458931c1b54218ec0fd012103b8f5a11df8e68cf335848e83a41fdad3c7413dc42148248a3799b58c93919ca010851800000000",
                          partial_tx1)
 
         # wallet2 creates tx2, with output back to himself
-        outputs = [PartialTxOutput.from_address_and_value("tb1qufnj5k2rrsnpjq7fg6d2pq3q9um6skdyyehw5m", 10_000_000)]
+        outputs = [PartialTxOutput.from_address_and_value("tb1qz395d7atstgun0fgp59qwfrgq65uynuquj3j64", 10_000_000)]
         tx2 = wallet2.mktx(outputs=outputs, fee=5000, tx_version=2, rbf=True, sign=False)
         tx2.locktime = 1607023
         partial_tx2 = tx2.serialize_as_bytes().hex()
-        self.assertEqual("70736274ff0100710200000001e546bc0a7c9736e82a07df5c24fe6d05df58a310dc376cf09302842ca7264f930100000000fdffffff02988d07000000000016001453675a59be834aa6d139c3ebea56646a9b160c4c8096980000000000160014e2672a59431c261903c9469aa082202f37a859a46f851800000100df02000000000101d5bd4f8ebe63f0521f94e2d174b95d4327757a7e74fda3c9ff5c08796318f8d80100000000fdffffff025066350000000000160014e3aa82aa2e754507d5585c0b6db06cc0cb4927b7a037a000000000001600140719d12228c61cab793ecd659c09cfe565a845c302483045022100f42e27519bd2379c22951c16b038fa6d49164fe6802854f2fdc7ee87fe31a8bc02204ea71e9324781b44bf7fea2f318caf3bedc5b497cbd1b4313fa71f833500bcb7012103a7853e1ee02a1629c8e870ec694a1420aeb98e6f5d071815257028f62d6f784169851800220602275b4fba18bb34e5198a9cfb3e940306658839079b3bda50d504a9cf2bae36f41067f36697000000800000000001000000002202036e4d0a5fb845b2f1c3c868c2ce7212b155b73e91c05be1b7a77c48830831ba4f1067f366970000008001000000000000000022020200062fdea2b0a056b17fa6b91dd87f5b5d838fe1ee84d636a5022f9a340eebcc1067f3669700000080000000000000000000",
+        self.assertEqual("70736274ff01007102000000013854bc671d499a86489d396eb3b844e7916b29e7267e84d5eb31b04a529b277e0100000000fdffffff02988d070000000000160014c93ae41518772c819967050630b33856403684208096980000000000160014144b46fbab82d1c9bd280d0a07246806a9c24f806f851800000100df02000000000101d5bd4f8ebe63f0521f94e2d174b95d4327757a7e74fda3c9ff5c08796318f8d80100000000fdffffff025066350000000000160014e3aa82aa2e754507d5585c0b6db06cc0cb4927b7a037a000000000001600141b975c304ff855f7ac12fad62ec576346e2fa6c002483045022100f42e27519bd2379c22951c16b038fa6d49164fe6802854f2fdc7ee87fe31a8bc02204ea71e9324781b44bf7fea2f318caf3bedc5b497cbd1b4313fa71f833500bcb7012103a7853e1ee02a1629c8e870ec694a1420aeb98e6f5d071815257028f62d6f784169851800220602018d5aa82cd7ef78f4637c7a9066853db5f77a60ff25f2df3d210fb92e7a41a918f374547c540000800100008000000080000000000100000000220203098a8ae856e32b44190f59bc98ad8dfafd961a472c6bceb84e58ef35b061d7c318f374547c5400008001000080000000800100000000000000002202025b4ac1ed30ac89d861d43a939622e3ba1c7d249e6a737a5c8d5fc16666ecdf9d18f374547c540000800100008000000080000000000000000000",
                          partial_tx2)
 
         # wallet2 gets raw partial tx1, merges it into his own tx2
         tx2.join_with_other_psbt(tx_from_any(partial_tx1))
         partial_tx2 = tx2.serialize_as_bytes().hex()
-        self.assertEqual("70736274ff0100d80200000002e546bc0a7c9736e82a07df5c24fe6d05df58a310dc376cf09302842ca7264f930100000000fdffffffd5bd4f8ebe63f0521f94e2d174b95d4327757a7e74fda3c9ff5c08796318f8d80000000000fdffffff04988d07000000000016001453675a59be834aa6d139c3ebea56646a9b160c4cb82e0f0000000000160014250dbabd5761d7e0773d6147699938dd08ec2eb88096980000000000160014b93357242ad5a6fff8930ce9dadd8ba44a6c44498096980000000000160014e2672a59431c261903c9469aa082202f37a859a46f851800000100df02000000000101d5bd4f8ebe63f0521f94e2d174b95d4327757a7e74fda3c9ff5c08796318f8d80100000000fdffffff025066350000000000160014e3aa82aa2e754507d5585c0b6db06cc0cb4927b7a037a000000000001600140719d12228c61cab793ecd659c09cfe565a845c302483045022100f42e27519bd2379c22951c16b038fa6d49164fe6802854f2fdc7ee87fe31a8bc02204ea71e9324781b44bf7fea2f318caf3bedc5b497cbd1b4313fa71f833500bcb7012103a7853e1ee02a1629c8e870ec694a1420aeb98e6f5d071815257028f62d6f784169851800220602275b4fba18bb34e5198a9cfb3e940306658839079b3bda50d504a9cf2bae36f41067f36697000000800000000001000000000100df0200000000010162ecbac2f0c8662f53505d9410fdc56c84c5642ddbd3358d9a27d564e26731130200000000fdffffff02c0d8a70000000000160014aba1c9faecc3f8882e641583e8734a3f9d01b15ab89ed5000000000016001470afbd97b2dc351bd167f714e294b2fd3b60aedf02483045022100c93449989510e279eb14a0193d5c262ae93034b81376a1f6be259c6080d3ba5d0220536ab394f7c20f301d7ec2ef11be6e7b6d492053dce56458931c1b54218ec0fd012103b8f5a11df8e68cf335848e83a41fdad3c7413dc42148248a3799b58c93919ca010851800002202036e4d0a5fb845b2f1c3c868c2ce7212b155b73e91c05be1b7a77c48830831ba4f1067f3669700000080010000000000000000000022020200062fdea2b0a056b17fa6b91dd87f5b5d838fe1ee84d636a5022f9a340eebcc1067f3669700000080000000000000000000",
+        self.assertEqual("70736274ff0100d802000000023854bc671d499a86489d396eb3b844e7916b29e7267e84d5eb31b04a529b277e0100000000fdffffff8ea1cc56c9bf70dc96862b6b06abec4cf84374720eab65ab3c7d723b37d452fd0000000000fdffffff04988d070000000000160014c93ae41518772c819967050630b3385640368420b82e0f0000000000160014a67dcf4f44d4462f85222dc5b04100b08e4ca3838096980000000000160014144b46fbab82d1c9bd280d0a07246806a9c24f8080969800000000001600142de7a138d8da9f82f893201878581fcf5be069736f851800000100df02000000000101d5bd4f8ebe63f0521f94e2d174b95d4327757a7e74fda3c9ff5c08796318f8d80100000000fdffffff025066350000000000160014e3aa82aa2e754507d5585c0b6db06cc0cb4927b7a037a000000000001600141b975c304ff855f7ac12fad62ec576346e2fa6c002483045022100f42e27519bd2379c22951c16b038fa6d49164fe6802854f2fdc7ee87fe31a8bc02204ea71e9324781b44bf7fea2f318caf3bedc5b497cbd1b4313fa71f833500bcb7012103a7853e1ee02a1629c8e870ec694a1420aeb98e6f5d071815257028f62d6f784169851800220602018d5aa82cd7ef78f4637c7a9066853db5f77a60ff25f2df3d210fb92e7a41a918f374547c5400008001000080000000800000000001000000000100df0200000000010162ecbac2f0c8662f53505d9410fdc56c84c5642ddbd3358d9a27d564e26731130200000000fdffffff02c0d8a70000000000160014c2d5466cd845568745417b40d24deca06304d242b89ed5000000000016001470afbd97b2dc351bd167f714e294b2fd3b60aedf02483045022100c93449989510e279eb14a0193d5c262ae93034b81376a1f6be259c6080d3ba5d0220536ab394f7c20f301d7ec2ef11be6e7b6d492053dce56458931c1b54218ec0fd012103b8f5a11df8e68cf335848e83a41fdad3c7413dc42148248a3799b58c93919ca01085180000220203098a8ae856e32b44190f59bc98ad8dfafd961a472c6bceb84e58ef35b061d7c318f374547c540000800100008000000080010000000000000000002202025b4ac1ed30ac89d861d43a939622e3ba1c7d249e6a737a5c8d5fc16666ecdf9d18f374547c54000080010000800000008000000000000000000000",
                          partial_tx2)
         tx2.prepare_for_export_for_coinjoin()
         partial_tx2 = tx2.serialize_as_bytes().hex()
-        self.assertEqual("70736274ff0100d80200000002e546bc0a7c9736e82a07df5c24fe6d05df58a310dc376cf09302842ca7264f930100000000fdffffffd5bd4f8ebe63f0521f94e2d174b95d4327757a7e74fda3c9ff5c08796318f8d80000000000fdffffff04988d07000000000016001453675a59be834aa6d139c3ebea56646a9b160c4cb82e0f0000000000160014250dbabd5761d7e0773d6147699938dd08ec2eb88096980000000000160014b93357242ad5a6fff8930ce9dadd8ba44a6c44498096980000000000160014e2672a59431c261903c9469aa082202f37a859a46f851800000100df02000000000101d5bd4f8ebe63f0521f94e2d174b95d4327757a7e74fda3c9ff5c08796318f8d80100000000fdffffff025066350000000000160014e3aa82aa2e754507d5585c0b6db06cc0cb4927b7a037a000000000001600140719d12228c61cab793ecd659c09cfe565a845c302483045022100f42e27519bd2379c22951c16b038fa6d49164fe6802854f2fdc7ee87fe31a8bc02204ea71e9324781b44bf7fea2f318caf3bedc5b497cbd1b4313fa71f833500bcb7012103a7853e1ee02a1629c8e870ec694a1420aeb98e6f5d071815257028f62d6f784169851800000100df0200000000010162ecbac2f0c8662f53505d9410fdc56c84c5642ddbd3358d9a27d564e26731130200000000fdffffff02c0d8a70000000000160014aba1c9faecc3f8882e641583e8734a3f9d01b15ab89ed5000000000016001470afbd97b2dc351bd167f714e294b2fd3b60aedf02483045022100c93449989510e279eb14a0193d5c262ae93034b81376a1f6be259c6080d3ba5d0220536ab394f7c20f301d7ec2ef11be6e7b6d492053dce56458931c1b54218ec0fd012103b8f5a11df8e68cf335848e83a41fdad3c7413dc42148248a3799b58c93919ca0108518000000000000",
+        self.assertEqual("70736274ff0100d802000000023854bc671d499a86489d396eb3b844e7916b29e7267e84d5eb31b04a529b277e0100000000fdffffff8ea1cc56c9bf70dc96862b6b06abec4cf84374720eab65ab3c7d723b37d452fd0000000000fdffffff04988d070000000000160014c93ae41518772c819967050630b3385640368420b82e0f0000000000160014a67dcf4f44d4462f85222dc5b04100b08e4ca3838096980000000000160014144b46fbab82d1c9bd280d0a07246806a9c24f8080969800000000001600142de7a138d8da9f82f893201878581fcf5be069736f851800000100df02000000000101d5bd4f8ebe63f0521f94e2d174b95d4327757a7e74fda3c9ff5c08796318f8d80100000000fdffffff025066350000000000160014e3aa82aa2e754507d5585c0b6db06cc0cb4927b7a037a000000000001600141b975c304ff855f7ac12fad62ec576346e2fa6c002483045022100f42e27519bd2379c22951c16b038fa6d49164fe6802854f2fdc7ee87fe31a8bc02204ea71e9324781b44bf7fea2f318caf3bedc5b497cbd1b4313fa71f833500bcb7012103a7853e1ee02a1629c8e870ec694a1420aeb98e6f5d071815257028f62d6f784169851800000100df0200000000010162ecbac2f0c8662f53505d9410fdc56c84c5642ddbd3358d9a27d564e26731130200000000fdffffff02c0d8a70000000000160014c2d5466cd845568745417b40d24deca06304d242b89ed5000000000016001470afbd97b2dc351bd167f714e294b2fd3b60aedf02483045022100c93449989510e279eb14a0193d5c262ae93034b81376a1f6be259c6080d3ba5d0220536ab394f7c20f301d7ec2ef11be6e7b6d492053dce56458931c1b54218ec0fd012103b8f5a11df8e68cf335848e83a41fdad3c7413dc42148248a3799b58c93919ca0108518000000000000",
                          partial_tx2)
 
         # wallet2 signs
         wallet2.sign_transaction(tx2, password=None)
         partial_tx2 = tx2.serialize_as_bytes().hex()
-        self.assertEqual("70736274ff0100d80200000002e546bc0a7c9736e82a07df5c24fe6d05df58a310dc376cf09302842ca7264f930100000000fdffffffd5bd4f8ebe63f0521f94e2d174b95d4327757a7e74fda3c9ff5c08796318f8d80000000000fdffffff04988d07000000000016001453675a59be834aa6d139c3ebea56646a9b160c4cb82e0f0000000000160014250dbabd5761d7e0773d6147699938dd08ec2eb88096980000000000160014b93357242ad5a6fff8930ce9dadd8ba44a6c44498096980000000000160014e2672a59431c261903c9469aa082202f37a859a46f851800000100df02000000000101d5bd4f8ebe63f0521f94e2d174b95d4327757a7e74fda3c9ff5c08796318f8d80100000000fdffffff025066350000000000160014e3aa82aa2e754507d5585c0b6db06cc0cb4927b7a037a000000000001600140719d12228c61cab793ecd659c09cfe565a845c302483045022100f42e27519bd2379c22951c16b038fa6d49164fe6802854f2fdc7ee87fe31a8bc02204ea71e9324781b44bf7fea2f318caf3bedc5b497cbd1b4313fa71f833500bcb7012103a7853e1ee02a1629c8e870ec694a1420aeb98e6f5d071815257028f62d6f78416985180001070001086b0247304402205106349e1644223b5128009376fc497477227172ac28a54942da58014869d4f502205aa60ba466f53b52c5933c39cfa1ab735c1722029039d7a5a7577789ae891389012102275b4fba18bb34e5198a9cfb3e940306658839079b3bda50d504a9cf2bae36f4000100df0200000000010162ecbac2f0c8662f53505d9410fdc56c84c5642ddbd3358d9a27d564e26731130200000000fdffffff02c0d8a70000000000160014aba1c9faecc3f8882e641583e8734a3f9d01b15ab89ed5000000000016001470afbd97b2dc351bd167f714e294b2fd3b60aedf02483045022100c93449989510e279eb14a0193d5c262ae93034b81376a1f6be259c6080d3ba5d0220536ab394f7c20f301d7ec2ef11be6e7b6d492053dce56458931c1b54218ec0fd012103b8f5a11df8e68cf335848e83a41fdad3c7413dc42148248a3799b58c93919ca010851800002202036e4d0a5fb845b2f1c3c868c2ce7212b155b73e91c05be1b7a77c48830831ba4f1067f3669700000080010000000000000000000022020200062fdea2b0a056b17fa6b91dd87f5b5d838fe1ee84d636a5022f9a340eebcc1067f3669700000080000000000000000000",
+        self.assertEqual("70736274ff0100d802000000023854bc671d499a86489d396eb3b844e7916b29e7267e84d5eb31b04a529b277e0100000000fdffffff8ea1cc56c9bf70dc96862b6b06abec4cf84374720eab65ab3c7d723b37d452fd0000000000fdffffff04988d070000000000160014c93ae41518772c819967050630b3385640368420b82e0f0000000000160014a67dcf4f44d4462f85222dc5b04100b08e4ca3838096980000000000160014144b46fbab82d1c9bd280d0a07246806a9c24f8080969800000000001600142de7a138d8da9f82f893201878581fcf5be069736f851800000100df02000000000101d5bd4f8ebe63f0521f94e2d174b95d4327757a7e74fda3c9ff5c08796318f8d80100000000fdffffff025066350000000000160014e3aa82aa2e754507d5585c0b6db06cc0cb4927b7a037a000000000001600141b975c304ff855f7ac12fad62ec576346e2fa6c002483045022100f42e27519bd2379c22951c16b038fa6d49164fe6802854f2fdc7ee87fe31a8bc02204ea71e9324781b44bf7fea2f318caf3bedc5b497cbd1b4313fa71f833500bcb7012103a7853e1ee02a1629c8e870ec694a1420aeb98e6f5d071815257028f62d6f78416985180001070001086b02473044022047be98f149905eba30a5c78f0b6ad36d0b3f5e8e9de543e39b6f289b90007aec02201c90278960644616a274cc8926c7506f53d5ab7cb6c9783930445ebad54a5684012102018d5aa82cd7ef78f4637c7a9066853db5f77a60ff25f2df3d210fb92e7a41a9000100df0200000000010162ecbac2f0c8662f53505d9410fdc56c84c5642ddbd3358d9a27d564e26731130200000000fdffffff02c0d8a70000000000160014c2d5466cd845568745417b40d24deca06304d242b89ed5000000000016001470afbd97b2dc351bd167f714e294b2fd3b60aedf02483045022100c93449989510e279eb14a0193d5c262ae93034b81376a1f6be259c6080d3ba5d0220536ab394f7c20f301d7ec2ef11be6e7b6d492053dce56458931c1b54218ec0fd012103b8f5a11df8e68cf335848e83a41fdad3c7413dc42148248a3799b58c93919ca01085180000220203098a8ae856e32b44190f59bc98ad8dfafd961a472c6bceb84e58ef35b061d7c318f374547c540000800100008000000080010000000000000000002202025b4ac1ed30ac89d861d43a939622e3ba1c7d249e6a737a5c8d5fc16666ecdf9d18f374547c54000080010000800000008000000000000000000000",
                          partial_tx2)
         tx2.prepare_for_export_for_coinjoin()
         partial_tx2 = tx2.serialize_as_bytes().hex()
-        self.assertEqual("70736274ff0100d80200000002e546bc0a7c9736e82a07df5c24fe6d05df58a310dc376cf09302842ca7264f930100000000fdffffffd5bd4f8ebe63f0521f94e2d174b95d4327757a7e74fda3c9ff5c08796318f8d80000000000fdffffff04988d07000000000016001453675a59be834aa6d139c3ebea56646a9b160c4cb82e0f0000000000160014250dbabd5761d7e0773d6147699938dd08ec2eb88096980000000000160014b93357242ad5a6fff8930ce9dadd8ba44a6c44498096980000000000160014e2672a59431c261903c9469aa082202f37a859a46f851800000100df02000000000101d5bd4f8ebe63f0521f94e2d174b95d4327757a7e74fda3c9ff5c08796318f8d80100000000fdffffff025066350000000000160014e3aa82aa2e754507d5585c0b6db06cc0cb4927b7a037a000000000001600140719d12228c61cab793ecd659c09cfe565a845c302483045022100f42e27519bd2379c22951c16b038fa6d49164fe6802854f2fdc7ee87fe31a8bc02204ea71e9324781b44bf7fea2f318caf3bedc5b497cbd1b4313fa71f833500bcb7012103a7853e1ee02a1629c8e870ec694a1420aeb98e6f5d071815257028f62d6f78416985180001070001086b0247304402205106349e1644223b5128009376fc497477227172ac28a54942da58014869d4f502205aa60ba466f53b52c5933c39cfa1ab735c1722029039d7a5a7577789ae891389012102275b4fba18bb34e5198a9cfb3e940306658839079b3bda50d504a9cf2bae36f4000100df0200000000010162ecbac2f0c8662f53505d9410fdc56c84c5642ddbd3358d9a27d564e26731130200000000fdffffff02c0d8a70000000000160014aba1c9faecc3f8882e641583e8734a3f9d01b15ab89ed5000000000016001470afbd97b2dc351bd167f714e294b2fd3b60aedf02483045022100c93449989510e279eb14a0193d5c262ae93034b81376a1f6be259c6080d3ba5d0220536ab394f7c20f301d7ec2ef11be6e7b6d492053dce56458931c1b54218ec0fd012103b8f5a11df8e68cf335848e83a41fdad3c7413dc42148248a3799b58c93919ca0108518000000000000",
+        self.assertEqual("70736274ff0100d802000000023854bc671d499a86489d396eb3b844e7916b29e7267e84d5eb31b04a529b277e0100000000fdffffff8ea1cc56c9bf70dc96862b6b06abec4cf84374720eab65ab3c7d723b37d452fd0000000000fdffffff04988d070000000000160014c93ae41518772c819967050630b3385640368420b82e0f0000000000160014a67dcf4f44d4462f85222dc5b04100b08e4ca3838096980000000000160014144b46fbab82d1c9bd280d0a07246806a9c24f8080969800000000001600142de7a138d8da9f82f893201878581fcf5be069736f851800000100df02000000000101d5bd4f8ebe63f0521f94e2d174b95d4327757a7e74fda3c9ff5c08796318f8d80100000000fdffffff025066350000000000160014e3aa82aa2e754507d5585c0b6db06cc0cb4927b7a037a000000000001600141b975c304ff855f7ac12fad62ec576346e2fa6c002483045022100f42e27519bd2379c22951c16b038fa6d49164fe6802854f2fdc7ee87fe31a8bc02204ea71e9324781b44bf7fea2f318caf3bedc5b497cbd1b4313fa71f833500bcb7012103a7853e1ee02a1629c8e870ec694a1420aeb98e6f5d071815257028f62d6f78416985180001070001086b02473044022047be98f149905eba30a5c78f0b6ad36d0b3f5e8e9de543e39b6f289b90007aec02201c90278960644616a274cc8926c7506f53d5ab7cb6c9783930445ebad54a5684012102018d5aa82cd7ef78f4637c7a9066853db5f77a60ff25f2df3d210fb92e7a41a9000100df0200000000010162ecbac2f0c8662f53505d9410fdc56c84c5642ddbd3358d9a27d564e26731130200000000fdffffff02c0d8a70000000000160014c2d5466cd845568745417b40d24deca06304d242b89ed5000000000016001470afbd97b2dc351bd167f714e294b2fd3b60aedf02483045022100c93449989510e279eb14a0193d5c262ae93034b81376a1f6be259c6080d3ba5d0220536ab394f7c20f301d7ec2ef11be6e7b6d492053dce56458931c1b54218ec0fd012103b8f5a11df8e68cf335848e83a41fdad3c7413dc42148248a3799b58c93919ca0108518000000000000",
                          partial_tx2)
 
         # wallet1 gets raw partial tx2, and signs
@@ -1721,10 +1707,10 @@ class TestWalletSending(TestCaseForTestnet):
 
         self.assertTrue(tx.is_complete())
         self.assertTrue(tx.is_segwit())
-        self.assertEqual("02000000000102e546bc0a7c9736e82a07df5c24fe6d05df58a310dc376cf09302842ca7264f930100000000fdffffffd5bd4f8ebe63f0521f94e2d174b95d4327757a7e74fda3c9ff5c08796318f8d80000000000fdffffff04988d07000000000016001453675a59be834aa6d139c3ebea56646a9b160c4cb82e0f0000000000160014250dbabd5761d7e0773d6147699938dd08ec2eb88096980000000000160014b93357242ad5a6fff8930ce9dadd8ba44a6c44498096980000000000160014e2672a59431c261903c9469aa082202f37a859a40247304402205106349e1644223b5128009376fc497477227172ac28a54942da58014869d4f502205aa60ba466f53b52c5933c39cfa1ab735c1722029039d7a5a7577789ae891389012102275b4fba18bb34e5198a9cfb3e940306658839079b3bda50d504a9cf2bae36f402473044022003010ece3471f7a23f31b2a0fd157f88f7d436c0c73ec408043c7f5dd2b7ccbb02204bd21f5829555c3f94fbd0b5295d1071f739c6b8f2682f8a688e34d0ad26c90101210205e8db1b1906219782fadb18e763c0874a3118a17ce931e01707cbde194e04156f851800",
+        self.assertEqual("020000000001023854bc671d499a86489d396eb3b844e7916b29e7267e84d5eb31b04a529b277e0100000000fdffffff8ea1cc56c9bf70dc96862b6b06abec4cf84374720eab65ab3c7d723b37d452fd0000000000fdffffff04988d070000000000160014c93ae41518772c819967050630b3385640368420b82e0f0000000000160014a67dcf4f44d4462f85222dc5b04100b08e4ca3838096980000000000160014144b46fbab82d1c9bd280d0a07246806a9c24f8080969800000000001600142de7a138d8da9f82f893201878581fcf5be0697302473044022047be98f149905eba30a5c78f0b6ad36d0b3f5e8e9de543e39b6f289b90007aec02201c90278960644616a274cc8926c7506f53d5ab7cb6c9783930445ebad54a5684012102018d5aa82cd7ef78f4637c7a9066853db5f77a60ff25f2df3d210fb92e7a41a902473044022071635c83b04e594bb4ab4261cea9b46bfc76ef5d38658ffa9905091ee8a85b950220266d1205fabe4c8ae7f2b18c57a634a64b975a649be4cbed55b2f875a343d2be012103713d650a7978a06a9aba94045dc5d56461b1fb37f52721a84a4c096a527c16f06f851800",
                          str(tx))
-        self.assertEqual('4a33546eeaed0e25f9e6a58968be92a804a7e70a5332360dabc79f93cd059752', tx.txid())
-        self.assertEqual('32584f78479a1b6f7aeff4f4d0e0323b67c36ce155d010f9b324b6189b91a540', tx.wtxid())
+        self.assertEqual('ef955408df25516121f734db52129f41764db5ea665bb7bf0a8327fc5c8d0dfb', tx.txid())
+        self.assertEqual('06a1c751eafbb07426669d573b67f36a29d1f5ce0aa037754e2cc91c69d66bca', tx.wtxid())
 
         wallet1.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         wallet2.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
@@ -1785,7 +1771,6 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertFalse(any([wallet_frost.is_mine(txin.address) for txin in tx.inputs()]))
         self.assertFalse(any([wallet_frost.is_mine(txout.address) for txout in tx.outputs()]))
 
-    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_dscancel(self, mock_save_db):
         self.maxDiff = None
@@ -1815,14 +1800,14 @@ class TestWalletSending(TestCaseForTestnet):
                                                        config=config)
 
         # bootstrap wallet
-        funding_tx = Transaction('010000000001011f4db0ecd81f4388db316bc16efb4e9daf874cf4950d54ecb4c0fb372433d68500000000171600143d57fd9e88ef0e70cddb0d8b75ef86698cab0d44fdffffff0280969800000000001976a91472e34cebab371967b038ce41d0e8fa1fb983795e88ac86a0ae020000000017a9149188bc82bdcae077060ebb4f02201b73c806edc887024830450221008e0725d531bd7dee4d8d38a0f921d7b1213e5b16c05312a80464ecc2b649598d0220596d309cf66d5f47cb3df558dbb43c5023a7796a80f5a88b023287e45a4db6b9012102c34d61ceafa8c216f01e05707672354f8119334610f7933a3f80dd7fb6290296bd391400')
+        funding_tx = Transaction('010000000001011f4db0ecd81f4388db316bc16efb4e9daf874cf4950d54ecb4c0fb372433d68500000000171600143d57fd9e88ef0e70cddb0d8b75ef86698cab0d44fdffffff0280969800000000001976a914147c2a2eca0ce9b8bbb2ad5c1326d44eabcaba1d88ac86a0ae020000000017a9149188bc82bdcae077060ebb4f02201b73c806edc887024830450221008e0725d531bd7dee4d8d38a0f921d7b1213e5b16c05312a80464ecc2b649598d0220596d309cf66d5f47cb3df558dbb43c5023a7796a80f5a88b023287e45a4db6b9012102c34d61ceafa8c216f01e05707672354f8119334610f7933a3f80dd7fb6290296bd391400')
         funding_txid = funding_tx.txid()
         funding_output_value = 10000000
-        self.assertEqual('03052739fcfa2ead5f8e57e26021b0c2c546bcd3d74c6e708d5046dc58d90762', funding_txid)
+        self.assertEqual('d698f3146d5f5a0637c3d76e890f179cb66b845a46b7ff6fa63b57db38ced2a9', funding_txid)
         wallet.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
 
         # create tx
-        outputs = [PartialTxOutput.from_address_and_value('miFLSDZBXUo4on8PGhTRTAufUn4mP61uoH', '!')]
+        outputs = [PartialTxOutput.from_address_and_value('mgp1TcpGDLbKfqAJJZJCw4YEZSf2gh7HSk', '!')]
         coins = wallet.get_spendable_coins(domain=None)
         tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=5000)
         tx.set_rbf(True)
@@ -1830,7 +1815,7 @@ class TestWalletSending(TestCaseForTestnet):
         tx.version = 2
         if simulate_moving_txs:
             partial_tx = tx.serialize_as_bytes().hex()
-            self.assertEqual("70736274ff01005502000000016207d958dc46508d706e4cd7d3bc46c5c2b02160e2578e5fad2efafc392705030000000000fdffffff01f8829800000000001976a9141df43441a3a3ee563e560d3ddc7e07cc9f9c3cdb88ac225f1c00000100fa010000000001011f4db0ecd81f4388db316bc16efb4e9daf874cf4950d54ecb4c0fb372433d68500000000171600143d57fd9e88ef0e70cddb0d8b75ef86698cab0d44fdffffff0280969800000000001976a91472e34cebab371967b038ce41d0e8fa1fb983795e88ac86a0ae020000000017a9149188bc82bdcae077060ebb4f02201b73c806edc887024830450221008e0725d531bd7dee4d8d38a0f921d7b1213e5b16c05312a80464ecc2b649598d0220596d309cf66d5f47cb3df558dbb43c5023a7796a80f5a88b023287e45a4db6b9012102c34d61ceafa8c216f01e05707672354f8119334610f7933a3f80dd7fb6290296bd391400220602a807c07bd7975211078e916bdda061d97e98d59a3631a804aada2f9a3f5b587a0c8296e571000000000000000000220202a7536f0bfbc60c5a8e86e2b9df26431fc062f9f454016dbc26f2467e0bc98b3f0c8296e571000000000100000000",
+            self.assertEqual("70736274ff0100550200000001a9d2ce38db573ba66fffb7465a846bb69c170f896ed7c337065a5f6d14f398d60000000000fdffffff01f8829800000000001976a9140e31d6ccb3d675a525f93a1ee3e5c58a3324fcd088ac225f1c00000100fa010000000001011f4db0ecd81f4388db316bc16efb4e9daf874cf4950d54ecb4c0fb372433d68500000000171600143d57fd9e88ef0e70cddb0d8b75ef86698cab0d44fdffffff0280969800000000001976a914147c2a2eca0ce9b8bbb2ad5c1326d44eabcaba1d88ac86a0ae020000000017a9149188bc82bdcae077060ebb4f02201b73c806edc887024830450221008e0725d531bd7dee4d8d38a0f921d7b1213e5b16c05312a80464ecc2b649598d0220596d309cf66d5f47cb3df558dbb43c5023a7796a80f5a88b023287e45a4db6b9012102c34d61ceafa8c216f01e05707672354f8119334610f7933a3f80dd7fb6290296bd39140022060274e7eb45f626119a7bef49787c534867bfd0b2ba3d74a9f6af10eb6bc01addc718b4dadb982c00008001000080000000800000000000000000002202038740d71b5e1a381cdd91174f7fbe3985ce96fcc32b6083d91b3943b6c03e1f2018b4dadb982c0000800100008000000080000000000100000000",
                              partial_tx)
             tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         wallet.sign_transaction(tx, password=None)
@@ -1843,10 +1828,10 @@ class TestWalletSending(TestCaseForTestnet):
 
         self.assertEqual(tx.txid(), tx_copy.txid())
         self.assertEqual(tx.wtxid(), tx_copy.wtxid())
-        self.assertEqual('02000000016207d958dc46508d706e4cd7d3bc46c5c2b02160e2578e5fad2efafc39270503000000006a47304402200c1ad6499cfd7a808c2463e211e0aaf503a571c85b679e69af215b76f05ad74d022066fccfec30164ad62686734ec3eca024e33e935b1bf30a98df85d87f01ba1b5f012102a807c07bd7975211078e916bdda061d97e98d59a3631a804aada2f9a3f5b587afdffffff01f8829800000000001976a9141df43441a3a3ee563e560d3ddc7e07cc9f9c3cdb88ac225f1c00',
+        self.assertEqual('0200000001a9d2ce38db573ba66fffb7465a846bb69c170f896ed7c337065a5f6d14f398d6000000006a473044022049b0ce3023f58ea3e49a05b75355fe760bd039a06408db4ead59e30d55e82b49022014dbcfad346516440b8729bd4dd84e546620df703cb8e24558a305369c375da501210274e7eb45f626119a7bef49787c534867bfd0b2ba3d74a9f6af10eb6bc01addc7fdffffff01f8829800000000001976a9140e31d6ccb3d675a525f93a1ee3e5c58a3324fcd088ac225f1c00',
                          str(tx_copy))
-        self.assertEqual('200d5173d3113e9cec7a63e885b64836245572d93b6dda4035f3ed44341b6277', tx_copy.txid())
-        self.assertEqual('200d5173d3113e9cec7a63e885b64836245572d93b6dda4035f3ed44341b6277', tx_copy.wtxid())
+        self.assertEqual('0f75946bbe3052578e8590bd71d9cc5cfe707478c07b9b8c4e73260863130606', tx_copy.txid())
+        self.assertEqual('0f75946bbe3052578e8590bd71d9cc5cfe707478c07b9b8c4e73260863130606', tx_copy.wtxid())
 
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, funding_output_value - 5000, 0), wallet.get_balance())
@@ -1860,10 +1845,10 @@ class TestWalletSending(TestCaseForTestnet):
                                                        config=config)
 
         # bootstrap wallet
-        funding_tx = Transaction('01000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400')
+        funding_tx = Transaction('01000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a1418780969800000000001600142b87b2e2633e973351e0619ffc8b0e1537055c8a02483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400')
         funding_txid = funding_tx.txid()
         funding_output_value = 10000000
-        self.assertEqual('52e669a20a26c8b3df5b41e5e6309b18bcde8e1ad7ea17a18f63b6dc6c8becc0', funding_txid)
+        self.assertEqual('390dc4fb9dfc715a91f0dc025919fd4bf46001750e93573defa54324aa3833b1', funding_txid)
         wallet.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
 
         # create tx
@@ -1875,7 +1860,7 @@ class TestWalletSending(TestCaseForTestnet):
         tx.version = 1
         if simulate_moving_txs:
             partial_tx = tx.serialize_as_bytes().hex()
-            self.assertEqual("70736274ff0100720100000001c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987585d720000000000160014f0fe5c1867a174a12e70165e728a072619455ed5bb391400000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb3914002206028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c510e8a903980000008000000000000000000000220202105dd9133f33cbd4e50443ef9af428c0be61f097f8942aaa916f50b530125aea10e8a9039800000080010000000000000000",
+            self.assertEqual("70736274ff0100720100000001b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987585d72000000000016001454d6269f3ac74e14c43f57eb673156ffeb136f34bb391400000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a1418780969800000000001600142b87b2e2633e973351e0619ffc8b0e1537055c8a02483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400220603b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354182e2859e954000080010000800000008000000000000000000000220202709aaf71b5f3bb313032e823032f204c16936ba8ccb69f58e7061c1a928c4e03182e2859e9540000800100008000000080010000000000000000",
                              partial_tx)
             tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         wallet.sign_transaction(tx, password=None)
@@ -1888,10 +1873,10 @@ class TestWalletSending(TestCaseForTestnet):
 
         self.assertEqual(tx.txid(), tx_copy.txid())
         self.assertEqual(tx.wtxid(), tx_copy.wtxid())
-        self.assertEqual('01000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987585d720000000000160014f0fe5c1867a174a12e70165e728a072619455ed50247304402205442705e988abe74bf391b293bb1b886674284a92ed0788c33024f9336d60aef022013a93049d3bed693254cd31a704d70bb988a36750f0b74d0a5b4d9e29c54ca9d0121028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c5bb391400',
+        self.assertEqual('01000000000101b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987585d72000000000016001454d6269f3ac74e14c43f57eb673156ffeb136f3402473044022040d9f2ff7130713e8a91db1ab9a80aa48821593a95d960073ed36abd3fa63c1d02203bad9c64071018ffa1c989a5cbf52a6048c7fe4a8b96adc65dea8e95da44e3c1012103b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354bb391400',
                          str(tx_copy))
-        self.assertEqual('b019bbad45a46ed25365e46e4cae6428fb12ae425977eb93011ffb294cb4977e', tx_copy.txid())
-        self.assertEqual('ba87313e2b3b42f1cc478843d4d53c72d6e06f6c66ac8cfbe2a59cdac2fd532d', tx_copy.wtxid())
+        self.assertEqual('3d97f0a155a07ac522a0a4ee3d0046bd180a8a92bb40d9776b8fcfae3244d640', tx_copy.txid())
+        self.assertEqual('044272ffbd9e9b6a98adb6c33300f26d1e00bdd5a965cdffedab6706f0709875', tx_copy.wtxid())
 
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, funding_output_value - 2500000 - 5000, 0), wallet.get_balance())
@@ -1904,7 +1889,7 @@ class TestWalletSending(TestCaseForTestnet):
         tx.version = 2
         if simulate_moving_txs:
             partial_tx = tx.serialize_as_bytes().hex()
-            self.assertEqual("70736274ff0100520200000001c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff016c78980000000000160014f0fe5c1867a174a12e70165e728a072619455ed5455f1c00000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb3914002206028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c510e8a9039800000080000000000000000000220202105dd9133f33cbd4e50443ef9af428c0be61f097f8942aaa916f50b530125aea10e8a9039800000080010000000000000000",
+            self.assertEqual("70736274ff0100520200000001b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdffffff016c7898000000000016001454d6269f3ac74e14c43f57eb673156ffeb136f34455f1c00000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a1418780969800000000001600142b87b2e2633e973351e0619ffc8b0e1537055c8a02483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400220603b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354182e2859e9540000800100008000000080000000000000000000220202709aaf71b5f3bb313032e823032f204c16936ba8ccb69f58e7061c1a928c4e03182e2859e9540000800100008000000080010000000000000000",
                              partial_tx)
             tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         self.assertFalse(tx.is_complete())
@@ -1913,10 +1898,10 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertTrue(tx.is_complete())
         self.assertTrue(tx.is_segwit())
         tx_copy = tx_from_any(tx.serialize())
-        self.assertEqual('02000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff016c78980000000000160014f0fe5c1867a174a12e70165e728a072619455ed50247304402201e706f7ab50e4212a98782e483476102cd6579dad91196002b13dedec79a9a6302205ae30e6c3cf6dd8c566ddae090eeedaac09ba0adc4c0205dfa77bc627621a6b70121028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c5455f1c00',
+        self.assertEqual('02000000000101b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdffffff016c7898000000000016001454d6269f3ac74e14c43f57eb673156ffeb136f340247304402202a4a762ea2c1d24cc713122babd2c19dbc030f9bcb8d6f2a93a53160ff6d26580220712a29fed17938783b457ba3b179ef44a776a90f1349e239bc40948156ffb9b8012103b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354455f1c00',
                          str(tx_copy))
-        self.assertEqual('165f82b1440cd3a31c005cec660cf834917a1e0a89011805a620c702840fc46a', tx_copy.txid())
-        self.assertEqual('a164fff4f4231a09e8745eb27d0fe636c5c291400b8506d932b0bde6ff8cf9ee', tx_copy.wtxid())
+        self.assertEqual('3493737c905c9bd5168b078a86d3362e6d783e0dada1d266a39f188f86748ddd', tx_copy.txid())
+        self.assertEqual('dba798a5f11a2be50a50315a063f3cd1173a263440b465755da172fae969ba08', tx_copy.wtxid())
 
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 9992300, 0), wallet.get_balance())
@@ -1926,9 +1911,9 @@ class TestWalletSending(TestCaseForTestnet):
                                                        config=config)
 
         # bootstrap wallet
-        funding_tx = Transaction('01000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400')
+        funding_tx = Transaction('01000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a1418780969800000000001600142b87b2e2633e973351e0619ffc8b0e1537055c8a02483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400')
         funding_txid = funding_tx.txid()
-        self.assertEqual('52e669a20a26c8b3df5b41e5e6309b18bcde8e1ad7ea17a18f63b6dc6c8becc0', funding_txid)
+        self.assertEqual('390dc4fb9dfc715a91f0dc025919fd4bf46001750e93573defa54324aa3833b1', funding_txid)
         wallet.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
 
         # create tx
@@ -1940,7 +1925,7 @@ class TestWalletSending(TestCaseForTestnet):
         tx.version = 1
         if simulate_moving_txs:
             partial_tx = tx.serialize_as_bytes().hex()
-            self.assertEqual("70736274ff0100530100000001c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff01f88298000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987bb391400000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb3914002206028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c510e8a903980000008000000000000000000000",
+            self.assertEqual("70736274ff0100530100000001b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdffffff01f88298000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987bb391400000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a1418780969800000000001600142b87b2e2633e973351e0619ffc8b0e1537055c8a02483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400220603b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354182e2859e954000080010000800000008000000000000000000000",
                              partial_tx)
             tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         wallet.sign_transaction(tx, password=None)
@@ -1953,10 +1938,10 @@ class TestWalletSending(TestCaseForTestnet):
 
         self.assertEqual(tx.txid(), tx_copy.txid())
         self.assertEqual(tx.wtxid(), tx_copy.wtxid())
-        self.assertEqual('01000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff01f88298000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987024730440220520ab41536d5d0fac8ad44e6aa4a8258a266121bab1eb6599f1ee86bbc65719d02205944c2fb765fca4753a850beadac49f5305c6722410c347c08cec4d90e3eb4430121028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c5bb391400',
+        self.assertEqual('01000000000101b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdffffff01f88298000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987024730440220266f065c219cb8e99b985453f784baf0635cc91741aca2a4ed8f709cd51d0ffc02200e6a0c4bfb987be590449f9aa035f532f4d5c032927fedc5b32447332ea7b2ac012103b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354bb391400',
                          str(tx_copy))
-        self.assertEqual('dc4b622f3225f00edb886011fa02b74630cdbc24cebdd3210d5ea3b68bef5cc9', tx_copy.txid())
-        self.assertEqual('a00340ee8c90673e05f2cf368601b6bba6a7f0513bd974feb218a326e39b1874', tx_copy.wtxid())
+        self.assertEqual('83cc46dee2e52b94c364e7b8987d37519dce7eac18aa62add6930bd12216ccb9', tx_copy.txid())
+        self.assertEqual('c9a26848039673cf1c95d737bf621e8bc6646368161b8d458e7049cdb992e3e1', tx_copy.wtxid())
 
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 0, 0), wallet.get_balance())
@@ -1969,7 +1954,7 @@ class TestWalletSending(TestCaseForTestnet):
         tx.version = 2
         if simulate_moving_txs:
             partial_tx = tx.serialize_as_bytes().hex()
-            self.assertEqual("70736274ff0100520200000001c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff016c78980000000000160014f0fe5c1867a174a12e70165e728a072619455ed57f5f1c00000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb3914002206028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c510e8a9039800000080000000000000000000220202105dd9133f33cbd4e50443ef9af428c0be61f097f8942aaa916f50b530125aea10e8a9039800000080010000000000000000",
+            self.assertEqual("70736274ff0100520200000001b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdffffff016c7898000000000016001454d6269f3ac74e14c43f57eb673156ffeb136f347f5f1c00000100fda20101000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a1418780969800000000001600142b87b2e2633e973351e0619ffc8b0e1537055c8a02483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400220603b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e354182e2859e9540000800100008000000080000000000000000000220202709aaf71b5f3bb313032e823032f204c16936ba8ccb69f58e7061c1a928c4e03182e2859e9540000800100008000000080010000000000000000",
                              partial_tx)
             tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         self.assertFalse(tx.is_complete())
@@ -1978,10 +1963,10 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertTrue(tx.is_complete())
         self.assertTrue(tx.is_segwit())
         tx_copy = tx_from_any(tx.serialize())
-        self.assertEqual('02000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff016c78980000000000160014f0fe5c1867a174a12e70165e728a072619455ed502473044022013892ba1580bd8b35fe74cb7a0dceb6914b01ed5cfef6435b94ac0256866971c02200290d08d5f199fcdbba1a2dc4884f5cdea0177cb88e423d8588480d6a5fd62740121028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c57f5f1c00',
+        self.assertEqual('02000000000101b13338aa2443a5ef3d57930e750160f44bfd195902dcf0915a71fc9dfbc40d390100000000fdffffff016c7898000000000016001454d6269f3ac74e14c43f57eb673156ffeb136f3402473044022033462fe27b2c0b6295dbae151983cfe44f21089b7c8c0a590c20d86d89c508a70220774b0b89c3985c5bf664d8028838dbf0e2aaa3d569c98d4cecbae03a7ee9b68a012103b37db9a963519b52d117ad405b1db2869985a022db5397e73b264296dd21e3547f5f1c00',
                          str(tx_copy))
-        self.assertEqual('42e222b8faff6cb7fcb82697e04f7bc88a5ed57293773a57a5e400ce0450203e', tx_copy.txid())
-        self.assertEqual('0c6511d0c008604948ea68b0f8cb3da00966c5a97a08a220716ff47eecd4922d', tx_copy.wtxid())
+        self.assertEqual('2799332c572b8b47c974294051589e162a3ea6560f2aae62fb91d5938db11774', tx_copy.txid())
+        self.assertEqual('987e475bc2178b2fb21cb173d7bee3ea309ad13da413640205699913ae9518e3', tx_copy.wtxid())
 
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 9992300, 0), wallet.get_balance())
@@ -2017,14 +2002,14 @@ class TestWalletSending(TestCaseForTestnet):
         wallet.network = NetworkMock()
 
         # bootstrap wallet
-        funding_tx = Transaction('02000000000101a5883f3de780d260e6f26cf85144403c7744a65a44cd38f9ff45aecadf010c540100000000fdffffff0220a1070000000000160014db44724ac632ae47ee5765954d64796dd5fec72708de3c000000000016001424b32aadb42a89016c4de8f11741c3b29b15f21c02473044022045cc6c1cc875cbb0c0d8fe323dc1de9716e49ed5659741b0fb3dd9a196894066022077c242640071d12ec5763c5870f482a4823d8713e4bd14353dd621ed29a7f96d012102aea8d439a0f79d8b58e8d7bda83009f587e1f3da350adaa484329bf47cd03465fef61c00')
+        funding_tx = Transaction('02000000000101a5883f3de780d260e6f26cf85144403c7744a65a44cd38f9ff45aecadf010c540100000000fdffffff0220a10700000000001600145f4cfb0e1d2a7055634074bfbc9f546ac019e47f08de3c000000000016001424b32aadb42a89016c4de8f11741c3b29b15f21c02473044022045cc6c1cc875cbb0c0d8fe323dc1de9716e49ed5659741b0fb3dd9a196894066022077c242640071d12ec5763c5870f482a4823d8713e4bd14353dd621ed29a7f96d012102aea8d439a0f79d8b58e8d7bda83009f587e1f3da350adaa484329bf47cd03465fef61c00')
         funding_txid = funding_tx.txid()
-        self.assertEqual('08557327673db61cc921e1a30826608599b86457836be3021105c13940d9a9a3', funding_txid)
+        self.assertEqual('bf0272eb0cd61ef36a7d69b4714ea4291bf5cbab229abd4bcb67c5111f92bb01', funding_txid)
         wallet.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
 
-        orig_rbf_tx = Transaction('02000000000102a3a9d94039c1051102e36b835764b89985602608a3e121c91cb63d67277355080000000000fdfffffffd57af9ecf29b1cb42cb91087cf0d1d9fce59a3ca0b25bbfa7d27c07f99870590200000000fdffffff03b2a00700000000001600145dc80fd43eb70fd21a6c4446e3ce043df94f100cb2a00700000000001600147db4ab480b7d2218fba561ff304178f4afcbc972be358900000000001600149d91f0053172fab394d277ae27e9fa5c5a49210902473044022003999f03be8b9e299b2cd3bc7bce05e273d5d9ce24fc47af8754f26a7a13e13f022004e668499a67061789f6ebd2932c969ece74417ae3f2307bf696428bbed4fe36012102a1c9b25b37aa31ccbb2d72caaffce81ec8253020a74017d92bbfc14a832fc9cb0247304402207121358a66c0e716e2ba2be928076736261c691b4fbf89ea8d255449a4f5837b022042cadf9fe1b4f3c03ede3cef6783b42f0ba319f2e0273b624009cd023488c4c1012103a5ba95fb1e0043428ed70680fc17db254b3f701dfccf91e48090aa17c1b7ea40fef61c00')
+        orig_rbf_tx = Transaction('0200000000010201bb921f11c567cb4bbd9a22abcbf51b29a44e71b4697d6af31ed60ceb7202bf0000000000fdfffffffd57af9ecf29b1cb42cb91087cf0d1d9fce59a3ca0b25bbfa7d27c07f99870590200000000fdffffff03b2a00700000000001600141d68d5b83c2b21f924c92a4fd2dfaf63e9bf19d4b2a00700000000001600147db4ab480b7d2218fba561ff304178f4afcbc972be358900000000001600149d91f0053172fab394d277ae27e9fa5c5a49210902473044022003999f03be8b9e299b2cd3bc7bce05e273d5d9ce24fc47af8754f26a7a13e13f022004e668499a67061789f6ebd2932c969ece74417ae3f2307bf696428bbed4fe36012102a1c9b25b37aa31ccbb2d72caaffce81ec8253020a74017d92bbfc14a832fc9cb0247304402207121358a66c0e716e2ba2be928076736261c691b4fbf89ea8d255449a4f5837b022042cadf9fe1b4f3c03ede3cef6783b42f0ba319f2e0273b624009cd023488c4c1012103a5ba95fb1e0043428ed70680fc17db254b3f701dfccf91e48090aa17c1b7ea40fef61c00')
         orig_rbf_txid = orig_rbf_tx.txid()
-        self.assertEqual('6057690010ddac93a371629e1f41866400623e13a9cd336d280fc3239086a983', orig_rbf_txid)
+        self.assertEqual('445a4408eba38686126bf0f1ae7836038d997dceb2f3eeb407c131255b118985', orig_rbf_txid)
         wallet.receive_tx_callback(orig_rbf_txid, orig_rbf_tx, TX_HEIGHT_UNCONFIRMED)
 
         # bump tx
@@ -2033,7 +2018,7 @@ class TestWalletSending(TestCaseForTestnet):
         tx.version = 2
         if simulate_moving_txs:
             partial_tx = tx.serialize_as_bytes().hex()
-            self.assertEqual("70736274ff0100520200000001a3a9d94039c1051102e36b835764b89985602608a3e121c91cb63d67277355080000000000fdffffff010c830700000000001600145dc80fd43eb70fd21a6c4446e3ce043df94f100c26f71c00000100de02000000000101a5883f3de780d260e6f26cf85144403c7744a65a44cd38f9ff45aecadf010c540100000000fdffffff0220a1070000000000160014db44724ac632ae47ee5765954d64796dd5fec72708de3c000000000016001424b32aadb42a89016c4de8f11741c3b29b15f21c02473044022045cc6c1cc875cbb0c0d8fe323dc1de9716e49ed5659741b0fb3dd9a196894066022077c242640071d12ec5763c5870f482a4823d8713e4bd14353dd621ed29a7f96d012102aea8d439a0f79d8b58e8d7bda83009f587e1f3da350adaa484329bf47cd03465fef61c00220602a1c9b25b37aa31ccbb2d72caaffce81ec8253020a74017d92bbfc14a832fc9cb109c9fff980000008000000000000000000022020353becea8bbfe746452e5d2fa2e0688013e43ca6409c8e30b6cc99e7625ff2265109c9fff9800000080000000000100000000",
+            self.assertEqual("70736274ff010052020000000101bb921f11c567cb4bbd9a22abcbf51b29a44e71b4697d6af31ed60ceb7202bf0000000000fdffffff010c830700000000001600141d68d5b83c2b21f924c92a4fd2dfaf63e9bf19d426f71c00000100de02000000000101a5883f3de780d260e6f26cf85144403c7744a65a44cd38f9ff45aecadf010c540100000000fdffffff0220a10700000000001600145f4cfb0e1d2a7055634074bfbc9f546ac019e47f08de3c000000000016001424b32aadb42a89016c4de8f11741c3b29b15f21c02473044022045cc6c1cc875cbb0c0d8fe323dc1de9716e49ed5659741b0fb3dd9a196894066022077c242640071d12ec5763c5870f482a4823d8713e4bd14353dd621ed29a7f96d012102aea8d439a0f79d8b58e8d7bda83009f587e1f3da350adaa484329bf47cd03465fef61c002206037b1e0ebf1b2a21b9c4803bb0d84af4049c3477afb86f7c5838d47ab62d45332618fce77fd854000080010000800000008000000000000000000022020254f19cf4066eae96677078ac3dfd6571ba1aaffa756913a0d3fb42db58dbda7e18fce77fd8540000800100008000000080000000000100000000",
                              partial_tx)
             tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         self.assertFalse(tx.is_complete())
@@ -2042,9 +2027,9 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertTrue(tx.is_complete())
         self.assertTrue(tx.is_segwit())
         tx_copy = tx_from_any(tx.serialize())
-        self.assertEqual('02000000000101a3a9d94039c1051102e36b835764b89985602608a3e121c91cb63d67277355080000000000fdffffff010c830700000000001600145dc80fd43eb70fd21a6c4446e3ce043df94f100c0247304402202e75e1edceb8ce27d75814bc7895bc48a0d5c423b492b980b655908612485cc8022072a947c4516ab220d0825634efd8b1ad3a5503e63ed8fbb97700b5d73786c63f012102a1c9b25b37aa31ccbb2d72caaffce81ec8253020a74017d92bbfc14a832fc9cb26f71c00',
+        self.assertEqual('0200000000010101bb921f11c567cb4bbd9a22abcbf51b29a44e71b4697d6af31ed60ceb7202bf0000000000fdffffff010c830700000000001600141d68d5b83c2b21f924c92a4fd2dfaf63e9bf19d40247304402200991c93fd7ca3b2c065e7ce2d8c2a8cef8adcea004d82e875c65dcfbafea7ddb02206a5488a5de5267dad34f47656ec5ae9c81dcfd3a1230a73142b97f51947735df0121037b1e0ebf1b2a21b9c4803bb0d84af4049c3477afb86f7c5838d47ab62d45332626f71c00',
                          str(tx_copy))
-        self.assertEqual('3021a4fe24e33af9d0ccdf25c478387c97df671fe1fd8b4db0de4255b3a348c5', tx_copy.txid())
+        self.assertEqual('af689b3efc07f636ae0bc9cc943717e856550d3dc68783bd55bdfb1ffb6f8256', tx_copy.txid())
 
 
 class TestWalletOfflineSigning(TestCaseForTestnet):
@@ -2563,7 +2548,6 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
         self.assertEqual('f8039bd85279f2b5698f15d47f2e338d067d09af391bd8a19467aa94d03f280c', tx.txid())
         self.assertEqual('3b7cc3c3352bbb43ddc086487ac696e09f2863c3d9e8636721851b8008a83ffa', tx.wtxid())
 
-    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_sending_offline_hd_multisig_online_addr_p2sh(self, mock_save_db):
         # 2-of-3 legacy p2sh multisig
@@ -2571,7 +2555,7 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
             [
                 keystore.from_seed('blast uniform dragon fiscal ensure vast young utility dinosaur abandon rookie sure', '', True),
                 keystore.from_xpub('tpubD6NzVbkrYhZ4YTPEgwk4zzr8wyo7pXGmbbVUnfYNtx6SgAMF5q3LN3Kch58P9hxGNsTmP7Dn49nnrmpE6upoRb1Xojg12FGLuLHkVpVtS44'),
-                keystore.from_xpub('tpubD6NzVbkrYhZ4XJzYkhsCbDCcZRmDAKSD7bXi9mdCni7acVt45fxbTVZyU6jRGh29ULKTjoapkfFsSJvQHitcVKbQgzgkkYsAmaovcro7Mhf')
+                keystore.from_xpub('tpubDEFidU8b6BSF76ayNMr2Qy7TmRokQZ4TdBZNxTVJskzg5PzxxDwSewRfu7jbZ51onSYgnSPMunPVRqR7LqVpJFVSNfUNrmRmtyzizLY6TQ8')
             ],
             '2of3', gap_limit=2,
             config=self.config
@@ -2580,18 +2564,18 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
             [
                 keystore.from_seed('cycle rocket west magnet parrot shuffle foot correct salt library feed song', '', True),
                 keystore.from_xpub('tpubD6NzVbkrYhZ4YTPEgwk4zzr8wyo7pXGmbbVUnfYNtx6SgAMF5q3LN3Kch58P9hxGNsTmP7Dn49nnrmpE6upoRb1Xojg12FGLuLHkVpVtS44'),
-                keystore.from_xpub('tpubD6NzVbkrYhZ4YARFMEZPckrqJkw59GZD1PXtQnw14ukvWDofR7Z1HMeSCxfYEZVvg4VdZ8zGok5VxHwdrLqew5cMdQntWc5mT7mh1CSgrnX')
+                keystore.from_xpub('tpubDEnMyw5xQncRD1ZCPPt45qUckZuyA93XJBYxDacUFHnCx9g9kmx7tjvNYKXTehnA2ULMh7PnBgsN3mgrR77To65MLKZjkjEvHAqVz3ZcD8d')
             ],
             '2of3', gap_limit=2,
             config=self.config
         )
         wallet_online = WalletIntegrityHelper.create_imported_wallet(privkeys=False, config=self.config)
-        wallet_online.import_address('2N4z38eTKcWTZnfugCCfRyXtXWMLnn8HDfw')
+        wallet_online.import_address('2MtE8LDTh8Bq2hoCeaGdCEDuACh4F1MrxCu')
 
         # bootstrap wallet_online
-        funding_tx = Transaction('010000000001016207d958dc46508d706e4cd7d3bc46c5c2b02160e2578e5fad2efafc3927050301000000171600147a4fc8cdc1c2cf7abbcd88ef6d880e59269797acfdffffff02809698000000000017a91480c2353f6a7bc3c71e99e062655b19adb3dd2e48870d0916020000000017a914703f83ef20f3a52d908475dcad00c5144164d5a2870247304402203b1a5cb48cadeee14fa6c7bbf2bc581ca63104762ec5c37c703df778884cc5b702203233fa53a2a0bfbd85617c636e415da72214e359282cce409019319d031766c50121021112c01a48cc7ea13cba70493c6bffebb3e805df10ff4611d2bf559d26e25c04bf391400')
+        funding_tx = Transaction('010000000001016207d958dc46508d706e4cd7d3bc46c5c2b02160e2578e5fad2efafc3927050301000000171600147a4fc8cdc1c2cf7abbcd88ef6d880e59269797acfdffffff02809698000000000017a9140ac2fcf6a8d473c0a6921384c8a56a42f452ef65870d0916020000000017a914703f83ef20f3a52d908475dcad00c5144164d5a2870247304402203b1a5cb48cadeee14fa6c7bbf2bc581ca63104762ec5c37c703df778884cc5b702203233fa53a2a0bfbd85617c636e415da72214e359282cce409019319d031766c50121021112c01a48cc7ea13cba70493c6bffebb3e805df10ff4611d2bf559d26e25c04bf391400')
         funding_txid = funding_tx.txid()
-        self.assertEqual('c59913a1fa9b1ef1f6928f0db490be67eeb9d7cb05aa565ee647e859642f3532', funding_txid)
+        self.assertEqual('597193e174e10360a793d42a343bba6274858bb03539ebe04ee3836677992b23', funding_txid)
         wallet_online.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
 
         # create unsigned tx
@@ -2604,7 +2588,7 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
         self.assertFalse(tx.is_complete())
         self.assertEqual(1, len(tx.inputs()))
         partial_tx = tx.serialize_as_bytes().hex()
-        self.assertEqual("70736274ff010073010000000132352f6459e847e65e56aa05cbd7b9ee67be90b40d8f92f6f11e9bfaa11399c50000000000fdffffff02a02526000000000017a9141567b2578f300fa618ef0033611fd67087aff6d187585d72000000000017a91480c2353f6a7bc3c71e99e062655b19adb3dd2e4887bf391400000100f7010000000001016207d958dc46508d706e4cd7d3bc46c5c2b02160e2578e5fad2efafc3927050301000000171600147a4fc8cdc1c2cf7abbcd88ef6d880e59269797acfdffffff02809698000000000017a91480c2353f6a7bc3c71e99e062655b19adb3dd2e48870d0916020000000017a914703f83ef20f3a52d908475dcad00c5144164d5a2870247304402203b1a5cb48cadeee14fa6c7bbf2bc581ca63104762ec5c37c703df778884cc5b702203233fa53a2a0bfbd85617c636e415da72214e359282cce409019319d031766c50121021112c01a48cc7ea13cba70493c6bffebb3e805df10ff4611d2bf559d26e25c04bf391400000000",
+        self.assertEqual("70736274ff0100730100000001232b99776683e34ee0eb3935b08b857462ba3b342ad493a76003e174e19371590000000000fdffffff02a02526000000000017a9141567b2578f300fa618ef0033611fd67087aff6d187585d72000000000017a9140ac2fcf6a8d473c0a6921384c8a56a42f452ef6587bf391400000100f7010000000001016207d958dc46508d706e4cd7d3bc46c5c2b02160e2578e5fad2efafc3927050301000000171600147a4fc8cdc1c2cf7abbcd88ef6d880e59269797acfdffffff02809698000000000017a9140ac2fcf6a8d473c0a6921384c8a56a42f452ef65870d0916020000000017a914703f83ef20f3a52d908475dcad00c5144164d5a2870247304402203b1a5cb48cadeee14fa6c7bbf2bc581ca63104762ec5c37c703df778884cc5b702203233fa53a2a0bfbd85617c636e415da72214e359282cce409019319d031766c50121021112c01a48cc7ea13cba70493c6bffebb3e805df10ff4611d2bf559d26e25c04bf391400000000",
                          partial_tx)
         tx_copy = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(tx_copy.inputs()[0])))
@@ -2616,7 +2600,7 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
         tx = wallet_offline1.sign_transaction(tx_copy, password=None)
         self.assertFalse(tx.is_complete())
         partial_tx = tx.serialize_as_bytes().hex()
-        self.assertEqual("70736274ff010073010000000132352f6459e847e65e56aa05cbd7b9ee67be90b40d8f92f6f11e9bfaa11399c50000000000fdffffff02a02526000000000017a9141567b2578f300fa618ef0033611fd67087aff6d187585d72000000000017a91480c2353f6a7bc3c71e99e062655b19adb3dd2e4887bf391400000100f7010000000001016207d958dc46508d706e4cd7d3bc46c5c2b02160e2578e5fad2efafc3927050301000000171600147a4fc8cdc1c2cf7abbcd88ef6d880e59269797acfdffffff02809698000000000017a91480c2353f6a7bc3c71e99e062655b19adb3dd2e48870d0916020000000017a914703f83ef20f3a52d908475dcad00c5144164d5a2870247304402203b1a5cb48cadeee14fa6c7bbf2bc581ca63104762ec5c37c703df778884cc5b702203233fa53a2a0bfbd85617c636e415da72214e359282cce409019319d031766c50121021112c01a48cc7ea13cba70493c6bffebb3e805df10ff4611d2bf559d26e25c04bf391400220202afb4af9a91264e1c6dce3ebe5312801723270ac0ba8134b7b49129328fcb0f284730440220451f77cb18224adcb4981492d9be2c3fa7537f94f4b29eb405992dbdd5df04aa022071e6759d40dde810caa01ca7f16bad3cb742d64428c419c8fb4bad6f1c3f718101010469522102afb4af9a91264e1c6dce3ebe5312801723270ac0ba8134b7b49129328fcb0f2821030b482838721a38d94847699fed8818b5c5f56500ef72f13489e365b65e5749cf2103e5db7969ae2f2576e6a061bf3bb2db16571e77ffb41e0b27170734359235cbce53ae220602afb4af9a91264e1c6dce3ebe5312801723270ac0ba8134b7b49129328fcb0f280c0036e9ac00000000000000002206030b482838721a38d94847699fed8818b5c5f56500ef72f13489e365b65e5749cf0c48adc7a00000000000000000220603e5db7969ae2f2576e6a061bf3bb2db16571e77ffb41e0b27170734359235cbce0cdb69242700000000000000000000010069522102afb4af9a91264e1c6dce3ebe5312801723270ac0ba8134b7b49129328fcb0f2821030b482838721a38d94847699fed8818b5c5f56500ef72f13489e365b65e5749cf2103e5db7969ae2f2576e6a061bf3bb2db16571e77ffb41e0b27170734359235cbce53ae220202afb4af9a91264e1c6dce3ebe5312801723270ac0ba8134b7b49129328fcb0f280c0036e9ac00000000000000002202030b482838721a38d94847699fed8818b5c5f56500ef72f13489e365b65e5749cf0c48adc7a00000000000000000220203e5db7969ae2f2576e6a061bf3bb2db16571e77ffb41e0b27170734359235cbce0cdb692427000000000000000000",
+        self.assertEqual("70736274ff0100730100000001232b99776683e34ee0eb3935b08b857462ba3b342ad493a76003e174e19371590000000000fdffffff02a02526000000000017a9141567b2578f300fa618ef0033611fd67087aff6d187585d72000000000017a9140ac2fcf6a8d473c0a6921384c8a56a42f452ef6587bf391400000100f7010000000001016207d958dc46508d706e4cd7d3bc46c5c2b02160e2578e5fad2efafc3927050301000000171600147a4fc8cdc1c2cf7abbcd88ef6d880e59269797acfdffffff02809698000000000017a9140ac2fcf6a8d473c0a6921384c8a56a42f452ef65870d0916020000000017a914703f83ef20f3a52d908475dcad00c5144164d5a2870247304402203b1a5cb48cadeee14fa6c7bbf2bc581ca63104762ec5c37c703df778884cc5b702203233fa53a2a0bfbd85617c636e415da72214e359282cce409019319d031766c50121021112c01a48cc7ea13cba70493c6bffebb3e805df10ff4611d2bf559d26e25c04bf391400220203a4682ef2bf15960975a06b77477862b70bc111d54d38a9b8f19d03dc05d0035447304402205b90a378080f389a72d310e47ec09c0cd727902b77c40edc7b62f7beac69319202206bf106936f9ebb0b3c0d1c384a867a37499b4c363038cdd1a0fac9471e97a254010104695221029443e921a19ff5c6a6354e0c07c142489772b6d075627098b5068c51a401a5212103a4682ef2bf15960975a06b77477862b70bc111d54d38a9b8f19d03dc05d003542103e5db7969ae2f2576e6a061bf3bb2db16571e77ffb41e0b27170734359235cbce53ae2206029443e921a19ff5c6a6354e0c07c142489772b6d075627098b5068c51a401a5210ca87f849e0000000000000000220603a4682ef2bf15960975a06b77477862b70bc111d54d38a9b8f19d03dc05d003541c6367747e300000800100008000000080030000800000000000000000220603e5db7969ae2f2576e6a061bf3bb2db16571e77ffb41e0b27170734359235cbce0cdb692427000000000000000000000100695221029443e921a19ff5c6a6354e0c07c142489772b6d075627098b5068c51a401a5212103a4682ef2bf15960975a06b77477862b70bc111d54d38a9b8f19d03dc05d003542103e5db7969ae2f2576e6a061bf3bb2db16571e77ffb41e0b27170734359235cbce53ae2202029443e921a19ff5c6a6354e0c07c142489772b6d075627098b5068c51a401a5210ca87f849e0000000000000000220203a4682ef2bf15960975a06b77477862b70bc111d54d38a9b8f19d03dc05d003541c6367747e300000800100008000000080030000800000000000000000220203e5db7969ae2f2576e6a061bf3bb2db16571e77ffb41e0b27170734359235cbce0cdb692427000000000000000000",
                          partial_tx)
         tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
 
@@ -2625,10 +2609,10 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
         self.assertTrue(tx.is_complete())
         tx = tx_from_any(tx.serialize())
 
-        self.assertEqual('010000000132352f6459e847e65e56aa05cbd7b9ee67be90b40d8f92f6f11e9bfaa11399c500000000fc004730440220451f77cb18224adcb4981492d9be2c3fa7537f94f4b29eb405992dbdd5df04aa022071e6759d40dde810caa01ca7f16bad3cb742d64428c419c8fb4bad6f1c3f718101473044022052980154bdf2e43d6bd8775316cc220ef5ae13b4b9574a7a904a691ee3c5efd3022069b3eddf904cc645bd8fc8b2aaa7aaf7eb5bbfb7bbbd3b6e6cd89b37dfb2856c014c69522102afb4af9a91264e1c6dce3ebe5312801723270ac0ba8134b7b49129328fcb0f2821030b482838721a38d94847699fed8818b5c5f56500ef72f13489e365b65e5749cf2103e5db7969ae2f2576e6a061bf3bb2db16571e77ffb41e0b27170734359235cbce53aefdffffff02a02526000000000017a9141567b2578f300fa618ef0033611fd67087aff6d187585d72000000000017a91480c2353f6a7bc3c71e99e062655b19adb3dd2e4887bf391400',
+        self.assertEqual('0100000001232b99776683e34ee0eb3935b08b857462ba3b342ad493a76003e174e193715900000000fc00473044022067e63e02ca54350084bc044e9a506e62e320984b29bd82daf0e47af466d54c74022002a524fa660885f717c39c66d2f841f88a80227fd0a3a4dddf1691a675d1e0930147304402205b90a378080f389a72d310e47ec09c0cd727902b77c40edc7b62f7beac69319202206bf106936f9ebb0b3c0d1c384a867a37499b4c363038cdd1a0fac9471e97a254014c695221029443e921a19ff5c6a6354e0c07c142489772b6d075627098b5068c51a401a5212103a4682ef2bf15960975a06b77477862b70bc111d54d38a9b8f19d03dc05d003542103e5db7969ae2f2576e6a061bf3bb2db16571e77ffb41e0b27170734359235cbce53aefdffffff02a02526000000000017a9141567b2578f300fa618ef0033611fd67087aff6d187585d72000000000017a9140ac2fcf6a8d473c0a6921384c8a56a42f452ef6587bf391400',
                          str(tx))
-        self.assertEqual('0e8fdc8257a85ebe7eeab14a53c2c258c61a511f64176b7f8fc016bc2263d307', tx.txid())
-        self.assertEqual('0e8fdc8257a85ebe7eeab14a53c2c258c61a511f64176b7f8fc016bc2263d307', tx.wtxid())
+        self.assertEqual('1d0a6825a2b05b8246462a108c468013949a58829dd835f568145e366fc4c3de', tx.txid())
+        self.assertEqual('1d0a6825a2b05b8246462a108c468013949a58829dd835f568145e366fc4c3de', tx.wtxid())
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_sending_offline_hd_multisig_online_addr_p2wsh_p2sh(self, mock_save_db):
@@ -2700,14 +2684,13 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
         self.assertEqual('6a58a51591142429203b62b6ddf6b799a6926882efac229998c51bee6c3573eb', tx.txid())
         self.assertEqual('96d0bca1001778c54e4c3a07929fab5562c5b5a23fd1ca3aa3870cc5df2bf97d', tx.wtxid())
 
-    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_sending_offline_hd_multisig_online_addr_p2wsh(self, mock_save_db):
         # 2-of-3 p2wsh multisig
         wallet_offline1 = WalletIntegrityHelper.create_multisig_wallet(
             [
                 keystore.from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver', '', True),
-                keystore.from_xpub('Vpub5fcdcgEwTJmbmqAktuK8Kyq92fMf7sWkcP6oqAii2tG47dNbfkGEGUbfS9NuZaRywLkHE6EmUksrqo32ZL3ouLN1HTar6oRiHpDzKMAF1tf'),
+                keystore.from_xpub('Vpub5m2umuck9quzfuk9VzpY6koALrxHe34yZ4sE1Enm4Kk64FLJb7WiGAXJQXz8dafFzzJzK5AFwpop3r6CHw1rc1Vi3GvQwkqPCM95Fv7cEjo'),
                 keystore.from_xpub('Vpub5fjkKyYnvSS4wBuakWTkNvZDaBM2vQ1MeXWq368VJHNr2eT8efqhpmZ6UUkb7s2dwCXv2Vuggjdhk4vZVyiAQTwUftvff73XcUGq2NQmWra')
             ],
             '2of3', gap_limit=2,
@@ -2717,19 +2700,19 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
             [
                 keystore.from_seed('snow nest raise royal more walk demise rotate smooth spirit canyon gun', '', True),
                 keystore.from_xpub('Vpub5fjkKyYnvSS4wBuakWTkNvZDaBM2vQ1MeXWq368VJHNr2eT8efqhpmZ6UUkb7s2dwCXv2Vuggjdhk4vZVyiAQTwUftvff73XcUGq2NQmWra'),
-                keystore.from_xpub('Vpub5gSKXzxK7FeKQedu2q1z9oJWxqvX72AArW3HSWpEhc8othDH8xMDu28gr7gf17sp492BuJod8Tn7anjvJrKpETwqnQqX7CS8fcYyUtedEMk')
+                keystore.from_xpub('Vpub5krr57PihzEoDp9Hp89XBNtJLd1fs3oD5eXe3wdaXBXLiMH6TnZo1T8hJwAhLUCo4ozq1AtwEddxW6mz33mywF3cD4bz8e9vHAWv2CNnikX')
             ],
             '2of3', gap_limit=2,
             config=self.config
         )
         # ^ third seed: hedgehog sunset update estate number jungle amount piano friend donate upper wool
         wallet_online = WalletIntegrityHelper.create_imported_wallet(privkeys=False, config=self.config)
-        wallet_online.import_address('tb1q83p6eqxkuvq4eumcha46crpzg4nj84s9p0hnynkxg8nhvfzqcc7q4erju6')
+        wallet_online.import_address('tb1q6npe9yqlwa9ht7s6psm0h8kx6t66zyhq68kmy9v34p8hdjs0m9csxlczjx')
 
         # bootstrap wallet_online
-        funding_tx = Transaction('0100000000010132352f6459e847e65e56aa05cbd7b9ee67be90b40d8f92f6f11e9bfaa11399c501000000171600142e5d579693b2a7679622935df94d9f3c84909b24fdffffff0280969800000000002200203c43ac80d6e3015cf378bf6bac0c22456723d6050bef324ec641e7762440c63c83717d010000000017a91441b772909ad301b41b76f4a3c5058888a7fe6f9a8702483045022100de54689f74b8efcce7fdc91e40761084686003bcd56c886ee97e75a7e803526102204dea51ae5e7d01bd56a8c336c64841f7fe02a8b101fa892e13f2d079bb14e6bf012102024e2f73d632c49f4b821ccd3b6da66b155427b1e5b1c4688cefd5a4b4bfa404c1391400')
+        funding_tx = Transaction('0100000000010132352f6459e847e65e56aa05cbd7b9ee67be90b40d8f92f6f11e9bfaa11399c501000000171600142e5d579693b2a7679622935df94d9f3c84909b24fdffffff028096980000000000220020d4c392901f774b75fa1a0c36fb9ec6d2f5a112e0d1edb21591a84f76ca0fd97183717d010000000017a91441b772909ad301b41b76f4a3c5058888a7fe6f9a8702483045022100de54689f74b8efcce7fdc91e40761084686003bcd56c886ee97e75a7e803526102204dea51ae5e7d01bd56a8c336c64841f7fe02a8b101fa892e13f2d079bb14e6bf012102024e2f73d632c49f4b821ccd3b6da66b155427b1e5b1c4688cefd5a4b4bfa404c1391400')
         funding_txid = funding_tx.txid()
-        self.assertEqual('643a7ab9083d0227dd9df314ce56b18d279e6018ff975079dfaab82cd7a66fa3', funding_txid)
+        self.assertEqual('a198e44637074a4263692ea7777bf065e9d1375abed4bf18070d5dd567c5676e', funding_txid)
         wallet_online.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
 
         # create unsigned tx
@@ -2742,20 +2725,20 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
         self.assertFalse(tx.is_complete())
         self.assertEqual(1, len(tx.inputs()))
         partial_tx = tx.serialize_as_bytes().hex()
-        self.assertEqual("70736274ff01007e0100000001a36fa6d72cb8aadf795097ff18609e278db156ce14f39ddd27023d08b97a3a640000000000fdffffff02a02526000000000017a91447ee5a659f6ffb53f7e3afc1681b6415f3c00fa187585d7200000000002200203c43ac80d6e3015cf378bf6bac0c22456723d6050bef324ec641e7762440c63cc1391400000100fd03010100000000010132352f6459e847e65e56aa05cbd7b9ee67be90b40d8f92f6f11e9bfaa11399c501000000171600142e5d579693b2a7679622935df94d9f3c84909b24fdffffff0280969800000000002200203c43ac80d6e3015cf378bf6bac0c22456723d6050bef324ec641e7762440c63c83717d010000000017a91441b772909ad301b41b76f4a3c5058888a7fe6f9a8702483045022100de54689f74b8efcce7fdc91e40761084686003bcd56c886ee97e75a7e803526102204dea51ae5e7d01bd56a8c336c64841f7fe02a8b101fa892e13f2d079bb14e6bf012102024e2f73d632c49f4b821ccd3b6da66b155427b1e5b1c4688cefd5a4b4bfa404c1391400000000",
+        self.assertEqual("70736274ff01007e01000000016e67c567d55d0d0718bfd4be5a37d1e965f07b77a72e6963424a073746e498a10000000000fdffffff02a02526000000000017a91447ee5a659f6ffb53f7e3afc1681b6415f3c00fa187585d720000000000220020d4c392901f774b75fa1a0c36fb9ec6d2f5a112e0d1edb21591a84f76ca0fd971c1391400000100fd03010100000000010132352f6459e847e65e56aa05cbd7b9ee67be90b40d8f92f6f11e9bfaa11399c501000000171600142e5d579693b2a7679622935df94d9f3c84909b24fdffffff028096980000000000220020d4c392901f774b75fa1a0c36fb9ec6d2f5a112e0d1edb21591a84f76ca0fd97183717d010000000017a91441b772909ad301b41b76f4a3c5058888a7fe6f9a8702483045022100de54689f74b8efcce7fdc91e40761084686003bcd56c886ee97e75a7e803526102204dea51ae5e7d01bd56a8c336c64841f7fe02a8b101fa892e13f2d079bb14e6bf012102024e2f73d632c49f4b821ccd3b6da66b155427b1e5b1c4688cefd5a4b4bfa404c1391400000000",
                          partial_tx)
         tx_copy = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
         self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(tx_copy.inputs()[0])))
 
-        self.assertEqual('32e946761b4e718c1fa8d044db9e72d5831f6395eb284faf2fb5c4af0743e501', tx_copy.txid())
+        self.assertEqual('6fcd170fd2d67600911205a042f60b5bd472f519f80fe9524abb3cae13e6cc6b', tx_copy.txid())
         self.assertEqual(tx.txid(), tx_copy.txid())
 
         # sign tx - first
         tx = wallet_offline1.sign_transaction(tx_copy, password=None)
         self.assertFalse(tx.is_complete())
-        self.assertEqual('32e946761b4e718c1fa8d044db9e72d5831f6395eb284faf2fb5c4af0743e501', tx.txid())
+        self.assertEqual('6fcd170fd2d67600911205a042f60b5bd472f519f80fe9524abb3cae13e6cc6b', tx.txid())
         partial_tx = tx.serialize_as_bytes().hex()
-        self.assertEqual("70736274ff01007e0100000001a36fa6d72cb8aadf795097ff18609e278db156ce14f39ddd27023d08b97a3a640000000000fdffffff02a02526000000000017a91447ee5a659f6ffb53f7e3afc1681b6415f3c00fa187585d7200000000002200203c43ac80d6e3015cf378bf6bac0c22456723d6050bef324ec641e7762440c63cc1391400000100fd03010100000000010132352f6459e847e65e56aa05cbd7b9ee67be90b40d8f92f6f11e9bfaa11399c501000000171600142e5d579693b2a7679622935df94d9f3c84909b24fdffffff0280969800000000002200203c43ac80d6e3015cf378bf6bac0c22456723d6050bef324ec641e7762440c63c83717d010000000017a91441b772909ad301b41b76f4a3c5058888a7fe6f9a8702483045022100de54689f74b8efcce7fdc91e40761084686003bcd56c886ee97e75a7e803526102204dea51ae5e7d01bd56a8c336c64841f7fe02a8b101fa892e13f2d079bb14e6bf012102024e2f73d632c49f4b821ccd3b6da66b155427b1e5b1c4688cefd5a4b4bfa404c139140022020223f815ab09f6bfc8519165c5232947ae89d9d43d678fb3486f3b28382a2371fa4730440220629d89626585f563202e6b38ceddc26ccd00737e0b7ee4239b9266ef9174ea2f02200b74828399a2e35ed46c9b484af4817438d5fea890606ebb201b821944db1fdc0101056952210223f815ab09f6bfc8519165c5232947ae89d9d43d678fb3486f3b28382a2371fa210273c529c2c9a99592f2066cebc2172a48991af2b471cb726b9df78c6497ce984e2102aa8fc578b445a1e4257be6b978fcece92980def98dce0e1eb89e7364635ae94153ae22060223f815ab09f6bfc8519165c5232947ae89d9d43d678fb3486f3b28382a2371fa10b2e35a7d01000080000000000000000022060273c529c2c9a99592f2066cebc2172a48991af2b471cb726b9df78c6497ce984e1053b77ddb010000800000000000000000220602aa8fc578b445a1e4257be6b978fcece92980def98dce0e1eb89e7364635ae9411043067d63010000800000000000000000000001016952210223f815ab09f6bfc8519165c5232947ae89d9d43d678fb3486f3b28382a2371fa210273c529c2c9a99592f2066cebc2172a48991af2b471cb726b9df78c6497ce984e2102aa8fc578b445a1e4257be6b978fcece92980def98dce0e1eb89e7364635ae94153ae22020223f815ab09f6bfc8519165c5232947ae89d9d43d678fb3486f3b28382a2371fa10b2e35a7d01000080000000000000000022020273c529c2c9a99592f2066cebc2172a48991af2b471cb726b9df78c6497ce984e1053b77ddb010000800000000000000000220202aa8fc578b445a1e4257be6b978fcece92980def98dce0e1eb89e7364635ae9411043067d6301000080000000000000000000",
+        self.assertEqual("70736274ff01007e01000000016e67c567d55d0d0718bfd4be5a37d1e965f07b77a72e6963424a073746e498a10000000000fdffffff02a02526000000000017a91447ee5a659f6ffb53f7e3afc1681b6415f3c00fa187585d720000000000220020d4c392901f774b75fa1a0c36fb9ec6d2f5a112e0d1edb21591a84f76ca0fd971c1391400000100fd03010100000000010132352f6459e847e65e56aa05cbd7b9ee67be90b40d8f92f6f11e9bfaa11399c501000000171600142e5d579693b2a7679622935df94d9f3c84909b24fdffffff028096980000000000220020d4c392901f774b75fa1a0c36fb9ec6d2f5a112e0d1edb21591a84f76ca0fd97183717d010000000017a91441b772909ad301b41b76f4a3c5058888a7fe6f9a8702483045022100de54689f74b8efcce7fdc91e40761084686003bcd56c886ee97e75a7e803526102204dea51ae5e7d01bd56a8c336c64841f7fe02a8b101fa892e13f2d079bb14e6bf012102024e2f73d632c49f4b821ccd3b6da66b155427b1e5b1c4688cefd5a4b4bfa404c13914002202029b24deed96233c116f9afb963bb66cd71e93c48f0f3c36ed8b45ae22f75f1914473044022027b8c16e1851eb9d5211e4f4642c13fac4d47ffdc985eac77e9cb8b12675aebc02207d51c21e5c1e04fa007fd9a46172f01feb9ae86419f949c48568373db39e83cc0101056952210273c529c2c9a99592f2066cebc2172a48991af2b471cb726b9df78c6497ce984e21029b24deed96233c116f9afb963bb66cd71e93c48f0f3c36ed8b45ae22f75f191421036e078a5d2255b222403cc8fac1daccf581a08835940b6ed7c4a8e5bc1d482da853ae22060273c529c2c9a99592f2066cebc2172a48991af2b471cb726b9df78c6497ce984e1053b77ddb0100008000000000000000002206029b24deed96233c116f9afb963bb66cd71e93c48f0f3c36ed8b45ae22f75f19141c32123ddf3000008001000080000000800200008000000000000000002206036e078a5d2255b222403cc8fac1daccf581a08835940b6ed7c4a8e5bc1d482da80cb487e8050000000000000000000001016952210273c529c2c9a99592f2066cebc2172a48991af2b471cb726b9df78c6497ce984e21029b24deed96233c116f9afb963bb66cd71e93c48f0f3c36ed8b45ae22f75f191421036e078a5d2255b222403cc8fac1daccf581a08835940b6ed7c4a8e5bc1d482da853ae22020273c529c2c9a99592f2066cebc2172a48991af2b471cb726b9df78c6497ce984e1053b77ddb0100008000000000000000002202029b24deed96233c116f9afb963bb66cd71e93c48f0f3c36ed8b45ae22f75f19141c32123ddf3000008001000080000000800200008000000000000000002202036e078a5d2255b222403cc8fac1daccf581a08835940b6ed7c4a8e5bc1d482da80cb487e805000000000000000000",
                          partial_tx)
         tx = tx_from_any(partial_tx)  # simulates moving partial txn between cosigners
 
@@ -2764,10 +2747,10 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
         self.assertTrue(tx.is_complete())
         tx = tx_from_any(tx.serialize())
 
-        self.assertEqual('01000000000101a36fa6d72cb8aadf795097ff18609e278db156ce14f39ddd27023d08b97a3a640000000000fdffffff02a02526000000000017a91447ee5a659f6ffb53f7e3afc1681b6415f3c00fa187585d7200000000002200203c43ac80d6e3015cf378bf6bac0c22456723d6050bef324ec641e7762440c63c04004730440220629d89626585f563202e6b38ceddc26ccd00737e0b7ee4239b9266ef9174ea2f02200b74828399a2e35ed46c9b484af4817438d5fea890606ebb201b821944db1fdc0147304402205d1a59c84c419992069e9764a7992abca6a812cc5dfd4f0d6515d4283e660ce802202597a38899f31545aaf305629bd488f36bf54e4a05fe983932cafbb3906efb8f016952210223f815ab09f6bfc8519165c5232947ae89d9d43d678fb3486f3b28382a2371fa210273c529c2c9a99592f2066cebc2172a48991af2b471cb726b9df78c6497ce984e2102aa8fc578b445a1e4257be6b978fcece92980def98dce0e1eb89e7364635ae94153aec1391400',
+        self.assertEqual('010000000001016e67c567d55d0d0718bfd4be5a37d1e965f07b77a72e6963424a073746e498a10000000000fdffffff02a02526000000000017a91447ee5a659f6ffb53f7e3afc1681b6415f3c00fa187585d720000000000220020d4c392901f774b75fa1a0c36fb9ec6d2f5a112e0d1edb21591a84f76ca0fd9710400473044022027b8c16e1851eb9d5211e4f4642c13fac4d47ffdc985eac77e9cb8b12675aebc02207d51c21e5c1e04fa007fd9a46172f01feb9ae86419f949c48568373db39e83cc0147304402200dd8c26e39416cabe1ca3929e7c9a7a7928d758ff54424950c72f268a4783d5002200d17ac40c2f25944ccd4e0dbe70ecd0cad27e4cd159465abdea7d7f04f43d500016952210273c529c2c9a99592f2066cebc2172a48991af2b471cb726b9df78c6497ce984e21029b24deed96233c116f9afb963bb66cd71e93c48f0f3c36ed8b45ae22f75f191421036e078a5d2255b222403cc8fac1daccf581a08835940b6ed7c4a8e5bc1d482da853aec1391400',
                          str(tx))
-        self.assertEqual('32e946761b4e718c1fa8d044db9e72d5831f6395eb284faf2fb5c4af0743e501', tx.txid())
-        self.assertEqual('4376fa5f1f6cb37b1f3956175d3bd4ef6882169294802b250a3c672f3ff431c1', tx.wtxid())
+        self.assertEqual('6fcd170fd2d67600911205a042f60b5bd472f519f80fe9524abb3cae13e6cc6b', tx.txid())
+        self.assertEqual('1d195b31c4d64225a91b0b07780e47fac51b01641e6ba6d588ad40f84f205cea', tx.wtxid())
 
 
 class TestWalletHistory_SimpleRandomOrder(TestCaseForTestnet):
@@ -2891,18 +2874,17 @@ class TestWalletHistory_EvilGapLimit(TestCaseForTestnet):
 class TestWalletHistory_DoubleSpend(TestCaseForTestnet):
     transactions = {
         # txn A:
-        "a3849040f82705151ba12a4389310b58a17b78025d81116a3338595bdefa1625": "020000000001011b7eb29921187b40209c234344f57a3365669c8883a3d511fbde5155f11f64d10000000000fdffffff024c400f0000000000160014b50d21483fb5e088db90bf766ea79219fb377fef40420f0000000000160014aaf5fc4a6297375c32403a9c2768e7029c8dbd750247304402206efd510954b289829f8f778163b98a2a4039deb93c3b0beb834b00cd0add14fd02201c848315ddc52ced0350a981fe1a7f3cbba145c7a43805db2f126ed549eaa500012103083a50d63264743456a3e812bfc91c11bd2a673ba4628c09f02d78f62157e56d788d1700",
+        "510cba5e6d36107a70fa254085d7a59b63743d162f4faaaea18a8bb42084124b": "020000000001011b7eb29921187b40209c234344f57a3365669c8883a3d511fbde5155f11f64d10000000000fdffffff024c400f0000000000160014b50d21483fb5e088db90bf766ea79219fb377fef40420f00000000001600143a10bc177de9d104f5fd937de4ce0e8b38db5a970247304402206efd510954b289829f8f778163b98a2a4039deb93c3b0beb834b00cd0add14fd02201c848315ddc52ced0350a981fe1a7f3cbba145c7a43805db2f126ed549eaa500012103083a50d63264743456a3e812bfc91c11bd2a673ba4628c09f02d78f62157e56d788d1700",
         # txn B:
-        "0e2182ead6660790290371516cb0b80afa8baebd30dad42b5e58a24ceea17f1c": "020000000001012516fade5b5938336a11815d02787ba1580b3189432aa11b150527f8409084a30100000000fdffffff02a086010000000000160014cb893c9fbb565363556fb18a3bcdda6f20af0bf8d8ba0d0000000000160014478902f02c2b6cd405bb6bd1f90e9860bec173e20247304402206940671b5bdb230a9721aa57396af73d399fb210d795e7dbb8ec1977e101a5470220625505de035d4006b72bd6dfcf09468d1e8da53071080b37b16b0dbbf776db78012102254b5b20ed21c3bba75ec2a9ff230257d13a2493f6b7da066d8195dcdd484310788d1700",
+        "20ad71fc903756acc33031519a8f12a88baec096aa1ede4391903a1352d4e3c6": "020000000001014b128420b48b8aa1aeaa4f2f163d74639ba5d7854025fa707a10366d5eba0c510100000000fdffffff02a086010000000000160014cb893c9fbb565363556fb18a3bcdda6f20af0bf8d8ba0d00000000001600143a8898e664e5286a69590324473b3c22e95c763a0247304402206940671b5bdb230a9721aa57396af73d399fb210d795e7dbb8ec1977e101a5470220625505de035d4006b72bd6dfcf09468d1e8da53071080b37b16b0dbbf776db78012102254b5b20ed21c3bba75ec2a9ff230257d13a2493f6b7da066d8195dcdd484310788d1700",
         # txn C:
-        "2c9aa33d9c8ec649f9bfb84af027a5414b760be5231fe9eca4a95b9eb3f8a017": "020000000001012516fade5b5938336a11815d02787ba1580b3189432aa11b150527f8409084a30100000000fdffffff01d2410f00000000001600147880a7c79744b908a5f6d6235f2eb46c174c84f002483045022100974d27c872f09115e57c6acb674cd4da6d0b26656ad967ddb2678ff409714b9502206d91b49cf778ced6ca9e40b4094fb57b86c86fac09ce46ce53aea4afa68ff311012102254b5b20ed21c3bba75ec2a9ff230257d13a2493f6b7da066d8195dcdd484310788d1700",
+        "2337490b670cb73b3584881d13cc27470a7aebca394f2862b7d8cefb550632f1": "020000000001014b128420b48b8aa1aeaa4f2f163d74639ba5d7854025fa707a10366d5eba0c510100000000fdffffff01d2410f0000000000160014d555b341cd01d4b3f3cc6d7968459013d5272bbb02483045022100974d27c872f09115e57c6acb674cd4da6d0b26656ad967ddb2678ff409714b9502206d91b49cf778ced6ca9e40b4094fb57b86c86fac09ce46ce53aea4afa68ff311012102254b5b20ed21c3bba75ec2a9ff230257d13a2493f6b7da066d8195dcdd484310788d1700",
     }
 
     def setUp(self):
         super().setUp()
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
 
-    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_restoring_wallet_without_manual_delete(self, mock_save_db):
         w = restore_wallet_from_text("small rapid pattern language comic denial donate extend tide fever burden barrel",
@@ -2917,7 +2899,6 @@ class TestWalletHistory_DoubleSpend(TestCaseForTestnet):
         # txn C is double-spending txn B, to a wallet address
         self.assertEqual(999890, sum(w.get_balance()))
 
-    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_restoring_wallet_with_manual_delete(self, mock_save_db):
         w = restore_wallet_from_text("small rapid pattern language comic denial donate extend tide fever burden barrel",
@@ -2925,16 +2906,16 @@ class TestWalletHistory_DoubleSpend(TestCaseForTestnet):
                                      gap_limit=5,
                                      config=self.config)['wallet']  # type: Abstract_Wallet
         # txn A is an external incoming txn funding the wallet
-        txA = Transaction(self.transactions["a3849040f82705151ba12a4389310b58a17b78025d81116a3338595bdefa1625"])
+        txA = Transaction(self.transactions["510cba5e6d36107a70fa254085d7a59b63743d162f4faaaea18a8bb42084124b"])
         w.add_transaction(txA)
         # txn B is an outgoing payment to an external address
-        txB = Transaction(self.transactions["0e2182ead6660790290371516cb0b80afa8baebd30dad42b5e58a24ceea17f1c"])
+        txB = Transaction(self.transactions["20ad71fc903756acc33031519a8f12a88baec096aa1ede4391903a1352d4e3c6"])
         w.add_transaction(txB)
         # now the user manually deletes txn B to attempt the double spend
         # txn C is double-spending txn B, to a wallet address
         # rationale1: user might do this with opt-in RBF transactions
         # rationale2: this might be a local transaction, in which case the GUI even allows it
         w.remove_transaction(txB.txid())
-        txC = Transaction(self.transactions["2c9aa33d9c8ec649f9bfb84af027a5414b760be5231fe9eca4a95b9eb3f8a017"])
+        txC = Transaction(self.transactions["2337490b670cb73b3584881d13cc27470a7aebca394f2862b7d8cefb550632f1"])
         w.add_transaction(txC)
         self.assertEqual(999890, sum(w.get_balance()))

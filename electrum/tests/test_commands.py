@@ -9,7 +9,6 @@ from electrum.wallet import restore_wallet_from_text
 from electrum.simple_config import SimpleConfig
 
 from . import TestCaseForTestnet, ElectrumTestCase
-from .from_seed_patch import from_seed_patch
 
 
 class TestCommands(ElectrumTestCase):
@@ -108,7 +107,6 @@ class TestCommands(ElectrumTestCase):
         self.assertEqual(['p2wpkh:L4jkdiXszG26SUYvwwJhzGwg37H2nLhrbip7u6crmgNeJysv5FHL', 'p2wpkh:L4rYY5QpfN6wJEF4SEKDpcGhTPnCe9zcGs6hiSnhpprZqVywFifN'],
                          cmds._run('getprivatekeys', (['bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', 'bc1q9pzjpjq4nqx5ycnywekcmycqz0wjp2nq604y2n'], ), wallet=wallet))
 
-    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_export_private_key_deterministic(self, mock_save_db):
         wallet = restore_wallet_from_text('bitter grass shiver impose acquire brush forget axis eager alone wine silver',
@@ -121,13 +119,13 @@ class TestCommands(ElectrumTestCase):
             cmds._run('getprivatekeys', ("asdasd",), wallet=wallet)  # invalid addr, though might raise "not in wallet"
         with self.assertRaises(Exception):
             cmds._run('getprivatekeys', ("bc1qgfam82qk7uwh5j2xxmcd8cmklpe0zackyj6r23",), wallet=wallet)  # not in wallet
-        self.assertEqual("p2wpkh:L15oxP24NMNAXxq5r2aom24pHPtt3Fet8ZutgL155Bad93GSubM2",
-                         cmds._run('getprivatekeys', ("bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af",), wallet=wallet))
+        self.assertEqual("p2wpkh:KzmLEk1RM22BjNoVuAySnwfvhFpXnZ3USAmYgRRvXkc2CDeaPz2D",
+                         cmds._run('getprivatekeys', ("bc1qdlgh4gp7rsty5vt49alv9can6jalz37z0sy7t3",), wallet=wallet))
         # list of addresses tests
         with self.assertRaises(Exception):
             cmds._run('getprivatekeys', (['bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af', 'asd'],), wallet=wallet)
-        self.assertEqual(['p2wpkh:L15oxP24NMNAXxq5r2aom24pHPtt3Fet8ZutgL155Bad93GSubM2', 'p2wpkh:L4rYY5QpfN6wJEF4SEKDpcGhTPnCe9zcGs6hiSnhpprZqVywFifN'],
-                         cmds._run('getprivatekeys', (['bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af', 'bc1q9pzjpjq4nqx5ycnywekcmycqz0wjp2nq604y2n'], ), wallet=wallet))
+        self.assertEqual(['p2wpkh:KzmLEk1RM22BjNoVuAySnwfvhFpXnZ3USAmYgRRvXkc2CDeaPz2D', 'p2wpkh:L53xBBH8F3b35Vs7zZSjGbPeQHJWvaUhGF7SD69ZgPrgaUu99rqJ'],
+                         cmds._run('getprivatekeys', (['bc1qdlgh4gp7rsty5vt49alv9can6jalz37z0sy7t3', 'bc1q7sfcrq7up7aegsycgveg2s5dlg66qzlwu065h3'], ), wallet=wallet))
 
 
 class TestCommandsTestnet(TestCaseForTestnet):
@@ -205,7 +203,6 @@ class TestCommandsTestnet(TestCaseForTestnet):
         self.assertEqual("0200000000010139c5375fe9da7bd377c1783002b129f8c57d3e724d62f5eacb9739ca691a229d0100000000fdffffff01301b0f0000000000160014ac0e2d229200bffb2167ed6fd196aef9d687d8bb0247304402201c551df0458528d19ba1dd79b134dcf0055f7b029dfc3d0d024e6253d069d13e02206d03cfc85a6fc648acb6fc6be630e4567d1dd00ddbcdee551ee0711414e2f33f0121021f110909ded653828a254515b58498a6bafc96799fb0851554463ed44ca7d9da00000000",
                          cmds._run('serialize', (jsontx,)))
 
-    @from_seed_patch
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_getprivatekeyforpath(self, mock_save_db):
         wallet = restore_wallet_from_text('north rent dawn bunker hamster invest wagon market romance pig either squeeze',
@@ -213,9 +210,9 @@ class TestCommandsTestnet(TestCaseForTestnet):
                                           path='if_this_exists_mocking_failed_648151893',
                                           config=self.config)['wallet']
         cmds = Commands(config=self.config)
-        self.assertEqual("p2wpkh:cUzm7zPpWgLYeURgff4EsoMjhskCpsviBH4Y3aZcrBX8UJSRPjC2",
+        self.assertEqual("p2wpkh:cU4818hGGRFVsXY23GGCntivfumsA5qaatXX5DbMMkaSNZFjU6FM",
                          cmds._run('getprivatekeyforpath', ([0, 10000],), wallet=wallet))
-        self.assertEqual("p2wpkh:cUzm7zPpWgLYeURgff4EsoMjhskCpsviBH4Y3aZcrBX8UJSRPjC2",
+        self.assertEqual("p2wpkh:cU4818hGGRFVsXY23GGCntivfumsA5qaatXX5DbMMkaSNZFjU6FM",
                          cmds._run('getprivatekeyforpath', ("m/0/10000",), wallet=wallet))
-        self.assertEqual("p2wpkh:cQAj4WGf1socCPCJNMjXYCJ8Bs5JUAk5pbDr4ris44QdgAXcV24S",
+        self.assertEqual("p2wpkh:cUEr7LPYctHr72f1FVk3k72vT1j569qjZV9ncsrcjGG6FVaRNjN5",
                          cmds._run('getprivatekeyforpath', ("m/5h/100000/88h/7",), wallet=wallet))
