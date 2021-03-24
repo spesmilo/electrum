@@ -2,12 +2,14 @@
 import traceback
 from enum import IntEnum
 from typing import Sequence, Optional, Dict
+from abc import abstractmethod, ABC
 
 from PyQt5 import QtCore, QtGui
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QRect, QSize
 from PyQt5.QtWidgets import (QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit,
-                             QPushButton, QAbstractItemView, QComboBox, QCheckBox)
-from PyQt5.QtGui import QFont, QStandardItem, QBrush
+                             QPushButton, QAbstractItemView, QComboBox, QCheckBox,
+                             QToolTip)
+from PyQt5.QtGui import QFont, QStandardItem, QBrush, QPainter, QIcon, QHelpEvent
 
 from electrum.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
 from electrum.i18n import _
@@ -35,14 +37,16 @@ class ChannelsList(MyTreeView):
     class Columns(IntEnum):
         SHORT_CHANID = 0
         NODE_ALIAS = 1
-        CAPACITY = 2
-        LOCAL_BALANCE = 3
-        REMOTE_BALANCE = 4
-        CHANNEL_STATUS = 5
+        FEATURES = 2
+        CAPACITY = 3
+        LOCAL_BALANCE = 4
+        REMOTE_BALANCE = 5
+        CHANNEL_STATUS = 6
 
     headers = {
         Columns.SHORT_CHANID: _('Short Channel ID'),
         Columns.NODE_ALIAS: _('Node alias'),
+        Columns.FEATURES: _('Features'),
         Columns.CAPACITY: _('Capacity'),
         Columns.LOCAL_BALANCE: _('Can send'),
         Columns.REMOTE_BALANCE: _('Can receive'),
@@ -92,6 +96,7 @@ class ChannelsList(MyTreeView):
         return {
             self.Columns.SHORT_CHANID: chan.short_id_for_GUI(),
             self.Columns.NODE_ALIAS: node_alias,
+            self.Columns.FEATURES: '',
             self.Columns.CAPACITY: capacity_str,
             self.Columns.LOCAL_BALANCE: '' if closed else labels[LOCAL],
             self.Columns.REMOTE_BALANCE: '' if closed else labels[REMOTE],
@@ -296,6 +301,7 @@ class ChannelsList(MyTreeView):
             items[self.Columns.NODE_ALIAS].setFont(QFont(MONOSPACE_FONT))
             items[self.Columns.LOCAL_BALANCE].setFont(QFont(MONOSPACE_FONT))
             items[self.Columns.REMOTE_BALANCE].setFont(QFont(MONOSPACE_FONT))
+            items[self.Columns.FEATURES].setData(ChannelFeatureIcons.from_channel(chan), self.ROLE_CUSTOM_PAINT)
             items[self.Columns.CAPACITY].setFont(QFont(MONOSPACE_FONT))
             icon = "lightning" if not chan.is_backup() else "lightning_disconnected"
             items[self.Columns.SHORT_CHANID].setIcon(read_QIcon(icon))
@@ -486,3 +492,76 @@ class ChannelsList(MyTreeView):
         from .swap_dialog import SwapDialog
         d = SwapDialog(self.parent)
         d.run()
+
+
+class ChannelFeature(ABC):
+    def __init__(self):
+        self.rect = QRect()
+
+    @abstractmethod
+    def tooltip(self) -> str:
+        pass
+
+    @abstractmethod
+    def icon(self) -> QIcon:
+        pass
+
+
+class ChanFeatTrampoline(ChannelFeature):
+    def tooltip(self) -> str:
+        return _("The channel peer can route Trampoline payments.")
+    def icon(self) -> QIcon:
+        return read_QIcon("kangaroo")
+
+
+class ChanFeatNoOnchainBackup(ChannelFeature):
+    def tooltip(self) -> str:
+        return _("This channel cannot be recovered from your seed. You must back it up manually.")
+    def icon(self) -> QIcon:
+        return read_QIcon("nocloud")
+
+
+class ChannelFeatureIcons:
+    ICON_SIZE = QSize(16, 16)
+
+    def __init__(self, features: Sequence['ChannelFeature']):
+        self.features = features
+
+    @classmethod
+    def from_channel(cls, chan: AbstractChannel) -> 'ChannelFeatureIcons':
+        if not isinstance(chan, Channel):
+            return ChannelFeatureIcons([])
+        feats = []
+        if chan.lnworker.is_trampoline_peer(chan.node_id):
+            feats.append(ChanFeatTrampoline())
+        if not chan.lnworker.has_recoverable_channels():
+            feats.append(ChanFeatNoOnchainBackup())
+        return ChannelFeatureIcons(feats)
+
+    def paint(self, painter: QPainter, rect: QRect) -> None:
+        painter.save()
+        cur_x = rect.x()
+        for feat in self.features:
+            icon_rect = QRect(cur_x, rect.y(), self.ICON_SIZE.width(), self.ICON_SIZE.height())
+            feat.rect = icon_rect
+            if rect.contains(icon_rect):  # stay inside parent
+                painter.drawPixmap(icon_rect, feat.icon().pixmap(self.ICON_SIZE))
+            cur_x += self.ICON_SIZE.width() + 1
+        painter.restore()
+
+    def sizeHint(self, default_size: QSize) -> QSize:
+        if not self.features:
+            return default_size
+        width = len(self.features) * (self.ICON_SIZE.width() + 1)
+        return QSize(width, default_size.height())
+
+    def show_tooltip(self, evt: QHelpEvent) -> bool:
+        assert isinstance(evt, QHelpEvent)
+        for feat in self.features:
+            if feat.rect.contains(evt.pos()):
+                QToolTip.showText(evt.globalPos(), feat.tooltip())
+                break
+        else:
+            QToolTip.hideText()
+            evt.ignore()
+        return True
