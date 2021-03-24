@@ -382,6 +382,7 @@ class ElectrumWindow(App, Logger):
         self.asyncio_loop = asyncio.get_event_loop()
         self.password = None
         self._use_single_password = False
+        self.resume_dialog = None
 
         App.__init__(self)#, **kwargs)
         Logger.__init__(self)
@@ -1000,16 +1001,21 @@ class ElectrumWindow(App, Logger):
         return True
 
     def on_resume(self):
+        if self.nfcscanner:
+            self.nfcscanner.nfc_enable()
+        if self.resume_dialog is not None:
+            return
         now = time.time()
         if self.wallet and self.has_pin_code() and now - self.pause_time > 5*60:
+            def on_success():
+                self.resume_dialog = None
             d = PincodeDialog(
                 self,
                 check_password=self.check_pin_code,
                 on_success=None,
                 on_failure=self.stop)
+            self.resume_dialog = d
             d.open()
-        if self.nfcscanner:
-            self.nfcscanner.nfc_enable()
 
     def on_size(self, instance, value):
         width, height = value
