@@ -154,7 +154,7 @@ class Test_bitcoin(unittest.TestCase):
 
     def test_var_int(self):
         for i in range(0xfd):
-            self.assertEqual(var_int(i), "{:02x}".format(i) )
+            self.assertEqual(var_int(i), "{:02x}".format(i))
 
         self.assertEqual(var_int(0xfd), "fdfd00")
         self.assertEqual(var_int(0xfe), "fdfe00")

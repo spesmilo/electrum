@@ -159,7 +159,7 @@ class NodesListWidget(QTreeWidget):
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def keyPressEvent(self, event):
-        if event.key() in [ Qt.Key_F2, Qt.Key_Return ]:
+        if event.key() in {Qt.Key_F2, Qt.Key_Return}:
             item, col = self.currentItem(), self.currentColumn()
             if item and col > -1:
                 self.on_activated(item, col)
@@ -927,11 +927,11 @@ class NetworkChoiceLayout(QObject, PrintError):
     def set_proxy(self):
         host, port, protocol, proxy, auto_connect = self.network.get_parameters()
         if self.proxy_cb.isChecked():
-            proxy = { 'mode':str(self.proxy_mode.currentText()).lower(),
-                      'host':str(self.proxy_host.text()),
-                      'port':str(self.proxy_port.text()),
-                      'user':str(self.proxy_user.text()),
-                      'password':str(self.proxy_password.text())}
+            proxy = {'mode':str(self.proxy_mode.currentText()).lower(),
+                     'host':str(self.proxy_host.text()),
+                     'port':str(self.proxy_port.text()),
+                     'user':str(self.proxy_user.text()),
+                     'password':str(self.proxy_password.text())}
         else:
             proxy = None
         self.network.set_parameters(host, port, protocol, proxy, auto_connect)
