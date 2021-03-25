@@ -439,7 +439,7 @@ class ChannelBackupPopup(Popup, Logger):
         if not b:
             return
         loop = self.app.wallet.network.asyncio_loop
-        coro = asyncio.run_coroutine_threadsafe(self.app.wallet.lnworker.request_force_close_from_backup(self.chan.channel_id), loop)
+        coro = asyncio.run_coroutine_threadsafe(self.app.wallet.lnworker.request_force_close(self.chan.channel_id), loop)
         try:
             coro.result(5)
             self.app.show_info(_('Request sent'))
@@ -506,7 +506,7 @@ class ChannelDetailsPopup(Popup, Logger):
     def _close(self, choice):
         loop = self.app.wallet.network.asyncio_loop
         if choice == 1:
-            coro = self.app.wallet.lnworker.request_force_close_from_backup(self.chan.channel_id)
+            coro = self.app.wallet.lnworker.request_force_close(self.chan.channel_id)
             msg = _('Request sent')
         else:
             coro = self.app.wallet.lnworker.close_channel(self.chan.channel_id)

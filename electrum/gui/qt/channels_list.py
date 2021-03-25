@@ -180,7 +180,7 @@ class ChannelsList(MyTreeView):
 
     def request_force_close(self, channel_id):
         def task():
-            coro = self.lnworker.request_force_close_from_backup(channel_id)
+            coro = self.lnworker.request_force_close(channel_id)
             return self.network.run_from_another_thread(coro)
         WaitingDialog(self, 'please wait..', task, self.on_request_sent, self.on_failure)
 

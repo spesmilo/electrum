@@ -2077,7 +2077,7 @@ class LNWallet(LNWorker):
             peer = await self.add_peer(connect_str)
             await peer.trigger_force_close(channel_id)
         elif channel_id in self.channel_backups:
-            await self.request_force_close_from_backup(channel_id)
+            await self._request_force_close_from_backup(channel_id)
         else:
             raise Exception(f'Unknown channel {channel_id.hex()}')
 
@@ -2117,7 +2117,7 @@ class LNWallet(LNWorker):
         util.trigger_callback('channels_updated', self.wallet)
 
     @log_exceptions
-    async def request_force_close_from_backup(self, channel_id: bytes):
+    async def _request_force_close_from_backup(self, channel_id: bytes):
         cb = self.channel_backups.get(channel_id)
         if not cb:
             raise Exception(f'channel backup not found {self.channel_backups}')
