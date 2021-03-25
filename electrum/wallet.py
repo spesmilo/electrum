@@ -3218,8 +3218,13 @@ def check_password_for_directory(config: SimpleConfig, old_password, new_passwor
             is_unified = False
             # it is a bit wasteful load the wallet here, but that is fine
             # because we are progressively enforcing storage encryption.
-            db = WalletDB(storage.read(), manual_upgrades=False)
-            wallet = Wallet(db, storage, config=config)
+            try:
+                db = WalletDB(storage.read(), manual_upgrades=False)
+                wallet = Wallet(db, storage, config=config)
+            except:
+                _logger.exception(f'failed to load {basename}:')
+                failed.append(basename)
+                continue
             if wallet.has_keystore_encryption():
                 try:
                     wallet.check_password(old_password)
@@ -3240,8 +3245,13 @@ def check_password_for_directory(config: SimpleConfig, old_password, new_passwor
         except:
             failed.append(basename)
             continue
-        db = WalletDB(storage.read(), manual_upgrades=False)
-        wallet = Wallet(db, storage, config=config)
+        try:
+            db = WalletDB(storage.read(), manual_upgrades=False)
+            wallet = Wallet(db, storage, config=config)
+        except:
+            _logger.exception(f'failed to load {basename}:')
+            failed.append(basename)
+            continue
         try:
             wallet.check_password(old_password)
         except:
