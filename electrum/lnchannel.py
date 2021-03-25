@@ -305,6 +305,8 @@ class AbstractChannel(Logger, ABC):
                 # because the state transition is irreversible. if the remote
                 # force closed, we remain OPEN until the closing tx is confirmed
                 self.force_close_detected = True
+                if self.lnworker:
+                    util.trigger_callback('channel', self.lnworker.wallet, self)
 
         if self.get_state() == ChannelState.CLOSED and not keep_watching:
             self.set_state(ChannelState.REDEEMED)
@@ -733,7 +735,7 @@ class Channel(AbstractChannel):
 
     def get_state_for_GUI(self):
         cs_name = super().get_state_for_GUI()
-        if self.is_closed():
+        if self.is_closed() or self.force_close_detected:
             return cs_name
         ps = self.peer_state
         if ps != PeerState.GOOD:
