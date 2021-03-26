@@ -145,7 +145,7 @@ class SwapDialog(WindowModalDialog):
             return
         self.send_amount_e.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
         send_amount = self.send_amount_e.get_amount()
-        recv_amount = self.swap_manager.get_recv_amount(send_amount, self.is_reverse)
+        recv_amount = self.swap_manager.get_recv_amount(send_amount, is_reverse=self.is_reverse)
         if self.is_reverse and send_amount and send_amount > self.lnworker.num_sats_can_send():
             # cannot send this much on lightning
             recv_amount = None
@@ -166,7 +166,7 @@ class SwapDialog(WindowModalDialog):
             return
         self.recv_amount_e.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
         recv_amount = self.recv_amount_e.get_amount()
-        send_amount = self.swap_manager.get_send_amount(recv_amount, self.is_reverse)
+        send_amount = self.swap_manager.get_send_amount(recv_amount, is_reverse=self.is_reverse)
         if self.is_reverse and send_amount and send_amount > self.lnworker.num_sats_can_send():
             send_amount = None
         self.send_amount_e.follows = True

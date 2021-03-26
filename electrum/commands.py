@@ -1189,7 +1189,8 @@ class Commands:
             success = None
         else:
             lightning_amount_sat = satoshis(lightning_amount)
-            onchain_amount_sat = satoshis(onchain_amount)
+            claim_fee = sm.get_claim_fee()
+            onchain_amount_sat = satoshis(onchain_amount + claim_fee)
             success = await wallet.lnworker.swap_manager.reverse_swap(
                 lightning_amount_sat=lightning_amount_sat,
                 expected_onchain_amount_sat=onchain_amount_sat,
