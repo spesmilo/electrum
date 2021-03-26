@@ -81,7 +81,7 @@ from .channel_db import get_mychannel_info, get_mychannel_policy
 from .submarine_swaps import SwapManager
 from .channel_db import ChannelInfo, Policy
 from .mpp_split import suggest_splits
-from .trampoline import create_trampoline_route_and_onion
+from .trampoline import create_trampoline_route_and_onion, TRAMPOLINE_FEES
 
 if TYPE_CHECKING:
     from .network import Network
@@ -1928,22 +1928,28 @@ class LNWallet(LNWorker):
                 for chan in self.channels.values())) / 1000
 
     def num_sats_can_send(self) -> Decimal:
-        can_send = Decimal(0)
+        can_send = 0
         with self.lock:
             if self.channels:
                 for c in self.channels.values():
                     if c.is_active() and not c.is_frozen_for_sending():
-                        can_send += Decimal(c.available_to_spend(LOCAL)) / 1000
-        return can_send
+                        can_send += c.available_to_spend(LOCAL)
+        # Here we have to guess a fee, because some callers (submarine swaps)
+        # use this method to initiate a payment, which would otherwise fail.
+        fee_base_msat = TRAMPOLINE_FEES[3]['fee_base_msat']
+        fee_proportional_millionths = TRAMPOLINE_FEES[3]['fee_proportional_millionths']
+        # inverse of fee_for_edge_msat
+        can_send_minus_fees = (can_send - fee_base_msat) * 1_000_000 // ( 1_000_000 + fee_proportional_millionths)
+        return Decimal(can_send_minus_fees) / 1000
 
     def num_sats_can_receive(self) -> Decimal:
-        can_receive = Decimal(0)
+        can_receive = 0
         with self.lock:
             if self.channels:
                 for c in self.channels.values():
                     if c.is_active() and not c.is_frozen_for_receiving():
-                        can_receive += Decimal(c.available_to_spend(REMOTE)) / 1000
-        return can_receive
+                        can_receive += c.available_to_spend(REMOTE)
+        return Decimal(can_receive) / 1000
 
     def can_pay_invoice(self, invoice: LNInvoice) -> bool:
         return invoice.get_amount_sat() <= self.num_sats_can_send()
