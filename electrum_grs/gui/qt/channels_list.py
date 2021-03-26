@@ -2,12 +2,14 @@
 import traceback
 from enum import IntEnum
 from typing import Sequence, Optional, Dict
+from abc import abstractmethod, ABC
 
 from PyQt5 import QtCore, QtGui
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QRect, QSize
 from PyQt5.QtWidgets import (QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit,
-                             QPushButton, QAbstractItemView, QComboBox, QCheckBox)
-from PyQt5.QtGui import QFont, QStandardItem, QBrush
+                             QPushButton, QAbstractItemView, QComboBox, QCheckBox,
+                             QToolTip)
+from PyQt5.QtGui import QFont, QStandardItem, QBrush, QPainter, QIcon, QHelpEvent
 
 from electrum_grs.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
 from electrum_grs.i18n import _
@@ -33,16 +35,18 @@ class ChannelsList(MyTreeView):
     gossip_db_loaded = QtCore.pyqtSignal()
 
     class Columns(IntEnum):
-        SHORT_CHANID = 0
-        NODE_ALIAS = 1
-        CAPACITY = 2
-        LOCAL_BALANCE = 3
-        REMOTE_BALANCE = 4
-        CHANNEL_STATUS = 5
+        FEATURES = 0
+        SHORT_CHANID = 1
+        NODE_ALIAS = 2
+        CAPACITY = 3
+        LOCAL_BALANCE = 4
+        REMOTE_BALANCE = 5
+        CHANNEL_STATUS = 6
 
     headers = {
         Columns.SHORT_CHANID: _('Short Channel ID'),
         Columns.NODE_ALIAS: _('Node alias'),
+        Columns.FEATURES: _(''),
         Columns.CAPACITY: _('Capacity'),
         Columns.LOCAL_BALANCE: _('Can send'),
         Columns.REMOTE_BALANCE: _('Can receive'),
@@ -92,6 +96,7 @@ class ChannelsList(MyTreeView):
         return {
             self.Columns.SHORT_CHANID: chan.short_id_for_GUI(),
             self.Columns.NODE_ALIAS: node_alias,
+            self.Columns.FEATURES: '',
             self.Columns.CAPACITY: capacity_str,
             self.Columns.LOCAL_BALANCE: '' if closed else labels[LOCAL],
             self.Columns.REMOTE_BALANCE: '' if closed else labels[REMOTE],
@@ -175,7 +180,7 @@ class ChannelsList(MyTreeView):
 
     def request_force_close(self, channel_id):
         def task():
-            coro = self.lnworker.request_force_close_from_backup(channel_id)
+            coro = self.lnworker.request_force_close(channel_id)
             return self.network.run_from_another_thread(coro)
         WaitingDialog(self, 'please wait..', task, self.on_request_sent, self.on_failure)
 
@@ -296,11 +301,8 @@ class ChannelsList(MyTreeView):
             items[self.Columns.NODE_ALIAS].setFont(QFont(MONOSPACE_FONT))
             items[self.Columns.LOCAL_BALANCE].setFont(QFont(MONOSPACE_FONT))
             items[self.Columns.REMOTE_BALANCE].setFont(QFont(MONOSPACE_FONT))
+            items[self.Columns.FEATURES].setData(ChannelFeatureIcons.from_channel(chan), self.ROLE_CUSTOM_PAINT)
             items[self.Columns.CAPACITY].setFont(QFont(MONOSPACE_FONT))
-            icon = "lightning" if not chan.is_backup() else "lightning_disconnected"
-            items[self.Columns.SHORT_CHANID].setIcon(read_QIcon(icon))
-            tooltip = _("Channel") if not chan.is_backup() else _("Channel backup")
-            items[self.Columns.SHORT_CHANID].setToolTip(tooltip)
             self._update_chan_frozen_bg(chan=chan, items=items)
             self.model().insertRow(0, items)
 
@@ -354,15 +356,11 @@ class ChannelsList(MyTreeView):
         return h
 
     def new_channel_with_warning(self):
-        if not self.parent.wallet.lnworker.channels:
-            warning = _("Lightning support in Electrum-GRS is experimental. "
-                         "Do not put large amounts in lightning channels.")
-            if not self.parent.wallet.lnworker.has_recoverable_channels():
-                warning += _("Funds stored in lightning channels are not recoverable from your seed. "
-                             "You must backup your wallet file everytime you create a new channel.")
+        lnworker = self.parent.wallet.lnworker
+        if not lnworker.channels and not lnworker.channel_backups:
+            warning = _(messages.MSG_LIGHTNING_WARNING)
             answer = self.parent.question(
-                _('Do you want to create your first channel?') + '\n\n' +
-                _('WARNING') + ': ' + '\n\n' + warning)
+                _('Do you want to create your first channel?') + '\n\n' + warning)
             if answer:
                 self.new_channel_dialog()
         else:
@@ -486,3 +484,94 @@ class ChannelsList(MyTreeView):
         from .swap_dialog import SwapDialog
         d = SwapDialog(self.parent)
         d.run()
+
+
+class ChannelFeature(ABC):
+    def __init__(self):
+        self.rect = QRect()
+
+    @abstractmethod
+    def tooltip(self) -> str:
+        pass
+
+    @abstractmethod
+    def icon(self) -> QIcon:
+        pass
+
+
+class ChanFeatChannel(ChannelFeature):
+    def tooltip(self) -> str:
+        return _("This is a complete channel")
+    def icon(self) -> QIcon:
+        return read_QIcon("lightning")
+
+
+class ChanFeatBackup(ChannelFeature):
+    def tooltip(self) -> str:
+        return _("This is a static channel backup")
+    def icon(self) -> QIcon:
+        return read_QIcon("lightning_disconnected")
+
+
+class ChanFeatTrampoline(ChannelFeature):
+    def tooltip(self) -> str:
+        return _("The channel peer can route Trampoline payments.")
+    def icon(self) -> QIcon:
+        return read_QIcon("kangaroo")
+
+
+class ChanFeatNoOnchainBackup(ChannelFeature):
+    def tooltip(self) -> str:
+        return _("This channel cannot be recovered from your seed. You must back it up manually.")
+    def icon(self) -> QIcon:
+        return read_QIcon("nocloud")
+
+
+class ChannelFeatureIcons:
+    ICON_SIZE = QSize(16, 16)
+
+    def __init__(self, features: Sequence['ChannelFeature']):
+        self.features = features
+
+    @classmethod
+    def from_channel(cls, chan: AbstractChannel) -> 'ChannelFeatureIcons':
+        feats = []
+        if chan.is_backup():
+            feats.append(ChanFeatBackup())
+            if chan.is_imported:
+                feats.append(ChanFeatNoOnchainBackup())
+        else:
+            feats.append(ChanFeatChannel())
+            if chan.lnworker.is_trampoline_peer(chan.node_id):
+                feats.append(ChanFeatTrampoline())
+            if not chan.has_onchain_backup():
+                feats.append(ChanFeatNoOnchainBackup())
+        return ChannelFeatureIcons(feats)
+
+    def paint(self, painter: QPainter, rect: QRect) -> None:
+        painter.save()
+        cur_x = rect.x()
+        for feat in self.features:
+            icon_rect = QRect(cur_x, rect.y(), self.ICON_SIZE.width(), self.ICON_SIZE.height())
+            feat.rect = icon_rect
+            if rect.contains(icon_rect):  # stay inside parent
+                painter.drawPixmap(icon_rect, feat.icon().pixmap(self.ICON_SIZE))
+            cur_x += self.ICON_SIZE.width() + 1
+        painter.restore()
+
+    def sizeHint(self, default_size: QSize) -> QSize:
+        if not self.features:
+            return default_size
+        width = len(self.features) * (self.ICON_SIZE.width() + 1)
+        return QSize(width, default_size.height())
+
+    def show_tooltip(self, evt: QHelpEvent) -> bool:
+        assert isinstance(evt, QHelpEvent)
+        for feat in self.features:
+            if feat.rect.contains(evt.pos()):
+                QToolTip.showText(evt.globalPos(), feat.tooltip())
+                break
+        else:
+            QToolTip.hideText()
+            evt.ignore()
+        return True

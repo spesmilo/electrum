@@ -439,7 +439,7 @@ class ChannelBackupPopup(Popup, Logger):
         if not b:
             return
         loop = self.app.wallet.network.asyncio_loop
-        coro = asyncio.run_coroutine_threadsafe(self.app.wallet.lnworker.request_force_close_from_backup(self.chan.channel_id), loop)
+        coro = asyncio.run_coroutine_threadsafe(self.app.wallet.lnworker.request_force_close(self.chan.channel_id), loop)
         try:
             coro.result(5)
             self.app.show_info(_('Request sent'))
@@ -506,7 +506,7 @@ class ChannelDetailsPopup(Popup, Logger):
     def _close(self, choice):
         loop = self.app.wallet.network.asyncio_loop
         if choice == 1:
-            coro = self.app.wallet.lnworker.request_force_close_from_backup(self.chan.channel_id)
+            coro = self.app.wallet.lnworker.request_force_close(self.chan.channel_id)
             msg = _('Request sent')
         else:
             coro = self.app.wallet.lnworker.close_channel(self.chan.channel_id)
@@ -633,7 +633,8 @@ class LightningChannelsDialog(Factory.Popup):
             self.can_send = 'n/a'
             self.can_receive = 'n/a'
             return
-        self.num_channels_text = _(f'You have {len(lnworker.channels)} channels.')
+        n = len([c for c in lnworker.channels.values() if c.is_open()])
+        self.num_channels_text = _(f'You have {n} open channels.')
         self.can_send = self.app.format_amount_and_units(lnworker.num_sats_can_send())
         self.can_receive = self.app.format_amount_and_units(lnworker.num_sats_can_receive())
 

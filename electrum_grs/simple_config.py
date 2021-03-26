@@ -266,6 +266,14 @@ class SimpleConfig(Logger):
             if os.path.exists(self.path):  # or maybe not?
                 raise
 
+    def get_backup_dir(self):
+        # this is used to save a backup everytime a channel is created
+        # on Android, the export backup button uses android_backup_dir()
+        if 'ANDROID_DATA' in os.environ:
+            return None
+        else:
+            return self.get('backup_dir')
+
     def get_wallet_path(self, *, use_gui_last_wallet=False):
         """Set the path of the wallet."""
 

@@ -304,7 +304,9 @@ class AbstractChannel(Logger, ABC):
                 # we must not trust the server with unconfirmed transactions,
                 # because the state transition is irreversible. if the remote
                 # force closed, we remain OPEN until the closing tx is confirmed
-                self.force_close_detected = True
+                self.unconfirmed_closing_txid = closing_txid
+                if self.lnworker:
+                    util.trigger_callback('channel', self.lnworker.wallet, self)
 
         if self.get_state() == ChannelState.CLOSED and not keep_watching:
             self.set_state(ChannelState.REDEEMED)
@@ -337,8 +339,8 @@ class AbstractChannel(Logger, ABC):
 
     def get_state_for_GUI(self) -> str:
         cs = self.get_state()
-        if cs < ChannelState.CLOSED and self.force_close_detected:
-            return 'FORCE_CLOSING'
+        if cs == ChannelState.OPEN and self.unconfirmed_closing_txid:
+            return 'FORCE-CLOSING'
         return cs.name
 
     @abstractmethod
@@ -417,7 +419,7 @@ class ChannelBackup(AbstractChannel):
         self.config = {}
         if self.is_imported:
             self.init_config(cb)
-        self.force_close_detected = False # not a state, only for GUI
+        self.unconfirmed_closing_txid = None # not a state, only for GUI
 
     def init_config(self, cb):
         self.config[LOCAL] = LocalConfig.from_seed(
@@ -551,7 +553,10 @@ class Channel(AbstractChannel):
         self._receive_fail_reasons = {}  # type: Dict[int, (bytes, OnionRoutingFailure)]
         self._ignore_max_htlc_value = False  # used in tests
         self.should_request_force_close = False
-        self.force_close_detected = False # not a state, only for GUI
+        self.unconfirmed_closing_txid = None # not a state, only for GUI
+
+    def has_onchain_backup(self):
+        return self.storage.get('has_onchain_backup', False)
 
     def can_be_deleted(self):
         return self.is_redeemed()
@@ -730,7 +735,7 @@ class Channel(AbstractChannel):
 
     def get_state_for_GUI(self):
         cs_name = super().get_state_for_GUI()
-        if self.is_closed():
+        if self.is_closed() or self.unconfirmed_closing_txid:
             return cs_name
         ps = self.peer_state
         if ps != PeerState.GOOD:

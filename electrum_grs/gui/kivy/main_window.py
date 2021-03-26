@@ -24,6 +24,8 @@ from electrum_grs import blockchain
 from electrum_grs.network import Network, TxBroadcastError, BestEffortRequestFailed
 from electrum_grs.interface import PREFERRED_NETWORK_PROTOCOL, ServerAddr
 from electrum_grs.logging import Logger
+
+from electrum_grs.gui import messages
 from .i18n import _
 from . import KIVY_GUI_PATH
 
@@ -37,7 +39,8 @@ from kivy.clock import Clock
 from kivy.factory import Factory
 from kivy.metrics import inch
 from kivy.lang import Builder
-from .uix.dialogs.password_dialog import OpenWalletDialog, ChangePasswordDialog, PincodeDialog
+from .uix.dialogs.password_dialog import OpenWalletDialog, ChangePasswordDialog, PincodeDialog, PasswordDialog
+from .uix.dialogs.choice_dialog import ChoiceDialog
 
 ## lazy imports for factory so that widgets can be used in kv
 #Factory.register('InstallWizard', module='electrum_grs.gui.kivy.uix.dialogs.installwizard')
@@ -141,7 +144,6 @@ class ElectrumWindow(App, Logger):
         self.proxy_str = (host + ':' + port) if mode else _('None')
 
     def choose_server_dialog(self, popup):
-        from .uix.dialogs.choice_dialog import ChoiceDialog
         protocol = PREFERRED_NETWORK_PROTOCOL
         def cb2(server_str):
             popup.ids.server_str.text = server_str
@@ -166,7 +168,6 @@ class ElectrumWindow(App, Logger):
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
 
     def choose_blockchain_dialog(self, dt):
-        from .uix.dialogs.choice_dialog import ChoiceDialog
         chains = self.network.get_blockchains()
         def cb(name):
             with blockchain.blockchains_lock: blockchain_items = list(blockchain.blockchains.items())
@@ -380,6 +381,7 @@ class ElectrumWindow(App, Logger):
         self.asyncio_loop = asyncio.get_event_loop()
         self.password = None
         self._use_single_password = False
+        self.resume_dialog = None
 
         App.__init__(self)#, **kwargs)
         Logger.__init__(self)
@@ -727,14 +729,10 @@ class ElectrumWindow(App, Logger):
         if not self.wallet.has_lightning():
             self.show_error(_('Lightning is not enabled for this wallet'))
             return
-        if not self.wallet.lnworker.channels:
-            warning1 = _("Lightning support in Electrum-GRS is experimental. "
-                         "Do not put large amounts in lightning channels.")
-            warning2 = _("Funds stored in lightning channels are not recoverable "
-                         "from your seed. You must backup your wallet file everytime "
-                         "you create a new channel.")
+        if not self.wallet.lnworker.channels and not self.wallet.lnworker.channel_backups:
+            warning = _(messages.MSG_LIGHTNING_WARNING)
             d = Question(_('Do you want to create your first channel?') +
-                         '\n\n' + warning1 + '\n\n' + warning2, self.open_channel_dialog_with_warning)
+                         '\n\n' + warning, self.open_channel_dialog_with_warning)
             d.open()
         else:
             d = LightningOpenChannelDialog(self)
@@ -1002,16 +1000,21 @@ class ElectrumWindow(App, Logger):
         return True
 
     def on_resume(self):
+        if self.nfcscanner:
+            self.nfcscanner.nfc_enable()
+        if self.resume_dialog is not None:
+            return
         now = time.time()
         if self.wallet and self.has_pin_code() and now - self.pause_time > 5*60:
+            def on_success(x):
+                self.resume_dialog = None
             d = PincodeDialog(
                 self,
                 check_password=self.check_pin_code,
-                on_success=None,
+                on_success=on_success,
                 on_failure=self.stop)
+            self.resume_dialog = d
             d.open()
-        if self.nfcscanner:
-            self.nfcscanner.nfc_enable()
 
     def on_size(self, instance, value):
         width, height = value
@@ -1278,12 +1281,41 @@ class ElectrumWindow(App, Logger):
         d = ChangePasswordDialog(self, self.wallet, on_success, on_failure)
         d.open()
 
+    def pin_code_dialog(self, cb):
+        if self._use_single_password and self.has_pin_code():
+            def on_choice(choice):
+                if choice == 0:
+                    self.change_pin_code(cb)
+                else:
+                    self.reset_pin_code(cb)
+            choices = {0:'Change PIN code', 1:'Reset PIN'}
+            dialog = ChoiceDialog(
+                _('PIN Code'), choices, 0,
+                on_choice,
+                keep_choice_order=True)
+            dialog.open()
+        else:
+            self.change_pin_code(cb)
+
+    def reset_pin_code(self, cb):
+        on_success = lambda x: self._set_new_pin_code(None, cb)
+        d = PasswordDialog(self,
+            basename = self.wallet.basename(),
+            check_password = self.wallet.check_password,
+            on_success=on_success,
+            on_failure=lambda: None,
+            is_change=False,
+            has_password=self.wallet.has_password())
+        d.open()
+
+    def _set_new_pin_code(self, new_pin, cb):
+        self.electrum_config.set_key('pin_code', new_pin)
+        cb()
+        self.show_info(_("PIN updated") if new_pin else _('PIN disabled'))
+
     def change_pin_code(self, cb):
-        def on_success(old_password, new_password):
-            self.electrum_config.set_key('pin_code', new_password)
-            cb()
-            self.show_info(_("PIN updated") if new_password else _('PIN disabled'))
         on_failure = lambda: self.show_error(_("PIN not updated"))
+        on_success = lambda old_pin, new_pin: self._set_new_pin_code(new_pin, cb)
         d = PincodeDialog(
             self,
             check_password=self.check_pin_code,
@@ -1295,7 +1327,7 @@ class ElectrumWindow(App, Logger):
 
     def save_backup(self):
         if platform != 'android':
-            backup_dir = util.get_backup_dir(self.electrum_config)
+            backup_dir = self.electrum_config.get_backup_dir()
             if backup_dir:
                 self._save_backup(backup_dir)
             else:

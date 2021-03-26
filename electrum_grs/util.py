@@ -427,14 +427,6 @@ def android_data_dir():
     PythonActivity = jnius.autoclass('org.kivy.android.PythonActivity')
     return PythonActivity.mActivity.getFilesDir().getPath() + '/data'
 
-def get_backup_dir(config):
-    # this is used to save a backup everytime a channel is created
-    # on Android, the export backup button uses android_backup_dir()
-    if 'ANDROID_DATA' in os.environ:
-        return None
-    else:
-        return config.get('backup_dir')
-
 def ensure_sparse_file(filename):
     # On modern Linux, no need to do anything.
     # On Windows, need to explicitly mark file.

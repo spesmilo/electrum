@@ -534,13 +534,14 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 return {}
             return self.interface.fee_estimates_eta
 
-    def update_fee_estimates(self):
-        e = self.get_fee_estimates()
-        for nblock_target, fee in e.items():
+    def update_fee_estimates(self, *, fee_est: Dict = None):
+        if fee_est is None:
+            fee_est = self.get_fee_estimates()
+        for nblock_target, fee in fee_est.items():
             self.config.update_fee_estimates(nblock_target, fee)
-        if not hasattr(self, "_prev_fee_est") or self._prev_fee_est != e:
-            self._prev_fee_est = copy.copy(e)
-            self.logger.info(f'fee_estimates {e}')
+        if not hasattr(self, "_prev_fee_est") or self._prev_fee_est != fee_est:
+            self._prev_fee_est = copy.copy(fee_est)
+            self.logger.info(f'fee_estimates {fee_est}')
         self.notify('fee')
 
     @with_recent_servers_lock
