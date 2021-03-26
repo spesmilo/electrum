@@ -126,7 +126,7 @@ class SwapDialog(WindowModalDialog):
         if self.tx:
             amount = self.tx.output_value_for_address(ln_dummy_address())
             max_swap_amt = self.swap_manager.get_max_amount()
-            max_recv_amt = int(self.lnworker.num_sats_can_receive())
+            max_recv_amt = int(self.swap_manager.num_sats_can_receive())
             max_amt = min(max_swap_amt, max_recv_amt)
             if amount > max_amt:
                 amount = max_amt
@@ -149,7 +149,7 @@ class SwapDialog(WindowModalDialog):
         if self.is_reverse and send_amount and send_amount > self.lnworker.num_sats_can_send():
             # cannot send this much on lightning
             recv_amount = None
-        if (not self.is_reverse) and recv_amount and recv_amount > self.lnworker.num_sats_can_receive():
+        if (not self.is_reverse) and recv_amount and recv_amount > self.swap_manager.num_sats_can_receive():
             # cannot receive this much on lightning
             recv_amount = None
         self.recv_amount_e.follows = True
@@ -228,7 +228,7 @@ class SwapDialog(WindowModalDialog):
             onchain_amount = self.send_amount_e.get_amount()
             if lightning_amount is None or onchain_amount is None:
                 return
-            if lightning_amount > self.lnworker.num_sats_can_receive():
+            if lightning_amount > self.swap_manager.num_sats_can_receive():
                 if not self.window.question(CANNOT_RECEIVE_WARNING):
                     return
             self.window.protect(self.do_normal_swap, (lightning_amount, onchain_amount))

@@ -1951,6 +1951,15 @@ class LNWallet(LNWorker):
                         can_receive += c.available_to_spend(REMOTE)
         return Decimal(can_receive) / 1000
 
+    def num_sats_can_receive_no_mpp(self) -> Decimal:
+        with self.lock:
+            if self.channels:
+                can_receive = max([
+                    c.available_to_spend(REMOTE) for c in self.channels.values()
+                    if c.is_active() and not c.is_frozen_for_receiving()
+                ])
+        return Decimal(can_receive) / 1000
+
     def can_pay_invoice(self, invoice: LNInvoice) -> bool:
         return invoice.get_amount_sat() <= self.num_sats_can_send()
 
