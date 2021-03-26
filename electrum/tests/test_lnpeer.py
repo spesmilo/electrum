@@ -814,12 +814,11 @@ class TestPeer(TestCaseForTestnet):
             'ab': (200_000_000, 200_000_000),  # high fees
             'bd': (200_000_000, 200_000_000),  # high fees
         }
-        # the payment happens in three attempts:
-        # 1. along ac->cd due to low fees with temp channel failure:
+        # the payment happens in two attempts:
+        # 1. along a->c->d due to low fees with temp channel failure:
         #   with chanupd: ORPHANED, private channel update
-        # 2. along ac->cd with temp channel failure:
-        #   with chanupd: ORPHANED, private channel update, but already received, channel gets blacklisted
-        # 3. along ab->bd with success
+        #   c->d gets a liquidity hint and gets blocked
+        # 2. along a->b->d with success
         amount_to_pay = 100_000_000
         graph = self.prepare_chans_and_peers_in_square(funds_distribution)
         peers = graph.all_peers()
@@ -827,9 +826,9 @@ class TestPeer(TestCaseForTestnet):
             self.assertEqual(PR_UNPAID, graph.w_d.get_payment_status(lnaddr.paymenthash))
             result, log = await graph.w_a.pay_invoice(pay_req, attempts=3)
             self.assertTrue(result)
+            self.assertEqual(2, len(log))
             self.assertEqual(PR_PAID, graph.w_d.get_payment_status(lnaddr.paymenthash))
             self.assertEqual(OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, log[0].failure_msg.code)
-            self.assertEqual(OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, log[1].failure_msg.code)
 
             liquidity_hints = graph.w_a.network.path_finder.liquidity_hints
             pubkey_a = graph.w_a.node_keypair.pubkey
