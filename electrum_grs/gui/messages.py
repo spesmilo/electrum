@@ -13,9 +13,9 @@ MSG_REQUEST_FORCE_CLOSE = """If you choose to request force-close, your node wil
 MSG_CREATED_NON_RECOVERABLE_CHANNEL = """
 The channel you created is not recoverable from seed.
 To prevent fund losses, please save this backup on another device.
-It may be imported in another Electrum wallet with the same seed.
+It may be imported in another Electrum-GRS wallet with the same seed.
 """
 
 MSG_LIGHTNING_WARNING = """
-Electrum uses static channel backups. If you lose your wallet file, you will need to request your channel to be force-closed by the remote peer in order to recover your funds. This assumes that the remote peer is reachable, and has not lost its own data.
+Electrum-GRS uses static channel backups. If you lose your wallet file, you will need to request your channel to be force-closed by the remote peer in order to recover your funds. This assumes that the remote peer is reachable, and has not lost its own data.
 """
