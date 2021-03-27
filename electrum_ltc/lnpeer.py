@@ -687,7 +687,8 @@ class Peer(Logger):
         if dummy_output in funding_tx.outputs(): raise Exception("LN dummy output (err 2)")
         funding_tx.add_outputs([funding_output])
         # find and encrypt op_return data associated to funding_address
-        if self.lnworker and self.lnworker.has_recoverable_channels():
+        has_onchain_backup = self.lnworker and self.lnworker.has_recoverable_channels()
+        if has_onchain_backup:
             backup_data = self.lnworker.cb_data(self.pubkey)
             dummy_scriptpubkey = make_op_return(backup_data)
             for o in funding_tx.outputs():
@@ -713,15 +714,16 @@ class Peer(Logger):
             is_initiator=True,
             funding_txn_minimum_depth=funding_txn_minimum_depth
         )
-        chan_dict = self.create_channel_storage(
+        storage = self.create_channel_storage(
             channel_id, outpoint, local_config, remote_config, constraints)
         chan = Channel(
-            chan_dict,
+            storage,
             sweep_address=self.lnworker.sweep_address,
             lnworker=self.lnworker,
             initial_feerate=feerate
         )
         chan.storage['funding_inputs'] = [txin.prevout.to_json() for txin in funding_tx.inputs()]
+        chan.storage['has_onchain_backup'] = has_onchain_backup
         if isinstance(self.transport, LNTransport):
             chan.add_or_update_peer_addr(self.transport.peer_addr)
         sig_64, _ = chan.sign_next_commitment()
@@ -1574,6 +1576,8 @@ class Peer(Logger):
             # TODO: we should check that all trampoline_onions are the same
             return None, processed_onion.trampoline_onion_packet
 
+        # TODO don't accept payments twice for same invoice
+        # TODO check invoice expiry
         info = self.lnworker.get_payment_info(htlc.payment_hash)
         if info is None:
             log_fail_reason(f"no payment_info found for RHASH {htlc.payment_hash.hex()}")
@@ -1688,19 +1692,23 @@ class Peer(Logger):
         self.shutdown_received[chan_id] = asyncio.Future()
         await self.send_shutdown(chan)
         payload = await self.shutdown_received[chan_id]
-        txid = await self._shutdown(chan, payload, is_local=True)
-        self.logger.info(f'({chan.get_id_for_log()}) Channel closed {txid}')
+        try:
+            txid = await self._shutdown(chan, payload, is_local=True)
+            self.logger.info(f'({chan.get_id_for_log()}) Channel closed {txid}')
+        except asyncio.TimeoutError:
+            txid = chan.unconfirmed_closing_txid
+            self.logger.info(f'({chan.get_id_for_log()}) did not send closing_signed, {txid}')
+            if txid is None:
+                raise Exception('The remote peer did not send their final signature. The channel may not have been be closed')
         return txid
 
     async def on_shutdown(self, chan: Channel, payload):
         their_scriptpubkey = payload['scriptpubkey']
         their_upfront_scriptpubkey = chan.config[REMOTE].upfront_shutdown_script
-
         # BOLT-02 check if they use the upfront shutdown script they advertized
         if their_upfront_scriptpubkey:
             if not (their_scriptpubkey == their_upfront_scriptpubkey):
                 raise UpfrontShutdownScriptViolation("remote didn't use upfront shutdown script it commited to in channel opening")
-
         # BOLT-02 restrict the scriptpubkey to some templates:
         if not (match_script_against_template(their_scriptpubkey, transaction.SCRIPTPUBKEY_TEMPLATE_WITNESS_V0)
                 or match_script_against_template(their_scriptpubkey, transaction.SCRIPTPUBKEY_TEMPLATE_P2SH)
@@ -1727,13 +1735,11 @@ class Peer(Logger):
     async def send_shutdown(self, chan: Channel):
         if not self.can_send_shutdown(chan):
             raise Exception('cannot send shutdown')
-
         if chan.config[LOCAL].upfront_shutdown_script:
             scriptpubkey = chan.config[LOCAL].upfront_shutdown_script
         else:
             scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))
         assert scriptpubkey
-
         # wait until no more pending updates (bolt2)
         chan.set_can_send_ctx_updates(False)
         while chan.has_pending_changes(REMOTE):
@@ -1757,7 +1763,6 @@ class Peer(Logger):
         else:
             our_scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))
         assert our_scriptpubkey
-
         # estimate fee of closing tx
         our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=0)
         fee_rate = self.network.config.fee_per_kb()

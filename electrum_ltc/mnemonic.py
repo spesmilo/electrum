@@ -45,7 +45,7 @@ CJK_INTERVALS = [
     (0x2B740, 0x2B81F, 'CJK Unified Ideographs Extension D'),
     (0xF900, 0xFAFF, 'CJK Compatibility Ideographs'),
     (0x2F800, 0x2FA1D, 'CJK Compatibility Ideographs Supplement'),
-    (0x3190, 0x319F , 'Kanbun'),
+    (0x3190, 0x319F, 'Kanbun'),
     (0x2E80, 0x2EFF, 'CJK Radicals Supplement'),
     (0x2F00, 0x2FDF, 'CJK Radicals'),
     (0x31C0, 0x31EF, 'CJK Strokes'),

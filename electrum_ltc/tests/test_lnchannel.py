@@ -126,8 +126,8 @@ def create_test_channels(*, feerate=6000, local_msat=None, remote_msat=None,
     funding_sat = ((local_msat + remote_msat) // 1000) if local_msat is not None and remote_msat is not None else (bitcoin.COIN * 10)
     local_amount = local_msat if local_msat is not None else (funding_sat * 1000 // 2)
     remote_amount = remote_msat if remote_msat is not None else (funding_sat * 1000 // 2)
-    alice_raw = [ bip32("m/" + str(i)) for i in range(5) ]
-    bob_raw = [ bip32("m/" + str(i)) for i in range(5,11) ]
+    alice_raw = [bip32("m/" + str(i)) for i in range(5)]
+    bob_raw = [bip32("m/" + str(i)) for i in range(5,11)]
     alice_privkeys = [lnutil.Keypair(lnutil.privkey_to_pubkey(x), x) for x in alice_raw]
     bob_privkeys = [lnutil.Keypair(lnutil.privkey_to_pubkey(x), x) for x in bob_raw]
     alice_pubkeys = [lnutil.OnlyPubkeyKeypair(x.pubkey) for x in alice_privkeys]
@@ -853,13 +853,13 @@ class TestDust(ElectrumTestCase):
             'timestamp'   :  0,
         }
 
-        old_values = [x.value for x in bob_channel.get_latest_commitment(LOCAL).outputs() ]
+        old_values = [x.value for x in bob_channel.get_latest_commitment(LOCAL).outputs()]
         aliceHtlcIndex = alice_channel.add_htlc(htlc).htlc_id
         bobHtlcIndex = bob_channel.receive_htlc(htlc).htlc_id
         force_state_transition(alice_channel, bob_channel)
         alice_ctx = alice_channel.get_latest_commitment(LOCAL)
         bob_ctx = bob_channel.get_latest_commitment(LOCAL)
-        new_values = [x.value for x in bob_ctx.outputs() ]
+        new_values = [x.value for x in bob_ctx.outputs()]
         self.assertNotEqual(old_values, new_values)
         self.assertEqual(len(alice_ctx.outputs()), 3)
         self.assertEqual(len(bob_ctx.outputs()), 2)

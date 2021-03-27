@@ -278,9 +278,9 @@ class SafeTPlugin(HW_PluginBase):
             return self.types.InputScriptType.SPENDWITNESS
         if electrum_txin_type in ('p2wpkh-p2sh', 'p2wsh-p2sh'):
             return self.types.InputScriptType.SPENDP2SHWITNESS
-        if electrum_txin_type in ('p2pkh', ):
+        if electrum_txin_type in ('p2pkh',):
             return self.types.InputScriptType.SPENDADDRESS
-        if electrum_txin_type in ('p2sh', ):
+        if electrum_txin_type in ('p2sh',):
             return self.types.InputScriptType.SPENDMULTISIG
         raise ValueError('unexpected txin type: {}'.format(electrum_txin_type))
 
@@ -289,9 +289,9 @@ class SafeTPlugin(HW_PluginBase):
             return self.types.OutputScriptType.PAYTOWITNESS
         if electrum_txin_type in ('p2wpkh-p2sh', 'p2wsh-p2sh'):
             return self.types.OutputScriptType.PAYTOP2SHWITNESS
-        if electrum_txin_type in ('p2pkh', ):
+        if electrum_txin_type in ('p2pkh',):
             return self.types.OutputScriptType.PAYTOADDRESS
-        if electrum_txin_type in ('p2sh', ):
+        if electrum_txin_type in ('p2sh',):
             return self.types.OutputScriptType.PAYTOMULTISIG
         raise ValueError('unexpected txin type: {}'.format(electrum_txin_type))
 

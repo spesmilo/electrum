@@ -13,16 +13,17 @@ from typing import (NamedTuple, Callable, Optional, TYPE_CHECKING, Union, List, 
                     Sequence, Iterable)
 
 from PyQt5.QtGui import (QFont, QColor, QCursor, QPixmap, QStandardItem,
-                         QPalette, QIcon, QFontMetrics, QShowEvent)
+                         QPalette, QIcon, QFontMetrics, QShowEvent, QPainter, QHelpEvent)
 from PyQt5.QtCore import (Qt, QPersistentModelIndex, QModelIndex, pyqtSignal,
                           QCoreApplication, QItemSelectionModel, QThread,
-                          QSortFilterProxyModel, QSize, QLocale, QAbstractItemModel)
+                          QSortFilterProxyModel, QSize, QLocale, QAbstractItemModel,
+                          QEvent)
 from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
                              QAbstractItemView, QVBoxLayout, QLineEdit,
                              QStyle, QDialog, QGroupBox, QButtonGroup, QRadioButton,
                              QFileDialog, QWidget, QToolButton, QTreeView, QPlainTextEdit,
                              QHeaderView, QApplication, QToolTip, QTreeWidget, QStyledItemDelegate,
-                             QMenu)
+                             QMenu, QStyleOptionViewItem)
 
 from electrum_ltc.i18n import _, languages
 from electrum_ltc.util import FileImportFailed, FileExportFailed, make_aiohttp_session, resource_path
@@ -72,7 +73,7 @@ class EnterButton(QPushButton):
         self.clicked.connect(func)
 
     def keyPressEvent(self, e):
-        if e.key() in [ Qt.Key_Return, Qt.Key_Enter ]:
+        if e.key() in [Qt.Key_Return, Qt.Key_Enter]:
             self.func()
 
 
@@ -458,7 +459,7 @@ def filename_field(parent, config, defaultname, select_msg):
     hbox = QHBoxLayout()
 
     directory = config.get('io_dir', os.path.expanduser('~'))
-    path = os.path.join( directory, defaultname )
+    path = os.path.join(directory, defaultname)
     filename_e = QLineEdit()
     filename_e.setText(path)
 
@@ -518,9 +519,38 @@ class ElectrumItemDelegate(QStyledItemDelegate):
         self.tv.is_editor_open = True
         return super().createEditor(parent, option, idx)
 
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, idx: QModelIndex) -> None:
+        custom_data = idx.data(MyTreeView.ROLE_CUSTOM_PAINT)
+        if custom_data is None:
+            return super().paint(painter, option, idx)
+        else:
+            # let's call the default paint method first; to paint the background (e.g. selection)
+            super().paint(painter, option, idx)
+            # and now paint on top of that
+            custom_data.paint(painter, option.rect)
+
+    def helpEvent(self, evt: QHelpEvent, view: QAbstractItemView, option: QStyleOptionViewItem, idx: QModelIndex) -> bool:
+        custom_data = idx.data(MyTreeView.ROLE_CUSTOM_PAINT)
+        if custom_data is None:
+            return super().helpEvent(evt, view, option, idx)
+        else:
+            if evt.type() == QEvent.ToolTip:
+                if custom_data.show_tooltip(evt):
+                    return True
+        return super().helpEvent(evt, view, option, idx)
+
+    def sizeHint(self, option: QStyleOptionViewItem, idx: QModelIndex) -> QSize:
+        custom_data = idx.data(MyTreeView.ROLE_CUSTOM_PAINT)
+        if custom_data is None:
+            return super().sizeHint(option, idx)
+        else:
+            default_size = super().sizeHint(option, idx)
+            return custom_data.sizeHint(default_size)
+
 
 class MyTreeView(QTreeView):
     ROLE_CLIPBOARD_DATA = Qt.UserRole + 100
+    ROLE_CUSTOM_PAINT   = Qt.UserRole + 101
 
     filter_columns: Iterable[int]
 
@@ -609,7 +639,7 @@ class MyTreeView(QTreeView):
     def keyPressEvent(self, event):
         if self.itemDelegate().opened:
             return
-        if event.key() in [ Qt.Key_F2, Qt.Key_Return, Qt.Key_Enter ]:
+        if event.key() in [Qt.Key_F2, Qt.Key_Return, Qt.Key_Enter]:
             self.on_activated(self.selectionModel().currentIndex())
             return
         super().keyPressEvent(event)

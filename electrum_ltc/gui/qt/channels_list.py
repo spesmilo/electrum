@@ -2,12 +2,14 @@
 import traceback
 from enum import IntEnum
 from typing import Sequence, Optional, Dict
+from abc import abstractmethod, ABC
 
 from PyQt5 import QtCore, QtGui
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QRect, QSize
 from PyQt5.QtWidgets import (QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayout, QLineEdit,
-                             QPushButton, QAbstractItemView, QComboBox, QCheckBox)
-from PyQt5.QtGui import QFont, QStandardItem, QBrush
+                             QPushButton, QAbstractItemView, QComboBox, QCheckBox,
+                             QToolTip)
+from PyQt5.QtGui import QFont, QStandardItem, QBrush, QPainter, QIcon, QHelpEvent
 
 from electrum_ltc.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
 from electrum_ltc.i18n import _
@@ -15,10 +17,13 @@ from electrum_ltc.lnchannel import AbstractChannel, PeerState, ChannelBackup, Ch
 from electrum_ltc.wallet import Abstract_Wallet
 from electrum_ltc.lnutil import LOCAL, REMOTE, format_short_channel_id, LN_MAX_FUNDING_SAT
 from electrum_ltc.lnworker import LNWallet
+from electrum_ltc import ecc
+from electrum_ltc.gui import messages
 
 from .util import (MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, WaitingDialog, MONOSPACE_FONT, ColorScheme)
 from .amountedit import BTCAmountEdit, FreezableLineEdit
+from .util import read_QIcon
 
 
 ROLE_CHANNEL_ID = Qt.UserRole
@@ -30,16 +35,18 @@ class ChannelsList(MyTreeView):
     gossip_db_loaded = QtCore.pyqtSignal()
 
     class Columns(IntEnum):
-        SHORT_CHANID = 0
-        NODE_ALIAS = 1
-        CAPACITY = 2
-        LOCAL_BALANCE = 3
-        REMOTE_BALANCE = 4
-        CHANNEL_STATUS = 5
+        FEATURES = 0
+        SHORT_CHANID = 1
+        NODE_ALIAS = 2
+        CAPACITY = 3
+        LOCAL_BALANCE = 4
+        REMOTE_BALANCE = 5
+        CHANNEL_STATUS = 6
 
     headers = {
         Columns.SHORT_CHANID: _('Short Channel ID'),
         Columns.NODE_ALIAS: _('Node alias'),
+        Columns.FEATURES: _(''),
         Columns.CAPACITY: _('Capacity'),
         Columns.LOCAL_BALANCE: _('Can send'),
         Columns.REMOTE_BALANCE: _('Can receive'),
@@ -89,6 +96,7 @@ class ChannelsList(MyTreeView):
         return {
             self.Columns.SHORT_CHANID: chan.short_id_for_GUI(),
             self.Columns.NODE_ALIAS: node_alias,
+            self.Columns.FEATURES: '',
             self.Columns.CAPACITY: capacity_str,
             self.Columns.LOCAL_BALANCE: '' if closed else labels[LOCAL],
             self.Columns.REMOTE_BALANCE: '' if closed else labels[REMOTE],
@@ -110,9 +118,7 @@ class ChannelsList(MyTreeView):
         self.is_force_close = False
         msg = _('Close channel?')
         force_cb = QCheckBox('Request force close from remote peer')
-        tooltip = _(
-            'If you check this option, your node will pretend that it has lost its data and ask the remote node to broadcast their latest state. '
-            'Doing so from time to time helps make sure that nodes are honest, because your node can punish them if they broadcast a revoked state.')
+        tooltip = _(messages.MSG_REQUEST_FORCE_CLOSE)
         tooltip = '<qt>' + tooltip + '</qt>' # rich text is word wrapped
         def on_checked(b):
             self.is_force_close = bool(b)
@@ -174,7 +180,7 @@ class ChannelsList(MyTreeView):
 
     def request_force_close(self, channel_id):
         def task():
-            coro = self.lnworker.request_force_close_from_backup(channel_id)
+            coro = self.lnworker.request_force_close(channel_id)
             return self.network.run_from_another_thread(coro)
         WaitingDialog(self, 'please wait..', task, self.on_request_sent, self.on_failure)
 
@@ -213,7 +219,7 @@ class ChannelsList(MyTreeView):
             menu.addAction(_("View funding transaction"), lambda: self.parent.show_transaction(funding_tx))
             if chan.get_state() == ChannelState.FUNDED:
                 menu.addAction(_("Request force-close"), lambda: self.request_force_close(channel_id))
-            if chan.is_imported:
+            if chan.can_be_deleted():
                 menu.addAction(_("Delete"), lambda: self.remove_channel_backup(channel_id))
             menu.exec_(self.viewport().mapToGlobal(position))
             return
@@ -251,7 +257,7 @@ class ChannelsList(MyTreeView):
                     menu.addAction(_("View closing transaction"), lambda: self.parent.show_transaction(closing_tx))
         menu.addSeparator()
         menu.addAction(_("Export backup"), lambda: self.export_channel_backup(channel_id))
-        if chan.is_redeemed():
+        if chan.can_be_deleted():
             menu.addSeparator()
             menu.addAction(_("Delete"), lambda: self.remove_channel(channel_id))
         menu.exec_(self.viewport().mapToGlobal(position))
@@ -295,6 +301,7 @@ class ChannelsList(MyTreeView):
             items[self.Columns.NODE_ALIAS].setFont(QFont(MONOSPACE_FONT))
             items[self.Columns.LOCAL_BALANCE].setFont(QFont(MONOSPACE_FONT))
             items[self.Columns.REMOTE_BALANCE].setFont(QFont(MONOSPACE_FONT))
+            items[self.Columns.FEATURES].setData(ChannelFeatureIcons.from_channel(chan), self.ROLE_CUSTOM_PAINT)
             items[self.Columns.CAPACITY].setFont(QFont(MONOSPACE_FONT))
             self._update_chan_frozen_bg(chan=chan, items=items)
             self.model().insertRow(0, items)
@@ -350,15 +357,11 @@ class ChannelsList(MyTreeView):
         return h
 
     def new_channel_with_warning(self):
-        if not self.parent.wallet.lnworker.channels:
-            warning = _("Lightning support in Electrum is experimental. "
-                         "Do not put large amounts in lightning channels.")
-            if not self.parent.wallet.lnworker.has_recoverable_channels():
-                warning += _("Funds stored in lightning channels are not recoverable from your seed. "
-                             "You must backup your wallet file everytime you create a new channel.")
+        lnworker = self.parent.wallet.lnworker
+        if not lnworker.channels and not lnworker.channel_backups:
+            warning = _(messages.MSG_LIGHTNING_WARNING)
             answer = self.parent.question(
-                _('Do you want to create your first channel?') + '\n\n' +
-                _('WARNING') + ': ' + '\n\n' + warning)
+                _('Do you want to create your first channel?') + '\n\n' + warning)
             if answer:
                 self.new_channel_dialog()
         else:
@@ -415,7 +418,8 @@ class ChannelsList(MyTreeView):
             amount_e.setFrozen(max_button.isChecked())
             if not max_button.isChecked():
                 return
-            make_tx = self.parent.mktx_for_open_channel('!')
+            dummy_nodeid = ecc.GENERATOR.get_public_key_bytes(compressed=True)
+            make_tx = self.parent.mktx_for_open_channel(funding_sat='!', node_id=dummy_nodeid)
             try:
                 tx = make_tx(None)
             except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
@@ -481,3 +485,94 @@ class ChannelsList(MyTreeView):
         from .swap_dialog import SwapDialog
         d = SwapDialog(self.parent)
         d.run()
+
+
+class ChannelFeature(ABC):
+    def __init__(self):
+        self.rect = QRect()
+
+    @abstractmethod
+    def tooltip(self) -> str:
+        pass
+
+    @abstractmethod
+    def icon(self) -> QIcon:
+        pass
+
+
+class ChanFeatChannel(ChannelFeature):
+    def tooltip(self) -> str:
+        return _("This is a complete channel")
+    def icon(self) -> QIcon:
+        return read_QIcon("lightning")
+
+
+class ChanFeatBackup(ChannelFeature):
+    def tooltip(self) -> str:
+        return _("This is a static channel backup")
+    def icon(self) -> QIcon:
+        return read_QIcon("lightning_disconnected")
+
+
+class ChanFeatTrampoline(ChannelFeature):
+    def tooltip(self) -> str:
+        return _("The channel peer can route Trampoline payments.")
+    def icon(self) -> QIcon:
+        return read_QIcon("kangaroo")
+
+
+class ChanFeatNoOnchainBackup(ChannelFeature):
+    def tooltip(self) -> str:
+        return _("This channel cannot be recovered from your seed. You must back it up manually.")
+    def icon(self) -> QIcon:
+        return read_QIcon("nocloud")
+
+
+class ChannelFeatureIcons:
+    ICON_SIZE = QSize(16, 16)
+
+    def __init__(self, features: Sequence['ChannelFeature']):
+        self.features = features
+
+    @classmethod
+    def from_channel(cls, chan: AbstractChannel) -> 'ChannelFeatureIcons':
+        feats = []
+        if chan.is_backup():
+            feats.append(ChanFeatBackup())
+            if chan.is_imported:
+                feats.append(ChanFeatNoOnchainBackup())
+        else:
+            feats.append(ChanFeatChannel())
+            if chan.lnworker.is_trampoline_peer(chan.node_id):
+                feats.append(ChanFeatTrampoline())
+            if not chan.has_onchain_backup():
+                feats.append(ChanFeatNoOnchainBackup())
+        return ChannelFeatureIcons(feats)
+
+    def paint(self, painter: QPainter, rect: QRect) -> None:
+        painter.save()
+        cur_x = rect.x()
+        for feat in self.features:
+            icon_rect = QRect(cur_x, rect.y(), self.ICON_SIZE.width(), self.ICON_SIZE.height())
+            feat.rect = icon_rect
+            if rect.contains(icon_rect):  # stay inside parent
+                painter.drawPixmap(icon_rect, feat.icon().pixmap(self.ICON_SIZE))
+            cur_x += self.ICON_SIZE.width() + 1
+        painter.restore()
+
+    def sizeHint(self, default_size: QSize) -> QSize:
+        if not self.features:
+            return default_size
+        width = len(self.features) * (self.ICON_SIZE.width() + 1)
+        return QSize(width, default_size.height())
+
+    def show_tooltip(self, evt: QHelpEvent) -> bool:
+        assert isinstance(evt, QHelpEvent)
+        for feat in self.features:
+            if feat.rect.contains(evt.pos()):
+                QToolTip.showText(evt.globalPos(), feat.tooltip())
+                break
+        else:
+            QToolTip.hideText()
+            evt.ignore()
+        return True

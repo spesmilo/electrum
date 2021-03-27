@@ -34,7 +34,7 @@ import certifi
 
 from electrum_ltc import util, keystore, ecc, crypto
 from electrum_ltc import transaction
-from electrum_ltc.transaction import Transaction, PartialTransaction, tx_from_any
+from electrum_ltc.transaction import Transaction, PartialTransaction, tx_from_any, SerializationError
 from electrum_ltc.bip32 import BIP32Node
 from electrum_ltc.plugin import BasePlugin, hook
 from electrum_ltc.i18n import _
@@ -248,5 +248,9 @@ class Plugin(BasePlugin):
             return
 
         self.listener.clear(keyhash)
-        tx = tx_from_any(message)
+        try:
+            tx = tx_from_any(message)
+        except SerializationError as e:
+            window.show_error(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
+            return
         show_transaction(tx, parent=window, prompt_if_unsaved=True)

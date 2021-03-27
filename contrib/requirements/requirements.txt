@@ -1,7 +1,7 @@
 qrcode
 protobuf>=3.12
 qdarkstyle<2.9
-aiorpcx>=0.18,<0.19
+aiorpcx>=0.18.7,<0.19
 aiohttp>=3.3.0,<4.0.0
 aiohttp_socks>=0.3
 certifi

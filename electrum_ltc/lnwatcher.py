@@ -411,16 +411,16 @@ class LNWalletWatcher(LNWatcher):
     async def try_redeem(self, prevout: str, sweep_info: 'SweepInfo', chan_id_for_log: str, name: str) -> None:
         prev_txid, prev_index = prevout.split(':')
         broadcast = True
+        local_height = self.network.get_local_height()
         if sweep_info.cltv_expiry:
-            local_height = self.network.get_local_height()
-            remaining = sweep_info.cltv_expiry - local_height
-            if remaining > 0:
+            wanted_height = sweep_info.cltv_expiry - local_height
+            if wanted_height - local_height > 0:
                 broadcast = False
                 reason = 'waiting for {}: CLTV ({} > {}), prevout {}'.format(name, local_height, sweep_info.cltv_expiry, prevout)
         if sweep_info.csv_delay:
             prev_height = self.get_tx_height(prev_txid)
-            remaining = sweep_info.csv_delay - prev_height.conf
-            if remaining > 0:
+            wanted_height = sweep_info.csv_delay + prev_height.height - 1
+            if wanted_height - local_height > 0:
                 broadcast = False
                 reason = 'waiting for {}: CSV ({} >= {}), prevout: {}'.format(name, prev_height.conf, sweep_info.csv_delay, prevout)
         tx = sweep_info.gen_tx()
@@ -432,16 +432,24 @@ class LNWalletWatcher(LNWatcher):
         if broadcast:
             await self.network.try_broadcasting(tx, name)
         else:
-            if self.lnworker.wallet.db.get_transaction(txid):
+            if txid in self.lnworker.wallet.future_tx:
                 return
             self.logger.debug(f'(chan {chan_id_for_log}) trying to redeem {name}: {prevout}')
             self.logger.info(reason)
             # it's OK to add local transaction, the fee will be recomputed
             try:
-                tx_was_added = self.lnworker.wallet.add_future_tx(tx, remaining)
+                tx_was_added = self.lnworker.wallet.add_future_tx(tx, wanted_height)
             except Exception as e:
                 self.logger.info(f'could not add future tx: {name}. prevout: {prevout} {str(e)}')
                 tx_was_added = False
             if tx_was_added:
                 self.logger.info(f'added future tx: {name}. prevout: {prevout}')
                 util.trigger_callback('wallet_updated', self.lnworker.wallet)
+
+    def add_verified_tx(self, tx_hash: str, info: TxMinedInfo):
+        # this method is overloaded so that we have the GUI refreshed
+        # TODO: LNWatcher should not be an AddressSynchronizer,
+        # we should use the existing wallet instead, and results would be persisted
+        super().add_verified_tx(tx_hash, info)
+        tx_mined_status = self.get_tx_height(tx_hash)
+        util.trigger_callback('verified', self.lnworker.wallet, tx_hash, tx_mined_status)

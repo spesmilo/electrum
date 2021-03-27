@@ -48,8 +48,8 @@ class HW_PluginBase(BasePlugin):
     libraries_available: bool
 
     # define supported library versions:  minimum_library <= x < maximum_library
-    minimum_library = (0, )
-    maximum_library = (float('inf'), )
+    minimum_library = (0,)
+    maximum_library = (float('inf'),)
 
     DEVICE_IDS: Iterable[Any]
 

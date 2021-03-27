@@ -393,11 +393,16 @@ class Commands:
     @command('wp')
     async def signtransaction(self, tx, privkey=None, password=None, wallet: Abstract_Wallet = None):
         """Sign a transaction. The wallet keys will be used unless a private key is provided."""
+        # TODO this command should be split in two... (1) *_with_wallet, (2) *_with_privkey
         tx = tx_from_any(tx)
         if privkey:
             txin_type, privkey2, compressed = bitcoin.deserialize_privkey(privkey)
-            pubkey = ecc.ECPrivkey(privkey2).get_public_key_bytes(compressed=compressed).hex()
-            tx.sign({pubkey:(privkey2, compressed)})
+            pubkey = ecc.ECPrivkey(privkey2).get_public_key_bytes(compressed=compressed)
+            for txin in tx.inputs():
+                if txin.address and txin.address == bitcoin.pubkey_to_address(txin_type, pubkey.hex()):
+                    txin.pubkeys = [pubkey]
+                    txin.script_type = txin_type
+            tx.sign({pubkey.hex(): (privkey2, compressed)})
         else:
             wallet.sign_transaction(tx, password)
         return tx.serialize()
@@ -1074,9 +1079,9 @@ class Commands:
 
     @command('n')
     async def inject_fees(self, fees):
-        import ast
-        self.network.config.fee_estimates = ast.literal_eval(fees)
-        self.network.notify('fee')
+        # e.g. use from Qt console:  inject_fees("{25: 1009, 10: 15962, 5: 18183, 2: 23239}")
+        fee_est = ast.literal_eval(fees)
+        self.network.update_fee_estimates(fee_est=fee_est)
 
     @command('wn')
     async def enable_htlc_settle(self, b: bool, wallet: Abstract_Wallet = None):

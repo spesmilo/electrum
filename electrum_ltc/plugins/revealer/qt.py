@@ -299,7 +299,7 @@ class Plugin(RevealerPlugin):
         bitmap.fill(Qt.white)
         painter = QPainter()
         painter.begin(bitmap)
-        QFontDatabase.addApplicationFont(os.path.join(os.path.dirname(__file__), 'SourceSansPro-Bold.otf') )
+        QFontDatabase.addApplicationFont(os.path.join(os.path.dirname(__file__), 'SourceSansPro-Bold.otf'))
         if len(txt) < 102 :
             fontsize = 15
             linespace = 15
@@ -325,7 +325,7 @@ class Plugin(RevealerPlugin):
             while len(' '.join(map(str, temp_seed))) > max_letters:
                nwords = nwords - 1
                temp_seed = seed_array[:nwords]
-            painter.drawText(QRect(0, linespace*n , self.SIZE[0], self.SIZE[1]), Qt.AlignHCenter, ' '.join(map(str, temp_seed)))
+            painter.drawText(QRect(0, linespace*n, self.SIZE[0], self.SIZE[1]), Qt.AlignHCenter, ' '.join(map(str, temp_seed)))
             del seed_array[:nwords]
 
         painter.end()
@@ -463,7 +463,7 @@ class Plugin(RevealerPlugin):
         painter.end()
 
     def pixelcode_2x2(self, img):
-        result = QImage(img.width()*2, img.height()*2, QImage.Format_ARGB32 )
+        result = QImage(img.width()*2, img.height()*2, QImage.Format_ARGB32)
         white = qRgba(255,255,255,0)
         black = qRgba(0,0,0,255)
 
@@ -625,7 +625,7 @@ class Plugin(RevealerPlugin):
                                      + self.versioned_seed.checksum)
                 target = QRectF(base_img.width()-65-qr_size,
                                 base_img.height()-65-qr_size,
-                                qr_size, qr_size )
+                                qr_size, qr_size)
                 painter.drawImage(target, qr_qt)
                 painter.setPen(QPen(Qt.black, 4))
                 painter.drawLine(base_img.width()-65-qr_size,

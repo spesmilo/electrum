@@ -83,10 +83,10 @@ Builder.load_string('''
                 CardSeparator
                 SettingsItem:
                     status: _('Yes') if app.use_recoverable_channels else _('No')
-                    title: _('Use recoverable channels') + ': ' + self.status
+                    title: _('Create recoverable channels') + ': ' + self.status
                     description: _("Add channel recovery data to funding transaction.")
                     message: _(messages.MSG_RECOVERABLE_CHANNELS)
-                    action: partial(root.boolean_dialog, 'use_recoverable_channels', _('Use recoverable_channels'), self.message)
+                    action: partial(root.boolean_dialog, 'use_recoverable_channels', _('Create recoverable channels'), self.message)
                 CardSeparator
                 SettingsItem:
                     status: _('Trampoline') if not app.use_gossip else _('Gossip')
@@ -133,7 +133,7 @@ class SettingsDialog(Factory.Popup):
         self.app.change_password(self.update)
 
     def change_pin_code(self, label, dt):
-        self.app.change_pin_code(self.update)
+        self.app.pin_code_dialog(self.update)
 
     def language_dialog(self, item, dt):
         if self._language_dialog is None:
