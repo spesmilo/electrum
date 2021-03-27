@@ -15,10 +15,12 @@ Builder.load_string('''
     pos_hint: {'top':0.9}
     BoxLayout:
         orientation: 'vertical'
+        padding: '10dp'
+        spacing: '10dp'
         Label:
             size_hint: 1, None
             text: root.description
-            halign: 'left'
+            halign: 'justify'
             text_size: self.width, None
             size: self.texture_size
         ScrollView:
