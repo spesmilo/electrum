@@ -33,12 +33,8 @@ git submodule update --init
 (
     cd "$ROOT_FOLDER"
 
-    echo "'git clean -fd' would delete the following files: >>>"
-    git clean -fd --dry-run
-    echo "<<<"
-
     # we could build the kivy atlas potentially?
-    #(cd electrum/gui/kivy/; make theming) || echo "building kivy atlas failed! skipping."
+    #(cd contrib/android/; make theming) || echo "building kivy atlas failed! skipping."
 
     find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
 
