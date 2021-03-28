@@ -251,7 +251,12 @@ class AddressSynchronizer(Logger):
             return conflicting_txns
 
     def add_transaction(self, tx: Transaction, *, allow_unrelated=False) -> bool:
-        """Returns whether the tx was successfully added to the wallet history."""
+        """
+        Returns whether the tx was successfully added to the wallet history.
+        Note that a transaction may need to be added several times, if our
+        list of addresses has increased. This will return True even if the
+        transaction was already in self.db.
+        """
         assert tx, tx
         # note: tx.is_complete() is not necessarily True; tx might be partial
         # but it *needs* to have a txid:

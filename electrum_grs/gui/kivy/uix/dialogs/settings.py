@@ -9,6 +9,7 @@ from electrum_grs.gui.kivy.i18n import _
 from electrum_grs.plugin import run_hook
 from electrum_grs import coinchooser
 
+from electrum_grs.gui import messages
 from electrum_grs.gui.kivy import KIVY_GUI_PATH
 
 from .choice_dialog import ChoiceDialog
@@ -83,10 +84,10 @@ Builder.load_string('''
                 CardSeparator
                 SettingsItem:
                     status: _('Yes') if app.use_recoverable_channels else _('No')
-                    title: _('Use recoverable channels') + ': ' + self.status
+                    title: _('Create recoverable channels') + ': ' + self.status
                     description: _("Add channel recovery data to funding transaction.")
                     message: _(messages.MSG_RECOVERABLE_CHANNELS)
-                    action: partial(root.boolean_dialog, 'use_recoverable_channels', _('Use recoverable_channels'), self.message)
+                    action: partial(root.boolean_dialog, 'use_recoverable_channels', _('Create recoverable channels'), self.message)
                 CardSeparator
                 SettingsItem:
                     status: _('Trampoline') if not app.use_gossip else _('Gossip')
@@ -161,11 +162,7 @@ class SettingsDialog(Factory.Popup):
         self._unit_dialog.open()
 
     def routing_dialog(self, item, dt):
-        description = \
-            _('Lightning payments require finding a path through the Lightning Network.')\
-            + ' ' + ('You may use trampoline routing, or local routing (gossip).')\
-            + ' ' + ('Downloading the network gossip uses quite some bandwidth and storage, and is not recommended on mobile devices.')\
-            + ' ' + ('If you use trampoline, you can only open channels with trampoline nodes.')
+        description = _(messages.MSG_HELP_TRAMPOLINE)
         def cb(text):
             self.app.use_gossip = (text == 'Gossip')
         dialog = ChoiceDialog(

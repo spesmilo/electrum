@@ -351,7 +351,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
         # lightning network
         self.channel_blacklist = ChannelBlackList()
-        if self.config.get('run_local_watchtower', False):
+        if self.config.get('run_watchtower', False):
             from . import lnwatcher
             self.local_watchtower = lnwatcher.WatchTower(self)
             self.local_watchtower.start_network(self)

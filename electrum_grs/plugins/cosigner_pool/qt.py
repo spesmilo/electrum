@@ -34,11 +34,11 @@ import certifi
 
 from electrum_grs import util, keystore, ecc, crypto
 from electrum_grs import transaction
-from electrum_grs.transaction import Transaction, PartialTransaction, tx_from_any
+from electrum_grs.transaction import Transaction, PartialTransaction, tx_from_any, SerializationError
 from electrum_grs.bip32 import BIP32Node
 from electrum_grs.plugin import BasePlugin, hook
-from electrum_grs.i18n import _
 from electrum_grs.wallet import Multisig_Wallet, Abstract_Wallet
+from electrum_grs.i18n import _
 from electrum_grs.util import bh2u, bfh
 
 from electrum_grs.gui.qt.transaction_dialog import show_transaction, TxDialog
@@ -248,5 +248,9 @@ class Plugin(BasePlugin):
             return
 
         self.listener.clear(keyhash)
-        tx = tx_from_any(message)
+        try:
+            tx = tx_from_any(message)
+        except SerializationError as e:
+            window.show_error(_("Electrum-GRS was unable to deserialize the transaction:") + "\n" + str(e))
+            return
         show_transaction(tx, parent=window, prompt_if_unsaved=True)

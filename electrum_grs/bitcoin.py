@@ -506,9 +506,10 @@ def address_to_hash(addr: str, *, net=None) -> Tuple[OnchainOutputType, bytes]:
     raise BitcoinException(f"unknown address type: {addrtype}")
 
 
-def address_to_scripthash(addr: str) -> str:
-    script = address_to_script(addr)
+def address_to_scripthash(addr: str, *, net=None) -> str:
+    script = address_to_script(addr, net=net)
     return script_to_scripthash(script)
+
 
 def script_to_scripthash(script: str) -> str:
     h = sha256(bfh(script))[0:32]

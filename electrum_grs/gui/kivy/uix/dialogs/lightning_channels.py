@@ -726,7 +726,7 @@ class SwapDialog(Factory.Popup):
             max_onchain_spend = 0
         reverse = int(min(self.lnworker.num_sats_can_send(),
                           self.swap_manager.get_max_amount()))
-        forward = int(min(self.lnworker.num_sats_can_receive(),
+        forward = int(min(self.swap_manager.num_sats_can_receive(),
                           # maximally supported swap amount by provider
                           self.swap_manager.get_max_amount(),
                           max_onchain_spend))

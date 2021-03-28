@@ -119,7 +119,7 @@ class ChannelsList(MyTreeView):
         msg = _('Close channel?')
         force_cb = QCheckBox('Request force close from remote peer')
         tooltip = _(messages.MSG_REQUEST_FORCE_CLOSE)
-        tooltip = '<qt>' + tooltip + '</qt>' # rich text is word wrapped
+        tooltip = messages.to_rtf(tooltip)
         def on_checked(b):
             self.is_force_close = bool(b)
         force_cb.stateChanged.connect(on_checked)
@@ -501,7 +501,7 @@ class ChannelFeature(ABC):
 
 class ChanFeatChannel(ChannelFeature):
     def tooltip(self) -> str:
-        return _("This is a complete channel")
+        return _("This is a channel")
     def icon(self) -> QIcon:
         return read_QIcon("lightning")
 

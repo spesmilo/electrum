@@ -225,6 +225,11 @@ class SwapManager(Logger):
         callback = lambda: self._claim_swap(swap)
         self.lnwatcher.add_callback(swap.lockup_address, callback)
 
+    def num_sats_can_receive(self):
+        # finding how to do MPP is too hard for sender,
+        # might result in our coins being locked
+        return self.lnworker.num_sats_can_receive_no_mpp()
+
     async def normal_swap(
             self,
             *,
