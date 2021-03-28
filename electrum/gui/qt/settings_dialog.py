@@ -161,31 +161,13 @@ channels graph and compute payment path locally, instead of using trampoline pay
         gossip_cb.stateChanged.connect(on_gossip_checked)
         lightning_widgets.append((gossip_cb, None))
 
-        help_local_wt = _("""If this option is checked, Electrum will
-run a local watchtower and protect your channels even if your wallet is not
-open. For this to work, your computer needs to be online regularly.""")
-        local_wt_cb = QCheckBox(_("Run a local watchtower"))
-        local_wt_cb.setToolTip(help_local_wt)
-        local_wt_cb.setChecked(bool(self.config.get('run_local_watchtower', False)))
-        def on_local_wt_checked(x):
-            self.config.set_key('run_local_watchtower', bool(x))
-        local_wt_cb.stateChanged.connect(on_local_wt_checked)
-        lightning_widgets.append((local_wt_cb, None))
-
-        help_persist = _("""If this option is checked, Electrum will persist after
-you close all your wallet windows, and the Electrum icon will be visible in the taskbar.
-Use this if you want your local watchtower to keep running after you close your wallet.""")
-        persist_cb = QCheckBox(_("Persist after all windows are closed"))
-        persist_cb.setToolTip(help_persist)
-        persist_cb.setChecked(bool(self.config.get('persist_daemon', False)))
-        def on_persist_checked(x):
-            self.config.set_key('persist_daemon', bool(x))
-        persist_cb.stateChanged.connect(on_persist_checked)
-        lightning_widgets.append((persist_cb, None))
-
-        help_remote_wt = _("""To use a remote watchtower, enter the corresponding URL here""")
+        help_remote_wt = ' '.join([
+            _("A watchtower is a daemon that watches your channels and prevents the other party from stealing funds by broadcasting an old state."),
+            _("If you have private a watchtower, enter its URL here."),
+            _("Check our online documentation if you want to configure Electrum as a watchtower."),
+        ])
         remote_wt_cb = QCheckBox(_("Use a remote watchtower"))
-        remote_wt_cb.setToolTip(help_remote_wt)
+        remote_wt_cb.setToolTip('<p>'+help_remote_wt+'</p>')
         remote_wt_cb.setChecked(bool(self.config.get('use_watchtower', False)))
         def on_remote_wt_checked(x):
             self.config.set_key('use_watchtower', bool(x))

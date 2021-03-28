@@ -370,8 +370,6 @@ class ElectrumGui(Logger):
             with self._num_wizards_lock:
                 if self._num_wizards_in_progress > 0 or len(self.windows) > 0:
                     return
-                if self.config.get('persist_daemon'):
-                    return
             self.app.quit()
         self.app.setQuitOnLastWindowClosed(False)  # so _we_ can decide whether to quit
         self.app.lastWindowClosed.connect(quit_after_last_window)
