@@ -25,3 +25,9 @@ It may be imported in another Electrum wallet with the same seed.
 MSG_LIGHTNING_WARNING = """
 Electrum uses static channel backups. If you lose your wallet file, you will need to request your channel to be force-closed by the remote peer in order to recover your funds. This assumes that the remote peer is reachable, and has not lost its own data.
 """
+
+MSG_HELP_TRAMPOLINE = """
+Lightning payments require finding a path through the Lightning Network. You may use trampoline routing, or local routing (gossip).
+
+Downloading the network gossip uses quite some bandwidth and storage, and is not recommended on mobile devices. If you use trampoline, you can only open channels with trampoline nodes.
+"""

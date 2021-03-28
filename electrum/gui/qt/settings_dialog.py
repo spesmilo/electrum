@@ -142,13 +142,12 @@ class SettingsDialog(WindowModalDialog):
             recov_cb.setEnabled(not bool(self.config.get('lightning_listen')))
             lightning_widgets.append((recov_cb, None))
 
-        help_gossip = _("""If this option is enabled, Electrum will download the network
-channels graph and compute payment path locally, instead of using trampoline payments. """)
-        gossip_cb = QCheckBox(_("Enable gossip (disable trampoline)"))
-        gossip_cb.setToolTip(help_gossip)
-        gossip_cb.setChecked(bool(self.config.get('use_gossip', False)))
-        def on_gossip_checked(x):
-            use_gossip = bool(x)
+        help_trampoline = _(messages.MSG_HELP_TRAMPOLINE)
+        trampoline_cb = QCheckBox(_("Use trampoline routing (disable gossip)"))
+        trampoline_cb.setToolTip(messages.to_rtf(help_trampoline))
+        trampoline_cb.setChecked(not bool(self.config.get('use_gossip', False)))
+        def on_trampoline_checked(use_trampoline):
+            use_gossip = not bool(use_trampoline)
             self.config.set_key('use_gossip', use_gossip)
             if use_gossip:
                 self.window.network.start_gossip()
@@ -158,8 +157,8 @@ channels graph and compute payment path locally, instead of using trampoline pay
             util.trigger_callback('ln_gossip_sync_progress')
             # FIXME: update all wallet windows
             util.trigger_callback('channels_updated', self.wallet)
-        gossip_cb.stateChanged.connect(on_gossip_checked)
-        lightning_widgets.append((gossip_cb, None))
+        trampoline_cb.stateChanged.connect(on_trampoline_checked)
+        lightning_widgets.append((trampoline_cb, None))
 
         help_remote_wt = ' '.join([
             _("A watchtower is a daemon that watches your channels and prevents the other party from stealing funds by broadcasting an old state."),
