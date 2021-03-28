@@ -501,7 +501,7 @@ class ChannelFeature(ABC):
 
 class ChanFeatChannel(ChannelFeature):
     def tooltip(self) -> str:
-        return _("This is a complete channel")
+        return _("This is a channel")
     def icon(self) -> QIcon:
         return read_QIcon("lightning")
 
