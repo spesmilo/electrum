@@ -405,6 +405,7 @@ class ChannelsList(MyTreeView):
             suggest_button.clicked.connect(on_suggest)
         else:
             from electrum.lnworker import hardcoded_trampoline_nodes
+            vbox.addWidget(QLabel(_('Choose a trampoline node to open a channel with')))
             trampolines = hardcoded_trampoline_nodes()
             trampoline_names = list(trampolines.keys())
             trampoline_combo = QComboBox()
@@ -451,14 +452,15 @@ class ChannelsList(MyTreeView):
             h.addWidget(remote_nodeid, 0, 1, 1, 4)
             h.addWidget(suggest_button, 0, 5)
         else:
-            h.addWidget(QLabel(_('Trampoline Node')), 0, 0)
-            h.addWidget(trampoline_combo, 0, 1, 1, 3)
+            h.addWidget(QLabel(_('Trampoline')), 0, 0)
+            h.addWidget(trampoline_combo, 0, 1, 1, 4)
 
         h.addWidget(QLabel('Amount'), 2, 0)
         h.addWidget(amount_e, 2, 1)
         h.addWidget(max_button, 2, 2)
         h.addWidget(clear_button, 2, 3)
         vbox.addLayout(h)
+        vbox.addStretch()
         ok_button = OkButton(d)
         ok_button.setDefault(True)
         vbox.addLayout(Buttons(CancelButton(d), ok_button))
