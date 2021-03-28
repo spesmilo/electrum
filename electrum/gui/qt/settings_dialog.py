@@ -134,7 +134,7 @@ class SettingsDialog(WindowModalDialog):
         if self.wallet.lnworker and self.wallet.lnworker.has_deterministic_node_id():
             help_recov = _(messages.MSG_RECOVERABLE_CHANNELS)
             recov_cb = QCheckBox(_("Create recoverable channels"))
-            recov_cb.setToolTip(help_recov)
+            recov_cb.setToolTip(messages.to_rtf(help_recov))
             recov_cb.setChecked(bool(self.config.get('use_recoverable_channels', True)))
             def on_recov_checked(x):
                 self.config.set_key('use_recoverable_channels', bool(x))
