@@ -1,17 +1,80 @@
-# Release 4.1.0 - (not released yet; release notes are a draft)
- * The wallet creation wizard will no longer ask for seed type,
-   and create segwit wallets. Older seed types can still be
-   created wit the command line.
- * Lightning:
-    - support multi-part-payment
-    - support trampoline routing (enabled by default)
-    - channel backups can be recovered from seed (enabled by default)
-    - submarine swaps are available on kivy/android.
-    - support upfront_shutdown_script
- * GUI: invoices (both incoming and outgoing) are automatically
-   removed from the list once they are paid. Invoice details can
-   still be accessed from the transaction history.
- * Android: if possible, use the same password for all wallets
+# Release 4.1.0 - Kangaroo (not released yet)
+ * The wallet creation wizard will no longer ask for seed type, and
+   create native segwit wallets with bech32 addresses. Older seed
+   types can still be created with the command line.
+ * GUI (both qt and kivy): invoices (incoming and outgoing) are
+   automatically removed from the user-visible list once they are paid
+   (one confirmation is needed for onchain invoices). Once removed,
+   paid invoice details can still be accessed from the transaction
+   history. In Qt, the lists have been renamed to 'Sending queue' and
+   'Receiving queue'.
+ * Lightning: Recoverable channels (option, enabled by default)
+   - Recovery data is added to the channel funding transaction using
+     an OP_RETURN. This makes it possible to recover a static backup
+     of the channel from the wallet seed. Please note that static
+     backups only allow users to request a force-close of the channel
+     with the remote node, so that funds not locked in HTLCs can be
+     recovered. This assumes that the remote node is still online, did
+     not lose its data, and accepts to force close the channel.
+   - Channel recovery data uses 20 bytes (16 bytes of the remote
+     NodeID plus 4 magic bytes) and is encrypted so that only the
+     wallet that owns it can decrypt it. However, blockchain analysis
+     will be able to tell that the transaction was probably created by
+     Electrum.
+   - This option is only available for standard wallets with an
+     Electrum seed. It is not available for hardware wallets, because
+     it requires a deterministic derivation of the nodeID. It is also
+     not available in watching-only wallets, for the same reason. If a
+     wallet can have recoverable channels but has an old nodeID, users
+     who want to use that feature need to close all their existing
+     channels, and to restore their wallet from seed.
+   - If this option is enabled, other nodes cannot open a channel to
+     Electrum.
+ * Lightning: Support multi-part-payment (both sending and receiving)
+ * Lightning: Trampoline routing (option, enabled by default).
+   - Trampoline is enabled by default in order to prevent unwanted
+     download of the network gossip. If trampoline is disabled, the
+     gossip will be downloaded, regardless of the existence of
+     channels.
+   - Because there is no discovery mechanism for trampoline nodes, the
+     list of available trampolines is hardcoded in the client
+     (currently 3 nodes on mainnet, 1 on testnet). It will remain so
+     until OPTION_TRAMPOLINE_ROUTING_OPT is announced in INIT.
+   - If trampoline is enabled:
+      - payments use trampoline.
+      - gossip is disabled.
+      - the wallet can only open channels with trampoline nodes.
+      - pre-existing channels with non-trampoline nodes are frozen for
+        sending.
+   - There are two types of trampoline payments: legacy and end-to-end
+     We decide whether to perform legacy or end-to-end based on the
+     features in the invoice:
+       - OPTION_TRAMPOLINE_ROUTING_OPT (1<<25) for Electrum
+       - OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR (1<<51) for Eclair/Phoenix
+   - When performing a legacy payment, Electrum adds a second
+     trampoline node to the route in order to protect the privacy of
+     the payer and payee. It will fall back to a single trampoline if
+     the double-trampoline strategy has failed for all trampolines.
+   - Similar to Phoenix, the fee and CLTV delay are found by
+     trial-and-error. If there is a second trampoline in the route, we
+     use the same fee/CLTV for both. This trial-and-error is
+     temporary; the final specification should add fee information in
+     the failure messages, so that we will be able to better fine-tune
+     trampoline fees.
+ * Lightning: Support upfront_shutdown_script
+ * Android password unification: When the app is started, the provided
+   password is checked against all wallets in the directory. If the
+   test passes:
+    - all wallets are encrypted
+    - new wallets are created with the existing password
+    - password updates are performed on all wallets
+   Whether the password is unified can be seen in the GUI: In
+   settings, the description for the password setting is 'Change
+   password for this wallet', and becomes 'Change password' if
+   password is unified.
+ * Submarine swaps are available on kivy/android.
+ * Android PIN reset: If the password is unified, the PIN can be reset
+   by providing the password.
 
 
 # Release 4.0.9 - (Dec 18, 2020)
