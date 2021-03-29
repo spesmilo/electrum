@@ -139,7 +139,7 @@ Builder.load_string('''
             text: _('From {} cosigners').format(n.value)
         Slider:
             id: n
-            range: 2, 5
+            range: 2, 15
             step: 1
             value: 2
         Label:
