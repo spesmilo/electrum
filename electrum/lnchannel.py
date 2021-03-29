@@ -339,7 +339,7 @@ class AbstractChannel(Logger, ABC):
 
     def get_state_for_GUI(self) -> str:
         cs = self.get_state()
-        if cs == ChannelState.OPEN and self.unconfirmed_closing_txid:
+        if cs <= ChannelState.OPEN and self.unconfirmed_closing_txid:
             return 'FORCE-CLOSING'
         return cs.name
 
