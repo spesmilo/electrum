@@ -1081,6 +1081,7 @@ class Peer(Logger):
         elif we_are_ahead:
             self.logger.warning(f"channel_reestablish ({chan.get_id_for_log()}): we are ahead of remote! trying to force-close.")
             await self.lnworker.try_force_closing(chan_id)
+            self.close_and_cleanup()
             return
 
         chan.peer_state = PeerState.GOOD
