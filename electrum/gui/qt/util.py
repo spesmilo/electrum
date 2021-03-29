@@ -743,6 +743,8 @@ class MyTreeView(QTreeView):
         cc = menu.addMenu(_("Copy"))
         for column in self.Columns:
             column_title = self.original_model().horizontalHeaderItem(column).text()
+            if not column_title:
+                continue
             item_col = self.item_from_index(idx.sibling(idx.row(), column))
             clipboard_data = item_col.data(self.ROLE_CLIPBOARD_DATA)
             if clipboard_data is None:
