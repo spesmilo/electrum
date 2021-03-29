@@ -2120,7 +2120,7 @@ class LNWallet(LNWorker):
         chan = self.channel_backups[channel_id]
         assert chan.can_be_deleted()
         onchain_backups = self.db.get_dict("onchain_channel_backups")
-        imported_backups = self.db.get_dict("onchain_channel_backups")
+        imported_backups = self.db.get_dict("imported_channel_backups")
         if channel_id.hex() in onchain_backups:
             onchain_backups.pop(channel_id.hex())
         elif channel_id.hex() in imported_backups:
