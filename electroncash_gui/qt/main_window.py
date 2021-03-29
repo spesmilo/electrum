@@ -2887,10 +2887,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.addr_converter_button.setHidden(self.gui_object.is_cashaddr_status_button_hidden())
         self.gui_object.cashaddr_status_button_hidden_signal.connect(self.addr_converter_button.setHidden)
 
-        q_icon_prefs = QIcon(":icons/preferences.svg"), _("Preferences"), self.settings_dialog)
-        sb.addPermanentWidget(StatusBarButton(q_icon_prefs))
-        q_icon_seed = QIcon(":icons/seed.png"), _("Seed"), self.show_seed_dialog)
-        self.seed_button = StatusBarButton(q_icon_seed)
+        q_icon_prefs = QIcon(":icons/preferences.svg"), _("Preferences"), self.settings_dialog
+        sb.addPermanentWidget(StatusBarButton(*q_icon_prefs))
+        q_icon_seed = QIcon(":icons/seed.png"), _("Seed"), self.show_seed_dialog
+        self.seed_button = StatusBarButton(*q_icon_seed)
         sb.addPermanentWidget(self.seed_button)
         weakSelf = Weak.ref(self)
         gui_object = self.gui_object
