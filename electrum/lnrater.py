@@ -243,6 +243,9 @@ class LNRater(Logger):
         node_keys = list(self._node_stats.keys())
         node_ratings = list(self._node_ratings.values())
         channel_peers = self.lnworker.channel_peers()
+        channel_backup_peers = [
+            cb.node_id for cb in self.lnworker.channel_backups.values()
+            if (not cb.is_closed() and cb.get_local_pubkey() == self.lnworker.node_keypair.pubkey)]
         node_info: Optional["NodeInfo"] = None
 
         while True:
@@ -258,8 +261,12 @@ class LNRater(Logger):
                 continue
 
             # don't want to connect to nodes we are already connected to
-            if pk not in channel_peers:
-                break
+            if pk in channel_peers:
+                continue
+            # don't want to connect to nodes we already have a channel with on another device
+            if any(pk.startswith(cb_peer_nodeid) for cb_peer_nodeid in channel_backup_peers):
+                continue
+            break
 
         alias = node_info.alias if node_info else 'unknown node alias'
         self.logger.info(
