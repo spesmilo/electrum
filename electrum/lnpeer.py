@@ -65,6 +65,11 @@ LN_P2P_NETWORK_TIMEOUT = 20
 class Peer(Logger):
     LOGGING_SHORTCUT = 'P'
 
+    ORDERED_MESSAGES = (
+        'accept_channel', 'funding_signed', 'funding_created', 'accept_channel', 'channel_reestablish', 'closing_signed')
+    SPAMMY_MESSAGES = (
+        'ping', 'pong', 'channel_announcement', 'node_announcement', 'channel_update',)
+
     def __init__(
             self,
             lnworker: Union['LNGossip', 'LNWallet'],
@@ -91,7 +96,6 @@ class Peer(Logger):
         self.reply_channel_range = asyncio.Queue()
         # gossip uses a single queue to preserve message order
         self.gossip_queue = asyncio.Queue()
-        self.ordered_messages = ['accept_channel', 'funding_signed', 'funding_created', 'accept_channel', 'channel_reestablish', 'closing_signed']
         self.ordered_message_queues = defaultdict(asyncio.Queue) # for messsage that are ordered
         self.temp_id_to_id = {}   # to forward error messages
         self.funding_created_sent = set() # for channels in PREOPENING
@@ -109,7 +113,8 @@ class Peer(Logger):
 
     def send_message(self, message_name: str, **kwargs):
         assert type(message_name) is str
-        self.logger.debug(f"Sending {message_name.upper()}")
+        if message_name not in self.SPAMMY_MESSAGES:
+            self.logger.debug(f"Sending {message_name.upper()}")
         if message_name.upper() != "INIT" and not self.is_initialized():
             raise Exception("tried to send message before we are initialized")
         raw_msg = encode_msg(message_name, **kwargs)
@@ -184,10 +189,12 @@ class Peer(Logger):
         except UnknownOptionalMsgType as e:
             self.logger.info(f"received unknown message from peer. ignoring: {e!r}")
             return
+        if message_type not in self.SPAMMY_MESSAGES:
+            self.logger.debug(f"Received {message_type.upper()}")
         # only process INIT if we are a backup
         if self.is_channel_backup is True and message_type != 'init':
             return
-        if message_type in self.ordered_messages:
+        if message_type in self.ORDERED_MESSAGES:
             chan_id = payload.get('channel_id') or payload["temporary_channel_id"]
             self.ordered_message_queues[chan_id].put_nowait((message_type, payload))
         else:

@@ -169,7 +169,7 @@ class AbstractChannel(Logger, ABC):
         old_state = self._state
         if (old_state, state) not in state_transitions:
             raise Exception(f"Transition not allowed: {old_state.name} -> {state.name}")
-        self.logger.debug(f'Setting channel state: {old_state.name} -> {state.name}')
+        self.logger.debug(f'({self.get_id_for_log()}) Setting channel state: {old_state.name} -> {state.name}')
         self._state = state
         self.storage['state'] = self._state.name
         if self.lnworker:
