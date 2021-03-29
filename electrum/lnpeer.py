@@ -478,6 +478,9 @@ class Peer(Logger):
         self.querying.set()
 
     def close_and_cleanup(self):
+        # note: This method might get called multiple times!
+        #       E.g. if you call close_and_cleanup() to cause a disconnection from the peer,
+        #       it will get called a second time in handle_disconnect().
         try:
             if self.transport:
                 self.transport.close()
@@ -1081,7 +1084,6 @@ class Peer(Logger):
         elif we_are_ahead:
             self.logger.warning(f"channel_reestablish ({chan.get_id_for_log()}): we are ahead of remote! trying to force-close.")
             await self.lnworker.try_force_closing(chan_id)
-            self.close_and_cleanup()
             return
 
         chan.peer_state = PeerState.GOOD

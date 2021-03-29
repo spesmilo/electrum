@@ -316,7 +316,9 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
 
     def peer_closed(self, peer: Peer) -> None:
         with self.lock:
-            self._peers.pop(peer.pubkey, None)
+            peer2 = self._peers.get(peer.pubkey)
+            if peer2 is peer:
+                self._peers.pop(peer.pubkey)
 
     def num_peers(self) -> int:
         return sum([p.is_initialized() for p in self.peers.values()])
