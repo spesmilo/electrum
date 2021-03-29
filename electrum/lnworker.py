@@ -1940,6 +1940,7 @@ class LNWallet(LNWorker):
         fee_proportional_millionths = TRAMPOLINE_FEES[3]['fee_proportional_millionths']
         # inverse of fee_for_edge_msat
         can_send_minus_fees = (can_send - fee_base_msat) * 1_000_000 // ( 1_000_000 + fee_proportional_millionths)
+        can_send_minus_fees = max(0, can_send_minus_fees)
         return Decimal(can_send_minus_fees) / 1000
 
     def num_sats_can_receive(self) -> Decimal:
