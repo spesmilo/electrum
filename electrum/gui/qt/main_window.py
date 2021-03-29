@@ -1813,6 +1813,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         except ConnStringFormatError as e:
             self.show_error(str(e))
             return
+        if self.wallet.lnworker.has_conflicting_backup_with(node_id):
+            msg = messages.MGS_CONFLICTING_BACKUP_INSTANCE
+            if not self.question(msg):
+                return
         # use ConfirmTxDialog
         # we need to know the fee before we broadcast, because the txid is required
         make_tx = self.mktx_for_open_channel(funding_sat=funding_sat, node_id=node_id)

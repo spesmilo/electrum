@@ -2123,6 +2123,13 @@ class LNWallet(LNWorker):
         util.trigger_callback('channels_updated', self.wallet)
         self.lnwatcher.add_channel(cb.funding_outpoint.to_str(), cb.get_funding_address())
 
+    def has_conflicting_backup_with(self, remote_node_id: bytes):
+        """ Returns whether we have an active channel with this node on another device, using same local node id. """
+        channel_backup_peers = [
+            cb.node_id for cb in self.channel_backups.values()
+            if (not cb.is_closed() and cb.get_local_pubkey() == self.node_keypair.pubkey)]
+        return any(remote_node_id.startswith(cb_peer_nodeid) for cb_peer_nodeid in channel_backup_peers)
+
     def remove_channel_backup(self, channel_id):
         chan = self.channel_backups[channel_id]
         assert chan.can_be_deleted()

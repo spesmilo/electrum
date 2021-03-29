@@ -31,3 +31,9 @@ Lightning payments require finding a path through the Lightning Network. You may
 
 Downloading the network gossip uses quite some bandwidth and storage, and is not recommended on mobile devices. If you use trampoline, you can only open channels with trampoline nodes.
 """
+
+MGS_CONFLICTING_BACKUP_INSTANCE = """
+Another instance of this wallet (same seed) has an open channel with the same remote node. If you create this channel, you will not be able to use both wallets at the same time.
+
+Are you sure?
+"""
