@@ -37,3 +37,8 @@ Another instance of this wallet (same seed) has an open channel with the same re
 
 Are you sure?
 """
+
+
+MSG_CAPITAL_GAINS = """
+This summary covers only on-chain transactions (no lightning!). Capital gains are computed by attaching an acquisition price to each UTXO in the wallet, and uses the order of blockchain events (not FIFO).
+"""
