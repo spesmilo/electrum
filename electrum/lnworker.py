@@ -2141,6 +2141,7 @@ class LNWallet(LNWorker):
         self.logger.info(f'requesting channel force close: {channel_id.hex()}')
         if isinstance(cb, ImportedChannelBackupStorage):
             node_id = cb.node_id
+            privkey = cb.privkey
             addresses = [(cb.host, cb.port, 0)]
             # TODO also try network addresses from gossip db (as it might have changed)
         else:
@@ -2148,12 +2149,13 @@ class LNWallet(LNWorker):
             if not self.channel_db:
                 raise Exception('Enable gossip first')
             node_id = self.network.channel_db.get_node_by_prefix(cb.node_id_prefix)
+            privkey = self.node_keypair.privkey
             addresses = self.network.channel_db.get_node_addresses(node_id)
             if not addresses:
                 raise Exception('Peer not found in gossip database')
         for host, port, timestamp in addresses:
             peer_addr = LNPeerAddr(host, port, node_id)
-            transport = LNTransport(self.node_keypair.privkey, peer_addr, proxy=self.network.proxy)
+            transport = LNTransport(privkey, peer_addr, proxy=self.network.proxy)
             peer = Peer(self, node_id, transport, is_channel_backup=True)
             try:
                 async with TaskGroup(wait=any) as group:
