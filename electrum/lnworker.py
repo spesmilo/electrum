@@ -32,7 +32,7 @@ from .util import NetworkRetryManager, JsonRPCClient
 from .lnutil import LN_MAX_FUNDING_SAT
 from .keystore import BIP32_KeyStore
 from .bitcoin import COIN
-from .bitcoin import opcodes, make_op_return, address_to_script
+from .bitcoin import opcodes, make_op_return, address_to_scripthash
 from .transaction import Transaction
 from .transaction import get_script_type_from_output_script
 from .crypto import sha256
@@ -1026,13 +1026,13 @@ class LNWallet(LNWorker):
         return CB_MAGIC_BYTES + node_id[0:16]
 
     def decrypt_cb_data(self, encrypted_data, funding_address):
-        funding_scriptpubkey = bytes.fromhex(address_to_script(funding_address))
-        nonce = funding_scriptpubkey[0:12]
+        funding_scripthash = bytes.fromhex(address_to_scripthash(funding_address))
+        nonce = funding_scripthash[0:12]
         return chacha20_decrypt(key=self.backup_key, data=encrypted_data, nonce=nonce)
 
     def encrypt_cb_data(self, data, funding_address):
-        funding_scriptpubkey = bytes.fromhex(address_to_script(funding_address))
-        nonce = funding_scriptpubkey[0:12]
+        funding_scripthash = bytes.fromhex(address_to_scripthash(funding_address))
+        nonce = funding_scripthash[0:12]
         return chacha20_encrypt(key=self.backup_key, data=data, nonce=nonce)
 
     def mktx_for_open_channel(
