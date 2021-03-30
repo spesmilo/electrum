@@ -21,8 +21,8 @@ this release are user-visible.
  * Lightning:
     - recoverable channels (see below)
     - trampoline payments (see below)
-    - multi-part-payment (both sending and receiving)
-    - support for upfront_shutdown_script
+    - support multi-part-payment
+    - support upfront-shutdown-script
 
  * Recoverable channels (option):
    - Recovery data is added to the channel funding transaction using
@@ -81,8 +81,8 @@ this release are user-visible.
      they offer less privacy than end-to-end trampoline
      payments. Electrum decides whether to perform legacy or
      end-to-end based on the features in the invoice:
-       - OPTION_TRAMPOLINE_ROUTING_OPT (1<<25) for Electrum
-       - OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR (1<<51) for Eclair/Phoenix
+       - OPTION_TRAMPOLINE_ROUTING_OPT (bit 25) for Electrum
+       - OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR (bit 51) for Eclair/Phoenix
 
    - When performing a legacy payment, Electrum will add a second
      trampoline node to the route in order to protect the privacy of
