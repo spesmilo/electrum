@@ -3185,7 +3185,7 @@ def create_new_wallet(*, path, config: SimpleConfig, passphrase=None, password=N
     k = keystore.from_seed(seed, passphrase)
     db.put('keystore', k.dump())
     db.put('wallet_type', 'standard')
-    if keystore.seed_type(seed) == 'segwit':
+    if k.can_have_deterministic_lightning_xprv():
         db.put('lightning_xprv', k.get_lightning_xprv(None))
     if gap_limit is not None:
         db.put('gap_limit', gap_limit)
@@ -3229,7 +3229,7 @@ def restore_wallet_from_text(text, *, path, config: SimpleConfig,
             k = keystore.from_master_key(text)
         elif keystore.is_seed(text):
             k = keystore.from_seed(text, passphrase)
-            if keystore.seed_type(text) == 'segwit':
+            if k.can_have_deterministic_lightning_xprv():
                 db.put('lightning_xprv', k.get_lightning_xprv(None))
         else:
             raise Exception("Seed or key not recognized")

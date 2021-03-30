@@ -160,6 +160,9 @@ class KeyStore(Logger, ABC):
                 return pubkey, list(path)
         return None, None
 
+    def can_have_deterministic_lightning_xprv(self) -> bool:
+        return False
+
 
 class Software_KeyStore(KeyStore):
 
@@ -620,7 +623,14 @@ class BIP32_KeyStore(Xpub, Deterministic_KeyStore):
         cK = ecc.ECPrivkey(k).get_public_key_bytes()
         return cK, k
 
-    def get_lightning_xprv(self, password):
+    def can_have_deterministic_lightning_xprv(self):
+        if (self.get_seed_type() == 'segwit'
+                and self.get_bip32_node_for_xpub().xtype == 'p2wpkh'):
+            return True
+        return False
+
+    def get_lightning_xprv(self, password) -> str:
+        assert self.can_have_deterministic_lightning_xprv()
         xprv = self.get_master_private_key(password)
         rootnode = BIP32Node.from_xkey(xprv)
         node = rootnode.subkey_at_private_derivation("m/67'/")
