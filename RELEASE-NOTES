@@ -1,14 +1,30 @@
 # Release 4.1.0 - Kangaroo (not released yet)
- * The wallet creation wizard will no longer ask for seed type, and
-   create native segwit wallets with bech32 addresses. Older seed
-   types can still be created with the command line.
- * GUI (both qt and kivy): invoices (incoming and outgoing) are
-   automatically removed from the user-visible list once they are paid
-   (one confirmation is needed for onchain invoices). Once removed,
-   paid invoice details can still be accessed from the transaction
-   history. In Qt, the lists have been renamed to 'Sending queue' and
-   'Receiving queue'.
- * Lightning: Recoverable channels (option, enabled by default)
+
+This version is our first major release since we implemented the
+Lightning protocol. While our initial Lightning release was mostly
+about supporting the protocol, this release brings new features, that
+are specifically aimed at keeping Electrum lightweight and trustless,
+and avoiding single points of failure. Most of the new features in
+this release are user-visible.
+
+ * The wallet creation wizard no longer asks for a seed type, and
+   creates segwit wallets with bech32 addresses. Older seed types can
+   still be created with the command line.
+
+ * Paid Invoices (both incoming and outgoing) are automatically
+   removed from the lists visible in the GUI (one confirmation is
+   needed for onchain invoices). Once removed from the list, invoice
+   details can still be accessed from the transaction history. In Qt,
+   invoice lists have been renamed to 'Sending queue' and 'Receiving
+   queue'.
+
+ * Lightning:
+    - recoverable channels (see below)
+    - trampoline payments (see below)
+    - multi-part-payment (both sending and receiving)
+    - support for upfront_shutdown_script
+
+ * Recoverable channels (option):
    - Recovery data is added to the channel funding transaction using
      an OP_RETURN. This makes it possible to recover a static backup
      of the channel from the wallet seed. Please note that static
@@ -16,11 +32,6 @@
      with the remote node, so that funds not locked in HTLCs can be
      recovered. This assumes that the remote node is still online, did
      not lose its data, and accepts to force close the channel.
-   - Channel recovery data uses 20 bytes (16 bytes of the remote
-     NodeID plus 4 magic bytes) and is encrypted so that only the
-     wallet that owns it can decrypt it. However, blockchain analysis
-     will be able to tell that the transaction was probably created by
-     Electrum.
    - This option is only available for standard wallets with an
      Electrum seed. It is not available for hardware wallets, because
      it requires a deterministic derivation of the nodeID. It is also
@@ -28,51 +39,83 @@
      wallet can have recoverable channels but has an old nodeID, users
      who want to use that feature need to close all their existing
      channels, and to restore their wallet from seed.
-   - If this option is enabled, other nodes cannot open a channel to
+   - Channel recovery data uses 20 bytes (16 bytes of the remote
+     NodeID plus 4 magic bytes) and is encrypted so that only the
+     wallet that owns it can decrypt it. However, blockchain analysis
+     will be able to tell that the transaction was probably created by
      Electrum.
- * Lightning: Support multi-part-payment (both sending and receiving)
- * Lightning: Trampoline routing (option, enabled by default).
-   - Trampoline is enabled by default in order to prevent unwanted
-     download of the network gossip. If trampoline is disabled, the
-     gossip will be downloaded, regardless of the existence of
-     channels.
+   - If the 'use recoverable channels' option is enabled, other nodes
+     cannot open a channel to Electrum.
+   - If a channel is force-closed, the information in the on-chain
+     backup is not sufficient to retrieve the funds in the to_local
+     output, in case the wallet is lost in a boating accident before
+     expiration of the CSV delay. For that reason, an additional
+     backup is presented to the user if they force-close a channel.
+
+ * Trampoline routing (option): Trampoline is a solution that allows a
+   light client to delegate path-finding on the Lightning Network,
+   without having to download the full network graph. Trampoline was
+   originally proposed by Bastien Teinturier and is currently used in
+   Phoenix, with the ACINQ node. Here is how it works in Electrum:
+
+   - Trampoline is enabled by default in Electrum, in order to prevent
+     unwanted download of the network gossip. If trampoline is
+     disabled, the gossip will be downloaded, regardless of the
+     existence of channels.
+
    - Because there is no discovery mechanism for trampoline nodes, the
-     list of available trampolines is hardcoded in the client
-     (currently 3 nodes on mainnet, 1 on testnet). It will remain so
-     until OPTION_TRAMPOLINE_ROUTING_OPT is announced in INIT.
-   - If trampoline is enabled:
-      - payments use trampoline.
+     list of available trampolines is hardcoded in the client (it will
+     remain so until support for trampoline routing is announced in
+     gossip). 3 trampoline nodes are currently available on mainnet:
+     ACINQ, Electrum and Hodlister.
+
+   - If Trampoline is enabled:
+      - payments use trampoline routing.
       - gossip is disabled.
       - the wallet can only open channels with trampoline nodes.
       - pre-existing channels with non-trampoline nodes are frozen for
         sending.
-   - There are two types of trampoline payments: legacy and end-to-end
-     We decide whether to perform legacy or end-to-end based on the
-     features in the invoice:
+
+   - There are two types of trampoline payments: legacy and trampoline
+     end-to-end. Legacy payments are possible with any receiver, but
+     they offer less privacy than end-to-end trampoline
+     payments. Electrum decides whether to perform legacy or
+     end-to-end based on the features in the invoice:
        - OPTION_TRAMPOLINE_ROUTING_OPT (1<<25) for Electrum
        - OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR (1<<51) for Eclair/Phoenix
-   - When performing a legacy payment, Electrum adds a second
+
+   - When performing a legacy payment, Electrum will add a second
      trampoline node to the route in order to protect the privacy of
      the payer and payee. It will fall back to a single trampoline if
-     the double-trampoline strategy has failed for all trampolines.
+     the two-trampoline strategy has failed for all trampolines.
+     (Note: two-trampoline payments are currently not possible if the
+     first trampoline is the ACINQ node, and is disabled for that
+     node.)
+
    - Similar to Phoenix, the fee and CLTV delay are found by
      trial-and-error. If there is a second trampoline in the route, we
      use the same fee/CLTV for both. This trial-and-error is
      temporary; the final specification should add fee information in
      the failure messages, so that we will be able to better fine-tune
      trampoline fees.
- * Lightning: Support upfront_shutdown_script
- * Android password unification: When the app is started, the provided
-   password is checked against all wallets in the directory. If the
-   test passes:
+
+ * Watchtowers: The 'use_local_watchtower' feature is deprecated, and
+   it has been removed from the Qt GUI. The 'use_remote_watchtower'
+   setting has been renamed to 'use_watchtower'.
+
+ * Password unification (Android only): When the Android app is
+   started, the entered password is checked against all wallets in
+   the directory. If the test passes:
     - all wallets are encrypted
-    - new wallets are created with the existing password
+    - new wallets will use the unified password
     - password updates are performed on all wallets
-   Whether the password is unified can be seen in the GUI: In
-   settings, the description for the password setting is 'Change
-   password for this wallet', and becomes 'Change password' if
-   password is unified.
- * Submarine swaps are available on kivy/android.
+   Whether the password is unified can be seen in the GUI: In the
+   'Settings' dialog, the description for the password setting is
+   'Change password for this wallet' if the password is not unified,
+   and becomes 'Change password' if password is unified.
+
+ * Submarine swaps are now available on kivy/android.
+
  * Android PIN reset: If the password is unified, the PIN can be reset
    by providing the password.
 
