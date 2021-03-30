@@ -2386,12 +2386,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.set_contact(line2.text(), line1.text())
 
     def init_lightning_dialog(self):
-        if self.question(_(
+        assert not self.wallet.has_lightning()
+        if self.wallet.can_have_deterministic_lightning():
+            msg = messages.MSG_LIGHTNING_SCB_WARNING + "\n" + _("Create lightning keys?")
+        else:
+            msg = _(
                 "Warning: this wallet type does not support channel recovery from seed. "
                 "You will need to backup your wallet everytime you create a new wallet. "
-                "Create lightning keys?")):
-            self.wallet.init_lightning()
-            self.show_message("Lightning keys created. Please restart Electrum")
+                "Create lightning keys?")
+        if self.question(msg):
+            self._init_lightning_dialog()
+
+    @protected
+    def _init_lightning_dialog(self, *, password):
+        self.wallet.init_lightning(password=password)
+        self.show_message("Lightning keys created. Please restart Electrum")
 
     def show_wallet_info(self):
         dialog = WindowModalDialog(self, _("Wallet Information"))
