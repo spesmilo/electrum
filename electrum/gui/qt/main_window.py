@@ -2400,7 +2400,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         wallet_type = self.wallet.db.get('wallet_type', '')
         if self.wallet.is_watching_only():
             wallet_type += ' [{}]'.format(_('watching-only'))
-        seed_available = _('True') if self.wallet.has_seed() else _('False')
+        seed_available = _('False')
+        if self.wallet.has_seed():
+            seed_available = _('True')
+            ks = self.wallet.keystore
+            assert isinstance(ks, keystore.Deterministic_KeyStore)
+            seed_available += f" ({ks.get_seed_type()})"
         keystore_types = [k.get_type_text() for k in self.wallet.get_keystores()]
         grid = QGridLayout()
         basename = os.path.basename(self.wallet.storage.path)
