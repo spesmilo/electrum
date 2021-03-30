@@ -1,8 +1,8 @@
 # Release 4.1.0 - Kangaroo (March 30, 2021)
 
-This version is our first major release since we implemented the
-Lightning protocol. While our initial Lightning release was mostly
-about supporting the protocol, this release brings features that are
+This version is our second major release with support for the
+Lightning Network. While our initial Lightning release was mostly
+about implementing the protocol, this release brings features that are
 specifically aimed at keeping Electrum lightweight and trustless,
 while avoiding single points of failure. Most of the features listed
 below are user-visible.
