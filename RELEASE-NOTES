@@ -99,6 +99,9 @@ this release are user-visible.
      the failure messages, so that we will be able to better fine-tune
      trampoline fees.
 
+ * Qt: The increase fee dialog now has advanced options, and offers
+   the choice between different RBF strategies.
+
  * Watchtowers: The 'use_local_watchtower' feature is deprecated, and
    it has been removed from the Qt GUI. The 'use_remote_watchtower'
    setting has been renamed to 'use_watchtower'.
@@ -118,6 +121,11 @@ this release are user-visible.
 
  * Android PIN reset: If the password is unified, the PIN can be reset
    by providing the password.
+
+ * Android: on-chain fees have been removed from the settings
+   dialog. Instead, the fee slider is shown to the user everytime an
+   on-chain transaction will be performed (sending a payment, opening
+   a channel, initiating a submarine swap)
 
 
 # Release 4.0.9 - (Dec 18, 2020)
