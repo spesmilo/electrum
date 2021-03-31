@@ -1068,7 +1068,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 out = {
                     'date': date,
                     'block_height': height,
-                    'BTC_balance': Satoshis(balance),
+                    'GRS_balance': Satoshis(balance),
                 }
                 if show_fiat:
                     ap = self.acquisition_price(coins, fx.timestamp_rate, fx.ccy)
@@ -1077,14 +1077,14 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                     out['liquidation_price'] = Fiat(lp, fx.ccy)
                     out['unrealized_gains'] = Fiat(lp - ap, fx.ccy)
                     out['fiat_balance'] = Fiat(fx.historical_value(balance, date), fx.ccy)
-                    out['BTC_fiat_price'] = Fiat(fx.historical_value(COIN, date), fx.ccy)
+                    out['GRS_fiat_price'] = Fiat(fx.historical_value(COIN, date), fx.ccy)
                 return out
 
             summary_start = summary_point(start_timestamp, start_height, start_balance, start_coins)
             summary_end = summary_point(end_timestamp, end_height, end_balance, end_coins)
             flow = {
-                'BTC_incoming': Satoshis(income),
-                'BTC_outgoing': Satoshis(expenditures)
+                'GRS_incoming': Satoshis(income),
+                'GRS_outgoing': Satoshis(expenditures)
             }
             if show_fiat:
                 flow['fiat_currency'] = fx.ccy
