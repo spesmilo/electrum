@@ -59,7 +59,7 @@ from .lnhtlc import HTLCManager
 from .lnmsg import encode_msg, decode_msg
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from .lnutil import CHANNEL_OPENING_TIMEOUT
-from .lnutil import ChannelBackupStorage, ImportedChannelBackupStorage
+from .lnutil import ChannelBackupStorage, ImportedChannelBackupStorage, OnchainChannelBackupStorage
 from .lnutil import format_short_channel_id
 
 if TYPE_CHECKING:
@@ -148,7 +148,7 @@ class AbstractChannel(Logger, ABC):
     _fallback_sweep_address: str
     channel_id: bytes
     funding_outpoint: Outpoint
-    node_id: bytes
+    node_id: bytes  # note that it might not be the full 33 bytes; for OCB it is only the prefix
     _state: ChannelState
 
     def set_short_channel_id(self, short_id: ShortChannelID) -> None:
@@ -169,7 +169,7 @@ class AbstractChannel(Logger, ABC):
         old_state = self._state
         if (old_state, state) not in state_transitions:
             raise Exception(f"Transition not allowed: {old_state.name} -> {state.name}")
-        self.logger.debug(f'Setting channel state: {old_state.name} -> {state.name}')
+        self.logger.debug(f'({self.get_id_for_log()}) Setting channel state: {old_state.name} -> {state.name}')
         self._state = state
         self.storage['state'] = self._state.name
         if self.lnworker:
@@ -339,7 +339,7 @@ class AbstractChannel(Logger, ABC):
 
     def get_state_for_GUI(self) -> str:
         cs = self.get_state()
-        if cs == ChannelState.OPEN and self.unconfirmed_closing_txid:
+        if cs <= ChannelState.OPEN and self.unconfirmed_closing_txid:
             return 'FORCE-CLOSING'
         return cs.name
 
@@ -389,6 +389,11 @@ class AbstractChannel(Logger, ABC):
 
     @abstractmethod
     def is_static_remotekey_enabled(self) -> bool:
+        pass
+
+    @abstractmethod
+    def get_local_pubkey(self) -> bytes:
+        """Returns our node ID."""
         pass
 
 
@@ -513,6 +518,14 @@ class ChannelBackup(AbstractChannel):
         # their local config is not static)
         return False
 
+    def get_local_pubkey(self) -> bytes:
+        cb = self.cb
+        assert isinstance(cb, ChannelBackupStorage)
+        if isinstance(cb, ImportedChannelBackupStorage):
+            return ecc.ECPrivkey(cb.privkey).get_public_key_bytes(compressed=True)
+        if isinstance(cb, OnchainChannelBackupStorage):
+            return self.lnworker.node_keypair.pubkey
+        raise NotImplementedError(f"unexpected cb type: {type(cb)}")
 
 
 class Channel(AbstractChannel):

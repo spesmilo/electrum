@@ -840,27 +840,47 @@ class AddressSynchronizer(Logger):
         return result
 
     @with_local_height_cached
-    def get_utxos(self, domain=None, *, excluded_addresses=None,
-                  mature_only: bool = False, confirmed_only: bool = False,
-                  nonlocal_only: bool = False) -> Sequence[PartialTxInput]:
+    def get_utxos(
+            self,
+            domain=None,
+            *,
+            excluded_addresses=None,
+            mature_only: bool = False,
+            confirmed_funding_only: bool = False,
+            confirmed_spending_only: bool = False,
+            nonlocal_only: bool = False,
+            block_height: int = None,
+    ) -> Sequence[PartialTxInput]:
+        if block_height is not None:
+            # caller wants the UTXOs we had at a given height; check other parameters
+            assert confirmed_funding_only
+            assert confirmed_spending_only
+            assert nonlocal_only
+        else:
+            block_height = self.get_local_height()
         coins = []
         if domain is None:
             domain = self.get_addresses()
         domain = set(domain)
         if excluded_addresses:
             domain = set(domain) - set(excluded_addresses)
-        mempool_height = self.get_local_height() + 1  # height of next block
+        mempool_height = block_height + 1  # height of next block
         for addr in domain:
-            utxos = self.get_addr_utxo(addr)
-            for utxo in utxos.values():
-                if confirmed_only and utxo.block_height <= 0:
+            txos = self.get_addr_outputs(addr)
+            for txo in txos.values():
+                if txo.spent_height is not None:
+                    if not confirmed_spending_only:
+                        continue
+                    if confirmed_spending_only and 0 < txo.spent_height <= block_height:
+                        continue
+                if confirmed_funding_only and not (0 < txo.block_height <= block_height):
                     continue
-                if nonlocal_only and utxo.block_height == TX_HEIGHT_LOCAL:
+                if nonlocal_only and txo.block_height in (TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE):
                     continue
-                if (mature_only and utxo.is_coinbase_output()
-                        and utxo.block_height + COINBASE_MATURITY > mempool_height):
+                if (mature_only and txo.is_coinbase_output()
+                        and txo.block_height + COINBASE_MATURITY > mempool_height):
                     continue
-                coins.append(utxo)
+                coins.append(txo)
                 continue
         return coins
 

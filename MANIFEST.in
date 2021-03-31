@@ -25,3 +25,7 @@ global-exclude *.py[co~]
 global-exclude *.py.orig
 global-exclude *.py.rej
 global-exclude .git
+
+# Maybe we should exclude the compiled locale files? see https://askubuntu.com/a/144139
+# We include both source (.po) and compiled (.mo) locale files atm (if present).
+# exclude electrum/locale/*/LC_MESSAGES/electrum.mo

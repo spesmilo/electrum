@@ -545,7 +545,7 @@ class BaseWizard(Logger):
 
     def create_keystore(self, seed, passphrase):
         k = keystore.from_seed(seed, passphrase, self.wallet_type == 'multisig')
-        if self.wallet_type == 'standard' and self.seed_type == 'segwit':
+        if k.can_have_deterministic_lightning_xprv():
             self.data['lightning_xprv'] = k.get_lightning_xprv(None)
         self.on_keystore(k)
 

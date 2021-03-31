@@ -17,6 +17,7 @@ bin/
 .mypy_cache
 .vscode
 electrum-ltc_data
+.DS_Store
 
 # icons
 electrum_ltc/gui/kivy/theming/light-0.png
@@ -39,9 +40,11 @@ contrib/android_debug.keystore
 contrib/android/android_debug.keystore
 contrib/secp256k1/
 contrib/zbar/
+contrib/osx/build-venv/
 
 # shared objects
 electrum_ltc/*.so
 electrum_ltc/*.so.0
 electrum_ltc/*.dll
 electrum_ltc/*.dylib
+contrib/osx/*.dylib

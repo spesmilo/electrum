@@ -160,6 +160,9 @@ class KeyStore(Logger, ABC):
                 return pubkey, list(path)
         return None, None
 
+    def can_have_deterministic_lightning_xprv(self) -> bool:
+        return False
+
 
 class Software_KeyStore(KeyStore):
 
@@ -282,8 +285,9 @@ class Deterministic_KeyStore(Software_KeyStore):
 
     def __init__(self, d):
         Software_KeyStore.__init__(self, d)
-        self.seed = d.get('seed', '')
+        self.seed = d.get('seed', '')  # only electrum seeds
         self.passphrase = d.get('passphrase', '')
+        self._seed_type = d.get('seed_type', None)  # only electrum seeds
 
     def is_deterministic(self):
         return True
@@ -297,10 +301,15 @@ class Deterministic_KeyStore(Software_KeyStore):
             d['seed'] = self.seed
         if self.passphrase:
             d['passphrase'] = self.passphrase
+        if self._seed_type:
+            d['seed_type'] = self._seed_type
         return d
 
     def has_seed(self):
         return bool(self.seed)
+
+    def get_seed_type(self) -> Optional[str]:
+        return self._seed_type
 
     def is_watching_only(self):
         return not self.has_seed()
@@ -313,6 +322,7 @@ class Deterministic_KeyStore(Software_KeyStore):
         if self.seed:
             raise Exception("a seed exists")
         self.seed = self.format_seed(seed)
+        self._seed_type = seed_type(seed) or None
 
     def get_seed(self, password):
         if not self.has_seed():
@@ -613,7 +623,14 @@ class BIP32_KeyStore(Xpub, Deterministic_KeyStore):
         cK = ecc.ECPrivkey(k).get_public_key_bytes()
         return cK, k
 
-    def get_lightning_xprv(self, password):
+    def can_have_deterministic_lightning_xprv(self):
+        if (self.get_seed_type() == 'segwit'
+                and self.get_bip32_node_for_xpub().xtype == 'p2wpkh'):
+            return True
+        return False
+
+    def get_lightning_xprv(self, password) -> str:
+        assert self.can_have_deterministic_lightning_xprv()
         xprv = self.get_master_private_key(password)
         rootnode = BIP32Node.from_xkey(xprv)
         node = rootnode.subkey_at_private_derivation("m/67'/")

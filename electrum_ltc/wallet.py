@@ -333,24 +333,38 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         new_db.write(new_storage)
         return new_path
 
-    def has_lightning(self):
+    def has_lightning(self) -> bool:
         return bool(self.lnworker)
 
-    def can_have_lightning(self):
+    def can_have_lightning(self) -> bool:
         # we want static_remotekey to be a wallet address
         return self.txin_type == 'p2wpkh'
 
-    def init_lightning(self):
+    def can_have_deterministic_lightning(self) -> bool:
+        if not self.can_have_lightning():
+            return False
+        if not self.keystore:
+            return False
+        return self.keystore.can_have_deterministic_lightning_xprv()
+
+    def init_lightning(self, *, password) -> None:
         assert self.can_have_lightning()
         assert self.db.get('lightning_xprv') is None
-        if self.db.get('lightning_privkey2'):
-            return
-        # TODO derive this deterministically from wallet.keystore at keystore generation time
-        # probably along a hardened path ( lnd-equivalent would be m/1017'/coinType'/ )
-        seed = os.urandom(32)
-        node = BIP32Node.from_rootseed(seed, xtype='standard')
-        ln_xprv = node.to_xprv()
-        self.db.put('lightning_privkey2', ln_xprv)
+        assert self.db.get('lightning_privkey2') is None
+        if self.can_have_deterministic_lightning():
+            assert isinstance(self.keystore, keystore.BIP32_KeyStore)
+            ln_xprv = self.keystore.get_lightning_xprv(password)
+            self.db.put('lightning_xprv', ln_xprv)
+        else:
+            seed = os.urandom(32)
+            node = BIP32Node.from_rootseed(seed, xtype='standard')
+            ln_xprv = node.to_xprv()
+            self.db.put('lightning_privkey2', ln_xprv)
+        if self.network:
+            self.network.run_from_another_thread(self.stop())
+        self.lnworker = LNWallet(self, ln_xprv)
+        if self.network:
+            self.start_network(self.network)
 
     async def stop(self):
         """Stop all networking and save DB to disk."""
@@ -669,7 +683,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         utxos = self.get_utxos(domain,
                                excluded_addresses=frozen_addresses,
                                mature_only=True,
-                               confirmed_only=confirmed_only,
+                               confirmed_funding_only=confirmed_only,
                                nonlocal_only=nonlocal_only)
         utxos = [utxo for utxo in utxos if not self.is_frozen_coin(utxo)]
         return utxos
@@ -955,13 +969,21 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         return transactions
 
     @profiler
-    def get_detailed_history(self, from_timestamp=None, to_timestamp=None,
-                             fx=None, show_addresses=False, from_height=None, to_height=None):
+    def get_detailed_history(
+            self,
+            from_timestamp=None,
+            to_timestamp=None,
+            fx=None,
+            show_addresses=False,
+            from_height=None,
+            to_height=None):
         # History with capital gains, using utxo pricing
         # FIXME: Lightning capital gains would requires FIFO
         if (from_timestamp is not None or to_timestamp is not None) \
                 and (from_height is not None or to_height is not None):
             raise Exception('timestamp and block height based filtering cannot be used together')
+
+        show_fiat = fx and fx.is_enabled() and fx.get_history_config()
         out = []
         income = 0
         expenditures = 0
@@ -995,7 +1017,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             else:
                 income += value
             # fiat computations
-            if fx and fx.is_enabled() and fx.get_history_config():
+            if show_fiat:
                 fiat_fields = self.get_tx_item_fiat(tx_hash=tx_hash, amount_sat=value, fx=fx, tx_fee=tx_fee)
                 fiat_value = fiat_fields['fiat_value'].value
                 item.update(fiat_fields)
@@ -1007,42 +1029,87 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             out.append(item)
         # add summary
         if out:
-            b, v = out[0]['bc_balance'].value, out[0]['bc_value'].value
-            start_balance = None if b is None or v is None else b - v
-            end_balance = out[-1]['bc_balance'].value
-            if from_timestamp is not None and to_timestamp is not None:
-                start_date = timestamp_to_datetime(from_timestamp)
-                end_date = timestamp_to_datetime(to_timestamp)
+            first_item = out[0]
+            last_item = out[-1]
+            if from_height or to_height:
+                start_height = from_height
+                end_height = to_height
             else:
-                start_date = None
-                end_date = None
-            summary = {
-                'start_date': start_date,
-                'end_date': end_date,
-                'from_height': from_height,
-                'to_height': to_height,
-                'start_balance': Satoshis(start_balance),
-                'end_balance': Satoshis(end_balance),
-                'incoming': Satoshis(income),
-                'outgoing': Satoshis(expenditures)
+                start_height = first_item['height'] - 1
+                end_height = last_item['height']
+
+            b = first_item['bc_balance'].value
+            v = first_item['bc_value'].value
+            start_balance = None if b is None or v is None else b - v
+            end_balance = last_item['bc_balance'].value
+
+            if from_timestamp is not None and to_timestamp is not None:
+                start_timestamp = from_timestamp
+                end_timestamp = to_timestamp
+            else:
+                start_timestamp = first_item['timestamp']
+                end_timestamp = last_item['timestamp']
+
+            start_coins = self.get_utxos(
+                domain=None,
+                block_height=start_height,
+                confirmed_funding_only=True,
+                confirmed_spending_only=True,
+                nonlocal_only=True)
+            end_coins = self.get_utxos(
+                domain=None,
+                block_height=end_height,
+                confirmed_funding_only=True,
+                confirmed_spending_only=True,
+                nonlocal_only=True)
+
+            def summary_point(timestamp, height, balance, coins):
+                date = timestamp_to_datetime(timestamp)
+                out = {
+                    'date': date,
+                    'block_height': height,
+                    'LTC_balance': Satoshis(balance),
+                }
+                if show_fiat:
+                    ap = self.acquisition_price(coins, fx.timestamp_rate, fx.ccy)
+                    lp = self.liquidation_price(coins, fx.timestamp_rate, timestamp)
+                    out['acquisition_price'] = Fiat(ap, fx.ccy)
+                    out['liquidation_price'] = Fiat(lp, fx.ccy)
+                    out['unrealized_gains'] = Fiat(lp - ap, fx.ccy)
+                    out['fiat_balance'] = Fiat(fx.historical_value(balance, date), fx.ccy)
+                    out['LTC_fiat_price'] = Fiat(fx.historical_value(COIN, date), fx.ccy)
+                return out
+
+            summary_start = summary_point(start_timestamp, start_height, start_balance, start_coins)
+            summary_end = summary_point(end_timestamp, end_height, end_balance, end_coins)
+            flow = {
+                'LTC_incoming': Satoshis(income),
+                'LTC_outgoing': Satoshis(expenditures)
             }
-            if fx and fx.is_enabled() and fx.get_history_config():
-                unrealized = self.unrealized_gains(None, fx.timestamp_rate, fx.ccy)
-                summary['fiat_currency'] = fx.ccy
-                summary['fiat_capital_gains'] = Fiat(capital_gains, fx.ccy)
-                summary['fiat_incoming'] = Fiat(fiat_income, fx.ccy)
-                summary['fiat_outgoing'] = Fiat(fiat_expenditures, fx.ccy)
-                summary['fiat_unrealized_gains'] = Fiat(unrealized, fx.ccy)
-                summary['fiat_start_balance'] = Fiat(fx.historical_value(start_balance, start_date), fx.ccy)
-                summary['fiat_end_balance'] = Fiat(fx.historical_value(end_balance, end_date), fx.ccy)
-                summary['fiat_start_value'] = Fiat(fx.historical_value(COIN, start_date), fx.ccy)
-                summary['fiat_end_value'] = Fiat(fx.historical_value(COIN, end_date), fx.ccy)
+            if show_fiat:
+                flow['fiat_currency'] = fx.ccy
+                flow['fiat_incoming'] = Fiat(fiat_income, fx.ccy)
+                flow['fiat_outgoing'] = Fiat(fiat_expenditures, fx.ccy)
+                flow['realized_capital_gains'] = Fiat(capital_gains, fx.ccy)
+            summary = {
+                'begin': summary_start,
+                'end': summary_end,
+                'flow': flow,
+            }
+
         else:
             summary = {}
         return {
             'transactions': out,
             'summary': summary
         }
+
+    def acquisition_price(self, coins, price_func, ccy):
+        return Decimal(sum(self.coin_price(coin.prevout.txid.hex(), price_func, ccy, self.get_txin_value(coin)) for coin in coins))
+
+    def liquidation_price(self, coins, price_func, timestamp):
+        p = price_func(timestamp)
+        return sum([coin.value_sats() for coin in coins]) * p / Decimal(COIN)
 
     def default_fiat_value(self, tx_hash, fx, value_sat):
         return value_sat / Decimal(COIN) * self.price_at_timestamp(tx_hash, fx.timestamp_rate)
@@ -2356,14 +2423,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         timestamp = self.get_tx_height(txid).timestamp
         return price_func(timestamp if timestamp else time.time())
 
-    def unrealized_gains(self, domain, price_func, ccy):
-        coins = self.get_utxos(domain)
-        now = time.time()
-        p = price_func(now)
-        ap = sum(self.coin_price(coin.prevout.txid.hex(), price_func, ccy, self.get_txin_value(coin)) for coin in coins)
-        lp = sum([coin.value_sats() for coin in coins]) * p / Decimal(COIN)
-        return lp - ap
-
     def average_price(self, txid, price_func, ccy) -> Decimal:
         """ Average acquisition price of the inputs of a transaction """
         input_value = 0
@@ -3140,7 +3199,7 @@ def create_new_wallet(*, path, config: SimpleConfig, passphrase=None, password=N
     k = keystore.from_seed(seed, passphrase)
     db.put('keystore', k.dump())
     db.put('wallet_type', 'standard')
-    if keystore.seed_type(seed) == 'segwit':
+    if k.can_have_deterministic_lightning_xprv():
         db.put('lightning_xprv', k.get_lightning_xprv(None))
     if gap_limit is not None:
         db.put('gap_limit', gap_limit)
@@ -3184,7 +3243,7 @@ def restore_wallet_from_text(text, *, path, config: SimpleConfig,
             k = keystore.from_master_key(text)
         elif keystore.is_seed(text):
             k = keystore.from_seed(text, passphrase)
-            if keystore.seed_type(text) == 'segwit':
+            if k.can_have_deterministic_lightning_xprv():
                 db.put('lightning_xprv', k.get_lightning_xprv(None))
         else:
             raise Exception("Seed or key not recognized")

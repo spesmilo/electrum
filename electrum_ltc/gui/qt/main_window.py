@@ -746,7 +746,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             tools_menu.addAction(_("Electrum preferences"), self.settings_dialog)
 
         tools_menu.addAction(_("&Network"), self.gui_object.show_network_dialog).setEnabled(bool(self.network))
-        tools_menu.addAction(_("Local &Watchtower"), self.gui_object.show_watchtower_dialog).setEnabled(bool(self.network and self.network.local_watchtower))
+        if self.network and self.network.local_watchtower:
+            tools_menu.addAction(_("Local &Watchtower"), self.gui_object.show_watchtower_dialog)
         tools_menu.addAction(_("&Plugins"), self.plugins_dialog)
         tools_menu.addSeparator()
         tools_menu.addAction(_("&Sign/verify message"), self.sign_verify_message)
@@ -1798,6 +1799,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         except ConnStringFormatError as e:
             self.show_error(str(e))
             return
+        if self.wallet.lnworker.has_conflicting_backup_with(node_id):
+            msg = messages.MGS_CONFLICTING_BACKUP_INSTANCE
+            if not self.question(msg):
+                return
         # use ConfirmTxDialog
         # we need to know the fee before we broadcast, because the txid is required
         make_tx = self.mktx_for_open_channel(funding_sat=funding_sat, node_id=node_id)
@@ -2226,11 +2231,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         sb.addPermanentWidget(StatusBarButton(read_QIcon("preferences.png"), _("Preferences"), self.settings_dialog))
         self.seed_button = StatusBarButton(read_QIcon("seed.png"), _("Seed"), self.show_seed_dialog)
         sb.addPermanentWidget(self.seed_button)
-        self.lightning_button = None
-        if self.wallet.has_lightning():
-            self.lightning_button = StatusBarButton(read_QIcon("lightning.png"), _("Lightning Network"), self.gui_object.show_lightning_dialog)
-            self.update_lightning_icon()
-            sb.addPermanentWidget(self.lightning_button)
+        self.lightning_button = StatusBarButton(read_QIcon("lightning.png"), _("Lightning Network"), self.gui_object.show_lightning_dialog)
+        self.update_lightning_icon()
+        sb.addPermanentWidget(self.lightning_button)
         self.status_button = None
         if self.network:
             self.status_button = StatusBarButton(read_QIcon("status_disconnected.png"), _("Network"), self.gui_object.show_network_dialog)
@@ -2266,12 +2269,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.coincontrol_sb.setVisible(True)
 
     def update_lightning_icon(self):
-        if self.lightning_button is None:
+        if not self.wallet.has_lightning():
+            self.lightning_button.setVisible(False)
             return
         if self.network is None or self.network.channel_db is None:
             self.lightning_button.setVisible(False)
             return
-
         self.lightning_button.setVisible(True)
 
         cur, total, progress_percent = self.network.lngossip.get_sync_progress_estimate()
@@ -2366,13 +2369,26 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if d.exec_():
             self.set_contact(line2.text(), line1.text())
 
-    def init_lightning_dialog(self):
-        if self.question(_(
+    def init_lightning_dialog(self, dialog):
+        assert not self.wallet.has_lightning()
+        if self.wallet.can_have_deterministic_lightning():
+            msg = _(
+                "Lightning is not enabled because this wallet was created with an old version of Electrum. "
+                "Create lightning keys?")
+        else:
+            msg = _(
                 "Warning: this wallet type does not support channel recovery from seed. "
                 "You will need to backup your wallet everytime you create a new wallet. "
-                "Create lightning keys?")):
-            self.wallet.init_lightning()
-            self.show_message("Lightning keys created. Please restart Electrum")
+                "Create lightning keys?")
+        if self.question(msg):
+            self._init_lightning_dialog(dialog=dialog)
+
+    @protected
+    def _init_lightning_dialog(self, *, dialog, password):
+        dialog.close()
+        self.wallet.init_lightning(password=password)
+        self.update_lightning_icon()
+        self.show_message(_('Lightning keys have been initialized.'))
 
     def show_wallet_info(self):
         dialog = WindowModalDialog(self, _("Wallet Information"))
@@ -2381,7 +2397,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         wallet_type = self.wallet.db.get('wallet_type', '')
         if self.wallet.is_watching_only():
             wallet_type += ' [{}]'.format(_('watching-only'))
-        seed_available = _('True') if self.wallet.has_seed() else _('False')
+        seed_available = _('False')
+        if self.wallet.has_seed():
+            seed_available = _('True')
+            ks = self.wallet.keystore
+            assert isinstance(ks, keystore.Deterministic_KeyStore)
+            seed_available += f" ({ks.get_seed_type()})"
         keystore_types = [k.get_type_text() for k in self.wallet.get_keystores()]
         grid = QGridLayout()
         basename = os.path.basename(self.wallet.storage.path)
@@ -2430,7 +2451,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if self.wallet.can_have_lightning():
                 grid.addWidget(QLabel('Not enabled'), 5, 1)
                 button = QPushButton(_("Enable"))
-                button.pressed.connect(self.init_lightning_dialog)
+                button.pressed.connect(lambda: self.init_lightning_dialog(dialog))
                 grid.addWidget(button, 5, 3)
             else:
                 grid.addWidget(QLabel(_("Not available for this wallet.")), 5, 1)

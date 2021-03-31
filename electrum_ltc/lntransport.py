@@ -157,6 +157,9 @@ class LNTransportBase:
     def close(self):
         self.writer.close()
 
+    def remote_pubkey(self) -> Optional[bytes]:
+        raise NotImplementedError()
+
 
 class LNResponderTransport(LNTransportBase):
     """Transport initiated by remote party."""
@@ -166,9 +169,12 @@ class LNResponderTransport(LNTransportBase):
         self.reader = reader
         self.writer = writer
         self.privkey = privkey
+        self._pubkey = None  # remote pubkey
 
     def name(self):
-        return "responder"
+        pubkey = self.remote_pubkey()
+        pubkey_hex = pubkey.hex() if pubkey else pubkey
+        return f"{pubkey_hex}(in)"
 
     async def handshake(self, **kwargs):
         hs = HandshakeState(privkey_to_pubkey(self.privkey))
@@ -221,7 +227,11 @@ class LNResponderTransport(LNTransportBase):
         _p = aead_decrypt(temp_k3, 0, hs.update(c), t)
         self.rk, self.sk = get_bolt8_hkdf(ck, b'')
         self.init_counters(ck)
+        self._pubkey = rs
         return rs
+
+    def remote_pubkey(self) -> Optional[bytes]:
+        return self._pubkey
 
 
 class LNTransport(LNTransportBase):
@@ -276,3 +286,6 @@ class LNTransport(LNTransportBase):
         self.writer.write(msg)
         self.sk, self.rk = get_bolt8_hkdf(hs.ck, b'')
         self.init_counters(ck)
+
+    def remote_pubkey(self) -> Optional[bytes]:
+        return self.peer_addr.pubkey

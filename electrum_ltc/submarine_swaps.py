@@ -2,6 +2,8 @@ import asyncio
 import json
 import os
 from typing import TYPE_CHECKING, Optional, Dict, Union
+from decimal import Decimal
+import math
 
 import attr
 
@@ -182,6 +184,8 @@ class SwapManager(Logger):
                     self.lnwatcher.remove_callback(swap.lockup_address)
                     swap.is_redeemed = True
                 continue
+            # FIXME the mining fee should depend on swap.is_reverse.
+            #       the txs are not the same size...
             amount_sat = txin.value_sats() - self.get_claim_fee()
             if amount_sat < dust_threshold():
                 self.logger.info('utxo value below dust threshold')
@@ -339,6 +343,8 @@ class SwapManager(Logger):
         - Server creates on-chain output locked to RHASH.
         - User spends on-chain output, revealing preimage.
         - Server fulfills HTLC using preimage.
+
+        Note: expected_onchain_amount_sat is BEFORE deducting the on-chain claim tx fee.
         """
         assert self.network
         assert self.lnwatcher
@@ -449,39 +455,88 @@ class SwapManager(Logger):
     def check_invoice_amount(self, x):
         return x >= self.min_amount and x <= self._max_amount
 
-    def get_recv_amount(self, send_amount: Optional[int], is_reverse: bool) -> Optional[int]:
+    def _get_recv_amount(self, send_amount: Optional[int], *, is_reverse: bool) -> Optional[int]:
+        """For a given swap direction and amount we send, returns how much we will receive.
+
+        Note: in the reverse direction, the mining fee for the on-chain claim tx is NOT accounted for.
+        In the reverse direction, the result matches what the swap server returns as response["onchainAmount"].
+        """
         if send_amount is None:
             return
-        x = send_amount
+        x = Decimal(send_amount)
+        percentage = Decimal(self.percentage)
         if is_reverse:
             if not self.check_invoice_amount(x):
                 return
-            x = int(x * (100 - self.percentage) / 100)
-            x -= self.lockup_fee
-            x -= self.get_claim_fee()
+            # see/ref:
+            # https://github.com/BoltzExchange/boltz-backend/blob/e7e2d30f42a5bea3665b164feb85f84c64d86658/lib/service/Service.ts#L948
+            percentage_fee = math.ceil(percentage * x / 100)
+            base_fee = self.lockup_fee
+            x -= percentage_fee + base_fee
+            x = math.floor(x)
             if x < dust_threshold():
                 return
         else:
             x -= self.normal_fee
-            x = int(x / ((100 + self.percentage) / 100))
+            percentage_fee = math.ceil(x * percentage / (100 + percentage))
+            x -= percentage_fee
             if not self.check_invoice_amount(x):
                 return
+        x = int(x)
         return x
 
-    def get_send_amount(self, recv_amount: Optional[int], is_reverse: bool) -> Optional[int]:
+    def _get_send_amount(self, recv_amount: Optional[int], *, is_reverse: bool) -> Optional[int]:
+        """For a given swap direction and amount we want to receive, returns how much we will need to send.
+
+        Note: in the reverse direction, the mining fee for the on-chain claim tx is NOT accounted for.
+        In the forward direction, the result matches what the swap server returns as response["expectedAmount"].
+        """
         if not recv_amount:
             return
-        x = recv_amount
+        x = Decimal(recv_amount)
+        percentage = Decimal(self.percentage)
         if is_reverse:
-            x += self.lockup_fee
-            x += self.get_claim_fee()
-            x = int(x * 100 / (100 - self.percentage)) + 1
+            # see/ref:
+            # https://github.com/BoltzExchange/boltz-backend/blob/e7e2d30f42a5bea3665b164feb85f84c64d86658/lib/service/Service.ts#L928
+            # https://github.com/BoltzExchange/boltz-backend/blob/e7e2d30f42a5bea3665b164feb85f84c64d86658/lib/service/Service.ts#L958
+            base_fee = self.lockup_fee
+            x += base_fee
+            x = math.ceil(x / ((100 - percentage) / 100))
             if not self.check_invoice_amount(x):
                 return
         else:
             if not self.check_invoice_amount(x):
                 return
-            x = int(x * 100 / (100 + self.percentage)) + 1
-            x += self.normal_fee
+            # see/ref:
+            # https://github.com/BoltzExchange/boltz-backend/blob/e7e2d30f42a5bea3665b164feb85f84c64d86658/lib/service/Service.ts#L708
+            # https://github.com/BoltzExchange/boltz-backend/blob/e7e2d30f42a5bea3665b164feb85f84c64d86658/lib/rates/FeeProvider.ts#L90
+            percentage_fee = math.ceil(percentage * x / 100)
+            x += percentage_fee + self.normal_fee
+        x = int(x)
         return x
 
+    def get_recv_amount(self, send_amount: Optional[int], *, is_reverse: bool) -> Optional[int]:
+        recv_amount = self._get_recv_amount(send_amount, is_reverse=is_reverse)
+        # sanity check calculation can be inverted
+        if recv_amount is not None:
+            inverted_recv_amount = self._get_send_amount(recv_amount, is_reverse=is_reverse)
+            if send_amount != inverted_recv_amount:
+                raise Exception(f"calc-invert-sanity-check failed. is_reverse={is_reverse}. "
+                                f"send_amount={send_amount} -> recv_amount={recv_amount} -> inverted_recv_amount={inverted_recv_amount}")
+        # account for on-chain claim tx fee
+        if is_reverse and recv_amount is not None:
+            recv_amount -= self.get_claim_fee()
+        return recv_amount
+
+    def get_send_amount(self, recv_amount: Optional[int], *, is_reverse: bool) -> Optional[int]:
+        send_amount = self._get_send_amount(recv_amount, is_reverse=is_reverse)
+        # sanity check calculation can be inverted
+        if send_amount is not None:
+            inverted_send_amount = self._get_recv_amount(send_amount, is_reverse=is_reverse)
+            if recv_amount != inverted_send_amount:
+                raise Exception(f"calc-invert-sanity-check failed. is_reverse={is_reverse}. "
+                                f"recv_amount={recv_amount} -> send_amount={send_amount} -> inverted_send_amount={inverted_send_amount}")
+        # account for on-chain claim tx fee
+        if is_reverse and send_amount is not None:
+            send_amount += self.get_claim_fee()
+        return send_amount
