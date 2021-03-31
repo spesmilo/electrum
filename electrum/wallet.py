@@ -351,16 +351,20 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         assert self.can_have_lightning()
         assert self.db.get('lightning_xprv') is None
         assert self.db.get('lightning_privkey2') is None
-
         if self.can_have_deterministic_lightning():
-            ks = self.keystore
-            assert isinstance(ks, keystore.BIP32_KeyStore)
-            self.db.put('lightning_xprv', ks.get_lightning_xprv(password))
+            assert isinstance(self.keystore, keystore.BIP32_KeyStore)
+            ln_xprv = self.keystore.get_lightning_xprv(password)
+            self.db.put('lightning_xprv', ln_xprv)
         else:
             seed = os.urandom(32)
             node = BIP32Node.from_rootseed(seed, xtype='standard')
             ln_xprv = node.to_xprv()
             self.db.put('lightning_privkey2', ln_xprv)
+        if self.network:
+            self.network.run_from_another_thread(self.stop())
+        self.lnworker = LNWallet(self, ln_xprv)
+        if self.network:
+            self.start_network(self.network)
 
     async def stop(self):
         """Stop all networking and save DB to disk."""

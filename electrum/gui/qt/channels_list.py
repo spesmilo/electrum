@@ -71,8 +71,13 @@ class ChannelsList(MyTreeView):
         self.update_rows.connect(self.do_update_rows)
         self.update_single_row.connect(self.do_update_single_row)
         self.network = self.parent.network
-        self.lnworker = self.parent.wallet.lnworker
+        self.wallet = self.parent.wallet
         self.setSortingEnabled(True)
+
+    @property
+    # property because lnworker might be initialized at runtime
+    def lnworker(self):
+        return self.wallet.lnworker
 
     def format_fields(self, chan: AbstractChannel) -> Dict['ChannelsList.Columns', str]:
         labels = {}

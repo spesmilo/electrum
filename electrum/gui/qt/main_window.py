@@ -2245,11 +2245,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         sb.addPermanentWidget(StatusBarButton(read_QIcon("preferences.png"), _("Preferences"), self.settings_dialog))
         self.seed_button = StatusBarButton(read_QIcon("seed.png"), _("Seed"), self.show_seed_dialog)
         sb.addPermanentWidget(self.seed_button)
-        self.lightning_button = None
-        if self.wallet.has_lightning():
-            self.lightning_button = StatusBarButton(read_QIcon("lightning.png"), _("Lightning Network"), self.gui_object.show_lightning_dialog)
-            self.update_lightning_icon()
-            sb.addPermanentWidget(self.lightning_button)
+        self.lightning_button = StatusBarButton(read_QIcon("lightning.png"), _("Lightning Network"), self.gui_object.show_lightning_dialog)
+        self.update_lightning_icon()
+        sb.addPermanentWidget(self.lightning_button)
         self.status_button = None
         if self.network:
             self.status_button = StatusBarButton(read_QIcon("status_disconnected.png"), _("Network"), self.gui_object.show_network_dialog)
@@ -2285,12 +2283,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.coincontrol_sb.setVisible(True)
 
     def update_lightning_icon(self):
-        if self.lightning_button is None:
+        if not self.wallet.has_lightning():
+            self.lightning_button.setVisible(False)
             return
         if self.network is None or self.network.channel_db is None:
             self.lightning_button.setVisible(False)
             return
-
         self.lightning_button.setVisible(True)
 
         cur, total, progress_percent = self.network.lngossip.get_sync_progress_estimate()
@@ -2385,7 +2383,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if d.exec_():
             self.set_contact(line2.text(), line1.text())
 
-    def init_lightning_dialog(self):
+    def init_lightning_dialog(self, dialog):
         assert not self.wallet.has_lightning()
         if self.wallet.can_have_deterministic_lightning():
             msg = messages.MSG_LIGHTNING_SCB_WARNING + "\n" + _("Create lightning keys?")
@@ -2395,12 +2393,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 "You will need to backup your wallet everytime you create a new wallet. "
                 "Create lightning keys?")
         if self.question(msg):
-            self._init_lightning_dialog()
+            self._init_lightning_dialog(dialog=dialog)
 
     @protected
-    def _init_lightning_dialog(self, *, password):
+    def _init_lightning_dialog(self, *, dialog, password):
+        dialog.close()
         self.wallet.init_lightning(password=password)
-        self.show_message("Lightning keys created. Please restart Electrum")
+        self.update_lightning_icon()
+        self.show_message(_('Lightning keys have been initialized.'))
 
     def show_wallet_info(self):
         dialog = WindowModalDialog(self, _("Wallet Information"))
@@ -2463,7 +2463,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if self.wallet.can_have_lightning():
                 grid.addWidget(QLabel('Not enabled'), 5, 1)
                 button = QPushButton(_("Enable"))
-                button.pressed.connect(self.init_lightning_dialog)
+                button.pressed.connect(lambda: self.init_lightning_dialog(dialog))
                 grid.addWidget(button, 5, 3)
             else:
                 grid.addWidget(QLabel(_("Not available for this wallet.")), 5, 1)

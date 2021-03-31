@@ -1428,8 +1428,5 @@ class ElectrumWindow(App, Logger):
     def _enable_lightning(self, b):
         if not b:
             return
-        wallet_path = self.get_wallet_path()
         self.wallet.init_lightning(password=self.password)
         self.show_info(_('Lightning keys have been initialized.'))
-        self.stop_wallet()
-        self.load_wallet_by_name(wallet_path)
