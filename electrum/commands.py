@@ -40,7 +40,8 @@ from decimal import Decimal, InvalidOperation
 from typing import Optional, TYPE_CHECKING, Dict, List
 import os
 
-from .import util, ecc
+from . import util, ecc
+from . import keystore
 from .util import (bfh, format_satoshis, json_decode, json_normalize,
                    is_hash256_str, is_hex_str, to_bytes, parse_max_spend, to_decimal,
                    UserFacingException)
@@ -53,7 +54,7 @@ from .transaction import (Transaction, multisig_script, TxOutput, PartialTransac
 from . import transaction
 from .invoices import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .synchronizer import Notifier
-from .wallet import Abstract_Wallet, create_new_wallet, restore_wallet_from_text, Deterministic_Wallet, BumpFeeStrategy
+from .wallet import Abstract_Wallet, create_new_wallet, restore_wallet_from_text, Deterministic_Wallet, BumpFeeStrategy, Imported_Wallet
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from .mnemonic import Mnemonic
 from .lnutil import SENT, RECEIVED
@@ -666,15 +667,26 @@ class Commands:
 
     @command('wp')
     async def importprivkey(self, privkey, password=None, wallet: Abstract_Wallet = None):
-        """Import a private key."""
+        """Import a private key or a list of private keys."""
         if not wallet.can_import_privkey():
             return "Error: This type of wallet cannot import private keys. Try to create a new wallet with that key."
-        try:
-            addr = wallet.import_private_key(privkey, password)
-            out = "Keypair imported: " + addr
-        except Exception as e:
-            out = "Error: " + repr(e)
-        return out
+        assert isinstance(wallet, Imported_Wallet)
+        keys = privkey.split()
+        if not keys:
+            return "Error: no keys given"
+        elif len(keys) == 1:
+            try:
+                addr = wallet.import_private_key(keys[0], password)
+                out = "Keypair imported: " + addr
+            except Exception as e:
+                out = "Error: " + repr(e)
+            return out
+        else:
+            good_inputs, bad_inputs = wallet.import_private_keys(keys, password)
+            return {
+                "good_keys": len(good_inputs),
+                "bad_keys": len(bad_inputs),
+            }
 
     def _resolver(self, x, wallet: Abstract_Wallet):
         if x is None:
