@@ -137,21 +137,22 @@ if [[ $1 == "backup" ]]; then
     wait_for_balance alice 1
     echo "alice opens channel"
     bob_node=$($bob nodeid)
-    channel=$($alice open_channel $bob_node 0.15)
-    echo "channel point: $channel"
+    channel1=$($alice open_channel $bob_node 0.15)
+    $alice setconfig use_recoverable_channels False
+    channel2=$($alice open_channel $bob_node 0.15)
     new_blocks 3
     wait_until_channel_open alice
-    request=$($bob add_lightning_request 0.01 -m "blah" | jq -r ".invoice")
-    echo "alice pays"
-    $alice lnpay $request
+    backup=$($alice export_channel_backup $channel2)
     seed=$($alice getseed)
     $alice stop
     mv /tmp/alice/regtest/wallets/default_wallet /tmp/alice/regtest/wallets/default_wallet.old
     $alice -o restore "$seed"
     $alice daemon -d
     $alice load_wallet
-    $alice request_force_close $channel
-    wait_for_balance alice 0.989
+    $alice import_channel_backup $backup
+    $alice request_force_close $channel1
+    $alice request_force_close $channel2
+    wait_for_balance alice 0.998
 fi
 
 

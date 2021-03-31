@@ -258,8 +258,12 @@ class LNRater(Logger):
                 continue
 
             # don't want to connect to nodes we are already connected to
-            if pk not in channel_peers:
-                break
+            if pk in channel_peers:
+                continue
+            # don't want to connect to nodes we already have a channel with on another device
+            if self.lnworker.has_conflicting_backup_with(pk):
+                continue
+            break
 
         alias = node_info.alias if node_info else 'unknown node alias'
         self.logger.info(

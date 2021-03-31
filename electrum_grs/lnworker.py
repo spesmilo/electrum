@@ -32,7 +32,7 @@ from .util import NetworkRetryManager, JsonRPCClient
 from .lnutil import LN_MAX_FUNDING_SAT
 from .keystore import BIP32_KeyStore
 from .bitcoin import COIN
-from .bitcoin import opcodes, make_op_return, address_to_script
+from .bitcoin import opcodes, make_op_return, address_to_scripthash
 from .transaction import Transaction
 from .transaction import get_script_type_from_output_script
 from .crypto import sha256
@@ -43,7 +43,7 @@ from .util import ignore_exceptions, make_aiohttp_session, SilentTaskGroup
 from .util import timestamp_to_datetime, random_shuffled_copy
 from .util import MyEncoder, is_private_netaddress
 from .logging import Logger
-from .lntransport import LNTransport, LNResponderTransport
+from .lntransport import LNTransport, LNResponderTransport, LNTransportBase
 from .lnpeer import Peer, LN_P2P_NETWORK_TIMEOUT
 from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
@@ -223,10 +223,7 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
                 except Exception as e:
                     self.logger.info(f'handshake failure from incoming connection: {e!r}')
                     return
-                peer = Peer(self, node_id, transport)
-                with self.lock:
-                    self._peers[node_id] = peer
-                await self.taskgroup.spawn(peer.main_loop())
+                await self._add_peer_from_transport(node_id=node_id, transport=transport)
             try:
                 self.listen_server = await asyncio.start_server(cb, addr, netaddr.port)
             except OSError as e:
@@ -272,15 +269,25 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
             raise ErrorAddingPeer("cannot connect to self")
         transport = LNTransport(self.node_keypair.privkey, peer_addr,
                                 proxy=self.network.proxy)
+        peer = await self._add_peer_from_transport(node_id=node_id, transport=transport)
+        return peer
+
+    async def _add_peer_from_transport(self, *, node_id: bytes, transport: LNTransportBase) -> Peer:
         peer = Peer(self, node_id, transport)
-        await self.taskgroup.spawn(peer.main_loop())
         with self.lock:
+            existing_peer = self._peers.get(node_id)
+            if existing_peer:
+                existing_peer.close_and_cleanup()
+            assert node_id not in self._peers
             self._peers[node_id] = peer
+        await self.taskgroup.spawn(peer.main_loop())
         return peer
 
     def peer_closed(self, peer: Peer) -> None:
         with self.lock:
-            self._peers.pop(peer.pubkey, None)
+            peer2 = self._peers.get(peer.pubkey)
+            if peer2 is peer:
+                self._peers.pop(peer.pubkey)
 
     def num_peers(self) -> int:
         return sum([p.is_initialized() for p in self.peers.values()])
@@ -817,6 +824,7 @@ class LNWallet(LNWorker):
                 'amount_msat': chan.balance(LOCAL, ctn=0),
                 'direction': 'received',
                 'timestamp': tx_height.timestamp,
+                'date': timestamp_to_datetime(tx_height.timestamp),
                 'fee_sat': None,
                 'fee_msat': None,
                 'height': tx_height.height,
@@ -836,6 +844,7 @@ class LNWallet(LNWorker):
                 'amount_msat': -chan.balance_minus_outgoing_htlcs(LOCAL),
                 'direction': 'sent',
                 'timestamp': tx_height.timestamp,
+                'date': timestamp_to_datetime(tx_height.timestamp),
                 'fee_sat': None,
                 'fee_msat': None,
                 'height': tx_height.height,
@@ -986,13 +995,13 @@ class LNWallet(LNWorker):
         return CB_MAGIC_BYTES + node_id[0:16]
 
     def decrypt_cb_data(self, encrypted_data, funding_address):
-        funding_scriptpubkey = bytes.fromhex(address_to_script(funding_address))
-        nonce = funding_scriptpubkey[0:12]
+        funding_scripthash = bytes.fromhex(address_to_scripthash(funding_address))
+        nonce = funding_scripthash[0:12]
         return chacha20_decrypt(key=self.backup_key, data=encrypted_data, nonce=nonce)
 
     def encrypt_cb_data(self, data, funding_address):
-        funding_scriptpubkey = bytes.fromhex(address_to_script(funding_address))
-        nonce = funding_scriptpubkey[0:12]
+        funding_scripthash = bytes.fromhex(address_to_scripthash(funding_address))
+        nonce = funding_scripthash[0:12]
         return chacha20_encrypt(key=self.backup_key, data=data, nonce=nonce)
 
     def mktx_for_open_channel(
@@ -1909,6 +1918,7 @@ class LNWallet(LNWorker):
         fee_proportional_millionths = TRAMPOLINE_FEES[3]['fee_proportional_millionths']
         # inverse of fee_for_edge_msat
         can_send_minus_fees = (can_send - fee_base_msat) * 1_000_000 // ( 1_000_000 + fee_proportional_millionths)
+        can_send_minus_fees = max(0, can_send_minus_fees)
         return Decimal(can_send_minus_fees) / 1000
 
     def num_sats_can_receive(self) -> Decimal:
@@ -2084,11 +2094,18 @@ class LNWallet(LNWorker):
         util.trigger_callback('channels_updated', self.wallet)
         self.lnwatcher.add_channel(cb.funding_outpoint.to_str(), cb.get_funding_address())
 
+    def has_conflicting_backup_with(self, remote_node_id: bytes):
+        """ Returns whether we have an active channel with this node on another device, using same local node id. """
+        channel_backup_peers = [
+            cb.node_id for cb in self.channel_backups.values()
+            if (not cb.is_closed() and cb.get_local_pubkey() == self.node_keypair.pubkey)]
+        return any(remote_node_id.startswith(cb_peer_nodeid) for cb_peer_nodeid in channel_backup_peers)
+
     def remove_channel_backup(self, channel_id):
         chan = self.channel_backups[channel_id]
         assert chan.can_be_deleted()
         onchain_backups = self.db.get_dict("onchain_channel_backups")
-        imported_backups = self.db.get_dict("onchain_channel_backups")
+        imported_backups = self.db.get_dict("imported_channel_backups")
         if channel_id.hex() in onchain_backups:
             onchain_backups.pop(channel_id.hex())
         elif channel_id.hex() in imported_backups:
@@ -2109,6 +2126,7 @@ class LNWallet(LNWorker):
         self.logger.info(f'requesting channel force close: {channel_id.hex()}')
         if isinstance(cb, ImportedChannelBackupStorage):
             node_id = cb.node_id
+            privkey = cb.privkey
             addresses = [(cb.host, cb.port, 0)]
             # TODO also try network addresses from gossip db (as it might have changed)
         else:
@@ -2116,12 +2134,13 @@ class LNWallet(LNWorker):
             if not self.channel_db:
                 raise Exception('Enable gossip first')
             node_id = self.network.channel_db.get_node_by_prefix(cb.node_id_prefix)
+            privkey = self.node_keypair.privkey
             addresses = self.network.channel_db.get_node_addresses(node_id)
             if not addresses:
                 raise Exception('Peer not found in gossip database')
         for host, port, timestamp in addresses:
             peer_addr = LNPeerAddr(host, port, node_id)
-            transport = LNTransport(self.node_keypair.privkey, peer_addr, proxy=self.network.proxy)
+            transport = LNTransport(privkey, peer_addr, proxy=self.network.proxy)
             peer = Peer(self, node_id, transport, is_channel_backup=True)
             try:
                 async with TaskGroup(wait=any) as group:
@@ -2131,6 +2150,7 @@ class LNWallet(LNWorker):
             except Exception as e:
                 self.logger.info(f'failed to connect {host} {e}')
                 continue
+            # TODO close/cleanup the transport
         else:
             raise Exception('failed to connect')
 

@@ -53,7 +53,7 @@ if TYPE_CHECKING:
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 39     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 40     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -188,6 +188,7 @@ class WalletDB(JsonDB):
         self._convert_version_37()
         self._convert_version_38()
         self._convert_version_39()
+        self._convert_version_40()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
         self._after_upgrade_tasks()
@@ -786,6 +787,29 @@ class WalletDB(JsonDB):
             return
         self.data['imported_channel_backups'] = self.data.pop('channel_backups', {})
         self.data['seed_version'] = 39
+
+    def _convert_version_40(self):
+        # put 'seed_type' into keystores
+        if not self._is_upgrade_method_needed(39, 39):
+            return
+        for ks_name in ('keystore', *['x{}/'.format(i) for i in range(1, 16)]):
+            ks = self.data.get(ks_name, None)
+            if ks is None: continue
+            seed = ks.get('seed')
+            if not seed: continue
+            seed_type = None
+            xpub = ks.get('xpub') or None
+            if xpub:
+                assert isinstance(xpub, str)
+                if xpub[0:4] in ('xpub', 'tpub'):
+                    seed_type = 'standard'
+                elif xpub[0:4] in ('zpub', 'Zpub', 'vpub', 'Vpub'):
+                    seed_type = 'segwit'
+            elif ks.get('type') == 'old':
+                seed_type = 'old'
+            if seed_type is not None:
+                ks['seed_type'] = seed_type
+        self.data['seed_version'] = 40
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):

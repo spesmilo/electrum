@@ -22,12 +22,29 @@ To prevent fund losses, please save this backup on another device.
 It may be imported in another Electrum-GRS wallet with the same seed.
 """
 
-MSG_LIGHTNING_WARNING = """
+MSG_LIGHTNING_EXPERIMENTAL_WARNING = """
+Lightning support in Electrum-GRS is experimental. Do not put large amounts in lightning channels.
+"""
+
+MSG_LIGHTNING_SCB_WARNING = """
 Electrum-GRS uses static channel backups. If you lose your wallet file, you will need to request your channel to be force-closed by the remote peer in order to recover your funds. This assumes that the remote peer is reachable, and has not lost its own data.
 """
+
+MSG_LIGHTNING_WARNING = MSG_LIGHTNING_EXPERIMENTAL_WARNING + MSG_LIGHTNING_SCB_WARNING
 
 MSG_HELP_TRAMPOLINE = """
 Lightning payments require finding a path through the Lightning Network. You may use trampoline routing, or local routing (gossip).
 
 Downloading the network gossip uses quite some bandwidth and storage, and is not recommended on mobile devices. If you use trampoline, you can only open channels with trampoline nodes.
+"""
+
+MGS_CONFLICTING_BACKUP_INSTANCE = """
+Another instance of this wallet (same seed) has an open channel with the same remote node. If you create this channel, you will not be able to use both wallets at the same time.
+
+Are you sure?
+"""
+
+
+MSG_CAPITAL_GAINS = """
+This summary covers only on-chain transactions (no lightning!). Capital gains are computed by attaching an acquisition price to each UTXO in the wallet, and uses the order of blockchain events (not FIFO).
 """
