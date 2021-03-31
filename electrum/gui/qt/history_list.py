@@ -25,6 +25,7 @@
 
 import os
 import sys
+import time
 import datetime
 from datetime import date
 from typing import TYPE_CHECKING, Tuple, Dict
@@ -439,11 +440,11 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         return hm_idx.internalPointer().get_data()
 
     def should_hide(self, proxy_row):
-        if self.start_timestamp and self.end_timestamp:
+        if self.start_date and self.end_date:
             tx_item = self.tx_item_from_proxy_row(proxy_row)
             date = tx_item['date']
             if date:
-                in_interval = self.start_timestamp <= date <= self.end_timestamp
+                in_interval = self.start_date <= date <= self.end_date
                 if not in_interval:
                     return True
             return False
@@ -457,8 +458,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.setModel(self.proxy)
         AcceptFileDragDrop.__init__(self, ".txn")
         self.setSortingEnabled(True)
-        self.start_timestamp = None
-        self.end_timestamp = None
+        self.start_date = None
+        self.end_date = None
         self.years = []
         self.create_toolbar_buttons()
         self.wallet = self.parent.wallet  # type: Abstract_Wallet
@@ -482,8 +483,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.start_button.setEnabled(x)
         self.end_button.setEnabled(x)
         if s == _('All'):
-            self.start_timestamp = None
-            self.end_timestamp = None
+            self.start_date = None
+            self.end_date = None
             self.start_button.setText("-")
             self.end_button.setText("-")
         else:
@@ -491,10 +492,10 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                 year = int(s)
             except:
                 return
-            self.start_timestamp = start_date = datetime.datetime(year, 1, 1)
-            self.end_timestamp = end_date = datetime.datetime(year+1, 1, 1)
-            self.start_button.setText(_('From') + ' ' + self.format_date(start_date))
-            self.end_button.setText(_('To') + ' ' + self.format_date(end_date))
+            self.start_date = datetime.datetime(year, 1, 1)
+            self.end_date = datetime.datetime(year+1, 1, 1)
+            self.start_button.setText(_('From') + ' ' + self.format_date(self.start_date))
+            self.end_button.setText(_('To') + ' ' + self.format_date(self.end_date))
         self.hide_rows()
 
     def create_toolbar_buttons(self):
@@ -512,19 +513,19 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         return self.period_combo, self.start_button, self.end_button
 
     def on_hide_toolbar(self):
-        self.start_timestamp = None
-        self.end_timestamp = None
+        self.start_date = None
+        self.end_date = None
         self.hide_rows()
 
     def save_toolbar_state(self, state, config):
         config.set_key('show_toolbar_history', state)
 
     def select_start_date(self):
-        self.start_timestamp = self.select_date(self.start_button)
+        self.start_date = self.select_date(self.start_button)
         self.hide_rows()
 
     def select_end_date(self):
-        self.end_timestamp = self.select_date(self.end_button)
+        self.end_date = self.select_date(self.end_button)
         self.hide_rows()
 
     def select_date(self, button):
@@ -553,7 +554,10 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         if not show_fiat:
             self.parent.show_message(_("Enable fiat exchange rate with history."))
             return
-        h = self.wallet.get_detailed_history(fx=fx)
+        h = self.wallet.get_detailed_history(
+            from_timestamp = time.mktime(self.start_date.timetuple()) if self.start_date else None,
+            to_timestamp = time.mktime(self.end_date.timetuple()) if self.end_date else None,
+            fx=fx)
         summary = h['summary']
         if not summary:
             self.parent.show_message(_("Nothing to summarize."))
