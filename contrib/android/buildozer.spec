@@ -42,8 +42,8 @@ requirements =
     android,
     openssl,
     plyer,
-    # kivy 2.0.0
-    kivy==dedcb6bcabe3d8d6758dcee607e8c33b174d782b,
+    # kivy master 2020-12-10 (2.0.0 plus a few bugfixes)
+    kivy==2debbc3b1484b14824112986cb03b1072a60fbfc,
     libffi,
     libsecp256k1,
     cryptography
