@@ -1392,14 +1392,6 @@ class ElectrumWindow(App, Logger):
                 status = _('Enabled')
             else:
                 status = _('Enabled, non-recoverable channels')
-                if self.wallet.db.get('seed_type') == 'segwit':
-                    msg = _("Your channels cannot be recovered from seed, because they were created with an old version of Electrum. "
-                            "This means that you must save a backup of your wallet everytime you create a new channel.\n\n"
-                            "If you want this wallet to have recoverable channels, you must close your existing channels and restore this wallet from seed")
-                else:
-                    msg = _("Your channels cannot be recovered from seed. "
-                            "This means that you must save a backup of your wallet everytime you create a new channel.\n\n"
-                            "If you want to have recoverable channels, you must create a new wallet with an Electrum seed")
         else:
             if self.wallet.can_have_lightning():
                 status = _('Not enabled')
