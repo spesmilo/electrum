@@ -370,7 +370,6 @@ class Plugin(RevealerPlugin):
         self.filename_prefix = 'revealer_'
         revealer.save(self.get_path_to_revealer_file('.png'))
         self.toPdf(QImage(revealer))
-        QDesktopServices.openUrl(QUrl.fromLocalFile(self.get_path_to_revealer_file('.pdf')))
 
     def make_cypherseed(self, img, rawnoise, calibration=False, is_seed = True):
         img = img.convertToFormat(QImage.Format_Mono)
@@ -396,7 +395,6 @@ class Plugin(RevealerPlugin):
 
         if not calibration:
             self.toPdf(QImage(cypherseed))
-            QDesktopServices.openUrl(QUrl.fromLocalFile(self.get_path_to_revealer_file('.pdf')))
             cypherseed.save(self.get_path_to_revealer_file('.png'))
             self.bcrypt(self.c_dialog)
         return cypherseed
