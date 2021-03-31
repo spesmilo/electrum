@@ -2386,7 +2386,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def init_lightning_dialog(self, dialog):
         assert not self.wallet.has_lightning()
         if self.wallet.can_have_deterministic_lightning():
-            msg = messages.MSG_LIGHTNING_SCB_WARNING + "\n" + _("Create lightning keys?")
+            msg = _(
+                "Lightning is not enabled because this wallet was created with an old version of Electrum. "
+                "Create lightning keys?")
         else:
             msg = _(
                 "Warning: this wallet type does not support channel recovery from seed. "
