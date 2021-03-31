@@ -105,10 +105,12 @@ info "generating locale"
         brew link --force gettext
     fi
     cd "$CONTRIB"/deterministic-build/electrum-locale
+    # we want the binary to have only compiled (.mo) locale files; not source (.po) files
+    rm -rf "$ROOT_FOLDER/electrum/locale/"
     for i in ./locale/*; do
-        dir="$ROOT_FOLDER"/electrum/$i/LC_MESSAGES
+        dir="$ROOT_FOLDER/electrum/$i/LC_MESSAGES"
         mkdir -p $dir
-        msgfmt --output-file=$dir/electrum.mo $i/electrum.po || true
+        msgfmt --output-file="$dir/electrum.mo" "$i/electrum.po" || true
     done
 ) || fail "failed generating locale"
 

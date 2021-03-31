@@ -16,17 +16,20 @@ fi
 git submodule update --init
 
 (
-    rm -rf "$LOCALE"
     cd "$CONTRIB/deterministic-build/electrum-locale/"
     if ! which msgfmt > /dev/null 2>&1; then
         echo "Please install gettext"
         exit 1
     fi
+    # We include both source (.po) and compiled (.mo) locale files in the source dist.
+    # Maybe we should exclude the compiled locale files? see https://askubuntu.com/a/144139
+    # (also see MANIFEST.in)
+    rm -rf "$LOCALE"
     for i in ./locale/*; do
-        dir="$ROOT_FOLDER"/electrum/$i/LC_MESSAGES
-        mkdir -p $dir
-        msgfmt --output-file=$dir/electrum.mo $i/electrum.po || true
-        cp $i/electrum.po "$ROOT_FOLDER"/electrum/$i/electrum.po
+        dir="$ROOT_FOLDER/electrum/$i/LC_MESSAGES"
+        mkdir -p "$dir"
+        msgfmt --output-file="$dir/electrum.mo" "$i/electrum.po" || true
+        cp $i/electrum.po "$ROOT_FOLDER/electrum/$i/electrum.po"
     done
 )
 
