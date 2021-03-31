@@ -1421,23 +1421,26 @@ class ElectrumWindow(App, Logger):
                             "This means that you must save a backup of your wallet everytime you create a new channel.\n\n"
                             "If you want to have recoverable channels, you must create a new wallet with an Electrum seed")
                 self.show_info(msg)
-        else:
-            if self.wallet.can_have_lightning():
-                root.dismiss()
+        elif self.wallet.can_have_lightning():
+            root.dismiss()
+            if self.wallet.can_have_deterministic_lightning():
+                msg = messages.MSG_LIGHTNING_SCB_WARNING + "\n" + _("Create lightning keys?")
+            else:
                 msg = _(
                     "Warning: this wallet type does not support channel recovery from seed. "
                     "You will need to backup your wallet everytime you create a new wallet. "
                     "Create lightning keys?")
-                d = Question(msg, self._enable_lightning, title=_('Enable Lightning?'))
-                d.open()
-            else:
-                pass
+            d = Question(msg, self._enable_lightning, title=_('Enable Lightning?'))
+            d.open()
 
     def _enable_lightning(self, b):
         if not b:
             return
+        self.protected(_("Create lightning keys?"), self.__enable_lightning, ())
+
+    def __enable_lightning(self, password):
         wallet_path = self.get_wallet_path()
-        self.wallet.init_lightning()
+        self.wallet.init_lightning(password=password)
         self.show_info(_('Lightning keys have been initialized.'))
         self.stop_wallet()
         self.load_wallet_by_name(wallet_path)
