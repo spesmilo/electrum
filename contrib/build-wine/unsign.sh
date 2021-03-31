@@ -28,9 +28,9 @@ for mine in $(ls dist/*.exe); do
     osslsigncode remove-signature -in signed/$f -out $out > /dev/null 2>&1
     chmod +x $out
     if cmp -s $out $mine; then
-	echo "Success: $f"
-	gpg --sign --armor --detach signed/$f
+        echo "Success: $f"
+        gpg --sign --armor --detach signed/$f
     else
-	echo "Failure: $f"
+        echo "Failure: $f"
     fi
 done
