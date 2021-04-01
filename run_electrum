@@ -91,6 +91,7 @@ from electrum.commands import get_parser, known_commands, Commands, config_varia
 from electrum import daemon
 from electrum import keystore
 from electrum.util import create_and_start_event_loop
+from electrum.i18n import set_language
 
 if TYPE_CHECKING:
     import threading
@@ -348,6 +349,14 @@ def main():
             sys.exit(1)
 
     config = SimpleConfig(config_options)
+
+    # set language as early as possible
+    # Note: we are already too late for strings that are declared in the global scope
+    #       of an already imported module. However, the GUI and the plugins at least have
+    #       not been imported yet.
+    # Note: it is ok to call set_language() again later. E.g. the Qt GUI has additional
+    #       tools to figure out the default language so it will get called again there.
+    set_language(config.get('language'))
 
     if config.get('testnet'):
         constants.set_testnet()
