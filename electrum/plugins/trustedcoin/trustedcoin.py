@@ -551,6 +551,8 @@ class TrustedCoinPlugin(BasePlugin):
     def create_seed(self, wizard, seed_type):
         seed = self.make_seed(seed_type)
         f = lambda x: wizard.request_passphrase(seed, x)
+        wizard.opt_bip39 = False
+        wizard.opt_ext = True
         wizard.show_seed_dialog(run_next=f, seed_text=seed)
 
     @classmethod
