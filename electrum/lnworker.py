@@ -1962,6 +1962,7 @@ class LNWallet(LNWorker):
         return Decimal(can_receive) / 1000
 
     def num_sats_can_receive_no_mpp(self) -> Decimal:
+        can_receive = 0
         with self.lock:
             if self.channels:
                 can_receive = max([
