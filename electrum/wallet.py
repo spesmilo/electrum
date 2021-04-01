@@ -1131,7 +1131,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         item['fiat_currency'] = fx.ccy
         item['fiat_rate'] = Fiat(fiat_rate, fx.ccy)
         item['fiat_value'] = Fiat(fiat_value, fx.ccy)
-        item['fiat_fee'] = Fiat(fiat_fee, fx.ccy) if fiat_fee else None
+        item['fiat_fee'] = Fiat(fiat_fee, fx.ccy) if fiat_fee is not None else None
         item['fiat_default'] = fiat_default
         if amount_sat < 0:
             acquisition_price = - amount_sat / Decimal(COIN) * self.average_price(tx_hash, fx.timestamp_rate, fx.ccy)
