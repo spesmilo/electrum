@@ -190,7 +190,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.contacts = wallet.contacts
         self.tray = gui_object.tray
         self.app = gui_object.app
-        self.cleaned_up = False
+        self._cleaned_up = False
         self.payment_request = None  # type: Optional[paymentrequest.PaymentRequest]
         self.payto_URI = None
         self.checking_accounts = False
@@ -300,6 +300,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                                        _("Would you like to be notified when there is a newer version of Electrum available?"))
             config.set_key('check_updates', bool(choice), save=True)
 
+        self._update_check_thread = None
         if config.get('check_updates', False):
             # The references to both the thread and the window need to be stored somewhere
             # to prevent GC from getting in our way.
@@ -496,7 +497,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def close_wallet(self):
         if self.wallet:
             self.logger.info(f'close_wallet {self.wallet.storage.path}')
-            self.wallet.thread = None
         run_hook('close_wallet', self.wallet)
 
     @profiler
@@ -3158,14 +3158,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.show_warning(_('Please restart Electrum to activate the new GUI settings'), title=_('Success'))
 
     def closeEvent(self, event):
-        # It seems in some rare cases this closeEvent() is called twice
-        if not self.cleaned_up:
-            self.cleaned_up = True
-            self.clean_up()
+        # note that closeEvent is NOT called if the user quits with Ctrl-C
+        self.clean_up()
         event.accept()
 
     def clean_up(self):
-        self.wallet.thread.stop()
+        if self._cleaned_up:
+            return
+        self._cleaned_up = True
+        if self.wallet.thread:
+            self.wallet.thread.stop()
+            self.wallet.thread = None
         util.unregister_callback(self.on_network)
         self.config.set_key("is_maximized", self.isMaximized())
         if not self.isMaximized():
@@ -3177,6 +3180,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.qr_window.close()
         self.close_wallet()
 
+        if self._update_check_thread:
+            self._update_check_thread.exit()
+            self._update_check_thread.wait()
         self.gui_object.timer.timeout.disconnect(self.timer_actions)
         self.gui_object.close_window(self)
 

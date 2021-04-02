@@ -329,7 +329,7 @@ class ElectrumGui(Logger):
 
     def close_window(self, window: ElectrumWindow):
         if window in self.windows:
-           self.windows.remove(window)
+            self.windows.remove(window)
         self.build_tray_menu()
         # save wallet path of last open window
         if not self.windows:
@@ -375,6 +375,9 @@ class ElectrumGui(Logger):
         self.app.lastWindowClosed.connect(quit_after_last_window)
 
         def clean_up():
+            # If there are still some open windows, try to clean them up.
+            for window in list(self.windows):
+                window.clean_up()
             # Shut down the timer cleanly
             self.timer.stop()
             # clipboard persistence. see http://www.mail-archive.com/pyqt@riverbankcomputing.com/msg17328.html
