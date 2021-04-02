@@ -20,6 +20,7 @@ VERSION=`python3 -c "import electrum; print(electrum.version.ELECTRUM_VERSION)"`
 echo "VERSION: $VERSION"
 REV=`git describe --tags`
 echo "REV: $REV"
+COMMIT=$(git rev-parse HEAD)
 
 
 git_status=$(git status --porcelain)
@@ -45,7 +46,7 @@ else
        cd $FRESH_CLONE  && \
        git clone https://github.com/spesmilo/electrum.git &&\
        cd electrum
-   #git checkout $REV
+   git checkout "${COMMIT}^{commit}"
    sudo docker run -it \
 	--name electrum-sdist-builder-cont \
 	-v $PWD:/opt/electrum \
@@ -90,7 +91,7 @@ else
         cd $FRESH_CLONE  && \
         git clone https://github.com/spesmilo/electrum.git && \
         cd electrum
-    #git checkout $REV
+    git checkout "${COMMIT}^{commit}"
     sudo docker run -it \
         --name electrum-wine-builder-cont \
         -v $PWD:/opt/wine64/drive_c/electrum \
@@ -110,7 +111,7 @@ target1=Electrum-$VERSION.0-armeabi-v7a-release.apk
 target2=Electrum-$VERSION.0-arm64-v8a-release.apk
 
 if test -f dist/$target1; then
-    echo "file exists: $target"
+    echo "file exists: $target1"
 else
     ./contrib/make_packages
     sudo docker build -t electrum-android-builder-img contrib/android
@@ -130,6 +131,7 @@ else
 
 fi
 
+
 # wait for dmg before signing
 if test -f dist/electrum-$VERSION.dmg; then
     if test -f dist/electrum-$VERSION.dmg.asc; then
@@ -143,6 +145,18 @@ else
     exit 1
 fi
 
+echo "build complete"
+sha256sum dist/*.tar.gz
+sha256sum dist/*.AppImage
+sha256sum contrib/build-wine/fresh_clone/electrum/contrib/build-wine/dist/*.exe
+
+echo -n "proceed (y/n)? "
+read answer
+
+if [ "$answer" != "y" ] ;then
+    echo "exit"
+    exit 1
+fi
 
 
 echo "updating www repo"
