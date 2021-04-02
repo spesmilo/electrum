@@ -33,7 +33,9 @@ language = gettext.translation('electrum', LOCALE_DIR, fallback=True)
 # note: f-strings cannot be translated! see https://stackoverflow.com/q/49797658
 #       So this does not work:   _(f"My name: {name}")
 #       instead use .format:     _("My name: {}").format(name)
-def _(x):
+def _(x: str) -> str:
+    if x == "":
+        return ""  # empty string must not be translated. see #7158
     global language
     #Thank you Electrum-mona !!
     dic = [('Electrum', 'Electrum-GRS'), ('Bitcoin', 'Groestlcoin'), ('Bitcoins', 'Groestlcoins'), ('bitcoin', 'groestlcoin'), ('bitcoins', 'groestlcoins'), ('satoshi', 'gro'), ('غرسلكوين', 'بتكوين') , ('غرسلكوين', 'بيتكوين'), ('비트', '그로에셀'), ('비트코인', '그로에셀코인'), ('比特币', '闪电币'), ('Биткоин', 'Грoстлкоин'), ('Биткойн', 'Грoстлкоин'), ('биткойн', 'Грoстлкоин'), ('ビットコイン', 'グルシュルコイン')]

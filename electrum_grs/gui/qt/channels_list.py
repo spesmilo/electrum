@@ -46,7 +46,7 @@ class ChannelsList(MyTreeView):
     headers = {
         Columns.SHORT_CHANID: _('Short Channel ID'),
         Columns.NODE_ALIAS: _('Node alias'),
-        Columns.FEATURES: _(''),
+        Columns.FEATURES: "",
         Columns.CAPACITY: _('Capacity'),
         Columns.LOCAL_BALANCE: _('Can send'),
         Columns.REMOTE_BALANCE: _('Can receive'),

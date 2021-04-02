@@ -1,3 +1,11 @@
+# Release 4.1.1 (April 2, 2021)
+ * fix Qt crash with the swap dialog
+ * fix Kivy bug with scrollbar (#7155)
+ * fix localization issues (#7158 #4621)
+ * fix python crash with swaps (#7160)
+ * other minor fixes
+
+
 # Release 4.1.0 - Kangaroo (March 30, 2021)
 
 This version is our second major release with support for the
