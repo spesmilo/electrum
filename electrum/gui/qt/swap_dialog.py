@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Optional
 
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton
 
 from electrum.i18n import _
@@ -26,6 +27,7 @@ Do you want to continue?
 class SwapDialog(WindowModalDialog):
 
     tx: Optional[PartialTransaction]
+    update_signal = pyqtSignal()
 
     def __init__(self, window: 'ElectrumWindow'):
         WindowModalDialog.__init__(self, window, _('Submarine Swap'))
@@ -83,6 +85,7 @@ class SwapDialog(WindowModalDialog):
         self.ok_button.setDefault(True)
         self.ok_button.setEnabled(False)
         vbox.addLayout(Buttons(CancelButton(self), self.ok_button))
+        self.update_signal.connect(self.update)
         self.update()
 
     def fee_slider_callback(self, dyn, pos, fee_rate):
@@ -211,7 +214,7 @@ class SwapDialog(WindowModalDialog):
         if not self.network:
             self.window.show_error(_("You are offline."))
             return
-        self.window.run_coroutine_from_thread(self.swap_manager.get_pairs(), lambda x: self.update())
+        self.window.run_coroutine_from_thread(self.swap_manager.get_pairs(), lambda x: self.update_signal.emit())
         if not self.exec_():
             return
         if self.is_reverse:
