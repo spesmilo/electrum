@@ -255,7 +255,7 @@ class ElectrumGui(Logger):
         wallet = None
         try:
             wallet = self.daemon.load_wallet(path, None)
-        except BaseException as e:
+        except Exception as e:
             self.logger.exception('')
             custom_message_box(icon=QMessageBox.Warning,
                                parent=None,
@@ -282,7 +282,7 @@ class ElectrumGui(Logger):
                     break
             else:
                 window = self._create_window_for_wallet(wallet)
-        except BaseException as e:
+        except Exception as e:
             self.logger.exception('')
             custom_message_box(icon=QMessageBox.Warning,
                                parent=None,
@@ -352,7 +352,7 @@ class ElectrumGui(Logger):
             return
         except GoBack:
             return
-        except BaseException as e:
+        except Exception as e:
             self.logger.exception('')
             return
         self.timer.start()
