@@ -925,6 +925,11 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 ln_value = Decimal(item['amount_msat']) / 1000   # for channel open/close tx
                 tx_item['ln_value'] = Satoshis(ln_value)
             else:
+                if item['type'] == 'swap':
+                    # swap items do not have all the fields. We can skip skip them
+                    # because they will eventually be in onchain_history
+                    # TODO: use attr.s objects instead of dicts
+                    continue
                 transactions_tmp[txid] = item
                 ln_value = Decimal(item['amount_msat']) / 1000   # for channel open/close tx
                 item['ln_value'] = Satoshis(ln_value)
