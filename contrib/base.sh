@@ -194,8 +194,8 @@ export PYTHONHASHSEED=22
 export SOURCE_DATE_EPOCH=1530212462
 # Note, when upgrading Python, check the Windows python.exe embedded manifest for changes.
 # If the manifest changed, contrib/build-wine/manifest.xml needs to be updated.
-export PYTHON_VERSION=3.8.7  # Windows, OSX & Linux AppImage use this to determine what to download/build
-export PYTHON_SRC_TARBALL_HASH="ddcc1df16bb5b87aa42ec5d20a5b902f2d088caa269b28e01590f97a798ec50a"  # If you change PYTHON_VERSION above, update this by downloading the tarball manually and doing a sha256sum on it.
+export PYTHON_VERSION=3.8.9  # Windows, OSX & Linux AppImage use this to determine what to download/build
+export PYTHON_SRC_TARBALL_HASH="5e391f3ec45da2954419cab0beaefd8be38895ea5ce33577c3ec14940c4b9572"  # If you change PYTHON_VERSION above, update this by downloading the tarball manually and doing a sha256sum on it.
 export DEFAULT_GIT_REPO=https://github.com/Electron-Cash/Electron-Cash
 if [ -z "$GIT_REPO" ] ; then
     # If no override from env is present, use default. Support for overrides
