@@ -992,7 +992,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 text = _("Not connected")
             icon = read_QIcon("status_disconnected.png")
 
-        self.tray.setToolTip("%s (%s)" % (text, self.wallet.basename()))
+        if self.tray:
+            self.tray.setToolTip("%s (%s)" % (text, self.wallet.basename()))
         self.balance_label.setText(text)
         if self.status_button:
             self.status_button.setIcon(icon)
