@@ -145,6 +145,12 @@ class UTXOList(MyTreeView):
         if not all([prevout_str in utxo_set for prevout_str in self.spend_list]):
             self.spend_list = []
 
+    def consolidate(self, utxos: List[PartialTxInput], address, count=500):
+        self.set_spend_list(utxos[0:count])
+        self.parent.payto_e.setText(address)
+        self.parent.spend_max()
+        self.parent.do_pay()
+
     def create_menu(self, position):
         selected = self.get_selected_outpoints()
         if not selected:

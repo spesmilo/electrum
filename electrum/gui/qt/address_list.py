@@ -75,6 +75,7 @@ class AddressList(MyTreeView):
         COIN_BALANCE = 3
         FIAT_BALANCE = 4
         NUM_TXS = 5
+        UTXO_COUNT = 6
 
     filter_columns = [Columns.TYPE, Columns.ADDRESS, Columns.LABEL, Columns.COIN_BALANCE]
 
@@ -119,6 +120,7 @@ class AddressList(MyTreeView):
             self.Columns.COIN_BALANCE: _('Balance'),
             self.Columns.FIAT_BALANCE: ccy + ' ' + _('Balance'),
             self.Columns.NUM_TXS: _('Tx'),
+            self.Columns.UTXO_COUNT: _('Utxo Count')
         }
         self.update_headers(headers)
 
@@ -167,7 +169,8 @@ class AddressList(MyTreeView):
                 fiat_balance = fx.value_str(balance, rate)
             else:
                 fiat_balance = ''
-            labels = ['', address, label, balance_text, fiat_balance, "%d"%num]
+            utxos = self.wallet.get_spendable_coins([address])
+            labels = ['', address, label, balance_text, fiat_balance, "%d"%num, "%d"%len(utxos)]
             address_item = [QStandardItem(e) for e in labels]
             # align text and set fonts
             for i, item in enumerate(address_item):
@@ -247,6 +250,8 @@ class AddressList(MyTreeView):
         coins = self.wallet.get_spendable_coins(addrs)
         if coins:
             menu.addAction(_("Spend from"), lambda: self.parent.utxo_list.set_spend_list(coins))
+            if len(addrs) == 1 and len(coins) > 1:
+                menu.addAction(_("Consolidate UTXOs"), lambda: self.parent.utxo_list.consolidate(coins, addrs[0]))
 
         run_hook('receive_menu', menu, addrs, self.wallet)
         menu.exec_(self.viewport().mapToGlobal(position))
