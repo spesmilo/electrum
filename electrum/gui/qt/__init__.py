@@ -392,6 +392,8 @@ class ElectrumGui(Logger):
             self.app.sendEvent(self.app.clipboard(), event)
             if self.tray:
                 self.tray.hide()
+                self.tray.deleteLater()
+                self.tray = None
         self.app.aboutToQuit.connect(clean_up)
 
         # main loop

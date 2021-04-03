@@ -3184,6 +3184,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if self._update_check_thread:
             self._update_check_thread.exit()
             self._update_check_thread.wait()
+        if self.tray:
+            self.tray = None
         self.gui_object.timer.timeout.disconnect(self.timer_actions)
         self.gui_object.close_window(self)
 
