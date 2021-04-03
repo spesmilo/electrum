@@ -6,6 +6,11 @@ Item {
     Column {
         width: parent.width
 
+        EHeader {
+            text: "Network"
+            width: parent.width
+        }
+
         Row {
             Text { text: "Server: " }
             Text { text: Network.server }

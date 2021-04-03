@@ -6,6 +6,11 @@ Item {
     Column {
         width: parent.width
 
+        EHeader {
+            text: "Scan QR Code"
+            width: parent.width
+        }
+
         Item {
             id: voc
             width: parent.width
