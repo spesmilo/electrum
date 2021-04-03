@@ -240,6 +240,17 @@ class ElectrumGui(Logger):
         self._cleanup_before_exit()
         self.app.quit()
 
+    def _maybe_quit_if_no_windows_open(self) -> None:
+        """Check if there are any open windows and decide whether we should quit."""
+        # keep daemon running after close
+        if self.config.get('daemon'):
+            return
+        # check if a wizard is in progress
+        with self._num_wizards_lock:
+            if self._num_wizards_in_progress > 0 or len(self.windows) > 0:
+                return
+        self.app.quit()
+
     def new_window(self, path, uri=None):
         # Use a signal as can be called from daemon thread
         self.app.new_window_signal.emit(path, uri)
@@ -285,6 +296,7 @@ class ElectrumGui(Logger):
             finally:
                 with self._num_wizards_lock:
                     self._num_wizards_in_progress -= 1
+                self._maybe_quit_if_no_windows_open()
         return wrapper
 
     @count_wizards_in_progress
@@ -401,17 +413,8 @@ class ElectrumGui(Logger):
             return
         signal.signal(signal.SIGINT, lambda *args: self.app.quit())
 
-        def quit_after_last_window():
-            # keep daemon running after close
-            if self.config.get('daemon'):
-                return
-            # check if a wizard is in progress
-            with self._num_wizards_lock:
-                if self._num_wizards_in_progress > 0 or len(self.windows) > 0:
-                    return
-            self.app.quit()
         self.app.setQuitOnLastWindowClosed(False)  # so _we_ can decide whether to quit
-        self.app.lastWindowClosed.connect(quit_after_last_window)
+        self.app.lastWindowClosed.connect(self._maybe_quit_if_no_windows_open)
 
         def clean_up():
             self._cleanup_before_exit()
