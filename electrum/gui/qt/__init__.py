@@ -180,7 +180,7 @@ class ElectrumGui(Logger):
             submenu.addAction(_("Close"), window.close)
         m.addAction(_("Dark/Light"), self.toggle_tray_icon)
         m.addSeparator()
-        m.addAction(_("Exit Electrum"), self.close)
+        m.addAction(_("Exit Electrum"), self.app.quit)
 
     def tray_icon(self):
         if self.dark_icon:
@@ -235,10 +235,6 @@ class ElectrumGui(Logger):
             self.tray.hide()
             self.tray.deleteLater()
             self.tray = None
-
-    def close(self):
-        self._cleanup_before_exit()
-        self.app.quit()
 
     def _maybe_quit_if_no_windows_open(self) -> None:
         """Check if there are any open windows and decide whether we should quit."""
@@ -416,9 +412,7 @@ class ElectrumGui(Logger):
         self.app.setQuitOnLastWindowClosed(False)  # so _we_ can decide whether to quit
         self.app.lastWindowClosed.connect(self._maybe_quit_if_no_windows_open)
 
-        def clean_up():
-            self._cleanup_before_exit()
-        self.app.aboutToQuit.connect(clean_up)
+        self.app.aboutToQuit.connect(self._cleanup_before_exit)
 
         # main loop
         self.app.exec_()
