@@ -1342,7 +1342,7 @@ class ElectrumWindow(App, Logger):
                 return
             # note: Clock.schedule_once is a hack so that we get called on a non-daemon thread
             #       (needed for WalletDB.write)
-            Clock.schedule_once(lambda dt: self._save_backup())
+            Clock.schedule_once(lambda dt: self._save_backup(backup_dir))
         request_permissions([Permission.WRITE_EXTERNAL_STORAGE], cb)
 
     def _save_backup(self, backup_dir):
