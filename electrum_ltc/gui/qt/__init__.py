@@ -122,16 +122,19 @@ class ElectrumGui(Logger):
         self.network_updated_signal_obj = QNetworkUpdatedSignalObject()
         self._num_wizards_in_progress = 0
         self._num_wizards_lock = threading.Lock()
-        # init tray
         self.dark_icon = self.config.get("dark_icon", False)
+        self.tray = None
+        self._init_tray()
+        self.app.new_window_signal.connect(self.start_new_window)
+        self.set_dark_theme_if_needed()
+        run_hook('init_qt', self)
+
+    def _init_tray(self):
         self.tray = QSystemTrayIcon(self.tray_icon(), None)
         self.tray.setToolTip('Electrum-LTC')
         self.tray.activated.connect(self.tray_activated)
         self.build_tray_menu()
         self.tray.show()
-        self.app.new_window_signal.connect(self.start_new_window)
-        self.set_dark_theme_if_needed()
-        run_hook('init_qt', self)
 
     def set_dark_theme_if_needed(self):
         use_dark_theme = self.config.get('qt_gui_color_theme', 'default') == 'dark'
@@ -150,6 +153,8 @@ class ElectrumGui(Logger):
         ColorScheme.update_from_widget(QWidget(), force_dark=use_dark_theme)
 
     def build_tray_menu(self):
+        if not self.tray:
+            return
         # Avoid immediate GC of old menu when window closed via its action
         if self.tray.contextMenu() is None:
             m = QMenu()
@@ -179,6 +184,8 @@ class ElectrumGui(Logger):
             return read_QIcon('electrum_light_icon.png')
 
     def toggle_tray_icon(self):
+        if not self.tray:
+            return
         self.dark_icon = not self.dark_icon
         self.config.set_key("dark_icon", self.dark_icon, True)
         self.tray.setIcon(self.tray_icon())
@@ -255,7 +262,7 @@ class ElectrumGui(Logger):
         wallet = None
         try:
             wallet = self.daemon.load_wallet(path, None)
-        except BaseException as e:
+        except Exception as e:
             self.logger.exception('')
             custom_message_box(icon=QMessageBox.Warning,
                                parent=None,
@@ -282,7 +289,7 @@ class ElectrumGui(Logger):
                     break
             else:
                 window = self._create_window_for_wallet(wallet)
-        except BaseException as e:
+        except Exception as e:
             self.logger.exception('')
             custom_message_box(icon=QMessageBox.Warning,
                                parent=None,
@@ -329,7 +336,7 @@ class ElectrumGui(Logger):
 
     def close_window(self, window: ElectrumWindow):
         if window in self.windows:
-           self.windows.remove(window)
+            self.windows.remove(window)
         self.build_tray_menu()
         # save wallet path of last open window
         if not self.windows:
@@ -352,7 +359,7 @@ class ElectrumGui(Logger):
             return
         except GoBack:
             return
-        except BaseException as e:
+        except Exception as e:
             self.logger.exception('')
             return
         self.timer.start()
@@ -375,12 +382,18 @@ class ElectrumGui(Logger):
         self.app.lastWindowClosed.connect(quit_after_last_window)
 
         def clean_up():
+            # If there are still some open windows, try to clean them up.
+            for window in list(self.windows):
+                window.clean_up()
             # Shut down the timer cleanly
             self.timer.stop()
             # clipboard persistence. see http://www.mail-archive.com/pyqt@riverbankcomputing.com/msg17328.html
             event = QtCore.QEvent(QtCore.QEvent.Clipboard)
             self.app.sendEvent(self.app.clipboard(), event)
-            self.tray.hide()
+            if self.tray:
+                self.tray.hide()
+                self.tray.deleteLater()
+                self.tray = None
         self.app.aboutToQuit.connect(clean_up)
 
         # main loop

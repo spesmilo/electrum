@@ -600,9 +600,6 @@ class Peer(Logger):
         if not self.lnworker.channel_db and not self.lnworker.is_trampoline_peer(self.pubkey):
             raise Exception('Not a trampoline node: ' + str(self.their_features))
 
-        feerate = self.lnworker.current_feerate_per_kw()
-        local_config = self.make_local_config(funding_sat, push_msat, LOCAL)
-
         if funding_sat > LN_MAX_FUNDING_SAT:
             raise Exception(
                 f"MUST set funding_satoshis to less than 2^24 satoshi. "
@@ -613,6 +610,9 @@ class Peer(Logger):
                 f"{push_msat} msat > {1000 * funding_sat} msat")
         if funding_sat < lnutil.MIN_FUNDING_SAT:
             raise Exception(f"funding_sat too low: {funding_sat} < {lnutil.MIN_FUNDING_SAT}")
+
+        feerate = self.lnworker.current_feerate_per_kw()
+        local_config = self.make_local_config(funding_sat, push_msat, LOCAL)
 
         # for the first commitment transaction
         per_commitment_secret_first = get_per_commitment_secret_from_seed(
