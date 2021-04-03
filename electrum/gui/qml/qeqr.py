@@ -24,7 +24,7 @@ class QEQR(QObject):
         self.scan_ready_changed.emit()
 
         pilimage = self.convertToPILImage(image)
-        parseQR(pilimage)
+        self.parseQR(pilimage)
 
         self._ready = True
 
@@ -50,6 +50,7 @@ class QEQR(QObject):
         return Image.frombytes('RGBA', (image.width(), image.height()), buf2, 'raw')
 
     def parseQR(self, image):
+        # TODO
         pass
 
     @pyqtProperty(bool, notify=scan_ready_changed)
