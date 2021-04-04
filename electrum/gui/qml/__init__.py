@@ -44,18 +44,32 @@ class ElectrumQmlApplication(QGuiApplication):
     def __init__(self, args, daemon):
         super().__init__(args)
 
-        qmlRegisterType(QEWalletListModel, 'QElectrum', 1, 0, 'QEWalletListModel')
-        qmlRegisterType(QEWallet, 'QElectrum', 1, 0, 'QEWallet')
+        qmlRegisterType(QEWalletListModel, 'Electrum', 1, 0, 'WalletListModel')
+        qmlRegisterType(QEWallet, 'Electrum', 1, 0, 'Wallet')
 
         self.engine = QQmlApplicationEngine(parent=self)
         self.context = self.engine.rootContext()
-        self.qen = QENetwork(daemon.network)
-        self.context.setContextProperty('Network', self.qen)
-        self.qed = QEDaemon(daemon)
-        self.context.setContextProperty('Daemon', self.qed)
-        self.qeqr = QEQR()
-        self.context.setContextProperty('QR', self.qeqr)
-        self.engine.load(QUrl('electrum/gui/qml/components/main.qml'))
+        self._singletons['network'] = QENetwork(daemon.network)
+        self._singletons['daemon'] = QEDaemon(daemon)
+        self._singletons['qr'] = QEQR()
+        self.context.setContextProperty('Network', self._singletons['network'])
+        self.context.setContextProperty('Daemon', self._singletons['daemon'])
+        self.context.setContextProperty('QR', self._singletons['qr'])
+
+        # get notified whether root QML document loads or not
+        self.engine.objectCreated.connect(self.objectCreated)
+
+    _logger = get_logger(__name__)
+    _valid = True
+    _singletons = {}
+
+    # slot is called after loading root QML. If object is None, it has failed.
+    @pyqtSlot('QObject*', 'QUrl')
+    def objectCreated(self, object, url):
+        self._logger.info(str(object))
+        if object is None:
+            self._valid = False
+        self.engine.objectCreated.disconnect(self.objectCreated)
 
 class ElectrumGui(Logger):
 
@@ -73,13 +87,19 @@ class ElectrumGui(Logger):
             QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_ShareOpenGLContexts)
 #        if hasattr(QGuiApplication, 'setDesktopFileName'):
 #            QGuiApplication.setDesktopFileName('electrum.desktop')
+        if hasattr(QtCore.Qt, "AA_EnableHighDpiScaling"):
+            QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling);
+        os.environ["QT_QUICK_CONTROLS_STYLE"] = "Material"
+
         self.gui_thread = threading.current_thread()
         self.config = config
         self.daemon = daemon
         self.plugins = plugins
         self.app = ElectrumQmlApplication(sys.argv, self.daemon)
 
-        # TODO when plugin support. run_hook('init_qml', self)
+        # Initialize any QML plugins
+        run_hook('init_qml', self.app.engine)
+        self.app.engine.load('electrum/gui/qml/components/main.qml')
 
     def close(self):
 #        for window in self.windows:
@@ -93,7 +113,9 @@ class ElectrumGui(Logger):
         self.app.quit()
 
     def main(self):
-        self.app.exec_()
+        if self.app._valid:
+            self.logger.info('Entering main loop')
+            self.app.exec_()
 
     def stop(self):
         self.logger.info('closing GUI')
