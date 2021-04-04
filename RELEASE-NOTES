@@ -1,4 +1,4 @@
-# Release 4.1.1 (April 2, 2021)
+# Release 4.1.1 - (April 2, 2021)
  * fix Qt crash with the swap dialog
  * fix Kivy bug with scrollbar (#7155)
  * fix localization issues (#7158 #4621)
@@ -456,6 +456,11 @@ below are user-visible.
  * Several other minor bugfixes and usability improvements.
 
 
+# Release 3.2.4 - (December 30, 2018)
+
+ * backport anti-phishing measures from master
+
+
 # Release 3.2.3 - (September 3, 2018)
 
  * hardware wallet: the Safe-T mini from Archos is now supported.
@@ -769,6 +774,10 @@ issue #3374. Users should upgrade to 3.0.5.
     current block. Other values of locktime may be passed using the
     command line.
 
+
+# Release 2.9.4 (security update)
+  * Backport security fixes from 3.0.5 after vulnerability was
+    discovered in JSONRPC interface.
 
 # Release 2.9.3
   * fix configuration file issue #2719
