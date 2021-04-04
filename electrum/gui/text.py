@@ -74,6 +74,7 @@ class ElectrumGui:
         self.str_amount = ""
         self.str_fee = ""
         self.history = None
+        self.txid = []
 
         util.register_callback(self.update, ['wallet_updated', 'network_updated'])
 
@@ -126,6 +127,7 @@ class ElectrumGui:
 
         b = 0
         self.history = []
+        self.txid = []
         for hist_item in self.wallet.get_history():
             if hist_item.tx_mined_status.conf:
                 timestamp = hist_item.tx_mined_status.timestamp
@@ -137,6 +139,7 @@ class ElectrumGui:
                 time_str = 'unconfirmed'
 
             label = self.wallet.get_label_for_txid(hist_item.txid)
+            self.txid.insert(0, hist_item.txid)
             if len(label) > 40:
                 label = label[0:37] + '...'
             self.history.append(format_str % (time_str, label, format_satoshis(hist_item.delta, whitespaces=True),
@@ -270,8 +273,9 @@ class ElectrumGui:
 
 
     def run_history_tab(self, c):
+        # Get txid from cursor position
         if c == 10:
-            out = self.run_popup('',["blah","foo"])
+            out = self.run_popup('', ['Transaction ID:', self.txid[self.pos]])
 
 
     def edit_str(self, target, c, is_num=False):
@@ -456,7 +460,7 @@ class ElectrumGui:
     def run_dialog(self, title, items, interval=2, buttons=None, y_pos=3):
         self.popup_pos = 0
 
-        self.w = curses.newwin(5 + len(list(items))*interval + (2 if buttons else 0), 50, y_pos, 5)
+        self.w = curses.newwin(5 + len(list(items))*interval + (2 if buttons else 0), 68, y_pos, 5)
         w = self.w
         out = {}
         while True:
