@@ -1,6 +1,8 @@
 import QtQuick 2.0
 
 Item {
+    property bool toolbar: false
+
     Rectangle {
         anchors.fill: parent
         color: '#111144'
