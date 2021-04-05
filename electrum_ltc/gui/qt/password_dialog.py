@@ -124,7 +124,8 @@ class PasswordLayout(object):
         self.encrypt_cb = QCheckBox(_('Encrypt wallet file'))
         self.encrypt_cb.setEnabled(False)
         grid.addWidget(self.encrypt_cb, 4, 0, 1, 2)
-        self.encrypt_cb.setVisible(kind != PW_PASSPHRASE)
+        if kind == PW_PASSPHRASE:
+            self.encrypt_cb.setVisible(False)
 
         def enable_OK():
             ok = self.new_pw.text() == self.conf_pw.text()
