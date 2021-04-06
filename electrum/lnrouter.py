@@ -334,29 +334,11 @@ class LiquidityHintMgr:
             can_send = hint.can_send(node_from < node_to)
             cannot_send = hint.cannot_send(node_from < node_to)
 
-        # if we know nothing about the channel, return a default penalty
-        if (can_send, cannot_send) == (None, None):
-            return fee_for_edge_msat(amount, DEFAULT_PENALTY_BASE_MSAT, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH)
-        # next cases are with half information
-        elif can_send and not cannot_send:
-            if amount <= can_send:
-                return 0
-            else:
-                return fee_for_edge_msat(amount, DEFAULT_PENALTY_BASE_MSAT, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH)
-        elif not can_send and cannot_send:
-            if amount >= cannot_send:
-                return inf
-            else:
-                return fee_for_edge_msat(amount, DEFAULT_PENALTY_BASE_MSAT, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH)
-        # we know how much we can/cannot send
-        elif can_send and cannot_send:
-            if amount <= can_send:
-                return 0
-            elif amount < cannot_send:
-                return fee_for_edge_msat(amount, DEFAULT_PENALTY_BASE_MSAT, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH)
-            else:
-                return inf
-        return 0
+        if cannot_send is not None and amount >= cannot_send:
+            return inf
+        if can_send is not None and amount <= can_send:
+            return 0
+        return fee_for_edge_msat(amount, DEFAULT_PENALTY_BASE_MSAT, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH)
 
     @with_lock
     def add_to_blacklist(self, node_from: bytes, node_to: bytes, channel_id: ShortChannelID):
