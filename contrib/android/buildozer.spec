@@ -53,7 +53,7 @@ requirements =
 presplash.filename = %(source.dir)s/electrum/gui/icons/electrum_presplash.png
 
 # (str) Icon of the application
-icon.filename = %(source.dir)s/electrum/gui/icons/electrum_launcher.png
+icon.filename = %(source.dir)s/electrum/gui/icons/Electrum_512.png
 
 # (str) Supported orientation (one of landscape, portrait or all)
 orientation = portrait
