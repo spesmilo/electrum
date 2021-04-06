@@ -15,7 +15,7 @@ try:
 except Exception:
     sys.exit("Error: Could not import PyQt5.QtQml on Linux systems, you may try 'sudo apt-get install python3-pyqt5.qtquick'")
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, QObject, QUrl, QLocale, QTimer
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QLocale, QTimer
 from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtQml import qmlRegisterType, QQmlComponent, QQmlApplicationEngine
 from PyQt5.QtQuick import QQuickView
@@ -36,8 +36,9 @@ if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
     from electrum.plugin import Plugins
 
-from .qenetwork import QENetwork, QEDaemon, QEWalletListModel
-from .qewallet import *
+from .qedaemon import QEDaemon, QEWalletListModel
+from .qenetwork import QENetwork
+from .qewallet import QEWallet
 from .qeqr import QEQR
 
 class ElectrumQmlApplication(QGuiApplication):

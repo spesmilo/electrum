@@ -1,11 +1,7 @@
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl
-from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.util import register_callback
 from electrum.logging import get_logger
-from electrum.wallet import Wallet, Abstract_Wallet
-
-from .qewallet import QEWallet
 
 class QENetwork(QObject):
     def __init__(self, network, parent=None):
@@ -69,60 +65,3 @@ class QENetwork(QObject):
     def status(self):
         return self._status
 
-class QEWalletListModel(QAbstractListModel):
-    def __init__(self, parent=None):
-        QAbstractListModel.__init__(self, parent)
-        self.wallets = []
-
-    def rowCount(self, index):
-        return len(self.wallets)
-
-    def data(self, index, role):
-        if role == Qt.DisplayRole:
-            return self.wallets[index.row()].basename()
-
-    def add_wallet(self, wallet: Abstract_Wallet = None):
-        if wallet == None:
-            return
-        self.beginInsertRows(QModelIndex(), len(self.wallets), len(self.wallets));
-        self.wallets.append(wallet);
-        self.endInsertRows();
-
-
-class QEDaemon(QObject):
-    def __init__(self, daemon, parent=None):
-        super().__init__(parent)
-        self.daemon = daemon
-
-    _logger = get_logger(__name__)
-    _wallet = ''
-    _loaded_wallets = QEWalletListModel()
-
-    wallet_loaded = pyqtSignal()
-
-    @pyqtSlot()
-    def load_wallet(self, path=None, password=None):
-        self._logger.info(str(self.daemon.get_wallets()))
-        if path == None:
-            path = self.daemon.config.get('recently_open')[0]
-        wallet = self.daemon.load_wallet(path, password)
-        if wallet != None:
-            self._loaded_wallets.add_wallet(wallet)
-            self._wallet = wallet.basename()
-            self._current_wallet = QEWallet(wallet)
-            self.wallet_loaded.emit()
-            self._logger.info(str(self.daemon.get_wallets()))
-        else:
-            self._logger.info('fail open wallet')
-
-    @pyqtProperty('QString',notify=wallet_loaded)
-    def walletName(self):
-        return self._wallet
-
-    @pyqtProperty(QEWalletListModel)
-    def activeWallets(self):
-        return self._loaded_wallets
-
-    @pyqtProperty(QEWallet,notify=wallet_loaded)
-    def currentWallet(self):
-        return self._current_wallet

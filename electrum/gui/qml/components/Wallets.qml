@@ -5,13 +5,16 @@ import QtQuick.Controls 2.0
 Item {
     property string title: 'Wallets'
 
+    anchors.fill: parent
+
     ListView {
         width: parent.width
-        height: 200
-        model: Daemon.activeWallets
+        height: parent.height
+        model: Daemon.availableWallets
 
         delegate: Item {
             width: ListView.view.width
+            height: 50
 
             RowLayout {
                 x: 20
@@ -22,9 +25,17 @@ Item {
                 }
 
                 Label {
-                    font.pointSize: 13
-                    text: model.display
+                    font.pointSize: model.active ? 14 : 13
+                    font.bold: model.active
+                    text: model.name
+                    Layout.fillWidth: true
                 }
+
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: openMenu()
             }
         }
     }
