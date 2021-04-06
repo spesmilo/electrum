@@ -15,14 +15,14 @@ try:
 except Exception:
     sys.exit("Error: Could not import PyQt5.QtQml on Linux systems, you may try 'sudo apt-get install python3-pyqt5.qtquick'")
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, QObject, QUrl
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, QObject, QUrl, QLocale, QTimer
 from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtQml import qmlRegisterType, QQmlComponent, QQmlApplicationEngine
 from PyQt5.QtQuick import QQuickView
 import PyQt5.QtCore as QtCore
 import PyQt5.QtQml as QtQml
 
-from electrum.i18n import _, set_language
+from electrum.i18n import _, set_language, languages
 from electrum.plugin import run_hook
 from electrum.base_wizard import GoBack
 from electrum.util import (UserCancelled, profiler,
@@ -59,14 +59,12 @@ class ElectrumQmlApplication(QGuiApplication):
         # get notified whether root QML document loads or not
         self.engine.objectCreated.connect(self.objectCreated)
 
-    _logger = get_logger(__name__)
     _valid = True
     _singletons = {}
 
     # slot is called after loading root QML. If object is None, it has failed.
     @pyqtSlot('QObject*', 'QUrl')
     def objectCreated(self, object, url):
-        self._logger.info(str(object))
         if object is None:
             self._valid = False
         self.engine.objectCreated.disconnect(self.objectCreated)
@@ -75,7 +73,7 @@ class ElectrumGui(Logger):
 
     @profiler
     def __init__(self, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
-        # TODO set_language(config.get('language', get_default_language()))
+        set_language(config.get('language', self.get_default_language()))
         Logger.__init__(self)
         self.logger.info(f"Qml GUI starting up... Qt={QtCore.QT_VERSION_STR}, PyQt={QtCore.PYQT_VERSION_STR}")
         # Uncomment this call to verify objects are being properly
@@ -85,8 +83,8 @@ class ElectrumGui(Logger):
         QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_X11InitThreads)
         if hasattr(QtCore.Qt, "AA_ShareOpenGLContexts"):
             QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_ShareOpenGLContexts)
-#        if hasattr(QGuiApplication, 'setDesktopFileName'):
-#            QGuiApplication.setDesktopFileName('electrum.desktop')
+        if hasattr(QGuiApplication, 'setDesktopFileName'):
+            QGuiApplication.setDesktopFileName('electrum.desktop')
         if hasattr(QtCore.Qt, "AA_EnableHighDpiScaling"):
             QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling);
         os.environ["QT_QUICK_CONTROLS_STYLE"] = "Material"
@@ -96,6 +94,11 @@ class ElectrumGui(Logger):
         self.daemon = daemon
         self.plugins = plugins
         self.app = ElectrumQmlApplication(sys.argv, self.daemon)
+        # timer
+        self.timer = QTimer(self.app)
+        self.timer.setSingleShot(False)
+        self.timer.setInterval(500)  # msec
+        self.timer.timeout.connect(lambda: None) # periodically enter python scope
 
         # Initialize any QML plugins
         run_hook('init_qml', self)
@@ -113,10 +116,20 @@ class ElectrumGui(Logger):
         self.app.quit()
 
     def main(self):
-        if self.app._valid:
-            self.logger.info('Entering main loop')
-            self.app.exec_()
+        if not self.app._valid:
+            return
+
+        self.timer.start()
+        signal.signal(signal.SIGINT, lambda *args: self.stop())
+
+        self.logger.info('Entering main loop')
+        self.app.exec_()
 
     def stop(self):
         self.logger.info('closing GUI')
         self.app.quit()
+
+    def get_default_language(self):
+        name = QLocale.system().name()
+        return name if name in languages else 'en_UK'
+
