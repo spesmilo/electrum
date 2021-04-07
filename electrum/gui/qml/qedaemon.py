@@ -29,22 +29,13 @@ class QEWalletListModel(QAbstractListModel):
         return self._ROLE_MAP
 
     def data(self, index, role):
-        role_index = role - (Qt.UserRole + 1)
-        value = tx[self._ROLE_NAMES[role_index]]
-        if isinstance(value, bool) or isinstance(value, list) or isinstance(value, int) or value is None:
-            return value
-        if isinstance(value, Satoshis):
-            return value.value
-        return str(value)
-
-    def data(self, index, role):
         (wallet_name, wallet_path, wallet) = self.wallets[index.row()]
         role_index = role - (Qt.UserRole + 1)
         role_name = self._ROLE_NAMES[role_index]
         if role_name == 'name':
             return wallet_name
         if role_name == 'path':
-            return wallet_name
+            return wallet_path
         if role_name == 'active':
             return wallet != None
 
@@ -72,8 +63,13 @@ class QEDaemon(QObject):
     walletLoaded = pyqtSignal()
     walletRequiresPassword = pyqtSignal()
 
+    _current_wallet = None
+
     @pyqtSlot()
+    @pyqtSlot(str)
+    @pyqtSlot(str, str)
     def load_wallet(self, path=None, password=None):
+        self._logger.debug('load wallet ' + str(path))
         if path == None:
             path = self.daemon.config.get('gui_last_wallet')
         wallet = self.daemon.load_wallet(path, password)
@@ -91,7 +87,9 @@ class QEDaemon(QObject):
 
     @pyqtProperty('QString',notify=walletLoaded)
     def walletName(self):
-        return self._current_wallet.wallet.basename()
+        if self._current_wallet != None:
+            return self._current_wallet.wallet.basename()
+        return ''
 
     @pyqtProperty(QEWalletListModel)
     def activeWallets(self):
@@ -108,8 +106,5 @@ class QEDaemon(QObject):
                     available.append(i.path)
         for path in sorted(available):
             wallet = self.daemon.get_wallet(path)
-            if wallet != None:
-                availableListModel.add_wallet(wallet_path = wallet.storage.path, wallet = wallet)
-            else:
-                availableListModel.add_wallet(wallet_path = path)
+            availableListModel.add_wallet(wallet_path = path, wallet = wallet)
         return availableListModel
