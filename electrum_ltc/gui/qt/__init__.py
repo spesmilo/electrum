@@ -393,6 +393,12 @@ class ElectrumGui(Logger):
                 wizard.terminate()
 
     def main(self):
+        # setup Ctrl-C handling and tear-down code first, so that user can easily exit whenever
+        self.app.setQuitOnLastWindowClosed(False)  # so _we_ can decide whether to quit
+        self.app.lastWindowClosed.connect(self._maybe_quit_if_no_windows_open)
+        self.app.aboutToQuit.connect(self._cleanup_before_exit)
+        signal.signal(signal.SIGINT, lambda *args: self.app.quit())
+        # first-start network-setup
         try:
             self.init_network()
         except UserCancelled:
@@ -402,18 +408,11 @@ class ElectrumGui(Logger):
         except Exception as e:
             self.logger.exception('')
             return
+        # start wizard to select/create wallet
         self.timer.start()
-
         path = self.config.get_wallet_path(use_gui_last_wallet=True)
         if not self.start_new_window(path, self.config.get('url'), app_is_starting=True):
             return
-        signal.signal(signal.SIGINT, lambda *args: self.app.quit())
-
-        self.app.setQuitOnLastWindowClosed(False)  # so _we_ can decide whether to quit
-        self.app.lastWindowClosed.connect(self._maybe_quit_if_no_windows_open)
-
-        self.app.aboutToQuit.connect(self._cleanup_before_exit)
-
         # main loop
         self.app.exec_()
         # on some platforms the exec_ call may not return, so use clean_up()

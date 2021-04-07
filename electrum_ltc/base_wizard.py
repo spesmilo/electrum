@@ -377,8 +377,10 @@ class BaseWizard(Logger):
                 # will need to re-pair
                 devmgr.unpair_id(device_info.device.id_)
             raise ChooseHwDeviceAgain()
-        except (UserCancelled, GoBack):
+        except GoBack:
             raise ChooseHwDeviceAgain()
+        except (UserCancelled, ReRunDialog):
+            raise
         except UserFacingException as e:
             self.show_error(str(e))
             raise ChooseHwDeviceAgain()
