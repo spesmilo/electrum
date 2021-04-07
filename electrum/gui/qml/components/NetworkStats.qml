@@ -3,12 +3,14 @@ import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.0
 import QtQuick.Controls.Material 2.0
 
-Item {
+Pane {
     property string title: qsTr('Network')
 
     GridLayout {
         columns: 2
 
+        Label { text: qsTr("Network: "); color: Material.primaryHighlightedTextColor; font.bold: true }
+        Label { text: Network.networkName }
         Label { text: qsTr("Server: "); color: Material.primaryHighlightedTextColor; font.bold: true }
         Label { text: Network.server }
         Label { text: qsTr("Local Height: "); color: Material.primaryHighlightedTextColor; font.bold: true }

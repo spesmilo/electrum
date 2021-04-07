@@ -2,20 +2,16 @@ import QtQuick 2.6
 import QtQuick.Controls 2.0
 import QtQuick.Layouts 1.0
 
-Item {
+Pane {
     id: rootItem
 
-    property string title: 'Send'
-
     GridLayout {
-        width: rootItem.width - 12
-        anchors.horizontalCenter: parent.horizontalCenter
+        width: parent.width
         columns: 4
 
-        Label {
+        BalanceSummary {
             Layout.columnSpan: 4
-            Layout.alignment: Qt.AlignHCenter
-            text: "Current Balance: 0 mBTC"
+            //Layout.alignment: Qt.AlignHCenter
         }
 
         Label {
@@ -47,20 +43,31 @@ Item {
             placeholderText: 'sat/vB'
         }
 
-        Column {
+        Item {
             Layout.fillWidth: true
             Layout.columnSpan: 4
 
-            Button {
+            Row {
+                spacing: 10
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: 'Pay'
-                onClicked: {
-                    var i_amount = parseInt(amount.text)
-                    if (isNaN(i_amount))
-                        return
-                    var result = Daemon.currentWallet.send_onchain(address.text, i_amount, undefined, false)
-                    if (result)
-                        app.stack.pop()
+                Button {
+//                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: 'Pay'
+                    enabled: address.text != '' && amount.text != '' && fee.text != '' // TODO proper validation
+                    onClicked: {
+                        var i_amount = parseInt(amount.text)
+                        if (isNaN(i_amount))
+                            return
+                        var result = Daemon.currentWallet.send_onchain(address.text, i_amount, undefined, false)
+                        if (result)
+                            app.stack.pop()
+                    }
+                }
+
+                Button {
+                    text: 'Scan QR Code'
+                    Layout.alignment: Qt.AlignHCenter
+                    onClicked: app.stack.push(Qt.resolvedUrl('Scan.qml'))
                 }
             }
         }

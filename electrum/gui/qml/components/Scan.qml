@@ -4,11 +4,10 @@ import QtQuick.Controls 2.0
 Item {
 
     property bool toolbar: false
-    property string title: 'scan'
 
     QRScan {
         anchors.top: parent.top
-        anchors.bottom: button.top
+        anchors.bottom: parent.bottom
         width: parent.width
     }
 
