@@ -1457,10 +1457,6 @@ class LNWallet(LNWorker):
 
         We first try to conduct the payment over a single channel. If that fails
         and mpp is supported by the receiver, we will split the payment."""
-        # It could happen that the pathfinding uses a channel
-        # in the graph multiple times, meaning we could exhaust
-        # its capacity. This could be dealt with by temporarily
-        # iteratively blacklisting channels for this mpp attempt.
         invoice_features = LnFeatures(invoice_features)
         trampoline_features = LnFeatures.VAR_ONION_OPT
         local_height = self.network.get_local_height()
@@ -1510,7 +1506,7 @@ class LNWallet(LNWorker):
                     break
                 else:
                     raise NoPathFound()
-            else:
+            else:  # local single-part route computation
                 route = await run_in_thread(
                     partial(
                         self.create_route_for_payment,
@@ -1524,7 +1520,7 @@ class LNWallet(LNWorker):
                     )
                 )
                 yield route, amount_msat, final_total_msat, amount_msat, min_cltv_expiry, payment_secret, fwd_trampoline_onion
-        except NoPathFound:
+        except NoPathFound:  # fall back to payment splitting
             if not invoice_features.supports(LnFeatures.BASIC_MPP_OPT):
                 raise
             channels_with_funds = {
@@ -1535,17 +1531,17 @@ class LNWallet(LNWorker):
             # to a single node due to some incompatibility in Eclair, see:
             # https://github.com/ACINQ/eclair/issues/1723
             use_singe_node = not self.channel_db and constants.net is constants.BitcoinMainnet
-            split_configurations = suggest_splits(amount_msat, channels_with_funds, single_node=use_singe_node)
+            split_configurations = suggest_splits(amount_msat, channels_with_funds, exclude_multinode_payments=use_singe_node)
             self.logger.info(f'suggest_split {amount_msat} returned {len(split_configurations)} configurations')
 
-            for s in split_configurations:
-                self.logger.info(f"trying split configuration: {s[0].values()} rating: {s[1]}")
+            for sc in split_configurations:
+                self.logger.info(f"trying split configuration: {sc.config.values()} rating: {sc.rating}")
                 try:
                     if not self.channel_db:
                         buckets = defaultdict(list)
-                        for (chan_id, _), part_amount_msat in s[0].items():
+                        for (chan_id, _), part_amounts_msat in sc.config.items():
                             chan = self.channels[chan_id]
-                            if part_amount_msat:
+                            for part_amount_msat in part_amounts_msat:
                                 buckets[chan.node_id].append((chan_id, part_amount_msat))
                         for node_id, bucket in buckets.items():
                             bucket_amount_msat = sum([x[1] for x in bucket])
@@ -1589,8 +1585,8 @@ class LNWallet(LNWorker):
                                 self.logger.info('not enough margin to pay trampoline fee')
                                 raise NoPathFound()
                     else:
-                        for (chan_id, _), part_amount_msat in s[0].items():
-                            if part_amount_msat:
+                        for (chan_id, _), part_amounts_msat in sc.config.items():
+                            for part_amount_msat in part_amounts_msat:
                                 channel = self.channels[chan_id]
                                 route = await run_in_thread(
                                     partial(
@@ -1605,7 +1601,7 @@ class LNWallet(LNWorker):
                                     )
                                 )
                                 yield route, part_amount_msat, final_total_msat, part_amount_msat, min_cltv_expiry, payment_secret, fwd_trampoline_onion
-                    self.logger.info(f"found acceptable split configuration: {list(s[0].values())} rating: {s[1]}")
+                    self.logger.info(f"found acceptable split configuration: {list(sc.config.values())} rating: {sc.rating}")
                     break
                 except NoPathFound:
                     continue
