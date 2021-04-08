@@ -1,3 +1,14 @@
+# Release 4.1.2 - (April 8, 2021)
+ * Qt GUI:
+    - fix some crashes when exiting (#6889)
+    - make sure pressing Ctrl-C always quits (c41cd4ae)
+ * Kivy GUI (Android):
+    - fix bug with scrollbar, again (#7155)
+    - 2fa wallets: fix making transactions (#7190)
+    - implement freezing addresses (#7178)
+ * Android: use more modern application launcher/icon (#7187)
+
+
 # Release 4.1.1 - (April 2, 2021)
  * fix Qt crash with the swap dialog
  * fix Kivy bug with scrollbar (#7155)
