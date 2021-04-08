@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.text.Selection
 import android.view.View
+import android.widget.SeekBar
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
@@ -12,6 +13,7 @@ import com.chaquo.python.Kwarg
 import com.chaquo.python.PyException
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.android.synthetic.main.choose_keystore.*
+import kotlinx.android.synthetic.main.multisig_cosigners.*
 import kotlinx.android.synthetic.main.wallet_new.*
 import kotlinx.android.synthetic.main.wallet_new_2.*
 import kotlin.properties.Delegates.notNull
@@ -53,7 +55,8 @@ class NewWalletDialog1 : AlertDialogFragment() {
                         showDialog(this, nextDialog.apply { setArguments(arguments) })
                     }
                     R.id.menuMultisigWallet -> {
-                        // TODO
+                        nextDialog = CosignerDialog()
+                        showDialog(this, nextDialog.apply { setArguments(arguments) })
                     }
                     else -> {
                         throw Exception("Unknown item: ${spnWalletKind.selectedItem}")
@@ -342,6 +345,62 @@ fun setupSeedDialog(fragment: AlertDialogFragment) {
                 etPassphrase.setFocusable(false)
             }
         }
+    }
+}
+
+// Choose the number of multi-sig wallet cosigners
+class CosignerDialog : AlertDialogFragment() {
+    override fun onBuildDialog(builder: AlertDialog.Builder) {
+        builder.setTitle(R.string.New_wallet)
+                .setView(R.layout.multisig_cosigners)
+                .setPositiveButton(R.string.next, null)
+                .setNegativeButton(R.string.cancel, null)
+    }
+
+    override fun onShowDialog() {
+        super.onShowDialog()
+
+        msFromText.text = getString(R.string.from_cosigners).replace("%d", "2")
+        msReqText.text = getString(R.string.require_signatures).replace("%d", "2")
+
+        // Handle number of cosigners
+        msFrom?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                msFromText.text = getString(R.string.from_cosigners).replace("%d", progress.toString())
+                msReq.max = progress
+
+                if (progress == 0) {
+                    msFrom.progress = 1
+                }
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {
+
+            }
+
+            override fun onStopTrackingTouch(seekBar: SeekBar) {
+
+            }
+
+        })
+
+        // Handle number of required signatures
+        msReq?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                msReqText.text = getString(R.string.require_signatures).replace("%d", progress.toString())
+
+                if (progress == 0) {
+                    msReq.progress = 1
+                }
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {
+            }
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+            }
+
+        })
     }
 }
 
