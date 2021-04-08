@@ -53,9 +53,23 @@ import dns.rdtypes.IN.A
 import dns.rdtypes.IN.AAAA
 
 from .logging import get_logger
+from .util import versiontuple
 
 
 _logger = get_logger(__name__)
+
+IS_DNSSEC_AVAILABLE = False
+MIN_DNSPYTHON_VERSION = "2.0"
+DNSSEC_NOTAVAILABLE_MSG = "DNSSEC is not available. This could be fixed by installing pyca/cryptography (version 2.6+)"
+if versiontuple(getattr(dns, '__version__', '0')) >= versiontuple(MIN_DNSPYTHON_VERSION):
+    try:
+        IS_DNSSEC_AVAILABLE = dns.dnssec._have_pyca
+    except Exception as e:
+        _logger.info(f"cannot tell if dnssec is available. will assume it is not. error: {e!r}")
+else:
+    _logger.info(f"found module 'dns' but it is too old: {getattr(dns, '__version__', '0')}<{MIN_DNSPYTHON_VERSION}")
+if not IS_DNSSEC_AVAILABLE:
+    _logger.info(DNSSEC_NOTAVAILABLE_MSG)
 
 
 # hard-coded trust anchors (root KSKs)
@@ -140,6 +154,8 @@ def query(url, rtype):
     # 8.8.8.8 is Google's public DNS server
     nameservers = ['8.8.8.8']
     ns = nameservers[0]
+    if not IS_DNSSEC_AVAILABLE:
+        _logger.warning(DNSSEC_NOTAVAILABLE_MSG)
     try:
         out = _get_and_validate(ns, url, rtype)
         validated = True
