@@ -877,13 +877,18 @@ def bip39_to_seed(mnemonic, passphrase):
         b'mnemonic' + passphrase.encode('utf-8'), iterations = PBKDF2_ROUNDS)
 
 
-def bip39_is_checksum_valid(mnemonic: str) -> Tuple[bool, bool]:
+def bip39_is_checksum_valid(
+        mnemonic: str,
+        *,
+        wordlist: Wordlist = None,
+) -> Tuple[bool, bool]:
     """Test checksum of bip39 mnemonic assuming English wordlist.
     Returns tuple (is_checksum_valid, is_wordlist_valid)
     """
     words = [normalize('NFKD', word) for word in mnemonic.split()]
     words_len = len(words)
-    wordlist = Wordlist.from_file("english.txt")
+    if wordlist is None:
+        wordlist = Wordlist.from_file("english.txt")
     n = len(wordlist)
     i = 0
     words.reverse()
