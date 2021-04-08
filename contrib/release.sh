@@ -20,6 +20,7 @@ VERSION=`python3 -c "import electrum_grs; print(electrum_grs.version.ELECTRUM_VE
 echo "VERSION: $VERSION"
 REV=`git describe --tags`
 echo "REV: $REV"
+COMMIT=$(git rev-parse HEAD)
 
 
 git_status=$(git status --porcelain)
@@ -45,7 +46,7 @@ else
        cd $FRESH_CLONE  && \
        git clone https://github.com/Groestlcoin/electrum-grs.git &&\
        cd electrum-grs
-   #git checkout $REV
+   #git checkout "${COMMIT}^{commit}"
    sudo docker run -it \
 	--name electrum-grs-sdist-builder-cont \
 	-v $PWD:/opt/electrum-grs \
@@ -54,7 +55,7 @@ else
 	electrum-sdist-builder-img \
 	./build.sh
    popd
-   cp /opt/electrum-grs/contrib/build-linux/sdist/fresh_clone/electrum/dist/$target dist/
+   cp /opt/electrum-grs/contrib/build-linux/sdist/fresh_clone/electrum-grs/dist/$target dist/
 fi
 
 # appimage
@@ -88,9 +89,9 @@ else
         sudo rm -rf $FRESH_CLONE && \
         mkdir -p $FRESH_CLONE && \
         cd $FRESH_CLONE  && \
-        git clone https://github.com/groestlcoin/electrum-grs.git && \
+        git clone https://github.com/Groestlcoin/electrum-grs.git && \
         cd electrum-grs
-    #git checkout $REV
+    #git checkout "${COMMIT}^{commit}"
     sudo docker run -it \
         --name electrum-grs-wine-builder-cont \
         -v $PWD:/opt/wine64/drive_c/electrum-grs \
@@ -110,7 +111,7 @@ target1=ElectrumGRS-$VERSION.0-armeabi-v7a-release.apk
 target2=ElectrumGRS-$VERSION.0-arm64-v8a-release.apk
 
 if test -f dist/$target1; then
-    echo "file exists: $target"
+    echo "file exists: $target1"
 else
     ./contrib/make_packages
     sudo docker build -t electrum-grs-android-builder-img contrib/android
@@ -130,6 +131,7 @@ else
 
 fi
 
+
 # wait for dmg before signing
 #if test -f dist/electrum-grs-$VERSION.dmg; then
 #    if test -f dist/electrum-grs-$VERSION.dmg.asc; then
@@ -143,6 +145,18 @@ fi
 #    exit 1
 #fi
 
+echo "build complete"
+sha256sum dist/*.tar.gz
+sha256sum dist/*.AppImage
+sha256sum contrib/build-wine/fresh_clone/electrum-grs/contrib/build-wine/dist/*.exe
+
+echo -n "proceed (y/n)? "
+read answer
+
+if [ "$answer" != "y" ] ;then
+    echo "exit"
+    exit 1
+fi
 
 
 #echo "updating www repo"

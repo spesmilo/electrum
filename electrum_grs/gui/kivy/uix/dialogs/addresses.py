@@ -26,6 +26,7 @@ Builder.load_string('''
     memo: ''
     amount: ''
     status: ''
+    is_frozen: False
     BoxLayout:
         spacing: '8dp'
         height: '32dp'
@@ -36,7 +37,9 @@ Builder.load_string('''
             shorten: True
         Widget
         AddressLabel:
-            text: (root.amount if root.status == 'Funded' else root.status) + '     ' + root.memo
+            text:
+                (("({}) ".format(_("Frozen")) if root.is_frozen else "")
+                + (root.amount if root.status == 'Funded' else root.status) + '     ' + root.memo)
             color: .699, .699, .699, 1
             font_size: '13sp'
             shorten: True
@@ -133,6 +136,7 @@ Builder.load_string('''
     status: ''
     script_type: ''
     pk: ''
+    is_frozen: False
     address_color: 1, 1, 1, 1
     address_background_color: 0.3, 0.3, 0.3, 1
     BoxLayout:
@@ -165,6 +169,9 @@ Builder.load_string('''
                     BoxLabel:
                         text: _('Status')
                         value: root.status
+                    BoxLabel:
+                        text: _('Frozen')
+                        value: str(root.is_frozen)
                 TopLabel:
                     text: _('Private Key')
                 RefLabel:
@@ -184,6 +191,11 @@ Builder.load_string('''
             Button:
                 size_hint: 0.5, None
                 height: '48dp'
+                text: _('Freeze') if not root.is_frozen else _('Unfreeze')
+                on_release: root.freeze_address()
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
                 text: _('Close')
                 on_release: root.dismiss()
 ''')
@@ -196,12 +208,13 @@ class AddressPopup(Popup):
         super(AddressPopup, self).__init__(**kwargs)
         self.title = _('Address Details')
         self.parent_dialog = parent
-        self.app = parent.app
+        self.app = parent.app    # type: ElectrumWindow
         self.address = address
         self.status = status
         self.script_type = self.app.wallet.get_txin_type(self.address)
         self.balance = self.app.format_amount_and_units(balance)
         self.address_color, self.address_background_color = address_colors(self.app.wallet, address)
+        self.is_frozen = self.app.wallet.is_frozen_address(address)
 
     def receive_at(self):
         self.dismiss()
@@ -213,12 +226,17 @@ class AddressPopup(Popup):
     def do_export(self, pk_label):
         self.app.export_private_keys(pk_label, self.address)
 
+    def freeze_address(self):
+        self.is_frozen = not self.is_frozen
+        self.app.wallet.set_frozen_state_of_addresses([self.address], freeze=self.is_frozen)
+        self.parent_dialog.update()
+
 
 class AddressesDialog(Factory.Popup):
 
-    def __init__(self, app):
+    def __init__(self, app: 'ElectrumWindow'):
         Factory.Popup.__init__(self)
-        self.app = app  # type: ElectrumWindow
+        self.app = app
 
     def get_card(self, addr, balance, is_used, label):
         ci = {}
@@ -227,6 +245,7 @@ class AddressesDialog(Factory.Popup):
         ci['memo'] = label
         ci['amount'] = self.app.format_amount_and_units(balance)
         ci['status'] = _('Used') if is_used else _('Funded') if balance > 0 else _('Unused')
+        ci['is_frozen'] = self.app.wallet.is_frozen_address(addr)
         return ci
 
     def update(self):

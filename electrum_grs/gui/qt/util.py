@@ -914,6 +914,8 @@ class TaskThread(QThread):
 
     def stop(self):
         self.tasks.put(None)
+        self.exit()
+        self.wait()
 
 
 class ColorSchemeItem:
