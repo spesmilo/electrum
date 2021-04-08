@@ -9,7 +9,7 @@ GIT_REPO=https://github.com/spesmilo/electrum
 export GCC_STRIP_BINARIES="1"
 
 
-. $(dirname "$0")/../build_tools_util.sh
+. "$(dirname "$0")/../build_tools_util.sh"
 
 
 CONTRIB_OSX="$(dirname "$(realpath "$0")")"
@@ -17,7 +17,7 @@ CONTRIB="$CONTRIB_OSX/.."
 ROOT_FOLDER="$CONTRIB/.."
 
 src_dir=$(dirname "$0")
-cd $src_dir/../..
+cd "$src_dir/../.."
 
 
 which brew > /dev/null 2>&1 || fail "Please install brew from https://brew.sh/ to continue"
@@ -95,8 +95,8 @@ rm -rf ./dist
 
 git submodule update --init
 
-rm  -rf $BUILDDIR > /dev/null 2>&1
-mkdir $BUILDDIR
+rm  -rf "$BUILDDIR" > /dev/null 2>&1
+mkdir "$BUILDDIR"
 
 info "generating locale"
 (
@@ -109,7 +109,7 @@ info "generating locale"
     rm -rf "$ROOT_FOLDER/electrum/locale/"
     for i in ./locale/*; do
         dir="$ROOT_FOLDER/electrum/$i/LC_MESSAGES"
-        mkdir -p $dir
+        mkdir -p "$dir"
         msgfmt --output-file="$dir/electrum.mo" "$i/electrum.po" || true
     done
 ) || fail "failed generating locale"
@@ -117,8 +117,8 @@ info "generating locale"
 
 info "Downloading libusb..."
 curl https://homebrew.bintray.com/bottles/libusb-1.0.23.high_sierra.bottle.tar.gz | \
-tar xz --directory $BUILDDIR
-cp $BUILDDIR/libusb/1.0.23/lib/libusb-1.0.dylib contrib/osx
+tar xz --directory "$BUILDDIR"
+cp "$BUILDDIR/libusb/1.0.23/lib/libusb-1.0.dylib" contrib/osx
 echo "caea266f3fc3982adc55d6cb8d9bad10f6e61f0c24ce5901aa1804618e08e14d  contrib/osx/libusb-1.0.dylib" | \
     shasum -a 256 -c || fail "libusb checksum mismatched"
 
@@ -129,7 +129,7 @@ cp "$ROOT_FOLDER"/electrum/libsecp256k1.0.dylib contrib/osx
 
 info "Building CalinsQRReader..."
 d=contrib/osx/CalinsQRReader
-pushd $d
+pushd "$d"
 rm -fr build
 # prefer building using xcode ourselves. otherwise fallback to prebuilt binary
 xcodebuild || cp -r prebuilt_qr build || fail "Could not build CalinsQRReader"
@@ -154,7 +154,7 @@ python3 -m pip install --no-dependencies --no-warn-script-location . > /dev/null
 
 info "Faking timestamps..."
 for d in ~/Library/Python/ ~/.pyenv .; do
-  pushd $d
+  pushd "$d"
   find . -exec touch -t '200101220000' {} +
   popd
 done
