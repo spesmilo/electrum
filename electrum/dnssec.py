@@ -31,13 +31,7 @@
 #  https://github.com/rthalley/dnspython/blob/master/tests/test_dnssec.py
 
 
-# import traceback
-# import sys
-import time
-import struct
-import hashlib
-
-
+import dns
 import dns.name
 import dns.query
 import dns.dnssec
@@ -73,7 +67,7 @@ trust_anchors = [
 ]
 
 
-def check_query(ns, sub, _type, keys):
+def _check_query(ns, sub, _type, keys):
     q = dns.message.make_query(sub, _type, want_dnssec=True)
     response = dns.query.tcp(q, ns, timeout=5)
     assert response.rcode() == 0, 'No answer'
@@ -92,13 +86,13 @@ def check_query(ns, sub, _type, keys):
     return rrset
 
 
-def get_and_validate(ns, url, _type):
+def _get_and_validate(ns, url, _type):
     # get trusted root key
     root_rrset = None
     for dnskey_rr in trust_anchors:
         try:
             # Check if there is a valid signature for the root dnskey
-            root_rrset = check_query(ns, '', dns.rdatatype.DNSKEY, {dns.name.root: dnskey_rr})
+            root_rrset = _check_query(ns, '', dns.rdatatype.DNSKEY, {dns.name.root: dnskey_rr})
             break
         except dns.dnssec.ValidationFailure:
             # It's OK as long as one key validates
@@ -120,9 +114,9 @@ def get_and_validate(ns, url, _type):
         if rr.rdtype == dns.rdatatype.SOA:
             continue
         # get DNSKEY (self-signed)
-        rrset = check_query(ns, sub, dns.rdatatype.DNSKEY, None)
+        rrset = _check_query(ns, sub, dns.rdatatype.DNSKEY, None)
         # get DS (signed by parent)
-        ds_rrset = check_query(ns, sub, dns.rdatatype.DS, keys)
+        ds_rrset = _check_query(ns, sub, dns.rdatatype.DS, keys)
         # verify that a signed DS validates DNSKEY
         for ds in ds_rrset:
             for dnskey in rrset:
@@ -138,7 +132,7 @@ def get_and_validate(ns, url, _type):
         # set key for next iteration
         keys = {name: rrset}
     # get TXT record (signed by zone)
-    rrset = check_query(ns, url, _type, keys)
+    rrset = _check_query(ns, url, _type, keys)
     return rrset
 
 
@@ -147,9 +141,9 @@ def query(url, rtype):
     nameservers = ['8.8.8.8']
     ns = nameservers[0]
     try:
-        out = get_and_validate(ns, url, rtype)
+        out = _get_and_validate(ns, url, rtype)
         validated = True
-    except BaseException as e:
+    except Exception as e:
         _logger.info(f"DNSSEC error: {repr(e)}")
         out = dns.resolver.resolve(url, rtype)
         validated = False
