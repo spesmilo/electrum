@@ -43,6 +43,7 @@ if TYPE_CHECKING:
 DEFAULT_PENALTY_BASE_MSAT = 500  # how much base fee we apply for unknown sending capability of a channel
 DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH = 100  # how much relative fee we apply for unknown sending capability of a channel
 BLACKLIST_DURATION = 3600  # how long (in seconds) a channel remains blacklisted
+HINT_DURATION = 3600  # how long (in seconds) a liquidity hint remains valid
 
 
 class NoChannelPolicy(Exception):
@@ -181,10 +182,15 @@ class LiquidityHint:
         self._can_send_backward = None
         self._cannot_send_backward = None
         self.blacklist_timestamp = 0
+        self.hint_timestamp = 0
+
+    def is_hint_invalid(self) -> bool:
+        now = int(time.time())
+        return now - self.hint_timestamp > HINT_DURATION
 
     @property
     def can_send_forward(self):
-        return self._can_send_forward
+        return None if self.is_hint_invalid() else self._can_send_forward
 
     @can_send_forward.setter
     def can_send_forward(self, amount):
@@ -199,7 +205,7 @@ class LiquidityHint:
 
     @property
     def can_send_backward(self):
-        return self._can_send_backward
+        return None if self.is_hint_invalid() else self._can_send_backward
 
     @can_send_backward.setter
     def can_send_backward(self, amount):
@@ -211,7 +217,7 @@ class LiquidityHint:
 
     @property
     def cannot_send_forward(self):
-        return self._cannot_send_forward
+        return None if self.is_hint_invalid() else self._cannot_send_forward
 
     @cannot_send_forward.setter
     def cannot_send_forward(self, amount):
@@ -228,7 +234,7 @@ class LiquidityHint:
 
     @property
     def cannot_send_backward(self):
-        return self._cannot_send_backward
+        return None if self.is_hint_invalid() else self._cannot_send_backward
 
     @cannot_send_backward.setter
     def cannot_send_backward(self, amount):
@@ -254,12 +260,14 @@ class LiquidityHint:
             return self.cannot_send_backward
 
     def update_can_send(self, is_forward_direction: bool, amount: int):
+        self.hint_timestamp = int(time.time())
         if is_forward_direction:
             self.can_send_forward = amount
         else:
             self.can_send_backward = amount
 
     def update_cannot_send(self, is_forward_direction: bool, amount: int):
+        self.hint_timestamp = int(time.time())
         if is_forward_direction:
             self.cannot_send_forward = amount
         else:
@@ -355,6 +363,11 @@ class LiquidityHintMgr:
     def clear_blacklist(self):
         for k, v in self._liquidity_hints.items():
             v.blacklist_timestamp = 0
+
+    @with_lock
+    def reset_liquidity_hints(self):
+        for k, v in self._liquidity_hints.items():
+            v.hint_timestamp = 0
 
     def __repr__(self):
         string = "liquidity hints:\n"
