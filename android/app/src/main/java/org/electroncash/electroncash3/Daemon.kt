@@ -34,6 +34,10 @@ class DaemonModel(val config: PyObject) {
             val wallet = this.wallet
             return if (wallet == null) null else wallet.callAttr("basename").toString()
         }
+    val walletType: String?
+        get() {
+            return if (wallet == null) null else commands.callAttr("get", "wallet_type").toString()
+        }
 
     lateinit var watchdog: Runnable
 

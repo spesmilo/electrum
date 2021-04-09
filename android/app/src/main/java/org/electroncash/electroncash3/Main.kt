@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.text.Html
 import android.text.SpannableStringBuilder
 import android.text.method.LinkMovementMethod
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuItem
@@ -146,7 +147,11 @@ class MainActivity : AppCompatActivity(R.layout.main) {
     }
 
     fun onCaption(caption: Caption) {
-        val walletName = caption.walletName ?: app.getString(R.string.No_wallet)
+        // Get the wallet name + type
+        val walletName = if (daemonModel.walletType != null) {
+            caption.walletName + " [${daemonModel.walletType}]"
+        } else caption.walletName ?: app.getString(R.string.No_wallet)
+
         if (resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
             setTitle(walletName)
             supportActionBar!!.setSubtitle(caption.subtitle)
