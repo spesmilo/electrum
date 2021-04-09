@@ -1,27 +1,36 @@
 package org.electroncash.electroncash3
 
 import android.app.Dialog
-import android.content.Intent
+import android.content.*
 import android.os.Bundle
+import android.text.InputType
 import android.text.Selection
+import android.util.Log
+import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
 import android.widget.SeekBar
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
+import androidx.fragment.app.Fragment
 import com.chaquo.python.Kwarg
 import com.chaquo.python.PyException
+import com.chaquo.python.PyObject
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.android.synthetic.main.choose_keystore.*
 import kotlinx.android.synthetic.main.multisig_cosigners.*
+import kotlinx.android.synthetic.main.show_master_key.*
 import kotlinx.android.synthetic.main.wallet_new.*
 import kotlinx.android.synthetic.main.wallet_new_2.*
+import java.security.KeyStore
 import kotlin.properties.Delegates.notNull
 
 
 val libKeystore by lazy { libMod("keystore") }
 val libWallet by lazy { libMod("wallet") }
 
+val keystores: ArrayList<PyObject> = ArrayList()
 
 class NewWalletDialog1 : AlertDialogFragment() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
@@ -33,7 +42,6 @@ class NewWalletDialog1 : AlertDialogFragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        // spnType.adapter = MenuAdapter(context!!, R.menu.wallet_type)
         spnWalletKind.adapter = MenuAdapter(context!!, R.menu.wallet_kind)
     }
 
@@ -66,8 +74,23 @@ class NewWalletDialog1 : AlertDialogFragment() {
             } catch (e: ToastException) { e.show() }
         }
     }
+
+    override fun onDismiss(dialog: DialogInterface) {
+        super.onDismiss(dialog)
+        keystores.clear()
+    }
 }
 
+fun closeDialogs(targetFragment: Fragment) {
+
+    if (targetFragment.targetFragment == null) {
+        (targetFragment as DialogFragment).dismiss()
+        return
+    }
+
+    closeDialogs(targetFragment.targetFragment!!)
+    (targetFragment as DialogFragment).dismiss()
+}
 
 fun validateWalletName(name: String) {
     if (name.isEmpty()) {
@@ -98,23 +121,39 @@ fun confirmPassword(dialog: Dialog): String {
 }
 
 // Choose the way of generating the wallet (new seed, import seed, etc.)
-class KeystoreDialog : TaskLauncherDialog<String>() {
+class KeystoreDialog : AlertDialogFragment() {
     var input: String by notNull()
 
     override fun onBuildDialog(builder: AlertDialog.Builder) {
-        builder.setTitle(R.string.New_wallet)
+        builder.setTitle(R.string.keystore)
                 .setView(R.layout.choose_keystore)
                 .setPositiveButton(android.R.string.ok, null)
                 .setNegativeButton(R.string.back, null)
     }
 
-    override fun doInBackground(): String {
-        TODO("Not yet implemented")
-    }
-
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        spnType.adapter = MenuAdapter(context!!, R.menu.wallet_type)
+
+        /* Choose the appropriate keystore dropdown, based on wallet type */
+        val multisig = arguments!!.getBoolean("multisig")
+        val currentCosigner = arguments!!.getInt("i_signer") //
+        val numOfCosigners = arguments!!.getInt("cosigners")
+
+        /* Handle dialog title for cosigners */
+        if (multisig) {
+            dialog.setTitle(getString(R.string.Add_cosigner) +
+                    " (${currentCosigner} of ${numOfCosigners})")
+        }
+
+        val keystoreMenu: Int
+        if (multisig && currentCosigner != 1) {
+            keystoreMenu = R.menu.cosigner_type
+            keystoreDesc.setText(R.string.add_a)
+        } else {
+            keystoreMenu = R.menu.wallet_type
+        }
+
+        spnType.adapter = MenuAdapter(context!!, keystoreMenu)
     }
 
     override fun onShowDialog() {
@@ -123,8 +162,7 @@ class KeystoreDialog : TaskLauncherDialog<String>() {
 
                 val nextDialog: DialogFragment
                 val keystoreType = spnType.selectedItemId.toInt()
-
-                if (keystoreType in listOf(R.id.menuCreateSeed, R.id.menuRestoreSeed)) {
+                if (keystoreType in listOf(R.id.menuCreateSeed, R.id.menuRestoreSeed, R.id.menuCosignerSeed)) {
                     nextDialog = NewWalletSeedDialog()
                     val seed = if (keystoreType == R.id.menuCreateSeed)
                         daemonModel.commands.callAttr("make_seed").toString()
@@ -132,7 +170,7 @@ class KeystoreDialog : TaskLauncherDialog<String>() {
                     arguments!!.putString("seed", seed)
                 } else if (keystoreType == R.id.menuImport) {
                     nextDialog = NewWalletImportDialog()
-                } else if (keystoreType == R.id.menuImportMaster) {
+                } else if (keystoreType in listOf(R.id.menuImportMaster, R.id.menuCosignerKey)) {
                     nextDialog = NewWalletImportMasterDialog()
                 } else {
                     throw Exception("Unknown item: ${spnType.selectedItem}")
@@ -141,6 +179,10 @@ class KeystoreDialog : TaskLauncherDialog<String>() {
                 showDialog(this, nextDialog)
             } catch (e: ToastException) { e.show() }
         }
+
+//        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener {
+//            arguments = resetCosigner(arguments)
+//        }
     }
 }
 
@@ -162,17 +204,79 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
         val name = arguments!!.getString("name")!!
         val password = arguments!!.getString("password")!!
         onCreateWallet(name, password)
-        daemonModel.loadWallet(name, password)
+
+        val multisig = arguments!!.getBoolean("multisig")
+
+        /**
+         * For multisig wallets, wait until all cosigners have been added,
+         * and then create and load the multisig wallet.
+         *
+         * Otherwise, load the created wallet.
+         */
+        if (multisig) {
+            val currentCosigner = arguments!!.getInt("i_signer")
+            val numCosigners = arguments!!.getInt("cosigners")
+            val numSignatures = arguments!!.getInt("signatures")
+
+            // Close the previous cosigner's keystore dialog.
+            // TODO: Consider a better solution for closing dialogs?
+            (targetFragment as KeystoreDialog).dismiss()
+
+            if (currentCosigner == numCosigners) {
+                daemonModel.commands.callAttr(
+                        "create_multisig", name, password,
+                        Kwarg("keystores", keystores.toArray()),
+                        Kwarg("cosigners", numCosigners),
+                        Kwarg("signatures", numSignatures)
+                )
+                daemonModel.loadWallet(name, password)
+                closeDialogs(targetFragment!!)
+            }
+        } else {
+            daemonModel.loadWallet(name, password)
+        }
+
         return name
     }
 
     abstract fun onCreateWallet(name: String, password: String)
 
     override fun onPostExecute(result: String) {
-        (targetFragment as KeystoreDialog).dismiss()
-        (targetFragment!!.targetFragment as NewWalletDialog1).dismiss()
-        daemonModel.commands.callAttr("select_wallet", result)
-        (activity as MainActivity).updateDrawer()
+
+        val multisig = arguments!!.getBoolean("multisig")
+
+        /**
+         * For multisig wallets, we need to first show the master key to the 1st cosigner, and
+         * then prompt for data for all other cosigners by calling the KeystoreDialog again.
+         */
+        if (multisig) {
+
+            val currentCosigner = arguments!!.getInt("i_signer")
+            val numCosigners = arguments!!.getInt("cosigners")
+
+            if (currentCosigner < numCosigners) {
+                // The first cosigner sees their master public key; others are prompted for data
+                val nextDialog: DialogFragment = if (currentCosigner == 1) {
+                    MasterPublicKeyDialog()
+                } else {
+                    KeystoreDialog()
+                }
+
+                arguments!!.putInt("i_signer", currentCosigner + 1)
+
+                nextDialog.setArguments(arguments)
+                showDialog(this, nextDialog)
+            } else { // last cosigner done; finalize wallet
+                daemonModel.commands.callAttr("select_wallet", result)
+                (activity as MainActivity).updateDrawer()
+            }
+        } else {
+            // In a standard wallet, close the dialogs and open the newly created wallet.
+            (targetFragment as KeystoreDialog).dismiss()
+            (targetFragment!!.targetFragment as NewWalletDialog1).dismiss()
+            daemonModel.commands.callAttr("select_wallet", result)
+            (activity as MainActivity).updateDrawer()
+        }
     }
 }
 
@@ -208,11 +312,22 @@ class NewWalletSeedDialog : NewWalletDialog2() {
                 !libBitcoin.callAttr("is_bip32_derivation", derivation).toBoolean()) {
                 throw ToastException(R.string.Derivation_invalid)
             }
-            daemonModel.commands.callAttr(
+
+            val multisig = arguments!!.getBoolean("multisig")
+            val ks = daemonModel.commands.callAttr(
                 "create", name, password,
                 Kwarg("seed", input),
                 Kwarg("passphrase", passphrase),
+                Kwarg("multisig", multisig),
                 Kwarg("bip39_derivation", derivation))
+
+            if (multisig) {
+                keystores.add(ks)
+
+                val masterKey = ks.callAttr("get_master_public_key").toString()
+                arguments!!.putString("masterKey", masterKey)
+            }
+
         } catch (e: PyException) {
             if (e.message!!.startsWith("InvalidSeed")) {
                 throw ToastException(R.string.the_seed_you_entered_does_not_appear)
@@ -291,8 +406,23 @@ class NewWalletImportMasterDialog : NewWalletDialog2() {
 
     override fun onShowDialog() {
         super.onShowDialog()
-        tvPrompt.setText(getString(R.string.to_create_a_watching) + " " +
-                                getString(R.string.to_create_a_spending))
+
+        val multisig = arguments!!.getBoolean("multisig")
+        val currentCosigner = arguments!!.getInt("i_signer")
+
+        val keyPrompt = if (multisig && currentCosigner != 1) {
+            getString(R.string.please_enter_the_master_public_key_xpub) + " " +
+            getString(R.string.enter_their)
+        } else {
+            getString(R.string.to_create_a_watching) + " " +
+            getString(R.string.to_create_a_spending)
+        }
+        tvPrompt.setText(keyPrompt)
+
+        if (multisig && currentCosigner != 1) {
+            dialog.setTitle(getString(R.string.Add_Cosigner) + " $currentCosigner")
+        }
+
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { scanQR(this) }
     }
 
@@ -309,7 +439,18 @@ class NewWalletImportMasterDialog : NewWalletDialog2() {
     override fun onCreateWallet(name: String, password: String) {
         val key = input.trim()
         if (libKeystore.callAttr("is_bip32_key", key).toBoolean()) {
-            daemonModel.commands.callAttr("create", name, password, Kwarg("master", key))
+            val multisig = arguments!!.getBoolean("multisig")
+            val ks = daemonModel.commands.callAttr(
+                    "create", name, password,
+                    Kwarg("master", key),
+                    Kwarg("multisig", multisig)
+            )
+
+            if (multisig) {
+                val masterKey = ks.callAttr("get_master_public_key").toString()
+                arguments!!.putString("masterKey", masterKey)
+                keystores.add(ks)
+            }
         } else {
             throw ToastException(R.string.please_specify)
         }
@@ -351,7 +492,7 @@ fun setupSeedDialog(fragment: AlertDialogFragment) {
 // Choose the number of multi-sig wallet cosigners
 class CosignerDialog : AlertDialogFragment() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
-        builder.setTitle(R.string.New_wallet)
+        builder.setTitle(R.string.Multi_signature)
                 .setView(R.layout.multisig_cosigners)
                 .setPositiveButton(R.string.next, null)
                 .setNegativeButton(R.string.cancel, null)
@@ -362,8 +503,10 @@ class CosignerDialog : AlertDialogFragment() {
 
         msFromText.text = getString(R.string.from_cosigners).replace("%d", "2")
         msReqText.text = getString(R.string.require_signatures).replace("%d", "2")
+        var numCosigners = 2
+        var numSignatures = 2
 
-        // Handle number of cosigners
+        // Handle the total number of cosigners
         msFrom?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 msFromText.text = getString(R.string.from_cosigners).replace("%d", progress.toString())
@@ -372,19 +515,15 @@ class CosignerDialog : AlertDialogFragment() {
                 if (progress == 0) {
                     msFrom.progress = 1
                 }
+                numCosigners = progress
             }
 
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {
-
-            }
-
-            override fun onStopTrackingTouch(seekBar: SeekBar) {
-
-            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar) {}
 
         })
 
-        // Handle number of required signatures
+        // Handle the number of required signatures
         msReq?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 msReqText.text = getString(R.string.require_signatures).replace("%d", progress.toString())
@@ -392,18 +531,82 @@ class CosignerDialog : AlertDialogFragment() {
                 if (progress == 0) {
                     msReq.progress = 1
                 }
+                numSignatures = progress
             }
 
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {
-            }
-
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {
-            }
-
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
+
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            try {
+
+                val nextDialog: DialogFragment
+                nextDialog = KeystoreDialog()
+
+                arguments!!.putBoolean("multisig", true)
+                arguments!!.putInt("i_signer", 1) // current co-signer; will update
+                arguments!!.putInt("cosigners", numCosigners)
+                arguments!!.putInt("signatures", numSignatures)
+
+                nextDialog.setArguments(arguments)
+                showDialog(this, nextDialog)
+            } catch (e: ToastException) {
+                e.show()
+            }
+        }
     }
 }
 
+/**
+ * View and copy the master public key of the (multisig) wallet.
+ */
+class MasterPublicKeyDialog : AlertDialogFragment() {
+    override fun onBuildDialog(builder: AlertDialog.Builder) {
+        builder.setTitle(R.string.master_public_key)
+                .setView(R.layout.show_master_key)
+                .setPositiveButton(R.string.next, null)
+                .setNegativeButton(R.string.cancel, null)
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        fabCopyMasterKey.setOnClickListener {
+            copyTextToClipboard()
+        }
+    }
+
+    override fun onShowDialog() {
+        super.onShowDialog()
+
+        walletMasterKey.setText(arguments!!.getString("masterKey"))
+        // walletMasterKey.setInputType(InputType.TYPE_NULL)
+        walletMasterKey.setFocusable(false)
+
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            try {
+
+                val nextDialog: DialogFragment
+                nextDialog = KeystoreDialog()
+
+                nextDialog.setArguments(arguments)
+                showDialog(this, nextDialog)
+            } catch (e: ToastException) {
+                e.show()
+            }
+        }
+    }
+
+
+    private fun copyTextToClipboard() {
+        val textToCopy = walletMasterKey.text
+        val clipboardManager = activity!!.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clipData = ClipData.newPlainText("text", textToCopy)
+        clipboardManager.setPrimaryClip(clipData)
+        Toast.makeText(this.context, "Master key copied to clipboard", Toast.LENGTH_LONG).show()
+    }
+}
 
 fun seedAdvice(seed: String): String {
     return app.getString(R.string.please_save, seed.split(" ").size) + " " +
