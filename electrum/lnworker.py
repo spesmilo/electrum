@@ -1338,7 +1338,7 @@ class LNWallet(LNWorker):
                         failing_channel=ShortChannelID(payload['short_channel_id']))
                 elif blacklist:
                     self.network.path_finder.liquidity_hints.add_to_blacklist(
-                        node_from, node_to, payload['short_channel_id'])
+                        payload['short_channel_id'])
 
                 # if we can't decide on some action, we are stuck
                 if not (blacklist or update):
@@ -1346,7 +1346,7 @@ class LNWallet(LNWorker):
 
         # for errors that do not include a channel update
         else:
-            self.network.path_finder.liquidity_hints.add_to_blacklist(node_from, node_to, fallback_channel)
+            self.network.path_finder.liquidity_hints.add_to_blacklist(fallback_channel)
 
     def _handle_chanupd_from_failed_htlc(self, payload, *, route, sender_idx) -> Tuple[bool, bool]:
         blacklist = False

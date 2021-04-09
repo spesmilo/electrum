@@ -180,8 +180,7 @@ class LiquidityHint:
         self._cannot_send_forward = None
         self._can_send_backward = None
         self._cannot_send_backward = None
-        self.is_blacklisted = False
-        self.timestamp = 0
+        self.blacklist_timestamp = 0
 
     @property
     def can_send_forward(self):
@@ -267,9 +266,10 @@ class LiquidityHint:
             self.cannot_send_backward = amount
 
     def __repr__(self):
-        return f"forward: can send: {self._can_send_forward}, cannot send: {self._cannot_send_forward}, \n" \
-               f"backward: can send: {self._can_send_backward} cannot send: {self._cannot_send_backward}, \n" \
-               f"blacklisted: {self.is_blacklisted}"
+        is_blacklisted = False if not self.blacklist_timestamp else int(time.time()) - self.blacklist_timestamp < BLACKLIST_DURATION
+        return f"forward: can send: {self._can_send_forward} msat, cannot send: {self._cannot_send_forward} msat, \n" \
+               f"backward: can send: {self._can_send_backward} msat, cannot send: {self._cannot_send_backward} msat, \n" \
+               f"blacklisted: {is_blacklisted}"
 
 
 class LiquidityHintMgr:
@@ -341,21 +341,20 @@ class LiquidityHintMgr:
         return fee_for_edge_msat(amount, DEFAULT_PENALTY_BASE_MSAT, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH)
 
     @with_lock
-    def add_to_blacklist(self, node_from: bytes, node_to: bytes, channel_id: ShortChannelID):
+    def add_to_blacklist(self, channel_id: ShortChannelID):
         hint = self.get_hint(channel_id)
-        hint.is_blacklisted = True
         now = int(time.time())
-        hint.timestamp = now
+        hint.blacklist_timestamp = now
 
     @with_lock
     def get_blacklist(self) -> Set[ShortChannelID]:
         now = int(time.time())
-        return set(k for k, v in self._liquidity_hints.items() if now - v.timestamp < BLACKLIST_DURATION)
+        return set(k for k, v in self._liquidity_hints.items() if now - v.blacklist_timestamp < BLACKLIST_DURATION)
 
     @with_lock
     def clear_blacklist(self):
         for k, v in self._liquidity_hints.items():
-            v.is_blacklisted = False
+            v.blacklist_timestamp = 0
 
     def __repr__(self):
         string = "liquidity hints:\n"
