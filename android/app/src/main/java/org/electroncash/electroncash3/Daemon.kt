@@ -38,6 +38,8 @@ class DaemonModel(val config: PyObject) {
         get() {
             return if (wallet == null) null else commands.callAttr("get", "wallet_type").toString()
         }
+    val scriptType: String?
+        get() = daemonModel.wallet?.get("txin_type").toString()
 
     lateinit var watchdog: Runnable
 

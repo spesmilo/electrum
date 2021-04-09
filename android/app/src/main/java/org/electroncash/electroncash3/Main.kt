@@ -4,6 +4,9 @@ package org.electroncash.electroncash3
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
@@ -28,7 +31,10 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.observe
 import com.chaquo.python.Kwarg
 import kotlinx.android.synthetic.main.main.*
+import kotlinx.android.synthetic.main.show_master_key.*
+import kotlinx.android.synthetic.main.show_master_key.walletMasterKey
 import kotlinx.android.synthetic.main.wallet_export.*
+import kotlinx.android.synthetic.main.wallet_information.*
 import kotlinx.android.synthetic.main.wallet_open.*
 import kotlinx.android.synthetic.main.wallet_rename.*
 import java.io.File
@@ -236,6 +242,7 @@ class MainActivity : AppCompatActivity(R.layout.main) {
             }
             R.id.menuChangePassword -> showDialog(this, PasswordChangeDialog())
             R.id.menuShowSeed -> { showDialog(this, SeedPasswordDialog()) }
+            R.id.menuMasterPublicKey -> { showDialog(this, WalletInformationDialog()) }
             R.id.menuExportSigned -> {
                 try {
                     showDialog(this, SendDialog().apply {
@@ -659,15 +666,47 @@ class SeedPasswordDialog : PasswordDialog<SeedResult>() {
     }
 }
 
-
 class SeedDialog : AlertDialogFragment() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         builder.setTitle(R.string.Wallet_seed)
-            .setView(R.layout.wallet_new_2)
-            .setPositiveButton(android.R.string.ok, null)
+                .setView(R.layout.wallet_new_2)
+                .setPositiveButton(android.R.string.ok, null)
     }
 
     override fun onShowDialog() {
         setupSeedDialog(this)
+    }
+}
+
+class WalletInformationDialog : AlertDialogFragment() {
+    override fun onBuildDialog(builder: AlertDialog.Builder) {
+
+        builder.setTitle(R.string.wallet_information)
+            .setView(R.layout.wallet_information)
+            .setPositiveButton(android.R.string.ok, null)
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        fabCopyMasterKey2.setOnClickListener {
+            val textToCopy = walletMasterKey.text
+            val clipboardManager = activity!!.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clipData = ClipData.newPlainText("text", textToCopy)
+            clipboardManager.setPrimaryClip(clipData)
+            Toast.makeText(this.context, "Master key copied to clipboard", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    override fun onShowDialog() {
+        super.onShowDialog()
+
+        val masterKey = daemonModel.commands.callAttr("getmpk").toString()
+        walletMasterKey.setText(masterKey)
+        walletMasterKey.setFocusable(false)
+
+        idWalletName.setText(getString(R.string.wallet_name) + ": ${daemonModel.walletName}")
+        idWalletType.setText(getString(R.string.wallet_type) + ": ${daemonModel.walletType}")
+        idScriptType.setText(getString(R.string.script_type) + ": ${daemonModel.scriptType}")
     }
 }
