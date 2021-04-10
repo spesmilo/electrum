@@ -689,10 +689,7 @@ class WalletInformationDialog : AlertDialogFragment() {
 
         fabCopyMasterKey2.setOnClickListener {
             val textToCopy = walletMasterKey.text
-            val clipboardManager = activity!!.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            val clipData = ClipData.newPlainText("text", textToCopy)
-            clipboardManager.setPrimaryClip(clipData)
-            Toast.makeText(this.context, "Master key copied to clipboard", Toast.LENGTH_LONG).show()
+            copyToClipboard(textToCopy, R.string.master_public_key)
         }
     }
 

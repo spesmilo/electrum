@@ -179,10 +179,6 @@ class KeystoreDialog : AlertDialogFragment() {
                 showDialog(this, nextDialog)
             } catch (e: ToastException) { e.show() }
         }
-
-//        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener {
-//            arguments = resetCosigner(arguments)
-//        }
     }
 }
 
@@ -573,7 +569,7 @@ class MasterPublicKeyDialog : AlertDialogFragment() {
         super.onViewCreated(view, savedInstanceState)
 
         fabCopyMasterKey.setOnClickListener {
-            copyTextToClipboard()
+            copyToClipboard(walletMasterKey.text, R.string.master_public_key)
         }
     }
 
@@ -581,7 +577,6 @@ class MasterPublicKeyDialog : AlertDialogFragment() {
         super.onShowDialog()
 
         walletMasterKey.setText(arguments!!.getString("masterKey"))
-        // walletMasterKey.setInputType(InputType.TYPE_NULL)
         walletMasterKey.setFocusable(false)
 
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
@@ -596,15 +591,6 @@ class MasterPublicKeyDialog : AlertDialogFragment() {
                 e.show()
             }
         }
-    }
-
-
-    private fun copyTextToClipboard() {
-        val textToCopy = walletMasterKey.text
-        val clipboardManager = activity!!.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clipData = ClipData.newPlainText("text", textToCopy)
-        clipboardManager.setPrimaryClip(clipData)
-        Toast.makeText(this.context, "Master key copied to clipboard", Toast.LENGTH_LONG).show()
     }
 }
 

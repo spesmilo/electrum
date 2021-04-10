@@ -32,14 +32,14 @@ class DaemonModel(val config: PyObject) {
     val walletName: String?
         get() {
             val wallet = this.wallet
-            return if (wallet == null) null else wallet.callAttr("basename").toString()
+            return wallet?.callAttr("basename")?.toString()
         }
     val walletType: String?
         get() {
             return if (wallet == null) null else commands.callAttr("get", "wallet_type").toString()
         }
     val scriptType: String?
-        get() = daemonModel.wallet?.get("txin_type").toString()
+        get() = wallet?.get("txin_type").toString()
 
     lateinit var watchdog: Runnable
 
