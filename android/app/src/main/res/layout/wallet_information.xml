@@ -11,41 +11,35 @@
         android:layout_height="wrap_content">
 
         <TextView
-            android:id="@+id/idWalletName"
+            android:id="@+id/textView28"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="21dp"
             android:layout_marginStart="24dp"
             android:layout_marginTop="24dp"
-            android:layout_marginEnd="24dp"
             android:gravity="fill_horizontal"
             android:text="@string/wallet_name"
-            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
         <TextView
-            android:id="@+id/idWalletType"
+            android:id="@+id/textView29"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="24dp"
             android:layout_marginTop="10dp"
-            android:layout_marginEnd="24dp"
             android:text="@string/wallet_type"
-            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/idWalletName" />
+            app:layout_constraintTop_toBottomOf="@+id/textView28" />
 
         <TextView
-            android:id="@+id/idScriptType"
+            android:id="@+id/textView30"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="24dp"
             android:layout_marginTop="10dp"
-            android:layout_marginEnd="24dp"
             android:text="@string/script_type"
-            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/idWalletType" />
+            app:layout_constraintTop_toBottomOf="@+id/textView29" />
 
         <EditText
             android:id="@+id/walletMasterKey"
@@ -70,7 +64,7 @@
             android:layout_marginTop="36dp"
             android:text="@string/here_is"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/idScriptType"
+            app:layout_constraintTop_toBottomOf="@+id/textView30"
             tools:text="@string/here_is" />
 
         <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -84,7 +78,49 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintHorizontal_bias="1.0"
             app:layout_constraintStart_toEndOf="@+id/textView25"
-            app:layout_constraintTop_toBottomOf="@+id/idScriptType"
+            app:layout_constraintTop_toBottomOf="@+id/textView30"
             app:srcCompat="@drawable/ic_copy_24dp" />
+
+        <androidx.constraintlayout.widget.Barrier
+            android:id="@+id/idBarrier2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:barrierDirection="end"
+            app:constraint_referenced_ids="textView28,textView29,textView30"
+            tools:layout_editor_absoluteX="118dp" />
+
+        <TextView
+            android:id="@+id/idWalletName"
+            style="@style/Medium"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_marginTop="24dp"
+            android:text="@string/wallet_name"
+            app:layout_constraintStart_toEndOf="@id/idBarrier2"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+            android:id="@+id/idWalletType"
+            style="@style/Medium"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_marginTop="10dp"
+            android:text="@string/wallet_type"
+            app:layout_constraintStart_toEndOf="@id/idBarrier2"
+            app:layout_constraintTop_toBottomOf="@+id/idWalletName" />
+
+        <TextView
+            android:id="@+id/idScriptType"
+            style="@style/Medium"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_marginTop="10dp"
+            android:text="@string/script_type"
+            app:layout_constraintStart_toEndOf="@id/idBarrier2"
+            app:layout_constraintTop_toBottomOf="@+id/idWalletType" />
+
     </androidx.constraintlayout.widget.ConstraintLayout>
 </ScrollView>

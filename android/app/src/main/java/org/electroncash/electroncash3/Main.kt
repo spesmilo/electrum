@@ -14,7 +14,6 @@ import android.os.Bundle
 import android.text.Html
 import android.text.SpannableStringBuilder
 import android.text.method.LinkMovementMethod
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuItem
@@ -31,7 +30,6 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.observe
 import com.chaquo.python.Kwarg
 import kotlinx.android.synthetic.main.main.*
-import kotlinx.android.synthetic.main.show_master_key.*
 import kotlinx.android.synthetic.main.show_master_key.walletMasterKey
 import kotlinx.android.synthetic.main.wallet_export.*
 import kotlinx.android.synthetic.main.wallet_information.*
@@ -705,8 +703,8 @@ class WalletInformationDialog : AlertDialogFragment() {
         walletMasterKey.setText(masterKey)
         walletMasterKey.setFocusable(false)
 
-        idWalletName.setText(getString(R.string.wallet_name) + ": ${daemonModel.walletName}")
-        idWalletType.setText(getString(R.string.wallet_type) + ": ${daemonModel.walletType}")
-        idScriptType.setText(getString(R.string.script_type) + ": ${daemonModel.scriptType}")
+        idWalletName.setText(daemonModel.walletName)
+        idWalletType.setText(daemonModel.walletType)
+        idScriptType.setText(daemonModel.scriptType)
     }
 }
