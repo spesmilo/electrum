@@ -3,6 +3,18 @@
         "pruning": "-",
         "t": "40001",
         "s": "40002",
-        "version": "1.4"
+        "version": "1.5"
+    },
+    "electrum2.nav.community": {
+        "pruning": "-",
+        "t": "40001",
+        "s": "40002",
+        "version": "1.5"
+    },
+    "electrum3.nav.community": {
+        "pruning": "-",
+        "t": "40001",
+        "s": "40002",
+        "version": "1.5"
     }
 }
