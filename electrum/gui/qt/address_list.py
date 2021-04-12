@@ -75,7 +75,6 @@ class AddressList(MyTreeView):
         COIN_BALANCE = 3
         FIAT_BALANCE = 4
         NUM_TXS = 5
-        UTXO_COUNT = 6
 
     filter_columns = [Columns.TYPE, Columns.ADDRESS, Columns.LABEL, Columns.COIN_BALANCE]
 
@@ -120,7 +119,6 @@ class AddressList(MyTreeView):
             self.Columns.COIN_BALANCE: _('Balance'),
             self.Columns.FIAT_BALANCE: ccy + ' ' + _('Balance'),
             self.Columns.NUM_TXS: _('Tx'),
-            self.Columns.UTXO_COUNT: _('Utxo Count')
         }
         self.update_headers(headers)
 
@@ -169,8 +167,7 @@ class AddressList(MyTreeView):
                 fiat_balance = fx.value_str(balance, rate)
             else:
                 fiat_balance = ''
-            utxos = self.wallet.get_spendable_coins([address])
-            labels = ['', address, label, balance_text, fiat_balance, "%d"%num, "%d"%len(utxos)]
+            labels = ['', address, label, balance_text, fiat_balance, "%d"%num]
             address_item = [QStandardItem(e) for e in labels]
             # align text and set fonts
             for i, item in enumerate(address_item):

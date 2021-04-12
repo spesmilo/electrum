@@ -145,8 +145,9 @@ class UTXOList(MyTreeView):
         if not all([prevout_str in utxo_set for prevout_str in self.spend_list]):
             self.spend_list = []
 
-    def consolidate(self, utxos: List[PartialTxInput], address, count=20000):
-        self.set_spend_list(utxos[0:count])
+    def consolidate(self, utxos: List[PartialTxInput], address, count=500):
+        offset = 0
+        self.set_spend_list(utxos[offset:offset+count])
         self.parent.payto_e.setText(address)
         self.parent.spend_max()
         self.parent.do_pay()
