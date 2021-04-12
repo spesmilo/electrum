@@ -752,6 +752,26 @@ def is_private_key(key: str, *, raise_on_error=False) -> bool:
             raise
         return False
 
+def parse_script(x):
+    script = ''
+    for word in x.split():
+        if word[0:3] == 'OP_':
+            opcode_int = opcodes[word]
+            script += construct_script([opcode_int])
+        else:
+            bfh(word)  # to test it is hex data
+            script += construct_script([word])
+    return script
+
+def parse_output(x) -> bytes:
+    if is_address(x):
+        return bfh(address_to_script(address))
+    try:
+        script = parse_script(x)
+        return bfh(script)
+    except Exception:
+        pass
+    raise Exception("Invalid address or script.")
 
 ########### end pywallet functions #######################
 

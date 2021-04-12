@@ -109,23 +109,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
             return bfh(bitcoin.address_to_script(address))
         except Exception:
             pass
-        try:
-            script = self.parse_script(x)
-            return bfh(script)
-        except Exception:
-            pass
-        raise Exception("Invalid address or script.")
-
-    def parse_script(self, x):
-        script = ''
-        for word in x.split():
-            if word[0:3] == 'OP_':
-                opcode_int = opcodes[word]
-                script += construct_script([opcode_int])
-            else:
-                bfh(word)  # to test it is hex data
-                script += construct_script([word])
-        return script
+        return bitcoin.parse_output(x)
 
     def parse_amount(self, x):
         x = x.strip()
