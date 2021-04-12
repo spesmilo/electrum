@@ -1905,7 +1905,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         import random
         letters = string.ascii_lowercase
         randomstr = ''.join(random.choice(letters) for i in range(16))
-        message = "{}I kindly ask to withdraw {}NAV from the proposal {}. Payment request id: {}".format(randomstr, _amount, _hash, _description)
+        message = "{}I kindly ask to withdraw {}NAV from the proposal {}. Payment request id: {}".format(randomstr, _amount, hash, _description)
 
         self.do_sign_cb(_owner, message, lambda x: self.pay_onchain_dialog(self.get_coins(), [PartialTxOutput.CommunityFundContribution(self.wallet.consensus[ConsensusParameters.PAYMENT_REQUEST_MIN_FEE]['value'])], strdzeel=json.dumps({"h":hash,"s":x,"n":_amount,"r":randomstr,"i":_description,"v":10}), version=5))
 
