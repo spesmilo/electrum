@@ -622,7 +622,7 @@ class Commands:
         change_addr = self._resolver(change_addr, wallet)
         domain_addr = None if domain_addr is None else map(self._resolver, domain_addr, repeat(wallet))
         amount_sat = satoshis_or_max(amount)
-        outputs = [PartialTxOutput.from_address_and_value(destination, amount_sat)]
+        outputs = [PartialTxOutput(scriptpubkey=bitcoin.parse_output(destination), value=amount_sat)]
         tx = wallet.create_transaction(
             outputs,
             fee=tx_fee,
