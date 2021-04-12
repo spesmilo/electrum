@@ -653,7 +653,7 @@ class Commands:
         for address, amount in outputs:
             address = self._resolver(address, wallet)
             amount_sat = satoshis_or_max(amount)
-            final_outputs.append(PartialTxOutput.from_address_and_value(address, amount_sat))
+            final_outputs.append(PartialTxOutput(scriptpubkey=bitcoin.parse_output(address), value=amount_sat))
         tx = wallet.create_transaction(
             final_outputs,
             fee=tx_fee,
