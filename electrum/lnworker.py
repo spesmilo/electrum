@@ -845,6 +845,8 @@ class LNWallet(LNWorker):
             item = chan.get_funding_height()
             if item is None:
                 continue
+            if not self.lnwatcher:
+                continue  # lnwatcher not available with --offline (its data is not persisted)
             funding_txid, funding_height, funding_timestamp = item
             tx_height = self.lnwatcher.get_tx_height(funding_txid)
             item = {

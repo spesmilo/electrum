@@ -188,11 +188,12 @@ class ElectrumWindow(App, Logger):
     use_gossip = BooleanProperty(False)
     def on_use_gossip(self, instance, x):
         self.electrum_config.set_key('use_gossip', self.use_gossip, True)
-        if self.use_gossip:
-            self.network.start_gossip()
-        else:
-            self.network.run_from_another_thread(
-                self.network.stop_gossip())
+        if self.network:
+            if self.use_gossip:
+                self.network.start_gossip()
+            else:
+                self.network.run_from_another_thread(
+                    self.network.stop_gossip())
 
     use_change = BooleanProperty(False)
     def on_use_change(self, instance, x):
