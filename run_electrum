@@ -78,7 +78,9 @@ if not is_android:
     check_imports()
 
 
-from electrum.logging import get_logger, configure_logging
+sys._ELECTRUM_RUNNING_VIA_RUNELECTRUM = True  # used by logging.py
+
+from electrum.logging import get_logger, configure_logging  # import logging submodule first
 from electrum import util
 from electrum import constants
 from electrum import SimpleConfig
