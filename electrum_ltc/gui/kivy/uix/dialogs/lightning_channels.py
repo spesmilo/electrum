@@ -172,6 +172,7 @@ Builder.load_string(r'''
 <LightningChannelsDialog@Popup>:
     name: 'lightning_channels'
     title: _('Lightning Network')
+    has_network: False
     has_lightning: False
     has_gossip: False
     can_send: ''
@@ -205,13 +206,13 @@ Builder.load_string(r'''
                 size_hint: 0.3, None
                 height: '48dp'
                 text: _('Open Channel')
-                disabled: not root.has_lightning
+                disabled: not (root.has_network and root.has_lightning)
                 on_release: popup.app.popup_dialog('lightning_open_channel_dialog')
             Button:
                 size_hint: 0.3, None
                 height: '48dp'
                 text: _('Swap')
-                disabled: not root.has_lightning
+                disabled: not (root.has_network and root.has_lightning)
                 on_release: popup.app.popup_dialog('swap_dialog')
             Button:
                 size_hint: 0.3, None
@@ -589,8 +590,9 @@ class LightningChannelsDialog(Factory.Popup):
         super(LightningChannelsDialog, self).__init__()
         self.clocks = []
         self.app = app
+        self.has_network = bool(self.app.network)
         self.has_lightning = app.wallet.has_lightning()
-        self.has_gossip = self.app.network.channel_db is not None
+        self.has_gossip = self.has_network and self.app.network.channel_db is not None
         self.update()
 
     def show_item(self, obj):
