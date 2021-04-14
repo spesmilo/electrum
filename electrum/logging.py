@@ -77,7 +77,10 @@ electrum_logger.setLevel(logging.DEBUG)
 def _delete_old_logs(path, keep=10):
     files = sorted(list(pathlib.Path(path).glob("electrum_log_*.log")), reverse=True)
     for f in files[keep:]:
-        os.remove(str(f))
+        try:
+            os.remove(str(f))
+        except OSError as e:
+            _logger.warning(f"cannot delete old logfile: {e}")
 
 
 _logfile_path = None
