@@ -1317,6 +1317,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             is_sweep=False,
             rbf=False) -> PartialTransaction:
 
+        if not coins:  # any bitcoin tx must have at least 1 input by consensus
+            raise NotEnoughFunds()
         if any([c.already_has_some_signatures() for c in coins]):
             raise Exception("Some inputs already contain signatures!")
 
