@@ -680,12 +680,12 @@ class SwapDialog(Factory.Popup):
 
     def update_fee_text(self):
         fee_per_kb = self.config.fee_per_kb()
+        fee_per_b = format_fee_satoshis(fee_per_kb / 1000) if fee_per_kb is not None else "unknown"
         # eta is -1 when block inclusion cannot be estimated for low fees
         eta = self.config.fee_to_eta(fee_per_kb)
 
-        fee_per_b = format_fee_satoshis(fee_per_kb / 1000)
         suggest_fee = self.config.eta_target_to_fee(RECOMMEND_BLOCKS_SWAP)
-        suggest_fee_per_b = format_fee_satoshis(suggest_fee / 1000)
+        suggest_fee_per_b = format_fee_satoshis(suggest_fee / 1000) if suggest_fee is not None else "unknown"
 
         s = 's' if eta > 1 else ''
         if eta > RECOMMEND_BLOCKS_SWAP or eta == -1:

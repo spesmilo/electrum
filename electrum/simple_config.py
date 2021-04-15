@@ -405,12 +405,17 @@ class SimpleConfig(Logger):
             return 1
         return FEE_ETA_TARGETS[slider_pos]
 
-    def fee_to_eta(self, fee_per_kb: int) -> int:
+    def fee_to_eta(self, fee_per_kb: Optional[int]) -> int:
         """Returns 'num blocks' ETA estimate for given fee rate,
         or -1 for low fee.
         """
         import operator
-        lst = list(self.fee_estimates.items()) + [(1, self.eta_to_fee(len(FEE_ETA_TARGETS)))]
+        lst = list(self.fee_estimates.items())
+        next_block_fee = self.eta_target_to_fee(1)
+        if next_block_fee is not None:
+            lst += [(1, next_block_fee)]
+        if not lst or fee_per_kb is None:
+            return -1
         dist = map(lambda x: (x[0], abs(x[1] - fee_per_kb)), lst)
         min_target, min_value = min(dist, key=operator.itemgetter(1))
         if fee_per_kb < self.fee_estimates.get(FEE_ETA_TARGETS[0])/2:
