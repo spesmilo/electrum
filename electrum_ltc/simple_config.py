@@ -30,8 +30,8 @@ FEERATE_WARNING_HIGH_FEE = 600000
 FEERATE_FALLBACK_STATIC_FEE = 100000
 FEERATE_DEFAULT_RELAY = 1000
 FEERATE_MAX_RELAY = 50000
-FEERATE_STATIC_VALUES = [10000, 20000, 30000, 50000, 70000, 100000,
-                         150000, 200000, 300000, 500000]
+FEERATE_STATIC_VALUES = [1000, 2000, 5000, 10000, 20000, 30000,
+                         50000, 70000, 100000, 150000, 200000, 300000]
 FEERATE_REGTEST_HARDCODED = 180000  # for eclair compat
 
 FEE_RATIO_HIGH_WARNING = 0.05  # warn user if fee/amount for on-chain tx is higher than this
@@ -66,8 +66,7 @@ class SimpleConfig(Logger):
         self.lock = threading.RLock()
 
         self.mempool_fees = None  # type: Optional[Sequence[Tuple[Union[float, int], int]]]
-        self.fee_estimates = {}
-        self.fee_estimates_last_updated = {}
+        self.fee_estimates = {}  # type: Dict[int, int]
         self.last_time_fee_estimates_requested = 0  # zero ensures immediate fees
 
         # The following two functions are there for dependency injection when
@@ -405,15 +404,17 @@ class SimpleConfig(Logger):
             return 1
         return FEE_ETA_TARGETS[slider_pos]
 
-    def fee_to_eta(self, fee_per_kb: int) -> int:
+    def fee_to_eta(self, fee_per_kb: Optional[int]) -> int:
         """Returns 'num blocks' ETA estimate for given fee rate,
         or -1 for low fee.
         """
         import operator
-        lst = list(self.fee_estimates.items()) + [(1, self.eta_to_fee(len(FEE_ETA_TARGETS)))]
-        for i in range(len(lst)-1, 0, -1):
-            if lst[i][1] == lst[i-1][1]:
-                del lst[i-1]
+        lst = list(self.fee_estimates.items())
+        next_block_fee = self.eta_target_to_fee(1)
+        if next_block_fee is not None:
+            lst += [(1, next_block_fee)]
+        if not lst or fee_per_kb is None:
+            return -1
         dist = map(lambda x: (x[0], abs(x[1] - fee_per_kb)), lst)
         min_target, min_value = min(dist, key=operator.itemgetter(1))
         if fee_per_kb < self.fee_estimates.get(FEE_ETA_TARGETS[0])/2:
@@ -515,10 +516,10 @@ class SimpleConfig(Logger):
     def static_fee(self, i):
         return FEERATE_STATIC_VALUES[i]
 
-    def static_fee_index(self, value) -> int:
-        if value is None:
+    def static_fee_index(self, fee_per_kb: Optional[int]) -> int:
+        if fee_per_kb is None:
             raise TypeError('static fee cannot be None')
-        dist = list(map(lambda x: abs(x - value), FEERATE_STATIC_VALUES))
+        dist = list(map(lambda x: abs(x - fee_per_kb), FEERATE_STATIC_VALUES))
         return min(range(len(dist)), key=dist.__getitem__)
 
     def has_fee_etas(self):
@@ -609,9 +610,10 @@ class SimpleConfig(Logger):
         fee_per_byte = quantize_feerate(fee_per_byte)
         return round(fee_per_byte * size)
 
-    def update_fee_estimates(self, key, value):
-        self.fee_estimates[key] = value
-        self.fee_estimates_last_updated[key] = time.time()
+    def update_fee_estimates(self, nblock_target: int, fee_per_kb: int):
+        assert isinstance(nblock_target, int), f"expected int, got {nblock_target!r}"
+        assert isinstance(fee_per_kb, int), f"expected int, got {fee_per_kb!r}"
+        self.fee_estimates[nblock_target] = fee_per_kb
 
     def is_fee_estimates_update_required(self):
         """Checks time since last requested and updated fee estimates.
