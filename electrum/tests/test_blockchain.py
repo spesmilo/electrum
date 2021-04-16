@@ -336,6 +336,54 @@ class TestBlockchain(ElectrumTestCase):
         for b in (chain_u, chain_l, chain_z):
             self.assertTrue(all([b.can_connect(b.read_header(i), False) for i in range(b.height())]))
 
+    def get_chains_that_contain_header_helper(self, header: dict):
+        height = header['block_height']
+        header_hash = hash_header(header)
+        return blockchain.get_chains_that_contain_header(height, header_hash)
+
+    def test_get_chains_that_contain_header(self):
+        blockchain.blockchains[constants.net.GENESIS] = chain_u = Blockchain(
+            config=self.config, forkpoint=0, parent=None,
+            forkpoint_hash=constants.net.GENESIS, prev_hash=None)
+        open(chain_u.path(), 'w+').close()
+        self._append_header(chain_u, self.HEADERS['A'])
+        self._append_header(chain_u, self.HEADERS['B'])
+        self._append_header(chain_u, self.HEADERS['C'])
+        self._append_header(chain_u, self.HEADERS['D'])
+        self._append_header(chain_u, self.HEADERS['E'])
+        self._append_header(chain_u, self.HEADERS['F'])
+        self._append_header(chain_u, self.HEADERS['O'])
+        self._append_header(chain_u, self.HEADERS['P'])
+        self._append_header(chain_u, self.HEADERS['Q'])
+
+        chain_l = chain_u.fork(self.HEADERS['G'])
+        self._append_header(chain_l, self.HEADERS['H'])
+        self._append_header(chain_l, self.HEADERS['I'])
+        self._append_header(chain_l, self.HEADERS['J'])
+        self._append_header(chain_l, self.HEADERS['K'])
+        self._append_header(chain_l, self.HEADERS['L'])
+
+        chain_z = chain_l.fork(self.HEADERS['M'])
+
+        self.assertEqual([chain_l, chain_z, chain_u], self.get_chains_that_contain_header_helper(self.HEADERS['A']))
+        self.assertEqual([chain_l, chain_z, chain_u], self.get_chains_that_contain_header_helper(self.HEADERS['C']))
+        self.assertEqual([chain_l, chain_z, chain_u], self.get_chains_that_contain_header_helper(self.HEADERS['F']))
+        self.assertEqual([chain_l, chain_z], self.get_chains_that_contain_header_helper(self.HEADERS['G']))
+        self.assertEqual([chain_l, chain_z], self.get_chains_that_contain_header_helper(self.HEADERS['I']))
+        self.assertEqual([chain_z], self.get_chains_that_contain_header_helper(self.HEADERS['M']))
+        self.assertEqual([chain_l], self.get_chains_that_contain_header_helper(self.HEADERS['K']))
+
+        self._append_header(chain_z, self.HEADERS['N'])
+        self._append_header(chain_z, self.HEADERS['X'])
+        self._append_header(chain_z, self.HEADERS['Y'])
+        self._append_header(chain_z, self.HEADERS['Z'])
+
+        self.assertEqual([chain_z, chain_l, chain_u], self.get_chains_that_contain_header_helper(self.HEADERS['A']))
+        self.assertEqual([chain_z, chain_l, chain_u], self.get_chains_that_contain_header_helper(self.HEADERS['C']))
+        self.assertEqual([chain_z, chain_l, chain_u], self.get_chains_that_contain_header_helper(self.HEADERS['F']))
+        self.assertEqual([chain_u], self.get_chains_that_contain_header_helper(self.HEADERS['O']))
+        self.assertEqual([chain_z, chain_l], self.get_chains_that_contain_header_helper(self.HEADERS['I']))
+
 
 class TestVerifyHeader(ElectrumTestCase):
 

@@ -1,3 +1,5 @@
-PyQt5<5.12
-pycryptodomex
-PyQt5-sip<=4.19.13
+PyQt5
+
+# we need at least cryptography>=2.1 for electrum.crypto,
+# and at least cryptography>=2.6 for dnspython[DNSSEC]
+cryptography>=2.6

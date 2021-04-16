@@ -3,7 +3,9 @@ import getpass
 import datetime
 import logging
 
+from electrum import util
 from electrum import WalletStorage, Wallet
+from electrum.wallet_db import WalletDB
 from electrum.util import format_satoshis
 from electrum.bitcoin import is_address, COIN
 from electrum.transaction import PartialTxOutput
@@ -29,6 +31,8 @@ class ElectrumGui:
             password = getpass.getpass('Password:', stream=None)
             storage.decrypt(password)
 
+        db = WalletDB(storage.read(), manual_upgrades=False)
+
         self.done = 0
         self.last_balance = ""
 
@@ -39,11 +43,11 @@ class ElectrumGui:
         self.str_amount = ""
         self.str_fee = ""
 
-        self.wallet = Wallet(storage, config=config)
+        self.wallet = Wallet(db, storage, config=config)
         self.wallet.start_network(self.network)
         self.contacts = self.wallet.contacts
 
-        self.network.register_callback(self.on_network, ['wallet_updated', 'network_updated', 'banner'])
+        util.register_callback(self.on_network, ['wallet_updated', 'network_updated', 'banner'])
         self.commands = [_("[h] - displays this help text"), \
                          _("[i] - display transaction history"), \
                          _("[o] - enter payment order"), \
@@ -52,7 +56,7 @@ class ElectrumGui:
                          _("[r] - show own receipt addresses"), \
                          _("[c] - display contacts"), \
                          _("[b] - print server banner"), \
-                         _("[q] - quit") ]
+                         _("[q] - quit")]
         self.num_commands = len(self.commands)
 
     def on_network(self, event, *args):
@@ -104,11 +108,11 @@ class ElectrumGui:
             else:
                 time_str = 'unconfirmed'
 
-            label = self.wallet.get_label(hist_item.txid)
+            label = self.wallet.get_label_for_txid(hist_item.txid)
             messages.append(format_str % (time_str, label, format_satoshis(delta, whitespaces=True),
                                           format_satoshis(hist_item.balance, whitespaces=True)))
 
-        self.print_list(messages[::-1], format_str%( _("Date"), _("Description"), _("Amount"), _("Balance")))
+        self.print_list(messages[::-1], format_str%(_("Date"), _("Description"), _("Amount"), _("Balance")))
 
 
     def print_balance(self):
@@ -117,7 +121,7 @@ class ElectrumGui:
     def get_balance(self):
         if self.wallet.network.is_connected():
             if not self.wallet.up_to_date:
-                msg = _( "Synchronizing..." )
+                msg = _("Synchronizing...")
             else:
                 c, u, x =  self.wallet.get_balance()
                 msg = _("Balance")+": %f  "%(Decimal(c) / COIN)
@@ -126,7 +130,7 @@ class ElectrumGui:
                 if x:
                     msg += "  [%f unmatured]"%(Decimal(x) / COIN)
         else:
-                msg = _( "Not connected" )
+                msg = _("Not connected")
 
         return(msg)
 
@@ -136,7 +140,7 @@ class ElectrumGui:
         self.print_list(messages, "%19s  %25s "%("Key", "Value"))
 
     def print_addresses(self):
-        messages = map(lambda addr: "%30s    %30s       "%(addr, self.wallet.labels.get(addr,"")), self.wallet.get_addresses())
+        messages = map(lambda addr: "%30s    %30s       "%(addr, self.wallet.get_label(addr)), self.wallet.get_addresses())
         self.print_list(messages, "%19s  %25s "%("Address", "Label"))
 
     def print_order(self):
@@ -153,8 +157,8 @@ class ElectrumGui:
         self.do_send()
 
     def print_banner(self):
-        for i, x in enumerate( self.wallet.network.banner.split('\n') ):
-            print( x )
+        for i, x in enumerate(self.wallet.network.banner.split('\n')):
+            print(x)
 
     def print_list(self, lst, firstline):
         lst = list(lst)
@@ -205,7 +209,7 @@ class ElectrumGui:
             return
 
         if self.str_description:
-            self.wallet.labels[tx.txid()] = self.str_description
+            self.wallet.set_label(tx.txid(), self.str_description)
 
         print(_("Please wait..."))
         try:

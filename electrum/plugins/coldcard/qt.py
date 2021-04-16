@@ -5,8 +5,10 @@ import copy
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QPushButton, QLabel, QVBoxLayout, QWidget, QGridLayout
 
-from electrum.gui.qt.util import WindowModalDialog, CloseButton, get_parent_main_window, Buttons
+from electrum.gui.qt.util import (WindowModalDialog, CloseButton, Buttons, getOpenFileName,
+                                  getSaveFileName)
 from electrum.gui.qt.transaction_dialog import TxDialog
+from electrum.gui.qt.main_window import ElectrumWindow
 
 from electrum.i18n import _
 from electrum.plugin import hook
@@ -57,36 +59,23 @@ class Plugin(ColdcardPlugin, QtPluginBase):
         btn = QPushButton(_("Export for Coldcard"))
         btn.clicked.connect(lambda unused: self.export_multisig_setup(main_window, wallet))
 
-        return Buttons(btn, CloseButton(dialog))
+        return btn
 
     def export_multisig_setup(self, main_window, wallet):
 
         basename = wallet.basename().rsplit('.', 1)[0]        # trim .json
         name = f'{basename}-cc-export.txt'.replace(' ', '-')
-        fileName = main_window.getSaveFileName(_("Select where to save the setup file"),
-                                                        name, "*.txt")
+        fileName = getSaveFileName(
+            parent=main_window,
+            title=_("Select where to save the setup file"),
+            filename=name,
+            filter="*.txt",
+            config=self.config,
+        )
         if fileName:
             with open(fileName, "wt") as f:
                 ColdcardPlugin.export_ms_wallet(wallet, f, basename)
             main_window.show_message(_("Wallet setup file exported successfully"))
-
-    @hook
-    def transaction_dialog(self, dia: TxDialog):
-        # if not a Coldcard wallet, hide feature
-        if not any(type(ks) == self.keystore_class for ks in dia.wallet.get_keystores()):
-            return
-
-        def gettx_for_coldcard_export() -> PartialTransaction:
-            if not isinstance(dia.tx, PartialTransaction):
-                raise Exception("Can only export partial transactions for {}.".format(self.device))
-            tx = copy.deepcopy(dia.tx)
-            tx.add_info_from_wallet(dia.wallet, include_xpubs_and_full_paths=True)
-            return tx
-
-        # add a new "export" option
-        export_submenu = dia.export_actions_menu.addMenu(_("For {}; include xpubs").format(self.device))
-        dia.add_export_actions_to_menu(export_submenu, gettx=gettx_for_coldcard_export)
-        dia.psbt_only_widgets.append(export_submenu)
 
     def show_settings_dialog(self, window, keystore):
         # When they click on the icon for CC we come here.
@@ -95,15 +84,10 @@ class Plugin(ColdcardPlugin, QtPluginBase):
 
 
 class Coldcard_Handler(QtHandlerBase):
-    setup_signal = pyqtSignal()
-    #auth_signal = pyqtSignal(object)
 
     def __init__(self, win):
         super(Coldcard_Handler, self).__init__(win, 'Coldcard')
-        self.setup_signal.connect(self.setup_dialog)
-        #self.auth_signal.connect(self.auth_dialog)
 
-    
     def message_dialog(self, msg):
         self.clear_dialog()
         self.dialog = dialog = WindowModalDialog(self.top_level_window(), _("Coldcard Status"))
@@ -111,20 +95,11 @@ class Coldcard_Handler(QtHandlerBase):
         vbox = QVBoxLayout(dialog)
         vbox.addWidget(l)
         dialog.show()
-        
-    def get_setup(self):
-        self.done.clear()
-        self.setup_signal.emit()
-        self.done.wait()
-        return 
-        
-    def setup_dialog(self):
-        self.show_error(_('Please initialize your Coldcard while disconnected.'))
-        return
+
 
 class CKCCSettingsDialog(WindowModalDialog):
 
-    def __init__(self, window, plugin, keystore):
+    def __init__(self, window: ElectrumWindow, plugin, keystore):
         title = _("{} Settings").format(plugin.device)
         super(CKCCSettingsDialog, self).__init__(window, title)
         self.setMaximumWidth(540)
@@ -136,6 +111,8 @@ class CKCCSettingsDialog(WindowModalDialog):
         #handler = keystore.handler
         self.thread = thread = keystore.thread
         self.keystore = keystore
+        assert isinstance(window, ElectrumWindow), f"{type(window)}"
+        self.window = window
 
         def connect_and_doit():
             # Attempt connection to device, or raise.
@@ -159,7 +136,7 @@ class CKCCSettingsDialog(WindowModalDialog):
 <br><a href="https://coldcardwallet.com">coldcardwallet.com</a>''')
         title.setTextInteractionFlags(Qt.LinksAccessibleByMouse)
 
-        grid.addWidget(title , 0,0, 1,2, Qt.AlignHCenter)
+        grid.addWidget(title, 0,0, 1,2, Qt.AlignHCenter)
         y = 3
 
         rows = [
@@ -220,10 +197,14 @@ class CKCCSettingsDialog(WindowModalDialog):
 
     def start_upgrade(self, client):
         # ask for a filename (must have already downloaded it)
-        mw = get_parent_main_window(self)
         dev = client.dev
 
-        fileName = mw.getOpenFileName("Select upgraded firmware file", "*.dfu")
+        fileName = getOpenFileName(
+            parent=self,
+            title="Select upgraded firmware file",
+            filter="*.dfu",
+            config=self.window.config,
+        )
         if not fileName:
             return
 
@@ -249,7 +230,7 @@ class CKCCSettingsDialog(WindowModalDialog):
             if magic != FW_HEADER_MAGIC:
                 raise ValueError("Bad magic")
         except Exception as exc:
-            mw.show_error("Does not appear to be a Coldcard firmware file.\n\n%s" % exc)
+            self.window.show_error("Does not appear to be a Coldcard firmware file.\n\n%s" % exc)
             return
 
         # TODO: 
@@ -257,7 +238,7 @@ class CKCCSettingsDialog(WindowModalDialog):
         # - warn them about the reboot?
         # - length checks
         # - add progress local bar
-        mw.show_message("Ready to Upgrade.\n\nBe patient. Unit will reboot itself when complete.")
+        self.window.show_message("Ready to Upgrade.\n\nBe patient. Unit will reboot itself when complete.")
 
         def doit():
             dlen, _ = dev.upload_file(firmware, verify=True)

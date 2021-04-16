@@ -10,6 +10,7 @@ import os
 import platform
 from typing import Optional
 import copy
+import subprocess
 
 
 class LogFormatterForFiles(logging.Formatter):
@@ -58,25 +59,13 @@ def _shorten_name_of_logrecord(record: logging.LogRecord) -> logging.LogRecord:
     return record
 
 
-# enable logs universally (including for other libraries)
-root_logger = logging.getLogger()
-root_logger.setLevel(logging.WARNING)
-
-# log to stderr; by default only WARNING and higher
-console_stderr_handler = logging.StreamHandler(sys.stderr)
-console_stderr_handler.setFormatter(console_formatter)
-console_stderr_handler.setLevel(logging.WARNING)
-root_logger.addHandler(console_stderr_handler)
-
-# creates a logger specifically for electrum library
-electrum_logger = logging.getLogger("electrum")
-electrum_logger.setLevel(logging.DEBUG)
-
-
 def _delete_old_logs(path, keep=10):
     files = sorted(list(pathlib.Path(path).glob("electrum_log_*.log")), reverse=True)
     for f in files[keep:]:
-        os.remove(str(f))
+        try:
+            os.remove(str(f))
+        except OSError as e:
+            _logger.warning(f"cannot delete old logfile: {e}")
 
 
 _logfile_path = None
@@ -91,7 +80,7 @@ def _configure_file_logging(log_directory: pathlib.Path):
     PID = os.getpid()
     _logfile_path = log_directory / f"electrum_log_{timestamp}_{PID}.log"
 
-    file_handler = logging.FileHandler(_logfile_path)
+    file_handler = logging.FileHandler(_logfile_path, encoding='utf-8')
     file_handler.setFormatter(file_formatter)
     file_handler.setLevel(logging.DEBUG)
     root_logger.addHandler(file_handler)
@@ -185,6 +174,21 @@ class ShortcutFilteringFilter(logging.Filter):
             return False
 
 
+# enable logs universally (including for other libraries)
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.WARNING)
+
+# log to stderr; by default only WARNING and higher
+console_stderr_handler = logging.StreamHandler(sys.stderr)
+console_stderr_handler.setFormatter(console_formatter)
+console_stderr_handler.setLevel(logging.WARNING)
+root_logger.addHandler(console_stderr_handler)
+
+# creates a logger specifically for electrum library
+electrum_logger = logging.getLogger("electrum")
+electrum_logger.setLevel(logging.DEBUG)
+
+
 # --- External API
 
 def get_logger(name: str) -> logging.Logger:
@@ -232,10 +236,13 @@ def configure_logging(config):
     verbosity_shortcuts = config.get('verbosity_shortcuts')
     _configure_verbosity(verbosity=verbosity, verbosity_shortcuts=verbosity_shortcuts)
 
+    log_to_file = config.get('log_to_file', False)
     is_android = 'ANDROID_DATA' in os.environ
-    if is_android or not config.get('log_to_file', False):
-        pass  # disable file logging
-    else:
+    if is_android:
+        from jnius import autoclass
+        build_config = autoclass("org.electrum.electrum.BuildConfig")
+        log_to_file |= bool(build_config.DEBUG)
+    if log_to_file:
         log_directory = pathlib.Path(config.path) / "logs"
         _configure_file_logging(log_directory)
 
@@ -265,3 +272,14 @@ def describe_os_version() -> str:
         return "Android {} on {} {} ({})".format(bv.RELEASE, b.BRAND, b.DEVICE, b.DISPLAY)
     else:
         return platform.platform()
+
+
+def get_git_version() -> Optional[str]:
+    dir = os.path.dirname(os.path.realpath(__file__))
+    try:
+        version = subprocess.check_output(
+            ['git', 'describe', '--always', '--dirty'], cwd=dir)
+        version = str(version, "utf8").strip()
+    except Exception:
+        version = None
+    return version

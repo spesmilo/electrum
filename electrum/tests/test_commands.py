@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from electrum.util import create_and_start_event_loop
 from electrum.commands import Commands, eval_bool
-from electrum import storage
+from electrum import storage, wallet
 from electrum.wallet import restore_wallet_from_text
 from electrum.simple_config import SimpleConfig
 
@@ -77,8 +77,8 @@ class TestCommands(ElectrumTestCase):
             for xkey2, xtype2 in xprvs:
                 self.assertEqual(xkey2, cmds._run('convert_xkey', (xkey1, xtype2)))
 
-    @mock.patch.object(storage.WalletStorage, '_write')
-    def test_encrypt_decrypt(self, mock_write):
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    def test_encrypt_decrypt(self, mock_save_db):
         wallet = restore_wallet_from_text('p2wpkh:L4rYY5QpfN6wJEF4SEKDpcGhTPnCe9zcGs6hiSnhpprZqVywFifN',
                                           path='if_this_exists_mocking_failed_648151893',
                                           config=self.config)['wallet']
@@ -88,8 +88,8 @@ class TestCommands(ElectrumTestCase):
         ciphertext = cmds._run('encrypt', (pubkey, cleartext))
         self.assertEqual(cleartext, cmds._run('decrypt', (pubkey, ciphertext), wallet=wallet))
 
-    @mock.patch.object(storage.WalletStorage, '_write')
-    def test_export_private_key_imported(self, mock_write):
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    def test_export_private_key_imported(self, mock_save_db):
         wallet = restore_wallet_from_text('p2wpkh:L4rYY5QpfN6wJEF4SEKDpcGhTPnCe9zcGs6hiSnhpprZqVywFifN p2wpkh:L4jkdiXszG26SUYvwwJhzGwg37H2nLhrbip7u6crmgNeJysv5FHL',
                                           path='if_this_exists_mocking_failed_648151893',
                                           config=self.config)['wallet']
@@ -103,12 +103,12 @@ class TestCommands(ElectrumTestCase):
                          cmds._run('getprivatekeys', ("bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw",), wallet=wallet))
         # list of addresses tests
         with self.assertRaises(Exception):
-            cmds._run('getprivatekeys', (['bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', 'asd'], ), wallet=wallet)
+            cmds._run('getprivatekeys', (['bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', 'asd'],), wallet=wallet)
         self.assertEqual(['p2wpkh:L4jkdiXszG26SUYvwwJhzGwg37H2nLhrbip7u6crmgNeJysv5FHL', 'p2wpkh:L4rYY5QpfN6wJEF4SEKDpcGhTPnCe9zcGs6hiSnhpprZqVywFifN'],
-                         cmds._run('getprivatekeys', (['bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', 'bc1q9pzjpjq4nqx5ycnywekcmycqz0wjp2nq604y2n'], ), wallet=wallet))
+                         cmds._run('getprivatekeys', (['bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', 'bc1q9pzjpjq4nqx5ycnywekcmycqz0wjp2nq604y2n'],), wallet=wallet))
 
-    @mock.patch.object(storage.WalletStorage, '_write')
-    def test_export_private_key_deterministic(self, mock_write):
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    def test_export_private_key_deterministic(self, mock_save_db):
         wallet = restore_wallet_from_text('bitter grass shiver impose acquire brush forget axis eager alone wine silver',
                                           gap_limit=2,
                                           path='if_this_exists_mocking_failed_648151893',
@@ -125,7 +125,7 @@ class TestCommands(ElectrumTestCase):
         with self.assertRaises(Exception):
             cmds._run('getprivatekeys', (['bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af', 'asd'],), wallet=wallet)
         self.assertEqual(['p2wpkh:L15oxP24NMNAXxq5r2aom24pHPtt3Fet8ZutgL155Bad93GSubM2', 'p2wpkh:L4rYY5QpfN6wJEF4SEKDpcGhTPnCe9zcGs6hiSnhpprZqVywFifN'],
-                         cmds._run('getprivatekeys', (['bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af', 'bc1q9pzjpjq4nqx5ycnywekcmycqz0wjp2nq604y2n'], ), wallet=wallet))
+                         cmds._run('getprivatekeys', (['bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af', 'bc1q9pzjpjq4nqx5ycnywekcmycqz0wjp2nq604y2n'],), wallet=wallet))
 
 
 class TestCommandsTestnet(TestCaseForTestnet):
@@ -167,16 +167,62 @@ class TestCommandsTestnet(TestCaseForTestnet):
                 {
                     "prevout_hash": "9d221a69ca3997cbeaf5624d723e7dc5f829b1023078c177d37bdae95f37c539",
                     "prevout_n": 1,
-                    "value": 1000000,
+                    "value_sats": 1000000,
                     "privkey": "p2wpkh:cVDXzzQg6RoCTfiKpe8MBvmm5d5cJc6JLuFApsFDKwWa6F5TVHpD"
                 }
             ],
             "outputs": [
                 {
                     "address": "tb1q4s8z6g5jqzllkgt8a4har94wl8tg0k9m8kv5zd",
-                    "value": 990000
+                    "value_sats": 990000
                 }
             ]
         }
-        self.assertEqual("0200000000010139c5375fe9da7bd377c1783002b129f8c57d3e724d62f5eacb9739ca691a229d0100000000feffffff01301b0f0000000000160014ac0e2d229200bffb2167ed6fd196aef9d687d8bb02483045022100fa88a9e7930b2af269fd0a5cb7fbbc3d0a05606f3ac6ea8a40686ebf02fdd85802203dd19603b4ee8fdb81d40185572027686f70ea299c6a3e22bc2545e1396398b20121021f110909ded653828a254515b58498a6bafc96799fb0851554463ed44ca7d9da00000000",
+        self.assertEqual("0200000000010139c5375fe9da7bd377c1783002b129f8c57d3e724d62f5eacb9739ca691a229d0100000000feffffff01301b0f0000000000160014ac0e2d229200bffb2167ed6fd196aef9d687d8bb0247304402206367fb2ddd723985f5f51e0f2435084c0a66f5c26f4403a75d3dd417b71a20450220545dc3637bcb49beedbbdf5063e05cad63be91af4f839886451c30ecd6edf1d20121021f110909ded653828a254515b58498a6bafc96799fb0851554463ed44ca7d9da00000000",
                          cmds._run('serialize', (jsontx,)))
+
+    def test_serialize_custom_nsequence(self):
+        cmds = Commands(config=self.config)
+        jsontx = {
+            "inputs": [
+                {
+                    "prevout_hash": "9d221a69ca3997cbeaf5624d723e7dc5f829b1023078c177d37bdae95f37c539",
+                    "prevout_n": 1,
+                    "value_sats": 1000000,
+                    "privkey": "p2wpkh:cVDXzzQg6RoCTfiKpe8MBvmm5d5cJc6JLuFApsFDKwWa6F5TVHpD",
+                    "nsequence": 0xfffffffd
+                }
+            ],
+            "outputs": [
+                {
+                    "address": "tb1q4s8z6g5jqzllkgt8a4har94wl8tg0k9m8kv5zd",
+                    "value_sats": 990000
+                }
+            ]
+        }
+        self.assertEqual("0200000000010139c5375fe9da7bd377c1783002b129f8c57d3e724d62f5eacb9739ca691a229d0100000000fdffffff01301b0f0000000000160014ac0e2d229200bffb2167ed6fd196aef9d687d8bb0247304402201c551df0458528d19ba1dd79b134dcf0055f7b029dfc3d0d024e6253d069d13e02206d03cfc85a6fc648acb6fc6be630e4567d1dd00ddbcdee551ee0711414e2f33f0121021f110909ded653828a254515b58498a6bafc96799fb0851554463ed44ca7d9da00000000",
+                         cmds._run('serialize', (jsontx,)))
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    def test_getprivatekeyforpath(self, mock_save_db):
+        wallet = restore_wallet_from_text('north rent dawn bunker hamster invest wagon market romance pig either squeeze',
+                                          gap_limit=2,
+                                          path='if_this_exists_mocking_failed_648151893',
+                                          config=self.config)['wallet']
+        cmds = Commands(config=self.config)
+        self.assertEqual("p2wpkh:cUzm7zPpWgLYeURgff4EsoMjhskCpsviBH4Y3aZcrBX8UJSRPjC2",
+                         cmds._run('getprivatekeyforpath', ([0, 10000],), wallet=wallet))
+        self.assertEqual("p2wpkh:cUzm7zPpWgLYeURgff4EsoMjhskCpsviBH4Y3aZcrBX8UJSRPjC2",
+                         cmds._run('getprivatekeyforpath', ("m/0/10000",), wallet=wallet))
+        self.assertEqual("p2wpkh:cQAj4WGf1socCPCJNMjXYCJ8Bs5JUAk5pbDr4ris44QdgAXcV24S",
+                         cmds._run('getprivatekeyforpath', ("m/5h/100000/88h/7",), wallet=wallet))
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    def test_signtransaction_without_wallet(self, mock_save_db):
+        dummy_wallet = restore_wallet_from_text(
+            '9dk', gap_limit=2, path='if_this_exists_mocking_failed_648151893', config=self.config)['wallet']
+        cmds = Commands(config=self.config)
+        unsigned_tx = "70736274ff0100a0020000000221d3645ba44f33fff6fe2666dc080279bc34b531c66888729712a80b204a32a10100000000fdffffffdd7f90d51acf98dc45ad7489316a983868c75e16bf14ffeb9eae01603a7b4da40100000000fdffffff02e8030000000000001976a9149a9ec2b35a7660c80dae38dd806fdf9b0fde68fd88ac74c11000000000001976a914f0dc093f7fb1b76cfd06610d5359d6595676cc2b88aca79b1d00000100e102000000018ba8cf9f0ff0b44c389e4a1cd25c0770636d95ccef161e313542647d435a5fd0000000006a4730440220373b3989905177f2e36d7e3d02b967d03092747fe7bbd3ba7b2c24623a88538c02207be79ee1d981060c2be6783f4946ce1bda1f64671b349ef14a4a6fecc047a71e0121030de43c5ed4c6272d20ce3becf3fb7afd5c3ccfb5d58ddfdf3047981e0b005e0dfdffffff02c0010700000000001976a9141cd3eb65bce2cae9f54544b65e46b3ad1f0b187288ac40420f00000000001976a914f0dc093f7fb1b76cfd06610d5359d6595676cc2b88ac979b1d00000100e102000000014e39236158716e91b0b2170ebe9d6b359d139e9ebfff163f2bafd0bec9890d04000000006a473044022070340deb95ca25ef86c4c7a9539b5c8f7b8351941635450311f914cd9c2f45ea02203fa7576e032ab5ae4763c78f5c2124573213c956286fd766582d9462515dc6540121033f6737e40a3a6087bc58bc5b82b427f9ed26d710b8fe2f70bfdd3d62abebcf74fdffffff02e8030000000000001976a91490350959750b3b38e451df16bd5957b7649bf5d288acac840100000000001976a914f0dc093f7fb1b76cfd06610d5359d6595676cc2b88ac979b1d00000000"
+        privkey = "cVtE728tULSA4gut4QWxo218q6PRsXHQAv84SXix83cuvScvGd1H"
+        self.assertEqual("020000000221d3645ba44f33fff6fe2666dc080279bc34b531c66888729712a80b204a32a1010000006a47304402205b30e188e30c846f98dacc714c16b7cd3a58a3fa24973d289683c9d32813e24c0220153855a29e96fb083084417ba3e3873ccaeb08435dad93773ab60716f94a36160121033f6737e40a3a6087bc58bc5b82b427f9ed26d710b8fe2f70bfdd3d62abebcf74fdffffffdd7f90d51acf98dc45ad7489316a983868c75e16bf14ffeb9eae01603a7b4da4010000006a473044022010daa3dadf53bdcb071c6eff6b8787e3f675ed61feb4fef72d0bf9d99c0162f802200e73abd880b6f2ee5fe8c0abab731f1dddeb0f60df5e050a79c365bd718da1c80121033f6737e40a3a6087bc58bc5b82b427f9ed26d710b8fe2f70bfdd3d62abebcf74fdffffff02e8030000000000001976a9149a9ec2b35a7660c80dae38dd806fdf9b0fde68fd88ac74c11000000000001976a914f0dc093f7fb1b76cfd06610d5359d6595676cc2b88aca79b1d00",
+                         cmds._run('signtransaction', (), tx=unsigned_tx, privkey=privkey, wallet=dummy_wallet))

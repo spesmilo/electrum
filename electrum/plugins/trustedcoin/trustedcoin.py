@@ -36,7 +36,6 @@ from urllib.parse import quote
 from aiohttp import ClientResponse
 
 from electrum import ecc, constants, keystore, version, bip32, bitcoin
-from electrum.bitcoin import TYPE_ADDRESS
 from electrum.bip32 import BIP32Node, xpub_type
 from electrum.crypto import sha256
 from electrum.transaction import PartialTxOutput, PartialTxInput, PartialTransaction, Transaction
@@ -49,8 +48,6 @@ from electrum.storage import StorageEncryptionVersion
 from electrum.network import Network
 from electrum.base_wizard import BaseWizard, WizardWalletPasswordSetting
 from electrum.logging import Logger
-
-from .legacy_tx_format import serialize_tx_in_legacy_format
 
 
 def get_signing_xpub(xtype):
@@ -265,17 +262,17 @@ class Wallet_2fa(Multisig_Wallet):
 
     wallet_type = '2fa'
 
-    def __init__(self, storage, *, config):
+    def __init__(self, db, storage, *, config):
         self.m, self.n = 2, 3
-        Deterministic_Wallet.__init__(self, storage, config=config)
+        Deterministic_Wallet.__init__(self, db, storage, config=config)
         self.is_billing = False
         self.billing_info = None
         self._load_billing_addresses()
 
     def _load_billing_addresses(self):
         billing_addresses = {
-            'legacy': self.storage.get('trustedcoin_billing_addresses', {}),
-            'segwit': self.storage.get('trustedcoin_billing_addresses_segwit', {})
+            'legacy': self.db.get('trustedcoin_billing_addresses', {}),
+            'segwit': self.db.get('trustedcoin_billing_addresses_segwit', {})
         }
         self._billing_addresses = {}  # type: Dict[str, Dict[int, str]]  # addr_type -> index -> addr
         self._billing_addresses_set = set()  # set of addrs
@@ -290,7 +287,7 @@ class Wallet_2fa(Multisig_Wallet):
         return not self.keystores['x2/'].is_watching_only()
 
     def get_user_id(self):
-        return get_user_id(self.storage)
+        return get_user_id(self.db)
 
     def min_prepay(self):
         return min(self.price_per_tx.keys())
@@ -318,11 +315,17 @@ class Wallet_2fa(Multisig_Wallet):
             raise Exception('too high trustedcoin fee ({} for {} txns)'.format(price, n))
         return price
 
-    def make_unsigned_transaction(self, *, coins: Sequence[PartialTxInput],
-                                  outputs: List[PartialTxOutput], fee=None,
-                                  change_addr: str = None, is_sweep=False) -> PartialTransaction:
+    def make_unsigned_transaction(
+            self, *,
+            coins: Sequence[PartialTxInput],
+            outputs: List[PartialTxOutput],
+            fee=None,
+            change_addr: str = None,
+            is_sweep=False,
+            rbf=False) -> PartialTransaction:
+
         mk_tx = lambda o: Multisig_Wallet.make_unsigned_transaction(
-            self, coins=coins, outputs=o, fee=fee, change_addr=change_addr)
+            self, coins=coins, outputs=o, fee=fee, change_addr=change_addr, rbf=rbf)
         extra_fee = self.extra_fee() if not is_sweep else 0
         if extra_fee:
             address = self.billing_info['billing_address_segwit']
@@ -346,7 +349,8 @@ class Wallet_2fa(Multisig_Wallet):
             return
         otp = int(otp)
         long_user_id, short_id = self.get_user_id()
-        raw_tx = serialize_tx_in_legacy_format(tx, wallet=self)
+        raw_tx = tx.serialize_as_bytes().hex()
+        assert raw_tx[:10] == "70736274ff", f"bad magic. {raw_tx[:10]}"
         try:
             r = server.sign(short_id, raw_tx, otp)
         except TrustedCoinException as e:
@@ -384,10 +388,10 @@ class Wallet_2fa(Multisig_Wallet):
         billing_addresses_of_this_type[billing_index] = address
         self._billing_addresses_set.add(address)
         self._billing_addresses[addr_type] = billing_addresses_of_this_type
-        self.storage.put('trustedcoin_billing_addresses', self._billing_addresses['legacy'])
-        self.storage.put('trustedcoin_billing_addresses_segwit', self._billing_addresses['segwit'])
+        self.db.put('trustedcoin_billing_addresses', self._billing_addresses['legacy'])
+        self.db.put('trustedcoin_billing_addresses_segwit', self._billing_addresses['segwit'])
         # FIXME this often runs in a daemon thread, where storage.write will fail
-        self.storage.write()
+        self.db.write(self.storage)
 
     def is_billing_address(self, addr: str) -> bool:
         return addr in self._billing_addresses_set
@@ -395,11 +399,11 @@ class Wallet_2fa(Multisig_Wallet):
 
 # Utility functions
 
-def get_user_id(storage):
+def get_user_id(db):
     def make_long_id(xpub_hot, xpub_cold):
         return sha256(''.join(sorted([xpub_hot, xpub_cold])))
-    xpub1 = storage.get('x1/')['xpub']
-    xpub2 = storage.get('x2/')['xpub']
+    xpub1 = db.get('x1/')['xpub']
+    xpub2 = db.get('x2/')['xpub']
     long_id = make_long_id(xpub1, xpub2)
     short_id = hashlib.sha256(long_id).hexdigest()
     return long_id, short_id
@@ -459,13 +463,16 @@ class TrustedCoinPlugin(BasePlugin):
             return
         if wallet.can_sign_without_server():
             return
-        if not wallet.keystores['x3/'].get_tx_derivations(tx):
+        if not wallet.keystores['x3/'].can_sign(tx, ignore_watching_only=True):
             self.logger.info("twofactor: xpub3 not needed")
             return
         def wrapper(tx):
             assert tx
             self.prompt_user_for_otp(wallet, tx, on_success, on_failure)
         return wrapper
+
+    def prompt_user_for_otp(self, wallet, tx, on_success, on_failure) -> None:
+        raise NotImplementedError()
 
     @hook
     def get_tx_extra_fee(self, wallet, tx: Transaction):
@@ -523,7 +530,7 @@ class TrustedCoinPlugin(BasePlugin):
     def make_seed(self, seed_type):
         if not is_any_2fa_seed_type(seed_type):
             raise Exception(f'unexpected seed type: {seed_type}')
-        return Mnemonic('english').make_seed(seed_type=seed_type, num_bits=128)
+        return Mnemonic('english').make_seed(seed_type=seed_type)
 
     @hook
     def do_clear(self, window):
@@ -544,18 +551,14 @@ class TrustedCoinPlugin(BasePlugin):
         wizard.choice_dialog(title=title, message=message, choices=choices, run_next=wizard.run)
 
     def choose_seed_type(self, wizard):
-        choices = [
-            ('create_2fa_segwit_seed', _('Segwit 2FA')),
-            ('create_2fa_seed', _('Legacy 2FA')),
-        ]
-        wizard.choose_seed_type(choices=choices)
-
-    def create_2fa_seed(self, wizard): self.create_seed(wizard, '2fa')
-    def create_2fa_segwit_seed(self, wizard): self.create_seed(wizard, '2fa_segwit')
+        seed_type = '2fa' if self.config.get('nosegwit') else '2fa_segwit'
+        self.create_seed(wizard, seed_type)
 
     def create_seed(self, wizard, seed_type):
         seed = self.make_seed(seed_type)
         f = lambda x: wizard.request_passphrase(seed, x)
+        wizard.opt_bip39 = False
+        wizard.opt_ext = True
         wizard.show_seed_dialog(run_next=f, seed_text=seed)
 
     @classmethod
@@ -574,20 +577,25 @@ class TrustedCoinPlugin(BasePlugin):
             raise Exception(f'unexpected seed type: {t}')
         words = seed.split()
         n = len(words)
-        # old version use long seed phrases
-        if n >= 20:
-            # note: pre-2.7 2fa seeds were typically 24-25 words, however they
-            # could probabilistically be arbitrarily shorter due to a bug. (see #3611)
-            # the probability of it being < 20 words is about 2^(-(256+12-19*11)) = 2^(-59)
-            if passphrase != '':
-                raise Exception('old 2fa seed cannot have passphrase')
-            xprv1, xpub1 = self.get_xkeys(' '.join(words[0:12]), t, '', "m/")
-            xprv2, xpub2 = self.get_xkeys(' '.join(words[12:]), t, '', "m/")
-        elif not t == '2fa' or n == 12:
+        if t == '2fa':
+            if n >= 20:  # old scheme
+                # note: pre-2.7 2fa seeds were typically 24-25 words, however they
+                # could probabilistically be arbitrarily shorter due to a bug. (see #3611)
+                # the probability of it being < 20 words is about 2^(-(256+12-19*11)) = 2^(-59)
+                if passphrase != '':
+                    raise Exception('old 2fa seed cannot have passphrase')
+                xprv1, xpub1 = self.get_xkeys(' '.join(words[0:12]), t, '', "m/")
+                xprv2, xpub2 = self.get_xkeys(' '.join(words[12:]), t, '', "m/")
+            elif n == 12:  # new scheme
+                xprv1, xpub1 = self.get_xkeys(seed, t, passphrase, "m/0'/")
+                xprv2, xpub2 = self.get_xkeys(seed, t, passphrase, "m/1'/")
+            else:
+                raise Exception(f'unrecognized seed length for "2fa" seed: {n}')
+        elif t == '2fa_segwit':
             xprv1, xpub1 = self.get_xkeys(seed, t, passphrase, "m/0'/")
             xprv2, xpub2 = self.get_xkeys(seed, t, passphrase, "m/1'/")
         else:
-            raise Exception('unrecognized seed length: {} words'.format(n))
+            raise Exception(f'unexpected seed type: {t}')
         return xprv1, xpub1, xprv2, xpub2
 
     def create_keystore(self, wizard, seed, passphrase):
@@ -670,7 +678,7 @@ class TrustedCoinPlugin(BasePlugin):
             r = server.create(xpub1, xpub2, email)
         except (socket.error, ErrorConnectingServer):
             wizard.show_message('Server not reachable, aborting')
-            wizard.terminate()
+            wizard.terminate(aborted=True)
             return
         except TrustedCoinException as e:
             if e.status_code == 409:
@@ -720,10 +728,10 @@ class TrustedCoinPlugin(BasePlugin):
                 self.request_otp_dialog(wizard, short_id, None, xpub3)
             else:
                 wizard.show_message(str(e))
-                wizard.terminate()
+                wizard.terminate(aborted=True)
         except Exception as e:
             wizard.show_message(repr(e))
-            wizard.terminate()
+            wizard.terminate(aborted=True)
         else:
             k3 = keystore.from_xpub(xpub3)
             wizard.data['x3/'] = k3.dump()
@@ -754,12 +762,12 @@ class TrustedCoinPlugin(BasePlugin):
         self.request_otp_dialog(wizard, short_id, new_secret, xpub3)
 
     @hook
-    def get_action(self, storage):
-        if storage.get('wallet_type') != '2fa':
+    def get_action(self, db):
+        if db.get('wallet_type') != '2fa':
             return
-        if not storage.get('x1/'):
+        if not db.get('x1/'):
             return self, 'show_disclaimer'
-        if not storage.get('x2/'):
+        if not db.get('x2/'):
             return self, 'show_disclaimer'
-        if not storage.get('x3/'):
+        if not db.get('x3/'):
             return self, 'accept_terms_of_use'

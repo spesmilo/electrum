@@ -24,22 +24,28 @@
 # SOFTWARE.
 
 from enum import IntEnum
+from typing import Optional, TYPE_CHECKING
 
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
-from PyQt5.QtWidgets import QMenu
-from PyQt5.QtCore import Qt, QItemSelectionModel
+from PyQt5.QtWidgets import QMenu, QAbstractItemView
+from PyQt5.QtCore import Qt, QItemSelectionModel, QModelIndex
 
 from electrum.i18n import _
-from electrum.util import format_time, get_request_status
-from electrum.util import PR_TYPE_ONCHAIN, PR_TYPE_LN
-from electrum.util import PR_PAID
+from electrum.util import format_time
+from electrum.invoices import PR_TYPE_ONCHAIN, PR_TYPE_LN, LNInvoice, OnchainInvoice
 from electrum.plugin import run_hook
+from electrum.invoices import Invoice
 
-from .util import MyTreeView, pr_icons, read_QIcon, webopen
+from .util import MyTreeView, pr_icons, read_QIcon, webopen, MySortModel
+
+if TYPE_CHECKING:
+    from .main_window import ElectrumWindow
 
 
 ROLE_REQUEST_TYPE = Qt.UserRole
 ROLE_KEY = Qt.UserRole + 1
+ROLE_SORT_ORDER = Qt.UserRole + 2
+
 
 class RequestList(MyTreeView):
 
@@ -57,14 +63,19 @@ class RequestList(MyTreeView):
     }
     filter_columns = [Columns.DATE, Columns.DESCRIPTION, Columns.AMOUNT]
 
-    def __init__(self, parent):
+    def __init__(self, parent: 'ElectrumWindow'):
         super().__init__(parent, self.create_menu,
                          stretch_column=self.Columns.DESCRIPTION,
                          editable_columns=[])
-        self.setModel(QStandardItemModel(self))
+        self.wallet = self.parent.wallet
+        self.std_model = QStandardItemModel(self)
+        self.proxy = MySortModel(self, sort_role=ROLE_SORT_ORDER)
+        self.proxy.setSourceModel(self.std_model)
+        self.setModel(self.proxy)
         self.setSortingEnabled(True)
-        self.update()
         self.selectionModel().currentRowChanged.connect(self.item_changed)
+        self.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.update()
 
     def select_key(self, key):
         for i in range(self.model().rowCount()):
@@ -74,99 +85,135 @@ class RequestList(MyTreeView):
                 self.selectionModel().setCurrentIndex(item, QItemSelectionModel.SelectCurrent | QItemSelectionModel.Rows)
                 break
 
-    def item_changed(self, idx):
+    def item_changed(self, idx: Optional[QModelIndex]):
+        if idx is None:
+            self.parent.receive_payreq_e.setText('')
+            self.parent.receive_address_e.setText('')
+            return
+        if not idx.isValid():
+            return
         # TODO use siblingAtColumn when min Qt version is >=5.11
-        item = self.model().itemFromIndex(idx.sibling(idx.row(), self.Columns.DATE))
-        request_type = item.data(ROLE_REQUEST_TYPE)
+        item = self.item_from_index(idx.sibling(idx.row(), self.Columns.DATE))
         key = item.data(ROLE_KEY)
         req = self.wallet.get_request(key)
         if req is None:
             self.update()
             return
-        is_lightning = request_type == PR_TYPE_LN
-        text = req.get('invoice') if is_lightning else req.get('address')
-        self.parent.receive_address_e.setText(text)
+        if req.is_lightning():
+            self.parent.receive_payreq_e.setText(req.invoice)  # TODO maybe prepend "lightning:" ??
+            self.parent.receive_address_e.setText(req.invoice)
+        else:
+            self.parent.receive_payreq_e.setText(self.parent.wallet.get_request_URI(req))
+            self.parent.receive_address_e.setText(req.get_address())
+        self.parent.receive_payreq_e.repaint()  # macOS hack (similar to #4777)
+        self.parent.receive_address_e.repaint()  # macOS hack (similar to #4777)
+
+    def clearSelection(self):
+        super().clearSelection()
+        self.selectionModel().clearCurrentIndex()
 
     def refresh_status(self):
-        m = self.model()
+        m = self.std_model
         for r in range(m.rowCount()):
             idx = m.index(r, self.Columns.STATUS)
             date_idx = idx.sibling(idx.row(), self.Columns.DATE)
             date_item = m.itemFromIndex(date_idx)
             status_item = m.itemFromIndex(idx)
             key = date_item.data(ROLE_KEY)
-            is_lightning = date_item.data(ROLE_REQUEST_TYPE) == PR_TYPE_LN
             req = self.wallet.get_request(key)
             if req:
-                status, status_str = get_request_status(req)
+                status = self.parent.wallet.get_request_status(key)
+                status_str = req.get_status_str(status)
                 status_item.setText(status_str)
                 status_item.setIcon(read_QIcon(pr_icons.get(status)))
 
+    def update_item(self, key, invoice: Invoice):
+        model = self.std_model
+        for row in range(0, model.rowCount()):
+            item = model.item(row, 0)
+            if item.data(ROLE_KEY) == key:
+                break
+        else:
+            return
+        status_item = model.item(row, self.Columns.STATUS)
+        status = self.parent.wallet.get_request_status(key)
+        status_str = invoice.get_status_str(status)
+        status_item.setText(status_str)
+        status_item.setIcon(read_QIcon(pr_icons.get(status)))
+
     def update(self):
-        self.wallet = self.parent.wallet
-        domain = self.wallet.get_receiving_addresses()
+        # not calling maybe_defer_update() as it interferes with conditional-visibility
         self.parent.update_receive_address_styling()
-        self.model().clear()
+        self.proxy.setDynamicSortFilter(False)  # temp. disable re-sorting after every change
+        self.std_model.clear()
         self.update_headers(self.__class__.headers)
-        for req in self.wallet.get_sorted_requests():
-            status, status_str = get_request_status(req)
-            if status == PR_PAID:
-                continue
-            request_type = req['type']
-            timestamp = req.get('time', 0)
-            expiration = req.get('exp', None)
-            amount = req.get('amount')
-            message = req.get('message') or req.get('memo')
+        for req in self.wallet.get_unpaid_requests():
+            key = self.wallet.get_key_for_receive_request(req)
+            status = self.parent.wallet.get_request_status(key)
+            status_str = req.get_status_str(status)
+            request_type = req.type
+            timestamp = req.time
+            amount = req.get_amount_sat()
+            message = req.message
             date = format_time(timestamp)
             amount_str = self.parent.format_amount(amount) if amount else ""
             labels = [date, message, amount_str, status_str]
-            if request_type == PR_TYPE_LN:
-                key = req['rhash']
+            if req.is_lightning():
                 icon = read_QIcon("lightning.png")
                 tooltip = 'lightning request'
-            elif request_type == PR_TYPE_ONCHAIN:
-                key = req['address']
+            else:
                 icon = read_QIcon("bitcoin.png")
                 tooltip = 'onchain request'
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
             items[self.Columns.DATE].setData(request_type, ROLE_REQUEST_TYPE)
             items[self.Columns.DATE].setData(key, ROLE_KEY)
+            items[self.Columns.DATE].setData(timestamp, ROLE_SORT_ORDER)
             items[self.Columns.DATE].setIcon(icon)
             items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
             items[self.Columns.DATE].setToolTip(tooltip)
-            self.model().insertRow(self.model().rowCount(), items)
+            self.std_model.insertRow(self.std_model.rowCount(), items)
         self.filter()
+        self.proxy.setDynamicSortFilter(True)
         # sort requests by date
-        self.model().sort(self.Columns.DATE)
+        self.sortByColumn(self.Columns.DATE, Qt.DescendingOrder)
         # hide list if empty
         if self.parent.isVisible():
-            b = self.model().rowCount() > 0
+            b = self.std_model.rowCount() > 0
             self.setVisible(b)
             self.parent.receive_requests_label.setVisible(b)
+            if not b:
+                # list got hidden, so selected item should also be cleared:
+                self.item_changed(None)
 
     def create_menu(self, position):
+        items = self.selected_in_column(0)
+        if len(items)>1:
+            keys = [item.data(ROLE_KEY)  for item in items]
+            menu = QMenu(self)
+            menu.addAction(_("Delete requests"), lambda: self.parent.delete_requests(keys))
+            menu.exec_(self.viewport().mapToGlobal(position))
+            return
         idx = self.indexAt(position)
-        item = self.model().itemFromIndex(idx)
         # TODO use siblingAtColumn when min Qt version is >=5.11
-        item = self.model().itemFromIndex(idx.sibling(idx.row(), self.Columns.DATE))
+        item = self.item_from_index(idx.sibling(idx.row(), self.Columns.DATE))
         if not item:
             return
         key = item.data(ROLE_KEY)
-        request_type = item.data(ROLE_REQUEST_TYPE)
         req = self.wallet.get_request(key)
         if req is None:
             self.update()
             return
         menu = QMenu(self)
         self.add_copy_menu(menu, idx)
-        if request_type == PR_TYPE_LN:
-            menu.addAction(_("Copy Request"), lambda: self.parent.do_copy(req['invoice'], title='Lightning Request'))
+        if req.is_lightning():
+            menu.addAction(_("Copy Request"), lambda: self.parent.do_copy(req.invoice, title='Lightning Request'))
         else:
-            menu.addAction(_("Copy Request"), lambda: self.parent.do_copy(req['URI'], title='Navcoin URI'))
-            menu.addAction(_("Copy Address"), lambda: self.parent.do_copy(req['address'], title='Navcoin Address'))
-        if 'view_url' in req:
-            menu.addAction(_("View in web browser"), lambda: webopen(req['view_url']))
-        menu.addAction(_("Delete"), lambda: self.parent.delete_request(key))
-        run_hook('receive_list_menu', menu, key)
+            URI = self.wallet.get_request_URI(req)
+            menu.addAction(_("Copy Request"), lambda: self.parent.do_copy(URI, title='Navcoin URI'))
+            menu.addAction(_("Copy Address"), lambda: self.parent.do_copy(req.get_address(), title='Navcoin Address'))
+        #if 'view_url' in req:
+        #    menu.addAction(_("View in web browser"), lambda: webopen(req['view_url']))
+        menu.addAction(_("Delete"), lambda: self.parent.delete_requests([key]))
+        run_hook('receive_list_menu', self.parent, menu, key)
         menu.exec_(self.viewport().mapToGlobal(position))

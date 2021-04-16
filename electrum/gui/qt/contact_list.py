@@ -34,7 +34,7 @@ from electrum.bitcoin import is_address
 from electrum.util import block_explorer_URL
 from electrum.plugin import run_hook
 
-from .util import MyTreeView, import_meta_gui, export_meta_gui, webopen
+from .util import MyTreeView, webopen
 
 
 class ContactList(MyTreeView):
@@ -63,12 +63,6 @@ class ContactList(MyTreeView):
         self.parent.set_contact(text, user_role)
         self.update()
 
-    def import_contacts(self):
-        import_meta_gui(self.parent, _('contacts'), self.parent.contacts.import_file, self.update)
-
-    def export_contacts(self):
-        export_meta_gui(self.parent, _('contacts'), self.parent.contacts.export_file)
-
     def create_menu(self, position):
         menu = QMenu()
         idx = self.indexAt(position)
@@ -79,8 +73,8 @@ class ContactList(MyTreeView):
             selected_keys.append(sel_key)
         if not selected_keys or not idx.isValid():
             menu.addAction(_("New contact"), lambda: self.parent.new_contact_dialog())
-            menu.addAction(_("Import file"), lambda: self.import_contacts())
-            menu.addAction(_("Export file"), lambda: self.export_contacts())
+            menu.addAction(_("Import file"), lambda: self.parent.import_contacts())
+            menu.addAction(_("Export file"), lambda: self.parent.export_contacts())
         else:
             column_title = self.model().horizontalHeaderItem(column).text()
             column_data = '\n'.join(self.model().itemFromIndex(s_idx).text()
@@ -102,6 +96,8 @@ class ContactList(MyTreeView):
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def update(self):
+        if self.maybe_defer_update():
+            return
         current_key = self.current_item_user_role(col=self.Columns.NAME)
         self.model().clear()
         self.update_headers(self.__class__.headers)

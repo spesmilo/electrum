@@ -49,6 +49,7 @@ Builder.load_string('''
                 amount: ''
                 fiat_amount: ''
                 is_fiat: False
+                is_max: False
                 on_fiat_amount: if self.is_fiat: self.amount = app.fiat_to_btc(self.fiat_amount)
                 on_amount: if not self.is_fiat: self.fiat_amount = app.btc_to_fiat(self.amount)
                 size_hint: 1, None
@@ -92,6 +93,7 @@ Builder.load_string('''
                     on_release:
                         kb.is_fiat = False
                         kb.amount = app.get_max_amount()
+                        kb.is_max = True
                 Button:
                     size_hint: 1, None
                     height: '48dp'
@@ -99,6 +101,7 @@ Builder.load_string('''
                     on_release:
                         kb.amount = ''
                         kb.fiat_amount = ''
+                        kb.is_max = False
             Widget:
                 size_hint: 1, 0.2
             BoxLayout:
@@ -112,7 +115,7 @@ Builder.load_string('''
                     height: '48dp'
                     text: _('OK')
                     on_release:
-                        root.callback(btc.text if kb.amount else '')
+                        root.callback('!' if kb.is_max else btc.text if kb.amount else '')
                         popup.dismiss()
 ''')
 

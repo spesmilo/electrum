@@ -4,11 +4,10 @@ import sys
 from typing import NamedTuple, Any, Optional, Dict, Union, List, Tuple, TYPE_CHECKING
 
 from electrum.util import bfh, bh2u, versiontuple, UserCancelled, UserFacingException
-from electrum.bitcoin import TYPE_ADDRESS, TYPE_SCRIPT
 from electrum.bip32 import BIP32Node
 from electrum import constants
 from electrum.i18n import _
-from electrum.plugin import Device
+from electrum.plugin import Device, runs_in_hwd_thread
 from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
 from electrum.keystore import Hardware_KeyStore
 from electrum.base_wizard import ScriptTypeNotSupported
@@ -36,6 +35,7 @@ class SafeTKeyStore(Hardware_KeyStore):
     def decrypt_message(self, sequence, message, password):
         raise UserFacingException(_('Encryption and decryption are not implemented by {}').format(self.device))
 
+    @runs_in_hwd_thread
     def sign_message(self, sequence, message, password):
         client = self.get_client()
         address_path = self.get_derivation_prefix() + "/%d/%d"%sequence
@@ -43,6 +43,7 @@ class SafeTKeyStore(Hardware_KeyStore):
         msg_sig = client.sign_message(self.plugin.get_coin_name(), address_n, message)
         return msg_sig.signature
 
+    @runs_in_hwd_thread
     def sign_transaction(self, tx, password):
         if tx.is_complete():
             return
@@ -50,7 +51,7 @@ class SafeTKeyStore(Hardware_KeyStore):
         prev_tx = {}
         for txin in tx.inputs():
             tx_hash = txin.prevout.txid.hex()
-            if txin.utxo is None and not Transaction.is_segwit_input(txin):
+            if txin.utxo is None and not txin.is_segwit():
                 raise UserFacingException(_('Missing previous tx for legacy input.'))
             prev_tx[tx_hash] = txin.utxo
 
@@ -97,6 +98,7 @@ class SafeTPlugin(HW_PluginBase):
         except AttributeError:
             return 'unknown'
 
+    @runs_in_hwd_thread
     def enumerate(self):
         devices = self.transport_handler.enumerate_devices()
         return [Device(path=d.get_path(),
@@ -107,6 +109,7 @@ class SafeTPlugin(HW_PluginBase):
                        transport_ui_string=d.get_path())
                 for d in devices]
 
+    @runs_in_hwd_thread
     def create_client(self, device, handler):
         try:
             self.logger.info(f"connecting to device at {device.path}")
@@ -142,11 +145,12 @@ class SafeTPlugin(HW_PluginBase):
 
         return client
 
-    def get_client(self, keystore, force_pair=True) -> Optional['SafeTClient']:
-        devmgr = self.device_manager()
-        handler = keystore.handler
-        with devmgr.hid_lock:
-            client = devmgr.client_for_keystore(self, handler, keystore, force_pair)
+    @runs_in_hwd_thread
+    def get_client(self, keystore, force_pair=True, *,
+                   devices=None, allow_user_interaction=True) -> Optional['SafeTClient']:
+        client = super().get_client(keystore, force_pair,
+                                    devices=devices,
+                                    allow_user_interaction=allow_user_interaction)
         # returns the client for a given keystore. can use xpub
         if client:
             client.used()
@@ -199,6 +203,7 @@ class SafeTPlugin(HW_PluginBase):
         finally:
             wizard.loop.exit(exit_code)
 
+    @runs_in_hwd_thread
     def _initialize_device(self, settings, method, device_id, wizard, handler):
         item, label, pin_protection, passphrase_protection = settings
 
@@ -251,25 +256,19 @@ class SafeTPlugin(HW_PluginBase):
         return self.types.HDNodePathType(node=node, address_n=address_n)
 
     def setup_device(self, device_info, wizard, purpose):
-        devmgr = self.device_manager()
         device_id = device_info.device.id_
-        client = devmgr.client_by_id(device_id)
-        if client is None:
-            raise UserFacingException(_('Failed to create a client for this device.') + '\n' +
-                                      _('Make sure it is in the correct state.'))
-        # fixme: we should use: client.handler = wizard
-        client.handler = self.create_handler(wizard)
+        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
         if not device_info.initialized:
             self.initialize_device(device_id, wizard, client.handler)
-        client.get_xpub('m', 'standard')
+        wizard.run_task_without_blocking_gui(
+            task=lambda: client.get_xpub("m", 'standard'))
         client.used()
+        return client
 
     def get_xpub(self, device_id, derivation, xtype, wizard):
         if xtype not in self.SUPPORTED_XTYPES:
             raise ScriptTypeNotSupported(_('This type of script is not supported with {}.').format(self.device))
-        devmgr = self.device_manager()
-        client = devmgr.client_by_id(device_id)
-        client.handler = wizard
+        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
         xpub = client.get_xpub(derivation, xtype)
         client.used()
         return xpub
@@ -279,9 +278,9 @@ class SafeTPlugin(HW_PluginBase):
             return self.types.InputScriptType.SPENDWITNESS
         if electrum_txin_type in ('p2wpkh-p2sh', 'p2wsh-p2sh'):
             return self.types.InputScriptType.SPENDP2SHWITNESS
-        if electrum_txin_type in ('p2pkh', ):
+        if electrum_txin_type in ('p2pkh',):
             return self.types.InputScriptType.SPENDADDRESS
-        if electrum_txin_type in ('p2sh', ):
+        if electrum_txin_type in ('p2sh',):
             return self.types.InputScriptType.SPENDMULTISIG
         raise ValueError('unexpected txin type: {}'.format(electrum_txin_type))
 
@@ -290,12 +289,13 @@ class SafeTPlugin(HW_PluginBase):
             return self.types.OutputScriptType.PAYTOWITNESS
         if electrum_txin_type in ('p2wpkh-p2sh', 'p2wsh-p2sh'):
             return self.types.OutputScriptType.PAYTOP2SHWITNESS
-        if electrum_txin_type in ('p2pkh', ):
+        if electrum_txin_type in ('p2pkh',):
             return self.types.OutputScriptType.PAYTOADDRESS
-        if electrum_txin_type in ('p2sh', ):
+        if electrum_txin_type in ('p2sh',):
             return self.types.OutputScriptType.PAYTOMULTISIG
         raise ValueError('unexpected txin type: {}'.format(electrum_txin_type))
 
+    @runs_in_hwd_thread
     def sign_transaction(self, keystore, tx: PartialTransaction, prev_tx):
         self.prev_tx = prev_tx
         client = self.get_client(keystore)
@@ -306,6 +306,7 @@ class SafeTPlugin(HW_PluginBase):
         signatures = [(bh2u(x) + '01') for x in signatures]
         tx.update_signatures(signatures)
 
+    @runs_in_hwd_thread
     def show_address(self, wallet, address, keystore=None):
         if keystore is None:
             keystore = wallet.get_keystore()
@@ -339,7 +340,7 @@ class SafeTPlugin(HW_PluginBase):
         inputs = []
         for txin in tx.inputs():
             txinputtype = self.types.TxInputType()
-            if txin.is_coinbase():
+            if txin.is_coinbase_input():
                 prev_hash = b"\x00"*32
                 prev_index = 0xffffffff  # signed int -1
             else:

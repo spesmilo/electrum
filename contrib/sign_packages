@@ -1,5 +1,4 @@
-#!/usr/bin/python2
-
+#!/usr/bin/env python3
 import os
 import getpass
 
@@ -10,9 +9,6 @@ if __name__ == '__main__':
     for f in os.listdir('.'):
         if f.endswith('asc'):
             continue
-        os.system( "gpg --sign --armor --detach --passphrase \"%s\" %s"%(password, f) )
+        os.system("gpg --sign --armor --detach --passphrase \"%s\" %s"%(password, f))
 
     os.chdir("..")
-
-
-

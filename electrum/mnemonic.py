@@ -27,10 +27,10 @@ import math
 import hashlib
 import unicodedata
 import string
+from typing import Sequence, Dict
+from types import MappingProxyType
 
-import ecdsa
-
-from .util import resource_path, bfh, bh2u
+from .util import resource_path, bfh, bh2u, randrange
 from .crypto import hmac_oneshot
 from . import version
 from .logging import Logger
@@ -45,7 +45,7 @@ CJK_INTERVALS = [
     (0x2B740, 0x2B81F, 'CJK Unified Ideographs Extension D'),
     (0xF900, 0xFAFF, 'CJK Compatibility Ideographs'),
     (0x2F800, 0x2FA1D, 'CJK Compatibility Ideographs Supplement'),
-    (0x3190, 0x319F , 'Kanbun'),
+    (0x3190, 0x319F, 'Kanbun'),
     (0x2E80, 0x2EFF, 'CJK Radicals Supplement'),
     (0x2F00, 0x2FDF, 'CJK Radicals'),
     (0x31C0, 0x31EF, 'CJK Strokes'),
@@ -90,28 +90,48 @@ def normalize_text(seed: str) -> str:
     return seed
 
 
-_WORDLIST_CACHE = {}
+_WORDLIST_CACHE = {}  # type: Dict[str, Wordlist]
 
 
-def load_wordlist(filename) -> tuple:
-    path = resource_path('wordlist', filename)
-    if path not in _WORDLIST_CACHE:
-        with open(path, 'r', encoding='utf-8') as f:
-            s = f.read().strip()
-        s = unicodedata.normalize('NFKD', s)
-        lines = s.split('\n')
-        wordlist = []
-        for line in lines:
-            line = line.split('#')[0]
-            line = line.strip(' \r')
-            assert ' ' not in line
-            if line:
-                wordlist.append(line)
+class Wordlist(tuple):
 
-        # wordlists shouldn't be mutated, but just in case,
-        # convert it to a tuple
-        _WORDLIST_CACHE[path] = tuple(wordlist)
-    return _WORDLIST_CACHE[path]
+    def __init__(self, words: Sequence[str]):
+        super().__init__()
+        index_from_word = {w: i for i, w in enumerate(words)}
+        self._index_from_word = MappingProxyType(index_from_word)  # no mutation
+
+    def index(self, word, start=None, stop=None) -> int:
+        try:
+            return self._index_from_word[word]
+        except KeyError as e:
+            raise ValueError from e
+
+    def __contains__(self, word) -> bool:
+        try:
+            self.index(word)
+        except ValueError:
+            return False
+        else:
+            return True
+
+    @classmethod
+    def from_file(cls, filename) -> 'Wordlist':
+        path = resource_path('wordlist', filename)
+        if path not in _WORDLIST_CACHE:
+            with open(path, 'r', encoding='utf-8') as f:
+                s = f.read().strip()
+            s = unicodedata.normalize('NFKD', s)
+            lines = s.split('\n')
+            words = []
+            for line in lines:
+                line = line.split('#')[0]
+                line = line.strip(' \r')
+                assert ' ' not in line
+                if line:
+                    words.append(line)
+
+            _WORDLIST_CACHE[path] = Wordlist(words)
+        return _WORDLIST_CACHE[path]
 
 
 filenames = {
@@ -132,8 +152,7 @@ class Mnemonic(Logger):
         lang = lang or 'en'
         self.logger.info(f'language {lang}')
         filename = filenames.get(lang[0:2], 'english.txt')
-        self.wordlist = load_wordlist(filename)
-        self.wordlist_indexes = {w: i for i, w in enumerate(self.wordlist)}
+        self.wordlist = Wordlist.from_file(filename)
         self.logger.info(f"wordlist has {len(self.wordlist)} words")
 
     @classmethod
@@ -164,23 +183,25 @@ class Mnemonic(Logger):
         i = 0
         while words:
             w = words.pop()
-            k = self.wordlist_indexes[w]
+            k = self.wordlist.index(w)
             i = i*n + k
         return i
 
-    def make_seed(self, seed_type=None, *, num_bits=132):
+    def make_seed(self, *, seed_type=None, num_bits=None) -> str:
+        from .keystore import bip39_is_checksum_valid
         if seed_type is None:
             seed_type = 'segwit'
+        if num_bits is None:
+            num_bits = 132
         prefix = version.seed_prefix(seed_type)
         # increase num_bits in order to obtain a uniform distribution for the last word
         bpw = math.log(len(self.wordlist), 2)
-        # rounding
-        n = int(math.ceil(num_bits/bpw) * bpw)
-        self.logger.info(f"make_seed. prefix: '{prefix}', entropy: {n} bits")
+        num_bits = int(math.ceil(num_bits/bpw) * bpw)
+        self.logger.info(f"make_seed. prefix: '{prefix}', entropy: {num_bits} bits")
         entropy = 1
-        while entropy < pow(2, n - bpw):
+        while entropy < pow(2, num_bits - bpw):
             # try again if seed would not contain enough words
-            entropy = ecdsa.util.randrange(pow(2, n))
+            entropy = randrange(pow(2, num_bits))
         nonce = 0
         while True:
             nonce += 1
@@ -189,6 +210,11 @@ class Mnemonic(Logger):
             if i != self.mnemonic_decode(seed):
                 raise Exception('Cannot extract same entropy from mnemonic!')
             if is_old_seed(seed):
+                continue
+            # Make sure the mnemonic we generate is not also a valid bip39 seed
+            # by accident. Note that this test has not always been done historically,
+            # so it cannot be relied upon.
+            if bip39_is_checksum_valid(seed, wordlist=self.wordlist) == (True, True):
                 continue
             if is_new_seed(seed, prefix):
                 break
@@ -221,13 +247,17 @@ def is_old_seed(seed: str) -> bool:
 
 
 def seed_type(x: str) -> str:
+    num_words = len(x.split())
     if is_old_seed(x):
         return 'old'
-    elif is_new_seed(x):
+    elif is_new_seed(x, version.SEED_PREFIX):
         return 'standard'
     elif is_new_seed(x, version.SEED_PREFIX_SW):
         return 'segwit'
-    elif is_new_seed(x, version.SEED_PREFIX_2FA):
+    elif is_new_seed(x, version.SEED_PREFIX_2FA) and (num_words == 12 or num_words >= 20):
+        # Note: in Electrum 2.7, there was a breaking change in key derivation
+        #       for this seed type. Unfortunately the seed version/prefix was reused,
+        #       and now we can only distinguish them based on number of words. :(
         return '2fa'
     elif is_new_seed(x, version.SEED_PREFIX_2FA_SW):
         return '2fa_segwit'

@@ -1,26 +1,21 @@
 from typing import NamedTuple, Union
 
 from electrum import transaction, bitcoin
-from electrum.transaction import convert_raw_tx_to_hex, tx_from_any, Transaction, PartialTransaction
-from electrum.bitcoin import TYPE_ADDRESS
+from electrum.transaction import (convert_raw_tx_to_hex, tx_from_any, Transaction,
+                                  PartialTransaction, TxOutpoint, PartialTxInput,
+                                  PartialTxOutput)
 from electrum.util import bh2u, bfh
-from electrum import keystore
-from electrum import bip32
-from electrum.mnemonic import seed_type
-from electrum.simple_config import SimpleConfig
-
-
-from electrum.plugins.trustedcoin import trustedcoin
-from electrum.plugins.trustedcoin.legacy_tx_format import serialize_tx_in_legacy_format
+from electrum.bitcoin import (deserialize_privkey, opcodes,
+                              construct_script, construct_witness)
+from electrum.ecc import ECPrivkey
 
 from . import ElectrumTestCase, TestCaseForTestnet
-from .test_bitcoin import needs_test_with_all_ecc_implementations
 
 signed_blob = '01000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf38633b424eb4031000000006c493046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d985012102e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6ffffffff0140420f00000000001976a914230ac37834073a42146f11ef8414ae929feaafc388ac00000000'
 v2_blob = "0200000001191601a44a81e061502b7bfbc6eaa1cef6d1e6af5308ef96c9342f71dbf4b9b5000000006b483045022100a6d44d0a651790a477e75334adfb8aae94d6612d01187b2c02526e340a7fd6c8022028bdf7a64a54906b13b145cd5dab21a26bd4b85d6044e9b97bceab5be44c2a9201210253e8e0254b0c95776786e40984c1aa32a7d03efa6bdacdea5f421b774917d346feffffff026b20fa04000000001976a914024db2e87dd7cfd0e5f266c5f212e21a31d805a588aca0860100000000001976a91421919b94ae5cefcdf0271191459157cdb41c4cbf88aca6240700"
 signed_segwit_blob = "01000000000101b66d722484f2db63e827ebf41d02684fed0c6550e85015a6c9d41ef216a8a6f00000000000fdffffff0280c3c90100000000160014b65ce60857f7e7892b983851c2a8e3526d09e4ab64bac30400000000160014c478ebbc0ab2097706a98e10db7cf101839931c4024730440220789c7d47f876638c58d98733c30ae9821c8fa82b470285dcdf6db5994210bf9f02204163418bbc44af701212ad42d884cc613f3d3d831d2d0cc886f767cca6e0235e012103083a6dc250816d771faa60737bfe78b23ad619f6b458e0a1f1688e3a0605e79c00000000"
 
-signed_blob_signatures = ['3046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d98501', ]
+signed_blob_signatures = ['3046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d98501',]
 
 class TestBCDataStream(ElectrumTestCase):
 
@@ -57,15 +52,32 @@ class TestBCDataStream(ElectrumTestCase):
 
     def test_bytes(self):
         s = transaction.BCDataStream()
+        with self.assertRaises(transaction.SerializationError):
+            s.read_bytes(1)
         s.write(b'foobar')
         self.assertEqual(s.read_bytes(3), b'foo')
         self.assertEqual(s.read_bytes(2), b'ba')
-        self.assertEqual(s.read_bytes(4), b'r')
-        self.assertEqual(s.read_bytes(1), b'')
+        with self.assertRaises(transaction.SerializationError):
+            s.read_bytes(4)
+        self.assertEqual(s.read_bytes(0), b'')
+        self.assertEqual(s.read_bytes(1), b'r')
+        self.assertEqual(s.read_bytes(0), b'')
+
+    def test_bool(self):
+        s = transaction.BCDataStream()
+        s.write(b'f\x00\x00b')
+        self.assertTrue(s.read_boolean())
+        self.assertFalse(s.read_boolean())
+        self.assertFalse(s.read_boolean())
+        self.assertTrue(s.read_boolean())
+        s.write_boolean(True)
+        s.write_boolean(False)
+        self.assertEqual(b'\x01\x00', s.read_bytes(2))
+        self.assertFalse(s.can_read_more())
+
 
 class TestTransaction(ElectrumTestCase):
 
-    @needs_test_with_all_ecc_implementations
     def test_tx_update_signatures(self):
         tx = tx_from_any("cHNidP8BAFUBAAAAASpcmpT83pj1WBzQAWLGChOTbOt1OJ6mW/OGM7Qk60AxAAAAAAD/////AUBCDwAAAAAAGXapFCMKw3g0BzpCFG8R74QUrpKf6q/DiKwAAAAAAAAA")
         tx.inputs()[0].script_type = 'p2pkh'
@@ -74,7 +86,18 @@ class TestTransaction(ElectrumTestCase):
         tx.update_signatures(signed_blob_signatures)
         self.assertEqual(tx.serialize(), signed_blob)
 
-    @needs_test_with_all_ecc_implementations
+    def test_tx_setting_locktime_invalidates_ser_cache(self):
+        tx = tx_from_any("cHNidP8BAJICAAAAAdAEtnw/IOVkr4oexG2xYnm+Vevsn3J7nbZsGpiBWS8MAQAAAAD9////A2Q5AwAAAAAAF6kUF6jKG6BuNVhq1RilflIDCitepw6H/NEEAAAAAAAXqRQx9SsFxDAaaOWbLB2ely1ZoZ61DYeIbQoAAAAAABYAFItCjFDsC28Z1R3tFaoi//pcInvnI3AZAAABAR+weRIAAAAAABYAFEK0I6qyqoA/lXCEgysQNZvqokaQIgYC9tgRn6/8hlDLEvEg3lKD1HmNim0gGRYwt4x3aJURIq4MqAq7DwEAAAAUAAAAAAAAIgICXYdVjyDIufLQ3yeDA4M8016luFER2SWaGPk6UF8CbuQMqAq7DwEAAAAXAAAAAA==")
+        self.assertEqual("2774c819a05e44861a0555401d2741e6c03079cc4d892c69b910c0f52f407859", tx.txid())
+        tx.locktime = 111222333
+        self.assertEqual("3d33a69c3f7717840b266c24ae1a6d29486820249b47261232e93ee118a6565b", tx.txid())
+
+    def test_tx_setting_version_invalidates_ser_cache(self):
+        tx = tx_from_any("cHNidP8BAJICAAAAAdAEtnw/IOVkr4oexG2xYnm+Vevsn3J7nbZsGpiBWS8MAQAAAAD9////A2Q5AwAAAAAAF6kUF6jKG6BuNVhq1RilflIDCitepw6H/NEEAAAAAAAXqRQx9SsFxDAaaOWbLB2ely1ZoZ61DYeIbQoAAAAAABYAFItCjFDsC28Z1R3tFaoi//pcInvnI3AZAAABAR+weRIAAAAAABYAFEK0I6qyqoA/lXCEgysQNZvqokaQIgYC9tgRn6/8hlDLEvEg3lKD1HmNim0gGRYwt4x3aJURIq4MqAq7DwEAAAAUAAAAAAAAIgICXYdVjyDIufLQ3yeDA4M8016luFER2SWaGPk6UF8CbuQMqAq7DwEAAAAXAAAAAA==")
+        self.assertEqual("2774c819a05e44861a0555401d2741e6c03079cc4d892c69b910c0f52f407859", tx.txid())
+        tx.version = 555
+        self.assertEqual("8a9b89a1a7aac1995dd013069d9866197d77c14c22315958d612fc02fd4b596a", tx.txid())
+
     def test_tx_deserialize_for_signed_network_tx(self):
         tx = transaction.Transaction(signed_blob)
         tx.deserialize()
@@ -103,7 +126,7 @@ class TestTransaction(ElectrumTestCase):
         self.assertEqual(tx.estimated_size(), 193)
 
     def test_estimated_output_size(self):
-        estimated_output_size = transaction.Transaction.estimated_output_size
+        estimated_output_size = transaction.Transaction.estimated_output_size_for_address
         self.assertEqual(estimated_output_size('14gcRovpkCoGkCNBivQBvw7eso7eiNAbxG'), 34)
         self.assertEqual(estimated_output_size('35ZqQJcBQMZ1rsv8aSuJ2wkC7ohUCQMJbT'), 32)
         self.assertEqual(estimated_output_size('bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af'), 31)
@@ -135,12 +158,13 @@ class TestTransaction(ElectrumTestCase):
         # the inverse of this test is in test_bitcoin: test_address_to_script
         addr_from_script = lambda script: transaction.get_address_from_output_script(bfh(script))
 
-        # bech32 native segwit
-        # test vectors from BIP-0173
+        # bech32/bech32m native segwit
+        # test vectors from BIP-0173/BIP-0350
         self.assertEqual('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4', addr_from_script('0014751e76e8199196d454941c45d1b3a323f1433bd6'))
-        self.assertEqual('bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7k7grplx', addr_from_script('5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6'))
-        self.assertEqual('bc1sw50qa3jx3s', addr_from_script('6002751e'))
-        self.assertEqual('bc1zw508d6qejxtdg4y5r3zarvaryvg6kdaj', addr_from_script('5210751e76e8199196d454941c45d1b3a323'))
+        self.assertEqual('bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7kt5nd6y', addr_from_script('5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6'))
+        self.assertEqual('bc1sw50qgdz25j', addr_from_script('6002751e'))
+        self.assertEqual('bc1zw508d6qejxtdg4y5r3zarvaryvaxxpcs', addr_from_script('5210751e76e8199196d454941c45d1b3a323'))
+        self.assertEqual('bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0', addr_from_script('512079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'))
         # almost but not quite
         self.assertEqual(None, addr_from_script('0013751e76e8199196d454941c45d1b3a323f1433b'))
 
@@ -824,54 +848,72 @@ class TestTransaction(ElectrumTestCase):
 # txns from Bitcoin Core ends <---
 
 
-class TestLegacyPartialTxFormat(TestCaseForTestnet):
+class TestTransactionTestnet(TestCaseForTestnet):
 
-    def setUp(self):
-        super().setUp()
-        self.config = SimpleConfig({'electrum_path': self.electrum_path})
+    def test_spending_op_cltv_p2sh(self):
+        # from https://github.com/brianddk/reddit/blob/8ca383c9e00cb5a4c1201d1bab534d5886d3cb8f/python/elec-p2sh-hodl.py
+        wif = 'cQNjiPwYKMBr2oB3bWzf3rgBsu198xb8Nxxe51k6D3zVTA98L25N'
+        sats = 9999
+        sats_less_fees = sats - 200
+        locktime = 1602565200
 
-    def test_trustedcoin_legacy_2fa_psbt_to_legacy_partial_tx(self):
-        from .test_wallet_vertical import WalletIntegrityHelper
-        seed_words = 'kiss live scene rude gate step hip quarter bunker oxygen motor glove'
-        self.assertEqual(seed_type(seed_words), '2fa')
+        # Build the Transaction Input
+        _, privkey, compressed = deserialize_privkey(wif)
+        pubkey = ECPrivkey(privkey).get_public_key_hex(compressed=compressed)
+        prevout = TxOutpoint(txid=bfh('6d500966f9e494b38a04545f0cea35fc7b3944e341a64b804fed71cdee11d434'), out_idx=1)
+        txin = PartialTxInput(prevout=prevout)
+        txin.nsequence = 2 ** 32 - 3
+        txin.script_type = 'p2sh'
+        redeem_script = bfh(construct_script([
+            locktime, opcodes.OP_CHECKLOCKTIMEVERIFY, opcodes.OP_DROP, pubkey, opcodes.OP_CHECKSIG,
+        ]))
+        txin.redeem_script = redeem_script
 
-        xprv1, xpub1, xprv2, xpub2 = trustedcoin.TrustedCoinPlugin.xkeys_from_seed(seed_words, '')
-        ks1 = keystore.from_xprv(xprv1)
-        ks2 = keystore.from_xprv(xprv2)
-        long_user_id, short_id = trustedcoin.get_user_id(
-            {'x1/': {'xpub': xpub1},
-             'x2/': {'xpub': xpub2}})
-        xtype = bip32.xpub_type(xpub1)
-        xpub3 = trustedcoin.make_xpub(trustedcoin.get_signing_xpub(xtype), long_user_id)
-        ks3 = keystore.from_xpub(xpub3)
+        # Build the Transaction Output
+        txout = PartialTxOutput.from_address_and_value(
+            'tb1qv9hg20f0g08d460l67ph6p4ukwt7m0ttqzj7mk', sats_less_fees)
 
-        wallet = WalletIntegrityHelper.create_multisig_wallet([ks1, ks2, ks3], '2of3', config=self.config)
+        # Build and sign the transaction
+        tx = PartialTransaction.from_io([txin], [txout], locktime=locktime, version=1)
+        sig = tx.sign_txin(0, privkey)
+        txin.script_sig = bfh(construct_script([sig, redeem_script]))
 
-        tx = tx_from_any('cHNidP8BAJQCAAAAAcqqxrXrkW4wZ9AiT5QvszHOHc+0Axz7R555Qdz5XkCYAQAAAAD9////A6CGAQAAAAAAFgAU+fBLRlKk9v89xVEm2xJ0kG1wcvNMCwMAAAAAABepFPKffLiXEB3Gmv1Y35uy5bTUM59Nh0ANAwAAAAAAGXapFPriyJZefiOenIisUU3nDewLDxYIiKwSKxgATwEENYfPAAAAAAAAAAAAnOMnCVq57ruCJ7c38H6PtmrwS48+kcQJPEh70w/ofCQCDSEN062A0pw2JKkYltX2G3th8zLexPfEVDGu74BeD6cEcH3xxE8BBDWHzwGCB4l2gAAAAJOfYJjOAH6kksFOokIboP3+8Gwhlzlxhl5uY7zokvfcAmGy8e8txy0wkx69/TgZFOMe1aZc2g1HCwrRQ9M9+Ph7CIIHiXYAAACATwEENYfPAYIHiXaAAAABb6EovcClpG/Hrxr9IF22IHGR1MQFG27b0GQTzcCxot8Dak5MvnvEZt1lN4TIazd0m+w+goApzqNMFWkJVv1hV28IggeJdgEAAIAAAQDfAgAAAAGcKHw7enlMh6IibIkEeKQlL5pUR2wKv6GC1NTd6KY8ggEAAABqRzBEAiBNHsG9H5z10eHHsIOe4kFdvnZK38E7Jx+Cmru14SdQ/gIgWngNYj/F8qHAhkdlU+BgY5ktAL2MeIUoqIJKXudcFRMBIQNU856KX8nmKx8+nbIRwjpRAvyMWroJGz+F6ADwzYv/GP3///8CnJ0HAAAAAAAZdqkUsQVAb+BbDci+RMeDa6WBLb9nTOiIrCChBwAAAAAAF6kULBYX0k+TbkDRSw3ylOy3u6rXUzeHEisYACICA/5C2rWHGOoEE/fI3mk83u4izhmx3DTAu916SCRUZcWiSDBFAiEA0Dw1yyk7Adp74Ndxztr6iR7V1wpnfPzNaWcTVva+vtwCIAsqV2xM0cZCSAdWzh/WYKyvC6UmGTowmeH4HN0BrSCTAQEEaVIhAgkfC02KswAWpdHAiCSeAog/rYFg8G+lNYithZhlCj5iIQNfL4JjuzYI1sxO4DvUy41lxNcK9xBJ8F+/7kl4gyof0iED/kLatYcY6gQT98jeaTze7iLOGbHcNMC73XpIJFRlxaJTriIGA/5C2rWHGOoEE/fI3mk83u4izhmx3DTAu916SCRUZcWiEIIHiXYAAACAAAAAAAAAAAAiBgIJHwtNirMAFqXRwIgkngKIP62BYPBvpTWIrYWYZQo+YhCCB4l2AQAAgAAAAAAAAAAAIgYDXy+CY7s2CNbMTuA71MuNZcTXCvcQSfBfv+5JeIMqH9IMcH3xxAAAAAAAAAAAAAABAGlSIQIqtnn9ouM3xAq7wIID09cdKpb9u/OMkI97kuU3wcTv/yEDTNFHFnZ1xmKGRQzFaUAT9DeDk2NdeWSrilc8w9BKjU4hA1joWoIBRYfeqDPrX/uT45hWkO5Lph7zLVsorVqhYXN/U64iAgNM0UcWdnXGYoZFDMVpQBP0N4OTY115ZKuKVzzD0EqNThCCB4l2AAAAgAEAAAAAAAAAIgICKrZ5/aLjN8QKu8CCA9PXHSqW/bvzjJCPe5LlN8HE7/8QggeJdgEAAIABAAAAAAAAACICA1joWoIBRYfeqDPrX/uT45hWkO5Lph7zLVsorVqhYXN/DHB98cQBAAAAAAAAAAAA')
-        tx.add_info_from_wallet(wallet)
-        raw_tx = serialize_tx_in_legacy_format(tx, wallet=wallet)
-        self.assertEqual('45505446ff000200000001caaac6b5eb916e3067d0224f942fb331ce1dcfb4031cfb479e7941dcf95e409801000000fd53010001ff01ff483045022100d03c35cb293b01da7be0d771cedafa891ed5d70a677cfccd69671356f6bebedc02200b2a576c4cd1c642480756ce1fd660acaf0ba526193a3099e1f81cdd01ad2093014d0201524c53ff043587cf0182078976800000016fa128bdc0a5a46fc7af1afd205db6207191d4c4051b6edbd06413cdc0b1a2df036a4e4cbe7bc466dd653784c86b37749bec3e828029cea34c15690956fd61576f000000004c53ff043587cf0000000000000000009ce327095ab9eebb8227b737f07e8fb66af04b8f3e91c4093c487bd30fe87c24020d210dd3ad80d29c3624a91896d5f61b7b61f332dec4f7c45431aeef805e0fa7000000004c53ff043587cf018207897680000000939f6098ce007ea492c14ea2421ba0fdfef06c21973971865e6e63bce892f7dc0261b2f1ef2dc72d30931ebdfd381914e31ed5a65cda0d470b0ad143d33df8f87b0000000053aefdffffff03a086010000000000160014f9f04b4652a4f6ff3dc55126db1274906d7072f34c0b03000000000017a914f29f7cb897101dc69afd58df9bb2e5b4d4339f4d87400d0300000000001976a914fae2c8965e7e239e9c88ac514de70dec0b0f160888ac122b1800',
-                         raw_tx)
+        # note: in testnet3 chain, signature differs (no low-R grinding),
+        # so txid there is: a8110bbdd40d65351f615897d98c33cbe33e4ebedb4ba2fc9e8c644423dadc93
+        self.assertEqual('3266138b0b79007f35ac9a1824e294763708bd4a6440b5c227f4e1251b66e92b',
+                         tx.txid())
 
-    def test_trustedcoin_segwit_2fa_psbt_to_legacy_partial_tx(self):
-        from .test_wallet_vertical import WalletIntegrityHelper
-        seed_words = 'universe topic remind silver february ranch shine worth innocent cattle enhance wise'
-        self.assertEqual(seed_type(seed_words), '2fa_segwit')
+    def test_spending_op_cltv_p2wsh(self):
+        wif = 'cSw3py1CQa2tmzzDm3ghQVrgqqNuFhUyBXjABge5j8KRxzd6kaFj'
+        sats = 99_878
+        sats_less_fees = sats - 300
+        locktime = 1602572140
 
-        xprv1, xpub1, xprv2, xpub2 = trustedcoin.TrustedCoinPlugin.xkeys_from_seed(seed_words, '')
-        ks1 = keystore.from_xprv(xprv1)
-        ks2 = keystore.from_xprv(xprv2)
-        long_user_id, short_id = trustedcoin.get_user_id(
-            {'x1/': {'xpub': xpub1},
-             'x2/': {'xpub': xpub2}})
-        xtype = bip32.xpub_type(xpub1)
-        xpub3 = trustedcoin.make_xpub(trustedcoin.get_signing_xpub(xtype), long_user_id)
-        ks3 = keystore.from_xpub(xpub3)
+        # Build the Transaction Input
+        _, privkey, compressed = deserialize_privkey(wif)
+        pubkey = ECPrivkey(privkey).get_public_key_hex(compressed=compressed)
+        witness_script = bfh(construct_script([
+            locktime, opcodes.OP_CHECKLOCKTIMEVERIFY, opcodes.OP_DROP, pubkey, opcodes.OP_CHECKSIG,
+        ]))
+        from_addr = bitcoin.script_to_p2wsh(witness_script.hex())
+        self.assertEqual("tb1q9dn6qke9924xe3zmptmhrdge0s043pjxpjndypgnu2t9fvsd4crs2qjuer", from_addr)
+        prevout = TxOutpoint(txid=bfh('8680971efd5203025cffe746f8598d0a704fae81f236ffe009c2609ec673d59a'), out_idx=0)
+        txin = PartialTxInput(prevout=prevout)
+        txin._trusted_value_sats = sats
+        txin.nsequence = 0
+        txin.script_sig = b''
+        txin.witness_script = witness_script
 
-        wallet = WalletIntegrityHelper.create_multisig_wallet([ks1, ks2, ks3], '2of3', config=self.config)
+        # Build the Transaction Output
+        txout = PartialTxOutput.from_address_and_value(
+            'tb1qtgsfkgptcxdn6dz6wh8c4dguk3cezwne5j5c47', sats_less_fees)
 
-        tx = tx_from_any('70736274ff01009f020000000187c4646ca690b397e357b23b2137030691a90a068a6690834d340b4be84acd6a0100000000fdffffff03a0860100000000001600148bc9d947e4d0addc2f4c34b8371034eb47b3d305140c030000000000220020a6087c4f84a55dc39014729a18e08955139d4384559d1fd2a48a1d95d746a425400d0300000000001976a914c13fd6294d1be7b9410a5538f4b4ef10fc594ee788ac132b18004f0102575483000000000000000000d644dcdd7a4acb432355e010ac4a5f955940c82a9767731b7d89dc42eb3cdac40272faa2f98b76cc9d655ef281c07acda75c30a990dc3a527b6cf92a8f5a6b8a80044bf212094f010257548301d24cd5918000000199c4d6c893fa1addec6b0121181137e25c38194333b8c57215b3cf1e6d7e7af102a23ddae698bb6095b8b8035bdd1e94479f66c29679d81931e0fe07aa436149ee08d24cd591010000804f010257548301d24cd59180000000b60a85089ad0850a6ffe8590a3e15064e63eefd020813df2e4a6b3209ce3df5f02c8b14f2917d557cd482970c114c3e3457e09d256397802277a2e4d1519ab9f8c08d24cd591000000800001012b20a1070000000000220020a948d7fa6abbb97e31779ae54383012b413d53821c7fd394900f6b443c61deee22020307a3c41d07ed976d65e213e823d02840937475e709b41253e85e970e3cb1667447304402202f7be5fad398f1a3576293339f2274d227af17798690aa1ad00ff83d96725cc5022000cb2e9fff5be23a862718c665a5035f172783e9b3158eae83673f6c59adc3c001010569522102a9dcb570e8280c741f09032c158095b7aa3b0ce401ada030f2d47b999f020606210307a3c41d07ed976d65e213e823d02840937475e709b41253e85e970e3cb166742103521b0a45e042f08ccd03af47fd88bb207b5414e0e30bb8799fca311a06323a1953ae22060307a3c41d07ed976d65e213e823d02840937475e709b41253e85e970e3cb1667410d24cd591000000800000000001000000220603521b0a45e042f08ccd03af47fd88bb207b5414e0e30bb8799fca311a06323a1910d24cd591010000800000000001000000220602a9dcb570e8280c741f09032c158095b7aa3b0ce401ada030f2d47b999f0206060c4bf212090000000001000000000001016952210205829f9522577122ca9ca9beb67f94cf2fe0ad0d17e052a110701cf4128d339c21022cca282cfdd9cc1f387d3098661d68bc9c8a39ac6bd72c30db579a7857d0859b2102d90e3c8973844b9cc0b38494c48515a319eec3ac2489f96f6f55e6aa6912a60853ae220202d90e3c8973844b9cc0b38494c48515a319eec3ac2489f96f6f55e6aa6912a60810d24cd5910000008001000000000000002202022cca282cfdd9cc1f387d3098661d68bc9c8a39ac6bd72c30db579a7857d0859b10d24cd59101000080010000000000000022020205829f9522577122ca9ca9beb67f94cf2fe0ad0d17e052a110701cf4128d339c0c4bf2120901000000000000000000')
-        tx.add_info_from_wallet(wallet)
-        raw_tx = serialize_tx_in_legacy_format(tx, wallet=wallet)
-        self.assertEqual('45505446ff000200000000010187c4646ca690b397e357b23b2137030691a90a068a6690834d340b4be84acd6a0100000000fdffffff03a0860100000000001600148bc9d947e4d0addc2f4c34b8371034eb47b3d305140c030000000000220020a6087c4f84a55dc39014729a18e08955139d4384559d1fd2a48a1d95d746a425400d0300000000001976a914c13fd6294d1be7b9410a5538f4b4ef10fc594ee788acfeffffffff20a10700000000000000050001ff47304402202f7be5fad398f1a3576293339f2274d227af17798690aa1ad00ff83d96725cc5022000cb2e9fff5be23a862718c665a5035f172783e9b3158eae83673f6c59adc3c00101fffd0201524c53ff02575483000000000000000000d644dcdd7a4acb432355e010ac4a5f955940c82a9767731b7d89dc42eb3cdac40272faa2f98b76cc9d655ef281c07acda75c30a990dc3a527b6cf92a8f5a6b8a80000001004c53ff0257548301d24cd59180000000b60a85089ad0850a6ffe8590a3e15064e63eefd020813df2e4a6b3209ce3df5f02c8b14f2917d557cd482970c114c3e3457e09d256397802277a2e4d1519ab9f8c000001004c53ff0257548301d24cd5918000000199c4d6c893fa1addec6b0121181137e25c38194333b8c57215b3cf1e6d7e7af102a23ddae698bb6095b8b8035bdd1e94479f66c29679d81931e0fe07aa436149ee0000010053ae132b1800',
-                         raw_tx)
+        # Build and sign the transaction
+        tx = PartialTransaction.from_io([txin], [txout], locktime=locktime, version=2)
+        sig = tx.sign_txin(0, privkey)
+        txin.witness = bfh(construct_witness([sig, witness_script]))
+
+        self.assertEqual('1cdb274755b144090c7134b6459e8d4cb6b4552fe620102836d751e8389b2694',
+                         tx.txid())
+        self.assertEqual('020000000001019ad573c69e60c209e0ff36f281ae4f700a8d59f846e7ff5c020352fd1e97808600000000000000000001fa840100000000001600145a209b202bc19b3d345a75cf8ab51cb471913a790247304402207b191c1e3ff1a2d3541770b496c9f871406114746b3aa7347ec4ef0423d3a975022043d3a746fa7a794d97e95d74b6d17d618dfc4cd7644476813e08006f271e51bd012a046c4f855fb1752102aec53aa5f347219a7378b13006eb16ce48125f9cf14f04a5509a565ad5e51507ac6c4f855f',
+                         tx.serialize())

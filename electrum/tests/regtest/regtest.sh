@@ -67,116 +67,141 @@ if [[ $# -eq 0 ]]; then
     exit 1
 fi
 
-if [[ $1 == "init" ]]; then
-    echo "initializing alice, bob and carol"
-    rm -rf /tmp/alice/ /tmp/bob/ /tmp/carol/
-    $alice create --offline > /dev/null
-    $bob   create --offline > /dev/null
-    $carol create --offline > /dev/null
-    $alice -o init_lightning
-    $bob   -o init_lightning
-    $carol -o init_lightning
-    $alice setconfig --offline log_to_file True
-    $bob   setconfig --offline log_to_file True
-    $carol setconfig --offline log_to_file True
-    $alice setconfig --offline server 127.0.0.1:51001:t
-    $bob   setconfig --offline server 127.0.0.1:51001:t
-    $carol setconfig --offline server 127.0.0.1:51001:t
-    $bob setconfig --offline lightning_listen localhost:9735
-    $bob setconfig --offline lightning_forward_payments true
-    echo "funding alice and carol"
-    $bitcoin_cli sendtoaddress $($alice getunusedaddress -o) 1
-    $bitcoin_cli sendtoaddress $($carol getunusedaddress -o) 1
+if [[ $1 == "new_block" ]]; then
     new_blocks 1
 fi
 
-# start daemons. Bob is started first because he is listening
-if [[ $1 == "start" ]]; then
-    $bob daemon -d
-    $alice daemon -d
-    $carol daemon -d
-    $bob load_wallet
-    $alice load_wallet
-    $carol load_wallet
-    sleep 10 # give time to synchronize
-fi
-
-if [[ $1 == "stop" ]]; then
-    $alice stop || true
-    $bob stop || true
-    $carol stop || true
-fi
-
-if [[ $1 == "open" ]]; then
-    bob_node=$($bob nodeid)
-    channel_id1=$($alice open_channel $bob_node 0.002 --push_amount 0.001)
-    channel_id2=$($carol open_channel $bob_node 0.002 --push_amount 0.001)
-    echo "mining 3 blocks"
-    new_blocks 3
-    sleep 10 # time for channelDB
-fi
-
-if [[ $1 == "alice_pays_carol" ]]; then
-    request=$($carol add_lightning_request 0.0001 -m "blah")
-    $alice lnpay $request
-    carol_balance=$($carol list_channels | jq -r '.[0].local_balance')
-    echo "carol balance: $carol_balance"
-    if [[ $carol_balance != 110000 ]]; then
-        exit 1
+if [[ $1 == "init" ]]; then
+    echo "initializing $2"
+    rm -rf /tmp/$2/
+    agent="./run_electrum --regtest -D /tmp/$2"
+    $agent create --offline > /dev/null
+    $agent setconfig --offline log_to_file True
+    $agent setconfig --offline use_gossip True
+    $agent setconfig --offline server 127.0.0.1:51001:t
+    $agent setconfig --offline lightning_to_self_delay 144
+    # alice is funded, bob is listening
+    if [[ $2 == "bob" ]]; then
+        $bob setconfig --offline lightning_listen localhost:9735
+    else
+        echo "funding $2"
+        $bitcoin_cli sendtoaddress $($agent getunusedaddress -o) 1
     fi
 fi
 
-if [[ $1 == "close" ]]; then
-   chan1=$($alice list_channels | jq -r ".[0].channel_point")
-   chan2=$($carol list_channels | jq -r ".[0].channel_point")
-   $alice close_channel $chan1
-   $carol close_channel $chan2
-   echo "mining 1 block"
-   new_blocks 1
+
+# start daemons. Bob is started first because he is listening
+if [[ $1 == "start" ]]; then
+    agent="./run_electrum --regtest -D /tmp/$2"
+    $agent daemon -d
+    $agent load_wallet
+    sleep 1 # give time to synchronize
 fi
+
+if [[ $1 == "stop" ]]; then
+    agent="./run_electrum --regtest -D /tmp/$2"
+    $agent stop || true
+fi
+
 
 # alice sends two payments, then broadcast ctx after first payment.
 # thus, bob needs to redeem both to_local and to_remote
 
+
 if [[ $1 == "breach" ]]; then
+    wait_for_balance alice 1
+    echo "alice opens channel"
     bob_node=$($bob nodeid)
     channel=$($alice open_channel $bob_node 0.15)
     new_blocks 3
     wait_until_channel_open alice
-    request=$($bob add_lightning_request 0.01 -m "blah")
+    request=$($bob add_lightning_request 0.01 -m "blah" | jq -r ".invoice")
     echo "alice pays"
     $alice lnpay $request
     sleep 2
-    ctx=$($alice get_channel_ctx $channel)
-    request=$($bob add_lightning_request 0.01 -m "blah2")
+    ctx=$($alice get_channel_ctx $channel --iknowwhatimdoing)
+    request=$($bob add_lightning_request 0.01 -m "blah2" | jq -r ".invoice")
     echo "alice pays again"
     $alice lnpay $request
     echo "alice broadcasts old ctx"
     $bitcoin_cli sendrawtransaction $ctx
+    new_blocks 1
     wait_until_channel_closed bob
     new_blocks 1
     wait_for_balance bob 0.14
     $bob getbalance
 fi
 
-if [[ $1 == "redeem_htlcs" ]]; then
-    $bob stop
-    ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=10 $bob daemon -d
-    sleep 1
-    $bob load_wallet
-    sleep 1
-    # alice opens channel
+
+if [[ $1 == "backup" ]]; then
+    wait_for_balance alice 1
+    echo "alice opens channel"
+    bob_node=$($bob nodeid)
+    channel1=$($alice open_channel $bob_node 0.15)
+    $alice setconfig use_recoverable_channels False
+    channel2=$($alice open_channel $bob_node 0.15)
+    new_blocks 3
+    wait_until_channel_open alice
+    backup=$($alice export_channel_backup $channel2)
+    seed=$($alice getseed)
+    $alice stop
+    mv /tmp/alice/regtest/wallets/default_wallet /tmp/alice/regtest/wallets/default_wallet.old
+    $alice -o restore "$seed"
+    $alice daemon -d
+    $alice load_wallet
+    $alice import_channel_backup $backup
+    $alice request_force_close $channel1
+    $alice request_force_close $channel2
+    wait_for_balance alice 0.998
+fi
+
+
+if [[ $1 == "extract_preimage" ]]; then
+    # instead of settling bob will broadcast
+    $bob enable_htlc_settle false
+    wait_for_balance alice 1
+    echo "alice opens channel"
     bob_node=$($bob nodeid)
     $alice open_channel $bob_node 0.15
-    new_blocks 6
-    sleep 10
+    new_blocks 3
+    wait_until_channel_open alice
+    chan_id=$($alice list_channels | jq -r ".[0].channel_point")
     # alice pays bob
-    invoice=$($bob add_lightning_request 0.05 -m "test")
-    $alice lnpay $invoice --timeout=1 || true
+    invoice=$($bob add_lightning_request 0.04 -m "test" | jq -r ".invoice")
+    screen -S alice_payment -dm -L -Logfile /tmp/alice/screen.log $alice lnpay $invoice --timeout=600
     sleep 1
-    settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
-    if [[ "$settled" != "0" ]]; then
-        echo 'SETTLE_DELAY did not work'
+    unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
+    if [[ "$unsettled" == "0" ]]; then
+        echo 'enable_htlc_settle did not work'
+        exit 1
+    fi
+    # bob force closes
+    $bob close_channel $chan_id --force
+    new_blocks 1
+    wait_until_channel_closed bob
+    sleep 5
+    success=$(cat /tmp/alice/screen.log | jq -r ".success")
+    if [[ "$success" != "true" ]]; then
+        exit 1
+    fi
+    cat /tmp/alice/screen.log
+fi
+
+
+if [[ $1 == "redeem_htlcs" ]]; then
+    $bob enable_htlc_settle false
+    wait_for_balance alice 1
+    echo "alice opens channel"
+    bob_node=$($bob nodeid)
+    $alice open_channel $bob_node 0.15
+    new_blocks 3
+    wait_until_channel_open alice
+    # alice pays bob
+    invoice=$($bob add_lightning_request 0.04 -m "test" | jq -r ".invoice")
+    $alice lnpay $invoice --timeout=1 || true
+    unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
+    if [[ "$unsettled" == "0" ]]; then
+        echo 'enable_htlc_settle did not work'
         exit 1
     fi
     # bob goes away
@@ -206,10 +231,7 @@ fi
 
 
 if [[ $1 == "breach_with_unspent_htlc" ]]; then
-    $bob stop
-    ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=3 $bob daemon -d
-    sleep 1
-    $bob load_wallet
+    $bob enable_htlc_settle false
     wait_for_balance alice 1
     echo "alice opens channel"
     bob_node=$($bob nodeid)
@@ -217,18 +239,18 @@ if [[ $1 == "breach_with_unspent_htlc" ]]; then
     new_blocks 3
     wait_until_channel_open alice
     echo "alice pays bob"
-    invoice=$($bob add_lightning_request 0.05 -m "test")
+    invoice=$($bob add_lightning_request 0.04 -m "test" | jq -r ".invoice")
     $alice lnpay $invoice --timeout=1 || true
-    settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
-    if [[ "$settled" != "0" ]]; then
-        echo "SETTLE_DELAY did not work, $settled != 0"
+    unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
+    if [[ "$unsettled" == "0" ]]; then
+        echo "enable_htlc_settle did not work, $unsettled"
         exit 1
     fi
-    ctx=$($alice get_channel_ctx $channel)
-    sleep 5
-    settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
-    if [[ "$settled" != "1" ]]; then
-        echo "SETTLE_DELAY did not work, $settled != 1"
+    ctx=$($alice get_channel_ctx $channel --iknowwhatimdoing)
+    $bob enable_htlc_settle true
+    unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
+    if [[ "$unsettled" != "0" ]]; then
+        echo "enable_htlc_settle did not work, $unsettled"
         exit 1
     fi
     echo "alice breaches with old ctx"
@@ -238,10 +260,7 @@ fi
 
 
 if [[ $1 == "breach_with_spent_htlc" ]]; then
-    $bob stop
-    ELECTRUM_DEBUG_LIGHTNING_SETTLE_DELAY=3 $bob daemon -d
-    sleep 1
-    $bob load_wallet
+    $bob enable_htlc_settle false
     wait_for_balance alice 1
     echo "alice opens channel"
     bob_node=$($bob nodeid)
@@ -249,19 +268,19 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     new_blocks 3
     wait_until_channel_open alice
     echo "alice pays bob"
-    invoice=$($bob add_lightning_request 0.05 -m "test")
+    invoice=$($bob add_lightning_request 0.04 -m "test" | jq -r ".invoice")
     $alice lnpay $invoice --timeout=1 || true
-    ctx=$($alice get_channel_ctx $channel)
-    settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
-    if [[ "$settled" != "0" ]]; then
-        echo "SETTLE_DELAY did not work, $settled != 0"
+    ctx=$($alice get_channel_ctx $channel --iknowwhatimdoing)
+    unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
+    if [[ "$unsettled" == "0" ]]; then
+        echo "enable_htlc_settle did not work, $unsettled"
         exit 1
     fi
     cp /tmp/alice/regtest/wallets/default_wallet /tmp/alice/regtest/wallets/toxic_wallet
-    sleep 5
-    settled=$($alice list_channels | jq '.[] | .local_htlcs | .settles | length')
-    if [[ "$settled" != "1" ]]; then
-        echo "SETTLE_DELAY did not work, $settled != 1"
+    $bob enable_htlc_settle true
+    unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
+    if [[ "$unsettled" != "0" ]]; then
+        echo "enable_htlc_settle did not work, $unsettled"
         exit 1
     fi
     echo $($bob getbalance)
@@ -291,33 +310,40 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     $bob daemon -d
     sleep 1
     $bob load_wallet
-    wait_for_balance bob 0.049
+    wait_for_balance bob 0.039
     $bob getbalance
 fi
 
+
+if [[ $1 == "configure_test_watchtower" ]]; then
+    # carol is the watchtower of bob
+    $carol setconfig -o run_watchtower true
+    $carol setconfig -o watchtower_user wtuser
+    $carol setconfig -o watchtower_password wtpassword
+    $carol setconfig -o watchtower_address 127.0.0.1:12345
+    $bob setconfig -o watchtower_url http://wtuser:wtpassword@127.0.0.1:12345
+fi
+
 if [[ $1 == "watchtower" ]]; then
-    # carol is a watchtower of alice
-    $alice stop
-    $carol stop
-    $alice setconfig --offline watchtower_url http://127.0.0.1:12345
-    $carol setconfig --offline watchtower_host 127.0.0.1
-    $carol setconfig --offline watchtower_port 12345
-    $carol daemon -d
-    $alice daemon -d
-    sleep 1
-    $alice load_wallet
     wait_for_balance alice 1
     echo "alice opens channel"
     bob_node=$($bob nodeid)
-    channel=$($alice open_channel $bob_node 0.5)
+    channel=$($alice open_channel $bob_node 0.15)
+    echo "channel outpoint: $channel"
     new_blocks 3
     wait_until_channel_open alice
     echo "alice pays bob"
-    invoice1=$($bob add_lightning_request 0.05 -m "invoice1")
+    invoice1=$($bob add_lightning_request 0.01 -m "invoice1" | jq -r ".invoice")
     $alice lnpay $invoice1
-    invoice2=$($bob add_lightning_request 0.05 -m "invoice2")
+    ctx=$($alice get_channel_ctx $channel --iknowwhatimdoing)
+    echo "alice pays bob again"
+    invoice2=$($bob add_lightning_request 0.01 -m "invoice2" | jq -r ".invoice")
     $alice lnpay $invoice2
-    invoice3=$($bob add_lightning_request 0.05 -m "invoice3")
-    $alice lnpay $invoice3
-
+    msg="waiting until watchtower is synchronized"
+    while watchtower_ctn=$($carol get_watchtower_ctn $channel) && [ $watchtower_ctn != "3" ]; do
+        sleep 1
+	msg="$msg."
+	printf "$msg\r"
+    done
+    printf "\n"
 fi

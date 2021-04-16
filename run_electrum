@@ -25,8 +25,7 @@
 # SOFTWARE.
 import os
 import sys
-import warnings
-import asyncio
+
 
 MIN_PYTHON_VERSION = "3.6.1"  # FIXME duplicated from setup.py
 _min_python_version_tuple = tuple(map(int, (MIN_PYTHON_VERSION.split("."))))
@@ -34,6 +33,11 @@ _min_python_version_tuple = tuple(map(int, (MIN_PYTHON_VERSION.split("."))))
 
 if sys.version_info[:3] < _min_python_version_tuple:
     sys.exit("Error: NavCash requires Python version >= %s..." % MIN_PYTHON_VERSION)
+
+
+import warnings
+import asyncio
+from typing import TYPE_CHECKING, Optional
 
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -45,9 +49,6 @@ if is_local:  # running from source
     # developers should probably see all deprecation warnings.
     warnings.simplefilter('default', DeprecationWarning)
 
-# move this back to gui/kivy/__init.py once plugins are moved
-os.environ['KIVY_DATA_DIR'] = os.path.abspath(os.path.dirname(__file__)) + '/electrum/gui/kivy/data/'
-
 if is_local or is_android:
     sys.path.insert(0, os.path.join(script_dir, 'packages'))
 
@@ -56,14 +57,14 @@ def check_imports():
     # pure-python dependencies need to be imported here for pyinstaller
     try:
         import dns
-        import pyaes
-        import ecdsa
         import certifi
         import qrcode
         import google.protobuf
         import aiorpcx
     except ImportError as e:
         sys.exit(f"Error: {str(e)}. Try 'sudo python3 -m pip install <module-name>'")
+    if not ((0, 18, 7) <= aiorpcx._version < (0, 19)):
+        raise RuntimeError(f'aiorpcX version {aiorpcx._version} does not match required: 0.18.7<=ver<0.19')
     # the following imports are for pyinstaller
     from google.protobuf import descriptor
     from google.protobuf import message
@@ -81,14 +82,21 @@ from electrum.logging import get_logger, configure_logging
 from electrum import util
 from electrum import constants
 from electrum import SimpleConfig
+from electrum.wallet_db import WalletDB
 from electrum.wallet import Wallet
-from electrum.storage import WalletStorage, get_derivation_used_for_hw_device_encryption
+from electrum.storage import WalletStorage
 from electrum.util import print_msg, print_stderr, json_encode, json_decode, UserCancelled
-from electrum.util import InvalidPassword
+from electrum.util import InvalidPassword, BITCOIN_BIP21_URI_SCHEME
 from electrum.commands import get_parser, known_commands, Commands, config_variables
 from electrum import daemon
 from electrum import keystore
 from electrum.util import create_and_start_event_loop
+from electrum.i18n import set_language
+
+if TYPE_CHECKING:
+    import threading
+
+    from electrum.plugin import Plugins
 
 _logger = get_logger(__name__)
 
@@ -106,7 +114,7 @@ def prompt_password(prompt, confirm=True):
     return password
 
 
-def init_cmdline(config_options, wallet_path, server):
+def init_cmdline(config_options, wallet_path, server, *, config: 'SimpleConfig'):
     cmdname = config.get('cmd')
     cmd = known_commands[cmdname]
 
@@ -134,10 +142,17 @@ def init_cmdline(config_options, wallet_path, server):
         print_stderr("Exposing a single private key can compromise your entire wallet!")
         print_stderr("In particular, DO NOT use 'redeem private key' services proposed by third parties.")
 
+    # will we need a password
+    if not storage.is_encrypted():
+        db = WalletDB(storage.read(), manual_upgrades=False)
+        use_encryption = db.get('use_encryption')
+    else:
+        use_encryption = True
+
     # commands needing password
-    if  ( (cmd.requires_wallet and storage.is_encrypted() and server is False)\
+    if ((cmd.requires_wallet and storage.is_encrypted() and server is False)\
        or (cmdname == 'load_wallet' and storage.is_encrypted())\
-       or (cmd.requires_password and (storage.is_encrypted() or storage.get('use_encryption')))):
+       or (cmd.requires_password and use_encryption)):
         if storage.is_encrypted_with_hw_device():
             # this case is handled later in the control flow
             password = None
@@ -158,7 +173,7 @@ def init_cmdline(config_options, wallet_path, server):
         config_options['new_password'] = new_password
 
 
-def get_connected_hw_devices(plugins):
+def get_connected_hw_devices(plugins: 'Plugins'):
     supported_plugins = plugins.get_hardware_support()
     # scan devices
     devices = []
@@ -178,7 +193,7 @@ def get_connected_hw_devices(plugins):
     return devices
 
 
-def get_password_for_hw_device_encrypted_storage(plugins):
+def get_password_for_hw_device_encrypted_storage(plugins: 'Plugins') -> str:
     devices = get_connected_hw_devices(plugins)
     if len(devices) == 0:
         print_msg("Error: No connected hw device found. Cannot decrypt this wallet.")
@@ -188,17 +203,15 @@ def get_password_for_hw_device_encrypted_storage(plugins):
                   "The first one will be used to decrypt the wallet.")
     # FIXME we use the "first" device, in case of multiple ones
     name, device_info = devices[0]
-    plugin = plugins.get_plugin(name)
-    derivation = get_derivation_used_for_hw_device_encryption()
+    devmgr = plugins.device_manager
     try:
-        xpub = plugin.get_xpub(device_info.device.id_, derivation, 'standard', plugin.handler)
+        client = devmgr.client_by_id(device_info.device.id_)
+        return client.get_password_for_storage_encryption()
     except UserCancelled:
         sys.exit(0)
-    password = keystore.Xpub.get_pubkey_from_xpub(xpub, ())
-    return password
 
 
-async def run_offline_command(config, config_options, plugins):
+async def run_offline_command(config, config_options, plugins: 'Plugins'):
     cmdname = config.get('cmd')
     cmd = known_commands[cmdname]
     password = config_options.get('password')
@@ -211,7 +224,8 @@ async def run_offline_command(config, config_options, plugins):
                 password = get_password_for_hw_device_encrypted_storage(plugins)
                 config_options['password'] = password
             storage.decrypt(password)
-        wallet = Wallet(storage, config=config)
+        db = WalletDB(storage.read(), manual_upgrades=False)
+        wallet = Wallet(db, storage, config=config)
         config_options['wallet'] = wallet
     else:
         wallet = None
@@ -238,7 +252,7 @@ async def run_offline_command(config, config_options, plugins):
     result = await func(*args, **kwargs)
     # save wallet
     if wallet:
-        wallet.storage.write()
+        wallet.save_db()
     return result
 
 
@@ -246,13 +260,20 @@ def init_plugins(config, gui_name):
     from electrum.plugin import Plugins
     return Plugins(config, gui_name)
 
+
+loop = None  # type: Optional[asyncio.AbstractEventLoop]
+stop_loop = None  # type: Optional[asyncio.Future]
+loop_thread = None  # type: Optional[threading.Thread]
+
 def sys_exit(i):
     # stop event loop and exit
-    loop.call_soon_threadsafe(stop_loop.set_result, 1)
-    loop_thread.join(timeout=1)
+    if loop:
+        loop.call_soon_threadsafe(stop_loop.set_result, 1)
+        loop_thread.join(timeout=1)
     sys.exit(i)
 
-if __name__ == '__main__':
+
+def main():
     # The hook will only be used in the Qt GUI right now
     util.setup_thread_excepthook()
     # on macOS, delete Process Serial Number arg generated for apps launched in Finder
@@ -293,10 +314,13 @@ if __name__ == '__main__':
 
     # config is an object passed to the various constructors (wallet, interface, gui)
     if is_android:
+        from jnius import autoclass
+        build_config = autoclass("org.electrum.electrum.BuildConfig")
         config_options = {
-            'verbosity': '',
+            'verbosity': '*' if build_config.DEBUG else '',
             'cmd': 'gui',
             'gui': 'kivy',
+            'single_password':True,
         }
     else:
         config_options = args.__dict__
@@ -320,12 +344,19 @@ if __name__ == '__main__':
     # check uri
     uri = config_options.get('url')
     if uri:
-        if not uri.startswith('navcoin:'):
+        if not uri.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
             print_stderr('unknown command:', uri)
             sys.exit(1)
 
-    # singleton
     config = SimpleConfig(config_options)
+
+    # set language as early as possible
+    # Note: we are already too late for strings that are declared in the global scope
+    #       of an already imported module. However, the GUI and the plugins at least have
+    #       not been imported yet.
+    # Note: it is ok to call set_language() again later. E.g. the Qt GUI has additional
+    #       tools to figure out the default language so it will get called again there.
+    set_language(config.get('language'))
 
     if config.get('testnet'):
         constants.set_testnet()
@@ -353,16 +384,34 @@ if __name__ == '__main__':
             os.dup2(so.fileno(), sys.stdout.fileno())
             os.dup2(se.fileno(), sys.stderr.fileno())
 
+    global loop, stop_loop, loop_thread
     loop, stop_loop, loop_thread = create_and_start_event_loop()
 
+    try:
+        handle_cmd(
+            cmdname=cmdname,
+            config=config,
+            config_options=config_options,
+        )
+    except Exception:
+        _logger.exception("")
+        sys_exit(1)
+
+
+def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
     if cmdname == 'gui':
         configure_logging(config)
         fd = daemon.get_file_descriptor(config)
         if fd is not None:
             plugins = init_plugins(config, config.get('gui', 'qt'))
             d = daemon.Daemon(config, fd)
-            d.run_gui(config, plugins)
-            sys_exit(0)
+            try:
+                d.run_gui(config, plugins)
+            except BaseException as e:
+                _logger.exception('daemon.run_gui errored')
+                sys_exit(1)
+            else:
+                sys_exit(0)
         else:
             result = daemon.request(config, 'gui', (config_options,))
 
@@ -377,6 +426,7 @@ if __name__ == '__main__':
             d.run_daemon()
             sys_exit(0)
         else:
+            # FIXME this message is lost in detached mode (parent process already exited after forking)
             print_msg("Daemon already running")
             sys_exit(1)
     else:
@@ -384,7 +434,7 @@ if __name__ == '__main__':
         cmd = known_commands[cmdname]
         wallet_path = config.get_wallet_path()
         if not config.get('offline'):
-            init_cmdline(config_options, wallet_path, True)
+            init_cmdline(config_options, wallet_path, True, config=config)
             timeout = config.get('timeout', 60)
             if timeout: timeout = int(timeout)
             try:
@@ -401,7 +451,7 @@ if __name__ == '__main__':
             if cmd.requires_network:
                 print_msg("This command cannot be run offline")
                 sys_exit(1)
-            init_cmdline(config_options, wallet_path, False)
+            init_cmdline(config_options, wallet_path, False, config=config)
             plugins = init_plugins(config, 'cmdline')
             coro = run_offline_command(config, config_options, plugins)
             fut = asyncio.run_coroutine_threadsafe(coro, loop)
@@ -414,6 +464,11 @@ if __name__ == '__main__':
         print_msg(result)
     elif type(result) is dict and result.get('error'):
         print_stderr(result.get('error'))
+        sys_exit(1)
     elif result is not None:
         print_msg(json_encode(result))
     sys_exit(0)
+
+
+if __name__ == '__main__':
+    main()

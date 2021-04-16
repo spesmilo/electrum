@@ -7,33 +7,44 @@ from electrum.util import UserCancelled, UserFacingException
 from electrum.keystore import bip39_normalize_passphrase
 from electrum.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32 as parse_path
 from electrum.logging import Logger
+from electrum.plugin import runs_in_hwd_thread
 from electrum.plugins.hw_wallet.plugin import OutdatedHwFirmwareException, HardwareClientBase
 
-from trezorlib.client import TrezorClient
+from trezorlib.client import TrezorClient, PASSPHRASE_ON_DEVICE
 from trezorlib.exceptions import TrezorFailure, Cancelled, OutdatedFirmwareError
-from trezorlib.messages import WordRequestType, FailureType, RecoveryDeviceType
+from trezorlib.messages import WordRequestType, FailureType, RecoveryDeviceType, ButtonRequestType
 import trezorlib.btc
 import trezorlib.device
 
 MESSAGES = {
-    3: _("Confirm the transaction output on your {} device"),
-    4: _("Confirm internal entropy on your {} device to begin"),
-    5: _("Write down the seed word shown on your {}"),
-    6: _("Confirm on your {} that you want to wipe it clean"),
-    7: _("Confirm on your {} device the message to sign"),
-    8: _("Confirm the total amount spent and the transaction fee on your {} device"),
-    10: _("Confirm wallet address on your {} device"),
-    14: _("Choose on your {} device where to enter your passphrase"),
+    ButtonRequestType.ConfirmOutput:
+        _("Confirm the transaction output on your {} device"),
+    ButtonRequestType.ResetDevice:
+        _("Complete the initialization process on your {} device"),
+    ButtonRequestType.ConfirmWord:
+        _("Write down the seed word shown on your {}"),
+    ButtonRequestType.WipeDevice:
+        _("Confirm on your {} that you want to wipe it clean"),
+    ButtonRequestType.ProtectCall:
+        _("Confirm on your {} device the message to sign"),
+    ButtonRequestType.SignTx:
+        _("Confirm the total amount spent and the transaction fee on your {} device"),
+    ButtonRequestType.Address:
+        _("Confirm wallet address on your {} device"),
+    ButtonRequestType._Deprecated_ButtonRequest_PassphraseType:
+        _("Choose on your {} device where to enter your passphrase"),
+    ButtonRequestType.PassphraseEntry:
+        _("Please enter your passphrase on the {} device"),
     'default': _("Check your {} device to continue"),
 }
 
 
 class TrezorClientBase(HardwareClientBase, Logger):
     def __init__(self, transport, handler, plugin):
+        HardwareClientBase.__init__(self, plugin=plugin)
         if plugin.is_outdated_fw_ignored():
             TrezorClient.is_outdated = lambda *args, **kwargs: False
         self.client = TrezorClient(transport, ui=self)
-        self.plugin = plugin
         self.device = plugin.device
         self.handler = handler
         Logger.__init__(self)
@@ -69,7 +80,7 @@ class TrezorClientBase(HardwareClientBase, Logger):
         self.end_flow()
         if e is not None:
             if isinstance(e, Cancelled):
-                raise UserCancelled from e
+                raise UserCancelled() from e
             elif isinstance(e, TrezorFailure):
                 raise RuntimeError(str(e)) from e
             elif isinstance(e, OutdatedFirmwareError):
@@ -88,19 +99,22 @@ class TrezorClientBase(HardwareClientBase, Logger):
     def label(self):
         return self.features.label
 
+    def get_soft_device_id(self):
+        return self.features.device_id
+
     def is_initialized(self):
         return self.features.initialized
 
     def is_pairable(self):
         return not self.features.bootloader_mode
 
+    @runs_in_hwd_thread
     def has_usable_connection_with_device(self):
         if self.in_flow:
             return True
 
         try:
-            res = self.client.ping("electrum pinging device")
-            assert res == "electrum pinging device"
+            self.client.init_device()
         except BaseException:
             return False
         return True
@@ -111,6 +125,7 @@ class TrezorClientBase(HardwareClientBase, Logger):
     def prevent_timeouts(self):
         self.last_operation = float('inf')
 
+    @runs_in_hwd_thread
     def timeout(self, cutoff):
         '''Time out the client if the last operation was before cutoff.'''
         if self.last_operation < cutoff:
@@ -120,6 +135,7 @@ class TrezorClientBase(HardwareClientBase, Logger):
     def i4b(self, x):
         return pack('>I', x)
 
+    @runs_in_hwd_thread
     def get_xpub(self, bip32_path, xtype, creating=False):
         address_n = parse_path(bip32_path)
         with self.run_flow(creating_wallet=creating):
@@ -131,6 +147,7 @@ class TrezorClientBase(HardwareClientBase, Logger):
                          fingerprint=self.i4b(node.fingerprint),
                          child_number=self.i4b(node.child_num)).to_xpub()
 
+    @runs_in_hwd_thread
     def toggle_passphrase(self):
         if self.features.passphrase_protection:
             msg = _("Confirm on your {} device to disable passphrases")
@@ -140,14 +157,17 @@ class TrezorClientBase(HardwareClientBase, Logger):
         with self.run_flow(msg):
             trezorlib.device.apply_settings(self.client, use_passphrase=enabled)
 
+    @runs_in_hwd_thread
     def change_label(self, label):
         with self.run_flow(_("Confirm the new label on your {} device")):
             trezorlib.device.apply_settings(self.client, label=label)
 
+    @runs_in_hwd_thread
     def change_homescreen(self, homescreen):
         with self.run_flow(_("Confirm on your {} device to change your home screen")):
             trezorlib.device.apply_settings(self.client, homescreen=homescreen)
 
+    @runs_in_hwd_thread
     def set_pin(self, remove):
         if remove:
             msg = _("Confirm on your {} device to disable PIN protection")
@@ -158,6 +178,7 @@ class TrezorClientBase(HardwareClientBase, Logger):
         with self.run_flow(msg):
             trezorlib.device.change_pin(self.client, remove)
 
+    @runs_in_hwd_thread
     def clear_session(self):
         '''Clear the session to force pin (and passphrase if enabled)
         re-entry.  Does not leak exceptions.'''
@@ -169,11 +190,13 @@ class TrezorClientBase(HardwareClientBase, Logger):
             # If the device was removed it has the same effect...
             self.logger.info(f"clear_session: ignoring error {e}")
 
+    @runs_in_hwd_thread
     def close(self):
         '''Called when Our wallet was closed or the device removed.'''
         self.logger.info("closing client")
         self.clear_session()
 
+    @runs_in_hwd_thread
     def is_uptodate(self):
         if self.client.is_outdated():
             return False
@@ -183,6 +206,15 @@ class TrezorClientBase(HardwareClientBase, Logger):
         """Returns '1' for Trezor One, 'T' for Trezor T."""
         return self.features.model
 
+    def device_model_name(self):
+        model = self.get_trezor_model()
+        if model == '1':
+            return "Trezor One"
+        elif model == 'T':
+            return "Trezor T"
+        return None
+
+    @runs_in_hwd_thread
     def show_address(self, address_str, script_type, multisig=None):
         coin_name = self.plugin.get_coin_name()
         address_n = parse_path(address_str)
@@ -195,6 +227,7 @@ class TrezorClientBase(HardwareClientBase, Logger):
                 script_type=script_type,
                 multisig=multisig)
 
+    @runs_in_hwd_thread
     def sign_message(self, address_str, message):
         coin_name = self.plugin.get_coin_name()
         address_n = parse_path(address_str)
@@ -205,6 +238,7 @@ class TrezorClientBase(HardwareClientBase, Logger):
                 address_n,
                 message)
 
+    @runs_in_hwd_thread
     def recover_device(self, recovery_type, *args, **kwargs):
         input_callback = self.mnemonic_callback(recovery_type)
         with self.run_flow():
@@ -217,14 +251,17 @@ class TrezorClientBase(HardwareClientBase, Logger):
 
     # ========= Unmodified trezorlib methods =========
 
+    @runs_in_hwd_thread
     def sign_tx(self, *args, **kwargs):
         with self.run_flow():
             return trezorlib.btc.sign_tx(self.client, *args, **kwargs)
 
+    @runs_in_hwd_thread
     def reset_device(self, *args, **kwargs):
         with self.run_flow():
             return trezorlib.device.reset(self.client, *args, **kwargs)
 
+    @runs_in_hwd_thread
     def wipe_device(self, *args, **kwargs):
         with self.run_flow():
             return trezorlib.device.wipe(self.client, *args, **kwargs)
@@ -236,6 +273,7 @@ class TrezorClientBase(HardwareClientBase, Logger):
         self.handler.show_message(message.format(self.device), self.client.cancel)
 
     def get_pin(self, code=None):
+        show_strength = True
         if code == 2:
             msg = _("Enter a new PIN for your {}:")
         elif code == 3:
@@ -243,7 +281,8 @@ class TrezorClientBase(HardwareClientBase, Logger):
                      "NOTE: the positions of the numbers have changed!"))
         else:
             msg = _("Enter your current {} PIN:")
-        pin = self.handler.get_pin(msg.format(self.device))
+            show_strength = False
+        pin = self.handler.get_pin(msg.format(self.device), show_strength=show_strength)
         if not pin:
             raise Cancelled
         if len(pin) > 9:
@@ -251,7 +290,7 @@ class TrezorClientBase(HardwareClientBase, Logger):
             raise Cancelled
         return pin
 
-    def get_passphrase(self):
+    def get_passphrase(self, available_on_device):
         if self.creating_wallet:
             msg = _("Enter a passphrase to generate this wallet.  Each time "
                     "you use this wallet your {} will prompt you for the "
@@ -259,7 +298,11 @@ class TrezorClientBase(HardwareClientBase, Logger):
                     "access the Navcoins in the wallet.").format(self.device)
         else:
             msg = _("Enter the passphrase to unlock this wallet:")
+
+        self.handler.passphrase_on_device = available_on_device
         passphrase = self.handler.get_passphrase(msg, self.creating_wallet)
+        if passphrase is PASSPHRASE_ON_DEVICE:
+            return passphrase
         if passphrase is None:
             raise Cancelled
         passphrase = bip39_normalize_passphrase(passphrase)

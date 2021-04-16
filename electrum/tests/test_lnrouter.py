@@ -4,30 +4,19 @@ import shutil
 import asyncio
 
 from electrum.util import bh2u, bfh, create_and_start_event_loop
-from electrum.lnonion import (OnionHopsDataSingle, new_onion_packet, OnionPerHop,
+from electrum.lnonion import (OnionHopsDataSingle, new_onion_packet,
                               process_onion_packet, _decode_onion_error, decode_onion_error,
-                              OnionFailureCode)
+                              OnionFailureCode, OnionPacket)
 from electrum import bitcoin, lnrouter
 from electrum.constants import BitcoinTestnet
 from electrum.simple_config import SimpleConfig
+from electrum.lnrouter import PathEdge
 
 from . import TestCaseForTestnet
+from .test_bitcoin import needs_test_with_all_chacha20_implementations
+
 
 class Test_LNRouter(TestCaseForTestnet):
-
-    #@staticmethod
-    #def parse_witness_list(witness_bytes):
-    #    amount_witnesses = witness_bytes[0]
-    #    witness_bytes = witness_bytes[1:]
-    #    res = []
-    #    for i in range(amount_witnesses):
-    #        witness_length = witness_bytes[0]
-    #        this_witness = witness_bytes[1:witness_length+1]
-    #        assert len(this_witness) == witness_length
-    #        witness_bytes = witness_bytes[witness_length+1:]
-    #        res += [bytes(this_witness)]
-    #    assert witness_bytes == b"", witness_bytes
-    #    return res
 
     def setUp(self):
         super().setUp()
@@ -47,70 +36,71 @@ class Test_LNRouter(TestCaseForTestnet):
             register_callback = lambda *args: None
             interface = None
         fake_network.channel_db = lnrouter.ChannelDB(fake_network())
+        fake_network.channel_db.data_loaded.set()
         cdb = fake_network.channel_db
         path_finder = lnrouter.LNPathFinder(cdb)
         self.assertEqual(cdb.num_channels, 0)
-        cdb.add_channel_announcement({'node_id_1': b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'node_id_2': b'\x02cccccccccccccccccccccccccccccccc',
+        cdb.add_channel_announcements({'node_id_1': b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'node_id_2': b'\x02cccccccccccccccccccccccccccccccc',
                                      'bitcoin_key_1': b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'bitcoin_key_2': b'\x02cccccccccccccccccccccccccccccccc',
                                      'short_channel_id': bfh('0000000000000001'),
                                      'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
-                                     'len': b'\x00\x00', 'features': b''}, trusted=True)
+                                     'len': 0, 'features': b''}, trusted=True)
         self.assertEqual(cdb.num_channels, 1)
-        cdb.add_channel_announcement({'node_id_1': b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'node_id_2': b'\x02eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+        cdb.add_channel_announcements({'node_id_1': b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'node_id_2': b'\x02eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
                                      'bitcoin_key_1': b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'bitcoin_key_2': b'\x02eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
                                      'short_channel_id': bfh('0000000000000002'),
                                      'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
-                                     'len': b'\x00\x00', 'features': b''}, trusted=True)
-        cdb.add_channel_announcement({'node_id_1': b'\x02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'node_id_2': b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+                                     'len': 0, 'features': b''}, trusted=True)
+        cdb.add_channel_announcements({'node_id_1': b'\x02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'node_id_2': b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
                                      'bitcoin_key_1': b'\x02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'bitcoin_key_2': b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
                                      'short_channel_id': bfh('0000000000000003'),
                                      'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
-                                     'len': b'\x00\x00', 'features': b''}, trusted=True)
-        cdb.add_channel_announcement({'node_id_1': b'\x02cccccccccccccccccccccccccccccccc', 'node_id_2': b'\x02dddddddddddddddddddddddddddddddd',
+                                     'len': 0, 'features': b''}, trusted=True)
+        cdb.add_channel_announcements({'node_id_1': b'\x02cccccccccccccccccccccccccccccccc', 'node_id_2': b'\x02dddddddddddddddddddddddddddddddd',
                                      'bitcoin_key_1': b'\x02cccccccccccccccccccccccccccccccc', 'bitcoin_key_2': b'\x02dddddddddddddddddddddddddddddddd',
                                      'short_channel_id': bfh('0000000000000004'),
                                      'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
-                                     'len': b'\x00\x00', 'features': b''}, trusted=True)
-        cdb.add_channel_announcement({'node_id_1': b'\x02dddddddddddddddddddddddddddddddd', 'node_id_2': b'\x02eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+                                     'len': 0, 'features': b''}, trusted=True)
+        cdb.add_channel_announcements({'node_id_1': b'\x02dddddddddddddddddddddddddddddddd', 'node_id_2': b'\x02eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
                                      'bitcoin_key_1': b'\x02dddddddddddddddddddddddddddddddd', 'bitcoin_key_2': b'\x02eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
                                      'short_channel_id': bfh('0000000000000005'),
                                      'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
-                                     'len': b'\x00\x00', 'features': b''}, trusted=True)
-        cdb.add_channel_announcement({'node_id_1': b'\x02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'node_id_2': b'\x02dddddddddddddddddddddddddddddddd',
+                                     'len': 0, 'features': b''}, trusted=True)
+        cdb.add_channel_announcements({'node_id_1': b'\x02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'node_id_2': b'\x02dddddddddddddddddddddddddddddddd',
                                      'bitcoin_key_1': b'\x02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'bitcoin_key_2': b'\x02dddddddddddddddddddddddddddddddd',
                                      'short_channel_id': bfh('0000000000000006'),
                                      'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
-                                     'len': b'\x00\x00', 'features': b''}, trusted=True)
-        o = lambda i: i.to_bytes(8, "big")
-        cdb.add_channel_update({'short_channel_id': bfh('0000000000000001'), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': o(10), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(150), 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': b'\x00\x00\x00\x00'})
-        cdb.add_channel_update({'short_channel_id': bfh('0000000000000001'), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': o(10), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(150), 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': b'\x00\x00\x00\x00'})
-        cdb.add_channel_update({'short_channel_id': bfh('0000000000000002'), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': o(99), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(150), 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': b'\x00\x00\x00\x00'})
-        cdb.add_channel_update({'short_channel_id': bfh('0000000000000002'), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': o(10), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(150), 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': b'\x00\x00\x00\x00'})
-        cdb.add_channel_update({'short_channel_id': bfh('0000000000000003'), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': o(10), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(150), 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': b'\x00\x00\x00\x00'})
-        cdb.add_channel_update({'short_channel_id': bfh('0000000000000003'), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': o(10), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(150), 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': b'\x00\x00\x00\x00'})
-        cdb.add_channel_update({'short_channel_id': bfh('0000000000000004'), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': o(10), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(150), 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': b'\x00\x00\x00\x00'})
-        cdb.add_channel_update({'short_channel_id': bfh('0000000000000004'), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': o(10), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(150), 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': b'\x00\x00\x00\x00'})
-        cdb.add_channel_update({'short_channel_id': bfh('0000000000000005'), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': o(10), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(150), 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': b'\x00\x00\x00\x00'})
-        cdb.add_channel_update({'short_channel_id': bfh('0000000000000005'), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': o(10), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(999), 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': b'\x00\x00\x00\x00'})
-        cdb.add_channel_update({'short_channel_id': bfh('0000000000000006'), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': o(10), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(99999999), 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': b'\x00\x00\x00\x00'})
-        cdb.add_channel_update({'short_channel_id': bfh('0000000000000006'), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': o(10), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(150), 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': b'\x00\x00\x00\x00'})
-        path = path_finder.find_path_for_payment(b'\x02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', b'\x02eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', 100000)
-        self.assertEqual([(b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', b'\x00\x00\x00\x00\x00\x00\x00\x03'),
-                          (b'\x02cccccccccccccccccccccccccccccccc', b'\x00\x00\x00\x00\x00\x00\x00\x01'),
-                          (b'\x02dddddddddddddddddddddddddddddddd', b'\x00\x00\x00\x00\x00\x00\x00\x04'),
-                          (b'\x02eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', b'\x00\x00\x00\x00\x00\x00\x00\x05')
+                                     'len': 0, 'features': b''}, trusted=True)
+        def add_chan_upd(payload):
+            cdb.add_channel_update(payload, verify=False)
+        add_chan_upd({'short_channel_id': bfh('0000000000000001'), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+        add_chan_upd({'short_channel_id': bfh('0000000000000001'), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+        add_chan_upd({'short_channel_id': bfh('0000000000000002'), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 99, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+        add_chan_upd({'short_channel_id': bfh('0000000000000002'), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+        add_chan_upd({'short_channel_id': bfh('0000000000000003'), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+        add_chan_upd({'short_channel_id': bfh('0000000000000003'), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+        add_chan_upd({'short_channel_id': bfh('0000000000000004'), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+        add_chan_upd({'short_channel_id': bfh('0000000000000004'), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+        add_chan_upd({'short_channel_id': bfh('0000000000000005'), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+        add_chan_upd({'short_channel_id': bfh('0000000000000005'), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 999, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+        add_chan_upd({'short_channel_id': bfh('0000000000000006'), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 99999999, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+        add_chan_upd({'short_channel_id': bfh('0000000000000006'), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+        path = path_finder.find_path_for_payment(
+            nodeA=b'\x02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            nodeB=b'\x02eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+            invoice_amount_msat=100000)
+        self.assertEqual([PathEdge(start_node=b'\x02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', end_node=b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', short_channel_id=bfh('0000000000000003')),
+                          PathEdge(start_node=b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', end_node=b'\x02eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', short_channel_id=bfh('0000000000000002')),
                          ], path)
-        start_node = b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
-        route = path_finder.create_route_from_path(path, start_node)
-        self.assertEqual(route[0].node_id, start_node)
-        self.assertEqual(route[0].short_channel_id, bfh('0000000000000003'))
+        route = path_finder.create_route_from_path(path)
+        self.assertEqual(b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', route[0].node_id)
+        self.assertEqual(bfh('0000000000000003'),                 route[0].short_channel_id)
 
-        # need to duplicate tear_down here, as we also need to wait for the sql thread to stop
-        self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
-        self._loop_thread.join(timeout=1)
-        cdb.sql_thread.join(timeout=1)
+        cdb.stop()
+        asyncio.run_coroutine_threadsafe(cdb.stopped_event.wait(), self.asyncio_loop).result()
 
-    def test_new_onion_packet(self):
+    @needs_test_with_all_chacha20_implementations
+    def test_new_onion_packet_legacy(self):
         # test vector from bolt-04
         payment_path_pubkeys = [
             bfh('02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619'),
@@ -122,27 +112,127 @@ class Test_LNRouter(TestCaseForTestnet):
         session_key = bfh('4141414141414141414141414141414141414141414141414141414141414141')
         associated_data = bfh('4242424242424242424242424242424242424242424242424242424242424242')
         hops_data = [
-            OnionHopsDataSingle(OnionPerHop(
-                bfh('0000000000000000'), bfh('0000000000000000'), bfh('00000000')
-            )),
-            OnionHopsDataSingle(OnionPerHop(
-                bfh('0101010101010101'), bfh('0000000000000001'), bfh('00000001')
-            )),
-            OnionHopsDataSingle(OnionPerHop(
-                bfh('0202020202020202'), bfh('0000000000000002'), bfh('00000002')
-            )),
-            OnionHopsDataSingle(OnionPerHop(
-                bfh('0303030303030303'), bfh('0000000000000003'), bfh('00000003')
-            )),
-            OnionHopsDataSingle(OnionPerHop(
-                bfh('0404040404040404'), bfh('0000000000000004'), bfh('00000004')
-            )),
+            OnionHopsDataSingle(is_tlv_payload=False, payload={
+                "amt_to_forward": {"amt_to_forward": 0},
+                "outgoing_cltv_value": {"outgoing_cltv_value": 0},
+                "short_channel_id": {"short_channel_id": bfh('0000000000000000')},
+            }),
+            OnionHopsDataSingle(is_tlv_payload=False, payload={
+                "amt_to_forward": {"amt_to_forward": 1},
+                "outgoing_cltv_value": {"outgoing_cltv_value": 1},
+                "short_channel_id": {"short_channel_id": bfh('0101010101010101')},
+            }),
+            OnionHopsDataSingle(is_tlv_payload=False, payload={
+                "amt_to_forward": {"amt_to_forward": 2},
+                "outgoing_cltv_value": {"outgoing_cltv_value": 2},
+                "short_channel_id": {"short_channel_id": bfh('0202020202020202')},
+            }),
+            OnionHopsDataSingle(is_tlv_payload=False, payload={
+                "amt_to_forward": {"amt_to_forward": 3},
+                "outgoing_cltv_value": {"outgoing_cltv_value": 3},
+                "short_channel_id": {"short_channel_id": bfh('0303030303030303')},
+            }),
+            OnionHopsDataSingle(is_tlv_payload=False, payload={
+                "amt_to_forward": {"amt_to_forward": 4},
+                "outgoing_cltv_value": {"outgoing_cltv_value": 4},
+                "short_channel_id": {"short_channel_id": bfh('0404040404040404')},
+            }),
         ]
         packet = new_onion_packet(payment_path_pubkeys, session_key, hops_data, associated_data)
-        self.assertEqual(bfh('0002eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619e5f14350c2a76fc232b5e46d421e9615471ab9e0bc887beff8c95fdb878f7b3a71da571226458c510bbadd1276f045c21c520a07d35da256ef75b4367962437b0dd10f7d61ab590531cf08000178a333a347f8b4072e216400406bdf3bf038659793a86cae5f52d32f3438527b47a1cfc54285a8afec3a4c9f3323db0c946f5d4cb2ce721caad69320c3a469a202f3e468c67eaf7a7cda226d0fd32f7b48084dca885d15222e60826d5d971f64172d98e0760154400958f00e86697aa1aa9d41bee8119a1ec866abe044a9ad635778ba61fc0776dc832b39451bd5d35072d2269cf9b040d6ba38b54ec35f81d7fc67678c3be47274f3c4cc472aff005c3469eb3bc140769ed4c7f0218ff8c6c7dd7221d189c65b3b9aaa71a01484b122846c7c7b57e02e679ea8469b70e14fe4f70fee4d87b910cf144be6fe48eef24da475c0b0bcc6565ae82cd3f4e3b24c76eaa5616c6111343306ab35c1fe5ca4a77c0e314ed7dba39d6f1e0de791719c241a939cc493bea2bae1c1e932679ea94d29084278513c77b899cc98059d06a27d171b0dbdf6bee13ddc4fc17a0c4d2827d488436b57baa167544138ca2e64a11b43ac8a06cd0c2fba2d4d900ed2d9205305e2d7383cc98dacb078133de5f6fb6bed2ef26ba92cea28aafc3b9948dd9ae5559e8bd6920b8cea462aa445ca6a95e0e7ba52961b181c79e73bd581821df2b10173727a810c92b83b5ba4a0403eb710d2ca10689a35bec6c3a708e9e92f7d78ff3c5d9989574b00c6736f84c199256e76e19e78f0c98a9d580b4a658c84fc8f2096c2fbea8f5f8c59d0fdacb3be2802ef802abbecb3aba4acaac69a0e965abd8981e9896b1f6ef9d60f7a164b371af869fd0e48073742825e9434fc54da837e120266d53302954843538ea7c6c3dbfb4ff3b2fdbe244437f2a153ccf7bdb4c92aa08102d4f3cff2ae5ef86fab4653595e6a5837fa2f3e29f27a9cde5966843fb847a4a61f1e76c281fe8bb2b0a181d096100db5a1a5ce7a910238251a43ca556712eaadea167fb4d7d75825e440f3ecd782036d7574df8bceacb397abefc5f5254d2722215c53ff54af8299aaaad642c6d72a14d27882d9bbd539e1cc7a527526ba89b8c037ad09120e98ab042d3e8652b31ae0e478516bfaf88efca9f3676ffe99d2819dcaeb7610a626695f53117665d267d3f7abebd6bbd6733f645c72c389f03855bdf1e4b8075b516569b118233a0f0971d24b83113c0b096f5216a207ca99a7cddc81c130923fe3d91e7508c9ac5f2e914ff5dccab9e558566fa14efb34ac98d878580814b94b73acbfde9072f30b881f7f0fff42d4045d1ace6322d86a97d164aa84d93a60498065cc7c20e636f5862dc81531a88c60305a2e59a985be327a6902e4bed986dbf4a0b50c217af0ea7fdf9ab37f9ea1a1aaa72f54cf40154ea9b269f1a7c09f9f43245109431a175d50e2db0132337baa0ef97eed0fcf20489da36b79a1172faccc2f7ded7c60e00694282d93359c4682135642bc81f433574aa8ef0c97b4ade7ca372c5ffc23c7eddd839bab4e0f14d6df15c9dbeab176bec8b5701cf054eb3072f6dadc98f88819042bf10c407516ee58bce33fbe3b3d86a54255e577db4598e30a135361528c101683a5fcde7e8ba53f3456254be8f45fe3a56120ae96ea3773631fcb3873aa3abd91bcff00bd38bd43697a2e789e00da6077482e7b1b1a677b5afae4c54e6cbdf7377b694eb7d7a5b913476a5be923322d3de06060fd5e819635232a2cf4f0731da13b8546d1d6d4f8d75b9fce6c2341a71b0ea6f780df54bfdb0dd5cd9855179f602f917265f21f9190c70217774a6fbaaa7d63ad64199f4664813b955cff954949076dcf'),
+        self.assertEqual(bfh('0002eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619e5f14350c2a76fc232b5e46d421e9615471ab9e0bc887beff8c95fdb878f7b3a71e87f9aab8f6378c6ff744c1f34b393ad28d065b535c1a8668d85d3b34a1b3befd10f7d61ab590531cf08000178a333a347f8b4072e216400406bdf3bf038659793a1f9e7abc789266cc861cabd95818c0fc8efbdfdc14e3f7c2bc7eb8d6a79ef75ce721caad69320c3a469a202f3e468c67eaf7a7cda226d0fd32f7b48084dca885d014698cf05d742557763d9cb743faeae65dcc79dddaecf27fe5942be5380d15e9a1ec866abe044a9ad635778ba61fc0776dc832b39451bd5d35072d2269cf9b040a2a2fba158a0d8085926dc2e44f0c88bf487da56e13ef2d5e676a8589881b4869ed4c7f0218ff8c6c7dd7221d189c65b3b9aaa71a01484b122846c7c7b57e02e679ea8469b70e14fe4f70fee4d87b910cf144be6fe48eef24da475c0b0bcc6565a9f99728426ce2380a9580e2a9442481ceae7679906c30b1a0e21a10f26150e0645ab6edfdab1ce8f8bea7b1dee511c5fd38ac0e702c1c15bb86b52bca1b71e15b96982d262a442024c33ceb7dd8f949063c2e5e613e873250e2f8708bd4e1924abd45f65c2fa5617bfb10ee9e4a42d6b5811acc8029c16274f937dac9e8817c7e579fdb767ffe277f26d413ced06b620ede8362081da21cf67c2ca9d6f15fe5bc05f82f5bb93f8916bad3d63338ca824f3bbc11b57ce94a5fa1bc239533679903d6fec92a8c792fd86e2960188c14f21e399cfd72a50c620e10aefc6249360b463df9a89bf6836f4f26359207b765578e5ed76ae9f31b1cc48324be576e3d8e44d217445dba466f9b6293fdf05448584eb64f61e02903f834518622b7d4732471c6e0e22e22d1f45e31f0509eab39cdea5980a492a1da2aaac55a98a01216cd4bfe7abaa682af0fbff2dfed030ba28f1285df750e4d3477190dd193f8643b61d8ac1c427d590badb1f61a05d480908fbdc7c6f0502dd0c4abb51d725e92f95da2a8facb79881a844e2026911adcc659d1fb20a2fce63787c8bb0d9f6789c4b231c76da81c3f0718eb7156565a081d2be6b4170c0e0bcebddd459f53db2590c974bca0d705c055dee8c629bf854a5d58edc85228499ec6dde80cce4c8910b81b1e9e8b0f43bd39c8d69c3a80672729b7dc952dd9448688b6bd06afc2d2819cda80b66c57b52ccf7ac1a86601410d18d0c732f69de792e0894a9541684ef174de766fd4ce55efea8f53812867be6a391ac865802dbc26d93959df327ec2667c7256aa5a1d3c45a69a6158f285d6c97c3b8eedb09527848500517995a9eae4cd911df531544c77f5a9a2f22313e3eb72ca7a07dba243476bc926992e0d1e58b4a2fc8c7b01e0cad726237933ea319bad7537d39f3ed635d1e6c1d29e97b3d2160a09e30ee2b65ac5bce00996a73c008bcf351cecb97b6833b6d121dcf4644260b2946ea204732ac9954b228f0beaa15071930fd9583dfc466d12b5f0eeeba6dcf23d5ce8ae62ee5796359d97a4a15955c778d868d0ef9991d9f2833b5bb66119c5f8b396fd108baed7906cbb3cc376d13551caed97fece6f42a4c908ee279f1127fda1dd3ee77d8de0a6f3c135fa3f1cffe38591b6738dc97b55f0acc52be9753ce53e64d7e497bb00ca6123758df3b68fad99e35c04389f7514a8e36039f541598a417275e77869989782325a15b5342ac5011ff07af698584b476b35d941a4981eac590a07a092bb50342da5d3341f901aa07964a8d02b623c7b106dd0ae50bfa007a22d46c8772fa55558176602946cb1d11ea5460db7586fb89c6d3bcd3ab6dd20df4a4db63d2e7d52380800ad812b8640887e027e946df96488b47fbc4a4fadaa8beda4abe446fafea5403fae2ef'),
                          packet.to_bytes())
 
-    def test_process_onion_packet(self):
+    @needs_test_with_all_chacha20_implementations
+    def test_new_onion_packet_mixed_payloads(self):
+        # test vector from bolt-04
+        payment_path_pubkeys = [
+            bfh('02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619'),
+            bfh('0324653eac434488002cc06bbfb7f10fe18991e35f9fe4302dbea6d2353dc0ab1c'),
+            bfh('027f31ebc5462c1fdce1b737ecff52d37d75dea43ce11c74d25aa297165faa2007'),
+            bfh('032c0b7cf95324a07d05398b240174dc0c2be444d96b159aa6c7f7b1e668680991'),
+            bfh('02edabbd16b41c8371b92ef2f04c1185b4f03b6dcd52ba9b78d9d7c89c8f221145'),
+        ]
+        session_key = bfh('4141414141414141414141414141414141414141414141414141414141414141')
+        associated_data = bfh('4242424242424242424242424242424242424242424242424242424242424242')
+        hops_data = [
+            OnionHopsDataSingle(is_tlv_payload=False, payload={
+                "amt_to_forward": {"amt_to_forward": 0},
+                "outgoing_cltv_value": {"outgoing_cltv_value": 0},
+                "short_channel_id": {"short_channel_id": bfh('0000000000000000')},
+            }),
+            OnionHopsDataSingle(is_tlv_payload=True),
+            OnionHopsDataSingle(is_tlv_payload=True),
+            OnionHopsDataSingle(is_tlv_payload=True),
+            OnionHopsDataSingle(is_tlv_payload=False, payload={
+                "amt_to_forward": {"amt_to_forward": 4},
+                "outgoing_cltv_value": {"outgoing_cltv_value": 4},
+                "short_channel_id": {"short_channel_id": bfh('0404040404040404')},
+            }),
+        ]
+        hops_data[1]._raw_bytes_payload = bfh("0101010101010101000000000000000100000001")
+        hops_data[2]._raw_bytes_payload = bfh("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff")
+        hops_data[3]._raw_bytes_payload = bfh("0303030303030303000000000000000300000003")
+        packet = new_onion_packet(payment_path_pubkeys, session_key, hops_data, associated_data)
+        self.assertEqual(bfh('0002eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619e5f14350c2a76fc232b5e46d421e9615471ab9e0bc887beff8c95fdb878f7b3a710f8eaf9ccc768f66bb5dec1f7827f33c43fe2ddd05614c8283aa78e9e7573f87c50f7d61ab590531cf08000178a333a347f8b4072e1cea42da7552402b10765adae3f581408f35ff0a71a34b78b1d8ecae77df96c6404bae9a8e8d7178977d7094a1ae549f89338c0777551f874159eb42d3a59fb9285ad4e24883f27de23942ec966611e99bee1cee503455be9e8e642cef6cef7b9864130f692283f8a973d47a8f1c1726b6e59969385975c766e35737c8d76388b64f748ee7943ffb0e2ee45c57a1abc40762ae598723d21bd184e2b338f68ebff47219357bd19cd7e01e2337b806ef4d717888e129e59cd3dc31e6201ccb2fd6d7499836f37a993262468bcb3a4dcd03a22818aca49c6b7b9b8e9e870045631d8e039b066ff86e0d1b7291f71cefa7264c70404a8e538b566c17ccc5feab231401e6c08a01bd5edfc1aa8e3e533b96e82d1f91118d508924b923531929aea889fcdf057f5995d9731c4bf796fb0e41c885d488dcbc68eb742e27f44310b276edc6f652658149e7e9ced4edde5d38c9b8f92e16f6b4ab13d710ee5c193921909bdd75db331cd9d7581a39fca50814ed8d9d402b86e7f8f6ac2f3bca8e6fe47eb45fbdd3be21a8a8d200797eae3c9a0497132f92410d804977408494dff49dd3d8bce248e0b74fd9e6f0f7102c25ddfa02bd9ad9f746abbfa3379834bc2380d58e9d23237821475a1874484783a15d68f47d3dc339f38d9bf925655d5c946778680fd6d1f062f84128895aff09d35d6c92cca63d3f95a9ee8f2a84f383b4d6a087533e65de12fc8dcaf85777736a2088ff4b22462265028695b37e70963c10df8ef2458756c73007dc3e544340927f9e9f5ea4816a9fd9832c311d122e9512739a6b4714bba590e31caa143ce83cb84b36c738c60c3190ff70cd9ac286a9fd2ab619399b68f1f7447be376ce884b5913c8496d01cbf7a44a60b6e6747513f69dc538f340bc1388e0fde5d0c1db50a4dcb9cc0576e0e2474e4853af9623212578d502757ffb2e0e749695ed70f61c116560d0d4154b64dcf3cbf3c91d89fb6dd004dc19588e3479fcc63c394a4f9e8a3b8b961fce8a532304f1337f1a697a1bb14b94d2953f39b73b6a3125d24f27fcd4f60437881185370bde68a5454d816e7a70d4cea582effab9a4f1b730437e35f7a5c4b769c7b72f0346887c1e63576b2f1e2b3706142586883f8cf3a23595cc8e35a52ad290afd8d2f8bcd5b4c1b891583a4159af7110ecde092079209c6ec46d2bda60b04c519bb8bc6dffb5c87f310814ef2f3003671b3c90ddf5d0173a70504c2280d31f17c061f4bb12a978122c8a2a618bb7d1edcf14f84bf0fa181798b826a254fca8b6d7c81e0beb01bd77f6461be3c8647301d02b04753b0771105986aa0cbc13f7718d64e1b3437e8eef1d319359914a7932548c91570ef3ea741083ca5be5ff43c6d9444d29df06f76ec3dc936e3d180f4b6d0fbc495487c7d44d7c8fe4a70d5ff1461d0d9593f3f898c919c363fa18341ce9dae54f898ccf3fe792136682272941563387263c51b2a2f32363b804672cc158c9230472b554090a661aa81525d11876eefdcc45442249e61e07284592f1606491de5c0324d3af4be035d7ede75b957e879e9770cdde2e1bbc1ef75d45fe555f1ff6ac296a2f648eeee59c7c08260226ea333c285bcf37a9bbfa57ba2ab8083c4be6fc2ebe279537d22da96a07392908cf22b233337a74fe5c603b51712b43c3ee55010ee3d44dd9ba82bba3145ec358f863e04bbfa53799a7a9216718fd5859da2f0deb77b8e315ad6868fdec9400f45a48e6dc8ddbaeb3'),
+                         packet.to_bytes())
+
+    @needs_test_with_all_chacha20_implementations
+    def test_process_onion_packet_mixed_payloads(self):
+        # this test is not from bolt-04, but is based on the one there;
+        # here the TLV payloads are actually sane...
+        payment_path_pubkeys = [
+            bfh('02eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619'),
+            bfh('0324653eac434488002cc06bbfb7f10fe18991e35f9fe4302dbea6d2353dc0ab1c'),
+            bfh('027f31ebc5462c1fdce1b737ecff52d37d75dea43ce11c74d25aa297165faa2007'),
+            bfh('032c0b7cf95324a07d05398b240174dc0c2be444d96b159aa6c7f7b1e668680991'),
+            bfh('02edabbd16b41c8371b92ef2f04c1185b4f03b6dcd52ba9b78d9d7c89c8f221145'),
+        ]
+        payment_path_privkeys = [
+            bfh('4141414141414141414141414141414141414141414141414141414141414141'),
+            bfh('4242424242424242424242424242424242424242424242424242424242424242'),
+            bfh('4343434343434343434343434343434343434343434343434343434343434343'),
+            bfh('4444444444444444444444444444444444444444444444444444444444444444'),
+            bfh('4545454545454545454545454545454545454545454545454545454545454545'),
+        ]
+        session_key = bfh('4141414141414141414141414141414141414141414141414141414141414141')
+        associated_data = bfh('4242424242424242424242424242424242424242424242424242424242424242')
+        hops_data = [
+            OnionHopsDataSingle(is_tlv_payload=False, payload={
+                "amt_to_forward": {"amt_to_forward": 0},
+                "outgoing_cltv_value": {"outgoing_cltv_value": 0},
+                "short_channel_id": {"short_channel_id": bfh('0000000000000000')},
+            }),
+            OnionHopsDataSingle(is_tlv_payload=True, payload={
+                "amt_to_forward": {"amt_to_forward": 1},
+                "outgoing_cltv_value": {"outgoing_cltv_value": 1},
+                "short_channel_id": {"short_channel_id": bfh('0101010101010101')},
+            }),
+            OnionHopsDataSingle(is_tlv_payload=True, payload={
+                "amt_to_forward": {"amt_to_forward": 2},
+                "outgoing_cltv_value": {"outgoing_cltv_value": 2},
+                "short_channel_id": {"short_channel_id": bfh('0202020202020202')},
+            }),
+            OnionHopsDataSingle(is_tlv_payload=True, payload={
+                "amt_to_forward": {"amt_to_forward": 3},
+                "outgoing_cltv_value": {"outgoing_cltv_value": 3},
+                "short_channel_id": {"short_channel_id": bfh('0303030303030303')},
+            }),
+            OnionHopsDataSingle(is_tlv_payload=False, payload={
+                "amt_to_forward": {"amt_to_forward": 4},
+                "outgoing_cltv_value": {"outgoing_cltv_value": 4},
+                "short_channel_id": {"short_channel_id": bfh('0404040404040404')},
+            }),
+        ]
+        packet = new_onion_packet(payment_path_pubkeys, session_key, hops_data, associated_data)
+        self.assertEqual(bfh('0002eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f283686619e5f14350c2a76fc232b5e46d421e9615471ab9e0bc887beff8c95fdb878f7b3a71bde5adfa90b337f34616d8673d09dd055937273045566ce537ffbe3f9d1f263dc10c7d61ae590536c609010079a232a247922a5395359a63dfbefb85f40317e23254f3023f7d4a98f746c9ab06647645ce55c67308e3c77dc87a1caeac51b03b23c60f05e536e1d757c8c1093e34accfc4f97b5920f6dd2069d5b9ddbb384c3ac575e999a92a4434470ab0aa040c4c3cace3162a405842a88be783e64fad54bd6727c23fc446b7ec0dc3eec5a03eb6c70ec2784911c9e6d274322ec465f0972eb8e771b149f319582ba64dbc2b8e56a3ea79002801c09354f1541cf79bd1dccf5d6bd6b6bacc87a0f24ce497e14e8037e5a79fb4d9ca63fe47f17765963e8f17468a5eaec19a6cca2bfc4e4a366fea3a92112a945856be55e45197ecbab523025e7589529c30cc8addc8fa39d23ef64fa2e51a219c3bd4d3c484832f8e5af16bc46cdba0403991f4fc1b74beef857acf15fefed82ac8678ca66d26262c681beddfdb485aa498813b1a6c5833f1339c1a35244ab76baa0ccaf681ec1f54004e387063335648a77b65d90dde74f1c4b0a729ca25fa53256f7db6d35818b4e5910ba78ec69cf3646bf248ef46cf9cc33062662de2afe4dcf005951b85fd759429fa1ae490b78b14132ccb791232a6c680f03634c0136817f51bf9603a0dba405e7b347830be4327fceccd4734456842b82cf6275393b279bc6ac93d743e00a2d6042960089f70c782ce554b9f73eeeefeea50df7f6f80de1c4e869a7b502f9a5df30d1175402fa780812d35c6d489a30bb0cea53a1088669a238cccf416ecb37f8d8e6ea1327b64979d48e937db69a44a902923a75113685a4aca4a8d9c62b388b48d9c9e2ab9c2df4d529223144de6e16f2dd95a063da79163b3fe006a80263cde4410648f7c3e1f4a7707f82eb0e209002d972c7e57b4ff8ce063fa7b4140f52f569f0cc8793a97a170613efb6b27ba3a0370f8ea74fc0d6aabba54e0ee967abc70e87b580d2aac244236b7752db9d83b159afc1faf6b44b697643235bf59e99f43428caff409d26b9139538865b1f5cf4699f9296088aca461209024ad1dd00e3566e4fde2117b7b3ffced6696b735816a00199890056de86dcbb1b930228143dbf04f07c0eb34370089ea55c43b2c4546cbe1ff0c3a6217d994af9b4225f4b5acb1e3129f5f5b98d381a4692a8561c670b2ee95869f9614e76bb07f623c5194e1c9d26334026f8f5437ec1cde526f914fa094a465f0adcea32b79bfa44d2562536b0d8366da9ee577666c1d5e39615444ca5c900b8199fafac002b8235688eaa0c6887475a913b37d9a4ed43a894ea4576102e5d475ae0b962240ea95fc367b7ac214a4f8682448a9c0d2eea35727bdedc235a975ecc8148a5b03d6291a051dbefe19c8b344d2713c6664dd94ced53c6be39a837fbf1169cca6a12b0a2710f443ba1afeecb51e94236b2a6ed1c2f365b595443b1515de86dcb8c67282807789b47c331cde2fdd721262bef165fa96b7919d11bc5f2022f5affffdd747c7dbe3de8add829a0a8913519fdf7dba4e8a7a25456d2d559746d39ea6ffa31c7b904792fb734bba30f2e1adf7457a994513a1807785fe7b22bf419d1f407f8e2db8b22c0512b078c0cfdfd599e6c4a9d0cc624b9e24b87f30541c3248cd6643df15d251775cc457df4ea6b4e4c5990d87541028c6f0eb28502db1c11a92797168d0b68cb0a0d345b3a3ad05fc4016862f403c64670c41a2c0c6d4e384f5f7da6a204a24530a51182fd7164f120e74a78decb1ab6cda6b9cfc68ac0a35f7a57e750ead65a8e0429cc16e733b9e4feaea25d06c1a4768'),
+                         packet.to_bytes())
+        for i, privkey in enumerate(payment_path_privkeys):
+            processed_packet = process_onion_packet(packet, associated_data, privkey)
+            self.assertEqual(hops_data[i].to_bytes(), processed_packet.hop_data.to_bytes())
+            packet = processed_packet.next_packet
+
+    @needs_test_with_all_chacha20_implementations
+    def test_process_onion_packet_legacy(self):
         # this test is not from bolt-04, but is based on the one there;
         # except here we have the privkeys for these pubkeys
         payment_path_pubkeys = [
@@ -162,30 +252,41 @@ class Test_LNRouter(TestCaseForTestnet):
         session_key = bfh('4141414141414141414141414141414141414141414141414141414141414141')
         associated_data = bfh('4242424242424242424242424242424242424242424242424242424242424242')
         hops_data = [
-            OnionHopsDataSingle(OnionPerHop(
-                bfh('0000000000000000'), bfh('0000000000000000'), bfh('00000000')
-            )),
-            OnionHopsDataSingle(OnionPerHop(
-                bfh('0101010101010101'), bfh('0000000000000001'), bfh('00000001')
-            )),
-            OnionHopsDataSingle(OnionPerHop(
-                bfh('0202020202020202'), bfh('0000000000000002'), bfh('00000002')
-            )),
-            OnionHopsDataSingle(OnionPerHop(
-                bfh('0303030303030303'), bfh('0000000000000003'), bfh('00000003')
-            )),
-            OnionHopsDataSingle(OnionPerHop(
-                bfh('0404040404040404'), bfh('0000000000000004'), bfh('00000004')
-            )),
+            OnionHopsDataSingle(is_tlv_payload=False, payload={
+                "amt_to_forward": {"amt_to_forward": 0},
+                "outgoing_cltv_value": {"outgoing_cltv_value": 0},
+                "short_channel_id": {"short_channel_id": bfh('0000000000000000')},
+            }),
+            OnionHopsDataSingle(is_tlv_payload=False, payload={
+                "amt_to_forward": {"amt_to_forward": 1},
+                "outgoing_cltv_value": {"outgoing_cltv_value": 1},
+                "short_channel_id": {"short_channel_id": bfh('0101010101010101')},
+            }),
+            OnionHopsDataSingle(is_tlv_payload=False, payload={
+                "amt_to_forward": {"amt_to_forward": 2},
+                "outgoing_cltv_value": {"outgoing_cltv_value": 2},
+                "short_channel_id": {"short_channel_id": bfh('0202020202020202')},
+            }),
+            OnionHopsDataSingle(is_tlv_payload=False, payload={
+                "amt_to_forward": {"amt_to_forward": 3},
+                "outgoing_cltv_value": {"outgoing_cltv_value": 3},
+                "short_channel_id": {"short_channel_id": bfh('0303030303030303')},
+            }),
+            OnionHopsDataSingle(is_tlv_payload=False, payload={
+                "amt_to_forward": {"amt_to_forward": 4},
+                "outgoing_cltv_value": {"outgoing_cltv_value": 4},
+                "short_channel_id": {"short_channel_id": bfh('0404040404040404')},
+            }),
         ]
         packet = new_onion_packet(payment_path_pubkeys, session_key, hops_data, associated_data)
-        self.assertEqual(bfh('0002eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f28368661954176cd9869da33d713aa219fcef1e5c806fef11e696bcc66844de8271c27974a0fd57c2dbcb2c6dd4e8ef35d96db28d5a0e49b6ab3d6de31af65950723b8cddc108390bebf8d149002e31bdc283056477ba27c8054c248ad7306de31663a7c99ec659da15d0f6fbc7e1687485b39e9be0ec3b70164cb3618a9b546317e7c2d62ae9f0f840704535729262d30c6132d1b390f073edec8fa057176c6268b6ad06a82ff0d16d4c662194873e8b4ecf46eb2c9d4d58d2ee2021adb19840605ac5afd8bd942dd71e8244c83e28b2ed5a3b09e9e7df5c8c747e5765ba366a4f7407a6c6b0a32f74bc5e428f7fa4c3cf70e13ed91563177d94190d5149aa4b9c96d00e40d2ac35ab9c4a621ce0f6f5df7d64a9c8d435db19de192d9db522c7f7b4e201fc1b61a9bd3efd062ae24455d463818b01e2756c7d0691bc3ac4c017be34c9a8b2913bb1b937e31e0ae40f650a7cd820bcb4996825b1cbad1ff7ccc2b513b1104524c34f6573e1b59201c005a632ee5dccd3711a32e3ba1ff00fcffbe636e4b3a84bbe491b836a57ccec138b8cc2ec733846904d872f305d538d51db8e56232ec6e07877075328874cb7b09c7e799100a9ff085dead253886b174fc408a0ea7b48bce2c5d8992285011960af088f7e006ef60089d46ac9aa15acfac6c87c3cf6904764dd785419292fbafa9cca09c8ade24a6cd63f12d1cfc83fa35cf2f1cf503c39cbf78293f06c68a3cece7177169cd872bb49bf69d933a27a887dd9daefa9239fca9f0c3e309ec61d9df947211da98cf11a6e0fb77252629cdf9f2226dd69ca73fa51be4df224592f8d471b69a1aebbdaa2f3a798b3581253d97feb0a12e6606043ca0fc5efc0f49b8061d6796eff31cd8638499e2f25ffb96eec32837438ed7ebebbe587886648f63e35d80f41869f4c308f2e6970bd65fead5e8544e3239a6acc9d996b08d1546455bcafbe88ed3ed547714841946fe2e77180e4d7bf1452414e4b1745a7897184a2c4cbc3ac46f83342a55a48e29dc8f17cf595dd28f51e297ba89fd25ed0dbd1c0081a810beaab09758a36fbfd16fbdc3daa9fe05c8a73195f244ef2743a5df761f01ee6e693eb6c7f1a7834fab3671391e5ddebf611e119a2ae4456e2cee7a6d4f27a2246cdb1f8ef35f0b3d7044b3799d8d0ed0a6470557fd807c065d6d83acba07e96e10770ada8c0b4d4921522944188d5f30086a6ee0a4795331273f32beaaa43363fc58208a257e5c5c434c7325b583642219d81c7d67b908d5263b42ac1991edc69a777da60f38eff138c844af9e549374e8b29b166211bfded24587a29394e33828b784da7e7b62ab7e49ea2693fcdd17fa96186a5ef11ef1a8adffa50f93a3119e95e6c09014f3e3b0709183fa08a826ced6deb4608b7d986ebbcf99ad58e25451d4d9d38d0059734d8501467b97182cd11e0c07c91ca50f61cc31255a3147ade654976a5989097281892aafd8df595c63bd14f1e03f5955a9398d2dd6368bbcae833ae1cc2df31eb0980b4817dfd130020ffb275743fcc01df40e3ecda1c5988e8e1bde965353b0b1bf34ea05f095000c45b6249618d275905a24d3eb58c600aeab4fb552fbf1ccdb2a5c80ace220310f89829d7e53f78c126037b6d8d500220c7a118d9621b4d6bd5379edd7e24bcf540e87aba6b88862db16fa4ee00b009fda80577be67ab94910fd8a7807dfe4ebe66b8fdcd040aa2dc17ec22639298be56b2a2c9d8940647b75f2f6d81746df16e1cb2f05e23397a8c63baea0803441ff4b7d517ff172980a056726235e2f6af85e8aa9b91ba85f14532272d6170df3166b91169dc09d4f4a251610f57ff0885a93364cfaf650bdf436c89795efed5ca934bc7ffc0a4'),
+        self.assertEqual(bfh('0002eec7245d6b7d2ccb30380bfbe2a3648cd7a942653f5aa340edcea1f28368661954176cd9869da33d713aa219fcef1e5c806fef11e696bcc66844de8271c27974a049d041ffc5be934b8575c6ff4371f2f88d4edfd73e445534d3f6ae15b64b0d8308390bebf8d149002e31bdc283056477ba27c8054c248ad7306de31663a7c99ec65b251704041f7c4cc40a0016ba172fbf805ec59132a65a4c7eb1f41337931c5df0f840704535729262d30c6132d1b390f073edec8fa057176c6268b6ad06a82ff0229c3be444ee50b40686bc1306838b93c65771de1b6ca05dace1ff9814a6e58b2dd71e8244c83e28b2ed5a3b09e9e7df5c8c747e5765ba366a4f7407a6c6b0a32fb5521cce7cd668f7434c909c1be027d8595d85893e5f612c49a93eeeed80a78bab9c4a621ce0f6f5df7d64a9c8d435db19de192d9db522c7f7b4e201fc1b61a9bd3efd062ae24455d463818b01e2756c7d0691bc3ac4c017be34c9a8b2913bb1b94056bf7a21730afc3f254ffa41ca140a5d87ff470f536d08619e8004d50de2fe5954d6aa4a00570da397ba15ae9ea4d7d1f136256a9093f0a787a36cbb3520b6a3cf4d1b13b16bf399c4b0326da1382a90bd79cf92f4808c8c84eaa50a8ccf44acbde0e35b2e6b72858c8446d6a05f3ba70fb4adc70af27cea9bd1dc1ea35fb3cc236b8b9b69b614903db339b22ad5dc2ddda7ac65fd7de24e60b7dbba7aafc9d26c0f9fcb03f1bb85dfc21762f862620651db52ea703ae60aa7e07febf11caa95c4245a4b37eb9c233e1ab1604fb85849e7f49cb9f7c681c4d91b7c320eb4b89b9c6bcb636ceadda59f6ed47aa5b1ea0a946ea98f6ad2614e79e0d4ef96d6d65903adb0479709e03008bbdf3355dd87df7d68965fdf1ad5c68b6dc2761b96b10f8eb4c0329a646bf38cf4702002e61565231b4ac7a9cde63d23f7b24c9d42797b3c434558d71ed8bf9fcab2c2aee3e8b38c19f9edc3ad3dfe9ebba7387ce4764f97ed1c1a83552dff8315546761479a6f929c39bcca0891d4a967d1b77fa80feed6ae74ac82ed5fb7be225c3f2b0ebdc652afc2255c47bc318ac645bbf19c0819ff527ff6708a78e19c8ca3dc8087035e10d5ac976e84b71148586c8a5a7b26ed11b5b401ce7bb2ac532207eaa24d2f53aaa8024607da764d807c91489e82fcad04e6b8992a507119367f576ee5ffe6807d5723d60234d4c3f94adce0acfed9dba535ca375446a4e9b500b74ad2a66e1c6b0fc38933f282d3a4a877bceceeca52b46e731ca51a9534224a883c4a45587f973f73a22069a4154b1da03d307d8575c821bef0eef87165b9a1bbf902ecfca82ddd805d10fbb7147b496f6772f01e9bf542b00288f3a6efab32590c1f34535ece03a0587ca187d27a98d4c9aa7c044794baa43a81abbe307f51d0bda6e7b4cf62c4be553b176321777e7fd483d6cec16df137293aaf3ad53608e1c7831368675bb9608db04d5c859e7714edab3d2389837fa071f0795adfabc51507b1adbadc7f83e80bd4e4eb9ed1a89c9e0a6dc16f38d55181d5666b02150651961aab34faef97d80fa4e1960864dfec3b687fd4eadf7aa6c709cb4698ae86ae112f386f33731d996b9d41926a2e820c6ba483a61674a4bae03af37e872ffdc0a9a8a034327af17e13e9e7ac619c9188c2a5c12a6ebf887721455c0e2822e67a621ed49f1f50dfc38b71c29d0224954e84ced086c80de552cca3a14adbe43035901225bafc3db3b672c780e4fa12b59221f93690527efc16a28e7c63d1a99fc881f023b03a157076a7e999a715ed37521adb483e2477d75ba5a55d4abad22b024c5317334b6544f15971591c774d896229e4e668fc1c7958fbd76fa0b152a6f14c95692083badd066b6621367fd73d88ba8d860566e6d55b871d80c68296b80ae8847d'),
                          packet.to_bytes())
         for i, privkey in enumerate(payment_path_privkeys):
             processed_packet = process_onion_packet(packet, associated_data, privkey)
-            self.assertEqual(hops_data[i].per_hop.to_bytes(), processed_packet.hop_data.per_hop.to_bytes())
+            self.assertEqual(hops_data[i].to_bytes(), processed_packet.hop_data.to_bytes())
             packet = processed_packet.next_packet
 
+    @needs_test_with_all_chacha20_implementations
     def test_decode_onion_error(self):
         # test vector from bolt-04
         payment_path_pubkeys = [

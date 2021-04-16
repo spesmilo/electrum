@@ -2,6 +2,7 @@
 #:import Window kivy.core.window.Window
 #:import Factory kivy.factory.Factory
 #:import _ electrum.gui.kivy.i18n._
+#:import KIVY_GUI_PATH electrum.gui.kivy.KIVY_GUI_PATH
 
 
 ###########################
@@ -58,6 +59,7 @@
 
 <IconButton@Button>:
     icon: ''
+    icon_size: '30dp'
     AnchorLayout:
         pos: self.parent.pos
         size: self.parent.size
@@ -65,8 +67,19 @@
         Image:
             source: self.parent.parent.icon
             size_hint_x: None
-            size: '30dp', '30dp'
+            size: root.icon_size, root.icon_size
 
+
+<BackgroundColor@Widget>
+    background_color: 0, 0, 0, 1
+    canvas.before:
+        Color:
+            rgba: root.background_color
+        Rectangle:
+            size: self.size
+            pos: self.pos
+<BackgroundTopLabel@TopLabel+BackgroundColor>
+    background_color: 0, 0, 0, 1
 
 
 #########################
@@ -85,14 +98,38 @@
         id: lbl2
         text: root.value
 
-<OutputItem>
-    address: ''
+<BoxButton@BoxLayout>
+    text: ''
     value: ''
     size_hint_y: None
     height: max(lbl1.height, lbl2.height)
     TopLabel
         id: lbl1
+        text: root.text
+        pos_hint: {'top':1}
+    Button
+        id: lbl2
+        text: root.value
+        background_color: (0,0,0,0)
+        bold: True
+        size_hint_y: None
+        text_size: self.width, None
+        height: self.texture_size[1]
+        on_release:
+            root.callback()
+
+<OutputItem>
+    address: ''
+    value: ''
+    background_color: 0, 0, 0, 1
+    color: 1, 1, 1, 1
+    size_hint_y: None
+    height: max(lbl1.height, lbl2.height)
+    BackgroundTopLabel
+        id: lbl1
         text: '[ref=%s]%s[/ref]'%(root.address, root.address)
+        color: root.color
+        background_color: root.background_color
         font_size: '6pt'
         shorten: True
         size_hint_x: 0.65
@@ -133,17 +170,23 @@
     font_size: '6pt'
     name: ''
     data: ''
+    visible: True
+    opacity: 1 if self.visible else 0
+    disabled: not self.visible
     text: self.data if self.data else _('Tap to show')
     touched: False
     padding: '10dp', '10dp'
+    background_color: .3, .3, .3, 1
+    show_text_with_qr: True
+    touch_callback: lambda: app.on_ref_label(self, show_text_with_qr=self.show_text_with_qr)
     on_touch_down:
         touch = args[1]
         touched = bool(self.collide_point(*touch.pos))
-        if touched: app.on_ref_label(self)
+        if touched: self.touch_callback()
         if touched: self.touched = True
     canvas.before:
         Color:
-            rgb: .3, .3, .3
+            rgba: root.background_color
         Rectangle:
             size: self.size
             pos: self.pos
@@ -190,7 +233,7 @@
         Color:
             rgba: 0.192, .498, 0.745, 1
         BorderImage:
-            source: 'atlas://electrum/gui/kivy/theming/light/card_bottom'
+            source: f'atlas://{KIVY_GUI_PATH}/theming/light/card_bottom'
             size: self.size
             pos: self.pos
 
@@ -204,7 +247,7 @@
 		Color:
 			rgba: 0.192, .498, 0.745, 1
 		BorderImage:
-			source: 'atlas://electrum/gui/kivy/theming/light/card_bottom'
+			source: f'atlas://{KIVY_GUI_PATH}/theming/light/card_bottom'
 			size: self.size
 			pos: self.pos
 
@@ -217,7 +260,7 @@
 		Color:
 			rgba: 0.192, .498, 0.745, 1
         BorderImage:
-            source: 'atlas://electrum/gui/kivy/theming/light/card_bottom'
+            source: f'atlas://{KIVY_GUI_PATH}/theming/light/card_bottom'
             size: self.size
             pos: self.pos
 
@@ -266,25 +309,6 @@
             size: self.size
             pos: self.pos
 
-<AddressButton@Button>:
-	background_color: 1, .585, .878, 0
-	halign: 'center'
-	text_size: (self.width, None)
-	shorten: True
-	size_hint: 0.5, None
-	default_text: ''
-	text: self.default_text
-	padding: '5dp', '5dp'
-	height: '40dp'
-	text_color: self.foreground_color
-	disabled_color: 1, 1, 1, 1
-	foreground_color: 1, 1, 1, 1
-	canvas.before:
-		Color:
-			rgba: (0.9, .498, 0.745, 1) if self.state == 'down' else self.background_color
-		Rectangle:
-			size: self.size
-			pos: self.pos
 
 <KButton@Button>:
     size_hint: 1, None
@@ -324,8 +348,8 @@
     valign: 'middle'
     bold: True
     font_size: '12.5sp'
-    background_normal: 'atlas://electrum/gui/kivy/theming/light/tab_btn'
-    background_down: 'atlas://electrum/gui/kivy/theming/light/tab_btn_pressed'
+    background_normal: f'atlas://{KIVY_GUI_PATH}/theming/light/tab_btn'
+    background_down: f'atlas://{KIVY_GUI_PATH}/theming/light/tab_btn_pressed'
 
 
 <ColoredLabel@Label>:
@@ -415,7 +439,7 @@ BoxLayout:
             rgb: .6, .6, .6
         Rectangle:
             size: self.size
-            source: 'electrum/gui/kivy/data/background.png'
+            source: f'{KIVY_GUI_PATH}/data/background.png'
 
     ActionBar:
 
@@ -427,35 +451,32 @@ BoxLayout:
                 size: 0, 0
 
             ActionButton:
-                size_hint_x: 0.5
+                size_hint_x: None
                 text: app.wallet_name
                 bold: True
                 color: 0.7, 0.7, 0.7, 1
                 font_size: '22dp'
                 on_release:
-                    Clock.schedule_once(lambda dt: app.popup_dialog('wallets'), 0.05)
+                    Clock.schedule_once(lambda dt: app.popup_dialog('status'), 0.05)
                     self.state = 'normal'
 
             ActionButton:
-                size_hint_x: 0.4
+                size_hint_x: 0.8
                 text: ''
                 opacity:0
 
             ActionOverflow:
                 id: ao
-                size_hint_x: 0.15
+                size_hint_x: 0.2
                 ActionOvrButton:
                     name: 'about'
                     text: _('About')
                 ActionOvrButton:
+                    name: 'wallets'
+                    text: _('Wallets')
+                ActionOvrButton:
                     name: 'network'
                     text: _('Network')
-                #ActionOvrButton:
-                #    name: 'lightning'
-                #    text: _('Lightning')
-                ActionOvrButton:
-                    name: 'status'
-                    text: _('Wallet Info')
                 ActionOvrButton:
                     name: 'addresses_dialog'
                     text: _('Addresses')

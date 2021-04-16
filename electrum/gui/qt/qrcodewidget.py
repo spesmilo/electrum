@@ -9,8 +9,9 @@ from PyQt5.QtWidgets import (
 )
 
 from electrum.i18n import _
+from electrum.simple_config import SimpleConfig
 
-from .util import WindowModalDialog, get_parent_main_window
+from .util import WindowModalDialog, WWLabel, getSaveFileName
 
 
 class QRCodeWidget(QWidget):
@@ -71,7 +72,7 @@ class QRCodeWidget(QWidget):
 
         margin = 10
         framesize = min(r.width(), r.height())
-        boxsize = int( (framesize - 2*margin)/k )
+        boxsize = int((framesize - 2*margin)/k)
         size = k*boxsize
         left = (framesize - size)/2
         top = (framesize - size)/2
@@ -85,47 +86,74 @@ class QRCodeWidget(QWidget):
         for r in range(k):
             for c in range(k):
                 if matrix[r][c]:
-                    qp.drawRect(left+c*boxsize, top+r*boxsize, boxsize - 1, boxsize - 1)
+                    qp.drawRect(int(left+c*boxsize), int(top+r*boxsize),
+                                boxsize - 1, boxsize - 1)
         qp.end()
 
 
 
 class QRDialog(WindowModalDialog):
 
-    def __init__(self, data, parent=None, title = "", show_text=False):
+    def __init__(
+            self,
+            *,
+            data,
+            parent=None,
+            title="",
+            show_text=False,
+            help_text=None,
+            show_copy_text_btn=False,
+            config: SimpleConfig,
+    ):
         WindowModalDialog.__init__(self, parent, title)
+        self.config = config
 
         vbox = QVBoxLayout()
+
         qrw = QRCodeWidget(data)
-        vbox.addWidget(qrw, 1)
-        if show_text:
-            text = QTextEdit()
-            text.setText(data)
-            text.setReadOnly(True)
-            vbox.addWidget(text)
+        qr_hbox = QHBoxLayout()
+        qr_hbox.addWidget(qrw)
+        qr_hbox.addStretch(1)
+        vbox.addLayout(qr_hbox)
+
+        help_text = data if show_text else help_text
+        if help_text:
+            text_label = WWLabel()
+            text_label.setText(help_text)
+            vbox.addWidget(text_label)
         hbox = QHBoxLayout()
         hbox.addStretch(1)
 
         def print_qr():
-            main_window = get_parent_main_window(self)
-            if main_window:
-                filename = main_window.getSaveFileName(_("Select where to save file"), "qrcode.png")
-            else:
-                filename, __ = QFileDialog.getSaveFileName(self, _("Select where to save file"), "qrcode.png")
+            filename = getSaveFileName(
+                parent=self,
+                title=_("Select where to save file"),
+                filename="qrcode.png",
+                config=self.config,
+            )
             if not filename:
                 return
-            p = qrw.grab()  # FIXME also grabs neutral colored padding
+            p = qrw.grab()
             p.save(filename, 'png')
             self.show_message(_("QR code saved to file") + " " + filename)
 
-        def copy_to_clipboard():
+        def copy_image_to_clipboard():
             p = qrw.grab()
             QApplication.clipboard().setPixmap(p)
             self.show_message(_("QR code copied to clipboard"))
 
-        b = QPushButton(_("Copy"))
+        def copy_text_to_clipboard():
+            QApplication.clipboard().setText(data)
+            self.show_message(_("Text copied to clipboard"))
+
+        b = QPushButton(_("Copy Image"))
         hbox.addWidget(b)
-        b.clicked.connect(copy_to_clipboard)
+        b.clicked.connect(copy_image_to_clipboard)
+
+        if show_copy_text_btn:
+            b = QPushButton(_("Copy Text"))
+            hbox.addWidget(b)
+            b.clicked.connect(copy_text_to_clipboard)
 
         b = QPushButton(_("Save"))
         hbox.addWidget(b)

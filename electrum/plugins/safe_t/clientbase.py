@@ -1,5 +1,6 @@
 import time
 from struct import pack
+from typing import Optional
 
 from electrum import ecc
 from electrum.i18n import _
@@ -7,11 +8,13 @@ from electrum.util import UserCancelled
 from electrum.keystore import bip39_normalize_passphrase
 from electrum.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32
 from electrum.logging import Logger
-from electrum.plugins.hw_wallet.plugin import HardwareClientBase
+from electrum.plugin import runs_in_hwd_thread
+from electrum.plugins.hw_wallet.plugin import HardwareClientBase, HardwareHandlerBase
 
 
 class GuiMixin(object):
     # Requires: self.proto, self.device
+    handler: Optional[HardwareHandlerBase]
 
     # ref: https://github.com/trezor/trezor-common/blob/44dfb07cfaafffada4b2ce0d15ba1d90d17cf35e/protob/types.proto#L89
     messages = {
@@ -47,6 +50,7 @@ class GuiMixin(object):
         return self.proto.ButtonAck()
 
     def callback_PinMatrixRequest(self, msg):
+        show_strength = True
         if msg.type == 2:
             msg = _("Enter a new PIN for your {}:")
         elif msg.type == 3:
@@ -54,7 +58,8 @@ class GuiMixin(object):
                      "NOTE: the positions of the numbers have changed!"))
         else:
             msg = _("Enter your current {} PIN:")
-        pin = self.handler.get_pin(msg.format(self.device))
+            show_strength = False
+        pin = self.handler.get_pin(msg.format(self.device), show_strength=show_strength)
         if len(pin) > 9:
             self.handler.show_error(_('The PIN cannot be longer than 9 characters.'))
             pin = ''  # to cancel below
@@ -101,6 +106,7 @@ class SafeTClientBase(HardwareClientBase, GuiMixin, Logger):
 
     def __init__(self, handler, plugin, proto):
         assert hasattr(self, 'tx_api')  # ProtocolMixin already constructed?
+        HardwareClientBase.__init__(self, plugin=plugin)
         self.proto = proto
         self.device = plugin.device
         self.handler = handler
@@ -117,12 +123,16 @@ class SafeTClientBase(HardwareClientBase, GuiMixin, Logger):
     def label(self):
         return self.features.label
 
+    def get_soft_device_id(self):
+        return self.features.device_id
+
     def is_initialized(self):
         return self.features.initialized
 
     def is_pairable(self):
         return not self.features.bootloader_mode
 
+    @runs_in_hwd_thread
     def has_usable_connection_with_device(self):
         try:
             res = self.ping("electrum pinging device")
@@ -137,6 +147,7 @@ class SafeTClientBase(HardwareClientBase, GuiMixin, Logger):
     def prevent_timeouts(self):
         self.last_operation = float('inf')
 
+    @runs_in_hwd_thread
     def timeout(self, cutoff):
         '''Time out the client if the last operation was before cutoff.'''
         if self.last_operation < cutoff:
@@ -147,6 +158,7 @@ class SafeTClientBase(HardwareClientBase, GuiMixin, Logger):
     def expand_path(n):
         return convert_bip32_path_to_list_of_uint32(n)
 
+    @runs_in_hwd_thread
     def cancel(self):
         '''Provided here as in keepkeylib but not safetlib.'''
         self.transport.write(self.proto.Cancel())
@@ -154,6 +166,7 @@ class SafeTClientBase(HardwareClientBase, GuiMixin, Logger):
     def i4b(self, x):
         return pack('>I', x)
 
+    @runs_in_hwd_thread
     def get_xpub(self, bip32_path, xtype):
         address_n = self.expand_path(bip32_path)
         creating = False
@@ -165,6 +178,7 @@ class SafeTClientBase(HardwareClientBase, GuiMixin, Logger):
                          fingerprint=self.i4b(node.fingerprint),
                          child_number=self.i4b(node.child_num)).to_xpub()
 
+    @runs_in_hwd_thread
     def toggle_passphrase(self):
         if self.features.passphrase_protection:
             self.msg = _("Confirm on your {} device to disable passphrases")
@@ -173,14 +187,17 @@ class SafeTClientBase(HardwareClientBase, GuiMixin, Logger):
         enabled = not self.features.passphrase_protection
         self.apply_settings(use_passphrase=enabled)
 
+    @runs_in_hwd_thread
     def change_label(self, label):
         self.msg = _("Confirm the new label on your {} device")
         self.apply_settings(label=label)
 
+    @runs_in_hwd_thread
     def change_homescreen(self, homescreen):
         self.msg = _("Confirm on your {} device to change your home screen")
         self.apply_settings(homescreen=homescreen)
 
+    @runs_in_hwd_thread
     def set_pin(self, remove):
         if remove:
             self.msg = _("Confirm on your {} device to disable PIN protection")
@@ -190,6 +207,7 @@ class SafeTClientBase(HardwareClientBase, GuiMixin, Logger):
             self.msg = _("Confirm on your {} device to set a PIN")
         self.change_pin(remove)
 
+    @runs_in_hwd_thread
     def clear_session(self):
         '''Clear the session to force pin (and passphrase if enabled)
         re-entry.  Does not leak exceptions.'''
@@ -201,10 +219,12 @@ class SafeTClientBase(HardwareClientBase, GuiMixin, Logger):
             # If the device was removed it has the same effect...
             self.logger.info(f"clear_session: ignoring error {e}")
 
+    @runs_in_hwd_thread
     def get_public_node(self, address_n, creating):
         self.creating_wallet = creating
         return super(SafeTClientBase, self).get_public_node(address_n)
 
+    @runs_in_hwd_thread
     def close(self):
         '''Called when Our wallet was closed or the device removed.'''
         self.logger.info("closing client")

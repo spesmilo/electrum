@@ -42,6 +42,7 @@ def read_json(filename, default):
 
 GIT_REPO_URL = "https://github.com/aguycalled/electrum"
 GIT_REPO_ISSUES_URL = "https://github.com/aguycalled/electrum/issues"
+BIP39_WALLET_FORMATS = read_json('bip39_wallet_formats.json', [])
 
 
 class AbstractNet:
@@ -93,6 +94,7 @@ class BitcoinMainnet(AbstractNet):
     LN_DNS_SEEDS = [
         'nodes.lightning.directory.',
         'lseed.bitcoinstats.com.',
+        'lseed.darosior.ninja',
     ]
 
 
@@ -128,9 +130,9 @@ class BitcoinTestnet(AbstractNet):
     XPUB_HEADERS_INV = inv_dict(XPUB_HEADERS)
     BIP44_COIN_TYPE = 1
     LN_REALM_BYTE = 1
-    LN_DNS_SEEDS = [
-        'test.nodes.lightning.directory.',
-        'lseed.bitcoinstats.com.',
+    LN_DNS_SEEDS = [  # TODO investigate this again
+        #'test.nodes.lightning.directory.',  # times out.
+        #'lseed.bitcoinstats.com.',  # ignores REALM byte and returns mainnet peers...
     ]
 
 

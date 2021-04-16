@@ -70,3 +70,84 @@ function retry() {
 
   return $result
 }
+
+function gcc_with_triplet()
+{
+    TRIPLET="$1"
+    CMD="$2"
+    shift 2
+    if [ -n "$TRIPLET" ] ; then
+        "$TRIPLET-$CMD" "$@"
+    else
+        "$CMD" "$@"
+    fi
+}
+
+function gcc_host()
+{
+    gcc_with_triplet "$GCC_TRIPLET_HOST" "$@"
+}
+
+function gcc_build()
+{
+    gcc_with_triplet "$GCC_TRIPLET_BUILD" "$@"
+}
+
+function host_strip()
+{
+    if [ "$GCC_STRIP_BINARIES" -ne "0" ] ; then
+        case "$BUILD_TYPE" in
+            linux|wine)
+                gcc_host strip "$@"
+                ;;
+            darwin)
+                # TODO: Strip on macOS?
+                ;;
+        esac
+    fi
+}
+
+# on MacOS, there is no realpath by default
+if ! [ -x "$(command -v realpath)" ]; then
+    function realpath() {
+        [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"
+    }
+fi
+
+
+export SOURCE_DATE_EPOCH=1530212462
+export PYTHONHASHSEED=22
+# Set the build type, overridden by wine build
+export BUILD_TYPE="${BUILD_TYPE:-$(uname | tr '[:upper:]' '[:lower:]')}"
+# Add host / build flags if the triplets are set
+if [ -n "$GCC_TRIPLET_HOST" ] ; then
+    export AUTOCONF_FLAGS="$AUTOCONF_FLAGS --host=$GCC_TRIPLET_HOST"
+fi
+if [ -n "$GCC_TRIPLET_BUILD" ] ; then
+    export AUTOCONF_FLAGS="$AUTOCONF_FLAGS --build=$GCC_TRIPLET_BUILD"
+fi
+
+export GCC_STRIP_BINARIES="${GCC_STRIP_BINARIES:-0}"
+
+
+function break_legacy_easy_install() {
+    # We don't want setuptools sneakily installing dependencies, invisible to pip.
+    # This ensures that if setuptools calls distutils which then calls easy_install,
+    # easy_install will not download packages over the network.
+    # see https://pip.pypa.io/en/stable/reference/pip_install/#controlling-setup-requires
+    # see https://github.com/pypa/setuptools/issues/1916#issuecomment-743350566
+    info "Intentionally breaking legacy easy_install."
+    DISTUTILS_CFG="${HOME}/.pydistutils.cfg"
+    DISTUTILS_CFG_BAK="${HOME}/.pydistutils.cfg.orig"
+    # If we are not inside docker, we might be overwriting a config file on the user's system...
+    if [ -e "$DISTUTILS_CFG" ] && [ ! -e "$DISTUTILS_CFG_BAK" ]; then
+        warn "Overwriting python distutils config file at '$DISTUTILS_CFG'. A copy will be saved at '$DISTUTILS_CFG_BAK'."
+        mv "$DISTUTILS_CFG" "$DISTUTILS_CFG_BAK"
+    fi
+    cat <<EOF > "$DISTUTILS_CFG"
+[easy_install]
+index_url = ''
+find_links = ''
+EOF
+}
+

@@ -1,0 +1,9 @@
+pip
+setuptools<50.0.0   # 50.0.0 might break pyinstaller. see https://github.com/pyinstaller/pyinstaller/commit/e9f9d79d6b23c767512156323d0a5d28c6386a57
+wheel
+
+# needed by pyinstaller:
+pefile>=2017.8.1
+altgraph
+pywin32-ctypes>=0.2.0
+pyinstaller-hooks-contrib>=2020.6
