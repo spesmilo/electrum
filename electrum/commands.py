@@ -75,9 +75,12 @@ class NotSynchronizedException(Exception):
     pass
 
 
+def satoshis_or_max(amount):
+    return satoshis(amount) if amount != '!' else '!'
+
 def satoshis(amount):
     # satoshi conversion must not be performed by the parser
-    return int(COIN*Decimal(amount)) if amount not in ['!', None] else amount
+    return int(COIN*Decimal(amount)) if amount is not None else None
 
 def format_satoshis(x):
     return str(Decimal(x)/COIN) if x is not None else None
@@ -618,7 +621,7 @@ class Commands:
         domain_coins = from_coins.split(',') if from_coins else None
         change_addr = self._resolver(change_addr, wallet)
         domain_addr = None if domain_addr is None else map(self._resolver, domain_addr, repeat(wallet))
-        amount_sat = satoshis(amount)
+        amount_sat = satoshis_or_max(amount)
         outputs = [PartialTxOutput.from_address_and_value(destination, amount_sat)]
         tx = wallet.create_transaction(
             outputs,
@@ -649,7 +652,7 @@ class Commands:
         final_outputs = []
         for address, amount in outputs:
             address = self._resolver(address, wallet)
-            amount_sat = satoshis(amount)
+            amount_sat = satoshis_or_max(amount)
             final_outputs.append(PartialTxOutput.from_address_and_value(address, amount_sat))
         tx = wallet.create_transaction(
             final_outputs,
