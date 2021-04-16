@@ -2221,27 +2221,6 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                 break # ok, it's old. not need to keep looping
         return age > age_limit
 
-    def cpfp(self, tx, fee, sign_schnorr=None):
-        ''' sign_schnorr is a bool or None for auto '''
-        sign_schnorr = self.is_schnorr_enabled() if sign_schnorr is None else bool(sign_schnorr)
-        txid = tx.txid()
-        for i, o in enumerate(tx.outputs()):
-            otype, address, value = o
-            if otype == TYPE_ADDRESS and self.is_mine(address):
-                break
-        else:
-            return
-        coins = self.get_addr_utxo(address)
-        item = coins.get(txid+':%d'%i)
-        if not item:
-            return
-        self.add_input_info(item)
-        inputs = [item]
-        outputs = [(TYPE_ADDRESS, address, value - fee)]
-        locktime = self.get_local_height()
-        # note: no need to call tx.BIP_LI01_sort() here - single input/output
-        return Transaction.from_io(inputs, outputs, locktime=locktime, sign_schnorr=sign_schnorr)
-
     def add_input_info(self, txin):
         address = txin['address']
         if self.is_mine(address):
