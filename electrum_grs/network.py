@@ -534,7 +534,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 return {}
             return self.interface.fee_estimates_eta
 
-    def update_fee_estimates(self, *, fee_est: Dict = None):
+    def update_fee_estimates(self, *, fee_est: Dict[int, int] = None):
         if fee_est is None:
             fee_est = self.get_fee_estimates()
         for nblock_target, fee in fee_est.items():

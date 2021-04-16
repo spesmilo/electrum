@@ -307,6 +307,10 @@ class CoinChooserBase(Logger):
             total_input = input_value + bucket_value_sum
             if total_input < spent_amount:  # shortcut for performance
                 return False
+            # any bitcoin tx must have at least 1 input by consensus
+            # (check we add some new UTXOs now or already have some fixed inputs)
+            if not buckets and not inputs:
+                return False
             # note re performance: so far this was constant time
             # what follows is linear in len(buckets)
             total_weight = self._get_tx_weight(buckets, base_weight=base_weight)

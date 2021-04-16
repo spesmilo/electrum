@@ -29,7 +29,7 @@ import sys
 import traceback
 import asyncio
 import socket
-from typing import Tuple, Union, List, TYPE_CHECKING, Optional, Set, NamedTuple, Any, Sequence
+from typing import Tuple, Union, List, TYPE_CHECKING, Optional, Set, NamedTuple, Any, Sequence, Dict
 from collections import defaultdict
 from ipaddress import IPv4Network, IPv6Network, ip_address, IPv6Address, IPv4Address
 import itertools
@@ -371,7 +371,7 @@ class Interface(Logger):
         self.tip_header = None
         self.tip = 0
 
-        self.fee_estimates_eta = {}
+        self.fee_estimates_eta = {}  # type: Dict[int, int]
 
         # Dump network messages (only for this interface).  Set at runtime from the console.
         self.debug = False
@@ -683,6 +683,7 @@ class Interface(Logger):
             for nblock_target, task in fee_tasks:
                 fee = task.result()
                 if fee < 0: continue
+                assert isinstance(fee, int)
                 self.fee_estimates_eta[nblock_target] = fee
             self.network.update_fee_estimates()
             await asyncio.sleep(60)
