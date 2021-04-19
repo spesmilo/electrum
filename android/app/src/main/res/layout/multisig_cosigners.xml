@@ -23,7 +23,7 @@
             app:layout_constraintTop_toTopOf="parent" />
 
         <TextView
-            android:id="@+id/msFromText"
+            android:id="@+id/tvCosigners"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="24dp"
@@ -35,7 +35,7 @@
             app:layout_constraintTop_toBottomOf="@+id/textView24" />
 
         <SeekBar
-            android:id="@+id/msFrom"
+            android:id="@+id/sbCosigners"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
@@ -43,11 +43,11 @@
             android:max="15"
             android:progress="2"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="@+id/msFromText"
-            app:layout_constraintTop_toBottomOf="@+id/msFromText" />
+            app:layout_constraintStart_toStartOf="@+id/tvCosigners"
+            app:layout_constraintTop_toBottomOf="@+id/tvCosigners" />
 
         <TextView
-            android:id="@+id/msReqText"
+            android:id="@+id/tvSignatures"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="24dp"
@@ -57,10 +57,10 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintHorizontal_bias="0.468"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/msFrom" />
+            app:layout_constraintTop_toBottomOf="@+id/sbCosigners" />
 
         <SeekBar
-            android:id="@+id/msReq"
+            android:id="@+id/sbSignatures"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="24dp"
@@ -70,6 +70,6 @@
             android:progress="2"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/msReqText" />
+            app:layout_constraintTop_toBottomOf="@+id/tvSignatures" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 </ScrollView>

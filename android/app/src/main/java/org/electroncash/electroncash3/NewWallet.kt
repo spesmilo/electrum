@@ -3,12 +3,8 @@ package org.electroncash.electroncash3
 import android.app.Dialog
 import android.content.*
 import android.os.Bundle
-import android.text.InputType
 import android.text.Selection
-import android.util.Log
-import android.view.LayoutInflater
 import android.view.View
-import android.view.ViewGroup
 import android.widget.SeekBar
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -23,14 +19,17 @@ import kotlinx.android.synthetic.main.multisig_cosigners.*
 import kotlinx.android.synthetic.main.show_master_key.*
 import kotlinx.android.synthetic.main.wallet_new.*
 import kotlinx.android.synthetic.main.wallet_new_2.*
-import java.security.KeyStore
 import kotlin.properties.Delegates.notNull
 
 
 val libKeystore by lazy { libMod("keystore") }
 val libWallet by lazy { libMod("wallet") }
 
-val keystores: ArrayList<PyObject> = ArrayList()
+val keystores by lazy { ArrayList<PyObject>() }
+
+val MAX_COSIGNERS = 15
+val COSIGNER_OFFSET = 2 // min. number of multisig cosigners = 2
+val SIGNATURE_OFFSET = 1 // min. number of req. multisig signatures = 1
 
 class NewWalletDialog1 : AlertDialogFragment() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
@@ -494,45 +493,48 @@ class CosignerDialog : AlertDialogFragment() {
                 .setNegativeButton(R.string.cancel, null)
     }
 
+    val numCosigners: Int
+        get() = sbCosigners.progress + COSIGNER_OFFSET
+
+    val numSignatures: Int
+        get() = sbSignatures.progress + SIGNATURE_OFFSET
+
     override fun onShowDialog() {
         super.onShowDialog()
 
-        msFromText.text = getString(R.string.from_cosigners).replace("%d", "2")
-        msReqText.text = getString(R.string.require_signatures).replace("%d", "2")
-        var numCosigners = 2
-        var numSignatures = 2
+        tvCosigners.text = getString(R.string.from_cosigners, 2)
+        tvSignatures.text = getString(R.string.require_signatures, 2)
 
         // Handle the total number of cosigners
-        msFrom?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                msFromText.text = getString(R.string.from_cosigners).replace("%d", progress.toString())
-                msReq.max = progress
+        with (sbCosigners) {
+            progress = 0
+            max = MAX_COSIGNERS - COSIGNER_OFFSET
 
-                if (progress == 0) {
-                    msFrom.progress = 1
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    tvCosigners.text = getString(R.string.from_cosigners, numCosigners)
+                    sbSignatures.max = numCosigners - 1
                 }
-                numCosigners = progress
-            }
 
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar) {}
-
-        })
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar) {}
+            })
+        }
 
         // Handle the number of required signatures
-        msReq?.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                msReqText.text = getString(R.string.require_signatures).replace("%d", progress.toString())
+        with (sbSignatures) {
+            progress = numCosigners
+            max = SIGNATURE_OFFSET
 
-                if (progress == 0) {
-                    msReq.progress = 1
+            setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    tvSignatures.text = getString(R.string.require_signatures, numSignatures)
                 }
-                numSignatures = progress
-            }
 
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
 
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             try {
@@ -562,7 +564,7 @@ class MasterPublicKeyDialog : AlertDialogFragment() {
         builder.setTitle(R.string.master_public_key)
                 .setView(R.layout.show_master_key)
                 .setPositiveButton(R.string.next, null)
-                .setNegativeButton(R.string.cancel, null)
+                .setNegativeButton(R.string.back, null)
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
