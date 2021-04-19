@@ -472,11 +472,7 @@ class ChannelDetailsPopup(Popup, Logger):
         closed = chan.get_closing_height()
         if closed:
             self.closing_txid, closing_height, closing_timestamp = closed
-        msg = ' '.join([
-            _("Trampoline routing is enabled, but this channel is with a non-trampoline node."),
-            _("This channel may still be used for receiving, but it is frozen for sending."),
-            _("If you want to keep using this channel, you need to disable trampoline routing in your preferences."),
-        ])
+        msg = messages.MSG_NON_TRAMPOLINE_CHANNEL_FROZEN_WITHOUT_GOSSIP
         self.warning = '' if self.app.wallet.lnworker.channel_db or self.app.wallet.lnworker.is_trampoline_peer(chan.node_id) else _('Warning') + ': ' + msg
         self.update_action_dropdown()
 

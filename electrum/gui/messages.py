@@ -1,4 +1,5 @@
 # note: qt and kivy use different i18n methods
+# FIXME all these messages *cannot* be localized currently!
 
 def to_rtf(msg):
     return '\n'.join(['<p>' + x + '</p>' for x in msg.split('\n\n')])
@@ -48,3 +49,7 @@ Are you sure?
 MSG_CAPITAL_GAINS = """
 This summary covers only on-chain transactions (no lightning!). Capital gains are computed by attaching an acquisition price to each UTXO in the wallet, and uses the order of blockchain events (not FIFO).
 """
+
+MSG_NON_TRAMPOLINE_CHANNEL_FROZEN_WITHOUT_GOSSIP = """Trampoline routing is enabled, but this channel is with a non-trampoline node.
+This channel may still be used for receiving, but it is frozen for sending.
+If you want to keep using this channel, you need to disable trampoline routing in your preferences."""
