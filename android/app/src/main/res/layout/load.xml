@@ -24,32 +24,65 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"/>
 
+        <!-- Bottom constraint keeps button aligned with text box before API 21 (see dimens.xml). -->
+
         <EditText
             android:id="@+id/etTransaction"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginEnd="4dp"
-            android:layout_marginRight="4dp"
             android:inputType="textNoSuggestions"
             android:minLines="3"
             app:layout_constraintEnd_toStartOf="@+id/btnPaste"
+            app:layout_constraintHorizontal_bias="0.0"
             app:layout_constraintStart_toStartOf="@+id/textView4"
             app:layout_constraintTop_toBottomOf="@+id/textView4"
             tools:text="@string/test_address">
-            <requestFocus/>
+
+            <requestFocus />
         </EditText>
 
-        <!-- Bottom constraint keeps button aligned with text box before API 21 (see dimens.xml). -->
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/btnPaste"
             style="@style/FAB.Dialog"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
             app:layout_constraintBottom_toBottomOf="@+id/etTransaction"
             app:layout_constraintEnd_toEndOf="@+id/textView4"
             app:layout_constraintTop_toTopOf="@+id/etTransaction"
-            app:srcCompat="@drawable/ic_paste_24dp"/>
+            app:layout_constraintVertical_bias="0.0"
+            app:srcCompat="@drawable/ic_paste_24dp" />
 
+        <androidx.constraintlayout.widget.Barrier
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:barrierDirection="end"
+            app:constraint_referenced_ids="idStatusLabel"
+            tools:layout_editor_absoluteX="411dp" />
+
+        <TextView
+            android:id="@+id/idStatusLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="24dp"
+            android:layout_marginTop="10dp"
+            android:text="@string/status_"
+            android:visibility="invisible"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/etTransaction" />
+
+        <TextView
+            android:id="@+id/idTxStatus"
+            style="@style/Medium"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_marginTop="10dp"
+            android:text="@string/status"
+            android:visibility="invisible"
+            app:layout_constraintStart_toEndOf="@+id/idStatusLabel"
+            app:layout_constraintTop_toBottomOf="@+id/etTransaction" />
 
 
     </androidx.constraintlayout.widget.ConstraintLayout>
