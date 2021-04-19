@@ -3,6 +3,7 @@ package org.electroncash.electroncash3
 import android.content.Intent
 import android.os.Bundle
 import android.text.Editable
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.widget.SeekBar
@@ -199,8 +200,9 @@ class SendDialog : TaskLauncherDialog<Unit>() {
             val inputs = wallet.callAttr("get_spendable_coins", null, daemonModel.config,
                                          Kwarg("isInvoice", pr != null))
             return try {
+                val signSchnorr = daemonModel.walletType == "standard" // sign with Schnorr in standard wallets
                 TxResult(wallet.callAttr("make_unsigned_transaction", inputs, outputs,
-                                         daemonModel.config, Kwarg("sign_schnorr", true)),
+                                         daemonModel.config, Kwarg("sign_schnorr", signSchnorr)),
                          isDummy)
             } catch (e: PyException) {
                 TxResult(if (e.message!!.startsWith("NotEnoughFunds"))
