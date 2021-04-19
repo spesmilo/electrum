@@ -53,6 +53,11 @@ class ActionDropdown(Button):
             dropdown = DropDown()
             self.text = self.dropdown_text
             self._on_release = dropdown.open
+            def on_btn(option_func):
+                def _on_btn(btn):
+                    dropdown.dismiss()
+                    option_func(btn)
+                return _on_btn
             for option in options:
                 if option.enabled:
                     btn = Button(
@@ -62,7 +67,7 @@ class ActionDropdown(Button):
                         halign='center',
                         valign='center',
                     )
-                    btn.bind(on_release=option.func)
+                    btn.bind(on_release=on_btn(option.func))
                     dropdown.add_widget(btn)
 
     def on_release(self):
