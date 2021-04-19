@@ -12,15 +12,16 @@ from kivy.uix.label import Label
 from kivy.uix.dropdown import DropDown
 from kivy.uix.button import Button
 
-from .question import Question
-from electrum.gui.kivy.i18n import _
-
 from electrum.util import InvalidPassword
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum.wallet import CannotBumpFee, CannotDoubleSpendTx
 from electrum.transaction import Transaction, PartialTransaction
 from electrum.network import NetworkException
-from ...util import address_colors
+
+from electrum.gui.kivy.i18n import _
+from electrum.gui.kivy.util import address_colors
+from ..actiondropdown import ActionDropdown, ActionButtonOption
+from .question import Question
 
 if TYPE_CHECKING:
     from ...main_window import ElectrumWindow
@@ -94,14 +95,10 @@ Builder.load_string('''
         BoxLayout:
             size_hint: 1, None
             height: '48dp'
-            Button:
-                id: action_button
+            ActionDropdown:
+                id: action_dropdown
                 size_hint: 0.5, None
                 height: '48dp'
-                text: ''
-                disabled: True
-                opacity: 0
-                on_release: root.on_action_button_clicked()
             IconButton:
                 size_hint: 0.5, None
                 height: '48dp'
@@ -120,12 +117,6 @@ Builder.load_string('''
 ''')
 
 
-class ActionButtonOption(NamedTuple):
-    text: str
-    func: Callable
-    enabled: bool
-
-
 class TxDialog(Factory.Popup):
 
     def __init__(self, app, tx):
@@ -133,7 +124,6 @@ class TxDialog(Factory.Popup):
         self.app = app  # type: ElectrumWindow
         self.wallet = self.app.wallet
         self.tx = tx  # type: Transaction
-        self._action_button_fn = lambda btn: None
 
         # If the wallet can populate the inputs with more info, do it now.
         # As a result, e.g. we might learn an imported address tx is segwit,
@@ -193,10 +183,10 @@ class TxDialog(Factory.Popup):
             dict_entry['color'], dict_entry['background_color'] = address_colors(self.wallet, dict_entry['address'])
 
         self.can_remove_tx = tx_details.can_remove
-        self.update_action_button()
+        self.update_action_dropdown()
 
-    def update_action_button(self):
-        action_button = self.ids.action_button
+    def update_action_dropdown(self):
+        action_dropdown = self.ids.action_dropdown  # type: ActionDropdown
         # note: button texts need to be short; there is only horizontal space for ~13 chars
         options = (
             ActionButtonOption(text=_('Sign'), func=lambda btn: self.do_sign(), enabled=self.can_sign),
@@ -205,41 +195,7 @@ class TxDialog(Factory.Popup):
             ActionButtonOption(text=_('Cancel') + '\n(double-spend)', func=lambda btn: self.do_dscancel(), enabled=self.can_dscancel),
             ActionButtonOption(text=_('Remove'), func=lambda btn: self.remove_local_tx(), enabled=self.can_remove_tx),
         )
-        num_options = sum(map(lambda o: bool(o.enabled), options))
-        # if no options available, hide button
-        if num_options == 0:
-            action_button.disabled = True
-            action_button.opacity = 0
-            return
-        action_button.disabled = False
-        action_button.opacity = 1
-
-        if num_options == 1:
-            # only one option, button will correspond to that
-            for option in options:
-                if option.enabled:
-                    action_button.text = option.text
-                    self._action_button_fn = option.func
-        else:
-            # multiple options. button opens dropdown which has one sub-button for each
-            dropdown = DropDown()
-            action_button.text = _('Options')
-            self._action_button_fn = dropdown.open
-            for option in options:
-                if option.enabled:
-                    btn = Button(
-                        text=option.text,
-                        size_hint_y=None,
-                        height='48dp',
-                        halign='center',
-                        valign='center',
-                    )
-                    btn.bind(on_release=option.func)
-                    dropdown.add_widget(btn)
-
-    def on_action_button_clicked(self):
-        action_button = self.ids.action_button
-        self._action_button_fn(action_button)
+        action_dropdown.update(options=options)
 
     def _add_info_to_tx_from_wallet_and_network(self, tx: PartialTransaction) -> bool:
         """Returns whether successful."""
