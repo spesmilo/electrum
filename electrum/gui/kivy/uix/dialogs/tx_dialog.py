@@ -197,11 +197,12 @@ class TxDialog(Factory.Popup):
 
     def update_action_button(self):
         action_button = self.ids.action_button
+        # note: button texts need to be short; there is only horizontal space for ~13 chars
         options = (
             ActionButtonOption(text=_('Sign'), func=lambda btn: self.do_sign(), enabled=self.can_sign),
             ActionButtonOption(text=_('Broadcast'), func=lambda btn: self.do_broadcast(), enabled=self.can_broadcast),
             ActionButtonOption(text=_('Bump fee'), func=lambda btn: self.do_rbf(), enabled=self.can_rbf),
-            ActionButtonOption(text=_('Cancel (double-spend)'), func=lambda btn: self.do_dscancel(), enabled=self.can_dscancel),
+            ActionButtonOption(text=_('Cancel') + '\n(double-spend)', func=lambda btn: self.do_dscancel(), enabled=self.can_dscancel),
             ActionButtonOption(text=_('Remove'), func=lambda btn: self.remove_local_tx(), enabled=self.can_remove_tx),
         )
         num_options = sum(map(lambda o: bool(o.enabled), options))
@@ -226,7 +227,13 @@ class TxDialog(Factory.Popup):
             self._action_button_fn = dropdown.open
             for option in options:
                 if option.enabled:
-                    btn = Button(text=option.text, size_hint_y=None, height='48dp')
+                    btn = Button(
+                        text=option.text,
+                        size_hint_y=None,
+                        height='48dp',
+                        halign='center',
+                        valign='center',
+                    )
                     btn.bind(on_release=option.func)
                     dropdown.add_widget(btn)
 
