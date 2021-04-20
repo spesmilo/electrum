@@ -10,8 +10,6 @@ import com.chaquo.python.PyException
 import com.chaquo.python.PyObject
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.android.synthetic.main.load.*
-import kotlinx.android.synthetic.main.send.*
-import java.lang.Exception
 import java.lang.IllegalArgumentException
 
 
@@ -56,20 +54,20 @@ class ColdLoadDialog : AlertDialogFragment() {
         //checks if text is blank. further validations can be added here
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = currenttext.isNotBlank()
 
-        val tx = libTransaction.callAttr("Transaction", etTransaction.text.toString())
-        getTxStatus(tx)
+        val tx: PyObject
+        if (currenttext.isNotBlank()) {
+            tx = libTransaction.callAttr("Transaction", etTransaction.text.toString())
 
-        // Check hex transaction signing status
-        when (txStatus) {
-            1 -> {
-                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setText(R.string.send)
-                dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
-            }
-            0 -> {
+            updateStatusText(tx)
+
+            // Check hex transaction signing status
+            if (canSign(tx)) {
                 dialog.getButton(AlertDialog.BUTTON_POSITIVE).setText(R.string.sign)
                 dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
-            }
-            else -> {
+            } else if (canBroadcast(tx)) {
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setText(R.string.send)
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
+            } else {
                 dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
             }
         }
@@ -96,10 +94,11 @@ class ColdLoadDialog : AlertDialogFragment() {
     fun onOK() {
         val tx = libTransaction.callAttr("Transaction", etTransaction.text.toString())
 
-        // Try to get the signing status of the transaction
-        // (partially signed, signed or invalid)
+        // If transaction can be broadcasted, broadcast it.
+        // Otherwise, prompt for signing. If the transaction hex is invalid,
+        // the OK button will be disabled, regardless.
         try {
-            if (txStatus == 1) {
+            if (canBroadcast(tx)) {
                 broadcastSignedTransaction(tx)
             } else {
                 signLoadedTransaction()
@@ -140,26 +139,43 @@ class ColdLoadDialog : AlertDialogFragment() {
     /**
      * Check if a loaded transaction is signed.
      * Displays the signing status below the raw TX field.
+     * (signed, partially signed, or invisible label, if the signatures are invalid)
      */
-    fun getTxStatus(tx: PyObject) {
+    private fun updateStatusText(tx: PyObject) {
         try {
             val sigs = tx.callAttr("signature_count").toJava(IntArray::class.java)
 
             idStatusLabel.visibility = View.VISIBLE
             idTxStatus.visibility = View.VISIBLE
 
-            txStatus = if (sigs[0] == sigs[1]) {
+            if (sigs[0] == sigs[1]) {
                 idTxStatus.setText(R.string.signed)
-                1
             } else {
                 idTxStatus.setText(getString(R.string.partially_signed) + " (${sigs[0]}/${sigs[1]})")
-                0
             }
         } catch (e: PyException) {
             idStatusLabel.visibility = View.INVISIBLE
             idTxStatus.visibility = View.INVISIBLE
-            txStatus = -1
         }
+    }
+}
+
+/* Check if the wallet can sign the transaction */
+fun canSign(tx: PyObject): Boolean {
+    return try {
+        !tx.callAttr("is_complete").toBoolean() and
+                daemonModel.wallet!!.callAttr("can_sign", tx).toBoolean()
+    } catch (e: PyException) {
+        false
+    }
+}
+
+/* Check if the transaction is ready to be broadcasted */
+fun canBroadcast(tx: PyObject): Boolean {
+    return try {
+        tx.callAttr("is_complete").toBoolean()
+    } catch (e: PyException) {
+        false
     }
 }
 
@@ -181,7 +197,7 @@ class SignPasswordDialog : PasswordDialog<Unit>() {
     }
 
     override fun onPostExecute(result: Unit) {
-        if (coldLoadDialog.txStatus != 1) {
+        if (!canBroadcast(tx)) {
             coldLoadDialog.dismiss()
             copyToClipboard(tx.toString(), R.string.signed_transaction)
         }
