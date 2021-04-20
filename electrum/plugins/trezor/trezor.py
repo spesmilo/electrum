@@ -30,7 +30,7 @@ try:
     from trezorlib.messages import (
         Capability, BackupType, RecoveryDeviceType, HDNodeType, HDNodePathType,
         InputScriptType, OutputScriptType, MultisigRedeemScriptType,
-        TxInputType, TxOutputType, TxOutputBinType, TransactionType, SignTx)
+        TxInputType, TxOutputType, TxOutputBinType, TransactionType, AmountUnit)
 
     from trezorlib.client import PASSPHRASE_ON_DEVICE
 
@@ -54,6 +54,7 @@ except Exception as e:
     Capability = _EnumMissing()
     BackupType = _EnumMissing()
     RecoveryDeviceType = _EnumMissing()
+    AmountUnit = _EnumMissing()
 
     PASSPHRASE_ON_DEVICE = object()
 
@@ -343,6 +344,16 @@ class TrezorPlugin(HW_PluginBase):
             return OutputScriptType.PAYTOTAPROOT
         raise ValueError('unexpected txin type: {}'.format(electrum_txin_type))
 
+    def get_trezor_amount_unit(self):
+        if self.config.decimal_point == 0:
+            return AmountUnit.SATOSHI
+        elif self.config.decimal_point == 2:
+            return AmountUnit.MICROBITCOIN
+        elif self.config.decimal_point == 5:
+            return AmountUnit.MILLIBITCOIN
+        else:
+            return AmountUnit.BITCOIN
+
     @runs_in_hwd_thread
     def sign_transaction(self, keystore, tx: PartialTransaction, prev_tx):
         prev_tx = {bfh(txhash): self.electrum_tx_to_txtype(tx) for txhash, tx in prev_tx.items()}
@@ -353,6 +364,7 @@ class TrezorPlugin(HW_PluginBase):
                                        inputs, outputs,
                                        lock_time=tx.locktime,
                                        version=tx.version,
+                                       amount_unit=self.get_trezor_amount_unit(),
                                        prev_txes=prev_tx)
         signatures = [(bh2u(x) + '01') for x in signatures]
         tx.update_signatures(signatures)
