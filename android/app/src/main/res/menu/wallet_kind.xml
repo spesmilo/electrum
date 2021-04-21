@@ -3,10 +3,10 @@
 
     <item
         android:id="@+id/menuStandardWallet"
-        android:title="@string/Standard_Wallet" />
+        android:title="@string/Standard_wallet" />
 
     <item
         android:id="@+id/menuMultisigWallet"
-        android:title="@string/Multi_Signature" />
+        android:title="@string/Multi_signature" />
 
 </menu>
