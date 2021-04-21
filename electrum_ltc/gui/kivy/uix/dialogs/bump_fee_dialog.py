@@ -102,11 +102,16 @@ class BumpFeeDialog(FeeSliderDialog, Factory.Popup):
     def update_text(self):
         target, tooltip, dyn = self.config.get_fee_target()
         self.ids.fee_target.text = target
-        feerate = self.config.fee_per_kb() / 1000
-        self.ids.new_feerate.value = f'{feerate:.1f} sat/B'
+        fee_per_kb = self.config.fee_per_kb()
+        if fee_per_kb is None:
+            self.ids.new_feerate.value = "unknown"
+        else:
+            fee_per_byte = fee_per_kb / 1000
+            self.ids.new_feerate.value = f'{fee_per_byte:.1f} sat/B'
 
     def on_ok(self):
-        new_fee_rate = self.config.fee_per_kb() / 1000
+        fee_per_kb = self.config.fee_per_kb()
+        new_fee_rate = fee_per_kb / 1000 if fee_per_kb is not None else None
         is_final = self.ids.final_cb.active
         self.callback(new_fee_rate, is_final)
 

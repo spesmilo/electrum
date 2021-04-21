@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from kivy.app import App
 from kivy.factory import Factory
@@ -95,7 +95,7 @@ class DSCancelDialog(Factory.Popup):
         slider.step = 1
         slider.value = pos
 
-    def get_fee_rate(self):
+    def get_fee_rate(self) -> Optional[int]:
         pos = int(self.ids.slider.value)
         if self.dynfees:
             fee_rate = self.config.depth_to_fee(pos) if self.mempool else self.config.eta_to_fee(pos)
@@ -104,7 +104,8 @@ class DSCancelDialog(Factory.Popup):
         return fee_rate  # sat/kbyte
 
     def on_ok(self):
-        new_fee_rate = self.get_fee_rate() / 1000
+        fee_per_kb = self.get_fee_rate()
+        new_fee_rate = fee_per_kb / 1000 if fee_per_kb is not None else None
         self.callback(new_fee_rate)
 
     def on_slider(self, value):

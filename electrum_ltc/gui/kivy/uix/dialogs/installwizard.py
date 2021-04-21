@@ -834,7 +834,7 @@ class ChoiceLineDialog(WizardChoiceDialog):
 
 class ShowSeedDialog(WizardDialog):
     seed_text = StringProperty('')
-    message = _("If you forget your PIN or lose your device, your seed phrase will be the only way to recover your funds.")
+    message = _("If you forget your password or lose your device, your seed phrase will be the only way to recover your funds.")
 
     def __init__(self, wizard, **kwargs):
         super(ShowSeedDialog, self).__init__(wizard, **kwargs)
