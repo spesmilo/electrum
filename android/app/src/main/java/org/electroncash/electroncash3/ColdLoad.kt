@@ -139,19 +139,20 @@ class ColdLoadDialog : AlertDialogFragment() {
     /**
      * Check if a loaded transaction is signed.
      * Displays the signing status below the raw TX field.
-     * (signed, partially signed, or invisible label, if the signatures are invalid)
+     * (signed, partially signed, or invisible label, if the transaction is invalid)
      */
     private fun updateStatusText(tx: PyObject) {
         try {
-            val sigs = tx.callAttr("signature_count").toJava(IntArray::class.java)
+            val txInfo = daemonModel.wallet!!.callAttr("get_tx_info", tx)
 
             idStatusLabel.visibility = View.VISIBLE
             idTxStatus.visibility = View.VISIBLE
 
-            if (sigs[0] == sigs[1]) {
-                idTxStatus.setText(R.string.signed)
+            // Check if the transaction can be processed by this wallet or not
+            if (txInfo["amount"] == null) {
+                idTxStatus.setText(R.string.transaction_unrelated)
             } else {
-                idTxStatus.setText(getString(R.string.partially_signed) + " (${sigs[0]}/${sigs[1]})")
+                idTxStatus.setText(txInfo["status"].toString())
             }
         } catch (e: PyException) {
             idStatusLabel.visibility = View.INVISIBLE
@@ -185,7 +186,9 @@ fun canBroadcast(tx: PyObject): Boolean {
 class SignPasswordDialog : PasswordDialog<Unit>() {
 
     val coldLoadDialog by lazy { targetFragment as ColdLoadDialog }
-    val tx by lazy { libTransaction.callAttr("Transaction", arguments!!.getString("tx")) }
+    val signSchnorr = daemonModel.walletType == "standard" // sign with Schnorr in standard wallets
+
+    val tx by lazy { libTransaction.callAttr("Transaction", arguments!!.getString("tx"), signSchnorr) }
     val wallet = daemonModel.wallet!!
 
     override fun onPassword(password: String) {
