@@ -253,7 +253,6 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     default_server: ServerAddr
     _recent_servers: List[ServerAddr]
 
-    channel_blacklist: 'ChannelBlackList'
     channel_db: Optional['ChannelDB'] = None
     lngossip: Optional['LNGossip'] = None
     local_watchtower: Optional['WatchTower'] = None
