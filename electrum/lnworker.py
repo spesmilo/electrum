@@ -1210,6 +1210,11 @@ class LNWallet(LNWorker):
                 raise Exception(f"amount_inflight={amount_inflight} < 0")
             log.append(htlc_log)
             if htlc_log.success:
+                # TODO: report every route to liquidity hints for mpp
+                # even in the case of success, we report channels of the
+                # route as being able to send the same amount in the future,
+                # as we assume to not know the capacity
+                self.network.path_finder.update_liquidity_hints(htlc_log.route, htlc_log.amount_msat)
                 return
             # htlc failed
             if len(log) >= attempts:
@@ -1237,7 +1242,7 @@ class LNWallet(LNWorker):
                     raise PaymentFailure(failure_msg.code_name())
             else:
                 self.handle_error_code_from_failed_htlc(
-                    route=route, sender_idx=sender_idx, failure_msg=failure_msg)
+                    route=route, sender_idx=sender_idx, failure_msg=failure_msg, amount=htlc_log.amount_msat)
 
     async def pay_to_route(
             self, *,
@@ -1283,7 +1288,8 @@ class LNWallet(LNWorker):
             *,
             route: LNPaymentRoute,
             sender_idx: int,
-            failure_msg: OnionRoutingFailure) -> None:
+            failure_msg: OnionRoutingFailure,
+            amount: int) -> None:
         code, data = failure_msg.code, failure_msg.data
         # TODO can we use lnmsg.OnionWireSerializer here?
         # TODO update onion_wire.csv
@@ -1296,40 +1302,53 @@ class LNWallet(LNWorker):
             OnionFailureCode.EXPIRY_TOO_SOON: 0,
             OnionFailureCode.CHANNEL_DISABLED: 2,
         }
-        blacklist = False
-        update = False
+
+        # determine a fallback channel to blacklist if we don't get the erring
+        # channel via the payload
+        if sender_idx is None:
+            raise PaymentFailure(failure_msg.code_name())
+        try:
+            fallback_channel = route[sender_idx + 1].short_channel_id
+            node_from = route[sender_idx].start_node
+            node_to = route[sender_idx].end_node
+        except IndexError:
+            raise PaymentFailure(f'payment destination reported error: {failure_msg.code_name()}') from None
+
+        # TODO: handle unknown next peer?
+        # handle failure codes that include a channel update
         if code in failure_codes:
             offset = failure_codes[code]
             channel_update_len = int.from_bytes(data[offset:offset+2], byteorder="big")
             channel_update_as_received = data[offset+2: offset+2+channel_update_len]
             payload = self._decode_channel_update_msg(channel_update_as_received)
+
             if payload is None:
-                self.logger.info(f'could not decode channel_update for failed htlc: {channel_update_as_received.hex()}')
-                blacklist = True
+                self.logger.info(f'could not decode channel_update for failed htlc: '
+                                 f'{channel_update_as_received.hex()}')
+                self.network.path_finder.channel_blacklist.add(fallback_channel)
             else:
+                # apply the channel update or get blacklisted
                 blacklist, update = self._handle_chanupd_from_failed_htlc(
                     payload, route=route, sender_idx=sender_idx)
+
+                # we interpret a temporary channel failure as a liquidity issue
+                # in the channel and update our liquidity hints accordingly
+                if code == OnionFailureCode.TEMPORARY_CHANNEL_FAILURE:
+                    self.network.path_finder.update_liquidity_hints(
+                        route,
+                        amount,
+                        failing_channel=ShortChannelID(payload['short_channel_id']))
+                elif blacklist:
+                    self.network.path_finder.liquidity_hints.add_to_blacklist(
+                        payload['short_channel_id'])
+
+                # if we can't decide on some action, we are stuck
+                if not (blacklist or update):
+                    raise PaymentFailure(failure_msg.code_name())
+
+        # for errors that do not include a channel update
         else:
-            blacklist = True
-
-        if blacklist:
-            # blacklist channel after reporter node
-            # TODO this should depend on the error (even more granularity)
-            # also, we need finer blacklisting (directed edges; nodes)
-            if sender_idx is None:
-                raise PaymentFailure(failure_msg.code_name())
-            try:
-                short_chan_id = route[sender_idx + 1].short_channel_id
-            except IndexError:
-                raise PaymentFailure(f'payment destination reported error: {failure_msg.code_name()}') from None
-            # TODO: for MPP we need to save the amount for which
-            # we saw temporary channel failure
-            self.logger.info(f'blacklisting channel {short_chan_id}')
-            self.network.channel_blacklist.add(short_chan_id)
-
-        # we should not continue if we did not blacklist or update anything
-        if not (blacklist or update):
-            raise PaymentFailure(failure_msg.code_name())
+            self.network.path_finder.liquidity_hints.add_to_blacklist(fallback_channel)
 
     def _handle_chanupd_from_failed_htlc(self, payload, *, route, sender_idx) -> Tuple[bool, bool]:
         blacklist = False
@@ -1599,7 +1618,6 @@ class LNWallet(LNWorker):
             chan.short_channel_id: chan for chan in channels
             if chan.short_channel_id is not None
         }
-        blacklist = self.network.channel_blacklist.get_current_list()
         # Collect all private edges from route hints.
         # Note: if some route hints are multiple edges long, and these paths cross each other,
         #       we allow our path finding to cross the paths; i.e. the route hints are not isolated.
@@ -1631,8 +1649,7 @@ class LNWallet(LNWorker):
                         fee_proportional_millionths=fee_proportional_millionths,
                         cltv_expiry_delta=cltv_expiry_delta,
                         node_features=node_info.features if node_info else 0)
-                if route_edge.short_channel_id not in blacklist:
-                    private_route_edges[route_edge.short_channel_id] = route_edge
+                private_route_edges[route_edge.short_channel_id] = route_edge
                 start_node = end_node
         # now find a route, end to end: between us and the recipient
         try:
@@ -1642,7 +1659,6 @@ class LNWallet(LNWorker):
                 invoice_amount_msat=amount_msat,
                 path=full_path,
                 my_channels=scid_to_my_channels,
-                blacklist=blacklist,
                 private_route_edges=private_route_edges)
         except NoChannelPolicy as e:
             raise NoPathFound() from e
