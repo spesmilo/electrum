@@ -217,3 +217,8 @@ class UTXOList(MyTreeView):
                 menu.addAction(_("Unfreeze Addresses"), lambda: self.parent.set_frozen_state_of_addresses(addrs, False))
 
         menu.exec_(self.viewport().mapToGlobal(position))
+
+    def get_filter_data_from_coordinate(self, row, col):
+        if col == self.Columns.OUTPOINT:
+            return self.get_role_data_from_coordinate(row, col, role=self.ROLE_PREVOUT_STR)
+        return super().get_filter_data_from_coordinate(row, col)

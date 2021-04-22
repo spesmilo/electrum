@@ -551,6 +551,7 @@ class MyTreeView(QTreeView):
     ROLE_CLIPBOARD_DATA = Qt.UserRole + 100
     ROLE_CUSTOM_PAINT   = Qt.UserRole + 101
     ROLE_EDIT_KEY       = Qt.UserRole + 102
+    ROLE_FILTER_DATA    = Qt.UserRole + 103
 
     filter_columns: Iterable[int]
 
@@ -679,6 +680,14 @@ class MyTreeView(QTreeView):
         # overriding this might allow avoiding storing duplicate data
         return self.get_role_data_from_coordinate(row, col, role=self.ROLE_EDIT_KEY)
 
+    def get_filter_data_from_coordinate(self, row, col) -> str:
+        filter_data = self.get_role_data_from_coordinate(row, col, role=self.ROLE_FILTER_DATA)
+        if filter_data:
+            return filter_data
+        txt = self.get_text_from_coordinate(row, col)
+        txt = txt.lower()
+        return txt
+
     def hide_row(self, row_num):
         """
         row_num is for self.model(). So if there is a proxy, it is the row number
@@ -690,9 +699,8 @@ class MyTreeView(QTreeView):
             self.setRowHidden(row_num, QModelIndex(), False)
             return
         for column in self.filter_columns:
-            txt = self.get_text_from_coordinate(row_num, column)
-            txt = txt.lower()
-            if self.current_filter in txt:
+            filter_data = self.get_filter_data_from_coordinate(row_num, column)
+            if self.current_filter in filter_data:
                 # the filter matched, but the date filter might apply
                 self.setRowHidden(row_num, QModelIndex(), bool(should_hide))
                 break
