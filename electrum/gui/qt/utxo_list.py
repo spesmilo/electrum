@@ -58,10 +58,11 @@ class UTXOList(MyTreeView):
     filter_columns = [Columns.ADDRESS, Columns.LABEL, Columns.OUTPOINT]
     stretch_column = Columns.LABEL
 
+    ROLE_PREVOUT_STR = Qt.UserRole + 1000
+
     def __init__(self, parent):
         super().__init__(parent, self.create_menu,
-                         stretch_column=self.stretch_column,
-                         editable_columns=[])
+                         stretch_column=self.stretch_column)
         self._spend_set = None
         self._utxo_dict = {}
         self.wallet = self.parent.wallet
@@ -104,10 +105,10 @@ class UTXOList(MyTreeView):
         utxo_item = [QStandardItem(x) for x in labels]
         self.set_editability(utxo_item)
         utxo_item[self.Columns.OUTPOINT].setData(name, self.ROLE_CLIPBOARD_DATA)
+        utxo_item[self.Columns.OUTPOINT].setData(name, self.ROLE_PREVOUT_STR)
         utxo_item[self.Columns.ADDRESS].setFont(QFont(MONOSPACE_FONT))
         utxo_item[self.Columns.AMOUNT].setFont(QFont(MONOSPACE_FONT))
         utxo_item[self.Columns.OUTPOINT].setFont(QFont(MONOSPACE_FONT))
-        utxo_item[self.Columns.ADDRESS].setData(name, Qt.UserRole)
         SELECTED_TO_SPEND_TOOLTIP = _('Coin selected to be spent')
         if name in (self._spend_set or set()):
             for col in utxo_item:
@@ -128,8 +129,8 @@ class UTXOList(MyTreeView):
     def get_selected_outpoints(self) -> Optional[List[str]]:
         if not self.model():
             return None
-        items = self.selected_in_column(self.Columns.ADDRESS)
-        return [x.data(Qt.UserRole) for x in items]
+        items = self.selected_in_column(self.Columns.OUTPOINT)
+        return [x.data(self.ROLE_PREVOUT_STR) for x in items]
 
     def _filter_frozen_coins(self, coins: List[PartialTxInput]) -> List[PartialTxInput]:
         coins = [utxo for utxo in coins

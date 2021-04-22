@@ -507,10 +507,9 @@ class ElectrumItemDelegate(QStyledItemDelegate):
             new_text = editor.text()
             idx = QModelIndex(self.opened)
             row, col = idx.row(), idx.column()
-            _prior_text, user_role = self.tv.get_text_and_userrole_from_coordinate(row, col)
-            # check that we didn't forget to set UserRole on an editable field
-            assert user_role is not None, (row, col)
-            self.tv.on_edited(idx, user_role, new_text)
+            edit_key = self.tv.get_edit_key_from_coordinate(row, col)
+            assert edit_key is not None, (idx.row(), idx.column())
+            self.tv.on_edited(idx, edit_key=edit_key, text=new_text)
         self.closeEditor.connect(on_closeEditor)
         self.commitData.connect(on_commitData)
 
@@ -551,6 +550,7 @@ class ElectrumItemDelegate(QStyledItemDelegate):
 class MyTreeView(QTreeView):
     ROLE_CLIPBOARD_DATA = Qt.UserRole + 100
     ROLE_CUSTOM_PAINT   = Qt.UserRole + 101
+    ROLE_EDIT_KEY       = Qt.UserRole + 102
 
     filter_columns: Iterable[int]
 
@@ -565,13 +565,9 @@ class MyTreeView(QTreeView):
         self.setUniformRowHeights(True)
 
         # Control which columns are editable
-        if editable_columns is not None:
-            editable_columns = set(editable_columns)
-        elif stretch_column is not None:
-            editable_columns = {stretch_column}
-        else:
-            editable_columns = {}
-        self.editable_columns = editable_columns
+        if editable_columns is None:
+            editable_columns = []
+        self.editable_columns = set(editable_columns)
         self.setItemDelegate(ElectrumItemDelegate(self))
         self.current_filter = ""
         self.is_editor_open = False
@@ -597,12 +593,12 @@ class MyTreeView(QTreeView):
         items = self.selectionModel().selectedIndexes()
         return list(x for x in items if x.column() == column)
 
-    def current_item_user_role(self, col) -> Any:
+    def get_role_data_for_current_item(self, *, col, role) -> Any:
         idx = self.selectionModel().currentIndex()
         idx = idx.sibling(idx.row(), col)
         item = self.item_from_index(idx)
         if item:
-            return item.data(Qt.UserRole)
+            return item.data(role)
 
     def item_from_index(self, idx: QModelIndex) -> Optional[QStandardItem]:
         model = self.model()
@@ -658,11 +654,8 @@ class MyTreeView(QTreeView):
         """
         return super().edit(idx, trigger, event)
 
-    def on_edited(self, idx: QModelIndex, user_role, text):
-        self.parent.wallet.set_label(user_role, text)
-        self.parent.history_model.refresh('on_edited in MyTreeView')
-        self.parent.utxo_list.update()
-        self.parent.update_completions()
+    def on_edited(self, idx: QModelIndex, edit_key, *, text: str) -> None:
+        raise NotImplementedError()
 
     def should_hide(self, row):
         """
@@ -671,11 +664,20 @@ class MyTreeView(QTreeView):
         """
         return False
 
-    def get_text_and_userrole_from_coordinate(self, row_num, column):
-        idx = self.model().index(row_num, column)
+    def get_text_from_coordinate(self, row, col) -> str:
+        idx = self.model().index(row, col)
         item = self.item_from_index(idx)
-        user_role = item.data(Qt.UserRole)
-        return item.text(), user_role
+        return item.text()
+
+    def get_role_data_from_coordinate(self, row, col, *, role) -> Any:
+        idx = self.model().index(row, col)
+        item = self.item_from_index(idx)
+        role_data = item.data(role)
+        return role_data
+
+    def get_edit_key_from_coordinate(self, row, col) -> Any:
+        # overriding this might allow avoiding storing duplicate data
+        return self.get_role_data_from_coordinate(row, col, role=self.ROLE_EDIT_KEY)
 
     def hide_row(self, row_num):
         """
@@ -688,7 +690,7 @@ class MyTreeView(QTreeView):
             self.setRowHidden(row_num, QModelIndex(), False)
             return
         for column in self.filter_columns:
-            txt, _ = self.get_text_and_userrole_from_coordinate(row_num, column)
+            txt = self.get_text_from_coordinate(row_num, column)
             txt = txt.lower()
             if self.current_filter in txt:
                 # the filter matched, but the date filter might apply

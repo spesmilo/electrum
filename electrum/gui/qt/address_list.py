@@ -79,9 +79,12 @@ class AddressList(MyTreeView):
     filter_columns = [Columns.TYPE, Columns.ADDRESS, Columns.LABEL, Columns.COIN_BALANCE]
 
     ROLE_SORT_ORDER = Qt.UserRole + 1000
+    ROLE_ADDRESS_STR = Qt.UserRole + 1001
 
     def __init__(self, parent):
-        super().__init__(parent, self.create_menu, stretch_column=self.Columns.LABEL)
+        super().__init__(parent, self.create_menu,
+                         stretch_column=self.Columns.LABEL,
+                         editable_columns=[self.Columns.LABEL])
         self.wallet = self.parent.wallet
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
@@ -145,7 +148,7 @@ class AddressList(MyTreeView):
     def update(self):
         if self.maybe_defer_update():
             return
-        current_address = self.current_item_user_role(col=self.Columns.LABEL)
+        current_address = self.get_role_data_for_current_item(col=self.Columns.LABEL, role=self.ROLE_ADDRESS_STR)
         if self.show_change == AddressTypeFilter.RECEIVING:
             addr_list = self.wallet.get_receiving_addresses()
         elif self.show_change == AddressTypeFilter.CHANGE:
@@ -193,7 +196,7 @@ class AddressList(MyTreeView):
             else:
                 address_item[self.Columns.TYPE].setText(_('receiving'))
                 address_item[self.Columns.TYPE].setBackground(ColorScheme.GREEN.as_color(True))
-            address_item[self.Columns.LABEL].setData(address, Qt.UserRole)
+            address_item[self.Columns.LABEL].setData(address, self.ROLE_ADDRESS_STR)
             address_path = self.wallet.get_address_index(address)
             address_item[self.Columns.TYPE].setData(address_path, self.ROLE_SORT_ORDER)
             address_path_str = self.wallet.get_address_path_str(address)
@@ -276,3 +279,14 @@ class AddressList(MyTreeView):
                 self.parent.show_error(str(e))
                 raise
         super().place_text_on_clipboard(text, title=title)
+
+    def get_edit_key_from_coordinate(self, row, col):
+        if col != self.Columns.LABEL:
+            return None
+        return self.get_role_data_from_coordinate(row, col, role=self.ROLE_ADDRESS_STR)
+
+    def on_edited(self, idx, edit_key, *, text):
+        self.parent.wallet.set_label(edit_key, text)
+        self.parent.history_model.refresh('address label edited')
+        self.parent.utxo_list.update()
+        self.parent.update_completions()
