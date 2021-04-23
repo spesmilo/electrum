@@ -3292,7 +3292,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         grid.addWidget(QLabel(_('Output amount') + ':'), 2, 0)
         grid.addWidget(output_amount, 2, 1)
         fee_e = BTCAmountEdit(self.get_decimal_point)
-        # FIXME with dyn fees, without estimates, there are all kinds of crashes here
         combined_fee = QLabel('')
         combined_feerate = QLabel('')
         def on_fee_edit(x):
@@ -3309,15 +3308,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             comb_feerate_str = self.format_fee_rate(comb_feerate) if comb_feerate else ''
             combined_feerate.setText(comb_feerate_str)
         fee_e.textChanged.connect(on_fee_edit)
-        def get_child_fee_from_total_feerate(fee_per_kb):
+        def get_child_fee_from_total_feerate(fee_per_kb: Optional[int]) -> Optional[int]:
+            if fee_per_kb is None:
+                return None
             fee = fee_per_kb * total_size / 1000 - parent_fee
+            fee = round(fee)
             fee = min(max_fee, fee)
             fee = max(total_size, fee)  # pay at least 1 sat/byte for combined size
             return fee
         suggested_feerate = self.config.fee_per_kb()
-        if suggested_feerate is None:
-            self.show_error(f'''{_("Can't CPFP'")}: {_('Dynamic fee estimates not available')}''')
-            return
         fee = get_child_fee_from_total_feerate(suggested_feerate)
         fee_e.setAmount(fee)
         grid.addWidget(QLabel(_('Fee for child') + ':'), 3, 0)
