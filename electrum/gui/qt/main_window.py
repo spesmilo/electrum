@@ -754,7 +754,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if self.wallet.wallet_type != 'voting':
             add_toggle_action(view_menu, self.addresses_tab)
         add_toggle_action(view_menu, self.utxo_tab)
-        add_toggle_action(view_menu, self.channels_tab)
+        #add_toggle_action(view_menu, self.channels_tab)
         add_toggle_action(view_menu, self.contacts_tab)
         add_toggle_action(view_menu, self.console_tab)
 

@@ -479,7 +479,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
             client_ledger.enableAlternate2fa(False)
             if segwitTransaction:
                 client_ledger.startUntrustedTransaction(True, inputIndex,
-                                                            chipInputs, redeemScripts[inputIndex], version=tx.version, time=tx.ntime)
+                                                            chipInputs, redeemScripts[inputIndex], version=tx._version, time=tx._ntime)
                 # we don't set meaningful outputAddress, amount and fees
                 # as we only care about the alternateEncoding==True branch
                 outputData = client_ledger.finalizeInput(b'', 0, 0, changePath, bfh(rawTx))
@@ -495,8 +495,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 while inputIndex < len(inputs):
                     singleInput = [chipInputs[inputIndex]]
                     client_ledger.startUntrustedTransaction(False, 0,
-                                                            singleInput, redeemScripts[inputIndex], version=tx.version, time=tx.ntime)
-                    inputSignature = client_ledger.untrustedHashSign(inputsPaths[inputIndex], pin, lockTime=tx.locktime, strdzeel=tx.strdzeel)
+                                                            singleInput, redeemScripts[inputIndex], version=tx._version, time=tx._ntime)
+                    inputSignature = client_ledger.untrustedHashSign(inputsPaths[inputIndex], pin, lockTime=tx._locktime, strdzeel=tx._strdzeel)
                     inputSignature[0] = 0x30 # force for 1.4.9+
                     my_pubkey = inputs[inputIndex][4]
                     tx.add_signature_to_txin(txin_idx=inputIndex,
@@ -506,7 +506,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
             else:
                 while inputIndex < len(inputs):
                     client_ledger.startUntrustedTransaction(firstTransaction, inputIndex,
-                                                                chipInputs, redeemScripts[inputIndex], version=tx.version, time=tx.ntime)
+                                                                chipInputs, redeemScripts[inputIndex], version=tx._version, time=tx._ntime)
                     # we don't set meaningful outputAddress, amount and fees
                     # as we only care about the alternateEncoding==True branch
                     outputData = client_ledger.finalizeInput(b'', 0, 0, changePath, bfh(rawTx))
@@ -521,7 +521,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                         self.handler.show_message(_("Confirmed. Signing Transaction..."))
                     else:
                         # Sign input with the provided PIN
-                        inputSignature = client_ledger.untrustedHashSign(inputsPaths[inputIndex], pin, lockTime=tx.locktime, strdzeel=tx.strdzeel)
+                        inputSignature = client_ledger.untrustedHashSign(inputsPaths[inputIndex], pin, lockTime=tx._locktime, strdzeel=tx._strdzeel)
                         inputSignature[0] = 0x30 # force for 1.4.9+
                         my_pubkey = inputs[inputIndex][4]
                         tx.add_signature_to_txin(txin_idx=inputIndex,

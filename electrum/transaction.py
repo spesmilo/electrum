@@ -427,6 +427,9 @@ SCRIPTPUBKEY_TEMPLATE_P2SH = [opcodes.OP_HASH160, OPPushDataGeneric(lambda x: x 
 SCRIPTPUBKEY_TEMPLATE_WITNESS_V0 = [opcodes.OP_0, OPPushDataGeneric(lambda x: x in (20, 32))]
 SCRIPTPUBKEY_TEMPLATE_P2WPKH = [opcodes.OP_0, OPPushDataGeneric(lambda x: x == 20)]
 SCRIPTPUBKEY_TEMPLATE_P2WSH = [opcodes.OP_0, OPPushDataGeneric(lambda x: x == 32)]
+SCRIPTPUBKEY_TEMPLATE_P2CS = [opcodes.OP_COINSTAKE, opcodes.OP_IF, opcodes.OP_DUP, opcodes.OP_HASH160, OPPushDataGeneric(lambda x: x == 20), opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG, opcodes.OP_ELSE, opcodes.OP_DUP, opcodes.OP_HASH160, OPPushDataGeneric(lambda x: x == 20), opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG, opcodes.OP_ENDIF]
+SCRIPTPUBKEY_TEMPLATE_P2CS2 = [OPPushDataGeneric(lambda x: x == 20), opcodes.OP_DROP, opcodes.OP_COINSTAKE, opcodes.OP_IF, opcodes.OP_DUP, opcodes.OP_HASH160, OPPushDataGeneric(lambda x: x == 20), opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG, opcodes.OP_ELSE, opcodes.OP_DUP, opcodes.OP_HASH160, OPPushDataGeneric(lambda x: x == 20), opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG, opcodes.OP_ENDIF]
+SCRIPTPUBKEY_TEMPLATE_CFUND = [opcodes.OP_RETURN, opcodes.OP_CFUND]
 
 
 def match_script_against_template(script, template) -> bool:
@@ -478,13 +481,11 @@ def get_address_from_output_script(_bytes: bytes, *, net=None) -> Optional[str]:
         return hash160_to_p2pkh(decoded[2][1], net=net)
 
     # p2cs
-    match = [opcodes.OP_COINSTAKE, opcodes.OP_IF, opcodes.OP_DUP, opcodes.OP_HASH160, OPPushDataGeneric(lambda x: x == 20), opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG, opcodes.OP_ELSE, opcodes.OP_DUP, opcodes.OP_HASH160, OPPushDataGeneric(lambda x: x == 20), opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG, opcodes.OP_ENDIF]
-    if match_decoded(decoded, match):
+    if match_script_against_template(decoded, SCRIPTPUBKEY_TEMPLATE_P2CS):
         return hash160_to_p2cs(decoded[4][1], decoded[10][1], net=net)
 
     # p2cs2
-    match = [OPPushDataGeneric(lambda x: x == 20), opcodes.OP_DROP, opcodes.OP_COINSTAKE, opcodes.OP_IF, opcodes.OP_DUP, opcodes.OP_HASH160, OPPushDataGeneric(lambda x: x == 20), opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG, opcodes.OP_ELSE, opcodes.OP_DUP, opcodes.OP_HASH160, OPPushDataGeneric(lambda x: x == 20), opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG, opcodes.OP_ENDIF]
-    if match_decoded(decoded, match):
+    if match_script_against_template(decoded, SCRIPTPUBKEY_TEMPLATE_P2CS2):
         return hash160_to_p2cs2(decoded[6][1], decoded[12][1], decoded[0][1], net=net)
 
     # p2sh
@@ -493,32 +494,32 @@ def get_address_from_output_script(_bytes: bytes, *, net=None) -> Optional[str]:
 
     # cfund
     match = [opcodes.OP_RETURN, opcodes.OP_CFUND]
-    if match_decoded(decoded, match):
+    if match_script_against_template(decoded, SCRIPTPUBKEY_TEMPLATE_CFUND):
         return "CFUND"
 
     match = [opcodes.OP_RETURN, opcodes.OP_CFUND, opcodes.OP_PROP, opcodes.OP_REMOVE, OPPushDataGeneric(lambda x: x == 32)]
     match1 = [opcodes.OP_RETURN, opcodes.OP_CFUND, opcodes.OP_PROP, opcodes.OP_ABSTAIN, OPPushDataGeneric(lambda x: x == 32)]
     match2 = [opcodes.OP_RETURN, opcodes.OP_CFUND, opcodes.OP_PROP, opcodes.OP_YES, OPPushDataGeneric(lambda x: x == 32)]
     match3 = [opcodes.OP_RETURN, opcodes.OP_CFUND, opcodes.OP_PROP, opcodes.OP_NO, OPPushDataGeneric(lambda x: x == 32)]
-    if match_decoded(decoded, match) or match_decoded(decoded, match1) or match_decoded(decoded, match2) or match_decoded(decoded, match3):
+    if match_script_against_template(decoded, match) or match_script_against_template(decoded, match1) or match_script_against_template(decoded, match2) or match_script_against_template(decoded, match3):
         return "CFUND PROPOSAL VOTE"
 
     match = [opcodes.OP_RETURN, opcodes.OP_CFUND, opcodes.OP_PREQ, opcodes.OP_REMOVE, OPPushDataGeneric(lambda x: x == 32)]
     match1 = [opcodes.OP_RETURN, opcodes.OP_CFUND, opcodes.OP_PREQ, opcodes.OP_ABSTAIN, OPPushDataGeneric(lambda x: x == 32)]
     match2 = [opcodes.OP_RETURN, opcodes.OP_CFUND, opcodes.OP_PREQ, opcodes.OP_YES, OPPushDataGeneric(lambda x: x == 32)]
     match3 = [opcodes.OP_RETURN, opcodes.OP_CFUND, opcodes.OP_PREQ, opcodes.OP_NO, OPPushDataGeneric(lambda x: x == 32)]
-    if match_decoded(decoded, match) or match_decoded(decoded, match1) or match_decoded(decoded, match2) or match_decoded(decoded, match3):
+    if match_script_against_template(decoded, match) or match_script_against_template(decoded, match1) or match_script_against_template(decoded, match2) or match_script_against_template(decoded, match3):
         return "CFUND PREQUEST VOTE"
 
     match = [opcodes.OP_RETURN, opcodes.OP_DAO, opcodes.OP_REMOVE, OPPushDataGeneric(lambda x: x == 32)]
     match1 = [opcodes.OP_RETURN, opcodes.OP_DAO, opcodes.OP_YES, opcodes.OP_ABSTAIN, OPPushDataGeneric(lambda x: x == 32)]
-    if match_decoded(decoded, match) or match_decoded(decoded, match1):
+    if match_script_against_template(decoded, match) or match_script_against_template(decoded, match1):
         return "CFUND CONSULTATION SUPPORT"
 
     match = [opcodes.OP_RETURN, opcodes.OP_CONSULTATION, opcodes.OP_ABSTAIN, OPPushDataGeneric(lambda x: x == 32)]
     match1 = [opcodes.OP_RETURN, opcodes.OP_CONSULTATION, opcodes.OP_ANSWER, OPPushDataGeneric(lambda x: x == 32)]
     match1 = [opcodes.OP_RETURN, opcodes.OP_CONSULTATION, opcodes.OP_ANSWER, OPPushDataGeneric(lambda x: x == 32), OPPushDataGeneric(lambda x: x > 0)]
-    if match_decoded(decoded, match) or match_decoded(decoded, match1) or match_decoded(decoded, match2) or match_decoded(decoded, match3):
+    if match_script_against_template(decoded, match) or match_script_against_template(decoded, match1) or match_script_against_template(decoded, match2) or match_script_against_template(decoded, match3):
         return "CFUND CONSULTATION VOTE"
 
     # segwit address (version 0)
@@ -588,11 +589,10 @@ class Transaction:
             raise Exception(f"cannot initialize transaction from {raw}")
         self._inputs = None  # type: List[TxInput]
         self._outputs = None  # type: List[TxOutput]
-        self.locktime = 0
+        self._locktime = 0
         self._version = 3
-        self.ntime = int(time.time())
-        self.strdzeel = ""
-
+        self._ntime = int(time.time())
+        self._strdzeel = ""
         self._cached_txid = None  # type: Optional[str]
 
     @property
@@ -619,8 +619,8 @@ class Transaction:
     def to_json(self) -> dict:
         d = {
             'version': self._version,
-            'time': self.ntime,
-            'locktime': self.locktime,
+            'time': self._ntime,
+            'locktime': self._locktime,
             'inputs': [txin.to_json() for txin in self.inputs()],
             'outputs': [txout.to_json() for txout in self.outputs()],
         }
@@ -646,7 +646,7 @@ class Transaction:
         vds = BCDataStream()
         vds.write(raw_bytes)
         self._version = vds.read_int32()
-        self.ntime = vds.read_uint32()
+        self._ntime = vds.read_uint32()
         n_vin = vds.read_compact_size()
         is_segwit = (n_vin == 0)
         if is_segwit:
@@ -666,7 +666,7 @@ class Transaction:
                 parse_witness(vds, txin)
         self._locktime = vds.read_uint32()
         if self._version >= 2:
-            self.strdzeel=vds.read_bytes(vds.read_compact_size()).decode()
+            self._strdzeel=vds.read_bytes(vds.read_compact_size()).decode()
         if vds.can_read_more():
             raise SerializationError('extra junk at the end')
 
@@ -870,11 +870,11 @@ class Transaction:
         """
         self.deserialize()
         nVersion = int_to_hex(self._version, 4)
-        nTime = int_to_hex(self.ntime, 4)
-        nLocktime = int_to_hex(self.locktime, 4)
+        nTime = int_to_hex(self._ntime, 4)
+        nLocktime = int_to_hex(self._locktime, 4)
         inputs = self.inputs()
         outputs = self.outputs()
-        strdzeel = bitcoin.witness_push(self.strdzeel.encode().hex())
+        strdzeel = bitcoin.witness_push(self._strdzeel.encode().hex())
 
         def create_script_sig(txin: TxInput) -> str:
             if include_sigs:
@@ -1758,9 +1758,9 @@ class PartialTransaction(Transaction):
                        for txin in tx.inputs()]
         res._outputs = [PartialTxOutput.from_txout(txout) for txout in tx.outputs()]
         res.version = tx.version
-        res.locktime = tx.locktime
-        res.ntime = tx.ntime
-        res.strdzeel = tx.strdzeel
+        res._locktime = tx._locktime
+        res._ntime = tx._ntime
+        res._strdzeel = tx._strdzeel
         return res
 
     @classmethod
@@ -1867,7 +1867,7 @@ class PartialTransaction(Transaction):
         self._inputs = list(inputs)
         self._outputs = list(outputs)
         if locktime is not None:
-            self.locktime = locktime
+            self._locktime = locktime
         if version is not None:
             self._version = version
         self.BIP69_sort()
@@ -1985,11 +1985,11 @@ class PartialTransaction(Transaction):
     def serialize_preimage(self, txin_index: int, *,
                            bip143_shared_txdigest_fields: BIP143SharedTxDigestFields = None) -> str:
         nVersion = int_to_hex(self._version, 4)
-        nTime = int_to_hex(self.ntime, 4)
-        nLocktime = int_to_hex(self.locktime, 4)
+        nTime = int_to_hex(self._ntime, 4)
+        nLocktime = int_to_hex(self._locktime, 4)
         inputs = self.inputs()
         outputs = self.outputs()
-        strdzeel = bitcoin.witness_push(self.strdzeel.encode().hex())
+        strdzeel = bitcoin.witness_push(self._strdzeel.encode().hex())
         txin = inputs[txin_index]
         sighash = txin.sighash if txin.sighash is not None else SIGHASH_ALL
         if sighash != SIGHASH_ALL:

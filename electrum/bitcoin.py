@@ -437,14 +437,14 @@ def b58_address_to_hash160_pair(addr: str) -> Tuple[int, bytes, bytes]:
     addr = to_bytes(addr, 'ascii')
     if len(addr) < 61:
         return 0, bytes(), bytes()
-    _bytes = base_decode(addr, 45, base=58)
+    _bytes = DecodeBase58Check(addr)
     return _bytes[0], _bytes[1:21], _bytes[21:41]
 
 def b58_address_to_hash160_triple(addr: str) -> Tuple[int, bytes, bytes, bytes]:
     addr = to_bytes(addr, 'ascii')
     if len(addr) < 89:
         return 0, bytes(), bytes(), bytes()
-    _bytes = base_decode(addr, 65, base=58)
+    _bytes = DecodeBase58Check(addr)
     return _bytes[0], _bytes[1:21], _bytes[21:41], _bytes[41:61]
 
 def hash160_to_p2pkh(h160: bytes, *, net=None) -> str:

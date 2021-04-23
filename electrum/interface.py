@@ -69,7 +69,7 @@ ca_path = certifi.where()
 
 BUCKET_NAME_OF_ONION_SERVERS = 'onion'
 
-MAX_INCOMING_MSG_SIZE = 1_000_000  # in bytes
+MAX_INCOMING_MSG_SIZE = 20_000_000  # in bytes
 
 _KNOWN_NETWORK_PROTOCOLS = {'t', 's'}
 PREFERRED_NETWORK_PROTOCOL = 's'

@@ -1410,10 +1410,10 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             tx = PartialTransaction.from_io(list(coins), list(outputs))
 
         # Timelock tx to current height.
-        tx.locktime = get_locktime_for_new_transaction(self.network)
-        tx.ntime = int(time.time())
-        tx.nversion = version
-        tx.strdzeel = strdzeel
+        tx._locktime = get_locktime_for_new_transaction(self.network)
+        tx._ntime = int(time.time())
+        tx._nversion = version
+        tx._strdzeel = strdzeel
 
         tx.set_rbf(rbf)
         tx.add_info_from_wallet(self)
@@ -3063,9 +3063,9 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
 
 
 class Voting_Wallet(Simple_Deterministic_Wallet):
-    def __init__(self, storage, *, config):
-        self.wallet_type = storage.get('wallet_type')
-        Deterministic_Wallet.__init__(self, storage, config=config)
+    def __init__(self, db, storage, *, config):
+        self.wallet_type = db.get('wallet_type')
+        Deterministic_Wallet.__init__(self, db, storage, config=config)
 
     def check_returned_address(func):
         def wrapper(self, *args, **kwargs):
@@ -3100,26 +3100,26 @@ class Voting_Wallet(Simple_Deterministic_Wallet):
 
 
 class Cold_Staking_Wallet(Simple_Deterministic_Wallet):
-    def __init__(self, storage, *, config):
-        self.wallet_type = storage.get('wallet_type')
-        _, pkh = b58_address_to_hash160(storage.get('staking_address'))
+    def __init__(self, db, storage, *, config):
+        self.wallet_type = db.get('wallet_type')
+        _, pkh = b58_address_to_hash160(db.get('staking_address'))
         self.staking_pkh = pkh
-        if storage.get('voting_address') != "":
-            _, pkh = b58_address_to_hash160(storage.get('voting_address'))
+        if db.get('voting_address') != "":
+            _, pkh = b58_address_to_hash160(db.get('voting_address'))
             self.voting_pkh = pkh
         else:
             self.voting_pkh = None
-        Deterministic_Wallet.__init__(self, storage, config=config)
+        Deterministic_Wallet.__init__(self, db, storage, config=config)
 
     def pubkeys_to_address(self, pubkey):
         if self.voting_pkh == None:
-            return hash160_to_p2cs(self.staking_pkh, hash_160(bfh(pubkey)), net=constants.net)
+            return hash160_to_p2cs(self.staking_pkh, hash_160(bfh(pubkey[0])), net=constants.net)
         else:
-            return hash160_to_p2cs2(self.staking_pkh, hash_160(bfh(pubkey)), self.voting_pkh, net=constants.net)
+            return hash160_to_p2cs2(self.staking_pkh, hash_160(bfh(pubkey[0])), self.voting_pkh, net=constants.net)
 
     def load_keystore(self):
-        self.keystore = load_keystore(self.storage, 'keystore')
-        if self.storage.get('voting_address') == "":
+        self.keystore = load_keystore(self.db, 'keystore')
+        if self.db.get('voting_address') == "":
             self.txin_type = 'p2cs'
         else:
             self.txin_type = 'p2cs2'
@@ -3128,7 +3128,7 @@ class Cold_Staking_Wallet(Simple_Deterministic_Wallet):
         if not self.is_mine(address):
             return
         pubkey_deriv_info = self.get_public_keys_with_deriv_info(address)
-        txin.pubkeys = sorted([bfh(pk) for pk in list(pubkey_deriv_info)])
+        txin.pubkeys = sorted([pk.hex() for pk in list(pubkey_deriv_info)])
         for pubkey_hex in pubkey_deriv_info:
             ks, der_suffix = pubkey_deriv_info[pubkey_hex]
             fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix,
