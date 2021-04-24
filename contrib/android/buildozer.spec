@@ -36,14 +36,14 @@ version.filename = %(source.dir)s/electrum/version.py
 #version = 1.9.8
 
 # (list) Application requirements
+# note: versions and hashes are pinned in ./p4a_recipes/*
 requirements =
-    hostpython3==3.8.8,
-    python3==3.8.8,
+    hostpython3,
+    python3,
     android,
     openssl,
     plyer,
-    # kivy master 2020-12-10 (2.0.0 plus a few bugfixes)
-    kivy==2debbc3b1484b14824112986cb03b1072a60fbfc,
+    kivy,
     libffi,
     libsecp256k1,
     cryptography
@@ -162,7 +162,7 @@ android.allow_backup = False
 p4a.source_dir = /opt/python-for-android
 
 # (str) The directory in which python-for-android should look for your own build recipes (if any)
-#p4a.local_recipes =
+p4a.local_recipes = %(source.dir)s/contrib/android/p4a_recipes/
 
 # (str) Filename to the hook for p4a
 #p4a.hook =
