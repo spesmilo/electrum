@@ -28,13 +28,17 @@ for p in sys.stdin.read().split():
     except ValueError:
         raise Exception("Package could not be found: {}=={}".format(p, v))
     try:
-        for r in data["requires_dist"]:
+        for r in data["requires_dist"]:  # type: str
             if ";" not in r:
                 continue
-            d, restricted = r.split(";", 1)
-            if check_restriction(d, restricted):
-                print(d, sep=" ")
-                print("Installing {} from {} although it is only needed for {}".format(d, p, restricted), file=sys.stderr)
+            # example value for "r" at this point: "pefile (>=2017.8.1) ; sys_platform == \"win32\""
+            dep, restricted = r.split(";", 1)
+            dep = dep.strip()
+            restricted = restricted.strip()
+            dep_basename = dep.split(" ")[0]
+            if check_restriction(dep, restricted):
+                print(dep_basename, sep=" ")
+                print("Installing {} from {} although it is only needed for {}".format(dep, p, restricted), file=sys.stderr)
     except TypeError:
         # Has no dependencies at all
         continue
