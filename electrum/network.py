@@ -382,6 +382,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             if full_shutdown:
                 await self.channel_db.stopped_event.wait()
             self.channel_db = None
+            self.path_finder = None
 
     def run_from_another_thread(self, coro, *, timeout=None):
         assert self._loop_thread != threading.current_thread(), 'must not be called from network thread'
