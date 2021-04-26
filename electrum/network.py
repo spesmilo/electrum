@@ -65,6 +65,7 @@ from .logging import get_logger, Logger
 
 if TYPE_CHECKING:
     from .channel_db import ChannelDB
+    from .lnrouter import LNPathFinder
     from .lnworker import LNGossip
     from .lnwatcher import WatchTower
     from .daemon import Daemon
@@ -256,6 +257,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     channel_db: Optional['ChannelDB'] = None
     lngossip: Optional['LNGossip'] = None
     local_watchtower: Optional['WatchTower'] = None
+    path_finder: Optional['LNPathFinder'] = None
 
     def __init__(self, config: SimpleConfig, *, daemon: 'Daemon' = None):
         global _INSTANCE
