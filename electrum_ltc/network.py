@@ -62,7 +62,6 @@ from .version import PROTOCOL_VERSION
 from .simple_config import SimpleConfig
 from .i18n import _
 from .logging import get_logger, Logger
-from .lnutil import ChannelBlackList
 
 if TYPE_CHECKING:
     from .channel_db import ChannelDB
@@ -254,7 +253,6 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     default_server: ServerAddr
     _recent_servers: List[ServerAddr]
 
-    channel_blacklist: 'ChannelBlackList'
     channel_db: Optional['ChannelDB'] = None
     lngossip: Optional['LNGossip'] = None
     local_watchtower: Optional['WatchTower'] = None
@@ -350,7 +348,6 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self._has_ever_managed_to_connect_to_server = False
 
         # lightning network
-        self.channel_blacklist = ChannelBlackList()
         if self.config.get('run_watchtower', False):
             from . import lnwatcher
             self.local_watchtower = lnwatcher.WatchTower(self)

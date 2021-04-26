@@ -1360,16 +1360,3 @@ class OnionFailureCodeMetaFlag(IntFlag):
     UPDATE   = 0x1000
 
 
-class ChannelBlackList:
-
-    def __init__(self):
-        self.blacklist = dict() # short_chan_id -> timestamp
-
-    def add(self, short_channel_id: ShortChannelID):
-        now = int(time.time())
-        self.blacklist[short_channel_id] = now
-
-    def get_current_list(self) -> Set[ShortChannelID]:
-        BLACKLIST_DURATION = 3600
-        now = int(time.time())
-        return set(k for k, t in self.blacklist.items() if now - t < BLACKLIST_DURATION)

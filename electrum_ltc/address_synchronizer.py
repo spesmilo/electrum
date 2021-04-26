@@ -32,7 +32,7 @@ from aiorpcx import TaskGroup
 
 from . import bitcoin, util
 from .bitcoin import COINBASE_MATURITY
-from .util import profiler, bfh, TxMinedInfo, UnrelatedTransactionException
+from .util import profiler, bfh, TxMinedInfo, UnrelatedTransactionException, with_lock
 from .transaction import Transaction, TxOutput, TxInput, PartialTxInput, TxOutpoint, PartialTransaction
 from .synchronizer import Synchronizer
 from .verifier import SPV
@@ -97,12 +97,6 @@ class AddressSynchronizer(Logger):
         self._get_addr_balance_cache = {}
 
         self.load_and_cleanup()
-
-    def with_lock(func):
-        def func_wrapper(self: 'AddressSynchronizer', *args, **kwargs):
-            with self.lock:
-                return func(self, *args, **kwargs)
-        return func_wrapper
 
     def with_transaction_lock(func):
         def func_wrapper(self: 'AddressSynchronizer', *args, **kwargs):
