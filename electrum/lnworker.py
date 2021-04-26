@@ -1214,7 +1214,8 @@ class LNWallet(LNWorker):
                 # even in the case of success, we report channels of the
                 # route as being able to send the same amount in the future,
                 # as we assume to not know the capacity
-                self.network.path_finder.update_liquidity_hints(htlc_log.route, htlc_log.amount_msat)
+                if self.network.path_finder:
+                    self.network.path_finder.update_liquidity_hints(htlc_log.route, htlc_log.amount_msat)
                 return
             # htlc failed
             if len(log) >= attempts:
@@ -1309,8 +1310,6 @@ class LNWallet(LNWorker):
             raise PaymentFailure(failure_msg.code_name())
         try:
             fallback_channel = route[sender_idx + 1].short_channel_id
-            node_from = route[sender_idx].start_node
-            node_to = route[sender_idx].end_node
         except IndexError:
             raise PaymentFailure(f'payment destination reported error: {failure_msg.code_name()}') from None
 
@@ -1325,7 +1324,7 @@ class LNWallet(LNWorker):
             if payload is None:
                 self.logger.info(f'could not decode channel_update for failed htlc: '
                                  f'{channel_update_as_received.hex()}')
-                self.network.path_finder.channel_blacklist.add(fallback_channel)
+                self.network.path_finder.liquidity_hints.add_to_blacklist(fallback_channel)
             else:
                 # apply the channel update or get blacklisted
                 blacklist, update = self._handle_chanupd_from_failed_htlc(
@@ -1345,7 +1344,6 @@ class LNWallet(LNWorker):
                 # if we can't decide on some action, we are stuck
                 if not (blacklist or update):
                     raise PaymentFailure(failure_msg.code_name())
-
         # for errors that do not include a channel update
         else:
             self.network.path_finder.liquidity_hints.add_to_blacklist(fallback_channel)
