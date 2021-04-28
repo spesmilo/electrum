@@ -4,7 +4,7 @@ ENV LC_ALL=C.UTF-8 LANG=C.UTF-8
 
 RUN apt-get update -q && \
     apt-get install -qy \
-        git=1:2.7.4-0ubuntu1.9 \
+        git=1:2.7.4-0ubuntu1.10 \
         wget=1.17.1-1ubuntu1.5 \
         make=4.1-6 \
         autotools-dev=20150820.1 \
@@ -19,9 +19,9 @@ RUN apt-get update -q && \
         libncurses5-dev=6.0+20160213-1ubuntu1 \
         libsqlite3-dev=3.11.0-1ubuntu1.5 \
         libusb-1.0-0-dev=2:1.0.20-1 \
-        libudev-dev=229-4ubuntu21.29 \
+        libudev-dev=229-4ubuntu21.31 \
         gettext=0.19.7-2ubuntu3.1 \
-        libzbar0=0.10+doc-10ubuntu1  \
+        libzbar0=0.10+doc-10ubuntu1 \
         libdbus-1-3=1.10.6-1ubuntu3.6 \
         libxkbcommon-x11-0=0.5.0-1ubuntu2.1 \
         libc6-dev=2.23-0ubuntu11.2 \

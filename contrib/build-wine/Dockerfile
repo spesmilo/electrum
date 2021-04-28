@@ -6,14 +6,14 @@ RUN dpkg --add-architecture i386 && \
     apt-get update -q && \
     apt-get install -qy \
         wget=1.19.4-1ubuntu2.2 \
-        gnupg2=2.2.4-1ubuntu1.3 \
-        dirmngr=2.2.4-1ubuntu1.3 \
-        python3-software-properties=0.96.24.32.1 \
-        software-properties-common=0.96.24.32.1
+        gnupg2=2.2.4-1ubuntu1.4 \
+        dirmngr=2.2.4-1ubuntu1.4 \
+        python3-software-properties=0.96.24.32.14 \
+        software-properties-common=0.96.24.32.14
 
 RUN apt-get update -q && \
         apt-get install -qy \
-        git=1:2.17.1-1ubuntu0.7 \
+        git=1:2.17.1-1ubuntu0.8 \
         p7zip-full=16.02+dfsg-6 \
         make=4.1-9.1ubuntu1 \
         mingw-w64=5.0.3-1 \
@@ -23,7 +23,7 @@ RUN apt-get update -q && \
         autoconf=2.69-11 \
         autopoint=0.19.8.1-6ubuntu0.3 \
         libtool=2.4.6-2 \
-        gettext=0.19.8.1-6
+        gettext=0.19.8.1-6ubuntu0.3
 
 RUN wget -nc https://dl.winehq.org/wine-builds/Release.key && \
         echo "c51bcb8cc4a12abfbd7c7660eaf90f49674d15e222c262f27e6c96429111b822 Release.key" | sha256sum -c - && \
