@@ -179,17 +179,12 @@ else
     touch dist/uploaded
 fi
 
-#exit 0
 
-# push changes to website
+# push changes to website repo
 pushd $WWW_DIR
 git diff
 git commit -a -m "version $VERSION"
 git push
 popd
 
-# update webserver:
-echo "to deploy, type:"
-echo "ssh root@website \"cd /var/www/new; git pull github master\""
-
-# clear cloudflare cache
+echo "run $WWW_DIR/publish.sh to sign the website commit and upload signature"
