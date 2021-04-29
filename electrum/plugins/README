@@ -25,7 +25,7 @@ Plugin rules:
 
  * We may decide to remove a plugin after it has been merged in
    Electrum. For this reason, a plugin must be easily removable,
-   without putting at risk the user's bitcoins. If we feel that a
-   plugin cannot be removed without threatening users who rely on it,
-   we will not merge it.
+   without putting at risk the user's bitcoins. We will only merge a
+   plugin, if we feel that any users who rely on it would not be 
+   threatened if we remove it.
 
