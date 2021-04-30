@@ -10,7 +10,7 @@ from electrum.util import bh2u
 from electrum.bitcoin import COIN
 import electrum.simple_config as config
 from electrum.logging import Logger
-from electrum.lnutil import ln_dummy_address, extract_nodeid
+from electrum.lnutil import ln_dummy_address, extract_nodeid, ConnStringFormatError
 
 from .label_dialog import LabelDialog
 from .confirm_tx_dialog import ConfirmTxDialog
@@ -76,11 +76,13 @@ Builder.load_string('''
                 size_hint: 0.5, None
                 height: '48dp'
                 on_release: s.do_paste()
+                disabled: not app.use_gossip
             IconButton:
                 icon: f'atlas://{KIVY_GUI_PATH}/theming/light/camera'
                 size_hint: 0.5, None
                 height: '48dp'
                 on_release: app.scan_qr(on_complete=s.on_qr)
+                disabled: not app.use_gossip
             Button:
                 text: _('Suggest')
                 size_hint: 1, None
@@ -180,7 +182,11 @@ class LightningOpenChannelDialog(Factory.Popup, Logger):
         amount = '!' if self.is_max else self.app.get_amount(self.amount)
         self.dismiss()
         lnworker = self.app.wallet.lnworker
-        node_id, rest = extract_nodeid(conn_str)
+        try:
+            node_id, rest = extract_nodeid(conn_str)
+        except ConnStringFormatError as e:
+            self.app.show_error(_('Problem opening channel: ') + '\n' + str(e))
+            return
         if lnworker.has_conflicting_backup_with(node_id):
             msg = messages.MGS_CONFLICTING_BACKUP_INSTANCE
             d = Question(msg, lambda x: self._open_channel(x, conn_str, amount))
