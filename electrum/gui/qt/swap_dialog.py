@@ -77,7 +77,6 @@ class SwapDialog(WindowModalDialog):
         h.addWidget(QLabel(_('Mining fee')+':'), 5, 0)
         h.addWidget(self.fee_label, 5, 1)
         h.addWidget(fee_slider, 6, 1)
-        h.addWidget(fee_combo, 6, 2)
         vbox.addLayout(h)
         vbox.addStretch(1)
         self.ok_button = OkButton(self)

@@ -761,7 +761,6 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
         grid.addWidget(self.fee_e, 0, 3)
         grid.addWidget(self.feerounding_icon, 0, 4)
         grid.addWidget(self.fee_slider, 1, 1)
-        grid.addWidget(self.fee_combo, 1, 2)
         hbox.addLayout(grid)
         hbox.addStretch(1)
 

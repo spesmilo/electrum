@@ -3190,7 +3190,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         fee_combo = FeeComboBox(fee_slider)
         fee_slider.update()
         grid.addWidget(fee_slider, 4, 1)
-        grid.addWidget(fee_combo, 4, 2)
         grid.addWidget(QLabel(_('Total fee') + ':'), 5, 0)
         grid.addWidget(combined_fee, 5, 1)
         grid.addWidget(QLabel(_('Total feerate') + ':'), 6, 0)
@@ -3263,7 +3262,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         fee_combo = FeeComboBox(fee_slider)
         fee_slider.deactivate()
         grid.addWidget(fee_slider, 3, 1)
-        grid.addWidget(fee_combo, 3, 2)
 
         vbox.addLayout(grid)
         cb = QCheckBox(_('Final'))
@@ -3325,7 +3323,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         fee_combo = FeeComboBox(fee_slider)
         fee_slider.deactivate()
         grid.addWidget(fee_slider, 3, 1)
-        grid.addWidget(fee_combo, 3, 2)
 
         vbox.addLayout(grid)
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
