@@ -5,8 +5,8 @@ To generate an APK file, follow these instructions.
 
 ## Android binary with Docker
 
-✗ _This script does not produce reproducible output (yet!).
-   Please help us remedy this._
+✓ _These binaries should be reproducible, meaning you should be able to generate
+   binaries that match the official releases._
 
 This assumes an Ubuntu (x86_64) host, but it should not be too hard to adapt to another
 similar system. The docker commands should be executed in the project's root
@@ -24,24 +24,27 @@ folder.
 2. Build image
 
     ```
-    $ sudo docker build -t electrum-android-builder-img contrib/android
+    $ ./contrib/android/build_docker_image.sh
     ```
 
-3. Build locale files
+3. Build binaries
+
+    It's recommended to build from a fresh clone
+    (but you can skip this if reproducibility is not necessary).
 
     ```
-    $ ./contrib/pull_locale
+    $ FRESH_CLONE=contrib/android/fresh_clone && \
+        sudo rm -rf $FRESH_CLONE && \
+        umask 0022 && \
+        mkdir -p $FRESH_CLONE && \
+        cd $FRESH_CLONE  && \
+        git clone https://github.com/spesmilo/electrum.git && \
+        cd electrum
     ```
 
-4. Prepare pure python dependencies
-
+    And then build from this directory:
     ```
-    $ ./contrib/make_packages
-    ```
-
-5. Build binaries
-
-    ```
+    $ git checkout $REV
     $ mkdir --parents $PWD/.buildozer/.gradle
     $ sudo docker run -it --rm \
         --name electrum-android-builder-cont \
@@ -52,6 +55,7 @@ folder.
         electrum-android-builder-img \
         ./contrib/android/make_apk
     ```
+    
     This mounts the project dir inside the container,
     and so the modifications will affect it, e.g. `.buildozer` folder
     will be created.
@@ -124,4 +128,23 @@ of Android does not let you access the internal storage of an app without root.
 $ adb shell
 $ run-as org.electrum.electrum ls /data/data/org.electrum.electrum/files/data
 $ run-as org.electrum.electrum cp /data/data/org.electrum.electrum/files/data/wallets/my_wallet /sdcard/some_path/my_wallet
+```
+
+### How to investigate diff between binaries if reproducibility fails?
+```
+cd bin/
+unzip Electrum-*.apk1 -d apk1
+mkdir apk1/assets/private_mp3/
+tar -xzvf apk1/assets/private.mp3 --directory apk1/assets/private_mp3/
+
+unzip Electrum-*.apk2 -d apk2
+mkdir apk2/assets/private_mp3/
+tar -xzvf apk2/assets/private.mp3 --directory apk2/assets/private_mp3/
+
+sudo chown --recursive "$(id -u -n)" apk1/ apk2/
+chmod -R +Xr  apk1/ apk2/
+$(cd apk1; find -type f -exec sha256sum '{}' \; > ./../sha256sum1)
+$(cd apk2; find -type f -exec sha256sum '{}' \; > ./../sha256sum2)
+diff sha256sum1 sha256sum2 > d
+cat d
 ```

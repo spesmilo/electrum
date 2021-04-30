@@ -1,0 +1,18 @@
+pip
+setuptools
+wheel
+cython
+
+# needed by buildozer:
+pexpect
+virtualenv
+sh
+
+# needed by python-for-android:
+appdirs
+colorama>=0.3.3
+jinja2
+six
+sh>=1.10
+pep517<0.7.0
+toml

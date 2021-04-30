@@ -26,7 +26,9 @@ source.exclude_dirs = bin, build, dist, contrib,
     packages/qdarkstyle,
     packages/qtpy
 # (list) List of exclusions using pattern matching
-source.exclude_patterns = Makefile,setup*
+source.exclude_patterns = Makefile,setup*,
+    # not reproducible:
+    packages/aiohttp-*.dist-info/*
 
 # (str) Application versioning (method 1)
 version.regex = APK_VERSION = '(.*)'
@@ -79,7 +81,7 @@ android.api = 29
 android.minapi = 21
 
 # (str) Android NDK version to use
-android.ndk = 19c
+android.ndk = 22b
 
 # (int) Android NDK API to use (optional). This is the minimum API your app will support.
 android.ndk_api = 21
@@ -95,6 +97,18 @@ android.sdk_path = /opt/android/android-sdk
 
 # (str) ANT directory (if empty, it will be automatically downloaded.)
 android.ant_path = /opt/android/apache-ant
+
+# (bool) If True, then skip trying to update the Android sdk
+# This can be useful to avoid excess Internet downloads or save time
+# when an update is due and you just want to test/build your package
+# note(ghost43): probably needed for reproducibility. versions pinned in Dockerfile.
+android.skip_update = True
+
+# (bool) If True, then automatically accept SDK license
+# agreements. This is intended for automation only. If set to False,
+# the default, you will be shown the license when first running
+# buildozer.
+android.accept_sdk_license = True
 
 # (str) Android entry point, default is ok for Kivy-based app
 #android.entrypoint = org.renpy.android.PythonActivity
