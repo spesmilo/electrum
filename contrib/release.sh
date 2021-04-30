@@ -8,8 +8,6 @@
 ELECTRUM_DIR=/opt/electrum
 WWW_DIR=/opt/electrum-web
 
-# Note:
-# uploadserver and website are set in /etc/hosts
 
 cd $ELECTRUM_DIR
 # rm -rf dist/*
@@ -138,7 +136,7 @@ if test -f dist/electrum-$VERSION.dmg; then
 	echo "packages are already signed"
     else
 	echo "signing packages"
-	./contrib/sign_packages
+	./contrib/sign_packages ThomasV
     fi
 else
     echo "dmg is missing, aborting"
@@ -175,7 +173,7 @@ fi
 if test -f dist/uploaded; then
     echo "files already uploaded"
 else
-    ./contrib/upload uploadserver
+    ./contrib/upload
     touch dist/uploaded
 fi
 
