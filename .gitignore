@@ -20,9 +20,8 @@ electrum-ltc_data
 .DS_Store
 
 # icons
-electrum_ltc/gui/kivy/theming/light-0.png
-electrum_ltc/gui/kivy/theming/light-1.png
-electrum_ltc/gui/kivy/theming/light.atlas
+electrum_ltc/gui/kivy/theming/atlas/*.png
+electrum_ltc/gui/kivy/theming/atlas/*.atlas
 
 # tests/tox
 .tox/

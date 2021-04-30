@@ -44,8 +44,8 @@ Builder.load_string('''
     background_color: (1, 1, 1, 1) if self.focus else (0.454, 0.698, 0.909, 1)
     foreground_color: (0.31, 0.31, 0.31, 1) if self.focus else (0.835, 0.909, 0.972, 1)
     hint_text_color: self.foreground_color
-    background_active: f'atlas://{KIVY_GUI_PATH}/theming/light/create_act_text_active'
-    background_normal: f'atlas://{KIVY_GUI_PATH}/theming/light/create_act_text_active'
+    background_active: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/create_act_text_active'
+    background_normal: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/create_act_text_active'
     size_hint_y: None
     height: '48sp'
 
@@ -313,7 +313,7 @@ Builder.load_string('''
     font_size: '18dp'
     text_size: self.width - dp(24), self.height - dp(12)
     color: .1, .1, .1, 1
-    background_normal: f'atlas://{KIVY_GUI_PATH}/theming/light/white_bg_round_top'
+    background_normal: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/white_bg_round_top'
     background_down: self.background_normal
     size_hint_y: None
 
@@ -341,7 +341,7 @@ Builder.load_string('''
         height: '30dp'
         width: '30dp'
         size_hint: 1, None
-        icon: f'atlas://{KIVY_GUI_PATH}/theming/light/gear'
+        icon: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/gear'
         on_release:
             root.options_dialog() if root.options_dialog else None
 
@@ -475,7 +475,7 @@ Builder.load_string('''
             id: scan
             height: '48sp'
             on_release: root.scan_xpub()
-            icon: f'atlas://{KIVY_GUI_PATH}/theming/light/camera'
+            icon: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/camera'
             size_hint: 1, None
         WizardButton:
             text: _('Paste')
