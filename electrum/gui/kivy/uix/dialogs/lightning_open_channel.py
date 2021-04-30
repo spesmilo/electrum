@@ -45,7 +45,7 @@ Builder.load_string('''
                 size_hint: 1, None
                 height: blue_bottom.item_height
                 Image:
-                    source: f'atlas://{KIVY_GUI_PATH}/theming/light/globe'
+                    source: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/globe'
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
@@ -59,7 +59,7 @@ Builder.load_string('''
                 size_hint: 1, None
                 height: blue_bottom.item_height
                 Image:
-                    source: f'atlas://{KIVY_GUI_PATH}/theming/light/calculator'
+                    source: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/calculator'
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
@@ -72,13 +72,13 @@ Builder.load_string('''
             size_hint: 1, None
             height: '48dp'
             IconButton:
-                icon: f'atlas://{KIVY_GUI_PATH}/theming/light/copy'
+                icon: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/copy'
                 size_hint: 0.5, None
                 height: '48dp'
                 on_release: s.do_paste()
                 disabled: not app.use_gossip
             IconButton:
-                icon: f'atlas://{KIVY_GUI_PATH}/theming/light/camera'
+                icon: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/camera'
                 size_hint: 0.5, None
                 height: '48dp'
                 on_release: app.scan_qr(on_complete=s.on_qr)

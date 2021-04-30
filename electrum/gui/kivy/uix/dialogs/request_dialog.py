@@ -69,12 +69,12 @@ Builder.load_string('''
                     text: _('Delete')
                     on_release: root.delete_dialog()
                 IconButton:
-                    icon: f'atlas://{KIVY_GUI_PATH}/theming/light/copy'
+                    icon: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/copy'
                     size_hint: 0.5, None
                     height: '48dp'
                     on_release: root.copy_to_clipboard()
                 IconButton:
-                    icon: f'atlas://{KIVY_GUI_PATH}/theming/light/share'
+                    icon: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/share'
                     size_hint: 0.5, None
                     height: '48dp'
                     on_release: root.do_share()
