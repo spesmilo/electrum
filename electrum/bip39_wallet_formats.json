@@ -41,6 +41,12 @@
         "script_type": "p2wpkh",
         "iterate_accounts": true
     },
+      {
+        "description": "coolwallet S derivation path using bip44 but with segwit script format",
+        "derivation_path": "m/44'/0'/0'",
+        "script_type": "p2wpkh-p2sh",
+        "iterate_accounts": true
+    },
     {
         "description": "Samourai Bad Bank (toxic change)",
         "derivation_path": "m/84'/0'/2147483644'",
