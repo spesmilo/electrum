@@ -68,11 +68,11 @@ TRAMPOLINE_NODES_SIGNET = {
 }
 
 def hardcoded_trampoline_nodes():
-    if constants.net.NET_NAME is "mainnet":
+    if constants.net.NET_NAME == "mainnet":
         return TRAMPOLINE_NODES_MAINNET
-    if constants.net.NET_NAME is "testnet":
+    if constants.net.NET_NAME == "testnet":
         return TRAMPOLINE_NODES_TESTNET
-    if constants.net.NET_NAME is "signet":
+    if constants.net.NET_NAME == "signet":
         return TRAMPOLINE_NODES_SIGNET
     return {}
 

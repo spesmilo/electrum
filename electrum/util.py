@@ -822,9 +822,9 @@ _block_explorer_default_api_loc = {'tx': 'tx/', 'addr': 'address/'}
 
 def block_explorer_info():
     from . import constants
-    if constants.net.NET_NAME is "testnet":
+    if constants.net.NET_NAME == "testnet":
         return testnet_block_explorers
-    elif constants.net.NET_NAME is "signet":
+    elif constants.net.NET_NAME == "signet":
         return signet_block_explorers
     return mainnet_block_explorers
 
