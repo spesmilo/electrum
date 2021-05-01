@@ -128,6 +128,9 @@ class SimpleConfig(Logger):
         elif self.get('simnet'):
             path = os.path.join(path, 'simnet')
             make_dir(path, allow_symlink=False)
+        elif self.get('signet'):
+            path = os.path.join(path, 'signet')
+            make_dir(path, allow_symlink=False)
 
         self.logger.info(f"electrum directory {path}")
         return path
