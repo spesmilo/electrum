@@ -60,6 +60,7 @@ class AbstractNet:
 
 class BitcoinMainnet(AbstractNet):
 
+    NET_NAME = "mainnet"
     TESTNET = False
     WIF_PREFIX = 0x80
     ADDRTYPE_P2PKH = 0
@@ -98,6 +99,7 @@ class BitcoinMainnet(AbstractNet):
 
 class BitcoinTestnet(AbstractNet):
 
+    NET_NAME = "testnet"
     TESTNET = True
     WIF_PREFIX = 0xef
     ADDRTYPE_P2PKH = 111
@@ -134,6 +136,7 @@ class BitcoinTestnet(AbstractNet):
 
 class BitcoinRegtest(BitcoinTestnet):
 
+    NET_NAME = "regtest"
     SEGWIT_HRP = "bcrt"
     GENESIS = "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {})
@@ -143,6 +146,7 @@ class BitcoinRegtest(BitcoinTestnet):
 
 class BitcoinSimnet(BitcoinTestnet):
 
+    NET_NAME = "simnet"
     WIF_PREFIX = 0x64
     ADDRTYPE_P2PKH = 0x3f
     ADDRTYPE_P2SH = 0x7b
@@ -153,8 +157,21 @@ class BitcoinSimnet(BitcoinTestnet):
     LN_DNS_SEEDS = []
 
 
+class BitcoinSignet(BitcoinTestnet):
+
+    NET_NAME = "signet"
+    GENESIS = "00000008819873e925422c1ff0f99f7cc9bbb232af63a077a480a3633bee1ef6"
+    DEFAULT_SERVERS = read_json('servers_signet.json', {})
+    CHECKPOINTS = []
+    LN_DNS_SEEDS = []
+
+
 # don't import net directly, import the module instead (so that net is singleton)
 net = BitcoinMainnet
+
+def set_signet():
+    global net
+    net = BitcoinSignet
 
 def set_simnet():
     global net
@@ -167,7 +184,6 @@ def set_mainnet():
 def set_testnet():
     global net
     net = BitcoinTestnet
-
 
 def set_regtest():
     global net

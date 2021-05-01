@@ -1,0 +1,14 @@
+{
+    "127.0.0.1": {
+        "pruning": "-",
+        "s": "51002",
+        "t": "51001",
+        "version": "1.2"
+    },
+    "signet-electrumx.wakiyamap.dev": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    }
+}
