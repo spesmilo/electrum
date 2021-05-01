@@ -1,16 +1,16 @@
 #!/bin/bash
+# uploadserver is set in /etc/hosts
 
 set -e
 
-host=$1
 version=`git describe --tags`
 echo $version
 
 here=$(dirname "$0")
 cd $here/../dist
 
-sftp -oBatchMode=no -b - jackie@$host << !
-   cd electrum-grs-downloads
+sftp -oBatchMode=no -b - jackie@uploadserver << !
+   cd electrum-grs-downloads-airlock
    mkdir $version
    cd $version
    mput *

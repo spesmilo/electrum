@@ -33,7 +33,7 @@ from .util import MyTreeView, Buttons
 
 class WatcherList(MyTreeView):
     def __init__(self, parent):
-        super().__init__(parent, self.create_menu, stretch_column=0, editable_columns=[])
+        super().__init__(parent, self.create_menu, stretch_column=0)
         self.setModel(QStandardItemModel(self))
         self.setSortingEnabled(True)
         self.update()

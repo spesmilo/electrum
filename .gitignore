@@ -25,9 +25,8 @@ electrum_data
 .DS_Store
 
 # icons
-electrum_grs/gui/kivy/theming/light-0.png
-electrum_grs/gui/kivy/theming/light-1.png
-electrum_grs/gui/kivy/theming/light.atlas
+electrum_grs/gui/kivy/theming/atlas/*.png
+electrum_grs/gui/kivy/theming/atlas/*.atlas
 
 # tests/tox
 .tox/

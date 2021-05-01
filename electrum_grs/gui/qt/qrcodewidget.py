@@ -118,6 +118,7 @@ class QRDialog(WindowModalDialog):
 
         help_text = data if show_text else help_text
         if help_text:
+            qr_hbox.setContentsMargins(0, 0, 0, 44)
             text_label = WWLabel()
             text_label.setText(help_text)
             vbox.addWidget(text_label)

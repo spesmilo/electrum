@@ -3,7 +3,7 @@ from typing import Optional, Sequence, Tuple, List, Dict, TYPE_CHECKING, Set
 import threading
 
 from .lnutil import SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, UpdateAddHtlc, Direction, FeeUpdate
-from .util import bh2u, bfh
+from .util import bh2u, bfh, with_lock
 
 if TYPE_CHECKING:
     from .json_db import StoredDict
@@ -49,12 +49,6 @@ class HTLCManager:
         self.lock = log.lock
 
         self._init_maybe_active_htlc_ids()
-
-    def with_lock(func):
-        def func_wrapper(self, *args, **kwargs):
-            with self.lock:
-                return func(self, *args, **kwargs)
-        return func_wrapper
 
     @with_lock
     def ctn_latest(self, sub: HTLCOwner) -> int:

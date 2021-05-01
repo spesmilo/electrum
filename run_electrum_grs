@@ -78,7 +78,9 @@ if not is_android:
     check_imports()
 
 
-from electrum_grs.logging import get_logger, configure_logging
+sys._ELECTRUM_RUNNING_VIA_RUNELECTRUM = True  # used by logging.py
+
+from electrum_grs.logging import get_logger, configure_logging  # import logging submodule first
 from electrum_grs import util
 from electrum_grs import constants
 from electrum_grs import SimpleConfig

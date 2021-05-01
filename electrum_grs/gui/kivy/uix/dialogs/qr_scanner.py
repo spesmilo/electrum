@@ -35,7 +35,7 @@ Builder.load_string('''
     #separator_color: .89, .89, .89, 1
     #separator_height: '1.2dp'
     #title_color: .437, .437, .437, 1
-    #background: f'atlas://{KIVY_GUI_PATH}/theming/light/dialog'
+    #background: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/dialog'
     on_activate:
         qrscr.start()
         qrscr.size = self.size

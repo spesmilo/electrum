@@ -48,8 +48,8 @@ for k, n in files.items():
         os.unlink(path)
         string = re.sub("<div id=\"%s\">(.*?)</div>"%k, '', string, flags=re.DOTALL + re.MULTILINE)
         continue
-    sigpath = path + '.asc'
-    siglink = link + '.asc'
+    sigpath = path + '.ThomasV.asc'
+    siglink = link + '.ThomasV.asc'
     if not os.path.exists(sigpath):
         os.system("wget -q %s -O %s" % (siglink, sigpath))
     if not os.path.getsize(sigpath):

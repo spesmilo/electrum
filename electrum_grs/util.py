@@ -1086,6 +1086,14 @@ def ignore_exceptions(func):
     return wrapper
 
 
+def with_lock(func):
+    """Decorator to enforce a lock on a function call."""
+    def func_wrapper(self, *args, **kwargs):
+        with self.lock:
+            return func(self, *args, **kwargs)
+    return func_wrapper
+
+
 class TxMinedInfo(NamedTuple):
     height: int                        # height of block that mined tx
     conf: Optional[int] = None         # number of confirmations, SPV verified (None means unknown)
