@@ -107,7 +107,7 @@ class BumpFeeDialog(FeeSliderDialog, Factory.Popup):
             self.ids.new_feerate.value = "unknown"
         else:
             fee_per_byte = fee_per_kb / 1000
-            self.ids.new_feerate.value = f'{fee_per_byte:.1f} sat/B'
+            self.ids.new_feerate.value = f'{fee_per_byte:.1f} gro/B'
 
     def on_ok(self):
         fee_per_kb = self.config.fee_per_kb()
