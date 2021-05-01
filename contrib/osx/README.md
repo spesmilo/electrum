@@ -2,7 +2,8 @@ Building macOS binaries
 =======================
 
 ✗ _This script does not produce reproducible output (yet!).
-   Please help us remedy this._
+   Please help us remedy this.
+   [(see #7266)](https://github.com/spesmilo/electrum/issues/7266)_
 
 This guide explains how to build Electrum binaries for macOS systems.
 
