@@ -434,8 +434,9 @@ Use this if you want your local watchtower to keep running after you close your 
         fiat_widgets = []
         fiat_widgets.append((QLabel(_('Fiat currency')), ccy_combo))
         fiat_widgets.append((QLabel(_('Source')), ex_combo))
-        fiat_widgets.append((QLabel(_('Show history rates')), hist_checkbox))
-        fiat_widgets.append((QLabel(_('Show capital gains in history')), hist_capgains_checkbox))
+        # Fixme No support for historical data
+        # fiat_widgets.append((QLabel(_('Show history rates')), hist_checkbox))
+        # fiat_widgets.append((QLabel(_('Show capital gains in history')), hist_capgains_checkbox))
         fiat_widgets.append((QLabel(_('Show Fiat balance for addresses')), fiat_address_checkbox))
 
         tabs_info = [
@@ -443,8 +444,7 @@ Use this if you want your local watchtower to keep running after you close your 
             (tx_widgets, _('Transactions')),
             # todo uncomment when turn on lightning
 #            (lightning_widgets, _('Lightning')),
-            # todo uncomment when api exchange available
-#            (fiat_widgets, _('Fiat')),
+            (fiat_widgets, _('Fiat')),
             (oa_widgets, _('OpenAlias')),
         ]
         for widgets, name in tabs_info:
