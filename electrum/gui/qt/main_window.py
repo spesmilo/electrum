@@ -63,7 +63,8 @@ from electrum.util import (format_time,
                            get_new_wallet_name, send_exception_to_crash_reporter,
                            InvalidBitcoinURI, maybe_extract_bolt11_invoice, NotEnoughFunds,
                            NoDynamicFeeEstimates, MultipleSpendMaxTxOutputs,
-                           AddTransactionException, BITCOIN_BIP21_URI_SCHEME)
+                           AddTransactionException, BITCOIN_BIP21_URI_SCHEME,
+                           InvoiceError)
 from electrum.invoices import PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING, Invoice
 from electrum.invoices import PR_PAID, PR_FAILED, pr_expiration_values, LNInvoice, OnchainInvoice
 from electrum.transaction import (Transaction, PartialTxInput,
@@ -78,7 +79,7 @@ from electrum.exchange_rate import FxThread
 from electrum.simple_config import SimpleConfig
 from electrum.logging import Logger
 from electrum.lnutil import ln_dummy_address, extract_nodeid, ConnStringFormatError
-from electrum.lnaddr import lndecode, LnDecodeException
+from electrum.lnaddr import lndecode, LnDecodeException, LnAddressError
 
 from .exception_window import Exception_Hook
 from .amountedit import AmountEdit, BTCAmountEdit, FreezableLineEdit, FeerateEdit
@@ -1223,21 +1224,26 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 else:
                     return
 
-    def create_invoice(self, is_lightning):
+    def create_invoice(self, is_lightning: bool):
         amount = self.receive_amount_e.get_amount()
         message = self.receive_message_e.text()
         expiry = self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
-        if is_lightning:
-            if not self.wallet.lnworker.channels:
-                self.show_error(_("You need to open a Lightning channel first."))
-                return
-            # TODO maybe show a warning if amount exceeds lnworker.num_sats_can_receive (as in kivy)
-            key = self.wallet.lnworker.add_request(amount, message, expiry)
-        else:
-            key = self.create_bitcoin_request(amount, message, expiry)
-            if not key:
-                return
-            self.address_list.update()
+        try:
+            if is_lightning:
+                if not self.wallet.lnworker.channels:
+                    self.show_error(_("You need to open a Lightning channel first."))
+                    return
+                # TODO maybe show a warning if amount exceeds lnworker.num_sats_can_receive (as in kivy)
+                key = self.wallet.lnworker.add_request(amount, message, expiry)
+            else:
+                key = self.create_bitcoin_request(amount, message, expiry)
+                if not key:
+                    return
+                self.address_list.update()
+        except (InvoiceError, LnAddressError) as e:
+            self.show_error(_('Error creating payment request') + ':\n' + str(e))
+            return
+
         assert key is not None
         self.request_list.update()
         self.request_list.select_key(key)
@@ -1250,7 +1256,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         title = _('Invoice') if is_lightning else _('Address')
         self.do_copy(content, title=title)
 
-    def create_bitcoin_request(self, amount, message, expiration) -> Optional[str]:
+    def create_bitcoin_request(self, amount: int, message: str, expiration: int) -> Optional[str]:
         addr = self.wallet.get_unused_address()
         if addr is None:
             if not self.wallet.is_deterministic():  # imported wallet
@@ -1595,32 +1601,35 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def read_invoice(self):
         if self.check_send_tab_payto_line_and_show_errors():
             return
-        if not self._is_onchain:
-            invoice_str = self.payto_e.lightning_invoice
-            if not invoice_str:
-                return
-            if not self.wallet.has_lightning():
-                self.show_error(_('Lightning is disabled'))
-                return
-            invoice = LNInvoice.from_bech32(invoice_str)
-            if invoice.get_amount_msat() is None:
-                amount_sat = self.amount_e.get_amount()
-                if amount_sat:
-                    invoice.amount_msat = int(amount_sat * 1000)
-                else:
-                    self.show_error(_('No amount'))
+        try:
+            if not self._is_onchain:
+                invoice_str = self.payto_e.lightning_invoice
+                if not invoice_str:
                     return
-            return invoice
-        else:
-            outputs = self.read_outputs()
-            if self.check_send_tab_onchain_outputs_and_show_errors(outputs):
-                return
-            message = self.message_e.text()
-            return self.wallet.create_invoice(
-                outputs=outputs,
-                message=message,
-                pr=self.payment_request,
-                URI=self.payto_URI)
+                if not self.wallet.has_lightning():
+                    self.show_error(_('Lightning is disabled'))
+                    return
+                invoice = LNInvoice.from_bech32(invoice_str)
+                if invoice.get_amount_msat() is None:
+                    amount_sat = self.amount_e.get_amount()
+                    if amount_sat:
+                        invoice.amount_msat = int(amount_sat * 1000)
+                    else:
+                        self.show_error(_('No amount'))
+                        return
+                return invoice
+            else:
+                outputs = self.read_outputs()
+                if self.check_send_tab_onchain_outputs_and_show_errors(outputs):
+                    return
+                message = self.message_e.text()
+                return self.wallet.create_invoice(
+                    outputs=outputs,
+                    message=message,
+                    pr=self.payment_request,
+                    URI=self.payto_URI)
+        except InvoiceError as e:
+            self.show_error(_('Error creating payment') + ':\n' + str(e))
 
     def do_save_invoice(self):
         self.pending_invoice = self.read_invoice()
