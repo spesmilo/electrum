@@ -1,41 +1,25 @@
 import asyncio
-from weakref import ref
 from decimal import Decimal
-import re
 import threading
-import traceback, sys
 from typing import TYPE_CHECKING, List, Optional, Dict, Any
 
 from kivy.app import App
-from kivy.cache import Cache
 from kivy.clock import Clock
-from kivy.compat import string_types
-from kivy.properties import (ObjectProperty, DictProperty, NumericProperty,
-                             ListProperty, StringProperty)
-
-from kivy.uix.recycleview import RecycleView
-from kivy.uix.label import Label
-from kivy.uix.behaviors import ToggleButtonBehavior
-from kivy.uix.image import Image
-
+from kivy.properties import ObjectProperty
 from kivy.lang import Builder
 from kivy.factory import Factory
-from kivy.utils import platform
+from kivy.uix.recycleview import RecycleView
 
-from electrum.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds, Fiat
 from electrum.invoices import (PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING,
                                PR_PAID, PR_UNKNOWN, PR_EXPIRED, PR_INFLIGHT,
                                LNInvoice, pr_expiration_values, Invoice, OnchainInvoice)
 from electrum import bitcoin, constants
-from electrum.transaction import Transaction, tx_from_any, PartialTransaction, PartialTxOutput
-from electrum.util import parse_URI, InvalidBitcoinURI, TxMinedInfo, maybe_extract_bolt11_invoice, InvoiceError
-from electrum.wallet import InternalAddressCorruption
-from electrum import simple_config
+from electrum.transaction import tx_from_any, PartialTxOutput
+from electrum.util import (parse_URI, InvalidBitcoinURI, TxMinedInfo, maybe_extract_bolt11_invoice,
+                           InvoiceError, format_time)
 from electrum.lnaddr import lndecode
-from electrum.lnutil import RECEIVED, SENT, PaymentFailure
 from electrum.logging import Logger
 
-from .dialogs.question import Question
 from .dialogs.confirm_tx_dialog import ConfirmTxDialog
 
 from electrum.gui.kivy import KIVY_GUI_PATH
