@@ -28,7 +28,7 @@ from electrum.invoices import (PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATIO
                                LNInvoice, pr_expiration_values, Invoice, OnchainInvoice)
 from electrum import bitcoin, constants
 from electrum.transaction import Transaction, tx_from_any, PartialTransaction, PartialTxOutput
-from electrum.util import parse_URI, InvalidBitcoinURI, TxMinedInfo, maybe_extract_bolt11_invoice
+from electrum.util import parse_URI, InvalidBitcoinURI, TxMinedInfo, maybe_extract_bolt11_invoice, InvoiceError
 from electrum.wallet import InternalAddressCorruption
 from electrum import simple_config
 from electrum.lnaddr import lndecode
