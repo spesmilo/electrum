@@ -872,7 +872,7 @@ class InvalidBitcoinURI(Exception): pass
 def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
     """Raises InvalidBitcoinURI on malformed URI."""
     from . import bitcoin
-    from .bitcoin import COIN
+    from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 
     if not isinstance(uri, str):
         raise InvalidBitcoinURI(f"expected string, not {repr(uri)}")
@@ -912,6 +912,8 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
                 amount = Decimal(m.group(1)) * pow(Decimal(10), k)
             else:
                 amount = Decimal(am) * COIN
+            if amount > TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN:
+                raise InvalidBitcoinURI(f"amount is out-of-bounds: {amount!r} BTC")
             out['amount'] = int(amount)
         except Exception as e:
             raise InvalidBitcoinURI(f"failed to parse 'amount' field: {repr(e)}") from e

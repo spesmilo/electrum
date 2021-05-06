@@ -318,21 +318,24 @@ class SendScreen(CScreen, Logger):
                 self.app.show_error(_('Invalid amount') + ':\n' + self.amount)
                 return
         message = self.message
-        if self.is_lightning:
-            return LNInvoice.from_bech32(address)
-        else:  # on-chain
-            if self.payment_request:
-                outputs = self.payment_request.get_outputs()
-            else:
-                if not bitcoin.is_address(address):
-                    self.app.show_error(_('Invalid Bitcoin Address') + ':\n' + address)
-                    return
-                outputs = [PartialTxOutput.from_address_and_value(address, amount)]
-            return self.app.wallet.create_invoice(
-                outputs=outputs,
-                message=message,
-                pr=self.payment_request,
-                URI=self.parsed_URI)
+        try:
+            if self.is_lightning:
+                return LNInvoice.from_bech32(address)
+            else:  # on-chain
+                if self.payment_request:
+                    outputs = self.payment_request.get_outputs()
+                else:
+                    if not bitcoin.is_address(address):
+                        self.app.show_error(_('Invalid Bitcoin Address') + ':\n' + address)
+                        return
+                    outputs = [PartialTxOutput.from_address_and_value(address, amount)]
+                    return self.app.wallet.create_invoice(
+                        outputs=outputs,
+                        message=message,
+                        pr=self.payment_request,
+                        URI=self.parsed_URI)
+        except InvoiceError as e:
+            self.app.show_error(_('Error creating payment') + ':\n' + str(e))
 
     def do_save(self):
         invoice = self.read_invoice()
@@ -447,20 +450,24 @@ class ReceiveScreen(CScreen):
         amount = self.amount
         amount = self.app.get_amount(amount) if amount else 0
         message = self.message
-        if lightning:
-            key = self.app.wallet.lnworker.add_request(amount, message, self.expiry())
-        else:
-            addr = self.address or self.app.wallet.get_unused_address()
-            if not addr:
-                if not self.app.wallet.is_deterministic():
-                    addr = self.app.wallet.get_receiving_address()
-                else:
-                    self.app.show_info(_('No address available. Please remove some of your pending requests.'))
-                    return
-            self.address = addr
-            req = self.app.wallet.make_payment_request(addr, amount, message, self.expiry())
-            self.app.wallet.add_payment_request(req)
-            key = addr
+        try:
+            if lightning:
+                key = self.app.wallet.lnworker.add_request(amount, message, self.expiry())
+            else:
+                addr = self.address or self.app.wallet.get_unused_address()
+                if not addr:
+                    if not self.app.wallet.is_deterministic():
+                        addr = self.app.wallet.get_receiving_address()
+                    else:
+                        self.app.show_info(_('No address available. Please remove some of your pending requests.'))
+                        return
+                self.address = addr
+                req = self.app.wallet.make_payment_request(addr, amount, message, self.expiry())
+                self.app.wallet.add_payment_request(req)
+                key = addr
+        except InvoiceError as e:
+            self.app.show_error(_('Error creating payment request') + ':\n' + str(e))
+            return
         self.clear()
         self.update()
         self.app.show_request(lightning, key)
