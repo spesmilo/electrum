@@ -1196,12 +1196,14 @@ class LNWallet(LNWorker):
                 raise Exception(f"amount_inflight={amount_inflight} < 0")
             log.append(htlc_log)
             if htlc_log.success:
-                # TODO: report every route to liquidity hints for mpp
-                # even in the case of success, we report channels of the
-                # route as being able to send the same amount in the future,
-                # as we assume to not know the capacity
                 if self.network.path_finder:
+                    # TODO: report every route to liquidity hints for mpp
+                    # in the case of success, we report channels of the
+                    # route as being able to send the same amount in the future,
+                    # as we assume to not know the capacity
                     self.network.path_finder.update_liquidity_hints(htlc_log.route, htlc_log.amount_msat)
+                    # remove inflight htlcs from liquidity hints
+                    self.network.path_finder.update_htlcs_liquidity_hints(htlc_log.route, add_htlcs=False)
                 return
             # htlc failed
             if len(log) >= attempts:
@@ -1268,6 +1270,8 @@ class LNWallet(LNWorker):
             amount_sent, amount_failed = self.sent_buckets[payment_secret]
             amount_sent += amount_receiver_msat
             self.sent_buckets[payment_secret] = amount_sent, amount_failed
+        # add inflight htlcs to liquidity hints
+        self.network.path_finder.update_htlcs_liquidity_hints(route, add_htlcs=True)
         util.trigger_callback('htlc_added', chan, htlc, SENT)
 
     def handle_error_code_from_failed_htlc(
@@ -1333,6 +1337,8 @@ class LNWallet(LNWorker):
         # for errors that do not include a channel update
         else:
             self.network.path_finder.liquidity_hints.add_to_blacklist(fallback_channel)
+        # remove inflight htlcs from liquidity hints
+        self.network.path_finder.update_htlcs_liquidity_hints(route, add_htlcs=False)
 
     def _handle_chanupd_from_failed_htlc(self, payload, *, route, sender_idx) -> Tuple[bool, bool]:
         blacklist = False
