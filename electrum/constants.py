@@ -66,6 +66,7 @@ class BitcoinMainnet(AbstractNet):
     ADDRTYPE_P2PKH = 0
     ADDRTYPE_P2SH = 5
     SEGWIT_HRP = "bc"
+    BOLT11_HRP = SEGWIT_HRP
     GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
@@ -105,6 +106,7 @@ class BitcoinTestnet(AbstractNet):
     ADDRTYPE_P2PKH = 111
     ADDRTYPE_P2SH = 196
     SEGWIT_HRP = "tb"
+    BOLT11_HRP = SEGWIT_HRP
     GENESIS = "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
     DEFAULT_PORTS = {'t': '51001', 's': '51002'}
     DEFAULT_SERVERS = read_json('servers_testnet.json', {})
@@ -138,6 +140,7 @@ class BitcoinRegtest(BitcoinTestnet):
 
     NET_NAME = "regtest"
     SEGWIT_HRP = "bcrt"
+    BOLT11_HRP = SEGWIT_HRP
     GENESIS = "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {})
     CHECKPOINTS = []
@@ -151,6 +154,7 @@ class BitcoinSimnet(BitcoinTestnet):
     ADDRTYPE_P2PKH = 0x3f
     ADDRTYPE_P2SH = 0x7b
     SEGWIT_HRP = "sb"
+    BOLT11_HRP = SEGWIT_HRP
     GENESIS = "683e86bd5c6d110d91b94b97137ba6bfe02dbbdb8e3dff722a669b5d69d77af6"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {})
     CHECKPOINTS = []
@@ -160,6 +164,7 @@ class BitcoinSimnet(BitcoinTestnet):
 class BitcoinSignet(BitcoinTestnet):
 
     NET_NAME = "signet"
+    BOLT11_HRP = "tbs"
     GENESIS = "00000008819873e925422c1ff0f99f7cc9bbb232af63a077a480a3633bee1ef6"
     DEFAULT_SERVERS = read_json('servers_signet.json', {})
     CHECKPOINTS = []

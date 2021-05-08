@@ -180,7 +180,7 @@ def pull_tagged(stream):
 def lnencode(addr: 'LnAddr', privkey) -> str:
     # see https://github.com/lightningnetwork/lightning-rfc/pull/844
     if constants.net.NET_NAME == "signet":
-        addr.currency += "s"
+        addr.currency = constants.net.BOLT11_HRP
     if addr.amount:
         amount = addr.currency + shorten_amount(addr.amount)
     else:
@@ -371,7 +371,7 @@ def lndecode(invoice: str, *, verbose=False, expected_hrp=None) -> LnAddr:
         expected_hrp = constants.net.SEGWIT_HRP
     # see https://github.com/lightningnetwork/lightning-rfc/pull/844
     if constants.net.NET_NAME == "signet":
-        expected_hrp += "s"
+        expected_hrp = constants.net.BOLT11_HRP
     decoded_bech32 = bech32_decode(invoice, ignore_long_length=True)
     hrp = decoded_bech32.hrp
     data = decoded_bech32.data
