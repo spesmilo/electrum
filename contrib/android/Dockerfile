@@ -172,7 +172,6 @@ RUN cd /opt \
     && git fetch --all \
     # commit: from branch sombernight/electrum_20210421
     && git checkout "5356bc7838b03c8c174c91fe01539c91d1b40b9f^{commit}" \
-    && git cherry-pick 92929c4ba450e93da857de3cf66c79c33cf730f9 \
     && python3 -m pip install -e .
 
 # build env vars
