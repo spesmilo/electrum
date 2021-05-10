@@ -883,7 +883,7 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
             else:
                 amount = Decimal(am) * COIN
             if amount > TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN:
-                raise InvalidBitcoinURI(f"amount is out-of-bounds: {amount!r} BTC")
+                raise InvalidBitcoinURI(f"amount is out-of-bounds: {amount!r} GRS")
             out['amount'] = int(amount)
         except Exception as e:
             raise InvalidBitcoinURI(f"failed to parse 'amount' field: {repr(e)}") from e
