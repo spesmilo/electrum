@@ -470,9 +470,9 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard, TermsAndConditionsMixi
     def remove_from_recently_open(self, filename):
         self.config.remove_from_recently_open(filename)
 
-    def text_input(self, title, message, is_valid, allow_multi=False):
+    def text_input(self, title, message, is_valid, allow_multi=False, file_filter=""):
         slayout = KeysLayout(parent=self, header_layout=message, is_valid=is_valid,
-                             allow_multi=allow_multi, config=self.config)
+                             allow_multi=allow_multi, config=self.config, file_filter=file_filter)
         self.exec_layout(slayout, title, next_enabled=False)
         return slayout.get_text()
 
@@ -487,14 +487,14 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard, TermsAndConditionsMixi
         return slayout.get_seed(), slayout.is_bip39, slayout.is_ext
 
     @wizard_dialog
-    def add_xpub_dialog(self, title, message, is_valid, run_next, allow_multi=False, show_wif_help=False):
+    def add_xpub_dialog(self, title, message, is_valid, run_next, allow_multi=False, show_wif_help=False, file_filter=""):
         header_layout = QHBoxLayout()
         label = WWLabel(message)
         label.setMinimumWidth(400)
         header_layout.addWidget(label)
         if show_wif_help:
             header_layout.addWidget(InfoButton(get_wif_help_text()), alignment=Qt.AlignRight)
-        return self.text_input(title, header_layout, is_valid, allow_multi)
+        return self.text_input(title, header_layout, is_valid, allow_multi, file_filter=file_filter)
 
     @wizard_dialog
     def add_cosigner_dialog(self, run_next, index, is_valid):

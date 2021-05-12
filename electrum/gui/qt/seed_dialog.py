@@ -202,11 +202,12 @@ class KeysLayout(QVBoxLayout):
             allow_multi=False,
             *,
             config: 'SimpleConfig',
+            file_filter: str="",
     ):
         QVBoxLayout.__init__(self)
         self.parent = parent
         self.is_valid = is_valid
-        self.text_e = ScanQRTextEdit(allow_multi=allow_multi, config=config)
+        self.text_e = ScanQRTextEdit(allow_multi=allow_multi, config=config, file_filter=file_filter)
         self.text_e.textChanged.connect(self.on_edit)
         if isinstance(header_layout, str):
             self.addWidget(WWLabel(header_layout))

@@ -761,8 +761,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         paytomany_menu = tools_menu.addAction(_("&Pay to many"), self.paytomany)
 
         raw_transaction_menu = tools_menu.addMenu(_("&Load transaction"))
-#todo uncomment when read file gonna be handle with text extention files
-#        raw_transaction_menu.addAction(_("&From file"), self.do_process_from_file)
+        raw_transaction_menu.addAction(_("&From file"), self.do_process_from_file)
         raw_transaction_menu.addAction(_("&From text"), self.do_process_from_text)
         raw_transaction_menu.addAction(_("&From the blockchain"), self.do_process_from_txid)
         raw_transaction_menu.addAction(_("&From QR code"), self.read_tx_from_qrcode)
@@ -2720,6 +2719,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             header_layout=_("Transaction:"),
             ok_label=_("Load transaction"),
             config=self.config,
+            file_filter=TRANSACTION_FILE_EXTENSION_FILTER_ANY,
         )
         if not text:
             return

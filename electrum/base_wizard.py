@@ -229,7 +229,8 @@ class BaseWizard(Logger):
         title = _("Import ELCASH addresses")
         message = _("Enter a list of ELCASH addresses (this will create a watching-only wallet), or a list of private keys.")
         self.add_xpub_dialog(title=title, message=message, run_next=self.on_import,
-                             is_valid=v, allow_multi=True, show_wif_help=True)
+                             is_valid=v, allow_multi=True, show_wif_help=True,
+                             file_filter='Addresses (*.txt *.csv *.json);; All files (*)')
 
     def on_import(self, text):
         # text is already sanitized by is_address_list and is_private_keys_list

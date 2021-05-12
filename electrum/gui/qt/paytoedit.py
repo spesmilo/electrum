@@ -62,7 +62,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
 
     def __init__(self, win: 'ElectrumWindow'):
         CompletionTextEdit.__init__(self)
-        ScanQRTextEdit.__init__(self, config=win.config)
+        ScanQRTextEdit.__init__(self, config=win.config, file_filter='Addresses (*.txt *.csv);; All files (*)')
         Logger.__init__(self)
         self.win = win
         self.amount_edit = win.amount_e

@@ -366,6 +366,7 @@ def text_dialog(
         default=None,
         allow_multi=False,
         config: 'SimpleConfig',
+        file_filter: str="",
 ):
     from .qrtextedit import ScanQRTextEdit
     dialog = WindowModalDialog(parent, title)
@@ -376,7 +377,7 @@ def text_dialog(
         l.addWidget(QLabel(header_layout))
     else:
         l.addLayout(header_layout)
-    txt = ScanQRTextEdit(allow_multi=allow_multi, config=config)
+    txt = ScanQRTextEdit(allow_multi=allow_multi, config=config, file_filter=file_filter)
     if default:
         txt.setText(default)
     l.addWidget(txt)

@@ -1,5 +1,3 @@
-from PyQt5.QtWidgets import QFileDialog
-
 from electrum.i18n import _
 from electrum.plugin import run_hook
 from electrum.simple_config import SimpleConfig
@@ -38,22 +36,23 @@ class ShowQRTextEdit(ButtonsTextEdit):
 
 class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
 
-    def __init__(self, text="", allow_multi=False, *, config: SimpleConfig):
+    def __init__(self, text="", allow_multi=False, *, config: SimpleConfig, file_filter: str=""):
         ButtonsTextEdit.__init__(self, text)
         self.allow_multi = allow_multi
         self.config = config
         self.setReadOnly(False)
-        # todo uncomment when ReadFile handle only text extension
-        # self.addButton("file.png", self.file_input, _("Read file"))
+        self.addButton("file.png", self.file_input, _("Read file"))
         icon = "camera_white.png" if ColorScheme.dark_scheme else "camera_dark.png"
         self.addButton(icon, self.qr_input, _("Read QR code"))
         run_hook('scan_text_edit', self)
+        self.file_filter = file_filter
 
     def file_input(self):
         fileName = getOpenFileName(
             parent=self,
             title='select file',
             config=self.config,
+            filter=self.file_filter
         )
         if not fileName:
             return
