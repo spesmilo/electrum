@@ -87,17 +87,6 @@ DISCLAIMER = [
       "computer, and move your wallet later to an online computer."),
 ]
 
-KIVY_DISCLAIMER = [
-    _("Two-factor authentication is a service provided by TrustedCoin. "
-      "To use it, you must have a separate device with Google Authenticator."),
-    _("This service uses a multi-signature wallet, where you own 2 of 3 keys.  "
-      "The third key is stored on a remote server that signs transactions on "
-      "your behalf. A small fee will be charged on each transaction that uses the "
-      "remote server."),
-    _("Note that your coins are not locked in this service.  You may withdraw "
-      "your funds at any time and at no cost, without the remote server, by "
-      "using the 'restore wallet' option with your wallet seed."),
-]
 RESTORE_MSG = _("Enter the seed for your 2-factor wallet:")
 
 class TrustedCoinException(Exception):

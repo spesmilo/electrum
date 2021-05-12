@@ -233,17 +233,9 @@ def configure_logging(config):
     _configure_verbosity(verbosity=verbosity, verbosity_shortcuts=verbosity_shortcuts)
 
     log_to_file = config.get('log_to_file', False)
-    is_android = 'ANDROID_DATA' in os.environ
-    if is_android:
-        from jnius import autoclass
-        build_config = autoclass("org.electrum.electrum.BuildConfig")
-        log_to_file |= bool(build_config.DEBUG)
     if log_to_file:
         log_directory = pathlib.Path(config.path) / "logs"
         _configure_file_logging(log_directory)
-
-    # if using kivy, avoid kivy's own logs to get printed twice
-    logging.getLogger('kivy').propagate = False
 
     from . import ELECTRUM_VERSION
     from .constants import GIT_REPO_URL
@@ -258,13 +250,4 @@ def get_logfile_path() -> Optional[pathlib.Path]:
 
 
 def describe_os_version() -> str:
-    if 'ANDROID_DATA' in os.environ:
-        from kivy import utils
-        if utils.platform != "android":
-            return utils.platform
-        import jnius
-        bv = jnius.autoclass('android.os.Build$VERSION')
-        b = jnius.autoclass('android.os.Build')
-        return "Android {} on {} {} ({})".format(bv.RELEASE, b.BRAND, b.DEVICE, b.DISPLAY)
-    else:
-        return platform.platform()
+    return platform.platform()

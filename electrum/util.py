@@ -350,10 +350,6 @@ class DaemonThread(threading.Thread, Logger):
             self.running = False
 
     def on_stop(self):
-        if 'ANDROID_DATA' in os.environ:
-            import jnius
-            jnius.detach()
-            self.logger.info("jnius detach")
         self.logger.info("stopped")
 
 
@@ -408,26 +404,8 @@ def profiler(func):
     return lambda *args, **kw_args: do_profile(args, kw_args)
 
 
-def android_ext_dir():
-    from android.storage import primary_external_storage_path
-    return primary_external_storage_path()
-
-def android_backup_dir():
-    d = os.path.join(android_ext_dir(), 'org.electrum.electrum')
-    if not os.path.exists(d):
-        os.mkdir(d)
-    return d
-
-def android_data_dir():
-    import jnius
-    PythonActivity = jnius.autoclass('org.kivy.android.PythonActivity')
-    return PythonActivity.mActivity.getFilesDir().getPath() + '/data'
-
 def get_backup_dir(config):
-    if 'ANDROID_DATA' in os.environ:
-        return android_backup_dir() if config.get('android_backups') else None
-    else:
-        return config.get('backup_dir')
+    return config.get('backup_dir')
 
 def ensure_sparse_file(filename):
     # On modern Linux, no need to do anything.
@@ -549,8 +527,6 @@ def xor_bytes(a: bytes, b: bytes) -> bytes:
 def user_dir():
     if "ELECTRUMDIR" in os.environ:
         return os.environ["ELECTRUMDIR"]
-    elif 'ANDROID_DATA' in os.environ:
-        return android_data_dir()
     elif os.name == 'posix':
         return os.path.join(os.environ["HOME"], ".electrum-cash")
     elif "APPDATA" in os.environ:

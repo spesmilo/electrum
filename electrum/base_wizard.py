@@ -95,7 +95,6 @@ class BaseWizard(Logger):
         self._stack = []  # type: List[WizardStackItem]
         self.plugin = None  # type: Optional[BasePlugin]
         self.keystores = []  # type: List[KeyStore]
-        self.is_kivy = config.get('gui') == 'kivy'
         self.seed_type = None
 
     def set_icon(self, icon):
@@ -213,17 +212,15 @@ class BaseWizard(Logger):
                 (create_new_seed_action, _('Create a new seed')),
                 ('restore_from_seed', _('I already have a seed')),
                 ('restore_from_key', _('Use a master key')),
+                ('choose_hw_device', _('Use a hardware device'))
             ]
-            if not self.is_kivy:
-                choices.append(('choose_hw_device',  _('Use a hardware device')))
         else:
             message = _('Add a cosigner to your multi-sig wallet')
             choices = [
                 ('restore_from_key', _('Enter cosigner key')),
                 ('restore_from_seed', _('Enter cosigner seed')),
+                ('choose_hw_device', _('Cosign with hardware device')),
             ]
-            if not self.is_kivy:
-                choices.append(('choose_hw_device',  _('Cosign with hardware device')))
 
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
 

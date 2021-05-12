@@ -65,7 +65,6 @@ except:
     _logger.info("could not import electrum.plot. This feature needs matplotlib to be installed.")
     plot_history = None
 
-# note: this list needs to be kept in sync with another in kivy
 TX_ICONS = [
     "unconfirmed.png",
     "warning.png",

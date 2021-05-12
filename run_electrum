@@ -43,7 +43,6 @@ from typing import TYPE_CHECKING, Optional
 script_dir = os.path.dirname(os.path.realpath(__file__))
 is_bundle = getattr(sys, 'frozen', False)
 is_local = not is_bundle and os.path.exists(os.path.join(script_dir, "electrum.desktop"))
-is_android = 'ANDROID_DATA' in os.environ
 
 disable_plain_tcp = bool(int(os.environ.get('ELECTRUM_DEBUG_DISABLE_PLAIN_TCP', 1)))
 
@@ -51,7 +50,7 @@ if is_local:  # running from source
     # developers should probably see all deprecation warnings.
     warnings.simplefilter('default', DeprecationWarning)
 
-if is_local or is_android:
+if is_local:
     sys.path.insert(0, os.path.join(script_dir, 'packages'))
 
 
@@ -74,8 +73,7 @@ def check_imports():
     assert os.path.exists(certifi.where())
 
 
-if not is_android:
-    check_imports()
+check_imports()
 
 
 from electrum.logging import get_logger, configure_logging
@@ -312,29 +310,20 @@ def main():
     args = parser.parse_args()
 
     # config is an object passed to the various constructors (wallet, interface, gui)
-    if is_android:
-        from jnius import autoclass
-        build_config = autoclass("org.electrum.electrum.BuildConfig")
-        config_options = {
-            'verbosity': '*' if build_config.DEBUG else '',
-            'cmd': 'gui',
-            'gui': 'kivy',
-        }
-    else:
-        config_options = args.__dict__
-        f = lambda key: config_options[key] is not None and key not in config_variables.get(args.cmd, {}).keys()
-        config_options = {key: config_options[key] for key in filter(f, config_options.keys())}
-        if config_options.get('server'):
-            if disable_plain_tcp:
-                # set protocol to a fixed 's' => SSL
-                server_split = str(config_options.get('server')).split(':')
-                if server_split[-1] != 's':
-                    try:
-                        int(server_split[-1])  # check if server ends with port
-                    except ValueError:
-                        server_split = server_split[:-1]
-                    config_options['server'] = ':'.join(server_split + ['s'])
-            config_options['auto_connect'] = False
+    config_options = args.__dict__
+    f = lambda key: config_options[key] is not None and key not in config_variables.get(args.cmd, {}).keys()
+    config_options = {key: config_options[key] for key in filter(f, config_options.keys())}
+    if config_options.get('server'):
+        if disable_plain_tcp:
+            # set protocol to a fixed 's' => SSL
+            server_split = str(config_options.get('server')).split(':')
+            if server_split[-1] != 's':
+                try:
+                    int(server_split[-1])  # check if server ends with port
+                except ValueError:
+                    server_split = server_split[:-1]
+                config_options['server'] = ':'.join(server_split + ['s'])
+        config_options['auto_connect'] = False
 
     config_options['cwd'] = os.getcwd()
 
