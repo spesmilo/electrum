@@ -14,20 +14,20 @@ from PyQt5.QtCore import QRect, QEventLoop, Qt, pyqtSignal
 from PyQt5.QtGui import QPalette, QPen, QPainter, QPixmap
 from PyQt5.QtWidgets import (QWidget, QDialog, QLabel, QHBoxLayout, QMessageBox,
                              QVBoxLayout, QLineEdit, QFileDialog, QPushButton,
-                             QGridLayout, QSlider, QScrollArea, QApplication)
+                             QGridLayout, QSlider, QScrollArea, QApplication, QComboBox)
 
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.storage import WalletStorage, StorageReadWriteError
 from electrum.util import UserCancelled, InvalidPassword, WalletFileException, get_new_wallet_name
 from electrum.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET, GoBack, ReRunDialog
 from electrum.network import Network
-from electrum.i18n import _
+from electrum.i18n import _, languages, set_language
 
 from .seed_dialog import SeedLayout, KeysLayout
 from .network_dialog import NetworkChoiceLayout
-from .terms_and_conditions_mixin import TermsAndConditionsMixin
+from .terms_and_conditions_mixin import TermsAndConditionsMixin, PushedButton
 from .util import (MessageBoxMixin, Buttons, icon_path, ChoicesLayout, WWLabel,
-                   InfoButton, char_width_in_lineedit, PasswordLineEdit)
+                   InfoButton, char_width_in_lineedit, PasswordLineEdit, get_default_language)
 from .password_dialog import PasswordLayout, PasswordLayoutForHW, PW_NEW
 from .bip39_recovery_dialog import Bip39RecoveryDialog
 from electrum.plugin import run_hook, Plugins
@@ -38,24 +38,16 @@ if TYPE_CHECKING:
     from . import ElectrumGui
 
 
-MSG_ENTER_PASSWORD = _("Choose a password to encrypt your wallet keys.") + '\n'\
-                     + _("Leave this field empty if you want to disable encryption.")
-MSG_HW_STORAGE_ENCRYPTION = _("Set wallet file encryption.") + '\n'\
-                          + _("Your wallet file does not contain secrets, mostly just metadata. ") \
-                          + _("It also contains your master public key that allows watching your addresses.") + '\n\n'\
-                          + _("Note: If you enable this setting, you will need your hardware device to open your wallet.")
-WIF_HELP_TEXT = (_('WIF keys are typed in ELCASH Wallet, based on script type.') + '\n\n' +
-                 _('A few examples') + ':\n' +
-                 'p2pkh:KxZcY47uGp9a...       \t-> 1DckmggQM...\n' +
-                 'p2wpkh-p2sh:KxZcY47uGp9a... \t-> 3NhNeZQXF...\n' +
-                 'p2wpkh:KxZcY47uGp9a...      \t-> bc1q3fjfk...')
-# note: full key is KxZcY47uGp9aVQAb6VVvuBs8SwHKgkSR2DbZUzjDzXf2N2GPhG9n
-MSG_PASSPHRASE_WARN_ISSUE4566 = _("Warning") + ": "\
-                              + _("You have multiple consecutive whitespaces or leading/trailing "
-                                  "whitespaces in your passphrase.") + " " \
-                              + _("This is discouraged.") + " " \
-                              + _("Due to a bug, old versions of ELCASH Wallet will NOT be creating the "
-                                  "same wallet as newer versions or other software.")
+def get_wif_help_text():
+    # it is wrapped into function to run translation whenever we need the text
+    # note: full key is KxZcY47uGp9aVQAb6VVvuBs8SwHKgkSR2DbZUzjDzXf2N2GPhG9n
+    return (
+        _('WIF keys are typed in ELCASH Wallet, based on script type.') + '\n\n' +
+        _('A few examples') + ':\n' +
+        'p2pkh:KxZcY47uGp9a...       \t-> 1DckmggQM...\n' +
+        'p2wpkh-p2sh:KxZcY47uGp9a... \t-> 3NhNeZQXF...\n' +
+        'p2wpkh:KxZcY47uGp9a...      \t-> bc1q3fjfk...'
+    )
 
 
 class CosignWidget(QWidget):
@@ -153,7 +145,6 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard, TermsAndConditionsMixi
     def __init__(self, config: 'SimpleConfig', app: QApplication, plugins: 'Plugins', *, gui_object: 'ElectrumGui'):
         QDialog.__init__(self, None)
         BaseWizard.__init__(self, config, plugins)
-        self.setWindowTitle('ELCASH Wallet  -  ' + _('Install Wizard'))
         self.app = app
         self.config = config
         self.gui_thread = gui_object.gui_thread
@@ -161,12 +152,11 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard, TermsAndConditionsMixi
         self.accept_signal.connect(self.accept)
         self.title = QLabel()
         self.main_widget = QWidget()
-        self.back_button = QPushButton(_("Back"), self)
-        self.back_button.setText(_('Back') if self.can_go_back() else _('Cancel'))
-        self.next_button = QPushButton(_("Next"), self)
+        self.back_button = QPushButton(self)
+        self.next_button = QPushButton(self)
         self.next_button.setDefault(True)
         self.logo = QLabel()
-        self.please_wait = QLabel(_("Please wait..."))
+        self.please_wait = QLabel()
         self.please_wait.setAlignment(Qt.AlignCenter)
         self.icon_filename = None
         self.loop = QEventLoop()
@@ -197,9 +187,40 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard, TermsAndConditionsMixi
         outer_vbox.addLayout(hbox)
         outer_vbox.addLayout(Buttons(self.back_button, self.next_button))
         self.set_icon('electrum.png')
+        self._set_gui_text()
         self.show()
         self.raise_()
         self.refresh_gui()  # Need for QT on MacOSX.  Lame.
+
+    def _set_gui_text(self):
+        self.setWindowTitle('ELCASH Wallet  -  ' + _('Install Wizard'))
+        self.back_button.setText(_('Back') if self.can_go_back() else _('Cancel'))
+        self.next_button.setText(_("Next"))
+        self.please_wait.setText(_("Please wait..."))
+
+    def select_and_save_language(self):
+        """Method for selecting and saving language in config file as {'language': <language-abbreviation: str>}"""
+        filtered_languages = {key: value for key, value in languages.items() if key}
+        language_abbreviations = list(filtered_languages.keys())
+        default_language = get_default_language()
+        vbox = QVBoxLayout()
+        cb = QComboBox()
+        cb.addItems(filtered_languages.values())
+        cb.setCurrentIndex(language_abbreviations.index(default_language))
+        vbox.addWidget(cb)
+
+        def on_change():
+            language_abbreviation = language_abbreviations[cb.currentIndex()]
+            set_language(language_abbreviation)
+            self._set_gui_text()
+            self.refresh_gui()
+
+        cb.currentIndexChanged.connect(on_change)
+        # refresh config language
+        on_change()
+        pushed_button = self.exec_layout(vbox, title=_('Select installation language'))
+        if pushed_button == PushedButton.NEXT:
+            self.config.set_key('language', language_abbreviations[cb.currentIndex()])
 
     def select_storage(self, path, get_wallet_from_daemon) -> Tuple[str, Optional[WalletStorage]]:
 
@@ -472,7 +493,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard, TermsAndConditionsMixi
         label.setMinimumWidth(400)
         header_layout.addWidget(label)
         if show_wif_help:
-            header_layout.addWidget(InfoButton(WIF_HELP_TEXT), alignment=Qt.AlignRight)
+            header_layout.addWidget(InfoButton(get_wif_help_text()), alignment=Qt.AlignRight)
         return self.text_input(title, header_layout, is_valid, allow_multi)
 
     @wizard_dialog
@@ -534,11 +555,21 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard, TermsAndConditionsMixi
     def request_password(self, run_next, force_disable_encrypt_cb=False):
         """Request the user enter a new password and confirm it.  Return
         the password or None for no password."""
-        return self.pw_layout(MSG_ENTER_PASSWORD, PW_NEW, force_disable_encrypt_cb)
+        return self.pw_layout(
+            _("Choose a password to encrypt your wallet keys.") + '\n' +
+            _("Leave this field empty if you want to disable encryption."),
+            PW_NEW,
+            force_disable_encrypt_cb
+        )
 
     @wizard_dialog
     def request_storage_encryption(self, run_next):
-        playout = PasswordLayoutForHW(MSG_HW_STORAGE_ENCRYPTION)
+        playout = PasswordLayoutForHW(
+            _("Set wallet file encryption.") + '\n' +
+            _("Your wallet file does not contain secrets, mostly just metadata. ") +
+            _("It also contains your master public key that allows watching your addresses.") + '\n\n' +
+            _("Note: If you enable this setting, you will need your hardware device to open your wallet.")
+        )
         playout.encrypt_cb.setChecked(True)
         self.exec_layout(playout.layout())
         return playout.encrypt_cb.isChecked()
@@ -690,7 +721,14 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard, TermsAndConditionsMixi
         vbox.addWidget(line)
         vbox.addWidget(WWLabel(warning))
 
-        warn_issue4566_label = WWLabel(MSG_PASSPHRASE_WARN_ISSUE4566)
+        warn_issue4566_label = WWLabel(
+            _("Warning") + ": " +
+            _("You have multiple consecutive whitespaces or leading/trailing "
+                "whitespaces in your passphrase.") + " " +
+            _("This is discouraged.") + " " +
+            _("Due to a bug, old versions of ELCASH Wallet will NOT be creating the "
+                "same wallet as newer versions or other software.")
+        )
         warn_issue4566_label.setVisible(False)
         vbox.addWidget(warn_issue4566_label)
 

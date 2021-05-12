@@ -358,8 +358,15 @@ class ElectrumGui(Logger):
                 self.stop()
                 raise TermsNotAccepted
 
+    def choose_language(self):
+        if self.config.get('language', None) is None:
+            wizard = InstallWizard(self.config, self.app, self.plugins, gui_object=self)
+            wizard.select_and_save_language()
+            wizard.terminate()
+
     def main(self):
         try:
+            self.choose_language()
             self.accept_terms_and_conditions()
             self.init_network()
         except (UserCancelled, GoBack, TermsNotAccepted):

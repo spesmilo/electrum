@@ -93,7 +93,7 @@ from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialo
                    TRANSACTION_FILE_EXTENSION_FILTER_ANY, MONOSPACE_FONT,
                    getOpenFileName, getSaveFileName, BlockingWaitingDialog)
 from .util import ButtonsTextEdit, ButtonsLineEdit
-from .installwizard import WIF_HELP_TEXT
+from .installwizard import get_wif_help_text
 from .history_list import HistoryList, HistoryModel
 from .update_checker import UpdateCheck, UpdateCheckThread
 from .channels_list import ChannelsList
@@ -2900,7 +2900,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         vbox = QVBoxLayout(d)
         hbox_top = QHBoxLayout()
         hbox_top.addWidget(QLabel(_("Enter private keys:")))
-        hbox_top.addWidget(InfoButton(WIF_HELP_TEXT), alignment=Qt.AlignRight)
+        hbox_top.addWidget(InfoButton(get_wif_help_text()), alignment=Qt.AlignRight)
         vbox.addLayout(hbox_top)
         keys_e = ScanQRTextEdit(allow_multi=True, config=self.config)
         keys_e.setTabChangesFocus(True)
@@ -3005,7 +3005,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         title = _('Import private keys')
         header_layout = QHBoxLayout()
         header_layout.addWidget(QLabel(_("Enter private keys")+':'))
-        header_layout.addWidget(InfoButton(WIF_HELP_TEXT), alignment=Qt.AlignRight)
+        header_layout.addWidget(InfoButton(get_wif_help_text()), alignment=Qt.AlignRight)
         self._do_import(title, header_layout, lambda x: self.wallet.import_private_keys(x, password))
 
     def update_fiat(self):

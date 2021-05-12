@@ -39,8 +39,6 @@ def _(x):
 
 
 def set_language(x):
-    # todo remove it when all translations will be available
-    x = 'en_UK'
     global language
     if x:
         language = gettext.translation('electrum', LOCALE_DIR, fallback=True, languages=[x])
@@ -49,15 +47,13 @@ def set_language(x):
 languages = {
     '': _('Default'),
     'en_UK': _('English'),
-    # todo uncomment supported languages
-#    'ar_SA': _('Arabic'),
-#    'de_DE': _('German'),
-#    'es_ES': _('Spanish'),
-#    'ja_JP': _('Japanese'),
-#    'ko_KR': _('Korean'),
-#    'pt_PT': _('Portuguese'),
-#    'tr_TR': _('Turkish'),
-#    'vi_VN': _('Vietnamese'),
-#    'zh_CN': _('Chinese Simplified'),
-
+    'ar_SA': _('Arabic'),
+    'de_DE': _('German'),
+    'es_ES': _('Spanish'),
+    'ja_JP': _('Japanese'),
+    'ko_KR': _('Korean'),
+    'pt_PT': _('Portuguese'),
+    'tr_TR': _('Turkish'),
+    'vi_VN': _('Vietnamese'),
+    'zh_CN': _('Chinese Simplified'),
 }
