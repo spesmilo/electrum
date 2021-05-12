@@ -247,7 +247,7 @@ class NetworkChoiceLayout(object):
 
         grid.addWidget(self.tor_cb, 1, 0, 1, 3)
         grid.addWidget(self.proxy_cb, 2, 0, 1, 3)
-        grid.addWidget(HelpButton(_('Proxy settings apply to all connections: with ELCASH servers, but also with third-party services.')), 2, 4)
+        grid.addWidget(HelpButton(_('Proxy settings apply to all connections: with Electric Cash servers, but also with third-party services.')), 2, 4)
         grid.addWidget(self.proxy_mode, 4, 1)
         grid.addWidget(self.proxy_host, 4, 2)
         grid.addWidget(self.proxy_port, 4, 3)
@@ -258,7 +258,7 @@ class NetworkChoiceLayout(object):
         # Blockchain Tab
         grid = QGridLayout(blockchain_tab)
         msg =  ' '.join([
-            _("ELCASH connects to several nodes in order to download block headers and find out the longest blockchain."),
+            _("ELCASH Wallet connects to several nodes in order to download block headers and find out the longest blockchain."),
             _("This blockchain is used to verify the transactions sent by your transaction server.")
         ])
         self.status_label = QLabel('')
@@ -271,8 +271,8 @@ class NetworkChoiceLayout(object):
         self.autoconnect_cb.clicked.connect(self.set_server)
         self.autoconnect_cb.clicked.connect(self.update)
         msg = ' '.join([
-            _("If auto-connect is enabled, ELCASH will always use a server that is on the longest blockchain."),
-            _("If it is disabled, you have to choose a server you want to use. ELCASH will warn you if your server is lagging.")
+            _("If auto-connect is enabled, ELCASH Wallet will always use a server that is on the longest blockchain."),
+            _("If it is disabled, you have to choose a server you want to use. ELCASH Wallet will warn you if your server is lagging.")
         ])
         grid.addWidget(self.autoconnect_cb, 1, 0, 1, 3)
         grid.addWidget(HelpButton(msg), 1, 4)
@@ -280,7 +280,7 @@ class NetworkChoiceLayout(object):
         self.server_e = QLineEdit()
         self.server_e.setFixedWidth(fixed_width_hostname + fixed_width_port)
         self.server_e.editingFinished.connect(self.set_server)
-        msg = _("ELCASH sends your wallet addresses to a single server, in order to receive your transaction history.")
+        msg = _("ELCASH Wallet sends your wallet addresses to a single server, in order to receive your transaction history.")
         grid.addWidget(QLabel(_('Server') + ':'), 2, 0)
         grid.addWidget(self.server_e, 2, 1, 1, 3)
         grid.addWidget(HelpButton(msg), 2, 4)

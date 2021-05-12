@@ -746,7 +746,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             # Hence, this menu item will be at a "uniform location re macOS processes"
             preferences_action.setMenuRole(QAction.PreferencesRole)  # make sure OS recognizes it as preferences
             # Add another preferences item, to also have a "uniform location for Electrum between different OSes"
-            tools_menu.addAction(_("ELCASH preferences"), self.settings_dialog)
+            tools_menu.addAction(_("ELCASH Wallet preferences"), self.settings_dialog)
 
         tools_menu.addAction(_("&Network"), self.gui_object.show_network_dialog).setEnabled(bool(self.network))
         # todo uncomment when turn on lightning
@@ -1063,7 +1063,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             _('Expiration date of your request.'),
             _('This information is seen by the recipient if you send them a signed payment request.'),
             _('Expired requests have to be deleted manually from your list, in order to free the corresponding Bitcoin addresses.'),
-            _('The ELCASH address never expires and will always be part of this Elcash wallet.'),
+            _('The ELCASH address never expires and will always be part of this ELCASH Wallet.'),
         ])
         grid.addWidget(HelpLabel(_('Expires after'), msg), 2, 0)
         grid.addWidget(self.expires_combo, 2, 1)
@@ -1312,7 +1312,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.payto_e = PayToEdit(self)
         self.payto_e.addPasteButton(self.app)
         msg = _('Recipient of the funds.') + '\n\n'\
-              + _('You may enter a Bitcoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Bitcoin address)')
+              + _('You may enter a ELCASH address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a ELCASH address)')
         payto_label = HelpLabel(_('Pay to'), msg)
         grid.addWidget(payto_label, 1, 0)
         grid.addWidget(self.payto_e, 1, 1, 1, -1)

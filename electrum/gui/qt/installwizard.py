@@ -284,7 +284,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard, TermsAndConditionsMixi
                     self.logger.exception('')
                     msg = _('Cannot read file') + f'\n{repr(e)}'
             else:
-                msg = _('')
+                msg = ''
             self.next_button.setEnabled(temp_storage is not None)
             user_needs_to_enter_password = False
             if temp_storage:
