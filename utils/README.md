@@ -1,4 +1,19 @@
-## Translation workflow
+## Lokalise translation workflow
+Lokalise is a tool which simplify workflow with translation (more info on https://lokalise.com/).
+The `pot` file, which is used by Lokalise, can be updated by using following command:
+```bash
+./update_copy_for_lokalise.sh <existing-pot-file>
+```
+e.g
+```bash
+./update_copy_for_lokalise.sh ../electrum/locale/message.pot
+```
+
+|:information_source: Info: Make sure that script is executable. In case of getting error like `bash: ./update_copy_for_lokalise.sh: Permission denied` use `chmod +x update_copy_for_lokalise.sh`. It should solve the problem |
+|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+
+
+## CSV translation workflow
 Below scheme shows workflow of translation process
 ```
    +----+                 +-------+                  +-------+                   +----+
