@@ -429,6 +429,7 @@ class Daemon(Logger):
         self.gui_object = None
         # path -> wallet;   make sure path is standardized.
         self._wallets = {}  # type: Dict[str, Abstract_Wallet]
+        self.current_wallet_path = None
         daemon_jobs = []
         # Setup commands server
         self.commands_server = None
@@ -475,11 +476,14 @@ class Daemon(Logger):
             self.logger.info("taskgroup stopped.")
             self.stopping_soon.set()
 
-    def load_wallet(self, path, password, *, manual_upgrades=True) -> Optional[Abstract_Wallet]:
+    def load_wallet(self, path, password, *, manual_upgrades=True,
+                    set_current=False) -> Optional[Abstract_Wallet]:
         path = standardize_path(path)
         # wizard will be launched if we return
         if path in self._wallets:
             wallet = self._wallets[path]
+            if set_current:
+                self.current_wallet_path = path
             return wallet
         storage = WalletStorage(path)
         if not storage.file_exists():
@@ -499,6 +503,8 @@ class Daemon(Logger):
         wallet = Wallet(db, storage, config=self.config)
         wallet.start_network(self.network)
         self._wallets[path] = wallet
+        if set_current:
+            self.current_wallet_path = path
         return wallet
 
     def add_wallet(self, wallet: Abstract_Wallet) -> None:
@@ -524,6 +530,8 @@ class Daemon(Logger):
         """Returns True iff a wallet was found."""
         path = standardize_path(path)
         wallet = self._wallets.pop(path, None)
+        if self.current_wallet_path == path:
+            self.current_wallet_path = None
         if not wallet:
             return False
         fut = asyncio.run_coroutine_threadsafe(wallet.stop(), self.asyncio_loop)

@@ -131,7 +131,10 @@ def command(s):
                 if 'wallet_path' in cmd.options and kwargs.get('wallet_path') is None:
                     kwargs['wallet_path'] = daemon.config.get_wallet_path()
                 if cmd.requires_wallet and kwargs.get('wallet') is None:
-                    kwargs['wallet'] = daemon.config.get_wallet_path()
+                    if daemon.current_wallet_path is not None:
+                        kwargs['wallet'] = daemon.current_wallet_path
+                    else:
+                        kwargs['wallet'] = daemon.config.get_wallet_path()
                 if 'wallet' in cmd.options:
                     wallet_path = kwargs.get('wallet', None)
                     if isinstance(wallet_path, str):
@@ -224,9 +227,12 @@ class Commands:
                 for path, w in self.daemon.get_wallets().items()]
 
     @command('n')
-    async def load_wallet(self, wallet_path=None, password=None):
+    async def load_wallet(self, wallet_path=None,
+                          password=None, set_current=False):
         """Open wallet in daemon"""
-        wallet = self.daemon.load_wallet(wallet_path, password, manual_upgrades=False)
+        wallet = self.daemon.load_wallet(wallet_path, password,
+                                         manual_upgrades=False,
+                                         set_current=set_current)
         if wallet is not None:
             run_hook('load_wallet', wallet, None)
         response = wallet is not None
@@ -1288,6 +1294,7 @@ command_options = {
     'iknowwhatimdoing': (None, "Acknowledge that I understand the full implications of what I am about to do"),
     'gossip':      (None, "Apply command to gossip node instead of wallet"),
     'connection_string':      (None, "Lightning network node ID or network address"),
+    'set_current': (None, "set wallet as current for commands"),
 }
 
 
