@@ -23,6 +23,11 @@ if TYPE_CHECKING:
     from .lnutil import LnFeatures
 
 
+class LnInvoiceException(Exception): pass
+class LnDecodeException(LnInvoiceException): pass
+class LnEncodeException(LnInvoiceException): pass
+
+
 # BOLT #11:
 #
 # A writer MUST encode `amount` as a positive decimal integer with no
@@ -63,7 +68,7 @@ def unshorten_amount(amount) -> Decimal:
     # A reader SHOULD fail if `amount` contains a non-digit, or is followed by
     # anything except a `multiplier` in the table above.
     if not re.fullmatch("\\d+[pnum]?", str(amount)):
-        raise ValueError("Invalid amount '{}'".format(amount))
+        raise LnDecodeException("Invalid amount '{}'".format(amount))
 
     if unit in units.keys():
         return Decimal(amount[:-1]) / units[unit]
@@ -99,7 +104,7 @@ def encode_fallback(fallback: str, net: Type[AbstractNet]):
         elif addrtype == net.ADDRTYPE_P2SH:
             wver = 18
         else:
-            raise ValueError(f"Unknown address type {addrtype} for {net}")
+            raise LnEncodeException(f"Unknown address type {addrtype} for {net}")
         wprog = addr
     return tagged('f', bitstring.pack("uint:5", wver) + wprog)
 
@@ -193,7 +198,7 @@ def lnencode(addr: 'LnAddr', privkey) -> str:
         # A writer MUST NOT include more than one `d`, `h`, `n` or `x` fields,
         if k in ('d', 'h', 'n', 'x', 'p', 's'):
             if k in tags_set:
-                raise ValueError("Duplicate '{}' tag".format(k))
+                raise LnEncodeException("Duplicate '{}' tag".format(k))
 
         if k == 'r':
             route = bitstring.BitArray()
@@ -230,7 +235,7 @@ def lnencode(addr: 'LnAddr', privkey) -> str:
             data += tagged('9', feature_bits)
         else:
             # FIXME: Support unknown tags?
-            raise ValueError("Unknown tag {}".format(k))
+            raise LnEncodeException("Unknown tag {}".format(k))
 
         tags_set.add(k)
 
@@ -275,16 +280,16 @@ class LnAddr(object):
     @amount.setter
     def amount(self, value):
         if not (isinstance(value, Decimal) or value is None):
-            raise ValueError(f"amount must be Decimal or None, not {value!r}")
+            raise LnInvoiceException(f"amount must be Decimal or None, not {value!r}")
         if value is None:
             self._amount = None
             return
         assert isinstance(value, Decimal)
         if value.is_nan() or not (0 <= value <= TOTAL_COIN_SUPPLY_LIMIT_IN_BTC):
-            raise ValueError(f"amount is out-of-bounds: {value!r} BTC")
+            raise LnInvoiceException(f"amount is out-of-bounds: {value!r} BTC")
         if value * 10**12 % 10:
             # max resolution is millisatoshi
-            raise ValueError(f"Cannot encode {value!r}: too many decimal places")
+            raise LnInvoiceException(f"Cannot encode {value!r}: too many decimal places")
         self._amount = value
 
     def get_amount_sat(self) -> Optional[Decimal]:
@@ -344,8 +349,6 @@ class LnAddr(object):
         return now > self.get_expiry() + self.date
 
 
-class LnDecodeException(Exception): pass
-
 class SerializableKey:
     def __init__(self, pubkey):
         self.pubkey = pubkey
@@ -359,24 +362,24 @@ def lndecode(invoice: str, *, verbose=False, net=None) -> LnAddr:
     hrp = decoded_bech32.hrp
     data = decoded_bech32.data
     if decoded_bech32.encoding is None:
-        raise ValueError("Bad bech32 checksum")
+        raise LnDecodeException("Bad bech32 checksum")
     if decoded_bech32.encoding != segwit_addr.Encoding.BECH32:
-        raise ValueError("Bad bech32 encoding: must be using vanilla BECH32")
+        raise LnDecodeException("Bad bech32 encoding: must be using vanilla BECH32")
 
     # BOLT #11:
     #
     # A reader MUST fail if it does not understand the `prefix`.
     if not hrp.startswith('ln'):
-        raise ValueError("Does not start with ln")
+        raise LnDecodeException("Does not start with ln")
 
     if not hrp[2:].startswith(net.BOLT11_HRP):
-        raise ValueError(f"Wrong Lightning invoice HRP {hrp[2:]}, should be {net.BOLT11_HRP}")
+        raise LnDecodeException(f"Wrong Lightning invoice HRP {hrp[2:]}, should be {net.BOLT11_HRP}")
 
     data = u5_to_bitarray(data)
 
     # Final signature 65 bytes, split it off.
     if len(data) < 65*8:
-        raise ValueError("Too short to contain signature")
+        raise LnDecodeException("Too short to contain signature")
     sigdecoded = data[-65*8:].tobytes()
     data = bitstring.ConstBitStream(data[:-65*8])
 
