@@ -586,6 +586,10 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         """Returns a map: pubkey -> (keystore, derivation_suffix)"""
         return {}
 
+    def is_lightning_funding_tx(self, txid: str) -> bool:
+        return any([chan.funding_outpoint.txid == txid
+                    for chan in self.lnworker.channels.values()])
+
     def get_tx_info(self, tx: Transaction) -> TxWalletDetails:
         tx_wallet_delta = self.get_wallet_delta(tx)
         is_relevant = tx_wallet_delta.is_relevant
@@ -598,8 +602,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         tx_hash = tx.txid()  # note: txid can be None! e.g. when called from GUI tx dialog
         is_lightning_funding_tx = False
         if self.has_lightning() and tx_hash is not None:
-            is_lightning_funding_tx = any([chan.funding_outpoint.txid == tx_hash
-                                           for chan in self.lnworker.channels.values()])
+            is_lightning_funding_tx = self.is_lightning_funding_tx(tx_hash)
         tx_we_already_have_in_db = self.db.get_transaction(tx_hash)
         can_save_as_local = (is_relevant and tx.txid() is not None
                              and (tx_we_already_have_in_db is None or not tx_we_already_have_in_db.is_complete()))
@@ -1240,6 +1243,9 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 continue
             # all inputs should be is_mine
             if not all([self.is_mine(self.get_txin_address(txin)) for txin in tx.inputs()]):
+                continue
+            # do not mutate LN funding txs, as that would change their txid
+            if self.is_lightning_funding_tx(txid):
                 continue
             # prefer txns already in mempool (vs local)
             if hist_item.tx_mined_status.height == TX_HEIGHT_LOCAL:
