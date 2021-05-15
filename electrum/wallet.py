@@ -586,7 +586,9 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         """Returns a map: pubkey -> (keystore, derivation_suffix)"""
         return {}
 
-    def is_lightning_funding_tx(self, txid: str) -> bool:
+    def is_lightning_funding_tx(self, txid: Optional[str]) -> bool:
+        if not self.lnworker or txid is None:
+            return False
         return any([chan.funding_outpoint.txid == txid
                     for chan in self.lnworker.channels.values()])
 
@@ -600,9 +602,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         can_bump = False
         can_cpfp = False
         tx_hash = tx.txid()  # note: txid can be None! e.g. when called from GUI tx dialog
-        is_lightning_funding_tx = False
-        if self.has_lightning() and tx_hash is not None:
-            is_lightning_funding_tx = self.is_lightning_funding_tx(tx_hash)
+        is_lightning_funding_tx = self.is_lightning_funding_tx(tx_hash)
         tx_we_already_have_in_db = self.db.get_transaction(tx_hash)
         can_save_as_local = (is_relevant and tx.txid() is not None
                              and (tx_we_already_have_in_db is None or not tx_we_already_have_in_db.is_complete()))
