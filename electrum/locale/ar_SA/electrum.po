@@ -204,7 +204,7 @@ msgid "Add cosigner"
 msgstr "اضافة شريك توقيع آخر"
 
 msgid "Adding info to tx, from wallet and network..."
-msgstr ""
+msgstr "جارٍ إضافة معلومات إلى tx ، من المحفظة والشبكة ..."
 
 msgid "Additional fees"
 msgstr "رسوم اضافية"
@@ -294,7 +294,7 @@ msgid "Are you sure you want to delete wallet {}?"
 msgstr "هل انت متأكد من حذف المحفظة {}؟"
 
 msgid "Are you sure you want to disagree?"
-msgstr ""
+msgstr "هل أنت متأكد أنك تريد عدم الموافقه؟"
 
 msgid "Are you sure you want to remove this transaction and {} child transactions?"
 msgstr " هل أنت متأكد من أنك تريد إزالة هذه المعاملة و {} المعاملات الفرعية؟ "
@@ -303,7 +303,7 @@ msgid "Are you sure you want to remove this transaction?"
 msgstr "هل أنت متأكد أنك تريد إزالة هذه المعاملة؟"
 
 msgid "Are you sure?"
-msgstr ""
+msgstr "هل أنت واثق؟"
 
 msgid "At block height: {}"
 msgstr "عند ارتفاع الكتلة: {}"
@@ -339,7 +339,7 @@ msgid "BIP39 Recovery"
 msgstr "استرداد BIP39"
 
 msgid "BIP70 invoice saved as {}"
-msgstr ""
+msgstr "حفظ الفاتورة BIP70 {}"
 
 msgid "Back"
 msgstr "رجوع"
@@ -375,7 +375,7 @@ msgid "Batch pay invoices"
 msgstr "دفع العديد من الفواتير"
 
 msgid "Before reporting a bug, upgrade to the most recent version of ELCASH Wallet (latest release or git HEAD), and include the version number in your report."
-msgstr ""
+msgstr "قبل الإبلاغ عن خطأ ، قم بالترقية إلى أحدث إصدار من محفظة ELCASH (أحدث إصدار أو git HEAD) ، وقم بتضمين رقم الإصدار في تقريرك."
 
 msgid "Bit rate [kbps]: "
 msgstr "معدل البت [kbps]:"
@@ -960,34 +960,34 @@ msgid "Dynamic fee estimates not available"
 msgstr "تقديرات الرسوم الديناميكية غير متاحة"
 
 msgid "ELCASH Wallet communicates with remote servers to get information about your transactions and addresses. The servers all fulfill the same purpose only differing in hardware. In most cases you simply want to let ELCASH Wallet pick one at random.  However if you prefer feel free to select a server manually."
-msgstr ""
+msgstr "تتواصل محفظة ELCASH مع الخوادم البعيدة للحصول على معلومات حول معاملاتك وعناوينك. جميع الخوادم تفي بالغرض نفسه فقط باختلاف الأجهزة. في معظم الحالات ، تريد ببساطة السماح لمحفظة ELCASH باختيار واحد عشوائيًا. ومع ذلك ، إذا كنت تفضل عدم التردد في تحديد الخادم يدويًا."
 
 msgid "ELCASH Wallet connects to several nodes in order to download block headers and find out the longest blockchain."
-msgstr ""
+msgstr "تتصل محفظة ELCASH بالعديد من العقد من أجل تنزيل block headers ومعرفة أطول سلسلة blockchain."
 
 msgid "ELCASH Wallet sends your wallet addresses to a single server, in order to receive your transaction history."
-msgstr ""
+msgstr "ترسل محفظة ELCASH عناوين محفظتك إلى خادم واحد ، من أجل تلقي محفوظات المعاملات الخاصة بك."
 
 msgid "ELCASH Wallet was unable to copy your wallet file to the specified location."
-msgstr ""
+msgstr "لم تتمكن محفظة ELCASH من نسخ ملف محفظتك إلى الموقع المحدد."
 
 msgid "ELCASH Wallet was unable to open your transaction file"
-msgstr ""
+msgstr "لم تتمكن محفظة ELCASH من فتح ملف معاملتك"
 
 msgid "ELCASH Wallet was unable to parse your transaction"
-msgstr ""
+msgstr "لم تتمكن محفظة ELCASH من تحليل معاملتك"
 
 msgid "ELCASH Wallet was unable to produce a private key-export."
-msgstr ""
+msgstr "لم تتمكن محفظة ELCASH من إنتاج مفتاح خاص للتصدير."
 
 msgid "ELCASH Wallet will now exit."
-msgstr ""
+msgstr "سيتم الخروج من محفظة ELCASH الآن."
 
 msgid "ELCASH Wallet's focus is speed, with low resource usage and simplifying Electric Cash."
 msgstr " تركز ELCASH Wallet على السرعة ، مع استخدام منخفض للموارد وتبسيط Electric Cash. "
 
 msgid "ELCASH wallet"
-msgstr ""
+msgstr "محفظة ELCASH "
 
 msgid "ETA: fee rate is based on average confirmation time estimates"
 msgstr "ETA: يعتمد معدل الرسوم على متوسط ​​تقديرات وقت التأكيد"
@@ -1002,7 +1002,7 @@ msgid "Electrum Plugins"
 msgstr "إضافات Electrum"
 
 msgid "Electrum cannot pair with your {}.\n\nBefore you request bitcoins to be sent to addresses in this wallet, ensure you can pair with your device, or that you have its seed (and passphrase, if any).  Otherwise all bitcoins you receive will be unspendable."
-msgstr ""
+msgstr "لا يمكن لـ Electrum الاقتران بـ {} الخاص بك. \n\n قبل أن تطلب إرسال عملات البيتكوين إلى العناوين الموجودة في هذه المحفظة ، تأكد من أنه يمكنك الاقتران بجهازك ، أو أن لديك بذرة (وعبارة المرور ، إن وجدت). وإلا فإن جميع عملات البيتكوين التي تتلقاها ستكون غير قابلة للإنفاق."
 
 msgid "ELCASH Wallet preferences"
 msgstr "اعدادات ELCASH Wallet"
@@ -1212,7 +1212,7 @@ msgid "Export"
 msgstr "تصدير"
 
 msgid "Export Backup"
-msgstr ""
+msgstr "تصدير نسخة احتياطية"
 
 msgid "Export History"
 msgstr "تصدير السجلات/التواريخ"
@@ -1398,7 +1398,7 @@ msgid "General"
 msgstr "عام"
 
 msgid "Generate New Address"
-msgstr ""
+msgstr "توليد عنوان جديد"
 
 msgid "Google Authenticator code:"
 msgstr "رمز Google Authenticator:"
@@ -1458,34 +1458,34 @@ msgid "However, hardware wallets do not support message decryption, which makes 
 msgstr " ومع ذلك ، لا تدعم محافظ الأجهزة فك تشفير الرسائل ، مما يجعل  هم غير متوافقين مع التصميم الحالي لتجمع cosigner. "
 
 msgid "I agree"
-msgstr ""
+msgstr "أنا موافق"
 
 msgid "I already have a seed"
 msgstr "لدي عبارة استرداد بالفعل"
 
 msgid "I disagree"
-msgstr ""
+msgstr "أنا أعترض"
 
 msgid "I have lost my Google Authenticator account"
 msgstr "فقدت حسابي في Google Authenticator"
 
 msgid "IP/port in format:\n[host]:[port]"
-msgstr ""
+msgstr "IP/منفذ في التنسيق:\n[المضيف]:[المنفذ]"
 
 msgid "If auto-connect is enabled, ELCASH Wallet will always use a server that is on the longest blockchain."
-msgstr ""
+msgstr "إذا تم تمكين الاتصال التلقائي ، فستستخدم محفظة ELCASH دائمًا خادمًا موجودًا على أطول سلسلة blockchain."
 
 msgid "If enabled, at most 100 satoshis might be lost due to this, per transaction."
 msgstr " في حالة التمكين ، قد يتم فقد 100 ساتوشي على الأكثر بسبب هذا ، لكل معاملة. "
 
 msgid "If it is disabled, you have to choose a server you want to use. ELCASH Wallet will warn you if your server is lagging."
-msgstr ""
+msgstr "إذا تم تعطيله ، يجب عليك اختيار الخادم الذي تريد استخدامه. ستحذرك محفظة ELCASH إذا كان الخادم الخاص بك متأخرًا."
 
 msgid "If this option is checked, Electrum will\nrun a local watchtower and protect your channels even if your wallet is not\nopen. For this to work, your computer needs to be online regularly."
-msgstr ""
+msgstr "إذا تم تحديد هذا الخيار ، فسيقوم Electrum \n بتشغيل برج مراقبة محلي وحماية قنواتك حتى إذا لم تكن محفظتك \n مفتوحة. لكي يعمل هذا ، يجب أن يكون جهاز الكمبيوتر الخاص بك متصلاً بالإنترنت بانتظام."
 
 msgid "If this option is checked, Electrum will persist after\nyou close all your wallet windows, and the Electrum icon will be visible in the taskbar.\nUse this if you want your local watchtower to keep running after you close your wallet."
-msgstr ""
+msgstr "إذا تم تحديد هذا الخيار ، فسيستمر Electrum بعد \n إغلاق جميع نوافذ محفظتك ، وسيكون رمز Electrum مرئيًا في شريط المهام. \n استخدم هذا إذا كنت تريد استمرار تشغيل برج المراقبة المحلي بعد إغلاق محفظتك."
 
 msgid "If you are not sure what this is, leave this field unchanged."
 msgstr "إذا لم تكن متأكدًا من ماهية هذا ، فاترك هذا الحقل دون تغيير."
@@ -1524,7 +1524,7 @@ msgid "If you lose your wallet file, the only thing you can do with a backup is 
 msgstr " إذا فقدت ملف محفظتك ، فإن الشيء الوحيد الذي يمكنك فعله بالنسخة الاحتياطية هو  اطلب إغلاق قناتك ، حتى يتم إرسال أموالك عبر السلسلة. "
 
 msgid "If you received this transaction from an untrusted device, do not accept to sign it more than once,\notherwise you could end up paying a different fee."
-msgstr ""
+msgstr "إذا تلقيت هذه المعاملة من جهاز غير موثوق به ، فلا تقبل التوقيع عليه أكثر من مرة ، \n وإلا فقد ينتهي بك الأمر بدفع رسوم مختلفة."
 
 msgid "If you use a passphrase, make sure it is correct."
 msgstr "إذا كنت تستخدم عبارة مرور ، فتأكد من صحتها."
@@ -1548,7 +1548,7 @@ msgid "Import Channel Backup?"
 msgstr "استيراد قناة النسخ الاحتياطي؟"
 
 msgid "Import ELCASH addresses"
-msgstr ""
+msgstr "استيراد عناوين ELCASH"
 
 msgid "Import addresses"
 msgstr "استيراد العناوين"
@@ -1557,7 +1557,7 @@ msgid "Import channel backup"
 msgstr "استيراد قناة النسخ الاحتياطي"
 
 msgid "Import external watch-only ELCASH addresses or private keys"
-msgstr ""
+msgstr "استيراد خارجي للعناوين ELCASH المخصصة للساعة فقط أو المفاتيح الخاصة"
 
 msgid "Import file"
 msgstr "استيراد ملف"
@@ -1977,7 +1977,7 @@ msgid "No wallet loaded."
 msgstr "لم يتم العثور على مسار"
 
 msgid "No, I changed my mind"
-msgstr ""
+msgstr "لا ، لقد غيرت رأيي"
 
 msgid "Node ID"
 msgstr "معرف ID  العقدة"
@@ -2022,7 +2022,7 @@ msgid "Not yet available"
 msgstr "لم تتوفر بعد"
 
 msgid "Note that if you disagree to our Terms & Conditions you won't be able to use the ELCASH Wallet application."
-msgstr ""
+msgstr "لاحظ أنه إذا كنت لا توافق على الشروط والأحكام الخاصة بنا ، فلن تتمكن من استخدام تطبيق محفظة ELCASH."
 
 msgid "Note that if you have frozen some of your addresses, the available funds will be lower than your total balance."
 msgstr " لاحظ أنه إذا جمدت بعض عناوينك ، الأموال المتاحة سيكون  أقل من رصيدك الإجمالي. "
@@ -2034,7 +2034,7 @@ msgid "Note that this is NOT your encryption password."
 msgstr "لاحظ أن هذه ليست كلمة مرور التشفير الخاصة بك."
 
 msgid "Note that your coins are not locked in this service.  You may withdraw your funds at any time and at no cost, without the remote server, by using the 'restore wallet' option with your wallet seed."
-msgstr ""
+msgstr "لاحظ أن عملاتك المعدنية ليست مقفلة في هذه الخدمة. يمكنك سحب أموالك في أي وقت وبدون تكلفة ، بدون الخادم البعيد ، باستخدام خيار \"استعادة المحفظة\" مع بذرة محفظتك."
 
 msgid "Note: If you enable this setting, you will need your hardware device to open your wallet."
 msgstr " ملاحظة: إذا قمت بتمكين هذا الإعداد ، فستحتاج إلى فتح جهازك  محفظتك. "
@@ -2199,7 +2199,7 @@ msgid "Password:"
 msgstr "كلمه السر:"
 
 msgid "Paste from clipboard"
-msgstr ""
+msgstr "لصق من الحافظة"
 
 msgid "Pay"
 msgstr "ادفع"
@@ -2316,7 +2316,7 @@ msgid "Please report this issue manually"
 msgstr "الرجاء الإبلاغ عن هذه المشكلة يدويًا"
 
 msgid "Please restart ELCASH Wallet to activate the new GUI settings"
-msgstr ""
+msgstr "يرجى إعادة تشغيل محفظة ELCASH لتفعيل إعدادات GUI الجديدة"
 
 msgid "Please retype your seed phrase, to confirm that you properly saved it"
 msgstr "الرجاء إعادة كتابة عبارة أولية لتأكيد حفظها بشكل صحيح"
@@ -2943,7 +2943,7 @@ msgid "Target fee:"
 msgstr "الرسوم المستهدفة:"
 
 msgid "Terms & Conditions"
-msgstr ""
+msgstr "الأحكام والشروط"
 
 msgid "Terms of Service"
 msgstr "شروط الخدمة"
@@ -2963,15 +2963,14 @@ msgstr "تم نسخ النص إلى الحافظة"
 msgid "Text copied to clipboard."
 msgstr "تم نسخ النص إلى الحافظة."
 
-#, fuzzy
 msgid "The ELCASH address never expires and will always be part of this ELCASH wallet."
-msgstr ""
+msgstr "لا تنتهي صلاحية عنوان ELCASH أبدًا وسيكون دائمًا جزءًا من محفظة ELCASH هذه."
 
 msgid "The Lightning Network graph is fully synced."
 msgstr "تمت مزامنة الرسم البياني لشبكة Lightning بشكل كامل."
 
 msgid "The Lightning Network graph is syncing...\nPayments are more likely to succeed with a more complete graph."
-msgstr ""
+msgstr "تتم مزامنة الرسم البياني لشبكة Lightning ... \n من المرجح أن تنجح المدفوعات مع رسم بياني أكثر اكتمالاً."
 
 msgid "The SSL certificate provided by the main server did not match the fingerprint passed in with the --serverfingerprint option."
 msgstr " شهادة SSL المقدمة من الخادم الرئيسي لا تطابق  تم تمرير البصمة مع خيار بصمة الخادم. "
@@ -2986,13 +2985,13 @@ msgid "The description is not sent to the recipient of the funds. It is stored i
 msgstr "لا يتم إرسال الوصف إلى مستلم الأموال. يتم تخزينه في ملف محفظتك ، ويتم عرضه في علامة التبويب \"السجل\"."
 
 msgid "The fee could not be verified. Signing non-segwit inputs is risky:\nif this transaction was maliciously modified before you sign,\nyou might end up paying a higher mining fee than displayed."
-msgstr ""
+msgstr "لا يمكن التحقق من الرسوم. يعد توقيع المدخلات غير المتضمنة أمرًا محفوفًا بالمخاطر: \n إذا تم تعديل هذه المعاملة بشكل ضار قبل التوقيع ، \n فقد ينتهي بك الأمر بدفع رسوم تعدين أعلى من تلك المعروضة."
 
 msgid "The fee for this transaction seems unusually high."
 msgstr "رسوم هذه الصفقة تبدو مرتفعة بشكل غير عادي."
 
 msgid "The file '{}' contains an incompletely created wallet.\nDo you want to complete its creation now?"
-msgstr ""
+msgstr "يحتوي الملف '{}' على محفظة تم إنشاؤها بشكل غير كامل. \n هل تريد إكمال إنشائها الآن؟"
 
 msgid "The file was removed"
 msgstr "تمت إزالة الملف"
@@ -3010,13 +3009,13 @@ msgid "The following inputs could not be imported"
 msgstr "لا يمكن استيراد المدخلات التالية"
 
 msgid "The input amounts could not be verified as the previous transactions are missing.\nThe amount of money being spent CANNOT be verified."
-msgstr ""
+msgstr "تعذر التحقق من مبالغ الإدخال لأن المعاملات السابقة مفقودة. \n لا يمكن التحقق من مبلغ الأموال التي يتم إنفاقها."
 
 msgid "The new fee rate needs to be higher than the old fee rate."
 msgstr "معدل الرسوم الجديد يجب أن يكون أعلى من معدل الرسوم القديم."
 
 msgid "The next step will generate the seed of your wallet.  This seed will NOT be saved in your computer, and it must be stored on paper.  To be safe from malware, you may want to do this on an offline computer, and move your wallet later to an online computer."
-msgstr ""
+msgstr "ستولد الخطوة التالية بذرة محفظتك. لن يتم حفظ هذه البذور في جهاز الكمبيوتر الخاص بك ، ويجب تخزينها على الورق. لتكون في مأمن من البرامج الضارة ، قد ترغب في القيام بذلك على جهاز كمبيوتر غير متصل بالإنترنت ، ونقل محفظتك لاحقًا إلى جهاز كمبيوتر متصل بالإنترنت."
 
 msgid "The operation is undefined. Not just in ELCASH Wallet, but in general."
 msgstr "العملية غير محددة. ليس فقط في ELCASH Wallet ، ولكن بشكل عام."
@@ -3040,7 +3039,7 @@ msgid "The type of addresses used by your wallet will depend on your seed."
 msgstr "سيعتمد نوع العناوين التي تستخدمها محفظتك على بذرك."
 
 msgid "The wallet '{}' contains multiple accounts, which are no longer supported since Electrum 2.7.\n\nDo you want to split your wallet into multiple files?"
-msgstr ""
+msgstr "تحتوي المحفظة \"{}\" على عدة حسابات لم تعد مدعومة منذ Electrum 2.7. \n \n هل تريد تقسيم محفظتك إلى ملفات متعددة؟"
 
 msgid "Then, enter your Google Authenticator code:"
 msgstr "ثم أدخل رمز Google Authenticator:"
@@ -3058,7 +3057,7 @@ msgid "This address has already been used. For better privacy, do not reuse it f
 msgstr "هذا العنوان مستخدم من قبل. للحصول على خصوصية أفضل ، لا تعيد استخدامها من أجل  المدفوعات الجديدة. "
 
 msgid "This address is being reused"
-msgstr ""
+msgstr "يتم إعادة استخدام هذا العنوان"
 
 msgid "This amount exceeds the maximum you can currently receive with your channels"
 msgstr " هذا المبلغ يتجاوز الحد الأقصى الذي يمكنك تلقيه حاليًا مع قنواتك "
@@ -3151,7 +3150,7 @@ msgid "This transaction is not saved. Close anyway?"
 msgstr "لم يتم حفظ هذه المعاملة. هل تريد الإغلاق على أي حال؟"
 
 msgid "This transaction is only available on your local machine.\nThe currently connected server does not know about it.\nYou can either broadcast it now, or simply remove it."
-msgstr ""
+msgstr "هذه المعاملة متاحة فقط على جهازك المحلي. /n لا يعرف الخادم المتصل حاليًا عن ذلك. /n يمكنك إما بثه الآن ، أو إزالته ببساطة."
 
 msgid "This transaction requires a higher fee, or it will not be propagated by your current server"
 msgstr " تتطلب هذه المعاملة رسومًا أعلى ، وإلا فلن يتم نشرها بواسطة  الخادم الحالي "
@@ -3313,7 +3312,7 @@ msgid "Two Factor Authentication"
 msgstr " المصادقة ثنائية العامل"
 
 msgid "Two-factor authentication is a service provided by TrustedCoin.  It uses a multi-signature wallet, where you own 2 of 3 keys.  The third key is stored on a remote server that signs transactions on your behalf.  To use this service, you will need a smartphone with Google Authenticator installed."
-msgstr ""
+msgstr "المصادقة الثنائية هي خدمة تقدمها TrustedCoin. تستخدم محفظة متعددة التوقيعات ، حيث تمتلك 2 من 3 مفاتيح. يتم تخزين المفتاح الثالث على خادم بعيد يوقع المعاملات نيابة عنك. لاستخدام هذه الخدمة ، ستحتاج إلى هاتف ذكي مثبت عليه Google Authenticator."
 
 msgid "Two-factor authentication is a service provided by TrustedCoin. To use it, you must have a separate device with Google Authenticator."
 msgstr " المصادقة الثنائية هي خدمة تقدمها TrustedCoin. لتستخدمها،  يجب أن يكون لديك جهاز منفصل مع Google Authenticator. "
@@ -3325,7 +3324,7 @@ msgid "Type"
 msgstr "نوع"
 
 msgid "Unable to connect to mail server:\n {}"
-msgstr ""
+msgstr "تعذر الاتصال بخادم البريد: /n {}"
 
 msgid "Unable to create backup"
 msgstr "تعذر إنشاء نسخة احتياطية"
@@ -3628,7 +3627,7 @@ msgid "Yes"
 msgstr "نعم"
 
 msgid "Yes, I disagree"
-msgstr ""
+msgstr "نعم ، أنا لا أوافق"
 
 msgid "You are already on the latest version of ELCASH Wallet."
 msgstr "أنت بالفعل على أحدث إصدار من ELCASH Wallet."
@@ -3694,7 +3693,7 @@ msgid "You send"
 msgstr "انت ارسل"
 
 msgid "Your Ledger Wallet wants to tell you a one-time PIN code.<br><br>For best security you should unplug your device, open a text editor on another computer, put your cursor into it, and plug your device into that computer. It will output a summary of the transaction being signed and a one-time PIN.<br><br>Verify the transaction summary and type the PIN code here.<br><br>Before pressing enter, plug the device back into this computer.<br>"
-msgstr ""
+msgstr "تريد محفظة Ledger أن تخبرك برمز PIN يستخدم لمرة واحدة.<br><br>وللحصول على أفضل حماية ، يجب فصل جهازك ، وفتح محرر نصوص على كمبيوتر آخر ، ووضع المؤشر فيه ، وتوصيل جهازك بهذا الكمبيوتر. سيُخرج ملخصًا للمعاملة الموقعة وPIN لمرة واحدة.<br><br>حقق من ملخص المعاملة واكتب رمز PIN هنا.<br><br>قبل الضغط على إدخال ، قم بتوصيل الجهاز مرة أخرى بهذا الكمبيوتر<br>"
 
 msgid "Your Ledger is locked. Please unlock it."
 msgstr "دفتر الأستاذ الخاص بك مغلق. الرجاء فتحه."
@@ -3910,7 +3909,7 @@ msgid "wiped"
 msgstr "ممسوح"
 
 msgid "your seed extension will <b>not</b> be included in the encrypted backup."
-msgstr " الامتداد الأولي <b> لن </ b> يتم تضمينه في النسخ الاحتياطي المشفر. "
+msgstr " الامتداد الأولي <b> لن</b> يتم تضمينه في النسخ الاحتياطي المشفر. "
 
 msgid "{} channels"
 msgstr "{} من القنوات"
@@ -3941,3 +3940,15 @@ msgstr "{} من النواتج المتاحة (المجموع {})"
 
 msgid "{} plugin does not support this type of wallet."
 msgstr "{} البرنامج المساعد  لا يدعم هذا النوع من المحفظة."
+
+msgid "&From QR code"
+msgstr "&من رمزQR"
+
+msgid "Proxy settings apply to all connections: with Electric Cash servers, but also with third-party services."
+msgstr "تنطبق إعدادات الوكيل على جميع الاتصالات: مع خوادم Electric Cash ، ولكن أيضًا مع خدمات الجهات الخارجية."
+
+msgid "The ELCASH address never expires and will always be part of this ELCASH Wallet."
+msgstr "لا تنتهي صلاحية عنوان ELCASH أبدًا وسيكون دائمًا جزءًا من محفظة ELCASH هذه."
+
+msgid "You are most likely using an outdated version of Electrum. Please update."
+msgstr "أنت على الأرجح تستخدم إصدارًا قديمًا من Electrum. يرجى التحديث."

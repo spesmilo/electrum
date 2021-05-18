@@ -18,7 +18,7 @@ msgstr ""
 "X-Crowdin-File-ID: 68\n"
 
 msgid "  (No FX rate available)"
-msgstr ""
+msgstr "(Không có tỉ giá ngoại hối )"
 
 msgid " confirmation"
 msgstr "xác nhận"
@@ -33,7 +33,7 @@ msgid "&Addresses"
 msgstr "&Địa chỉ"
 
 msgid "&Check for updates"
-msgstr "Kiểm tra cập nhật"
+msgstr "&Kiểm tra cập nhật"
 
 msgid "&Documentation"
 msgstr "&Tài liệu hướng dẫn"
@@ -48,13 +48,13 @@ msgid "&File"
 msgstr "&Tập tin"
 
 msgid "&Filter"
-msgstr "& Bộ lọc"
+msgstr "&Bộ lọc"
 
 msgid "&From text"
 msgstr "&Từ văn bản"
 
 msgid "&From the blockchain"
-msgstr "&Từ chuỗi khối"
+msgstr "&Từ blockchain"
 
 msgid "&Help"
 msgstr "&Trợ giúp"
@@ -72,10 +72,10 @@ msgid "&Labels"
 msgstr "&Nhãn"
 
 msgid "&Load transaction"
-msgstr "Loading transaction"
+msgstr "&Tải giao dịch"
 
 msgid "&Network"
-msgstr "&Mạng"
+msgstr "&Mạng lưới"
 
 msgid "&New"
 msgstr "&Mới"
@@ -84,7 +84,7 @@ msgid "&New/Restore"
 msgstr "&Mới/Khôi phục"
 
 msgid "&Official website"
-msgstr "&Trang mạng chính thức"
+msgstr "&Trang web chính thức"
 
 msgid "&Open"
 msgstr "&Mở"
@@ -99,7 +99,7 @@ msgid "&Plugins"
 msgstr "&Phần bổ trợ"
 
 msgid "&Private keys"
-msgstr "&Các khóa riêng"
+msgstr "&Các chìa khóa riêng"
 
 msgid "&Quit"
 msgstr "&Thoát"
@@ -135,13 +135,13 @@ msgid "&Wallet"
 msgstr "Ví Điện Tử"
 
 msgid "+"
-msgstr "0"
+msgstr "cộng"
 
 msgid "1 day"
-msgstr "1 chuyến đi"
+msgstr "1 ngày"
 
 msgid "1 hour"
-msgstr "1 tiếng"
+msgstr "1 tiếng, 1 giờ"
 
 msgid "1 week"
 msgstr "1 tuần"
@@ -204,7 +204,7 @@ msgid "Add cosigner"
 msgstr "Thêm người đồng kí"
 
 msgid "Adding info to tx, from wallet and network..."
-msgstr ""
+msgstr "Thêm thông tin vào giao dịch, từ ví và mạng lưới..."
 
 msgid "Additional fees"
 msgstr "Các khoản phí khác"
@@ -294,7 +294,7 @@ msgid "Are you sure you want to delete wallet {}?"
 msgstr "Bạn có chắc chắn muốn xóa ví {} không?"
 
 msgid "Are you sure you want to disagree?"
-msgstr ""
+msgstr "Bạn có chắc chắn không muốn đồng ý?"
 
 msgid "Are you sure you want to remove this transaction and {} child transactions?"
 msgstr "Bạn có chắc chắn muốn xóa giao dịch này và {} giao dịch con không? "
@@ -303,7 +303,7 @@ msgid "Are you sure you want to remove this transaction?"
 msgstr "Bạn có chắc chắn muốn xóa giao dịch này không?"
 
 msgid "Are you sure?"
-msgstr ""
+msgstr "Bạn có chắc không?"
 
 msgid "At block height: {}"
 msgstr "Ở chiều cao khối: {}"
@@ -339,7 +339,7 @@ msgid "BIP39 Recovery"
 msgstr "Phục hồi BIP39"
 
 msgid "BIP70 invoice saved as {}"
-msgstr ""
+msgstr "Hoá đơn BIP70 được lưu lại dưới dạng {} "
 
 msgid "Back"
 msgstr "Trở lại"
@@ -960,7 +960,7 @@ msgid "Dynamic fee estimates not available"
 msgstr "Ước tính phí không có sẵn"
 
 msgid "ELCASH Wallet communicates with remote servers to get information about your transactions and addresses. The servers all fulfill the same purpose only differing in hardware. In most cases you simply want to let ELCASH Wallet pick one at random.  However if you prefer feel free to select a server manually."
-msgstr ""
+msgstr "ELCASH WALLET liên lạc với các máy chủ ngoại tuyến để lấy thông tin về các giao dịch và các địa chỉ của bạn. Tất cả các máy chủ đều đáp ứng yêu cầu như nhau, chỉ khác biệt ở phần cứng. Trong phần lớn các trường hợp, bạn chỉ đơn giản muốn để ELCASH Wallet chọn một cách ngẫu nhiên. Tuy nhiên, nếu muốn bạn vẫn có thể tự mình lựa chọn máy chủ."
 
 msgid "ELCASH Wallet connects to several nodes in order to download block headers and find out the longest blockchain."
 msgstr "ELCASH Wallet kết nối tới một vài nút để tải các đầu khối về và tìm chuỗi khối dài nhất."
@@ -969,16 +969,17 @@ msgid "ELCASH Wallet sends your wallet addresses to a single server, in order to
 msgstr "ELCASH Wallet gửi địa chỉ ví của bạn tới một máy chủ để lấy về lịch sử giao dịch."
 
 msgid "ELCASH Wallet was unable to copy your wallet file to the specified location."
-msgstr ""
+msgstr "ELCASH Wallet không thể sao chép tệp ví của bạn sang địa điểm được chỉ định"
 
 msgid "ELCASH Wallet was unable to open your transaction file"
-msgstr ""
+msgstr "ELCASH Wallet không thể mở được tệp giao dịch của bạn"
 
 msgid "ELCASH Wallet was unable to parse your transaction"
-msgstr ""
+msgstr "ELCASH Wallet không thể phân tích cú pháp giao dịch của bạn"
 
+#, fuzzy
 msgid "ELCASH Wallet was unable to produce a private key-export."
-msgstr ""
+msgstr "ELCASH Wallet không thể tạo ra một xuất chìa khoá riêng tư"
 
 msgid "ELCASH Wallet will now exit."
 msgstr "ELCASH Wallet bây giờ sẽ thoát."
@@ -987,7 +988,7 @@ msgid "ELCASH Wallet's focus is speed, with low resource usage and simplifying E
 msgstr "Trọng tâm của ELCASH Wallet là tốc độ, với mức sử dụng tài nguyên thấp và đơn giản hóa Electric Cash. "
 
 msgid "ELCASH wallet"
-msgstr ""
+msgstr "Ví ELCASH"
 
 msgid "ETA: fee rate is based on average confirmation time estimates"
 msgstr "ETA: tỷ lệ phí dựa trên ước tính thời gian xác nhận trung bình"
@@ -1002,7 +1003,7 @@ msgid "Electrum Plugins"
 msgstr "Các phần bổ trợ cho Electrum"
 
 msgid "Electrum cannot pair with your {}.\n\nBefore you request bitcoins to be sent to addresses in this wallet, ensure you can pair with your device, or that you have its seed (and passphrase, if any).  Otherwise all bitcoins you receive will be unspendable."
-msgstr ""
+msgstr "Electrum không thể bắt cặp với {} của bạn.\n\nTrước khi bạn yêu cầu gửi bitcoin vào các địa chỉ trong ví này, hãy đảm bảo bạn có thể bắt cặp với thiết bị của mình, hoặc bạn sở hữu hạt giống của nó (và mật khẩu, nếu có). Nếu không thì tất cả bitcoin bạn nhận sẽ không thể dùng được."
 
 msgid "ELCASH Wallet preferences"
 msgstr "Thiết đặt ELCASH Wallet"
@@ -1212,7 +1213,7 @@ msgid "Export"
 msgstr "Truy xuất"
 
 msgid "Export Backup"
-msgstr ""
+msgstr "Xuất Bản Sao Lưu"
 
 msgid "Export History"
 msgstr "Lịch sử truy xuất"
@@ -1398,7 +1399,7 @@ msgid "General"
 msgstr "Tổng quan"
 
 msgid "Generate New Address"
-msgstr ""
+msgstr "Tạo Một Địa Chỉ Mới"
 
 msgid "Google Authenticator code:"
 msgstr "Mã Google Authenticator:"
@@ -1458,19 +1459,19 @@ msgid "However, hardware wallets do not support message decryption, which makes 
 msgstr "Tuy nhiên, ví phần cứng không hỗ trợ giải mã tin nhắn, điều này khiến chúng không tương thích với thiết kế hiện tại của nhóm người đồng kí. "
 
 msgid "I agree"
-msgstr ""
+msgstr "Tôi đồng ý"
 
 msgid "I already have a seed"
 msgstr "Tôi đã có một hạt giống"
 
 msgid "I disagree"
-msgstr ""
+msgstr "Tôi không đồng ý"
 
 msgid "I have lost my Google Authenticator account"
 msgstr "Tôi đã mất tài khoản Google Authenticator của mình"
 
 msgid "IP/port in format:\n[host]:[port]"
-msgstr ""
+msgstr "IP/cổng ở định dạng:\n[host]:[port]"
 
 msgid "If auto-connect is enabled, ELCASH Wallet will always use a server that is on the longest blockchain."
 msgstr "Nếu kết nối tự động được bật, ELCASH Wallet sẽ luôn sử dụng máy chủ trên chuỗi khối dài nhất. "
@@ -1482,10 +1483,10 @@ msgid "If it is disabled, you have to choose a server you want to use. ELCASH Wa
 msgstr "Nếu nó bị tắt, bạn phải chọn một máy chủ bạn muốn sử dụng. ELCASH Wallet sẽ cảnh báo bạn nếu máy chủ của bạn bị chậm. "
 
 msgid "If this option is checked, Electrum will\nrun a local watchtower and protect your channels even if your wallet is not\nopen. For this to work, your computer needs to be online regularly."
-msgstr ""
+msgstr "Nếu tuỳ chọn này đã được chọn, Electrum sẽ\nchạy một tháp canh cục bộ và bảo vệ các kênh của bạn kể cả nếu ví của bạn không\nmở. Để có thể làm được việc này, máy tính của bạn cần được kết nối mạng thường xuyên."
 
 msgid "If this option is checked, Electrum will persist after\nyou close all your wallet windows, and the Electrum icon will be visible in the taskbar.\nUse this if you want your local watchtower to keep running after you close your wallet."
-msgstr ""
+msgstr "Nếu tuỳ chọn này đã được chọn, Electrum sẽ vẫn tồn tại sau khi\nbạn đóng tất cả các trang có ví của bạn, và biểu tượng của Electrum sẽ hiện thị trên thanh tác vụ.\nSử dụng nó nếu bạn muốn tháp canh tiếp tục chạy sau khi bạn đã đóng ví của mình."
 
 msgid "If you are not sure what this is, leave this field unchanged."
 msgstr "Nếu bạn không chắc chắn đây là gì, hãy giữ nguyên trường này."
@@ -1524,7 +1525,7 @@ msgid "If you lose your wallet file, the only thing you can do with a backup is 
 msgstr "Nếu bạn mất tệp ví, điều duy nhất bạn có thể làm với bản sao lưu là yêu cầu đóng kênh của bạn để tiền của bạn sẽ được gửi theo chuỗi. "
 
 msgid "If you received this transaction from an untrusted device, do not accept to sign it more than once,\notherwise you could end up paying a different fee."
-msgstr ""
+msgstr "Nếu bạn nhận được giao dịch này từ một thiết bị không đáng tin cậy, đừng chấp nhận ký quá một lần,\nnếu không bạn có thể sẽ phải trả thêm một khoản phí khác."
 
 msgid "If you use a passphrase, make sure it is correct."
 msgstr "Nếu bạn sử dụng cụm mật khẩu, hãy đảm bảo rằng nó chính xác."
@@ -1977,7 +1978,7 @@ msgid "No wallet loaded."
 msgstr "Không có ví nào được tải."
 
 msgid "No, I changed my mind"
-msgstr ""
+msgstr "Không, tôi thay đổi ý định"
 
 msgid "Node ID"
 msgstr "Nút ID"
@@ -2022,7 +2023,7 @@ msgid "Not yet available"
 msgstr "Chưa có sẵn"
 
 msgid "Note that if you disagree to our Terms & Conditions you won't be able to use the ELCASH Wallet application."
-msgstr ""
+msgstr "Lưu ý rằng nếu bạn không đồng ý với Các Điều khoản và Điều kiện bạn sẽ không thể sử dụng ứng dụng ELCASH Wallet"
 
 msgid "Note that if you have frozen some of your addresses, the available funds will be lower than your total balance."
 msgstr "Lưu ý rằng nếu bạn đã đóng băng một số địa chỉ của mình, thì số tiền có sẵn sẽ thấp hơn tổng số dư của bạn. "
@@ -2034,7 +2035,7 @@ msgid "Note that this is NOT your encryption password."
 msgstr "Lưu ý rằng đây KHÔNG phải là mật khẩu mã hóa của bạn."
 
 msgid "Note that your coins are not locked in this service.  You may withdraw your funds at any time and at no cost, without the remote server, by using the 'restore wallet' option with your wallet seed."
-msgstr ""
+msgstr "Hãy lưu ý rằng coin của bạn không bị khoá khi sử dụng dịch vụ này. Bạn có thể rút quỹ của mình tại bất kỳ thời điểm nào và không tốn phí, không cần tới máy chủ từ xa, bằng cách sử dụng lựa chọn 'khôi phục ví' cùng hạt giống cho ví của bạn."
 
 msgid "Note: If you enable this setting, you will need your hardware device to open your wallet."
 msgstr "Lưu ý: Nếu bạn bật cài đặt này, bạn sẽ cần thiết bị phần cứng của mình để mở ví của bạn."
@@ -2199,7 +2200,7 @@ msgid "Password:"
 msgstr "Mật khẩu:"
 
 msgid "Paste from clipboard"
-msgstr ""
+msgstr "Chèn vào từ bộ nhớ tạm"
 
 msgid "Pay"
 msgstr "Trả"
@@ -2352,7 +2353,7 @@ msgid "Please wait"
 msgstr "Vui lòng đợi"
 
 msgid "Please wait while ELCASH Wallet checks for available updates."
-msgstr "Vui lòng đợi trong khi ELCASH Wallet kiểm tra các bản cập nhật có sẵn."
+msgstr "Vui lòng đợi ELCASH Wallet kiểm tra các bản cập nhật có sẵn."
 
 msgid "Please wait..."
 msgstr "Vui lòng đợi..."
@@ -2943,7 +2944,7 @@ msgid "Target fee:"
 msgstr "Phí mục tiêu:"
 
 msgid "Terms & Conditions"
-msgstr ""
+msgstr "Các Điều khoản và Điều kiện"
 
 msgid "Terms of Service"
 msgstr "Điều khoản dịch vụ"
@@ -2970,7 +2971,7 @@ msgid "The Lightning Network graph is fully synced."
 msgstr "Biểu đồ Mạng Lưới Lightning đã được đồng bộ hóa hoàn toàn."
 
 msgid "The Lightning Network graph is syncing...\nPayments are more likely to succeed with a more complete graph."
-msgstr ""
+msgstr "Biểu đồ Lightning Network đang đồng bộ hoá...\nCác khoản thanh toán có nhiều khả năng thành công hơn với một biểu đồ hoàn chỉnh"
 
 msgid "The SSL certificate provided by the main server did not match the fingerprint passed in with the --serverfingerprint option."
 msgstr "Chứng chỉ SSL do máy chủ chính cung cấp không khớp với dấu vân tay được chuyển vào -- với tùy chọn serverfingerprint "
@@ -2985,13 +2986,13 @@ msgid "The description is not sent to the recipient of the funds. It is stored i
 msgstr "Mô tả không được gửi đến người nhận tiền. Nó được lưu trữ trong tệp ví của bạn và được hiển thị trong tab 'Lịch sử'. "
 
 msgid "The fee could not be verified. Signing non-segwit inputs is risky:\nif this transaction was maliciously modified before you sign,\nyou might end up paying a higher mining fee than displayed."
-msgstr ""
+msgstr "Không thể xác minh khoản phí. Việc ký các thông tin đầu vào không phải segwit đem lại nhiều rủi ro:\nnếu giao dịch này bị sửa đổi một cách độc hại trước khi bạn ký, \nbạn có thể  phải trả một khoản phí khai thác cao hơn so với hiển thị."
 
 msgid "The fee for this transaction seems unusually high."
 msgstr "Phí cho giao dịch này có vẻ cao bất thường."
 
 msgid "The file '{}' contains an incompletely created wallet.\nDo you want to complete its creation now?"
-msgstr ""
+msgstr "Tệp tin '{}' chứa một ví được tạo chưa hoàn chỉnh.\nBạn có muốn hoàn thành việc tạo ví ngay bây giờ không?"
 
 msgid "The file was removed"
 msgstr "Tệp đã bị xóa"
@@ -3009,13 +3010,13 @@ msgid "The following inputs could not be imported"
 msgstr "Không thể nhập các đầu vào tiếp theo"
 
 msgid "The input amounts could not be verified as the previous transactions are missing.\nThe amount of money being spent CANNOT be verified."
-msgstr ""
+msgstr "Số lượng đầu vào không thể được xác minh do thiếu các giao dịch trước đó.\nKHÔNG THỂ xác minh số lượng tiền đã chi ."
 
 msgid "The new fee rate needs to be higher than the old fee rate."
 msgstr "Mức phí mới cần phải cao hơn mức phí cũ."
 
 msgid "The next step will generate the seed of your wallet.  This seed will NOT be saved in your computer, and it must be stored on paper.  To be safe from malware, you may want to do this on an offline computer, and move your wallet later to an online computer."
-msgstr ""
+msgstr "Bước tiếp theo sẽ tạo hạt giống cho ví của bạn. Hạt giống sẽ KHÔNG được lưu lại trong máy tính của bạn, và phải được ghi lại trên giấy. Để đảm bảo an toàn từ phần mềm độc hại, bạn có thể sẽ cần phải thực hiện trên một máy tính không kết nối internet, và di chuyển ví của mình sang một máy tính trực tuyến sau đó."
 
 msgid "The operation is undefined. Not just in ELCASH Wallet, but in general."
 msgstr "Hoạt động không được xác định. Không chỉ trong ELCASH Wallet, mà nói chung."
@@ -3039,7 +3040,7 @@ msgid "The type of addresses used by your wallet will depend on your seed."
 msgstr "Loại địa chỉ mà ví của bạn sử dụng sẽ phụ thuộc vào hạt giống của bạn."
 
 msgid "The wallet '{}' contains multiple accounts, which are no longer supported since Electrum 2.7.\n\nDo you want to split your wallet into multiple files?"
-msgstr ""
+msgstr "Ví '{}' chưa nhiều tài khoản, nhưng đã không còn được hỗ trợ từ phiên bản Electrum 2.7.\n\nBạn có muốn chia ví của mình thành nhiều tệp tin không?"
 
 msgid "Then, enter your Google Authenticator code:"
 msgstr "Sau đó, nhập mã Google Authenticator của bạn:"
@@ -3057,7 +3058,7 @@ msgid "This address has already been used. For better privacy, do not reuse it f
 msgstr "Địa chỉ này đã được sử dụng. Để bảo mật tốt hơn, không sử dụng lại nó cho khoản thanh toán mới. "
 
 msgid "This address is being reused"
-msgstr ""
+msgstr "Địa chỉ này đã được sử dụng"
 
 msgid "This amount exceeds the maximum you can currently receive with your channels"
 msgstr "Số tiền này vượt quá mức tối đa mà bạn hiện có thể nhận được với các kênh của mình"
@@ -3141,7 +3142,7 @@ msgid "This seed will allow you to recover your wallet in case of computer failu
 msgstr "Hạt giống này sẽ cho phép bạn khôi phục ví của mình trong trường hợp máy tính bị lỗi. "
 
 msgid "This service uses a multi-signature wallet, where you own 2 of 3 keys.  The third key is stored on a remote server that signs transactions on your behalf. A small fee will be charged on each transaction that uses the remote server."
-msgstr ""
+msgstr "Dịch vụ này sử dụng ví đa chữ ký, nơi bạn có thể sở hữu 2 trong số 3 chìa khoá. Chìa khoá thứ ba được lưu trữ tại một máy chủ từ xa có nhiệm vụ kí giao dịch thay mặt bạn. Một lượng phí nhỏ sẽ được tính vào mỗi giao dịch sử dụng máy chủ từ xa."
 
 msgid "This setting affects the Send tab, and all balance related fields."
 msgstr "Cài đặt này ảnh hưởng đến tab Gửi và tất cả các trường liên quan đến số dư."
@@ -3150,7 +3151,7 @@ msgid "This transaction is not saved. Close anyway?"
 msgstr "Giao dịch này chưa được lưu. Vẫn đóng?"
 
 msgid "This transaction is only available on your local machine.\nThe currently connected server does not know about it.\nYou can either broadcast it now, or simply remove it."
-msgstr ""
+msgstr "Giao dịch này chỉ khả dụng trên máy cục bộ của bạn.\nMáy chủ được kết nối hiện tại không biết về điều này.\nBạn có thể phát sóng nó ngay bây giờ, hoặc chỉ đơn giản là xoá nó."
 
 msgid "This transaction requires a higher fee, or it will not be propagated by your current server"
 msgstr "Giao dịch này yêu cầu phí cao hơn hoặc nó sẽ không được truyền bá bởi máy chủ hiện tại của bạn "
@@ -3312,7 +3313,7 @@ msgid "Two Factor Authentication"
 msgstr "Xác thực hai yếu tố"
 
 msgid "Two-factor authentication is a service provided by TrustedCoin.  It uses a multi-signature wallet, where you own 2 of 3 keys.  The third key is stored on a remote server that signs transactions on your behalf.  To use this service, you will need a smartphone with Google Authenticator installed."
-msgstr ""
+msgstr "Xác thực hai yếu tố là dịch vụ được cung cấp bởi TrustedCoin. Một dịch vụ sử dụng ví đa chữ ký, nơi bạn có thể sở hữu 2 trong số 3 chìa khoá. Chìa khoá thứ ba được lưu trữ tại một máy chủ từ xa có nhiệm vụ kí giao dịch thay mặt bạn. Để sử dụng dịch vụ này, bạn sẽ cần một chiếc điện thoại thông minh có cài đặt phần mềm Google Authenticator."
 
 msgid "Two-factor authentication is a service provided by TrustedCoin. To use it, you must have a separate device with Google Authenticator."
 msgstr "Xác thực hai yếu tố là một dịch vụ được cung cấp bởi TrustedCoin. Để dùng nó, bạn phải có một thiết bị riêng với Google Authenticator. "
@@ -3324,7 +3325,7 @@ msgid "Type"
 msgstr "Kiểu"
 
 msgid "Unable to connect to mail server:\n {}"
-msgstr ""
+msgstr "Không thể kết nối với máy chủ mail:\n {}"
 
 msgid "Unable to create backup"
 msgstr "Không thể tạo bản sao lưu"
@@ -3576,7 +3577,7 @@ msgid "Warning!"
 msgstr "Cảnh báo!"
 
 msgid "Warning: The next address will not be recovered automatically if you restore your wallet from seed; you may need to add it manually.\n\nThis occurs because you have too many unused addresses in your wallet. To avoid this situation, use the existing addresses first.\n\nCreate anyway?"
-msgstr ""
+msgstr "Cảnh báo: Địa chỉ tiếp theo sẽ không được tự động khôi phục nếu bạn khôi phục ví của mình từ gốc; "
 
 msgid "Warning: do not use this if it makes you pick a weaker password."
 msgstr "Cảnh báo: không sử dụng điều này nếu nó khiến bạn chọn một mật khẩu yếu hơn."
@@ -3627,7 +3628,7 @@ msgid "Yes"
 msgstr "Đúng"
 
 msgid "Yes, I disagree"
-msgstr ""
+msgstr "Đúng vậy, tôi không đồng ý"
 
 msgid "You are already on the latest version of ELCASH Wallet."
 msgstr "Bạn đã sử dụng phiên bản ELCASH Wallet mới nhất."
@@ -3665,9 +3666,8 @@ msgstr "Bạn không cần thực hiện sao lưu thường xuyên, vì ví củ
 msgid "You have multiple consecutive whitespaces or leading/trailing whitespaces in your passphrase."
 msgstr "Bạn có nhiều khoảng trắng liên tiếp hoặc khoảng trắng đầu/cuối trong cụm mật khẩu của bạn. "
 
-#, fuzzy
 msgid "You may enter a ELCASH address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a ELCASH address)"
-msgstr "Bạn có thể nhập địa chỉ ELCASH, một nhãn từ danh sách liên hệ của mình (danh sách trong tổng số các mục hoàn thành sẽ được đề xuất) hoặc một bí danh (địa chỉ giống như email chuyển tiếp đến địa chỉ ELCASH) "
+msgstr "Bạn có thể nhập một địa chỉ ELCASH, một nhãn dán từ danh sách liên hệ của mình (một danh sách hoàn thiện sẽ được đề xuất), hoặc một bí danh (địa chỉ giống như địa chỉ email chuyển tiếp đến địa chỉ ELCASH) "
 
 msgid "You may extend your seed with custom words."
 msgstr "Bạn có thể mở rộng hạt giống của mình bằng các từ tùy chỉnh."
@@ -3679,7 +3679,7 @@ msgid "You might have an incompatible library."
 msgstr "Bạn có thể có một thư viện không tương thích."
 
 msgid "You need to be online in order to complete the creation of your wallet.  If you generated your seed on an offline computer, click on \"{}\" to close this window, move your wallet file to an online computer, and reopen it with Electrum."
-msgstr ""
+msgstr "Bạn cần kết nối mạng để hoàn thành quá trình tạo ví của mình. Nếu bạn tạo hạt giống của mình trên một máy tính không kết nối mạng, hãy nhấn vào {} để đóng cửa sổ này, di chuyển tệp ví của bạn sang một máy tính có kết nối mạng, và mở lại với Electrum."
 
 msgid "You need to configure a backup directory in your preferences"
 msgstr "Bạn cần định cấu hình thư mục sao lưu theo tùy chọn của mình"
@@ -3694,7 +3694,7 @@ msgid "You send"
 msgstr "Bạn gửi"
 
 msgid "Your Ledger Wallet wants to tell you a one-time PIN code.<br><br>For best security you should unplug your device, open a text editor on another computer, put your cursor into it, and plug your device into that computer. It will output a summary of the transaction being signed and a one-time PIN.<br><br>Verify the transaction summary and type the PIN code here.<br><br>Before pressing enter, plug the device back into this computer.<br>"
-msgstr ""
+msgstr "Ví Sổ Cái muốn gửi cho bạn một mã số PIN dùng một lần.<br><br> Để đảm bảo an toàn bạn nên rút phích cắm thiết bị của mình, mở trình soạn văn bản ở một máy tính khác, đặt con trỏ màn hình lên đó, và cắm phích cắm thiết bị của mình vào máy tính đó. Nó sẽ xuất ra một bản tóm tắt của giao dịch đang được kí và một mã số PIN dùng một lần.<br><br>Xác minh bản tóm tắt giao dịch và đánh mã PIN lên đây.<br><br>Trước khi ấn enter, cắm lại thiết bị vào máy tính.<br>"
 
 msgid "Your Ledger is locked. Please unlock it."
 msgstr "Sổ cái của bạn bị khóa. Vui lòng mở khóa."
@@ -3856,7 +3856,7 @@ msgid "labels"
 msgstr "nhãn"
 
 msgid "more information at <a href=\"https://revealer.cc/faq\">https://revealer.cc/faq</a>"
-msgstr ""
+msgstr "thêm thông tin tại <a href=\"https://revealer.cc/faq\">https://revealer.cc/faq</a>"
 
 msgid "not implemented type"
 msgstr "loại không được triển khai"
@@ -3941,3 +3941,15 @@ msgstr "{} đầu ra có sẵn (tổng số {})"
 
 msgid "{} plugin does not support this type of wallet."
 msgstr "{} plugin không hỗ trợ loại ví này."
+
+msgid "&From QR code"
+msgstr "&Từ mã QR"
+
+msgid "Proxy settings apply to all connections: with Electric Cash servers, but also with third-party services."
+msgstr "Cài đặt proxy áp dụng cho tất cả các kết nối: với các máy chủ Electric Cash, nhưng cũng áp dụng cho các dịch vụ của bên thứ ba"
+
+msgid "The ELCASH address never expires and will always be part of this ELCASH Wallet."
+msgstr "Địa chỉ ELCASH không bao giờ hết hạn và sẽ luôn luôn là một phần của ELCASH Wallet."
+
+msgid "You are most likely using an outdated version of Electrum. Please update."
+msgstr "Có  vẻ bạn đang sử dụng phiên bản cũ của Electrum. Xin hãy cập nhật."

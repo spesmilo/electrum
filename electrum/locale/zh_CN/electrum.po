@@ -204,7 +204,7 @@ msgid "Add cosigner"
 msgstr "添加联署人"
 
 msgid "Adding info to tx, from wallet and network..."
-msgstr ""
+msgstr "正在从钱包和网络向TX添加信息..."
 
 msgid "Additional fees"
 msgstr "附加费用："
@@ -294,7 +294,7 @@ msgid "Are you sure you want to delete wallet {}?"
 msgstr "您确定要删除钱包 {} 吗？"
 
 msgid "Are you sure you want to disagree?"
-msgstr ""
+msgstr "您确定要不同意吗？"
 
 msgid "Are you sure you want to remove this transaction and {} child transactions?"
 msgstr "您确定要删除此交易和 {} 子交易吗？"
@@ -303,7 +303,7 @@ msgid "Are you sure you want to remove this transaction?"
 msgstr "确定要删除这项交易吗？"
 
 msgid "Are you sure?"
-msgstr ""
+msgstr "您确定吗？"
 
 msgid "At block height: {}"
 msgstr "位于区块高度： {}"
@@ -339,7 +339,7 @@ msgid "BIP39 Recovery"
 msgstr "BIP39恢复"
 
 msgid "BIP70 invoice saved as {}"
-msgstr ""
+msgstr "BIP70发票另存为{}"
 
 msgid "Back"
 msgstr "返回"
@@ -375,7 +375,7 @@ msgid "Batch pay invoices"
 msgstr "批量给发票付款"
 
 msgid "Before reporting a bug, upgrade to the most recent version of ELCASH Wallet (latest release or git HEAD), and include the version number in your report."
-msgstr ""
+msgstr "在报告错误之前，请升级到最新版本的ELCASH钱包（最新版本或git HEAD），并将版本号包括在报告中。"
 
 msgid "Bit rate [kbps]: "
 msgstr "比特率 [kbps]: "
@@ -954,40 +954,40 @@ msgid "Don't show this again."
 msgstr "不再提示"
 
 msgid "Due to a bug, old versions of ELCASH Wallet will NOT be creating the same wallet as newer versions or other software."
-msgstr ""
+msgstr "由于存在错误，旧版本的ELCASH钱包将无法与新版本或其他软件创建相同的钱包。"
 
 msgid "Dynamic fee estimates not available"
 msgstr "无法进行动态手续费估计"
 
 msgid "ELCASH Wallet communicates with remote servers to get information about your transactions and addresses. The servers all fulfill the same purpose only differing in hardware. In most cases you simply want to let ELCASH Wallet pick one at random.  However if you prefer feel free to select a server manually."
-msgstr ""
+msgstr "ELCASH钱包与远程服务器通信以获取有关您的交易和地址的信息。 所有服务器都实现相同的目的，只是硬件有所不同。 在大多数情况下，您只想让ELCASH钱包随机选择一个即可。 但是，如果您愿意，可以随时手动选择服务器。"
 
 msgid "ELCASH Wallet connects to several nodes in order to download block headers and find out the longest blockchain."
-msgstr ""
+msgstr "ELCASH钱包连接到多个节点，以便下载区块块头并找出最长的区块链。"
 
 msgid "ELCASH Wallet sends your wallet addresses to a single server, in order to receive your transaction history."
-msgstr ""
+msgstr "ELCASH钱包会将您的钱包地址发送到一台服务器，以接收您的交易历史记录。"
 
 msgid "ELCASH Wallet was unable to copy your wallet file to the specified location."
-msgstr ""
+msgstr "ELCASH钱包无法将您的钱包文件复制到指定位置。"
 
 msgid "ELCASH Wallet was unable to open your transaction file"
-msgstr ""
+msgstr "ELCASH Wallet无法打开您的交易文件"
 
 msgid "ELCASH Wallet was unable to parse your transaction"
-msgstr ""
+msgstr "ELCASH钱包无法解析您的交易"
 
 msgid "ELCASH Wallet was unable to produce a private key-export."
-msgstr ""
+msgstr "ELCASH钱包无法产生私钥导出。"
 
 msgid "ELCASH Wallet will now exit."
-msgstr ""
+msgstr "ELCASH钱包现在将退出。"
 
 msgid "ELCASH Wallet's focus is speed, with low resource usage and simplifying Electric Cash."
-msgstr ""
+msgstr "ELCASH钱包的重点是速度，低资源使用率和简化ELCASH。"
 
 msgid "ELCASH wallet"
-msgstr ""
+msgstr "ELCASH钱包"
 
 msgid "ETA: fee rate is based on average confirmation time estimates"
 msgstr "基于时间：根据平均确认时间估计手续费率"
@@ -1080,7 +1080,7 @@ msgid "Enter Transaction Label"
 msgstr "输入交易标签"
 
 msgid "Enter a list of ELCASH addresses (this will create a watching-only wallet), or a list of private keys."
-msgstr ""
+msgstr "输入一个ELCASH地址列表（这将创建一个仅供观看的钱包）或一个私钥列表。"
 
 msgid "Enter a list of outputs in the 'Pay to' field."
 msgstr "在'付给'输入框填写输出列表。"
@@ -1212,7 +1212,7 @@ msgid "Export"
 msgstr "导出"
 
 msgid "Export Backup"
-msgstr ""
+msgstr "导出备份"
 
 msgid "Export History"
 msgstr "导出历史记录"
@@ -1329,7 +1329,7 @@ msgid "For more information, visit"
 msgstr "更多信息，请访问"
 
 msgid "For security reasons we advise that you always use the latest version of ELCASH Wallet."
-msgstr ""
+msgstr "出于安全原因，我们建议您始终使用最新版本的ELCASH钱包。"
 
 msgid "Force-close channel"
 msgstr "强制关闭通道"
@@ -1398,7 +1398,7 @@ msgid "General"
 msgstr "常规"
 
 msgid "Generate New Address"
-msgstr ""
+msgstr "产生新地址"
 
 msgid "Google Authenticator code:"
 msgstr "Google 身份验证码："
@@ -1458,13 +1458,13 @@ msgid "However, hardware wallets do not support message decryption, which makes 
 msgstr "然而，硬件钱包不支持消息解密，这使得它们与当前的联署池设计不兼容。"
 
 msgid "I agree"
-msgstr ""
+msgstr "我同意"
 
 msgid "I already have a seed"
 msgstr "我已经有一个密语种子"
 
 msgid "I disagree"
-msgstr ""
+msgstr "我不同意"
 
 msgid "I have lost my Google Authenticator account"
 msgstr "我丢失了我的Google身份验证器帐户"
@@ -1473,13 +1473,13 @@ msgid "IP/port in format:\n[host]:[port]"
 msgstr "IP/端口格式：\n[主机]:[端口]"
 
 msgid "If auto-connect is enabled, ELCASH Wallet will always use a server that is on the longest blockchain."
-msgstr ""
+msgstr "如果启用了自动连接，则ELCASH钱包将始终使用最长区块链上的服务器。"
 
 msgid "If enabled, at most 100 satoshis might be lost due to this, per transaction."
 msgstr "启用后，对每笔交易来说，最多可能因为这种操作消耗100聪。"
 
 msgid "If it is disabled, you have to choose a server you want to use. ELCASH Wallet will warn you if your server is lagging."
-msgstr ""
+msgstr "如果已无法使用，则必须选择要使用的服务器。 如果您的服务器出现故障，ELCASH钱包会警告您。"
 
 msgid "If this option is checked, Electrum will\nrun a local watchtower and protect your channels even if your wallet is not\nopen. For this to work, your computer needs to be online regularly."
 msgstr "勾选这个选项后，Electrum将会运行一个本地监视塔，\n这样，即便在您的钱包没有开启时，也可以监视您的通道。\n您的电脑必须定期保持在线才能确保这一切都正常运转。"
@@ -1548,7 +1548,7 @@ msgid "Import Channel Backup?"
 msgstr "导入通道备份?"
 
 msgid "Import ELCASH addresses"
-msgstr ""
+msgstr "导入ELCASH地址"
 
 msgid "Import addresses"
 msgstr "导入地址"
@@ -1557,7 +1557,7 @@ msgid "Import channel backup"
 msgstr "导入通道备份"
 
 msgid "Import external watch-only ELCASH addresses or private keys"
-msgstr ""
+msgstr "导入外部的仅能用看的的ELCASH地址或私钥"
 
 msgid "Import file"
 msgstr "导入文件"
@@ -1977,7 +1977,7 @@ msgid "No wallet loaded."
 msgstr "没有加载钱包。"
 
 msgid "No, I changed my mind"
-msgstr ""
+msgstr "不，我改变主意了"
 
 msgid "Node ID"
 msgstr "节点ID"
@@ -2022,7 +2022,7 @@ msgid "Not yet available"
 msgstr "尚不可用"
 
 msgid "Note that if you disagree to our Terms & Conditions you won't be able to use the ELCASH Wallet application."
-msgstr ""
+msgstr "请注意，如果您不同意我们的条款和条件，您将无法使用ELCASH钱包应用程序。"
 
 msgid "Note that if you have frozen some of your addresses, the available funds will be lower than your total balance."
 msgstr "注意，如果您把自己的一些地址冻结了，可用资金将会低于你的总余额。"
@@ -2199,7 +2199,7 @@ msgid "Password:"
 msgstr "密码："
 
 msgid "Paste from clipboard"
-msgstr ""
+msgstr "从剪贴板粘贴"
 
 msgid "Pay"
 msgstr "支付"
@@ -2316,7 +2316,7 @@ msgid "Please report this issue manually"
 msgstr "请手动报告这个问题"
 
 msgid "Please restart ELCASH Wallet to activate the new GUI settings"
-msgstr ""
+msgstr "请重新启动ELCASH钱包以激活新的GUI设置"
 
 msgid "Please retype your seed phrase, to confirm that you properly saved it"
 msgstr "请重新输入您的密语种子，这样可以确认您没有抄错。"
@@ -2352,7 +2352,7 @@ msgid "Please wait"
 msgstr "请稍后"
 
 msgid "Please wait while ELCASH Wallet checks for available updates."
-msgstr ""
+msgstr "ELCASH钱包正在检查可用更新，请稍后。"
 
 msgid "Please wait..."
 msgstr "请稍候..."
@@ -2430,7 +2430,7 @@ msgid "Proxy mode"
 msgstr "代理类型"
 
 msgid "Proxy settings apply to all connections: with ELCASH Wallet servers, but also with third-party services."
-msgstr ""
+msgstr "代理设置适用于所有连接：使用ELCASH钱包服务器，也适用于第三方服务。"
 
 msgid "Proxy user"
 msgstr "代理用户"
@@ -2886,7 +2886,7 @@ msgid "Start"
 msgstr "开始"
 
 msgid "Startup times are instant because it operates in conjunction with high-performance servers that handle the most complicated parts of the Electric Cash system."
-msgstr ""
+msgstr "启动时间是即时的，因为它与可处理Electric Cash系统最复杂部分的高性能服务器一起运行。"
 
 msgid "State:"
 msgstr "状态:"
@@ -2943,7 +2943,7 @@ msgid "Target fee:"
 msgstr "目标手续费:"
 
 msgid "Terms & Conditions"
-msgstr ""
+msgstr "条款和条件"
 
 msgid "Terms of Service"
 msgstr "服务条款"
@@ -2955,7 +2955,7 @@ msgid "Testnet coins are worthless."
 msgstr "测试网上的币是没有价值的。"
 
 msgid "Testnet is separate from the main Electric Cash network. It is used for testing."
-msgstr ""
+msgstr "Testnet与主要的Electric Cash网络是分开的。 此是用于测试。"
 
 msgid "Text copied to clipboard"
 msgstr "已复制文本到剪贴板"
@@ -2963,9 +2963,8 @@ msgstr "已复制文本到剪贴板"
 msgid "Text copied to clipboard."
 msgstr "已复制文本到剪贴板。"
 
-#, fuzzy
 msgid "The ELCASH address never expires and will always be part of this ELCASH wallet."
-msgstr ""
+msgstr "ELCASH地址永远不会过期，并且将始终是此ELCASH钱包的一部分。"
 
 msgid "The Lightning Network graph is fully synced."
 msgstr "已完全同步闪电网络图。"
@@ -3019,7 +3018,7 @@ msgid "The next step will generate the seed of your wallet.  This seed will NOT 
 msgstr "下一步会生成钱包的密语种子。这个密语种子不会被保存在您的计算机中，您必须把它抄在纸上。为了抵御恶意软件，您可以先在断网的计算机上进行这个操作，然后再把钱包移动到联网的计算机上。"
 
 msgid "The operation is undefined. Not just in ELCASH Wallet, but in general."
-msgstr ""
+msgstr "操作未定义。 不仅在ELCASH钱包中，而且在一般情况下也是。"
 
 msgid "The server returned an error when broadcasting the transaction."
 msgstr "服务器在广播交易时返回了一个错误。"
@@ -3058,7 +3057,7 @@ msgid "This address has already been used. For better privacy, do not reuse it f
 msgstr "这个地址已经被用过了。为了更好的隐私，请不要再用它接收新的付款了。"
 
 msgid "This address is being reused"
-msgstr ""
+msgstr "该地址已被重新使用"
 
 msgid "This amount exceeds the maximum you can currently receive with your channels"
 msgstr "金额超出您的通道当前可以接收的最大值。"
@@ -3403,7 +3402,7 @@ msgid "Update check failed"
 msgstr "检查更新失败"
 
 msgid "Update to ELCASH Wallet {} is available"
-msgstr ""
+msgstr "可以更新到ELCASH钱包{}"
 
 msgid "Upgrading wallet format..."
 msgstr "升级钱包格式..."
@@ -3520,7 +3519,7 @@ msgid "WARNINGS"
 msgstr "警告"
 
 msgid "WIF keys are typed in ELCASH Wallet, based on script type."
-msgstr ""
+msgstr "根据脚本类型，在ELCASH钱包中键入WIF密钥。"
 
 msgid "Waiting for TrustedCoin server to sign transaction..."
 msgstr "等待TrustedCoin服务器签名交易..."
@@ -3607,7 +3606,7 @@ msgid "Witness Script"
 msgstr "见证脚本"
 
 msgid "Would you like to be notified when there is a newer version of ELCASH Wallet available?"
-msgstr ""
+msgstr "当有较新版本的ELCASH钱包可用时，您想收到通知吗？"
 
 msgid "Write logs to file"
 msgstr "将日志写入到文件"
@@ -3628,10 +3627,10 @@ msgid "Yes"
 msgstr "是"
 
 msgid "Yes, I disagree"
-msgstr ""
+msgstr "是的，我不同意"
 
 msgid "You are already on the latest version of ELCASH Wallet."
-msgstr ""
+msgstr "您已经在使用最新版本的ELCASH钱包。"
 
 msgid "You are following branch"
 msgstr "您正在跟随分叉链"
@@ -3667,7 +3666,7 @@ msgid "You have multiple consecutive whitespaces or leading/trailing whitespaces
 msgstr "您的密码开头或结尾含有空格，或者含有多个连续的空格。"
 
 msgid "You may enter a ELCASH address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a ELCASH address)"
-msgstr ""
+msgstr "您可以输入一个ELCASH地址，联系人列表中的标签（将提出补全列表）或别名（转发给ELCASH地址的类似电子邮件的地址）"
 
 msgid "You may extend your seed with custom words."
 msgstr "你可以用自定义单词扩展你的种子。"
@@ -3941,3 +3940,15 @@ msgstr "{} 个输出可用 (一共有 {} 个)"
 
 msgid "{} plugin does not support this type of wallet."
 msgstr "{} 插件不支持这种钱包。"
+
+msgid "&From QR code"
+msgstr "及从QR码"
+
+msgid "Proxy settings apply to all connections: with Electric Cash servers, but also with third-party services."
+msgstr "代理服务器设置适用于所有连接：与Electric Cash服务器的连接，以及与第三方服务的连接。"
+
+msgid "The ELCASH address never expires and will always be part of this ELCASH Wallet."
+msgstr "ELCASH地址永远不会过期，并且将始终是此ELCASH钱包的一部分。"
+
+msgid "You are most likely using an outdated version of Electrum. Please update."
+msgstr "您有可能使用的是Electrum的过时版本。 请更新。"

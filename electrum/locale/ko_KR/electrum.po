@@ -30,28 +30,28 @@ msgid "&About"
 msgstr "&제품 정보"
 
 msgid "&Addresses"
-msgstr "지갑 주소"
+msgstr "&지갑 주소"
 
 msgid "&Check for updates"
 msgstr "업데이트 확인"
 
 msgid "&Documentation"
-msgstr "문서"
+msgstr "&문서"
 
 msgid "&Encrypt/decrypt message"
-msgstr "및 암호화은 / 메시지를 해독"
+msgstr "&메시지 암호화/암호화 해제"
 
 msgid "&Export"
-msgstr "내보내기 (&E)"
+msgstr "&내보내기"
 
 msgid "&File"
-msgstr "파일(&F)"
+msgstr "&파일"
 
 msgid "&Filter"
 msgstr "필터"
 
 msgid "&From text"
-msgstr "및 텍스트에서 (&T)"
+msgstr "&텍스트에서"
 
 msgid "&From the blockchain"
 msgstr "& blockchain에서"
@@ -60,16 +60,16 @@ msgid "&Help"
 msgstr "&도움말"
 
 msgid "&History"
-msgstr "거래 기록"
+msgstr "&내역"
 
 msgid "&Import"
-msgstr "가져오기"
+msgstr "&가져오기"
 
 msgid "&Information"
-msgstr "정보"
+msgstr "&정보"
 
 msgid "&Labels"
-msgstr "라벨"
+msgstr "&레이블"
 
 msgid "&Load transaction"
 msgstr "및로드 트랜잭션"
@@ -78,34 +78,34 @@ msgid "&Network"
 msgstr "네트워크"
 
 msgid "&New"
-msgstr "신규"
+msgstr "&신규"
 
 msgid "&New/Restore"
-msgstr "및 새로운 / 복원"
+msgstr "&신규/복원"
 
 msgid "&Official website"
 msgstr "공식 웹사이트"
 
 msgid "&Open"
-msgstr "열기(&O)"
+msgstr "&열기"
 
 msgid "&Password"
-msgstr "비밀번호"
+msgstr "&패스워드"
 
 msgid "&Pay to many"
-msgstr "& 많은 지불"
+msgstr "&고액 결제"
 
 msgid "&Plugins"
-msgstr "플러그인"
+msgstr "&플러그인"
 
 msgid "&Private keys"
 msgstr "및 개인 키"
 
 msgid "&Quit"
-msgstr "종료(&Q)"
+msgstr "&종료"
 
 msgid "&Recently open"
-msgstr "최근 오픈 &"
+msgstr "&최근 열어본 항목"
 
 msgid "&Report Bug"
 msgstr "버그 보고"
@@ -117,10 +117,10 @@ msgid "&Seed"
 msgstr "씨"
 
 msgid "&Sign/verify message"
-msgstr "및 메시지를 확인 / 로그인"
+msgstr "&메시지 서명/확인"
 
 msgid "&Summary"
-msgstr "요약"
+msgstr "&요약"
 
 msgid "&Sweep"
 msgstr "청소하다"
@@ -129,10 +129,10 @@ msgid "&Tools"
 msgstr "&도구"
 
 msgid "&View"
-msgstr "조회"
+msgstr "&보기"
 
 msgid "&Wallet"
-msgstr "지갑"
+msgstr "&지갑"
 
 msgid "+"
 msgstr "+"
@@ -153,7 +153,7 @@ msgid "10 minutes"
 msgstr "10분"
 
 msgid "2. Align your Revealer borderlines to the dashed lines on the top and left."
-msgstr "2. 경계선을 위쪽과 왼쪽의 파선에 맞춥니다"
+msgstr "2. Revealer를 위쪽과 왼쪽의 파선에 맞춥니다"
 
 msgid "3. Press slightly the Revealer against the paper and read the numbers that best match on the opposite sides. "
 msgstr "3. Revealer를 종이에 대고 약간 누른 다음 반대쪽 면에서 가장 일치하는 숫자를 읽습니다."
@@ -162,7 +162,7 @@ msgid "4. Type the numbers in the software"
 msgstr "4. 소프트웨어에 숫자를 입력하십시오."
 
 msgid "A copy of your wallet file was created in"
-msgstr "당신의 지갑 파일의 복사본에서 만든"
+msgstr "사용자 지갑 파일의 사본은 다음에서 생성되었습니다"
 
 msgid "A few examples"
 msgstr "예시"
@@ -171,7 +171,7 @@ msgid "A library is probably missing."
 msgstr "라이브러리가 없는 것 같습니다."
 
 msgid "A payment was already initiated for this invoice"
-msgstr "이 인보이스에 대한 결제가 이미 완료되었습니다"
+msgstr "이 인보이스의 결제가 이미 완료되었습니다"
 
 msgid "A small fee will be charged on each transaction that uses the remote server.  You may check and modify your billing preferences once the installation is complete."
 msgstr "원격 서버를 사용하는 거래마다 약간의 수수료가 부과됩니다. 설치가 완료되면 결제 환경 설정을 확인하고 수정할 수 있습니다."
@@ -204,7 +204,7 @@ msgid "Add cosigner"
 msgstr "Cosigner 추가"
 
 msgid "Adding info to tx, from wallet and network..."
-msgstr ""
+msgstr "지갑 및 네트워크에서 tx에 정보를 추가하는 중..."
 
 msgid "Additional fees"
 msgstr "추가 요금"
@@ -294,7 +294,7 @@ msgid "Are you sure you want to delete wallet {}?"
 msgstr "{} 지갑을 삭제하겠습니까?"
 
 msgid "Are you sure you want to disagree?"
-msgstr ""
+msgstr "정말 동의하지 않습니까?"
 
 msgid "Are you sure you want to remove this transaction and {} child transactions?"
 msgstr "{} 트랜잭션 및 하위 트랜잭션들을 지우시겠습니까?"
@@ -303,7 +303,7 @@ msgid "Are you sure you want to remove this transaction?"
 msgstr "이 트랜잭션을 지우시겠습니까?"
 
 msgid "Are you sure?"
-msgstr ""
+msgstr "확실합니까?"
 
 msgid "At block height: {}"
 msgstr "블록 높이： {}"
@@ -339,7 +339,7 @@ msgid "BIP39 Recovery"
 msgstr "BIP39 복구"
 
 msgid "BIP70 invoice saved as {}"
-msgstr ""
+msgstr "BIP70 인보이스가 {}(으)로 저장되었습니다."
 
 msgid "Back"
 msgstr "뒤로 "
@@ -375,7 +375,7 @@ msgid "Batch pay invoices"
 msgstr "대량으로 인보이스 지불"
 
 msgid "Before reporting a bug, upgrade to the most recent version of ELCASH Wallet (latest release or git HEAD), and include the version number in your report."
-msgstr ""
+msgstr "버그를 신고하기 전에 최신 버전의 ELCASH 지갑(최신 릴리스 또는 git HEAD)으로 업그레이드하고 신고에 버전 번호를 포함하십시오."
 
 msgid "Bit rate [kbps]: "
 msgstr "비트레이트 [kbps]:"
@@ -960,7 +960,7 @@ msgid "Dynamic fee estimates not available"
 msgstr "동적인 수수료 견적을 사용할 수 없음"
 
 msgid "ELCASH Wallet communicates with remote servers to get information about your transactions and addresses. The servers all fulfill the same purpose only differing in hardware. In most cases you simply want to let ELCASH Wallet pick one at random.  However if you prefer feel free to select a server manually."
-msgstr ""
+msgstr "ELCASH 지갑은 원격 서버와 통신하여 거래 및 주소에 관한 정보를 얻습니다. 서버는 모두 같은 목적을 수행하며 다른 점은 오직 하드웨어입니다. 대부분의 경우 ELCASH 지갑이 무작위로 하나를 선택하는 방식을 추천합니다. 하지만, 원한다면 서버를 수동으로 선택하십시오."
 
 msgid "ELCASH Wallet connects to several nodes in order to download block headers and find out the longest blockchain."
 msgstr "ELCASH Wallet 블록 헤더들을 다운로드하고 가장 긴 블록체인을 찾아내기 위해 몇몇 교점에 연결합니다."
@@ -969,16 +969,16 @@ msgid "ELCASH Wallet sends your wallet addresses to a single server, in order to
 msgstr "ELCASH Wallet 거래 내역을 수신하기 위해, 하나의 서버에 지갑 주소를 전송한다."
 
 msgid "ELCASH Wallet was unable to copy your wallet file to the specified location."
-msgstr ""
+msgstr "ELCASH 지갑에서 지갑 파일을 지정한 위치로 복사하지 못했습니다."
 
 msgid "ELCASH Wallet was unable to open your transaction file"
 msgstr ""
 
 msgid "ELCASH Wallet was unable to parse your transaction"
-msgstr ""
+msgstr "ELCASH 지갑에서 거래 구문 분석을 할 수 없었습니다."
 
 msgid "ELCASH Wallet was unable to produce a private key-export."
-msgstr ""
+msgstr "ELCASH 지갑에서 개인 키 내보내기를 생성할 수 없었습니다."
 
 msgid "ELCASH Wallet will now exit."
 msgstr "이제 ELCASH Wallet은 종료됩니다."
@@ -987,7 +987,7 @@ msgid "ELCASH Wallet's focus is speed, with low resource usage and simplifying E
 msgstr "ELCASH Wallet의 초점은 리소스 사용량이 적고 Electric Cash을 단순화하는 속도입니다."
 
 msgid "ELCASH wallet"
-msgstr ""
+msgstr "ELCASH 지갑"
 
 msgid "ETA: fee rate is based on average confirmation time estimates"
 msgstr "ETA: 수수료율은 평균 확인 시간 추정치를 기반으로 합니다."
@@ -1002,10 +1002,10 @@ msgid "Electrum Plugins"
 msgstr "일렉 트럼 플러그인"
 
 msgid "Electrum cannot pair with your {}.\n\nBefore you request bitcoins to be sent to addresses in this wallet, ensure you can pair with your device, or that you have its seed (and passphrase, if any).  Otherwise all bitcoins you receive will be unspendable."
-msgstr ""
+msgstr "Electrum은 {}(와)과 페어링할 수 없습니다.\n\nBitcoin을 이 지갑의 주소로 보내도록 요청하기 전에 장치와 페어링할 수 있는지, 시드(및 패스 문구(있는 경우))가 있는지 확인하십시오. 그렇지 않으면 받은 모든 Bitcoin을 사용할 수 없게 됩니다."
 
 msgid "ELCASH Wallet preferences"
-msgstr ""
+msgstr "ELCASH 지갑 기본 설정"
 
 msgid "Electrum requests your transaction history from a single server. The returned history is checked against blockchain headers sent by other nodes, using Simple Payment Verification (SPV)."
 msgstr "Electrum은 단일 서버에서 거래 내역을 요청합니다. 반환된 내역은 간편 결제 확인(SPV)을 사용하여 다른 노드에서 보낸 블록체인헤더와 비교하여 확인됩니다."
@@ -1212,7 +1212,7 @@ msgid "Export"
 msgstr "내보내기"
 
 msgid "Export Backup"
-msgstr ""
+msgstr "백업 내보내기"
 
 msgid "Export History"
 msgstr "수출 역사"
@@ -1398,7 +1398,7 @@ msgid "General"
 msgstr "일반"
 
 msgid "Generate New Address"
-msgstr ""
+msgstr "신규 주소 생성"
 
 msgid "Google Authenticator code:"
 msgstr "Google Authenticator 코드:"
@@ -1458,19 +1458,19 @@ msgid "However, hardware wallets do not support message decryption, which makes 
 msgstr "그러나 하드웨어 지갑은 메시지 암호화 해제를 지원하지 않아현재의 공동 서명자 풀 디자인과 호환되지 않습니다."
 
 msgid "I agree"
-msgstr ""
+msgstr "동의합니다"
 
 msgid "I already have a seed"
 msgstr "이미 시드를 갖고 있습니다"
 
 msgid "I disagree"
-msgstr ""
+msgstr "동의하지 않습니다"
 
 msgid "I have lost my Google Authenticator account"
 msgstr "Google Authenticator 계정을 분실했습니다"
 
 msgid "IP/port in format:\n[host]:[port]"
-msgstr ""
+msgstr "IP/포트 형식:\n[host]:[port]"
 
 msgid "If auto-connect is enabled, ELCASH Wallet will always use a server that is on the longest blockchain."
 msgstr "자동 연결을 사용하는 경우, ELCASH Wallet 항상 가장 긴 blockchain에 서버를 사용합니다."
@@ -1479,13 +1479,13 @@ msgid "If enabled, at most 100 satoshis might be lost due to this, per transacti
 msgstr "활성화하면 거래 당 최대 100개의 사토시가 손실될 수 있습니다."
 
 msgid "If it is disabled, you have to choose a server you want to use. ELCASH Wallet will warn you if your server is lagging."
-msgstr ""
+msgstr "비활성화되어 있다면, 사용할 서버를 선택해야 합니다. 서버가 지연되면 ELCASH 지갑에서 경고를 보냅니다."
 
 msgid "If this option is checked, Electrum will\nrun a local watchtower and protect your channels even if your wallet is not\nopen. For this to work, your computer needs to be online regularly."
-msgstr ""
+msgstr "이 옵션을 선택하면, Electrum이\n로컬 감시 타워를 실행하고 지갑이 열려 있지 않더라도 채널을\n보호합니다. 이 작업을 수행하려면 컴퓨터가 정기적으로 온라인 상태여야 합니다."
 
 msgid "If this option is checked, Electrum will persist after\nyou close all your wallet windows, and the Electrum icon will be visible in the taskbar.\nUse this if you want your local watchtower to keep running after you close your wallet."
-msgstr ""
+msgstr "이 옵션을 선택하면 모든 지갑 창을 닫은 후에도 Electrum이 계속 유지되며 작업 표시줄에 Electrum 아이콘이 표시됩니다.\n지갑을 닫은 후에도 로컬 감시 타워가 계속 작동되도록 하려면 이 옵션을 사용합니다."
 
 msgid "If you are not sure what this is, leave this field unchanged."
 msgstr "이것이 무엇인지 확실하지 않으면 이 필드를 변경하지 마십시오."
@@ -1524,7 +1524,7 @@ msgid "If you lose your wallet file, the only thing you can do with a backup is 
 msgstr "지갑 파일을 잃어버린 경우 백업으로 할 수 있는 유일한 일은 채널 폐쇄를 요청하여자금이 온 체인으로 전송되도록 하는 것입니다."
 
 msgid "If you received this transaction from an untrusted device, do not accept to sign it more than once,\notherwise you could end up paying a different fee."
-msgstr ""
+msgstr "신뢰할 수 없는 장치에서 이 거래를 받은 경우, 두 번 이상의 서명을 수락하지 마십시오.\n그렇지 않으면 다른 수수료를 지불할 수 있습니다."
 
 msgid "If you use a passphrase, make sure it is correct."
 msgstr "패스 문구를 사용할 경우, 올바른 것인지 확인하십시오."
@@ -1557,7 +1557,7 @@ msgid "Import channel backup"
 msgstr "채널 백업 가져오기"
 
 msgid "Import external watch-only ELCASH addresses or private keys"
-msgstr ""
+msgstr "읽기 전용 외부 ELCASH 주소 또는 개인 키 가져오기"
 
 msgid "Import file"
 msgstr "파일을 불러오다"
@@ -1977,7 +1977,7 @@ msgid "No wallet loaded."
 msgstr "로드된 지갑 없음."
 
 msgid "No, I changed my mind"
-msgstr ""
+msgstr "아니요, 마음을 바꾸었습니다"
 
 msgid "Node ID"
 msgstr "노드 ID"
@@ -2022,7 +2022,7 @@ msgid "Not yet available"
 msgstr "아직 사용할 수 없음"
 
 msgid "Note that if you disagree to our Terms & Conditions you won't be able to use the ELCASH Wallet application."
-msgstr ""
+msgstr "약관에 동의하지 않으면 ELCASH 지갑 애플리케이션을 사용할 수 없습니다."
 
 msgid "Note that if you have frozen some of your addresses, the available funds will be lower than your total balance."
 msgstr "당신이 당신의 주소의 일부를 동결 한 경우, 사용 가능한 자금이 총 잔액보다 낮게 않습니다."
@@ -2199,7 +2199,7 @@ msgid "Password:"
 msgstr "암호:"
 
 msgid "Paste from clipboard"
-msgstr ""
+msgstr "클립보드에서 붙여넣기"
 
 msgid "Pay"
 msgstr "결제"
@@ -2316,7 +2316,7 @@ msgid "Please report this issue manually"
 msgstr "이 문제를 수동으로 보고하십시오."
 
 msgid "Please restart ELCASH Wallet to activate the new GUI settings"
-msgstr ""
+msgstr "새 GUI 설정을 활성화하려면 ELCASH 지갑을 다시 시작하십시오."
 
 msgid "Please retype your seed phrase, to confirm that you properly saved it"
 msgstr "제발 제대로 그것을 저장 하는 것을 확인 하 여 씨앗 문구를 다시 입력"
@@ -2943,7 +2943,7 @@ msgid "Target fee:"
 msgstr "목표 수수료:"
 
 msgid "Terms & Conditions"
-msgstr ""
+msgstr "이용 약관"
 
 msgid "Terms of Service"
 msgstr "서비스 약관"
@@ -2963,15 +2963,14 @@ msgstr "클립보드에 텍스트 복사됨"
 msgid "Text copied to clipboard."
 msgstr "클립보드에 텍스트 복사됨."
 
-#, fuzzy
 msgid "The ELCASH address never expires and will always be part of this ELCASH wallet."
-msgstr ""
+msgstr "ELCASH 주소는 만료되지 않으며 항상 이 ELCASH 지갑의 일부가 됩니다."
 
 msgid "The Lightning Network graph is fully synced."
 msgstr "라이트닝 네트워크 그래프가 완전히 동기화되었습니다."
 
 msgid "The Lightning Network graph is syncing...\nPayments are more likely to succeed with a more complete graph."
-msgstr ""
+msgstr "Lightning 네트워크 그래프가 동기화 중입니다...\n더 완전한 그래프를 사용하면 결제가 성공할 가능성이 높습니다."
 
 msgid "The SSL certificate provided by the main server did not match the fingerprint passed in with the --serverfingerprint option."
 msgstr "메인 서버에서 제공한 SSL 인증서가 --serverfingerprint 옵션으로 전달된 지문과 일치하지 않습니다."
@@ -2986,13 +2985,13 @@ msgid "The description is not sent to the recipient of the funds. It is stored i
 msgstr "설명은 자금의 수신자에게 전송되지 않습니다. 그것은 당신의 지갑 파일에 저장하고, '역사'탭에 표시됩니다."
 
 msgid "The fee could not be verified. Signing non-segwit inputs is risky:\nif this transaction was maliciously modified before you sign,\nyou might end up paying a higher mining fee than displayed."
-msgstr ""
+msgstr "수수료를 확인할 수 없습니다. Non-segwit 입력에 서명하는 것은 위험합니다:\n이 거래가 서명하기 전에 악의적으로 수정된 경우,\n표시된 것보다 더 높은 채굴 수수료를 지불하게 될 수 있습니다."
 
 msgid "The fee for this transaction seems unusually high."
 msgstr "이 거래에 대 한 수수료는 비정상적으로 높은 것으로 보인다."
 
 msgid "The file '{}' contains an incompletely created wallet.\nDo you want to complete its creation now?"
-msgstr ""
+msgstr "'{}' 파일에 불완전하게 생성된 지갑이 포함되어 있습니다.\n지금 생성을 완료하겠습니까?"
 
 msgid "The file was removed"
 msgstr "파일 제거"
@@ -3010,13 +3009,13 @@ msgid "The following inputs could not be imported"
 msgstr "다음 입력을 가져올 수 없습니다"
 
 msgid "The input amounts could not be verified as the previous transactions are missing.\nThe amount of money being spent CANNOT be verified."
-msgstr ""
+msgstr "이전 거래가 누락되어 입력 금액을 확인할 수 없습니다.\n사용중인 금액을 확인할 수 없습니다."
 
 msgid "The new fee rate needs to be higher than the old fee rate."
 msgstr "새로운 수수료율은 기존 수수료율보다 높아야 합니다."
 
 msgid "The next step will generate the seed of your wallet.  This seed will NOT be saved in your computer, and it must be stored on paper.  To be safe from malware, you may want to do this on an offline computer, and move your wallet later to an online computer."
-msgstr ""
+msgstr "다음 단계에서는 지갑의 시드를 생성합니다.  이 시드는 컴퓨터에 저장되지 않으며 종이에 저장해야 합니다. 악성 프로그램으로부터 안전하게 보호하려면 오프라인 컴퓨터에서 이 작업을 수행하고 나중에 지갑을 온라인 컴퓨터로 이동하는 것이 좋습니다."
 
 msgid "The operation is undefined. Not just in ELCASH Wallet, but in general."
 msgstr "ELCASH Wallet 뿐만 아니라 일반적으로도 작업이 정의되지 않았습니다."
@@ -3040,7 +3039,7 @@ msgid "The type of addresses used by your wallet will depend on your seed."
 msgstr "지갑에서 사용하는 주소 유형은 시드에 따라 달라집니다."
 
 msgid "The wallet '{}' contains multiple accounts, which are no longer supported since Electrum 2.7.\n\nDo you want to split your wallet into multiple files?"
-msgstr ""
+msgstr "'{}'지갑에 여러 개의 계정이 포함되어 있으며, Electrum 2.7 이후 더 이상 지원되지 않습니다.\n\n지갑을 여러 파일로 분할하겠습니까?"
 
 msgid "Then, enter your Google Authenticator code:"
 msgstr "그렇다면, Google Authenticator 코드를 입력하십시오:"
@@ -3058,7 +3057,7 @@ msgid "This address has already been used. For better privacy, do not reuse it f
 msgstr "이 주소는 이미 사용되었습니다. 개인 정보 보호를 위해 신규 결제 시, 재사용하지 마십시오."
 
 msgid "This address is being reused"
-msgstr ""
+msgstr "이 주소는 재사용 중입니다"
 
 msgid "This amount exceeds the maximum you can currently receive with your channels"
 msgstr "이 금액은 현재 채널로 받을 수 있는 최대 금액을 초과합니다."
@@ -3151,7 +3150,7 @@ msgid "This transaction is not saved. Close anyway?"
 msgstr "이 거래는 저장되지 않습니다. 어쨌든 닫습니다?"
 
 msgid "This transaction is only available on your local machine.\nThe currently connected server does not know about it.\nYou can either broadcast it now, or simply remove it."
-msgstr ""
+msgstr "이 거래는 로컬 컴퓨터에서만 사용할 수 있습니다.\n현재 연결된 서버는 이것을 모르고 있습니다.\n지금 브로드캐스트하거나 간단히 제거할 수 있습니다."
 
 msgid "This transaction requires a higher fee, or it will not be propagated by your current server"
 msgstr "이 거래에는 더 높은 수수료가 필요합니다. 그렇지 않으면 현재 서버에서 전파되지 않습니다"
@@ -3313,7 +3312,7 @@ msgid "Two Factor Authentication"
 msgstr "이중 인증"
 
 msgid "Two-factor authentication is a service provided by TrustedCoin.  It uses a multi-signature wallet, where you own 2 of 3 keys.  The third key is stored on a remote server that signs transactions on your behalf.  To use this service, you will need a smartphone with Google Authenticator installed."
-msgstr ""
+msgstr "이중인증은 TrustedCoin에서 제공하는 서비스입니다.  3개의 키 중 2개를 가지고 있는 다중 서명 지갑을 사용합니다. 세 번째 키는 사용자를 대신하여 거래에 서명하는 원격 서버에 저장됩니다. 이 서비스를 사용하려면 Google Authenticator가 설치된 스마트폰이 필요합니다."
 
 msgid "Two-factor authentication is a service provided by TrustedCoin. To use it, you must have a separate device with Google Authenticator."
 msgstr "이중 인증은 TrustedCoin에서 제공하는 서비스입니다. 이것을 이용하려면 Google Authenticator가 있는 별도의 장치가 있어야 합니다."
@@ -3325,7 +3324,7 @@ msgid "Type"
 msgstr "유형"
 
 msgid "Unable to connect to mail server:\n {}"
-msgstr ""
+msgstr "다음 메일 서버에 연결할 수 없음:\n {}"
 
 msgid "Unable to create backup"
 msgstr "백업 만들 수 없습니다"
@@ -3373,7 +3372,7 @@ msgid "Unfreeze Coins"
 msgstr "코인 동결 해제"
 
 msgid "Unknown"
-msgstr "불명"
+msgstr "알 수 없는"
 
 msgid "Unknown error"
 msgstr "알 수 없는 오류"
@@ -3394,7 +3393,7 @@ msgid "Unsupported password hash version"
 msgstr "지원되지 않는 해시 버전 패스워드"
 
 msgid "Unused"
-msgstr "미사용"
+msgstr "미사용됨"
 
 msgid "Update Check"
 msgstr "업데이트 확인"
@@ -3403,7 +3402,7 @@ msgid "Update check failed"
 msgstr "업데이트 확인 실패"
 
 msgid "Update to ELCASH Wallet {} is available"
-msgstr "ELCASH Wallet {} 업데이트 사용 가능"
+msgstr "ELCASH 지갑 {} 업데이트 가능"
 
 msgid "Upgrading wallet format..."
 msgstr "지갑 형식 업그레이드 중..."
@@ -3430,13 +3429,13 @@ msgid "Use change addresses"
 msgstr "변경 주소 사용"
 
 msgid "Use multiple change addresses"
-msgstr "여러 개의 변경 주소를 사용 하 여"
+msgstr "여러 개의 변경 주소를 사용합니다"
 
 msgid "Use proxy"
 msgstr "프록시 사용"
 
 msgid "Use the camera button to scan a QR code."
-msgstr "카메라 버튼을 사용 하 여 QR 코드를 스캔."
+msgstr "카메라 버튼을 사용하여 QR 코드를 스캔합니다."
 
 msgid "Use this dialog to add a password to your wallet."
 msgstr "이 대화 상자를 사용하여 지갑에 패스워드를 추가합니다."
@@ -3445,7 +3444,7 @@ msgid "Use this dialog to change your password."
 msgstr "이 대화 상자를 사용하여 패스워드를 변경합니다."
 
 msgid "Use this dialog to toggle encryption."
-msgstr "이 대화 상자를 사용하여 암호화를 전환합니다."
+msgstr "이 대화 상자를 사용하여 암호화를 토글합니다."
 
 msgid "Used"
 msgstr "사용됨"
@@ -3457,7 +3456,7 @@ msgid "Uses icons from the Icons8 icon pack (icons8.com)."
 msgstr "Icons8 아이콘 팩(icons8.com)의 아이콘을 사용합니다."
 
 msgid "Using change addresses makes it more difficult for other people to track your transactions."
-msgstr "변화 어드레스를 사용하는 것은 더 어렵게 다른 사람이 거래를 추적 할 수있다."
+msgstr "변경 주소를 사용하는 것은 타인이 본인의 거래를 추적하는 것을 어렵게 합니다."
 
 msgid "Value"
 msgstr "가치"
@@ -3469,10 +3468,10 @@ msgid "Verify"
 msgstr "검증"
 
 msgid "Verify the address below.<br>Type the character from your security card corresponding to the <u><b>BOLD</b></u> character."
-msgstr "아래 주소를 확인하십시오.<br> <u><b>BOLD</b></u> 문자에 해당하는 보안 카드의 문자를 입력하십시오."
+msgstr "아래 주소를 확인하십시오.<br> <u><b>강조된</b></u> 문자에 해당하는 보안 카드의 문자를 입력하십시오."
 
 msgid "Verify the cable is connected and that no other application is using it."
-msgstr "케이블이 연결되어 있고 다른 응용 프로그램이 사용하고 있지 않은지 확인합니다."
+msgstr "케이블이 연결되어 있고 다른 애플리케이션에서 사용하고 있지 않은지 확인합니다."
 
 msgid "Version"
 msgstr "버전"
@@ -3502,13 +3501,13 @@ msgid "View log"
 msgstr "로그 보기"
 
 msgid "View on block explorer"
-msgstr "블록 탐색기에서보기"
+msgstr "블록 익스플로러에서 보기"
 
 msgid "WARNING"
 msgstr "경고"
 
 msgid "WARNING: ALL your private keys are secret."
-msgstr "경고 : ALL 개인 키는 비밀이다."
+msgstr "경고: 모든 개인 키는 비밀입니다."
 
 msgid "WARNING: This is a multi-signature wallet."
 msgstr "경고: 이것은 다중 서명 지갑입니다."
@@ -3622,13 +3621,13 @@ msgid "Wrong password"
 msgstr "잘못된 패스워드"
 
 msgid "Wrong signature"
-msgstr "잘못 된 서명"
+msgstr "잘못된 서명"
 
 msgid "Yes"
 msgstr "네"
 
 msgid "Yes, I disagree"
-msgstr ""
+msgstr "네, 동의하지 않습니다"
 
 msgid "You are already on the latest version of ELCASH Wallet."
 msgstr "이미 최신 버전의 ELCASH Wallet을 사용하고 있습니다."
@@ -3640,7 +3639,7 @@ msgid "You are in testnet mode."
 msgstr "테스트넷 모드입니다."
 
 msgid "You are most likely using an outdated version of ELCASH Wallet. Please update."
-msgstr "오래된 버전의 ELCASH Wallet을 사용하고 있을 가능성이 높습니다. 업데이트하십시오."
+msgstr "오래된 버전의 ELCASH 지갑을 사용하고 있을 가능성이 높습니다. 업데이트하십시오."
 
 msgid "You are offline."
 msgstr "오프라인 상태입니다."
@@ -3649,7 +3648,7 @@ msgid "You are using a non-deterministic wallet, which cannot create new address
 msgstr "새로운 주소를 생성할 수 없는 비결정 지갑을 사용하고 있습니다."
 
 msgid "You can disable this setting in '{}'."
-msgstr "{}에서 이 설정을 사용하지 않도록 설정할 수 있습니다."
+msgstr "'{}'에서 이 설정을 사용하지 않도록 설정할 수 있습니다."
 
 msgid "You can download the new version from {}."
 msgstr "{}에서 새 버전을 다운로드할 수 있습니다."
@@ -3667,13 +3666,13 @@ msgid "You have multiple consecutive whitespaces or leading/trailing whitespaces
 msgstr "여러 개의 연속된 백색 공간 또는 선행/후행 백색 공간이  패스 문구에 포함되어 있습니다."
 
 msgid "You may enter a ELCASH address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a ELCASH address)"
-msgstr ""
+msgstr "ELCASH 주소, 연락처 목록의 레이블(완료된 목록이 제안됨) 또는 별칭(ELCASH 주소로 전달되는 이메일 같은 주소)을 입력할 수 있습니다."
 
 msgid "You may extend your seed with custom words."
-msgstr "사용자는 사용자 정의 단어로 시드를 연장할 수 있습니다."
+msgstr "사용자 정의 단어로 시드를 연장할 수 있습니다."
 
 msgid "You may load a CSV file using the file icon."
-msgstr "파일 아이콘을 사용 하 여 CSV 파일을 로드할 수 있습니다."
+msgstr "파일 아이콘을 사용하여 CSV 파일을 로드할 수 있습니다."
 
 msgid "You might have an incompatible library."
 msgstr "호환되지 않는 라이브러리를 가지고 있을 수 있습니다."
@@ -3685,7 +3684,7 @@ msgid "You need to configure a backup directory in your preferences"
 msgstr "기본 설정에서 백업 디렉터리를 구성해야 합니다."
 
 msgid "You need to open a Lightning channel first."
-msgstr "먼저 라이트닝 채널을 개설해야 합니다."
+msgstr "먼저 Lightning 채널을 개설해야 합니다."
 
 msgid "You receive"
 msgstr "받은 금액"
@@ -3694,7 +3693,7 @@ msgid "You send"
 msgstr "보낸 금액"
 
 msgid "Your Ledger Wallet wants to tell you a one-time PIN code.<br><br>For best security you should unplug your device, open a text editor on another computer, put your cursor into it, and plug your device into that computer. It will output a summary of the transaction being signed and a one-time PIN.<br><br>Verify the transaction summary and type the PIN code here.<br><br>Before pressing enter, plug the device back into this computer.<br>"
-msgstr ""
+msgstr "사용자의 Ledger Wallet에서 일회용 PIN 코드를 알리려 합니다.<br>최상의 보안을 위해 장치의 플러그를 뽑고 다른 컴퓨터의 텍스트 편집기를 열어, 커서를 넣은 다음 본인의 장치를 해당 컴퓨터에 연결해야 합니다. 서명 중인 거래의 요약과 일회용 PIN이 출력됩니다.<br><br>거래 요약을 확인하고 여기에 PIN 코드를 입력합니다.<br><br>Enter를 누르기 전에 해당 장치를 이 컴퓨터에 다시 연결합니다.<br><br>"
 
 msgid "Your Ledger is locked. Please unlock it."
 msgstr "원장이 잠겨 있습니다. 잠금을 해제하십시오."
@@ -3709,7 +3708,7 @@ msgid "Your device might not have support for this functionality."
 msgstr "장치에서 이 기능을 지원하지 않을 수 있습니다."
 
 msgid "Your labels have been synchronised."
-msgstr "라벨 동기화되었습니다."
+msgstr "레이블이 동기화되었습니다."
 
 msgid "Your password was updated"
 msgstr "패스워드가 업데이트되었습니다."
@@ -3718,10 +3717,10 @@ msgid "Your seed extension is"
 msgstr "시드 확장자는"
 
 msgid "Your seed extension must be saved together with your seed."
-msgstr "시드 확장자는 사용자의 시드와 함께 저장되어야 합니다."
+msgstr "시드 확장자는 사용자 시드와 함께 저장되어야 합니다."
 
 msgid "Your seed is important!"
-msgstr "당신의 씨앗이 중요합니다!"
+msgstr "사용자의 시드는 중요합니다!"
 
 msgid "Your server is on branch"
 msgstr "서버가 브랜치에 있습니다"
@@ -3742,13 +3741,13 @@ msgid "Your wallet file is: {}."
 msgstr "지갑 파일: {}."
 
 msgid "Your wallet generation seed is:"
-msgstr "고유 지갑 암호는"
+msgstr "지갑 생성 시드는 다음과 같습니다:"
 
 msgid "Your wallet has {} prepaid transactions."
 msgstr "지갑에 {}개의 선불 거래가 있습니다."
 
 msgid "Your wallet history has been successfully exported."
-msgstr "지갑의 역사는 성공적으로 내보냈습니다."
+msgstr "지갑 내역을 성공적으로 내보냈습니다."
 
 msgid "Your wallet is not protected."
 msgstr "지갑이 보호되지 않습니다."
@@ -3763,7 +3762,7 @@ msgid "Your {} were successfully imported"
 msgstr "{}을(를) 성공적으로 가져왔습니다"
 
 msgid "Zeros after decimal point"
-msgstr "소수점 제로"
+msgstr "소수점 이하 자릿수"
 
 msgid "[Clear]"
 msgstr "[지우기]"
@@ -3811,7 +3810,7 @@ msgid "and you will have the possibility, while they are unconfirmed, to replace
 msgstr "확인되지 않은 상태이지만 높은 수수료를 지불하는 거래로 대체할 수 있는 가능성이 있습니다."
 
 msgid "are frozen"
-msgstr "냉동"
+msgstr "동결됨"
 
 msgid "blocks"
 msgstr "블록"
@@ -3847,7 +3846,7 @@ msgid "invoices"
 msgstr "인보이스"
 
 msgid "json"
-msgstr "JSON"
+msgstr "json"
 
 msgid "keystore"
 msgstr "키 저장소"
@@ -3868,10 +3867,10 @@ msgid "or type an existing revealer code below and click 'next':"
 msgstr "또는 아래에 기존 Revealer 코드를 입력하고 [다음]을 클릭합니다:"
 
 msgid "please wait..."
-msgstr "잠시 기다려 주십시오."
+msgstr "잠시 기다려 주십시오..."
 
 msgid "print the calibration pdf and follow the instructions "
-msgstr "보정 pdf를 인쇄하고 지침을 따릅니다."
+msgstr "보정 pdf를 인쇄하고 지침을 따릅니다 "
 
 msgid "proxy enabled"
 msgstr "프록시 사용됨"
@@ -3892,7 +3891,7 @@ msgid "transaction is final"
 msgstr "최종 거래입니다"
 
 msgid "type a custom alphanumerical secret below:"
-msgstr "type a custom alphanumerical secret below:"
+msgstr "아래에 커스텀 영숫자 암호를 입력하십시오:"
 
 msgid "unknown"
 msgstr "알 수 없음"
@@ -3901,7 +3900,7 @@ msgid "unknown parser {!r} (choices: {})"
 msgstr "알수 없는 파서 {!r} (선택: {})"
 
 msgid "watching only"
-msgstr "만보고"
+msgstr "읽기 전용"
 
 msgid "watching-only"
 msgstr "읽기 전용"
@@ -3910,22 +3909,22 @@ msgid "wiped"
 msgstr "지워짐"
 
 msgid "your seed extension will <b>not</b> be included in the encrypted backup."
-msgstr "시드 확장자는 암호화된 백업에 포함되지 <b> 않습니다 </ b>."
+msgstr "시드 확장자는 암호화된 백업에 포함되지 <b>않습니다 </b>."
 
 msgid "{} channels"
-msgstr "{} 채널"
+msgstr "{}개의 채널"
 
 msgid "{} confirmations"
 msgstr "{}개의 확인"
 
 msgid "{} connections."
-msgstr "{} 연결."
+msgstr "{}개의 연결."
 
 msgid "{} copied to clipboard"
 msgstr "클립보드에 {} 복사됨 "
 
 msgid "{} encrypted for Revealer {}_{} saved as PNG and PDF at: "
-msgstr "{}이(가) Revealer {}_{}에 대해 암호화되어 PNG 및 PDF로 저장됨: "
+msgstr "{}이(가) Revealer {}_{}에 대해 암호화되어 PNG 및 PDF로 다음에 저장됨:"
 
 msgid "{} from tip"
 msgstr "팁에서 {}"
@@ -3941,3 +3940,15 @@ msgstr "사용 가능한 출력 {}개(총 {}개)"
 
 msgid "{} plugin does not support this type of wallet."
 msgstr "{} 플러그인은 이 유형의 지갑을 지원하지 않습니다."
+
+msgid "&From QR code"
+msgstr "& QR 코드에서"
+
+msgid "Proxy settings apply to all connections: with Electric Cash servers, but also with third-party services."
+msgstr "프록시 설정은 모든 연결에 적용됩니다: Electric Cash 서버 및 타사 서비스 포함."
+
+msgid "The ELCASH address never expires and will always be part of this ELCASH Wallet."
+msgstr "ELCASH 주소는 만료되지 않으며 항상 이 ELCASH 지갑의 일부가 됩니다."
+
+msgid "You are most likely using an outdated version of Electrum. Please update."
+msgstr "오래된 버전의 Electrum을 사용하고 있는 것으로 보입니다. 업데이트하십시오."

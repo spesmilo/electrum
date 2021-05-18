@@ -114,7 +114,7 @@ msgid "&Save backup"
 msgstr "&Yedeklemeyi kaydet"
 
 msgid "&Seed"
-msgstr "&Tohum"
+msgstr "&Anahtar Kelime Dizisi"
 
 msgid "&Sign/verify message"
 msgstr "&Mesajı imzala/İmzayı doğrula"
@@ -204,7 +204,7 @@ msgid "Add cosigner"
 msgstr "İmzalayıcı Ekle"
 
 msgid "Adding info to tx, from wallet and network..."
-msgstr ""
+msgstr "Cüzdan ve ağdan işleme bilgi ekleniyor..."
 
 msgid "Additional fees"
 msgstr "Ek ücretler"
@@ -237,7 +237,7 @@ msgid "Advanced preview"
 msgstr "Gelişmiş önizleme"
 
 msgid "After that delay, funds will be sent to an address derived from your wallet seed."
-msgstr "Bu gecikmeden sonra para, cüzdan tohumunuzdan alınan adrese gönderilecek."
+msgstr "Bu gecikmeden sonra para, cüzdan anahtar kelime dizinizden alınan adrese gönderilecek."
 
 msgid "All"
 msgstr "Hepsi"
@@ -294,7 +294,7 @@ msgid "Are you sure you want to delete wallet {}?"
 msgstr "{} cüzdanını silmek istediğinizden emin misiniz?"
 
 msgid "Are you sure you want to disagree?"
-msgstr ""
+msgstr "Katılmadığınıza emin misiniz?"
 
 msgid "Are you sure you want to remove this transaction and {} child transactions?"
 msgstr "Bu transferi ve {} çocuk transferleri kaldırmak istediğinizden emin misiniz?"
@@ -303,7 +303,7 @@ msgid "Are you sure you want to remove this transaction?"
 msgstr "Bu işlemi silmek istediğinizden emin misiniz?"
 
 msgid "Are you sure?"
-msgstr ""
+msgstr "Emin misiniz?"
 
 msgid "At block height: {}"
 msgstr "{}. Blokta"
@@ -339,7 +339,7 @@ msgid "BIP39 Recovery"
 msgstr "BIP39 Kurtarma"
 
 msgid "BIP70 invoice saved as {}"
-msgstr ""
+msgstr "BIP70 faturası {} olarak kaydedildi"
 
 msgid "Back"
 msgstr "Geri"
@@ -375,7 +375,7 @@ msgid "Batch pay invoices"
 msgstr "Toplu ödeme faturaları"
 
 msgid "Before reporting a bug, upgrade to the most recent version of ELCASH Wallet (latest release or git HEAD), and include the version number in your report."
-msgstr ""
+msgstr "Bir arızayı raporlamadan önce ELCASH Cüzdanı en son sürüme güncelleyin (son sürüm veya git HEAD) ve raporunuzda sürümün numarasını da belirtin."
 
 msgid "Bit rate [kbps]: "
 msgstr "Bit hızı [kbps]: "
@@ -549,7 +549,7 @@ msgid "Channels in database."
 msgstr "Veritabanındaki kanallar."
 
 msgid "Check this box to request a new secret. You will need to retype your seed."
-msgstr "Yeni bir gizli anahtar istemek için bu kutuyu işaretleyin. Tohumunuzu yeniden yazmanız gerekir."
+msgstr "Yeni bir gizli anahtar istemek için bu kutuyu işaretleyin. Anahtar kelime dizinizi yeniden yazmanız gerekir."
 
 msgid "Checking for updates..."
 msgstr "Güncellemeler kontrol ediliyor..."
@@ -561,7 +561,7 @@ msgid "Child pays for parent"
 msgstr "Ebeveyn için çocuk ödeme"
 
 msgid "Choose Seed type"
-msgstr "Tohum türünü seçin"
+msgstr "Anahtar Kelime Dizisi Türünü Seçin"
 
 msgid "Choose a password"
 msgstr "Parola seçin"
@@ -660,10 +660,10 @@ msgid "Confirm Password:"
 msgstr "Parolayı Onaylayın:"
 
 msgid "Confirm Seed"
-msgstr "Tohum Kodu'nu onaylayın"
+msgstr "Anahtar Kelime Dizisini Onaylayın"
 
 msgid "Confirm Seed Extension"
-msgstr "Tohum'un uzantısını onaylayın"
+msgstr "Anahtar Kelime Dizisi Uzantısını Onaylayın"
 
 msgid "Confirm Transaction"
 msgstr "İşlemi Onayla"
@@ -768,7 +768,7 @@ msgid "Create a new Revealer"
 msgstr "Yeni Ortaya Çıkaran ekle"
 
 msgid "Create a new seed"
-msgstr "Yeni tohum oluştur"
+msgstr "Yeni anahtar kelime dizisi oluştur "
 
 msgid "Create keystore from a master key"
 msgstr "Bir ana anahtardan anahtar deposu oluştur"
@@ -960,7 +960,7 @@ msgid "Dynamic fee estimates not available"
 msgstr "Dinamik ücret tahminleri kullanılamıyor"
 
 msgid "ELCASH Wallet communicates with remote servers to get information about your transactions and addresses. The servers all fulfill the same purpose only differing in hardware. In most cases you simply want to let ELCASH Wallet pick one at random.  However if you prefer feel free to select a server manually."
-msgstr ""
+msgstr "ELCASH Cüzdanı işlemleriniz ve adreslerinizle ilgili bilgi almak için uzak sunucularla iletişim kurar. Sunucular farklı donanımlar kullansa da hepsin aynı amaç için çalışır. Çoğu durumda ELCASH Cüzdanının rastgele bir tane seçmesi daha kolay olacaktır. Fakat dilerseniz sunucuyu manuel olarak kendiniz de seçebilirsiniz."
 
 msgid "ELCASH Wallet connects to several nodes in order to download block headers and find out the longest blockchain."
 msgstr "Ayrıca ELCASH Wallet, blok başlıklarını indirmek ve en uzun blok zincirini bulmak için birkaç ağ düğümüne bağlanır."
@@ -969,16 +969,16 @@ msgid "ELCASH Wallet sends your wallet addresses to a single server, in order to
 msgstr "ELCASH Wallet cüzdan adreslerinizi, ödeme geçmişimizi gösterebilmek amacıyla bir sunucuya gönderir."
 
 msgid "ELCASH Wallet was unable to copy your wallet file to the specified location."
-msgstr ""
+msgstr "ELCASH Cüzdanı cüzdan dosyanızı belirtilen konuma kopyalayamadı."
 
 msgid "ELCASH Wallet was unable to open your transaction file"
-msgstr ""
+msgstr "ELCASH Cüzdanı işlem dosyanızı açamadı"
 
 msgid "ELCASH Wallet was unable to parse your transaction"
-msgstr ""
+msgstr "ELCASH Cüzdanı işleminizi çözümleyemedi"
 
 msgid "ELCASH Wallet was unable to produce a private key-export."
-msgstr ""
+msgstr "ELCASH Cüzdanı özel anahtarı dışa aktaramadı."
 
 msgid "ELCASH Wallet will now exit."
 msgstr "ELCASH Wallet'dan şimdi çıkış yapılacak."
@@ -987,7 +987,7 @@ msgid "ELCASH Wallet's focus is speed, with low resource usage and simplifying E
 msgstr "ELCASH Wallet'un odağı hızdır, az kaynak kullanır ve Electric Cash'i basitleştirir."
 
 msgid "ELCASH wallet"
-msgstr ""
+msgstr "ELCASH cüzdanı"
 
 msgid "ETA: fee rate is based on average confirmation time estimates"
 msgstr "ETA: ücret oranı, ortalama onay süresi tahminlerine dayalıdır"
@@ -1002,7 +1002,7 @@ msgid "Electrum Plugins"
 msgstr "Electrum eklentileri"
 
 msgid "Electrum cannot pair with your {}.\n\nBefore you request bitcoins to be sent to addresses in this wallet, ensure you can pair with your device, or that you have its seed (and passphrase, if any).  Otherwise all bitcoins you receive will be unspendable."
-msgstr ""
+msgstr "Electrum {} ile eşleşemiyor.\n\nBu cüzdandaki adreslere Bitcoin gönderilmesini istemeden önce, cihazınızla eşleştirebileceğinizden veya anahtar kelime dizisine (ve varsa şifreye) sahip olduğunuzdan emin olun. Aksi takdirde aldığınız Bitcoin'lerin tamamı kullanılamaz olacaktır."
 
 msgid "ELCASH Wallet preferences"
 msgstr "ELCASH Wallet ayarları"
@@ -1080,7 +1080,7 @@ msgid "Enter Transaction Label"
 msgstr "İşlem Etiketini Girin"
 
 msgid "Enter a list of ELCASH addresses (this will create a watching-only wallet), or a list of private keys."
-msgstr ""
+msgstr "ELCASH adresleri listesini (bu işlem yalnızca görüntülenebilir bir cüzdan oluşturur) veya özel anahtarların bir listesini gir."
 
 msgid "Enter a list of outputs in the 'Pay to' field."
 msgstr "Çıktıların listesini 'Şuraya öde' alanına gir."
@@ -1212,7 +1212,7 @@ msgid "Export"
 msgstr "Dışa aktar"
 
 msgid "Export Backup"
-msgstr ""
+msgstr "Yedeği Dışa Aktar"
 
 msgid "Export History"
 msgstr "Dışa aktarma geçmişi"
@@ -1398,7 +1398,7 @@ msgid "General"
 msgstr "Genel"
 
 msgid "Generate New Address"
-msgstr ""
+msgstr "Yeni Adresler Oluştur"
 
 msgid "Google Authenticator code:"
 msgstr "Google Kimlik Doğrulama"
@@ -1458,19 +1458,19 @@ msgid "However, hardware wallets do not support message decryption, which makes 
 msgstr "Ancak donanım cüzdanları, mesaj şifresi çözmeyi desteklemiyor. Bu da söz konusu cüzdanları, birlikte imzalayan havuzunun mevcut tasarımıyla uyumsuz hale getiriyor."
 
 msgid "I agree"
-msgstr ""
+msgstr "Katılıyorum"
 
 msgid "I already have a seed"
-msgstr "Zaten tohumum var"
+msgstr "Zaten anahtar kelime dizim var"
 
 msgid "I disagree"
-msgstr ""
+msgstr "Katılmıyorum"
 
 msgid "I have lost my Google Authenticator account"
 msgstr "Google Authenticator hesabımı kaybettim"
 
 msgid "IP/port in format:\n[host]:[port]"
-msgstr ""
+msgstr "IP/port in format:\n[host]:[port]"
 
 msgid "If auto-connect is enabled, ELCASH Wallet will always use a server that is on the longest blockchain."
 msgstr "Eğer otomatik bağlanma açıksa, ELCASH Wallet her zaman en uzun blok zincirindeki sunucuya bağlanacaktır."
@@ -1479,13 +1479,13 @@ msgid "If enabled, at most 100 satoshis might be lost due to this, per transacti
 msgstr "Etkinleştirilirse, bu nedenden dolayı işlem başına 100 satoshis kaybolabilir."
 
 msgid "If it is disabled, you have to choose a server you want to use. ELCASH Wallet will warn you if your server is lagging."
-msgstr ""
+msgstr "Bu özellik devre dışı bırakılırsa, kullanmak istediğiniz bir sunucu seçmeniz gerekir. Sunucuda gecikme olursa ELCASH Cüzdanı sizi uyaracaktır."
 
 msgid "If this option is checked, Electrum will\nrun a local watchtower and protect your channels even if your wallet is not\nopen. For this to work, your computer needs to be online regularly."
-msgstr ""
+msgstr "Bu seçenek seçilirse, Electrum\nyerel bir nöbetçi kulesi çalıştıracak ve cüzdanınız kapalıyken bile\n kanallarınızı koruyacaktır. Bunun çalışması için bilgisayarın düzenli olarak çevrim içi olması gerekir."
 
 msgid "If this option is checked, Electrum will persist after\nyou close all your wallet windows, and the Electrum icon will be visible in the taskbar.\nUse this if you want your local watchtower to keep running after you close your wallet."
-msgstr ""
+msgstr "Bu seçenek seçilirse, tüm cüzdan pencerelerini kapattıktan sonra\nElectrum çalışmaya devam eder ve görev çubuğunda Electrum ikonunu görebilirsiniz.\nCüzdanınızı kapattıktan sonra yerel nöbetçinin çalışmaya devam etmesini istiyorsanız bunu kullanın."
 
 msgid "If you are not sure what this is, leave this field unchanged."
 msgstr "Bunun ne olduğundan emin değilseniz bu alanı değiştirmeyin."
@@ -1509,22 +1509,22 @@ msgid "If you have an old printer, or want optimal precision"
 msgstr "Eski bir yazıcınız varsa veya optimum duyarlılık istiyorsanız"
 
 msgid "If you have lost your Google Authenticator account, you can request a new secret. You will need to retype your seed."
-msgstr "Google Authenticator hesabınızı kaybettiyseniz yeni bir gizli anahtar isteyebilirsiniz. Tohumunuzu yeniden yazmanız gerekir."
+msgstr "Google Authenticator hesabınızı kaybettiyseniz yeni bir gizli anahtar isteyebilirsiniz. Anahtar kelime dizinizi yeniden yazmanız gerekir."
 
 msgid "If you have lost your second factor, you need to restore your wallet from seed in order to request a new code."
-msgstr "İkinci faktörünüzü kaybettiyseniz yeni kod istemek için tohumdan cüzdanınızı geri yüklemeniz gerekir."
+msgstr "İkinci faktörünüzü kaybettiyseniz yeni kod istemek için anahtar kelime dizinizden cüzdanınızı geri yüklemeniz gerekir."
 
 msgid "If you keep experiencing network problems, try using a Tor proxy."
 msgstr "Ağ sorunları yaşamaya devam ediyorsanız Tor proxy'si kullanmayı deneyin."
 
 msgid "If you lose your seed, your money will be permanently lost."
-msgstr "Eğer tohumlarınızı kaybederseniz, paranız sonsuza kadar kaybolmuş olacak."
+msgstr "Eğer anahtar kelime dizinizi kaybederseniz, paranız kalıcı olarak kaybolur."
 
 msgid "If you lose your wallet file, the only thing you can do with a backup is to request your channel to be closed, so that your funds will be sent on-chain."
 msgstr "Cüzdan dosyanızı kaybederseniz yedekleme ile yapabileceğiniz tek şey kanalınızın kapatılmasını isteyerek, paralarınızın zincir içi gönderilmesini sağlamaktır."
 
 msgid "If you received this transaction from an untrusted device, do not accept to sign it more than once,\notherwise you could end up paying a different fee."
-msgstr ""
+msgstr "Bu işlemi güvenilen bir cihazdan almadıysanız kabul etmek için bir defadan fazla imza atmayın,\nyoksa farklı bir ücret ödemek durumunda kalabilirsiniz."
 
 msgid "If you use a passphrase, make sure it is correct."
 msgstr "Şifre kullanıyorsanız bunun doğru olduğundan emin olun."
@@ -1536,7 +1536,7 @@ msgid "If your device is not detected on Windows, go to \"Settings\", \"Devices\
 msgstr "Cihazınız Windows'ta algılanmazsa \"Ayarlar\", \"Cihazlar\", \"Bağlı cihazlar\", ve \"Cihazı kaldır\" seçeneğine gidin. Ardından cihazınızı tekrar takın."
 
 msgid "If your wallet contains funds, make sure you have saved its seed."
-msgstr "Cüzdanınızda para varsa bunun tohumunu kaydettiğinizden emin olun."
+msgstr "Cüzdanınızda para varsa bunun anahtar kelime dizisini kaydettiğinizden emin olun."
 
 msgid "Ignore and continue?"
 msgstr "Yok sayılsın ve devam edilsin mi?"
@@ -1548,7 +1548,7 @@ msgid "Import Channel Backup?"
 msgstr "Kanal Yedeklemesi içe aktarılsın mı?"
 
 msgid "Import ELCASH addresses"
-msgstr ""
+msgstr "ELCASH adreslerini içe aktar"
 
 msgid "Import addresses"
 msgstr "Adresleri içeri aktar"
@@ -1557,7 +1557,7 @@ msgid "Import channel backup"
 msgstr "Kanal yedeklemesini içe aktar"
 
 msgid "Import external watch-only ELCASH addresses or private keys"
-msgstr ""
+msgstr "Harici yalnızca görüntülenebilir ELCASH adreslerini veya özel anahtarları içe aktar"
 
 msgid "Import file"
 msgstr "Dosyayı içeri aktar"
@@ -1575,7 +1575,7 @@ msgid "In some cases, use up to 3 change addresses in order to break up large co
 msgstr "Bazı durumlarda, büyük ödemeler almak ve gönderilen adresini gizlemek için 3'e varan değişim adresi kullanın."
 
 msgid "In the meantime, channel funds will not be recoverable from your seed, and might be lost if you lose your wallet."
-msgstr "Bu sırada, kanal paraları tohumunuzdan kurtarılamaz hale gelir ve cüzdanınızı kaybetmeniz durumunda kaybolabilir."
+msgstr "Bu sırada, kanal paraları anahtar kelime dizinizden kurtarılamaz hale gelir ve cüzdanınızı kaybetmeniz durumunda kaybolabilir."
 
 msgid "In the next block"
 msgstr "Bir sonraki blokta"
@@ -1593,7 +1593,7 @@ msgid "Incorrect password"
 msgstr "Yanlış parola"
 
 msgid "Incorrect seed"
-msgstr "Yanlış tohum"
+msgstr "Yanlış anahtar kelime dizisi"
 
 msgid "Increase fee"
 msgstr "İşlem ücretini artır"
@@ -1629,7 +1629,7 @@ msgid "Inputs"
 msgstr "Girişler"
 
 msgid "Install Wizard"
-msgstr "Büyücü'yü yükle"
+msgstr "Sihirbaz kurulumu"
 
 msgid "Install the zbar package to enable this."
 msgstr "Bunu aktif etmek için zbar paketini kurunuz."
@@ -1812,7 +1812,7 @@ msgid "Local"
 msgstr "Yerel"
 
 msgid "Local Watchtower"
-msgstr "Yerel Gözetleme Kulesi"
+msgstr "Yerel Nöbetçi Kulesi"
 
 msgid "Long Channel ID"
 msgstr "Uzun Kanal Kimliği"
@@ -1830,7 +1830,7 @@ msgid "Make sure you install it with python3"
 msgstr "Bunu python3 ile yüklediğinizden emin olun"
 
 msgid "Make sure you own the seed phrase or the private keys, before you request Bitcoins to be sent to this wallet."
-msgstr "Bitcoinlerin bu cüzdana gelmesini istemekten önce, Tohum Kodu'na veya özel anahtarlara sahip olduğunuzdan emin olun."
+msgstr "Bitcoinlerin bu cüzdana gelmesini istemekten önce, anahtar kelime dizisine veya özel anahtarlara sahip olduğunuzdan emin olun."
 
 msgid "Master Public Key"
 msgstr "Ana Açık Anahtar"
@@ -1878,10 +1878,10 @@ msgid "More than one output set to spend max"
 msgstr "Maksimum harcama değerine birden fazla çıkış ayarlandı"
 
 msgid "Multi-Signature Wallet"
-msgstr "Birden fazla imzalı cüzdan"
+msgstr "Çoklu imzalı cüzdan"
 
 msgid "Multi-signature wallet"
-msgstr "Birden fazla imzalı cüzdan"
+msgstr "Çoklu imzalı cüzdan"
 
 msgid "NOT DEVICE PIN - see above"
 msgstr "CİHAZ PIN'İ DEĞİL - yukarıya bakın"
@@ -1899,7 +1899,7 @@ msgid "Never"
 msgstr "Asla"
 
 msgid "Never disclose your seed."
-msgstr "Tohum Kodu'nu kimseye göstermeyin."
+msgstr "Anahtar kelime dizinizi kimseye göstermeyin."
 
 msgid "Never type it on a website."
 msgstr "Onu asla bir internet sitesinde yazmayın."
@@ -1971,13 +1971,13 @@ msgid "No path found"
 msgstr "Yol bulunamadı"
 
 msgid "No seed stored for wallet"
-msgstr "Cüzdan için tohum depolanmadı"
+msgstr "Cüzdan için anahtar kelime dizisi depolanmadı"
 
 msgid "No wallet loaded."
 msgstr "Cüzdan yüklenmedi."
 
 msgid "No, I changed my mind"
-msgstr ""
+msgstr "Hayır, fikrimi değiştirdim"
 
 msgid "Node ID"
 msgstr "Düğüm Kimliği"
@@ -2022,7 +2022,7 @@ msgid "Not yet available"
 msgstr "Henüz kullanılamıyor"
 
 msgid "Note that if you disagree to our Terms & Conditions you won't be able to use the ELCASH Wallet application."
-msgstr ""
+msgstr "Hüküm & Koşullarımızı kabul etmemeniz durumunda ELCASH Cüzdanı uygulamasını kullanamayacağını belirtiriz."
 
 msgid "Note that if you have frozen some of your addresses, the available funds will be lower than your total balance."
 msgstr "Unutmayın ki eğer adreslerinizden bazılarınızı dondurursanız, kullanılabilir bakiyeleriniz toplam bakiyenizden düşük olacak."
@@ -2034,7 +2034,7 @@ msgid "Note that this is NOT your encryption password."
 msgstr "Bunun şifreleme parolanız OLMADIĞINI unutmayın."
 
 msgid "Note that your coins are not locked in this service.  You may withdraw your funds at any time and at no cost, without the remote server, by using the 'restore wallet' option with your wallet seed."
-msgstr "Bu hizmette paralarınızın kilitlenmediğini unutmayın.  Cüzdan tohumunuzla 'geri yükleme cüzdanı' seçeneğinizi kullanarak paralarınızı uzaktan sunucu olmadan istediğiniz zaman ücretsiz çekebilirsiniz."
+msgstr "Bu hizmette paralarınızın kilitlenmediğini unutmayın.  Cüzdan anahtar kelime dizinizle, 'cüzdanı geri yükle' seçeneğini kullanarak paralarınızı uzaktan sunucu olmadan istediğiniz zaman ücretsiz çekebilirsiniz."
 
 msgid "Note: If you enable this setting, you will need your hardware device to open your wallet."
 msgstr "Not: Bu ayarı etkinleştirirseniz donanım cihazınızın, cüzdanınızı açmasına ihtiyaç duyarsınız."
@@ -2199,7 +2199,7 @@ msgid "Password:"
 msgstr "Şifre:"
 
 msgid "Paste from clipboard"
-msgstr ""
+msgstr "Panodan kopyala"
 
 msgid "Pay"
 msgstr "Ödeme"
@@ -2295,7 +2295,7 @@ msgid "Please enter your password to decrypt it."
 msgstr "Lütfen şifresini çözmek için parolanızı girin."
 
 msgid "Please enter your seed phrase in order to restore your wallet."
-msgstr "Lütfen cüzdanınızı geri yüklemek için tohum parçacığını giriniz."
+msgstr "Cüzdanınızı geri yüklemek için lütfen anahtar kelime dizinizi girin."
 
 msgid "Please insert your {}"
 msgstr "Lütfen {} cihazınızı ekleyin"
@@ -2316,10 +2316,10 @@ msgid "Please report this issue manually"
 msgstr "Lütfen bu sorunu el ile bildirin"
 
 msgid "Please restart ELCASH Wallet to activate the new GUI settings"
-msgstr ""
+msgstr "Yeni GUI ayarlarını etkinleştirmek için lütfen ELCASH Cüzdanını yeniden başlatın."
 
 msgid "Please retype your seed phrase, to confirm that you properly saved it"
-msgstr "Doğru bir şekilde kayıt ettiğinizden emin olmak için, Lütfen tohum cümlenizi tekrardan giriniz"
+msgstr "Doğru bir şekilde kaydettiğinizden emin olmak için, lütfen anahtar kelime dizinizi tekrardan girin"
 
 msgid "Please save these {0} words on paper (order is important). "
 msgstr "Lütfen bu {0} sözcüğü kağıt üzerine kaydedin (sıra önemlidir). "
@@ -2346,7 +2346,7 @@ msgid "Please type it here."
 msgstr "Lütfen buraya yazın."
 
 msgid "Please type your seed phrase using the virtual keyboard."
-msgstr "Lütfen sanal klavyeyi kullanarak tohum cümlenizi giriniz."
+msgstr "Lütfen sanal klavyeyi kullanarak anahtar kelime dizinizi giriniz."
 
 msgid "Please wait"
 msgstr "Lütfen bekleyin"
@@ -2382,13 +2382,13 @@ msgid "Press 'Next' to choose device to decrypt."
 msgstr "Şifresi çözülecek cihazı seçmek için 'İleri' seçeneğine basın."
 
 msgid "Press 'Next' to create this wallet, or choose another file."
-msgstr "Cüzdanı oluşturmak için 'ileri' tuşuna basın veya başka bir klasör seçin."
+msgstr "Cüzdanı oluşturmak için 'Sonraki' tuşuna basın veya başka bir klasör seçin."
 
 msgid "Press 'Next' to create/focus window."
 msgstr "Pencere oluşturmak/odaklamak için 'İleri' seçeneğine basın."
 
 msgid "Press 'Next' to open this wallet."
-msgstr "Cüzdanı açmak için 'ileri' tuşuna basın."
+msgstr "Cüzdanı açmak için 'Sonraki' tuşuna basın."
 
 msgid "Press Enter"
 msgstr "Enter tuşuna basın"
@@ -2613,7 +2613,7 @@ msgid "Right side"
 msgstr "Sağ taraf"
 
 msgid "Run a local watchtower"
-msgstr "Yerel gözetleme kulesi çalıştır"
+msgstr "Yerel bir nöbetçi kulesi çalıştır"
 
 msgid "Save"
 msgstr "Kayıt"
@@ -2646,16 +2646,16 @@ msgid "Security Card Challenge"
 msgstr "Güvenlik Kartı Testi"
 
 msgid "Seed"
-msgstr "Tohum(Seed)"
+msgstr "Anahtar Kelime Dizisi"
 
 msgid "Seed Type"
-msgstr "tohum tipi"
+msgstr "Anahtar Kelime Dizisi Türü"
 
 msgid "Seed available"
-msgstr "Tohum kullanılabilir"
+msgstr "Anahtar kelime dizisi kullanılabilir"
 
 msgid "Seed extension"
-msgstr "Tohum uzantısı"
+msgstr "Anahtar kelime dizisi uzantısı"
 
 msgid "Segwit"
 msgstr "Segwit"
@@ -2943,7 +2943,7 @@ msgid "Target fee:"
 msgstr "Hedef ücret:"
 
 msgid "Terms & Conditions"
-msgstr ""
+msgstr "Hüküm & Koşullar"
 
 msgid "Terms of Service"
 msgstr "Hizmet kullanım şartları"
@@ -2963,15 +2963,14 @@ msgstr "Metin panoya kopyalandı"
 msgid "Text copied to clipboard."
 msgstr "Metin panoya kopyalandı."
 
-#, fuzzy
 msgid "The ELCASH address never expires and will always be part of this ELCASH wallet."
-msgstr ""
+msgstr "ELCASH adresinin kullanım süresi hiçbir zaman dolmayacaktır ve ELCASH cüzdanının daima bir parçası olacaktır."
 
 msgid "The Lightning Network graph is fully synced."
 msgstr "Lightning Ağı grafiği tamamen senkronize edildi."
 
 msgid "The Lightning Network graph is syncing...\nPayments are more likely to succeed with a more complete graph."
-msgstr ""
+msgstr "Lightning Ağı grafiği senkronize ediliyor...\nTam bir grafiğe sahip olan ödemelerin başarılı olma ihtimali daha yüksektir."
 
 msgid "The SSL certificate provided by the main server did not match the fingerprint passed in with the --serverfingerprint option."
 msgstr "Ana sunucu tarafından sağlanan SSL sertifikası --serverfingerprint seçeneğiyle geçirilen parmak iziyle eşleşmedi."
@@ -2986,13 +2985,13 @@ msgid "The description is not sent to the recipient of the funds. It is stored i
 msgstr "Fonlar başkasına gönderilemez. Cüzdanına yüklenir. Geçmiş kısmından görebilirsiniz."
 
 msgid "The fee could not be verified. Signing non-segwit inputs is risky:\nif this transaction was maliciously modified before you sign,\nyou might end up paying a higher mining fee than displayed."
-msgstr ""
+msgstr "Tutar doğrulanamıyor. Segwit olmayan girdileri imzalamak risklidir:\nişlem siz imzalamadan önce kötü niyetli bir şekilde düzenlenmişse,\ngösterilenden daha yüksek bir madencilik ücreti ödemek durumunda kalabilirsiniz."
 
 msgid "The fee for this transaction seems unusually high."
 msgstr "İzin verilen miktardan fazla ücret gönderilemez."
 
 msgid "The file '{}' contains an incompletely created wallet.\nDo you want to complete its creation now?"
-msgstr ""
+msgstr "'{}' dosyası, eksik oluşturulmuş bir cüzdan içermektedir.\nOluşturma işlemini şimdi tamamlamak ister misiniz?"
 
 msgid "The file was removed"
 msgstr "Dosya silindi."
@@ -3010,13 +3009,13 @@ msgid "The following inputs could not be imported"
 msgstr "Girdileriniz içeri aktarılamadı."
 
 msgid "The input amounts could not be verified as the previous transactions are missing.\nThe amount of money being spent CANNOT be verified."
-msgstr ""
+msgstr "Geçmiş işlemler eksik olduğu için tutar girdileri doğrulanamadı.\nHarcanan para miktarı DOĞRULANAMIYOR."
 
 msgid "The new fee rate needs to be higher than the old fee rate."
 msgstr "Yeni ücret oranının eski ücret oranından yüksek olması gerekir."
 
 msgid "The next step will generate the seed of your wallet.  This seed will NOT be saved in your computer, and it must be stored on paper.  To be safe from malware, you may want to do this on an offline computer, and move your wallet later to an online computer."
-msgstr ""
+msgstr "Sonraki aşamada cüzdanınızda anahtar kelimeler oluşacaktır. Bu anahtar dizi bilgisayarınıza kayıt EDİLMEYECEKTİR, bu yüzden kağıda yazılmalıdır Kötü amaçlı yazılımlardan korunmak için bunu çevrim dışı bir bilgisayarda gerçekleştirmek ve cüzdanı daha sonra çevrim içi bir bilgisayara aktarmak isteyebilirsiniz."
 
 msgid "The operation is undefined. Not just in ELCASH Wallet, but in general."
 msgstr "İşlem tanımlanmadı. Yalnızca ELCASH Wallet'da değil, genel olarak."
@@ -3037,10 +3036,10 @@ msgid "The transaction was rejected because it is too large (in bytes)."
 msgstr "İşlem çok büyük (bayt olarak) olduğundan reddedildi."
 
 msgid "The type of addresses used by your wallet will depend on your seed."
-msgstr "Cüzdanınız tarafından kullanılan adreslerin türü, tohumunuza göre değişir."
+msgstr "Cüzdanınız tarafından kullanılan adreslerin türü, anahtar kelime dizinize göre değişir."
 
 msgid "The wallet '{}' contains multiple accounts, which are no longer supported since Electrum 2.7.\n\nDo you want to split your wallet into multiple files?"
-msgstr ""
+msgstr "'{}' cüzdanı, Electrum 2.7'den beri desteklenmeyen birden fazla hesap içermektedir.\n\nCüzdanınızı birkaç dosyaya bölmek ister misiniz?"
 
 msgid "Then, enter your Google Authenticator code:"
 msgstr "Ardından Google Authenticator kodunuzu girin:"
@@ -3059,6 +3058,8 @@ msgstr "Bu adres zaten kullanılmış. Daha fazla gizlilik için yeni ödemelerd
 
 msgid "This address is being reused"
 msgstr ""
+"Bu adres tekrardan"
+"kullanılıyor"
 
 msgid "This amount exceeds the maximum you can currently receive with your channels"
 msgstr "Bu tutar, şu anda kanallarınızla alabileceğiniz maksimum tutarı aşıyor"
@@ -3103,13 +3104,13 @@ msgid "This invoice has expired"
 msgstr "Bu faturanın süresi doldu"
 
 msgid "This is a watching-only wallet"
-msgstr "Bu sadece-izle olan bir cüzdandır"
+msgstr "Bu cüzdan yalnızca görüntülenebilir."
 
 msgid "This is a watching-only wallet."
-msgstr "Bu yalnızca izleme özellikli bir cüzdandır."
+msgstr "Bu cüzdan yalnızca görüntülenebilir."
 
 msgid "This is a watching-only wallet. It does not contain private keys."
-msgstr "Bu yalnızca izleme özellikli bir cüzdandır. Bu, özel anahtarlar içermez."
+msgstr "Bu cüzdan yalnızca görüntülenebilir. Özel anahtarlar içermez."
 
 msgid "This is discouraged."
 msgstr "Bu önerilmez."
@@ -3130,7 +3131,7 @@ msgid "This payment request will be signed."
 msgstr "Bu ödeme isteği imzalanacak."
 
 msgid "This plug-in allows you to create a visually encrypted backup of your wallet seeds, or of custom alphanumeric secrets."
-msgstr "Bu eklenti, cüzdan tohumlarınızın veya özel alfasayısal gizli anahtarlarınızın görsel olarak şifrelenmiş bir yedeklemesini oluşturmanıza olanak tanır."
+msgstr "Bu eklenti, cüzdan anahtar kelime dizilerinizin veya özelleştirilmiş gizli alfanümerik anahtarlarınızın görsel olarak şifrelenmiş bir yedeğini oluşturmanıza olanak tanır."
 
 msgid "This plugin adds two-factor authentication to your wallet."
 msgstr "Bu eklenti, cüzdanınıza iki aşamalı kimlik doğrulaması ekler."
@@ -3139,7 +3140,7 @@ msgid "This plugin facilitates the use of multi-signatures wallets."
 msgstr "Bu eklenti, çoklu imza cüzdanlarının kullanımına olanak tanır."
 
 msgid "This seed will allow you to recover your wallet in case of computer failure."
-msgstr "Bu tohum, bilgisayar arızası durumunda cüzdanınızı kurtarmanıza izin verir."
+msgstr "Bu anahtar kelime dizisi, bilgisayar arızası durumunda cüzdanınızı kurtarmanıza izin verir."
 
 msgid "This service uses a multi-signature wallet, where you own 2 of 3 keys.  The third key is stored on a remote server that signs transactions on your behalf. A small fee will be charged on each transaction that uses the remote server."
 msgstr "Bu hizmeti, 3 anahtardan 2'sine sahip olduğunuz çoklu imza cüzdanı kullanır.  Üçüncü anahtar, işlemleri sizin adınıza imzalayan bir uzak sunucuda depolanır. Uzak sunucuyu kullanan her işlemde düşük bir ücret alınır."
@@ -3151,7 +3152,7 @@ msgid "This transaction is not saved. Close anyway?"
 msgstr "Bu işlem kaydedilmedi. Hâlâ kapatılsın mı?"
 
 msgid "This transaction is only available on your local machine.\nThe currently connected server does not know about it.\nYou can either broadcast it now, or simply remove it."
-msgstr ""
+msgstr "Bu işleme yalnızca yerel makinanızdan erişilebilir.\nŞu anda bağlı olan sunucu bu işleme hakim değildir.\nŞimdi bu işlemi isterseniz paylaşabilir veya sadece kaldırabilirsiniz."
 
 msgid "This transaction requires a higher fee, or it will not be propagated by your current server"
 msgstr "Bu işlem daha yüksek bir ücret gerektirir, aksi takdirde mevcut sunucunuz tarafından yayılmaz"
@@ -3163,7 +3164,7 @@ msgid "This version supports a maximum of {} characters."
 msgstr "Bu sürüm, maksimum {} karakteri destekler."
 
 msgid "This wallet has no seed"
-msgstr "Cüzdan hiçbir tohuma sahip değil"
+msgstr "Cüzdanda anahtar kelime dizisi bulunmamaktadır"
 
 msgid "This wallet is already registered with TrustedCoin. To finalize wallet creation, please enter your Google Authenticator Code."
 msgstr "Bu cüzdan TrustedCoin'e zaten kayıtlı. Cüzdan oluşturma işlemini sonlandırmak için lütfen Google Authenticator Kodunuzu girin."
@@ -3172,13 +3173,13 @@ msgid "This wallet is protected by TrustedCoin's two-factor authentication."
 msgstr "Bu cüzdan TrustedCoin'in iki aşamalı kimlik doğrulaması tarafından korunur."
 
 msgid "This wallet is watching-only"
-msgstr "Bu cüzdanı sadece izliyorsunuz."
+msgstr "Bu cüzdan yalnızca görüntülenebilir."
 
 msgid "This wallet is watching-only."
-msgstr "Bu cüzdanı sadece izliyorsunuz."
+msgstr "Bu cüzdan yalnızca görüntülenebilir."
 
 msgid "This wallet was restored from seed, and it contains two master private keys."
-msgstr "Bu cüzdan tohumdan geri yüklendi ve iki ana özel anahtar içeriyor."
+msgstr "Bu cüzdan anahtar kelime dizisinden geri yüklendi ve iki ana özel anahtar içeriyor."
 
 msgid "This will save fees."
 msgstr "Bu, ücretlerde tasarruf sağlar."
@@ -3196,7 +3197,7 @@ msgid "To create a spending wallet, please enter a master private key (xprv/yprv
 msgstr "Bir harcama cüzdanı oluşturmak için lütfen bir ana özel anahtar (xprv/yprv/zprv) girin."
 
 msgid "To create a watching-only wallet, please enter your master public key (xpub/ypub/zpub)."
-msgstr "Yalnızca izleme özellikli bir cüzdan oluşturmak için lütfen ana genel anahtarınızı (xpub/ypub/zpub) girin."
+msgstr "Yalnızca görüntülenebilir bir cüzdan oluşturmak için lütfen ana genel anahtarınızı (xpub/ypub/zpub) girin."
 
 msgid "To encrypt your backup, first we need to load some noise."
 msgstr "Yedeklemenizi şifrelemek için öncelikle biraz parazit yüklememiz gerekiyor."
@@ -3205,7 +3206,7 @@ msgid "To help us diagnose and fix the problem, you can send us a bug report tha
 msgstr "Sorunu tanılayıp düzeltmemize yardımcı olmak için bize faydalı hata düzeltme bilgileri içeren bir hata raporu gönderebilirsiniz:"
 
 msgid "To make sure that you have properly saved your seed, please retype it here."
-msgstr "Seed'inizi doğru bir şekilde kurtardığınızdan emin olmak için lütfen buraya tekrar yazın."
+msgstr "Anahtar kelime dizinizi doğru bir şekilde kurtardığınızdan emin olmak için lütfen buraya tekrar yazın."
 
 msgid "To prevent that, you should have a backup of this channel on another device."
 msgstr "Bunu önlemek için başka bir cihazda bu kanalın yedeklemesini bulundurmanız gerekir."
@@ -3214,13 +3215,13 @@ msgid "To somewhat protect your privacy, Electrum tries to create change with si
 msgstr "Gizliliğinizi korumak için Electrum, diğer çıkışlarla benzer duyarlılığa sahip değişiklikler oluşturmaya çalışır."
 
 msgid "To trigger a rescan, press 'Next'."
-msgstr "Yeniden tarama işlemi tetiklemek için 'İleri' seçeneğine basın."
+msgstr "Yeniden tarama işlemi tetiklemek için 'Sonraki' seçeneğine basın."
 
 msgid "To try to fix this, we will now re-pair with your device."
 msgstr "Bunu düzeltmeyi denemek için şimdi cihazınızla yeniden eşleştirme yapacağız."
 
 msgid "To use a remote watchtower, enter the corresponding URL here"
-msgstr "Uzak bir gözetleme kulesi kullanmak için ilgili URL'yi buraya girin"
+msgstr "Uzak bir nöbetçi kulesi kullanmak için ilgili URL'yi buraya girin"
 
 msgid "Toggle Encryption"
 msgstr "Şifrelemeyi Aç/Kapat"
@@ -3313,7 +3314,7 @@ msgid "Two Factor Authentication"
 msgstr "İki Aşamalı Doğrulama"
 
 msgid "Two-factor authentication is a service provided by TrustedCoin.  It uses a multi-signature wallet, where you own 2 of 3 keys.  The third key is stored on a remote server that signs transactions on your behalf.  To use this service, you will need a smartphone with Google Authenticator installed."
-msgstr ""
+msgstr "İki faktörlü kimlik doğrulama, TrustedCoin tarafından sunulan bir hizmettir. 2 veya 3 anahtar kullandığınız çoklu imzalı bir cüzdan kullanır. Üçüncü anahtar, sizin adınıza işlemleri imzalayan uzak bir sunucuda saklanır. Bu hizmeti kullanmak için içinde Google Authenticator kurulu bir akıllı telefon gerekmektedir."
 
 msgid "Two-factor authentication is a service provided by TrustedCoin. To use it, you must have a separate device with Google Authenticator."
 msgstr "İki aşamalı kimlik doğrulaması, TrustedCoin tarafından sunulan bir hizmettir. Bunu kullanmak için Google Authenticator'ın yüklü olduğu ayrı bir cihazınız olmalıdır."
@@ -3325,7 +3326,7 @@ msgid "Type"
 msgstr "Tür"
 
 msgid "Unable to connect to mail server:\n {}"
-msgstr ""
+msgstr "Mail sunucusuna bağlanılamıyor:\n {}"
 
 msgid "Unable to create backup"
 msgstr "yedekleme oluşturulamıyor"
@@ -3421,7 +3422,7 @@ msgid "Use a master key"
 msgstr "Ana anahtar kullan"
 
 msgid "Use a remote watchtower"
-msgstr "Uzak gözetleme kulesi kullan"
+msgstr "Uzak bir nöbetçi kulesi kullan"
 
 msgid "Use as server"
 msgstr "Kendi sunucunu kullan"
@@ -3544,7 +3545,7 @@ msgid "Wallet creation failed"
 msgstr "Cüzdan oluşturma başarısız"
 
 msgid "Wallet file corruption detected. Please restore your wallet from seed, and compare the addresses in both files"
-msgstr "Cüzdan dosyasında bozukluk algılandı. Lütfen tohumdan cüzdanınızı geri yükleyin ve iki dosyadaki adresleri karşılaştırın"
+msgstr "Cüzdan dosyasında bozukluk algılandı. Lütfen cüzdanınızı anahtar kelime dizinizden geri yükleyin ve iki dosyadaki adresleri karşılaştırın"
 
 msgid "Wallet file not found: {}"
 msgstr "Cüzdan dosyası bulunamadı: {}"
@@ -3577,7 +3578,7 @@ msgid "Warning!"
 msgstr "Dikkat!"
 
 msgid "Warning: The next address will not be recovered automatically if you restore your wallet from seed; you may need to add it manually.\n\nThis occurs because you have too many unused addresses in your wallet. To avoid this situation, use the existing addresses first.\n\nCreate anyway?"
-msgstr "Uyarı: Geri yüklerseniz sonraki adresi otomatik olarak geri alınması mümkün olmayan cüzdanınıza gelen tohum; manuel olarak eklemeniz gerekebilir. \\ n \\ n Bunun nedeni, cüzdanınızda çok fazla kullanılmayan adresiniz olmasıdır. Bu durumu önlemek için önce mevcut adresleri kullanın. \\ n \\ n Yine de oluşturulsun mu?"
+msgstr "Uyarı: Cüzdanınızı anahtar kelime dizinizden geri yüklerseniz bir sonraki adres otomatik olarak kurtarılmayacaktır; manuel olarak eklemeniz gerekebilir. \n\n Bunun nedeni, cüzdanınızda çok fazla kullanılmayan adresiniz olmasıdır. Bu durumu önlemek için önce mevcut adresleri kullanın.\n\n Yine de oluşturulsun mu?"
 
 msgid "Warning: do not use this if it makes you pick a weaker password."
 msgstr "Uyarı: Bu, daha zayıf bir parola seçmenize neden oluyorsa bunu kullanmayın."
@@ -3586,10 +3587,10 @@ msgid "Warning: to be able to restore a multisig wallet, you should include the 
 msgstr "Uyarı: Çoklu imza cüzdanını geri yükleyebilmek için tüm yedeklemelerinizdeki her birlikte imzalayan için ana genel anahtarı eklemeniz gerekir."
 
 msgid "Watch-only wallet"
-msgstr "Yalnızca izleme özellikli cüzdan"
+msgstr "Yalnızca görüntülenebilir cüzdan"
 
 msgid "Watchtower"
-msgstr "Gözetleme kulesi"
+msgstr "Nöbetçi kulesi"
 
 msgid "We encountered an error while connecting to your device:"
 msgstr "Cihazınıza bağlanırken hatayla karşılaştık:"
@@ -3628,7 +3629,7 @@ msgid "Yes"
 msgstr "Tamam"
 
 msgid "Yes, I disagree"
-msgstr ""
+msgstr "Evet, katılmıyorum"
 
 msgid "You are already on the latest version of ELCASH Wallet."
 msgstr "Zaten ELCASH Wallet'um en son sürümünü kullanıyorsunuz."
@@ -3670,7 +3671,7 @@ msgid "You may enter a ELCASH address, a label from your list of contacts (a lis
 msgstr "Bir ELCASH adresi, rehber listenizdeki bir etiket (tamamlanma listeleri önerilir) veya bir takma ad (bir ELCASH adresine iletilen e-posta benzeri adres)"
 
 msgid "You may extend your seed with custom words."
-msgstr "Tohumunuzu özel sözcüklerle genişletebilirsiniz."
+msgstr "Anahtar kelime dizinizi özel sözcüklerle genişletebilirsiniz."
 
 msgid "You may load a CSV file using the file icon."
 msgstr "Dosya simgesini kullanarak bir CSV dosyası yükleyebilirsiniz."
@@ -3679,7 +3680,7 @@ msgid "You might have an incompatible library."
 msgstr "Uyumsuz bir kitaplığınız olabilir."
 
 msgid "You need to be online in order to complete the creation of your wallet.  If you generated your seed on an offline computer, click on \"{}\" to close this window, move your wallet file to an online computer, and reopen it with Electrum."
-msgstr "Cüzdanınızın oluşturma işlemini tamamlamak için internet bağlantınızın olması gerekir.  Tohumunuzu internet bağlantısı olmayan bir bilgisayarda oluşturduysanız bu pencereyi kapatmak için \"{}\" öğesine tıklayın, cüzdan dosyanızı internet bağlantısı olan bir bilgisayara taşıyın ve Electrum ile yeniden açın."
+msgstr "Cüzdanınızın oluşturma işlemini tamamlamak için internet bağlantınızın olması gerekir.  Anahtar kelime dizinizi internet bağlantısı olmayan bir bilgisayarda oluşturduysanız bu pencereyi kapatmak için \"{}\" öğesine tıklayın, cüzdan dosyanızı internet bağlantısı olan bir bilgisayara taşıyın ve Electrum ile yeniden açın."
 
 msgid "You need to configure a backup directory in your preferences"
 msgstr "Tercihlerinizde bir yedekleme dizini yapılandırmanız gerekir"
@@ -3694,7 +3695,7 @@ msgid "You send"
 msgstr "Gönderiyorsunuz"
 
 msgid "Your Ledger Wallet wants to tell you a one-time PIN code.<br><br>For best security you should unplug your device, open a text editor on another computer, put your cursor into it, and plug your device into that computer. It will output a summary of the transaction being signed and a one-time PIN.<br><br>Verify the transaction summary and type the PIN code here.<br><br>Before pressing enter, plug the device back into this computer.<br>"
-msgstr ""
+msgstr "Ledger Wallet'ınız size tek kullanımlık bir PIN kodu vermek istiyor.<br><br>En üst seviye güvenlik için cihazınızın bağlantısını kesip başka bir bilgisayardan metin düzenleyiciyi açın, imlecinizi koyun ve cihazınızı o bilgisayara bağlayın. İmzalanan işlemin özeti ile tek seferlik bir PIN gösterecektir.<br><br>İşlem özetini doğrulayıp PIN kodunu buraya girin.<br><br>Enter'a basmadan önce cihazı tekrar bu bilgisayara bağlayın.<br>"
 
 msgid "Your Ledger is locked. Please unlock it."
 msgstr "Kayıt Defteriniz kilitlendi. Lütfen kilidini açın."
@@ -3715,13 +3716,13 @@ msgid "Your password was updated"
 msgstr "Parolanız güncellendi"
 
 msgid "Your seed extension is"
-msgstr "Seed eklentiniz"
+msgstr "Anahtar kelime uzantınız"
 
 msgid "Your seed extension must be saved together with your seed."
-msgstr "Tohum uzantınız, tohumunuzla birlikte kaydedilebilir."
+msgstr "Anahtar kelime uzantınız, anahtar kelime dizinizle birlikte kaydedilebilir."
 
 msgid "Your seed is important!"
-msgstr "Seed'iniz önemlidir!"
+msgstr "Anahtar kelime diziniz önemlidir!"
 
 msgid "Your server is on branch"
 msgstr "Sunucunuz şubede"
@@ -3742,7 +3743,7 @@ msgid "Your wallet file is: {}."
 msgstr "Cüzdan dosyanız:"
 
 msgid "Your wallet generation seed is:"
-msgstr "Cüzdan nesil seed'iniz:"
+msgstr "Cüzdan oluşturma anahtar kelime diziniz:"
 
 msgid "Your wallet has {} prepaid transactions."
 msgstr "Cüzdanınızda önceden ödenmiş {} işlem var."
@@ -3865,7 +3866,7 @@ msgid "open_channel timed out"
 msgstr "open_channel zaman aşımına uğradı"
 
 msgid "or type an existing revealer code below and click 'next':"
-msgstr "veya aşağıya mevcut bir ortaya çıkaran kodu yazıp 'ileri' seçeneğine tıklayın:"
+msgstr "veya aşağıya mevcut bir ortaya çıkaran kodu yazıp 'Sonraki' seçeneğine tıklayın:"
 
 msgid "please wait..."
 msgstr "Lütfen bekleyin..."
@@ -3886,7 +3887,7 @@ msgid "secret backup utility"
 msgstr "gizli anahtar yedekleme yardımcı programı"
 
 msgid "seed"
-msgstr "tohum"
+msgstr "anahtar kelime dizisi"
 
 msgid "transaction is final"
 msgstr "ödeme tamamlandı"
@@ -3901,16 +3902,16 @@ msgid "unknown parser {!r} (choices: {})"
 msgstr "bilinmeyen ayrıştırıcı {!r} (seçimler: {})"
 
 msgid "watching only"
-msgstr "görüntüle"
+msgstr "yalnızca görüntüleme"
 
 msgid "watching-only"
-msgstr "yalnızca izleme"
+msgstr "yalnızca görüntüleme"
 
 msgid "wiped"
 msgstr "silindi"
 
 msgid "your seed extension will <b>not</b> be included in the encrypted backup."
-msgstr "tohum uzantınız şifrelenen yedeklemeye <b>eklenmez</b>."
+msgstr "anahtar kelime uzantınız şifrelenen yedeklemeye <b>eklenmez</b>."
 
 msgid "{} channels"
 msgstr "{} kanalları"
@@ -3941,3 +3942,15 @@ msgstr "{} çıkış kullanılabilir (toplam {})"
 
 msgid "{} plugin does not support this type of wallet."
 msgstr "{} eklentisi bu cüzdan türünü desteklemiyor."
+
+msgid "&From QR code"
+msgstr "&QR kodundan"
+
+msgid "Proxy settings apply to all connections: with Electric Cash servers, but also with third-party services."
+msgstr "Proxy ayarları tüm bağlantılar için geçerlidir: Electric Cash sunucuları ve ayrıca üçüncü taraf hizmetler."
+
+msgid "The ELCASH address never expires and will always be part of this ELCASH Wallet."
+msgstr "ELCASH adresinin kullanım süresi hiçbir zaman dolmayacaktır ve ELCASH cüzdanının daima bir parçası olacaktır."
+
+msgid "You are most likely using an outdated version of Electrum. Please update."
+msgstr "Muhtemelen Electrum'un eski bir sürümünü kullanıyorsunuz. Lütfen güncelleyin."

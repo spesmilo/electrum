@@ -204,7 +204,7 @@ msgid "Add cosigner"
 msgstr "共同署名者を追加する"
 
 msgid "Adding info to tx, from wallet and network..."
-msgstr ""
+msgstr "ウォレットとネットワークから、取引に情報を追加しています..."
 
 msgid "Additional fees"
 msgstr "追加手数料"
@@ -294,7 +294,7 @@ msgid "Are you sure you want to delete wallet {}?"
 msgstr "本当にウォレット{}を削除してもよろしいですか?"
 
 msgid "Are you sure you want to disagree?"
-msgstr ""
+msgstr "本当に同意しなくてよろしいですか？"
 
 msgid "Are you sure you want to remove this transaction and {} child transactions?"
 msgstr "本当にこの取引と {} の子取引を削除しますか？"
@@ -303,7 +303,7 @@ msgid "Are you sure you want to remove this transaction?"
 msgstr "本当にこの取引を削除しますか？"
 
 msgid "Are you sure?"
-msgstr ""
+msgstr "本当によろしいですか？"
 
 msgid "At block height: {}"
 msgstr "ブロック高: {}"
@@ -339,7 +339,7 @@ msgid "BIP39 Recovery"
 msgstr "BIP39復旧"
 
 msgid "BIP70 invoice saved as {}"
-msgstr ""
+msgstr "BIP70インボイスは{}として保存されました。"
 
 msgid "Back"
 msgstr "戻る"
@@ -375,7 +375,7 @@ msgid "Batch pay invoices"
 msgstr "請求書をバッチ支払い"
 
 msgid "Before reporting a bug, upgrade to the most recent version of ELCASH Wallet (latest release or git HEAD), and include the version number in your report."
-msgstr ""
+msgstr "バグを報告する前に、ELCASHウォレットの最新バージョン（最新リリースまたはgit HEAD）にアップグレードし、そのバージョン番号を報告書に記載してください。"
 
 msgid "Bit rate [kbps]: "
 msgstr "ビットレート[kbps]: "
@@ -954,40 +954,40 @@ msgid "Don't show this again."
 msgstr "今後表示しない"
 
 msgid "Due to a bug, old versions of ELCASH Wallet will NOT be creating the same wallet as newer versions or other software."
-msgstr ""
+msgstr "バグにより、古いバージョンのELCASHウォレットは、新しいバージョンや他のソフトウェアと同じウォレットを作成することはできません。"
 
 msgid "Dynamic fee estimates not available"
 msgstr "手数料見積り機能は現在使えません"
 
 msgid "ELCASH Wallet communicates with remote servers to get information about your transactions and addresses. The servers all fulfill the same purpose only differing in hardware. In most cases you simply want to let ELCASH Wallet pick one at random.  However if you prefer feel free to select a server manually."
-msgstr ""
+msgstr "ELCASHウォレットは、あなたの取引やアドレスに関する情報を得るために、リモートサーバーと通信します。ハードウェアが異なるだけで、サーバーの目的は同じです。ほとんどの場合、ELCASH ウォレットがランダムにサーバーを選択しますが、手動でサーバーを選択することもできます。"
 
 msgid "ELCASH Wallet connects to several nodes in order to download block headers and find out the longest blockchain."
-msgstr ""
+msgstr "ELCASHウォレットは、ブロックヘッダーをダウンロードし、最長のブロックチェーンを特定するために、複数のノードに接続します。"
 
 msgid "ELCASH Wallet sends your wallet addresses to a single server, in order to receive your transaction history."
-msgstr ""
+msgstr "ELCASHウォレットは、取引履歴を受信するためにウォレットアドレスを、1つのサーバーに送信します。"
 
 msgid "ELCASH Wallet was unable to copy your wallet file to the specified location."
-msgstr ""
+msgstr "ELCASHウォレットは、ウォレットファイルを指定された場所にコピーできませんでした。"
 
 msgid "ELCASH Wallet was unable to open your transaction file"
-msgstr ""
+msgstr "ELCASHウォレットは、取引ファイルを開くことができませんでした。"
 
 msgid "ELCASH Wallet was unable to parse your transaction"
-msgstr ""
+msgstr "ELCASHウォレットは、取引の解析を実行できませんでした。"
 
 msgid "ELCASH Wallet was unable to produce a private key-export."
-msgstr ""
+msgstr "ELCASHウォレットは、秘密鍵のエクスポートを実行できませんでした。"
 
 msgid "ELCASH Wallet will now exit."
-msgstr ""
+msgstr "ELCASHウォレットを終了します。"
 
 msgid "ELCASH Wallet's focus is speed, with low resource usage and simplifying Electric Cash."
-msgstr ""
+msgstr "ELCASHウォレットは、スピード、リソース使用量の最小化、そしてElectric Cashの簡素化に焦点を当てます。"
 
 msgid "ELCASH wallet"
-msgstr ""
+msgstr "ELCASHウォレット"
 
 msgid "ETA: fee rate is based on average confirmation time estimates"
 msgstr "見積もり時間：取引手数料は平均的な承認時間の見積りに基づきます"
@@ -1080,7 +1080,7 @@ msgid "Enter Transaction Label"
 msgstr "トランザクションラベルを入力"
 
 msgid "Enter a list of ELCASH addresses (this will create a watching-only wallet), or a list of private keys."
-msgstr ""
+msgstr "ELCASHアドレスのリスト（これにより閲覧専用のウォレットが作成されます）、または秘密鍵のリストを入力してください。"
 
 msgid "Enter a list of outputs in the 'Pay to' field."
 msgstr "「送信先」にアドレスのリストを入力して下さい。"
@@ -1212,7 +1212,7 @@ msgid "Export"
 msgstr "エクスポート"
 
 msgid "Export Backup"
-msgstr ""
+msgstr "バックアップをエクスポート"
 
 msgid "Export History"
 msgstr "履歴をエクスポート"
@@ -1329,7 +1329,7 @@ msgid "For more information, visit"
 msgstr "詳しい情報については、こちらを参照"
 
 msgid "For security reasons we advise that you always use the latest version of ELCASH Wallet."
-msgstr ""
+msgstr "セキュリティ上の理由から、常に最新版のELCASHウォレットをご利用いただくことをお勧めします。"
 
 msgid "Force-close channel"
 msgstr "チャネルの強制クローズ"
@@ -1398,7 +1398,7 @@ msgid "General"
 msgstr "全般"
 
 msgid "Generate New Address"
-msgstr ""
+msgstr "新しいアドレスを生成する"
 
 msgid "Google Authenticator code:"
 msgstr "Google認証コード: "
@@ -1458,13 +1458,13 @@ msgid "However, hardware wallets do not support message decryption, which makes 
 msgstr "しかし、ハードウェアウォレットはメッセージ復号をサポートしていないので現在の共同署名プールの設計では互換性がありません。"
 
 msgid "I agree"
-msgstr ""
+msgstr "同意します"
 
 msgid "I already have a seed"
 msgstr "既存のシードを使用する"
 
 msgid "I disagree"
-msgstr ""
+msgstr "同意しません"
 
 msgid "I have lost my Google Authenticator account"
 msgstr "Google Authenticatorアカウントを紛失しました"
@@ -1473,13 +1473,13 @@ msgid "IP/port in format:\n[host]:[port]"
 msgstr "IP/ポートは次のフォーマット:\n[host]:[port]"
 
 msgid "If auto-connect is enabled, ELCASH Wallet will always use a server that is on the longest blockchain."
-msgstr ""
+msgstr "自動接続を有効にすると、ELCASHウォレットは常に最も長いブロックチェーン上のサーバーを使用します。"
 
 msgid "If enabled, at most 100 satoshis might be lost due to this, per transaction."
 msgstr "有効にすると取引当たり最高100 satoshiが失われます"
 
 msgid "If it is disabled, you have to choose a server you want to use. ELCASH Wallet will warn you if your server is lagging."
-msgstr ""
+msgstr "無効になっている場合は、使用するサーバーを選択する必要があります。ELCASHウォレットは、サーバーが遅延している際に警告します。"
 
 msgid "If this option is checked, Electrum will\nrun a local watchtower and protect your channels even if your wallet is not\nopen. For this to work, your computer needs to be online regularly."
 msgstr "このオプションがチェックされると、Electrumは\nローカルウォッチタワーを実行してウォレットが起動していないときであってもあなたのチャネルを保護します。\nこれを機能させるには、あなたのコンピューターが定期的にオンラインになる必要があります。"
@@ -1548,7 +1548,7 @@ msgid "Import Channel Backup?"
 msgstr "チャネルバックアップをインポートしますか？"
 
 msgid "Import ELCASH addresses"
-msgstr ""
+msgstr "ELCASHアドレスのインポート"
 
 msgid "Import addresses"
 msgstr "アドレスをインポート"
@@ -1557,7 +1557,7 @@ msgid "Import channel backup"
 msgstr "チャネルバックアップをインポート"
 
 msgid "Import external watch-only ELCASH addresses or private keys"
-msgstr ""
+msgstr "閲覧のみの外部ELCASHアドレスまたは秘密鍵のインポート"
 
 msgid "Import file"
 msgstr "ファイルからインポート"
@@ -1977,7 +1977,7 @@ msgid "No wallet loaded."
 msgstr "ウォレットがロードされていません"
 
 msgid "No, I changed my mind"
-msgstr ""
+msgstr "いいえ、やっぱり同意します。"
 
 msgid "Node ID"
 msgstr "ノードID"
@@ -2022,7 +2022,7 @@ msgid "Not yet available"
 msgstr "まだ使用できません"
 
 msgid "Note that if you disagree to our Terms & Conditions you won't be able to use the ELCASH Wallet application."
-msgstr ""
+msgstr "利用規約に同意しない場合は、ELCASHウォレットのアプリケーションを利用することはできませんので、ご了承ください。"
 
 msgid "Note that if you have frozen some of your addresses, the available funds will be lower than your total balance."
 msgstr "凍結されたアドレスがある場合、送金可能な金額は全残高を下回ります。"
@@ -2199,7 +2199,7 @@ msgid "Password:"
 msgstr "パスワード:"
 
 msgid "Paste from clipboard"
-msgstr ""
+msgstr "クリップボードから貼り付ける"
 
 msgid "Pay"
 msgstr "支払い"
@@ -2316,7 +2316,7 @@ msgid "Please report this issue manually"
 msgstr "この問題は手動で報告して下さい"
 
 msgid "Please restart ELCASH Wallet to activate the new GUI settings"
-msgstr ""
+msgstr "新しいGUIの設定を有効にするために、ELCASHウォレットを再起動してください"
 
 msgid "Please retype your seed phrase, to confirm that you properly saved it"
 msgstr "シードを確実に保存したことを確認するために、シードを再入力してください。"
@@ -2352,7 +2352,7 @@ msgid "Please wait"
 msgstr "少々お待ちください"
 
 msgid "Please wait while ELCASH Wallet checks for available updates."
-msgstr ""
+msgstr "ELCASHウォレットが利用可能なアップデートを確認するまでお待ちください。"
 
 msgid "Please wait..."
 msgstr "少々お待ち下さい..."
@@ -2430,7 +2430,7 @@ msgid "Proxy mode"
 msgstr "プロキシの種類"
 
 msgid "Proxy settings apply to all connections: with ELCASH Wallet servers, but also with third-party services."
-msgstr ""
+msgstr "プロキシ設定は、Electric Cashのサーバーだけでなく、第三者機関サービスとの接続にも適用されます。"
 
 msgid "Proxy user"
 msgstr "プロキシ ユーザー名"
@@ -2886,7 +2886,7 @@ msgid "Start"
 msgstr "開始"
 
 msgid "Startup times are instant because it operates in conjunction with high-performance servers that handle the most complicated parts of the Electric Cash system."
-msgstr ""
+msgstr "Electric Cashシステムの最も複雑な部分を処理する高性能サーバーと連携して動作するため、即時に起動します。"
 
 msgid "State:"
 msgstr "状態:"
@@ -2943,7 +2943,7 @@ msgid "Target fee:"
 msgstr "ターゲット手数料"
 
 msgid "Terms & Conditions"
-msgstr ""
+msgstr "利用規約"
 
 msgid "Terms of Service"
 msgstr "利用規約"
@@ -2955,7 +2955,7 @@ msgid "Testnet coins are worthless."
 msgstr "テストネットのコインは無価値です。"
 
 msgid "Testnet is separate from the main Electric Cash network. It is used for testing."
-msgstr ""
+msgstr "テストネットは、Electric Cashのメインネットワークとは異なるものです。テストに使用されています。"
 
 msgid "Text copied to clipboard"
 msgstr "クリップボードにコピーされました"
@@ -2963,9 +2963,8 @@ msgstr "クリップボードにコピーされました"
 msgid "Text copied to clipboard."
 msgstr "テキストをクリップボードにコピーしました"
 
-#, fuzzy
 msgid "The ELCASH address never expires and will always be part of this ELCASH wallet."
-msgstr ""
+msgstr "ELCASHアドレスには有効期限がなく、常にELCASHウォレットの一部として存在します。"
 
 msgid "The Lightning Network graph is fully synced."
 msgstr "ライトニングネットワークのグラフは完全に同期されています。"
@@ -3019,7 +3018,7 @@ msgid "The next step will generate the seed of your wallet.  This seed will NOT 
 msgstr "次のステップではウォレットのシード値を生成します。シードはあなたのコンピュータには保存されず、紙に書いて保存されるべきです。マルウェアから保護するためにこれをオフラインで行って、後であなたのウォレットをオンラインにする方がよいかもしれません。"
 
 msgid "The operation is undefined. Not just in ELCASH Wallet, but in general."
-msgstr ""
+msgstr "ELCASHウォレットに限らず、一般的にこの操作は定義されていません。"
 
 msgid "The server returned an error when broadcasting the transaction."
 msgstr "取引情報のブロードキャストにてエラーが発生しました。"
@@ -3058,7 +3057,7 @@ msgid "This address has already been used. For better privacy, do not reuse it f
 msgstr "アドレスはすでに使用されています。プライバシー上の問題になるので、新しい支払いのためにこれを再利用しないでください。"
 
 msgid "This address is being reused"
-msgstr ""
+msgstr "このアドレスは再利用されています"
 
 msgid "This amount exceeds the maximum you can currently receive with your channels"
 msgstr "この金額は現在あなたがチャネルで受け取れる最大値を越えています。"
@@ -3403,7 +3402,7 @@ msgid "Update check failed"
 msgstr "更新のチェックに失敗しました"
 
 msgid "Update to ELCASH Wallet {} is available"
-msgstr ""
+msgstr "ELCASH Wallet {}へのアップデートが可能です"
 
 msgid "Upgrading wallet format..."
 msgstr "ウォレットのフォーマットを更新中..."
@@ -3520,7 +3519,7 @@ msgid "WARNINGS"
 msgstr "警告"
 
 msgid "WIF keys are typed in ELCASH Wallet, based on script type."
-msgstr ""
+msgstr "WIFキーは、スクリプト タイプに応じてELCASHウォレットに入力されます。"
 
 msgid "Waiting for TrustedCoin server to sign transaction..."
 msgstr "TrustedCoinのサーバーがトランザクションに署名するのを待っています..."
@@ -3607,7 +3606,7 @@ msgid "Witness Script"
 msgstr "ウィットネス・スクリプト"
 
 msgid "Would you like to be notified when there is a newer version of ELCASH Wallet available?"
-msgstr ""
+msgstr "ELCASHウォレットの新しいバージョンが出た際、通知を受け取りますか？"
 
 msgid "Write logs to file"
 msgstr "ログをファイルに書き込む"
@@ -3628,10 +3627,10 @@ msgid "Yes"
 msgstr "はい"
 
 msgid "Yes, I disagree"
-msgstr ""
+msgstr "はい、同意しません"
 
 msgid "You are already on the latest version of ELCASH Wallet."
-msgstr ""
+msgstr "お使いのELCASHウォレットは最新版です。"
 
 msgid "You are following branch"
 msgstr "あなたは分岐したブロックチェーンを参照しています"
@@ -3667,7 +3666,7 @@ msgid "You have multiple consecutive whitespaces or leading/trailing whitespaces
 msgstr "パスフレーズに連続したスペース文字または先頭や末尾にスペース文字があります。"
 
 msgid "You may enter a ELCASH address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a ELCASH address)"
-msgstr ""
+msgstr "ELCASHアドレス、連絡先リストのラベル（補完リストは提案されます）、エイリアス（ELCASHアドレスに転送されるメールアドレスのようなもの）のいずれかを入力してください。"
 
 msgid "You may extend your seed with custom words."
 msgstr "独自の単語を使用してシードを拡張することが可能です。"
@@ -3941,3 +3940,15 @@ msgstr "{}アウトプットが利用可能(合計 {})"
 
 msgid "{} plugin does not support this type of wallet."
 msgstr "{} プラグインはこのウォレットの種類をサポートしていません"
+
+msgid "&From QR code"
+msgstr "&QRコードより"
+
+msgid "Proxy settings apply to all connections: with Electric Cash servers, but also with third-party services."
+msgstr "プロキシ設定は、Electric Cashのサーバーだけでなく、第三者機関サービスとの接続にも適用されます。"
+
+msgid "The ELCASH address never expires and will always be part of this ELCASH Wallet."
+msgstr "ELCASHアドレスには有効期限がなく、常にELCASHウォレットの一部として存在します。"
+
+msgid "You are most likely using an outdated version of Electrum. Please update."
+msgstr "お使いのElectrumは古いバージョンのようです。更新してください。"

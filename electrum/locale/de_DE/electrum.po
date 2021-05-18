@@ -3941,3 +3941,19 @@ msgstr "{} Ausgaben verfügbar ({} insgesamt)"
 
 msgid "{} plugin does not support this type of wallet."
 msgstr "{} Plugin unterstützt diese Art von Wallet nicht."
+
+#, fuzzy
+msgid "&From QR code"
+msgstr ""
+
+#, fuzzy
+msgid "Proxy settings apply to all connections: with Electric Cash servers, but also with third-party services."
+msgstr ""
+
+#, fuzzy
+msgid "The ELCASH address never expires and will always be part of this ELCASH Wallet."
+msgstr ""
+
+#, fuzzy
+msgid "You are most likely using an outdated version of Electrum. Please update."
+msgstr ""

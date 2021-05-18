@@ -204,7 +204,7 @@ msgid "Add cosigner"
 msgstr "Agregar Cosigner"
 
 msgid "Adding info to tx, from wallet and network..."
-msgstr ""
+msgstr "Añadiendo información a la transacción desde desde el monedero y desde la red..."
 
 msgid "Additional fees"
 msgstr "Comisiones adicionales"
@@ -294,7 +294,7 @@ msgid "Are you sure you want to delete wallet {}?"
 msgstr "¿Está seguro de que quiere eliminar la cartera {}?"
 
 msgid "Are you sure you want to disagree?"
-msgstr ""
+msgstr "¿Estás seguro de que quiere no estar de acuerdo?"
 
 msgid "Are you sure you want to remove this transaction and {} child transactions?"
 msgstr "¿Confirma que quiere quitar esta transacción y las {} subtransacciones derivadas?"
@@ -303,7 +303,7 @@ msgid "Are you sure you want to remove this transaction?"
 msgstr "¿Seguro que quieres borrar esta transacción?"
 
 msgid "Are you sure?"
-msgstr ""
+msgstr "¿Está seguro?"
 
 msgid "At block height: {}"
 msgstr "A la altura del bloque: {}"
@@ -339,7 +339,7 @@ msgid "BIP39 Recovery"
 msgstr "BIP39 Recuperación"
 
 msgid "BIP70 invoice saved as {}"
-msgstr ""
+msgstr "Factura BIP70 guardada como {}"
 
 msgid "Back"
 msgstr "Atrás"
@@ -375,7 +375,7 @@ msgid "Batch pay invoices"
 msgstr "Facturas de pago por lotes"
 
 msgid "Before reporting a bug, upgrade to the most recent version of ELCASH Wallet (latest release or git HEAD), and include the version number in your report."
-msgstr ""
+msgstr "Antes de informar de un error, actualice a la versión más reciente de ELCASH Wallet (última versión o git HEAD), e incluya el número de versión en su informe."
 
 msgid "Bit rate [kbps]: "
 msgstr "Bit rate [kbps]: "
@@ -954,40 +954,40 @@ msgid "Don't show this again."
 msgstr "No volver a mostrar este mensaje."
 
 msgid "Due to a bug, old versions of ELCASH Wallet will NOT be creating the same wallet as newer versions or other software."
-msgstr ""
+msgstr "Debido a un error, las versiones antiguas de ELCASH Wallet NO crearán el mismo monedero que las versiones más nuevas u otro software."
 
 msgid "Dynamic fee estimates not available"
 msgstr "Tarifas dinámicas estimadas no están disponibles"
 
 msgid "ELCASH Wallet communicates with remote servers to get information about your transactions and addresses. The servers all fulfill the same purpose only differing in hardware. In most cases you simply want to let ELCASH Wallet pick one at random.  However if you prefer feel free to select a server manually."
-msgstr ""
+msgstr "ELCASH Wallet se comunica con servidores remotos para obtener información sobre sus transacciones y direcciones. Todos los servidores cumplen el mismo propósito, pero difieren en el hardware. En la mayoría de los casos simplemente opta por dejar que ELCASH Wallet elija uno al azar.  Sin embargo, si lo prefiere, puede seleccionar un servidor manualmente."
 
 msgid "ELCASH Wallet connects to several nodes in order to download block headers and find out the longest blockchain."
-msgstr ""
+msgstr "ELCASH Wallet se conecta a varios nodos para descargar las cabeceras de los bloques y conocer la blockchain más larga."
 
 msgid "ELCASH Wallet sends your wallet addresses to a single server, in order to receive your transaction history."
-msgstr ""
+msgstr "ELCASH Wallet envía las direcciones de su monedero a un único servidor, para recibir su historial de transacciones."
 
 msgid "ELCASH Wallet was unable to copy your wallet file to the specified location."
-msgstr ""
+msgstr "ELCASH Wallet no pudo copiar su archivo de monedero a la ubicación especificada."
 
 msgid "ELCASH Wallet was unable to open your transaction file"
-msgstr ""
+msgstr "ELCASH Wallet no pudo abrir su archivo de transacción"
 
 msgid "ELCASH Wallet was unable to parse your transaction"
-msgstr ""
+msgstr "ELCASH Wallet no pudo analizar su transacción"
 
 msgid "ELCASH Wallet was unable to produce a private key-export."
-msgstr ""
+msgstr "ELCASH Wallet no pudo producir una exportación de clave privada."
 
 msgid "ELCASH Wallet will now exit."
-msgstr ""
+msgstr "ELCASH Wallet saldrá ahora."
 
 msgid "ELCASH Wallet's focus is speed, with low resource usage and simplifying Electric Cash."
-msgstr ""
+msgstr "El enfoque de ELCASH Wallet estriba en la velocidad, con un bajo uso de recursos y con una simplificación de Electric Cash."
 
 msgid "ELCASH wallet"
-msgstr ""
+msgstr "monedero ELCASH"
 
 msgid "ETA: fee rate is based on average confirmation time estimates"
 msgstr "ETA: la tarifa se basa en el tiempo promedio de confirmación estimado"
@@ -1080,7 +1080,7 @@ msgid "Enter Transaction Label"
 msgstr "Introduzca descripción de la transacción"
 
 msgid "Enter a list of ELCASH addresses (this will create a watching-only wallet), or a list of private keys."
-msgstr ""
+msgstr "Introduzca una lista de direcciones de ELCASH (esto creará un monedero de sólo lectura), o una lista de claves privadas."
 
 msgid "Enter a list of outputs in the 'Pay to' field."
 msgstr "Introducir una lista de salidas en el campo 'Pagar a'."
@@ -1212,7 +1212,7 @@ msgid "Export"
 msgstr "Exportar"
 
 msgid "Export Backup"
-msgstr ""
+msgstr "Exportar Backup"
 
 msgid "Export History"
 msgstr "Exportar Historial"
@@ -1329,7 +1329,7 @@ msgid "For more information, visit"
 msgstr "Para más información, visita"
 
 msgid "For security reasons we advise that you always use the latest version of ELCASH Wallet."
-msgstr ""
+msgstr "Por razones de seguridad, le aconsejamos que utilice siempre la última versión de ELCASH Wallet."
 
 msgid "Force-close channel"
 msgstr "Forzar cierre de canal"
@@ -1398,7 +1398,7 @@ msgid "General"
 msgstr "General"
 
 msgid "Generate New Address"
-msgstr ""
+msgstr "Generar una nueva dirección"
 
 msgid "Google Authenticator code:"
 msgstr "Código de Google Authenticator:"
@@ -1458,13 +1458,13 @@ msgid "However, hardware wallets do not support message decryption, which makes 
 msgstr "Sin embargo, las carteras de hardware no admiten el descifrado de mensajes, lo que las hace no compatibles con el diseño actual del grupo de cofirmantes."
 
 msgid "I agree"
-msgstr ""
+msgstr "Estoy de acuerdo"
 
 msgid "I already have a seed"
 msgstr "Ya tengo un una semilla"
 
 msgid "I disagree"
-msgstr ""
+msgstr "No estoy de acuerdo"
 
 msgid "I have lost my Google Authenticator account"
 msgstr "He perdido mi cuenta de Google Authenticator"
@@ -1473,13 +1473,13 @@ msgid "IP/port in format:\n[host]:[port]"
 msgstr "IP/puerto en formato: \n[host]:[puerto]"
 
 msgid "If auto-connect is enabled, ELCASH Wallet will always use a server that is on the longest blockchain."
-msgstr ""
+msgstr "Si la conexión automática está activada, ELCASH Wallet siempre utilizará un servidor que esté en la blockchain más larga."
 
 msgid "If enabled, at most 100 satoshis might be lost due to this, per transaction."
 msgstr "Si está habilitado, se podría perder un máximo de 100 satoshis debido a esto, por cada transacción."
 
 msgid "If it is disabled, you have to choose a server you want to use. ELCASH Wallet will warn you if your server is lagging."
-msgstr ""
+msgstr "Si está desactivado, tiene que elegir un servidor que quiera utilizar. ELCASH Wallet le advertirá si su servidor se retrasa."
 
 msgid "If this option is checked, Electrum will\nrun a local watchtower and protect your channels even if your wallet is not\nopen. For this to work, your computer needs to be online regularly."
 msgstr "Si esta opción está marcada, Electrum ejecutará\nuna Torre de Vigilancia local y protegerá sus canales incluso si su cartera no está abierta.\nPara que esto funcione, su computadora necesita estar en línea regularmente."
@@ -1548,7 +1548,7 @@ msgid "Import Channel Backup?"
 msgstr "\n¿Importar copia de seguridad del canal?"
 
 msgid "Import ELCASH addresses"
-msgstr ""
+msgstr "Importar las direcciones ELCASH"
 
 msgid "Import addresses"
 msgstr "Importar direcciones"
@@ -1557,7 +1557,7 @@ msgid "Import channel backup"
 msgstr "Importar copia de seguridad del canal"
 
 msgid "Import external watch-only ELCASH addresses or private keys"
-msgstr ""
+msgstr "Importar claves privadas o direcciones externas de sólo lectura de ELCASH"
 
 msgid "Import file"
 msgstr "Importar archivo"
@@ -1977,7 +1977,7 @@ msgid "No wallet loaded."
 msgstr "No se cargó ninguna billetera"
 
 msgid "No, I changed my mind"
-msgstr ""
+msgstr "No, he cambiado de opinión"
 
 msgid "Node ID"
 msgstr "ID de nodo"
@@ -2022,7 +2022,7 @@ msgid "Not yet available"
 msgstr "Aún no disponible"
 
 msgid "Note that if you disagree to our Terms & Conditions you won't be able to use the ELCASH Wallet application."
-msgstr ""
+msgstr "Tenga en cuenta que si no está de acuerdo con nuestros Términos y Condiciones no podrá utilizar la aplicación ELCASH Wallet."
 
 msgid "Note that if you have frozen some of your addresses, the available funds will be lower than your total balance."
 msgstr "Toma en cuenta que si tienes congelada alguna de tus cuentas, tu fondo disponible será menor que tu balance total."
@@ -2199,7 +2199,7 @@ msgid "Password:"
 msgstr "Contraseña:"
 
 msgid "Paste from clipboard"
-msgstr ""
+msgstr "Pegar desde el portapapeles"
 
 msgid "Pay"
 msgstr "Pagar"
@@ -2316,7 +2316,7 @@ msgid "Please report this issue manually"
 msgstr "Informe este problema manualmente"
 
 msgid "Please restart ELCASH Wallet to activate the new GUI settings"
-msgstr ""
+msgstr "Por favor, reinicie su monedero ELCASH para activar la nueva configuración de la GUI"
 
 msgid "Please retype your seed phrase, to confirm that you properly saved it"
 msgstr "Por favor, vuelva a escribir la frase de semilla, para confirmar que se ha guardado correctamente"
@@ -2352,7 +2352,7 @@ msgid "Please wait"
 msgstr "Espere por favor"
 
 msgid "Please wait while ELCASH Wallet checks for available updates."
-msgstr ""
+msgstr "Por favor, espere mientras el monedero ELCASH comprueba si hay actualizaciones disponibles."
 
 msgid "Please wait..."
 msgstr "Espere por favor..."
@@ -2430,7 +2430,7 @@ msgid "Proxy mode"
 msgstr "Modo proxy"
 
 msgid "Proxy settings apply to all connections: with ELCASH Wallet servers, but also with third-party services."
-msgstr ""
+msgstr "La configuración del proxy se aplica a todas las conexiones: con los servidores del monedero ELCASH, pero también con los servicios de terceros."
 
 msgid "Proxy user"
 msgstr "Usuario del proxy"
@@ -2943,7 +2943,7 @@ msgid "Target fee:"
 msgstr "Tarifa objetivo:"
 
 msgid "Terms & Conditions"
-msgstr ""
+msgstr "Términos y condiciones"
 
 msgid "Terms of Service"
 msgstr "Términos de servicio"
@@ -2955,7 +2955,7 @@ msgid "Testnet coins are worthless."
 msgstr "Las monedas Testnet no tienen ningún valor."
 
 msgid "Testnet is separate from the main Electric Cash network. It is used for testing."
-msgstr ""
+msgstr "La red de pruebas (Testnet) está separada de la red principal de Electric Cash. Se utiliza para realizar pruebas."
 
 msgid "Text copied to clipboard"
 msgstr "Texto copiado al portapapeles"
@@ -2963,9 +2963,8 @@ msgstr "Texto copiado al portapapeles"
 msgid "Text copied to clipboard."
 msgstr "Texto copiado al portapapeles."
 
-#, fuzzy
 msgid "The ELCASH address never expires and will always be part of this ELCASH wallet."
-msgstr ""
+msgstr "La dirección ELCASH nunca caduca y siempre formará parte de este monedero ELCASH."
 
 msgid "The Lightning Network graph is fully synced."
 msgstr "El gráfico de Lightning Network está completamente sincronizado."
@@ -3058,7 +3057,7 @@ msgid "This address has already been used. For better privacy, do not reuse it f
 msgstr "Esta dirección ya ha sido utilizada. Para una mejor privacidad, no la reutilice para nuevos pagos."
 
 msgid "This address is being reused"
-msgstr ""
+msgstr "Esta dirección está siendo reutilizada"
 
 msgid "This amount exceeds the maximum you can currently receive with your channels"
 msgstr "Esta cantidad excede el máximo que puede recibir actualmente con sus canales"
@@ -3325,7 +3324,7 @@ msgid "Type"
 msgstr "Tipo"
 
 msgid "Unable to connect to mail server:\n {}"
-msgstr ""
+msgstr "No se puede conectar con el servidor de correo:\n {}"
 
 msgid "Unable to create backup"
 msgstr "No se puede crear copias de seguridad"
@@ -3403,7 +3402,7 @@ msgid "Update check failed"
 msgstr "La comprobación de actualización falló"
 
 msgid "Update to ELCASH Wallet {} is available"
-msgstr ""
+msgstr "La actualización del monedero ELCASH {} está disponible"
 
 msgid "Upgrading wallet format..."
 msgstr "Actualizando el formato de la cartera..."
@@ -3520,7 +3519,7 @@ msgid "WARNINGS"
 msgstr "ADVERTENCIAS"
 
 msgid "WIF keys are typed in ELCASH Wallet, based on script type."
-msgstr ""
+msgstr "Las claves WIF se escriben en el monedero ELCASH, según el tipo del script."
 
 msgid "Waiting for TrustedCoin server to sign transaction..."
 msgstr "Esperando que el servidor TrustedCoin firme la transacción ..."
@@ -3607,7 +3606,7 @@ msgid "Witness Script"
 msgstr "Script de testigo"
 
 msgid "Would you like to be notified when there is a newer version of ELCASH Wallet available?"
-msgstr ""
+msgstr "¿Quiere que le avisemos cuando esté disponible una nueva versión del monedero ELCASH?"
 
 msgid "Write logs to file"
 msgstr "Escribir registros en un archivo"
@@ -3628,10 +3627,10 @@ msgid "Yes"
 msgstr "Sí"
 
 msgid "Yes, I disagree"
-msgstr ""
+msgstr "Sí, estoy en desacuerdo"
 
 msgid "You are already on the latest version of ELCASH Wallet."
-msgstr ""
+msgstr "Ya está en la última versión del monedero ELCASH."
 
 msgid "You are following branch"
 msgstr "Estás siguiendo la brecha"
@@ -3694,7 +3693,7 @@ msgid "You send"
 msgstr "Usted envía"
 
 msgid "Your Ledger Wallet wants to tell you a one-time PIN code.<br><br>For best security you should unplug your device, open a text editor on another computer, put your cursor into it, and plug your device into that computer. It will output a summary of the transaction being signed and a one-time PIN.<br><br>Verify the transaction summary and type the PIN code here.<br><br>Before pressing enter, plug the device back into this computer.<br>"
-msgstr ""
+msgstr "Su monedero Ledger quiere decirle un código PIN de un solo uso.<br><br>Para mayor seguridad debe desconectar su dispositivo, abrir un editor de texto en otra computadora, poner el cursor en él y conectar su dispositivo a esa computadora. Se mostrará un resumen de la transacción que se está firmando y un PIN de un solo uso.<br><br>Verifique el resumen de la transacción y escriba el código PIN aquí.<br><br>Antes de pulsar enter, conecte de nuevo su dispositivo a la computadora.<br>"
 
 msgid "Your Ledger is locked. Please unlock it."
 msgstr "Tu Ledger está bloqueado. Por favor, desbloquéalo."
@@ -3941,3 +3940,15 @@ msgstr "{} salidas disponibles ({} total)"
 
 msgid "{} plugin does not support this type of wallet."
 msgstr "El plugin {} no admite este tipo de monedero."
+
+msgid "&From QR code"
+msgstr "&Desde el código QR"
+
+msgid "Proxy settings apply to all connections: with Electric Cash servers, but also with third-party services."
+msgstr "La configuración del proxy se aplica a todas las conexiones: con servidores de Electric Cash, pero también con servicios de terceros."
+
+msgid "The ELCASH address never expires and will always be part of this ELCASH Wallet."
+msgstr "La dirección ELCASH nunca caduca y siempre formará parte de este monedero ELCASH."
+
+msgid "You are most likely using an outdated version of Electrum. Please update."
+msgstr "Lo más probable es que esté utilizando una versión obsoleta de Electrum. Por favor, actualícela."
