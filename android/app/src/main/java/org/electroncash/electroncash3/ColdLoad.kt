@@ -22,8 +22,6 @@ val libTransaction by lazy { libMod("transaction") }
 // Valid transaction quickly show up in transactions.
 
 class ColdLoadDialog : AlertDialogFragment() {
-    /* 1 = signed, 0 = partially signed, -1 = invalid */
-    var txStatus: Int? = null
 
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         builder.setTitle(R.string.load_transaction)
@@ -186,7 +184,7 @@ fun canBroadcast(tx: PyObject): Boolean {
 class SignPasswordDialog : PasswordDialog<Unit>() {
 
     val coldLoadDialog by lazy { targetFragment as ColdLoadDialog }
-    val signSchnorr = daemonModel.walletType == "standard" // sign with Schnorr in standard wallets
+    val signSchnorr = daemonModel.walletType == "standard"
 
     val tx by lazy { libTransaction.callAttr("Transaction", arguments!!.getString("tx"), signSchnorr) }
     val wallet = daemonModel.wallet!!

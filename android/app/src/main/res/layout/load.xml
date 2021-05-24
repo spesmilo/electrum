@@ -24,8 +24,6 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"/>
 
-        <!-- Bottom constraint keeps button aligned with text box before API 21 (see dimens.xml). -->
-
         <EditText
             android:id="@+id/etTransaction"
             android:layout_width="0dp"
@@ -42,6 +40,7 @@
             <requestFocus />
         </EditText>
 
+        <!-- Bottom constraint keeps button aligned with text box before API 21 (see dimens.xml). -->
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/btnPaste"
             style="@style/FAB.Dialog"
