@@ -46,7 +46,7 @@ from PyQt5.QtWidgets import (QMessageBox, QComboBox, QSystemTrayIcon, QTabWidget
                              QHBoxLayout, QPushButton, QScrollArea, QTextEdit,
                              QShortcut, QMainWindow, QCompleter, QInputDialog,
                              QWidget, QSizePolicy, QStatusBar, QToolTip, QDialog,
-                             QMenu, QAction, QStackedWidget, QToolButton)
+                             QMenu, QAction, QStackedWidget, QToolButton, QTextBrowser)
 
 import electrum
 from electrum import (keystore, ecc, constants, util, bitcoin, commands,
@@ -82,6 +82,7 @@ from .exception_window import Exception_Hook
 from .amountedit import AmountEdit, BTCAmountEdit, FreezableLineEdit, FeerateEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
+from .terms_and_conditions_mixin import load_terms_and_conditions
 from .transaction_dialog import show_transaction
 from .fee_slider import FeeSlider, FeeComboBox
 from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialog,
@@ -773,9 +774,38 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         help_menu.addAction(_("&Check for updates"), self.show_update_check)
         help_menu.addAction(_("&Official website"), lambda: webopen("https://electriccash.global/"))
         help_menu.addSeparator()
+        help_menu.addAction(_("&Terms && Conditions"), self.terms_and_conditions_view)
         help_menu.addAction(_("&Documentation"), lambda: webopen("http://docs.electrum.org/")).setShortcut(QKeySequence.HelpContents)
         help_menu.addAction(_("&Report Bug"), self.show_report_bug)
         self.setMenuBar(menubar)
+
+    def terms_and_conditions_view(self):
+        terms = load_terms_and_conditions(self.config)
+        dialog = WindowModalDialog(self, _('Terms & Conditions'))
+        # size and icon position the same like in install wizard
+        dialog.setMinimumSize(600, 400)
+        main_vbox = QVBoxLayout(dialog)
+        logo_vbox = QVBoxLayout()
+        logo = QLabel()
+        logo.setPixmap(self.windowIcon().pixmap(QSize(60, 60)))
+        logo_vbox.addWidget(logo)
+        logo_vbox.addStretch(1)
+        logo_hbox = QHBoxLayout()
+        logo_hbox.addLayout(logo_vbox)
+        logo_hbox.addSpacing(5)
+        vbox = QVBoxLayout()
+        text_browser = QTextBrowser()
+        text_browser.setReadOnly(True)
+        text_browser.setOpenExternalLinks(True)
+        text_browser.setHtml(terms)
+        vbox.addWidget(text_browser)
+        footer = QHBoxLayout()
+        footer.addStretch(1)
+        footer.addWidget(OkButton(dialog))
+        vbox.addLayout(footer)
+        logo_hbox.addLayout(vbox)
+        main_vbox.addLayout(logo_hbox)
+        dialog.exec_()
 
     def show_about(self):
         QMessageBox.about(self, "ELCASH Wallet",

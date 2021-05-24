@@ -87,18 +87,19 @@ class TermsAndConditionsTextBrowser(QTextBrowser):
                 self.next_button.setEnabled(True)
 
 
-class TermsAndConditionsMixin:
-    def _read_terms_and_conditions(self) -> str:
-        base_dir = 'terms_and_conditions'
-        language = self.config.get('language', 'en_UK')
-        path = resource_path(base_dir, f'{language}.html')
+def load_terms_and_conditions(config):
+    base_dir = 'terms_and_conditions'
+    language = config.get('language', 'en_UK')
+    path = resource_path(base_dir, f'{language}.html')
+    if not os.path.exists(path):
+        path = resource_path(base_dir, 'en_UK.html')
         if not os.path.exists(path):
-            path = resource_path(base_dir, 'en_UK.html')
-            if not os.path.exists(path):
-                raise FileNotFoundError(f'Cannot open {path}')
-        with open(path, 'r', encoding='utf-8') as file:
-            return file.read()
+            raise FileNotFoundError(f'Cannot open {path}')
+    with open(path, 'r', encoding='utf-8') as file:
+        return file.read()
 
+
+class TermsAndConditionsMixin:
     def _render_main_dialog(self, text, run_warning=True):
         vbox = QVBoxLayout()
         text_browser = TermsAndConditionsTextBrowser(self.next_button)
@@ -135,5 +136,5 @@ class TermsAndConditionsMixin:
 
     def accept_terms_and_conditions(self) -> bool:
         self._remove_stretching_from_inner_vbox()
-        text = self._read_terms_and_conditions()
+        text = load_terms_and_conditions(self.config)
         return self._render_main_dialog(text, run_warning=True)
