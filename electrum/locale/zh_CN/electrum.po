@@ -3952,3 +3952,63 @@ msgstr "ELCASH地址永远不会过期，并且将始终是此ELCASH钱包的一
 
 msgid "You are most likely using an outdated version of Electrum. Please update."
 msgstr "您有可能使用的是Electrum的过时版本。 请更新。"
+
+msgid "  [%f unconfirmed]"
+msgstr "[%f 未検証]"
+
+msgid "  [%f unmatured]"
+msgstr "[%f 未成熟]"
+
+msgid " [%s unconfirmed]"
+msgstr "[%s 未検証]"
+
+msgid " [%s unmatured]"
+msgstr "[%s 未成熟]"
+
+msgid "&From file"
+msgstr "&来自文档"
+
+#, fuzzy
+msgid "Arabic"
+msgstr ""
+
+#, fuzzy
+msgid "Chinese Simplified"
+msgstr ""
+
+#, fuzzy
+msgid "German"
+msgstr ""
+
+#, fuzzy
+msgid "Japanese"
+msgstr ""
+
+#, fuzzy
+msgid "Korean"
+msgstr ""
+
+#, fuzzy
+msgid "Portuguese"
+msgstr ""
+
+msgid "Read file"
+msgstr "读取文件"
+
+msgid "Select installation language"
+msgstr "选择语言"
+
+#, fuzzy
+msgid "Spanish"
+msgstr ""
+
+#, fuzzy
+msgid "Turkish"
+msgstr ""
+
+#, fuzzy
+msgid "Vietnamese"
+msgstr ""
+
+msgid "unconfirmed"
+msgstr "未検証"

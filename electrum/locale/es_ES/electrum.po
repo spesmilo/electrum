@@ -3952,3 +3952,63 @@ msgstr "La dirección ELCASH nunca caduca y siempre formará parte de este moned
 
 msgid "You are most likely using an outdated version of Electrum. Please update."
 msgstr "Lo más probable es que esté utilizando una versión obsoleta de Electrum. Por favor, actualícela."
+
+msgid "  [%f unconfirmed]"
+msgstr "[%f sin confirmar]"
+
+msgid "  [%f unmatured]"
+msgstr "[%f inmaduro]"
+
+msgid " [%s unconfirmed]"
+msgstr "[%s sin confirmar]"
+
+msgid " [%s unmatured]"
+msgstr "[%s inmaduro]"
+
+msgid "&From file"
+msgstr "&Desde un archivo"
+
+#, fuzzy
+msgid "Arabic"
+msgstr ""
+
+#, fuzzy
+msgid "Chinese Simplified"
+msgstr ""
+
+#, fuzzy
+msgid "German"
+msgstr ""
+
+#, fuzzy
+msgid "Japanese"
+msgstr ""
+
+#, fuzzy
+msgid "Korean"
+msgstr ""
+
+#, fuzzy
+msgid "Portuguese"
+msgstr ""
+
+msgid "Read file"
+msgstr "Leer archivo"
+
+msgid "Select installation language"
+msgstr "Seleccione el idioma"
+
+#, fuzzy
+msgid "Spanish"
+msgstr ""
+
+#, fuzzy
+msgid "Turkish"
+msgstr ""
+
+#, fuzzy
+msgid "Vietnamese"
+msgstr ""
+
+msgid "unconfirmed"
+msgstr "sin confirmar"

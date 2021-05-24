@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2021-05-11 14:19+0200\n"
+"POT-Creation-Date: 2021-05-21 13:11+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -13,6 +13,22 @@ msgstr ""
 
 msgid "  (No FX rate available)"
 msgstr "  (No FX rate available)"
+
+#, python-format
+msgid "  [%f unconfirmed]"
+msgstr ""
+
+#, python-format
+msgid "  [%f unmatured]"
+msgstr ""
+
+#, python-format
+msgid " [%s unconfirmed]"
+msgstr ""
+
+#, python-format
+msgid " [%s unmatured]"
+msgstr ""
 
 msgid " confirmation"
 msgstr " confirmation"
@@ -42,6 +58,9 @@ msgid "&Filter"
 msgstr "&Filter"
 
 msgid "&From QR code"
+msgstr ""
+
+msgid "&From file"
 msgstr ""
 
 msgid "&From text"
@@ -265,6 +284,9 @@ msgstr "An encrypted transaction was retrieved from cosigning pool."
 
 msgid "An unnamed {}"
 msgstr "An unnamed {}"
+
+msgid "Arabic"
+msgstr ""
 
 msgid "Are you sure you want to delete this channel? This will purge associated transactions from your wallet history."
 msgstr "Are you sure you want to delete this channel? This will purge associated transactions from your wallet history."
@@ -491,6 +513,9 @@ msgstr "Child Pays for Parent"
 
 msgid "Child pays for parent"
 msgstr "Child pays for parent"
+
+msgid "Chinese Simplified"
+msgstr ""
 
 msgid "Choose Seed type"
 msgstr "Choose Seed type"
@@ -1212,6 +1237,9 @@ msgstr "General"
 msgid "Generate New Address"
 msgstr "Generate New Address"
 
+msgid "German"
+msgstr ""
+
 msgid "Google Authenticator code:"
 msgstr "Google Authenticator code:"
 
@@ -1485,6 +1513,9 @@ msgstr "It conflicts with current history."
 msgid "It sends and receives partially signed transactions from/to your cosigner wallet."
 msgstr "It sends and receives partially signed transactions from/to your cosigner wallet."
 
+msgid "Japanese"
+msgstr ""
+
 msgid "Join inputs/outputs"
 msgstr "Join inputs/outputs"
 
@@ -1496,6 +1527,9 @@ msgstr "Keystore"
 
 msgid "Keystore type"
 msgstr "Keystore type"
+
+msgid "Korean"
+msgstr ""
 
 msgid "Label"
 msgstr "Label"
@@ -2029,6 +2063,9 @@ msgstr "Please wait..."
 msgid "Port number must be decimal"
 msgstr "Port number must be decimal"
 
+msgid "Portuguese"
+msgstr ""
+
 msgid "Position in mempool: {} from tip"
 msgstr "Position in mempool: {} from tip"
 
@@ -2112,6 +2149,9 @@ msgstr "Raw"
 
 msgid "Read QR code"
 msgstr "Read QR code"
+
+msgid "Read file"
+msgstr ""
 
 msgid "Read from microphone"
 msgstr "Read from microphone"
@@ -2309,6 +2349,9 @@ msgstr "Select file to export your wallet transactions to"
 msgid "Select file to save your {}"
 msgstr "Select file to save your {}"
 
+msgid "Select installation language"
+msgstr ""
+
 msgid "Select keystore"
 msgstr "Select keystore"
 
@@ -2461,6 +2504,9 @@ msgstr "Sorry, but we were unable to check for updates. Please try again later."
 
 msgid "Source"
 msgstr "Source"
+
+msgid "Spanish"
+msgstr ""
 
 msgid "Spend"
 msgstr "Spend"
@@ -2879,6 +2925,9 @@ msgstr "Try to explain not only what the bug is, but how it occurs."
 msgid "Try to raise your transaction fee, or use a server with a lower relay fee."
 msgstr "Try to raise your transaction fee, or use a server with a lower relay fee."
 
+msgid "Turkish"
+msgstr ""
+
 msgid "Two Factor Authentication"
 msgstr "Two Factor Authentication"
 
@@ -3034,6 +3083,9 @@ msgstr "Version"
 
 msgid "Video Device"
 msgstr "Video Device"
+
+msgid "Vietnamese"
+msgstr ""
 
 msgid "View Channel"
 msgstr "View Channel"
@@ -3422,6 +3474,9 @@ msgstr "transaction is final"
 
 msgid "type a custom alphanumerical secret below:"
 msgstr "type a custom alphanumerical secret below:"
+
+msgid "unconfirmed"
+msgstr ""
 
 msgid "unknown"
 msgstr "unknown"

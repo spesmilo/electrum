@@ -3952,3 +3952,68 @@ msgstr "لا تنتهي صلاحية عنوان ELCASH أبدًا وسيكون �
 
 msgid "You are most likely using an outdated version of Electrum. Please update."
 msgstr "أنت على الأرجح تستخدم إصدارًا قديمًا من Electrum. يرجى التحديث."
+
+msgid "  [%f unconfirmed]"
+msgstr "[%f غير مؤكد]"
+
+#, fuzzy
+msgid "  [%f unmatured]"
+msgstr ""
+
+msgid " [%s unconfirmed]"
+msgstr "[%sغير مؤكد]"
+
+#, fuzzy
+msgid " [%s unmatured]"
+msgstr ""
+
+#, fuzzy
+msgid "&From file"
+msgstr ""
+
+#, fuzzy
+msgid "Arabic"
+msgstr ""
+
+#, fuzzy
+msgid "Chinese Simplified"
+msgstr ""
+
+#, fuzzy
+msgid "German"
+msgstr ""
+
+#, fuzzy
+msgid "Japanese"
+msgstr ""
+
+#, fuzzy
+msgid "Korean"
+msgstr ""
+
+#, fuzzy
+msgid "Portuguese"
+msgstr ""
+
+#, fuzzy
+msgid "Read file"
+msgstr ""
+
+#, fuzzy
+msgid "Select installation language"
+msgstr ""
+
+#, fuzzy
+msgid "Spanish"
+msgstr ""
+
+#, fuzzy
+msgid "Turkish"
+msgstr ""
+
+#, fuzzy
+msgid "Vietnamese"
+msgstr ""
+
+msgid "unconfirmed"
+msgstr "غير مؤكد"

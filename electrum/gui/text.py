@@ -134,7 +134,7 @@ class ElectrumGui:
                 except Exception:
                     time_str = "------"
             else:
-                time_str = 'unconfirmed'
+                time_str = _('unconfirmed')
 
             label = self.wallet.get_label_for_txid(hist_item.txid)
             if len(label) > 40:
@@ -153,9 +153,9 @@ class ElectrumGui:
                 c, u, x =  self.wallet.get_balance()
                 msg = _("Balance")+": %f  "%(Decimal(c) / COIN)
                 if u:
-                    msg += "  [%f unconfirmed]"%(Decimal(u) / COIN)
+                    msg += _("  [%f unconfirmed]") % (Decimal(u) / COIN)
                 if x:
-                    msg += "  [%f unmatured]"%(Decimal(x) / COIN)
+                    msg += _("  [%f unmatured]") % (Decimal(x) / COIN)
         else:
             msg = _("Not connected")
 

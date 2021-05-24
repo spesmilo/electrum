@@ -3953,3 +3953,63 @@ msgstr "Địa chỉ ELCASH không bao giờ hết hạn và sẽ luôn luôn l�
 
 msgid "You are most likely using an outdated version of Electrum. Please update."
 msgstr "Có  vẻ bạn đang sử dụng phiên bản cũ của Electrum. Xin hãy cập nhật."
+
+msgid "  [%f unconfirmed]"
+msgstr "[%f chưa được xác nhận]"
+
+msgid "  [%f unmatured]"
+msgstr "[%f không đạt chuẩn]"
+
+msgid " [%s unconfirmed]"
+msgstr "[%s chưa được xác nhận]"
+
+msgid " [%s unmatured]"
+msgstr "[%s không đạt chuẩn]"
+
+msgid "&From file"
+msgstr "&Từ tập tin"
+
+#, fuzzy
+msgid "Arabic"
+msgstr ""
+
+#, fuzzy
+msgid "Chinese Simplified"
+msgstr ""
+
+#, fuzzy
+msgid "German"
+msgstr ""
+
+#, fuzzy
+msgid "Japanese"
+msgstr ""
+
+#, fuzzy
+msgid "Korean"
+msgstr ""
+
+#, fuzzy
+msgid "Portuguese"
+msgstr ""
+
+msgid "Read file"
+msgstr "Đọc file"
+
+msgid "Select installation language"
+msgstr "Chọn ngôn ngữ"
+
+#, fuzzy
+msgid "Spanish"
+msgstr ""
+
+#, fuzzy
+msgid "Turkish"
+msgstr ""
+
+#, fuzzy
+msgid "Vietnamese"
+msgstr ""
+
+msgid "unconfirmed"
+msgstr "chưa được xác nhận"

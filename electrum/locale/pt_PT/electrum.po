@@ -3952,3 +3952,63 @@ msgstr "O endereço ELCASH nunca expira e fará sempre parte desta carteira ELCA
 
 msgid "You are most likely using an outdated version of Electrum. Please update."
 msgstr "É muito provável que esteja a utilizar uma versão desatualizada da Electrum. Por favor, faça a atualização."
+
+msgid "  [%f unconfirmed]"
+msgstr "[%f não confirmado]"
+
+msgid "  [%f unmatured]"
+msgstr "[%f imaturo]"
+
+msgid " [%s unconfirmed]"
+msgstr "[%s não confirmado]"
+
+msgid " [%s unmatured]"
+msgstr "[%s imaturo]"
+
+msgid "&From file"
+msgstr "&Desde o Ficheiro"
+
+#, fuzzy
+msgid "Arabic"
+msgstr ""
+
+#, fuzzy
+msgid "Chinese Simplified"
+msgstr ""
+
+#, fuzzy
+msgid "German"
+msgstr ""
+
+#, fuzzy
+msgid "Japanese"
+msgstr ""
+
+#, fuzzy
+msgid "Korean"
+msgstr ""
+
+#, fuzzy
+msgid "Portuguese"
+msgstr ""
+
+msgid "Read file"
+msgstr "Ler arquivo"
+
+msgid "Select installation language"
+msgstr "Selecione o idioma"
+
+#, fuzzy
+msgid "Spanish"
+msgstr ""
+
+#, fuzzy
+msgid "Turkish"
+msgstr ""
+
+#, fuzzy
+msgid "Vietnamese"
+msgstr ""
+
+msgid "unconfirmed"
+msgstr "não confirmado"

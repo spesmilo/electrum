@@ -3954,3 +3954,63 @@ msgstr "ELCASH adresinin kullanım süresi hiçbir zaman dolmayacaktır ve ELCAS
 
 msgid "You are most likely using an outdated version of Electrum. Please update."
 msgstr "Muhtemelen Electrum'un eski bir sürümünü kullanıyorsunuz. Lütfen güncelleyin."
+
+msgid "  [%f unconfirmed]"
+msgstr "[%f onaylanmamış]"
+
+msgid "  [%f unmatured]"
+msgstr "[%f olgunlaşmayan]"
+
+msgid " [%s unconfirmed]"
+msgstr "[%s onaylanmamış]"
+
+msgid " [%s unmatured]"
+msgstr "[%s olgunlaşmayan]"
+
+msgid "&From file"
+msgstr "&Dosyadan"
+
+#, fuzzy
+msgid "Arabic"
+msgstr ""
+
+#, fuzzy
+msgid "Chinese Simplified"
+msgstr ""
+
+#, fuzzy
+msgid "German"
+msgstr ""
+
+#, fuzzy
+msgid "Japanese"
+msgstr ""
+
+#, fuzzy
+msgid "Korean"
+msgstr ""
+
+#, fuzzy
+msgid "Portuguese"
+msgstr ""
+
+msgid "Read file"
+msgstr "Dosyayı oku"
+
+msgid "Select installation language"
+msgstr "Dili seçin"
+
+#, fuzzy
+msgid "Spanish"
+msgstr ""
+
+#, fuzzy
+msgid "Turkish"
+msgstr ""
+
+#, fuzzy
+msgid "Vietnamese"
+msgstr ""
+
+msgid "unconfirmed"
+msgstr "onaylanmamış"

@@ -104,9 +104,9 @@ class ElectrumGui:
                 try:
                     time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
                 except Exception:
-                    time_str = "unknown"
+                    time_str = _('unknown')
             else:
-                time_str = 'unconfirmed'
+                time_str = _('unconfirmed')
 
             label = self.wallet.get_label_for_txid(hist_item.txid)
             messages.append(format_str % (time_str, label, format_satoshis(delta, whitespaces=True),
@@ -126,9 +126,9 @@ class ElectrumGui:
                 c, u, x =  self.wallet.get_balance()
                 msg = _("Balance")+": %f  "%(Decimal(c) / COIN)
                 if u:
-                    msg += "  [%f unconfirmed]"%(Decimal(u) / COIN)
+                    msg += _("  [%f unconfirmed]") % (Decimal(u) / COIN)
                 if x:
-                    msg += "  [%f unmatured]"%(Decimal(x) / COIN)
+                    msg += _("  [%f unmatured]") % (Decimal(x) / COIN)
         else:
                 msg = _( "Not connected" )
 

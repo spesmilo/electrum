@@ -88,12 +88,6 @@ if TYPE_CHECKING:
 
 _logger = get_logger(__name__)
 
-TX_STATUS = [
-    _('Unconfirmed'),
-    _('Unconfirmed parent'),
-    _('Not Verified'),
-    _('Local'),
-]
 
 
 async def _append_utxos_to_inputs(*, inputs: List[PartialTxInput], network: 'Network',
@@ -1049,6 +1043,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             return copy.copy(self._labels)
 
     def get_tx_status(self, tx_hash, tx_mined_info: TxMinedInfo):
+        transaction_statuses = (
+            _('Unconfirmed'),
+            _('Unconfirmed parent'),
+            _('Not Verified'),
+            _('Local'),
+        )
         extra = []
         height = tx_mined_info.height
         conf = tx_mined_info.conf
@@ -1085,7 +1085,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         else:
             status = 3 + min(conf, 6)
         time_str = format_time(timestamp) if timestamp else _("unknown")
-        status_str = TX_STATUS[status] if status < 4 else time_str
+        status_str = transaction_statuses[status] if status < 4 else time_str
         if extra:
             status_str += ' [%s]'%(', '.join(extra))
         return status, status_str

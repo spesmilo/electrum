@@ -121,7 +121,7 @@ class HistoryNode(CustomNode):
         if is_lightning:
             status = 0
             if timestamp is None:
-                status_str = 'unconfirmed'
+                status_str = _('unconfirmed')
             else:
                 status_str = format_time(int(timestamp))
         else:

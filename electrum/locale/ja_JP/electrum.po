@@ -3952,3 +3952,63 @@ msgstr "ELCASHアドレスには有効期限がなく、常にELCASHウォレッ
 
 msgid "You are most likely using an outdated version of Electrum. Please update."
 msgstr "お使いのElectrumは古いバージョンのようです。更新してください。"
+
+msgid "  [%f unconfirmed]"
+msgstr "[%f 未検証]"
+
+msgid "  [%f unmatured]"
+msgstr "[%f 未成熟]"
+
+msgid " [%s unconfirmed]"
+msgstr "[%s 未検証]"
+
+msgid " [%s unmatured]"
+msgstr "[%s 未成熟]"
+
+msgid "&From file"
+msgstr "&ファイルより"
+
+#, fuzzy
+msgid "Arabic"
+msgstr ""
+
+#, fuzzy
+msgid "Chinese Simplified"
+msgstr ""
+
+#, fuzzy
+msgid "German"
+msgstr ""
+
+#, fuzzy
+msgid "Japanese"
+msgstr ""
+
+#, fuzzy
+msgid "Korean"
+msgstr ""
+
+#, fuzzy
+msgid "Portuguese"
+msgstr ""
+
+msgid "Read file"
+msgstr "ファイルを読み込む"
+
+msgid "Select installation language"
+msgstr "インストールする言語選択"
+
+#, fuzzy
+msgid "Spanish"
+msgstr ""
+
+#, fuzzy
+msgid "Turkish"
+msgstr ""
+
+#, fuzzy
+msgid "Vietnamese"
+msgstr ""
+
+msgid "unconfirmed"
+msgstr "未検証"

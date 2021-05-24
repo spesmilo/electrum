@@ -3952,3 +3952,63 @@ msgstr "ELCASH 주소는 만료되지 않으며 항상 이 ELCASH 지갑의 일�
 
 msgid "You are most likely using an outdated version of Electrum. Please update."
 msgstr "오래된 버전의 Electrum을 사용하고 있는 것으로 보입니다. 업데이트하십시오."
+
+msgid "  [%f unconfirmed]"
+msgstr "[%f 확인되지 않음]"
+
+msgid "  [%f unmatured]"
+msgstr "[%f 미성숙]"
+
+msgid " [%s unconfirmed]"
+msgstr "[%s 확인되지 않음]"
+
+msgid " [%s unmatured]"
+msgstr "[%s 미성숙]"
+
+msgid "&From file"
+msgstr "&파일로부터"
+
+#, fuzzy
+msgid "Arabic"
+msgstr ""
+
+#, fuzzy
+msgid "Chinese Simplified"
+msgstr ""
+
+#, fuzzy
+msgid "German"
+msgstr ""
+
+#, fuzzy
+msgid "Japanese"
+msgstr ""
+
+#, fuzzy
+msgid "Korean"
+msgstr ""
+
+#, fuzzy
+msgid "Portuguese"
+msgstr ""
+
+msgid "Read file"
+msgstr "파일 읽기"
+
+msgid "Select installation language"
+msgstr "설치 언어 선택"
+
+#, fuzzy
+msgid "Spanish"
+msgstr ""
+
+#, fuzzy
+msgid "Turkish"
+msgstr ""
+
+#, fuzzy
+msgid "Vietnamese"
+msgstr ""
+
+msgid "unconfirmed"
+msgstr "확인되지 않음"
