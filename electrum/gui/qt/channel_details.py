@@ -14,7 +14,7 @@ from electrum.lnaddr import LnAddr, lndecode
 from electrum.bitcoin import COIN
 from electrum.wallet import Abstract_Wallet
 
-from .util import Buttons, CloseButton, ButtonsLineEdit
+from .util import Buttons, CloseButton, ButtonsLineEdit, MessageBoxMixin
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -34,7 +34,8 @@ class LinkedLabel(QtWidgets.QLabel):
         super().__init__(text)
         self.linkActivated.connect(on_clicked)
 
-class ChannelDetailsDialog(QtWidgets.QDialog):
+
+class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin):
     def make_htlc_item(self, i: UpdateAddHtlc, direction: Direction) -> HTLCItem:
         it = HTLCItem(_('Sent HTLC with ID {}' if Direction.SENT == direction else 'Received HTLC with ID {}').format(i.htlc_id))
         it.appendRow([HTLCItem(_('Amount')),HTLCItem(self.format_msat(i.amount_msat))])
@@ -125,6 +126,9 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
     @QtCore.pyqtSlot(str)
     def show_tx(self, link_text: str):
         funding_tx = self.wallet.db.get_transaction(self.chan.funding_outpoint.txid)
+        if not funding_tx:
+            self.show_error(_("Funding transaction not found."))
+            return
         self.window.show_transaction(funding_tx, tx_desc=_('Funding Transaction'))
 
     def __init__(self, window: 'ElectrumWindow', chan_id: bytes):

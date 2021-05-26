@@ -519,10 +519,11 @@ class SwapManager(Logger):
         recv_amount = self._get_recv_amount(send_amount, is_reverse=is_reverse)
         # sanity check calculation can be inverted
         if recv_amount is not None:
-            inverted_recv_amount = self._get_send_amount(recv_amount, is_reverse=is_reverse)
-            if send_amount != inverted_recv_amount:
+            inverted_send_amount = self._get_send_amount(recv_amount, is_reverse=is_reverse)
+            # accept off-by ones as amt_rcv = recv_amt(send_amt(amt_rcv)) only up to +-1
+            if abs(send_amount - inverted_send_amount) > 1:
                 raise Exception(f"calc-invert-sanity-check failed. is_reverse={is_reverse}. "
-                                f"send_amount={send_amount} -> recv_amount={recv_amount} -> inverted_recv_amount={inverted_recv_amount}")
+                                f"send_amount={send_amount} -> recv_amount={recv_amount} -> inverted_send_amount={inverted_send_amount}")
         # account for on-chain claim tx fee
         if is_reverse and recv_amount is not None:
             recv_amount -= self.get_claim_fee()
@@ -532,10 +533,10 @@ class SwapManager(Logger):
         send_amount = self._get_send_amount(recv_amount, is_reverse=is_reverse)
         # sanity check calculation can be inverted
         if send_amount is not None:
-            inverted_send_amount = self._get_recv_amount(send_amount, is_reverse=is_reverse)
-            if recv_amount != inverted_send_amount:
+            inverted_recv_amount = self._get_recv_amount(send_amount, is_reverse=is_reverse)
+            if recv_amount != inverted_recv_amount:
                 raise Exception(f"calc-invert-sanity-check failed. is_reverse={is_reverse}. "
-                                f"recv_amount={recv_amount} -> send_amount={send_amount} -> inverted_send_amount={inverted_send_amount}")
+                                f"recv_amount={recv_amount} -> send_amount={send_amount} -> inverted_recv_amount={inverted_recv_amount}")
         # account for on-chain claim tx fee
         if is_reverse and send_amount is not None:
             send_amount += self.get_claim_fee()

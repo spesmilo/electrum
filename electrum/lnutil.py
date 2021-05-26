@@ -309,6 +309,12 @@ REDEEM_AFTER_DOUBLE_SPENT_DELAY = 30
 
 CHANNEL_OPENING_TIMEOUT = 24*60*60
 
+# Small capacity channels are problematic for many reasons. As the onchain fees start to become
+# significant compared to the capacity, things start to break down. e.g. the counterparty
+# force-closing the channel costs much of the funds in the channel.
+# Closing a channel uses ~200 vbytes onchain, feerates could spike to 100 sat/vbyte or even higher;
+# that in itself is already 20_000 sats. This mining fee is reserved and cannot be used for payments.
+# The value below is chosen arbitrarily to be one order of magnitude higher than that.
 MIN_FUNDING_SAT = 200_000
 
 ##### CLTV-expiry-delta-related values
@@ -1354,16 +1360,3 @@ class OnionFailureCodeMetaFlag(IntFlag):
     UPDATE   = 0x1000
 
 
-class ChannelBlackList:
-
-    def __init__(self):
-        self.blacklist = dict() # short_chan_id -> timestamp
-
-    def add(self, short_channel_id: ShortChannelID):
-        now = int(time.time())
-        self.blacklist[short_channel_id] = now
-
-    def get_current_list(self) -> Set[ShortChannelID]:
-        BLACKLIST_DURATION = 3600
-        now = int(time.time())
-        return set(k for k, t in self.blacklist.items() if now - t < BLACKLIST_DURATION)

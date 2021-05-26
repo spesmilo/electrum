@@ -23,13 +23,26 @@ RUN apt-get update -q && \
         libncurses5-dev=6.0+20160213-1ubuntu1 \
         libsqlite3-dev=3.11.0-1ubuntu1.5 \
         libusb-1.0-0-dev=2:1.0.20-1 \
-        libudev-dev=229-4ubuntu21.29 \
+        libudev-dev=229-4ubuntu21.31 \
         gettext=0.19.7-2ubuntu3.1 \
         libzbar0=0.10+doc-10ubuntu1  \
         libdbus-1-3=1.10.6-1ubuntu3.6 \
         libxkbcommon-x11-0=0.5.0-1ubuntu2.1 \
-        libxcb-util1=0.4.0-0ubuntu3 \
+        libxcb1=1.11.1-1ubuntu1 \
         libxcb-xinerama0=1.11.1-1ubuntu1 \
+        libxcb-randr0=1.11.1-1ubuntu1 \
+        libxcb-render0=1.11.1-1ubuntu1 \
+        libxcb-shm0=1.11.1-1ubuntu1 \
+        libxcb-shape0=1.11.1-1ubuntu1 \
+        libxcb-sync1=1.11.1-1ubuntu1 \
+        libxcb-xfixes0=1.11.1-1ubuntu1 \
+        libxcb-xkb1=1.11.1-1ubuntu1 \
+        libxcb-icccm4=0.4.1-1ubuntu1 \
+        libxcb-image0=0.4.0-1build1 \
+        libxcb-keysyms1=0.4.0-1 \
+        libxcb-util1=0.4.0-0ubuntu3 \
+        libxcb-render-util0=0.3.9-1 \
+        libx11-xcb1=2:1.6.3-1ubuntu2.2 \
         libc6-dev=2.23-0ubuntu11.2 \
         && \
     rm -rf /var/lib/apt/lists/* && \

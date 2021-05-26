@@ -776,7 +776,7 @@ mainnet_block_explorers = {
     'mempool.space': ('https://mempool.space/',
                         {'tx': 'tx/', 'addr': 'address/'}),
     'mempool.emzy.de': ('https://mempool.emzy.de/',
-                        {'tx': 'tx/', 'addr': 'address/'}),  
+                        {'tx': 'tx/', 'addr': 'address/'}),
     'OXT.me': ('https://oxt.me/',
                         {'tx': 'transaction/', 'addr': 'address/'}),
     'smartbit.com.au': ('https://www.smartbit.com.au/',
@@ -797,7 +797,7 @@ testnet_block_explorers = {
     'Blockstream.info': ('https://blockstream.info/testnet/',
                         {'tx': 'tx/', 'addr': 'address/'}),
     'mempool.space': ('https://mempool.space/testnet/',
-                        {'tx': 'tx/', 'addr': 'address/'}),    
+                        {'tx': 'tx/', 'addr': 'address/'}),
     'smartbit.com.au': ('https://testnet.smartbit.com.au/',
                        {'tx': 'tx/', 'addr': 'address/'}),
     'system default': ('blockchain://000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943/',
@@ -872,7 +872,7 @@ class InvalidBitcoinURI(Exception): pass
 def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
     """Raises InvalidBitcoinURI on malformed URI."""
     from . import bitcoin
-    from .bitcoin import COIN
+    from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 
     if not isinstance(uri, str):
         raise InvalidBitcoinURI(f"expected string, not {repr(uri)}")
@@ -912,6 +912,8 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
                 amount = Decimal(m.group(1)) * pow(Decimal(10), k)
             else:
                 amount = Decimal(am) * COIN
+            if amount > TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN:
+                raise InvalidBitcoinURI(f"amount is out-of-bounds: {amount!r} BTC")
             out['amount'] = int(amount)
         except Exception as e:
             raise InvalidBitcoinURI(f"failed to parse 'amount' field: {repr(e)}") from e
@@ -1114,6 +1116,14 @@ def ignore_exceptions(func):
         except Exception as e:
             pass
     return wrapper
+
+
+def with_lock(func):
+    """Decorator to enforce a lock on a function call."""
+    def func_wrapper(self, *args, **kwargs):
+        with self.lock:
+            return func(self, *args, **kwargs)
+    return func_wrapper
 
 
 class TxMinedInfo(NamedTuple):

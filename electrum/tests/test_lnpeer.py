@@ -33,7 +33,7 @@ from electrum import lnmsg
 from electrum.logging import console_stderr_handler, Logger
 from electrum.lnworker import PaymentInfo, RECEIVED
 from electrum.lnonion import OnionFailureCode
-from electrum.lnutil import ChannelBlackList, derive_payment_secret_from_payment_preimage
+from electrum.lnutil import derive_payment_secret_from_payment_preimage
 from electrum.lnutil import LOCAL, REMOTE
 from electrum.invoices import PR_PAID, PR_UNPAID
 
@@ -66,7 +66,6 @@ class MockNetwork:
         self.path_finder = LNPathFinder(self.channel_db)
         self.tx_queue = tx_queue
         self._blockchain = MockBlockchain()
-        self.channel_blacklist = ChannelBlackList()
 
     @property
     def callback_lock(self):
@@ -807,7 +806,7 @@ class TestPeer(TestCaseForTestnet):
             run(f())
 
     @needs_test_with_all_chacha20_implementations
-    def test_payment_with_temp_channel_failure(self):
+    def test_payment_with_temp_channel_failure_and_liquidty_hints(self):
         # prepare channels such that a temporary channel failure happens at c->d
         funds_distribution = {
             'ac': (200_000_000, 200_000_000),  # low fees
@@ -815,12 +814,11 @@ class TestPeer(TestCaseForTestnet):
             'ab': (200_000_000, 200_000_000),  # high fees
             'bd': (200_000_000, 200_000_000),  # high fees
         }
-        # the payment happens in three attempts:
-        # 1. along ac->cd due to low fees with temp channel failure:
+        # the payment happens in two attempts:
+        # 1. along a->c->d due to low fees with temp channel failure:
         #   with chanupd: ORPHANED, private channel update
-        # 2. along ac->cd with temp channel failure:
-        #   with chanupd: ORPHANED, private channel update, but already received, channel gets blacklisted
-        # 3. along ab->bd with success
+        #   c->d gets a liquidity hint and gets blocked
+        # 2. along a->b->d with success
         amount_to_pay = 100_000_000
         graph = self.prepare_chans_and_peers_in_square(funds_distribution)
         peers = graph.all_peers()
@@ -828,9 +826,30 @@ class TestPeer(TestCaseForTestnet):
             self.assertEqual(PR_UNPAID, graph.w_d.get_payment_status(lnaddr.paymenthash))
             result, log = await graph.w_a.pay_invoice(pay_req, attempts=3)
             self.assertTrue(result)
+            self.assertEqual(2, len(log))
             self.assertEqual(PR_PAID, graph.w_d.get_payment_status(lnaddr.paymenthash))
             self.assertEqual(OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, log[0].failure_msg.code)
-            self.assertEqual(OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, log[1].failure_msg.code)
+
+            liquidity_hints = graph.w_a.network.path_finder.liquidity_hints
+            pubkey_a = graph.w_a.node_keypair.pubkey
+            pubkey_b = graph.w_b.node_keypair.pubkey
+            pubkey_c = graph.w_c.node_keypair.pubkey
+            pubkey_d = graph.w_d.node_keypair.pubkey
+            # check liquidity hints for failing route:
+            hint_ac = liquidity_hints.get_hint(graph.chan_ac.short_channel_id)
+            hint_cd = liquidity_hints.get_hint(graph.chan_cd.short_channel_id)
+            self.assertEqual(amount_to_pay, hint_ac.can_send(pubkey_a < pubkey_c))
+            self.assertEqual(None, hint_ac.cannot_send(pubkey_a < pubkey_c))
+            self.assertEqual(None, hint_cd.can_send(pubkey_c < pubkey_d))
+            self.assertEqual(amount_to_pay, hint_cd.cannot_send(pubkey_c < pubkey_d))
+            # check liquidity hints for successful route:
+            hint_ab = liquidity_hints.get_hint(graph.chan_ab.short_channel_id)
+            hint_bd = liquidity_hints.get_hint(graph.chan_bd.short_channel_id)
+            self.assertEqual(amount_to_pay, hint_ab.can_send(pubkey_a < pubkey_b))
+            self.assertEqual(None, hint_ab.cannot_send(pubkey_a < pubkey_b))
+            self.assertEqual(amount_to_pay, hint_bd.can_send(pubkey_b < pubkey_d))
+            self.assertEqual(None, hint_bd.cannot_send(pubkey_b < pubkey_d))
+
             raise PaymentDone()
         async def f():
             async with TaskGroup() as group:

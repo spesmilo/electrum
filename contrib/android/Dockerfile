@@ -160,8 +160,8 @@ RUN cd /opt \
     && cd buildozer \
     && git remote add sombernight https://github.com/SomberNight/buildozer \
     && git fetch --all \
-    # commit: kivy/buildozer "1.2.0" tag
-    && git checkout "94cfcb8d591c11d6ad0e11f129b08c1e27a161c5^{commit}" \
+    # commit: from branch sombernight/electrum_20210421
+    && git checkout "c17ac3618334c9936253e8f5b88dce43dc4da75b^{commit}" \
     && python3 -m pip install --user -e .
 
 # install python-for-android
@@ -170,8 +170,8 @@ RUN cd /opt \
     && cd python-for-android \
     && git remote add sombernight https://github.com/SomberNight/python-for-android \
     && git fetch --all \
-    # commit: from branch sombernight/electrum_20200703
-    && git checkout "0dd2ce87a8f380d20505ca5dc1e2d2357b4a08fc^{commit}" \
+    # commit: from branch sombernight/electrum_20210421
+    && git checkout "5356bc7838b03c8c174c91fe01539c91d1b40b9f^{commit}" \
     && python3 -m pip install --user -e .
 
 # build env vars

@@ -346,15 +346,15 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             tx = self.tx
         if isinstance(tx, PartialTransaction):
             tx.finalize_psbt()
+        txid = tx.txid()
+        suffix = txid[0:8] if txid is not None else time.strftime('%Y%m%d-%H%M')
         if tx.is_complete():
-            name = 'signed_%s' % (tx.txid()[0:8])
             extension = 'txn'
             default_filter = TRANSACTION_FILE_EXTENSION_FILTER_ONLY_COMPLETE_TX
         else:
-            name = self.wallet.basename() + time.strftime('-%Y%m%d-%H%M')
             extension = 'psbt'
             default_filter = TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX
-        name = f'{name}.{extension}'
+        name = f'{self.wallet.basename()}-{suffix}.{extension}'
         fileName = getSaveFileName(
             parent=self,
             title=_("Select where to save your transaction"),

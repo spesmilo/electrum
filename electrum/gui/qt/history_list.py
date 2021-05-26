@@ -81,6 +81,10 @@ TX_ICONS = [
     "confirmed.png",
 ]
 
+
+ROLE_SORT_ORDER = Qt.UserRole + 1000
+
+
 class HistoryColumns(IntEnum):
     STATUS = 0
     DESCRIPTION = 1
@@ -93,8 +97,8 @@ class HistoryColumns(IntEnum):
 
 class HistorySortModel(QSortFilterProxyModel):
     def lessThan(self, source_left: QModelIndex, source_right: QModelIndex):
-        item1 = self.sourceModel().data(source_left, Qt.UserRole)
-        item2 = self.sourceModel().data(source_right, Qt.UserRole)
+        item1 = self.sourceModel().data(source_left, ROLE_SORT_ORDER)
+        item2 = self.sourceModel().data(source_right, ROLE_SORT_ORDER)
         if item1 is None or item2 is None:
             raise Exception(f'UserRole not set for column {source_left.column()}')
         v1 = item1.value()
@@ -136,8 +140,7 @@ class HistoryNode(CustomNode):
                 tx_mined_info = self.model.tx_mined_info_from_tx_item(tx_item)
                 status, status_str = window.wallet.get_tx_status(tx_hash, tx_mined_info)
 
-        if role == Qt.UserRole:
-            # for sorting
+        if role == ROLE_SORT_ORDER:
             d = {
                 HistoryColumns.STATUS:
                     # respect sort order of self.transactions (wallet.get_full_history)
@@ -158,6 +161,8 @@ class HistoryNode(CustomNode):
                 HistoryColumns.TXID: tx_hash if not is_lightning else None,
             }
             return QVariant(d[col])
+        if role == MyTreeView.ROLE_EDIT_KEY:
+            return QVariant(get_item_key(tx_item))
         if role not in (Qt.DisplayRole, Qt.EditRole):
             if col == HistoryColumns.STATUS and role == Qt.DecorationRole:
                 icon = "lightning" if is_lightning else TX_ICONS[status]
@@ -450,7 +455,9 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             return False
 
     def __init__(self, parent, model: HistoryModel):
-        super().__init__(parent, self.create_menu, stretch_column=HistoryColumns.DESCRIPTION)
+        super().__init__(parent, self.create_menu,
+                         stretch_column=HistoryColumns.DESCRIPTION,
+                         editable_columns=[HistoryColumns.DESCRIPTION, HistoryColumns.FIAT_VALUE])
         self.config = parent.config
         self.hm = model
         self.proxy = HistorySortModel(self)
@@ -464,7 +471,6 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.create_toolbar_buttons()
         self.wallet = self.parent.wallet  # type: Abstract_Wallet
         self.sortByColumn(HistoryColumns.STATUS, Qt.AscendingOrder)
-        self.editable_columns |= {HistoryColumns.FIAT_VALUE}
         self.setRootIsDecorated(True)
         self.header().setStretchLastSection(False)
         for col in HistoryColumns:
@@ -634,8 +640,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         except NothingToPlotException as e:
             self.parent.show_message(str(e))
 
-    def on_edited(self, index, user_role, text):
-        index = self.model().mapToSource(index)
+    def on_edited(self, idx, edit_key, *, text):
+        index = self.model().mapToSource(idx)
         tx_item = index.internalPointer().get_data()
         column = index.column()
         key = get_item_key(tx_item)
@@ -834,7 +840,9 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                 from electrum.util import json_encode
                 f.write(json_encode(txns))
 
-    def get_text_and_userrole_from_coordinate(self, row, col):
+    def get_text_from_coordinate(self, row, col):
+        return self.get_role_data_from_coordinate(row, col, role=Qt.DisplayRole)
+
+    def get_role_data_from_coordinate(self, row, col, *, role):
         idx = self.model().mapToSource(self.model().index(row, col))
-        tx_item = idx.internalPointer().get_data()
-        return self.hm.data(idx, Qt.DisplayRole).value(), get_item_key(tx_item)
+        return self.hm.data(idx, role).value()

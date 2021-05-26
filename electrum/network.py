@@ -62,10 +62,10 @@ from .version import PROTOCOL_VERSION
 from .simple_config import SimpleConfig
 from .i18n import _
 from .logging import get_logger, Logger
-from .lnutil import ChannelBlackList
 
 if TYPE_CHECKING:
     from .channel_db import ChannelDB
+    from .lnrouter import LNPathFinder
     from .lnworker import LNGossip
     from .lnwatcher import WatchTower
     from .daemon import Daemon
@@ -254,10 +254,10 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     default_server: ServerAddr
     _recent_servers: List[ServerAddr]
 
-    channel_blacklist: 'ChannelBlackList'
     channel_db: Optional['ChannelDB'] = None
     lngossip: Optional['LNGossip'] = None
     local_watchtower: Optional['WatchTower'] = None
+    path_finder: Optional['LNPathFinder'] = None
 
     def __init__(self, config: SimpleConfig, *, daemon: 'Daemon' = None):
         global _INSTANCE
@@ -350,7 +350,6 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self._has_ever_managed_to_connect_to_server = False
 
         # lightning network
-        self.channel_blacklist = ChannelBlackList()
         if self.config.get('run_watchtower', False):
             from . import lnwatcher
             self.local_watchtower = lnwatcher.WatchTower(self)
@@ -385,6 +384,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             if full_shutdown:
                 await self.channel_db.stopped_event.wait()
             self.channel_db = None
+            self.path_finder = None
 
     def run_from_another_thread(self, coro, *, timeout=None):
         assert self._loop_thread != threading.current_thread(), 'must not be called from network thread'
@@ -534,7 +534,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 return {}
             return self.interface.fee_estimates_eta
 
-    def update_fee_estimates(self, *, fee_est: Dict = None):
+    def update_fee_estimates(self, *, fee_est: Dict[int, int] = None):
         if fee_est is None:
             fee_est = self.get_fee_estimates()
         for nblock_target, fee in fee_est.items():

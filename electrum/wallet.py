@@ -586,6 +586,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         """Returns a map: pubkey -> (keystore, derivation_suffix)"""
         return {}
 
+    def is_lightning_funding_tx(self, txid: Optional[str]) -> bool:
+        if not self.lnworker or txid is None:
+            return False
+        return any([chan.funding_outpoint.txid == txid
+                    for chan in self.lnworker.channels.values()])
+
     def get_tx_info(self, tx: Transaction) -> TxWalletDetails:
         tx_wallet_delta = self.get_wallet_delta(tx)
         is_relevant = tx_wallet_delta.is_relevant
@@ -596,10 +602,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         can_bump = False
         can_cpfp = False
         tx_hash = tx.txid()  # note: txid can be None! e.g. when called from GUI tx dialog
-        is_lightning_funding_tx = False
-        if self.has_lightning() and tx_hash is not None:
-            is_lightning_funding_tx = any([chan.funding_outpoint.txid == tx_hash
-                                           for chan in self.lnworker.channels.values()])
+        is_lightning_funding_tx = self.is_lightning_funding_tx(tx_hash)
         tx_we_already_have_in_db = self.db.get_transaction(tx_hash)
         can_save_as_local = (is_relevant and tx.txid() is not None
                              and (tx_we_already_have_in_db is None or not tx_we_already_have_in_db.is_complete()))
@@ -925,6 +928,11 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 ln_value = Decimal(item['amount_msat']) / 1000   # for channel open/close tx
                 tx_item['ln_value'] = Satoshis(ln_value)
             else:
+                if item['type'] == 'swap':
+                    # swap items do not have all the fields. We can skip skip them
+                    # because they will eventually be in onchain_history
+                    # TODO: use attr.s objects instead of dicts
+                    continue
                 transactions_tmp[txid] = item
                 ln_value = Decimal(item['amount_msat']) / 1000   # for channel open/close tx
                 item['ln_value'] = Satoshis(ln_value)
@@ -1131,7 +1139,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         item['fiat_currency'] = fx.ccy
         item['fiat_rate'] = Fiat(fiat_rate, fx.ccy)
         item['fiat_value'] = Fiat(fiat_value, fx.ccy)
-        item['fiat_fee'] = Fiat(fiat_fee, fx.ccy) if fiat_fee else None
+        item['fiat_fee'] = Fiat(fiat_fee, fx.ccy) if fiat_fee is not None else None
         item['fiat_default'] = fiat_default
         if amount_sat < 0:
             acquisition_price = - amount_sat / Decimal(COIN) * self.average_price(tx_hash, fx.timestamp_rate, fx.ccy)
@@ -1236,6 +1244,9 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             # all inputs should be is_mine
             if not all([self.is_mine(self.get_txin_address(txin)) for txin in tx.inputs()]):
                 continue
+            # do not mutate LN funding txs, as that would change their txid
+            if self.is_lightning_funding_tx(txid):
+                continue
             # prefer txns already in mempool (vs local)
             if hist_item.tx_mined_status.height == TX_HEIGHT_LOCAL:
                 candidate = tx
@@ -1312,6 +1323,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             is_sweep=False,
             rbf=False) -> PartialTransaction:
 
+        if not coins:  # any bitcoin tx must have at least 1 input by consensus
+            raise NotEnoughFunds()
         if any([c.already_has_some_signatures() for c in coins]):
             raise Exception("Some inputs already contain signatures!")
 

@@ -1,3 +1,22 @@
+# Release 4.1.2 - (April 8, 2021)
+ * Qt GUI:
+    - fix some crashes when exiting (#6889)
+    - make sure pressing Ctrl-C always quits (c41cd4ae)
+ * Kivy GUI (Android):
+    - fix bug with scrollbar, again (#7155)
+    - 2fa wallets: fix making transactions (#7190)
+    - implement freezing addresses (#7178)
+ * Android: use more modern application launcher/icon (#7187)
+
+
+# Release 4.1.1 - (April 2, 2021)
+ * fix Qt crash with the swap dialog
+ * fix Kivy bug with scrollbar (#7155)
+ * fix localization issues (#7158 #4621)
+ * fix python crash with swaps (#7160)
+ * other minor fixes
+
+
 # Release 4.1.0 - Kangaroo (March 30, 2021)
 
 This version is our second major release with support for the
@@ -448,6 +467,11 @@ below are user-visible.
  * Several other minor bugfixes and usability improvements.
 
 
+# Release 3.2.4 - (December 30, 2018)
+
+ * backport anti-phishing measures from master
+
+
 # Release 3.2.3 - (September 3, 2018)
 
  * hardware wallet: the Safe-T mini from Archos is now supported.
@@ -761,6 +785,10 @@ issue #3374. Users should upgrade to 3.0.5.
     current block. Other values of locktime may be passed using the
     command line.
 
+
+# Release 2.9.4 (security update)
+  * Backport security fixes from 3.0.5 after vulnerability was
+    discovered in JSONRPC interface.
 
 # Release 2.9.3
   * fix configuration file issue #2719

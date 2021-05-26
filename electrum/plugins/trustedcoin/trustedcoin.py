@@ -315,11 +315,17 @@ class Wallet_2fa(Multisig_Wallet):
             raise Exception('too high trustedcoin fee ({} for {} txns)'.format(price, n))
         return price
 
-    def make_unsigned_transaction(self, *, coins: Sequence[PartialTxInput],
-                                  outputs: List[PartialTxOutput], fee=None,
-                                  change_addr: str = None, is_sweep=False) -> PartialTransaction:
+    def make_unsigned_transaction(
+            self, *,
+            coins: Sequence[PartialTxInput],
+            outputs: List[PartialTxOutput],
+            fee=None,
+            change_addr: str = None,
+            is_sweep=False,
+            rbf=False) -> PartialTransaction:
+
         mk_tx = lambda o: Multisig_Wallet.make_unsigned_transaction(
-            self, coins=coins, outputs=o, fee=fee, change_addr=change_addr)
+            self, coins=coins, outputs=o, fee=fee, change_addr=change_addr, rbf=rbf)
         extra_fee = self.extra_fee() if not is_sweep else 0
         if extra_fee:
             address = self.billing_info['billing_address_segwit']
@@ -551,6 +557,8 @@ class TrustedCoinPlugin(BasePlugin):
     def create_seed(self, wizard, seed_type):
         seed = self.make_seed(seed_type)
         f = lambda x: wizard.request_passphrase(seed, x)
+        wizard.opt_bip39 = False
+        wizard.opt_ext = True
         wizard.show_seed_dialog(run_next=f, seed_text=seed)
 
     @classmethod

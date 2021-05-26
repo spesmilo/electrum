@@ -42,8 +42,8 @@ requirements =
     android,
     openssl,
     plyer,
-    # kivy 2.0.0
-    kivy==dedcb6bcabe3d8d6758dcee607e8c33b174d782b,
+    # kivy master 2020-12-10 (2.0.0 plus a few bugfixes)
+    kivy==2debbc3b1484b14824112986cb03b1072a60fbfc,
     libffi,
     libsecp256k1,
     cryptography
@@ -53,7 +53,9 @@ requirements =
 presplash.filename = %(source.dir)s/electrum/gui/icons/electrum_presplash.png
 
 # (str) Icon of the application
-icon.filename = %(source.dir)s/electrum/gui/icons/electrum_launcher.png
+icon.filename = %(source.dir)s/electrum/gui/icons/android_electrum_icon_legacy.png
+icon.adaptive_foreground.filename = %(source.dir)s/electrum/gui/icons/android_electrum_icon_foreground.png
+icon.adaptive_background.filename = %(source.dir)s/electrum/gui/icons/android_electrum_icon_background.png
 
 # (str) Supported orientation (one of landscape, portrait or all)
 orientation = portrait
@@ -138,7 +140,7 @@ android.manifest.launch_mode = singleTask
 
 # (str) The Android arch to build for, choices: armeabi-v7a, arm64-v8a, x86, x86_64
 # note: can be overwritten by APP_ANDROID_ARCH env var
-android.arch = armeabi-v7a
+#android.arch = armeabi-v7a
 
 # (list) Android application meta-data to set (key=value format)
 #android.meta_data =
@@ -149,6 +151,8 @@ android.arch = armeabi-v7a
 
 android.whitelist = lib-dynload/_csv.so
 
+# (bool) enables Android auto backup feature (Android API >=23)
+android.allow_backup = False
 
 #
 # Python for android (p4a) specific

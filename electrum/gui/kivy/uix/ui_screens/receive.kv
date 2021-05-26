@@ -86,7 +86,7 @@
                 height: blue_bottom.item_height
                 spacing: '5dp'
                 Image:
-                    source: f'atlas://{KIVY_GUI_PATH}/theming/light/lightning' if root.is_lightning else f'atlas://{KIVY_GUI_PATH}/theming/light/globe'
+                    source: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/lightning' if root.is_lightning else f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/globe'
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
@@ -103,7 +103,7 @@
                 height: blue_bottom.item_height
                 spacing: '5dp'
                 Image:
-                    source: f'atlas://{KIVY_GUI_PATH}/theming/light/calculator'
+                    source: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/calculator'
                     opacity: 0.7
                     size_hint: None, None
                     size: '22dp', '22dp'
@@ -123,7 +123,7 @@
                 height: blue_bottom.item_height
                 spacing: '5dp'
                 Image:
-                    source: f'atlas://{KIVY_GUI_PATH}/theming/light/pen'
+                    source: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/pen'
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
@@ -135,7 +135,7 @@
             size_hint: 1, None
             height: '48dp'
             IconButton:
-                icon: f'atlas://{KIVY_GUI_PATH}/theming/light/clock1'
+                icon: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/clock1'
                 size_hint: 0.5, None
                 height: '48dp'
                 on_release: Clock.schedule_once(lambda dt: s.expiration_dialog(s))

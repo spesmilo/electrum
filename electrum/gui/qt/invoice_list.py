@@ -65,8 +65,7 @@ class InvoiceList(MyTreeView):
 
     def __init__(self, parent):
         super().__init__(parent, self.create_menu,
-                         stretch_column=self.Columns.DESCRIPTION,
-                         editable_columns=[])
+                         stretch_column=self.Columns.DESCRIPTION)
         self.std_model = QStandardItemModel(self)
         self.proxy = MySortModel(self, sort_role=ROLE_SORT_ORDER)
         self.proxy.setSourceModel(self.std_model)
