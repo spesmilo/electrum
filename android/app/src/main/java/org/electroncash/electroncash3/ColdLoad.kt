@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import com.chaquo.python.Kwarg
 import com.chaquo.python.PyException
 import com.chaquo.python.PyObject
 import com.google.zxing.integration.android.IntentIntegrator
@@ -186,7 +187,8 @@ class SignPasswordDialog : PasswordDialog<Unit>() {
     val coldLoadDialog by lazy { targetFragment as ColdLoadDialog }
     val signSchnorr = daemonModel.walletType == "standard"
 
-    val tx by lazy { libTransaction.callAttr("Transaction", arguments!!.getString("tx"), signSchnorr) }
+    val tx by lazy { libTransaction.callAttr("Transaction", arguments!!.getString("tx"),
+                                             Kwarg("sign_schnorr", signSchnorr)) }
     val wallet = daemonModel.wallet!!
 
     override fun onPassword(password: String) {
