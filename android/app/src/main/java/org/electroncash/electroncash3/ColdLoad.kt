@@ -38,6 +38,7 @@ class ColdLoadDialog : AlertDialogFragment() {
         updateUI()
 
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onOK() }
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { scanQR(this) }
         btnPaste.setOnClickListener {
             val clipdata = getSystemService(ClipboardManager::class).primaryClip
@@ -50,11 +51,11 @@ class ColdLoadDialog : AlertDialogFragment() {
 
     private fun updateUI() {
         val currenttext = etTransaction.text
-        //checks if text is blank. further validations can be added here
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = currenttext.isNotBlank()
-
         val tx: PyObject
+
+        //checks if text is blank. further validations can be added here
         if (currenttext.isNotBlank()) {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
             tx = libTransaction.callAttr("Transaction", etTransaction.text.toString())
 
             updateStatusText(tx)
