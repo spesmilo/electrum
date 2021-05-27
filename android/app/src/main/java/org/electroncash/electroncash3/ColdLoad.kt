@@ -79,8 +79,8 @@ class ColdLoadDialog : AlertDialogFragment() {
 
         // Try to decode the QR content as Base43; if that fails, treat it as is
         val txHex: String = try {
-            Base43.decode(result.contents)
-        } catch (e: IllegalArgumentException) {
+            baseDecode(result.contents, 43)
+        } catch (e: PyException) {
             result.contents
         }
 
