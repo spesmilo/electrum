@@ -4,9 +4,6 @@ package org.electroncash.electroncash3
 
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
@@ -240,7 +237,7 @@ class MainActivity : AppCompatActivity(R.layout.main) {
             }
             R.id.menuChangePassword -> showDialog(this, PasswordChangeDialog())
             R.id.menuShowSeed -> { showDialog(this, SeedPasswordDialog()) }
-            R.id.menuMasterPublicKey -> { showDialog(this, WalletInformationDialog()) }
+            R.id.menuWalletInformation -> { showDialog(this, WalletInformationDialog()) }
             R.id.menuExportSigned -> {
                 try {
                     showDialog(this, SendDialog().apply {

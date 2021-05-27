@@ -41,7 +41,7 @@ class NewWalletDialog1 : AlertDialogFragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        spnWalletKind.adapter = MenuAdapter(context!!, R.menu.wallet_kind)
+        spnWalletType.adapter = MenuAdapter(context!!, R.menu.wallet_kind)
     }
 
     override fun onShowDialog() {
@@ -56,7 +56,7 @@ class NewWalletDialog1 : AlertDialogFragment() {
                     putString("password", password)
                 }
 
-                when (spnWalletKind.selectedItemId.toInt()) {
+                when (spnWalletType.selectedItemId.toInt()) {
                     R.id.menuStandardWallet -> {
                         nextDialog = KeystoreDialog()
                         showDialog(this, nextDialog.apply { setArguments(arguments) })
@@ -66,7 +66,7 @@ class NewWalletDialog1 : AlertDialogFragment() {
                         showDialog(this, nextDialog.apply { setArguments(arguments) })
                     }
                     else -> {
-                        throw Exception("Unknown item: ${spnWalletKind.selectedItem}")
+                        throw Exception("Unknown item: ${spnWalletType.selectedItem}")
                     }
                 }
 

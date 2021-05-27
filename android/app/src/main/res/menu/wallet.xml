@@ -19,7 +19,7 @@
         android:title="@string/show_seed"/>
 
     <item
-        android:id="@+id/menuMasterPublicKey"
+        android:id="@+id/menuWalletInformation"
         android:title="@string/information" />
     <item
         android:id="@+id/menuExportSigned"

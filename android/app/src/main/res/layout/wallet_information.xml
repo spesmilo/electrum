@@ -15,38 +15,34 @@
             android:layout_width="0dp"
             android:layout_height="21dp"
             android:layout_marginStart="24dp"
-            android:layout_marginTop="24dp"
             android:gravity="fill_horizontal"
             android:text="@string/wallet_name"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+            app:layout_constraintBaseline_toBaselineOf="@+id/idWalletName"
+            app:layout_constraintStart_toStartOf="parent" />
 
         <TextView
             android:id="@+id/textView29"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="24dp"
-            android:layout_marginTop="10dp"
             android:text="@string/wallet_type"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/textView28" />
+            app:layout_constraintBaseline_toBaselineOf="@+id/idWalletType"
+            app:layout_constraintStart_toStartOf="parent" />
 
         <TextView
             android:id="@+id/textView30"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="24dp"
-            android:layout_marginTop="10dp"
             android:text="@string/script_type"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/textView29" />
+            app:layout_constraintBaseline_toBaselineOf="@+id/idScriptType"
+            app:layout_constraintStart_toStartOf="parent" />
 
         <EditText
             android:id="@+id/walletMasterKey"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="24dp"
-            android:layout_marginTop="14dp"
             android:layout_marginEnd="24dp"
             android:editable="false"
             android:ems="10"
@@ -61,7 +57,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="24dp"
-            android:layout_marginTop="36dp"
+            android:layout_marginTop="12dp"
             android:text="@string/here_is"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/textView30"
@@ -94,7 +90,7 @@
             style="@style/Medium"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
+            android:layout_marginStart="6dp"
             android:layout_marginTop="24dp"
             android:text="@string/wallet_name"
             app:layout_constraintStart_toEndOf="@id/idBarrier2"
@@ -105,8 +101,8 @@
             style="@style/Medium"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:layout_marginTop="10dp"
+            android:layout_marginStart="6dp"
+            android:layout_marginTop="6dp"
             android:text="@string/wallet_type"
             app:layout_constraintStart_toEndOf="@id/idBarrier2"
             app:layout_constraintTop_toBottomOf="@+id/idWalletName" />
@@ -116,8 +112,8 @@
             style="@style/Medium"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:layout_marginTop="10dp"
+            android:layout_marginStart="6dp"
+            android:layout_marginTop="6dp"
             android:text="@string/script_type"
             app:layout_constraintStart_toEndOf="@id/idBarrier2"
             app:layout_constraintTop_toBottomOf="@+id/idWalletType" />

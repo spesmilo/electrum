@@ -139,7 +139,7 @@ class ColdLoadDialog : AlertDialogFragment() {
     /**
      * Check if a loaded transaction is signed.
      * Displays the signing status below the raw TX field.
-     * (signed, partially signed, or invisible label, if the transaction is invalid)
+     * (signed, partially signed, empty or invalid)
      */
     private fun updateStatusText(tx: PyObject) {
         try {
