@@ -10,7 +10,7 @@ RUN echo deb ${UBUNTU_MIRROR} bionic main restricted universe multiverse > /etc/
     echo deb ${UBUNTU_MIRROR} bionic-security main restricted universe multiverse >> /etc/apt/sources.list && \
     apt-get update -q && \
     apt-get install -qy \
-        git=1:2.17.1-1ubuntu0.7 \
+        git=1:2.17.1-1ubuntu0.8 \
         wget=1.19.4-1ubuntu2.2 \
         make=4.1-9.1ubuntu1 \
         autotools-dev=20180224.1 \
@@ -21,18 +21,20 @@ RUN echo deb ${UBUNTU_MIRROR} bionic main restricted universe multiverse > /etc/
         libncurses5-dev=6.1-1ubuntu1.18.04 \
         libsqlite3-dev=3.22.0-1ubuntu0.4 \
         libusb-1.0-0-dev=2:1.0.21-2 \
-        libudev-dev=237-3ubuntu10.44 \
+        libudev-dev=237-3ubuntu10.45 \
         gettext=0.19.8.1-6ubuntu0.3 \
         pkg-config=0.29.1-0ubuntu2 \
         libdbus-1-3=1.12.2-1ubuntu1.2 \
         libpcsclite-dev=1.8.23-1 \
         swig=3.0.12-1 \
         libxkbcommon-x11-0=0.8.2-1~ubuntu18.04.1 \
+        libxcb-util1=0.4.0-0ubuntu3 \
+        libxcb-xinerama0=1.13-2~ubuntu18.04 \
         autopoint=0.19.8.1-6ubuntu0.3 \
         zlib1g-dev=1:1.2.11.dfsg-0ubuntu2 \
         libfreetype6=2.8.1-2ubuntu2.1 \
         libfontconfig1=2.12.6-0ubuntu2 \
-        libssl-dev=1.1.1-1ubuntu2.1~18.04.8 \
+        libssl-dev=1.1.1-1ubuntu2.1~18.04.9 \
         rustc=1.47.0+dfsg1+llvm-1ubuntu1~18.04.1 \
         && \
     rm -rf /var/lib/apt/lists/* && \
