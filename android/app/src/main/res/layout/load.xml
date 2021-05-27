@@ -46,11 +46,9 @@
             style="@style/FAB.Dialog"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
             app:layout_constraintBottom_toBottomOf="@+id/etTransaction"
             app:layout_constraintEnd_toEndOf="@+id/textView4"
             app:layout_constraintTop_toTopOf="@+id/etTransaction"
-            app:layout_constraintVertical_bias="0.0"
             app:srcCompat="@drawable/ic_paste_24dp" />
 
         <androidx.constraintlayout.widget.Barrier
@@ -65,19 +63,18 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="24dp"
-            android:layout_marginTop="10dp"
-            android:text="@string/status_"
+            android:text="@string/status"
             android:visibility="visible"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/etTransaction" />
+            app:layout_constraintBaseline_toBaselineOf="@+id/idTxStatus"
+            app:layout_constraintStart_toStartOf="parent" />
 
         <TextView
             android:id="@+id/idTxStatus"
             style="@style/Medium"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:layout_marginTop="10dp"
+            android:layout_marginStart="6dp"
+            android:layout_marginTop="6dp"
             android:text="@string/empty"
             android:visibility="visible"
             app:layout_constraintStart_toEndOf="@+id/idStatusLabel"
