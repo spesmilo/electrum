@@ -676,8 +676,7 @@ class SeedDialog : AlertDialogFragment() {
 class WalletInformationDialog : AlertDialogFragment() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
 
-        builder.setTitle(R.string.wallet_information)
-            .setView(R.layout.wallet_information)
+        builder.setView(R.layout.wallet_information)
             .setPositiveButton(android.R.string.ok, null)
     }
 
