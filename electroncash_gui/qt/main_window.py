@@ -968,7 +968,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     _("Balance: {amount_and_unit}").format(
                         amount_and_unit=self.format_amount_and_units(c))
                 ]
-
                 if u:
                     text_items.append(_("[{amount} unconfirmed]").format(
                         amount=self.format_amount(u, True).strip()))
@@ -1006,10 +1005,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.tray.setToolTip("%s (%s)" % (text, self.wallet.basename()))
         self.balance_label.setText(text)
-        self.status_button.setIcon( icon )
+        self.status_button.setIcon(icon)
         self.status_button.setStatusTip( status_tip )
         run_hook('window_update_status', self)
-
 
     def update_wallet(self):
         self.need_update.set() # will enqueue an _update_wallet() call in at most 0.5 seconds from now.
@@ -2876,7 +2874,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.update_available_button.setVisible(bool(self.gui_object.new_version_available))  # if hidden now gets unhidden by on_update_available when a new version comes in
 
         self.lock_icon = QIcon()
-        self.password_button = StatusBarButton(self.lock_icon, _("Password"), self.change_password_dialog )
+        self.password_button = StatusBarButton(self.lock_icon, _("Password"), self.change_password_dialog)
         sb.addPermanentWidget(self.password_button)
 
         self.addr_converter_button = StatusBarButton(
@@ -2889,8 +2887,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.addr_converter_button.setHidden(self.gui_object.is_cashaddr_status_button_hidden())
         self.gui_object.cashaddr_status_button_hidden_signal.connect(self.addr_converter_button.setHidden)
 
-        sb.addPermanentWidget(StatusBarButton(QIcon(":icons/preferences.svg"), _("Preferences"), self.settings_dialog ) )
-        self.seed_button = StatusBarButton(QIcon(":icons/seed.png"), _("Seed"), self.show_seed_dialog )
+        q_icon_prefs = QIcon(":icons/preferences.svg"), _("Preferences"), self.settings_dialog
+        sb.addPermanentWidget(StatusBarButton(*q_icon_prefs))
+        q_icon_seed = QIcon(":icons/seed.png"), _("Seed"), self.show_seed_dialog
+        self.seed_button = StatusBarButton(*q_icon_seed)
         sb.addPermanentWidget(self.seed_button)
         weakSelf = Weak.ref(self)
         gui_object = self.gui_object
@@ -4912,62 +4912,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.hardwarewalletdialog = d
         d.exec_()
         self.hardwarewalletdialog = None # allow python to GC
-
-    def cpfp(self, parent_tx, new_tx):
-        total_size = parent_tx.estimated_size() + new_tx.estimated_size()
-        d = WindowModalDialog(self.top_level_window(), _('Child Pays for Parent'))
-        vbox = QVBoxLayout(d)
-        msg = (
-            "A CPFP is a transaction that sends an unconfirmed output back to "
-            "yourself, with a high fee. The goal is to have miners confirm "
-            "the parent transaction in order to get the fee attached to the "
-            "child transaction.")
-        vbox.addWidget(WWLabel(_(msg)))
-        msg2 = ("The proposed fee is computed using your "
-            "fee/kB settings, applied to the total size of both child and "
-            "parent transactions. After you broadcast a CPFP transaction, "
-            "it is normal to see a new unconfirmed transaction in your history.")
-        vbox.addWidget(WWLabel(_(msg2)))
-        grid = QGridLayout()
-        grid.addWidget(QLabel(_('Total size') + ':'), 0, 0)
-        grid.addWidget(QLabel(_('{total_size} bytes').format(total_size=total_size)), 0, 1)
-        max_fee = new_tx.output_value()
-        grid.addWidget(QLabel(_('Input amount') + ':'), 1, 0)
-        grid.addWidget(QLabel(self.format_amount(max_fee) + ' ' + self.base_unit()), 1, 1)
-        output_amount = QLabel('')
-        grid.addWidget(QLabel(_('Output amount') + ':'), 2, 0)
-        grid.addWidget(output_amount, 2, 1)
-        fee_e = BTCAmountEdit(self.get_decimal_point)
-        def f(x):
-            a = max_fee - fee_e.get_amount()
-            output_amount.setText((self.format_amount(a) + ' ' + self.base_unit()) if a else '')
-        fee_e.textChanged.connect(f)
-        fee = self.config.fee_per_kb() * total_size / 1000
-        fee_e.setAmount(fee)
-        grid.addWidget(QLabel(_('Fee' + ':')), 3, 0)
-        grid.addWidget(fee_e, 3, 1)
-        def on_rate(dyn, pos, fee_rate):
-            fee = fee_rate * total_size / 1000
-            fee = min(max_fee, fee)
-            fee_e.setAmount(fee)
-        fee_slider = FeeSlider(self, self.config, on_rate)
-        fee_slider.update()
-        grid.addWidget(fee_slider, 4, 1)
-        vbox.addLayout(grid)
-        vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
-        result = d.exec_()
-        d.setParent(None) # So Python can GC
-        if not result:
-            return
-        fee = fee_e.get_amount()
-        if fee > max_fee:
-            self.show_error(_('Max fee exceeded'))
-            return
-        new_tx = self.wallet.cpfp(parent_tx, fee)
-        if new_tx is None:
-            self.show_error(_('CPFP no longer valid'))
-            return
-        self.show_transaction(new_tx)
 
     def rebuild_history(self):
         if self.gui_object.warn_if_no_network(self):

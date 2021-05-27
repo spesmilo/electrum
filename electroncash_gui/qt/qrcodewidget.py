@@ -80,7 +80,7 @@ class QRCodeWidget(QWidget, util.PrintError):
 
         margin = 5
         framesize = min(r.width(), r.height())
-        boxsize = int( (framesize - 2*margin)/k )
+        boxsize = int((framesize - 2*margin)/k)
         size = k*boxsize
         left = (r.width() - size)/2
         top = (r.height() - size)/2

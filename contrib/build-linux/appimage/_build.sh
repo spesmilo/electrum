@@ -153,6 +153,9 @@ cp -fp /usr/lib/x86_64-linux-gnu/libusb-1.0.so "$APPDIR"/usr/lib/x86_64-linux-gn
 # some distros lack libxkbcommon-x11
 cp -f /usr/lib/x86_64-linux-gnu/libxkbcommon-x11.so.0 "$APPDIR"/usr/lib/x86_64-linux-gnu || fail "Could not copy libxkbcommon-x11"
 
+# some distros lack some libxcb libraries (see #2189, #2196)
+cp -f /usr/lib/x86_64-linux-gnu/libxcb-* "$APPDIR"/usr/lib/x86_64-linux-gnu || fail "Could not copy libxkcb"
+
 info "Stripping binaries of debug symbols"
 # "-R .note.gnu.build-id" also strips the build id
 # "-R .comment" also strips the GCC version information
@@ -206,8 +209,11 @@ find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
 info "Creating the AppImage"
 (
     cd "$BUILDDIR"
-    chmod +x "$CACHEDIR/appimagetool"
-    "$CACHEDIR/appimagetool" --appimage-extract
+    cp "$CACHEDIR/appimagetool" "$CACHEDIR/appimagetool_copy"
+    # zero out "appimage" magic bytes, as on some systems they confuse the linker
+    sed -i 's|AI\x02|\x00\x00\x00|' "$CACHEDIR/appimagetool_copy"
+    chmod +x "$CACHEDIR/appimagetool_copy"
+    "$CACHEDIR/appimagetool_copy" --appimage-extract
     # We build a small wrapper for mksquashfs that removes the -mkfs-fixed-time option
     # that mksquashfs from squashfskit does not support. It is not needed for squashfskit.
     cat > ./squashfs-root/usr/lib/appimagekit/mksquashfs << EOF

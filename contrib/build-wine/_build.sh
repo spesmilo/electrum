@@ -89,13 +89,29 @@ prepare_wine() {
             "$here"/pgp/7ed10b6531d7c8e1bc296021fc624643487034e5.asc \
             || fail "Failed to import Python release signing keys"
 
-        info "Installing Python ..."
         # Install Python
-        for msifile in core dev exe lib pip tools; do
-            info "Installing $msifile..."
+        info "Installing Python ..."
+        msifiles="core dev exe lib pip tools"
+
+        for msifile in $msifiles ; do
+            info "Downloading $msifile..."
             wget "https://www.python.org/ftp/python/$PYTHON_VERSION/win32/${msifile}.msi"
             wget "https://www.python.org/ftp/python/$PYTHON_VERSION/win32/${msifile}.msi.asc"
             verify_signature "${msifile}.msi.asc" $KEYRING_PYTHON_DEV
+        done
+
+        $SHA256_PROG -c - << EOF
+934eda542020cb5ba6de16f5c150e7571a25dd3cb9f3832eb8b2cb54c7331aa6 core.msi
+58e517f0bb55fbf9ba1d9ec6a17a5420959469001ec1945c6c56dbbe566d3056 dev.msi
+34594d5522b0939b50edfdb01a980589f559fc659ce1f20288d297dda0905630 exe.msi
+fcd8bd0ead0a67906f39e99e557d66e71bc6810bd4916d03c2c5341ff95992bf lib.msi
+8d8159fdb9f42b81e9206bf7be0c2b034b3df717d58cfb484c0b3fb8ec3cab6a pip.msi
+ca8ef45591b07e7dbcc9b4b7b1c4d6528d3f0349fdf6779c71312bd9c3187801 tools.msi
+EOF
+        test $? -eq 0 || fail "Failed to verify Python checksums"
+
+        for msifile in $msifiles ; do
+            info "Installing $msifile..."
             wine msiexec /i "${msifile}.msi" /qn TARGETDIR=$PYHOME || fail "Failed to install Python component: ${msifile}"
         done
 

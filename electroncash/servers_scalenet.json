@@ -11,5 +11,14 @@
         "s": "63002",
         "t": "63001",
         "display": "sbch.loping.net"
+    },
+	"electroncash.de": {
+        "t": "55003",
+        "s": "55004"
+    },
+    "jktsologn7uprtwn7gsgmwuddj6rxsqmwc2vaug7jwcwzm2bxqnfpwad.onion": {
+        "s": "55003",
+        "t": "55004",
+        "display": "electroncash.de"
     }
 }

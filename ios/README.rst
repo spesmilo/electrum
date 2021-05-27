@@ -22,7 +22,7 @@ Quick Start Instructions
            python3 -m pip install 'cookiecutter==1.6.0' --user --upgrade
            python3 -m pip install 'briefcase==0.2.6' --user --upgrade
            python3 -m pip install 'pbxproj==2.5.1' --user --upgrade
-           pyrhon3 -m pip install 'rubicon-objc==0.2.10' --user --upgrade
+           python3 -m pip install 'rubicon-objc==0.2.10' --user --upgrade
 
            (NOTE: The exact versions specified above are known to work, but you may also try and use newer version as well.)
 

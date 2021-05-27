@@ -44,7 +44,7 @@ from typing import Set, Tuple, Union
 
 from .i18n import ngettext
 from .util import (NotEnoughFunds, ExcessiveFee, PrintError, UserCancelled, profiler, format_satoshis, format_time,
-                   finalization_print_error, to_string)
+                   finalization_print_error, to_string, TimeoutException)
 
 from .address import Address, Script, ScriptOutput, PublicKey, OpCodes
 from .bitcoin import *
@@ -1976,7 +1976,6 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         sats_per_byte=fee_in_satoshis/tx_in_bytes
         if (sats_per_byte > 50):
             raise ExcessiveFee()
-            return
 
         # Sort the inputs and outputs deterministically
         tx.BIP_LI01_sort()
@@ -2167,7 +2166,11 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             # a network call and it will eventually exit.
             t.join(timeout=3.0)
 
-    def wait_until_synchronized(self, callback=None):
+    def wait_until_synchronized(self, callback=None, *, timeout=None):
+        tstart = time.time()
+        def check_timed_out():
+            if timeout is not None and time.time() - tstart > timeout:
+                raise TimeoutException()
         def wait_for_wallet():
             self.set_up_to_date(False)
             while not self.is_up_to_date():
@@ -2178,12 +2181,14 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                         len(self.addresses(True)))
                     callback(msg)
                 time.sleep(0.1)
+                check_timed_out()
         def wait_for_network():
             while not self.network.is_connected():
                 if callback:
                     msg = "%s \n" % (_("Connecting..."))
                     callback(msg)
                 time.sleep(0.1)
+                check_timed_out()
         # wait until we are connected, because the user
         # might have selected another server
         if self.network:
@@ -2215,27 +2220,6 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             if age > age_limit:
                 break # ok, it's old. not need to keep looping
         return age > age_limit
-
-    def cpfp(self, tx, fee, sign_schnorr=None):
-        ''' sign_schnorr is a bool or None for auto '''
-        sign_schnorr = self.is_schnorr_enabled() if sign_schnorr is None else bool(sign_schnorr)
-        txid = tx.txid()
-        for i, o in enumerate(tx.outputs()):
-            otype, address, value = o
-            if otype == TYPE_ADDRESS and self.is_mine(address):
-                break
-        else:
-            return
-        coins = self.get_addr_utxo(address)
-        item = coins.get(txid+':%d'%i)
-        if not item:
-            return
-        self.add_input_info(item)
-        inputs = [item]
-        outputs = [(TYPE_ADDRESS, address, value - fee)]
-        locktime = self.get_local_height()
-        # note: no need to call tx.BIP_LI01_sort() here - single input/output
-        return Transaction.from_io(inputs, outputs, locktime=locktime, sign_schnorr=sign_schnorr)
 
     def add_input_info(self, txin):
         address = txin['address']

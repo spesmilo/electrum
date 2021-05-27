@@ -150,7 +150,7 @@ afterEvaluate {
         dependsOn ("deleteStrings", "generateStrings")
     }
 
-    // Remove unnecessary requirements (#2162).
+    // Remove unnecessary or duplicate requirements.
     task("generateRequirementsTxt") {
         inputs.file "$REPO_ROOT/contrib/deterministic-build/requirements.txt"
         outputs.file REQUIREMENTS_TXT
@@ -160,7 +160,7 @@ afterEvaluate {
                 file(inputs.files.singleFile).eachLine { line ->
                     buffer.append(line + "\n")
                     if (!line.endsWith("\\")) {
-                        if (!(buffer =~ /^(pip|QDarkStyle|setuptools|wheel)==/)) {
+                        if (!(buffer =~ /^(cffi|pip|QDarkStyle|setuptools|wheel)==/)) {
                             output.print(buffer)
                         }
                         buffer.setLength(0)
