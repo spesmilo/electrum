@@ -144,9 +144,6 @@ class ColdLoadDialog : AlertDialogFragment() {
         try {
             val txInfo = daemonModel.wallet!!.callAttr("get_tx_info", tx)
 
-            idStatusLabel.visibility = View.VISIBLE
-            idTxStatus.visibility = View.VISIBLE
-
             // Check if the transaction can be processed by this wallet or not
             if (txInfo["amount"] == null) {
                 idTxStatus.setText(R.string.transaction_unrelated)
@@ -154,8 +151,7 @@ class ColdLoadDialog : AlertDialogFragment() {
                 idTxStatus.setText(txInfo["status"].toString())
             }
         } catch (e: PyException) {
-            idStatusLabel.visibility = View.INVISIBLE
-            idTxStatus.visibility = View.INVISIBLE
+            idTxStatus.setText(R.string.invalid)
         }
     }
 }
