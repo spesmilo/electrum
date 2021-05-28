@@ -685,7 +685,7 @@ class WalletInformationDialog : AlertDialogFragment() {
 
         fabCopyMasterKey2.setOnClickListener {
             val textToCopy = walletMasterKey.text
-            copyToClipboard(textToCopy, R.string.master_public_key)
+            copyToClipboard(textToCopy, R.string.Master_public)
         }
     }
 

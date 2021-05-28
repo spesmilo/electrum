@@ -561,8 +561,7 @@ class CosignerDialog : AlertDialogFragment() {
  */
 class MasterPublicKeyDialog : AlertDialogFragment() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
-        builder.setTitle(R.string.master_public_key)
-                .setView(R.layout.show_master_key)
+        builder.setView(R.layout.show_master_key)
                 .setPositiveButton(R.string.next, null)
                 .setNegativeButton(R.string.back, null)
     }
@@ -571,7 +570,7 @@ class MasterPublicKeyDialog : AlertDialogFragment() {
         super.onViewCreated(view, savedInstanceState)
 
         fabCopyMasterKey.setOnClickListener {
-            copyToClipboard(walletMasterKey.text, R.string.master_public_key)
+            copyToClipboard(walletMasterKey.text, R.string.Master_public)
         }
     }
 
