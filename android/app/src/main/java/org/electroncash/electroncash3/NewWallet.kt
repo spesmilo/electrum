@@ -415,7 +415,7 @@ class NewWalletImportMasterDialog : NewWalletDialog2() {
         tvPrompt.setText(keyPrompt)
 
         if (multisig && currentCosigner != 1) {
-            dialog.setTitle(getString(R.string.Add_Cosigner) + " $currentCosigner")
+            dialog.setTitle(getString(R.string.Add_cosigner) + " $currentCosigner")
         }
 
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { scanQR(this) }
