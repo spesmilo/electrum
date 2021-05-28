@@ -11,6 +11,17 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
+        <TextView
+            android:id="@+id/tvMasterPublicKey"
+            style="@style/DialogTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="24dp"
+            android:text="@string/Master_public"
+            app:layout_constraintEnd_toStartOf="@+id/fabCopyMasterKey"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/fabCopyMasterKey"
             style="@style/FAB.Dialog.Title"
@@ -23,16 +34,6 @@
             app:layout_constraintTop_toTopOf="parent"
             app:srcCompat="@drawable/ic_copy_24dp" />
 
-        <TextView
-            android:id="@+id/tvMasterPublicKey"
-            style="@style/DialogTitle"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="24dp"
-            android:text="@string/Master_public"
-            app:layout_constraintEnd_toStartOf="@+id/fabCopyMasterKey"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 
     <ScrollView
@@ -43,20 +44,15 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
 
-            <EditText
-                android:id="@+id/walletMasterKey"
+            <TextView
+                android:id="@+id/textView25"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="24dp"
-                android:layout_marginTop="12dp"
-                android:layout_marginEnd="24dp"
-                android:editable="false"
-                android:ems="10"
-                android:gravity="start|top"
-                android:inputType="textMultiLine"
-                app:layout_constraintEnd_toEndOf="parent"
+                android:text="@string/here_is"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@+id/textView27" />
+                app:layout_constraintTop_toTopOf="parent"
+                tools:text="@string/here_is" />
 
             <TextView
                 android:id="@+id/textView27"
@@ -69,15 +65,20 @@
                 app:layout_constraintTop_toBottomOf="@+id/textView25"
                 tools:text="@string/please_share" />
 
-            <TextView
-                android:id="@+id/textView25"
+            <EditText
+                android:id="@+id/walletMasterKey"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="24dp"
-                android:text="@string/here_is"
+                android:layout_marginEnd="24dp"
+                android:editable="false"
+                android:ems="10"
+                android:gravity="start|top"
+                android:inputType="textMultiLine"
+                app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toTopOf="parent"
-                tools:text="@string/here_is" />
+                app:layout_constraintTop_toBottomOf="@+id/textView27" />
+
         </androidx.constraintlayout.widget.ConstraintLayout>
     </ScrollView>
 </LinearLayout>
