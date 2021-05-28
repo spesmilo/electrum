@@ -17,8 +17,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="24dp"
-            android:layout_marginLeft="24dp"
-            android:text="@string/wallet_information"
+            android:text="@string/Wallet_information"
             app:layout_constraintEnd_toStartOf="@+id/fabCopyMasterKey2"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
