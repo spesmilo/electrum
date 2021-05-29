@@ -161,7 +161,10 @@ class AndroidCommands(commands.Commands):
             if not multisig:
                 storage.put('keystore', ks.dump())
                 wallet = Standard_Wallet(storage)
-            else: # for multisig, we need to get the keystore
+            else:
+                # For multisig wallets, we do not immediately create a wallet storage file.
+                # Instead, we just get the keystore; create_multisig() handles wallet storage
+                # later, once all cosigners are added.
                 return ks
 
         wallet.update_password(None, password, encrypt=True)
@@ -175,10 +178,8 @@ class AndroidCommands(commands.Commands):
 
         # Multisig wallet type
         storage.put("wallet_type", "%dof%d" % (signatures, cosigners))
-        i = 0
-        for k in keystores:
-            storage.put('x%d/'%(i+1), k.dump())
-            i += 1
+        for i, k in enumerate(keystores, start=1):
+            storage.put('x%d/' % i, k.dump())
         storage.write()
 
         wallet = Multisig_Wallet(storage)
