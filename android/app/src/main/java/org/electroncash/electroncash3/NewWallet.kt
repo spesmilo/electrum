@@ -157,7 +157,7 @@ class KeystoreDialog : AlertDialogFragment() {
             try {
                 val nextDialog: DialogFragment
                 val keystoreType = spnType.selectedItemId.toInt()
-                if (keystoreType in listOf(R.id.menuCreateSeed, R.id.menuRestoreSeed, R.id.menuCosignerSeed)) {
+                if (keystoreType in listOf(R.id.menuCreateSeed, R.id.menuRestoreSeed)) {
                     nextDialog = NewWalletSeedDialog()
                     val seed = if (keystoreType == R.id.menuCreateSeed)
                         daemonModel.commands.callAttr("make_seed").toString()
@@ -165,7 +165,7 @@ class KeystoreDialog : AlertDialogFragment() {
                     arguments!!.putString("seed", seed)
                 } else if (keystoreType == R.id.menuImport) {
                     nextDialog = NewWalletImportDialog()
-                } else if (keystoreType in listOf(R.id.menuImportMaster, R.id.menuCosignerKey)) {
+                } else if (keystoreType in listOf(R.id.menuImportMaster)) {
                     nextDialog = NewWalletImportMasterDialog()
                 } else {
                     throw Exception("Unknown item: ${spnType.selectedItem}")
