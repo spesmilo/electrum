@@ -62,6 +62,9 @@ class NewWalletDialog1 : AlertDialogFragment() {
                     R.id.menuMultisigWallet -> {
                         CosignerDialog()
                     }
+                    R.id.menuImport -> {
+                        NewWalletImportDialog()
+                    }
                     else -> {
                         throw Exception("Unknown item: ${spnWalletType.selectedItem}")
                     }
@@ -157,8 +160,6 @@ class KeystoreDialog : AlertDialogFragment() {
                         daemonModel.commands.callAttr("make_seed").toString()
                     else null
                     arguments!!.putString("seed", seed)
-                } else if (keystoreType == R.id.menuImport) {
-                    nextDialog = NewWalletImportDialog()
                 } else if (keystoreType in listOf(R.id.menuImportMaster)) {
                     nextDialog = NewWalletImportMasterDialog()
                 } else {
