@@ -134,8 +134,17 @@ class TxOutput:
         raise Exception(f"unexptected legacy address type: {_type}")
 
     @property
+    def scriptpubkey(self) -> bytes:
+        return self._scriptpubkey
+
+    @scriptpubkey.setter
+    def scriptpubkey(self, scriptpubkey: bytes):
+        self._scriptpubkey = scriptpubkey
+        self._address = get_address_from_output_script(scriptpubkey)
+
+    @property
     def address(self) -> Optional[str]:
-        return get_address_from_output_script(self.scriptpubkey)  # TODO cache this?
+        return self._address
 
     def get_ui_address_str(self) -> str:
         addr = self.address
