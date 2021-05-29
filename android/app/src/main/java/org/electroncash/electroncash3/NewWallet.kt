@@ -134,8 +134,8 @@ class KeystoreDialog : AlertDialogFragment() {
 
         /* Handle dialog title for cosigners */
         if (multisig) {
-            dialog.setTitle(getString(R.string.Add_cosigner) +
-                    " (${currentCosigner} of ${numOfCosigners})")
+            dialog.setTitle(getString(R.string.Add_cosigner) + " " +
+                getString(R.string.__d_of, currentCosigner, numOfCosigners))
         }
 
         val keystoreMenu: Int

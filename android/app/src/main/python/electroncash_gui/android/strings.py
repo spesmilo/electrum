@@ -11,6 +11,7 @@
 from gettext import gettext as _, ngettext
 
 ngettext("%d address", "%d addresses", 1)
+_("(%d of %d)")
 _("Are you sure you want to delete your wallet \'%s\'?")
 _("BIP39 seed")
 _("Block explorer")
