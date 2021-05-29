@@ -180,7 +180,6 @@ fun canBroadcast(tx: PyObject): Boolean {
  * Sign a loaded transaction dialog.
  */
 class SignPasswordDialog : PasswordDialog<Unit>() {
-
     val coldLoadDialog by lazy { targetFragment as ColdLoadDialog }
     val signSchnorr = daemonModel.walletType == "standard"
 

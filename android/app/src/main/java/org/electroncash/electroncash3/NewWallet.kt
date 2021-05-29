@@ -81,7 +81,6 @@ class NewWalletDialog1 : AlertDialogFragment() {
 }
 
 fun closeDialogs(targetFragment: Fragment) {
-
     if (targetFragment.targetFragment == null) {
         (targetFragment as DialogFragment).dismiss()
         return
@@ -121,8 +120,6 @@ fun confirmPassword(dialog: Dialog): String {
 
 // Choose the way of generating the wallet (new seed, import seed, etc.)
 class KeystoreDialog : AlertDialogFragment() {
-    var input: String by notNull()
-
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         builder.setTitle(R.string.keystore)
                 .setView(R.layout.choose_keystore)
@@ -158,7 +155,6 @@ class KeystoreDialog : AlertDialogFragment() {
     override fun onShowDialog() {
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             try {
-
                 val nextDialog: DialogFragment
                 val keystoreType = spnType.selectedItemId.toInt()
                 if (keystoreType in listOf(R.id.menuCreateSeed, R.id.menuRestoreSeed, R.id.menuCosignerSeed)) {
@@ -186,9 +182,9 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
 
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         builder.setTitle(R.string.New_wallet)
-                .setView(R.layout.wallet_new_2)
-                .setPositiveButton(android.R.string.ok, null)
-                .setNegativeButton(R.string.back, null)
+            .setView(R.layout.wallet_new_2)
+            .setPositiveButton(android.R.string.ok, null)
+            .setNegativeButton(R.string.back, null)
     }
 
     override fun onPreExecute() {
@@ -237,7 +233,6 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
     abstract fun onCreateWallet(name: String, password: String)
 
     override fun onPostExecute(result: String) {
-
         val multisig = arguments!!.getBoolean("multisig")
 
         /**
@@ -245,7 +240,6 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
          * then prompt for data for all other cosigners by calling the KeystoreDialog again.
          */
         if (multisig) {
-
             val currentCosigner = arguments!!.getInt("i_signer")
             val numCosigners = arguments!!.getInt("cosigners")
 
@@ -538,7 +532,6 @@ class CosignerDialog : AlertDialogFragment() {
 
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             try {
-
                 val nextDialog: DialogFragment
                 nextDialog = KeystoreDialog()
 
@@ -582,7 +575,6 @@ class MasterPublicKeyDialog : AlertDialogFragment() {
 
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             try {
-
                 val nextDialog: DialogFragment
                 nextDialog = KeystoreDialog()
 
