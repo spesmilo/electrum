@@ -78,13 +78,10 @@ class NewWalletDialog1 : AlertDialogFragment() {
 }
 
 fun closeDialogs(targetFragment: Fragment) {
-    if (targetFragment.targetFragment == null) {
-        (targetFragment as DialogFragment).dismiss()
-        return
-    }
-
-    closeDialogs(targetFragment.targetFragment!!)
     (targetFragment as DialogFragment).dismiss()
+    if (targetFragment.targetFragment != null) {
+        closeDialogs(targetFragment.targetFragment!!)
+    }
 }
 
 fun validateWalletName(name: String) {
@@ -258,8 +255,7 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
             }
         } else {
             // In a standard wallet, close the dialogs and open the newly created wallet.
-            (targetFragment as KeystoreDialog).dismiss()
-            (targetFragment!!.targetFragment as NewWalletDialog1).dismiss()
+            closeDialogs(targetFragment!!)
             daemonModel.commands.callAttr("select_wallet", result)
             (activity as MainActivity).updateDrawer()
         }
@@ -529,8 +525,7 @@ class CosignerDialog : AlertDialogFragment() {
 
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             try {
-                val nextDialog: DialogFragment
-                nextDialog = KeystoreDialog()
+                val nextDialog: DialogFragment = KeystoreDialog()
 
                 arguments!!.putBoolean("multisig", true)
                 arguments!!.putInt("i_signer", 1) // current co-signer; will update
@@ -572,8 +567,7 @@ class MasterPublicKeyDialog : AlertDialogFragment() {
 
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             try {
-                val nextDialog: DialogFragment
-                nextDialog = KeystoreDialog()
+                val nextDialog: DialogFragment = KeystoreDialog()
 
                 nextDialog.setArguments(arguments)
                 showDialog(this, nextDialog)
