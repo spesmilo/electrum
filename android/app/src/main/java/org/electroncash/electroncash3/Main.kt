@@ -33,6 +33,7 @@ import kotlinx.android.synthetic.main.wallet_information.*
 import kotlinx.android.synthetic.main.wallet_open.*
 import kotlinx.android.synthetic.main.wallet_rename.*
 import java.io.File
+import java.lang.NullPointerException
 import kotlin.reflect.KClass
 
 
@@ -691,9 +692,17 @@ class WalletInformationDialog : AlertDialogFragment() {
     override fun onShowDialog() {
         super.onShowDialog()
 
-        val masterKey = daemonModel.commands.callAttr("getmpk").toString()
-        walletMasterKey.setText(masterKey)
-        walletMasterKey.setFocusable(false)
+        // Imported wallets ("imported_addr" type) do not have a master public key.
+        try {
+            val masterKey = daemonModel.commands.callAttr("getmpk").toString()
+            walletMasterKey.setText(masterKey)
+            walletMasterKey.setFocusable(false)
+        } catch (e: NullPointerException) {
+            tvMasterPublicKey.setVisibility(View.GONE)
+            walletMasterKey.setVisibility(View.GONE)
+            // Using View.INVISIBLE on the 'Copy' button to preserve layout.
+            (fabCopyMasterKey2 as View).setVisibility(View.INVISIBLE)
+        }
 
         idWalletName.setText(daemonModel.walletName)
         idWalletType.setText(daemonModel.walletType)
