@@ -50,26 +50,23 @@ class NewWalletDialog1 : AlertDialogFragment() {
                 val name = etName.text.toString()
                 validateWalletName(name)
                 val password = confirmPassword(dialog)
-                val nextDialog: DialogFragment
                 val arguments = Bundle().apply {
                     putString("name", name)
                     putString("password", password)
                 }
 
-                when (spnWalletType.selectedItemId.toInt()) {
+                val nextDialog: DialogFragment = when (spnWalletType.selectedItemId.toInt()) {
                     R.id.menuStandardWallet -> {
-                        nextDialog = KeystoreDialog()
-                        showDialog(this, nextDialog.apply { setArguments(arguments) })
+                        KeystoreDialog()
                     }
                     R.id.menuMultisigWallet -> {
-                        nextDialog = CosignerDialog()
-                        showDialog(this, nextDialog.apply { setArguments(arguments) })
+                        CosignerDialog()
                     }
                     else -> {
                         throw Exception("Unknown item: ${spnWalletType.selectedItem}")
                     }
                 }
-
+                showDialog(this, nextDialog.apply { setArguments(arguments) })
             } catch (e: ToastException) { e.show() }
         }
     }
