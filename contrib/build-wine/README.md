@@ -39,7 +39,7 @@ folder.
         sudo rm -rf $FRESH_CLONE && \
         mkdir -p $FRESH_CLONE && \
         cd $FRESH_CLONE  && \
-        git clone https://github.com/wideweb-project/electrum-wcn.git && \
+        git clone https://github.com/widecoin-project/electrum-wcn.git && \
         cd electrum-wcn
     ```
 
