@@ -9,7 +9,7 @@ Add extra data to your channel funding transactions, so that a static backup can
 
 Note that static backups only allow you to request a force-close with the remote node. This assumes that the remote node is still online, did not lose its data, and accepts to force close the channel.
 
-If this is enabled, other nodes cannot open a channel to you. Channel recovery data is encrypted, so that only your wallet can decrypt it. However, blockchain analysis will be able to tell that the transaction was probably created by Electrum-GRS.
+If this is enabled, other nodes cannot open a channel to you. Channel recovery data is encrypted, so that only your wallet can decrypt it. However, blockchain analysis will be able to tell that the transaction was probably created by Electrum.
 """
 
 MSG_REQUEST_FORCE_CLOSE = """
@@ -20,15 +20,15 @@ If you request a force-close, your node will pretend that it has lost its data a
 MSG_CREATED_NON_RECOVERABLE_CHANNEL = """
 The channel you created is not recoverable from seed.
 To prevent fund losses, please save this backup on another device.
-It may be imported in another Electrum-GRS wallet with the same seed.
+It may be imported in another Electrum wallet with the same seed.
 """
 
 MSG_LIGHTNING_EXPERIMENTAL_WARNING = """
-Lightning support in Electrum-GRS is experimental. Do not put large amounts in lightning channels.
+Lightning support in Electrum is experimental. Do not put large amounts in lightning channels.
 """
 
 MSG_LIGHTNING_SCB_WARNING = """
-Electrum-GRS uses static channel backups. If you lose your wallet file, you will need to request your channel to be force-closed by the remote peer in order to recover your funds. This assumes that the remote peer is reachable, and has not lost its own data.
+Electrum uses static channel backups. If you lose your wallet file, you will need to request your channel to be force-closed by the remote peer in order to recover your funds. This assumes that the remote peer is reachable, and has not lost its own data.
 """
 
 MSG_LIGHTNING_WARNING = MSG_LIGHTNING_EXPERIMENTAL_WARNING + MSG_LIGHTNING_SCB_WARNING
