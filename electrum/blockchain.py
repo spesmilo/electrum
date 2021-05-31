@@ -37,7 +37,7 @@ from .logging import get_logger, Logger
 _logger = get_logger(__name__)
 
 HEADER_SIZE = 80  # bytes
-MAX_TARGET = 0x00000000FFFF0000000000000000000000000000000000000000000000000000
+MAX_TARGET = 0x00000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
 
 
 class MissingHeader(Exception):
@@ -541,8 +541,8 @@ class Blockchain(Logger):
     @classmethod
     def bits_to_target(cls, bits: int) -> int:
         bitsN = (bits >> 24) & 0xff
-        if not (0x03 <= bitsN <= 0x1d):
-            raise Exception("First part of bits should be in [0x03, 0x1d]")
+        if not (0x03 <= bitsN <= 0x1e):
+            raise Exception("First part of bits should be in [0x03, 0x1e]")
         bitsBase = bits & 0xffffff
         if not (0x8000 <= bitsBase <= 0x7fffff):
             raise Exception("Second part of bits should be in [0x8000, 0x7fffff]")

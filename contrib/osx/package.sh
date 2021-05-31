@@ -17,7 +17,7 @@ export PATH=$PATH:~/bin
 . $(dirname "$0")/base.sh
 
 if [ -z "$1" ]; then
-    echo "Usage: $0 Electrum.app"
+    echo "Usage: $0 Electrum-WCN.app"
     exit -127
 fi
 
@@ -73,7 +73,7 @@ ${genisoimage} \
     -D \
     -l \
     -probe \
-    -V "Electrum" \
+    -V "Electrum-WCN" \
     -no-pad \
     -r \
     -dir-mode 0755 \
@@ -81,8 +81,8 @@ ${genisoimage} \
     -o Electrum_uncompressed.dmg \
     /tmp/electrum-macos/image || fail "Unable to create uncompressed dmg"
 
-dmg dmg Electrum_uncompressed.dmg electrum-$VERSION.dmg || fail "Unable to create compressed dmg"
+dmg dmg Electrum_uncompressed.dmg electrum-wcn-$VERSION.dmg || fail "Unable to create compressed dmg"
 rm Electrum_uncompressed.dmg
 
 echo "Done."
-sha256sum electrum-$VERSION.dmg
+sha256sum electrum-wcn-$VERSION.dmg

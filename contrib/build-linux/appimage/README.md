@@ -33,9 +33,9 @@ see [issue #5159](https://github.com/spesmilo/electrum/issues/5159).
     ```
     $ sudo docker run -it \
         --name electrum-appimage-builder-cont \
-        -v $PWD:/opt/electrum \
+        -v $PWD:/opt/electrum-wcn \
         --rm \
-        --workdir /opt/electrum/contrib/build-linux/appimage \
+        --workdir /opt/electrum-wcn/contrib/build-linux/appimage \
         electrum-appimage-builder-img \
         ./build.sh
     ```
@@ -46,14 +46,14 @@ see [issue #5159](https://github.com/spesmilo/electrum/issues/5159).
 ## FAQ
 
 ### How can I see what is included in the AppImage?
-Execute the binary as follows: `./electrum*.AppImage --appimage-extract`
+Execute the binary as follows: `./electrum-wcn*.AppImage --appimage-extract`
 
 ### How to investigate diff between binaries if reproducibility fails?
 ```
 cd dist/
-./electrum-*-x86_64.AppImage1 --appimage-extract
+./electrum-wcn-*-x86_64.AppImage1 --appimage-extract
 mv squashfs-root/ squashfs-root1/
-./electrum-*-x86_64.AppImage2 --appimage-extract
+./electrum-wcn-*-x86_64.AppImage2 --appimage-extract
 mv squashfs-root/ squashfs-root2/
 $(cd squashfs-root1; find -type f -exec sha256sum '{}' \; > ./../sha256sum1)
 $(cd squashfs-root2; find -type f -exec sha256sum '{}' \; > ./../sha256sum2)

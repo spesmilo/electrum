@@ -317,7 +317,7 @@ def main():
     # config is an object passed to the various constructors (wallet, interface, gui)
     if is_android:
         from jnius import autoclass
-        build_config = autoclass("org.electrum.electrum.BuildConfig")
+        build_config = autoclass("org.electrum_wcn.electrum_wcn.BuildConfig")
         config_options = {
             'verbosity': '*' if build_config.DEBUG else '',
             'cmd': 'gui',
@@ -338,7 +338,7 @@ def main():
         config_options['portable'] = True
 
     if config_options.get('portable'):
-        config_options['electrum_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
+        config_options['electrum_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_wcn_data')
 
     if not config_options.get('verbosity'):
         warnings.simplefilter('ignore', DeprecationWarning)

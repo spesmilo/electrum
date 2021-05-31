@@ -60,7 +60,7 @@ Move `prebuilt_qr` to El Capitan: `contrib/osx/CalinsQRReader/prebuilt_qr`.
 
 #### 2. Build Electrum
 
-    cd electrum
+    cd electrum-wcn
     ./contrib/osx/make_osx
 
 This creates both a folder named Electrum.app and the .dmg file.

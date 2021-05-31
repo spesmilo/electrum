@@ -34,8 +34,8 @@ folder.
         umask 0022 && \
         mkdir -p $FRESH_CLONE && \
         cd $FRESH_CLONE  && \
-        git clone https://github.com/spesmilo/electrum.git && \
-        cd electrum
+        git clone https://github.com/widecoin-project/electrum-wcn.git && \
+        cd electrum-wcn
     ```
 
     And then build from this directory:
@@ -43,9 +43,9 @@ folder.
     $ git checkout $REV
     $ sudo docker run -it \
         --name electrum-sdist-builder-cont \
-        -v $PWD:/opt/electrum \
+        -v $PWD:/opt/electrum-wcn \
         --rm \
-        --workdir /opt/electrum/contrib/build-linux/sdist \
+        --workdir /opt/electrum-wcn/contrib/build-linux/sdist \
         electrum-sdist-builder-img \
         ./build.sh
     ```

@@ -70,7 +70,7 @@ You probably need to clear the cache: `rm -rf .buildozer/android/platform/build-
 Assuming `adb` is installed:
 ```
 $ adb -d install -r bin/Electrum-*-arm64-v8a-debug.apk
-$ adb shell monkey -p org.electrum.electrum 1
+$ adb shell monkey -p org.electrum_wcn.electrum_wcn 1
 ```
 
 
@@ -95,7 +95,7 @@ adb logcat | grep python
 ```
 Better `grep` but fragile because of `cut`:
 ```
-adb logcat | grep -F "`adb shell ps | grep org.electrum.electrum | cut -c14-19`"
+adb logcat | grep -F "`adb shell ps | grep org.electrum_wcn.electrum_wcn | cut -c14-19`"
 ```
 
 
@@ -122,6 +122,103 @@ of Android does not let you access the internal storage of an app without root.
 (See [this](https://stackoverflow.com/q/9017073))
 ```
 $ adb shell
-$ run-as org.electrum.electrum ls /data/data/org.electrum.electrum/files/data
-$ run-as org.electrum.electrum cp /data/data/org.electrum.electrum/files/data/wallets/my_wallet /sdcard/some_path/my_wallet
+$ run-as org.electrum.electrum ls /data/data/org.electrum_wcn.electrum_wcn/files/data
+$ run-as org.electrum.electrum cp /data/data/org.electrum_wcn.electrum_wcn/files/data/wallets/my_wallet /sdcard/some_path/my_wallet
 ```
+### Update - How Fast build release
+
+Host ubuntu 18.04-LTS
+
+Git clone https://github.com/bitweb-project/electrum-wcn.git
+
+Generate your keystore files
+
+See e.g. [kivy wiki](https://github.com/kivy/kivy/wiki/Creating-a-Release-APK)
+
+as example rename it to android_release.keystore
+
+got to contrib\android\make_apk and edit it
+
+from 
+
+if [[ -n "$1"  && "$1" == "release" ]] ; then
+    echo -n Keystore Password:
+    read -s password
+    export P4A_RELEASE_KEYSTORE=~/.keystore
+    export P4A_RELEASE_KEYSTORE_PASSWD=$password
+    export P4A_RELEASE_KEYALIAS_PASSWD=$password
+    export P4A_RELEASE_KEYALIAS=electrum
+    # build two apks
+    export APP_ANDROID_ARCH=armeabi-v7a
+    make release
+    export APP_ANDROID_ARCH=arm64-v8a
+    make release
+
+to
+
+if [[ -n "$1"  && "$1" == "release" ]] ; then
+    echo -n Keystore Password:
+    read -s password
+    export P4A_RELEASE_KEYSTORE="$CONTRIB_ANDROID"/android_release.keystore
+    export P4A_RELEASE_KEYSTORE_PASSWD=Your_Pass-for-key-store-file
+    export P4A_RELEASE_KEYALIAS_PASSWD=Your_Pass-for-key-store-file
+    export P4A_RELEASE_KEYALIAS=Your alis for key store file.
+    # build two apks
+    export APP_ANDROID_ARCH=armeabi-v7a
+    make release
+    export APP_ANDROID_ARCH=arm64-v8a
+    make release
+
+Now copy keystore files and put it to contrib/android
+
+Then
+
+This assumes an Ubuntu (x86_64) host, but it should not be too hard to adapt to another
+similar system. The docker commands should be executed in the project's root
+folder.
+
+1. Install Docker
+
+    ```
+    $ curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+    $ sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+    $ sudo apt-get update
+    $ sudo apt-get install -y docker-ce
+    ```
+
+2. Build image
+
+    ```
+    $ sudo docker build -t electrum-android-builder-img contrib/android
+    ```
+
+3. Build locale files
+
+    ```
+    $ ./contrib/pull_locale
+    ```
+
+4. Prepare pure python dependencies
+
+    ```
+    $ ./contrib/make_packages
+    ```
+
+5. Build binaries
+
+    ```
+    $ mkdir --parents $PWD/.buildozer/.gradle
+    $ sudo docker run -it --rm \
+        --name electrum-android-builder-cont \
+        -v $PWD:/home/user/wspace/electrum \
+        -v $PWD/.buildozer/.gradle:/home/user/.gradle \
+        -v ~/.keystore:/home/user/.keystore \
+        --workdir /home/user/wspace/electrum \
+        electrum-android-builder-img \
+        ./contrib/android/make_apk release
+    ```
+    This mounts the project dir inside the container,
+    and so the modifications will affect it, e.g. `.buildozer` folder
+    will be created.
+
+5. The generated binary is in `./bin`.
