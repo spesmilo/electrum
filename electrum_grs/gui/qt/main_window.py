@@ -558,8 +558,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if self.wallet.is_watching_only():
             msg = ' '.join([
                 _("This wallet is watching-only."),
-                _("This means you will not be able to spend Groestlcoins with it."),
-                _("Make sure you own the seed phrase or the private keys, before you request Groestlcoins to be sent to this wallet.")
+                _("This means you will not be able to spend Bitcoins with it."),
+                _("Make sure you own the seed phrase or the private keys, before you request Bitcoins to be sent to this wallet.")
             ])
             self.show_warning(msg, title=_('Watch-only wallet'))
 
@@ -576,7 +576,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         msg = ''.join([
             _("You are in testnet mode."), ' ',
             _("Testnet coins are worthless."), '\n',
-            _("Testnet is separate from the main Groestlcoin network. It is used for testing.")
+            _("Testnet is separate from the main Bitcoin network. It is used for testing.")
         ])
         cb = QCheckBox(_("Don't show this again."))
         cb_checked = False
@@ -790,11 +790,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def show_about(self):
         QMessageBox.about(self, "Electrum-GRS",
                           (_("Version")+" %s" % ELECTRUM_VERSION + "\n\n" +
-                           _("Electrum's focus is speed, with low resource usage and simplifying Groestlcoin.") + " " +
+                           _("Electrum's focus is speed, with low resource usage and simplifying Bitcoin.") + " " +
                            _("You do not need to perform regular backups, because your wallet can be "
                               "recovered from a secret phrase that you can memorize or write on paper.") + " " +
                            _("Startup times are instant because it operates in conjunction with high-performance "
-                              "servers that handle the most complicated parts of the Groestlcoin system.") + "\n\n" +
+                              "servers that handle the most complicated parts of the Bitcoin system.") + "\n\n" +
                            _("Uses icons from the Icons8 icon pack (icons8.com).")))
 
     def show_bitcoin_paper(self):
@@ -1353,7 +1353,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.payto_e = PayToEdit(self)
         self.payto_e.addPasteButton(self.app)
         msg = _('Recipient of the funds.') + '\n\n'\
-              + _('You may enter a Groestlcoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Groestlcoin address)')
+              + _('You may enter a Bitcoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Bitcoin address)')
         payto_label = HelpLabel(_('Pay to'), msg)
         grid.addWidget(payto_label, 1, 0)
         grid.addWidget(self.payto_e, 1, 1, 1, -1)
@@ -2645,7 +2645,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         address  = address.text().strip()
         message = message.toPlainText().strip()
         if not bitcoin.is_address(address):
-            self.show_message(_('Invalid Groestlcoin address.'))
+            self.show_message(_('Invalid Bitcoin address.'))
             return
         if self.wallet.is_watching_only():
             self.show_message(_('This is a watching-only wallet.'))
@@ -2673,7 +2673,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         address  = address.text().strip()
         message = message.toPlainText().strip().encode('utf-8')
         if not bitcoin.is_address(address):
-            self.show_message(_('Invalid Groestlcoin address.'))
+            self.show_message(_('Invalid Bitcoin address.'))
             return
         try:
             # This can throw on invalid base64
