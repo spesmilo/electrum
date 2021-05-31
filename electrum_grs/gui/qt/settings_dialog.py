@@ -163,7 +163,7 @@ class SettingsDialog(WindowModalDialog):
         help_remote_wt = ' '.join([
             _("A watchtower is a daemon that watches your channels and prevents the other party from stealing funds by broadcasting an old state."),
             _("If you have private a watchtower, enter its URL here."),
-            _("Check our online documentation if you want to configure Electrum-GRS as a watchtower."),
+            _("Check our online documentation if you want to configure Electrum as a watchtower."),
         ])
         remote_wt_cb = QCheckBox(_("Use a remote watchtower"))
         remote_wt_cb.setToolTip('<p>'+help_remote_wt+'</p>')
@@ -333,7 +333,7 @@ class SettingsDialog(WindowModalDialog):
         outrounding_cb.setToolTip(
             _('Set the value of the change output so that it has similar precision to the other outputs.') + '\n' +
             _('This might improve your privacy somewhat.') + '\n' +
-            _('If enabled, at most 100 gro might be lost due to this, per transaction.'))
+            _('If enabled, at most 100 satoshis might be lost due to this, per transaction.'))
         outrounding_cb.setChecked(enable_outrounding)
         outrounding_cb.stateChanged.connect(on_outrounding)
         tx_widgets.append((outrounding_cb, None))

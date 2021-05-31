@@ -297,8 +297,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         # If the option hasn't been set yet
         if config.get('check_updates') is None:
             choice = self.question(title="Electrum-GRS - " + _("Enable update check"),
-                                   msg=_("For security reasons we advise that you always use the latest version of Electrum-GRS.") + " " +
-                                       _("Would you like to be notified when there is a newer version of Electrum-GRS available?"))
+                                   msg=_("For security reasons we advise that you always use the latest version of Electrum.") + " " +
+                                       _("Would you like to be notified when there is a newer version of Electrum available?"))
             config.set_key('check_updates', bool(choice), save=True)
 
         self._update_check_thread = None
@@ -307,7 +307,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             # to prevent GC from getting in our way.
             def on_version_received(v):
                 if UpdateCheck.is_newer(v):
-                    self.update_check_button.setText(_("Update to Electrum-GRS {} is available").format(v))
+                    self.update_check_button.setText(_("Update to Electrum {} is available").format(v))
                     self.update_check_button.clicked.connect(lambda: self.show_update_check(v))
                     self.update_check_button.show()
             self._update_check_thread = UpdateCheckThread()
@@ -636,7 +636,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         try:
             new_path = self.wallet.save_backup(backup_dir)
         except BaseException as reason:
-            self.show_critical(_("Electrum-GRS was unable to copy your wallet file to the specified location.") + "\n" + str(reason), title=_("Unable to create backup"))
+            self.show_critical(_("Electrum was unable to copy your wallet file to the specified location.") + "\n" + str(reason), title=_("Unable to create backup"))
             return
         msg = _("A copy of your wallet file was created in")+" '%s'" % str(new_path)
         self.show_message(msg, title=_("Wallet backup created"))
@@ -744,7 +744,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             # Hence, this menu item will be at a "uniform location re macOS processes"
             preferences_action.setMenuRole(QAction.PreferencesRole)  # make sure OS recognizes it as preferences
             # Add another preferences item, to also have a "uniform location for Electrum between different OSes"
-            tools_menu.addAction(_("Electrum-GRS preferences"), self.settings_dialog)
+            tools_menu.addAction(_("Electrum preferences"), self.settings_dialog)
 
         tools_menu.addAction(_("&Network"), self.gui_object.show_network_dialog).setEnabled(bool(self.network))
         if self.network and self.network.local_watchtower:
@@ -816,7 +816,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         msg = ' '.join([
             _("Please report any bugs as issues on github:<br/>"),
             f'''<a href="{constants.GIT_REPO_ISSUES_URL}">{constants.GIT_REPO_ISSUES_URL}</a><br/><br/>''',
-            _("Before reporting a bug, upgrade to the most recent version of Electrum-GRS (latest release or git HEAD), and include the version number in your report."),
+            _("Before reporting a bug, upgrade to the most recent version of Electrum (latest release or git HEAD), and include the version number in your report."),
             _("Try to explain not only what the bug is, but how it occurs.")
          ])
         self.show_message(msg, title="Electrum-GRS - " + _("Reporting Bugs"), rich_text=True)
@@ -1097,8 +1097,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             _('This information is seen by the recipient if you send them a signed payment request.'),
             '\n\n',
             _('For on-chain requests, the address gets reserved until expiration. After that, it might get reused.'), ' ',
-            _('The groestlcoin address never expires and will always be part of this electrum-grs wallet.'), ' ',
-            _('You can reuse a groestlcoin address any number of times but it is not good for your privacy.'),
+            _('The bitcoin address never expires and will always be part of this electrum wallet.'), ' ',
+            _('You can reuse a bitcoin address any number of times but it is not good for your privacy.'),
             '\n\n',
             _('For Lightning requests, payments will not be accepted after the expiration.'),
         ])
@@ -2416,7 +2416,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         assert not self.wallet.has_lightning()
         if self.wallet.can_have_deterministic_lightning():
             msg = _(
-                "Lightning is not enabled because this wallet was created with an old version of Electrum-GRS. "
+                "Lightning is not enabled because this wallet was created with an old version of Electrum. "
                 "Create lightning keys?")
         else:
             msg = _(
@@ -2472,13 +2472,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 label.setIcon(read_QIcon('nocloud'))
                 grid.addWidget(label, 5, 1)
                 if self.wallet.db.get('seed_type') == 'segwit':
-                    msg = _("Your channels cannot be recovered from seed, because they were created with an old version of Electrum-GRS. "
+                    msg = _("Your channels cannot be recovered from seed, because they were created with an old version of Electrum. "
                             "This means that you must save a backup of your wallet everytime you create a new channel.\n\n"
                             "If you want this wallet to have recoverable channels, you must close your existing channels and restore this wallet from seed")
                 else:
                     msg = _("Your channels cannot be recovered from seed. "
                             "This means that you must save a backup of your wallet everytime you create a new channel.\n\n"
-                            "If you want to have recoverable channels, you must create a new wallet with an Electrum-GRS seed")
+                            "If you want to have recoverable channels, you must create a new wallet with an Electrum seed")
                 grid.addWidget(HelpButton(msg), 5, 3)
             grid.addWidget(QLabel(_('Lightning Node ID:')), 7, 0)
             # TODO: ButtonsLineEdit should have a addQrButton method
@@ -2638,7 +2638,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 "private key, and verifying with the corresponding public key. The "
                 "address you have entered does not have a unique public key, so these "
                 "operations cannot be performed.") + '\n\n' + \
-               _('The operation is undefined. Not just in Electrum-GRS, but in general.')
+               _('The operation is undefined. Not just in Electrum, but in general.')
 
     @protected
     def do_sign(self, address, message, signature, password):
@@ -2806,7 +2806,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         try:
             return tx_from_any(data)
         except BaseException as e:
-            self.show_critical(_("Electrum-GRS was unable to parse your transaction") + ":\n" + repr(e))
+            self.show_critical(_("Electrum was unable to parse your transaction") + ":\n" + repr(e))
             return
 
     def import_channel_backup(self, encrypted: str):
@@ -2857,7 +2857,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             with open(fileName, "rb") as f:
                 file_content = f.read()  # type: Union[str, bytes]
         except (ValueError, IOError, os.error) as reason:
-            self.show_critical(_("Electrum-GRS was unable to open your transaction file") + "\n" + str(reason),
+            self.show_critical(_("Electrum was unable to open your transaction file") + "\n" + str(reason),
                                title=_("Unable to read file or no transaction found"))
             return
         return self.tx_from_text(file_content)
@@ -3002,7 +3002,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.do_export_privkeys(filename, private_keys, csv_button.isChecked())
         except (IOError, os.error) as reason:
             txt = "\n".join([
-                _("Electrum-GRS was unable to produce a private key-export."),
+                _("Electrum was unable to produce a private key-export."),
                 str(reason)
             ])
             self.show_critical(txt, title=_("Unable to create csv"))
@@ -3184,7 +3184,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.fx.trigger_update()
         run_hook('close_settings_dialog')
         if d.need_restart:
-            self.show_warning(_('Please restart Electrum-GRS to activate the new GUI settings'), title=_('Success'))
+            self.show_warning(_('Please restart Electrum to activate the new GUI settings'), title=_('Success'))
 
     def closeEvent(self, event):
         # note that closeEvent is NOT called if the user quits with Ctrl-C
@@ -3218,7 +3218,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.gui_object.close_window(self)
 
     def plugins_dialog(self):
-        self.pluginsdialog = d = WindowModalDialog(self, _('Electrum-GRS Plugins'))
+        self.pluginsdialog = d = WindowModalDialog(self, _('Electrum Plugins'))
 
         plugins = self.gui_object.plugins
 
@@ -3436,6 +3436,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.showing_cert_mismatch_error = True
         self.show_critical(title=_("Certificate mismatch"),
                            msg=_("The SSL certificate provided by the main server did not match the fingerprint passed in with the --serverfingerprint option.") + "\n\n" +
-                               _("Electrum-GRS will now exit."))
+                               _("Electrum will now exit."))
         self.showing_cert_mismatch_error = False
         self.close()
