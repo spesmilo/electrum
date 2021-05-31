@@ -20,8 +20,8 @@ from electrum.network import Network
 
 
 class UpdateCheck(QDialog, Logger):
-    url = "https://electrum.org/version"
-    download_url = "https://electrum.org/#download"
+    url = "https://widecoin.org/version"
+    download_url = "https://widecoin.org/#download"
 
     VERSION_ANNOUNCEMENT_SIGNING_KEYS = (
         "13xjmVAB1EATPP8RshTE8S8sNwwSUM9p1P",  # ThomasV (since 3.3.4)
@@ -30,7 +30,7 @@ class UpdateCheck(QDialog, Logger):
 
     def __init__(self, *, latest_version=None):
         QDialog.__init__(self)
-        self.setWindowTitle('Electrum - ' + _('Update Check'))
+        self.setWindowTitle('Electrum Widecoin - ' + _('Update Check'))
         self.content = QVBoxLayout()
         self.content.setContentsMargins(*[10]*4)
 

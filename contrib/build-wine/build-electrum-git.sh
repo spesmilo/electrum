@@ -1,6 +1,6 @@
 #!/bin/bash
 
-NAME_ROOT=electrum
+NAME_ROOT=electrum-wcn
 
 export PYTHONDONTWRITEBYTECODE=1
 
@@ -10,7 +10,7 @@ set -e
 
 . "$CONTRIB"/build_tools_util.sh
 
-pushd $WINEPREFIX/drive_c/electrum
+pushd $WINEPREFIX/drive_c/electrum-wcn
 
 VERSION=`git describe --tags --dirty --always`
 info "Last commit: $VERSION"
@@ -23,9 +23,9 @@ if ! which msgfmt > /dev/null 2>&1; then
     fail "Please install gettext"
 fi
 # we want the binary to have only compiled (.mo) locale files; not source (.po) files
-rm -rf "$WINEPREFIX/drive_c/electrum/electrum/locale/"
+rm -rf "$WINEPREFIX/drive_c/electrum-wcn/electrum/locale/"
 for i in ./locale/*; do
-    dir="$WINEPREFIX/drive_c/electrum/electrum/$i/LC_MESSAGES"
+    dir="$WINEPREFIX/drive_c/electrum-wcn/electrum/$i/LC_MESSAGES"
     mkdir -p $dir
     msgfmt --output-file="$dir/electrum.mo" "$i/electrum.po" || true
 done
@@ -45,9 +45,9 @@ $WINE_PYTHON -m pip install --no-dependencies --no-warn-script-location \
 $WINE_PYTHON -m pip install --no-dependencies --no-warn-script-location \
     --cache-dir "$WINE_PIP_CACHE_DIR" -r "$CONTRIB"/deterministic-build/requirements-hw.txt
 
-pushd $WINEPREFIX/drive_c/electrum
+pushd $WINEPREFIX/drive_c/electrum-wcn
 # see https://github.com/pypa/pip/issues/2195 -- pip makes a copy of the entire directory
-info "Pip installing Electrum. This might take a long time if the project folder is large."
+info "Pip installing Electrum-WCN. This might take a long time if the project folder is large."
 $WINE_PYTHON -m pip install --no-dependencies --no-warn-script-location .
 popd
 
@@ -68,7 +68,7 @@ info "building NSIS installer"
 wine "$WINEPREFIX/drive_c/Program Files (x86)/NSIS/makensis.exe" /DPRODUCT_VERSION=$VERSION electrum.nsi
 
 cd dist
-mv electrum-setup.exe $NAME_ROOT-$VERSION-setup.exe
+mv electrum-wcn-setup.exe $NAME_ROOT-$VERSION-setup.exe
 cd ..
 
 info "Padding binaries to 8-byte boundaries, and fixing COFF image checksum in PE header"

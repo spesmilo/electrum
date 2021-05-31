@@ -52,7 +52,7 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
         self.config = config
 
         QWidget.__init__(self)
-        self.setWindowTitle('Electrum - ' + _('An Error Occurred'))
+        self.setWindowTitle('Electrum Widecoin - ' + _('An Error Occurred'))
         self.setMinimumSize(600, 300)
 
         Logger.__init__(self)

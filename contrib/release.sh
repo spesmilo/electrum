@@ -31,7 +31,7 @@ fi
 set -ex
 
 # create tarball
-target=Electrum-$VERSION.tar.gz
+target=Electrum-WCN-$VERSION.tar.gz
 if test -f dist/$target; then
     echo "file exists: $target"
 else
@@ -42,7 +42,7 @@ else
        umask 0022 && \
        mkdir -p $FRESH_CLONE && \
        cd $FRESH_CLONE  && \
-       git clone https://github.com/spesmilo/electrum.git &&\
+       git clone https://github.com/widecoin-project/electrum-wcn.git &&\
        cd electrum
    git checkout "${COMMIT}^{commit}"
    sudo docker run -it \
@@ -87,7 +87,7 @@ else
         sudo rm -rf $FRESH_CLONE && \
         mkdir -p $FRESH_CLONE && \
         cd $FRESH_CLONE  && \
-        git clone https://github.com/spesmilo/electrum.git && \
+        git clone https://github.com/widecoin-project/electrum-wcn.git && \
         cd electrum
     git checkout "${COMMIT}^{commit}"
     sudo docker run -it \
@@ -105,8 +105,8 @@ else
 fi
 
 # android
-target1=Electrum-$VERSION.0-armeabi-v7a-release.apk
-target2=Electrum-$VERSION.0-arm64-v8a-release.apk
+target1=Electrum-WCN-$VERSION.0-armeabi-v7a-release.apk
+target2=Electrum-WCN-$VERSION.0-arm64-v8a-release.apk
 
 if test -f dist/$target1; then
     echo "file exists: $target1"

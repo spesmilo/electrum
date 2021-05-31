@@ -26,8 +26,8 @@ for f in $(ls *.exe); do
       -h sha256 \
       -certs "$CERT_FILE" \
       -key "$KEY_FILE" \
-      -n "Electrum" \
-      -i "https://electrum.org/" \
+      -n "Electrum-WCN" \
+      -i "https://widecoin.org/" \
       -t "http://timestamp.digicert.com/" \
       -in "$f" \
       -out "../signed/$f"

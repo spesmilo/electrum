@@ -14,7 +14,7 @@ install:
 cache:
   - pip: true
   - directories:
-    - /tmp/electrum-build
+    - /tmp/electrum-wcn-build
 script:
     - tox
 after_success:
@@ -61,7 +61,7 @@ jobs:
       install:
         - sudo docker build --no-cache -t electrum-wine-builder-img ./contrib/build-wine/
       script:
-        - sudo docker run --name electrum-wine-builder-cont -v $PWD:/opt/wine64/drive_c/electrum --rm --workdir /opt/wine64/drive_c/electrum/contrib/build-wine electrum-wine-builder-img ./build.sh
+        - sudo docker run --name electrum-wine-builder-cont -v $PWD:/opt/wine64/drive_c/electrum-wcn --rm --workdir /opt/wine64/drive_c/electrum-wcn/contrib/build-wine electrum-wine-builder-img ./build.sh
       after_success: true
     - if: (branch = master) OR (tag IS present)
       name: "Android build"

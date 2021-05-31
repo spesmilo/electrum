@@ -13,6 +13,10 @@ PYINSTALLER_REPO="https://github.com/SomberNight/pyinstaller.git"
 PYINSTALLER_COMMIT="80ee4d613ecf75a1226b960a560ee01459e65ddb"
 # ^ tag 4.2, plus a custom commit that fixes cross-compilation with MinGW
 
+LIB_GCC_FILENAME=libgcc-6.3.0-1-mingw32-dll-1.tar.xz
+LIB_GCC_URL=https://netix.dl.sourceforge.net/project/mingw/MinGW/Base/gcc/Version6/gcc-6.3.0/$LIB_GCC_FILENAME
+LIB_GCC_SHA256=8cbfa963f645cc0f81c08df2a3ecbcefc776606f0fb9db7a280d79f05209a1c3
+
 PYTHON_VERSION=3.8.8
 
 
@@ -90,6 +94,11 @@ info "Compiling libusb..."
 ) || fail "libusb build failed"
 cp "$CACHEDIR/libusb/libusb/.libs/libusb-1.0.dll" $WINEPREFIX/drive_c/tmp/  || fail "Could not copy libusb to its destination"
 
+download_if_not_exist $LIB_GCC_FILENAME "$LIB_GCC_URL"
+verify_hash $LIB_GCC_FILENAME $LIB_GCC_SHA256
+tar Jxfv $LIB_GCC_FILENAME
+
+cp bin/libgcc_s_dw2-1.dll $WINEPREFIX/drive_c/python3/Lib/site-packages/
 
 # copy already built DLLs
 cp "$DLL_TARGET_DIR/libsecp256k1-0.dll" $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libsecp to its destination"
@@ -111,7 +120,7 @@ info "Building PyInstaller."
         info "pyinstaller already built, skipping"
         exit 0
     fi
-    cd "$WINEPREFIX/drive_c/electrum"
+    cd "$WINEPREFIX/drive_c/electrum-wcn"
     ELECTRUM_COMMIT_HASH=$(git rev-parse HEAD)
     cd "$CACHEDIR"
     rm -rf pyinstaller
