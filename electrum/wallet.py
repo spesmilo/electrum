@@ -2639,6 +2639,8 @@ class Imported_Wallet(Simple_Wallet):
 
     def __init__(self, db, storage, *, config):
         Abstract_Wallet.__init__(self, db, storage, config=config)
+        #Keep the old default behaviour of not using change address in imported wallets
+        self.use_change = db.get('use_change', False)
 
     def is_watching_only(self):
         return self.keystore is None
@@ -2681,7 +2683,7 @@ class Imported_Wallet(Simple_Wallet):
         return self.get_addresses()
 
     def get_change_addresses(self, **kwargs):
-        return []
+        return [addr for addr in self.get_addresses() if len(self.db.get_addr_history(addr)) == 0]
 
     def import_addresses(self, addresses: List[str], *,
                          write_to_disk=True) -> Tuple[List[str], List[Tuple[str, str]]]:
