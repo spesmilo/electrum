@@ -59,7 +59,7 @@ from .qrcodewidget import QRCodeWidget, QRDialog
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .transaction_dialog import show_transaction
 from .fee_slider import FeeSlider
-
+import logging
 from .util import *
 
 
@@ -99,7 +99,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def __init__(self, gui_object, wallet):
         QMainWindow.__init__(self)
-
+        self.logger = logging.getLogger('electrum logger')
+        self.logger.setLevel(logging.DEBUG)
+        self.logger.info('logger init')
         self.gui_object = gui_object
         self.config = config = gui_object.config
         self.network = gui_object.daemon.network
@@ -1214,6 +1216,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if fee is None:
                 return
             rbf_policy = self.config.get('rbf_policy', 1)
+            self.logger.info(f">>>rbf: {rbf_policy}")
             if rbf_policy == 0:
                 b = True
             elif rbf_policy == 1:
