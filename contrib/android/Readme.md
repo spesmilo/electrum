@@ -140,7 +140,7 @@ as example rename it to android_release.keystore
 got to contrib\android\make_apk and edit it
 
 from 
-
+```
 if [[ -n "$1"  && "$1" == "release" ]] ; then
     echo -n Keystore Password:
     read -s password
@@ -153,9 +153,9 @@ if [[ -n "$1"  && "$1" == "release" ]] ; then
     make release
     export APP_ANDROID_ARCH=arm64-v8a
     make release
-
+```
 to
-
+```
 if [[ -n "$1"  && "$1" == "release" ]] ; then
     echo -n Keystore Password:
     read -s password
@@ -168,7 +168,7 @@ if [[ -n "$1"  && "$1" == "release" ]] ; then
     make release
     export APP_ANDROID_ARCH=arm64-v8a
     make release
-
+```
 Now copy keystore files and put it to contrib/android
 
 Then
