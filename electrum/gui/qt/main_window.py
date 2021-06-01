@@ -1508,7 +1508,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         for o in outputs:
             if o.scriptpubkey is None:
-                self.show_error(_('Bitcoin Address is None'))
+                self.show_error(_('Widecoin Address is None'))
                 return True
             if o.value is None:
                 self.show_error(_('Invalid Amount'))
