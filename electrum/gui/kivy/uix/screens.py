@@ -310,7 +310,7 @@ class SendScreen(CScreen, Logger):
                     outputs = self.payment_request.get_outputs()
                 else:
                     if not bitcoin.is_address(address):
-                        self.app.show_error(_('Invalid Bitcoin Address') + ':\n' + address)
+                        self.app.show_error(_('Invalid Widecoin Address') + ':\n' + address)
                         return
                     outputs = [PartialTxOutput.from_address_and_value(address, amount)]
                     return self.app.wallet.create_invoice(
