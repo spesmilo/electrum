@@ -49,7 +49,7 @@ class BaseCrashReporter(Logger):
   <li>Locale: {locale}</li>
 </ul>
     """
-    CRASH_MESSAGE = _('Something went wrong while executing Electrum-GRS.')
+    CRASH_MESSAGE = _('Something went wrong while executing Electrum.')
     CRASH_TITLE = _('Sorry!')
     REQUEST_HELP_MESSAGE = _('To help us diagnose and fix the problem, you can send us a bug report that contains '
                              'useful debug information:')
