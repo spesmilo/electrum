@@ -19,6 +19,7 @@ import kotlinx.android.synthetic.main.multisig_cosigners.*
 import kotlinx.android.synthetic.main.show_master_key.*
 import kotlinx.android.synthetic.main.wallet_new.*
 import kotlinx.android.synthetic.main.wallet_new_2.*
+import java.security.Key
 import kotlin.properties.Delegates.notNull
 
 
@@ -204,10 +205,6 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
             val numCosigners = arguments!!.getInt("cosigners")
             val numSignatures = arguments!!.getInt("signatures")
 
-            // Close the previous cosigner's keystore dialog.
-            // TODO: Consider a better solution for closing dialogs?
-            (targetFragment as KeystoreDialog).dismiss()
-
             if (currentCosigner == numCosigners) {
                 daemonModel.commands.callAttr(
                         "create_multisig", name, password,
@@ -216,7 +213,6 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
                         Kwarg("signatures", numSignatures)
                 )
                 daemonModel.loadWallet(name, password)
-                closeDialogs(targetFragment!!)
             }
         } else {
             daemonModel.loadWallet(name, password)
@@ -240,17 +236,22 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
 
             if (currentCosigner < numCosigners) {
                 // The first cosigner sees their master public key; others are prompted for data
-                val nextDialog: DialogFragment = if (currentCosigner == 1) {
-                    MasterPublicKeyDialog()
-                } else {
-                    KeystoreDialog()
+                if (currentCosigner == 1) {
+                    (targetFragment as DialogFragment).dismiss()
+                    val nextDialog: DialogFragment = MasterPublicKeyDialog()
+                    nextDialog.setArguments(arguments)
+                    showDialog(this, nextDialog)
                 }
 
-                arguments!!.putInt("i_signer", currentCosigner + 1)
+                // Update dialog title for the next cosigner
+                val nextCosigner = currentCosigner + 1
+                (targetFragment as KeystoreDialog).dialog!!.setTitle(
+                    getString(R.string.Add_cosigner) + " " +
+                    getString(R.string.__d_of, nextCosigner, numCosigners))
 
-                nextDialog.setArguments(arguments)
-                showDialog(this, nextDialog)
+                arguments!!.putInt("i_signer", nextCosigner)
             } else { // last cosigner done; finalize wallet
+                closeDialogs(targetFragment!!)
                 daemonModel.commands.callAttr("select_wallet", result)
                 (activity as MainActivity).updateDrawer()
             }
