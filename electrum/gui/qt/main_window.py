@@ -3155,7 +3155,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.show_message(_('Address not in wallet.'))
             return
         txin_type = self.wallet.get_txin_type(address)
-        if txin_type not in ['p2pkh', 'p2wpkh', 'p2wpkh-p2sh']:
+        if txin_type not in ['p2pkh', 'p2wpkh', 'p2wpkh-p2sh', 'p2cs']:
             self.show_message(_('Cannot sign messages with this type of address:') + \
                               ' ' + txin_type + '\n\n' + self.msg_sign)
             return
@@ -3184,7 +3184,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.show_message(_('Address not in wallet.'))
             return
         txin_type = self.wallet.get_txin_type(address)
-        if txin_type not in ['p2pkh', 'p2wpkh', 'p2wpkh-p2sh']:
+        if txin_type not in ['p2pkh', 'p2wpkh', 'p2wpkh-p2sh', 'p2cs']:
             self.show_message(_('Cannot sign messages with this type of address:') + \
                               ' ' + txin_type + '\n\n' + self.msg_sign)
             return

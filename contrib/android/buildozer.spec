@@ -1,13 +1,13 @@
 [app]
 
 # (str) Title of your application
-title = Electrum
+title = NavCash
 
 # (str) Package name
-package.name = Electrum
+package.name = NavCash
 
 # (str) Package domain (needed for android/ios packaging)
-package.domain = org.electrum
+package.domain = community.nav
 
 # (str) Source code where the main.py live
 source.dir = .

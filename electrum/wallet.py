@@ -3133,7 +3133,7 @@ class Cold_Staking_Wallet(Simple_Deterministic_Wallet):
             ks, der_suffix = pubkey_deriv_info[pubkey_hex]
             fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix,
                                                                                    only_der_suffix=only_der_suffix)
-            txin.bip32_paths[bfh(pubkey_hex)] = (fp_bytes, der_full)
+            txin.bip32_paths[bfh(pubkey_hex.hex())] = (fp_bytes, der_full)
         if txin.script_type in ['p2cs']:
             txin.pubkeys.insert(0,self.staking_pkh)
         if txin.script_type in ['p2cs2']:
