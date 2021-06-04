@@ -4,19 +4,20 @@ from typing import TYPE_CHECKING, Optional, Union
 from kivy.lang import Builder
 from kivy.factory import Factory
 from kivy.uix.popup import Popup
-from .fee_dialog import FeeDialog
 
 from electrum.util import bh2u
 from electrum.logging import Logger
 from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id
 from electrum.lnchannel import AbstractChannel, Channel, ChannelState
 from electrum.gui.kivy.i18n import _
-from .question import Question
 from electrum.transaction import PartialTxOutput, Transaction
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, format_fee_satoshis, quantize_feerate
 from electrum.lnutil import ln_dummy_address
 from electrum.gui import messages
 
+from ..actiondropdown import ActionButtonOption, ActionDropdown
+from .fee_dialog import FeeDialog
+from .question import Question
 from .qr_dialog import QRDialog
 from .choice_dialog import ChoiceDialog
 
@@ -243,6 +244,8 @@ Builder.load_string(r'''
     can_receive:''
     is_open:False
     warning: ''
+    is_frozen_for_sending: False
+    is_frozen_for_receiving: False
     BoxLayout:
         padding: '12dp', '12dp', '12dp', '12dp'
         spacing: '12dp'
@@ -285,6 +288,12 @@ Builder.load_string(r'''
                 BoxLabel:
                     text: _('Fee rate')
                     value: '{} sat/byte'.format(root.feerate)
+                BoxLabel:
+                    text: _('Frozen (for sending)')
+                    value: str(root.is_frozen_for_sending)
+                BoxLabel:
+                    text: _('Frozen (for receiving)')
+                    value: str(root.is_frozen_for_receiving)
                 Widget:
                     size_hint: 1, 0.1
                 TopLabel:
@@ -313,29 +322,12 @@ Builder.load_string(r'''
         BoxLayout:
             size_hint: 1, None
             height: '48dp'
-            Button:
+            ActionDropdown:
+                id: action_dropdown
                 size_hint: 0.5, None
                 height: '48dp'
-                text: _('Backup')
-                on_release: root.export_backup()
-            Button:
+            Widget:
                 size_hint: 0.5, None
-                height: '48dp'
-                text: _('Close')
-                on_release: root.close()
-                disabled: root.is_closed
-            Button:
-                size_hint: 0.5, None
-                height: '48dp'
-                text: _('Force-close')
-                on_release: root.force_close()
-                disabled: root.is_closed
-            Button:
-                size_hint: 0.5, None
-                height: '48dp'
-                text: _('Delete')
-                on_release: root.remove_channel()
-                disabled: not root.can_be_deleted
 
 <ChannelBackupPopup@Popup>:
     id: popuproot
@@ -488,12 +480,30 @@ class ChannelDetailsPopup(Popup, Logger):
         closed = chan.get_closing_height()
         if closed:
             self.closing_txid, closing_height, closing_timestamp = closed
-        msg = ' '.join([
-            _("Trampoline routing is enabled, but this channel is with a non-trampoline node."),
-            _("This channel may still be used for receiving, but it is frozen for sending."),
-            _("If you want to keep using this channel, you need to disable trampoline routing in your preferences."),
-        ])
+        msg = messages.MSG_NON_TRAMPOLINE_CHANNEL_FROZEN_WITHOUT_GOSSIP
         self.warning = '' if self.app.wallet.lnworker.channel_db or self.app.wallet.lnworker.is_trampoline_peer(chan.node_id) else _('Warning') + ': ' + msg
+        self.is_frozen_for_sending = chan.is_frozen_for_sending()
+        self.is_frozen_for_receiving = chan.is_frozen_for_receiving()
+        self.update_action_dropdown()
+
+    def update_action_dropdown(self):
+        action_dropdown = self.ids.action_dropdown  # type: ActionDropdown
+        options = [
+            ActionButtonOption(text=_('Backup'), func=lambda btn: self.export_backup()),
+            ActionButtonOption(text=_('Close channel'), func=lambda btn: self.close(), enabled=not self.is_closed),
+            ActionButtonOption(text=_('Force-close'), func=lambda btn: self.force_close(), enabled=not self.is_closed),
+            ActionButtonOption(text=_('Delete'), func=lambda btn: self.remove_channel(), enabled=self.can_be_deleted),
+        ]
+        if not self.chan.is_closed():
+            if not self.chan.is_frozen_for_sending():
+                options.append(ActionButtonOption(text=_("Freeze") + "\n(for sending)", func=lambda btn: self.freeze_for_sending()))
+            else:
+                options.append(ActionButtonOption(text=_("Unfreeze") + "\n(for sending)", func=lambda btn: self.freeze_for_sending()))
+            if not self.chan.is_frozen_for_receiving():
+                options.append(ActionButtonOption(text=_("Freeze") + "\n(for receiving)", func=lambda btn: self.freeze_for_receiving()))
+            else:
+                options.append(ActionButtonOption(text=_("Unfreeze") + "\n(for receiving)", func=lambda btn: self.freeze_for_receiving()))
+        action_dropdown.update(options=options)
 
     def close(self):
         dialog = ChoiceDialog(
@@ -582,6 +592,20 @@ class ChannelDetailsPopup(Popup, Logger):
         except Exception as e:
             self.logger.exception("Could not force close channel")
             self.app.show_info(_('Could not force close channel: ') + repr(e)) # repr because str(Exception()) == ''
+
+    def freeze_for_sending(self):
+        lnworker = self.chan.lnworker
+        if lnworker.channel_db or lnworker.is_trampoline_peer(self.chan.node_id):
+            self.is_frozen_for_sending = not self.is_frozen_for_sending
+            self.chan.set_frozen_for_sending(self.is_frozen_for_sending)
+            self.update_action_dropdown()
+        else:
+            self.app.show_info(messages.MSG_NON_TRAMPOLINE_CHANNEL_FROZEN_WITHOUT_GOSSIP)
+
+    def freeze_for_receiving(self):
+        self.is_frozen_for_receiving = not self.is_frozen_for_receiving
+        self.chan.set_frozen_for_receiving(self.is_frozen_for_receiving)
+        self.update_action_dropdown()
 
 
 class LightningChannelsDialog(Factory.Popup):

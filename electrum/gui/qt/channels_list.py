@@ -193,11 +193,7 @@ class ChannelsList(MyTreeView):
         if self.lnworker.channel_db or self.lnworker.is_trampoline_peer(chan.node_id):
             chan.set_frozen_for_sending(b)
         else:
-            msg = ' '.join([
-                _("Trampoline routing is enabled, but this channel is with a non-trampoline node."),
-                _("This channel may still be used for receiving, but it is frozen for sending."),
-                _("If you want to keep using this channel, you need to disable trampoline routing in your preferences."),
-            ])
+            msg = messages.MSG_NON_TRAMPOLINE_CHANNEL_FROZEN_WITHOUT_GOSSIP
             self.main_window.show_warning(msg, title=_('Channel is frozen for sending'))
 
     def create_menu(self, position):
@@ -237,7 +233,7 @@ class ChannelsList(MyTreeView):
             channel_id.hex(), title=_("Long Channel ID")))
         if not chan.is_closed():
             if not chan.is_frozen_for_sending():
-                menu.addAction(_("Freeze (for sending)"), lambda: self.freeze_channel_for_sending(chan, True))
+                menu.addAction(_("Freeze (for sending)"), lambda: self.freeze_channel_for_sending(chan, True))  #
             else:
                 menu.addAction(_("Unfreeze (for sending)"), lambda: self.freeze_channel_for_sending(chan, False))
             if not chan.is_frozen_for_receiving():
