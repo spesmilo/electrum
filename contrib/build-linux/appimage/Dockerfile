@@ -43,7 +43,7 @@ RUN apt-get update -q && \
         libxcb-util1=0.4.0-0ubuntu3 \
         libxcb-render-util0=0.3.9-1 \
         libx11-xcb1=2:1.6.3-1ubuntu2.2 \
-        libc6-dev=2.23-0ubuntu11.2 \
+        libc6-dev=2.23-0ubuntu11.3 \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \

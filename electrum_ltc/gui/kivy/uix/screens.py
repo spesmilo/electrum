@@ -434,9 +434,14 @@ class ReceiveScreen(CScreen):
         amount = self.amount
         amount = self.app.get_amount(amount) if amount else 0
         message = self.message
+        lnworker = self.app.wallet.lnworker
         try:
             if lightning:
-                key = self.app.wallet.lnworker.add_request(amount, message, self.expiry())
+                if lnworker:
+                    key = lnworker.add_request(amount, message, self.expiry())
+                else:
+                    self.app.show_error(_("Lightning payments are not available for this wallet"))
+                    return
             else:
                 addr = self.address or self.app.wallet.get_unused_address()
                 if not addr:
