@@ -184,9 +184,16 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
     override fun doInBackground(): String {
         val name = arguments!!.getString("name")!!
         val password = arguments!!.getString("password")!!
-        onCreateWallet(name, password)
 
-        val keystores = arguments!!.getStringArrayList("keystores")
+        /**
+         * Handle the resulting keystore.
+         */
+        val ks = onCreateWallet(name, password)
+        if (ks != null) {
+            val masterKey = ks.callAttr("get", "xpub").toString()
+            arguments!!.putString("masterKey", masterKey)
+            arguments!!.putStringArrayList("keystores", updateKeystores(arguments!!, ks))
+        }
 
         /**
          * For multisig wallets, wait until all cosigners have been added,
@@ -194,6 +201,7 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
          *
          * Otherwise, load the created wallet.
          */
+        val keystores = arguments!!.getStringArrayList("keystores")
         if (keystores != null) {
             val numCosigners = arguments!!.getInt("cosigners")
             val numSignatures = arguments!!.getInt("signatures")
@@ -214,7 +222,7 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
         return name
     }
 
-    abstract fun onCreateWallet(name: String, password: String)
+    abstract fun onCreateWallet(name: String, password: String): PyObject?
 
     override fun onPostExecute(result: String) {
         val keystores = arguments!!.getStringArrayList("keystores")
@@ -281,7 +289,7 @@ class NewWalletSeedDialog : NewWalletDialog2() {
         }
     }
 
-    override fun onCreateWallet(name: String, password: String) {
+    override fun onCreateWallet(name: String, password: String): PyObject? {
         try {
             if (derivation != null &&
                 !libBitcoin.callAttr("is_bip32_derivation", derivation).toBoolean()) {
@@ -289,19 +297,12 @@ class NewWalletSeedDialog : NewWalletDialog2() {
             }
 
             val multisig = arguments!!.containsKey("keystores")
-            val ks = daemonModel.commands.callAttr(
+            return daemonModel.commands.callAttr(
                 "create", name, password,
                 Kwarg("seed", input),
                 Kwarg("passphrase", passphrase),
                 Kwarg("multisig", multisig),
                 Kwarg("bip39_derivation", derivation))
-
-            if (multisig) {
-                val masterKey = ks.callAttr("get", "xpub").toString()
-                arguments!!.putString("masterKey", masterKey)
-                arguments!!.putStringArrayList("keystores", updateKeystores(arguments!!, ks))
-            }
-
         } catch (e: PyException) {
             if (e.message!!.startsWith("InvalidSeed")) {
                 throw ToastException(R.string.the_seed_you_entered_does_not_appear)
@@ -324,7 +325,7 @@ class NewWalletImportDialog : NewWalletDialog2() {
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { scanQR(this) }
     }
 
-    override fun onCreateWallet(name: String, password: String) {
+    override fun onCreateWallet(name: String, password: String): PyObject? {
         var foundAddress = false
         var foundPrivkey = false
         for (word in input.split(Regex("\\s+"))) {
@@ -343,7 +344,7 @@ class NewWalletImportDialog : NewWalletDialog2() {
             }
         }
 
-        if (foundAddress) {
+        return if (foundAddress) {
             if (foundPrivkey) {
                 throw ToastException(
                     R.string.cannot_specify_private_keys_and_addresses_in_the_same_wallet)
@@ -408,21 +409,15 @@ class NewWalletImportMasterDialog : NewWalletDialog2() {
         }
     }
 
-    override fun onCreateWallet(name: String, password: String) {
+    override fun onCreateWallet(name: String, password: String): PyObject? {
         val key = input.trim()
         if (libKeystore.callAttr("is_bip32_key", key).toBoolean()) {
             val multisig = arguments!!.containsKey("keystores")
-            val ks = daemonModel.commands.callAttr(
-                    "create", name, password,
-                    Kwarg("master", key),
-                    Kwarg("multisig", multisig)
+            return daemonModel.commands.callAttr(
+                "create", name, password,
+                Kwarg("master", key),
+                Kwarg("multisig", multisig)
             )
-
-            if (multisig) {
-                val masterKey = ks.callAttr("get", "xpub").toString()
-                arguments!!.putString("masterKey", masterKey)
-                arguments!!.putStringArrayList("keystores", updateKeystores(arguments!!, ks))
-            }
         } else {
             throw ToastException(R.string.please_specify)
         }
