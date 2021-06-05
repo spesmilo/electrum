@@ -476,21 +476,30 @@ class CosignerDialog : AlertDialogFragment() {
     val numSignatures: Int
         get() = sbSignatures.progress + SIGNATURE_OFFSET
 
+    override fun onFirstShowDialog() {
+        super.onFirstShowDialog()
+
+        with (sbCosigners) {
+            progress = 0
+        }
+
+        with (sbSignatures) {
+            progress = numCosigners
+            max = SIGNATURE_OFFSET
+        }
+    }
+
     override fun onShowDialog() {
         super.onShowDialog()
-
-        tvCosigners.text = getString(R.string.from_cosigners, 2)
-        tvSignatures.text = getString(R.string.require_signatures, 2)
+        updateUi()
 
         // Handle the total number of cosigners
         with (sbCosigners) {
-            progress = 0
             max = MAX_COSIGNERS - COSIGNER_OFFSET
 
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    tvCosigners.text = getString(R.string.from_cosigners, numCosigners)
-                    sbSignatures.max = numCosigners - 1
+                    updateUi()
                 }
 
                 override fun onStartTrackingTouch(seekBar: SeekBar?) {}
@@ -500,12 +509,9 @@ class CosignerDialog : AlertDialogFragment() {
 
         // Handle the number of required signatures
         with (sbSignatures) {
-            progress = numCosigners
-            max = SIGNATURE_OFFSET
-
             setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    tvSignatures.text = getString(R.string.require_signatures, numSignatures)
+                    updateUi()
                 }
 
                 override fun onStartTrackingTouch(seekBar: SeekBar?) {}
@@ -527,6 +533,12 @@ class CosignerDialog : AlertDialogFragment() {
                 e.show()
             }
         }
+    }
+
+    private fun updateUi() {
+        tvCosigners.text = getString(R.string.from_cosigners, numCosigners)
+        tvSignatures.text = getString(R.string.require_signatures, numSignatures)
+        sbSignatures.max = numCosigners - 1
     }
 }
 
