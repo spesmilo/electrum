@@ -171,10 +171,19 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
     var input: String by notNull()
 
     override fun onBuildDialog(builder: AlertDialog.Builder) {
-        builder.setTitle(R.string.New_wallet)
-            .setView(R.layout.wallet_new_2)
+        builder.setView(R.layout.wallet_new_2)
             .setPositiveButton(android.R.string.ok, null)
             .setNegativeButton(R.string.back, null)
+
+        // Update dialog title based on wallet type and/or current cosigner
+        val keystores = arguments!!.getStringArrayList("keystores")
+        if (keystores != null && keystores.size != 0) {
+            val numCosigners = arguments!!.getInt("cosigners")
+            builder.setTitle(getString(R.string.Add_cosigner) + " " +
+                getString(R.string.__d_of, keystores.size + 1, numCosigners))
+        } else {
+            builder.setTitle(R.string.New_wallet)
+        }
     }
 
     override fun onPreExecute() {
@@ -391,10 +400,6 @@ class NewWalletImportMasterDialog : NewWalletDialog2() {
             getString(R.string.to_create_a_spending)
         }
         tvPrompt.setText(keyPrompt)
-
-        if (keystores != null && keystores.size != 0) {
-            dialog.setTitle(getString(R.string.Add_cosigner) + " ${keystores.size + 1}")
-        }
 
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { scanQR(this) }
     }
