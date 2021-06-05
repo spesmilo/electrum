@@ -1,5 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
+import ast
 from code import InteractiveConsole
 import os
 from os.path import dirname, exists, join, split
@@ -165,7 +166,7 @@ class AndroidCommands(commands.Commands):
                 # For multisig wallets, we do not immediately create a wallet storage file.
                 # Instead, we just get the keystore; create_multisig() handles wallet storage
                 # later, once all cosigners are added.
-                return ks
+                return ks.dump()
 
         wallet.update_password(None, password, encrypt=True)
 
@@ -179,7 +180,7 @@ class AndroidCommands(commands.Commands):
         # Multisig wallet type
         storage.put("wallet_type", "%dof%d" % (signatures, cosigners))
         for i, k in enumerate(keystores, start=1):
-            storage.put('x%d/' % i, k.dump())
+            storage.put('x%d/' % i, ast.literal_eval(k))
         storage.write()
 
         wallet = Multisig_Wallet(storage)

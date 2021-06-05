@@ -19,14 +19,11 @@ import kotlinx.android.synthetic.main.multisig_cosigners.*
 import kotlinx.android.synthetic.main.show_master_key.*
 import kotlinx.android.synthetic.main.wallet_new.*
 import kotlinx.android.synthetic.main.wallet_new_2.*
-import java.security.Key
 import kotlin.properties.Delegates.notNull
 
 
 val libKeystore by lazy { libMod("keystore") }
 val libWallet by lazy { libMod("wallet") }
-
-val keystores by lazy { ArrayList<PyObject>() }
 
 val MAX_COSIGNERS = 15
 val COSIGNER_OFFSET = 2 // min. number of multisig cosigners = 2
@@ -74,17 +71,15 @@ class NewWalletDialog1 : AlertDialogFragment() {
             } catch (e: ToastException) { e.show() }
         }
     }
-
-    override fun onDismiss(dialog: DialogInterface) {
-        super.onDismiss(dialog)
-        keystores.clear()
-    }
 }
 
 fun closeDialogs(targetFragment: Fragment) {
-    (targetFragment as DialogFragment).dismiss()
-    if (targetFragment.targetFragment != null) {
-        closeDialogs(targetFragment.targetFragment!!)
+    val sfm = targetFragment.activity!!.supportFragmentManager
+    val fragments = sfm.fragments
+    for (frag in fragments) {
+        if (frag is DialogFragment) {
+            frag.dismiss()
+        }
     }
 }
 
@@ -204,11 +199,12 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
             val currentCosigner = arguments!!.getInt("i_signer")
             val numCosigners = arguments!!.getInt("cosigners")
             val numSignatures = arguments!!.getInt("signatures")
+            val keystores = arguments!!.getStringArrayList("keystores")
 
             if (currentCosigner == numCosigners) {
                 daemonModel.commands.callAttr(
                         "create_multisig", name, password,
-                        Kwarg("keystores", keystores.toArray()),
+                        Kwarg("keystores", keystores!!.toArray()),
                         Kwarg("cosigners", numCosigners),
                         Kwarg("signatures", numSignatures)
                 )
@@ -245,7 +241,7 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
 
                 // Update dialog title for the next cosigner
                 val nextCosigner = currentCosigner + 1
-                (targetFragment as KeystoreDialog).dialog!!.setTitle(
+                (targetFragment as KeystoreDialog).dialog.setTitle(
                     getString(R.string.Add_cosigner) + " " +
                     getString(R.string.__d_of, nextCosigner, numCosigners))
 
@@ -306,10 +302,9 @@ class NewWalletSeedDialog : NewWalletDialog2() {
                 Kwarg("bip39_derivation", derivation))
 
             if (multisig) {
-                keystores.add(ks)
-
-                val masterKey = ks.callAttr("get_master_public_key").toString()
+                val masterKey = ks.callAttr("get", "xpub").toString()
                 arguments!!.putString("masterKey", masterKey)
+                arguments!!.putStringArrayList("keystores", updateKeystores(arguments!!, ks))
             }
 
         } catch (e: PyException) {
@@ -431,9 +426,9 @@ class NewWalletImportMasterDialog : NewWalletDialog2() {
             )
 
             if (multisig) {
-                val masterKey = ks.callAttr("get_master_public_key").toString()
+                val masterKey = ks.callAttr("get", "xpub").toString()
                 arguments!!.putString("masterKey", masterKey)
-                keystores.add(ks)
+                arguments!!.putStringArrayList("keystores", updateKeystores(arguments!!, ks))
             }
         } else {
             throw ToastException(R.string.please_specify)
@@ -533,6 +528,7 @@ class CosignerDialog : AlertDialogFragment() {
                 arguments!!.putInt("i_signer", 1) // current co-signer; will update
                 arguments!!.putInt("cosigners", numCosigners)
                 arguments!!.putInt("signatures", numSignatures)
+                arguments!!.putStringArrayList("keystores", ArrayList<String>())
 
                 nextDialog.setArguments(arguments)
                 showDialog(this, nextDialog)
@@ -584,4 +580,13 @@ fun seedAdvice(seed: String): String {
     return app.getString(R.string.please_save, seed.split(" ").size) + " " +
            app.getString(R.string.this_seed_will) + " " +
            app.getString(R.string.never_disclose)
+}
+
+/**
+ * Update the "keystores" array list for multisig wallets.
+ */
+fun updateKeystores(arguments: Bundle, ks: PyObject): ArrayList<String> {
+    val keystores = arguments.getStringArrayList("keystores")
+    keystores!!.add(ks.toString())
+    return keystores
 }
