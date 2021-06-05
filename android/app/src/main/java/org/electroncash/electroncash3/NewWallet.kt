@@ -124,18 +124,17 @@ class KeystoreDialog : AlertDialogFragment() {
         super.onViewCreated(view, savedInstanceState)
 
         /* Choose the appropriate keystore dropdown, based on wallet type */
-        val multisig = arguments!!.getBoolean("multisig")
-        val currentCosigner = arguments!!.getInt("i_signer") //
         val numOfCosigners = arguments!!.getInt("cosigners")
+        val keystores = arguments!!.getStringArrayList("keystores")
 
         /* Handle dialog title for cosigners */
-        if (multisig) {
+        if (keystores != null) {
             dialog.setTitle(getString(R.string.Add_cosigner) + " " +
-                getString(R.string.__d_of, currentCosigner, numOfCosigners))
+                getString(R.string.__d_of, keystores.size + 1, numOfCosigners))
         }
 
         val keystoreMenu: Int
-        if (multisig && currentCosigner != 1) {
+        if (keystores != null && keystores.size != 0) {
             keystoreMenu = R.menu.cosigner_type
             keystoreDesc.setText(R.string.add_a)
         } else {
@@ -187,7 +186,7 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
         val password = arguments!!.getString("password")!!
         onCreateWallet(name, password)
 
-        val multisig = arguments!!.getBoolean("multisig")
+        val keystores = arguments!!.getStringArrayList("keystores")
 
         /**
          * For multisig wallets, wait until all cosigners have been added,
@@ -195,16 +194,14 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
          *
          * Otherwise, load the created wallet.
          */
-        if (multisig) {
-            val currentCosigner = arguments!!.getInt("i_signer")
+        if (keystores != null) {
             val numCosigners = arguments!!.getInt("cosigners")
             val numSignatures = arguments!!.getInt("signatures")
-            val keystores = arguments!!.getStringArrayList("keystores")
 
-            if (currentCosigner == numCosigners) {
+            if (keystores.size == numCosigners) {
                 daemonModel.commands.callAttr(
                         "create_multisig", name, password,
-                        Kwarg("keystores", keystores!!.toArray()),
+                        Kwarg("keystores", keystores.toArray()),
                         Kwarg("cosigners", numCosigners),
                         Kwarg("signatures", numSignatures)
                 )
@@ -220,14 +217,14 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
     abstract fun onCreateWallet(name: String, password: String)
 
     override fun onPostExecute(result: String) {
-        val multisig = arguments!!.getBoolean("multisig")
+        val keystores = arguments!!.getStringArrayList("keystores")
 
         /**
          * For multisig wallets, we need to first show the master key to the 1st cosigner, and
          * then prompt for data for all other cosigners by calling the KeystoreDialog again.
          */
-        if (multisig) {
-            val currentCosigner = arguments!!.getInt("i_signer")
+        if (keystores != null) {
+            val currentCosigner = keystores.size
             val numCosigners = arguments!!.getInt("cosigners")
 
             if (currentCosigner < numCosigners) {
@@ -244,8 +241,6 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
                 (targetFragment as KeystoreDialog).dialog.setTitle(
                     getString(R.string.Add_cosigner) + " " +
                     getString(R.string.__d_of, nextCosigner, numCosigners))
-
-                arguments!!.putInt("i_signer", nextCosigner)
             } else { // last cosigner done; finalize wallet
                 closeDialogs(targetFragment!!)
                 daemonModel.commands.callAttr("select_wallet", result)
@@ -293,7 +288,7 @@ class NewWalletSeedDialog : NewWalletDialog2() {
                 throw ToastException(R.string.Derivation_invalid)
             }
 
-            val multisig = arguments!!.getBoolean("multisig")
+            val multisig = arguments!!.containsKey("keystores")
             val ks = daemonModel.commands.callAttr(
                 "create", name, password,
                 Kwarg("seed", input),
@@ -385,11 +380,9 @@ class NewWalletImportMasterDialog : NewWalletDialog2() {
 
     override fun onShowDialog() {
         super.onShowDialog()
+        val keystores = arguments!!.getStringArrayList("keystores")
 
-        val multisig = arguments!!.getBoolean("multisig")
-        val currentCosigner = arguments!!.getInt("i_signer")
-
-        val keyPrompt = if (multisig && currentCosigner != 1) {
+        val keyPrompt = if (keystores != null && keystores.size != 0) {
             getString(R.string.please_enter_the_master_public_key_xpub) + " " +
             getString(R.string.enter_their)
         } else {
@@ -398,8 +391,8 @@ class NewWalletImportMasterDialog : NewWalletDialog2() {
         }
         tvPrompt.setText(keyPrompt)
 
-        if (multisig && currentCosigner != 1) {
-            dialog.setTitle(getString(R.string.Add_cosigner) + " $currentCosigner")
+        if (keystores != null && keystores.size != 0) {
+            dialog.setTitle(getString(R.string.Add_cosigner) + " ${keystores.size + 1}")
         }
 
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { scanQR(this) }
@@ -418,7 +411,7 @@ class NewWalletImportMasterDialog : NewWalletDialog2() {
     override fun onCreateWallet(name: String, password: String) {
         val key = input.trim()
         if (libKeystore.callAttr("is_bip32_key", key).toBoolean()) {
-            val multisig = arguments!!.getBoolean("multisig")
+            val multisig = arguments!!.containsKey("keystores")
             val ks = daemonModel.commands.callAttr(
                     "create", name, password,
                     Kwarg("master", key),
@@ -524,8 +517,6 @@ class CosignerDialog : AlertDialogFragment() {
             try {
                 val nextDialog: DialogFragment = KeystoreDialog()
 
-                arguments!!.putBoolean("multisig", true)
-                arguments!!.putInt("i_signer", 1) // current co-signer; will update
                 arguments!!.putInt("cosigners", numCosigners)
                 arguments!!.putInt("signatures", numSignatures)
                 arguments!!.putStringArrayList("keystores", ArrayList<String>())
