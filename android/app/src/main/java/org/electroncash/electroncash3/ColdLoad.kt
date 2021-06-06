@@ -77,14 +77,13 @@ class ColdLoadDialog : AlertDialogFragment() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         val result = IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
 
-        // Try to decode the QR content as Base43; if that fails, treat it as is
-        val txHex: String = try {
-            baseDecode(result.contents, 43)
-        } catch (e: PyException) {
-            result.contents
-        }
-
         if (result != null && result.contents != null) {
+            // Try to decode the QR content as Base43; if that fails, treat it as is
+            val txHex: String = try {
+                baseDecode(result.contents, 43)
+            } catch (e: PyException) {
+                result.contents
+            }
             etTransaction.setText(txHex)
         } else {
             super.onActivityResult(requestCode, resultCode, data)
@@ -105,7 +104,6 @@ class ColdLoadDialog : AlertDialogFragment() {
             }
         } catch (e: ToastException) {
             e.show()
-            return
         }
     }
 
