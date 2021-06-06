@@ -136,7 +136,7 @@ class ColdLoadDialog : AlertDialogFragment() {
                 // Check if the transaction can be processed by this wallet or not
                 val txInfo = daemonModel.wallet!!.callAttr("get_tx_info", tx)
 
-                if (txInfo["amount"] == null) {
+                if (txInfo["amount"] == null && txInfo["status"].toString() != "Signed") {
                     idTxStatus.setText(R.string.transaction_unrelated)
                 } else {
                     idTxStatus.setText(txInfo["status"].toString())
