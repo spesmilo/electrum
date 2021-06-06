@@ -525,6 +525,9 @@ class CosignerDialog : AlertDialogFragment() {
 
                 arguments!!.putInt("cosigners", numCosigners)
                 arguments!!.putInt("signatures", numSignatures)
+                // The "keystores" argument contains keystore data for multiple cosigners
+                // in multisig wallets. It is used throughout the file to check if dealing
+                // with a multisig wallet and to get relevant cosigner data.
                 arguments!!.putStringArrayList("keystores", ArrayList<String>())
 
                 nextDialog.setArguments(arguments)

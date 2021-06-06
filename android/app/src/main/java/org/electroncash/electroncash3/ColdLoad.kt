@@ -3,7 +3,6 @@ package org.electroncash.electroncash3
 import android.content.ClipboardManager
 import android.content.Intent
 import android.os.Bundle
-import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import com.chaquo.python.Kwarg
@@ -11,7 +10,6 @@ import com.chaquo.python.PyException
 import com.chaquo.python.PyObject
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.android.synthetic.main.load.*
-import java.lang.IllegalArgumentException
 
 
 val libTransaction by lazy { libMod("transaction") }
@@ -179,7 +177,8 @@ fun canBroadcast(tx: PyObject): Boolean {
  */
 class SignPasswordDialog : PasswordDialog<Unit>() {
     val coldLoadDialog by lazy { targetFragment as ColdLoadDialog }
-    val signSchnorr = daemonModel.walletType == "standard"
+    // Schnorr signing is supported by standard and imported private key wallets.
+    val signSchnorr = daemonModel.walletType in listOf("standard", "imported_privkey")
 
     val tx by lazy { libTransaction.callAttr("Transaction", arguments!!.getString("tx"),
                                              Kwarg("sign_schnorr", signSchnorr)) }
