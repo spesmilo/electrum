@@ -170,7 +170,7 @@ fun canBroadcast(tx: PyObject): Boolean {
 /**
  * Sign a loaded transaction dialog.
  */
-class SignPasswordDialog : PasswordDialog<Unit>() {
+class SignPasswordDialog : PasswordDialog<PyObject>() {
     val coldLoadDialog by lazy { targetFragment as ColdLoadDialog }
     // Schnorr signing is supported by standard and imported private key wallets.
     val signSchnorr = daemonModel.walletType in listOf("standard", "imported_privkey")
@@ -179,18 +179,18 @@ class SignPasswordDialog : PasswordDialog<Unit>() {
                                              Kwarg("sign_schnorr", signSchnorr)) }
     val wallet = daemonModel.wallet!!
 
-    override fun onPassword(password: String) {
+    override fun onPassword(password: String): PyObject {
         wallet.callAttr("sign_transaction", tx, password)
 
-        postToUiThread {
-            coldLoadDialog.etTransaction.setText(tx.toString())
-        }
+        return tx
     }
 
-    override fun onPostExecute(result: Unit) {
-        if (!canBroadcast(tx)) {
+    override fun onPostExecute(result: PyObject) {
+        coldLoadDialog.etTransaction.setText(result.toString())
+
+        if (!canBroadcast(result)) {
             coldLoadDialog.dismiss()
-            copyToClipboard(tx.toString(), R.string.signed_transaction)
+            copyToClipboard(result.toString(), R.string.signed_transaction)
         }
     }
 }
