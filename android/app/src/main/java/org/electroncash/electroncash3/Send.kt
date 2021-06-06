@@ -19,6 +19,7 @@ import kotlinx.android.synthetic.main.send.*
 
 
 val libPaymentRequest by lazy { libMod("paymentrequest") }
+val libStorage by lazy { libMod("storage") }
 
 val MIN_FEE = 1  // sat/byte
 
@@ -35,8 +36,18 @@ class SendDialog : TaskLauncherDialog<Unit>() {
     }
     val model: Model by viewModels()
 
+    // The "unbroadcasted" flag controls whether the dialog opens as "Send" (false) or
+    // "Save" (true). If the dialog type has been explicitly set via an argument (e.g. from
+    // Main.kt), use it; otherwise, non-multisig and 1-of-n multisig wallets will open the dialog
+    // as "Send", and other m-of-n multisig wallets will open it as "Save".
     val unbroadcasted by lazy {
-        arguments?.getBoolean("unbroadcasted", false) ?: false
+        if (arguments != null && arguments!!.containsKey("unbroadcasted")) {
+            arguments!!.getBoolean("unbroadcasted")
+        } else {
+            val multisigType = libStorage.callAttr("multisig_type", daemonModel.walletType)
+                ?.toJava(IntArray::class.java)
+            multisigType != null && multisigType[0] != 1
+        }
     }
     lateinit var amountBox: AmountBox
     var settingAmount = false  // Prevent infinite recursion.

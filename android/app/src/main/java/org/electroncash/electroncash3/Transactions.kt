@@ -26,10 +26,7 @@ class TransactionsFragment : ListFragment(R.layout.transactions, R.id.rvTransact
         super.onViewCreated(view, savedInstanceState)
         btnSend.setOnClickListener {
             try {
-                showDialog(this, SendDialog().apply {
-                    arguments = Bundle().apply {
-                        putBoolean("unbroadcasted", daemonModel.walletType != "standard")
-                    }})
+                showDialog(this, SendDialog())
             } catch (e: ToastException) { e.show() }
         }
         btnRequest.setOnClickListener { showDialog(this, NewRequestDialog()) }
