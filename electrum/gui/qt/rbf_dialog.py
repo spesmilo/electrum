@@ -48,19 +48,31 @@ class _BaseRBFDialog(WindowModalDialog):
         ok_button = OkButton(self)
         self.adv_button = QPushButton(_("Show advanced settings"))
         warning_label = WWLabel('\n')
-        warning_label.setStyleSheet(ColorScheme.RED.as_stylesheet())
         self.feerate_e = FeerateEdit(lambda: 0)
         self.feerate_e.setAmount(max(old_fee_rate * 1.5, old_fee_rate + 1))
 
         def on_feerate():
             fee_rate = self.feerate_e.get_amount()
             warning_text = '\n'
+            warning_label.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
             if fee_rate is not None:
                 try:
                     new_tx = self.rbf_func(fee_rate)
                 except Exception as e:
                     new_tx = None
                     warning_text = str(e).replace('\n', ' ')
+                    warning_label.setStyleSheet(ColorScheme.RED.as_stylesheet())
+                else:
+                    outputs_comparison = self._compare_outputs(tx, new_tx)
+                    new_inputs = len(new_tx.inputs()) - len(tx.inputs())
+                    if new_inputs > 0:
+                        warning_text = ("({0} new inputs will be added)".format(new_inputs))
+                    elif outputs_comparison == 1:
+                        warning_text = ("(change will be decreased)")
+                    elif outputs_comparison == 2:
+                        warning_text = ("(payment will be decreased)")
+                    elif outputs_comparison == 3:
+                        warning_text = ("(change and payment will be decreased)")
             else:
                 new_tx = None
             ok_button.setEnabled(new_tx is not None)
@@ -98,6 +110,8 @@ class _BaseRBFDialog(WindowModalDialog):
         btns_hbox.addWidget(ok_button)
         vbox.addLayout(btns_hbox)
 
+        on_feerate()
+
     def rbf_func(self, fee_rate) -> PartialTransaction:
         raise NotImplementedError()  # implemented by subclasses
 
@@ -118,6 +132,30 @@ class _BaseRBFDialog(WindowModalDialog):
         self.cb_rbf = QCheckBox(_('Keep Replace-By-Fee enabled'))
         self.cb_rbf.setChecked(True)
         adv_vbox.addWidget(self.cb_rbf)
+
+    def _compare_outputs(self, tx, new_tx):
+        change_decreased = 0
+        payment_decreased = 0
+
+        for output in tx.outputs():
+            output_found = False
+            for new_output in new_tx.outputs():
+                if output.address == new_output.address:
+                    output_found = True
+                    if output.value > new_output.value:
+                        if self.wallet.is_mine(output.address):
+                            change_decreased = 1
+                        else:
+                            payment_decreased = 2
+                    break
+
+            if not output_found:
+                if self.wallet.is_mine(output.address):
+                    change_decreased = 1
+                else:
+                    payment_decreased = 2
+
+        return payment_decreased + change_decreased
 
     def run(self) -> None:
         if not self.exec_():
