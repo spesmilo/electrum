@@ -36,7 +36,6 @@ class ColdLoadDialog : AlertDialogFragment() {
         updateUI()
 
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onOK() }
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { scanQR(this) }
         btnPaste.setOnClickListener {
             val clipdata = getSystemService(ClipboardManager::class).primaryClip
@@ -48,26 +47,18 @@ class ColdLoadDialog : AlertDialogFragment() {
     }
 
     private fun updateUI() {
-        val currenttext = etTransaction.text
-        val tx: PyObject
+        val tx = libTransaction.callAttr("Transaction", etTransaction.text.toString())
+        updateStatusText(tx)
 
-        //checks if text is blank. further validations can be added here
-        if (currenttext.isNotBlank()) {
+        // Check hex transaction signing status
+        if (canSign(tx)) {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setText(R.string.sign)
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
-            tx = libTransaction.callAttr("Transaction", etTransaction.text.toString())
-
-            updateStatusText(tx)
-
-            // Check hex transaction signing status
-            if (canSign(tx)) {
-                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setText(R.string.sign)
-                dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
-            } else if (canBroadcast(tx)) {
-                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setText(R.string.send)
-                dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
-            } else {
-                dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
-            }
+        } else if (canBroadcast(tx)) {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setText(R.string.send)
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
+        } else {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
         }
     }
 
@@ -139,13 +130,17 @@ class ColdLoadDialog : AlertDialogFragment() {
      */
     private fun updateStatusText(tx: PyObject) {
         try {
-            val txInfo = daemonModel.wallet!!.callAttr("get_tx_info", tx)
-
-            // Check if the transaction can be processed by this wallet or not
-            if (txInfo["amount"] == null) {
-                idTxStatus.setText(R.string.transaction_unrelated)
+            if (etTransaction.text.isBlank()) {
+                idTxStatus.setText(R.string.empty)
             } else {
-                idTxStatus.setText(txInfo["status"].toString())
+                // Check if the transaction can be processed by this wallet or not
+                val txInfo = daemonModel.wallet!!.callAttr("get_tx_info", tx)
+
+                if (txInfo["amount"] == null) {
+                    idTxStatus.setText(R.string.transaction_unrelated)
+                } else {
+                    idTxStatus.setText(txInfo["status"].toString())
+                }
             }
         } catch (e: PyException) {
             idTxStatus.setText(R.string.invalid)
