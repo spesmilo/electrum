@@ -688,12 +688,12 @@ class WalletInformationDialog : AlertDialogFragment() {
     override fun onShowDialog() {
         super.onShowDialog()
 
-        // Imported wallets ("imported_addr" type) do not have a master public key.
-        try {
-            val masterKey = daemonModel.commands.callAttr("getmpk").toString()
+        // Imported wallets do not have a master public key.
+        val masterKey = daemonModel.commands.callAttr("getmpk")?.toString()
+        if (masterKey != null) {
             walletMasterKey.setText(masterKey)
             walletMasterKey.setFocusable(false)
-        } catch (e: NullPointerException) {
+        } else {
             tvMasterPublicKey.setVisibility(View.GONE)
             walletMasterKey.setVisibility(View.GONE)
             // Using View.INVISIBLE on the 'Copy' button to preserve layout.
