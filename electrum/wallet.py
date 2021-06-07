@@ -1247,12 +1247,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             # do not mutate LN funding txs, as that would change their txid
             if self.is_lightning_funding_tx(txid):
                 continue
+            # tx must have opted-in for RBF (even if local, for consistency)
+            if tx.is_final():
+                continue
             # prefer txns already in mempool (vs local)
             if hist_item.tx_mined_status.height == TX_HEIGHT_LOCAL:
                 candidate = tx
                 continue
-            # tx must have opted-in for RBF
-            if tx.is_final(): continue
             return tx
         return candidate
 
