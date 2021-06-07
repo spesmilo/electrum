@@ -22,10 +22,6 @@ if TYPE_CHECKING:
     from .lnutil import LnFeatures
 
 
-class LnAddressError(Exception):
-    pass
-
-
 # BOLT #11:
 #
 # A writer MUST encode `amount` as a positive decimal integer with no
@@ -291,16 +287,16 @@ class LnAddr(object):
     @amount.setter
     def amount(self, value):
         if not (isinstance(value, Decimal) or value is None):
-            raise LnAddressError(f"amount must be Decimal or None, not {value!r}")
+            raise ValueError(f"amount must be Decimal or None, not {value!r}")
         if value is None:
             self._amount = None
             return
         assert isinstance(value, Decimal)
         if value.is_nan() or not (0 <= value <= TOTAL_COIN_SUPPLY_LIMIT_IN_BTC):
-            raise LnAddressError(f"amount is out-of-bounds: {value!r} BTC")
+            raise ValueError(f"amount is out-of-bounds: {value!r} BTC")
         if value * 10**12 % 10:
             # max resolution is millisatoshi
-            raise LnAddressError(f"Cannot encode {value!r}: too many decimal places")
+            raise ValueError(f"Cannot encode {value!r}: too many decimal places")
         self._amount = value
 
     def get_amount_sat(self) -> Optional[Decimal]:
