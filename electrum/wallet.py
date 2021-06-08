@@ -318,7 +318,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         new_db = WalletDB(self.db.dump(), manual_upgrades=False)
 
         if self.lnworker:
-            channel_backups = new_db.get_dict('channel_backups')
+            channel_backups = new_db.get_dict('imported_channel_backups')
             for chan_id, chan in self.lnworker.channels.items():
                 channel_backups[chan_id.hex()] = self.lnworker.create_channel_backup(chan_id)
             new_db.put('channels', None)
