@@ -212,7 +212,14 @@ class LNInvoice(Invoice):
 
     @classmethod
     def from_bech32(cls, invoice: str) -> 'LNInvoice':
-        amount_msat = lndecode(invoice).get_amount_msat()
+        """Constructs LNInvoice object from BOLT-11 string.
+        Might raise InvoiceError.
+        """
+        try:
+            lnaddr = lndecode(invoice)
+        except Exception as e:
+            raise InvoiceError(e) from e
+        amount_msat = lnaddr.get_amount_msat()
         return LNInvoice(
             type=PR_TYPE_LN,
             invoice=invoice,

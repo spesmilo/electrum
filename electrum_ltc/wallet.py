@@ -1247,12 +1247,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             # do not mutate LN funding txs, as that would change their txid
             if self.is_lightning_funding_tx(txid):
                 continue
+            # tx must have opted-in for RBF (even if local, for consistency)
+            if tx.is_final():
+                continue
             # prefer txns already in mempool (vs local)
             if hist_item.tx_mined_status.height == TX_HEIGHT_LOCAL:
                 candidate = tx
                 continue
-            # tx must have opted-in for RBF
-            if tx.is_final(): continue
             return tx
         return candidate
 
@@ -2231,7 +2232,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def receive_tx_callback(self, tx_hash, tx, tx_height):
         super().receive_tx_callback(tx_hash, tx, tx_height)
         for txo in tx.outputs():
-            addr = self.get_txout_address(txo)
+            addr = txo.address
             if addr in self.receive_requests:
                 status = self.get_request_status(addr)
                 util.trigger_callback('request_status', self, addr, status)
@@ -2795,6 +2796,25 @@ class Imported_Wallet(Simple_Wallet):
     def get_txin_type(self, address):
         return self.db.get_imported_address(address).get('type', 'address')
 
+    @profiler
+    def try_detecting_internal_addresses_corruption(self):
+        # we check only a random sample, for performance
+        addresses = self.get_addresses()
+        addresses = random.sample(addresses, min(len(addresses), 10))
+        for addr_found in addresses:
+            self.check_address_for_corruption(addr_found)
+
+    def check_address_for_corruption(self, addr):
+        if addr and self.is_mine(addr):
+            pubkey = self.get_public_key(addr)
+            if not pubkey:
+                return
+            txin_type = self.get_txin_type(addr)
+            if txin_type == 'address':
+                return
+            if addr != bitcoin.pubkey_to_address(txin_type, pubkey):
+                raise InternalAddressCorruption()
+
     def _add_input_sig_info(self, txin, address, *, only_der_suffix):
         if not self.is_mine(address):
             return
@@ -2811,7 +2831,11 @@ class Imported_Wallet(Simple_Wallet):
 
     def pubkeys_to_address(self, pubkeys):
         pubkey = pubkeys[0]
-        for addr in self.db.get_imported_addresses():  # FIXME slow...
+        # FIXME This is slow.
+        #       Ideally we would re-derive the address from the pubkey and the txin_type,
+        #       but we don't know the txin_type, and we only have an addr->txin_type map.
+        #       so instead a linear search of reverse-lookups is done...
+        for addr in self.db.get_imported_addresses():
             if self.db.get_imported_address(addr)['pubkey'] == pubkey:
                 return addr
         return None
