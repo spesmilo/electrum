@@ -2232,7 +2232,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def receive_tx_callback(self, tx_hash, tx, tx_height):
         super().receive_tx_callback(tx_hash, tx, tx_height)
         for txo in tx.outputs():
-            addr = self.get_txout_address(txo)
+            addr = txo.address
             if addr in self.receive_requests:
                 status = self.get_request_status(addr)
                 util.trigger_callback('request_status', self, addr, status)
