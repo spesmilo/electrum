@@ -58,8 +58,9 @@ class SPV(NetworkJobOnDefaultServer):
         self.merkle_roots = {}  # txid -> merkle root (once it has been verified)
         self.requested_merkle = set()  # txid set of pending requests
 
-    async def _start_tasks(self):
-        async with self.group as group:
+    async def _run_tasks(self, *, taskgroup):
+        await super()._run_tasks(taskgroup=taskgroup)
+        async with taskgroup as group:
             await group.spawn(self.main)
 
     def diagnostic_name(self):
@@ -87,16 +88,17 @@ class SPV(NetworkJobOnDefaultServer):
             header = self.blockchain.read_header(tx_height)
             if header is None:
                 if tx_height < constants.net.max_checkpoint():
-                    await self.group.spawn(self.network.request_chunk(tx_height, None, can_return_early=True))
+                    await self.taskgroup.spawn(self.network.request_chunk(tx_height, None, can_return_early=True))
                 continue
             # request now
             self.logger.info(f'requested merkle {tx_hash}')
             self.requested_merkle.add(tx_hash)
-            await self.group.spawn(self._request_and_verify_single_proof, tx_hash, tx_height)
+            await self.taskgroup.spawn(self._request_and_verify_single_proof, tx_hash, tx_height)
 
     async def _request_and_verify_single_proof(self, tx_hash, tx_height):
         try:
-            merkle = await self.network.get_merkle_for_transaction(tx_hash, tx_height)
+            async with self._network_request_semaphore:
+                merkle = await self.network.get_merkle_for_transaction(tx_hash, tx_height)
         except UntrustedServerReturnedError as e:
             if not isinstance(e.original_exception, aiorpcx.jsonrpc.RPCError):
                 raise
@@ -149,9 +151,10 @@ class SPV(NetworkJobOnDefaultServer):
         for item in merkle_branch_bytes:
             if len(item) != 32:
                 raise MerkleVerificationFailure('all merkle branch items have to 32 bytes long')
-            h = sha256d(item + h) if (index & 1) else sha256d(h + item)
+            inner_node = (item + h) if (index & 1) else (h + item)
+            cls._raise_if_valid_tx(bh2u(inner_node))
+            h = sha256d(inner_node)
             index >>= 1
-            cls._raise_if_valid_tx(bh2u(h))
         if index != 0:
             raise MerkleVerificationFailure(f'leaf_pos_in_tree too large for branch')
         return hash_encode(h)

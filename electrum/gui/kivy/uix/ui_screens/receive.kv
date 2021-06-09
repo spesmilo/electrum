@@ -1,9 +1,12 @@
 #:import _ electrum.gui.kivy.i18n._
+#:import KIVY_GUI_PATH electrum.gui.kivy.KIVY_GUI_PATH
+#:import pr_color electrum.invoices.pr_color
+#:import PR_UNKNOWN electrum.invoices.PR_UNKNOWN
 #:import Factory kivy.factory.Factory
 #:import Decimal decimal.Decimal
 #:set btc_symbol chr(171)
 #:set mbtc_symbol chr(187)
-#:set font_light 'electrum/gui/kivy/data/fonts/Roboto-Condensed.ttf'
+#:set font_light f'{KIVY_GUI_PATH}/data/fonts/Roboto-Condensed.ttf'
 
 
 <RequestLabel@Label>
@@ -13,11 +16,11 @@
     valign: 'top'
 
 <RequestItem@CardItem>
-    is_expired: False
     address: ''
     memo: ''
     amount: ''
-    status: ''
+    status_str: ''
+    status: PR_UNKNOWN
     BoxLayout:
         spacing: '8dp'
         height: '32dp'
@@ -44,10 +47,10 @@
             font_size: '15sp'
         Widget
         RequestLabel:
-            text: root.status
+            text: root.status_str
             halign: 'right'
             font_size: '13sp'
-            color: (1., .2, .2, 1) if root.is_expired else (.7, .7, .7, 1)
+            color: pr_color[root.status]
         Widget
 
 <RequestRecycleView>:
@@ -60,7 +63,7 @@
         orientation: 'vertical'
 
 
-ReceiveScreen:
+<ReceiveScreen>:
     id: s
     name: 'receive'
     address: ''
@@ -83,7 +86,7 @@ ReceiveScreen:
                 height: blue_bottom.item_height
                 spacing: '5dp'
                 Image:
-                    source: 'atlas://electrum/gui/kivy/theming/light/lightning' if root.is_lightning else 'atlas://electrum/gui/kivy/theming/light/globe'
+                    source: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/lightning' if root.is_lightning else f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/globe'
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
@@ -100,7 +103,7 @@ ReceiveScreen:
                 height: blue_bottom.item_height
                 spacing: '5dp'
                 Image:
-                    source: 'atlas://electrum/gui/kivy/theming/light/calculator'
+                    source: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/calculator'
                     opacity: 0.7
                     size_hint: None, None
                     size: '22dp', '22dp'
@@ -120,7 +123,7 @@ ReceiveScreen:
                 height: blue_bottom.item_height
                 spacing: '5dp'
                 Image:
-                    source: 'atlas://electrum/gui/kivy/theming/light/pen'
+                    source: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/pen'
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
@@ -132,12 +135,7 @@ ReceiveScreen:
             size_hint: 1, None
             height: '48dp'
             IconButton:
-                icon: 'atlas://electrum/gui/kivy/theming/light/list'
-                size_hint: 0.5, None
-                height: '48dp'
-                on_release: Clock.schedule_once(lambda dt: s.clear_requests_dialog())
-            IconButton:
-                icon: 'atlas://electrum/gui/kivy/theming/light/clock1'
+                icon: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/clock1'
                 size_hint: 0.5, None
                 height: '48dp'
                 on_release: Clock.schedule_once(lambda dt: s.expiration_dialog(s))
@@ -145,12 +143,12 @@ ReceiveScreen:
                 text: _('Clear')
                 size_hint: 1, None
                 height: '48dp'
-                on_release: Clock.schedule_once(lambda dt: s.parent.clear())
+                on_release: Clock.schedule_once(lambda dt: s.clear())
             Button:
                 text: _('Request')
                 size_hint: 1, None
                 height: '48dp'
-                on_release: Clock.schedule_once(lambda dt: s.parent.new_request(root.is_lightning))
+                on_release: Clock.schedule_once(lambda dt: s.new_request(root.is_lightning))
         Widget:
             size_hint: 1, 0.1
         RequestRecycleView:

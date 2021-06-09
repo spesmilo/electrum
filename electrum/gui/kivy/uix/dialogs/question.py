@@ -13,6 +13,8 @@ Builder.load_string('''
     id: popup
     title: ''
     message: ''
+    yes_str: ''
+    no_str: ''
     size_hint: 0.8, 0.5
     pos_hint: {'top':0.9}
     BoxLayout:
@@ -27,14 +29,14 @@ Builder.load_string('''
             orientation: 'horizontal'
             size_hint: 1, 0.2
             Button:
-                text: _('No')
+                text: root.no_str
                 size_hint: 0.5, None
                 height: '48dp'
                 on_release:
                     root.callback(False)
                     popup.dismiss()
             Button:
-                text: _('Yes')
+                text: root.yes_str
                 size_hint: 0.5, None
                 height: '48dp'
                 on_release:
@@ -46,8 +48,12 @@ Builder.load_string('''
 
 class Question(Factory.Popup):
 
-    def __init__(self, msg, callback):
+    def __init__(self, msg, callback, *,
+                 yes_str: str = None, no_str: str = None,
+                 title: str = None):
         Factory.Popup.__init__(self)
-        self.title = _('Question')
+        self.yes_str = yes_str or _('Yes')
+        self.no_str = no_str or _('No')
+        self.title = title or _('Question')
         self.message = msg
         self.callback = callback

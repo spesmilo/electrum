@@ -1,0 +1,10 @@
+pip
+setuptools
+wheel
+
+# Note: hidapi requires Cython at build-time (not needed at runtime).
+# For reproducible builds, the version of Cython must be pinned down.
+# The pinned Cython must be installed before hidapi is built;
+# otherwise when installing hidapi, pip just downloads the latest Cython.
+# see https://github.com/spesmilo/electrum/issues/5859
+Cython>=0.27

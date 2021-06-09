@@ -65,7 +65,7 @@ def _CKD_priv(parent_privkey: bytes, parent_chaincode: bytes,
     child_privkey = (I_left + ecc.string_to_number(parent_privkey)) % ecc.CURVE_ORDER
     if I_left >= ecc.CURVE_ORDER or child_privkey == 0:
         raise ecc.InvalidECPointException()
-    child_privkey = ecc.number_to_string(child_privkey, ecc.CURVE_ORDER)
+    child_privkey = int.to_bytes(child_privkey, length=32, byteorder='big', signed=False)
     child_chaincode = I[32:]
     return child_privkey, child_chaincode
 
@@ -273,6 +273,7 @@ class BIP32Node(NamedTuple):
         """Returns the fingerprint of this node.
         Note that self.fingerprint is of the *parent*.
         """
+        # TODO cache this
         return hash_160(self.eckey.get_public_key_bytes(compressed=True))[0:4]
 
 
@@ -400,3 +401,26 @@ def root_fp_and_der_prefix_from_xkey(xkey: str) -> Tuple[Optional[str], Optional
         derivation_prefix = convert_bip32_intpath_to_strpath([child_number_int])
         root_fingerprint = node.fingerprint.hex()
     return root_fingerprint, derivation_prefix
+
+
+def is_xkey_consistent_with_key_origin_info(xkey: str, *,
+                                            derivation_prefix: str = None,
+                                            root_fingerprint: str = None) -> bool:
+    bip32node = BIP32Node.from_xkey(xkey)
+    int_path = None
+    if derivation_prefix is not None:
+        int_path = convert_bip32_path_to_list_of_uint32(derivation_prefix)
+    if int_path is not None and len(int_path) != bip32node.depth:
+        return False
+    if bip32node.depth == 0:
+        if bfh(root_fingerprint) != bip32node.calc_fingerprint_of_this_node():
+            return False
+        if bip32node.child_number != bytes(4):
+            return False
+    if int_path is not None and bip32node.depth > 0:
+        if int.from_bytes(bip32node.child_number, 'big') != int_path[-1]:
+            return False
+    if bip32node.depth == 1:
+        if bfh(root_fingerprint) != bip32node.fingerprint:
+            return False
+    return True

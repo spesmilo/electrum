@@ -17,8 +17,7 @@ import time
 import copy
 
 from electrum.crypto import sha256d, EncodeAES_base64, EncodeAES_bytes, DecodeAES_bytes, hmac_oneshot
-from electrum.bitcoin import (TYPE_ADDRESS, push_script, var_int, public_key_to_p2pkh,
-                              is_address)
+from electrum.bitcoin import public_key_to_p2pkh
 from electrum.bip32 import BIP32Node, convert_bip32_intpath_to_strpath, is_all_public_derivation
 from electrum import ecc
 from electrum.ecc import msg_magic
@@ -31,6 +30,7 @@ from electrum.util import to_string, UserCancelled, UserFacingException, bfh
 from electrum.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
 from electrum.network import Network
 from electrum.logging import get_logger
+from electrum.plugin import runs_in_hwd_thread, run_in_hwd_thread
 
 from ..hw_wallet import HW_PluginBase, HardwareClientBase
 
@@ -67,7 +67,7 @@ CHANNEL_ID_KEY = 'comserverchannelid'
 class DigitalBitbox_Client(HardwareClientBase):
 
     def __init__(self, plugin, hidDevice):
-        self.plugin = plugin
+        HardwareClientBase.__init__(self, plugin=plugin)
         self.dbb_hid = hidDevice
         self.opened = True
         self.password = None
@@ -75,7 +75,7 @@ class DigitalBitbox_Client(HardwareClientBase):
         self.setupRunning = False
         self.usbReportSize = 64 # firmware > v2.0.0
 
-
+    @runs_in_hwd_thread
     def close(self):
         if self.opened:
             try:
@@ -83,14 +83,6 @@ class DigitalBitbox_Client(HardwareClientBase):
             except:
                 pass
         self.opened = False
-
-
-    def timeout(self, cutoff):
-        pass
-
-
-    def label(self):
-        return " "
 
 
     def is_pairable(self):
@@ -114,7 +106,6 @@ class DigitalBitbox_Client(HardwareClientBase):
     def _get_xpub(self, bip32_path):
         if self.check_device_dialog():
             return self.hid_send_encrypt(('{"xpub": "%s"}' % bip32_path).encode('utf8'))
-
 
     def get_xpub(self, bip32_path, xtype):
         assert xtype in self.plugin.SUPPORTED_XTYPES
@@ -175,9 +166,9 @@ class DigitalBitbox_Client(HardwareClientBase):
                 self.password = password.encode('utf8')
                 return True
 
-
     def check_device_dialog(self):
-        match = re.search(r'v([0-9])+\.[0-9]+\.[0-9]+', self.dbb_hid.get_serial_number_string())
+        match = re.search(r'v([0-9])+\.[0-9]+\.[0-9]+',
+                          run_in_hwd_thread(self.dbb_hid.get_serial_number_string))
         if match is None:
             raise Exception("error detecting firmware version")
         major_version = int(match.group(1))
@@ -235,10 +226,9 @@ class DigitalBitbox_Client(HardwareClientBase):
             (_("Load a wallet from the micro SD card (the current seed is overwritten)")),
             (_("Erase the Digital Bitbox"))
         ]
-        try:
-            reply = self.handler.win.query_choice(msg, choices)
-        except Exception:
-            return # Back button pushed
+        reply = self.handler.query_choice(msg, choices)
+        if reply is None:
+            return  # user cancelled
         if reply == 2:
             self.dbb_erase()
         elif reply == 1:
@@ -257,10 +247,9 @@ class DigitalBitbox_Client(HardwareClientBase):
             (_("Generate a new random wallet")),
             (_("Load a wallet from the micro SD card"))
         ]
-        try:
-            reply = self.handler.win.query_choice(msg, choices)
-        except Exception:
-            return # Back button pushed
+        reply = self.handler.query_choice(msg, choices)
+        if reply is None:
+            return  # user cancelled
         if reply == 0:
             self.dbb_generate_wallet()
         else:
@@ -298,10 +287,9 @@ class DigitalBitbox_Client(HardwareClientBase):
             _('Do not pair'),
             _('Import pairing from the Digital Bitbox desktop app'),
         ]
-        try:
-            reply = self.handler.win.query_choice(_('Mobile pairing options'), choices)
-        except Exception:
-            return # Back button pushed
+        reply = self.handler.query_choice(_('Mobile pairing options'), choices)
+        if reply is None:
+            return  # user cancelled
 
         if reply == 0:
             if self.plugin.is_mobile_paired():
@@ -339,10 +327,9 @@ class DigitalBitbox_Client(HardwareClientBase):
         backups = self.hid_send_encrypt(b'{"backup":"list"}')
         if 'error' in backups:
             raise UserFacingException(backups['error']['message'])
-        try:
-            f = self.handler.win.query_choice(_("Choose a backup file:"), backups['backup'])
-        except Exception:
-            return False # Back button pushed
+        f = self.handler.query_choice(_("Choose a backup file:"), backups['backup'])
+        if f is None:
+            return False  # user cancelled
         key = self.backup_password_dialog()
         if key is None:
             raise Exception('Canceled by user')
@@ -358,7 +345,7 @@ class DigitalBitbox_Client(HardwareClientBase):
             raise UserFacingException(hid_reply['error']['message'])
         return True
 
-
+    @runs_in_hwd_thread
     def hid_send_frame(self, data):
         HWW_CID = 0xFF000000
         HWW_CMD = 0x80 + 0x40 + 0x01
@@ -378,7 +365,7 @@ class DigitalBitbox_Client(HardwareClientBase):
                 seq += 1
             idx += len(write)
 
-
+    @runs_in_hwd_thread
     def hid_read_frame(self):
         # INIT response
         read = bytearray(self.dbb_hid.read(self.usbReportSize))
@@ -394,7 +381,7 @@ class DigitalBitbox_Client(HardwareClientBase):
             idx += len(read) - 5
         return data
 
-
+    @runs_in_hwd_thread
     def hid_send_plain(self, msg):
         reply = ""
         try:
@@ -416,7 +403,7 @@ class DigitalBitbox_Client(HardwareClientBase):
             _logger.info(f'Exception caught {repr(e)}')
         return reply
 
-
+    @runs_in_hwd_thread
     def hid_send_encrypt(self, msg):
         sha256_byte_len = 32
         reply = ""
@@ -540,7 +527,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
 
             # Build hasharray from inputs
             for i, txin in enumerate(tx.inputs()):
-                if txin.is_coinbase():
+                if txin.is_coinbase_input():
                     self.give_error("Coinbase not supported") # should never happen
 
                 if txin.script_type != 'p2pkh':
@@ -684,11 +671,11 @@ class DigitalBitboxPlugin(HW_PluginBase):
     def __init__(self, parent, config, name):
         HW_PluginBase.__init__(self, parent, config, name)
         if self.libraries_available:
-            self.device_manager().register_devices(self.DEVICE_IDS)
+            self.device_manager().register_devices(self.DEVICE_IDS, plugin=self)
 
         self.digitalbitbox_config = self.config.get('digitalbitbox', {})
 
-
+    @runs_in_hwd_thread
     def get_dbb_device(self, device):
         dev = hid.device()
         dev.open_path(device.path)
@@ -708,16 +695,13 @@ class DigitalBitboxPlugin(HW_PluginBase):
 
 
     def setup_device(self, device_info, wizard, purpose):
-        devmgr = self.device_manager()
         device_id = device_info.device.id_
-        client = devmgr.client_by_id(device_id)
-        if client is None:
-            raise Exception(_('Failed to create a client for this device.') + '\n' +
-                            _('Make sure it is in the correct state.'))
-        client.handler = self.create_handler(wizard)
+        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
         if purpose == HWD_SETUP_NEW_WALLET:
             client.setupRunning = True
-        client.get_xpub("m/44'/0'", 'standard')
+        wizard.run_task_without_blocking_gui(
+            task=lambda: client.get_xpub("m/44'/0'", 'standard'))
+        return client
 
 
     def is_mobile_paired(self):
@@ -744,19 +728,17 @@ class DigitalBitboxPlugin(HW_PluginBase):
             raise ScriptTypeNotSupported(_('This type of script is not supported with {}.').format(self.device))
         if is_all_public_derivation(derivation):
             raise Exception(f"The {self.device} does not reveal xpubs corresponding to non-hardened paths. (path: {derivation})")
-        devmgr = self.device_manager()
-        client = devmgr.client_by_id(device_id)
-        client.handler = self.create_handler(wizard)
+        client = self.scan_and_create_client_for_device(device_id=device_id, wizard=wizard)
         client.check_device_dialog()
         xpub = client.get_xpub(derivation, xtype)
         return xpub
 
 
-    def get_client(self, keystore, force_pair=True):
-        devmgr = self.device_manager()
-        handler = keystore.handler
-        with devmgr.hid_lock:
-            client = devmgr.client_for_keystore(self, handler, keystore, force_pair)
+    def get_client(self, keystore, force_pair=True, *,
+                   devices=None, allow_user_interaction=True):
+        client = super().get_client(keystore, force_pair,
+                                    devices=devices,
+                                    allow_user_interaction=allow_user_interaction)
         if client is not None:
             client.check_device_dialog()
         return client

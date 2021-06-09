@@ -24,10 +24,11 @@
 # SOFTWARE.
 
 import hashlib
-from typing import List, Tuple, TYPE_CHECKING, Optional, Union
-from enum import IntEnum
+from typing import List, Tuple, TYPE_CHECKING, Optional, Union, Sequence
+import enum
+from enum import IntEnum, Enum
 
-from .util import bfh, bh2u, BitcoinException, assert_bytes, to_bytes, inv_dict
+from .util import bfh, bh2u, BitcoinException, assert_bytes, to_bytes, inv_dict, is_hex_str
 from . import version
 from . import segwit_addr
 from . import constants
@@ -42,7 +43,11 @@ if TYPE_CHECKING:
 
 COINBASE_MATURITY = 100
 COIN = 100000000
-TOTAL_COIN_SUPPLY_LIMIT_IN_BTC = 21000000
+TOTAL_COIN_SUPPLY_LIMIT_IN_BTC = 100000000
+
+NLOCKTIME_MIN = 0
+NLOCKTIME_BLOCKHEIGHT_MAX = 500_000_000 - 1
+NLOCKTIME_MAX = 2 ** 32 - 1
 
 # supported types of transaction outputs
 # TODO kill these with fire
@@ -340,24 +345,70 @@ def push_hash(data: str) -> str:
     return push_script(reversed)
 
 
+def make_op_return(x:bytes) -> bytes:
+    return bytes([opcodes.OP_RETURN]) + bytes.fromhex(push_script(x.hex()))
+
+
 def add_number_to_script(i: int) -> bytes:
     return bfh(push_script(script_num_to_hex(i)))
 
 
+def construct_witness(items: Sequence[Union[str, int, bytes]]) -> str:
+    """Constructs a witness from the given stack items."""
+    witness = var_int(len(items))
+    for item in items:
+        if type(item) is int:
+            item = script_num_to_hex(item)
+        elif isinstance(item, (bytes, bytearray)):
+            item = bh2u(item)
+        else:
+            assert is_hex_str(item)
+        witness += witness_push(item)
+    return witness
+
+
+def construct_script(items: Sequence[Union[str, int, bytes, opcodes]]) -> str:
+    """Constructs bitcoin script from given items."""
+    script = ''
+    for item in items:
+        if isinstance(item, opcodes):
+            script += item.hex()
+        elif type(item) is int:
+            script += add_number_to_script(item).hex()
+        elif isinstance(item, (bytes, bytearray)):
+            script += push_script(item.hex())
+        elif isinstance(item, str):
+            assert is_hex_str(item)
+            script += push_script(item)
+        else:
+            raise Exception(f'unexpected item for script: {item!r}')
+    return script
+
+
 def relayfee(network: 'Network' = None) -> int:
+    """Returns feerate in sat/kbyte."""
     from .simple_config import FEERATE_DEFAULT_RELAY, FEERATE_MAX_RELAY
     if network and network.relay_fee is not None:
         fee = network.relay_fee
     else:
         fee = FEERATE_DEFAULT_RELAY
+    # sanity safeguards, as network.relay_fee is coming from a server:
     fee = min(fee, FEERATE_MAX_RELAY)
-    fee = max(fee, 0)
+    fee = max(fee, FEERATE_DEFAULT_RELAY)
     return fee
 
 
-def dust_threshold(network: 'Network'=None) -> int:
+# see https://github.com/bitcoin/bitcoin/blob/a62f0ed64f8bbbdfe6467ac5ce92ef5b5222d1bd/src/policy/policy.cpp#L14
+DUST_LIMIT_DEFAULT_SAT_LEGACY = 546
+DUST_LIMIT_DEFAULT_SAT_SEGWIT = 294
+
+
+def dust_threshold(network: 'Network' = None) -> int:
+    """Returns the dust limit in satoshis."""
     # Change <= dust threshold is added to the tx fee
-    return 182 * 3 * relayfee(network) // 1000
+    dust_lim = 182 * 3 * relayfee(network)  # in msat
+    # convert to sat, but round up:
+    return (dust_lim // 1000) + (dust_lim % 1000 > 0)
 
 
 def hash_encode(x: bytes) -> str:
@@ -377,21 +428,23 @@ def hash160_to_b58_address(h160: bytes, addrtype: int) -> str:
 
 def b58_address_to_hash160(addr: str) -> Tuple[int, bytes]:
     addr = to_bytes(addr, 'ascii')
-    _bytes = base_decode(addr, length=None, base=58)
+    _bytes = DecodeBase58Check(addr)
+    #if len(_bytes) != 21:
+    #    raise Exception(f'expected 21 payload bytes in base58 address. got: {len(_bytes)}')
     return _bytes[0], _bytes[1:21]
 
 def b58_address_to_hash160_pair(addr: str) -> Tuple[int, bytes, bytes]:
     addr = to_bytes(addr, 'ascii')
     if len(addr) < 61:
         return 0, bytes(), bytes()
-    _bytes = base_decode(addr, 45, base=58)
+    _bytes = DecodeBase58Check(addr)
     return _bytes[0], _bytes[1:21], _bytes[21:41]
 
 def b58_address_to_hash160_triple(addr: str) -> Tuple[int, bytes, bytes, bytes]:
     addr = to_bytes(addr, 'ascii')
     if len(addr) < 89:
         return 0, bytes(), bytes(), bytes()
-    _bytes = base_decode(addr, 65, base=58)
+    _bytes = DecodeBase58Check(addr)
     return _bytes[0], _bytes[1:21], _bytes[21:41], _bytes[41:61]
 
 def hash160_to_p2pkh(h160: bytes, *, net=None) -> str:
@@ -424,7 +477,9 @@ def public_key_to_p2cs2(public_key: bytes, public_key_2: bytes, public_key_3: by
 
 def hash_to_segwit_addr(h: bytes, witver: int, *, net=None) -> str:
     if net is None: net = constants.net
-    return segwit_addr.encode(net.SEGWIT_HRP, witver, h)
+    addr = segwit_addr.encode_segwit_address(net.SEGWIT_HRP, witver, h)
+    assert addr is not None
+    return addr
 
 def public_key_to_p2wpkh(public_key: bytes, *, net=None) -> str:
     if net is None: net = constants.net
@@ -435,12 +490,12 @@ def script_to_p2wsh(script: str, *, net=None) -> str:
     return hash_to_segwit_addr(sha256(bfh(script)), witver=0, net=net)
 
 def p2wpkh_nested_script(pubkey: str) -> str:
-    pkh = bh2u(hash_160(bfh(pubkey)))
-    return '00' + push_script(pkh)
+    pkh = hash_160(bfh(pubkey))
+    return construct_script([0, pkh])
 
 def p2wsh_nested_script(witness_script: str) -> str:
-    wsh = bh2u(sha256(bfh(witness_script)))
-    return '00' + push_script(wsh)
+    wsh = sha256(bfh(witness_script))
+    return construct_script([0, wsh])
 
 def pubkey_to_address(txin_type: str, pubkey: str, pubkey2="", pubkey3="", *, net=None) -> str:
     if net is None: net = constants.net
@@ -485,13 +540,11 @@ def address_to_script(addr: str, *, net=None) -> str:
     if net is None: net = constants.net
     if not is_address(addr, net=net):
         raise BitcoinException(f"invalid Navcoin address: {addr}")
-    witver, witprog = segwit_addr.decode(net.SEGWIT_HRP, addr)
+    witver, witprog = segwit_addr.decode_segwit_address(net.SEGWIT_HRP, addr)
     if witprog is not None:
         if not (0 <= witver <= 16):
             raise BitcoinException(f'impossible witness version: {witver}')
-        script = bh2u(add_number_to_script(witver))
-        script += push_script(bh2u(bytes(witprog)))
-        return script
+        return construct_script([witver, bytes(witprog)])
     addrtype, hash_160_ = b58_address_to_hash160(addr)
     if addrtype == net.ADDRTYPE_P2PKH:
         script = pubkeyhash_to_p2pkh_script(bh2u(hash_160_))
@@ -502,29 +555,65 @@ def address_to_script(addr: str, *, net=None) -> str:
         addrtype, hash_160_, hash_160_2, hash_160_3 = b58_address_to_hash160_triple(addr)
         script = pubkeyhash_to_p2cs2_script(bh2u(hash_160_3), bh2u(hash_160_), bh2u(hash_160_2))
     elif addrtype == net.ADDRTYPE_P2SH:
-        script = opcodes.OP_HASH160.hex()
-        script += push_script(bh2u(hash_160_))
-        script += opcodes.OP_EQUAL.hex()
+        script = construct_script([opcodes.OP_HASH160, hash_160_, opcodes.OP_EQUAL])
     else:
         raise BitcoinException(f'unknown address type: {addrtype}')
     return script
 
-def address_to_scripthash(addr: str) -> str:
-    script = address_to_script(addr)
+
+class OnchainOutputType(Enum):
+    """Opaque types of scriptPubKeys.
+    In case of p2sh, p2wsh and similar, no knowledge of redeem script, etc.
+    """
+    P2PKH = enum.auto()
+    P2SH = enum.auto()
+    WITVER0_P2WPKH = enum.auto()
+    WITVER0_P2WSH = enum.auto()
+
+
+def address_to_hash(addr: str, *, net=None) -> Tuple[OnchainOutputType, bytes]:
+    """Return (type, pubkey hash / witness program) for an address."""
+    if net is None: net = constants.net
+    if not is_address(addr, net=net):
+        raise BitcoinException(f"invalid bitcoin address: {addr}")
+    witver, witprog = segwit_addr.decode_segwit_address(net.SEGWIT_HRP, addr)
+    if witprog is not None:
+        if witver != 0:
+            raise BitcoinException(f"not implemented handling for witver={witver}")
+        if len(witprog) == 20:
+            return OnchainOutputType.WITVER0_P2WPKH, bytes(witprog)
+        elif len(witprog) == 32:
+            return OnchainOutputType.WITVER0_P2WSH, bytes(witprog)
+        else:
+            raise BitcoinException(f"unexpected length for segwit witver=0 witprog: len={len(witprog)}")
+    addrtype, hash_160_ = b58_address_to_hash160(addr)
+    if addrtype == net.ADDRTYPE_P2PKH:
+        return OnchainOutputType.P2PKH, hash_160_
+    elif addrtype == net.ADDRTYPE_P2SH:
+        return OnchainOutputType.P2SH, hash_160_
+    raise BitcoinException(f"unknown address type: {addrtype}")
+
+
+def address_to_scripthash(addr: str, *, net=None) -> str:
+    script = address_to_script(addr, net=net)
     return script_to_scripthash(script)
+
 
 def script_to_scripthash(script: str) -> str:
     h = sha256(bfh(script))[0:32]
     return bh2u(bytes(reversed(h)))
 
 def public_key_to_p2pk_script(pubkey: str) -> str:
-    return push_script(pubkey) + opcodes.OP_CHECKSIG.hex()
+    return construct_script([pubkey, opcodes.OP_CHECKSIG])
 
 def pubkeyhash_to_p2pkh_script(pubkey_hash160: str) -> str:
-    script = bytes([opcodes.OP_DUP, opcodes.OP_HASH160]).hex()
-    script += push_script(pubkey_hash160)
-    script += bytes([opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG]).hex()
-    return script
+    return construct_script([
+        opcodes.OP_DUP,
+        opcodes.OP_HASH160,
+        pubkey_hash160,
+        opcodes.OP_EQUALVERIFY,
+        opcodes.OP_CHECKSIG
+    ])
 
 def pubkeyhash_to_p2cs_script(pubkey_hash160: str, pubkey_hash160_2: str) -> str:
     script = bytes([opcodes.OP_COINSTAKE, opcodes.OP_IF, opcodes.OP_DUP, opcodes.OP_HASH160]).hex()
@@ -552,7 +641,10 @@ __b43chars = b'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ$*+-./:'
 assert len(__b43chars) == 43
 
 
-def base_encode(v: bytes, base: int) -> str:
+class BaseDecodeError(BitcoinException): pass
+
+
+def base_encode(v: bytes, *, base: int) -> str:
     """ encode v, which is a string of bytes, to base58."""
     assert_bytes(v)
     if base not in (58, 43):
@@ -561,8 +653,11 @@ def base_encode(v: bytes, base: int) -> str:
     if base == 43:
         chars = __b43chars
     long_value = 0
-    for (i, c) in enumerate(v[::-1]):
-        long_value += (256**i) * c
+    power_of_base = 1
+    for c in v[::-1]:
+        # naive but slow variant:   long_value += (256**i) * c
+        long_value += power_of_base * c
+        power_of_base <<= 8
     result = bytearray()
     while long_value >= base:
         div, mod = divmod(long_value, base)
@@ -582,7 +677,7 @@ def base_encode(v: bytes, base: int) -> str:
     return result.decode('ascii')
 
 
-def base_decode(v: Union[bytes, str], length: Optional[int], base: int) -> Optional[bytes]:
+def base_decode(v: Union[bytes, str], *, base: int, length: int = None) -> Optional[bytes]:
     """ decode v into a string of len bytes."""
     # assert_bytes(v)
     v = to_bytes(v, 'ascii')
@@ -592,11 +687,14 @@ def base_decode(v: Union[bytes, str], length: Optional[int], base: int) -> Optio
     if base == 43:
         chars = __b43chars
     long_value = 0
-    for (i, c) in enumerate(v[::-1]):
+    power_of_base = 1
+    for c in v[::-1]:
         digit = chars.find(bytes([c]))
         if digit == -1:
-            raise ValueError('Forbidden character {} for base {}'.format(c, base))
-        long_value += digit * (base**i)
+            raise BaseDecodeError('Forbidden character {} for base {}'.format(c, base))
+        # naive but slow variant:   long_value += digit * (base**i)
+        long_value += digit * power_of_base
+        power_of_base *= base
     result = bytearray()
     while long_value >= 256:
         div, mod = divmod(long_value, 256)
@@ -616,7 +714,7 @@ def base_decode(v: Union[bytes, str], length: Optional[int], base: int) -> Optio
     return bytes(result)
 
 
-class InvalidChecksum(Exception):
+class InvalidChecksum(BaseDecodeError):
     pass
 
 
@@ -626,7 +724,7 @@ def EncodeBase58Check(vchIn: bytes) -> str:
 
 
 def DecodeBase58Check(psz: Union[bytes, str]) -> bytes:
-    vchRet = base_decode(psz, None, base=58)
+    vchRet = base_decode(psz, base=58)
     payload = vchRet[0:-4]
     csum_found = vchRet[-4:]
     csum_calculated = sha256d(payload)[0:4]
@@ -656,8 +754,8 @@ def is_segwit_script_type(txin_type: str) -> bool:
     return txin_type in ('p2wpkh', 'p2wpkh-p2sh', 'p2wsh', 'p2wsh-p2sh')
 
 
-def serialize_privkey(secret: bytes, compressed: bool, txin_type: str,
-                      internal_use: bool=False) -> str:
+def serialize_privkey(secret: bytes, compressed: bool, txin_type: str, *,
+                      internal_use: bool = False) -> str:
     # we only export secrets inside curve range
     secret = ecc.ECPrivkey.normalize_secret_bytes(secret)
     if internal_use:
@@ -684,18 +782,17 @@ def deserialize_privkey(key: str) -> Tuple[str, bytes, bool]:
             raise BitcoinException('unknown script type: {}'.format(txin_type))
     try:
         vch = DecodeBase58Check(key)
-    except BaseException:
+    except Exception as e:
         neutered_privkey = str(key)[:3] + '..' + str(key)[-2:]
-        raise BitcoinException("cannot deserialize privkey {}"
-                               .format(neutered_privkey))
+        raise BaseDecodeError(f"cannot deserialize privkey {neutered_privkey}") from e
 
     if txin_type is None:
         # keys exported in version 3.0.x encoded script type in first byte
         prefix_value = vch[0] - constants.net.WIF_PREFIX
         try:
             txin_type = WIF_SCRIPT_TYPES_INV[prefix_value]
-        except KeyError:
-            raise BitcoinException('invalid prefix ({}) for WIF key (1)'.format(vch[0]))
+        except KeyError as e:
+            raise BitcoinException('invalid prefix ({}) for WIF key (1)'.format(vch[0])) from None
     else:
         # all other keys must have a fixed first byte
         if vch[0] != constants.net.WIF_PREFIX:
@@ -732,7 +829,7 @@ def address_from_private_key(sec: str) -> str:
 def is_segwit_address(addr: str, *, net=None) -> bool:
     if net is None: net = constants.net
     try:
-        witver, witprog = segwit_addr.decode(net.SEGWIT_HRP, addr)
+        witver, witprog = segwit_addr.decode_segwit_address(net.SEGWIT_HRP, addr)
     except Exception as e:
         return False
     return witprog is not None
@@ -740,6 +837,7 @@ def is_segwit_address(addr: str, *, net=None) -> bool:
 def is_b58_address(addr: str, *, net=None) -> bool:
     if net is None: net = constants.net
     try:
+        # test length, checksum, encoding:
         addrtype, h = b58_address_to_hash160(addr)
     except Exception as e:
         return False

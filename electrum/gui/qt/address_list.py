@@ -35,7 +35,7 @@ from electrum.plugin import run_hook
 from electrum.bitcoin import is_address
 from electrum.wallet import InternalAddressCorruption
 
-from .util import MyTreeView, MONOSPACE_FONT, ColorScheme, webopen
+from .util import MyTreeView, MONOSPACE_FONT, ColorScheme, webopen, MySortModel
 
 
 class AddressUsageStateFilter(IntEnum):
@@ -78,8 +78,14 @@ class AddressList(MyTreeView):
 
     filter_columns = [Columns.TYPE, Columns.ADDRESS, Columns.LABEL, Columns.COIN_BALANCE]
 
-    def __init__(self, parent=None):
-        super().__init__(parent, self.create_menu, stretch_column=self.Columns.LABEL)
+    ROLE_SORT_ORDER = Qt.UserRole + 1000
+    ROLE_ADDRESS_STR = Qt.UserRole + 1001
+
+    def __init__(self, parent):
+        super().__init__(parent, self.create_menu,
+                         stretch_column=self.Columns.LABEL,
+                         editable_columns=[self.Columns.LABEL])
+        self.wallet = self.parent.wallet
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
         self.show_change = AddressTypeFilter.ALL  # type: AddressTypeFilter
@@ -92,8 +98,12 @@ class AddressList(MyTreeView):
         self.used_button.currentIndexChanged.connect(self.toggle_used)
         for addr_usage_state in AddressUsageStateFilter.__members__.values():  # type: AddressUsageStateFilter
             self.used_button.addItem(addr_usage_state.ui_text())
-        self.setModel(QStandardItemModel(self))
+        self.std_model = QStandardItemModel(self)
+        self.proxy = MySortModel(self, sort_role=self.ROLE_SORT_ORDER)
+        self.proxy.setSourceModel(self.std_model)
+        self.setModel(self.proxy)
         self.update()
+        self.sortByColumn(self.Columns.TYPE, Qt.AscendingOrder)
 
     def get_toolbar_buttons(self):
         return QLabel(_("Filter:")), self.change_button, self.used_button
@@ -136,21 +146,24 @@ class AddressList(MyTreeView):
 
     @profiler
     def update(self):
-        self.wallet = self.parent.wallet
-        current_address = self.current_item_user_role(col=self.Columns.LABEL)
+        if self.maybe_defer_update():
+            return
+        current_address = self.get_role_data_for_current_item(col=self.Columns.LABEL, role=self.ROLE_ADDRESS_STR)
         if self.show_change == AddressTypeFilter.RECEIVING:
             addr_list = self.wallet.get_receiving_addresses()
         elif self.show_change == AddressTypeFilter.CHANGE:
             addr_list = self.wallet.get_change_addresses()
         else:
             addr_list = self.wallet.get_addresses()
-        self.model().clear()
+        self.proxy.setDynamicSortFilter(False)  # temp. disable re-sorting after every change
+        self.std_model.clear()
         self.refresh_headers()
         fx = self.parent.fx
         set_address = None
+        addresses_beyond_gap_limit = self.wallet.get_all_known_addresses_beyond_gap_limit()
         for address in addr_list:
             num = self.wallet.get_address_history_len(address)
-            label = self.wallet.labels.get(address, '')
+            label = self.wallet.get_label(address)
             c, u, x = self.wallet.get_addr_balance(address)
             balance = c + u + x
             is_used_and_empty = self.wallet.is_used(address) and balance == 0
@@ -183,16 +196,22 @@ class AddressList(MyTreeView):
             else:
                 address_item[self.Columns.TYPE].setText(_('receiving'))
                 address_item[self.Columns.TYPE].setBackground(ColorScheme.GREEN.as_color(True))
-            address_item[self.Columns.LABEL].setData(address, Qt.UserRole)
+            address_item[self.Columns.LABEL].setData(address, self.ROLE_ADDRESS_STR)
+            address_path = self.wallet.get_address_index(address)
+            address_item[self.Columns.TYPE].setData(address_path, self.ROLE_SORT_ORDER)
+            address_path_str = self.wallet.get_address_path_str(address)
+            if address_path_str is not None:
+                address_item[self.Columns.TYPE].setToolTip(address_path_str)
+            address_item[self.Columns.FIAT_BALANCE].setData(balance, self.ROLE_SORT_ORDER)
             # setup column 1
             if self.wallet.is_frozen_address(address):
                 address_item[self.Columns.ADDRESS].setBackground(ColorScheme.BLUE.as_color(True))
-            if self.wallet.is_beyond_limit(address):
+            if address in addresses_beyond_gap_limit:
                 address_item[self.Columns.ADDRESS].setBackground(ColorScheme.RED.as_color(True))
             # add item
-            count = self.model().rowCount()
-            self.model().insertRow(count, address_item)
-            address_idx = self.model().index(count, self.Columns.LABEL)
+            count = self.std_model.rowCount()
+            self.std_model.insertRow(count, address_item)
+            address_idx = self.std_model.index(count, self.Columns.LABEL)
             if address == current_address:
                 set_address = QPersistentModelIndex(address_idx)
         self.set_current_idx(set_address)
@@ -202,6 +221,7 @@ class AddressList(MyTreeView):
         else:
             self.hideColumn(self.Columns.FIAT_BALANCE)
         self.filter()
+        self.proxy.setDynamicSortFilter(True)
 
     def create_menu(self, position):
         from electrum.wallet import Multisig_Wallet
@@ -211,23 +231,23 @@ class AddressList(MyTreeView):
         if not selected:
             return
         multi_select = len(selected) > 1
-        addrs = [self.model().itemFromIndex(item).text() for item in selected]
+        addrs = [self.item_from_index(item).text() for item in selected]
         menu = QMenu()
         if not multi_select:
             idx = self.indexAt(position)
             if not idx.isValid():
                 return
-            item = self.model().itemFromIndex(idx)
+            item = self.item_from_index(idx)
             if not item:
                 return
             addr = addrs[0]
-            addr_column_title = self.model().horizontalHeaderItem(self.Columns.LABEL).text()
+            addr_column_title = self.std_model.horizontalHeaderItem(self.Columns.LABEL).text()
             addr_idx = idx.sibling(idx.row(), self.Columns.LABEL)
             self.add_copy_menu(menu, idx)
             menu.addAction(_('Details'), lambda: self.parent.show_address(addr))
             persistent = QPersistentModelIndex(addr_idx)
             menu.addAction(_("Edit {}").format(addr_column_title), lambda p=persistent: self.edit(QModelIndex(p)))
-            menu.addAction(_("Request payment"), lambda: self.parent.receive_at(addr))
+            #menu.addAction(_("Request payment"), lambda: self.parent.receive_at(addr))
             if self.wallet.can_export():
                 menu.addAction(_("Private key"), lambda: self.parent.show_private_key(addr))
             if not is_multisig and not self.wallet.is_watching_only():
@@ -256,8 +276,19 @@ class AddressList(MyTreeView):
     def place_text_on_clipboard(self, text: str, *, title: str = None) -> None:
         if is_address(text):
             try:
-                self.wallet.check_address(text)
+                self.wallet.check_address_for_corruption(text)
             except InternalAddressCorruption as e:
                 self.parent.show_error(str(e))
                 raise
         super().place_text_on_clipboard(text, title=title)
+
+    def get_edit_key_from_coordinate(self, row, col):
+        if col != self.Columns.LABEL:
+            return None
+        return self.get_role_data_from_coordinate(row, col, role=self.ROLE_ADDRESS_STR)
+
+    def on_edited(self, idx, edit_key, *, text):
+        self.parent.wallet.set_label(edit_key, text)
+        self.parent.history_model.refresh('address label edited')
+        self.parent.utxo_list.update()
+        self.parent.update_completions()

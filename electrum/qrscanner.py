@@ -27,6 +27,14 @@ import os
 import sys
 import ctypes
 
+from .util import UserFacingException
+from .i18n import _
+from .logging import get_logger
+
+
+_logger = get_logger(__name__)
+
+
 if sys.platform == 'darwin':
     name = 'libzbar.dylib'
 elif sys.platform in ('windows', 'win32'):
@@ -35,26 +43,30 @@ else:
     name = 'libzbar.so.0'
 
 try:
-    libzbar = ctypes.cdll.LoadLibrary(name)
-except BaseException:
-    libzbar = None
+    libzbar = ctypes.cdll.LoadLibrary(os.path.join(os.path.dirname(__file__), name))
+except BaseException as e1:
+    try:
+        libzbar = ctypes.cdll.LoadLibrary(name)
+    except BaseException as e2:
+        libzbar = None
+        if sys.platform != 'darwin':
+            _logger.error(f"failed to load zbar. exceptions: {[e1,e2]!r}")
 
 
-def scan_barcode_ctypes(device='', timeout=-1, display=True, threaded=False, try_again=True):
+def scan_barcode_ctypes(device='', timeout=-1, display=True, threaded=False):
     if libzbar is None:
-        raise RuntimeError("Cannot start QR scanner; zbar not available.")
+        raise UserFacingException("Cannot start QR scanner: zbar not available.")
     libzbar.zbar_symbol_get_data.restype = ctypes.c_char_p
     libzbar.zbar_processor_create.restype = ctypes.POINTER(ctypes.c_int)
     libzbar.zbar_processor_get_results.restype = ctypes.POINTER(ctypes.c_int)
     libzbar.zbar_symbol_set_first_symbol.restype = ctypes.POINTER(ctypes.c_int)
+    # libzbar.zbar_set_verbosity(100)  # verbose logs for debugging
     proc = libzbar.zbar_processor_create(threaded)
     libzbar.zbar_processor_request_size(proc, 640, 480)
     if libzbar.zbar_processor_init(proc, device.encode('utf-8'), display) != 0:
-        if try_again:
-            # workaround for a bug in "ZBar for Windows"
-            # libzbar.zbar_processor_init always seem to fail the first time around
-            return scan_barcode(device, timeout, display, threaded, try_again=False)
-        raise RuntimeError("Can not start QR scanner; initialization failed.")
+        raise UserFacingException(
+            _("Cannot start QR scanner: initialization failed.") + "\n" +
+            _("Make sure you have a camera connected and enabled."))
     libzbar.zbar_processor_set_visible(proc)
     if libzbar.zbar_process_one(proc, timeout):
         symbols = libzbar.zbar_processor_get_results(proc)
@@ -77,7 +89,7 @@ def scan_barcode_osx(*args_ignored, **kwargs_ignored):
     root_ec_dir = os.path.abspath(os.path.dirname(__file__) + "/../")
     prog = root_ec_dir + "/" + "contrib/osx/CalinsQRReader/build/Release/CalinsQRReader.app/Contents/MacOS/CalinsQRReader"
     if not os.path.exists(prog):
-        raise RuntimeError("Cannot start QR scanner; helper app not found.")
+        raise UserFacingException("Cannot start QR scanner: helper app not found.")
     data = ''
     try:
         # This will run the "CalinsQRReader" helper app (which also gets bundled with the built .app)
@@ -88,7 +100,7 @@ def scan_barcode_osx(*args_ignored, **kwargs_ignored):
             data = p.stdout.read().decode('utf-8').strip()
         return data
     except OSError as e:
-        raise RuntimeError("Cannot start camera helper app; {}".format(e.strerror))
+        raise UserFacingException("Cannot start camera helper app: {}".format(e.strerror))
 
 scan_barcode = scan_barcode_osx if sys.platform == 'darwin' else scan_barcode_ctypes
 

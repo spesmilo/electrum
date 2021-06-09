@@ -28,7 +28,7 @@ import sys
 import copy
 import traceback
 from functools import partial
-from typing import List, TYPE_CHECKING, Tuple, NamedTuple, Any, Dict, Optional
+from typing import List, TYPE_CHECKING, Tuple, NamedTuple, Any, Dict, Optional, Union
 
 from . import bitcoin
 from . import constants
@@ -36,20 +36,20 @@ from . import keystore
 from . import mnemonic
 from .bitcoin import hash160_to_b58_address, b58_address_to_hash160
 from .bip32 import is_bip32_derivation, xpub_type, normalize_bip32_derivation, BIP32Node
-from .keystore import bip44_derivation, purpose48_derivation
-from .wallet import (Imported_Wallet, Standard_Wallet, Multisig_Wallet, Cold_Staking_Wallet,
-                     wallet_types, Wallet, Abstract_Wallet)
-from .storage import (WalletStorage, StorageEncryptionVersion,
-                      get_derivation_used_for_hw_device_encryption)
+from .keystore import bip44_derivation, purpose48_derivation, Hardware_KeyStore, KeyStore, bip39_to_seed
+from .wallet import (Imported_Wallet, Standard_Wallet, Multisig_Wallet,
+                     Cold_Staking_Wallet, wallet_types, Wallet, Abstract_Wallet)
+from .storage import WalletStorage, StorageEncryptionVersion
+from .wallet_db import WalletDB
 from .i18n import _
-from .util import UserCancelled, InvalidPassword, WalletFileException
+from .util import UserCancelled, InvalidPassword, WalletFileException, UserFacingException
 from .simple_config import SimpleConfig
 from .plugin import Plugins, HardwarePluginLibraryUnavailable
 from .logging import Logger
 from .plugins.hw_wallet.plugin import OutdatedHwFirmwareException, HW_PluginBase
 
 if TYPE_CHECKING:
-    from .plugin import DeviceInfo
+    from .plugin import DeviceInfo, BasePlugin
 
 
 # hardware device setup purpose
@@ -62,11 +62,17 @@ class ScriptTypeNotSupported(Exception): pass
 class GoBack(Exception): pass
 
 
+class ReRunDialog(Exception): pass
+
+
+class ChooseHwDeviceAgain(Exception): pass
+
+
 class WizardStackItem(NamedTuple):
     action: Any
     args: Any
     kwargs: Dict[str, Any]
-    storage_data: dict
+    db_data: dict
 
 
 class WizardWalletPasswordSetting(NamedTuple):
@@ -86,8 +92,8 @@ class BaseWizard(Logger):
         self.data = {}
         self.pw_args = None  # type: Optional[WizardWalletPasswordSetting]
         self._stack = []  # type: List[WizardStackItem]
-        self.plugin = None
-        self.keystores = []
+        self.plugin = None  # type: Optional[BasePlugin]
+        self.keystores = []  # type: List[KeyStore]
         self.is_kivy = config.get('gui') == 'kivy'
         self.seed_type = None
 
@@ -97,8 +103,8 @@ class BaseWizard(Logger):
     def run(self, *args, **kwargs):
         action = args[0]
         args = args[1:]
-        storage_data = copy.deepcopy(self.data)
-        self._stack.append(WizardStackItem(action, args, kwargs, storage_data))
+        db_data = copy.deepcopy(self.data)
+        self._stack.append(WizardStackItem(action, args, kwargs, db_data))
         if not action:
             return
         if type(action) is tuple:
@@ -115,18 +121,21 @@ class BaseWizard(Logger):
     def can_go_back(self):
         return len(self._stack) > 1
 
-    def go_back(self):
+    def go_back(self, *, rerun_previous: bool = True) -> None:
         if not self.can_go_back():
             return
         # pop 'current' frame
         self._stack.pop()
-        # pop 'previous' frame
-        stack_item = self._stack.pop()
+        prev_frame = self._stack[-1]
         # try to undo side effects since we last entered 'previous' frame
-        # FIXME only self.storage is properly restored
-        self.data = copy.deepcopy(stack_item.storage_data)
-        # rerun 'previous' frame
-        self.run(stack_item.action, *stack_item.args, **stack_item.kwargs)
+        # FIXME only self.data is properly restored
+        self.data = copy.deepcopy(prev_frame.db_data)
+
+        if rerun_previous:
+            # pop 'previous' frame
+            self._stack.pop()
+            # rerun 'previous' frame
+            self.run(prev_frame.action, *prev_frame.args, **prev_frame.kwargs)
 
     def reset_stack(self):
         self._stack = []
@@ -145,20 +154,27 @@ class BaseWizard(Logger):
         choices = [pair for pair in wallet_kinds if pair[0] in wallet_types]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.on_wallet_type)
 
-    def upgrade_storage(self, storage):
-        exc = None
+    def upgrade_db(self, storage, db):
+        exc = None  # type: Optional[Exception]
         def on_finished():
             if exc is None:
-                self.terminate(storage=storage)
+                self.terminate(storage=storage, db=db)
             else:
                 raise exc
         def do_upgrade():
             nonlocal exc
             try:
-                storage.upgrade()
+                db.upgrade()
             except Exception as e:
                 exc = e
         self.waiting_dialog(do_upgrade, _('Upgrading wallet format...'), on_finished=on_finished)
+
+    def run_task_without_blocking_gui(self, task, *, msg: str = None) -> Any:
+        """Perform a task in a thread without blocking the GUI.
+        Returns the result of 'task', or raises the same exception.
+        This method blocks until 'task' is finished.
+        """
+        raise NotImplementedError()
 
     def load_2fa(self):
         self.data['wallet_type'] = '2fa'
@@ -166,7 +182,7 @@ class BaseWizard(Logger):
         self.plugin = self.plugins.load_plugin('trustedcoin')
 
     def on_wallet_type(self, choice):
-        self.data['wallet_type'] = self.wallet_type = choice
+        self.data['wallet_type'] = self.data['wallet_type'] = choice
         if choice == 'voting':
             action = 'choose_keystore'
         elif choice == 'multisig':
@@ -237,7 +253,6 @@ class BaseWizard(Logger):
     def save_staking_address(self, address):
         self.data['staking_address'] = bitcoin.get_staking_address(address)
         self.data['wallet_type'] = 'coldstaking'
-        self.wallet_type = 'coldstaking'
         self.run('choose_voting_address')
 
     def choose_voting_address(self):
@@ -254,13 +269,13 @@ class BaseWizard(Logger):
         self.run('choose_keystore')
 
     def choose_keystore(self):
-        assert self.wallet_type in ['standard', 'multisig', 'coldstaking', 'voting']
+        assert self.data['wallet_type'] in ['standard', 'multisig', 'coldstaking', 'voting']
         i = len(self.keystores)
-        title = _('Add cosigner') + ' (%d of %d)'%(i+1, self.n) if self.wallet_type=='multisig' else _('Keystore')
-        if self.wallet_type =='standard' or i==0 or self.wallet_type == 'voting':
+        title = _('Add cosigner') + ' (%d of %d)'%(i+1, self.n) if self.data['wallet_type']=='multisig' else _('Keystore')
+        if self.data['wallet_type'] =='standard' or i==0 or self.data['wallet_type'] == 'voting':
             message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
             choices = [
-                ('create_standard_seed', _('Create a new seed')),
+                ('choose_seed_type', _('Create a new seed')),
                 ('restore_from_seed', _('I already have a seed')),
                 ('restore_from_key', _('Use a master key')),
             ]
@@ -302,11 +317,11 @@ class BaseWizard(Logger):
                 self.data['addresses'][addr] = {'type':txin_type, 'pubkey':pubkey}
             self.keystores.append(k)
         else:
-            return self.terminate()
+            return self.terminate(aborted=True)
         return self.run('create_wallet')
 
     def restore_from_key(self):
-        if self.wallet_type == 'standard':
+        if self.data['wallet_type'] == 'standard':
             v = keystore.is_master_key
             title = _("Create keystore from a master key")
             message = ' '.join([
@@ -322,7 +337,16 @@ class BaseWizard(Logger):
         k = keystore.from_master_key(text)
         self.on_keystore(k)
 
-    def choose_hw_device(self, purpose=HWD_SETUP_NEW_WALLET, *, storage=None):
+    def choose_hw_device(self, purpose=HWD_SETUP_NEW_WALLET, *, storage: WalletStorage = None):
+        while True:
+            try:
+                self._choose_hw_device(purpose=purpose, storage=storage)
+            except ChooseHwDeviceAgain:
+                pass
+            else:
+                break
+
+    def _choose_hw_device(self, *, purpose, storage: WalletStorage = None):
         title = _('Hardware Keystore')
         # check available plugins
         supported_plugins = self.plugins.get_hardware_support()
@@ -339,7 +363,8 @@ class BaseWizard(Logger):
 
         # scan devices
         try:
-            scanned_devices = devmgr.scan_devices()
+            scanned_devices = self.run_task_without_blocking_gui(task=devmgr.scan_devices,
+                                                                 msg=_("Scanning devices..."))
         except BaseException as e:
             self.logger.info('error scanning devices: {}'.format(repr(e)))
             debug_msg = '  {}:\n    {}'.format(_('Error scanning devices'), e)
@@ -385,8 +410,8 @@ class BaseWizard(Logger):
             msg += '\n\n'
             msg += _('Debug message') + '\n' + debug_msg
             self.confirm_dialog(title=title, message=msg,
-                                run_next=lambda x: self.choose_hw_device(purpose, storage=storage))
-            return
+                                run_next=lambda x: None)
+            raise ChooseHwDeviceAgain()
         # select device
         self.devices = devices
         choices = []
@@ -395,69 +420,68 @@ class BaseWizard(Logger):
             label = info.label or _("An unnamed {}").format(name)
             try: transport_str = info.device.transport_ui_string[:20]
             except: transport_str = 'unknown transport'
-            descr = f"{label} [{name}, {state}, {transport_str}]"
+            descr = f"{label} [{info.model_name or name}, {state}, {transport_str}]"
             choices.append(((name, info), descr))
         msg = _('Select a device') + ':'
         self.choice_dialog(title=title, message=msg, choices=choices,
                            run_next=lambda *args: self.on_device(*args, purpose=purpose, storage=storage))
 
-    def on_device(self, name, device_info, *, purpose, storage=None):
-        self.plugin = self.plugins.get_plugin(name)  # type: HW_PluginBase
+    def on_device(self, name, device_info: 'DeviceInfo', *, purpose, storage: WalletStorage = None):
+        self.plugin = self.plugins.get_plugin(name)
+        assert isinstance(self.plugin, HW_PluginBase)
+        devmgr = self.plugins.device_manager
         try:
-            self.plugin.setup_device(device_info, self, purpose)
+            client = self.plugin.setup_device(device_info, self, purpose)
         except OSError as e:
             self.show_error(_('We encountered an error while connecting to your device:')
                             + '\n' + str(e) + '\n'
                             + _('To try to fix this, we will now re-pair with your device.') + '\n'
                             + _('Please try again.'))
-            devmgr = self.plugins.device_manager
             devmgr.unpair_id(device_info.device.id_)
-            self.choose_hw_device(purpose, storage=storage)
-            return
+            raise ChooseHwDeviceAgain()
         except OutdatedHwFirmwareException as e:
             if self.question(e.text_ignore_old_fw_and_continue(), title=_("Outdated device firmware")):
                 self.plugin.set_ignore_outdated_fw()
                 # will need to re-pair
-                devmgr = self.plugins.device_manager
                 devmgr.unpair_id(device_info.device.id_)
-            self.choose_hw_device(purpose, storage=storage)
-            return
-        except (UserCancelled, GoBack):
-            self.choose_hw_device(purpose, storage=storage)
-            return
+            raise ChooseHwDeviceAgain()
+        except GoBack:
+            raise ChooseHwDeviceAgain()
+        except (UserCancelled, ReRunDialog):
+            raise
+        except UserFacingException as e:
+            self.show_error(str(e))
+            raise ChooseHwDeviceAgain()
         except BaseException as e:
             self.logger.exception('')
             self.show_error(str(e))
-            self.choose_hw_device(purpose, storage=storage)
-            return
+            raise ChooseHwDeviceAgain()
+
         if purpose == HWD_SETUP_NEW_WALLET:
             def f(derivation, script_type):
                 derivation = normalize_bip32_derivation(derivation)
                 self.run('on_hw_derivation', name, device_info, derivation, script_type)
             self.derivation_and_script_type_dialog(f)
         elif purpose == HWD_SETUP_DECRYPT_WALLET:
-            derivation = get_derivation_used_for_hw_device_encryption()
-            xpub = self.plugin.get_xpub(device_info.device.id_, derivation, 'standard', self)
-            password = keystore.Xpub.get_pubkey_from_xpub(xpub, ())
+            password = client.get_password_for_storage_encryption()
             try:
                 storage.decrypt(password)
             except InvalidPassword:
                 # try to clear session so that user can type another passphrase
-                devmgr = self.plugins.device_manager
-                client = devmgr.client_by_id(device_info.device.id_)
                 if hasattr(client, 'clear_session'):  # FIXME not all hw wallet plugins have this
                     client.clear_session()
                 raise
         else:
             raise Exception('unknown purpose: %s' % purpose)
 
-    def derivation_and_script_type_dialog(self, f):
+    def derivation_and_script_type_dialog(self, f, *, get_account_xpub=None):
         message1 = _('Choose the type of addresses in your wallet.')
         message2 = ' '.join([
             _('You can override the suggested derivation path.'),
             _('If you are not sure what this is, leave this field unchanged.')
         ])
-        if self.wallet_type == 'multisig':
+        hide_choices = False
+        if self.data['wallet_type'] == 'multisig':
             # There is no general standard for HD multisig.
             # For legacy, this is partially compatible with BIP45; assumes index=0
             # For segwit, a custom path is used, as there is no standard at all.
@@ -467,6 +491,14 @@ class BaseWizard(Logger):
                 #('p2wsh-p2sh', 'p2sh-segwit multisig (p2wsh-p2sh)', purpose48_derivation(0, xtype='p2wsh-p2sh')),
                 #('p2wsh',      'native segwit multisig (p2wsh)',    purpose48_derivation(0, xtype='p2wsh')),
             ]
+            # if this is not the first cosigner, pre-select the expected script type,
+            # and hide the choices
+            script_type = self.get_script_type_of_wallet()
+            if script_type is not None:
+                script_types = [*zip(*choices)][0]
+                chosen_idx = script_types.index(script_type)
+                default_choice_idx = chosen_idx
+                hide_choices = True
         else:
             default_choice_idx = 2
             choices = [
@@ -476,35 +508,54 @@ class BaseWizard(Logger):
             ]
         while True:
             try:
-                self.choice_and_line_dialog(
-                    run_next=f, title=_('Script type and Derivation path'), message1=message1,
-                    message2=message2, choices=choices, test_text=is_bip32_derivation,
-                    default_choice_idx=default_choice_idx)
+                self.derivation_and_script_type_gui_specific_dialog(
+                    run_next=f,
+                    title=_('Script type and Derivation path'),
+                    message1=message1,
+                    message2=message2,
+                    choices=choices,
+                    test_text=is_bip32_derivation,
+                    default_choice_idx=default_choice_idx,
+                    get_account_xpub=get_account_xpub,
+                    hide_choices=hide_choices,
+                )
                 return
             except ScriptTypeNotSupported as e:
                 self.show_error(e)
                 # let the user choose again
 
-    def on_hw_derivation(self, name, device_info, derivation, xtype):
+    def on_hw_derivation(self, name, device_info: 'DeviceInfo', derivation, xtype):
         from .keystore import hardware_keystore
+        devmgr = self.plugins.device_manager
+        assert isinstance(self.plugin, HW_PluginBase)
         try:
             xpub = self.plugin.get_xpub(device_info.device.id_, derivation, xtype, self)
-            root_xpub = self.plugin.get_xpub(device_info.device.id_, 'm', 'standard', self)
+            client = devmgr.client_by_id(device_info.device.id_, scan_now=False)
+            if not client: raise Exception("failed to find client for device id")
+            root_fingerprint = client.request_root_fingerprint_from_device()
+            label = client.label()  # use this as device_info.label might be outdated!
+            soft_device_id = client.get_soft_device_id()  # use this as device_info.device_id might be outdated!
         except ScriptTypeNotSupported:
             raise  # this is handled in derivation_dialog
         except BaseException as e:
             self.logger.exception('')
             self.show_error(e)
-            return
-        xfp = BIP32Node.from_xkey(root_xpub).calc_fingerprint_of_this_node().hex().lower()
+            raise ChooseHwDeviceAgain()
         d = {
             'type': 'hardware',
             'hw_type': name,
             'derivation': derivation,
-            'root_fingerprint': xfp,
+            'root_fingerprint': root_fingerprint,
             'xpub': xpub,
-            'label': device_info.label,
+            'label': label,
+            'soft_device_id': soft_device_id,
         }
+        try:
+            client.manipulate_keystore_dict_during_wizard_setup(d)
+        except Exception as e:
+            self.logger.exception('')
+            self.show_error(e)
+            raise ChooseHwDeviceAgain()
         k = hardware_keystore(d)
         self.on_keystore(k)
 
@@ -527,13 +578,14 @@ class BaseWizard(Logger):
         self.opt_bip39 = True
         self.opt_ext = True
         is_cosigning_seed = lambda x: mnemonic.seed_type(x) in ['standard', 'segwit']
-        test = mnemonic.is_seed if self.wallet_type == 'standard' or self.wallet_type == 'voting' or self.wallet_type == 'coldstaking' else is_cosigning_seed
-        self.restore_seed_dialog(run_next=self.on_restore_seed, test=test)
+        test = mnemonic.is_seed if self.data['wallet_type'] == 'standard' or self.data['wallet_type'] == 'voting' or self.data['wallet_type'] == 'coldstaking' else is_cosigning_seed
+        f = lambda *args: self.run('on_restore_seed', *args)
+        self.restore_seed_dialog(run_next=f, test=test)
 
     def on_restore_seed(self, seed, is_bip39, is_ext):
         self.seed_type = 'bip39' if is_bip39 else mnemonic.seed_type(seed)
         if self.seed_type == 'bip39':
-            f = lambda passphrase: self.on_restore_bip39(seed, passphrase)
+            f = lambda passphrase: self.run('on_restore_bip39', seed, passphrase)
             self.passphrase_dialog(run_next=f, is_restoring=True) if is_ext else f('')
         elif self.seed_type in ['standard', 'segwit', 'voting']:
             f = lambda passphrase: self.run('create_keystore', seed, passphrase)
@@ -550,28 +602,46 @@ class BaseWizard(Logger):
         def f(derivation, script_type):
             derivation = normalize_bip32_derivation(derivation)
             self.run('on_bip43', seed, passphrase, derivation, script_type)
-        self.derivation_and_script_type_dialog(f)
+        if self.data['wallet_type'] == 'standard':
+            def get_account_xpub(account_path):
+                root_seed = bip39_to_seed(seed, passphrase)
+                root_node = BIP32Node.from_rootseed(root_seed, xtype="standard")
+                account_node = root_node.subkey_at_private_derivation(account_path)
+                account_xpub = account_node.to_xpub()
+                return account_xpub
+        else:
+            get_account_xpub = None
+        self.derivation_and_script_type_dialog(f, get_account_xpub=get_account_xpub)
 
     def create_keystore(self, seed, passphrase):
-        k = keystore.from_seed(seed, passphrase, self.wallet_type == 'multisig')
+        k = keystore.from_seed(seed, passphrase, self.data['wallet_type'] == 'multisig')
+        if k.can_have_deterministic_lightning_xprv():
+            self.data['lightning_xprv'] = k.get_lightning_xprv(None)
         self.on_keystore(k)
 
     def on_bip43(self, seed, passphrase, derivation, script_type):
         k = keystore.from_bip39_seed(seed, passphrase, derivation, xtype=script_type)
         self.on_keystore(k)
 
-    def on_keystore(self, k):
+    def get_script_type_of_wallet(self) -> Optional[str]:
+        if len(self.keystores) > 0:
+            ks = self.keystores[0]
+            if isinstance(ks, keystore.Xpub):
+                return xpub_type(ks.xpub)
+        return None
+
+    def on_keystore(self, k: KeyStore):
         has_xpub = isinstance(k, keystore.Xpub)
         if has_xpub:
             t1 = xpub_type(k.xpub)
-        if self.wallet_type == 'standard' or self.wallet_type == 'coldstaking' or self.wallet_type == 'voting':
+        if self.data['wallet_type'] == 'standard' or self.data['wallet_type'] == 'coldstaking' or self.data['wallet_type'] == 'voting':
             if has_xpub and t1 not in ['standard', 'voting', 'p2wpkh', 'p2wpkh-p2sh']:
                 self.show_error(_('Wrong key type') + ' %s'%t1)
                 self.run('choose_keystore')
                 return
             self.keystores.append(k)
             self.run('create_wallet')
-        elif self.wallet_type == 'multisig':
+        elif self.data['wallet_type'] == 'multisig':
             assert has_xpub
             if t1 not in ['standard', 'p2wsh', 'p2wsh-p2sh']:
                 self.show_error(_('Wrong key type') + ' %s'%t1)
@@ -587,12 +657,15 @@ class BaseWizard(Logger):
                     self.show_error(_('Cannot add this cosigner:') + '\n' + "Their key type is '%s', we are '%s'"%(t1, t2))
                     self.run('choose_keystore')
                     return
-            self.keystores.append(k)
-            if len(self.keystores) == 1:
+            if len(self.keystores) == 0:
                 xpub = k.get_master_public_key()
                 self.reset_stack()
+                self.keystores.append(k)
                 self.run('show_xpub_and_add_cosigners', xpub)
-            elif len(self.keystores) < self.n:
+                return
+            self.reset_stack()
+            self.keystores.append(k)
+            if len(self.keystores) < self.n:
                 self.run('choose_keystore')
             else:
                 self.run('create_wallet')
@@ -601,21 +674,21 @@ class BaseWizard(Logger):
         encrypt_keystore = any(k.may_have_password() for k in self.keystores)
         # note: the following condition ("if") is duplicated logic from
         # wallet.get_available_storage_encryption_version()
-        if (self.wallet_type == 'standard' or self.wallet_type == 'voting' or self.wallet_type == 'coldstaking') and isinstance(self.keystores[0], keystore.Hardware_KeyStore):
+        if (self.data['wallet_type'] == 'standard' or self.data['wallet_type'] == 'voting' or self.data['wallet_type'] == 'coldstaking') and isinstance(self.keystores[0], Hardware_KeyStore):
             # offer encrypting with a pw derived from the hw device
-            k = self.keystores[0]
+            k = self.keystores[0]  # type: Hardware_KeyStore
+            assert isinstance(self.plugin, HW_PluginBase)
             try:
                 k.handler = self.plugin.create_handler(self)
                 password = k.get_password_for_storage_encryption()
             except UserCancelled:
                 devmgr = self.plugins.device_manager
                 devmgr.unpair_xpub(k.xpub)
-                self.choose_hw_device()
-                return
+                raise ChooseHwDeviceAgain()
             except BaseException as e:
                 self.logger.exception('')
                 self.show_error(str(e))
-                return
+                raise ChooseHwDeviceAgain()
             self.request_storage_encryption(
                 run_next=lambda encrypt_storage: self.on_password(
                     password,
@@ -640,14 +713,14 @@ class BaseWizard(Logger):
         for k in self.keystores:
             if k.may_have_password():
                 k.update_password(None, password)
-        if self.wallet_type == 'standard' or self.wallet_type == 'coldstaking' or self.wallet_type == 'voting':
+        if self.data['wallet_type'] == 'standard' or self.data['wallet_type'] == 'coldstaking' or self.data['wallet_type'] == 'voting':
             self.data['seed_type'] = self.seed_type
             keys = self.keystores[0].dump()
             self.data['keystore'] = keys
-        elif self.wallet_type == 'multisig':
+        elif self.data['wallet_type'] == 'multisig':
             for i, k in enumerate(self.keystores):
                 self.data['x%d/'%(i+1)] = k.dump()
-        elif self.wallet_type == 'imported':
+        elif self.data['wallet_type'] == 'imported':
             if len(self.keystores) > 0:
                 keys = self.keystores[0].dump()
                 self.data['keystore'] = keys
@@ -659,53 +732,41 @@ class BaseWizard(Logger):
                                                    encrypt_keystore=encrypt_keystore)
         self.terminate()
 
-    def create_storage(self, path):
+    def create_storage(self, path) -> Tuple[WalletStorage, WalletDB]:
         if os.path.exists(path):
             raise Exception('file already exists at path')
-        if not self.pw_args:
-            return
+        assert self.pw_args, f"pw_args not set?!"
         pw_args = self.pw_args
         self.pw_args = None  # clean-up so that it can get GC-ed
         storage = WalletStorage(path)
-        storage.set_keystore_encryption(bool(pw_args.password) and pw_args.encrypt_keystore)
         if pw_args.encrypt_storage:
             storage.set_password(pw_args.password, enc_version=pw_args.storage_enc_version)
+        db = WalletDB('', manual_upgrades=False)
+        db.set_keystore_encryption(bool(pw_args.password) and pw_args.encrypt_keystore)
         for key, value in self.data.items():
-            storage.put(key, value)
-        storage.write()
-        storage.load_plugins()
-        return storage
+            db.put(key, value)
+        db.load_plugins()
+        db.write(storage)
+        return storage, db
 
-    def terminate(self, *, storage: Optional[WalletStorage] = None):
+    def terminate(self, *, storage: WalletStorage = None,
+                  db: WalletDB = None,
+                  aborted: bool = False) -> None:
         raise NotImplementedError()  # implemented by subclasses
 
     def show_xpub_and_add_cosigners(self, xpub):
         self.show_xpub_dialog(xpub=xpub, run_next=lambda x: self.run('choose_keystore'))
 
-    def choose_seed_type(self, message=None, choices=None):
-        title = _('Choose Seed type')
-        if message is None:
-            message = ' '.join([
-                _("The type of addresses used by your wallet will depend on your seed."),
-                #_("Segwit wallets use bech32 addresses, defined in BIP173."),
-                #_("Please note that websites and other wallets may not support these addresses yet."),
-                #_("Thus, you might want to keep using a non-segwit wallet in order to be able to receive Navcoins during the transition period.")
-            ])
-        if choices is None:
-            choices = [
-                ('create_standard_seed', _('Legacy')),
-                #('create_segwit_seed', _('Segwit')),
-            ]
-        self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
-
-    def create_segwit_seed(self): self.create_seed('segwit')
-    def create_standard_seed(self): self.create_seed('standard')
+    def choose_seed_type(self):
+        seed_type = 'standard' #if self.config.get('nosegwit') else 'segwit'
+        self.create_seed(seed_type)
 
     def create_seed(self, seed_type):
         from . import mnemonic
         self.seed_type = seed_type
-        seed = mnemonic.Mnemonic('en').make_seed(self.seed_type)
+        seed = mnemonic.Mnemonic('en').make_seed(seed_type=self.seed_type)
         self.opt_bip39 = False
+        self.opt_ext = True
         f = lambda x: self.request_passphrase(seed, x)
         self.show_seed_dialog(run_next=f, seed_text=seed)
 
@@ -718,7 +779,7 @@ class BaseWizard(Logger):
 
     def confirm_seed(self, seed, passphrase):
         f = lambda x: self.confirm_passphrase(seed, passphrase)
-        self.confirm_seed_dialog(run_next=f, test=lambda x: x==seed)
+        self.confirm_seed_dialog(run_next=f, seed=seed if self.config.get('debug_seed') else '', test=lambda x: x==seed)
 
     def confirm_passphrase(self, seed, passphrase):
         f = lambda x: self.run('create_keystore', seed, x)
@@ -731,3 +792,6 @@ class BaseWizard(Logger):
             self.line_dialog(run_next=f, title=title, message=message, default='', test=lambda x: x==passphrase)
         else:
             f('')
+
+    def show_error(self, msg: Union[str, BaseException]) -> None:
+        raise NotImplementedError()

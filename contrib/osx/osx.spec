@@ -59,21 +59,19 @@ block_cipher = None
 
 # see https://github.com/pyinstaller/pyinstaller/issues/2005
 hiddenimports = []
+hiddenimports += collect_submodules('pkg_resources')  # workaround for https://github.com/pypa/setuptools/issues/1963
 hiddenimports += collect_submodules('trezorlib')
 hiddenimports += collect_submodules('safetlib')
 hiddenimports += collect_submodules('navhip')
 hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
 hiddenimports += collect_submodules('ckcc')
+hiddenimports += collect_submodules('bitbox02')
 hiddenimports += ['PyQt5.QtPrintSupport']  # needed by Revealer
-
-# safetlib imports PyQt5.Qt.  We use a local updated copy of pinmatrix.py until they
-# release a new version that includes https://github.com/archos-safe-t/python-safet/commit/b1eab3dba4c04fdfc1fcf17b66662c28c5f2380e
-hiddenimports.remove('safetlib.qt.pinmatrix')
-
 
 datas = [
     (electrum + PYPKG + '/*.json', PYPKG),
+    (electrum + PYPKG + '/lnwire/*.csv', PYPKG + '/lnwire'),
     (electrum + PYPKG + '/wordlist/english.txt', PYPKG + '/wordlist'),
     (electrum + PYPKG + '/locale', PYPKG + '/locale'),
     (electrum + PYPKG + '/plugins', PYPKG + '/plugins'),
@@ -84,8 +82,7 @@ datas += collect_data_files('safetlib')
 datas += collect_data_files('navhip')
 datas += collect_data_files('keepkeylib')
 datas += collect_data_files('ckcc')
-datas += collect_data_files('jsonrpcserver')
-datas += collect_data_files('jsonrpcclient')
+datas += collect_data_files('bitbox02')
 
 # Add the QR Scanner helper app
 datas += [(electrum + "contrib/osx/CalinsQRReader/build/Release/CalinsQRReader.app", "./contrib/osx/CalinsQRReader/build/Release/CalinsQRReader.app")]
@@ -142,24 +139,29 @@ if APP_SIGN:
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
-exe = EXE(pyz,
-          a.scripts,
-          a.binaries,
-          a.datas,
-          name=PACKAGE,
-          debug=False,
-          strip=False,
-          upx=True,
-          icon=electrum+ICONS_FILE,
-          console=False)
+exe = EXE(
+    pyz,
+    a.scripts,
+    exclude_binaries=True,
+    name=MAIN_SCRIPT,
+    debug=False,
+    strip=False,
+    upx=True,
+    icon=electrum+ICONS_FILE,
+    console=False,
+)
 
-app = BUNDLE(exe,
-             version = VERSION,
-             name=PACKAGE + '.app',
-             icon=electrum+ICONS_FILE,
-             bundle_identifier=None,
-             info_plist={
-                'NSHighResolutionCapable': 'True',
-                'NSSupportsAutomaticGraphicsSwitching': 'True'
-             }
+app = BUNDLE(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    version = VERSION,
+    name=PACKAGE + '.app',
+    icon=electrum+ICONS_FILE,
+    bundle_identifier=None,
+    info_plist={
+        'NSHighResolutionCapable': 'True',
+        'NSSupportsAutomaticGraphicsSwitching': 'True'
+    },
 )

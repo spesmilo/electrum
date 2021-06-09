@@ -1,0 +1,4 @@
+# need modern versions of pip (and maybe other build tools), the one in apt had issues
+pip
+setuptools
+wheel

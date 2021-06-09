@@ -23,120 +23,187 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import io
 import hashlib
-from typing import Sequence, List, Tuple, NamedTuple, TYPE_CHECKING
+from typing import Sequence, List, Tuple, NamedTuple, TYPE_CHECKING, Dict, Any, Optional
 from enum import IntEnum, IntFlag
-from Cryptodome.Cipher import ChaCha20
-
 
 from . import ecc
-from .crypto import sha256, hmac_oneshot
+from .crypto import sha256, hmac_oneshot, chacha20_encrypt
 from .util import bh2u, profiler, xor_bytes, bfh
 from .lnutil import (get_ecdh, PaymentFailure, NUM_MAX_HOPS_IN_PAYMENT_PATH,
-                     NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID)
+                     NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID, OnionFailureCodeMetaFlag)
+from .lnmsg import OnionWireSerializer, read_bigsize_int, write_bigsize_int
+from . import lnmsg
 
 if TYPE_CHECKING:
-    from .lnrouter import RouteEdge
+    from .lnrouter import LNPaymentRoute
 
 
 HOPS_DATA_SIZE = 1300      # also sometimes called routingInfoSize in bolt-04
-PER_HOP_FULL_SIZE = 65     # HOPS_DATA_SIZE / 20
-NUM_STREAM_BYTES = HOPS_DATA_SIZE + PER_HOP_FULL_SIZE
+TRAMPOLINE_HOPS_DATA_SIZE = 400
+LEGACY_PER_HOP_FULL_SIZE = 65
 PER_HOP_HMAC_SIZE = 32
 
 
 class UnsupportedOnionPacketVersion(Exception): pass
 class InvalidOnionMac(Exception): pass
+class InvalidOnionPubkey(Exception): pass
 
 
-class OnionPerHop:
+class LegacyHopDataPayload:
 
-    def __init__(self, short_channel_id: bytes, amt_to_forward: bytes, outgoing_cltv_value: bytes):
+    def __init__(self, *, short_channel_id: bytes, amt_to_forward: int, outgoing_cltv_value: int):
         self.short_channel_id = ShortChannelID(short_channel_id)
         self.amt_to_forward = amt_to_forward
         self.outgoing_cltv_value = outgoing_cltv_value
 
     def to_bytes(self) -> bytes:
         ret = self.short_channel_id
-        ret += self.amt_to_forward
-        ret += self.outgoing_cltv_value
+        ret += int.to_bytes(self.amt_to_forward, length=8, byteorder="big", signed=False)
+        ret += int.to_bytes(self.outgoing_cltv_value, length=4, byteorder="big", signed=False)
         ret += bytes(12)  # padding
         if len(ret) != 32:
             raise Exception('unexpected length {}'.format(len(ret)))
         return ret
 
+    def to_tlv_dict(self) -> dict:
+        d = {
+            "amt_to_forward": {"amt_to_forward": self.amt_to_forward},
+            "outgoing_cltv_value": {"outgoing_cltv_value": self.outgoing_cltv_value},
+            "short_channel_id": {"short_channel_id": self.short_channel_id},
+        }
+        return d
+
     @classmethod
-    def from_bytes(cls, b: bytes):
+    def from_bytes(cls, b: bytes) -> 'LegacyHopDataPayload':
         if len(b) != 32:
             raise Exception('unexpected length {}'.format(len(b)))
-        return OnionPerHop(
+        return LegacyHopDataPayload(
             short_channel_id=b[:8],
-            amt_to_forward=b[8:16],
-            outgoing_cltv_value=b[16:20]
+            amt_to_forward=int.from_bytes(b[8:16], byteorder="big", signed=False),
+            outgoing_cltv_value=int.from_bytes(b[16:20], byteorder="big", signed=False),
+        )
+
+    @classmethod
+    def from_tlv_dict(cls, d: dict) -> 'LegacyHopDataPayload':
+        return LegacyHopDataPayload(
+            short_channel_id=d["short_channel_id"]["short_channel_id"] if "short_channel_id" in d else b"\x00" * 8,
+            amt_to_forward=d["amt_to_forward"]["amt_to_forward"],
+            outgoing_cltv_value=d["outgoing_cltv_value"]["outgoing_cltv_value"],
         )
 
 
 class OnionHopsDataSingle:  # called HopData in lnd
 
-    def __init__(self, per_hop: OnionPerHop = None):
-        self.realm = 0
-        self.per_hop = per_hop
+    def __init__(self, *, is_tlv_payload: bool, payload: dict = None):
+        self.is_tlv_payload = is_tlv_payload
+        if payload is None:
+            payload = {}
+        self.payload = payload
         self.hmac = None
+        self._raw_bytes_payload = None  # used in unit tests
 
     def to_bytes(self) -> bytes:
-        ret = bytes([self.realm])
-        ret += self.per_hop.to_bytes()
-        ret += self.hmac if self.hmac is not None else bytes(PER_HOP_HMAC_SIZE)
-        if len(ret) != PER_HOP_FULL_SIZE:
-            raise Exception('unexpected length {}'.format(len(ret)))
-        return ret
+        hmac_ = self.hmac if self.hmac is not None else bytes(PER_HOP_HMAC_SIZE)
+        if self._raw_bytes_payload is not None:
+            ret = write_bigsize_int(len(self._raw_bytes_payload))
+            ret += self._raw_bytes_payload
+            ret += hmac_
+            return ret
+        if not self.is_tlv_payload:
+            ret = b"\x00"  # realm==0
+            legacy_payload = LegacyHopDataPayload.from_tlv_dict(self.payload)
+            ret += legacy_payload.to_bytes()
+            ret += hmac_
+            if len(ret) != LEGACY_PER_HOP_FULL_SIZE:
+                raise Exception('unexpected length {}'.format(len(ret)))
+            return ret
+        else:  # tlv
+            payload_fd = io.BytesIO()
+            OnionWireSerializer.write_tlv_stream(fd=payload_fd,
+                                                 tlv_stream_name="tlv_payload",
+                                                 **self.payload)
+            payload_bytes = payload_fd.getvalue()
+            with io.BytesIO() as fd:
+                fd.write(write_bigsize_int(len(payload_bytes)))
+                fd.write(payload_bytes)
+                fd.write(hmac_)
+                return fd.getvalue()
 
     @classmethod
-    def from_bytes(cls, b: bytes):
-        if len(b) != PER_HOP_FULL_SIZE:
-            raise Exception('unexpected length {}'.format(len(b)))
-        ret = OnionHopsDataSingle()
-        ret.realm = b[0]
-        if ret.realm != 0:
-            raise Exception('only realm 0 is supported')
-        ret.per_hop = OnionPerHop.from_bytes(b[1:33])
-        ret.hmac = b[33:]
-        return ret
+    def from_fd(cls, fd: io.BytesIO) -> 'OnionHopsDataSingle':
+        first_byte = fd.read(1)
+        if len(first_byte) == 0:
+            raise Exception(f"unexpected EOF")
+        fd.seek(-1, io.SEEK_CUR)  # undo read
+        if first_byte == b'\x00':
+            # legacy hop data format
+            b = fd.read(LEGACY_PER_HOP_FULL_SIZE)
+            if len(b) != LEGACY_PER_HOP_FULL_SIZE:
+                raise Exception(f'unexpected length {len(b)}')
+            ret = OnionHopsDataSingle(is_tlv_payload=False)
+            legacy_payload = LegacyHopDataPayload.from_bytes(b[1:33])
+            ret.payload = legacy_payload.to_tlv_dict()
+            ret.hmac = b[33:]
+            return ret
+        elif first_byte == b'\x01':
+            # reserved for future use
+            raise Exception("unsupported hop payload: length==1")
+        else:
+            hop_payload_length = read_bigsize_int(fd)
+            hop_payload = fd.read(hop_payload_length)
+            if hop_payload_length != len(hop_payload):
+                raise Exception(f"unexpected EOF")
+            ret = OnionHopsDataSingle(is_tlv_payload=True)
+            ret.payload = OnionWireSerializer.read_tlv_stream(fd=io.BytesIO(hop_payload),
+                                                              tlv_stream_name="tlv_payload")
+            ret.hmac = fd.read(PER_HOP_HMAC_SIZE)
+            assert len(ret.hmac) == PER_HOP_HMAC_SIZE
+            return ret
+
+    def __repr__(self):
+        return f"<OnionHopsDataSingle. is_tlv_payload={self.is_tlv_payload}. payload={self.payload}. hmac={self.hmac}>"
 
 
 class OnionPacket:
 
     def __init__(self, public_key: bytes, hops_data: bytes, hmac: bytes):
+        assert len(public_key) == 33
+        assert len(hops_data) in [HOPS_DATA_SIZE, TRAMPOLINE_HOPS_DATA_SIZE]
+        assert len(hmac) == PER_HOP_HMAC_SIZE
         self.version = 0
         self.public_key = public_key
         self.hops_data = hops_data  # also called RoutingInfo in bolt-04
         self.hmac = hmac
+        if not ecc.ECPubkey.is_pubkey_bytes(public_key):
+            raise InvalidOnionPubkey()
 
     def to_bytes(self) -> bytes:
         ret = bytes([self.version])
         ret += self.public_key
         ret += self.hops_data
         ret += self.hmac
-        if len(ret) != 1366:
+        if len(ret) - 66 not in [HOPS_DATA_SIZE, TRAMPOLINE_HOPS_DATA_SIZE]:
             raise Exception('unexpected length {}'.format(len(ret)))
         return ret
 
     @classmethod
     def from_bytes(cls, b: bytes):
-        if len(b) != 1366:
+        if len(b) - 66 not in [HOPS_DATA_SIZE, TRAMPOLINE_HOPS_DATA_SIZE]:
             raise Exception('unexpected length {}'.format(len(b)))
         version = b[0]
         if version != 0:
             raise UnsupportedOnionPacketVersion('version {} is not supported'.format(version))
         return OnionPacket(
             public_key=b[1:34],
-            hops_data=b[34:1334],
-            hmac=b[1334:]
+            hops_data=b[34:-32],
+            hmac=b[-32:]
         )
 
 
 def get_bolt04_onion_key(key_type: bytes, secret: bytes) -> bytes:
-    if key_type not in (b'rho', b'mu', b'um', b'ammag'):
+    if key_type not in (b'rho', b'mu', b'um', b'ammag', b'pad'):
         raise Exception('invalid key_type {}'.format(key_type))
     key = hmac_oneshot(key_type, msg=secret, digest=hashlib.sha256)
     return key
@@ -160,22 +227,29 @@ def get_shared_secrets_along_route(payment_path_pubkeys: Sequence[bytes],
 
 
 def new_onion_packet(payment_path_pubkeys: Sequence[bytes], session_key: bytes,
-                     hops_data: Sequence[OnionHopsDataSingle], associated_data: bytes) -> OnionPacket:
+                     hops_data: Sequence[OnionHopsDataSingle], associated_data: bytes, trampoline=False) -> OnionPacket:
     num_hops = len(payment_path_pubkeys)
+    assert num_hops == len(hops_data)
     hop_shared_secrets = get_shared_secrets_along_route(payment_path_pubkeys, session_key)
 
-    filler = generate_filler(b'rho', num_hops, PER_HOP_FULL_SIZE, hop_shared_secrets)
-    mix_header = bytes(HOPS_DATA_SIZE)
+    data_size = TRAMPOLINE_HOPS_DATA_SIZE if trampoline else HOPS_DATA_SIZE
+    filler = _generate_filler(b'rho', hops_data, hop_shared_secrets, data_size)
     next_hmac = bytes(PER_HOP_HMAC_SIZE)
+
+    # Our starting packet needs to be filled out with random bytes, we
+    # generate some deterministically using the session private key.
+    pad_key = get_bolt04_onion_key(b'pad', session_key)
+    mix_header = generate_cipher_stream(pad_key, data_size)
 
     # compute routing info and MAC for each hop
     for i in range(num_hops-1, -1, -1):
         rho_key = get_bolt04_onion_key(b'rho', hop_shared_secrets[i])
         mu_key = get_bolt04_onion_key(b'mu', hop_shared_secrets[i])
         hops_data[i].hmac = next_hmac
-        stream_bytes = generate_cipher_stream(rho_key, NUM_STREAM_BYTES)
-        mix_header = mix_header[:-PER_HOP_FULL_SIZE]
-        mix_header = hops_data[i].to_bytes() + mix_header
+        stream_bytes = generate_cipher_stream(rho_key, data_size)
+        hop_data_bytes = hops_data[i].to_bytes()
+        mix_header = mix_header[:-len(hop_data_bytes)]
+        mix_header = hop_data_bytes + mix_header
         mix_header = xor_bytes(mix_header, stream_bytes)
         if i == num_hops - 1 and len(filler) != 0:
             mix_header = mix_header[:-len(filler)] + filler
@@ -188,97 +262,157 @@ def new_onion_packet(payment_path_pubkeys: Sequence[bytes], session_key: bytes,
         hmac=next_hmac)
 
 
-def calc_hops_data_for_payment(route: List['RouteEdge'], amount_msat: int, final_cltv: int) \
-        -> Tuple[List[OnionHopsDataSingle], int, int]:
+def calc_hops_data_for_payment(
+        route: 'LNPaymentRoute',
+        amount_msat: int,
+        final_cltv: int, *,
+        total_msat=None,
+        payment_secret: bytes = None) -> Tuple[List[OnionHopsDataSingle], int, int]:
+
     """Returns the hops_data to be used for constructing an onion packet,
     and the amount_msat and cltv to be used on our immediate channel.
     """
     if len(route) > NUM_MAX_EDGES_IN_PAYMENT_PATH:
         raise PaymentFailure(f"too long route ({len(route)} edges)")
-
+    # payload that will be seen by the last hop:
     amt = amount_msat
     cltv = final_cltv
-    hops_data = [OnionHopsDataSingle(OnionPerHop(b"\x00" * 8,
-                                                 amt.to_bytes(8, "big"),
-                                                 cltv.to_bytes(4, "big")))]
-    for route_edge in reversed(route[1:]):
-        hops_data += [OnionHopsDataSingle(OnionPerHop(route_edge.short_channel_id,
-                                                      amt.to_bytes(8, "big"),
-                                                      cltv.to_bytes(4, "big")))]
-        amt += route_edge.fee_for_edge(amt)
-        cltv += route_edge.cltv_expiry_delta
+    hop_payload = {
+        "amt_to_forward": {"amt_to_forward": amt},
+        "outgoing_cltv_value": {"outgoing_cltv_value": cltv},
+    }
+    # for multipart payments we need to tell the receiver about the total and
+    # partial amounts
+    if payment_secret is not None:
+        hop_payload["payment_data"] = {
+            "payment_secret": payment_secret,
+            "total_msat": total_msat,
+            "amount_msat": amt
+        }
+    hops_data = [OnionHopsDataSingle(
+        is_tlv_payload=route[-1].has_feature_varonion(), payload=hop_payload)]
+    # payloads, backwards from last hop (but excluding the first edge):
+    for edge_index in range(len(route) - 1, 0, -1):
+        route_edge = route[edge_index]
+        is_trampoline = route_edge.is_trampoline()
+        if is_trampoline:
+            amt += route_edge.fee_for_edge(amt)
+            cltv += route_edge.cltv_expiry_delta
+        hop_payload = {
+            "amt_to_forward": {"amt_to_forward": amt},
+            "outgoing_cltv_value": {"outgoing_cltv_value": cltv},
+            "short_channel_id": {"short_channel_id": route_edge.short_channel_id},
+        }
+        hops_data.append(
+            OnionHopsDataSingle(
+                is_tlv_payload=route[edge_index-1].has_feature_varonion(),
+                payload=hop_payload))
+        if not is_trampoline:
+            amt += route_edge.fee_for_edge(amt)
+            cltv += route_edge.cltv_expiry_delta
     hops_data.reverse()
     return hops_data, amt, cltv
 
 
-def generate_filler(key_type: bytes, num_hops: int, hop_size: int,
-                    shared_secrets: Sequence[bytes]) -> bytes:
-    filler_size = (NUM_MAX_HOPS_IN_PAYMENT_PATH + 1) * hop_size
+def _generate_filler(key_type: bytes, hops_data: Sequence[OnionHopsDataSingle],
+                     shared_secrets: Sequence[bytes], data_size:int) -> bytes:
+    num_hops = len(hops_data)
+
+    # generate filler that matches all but the last hop (no HMAC for last hop)
+    filler_size = 0
+    for hop_data in hops_data[:-1]:
+        filler_size += len(hop_data.to_bytes())
     filler = bytearray(filler_size)
 
     for i in range(0, num_hops-1):  # -1, as last hop does not obfuscate
-        filler = filler[hop_size:]
-        filler += bytearray(hop_size)
-        stream_key = get_bolt04_onion_key(key_type, shared_secrets[i])
-        stream_bytes = generate_cipher_stream(stream_key, filler_size)
-        filler = xor_bytes(filler, stream_bytes)
+        # Sum up how many frames were used by prior hops.
+        filler_start = data_size
+        for hop_data in hops_data[:i]:
+            filler_start -= len(hop_data.to_bytes())
+        # The filler is the part dangling off of the end of the
+        # routingInfo, so offset it from there, and use the current
+        # hop's frame count as its size.
+        filler_end = data_size + len(hops_data[i].to_bytes())
 
-    return filler[(NUM_MAX_HOPS_IN_PAYMENT_PATH-num_hops+2)*hop_size:]
+        stream_key = get_bolt04_onion_key(key_type, shared_secrets[i])
+        stream_bytes = generate_cipher_stream(stream_key, 2 * data_size)
+        filler = xor_bytes(filler, stream_bytes[filler_start:filler_end])
+        filler += bytes(filler_size - len(filler))  # right pad with zeroes
+
+    return filler
 
 
 def generate_cipher_stream(stream_key: bytes, num_bytes: int) -> bytes:
-    cipher = ChaCha20.new(key=stream_key, nonce=bytes(8))
-    return cipher.encrypt(bytes(num_bytes))
+    return chacha20_encrypt(key=stream_key,
+                            nonce=bytes(8),
+                            data=bytes(num_bytes))
 
 
-ProcessedOnionPacket = NamedTuple("ProcessedOnionPacket", [("are_we_final", bool),
-                                                           ("hop_data", OnionHopsDataSingle),
-                                                           ("next_packet", OnionPacket)])
+class ProcessedOnionPacket(NamedTuple):
+    are_we_final: bool
+    hop_data: OnionHopsDataSingle
+    next_packet: OnionPacket
+    trampoline_onion_packet: OnionPacket
 
 
 # TODO replay protection
-def process_onion_packet(onion_packet: OnionPacket, associated_data: bytes,
-                         our_onion_private_key: bytes) -> ProcessedOnionPacket:
+def process_onion_packet(
+        onion_packet: OnionPacket,
+        associated_data: bytes,
+        our_onion_private_key: bytes,
+        is_trampoline=False) -> ProcessedOnionPacket:
+    if not ecc.ECPubkey.is_pubkey_bytes(onion_packet.public_key):
+        raise InvalidOnionPubkey()
     shared_secret = get_ecdh(our_onion_private_key, onion_packet.public_key)
-
     # check message integrity
     mu_key = get_bolt04_onion_key(b'mu', shared_secret)
-    calculated_mac = hmac_oneshot(mu_key, msg=onion_packet.hops_data+associated_data,
-                                  digest=hashlib.sha256)
+    calculated_mac = hmac_oneshot(
+        mu_key, msg=onion_packet.hops_data+associated_data,
+        digest=hashlib.sha256)
     if onion_packet.hmac != calculated_mac:
         raise InvalidOnionMac()
-
     # peel an onion layer off
     rho_key = get_bolt04_onion_key(b'rho', shared_secret)
-    stream_bytes = generate_cipher_stream(rho_key, NUM_STREAM_BYTES)
-    padded_header = onion_packet.hops_data + bytes(PER_HOP_FULL_SIZE)
+    data_size = TRAMPOLINE_HOPS_DATA_SIZE if is_trampoline else HOPS_DATA_SIZE
+    stream_bytes = generate_cipher_stream(rho_key, 2 * data_size)
+    padded_header = onion_packet.hops_data + bytes(data_size)
     next_hops_data = xor_bytes(padded_header, stream_bytes)
-
+    next_hops_data_fd = io.BytesIO(next_hops_data)
+    hop_data = OnionHopsDataSingle.from_fd(next_hops_data_fd)
+    # trampoline
+    trampoline_onion_packet = hop_data.payload.get('trampoline_onion_packet')
+    if trampoline_onion_packet:
+        top_version = trampoline_onion_packet.get('version')
+        top_public_key = trampoline_onion_packet.get('public_key')
+        top_hops_data = trampoline_onion_packet.get('hops_data')
+        top_hops_data_fd = io.BytesIO(top_hops_data)
+        top_hmac = trampoline_onion_packet.get('hmac')
+        trampoline_onion_packet = OnionPacket(
+            public_key=top_public_key,
+            hops_data=top_hops_data_fd.read(TRAMPOLINE_HOPS_DATA_SIZE),
+            hmac=top_hmac)
     # calc next ephemeral key
     blinding_factor = sha256(onion_packet.public_key + shared_secret)
     blinding_factor_int = int.from_bytes(blinding_factor, byteorder="big")
     next_public_key_int = ecc.ECPubkey(onion_packet.public_key) * blinding_factor_int
     next_public_key = next_public_key_int.get_public_key_bytes()
-
-    hop_data = OnionHopsDataSingle.from_bytes(next_hops_data[:PER_HOP_FULL_SIZE])
     next_onion_packet = OnionPacket(
         public_key=next_public_key,
-        hops_data=next_hops_data[PER_HOP_FULL_SIZE:],
-        hmac=hop_data.hmac
-    )
+        hops_data=next_hops_data_fd.read(data_size),
+        hmac=hop_data.hmac)
     if hop_data.hmac == bytes(PER_HOP_HMAC_SIZE):
         # we are the destination / exit node
         are_we_final = True
     else:
         # we are an intermediate node; forwarding
         are_we_final = False
-    return ProcessedOnionPacket(are_we_final, hop_data, next_onion_packet)
+    return ProcessedOnionPacket(are_we_final, hop_data, next_onion_packet, trampoline_onion_packet)
 
 
 class FailedToDecodeOnionError(Exception): pass
 
 
-class OnionRoutingFailureMessage:
+class OnionRoutingFailure(Exception):
 
     def __init__(self, code: int, data: bytes):
         self.code = code
@@ -292,10 +426,34 @@ class OnionRoutingFailureMessage:
         ret += self.data
         return ret
 
+    @classmethod
+    def from_bytes(cls, failure_msg: bytes):
+        failure_code = int.from_bytes(failure_msg[:2], byteorder='big')
+        try:
+            failure_code = OnionFailureCode(failure_code)
+        except ValueError:
+            pass  # unknown failure code
+        failure_data = failure_msg[2:]
+        return OnionRoutingFailure(failure_code, failure_data)
 
-def construct_onion_error(reason: OnionRoutingFailureMessage,
-                          onion_packet: OnionPacket,
-                          our_onion_private_key: bytes) -> bytes:
+    def code_name(self) -> str:
+        if isinstance(self.code, OnionFailureCode):
+            return str(self.code.name)
+        return f"Unknown error ({self.code!r})"
+
+    def decode_data(self) -> Optional[Dict[str, Any]]:
+        try:
+            message_type, payload = OnionWireSerializer.decode_msg(self.to_bytes())
+        except lnmsg.FailedToParseMsg:
+            payload = None
+        return payload
+
+
+def construct_onion_error(
+        reason: OnionRoutingFailure,
+        onion_packet: OnionPacket,
+        our_onion_private_key: bytes,
+) -> bytes:
     # create payload
     failure_msg = reason.to_bytes()
     failure_len = len(failure_msg)
@@ -318,7 +476,7 @@ def construct_onion_error(reason: OnionRoutingFailureMessage,
 
 
 def _decode_onion_error(error_packet: bytes, payment_path_pubkeys: Sequence[bytes],
-                        session_key: bytes) -> (bytes, int):
+                        session_key: bytes) -> Tuple[bytes, int]:
     """Returns the decoded error bytes, and the index of the sender of the error."""
     num_hops = len(payment_path_pubkeys)
     hop_shared_secrets = get_shared_secrets_along_route(payment_path_pubkeys, session_key)
@@ -335,33 +493,23 @@ def _decode_onion_error(error_packet: bytes, payment_path_pubkeys: Sequence[byte
 
 
 def decode_onion_error(error_packet: bytes, payment_path_pubkeys: Sequence[bytes],
-                       session_key: bytes) -> (OnionRoutingFailureMessage, int):
+                       session_key: bytes) -> (OnionRoutingFailure, int):
     """Returns the failure message, and the index of the sender of the error."""
     decrypted_error, sender_index = _decode_onion_error(error_packet, payment_path_pubkeys, session_key)
     failure_msg = get_failure_msg_from_onion_error(decrypted_error)
     return failure_msg, sender_index
 
 
-def get_failure_msg_from_onion_error(decrypted_error_packet: bytes) -> OnionRoutingFailureMessage:
+def get_failure_msg_from_onion_error(decrypted_error_packet: bytes) -> OnionRoutingFailure:
     # get failure_msg bytes from error packet
     failure_len = int.from_bytes(decrypted_error_packet[32:34], byteorder='big')
     failure_msg = decrypted_error_packet[34:34+failure_len]
     # create failure message object
-    failure_code = int.from_bytes(failure_msg[:2], byteorder='big')
-    try:
-        failure_code = OnionFailureCode(failure_code)
-    except ValueError:
-        pass  # uknown failure code
-    failure_data = failure_msg[2:]
-    return OnionRoutingFailureMessage(failure_code, failure_data)
+    return OnionRoutingFailure.from_bytes(failure_msg)
 
 
-class OnionFailureCodeMetaFlag(IntFlag):
-    BADONION = 0x8000
-    PERM     = 0x4000
-    NODE     = 0x2000
-    UPDATE   = 0x1000
 
+# TODO maybe we should rm this and just use OnionWireSerializer and onion_wire.csv
 BADONION = OnionFailureCodeMetaFlag.BADONION
 PERM     = OnionFailureCodeMetaFlag.PERM
 NODE     = OnionFailureCodeMetaFlag.NODE
@@ -389,6 +537,10 @@ class OnionFailureCode(IntEnum):
     FINAL_INCORRECT_HTLC_AMOUNT =             19
     CHANNEL_DISABLED =                        UPDATE | 20
     EXPIRY_TOO_FAR =                          21
+    INVALID_ONION_PAYLOAD =                   PERM | 22
+    MPP_TIMEOUT =                             23
+    TRAMPOLINE_FEE_INSUFFICIENT =             NODE | 51
+    TRAMPOLINE_EXPIRY_TOO_SOON =              NODE | 52
 
 
 # don't use these elsewhere, the names are ambiguous without context

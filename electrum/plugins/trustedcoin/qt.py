@@ -27,6 +27,7 @@ from functools import partial
 import threading
 import sys
 import os
+from typing import TYPE_CHECKING
 
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtCore import QObject, pyqtSignal
@@ -43,9 +44,13 @@ from electrum.i18n import _
 from electrum.plugin import hook
 from electrum.util import is_valid_email
 from electrum.logging import Logger
-from electrum.base_wizard import GoBack
+from electrum.base_wizard import GoBack, UserCancelled
 
 from .trustedcoin import TrustedCoinPlugin, server
+
+if TYPE_CHECKING:
+    from electrum.gui.qt.main_window import ElectrumWindow
+    from electrum.wallet import Abstract_Wallet
 
 
 class TOS(QTextEdit):
@@ -66,7 +71,7 @@ class HandlerTwoFactor(QObject, Logger):
             return
         if wallet.can_sign_without_server():
             return
-        if not wallet.keystores['x3/'].get_tx_derivations(tx):
+        if not wallet.keystores['x3/'].can_sign(tx, ignore_watching_only=True):
             self.logger.info("twofactor: xpub3 not needed")
             return
         window = self.window.top_level_window()
@@ -84,8 +89,7 @@ class Plugin(TrustedCoinPlugin):
         super().__init__(parent, config, name)
 
     @hook
-    def on_new_window(self, window):
-        wallet = window.wallet
+    def load_wallet(self, wallet: 'Abstract_Wallet', window: 'ElectrumWindow'):
         if not isinstance(wallet, self.wallet_class):
             return
         wallet.handler_2fa = HandlerTwoFactor(self, window)
@@ -225,9 +229,9 @@ class Plugin(TrustedCoinPlugin):
         wizard.reset_stack()
         try:
             wizard.confirm_dialog(title='', message=msg, run_next = lambda x: wizard.run('accept_terms_of_use'))
-        except GoBack:
+        except (GoBack, UserCancelled):
             # user clicked 'Cancel' and decided to move wallet file manually
-            wizard.create_storage(wizard.path)
+            storage, db = wizard.create_storage(wizard.path)
             raise
 
     def accept_terms_of_use(self, window):

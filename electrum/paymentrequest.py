@@ -25,7 +25,7 @@
 import hashlib
 import sys
 import time
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 import asyncio
 import urllib.parse
 
@@ -36,16 +36,20 @@ import aiohttp
 try:
     from . import paymentrequest_pb2 as pb2
 except ImportError:
+    # sudo apt-get install protobuf-compiler
     sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'protoc --proto_path=electrum/ --python_out=electrum/ electrum/paymentrequest.proto'")
 
-from . import bitcoin, ecc, util, transaction, x509, rsakey
-from .util import bh2u, bfh, export_meta, import_meta, make_aiohttp_session
-from .util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT
+from . import bitcoin, constants, ecc, util, transaction, x509, rsakey
+from .util import bh2u, bfh, make_aiohttp_session
+from .invoices import OnchainInvoice
 from .crypto import sha256
 from .bitcoin import address_to_script
 from .transaction import PartialTxOutput
 from .network import Network
 from .logging import get_logger, Logger
+
+if TYPE_CHECKING:
+    from .simple_config import SimpleConfig
 
 
 _logger = get_logger(__name__)
@@ -140,6 +144,12 @@ class PaymentRequest:
             return
         self.details = pb2.PaymentDetails()
         self.details.ParseFromString(self.data.serialized_payment_details)
+        pr_network = self.details.network
+        client_network = 'test' if constants.net.TESTNET else 'main'
+        if pr_network != client_network:
+            self.error = (f'Payment request network "{pr_network}" does not'
+                          f' match client network "{client_network}".')
+            return
         for o in self.details.outputs:
             addr = transaction.get_address_from_output_script(o.script)
             if not addr:
@@ -314,22 +324,23 @@ class PaymentRequest:
             return False, error
 
 
-def make_unsigned_request(req):
-    from .transaction import Transaction
-    addr = req['address']
-    time = req.get('time', 0)
-    exp = req.get('exp', 0)
+def make_unsigned_request(req: 'OnchainInvoice'):
+    addr = req.get_address()
+    time = req.time
+    exp = req.exp
     if time and type(time) != int:
         time = 0
     if exp and type(exp) != int:
         exp = 0
-    amount = req['amount']
+    amount = req.amount_sat
     if amount is None:
         amount = 0
-    memo = req['memo']
+    memo = req.message
     script = bfh(address_to_script(addr))
     outputs = [(script, amount)]
     pd = pb2.PaymentDetails()
+    if constants.net.TESTNET:
+        pd.network = 'test'
     for script, amount in outputs:
         pd.outputs.add(amount=amount, script=script)
     pd.time = time
@@ -443,7 +454,7 @@ def sign_request_with_x509(pr, key_path, cert_path):
     pr.signature = bytes(sig)
 
 
-def serialize_request(req):
+def serialize_request(req):  # FIXME this is broken
     pr = make_unsigned_request(req)
     signature = req.get('sig')
     requestor = req.get('name')
@@ -454,7 +465,7 @@ def serialize_request(req):
     return pr
 
 
-def make_request(config, req):
+def make_request(config: 'SimpleConfig', req: 'OnchainInvoice'):
     pr = make_unsigned_request(req)
     key_path = config.get('ssl_keyfile')
     cert_path = config.get('ssl_certfile')

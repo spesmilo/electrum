@@ -1,8 +1,8 @@
 {
     "electrum-testnet.nav.community": {
         "pruning": "-",
-        "t": "50001",
-        "s": "50002",
+        "t": "40001",
+        "s": "40002",
         "version": "1.4"
     }
 }

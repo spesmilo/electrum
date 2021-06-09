@@ -32,8 +32,8 @@ from .util import ButtonsTextEdit
 
 class CompletionTextEdit(ButtonsTextEdit):
 
-    def __init__(self, parent=None):
-        super(CompletionTextEdit, self).__init__(parent)
+    def __init__(self):
+        ButtonsTextEdit.__init__(self)
         self.completer = None
         self.moveCursor(QTextCursor.End)
         self.disable_suggestions()

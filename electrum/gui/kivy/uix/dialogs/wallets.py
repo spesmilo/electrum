@@ -12,15 +12,15 @@ from ...i18n import _
 from .label_dialog import LabelDialog
 
 Builder.load_string('''
-#:import os os
 <WalletDialog@Popup>:
     title: _('Wallets')
     id: popup
-    path: os.path.dirname(app.get_wallet_path())
+    path: ''
+    disable_new: True
     BoxLayout:
         orientation: 'vertical'
         padding: '10dp'
-        FileChooserListView:
+        FileChooserIconView:
             id: wallet_selector
             dirselect: False
             filter_dirs: True
@@ -34,13 +34,14 @@ Builder.load_string('''
             cols: 3
             size_hint_y: 0.1
             Button:
-                id: open_button
+                id: new_button
+                disabled: root.disable_new
                 size_hint: 0.1, None
                 height: '48dp'
                 text: _('New')
                 on_release:
                     popup.dismiss()
-                    root.new_wallet(app, wallet_selector.path)
+                    root.new_wallet(wallet_selector.path)
             Button:
                 id: open_button
                 size_hint: 0.1, None
@@ -49,26 +50,23 @@ Builder.load_string('''
                 disabled: not wallet_selector.selection
                 on_release:
                     popup.dismiss()
-                    root.open_wallet(app)
+                    root.callback(wallet_selector.selection[0])
 ''')
 
 class WalletDialog(Factory.Popup):
 
-    def new_wallet(self, app, dirname):
+    def __init__(self, path, callback, disable_new):
+        Factory.Popup.__init__(self)
+        self.path = path
+        self.callback = callback
+        self.disable_new = disable_new
+
+    def new_wallet(self, dirname):
+        assert self.disable_new is False
         def cb(filename):
             if not filename:
                 return
             # FIXME? "filename" might contain ".." (etc) and hence sketchy path traversals are possible
-            try:
-                app.load_wallet_by_name(os.path.join(dirname, filename))
-            except StorageReadWriteError:
-                app.show_error(_("R/W error accessing path"))
+            self.callback(os.path.join(dirname, filename))
         d = LabelDialog(_('Enter wallet name'), '', cb)
         d.open()
-
-    def open_wallet(self, app):
-        try:
-            app.load_wallet_by_name(self.ids.wallet_selector.selection[0])
-        except StorageReadWriteError:
-            app.show_error(_("R/W error accessing path"))
-

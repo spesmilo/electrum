@@ -2,14 +2,17 @@ import unittest
 import json
 
 from electrum import bitcoin
+from electrum.json_db import StoredDict
 from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_seed, make_offered_htlc,
                              make_received_htlc, make_commitment, make_htlc_tx_witness, make_htlc_tx_output,
                              make_htlc_tx_inputs, secret_to_pubkey, derive_blinded_pubkey, derive_privkey,
                              derive_pubkey, make_htlc_tx, extract_ctn_from_tx, UnableToDeriveSecret,
                              get_compressed_pubkey_from_bech32, split_host_port, ConnStringFormatError,
-                             ScriptHtlc, extract_nodeid, calc_onchain_fees, UpdateAddHtlc)
-from electrum.util import bh2u, bfh
+                             ScriptHtlc, extract_nodeid, calc_fees_for_commitment_tx, UpdateAddHtlc, LnFeatures,
+                             ln_compare_features, IncompatibleLightningFeatures)
+from electrum.util import bh2u, bfh, MyEncoder
 from electrum.transaction import Transaction, PartialTransaction
+from electrum.lnworker import LNWallet
 
 from . import ElectrumTestCase
 
@@ -422,7 +425,7 @@ class TestLNUtil(ElectrumTestCase):
         ]
 
         for test in tests:
-            receiver = RevocationStore()
+            receiver = RevocationStore(StoredDict({}, None, []))
             for insert in test["inserts"]:
                 secret = bytes.fromhex(insert["secret"])
 
@@ -445,14 +448,19 @@ class TestLNUtil(ElectrumTestCase):
 
     def test_shachain_produce_consume(self):
         seed = bitcoin.sha256(b"shachaintest")
-        consumer = RevocationStore()
+        consumer = RevocationStore(StoredDict({}, None, []))
         for i in range(10000):
             secret = get_per_commitment_secret_from_seed(seed, RevocationStore.START_INDEX - i)
             try:
                 consumer.add_next_entry(secret)
             except Exception as e:
                 raise Exception("iteration " + str(i) + ": " + str(e))
-            if i % 1000 == 0: self.assertEqual(consumer.serialize(), RevocationStore.from_json_obj(json.loads(json.dumps(consumer.serialize()))).serialize())
+            if i % 1000 == 0:
+                c1 = consumer
+                s1 = json.dumps(c1.storage, cls=MyEncoder)
+                c2 = RevocationStore(StoredDict(json.loads(s1), None, []))
+                s2 = json.dumps(c2.storage, cls=MyEncoder)
+                self.assertEqual(s1, s2)
 
     def test_commitment_tx_with_all_five_HTLCs_untrimmed_minimum_feerate(self):
         to_local_msat = 6988000000
@@ -504,13 +512,23 @@ class TestLNUtil(ElectrumTestCase):
         htlcs = [ScriptHtlc(htlc[x], htlc_obj[x]) for x in range(5)]
 
         our_commit_tx = make_commitment(
-            commitment_number,
-            local_funding_pubkey, remote_funding_pubkey, remotepubkey,
-            local_payment_basepoint, remote_payment_basepoint,
-            local_revocation_pubkey, local_delayedpubkey, local_delay,
-            funding_tx_id, funding_output_index, funding_amount_satoshi,
-            to_local_msat, to_remote_msat, local_dust_limit_satoshi,
-            calc_onchain_fees(len(htlcs), local_feerate_per_kw, True), htlcs=htlcs)
+            ctn=commitment_number,
+            local_funding_pubkey=local_funding_pubkey,
+            remote_funding_pubkey=remote_funding_pubkey,
+            remote_payment_pubkey=remotepubkey,
+            funder_payment_basepoint=local_payment_basepoint,
+            fundee_payment_basepoint=remote_payment_basepoint,
+            revocation_pubkey=local_revocation_pubkey,
+            delayed_pubkey=local_delayedpubkey,
+            to_self_delay=local_delay,
+            funding_txid=funding_tx_id,
+            funding_pos=funding_output_index,
+            funding_sat=funding_amount_satoshi,
+            local_amount=to_local_msat,
+            remote_amount=to_remote_msat,
+            dust_limit_sat=local_dust_limit_satoshi,
+            fees_per_participant=calc_fees_for_commitment_tx(num_htlcs=len(htlcs), feerate=local_feerate_per_kw, is_local_initiator=True),
+            htlcs=htlcs)
         self.sign_and_insert_remote_sig(our_commit_tx, remote_funding_pubkey, remote_signature, local_funding_pubkey, local_funding_privkey)
         self.assertEqual(str(our_commit_tx), output_commit_tx)
 
@@ -526,9 +544,9 @@ class TestLNUtil(ElectrumTestCase):
         TIMEOUT = False
         output_htlc_tx[0] = (SUCCESS, "020000000001018154ecccf11a5fb56c39654c4deb4d2296f83c69268280b94d021370c94e219700000000000000000001e8030000000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e050047304402206a6e59f18764a5bf8d4fa45eebc591566689441229c918b480fb2af8cc6a4aeb02205248f273be447684b33e3c8d1d85a8e0ca9fa0bae9ae33f0527ada9c162919a60147304402207cb324fa0de88f452ffa9389678127ebcf4cabe1dd848b8e076c1a1962bf34720220116ed922b12311bd602d67e60d2529917f21c5b82f25ff6506c0f87886b4dfd5012000000000000000000000000000000000000000000000000000000000000000008a76a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c8201208763a914b8bcb07f6344b42ab04250c86a6e8b75d3fdbbc688527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae677502f401b175ac686800000000")
 
-        output_htlc_tx[2] = (TIMEOUT, "020000000001018154ecccf11a5fb56c39654c4deb4d2296f83c69268280b94d021370c94e219701000000000000000001d0070000000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e0500483045022100d5275b3619953cb0c3b5aa577f04bc512380e60fa551762ce3d7a1bb7401cff9022037237ab0dac3fe100cde094e82e2bed9ba0ed1bb40154b48e56aa70f259e608b01483045022100c89172099507ff50f4c925e6c5150e871fb6e83dd73ff9fbb72f6ce829a9633f02203a63821d9162e99f9be712a68f9e589483994feae2661e4546cd5b6cec007be501008576a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c820120876475527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae67a914b43e1b38138a41b37f7cd9a1d274bc63e3a9b5d188ac6868f6010000")
+        output_htlc_tx[2] = (TIMEOUT, "020000000001018154ecccf11a5fb56c39654c4deb4d2296f83c69268280b94d021370c94e219701000000000000000001d0070000000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e0500483045022100d5275b3619953cb0c3b5aa577f04bc512380e60fa551762ce3d7a1bb7401cff9022037237ab0dac3fe100cde094e82e2bed9ba0ed1bb40154b48e56aa70f259e608b0147304402205735e9f335dfd123f730ac5bf184fd7d5b672e4d84c51a3f0478cc229bb44936022018b1cec3e3b29e5cc335d7e326bc29d75a7e063216427d081cb83ebdbd828b4d01008576a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c820120876475527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae67a914b43e1b38138a41b37f7cd9a1d274bc63e3a9b5d188ac6868f6010000")
 
-        output_htlc_tx[1] = (SUCCESS, "020000000001018154ecccf11a5fb56c39654c4deb4d2296f83c69268280b94d021370c94e219702000000000000000001d0070000000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e050047304402201b63ec807771baf4fdff523c644080de17f1da478989308ad13a58b51db91d360220568939d38c9ce295adba15665fa68f51d967e8ed14a007b751540a80b325f20201483045022100def389deab09cee69eaa1ec14d9428770e45bcbe9feb46468ecf481371165c2f022015d2e3c46600b2ebba8dcc899768874cc6851fd1ecb3fffd15db1cc3de7e10da012001010101010101010101010101010101010101010101010101010101010101018a76a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c8201208763a9144b6b2e5444c2639cc0fb7bcea5afba3f3cdce23988527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae677502f501b175ac686800000000")
+        output_htlc_tx[1] = (SUCCESS, "020000000001018154ecccf11a5fb56c39654c4deb4d2296f83c69268280b94d021370c94e219702000000000000000001d0070000000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e050047304402201b63ec807771baf4fdff523c644080de17f1da478989308ad13a58b51db91d360220568939d38c9ce295adba15665fa68f51d967e8ed14a007b751540a80b325f202014730440220481a48f83c358ae0f220e37f88e56b3d434cefaded82065b8e7a9fd78fee7a26022022674ab37a4c39e6efba302f760ca05931d8add8d65231c5bf34a6c2a76b15bf012001010101010101010101010101010101010101010101010101010101010101018a76a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c8201208763a9144b6b2e5444c2639cc0fb7bcea5afba3f3cdce23988527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae677502f501b175ac686800000000")
 
         output_htlc_tx[3] = (TIMEOUT, "020000000001018154ecccf11a5fb56c39654c4deb4d2296f83c69268280b94d021370c94e219703000000000000000001b80b0000000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e0500483045022100daee1808f9861b6c3ecd14f7b707eca02dd6bdfc714ba2f33bc8cdba507bb182022026654bf8863af77d74f51f4e0b62d461a019561bb12acb120d3f7195d148a554014730440220643aacb19bbb72bd2b635bc3f7375481f5981bace78cdd8319b2988ffcc6704202203d27784ec8ad51ed3bd517a05525a5139bb0b755dd719e0054332d186ac0872701008576a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c820120876475527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae67a9148a486ff2e31d6158bf39e2608864d63fefd09d5b88ac6868f7010000")
 
@@ -581,13 +599,23 @@ class TestLNUtil(ElectrumTestCase):
         output_commit_tx= "02000000000101bef67e4e2fb9ddeeb3461973cd4c62abb35050b1add772995b820b584a488489000000000038b02b8001c0c62d0000000000160014ccf1af2f2aabee14bb40fa3851ab2301de8431100400473044022031a82b51bd014915fe68928d1abf4b9885353fb896cac10c3fdd88d7f9c7f2e00220716bda819641d2c63e65d3549b6120112e1aeaf1742eed94a471488e79e206b101473044022064901950be922e62cbe3f2ab93de2b99f37cff9fc473e73e394b27f88ef0731d02206d1dfa227527b4df44a07599289e207d6fd9cca60c0365682dcd3deaf739567e01475221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae3e195220"
 
         our_commit_tx = make_commitment(
-            commitment_number,
-            local_funding_pubkey, remote_funding_pubkey, remotepubkey,
-            local_payment_basepoint, remote_payment_basepoint,
-            local_revocation_pubkey, local_delayedpubkey, local_delay,
-            funding_tx_id, funding_output_index, funding_amount_satoshi,
-            to_local_msat, to_remote_msat, local_dust_limit_satoshi,
-            calc_onchain_fees(0, local_feerate_per_kw, True), htlcs=[])
+            ctn=commitment_number,
+            local_funding_pubkey=local_funding_pubkey,
+            remote_funding_pubkey=remote_funding_pubkey,
+            remote_payment_pubkey=remotepubkey,
+            funder_payment_basepoint=local_payment_basepoint,
+            fundee_payment_basepoint=remote_payment_basepoint,
+            revocation_pubkey=local_revocation_pubkey,
+            delayed_pubkey=local_delayedpubkey,
+            to_self_delay=local_delay,
+            funding_txid=funding_tx_id,
+            funding_pos=funding_output_index,
+            funding_sat=funding_amount_satoshi,
+            local_amount=to_local_msat,
+            remote_amount=to_remote_msat,
+            dust_limit_sat=local_dust_limit_satoshi,
+            fees_per_participant=calc_fees_for_commitment_tx(num_htlcs=0, feerate=local_feerate_per_kw, is_local_initiator=True),
+            htlcs=[])
         self.sign_and_insert_remote_sig(our_commit_tx, remote_funding_pubkey, remote_signature, local_funding_pubkey, local_funding_privkey)
 
         self.assertEqual(str(our_commit_tx), output_commit_tx)
@@ -600,13 +628,23 @@ class TestLNUtil(ElectrumTestCase):
         output_commit_tx= "02000000000101bef67e4e2fb9ddeeb3461973cd4c62abb35050b1add772995b820b584a488489000000000038b02b8001c0c62d0000000000160014ccf1af2f2aabee14bb40fa3851ab2301de8431100400473044022031a82b51bd014915fe68928d1abf4b9885353fb896cac10c3fdd88d7f9c7f2e00220716bda819641d2c63e65d3549b6120112e1aeaf1742eed94a471488e79e206b101473044022064901950be922e62cbe3f2ab93de2b99f37cff9fc473e73e394b27f88ef0731d02206d1dfa227527b4df44a07599289e207d6fd9cca60c0365682dcd3deaf739567e01475221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae3e195220"
 
         our_commit_tx = make_commitment(
-            commitment_number,
-            local_funding_pubkey, remote_funding_pubkey, remotepubkey,
-            local_payment_basepoint, remote_payment_basepoint,
-            local_revocation_pubkey, local_delayedpubkey, local_delay,
-            funding_tx_id, funding_output_index, funding_amount_satoshi,
-            to_local_msat, to_remote_msat, local_dust_limit_satoshi,
-            calc_onchain_fees(0, local_feerate_per_kw, True), htlcs=[])
+            ctn=commitment_number,
+            local_funding_pubkey=local_funding_pubkey,
+            remote_funding_pubkey=remote_funding_pubkey,
+            remote_payment_pubkey=remotepubkey,
+            funder_payment_basepoint=local_payment_basepoint,
+            fundee_payment_basepoint=remote_payment_basepoint,
+            revocation_pubkey=local_revocation_pubkey,
+            delayed_pubkey=local_delayedpubkey,
+            to_self_delay=local_delay,
+            funding_txid=funding_tx_id,
+            funding_pos=funding_output_index,
+            funding_sat=funding_amount_satoshi,
+            local_amount=to_local_msat,
+            remote_amount=to_remote_msat,
+            dust_limit_sat=local_dust_limit_satoshi,
+            fees_per_participant=calc_fees_for_commitment_tx(num_htlcs=0, feerate=local_feerate_per_kw, is_local_initiator=True),
+            htlcs=[])
         self.sign_and_insert_remote_sig(our_commit_tx, remote_funding_pubkey, remote_signature, local_funding_pubkey, local_funding_privkey)
 
         self.assertEqual(str(our_commit_tx), output_commit_tx)
@@ -656,15 +694,24 @@ class TestLNUtil(ElectrumTestCase):
         # to_remote amount 3000000 P2WPKH(0394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b)
         remote_signature = "3045022100f51d2e566a70ba740fc5d8c0f07b9b93d2ed741c3c0860c613173de7d39e7968022041376d520e9c0e1ad52248ddf4b22e12be8763007df977253ef45a4ca3bdb7c0"
         # local_signature = 3044022051b75c73198c6deee1a875871c3961832909acd297c6b908d59e3319e5185a46022055c419379c5051a78d00dbbce11b5b664a0c22815fbcc6fcef6b1937c3836939
-        htlcs=[]
         our_commit_tx = make_commitment(
-            commitment_number,
-            local_funding_pubkey, remote_funding_pubkey, remotepubkey,
-            local_payment_basepoint, remote_payment_basepoint,
-            local_revocation_pubkey, local_delayedpubkey, local_delay,
-            funding_tx_id, funding_output_index, funding_amount_satoshi,
-            to_local_msat, to_remote_msat, local_dust_limit_satoshi,
-            calc_onchain_fees(0, local_feerate_per_kw, True), htlcs=[])
+            ctn=commitment_number,
+            local_funding_pubkey=local_funding_pubkey,
+            remote_funding_pubkey=remote_funding_pubkey,
+            remote_payment_pubkey=remotepubkey,
+            funder_payment_basepoint=local_payment_basepoint,
+            fundee_payment_basepoint=remote_payment_basepoint,
+            revocation_pubkey=local_revocation_pubkey,
+            delayed_pubkey=local_delayedpubkey,
+            to_self_delay=local_delay,
+            funding_txid=funding_tx_id,
+            funding_pos=funding_output_index,
+            funding_sat=funding_amount_satoshi,
+            local_amount=to_local_msat,
+            remote_amount=to_remote_msat,
+            dust_limit_sat=local_dust_limit_satoshi,
+            fees_per_participant=calc_fees_for_commitment_tx(num_htlcs=0, feerate=local_feerate_per_kw, is_local_initiator=True),
+            htlcs=[])
         self.sign_and_insert_remote_sig(our_commit_tx, remote_funding_pubkey, remote_signature, local_funding_pubkey, local_funding_privkey)
         ref_commit_tx_str = '02000000000101bef67e4e2fb9ddeeb3461973cd4c62abb35050b1add772995b820b584a488489000000000038b02b8002c0c62d0000000000160014ccf1af2f2aabee14bb40fa3851ab2301de84311054a56a00000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e0400473044022051b75c73198c6deee1a875871c3961832909acd297c6b908d59e3319e5185a46022055c419379c5051a78d00dbbce11b5b664a0c22815fbcc6fcef6b1937c383693901483045022100f51d2e566a70ba740fc5d8c0f07b9b93d2ed741c3c0860c613173de7d39e7968022041376d520e9c0e1ad52248ddf4b22e12be8763007df977253ef45a4ca3bdb7c001475221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae3e195220'
         self.assertEqual(str(our_commit_tx), ref_commit_tx_str)
@@ -687,6 +734,8 @@ class TestLNUtil(ElectrumTestCase):
     def test_split_host_port(self):
         self.assertEqual(split_host_port("[::1]:8000"), ("::1", "8000"))
         self.assertEqual(split_host_port("[::1]"), ("::1", "9735"))
+        self.assertEqual(split_host_port("[2601:602:8800:9a:dc59:a4ff:fede:24a9]:9735"), ("2601:602:8800:9a:dc59:a4ff:fede:24a9", "9735"))
+        self.assertEqual(split_host_port("[2601:602:8800::a4ff:fede:24a9]:9735"), ("2601:602:8800::a4ff:fede:24a9", "9735"))
         self.assertEqual(split_host_port("kæn.guru:8000"), ("kæn.guru", "8000"))
         self.assertEqual(split_host_port("kæn.guru"), ("kæn.guru", "9735"))
         self.assertEqual(split_host_port("127.0.0.1:8000"), ("127.0.0.1", "8000"))
@@ -708,3 +757,136 @@ class TestLNUtil(ElectrumTestCase):
         with self.assertRaises(ConnStringFormatError):
             extract_nodeid("00" * 33 + "@")
         self.assertEqual(extract_nodeid("00" * 33 + "@localhost"), (b"\x00" * 33, "localhost"))
+
+    def test_ln_features_validate_transitive_dependencies(self):
+        features = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        self.assertTrue(features.validate_transitive_dependencies())
+        features = LnFeatures.PAYMENT_SECRET_OPT
+        self.assertFalse(features.validate_transitive_dependencies())
+        features = LnFeatures.PAYMENT_SECRET_REQ
+        self.assertFalse(features.validate_transitive_dependencies())
+        features = LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_REQ
+        self.assertTrue(features.validate_transitive_dependencies())
+        features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ
+        self.assertFalse(features.validate_transitive_dependencies())
+        features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_OPT
+        self.assertTrue(features.validate_transitive_dependencies())
+        features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_REQ
+        self.assertTrue(features.validate_transitive_dependencies())
+
+    def test_ln_features_for_init_message(self):
+        features = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        self.assertEqual(features, features.for_init_message())
+        features = LnFeatures.PAYMENT_SECRET_OPT
+        self.assertEqual(features, features.for_init_message())
+        features = LnFeatures.PAYMENT_SECRET_REQ
+        self.assertEqual(features, features.for_init_message())
+        features = LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_REQ
+        self.assertEqual(features, features.for_init_message())
+        features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ
+        self.assertEqual(features, features.for_init_message())
+        features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_OPT
+        self.assertEqual(features, features.for_init_message())
+        features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_REQ
+        self.assertEqual(features, features.for_init_message())
+
+    def test_ln_features_for_invoice(self):
+        features = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        self.assertEqual(LnFeatures(0), features.for_invoice())
+        features = LnFeatures.PAYMENT_SECRET_OPT
+        self.assertEqual(features, features.for_invoice())
+        features = LnFeatures.PAYMENT_SECRET_REQ
+        self.assertEqual(features, features.for_invoice())
+        features = LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_REQ
+        self.assertEqual(features, features.for_invoice())
+        features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        self.assertEqual(LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ,
+                         features.for_invoice())
+        features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_OPT | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        self.assertEqual(LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_OPT,
+                         features.for_invoice())
+        features = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.VAR_ONION_REQ
+        self.assertEqual(features, features.for_invoice())
+
+    def test_ln_compare_features(self):
+        f1 = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ | LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
+        f2 = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        self.assertEqual(LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ | LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT,
+                         ln_compare_features(f1, f2))
+        self.assertEqual(LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ | LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT,
+                         ln_compare_features(f2, f1))
+        # note that the args are not commutative; if we (first arg) REQ a feature, OPT will get auto-set
+        f1 = LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
+        f2 = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        self.assertEqual(LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT,
+                         ln_compare_features(f1, f2))
+        self.assertEqual(LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ | LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT,
+                         ln_compare_features(f2, f1))
+
+        f1 = LnFeatures(0)
+        f2 = LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
+        self.assertEqual(LnFeatures(0), ln_compare_features(f1, f2))
+        self.assertEqual(LnFeatures(0), ln_compare_features(f2, f1))
+
+        f1 = LnFeatures(0)
+        f2 = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        with self.assertRaises(IncompatibleLightningFeatures):
+            ln_compare_features(f1, f2)
+        with self.assertRaises(IncompatibleLightningFeatures):
+            ln_compare_features(f2, f1)
+
+        f1 = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT | LnFeatures.VAR_ONION_OPT
+        f2 = LnFeatures.PAYMENT_SECRET_OPT | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ | LnFeatures.VAR_ONION_OPT
+        self.assertEqual(LnFeatures.PAYMENT_SECRET_OPT |
+                         LnFeatures.PAYMENT_SECRET_REQ |
+                         LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT |
+                         LnFeatures.VAR_ONION_OPT,
+                         ln_compare_features(f1, f2))
+        self.assertEqual(LnFeatures.PAYMENT_SECRET_OPT |
+                         LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT |
+                         LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ |
+                         LnFeatures.VAR_ONION_OPT,
+                         ln_compare_features(f2, f1))
+
+    def test_ln_features_supports(self):
+        f_null = LnFeatures(0)
+        f_opt = LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
+        f_req = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+        f_optreq = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ | LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
+        self.assertFalse(f_null.supports(LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT))
+        self.assertFalse(f_null.supports(LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ))
+        self.assertTrue(f_opt.supports(LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT))
+        self.assertTrue(f_opt.supports(LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ))
+        self.assertTrue(f_req.supports(LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT))
+        self.assertTrue(f_req.supports(LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ))
+        self.assertTrue(f_optreq.supports(LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT))
+        self.assertTrue(f_optreq.supports(LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ))
+        with self.assertRaises(ValueError):
+            f_opt.supports(f_optreq)
+        with self.assertRaises(ValueError):
+            f_optreq.supports(f_optreq)
+        f1 = LnFeatures.BASIC_MPP_OPT | LnFeatures.PAYMENT_SECRET_REQ | LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT | LnFeatures.VAR_ONION_OPT
+        self.assertTrue(f1.supports(LnFeatures.PAYMENT_SECRET_OPT))
+        self.assertTrue(f1.supports(LnFeatures.BASIC_MPP_REQ))
+        self.assertFalse(f1.supports(LnFeatures.OPTION_STATIC_REMOTEKEY_OPT))
+        self.assertFalse(f1.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_REQ))
+
+    def test_lnworker_decode_channel_update_msg(self):
+        msg_without_prefix = bytes.fromhex("439b71c8ddeff63004e4ff1f9764a57dcf20232b79d9d669aef0e31c42be8e44208f7d868d0133acb334047f30e9399dece226ccd98e5df5330adf7f356290516fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d619000000000008762700054a00005ef2cf9c0101009000000000000003e80000000000000001000000002367b880")
+        # good messages
+        self.assertNotEqual(
+            None,
+            LNWallet._decode_channel_update_msg(msg_without_prefix))
+        self.assertNotEqual(
+            None,
+            LNWallet._decode_channel_update_msg(bytes.fromhex("0102") + msg_without_prefix))
+        # bad messages
+        self.assertEqual(
+            None,
+            LNWallet._decode_channel_update_msg(bytes.fromhex("0102030405")))
+        self.assertEqual(
+            None,
+            LNWallet._decode_channel_update_msg(bytes.fromhex("ffff") + msg_without_prefix))
+        self.assertEqual(
+            None,
+            LNWallet._decode_channel_update_msg(bytes.fromhex("0101") + msg_without_prefix))

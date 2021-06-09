@@ -44,12 +44,12 @@ class PRNG:
         self.sha = sha256(seed)
         self.pool = bytearray()
 
-    def get_bytes(self, n):
+    def get_bytes(self, n: int) -> bytes:
         while len(self.pool) < n:
             self.pool.extend(self.sha)
             self.sha = sha256(self.sha)
         result, self.pool = self.pool[:n], self.pool[n:]
-        return result
+        return bytes(result)
 
     def randint(self, start, end):
         # Returns random integer in [start, end)
@@ -103,10 +103,9 @@ def strip_unneeded(bkts: List[Bucket], sufficient_funds) -> List[Bucket]:
 
 class CoinChooserBase(Logger):
 
-    enable_output_value_rounding = False
-
-    def __init__(self):
+    def __init__(self, *, enable_output_value_rounding: bool):
         Logger.__init__(self)
+        self.enable_output_value_rounding = enable_output_value_rounding
 
     def keys(self, coins: Sequence[PartialTxInput]) -> Sequence[str]:
         raise NotImplementedError
@@ -121,7 +120,7 @@ class CoinChooserBase(Logger):
         constant_fee = fee_estimator_vb(2000) == fee_estimator_vb(200)
 
         def make_Bucket(desc: str, coins: List[PartialTxInput]):
-            witness = any(Transaction.is_segwit_input(coin, guess_for_address=True) for coin in coins)
+            witness = any(coin.is_segwit(guess_for_address=True) for coin in coins)
             # note that we're guessing whether the tx uses segwit based
             # on this single bucket
             weight = sum(Transaction.estimated_input_weight(coin, witness)
@@ -239,7 +238,7 @@ class CoinChooserBase(Logger):
             assert is_address(change_addrs[0])
 
         # This takes a count of change outputs and returns a tx fee
-        output_weight = 4 * Transaction.estimated_output_size(change_addrs[0])
+        output_weight = 4 * Transaction.estimated_output_size_for_address(change_addrs[0])
         fee_estimator_numchange = lambda count: fee_estimator_w(tx_weight + count * output_weight)
         change = self._change_outputs(tx, change_addrs, fee_estimator_numchange, dust_threshold)
         tx.add_outputs(change)
@@ -308,6 +307,10 @@ class CoinChooserBase(Logger):
             total_input = input_value + bucket_value_sum
             if total_input < spent_amount:  # shortcut for performance
                 return False
+            # any bitcoin tx must have at least 1 input by consensus
+            # (check we add some new UTXOs now or already have some fixed inputs)
+            if not buckets and not inputs:
+                return False
             # note re performance: so far this was constant time
             # what follows is linear in len(buckets)
             total_weight = self._get_tx_weight(buckets, base_weight=base_weight)
@@ -361,7 +364,7 @@ class CoinChooserRandom(CoinChooserBase):
         # Add all singletons
         for n, bucket in enumerate(buckets):
             if sufficient_funds([bucket], bucket_value_sum=bucket.value):
-                candidates.add((n, ))
+                candidates.add((n,))
 
         # And now some random ones
         attempts = min(100, (len(buckets) - 1) * 10 + 1)
@@ -487,6 +490,12 @@ def get_name(config):
 
 def get_coin_chooser(config):
     klass = COIN_CHOOSERS[get_name(config)]
-    coinchooser = klass()
-    coinchooser.enable_output_value_rounding = config.get('coin_chooser_output_rounding', False)
+    # note: we enable enable_output_value_rounding by default as
+    #       - for sacrificing a few satoshis
+    #       + it gives better privacy for the user re change output
+    #       + it also helps the network as a whole as fees will become noisier
+    #         (trying to counter the heuristic that "whole integer sat/byte feerates" are common)
+    coinchooser = klass(
+        enable_output_value_rounding=config.get('coin_chooser_output_rounding', True),
+    )
     return coinchooser

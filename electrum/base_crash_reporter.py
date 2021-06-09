@@ -23,15 +23,13 @@ import asyncio
 import json
 import locale
 import traceback
-import subprocess
 import sys
-import os
 
 from .version import ELECTRUM_VERSION
 from . import constants
 from .i18n import _
 from .util import make_aiohttp_session
-from .logging import describe_os_version, Logger
+from .logging import describe_os_version, Logger, get_git_version
 
 
 class BaseCrashReporter(Logger):
@@ -75,7 +73,7 @@ class BaseCrashReporter(Logger):
 
     async def do_post(self, proxy, url, data):
         async with make_aiohttp_session(proxy) as session:
-            async with session.post(url, data=data) as resp:
+            async with session.post(url, data=data, raise_for_status=True) as resp:
                 return await resp.text()
 
     def get_traceback_info(self):
@@ -95,7 +93,7 @@ class BaseCrashReporter(Logger):
 
     def get_additional_info(self):
         args = {
-            "app_version": ELECTRUM_VERSION,
+            "app_version": get_git_version() or ELECTRUM_VERSION,
             "python_version": sys.version,
             "os": describe_os_version(),
             "wallet_type": "unknown",
@@ -107,29 +105,20 @@ class BaseCrashReporter(Logger):
         except:
             # Maybe the wallet isn't loaded yet
             pass
-        try:
-            args["app_version"] = self.get_git_version()
-        except:
-            # This is probably not running from source
-            pass
         return args
 
-    @staticmethod
-    def get_git_version():
-        dir = os.path.dirname(os.path.realpath(sys.argv[0]))
-        version = subprocess.check_output(
-            ['git', 'describe', '--always', '--dirty'], cwd=dir)
-        return str(version, "utf8").strip()
+    def _get_traceback_str(self) -> str:
+        return "".join(traceback.format_exception(*self.exc_args))
 
     def get_report_string(self):
         info = self.get_additional_info()
-        info["traceback"] = "".join(traceback.format_exception(*self.exc_args))
+        info["traceback"] = self._get_traceback_str()
         return self.issue_template.format(**info)
 
     def get_user_description(self):
         raise NotImplementedError
 
-    def get_wallet_type(self):
+    def get_wallet_type(self) -> str:
         raise NotImplementedError
 
 

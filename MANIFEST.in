@@ -3,16 +3,29 @@ include README.rst
 include electrum.desktop
 include *.py
 include run_electrum
-include contrib/requirements/requirements.txt
-include contrib/requirements/requirements-hw.txt
 recursive-include packages *.py
 recursive-include packages cacert.pem
+
+include contrib/requirements/requirements*.txt
+include contrib/deterministic-build/requirements*.txt
+include contrib/make_libsecp256k1.sh
+include contrib/build_tools_util.sh
 
 graft electrum
 prune electrum/tests
 graft contrib/udev
 
+exclude electrum/*.so
+exclude electrum/*.so.0
+exclude electrum/*.dll
+exclude electrum/*.dylib
+
 global-exclude __pycache__
 global-exclude *.py[co~]
 global-exclude *.py.orig
 global-exclude *.py.rej
+global-exclude .git
+
+# Maybe we should exclude the compiled locale files? see https://askubuntu.com/a/144139
+# We include both source (.po) and compiled (.mo) locale files atm (if present).
+# exclude electrum/locale/*/LC_MESSAGES/electrum.mo

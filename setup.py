@@ -53,8 +53,15 @@ if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
 extras_require = {
     'hardware': requirements_hw,
     'gui': ['pyqt5'],
+    'crypto': ['cryptography>=2.6'],
+    'tests': ['pycryptodomex>=3.7', 'cryptography>=2.6', 'pyaes>=0.1a1'],
 }
-extras_require['full'] = [pkg for sublist in list(extras_require.values()) for pkg in sublist]
+# 'full' extra that tries to grab everything an enduser would need (except for libsecp256k1...)
+extras_require['full'] = [pkg for sublist in
+                          (extras_require['hardware'], extras_require['gui'], extras_require['crypto'])
+                          for pkg in sublist]
+# legacy. keep 'fast' extra working
+extras_require['fast'] = extras_require['crypto']
 
 
 setup(
@@ -72,16 +79,10 @@ setup(
     package_dir={
         'electrum': 'electrum'
     },
-    package_data={
-        '': ['*.txt', '*.json', '*.ttf', '*.otf'],
-        'electrum': [
-            'wordlist/*.txt',
-            'locale/*/LC_MESSAGES/electrum.mo',
-        ],
-        'electrum.gui': [
-            'icons/*',
-        ],
-    },
+    # Note: MANIFEST.in lists what gets included in the tar.gz, and the
+    # package_data kwarg lists what gets put in site-packages when pip installing the tar.gz.
+    # By specifying include_package_data=True, MANIFEST.in becomes responsible for both.
+    include_package_data=True,
     scripts=['electrum/electrum'],
     data_files=data_files,
     description="Lightweight Navcoin Wallet",

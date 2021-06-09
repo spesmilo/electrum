@@ -34,7 +34,7 @@ from electrum.bitcoin import is_address
 from electrum.util import block_explorer_URL
 from electrum.plugin import run_hook
 
-from .util import MyTreeView, import_meta_gui, export_meta_gui, webopen
+from .util import MyTreeView, webopen
 
 
 class ContactList(MyTreeView):
@@ -49,6 +49,8 @@ class ContactList(MyTreeView):
     }
     filter_columns = [Columns.NAME, Columns.ADDRESS]
 
+    ROLE_CONTACT_KEY = Qt.UserRole + 1000
+
     def __init__(self, parent):
         super().__init__(parent, self.create_menu,
                          stretch_column=self.Columns.NAME,
@@ -58,16 +60,10 @@ class ContactList(MyTreeView):
         self.setSortingEnabled(True)
         self.update()
 
-    def on_edited(self, idx, user_role, text):
-        _type, prior_name = self.parent.contacts.pop(user_role)
-        self.parent.set_contact(text, user_role)
+    def on_edited(self, idx, edit_key, *, text):
+        _type, prior_name = self.parent.contacts.pop(edit_key)
+        self.parent.set_contact(text, edit_key)
         self.update()
-
-    def import_contacts(self):
-        import_meta_gui(self.parent, _('contacts'), self.parent.contacts.import_file, self.update)
-
-    def export_contacts(self):
-        export_meta_gui(self.parent, _('contacts'), self.parent.contacts.export_file)
 
     def create_menu(self, position):
         menu = QMenu()
@@ -75,12 +71,12 @@ class ContactList(MyTreeView):
         column = idx.column() or self.Columns.NAME
         selected_keys = []
         for s_idx in self.selected_in_column(self.Columns.NAME):
-            sel_key = self.model().itemFromIndex(s_idx).data(Qt.UserRole)
+            sel_key = self.model().itemFromIndex(s_idx).data(self.ROLE_CONTACT_KEY)
             selected_keys.append(sel_key)
         if not selected_keys or not idx.isValid():
             menu.addAction(_("New contact"), lambda: self.parent.new_contact_dialog())
-            menu.addAction(_("Import file"), lambda: self.import_contacts())
-            menu.addAction(_("Export file"), lambda: self.export_contacts())
+            menu.addAction(_("Import file"), lambda: self.parent.import_contacts())
+            menu.addAction(_("Export file"), lambda: self.parent.export_contacts())
         else:
             column_title = self.model().horizontalHeaderItem(column).text()
             column_data = '\n'.join(self.model().itemFromIndex(s_idx).text()
@@ -102,7 +98,9 @@ class ContactList(MyTreeView):
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def update(self):
-        current_key = self.current_item_user_role(col=self.Columns.NAME)
+        if self.maybe_defer_update():
+            return
+        current_key = self.get_role_data_for_current_item(col=self.Columns.NAME, role=self.ROLE_CONTACT_KEY)
         self.model().clear()
         self.update_headers(self.__class__.headers)
         set_current = None
@@ -111,7 +109,7 @@ class ContactList(MyTreeView):
             items = [QStandardItem(x) for x in (name, key)]
             items[self.Columns.NAME].setEditable(contact_type != 'openalias')
             items[self.Columns.ADDRESS].setEditable(False)
-            items[self.Columns.NAME].setData(key, Qt.UserRole)
+            items[self.Columns.NAME].setData(key, self.ROLE_CONTACT_KEY)
             row_count = self.model().rowCount()
             self.model().insertRow(row_count, items)
             if key == current_key:
@@ -122,3 +120,8 @@ class ContactList(MyTreeView):
         self.sortByColumn(self.Columns.NAME, Qt.AscendingOrder)
         self.filter()
         run_hook('update_contacts_tab', self)
+
+    def get_edit_key_from_coordinate(self, row, col):
+        if col != self.Columns.NAME:
+            return None
+        return self.get_role_data_from_coordinate(row, col, role=self.ROLE_CONTACT_KEY)

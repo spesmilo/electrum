@@ -23,7 +23,8 @@
 import binascii
 import os, sys, re, json
 from collections import defaultdict, OrderedDict
-from typing import NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any, Sequence
+from typing import (NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any,
+                    Sequence, Dict, Generic, TypeVar, List, Iterable)
 from datetime import datetime
 import decimal
 from decimal import Decimal
@@ -41,9 +42,16 @@ import time
 from typing import NamedTuple, Optional
 import ssl
 import ipaddress
+from ipaddress import IPv4Address, IPv6Address
+import random
+import secrets
+import functools
+from abc import abstractmethod, ABC
 
+import attr
 import aiohttp
-from aiohttp_socks import SocksConnector, SocksVer
+from aiohttp_socks import ProxyConnector, ProxyType
+import aiorpcx
 from aiorpcx import TaskGroup
 import certifi
 import dns.resolver
@@ -72,56 +80,6 @@ base_units_inverse = inv_dict(base_units)
 base_units_list = ['NAV', 'navis', 'navoshis']  # list(dict) does not guarantee order
 
 DECIMAL_POINT_DEFAULT = 8  # NAV
-
-# types of payment requests
-PR_TYPE_ONCHAIN = 0
-PR_TYPE_LN = 2
-
-# status of payment requests
-PR_UNPAID   = 0
-PR_EXPIRED  = 1
-PR_UNKNOWN  = 2     # sent but not propagated
-PR_PAID     = 3     # send and propagated
-PR_INFLIGHT = 4     # unconfirmed
-PR_FAILED   = 5
-
-pr_color = {
-    PR_UNPAID:   (.7, .7, .7, 1),
-    PR_PAID:     (.2, .9, .2, 1),
-    PR_UNKNOWN:  (.7, .7, .7, 1),
-    PR_EXPIRED:  (.9, .2, .2, 1),
-    PR_INFLIGHT: (.9, .6, .3, 1),
-    PR_FAILED:   (.9, .2, .2, 1),
-}
-
-pr_tooltips = {
-    PR_UNPAID:_('Pending'),
-    PR_PAID:_('Paid'),
-    PR_UNKNOWN:_('Unknown'),
-    PR_EXPIRED:_('Expired'),
-    PR_INFLIGHT:_('In progress'),
-    PR_FAILED:_('Failed'),
-}
-
-pr_expiration_values = {
-    10*60: _('10 minutes'),
-    60*60: _('1 hour'),
-    24*60*60: _('1 day'),
-    7*24*60*60: _('1 week')
-}
-
-def get_request_status(req):
-    status = req['status']
-    if req['status'] == PR_UNPAID and 'exp' in req and req['time'] + req['exp'] < time.time():
-        status = PR_EXPIRED
-    status_str = pr_tooltips[status]
-    if status == PR_UNPAID:
-        if req.get('exp'):
-            expiration = req['exp'] + req['time']
-            status_str = _('Expires') + ' ' + age(expiration, include_seconds=True)
-        else:
-            status_str = _('Pending')
-    return status, status_str
 
 
 class UnknownBaseUnit(Exception): pass
@@ -153,9 +111,23 @@ class NoDynamicFeeEstimates(Exception):
         return _('Dynamic fee estimates not available')
 
 
+class MultipleSpendMaxTxOutputs(Exception):
+    def __str__(self):
+        return _('At most one output can be set to spend max')
+
+
 class InvalidPassword(Exception):
     def __str__(self):
         return _("Incorrect password")
+
+
+class AddTransactionException(Exception):
+    pass
+
+
+class UnrelatedTransactionException(AddTransactionException):
+    def __str__(self):
+        return _("Transaction is unrelated to this wallet.")
 
 
 class FileImportFailed(Exception):
@@ -183,7 +155,9 @@ class BitcoinException(Exception): pass
 class UserFacingException(Exception):
     """Exception that contains information intended to be shown to the user."""
 
-class InvoiceError(Exception): pass
+
+class InvoiceError(UserFacingException): pass
+
 
 # Throw this exception to unwind the stack like when an error occurs.
 # However unlike other exceptions the user won't be informed.
@@ -198,13 +172,15 @@ class Satoshis(object):
 
     def __new__(cls, value):
         self = super(Satoshis, cls).__new__(cls)
+        # note: 'value' sometimes has msat precision
         self.value = value
         return self
 
     def __repr__(self):
-        return 'Satoshis(%d)'%self.value
+        return f'Satoshis({self.value})'
 
     def __str__(self):
+        # note: precision is truncated to satoshis here
         return format_satoshis(self.value)
 
     def __eq__(self, other):
@@ -212,6 +188,9 @@ class Satoshis(object):
 
     def __ne__(self, other):
         return not (self == other)
+
+    def __add__(self, other):
+        return Satoshis(self.value + other.value)
 
 
 # note: this is not a NamedTuple as then its json encoding cannot be customized
@@ -242,6 +221,8 @@ class Fiat(object):
             return "{:.2f}".format(self.value) + ' ' + self.ccy
 
     def __eq__(self, other):
+        if not isinstance(other, Fiat):
+            return False
         if self.ccy != other.ccy:
             return False
         if isinstance(self.value, Decimal) and isinstance(other.value, Decimal) \
@@ -252,11 +233,18 @@ class Fiat(object):
     def __ne__(self, other):
         return not (self == other)
 
+    def __add__(self, other):
+        assert self.ccy == other.ccy
+        return Fiat(self.value + other.value, self.ccy)
+
 
 class MyEncoder(json.JSONEncoder):
     def default(self, obj):
         # note: this does not get called for namedtuples :(  https://bugs.python.org/issue30343
         from .transaction import Transaction, TxOutput
+        from .lnutil import UpdateAddHtlc
+        if isinstance(obj, UpdateAddHtlc):
+            return obj.to_tuple()
         if isinstance(obj, Transaction):
             return obj.serialize()
         if isinstance(obj, TxOutput):
@@ -271,6 +259,8 @@ class MyEncoder(json.JSONEncoder):
             return obj.isoformat(' ')[:-3]
         if isinstance(obj, set):
             return list(obj)
+        if isinstance(obj, bytes): # for nametuples in lnchannel
+            return obj.hex()
         if hasattr(obj, 'to_json') and callable(obj.to_json):
             return obj.to_json()
         return super(MyEncoder, self).default(obj)
@@ -327,6 +317,7 @@ class DaemonThread(threading.Thread, Logger):
         self.running_lock = threading.Lock()
         self.job_lock = threading.Lock()
         self.jobs = []
+        self.stopped_event = threading.Event()  # set when fully stopped
 
     def add_jobs(self, jobs):
         with self.job_lock:
@@ -367,6 +358,7 @@ class DaemonThread(threading.Thread, Logger):
             jnius.detach()
             self.logger.info("jnius detach")
         self.logger.info("stopped")
+        self.stopped_event.set()
 
 
 def print_stderr(*args):
@@ -393,6 +385,13 @@ def json_decode(x):
     except:
         return x
 
+def json_normalize(x):
+    # note: The return value of commands, when going through the JSON-RPC interface,
+    #       is json-encoded. The encoder used there cannot handle some types, e.g. electrum.util.Satoshis.
+    # note: We should not simply do "json_encode(x)" here, as then later x would get doubly json-encoded.
+    # see #5868
+    return json_decode(json_encode(x))
+
 
 # taken from Django Source Code
 def constant_time_compare(val1, val2):
@@ -413,11 +412,20 @@ def profiler(func):
     return lambda *args, **kw_args: do_profile(args, kw_args)
 
 
+def android_ext_dir():
+    from android.storage import primary_external_storage_path
+    return primary_external_storage_path()
+
+def android_backup_dir():
+    d = os.path.join(android_ext_dir(), 'org.electrum.electrum')
+    if not os.path.exists(d):
+        os.mkdir(d)
+    return d
+
 def android_data_dir():
     import jnius
     PythonActivity = jnius.autoclass('org.kivy.android.PythonActivity')
     return PythonActivity.mActivity.getFilesDir().getPath() + '/data'
-
 
 def ensure_sparse_file(filename):
     # On modern Linux, no need to do anything.
@@ -454,7 +462,12 @@ def assert_file_in_datadir_available(path, config_path):
 
 
 def standardize_path(path):
-    return os.path.normcase(os.path.realpath(os.path.abspath(path)))
+    return os.path.normcase(
+            os.path.realpath(
+                os.path.abspath(
+                    os.path.expanduser(
+                        path
+    ))))
 
 
 def get_new_wallet_name(wallet_folder: str) -> str:
@@ -532,7 +545,9 @@ def xor_bytes(a: bytes, b: bytes) -> bytes:
 
 
 def user_dir():
-    if 'ANDROID_DATA' in os.environ:
+    if "ELECTRUMDIR" in os.environ:
+        return os.environ["ELECTRUMDIR"]
+    elif 'ANDROID_DATA' in os.environ:
         return android_data_dir()
     elif os.name == 'posix':
         return os.path.join(os.environ["HOME"], ".NavCash")
@@ -567,19 +582,32 @@ def is_hash256_str(text: Any) -> bool:
 def is_hex_str(text: Any) -> bool:
     if not isinstance(text, str): return False
     try:
-        bytes.fromhex(text)
+        b = bytes.fromhex(text)
     except:
+        return False
+    # forbid whitespaces in text:
+    if len(text) != 2 * len(b):
         return False
     return True
 
 
-def is_non_negative_integer(val) -> bool:
-    try:
-        val = int(val)
-        if val >= 0:
-            return True
-    except:
-        pass
+def is_integer(val: Any) -> bool:
+    return isinstance(val, int)
+
+
+def is_non_negative_integer(val: Any) -> bool:
+    if is_integer(val):
+        return val >= 0
+    return False
+
+
+def is_int_or_float(val: Any) -> bool:
+    return isinstance(val, (int, float))
+
+
+def is_non_negative_int_or_float(val: Any) -> bool:
+    if is_int_or_float(val):
+        return val >= 0
     return False
 
 
@@ -591,7 +619,7 @@ def chunks(items, size: int):
         yield items[i: i + size]
 
 
-def format_satoshis_plain(x, decimal_point = 8) -> str:
+def format_satoshis_plain(x, *, decimal_point=8) -> str:
     """Display a satoshi amount scaled.  Always uses a '.' as a decimal
     point and has no thousands separator"""
     if x == '!':
@@ -600,10 +628,25 @@ def format_satoshis_plain(x, decimal_point = 8) -> str:
     return "{:.8f}".format(Decimal(x) / scale_factor).rstrip('0').rstrip('.')
 
 
+# Check that Decimal precision is sufficient.
+# We need at the very least ~20, as we deal with msat amounts, and
+# log10(21_000_000 * 10**8 * 1000) ~= 18.3
+# decimal.DefaultContext.prec == 28 by default, but it is mutable.
+# We enforce that we have at least that available.
+assert decimal.getcontext().prec >= 28, f"PyDecimal precision too low: {decimal.getcontext().prec}"
+
 DECIMAL_POINT = localeconv()['decimal_point']  # type: str
 
 
-def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=False, whitespaces=False) -> str:
+def format_satoshis(
+        x,  # in satoshis
+        *,
+        num_zeros=0,
+        decimal_point=8,
+        precision=None,
+        is_diff=False,
+        whitespaces=False,
+) -> str:
     if x is None:
         return 'unknown'
     if x == '!':
@@ -651,7 +694,7 @@ def quantize_feerate(fee) -> Union[None, Decimal, int]:
     return Decimal(fee).quantize(_feerate_quanta, rounding=decimal.ROUND_HALF_DOWN)
 
 
-def timestamp_to_datetime(timestamp):
+def timestamp_to_datetime(timestamp: Optional[int]) -> Optional[datetime]:
     if timestamp is None:
         return None
     return datetime.fromtimestamp(timestamp)
@@ -706,27 +749,52 @@ def time_difference(distance_in_time, include_seconds):
 mainnet_block_explorers = {
     'cryptoID.info': ('https://chainz.cryptoid.info/nav/',
                          {'tx': 'tx.dws', 'addr': 'address.dws?'}),
-    'system default': ('blockchain:/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
+    'NavExplorer': ('https://www.navexplorer.com/',
+                         {'tx': 'tx/', 'addr': 'address/'}),
 }
 
 testnet_block_explorers = {
-
+    'NavExplorer': ('https://testnet.navexplorer.com/',
+                         {'tx': 'tx/', 'addr': 'address/'}),
 }
+
+_block_explorer_default_api_loc = {'tx': 'tx/', 'addr': 'address/'}
+
 
 def block_explorer_info():
     from . import constants
     return mainnet_block_explorers if not constants.net.TESTNET else testnet_block_explorers
 
-def block_explorer(config: 'SimpleConfig') -> str:
-    from . import constants
+
+def block_explorer(config: 'SimpleConfig') -> Optional[str]:
+    """Returns name of selected block explorer,
+    or None if a custom one (not among hardcoded ones) is configured.
+    """
+    if config.get('block_explorer_custom') is not None:
+        return None
     default_ = 'Blockstream.info'
     be_key = config.get('block_explorer', default_)
-    be = block_explorer_info().get(be_key)
-    return be_key if be is not None else default_
+    be_tuple = block_explorer_info().get(be_key)
+    if be_tuple is None:
+        be_key = default_
+    assert isinstance(be_key, str), f"{be_key!r} should be str"
+    return be_key
+
 
 def block_explorer_tuple(config: 'SimpleConfig') -> Optional[Tuple[str, dict]]:
-    return block_explorer_info().get(block_explorer(config))
+    custom_be = config.get('block_explorer_custom')
+    if custom_be:
+        if isinstance(custom_be, str):
+            return custom_be, _block_explorer_default_api_loc
+        if isinstance(custom_be, (tuple, list)) and len(custom_be) == 2:
+            return tuple(custom_be)
+        _logger.warning(f"not using 'block_explorer_custom' from config. "
+                        f"expected a str or a pair but got {custom_be!r}")
+        return None
+    else:
+        # using one of the hardcoded block explorers
+        return block_explorer_info().get(block_explorer(config))
+
 
 def block_explorer_URL(config: 'SimpleConfig', kind: str, item: str) -> Optional[str]:
     be_tuple = block_explorer_tuple(config)
@@ -736,6 +804,8 @@ def block_explorer_URL(config: 'SimpleConfig', kind: str, item: str) -> Optional
     kind_str = explorer_dict.get(kind)
     if kind_str is None:
         return
+    if explorer_url[-1] != "/":
+        explorer_url += "/"
     url_parts = [explorer_url, kind_str, item]
     return ''.join(url_parts)
 
@@ -743,13 +813,20 @@ def block_explorer_URL(config: 'SimpleConfig', kind: str, item: str) -> Optional
 #_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
 #urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 
+
+# note: when checking against these, use .lower() to support case-insensitivity
+BITCOIN_BIP21_URI_SCHEME = 'navcoin'
+LIGHTNING_URI_SCHEME = 'lightning'
+
+
 class InvalidBitcoinURI(Exception): pass
 
 
+# TODO rename to parse_bip21_uri or similar
 def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
     """Raises InvalidBitcoinURI on malformed URI."""
     from . import bitcoin
-    from .bitcoin import COIN
+    from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 
     if not isinstance(uri, str):
         raise InvalidBitcoinURI(f"expected string, not {repr(uri)}")
@@ -760,7 +837,7 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
         return {'address': uri}
 
     u = urllib.parse.urlparse(uri)
-    if u.scheme != 'navcoin':
+    if u.scheme.lower() != BITCOIN_BIP21_URI_SCHEME:
         raise InvalidBitcoinURI("Not a Navcoin URI")
     address = u.path
 
@@ -786,9 +863,11 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
             m = re.match(r'([0-9.]+)X([0-9])', am)
             if m:
                 k = int(m.group(2)) - 8
-                amount = Decimal(m.group(1)) * pow(  Decimal(10) , k)
+                amount = Decimal(m.group(1)) * pow(Decimal(10), k)
             else:
                 amount = Decimal(am) * COIN
+            if amount > TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN:
+                raise InvalidBitcoinURI(f"amount is out-of-bounds: {amount!r} BTC")
             out['amount'] = int(amount)
         except Exception as e:
             raise InvalidBitcoinURI(f"failed to parse 'amount' field: {repr(e)}") from e
@@ -807,7 +886,7 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
             raise InvalidBitcoinURI(f"failed to parse 'exp' field: {repr(e)}") from e
     if 'sig' in out:
         try:
-            out['sig'] = bh2u(bitcoin.base_decode(out['sig'], None, base=58))
+            out['sig'] = bh2u(bitcoin.base_decode(out['sig'], base=58))
         except Exception as e:
             raise InvalidBitcoinURI(f"failed to parse 'sig' field: {repr(e)}") from e
 
@@ -848,16 +927,24 @@ def create_bip21_uri(addr, amount_sat: Optional[int], message: Optional[str],
             raise Exception(f"illegal key for URI: {repr(k)}")
         v = urllib.parse.quote(v)
         query.append(f"{k}={v}")
-    p = urllib.parse.ParseResult(scheme='navcoin', netloc='', path=addr, params='', query='&'.join(query), fragment='')
+    p = urllib.parse.ParseResult(
+        scheme=BITCOIN_BIP21_URI_SCHEME,
+        netloc='',
+        path=addr,
+        params='',
+        query='&'.join(query),
+        fragment='',
+    )
     return str(urllib.parse.urlunparse(p))
 
 
 def maybe_extract_bolt11_invoice(data: str) -> Optional[str]:
-    lower = data.lower()
-    if lower.startswith('lightning:ln'):
-        lower = lower[10:]
-    if lower.startswith('ln'):
-        return lower
+    data = data.strip()  # whitespaces
+    data = data.lower()
+    if data.startswith(LIGHTNING_URI_SCHEME + ':ln'):
+        data = data[10:]
+    if data.startswith('ln'):
+        return data
     return None
 
 
@@ -919,11 +1006,10 @@ def versiontuple(v):
     return tuple(map(int, (v.split("."))))
 
 
-def import_meta(path, validater, load_meta):
+def read_json_file(path):
     try:
         with open(path, 'r', encoding='utf-8') as f:
-            d = validater(json.loads(f.read()))
-        load_meta(d)
+            data = json.loads(f.read())
     #backwards compatibility for JSONDecodeError
     except ValueError:
         _logger.exception('')
@@ -931,12 +1017,12 @@ def import_meta(path, validater, load_meta):
     except BaseException as e:
         _logger.exception('')
         raise FileImportFailed(e)
+    return data
 
-
-def export_meta(meta, fileName):
+def write_json_file(path, data):
     try:
-        with open(fileName, 'w+', encoding='utf-8') as f:
-            json.dump(meta, f, indent=4, sort_keys=True)
+        with open(path, 'w+', encoding='utf-8') as f:
+            json.dump(data, f, indent=4, sort_keys=True, cls=MyEncoder)
     except (IOError, os.error) as e:
         _logger.exception('')
         raise FileExportFailed(e)
@@ -954,6 +1040,7 @@ def make_dir(path, allow_symlink=True):
 def log_exceptions(func):
     """Decorator to log AND re-raise exceptions."""
     assert asyncio.iscoroutinefunction(func), 'func needs to be a coroutine'
+    @functools.wraps(func)
     async def wrapper(*args, **kwargs):
         self = args[0] if len(args) > 0 else None
         try:
@@ -973,14 +1060,24 @@ def log_exceptions(func):
 def ignore_exceptions(func):
     """Decorator to silently swallow all exceptions."""
     assert asyncio.iscoroutinefunction(func), 'func needs to be a coroutine'
+    @functools.wraps(func)
     async def wrapper(*args, **kwargs):
         try:
             return await func(*args, **kwargs)
         except asyncio.CancelledError:
+            # note: with python 3.8, CancelledError no longer inherits Exception, so this catch is redundant
             raise
         except Exception as e:
             pass
     return wrapper
+
+
+def with_lock(func):
+    """Decorator to enforce a lock on a function call."""
+    def func_wrapper(self, *args, **kwargs):
+        with self.lock:
+            return func(self, *args, **kwargs)
+    return func_wrapper
 
 
 class TxMinedInfo(NamedTuple):
@@ -995,14 +1092,16 @@ def make_aiohttp_session(proxy: Optional[dict], headers=None, timeout=None):
     if headers is None:
         headers = {'User-Agent': 'Electrum'}
     if timeout is None:
-        timeout = aiohttp.ClientTimeout(total=30)
+        # The default timeout is high intentionally.
+        # DNS on some systems can be really slow, see e.g. #5337
+        timeout = aiohttp.ClientTimeout(total=45)
     elif isinstance(timeout, (int, float)):
         timeout = aiohttp.ClientTimeout(total=timeout)
     ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
 
     if proxy:
-        connector = SocksConnector(
-            socks_ver=SocksVer.SOCKS5 if proxy['mode'] == 'socks5' else SocksVer.SOCKS4,
+        connector = ProxyConnector(
+            proxy_type=ProxyType.SOCKS5 if proxy['mode'] == 'socks5' else ProxyType.SOCKS4,
             host=proxy['host'],
             port=int(proxy['port']),
             username=proxy.get('user', None),
@@ -1025,7 +1124,7 @@ class SilentTaskGroup(TaskGroup):
         return super().spawn(*args, **kwargs)
 
 
-class NetworkJobOnDefaultServer(Logger):
+class NetworkJobOnDefaultServer(Logger, ABC):
     """An abstract base class for a job that runs on the main network
     interface. Every time the main interface changes, the job is
     restarted, and some of its internals are reset.
@@ -1036,32 +1135,40 @@ class NetworkJobOnDefaultServer(Logger):
         self.network = network
         self.interface = None  # type: Interface
         self._restart_lock = asyncio.Lock()
+        # Ensure fairness between NetworkJobs. e.g. if multiple wallets
+        # are open, a large wallet's Synchronizer should not starve the small wallets:
+        self._network_request_semaphore = asyncio.Semaphore(100)
+
         self._reset()
+        # every time the main interface changes, restart:
+        register_callback(self._restart, ['default_server_changed'])
+        # also schedule a one-off restart now, as there might already be a main interface:
         asyncio.run_coroutine_threadsafe(self._restart(), network.asyncio_loop)
-        network.register_callback(self._restart, ['default_server_changed'])
 
     def _reset(self):
         """Initialise fields. Called every time the underlying
         server connection changes.
         """
-        self.group = SilentTaskGroup()
+        self.taskgroup = SilentTaskGroup()
 
     async def _start(self, interface: 'Interface'):
         self.interface = interface
-        await interface.group.spawn(self._start_tasks)
+        await interface.taskgroup.spawn(self._run_tasks(taskgroup=self.taskgroup))
 
-    async def _start_tasks(self):
-        """Start tasks in self.group. Called every time the underlying
+    @abstractmethod
+    async def _run_tasks(self, *, taskgroup: TaskGroup) -> None:
+        """Start tasks in taskgroup. Called every time the underlying
         server connection changes.
         """
-        raise NotImplementedError()  # implemented by subclasses
+        # If self.taskgroup changed, don't start tasks. This can happen if we have
+        # been restarted *just now*, i.e. after the _run_tasks coroutine object was created.
+        if taskgroup != self.taskgroup:
+            raise asyncio.CancelledError()
 
-    async def stop(self):
-        self.network.unregister_callback(self._restart)
-        await self._stop()
-
-    async def _stop(self):
-        await self.group.cancel_remaining()
+    async def stop(self, *, full_shutdown: bool = True):
+        if full_shutdown:
+            unregister_callback(self._restart)
+        await self.taskgroup.cancel_remaining()
 
     @log_exceptions
     async def _restart(self, *args):
@@ -1070,7 +1177,7 @@ class NetworkJobOnDefaultServer(Logger):
             return  # we should get called again soon
 
         async with self._restart_lock:
-            await self._stop()
+            await self.stop(full_shutdown=False)
             self._reset()
             await self._start(interface)
 
@@ -1101,6 +1208,7 @@ def create_and_start_event_loop() -> Tuple[asyncio.AbstractEventLoop,
                                          args=(stopping_fut,),
                                          name='EventLoop')
     loop_thread.start()
+    loop._mythread = loop_thread
     return loop, stopping_fut, loop_thread
 
 
@@ -1187,6 +1295,19 @@ def is_ip_address(x: Union[str, bytes]) -> bool:
         return False
 
 
+def is_private_netaddress(host: str) -> bool:
+    if str(host) in ('localhost', 'localhost.',):
+        return True
+    if host[0] == '[' and host[-1] == ']':  # IPv6
+        host = host[1:-1]
+    try:
+        ip_addr = ipaddress.ip_address(host)  # type: Union[IPv4Address, IPv6Address]
+        return ip_addr.is_private
+    except ValueError:
+        pass  # not an IP
+    return False
+
+
 def list_enabled_bits(x: int) -> Sequence[int]:
     """e.g. 77 (0b1001101) --> (0, 2, 3, 6)"""
     binary = bin(x)[2:]
@@ -1195,7 +1316,7 @@ def list_enabled_bits(x: int) -> Sequence[int]:
 
 
 def resolve_dns_srv(host: str):
-    srv_records = dns.resolver.query(host, 'SRV')
+    srv_records = dns.resolver.resolve(host, 'SRV')
     # priority: prefer lower
     # weight: tie breaker; prefer higher
     srv_records = sorted(srv_records, key=lambda x: (x.priority, -x.weight))
@@ -1206,3 +1327,231 @@ def resolve_dns_srv(host: str):
             'port': srv.port,
         }
     return [dict_from_srv_record(srv) for srv in srv_records]
+
+
+def randrange(bound: int) -> int:
+    """Return a random integer k such that 1 <= k < bound, uniformly
+    distributed across that range."""
+    # secrets.randbelow(bound) returns a random int: 0 <= r < bound,
+    # hence transformations:
+    return secrets.randbelow(bound - 1) + 1
+
+
+class CallbackManager:
+    # callbacks set by the GUI or any thread
+    # guarantee: the callbacks will always get triggered from the asyncio thread.
+
+    def __init__(self):
+        self.callback_lock = threading.Lock()
+        self.callbacks = defaultdict(list)      # note: needs self.callback_lock
+        self.asyncio_loop = None
+
+    def register_callback(self, callback, events):
+        with self.callback_lock:
+            for event in events:
+                self.callbacks[event].append(callback)
+
+    def unregister_callback(self, callback):
+        with self.callback_lock:
+            for callbacks in self.callbacks.values():
+                if callback in callbacks:
+                    callbacks.remove(callback)
+
+    def trigger_callback(self, event, *args):
+        """Trigger a callback with given arguments.
+        Can be called from any thread. The callback itself will get scheduled
+        on the event loop.
+        """
+        if self.asyncio_loop is None:
+            self.asyncio_loop = asyncio.get_event_loop()
+            assert self.asyncio_loop.is_running(), "event loop not running"
+        with self.callback_lock:
+            callbacks = self.callbacks[event][:]
+        for callback in callbacks:
+            # FIXME: if callback throws, we will lose the traceback
+            if asyncio.iscoroutinefunction(callback):
+                asyncio.run_coroutine_threadsafe(callback(event, *args), self.asyncio_loop)
+            else:
+                self.asyncio_loop.call_soon_threadsafe(callback, event, *args)
+
+
+callback_mgr = CallbackManager()
+trigger_callback = callback_mgr.trigger_callback
+register_callback = callback_mgr.register_callback
+unregister_callback = callback_mgr.unregister_callback
+
+
+_NetAddrType = TypeVar("_NetAddrType")
+
+
+class NetworkRetryManager(Generic[_NetAddrType]):
+    """Truncated Exponential Backoff for network connections."""
+
+    def __init__(
+            self, *,
+            max_retry_delay_normal: float,
+            init_retry_delay_normal: float,
+            max_retry_delay_urgent: float = None,
+            init_retry_delay_urgent: float = None,
+    ):
+        self._last_tried_addr = {}  # type: Dict[_NetAddrType, Tuple[float, int]]  # (unix ts, num_attempts)
+
+        # note: these all use "seconds" as unit
+        if max_retry_delay_urgent is None:
+            max_retry_delay_urgent = max_retry_delay_normal
+        if init_retry_delay_urgent is None:
+            init_retry_delay_urgent = init_retry_delay_normal
+        self._max_retry_delay_normal = max_retry_delay_normal
+        self._init_retry_delay_normal = init_retry_delay_normal
+        self._max_retry_delay_urgent = max_retry_delay_urgent
+        self._init_retry_delay_urgent = init_retry_delay_urgent
+
+    def _trying_addr_now(self, addr: _NetAddrType) -> None:
+        last_time, num_attempts = self._last_tried_addr.get(addr, (0, 0))
+        # we add up to 1 second of noise to the time, so that clients are less likely
+        # to get synchronised and bombard the remote in connection waves:
+        cur_time = time.time() + random.random()
+        self._last_tried_addr[addr] = cur_time, num_attempts + 1
+
+    def _on_connection_successfully_established(self, addr: _NetAddrType) -> None:
+        self._last_tried_addr[addr] = time.time(), 0
+
+    def _can_retry_addr(self, addr: _NetAddrType, *,
+                        now: float = None, urgent: bool = False) -> bool:
+        if now is None:
+            now = time.time()
+        last_time, num_attempts = self._last_tried_addr.get(addr, (0, 0))
+        if urgent:
+            max_delay = self._max_retry_delay_urgent
+            init_delay = self._init_retry_delay_urgent
+        else:
+            max_delay = self._max_retry_delay_normal
+            init_delay = self._init_retry_delay_normal
+        delay = self.__calc_delay(multiplier=init_delay, max_delay=max_delay, num_attempts=num_attempts)
+        next_time = last_time + delay
+        return next_time < now
+
+    @classmethod
+    def __calc_delay(cls, *, multiplier: float, max_delay: float,
+                     num_attempts: int) -> float:
+        num_attempts = min(num_attempts, 100_000)
+        try:
+            res = multiplier * 2 ** num_attempts
+        except OverflowError:
+            return max_delay
+        return max(0, min(max_delay, res))
+
+    def _clear_addr_retry_times(self) -> None:
+        self._last_tried_addr.clear()
+
+
+class MySocksProxy(aiorpcx.SOCKSProxy):
+
+    async def open_connection(self, host=None, port=None, **kwargs):
+        loop = asyncio.get_event_loop()
+        reader = asyncio.StreamReader(loop=loop)
+        protocol = asyncio.StreamReaderProtocol(reader, loop=loop)
+        transport, _ = await self.create_connection(
+            lambda: protocol, host, port, **kwargs)
+        writer = asyncio.StreamWriter(transport, protocol, reader, loop)
+        return reader, writer
+
+    @classmethod
+    def from_proxy_dict(cls, proxy: dict = None) -> Optional['MySocksProxy']:
+        if not proxy:
+            return None
+        username, pw = proxy.get('user'), proxy.get('password')
+        if not username or not pw:
+            auth = None
+        else:
+            auth = aiorpcx.socks.SOCKSUserAuth(username, pw)
+        addr = aiorpcx.NetAddress(proxy['host'], proxy['port'])
+        if proxy['mode'] == "socks4":
+            ret = cls(addr, aiorpcx.socks.SOCKS4a, auth)
+        elif proxy['mode'] == "socks5":
+            ret = cls(addr, aiorpcx.socks.SOCKS5, auth)
+        else:
+            raise NotImplementedError  # http proxy not available with aiorpcx
+        return ret
+
+
+class JsonRPCClient:
+
+    def __init__(self, session: aiohttp.ClientSession, url: str):
+        self.session = session
+        self.url = url
+        self._id = 0
+
+    async def request(self, endpoint, *args):
+        self._id += 1
+        data = ('{"jsonrpc": "2.0", "id":"%d", "method": "%s", "params": %s }'
+                % (self._id, endpoint, json.dumps(args)))
+        async with self.session.post(self.url, data=data) as resp:
+            if resp.status == 200:
+                r = await resp.json()
+                result = r.get('result')
+                error = r.get('error')
+                if error:
+                    return 'Error: ' + str(error)
+                else:
+                    return result
+            else:
+                text = await resp.text()
+                return 'Error: ' + str(text)
+
+    def add_method(self, endpoint):
+        async def coro(*args):
+            return await self.request(endpoint, *args)
+        setattr(self, endpoint, coro)
+
+
+T = TypeVar('T')
+
+def random_shuffled_copy(x: Iterable[T]) -> List[T]:
+    """Returns a shuffled copy of the input."""
+    x_copy = list(x)  # copy
+    random.shuffle(x_copy)  # shuffle in-place
+    return x_copy
+
+
+def test_read_write_permissions(path) -> None:
+    # note: There might already be a file at 'path'.
+    #       Make sure we do NOT overwrite/corrupt that!
+    temp_path = "%s.tmptest.%s" % (path, os.getpid())
+    echo = "fs r/w test"
+    try:
+        # test READ permissions for actual path
+        if os.path.exists(path):
+            with open(path, "rb") as f:
+                f.read(1)  # read 1 byte
+        # test R/W sanity for "similar" path
+        with open(temp_path, "w", encoding='utf-8') as f:
+            f.write(echo)
+        with open(temp_path, "r", encoding='utf-8') as f:
+            echo2 = f.read()
+        os.remove(temp_path)
+    except Exception as e:
+        raise IOError(e) from e
+    if echo != echo2:
+        raise IOError('echo sanity-check failed')
+
+
+class nullcontext:
+    """Context manager that does no additional processing.
+    This is a ~backport of contextlib.nullcontext from Python 3.10
+    """
+
+    def __init__(self, enter_result=None):
+        self.enter_result = enter_result
+
+    def __enter__(self):
+        return self.enter_result
+
+    def __exit__(self, *excinfo):
+        pass
+
+    async def __aenter__(self):
+        return self.enter_result
+
+    async def __aexit__(self, *excinfo):
+        pass

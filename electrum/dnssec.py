@@ -31,12 +31,7 @@
 #  https://github.com/rthalley/dnspython/blob/master/tests/test_dnssec.py
 
 
-# import traceback
-# import sys
-import time
-import struct
-
-
+import dns
 import dns.name
 import dns.query
 import dns.dnssec
@@ -57,122 +52,6 @@ import dns.rdtypes.ANY.TXT
 import dns.rdtypes.IN.A
 import dns.rdtypes.IN.AAAA
 
-
-# Pure-Python version of dns.dnssec._validate_rsig
-import ecdsa
-from . import rsakey
-
-
-def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
-    from dns.dnssec import ValidationFailure, ECDSAP256SHA256, ECDSAP384SHA384
-    from dns.dnssec import _find_candidate_keys, _make_hash, _is_ecdsa, _is_rsa, _to_rdata, _make_algorithm_id
-
-    if isinstance(origin, str):
-        origin = dns.name.from_text(origin, dns.name.root)
-
-    for candidate_key in _find_candidate_keys(keys, rrsig):
-        if not candidate_key:
-            raise ValidationFailure('unknown key')
-
-        # For convenience, allow the rrset to be specified as a (name, rdataset)
-        # tuple as well as a proper rrset
-        if isinstance(rrset, tuple):
-            rrname = rrset[0]
-            rdataset = rrset[1]
-        else:
-            rrname = rrset.name
-            rdataset = rrset
-
-        if now is None:
-            now = time.time()
-        if rrsig.expiration < now:
-            raise ValidationFailure('expired')
-        if rrsig.inception > now:
-            raise ValidationFailure('not yet valid')
-
-        hash = _make_hash(rrsig.algorithm)
-
-        if _is_rsa(rrsig.algorithm):
-            keyptr = candidate_key.key
-            (bytes,) = struct.unpack('!B', keyptr[0:1])
-            keyptr = keyptr[1:]
-            if bytes == 0:
-                (bytes,) = struct.unpack('!H', keyptr[0:2])
-                keyptr = keyptr[2:]
-            rsa_e = keyptr[0:bytes]
-            rsa_n = keyptr[bytes:]
-            n = ecdsa.util.string_to_number(rsa_n)
-            e = ecdsa.util.string_to_number(rsa_e)
-            pubkey = rsakey.RSAKey(n, e)
-            sig = rrsig.signature
-
-        elif _is_ecdsa(rrsig.algorithm):
-            if rrsig.algorithm == ECDSAP256SHA256:
-                curve = ecdsa.curves.NIST256p
-                key_len = 32
-            elif rrsig.algorithm == ECDSAP384SHA384:
-                curve = ecdsa.curves.NIST384p
-                key_len = 48
-            else:
-                # shouldn't happen
-                raise ValidationFailure('unknown ECDSA curve')
-            keyptr = candidate_key.key
-            x = ecdsa.util.string_to_number(keyptr[0:key_len])
-            y = ecdsa.util.string_to_number(keyptr[key_len:key_len * 2])
-            assert ecdsa.ecdsa.point_is_valid(curve.generator, x, y)
-            point = ecdsa.ellipticcurve.Point(curve.curve, x, y, curve.order)
-            verifying_key = ecdsa.keys.VerifyingKey.from_public_point(point, curve)
-            r = rrsig.signature[:key_len]
-            s = rrsig.signature[key_len:]
-            sig = ecdsa.ecdsa.Signature(ecdsa.util.string_to_number(r),
-                                        ecdsa.util.string_to_number(s))
-
-        else:
-            raise ValidationFailure('unknown algorithm %u' % rrsig.algorithm)
-
-        hash.update(_to_rdata(rrsig, origin)[:18])
-        hash.update(rrsig.signer.to_digestable(origin))
-
-        if rrsig.labels < len(rrname) - 1:
-            suffix = rrname.split(rrsig.labels + 1)[1]
-            rrname = dns.name.from_text('*', suffix)
-        rrnamebuf = rrname.to_digestable(origin)
-        rrfixed = struct.pack('!HHI', rdataset.rdtype, rdataset.rdclass,
-                              rrsig.original_ttl)
-        rrlist = sorted(rdataset)
-        for rr in rrlist:
-            hash.update(rrnamebuf)
-            hash.update(rrfixed)
-            rrdata = rr.to_digestable(origin)
-            rrlen = struct.pack('!H', len(rrdata))
-            hash.update(rrlen)
-            hash.update(rrdata)
-
-        digest = hash.digest()
-
-        if _is_rsa(rrsig.algorithm):
-            digest = _make_algorithm_id(rrsig.algorithm) + digest
-            if pubkey.verify(bytearray(sig), bytearray(digest)):
-                return
-
-        elif _is_ecdsa(rrsig.algorithm):
-            diglong = ecdsa.util.string_to_number(digest)
-            if verifying_key.pubkey.verifies(diglong, sig):
-                return
-
-        else:
-            raise ValidationFailure('unknown algorithm %s' % rrsig.algorithm)
-
-    raise ValidationFailure('verify failure')
-
-
-# replace validate_rrsig
-dns.dnssec._validate_rrsig = python_validate_rrsig
-dns.dnssec.validate_rrsig = python_validate_rrsig
-dns.dnssec.validate = dns.dnssec._validate
-
-
-
 from .logging import get_logger
 
 
@@ -188,7 +67,7 @@ trust_anchors = [
 ]
 
 
-def check_query(ns, sub, _type, keys):
+def _check_query(ns, sub, _type, keys):
     q = dns.message.make_query(sub, _type, want_dnssec=True)
     response = dns.query.tcp(q, ns, timeout=5)
     assert response.rcode() == 0, 'No answer'
@@ -207,13 +86,13 @@ def check_query(ns, sub, _type, keys):
     return rrset
 
 
-def get_and_validate(ns, url, _type):
+def _get_and_validate(ns, url, _type):
     # get trusted root key
     root_rrset = None
     for dnskey_rr in trust_anchors:
         try:
             # Check if there is a valid signature for the root dnskey
-            root_rrset = check_query(ns, '', dns.rdatatype.DNSKEY, {dns.name.root: dnskey_rr})
+            root_rrset = _check_query(ns, '', dns.rdatatype.DNSKEY, {dns.name.root: dnskey_rr})
             break
         except dns.dnssec.ValidationFailure:
             # It's OK as long as one key validates
@@ -235,9 +114,9 @@ def get_and_validate(ns, url, _type):
         if rr.rdtype == dns.rdatatype.SOA:
             continue
         # get DNSKEY (self-signed)
-        rrset = check_query(ns, sub, dns.rdatatype.DNSKEY, None)
+        rrset = _check_query(ns, sub, dns.rdatatype.DNSKEY, None)
         # get DS (signed by parent)
-        ds_rrset = check_query(ns, sub, dns.rdatatype.DS, keys)
+        ds_rrset = _check_query(ns, sub, dns.rdatatype.DS, keys)
         # verify that a signed DS validates DNSKEY
         for ds in ds_rrset:
             for dnskey in rrset:
@@ -253,7 +132,7 @@ def get_and_validate(ns, url, _type):
         # set key for next iteration
         keys = {name: rrset}
     # get TXT record (signed by zone)
-    rrset = check_query(ns, url, _type, keys)
+    rrset = _check_query(ns, url, _type, keys)
     return rrset
 
 
@@ -262,11 +141,10 @@ def query(url, rtype):
     nameservers = ['8.8.8.8']
     ns = nameservers[0]
     try:
-        out = get_and_validate(ns, url, rtype)
+        out = _get_and_validate(ns, url, rtype)
         validated = True
-    except BaseException as e:
+    except Exception as e:
         _logger.info(f"DNSSEC error: {repr(e)}")
-        resolver = dns.resolver.get_default_resolver()
-        out = resolver.query(url, rtype)
+        out = dns.resolver.resolve(url, rtype)
         validated = False
     return out, validated
