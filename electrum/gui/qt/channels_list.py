@@ -62,8 +62,7 @@ class ChannelsList(MyTreeView):
     _default_item_bg_brush = None  # type: Optional[QBrush]
 
     def __init__(self, parent):
-        super().__init__(parent, self.create_menu, stretch_column=self.Columns.NODE_ALIAS,
-                         editable_columns=[])
+        super().__init__(parent, self.create_menu, stretch_column=self.Columns.NODE_ALIAS)
         self.setModel(QtGui.QStandardItemModel(self))
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.main_window = parent

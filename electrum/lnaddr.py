@@ -265,6 +265,7 @@ def lnencode(addr: 'LnAddr', privkey) -> str:
 
     return bech32_encode(segwit_addr.Encoding.BECH32, hrp, bitarray_to_u5(data))
 
+
 class LnAddr(object):
     def __init__(self, *, paymenthash: bytes = None, amount=None, currency=None, tags=None, date=None,
                  payment_secret: bytes = None):

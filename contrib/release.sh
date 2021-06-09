@@ -8,8 +8,6 @@
 ELECTRUM_DIR=/opt/electrum
 WWW_DIR=/opt/electrum-web
 
-# Note:
-# uploadserver and website are set in /etc/hosts
 
 cd $ELECTRUM_DIR
 # rm -rf dist/*
@@ -138,7 +136,7 @@ if test -f dist/electrum-$VERSION.dmg; then
 	echo "packages are already signed"
     else
 	echo "signing packages"
-	./contrib/sign_packages
+	./contrib/sign_packages ThomasV
     fi
 else
     echo "dmg is missing, aborting"
@@ -175,21 +173,16 @@ fi
 if test -f dist/uploaded; then
     echo "files already uploaded"
 else
-    ./contrib/upload uploadserver
+    ./contrib/upload
     touch dist/uploaded
 fi
 
-#exit 0
 
-# push changes to website
+# push changes to website repo
 pushd $WWW_DIR
 git diff
 git commit -a -m "version $VERSION"
 git push
 popd
 
-# update webserver:
-echo "to deploy, type:"
-echo "ssh root@website \"cd /var/www/new; git pull github master\""
-
-# clear cloudflare cache
+echo "run $WWW_DIR/publish.sh to sign the website commit and upload signature"

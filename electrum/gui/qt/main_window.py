@@ -39,7 +39,7 @@ import asyncio
 from typing import Optional, TYPE_CHECKING, Sequence, List, Union
 
 from PyQt5.QtGui import QPixmap, QKeySequence, QIcon, QCursor, QFont
-from PyQt5.QtCore import Qt, QRect, QStringListModel, QSize, pyqtSignal
+from PyQt5.QtCore import Qt, QRect, QStringListModel, QSize, pyqtSignal, QPoint
 from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import (QMessageBox, QComboBox, QSystemTrayIcon, QTabWidget,
                              QMenuBar, QFileDialog, QCheckBox, QLabel,
@@ -63,7 +63,8 @@ from electrum.util import (format_time,
                            get_new_wallet_name, send_exception_to_crash_reporter,
                            InvalidBitcoinURI, maybe_extract_bolt11_invoice, NotEnoughFunds,
                            NoDynamicFeeEstimates, MultipleSpendMaxTxOutputs,
-                           AddTransactionException, BITCOIN_BIP21_URI_SCHEME)
+                           AddTransactionException, BITCOIN_BIP21_URI_SCHEME,
+                           InvoiceError)
 from electrum.invoices import PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING, Invoice
 from electrum.invoices import PR_PAID, PR_FAILED, pr_expiration_values, LNInvoice, OnchainInvoice
 from electrum.transaction import (Transaction, PartialTxInput,
@@ -1360,21 +1361,26 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 else:
                     return
 
-    def create_invoice(self, is_lightning):
+    def create_invoice(self, is_lightning: bool):
         amount = self.receive_amount_e.get_amount()
         message = self.receive_message_e.text()
         expiry = self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
-        if is_lightning:
-            if not self.wallet.lnworker.channels:
-                self.show_error(_("You need to open a Lightning channel first."))
-                return
-            # TODO maybe show a warning if amount exceeds lnworker.num_sats_can_receive (as in kivy)
-            key = self.wallet.lnworker.add_request(amount, message, expiry)
-        else:
-            key = self.create_bitcoin_request(amount, message, expiry)
-            if not key:
-                return
-            self.address_list.update()
+        try:
+            if is_lightning:
+                if not self.wallet.lnworker.channels:
+                    self.show_error(_("You need to open a Lightning channel first."))
+                    return
+                # TODO maybe show a warning if amount exceeds lnworker.num_sats_can_receive (as in kivy)
+                key = self.wallet.lnworker.add_request(amount, message, expiry)
+            else:
+                key = self.create_bitcoin_request(amount, message, expiry)
+                if not key:
+                    return
+                self.address_list.update()
+        except InvoiceError as e:
+            self.show_error(_('Error creating payment request') + ':\n' + str(e))
+            return
+
         assert key is not None
         self.request_list.update()
         self.request_list.select_key(key)
@@ -1387,7 +1393,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         title = _('Invoice') if is_lightning else _('Address')
         self.do_copy(content, title=title)
 
-    def create_bitcoin_request(self, amount, message, expiration) -> Optional[str]:
+    def create_bitcoin_request(self, amount: int, message: str, expiration: int) -> Optional[str]:
         addr = self.wallet.get_unused_address()
         if addr is None:
             if not self.wallet.is_deterministic():  # imported wallet
@@ -1607,6 +1613,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         __, x_fee_amount = run_hook('get_tx_extra_fee', self.wallet, tx) or (None, 0)
         amount_after_all_fees = amount - x_fee_amount
         self.amount_e.setAmount(amount_after_all_fees)
+        # show tooltip explaining max amount
+        mining_fee = tx.get_fee()
+        mining_fee_str = self.format_amount_and_units(mining_fee)
+        msg = _("Mining fee: {} (can be adjusted on next screen)").format(mining_fee_str)
+        if x_fee_amount:
+            twofactor_fee_str = self.format_amount_and_units(x_fee_amount)
+            msg += "\n" + _("2fa fee: {} (for the next batch of transactions)").format(twofactor_fee_str)
+        frozen_bal = self.get_frozen_balance_str()
+        if frozen_bal:
+            msg += "\n" + _("Some coins are frozen: {} (can be unfrozen in the Addresses or in the Coins tab)").format(frozen_bal)
+        QToolTip.showText(self.max_button.mapToGlobal(QPoint(0, 0)), msg)
 
     def get_contact_payto(self, key):
         _type, label = self.contacts.get(key)
@@ -1745,32 +1762,35 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def read_invoice(self):
         if self.check_send_tab_payto_line_and_show_errors():
             return
-        if not self._is_onchain:
-            invoice_str = self.payto_e.lightning_invoice
-            if not invoice_str:
-                return
-            if not self.wallet.has_lightning():
-                self.show_error(_('Lightning is disabled'))
-                return
-            invoice = LNInvoice.from_bech32(invoice_str)
-            if invoice.get_amount_msat() is None:
-                amount_sat = self.amount_e.get_amount()
-                if amount_sat:
-                    invoice.amount_msat = int(amount_sat * 1000)
-                else:
-                    self.show_error(_('No amount'))
+        try:
+            if not self._is_onchain:
+                invoice_str = self.payto_e.lightning_invoice
+                if not invoice_str:
                     return
-            return invoice
-        else:
-            outputs = self.read_outputs()
-            if self.check_send_tab_onchain_outputs_and_show_errors(outputs):
-                return
-            message = self.message_e.text()
-            return self.wallet.create_invoice(
-                outputs=outputs,
-                message=message,
-                pr=self.payment_request,
-                URI=self.payto_URI)
+                if not self.wallet.has_lightning():
+                    self.show_error(_('Lightning is disabled'))
+                    return
+                invoice = LNInvoice.from_bech32(invoice_str)
+                if invoice.get_amount_msat() is None:
+                    amount_sat = self.amount_e.get_amount()
+                    if amount_sat:
+                        invoice.amount_msat = int(amount_sat * 1000)
+                    else:
+                        self.show_error(_('No amount'))
+                        return
+                return invoice
+            else:
+                outputs = self.read_outputs()
+                if self.check_send_tab_onchain_outputs_and_show_errors(outputs):
+                    return
+                message = self.message_e.text()
+                return self.wallet.create_invoice(
+                    outputs=outputs,
+                    message=message,
+                    pr=self.payment_request,
+                    URI=self.payto_URI)
+        except InvoiceError as e:
+            self.show_error(_('Error creating payment') + ':\n' + str(e))
 
     def do_save_invoice(self):
         self.pending_invoice = self.read_invoice()
@@ -2198,6 +2218,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         for hash in hashes2:
             outputs.append(PartialTxOutput.ConsultationVoteRemove(hash))
         self.pay_onchain_dialog(self.get_coins(), outputs, version=8)
+
+    def get_text_not_enough_funds_mentioning_frozen(self) -> str:
+        text = _("Not enough funds")
+        frozen_str = self.get_frozen_balance_str()
+        if frozen_str:
+            text += " ({} {})".format(
+                frozen_str, _("are frozen")
+            )
+        return text
+
+    def get_frozen_balance_str(self) -> Optional[str]:
+        frozen_bal = sum(self.wallet.get_frozen_balance())
+        if not frozen_bal:
+            return None
+        return self.format_amount_and_units(frozen_bal)
 
     def pay_onchain_dialog(
             self, inputs: Sequence[PartialTxInput],
@@ -3863,7 +3898,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         grid.addWidget(QLabel(_('Output amount') + ':'), 2, 0)
         grid.addWidget(output_amount, 2, 1)
         fee_e = BTCAmountEdit(self.get_decimal_point)
-        # FIXME with dyn fees, without estimates, there are all kinds of crashes here
         combined_fee = QLabel('')
         combined_feerate = QLabel('')
         def on_fee_edit(x):
@@ -3880,15 +3914,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             comb_feerate_str = self.format_fee_rate(comb_feerate) if comb_feerate else ''
             combined_feerate.setText(comb_feerate_str)
         fee_e.textChanged.connect(on_fee_edit)
-        def get_child_fee_from_total_feerate(fee_per_kb):
+        def get_child_fee_from_total_feerate(fee_per_kb: Optional[int]) -> Optional[int]:
+            if fee_per_kb is None:
+                return None
             fee = fee_per_kb * total_size / 1000 - parent_fee
+            fee = round(fee)
             fee = min(max_fee, fee)
             fee = max(total_size, fee)  # pay at least 1 sat/byte for combined size
             return fee
         suggested_feerate = self.config.fee_per_kb()
-        if suggested_feerate is None:
-            self.show_error(f'''{_("Can't CPFP'")}: {_('Dynamic fee estimates not available')}''')
-            return
         fee = get_child_fee_from_total_feerate(suggested_feerate)
         fee_e.setAmount(fee)
         grid.addWidget(QLabel(_('Fee for child') + ':'), 3, 0)

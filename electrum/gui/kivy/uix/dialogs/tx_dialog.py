@@ -102,7 +102,7 @@ Builder.load_string('''
             IconButton:
                 size_hint: 0.5, None
                 height: '48dp'
-                icon: f'atlas://{KIVY_GUI_PATH}/theming/light/qrcode'
+                icon: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/qrcode'
                 on_release: root.show_qr()
             Button:
                 size_hint: 0.5, None

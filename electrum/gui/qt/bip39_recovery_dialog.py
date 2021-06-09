@@ -17,6 +17,9 @@ _logger = get_logger(__name__)
 
 
 class Bip39RecoveryDialog(WindowModalDialog):
+
+    ROLE_ACCOUNT = Qt.UserRole
+
     def __init__(self, parent: QWidget, get_account_xpub, on_account_select):
         self.get_account_xpub = get_account_xpub
         self.on_account_select = on_account_select
@@ -41,7 +44,7 @@ class Bip39RecoveryDialog(WindowModalDialog):
 
     def on_ok_button_click(self):
         item = self.list.currentItem()
-        account = item.data(Qt.UserRole)
+        account = item.data(self.ROLE_ACCOUNT)
         self.on_account_select(account)
 
     def recovery(self):
@@ -58,7 +61,7 @@ class Bip39RecoveryDialog(WindowModalDialog):
         self.list = QListWidget()
         for account in accounts:
             item = QListWidgetItem(account['description'])
-            item.setData(Qt.UserRole, account)
+            item.setData(self.ROLE_ACCOUNT, account)
             self.list.addItem(item)
         self.list.clicked.connect(lambda: self.ok_button.setEnabled(True))
         self.content.addWidget(self.list)

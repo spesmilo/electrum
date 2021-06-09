@@ -29,7 +29,7 @@ from . import util
 from .bitcoin import hash_encode, int_to_hex, rev_hex
 from .crypto import sha256d
 from . import constants
-from .util import bfh, bh2u
+from .util import bfh, bh2u, with_lock
 from .simple_config import SimpleConfig
 from .logging import get_logger, Logger
 
@@ -194,12 +194,6 @@ class Blockchain(Logger):
         self._prev_hash = prev_hash  # blockhash immediately before forkpoint
         self.lock = threading.RLock()
         self.update_size()
-
-    def with_lock(func):
-        def func_wrapper(self, *args, **kwargs):
-            with self.lock:
-                return func(self, *args, **kwargs)
-        return func_wrapper
 
     @property
     def checkpoints(self):

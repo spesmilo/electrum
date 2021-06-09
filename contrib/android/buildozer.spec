@@ -140,7 +140,7 @@ android.manifest.launch_mode = singleTask
 
 # (str) The Android arch to build for, choices: armeabi-v7a, arm64-v8a, x86, x86_64
 # note: can be overwritten by APP_ANDROID_ARCH env var
-android.arch = armeabi-v7a
+#android.arch = armeabi-v7a
 
 # (list) Android application meta-data to set (key=value format)
 #android.meta_data =
@@ -151,6 +151,8 @@ android.arch = armeabi-v7a
 
 android.whitelist = lib-dynload/_csv.so
 
+# (bool) enables Android auto backup feature (Android API >=23)
+android.allow_backup = False
 
 #
 # Python for android (p4a) specific

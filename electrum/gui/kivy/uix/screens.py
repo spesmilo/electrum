@@ -1,41 +1,25 @@
 import asyncio
-from weakref import ref
 from decimal import Decimal
-import re
 import threading
-import traceback, sys
 from typing import TYPE_CHECKING, List, Optional, Dict, Any
 
 from kivy.app import App
-from kivy.cache import Cache
 from kivy.clock import Clock
-from kivy.compat import string_types
-from kivy.properties import (ObjectProperty, DictProperty, NumericProperty,
-                             ListProperty, StringProperty)
-
-from kivy.uix.recycleview import RecycleView
-from kivy.uix.label import Label
-from kivy.uix.behaviors import ToggleButtonBehavior
-from kivy.uix.image import Image
-
+from kivy.properties import ObjectProperty
 from kivy.lang import Builder
 from kivy.factory import Factory
-from kivy.utils import platform
+from kivy.uix.recycleview import RecycleView
 
-from electrum.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds, Fiat
 from electrum.invoices import (PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING,
                                PR_PAID, PR_UNKNOWN, PR_EXPIRED, PR_INFLIGHT,
                                LNInvoice, pr_expiration_values, Invoice, OnchainInvoice)
 from electrum import bitcoin, constants
-from electrum.transaction import Transaction, tx_from_any, PartialTransaction, PartialTxOutput
-from electrum.util import parse_URI, InvalidBitcoinURI, TxMinedInfo, maybe_extract_bolt11_invoice
-from electrum.wallet import InternalAddressCorruption
-from electrum import simple_config
+from electrum.transaction import tx_from_any, PartialTxOutput
+from electrum.util import (parse_URI, InvalidBitcoinURI, TxMinedInfo, maybe_extract_bolt11_invoice,
+                           InvoiceError, format_time)
 from electrum.lnaddr import lndecode
-from electrum.lnutil import RECEIVED, SENT, PaymentFailure
 from electrum.logging import Logger
 
-from .dialogs.question import Question
 from .dialogs.confirm_tx_dialog import ConfirmTxDialog
 
 from electrum.gui.kivy import KIVY_GUI_PATH
@@ -131,7 +115,7 @@ class HistoryScreen(CScreen):
         if is_lightning:
             status = 0
             status_str = 'unconfirmed' if timestamp is None else format_time(int(timestamp))
-            icon = f'atlas://{KIVY_GUI_PATH}/theming/light/lightning'
+            icon = f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/lightning'
             message = tx_item['label']
             fee_msat = tx_item['fee_msat']
             fee = int(fee_msat/1000) if fee_msat else None
@@ -143,7 +127,7 @@ class HistoryScreen(CScreen):
                                         conf=tx_item['confirmations'],
                                         timestamp=tx_item['timestamp'])
             status, status_str = self.app.wallet.get_tx_status(tx_hash, tx_mined_info)
-            icon = f'atlas://{KIVY_GUI_PATH}/theming/light/' + TX_ICONS[status]
+            icon = f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/' + TX_ICONS[status]
             message = tx_item['label'] or tx_hash
             fee = tx_item['fee_sat']
             fee_text = '' if fee is None else 'fee: %d sat'%fee
@@ -318,21 +302,24 @@ class SendScreen(CScreen, Logger):
                 self.app.show_error(_('Invalid amount') + ':\n' + self.amount)
                 return
         message = self.message
-        if self.is_lightning:
-            return LNInvoice.from_bech32(address)
-        else:  # on-chain
-            if self.payment_request:
-                outputs = self.payment_request.get_outputs()
-            else:
-                if not bitcoin.is_address(address):
-                    self.app.show_error(_('Invalid Bitcoin Address') + ':\n' + address)
-                    return
-                outputs = [PartialTxOutput.from_address_and_value(address, amount)]
-            return self.app.wallet.create_invoice(
-                outputs=outputs,
-                message=message,
-                pr=self.payment_request,
-                URI=self.parsed_URI)
+        try:
+            if self.is_lightning:
+                return LNInvoice.from_bech32(address)
+            else:  # on-chain
+                if self.payment_request:
+                    outputs = self.payment_request.get_outputs()
+                else:
+                    if not bitcoin.is_address(address):
+                        self.app.show_error(_('Invalid Bitcoin Address') + ':\n' + address)
+                        return
+                    outputs = [PartialTxOutput.from_address_and_value(address, amount)]
+                    return self.app.wallet.create_invoice(
+                        outputs=outputs,
+                        message=message,
+                        pr=self.payment_request,
+                        URI=self.parsed_URI)
+        except InvoiceError as e:
+            self.app.show_error(_('Error creating payment') + ':\n' + str(e))
 
     def do_save(self):
         invoice = self.read_invoice()
@@ -447,20 +434,29 @@ class ReceiveScreen(CScreen):
         amount = self.amount
         amount = self.app.get_amount(amount) if amount else 0
         message = self.message
-        if lightning:
-            key = self.app.wallet.lnworker.add_request(amount, message, self.expiry())
-        else:
-            addr = self.address or self.app.wallet.get_unused_address()
-            if not addr:
-                if not self.app.wallet.is_deterministic():
-                    addr = self.app.wallet.get_receiving_address()
+        lnworker = self.app.wallet.lnworker
+        try:
+            if lightning:
+                if lnworker:
+                    key = lnworker.add_request(amount, message, self.expiry())
                 else:
-                    self.app.show_info(_('No address available. Please remove some of your pending requests.'))
+                    self.app.show_error(_("Lightning payments are not available for this wallet"))
                     return
-            self.address = addr
-            req = self.app.wallet.make_payment_request(addr, amount, message, self.expiry())
-            self.app.wallet.add_payment_request(req)
-            key = addr
+            else:
+                addr = self.address or self.app.wallet.get_unused_address()
+                if not addr:
+                    if not self.app.wallet.is_deterministic():
+                        addr = self.app.wallet.get_receiving_address()
+                    else:
+                        self.app.show_info(_('No address available. Please remove some of your pending requests.'))
+                        return
+                self.address = addr
+                req = self.app.wallet.make_payment_request(addr, amount, message, self.expiry())
+                self.app.wallet.add_payment_request(req)
+                key = addr
+        except InvoiceError as e:
+            self.app.show_error(_('Error creating payment request') + ':\n' + str(e))
+            return
         self.clear()
         self.update()
         self.app.show_request(lightning, key)
