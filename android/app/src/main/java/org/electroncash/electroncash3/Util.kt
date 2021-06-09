@@ -258,3 +258,11 @@ fun baseDecode(s: String, base: Int): String {
     return libBitcoin.callAttr("base_decode", s, null, base)
                      .callAttr("hex").toString()
 }
+
+/**
+ * Decide whether to use Schnorr signatures.
+ * Schnorr signing is supported by standard and imported private key wallets.
+ */
+fun signSchnorr(): Boolean {
+    return daemonModel.walletType in listOf("standard", "imported_privkey")
+}

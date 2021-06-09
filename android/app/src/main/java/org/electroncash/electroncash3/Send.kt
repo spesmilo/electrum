@@ -210,10 +210,8 @@ class SendDialog : TaskLauncherDialog<Unit>() {
             val inputs = wallet.callAttr("get_spendable_coins", null, daemonModel.config,
                                          Kwarg("isInvoice", pr != null))
             return try {
-                // Schnorr signing is supported by standard and imported private key wallets.
-                val signSchnorr = daemonModel.walletType in listOf("standard", "imported_privkey")
                 TxResult(wallet.callAttr("make_unsigned_transaction", inputs, outputs,
-                                         daemonModel.config, Kwarg("sign_schnorr", signSchnorr)),
+                                         daemonModel.config, Kwarg("sign_schnorr", signSchnorr())),
                          isDummy)
             } catch (e: PyException) {
                 TxResult(if (e.message!!.startsWith("NotEnoughFunds"))

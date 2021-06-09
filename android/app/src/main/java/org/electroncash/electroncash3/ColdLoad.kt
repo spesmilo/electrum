@@ -136,7 +136,7 @@ class ColdLoadDialog : AlertDialogFragment() {
                 // Check if the transaction can be processed by this wallet or not
                 val txInfo = daemonModel.wallet!!.callAttr("get_tx_info", tx)
 
-                if (txInfo["amount"] == null && txInfo["status"].toString() != "Signed") {
+                if (txInfo["amount"] == null && !canBroadcast(tx)) {
                     idTxStatus.setText(R.string.transaction_unrelated)
                 } else {
                     idTxStatus.setText(txInfo["status"].toString())
@@ -172,11 +172,9 @@ fun canBroadcast(tx: PyObject): Boolean {
  */
 class SignPasswordDialog : PasswordDialog<PyObject>() {
     val coldLoadDialog by lazy { targetFragment as ColdLoadDialog }
-    // Schnorr signing is supported by standard and imported private key wallets.
-    val signSchnorr = daemonModel.walletType in listOf("standard", "imported_privkey")
 
     val tx by lazy { libTransaction.callAttr("Transaction", arguments!!.getString("tx"),
-                                             Kwarg("sign_schnorr", signSchnorr)) }
+                                             Kwarg("sign_schnorr", signSchnorr())) }
     val wallet = daemonModel.wallet!!
 
     override fun onPassword(password: String): PyObject {
