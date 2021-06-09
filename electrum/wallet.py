@@ -3128,12 +3128,13 @@ class Cold_Staking_Wallet(Simple_Deterministic_Wallet):
         if not self.is_mine(address):
             return
         pubkey_deriv_info = self.get_public_keys_with_deriv_info(address)
-        txin.pubkeys = sorted([pk.hex() for pk in list(pubkey_deriv_info)])
-        for pubkey_hex in pubkey_deriv_info:
-            ks, der_suffix = pubkey_deriv_info[pubkey_hex]
+        txin.pubkeys = sorted([pk for pk in list(pubkey_deriv_info)])
+        for pubkey in pubkey_deriv_info:
+            ks, der_suffix = pubkey_deriv_info[pubkey]
             fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix,
                                                                                    only_der_suffix=only_der_suffix)
-            txin.bip32_paths[bfh(pubkey_hex.hex())] = (fp_bytes, der_full)
+            txin.bip32_paths[pubkey] = (fp_bytes, der_full)
+
         if txin.script_type in ['p2cs']:
             txin.pubkeys.insert(0,self.staking_pkh)
         if txin.script_type in ['p2cs2']:

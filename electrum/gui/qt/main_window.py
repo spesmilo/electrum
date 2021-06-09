@@ -1695,6 +1695,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return fut.result()
         self.wallet.thread.add(task)
 
+    def get_text_not_enough_funds_mentioning_frozen(self) -> str:
+        text = _("Not enough funds")
+        frozen_str = self.get_frozen_balance_str()
+        if frozen_str:
+            text += " ({} {})".format(
+                frozen_str, _("are frozen")
+            )
+        return text
+
+    def get_frozen_balance_str(self) -> Optional[str]:
+        frozen_bal = sum(self.wallet.get_frozen_balance())
+        if not frozen_bal:
+            return None
+        return self.format_amount_and_units(frozen_bal)
+
     def on_request_status(self, wallet, key, status):
         if wallet != self.wallet:
             return

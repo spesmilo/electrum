@@ -276,7 +276,7 @@ class AddressSynchronizer(Logger):
             # BUT we track is_mine inputs in a txn, and during subsequent calls
             # of add_transaction tx, we might learn of more-and-more inputs of
             # being is_mine, as we roll the gap_limit forward
-            is_coinbase = tx.inputs()[0].is_coinbase_input()
+            is_coinbase = tx.inputs()[0].is_coinbase_input() or (tx.outputs()[0].value == 0 and len(tx.outputs()[0].scriptpubkey) == 0)
             tx_height = self.get_tx_height(tx_hash).height
             if not allow_unrelated:
                 # note that during sync, if the transactions are not properly sorted,
