@@ -56,12 +56,34 @@ folder.
         ./contrib/android/make_apk
     ```
     
+    Note: this builds a debug apk. `make_apk` takes an optional parameter
+    which can be either `release` or `release-unsigned`.
+    
     This mounts the project dir inside the container,
     and so the modifications will affect it, e.g. `.buildozer` folder
     will be created.
 
 5. The generated binary is in `./bin`.
 
+
+## Verifying reproducibility and comparing against official binary
+
+Every user can verify that the official binary was created from the source code in this 
+repository.
+
+1. Build your own binary as described above.
+   Make sure you don't build in `debug` mode (which is the default!),
+   instead use either of `release` or `release-unsigned`.
+   If you build in `release` mode, the apk will be signed, which requires a keystore
+   that you need to create manually (see source of `make_apk` for an example).
+2. Note that the binaries are not going to be byte-for-byte identical, as the official
+   release is signed by a keystore that only the project maintainers have.
+   You can use the `apkdiff.py` python script (written by the Signal developers) to compare
+   the two binaries.
+    ```
+    $ python3 contrib/android/apkdiff.py Electrum_apk_that_you_built.apk Electrum_apk_official_release.apk
+    ```
+   This should output `APKs match!`.
 
 
 ## FAQ
