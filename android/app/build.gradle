@@ -64,7 +64,7 @@ android {
             python {
                 srcDir REPO_ROOT
                 include "electroncash/"
-                exclude "electroncash/locale/"
+                exclude "**/*.po", "**/*.pot"  // The .mo files are used at runtime.
                 include "electroncash_gui/__init__.py"
                 include "electroncash_plugins/__init__.py"
 
