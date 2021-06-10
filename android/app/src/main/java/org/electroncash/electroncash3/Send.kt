@@ -15,6 +15,7 @@ import com.chaquo.python.Kwarg
 import com.chaquo.python.PyException
 import com.chaquo.python.PyObject
 import com.google.zxing.integration.android.IntentIntegrator
+import kotlinx.android.synthetic.main.load.*
 import kotlinx.android.synthetic.main.send.*
 
 
@@ -130,6 +131,13 @@ class SendDialog : TaskLauncherDialog<Unit>() {
         }
         setFeeLabel()
 
+        // Check if a transaction hex string has been passed from ColdLoad, and load it.
+        val txHex = arguments?.getString("txHex")
+        if (txHex != null) {
+            val tx = libTransaction.callAttr("Transaction", txHex)
+            setLoadedTransaction(tx)
+        }
+
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onOK() }
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { scanQR(this) }
         model.tx.observe(this, Observer { onTx(it) })
@@ -150,8 +158,11 @@ class SendDialog : TaskLauncherDialog<Unit>() {
         get() = MIN_FEE + sbFee.progress
 
     fun refreshTx() {
-        model.tx.refresh(TxArgs(wallet, model.paymentRequest, etAddress.text.toString(),
-                                amountBox.amount, btnMax.isChecked))
+        // If loading a transaction from ColdLoad, it does not need to be constantly refreshed.
+        if (arguments?.containsKey("txHex") != true) {
+            model.tx.refresh(TxArgs(wallet, model.paymentRequest, etAddress.text.toString(),
+                amountBox.amount, btnMax.isChecked))
+        }
     }
 
     fun onTx(result: TxResult) {
@@ -286,8 +297,51 @@ class SendDialog : TaskLauncherDialog<Unit>() {
         }
     }
 
+    /**
+     * Fill in the Send dialog with data from a loaded transaction.
+     */
+    fun setLoadedTransaction(tx: PyObject) {
+        dialog.setTitle(R.string.sign_the)
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setText(R.string.sign)
+        btnContacts.setImageResource(R.drawable.ic_check_24dp)
+
+        btnContacts.isEnabled = false
+        amountBox.isEditable = false
+        btnMax.isEnabled = false
+
+        val txInfo = daemonModel.wallet!!.callAttr("get_tx_info", tx)
+
+        val fee: Int = txInfo["fee"]!!.toInt() / tx.callAttr("estimated_size").toInt()
+        sbFee.progress = fee - 1
+        sbFee.isEnabled = false
+        setFeeLabel(tx)
+
+        // Get the list of transaction outputs, add every non-related address to the
+        // "recipients" array, and add up the total amount that is being sent.
+        val outputs = tx.callAttr("outputs").asList()
+        var amount: Long = 0
+        val recipients: ArrayList<String> = ArrayList()
+        for (output in outputs) {
+            val address = output.asList()[1]
+            if (!daemonModel.wallet!!.callAttr("is_mine", address).toBoolean()) {
+                amount += output.asList()[2].toLong()
+                recipients.add(address.toString())
+            }
+        }
+
+        // If there is only one recipient, their address will be displayed.
+        // Otherwise, this is a "pay to many" transaction.
+        if (recipients.size == 1) {
+            etAddress.setText(recipients[0])
+        } else {
+            etAddress.setText(R.string.pay_to_many)
+        }
+        etAddress.isFocusable = false
+        setAmount(amount)
+    }
+
     fun onOK() {
-        if (model.tx.isComplete()) {
+        if (arguments?.containsKey("txHex") == true || model.tx.isComplete()) {
             onPostExecute(Unit)
         } else {
             launchTask()
@@ -300,11 +354,19 @@ class SendDialog : TaskLauncherDialog<Unit>() {
 
     override fun onPostExecute(result: Unit) {
         try {
-            val txResult = model.tx.value!!
-            if (txResult.isDummy) throw ToastException(R.string.Invalid_address)
-            txResult.get()   // May throw other ToastExceptions.
+            // If a transaction has been passed from ColdLoad, it will be used.
+            // Otherwise, the transaction is built from the fields in the Send dialog.
+            val txHex = arguments?.getString("txHex")
+            if (txHex == null) {
+                val txResult = model.tx.value!!
+                if (txResult.isDummy) throw ToastException(R.string.Invalid_address)
+                txResult.get()   // May throw other ToastExceptions.
+            }
             showDialog(this, SendPasswordDialog().apply { arguments = Bundle().apply {
                 putString("description", this@SendDialog.etDescription.text.toString())
+                if (txHex != null) {
+                    putString("txHex", txHex)
+                }
             }})
         } catch (e: ToastException) { e.show() }
     }
@@ -366,7 +428,13 @@ class SendContactsDialog : MenuDialog() {
 
 class SendPasswordDialog : PasswordDialog<Unit>() {
     val sendDialog by lazy { targetFragment as SendDialog }
-    val tx by lazy { sendDialog.model.tx.value!!.get() }
+    val tx: PyObject by lazy {
+        if (arguments?.containsKey("txHex") == true) {
+            libTransaction.callAttr("Transaction", arguments!!.getString("txHex"))
+        } else {
+            sendDialog.model.tx.value!!.get()
+        }
+    }
 
     override fun onPassword(password: String) {
         val wallet = sendDialog.wallet
@@ -395,6 +463,18 @@ class SendPasswordDialog : PasswordDialog<Unit>() {
             toast(R.string.payment_sent, Toast.LENGTH_SHORT)
         } else {
             copyToClipboard(tx.toString(), R.string.signed_transaction)
+        }
+
+        // The presence of "txHex" argument means that this dialog had been called from ColdLoad.
+        // If the transaction cannot be broadcasted after signing, close the ColdLoad dialog.
+        // Otherwise, put the fully signed string into ColdLoad, making it available for sending.
+        if (arguments!!.containsKey("txHex")) {
+            val coldLoadDialog: ColdLoadDialog? = findDialog(activity!!, ColdLoadDialog::class)
+            if (!canBroadcast(tx)) {
+                coldLoadDialog!!.dismiss()
+            } else {
+                coldLoadDialog!!.etTransaction.setText(tx.toString())
+            }
         }
     }
 }

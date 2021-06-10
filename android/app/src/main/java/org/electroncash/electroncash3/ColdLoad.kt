@@ -100,11 +100,11 @@ class ColdLoadDialog : AlertDialogFragment() {
      * Sign a loaded transaction.
      */
     private fun signLoadedTransaction() {
-        val dialog = SignPasswordDialog()
-        dialog.setArguments(Bundle().apply {
-            putString("tx", etTransaction.text.toString())
-        })
-        showDialog(this, dialog)
+        val arguments = Bundle().apply {
+            putString("txHex", etTransaction.text.toString())
+        }
+        val dialog = SendDialog()
+        showDialog(this, dialog.apply { setArguments(arguments) })
     }
 
     /**
@@ -164,31 +164,5 @@ fun canBroadcast(tx: PyObject): Boolean {
         tx.callAttr("is_complete").toBoolean()
     } catch (e: PyException) {
         false
-    }
-}
-
-/**
- * Sign a loaded transaction dialog.
- */
-class SignPasswordDialog : PasswordDialog<PyObject>() {
-    val coldLoadDialog by lazy { targetFragment as ColdLoadDialog }
-
-    val tx by lazy { libTransaction.callAttr("Transaction", arguments!!.getString("tx"),
-                                             Kwarg("sign_schnorr", signSchnorr())) }
-    val wallet = daemonModel.wallet!!
-
-    override fun onPassword(password: String): PyObject {
-        wallet.callAttr("sign_transaction", tx, password)
-
-        return tx
-    }
-
-    override fun onPostExecute(result: PyObject) {
-        coldLoadDialog.etTransaction.setText(result.toString())
-
-        if (!canBroadcast(result)) {
-            coldLoadDialog.dismiss()
-            copyToClipboard(result.toString(), R.string.signed_transaction)
-        }
     }
 }
