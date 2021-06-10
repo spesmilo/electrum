@@ -8,7 +8,7 @@ from decimal import Decimal
 import random
 import time
 from typing import (Optional, Sequence, Tuple, List, Set, Dict, TYPE_CHECKING,
-                    NamedTuple, Union, Mapping, Any, Iterable)
+                    NamedTuple, Union, Mapping, Any, Iterable, AsyncGenerator)
 import threading
 import socket
 import aiohttp
@@ -1073,20 +1073,6 @@ class LNWallet(LNWorker):
             if chan.short_channel_id == short_channel_id:
                 return chan
 
-    def create_routes_from_invoice(self, amount_msat: int, decoded_invoice: LnAddr, *, full_path=None):
-        return self.create_routes_for_payment(
-            amount_msat=amount_msat,
-            final_total_msat=amount_msat,
-            invoice_pubkey=decoded_invoice.pubkey.serialize(),
-            min_cltv_expiry=decoded_invoice.get_min_final_cltv_expiry(),
-            r_tags=decoded_invoice.get_routing_info('r'),
-            invoice_features=decoded_invoice.get_features(),
-            trampoline_fee_level=0,
-            use_two_trampolines=False,
-            payment_hash=decoded_invoice.paymenthash,
-            payment_secret=decoded_invoice.payment_secret,
-            full_path=full_path)
-
     @log_exceptions
     async def pay_invoice(
             self, invoice: str, *,
@@ -1173,8 +1159,7 @@ class LNWallet(LNWorker):
                 # 1. create a set of routes for remaining amount.
                 # note: path-finding runs in a separate thread so that we don't block the asyncio loop
                 # graph updates might occur during the computation
-                routes = await run_in_thread(partial(
-                    self.create_routes_for_payment,
+                routes = self.create_routes_for_payment(
                     amount_msat=amount_to_send,
                     final_total_msat=amount_to_pay,
                     invoice_pubkey=node_pubkey,
@@ -1186,9 +1171,10 @@ class LNWallet(LNWorker):
                     payment_secret=payment_secret,
                     trampoline_fee_level=trampoline_fee_level,
                     use_two_trampolines=use_two_trampolines,
-                    fwd_trampoline_onion=fwd_trampoline_onion))
+                    fwd_trampoline_onion=fwd_trampoline_onion
+                )
                 # 2. send htlcs
-                for route, amount_msat, total_msat, amount_receiver_msat, cltv_delta, bucket_payment_secret, trampoline_onion in routes:
+                async for route, amount_msat, total_msat, amount_receiver_msat, cltv_delta, bucket_payment_secret, trampoline_onion in routes:
                     amount_inflight += amount_receiver_msat
                     if amount_inflight > amount_to_pay:  # safety belts
                         raise Exception(f"amount_inflight={amount_inflight} > amount_to_pay={amount_to_pay}")
@@ -1210,12 +1196,14 @@ class LNWallet(LNWorker):
                 raise Exception(f"amount_inflight={amount_inflight} < 0")
             log.append(htlc_log)
             if htlc_log.success:
-                # TODO: report every route to liquidity hints for mpp
-                # even in the case of success, we report channels of the
-                # route as being able to send the same amount in the future,
-                # as we assume to not know the capacity
                 if self.network.path_finder:
+                    # TODO: report every route to liquidity hints for mpp
+                    # in the case of success, we report channels of the
+                    # route as being able to send the same amount in the future,
+                    # as we assume to not know the capacity
                     self.network.path_finder.update_liquidity_hints(htlc_log.route, htlc_log.amount_msat)
+                    # remove inflight htlcs from liquidity hints
+                    self.network.path_finder.update_inflight_htlcs(htlc_log.route, add_htlcs=False)
                 return
             # htlc failed
             if len(log) >= attempts:
@@ -1282,6 +1270,9 @@ class LNWallet(LNWorker):
             amount_sent, amount_failed = self.sent_buckets[payment_secret]
             amount_sent += amount_receiver_msat
             self.sent_buckets[payment_secret] = amount_sent, amount_failed
+        if self.network.path_finder:
+            # add inflight htlcs to liquidity hints
+            self.network.path_finder.update_inflight_htlcs(route, add_htlcs=True)
         util.trigger_callback('htlc_added', chan, htlc, SENT)
 
     def handle_error_code_from_failed_htlc(
@@ -1291,6 +1282,13 @@ class LNWallet(LNWorker):
             sender_idx: int,
             failure_msg: OnionRoutingFailure,
             amount: int) -> None:
+
+        assert self.channel_db  # cannot be in trampoline mode
+        assert self.network.path_finder
+
+        # remove inflight htlcs from liquidity hints
+        self.network.path_finder.update_inflight_htlcs(route, add_htlcs=False)
+
         code, data = failure_msg.code, failure_msg.data
         # TODO can we use lnmsg.OnionWireSerializer here?
         # TODO update onion_wire.csv
@@ -1432,8 +1430,7 @@ class LNWallet(LNWorker):
         else:
             return random.choice(list(hardcoded_trampoline_nodes().values())).pubkey
 
-    @profiler
-    def create_routes_for_payment(
+    async def create_routes_for_payment(
             self, *,
             amount_msat: int,        # part of payment amount we want routes for now
             final_total_msat: int,   # total payment amount final receiver will get
@@ -1446,7 +1443,7 @@ class LNWallet(LNWorker):
             trampoline_fee_level: int,
             use_two_trampolines: bool,
             fwd_trampoline_onion = None,
-            full_path: LNPaymentPath = None) -> Sequence[Tuple[LNPaymentRoute, int]]:
+            full_path: LNPaymentPath = None) -> AsyncGenerator[Tuple[LNPaymentRoute, int], None]:
 
         """Creates multiple routes for splitting a payment over the available
         private channels.
@@ -1502,20 +1499,24 @@ class LNWallet(LNWorker):
                             cltv_expiry_delta=0,
                             node_features=trampoline_features)
                     ]
-                    routes = [(route, amount_with_fees, trampoline_total_msat, amount_msat, cltv_delta, trampoline_payment_secret, trampoline_onion)]
+                    yield route, amount_with_fees, trampoline_total_msat, amount_msat, cltv_delta, trampoline_payment_secret, trampoline_onion
                     break
                 else:
                     raise NoPathFound()
             else:
-                route = self.create_route_for_payment(
-                    amount_msat=amount_msat,
-                    invoice_pubkey=invoice_pubkey,
-                    min_cltv_expiry=min_cltv_expiry,
-                    r_tags=r_tags,
-                    invoice_features=invoice_features,
-                    channels=active_channels,
-                    full_path=full_path)
-                routes = [(route, amount_msat, final_total_msat, amount_msat, min_cltv_expiry, payment_secret, fwd_trampoline_onion)]
+                route = await run_in_thread(
+                    partial(
+                        self.create_route_for_payment,
+                        amount_msat=amount_msat,
+                        invoice_pubkey=invoice_pubkey,
+                        min_cltv_expiry=min_cltv_expiry,
+                        r_tags=r_tags,
+                        invoice_features=invoice_features,
+                        channels=active_channels,
+                        full_path=full_path
+                    )
+                )
+                yield route, amount_msat, final_total_msat, amount_msat, min_cltv_expiry, payment_secret, fwd_trampoline_onion
         except NoPathFound:
             if not invoice_features.supports(LnFeatures.BASIC_MPP_OPT):
                 raise
@@ -1532,7 +1533,6 @@ class LNWallet(LNWorker):
 
             for s in split_configurations:
                 self.logger.info(f"trying split configuration: {s[0].values()} rating: {s[1]}")
-                routes = []
                 try:
                     if not self.channel_db:
                         buckets = defaultdict(list)
@@ -1577,7 +1577,7 @@ class LNWallet(LNWorker):
                                         node_features=trampoline_features)
                                 ]
                                 self.logger.info(f'adding route {part_amount_msat} {delta_fee} {margin}')
-                                routes.append((route, part_amount_msat_with_fees, bucket_amount_with_fees, part_amount_msat, bucket_cltv_delta, bucket_payment_secret, trampoline_onion))
+                                yield route, part_amount_msat_with_fees, bucket_amount_with_fees, part_amount_msat, bucket_cltv_delta, bucket_payment_secret, trampoline_onion
                             if bucket_fees != 0:
                                 self.logger.info('not enough margin to pay trampoline fee')
                                 raise NoPathFound()
@@ -1585,23 +1585,27 @@ class LNWallet(LNWorker):
                         for (chan_id, _), part_amount_msat in s[0].items():
                             if part_amount_msat:
                                 channel = self.channels[chan_id]
-                                route = self.create_route_for_payment(
-                                    amount_msat=part_amount_msat,
-                                    invoice_pubkey=invoice_pubkey,
-                                    min_cltv_expiry=min_cltv_expiry,
-                                    r_tags=r_tags,
-                                    invoice_features=invoice_features,
-                                    channels=[channel],
-                                    full_path=None)
-                                routes.append((route, part_amount_msat, final_total_msat, part_amount_msat, min_cltv_expiry, payment_secret, fwd_trampoline_onion))
+                                route = await run_in_thread(
+                                    partial(
+                                        self.create_route_for_payment,
+                                        amount_msat=part_amount_msat,
+                                        invoice_pubkey=invoice_pubkey,
+                                        min_cltv_expiry=min_cltv_expiry,
+                                        r_tags=r_tags,
+                                        invoice_features=invoice_features,
+                                        channels=[channel],
+                                        full_path=None
+                                    )
+                                )
+                                yield route, part_amount_msat, final_total_msat, part_amount_msat, min_cltv_expiry, payment_secret, fwd_trampoline_onion
                     self.logger.info(f"found acceptable split configuration: {list(s[0].values())} rating: {s[1]}")
                     break
                 except NoPathFound:
                     continue
             else:
                 raise NoPathFound()
-        return routes
 
+    @profiler
     def create_route_for_payment(
             self, *,
             amount_msat: int,
@@ -1610,7 +1614,7 @@ class LNWallet(LNWorker):
             r_tags,
             invoice_features: int,
             channels: List[Channel],
-            full_path: Optional[LNPaymentPath]) -> Tuple[LNPaymentRoute, int]:
+            full_path: Optional[LNPaymentPath]) -> LNPaymentRoute:
 
         scid_to_my_channels = {
             chan.short_channel_id: chan for chan in channels
