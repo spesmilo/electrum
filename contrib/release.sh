@@ -111,7 +111,7 @@ target2=Electrum-$VERSION.0-arm64-v8a-release.apk
 if test -f dist/$target1; then
     echo "file exists: $target1"
 else
-    sudo docker build -t electrum-android-builder-img contrib/android
+    ./contrib/android/build_docker_image.sh
     FRESH_CLONE=contrib/android/fresh_clone && \
         sudo rm -rf $FRESH_CLONE && \
         umask 0022 && \
