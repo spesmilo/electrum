@@ -28,12 +28,18 @@ def node(character: str) -> bytes:
 
 class Test_LNRouter(TestCaseForTestnet):
 
+    cdb = None
+
     def setUp(self):
         super().setUp()
         self.asyncio_loop, self._stop_loop, self._loop_thread = create_and_start_event_loop()
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
 
     def tearDown(self):
+        # if the test called prepare_graph(), channeldb needs to be cleaned up
+        if self.cdb:
+            self.cdb.stop()
+            asyncio.run_coroutine_threadsafe(self.cdb.stopped_event.wait(), self.asyncio_loop).result()
         self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
         self._loop_thread.join(timeout=1)
         super().tearDown()
@@ -151,9 +157,6 @@ class Test_LNRouter(TestCaseForTestnet):
         self.assertEqual(node('b'), route[0].node_id)
         self.assertEqual(channel(3), route[0].short_channel_id)
 
-        self.cdb.stop()
-        asyncio.run_coroutine_threadsafe(self.cdb.stopped_event.wait(), self.asyncio_loop).result()
-
     def test_find_path_liquidity_hints(self):
         self.prepare_graph()
         amount_to_send = 100000
@@ -248,9 +251,6 @@ class Test_LNRouter(TestCaseForTestnet):
             invoice_amount_msat=amount_to_send)
         self.assertEqual(channel(3), path[0].short_channel_id)
         self.assertEqual(channel(2), path[1].short_channel_id)
-
-        self.cdb.stop()
-        asyncio.run_coroutine_threadsafe(self.cdb.stopped_event.wait(), self.asyncio_loop).result()
 
     def test_liquidity_hints(self):
         liquidity_hints = LiquidityHintMgr()

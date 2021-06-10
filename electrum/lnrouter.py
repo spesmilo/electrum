@@ -275,7 +275,7 @@ class LiquidityHint:
         else:
             self.cannot_send_backward = amount
 
-    def inflight_htlcs(self, is_forward_direction: bool):
+    def num_inflight_htlcs(self, is_forward_direction: bool) -> int:
         if is_forward_direction:
             return self._inflight_htlcs_forward
         else:
@@ -365,18 +365,18 @@ class LiquidityHintMgr:
         # we only evaluate hints here, so use dict get (to not create many hints with self.get_hint)
         hint = self._liquidity_hints.get(channel_id)
         if not hint:
-            can_send, cannot_send, inflight_htlcs = None, None, 0
+            can_send, cannot_send, num_inflight_htlcs = None, None, 0
         else:
             can_send = hint.can_send(node_from < node_to)
             cannot_send = hint.cannot_send(node_from < node_to)
-            inflight_htlcs = hint.inflight_htlcs(node_from < node_to)
+            num_inflight_htlcs = hint.num_inflight_htlcs(node_from < node_to)
 
         if cannot_send is not None and amount >= cannot_send:
             return inf
         if can_send is not None and amount <= can_send:
             return 0
         success_fee = fee_for_edge_msat(amount, DEFAULT_PENALTY_BASE_MSAT, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH)
-        inflight_htlc_fee = inflight_htlcs * success_fee
+        inflight_htlc_fee = num_inflight_htlcs * success_fee
         return success_fee + inflight_htlc_fee
 
     @with_lock
@@ -434,8 +434,8 @@ class LNPathFinder(Logger):
                 self.liquidity_hints.update_cannot_send(r.start_node, r.end_node, r.short_channel_id, amount_msat)
                 break
 
-    def update_htlcs_liquidity_hints(self, route: LNPaymentRoute, add_htlcs: bool):
-        self.logger.info(f"{'Adding' if add_htlcs else 'Removing'} htlcs in liquidity hints.")
+    def update_inflight_htlcs(self, route: LNPaymentRoute, add_htlcs: bool):
+        self.logger.info(f"{'Adding' if add_htlcs else 'Removing'} inflight htlcs to graph (liquidity hints).")
         for r in route:
             if add_htlcs:
                 self.liquidity_hints.add_htlc(r.start_node, r.end_node, r.short_channel_id)

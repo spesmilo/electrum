@@ -1203,7 +1203,7 @@ class LNWallet(LNWorker):
                     # as we assume to not know the capacity
                     self.network.path_finder.update_liquidity_hints(htlc_log.route, htlc_log.amount_msat)
                     # remove inflight htlcs from liquidity hints
-                    self.network.path_finder.update_htlcs_liquidity_hints(htlc_log.route, add_htlcs=False)
+                    self.network.path_finder.update_inflight_htlcs(htlc_log.route, add_htlcs=False)
                 return
             # htlc failed
             if len(log) >= attempts:
@@ -1270,8 +1270,9 @@ class LNWallet(LNWorker):
             amount_sent, amount_failed = self.sent_buckets[payment_secret]
             amount_sent += amount_receiver_msat
             self.sent_buckets[payment_secret] = amount_sent, amount_failed
-        # add inflight htlcs to liquidity hints
-        self.network.path_finder.update_htlcs_liquidity_hints(route, add_htlcs=True)
+        if self.network.path_finder:
+            # add inflight htlcs to liquidity hints
+            self.network.path_finder.update_inflight_htlcs(route, add_htlcs=True)
         util.trigger_callback('htlc_added', chan, htlc, SENT)
 
     def handle_error_code_from_failed_htlc(
@@ -1281,6 +1282,13 @@ class LNWallet(LNWorker):
             sender_idx: int,
             failure_msg: OnionRoutingFailure,
             amount: int) -> None:
+
+        assert self.channel_db  # cannot be in trampoline mode
+        assert self.network.path_finder
+
+        # remove inflight htlcs from liquidity hints
+        self.network.path_finder.update_inflight_htlcs(route, add_htlcs=False)
+
         code, data = failure_msg.code, failure_msg.data
         # TODO can we use lnmsg.OnionWireSerializer here?
         # TODO update onion_wire.csv
@@ -1337,8 +1345,6 @@ class LNWallet(LNWorker):
         # for errors that do not include a channel update
         else:
             self.network.path_finder.liquidity_hints.add_to_blacklist(fallback_channel)
-        # remove inflight htlcs from liquidity hints
-        self.network.path_finder.update_htlcs_liquidity_hints(route, add_htlcs=False)
 
     def _handle_chanupd_from_failed_htlc(self, payload, *, route, sender_idx) -> Tuple[bool, bool]:
         blacklist = False
