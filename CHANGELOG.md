@@ -1,5 +1,15 @@
 # Changelog
 
+## [5.0.1](https://github.com/electric-cash/elcash-wallet/compare/v5.0.0...v5.0.1) (2021-06-10)
+
+
+### Bug Fixes
+
+* Fixed dynamic fee initialization ([#45](https://github.com/electric-cash/elcash-wallet/issues/45)) ([7041129](https://github.com/electric-cash/elcash-wallet/commit/70411293eea91902cec25ccec06813b97224eacf))
+* **transaction details:** Align QR code ([#42](https://github.com/electric-cash/elcash-wallet/issues/42)) ([7861fca](https://github.com/electric-cash/elcash-wallet/commit/7861fcaa2552b044892b55a28b3dc83f5a70e024))
+* Fixed overlay in amount field ([#26](https://github.com/electric-cash/elcash-wallet/issues/26)) ([3a7bfa8](https://github.com/electric-cash/elcash-wallet/commit/3a7bfa80d31227779f279dbbd9d6892efd6a65a8))
+* Updated apt dependencies ([#27](https://github.com/electric-cash/elcash-wallet/issues/27)) ([48c1719](https://github.com/electric-cash/elcash-wallet/commit/48c17199fb6914bc53e389eff56e5bea0fb5dd49))
+
 # [5.0.0](https://github.com/electric-cash/elcash-wallet/compare/v4.0.16...v5.0.0) (2021-02-02)
 
 
