@@ -301,8 +301,9 @@ class SendDialog : TaskLauncherDialog<Unit>() {
      * Fill in the Send dialog with data from a loaded transaction.
      */
     fun setLoadedTransaction(tx: PyObject) {
-        dialog.setTitle(R.string.sign_the)
+        dialog.setTitle(R.string.sign_transaction)
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setText(R.string.sign)
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setEnabled(false)
         btnContacts.setImageResource(R.drawable.ic_check_24dp)
 
         btnContacts.isEnabled = false
