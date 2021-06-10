@@ -51,7 +51,7 @@ from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKey
                      funding_output_script, SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, make_commitment_outputs,
                      ScriptHtlc, PaymentFailure, calc_fees_for_commitment_tx, RemoteMisbehaving, make_htlc_output_witness_script,
                      ShortChannelID, map_htlcs_to_ctx_output_idxs, LNPeerAddr,
-                     LN_MAX_HTLC_VALUE_MSAT, fee_for_htlc_output, offered_htlc_trim_threshold_sat,
+                     fee_for_htlc_output, offered_htlc_trim_threshold_sat,
                      received_htlc_trim_threshold_sat, make_commitment_output_to_remote_address)
 from .lnsweep import create_sweeptxs_for_our_ctx, create_sweeptxs_for_their_ctx
 from .lnsweep import create_sweeptx_for_their_revoked_htlc, SweepInfo
@@ -564,7 +564,6 @@ class Channel(AbstractChannel):
         self.revocation_store = RevocationStore(state["revocation_store"])
         self._can_send_ctx_updates = True  # type: bool
         self._receive_fail_reasons = {}  # type: Dict[int, (bytes, OnionRoutingFailure)]
-        self._ignore_max_htlc_value = False  # used in tests
         self.should_request_force_close = False
         self.unconfirmed_closing_txid = None # not a state, only for GUI
 
@@ -815,8 +814,6 @@ class Channel(AbstractChannel):
                 raise PaymentFailure("HTLC value must be positive")
             if amount_msat < chan_config.htlc_minimum_msat:
                 raise PaymentFailure(f'HTLC value too small: {amount_msat} msat')
-        if amount_msat > LN_MAX_HTLC_VALUE_MSAT and not self._ignore_max_htlc_value:
-            raise PaymentFailure(f"HTLC value over protocol maximum: {amount_msat} > {LN_MAX_HTLC_VALUE_MSAT} msat")
 
         # check proposer can afford htlc
         max_can_send_msat = self.available_to_spend(htlc_proposer, strict=strict)
