@@ -19,10 +19,6 @@ bin/
 electrum_data
 .DS_Store
 
-# icons
-electrum/gui/kivy/theming/atlas/*.png
-electrum/gui/kivy/theming/atlas/*.atlas
-
 # tests/tox
 .tox/
 .cache/

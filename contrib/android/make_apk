@@ -3,25 +3,42 @@
 set -e
 
 CONTRIB_ANDROID="$(dirname "$(readlink -e "$0")")"
-ROOT_FOLDER="$CONTRIB_ANDROID"/../..
-PACKAGES="$ROOT_FOLDER"/packages/
-LOCALE="$ROOT_FOLDER"/electrum/locale/
+CONTRIB="$CONTRIB_ANDROID"/..
+PROJECT_ROOT="$CONTRIB"/..
+PACKAGES="$PROJECT_ROOT"/packages/
+LOCALE="$PROJECT_ROOT"/electrum/locale/
 
-if [ ! -d "$LOCALE" ]; then
-  echo "Run pull_locale first!"
-  exit 1
-fi
+. "$CONTRIB"/build_tools_util.sh
 
 if [ ! -d "$PACKAGES" ]; then
-  echo "Run make_packages first!"
-  exit 1
+  "$CONTRIB"/make_packages || fail "make_packages failed"
 fi
 
-pushd ./contrib/android
+pushd "$PROJECT_ROOT"
+git submodule update --init
+popd
 
-make theming
+# update locale
+info "preparing electrum-locale."
+(
+    cd "$CONTRIB"/deterministic-build/electrum-locale
+    if ! which msgfmt > /dev/null 2>&1; then
+        fail "Please install gettext"
+    fi
+    # we want the binary to have only compiled (.mo) locale files; not source (.po) files
+    rm -rf "$PROJECT_ROOT/electrum/locale/"
+    for i in ./locale/*; do
+        dir="$PROJECT_ROOT/electrum/$i/LC_MESSAGES"
+        mkdir -p $dir
+        msgfmt --output-file="$dir/electrum.mo" "$i/electrum.po" || true
+    done
+)
 
+pushd "$CONTRIB_ANDROID"
+
+info "apk building phase starts."
 if [[ -n "$1"  && "$1" == "release" ]] ; then
+    # do release build, and sign the APKs.
     echo -n Keystore Password:
     read -s password
     export P4A_RELEASE_KEYSTORE=~/.keystore
@@ -33,7 +50,15 @@ if [[ -n "$1"  && "$1" == "release" ]] ; then
     make release
     export APP_ANDROID_ARCH=arm64-v8a
     make release
+elif [[ -n "$1"  && "$1" == "release-unsigned" ]] ; then
+    # do release build, but do not sign the APKs.
+    # build two apks
+    export APP_ANDROID_ARCH=armeabi-v7a
+    make release
+    export APP_ANDROID_ARCH=arm64-v8a
+    make release
 else
+    # do debug build; the default.
     export P4A_DEBUG_KEYSTORE="$CONTRIB_ANDROID"/android_debug.keystore
     export P4A_DEBUG_KEYSTORE_PASSWD=unsafepassword
     export P4A_DEBUG_KEYALIAS_PASSWD=unsafepassword
