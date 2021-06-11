@@ -40,7 +40,6 @@ COMMITMENT_TX_WEIGHT = 724
 HTLC_OUTPUT_WEIGHT = 172
 
 LN_MAX_FUNDING_SAT = pow(2, 24) - 1
-LN_MAX_HTLC_VALUE_MSAT = pow(2, 32) - 1
 
 # dummy address for fee estimation of funding tx
 def ln_dummy_address():

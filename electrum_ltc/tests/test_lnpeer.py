@@ -192,6 +192,20 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
             self.channel_db.stop()
             await self.channel_db.stopped_event.wait()
 
+    async def create_routes_from_invoice(self, amount_msat: int, decoded_invoice: LnAddr, *, full_path=None):
+        return [r async for r in self.create_routes_for_payment(
+            amount_msat=amount_msat,
+            final_total_msat=amount_msat,
+            invoice_pubkey=decoded_invoice.pubkey.serialize(),
+            min_cltv_expiry=decoded_invoice.get_min_final_cltv_expiry(),
+            r_tags=decoded_invoice.get_routing_info('r'),
+            invoice_features=decoded_invoice.get_features(),
+            trampoline_fee_level=0,
+            use_two_trampolines=False,
+            payment_hash=decoded_invoice.paymenthash,
+            payment_secret=decoded_invoice.payment_secret,
+            full_path=full_path)]
+
     get_payments = LNWallet.get_payments
     get_payment_info = LNWallet.get_payment_info
     save_payment_info = LNWallet.save_payment_info
@@ -206,7 +220,6 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     get_preimage = LNWallet.get_preimage
     create_route_for_payment = LNWallet.create_route_for_payment
     create_routes_for_payment = LNWallet.create_routes_for_payment
-    create_routes_from_invoice = LNWallet.create_routes_from_invoice
     _check_invoice = staticmethod(LNWallet._check_invoice)
     pay_to_route = LNWallet.pay_to_route
     pay_to_node = LNWallet.pay_to_node
@@ -598,7 +611,7 @@ class TestPeer(TestCaseForTestnet):
             q2 = w2.sent_htlcs[lnaddr1.paymenthash]
             # alice sends htlc BUT NOT COMMITMENT_SIGNED
             p1.maybe_send_commitment = lambda x: None
-            route1 = w1.create_routes_from_invoice(lnaddr2.get_amount_msat(), decoded_invoice=lnaddr2)[0][0]
+            route1 = (await w1.create_routes_from_invoice(lnaddr2.get_amount_msat(), decoded_invoice=lnaddr2))[0][0]
             amount_msat = lnaddr2.get_amount_msat()
             await w1.pay_to_route(
                 route=route1,
@@ -612,7 +625,7 @@ class TestPeer(TestCaseForTestnet):
             p1.maybe_send_commitment = _maybe_send_commitment1
             # bob sends htlc BUT NOT COMMITMENT_SIGNED
             p2.maybe_send_commitment = lambda x: None
-            route2 = w2.create_routes_from_invoice(lnaddr1.get_amount_msat(), decoded_invoice=lnaddr1)[0][0]
+            route2 = (await w2.create_routes_from_invoice(lnaddr1.get_amount_msat(), decoded_invoice=lnaddr1))[0][0]
             amount_msat = lnaddr1.get_amount_msat()
             await w2.pay_to_route(
                 route=route2,
@@ -982,14 +995,14 @@ class TestPeer(TestCaseForTestnet):
             await asyncio.wait_for(p1.initialized, 1)
             await asyncio.wait_for(p2.initialized, 1)
             # alice sends htlc
-            route, amount_msat = w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr)[0][0:2]
-            htlc = p1.pay(route=route,
-                          chan=alice_channel,
-                          amount_msat=lnaddr.get_amount_msat(),
-                          total_msat=lnaddr.get_amount_msat(),
-                          payment_hash=lnaddr.paymenthash,
-                          min_final_cltv_expiry=lnaddr.get_min_final_cltv_expiry(),
-                          payment_secret=lnaddr.payment_secret)
+            route, amount_msat = (await w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr))[0][0:2]
+            p1.pay(route=route,
+                   chan=alice_channel,
+                   amount_msat=lnaddr.get_amount_msat(),
+                   total_msat=lnaddr.get_amount_msat(),
+                   payment_hash=lnaddr.paymenthash,
+                   min_final_cltv_expiry=lnaddr.get_min_final_cltv_expiry(),
+                   payment_secret=lnaddr.payment_secret)
             # alice closes
             await p1.close_channel(alice_channel.channel_id)
             gath.cancel()
@@ -1078,7 +1091,7 @@ class TestPeer(TestCaseForTestnet):
         lnaddr, pay_req = run(self.prepare_invoice(w2))
 
         lnaddr = w1._check_invoice(pay_req)
-        route, amount_msat = w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr)[0][0:2]
+        route, amount_msat = run(w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr))[0][0:2]
         assert amount_msat == lnaddr.get_amount_msat()
 
         run(w1.force_close_channel(alice_channel.channel_id))
@@ -1086,7 +1099,7 @@ class TestPeer(TestCaseForTestnet):
         assert q1.qsize() == 1
 
         with self.assertRaises(NoPathFound) as e:
-            w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr)
+            run(w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr))
 
         peer = w1.peers[route[0].node_id]
         # AssertionError is ok since we shouldn't use old routes, and the

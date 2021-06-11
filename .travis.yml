@@ -70,9 +70,7 @@ jobs:
       services:
         - docker
       install:
-        - pip install requests && ./contrib/pull_locale
-        - ./contrib/make_packages
-        - sudo docker build --no-cache -t electrum-android-builder-img contrib/android
+        - ./contrib/android/build_docker_image.sh
       script:
         - sudo chown -R 1000:1000 .
         # Output something every minute or Travis kills the job

@@ -7,3 +7,6 @@
 [submodule "electrum_ltc/www"]
 	path = electrum_ltc/www
 	url = https://github.com/pooler/electrum-ltc-http.git
+[submodule "electrum_ltc/gui/kivy/theming/atlas"]
+	path = electrum_ltc/gui/kivy/theming/atlas
+	url = https://github.com/spesmilo/electrum-kivy-atlas
