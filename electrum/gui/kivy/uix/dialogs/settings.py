@@ -24,6 +24,7 @@ Builder.load_string('''
     title: _('Electrum Settings')
     has_pin_code: False
     use_encryption: False
+    enable_toggle_use_recoverable_channels: False
     BoxLayout:
         orientation: 'vertical'
         ScrollView:
@@ -83,7 +84,8 @@ Builder.load_string('''
                     action: root.change_password
                 CardSeparator
                 SettingsItem:
-                    status: _('Yes') if app.use_recoverable_channels else _('No')
+                    disabled: not root.enable_toggle_use_recoverable_channels
+                    status: _('Yes') if (app.use_recoverable_channels and not self.disabled) else _('No')
                     title: _('Create recoverable channels') + ': ' + self.status
                     description: _("Add channel recovery data to funding transaction.")
                     message: _(messages.MSG_RECOVERABLE_CHANNELS)
@@ -128,6 +130,7 @@ class SettingsDialog(Factory.Popup):
         self.wallet = self.app.wallet
         self.use_encryption = self.wallet.has_password() if self.wallet else False
         self.has_pin_code = self.app.has_pin_code()
+        self.enable_toggle_use_recoverable_channels = self.wallet.lnworker and self.wallet.lnworker.has_deterministic_node_id()
 
     def get_language_name(self):
         return languages.get(self.config.get('language', 'en_UK'), '')
