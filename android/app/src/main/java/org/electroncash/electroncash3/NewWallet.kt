@@ -259,16 +259,18 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
                     getString(R.string.Add_cosigner) + " " +
                     getString(R.string.__d_of, nextCosigner, numCosigners))
             } else { // last cosigner done; finalize wallet
-                closeDialogs(targetFragment!!)
-                daemonModel.commands.callAttr("select_wallet", result)
-                (activity as MainActivity).updateDrawer()
+                selectWallet(targetFragment!!, result)
             }
         } else {
             // In a standard wallet, close the dialogs and open the newly created wallet.
-            closeDialogs(targetFragment!!)
-            daemonModel.commands.callAttr("select_wallet", result)
-            (activity as MainActivity).updateDrawer()
+            selectWallet(targetFragment!!, result)
         }
+    }
+
+    private fun selectWallet(targetFragment: Fragment, name: String) {
+        closeDialogs(targetFragment)
+        daemonModel.commands.callAttr("select_wallet", name)
+        (activity as MainActivity).updateDrawer()
     }
 }
 
@@ -484,8 +486,8 @@ class CosignerDialog : AlertDialogFragment() {
         }
 
         with (sbSignatures) {
-            progress = numCosigners
-            max = SIGNATURE_OFFSET
+            progress = numCosigners - SIGNATURE_OFFSET
+            max = numCosigners - SIGNATURE_OFFSET
         }
     }
 
@@ -541,7 +543,7 @@ class CosignerDialog : AlertDialogFragment() {
     private fun updateUi() {
         tvCosigners.text = getString(R.string.from_cosigners, numCosigners)
         tvSignatures.text = getString(R.string.require_signatures, numSignatures)
-        sbSignatures.max = numCosigners - 1
+        sbSignatures.max = numCosigners - SIGNATURE_OFFSET
     }
 }
 
