@@ -122,6 +122,8 @@ class SettingsDialog(Factory.Popup):
         self._unit_dialog = None
         self._coinselect_dialog = None
 
+        self.update()
+
     def update(self):
         self.wallet = self.app.wallet
         self.use_encryption = self.wallet.has_password() if self.wallet else False
