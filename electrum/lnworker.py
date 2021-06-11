@@ -63,7 +63,6 @@ from .lnutil import (Outpoint, LNPeerAddr,
                      HtlcLog, derive_payment_secret_from_payment_preimage,
                      NoPathFound, InvalidGossipMsg)
 from .lnutil import ln_dummy_address, ln_compare_features, IncompatibleLightningFeatures
-from .lnrouter import TrampolineEdge
 from .transaction import PartialTxOutput, PartialTransaction, PartialTxInput
 from .lnonion import OnionFailureCode, OnionRoutingFailure
 from .lnmsg import decode_msg
