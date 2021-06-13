@@ -564,7 +564,7 @@ class MasterPublicKeyDialog : AlertDialogFragment() {
         super.onViewCreated(view, savedInstanceState)
 
         fabCopyMasterKey.setOnClickListener {
-            copyToClipboard(walletMasterKey.text, R.string.Master_public)
+            copyToClipboard(walletMasterKey.text, R.string.Master_public_key)
         }
     }
 

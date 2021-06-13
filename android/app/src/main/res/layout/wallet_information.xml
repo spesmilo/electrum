@@ -113,6 +113,13 @@
                 app:layout_constraintTop_toBottomOf="@+id/idScriptType"
                 tools:text="@string/here_is" />
 
+            <RadioGroup
+                android:id="@+id/rgCosigners"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/tvMasterPublicKey" />
+
             <EditText
                 android:id="@+id/walletMasterKey"
                 android:layout_width="0dp"
@@ -123,7 +130,7 @@
                 android:inputType="textMultiLine"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@+id/tvMasterPublicKey" />
+                app:layout_constraintTop_toBottomOf="@+id/rgCosigners" />
 
             <androidx.constraintlayout.widget.Barrier
                 android:id="@+id/idBarrier2"

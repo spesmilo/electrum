@@ -17,6 +17,7 @@ import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.widget.RadioButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -33,7 +34,6 @@ import kotlinx.android.synthetic.main.wallet_information.*
 import kotlinx.android.synthetic.main.wallet_open.*
 import kotlinx.android.synthetic.main.wallet_rename.*
 import java.io.File
-import java.lang.NullPointerException
 import kotlin.reflect.KClass
 
 
@@ -234,7 +234,8 @@ class MainActivity : AppCompatActivity(R.layout.main) {
             }
             R.id.menuChangePassword -> showDialog(this, PasswordChangeDialog())
             R.id.menuShowSeed -> { showDialog(this, SeedPasswordDialog()) }
-            R.id.menuWalletInformation -> { showDialog(this, WalletInformationDialog()) }
+            R.id.menuWalletInformation -> { showDialog(this,
+                WalletInformationDialog().apply { arguments = Bundle() }) }
             R.id.menuExportSigned -> {
                 try {
                     showDialog(this, SendDialog().apply {
@@ -681,27 +682,60 @@ class WalletInformationDialog : AlertDialogFragment() {
 
         fabCopyMasterKey2.setOnClickListener {
             val textToCopy = walletMasterKey.text
-            copyToClipboard(textToCopy, R.string.Master_public)
+            copyToClipboard(textToCopy, R.string.Master_public_key)
         }
     }
 
     override fun onShowDialog() {
         super.onShowDialog()
 
-        // Imported wallets do not have a master public key.
-        val masterKey = daemonModel.commands.callAttr("getmpk")?.toString()
-        if (masterKey != null) {
-            walletMasterKey.setText(masterKey)
+        displayMasterPublicKeys()
+        idWalletName.setText(daemonModel.walletName)
+        idWalletType.setText(daemonModel.walletType)
+        idScriptType.setText(daemonModel.scriptType)
+    }
+
+    private fun displayMasterPublicKeys() {
+        val mpks = daemonModel.wallet!!.callAttr("get_master_public_keys")?.asList()
+
+        if (mpks != null && mpks.size != 0) {
             walletMasterKey.setFocusable(false)
+            // For multisig wallets, display a radio group with selectable cosigners.
+            if (mpks.size > 1) {
+                rgCosigners.setVisibility(View.VISIBLE)
+                tvMasterPublicKey.setText(R.string.Master_public_keys)
+
+                for ((i, mpk) in mpks.withIndex()) {
+                    val rb = RadioButton(dialog.context)
+                    rb.setText(getString(R.string.cosigner__d, i + 1))
+                    rb.setOnClickListener {
+                        walletMasterKey.setText(mpk.toString())
+                        arguments?.putInt("selected", i)
+                    }
+                    rgCosigners.addView(rb)
+                    // Set the first cosigner as selected.
+                    if (arguments?.getInt("selected") == null && i == 0) {
+                        walletMasterKey.setText(mpk.toString())
+                        rgCosigners.check(rb.id)
+                    }
+                }
+
+                // Preserve the selected cosigner across rotations
+                val selected = arguments?.getInt("selected")
+                if (selected != null) {
+                    rgCosigners.getChildAt(selected).performClick()
+                }
+            } else {
+                // For a single wallet, display the single master public key.
+                walletMasterKey.setText(mpks[0].toString())
+                rgCosigners.setVisibility(View.GONE)
+            }
         } else {
+            // Imported wallets do not have a master public key.
             tvMasterPublicKey.setVisibility(View.GONE)
             walletMasterKey.setVisibility(View.GONE)
             // Using View.INVISIBLE on the 'Copy' button to preserve layout.
             (fabCopyMasterKey2 as View).setVisibility(View.INVISIBLE)
         }
-
-        idWalletName.setText(daemonModel.walletName)
-        idWalletType.setText(daemonModel.walletType)
-        idScriptType.setText(daemonModel.scriptType)
     }
 }
