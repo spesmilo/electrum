@@ -129,8 +129,7 @@ class KeystoreDialog : AlertDialogFragment() {
 
         /* Handle dialog title for cosigners */
         if (keystores != null) {
-            dialog.setTitle(getString(R.string.Add_cosigner) + " " +
-                getString(R.string.__d_of, keystores.size + 1, numOfCosigners))
+            setMultsigTitle(keystores.size + 1, numOfCosigners)
         }
 
         val keystoreMenu: Int
@@ -148,26 +147,32 @@ class KeystoreDialog : AlertDialogFragment() {
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             try {
                 val nextDialog: DialogFragment
+                val nextArguments = Bundle(arguments)
                 val keystoreType = spnType.selectedItemId.toInt()
                 if (keystoreType in listOf(R.id.menuCreateSeed, R.id.menuRestoreSeed)) {
                     nextDialog = NewWalletSeedDialog()
                     val seed = if (keystoreType == R.id.menuCreateSeed)
                         daemonModel.commands.callAttr("make_seed").toString()
                     else null
-                    arguments!!.putString("seed", seed)
+                    nextArguments.putString("seed", seed)
                 } else if (keystoreType in listOf(R.id.menuImportMaster)) {
                     nextDialog = NewWalletImportMasterDialog()
                 } else {
                     throw Exception("Unknown item: ${spnType.selectedItem}")
                 }
-                nextDialog.setArguments(arguments)
+                nextDialog.setArguments(nextArguments)
                 showDialog(this, nextDialog)
             } catch (e: ToastException) { e.show() }
         }
     }
+
+    fun setMultsigTitle(m: Int, n: Int) {
+        dialog.setTitle(getString(R.string.Add_cosigner) + " " +
+            getString(R.string.__d_of, m, n))
+    }
 }
 
-abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
+abstract class NewWalletDialog2 : TaskLauncherDialog<PyObject?>() {
     var input: String by notNull()
 
     override fun onBuildDialog(builder: AlertDialog.Builder) {
@@ -190,19 +195,10 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
         input = etInput.text.toString()
     }
 
-    override fun doInBackground(): String {
+    override fun doInBackground(): PyObject? {
         val name = arguments!!.getString("name")!!
         val password = arguments!!.getString("password")!!
-
-        /**
-         * Handle the resulting keystore.
-         */
         val ks = onCreateWallet(name, password)
-        if (ks != null) {
-            val masterKey = ks.callAttr("get", "xpub").toString()
-            arguments!!.putString("masterKey", masterKey)
-            arguments!!.putStringArrayList("keystores", updateKeystores(arguments!!, ks))
-        }
 
         /**
          * For multisig wallets, wait until all cosigners have been added,
@@ -210,7 +206,7 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
          *
          * Otherwise, load the created wallet.
          */
-        val keystores = arguments!!.getStringArrayList("keystores")
+        val keystores = updatedKeystores(arguments!!, ks)
         if (keystores != null) {
             val numCosigners = arguments!!.getInt("cosigners")
             val numSignatures = arguments!!.getInt("signatures")
@@ -228,13 +224,14 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
             daemonModel.loadWallet(name, password)
         }
 
-        return name
+        return ks
     }
 
     abstract fun onCreateWallet(name: String, password: String): PyObject?
 
-    override fun onPostExecute(result: String) {
-        val keystores = arguments!!.getStringArrayList("keystores")
+    override fun onPostExecute(result: PyObject?) {
+        val keystores =  updatedKeystores(arguments!!, result)
+        val name = arguments!!.getString("name")
 
         /**
          * For multisig wallets, we need to first show the master key to the 1st cosigner, and
@@ -245,29 +242,35 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<String>() {
             val numCosigners = arguments!!.getInt("cosigners")
 
             if (currentCosigner < numCosigners) {
+                val nextArguments = Bundle(arguments)
                 // The first cosigner sees their master public key; others are prompted for data
                 if (currentCosigner == 1) {
                     (targetFragment as DialogFragment).dismiss()
                     val nextDialog: DialogFragment = MasterPublicKeyDialog()
-                    nextDialog.setArguments(arguments)
+                    nextDialog.setArguments(nextArguments.apply {
+                        val masterKey = result!!.callAttr("get", "xpub").toString()
+                        putString("masterKey", masterKey)
+                    })
                     showDialog(this, nextDialog)
                 }
 
-                // Update dialog title for the next cosigner
+                // Update dialog title and arguments for the next cosigner
                 val nextCosigner = currentCosigner + 1
-                (targetFragment as KeystoreDialog).dialog.setTitle(
-                    getString(R.string.Add_cosigner) + " " +
-                    getString(R.string.__d_of, nextCosigner, numCosigners))
+                val keystoreDialog = (targetFragment as KeystoreDialog)
+                keystoreDialog.setArguments(nextArguments.apply {
+                    putStringArrayList("keystores", keystores)
+                })
+                keystoreDialog.setMultsigTitle(nextCosigner, numCosigners)
             } else { // last cosigner done; finalize wallet
-                selectWallet(targetFragment!!, result)
+                selectWallet(targetFragment!!, name)
             }
         } else {
             // In a standard wallet, close the dialogs and open the newly created wallet.
-            selectWallet(targetFragment!!, result)
+            selectWallet(targetFragment!!, name)
         }
     }
 
-    private fun selectWallet(targetFragment: Fragment, name: String) {
+    private fun selectWallet(targetFragment: Fragment, name: String?) {
         closeDialogs(targetFragment)
         daemonModel.commands.callAttr("select_wallet", name)
         (activity as MainActivity).updateDrawer()
@@ -524,15 +527,15 @@ class CosignerDialog : AlertDialogFragment() {
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             try {
                 val nextDialog: DialogFragment = KeystoreDialog()
-
-                arguments!!.putInt("cosigners", numCosigners)
-                arguments!!.putInt("signatures", numSignatures)
+                val nextArguments = Bundle(arguments)
+                nextArguments.putInt("cosigners", numCosigners)
+                nextArguments.putInt("signatures", numSignatures)
                 // The "keystores" argument contains keystore data for multiple cosigners
                 // in multisig wallets. It is used throughout the file to check if dealing
                 // with a multisig wallet and to get relevant cosigner data.
-                arguments!!.putStringArrayList("keystores", ArrayList<String>())
+                nextArguments.putStringArrayList("keystores", ArrayList<String>())
 
-                nextDialog.setArguments(arguments)
+                nextDialog.setArguments(nextArguments)
                 showDialog(this, nextDialog)
             } catch (e: ToastException) {
                 e.show()
@@ -574,8 +577,9 @@ class MasterPublicKeyDialog : AlertDialogFragment() {
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             try {
                 val nextDialog: DialogFragment = KeystoreDialog()
+                val nextArguments = Bundle(arguments)
 
-                nextDialog.setArguments(arguments)
+                nextDialog.setArguments(nextArguments)
                 showDialog(this, nextDialog)
             } catch (e: ToastException) {
                 e.show()
@@ -591,10 +595,19 @@ fun seedAdvice(seed: String): String {
 }
 
 /**
- * Update the "keystores" array list for multisig wallets.
+ * Returns the updated "keystores" array list for multisig wallets, used to check whether to
+ * finalize multisig wallet creation (or if it is a multisig wallet at all).
+ * In intermediary steps (adding non-final cosigners), the updated keystores will be stored into
+ * a dialog argument in onPostExecute().
  */
-fun updateKeystores(arguments: Bundle, ks: PyObject): ArrayList<String> {
+fun updatedKeystores(arguments: Bundle, ks: PyObject?): ArrayList<String>? {
     val keystores = arguments.getStringArrayList("keystores")
-    keystores!!.add(ks.toString())
-    return keystores
+    if (keystores != null) {
+        val newKeystores = ArrayList<String>(keystores)
+        if (ks != null) {
+            newKeystores.add(ks.toString())
+        }
+        return newKeystores
+    }
+    return null
 }
