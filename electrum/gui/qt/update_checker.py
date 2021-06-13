@@ -27,7 +27,7 @@ class UpdateCheck(QWidget, Logger):
         "NN5QSSMAdtRU35BffLZUw9vChnhHKKMeuL",
     )
 
-    def __init__(self, main_window, latest_version=None):
+    def __init__(self, *, latest_version=None):
         QDialog.__init__(self)
         self.setWindowTitle('NavCash - ' + _('Update Check'))
         self.content = QVBoxLayout()
