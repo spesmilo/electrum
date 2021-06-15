@@ -237,6 +237,7 @@ class AddressesDialog(Factory.Popup):
     def __init__(self, app: 'ElectrumWindow'):
         Factory.Popup.__init__(self)
         self.app = app
+        self.update()
 
     def get_card(self, addr, balance, is_used, label):
         ci = {}
