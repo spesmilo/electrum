@@ -9,4 +9,4 @@
 	url = https://github.com/Groestlcoin/electrum-http.git
 [submodule "electrum_grs/gui/kivy/theming/atlas"]
 	path = electrum_grs/gui/kivy/theming/atlas
-	url = https://github.com/Groestlcoin/electrum-grs-kivy-atlas
+	url = https://github.com/Groestlcoin/electrum-grs-kivy-atlas.git
