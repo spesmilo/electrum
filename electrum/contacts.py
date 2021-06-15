@@ -41,12 +41,6 @@ class Contacts(dict, Logger):
             self.update(d)
         except:
             return
-        # backward compatibility
-        for k, v in self.items():
-            _type, n = v
-            if _type == 'address' and bitcoin.is_address(n):
-                self.pop(k)
-                self[n] = ('address', k)
 
     def save(self):
         self.db.put('contacts', dict(self))

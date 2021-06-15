@@ -811,6 +811,12 @@ class WalletDB(JsonDB):
             if seed_type is not None:
                 ks['seed_type'] = seed_type
         self.data['seed_version'] = 40
+        # backward compatibility
+        for k, v in self.items():
+            _type, n = v
+            if _type == 'address' and bitcoin.is_address(n):
+                self.pop(k)
+                self[n] = ('address', k)
 
     def _convert_version_41(self):
         # this is a repeat of upgrade 39, to fix wallet backup files (see #7339)
