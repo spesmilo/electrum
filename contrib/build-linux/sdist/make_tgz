@@ -36,9 +36,6 @@ git submodule update --init
 (
     cd "$ROOT_FOLDER"
 
-    # we could build the kivy atlas potentially?
-    #(cd contrib/android/; make theming) || echo "building kivy atlas failed! skipping."
-
     find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
 
     # note: .zip sdists would not be reproducible due to https://bugs.python.org/issue40963

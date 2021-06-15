@@ -120,10 +120,6 @@ def init_cmdline(config_options, wallet_path, server, *, config: 'SimpleConfig')
     cmdname = config.get('cmd')
     cmd = known_commands[cmdname]
 
-    if cmdname == 'signtransaction' and config.get('privkey'):
-        cmd.requires_wallet = False
-        cmd.requires_password = False
-
     if cmdname in ['payto', 'paytomany'] and config.get('unsigned'):
         cmd.requires_password = False
 

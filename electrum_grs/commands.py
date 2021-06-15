@@ -33,6 +33,7 @@ import base64
 import operator
 import asyncio
 import inspect
+from collections import defaultdict
 from functools import wraps, partial
 from itertools import repeat
 from decimal import Decimal
@@ -393,21 +394,35 @@ class Commands:
         tx.sign(keypairs)
         return tx.serialize()
 
-    @command('wp')
-    async def signtransaction(self, tx, privkey=None, password=None, wallet: Abstract_Wallet = None):
-        """Sign a transaction. The wallet keys will be used unless a private key is provided."""
-        # TODO this command should be split in two... (1) *_with_wallet, (2) *_with_privkey
+    @command('')
+    async def signtransaction_with_privkey(self, tx, privkey):
+        """Sign a transaction. The provided list of private keys will be used to sign the transaction."""
         tx = tx_from_any(tx)
-        if privkey:
-            txin_type, privkey2, compressed = bitcoin.deserialize_privkey(privkey)
-            pubkey = ecc.ECPrivkey(privkey2).get_public_key_bytes(compressed=compressed)
-            for txin in tx.inputs():
-                if txin.address and txin.address == bitcoin.pubkey_to_address(txin_type, pubkey.hex()):
+
+        txins_dict = defaultdict(list)
+        for txin in tx.inputs():
+            txins_dict[txin.address].append(txin)
+
+        if not isinstance(privkey, list):
+            privkey = [privkey]
+
+        for priv in privkey:
+            txin_type, priv2, compressed = bitcoin.deserialize_privkey(priv)
+            pubkey = ecc.ECPrivkey(priv2).get_public_key_bytes(compressed=compressed)
+            address = bitcoin.pubkey_to_address(txin_type, pubkey.hex())
+            if address in txins_dict.keys():
+                for txin in txins_dict[address]:
                     txin.pubkeys = [pubkey]
                     txin.script_type = txin_type
-            tx.sign({pubkey.hex(): (privkey2, compressed)})
-        else:
-            wallet.sign_transaction(tx, password)
+                tx.sign({pubkey.hex(): (priv2, compressed)})
+
+        return tx.serialize()
+
+    @command('wp')
+    async def signtransaction(self, tx, password=None, wallet: Abstract_Wallet = None):
+        """Sign a transaction. The wallet keys will be used to sign the transaction."""
+        tx = tx_from_any(tx)
+        wallet.sign_transaction(tx, password)
         return tx.serialize()
 
     @command('')
@@ -1199,7 +1214,7 @@ class Commands:
         else:
             lightning_amount_sat = satoshis(lightning_amount)
             claim_fee = sm.get_claim_fee()
-            onchain_amount_sat = satoshis(onchain_amount + claim_fee)
+            onchain_amount_sat = satoshis(onchain_amount) + claim_fee
             success = await wallet.lnworker.swap_manager.reverse_swap(
                 lightning_amount_sat=lightning_amount_sat,
                 expected_onchain_amount_sat=onchain_amount_sat,

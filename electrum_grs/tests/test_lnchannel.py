@@ -193,9 +193,6 @@ def create_test_channels(*, feerate=6000, local_msat=None, remote_msat=None,
     alice._fallback_sweep_address = bitcoin.pubkey_to_address('p2wpkh', alice.config[LOCAL].payment_basepoint.pubkey.hex())
     bob._fallback_sweep_address = bitcoin.pubkey_to_address('p2wpkh', bob.config[LOCAL].payment_basepoint.pubkey.hex())
 
-    alice._ignore_max_htlc_value = True
-    bob._ignore_max_htlc_value = True
-
     return alice, bob
 
 class TestFee(ElectrumTestCase):
@@ -682,29 +679,6 @@ class TestAvailableToSpend(ElectrumTestCase):
         self.assertEqual(499986152000, alice_channel.available_to_spend(LOCAL))
         self.assertEqual(500000000000, bob_channel.available_to_spend(LOCAL))
         alice_channel.add_htlc(htlc_dict)
-
-    def test_max_htlc_value(self):
-        alice_channel, bob_channel = create_test_channels()
-        paymentPreimage = b"\x01" * 32
-        paymentHash = bitcoin.sha256(paymentPreimage)
-        htlc_dict = {
-            'payment_hash' : paymentHash,
-            'amount_msat' :  one_bitcoin_in_msat * 41 // 10,
-            'cltv_expiry' :  5,
-            'timestamp'   :  0,
-        }
-
-        alice_channel._ignore_max_htlc_value = False
-        bob_channel._ignore_max_htlc_value = False
-        with self.assertRaises(lnutil.PaymentFailure):
-            alice_channel.add_htlc(htlc_dict)
-        with self.assertRaises(lnutil.RemoteMisbehaving):
-            bob_channel.receive_htlc(htlc_dict)
-
-        alice_channel._ignore_max_htlc_value = True
-        bob_channel._ignore_max_htlc_value = True
-        alice_channel.add_htlc(htlc_dict)
-        bob_channel.receive_htlc(htlc_dict)
 
 
 class TestChanReserve(ElectrumTestCase):

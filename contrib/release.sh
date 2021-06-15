@@ -111,8 +111,14 @@ target2=ElectrumGRS-$VERSION.0-arm64-v8a-release.apk
 if test -f dist/$target1; then
     echo "file exists: $target1"
 else
-    ./contrib/make_packages
-    sudo docker build -t electrum-grs-android-builder-img contrib/android
+    ./contrib/android/build_docker_image.sh
+    FRESH_CLONE=contrib/android/fresh_clone && \
+        sudo rm -rf $FRESH_CLONE && \
+        umask 0022 && \
+        mkdir -p $FRESH_CLONE && \
+        cd $FRESH_CLONE  && \
+        git clone https://github.com/groestlcoin/electrum-grs.git && \
+        cd electrum-grs
 
     mkdir --parents $PWD/.buildozer/.gradle
     sudo docker run -it --rm \
