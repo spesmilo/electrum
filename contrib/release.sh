@@ -130,8 +130,8 @@ else
          electrum-android-builder-img \
          ./contrib/android/make_apk release
 
-    cp bin/$target1 dist/
-    cp bin/$target2 dist/
+    cp contrib/android/fresh_clone/electrum/bin/$target1 dist/
+    cp contrib/android/fresh_clone/electrum/bin/$target2 dist/
 
 fi
 
