@@ -19,6 +19,9 @@
         android:title="@string/show_seed"/>
 
     <item
+        android:id="@+id/menuWalletInformation"
+        android:title="@string/Wallet_information" />
+    <item
         android:id="@+id/menuExportSigned"
         android:title="@string/save_transaction"/>
 

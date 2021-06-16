@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/menuImportMaster"
+        android:title="@string/enter_cosigner_key" />
+    <item
+        android:id="@+id/menuRestoreSeed"
+        android:title="@string/enter_cosigner_seed" />
+
+</menu>

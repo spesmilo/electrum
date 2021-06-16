@@ -1,5 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
+import ast
 from code import InteractiveConsole
 import os
 from os.path import dirname, exists, join, split
@@ -11,7 +12,7 @@ from electroncash import commands, daemon, interface, keystore, storage, util
 from electroncash.i18n import _
 from electroncash.storage import WalletStorage
 from electroncash.wallet import (ImportedAddressWallet, ImportedPrivkeyWallet, Standard_Wallet,
-                                 Wallet)
+                                 Wallet, Multisig_Wallet)
 
 
 CALLBACKS = ["banner", "blockchain_updated", "fee", "interfaces", "new_transaction",
@@ -135,7 +136,7 @@ class AndroidCommands(commands.Commands):
         self.daemon.stop_wallet(self._wallet_path(name))
 
     def create(self, name, password, seed=None, passphrase="", bip39_derivation=None,
-               master=None, addresses=None, privkeys=None):
+               master=None, addresses=None, privkeys=None, multisig=False):
         """Create or restore a new wallet"""
         path = self._wallet_path(name)
         if exists(path):
@@ -158,9 +159,31 @@ class AndroidCommands(commands.Commands):
                     print("Your wallet generation seed is:\n\"%s\"" % seed)
                 ks = keystore.from_seed(seed, passphrase)
 
-            storage.put('keystore', ks.dump())
-            wallet = Standard_Wallet(storage)
+            if not multisig:
+                storage.put('keystore', ks.dump())
+                wallet = Standard_Wallet(storage)
+            else:
+                # For multisig wallets, we do not immediately create a wallet storage file.
+                # Instead, we just get the keystore; create_multisig() handles wallet storage
+                # later, once all cosigners are added.
+                return ks.dump()
 
+        wallet.update_password(None, password, encrypt=True)
+
+    def create_multisig(self, name, password, keystores=None, cosigners=None, signatures=None):
+        """Create or restore a new wallet"""
+        path = self._wallet_path(name)
+        if exists(path):
+            raise FileExistsError(path)
+        storage = WalletStorage(path)
+
+        # Multisig wallet type
+        storage.put("wallet_type", "%dof%d" % (signatures, cosigners))
+        for i, k in enumerate(keystores, start=1):
+            storage.put('x%d/' % i, ast.literal_eval(k))
+        storage.write()
+
+        wallet = Multisig_Wallet(storage)
         wallet.update_password(None, password, encrypt=True)
 
     # END commands from the argparse interface.

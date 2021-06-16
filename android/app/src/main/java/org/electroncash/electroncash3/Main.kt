@@ -17,6 +17,7 @@ import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.widget.RadioButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -27,7 +28,9 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.observe
 import com.chaquo.python.Kwarg
 import kotlinx.android.synthetic.main.main.*
+import kotlinx.android.synthetic.main.show_master_key.walletMasterKey
 import kotlinx.android.synthetic.main.wallet_export.*
+import kotlinx.android.synthetic.main.wallet_information.*
 import kotlinx.android.synthetic.main.wallet_open.*
 import kotlinx.android.synthetic.main.wallet_rename.*
 import java.io.File
@@ -231,6 +234,8 @@ class MainActivity : AppCompatActivity(R.layout.main) {
             }
             R.id.menuChangePassword -> showDialog(this, PasswordChangeDialog())
             R.id.menuShowSeed -> { showDialog(this, SeedPasswordDialog()) }
+            R.id.menuWalletInformation -> { showDialog(this,
+                WalletInformationDialog().apply { arguments = Bundle() }) }
             R.id.menuExportSigned -> {
                 try {
                     showDialog(this, SendDialog().apply {
@@ -654,15 +659,83 @@ class SeedPasswordDialog : PasswordDialog<SeedResult>() {
     }
 }
 
-
 class SeedDialog : AlertDialogFragment() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         builder.setTitle(R.string.Wallet_seed)
-            .setView(R.layout.wallet_new_2)
-            .setPositiveButton(android.R.string.ok, null)
+                .setView(R.layout.wallet_new_2)
+                .setPositiveButton(android.R.string.ok, null)
     }
 
     override fun onShowDialog() {
         setupSeedDialog(this)
+    }
+}
+
+class WalletInformationDialog : AlertDialogFragment() {
+    override fun onBuildDialog(builder: AlertDialog.Builder) {
+        builder.setView(R.layout.wallet_information)
+            .setPositiveButton(android.R.string.ok, null)
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        fabCopyMasterKey2.setOnClickListener {
+            val textToCopy = walletMasterKey.text
+            copyToClipboard(textToCopy, R.string.Master_public_key)
+        }
+    }
+
+    override fun onShowDialog() {
+        super.onShowDialog()
+
+        displayMasterPublicKeys()
+        idWalletName.setText(daemonModel.walletName)
+        idWalletType.setText(daemonModel.walletType)
+        idScriptType.setText(daemonModel.scriptType)
+    }
+
+    private fun displayMasterPublicKeys() {
+        val mpks = daemonModel.wallet!!.callAttr("get_master_public_keys")?.asList()
+
+        if (mpks != null && mpks.size != 0) {
+            walletMasterKey.setFocusable(false)
+            // For multisig wallets, display a radio group with selectable cosigners.
+            if (mpks.size > 1) {
+                rgCosigners.setVisibility(View.VISIBLE)
+                tvMasterPublicKey.setText(R.string.Master_public_keys)
+
+                for ((i, mpk) in mpks.withIndex()) {
+                    val rb = RadioButton(dialog.context)
+                    rb.setText(getString(R.string.cosigner__d, i + 1))
+                    rb.setOnClickListener {
+                        walletMasterKey.setText(mpk.toString())
+                        arguments?.putInt("selected", i)
+                    }
+                    rgCosigners.addView(rb)
+                    // Set the first cosigner as selected.
+                    if (arguments?.getInt("selected") == null && i == 0) {
+                        walletMasterKey.setText(mpk.toString())
+                        rgCosigners.check(rb.id)
+                    }
+                }
+
+                // Preserve the selected cosigner across rotations
+                val selected = arguments?.getInt("selected")
+                if (selected != null) {
+                    rgCosigners.getChildAt(selected).performClick()
+                }
+            } else {
+                // For a single wallet, display the single master public key.
+                walletMasterKey.setText(mpks[0].toString())
+                rgCosigners.setVisibility(View.GONE)
+            }
+        } else {
+            // Imported wallets do not have a master public key.
+            tvMasterPublicKey.setVisibility(View.GONE)
+            walletMasterKey.setVisibility(View.GONE)
+            // Using View.INVISIBLE on the 'Copy' button to preserve layout.
+            (fabCopyMasterKey2 as View).setVisibility(View.INVISIBLE)
+        }
     }
 }

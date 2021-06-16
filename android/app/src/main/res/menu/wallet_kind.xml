@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/menuStandardWallet"
+        android:title="@string/Standard_wallet" />
+
+    <item
+        android:id="@+id/menuMultisigWallet"
+        android:title="@string/Multi_signature" />
+
+    <item android:id="@+id/menuImport"
+        android:title="@string/Import_addresses"/>
+
+</menu>
