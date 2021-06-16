@@ -1,3 +1,23 @@
+# Release 4.1.3 - (June 16, 2021)
+ * Builds/binaries:
+   - Android: the binaries (APKs) should now be reproducible (#7263)
+   - AppImage: fix some startup issues by including libxcb deps (#7198)
+ * Lightning:
+   - smarter LN pathfinding (if trampoline is disabled):
+     - estimate liquidity in channels using previous attempts (#7152)
+     - consider inflight HTLCs and try to route around them (#7292)
+   - bugfix: add more safety checks to avoid "batch RBF" feature
+     merging LN funding txs (#7298)
+   - remove HTLC value upper limit of ~42 mBTC (#7328)
+   - Kivy GUI: implement freezing LN channels (11bb39ee)
+ * imported wallets: when enabling the "Use change addresses" option,
+   change will now be sent to a random unused imported address. (#7330)
+   As before, by default, change is sent back to the "from address".
+ * seed generation: make sure newly created electrum seeds don't have
+   correct bip39 checksum by chance (#6001)
+ * other minor fixes
+
+
 # Release 4.1.2 - (April 8, 2021)
  * Qt GUI:
     - fix some crashes when exiting (#6889)
