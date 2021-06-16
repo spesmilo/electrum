@@ -35,7 +35,7 @@ files = {
     'zip': "Electrum-GRS-%s.zip" % version,
     'mac': "electrum-grs-%s.dmg" % version_mac,
     'win': "electrum-grs-%s.exe" % version_win,
-    'win_setup': "electrum-%s-setup.exe" % version_win,
+    'win_setup': "electrum-grs-%s-setup.exe" % version_win,
     'win_portable': "electrum-grs-%s-portable.exe" % version_win,
     'apk_arm64': "ElectrumGRS-%s-arm64-v8a-release.apk" % APK_VERSION,
     'apk_armeabi': "ElectrumGRS-%s-armeabi-v7a-release.apk" % APK_VERSION,
