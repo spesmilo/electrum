@@ -37,27 +37,12 @@ files = {
     'win': "electrum-ltc-%s.exe" % version_win,
     'win_setup': "electrum-ltc-%s-setup.exe" % version_win,
     'win_portable': "electrum-ltc-%s-portable.exe" % version_win,
+    'apk_arm64': "Electrum-LTC-%s-arm64-v8a-release.apk" % APK_VERSION,
+    'apk_armeabi': "Electrum-LTC-%s-armeabi-v7a-release.apk" % APK_VERSION,
 }
 
 for k, n in files.items():
-    path = "dist/%s"%n
-    link = "https://download.electrum-ltc.org/%s"%n
-    if not os.path.exists(path):
-        os.system("wget -q %s -O %s" % (link, path))
-    if not os.path.getsize(path):
-        os.unlink(path)
-        string = re.sub("<div id=\"%s\">(.*?)</div>"%k, '', string, flags=re.DOTALL + re.MULTILINE)
-        continue
-    sigpath = path + '.pooler.asc'
-    siglink = link + '.pooler.asc'
-    if not os.path.exists(sigpath):
-        os.system("wget -q %s -O %s" % (siglink, sigpath))
-    if not os.path.getsize(sigpath):
-        os.unlink(sigpath)
-        string = re.sub("<div id=\"%s\">(.*?)</div>"%k, '', string, flags=re.DOTALL + re.MULTILINE)
-        continue
-    if os.system("gpg --verify %s"%sigpath) != 0:
-        raise Exception(sigpath)
+    link = "https://download.electrum-ltc.org/%s/%s"%(version,n)
     string = string.replace("##link_%s##"%k, link)
 
 
