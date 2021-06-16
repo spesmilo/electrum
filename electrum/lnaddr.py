@@ -32,12 +32,14 @@ def shorten_amount(amount):
     """
     # Convert to pico initially
     amount = int(amount * 10**12)
-    units = ['p', 'n', 'u', 'm', '']
+    units = ['p', 'n', 'u', 'm']
     for unit in units:
         if amount % 1000 == 0:
             amount //= 1000
         else:
             break
+    else:
+        unit = ''
     return str(amount) + unit
 
 def unshorten_amount(amount) -> Decimal:
