@@ -29,6 +29,22 @@ string = string.replace("##VERSION_MAC##", version_mac)
 string = string.replace("##VERSION_ANDROID##", version_android)
 string = string.replace("##VERSION_APK##", APK_VERSION)
 
+files = {
+    'tgz': "Electrum-%s.tar.gz" % version,
+    'appimage': "electrum-%s-x86_64.AppImage" % version,
+    'zip': "Electrum-%s.zip" % version,
+    'mac': "electrum-%s.dmg" % version_mac,
+    'win': "electrum-%s.exe" % version_win,
+    'win_setup': "electrum-%s-setup.exe" % version_win,
+    'win_portable': "electrum-%s-portable.exe" % version_win,
+    'apk_arm64': "Electrum-%s-arm64-v8a-release.apk" % APK_VERSION,
+    'apk_armeabi': "Electrum-%s-armeabi-v7a-release.apk" % APK_VERSION,
+}
+
+for k, n in files.items():
+    link = "https://download.electrum.org/%s/%s"%(version,n)
+    string = string.replace("##link_%s##"%k, link)
+
 
 with open(download_page,'w') as f:
     f.write(string)
