@@ -97,7 +97,7 @@ else
         --workdir /opt/wine64/drive_c/electrum/contrib/build-wine \
         electrum-wine-builder-img \
         ./build.sh
-    # do this in the fresh clone directorry!
+    # do this in the fresh clone directory!
     cd contrib/build-wine/
     ./sign.sh
     cp ./signed/*.exe /opt/electrum/dist/
@@ -119,7 +119,7 @@ else
         cd $FRESH_CLONE  && \
         git clone https://github.com/spesmilo/electrum.git && \
         cd electrum
-
+    git checkout "${COMMIT}^{commit}"
     mkdir --parents $PWD/.buildozer/.gradle
     sudo docker run -it --rm \
          --name electrum-android-builder-cont \
