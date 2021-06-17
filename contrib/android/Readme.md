@@ -9,8 +9,7 @@ To generate an APK file, follow these instructions.
    binaries that match the official releases._
 
 This assumes an Ubuntu (x86_64) host, but it should not be too hard to adapt to another
-similar system. The docker commands should be executed in the project's root
-folder.
+similar system.
 
 1. Install Docker
 
@@ -21,47 +20,20 @@ folder.
     $ sudo apt-get install -y docker-ce
     ```
 
-2. Build image
+2. Build binaries
 
     ```
-    $ ./contrib/android/build_docker_image.sh
+    $ ./build.sh
     ```
-
-3. Build binaries
-
-    It's recommended to build from a fresh clone
-    (but you can skip this if reproducibility is not necessary).
-
+    If you want reproducibility, try instead e.g.:
     ```
-    $ FRESH_CLONE="contrib/android/fresh_clone/electrum" && \
-        sudo rm -rf "$FRESH_CLONE" && \
-        umask 0022 && \
-        git clone . "$FRESH_CLONE" && \
-        cd "$FRESH_CLONE"
-    ```
-
-    And then build from this directory:
-    ```
-    $ git checkout $REV
-    $ mkdir --parents $PWD/.buildozer/.gradle
-    $ sudo docker run -it --rm \
-        --name electrum-android-builder-cont \
-        -v $PWD:/home/user/wspace/electrum \
-        -v $PWD/.buildozer/.gradle:/home/user/.gradle \
-        -v ~/.keystore:/home/user/.keystore \
-        --workdir /home/user/wspace/electrum \
-        electrum-android-builder-img \
-        ./contrib/android/make_apk
+    $ ELECBUILD_COMMIT=HEAD ELECBUILD_NOCACHE=1 ./build.sh release-unsigned
     ```
     
-    Note: this builds a debug apk. `make_apk` takes an optional parameter
-    which can be either `release` or `release-unsigned`.
-    
-    This mounts the project dir inside the container,
-    and so the modifications will affect it, e.g. `.buildozer` folder
-    will be created.
+    Note: `build.sh` takes an optional parameter which can be
+    `release`, `release-unsigned`, or `debug` (default).
 
-5. The generated binary is in `./dist`.
+3. The generated binary is in `./dist`.
 
 
 ## Verifying reproducibility and comparing against official binary

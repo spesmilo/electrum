@@ -5,8 +5,7 @@ Windows binaries
    binaries that match the official releases._
 
 This assumes an Ubuntu (x86_64) host, but it should not be too hard to adapt to another
-similar system. The docker commands should be executed in the project's root
-folder.
+similar system.
 
 1. Install Docker
 
@@ -21,39 +20,17 @@ folder.
     (see [#6971](https://github.com/spesmilo/electrum/issues/6971)).
     If having problems, try to upgrade to at least `docker 20.10`.
 
-2. Build image
+2. Build Windows binaries
 
     ```
-    $ sudo docker build -t electrum-wine-builder-img contrib/build-wine
+    $ ./build.sh
+    ```
+    If you want reproducibility, try instead e.g.:
+    ```
+    $ ELECBUILD_COMMIT=HEAD ELECBUILD_NOCACHE=1 ./build.sh
     ```
 
-    Note: see [this](https://stackoverflow.com/a/40516974/7499128) if having dns problems
-
-3. Build Windows binaries
-
-    It's recommended to build from a fresh clone
-    (but you can skip this if reproducibility is not necessary).
-
-    ```
-    $ FRESH_CLONE="contrib/build-wine/fresh_clone/electrum" && \
-        sudo rm -rf "$FRESH_CLONE" && \
-        umask 0022 && \
-        git clone . "$FRESH_CLONE" && \
-        cd "$FRESH_CLONE"
-    ```
-
-    And then build from this directory:
-    ```
-    $ git checkout $REV
-    $ sudo docker run -it \
-        --name electrum-wine-builder-cont \
-        -v $PWD:/opt/wine64/drive_c/electrum \
-        --rm \
-        --workdir /opt/wine64/drive_c/electrum/contrib/build-wine \
-        electrum-wine-builder-img \
-        ./make_win.sh
-    ```
-4. The generated binaries are in `./contrib/build-wine/dist`.
+3. The generated binaries are in `./contrib/build-wine/dist`.
 
 
 
