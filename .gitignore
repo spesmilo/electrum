@@ -15,6 +15,9 @@ bin/
 /app.fil
 .idea
 
+# the created files
+run_electrum.py
+
 # icons
 electrum/gui/kivy/theming/light-0.png
 electrum/gui/kivy/theming/light.atlas
