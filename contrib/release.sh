@@ -111,6 +111,7 @@ target2=ElectrumGRS-$VERSION.0-arm64-v8a-release.apk
 if test -f dist/$target1; then
     echo "file exists: $target1"
 else
+    pushd .
     ./contrib/android/build_docker_image.sh
     FRESH_CLONE=contrib/android/fresh_clone && \
         sudo rm -rf $FRESH_CLONE && \
@@ -129,6 +130,7 @@ else
          --workdir /home/user/wspace/electrum-grs \
          electrum-grs-android-builder-img \
          ./contrib/android/make_apk release
+    popd
 
     cp contrib/android/fresh_clone/electrum-grs/bin/$target1 dist/
     cp contrib/android/fresh_clone/electrum-grs/bin/$target2 dist/
