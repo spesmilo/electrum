@@ -97,7 +97,7 @@ else
         --workdir /opt/wine64/drive_c/electrum-grs/contrib/build-wine \
         electrum-grs-wine-builder-img \
         ./build.sh
-    # do this in the fresh clone directorry!
+    # do this in the fresh clone directory!
     #cd contrib/build-wine/
     #./sign.sh
     #cp ./signed/*.exe /opt/electrum-grs/dist/
@@ -119,7 +119,7 @@ else
         cd $FRESH_CLONE  && \
         git clone https://github.com/groestlcoin/electrum-grs.git && \
         cd electrum-grs
-
+    #git checkout "${COMMIT}^{commit}"
     mkdir --parents $PWD/.buildozer/.gradle
     sudo docker run -it --rm \
          --name electrum-grs-android-builder-cont \
@@ -130,8 +130,8 @@ else
          electrum-grs-android-builder-img \
          ./contrib/android/make_apk release
 
-    cp bin/$target1 dist/
-    cp bin/$target2 dist/
+    cp contrib/android/fresh_clone/electrum-grs/bin/$target1 dist/
+    cp contrib/android/fresh_clone/electrum-grs/bin/$target2 dist/
 
 fi
 
