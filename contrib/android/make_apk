@@ -82,5 +82,5 @@ popd
 
 
 info "done."
-ls -la "$PROJECT_ROOT/bin"
-sha256sum "$PROJECT_ROOT/bin"/*
+ls -la "$PROJECT_ROOT/dist"
+sha256sum "$PROJECT_ROOT/dist"/*

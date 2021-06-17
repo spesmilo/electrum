@@ -63,7 +63,7 @@ folder.
     and so the modifications will affect it, e.g. `.buildozer` folder
     will be created.
 
-5. The generated binary is in `./bin`.
+5. The generated binary is in `./dist`.
 
 
 ## Verifying reproducibility and comparing against official binary
@@ -95,7 +95,7 @@ You probably need to clear the cache: `rm -rf .buildozer/android/platform/build-
 ### How do I deploy on connected phone for quick testing?
 Assuming `adb` is installed:
 ```
-$ adb -d install -r bin/Electrum-*-arm64-v8a-debug.apk
+$ adb -d install -r dist/Electrum-*-arm64-v8a-debug.apk
 $ adb shell monkey -p org.electrum.electrum 1
 ```
 
@@ -154,7 +154,7 @@ $ run-as org.electrum.electrum cp /data/data/org.electrum.electrum/files/data/wa
 
 ### How to investigate diff between binaries if reproducibility fails?
 ```
-cd bin/
+cd dist/
 unzip Electrum-*.apk1 -d apk1
 mkdir apk1/assets/private_mp3/
 tar -xzvf apk1/assets/private.mp3 --directory apk1/assets/private_mp3/

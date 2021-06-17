@@ -78,8 +78,8 @@ jobs:
         - sudo docker run -it -u 1000:1000 --rm --name electrum-android-builder-cont --env CI=true -v $PWD:/home/user/wspace/electrum --workdir /home/user/wspace/electrum electrum-android-builder-img ./contrib/android/make_apk
         # kill background sleep loop
         - kill %1
-        - ls -la bin
-        - if [ $(ls bin | grep -c Electrum-*) -eq 0 ]; then exit 1; fi
+        - ls -la dist
+        - if [ $(ls dist | grep -c Electrum-*) -eq 0 ]; then exit 1; fi
       after_success: true
       # disabled for now as travis started to always time out:
     - if: false AND ((branch = master) OR (tag IS present))

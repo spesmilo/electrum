@@ -132,8 +132,8 @@ else
          ./contrib/android/make_apk release
     popd
 
-    cp contrib/android/fresh_clone/electrum/bin/$target1 dist/
-    cp contrib/android/fresh_clone/electrum/bin/$target2 dist/
+    cp contrib/android/fresh_clone/electrum/dist/$target1 dist/
+    cp contrib/android/fresh_clone/electrum/dist/$target2 dist/
 
 fi
 
