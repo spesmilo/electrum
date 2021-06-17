@@ -29,13 +29,11 @@ folder.
     (but you can skip this if reproducibility is not necessary).
 
     ```
-    $ FRESH_CLONE=contrib/build-linux/sdist/fresh_clone && \
-        sudo rm -rf $FRESH_CLONE && \
+    $ FRESH_CLONE="contrib/build-linux/sdist/fresh_clone/electrum" && \
+        sudo rm -rf "$FRESH_CLONE" && \
         umask 0022 && \
-        mkdir -p $FRESH_CLONE && \
-        cd $FRESH_CLONE  && \
-        git clone https://github.com/spesmilo/electrum.git && \
-        cd electrum
+        git clone . "$FRESH_CLONE" && \
+        cd "$FRESH_CLONE"
     ```
 
     And then build from this directory:

@@ -37,13 +37,11 @@ if test -f dist/$target; then
 else
    pushd .
    sudo docker build -t electrum-sdist-builder-img contrib/build-linux/sdist
-   FRESH_CLONE=contrib/build-linux/sdist/fresh_clone && \
-       sudo rm -rf $FRESH_CLONE && \
-       umask 0022 && \
-       mkdir -p $FRESH_CLONE && \
-       cd $FRESH_CLONE  && \
-       git clone https://github.com/spesmilo/electrum.git &&\
-       cd electrum
+   FRESH_CLONE="contrib/build-linux/sdist/fresh_clone/electrum" && \
+        sudo rm -rf "$FRESH_CLONE" && \
+        umask 0022 && \
+        git clone . "$FRESH_CLONE" && \
+        cd "$FRESH_CLONE"
    git checkout "${COMMIT}^{commit}"
    sudo docker run -it \
 	--name electrum-sdist-builder-cont \
@@ -83,12 +81,11 @@ if test -f dist/$target; then
     echo "file exists: $target"
 else
     pushd .
-    FRESH_CLONE=contrib/build-wine/fresh_clone && \
-        sudo rm -rf $FRESH_CLONE && \
-        mkdir -p $FRESH_CLONE && \
-        cd $FRESH_CLONE  && \
-        git clone https://github.com/spesmilo/electrum.git && \
-        cd electrum
+    FRESH_CLONE="contrib/build-wine/fresh_clone/electrum" && \
+        sudo rm -rf "$FRESH_CLONE" && \
+        umask 0022 && \
+        git clone . "$FRESH_CLONE" && \
+        cd "$FRESH_CLONE"
     git checkout "${COMMIT}^{commit}"
     sudo docker run -it \
         --name electrum-wine-builder-cont \
@@ -113,13 +110,11 @@ if test -f dist/$target1; then
 else
     pushd .
     ./contrib/android/build_docker_image.sh
-    FRESH_CLONE=contrib/android/fresh_clone && \
-        sudo rm -rf $FRESH_CLONE && \
+    FRESH_CLONE="contrib/android/fresh_clone/electrum" && \
+        sudo rm -rf "$FRESH_CLONE" && \
         umask 0022 && \
-        mkdir -p $FRESH_CLONE && \
-        cd $FRESH_CLONE  && \
-        git clone https://github.com/spesmilo/electrum.git && \
-        cd electrum
+        git clone . "$FRESH_CLONE" && \
+        cd "$FRESH_CLONE"
     git checkout "${COMMIT}^{commit}"
     mkdir --parents $PWD/.buildozer/.gradle
     sudo docker run -it --rm \
