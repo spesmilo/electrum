@@ -44,12 +44,12 @@ else
         cd "$FRESH_CLONE"
    git checkout "${COMMIT}^{commit}"
    sudo docker run -it \
-	--name electrum-sdist-builder-cont \
-	-v $PWD:/opt/electrum \
-	--rm \
-	--workdir /opt/electrum/contrib/build-linux/sdist \
-	electrum-sdist-builder-img \
-	./make_sdist.sh
+        --name electrum-sdist-builder-cont \
+        -v $PWD:/opt/electrum \
+        --rm \
+        --workdir /opt/electrum/contrib/build-linux/sdist \
+        electrum-sdist-builder-img \
+        ./make_sdist.sh
    popd
    cp /opt/electrum/contrib/build-linux/sdist/fresh_clone/electrum/dist/$target dist/
 fi
@@ -67,11 +67,11 @@ else
     sudo docker build -t electrum-appimage-builder-img contrib/build-linux/appimage
     sudo docker run -it \
         --name electrum-appimage-builder-cont \
-	    -v $PWD:/opt/electrum \
+        -v $PWD:/opt/electrum \
         --rm \
-	    --workdir /opt/electrum/contrib/build-linux/appimage \
+        --workdir /opt/electrum/contrib/build-linux/appimage \
         electrum-appimage-builder-img \
-	    ./make_appimage.sh
+        ./make_appimage.sh
 fi
 
 
@@ -136,10 +136,10 @@ fi
 # wait for dmg before signing
 if test -f dist/electrum-$VERSION.dmg; then
     if test -f dist/electrum-$VERSION.dmg.asc; then
-	echo "packages are already signed"
+        echo "packages are already signed"
     else
-	echo "signing packages"
-	./contrib/sign_packages ThomasV
+        echo "signing packages"
+        ./contrib/sign_packages ThomasV
     fi
 else
     echo "dmg is missing, aborting"
