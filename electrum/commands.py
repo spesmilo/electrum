@@ -236,7 +236,7 @@ class Commands:
     @command('n')
     async def close_wallet(self, wallet_path=None):
         """Close wallet"""
-        return self.daemon.stop_wallet(wallet_path)
+        return await self.daemon._stop_wallet(wallet_path)
 
     @command('')
     async def create(self, passphrase=None, password=None, encrypt_file=True, seed_type=None, wallet_path=None):
