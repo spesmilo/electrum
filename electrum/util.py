@@ -21,6 +21,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import binascii
+import logging
 import os, sys, re, json
 from collections import defaultdict, OrderedDict
 from typing import (NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any,
@@ -1601,3 +1602,13 @@ class nullcontext:
 
     async def __aexit__(self, *excinfo):
         pass
+
+
+def setup_logging(level=logging.DEBUG):
+    logging.basicConfig(format='%(asctime)-15s %(levelname)-8s %(message)s', level=level)
+    # logging.getLogger('urllib3.connectionpool').setLevel(level)
+    # logging.getLogger('requests.packages.urllib3.connectionpool').setLevel(level)
+    #
+    # logging.getLogger('urllib3').setLevel(level)
+    # logging.getLogger("asyncio").setLevel(level)
+    # logging.getLogger("requests").setLevel(logging.INFO)

@@ -991,6 +991,37 @@ class Interface(Logger):
             assert_hash256_str(utxo_item['tx_hash'])
         return res
 
+    async def listunspents_for_scripthashes(self, shs: List[str]) -> Tuple[List[dict]]:
+        # TODO Не знаю оставлять или нет
+        for sh in shs:
+            if not is_hash256_str(sh):
+                raise Exception(f"{repr(sh)} is not a scripthash")
+        # do request
+        batch_req = self.session.send_batch()
+
+        async with batch_req as req:
+            for sh in shs:
+                req.add_request('blockchain.scripthash.listunspent', args=[sh])
+        res = batch_req.results
+
+        # check response
+        # TODO Не знаю оставлять или нет
+        assert_list_or_tuple(res)
+        for item in res:
+            for utxo_item in item:
+                try:
+                    assert_dict_contains_field(utxo_item, field_name='tx_pos')
+                    assert_dict_contains_field(utxo_item, field_name='value')
+                    assert_dict_contains_field(utxo_item, field_name='tx_hash')
+                    assert_dict_contains_field(utxo_item, field_name='height')
+                    assert_non_negative_integer(utxo_item['tx_pos'])
+                    assert_non_negative_integer(utxo_item['value'])
+                    assert_non_negative_integer(utxo_item['height'])
+                    assert_hash256_str(utxo_item['tx_hash'])
+                except Exception as e:
+                    self.logger.error(f"check response {res} finished with error: {e} for item: {item}")
+        return res
+
     async def get_balance_for_scripthash(self, sh: str) -> dict:
         if not is_hash256_str(sh):
             raise Exception(f"{repr(sh)} is not a scripthash")
@@ -1001,6 +1032,32 @@ class Interface(Logger):
         assert_dict_contains_field(res, field_name='unconfirmed')
         assert_non_negative_integer(res['confirmed'])
         assert_non_negative_integer(res['unconfirmed'])
+        return res
+
+    async def get_balances_for_scripthashes(self, shs: List[str]) -> Tuple[dict]:
+        # TODO Не знаю оставлять или нет
+        for sh in shs:
+            if not is_hash256_str(sh):
+                raise Exception(f"{repr(sh)} is not a scripthash")
+        # do request
+
+        batch_req = self.session.send_batch()
+
+        async with batch_req as req:
+            for sh in shs:
+                req.add_request('blockchain.scripthash.get_balance', args=[sh])
+        res = batch_req.results
+
+        # TODO Не знаю оставлять или нет
+        # # check response
+        for item in res:
+            try:
+                assert_dict_contains_field(item, field_name='confirmed')
+                assert_dict_contains_field(item, field_name='unconfirmed')
+                assert_non_negative_integer(item['confirmed'])
+                # assert_non_negative_integer(item['unconfirmed'])
+            except Exception as e:
+                self.logger.error(f"check response {res} finished with error: {e} for item: {item}")
         return res
 
     async def get_txid_from_txpos(self, tx_height: int, tx_pos: int, merkle: bool):
@@ -1128,6 +1185,7 @@ def test_certificates():
         with open(p, encoding='utf-8') as f:
             cert = f.read()
         check_cert(c, cert)
+
 
 if __name__ == "__main__":
     test_certificates()
