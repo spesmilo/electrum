@@ -1,0 +1,90 @@
+sudo: true
+dist: xenial
+language: python
+python:
+    - 3.6
+    - 3.7
+git:
+  depth: false
+addons:
+  apt:
+    sources:
+      - sourceline: 'ppa:tah83/secp256k1'
+    packages:
+      - libsecp256k1-0
+before_install:
+  - git tag
+install:
+  - pip install -r contrib/requirements/requirements-travis.txt
+cache:
+  - pip: true
+  - directories:
+    - /tmp/electrum-build
+script:
+    - tox
+after_success:
+    - if [ "$TRAVIS_BRANCH" = "master" ]; then pip install requests && contrib/push_locale; fi
+    - coveralls
+jobs:
+  include:
+    - stage: binary builds
+      name: "Windows build"
+      sudo: true
+      language: c
+      python: false
+      env:
+        - TARGET_OS=Windows
+      services:
+        - docker
+      install: true
+      script:
+        - sudo docker build -t electrum-img -f ./contrib/build-wine/docker/Dockerfile .
+      after_success: true
+    - name: "Android build"
+      language: python
+      python: 3.7
+      services:
+        - docker
+      install:
+        - pip install requests && ./contrib/pull_locale
+        - ./contrib/make_packages
+        - sudo docker build --no-cache -t electrum-android-builder-img electrum/gui/kivy/tools
+      script:
+        - sudo chown -R 1000:1000 .
+        # Output something every minute or Travis kills the job
+        - while sleep 60; do echo "=====[ $SECONDS seconds still running ]====="; done &
+        - sudo docker run -it -u 1000:1000 --rm --name electrum-android-builder-cont -v $PWD:/home/user/wspace/electrum --workdir /home/user/wspace/electrum electrum-android-builder-img ./contrib/make_apk
+        # kill background sleep loop
+        - kill %1
+        - ls -la bin
+        - if [ $(ls bin | grep -c Electrum-*) -eq 0 ]; then exit 1; fi
+      after_success: true
+    - name: "MacOS build"
+      os: osx
+      language: c
+      env:
+        - TARGET_OS=macOS
+      python: false
+      install:
+        - git fetch --all --tags
+      script: ./contrib/osx/make_osx
+      after_script: ls -lah dist && md5 dist/*
+      after_success: true
+    - name: "AppImage build"
+      sudo: true
+      language: c
+      python: false
+      services:
+        - docker
+      install:
+        - sudo docker build --no-cache -t electrum-appimage-builder-img ./contrib/build-linux/appimage/
+      script:
+        - sudo docker run --name electrum-appimage-builder-cont -v $PWD:/opt/electrum --rm --workdir /opt/electrum/contrib/build-linux/appimage electrum-appimage-builder-img ./build.sh
+      after_success: true
+    - stage: release check
+      install:
+          - git fetch --all --tags
+      script:
+        - ./contrib/deterministic-build/check_submodules.sh
+      after_success: true
+      if: tag IS present
