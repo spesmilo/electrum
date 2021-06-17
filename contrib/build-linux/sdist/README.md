@@ -45,6 +45,6 @@ folder.
         --rm \
         --workdir /opt/electrum/contrib/build-linux/sdist \
         electrum-sdist-builder-img \
-        ./build.sh
+        ./make_sdist.sh
     ```
 4. The generated distributables are in `./dist`.

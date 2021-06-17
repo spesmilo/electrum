@@ -49,7 +49,7 @@ else
 	--rm \
 	--workdir /opt/electrum/contrib/build-linux/sdist \
 	electrum-sdist-builder-img \
-	./build.sh
+	./make_sdist.sh
    popd
    cp /opt/electrum/contrib/build-linux/sdist/fresh_clone/electrum/dist/$target dist/
 fi
@@ -66,12 +66,12 @@ if test -f dist/$target; then
 else
     sudo docker build -t electrum-appimage-builder-img contrib/build-linux/appimage
     sudo docker run -it \
-         --name electrum-appimage-builder-cont \
-	 -v $PWD:/opt/electrum \
-         --rm \
-	 --workdir /opt/electrum/contrib/build-linux/appimage \
-         electrum-appimage-builder-img \
-	 ./build.sh
+        --name electrum-appimage-builder-cont \
+	    -v $PWD:/opt/electrum \
+        --rm \
+	    --workdir /opt/electrum/contrib/build-linux/appimage \
+        electrum-appimage-builder-img \
+	    ./make_appimage.sh
 fi
 
 
@@ -93,7 +93,7 @@ else
         --rm \
         --workdir /opt/wine64/drive_c/electrum/contrib/build-wine \
         electrum-wine-builder-img \
-        ./build.sh
+        ./make_win.sh
     # do this in the fresh clone directory!
     cd contrib/build-wine/
     ./sign.sh

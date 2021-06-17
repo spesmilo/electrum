@@ -51,7 +51,7 @@ folder.
         --rm \
         --workdir /opt/wine64/drive_c/electrum/contrib/build-wine \
         electrum-wine-builder-img \
-        ./build.sh
+        ./make_win.sh
     ```
 4. The generated binaries are in `./contrib/build-wine/dist`.
 
@@ -70,18 +70,18 @@ The release signing procedure involves a signer (the holder of the
 certificate/key) and one or multiple trusted verifiers:
 
 
-| Signer                                                    | Verifier                          |
-|-----------------------------------------------------------|-----------------------------------|
-| Build .exe files using `build.sh`                         |                                   |
-| Sign .exe with `./sign.sh`                                |                                   |
-| Upload signed files to download server                    |                                   |
-|                                                           | Build .exe files using `build.sh` |
-|                                                           | Compare files using `unsign.sh`   |
-|                                                           | Sign .exe file using `gpg -b`     |
+| Signer                                                    | Verifier                             |
+|-----------------------------------------------------------|--------------------------------------|
+| Build .exe files using `make_win.sh`                      |                                      |
+| Sign .exe with `./sign.sh`                                |                                      |
+| Upload signed files to download server                    |                                      |
+|                                                           | Build .exe files using `make_win.sh` |
+|                                                           | Compare files using `unsign.sh`      |
+|                                                           | Sign .exe file using `gpg -b`        |
 
-| Signer and verifiers:                                                                         |
-|-----------------------------------------------------------------------------------------------|
-| Upload signatures to 'electrum-signatures' repo, as `$version/$filename.$builder.asc`         |
+| Signer and verifiers:                                                                            |
+|--------------------------------------------------------------------------------------------------|
+| Upload signatures to 'electrum-signatures' repo, as `$version/$filename.$builder.asc`            |
 
 
 

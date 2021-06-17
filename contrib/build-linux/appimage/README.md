@@ -37,7 +37,7 @@ see [issue #5159](https://github.com/spesmilo/electrum/issues/5159).
         --rm \
         --workdir /opt/electrum/contrib/build-linux/appimage \
         electrum-appimage-builder-img \
-        ./build.sh
+        ./make_appimage.sh
     ```
 
 4. The generated binary is in `./dist`.

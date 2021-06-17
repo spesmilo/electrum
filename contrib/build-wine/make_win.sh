@@ -53,7 +53,7 @@ else
     "$CONTRIB"/make_zbar.sh || fail "Could not build zbar"
 fi
 
-$here/prepare-wine.sh || fail "prepare-wine failed"
+"$here/prepare-wine.sh" || fail "prepare-wine failed"
 
 info "Resetting modification time in C:\Python..."
 # (Because of some bugs in pyinstaller)
@@ -62,6 +62,6 @@ find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 popd
 ls -l /opt/wine64/drive_c/python*
 
-$here/build-electrum-git.sh || fail "build-electrum-git failed"
+"$here/build-electrum-git.sh" || fail "build-electrum-git failed"
 
 info "Done."
