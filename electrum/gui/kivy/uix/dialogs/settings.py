@@ -130,7 +130,7 @@ class SettingsDialog(Factory.Popup):
         self.wallet = self.app.wallet
         self.use_encryption = self.wallet.has_password() if self.wallet else False
         self.has_pin_code = self.app.has_pin_code()
-        self.enable_toggle_use_recoverable_channels = self.wallet.lnworker and self.wallet.lnworker.has_deterministic_node_id()
+        self.enable_toggle_use_recoverable_channels = bool(self.wallet.lnworker and self.wallet.lnworker.has_deterministic_node_id())
 
     def get_language_name(self):
         return languages.get(self.config.get('language', 'en_UK'), '')
