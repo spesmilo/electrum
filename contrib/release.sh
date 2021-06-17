@@ -1,9 +1,13 @@
-#
-# Note: update locale before:
-# 1. cd /opt/electrum-locale && ./update && push
-# 2. cd to the submodule dir, and git pull
-# 3. cd .. && git push
 #!/bin/bash
+
+# Note: steps before doing a new release:
+#
+# - update locale:
+#     1. cd /opt/electrum-locale && ./update && push
+#     2. cd to the submodule dir, and git pull
+#     3. cd .. && git push
+# - update RELEASE-NOTES and version.py
+# - git tag
 
 ELECTRUM_DIR=/opt/electrum
 WWW_DIR=/opt/electrum-web
