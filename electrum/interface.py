@@ -1022,6 +1022,35 @@ class Interface(Logger):
                     self.logger.error(f"check response {res} finished with error: {e} for item: {item}")
         return res
 
+    async def listmempools_for_scripthashes(self, shs: List[str]) -> Tuple[List[dict]]:
+        # TODO Не знаю оставлять или нет
+        for sh in shs:
+            if not is_hash256_str(sh):
+                raise Exception(f"{repr(sh)} is not a scripthash")
+        # do request
+        batch_req = self.session.send_batch()
+
+        async with batch_req as req:
+            for sh in shs:
+                req.add_request('blockchain.scripthash.get_mempool', args=[sh])
+        res = batch_req.results
+
+        # check response
+        # TODO Не знаю оставлять или нет
+        assert_list_or_tuple(res)
+        for item in res:
+            for utxo_item in item:
+                try:
+                    assert_dict_contains_field(utxo_item, field_name='fee')
+                    assert_dict_contains_field(utxo_item, field_name='tx_hash')
+                    assert_dict_contains_field(utxo_item, field_name='height')
+                    assert_non_negative_integer(utxo_item['fee'])
+                    assert_non_negative_integer(utxo_item['height'])
+                    assert_hash256_str(utxo_item['tx_hash'])
+                except Exception as e:
+                    self.logger.error(f"check response {res} finished with error: {e} for item: {item}")
+        return res
+
     async def get_balance_for_scripthash(self, sh: str) -> dict:
         if not is_hash256_str(sh):
             raise Exception(f"{repr(sh)} is not a scripthash")

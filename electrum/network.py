@@ -1103,7 +1103,12 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     @best_effort_reliable
     @catch_server_exceptions
     async def listunspents_for_scripthashes(self, shs: List[str]) -> Tuple[List[dict]]:
-        return await self.interface.listunspents_for_scripthashes(shs)
+        return await self.interface.listunspents_for_scripthashes(shs)\
+
+    @best_effort_reliable
+    @catch_server_exceptions
+    async def listmempools_for_scripthashes(self, shs: List[str]) -> Tuple[List[dict]]:
+        return await self.interface.listmempools_for_scripthashes(shs)
 
     @best_effort_reliable
     @catch_server_exceptions
