@@ -1,102 +1,149 @@
 #!/bin/bash
-
-# Note: steps before doing a new release:
 #
+# This script, for the RELEASEMANAGER:
+# - builds and uploads all binaries,
+#   - note: the .dmg should be built separately beforehand and copied into dist/
+#           (as it is built on a separate machine)
+# - assumes all keys are available, and signs everything
+# This script, for other builders:
+# - builds reproducible binaries only,
+# - downloads binaries built by the release manager, compares and signs them,
+# - and then uploads sigs
+#
+# env vars:
+# - ELECBUILD_NOCACHE: if set, forces rebuild of docker images
+# - WWW_DIR: path to "electrum-web" git clone
+#
+# additional env vars for the RELEASEMANAGER:
+# - for signing the version announcement file:
+#   - ELECTRUM_SIGNING_ADDRESS (required)
+#   - ELECTRUM_SIGNING_WALLET (required)
+#
+# "uploadserver" is set in /etc/hosts
+#
+# Note: steps before doing a new release:
 # - update locale:
 #     1. cd /opt/electrum-locale && ./update && push
 #     2. cd to the submodule dir, and git pull
 #     3. cd .. && git push
 # - update RELEASE-NOTES and version.py
 # - git tag
+#
 
-ELECTRUM_DIR=/opt/electrum
-WWW_DIR=/opt/electrum-web
+set -e
 
+PROJECT_ROOT="$(dirname "$(readlink -e "$0")")/.."
+CONTRIB="$PROJECT_ROOT/contrib"
 
-cd $ELECTRUM_DIR
+cd "$PROJECT_ROOT"
+
+. "$CONTRIB"/build_tools_util.sh
+
 # rm -rf dist/*
 # rm -f .buildozer
 
+if [ -z "$WWW_DIR" ] ; then
+    WWW_DIR=/opt/electrum-web
+fi
+
+GPGUSER=$1
+if [ -z "$GPGUSER" ]; then
+    fail "usage: release.sh gpg_username"
+fi
+
+export SSHUSER="$GPGUSER"
+RELEASEMANAGER=""
+if [ "$GPGUSER" == "ThomasV" ]; then
+    PUBKEY="--local-user 6694D8DE7BE8EE5631BED9502BD5824B7F9470E6"
+    export SSHUSER=thomasv
+    RELEASEMANAGER=1
+elif [ "$GPGUSER" == "sombernight_releasekey" ]; then
+    PUBKEY="--local-user 0EEDCFD5CAFB459067349B23CA9EEEC43DF911DC"
+    export SSHUSER=sombernight
+fi
+
 
 VERSION=`python3 -c "import electrum; print(electrum.version.ELECTRUM_VERSION)"`
-echo "VERSION: $VERSION"
+info "VERSION: $VERSION"
 REV=`git describe --tags`
-echo "REV: $REV"
+info "REV: $REV"
 COMMIT=$(git rev-parse HEAD)
 
 export ELECBUILD_COMMIT="${COMMIT}^{commit}"
-#export ELECBUILD_NOCACHE=1
 
 
 git_status=$(git status --porcelain)
 if [ ! -z "$git_status" ]; then
     echo "$git_status"
-    echo "git repo not clean, aborting"
-    exit 1
+    fail "git repo not clean, aborting"
 fi
 
-set -ex
+set -x
 
 # create tarball
-target=Electrum-$VERSION.tar.gz
-if test -f dist/$target; then
-    echo "file exists: $target"
+tarball="Electrum-$VERSION.tar.gz"
+if test -f "dist/$tarball"; then
+    info "file exists: $tarball"
 else
    ./contrib/build-linux/sdist/build.sh
 fi
 
 # appimage
-if [ $REV != $VERSION ]; then
-    target=electrum-${REV:0:-2}-x86_64.AppImage
-else
-    target=electrum-$REV-x86_64.AppImage
-fi
-
-if test -f dist/$target; then
-    echo "file exists: $target"
+appimage="electrum-$REV-x86_64.AppImage"
+if test -f "dist/$appimage"; then
+    info "file exists: $appimage"
 else
     ./contrib/build-linux/appimage/build.sh
 fi
 
 
 # windows
-target=electrum-$REV.exe
-if test -f dist/$target; then
-    echo "file exists: $target"
+win1="electrum-$REV.exe"
+win2="electrum-$REV-portable.exe"
+win3="electrum-$REV-setup.exe"
+if test -f "dist/$win1"; then
+    info "file exists: $win1"
 else
     pushd .
     ./contrib/build-wine/build.sh
-    cd contrib/build-wine/
-    ./sign.sh
-    cp ./signed/*.exe /opt/electrum/dist/
+    if [ ! -z "$RELEASEMANAGER" ] ; then
+        cd contrib/build-wine/
+        ./sign.sh
+        cp ./signed/*.exe "$PROJECT_ROOT/dist/"
+    fi
     popd
 fi
 
 # android
-target1=Electrum-$VERSION.0-armeabi-v7a-release.apk
-target2=Electrum-$VERSION.0-arm64-v8a-release.apk
-
-if test -f dist/$target1; then
-    echo "file exists: $target1"
+apk1="Electrum-$VERSION.0-armeabi-v7a-release.apk"
+apk2="Electrum-$VERSION.0-arm64-v8a-release.apk"
+if test -f "dist/$apk1"; then
+    info "file exists: $apk1"
 else
-    ./contrib/android/build.sh release
+    if [ ! -z "$RELEASEMANAGER" ] ; then
+        ./contrib/android/build.sh release
+    else
+        ./contrib/android/build.sh release-unsigned
+    fi
 fi
 
 
 # wait for dmg before signing
-if test -f dist/electrum-$VERSION.dmg; then
-    if test -f dist/electrum-$VERSION.dmg.asc; then
-        echo "packages are already signed"
+dmg=electrum-$VERSION.dmg
+if [ ! -z "$RELEASEMANAGER" ] ; then
+    if test -f "dist/$dmg"; then
+        if test -f "dist/$dmg.asc"; then
+            info "packages are already signed"
+        else
+            info "signing packages"
+            ./contrib/sign_packages "$GPGUSER"
+        fi
     else
-        echo "signing packages"
-        ./contrib/sign_packages ThomasV
+        fail "dmg is missing, aborting"
     fi
-else
-    echo "dmg is missing, aborting"
-    exit 1
 fi
 
-echo "build complete"
+info "build complete"
 sha256sum dist/*.tar.gz
 sha256sum dist/*.AppImage
 sha256sum contrib/build-wine/dist/*.exe
@@ -110,32 +157,84 @@ if [ "$answer" != "y" ] ;then
 fi
 
 
-echo "updating www repo"
-./contrib/make_download $WWW_DIR
-echo "signing the version file"
-sig=`./run_electrum -o signmessage $ELECTRUM_SIGNING_ADDRESS $VERSION -w $ELECTRUM_SIGNING_WALLET`
-echo "{ \"version\":\"$VERSION\", \"signatures\":{ \"$ELECTRUM_SIGNING_ADDRESS\":\"$sig\"}}" > $WWW_DIR/version
+if [ -z "$RELEASEMANAGER" ] ; then
+    # people OTHER THAN release manager.
+    # download binaries built by RM
+    rm -rf "$PROJECT_ROOT/dist/releasemanager"
+    mkdir --parent "$PROJECT_ROOT/dist/releasemanager"
+    cd "$PROJECT_ROOT/dist/releasemanager"
+    # TODO check somehow that RM had finished uploading
+    sftp -oBatchMode=no -b - "$SSHUSER@uploadserver" << !
+       cd electrum-downloads-airlock
+       cd "$VERSION"
+       mget *
+       bye
+!
+    # check we have each binary
+    test -f "$tarball"  || fail "tarball not found among sftp downloads"
+    test -f "$appimage" || fail "appimage not found among sftp downloads"
+    test -f "$win1"     || fail "win1 not found among sftp downloads"
+    test -f "$win2"     || fail "win2 not found among sftp downloads"
+    test -f "$win3"     || fail "win3 not found among sftp downloads"
+    test -f "$apk1"     || fail "apk1 not found among sftp downloads"
+    test -f "$apk2"     || fail "apk2 not found among sftp downloads"
+    test -f "$PROJECT_ROOT/dist/$tarball"    || fail "tarball not found among built files"
+    test -f "$PROJECT_ROOT/dist/$appimage"   || fail "appimage not found among built files"
+    test -f "$CONTRIB/build-wine/dist/$win1" || fail "win1 not found among built files"
+    test -f "$CONTRIB/build-wine/dist/$win2" || fail "win2 not found among built files"
+    test -f "$CONTRIB/build-wine/dist/$win3" || fail "win3 not found among built files"
+    test -f "$PROJECT_ROOT/dist/$apk1"       || fail "apk1 not found among built files"
+    test -f "$PROJECT_ROOT/dist/$apk2"       || fail "apk2 not found among built files"
+    # compare downloaded binaries against ones we built
+    cmp --silent "$tarball" "$PROJECT_ROOT/dist/$tarball" || fail "files are different. tarball."
+    cmp --silent "$appimage" "$PROJECT_ROOT/dist/$appimage" || fail "files are different. appimage."
+    mkdir --parents "$CONTRIB/build-wine/signed/"
+    cp -f "$win1" "$win2" "$win3" "$CONTRIB/build-wine/signed/"
+    "$CONTRIB/build-wine/unsign.sh" || fail "files are different. windows."
+    "$CONTRIB/android/apkdiff.py" "$apk1" "$PROJECT_ROOT/dist/$apk1" || fail "files are different. android."
+    "$CONTRIB/android/apkdiff.py" "$apk2" "$PROJECT_ROOT/dist/$apk2" || fail "files are different. android."
+    # all files matched. sign them.
+    rm -rf "$PROJECT_ROOT/dist/sigs/"
+    mkdir --parents "$PROJECT_ROOT/dist/sigs/"
+    for fname in "$tarball" "$appimage" "$win1" "$win2" "$win3" "$apk1" "$apk2" ; do
+        signame="$fname.$GPGUSER.asc"
+        gpg --sign --armor --detach $PUBKEY --output "$PROJECT_ROOT/dist/sigs/$signame" "$fname"
+    done
+    # upload sigs
+    ELECBUILD_UPLOADFROM="$PROJECT_ROOT/dist/sigs/" "$CONTRIB/upload"
 
-
-if [ $REV != $VERSION ]; then
-    echo "versions differ, not uploading"
-    exit 1
-fi
-
-# upload the files
-if test -f dist/uploaded; then
-    echo "files already uploaded"
 else
-    ./contrib/upload
-    touch dist/uploaded
+    # ONLY release manager
+
+    cd "$PROJECT_ROOT"
+
+    info "updating www repo"
+    ./contrib/make_download $WWW_DIR
+    info "signing the version announcement file"
+    sig=`./run_electrum -o signmessage $ELECTRUM_SIGNING_ADDRESS $VERSION -w $ELECTRUM_SIGNING_WALLET`
+    info "{ \"version\":\"$VERSION\", \"signatures\":{ \"$ELECTRUM_SIGNING_ADDRESS\":\"$sig\"}}" > $WWW_DIR/version
+
+
+    if [ $REV != $VERSION ]; then
+        fail "versions differ, not uploading"
+    fi
+
+    # upload the files
+    if test -f dist/uploaded; then
+        info "files already uploaded"
+    else
+        ./contrib/upload
+        touch dist/uploaded
+    fi
+
+    # push changes to website repo
+    pushd $WWW_DIR
+    git diff
+    git commit -a -m "version $VERSION"
+    git push
+    popd
 fi
 
 
-# push changes to website repo
-pushd $WWW_DIR
-git diff
-git commit -a -m "version $VERSION"
-git push
-popd
-
-echo "run $WWW_DIR/publish.sh to sign the website commit and upload signature"
+info "release.sh finished successfully."
+info "now you should run WWW_DIR/publish.sh to sign the website commit and upload signature"

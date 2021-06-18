@@ -1,18 +1,34 @@
 #!/bin/bash
 # uploadserver is set in /etc/hosts
+#
+# env vars:
+# - ELECBUILD_UPLOADFROM
+# - SSHUSER
 
 set -e
+
+PROJECT_ROOT="$(dirname "$(readlink -e "$0")")/.."
+
+if [ -z "$SSHUSER" ]; then
+    SSHUSER=thomasv
+fi
+
+cd "$PROJECT_ROOT"
 
 version=`git describe --tags --abbrev=0`
 echo $version
 
-here=$(dirname "$0")
-cd $here/../dist
+if [ -z "$ELECBUILD_UPLOADFROM" ]; then
+    cd "$PROJECT_ROOT/../dist"
+else
+    cd "$ELECBUILD_UPLOADFROM"
+fi
 
-sftp -oBatchMode=no -b - thomasv@uploadserver << !
+
+sftp -oBatchMode=no -b - "$SSHUSER@uploadserver" << !
    cd electrum-downloads-airlock
-   mkdir $version
-   cd $version
+   mkdir --parents "$version"
+   cd "$version"
    mput *
    bye
 !
