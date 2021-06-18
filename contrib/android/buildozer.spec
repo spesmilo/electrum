@@ -208,6 +208,9 @@ warn_on_root=0
 # (int) Log level (0 = error only, 1 = info, 2 = debug (with command output))
 log_level = 2
 
+# (str) Path to build output (i.e. .apk, .ipa) storage
+bin_dir = ./dist
+
 
 # -----------------------------------------------------------------------------
 # List as sections

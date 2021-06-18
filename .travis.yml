@@ -23,10 +23,8 @@ jobs:
         - sudo apt-get update
         - sudo apt-get -y -o Dpkg::Options::="--force-confnew" install docker-ce
         - docker version
-      install:
-        - sudo docker build --no-cache -t electrum-grs-wine-builder-img ./contrib/build-wine/
       script:
-        - sudo docker run --name electrum-grs-wine-builder-cont -v $PWD:/opt/wine64/drive_c/electrum-grs --rm --workdir /opt/wine64/drive_c/electrum-grs/contrib/build-wine electrum-grs-wine-builder-img ./build.sh
+        - ELECBUILD_COMMIT=HEAD ./contrib/build-wine/build.sh
       after_success: true
     - if: (branch = master) OR (tag IS present)
       name: "Android build"
@@ -34,17 +32,15 @@ jobs:
       python: 3.7
       services:
         - docker
-      install:
-        - ./contrib/android/build_docker_image.sh
       script:
         - sudo chown -R 1000:1000 .
         # Output something every minute or Travis kills the job
         - while sleep 60; do echo "=====[ $SECONDS seconds still running ]====="; done &
-        - sudo docker run -it -u 1000:1000 --rm --name electrum-grs-android-builder-cont --env CI=true -v $PWD:/home/user/wspace/electrum-grs --workdir /home/user/wspace/electrum-grs electrum-grs-android-builder-img ./contrib/android/make_apk
+        - ELECBUILD_COMMIT=HEAD ./contrib/android/build.sh
         # kill background sleep loop
         - kill %1
-        - ls -la bin
-        - if [ $(ls bin | grep -c ElectrumGRS-*) -eq 0 ]; then exit 1; fi
+        - ls -la dist
+        - if [ $(ls dist | grep -c ElectrumGRS-*) -eq 0 ]; then exit 1; fi
       after_success: true
       # disabled for now as travis started to always time out:
     - if: false AND ((branch = master) OR (tag IS present))
@@ -73,10 +69,8 @@ jobs:
       python: false
       services:
         - docker
-      install:
-        - sudo docker build --no-cache -t electrum-grs-appimage-builder-img ./contrib/build-linux/appimage/
       script:
-        - sudo docker run --name electrum-grs-appimage-builder-cont -v $PWD:/opt/electrum-grs --rm --workdir /opt/electrum-grs/contrib/build-linux/appimage electrum-grs-appimage-builder-img ./build.sh
+        - ELECBUILD_COMMIT=HEAD ./contrib/build-linux/appimage/build.sh
       after_success: true
     - if: (branch = master) OR (tag IS present)
       name: "tarball build"
@@ -84,19 +78,8 @@ jobs:
       python: false
       services:
         - docker
-      before_install:
-        # hack: travis already cloned the repo, but we re-clone now, as we need to have umask set BEFORE cloning
-        - umask 0022
-        - mkdir fresh_clone && cd fresh_clone
-        - git clone https://github.com/$TRAVIS_REPO_SLUG.git && cd electrum-grs
-        - if [ "$TRAVIS_PULL_REQUEST" != "false" ]; then git fetch origin pull/$TRAVIS_PULL_REQUEST/merge; fi
-        - git checkout $TRAVIS_COMMIT
-        - echo "Second git clone ready at $PWD"
-      install:
-        - sudo docker build --no-cache -t electrum-grs-sdist-builder-img ./contrib/build-linux/sdist/
       script:
-        - echo "Building sdist at $PWD"
-        - sudo docker run --name electrum-grs-sdist-builder-cont -v $PWD:/opt/electrum-grs --rm --workdir /opt/electrum-grs/contrib/build-linux/sdist electrum-grs-sdist-builder-img ./build.sh
+        - ELECBUILD_COMMIT=HEAD ./contrib/build-linux/sdist/build.sh
       after_success: true
     - stage: release check
       install:

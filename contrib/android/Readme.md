@@ -9,8 +9,7 @@ To generate an APK file, follow these instructions.
    binaries that match the official releases._
 
 This assumes an Ubuntu (x86_64) host, but it should not be too hard to adapt to another
-similar system. The docker commands should be executed in the project's root
-folder.
+similar system.
 
 1. Install Docker
 
@@ -21,49 +20,20 @@ folder.
     $ sudo apt-get install -y docker-ce
     ```
 
-2. Build image
+2. Build binaries
 
     ```
-    $ ./contrib/android/build_docker_image.sh
+    $ ./build.sh
+    ```
+    If you want reproducibility, try instead e.g.:
+    ```
+    $ ELECBUILD_COMMIT=HEAD ELECBUILD_NOCACHE=1 ./build.sh release-unsigned
     ```
 
-3. Build binaries
+    Note: `build.sh` takes an optional parameter which can be
+    `release`, `release-unsigned`, or `debug` (default).
 
-    It's recommended to build from a fresh clone
-    (but you can skip this if reproducibility is not necessary).
-
-    ```
-    $ FRESH_CLONE=contrib/android/fresh_clone && \
-        sudo rm -rf $FRESH_CLONE && \
-        umask 0022 && \
-        mkdir -p $FRESH_CLONE && \
-        cd $FRESH_CLONE  && \
-        git clone https://github.com/groestlcoin/electrum-grs.git && \
-        cd electrum-grs
-    ```
-
-    And then build from this directory:
-    ```
-    $ git checkout $REV
-    $ mkdir --parents $PWD/.buildozer/.gradle
-    $ sudo docker run -it --rm \
-        --name electrum-grs-android-builder-cont \
-        -v $PWD:/home/user/wspace/electrum-grs \
-        -v $PWD/.buildozer/.gradle:/home/user/.gradle \
-        -v ~/.keystore:/home/user/.keystore \
-        --workdir /home/user/wspace/electrum-grs \
-        electrum-grs-android-builder-img \
-        ./contrib/android/make_apk
-    ```
-
-    Note: this builds a debug apk. `make_apk` takes an optional parameter
-    which can be either `release` or `release-unsigned`.
-
-    This mounts the project dir inside the container,
-    and so the modifications will affect it, e.g. `.buildozer` folder
-    will be created.
-
-5. The generated binary is in `./bin`.
+3. The generated binary is in `./dist`.
 
 
 ## Verifying reproducibility and comparing against official binary
@@ -95,7 +65,7 @@ You probably need to clear the cache: `rm -rf .buildozer/android/platform/build-
 ### How do I deploy on connected phone for quick testing?
 Assuming `adb` is installed:
 ```
-$ adb -d install -r bin/Electrum-GRS-*-arm64-v8a-debug.apk
+$ adb -d install -r dist/ElectrumGRS-*-arm64-v8a-debug.apk
 $ adb shell monkey -p org.groestlcoin.electrumgrs 1
 ```
 
@@ -154,7 +124,7 @@ $ run-as org.groestlcoin.electrumgrs cp /data/data/org.groestlcoin.electrumgrs/f
 
 ### How to investigate diff between binaries if reproducibility fails?
 ```
-cd bin/
+cd dist/
 unzip ElectrumGRS-*.apk1 -d apk1
 mkdir apk1/assets/private_mp3/
 tar -xzvf apk1/assets/private.mp3 --directory apk1/assets/private_mp3/

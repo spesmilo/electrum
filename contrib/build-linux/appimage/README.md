@@ -6,7 +6,6 @@ AppImage binary for Electrum-GRS
 
 This assumes an Ubuntu host, but it should not be too hard to adapt to another
 similar system. The host architecture should be x86_64 (amd64).
-The docker commands should be executed in the project's root folder.
 
 We currently only build a single AppImage, for x86_64 architecture.
 Help to adapt these scripts to build for (some flavor of) ARM would be welcome.
@@ -20,25 +19,17 @@ Help to adapt these scripts to build for (some flavor of) ARM would be welcome.
     $ sudo apt-get install -y docker-ce
     ```
 
-2. Build image
+2. Build binary
 
     ```
-    $ sudo docker build -t electrum-grs-appimage-builder-img contrib/build-linux/appimage
+    $ ./build.sh
+    ```
+    If you want reproducibility, try instead e.g.:
+    ```
+    $ ELECBUILD_COMMIT=HEAD ELECBUILD_NOCACHE=1 ./build.sh
     ```
 
-3. Build binary
-
-    ```
-    $ sudo docker run -it \
-        --name electrum-grs-appimage-builder-cont \
-        -v $PWD:/opt/electrum-grs \
-        --rm \
-        --workdir /opt/electrum-grs/contrib/build-linux/appimage \
-        electrum-grs-appimage-builder-img \
-        ./build.sh
-    ```
-
-4. The generated binary is in `./dist`.
+3. The generated binary is in `./dist`.
 
 
 ## FAQ
