@@ -102,9 +102,9 @@ Builder.load_string('''
                 spacing: '5dp'
                 AddressButton:
                     id: search
-                    text: {0:_('All'), 1:_('Unused'), 2:_('Funded'), 3:_('Used')}[root.show_used]
+                    text: {0:_('All'), 1:_('Unused'), 2:_('Funded'), 3:_('Used'), 4:(_('Funded')+'|'+_('Unused'))}[root.show_used]
                     on_release:
-                        root.show_used = (root.show_used + 1) % 4
+                        root.show_used = (root.show_used + 1) % 5
                         Clock.schedule_once(lambda dt: root.update())
             AddressFilter:
                 opacity: 1
@@ -270,6 +270,8 @@ class AddressesDialog(Factory.Popup):
             if self.show_used == 2 and balance == 0:
                 continue
             if self.show_used == 3 and not is_used_and_empty:
+                continue
+            if self.show_used == 4 and is_used_and_empty:
                 continue
             card = self.get_card(address, balance, is_used_and_empty, label)
             if search and not self.ext_search(card, search):
