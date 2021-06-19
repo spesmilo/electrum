@@ -1,3 +1,9 @@
+# Release 4.1.4 - (June 17, 2021)
+ * Kivy/Android: fix a regression where a non-LN wallet
+   could not open the settings (c49d6995)
+ * CLI/RPC: fix "close_wallet" command (#7348)
+
+
 # Release 4.1.3 - (June 16, 2021)
  * Builds/binaries:
    - Android: the binaries (APKs) should now be reproducible (#7263)

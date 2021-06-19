@@ -3,7 +3,7 @@
 
 set -e
 
-version=`git describe --tags`
+version=`git describe --tags --abbrev=0`
 echo $version
 
 here=$(dirname "$0")

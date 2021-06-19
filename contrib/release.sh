@@ -31,7 +31,7 @@ fi
 set -ex
 
 # create tarball
-target=Electrum-ltc-$VERSION.tar.gz
+target=Electrum-LTC-$VERSION.tar.gz
 if test -f dist/$target; then
     echo "file exists: $target"
 else
@@ -43,7 +43,7 @@ else
        mkdir -p $FRESH_CLONE && \
        cd $FRESH_CLONE  && \
        git clone https://github.com/pooler/electrum-ltc.git &&\
-       cd electrum
+       cd electrum-ltc
    git checkout "${COMMIT}^{commit}"
    sudo docker run -it \
 	--name electrum-ltc-sdist-builder-cont \
@@ -97,7 +97,7 @@ else
         --workdir /opt/wine64/drive_c/electrum-ltc/contrib/build-wine \
         electrum-ltc-wine-builder-img \
         ./build.sh
-    # do this in the fresh clone directorry!
+    # do this in the fresh clone directory!
     cd contrib/build-wine/
     ./sign.sh
     cp ./signed/*.exe /opt/electrum-ltc/dist/
@@ -119,7 +119,7 @@ else
         cd $FRESH_CLONE  && \
         git clone https://github.com/pooler/electrum-ltc.git && \
         cd electrum-ltc
-
+    git checkout "${COMMIT}^{commit}"
     mkdir --parents $PWD/.buildozer/.gradle
     sudo docker run -it --rm \
          --name electrum-android-builder-cont \
@@ -130,8 +130,8 @@ else
          electrum-android-builder-img \
          ./contrib/android/make_apk release
 
-    cp bin/$target1 dist/
-    cp bin/$target2 dist/
+    cp contrib/android/fresh_clone/electrum-ltc/bin/$target1 dist/
+    cp contrib/android/fresh_clone/electrum-ltc/bin/$target2 dist/
 
 fi
 
