@@ -3968,29 +3968,23 @@ msgstr "[%s imaturo]"
 msgid "&From file"
 msgstr "&Desde o Ficheiro"
 
-#, fuzzy
 msgid "Arabic"
-msgstr ""
+msgstr "Árabe"
 
-#, fuzzy
 msgid "Chinese Simplified"
-msgstr ""
+msgstr "Chinês Simplificado"
 
-#, fuzzy
 msgid "German"
-msgstr ""
+msgstr "Alemão"
 
-#, fuzzy
 msgid "Japanese"
-msgstr ""
+msgstr "Japonês"
 
-#, fuzzy
 msgid "Korean"
-msgstr ""
+msgstr "Coreano"
 
-#, fuzzy
 msgid "Portuguese"
-msgstr ""
+msgstr "Português"
 
 msgid "Read file"
 msgstr "Ler arquivo"
@@ -3998,17 +3992,26 @@ msgstr "Ler arquivo"
 msgid "Select installation language"
 msgstr "Selecione o idioma"
 
-#, fuzzy
 msgid "Spanish"
-msgstr ""
+msgstr "Espanhol"
 
-#, fuzzy
 msgid "Turkish"
-msgstr ""
+msgstr "Turco"
 
-#, fuzzy
 msgid "Vietnamese"
-msgstr ""
+msgstr "Vietnamita"
 
 msgid "unconfirmed"
 msgstr "não confirmado"
+
+msgid "&Terms && Conditions"
+msgstr "&Termos e Condições"
+
+msgid "If you want to restore your wallet with a longer Seed Extension, please {download_elcash_wallet_501} or contact our Support Team at {support_email}."
+msgstr "Se quiser restaurar a sua carteira com uma Extensão da Semente mais longa, por favor {download_elcash_wallet_501} ou contacte a nossa Equipa de Suporte em {support_email}."
+
+msgid "The maximum number of characters for Seed Extension is {number}."
+msgstr "O número máximo de caracteres para a Extensão da Semente é {number}."
+
+msgid "download ELCASH Wallet 5.0.1"
+msgstr "descarregar a carteira ELCASH 5.0.1"

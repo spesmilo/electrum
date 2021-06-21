@@ -707,30 +707,53 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard, TermsAndConditionsMixi
 
     @wizard_dialog
     def line_dialog(self, run_next, title, message, default, test, warning='',
-                    presets=(), warn_issue4566=False):
+                    presets=(), is_restoring=False):
+        max_chars_in_passphrase = 100
+        support_email = 'contact@electriccash.global'
+        wallet_binary_names = {
+            'win32': 'ELCASH-Wallet-v5.0.1-setup.exe',
+            'linux': 'ELCASH-Wallet-v5.0.1.AppImage',
+            'darwin': 'ELCASH-Wallet-v5.0.1.dmg',
+        }
+        download_address = f'https://electriccash.global/app/{wallet_binary_names[sys.platform]}'
+        if is_restoring:
+            warning_label = QLabel(
+                _('Error') + ': ' +
+                _('The maximum number of characters for Seed Extension is {number}.').format(number=max_chars_in_passphrase) + ' ' +
+                _('If you want to restore your wallet with a longer Seed Extension, please {download_elcash_wallet_501} '
+                  'or contact our Support Team at {support_email}.').format(
+                    support_email=f'<a href="mailto:{support_email}">{support_email}</a>',
+                    download_elcash_wallet_501=f'<a href="{download_address}">' + _("download ELCASH Wallet 5.0.1") + '</a>',
+                )
+            )
+            warning_label.setWordWrap(True)
+            warning_label.setTextFormat(Qt.RichText)
+            warning_label.setOpenExternalLinks(True)
+        else:
+            warning_label = WWLabel(
+                _('Error') + ': ' +
+                _('The maximum number of characters for Seed Extension is {number}.').format(number=max_chars_in_passphrase)
+            )
+        warning_label.setStyleSheet('color: red')
         vbox = QVBoxLayout()
         vbox.addWidget(WWLabel(message))
         line = QLineEdit()
         line.setText(default)
         def f(text):
-            self.next_button.setEnabled(test(text))
-            if warn_issue4566:
-                text_whitespace_normalised = ' '.join(text.split())
-                warn_issue4566_label.setVisible(text != text_whitespace_normalised)
+            self.next_button.setEnabled(test(text) and len(text) <= max_chars_in_passphrase)
+            if len(text) > max_chars_in_passphrase:
+                line.setStyleSheet('border: 3px solid red; background-color: #FE8484;')
+                self.next_button.setEnabled(False)
+                warning_label.setVisible(True)
+            else:
+                warning_label.setVisible(False)
+                line.setStyleSheet('')
+
         line.textEdited.connect(f)
         vbox.addWidget(line)
         vbox.addWidget(WWLabel(warning))
-
-        warn_issue4566_label = WWLabel(
-            _("Warning") + ": " +
-            _("You have multiple consecutive whitespaces or leading/trailing "
-                "whitespaces in your passphrase.") + " " +
-            _("This is discouraged.") + " " +
-            _("Due to a bug, old versions of ELCASH Wallet will NOT be creating the "
-                "same wallet as newer versions or other software.")
-        )
-        warn_issue4566_label.setVisible(False)
-        vbox.addWidget(warn_issue4566_label)
+        warning_label.setVisible(False)
+        vbox.addWidget(warning_label)
 
         for preset in presets:
             button = QPushButton(preset[0])

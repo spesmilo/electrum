@@ -3970,29 +3970,23 @@ msgstr "[%s olgunlaşmayan]"
 msgid "&From file"
 msgstr "&Dosyadan"
 
-#, fuzzy
 msgid "Arabic"
-msgstr ""
+msgstr "Arapça"
 
-#, fuzzy
 msgid "Chinese Simplified"
-msgstr ""
+msgstr "Basitleştirilmiş Çince"
 
-#, fuzzy
 msgid "German"
-msgstr ""
+msgstr "Almanca"
 
-#, fuzzy
 msgid "Japanese"
-msgstr ""
+msgstr "Japonca"
 
-#, fuzzy
 msgid "Korean"
-msgstr ""
+msgstr "Korece"
 
-#, fuzzy
 msgid "Portuguese"
-msgstr ""
+msgstr "Portekizce"
 
 msgid "Read file"
 msgstr "Dosyayı oku"
@@ -4000,17 +3994,26 @@ msgstr "Dosyayı oku"
 msgid "Select installation language"
 msgstr "Dili seçin"
 
-#, fuzzy
 msgid "Spanish"
-msgstr ""
+msgstr "İspanyolca"
 
-#, fuzzy
 msgid "Turkish"
-msgstr ""
+msgstr "Türkçe"
 
-#, fuzzy
 msgid "Vietnamese"
-msgstr ""
+msgstr "Vietnamca"
 
 msgid "unconfirmed"
 msgstr "onaylanmamış"
+
+msgid "&Terms && Conditions"
+msgstr "&Hüküm && Koşullar"
+
+msgid "If you want to restore your wallet with a longer Seed Extension, please {download_elcash_wallet_501} or contact our Support Team at {support_email}."
+msgstr "Cüzdanınızı daha uzun bir Anahtar Kelime Dizisi Uzantısı ile geri yüklemek istiyorsanız, lütfen {download_elcash_wallet_501} veya Destek Ekibimize ulaşın {support_email}."
+
+msgid "The maximum number of characters for Seed Extension is {number}."
+msgstr "Anahtar Kelime Dizisi Uzantısı için maksimum karakter sayısı: {number}."
+
+msgid "download ELCASH Wallet 5.0.1"
+msgstr "ELCASH Wallet 5.0.1'i indir"

@@ -3909,7 +3909,7 @@ msgid "wiped"
 msgstr "borrado"
 
 msgid "your seed extension will <b>not</b> be included in the encrypted backup."
-msgstr "su extensión de semillas no <b>se incluirá en la copia de seguridad cifrada</b>"
+msgstr "su extensión de semillas <b>no</b> se incluirá en la copia de seguridad cifrada."
 
 msgid "{} channels"
 msgstr "{} canales"
@@ -3968,47 +3968,50 @@ msgstr "[%s inmaduro]"
 msgid "&From file"
 msgstr "&Desde un archivo"
 
-#, fuzzy
 msgid "Arabic"
-msgstr ""
+msgstr "árabe"
 
-#, fuzzy
 msgid "Chinese Simplified"
-msgstr ""
+msgstr "chino simplificado"
 
-#, fuzzy
 msgid "German"
-msgstr ""
+msgstr "alemán"
 
-#, fuzzy
 msgid "Japanese"
-msgstr ""
+msgstr "japonés"
 
-#, fuzzy
 msgid "Korean"
-msgstr ""
+msgstr "coreano"
 
-#, fuzzy
 msgid "Portuguese"
-msgstr ""
+msgstr "portugués"
 
 msgid "Read file"
 msgstr "Leer archivo"
 
 msgid "Select installation language"
-msgstr "Seleccione el idioma"
+msgstr "Seleccione el idioma de instalación"
 
-#, fuzzy
 msgid "Spanish"
-msgstr ""
+msgstr "español"
 
-#, fuzzy
 msgid "Turkish"
-msgstr ""
+msgstr "turco"
 
-#, fuzzy
 msgid "Vietnamese"
-msgstr ""
+msgstr "vietnamita"
 
 msgid "unconfirmed"
 msgstr "sin confirmar"
+
+msgid "&Terms && Conditions"
+msgstr "Términos y Condiciones"
+
+msgid "If you want to restore your wallet with a longer Seed Extension, please {download_elcash_wallet_501} or contact our Support Team at {support_email}."
+msgstr "Si desea restaurar su monedero con una Extensión de Semilla más larga, por favor {download_elcash_wallet_501} o contacte con nuestro Equipo de Soporte en {support_email}."
+
+msgid "The maximum number of characters for Seed Extension is {number}."
+msgstr "El número máximo de caracteres para la Extensión de Semilla es {number}."
+
+msgid "download ELCASH Wallet 5.0.1"
+msgstr "Descargar ELCASH Wallet 5.0.1"

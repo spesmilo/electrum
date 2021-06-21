@@ -48,7 +48,6 @@ languages = {
     '': _('Default'),
     'en_UK': _('English'),
     'ar_SA': _('Arabic'),
-    'de_DE': _('German'),
     'es_ES': _('Spanish'),
     'ja_JP': _('Japanese'),
     'ko_KR': _('Korean'),

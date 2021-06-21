@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2021-05-21 13:11+0200\n"
+"POT-Creation-Date: 2021-06-11 11:19+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -137,6 +137,9 @@ msgstr "&Summary"
 
 msgid "&Sweep"
 msgstr "&Sweep"
+
+msgid "&Terms && Conditions"
+msgstr ""
 
 msgid "&Tools"
 msgstr "&Tools"
@@ -831,9 +834,6 @@ msgstr "Don't know any addresses for node:"
 msgid "Don't show this again."
 msgstr "Don't show this again."
 
-msgid "Due to a bug, old versions of ELCASH Wallet will NOT be creating the same wallet as newer versions or other software."
-msgstr "Due to a bug, old versions of ELCASH Wallet will NOT be creating the same wallet as newer versions or other software."
-
 msgid "Dynamic fee estimates not available"
 msgstr "Dynamic fee estimates not available"
 
@@ -869,9 +869,6 @@ msgstr "ELCASH Wallet's focus is speed, with low resource usage and simplifying 
 
 msgid "ELCASH wallet"
 msgstr "ELCASH wallet"
-
-msgid "ETA: fee rate is based on average confirmation time estimates"
-msgstr "ETA: fee rate is based on average confirmation time estimates"
 
 msgid "Each revealer should be used only once."
 msgstr "Each revealer should be used only once."
@@ -1351,6 +1348,10 @@ msgstr "If you use a passphrase, make sure it is correct."
 msgid "If you want to create new addresses, use a deterministic wallet instead."
 msgstr "If you want to create new addresses, use a deterministic wallet instead."
 
+#, python-brace-format
+msgid "If you want to restore your wallet with a longer Seed Extension, please {download_elcash_wallet_501} or contact our Support Team at {support_email}."
+msgstr ""
+
 msgid "If your device is not detected on Windows, go to \"Settings\", \"Devices\", \"Connected devices\", and do \"Remove device\". Then, plug your device again."
 msgstr "If your device is not detected on Windows, go to \"Settings\", \"Devices\", \"Connected devices\", and do \"Remove device\". Then, plug your device again."
 
@@ -1635,9 +1636,6 @@ msgstr "Max"
 
 msgid "Max fee exceeded"
 msgstr "Max fee exceeded"
-
-msgid "Mempool based: fee rate is targeting a depth in the memory pool"
-msgstr "Mempool based: fee rate is targeting a depth in the memory pool"
 
 msgid "Merge signatures from"
 msgstr "Merge signatures from"
@@ -2535,9 +2533,6 @@ msgstr "Startup times are instant because it operates in conjunction with high-p
 msgid "State:"
 msgstr "State:"
 
-msgid "Static"
-msgstr "Static"
-
 msgid "Static: the fee slider uses static values"
 msgstr "Static: the fee slider uses static values"
 
@@ -2649,6 +2644,10 @@ msgstr "The following inputs could not be imported"
 msgid "The input amounts could not be verified as the previous transactions are missing.\nThe amount of money being spent CANNOT be verified."
 msgstr "The input amounts could not be verified as the previous transactions are missing.\nThe amount of money being spent CANNOT be verified."
 
+#, python-brace-format
+msgid "The maximum number of characters for Seed Extension is {number}."
+msgstr ""
+
 msgid "The new fee rate needs to be higher than the old fee rate."
 msgstr "The new fee rate needs to be higher than the old fee rate."
 
@@ -2735,9 +2734,6 @@ msgstr "This is a watching-only wallet"
 
 msgid "This is a watching-only wallet."
 msgstr "This is a watching-only wallet."
-
-msgid "This is discouraged."
-msgstr "This is discouraged."
 
 msgid "This is the height of your local copy of the blockchain."
 msgstr "This is the height of your local copy of the blockchain."
@@ -3246,9 +3242,6 @@ msgstr "You can't broadcast a transaction without a live network connection."
 msgid "You do not need to perform regular backups, because your wallet can be recovered from a secret phrase that you can memorize or write on paper."
 msgstr "You do not need to perform regular backups, because your wallet can be recovered from a secret phrase that you can memorize or write on paper."
 
-msgid "You have multiple consecutive whitespaces or leading/trailing whitespaces in your passphrase."
-msgstr "You have multiple consecutive whitespaces or leading/trailing whitespaces in your passphrase."
-
 msgid "You may enter a ELCASH address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a ELCASH address)"
 msgstr ""
 
@@ -3411,6 +3404,9 @@ msgstr "cosigner"
 
 msgid "could not find suitable outputs"
 msgstr "could not find suitable outputs"
+
+msgid "download ELCASH Wallet 5.0.1"
+msgstr ""
 
 msgid "high fee"
 msgstr "high fee"

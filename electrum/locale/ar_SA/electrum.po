@@ -3956,64 +3956,62 @@ msgstr "أنت على الأرجح تستخدم إصدارًا قديمًا من
 msgid "  [%f unconfirmed]"
 msgstr "[%f غير مؤكد]"
 
-#, fuzzy
 msgid "  [%f unmatured]"
-msgstr ""
+msgstr "  [%f unmatured]"
 
 msgid " [%s unconfirmed]"
 msgstr "[%sغير مؤكد]"
 
-#, fuzzy
 msgid " [%s unmatured]"
-msgstr ""
+msgstr " [%s unmatured]"
 
-#, fuzzy
 msgid "&From file"
-msgstr ""
+msgstr "&من الملف"
 
-#, fuzzy
 msgid "Arabic"
-msgstr ""
+msgstr "العربية"
 
-#, fuzzy
 msgid "Chinese Simplified"
-msgstr ""
+msgstr "الصينية المبسطة"
 
-#, fuzzy
 msgid "German"
-msgstr ""
+msgstr "ألمانية"
 
-#, fuzzy
 msgid "Japanese"
-msgstr ""
+msgstr "اليابانية"
 
-#, fuzzy
 msgid "Korean"
-msgstr ""
+msgstr "الكورية"
 
-#, fuzzy
 msgid "Portuguese"
-msgstr ""
+msgstr "البرتغالية"
 
-#, fuzzy
 msgid "Read file"
-msgstr ""
+msgstr "إقرا الملف"
 
-#, fuzzy
 msgid "Select installation language"
-msgstr ""
+msgstr "حدد لغة التثبيت"
 
-#, fuzzy
 msgid "Spanish"
-msgstr ""
+msgstr "الأسبانية"
 
-#, fuzzy
 msgid "Turkish"
-msgstr ""
+msgstr "التركية"
 
-#, fuzzy
 msgid "Vietnamese"
-msgstr ""
+msgstr "الفيتنامية"
 
 msgid "unconfirmed"
 msgstr "غير مؤكد"
+
+msgid "&Terms && Conditions"
+msgstr "&الشروط && الأحكام"
+
+msgid "If you want to restore your wallet with a longer Seed Extension, please {download_elcash_wallet_501} or contact our Support Team at {support_email}."
+msgstr "إذا كنت ترغب في استعادة محفظتك باستخدام ملحق أساسي أطول ، يرجى {download_elcash_wallet_501} أو الاتصال بفريق الدعم على {support_email}."
+
+msgid "The maximum number of characters for Seed Extension is {number}."
+msgstr "الحد الأقصى لعدد الأحرف للملحق الأولي هو {number}."
+
+msgid "download ELCASH Wallet 5.0.1"
+msgstr "تنزيل محفظة ELCASH 5.0.1"

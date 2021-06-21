@@ -500,10 +500,9 @@ class BaseWizard(Logger):
             _('Note that this is NOT your encryption password.'),
             _('If you do not know what this is, leave this field empty.'),
         ])
-        warn_issue4566 = is_restoring and self.seed_type == 'bip39'
         self.line_dialog(title=title, message=message, warning=warning,
                          default='', test=lambda x:True, run_next=run_next,
-                         warn_issue4566=warn_issue4566)
+                         is_restoring=is_restoring)
 
     def restore_from_seed(self):
         self.opt_bip39 = True

@@ -3968,29 +3968,23 @@ msgstr "[%s 未成熟]"
 msgid "&From file"
 msgstr "&ファイルより"
 
-#, fuzzy
 msgid "Arabic"
-msgstr ""
+msgstr "アラビア語"
 
-#, fuzzy
 msgid "Chinese Simplified"
-msgstr ""
+msgstr "中国語簡体字"
 
-#, fuzzy
 msgid "German"
-msgstr ""
+msgstr "ドイツ語"
 
-#, fuzzy
 msgid "Japanese"
-msgstr ""
+msgstr "日本語"
 
-#, fuzzy
 msgid "Korean"
-msgstr ""
+msgstr "韓国語"
 
-#, fuzzy
 msgid "Portuguese"
-msgstr ""
+msgstr "ポルトガル語"
 
 msgid "Read file"
 msgstr "ファイルを読み込む"
@@ -3998,17 +3992,26 @@ msgstr "ファイルを読み込む"
 msgid "Select installation language"
 msgstr "インストールする言語選択"
 
-#, fuzzy
 msgid "Spanish"
-msgstr ""
+msgstr "スペイン語"
 
-#, fuzzy
 msgid "Turkish"
-msgstr ""
+msgstr "トルコ語"
 
-#, fuzzy
 msgid "Vietnamese"
-msgstr ""
+msgstr "ベトナム語"
 
 msgid "unconfirmed"
 msgstr "未検証"
+
+msgid "&Terms && Conditions"
+msgstr "&利用規約"
+
+msgid "If you want to restore your wallet with a longer Seed Extension, please {download_elcash_wallet_501} or contact our Support Team at {support_email}."
+msgstr "より長いシード拡張子でウォレットを復元する場合は、{download_elcash_wallet_501} または{support_email}からサポートチームにお問い合わせください。"
+
+msgid "The maximum number of characters for Seed Extension is {number}."
+msgstr "シード拡張子の最大文字数は{number}です。"
+
+msgid "download ELCASH Wallet 5.0.1"
+msgstr "ELCASH Wallet 5.0.1をダウンロード"

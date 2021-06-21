@@ -972,7 +972,7 @@ msgid "ELCASH Wallet was unable to copy your wallet file to the specified locati
 msgstr "ELCASH 지갑에서 지갑 파일을 지정한 위치로 복사하지 못했습니다."
 
 msgid "ELCASH Wallet was unable to open your transaction file"
-msgstr ""
+msgstr "ELCASH 지갑에서 거래 파일을 열 수 없습니다."
 
 msgid "ELCASH Wallet was unable to parse your transaction"
 msgstr "ELCASH 지갑에서 거래 구문 분석을 할 수 없었습니다."
@@ -3968,29 +3968,23 @@ msgstr "[%s 미성숙]"
 msgid "&From file"
 msgstr "&파일로부터"
 
-#, fuzzy
 msgid "Arabic"
-msgstr ""
+msgstr "아랍어"
 
-#, fuzzy
 msgid "Chinese Simplified"
-msgstr ""
+msgstr "중국어(간체)"
 
-#, fuzzy
 msgid "German"
-msgstr ""
+msgstr "독일어"
 
-#, fuzzy
 msgid "Japanese"
-msgstr ""
+msgstr "일본어"
 
-#, fuzzy
 msgid "Korean"
-msgstr ""
+msgstr "한국어"
 
-#, fuzzy
 msgid "Portuguese"
-msgstr ""
+msgstr "포르투갈어"
 
 msgid "Read file"
 msgstr "파일 읽기"
@@ -3998,17 +3992,26 @@ msgstr "파일 읽기"
 msgid "Select installation language"
 msgstr "설치 언어 선택"
 
-#, fuzzy
 msgid "Spanish"
-msgstr ""
+msgstr "스페인어"
 
-#, fuzzy
 msgid "Turkish"
-msgstr ""
+msgstr "터키어"
 
-#, fuzzy
 msgid "Vietnamese"
-msgstr ""
+msgstr "베트남어"
 
 msgid "unconfirmed"
 msgstr "확인되지 않음"
+
+msgid "&Terms && Conditions"
+msgstr "&이용 && 약관"
+
+msgid "If you want to restore your wallet with a longer Seed Extension, please {download_elcash_wallet_501} or contact our Support Team at {support_email}."
+msgstr "더 긴 시드 확장으로 지갑을 복원하려면 {download_elcash_wallet_501}을(를) 사용하거나 지원 팀 {support_email}에 문의하십시오."
+
+msgid "The maximum number of characters for Seed Extension is {number}."
+msgstr "시드 확장의 최대 문자 수는 {number}개입니다."
+
+msgid "download ELCASH Wallet 5.0.1"
+msgstr "ELCASH 지갑 5.0.1 다운로드"

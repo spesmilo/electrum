@@ -3968,29 +3968,23 @@ msgstr "[%s 未成熟]"
 msgid "&From file"
 msgstr "&来自文档"
 
-#, fuzzy
 msgid "Arabic"
-msgstr ""
+msgstr "阿拉伯语"
 
-#, fuzzy
 msgid "Chinese Simplified"
-msgstr ""
+msgstr "简体中文"
 
-#, fuzzy
 msgid "German"
-msgstr ""
+msgstr "德语"
 
-#, fuzzy
 msgid "Japanese"
-msgstr ""
+msgstr "日语"
 
-#, fuzzy
 msgid "Korean"
-msgstr ""
+msgstr "韩语"
 
-#, fuzzy
 msgid "Portuguese"
-msgstr ""
+msgstr "葡萄牙语"
 
 msgid "Read file"
 msgstr "读取文件"
@@ -3998,17 +3992,26 @@ msgstr "读取文件"
 msgid "Select installation language"
 msgstr "选择语言"
 
-#, fuzzy
 msgid "Spanish"
-msgstr ""
+msgstr "西班牙语"
 
-#, fuzzy
 msgid "Turkish"
-msgstr ""
+msgstr "土耳其语"
 
-#, fuzzy
 msgid "Vietnamese"
-msgstr ""
+msgstr "越南语"
 
 msgid "unconfirmed"
 msgstr "未検証"
+
+msgid "&Terms && Conditions"
+msgstr "&条款&&条件"
+
+msgid "If you want to restore your wallet with a longer Seed Extension, please {download_elcash_wallet_501} or contact our Support Team at {support_email}."
+msgstr "如果您想使用更长的种子扩展来恢复您的钱包，请{download_elcash_wallet_501} 或通过 {support_email} 联系我们的支持团队。 "
+
+msgid "The maximum number of characters for Seed Extension is {number}."
+msgstr "种子扩展的最大字符数为 {number}。 "
+
+msgid "download ELCASH Wallet 5.0.1"
+msgstr "下载 ELCASH 钱包 5.0.1"

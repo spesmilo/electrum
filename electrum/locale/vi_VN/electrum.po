@@ -153,7 +153,7 @@ msgid "10 minutes"
 msgstr "10 phút"
 
 msgid "2. Align your Revealer borderlines to the dashed lines on the top and left."
-msgstr "2. Căn chỉnh các đường viền Revealer của bạn theo các đường đứt nét ở trên cùng và bên trái. "
+msgstr "2. Căn chỉnh các đường viền Revealer của quý khách theo các đường đứt nét ở trên cùng và bên trái. "
 
 msgid "3. Press slightly the Revealer against the paper and read the numbers that best match on the opposite sides. "
 msgstr "3. Nhấn nhẹ Trình hiển thị trên mặt giấy và đọc các số phù hợp nhất ở các phía đối diện. "
@@ -162,7 +162,7 @@ msgid "4. Type the numbers in the software"
 msgstr "4. Nhập các số vào phần mềm"
 
 msgid "A copy of your wallet file was created in"
-msgstr "Một bản sao của tập tin ví của bạn đã được tạo trong"
+msgstr "Một bản sao của tập tin ví của quý khách đã được tạo trong"
 
 msgid "A few examples"
 msgstr "Một vài ví dụ"
@@ -174,7 +174,7 @@ msgid "A payment was already initiated for this invoice"
 msgstr "Thanh toán đã được thực hiện cho hóa đơn này"
 
 msgid "A small fee will be charged on each transaction that uses the remote server.  You may check and modify your billing preferences once the installation is complete."
-msgstr "Một khoản phí nhỏ sẽ được tính cho mỗi giao dịch thanh toán từ máy chủ từ xa. Bạn có thể kiểm tra và sửa đổi tùy chọn thanh toán của mình sau khi cài đặt hoàn tất."
+msgstr "Một khoản phí nhỏ sẽ được tính cho mỗi giao dịch thanh toán từ máy chủ từ xa. Quý khách có thể kiểm tra và sửa đổi tùy chọn thanh toán của mình sau khi cài đặt hoàn tất."
 
 msgid "A suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction."
 msgstr "Eine empfohlene Gebühr wird diesem Feld automatisch hinzugefügt, kann aber überschrieben werden. Die empfohlene Gebühr Steigt mit der Größe der Transaction."
@@ -195,7 +195,7 @@ msgid "Add Cosigner"
 msgstr "Thêm người cùng kí"
 
 msgid "Add a cosigner to your multi-sig wallet"
-msgstr "Thêm người đồng kí vào ví đa chữ kí của bạn"
+msgstr "Thêm người đồng kí vào ví đa chữ kí của quý khách"
 
 msgid "Add an optional virtual keyboard to the password dialog."
 msgstr "Thêm bàn phím ảo tùy chọn vào hộp thoại mật khẩu."
@@ -237,7 +237,7 @@ msgid "Advanced preview"
 msgstr "Bản xem trước nâng cao"
 
 msgid "After that delay, funds will be sent to an address derived from your wallet seed."
-msgstr " Sau thời gian trì hoãn đó, tiền sẽ được gửi đến địa chỉ lấy từ ví của bạn hạt giống. "
+msgstr " Sau thời gian trì hoãn đó, các khoản tiền sẽ được gửi đến địa chỉ lấy từ hạt giống ví của quý khách. "
 
 msgid "All"
 msgstr "Tất cả"
@@ -258,7 +258,7 @@ msgid "Alternatively"
 msgstr "Ngoài ra"
 
 msgid "Always check your backups."
-msgstr "Luôn kiểm tra các bản sao lưu của bạn."
+msgstr "Luôn kiểm tra các bản sao lưu của quý khách."
 
 msgid "Amount"
 msgstr "số tiền"
@@ -288,22 +288,22 @@ msgid "An unnamed {}"
 msgstr "Một {} không tên"
 
 msgid "Are you sure you want to delete this channel? This will purge associated transactions from your wallet history."
-msgstr " Bạn có chắc chắn muốn xóa kênh này không? Điều này sẽ xóa liên kết giao dịch từ lịch sử ví của bạn. "
+msgstr "Quý khách có chắc chắn muốn xóa kênh này không? Điều này sẽ xóa liên kết giao dịch từ lịch sử ví của quý khách. "
 
 msgid "Are you sure you want to delete wallet {}?"
-msgstr "Bạn có chắc chắn muốn xóa ví {} không?"
+msgstr "Quý khách có chắc chắn muốn xóa ví {} không?"
 
 msgid "Are you sure you want to disagree?"
-msgstr "Bạn có chắc chắn không muốn đồng ý?"
+msgstr "Quý khách có chắc chắn không muốn đồng ý?"
 
 msgid "Are you sure you want to remove this transaction and {} child transactions?"
-msgstr "Bạn có chắc chắn muốn xóa giao dịch này và {} giao dịch con không? "
+msgstr "Quý khách có chắc chắn muốn xóa giao dịch này và {} giao dịch con không? "
 
 msgid "Are you sure you want to remove this transaction?"
-msgstr "Bạn có chắc chắn muốn xóa giao dịch này không?"
+msgstr "Quý khách có chắc chắn muốn xóa giao dịch này không?"
 
 msgid "Are you sure?"
-msgstr "Bạn có chắc không?"
+msgstr "Quý khách có chắc không?"
 
 msgid "At block height: {}"
 msgstr "Ở chiều cao khối: {}"
@@ -366,7 +366,7 @@ msgid "Base unit"
 msgstr "Đơn vị tính"
 
 msgid "Base unit of your wallet."
-msgstr "Đơn vị tính cho ví của bạn."
+msgstr "Đơn vị tính cho ví của quý khách."
 
 msgid "Batch RBF transactions"
 msgstr "Nhóm giao dịch RBF "
@@ -444,7 +444,7 @@ msgid "Cancel (double-spend)"
 msgstr "Hủy (chi tiêu gấp đôi)"
 
 msgid "Cancel an unconfirmed RBF transaction by double-spending its inputs back to your wallet with a higher fee."
-msgstr " Hủy giao dịch RBF chưa được xác nhận bằng cách chi tiêu gấp đôi đầu vào của nó trở lại ví của bạn với mức phí cao hơn. "
+msgstr " Hủy giao dịch RBF chưa được xác nhận bằng cách chi tiêu gấp đôi đầu vào của nó trở lại ví của quý khách với mức phí cao hơn. "
 
 msgid "Cancel transaction"
 msgstr "Hủy giao dịch"
@@ -531,7 +531,7 @@ msgid "Channel closed"
 msgstr "Kênh đã đóng"
 
 msgid "Channel closed, you may need to wait at least {} blocks, because of CSV delays"
-msgstr " Kênh đã đóng, bạn có thể phải đợi ít nhất {} lần chặn, do CSV sự chậm trễ"
+msgstr " Kênh đã đóng, quý khách có thể phải đợi ít nhất {} lần chặn, do CSV sự chậm trễ"
 
 msgid "Channel details"
 msgstr "Chi tiết kênh"
@@ -549,7 +549,7 @@ msgid "Channels in database."
 msgstr "Các kênh trong cơ sở dữ liệu."
 
 msgid "Check this box to request a new secret. You will need to retype your seed."
-msgstr " Chọn hộp này để yêu cầu một bí mật mới. Bạn sẽ cần phải nhập lại hạt giống của mình. "
+msgstr " Chọn hộp này để yêu cầu một bí mật mới. Quý khách sẽ cần phải nhập lại hạt giống của mình. "
 
 msgid "Checking for updates..."
 msgstr "Đang kiểm tra các bản cập nhật ..."
@@ -567,7 +567,7 @@ msgid "Choose a password"
 msgstr "Chọn mật khẩu"
 
 msgid "Choose a password to encrypt your wallet keys."
-msgstr "Chọn một mật khẩu để mã hoá các khoá của ví bạn."
+msgstr "Chọn một mật khẩu để mã hoá các khoá ví của quý khách."
 
 msgid "Choose a server"
 msgstr "Chọn một máy chủ"
@@ -582,16 +582,16 @@ msgid "Choose from peers"
 msgstr "Chọn từ các máy tính trong mạng lưới "
 
 msgid "Choose the number of signatures needed to unlock funds in your wallet:"
-msgstr "Chọn số lượng chữ kí cần thiết để mở khoá các khoản trong ví của bạn:"
+msgstr "Chọn số lượng chữ kí cần thiết để mở khoá các khoản tiền trong ví của quý khách:"
 
 msgid "Choose the type of addresses in your wallet."
-msgstr "Chọn loại địa chỉ trong ví của bạn."
+msgstr "Chọn loại địa chỉ trong ví của quý khách."
 
 msgid "Choose which online block explorer to use for functions that open a web browser"
 msgstr "Chọn một dịch vụ truy xuất khối trực tuyến để dùng cho các thao tác mở trình duyệt"
 
 msgid "Choose your chain"
-msgstr "Chọn chuỗi khối của bạn"
+msgstr "Chọn chuỗi khối của quý khách"
 
 msgid "Choose..."
 msgstr "Chọn..."
@@ -669,7 +669,7 @@ msgid "Confirm Transaction"
 msgstr "Xác nhận giao dịch"
 
 msgid "Confirm Transaction on your Ledger device..."
-msgstr "Xác nhận giao dịch trên thiết bị Sổ cái của bạn ..."
+msgstr "Xác nhận giao dịch trên thiết bị Sổ cái của quý khách ..."
 
 msgid "Confirm action"
 msgstr "Xác nhận hành động"
@@ -783,7 +783,7 @@ msgid "Create transaction"
 msgstr "Tạo giao dịch"
 
 msgid "Creating a new payment request will reuse one of your addresses and overwrite an existing request. Continue anyway?"
-msgstr "Tạo một yêu cầu thanh toán mới sẽ sử dụng lại một trong các địa chỉ của bạn và ghi đè một yêu cầu hiện có. Vẫn tiếp tục?"
+msgstr "Tạo một yêu cầu thanh toán mới sẽ sử dụng lại một trong các địa chỉ của quý khách và ghi đè một yêu cầu hiện có. Vẫn tiếp tục?"
 
 msgid "Critical Error"
 msgstr "Lỗi nghiêm trọng"
@@ -831,7 +831,7 @@ msgid "Decrypt"
 msgstr "Giải mã"
 
 msgid "Decrypt your private key?"
-msgstr "Giải mã khóa cá nhân của bạn?"
+msgstr "Giải mã khóa cá nhân của quý khách?"
 
 msgid "Default"
 msgstr "Mặc định"
@@ -906,7 +906,7 @@ msgid "Disconnected"
 msgstr "Đã ngắt kết nối"
 
 msgid "Display your seed?"
-msgstr "Hiển thị hạt giống của bạn?"
+msgstr "Hiển thị hạt giống của quý khách?"
 
 msgid "Distributed by Electrum Technologies GmbH"
 msgstr "Được phân phối bởi Electrum Technologies GmbH"
@@ -915,7 +915,7 @@ msgid "Do not enter sensitive/private information here. The report will be visib
 msgstr "Không nhập thông tin nhạy cảm/riêng tư ở đây. Báo cáo sẽ hiển thị trên trình theo dõi vấn đề công khai. "
 
 msgid "Do not paste code here that you don't understand. Executing the wrong code could lead to your coins being irreversibly lost."
-msgstr "Đừng dán mã mà bạn không hiểu ở đây. Thực thi sai mã có thể khiến số tiền của bạn bị mất không thể phục hồi. "
+msgstr "Đừng dán mã mà quý khách không hiểu ở đây. Thực thi sai mã có thể khiến số tiền của quý khách bị mất không thể phục hồi. "
 
 msgid "Do not store it electronically."
 msgstr "Không lưu trữ nó trong các thiết bị điện tử."
@@ -924,13 +924,13 @@ msgid "Do you have something to hide ?"
 msgstr "Em có chuyện gì muốn ẩn giấu?"
 
 msgid "Do you want to create a new seed, or to restore a wallet using an existing seed?"
-msgstr "Bạn muốn tạo một hạt giống mới hay khôi phục ví bằng hạt giống hiện có? "
+msgstr "Quý khách muốn tạo một hạt giống mới hay khôi phục ví bằng hạt giống hiện có? "
 
 msgid "Do you want to create your first channel?"
-msgstr "Bạn có muốn tạo kênh đầu tiên của mình không?"
+msgstr "Quý khách có muốn tạo kênh đầu tiên của mình không?"
 
 msgid "Do you want to delete '{}'?"
-msgstr "Bạn có muốn xóa không '{}'?"
+msgstr "Quý khách có muốn xóa không '{}'?"
 
 msgid "Do you want to delete the old file"
 msgstr "Bạn có muốn xóa tập tin cũ không"
@@ -977,7 +977,6 @@ msgstr "ELCASH Wallet không thể mở được tệp giao dịch của bạn"
 msgid "ELCASH Wallet was unable to parse your transaction"
 msgstr "ELCASH Wallet không thể phân tích cú pháp giao dịch của bạn"
 
-#, fuzzy
 msgid "ELCASH Wallet was unable to produce a private key-export."
 msgstr "ELCASH Wallet không thể tạo ra một xuất chìa khoá riêng tư"
 
@@ -1009,7 +1008,7 @@ msgid "ELCASH Wallet preferences"
 msgstr "Thiết đặt ELCASH Wallet"
 
 msgid "Electrum requests your transaction history from a single server. The returned history is checked against blockchain headers sent by other nodes, using Simple Payment Verification (SPV)."
-msgstr "Electrum yêu cầu lịch sử giao dịch của bạn từ một máy chủ. Các lịch sử trả về được kiểm tra dựa trên các tiêu đề blockchain được gửi bởi các nút khác, sử dụng cách Xác minh Thanh toán Đơn giản (SPV). "
+msgstr "Electrum yêu cầu lịch sử giao dịch của quý khách từ một máy chủ. Các lịch sử trả về được kiểm tra dựa trên các tiêu đề blockchain được gửi bởi các giao điểm khác, sử dụng cách Xác Minh Thanh Toán Đơn Giản (SPV). "
 
 msgid "Electrum was unable to deserialize the transaction:"
 msgstr "Electrum không thể giải mã giao dịch:"
@@ -1111,28 +1110,28 @@ msgid "Enter private keys:"
 msgstr "Nhập các khoá riêng:"
 
 msgid "Enter the seed for your 2-factor wallet:"
-msgstr "Nhập hạt giống cho ví 2 yếu tố của bạn:"
+msgstr "Nhập hạt giống cho ví 2 yếu tố của quý khách:"
 
 msgid "Enter their master private key (xprv) if you want to be able to sign for them."
-msgstr "Nhập khoá riêng chủ (xprv) nếu bạn muốn kí cho chúng."
+msgstr "Nhập vào chìa khoá tổng tư nhân (xprv) nếu quý khách muốn kí cho chúng."
 
 msgid "Enter wallet name"
 msgstr "Nhập tên ví"
 
 msgid "Enter your PIN"
-msgstr "Nhập PIN của bạn"
+msgstr "Nhập PIN của quý khách"
 
 msgid "Enter your PIN code to proceed"
-msgstr "Nhập mã PIN của bạn để tiếp tục"
+msgstr "Nhập mã PIN của quý khách để tiếp tục"
 
 msgid "Enter your password"
-msgstr "Nhập mật khẩu của bạn"
+msgstr "Nhập mật khẩu của quý khách"
 
 msgid "Enter your password or choose another file."
-msgstr "Nhập mật khẩu của bạn hoặc chọn tệp khác."
+msgstr "Nhập mật khẩu của quý khách hoặc chọn tệp khác."
 
 msgid "Enter your password to proceed"
-msgstr "Nhập mật khẩu của bạn để tiếp tục"
+msgstr "Nhập mật khẩu của quý khách để tiếp tục"
 
 msgid "Error"
 msgstr "Lỗi"
@@ -1195,13 +1194,13 @@ msgid "Expiration date"
 msgstr "Ngày hết hạn"
 
 msgid "Expiration date of your request."
-msgstr "Thời hạn của yêu cầu của bạn."
+msgstr "Thời gian hết hạn yêu cầu của quý khách."
 
 msgid "Expired"
 msgstr "Đã hết hạn"
 
 msgid "Expired requests have to be deleted manually from your list, in order to free the corresponding Bitcoin addresses."
-msgstr "Các yêu cầu đã hết hạn cần được xoá một cách thủ công khỏi danh sách của bạn, nhằm giải phóng các địa chỉ Bitcoin tương ứng."
+msgstr "Các yêu cầu đã hết hạn cần được xoá một cách thủ công khỏi danh sách của quý khách, nhằm giải phóng các địa chỉ Bitcoin tương ứng."
 
 msgid "Expires"
 msgstr "Hết hạn"
@@ -1228,7 +1227,7 @@ msgid "Export to file"
 msgstr "Xuất sang tệp"
 
 msgid "Exposing a single private key can compromise your entire wallet!"
-msgstr "Để lộ một khóa cá nhân duy nhất có thể ảnh hưởng đến toàn bộ ví của bạn!"
+msgstr "Để lộ một khóa cá nhân duy nhất có thể ảnh hưởng đến toàn bộ ví của quý khách!"
 
 msgid "Extend this seed with custom words"
 msgstr "Mở rộng hạt giống này bằng các từ tùy chỉnh"
@@ -1330,7 +1329,7 @@ msgid "For more information, visit"
 msgstr "Để biết thêm thông tin, hãy truy cập"
 
 msgid "For security reasons we advise that you always use the latest version of ELCASH Wallet."
-msgstr "Vì lý do bảo mật, chúng tôi khuyên bạn nên luôn sử dụng phiên bản mới nhất của ELCASH Wallet. "
+msgstr "Vì lý do bảo mật, chúng tôi khuyên quý khách nên luôn sử dụng phiên bản mới nhất của ELCASH Wallet. "
 
 msgid "Force-close channel"
 msgstr "Buộc đóng kênh"
@@ -1393,7 +1392,7 @@ msgid "Funds retrieved from this channel will not be available before {} blocks 
 msgstr "Tiền lấy từ kênh này sẽ không có sẵn trước khi {} chặn sau khi buộc phải đóng. "
 
 msgid "Funds stored in lightning channels are not recoverable from your seed. You must backup your wallet file everytime you create a new channel."
-msgstr "Không thể thu hồi tiền được lưu trữ trong kênh lighting từ hạt giống của bạn. Bạn phải sao lưu tệp ví của bạn mỗi khi bạn tạo kênh mới. "
+msgstr "Không thể thu hồi tiền được lưu trữ trong kênh lighting từ hạt giống của quý khách. Quý khách phải sao lưu tệp ví của mình mỗi khi tạo kênh mới. "
 
 msgid "General"
 msgstr "Tổng quan"
@@ -1429,7 +1428,7 @@ msgid "Help"
 msgstr "Hỗ trợ"
 
 msgid "Here is your master public key."
-msgstr "Đây là khóa công khai chính của bạn."
+msgstr "Đây là khóa công khai chính của quý khách."
 
 msgid "Hide"
 msgstr "Ẩn giấu"
@@ -1453,7 +1452,7 @@ msgid "Hostname does not resolve (getaddrinfo failed)"
 msgstr "Tên máy chủ không giải quyết được (getaddrinfo không thành công)"
 
 msgid "How do you want to connect to a server? "
-msgstr "Bạn muốn kết nối với máy chủ như thế nào?"
+msgstr "Quý khách muốn kết nối với máy chủ như thế nào?"
 
 msgid "However, hardware wallets do not support message decryption, which makes them not compatible with the current design of cosigner pool."
 msgstr "Tuy nhiên, ví phần cứng không hỗ trợ giải mã tin nhắn, điều này khiến chúng không tương thích với thiết kế hiện tại của nhóm người đồng kí. "
@@ -1480,7 +1479,7 @@ msgid "If enabled, at most 100 satoshis might be lost due to this, per transacti
 msgstr "Nếu được bật, tối đa 100 satoshi có thể bị mất do điều này, cho mỗi giao dịch. "
 
 msgid "If it is disabled, you have to choose a server you want to use. ELCASH Wallet will warn you if your server is lagging."
-msgstr "Nếu nó bị tắt, bạn phải chọn một máy chủ bạn muốn sử dụng. ELCASH Wallet sẽ cảnh báo bạn nếu máy chủ của bạn bị chậm. "
+msgstr "Nếu nó bị tắt, quý khách phải chọn một máy chủ muốn sử dụng. ELCASH Wallet sẽ đưa ra cảnh báo nếu máy chủ của quý khách bị chậm. "
 
 msgid "If this option is checked, Electrum will\nrun a local watchtower and protect your channels even if your wallet is not\nopen. For this to work, your computer needs to be online regularly."
 msgstr "Nếu tuỳ chọn này đã được chọn, Electrum sẽ\nchạy một tháp canh cục bộ và bảo vệ các kênh của bạn kể cả nếu ví của bạn không\nmở. Để có thể làm được việc này, máy tính của bạn cần được kết nối mạng thường xuyên."
@@ -3793,7 +3792,7 @@ msgid "[q] - quit"
 msgstr "[q] - thoát"
 
 msgid "[r] - show own receipt addresses"
-msgstr "[r] - hiển thị địa chỉ biên nhận của riêng bạn"
+msgstr "[r] - hiển thị địa chỉ biên nhận của riêng quý khách"
 
 msgid "[s] - send stored payment order"
 msgstr "[s] - gửi lệnh thanh toán đã lưu trữ"
@@ -3808,7 +3807,7 @@ msgid "address already in wallet"
 msgstr "địa chỉ đã có trong ví"
 
 msgid "and you will have the possibility, while they are unconfirmed, to replace them with transactions that pay higher fees."
-msgstr "và bạn sẽ có khả năng thay thế, trong khi chúng chưa được xác nhận, để thay thế nó với các giao dịch trả phí cao hơn. "
+msgstr "và quý khách sẽ có khả năng thay thế, trong khi chúng chưa được xác nhận, để thay thế nó với các giao dịch trả phí cao hơn. "
 
 msgid "are frozen"
 msgstr "bị đóng băng"
@@ -3952,7 +3951,7 @@ msgid "The ELCASH address never expires and will always be part of this ELCASH W
 msgstr "Địa chỉ ELCASH không bao giờ hết hạn và sẽ luôn luôn là một phần của ELCASH Wallet."
 
 msgid "You are most likely using an outdated version of Electrum. Please update."
-msgstr "Có  vẻ bạn đang sử dụng phiên bản cũ của Electrum. Xin hãy cập nhật."
+msgstr "Có vẻ quý khách đang sử dụng phiên bản cũ của Electrum. Xin hãy cập nhật."
 
 msgid "  [%f unconfirmed]"
 msgstr "[%f chưa được xác nhận]"
@@ -3969,29 +3968,23 @@ msgstr "[%s không đạt chuẩn]"
 msgid "&From file"
 msgstr "&Từ tập tin"
 
-#, fuzzy
 msgid "Arabic"
-msgstr ""
+msgstr "Tiếng Ả Rập"
 
-#, fuzzy
 msgid "Chinese Simplified"
-msgstr ""
+msgstr "Tiếng Trung Giản Thể"
 
-#, fuzzy
 msgid "German"
-msgstr ""
+msgstr "Tiếng Đức"
 
-#, fuzzy
 msgid "Japanese"
-msgstr ""
+msgstr "Tiếng Nhật"
 
-#, fuzzy
 msgid "Korean"
-msgstr ""
+msgstr "Tiếng Hàn "
 
-#, fuzzy
 msgid "Portuguese"
-msgstr ""
+msgstr "Tiếng Bồ Đào Nha"
 
 msgid "Read file"
 msgstr "Đọc file"
@@ -3999,17 +3992,26 @@ msgstr "Đọc file"
 msgid "Select installation language"
 msgstr "Chọn ngôn ngữ"
 
-#, fuzzy
 msgid "Spanish"
-msgstr ""
+msgstr "Tiếng Tây Ban Nha"
 
-#, fuzzy
 msgid "Turkish"
-msgstr ""
+msgstr "Tiếng Thổ Nhĩ Kỳ"
 
-#, fuzzy
 msgid "Vietnamese"
-msgstr ""
+msgstr "Tiếng Việt"
 
 msgid "unconfirmed"
 msgstr "chưa được xác nhận"
+
+msgid "&Terms && Conditions"
+msgstr "&Các Điều Khoản && Các Điều Kiện"
+
+msgid "If you want to restore your wallet with a longer Seed Extension, please {download_elcash_wallet_501} or contact our Support Team at {support_email}."
+msgstr "Nếu quý khách muốn khôi phục lại ví của mình với một Hạt Giống Mở Rộng dài hơn, vui lòng {download_elcash_wallet_501} hoặc liên hệ với Đội Ngũ Hỗ Trợ tại {support_email}."
+
+msgid "The maximum number of characters for Seed Extension is {number}."
+msgstr "Số lượng kí tự tối đa dành cho Hạt Giống Mở Rộng là {number}."
+
+msgid "download ELCASH Wallet 5.0.1"
+msgstr "tải xuống ELCASH Wallet 5.0.1"
