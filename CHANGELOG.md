@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.0.2](https://github.com/electric-cash/elcash-wallet/compare/v5.0.1...v5.0.2) (2021-06-21)
+
+
+### Bug Fixes
+
+* Set up upper limit on mnemonic passphrase ([#52](https://github.com/electric-cash/elcash-wallet/issues/52)) ([b72c74e](https://github.com/electric-cash/elcash-wallet/commit/b72c74ed37ed4e311e882e6c6a12104812401d19)), closes [#50](https://github.com/electric-cash/elcash-wallet/issues/50) [#49](https://github.com/electric-cash/elcash-wallet/issues/49) [#51](https://github.com/electric-cash/elcash-wallet/issues/51)
+
 ## [5.0.1](https://github.com/electric-cash/elcash-wallet/compare/v5.0.0...v5.0.1) (2021-06-10)
 
 
