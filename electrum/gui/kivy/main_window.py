@@ -723,7 +723,8 @@ class ElectrumWindow(App, Logger):
         from .uix.dialogs.settings import SettingsDialog
         if self._settings_dialog is None:
             self._settings_dialog = SettingsDialog(self)
-        self._settings_dialog.update()
+        else:
+            self._settings_dialog.update()
         self._settings_dialog.open()
 
     def lightning_open_channel_dialog(self):
@@ -1183,7 +1184,8 @@ class ElectrumWindow(App, Logger):
         from .uix.dialogs.addresses import AddressesDialog
         if self._addresses_dialog is None:
             self._addresses_dialog = AddressesDialog(self)
-        self._addresses_dialog.update()
+        else:
+            self._addresses_dialog.update()
         self._addresses_dialog.open()
 
     def fee_dialog(self):
@@ -1335,7 +1337,6 @@ class ElectrumWindow(App, Logger):
                 self.show_error(_("Backup NOT saved. Backup directory not configured."))
             return
 
-        backup_dir = util.android_backup_dir()
         from android.permissions import request_permissions, Permission
         def cb(permissions, grant_results: Sequence[bool]):
             if not grant_results or not grant_results[0]:
@@ -1343,6 +1344,7 @@ class ElectrumWindow(App, Logger):
                 return
             # note: Clock.schedule_once is a hack so that we get called on a non-daemon thread
             #       (needed for WalletDB.write)
+            backup_dir = util.android_backup_dir()
             Clock.schedule_once(lambda dt: self._save_backup(backup_dir))
         request_permissions([Permission.WRITE_EXTERNAL_STORAGE], cb)
 

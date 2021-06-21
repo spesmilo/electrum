@@ -183,6 +183,8 @@ class LiquidityHint:
         self._cannot_send_backward = None
         self.blacklist_timestamp = 0
         self.hint_timestamp = 0
+        self._inflight_htlcs_forward = 0
+        self._inflight_htlcs_backward = 0
 
     def is_hint_invalid(self) -> bool:
         now = int(time.time())
@@ -273,10 +275,28 @@ class LiquidityHint:
         else:
             self.cannot_send_backward = amount
 
+    def num_inflight_htlcs(self, is_forward_direction: bool) -> int:
+        if is_forward_direction:
+            return self._inflight_htlcs_forward
+        else:
+            return self._inflight_htlcs_backward
+
+    def add_htlc(self, is_forward_direction: bool):
+        if is_forward_direction:
+            self._inflight_htlcs_forward += 1
+        else:
+            self._inflight_htlcs_backward += 1
+
+    def remove_htlc(self, is_forward_direction: bool):
+        if is_forward_direction:
+            self._inflight_htlcs_forward = max(0, self._inflight_htlcs_forward - 1)
+        else:
+            self._inflight_htlcs_backward = max(0, self._inflight_htlcs_forward - 1)
+
     def __repr__(self):
         is_blacklisted = False if not self.blacklist_timestamp else int(time.time()) - self.blacklist_timestamp < BLACKLIST_DURATION
-        return f"forward: can send: {self._can_send_forward} msat, cannot send: {self._cannot_send_forward} msat, \n" \
-               f"backward: can send: {self._can_send_backward} msat, cannot send: {self._cannot_send_backward} msat, \n" \
+        return f"forward: can send: {self._can_send_forward} msat, cannot send: {self._cannot_send_forward} msat, htlcs: {self._inflight_htlcs_forward}\n" \
+               f"backward: can send: {self._can_send_backward} msat, cannot send: {self._cannot_send_backward} msat, htlcs: {self._inflight_htlcs_backward}\n" \
                f"blacklisted: {is_blacklisted}"
 
 
@@ -288,15 +308,13 @@ class LiquidityHintMgr:
     algorithm that favors channels which can route payments and penalizes
     channels that cannot.
     """
-    # TODO: incorporate in-flight htlcs
-    # TODO: use timestamps for can/not_send to make them None after some time?
     # TODO: hints based on node pairs only (shadow channels, non-strict forwarding)?
     def __init__(self):
         self.lock = RLock()
         self._liquidity_hints: Dict[ShortChannelID, LiquidityHint] = {}
 
     @with_lock
-    def get_hint(self, channel_id: ShortChannelID):
+    def get_hint(self, channel_id: ShortChannelID) -> LiquidityHint:
         hint = self._liquidity_hints.get(channel_id)
         if not hint:
             hint = LiquidityHint()
@@ -312,6 +330,16 @@ class LiquidityHintMgr:
     def update_cannot_send(self, node_from: bytes, node_to: bytes, channel_id: ShortChannelID, amount: int):
         hint = self.get_hint(channel_id)
         hint.update_cannot_send(node_from < node_to, amount)
+
+    @with_lock
+    def add_htlc(self, node_from: bytes, node_to: bytes, channel_id: ShortChannelID):
+        hint = self.get_hint(channel_id)
+        hint.add_htlc(node_from < node_to)
+
+    @with_lock
+    def remove_htlc(self, node_from: bytes, node_to: bytes, channel_id: ShortChannelID):
+        hint = self.get_hint(channel_id)
+        hint.remove_htlc(node_from < node_to)
 
     def penalty(self, node_from: bytes, node_to: bytes, channel_id: ShortChannelID, amount: int) -> float:
         """Gives a penalty when sending from node1 to node2 over channel_id with an
@@ -337,16 +365,19 @@ class LiquidityHintMgr:
         # we only evaluate hints here, so use dict get (to not create many hints with self.get_hint)
         hint = self._liquidity_hints.get(channel_id)
         if not hint:
-            can_send, cannot_send = None, None
+            can_send, cannot_send, num_inflight_htlcs = None, None, 0
         else:
             can_send = hint.can_send(node_from < node_to)
             cannot_send = hint.cannot_send(node_from < node_to)
+            num_inflight_htlcs = hint.num_inflight_htlcs(node_from < node_to)
 
         if cannot_send is not None and amount >= cannot_send:
             return inf
         if can_send is not None and amount <= can_send:
             return 0
-        return fee_for_edge_msat(amount, DEFAULT_PENALTY_BASE_MSAT, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH)
+        success_fee = fee_for_edge_msat(amount, DEFAULT_PENALTY_BASE_MSAT, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH)
+        inflight_htlc_fee = num_inflight_htlcs * success_fee
+        return success_fee + inflight_htlc_fee
 
     @with_lock
     def add_to_blacklist(self, channel_id: ShortChannelID):
@@ -402,6 +433,14 @@ class LNPathFinder(Logger):
                 self.logger.info(f"report {r.short_channel_id} to be unable to forward {amount_msat} msat")
                 self.liquidity_hints.update_cannot_send(r.start_node, r.end_node, r.short_channel_id, amount_msat)
                 break
+
+    def update_inflight_htlcs(self, route: LNPaymentRoute, add_htlcs: bool):
+        self.logger.info(f"{'Adding' if add_htlcs else 'Removing'} inflight htlcs to graph (liquidity hints).")
+        for r in route:
+            if add_htlcs:
+                self.liquidity_hints.add_htlc(r.start_node, r.end_node, r.short_channel_id)
+            else:
+                self.liquidity_hints.remove_htlc(r.start_node, r.end_node, r.short_channel_id)
 
     def _edge_cost(
             self,
