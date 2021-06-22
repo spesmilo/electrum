@@ -24,7 +24,7 @@ import binascii
 import os, sys, re, json
 from collections import defaultdict, OrderedDict
 from typing import (NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any,
-                    Sequence, Dict, Generic, TypeVar, List, Iterable)
+                    Sequence, Dict, Generic, TypeVar, List, Iterable, Set)
 from datetime import datetime
 import decimal
 from decimal import Decimal
@@ -70,6 +70,14 @@ _logger = get_logger(__name__)
 
 def inv_dict(d):
     return {v: k for k, v in d.items()}
+
+
+def all_subclasses(cls) -> Set:
+    """Return all (transitive) subclasses of cls."""
+    res = set(cls.__subclasses__())
+    for sub in res.copy():
+        res |= all_subclasses(sub)
+    return res
 
 
 ca_path = certifi.where()

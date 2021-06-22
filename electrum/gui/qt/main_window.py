@@ -1969,7 +1969,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def parse_lightning_invoice(self, invoice):
         """Parse ln invoice, and prepare the send tab for it."""
         try:
-            lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
+            lnaddr = lndecode(invoice)
         except Exception as e:
             raise LnDecodeException(e) from e
         pubkey = bh2u(lnaddr.pubkey.serialize())
@@ -2180,7 +2180,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         d.exec_()
 
     def show_lightning_invoice(self, invoice: LNInvoice):
-        lnaddr = lndecode(invoice.invoice, expected_hrp=constants.net.SEGWIT_HRP)
+        lnaddr = lndecode(invoice.invoice)
         d = WindowModalDialog(self, _("Lightning Invoice"))
         vbox = QVBoxLayout(d)
         grid = QGridLayout()

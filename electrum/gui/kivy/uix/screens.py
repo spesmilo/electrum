@@ -187,7 +187,7 @@ class SendScreen(CScreen, Logger):
     def set_ln_invoice(self, invoice: str):
         try:
             invoice = str(invoice).lower()
-            lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
+            lnaddr = lndecode(invoice)
         except Exception as e:
             self.app.show_info(invoice + _(" is not a valid Lightning invoice: ") + repr(e)) # repr because str(Exception()) == ''
             return

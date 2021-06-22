@@ -1398,7 +1398,7 @@ class LNWallet(LNWorker):
 
     @staticmethod
     def _check_invoice(invoice: str, *, amount_msat: int = None) -> LnAddr:
-        addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
+        addr = lndecode(invoice)
         if addr.is_expired():
             raise InvoiceError(_("This invoice has expired"))
         if amount_msat:  # replace amt in invoice. main usecase is paying zero amt invoices

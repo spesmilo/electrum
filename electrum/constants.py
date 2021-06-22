@@ -26,7 +26,7 @@
 import os
 import json
 
-from .util import inv_dict
+from .util import inv_dict, all_subclasses
 from . import bitcoin
 
 
@@ -47,7 +47,17 @@ BIP39_WALLET_FORMATS = read_json('bip39_wallet_formats.json', [])
 
 class AbstractNet:
 
-    BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS = 0
+    NET_NAME: str
+    TESTNET: bool
+    WIF_PREFIX: int
+    ADDRTYPE_P2PKH: int
+    ADDRTYPE_P2SH: int
+    SEGWIT_HRP: str
+    BOLT11_HRP: str
+    GENESIS: str
+    BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS: int = 0
+    BIP44_COIN_TYPE: int
+    LN_REALM_BYTE: int
 
     @classmethod
     def max_checkpoint(cls) -> int:
@@ -170,6 +180,8 @@ class BitcoinSignet(BitcoinTestnet):
     CHECKPOINTS = []
     LN_DNS_SEEDS = []
 
+
+NETS_LIST = tuple(all_subclasses(AbstractNet))
 
 # don't import net directly, import the module instead (so that net is singleton)
 net = BitcoinMainnet
