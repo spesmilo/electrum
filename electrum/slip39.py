@@ -28,8 +28,8 @@ import hmac
 from collections import defaultdict
 from hashlib import pbkdf2_hmac
 from typing import Dict, Iterable, List, Optional, Set, Tuple
-from electrum.i18n import _
 
+from .i18n import _
 from .mnemonic import Wordlist
 
 Indices = Tuple[int, ...]

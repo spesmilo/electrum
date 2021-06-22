@@ -302,7 +302,12 @@ class SeedLayout(QVBoxLayout):
         self.prev_share_btn.show()
         self.next_share_btn.show()
         self.prev_share_btn.setEnabled(self.slip39_mnemonic_index != 0)
-        self.next_share_btn.setEnabled(self.slip39_mnemonic_index < len(self.slip39_mnemonics) - 1 or (bool(self.seed_e.text().strip()) and not finished))
+        self.next_share_btn.setEnabled(
+            # already pressed "prev" and undoing that:
+            self.slip39_mnemonic_index < len(self.slip39_mnemonics) - 1
+            # finished entering latest share and starting new one:
+            or (bool(self.seed_e.text().strip()) and not self.slip39_current_mnemonic_invalid and not finished)
+        )
 
     def on_prev_share(self):
         if not self.slip39_mnemonics[self.slip39_mnemonic_index]:

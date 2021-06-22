@@ -1,5 +1,6 @@
 from typing import NamedTuple, Optional
 import json
+import os
 
 from electrum import keystore
 from electrum import mnemonic
@@ -197,7 +198,8 @@ class Test_slip39(ElectrumTestCase):
     """ Test SLIP39 test vectors. """
 
     def test_slip39_vectors(self):
-        with open("slip39-vectors.json", "r") as f:
+        test_vector_file = os.path.join(os.path.dirname(__file__), "slip39-vectors.json")
+        with open(test_vector_file, "r") as f:
             vectors = json.load(f)
         for description, mnemonics, expected_secret in vectors:
             if expected_secret:
