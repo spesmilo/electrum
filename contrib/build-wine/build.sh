@@ -52,5 +52,5 @@ sudo docker run -it \
 # make sure resulting binary location is independent of fresh_clone
 if [ ! -z "$ELECBUILD_COMMIT" ] ; then
     mkdir --parents "$PROJECT_ROOT/contrib/build-wine/dist/"
-    sudo cp -f "$FRESH_CLONE/contrib/build-wine/dist"/* "$PROJECT_ROOT/contrib/build-wine/dist/"
+    sudo cp -f "$FRESH_CLONE/contrib/build-wine/dist"/*.exe "$PROJECT_ROOT/contrib/build-wine/dist/"
 fi

@@ -62,7 +62,7 @@ class Plugin(RevealerPlugin):
 
     @hook
     def create_status_bar(self, parent):
-        b = StatusBarButton(read_QIcon('revealer.png'), "Revealer "+_("secret backup utility"),
+        b = StatusBarButton(read_QIcon('revealer.png'), "Revealer "+_("Visual Cryptography Plugin"),
                             partial(self.setup_dialog, parent))
         parent.addPermanentWidget(b)
 
@@ -109,8 +109,8 @@ class Plugin(RevealerPlugin):
         logo.setPixmap(QPixmap(icon_path('revealer.png')))
         logo.setAlignment(Qt.AlignLeft)
         self.hbox.addSpacing(16)
-        vbox.addWidget(WWLabel("<b>"+_("Revealer Secret Backup Plugin")+"</b><br>"
-                                    +_("To encrypt your backup, first we need to load some noise.")+"<br/>"))
+        vbox.addWidget(WWLabel("<b>"+_("Revealer Visual Cryptography Plugin")+"</b><br><br>"
+                                    +_("To encrypt a secret, first create or load noise.")+"<br/>"))
         vbox.addSpacing(7)
         bcreate = QPushButton(_("Create a new Revealer"))
         bcreate.setMaximumWidth(181)
@@ -129,9 +129,7 @@ class Plugin(RevealerPlugin):
         vbox.addLayout(Buttons(self.next_button))
         self.next_button.clicked.connect(self.d.close)
         self.next_button.clicked.connect(partial(self.cypherseed_dialog, window))
-        vbox.addWidget(
-            QLabel("<b>" + _("Warning") + "</b>: " + _("Each revealer should be used only once.")
-                   +"<br>"+_("more information at <a href=\"https://revealer.cc/faq\">https://revealer.cc/faq</a>")))
+
 
         def mk_digital():
             try:
@@ -239,7 +237,7 @@ class Plugin(RevealerPlugin):
         logo.setPixmap(QPixmap(icon_path('revealer.png')))
         logo.setAlignment(Qt.AlignLeft)
         hbox.addSpacing(16)
-        self.vbox.addWidget(WWLabel("<b>" + _("Revealer Secret Backup Plugin") + "</b><br>"
+        self.vbox.addWidget(WWLabel("<b>" + _("Revealer Visual Cryptography Plugin") + "</b><br><br>"
                                + _("Ready to encrypt for revealer {}")
                                     .format(self.versioned_seed.version+'_'+self.versioned_seed.checksum)))
         self.vbox.addSpacing(11)
@@ -272,6 +270,8 @@ class Plugin(RevealerPlugin):
         self.ctext.setEnabled(False)
         self.vbox.addSpacing(11)
         self.vbox.addLayout(Buttons(CloseButton(d)))
+        self.vbox.addWidget(
+            QLabel("<br>"+"<b>" + _("Warning ") + "</b>: " + _("each Revealer is a one-time-pad, use it for a single secret.")))
         return bool(d.exec_())
 
     def update_wallet_name(self, name):
@@ -370,7 +370,6 @@ class Plugin(RevealerPlugin):
         self.filename_prefix = 'revealer_'
         revealer.save(self.get_path_to_revealer_file('.png'))
         self.toPdf(QImage(revealer))
-        QDesktopServices.openUrl(QUrl.fromLocalFile(self.get_path_to_revealer_file('.pdf')))
 
     def make_cypherseed(self, img, rawnoise, calibration=False, is_seed = True):
         img = img.convertToFormat(QImage.Format_Mono)
@@ -396,7 +395,6 @@ class Plugin(RevealerPlugin):
 
         if not calibration:
             self.toPdf(QImage(cypherseed))
-            QDesktopServices.openUrl(QUrl.fromLocalFile(self.get_path_to_revealer_file('.pdf')))
             cypherseed.save(self.get_path_to_revealer_file('.png'))
             self.bcrypt(self.c_dialog)
         return cypherseed
