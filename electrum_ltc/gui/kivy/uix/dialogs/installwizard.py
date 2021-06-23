@@ -989,7 +989,8 @@ class RestoreSeedDialog(WizardDialog):
             tis.focus = False
 
     def get_params(self, b):
-        return (self.get_text(), self.is_bip39, self.is_ext)
+        seed_type = 'bip39' if self.is_bip39 else 'electrum'
+        return (self.get_text(), seed_type, self.is_ext)
 
 
 class ConfirmSeedDialog(RestoreSeedDialog):

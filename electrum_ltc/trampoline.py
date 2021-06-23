@@ -63,11 +63,17 @@ TRAMPOLINE_NODES_TESTNET = {
     'endurance': LNPeerAddr(host='34.250.234.192', port=9735, pubkey=bytes.fromhex('03933884aaf1d6b108397e5efe5c86bcf2d8ca8d2f700eda99db9214fc2712b134')),
 }
 
+TRAMPOLINE_NODES_SIGNET = {
+    'wakiyamap.dev': LNPeerAddr(host='signet-electrumx.wakiyamap.dev', port=9735, pubkey=bytes.fromhex('02dadf6c28f3284d591cd2a4189d1530c1ff82c07059ebea150a33ab76e7364b4a')),
+}
+
 def hardcoded_trampoline_nodes():
-    if constants.net in (constants.BitcoinMainnet,):
+    if constants.net.NET_NAME == "mainnet":
         return TRAMPOLINE_NODES_MAINNET
-    if constants.net in (constants.BitcoinTestnet,):
+    if constants.net.NET_NAME == "testnet":
         return TRAMPOLINE_NODES_TESTNET
+    if constants.net.NET_NAME == "signet":
+        return TRAMPOLINE_NODES_SIGNET
     return {}
 
 def trampolines_by_id():
