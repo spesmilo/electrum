@@ -17,6 +17,14 @@ bin/
 
 # the created files
 run_electrum.py
+run_electrum.spec
+Electrum_FTC.egg-info/
+Pipfile
+Pipfile.lock
+contrib/run_electrum.spec
+electrum/run_electrum.spec
+neoscrypt.egg-info/
+neoscrypt_module/neoscrypt.egg-info/
 
 # icons
 electrum/gui/kivy/theming/light-0.png
