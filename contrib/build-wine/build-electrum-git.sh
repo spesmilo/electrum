@@ -20,7 +20,7 @@ here="$(dirname "$(readlink -e "$0")")"
 
 . "$CONTRIB"/build_tools_util.sh
 
-pushd $WINEPREFIX/drive_c/electrum
+pushd $WINEPREFIX/drive_c/electrum-ftc
 
 VERSION=`git describe --tags --dirty --always`
 info "Last commit: $VERSION"
@@ -32,15 +32,21 @@ pushd ./contrib/deterministic-build/electrum-locale
 if ! which msgfmt > /dev/null 2>&1; then
     fail "Please install gettext"
 fi
+info " creating locale"
+
 for i in ./locale/*; do
-    dir=$WINEPREFIX/drive_c/electrum/electrum/$i/LC_MESSAGES
+    info $i
+    dir=$WINEPREFIX/drive_c/electrum-ftc/electrum/$i/LC_MESSAGES
     mkdir -p $dir
     msgfmt --output-file=$dir/electrum.mo $i/electrum.po || true
 done
-popd
 
-find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
-popd
+info "modifiying creation times of files"
+
+#popd
+
+#find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
+#popd
 
 
 # Install frozen dependencies
@@ -48,7 +54,7 @@ $PYTHON -m pip install --no-warn-script-location -r "$CONTRIB"/deterministic-bui
 
 $PYTHON -m pip install --no-warn-script-location -r "$CONTRIB"/deterministic-build/requirements-hw.txt
 
-pushd $WINEPREFIX/drive_c/electrum
+pushd $WINEPREFIX/drive_c/electrum-ftc
 # see https://github.com/pypa/pip/issues/2195 -- pip makes a copy of the entire directory
 info "Pip installing Electrum. This might take a long time if the project folder is large."
 PYTHONDONTWRITEBYTECODE="" ${PYTHON/ -B/} -m pip install --no-warn-script-location .

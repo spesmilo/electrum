@@ -28,10 +28,10 @@ export WINEPREFIX=/opt/wine64
 export WINEDEBUG=-all
 
 PYTHON_FOLDER="python3"
+PYTHON_NEW_FODER="python$PYTHON_VERSION"
 PYHOME="c:/$PYTHON_FOLDER"
 PYTHON="wine $PYHOME/python.exe -OO -B"
-
-
+cp -r $PYTHON_FOLDER $PYTHON_NEW_FODER
 # Let's begin!
 set -e
 
@@ -101,7 +101,7 @@ info "Building PyInstaller."
 # we build our own PyInstaller boot loader as the default one has high
 # anti-virus false positives
 (
-    cd "$WINEPREFIX/drive_c/electrum"
+    cd "$WINEPREFIX/drive_c/electrum-ftc"
     ELECTRUM_COMMIT_HASH=$(git rev-parse HEAD)
     cd "$CACHEDIR"
     rm -rf pyinstaller

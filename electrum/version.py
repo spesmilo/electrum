@@ -17,7 +17,10 @@ if ELECTRUM_FTC_VERSION == 'unknown-version':
     if platform.system() == 'Windows':
         cmd = ["cmd", "/c"] + cmd
     result = subprocess.run(cmd, stdout=subprocess.PIPE)
+    print ("cmd: ",cmd,"\n result: ",result.stdout)
     ELECTRUM_FTC_VERSION = result.stdout.decode('utf-8').strip()
+    if ELECTRUM_FTC_VERSION == "":
+        ELECTRUM_FTC_VERSION ="3.3.8-unknown"
     if ELECTRUM_FTC_VERSION == "":
         raise Exception("cannot extract version string from git")
 
