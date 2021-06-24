@@ -10,7 +10,7 @@
 # Or for a Windows x86_64 (64-bit) target, run:
 # $ GCC_TRIPLET_HOST="x86_64-w64-mingw32" BUILD_TYPE="wine" ./contrib/make_zbar.sh
 
-ZBAR_VERSION="d2893738411be897a04caa42ffc13d1f6107d3c6"
+ZBAR_VERSION="aac86d5f08d64ab4c3da78188eb622fa3cb07182"
 
 set -e
 
