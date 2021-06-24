@@ -220,18 +220,10 @@ class SettingsDialog(WindowModalDialog):
         msg = (_("For scanning QR codes.") + "\n"
                + _("Install the zbar package to enable this."))
         qr_label = HelpLabel(_('Video Device') + ':', msg)
-        system_cameras = []
-        try:
-            from PyQt5.QtMultimedia import QCameraInfo
-            system_cameras = QCameraInfo.availableCameras()
-        except ImportError as e:
-            # Older Qt or missing libs -- disable GUI control and inform user why
-            qr_combo.setEnabled(False)
-            qr_label.setEnabled(False)
-            qr_combo.setToolTip(_("Unable to probe for cameras on this system. QtMultimedia is likely missing."))
-            qr_label.setToolTip(qr_combo.toolTip())
-        for cam in system_cameras:
-            qr_combo.addItem(cam.description(), cam.deviceName())
+        from .qrreader import find_system_cameras
+        system_cameras = find_system_cameras()
+        for cam_desc, cam_path in system_cameras.items():
+            qr_combo.addItem(cam_desc, cam_path)
         index = qr_combo.findData(self.config.get("video_device"))
         qr_combo.setCurrentIndex(index)
         on_video_device = lambda x: self.config.set_key("video_device", qr_combo.itemData(x), True)

@@ -76,6 +76,7 @@ setup(
         'electrum.gui',
         'electrum.gui.qt',
         'electrum.gui.qt.qrreader',
+        'electrum.gui.qt.qrreader.qtmultimedia',
         'electrum.plugins',
     ] + [('electrum.plugins.'+pkg) for pkg in find_packages('electrum/plugins')],
     package_dir={

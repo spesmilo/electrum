@@ -103,6 +103,7 @@ from .channels_list import ChannelsList
 from .confirm_tx_dialog import ConfirmTxDialog
 from .transaction_dialog import PreviewTxDialog
 from .rbf_dialog import BumpFeeDialog, DSCancelDialog
+from .qrreader import scan_qrcode
 
 if TYPE_CHECKING:
     from . import ElectrumGui
@@ -2820,54 +2821,28 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.show_error("failed to import backup" + '\n' + str(e))
             return
 
-    # Due to the asynchronous nature of the qr reader we need to keep the
-    # dialog instance as member variable to prevent reentrancy/multiple ones
-    # from being presented at once.
-    _qr_dialog = None
-
     def read_tx_from_qrcode(self):
-        if self._qr_dialog:
-            self.logger.warning("QR dialog is already presented, ignoring.")
-            return
-        if self.gui_object.warn_if_cant_import_qrreader(self):
-            return
-        from .qrreader import QrReaderCameraDialog, CameraError, MissingQrDetectionLib
-        self._qr_dialog = None
-        try:
-            self._qr_dialog = QrReaderCameraDialog(parent=self.top_level_window(), config=self.config)
+        def cb(success: bool, error: str, data):
+            if not success:
+                if error:
+                    self.show_error(error)
+                return
+            if not data:
+                return
+            # if the user scanned a bitcoin URI
+            if data.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
+                self.pay_to_URI(data)
+                return
+            if data.lower().startswith('channel_backup:'):
+                self.import_channel_backup(data)
+                return
+            # else if the user scanned an offline signed tx
+            tx = self.tx_from_text(data)
+            if not tx:
+                return
+            self.show_transaction(tx)
 
-            def _on_qr_reader_finished(success: bool, error: str, data):
-                if self._qr_dialog:
-                    self._qr_dialog.deleteLater()
-                    self._qr_dialog = None
-                if not success:
-                    if error:
-                        self.show_error(error)
-                    return
-                if not data:
-                    return
-                # if the user scanned a bitcoin URI
-                if data.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
-                    self.pay_to_URI(data)
-                    return
-                if data.lower().startswith('channel_backup:'):
-                    self.import_channel_backup(data)
-                    return
-                # else if the user scanned an offline signed tx
-                tx = self.tx_from_text(data)
-                if not tx:
-                    return
-                self.show_transaction(tx)
-
-            self._qr_dialog.qr_finished.connect(_on_qr_reader_finished)
-            self._qr_dialog.start_scan(self.config.get_video_device())
-        except (MissingQrDetectionLib, CameraError) as e:
-            self._qr_dialog = None
-            self.show_error(str(e))
-        except Exception as e:
-            self.logger.exception('camera error')
-            self._qr_dialog = None
-            self.show_error(repr(e))
+        scan_qrcode(parent=self.top_level_window(), config=self.config, callback=cb)
 
     def read_tx_from_file(self) -> Optional[Transaction]:
         fileName = getOpenFileName(

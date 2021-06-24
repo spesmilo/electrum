@@ -39,12 +39,14 @@ from electrum.i18n import _
 from electrum.qrreader import get_qr_reader, QrCodeResult
 from electrum.logging import Logger
 
+from electrum.gui.qt.util import MessageBoxMixin, FixedAspectRatioLayout, ImageGraphicsEffect
+
 from .video_widget import QrReaderVideoWidget
 from .video_overlay import QrReaderVideoOverlay
 from .video_surface import QrReaderVideoSurface
 from .crop_blur_effect import QrReaderCropBlurEffect
 from .validator import AbstractQrReaderValidator, QrReaderValidatorCounted, QrReaderValidatorResult
-from ..util import MessageBoxMixin, FixedAspectRatioLayout, ImageGraphicsEffect
+
 
 class CameraError(RuntimeError):
     ''' Base class of the camera-related error conditions. '''

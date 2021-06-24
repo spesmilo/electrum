@@ -26,7 +26,7 @@
 import os
 import sys
 import ctypes
-from typing import Optional
+from typing import Optional, Mapping
 
 from .util import UserFacingException
 from .i18n import _
@@ -82,7 +82,7 @@ def scan_barcode(device='', timeout=-1, display=True, threaded=False) -> Optiona
     return data.decode('utf8')
 
 
-def _find_system_cameras():
+def find_system_cameras() -> Mapping[str, str]:
     device_root = "/sys/class/video4linux"
     devices = {} # Name -> device
     if os.path.exists(device_root):

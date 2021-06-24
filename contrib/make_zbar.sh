@@ -47,45 +47,39 @@ info "Building $pkgname..."
     if ! [ -r config.status ] ; then
         if [ "$BUILD_TYPE" = "wine" ] ; then
             # windows target
-            ./configure \
-                $AUTOCONF_FLAGS \
-                --prefix="$here/$pkgname/dist" \
+            AUTOCONF_FLAGS="$AUTOCONF_FLAGS \
                 --with-x=no \
-                --enable-pthread=no \
-                --enable-doc=no \
                 --enable-video=yes \
-                --with-directshow=yes \
                 --with-jpeg=no \
-                --with-python=no \
-                --with-gtk=no \
-                --with-qt=no \
-                --with-java=no \
-                --with-imagemagick=no \
-                --with-dbus=no \
-                --enable-codes=qrcode \
-                --disable-dependency-tracking \
-                --disable-static \
-                --enable-shared || fail "Could not configure $pkgname. Please make sure you have a C compiler installed and try again."
+                --with-directshow=yes \
+                --disable-dependency-tracking"
+        elif [ $(uname) == "Darwin" ]; then
+            # macos target
+            AUTOCONF_FLAGS="$AUTOCONF_FLAGS \
+                --with-x=no \
+                --enable-video=no \
+                --with-jpeg=no"
         else
             # linux target
-            ./configure \
-                $AUTOCONF_FLAGS \
-                --prefix="$here/$pkgname/dist" \
+            AUTOCONF_FLAGS="$AUTOCONF_FLAGS \
                 --with-x=yes \
-                --enable-pthread=no \
-                --enable-doc=no \
                 --enable-video=yes \
-                --with-jpeg=yes \
-                --with-python=no \
-                --with-gtk=no \
-                --with-qt=no \
-                --with-java=no \
-                --with-imagemagick=no \
-                --with-dbus=no \
-                --enable-codes=qrcode \
-                --disable-static \
-                --enable-shared || fail "Could not configure $pkgname. Please make sure you have a C compiler installed and try again."
+                --with-jpeg=yes"
         fi
+        ./configure \
+            $AUTOCONF_FLAGS \
+            --prefix="$here/$pkgname/dist" \
+            --enable-pthread=no \
+            --enable-doc=no \
+            --with-python=no \
+            --with-gtk=no \
+            --with-qt=no \
+            --with-java=no \
+            --with-imagemagick=no \
+            --with-dbus=no \
+            --enable-codes=qrcode \
+            --disable-static \
+            --enable-shared || fail "Could not configure $pkgname. Please make sure you have a C compiler installed and try again."
     fi
     make -j4 || fail "Could not build $pkgname"
     make install || fail "Could not install $pkgname"

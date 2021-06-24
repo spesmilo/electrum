@@ -275,28 +275,6 @@ class ElectrumGui(Logger):
             network_updated_signal_obj=self.network_updated_signal_obj)
         self.network_dialog.show()
 
-    @staticmethod
-    def warn_if_cant_import_qrreader(parent, *, show_warning=True) -> bool:
-        """Checks it QR reading from camera is possible.  It can fail on a
-        system lacking QtMultimedia.  This can be removed in the future when
-        we are unlikely to encounter Qt5 installations that are missing
-        QtMultimedia
-        """
-        try:
-            from .qrreader import QrReaderCameraDialog
-        except ImportError as e:
-            if show_warning:
-                icon = QMessageBox.Warning
-                title = _("QR Reader Error")
-                message = _("QR reader failed to load. This may happen if "
-                            "you are using an older version of PyQt5.") + "\n\n" + str(e)
-                if isinstance(parent, MessageBoxMixin):
-                    parent.msg_box(title=title, text=message, icon=icon, parent=None)
-                else:
-                    custom_message_box(title=title, text=message, icon=icon, parent=parent)
-            return True
-        return False
-
     def _create_window_for_wallet(self, wallet):
         w = ElectrumWindow(self, wallet)
         self.windows.append(w)

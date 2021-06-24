@@ -7,6 +7,7 @@ from electrum.util import UserFacingException
 from electrum.logging import Logger
 
 from .util import ButtonsTextEdit, MessageBoxMixin, ColorScheme, getOpenFileName
+from .qrreader import scan_qrcode
 
 
 class ShowQRTextEdit(ButtonsTextEdit):
@@ -72,49 +73,23 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin, Logger):
         else:
             self.setText(data)
 
-    # Due to the asynchronous nature of the qr reader we need to keep the
-    # dialog instance as member variable to prevent reentrancy/multiple ones
-    # from being presented at once.
-    qr_dialog = None
-
     def qr_input(self, *, callback=None) -> None:
-        if self.qr_dialog:
-            self.logger.warning("QR dialog is already presented, ignoring.")
-            return
-        from . import ElectrumGui
-        if ElectrumGui.warn_if_cant_import_qrreader(self):
-            return
-        from .qrreader import QrReaderCameraDialog, CameraError, MissingQrDetectionLib
-        try:
-            self.qr_dialog = QrReaderCameraDialog(parent=self.top_level_window(), config=self.config)
+        def cb(success: bool, error: str, data):
+            if not success:
+                if error:
+                    self.show_error(error)
+                return
+            if not data:
+                data = ''
+            if self.allow_multi:
+                new_text = self.text() + data + '\n'
+            else:
+                new_text = data
+            self.setText(new_text)
+            if callback and success:
+                callback(data)
 
-            def _on_qr_reader_finished(success: bool, error: str, data):
-                if self.qr_dialog:
-                    self.qr_dialog.deleteLater()
-                    self.qr_dialog = None
-                if not success:
-                    if error:
-                        self.show_error(error)
-                    return
-                if not data:
-                    data = ''
-                if self.allow_multi:
-                    new_text = self.text() + data + '\n'
-                else:
-                    new_text = data
-                self.setText(new_text)
-                if callback and success:
-                    callback(data)
-
-            self.qr_dialog.qr_finished.connect(_on_qr_reader_finished)
-            self.qr_dialog.start_scan(self.config.get_video_device())
-        except (MissingQrDetectionLib, CameraError) as e:
-            self.qr_dialog = None
-            self.show_error(str(e))
-        except Exception as e:
-            self.logger.exception('camera error')
-            self.qr_dialog = None
-            self.show_error(repr(e))
+        scan_qrcode(parent=self.top_level_window(), config=self.config, callback=cb)
 
     def contextMenuEvent(self, e):
         m = self.createStandardContextMenu()
