@@ -26,6 +26,7 @@
 import os
 import sys
 import ctypes
+from typing import Optional
 
 from .util import UserFacingException
 from .i18n import _
@@ -53,7 +54,7 @@ except BaseException as e1:
             _logger.error(f"failed to load zbar. exceptions: {[e1,e2]!r}")
 
 
-def scan_barcode_ctypes(device='', timeout=-1, display=True, threaded=False):
+def scan_barcode_ctypes(device='', timeout=-1, display=True, threaded=False) -> Optional[str]:
     if libzbar is None:
         raise UserFacingException("Cannot start QR scanner: zbar not available.")
     libzbar.zbar_symbol_get_data.restype = ctypes.c_char_p
