@@ -4,6 +4,7 @@ from electrum.i18n import _
 from electrum.plugin import run_hook
 from electrum.simple_config import SimpleConfig
 from electrum.util import UserFacingException
+from electrum.logging import Logger
 
 from .util import ButtonsTextEdit, MessageBoxMixin, ColorScheme, getOpenFileName
 
@@ -37,10 +38,11 @@ class ShowQRTextEdit(ButtonsTextEdit):
         m.exec_(e.globalPos())
 
 
-class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
+class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin, Logger):
 
     def __init__(self, text="", allow_multi=False, *, config: SimpleConfig):
         ButtonsTextEdit.__init__(self, text)
+        Logger.__init__(self)
         self.allow_multi = allow_multi
         self.config = config
         self.setReadOnly(False)
