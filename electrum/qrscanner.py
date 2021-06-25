@@ -22,6 +22,10 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+#
+# A QR scanner that uses zbar (via ctypes)
+# - to access the camera,
+# - and to find and decode QR codes (visible in the live feed).
 
 import os
 import sys
@@ -37,7 +41,7 @@ _logger = get_logger(__name__)
 
 
 if sys.platform == 'darwin':
-    name = 'libzbar.dylib'
+    name = 'libzbar.0.dylib'
 elif sys.platform in ('windows', 'win32'):
     name = 'libzbar-0.dll'
 else:
