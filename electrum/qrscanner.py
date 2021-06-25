@@ -22,11 +22,15 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+#
+# A QR scanner that uses zbar (via ctypes)
+# - to access the camera,
+# - and to find and decode QR codes (visible in the live feed).
 
 import os
 import sys
 import ctypes
-from typing import Optional
+from typing import Optional, Mapping
 
 from .util import UserFacingException
 from .i18n import _
@@ -37,7 +41,7 @@ _logger = get_logger(__name__)
 
 
 if sys.platform == 'darwin':
-    name = 'libzbar.dylib'
+    name = 'libzbar.0.dylib'
 elif sys.platform in ('windows', 'win32'):
     name = 'libzbar-0.dll'
 else:
@@ -50,11 +54,10 @@ except BaseException as e1:
         libzbar = ctypes.cdll.LoadLibrary(name)
     except BaseException as e2:
         libzbar = None
-        if sys.platform != 'darwin':
-            _logger.error(f"failed to load zbar. exceptions: {[e1,e2]!r}")
+        _logger.error(f"failed to load zbar. exceptions: {[e1,e2]!r}")
 
 
-def scan_barcode_ctypes(device='', timeout=-1, display=True, threaded=False) -> Optional[str]:
+def scan_barcode(device='', timeout=-1, display=True, threaded=False) -> Optional[str]:
     if libzbar is None:
         raise UserFacingException("Cannot start QR scanner: zbar not available.")
     libzbar.zbar_symbol_get_data.restype = ctypes.c_char_p
@@ -82,30 +85,8 @@ def scan_barcode_ctypes(device='', timeout=-1, display=True, threaded=False) -> 
     data = libzbar.zbar_symbol_get_data(symbol)
     return data.decode('utf8')
 
-def scan_barcode_osx(*args_ignored, **kwargs_ignored):
-    import subprocess
-    # NOTE: This code needs to be modified if the positions of this file changes with respect to the helper app!
-    # This assumes the built macOS .app bundle which ends up putting the helper app in
-    # .app/contrib/osx/CalinsQRReader/build/Release/CalinsQRReader.app.
-    root_ec_dir = os.path.abspath(os.path.dirname(__file__) + "/../")
-    prog = root_ec_dir + "/" + "contrib/osx/CalinsQRReader/build/Release/CalinsQRReader.app/Contents/MacOS/CalinsQRReader"
-    if not os.path.exists(prog):
-        raise UserFacingException("Cannot start QR scanner: helper app not found.")
-    data = ''
-    try:
-        # This will run the "CalinsQRReader" helper app (which also gets bundled with the built .app)
-        # Just like the zbar implementation -- the main app will hang until the QR window returns a QR code
-        # (or is closed). Communication with the subprocess is done via stdout.
-        # See contrib/CalinsQRReader for the helper app source code.
-        with subprocess.Popen([prog], stdout=subprocess.PIPE) as p:
-            data = p.stdout.read().decode('utf-8').strip()
-        return data
-    except OSError as e:
-        raise UserFacingException("Cannot start camera helper app: {}".format(e.strerror))
 
-scan_barcode = scan_barcode_osx if sys.platform == 'darwin' else scan_barcode_ctypes
-
-def _find_system_cameras():
+def find_system_cameras() -> Mapping[str, str]:
     device_root = "/sys/class/video4linux"
     devices = {} # Name -> device
     if os.path.exists(device_root):
