@@ -122,21 +122,16 @@ cp "$BUILDDIR/libusb/1.0.23/lib/libusb-1.0.dylib" contrib/osx
 echo "caea266f3fc3982adc55d6cb8d9bad10f6e61f0c24ce5901aa1804618e08e14d  contrib/osx/libusb-1.0.dylib" | \
     shasum -a 256 -c || fail "libusb checksum mismatched"
 
-# install some build-time deps for compilation
-brew install autoconf automake libtool gettext
+info "Installing some build-time deps for compilation..."
+brew install autoconf automake libtool gettext coreutils pkgconfig
 
-info "Preparing for building libsecp256k1"
+info "Building libsecp256k1 dylib..."
 "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
-cp "$ROOT_FOLDER"/electrum/libsecp256k1.0.dylib contrib/osx
+cp "$ROOT_FOLDER"/electrum/libsecp256k1.0.dylib "$CONTRIB"/osx
 
-info "Building CalinsQRReader..."
-d=contrib/osx/CalinsQRReader
-pushd "$d"
-rm -fr build
-# prefer building using xcode ourselves. otherwise fallback to prebuilt binary
-xcodebuild || cp -r prebuilt_qr build || fail "Could not build CalinsQRReader"
-popd
-DoCodeSignMaybe "CalinsQRReader.app" "${d}/build/Release/CalinsQRReader.app"
+info "Building ZBar dylib..."
+"$CONTRIB"/make_zbar.sh || fail "Could not build ZBar dylib"
+cp "$ROOT_FOLDER"/electrum/libzbar.0.dylib "$CONTRIB"/osx
 
 
 info "Installing requirements..."

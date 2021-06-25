@@ -32,16 +32,15 @@ from PyQt5.QtWidgets import (QComboBox,  QTabWidget,
                              QVBoxLayout, QGridLayout, QLineEdit,
                              QPushButton, QWidget, QHBoxLayout)
 
-from electrum.i18n import _
+from electrum.i18n import _, languages
 from electrum import util, coinchooser, paymentrequest
 from electrum.util import base_units_list
+
+from electrum.gui import messages
 
 from .util import (ColorScheme, WindowModalDialog, HelpLabel, Buttons,
                    CloseButton)
 
-from electrum.i18n import languages
-from electrum import qrscanner
-from electrum.gui import messages
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -216,17 +215,25 @@ class SettingsDialog(WindowModalDialog):
         unit_combo.currentIndexChanged.connect(lambda x: on_unit(x, nz))
         gui_widgets.append((unit_label, unit_combo))
 
-        system_cameras = qrscanner._find_system_cameras()
         qr_combo = QComboBox()
-        qr_combo.addItem("Default","default")
-        for camera, device in system_cameras.items():
-            qr_combo.addItem(camera, device)
-        #combo.addItem("Manually specify a device", config.get("video_device"))
+        qr_combo.addItem("Default", "default")
+        msg = (_("For scanning QR codes.") + "\n"
+               + _("Install the zbar package to enable this."))
+        qr_label = HelpLabel(_('Video Device') + ':', msg)
+        system_cameras = []
+        try:
+            from PyQt5.QtMultimedia import QCameraInfo
+            system_cameras = QCameraInfo.availableCameras()
+        except ImportError as e:
+            # Older Qt or missing libs -- disable GUI control and inform user why
+            qr_combo.setEnabled(False)
+            qr_label.setEnabled(False)
+            qr_combo.setToolTip(_("Unable to probe for cameras on this system. QtMultimedia is likely missing."))
+            qr_label.setToolTip(qr_combo.toolTip())
+        for cam in system_cameras:
+            qr_combo.addItem(cam.description(), cam.deviceName())
         index = qr_combo.findData(self.config.get("video_device"))
         qr_combo.setCurrentIndex(index)
-        msg = _("Install the zbar package to enable this.")
-        qr_label = HelpLabel(_('Video Device') + ':', msg)
-        qr_combo.setEnabled(qrscanner.libzbar is not None)
         on_video_device = lambda x: self.config.set_key("video_device", qr_combo.itemData(x), True)
         qr_combo.currentIndexChanged.connect(on_video_device)
         gui_widgets.append((qr_label, qr_combo))

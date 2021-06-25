@@ -39,7 +39,7 @@ except Exception:
 from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtWidgets import (QApplication, QSystemTrayIcon, QWidget, QMenu,
                              QMessageBox)
-from PyQt5.QtCore import QObject, pyqtSignal, QTimer
+from PyQt5.QtCore import QObject, pyqtSignal, QTimer, Qt
 import PyQt5.QtCore as QtCore
 
 from electrum.i18n import _, set_language
@@ -52,7 +52,7 @@ from electrum.wallet_db import WalletDB
 from electrum.logging import Logger
 
 from .installwizard import InstallWizard, WalletAlreadyOpenInMemory
-from .util import get_default_language, read_QIcon, ColorScheme, custom_message_box
+from .util import get_default_language, read_QIcon, ColorScheme, custom_message_box, MessageBoxMixin
 from .main_window import ElectrumWindow
 from .network_dialog import NetworkDialog
 from .stylesheet_patcher import patch_qt_stylesheet
@@ -274,6 +274,28 @@ class ElectrumGui(Logger):
             config=self.config,
             network_updated_signal_obj=self.network_updated_signal_obj)
         self.network_dialog.show()
+
+    @staticmethod
+    def warn_if_cant_import_qrreader(parent, *, show_warning=True) -> bool:
+        """Checks it QR reading from camera is possible.  It can fail on a
+        system lacking QtMultimedia.  This can be removed in the future when
+        we are unlikely to encounter Qt5 installations that are missing
+        QtMultimedia
+        """
+        try:
+            from .qrreader import QrReaderCameraDialog
+        except ImportError as e:
+            if show_warning:
+                icon = QMessageBox.Warning
+                title = _("QR Reader Error")
+                message = _("QR reader failed to load. This may happen if "
+                            "you are using an older version of PyQt5.") + "\n\n" + str(e)
+                if isinstance(parent, MessageBoxMixin):
+                    parent.msg_box(title=title, text=message, icon=icon, parent=None)
+                else:
+                    custom_message_box(title=title, text=message, icon=icon, parent=parent)
+            return True
+        return False
 
     def _create_window_for_wallet(self, wallet):
         w = ElectrumWindow(self, wallet)
