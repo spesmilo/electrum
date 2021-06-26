@@ -362,6 +362,8 @@ def main():
         constants.set_regtest()
     elif config.get('simnet'):
         constants.set_simnet()
+    elif config.get('signet'):
+        constants.set_signet()
 
     cmdname = config.get('cmd')
 

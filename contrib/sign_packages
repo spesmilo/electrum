@@ -4,9 +4,9 @@ import os, sys
 if __name__ == '__main__':
     username = sys.argv[1]
     os.chdir("dist")
-    for name in os.listdir('.'):
-        if name.endswith('asc'):
+    for fname in os.listdir('.'):
+        if fname.endswith('asc'):
             continue
-        sig_name = name + '.' + username + '.asc'
-        os.system("gpg --sign --armor --detach --output %s %s"%(sig_name, name))
+        sig_name = fname + '.' + username + '.asc'
+        os.system(f"gpg --sign --armor --detach --output {sig_name} {fname}")
     os.chdir("..")

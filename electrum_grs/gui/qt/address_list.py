@@ -43,6 +43,7 @@ class AddressUsageStateFilter(IntEnum):
     UNUSED = 1
     FUNDED = 2
     USED_AND_EMPTY = 3
+    FUNDED_OR_UNUSED = 4
 
     def ui_text(self) -> str:
         return {
@@ -50,6 +51,7 @@ class AddressUsageStateFilter(IntEnum):
             self.UNUSED: _('Unused'),
             self.FUNDED: _('Funded'),
             self.USED_AND_EMPTY: _('Used'),
+            self.FUNDED_OR_UNUSED: _('Funded or Unused'),
         }[self]
 
 
@@ -172,6 +174,8 @@ class AddressList(MyTreeView):
             if self.show_used == AddressUsageStateFilter.FUNDED and balance == 0:
                 continue
             if self.show_used == AddressUsageStateFilter.USED_AND_EMPTY and not is_used_and_empty:
+                continue
+            if self.show_used == AddressUsageStateFilter.FUNDED_OR_UNUSED and is_used_and_empty:
                 continue
             balance_text = self.parent.format_amount(balance, whitespaces=True)
             # create item

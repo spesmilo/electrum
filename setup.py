@@ -72,8 +72,11 @@ setup(
     extras_require=extras_require,
     packages=[
         'electrum_grs',
+        'electrum_grs.qrreader',
         'electrum_grs.gui',
         'electrum_grs.gui.qt',
+        'electrum_grs.gui.qt.qrreader',
+        'electrum_grs.gui.qt.qrreader.qtmultimedia',
         'electrum_grs.plugins',
     ] + [('electrum_grs.plugins.'+pkg) for pkg in find_packages('electrum_grs/plugins')],
     package_dir={

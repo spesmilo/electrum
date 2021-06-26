@@ -116,6 +116,7 @@ fi
 
 
 export SOURCE_DATE_EPOCH=1530212462
+export ZERO_AR_DATE=1 # for macOS
 export PYTHONHASHSEED=22
 # Set the build type, overridden by wine build
 export BUILD_TYPE="${BUILD_TYPE:-$(uname | tr '[:upper:]' '[:lower:]')}"

@@ -7,14 +7,16 @@ from zipfile import ZipFile
 class ApkDiff:
     IGNORE_FILES = ["META-INF/MANIFEST.MF", "META-INF/CERT.RSA", "META-INF/CERT.SF"]
 
-    def compare(self, sourceApk, destinationApk):
+    def compare(self, sourceApk, destinationApk) -> bool:
         sourceZip      = ZipFile(sourceApk, 'r')
         destinationZip = ZipFile(destinationApk, 'r')
 
         if self.compareManifests(sourceZip, destinationZip) and self.compareEntries(sourceZip, destinationZip) == True:
             print("APKs match!")
+            return True
         else:
             print("APKs don't match!")
+            return False
 
     def compareManifests(self, sourceZip, destinationZip):
         sourceEntrySortedList      = sorted(sourceZip.namelist())
@@ -75,4 +77,8 @@ if __name__ == '__main__':
         print("Usage: apkdiff <pathToFirstApk> <pathToSecondApk>")
         sys.exit(1)
 
-    ApkDiff().compare(sys.argv[1], sys.argv[2])
+    match = ApkDiff().compare(sys.argv[1], sys.argv[2])
+    if match:
+        sys.exit(0)
+    else:
+        sys.exit(1)

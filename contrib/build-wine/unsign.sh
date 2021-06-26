@@ -33,8 +33,11 @@ for mine in $(ls dist/*.exe); do
     chmod +x $out
     if cmp -s $out $mine; then
         echo "Success: $f"
-        gpg --sign --armor --detach signed/$f
+        #gpg --sign --armor --detach signed/$f
     else
         echo "Failure: $f"
+        exit 1
     fi
 done
+
+exit 0
