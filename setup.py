@@ -72,8 +72,11 @@ setup(
     extras_require=extras_require,
     packages=[
         'electrum_ltc',
+        'electrum_ltc.qrreader',
         'electrum_ltc.gui',
         'electrum_ltc.gui.qt',
+        'electrum_ltc.gui.qt.qrreader',
+        'electrum_ltc.gui.qt.qrreader.qtmultimedia',
         'electrum_ltc.plugins',
     ] + [('electrum_ltc.plugins.'+pkg) for pkg in find_packages('electrum_ltc/plugins')],
     package_dir={

@@ -53,6 +53,7 @@ datas += collect_data_files('bitbox02')
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
 a = Analysis([home+'run_electrum',
               home+'electrum_ltc/gui/qt/main_window.py',
+              home+'electrum_ltc/gui/qt/qrreader/qtmultimedia/camera_dialog.py',
               home+'electrum_ltc/gui/text.py',
               home+'electrum_ltc/util.py',
               home+'electrum_ltc/wallet.py',

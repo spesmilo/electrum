@@ -14,6 +14,7 @@ RUN apt-get update -q && \
         autotools-dev=20150820.1 \
         autoconf=2.69-9 \
         libtool=2.4.6-0.1 \
+        autopoint=0.19.7-2ubuntu3.1 \
         xz-utils=5.1.1alpha+20120614-2ubuntu2 \
         libssl-dev=1.0.2g-1ubuntu4.19 \
         libssl1.0.0=1.0.2g-1ubuntu4.19 \

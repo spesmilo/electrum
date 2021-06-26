@@ -1,9 +1,6 @@
 [submodule "contrib/deterministic-build/electrum-ltc-locale"]
 	path = contrib/deterministic-build/electrum-ltc-locale
 	url = https://github.com/pooler/electrum-ltc-locale
-[submodule "contrib/CalinsQRReader"]
-	path = contrib/osx/CalinsQRReader
-	url = https://github.com/spesmilo/CalinsQRReader
 [submodule "electrum_ltc/www"]
 	path = electrum_ltc/www
 	url = https://github.com/pooler/electrum-ltc-http.git
