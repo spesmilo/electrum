@@ -36,7 +36,7 @@ from electrum_grs.i18n import _, languages
 from electrum_grs import util, coinchooser, paymentrequest
 from electrum_grs.util import base_units_list
 
-from electrum.gui import messages
+from electrum_grs.gui import messages
 
 from .util import (ColorScheme, WindowModalDialog, HelpLabel, Buttons,
                    CloseButton)
