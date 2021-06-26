@@ -62,7 +62,7 @@ TRAMPOLINE_NODES_TESTNET = {
 }
 
 TRAMPOLINE_NODES_SIGNET = {
-    'wakiyamap.dev': LNPeerAddr(host='signet-electrumx.wakiyamap.dev', port=9735, pubkey=bytes.fromhex('02dadf6c28f3284d591cd2a4189d1530c1ff82c07059ebea150a33ab76e7364b4a')),
+    'eclair signet': LNPeerAddr(host='108.61.99.169', port=9735, pubkey=bytes.fromhex('021fedfc02b43971339bf9052e2c639e182be6565435d1606761718352be666f15')),
 }
 
 def hardcoded_trampoline_nodes():
