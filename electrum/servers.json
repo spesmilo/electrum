@@ -16,5 +16,11 @@
         "t": "40001",
         "s": "40002",
         "version": "1.5"
+    },
+    "electrum4.nav.community": {
+        "pruning": "-",
+        "t": "40001",
+        "s": "40002",
+        "version": "1.5"
     }
 }
