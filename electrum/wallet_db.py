@@ -53,7 +53,7 @@ if TYPE_CHECKING:
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 40     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 41     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -811,6 +811,7 @@ class WalletDB(JsonDB):
                 ks['seed_type'] = seed_type
         self.data['seed_version'] = 40
 
+
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
             return
@@ -1263,7 +1264,7 @@ class WalletDB(JsonDB):
         self.txo = self.get_dict('txo')                          # type: Dict[str, Dict[str, Dict[str, Tuple[int, bool]]]]
         self.transactions = self.get_dict('transactions')        # type: Dict[str, Transaction]
         self.spent_outpoints = self.get_dict('spent_outpoints')  # txid -> output_index -> next_txid
-        self.history = self.get_dict('addr_history')             # address -> list of (txid, height)
+        self.history = self.get_dict('addr_history')  # address -> list of (txid, height)
         self.verified_tx = self.get_dict('verified_tx3')         # txid -> (height, timestamp, txpos, header_hash)
         self.tx_fees = self.get_dict('tx_fees')                  # type: Dict[str, TxFeesValue]
         # scripthash -> set of (outpoint, value)
@@ -1353,6 +1354,7 @@ class WalletDB(JsonDB):
         json_str = self.dump(human_readable=not storage.is_encrypted())
         storage.write(json_str)
         self.set_modified(False)
+
 
     def is_ready_to_be_used_by_wallet(self):
         return not self.requires_upgrade() and self._called_after_upgrade_tasks

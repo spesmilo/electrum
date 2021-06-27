@@ -41,17 +41,23 @@ if TYPE_CHECKING:
     from .network import Network
     from .address_synchronizer import AddressSynchronizer
 
-
 class SynchronizerFailure(Exception): pass
+
+from struct import Struct
+from .bitcoin import sha256
 
 
 def history_status(h):
     if not h:
         return None
-    status = ''
+    status = bytes(32)
     for tx_hash, height in h:
-        status += tx_hash + ':%d:' % height
-    return bh2u(hashlib.sha256(status.encode('ascii')).digest())
+        if height > 0:
+            hash = bytearray.fromhex(tx_hash)
+            hash.reverse()
+            tx_item = hash + Struct('<i').pack(height)
+            status = sha256(status + tx_item)
+    return status.hex()
 
 
 class SynchronizerBase(NetworkJobOnDefaultServer):
@@ -212,7 +218,7 @@ class Synchronizer(SynchronizerBase):
 
     async def _on_address_status(self, addr, status):
         history = self.wallet.db.get_addr_history(addr)
-        if history_status(history) == status:
+        if history_status(history) == status or status == "0000000000000000000000000000000000000000000000000000000000000000":
             return
         # No point in requesting history twice for the same announced status.
         # However if we got announced a new status, we should request history again:
@@ -223,13 +229,30 @@ class Synchronizer(SynchronizerBase):
         self._stale_histories.pop(addr, asyncio.Future()).cancel()
         h = address_to_scripthash(addr)
         self._requests_sent += 1
+        prev_height = 0
+        prev_hist = self.wallet.db.get_addr_history(addr)
+        prev_hist = [entry for entry in prev_hist if entry[1] > 0]
+
+        for tx_ in prev_hist:
+            if tx_[1] > prev_height:
+                prev_height = tx_[1]
         async with self._network_request_semaphore:
-            result = await self.interface.get_history_for_scripthash(h)
+            print(f'asking from {prev_height}')
+            result = await self.interface.get_history_for_scripthash(h, prev_height)
         self._requests_answered += 1
-        self.logger.info(f"receiving history {addr} {len(result)}")
-        hist = list(map(lambda item: (item['tx_hash'], item['height']), result))
+        self.logger.info(f"receiving history {addr} {len(result['history'])}")
+        hist_ = list(map(lambda item: (item['tx_hash'], item['height']), result['history']))
+        hist_ = prev_hist + hist_
+
+        seen_hashes = set()
+        hist = []
+        for obj in hist_:
+            if obj[0] not in seen_hashes:
+                hist.append(obj)
+                seen_hashes.add(obj[0])
+
         # tx_fees
-        tx_fees = [(item['tx_hash'], item.get('fee')) for item in result]
+        tx_fees = [(item['tx_hash'], item.get('fee')) for item in result['history']]
         tx_fees = dict(filter(lambda x:x[1] is not None, tx_fees))
         # Check that the status corresponds to what was announced
         if history_status(hist) != status:
