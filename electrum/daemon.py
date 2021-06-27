@@ -546,25 +546,24 @@ class Daemon(Logger):
         self.stopping_soon.set()
         await self.stopped_event.wait()
 
+    async def stop_async(self):
+        self.logger.info("stopping all wallets")
+        async with TaskGroup() as group:
+            for k, wallet in self._wallets.items():
+                await group.spawn(wallet.stop())
+        self.logger.info("stopping network and taskgroup")
+        async with ignore_after(2):
+            async with TaskGroup() as group:
+                if self.network:
+                    await group.spawn(self.network.stop(full_shutdown=True))
+                await group.spawn(self.taskgroup.cancel_remaining())
+
     def on_stop(self):
         try:
             self.logger.info("on_stop() entered. initiating shutdown")
             if self.gui_object:
                 self.gui_object.stop()
-
-            async def stop_async():
-                self.logger.info("stopping all wallets")
-                async with TaskGroup() as group:
-                    for k, wallet in self._wallets.items():
-                        await group.spawn(wallet.stop())
-                self.logger.info("stopping network and taskgroup")
-                async with ignore_after(2):
-                    async with TaskGroup() as group:
-                        if self.network:
-                            await group.spawn(self.network.stop(full_shutdown=True))
-                        await group.spawn(self.taskgroup.cancel_remaining())
-
-            fut = asyncio.run_coroutine_threadsafe(stop_async(), self.asyncio_loop)
+            fut = asyncio.run_coroutine_threadsafe(self.stop_async(), self.asyncio_loop)
             fut.result()
         finally:
             self.logger.info("removing lockfile")
