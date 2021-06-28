@@ -1,7 +1,10 @@
 from typing import NamedTuple, Optional
+import json
+import os
 
 from electrum import keystore
 from electrum import mnemonic
+from electrum import slip39
 from electrum import old_mnemonic
 from electrum.util import bh2u, bfh
 from electrum.mnemonic import is_new_seed, is_old_seed, seed_type
@@ -189,3 +192,22 @@ class Test_seeds(ElectrumTestCase):
         for idx, (seed_words, _type) in enumerate(self.mnemonics):
             with self.subTest(msg=f"seed_type_subcase_{idx}", seed_words=seed_words):
                 self.assertEqual(_type, seed_type(seed_words), msg=seed_words)
+
+
+class Test_slip39(ElectrumTestCase):
+    """ Test SLIP39 test vectors. """
+
+    def test_slip39_vectors(self):
+        test_vector_file = os.path.join(os.path.dirname(__file__), "slip39-vectors.json")
+        with open(test_vector_file, "r") as f:
+            vectors = json.load(f)
+        for description, mnemonics, expected_secret in vectors:
+            if expected_secret:
+                encrypted_seed = slip39.recover_ems(mnemonics)
+                assert bytes.fromhex(expected_secret) == encrypted_seed.decrypt("TREZOR"), 'Incorrect secret for test vector "{}".'.format(description)
+            else:
+                with self.assertRaises(slip39.Slip39Error):
+                    slip39.recover_ems(mnemonics)
+                    self.fail(
+                        'Failed to raise exception for test vector "{}".'.format(description)
+                    )

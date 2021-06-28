@@ -28,12 +28,18 @@ def node(character: str) -> bytes:
 
 class Test_LNRouter(TestCaseForTestnet):
 
+    cdb = None
+
     def setUp(self):
         super().setUp()
         self.asyncio_loop, self._stop_loop, self._loop_thread = create_and_start_event_loop()
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
 
     def tearDown(self):
+        # if the test called prepare_graph(), channeldb needs to be cleaned up
+        if self.cdb:
+            self.cdb.stop()
+            asyncio.run_coroutine_threadsafe(self.cdb.stopped_event.wait(), self.asyncio_loop).result()
         self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
         self._loop_thread.join(timeout=1)
         super().tearDown()
@@ -151,10 +157,7 @@ class Test_LNRouter(TestCaseForTestnet):
         self.assertEqual(node('b'), route[0].node_id)
         self.assertEqual(channel(3), route[0].short_channel_id)
 
-        self.cdb.stop()
-        asyncio.run_coroutine_threadsafe(self.cdb.stopped_event.wait(), self.asyncio_loop).result()
-
-    def test_find_path_liquidity_hints_failure(self):
+    def test_find_path_liquidity_hints(self):
         self.prepare_graph()
         amount_to_send = 100000
 
@@ -197,7 +200,7 @@ class Test_LNRouter(TestCaseForTestnet):
         assume success over channel 4, D -> C
         A -3-> B |-2-> E
         A -6-> D |-5-> E
-        A -6-> D -4-> C -7-> E  <= chosen path
+        A -6-> D -4-> C -7-> E  <= smaller penalty: chosen path
         A -3-> B -1-> C -7-> E
         A -6-> D -4-> C -1-> B |-2-> E
         A -3-> B -1-> C -4-> D |-5-> E
@@ -211,8 +214,43 @@ class Test_LNRouter(TestCaseForTestnet):
         self.assertEqual(channel(4), path[1].short_channel_id)
         self.assertEqual(channel(7), path[2].short_channel_id)
 
-        self.cdb.stop()
-        asyncio.run_coroutine_threadsafe(self.cdb.stopped_event.wait(), self.asyncio_loop).result()
+    def test_find_path_liquidity_hints_inflight_htlcs(self):
+        self.prepare_graph()
+        amount_to_send = 100000
+
+        """
+        add inflight htlc to channel 2, B -> E
+        A -3-> B -2(1)-> E
+        A -6-> D -5-> E <= chosen path
+        A -6-> D -4-> C -7-> E
+        A -3-> B -1-> C -7-> E
+        A -6-> D -4-> C -1-> B -2-> E
+        A -3-> B -1-> C -4-> D -5-> E
+        """
+        self.path_finder.liquidity_hints.add_htlc(node('b'), node('e'), channel(2))
+        path = self.path_finder.find_path_for_payment(
+            nodeA=node('a'),
+            nodeB=node('e'),
+            invoice_amount_msat=amount_to_send)
+        self.assertEqual(channel(6), path[0].short_channel_id)
+        self.assertEqual(channel(5), path[1].short_channel_id)
+
+        """
+        remove inflight htlc from channel 2, B -> E
+        A -3-> B -2(0)-> E <= chosen path
+        A -6-> D -5-> E
+        A -6-> D -4-> C -7-> E
+        A -3-> B -1-> C -7-> E
+        A -6-> D -4-> C -1-> B -2-> E
+        A -3-> B -1-> C -4-> D -5-> E
+        """
+        self.path_finder.liquidity_hints.remove_htlc(node('b'), node('e'), channel(2))
+        path = self.path_finder.find_path_for_payment(
+            nodeA=node('a'),
+            nodeB=node('e'),
+            invoice_amount_msat=amount_to_send)
+        self.assertEqual(channel(3), path[0].short_channel_id)
+        self.assertEqual(channel(2), path[1].short_channel_id)
 
     def test_liquidity_hints(self):
         liquidity_hints = LiquidityHintMgr()
@@ -251,6 +289,12 @@ class Test_LNRouter(TestCaseForTestnet):
         self.assertEqual(3_000_000, hint.can_send(node_from < node_to))
         self.assertEqual(None, hint.cannot_send(node_from < node_to))
 
+        # test inflight htlc
+        liquidity_hints.reset_liquidity_hints()
+        liquidity_hints.add_htlc(node_from, node_to, channel_id)
+        liquidity_hints.get_hint(channel_id)
+        # we have got 600 (attempt) + 600 (inflight) penalty
+        self.assertEqual(1200, liquidity_hints.penalty(node_from, node_to, channel_id, 1_000_000))
 
     @needs_test_with_all_chacha20_implementations
     def test_new_onion_packet_legacy(self):

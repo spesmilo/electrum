@@ -4,8 +4,10 @@ from electrum.i18n import _
 from electrum.plugin import run_hook
 from electrum.simple_config import SimpleConfig
 from electrum.util import UserFacingException
+from electrum.logging import Logger
 
 from .util import ButtonsTextEdit, MessageBoxMixin, ColorScheme, getOpenFileName
+from .qrreader import scan_qrcode
 
 
 class ShowQRTextEdit(ButtonsTextEdit):
@@ -37,10 +39,11 @@ class ShowQRTextEdit(ButtonsTextEdit):
         m.exec_(e.globalPos())
 
 
-class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
+class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin, Logger):
 
     def __init__(self, text="", allow_multi=False, *, config: SimpleConfig):
         ButtonsTextEdit.__init__(self, text)
+        Logger.__init__(self)
         self.allow_multi = allow_multi
         self.config = config
         self.setReadOnly(False)
@@ -70,24 +73,23 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
         else:
             self.setText(data)
 
-    def qr_input(self):
-        from electrum import qrscanner
-        data = ''
-        try:
-            data = qrscanner.scan_barcode(self.config.get_video_device())
-        except UserFacingException as e:
-            self.show_error(e)
-        except BaseException as e:
-            self.logger.exception('camera error')
-            self.show_error(repr(e))
-        if not data:
-            data = ''
-        if self.allow_multi:
-            new_text = self.text() + data + '\n'
-        else:
-            new_text = data
-        self.setText(new_text)
-        return data
+    def qr_input(self, *, callback=None) -> None:
+        def cb(success: bool, error: str, data):
+            if not success:
+                if error:
+                    self.show_error(error)
+                return
+            if not data:
+                data = ''
+            if self.allow_multi:
+                new_text = self.text() + data + '\n'
+            else:
+                new_text = data
+            self.setText(new_text)
+            if callback and success:
+                callback(data)
+
+        scan_qrcode(parent=self.top_level_window(), config=self.config, callback=cb)
 
     def contextMenuEvent(self, e):
         m = self.createStandardContextMenu()

@@ -26,7 +26,7 @@
 import os
 import json
 
-from .util import inv_dict
+from .util import inv_dict, all_subclasses
 from . import bitcoin
 
 
@@ -47,7 +47,17 @@ BIP39_WALLET_FORMATS = read_json('bip39_wallet_formats.json', [])
 
 class AbstractNet:
 
-    BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS = 0
+    NET_NAME: str
+    TESTNET: bool
+    WIF_PREFIX: int
+    ADDRTYPE_P2PKH: int
+    ADDRTYPE_P2SH: int
+    SEGWIT_HRP: str
+    BOLT11_HRP: str
+    GENESIS: str
+    BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS: int = 0
+    BIP44_COIN_TYPE: int
+    LN_REALM_BYTE: int
 
     @classmethod
     def max_checkpoint(cls) -> int:
@@ -60,6 +70,7 @@ class AbstractNet:
 
 class BitcoinMainnet(AbstractNet):
 
+    NET_NAME = "mainnet"
     TESTNET = False
     WIF_PREFIX = 0x96
     ADDRTYPE_P2PKH = 53
@@ -100,6 +111,7 @@ class BitcoinMainnet(AbstractNet):
 
 class BitcoinTestnet(AbstractNet):
 
+    NET_NAME = "testnet"
     TESTNET = True
     WIF_PREFIX = 0xef
     ADDRTYPE_P2PKH = 111
@@ -138,7 +150,9 @@ class BitcoinTestnet(AbstractNet):
 
 class BitcoinRegtest(BitcoinTestnet):
 
+    NET_NAME = "regtest"
     SEGWIT_HRP = "bcrt"
+    BOLT11_HRP = SEGWIT_HRP
     GENESIS = "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {})
     CHECKPOINTS = []
@@ -147,18 +161,36 @@ class BitcoinRegtest(BitcoinTestnet):
 
 class BitcoinSimnet(BitcoinTestnet):
 
+    NET_NAME = "simnet"
     WIF_PREFIX = 0x64
     ADDRTYPE_P2PKH = 0x3f
     ADDRTYPE_P2SH = 0x7b
     SEGWIT_HRP = "sb"
+    BOLT11_HRP = SEGWIT_HRP
     GENESIS = "683e86bd5c6d110d91b94b97137ba6bfe02dbbdb8e3dff722a669b5d69d77af6"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {})
     CHECKPOINTS = []
     LN_DNS_SEEDS = []
 
 
+class BitcoinSignet(BitcoinTestnet):
+
+    NET_NAME = "signet"
+    BOLT11_HRP = "tbs"
+    GENESIS = "00000008819873e925422c1ff0f99f7cc9bbb232af63a077a480a3633bee1ef6"
+    DEFAULT_SERVERS = read_json('servers_signet.json', {})
+    CHECKPOINTS = []
+    LN_DNS_SEEDS = []
+
+
+NETS_LIST = tuple(all_subclasses(AbstractNet))
+
 # don't import net directly, import the module instead (so that net is singleton)
 net = BitcoinMainnet
+
+def set_signet():
+    global net
+    net = BitcoinSignet
 
 def set_simnet():
     global net
@@ -171,7 +203,6 @@ def set_mainnet():
 def set_testnet():
     global net
     net = BitcoinTestnet
-
 
 def set_regtest():
     global net

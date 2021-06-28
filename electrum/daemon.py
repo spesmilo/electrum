@@ -522,12 +522,17 @@ class Daemon(Logger):
 
     def stop_wallet(self, path: str) -> bool:
         """Returns True iff a wallet was found."""
+        # note: this must not be called from the event loop. # TODO raise if so
+        fut = asyncio.run_coroutine_threadsafe(self._stop_wallet(path), self.asyncio_loop)
+        return fut.result()
+
+    async def _stop_wallet(self, path: str) -> bool:
+        """Returns True iff a wallet was found."""
         path = standardize_path(path)
         wallet = self._wallets.pop(path, None)
         if not wallet:
             return False
-        fut = asyncio.run_coroutine_threadsafe(wallet.stop(), self.asyncio_loop)
-        fut.result()
+        await wallet.stop()
         return True
 
     def run_daemon(self):

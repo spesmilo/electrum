@@ -1,6 +1,6 @@
 # based on https://github.com/kivy/python-for-android/blob/master/Dockerfile
 
-FROM ubuntu:20.04
+FROM ubuntu:20.04@sha256:86ac87f73641c920fb42cc9612d4fb57b5626b56ea2a19b894d0673fd5b4f2e9
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -20,7 +20,8 @@ RUN apt -y update -qq \
 
 
 ENV ANDROID_NDK_HOME="${ANDROID_HOME}/android-ndk"
-ENV ANDROID_NDK_VERSION="19c"
+ENV ANDROID_NDK_VERSION="22b"
+ENV ANDROID_NDK_HASH="ac3a0421e76f71dd330d0cd55f9d99b9ac864c4c034fc67e0d671d022d4e806b"
 ENV ANDROID_NDK_HOME_V="${ANDROID_NDK_HOME}-r${ANDROID_NDK_VERSION}"
 
 # get the latest version from https://developer.android.com/ndk/downloads/index.html
@@ -31,6 +32,7 @@ ENV ANDROID_NDK_DL_URL="https://dl.google.com/android/repository/${ANDROID_NDK_A
 RUN curl --location --progress-bar \
         "${ANDROID_NDK_DL_URL}" \
         --output "${ANDROID_NDK_ARCHIVE}" \
+    && echo "${ANDROID_NDK_HASH} ${ANDROID_NDK_ARCHIVE}" | sha256sum -c - \
     && mkdir --parents "${ANDROID_NDK_HOME_V}" \
     && unzip -q "${ANDROID_NDK_ARCHIVE}" -d "${ANDROID_HOME}" \
     && ln -sfn "${ANDROID_NDK_HOME_V}" "${ANDROID_NDK_HOME}" \
@@ -42,6 +44,7 @@ ENV ANDROID_SDK_HOME="${ANDROID_HOME}/android-sdk"
 # get the latest version from https://developer.android.com/studio/index.html
 ENV ANDROID_SDK_TOOLS_VERSION="6514223"
 ENV ANDROID_SDK_BUILD_TOOLS_VERSION="29.0.3"
+ENV ANDROID_SDK_HASH="ef319a5afdb41822cb1c88d93bc7c23b0af4fc670abca89ff0346ee6688da797"
 ENV ANDROID_SDK_TOOLS_ARCHIVE="commandlinetools-linux-${ANDROID_SDK_TOOLS_VERSION}_latest.zip"
 ENV ANDROID_SDK_TOOLS_DL_URL="https://dl.google.com/android/repository/${ANDROID_SDK_TOOLS_ARCHIVE}"
 ENV ANDROID_SDK_MANAGER="${ANDROID_SDK_HOME}/tools/bin/sdkmanager --sdk_root=${ANDROID_SDK_HOME}"
@@ -50,6 +53,7 @@ ENV ANDROID_SDK_MANAGER="${ANDROID_SDK_HOME}/tools/bin/sdkmanager --sdk_root=${A
 RUN curl --location --progress-bar \
         "${ANDROID_SDK_TOOLS_DL_URL}" \
         --output "${ANDROID_SDK_TOOLS_ARCHIVE}" \
+    && echo "${ANDROID_SDK_HASH} ${ANDROID_SDK_TOOLS_ARCHIVE}" | sha256sum -c - \
     && mkdir --parents "${ANDROID_SDK_HOME}" \
     && unzip -q "${ANDROID_SDK_TOOLS_ARCHIVE}" -d "${ANDROID_SDK_HOME}" \
     && rm -rf "${ANDROID_SDK_TOOLS_ARCHIVE}"
@@ -61,7 +65,8 @@ RUN mkdir --parents "${ANDROID_SDK_HOME}/.android/" \
 
 # accept Android licenses (JDK necessary!)
 RUN apt -y update -qq \
-    && apt -y install -qq --no-install-recommends openjdk-13-jdk \
+    && apt -y install -qq --no-install-recommends \
+        openjdk-11-jdk-headless \
     && apt -y autoremove
 RUN yes | ${ANDROID_SDK_MANAGER} --licenses > /dev/null
 
@@ -74,14 +79,16 @@ RUN ${ANDROID_SDK_MANAGER} "platforms;android-24" > /dev/null && \
 
 # download ANT
 ENV APACHE_ANT_VERSION="1.9.4"
+ENV APACHE_ANT_HASH="66d3edcbb0eba11387705cd89178ffb65e55cd53f13ca35c1bb983c0f9992540"
 ENV APACHE_ANT_ARCHIVE="apache-ant-${APACHE_ANT_VERSION}-bin.tar.gz"
-ENV APACHE_ANT_DL_URL="http://archive.apache.org/dist/ant/binaries/${APACHE_ANT_ARCHIVE}"
+ENV APACHE_ANT_DL_URL="https://archive.apache.org/dist/ant/binaries/${APACHE_ANT_ARCHIVE}"
 ENV APACHE_ANT_HOME="${ANDROID_HOME}/apache-ant"
 ENV APACHE_ANT_HOME_V="${APACHE_ANT_HOME}-${APACHE_ANT_VERSION}"
 
 RUN curl --location --progress-bar \
         "${APACHE_ANT_DL_URL}" \
         --output "${APACHE_ANT_ARCHIVE}" \
+    && echo "${APACHE_ANT_HASH} ${APACHE_ANT_ARCHIVE}" | sha256sum -c - \
     && tar -xf "${APACHE_ANT_ARCHIVE}" -C "${ANDROID_HOME}" \
     && ln -sfn "${APACHE_ANT_HOME_V}" "${APACHE_ANT_HOME}" \
     && rm -rf "${APACHE_ANT_ARCHIVE}"
@@ -94,6 +101,7 @@ ENV WORK_DIR="${HOME_DIR}/wspace" \
 
 # install system/build dependencies
 # https://github.com/kivy/buildozer/blob/master/docs/source/installation.rst#android-on-ubuntu-2004-64bit
+# TODO probably need to pin versions of at least some of these for over-time reproducibility?
 RUN apt -y update -qq \
     && apt -y install -qq --no-install-recommends \
         python3 \
@@ -110,7 +118,6 @@ RUN apt -y update -qq \
         unzip \
         build-essential \
         ccache \
-        openjdk-13-jdk \
         autoconf \
         libtool \
         pkg-config \
@@ -144,15 +151,9 @@ RUN chown ${USER} /opt
 USER ${USER}
 
 
-RUN python3 -m pip install --user --upgrade pip
-RUN python3 -m pip install --user --upgrade wheel
-RUN python3 -m pip install --user --upgrade cython==0.29.19
-RUN python3 -m pip install --user --pre kivy
-RUN python3 -m pip install --user image
-
-# prepare git
-RUN git config --global user.name "John Doe" \
-    && git config --global user.email johndoe@example.com
+COPY requirements-build-android.txt /opt/deterministic-build/
+RUN python3 -m pip install --no-dependencies --user \
+    -r /opt/deterministic-build/requirements-build-android.txt
 
 # install buildozer
 RUN cd /opt \
@@ -161,8 +162,8 @@ RUN cd /opt \
     && git remote add sombernight https://github.com/SomberNight/buildozer \
     && git fetch --all \
     # commit: from branch sombernight/electrum_20210421
-    && git checkout "c17ac3618334c9936253e8f5b88dce43dc4da75b^{commit}" \
-    && python3 -m pip install --user -e .
+    && git checkout "d570116e88184b0eca0c6b59a25edd49d977da23^{commit}" \
+    && python3 -m pip install --no-dependencies --user -e .
 
 # install python-for-android
 RUN cd /opt \
@@ -170,9 +171,9 @@ RUN cd /opt \
     && cd python-for-android \
     && git remote add sombernight https://github.com/SomberNight/python-for-android \
     && git fetch --all \
-    # commit: from branch sombernight/electrum_20210421
-    && git checkout "5356bc7838b03c8c174c91fe01539c91d1b40b9f^{commit}" \
-    && python3 -m pip install --user -e .
+    # commit: from branch sombernight/electrum_20210421b
+    && git checkout "cdee188f0ef28ff8452207da409912da19e917ca^{commit}" \
+    && python3 -m pip install --no-dependencies --user -e .
 
 # build env vars
 ENV USE_SDK_WRAPPER=1

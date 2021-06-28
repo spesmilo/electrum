@@ -8,6 +8,7 @@ from electrum.lnaddr import shorten_amount, unshorten_amount, LnAddr, lnencode, 
 from electrum.segwit_addr import bech32_encode, bech32_decode
 from electrum import segwit_addr
 from electrum.lnutil import UnknownEvenFeatureBits, derive_payment_secret_from_payment_preimage, LnFeatures
+from electrum import constants
 
 from . import ElectrumTestCase
 
@@ -69,7 +70,7 @@ class TestBolt11(ElectrumTestCase):
              "lnbc1m1ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq5xysxxatsyp3k7enxv4jsxqzpu9rflz25dx0qw6kdg05u0c5hdc30yq6ga6ew4pz86n244va45nchns9zrs3wjxznsqnt37hz7pswvc56wvuhxcjyd6k3lqf4ujynyxuspmvr078"),
             (LnAddr(date=timestamp, paymenthash=RHASH, amount=Decimal('1'), tags=[('h', longdescription)]),
              "lnbc11ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqhp58yjmdan79s6qqdhdzgynm4zwqd5d7xmw5fk98klysy043l2ahrqs2qjafckq94q3js6lvqz2kmenn9ysjejyj8fm4hlx0xtqhaxfzlxjappkgp0hmm40dnuan4v3jy83lqjup2n0fdzgysg049y9l9uc98qq07kfd3"),
-            (LnAddr(date=timestamp, paymenthash=RHASH, currency='tb', tags=[('f', 'mk2QpYatsKicvFVuTAQLBryyccRXMUaGHP'), ('h', longdescription)]),
+            (LnAddr(date=timestamp, paymenthash=RHASH, net=constants.BitcoinTestnet, tags=[('f', 'mk2QpYatsKicvFVuTAQLBryyccRXMUaGHP'), ('h', longdescription)]),
              "lntb1ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqfpp3x9et2e20v6pu37c5d9vax37wxq72un98hp58yjmdan79s6qqdhdzgynm4zwqd5d7xmw5fk98klysy043l2ahrqsr9zktgu78k8p9t8555ve37qwfvqn6ga37fnfwhgexmf20nzdpmuhwvuv7zra3xrh8y2ggxxuemqfsgka9x7uzsrcx8rfv85c8pmhq9gq4sampn"),
             (LnAddr(date=timestamp, paymenthash=RHASH, amount=24, tags=[
                 ('r', [(unhexlify('029e03a901b85534ff1e92c43c74431f7ce72046060fcf7a95c37e148f78c77255'), unhexlify('0102030405060708'), 1, 20, 3),
@@ -109,7 +110,7 @@ class TestBolt11(ElectrumTestCase):
         for lnaddr1, invoice_str1 in tests:
             invoice_str2 = lnencode(lnaddr1, PRIVKEY)
             self.assertEqual(invoice_str1, invoice_str2)
-            lnaddr2 = lndecode(invoice_str2, expected_hrp=lnaddr1.currency)
+            lnaddr2 = lndecode(invoice_str2, net=lnaddr1.net)
             self.compare(lnaddr1, lnaddr2)
 
     def test_n_decoding(self):
@@ -134,11 +135,11 @@ class TestBolt11(ElectrumTestCase):
 
     def test_min_final_cltv_expiry_decoding(self):
         lnaddr = lndecode("lnsb500u1pdsgyf3pp5nmrqejdsdgs4n9ukgxcp2kcq265yhrxd4k5dyue58rxtp5y83s3qdqqcqzystrggccm9yvkr5yqx83jxll0qjpmgfg9ywmcd8g33msfgmqgyfyvqhku80qmqm8q6v35zvck2y5ccxsz5avtrauz8hgjj3uahppyq20qp6dvwxe",
-                          expected_hrp="sb")
+                          net=constants.BitcoinSimnet)
         self.assertEqual(144, lnaddr.get_min_final_cltv_expiry())
 
         lnaddr = lndecode("lntb15u1p0m6lzupp5zqjthgvaad9mewmdjuehwddyze9d8zyxcc43zhaddeegt37sndgsdq4xysyymr0vd4kzcmrd9hx7cqp7xqrrss9qy9qsqsp5vlhcs24hwm747w8f3uau2tlrdkvjaglffnsstwyamj84cxuhrn2s8tut3jqumepu42azyyjpgqa4w9w03204zp9h4clk499y2umstl6s29hqyj8vv4as6zt5567ux7l3f66m8pjhk65zjaq2esezk7ll2kcpljewkg",
-                          expected_hrp="tb")
+                          net=constants.BitcoinTestnet)
         self.assertEqual(30, lnaddr.get_min_final_cltv_expiry())
 
     def test_min_final_cltv_expiry_roundtrip(self):

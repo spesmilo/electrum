@@ -236,7 +236,7 @@ class Commands:
     @command('n')
     async def close_wallet(self, wallet_path=None):
         """Close wallet"""
-        return self.daemon.stop_wallet(wallet_path)
+        return await self.daemon._stop_wallet(wallet_path)
 
     @command('')
     async def create(self, passphrase=None, password=None, encrypt_file=True, seed_type=None, wallet_path=None):
@@ -1415,6 +1415,7 @@ def add_global_options(parser):
     group.add_argument("--testnet", action="store_true", dest="testnet", default=False, help="Use Testnet")
     group.add_argument("--regtest", action="store_true", dest="regtest", default=False, help="Use Regtest")
     group.add_argument("--simnet", action="store_true", dest="simnet", default=False, help="Use Simnet")
+    group.add_argument("--signet", action="store_true", dest="signet", default=False, help="Use Signet")
     group.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
 
 def add_wallet_option(parser):

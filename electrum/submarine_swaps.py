@@ -14,7 +14,7 @@ from .bitcoin import (script_to_p2wsh, opcodes, p2wsh_nested_script, push_script
 from .transaction import PartialTxInput, PartialTxOutput, PartialTransaction
 from .transaction import script_GetOp, match_script_against_template, OPPushDataGeneric, OPPushDataPubkey
 from .util import log_exceptions
-from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY, ln_dummy_address, LN_MAX_HTLC_VALUE_MSAT
+from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY, ln_dummy_address
 from .bitcoin import dust_threshold
 from .logging import Logger
 from .lnutil import hex_to_bytes
@@ -450,7 +450,7 @@ class SwapManager(Logger):
         self._max_amount = limits['maximal']
 
     def get_max_amount(self):
-        return min(self._max_amount, LN_MAX_HTLC_VALUE_MSAT // 1000)
+        return self._max_amount
 
     def check_invoice_amount(self, x):
         return x >= self.min_amount and x <= self._max_amount

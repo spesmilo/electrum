@@ -38,6 +38,7 @@ datas = [
     (home+'electrum/*.json', 'electrum'),
     (home+'electrum/lnwire/*.csv', 'electrum/lnwire'),
     (home+'electrum/wordlist/english.txt', 'electrum/wordlist'),
+    (home+'electrum/wordlist/slip39.txt', 'electrum/wordlist'),
     (home+'electrum/locale', 'electrum/locale'),
     (home+'electrum/plugins', 'electrum/plugins'),
     (home+'electrum/gui/icons', 'electrum/gui/icons'),
@@ -52,6 +53,7 @@ datas += collect_data_files('bitbox02')
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
 a = Analysis([home+'run_electrum',
               home+'electrum/gui/qt/main_window.py',
+              home+'electrum/gui/qt/qrreader/qtmultimedia/camera_dialog.py',
               home+'electrum/gui/text.py',
               home+'electrum/util.py',
               home+'electrum/wallet.py',

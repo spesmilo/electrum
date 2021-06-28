@@ -31,34 +31,7 @@ We currently build the release binaries on macOS 10.14.6, and these seem to run 
 
 Before starting, make sure that the Xcode command line tools are installed (e.g. you have `git`).
 
-#### 1.a Get Xcode
-
-Building the QR scanner (CalinsQRReader) requires full Xcode (not just command line tools).
-
-Get it from [here](https://developer.apple.com/download/more/).
-Unfortunately, you need an "Apple ID" account.
-
-(note: the last Xcode that runs on macOS 10.14.6 is Xcode 11.3.1)
-
-After downloading, uncompress it.
-
-Make sure it is the "selected" xcode (e.g.):
-
-    sudo xcode-select -s $HOME/Downloads/Xcode.app/Contents/Developer/
-
-#### 1.b Build QR scanner separately on another Mac
-
-Alternatively, you can try building just the QR scanner on another Mac.
-
-On newer Mac, run:
-
-    pushd contrib/osx/CalinsQRReader; xcodebuild; popd
-    cp -r contrib/osx/CalinsQRReader/build prebuilt_qr
-
-Move `prebuilt_qr` to El Capitan: `contrib/osx/CalinsQRReader/prebuilt_qr`.
-
-
-#### 2. Build Electrum
+#### Build Electrum
 
     cd electrum
     ./contrib/osx/make_osx

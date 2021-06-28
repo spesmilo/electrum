@@ -187,7 +187,7 @@ class SendScreen(CScreen, Logger):
     def set_ln_invoice(self, invoice: str):
         try:
             invoice = str(invoice).lower()
-            lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
+            lnaddr = lndecode(invoice)
         except Exception as e:
             self.app.show_info(invoice + _(" is not a valid Lightning invoice: ") + repr(e)) # repr because str(Exception()) == ''
             return
@@ -313,11 +313,11 @@ class SendScreen(CScreen, Logger):
                         self.app.show_error(_('Invalid Bitcoin Address') + ':\n' + address)
                         return
                     outputs = [PartialTxOutput.from_address_and_value(address, amount)]
-                    return self.app.wallet.create_invoice(
-                        outputs=outputs,
-                        message=message,
-                        pr=self.payment_request,
-                        URI=self.parsed_URI)
+                return self.app.wallet.create_invoice(
+                    outputs=outputs,
+                    message=message,
+                    pr=self.payment_request,
+                    URI=self.parsed_URI)
         except InvoiceError as e:
             self.app.show_error(_('Error creating payment') + ':\n' + str(e))
 

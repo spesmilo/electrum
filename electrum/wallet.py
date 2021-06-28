@@ -322,7 +322,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         new_db = WalletDB(self.db.dump(), manual_upgrades=False)
 
         if self.lnworker:
-            channel_backups = new_db.get_dict('channel_backups')
+            channel_backups = new_db.get_dict('imported_channel_backups')
             for chan_id, chan in self.lnworker.channels.items():
                 channel_backups[chan_id.hex()] = self.lnworker.create_channel_backup(chan_id)
             new_db.put('channels', None)
@@ -1262,7 +1262,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         return candidate
 
     def get_change_addresses_for_new_transaction(
-            self, preferred_change_addr=None, *, allow_reuse: bool = True,
+            self, preferred_change_addr=None, *, allow_reusing_used_change_addrs: bool = True,
     ) -> List[str]:
         change_addrs = []
         if preferred_change_addr:
@@ -1280,7 +1280,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 change_addrs = addrs
             else:
                 # if there are none, take one randomly from the last few
-                if not allow_reuse:
+                if not allow_reusing_used_change_addrs:
                     return []
                 addrs = self.get_change_addresses(slice_start=-self.gap_limit_for_change)
                 change_addrs = [random.choice(addrs)] if addrs else []
@@ -1293,11 +1293,11 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         return change_addrs[:max_change]
 
     def get_single_change_address_for_new_transaction(
-            self, preferred_change_addr=None, *, allow_reuse: bool = True,
+            self, preferred_change_addr=None, *, allow_reusing_used_change_addrs: bool = True,
     ) -> Optional[str]:
         addrs = self.get_change_addresses_for_new_transaction(
             preferred_change_addr=preferred_change_addr,
-            allow_reuse=allow_reuse,
+            allow_reusing_used_change_addrs=allow_reusing_used_change_addrs,
         )
         if addrs:
             return addrs[0]
@@ -1812,7 +1812,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if not item:
             raise CannotCPFP(_("Could not find coins for output"))
         inputs = [item]
-        out_address = (self.get_single_change_address_for_new_transaction(allow_reuse=False)
+        out_address = (self.get_single_change_address_for_new_transaction(allow_reusing_used_change_addrs=False)
                        or self.get_unused_address()
                        or address)
         output_value = value - fee
@@ -2652,6 +2652,7 @@ class Imported_Wallet(Simple_Wallet):
 
     def __init__(self, db, storage, *, config):
         Abstract_Wallet.__init__(self, db, storage, config=config)
+        self.use_change = db.get('use_change', False)
 
     def is_watching_only(self):
         return self.keystore is None
@@ -2694,7 +2695,7 @@ class Imported_Wallet(Simple_Wallet):
         return self.get_addresses()
 
     def get_change_addresses(self, **kwargs):
-        return []
+        return self.get_addresses()
 
     def import_addresses(self, addresses: List[str], *,
                          write_to_disk=True) -> Tuple[List[str], List[Tuple[str, str]]]:
@@ -2760,6 +2761,22 @@ class Imported_Wallet(Simple_Wallet):
                 self.keystore.delete_imported_key(pubkey)
                 self.save_keystore()
         self.save_db()
+
+    def get_change_addresses_for_new_transaction(self, *args, **kwargs) -> List[str]:
+        # for an imported wallet, if all "change addresses" are already used,
+        # it is probably better to send change back to the "from address", than to
+        # send it to another random used address and link them together, hence
+        # we force "allow_reusing_used_change_addrs=False"
+        return super().get_change_addresses_for_new_transaction(
+            *args,
+            **{**kwargs, "allow_reusing_used_change_addrs": False},
+        )
+
+    def calc_unused_change_addresses(self) -> Sequence[str]:
+        with self.lock:
+            unused_addrs = [addr for addr in self.get_change_addresses()
+                            if not self.is_used(addr) and not self.is_address_reserved(addr)]
+            return unused_addrs
 
     def is_mine(self, address) -> bool:
         if not address: return False

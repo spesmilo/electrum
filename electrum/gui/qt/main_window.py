@@ -107,6 +107,7 @@ from .channels_list import ChannelsList
 from .confirm_tx_dialog import ConfirmTxDialog
 from .transaction_dialog import PreviewTxDialog
 from .rbf_dialog import BumpFeeDialog, DSCancelDialog
+from .qrreader import scan_qrcode
 
 if TYPE_CHECKING:
     from . import ElectrumGui
@@ -559,7 +560,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.setGeometry(100, 100, 840, 400)
 
     def watching_only_changed(self):
-        name = "Electrum Testnet" if constants.net.TESTNET else "Electrum"
+        name = "Electrum"
+        if constants.net.TESTNET:
+            name += " " + constants.net.NET_NAME.capitalize()
         title = '%s %s  -  %s' % (name, ELECTRUM_VERSION,
                                         self.wallet.basename())
         extra = [self.wallet.db.get('wallet_type', '?')]
@@ -2506,7 +2509,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def parse_lightning_invoice(self, invoice):
         """Parse ln invoice, and prepare the send tab for it."""
         try:
-            lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
+            lnaddr = lndecode(invoice)
         except Exception as e:
             raise LnDecodeException(e) from e
         pubkey = bh2u(lnaddr.pubkey.serialize())
@@ -2729,7 +2732,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         d.exec_()
 
     def show_lightning_invoice(self, invoice: LNInvoice):
-        lnaddr = lndecode(invoice.invoice, expected_hrp=constants.net.SEGWIT_HRP)
+        lnaddr = lndecode(invoice.invoice)
         d = WindowModalDialog(self, _("Lightning Invoice"))
         vbox = QVBoxLayout(d)
         grid = QGridLayout()
@@ -3399,30 +3402,27 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
 
     def read_tx_from_qrcode(self):
-        from electrum import qrscanner
-        try:
-            data = qrscanner.scan_barcode(self.config.get_video_device())
-        except UserFacingException as e:
-            self.show_error(e)
-            return
-        except BaseException as e:
-            self.logger.exception('camera error')
-            self.show_error(repr(e))
-            return
-        if not data:
-            return
-        # if the user scanned a bitcoin URI
-        if data.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
-            self.pay_to_URI(data)
-            return
-        if data.lower().startswith('channel_backup:'):
-            self.import_channel_backup(data)
-            return
-        # else if the user scanned an offline signed tx
-        tx = self.tx_from_text(data)
-        if not tx:
-            return
-        self.show_transaction(tx)
+        def cb(success: bool, error: str, data):
+            if not success:
+                if error:
+                    self.show_error(error)
+                return
+            if not data:
+                return
+            # if the user scanned a bitcoin URI
+            if data.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
+                self.pay_to_URI(data)
+                return
+            if data.lower().startswith('channel_backup:'):
+                self.import_channel_backup(data)
+                return
+            # else if the user scanned an offline signed tx
+            tx = self.tx_from_text(data)
+            if not tx:
+                return
+            self.show_transaction(tx)
+
+        scan_qrcode(parent=self.top_level_window(), config=self.config, callback=cb)
 
     def read_tx_from_file(self) -> Optional[Transaction]:
         fileName = getOpenFileName(

@@ -20,7 +20,7 @@ which virtualenv > /dev/null 2>&1 || { echo "Please install virtualenv" && exit 
 
 ${SYSTEM_PYTHON} -m hashin -h > /dev/null 2>&1 || { ${SYSTEM_PYTHON} -m pip install hashin; }
 
-for i in '' '-hw' '-binaries' '-binaries-mac' '-build-wine' '-build-mac' '-build-sdist' '-build-appimage'; do
+for i in '' '-hw' '-binaries' '-binaries-mac' '-build-wine' '-build-mac' '-build-sdist' '-build-appimage' '-build-android'; do
     rm -rf "$venv_dir"
     virtualenv -p ${SYSTEM_PYTHON} $venv_dir
 
