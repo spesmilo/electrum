@@ -177,7 +177,7 @@ Builder.load_string('''
                 RefLabel:
                     data: root.pk
                     name: _('Private key')
-                    on_touched: if not self.data: root.do_export(self)
+                    on_touched: if self.touched and not self.data: root.do_export(self)
         Widget:
             size_hint: 1, 0.1
         BoxLayout:

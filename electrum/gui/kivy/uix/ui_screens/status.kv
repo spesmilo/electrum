@@ -65,7 +65,7 @@ Popup:
                         visible: root.has_seed
                         data: ''
                         name: _('Seed')
-                        on_touched: if not self.data and root.has_seed: app.show_seed(seed_label)
+                        on_touched: if self.touched and not self.data and root.has_seed: app.show_seed(seed_label)
 
         BoxLayout:
             size_hint: 1, None

@@ -183,7 +183,10 @@
         touch = args[1]
         touched = bool(self.collide_point(*touch.pos))
         if touched: self.touch_callback()
-        if touched: self.touched = True
+        if touched and not self.touched: self.touched = True
+    on_touch_up:
+        touched = bool(self.collide_point(*(args[1].pos)))
+        if touched and self.touched: self.touched = False
     canvas.before:
         Color:
             rgba: root.background_color
