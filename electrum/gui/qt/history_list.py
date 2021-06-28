@@ -387,7 +387,7 @@ class HistoryModel(CustomModel, Logger):
         topLeft = self.createIndex(row, 0)
         bottomRight = self.createIndex(row, len(HistoryColumns) - 1)
         self.dataChanged.emit(topLeft, bottomRight)
-
+        
     def on_fee_histogram(self):
         for tx_hash, tx_item in list(self.transactions.items()):
             if tx_item.get('lightning'):

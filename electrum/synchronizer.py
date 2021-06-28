@@ -214,7 +214,8 @@ class Synchronizer(SynchronizerBase):
         return (not self.requested_addrs
                 and not self.requested_histories
                 and not self.requested_tx
-                and not self._stale_histories)
+                and not self._stale_histories
+                and len(self.wallet.get_unverified_txs().items()) == 0)
 
     async def _on_address_status(self, addr, status):
         history = self.wallet.db.get_addr_history(addr)
@@ -236,24 +237,26 @@ class Synchronizer(SynchronizerBase):
         for tx_ in prev_hist:
             if tx_[1] > prev_height:
                 prev_height = tx_[1]
+
         async with self._network_request_semaphore:
-            print(f'asking from {prev_height}')
             result = await self.interface.get_history_for_scripthash(h, prev_height)
         self._requests_answered += 1
-        self.logger.info(f"receiving history {addr} {len(result['history'])}")
+
         hist_ = list(map(lambda item: (item['tx_hash'], item['height']), result['history']))
-        hist_ = prev_hist + hist_
 
         seen_hashes = set()
-        hist = []
+        new_hist = []
+
         for obj in hist_:
-            if obj[0] not in seen_hashes:
-                hist.append(obj)
-                seen_hashes.add(obj[0])
+             new_hist.append(obj)
+             seen_hashes.add(obj[0])
+
+        hist = list(filter(lambda x:x[0] not in seen_hashes, prev_hist)) + new_hist
 
         # tx_fees
         tx_fees = [(item['tx_hash'], item.get('fee')) for item in result['history']]
         tx_fees = dict(filter(lambda x:x[1] is not None, tx_fees))
+
         # Check that the status corresponds to what was announced
         if history_status(hist) != status:
             # could happen naturally if history changed between getting status and history (race)

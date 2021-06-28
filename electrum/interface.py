@@ -950,7 +950,6 @@ class Interface(Logger):
 
         # do request
         while True:
-            print(f"requesting for ${sh} from ${max(0, from_height - 100)} to -1")
             res = await self.session.send_request('blockchain.scripthash.get_history',
                                                   [sh, max(0, from_height - 100), -1])
             if ret:

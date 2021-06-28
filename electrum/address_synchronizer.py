@@ -531,7 +531,6 @@ class AddressSynchronizer(Logger):
 
         if balance != 0:
             raise Exception("wallet.get_history() failed balance sanity-check")
-
         return h2
 
     def _add_tx_to_local_history(self, txid):
