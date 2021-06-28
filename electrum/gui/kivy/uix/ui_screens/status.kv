@@ -7,8 +7,8 @@ Popup:
     watching_only: app.wallet.is_watching_only()
     has_seed: app.wallet.has_seed()
     on_parent:
-        self.confirmed, self.unconfirmed, self.unmatured = app.wallet.get_balance()
-        self.lightning = int(app.wallet.lnworker.get_balance()) if app.wallet.lnworker else 0
+        if self.parent: self.confirmed, self.unconfirmed, self.unmatured = app.wallet.get_balance()
+        if self.parent: self.lightning = int(app.wallet.lnworker.get_balance()) if app.wallet.lnworker else 0
     BoxLayout:
         orientation: 'vertical'
         ScrollView:
