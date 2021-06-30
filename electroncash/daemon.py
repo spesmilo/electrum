@@ -138,7 +138,7 @@ def get_rpc_credentials(config):
 
 class Daemon(DaemonThread):
 
-    def __init__(self, config, fd, is_gui, plugins):
+    def __init__(self, config, fd, is_gui, plugins, *, listen_jsonrpc=True):
         DaemonThread.__init__(self)
         self.plugins = plugins
         self.config = config
@@ -156,8 +156,9 @@ class Daemon(DaemonThread):
             self.network.add_jobs([self.fx])
         self.gui = None
         self.wallets = {}
-        # Setup JSONRPC server
-        self.init_server(config, fd, is_gui)
+        if listen_jsonrpc:
+            # Setup JSONRPC server
+            self.init_server(config, fd, is_gui)
 
     def init_server(self, config, fd, is_gui):
         host = config.get('rpchost', '127.0.0.1')
