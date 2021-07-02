@@ -454,7 +454,6 @@ class Daemon(Logger):
                 self.network.start_gossip()
 
         self.stopping_soon = threading.Event()
-        self.stopped_event = asyncio.Event()
         self.taskgroup = TaskGroup()
         asyncio.run_coroutine_threadsafe(self._run(jobs=daemon_jobs), self.asyncio_loop)
 
@@ -543,10 +542,6 @@ class Daemon(Logger):
         self.on_stop()
 
     async def stop(self):
-        self.stopping_soon.set()
-        await self.stopped_event.wait()
-
-    async def stop_async(self):
         self.logger.info("stopping all wallets")
         async with TaskGroup() as group:
             for k, wallet in self._wallets.items():
@@ -563,13 +558,12 @@ class Daemon(Logger):
             self.logger.info("on_stop() entered. initiating shutdown")
             if self.gui_object:
                 self.gui_object.stop()
-            fut = asyncio.run_coroutine_threadsafe(self.stop_async(), self.asyncio_loop)
+            fut = asyncio.run_coroutine_threadsafe(self.stop(), self.asyncio_loop)
             fut.result()
         finally:
             self.logger.info("removing lockfile")
             remove_lockfile(get_lockfile(self.config))
             self.logger.info("stopped")
-            self.asyncio_loop.call_soon_threadsafe(self.stopped_event.set)
 
     def run_gui(self, config, plugins):
         threading.current_thread().setName('GUI')
