@@ -2,6 +2,8 @@ import os
 import bitstring
 import random
 
+from typing import Mapping
+
 from .logging import get_logger, Logger
 from .lnutil import LnFeatures
 from .lnonion import calc_hops_data_for_payment, new_onion_packet
@@ -67,19 +69,24 @@ TRAMPOLINE_NODES_SIGNET = {
     'wakiyamap.dev': LNPeerAddr(host='signet-electrumx.wakiyamap.dev', port=9735, pubkey=bytes.fromhex('02dadf6c28f3284d591cd2a4189d1530c1ff82c07059ebea150a33ab76e7364b4a')),
 }
 
-def hardcoded_trampoline_nodes():
+_TRAMPOLINE_NODES_UNITTESTS = {}  # used in unit tests
+
+def hardcoded_trampoline_nodes() -> Mapping[str, LNPeerAddr]:
+    nodes = {}
     if constants.net.NET_NAME == "mainnet":
-        return TRAMPOLINE_NODES_MAINNET
-    if constants.net.NET_NAME == "testnet":
-        return TRAMPOLINE_NODES_TESTNET
-    if constants.net.NET_NAME == "signet":
-        return TRAMPOLINE_NODES_SIGNET
-    return {}
+        nodes.update(TRAMPOLINE_NODES_MAINNET)
+    elif constants.net.NET_NAME == "testnet":
+        nodes.update(TRAMPOLINE_NODES_TESTNET)
+    elif constants.net.NET_NAME == "signet":
+        nodes.update(TRAMPOLINE_NODES_SIGNET)
+    nodes.update(_TRAMPOLINE_NODES_UNITTESTS)
+    return nodes
 
 def trampolines_by_id():
     return dict([(x.pubkey, x) for x in hardcoded_trampoline_nodes().values()])
 
-is_hardcoded_trampoline = lambda node_id: node_id in trampolines_by_id().keys()
+def is_hardcoded_trampoline(node_id: bytes) -> bool:
+    return node_id in trampolines_by_id()
 
 def encode_routing_info(r_tags):
     result = bitstring.BitArray()
@@ -103,13 +110,26 @@ def create_trampoline_route(
         trampoline_fee_level: int,
         use_two_trampolines: bool) -> LNPaymentRoute:
 
+    # figure out whether we can use end-to-end trampoline, or fallback to pay-to-legacy
+    is_legacy = True
+    r_tag_chosen_for_e2e_trampoline = None
     invoice_features = LnFeatures(invoice_features)
-    if invoice_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT)\
-        or invoice_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR):
-        is_legacy = False
-    else:
-        is_legacy = True
-
+    if (invoice_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT)
+            or invoice_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR)):
+        if not r_tags:  # presumably the recipient has public channels
+            is_legacy = False
+        else:
+            # - We choose one routing hint at random, and
+            #   use end-to-end trampoline if that node is a trampoline-forwarder (TF).
+            # - In case of e2e, the route will have either one or two TFs (one neighbour of sender,
+            #   and one neighbour of recipient; and these might coincide). Note that there are some
+            #   channel layouts where two TFs are needed for a payment to succeed, e.g. both
+            #   endpoints connected to T1 and T2, and sender only has send-capacity with T1, while
+            #   recipient only has recv-capacity with T2.
+            singlehop_r_tags = [x for x in r_tags if len(x) == 1]
+            r_tag_chosen_for_e2e_trampoline = random.choice(singlehop_r_tags)[0]
+            pubkey, scid, feebase, feerate, cltv = r_tag_chosen_for_e2e_trampoline
+            is_legacy = not is_hardcoded_trampoline(pubkey)
     # fee level. the same fee is used for all trampolines
     if trampoline_fee_level < len(TRAMPOLINE_FEES):
         params = TRAMPOLINE_FEES[trampoline_fee_level]
@@ -157,20 +177,13 @@ def create_trampoline_route(
         route[-1].invoice_routing_info = invoice_routing_info
         route[-1].invoice_features = invoice_features
         route[-1].outgoing_node_id = invoice_pubkey
-    else:
-        last_trampoline = route[-1].end_node
-        r_tags = [x for x in r_tags if len(x) == 1]
-        random.shuffle(r_tags)
-        for r_tag in r_tags:
-            pubkey, scid, feebase, feerate, cltv = r_tag[0]
-            if pubkey == trampoline_node_id:
-                break
-        else:
-            pubkey, scid, feebase, feerate, cltv = r_tag[0]
-            if route[-1].node_id != pubkey:
+    else:  # end-to-end trampoline
+        if r_tag_chosen_for_e2e_trampoline:
+            pubkey, scid, feebase, feerate, cltv = r_tag_chosen_for_e2e_trampoline
+            if route[-1].end_node != pubkey:
                 route.append(
                     TrampolineEdge(
-                        start_node=route[-1].node_id,
+                        start_node=route[-1].end_node,
                         end_node=pubkey,
                         fee_base_msat=feebase,
                         fee_proportional_millionths=feerate,

@@ -1220,12 +1220,20 @@ class LNWallet(LNWorker):
                 raise PaymentFailure(failure_msg.code_name())
             # trampoline
             if not self.channel_db:
-                if code == OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT:
+                # FIXME The trampoline nodes in the path are chosen randomly.
+                #       Some of the errors might depend on how we have chosen them.
+                #       Having more attempts is currently useful in part because of the randomness,
+                #       instead we should give feedback to create_routes_for_payment.
+                if code in (OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT,
+                            OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON):
                     # todo: parse the node parameters here (not returned by eclair yet)
                     trampoline_fee_level += 1
                     continue
                 elif use_two_trampolines:
                     use_two_trampolines = False
+                elif code in (OnionFailureCode.UNKNOWN_NEXT_PEER,
+                              OnionFailureCode.TEMPORARY_NODE_FAILURE):
+                    continue
                 else:
                     raise PaymentFailure(failure_msg.code_name())
             else:

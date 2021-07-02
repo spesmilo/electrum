@@ -12,6 +12,8 @@ from typing import Iterable, NamedTuple, Tuple, List, Dict
 
 from aiorpcx import TaskGroup, timeout_after, TaskTimeout
 
+import electrum
+import electrum.trampoline
 from electrum import bitcoin
 from electrum import constants
 from electrum.network import Network
@@ -152,6 +154,8 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         self.preimages = {}
         self.stopping_soon = False
 
+        self.logger.info(f"created LNWallet[{name}] with nodeID={local_keypair.pubkey.hex()}")
+
     def get_invoice_status(self, key):
         pass
 
@@ -272,8 +276,8 @@ class PutIntoOthersQueueTransport(MockTransport):
         self.other_mock_transport.queue.put_nowait(data)
 
 def transport_pair(k1, k2, name1, name2):
-    t1 = PutIntoOthersQueueTransport(k1, name2)
-    t2 = PutIntoOthersQueueTransport(k2, name1)
+    t1 = PutIntoOthersQueueTransport(k1, name1)
+    t2 = PutIntoOthersQueueTransport(k2, name2)
     t1.other_mock_transport = t2
     t2.other_mock_transport = t1
     return t1, t2
@@ -341,7 +345,7 @@ class TestPeer(TestCaseForTestnet):
         self._loop_thread.join(timeout=1)
         super().tearDown()
 
-    def prepare_peers(self, alice_channel, bob_channel):
+    def prepare_peers(self, alice_channel: Channel, bob_channel: Channel):
         k1, k2 = keypair(), keypair()
         alice_channel.node_id = k2.pubkey
         bob_channel.node_id = k1.pubkey
@@ -424,6 +428,8 @@ class TestPeer(TestCaseForTestnet):
 
         w_b.network.config.set_key('lightning_forward_payments', True)
         w_c.network.config.set_key('lightning_forward_payments', True)
+        w_b.network.config.set_key('lightning_forward_trampoline_payments', True)
+        w_c.network.config.set_key('lightning_forward_trampoline_payments', True)
 
         # forwarding fees, etc
         chan_ab.forwarding_fee_proportional_millionths *= 500
@@ -448,7 +454,7 @@ class TestPeer(TestCaseForTestnet):
         peer_cd.mark_open(chan_cd)
         peer_db.mark_open(chan_db)
         peer_dc.mark_open(chan_dc)
-        return SquareGraph(
+        graph = SquareGraph(
             w_a=w_a,
             w_b=w_b,
             w_c=w_c,
@@ -470,6 +476,7 @@ class TestPeer(TestCaseForTestnet):
             chan_db=chan_db,
             chan_dc=chan_dc,
         )
+        return graph
 
     @staticmethod
     async def prepare_invoice(
@@ -935,7 +942,14 @@ class TestPeer(TestCaseForTestnet):
     def test_multipart_payment_with_trampoline(self):
         # single attempt will fail with insufficient trampoline fee
         graph = self.prepare_chans_and_peers_in_square()
-        self._run_mpp(graph, {'alice_uses_trampoline':True, 'attempts':1}, {'alice_uses_trampoline':True, 'attempts':3})
+        electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+            graph.w_b.name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.w_b.node_keypair.pubkey),
+            graph.w_c.name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.w_c.node_keypair.pubkey),
+        }
+        try:
+            self._run_mpp(graph, {'alice_uses_trampoline':True, 'attempts':1}, {'alice_uses_trampoline':True, 'attempts':30})
+        finally:
+            electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {}
 
     @needs_test_with_all_chacha20_implementations
     def test_fail_pending_htlcs_on_shutdown(self):
