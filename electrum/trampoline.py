@@ -105,7 +105,7 @@ def create_trampoline_route(
         invoice_pubkey:bytes,
         invoice_features:int,
         my_pubkey: bytes,
-        trampoline_node_id,
+        trampoline_node_id: bytes,  # the first trampoline in the path; which we are directly connected to
         r_tags,
         trampoline_fee_level: int,
         use_two_trampolines: bool) -> LNPaymentRoute:
@@ -118,6 +118,7 @@ def create_trampoline_route(
             or invoice_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR)):
         if not r_tags:  # presumably the recipient has public channels
             is_legacy = False
+            pubkey = trampoline_node_id
         else:
             # - We choose one routing hint at random, and
             #   use end-to-end trampoline if that node is a trampoline-forwarder (TF).
@@ -130,16 +131,20 @@ def create_trampoline_route(
             r_tag_chosen_for_e2e_trampoline = random.choice(singlehop_r_tags)[0]
             pubkey, scid, feebase, feerate, cltv = r_tag_chosen_for_e2e_trampoline
             is_legacy = not is_hardcoded_trampoline(pubkey)
+        # Temporary fix: until ACINQ uses a proper feature bit to detect Phoenix,
+        # they might try to open channels when payments fail. The ACINQ node does this
+        # if it is directly connected to the recipient but without enough sending capacity.
+        # They send a custom "pay-to-open-request", and wait 60+ sec for the recipient to respond.
+        # Effectively, they hold the HTLC for minutes before failing it.
+        # see: https://github.com/ACINQ/lightning-kmp/pull/237
+        if pubkey == TRAMPOLINE_NODES_MAINNET['ACINQ'].pubkey:
+            is_legacy = True
+            use_two_trampolines = False
     # fee level. the same fee is used for all trampolines
     if trampoline_fee_level < len(TRAMPOLINE_FEES):
         params = TRAMPOLINE_FEES[trampoline_fee_level]
     else:
         raise NoPathFound()
-    # temporary fix: until ACINQ uses a proper feature bit to detect
-    # Phoenix, they might try to open channels when payments fail
-    if trampoline_node_id == TRAMPOLINE_NODES_MAINNET['ACINQ'].pubkey:
-        is_legacy = True
-        use_two_trampolines = False
     # add optional second trampoline
     trampoline2 = None
     if is_legacy and use_two_trampolines:
