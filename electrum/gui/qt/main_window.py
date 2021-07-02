@@ -241,7 +241,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        central_widget = QWidget()
+        central_widget = QScrollArea()
         vbox = QVBoxLayout(central_widget)
         vbox.setContentsMargins(0, 0, 0, 0)
         vbox.addWidget(tabs)
