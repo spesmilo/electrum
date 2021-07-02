@@ -1912,6 +1912,11 @@ class LNWallet(LNWorker):
         # we include channels that cannot *right now* receive (e.g. peer disconnected or balance insufficient)
         channels = [chan for chan in channels
                     if (chan.is_open() and not chan.is_frozen_for_receiving())]
+        # Filter out channels that have very low receive capacity compared to invoice amt.
+        # Even with MPP, below a certain threshold, including these channels probably
+        # hurts more than help, as they lead to many failed attempts for the sender.
+        channels = [chan for chan in channels
+                    if chan.available_to_spend(REMOTE) > (amount_msat or 0) * 0.05]
         # cap max channels to include to keep QR code reasonably scannable
         channels = sorted(channels, key=lambda chan: (not chan.is_active(), -chan.available_to_spend(REMOTE)))
         channels = channels[:15]
