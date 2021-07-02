@@ -11,7 +11,7 @@ set -e
 . "$CONTRIB"/build_tools_util.sh
 
 pushd $WINEPREFIX/drive_c/electrum
-
+git checkout current_release
 VERSION=`git describe --tags --dirty --always`
 info "Last commit: $VERSION"
 
@@ -29,13 +29,16 @@ for i in ./locale/*; do
     mkdir -p $dir
     msgfmt --output-file="$dir/electrum.mo" "$i/electrum.po" || true
 done
+pwd
+info "reseting creation dates of executables"
 popd
-
-find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
+pwd
+#find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 popd
-
+pwd
 
 # Install frozen dependencies
+info "install frozen dependencies"
 $WINE_PYTHON -m pip install --no-dependencies --no-warn-script-location \
     --cache-dir "$WINE_PIP_CACHE_DIR" -r "$CONTRIB"/deterministic-build/requirements.txt
 
