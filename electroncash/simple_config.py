@@ -4,6 +4,7 @@ import threading
 import time
 import os
 import stat
+from decimal import Decimal as PyDecimal
 
 from . import util
 from copy import deepcopy
@@ -351,7 +352,11 @@ class SimpleConfig(PrintError):
         return i >= 0
 
     def estimate_fee(self, size):
-        return int(self.fee_per_kb() * size / 1000.)
+        return self.estimate_fee_for_feerate(self.fee_per_kb(), size)
+
+    @classmethod
+    def estimate_fee_for_feerate(cls, fee_per_kb, size):
+        return int(PyDecimal(fee_per_kb) * PyDecimal(size) / 1000)
 
     def update_fee_estimates(self, key, value):
         self.fee_estimates[key] = value
