@@ -1205,12 +1205,20 @@ class LNWallet(LNWorker):
                 raise PaymentFailure(failure_msg.code_name())
             # trampoline
             if not self.channel_db:
-                if code == OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT:
+                # FIXME The trampoline nodes in the path are chosen randomly.
+                #       Some of the errors might depend on how we have chosen them.
+                #       Having more attempts is currently useful in part because of the randomness,
+                #       instead we should give feedback to create_routes_for_payment.
+                if code in (OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT,
+                            OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON):
                     # todo: parse the node parameters here (not returned by eclair yet)
                     trampoline_fee_level += 1
                     continue
                 elif use_two_trampolines:
                     use_two_trampolines = False
+                elif code in (OnionFailureCode.UNKNOWN_NEXT_PEER,
+                              OnionFailureCode.TEMPORARY_NODE_FAILURE):
+                    continue
                 else:
                     raise PaymentFailure(failure_msg.code_name())
             else:
@@ -1889,6 +1897,11 @@ class LNWallet(LNWorker):
         # we include channels that cannot *right now* receive (e.g. peer disconnected or balance insufficient)
         channels = [chan for chan in channels
                     if (chan.is_open() and not chan.is_frozen_for_receiving())]
+        # Filter out channels that have very low receive capacity compared to invoice amt.
+        # Even with MPP, below a certain threshold, including these channels probably
+        # hurts more than help, as they lead to many failed attempts for the sender.
+        channels = [chan for chan in channels
+                    if chan.available_to_spend(REMOTE) > (amount_msat or 0) * 0.05]
         # cap max channels to include to keep QR code reasonably scannable
         channels = sorted(channels, key=lambda chan: (not chan.is_active(), -chan.available_to_spend(REMOTE)))
         channels = channels[:15]
