@@ -3,9 +3,9 @@
 from decimal import Decimal
 from typing import Union
 
-from PyQt5.QtCore import pyqtSignal, Qt
+from PyQt5.QtCore import pyqtSignal, Qt, QSize
 from PyQt5.QtGui import QPalette, QPainter
-from PyQt5.QtWidgets import (QLineEdit, QStyle, QStyleOptionFrame)
+from PyQt5.QtWidgets import (QLineEdit, QStyle, QStyleOptionFrame, QSizePolicy)
 
 from .util import char_width_in_lineedit, ColorScheme
 
@@ -21,13 +21,26 @@ class FreezableLineEdit(QLineEdit):
         self.setFrame(not b)
         self.frozen.emit()
 
-class AmountEdit(FreezableLineEdit):
+
+class SizedFreezableLineEdit(FreezableLineEdit):
+
+    def __init__(self, *, width: int, parent=None):
+        super().__init__(parent)
+        self._width = width
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+
+    def sizeHint(self) -> QSize:
+        sh = super().sizeHint()
+        return QSize(self._width, sh.height())
+
+
+class AmountEdit(SizedFreezableLineEdit):
     shortcut = pyqtSignal()
 
     def __init__(self, base_unit, is_int=False, parent=None):
-        QLineEdit.__init__(self, parent)
         # This seems sufficient for hundred-BTC amounts with 8 decimals
-        self.setFixedWidth(16 * char_width_in_lineedit())
+        width = 16 * char_width_in_lineedit()
+        super().__init__(width=width, parent=parent)
         self.base_unit = base_unit
         self.textChanged.connect(self.numbify)
         self.is_int = is_int
