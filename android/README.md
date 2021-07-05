@@ -1,19 +1,19 @@
 # Electron Cash Android app
 
-## Development
-
 To start developing the app, just open this directory in Android Studio.
 
-### Requirements
+
+## Requirements
 
 You'll need to set up the following things before building the app:
 
-* Python must be on the PATH under the name `python3` on Linux/Mac, or `py` on Windows, and it
-  must have the packages listed in `build-requirements.txt`.
+* Python 3.8 must be on the PATH under the name `python3.8` or `python3` on Linux/Mac, or `py`
+  on Windows, and it must have the packages listed in `build-requirements.txt`.
 * The commands `xgettext` and `msgfmt` must be on the PATH. On Windows, the easiest way to
   get these is to install MSYS2.
 
-### Strings
+
+## Strings
 
 Most user interface strings are reused from the desktop and iOS apps. Android-specific strings
 should be added to `app/src/main/python/electroncash_gui/android/strings.py`.
@@ -28,9 +28,10 @@ The Android string IDs are generated from the first 2 words of each string, plus
 words as necessary to make them unique. So if any of the source strings change, you may need to
 update ID references in the code.
 
+
 ## Release
 
-For public releases, the following reproducible build process can be run on Linux x86-64:
+For public releases, the following reproducible build process should be run on Linux x86-64:
 
 If necessary, install Docker using the [instructions on its
 website](https://docs.docker.com/install/#supported-platforms).
