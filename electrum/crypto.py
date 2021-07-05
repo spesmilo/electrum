@@ -29,6 +29,8 @@ import sys
 import hashlib
 import hmac
 from typing import Union
+import scrypt
+import neoscrypt
 
 from .util import assert_bytes, InvalidPassword, to_bytes, to_string, WalletFileException, versiontuple
 from .i18n import _
