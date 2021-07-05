@@ -82,7 +82,7 @@ from electrum.lnutil import ln_dummy_address, extract_nodeid, ConnStringFormatEr
 from electrum.lnaddr import lndecode, LnDecodeException
 
 from .exception_window import Exception_Hook
-from .amountedit import AmountEdit, BTCAmountEdit, FreezableLineEdit, FeerateEdit
+from .amountedit import AmountEdit, BTCAmountEdit, FreezableLineEdit, FeerateEdit, SizedFreezableLineEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .transaction_dialog import show_transaction
@@ -241,7 +241,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        central_widget = QWidget()
+        central_widget = QScrollArea()
         vbox = QVBoxLayout(central_widget)
         vbox.setContentsMargins(0, 0, 0, 0)
         vbox.addWidget(tabs)
@@ -249,6 +249,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         self.setCentralWidget(central_widget)
 
+        self.setMinimumWidth(640)
+        self.setMinimumHeight(400)
         if self.config.get("is_maximized"):
             self.showMaximized()
 
@@ -1062,7 +1064,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         grid.setSpacing(8)
         grid.setColumnStretch(3, 1)
 
-        self.receive_message_e = QLineEdit()
+        self.receive_message_e = SizedFreezableLineEdit(width=700)
         grid.addWidget(QLabel(_('Description')), 0, 0)
         grid.addWidget(self.receive_message_e, 0, 1, 1, 4)
         self.receive_message_e.textChanged.connect(self.update_receive_qr)
@@ -1091,7 +1093,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             i = 0
         self.expires_combo.addItems(evl_values)
         self.expires_combo.setCurrentIndex(i)
-        self.expires_combo.setFixedWidth(self.receive_amount_e.width())
         def on_expiry(i):
             self.config.set_key('request_expiry', evl_keys[i])
         self.expires_combo.currentIndexChanged.connect(on_expiry)
@@ -1124,13 +1125,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         buttons.addWidget(self.clear_invoice_button)
         buttons.addWidget(self.create_invoice_button)
         if self.wallet.has_lightning():
-            self.create_invoice_button.setText(_('New Address'))
             self.create_lightning_invoice_button = QPushButton(_('Lightning'))
             self.create_lightning_invoice_button.setToolTip('Create lightning request')
             self.create_lightning_invoice_button.setIcon(read_QIcon("lightning.png"))
             self.create_lightning_invoice_button.clicked.connect(lambda: self.create_invoice(True))
             buttons.addWidget(self.create_lightning_invoice_button)
-        grid.addLayout(buttons, 4, 3, 1, 2)
+        grid.addLayout(buttons, 4, 0, 1, -1)
 
         self.receive_payreq_e = ButtonsTextEdit()
         self.receive_payreq_e.setFont(QFont(MONOSPACE_FONT))
@@ -1370,8 +1370,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
               + _('The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the \'History\' tab.')
         description_label = HelpLabel(_('Description'), msg)
         grid.addWidget(description_label, 2, 0)
-        self.message_e = FreezableLineEdit()
-        self.message_e.setMinimumWidth(700)
+        self.message_e = SizedFreezableLineEdit(width=700)
         grid.addWidget(self.message_e, 2, 1, 1, -1)
 
         msg = _('Amount to be sent.') + '\n\n' \
