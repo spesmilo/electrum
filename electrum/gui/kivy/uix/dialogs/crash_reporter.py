@@ -104,6 +104,7 @@ class CrashReporter(BaseCrashReporter, Factory.Popup):
         self.ids.crash_message.text = BaseCrashReporter.CRASH_MESSAGE
         self.ids.request_help_message.text = BaseCrashReporter.REQUEST_HELP_MESSAGE
         self.ids.describe_error_message.text = BaseCrashReporter.DESCRIBE_ERROR_MESSAGE
+        self.ids.user_message.hint_text = BaseCrashReporter.USER_COMMENT_PLACEHOLDER
 
     def show_contents(self):
         details = CrashReportDetails(self.get_report_string())

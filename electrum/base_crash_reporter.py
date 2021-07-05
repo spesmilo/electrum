@@ -55,6 +55,8 @@ class BaseCrashReporter(Logger):
                              'useful debug information:')
     DESCRIBE_ERROR_MESSAGE = _("Please briefly describe what led to the error (optional):")
     ASK_CONFIRM_SEND = _("Do you want to send this report?")
+    USER_COMMENT_PLACEHOLDER = _("Do not enter sensitive/private information here. "
+                                 "The report will be visible on the public issue tracker.")
 
     def __init__(self, exctype, value, tb):
         Logger.__init__(self)
