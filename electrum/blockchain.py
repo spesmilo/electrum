@@ -22,22 +22,26 @@
 # SOFTWARE.
 import os
 import threading
-import time
 from typing import Optional, Dict, Mapping, Sequence
 
 from . import util
 from .bitcoin import hash_encode, int_to_hex, rev_hex
-from .crypto import sha256d
+from .crypto import sha256d, PoWHash, PoWNeoScryptHash
 from . import constants
-from .util import bfh, bh2u, with_lock
+from .util import bfh, bh2u
 from .simple_config import SimpleConfig
 from .logging import get_logger, Logger
-
 
 _logger = get_logger(__name__)
 
 HEADER_SIZE = 80  # bytes
-MAX_TARGET = 0x00000000FFFF0000000000000000000000000000000000000000000000000000
+MAX_TARGET = 0x00000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+MAX_TARGET_NEOSCRYPT = 0x0000003FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+SEVEN_DAYS = 7 * 24 * 60 * 60
+HEIGHT_FORK_ONE = 33000
+HEIGHT_FORK_TWO = 87948
+HEIGHT_FORK_THREE = 204639
+HEIGHT_FORK_FOUR = 432000
 
 
 class MissingHeader(Exception):
@@ -70,6 +74,16 @@ def deserialize_header(s: bytes, height: int) -> dict:
     h['nonce'] = hex_to_int(s[76:80])
     h['block_height'] = height
     return h
+
+def pow_hash_header(header):
+    if header is None:
+        return '0' * 64
+    if header.get('prev_block_hash') is None:
+        header['prev_block_hash'] = '00'*32
+    hashAlg = PoWNeoScryptHash
+    if header.get('timestamp') < 1414346265:
+        hashAlg = PoWHash
+    return hash_encode(hashAlg(bfh(serialize_header(header))))
 
 def hash_header(header: dict) -> str:
     if header is None:
@@ -192,8 +206,15 @@ class Blockchain(Logger):
         self.parent = parent
         self._forkpoint_hash = forkpoint_hash  # blockhash at forkpoint. "first hash"
         self._prev_hash = prev_hash  # blockhash immediately before forkpoint
+        self.target_bridge = constants.read_json('target_bridge.json', None)
         self.lock = threading.RLock()
         self.update_size()
+
+    def with_lock(func):
+        def func_wrapper(self, *args, **kwargs):
+            with self.lock:
+                return func(self, *args, **kwargs)
+        return func_wrapper
 
     @property
     def checkpoints(self):
@@ -541,8 +562,8 @@ class Blockchain(Logger):
     @classmethod
     def bits_to_target(cls, bits: int) -> int:
         bitsN = (bits >> 24) & 0xff
-        if not (0x03 <= bitsN <= 0x1d):
-            raise Exception("First part of bits should be in [0x03, 0x1d]")
+        if not (0x03 <= bitsN <= 0x1e):
+            raise Exception("First part of bits should be in [0x03, 0x1e]")
         bitsBase = bits & 0xffffff
         if not (0x8000 <= bitsBase <= 0x7fffff):
             raise Exception("Second part of bits should be in [0x8000, 0x7fffff]")
@@ -608,7 +629,7 @@ class Blockchain(Logger):
         if prev_hash != header.get('prev_block_hash'):
             return False
         try:
-            target = self.get_target(height // 2016 - 1)
+            target = self.get_target(height, None)
         except MissingHeader:
             return False
         try:
@@ -630,17 +651,11 @@ class Blockchain(Logger):
 
     def get_checkpoints(self):
         # for each chunk, store the hash of the last block and the target after the chunk
-        cp = []
         n = self.height() // 2016
-        for index in range(n):
-            h = self.get_hash((index+1) * 2016 -1)
-            target = self.get_target(index)
-            cp.append((h, target))
-        return cp
+        return [self.get_hash((i+1) * 2016 -1) for i in range(n)]
 
 
 def check_header(header: dict) -> Optional[Blockchain]:
-    """Returns any Blockchain that contains header, or None."""
     if type(header) is not dict:
         return None
     with blockchains_lock: chains = list(blockchains.values())
