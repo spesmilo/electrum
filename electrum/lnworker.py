@@ -1697,7 +1697,9 @@ class LNWallet(LNWorker):
             self, *,
             amount_msat: Optional[int],
             message: str,
-            expiry: int) -> Tuple[LnAddr, str]:
+            expiry: int,
+            write_to_disk: bool = True,
+    ) -> Tuple[LnAddr, str]:
 
         timestamp = int(time.time())
         routing_hints = await self._calc_routing_hints_for_invoice(amount_msat)
@@ -1731,8 +1733,10 @@ class LNWallet(LNWorker):
             date=timestamp,
             payment_secret=derive_payment_secret_from_payment_preimage(payment_preimage))
         invoice = lnencode(lnaddr, self.node_keypair.privkey)
-        self.save_preimage(payment_hash, payment_preimage)
-        self.save_payment_info(info)
+        self.save_preimage(payment_hash, payment_preimage, write_to_disk=False)
+        self.save_payment_info(info, write_to_disk=False)
+        if write_to_disk:
+            self.wallet.save_db()
         return lnaddr, invoice
 
     async def _add_request_coro(self, amount_sat: Optional[int], message, expiry: int) -> str:
@@ -1740,17 +1744,21 @@ class LNWallet(LNWorker):
         lnaddr, invoice = await self.create_invoice(
             amount_msat=amount_msat,
             message=message,
-            expiry=expiry)
+            expiry=expiry,
+            write_to_disk=False,
+        )
         key = bh2u(lnaddr.paymenthash)
         req = LNInvoice.from_bech32(invoice)
-        self.wallet.add_payment_request(req)
+        self.wallet.add_payment_request(req, write_to_disk=False)
         self.wallet.set_label(key, message)
+        self.wallet.save_db()
         return key
 
-    def save_preimage(self, payment_hash: bytes, preimage: bytes):
+    def save_preimage(self, payment_hash: bytes, preimage: bytes, *, write_to_disk: bool = True):
         assert sha256(preimage) == payment_hash
         self.preimages[bh2u(payment_hash)] = bh2u(preimage)
-        self.wallet.save_db()
+        if write_to_disk:
+            self.wallet.save_db()
 
     def get_preimage(self, payment_hash: bytes) -> Optional[bytes]:
         r = self.preimages.get(bh2u(payment_hash))
@@ -1764,12 +1772,13 @@ class LNWallet(LNWorker):
                 amount_msat, direction, status = self.payments[key]
                 return PaymentInfo(payment_hash, amount_msat, direction, status)
 
-    def save_payment_info(self, info: PaymentInfo) -> None:
+    def save_payment_info(self, info: PaymentInfo, *, write_to_disk: bool = True) -> None:
         key = info.payment_hash.hex()
         assert info.status in SAVED_PR_STATUS
         with self.lock:
             self.payments[key] = info.amount_msat, info.direction, info.status
-        self.wallet.save_db()
+        if write_to_disk:
+            self.wallet.save_db()
 
     def check_received_mpp_htlc(self, payment_secret, short_channel_id, htlc: UpdateAddHtlc, expected_msat: int) -> Optional[bool]:
         """ return MPP status: True (accepted), False (expired) or None """
