@@ -11,7 +11,6 @@ set -e
 . "$CONTRIB"/build_tools_util.sh
 
 pushd $WINEPREFIX/drive_c/electrum
-git checkout current_release
 VERSION=`git describe --tags --dirty --always`
 info "Last commit: $VERSION"
 
