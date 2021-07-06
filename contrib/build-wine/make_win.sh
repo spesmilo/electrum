@@ -53,6 +53,12 @@ else
     "$CONTRIB"/make_zbar.sh || fail "Could not build zbar"
 fi
 
+if [ -f "$DLL_TARGET_DIR/libusb-1.0.dll" ]; then
+    info "libusb already built, skipping"
+else
+    "$CONTRIB"/make_libusb.sh || fail "Could not build libusb"
+fi
+
 "$here/prepare-wine.sh" || fail "prepare-wine failed"
 
 info "Resetting modification time in C:\Python..."

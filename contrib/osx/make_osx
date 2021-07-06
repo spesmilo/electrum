@@ -21,7 +21,7 @@ cd "$src_dir/../.."
 
 
 which brew > /dev/null 2>&1 || fail "Please install brew from https://brew.sh/ to continue"
-which xcodebuild > /dev/null 2>&1 || fail "Please install Xcode and xcode command line tools to continue"
+which xcodebuild > /dev/null 2>&1 || fail "Please install xcode command line tools to continue"
 
 # Code Signing: See https://developer.apple.com/library/archive/documentation/Security/Conceptual/CodeSigningGuide/Procedures/Procedures.html
 if [ -n "$CODESIGN_CERT" ]; then
@@ -115,13 +115,6 @@ info "generating locale"
 ) || fail "failed generating locale"
 
 
-info "Downloading libusb..."
-curl https://homebrew.bintray.com/bottles/libusb-1.0.23.high_sierra.bottle.tar.gz | \
-tar xz --directory "$BUILDDIR"
-cp "$BUILDDIR/libusb/1.0.23/lib/libusb-1.0.dylib" contrib/osx
-echo "caea266f3fc3982adc55d6cb8d9bad10f6e61f0c24ce5901aa1804618e08e14d  contrib/osx/libusb-1.0.dylib" | \
-    shasum -a 256 -c || fail "libusb checksum mismatched"
-
 info "Installing some build-time deps for compilation..."
 brew install autoconf automake libtool gettext coreutils pkgconfig
 
@@ -132,6 +125,10 @@ cp "$ROOT_FOLDER"/electrum/libsecp256k1.0.dylib "$CONTRIB"/osx
 info "Building ZBar dylib..."
 "$CONTRIB"/make_zbar.sh || fail "Could not build ZBar dylib"
 cp "$ROOT_FOLDER"/electrum/libzbar.0.dylib "$CONTRIB"/osx
+
+info "Building libusb dylib..."
+"$CONTRIB"/make_libusb.sh || fail "Could not build libusb dylib"
+cp "$ROOT_FOLDER"/electrum/libusb-1.0.dylib "$CONTRIB"/osx
 
 
 info "Installing requirements..."
