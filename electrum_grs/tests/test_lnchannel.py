@@ -151,7 +151,7 @@ def create_test_channels(*, feerate=6000, local_msat=None, remote_msat=None,
                 bob_first, other_node_id=bob_pubkey, l_dust=200, r_dust=1300,
                 l_csv=5, r_csv=4
             ),
-            name=bob_name,
+            name=f"{alice_name}->{bob_name}",
             initial_feerate=feerate),
         lnchannel.Channel(
             create_channel_state(
@@ -160,7 +160,7 @@ def create_test_channels(*, feerate=6000, local_msat=None, remote_msat=None,
                 alice_first, other_node_id=alice_pubkey, l_dust=1300, r_dust=200,
                 l_csv=4, r_csv=5
             ),
-            name=alice_name,
+            name=f"{bob_name}->{alice_name}",
             initial_feerate=feerate)
     )
 

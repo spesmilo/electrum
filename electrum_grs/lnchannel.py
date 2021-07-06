@@ -1053,8 +1053,7 @@ class Channel(AbstractChannel):
                 # if we are forwarding, save error message to disk
                 if self.lnworker.get_payment_info(htlc.payment_hash) is None:
                     self.save_fail_htlc_reason(htlc.htlc_id, error_bytes, failure_message)
-                else:
-                    self.lnworker.htlc_failed(self, htlc.payment_hash, htlc.htlc_id, error_bytes, failure_message)
+                self.lnworker.htlc_failed(self, htlc.payment_hash, htlc.htlc_id, error_bytes, failure_message)
 
     def save_fail_htlc_reason(
             self,

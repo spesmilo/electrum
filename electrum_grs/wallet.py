@@ -2295,11 +2295,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             key = req.rhash
         return key
 
-    def add_payment_request(self, req: Invoice):
+    def add_payment_request(self, req: Invoice, *, write_to_disk: bool = True):
         key = self.get_key_for_receive_request(req, sanity_checks=True)
         message = req.message
         self.receive_requests[key] = req
         self.set_label(key, message)  # should be a default label
+        if write_to_disk:
+            self.save_db()
         return req
 
     def delete_request(self, key):
@@ -2316,11 +2318,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         elif self.lnworker:
             self.lnworker.delete_payment(key)
 
-    def remove_payment_request(self, addr):
-        if addr not in self.receive_requests:
-            return False
-        self.receive_requests.pop(addr)
-        return True
+    def remove_payment_request(self, addr) -> bool:
+        found = False
+        if addr in self.receive_requests:
+            found = True
+            self.receive_requests.pop(addr)
+            self.save_db()
+        return found
 
     def get_sorted_requests(self) -> List[Invoice]:
         """ sorted by timestamp """

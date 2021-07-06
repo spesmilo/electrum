@@ -1455,6 +1455,12 @@ class Peer(Logger):
             htlc: UpdateAddHtlc,
             trampoline_onion: ProcessedOnionPacket):
 
+        forwarding_enabled = self.network.config.get('lightning_forward_payments', False)
+        forwarding_trampoline_enabled = self.network.config.get('lightning_forward_trampoline_payments', False)
+        if not (forwarding_enabled and forwarding_trampoline_enabled):
+            self.logger.info(f"trampoline forwarding is disabled. failing htlc.")
+            raise OnionRoutingFailure(code=OnionFailureCode.PERMANENT_CHANNEL_FAILURE, data=b'')
+
         payload = trampoline_onion.hop_data.payload
         payment_hash = htlc.payment_hash
         payment_secret = os.urandom(32)
@@ -1467,6 +1473,7 @@ class Peer(Logger):
                 next_trampoline_onion = None
                 invoice_features = payload["invoice_features"]["invoice_features"]
                 invoice_routing_info = payload["invoice_routing_info"]["invoice_routing_info"]
+                # TODO use invoice_routing_info
             else:
                 self.logger.info('forward_trampoline: end-to-end')
                 invoice_features = LnFeatures.BASIC_MPP_OPT
