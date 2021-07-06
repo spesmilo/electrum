@@ -63,7 +63,12 @@ fun toSatoshis(s: String) : Long {
     val unit = Math.pow(10.0, unitPlaces.toDouble())
     try {
         // toDouble accepts only the English number format: see comment above.
-        return Math.round(s.toDouble() * unit)
+        val result = Math.round(s.toDouble() * unit)
+        return if (result == Long.MAX_VALUE) {
+            throw ToastException(R.string.Invalid_amount)
+        } else {
+            result
+        }
     } catch (e: NumberFormatException) {
         throw ToastException(R.string.Invalid_amount)
     }

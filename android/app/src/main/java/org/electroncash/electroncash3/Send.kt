@@ -262,7 +262,14 @@ class SendDialog : TaskLauncherDialog<Unit>() {
                 setPaymentRequest(null)
                 parsed.callAttr("get", "address")?.let { etAddress.setText(it.toString()) }
                 parsed.callAttr("get", "message")?.let { etDescription.setText(it.toString()) }
-                parsed.callAttr("get", "amount")?.let { amountBox.amount = it.toLong() }
+                parsed.callAttr("get", "amount")?.let {
+                    try {
+                        amountBox.amount = it.toLong()
+                    }  catch (e: PyException) {
+                        throw if (e.message!!.startsWith("OverflowError")) ToastException(e)
+                        else e
+                    }
+                }
                 amountBox.requestFocus()
                 btnMax.isChecked = false
             }
