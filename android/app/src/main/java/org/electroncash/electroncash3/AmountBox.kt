@@ -31,7 +31,7 @@ class AmountBox(val dialog: Dialog) {
                             dialog.etAmount -> {
                                 etOther = dialog.etFiat
                                 formatOther = {
-                                    formatFiatAmount(toSatoshis(s.toString())) ?: ""
+                                    formatFiatAmount(toSatoshis(s.toString()), commas=false) ?: ""
                                 }
                             }
                             dialog.etFiat -> {

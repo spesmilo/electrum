@@ -155,7 +155,7 @@ class AddressDialog : DetailDialog() {
         }
         tvTxCount.movementMethod = LinkMovementMethod.getInstance()
 
-        tvBalance.text = ltr(formatSatoshisAndFiat(addrModel.balance))
+        tvBalance.text = ltr(formatSatoshisAndFiat(addrModel.balance, commas=true))
     }
 
     override fun onFirstShowDialog() {

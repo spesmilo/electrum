@@ -65,7 +65,7 @@ private fun getCaption(): Caption {
             if (wallet.callAttr("is_fully_settled_down").toBoolean()) {
                 // get_balance returns the tuple (confirmed, unconfirmed, unmatured)
                 val balance = wallet.callAttr("get_balance").asList().get(0).toLong()
-                subtitle = ltr(formatSatoshisAndFiat(balance))
+                subtitle = ltr(formatSatoshisAndFiat(balance, commas=true))
             } else {
                 // get_addresses copies the list, which may be very large.
                 val addrCount = wallet.callAttr("get_receiving_addresses").asList().size +

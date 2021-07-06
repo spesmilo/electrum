@@ -44,18 +44,18 @@ fun fiatToSatoshis(s: String): Long? {
 }
 
 
-fun formatSatoshisAndFiat(amount: Long): String {
+fun formatSatoshisAndFiat(amount: Long, commas: Boolean): String {
     var result = formatSatoshisAndUnit(amount)
-    val fiat = formatFiatAmount(amount)
+    val fiat = formatFiatAmount(amount, commas)
     if (fiat != null) {
         result += " ($fiat ${formatFiatUnit()})"
     }
     return result
 }
 
-fun formatFiatAmount(amount: Long): String? {
+fun formatFiatAmount(amount: Long, commas: Boolean): String? {
     if (!fiatEnabled()) return null
-    val amountStr = fx.callAttr("format_amount", amount, Kwarg("commas", false)).toString()
+    val amountStr = fx.callAttr("format_amount", amount, Kwarg("commas", commas)).toString()
     return if (amountStr.isEmpty()) null else amountStr
 }
 
