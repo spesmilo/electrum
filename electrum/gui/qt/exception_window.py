@@ -174,12 +174,13 @@ class Exception_Hook(QObject, Logger):
         self._report_exception.connect(_show_window)
 
     @classmethod
-    def maybe_setup(cls, *, config: 'SimpleConfig', wallet: 'Abstract_Wallet') -> None:
+    def maybe_setup(cls, *, config: 'SimpleConfig', wallet: 'Abstract_Wallet' = None) -> None:
         if not config.get(BaseCrashReporter.config_key, default=True):
             return
         if not cls._INSTANCE:
             cls._INSTANCE = Exception_Hook(config=config)
-        cls._INSTANCE.wallet_types_seen.add(wallet.wallet_type)
+        if wallet:
+            cls._INSTANCE.wallet_types_seen.add(wallet.wallet_type)
 
     def handler(self, *exc_info):
         self.logger.error('exception caught by crash reporter', exc_info=exc_info)
