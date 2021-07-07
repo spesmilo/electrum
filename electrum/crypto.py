@@ -29,7 +29,7 @@ import sys
 import hashlib
 import hmac
 from typing import Union
-# import scrypt
+import scrypt
 import neoscrypt
 
 from .util import assert_bytes, InvalidPassword, to_bytes, to_string, WalletFileException, versiontuple
@@ -307,6 +307,14 @@ def sha256d(x: Union[bytes, str]) -> bytes:
     out = bytes(sha256(sha256(x)))
     return out
 
+def PoWHash(x):
+    x = to_bytes(x, 'utf8')
+    return scrypt.hash(x, x, N=1 << 10, r=1, p=1, buflen=32)
+
+
+def PoWNeoScryptHash(x):
+    x = to_bytes(x, 'utf8')
+    return neoscrypt.getPoWHash(x)
 
 def hash_160(x: bytes) -> bytes:
     return ripemd(sha256(x))

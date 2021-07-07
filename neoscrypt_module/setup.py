@@ -21,7 +21,8 @@ if platform.system() == 'Windows':
 neoscrypt_module = Extension('neoscrypt',
                              sources=['neoscrypt_module/neoscryptmodule.c',
                                       'neoscrypt_module/neoscrypt.c'],
-                             library_dirs=library_dirs)
+                             libraries=['neoscrypt'],
+                             library_dirs=[ './neoscrypt_module'])
 
 setup (name = 'neoscrypt',
        version = '1.0',

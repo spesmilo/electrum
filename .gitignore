@@ -39,6 +39,8 @@ contrib/zbar/
 contrib/osx/build-venv/
 
 # shared objects
+neoscrypt_module/libneoscrypt*
+neoscrypt_module/*.o
 electrum/*.so
 electrum/*.so.0
 electrum/*.dll

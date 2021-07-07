@@ -41,6 +41,12 @@ rm "$here"/dist/* -rf
 
 mkdir -p "$CACHEDIR" "$DLL_TARGET_DIR" "$PIP_CACHE_DIR"
 
+if [ -f "$DLL_TARGET_DIR/libneoscrypt-0.dll" ]; then
+    info "libneoscrypt already built, skipping"
+else
+    "$CONTRIB"/make_neoscrypt.sh || fail "Could not build libneoscrypt"
+fi
+
 if [ -f "$DLL_TARGET_DIR/libsecp256k1-0.dll" ]; then
     info "libsecp256k1 already built, skipping"
 else
