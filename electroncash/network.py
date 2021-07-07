@@ -418,7 +418,8 @@ class Network(util.DaemonThread):
             pass
 
     def get_server_height(self):
-        return self.interface.tip if self.interface else 0
+        with self.interface_lock:
+            return self.interface.tip if self.interface else 0
 
     def server_is_lagging(self):
         sh = self.get_server_height()
