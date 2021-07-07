@@ -18,6 +18,7 @@ from .uikit_bindings import *
 from electroncash import networks
 from electroncash.address import Address, ScriptOutput
 from electroncash.paymentrequest import PaymentRequest
+from electroncash.transaction import OPReturn
 from electroncash import bitcoin
 from .feeslider import FeeSlider
 from .amountedit import BTCAmountEdit
@@ -60,6 +61,7 @@ class SendVC(SendBase):
     dismissOnAppear = objc_property()
     kbas = objc_property()
     queuedPayTo = objc_property()
+    opReturnIsRaw = objc_property()
 
     @objc_method
     def init(self):
@@ -75,6 +77,7 @@ class SendVC(SendBase):
         self.dismissOnAppear = False
         self.kbas = None
         self.queuedPayTo = None
+        self.opReturnIsRaw = False
 
         self.navigationItem.leftItemsSupplementBackButton = True
         bb = UIBarButtonItem.new().autorelease()
@@ -98,6 +101,7 @@ class SendVC(SendBase):
         self.excessiveFee = None
         self.kbas = None
         self.queuedPayTo = None
+        self.opReturnIsRaw = None
         utils.nspy_pop(self)
         for e in [self.amt, self.fiat, self.payTo]:
             if e: utils.nspy_pop(e)
@@ -209,10 +213,16 @@ class SendVC(SendBase):
         # Error Label
         self.message.text = ""
 
+        self.opReturnDel.placeholderFont = UIFont.italicSystemFontOfSize_(14.0)
+        self.opReturnDel.tv = self.opReturn
+        self.opReturnDel.text = ""
+        self.opReturnDel.placeholderText = _("OP_RETURN data (optional).")
+
         self.descDel.placeholderFont = UIFont.italicSystemFontOfSize_(14.0)
         self.descDel.tv = self.desc
         self.descDel.text = ""
         self.descDel.placeholderText = _("Description of the transaction (not mandatory).")
+        
 
         feelbl = self.feeLbl
         slider = self.feeSlider
@@ -260,7 +270,7 @@ class SendVC(SendBase):
             try:
                 qpt = list(self.queuedPayTo)
                 self.queuedPayTo = None
-                self.onPayTo_message_amount_(qpt[0],qpt[1],qpt[2])
+                self.onPayTo_message_amount_opReturn_isRaw_(qpt[0],qpt[1],qpt[2],qpt[3],qpt[4])
             except:
                 utils.NSLog("queuedPayTo.. failed with exception: %s",str(sys.exc_info()[1]))
 
@@ -403,9 +413,13 @@ class SendVC(SendBase):
 
     @objc_method
     def onPayTo_message_amount_(self, address, message, amount) -> None:
+        return self.onPayTo_message_amount_opReturn_isRaw_(address, message, amount, None, False)
+
+    @objc_method
+    def onPayTo_message_amount_opReturn_isRaw_(self, address, message, amount, op_return, op_return_is_raw) -> None:
         # address
         if not self.viewIfLoaded:
-            self.queuedPayTo = [address, message, amount]
+            self.queuedPayTo = [address, message, amount, op_return, op_return_is_raw]
             return
         tf = self.payTo
         pr = get_PR(self)
@@ -433,10 +447,15 @@ class SendVC(SendBase):
         tf.resignFirstResponder()
         utils.uitf_redo_attrs(tf)
         utils.uitf_redo_attrs(self.fiat)
+        # op_return
+        self.opReturnDel.text = str(op_return) if op_return is not None else ""
+        self.opReturnIsRaw = bool(op_return_is_raw)
+        self.opReturnToggle.setSelected_(self.opReturnIsRaw)
+        self.opReturn.resignFirstResponder()
 
         self.qrScanErr = False
         self.chkOk()
-        utils.NSLog("OnPayTo %s %s %s",str(address), str(message), str(amount))
+        utils.NSLog("OnPayTo %s %s %s %s %s",str(address), str(message), str(amount), str(op_return), str(op_return_is_raw))
 
     @objc_method
     def chkOk(self) -> bool:
@@ -453,7 +472,7 @@ class SendVC(SendBase):
             self.csPayToTop.constant = 0
 
         f = self.desc.frame
-        self.csContentHeight.constant = f.origin.y + f.size.height + 125
+        self.csContentHeight.constant = f.origin.y + f.size.height + 255
 
         retVal = False
         errLbl = self.message
@@ -527,6 +546,7 @@ class SendVC(SendBase):
         tf = self.fiat
         # label
         self.descDel.text = ""
+        self.opReturnDel.text = ""
         # slider
         slider = self.feeSlider
         slider.setValue_animated_(slider.minimumValue,True)
@@ -762,6 +782,11 @@ class SendVC(SendBase):
                 utils.uitf_redo_attrs(amount_e)
         self.chkOk()
 
+    @objc_method
+    def onToggleRawOpReturn(self) -> None:
+        self.opReturnIsRaw = not bool(self.opReturnIsRaw)
+        self.opReturnToggle.setSelected_(self.opReturnIsRaw)
+    
     @objc_method
     def onPreviewSendBut_(self, but) -> None:
         self.view.endEditing_(True)
@@ -1020,6 +1045,20 @@ def read_send_form(send : ObjCInstance) -> tuple:
         #    msg += _('Do you wish to continue?')
         #    if not self.question(msg):
         #        return
+
+    try:
+        opreturn_message = send.opReturnDel.text
+        if opreturn_message:
+            if send.opReturnIsRaw:
+                outputs.append(OPReturn.output_for_rawhex(opreturn_message))
+            else:
+                outputs.append(OPReturn.output_for_stringdata(opreturn_message))
+    except OPReturn.TooLarge as e:
+        utils.show_alert(send, _("Error"), str(e))
+        return None
+    except OPReturn.Error as e:
+        utils.show_alert(send, _("Error"), str(e))
+        return None
 
     if not outputs:
         utils.show_alert(send, _("Error"), _('No outputs'))

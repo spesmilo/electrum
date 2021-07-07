@@ -76,6 +76,7 @@
 @property (nonatomic, weak) IBOutlet UIButton *contactBut;
 @property (nonatomic, weak) IBOutlet UILabel *descTit;
 @property (nonatomic, weak) IBOutlet UITextView *desc;
+@property (nonatomic, weak) IBOutlet UITextView *opReturn;
 @property (nonatomic, weak) IBOutlet UILabel *amtTit;
 @property (nonatomic, weak) IBOutlet BTCAmountEdit *amt;
 @property (nonatomic, weak) IBOutlet UIButton *maxBut;
@@ -87,14 +88,17 @@
 @property (nonatomic, weak) IBOutlet UIBarButtonItem *clearBut;
 @property (nonatomic, weak) IBOutlet UIBarButtonItem *previewBut;
 @property (nonatomic, weak) IBOutlet UIButton *sendBut; // actually a subview of a UIBarButtonItem
+@property (nonatomic, weak) IBOutlet UIButton *opReturnToggle;
 @property (nonatomic, weak) IBOutlet UILabel *message;
 @property (nonatomic, weak) IBOutlet NSLayoutConstraint *csFeeTop, *csTvHeight, *csPayToTop, *csContentHeight;
 @property (nonatomic, weak) IBOutlet UITableView *tv;
 @property (nonatomic, weak) IBOutlet UIView *bottomView, *messageView;
 @property (nonatomic, strong) IBOutlet ECTextViewDelegate *descDel;
+@property (nonatomic, strong) IBOutlet ECTextViewDelegate *opReturnDel;
 @end
 
 @interface SendVC : SendBase
+-(IBAction)onToggleRawOpReturn; // implemented in python send.py
 -(IBAction)onQRBut:(id)sender; // implemented in python send.py
 -(IBAction)onContactBut:(id)sender; // implemented in python send.py
 -(IBAction)clear; // implemented in python send.py
