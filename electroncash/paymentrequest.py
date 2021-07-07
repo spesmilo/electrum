@@ -247,7 +247,7 @@ class PaymentRequest:
             return False
 
     def has_expired(self):
-        return self.details.expires and self.details.expires < int(time.time())
+        return bool(self.details.expires and self.details.expires < int(time.time()))
 
     def get_expiration_date(self):
         return self.details.expires
