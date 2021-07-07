@@ -60,11 +60,10 @@ class App : Application() {
 }
 
 
-fun runOnUiThread(r: () -> Unit) { runOnUiThread(Runnable { r() }, false) }
-fun postToUiThread(r: () -> Unit) { runOnUiThread(Runnable { r() }, true) }
+fun runOnUiThread(r: () -> Unit) { runOnUiThread(Runnable { r() }) }
 
-fun runOnUiThread(r: Runnable, post: Boolean) {
-    if (onUiThread() && !post) {
+fun runOnUiThread(r: Runnable) {
+    if (onUiThread()) {
         r.run()
     } else {
         mainHandler.post(r)

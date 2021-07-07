@@ -246,12 +246,8 @@ abstract class TaskDialog<Result> : DialogFragment() {
     private fun onFinished(body: () -> Unit) {
         if (model.state == Thread.State.RUNNABLE) {
             model.state = Thread.State.TERMINATED
-
-            // If we're inside onStart, fragment transactions are unsafe (#2154).
-            postToUiThread {
-                body()
-                dismiss()
-            }
+            body()
+            dismiss()
         }
     }
 
