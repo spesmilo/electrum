@@ -36,6 +36,7 @@ contrib/android/fresh_clone
 contrib/android/android_debug.keystore
 contrib/secp256k1/
 contrib/zbar/
+contrib/libusb/
 contrib/osx/build-venv/
 
 # shared objects
