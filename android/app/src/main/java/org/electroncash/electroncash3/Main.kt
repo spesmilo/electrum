@@ -27,6 +27,7 @@ import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.observe
 import com.chaquo.python.Kwarg
+import com.chaquo.python.PyException
 import kotlinx.android.synthetic.main.main.*
 import kotlinx.android.synthetic.main.show_master_key.walletMasterKey
 import kotlinx.android.synthetic.main.wallet_export.*
@@ -404,7 +405,12 @@ class WalletOpenDialog : PasswordDialog<String>() {
     val walletName by lazy { arguments!!.getString("walletName")!! }
 
     override fun onPassword(password: String): String {
-        daemonModel.loadWallet(walletName, password)
+        try {
+            daemonModel.loadWallet(walletName, password)
+        } catch (e: PyException) {
+            throw if (e.message!!.startsWith("OSError"))  // Probably a corrupt file (#2232)
+                ToastException(e) else e
+        }
         return walletName
     }
 

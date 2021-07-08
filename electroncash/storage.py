@@ -97,7 +97,7 @@ class WalletStorage(PrintError):
                 d = ast.literal_eval(s)
                 labels = d.get('labels', {})
             except Exception as e:
-                raise IOError("Cannot read wallet file '%s'" % self.path)
+                raise IOError("Cannot read wallet file '%s': %s" % (self.path, e))
             self.data = {}
             for key, value in d.items():
                 try:
