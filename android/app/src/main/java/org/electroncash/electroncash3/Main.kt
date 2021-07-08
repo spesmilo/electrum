@@ -612,11 +612,7 @@ class WalletExportDialog : TaskLauncherDialog<Uri>() {
 
     override fun onPreExecute() {
         exportFileName = etExportFileName.text.toString()
-        if (exportFileName.contains('/')) {
-            toast(R.string.filenames_cannot)
-        } else if (exportFileName.isEmpty()) {
-            toast(R.string.name_is)
-        }
+        validateFilename(exportFileName)
     }
 
     override fun doInBackground(): Uri {

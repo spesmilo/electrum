@@ -83,18 +83,22 @@ fun closeDialogs(targetFragment: Fragment) {
     }
 }
 
-fun validateWalletName(name: String) {
+fun validateFilename(name: String) {
     if (name.isEmpty()) {
         throw ToastException(R.string.name_is)
     }
     if (name.contains("/")) {
-        throw ToastException(R.string.wallet_names)
+        throw ToastException(R.string.filenames_cannot)
     }
     if (name.toByteArray().size > 200) {
         // The filesystem limit is probably 255, but we need to leave room for the temporary
         // filename suffix.
-        throw ToastException(R.string.wallet_name_is_too)
+        throw ToastException(R.string.filename_is)
     }
+}
+
+fun validateWalletName(name: String) {
+    validateFilename(name)
     if (daemonModel.listWallets().contains(name)) {
         throw ToastException(R.string.a_wallet_with_that_name_already_exists_please_enter)
     }
