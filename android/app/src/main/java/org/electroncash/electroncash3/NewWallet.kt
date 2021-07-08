@@ -127,13 +127,10 @@ class KeystoreDialog : AlertDialogFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        /* Choose the appropriate keystore dropdown, based on wallet type */
-        val numOfCosigners = arguments!!.getInt("cosigners")
-        val keystores = arguments!!.getStringArrayList("keystores")
-
         /* Handle dialog title for cosigners */
+        val keystores = arguments!!.getStringArrayList("keystores")
         if (keystores != null) {
-            setMultsigTitle(keystores.size + 1, numOfCosigners)
+            dialog.setTitle(multisigTitle(arguments!!))
         }
 
         val keystoreMenu: Int
@@ -169,12 +166,13 @@ class KeystoreDialog : AlertDialogFragment() {
             } catch (e: ToastException) { e.show() }
         }
     }
-
-    fun setMultsigTitle(m: Int, n: Int) {
-        dialog.setTitle(getString(R.string.Add_cosigner) + " " +
-            getString(R.string.__d_of, m, n))
-    }
 }
+
+private fun multisigTitle(arguments: Bundle) =
+    (app.getString(R.string.Add_cosigner) + " " +
+     app.getString(R.string.__1_d, arguments.getStringArrayList("keystores")!!.size + 1,
+                   arguments.getInt("cosigners")))
+
 
 abstract class NewWalletDialog2 : TaskLauncherDialog<PyObject?>() {
     var input: String by notNull()
@@ -187,9 +185,7 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<PyObject?>() {
         // Update dialog title based on wallet type and/or current cosigner
         val keystores = arguments!!.getStringArrayList("keystores")
         if (keystores != null && keystores.size != 0) {
-            val numCosigners = arguments!!.getInt("cosigners")
-            builder.setTitle(getString(R.string.Add_cosigner) + " " +
-                getString(R.string.__d_of, keystores.size + 1, numCosigners))
+            builder.setTitle(multisigTitle(arguments!!))
         } else {
             builder.setTitle(R.string.New_wallet)
         }
@@ -234,7 +230,7 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<PyObject?>() {
     abstract fun onCreateWallet(name: String, password: String): PyObject?
 
     override fun onPostExecute(result: PyObject?) {
-        val keystores =  updatedKeystores(arguments!!, result)
+        val keystores = updatedKeystores(arguments!!, result)
         val name = arguments!!.getString("name")
 
         /**
@@ -259,12 +255,11 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<PyObject?>() {
                 }
 
                 // Update dialog title and arguments for the next cosigner
-                val nextCosigner = currentCosigner + 1
                 val keystoreDialog = (targetFragment as KeystoreDialog)
                 keystoreDialog.setArguments(nextArguments.apply {
                     putStringArrayList("keystores", keystores)
                 })
-                keystoreDialog.setMultsigTitle(nextCosigner, numCosigners)
+                keystoreDialog.dialog.setTitle(multisigTitle(nextArguments))
             } else { // last cosigner done; finalize wallet
                 selectWallet(targetFragment!!, name)
             }
