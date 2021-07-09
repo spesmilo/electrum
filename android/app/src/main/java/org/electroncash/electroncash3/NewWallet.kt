@@ -53,7 +53,7 @@ class NewWalletDialog1 : AlertDialogFragment() {
                     putString("password", password)
                 }
 
-                val nextDialog: DialogFragment = when (spnWalletType.selectedItemId.toInt()) {
+                val nextDialog = when (spnWalletType.selectedItemId.toInt()) {
                     R.id.menuStandardWallet -> {
                         KeystoreDialog()
                     }
@@ -118,7 +118,7 @@ fun confirmPassword(dialog: Dialog): String {
 // Choose the way of generating the wallet (new seed, import seed, etc.)
 class KeystoreDialog : AlertDialogFragment() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
-        builder.setTitle(R.string.keystore)
+        builder.setTitle(R.string.New_wallet)
                 .setView(R.layout.choose_keystore)
                 .setPositiveButton(android.R.string.ok, null)
                 .setNegativeButton(R.string.back, null)
@@ -126,6 +126,11 @@ class KeystoreDialog : AlertDialogFragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        updateArguments(arguments!!)
+    }
+
+    fun updateArguments(arguments: Bundle?) {
+        super.setArguments(arguments)
 
         /* Handle dialog title for cosigners */
         val keystores = arguments!!.getStringArrayList("keystores")
@@ -138,9 +143,9 @@ class KeystoreDialog : AlertDialogFragment() {
             keystoreMenu = R.menu.cosigner_type
             keystoreDesc.setText(R.string.add_a)
         } else {
+            keystoreDesc.setText(R.string.do_you_want_to_create)
             keystoreMenu = R.menu.wallet_type
         }
-
         spnType.adapter = MenuAdapter(context!!, keystoreMenu)
     }
 
@@ -242,24 +247,22 @@ abstract class NewWalletDialog2 : TaskLauncherDialog<PyObject?>() {
             val numCosigners = arguments!!.getInt("cosigners")
 
             if (currentCosigner < numCosigners) {
-                val nextArguments = Bundle(arguments)
-                // The first cosigner sees their master public key; others are prompted for data
+                val keystoreDialog = targetFragment as KeystoreDialog
+                val nextArguments = Bundle(arguments).apply {
+                    putStringArrayList("keystores", keystores)
+                }
+                // For the first cosigner we show the master public key so they can share it.
                 if (currentCosigner == 1) {
-                    (targetFragment as DialogFragment).dismiss()
-                    val nextDialog: DialogFragment = MasterPublicKeyDialog()
+                    val nextDialog = MasterPublicKeyDialog()
                     nextDialog.setArguments(nextArguments.apply {
                         val masterKey = result!!.callAttr("get", "xpub").toString()
                         putString("masterKey", masterKey)
                     })
-                    showDialog(this, nextDialog)
+                    showDialog(keystoreDialog, nextDialog)
+                } else {
+                    // Update dialog title and arguments for the next cosigner
+                    keystoreDialog.updateArguments(nextArguments)
                 }
-
-                // Update dialog title and arguments for the next cosigner
-                val keystoreDialog = (targetFragment as KeystoreDialog)
-                keystoreDialog.setArguments(nextArguments.apply {
-                    putStringArrayList("keystores", keystores)
-                })
-                keystoreDialog.dialog.setTitle(multisigTitle(nextArguments))
             } else { // last cosigner done; finalize wallet
                 selectWallet(targetFragment!!, name)
             }
@@ -525,7 +528,7 @@ class CosignerDialog : AlertDialogFragment() {
 
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             try {
-                val nextDialog: DialogFragment = KeystoreDialog()
+                val nextDialog = KeystoreDialog()
                 val nextArguments = Bundle(arguments)
                 nextArguments.putInt("cosigners", numCosigners)
                 nextArguments.putInt("signatures", numSignatures)
@@ -561,7 +564,6 @@ class MasterPublicKeyDialog : AlertDialogFragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
         fabCopyMasterKey.setOnClickListener {
             copyToClipboard(walletMasterKey.text, R.string.Master_public_key)
         }
@@ -569,20 +571,12 @@ class MasterPublicKeyDialog : AlertDialogFragment() {
 
     override fun onShowDialog() {
         super.onShowDialog()
-
         walletMasterKey.setText(arguments!!.getString("masterKey"))
         walletMasterKey.setFocusable(false)
 
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-            try {
-                val nextDialog: DialogFragment = KeystoreDialog()
-                val nextArguments = Bundle(arguments)
-
-                nextDialog.setArguments(nextArguments)
-                showDialog(this, nextDialog)
-            } catch (e: ToastException) {
-                e.show()
-            }
+            dismiss()
+            (targetFragment as KeystoreDialog).updateArguments(Bundle(arguments))
         }
     }
 }
