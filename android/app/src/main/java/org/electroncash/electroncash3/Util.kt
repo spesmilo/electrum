@@ -223,8 +223,9 @@ class BoundViewHolder<T: Any>(val binding: ViewDataBinding)
 }
 
 
-class MenuAdapter(context: Context, val menu: Menu)
-    : ArrayAdapter<String>(context, android.R.layout.simple_spinner_item, menuToList(menu)) {
+open class SimpleArrayAdapter(context: Context, objects: List<String>)
+    : ArrayAdapter<String>(context, android.R.layout.simple_spinner_item, objects) {
+
     init {
         if (context === app) {
             // This resulted in white-on-white text on older API levels (e.g. 18).
@@ -233,6 +234,10 @@ class MenuAdapter(context: Context, val menu: Menu)
         }
         setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
     }
+}
+
+class MenuAdapter(context: Context, val menu: Menu)
+    : SimpleArrayAdapter(context, menuToList(menu)) {
 
     constructor(context: Context, menuId: Int)
         : this(context, inflateMenu(menuId))

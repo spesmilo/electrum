@@ -18,12 +18,12 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="24dp"
             android:text="@string/Wallet_information"
-            app:layout_constraintEnd_toStartOf="@+id/fabCopyMasterKey2"
+            app:layout_constraintEnd_toStartOf="@+id/fabCopyMasterKey"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
         <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/fabCopyMasterKey2"
+            android:id="@+id/fabCopyMasterKey"
             style="@style/FAB.Dialog.Title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -108,15 +108,15 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:text="@string/here_is"
+                android:text="@string/Master_public_key"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@+id/idScriptType"
-                tools:text="@string/here_is" />
+                app:layout_constraintTop_toBottomOf="@+id/idScriptType" />
 
-            <RadioGroup
-                android:id="@+id/rgCosigners"
-                android:layout_width="wrap_content"
+            <Spinner
+                android:id="@+id/spnCosigners"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@+id/tvMasterPublicKey" />
 
@@ -124,13 +124,12 @@
                 android:id="@+id/walletMasterKey"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:editable="false"
                 android:ems="10"
                 android:gravity="start|top"
-                android:inputType="textMultiLine"
+                android:inputType="textMultiLine|textNoSuggestions"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@+id/rgCosigners" />
+                app:layout_constraintTop_toBottomOf="@+id/spnCosigners" />
 
             <androidx.constraintlayout.widget.Barrier
                 android:id="@+id/idBarrier2"
