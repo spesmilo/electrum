@@ -66,7 +66,7 @@ class ContactDialog : DetailDialog() {
             setView(R.layout.contact_detail)
             setNegativeButton(android.R.string.cancel, null)
             setPositiveButton(android.R.string.ok, null)
-            setNeutralButton(if (existingContact == null) R.string.qr_code
+            setNeutralButton(if (existingContact == null) R.string.scan_qr
                              else R.string.delete,
                              null)
         }

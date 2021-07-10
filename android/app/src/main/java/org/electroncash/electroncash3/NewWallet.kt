@@ -332,7 +332,7 @@ class NewWalletSeedDialog : NewWalletDialog2() {
 class NewWalletImportDialog : NewWalletDialog2() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         super.onBuildDialog(builder)
-        builder.setNeutralButton(R.string.qr_code, null)
+        builder.setNeutralButton(R.string.scan_qr, null)
     }
 
     override fun onShowDialog() {
@@ -392,7 +392,7 @@ class NewWalletImportDialog : NewWalletDialog2() {
 class NewWalletImportMasterDialog : NewWalletDialog2() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         super.onBuildDialog(builder)
-        builder.setNeutralButton(R.string.qr_code, null)
+        builder.setNeutralButton(R.string.scan_qr, null)
     }
 
     override fun onShowDialog() {

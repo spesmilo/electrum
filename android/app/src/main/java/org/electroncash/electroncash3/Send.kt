@@ -78,7 +78,7 @@ class SendDialog : TaskLauncherDialog<Unit>() {
         builder.setView(R.layout.send)
             .setNegativeButton(android.R.string.cancel, null)
         if (arguments?.getString("txHex") == null) {
-            builder.setNeutralButton(R.string.qr_code, null)
+            builder.setNeutralButton(R.string.scan_qr, null)
         }
     }
 
