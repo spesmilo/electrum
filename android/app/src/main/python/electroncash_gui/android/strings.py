@@ -2,9 +2,6 @@
 # in the Electron Cash repository. Some of them only differ in capitalization or punctuation:
 # see https://medium.com/@jsaito/making-a-case-for-letter-case-19d09f653c98
 #
-# If you change this file, you'll need to rebuild the strings.xml files by following the
-# instructions in android/README.md.
-#
 # Please keep the strings in alphabetical order.
 
 # This file is never actually imported, but keep syntax checkers happy.
@@ -16,6 +13,7 @@ _("Are you sure you want to delete your wallet \'%s\'?")
 _("BIP39 seed")
 _("Block explorer")
 _("%s bytes")
+_("Cannot process a URI while this dialog is open.")
 _("Cannot specify private keys and addresses in the same wallet.")
 _("Change password")
 _("Close wallet")

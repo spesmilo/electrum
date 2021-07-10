@@ -250,6 +250,10 @@ class SendDialog : TaskLauncherDialog<Unit>() {
 
     fun onUri(uri: String) {
         try {
+            if (arguments?.getString("txHex") != null) {
+                throw ToastException(R.string.cannot_process)
+            }
+
             val parsed: PyObject
             try {
                 parsed = libWeb.callAttr("parse_URI", uri)!!
