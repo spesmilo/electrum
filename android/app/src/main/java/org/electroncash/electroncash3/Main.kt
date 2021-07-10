@@ -4,6 +4,7 @@ package org.electroncash.electroncash3
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.DialogInterface
 import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
@@ -23,11 +24,13 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
+import androidx.core.view.MenuCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.observe
 import com.chaquo.python.Kwarg
 import com.chaquo.python.PyException
+import com.chaquo.python.PyObject
 import kotlinx.android.synthetic.main.main.*
 import kotlinx.android.synthetic.main.show_master_key.walletMasterKey
 import kotlinx.android.synthetic.main.wallet_export.*
@@ -212,11 +215,9 @@ class MainActivity : AppCompatActivity(R.layout.main) {
         val wallet = daemonModel.wallet
         if (wallet != null) {
             menuInflater.inflate(R.menu.wallet, menu)
+            MenuCompat.setGroupDividerEnabled(menu, true)
             menu.findItem(R.id.menuUseChange)!!.isChecked =
                 wallet.get("use_change")!!.toBoolean()
-            if (!wallet.callAttr("has_seed").toBoolean()) {
-                menu.findItem(R.id.menuShowSeed).isEnabled = false
-            }
         }
         return true
     }
@@ -234,7 +235,6 @@ class MainActivity : AppCompatActivity(R.layout.main) {
                 }
             }
             R.id.menuChangePassword -> showDialog(this, PasswordChangeDialog())
-            R.id.menuShowSeed -> { showDialog(this, SeedPasswordDialog()) }
             R.id.menuWalletInformation -> { showDialog(this, WalletInformationDialog()) }
             R.id.menuSignTx -> {
                 try {
@@ -244,13 +244,7 @@ class MainActivity : AppCompatActivity(R.layout.main) {
                 } catch (e: ToastException) { e.show() }
             }
             R.id.menuLoadTx -> { showDialog(this, ColdLoadDialog()) }
-            R.id.menuRename -> showDialog(this, WalletRenameDialog().apply {
-                arguments = Bundle().apply { putString("walletName", daemonModel.walletName) }
-            })
             R.id.menuExport -> showDialog(this, WalletExportDialog().apply {
-                arguments = Bundle().apply { putString("walletName", daemonModel.walletName) }
-            })
-            R.id.menuDelete -> showDialog(this, WalletDeleteConfirmDialog().apply {
                 arguments = Bundle().apply { putString("walletName", daemonModel.walletName) }
             })
             R.id.menuClose -> showDialog(this, WalletCloseDialog())
@@ -676,6 +670,10 @@ class WalletInformationDialog : AlertDialogFragment() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         builder.setView(R.layout.wallet_information)
             .setPositiveButton(android.R.string.ok, null)
+
+        if (daemonModel.wallet!!.callAttr("has_seed").toBoolean()) {
+            builder.setNeutralButton(R.string.show_seed, null)
+        }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -686,30 +684,7 @@ class WalletInformationDialog : AlertDialogFragment() {
 
         val mpks = daemonModel.wallet!!.callAttr("get_master_public_keys")?.asList()
         if (mpks != null && mpks.size != 0) {
-            fabCopyMasterKey.setOnClickListener {
-                val textToCopy = walletMasterKey.text
-                copyToClipboard(textToCopy, R.string.Master_public_key)
-            }
-            walletMasterKey.setFocusable(false)
-
-            // For multisig wallets, display a spinner with selectable cosigners.
-            if (mpks.size > 1) {
-                tvMasterPublicKey.setText(R.string.Master_public_keys)
-
-                val captions = List(mpks.size, { getString(R.string.cosigner__d, it + 1) })
-                spnCosigners.adapter = SimpleArrayAdapter(context!!, captions)
-                spnCosigners.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-                    override fun onItemSelected(parent: AdapterView<*>?, view: View?,
-                                                position: Int, id: Long) {
-                        walletMasterKey.setText(mpks[position].toString())
-                    }
-                    override fun onNothingSelected(parent: AdapterView<*>?) {}
-                }
-            } else {
-                // For a standard wallet, display the single master public key.
-                walletMasterKey.setText(mpks[0].toString())
-                spnCosigners.setVisibility(View.GONE)
-            }
+            setupMasterKeys(mpks)
         } else {
             // Imported wallets do not have a master public key.
             tvMasterPublicKey.setVisibility(View.GONE)
@@ -717,6 +692,37 @@ class WalletInformationDialog : AlertDialogFragment() {
             walletMasterKey.setVisibility(View.GONE)
             // Using View.INVISIBLE on the 'Copy' button to preserve layout.
             (fabCopyMasterKey as View).setVisibility(View.INVISIBLE)
+        }
+
+        dialog.getButton(DialogInterface.BUTTON_NEUTRAL)?.setOnClickListener {
+            showDialog(this, SeedPasswordDialog())
+        }
+    }
+
+    private fun setupMasterKeys(mpks: List<PyObject>) {
+        fabCopyMasterKey.setOnClickListener {
+            val textToCopy = walletMasterKey.text
+            copyToClipboard(textToCopy, R.string.Master_public_key)
+        }
+        walletMasterKey.setFocusable(false)
+
+        // For multisig wallets, display a spinner with selectable cosigners.
+        if (mpks.size > 1) {
+            tvMasterPublicKey.setText(R.string.Master_public_keys)
+
+            val captions = List(mpks.size, { getString(R.string.cosigner__d, it + 1) })
+            spnCosigners.adapter = SimpleArrayAdapter(context!!, captions)
+            spnCosigners.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(parent: AdapterView<*>?, view: View?,
+                                            position: Int, id: Long) {
+                    walletMasterKey.setText(mpks[position].toString())
+                }
+                override fun onNothingSelected(parent: AdapterView<*>?) {}
+            }
+        } else {
+            // For a standard wallet, display the single master public key.
+            walletMasterKey.setText(mpks[0].toString())
+            spnCosigners.setVisibility(View.GONE)
         }
     }
 }

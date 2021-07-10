@@ -1,45 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <item
-        android:id="@+id/menuClose"
-        android:title="@string/close_wallet"/>
+    <group android:id="@+id/menuGroupWallet">
+        <item
+            android:id="@+id/menuWalletInformation"
+            android:title="@string/Wallet_information" />
+        <item
+            android:id="@+id/menuChangePassword"
+            android:title="@string/Change_password"/>
+        <item
+            android:id="@+id/menuExport"
+            android:title="@string/export_wallet"/>
+        <item
+            android:id="@+id/menuUseChange"
+            android:title="@string/use_change"
+            android:checkable="true"/>
+        <item
+            android:id="@+id/menuClose"
+            android:title="@string/close_wallet"/>
+    </group>
 
-    <item
-        android:id="@+id/menuUseChange"
-        android:title="@string/use_change"
-        android:checkable="true"/>
-
-    <item
-        android:id="@+id/menuChangePassword"
-        android:title="@string/Change_password"/>
-
-    <item
-        android:id="@+id/menuShowSeed"
-        android:title="@string/show_seed"/>
-
-    <item
-        android:id="@+id/menuWalletInformation"
-        android:title="@string/Wallet_information" />
-
-    <item
-        android:id="@+id/menuSignTx"
-        android:title="@string/sign_transaction"/>
-
-    <item
-        android:id="@+id/menuLoadTx"
-        android:title="@string/load_transaction"/>
-
-    <item
-        android:id="@+id/menuRename"
-        android:title="@string/Rename_wallet"/>
-
-    <item
-        android:id="@+id/menuExport"
-        android:title="@string/export_wallet"/>
-
-    <item
-        android:id="@+id/menuDelete"
-        android:title="@string/Delete_wallet"/>
+    <group android:id="@+id/menuGroupTransaction">
+        <item
+            android:id="@+id/menuSignTx"
+            android:title="@string/sign_transaction"/>
+        <item
+            android:id="@+id/menuLoadTx"
+            android:title="@string/load_transaction"/>
+    </group>
 
 </menu>
