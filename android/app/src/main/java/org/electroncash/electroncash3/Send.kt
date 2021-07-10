@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.text.Editable
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
 import android.widget.SeekBar
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -38,9 +39,8 @@ class SendDialog : TaskLauncherDialog<Unit>() {
     val model: Model by viewModels()
 
     // The "unbroadcasted" flag controls whether the dialog opens as "Send" (false) or
-    // "Save" (true). If the dialog type has been explicitly set via an argument (e.g. from
-    // Main.kt), use it; otherwise, non-multisig and 1-of-n multisig wallets will open the dialog
-    // as "Send", and other m-of-n multisig wallets will open it as "Save".
+    // "Sign" (true). m-of-n multisig wallets where m >= 2 will also open the dialog
+    // as "Sign", because their transactions can't be broadcast after a single signature.
     val unbroadcasted by lazy {
         if (arguments != null && arguments!!.containsKey("unbroadcasted")) {
             arguments!!.getBoolean("unbroadcasted")
@@ -72,12 +72,14 @@ class SendDialog : TaskLauncherDialog<Unit>() {
             builder.setTitle(R.string.send)
                 .setPositiveButton(R.string.send, null)
         } else {
-            builder.setTitle(R.string.save_transaction)
+            builder.setTitle(R.string.sign_transaction)
                 .setPositiveButton(R.string.sign, null)
         }
         builder.setView(R.layout.send)
             .setNegativeButton(android.R.string.cancel, null)
-            .setNeutralButton(R.string.qr_code, null)
+        if (arguments?.getString("txHex") == null) {
+            builder.setNeutralButton(R.string.qr_code, null)
+        }
     }
 
     override fun onShowDialog() {
@@ -139,7 +141,7 @@ class SendDialog : TaskLauncherDialog<Unit>() {
         }
 
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onOK() }
-        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { scanQR(this) }
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.setOnClickListener { scanQR(this) }
         model.tx.observe(this, Observer { onTx(it) })
     }
 
@@ -308,17 +310,11 @@ class SendDialog : TaskLauncherDialog<Unit>() {
      * Fill in the Send dialog with data from a loaded transaction.
      */
     fun setLoadedTransaction(tx: PyObject) {
-        dialog.setTitle(R.string.sign_transaction)
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setText(R.string.sign)
-        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setEnabled(false)
-        btnContacts.setImageResource(R.drawable.ic_check_24dp)
-
-        btnContacts.isEnabled = false
+        (btnContacts as View).visibility = View.GONE
         amountBox.isEditable = false
         btnMax.isEnabled = false
 
         val txInfo = daemonModel.wallet!!.callAttr("get_tx_info", tx)
-
         val fee: Int = txInfo["fee"]!!.toInt() / tx.callAttr("estimated_size").toInt()
         sbFee.progress = fee - 1
         sbFee.isEnabled = false

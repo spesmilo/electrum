@@ -5,7 +5,6 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
-import com.chaquo.python.Kwarg
 import com.chaquo.python.PyException
 import com.chaquo.python.PyObject
 import com.google.zxing.integration.android.IntentIntegrator
@@ -102,6 +101,7 @@ class ColdLoadDialog : AlertDialogFragment() {
     private fun signLoadedTransaction() {
         val arguments = Bundle().apply {
             putString("txHex", etTransaction.text.toString())
+            putBoolean("unbroadcasted", true)
         }
         val dialog = SendDialog()
         showDialog(this, dialog.apply { setArguments(arguments) })
@@ -117,7 +117,7 @@ class ColdLoadDialog : AlertDialogFragment() {
             }
             val result = daemonModel.network.callAttr("broadcast_transaction", tx)
             checkBroadcastResult(result)
-            toast(R.string.the_string, Toast.LENGTH_LONG)
+            toast(R.string.the_transaction_has, Toast.LENGTH_LONG)
             dismiss()
         } catch (e: ToastException) { e.show() }
     }

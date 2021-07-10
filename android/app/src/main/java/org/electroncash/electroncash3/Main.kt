@@ -18,8 +18,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.AdapterView
-import android.widget.ArrayAdapter
-import android.widget.RadioButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -238,14 +236,14 @@ class MainActivity : AppCompatActivity(R.layout.main) {
             R.id.menuChangePassword -> showDialog(this, PasswordChangeDialog())
             R.id.menuShowSeed -> { showDialog(this, SeedPasswordDialog()) }
             R.id.menuWalletInformation -> { showDialog(this, WalletInformationDialog()) }
-            R.id.menuExportSigned -> {
+            R.id.menuSignTx -> {
                 try {
                     showDialog(this, SendDialog().apply {
                         arguments = Bundle().apply { putBoolean("unbroadcasted", true) }
                     })
                 } catch (e: ToastException) { e.show() }
             }
-            R.id.menuLoadSigned -> { showDialog(this, ColdLoadDialog()) }
+            R.id.menuLoadTx -> { showDialog(this, ColdLoadDialog()) }
             R.id.menuRename -> showDialog(this, WalletRenameDialog().apply {
                 arguments = Bundle().apply { putString("walletName", daemonModel.walletName) }
             })

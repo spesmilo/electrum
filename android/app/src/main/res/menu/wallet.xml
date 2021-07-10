@@ -21,12 +21,13 @@
     <item
         android:id="@+id/menuWalletInformation"
         android:title="@string/Wallet_information" />
-    <item
-        android:id="@+id/menuExportSigned"
-        android:title="@string/save_transaction"/>
 
     <item
-        android:id="@+id/menuLoadSigned"
+        android:id="@+id/menuSignTx"
+        android:title="@string/sign_transaction"/>
+
+    <item
+        android:id="@+id/menuLoadTx"
         android:title="@string/load_transaction"/>
 
     <item
