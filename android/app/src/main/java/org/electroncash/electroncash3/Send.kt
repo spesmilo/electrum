@@ -434,7 +434,8 @@ class SendPasswordDialog : PasswordDialog<Unit>() {
     val sendDialog by lazy { targetFragment as SendDialog }
     val tx: PyObject by lazy {
         if (arguments?.containsKey("txHex") == true) {
-            libTransaction.callAttr("Transaction", arguments!!.getString("txHex"))
+            libTransaction.callAttr("Transaction", arguments!!.getString("txHex"),
+                                    Kwarg("sign_schnorr", signSchnorr()))
         } else {
             sendDialog.model.tx.value!!.get()
         }
