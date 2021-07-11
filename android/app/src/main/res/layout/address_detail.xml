@@ -64,8 +64,8 @@
 
             <ImageView
                 android:id="@+id/imgQR"
-                android:layout_width="@dimen/qr_resolution"
-                android:layout_height="@dimen/qr_resolution"
+                android:layout_width="0dp"
+                android:layout_height="@dimen/qr_small"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent"

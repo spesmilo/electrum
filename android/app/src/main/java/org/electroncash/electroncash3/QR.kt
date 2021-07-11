@@ -1,13 +1,14 @@
 package org.electroncash.electroncash3
 
-import androidx.fragment.app.Fragment
+import android.graphics.Bitmap
+import android.view.View
 import android.widget.ImageView
-import com.google.zxing.BarcodeFormat
-import com.google.zxing.EncodeHintType
-import com.google.zxing.MultiFormatWriter
+import androidx.fragment.app.Fragment
 import com.google.zxing.WriterException
 import com.google.zxing.integration.android.IntentIntegrator
-import com.journeyapps.barcodescanner.BarcodeEncoder
+import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
+import com.google.zxing.qrcode.encoder.Encoder
+import java.util.*
 
 
 fun scanQR(fragment: Fragment) {
@@ -19,21 +20,47 @@ fun scanQR(fragment: Fragment) {
 }
 
 
-fun showQR(img: ImageView, text: String) {
-    // The layout already provides a margin of about 2 blocks, which is enough for all current
-    // scanners (https://qrworld.wordpress.com/2011/08/09/the-quiet-zone/).
-    val hints = mapOf(EncodeHintType.MARGIN to 0)
+private val qrListeners = WeakHashMap<View, View.OnLayoutChangeListener>()
 
-    val resolution = app.resources.getDimensionPixelSize(R.dimen.qr_resolution)
-    try {
-        val matrix = MultiFormatWriter().encode(
-            text, BarcodeFormat.QR_CODE, resolution, resolution, hints)
-        img.setImageBitmap(BarcodeEncoder().createBitmap(matrix))
-    } catch (e: WriterException) {
-        if (e.message == "Data too big") {
-            img.setImageDrawable(null)
-        } else {
-            throw e
+fun showQR(img: ImageView, text: String) {
+    showQRNow(img, text)
+
+    // View sizes aren't available in onStart, so install a layout listener.
+    val listener = View.OnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
+        showQRNow(img, text)
+    }
+    img.addOnLayoutChangeListener(listener)
+    val oldListener = qrListeners.put(img, listener)
+    if (oldListener != null) {
+        img.removeOnLayoutChangeListener(oldListener)
+    }
+}
+
+private fun showQRNow(img: ImageView, text: String) {
+    val resolution = img.height  // The layout XML should set this using  R.dimen.qr_...
+
+    if (resolution > 0) {
+        // The zxing renderer outputs an equal number of pixels per block, which can cause a
+        // lot of extra padding for large QRs. So we instead render at one pixel per block and
+        // scale up using nearest neighbor.
+        try {
+            val BLACK = 0xFF000000.toInt()
+            val WHITE = 0xFFFFFFFF.toInt()
+            val matrix = Encoder.encode(text, ErrorCorrectionLevel.L).matrix
+            val pixels = IntArray(matrix.width * matrix.height) {
+                if (matrix.get(it % matrix.width, it / matrix.width).toInt() == 1)
+                    BLACK else WHITE
+            }
+            val smallBitmap = Bitmap.createBitmap(
+                pixels, matrix.width, matrix.height, Bitmap.Config.ARGB_8888)
+            img.setImageBitmap(
+                Bitmap.createScaledBitmap(smallBitmap, resolution, resolution, false))
+        } catch (e: WriterException) {
+            if (e.message == "Data too big") {
+                img.setImageDrawable(null)
+            } else {
+                throw e
+            }
         }
     }
 }

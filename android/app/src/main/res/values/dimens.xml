@@ -9,6 +9,7 @@
     <dimen name="fab_dialog_margin_top">0dp</dimen>
     <dimen name="fab_dialog_margin_bottom">0dp</dimen>
 
-    <dimen name="qr_resolution">150dp</dimen>
+    <dimen name="qr_small">150dp</dimen>  <!-- e.g. an address -->
+    <dimen name="qr_large">240dp</dimen>  <!-- e.g. a transaction -->
 
 </resources>
