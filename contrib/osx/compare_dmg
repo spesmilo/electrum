@@ -1,0 +1,23 @@
+#!/usr/bin/env bash                                                                                                                                                                                               
+
+src_dir=$(dirname "$0")
+cd "$src_dir/../.."
+
+hdiutil attach $1
+cp -r /Volumes/Electrum/Electrum.app/ dist/Electrum.app.signed
+hdiutil detach /Volumes/Electrum
+
+# remove their signatures
+for i in $(find dist/Electrum.app.signed/Contents/MacOS/ ); do codesign --remove-signature $i; done;
+
+# remove our signatures
+for i in $(find dist/Electrum.app/Contents/MacOS/ ); do codesign --remove-signature $i; done;
+
+diff=$(diff -qr dist/Electrum.app dist/Electrum.app.signed)
+echo $diff
+if [ "$diff" ]
+then
+    echo "failure"
+else
+    echo "success"
+fi
