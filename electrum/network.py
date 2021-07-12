@@ -382,8 +382,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             self.path_finder = None
 
     def run_from_another_thread(self, coro, *, timeout=None):
-        # _get_running_loop() returns None, get_running loop raises RuntimeError on None
-        assert asyncio._get_running_loop() != self.asyncio_loop, 'must not be called from network thread'
+        assert util.get_running_loop() != self.asyncio_loop, 'must not be called from network thread'
         fut = asyncio.run_coroutine_threadsafe(coro, self.asyncio_loop)
         return fut.result(timeout)
 
@@ -1314,7 +1313,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     def send_http_on_proxy(cls, method, url, **kwargs):
         network = cls.get_instance()
         if network:
-            assert asyncio._get_running_loop() != network.asyncio_loop
+            assert util.get_running_loop() != network.asyncio_loop
             loop = network.asyncio_loop
         else:
             loop = asyncio.get_event_loop()
