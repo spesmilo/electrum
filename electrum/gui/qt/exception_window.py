@@ -145,11 +145,11 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
         wallet_types = Exception_Hook._INSTANCE.wallet_types_seen
         return ",".join(wallet_types)
 
-    def _get_traceback_str(self) -> str:
+    def _get_traceback_str_to_display(self) -> str:
         # The msg_box that shows the report uses rich_text=True, so
         # if traceback contains special HTML characters, e.g. '<',
         # they need to be escaped to avoid formatting issues.
-        traceback_str = super()._get_traceback_str()
+        traceback_str = super()._get_traceback_str_to_display()
         return html.escape(traceback_str)
 
 
