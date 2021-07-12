@@ -2074,7 +2074,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def delete_address(self, address: str) -> None:
         raise Exception("this wallet cannot delete addresses")
 
-    def get_onchain_request_status(self, r):
+    def get_onchain_request_status(self, r: OnchainInvoice) -> Tuple[bool, Optional[int]]:
         address = r.get_address()
         amount = r.get_amount_sat()
         received, sent = self.get_addr_io(address)
@@ -2231,6 +2231,24 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
 
     def receive_tx_callback(self, tx_hash, tx, tx_height):
         super().receive_tx_callback(tx_hash, tx, tx_height)
+        self._update_request_statuses_touched_by_tx(tx_hash)
+
+    def add_verified_tx(self, tx_hash, info):
+        super().add_verified_tx(tx_hash, info)
+        self._update_request_statuses_touched_by_tx(tx_hash)
+
+    def undo_verifications(self, blockchain, above_height):
+        reorged_txids = super().undo_verifications(blockchain, above_height)
+        for txid in reorged_txids:
+            self._update_request_statuses_touched_by_tx(txid)
+
+    def _update_request_statuses_touched_by_tx(self, tx_hash: str) -> None:
+        # FIXME in some cases if tx2 replaces unconfirmed tx1 in the mempool, we are not called.
+        #       For a given receive request, if tx1 touches it but tx2 does not, then
+        #       we were called when tx1 was added, but we will not get called when tx2 replaces tx1.
+        tx = self.db.get_transaction(tx_hash)
+        if tx is None:
+            return
         for txo in tx.outputs():
             addr = txo.address
             if addr in self.receive_requests:
