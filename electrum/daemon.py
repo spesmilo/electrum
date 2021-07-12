@@ -414,6 +414,7 @@ class Daemon(Logger):
     def __init__(self, config: SimpleConfig, fd=None, *, listen_jsonrpc=True):
         Logger.__init__(self)
         self.config = config
+        self.listen_jsonrpc = listen_jsonrpc
         if fd is None and listen_jsonrpc:
             fd = get_file_descriptor(config)
             if fd is None:
@@ -567,8 +568,9 @@ class Daemon(Logger):
             fut = asyncio.run_coroutine_threadsafe(stop_async(), self.asyncio_loop)
             fut.result()
         finally:
-            self.logger.info("removing lockfile")
-            remove_lockfile(get_lockfile(self.config))
+            if self.listen_jsonrpc:
+                self.logger.info("removing lockfile")
+                remove_lockfile(get_lockfile(self.config))
             self.logger.info("stopped")
             self.asyncio_loop.call_soon_threadsafe(self.stopped_event.set)
 
