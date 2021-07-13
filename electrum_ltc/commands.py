@@ -93,6 +93,7 @@ class Command:
         self.requires_network = 'n' in s
         self.requires_wallet = 'w' in s
         self.requires_password = 'p' in s
+        self.requires_lightning = 'l' in s
         self.description = func.__doc__
         self.help = self.description.split('.')[0] if self.description else None
         varnames = func.__code__.co_varnames[1:func.__code__.co_argcount]
@@ -145,6 +146,8 @@ def command(s):
                 raise Exception('wallet not loaded')
             if cmd.requires_password and password is None and wallet.has_password():
                 raise Exception('Password required')
+            if cmd.requires_lightning and (not wallet or not wallet.has_lightning()):
+                raise Exception('Lightning not enabled in this wallet')
             return await func(*args, **kwargs)
         return func_wrapper
     return decorator
@@ -707,7 +710,7 @@ class Commands:
 
         return json_normalize(wallet.get_detailed_history(**kwargs))
 
-    @command('w')
+    @command('wl')
     async def lightning_history(self, show_fiat=False, wallet: Abstract_Wallet = None):
         """ lightning history """
         lightning_history = wallet.lnworker.get_history() if wallet.lnworker else []
@@ -884,7 +887,7 @@ class Commands:
         wallet.add_payment_request(req)
         return wallet.export_request(req)
 
-    @command('wn')
+    @command('wnl')
     async def add_lightning_request(self, amount, memo='', expiration=3600, wallet: Abstract_Wallet = None):
         amount_sat = int(satoshis(amount))
         key = await wallet.lnworker._add_request_coro(amount_sat, memo, expiration)
@@ -995,13 +998,13 @@ class Commands:
         return sorted(known_commands.keys())
 
     # lightning network commands
-    @command('wn')
+    @command('wnl')
     async def add_peer(self, connection_string, timeout=20, gossip=False, wallet: Abstract_Wallet = None):
         lnworker = self.network.lngossip if gossip else wallet.lnworker
         await lnworker.add_peer(connection_string)
         return True
 
-    @command('wn')
+    @command('wnl')
     async def list_peers(self, gossip=False, wallet: Abstract_Wallet = None):
         lnworker = self.network.lngossip if gossip else wallet.lnworker
         return [{
@@ -1012,7 +1015,7 @@ class Commands:
             'channels': [c.funding_outpoint.to_str() for c in p.channels.values()],
         } for p in lnworker.peers.values()]
 
-    @command('wpn')
+    @command('wpnl')
     async def open_channel(self, connection_string, amount, push_amount=0, password=None, wallet: Abstract_Wallet = None):
         funding_sat = satoshis(amount)
         push_sat = satoshis(push_amount)
@@ -1036,7 +1039,7 @@ class Commands:
         invoice = LNInvoice.from_bech32(invoice)
         return invoice.to_debug_json()
 
-    @command('wn')
+    @command('wnl')
     async def lnpay(self, invoice, attempts=1, timeout=30, wallet: Abstract_Wallet = None):
         lnworker = wallet.lnworker
         lnaddr = lnworker._check_invoice(invoice)
@@ -1050,12 +1053,12 @@ class Commands:
             'log': [x.formatted_tuple() for x in log]
         }
 
-    @command('w')
+    @command('wl')
     async def nodeid(self, wallet: Abstract_Wallet = None):
         listen_addr = self.config.get('lightning_listen')
         return bh2u(wallet.lnworker.node_keypair.pubkey) + (('@' + listen_addr) if listen_addr else '')
 
-    @command('w')
+    @command('wl')
     async def list_channels(self, wallet: Abstract_Wallet = None):
         # FIXME: we need to be online to display capacity of backups
         from .lnutil import LOCAL, REMOTE, format_short_channel_id
@@ -1087,7 +1090,7 @@ class Commands:
             } for channel_id, chan in backups
         ]
 
-    @command('wn')
+    @command('wnl')
     async def dumpgraph(self, wallet: Abstract_Wallet = None):
         return wallet.lnworker.channel_db.to_dict()
 
@@ -1097,7 +1100,7 @@ class Commands:
         fee_est = ast.literal_eval(fees)
         self.network.update_fee_estimates(fee_est=fee_est)
 
-    @command('wn')
+    @command('wnl')
     async def enable_htlc_settle(self, b: bool, wallet: Abstract_Wallet = None):
         wallet.lnworker.enable_htlc_settle = b
 
@@ -1116,14 +1119,14 @@ class Commands:
         l = wallet.get_invoices()
         return [wallet.export_invoice(x) for x in l]
 
-    @command('wn')
+    @command('wnl')
     async def close_channel(self, channel_point, force=False, wallet: Abstract_Wallet = None):
         txid, index = channel_point.split(':')
         chan_id, _ = channel_id_from_funding_tx(txid, int(index))
         coro = wallet.lnworker.force_close_channel(chan_id) if force else wallet.lnworker.close_channel(chan_id)
         return await coro
 
-    @command('wn')
+    @command('wnl')
     async def request_force_close(self, channel_point, connection_string=None, wallet: Abstract_Wallet = None):
         """
         Requests the remote to force close a channel.
@@ -1134,17 +1137,17 @@ class Commands:
         chan_id, _ = channel_id_from_funding_tx(txid, int(index))
         await wallet.lnworker.request_force_close(chan_id, connect_str=connection_string)
 
-    @command('w')
+    @command('wl')
     async def export_channel_backup(self, channel_point, wallet: Abstract_Wallet = None):
         txid, index = channel_point.split(':')
         chan_id, _ = channel_id_from_funding_tx(txid, int(index))
         return wallet.lnworker.export_channel_backup(chan_id)
 
-    @command('w')
+    @command('wl')
     async def import_channel_backup(self, encrypted, wallet: Abstract_Wallet = None):
         return wallet.lnworker.import_channel_backup(encrypted)
 
-    @command('wn')
+    @command('wnl')
     async def get_channel_ctx(self, channel_point, iknowwhatimdoing=False, wallet: Abstract_Wallet = None):
         """ return the current commitment transaction of a channel """
         if not iknowwhatimdoing:
@@ -1156,12 +1159,12 @@ class Commands:
         tx = chan.force_close_tx()
         return tx.serialize()
 
-    @command('wn')
+    @command('wnl')
     async def get_watchtower_ctn(self, channel_point, wallet: Abstract_Wallet = None):
         """ return the local watchtower's ctn of channel. used in regtests """
         return await self.network.local_watchtower.sweepstore.get_ctn(channel_point, None)
 
-    @command('wnp')
+    @command('wnpl')
     async def normal_swap(self, onchain_amount, lightning_amount, password=None, wallet: Abstract_Wallet = None):
         """
         Normal submarine swap: send on-chain BTC, receive on Lightning
@@ -1192,7 +1195,7 @@ class Commands:
             'onchain_amount': format_satoshis(onchain_amount_sat),
         }
 
-    @command('wn')
+    @command('wnl')
     async def reverse_swap(self, lightning_amount, onchain_amount, wallet: Abstract_Wallet = None):
         """Reverse submarine swap: send on Lightning, receive on-chain
         """
