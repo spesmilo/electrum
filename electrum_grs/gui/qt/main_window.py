@@ -185,7 +185,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if wallet.has_lightning():
             self.wallet.config.set_key('show_channels_tab', True)
 
-        self.setup_exception_hook()
+        Exception_Hook.maybe_setup(config=self.config, wallet=self.wallet)
 
         self.network = gui_object.daemon.network  # type: Network
         self.fx = gui_object.daemon.fx  # type: FxThread
@@ -316,10 +316,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self._update_check_thread = UpdateCheckThread()
             self._update_check_thread.checked.connect(on_version_received)
             self._update_check_thread.start()
-
-    def setup_exception_hook(self):
-        Exception_Hook.maybe_setup(config=self.config,
-                                   wallet=self.wallet)
 
     def run_coroutine_from_thread(self, coro, on_result=None):
         def task():

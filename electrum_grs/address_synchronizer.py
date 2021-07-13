@@ -36,7 +36,7 @@ from .util import profiler, bfh, TxMinedInfo, UnrelatedTransactionException, wit
 from .transaction import Transaction, TxOutput, TxInput, PartialTxInput, TxOutpoint, PartialTransaction
 from .synchronizer import Synchronizer
 from .verifier import SPV
-from .blockchain import hash_header
+from .blockchain import hash_header, Blockchain
 from .i18n import _
 from .logging import Logger
 
@@ -591,7 +591,7 @@ class AddressSynchronizer(Logger):
         with self.lock:
             return dict(self.unverified_tx)  # copy
 
-    def undo_verifications(self, blockchain, above_height):
+    def undo_verifications(self, blockchain: Blockchain, above_height: int) -> Set[str]:
         '''Used by the verifier when a reorg has happened'''
         txs = set()
         with self.lock:
