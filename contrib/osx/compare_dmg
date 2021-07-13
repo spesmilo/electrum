@@ -3,17 +3,21 @@
 src_dir=$(dirname "$0")
 cd "$src_dir/../.."
 
+rm -rf dmg1
 hdiutil attach $1
-cp -r /Volumes/Electrum/Electrum.app/ dist/Electrum.app.signed
+cp -r /Volumes/Electrum/Electrum.app/ dmg1
 hdiutil detach /Volumes/Electrum
 
-# remove their signatures
-for i in $(find dist/Electrum.app.signed/Contents/MacOS/ ); do codesign --remove-signature $i; done;
+rm -rf dmg2
+hdiutil attach $1
+cp -r /Volumes/Electrum/Electrum.app/ dmg2
+hdiutil detach /Volumes/Electrum
 
-# remove our signatures
-for i in $(find dist/Electrum.app/Contents/MacOS/ ); do codesign --remove-signature $i; done;
+# remove signatures
+for i in $(find dmg1/ ); do codesign --remove-signature $i; done;
+for i in $(find dmg2/ ); do codesign --remove-signature $i; done;
 
-diff=$(diff -qr dist/Electrum.app dist/Electrum.app.signed)
+diff=$(diff -qr dmg1 dmg2)
 echo $diff
 if [ "$diff" ]
 then
