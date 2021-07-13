@@ -86,6 +86,16 @@ def remove_single_part_configs(configs: List[SplitConfig]) -> List[SplitConfig]:
     return [config for config in configs if number_parts(config) != 1]
 
 
+def remove_single_channel_splits(configs: List[SplitConfig]) -> List[SplitConfig]:
+    filtered = []
+    for config in configs:
+        for v in config.values():
+            if len(v) > 1:
+                continue
+            filtered.append(config)
+    return filtered
+
+
 def rate_config(
         config: SplitConfig,
         channels_with_funds: ChannelsFundsInfo) -> float:
@@ -113,7 +123,8 @@ def rate_config(
 def suggest_splits(
         amount_msat: int, channels_with_funds: ChannelsFundsInfo,
         exclude_single_part_payments=False,
-        exclude_multinode_payments=False
+        exclude_multinode_payments=False,
+        exclude_single_channel_splits=False
 ) -> List[SplitConfigRating]:
     """Breaks amount_msat into smaller pieces and distributes them over the
     channels according to the funds they can send.
@@ -171,6 +182,9 @@ def suggest_splits(
 
     if exclude_single_part_payments:
         configs = remove_single_part_configs(configs)
+
+    if exclude_single_channel_splits:
+        configs = remove_single_channel_splits(configs)
 
     rated_configs = [SplitConfigRating(
         config=c,
