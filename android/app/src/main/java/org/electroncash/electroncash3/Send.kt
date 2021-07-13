@@ -142,7 +142,7 @@ class SendDialog : TaskLauncherDialog<Unit>() {
         // Check if a transaction hex string has been passed from ColdLoad, and load it.
         val txHex = arguments?.getString("txHex")
         if (txHex != null) {
-            val tx = libTransaction.callAttr("Transaction", txHex)
+            val tx = txFromHex(txHex)
             setLoadedTransaction(tx)
         }
 
@@ -194,13 +194,16 @@ class SendDialog : TaskLauncherDialog<Unit>() {
         }
     }
 
-    fun setFeeLabel(tx: PyObject? = null) {
-        var feeLabel = getString(R.string.sat_byte, feeSpb)
-        if (tx != null) {
-            val fee = tx.callAttr("get_fee").toLong()
-            feeLabel += " (${ltr(formatSatoshisAndUnit(fee))})"
+    fun setFeeLabel(tx: PyObject? = null): Int {
+        val fee = tx?.callAttr("get_fee")?.toInt()
+        val spb = if (fee != null) fee / tx.callAttr("estimated_size").toInt()
+                  else feeSpb
+        var feeLabel = getString(R.string.sat_byte, spb)
+        if (fee != null) {
+            feeLabel += " (${ltr(formatSatoshisAndUnit(fee.toLong()))})"
         }
         tvFeeLabel.setText(feeLabel)
+        return spb
     }
 
     class TxArgs(val wallet: PyObject, val pr: PyObject?, val addrStr: String,
@@ -324,15 +327,14 @@ class SendDialog : TaskLauncherDialog<Unit>() {
         amountBox.isEditable = false
         btnMax.isEnabled = false
 
-        val wallet = daemonModel.wallet!!
-        val txInfo = wallet.callAttr("get_tx_info", tx)
-        val fee: Int = txInfo["fee"]!!.toInt() / tx.callAttr("estimated_size").toInt()
-        sbFee.progress = fee - 1
+        val spb = setFeeLabel(tx)
+        sbFee.setOnSeekBarChangeListener(null)
+        sbFee.progress = spb - MIN_FEE
         sbFee.isEnabled = false
-        setFeeLabel(tx)
 
         // Try to guess which outputs are the intended recipients. Where possible, this should
         // display the same values that were entered when the transaction was created.
+        val wallet = daemonModel.wallet!!
         val outputs = tx.callAttr("outputs").asList()
         var recipients = filterOutputs(outputs, wallet, "is_mine")
         if (recipients.isEmpty()) {
@@ -449,8 +451,7 @@ class SendPasswordDialog : PasswordDialog<Unit>() {
     val sendDialog by lazy { targetFragment as SendDialog }
     val tx: PyObject by lazy {
         if (arguments?.containsKey("txHex") == true) {
-            libTransaction.callAttr("Transaction", arguments!!.getString("txHex"),
-                                    Kwarg("sign_schnorr", signSchnorr()))
+            txFromHex(arguments!!.getString("txHex")!!)
         } else {
             sendDialog.model.tx.value!!.get()
         }

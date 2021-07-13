@@ -8,6 +8,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
+import com.chaquo.python.Kwarg
 import com.chaquo.python.PyException
 import com.chaquo.python.PyObject
 import com.google.zxing.integration.android.IntentIntegrator
@@ -51,7 +52,7 @@ class ColdLoadDialog : AlertDialogFragment() {
     }
 
     private fun updateUI() {
-        val tx = libTransaction.callAttr("Transaction", etTransaction.text.toString())
+        val tx = txFromHex(etTransaction.text.toString())
         updateStatusText(tvStatus, tx)
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled =
             canSign(tx) || canBroadcast(tx)
@@ -75,7 +76,7 @@ class ColdLoadDialog : AlertDialogFragment() {
 
     fun onOK() {
         val txHex = etTransaction.text.toString()
-        val tx = libTransaction.callAttr("Transaction", txHex)
+        val tx = txFromHex(txHex)
 
         try {
             if (canBroadcast(tx)) {
@@ -117,7 +118,7 @@ private fun updateStatusText(idTxStatus: TextView, tx: PyObject) {
 
 class SignedTransactionDialog : TaskLauncherDialog<Unit>() {
     private val tx: PyObject by lazy {
-        libTransaction.callAttr("Transaction", arguments!!.getString("txHex"))
+        txFromHex(arguments!!.getString("txHex")!!)
     }
 
     override fun onBuildDialog(builder: AlertDialog.Builder) {
@@ -163,17 +164,18 @@ fun hideDescription(dialog: DialogFragment) {
 }
 
 
-/* Check if the wallet can sign the transaction */
+fun txFromHex(hex: String) =
+    libTransaction.callAttr("Transaction", hex, Kwarg("sign_schnorr", signSchnorr()))!!
+
 fun canSign(tx: PyObject): Boolean {
     return try {
-        !tx.callAttr("is_complete").toBoolean() and
-                daemonModel.wallet!!.callAttr("can_sign", tx).toBoolean()
+        !tx.callAttr("is_complete").toBoolean() &&
+        daemonModel.wallet!!.callAttr("can_sign", tx).toBoolean()
     } catch (e: PyException) {
         false
     }
 }
 
-/* Check if the transaction is ready to be broadcasted */
 fun canBroadcast(tx: PyObject): Boolean {
     return try {
         tx.callAttr("is_complete").toBoolean()
