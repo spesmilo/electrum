@@ -9,7 +9,7 @@ cp -r /Volumes/Electrum/Electrum.app/ dmg1
 hdiutil detach /Volumes/Electrum
 
 rm -rf dmg2
-hdiutil attach $1
+hdiutil attach $2
 cp -r /Volumes/Electrum/Electrum.app/ dmg2
 hdiutil detach /Volumes/Electrum
 
