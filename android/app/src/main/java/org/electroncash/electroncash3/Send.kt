@@ -324,35 +324,39 @@ class SendDialog : TaskLauncherDialog<Unit>() {
         amountBox.isEditable = false
         btnMax.isEnabled = false
 
-        val txInfo = daemonModel.wallet!!.callAttr("get_tx_info", tx)
+        val wallet = daemonModel.wallet!!
+        val txInfo = wallet.callAttr("get_tx_info", tx)
         val fee: Int = txInfo["fee"]!!.toInt() / tx.callAttr("estimated_size").toInt()
         sbFee.progress = fee - 1
         sbFee.isEnabled = false
         setFeeLabel(tx)
 
-        // Get the list of transaction outputs, add every non-related address to the
-        // "recipients" array, and add up the total amount that is being sent.
+        // Try to guess which outputs are the intended recipients. Where possible, this should
+        // display the same values that were entered when the transaction was created.
         val outputs = tx.callAttr("outputs").asList()
-        var amount: Long = 0
-        val recipients: ArrayList<String> = ArrayList()
-        for (output in outputs) {
-            val address = output.asList()[1]
-            if (!daemonModel.wallet!!.callAttr("is_mine", address).toBoolean()) {
-                amount += output.asList()[2].toLong()
-                recipients.add(address.toString())
-            }
+        var recipients = filterOutputs(outputs, wallet, "is_mine")
+        if (recipients.isEmpty()) {
+            // All outputs are mine. Try only receiving addresses.
+            recipients = filterOutputs(outputs, wallet, "is_change")
+        }
+        if (recipients.isEmpty()) {
+            // All outputs are change.
+            recipients = outputs
         }
 
         // If there is only one recipient, their address will be displayed.
         // Otherwise, this is a "pay to many" transaction.
         if (recipients.size == 1) {
-            etAddress.setText(recipients[0])
+            etAddress.setText(recipients[0].asList()[1].toString())
         } else {
             etAddress.setText(R.string.pay_to_many)
         }
         etAddress.isFocusable = false
-        setAmount(amount)
+        setAmount(recipients.map { it.asList()[2].toLong() }.sum())
     }
+
+    private fun filterOutputs(outputs: List<PyObject>, wallet: PyObject, methodName: String) =
+        outputs.filter { !wallet.callAttr(methodName, it.asList()[1]).toBoolean() }
 
     fun onOK() {
         if (arguments?.containsKey("txHex") == true || model.tx.isComplete()) {
