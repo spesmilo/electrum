@@ -1,17 +1,17 @@
-#!/usr/bin/env bash                                                                                                                                                                                               
+#!/usr/bin/env bash
 
 src_dir=$(dirname "$0")
 cd "$src_dir/../.."
 
 rm -rf dmg1
 hdiutil attach $1
-cp -r /Volumes/Electrum/Electrum.app/ dmg1
-hdiutil detach /Volumes/Electrum
+cp -r /Volumes/Electrum/Electrum-grs.app/ dmg1
+hdiutil detach /Volumes/Electrum-grs
 
 rm -rf dmg2
 hdiutil attach $2
-cp -r /Volumes/Electrum/Electrum.app/ dmg2
-hdiutil detach /Volumes/Electrum
+cp -r /Volumes/Electrum/Electrum-grs.app/ dmg2
+hdiutil detach /Volumes/Electrum-grs
 
 # remove signatures
 for i in $(find dmg1/ ); do codesign --remove-signature $i; done;
