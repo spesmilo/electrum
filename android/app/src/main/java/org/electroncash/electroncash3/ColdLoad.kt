@@ -3,12 +3,17 @@ package org.electroncash.electroncash3
 import android.content.ClipboardManager
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import androidx.fragment.app.DialogFragment
 import com.chaquo.python.PyException
 import com.chaquo.python.PyObject
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.android.synthetic.main.load.*
+import kotlinx.android.synthetic.main.load.tvStatus
+import kotlinx.android.synthetic.main.signed_transaction.*
 
 
 val libTransaction by lazy { libMod("transaction") }
@@ -47,24 +52,14 @@ class ColdLoadDialog : AlertDialogFragment() {
 
     private fun updateUI() {
         val tx = libTransaction.callAttr("Transaction", etTransaction.text.toString())
-        updateStatusText(tx)
-
-        // Check hex transaction signing status
-        if (canSign(tx)) {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setText(R.string.sign)
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
-        } else if (canBroadcast(tx)) {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setText(R.string.send)
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
-        } else {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
-        }
+        updateStatusText(tvStatus, tx)
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled =
+            canSign(tx) || canBroadcast(tx)
     }
 
     // Receives the result of a QR scan.
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         val result = IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
-
         if (result != null && result.contents != null) {
             // Try to decode the QR content as Base43; if that fails, treat it as is
             val txHex: String = try {
@@ -79,74 +74,94 @@ class ColdLoadDialog : AlertDialogFragment() {
     }
 
     fun onOK() {
-        val tx = libTransaction.callAttr("Transaction", etTransaction.text.toString())
+        val txHex = etTransaction.text.toString()
+        val tx = libTransaction.callAttr("Transaction", txHex)
 
-        // If transaction can be broadcasted, broadcast it.
-        // Otherwise, prompt for signing. If the transaction hex is invalid,
-        // the OK button will be disabled, regardless.
         try {
             if (canBroadcast(tx)) {
-                broadcastSignedTransaction(tx)
+                showDialog(this, SignedTransactionDialog().apply { arguments = Bundle().apply {
+                    putString("txHex", txHex)
+                }})
+                dismiss()
             } else {
-                signLoadedTransaction()
+                signLoadedTransaction(txHex)
             }
         } catch (e: ToastException) {
             e.show()
         }
     }
 
-    /**
-     * Sign a loaded transaction.
-     */
-    private fun signLoadedTransaction() {
+    private fun signLoadedTransaction(txHex: String) {
         val arguments = Bundle().apply {
-            putString("txHex", etTransaction.text.toString())
+            putString("txHex", txHex)
             putBoolean("unbroadcasted", true)
         }
         val dialog = SendDialog()
         showDialog(this, dialog.apply { setArguments(arguments) })
     }
+}
 
-    /**
-     * Broadcast a signed transaction.
-     */
-    private fun broadcastSignedTransaction(tx: PyObject) {
-        try {
-            if (!daemonModel.isConnected()) {
-                throw ToastException(R.string.not_connected)
-            }
-            val result = daemonModel.network.callAttr("broadcast_transaction", tx)
-            checkBroadcastResult(result)
-            toast(R.string.the_transaction_has, Toast.LENGTH_LONG)
-            dismiss()
-        } catch (e: ToastException) { e.show() }
-    }
-
-
-    /**
-     * Check if a loaded transaction is signed.
-     * Displays the signing status below the raw TX field.
-     * (signed, partially signed, empty or invalid)
-     */
-    private fun updateStatusText(tx: PyObject) {
-        try {
-            if (etTransaction.text.isBlank()) {
-                idTxStatus.setText(R.string.empty)
-            } else {
-                // Check if the transaction can be processed by this wallet or not
-                val txInfo = daemonModel.wallet!!.callAttr("get_tx_info", tx)
-
-                if (txInfo["amount"] == null && !canBroadcast(tx)) {
-                    idTxStatus.setText(R.string.transaction_unrelated)
-                } else {
-                    idTxStatus.setText(txInfo["status"].toString())
-                }
-            }
-        } catch (e: PyException) {
-            idTxStatus.setText(R.string.invalid)
+private fun updateStatusText(idTxStatus: TextView, tx: PyObject) {
+    try {
+        val txInfo = daemonModel.wallet!!.callAttr("get_tx_info", tx)
+        if (txInfo["amount"] == null && !canBroadcast(tx)) {
+            idTxStatus.setText(R.string.transaction_unrelated)
+        } else {
+            idTxStatus.setText(txInfo["status"].toString())
         }
+    } catch (e: PyException) {
+        idTxStatus.setText(R.string.invalid)
     }
 }
+
+
+class SignedTransactionDialog : TaskLauncherDialog<Unit>() {
+    private val tx: PyObject by lazy {
+        libTransaction.callAttr("Transaction", arguments!!.getString("txHex"))
+    }
+
+    override fun onBuildDialog(builder: AlertDialog.Builder) {
+        builder.setView(R.layout.signed_transaction)
+               .setNegativeButton(R.string.close, null)
+               .setPositiveButton(R.string.send, null)
+    }
+
+    override fun onShowDialog() {
+        super.onShowDialog()
+
+        fabCopy.setOnClickListener {
+            copyToClipboard(tx.toString(), R.string.transaction)
+        }
+        showQR(imgQR, baseEncode(tx.toString(), 43))
+        updateStatusText(tvStatus, tx)
+
+        if (!canBroadcast(tx)) {
+            hideDescription(this)
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
+        }
+    }
+
+    override fun doInBackground() {
+        if (!daemonModel.isConnected()) {
+            throw ToastException(R.string.not_connected)
+        }
+        val result = daemonModel.network.callAttr("broadcast_transaction", tx)
+        checkBroadcastResult(result)
+        setDescription(daemonModel.wallet!!, tx.callAttr("txid").toString(),
+                       etDescription.text.toString())
+    }
+
+    override fun onPostExecute(result: Unit) {
+        toast(R.string.payment_sent, Toast.LENGTH_SHORT)
+    }
+}
+
+fun hideDescription(dialog: DialogFragment) {
+    for (view in listOf(dialog.tvDescriptionLabel, dialog.etDescription)) {
+        view.visibility = View.GONE
+    }
+}
+
 
 /* Check if the wallet can sign the transaction */
 fun canSign(tx: PyObject): Boolean {

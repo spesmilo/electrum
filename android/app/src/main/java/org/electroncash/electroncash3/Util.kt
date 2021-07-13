@@ -261,13 +261,17 @@ private fun menuToList(menu: Menu): List<String> {
     return result
 }
 
-/**
- * Interface to base_encode/decode in bitcoin.py
- */
+
+fun baseEncode(hex: String, base: Int): String {
+    val bytes = py.builtins.get("bytes")!!.callAttr("fromhex", hex)
+    return libBitcoin.callAttr("base_encode", bytes, base).toString()
+}
+
 fun baseDecode(s: String, base: Int): String {
     return libBitcoin.callAttr("base_decode", s, null, base)
                      .callAttr("hex").toString()
 }
+
 
 /**
  * Decide whether to use Schnorr signatures.

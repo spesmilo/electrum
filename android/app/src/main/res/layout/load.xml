@@ -52,24 +52,24 @@
             app:srcCompat="@drawable/ic_paste_24dp" />
 
         <androidx.constraintlayout.widget.Barrier
+            android:id="@+id/barrier1"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             app:barrierDirection="end"
-            app:constraint_referenced_ids="idStatusLabel"
-            tools:layout_editor_absoluteX="411dp" />
+            app:constraint_referenced_ids="tvStatusLabel" />
 
         <TextView
-            android:id="@+id/idStatusLabel"
+            android:id="@+id/tvStatusLabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="24dp"
             android:text="@string/status"
             android:visibility="visible"
-            app:layout_constraintBaseline_toBaselineOf="@+id/idTxStatus"
+            app:layout_constraintBaseline_toBaselineOf="@+id/tvStatus"
             app:layout_constraintStart_toStartOf="parent" />
 
         <TextView
-            android:id="@+id/idTxStatus"
+            android:id="@+id/tvStatus"
             style="@style/Medium"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -77,10 +77,10 @@
             android:layout_marginTop="6dp"
             android:layout_marginEnd="24dp"
             android:singleLine="false"
-            android:text="@string/empty"
+            tools:text="@string/partially_signed"
             android:visibility="visible"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toEndOf="@+id/idStatusLabel"
+            app:layout_constraintStart_toEndOf="@id/barrier1"
             app:layout_constraintTop_toBottomOf="@+id/etTransaction" />
 
 

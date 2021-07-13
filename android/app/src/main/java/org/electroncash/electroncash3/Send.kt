@@ -133,6 +133,12 @@ class SendDialog : TaskLauncherDialog<Unit>() {
         }
         setFeeLabel()
 
+        // If this is the final signature, the user will be given a chance to set the
+        // description in the SignedTransactionDialog.
+        if (unbroadcasted) {
+            hideDescription(this)
+        }
+
         // Check if a transaction hex string has been passed from ColdLoad, and load it.
         val txHex = arguments?.getString("txHex")
         if (txHex != null) {
@@ -366,9 +372,10 @@ class SendDialog : TaskLauncherDialog<Unit>() {
             // Otherwise, the transaction is built from the fields in the Send dialog.
             val txHex = arguments?.getString("txHex")
             if (txHex == null) {
+                // Verify the transaction is valid before asking for a password.
                 val txResult = model.tx.value!!
                 if (txResult.isDummy) throw ToastException(R.string.Invalid_address)
-                txResult.get()   // May throw other ToastExceptions.
+                txResult.get()   // May throw ToastException.
             }
             showDialog(this, SendPasswordDialog().apply { arguments = Bundle().apply {
                 putString("description", this@SendDialog.etDescription.text.toString())
@@ -467,23 +474,13 @@ class SendPasswordDialog : PasswordDialog<Unit>() {
     }
 
     override fun onPostExecute(result: Unit) {
-        sendDialog.dismiss()
+        closeDialogs(sendDialog)
         if (!sendDialog.unbroadcasted) {
             toast(R.string.payment_sent, Toast.LENGTH_SHORT)
         } else {
-            copyToClipboard(tx.toString(), R.string.signed_transaction)
-        }
-
-        // The presence of "txHex" argument means that this dialog had been called from ColdLoad.
-        // If the transaction cannot be broadcasted after signing, close the ColdLoad dialog.
-        // Otherwise, put the fully signed string into ColdLoad, making it available for sending.
-        if (arguments!!.containsKey("txHex")) {
-            val coldLoadDialog: ColdLoadDialog? = findDialog(activity!!, ColdLoadDialog::class)
-            if (!canBroadcast(tx)) {
-                coldLoadDialog!!.dismiss()
-            } else {
-                coldLoadDialog!!.etTransaction.setText(tx.toString())
-            }
+            showDialog(this, SignedTransactionDialog().apply { arguments = Bundle().apply {
+                putString("txHex", tx.toString())
+            }})
         }
     }
 }
