@@ -26,7 +26,7 @@ fun showQR(img: ImageView, text: String) {
     showQRNow(img, text)
 
     // View sizes aren't available in onStart, so install a layout listener.
-    val listener = View.OnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
+    val listener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
         showQRNow(img, text)
     }
     img.addOnLayoutChangeListener(listener)

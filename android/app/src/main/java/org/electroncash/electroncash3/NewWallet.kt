@@ -135,7 +135,7 @@ class KeystoreDialog : AlertDialogFragment() {
         /* Handle dialog title for cosigners */
         val keystores = arguments!!.getStringArrayList("keystores")
         if (keystores != null) {
-            dialog.setTitle(multisigTitle(arguments!!))
+            dialog.setTitle(multisigTitle(arguments))
         }
 
         val keystoreMenu: Int
