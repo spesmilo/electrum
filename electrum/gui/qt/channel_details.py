@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Sequence
 
 import PyQt5.QtGui as QtGui
 import PyQt5.QtWidgets as QtWidgets
@@ -9,7 +9,7 @@ from electrum import util
 from electrum.i18n import _
 from electrum.util import bh2u, format_time
 from electrum.lnutil import format_short_channel_id, LOCAL, REMOTE, UpdateAddHtlc, Direction
-from electrum.lnchannel import htlcsum, Channel, AbstractChannel
+from electrum.lnchannel import htlcsum, Channel, AbstractChannel, HTLCWithStatus
 from electrum.lnaddr import LnAddr, lndecode
 from electrum.bitcoin import COIN
 from electrum.wallet import Abstract_Wallet
@@ -43,7 +43,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin):
         it.appendRow([HTLCItem(_('Payment hash')),HTLCItem(bh2u(i.payment_hash))])
         return it
 
-    def make_model(self, htlcs) -> QtGui.QStandardItemModel:
+    def make_model(self, htlcs: Sequence[HTLCWithStatus]) -> QtGui.QStandardItemModel:
         model = QtGui.QStandardItemModel(0, 2)
         model.setHorizontalHeaderLabels(['HTLC', 'Property value'])
         parentItem = model.invisibleRootItem()
@@ -64,13 +64,13 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin):
             self.folders[keyname] = folder
             mapping = {}
             num = 0
-            for item in htlcs:
-                pay_hash, chan_id, i, direction, status = item
-                if status != keyname:
+            for htlc_with_status in htlcs:
+                if htlc_with_status.status != keyname:
                     continue
-                it = self.make_htlc_item(i, direction)
+                htlc = htlc_with_status.htlc
+                it = self.make_htlc_item(htlc, htlc_with_status.direction)
                 self.folders[keyname].appendRow(it)
-                mapping[i.payment_hash] = num
+                mapping[htlc.payment_hash] = num
                 num += 1
             self.keyname_rows[keyname] = mapping
         return model
@@ -202,7 +202,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin):
         htlc_list = []
         for rhash, plist in htlc_dict.items():
             for htlc_with_status in plist:
-                htlc_list.append((rhash.hex(),) + htlc_with_status)
+                htlc_list.append(htlc_with_status)
         w.setModel(self.make_model(htlc_list))
         w.header().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
         vbox.addWidget(w)
