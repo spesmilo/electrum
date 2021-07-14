@@ -48,7 +48,7 @@ from .lnpeer import Peer, LN_P2P_NETWORK_TIMEOUT
 from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
 from .lnchannel import Channel, AbstractChannel
-from .lnchannel import ChannelState, PeerState
+from .lnchannel import ChannelState, PeerState, HTLCWithStatus
 from .lnrater import LNRater
 from . import lnutil
 from .lnutil import funding_output_script
@@ -777,24 +777,27 @@ class LNWallet(LNWorker):
             util.trigger_callback('channel', self.wallet, chan)
         super().peer_closed(peer)
 
-    def get_payments(self, *, status=None):
-        # return one item per payment_hash
-        # note: with AMP we will have several channels per payment
+    def get_payments(self, *, status=None) -> Mapping[bytes, List[HTLCWithStatus]]:
         out = defaultdict(list)
         for chan in self.channels.values():
             d = chan.get_payments(status=status)
-            for k, v in d.items():
-                out[k] += v
+            for payment_hash, plist in d.items():
+                out[payment_hash] += plist
         return out
 
-    def get_payment_value(self, info: Optional['PaymentInfo'], plist):
+    def get_payment_value(
+            self, info: Optional['PaymentInfo'], plist: List[HTLCWithStatus],
+    ) -> Tuple[int, int, int]:
+        assert plist
         amount_msat = 0
         fee_msat = None
-        for chan_id, htlc, _direction, _status in plist:
+        for htlc_with_status in plist:
+            htlc = htlc_with_status.htlc
+            _direction = htlc_with_status.direction
             amount_msat += int(_direction) * htlc.amount_msat
             if _direction == SENT and info and info.amount_msat:
                 fee_msat = (fee_msat or 0) - info.amount_msat - amount_msat
-        timestamp = min([htlc.timestamp for chan_id, htlc, _direction, _status in plist])
+        timestamp = min([htlc_with_status.htlc.timestamp for htlc_with_status in plist])
         return amount_msat, fee_msat, timestamp
 
     def get_lightning_history(self):

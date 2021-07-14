@@ -200,9 +200,9 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin):
         w = QtWidgets.QTreeView(self)
         htlc_dict = chan.get_payments()
         htlc_list = []
-        for rhash, _list in htlc_dict.items():
-            for _tuple in _list:
-                htlc_list.append((rhash.hex(),) + _tuple)
+        for rhash, plist in htlc_dict.items():
+            for htlc_with_status in plist:
+                htlc_list.append((rhash.hex(),) + htlc_with_status)
         w.setModel(self.make_model(htlc_list))
         w.header().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
         vbox.addWidget(w)
