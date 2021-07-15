@@ -275,11 +275,6 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
         self.asyncio_loop = asyncio.get_event_loop()
         assert self.asyncio_loop.is_running(), "event loop not running"
-        try:
-            self._loop_thread = self.asyncio_loop._mythread  # type: threading.Thread  # only used for sanity checks
-        except AttributeError as e:
-            self.logger.warning(f"asyncio loop does not have _mythread set: {e!r}")
-            self._loop_thread = None
 
         assert isinstance(config, SimpleConfig), f"config should be a SimpleConfig instead of {type(config)}"
         self.config = config
@@ -387,7 +382,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             self.path_finder = None
 
     def run_from_another_thread(self, coro, *, timeout=None):
-        assert self._loop_thread != threading.current_thread(), 'must not be called from network thread'
+        assert util.get_running_loop() != self.asyncio_loop, 'must not be called from network thread'
         fut = asyncio.run_coroutine_threadsafe(coro, self.asyncio_loop)
         return fut.result(timeout)
 
@@ -1318,7 +1313,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     def send_http_on_proxy(cls, method, url, **kwargs):
         network = cls.get_instance()
         if network:
-            assert network._loop_thread is not threading.currentThread()
+            assert util.get_running_loop() != network.asyncio_loop
             loop = network.asyncio_loop
         else:
             loop = asyncio.get_event_loop()

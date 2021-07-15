@@ -1279,7 +1279,6 @@ def create_and_start_event_loop() -> Tuple[asyncio.AbstractEventLoop,
                                          args=(stopping_fut,),
                                          name='EventLoop')
     loop_thread.start()
-    loop._mythread = loop_thread
     return loop, stopping_fut, loop_thread
 
 
@@ -1626,3 +1625,12 @@ class nullcontext:
 
     async def __aexit__(self, *excinfo):
         pass
+
+def get_running_loop():
+    """Mimics _get_running_loop convenient functionality for sanity checks on all python versions"""
+    if sys.version_info < (3, 7):
+        return asyncio._get_running_loop()
+    try:
+        return asyncio.get_running_loop()
+    except RuntimeError:
+        return None

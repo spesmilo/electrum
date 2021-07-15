@@ -14,13 +14,8 @@ from typing import TYPE_CHECKING, Dict, NamedTuple, Tuple, List, Optional
 import sys
 import time
 
-if sys.version_info[:2] >= (3, 7):
-    from asyncio import get_running_loop
-else:
-    from asyncio import _get_running_loop as get_running_loop  # noqa: F401
-
 from .logging import Logger
-from .util import profiler
+from .util import profiler, get_running_loop
 from .lnrouter import fee_for_edge_msat
 from .lnutil import LnFeatures, ln_compare_features, IncompatibleLightningFeatures
 
