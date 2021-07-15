@@ -15,10 +15,9 @@ export PYTHONDONTWRITEBYTECODE=1  # don't create __pycache__/ folders with .pyc 
 
 CONTRIB_OSX="$(dirname "$(realpath "$0")")"
 CONTRIB="$CONTRIB_OSX/.."
-ROOT_FOLDER="$CONTRIB/.."
+PROJECT_ROOT="$CONTRIB/.."
 
-src_dir=$(dirname "$0")
-cd "$src_dir/../.."
+cd "$PROJECT_ROOT"
 
 
 which brew > /dev/null 2>&1 || fail "Please install brew from https://brew.sh/ to continue"
@@ -107,9 +106,9 @@ info "generating locale"
     fi
     cd "$CONTRIB"/deterministic-build/electrum-locale
     # we want the binary to have only compiled (.mo) locale files; not source (.po) files
-    rm -rf "$ROOT_FOLDER/electrum/locale/"
+    rm -rf "$PROJECT_ROOT/electrum/locale/"
     for i in ./locale/*; do
-        dir="$ROOT_FOLDER/electrum/$i/LC_MESSAGES"
+        dir="$PROJECT_ROOT/electrum/$i/LC_MESSAGES"
         mkdir -p "$dir"
         msgfmt --output-file="$dir/electrum.mo" "$i/electrum.po" || true
     done
@@ -121,15 +120,15 @@ brew install autoconf automake libtool gettext coreutils pkgconfig
 
 info "Building libsecp256k1 dylib..."
 "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
-cp "$ROOT_FOLDER"/electrum/libsecp256k1.0.dylib "$CONTRIB"/osx
+cp "$PROJECT_ROOT"/electrum/libsecp256k1.0.dylib "$CONTRIB"/osx
 
 info "Building ZBar dylib..."
 "$CONTRIB"/make_zbar.sh || fail "Could not build ZBar dylib"
-cp "$ROOT_FOLDER"/electrum/libzbar.0.dylib "$CONTRIB"/osx
+cp "$PROJECT_ROOT"/electrum/libzbar.0.dylib "$CONTRIB"/osx
 
 info "Building libusb dylib..."
 "$CONTRIB"/make_libusb.sh || fail "Could not build libusb dylib"
-cp "$ROOT_FOLDER"/electrum/libusb-1.0.dylib "$CONTRIB"/osx
+cp "$PROJECT_ROOT"/electrum/libusb-1.0.dylib "$CONTRIB"/osx
 
 
 info "Installing requirements..."
