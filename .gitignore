@@ -32,6 +32,7 @@ contrib/build-linux/sdist/fresh_clone/
 contrib/build-linux/appimage/build/
 contrib/build-linux/appimage/.cache/
 contrib/build-linux/appimage/fresh_clone/
+contrib/osx/.cache/
 contrib/android/fresh_clone
 contrib/android/android_debug.keystore
 contrib/secp256k1/
