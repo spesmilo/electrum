@@ -48,6 +48,7 @@ class Conf:
         QueudAutofuse = 4
         Selector = ('fraction', 0.1)  # coin selector options
         SelfFusePlayers = 1 # self-fusing control (1 = just self, more than 1 = self fuse up to N times)
+        SpendOnlyFusedCoins = False  # spendable_coin_filter @hook
 
 
     def __init__(self, wallet):
@@ -131,6 +132,13 @@ class Conf:
             assert i >= 1
             i = int(i)
         return self.wallet.storage.put('cashfusion_self_fuse_players', i)
+
+    @property
+    def spend_only_fused_coins(self) -> bool:
+        return bool(self.wallet.storage.get('cashfusion_spend_only_fused_coins', self.Defaults.SpendOnlyFusedCoins))
+    @spend_only_fused_coins.setter
+    def spend_only_fused_coins(self, b: bool):
+        return self.wallet.storage.put('cashfusion_spend_only_fused_coins', bool(b))
 
 
 CashFusionServer = namedtuple("CashFusionServer", ('hostname', 'port', 'ssl'))

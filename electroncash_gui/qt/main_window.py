@@ -1630,9 +1630,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.max_button.setFixedWidth(140)
         self.max_button.setCheckable(True)
         grid.addWidget(self.max_button, 5, 3)
-        hbox = QHBoxLayout()
+        hbox = self.send_tab_extra_plugin_controls_hbox = QHBoxLayout()
         hbox.addStretch(1)
-        grid.addLayout(hbox, 5, 4)
+        grid.addLayout(hbox, 5, 4, 1, -1)
 
         msg = _('Bitcoin Cash transactions are in general not free. A transaction fee is paid by the sender of the funds.') + '\n\n'\
               + _('The amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.') + '\n\n'\

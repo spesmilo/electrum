@@ -34,8 +34,8 @@ import weakref
 
 from typing import Optional, Tuple
 
-from electroncash.address import Address
-from electroncash.bitcoin import COINBASE_MATURITY
+from electroncash.address import Address, OpCodes
+from electroncash.bitcoin import COINBASE_MATURITY, TYPE_SCRIPT
 from electroncash.plugins import BasePlugin, hook, daemon_command
 from electroncash.i18n import _, ngettext, pgettext
 from electroncash.util import profiler, PrintError, InvalidPassword
@@ -45,6 +45,8 @@ from .conf import Conf, Global
 from .fusion import Fusion, can_fuse_from, can_fuse_to, is_tor_port, MIN_TX_COMPONENTS
 from .server import FusionServer
 from .covert import limiter
+from .protocol import Protocol
+from .util import get_coin_name
 
 import random  # only used to select random coins
 
@@ -652,6 +654,73 @@ class FusionPlugin(BasePlugin):
         (as opposed to the donation address we announce if we are a server). '''
         if self.remote_donation_address and Address.is_valid(self.remote_donation_address):
             return (self.fullname() + " " + _("Server") + ": " + self.get_server()[0], Address.from_string(self.remote_donation_address))
+
+    @staticmethod
+    def wallet_can_fuse(wallet) -> bool:
+        return can_fuse_from(wallet) and can_fuse_to(wallet)
+
+    @classmethod
+    def is_fuz_coin(cls, wallet, coin) -> Optional[bool]:
+        """ Returns True if the coin in question is definitely a CashFusion coin (uses heuristic matching),
+        or False if the coin in question is not from a CashFusion tx. Returns None if the tx for the coin
+        is not (yet) known to the wallet (None == inconclusive answer, called may wish to try again later). """
+        cache = getattr(wallet, "_cashfusion_is_fuz_coin_cache", None)
+        if cache is None:
+            cache = wallet._cashfusion_is_fuz_coin_cache = dict()
+        name, tx_id, n = get_coin_name(coin, True)
+        answer = cache.get(name, None)
+        if answer is not None:
+            # check cache, if cache hit, return answer and avoid the lookup below
+            return answer
+
+        def check_is_fuz_tx():
+            tx = wallet.transactions.get(tx_id, None)
+            if tx is not None:
+                outputs = tx.outputs()
+                if len(tx.inputs()) < 4 or len(outputs) < 4:
+                    # short-circuit out of here -- tx is in no way a fusion tx with this few participants
+                    return False
+                fuz_prefix = bytes((OpCodes.OP_RETURN, 4)) + Protocol.FUSE_ID  # OP_RETURN (4) FUZ\x00
+                for typ, dest, amt in outputs:
+                    if amt == 0 and typ == TYPE_SCRIPT and dest.script.startswith(fuz_prefix):
+                        return True
+                return False
+            else:
+                # Not found in wallet.transactions so its fuz status is as yet "unknown". Indicate this.
+                return None
+        # /check_is_fuz_tx
+
+        answer = check_is_fuz_tx()
+        if answer is not None:
+            # cache the answer iff it's a definitive answer True/False only
+            cache[name] = answer
+            if answer:
+                addr = coin.get('address')  # coin['address'] may be undefined if caller is doing funny stuff.
+                # rememebr this address as being a "fuzed" address and cache the positive reply
+                if addr:
+                    cache2 = getattr(wallet, "_cashfusion_address_cache", None)
+                    if cache2 is None:
+                        cache2 = wallet._cashfusion_address_cache = set()
+                    cache2.add(addr)
+        return answer
+
+    @classmethod
+    def is_fuz_address(cls, wallet, address):
+        """ Returns True if address contains any fused UTXOs.
+            If you want thread safety, caller must hold wallet locks. """
+        assert isinstance(address, Address)
+        cache = getattr(wallet, '_cashfusion_address_cache', None)
+        if cache is None:
+            cache = wallet._cashfusion_address_cache = set()
+        assert isinstance(cache, set)
+        if address in cache:
+            return True
+        utxos = wallet.get_addr_utxo(address)
+        for coin in utxos.values():
+            if cls.is_fuz_coin(wallet, coin):
+                cache.add(address)
+                return True
+        return False
 
     @daemon_command
     def fusion_server_start(self, daemon, config):
