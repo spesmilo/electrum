@@ -38,7 +38,7 @@ from electroncash.address import Address, OpCodes
 from electroncash.bitcoin import COINBASE_MATURITY, TYPE_SCRIPT
 from electroncash.plugins import BasePlugin, hook, daemon_command
 from electroncash.i18n import _, ngettext, pgettext
-from electroncash.util import profiler, PrintError, InvalidPassword
+from electroncash.util import profiler, PrintError, InvalidPassword, print_error
 from electroncash import Network, networks
 
 from .conf import Conf, Global
@@ -676,14 +676,24 @@ class FusionPlugin(BasePlugin):
         def check_is_fuz_tx():
             tx = wallet.transactions.get(tx_id, None)
             if tx is not None:
+                inputs = tx.inputs()
                 outputs = tx.outputs()
-                if len(tx.inputs()) < 4 or len(outputs) < 4:
-                    # short-circuit out of here -- tx is in no way a fusion tx with this few participants
-                    return False
                 fuz_prefix = bytes((OpCodes.OP_RETURN, 4)) + Protocol.FUSE_ID  # OP_RETURN (4) FUZ\x00
+                # Step 1 - does it have the proper OP_RETURN lokad prefix?
                 for typ, dest, amt in outputs:
                     if amt == 0 and typ == TYPE_SCRIPT and dest.script.startswith(fuz_prefix):
-                        return True
+                        break  # lokad found, proceed to Step 2 below
+                else:
+                    # Nope, lokad prefix not found
+                    return False
+                # Step 2 - are at least 1 of the inputs from me? (DoS prevention measure)
+                for inp in inputs:
+                    inp_addr = inp.get('address', None)
+                    if inp_addr is not None and wallet.is_mine(inp_addr):
+                        return True  # Success! This tx matches our heuristics
+                # Failure -- this tx has the lokad but no inputs are "from me".
+                print_error(f"CashFusion: txid \"{tx_id}\" has a CashFusion-style OP_RETURN but none of the "
+                            "inputs are from this wallet. This is UNEXPECTED!")
                 return False
             else:
                 # Not found in wallet.transactions so its fuz status is as yet "unknown". Indicate this.
