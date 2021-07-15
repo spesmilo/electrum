@@ -663,7 +663,7 @@ class FusionPlugin(BasePlugin):
     def is_fuz_coin(cls, wallet, coin) -> Optional[bool]:
         """ Returns True if the coin in question is definitely a CashFusion coin (uses heuristic matching),
         or False if the coin in question is not from a CashFusion tx. Returns None if the tx for the coin
-        is not (yet) known to the wallet (None == inconclusive answer, called may wish to try again later). """
+        is not (yet) known to the wallet (None == inconclusive answer, caller may wish to try again later). """
         cache = getattr(wallet, "_cashfusion_is_fuz_coin_cache", None)
         if cache is None:
             cache = wallet._cashfusion_is_fuz_coin_cache = dict()
