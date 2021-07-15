@@ -678,7 +678,8 @@ class FusionPlugin(BasePlugin):
             if tx is not None:
                 inputs = tx.inputs()
                 outputs = tx.outputs()
-                fuz_prefix = bytes((OpCodes.OP_RETURN, 4)) + Protocol.FUSE_ID  # OP_RETURN (4) FUZ\x00
+                # We expect: OP_RETURN (4) FUZ\x00
+                fuz_prefix = bytes((OpCodes.OP_RETURN, len(Protocol.FUSE_ID))) + Protocol.FUSE_ID
                 # Step 1 - does it have the proper OP_RETURN lokad prefix?
                 for typ, dest, amt in outputs:
                     if amt == 0 and typ == TYPE_SCRIPT and dest.script.startswith(fuz_prefix):
