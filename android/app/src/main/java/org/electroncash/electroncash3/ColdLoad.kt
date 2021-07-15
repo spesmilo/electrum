@@ -120,6 +120,7 @@ class SignedTransactionDialog : TaskLauncherDialog<Unit>() {
     private val tx: PyObject by lazy {
         txFromHex(arguments!!.getString("txHex")!!)
     }
+    private lateinit var description: String
 
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         builder.setView(R.layout.signed_transaction)
@@ -142,14 +143,12 @@ class SignedTransactionDialog : TaskLauncherDialog<Unit>() {
         }
     }
 
+    override fun onPreExecute() {
+        description = etDescription.text.toString()
+    }
+
     override fun doInBackground() {
-        if (!daemonModel.isConnected()) {
-            throw ToastException(R.string.not_connected)
-        }
-        val result = daemonModel.network.callAttr("broadcast_transaction", tx)
-        checkBroadcastResult(result)
-        setDescription(daemonModel.wallet!!, tx.callAttr("txid").toString(),
-                       etDescription.text.toString())
+        broadcastTransaction(daemonModel.wallet!!, tx, description)
     }
 
     override fun onPostExecute(result: Unit) {
