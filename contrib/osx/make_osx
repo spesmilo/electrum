@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 # Parameterize
 PYTHON_VERSION=3.7.9
 BUILDDIR=/tmp/electrum-build
@@ -154,11 +156,7 @@ info "Building $PACKAGE..."
 python3 -m pip install --no-dependencies --no-warn-script-location . > /dev/null || fail "Could not build $PACKAGE"
 
 info "Faking timestamps..."
-for d in ~/Library/Python/ ~/.pyenv .; do
-  pushd "$d"
-  find . -exec touch -t '200101220000' {} +
-  popd
-done
+find . -exec touch -t '200101220000' {} + || true
 
 VERSION=`git describe --tags --dirty --always`
 
