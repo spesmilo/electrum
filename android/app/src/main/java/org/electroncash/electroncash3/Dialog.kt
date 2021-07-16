@@ -35,6 +35,12 @@ abstract class AlertDialogFragment : DialogFragment() {
     var suppressView = false
     var focusOnStop = View.NO_ID
 
+    fun setArguments(block: Bundle.() -> Unit): AlertDialogFragment {
+        val args = arguments ?: Bundle()
+        setArguments(args.apply(block))
+        return this
+    }
+
     override fun onCreateDialog(savedInstanceState: Bundle?): AlertDialog {
         val builder = AlertDialog.Builder(context!!)
         onBuildDialog(builder)

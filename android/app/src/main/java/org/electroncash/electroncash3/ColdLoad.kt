@@ -11,10 +11,12 @@ import androidx.fragment.app.DialogFragment
 import com.chaquo.python.Kwarg
 import com.chaquo.python.PyException
 import com.chaquo.python.PyObject
+import com.chaquo.python.PyObject.fromJava
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.android.synthetic.main.load.*
 import kotlinx.android.synthetic.main.load.tvStatus
 import kotlinx.android.synthetic.main.signed_transaction.*
+import kotlinx.android.synthetic.main.sweep.*
 
 
 val libTransaction by lazy { libMod("transaction") }
@@ -159,6 +161,69 @@ class SignedTransactionDialog : TaskLauncherDialog<Unit>() {
 fun hideDescription(dialog: DialogFragment) {
     for (view in listOf(dialog.tvDescriptionLabel, dialog.etDescription)) {
         view.visibility = View.GONE
+    }
+}
+
+
+class SweepDialog : TaskLauncherDialog<PyObject>() {
+    lateinit var input: String
+
+    init {
+        dismissAfterExecute = false
+    }
+
+    override fun onBuildDialog(builder: AlertDialog.Builder) {
+        builder.setTitle(R.string.sweep_private)
+            .setView(R.layout.sweep)
+            .setNeutralButton(R.string.scan_qr, null)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(android.R.string.ok, null)
+    }
+
+    override fun onShowDialog() {
+        super.onShowDialog()
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { scanQR(this) }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        val result = IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
+        if (result != null && result.contents != null) {
+            appendLine(etInput, result.contents)
+        } else {
+            super.onActivityResult(requestCode, resultCode, data)
+        }
+    }
+
+    override fun onPreExecute() {
+        input = etInput.text.toString()
+    }
+
+    override fun doInBackground(): PyObject {
+        daemonModel.assertConnected()
+        val privkeys = input.split(Regex("\\s+")).filter { !it.isEmpty() }.toTypedArray()
+        try {
+            return libWallet.callAttr("sweep_preparations", privkeys, daemonModel.network)
+        } catch (e: PyException) {
+            throw ToastException(e)
+        }
+    }
+
+    override fun onPostExecute(result: PyObject) {
+        // Convert objects to serializable form so we can pass them in an argument.
+        val inputs = result.asList()[0]
+        for (i in inputs.asList()) {
+            val iMap = i.asMap()
+            iMap[fromJava("address")] = fromJava(iMap[fromJava("address")].toString())
+        }
+
+        val wallet = daemonModel.wallet!!
+        try {
+            showDialog(this, SendDialog().setArguments {
+                putString("address", wallet.callAttr("get_receiving_address").toString())
+                putString("inputs", inputs.repr())
+                putString("sweepKeypairs", result.asList()[1].repr())
+            })
+        } catch (e: ToastException) { e.show() }
     }
 }
 

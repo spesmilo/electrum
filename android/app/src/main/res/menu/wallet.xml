@@ -27,6 +27,9 @@
         <item
             android:id="@+id/menuLoadTx"
             android:title="@string/load_transaction"/>
+        <item
+            android:id="@+id/menuSweep"
+            android:title="@string/sweep_private"/>
     </group>
 
 </menu>

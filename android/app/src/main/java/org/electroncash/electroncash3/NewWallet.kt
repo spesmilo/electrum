@@ -1,10 +1,11 @@
 package org.electroncash.electroncash3
 
 import android.app.Dialog
-import android.content.*
+import android.content.Intent
 import android.os.Bundle
 import android.text.Selection
 import android.view.View
+import android.widget.EditText
 import android.widget.SeekBar
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -376,16 +377,20 @@ class NewWalletImportDialog : NewWalletDialog2() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         val result = IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
         if (result != null && result.contents != null) {
-            val text = etInput.text
-            if (!text.isEmpty() && !text.endsWith("\n")) {
-                text.append("\n")
-            }
-            text.append(result.contents)
-            Selection.setSelection(text, text.length)
+            appendLine(etInput, result.contents)
         } else {
             super.onActivityResult(requestCode, resultCode, data)
         }
     }
+}
+
+fun appendLine(et: EditText, str: String) {
+    val text = et.text
+    if (!text.isEmpty() && !text.endsWith("\n")) {
+        text.append("\n")
+    }
+    text.append(str)
+    Selection.setSelection(text, text.length)
 }
 
 

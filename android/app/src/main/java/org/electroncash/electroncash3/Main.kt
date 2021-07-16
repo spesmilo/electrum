@@ -244,6 +244,7 @@ class MainActivity : AppCompatActivity(R.layout.main) {
                 } catch (e: ToastException) { e.show() }
             }
             R.id.menuLoadTx -> { showDialog(this, ColdLoadDialog()) }
+            R.id.menuSweep -> showDialog(this, SweepDialog())
             R.id.menuExport -> showDialog(this, WalletExportDialog().apply {
                 arguments = Bundle().apply { putString("walletName", daemonModel.walletName) }
             })

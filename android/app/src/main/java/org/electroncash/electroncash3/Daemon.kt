@@ -70,6 +70,12 @@ class DaemonModel(val config: PyObject) {
 
     fun isConnected() = network.callAttr("is_connected").toBoolean()
 
+    /** This should be called before doing anything which blocks the UI waiting for the
+     * network. Otherwise it would probably hang for 30 seconds until it timed out. */
+    fun assertConnected() {
+        if (!isConnected()) throw ToastException(R.string.not_connected)
+    }
+
     fun listWallets(): List<String> {
         return commands.callAttr("list_wallets").asList().map { it.toString() }
     }

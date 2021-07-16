@@ -15,6 +15,7 @@ import androidx.lifecycle.ViewModel
 import com.chaquo.python.Kwarg
 import com.chaquo.python.PyException
 import com.chaquo.python.PyObject
+import com.chaquo.python.PyObject.fromJava
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.android.synthetic.main.load.*
 import kotlinx.android.synthetic.main.send.*
@@ -38,6 +39,19 @@ class SendDialog : TaskLauncherDialog<Unit>() {
     }
     val model: Model by viewModels()
 
+    // This is currently used by the sweep private keys command. In the future it could also be
+    // used for coin selection.
+    val inputs by lazy {
+        val inputsStr = arguments?.getString("inputs")
+        if (inputsStr == null) null
+        else literalEval(inputsStr)!!.also {
+            for (i in it.asList()) {
+                val iMap = i.asMap()
+                iMap[fromJava("address")] = makeAddress(iMap[fromJava("address")].toString())
+            }
+        }
+    }
+
     // The "unbroadcasted" flag controls whether the dialog opens as "Send" (false) or
     // "Sign" (true). m-of-n multisig wallets where m >= 2 will also open the dialog
     // as "Sign", because their transactions can't be broadcast after a single signature.
@@ -53,11 +67,12 @@ class SendDialog : TaskLauncherDialog<Unit>() {
 
     val readOnly by lazy {
         arguments != null &&
-        arguments!!.containsKey("txHex")
+            (arguments!!.containsKey("txHex") || arguments!!.containsKey("sweepKeypairs"))
     }
 
     lateinit var amountBox: AmountBox
     var settingAmount = false  // Prevent infinite recursion.
+    private lateinit var description: String
 
     init {
         // The SendDialog shouldn't be dismissed until the SendPasswordDialog succeeds.
@@ -87,6 +102,8 @@ class SendDialog : TaskLauncherDialog<Unit>() {
     }
 
     override fun onShowDialog() {
+        super.onShowDialog()
+
         etAddress.addAfterTextChangedListener { s: Editable ->
             val scheme = libNetworks.get("net")!!.get("CASHADDR_PREFIX")!!.toString()
             if (s.startsWith(scheme + ":")) {
@@ -150,6 +167,15 @@ class SendDialog : TaskLauncherDialog<Unit>() {
             setLoadedTransaction(tx)
         }
 
+        if (arguments?.getString("sweepKeypairs") != null) {
+            btnMax.isChecked = true
+
+            // The inputs may be truncated to avoid exceeding the maximum transaction size,
+            // Display the input count so the user knows to sweep again in that situation.
+            dialog.setTitle(app.getQuantityString1(R.plurals.sweep_input,
+                                                   inputs!!.asList().size))
+        }
+
         if (readOnly) {
              etAddress.isFocusable = false
              (btnContacts as View).visibility = View.GONE
@@ -158,7 +184,6 @@ class SendDialog : TaskLauncherDialog<Unit>() {
              dialog.getButton(AlertDialog.BUTTON_NEUTRAL).visibility = View.GONE
         }
 
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onOK() }
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener { scanQR(this) }
         model.tx.observe(this, Observer { onTx(it) })
     }
@@ -178,10 +203,9 @@ class SendDialog : TaskLauncherDialog<Unit>() {
         get() = MIN_FEE + sbFee.progress
 
     fun refreshTx() {
-        // If loading a transaction from ColdLoad, it does not need to be constantly refreshed.
         if (arguments?.containsKey("txHex") != true) {
             model.tx.refresh(TxArgs(wallet, model.paymentRequest, etAddress.text.toString(),
-                amountBox.amount, btnMax.isChecked))
+                amountBox.amount, btnMax.isChecked, inputs))
         }
     }
 
@@ -219,7 +243,7 @@ class SendDialog : TaskLauncherDialog<Unit>() {
     }
 
     class TxArgs(val wallet: PyObject, val pr: PyObject?, val addrStr: String,
-                 val amount: Long?, val max: Boolean) {
+                 val amount: Long?, val max: Boolean, val inputs: PyObject?) {
         fun invoke(): TxResult {
             var isDummy = false
             val outputs: PyObject
@@ -241,7 +265,8 @@ class SendDialog : TaskLauncherDialog<Unit>() {
                 outputs = py.builtins.callAttr("list", arrayOf(output))
             }
 
-            val inputs = wallet.callAttr("get_spendable_coins", null, daemonModel.config,
+            val inputs = this.inputs ?:
+                         wallet.callAttr("get_spendable_coins", null,daemonModel.config,
                                          Kwarg("isInvoice", pr != null))
             return try {
                 TxResult(wallet.callAttr("make_unsigned_transaction", inputs, outputs,
@@ -368,29 +393,36 @@ class SendDialog : TaskLauncherDialog<Unit>() {
     private fun filterOutputs(outputs: List<PyObject>, wallet: PyObject, methodName: String) =
         outputs.filter { !wallet.callAttr(methodName, it.asList()[1]).toBoolean() }
 
-    fun onOK() {
-        if (model.tx.isComplete()) {
-            onPostExecute(Unit)
-        } else {
-            launchTask()
-        }
+    override fun onPreExecute() {
+        description = etDescription.text.toString()
     }
 
     override fun doInBackground() {
         model.tx.waitUntilComplete()
+        val keypairsStr = arguments?.getString("sweepKeypairs")
+        if (keypairsStr != null) {
+            val tx = model.tx.value!!.get()
+            tx.callAttr("sign", literalEval(keypairsStr))
+            broadcastTransaction(wallet, tx, description)
+        }
     }
 
     override fun onPostExecute(result: Unit) {
-        try {
-            // Verify the transaction is valid before asking for a password.
-            val txResult = model.tx.value!!
-            if (txResult.isDummy) throw ToastException(R.string.Invalid_address)
-            txResult.get()   // May throw ToastException.
+        if (arguments != null && arguments!!.containsKey("sweepKeypairs")) {
+            toast(R.string.payment_sent)
+            closeDialogs(this)
+        } else {
+            try {
+                // Verify the transaction is valid before asking for a password.
+                val txResult = model.tx.value!!
+                if (txResult.isDummy) throw ToastException(R.string.Invalid_address)
+                txResult.get()   // May throw ToastException.
 
-            showDialog(this, SendPasswordDialog().apply { arguments = Bundle().apply {
-                putString("description", this@SendDialog.etDescription.text.toString())
-            }})
-        } catch (e: ToastException) { e.show() }
+                showDialog(this, SendPasswordDialog().apply { arguments = Bundle().apply {
+                    putString("description", this@SendDialog.etDescription.text.toString())
+                }})
+            } catch (e: ToastException) { e.show() }
+        }
     }
 }
 
@@ -491,10 +523,7 @@ private fun checkExpired(pr: PyObject) {
 
 fun broadcastTransaction(wallet: PyObject, tx: PyObject, description: String,
                          broadcastFunc: ((PyObject) -> PyObject)? = null) {
-    if (!daemonModel.isConnected()) {
-        throw ToastException(R.string.not_connected)
-    }
-
+    daemonModel.assertConnected()
     val result = if (broadcastFunc != null) {
         broadcastFunc(tx)
     } else {
@@ -508,3 +537,7 @@ fun broadcastTransaction(wallet: PyObject, tx: PyObject, description: String,
 
     setDescription(wallet, tx.callAttr("txid").toString(), description)
 }
+
+
+fun literalEval(str: String): PyObject? =
+    py.getModule("ast").callAttr("literal_eval", str)

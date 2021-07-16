@@ -443,7 +443,7 @@ def deserialize_privkey(key, *, net=None):
                              'but last byte is 0x{:02x} != 0x01'.format(vch[33]))
         return txin_type, vch[1:33], compressed
     else:
-        raise ValueError("cannot deserialize", key)
+        raise ValueError("Not a valid private key: '%s'" % key)
 
 def regenerate_key(pk):
     assert len(pk) == 32
