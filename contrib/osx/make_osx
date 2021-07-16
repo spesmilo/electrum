@@ -64,11 +64,13 @@ function DoCodeSignMaybe { # ARGS: infoName fileOrDirName
 }
 
 info "Installing Python $PYTHON_VERSION"
-curl -o "$CACHEDIR/python-${PYTHON_VERSION}-macosx10.9.pkg" \
-    "https://www.python.org/ftp/python/${PYTHON_VERSION}/python-${PYTHON_VERSION}-macosx10.9.pkg"
-echo "bf54a14eef23467991e8c7a88c7307762e484c024a94ec1ee292ac1db3d41fc9  $CACHEDIR/python-${PYTHON_VERSION}-macosx10.9.pkg" | shasum -a 256 -c \
-    || fail "python pkg checksum mismatched"
-sudo installer -pkg "$CACHEDIR/python-${PYTHON_VERSION}-macosx10.9.pkg" -target / \
+PKG_FILE="python-${PYTHON_VERSION}-macosx10.9.pkg"
+if [ ! -f "$CACHEDIR/$PKG_FILE" ]; then
+    curl -o "$CACHEDIR/$PKG_FILE" "https://www.python.org/ftp/python/${PYTHON_VERSION}/$PKG_FILE"
+fi
+echo "bf54a14eef23467991e8c7a88c7307762e484c024a94ec1ee292ac1db3d41fc9  $CACHEDIR/$PKG_FILE" | shasum -a 256 -c \
+     || fail "python pkg checksum mismatched"
+sudo installer -pkg "$CACHEDIR/$PKG_FILE" -target / \
     || fail "failed to install python"
 
 # sanity check "python3" has the version we just installed.
