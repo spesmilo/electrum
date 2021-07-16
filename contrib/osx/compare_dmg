@@ -1,4 +1,5 @@
 #!/usr/bin/env bash                                                                                                                                                                                               
+set -e
 
 src_dir=$(dirname "$0")
 cd "$src_dir/../.."
@@ -14,8 +15,8 @@ cp -r /Volumes/Electrum/Electrum.app/ dmg2
 hdiutil detach /Volumes/Electrum
 
 # remove signatures
-for i in $(find dmg1/ ); do codesign --remove-signature $i; done;
-for i in $(find dmg2/ ); do codesign --remove-signature $i; done;
+for i in $(find dmg1/ ); do codesign --remove-signature $i || true; done;
+for i in $(find dmg2/ ); do codesign --remove-signature $i || true; done;
 
 diff=$(diff -qr dmg1 dmg2)
 echo $diff
