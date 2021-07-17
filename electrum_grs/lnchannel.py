@@ -24,7 +24,7 @@ import binascii
 import json
 from enum import IntEnum
 from typing import (Optional, Dict, List, Tuple, NamedTuple, Set, Callable,
-                    Iterable, Sequence, TYPE_CHECKING, Iterator, Union)
+                    Iterable, Sequence, TYPE_CHECKING, Iterator, Union, Mapping)
 import time
 import threading
 from abc import ABC, abstractmethod
@@ -138,6 +138,13 @@ class RemoteCtnTooFarInFuture(Exception): pass
 
 def htlcsum(htlcs: Iterable[UpdateAddHtlc]):
     return sum([x.amount_msat for x in htlcs])
+
+
+class HTLCWithStatus(NamedTuple):
+    channel_id: bytes
+    htlc: UpdateAddHtlc
+    direction: Direction
+    status: str
 
 
 class AbstractChannel(Logger, ABC):
@@ -722,7 +729,7 @@ class Channel(AbstractChannel):
     def get_next_feerate(self, subject: HTLCOwner) -> int:
         return self.hm.get_feerate_in_next_ctx(subject)
 
-    def get_payments(self, status=None):
+    def get_payments(self, status=None) -> Mapping[bytes, List[HTLCWithStatus]]:
         out = defaultdict(list)
         for direction, htlc in self.hm.all_htlcs_ever():
             htlc_proposer = LOCAL if direction is SENT else REMOTE
@@ -734,7 +741,9 @@ class Channel(AbstractChannel):
                 _status = 'inflight'
             if status and status != _status:
                 continue
-            out[htlc.payment_hash].append((self.channel_id, htlc, direction, _status))
+            htlc_with_status = HTLCWithStatus(
+                channel_id=self.channel_id, htlc=htlc, direction=direction, status=_status)
+            out[htlc.payment_hash].append(htlc_with_status)
         return out
 
     def open_with_first_pcp(self, remote_pcp: bytes, remote_sig: bytes) -> None:

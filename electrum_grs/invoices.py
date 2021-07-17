@@ -22,14 +22,14 @@ PR_TYPE_ONCHAIN = 0
 PR_TYPE_LN = 2
 
 # status of payment requests
-PR_UNPAID   = 0
-PR_EXPIRED  = 1
-PR_UNKNOWN  = 2     # sent but not propagated
-PR_PAID     = 3     # send and propagated
-PR_INFLIGHT = 4     # unconfirmed
-PR_FAILED   = 5
-PR_ROUTING  = 6
-PR_UNCONFIRMED = 7
+PR_UNPAID   = 0     # if onchain: invoice amt not reached by txs in mempool+chain. if LN: invoice not paid.
+PR_EXPIRED  = 1     # invoice is unpaid and expiry time reached
+PR_UNKNOWN  = 2     # e.g. invoice not found
+PR_PAID     = 3     # if onchain: paid and mined (1 conf). if LN: invoice is paid.
+PR_INFLIGHT = 4     # only for LN. payment attempt in progress
+PR_FAILED   = 5     # only for LN. we attempted to pay it, but all attempts failed
+PR_ROUTING  = 6     # only for LN. *unused* atm.
+PR_UNCONFIRMED = 7  # only onchain. invoice is satisfied but tx is not mined yet.
 
 pr_color = {
     PR_UNPAID:   (.7, .7, .7, 1),
