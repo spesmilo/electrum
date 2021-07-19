@@ -47,7 +47,7 @@ QUIET="1" "$CONTRIB_OSX/apply_sigs.sh" "$DMG_UNSIGNED_UNPACKED"/Electrum.app mac
 
 rm mac_extracted_sigs.tar.gz
 
-diff=$(diff -qr "$WORKSPACE/signed_app" "$DMG_RELEASE_UNPACKED") || true
+diff=$(diff -qr "$WORKSPACE/signed_app" "$DMG_RELEASE_UNPACKED") || diff="diff errored"
 echo $diff
 if [ "$diff" ]; then
     echo "DMGs do *not* match."
