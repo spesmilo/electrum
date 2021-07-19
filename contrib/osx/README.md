@@ -28,7 +28,7 @@ Notes about compatibility with different macOS versions:
 We currently build the release binaries on macOS 10.14.6, and these seem to run on
 10.13 or newer.
 
-Before starting, make sure that the Xcode command line tools are installed (e.g. you have `git`).
+Before starting, you should install `brew`.
 
 
 #### Notes about reproducibility
@@ -41,6 +41,19 @@ Before starting, make sure that the Xcode command line tools are installed (e.g.
 - Builders need to use the same version of Xcode; and note that
   full Xcode and Xcode commandline tools differ!
   You should build with Xcode 11.3.1 (full Xcode).
+  The path for Xcode should be exactly as follows:
+    ```
+    $ xcode-select -p
+    /Users/vagrant/Downloads/Xcode.app/Contents/Developer
+    $ xcrun --show-sdk-path
+    /Users/vagrant/Downloads/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
+    ```
+  Note: make sure neither command above refers to the Xcode command line tools!
+  If so, rename the cli tools, e.g.
+    ```
+    $ mv /Library/Developer/CommandLineTools /Library/Developer/CommandLineTools2
+    ```
+  As a sanity check, make sure `$ gcc --version` consistently refers to the full Xcode.
 - Make sure that you are building from a fresh clone of electrum
   (or run e.g. `git clean -ffxd` to rm all local changes).
 
