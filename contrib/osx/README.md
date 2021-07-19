@@ -1,9 +1,8 @@
 Building macOS binaries
 =======================
 
-✗ _This script does not produce reproducible output (yet!).
-   Please help us remedy this.
-   [(see #7266)](https://github.com/spesmilo/electrum/issues/7266)_
+✓ _This binary should be reproducible, meaning you should be able to generate
+   binaries that match the official releases._
 
 This guide explains how to build Electrum-GRS binaries for macOS systems.
 
@@ -31,7 +30,39 @@ We currently build the release binaries on macOS 10.14.6, and these seem to run 
 
 Before starting, make sure that the Xcode command line tools are installed (e.g. you have `git`).
 
-#### Build Electrum-GRS
+
+#### Notes about reproducibility
+
+- We recommend creating a VM with a macOS guest, e.g. using VirtualBox,
+  and building there.
+- The guest should run macOS 10.14.6 (that specific version).
+- The unix username should be `vagrant`, and `electrum-grs` should be cloned directly
+  to the user's home dir: `/Users/vagrant/electrum-grs`.
+- Builders need to use the same version of Xcode; and note that
+  full Xcode and Xcode commandline tools differ!
+  You should build with Xcode 11.3.1 (full Xcode).
+- Make sure that you are building from a fresh clone of electrum-grs
+  (or run e.g. `git clean -ffxd` to rm all local changes).
+
+
+#### 1. Get Xcode
+
+Notarizing the application requires full Xcode
+(not just command line tools as that is missing `altool`).
+
+Get it from [here](https://developer.apple.com/download/more/).
+Unfortunately, you need an "Apple ID" account.
+
+(note: the last Xcode that runs on macOS 10.14.6 is Xcode 11.3.1)
+
+After downloading, uncompress it.
+
+Make sure it is the "selected" xcode (e.g.):
+
+    sudo xcode-select -s $HOME/Downloads/Xcode.app/Contents/Developer/
+
+
+#### 2. Build Electrum-GRS
 
     cd electrum-grs
     ./contrib/osx/make_osx
@@ -45,3 +76,21 @@ provide these env vars to the `make_osx` script:
     APPLE_ID_USER="me@email.com" \
     APPLE_ID_PASSWORD="1234" \
     ./contrib/osx/make_osx
+
+
+## Verifying reproducibility and comparing against official binary
+
+Every user can verify that the official binary was created from the source code in this
+repository.
+
+1. Build your own binary as described above.
+2. Use the provided `compare_dmg` script to compare the binary you built with
+   the official release binary.
+    ```
+    $ ./contrib/osx/compare_dmg dist/electrum-grs-*.dmg electrum_dmg_official_release.dmg
+    ```
+   The `compare_dmg` script is mostly only needed as the official release binary is
+   codesigned and notarized. Otherwise, the built `.app` bundles should be byte-identical.
+   (Note that we are using `hdutil` to create the `.dmg`, and its output is not
+   deterministic, but we cannot compare the `.dmg` files directly anyway as they contain
+   codesigned files)

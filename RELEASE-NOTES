@@ -1,3 +1,17 @@
+# Release 4.1.5 - (July 19, 2021)
+ * Builds/binaries:
+   - macOS: the .dmg binary should now be reproducible
+ * Kivy/Android: fix paying bip70 invoices (regression) (90579ccf)
+ * fix: payment requests not saved if process is killed (6a049d99)
+ * Lightning: improve payment success when using trampoline (3a7f5373)
+ * add support for signet test network (#7282)
+ * Qt GUI:
+   - allow restoring from SLIP39 seeds (#6917)
+   - rework QR code scanning on Windows and macOS (#7365)
+   - support smaller window sizes, decrease minimums (#7385)
+ * GUIs: add "funded or unused" filter option to Addresses tab (#5823)
+
+
 # Release 4.1.4 - (June 17, 2021)
  * Kivy/Android: fix a regression where a non-LN wallet
    could not open the settings (c49d6995)
