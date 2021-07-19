@@ -2,13 +2,13 @@
 #
 # This script, for the RELEASEMANAGER:
 # - builds and uploads all binaries,
-#   - note: the .dmg should be built separately beforehand and copied into dist/
-#           (as it is built on a separate machine)
 # - assumes all keys are available, and signs everything
 # This script, for other builders:
-# - builds reproducible binaries only,
+# - builds all reproducible binaries,
 # - downloads binaries built by the release manager, compares and signs them,
 # - and then uploads sigs
+# Note: the .dmg should be built separately beforehand and copied into dist/
+#       (as it is built on a separate machine)
 #
 # env vars:
 # - ELECBUILD_NOCACHE: if set, forces rebuild of docker images
@@ -127,19 +127,17 @@ else
     fi
 fi
 
-
-# wait for dmg before signing
+# the macos binary is built on a separate machine.
 dmg=electrum-$VERSION.dmg
+test -f "dist/$dmg"  || fail "dmg is missing, aborting. Please build the dmg on a mac and copy it over."
+
+# now that we have all binaries, if we are the RM, sign them.
 if [ ! -z "$RELEASEMANAGER" ] ; then
-    if test -f "dist/$dmg"; then
-        if test -f "dist/$dmg.asc"; then
-            info "packages are already signed"
-        else
-            info "signing packages"
-            ./contrib/sign_packages "$GPGUSER"
-        fi
+    if test -f "dist/$dmg.asc"; then
+        info "packages are already signed"
     else
-        fail "dmg is missing, aborting"
+        info "signing packages"
+        ./contrib/sign_packages "$GPGUSER"
     fi
 fi
 
@@ -178,6 +176,7 @@ if [ -z "$RELEASEMANAGER" ] ; then
     test -f "$win3"     || fail "win3 not found among sftp downloads"
     test -f "$apk1"     || fail "apk1 not found among sftp downloads"
     test -f "$apk2"     || fail "apk2 not found among sftp downloads"
+    test -f "$dmg"      || fail "dmg not found among sftp downloads"
     test -f "$PROJECT_ROOT/dist/$tarball"    || fail "tarball not found among built files"
     test -f "$PROJECT_ROOT/dist/$appimage"   || fail "appimage not found among built files"
     test -f "$CONTRIB/build-wine/dist/$win1" || fail "win1 not found among built files"
@@ -185,6 +184,7 @@ if [ -z "$RELEASEMANAGER" ] ; then
     test -f "$CONTRIB/build-wine/dist/$win3" || fail "win3 not found among built files"
     test -f "$PROJECT_ROOT/dist/$apk1"       || fail "apk1 not found among built files"
     test -f "$PROJECT_ROOT/dist/$apk2"       || fail "apk2 not found among built files"
+    test -f "$PROJECT_ROOT/dist/$dmg"        || fail "dmg not found among built files"
     # compare downloaded binaries against ones we built
     cmp --silent "$tarball" "$PROJECT_ROOT/dist/$tarball" || fail "files are different. tarball."
     cmp --silent "$appimage" "$PROJECT_ROOT/dist/$appimage" || fail "files are different. appimage."
@@ -193,10 +193,11 @@ if [ -z "$RELEASEMANAGER" ] ; then
     "$CONTRIB/build-wine/unsign.sh" || fail "files are different. windows."
     "$CONTRIB/android/apkdiff.py" "$apk1" "$PROJECT_ROOT/dist/$apk1" || fail "files are different. android."
     "$CONTRIB/android/apkdiff.py" "$apk2" "$PROJECT_ROOT/dist/$apk2" || fail "files are different. android."
+    "$CONTRIB/osx/compare_dmg" "$PROJECT_ROOT/dist/$dmg" "$dmg"  || fail "files are different. macos."
     # all files matched. sign them.
     rm -rf "$PROJECT_ROOT/dist/sigs/"
     mkdir --parents "$PROJECT_ROOT/dist/sigs/"
-    for fname in "$tarball" "$appimage" "$win1" "$win2" "$win3" "$apk1" "$apk2" ; do
+    for fname in "$tarball" "$appimage" "$win1" "$win2" "$win3" "$apk1" "$apk2" "$dmg" ; do
         signame="$fname.$GPGUSER.asc"
         gpg --sign --armor --detach $PUBKEY --output "$PROJECT_ROOT/dist/sigs/$signame" "$fname"
     done
