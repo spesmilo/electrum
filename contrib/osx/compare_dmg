@@ -46,6 +46,7 @@ echo "Applying extracted signatures to unsigned app..."
 QUIET="1" "$CONTRIB_OSX/apply_sigs.sh" "$DMG_UNSIGNED_UNPACKED"/Electrum.app mac_extracted_sigs.tar.gz
 
 rm mac_extracted_sigs.tar.gz
+rm -rf "$DMG_UNSIGNED_UNPACKED"
 
 diff=$(diff -qr "$WORKSPACE/signed_app" "$DMG_RELEASE_UNPACKED") || diff="diff errored"
 echo $diff

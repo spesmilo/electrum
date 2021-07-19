@@ -48,7 +48,7 @@ fi
 
 GPGUSER=$1
 if [ -z "$GPGUSER" ]; then
-    fail "usage: release.sh gpg_username"
+    fail "usage: $0 gpg_username"
 fi
 
 export SSHUSER="$GPGUSER"
@@ -106,17 +106,21 @@ if test -f "dist/$win1"; then
 else
     pushd .
     ./contrib/build-wine/build.sh
+    cd contrib/build-wine/
     if [ ! -z "$RELEASEMANAGER" ] ; then
-        cd contrib/build-wine/
         ./sign.sh
         cp ./signed/*.exe "$PROJECT_ROOT/dist/"
+    else
+        cp ./dist/*.exe "$PROJECT_ROOT/dist/"
     fi
     popd
 fi
 
 # android
 apk1="Electrum-$VERSION.0-armeabi-v7a-release.apk"
+apk1_unsigned="Electrum-$VERSION.0-armeabi-v7a-release-unsigned.apk"
 apk2="Electrum-$VERSION.0-arm64-v8a-release.apk"
+apk2_unsigned="Electrum-$VERSION.0-arm64-v8a-release-unsigned.apk"
 if test -f "dist/$apk1"; then
     info "file exists: $apk1"
 else
@@ -124,12 +128,21 @@ else
         ./contrib/android/build.sh release
     else
         ./contrib/android/build.sh release-unsigned
+        mv "$apk1_unsigned" "$apk1"
+        mv "$apk2_unsigned" "$apk2"
     fi
 fi
 
 # the macos binary is built on a separate machine.
+# the file that needs to be copied over is the codesigned release binary (regardless of builder role)
 dmg=electrum-$VERSION.dmg
-test -f "dist/$dmg"  || fail "dmg is missing, aborting. Please build the dmg on a mac and copy it over."
+if ! test -f "dist/$dmg"; then
+    if [ ! -z "$RELEASEMANAGER" ] ; then  # RM
+        fail "dmg is missing, aborting. Please build and codesign the dmg on a mac and copy it over."
+    else  # other builders
+        fail "dmg is missing, aborting. Please build the unsigned dmg on a mac, compare it with file built by RM, and if matches, copy RM's dmg."
+    fi
+fi
 
 # now that we have all binaries, if we are the RM, sign them.
 if [ ! -z "$RELEASEMANAGER" ] ; then
@@ -188,12 +201,12 @@ if [ -z "$RELEASEMANAGER" ] ; then
     # compare downloaded binaries against ones we built
     cmp --silent "$tarball" "$PROJECT_ROOT/dist/$tarball" || fail "files are different. tarball."
     cmp --silent "$appimage" "$PROJECT_ROOT/dist/$appimage" || fail "files are different. appimage."
-    mkdir --parents "$CONTRIB/build-wine/signed/"
+    rm -rf "$CONTRIB/build-wine/signed/" && mkdir --parents "$CONTRIB/build-wine/signed/"
     cp -f "$win1" "$win2" "$win3" "$CONTRIB/build-wine/signed/"
     "$CONTRIB/build-wine/unsign.sh" || fail "files are different. windows."
     "$CONTRIB/android/apkdiff.py" "$apk1" "$PROJECT_ROOT/dist/$apk1" || fail "files are different. android."
     "$CONTRIB/android/apkdiff.py" "$apk2" "$PROJECT_ROOT/dist/$apk2" || fail "files are different. android."
-    "$CONTRIB/osx/compare_dmg" "$PROJECT_ROOT/dist/$dmg" "$dmg"  || fail "files are different. macos."
+    cmp --silent "$dmg" "$PROJECT_ROOT/dist/$dmg" || fail "files are different. macos."
     # all files matched. sign them.
     rm -rf "$PROJECT_ROOT/dist/sigs/"
     mkdir --parents "$PROJECT_ROOT/dist/sigs/"
@@ -213,7 +226,7 @@ else
     ./contrib/make_download $WWW_DIR
     info "signing the version announcement file"
     sig=`./run_electrum -o signmessage $ELECTRUM_SIGNING_ADDRESS $VERSION -w $ELECTRUM_SIGNING_WALLET`
-    info "{ \"version\":\"$VERSION\", \"signatures\":{ \"$ELECTRUM_SIGNING_ADDRESS\":\"$sig\"}}" > $WWW_DIR/version
+    echo "{ \"version\":\"$VERSION\", \"signatures\":{ \"$ELECTRUM_SIGNING_ADDRESS\":\"$sig\"}}" > $WWW_DIR/version
 
 
     if [ $REV != $VERSION ]; then
