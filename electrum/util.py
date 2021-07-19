@@ -681,7 +681,27 @@ def format_satoshis(
     if whitespaces:
         result += " " * (decimal_point - len(fract_part))
         result = " " * (15 - len(result)) + result
-    return result
+    dot = result.find('.')
+    if len(result) == dot + 1:
+        if dot != -1:
+            satoshi_integer = result[0:dot]
+            satoshi_num = int(satoshi_integer)
+            result = "{:,}".format(satoshi_num).replace(',', ' ') + result[dot:]
+            return result
+        else:
+            return result
+    else:
+        if dot != -1:
+            satoshi_integer = result[0:dot]
+            satoshi_num = int(satoshi_integer)
+            satoshi_decimal = result[dot+1:]
+            s_new = ''
+            for i in range(0,len(satoshi_decimal),3):
+                s_new += satoshi_decimal[i:i+3] + ' '
+            result = "{:,}".format(satoshi_num).replace(',', ' ') + '.' + s_new
+            return result
+        else:
+            return result
 
 
 FEERATE_PRECISION = 1  # num fractional decimal places for sat/byte fee rates
