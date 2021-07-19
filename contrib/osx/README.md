@@ -89,5 +89,8 @@ repository.
     ```
     $ ./contrib/osx/compare_dmg dist/electrum-*.dmg electrum_dmg_official_release.dmg
     ```
-   The `compare_dmg` is only needed as the official release binary is codesigned and notarized.
-   Otherwise, the built dmg files should be byte-identical.
+   The `compare_dmg` script is mostly only needed as the official release binary is
+   codesigned and notarized. Otherwise, the built `.app` bundles should be byte-identical.
+   (Note that we are using `hdutil` to create the `.dmg`, and its output is not
+   deterministic, but we cannot compare the `.dmg` files directly anyway as they contain
+   codesigned files)
