@@ -247,7 +247,7 @@ def create_trampoline_onion(*, route, amount_msat, final_cltv, total_msat, payme
         # only for final
         if i == num_hops - 1:
             payload["payment_data"] = {
-                "payment_secret":payment_secret,
+                "payment_secret": payment_secret,
                 "total_msat": total_msat
             }
         # legacy
@@ -255,7 +255,7 @@ def create_trampoline_onion(*, route, amount_msat, final_cltv, total_msat, payme
             payload["invoice_features"] = {"invoice_features":route_edge.invoice_features}
             payload["invoice_routing_info"] = {"invoice_routing_info":route_edge.invoice_routing_info}
             payload["payment_data"] = {
-                "payment_secret":payment_secret,
+                "payment_secret": payment_secret,
                 "total_msat": total_msat
             }
         _logger.info(f'payload {i} {payload}')
