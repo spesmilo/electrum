@@ -52,16 +52,16 @@ class TestUtil(ElectrumTestCase):
                          format_fee_satoshis(1666/1000, precision=1))
 
     def test_format_satoshis_whitespaces(self):
-        self.assertEqual("     0.0001234 ",
-                         format_satoshis(12340, whitespaces=True))
-        self.assertEqual("     0.00001234",
-                         format_satoshis(1234, whitespaces=True))
+        self.assertEqual("     0.0001234 ", format_satoshis(12340, whitespaces=True))
+        self.assertEqual("     0.00001234", format_satoshis(1234, whitespaces=True))
+        self.assertEqual("     0.45831275", format_satoshis(Decimal("45831275."), whitespaces=True))
+        self.assertEqual("     0.45831275   ", format_satoshis(Decimal("45831275."), whitespaces=True, precision=3))
+        self.assertEqual("     0.458312757  ", format_satoshis(Decimal("45831275.7"), whitespaces=True, precision=3))
+        self.assertEqual("     0.45831275748", format_satoshis(Decimal("45831275.748"), whitespaces=True, precision=3))
 
     def test_format_satoshis_whitespaces_negative(self):
-        self.assertEqual("    -0.0001234 ",
-                         format_satoshis(-12340, whitespaces=True))
-        self.assertEqual("    -0.00001234",
-                         format_satoshis(-1234, whitespaces=True))
+        self.assertEqual("    -0.0001234 ", format_satoshis(-12340, whitespaces=True))
+        self.assertEqual("    -0.00001234", format_satoshis(-1234, whitespaces=True))
 
     def test_format_satoshis_diff_positive(self):
         self.assertEqual("+0.00001234", format_satoshis(1234, is_diff=True))

@@ -677,10 +677,13 @@ def format_satoshis(
     if len(fract_part) < num_zeros:
         fract_part += "0" * (num_zeros - len(fract_part))
     result = integer_part + DECIMAL_POINT + fract_part
-    # add leading/trailing whitespaces
+    # add leading/trailing whitespaces so that numbers can be aligned in a column
     if whitespaces:
-        result += " " * (decimal_point - len(fract_part))
-        result = " " * (15 - len(result)) + result
+        # add trailing whitespaces
+        result += " " * (overall_precision - len(fract_part))
+        # add leading whitespaces
+        target_len = 15 + precision
+        result = " " * (target_len - len(result)) + result
     return result
 
 
