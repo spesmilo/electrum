@@ -932,6 +932,51 @@ class TestPeer(TestCaseForTestnet):
         self._run_mpp(graph, {'mpp_invoice': False}, {'mpp_invoice': True})
 
     @needs_test_with_all_chacha20_implementations
+    def test_payment_trampoline(self):
+        async def turn_on_trampoline_alice():
+            if graph.workers['alice'].network.channel_db:
+                graph.workers['alice'].network.channel_db.stop()
+                await graph.workers['alice'].network.channel_db.stopped_event.wait()
+                graph.workers['alice'].network.channel_db = None
+
+        async def pay(lnaddr, pay_req):
+            self.assertEqual(PR_UNPAID, graph.workers['dave'].get_payment_status(lnaddr.paymenthash))
+            result, log = await graph.workers['alice'].pay_invoice(pay_req, attempts=10)
+            self.assertTrue(result)
+            self.assertEqual(PR_PAID, graph.workers['dave'].get_payment_status(lnaddr.paymenthash))
+            raise PaymentDone()
+
+        async def f():
+            await turn_on_trampoline_alice()
+            async with TaskGroup() as group:
+                for peer in peers:
+                    await group.spawn(peer._message_loop())
+                    await group.spawn(peer.htlc_switch())
+                await asyncio.sleep(0.2)
+                lnaddr, pay_req = await self.prepare_invoice(graph.workers['dave'], include_routing_hints=True)
+                await group.spawn(pay(lnaddr, pay_req))
+
+        for is_legacy in (True, False):
+            graph_definition = GRAPH_DEFINITIONS['square_graph'].copy()
+            # insert a channel from bob to carol for faster tests,
+            # otherwise will fail randomly
+            graph_definition['bob']['channels']['carol'] = high_fee_channel
+            graph = self.prepare_chans_and_peers_in_graph(graph_definition)
+            peers = graph.peers.values()
+            if is_legacy:
+                # turn off trampoline features
+                graph.workers['dave'].features = graph.workers['dave'].features ^ LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT
+
+            # declare routing nodes as trampoline nodes
+            electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+                graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
+                graph.workers['carol'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['carol'].node_keypair.pubkey),
+            }
+
+            with self.assertRaises(PaymentDone):
+                run(f())
+
+    @needs_test_with_all_chacha20_implementations
     def test_payment_multipart_trampoline(self):
         # single attempt will fail with insufficient trampoline fee
         graph = self.prepare_chans_and_peers_in_graph(GRAPH_DEFINITIONS['square_graph'])
