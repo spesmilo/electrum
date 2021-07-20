@@ -432,14 +432,15 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         result = self.loop.exec_()
         if not result and raise_on_cancel:
             raise UserCancelled()
-        if result == 1:
-            raise GoBack from None
+        # reset screen for both user interactions ('next' and also 'back')
         self.title.setVisible(False)
         self.back_button.setEnabled(False)
         self.next_button.setEnabled(False)
         self.main_widget.setVisible(False)
         self.please_wait.setVisible(True)
         self.refresh_gui()
+        if result == 1:
+            raise GoBack from None
         return result
 
     def refresh_gui(self):
