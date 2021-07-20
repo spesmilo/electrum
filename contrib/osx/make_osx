@@ -32,8 +32,10 @@ which xcodebuild > /dev/null 2>&1 || fail "Please install xcode command line too
 if [ -n "$CODESIGN_CERT" ]; then
     # Test the identity is valid for signing by doing this hack. There is no other way to do this.
     cp -f /bin/ls ./CODESIGN_TEST
+    set +e
     codesign -s "$CODESIGN_CERT" --dryrun -f ./CODESIGN_TEST > /dev/null 2>&1
     res=$?
+    set -e
     rm -f ./CODESIGN_TEST
     if ((res)); then
         fail "Code signing identity \"$CODESIGN_CERT\" appears to be invalid."
@@ -164,7 +166,7 @@ find . -exec touch -t '200101220000' {} + || true
 VERSION=`git describe --tags --dirty --always`
 
 info "Building binary"
-APP_SIGN="$CODESIGN_CERT" pyinstaller --noconfirm --ascii --clean --name $VERSION contrib/osx/osx.spec || fail "Could not build binary"
+pyinstaller --noconfirm --ascii --clean --name $VERSION contrib/osx/osx.spec || fail "Could not build binary"
 
 info "Adding litecoin URI types to Info.plist"
 plutil -insert 'CFBundleURLTypes' \
