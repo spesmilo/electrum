@@ -647,37 +647,37 @@ DECIMAL_POINT = localeconv()['decimal_point']  # type: str
 
 
 def format_satoshis(
-        x,  # in satoshis
+        x: Union[int, float, Decimal, str, None],  # amount in satoshis
         *,
-        num_zeros=0,
-        decimal_point=8,
-        precision=None,
-        is_diff=False,
-        whitespaces=False,
+        num_zeros: int = 0,
+        decimal_point: int = 8,  # how much to shift decimal point to left (default: sat->BTC)
+        precision: int = 0,  # extra digits after satoshi precision
+        is_diff: bool = False,  # if True, enforce a leading sign (+/-)
+        whitespaces: bool = False,  # if True, add whitespaces, to align numbers in a column
 ) -> str:
     if x is None:
         return 'unknown'
     if x == '!':
         return 'max'
-    if precision is None:
-        precision = decimal_point
+    assert isinstance(x, (int, float, Decimal)), f"{x!r} should be a number"
+    # lose redundant precision
+    x = Decimal(x).quantize(Decimal(10) ** (-precision))
     # format string
-    decimal_format = "." + str(precision) if precision > 0 else ""
+    overall_precision = decimal_point + precision  # max digits after final decimal point
+    decimal_format = "." + str(overall_precision) if overall_precision > 0 else ""
     if is_diff:
         decimal_format = '+' + decimal_format
     # initial result
     scale_factor = pow(10, decimal_point)
-    if not isinstance(x, Decimal):
-        x = Decimal(x).quantize(Decimal('1E-8'))
     result = ("{:" + decimal_format + "f}").format(x / scale_factor)
     if "." not in result: result += "."
     result = result.rstrip('0')
-    # extra decimal places
+    # add extra decimal places (zeros)
     integer_part, fract_part = result.split(".")
     if len(fract_part) < num_zeros:
         fract_part += "0" * (num_zeros - len(fract_part))
     result = integer_part + DECIMAL_POINT + fract_part
-    # leading/trailing whitespaces
+    # add leading/trailing whitespaces
     if whitespaces:
         result += " " * (decimal_point - len(fract_part))
         result = " " * (15 - len(result)) + result

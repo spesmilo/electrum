@@ -23,6 +23,22 @@ class TestUtil(ElectrumTestCase):
     def test_format_satoshis_decimal(self):
         self.assertEqual("0.00001234", format_satoshis(Decimal(1234)))
 
+    def test_format_satoshis_msat_resolution(self):
+        self.assertEqual("45831276.",    format_satoshis(Decimal("45831276"), decimal_point=0))
+        self.assertEqual("45831276.",    format_satoshis(Decimal("45831275.748"), decimal_point=0))
+        self.assertEqual("45831275.75", format_satoshis(Decimal("45831275.748"), decimal_point=0, precision=2))
+        self.assertEqual("45831275.748", format_satoshis(Decimal("45831275.748"), decimal_point=0, precision=3))
+
+        self.assertEqual("458312.76",    format_satoshis(Decimal("45831276"), decimal_point=2))
+        self.assertEqual("458312.76",    format_satoshis(Decimal("45831275.748"), decimal_point=2))
+        self.assertEqual("458312.7575", format_satoshis(Decimal("45831275.748"), decimal_point=2, precision=2))
+        self.assertEqual("458312.75748", format_satoshis(Decimal("45831275.748"), decimal_point=2, precision=3))
+
+        self.assertEqual("458.31276", format_satoshis(Decimal("45831276"), decimal_point=5))
+        self.assertEqual("458.31276", format_satoshis(Decimal("45831275.748"), decimal_point=5))
+        self.assertEqual("458.3127575", format_satoshis(Decimal("45831275.748"), decimal_point=5, precision=2))
+        self.assertEqual("458.31275748", format_satoshis(Decimal("45831275.748"), decimal_point=5, precision=3))
+
     def test_format_fee_float(self):
         self.assertEqual("1.7", format_fee_satoshis(1700/1000))
 
@@ -48,11 +64,12 @@ class TestUtil(ElectrumTestCase):
                          format_satoshis(-1234, whitespaces=True))
 
     def test_format_satoshis_diff_positive(self):
-        self.assertEqual("+0.00001234",
-                         format_satoshis(1234, is_diff=True))
+        self.assertEqual("+0.00001234", format_satoshis(1234, is_diff=True))
+        self.assertEqual("+456789.00001234", format_satoshis(45678900001234, is_diff=True))
 
     def test_format_satoshis_diff_negative(self):
         self.assertEqual("-0.00001234", format_satoshis(-1234, is_diff=True))
+        self.assertEqual("-456789.00001234", format_satoshis(-45678900001234, is_diff=True))
 
     def test_format_satoshis_plain(self):
         self.assertEqual("0.00001234", format_satoshis_plain(1234))
