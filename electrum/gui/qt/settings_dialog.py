@@ -345,7 +345,7 @@ class SettingsDialog(WindowModalDialog):
         msg = _('Choose which online block explorer to use for functions that open a web browser')
         block_ex_label = HelpLabel(_('Online Block Explorer') + ':', msg)
         block_ex_combo = QComboBox()
-        block_ex_custom_e = QLineEdit(self.config.get('block_explorer_custom') or '')
+        block_ex_custom_e = QLineEdit(str(self.config.get('block_explorer_custom') or ''))
         block_ex_combo.addItems(block_explorers)
         block_ex_combo.setCurrentIndex(
             block_ex_combo.findText(util.block_explorer(self.config) or BLOCK_EX_CUSTOM_ITEM))
