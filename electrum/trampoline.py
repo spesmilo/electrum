@@ -186,16 +186,22 @@ def create_trampoline_route(
         route[-1].outgoing_node_id = invoice_pubkey
     else:  # end-to-end trampoline
         if r_tag_chosen_for_e2e_trampoline:
-            pubkey, scid, feebase, feerate, cltv = r_tag_chosen_for_e2e_trampoline
+            pubkey = r_tag_chosen_for_e2e_trampoline[0]
             if route[-1].end_node != pubkey:
-                route.append(
-                    TrampolineEdge(
-                        start_node=route[-1].end_node,
-                        end_node=pubkey,
-                        fee_base_msat=feebase,
-                        fee_proportional_millionths=feerate,
-                        cltv_expiry_delta=cltv,
-                        node_features=trampoline_features))
+                # We don't use the forwarding policy from the route hint, which
+                # is only valid for legacy forwarding. Trampoline forwarders require
+                # higher fees and cltv deltas.
+                trampoline_fee_level = trampoline_fee_levels[pubkey]
+                if trampoline_fee_level < len(TRAMPOLINE_FEES):
+                    fee_policy = TRAMPOLINE_FEES[trampoline_fee_level]
+                    route.append(
+                        TrampolineEdge(
+                            start_node=route[-1].end_node,
+                            end_node=pubkey,
+                            fee_base_msat=fee_policy['fee_base_msat'],
+                            fee_proportional_millionths=fee_policy['fee_proportional_millionths'],
+                            cltv_expiry_delta=fee_policy['cltv_expiry_delta'],
+                            node_features=trampoline_features))
 
     # Final edge (not part of the route if payment is legacy, but eclair requires an encrypted blob)
     route.append(
