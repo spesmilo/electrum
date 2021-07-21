@@ -1202,6 +1202,11 @@ class ElectrumWindow(App, Logger):
         self.set_fee_status()
 
     def protected(self, msg, f, args):
+        tx_btc = args[0].amount_msat/1000
+        msg += "\n\n" + _("This will send " + str(self.format_amount(tx_btc).strip()) + ' ' + self.base_unit )
+        if self.fx.is_enabled():
+            msg += _(' (' + str(self.fx.format_amount(tx_btc).strip()) + ' ' + self.fx.ccy + ')')
+        msg += '?'
         if self.electrum_config.get('pin_code'):
             msg += "\n" + _("Enter your PIN code to proceed")
             on_success = lambda pw: f(*args, self.password)
