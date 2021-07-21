@@ -113,7 +113,6 @@ class HistoryScreen(CScreen):
         timestamp = tx_item['timestamp']
         key = tx_item.get('txid') or tx_item['payment_hash']
         if is_lightning:
-            status = 0
             status_str = 'unconfirmed' if timestamp is None else format_time(int(timestamp))
             icon = f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/lightning'
             message = tx_item['label']
@@ -122,7 +121,6 @@ class HistoryScreen(CScreen):
             fee_text = '' if fee is None else 'fee: %d sat'%fee
         else:
             tx_hash = tx_item['txid']
-            conf = tx_item['confirmations']
             tx_mined_info = TxMinedInfo(height=tx_item['height'],
                                         conf=tx_item['confirmations'],
                                         timestamp=tx_item['timestamp'])
@@ -141,9 +139,11 @@ class HistoryScreen(CScreen):
         value = tx_item['value'].value
         if value is not None:
             ri['is_mine'] = value <= 0
-            ri['amount'] = self.app.format_amount(value, is_diff = True)
+            ri['amount'] = self.app.format_amount(value, is_diff=True)
+            ri['base_unit'] = self.app.base_unit
             if 'fiat_value' in tx_item:
                 ri['quote_text'] = str(tx_item['fiat_value'])
+                ri['fx_ccy'] = tx_item['fiat_value'].ccy
         return ri
 
     def update(self, see_all=False):
