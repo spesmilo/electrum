@@ -418,11 +418,7 @@ class ReceiveScreen(CScreen):
 
     def get_URI(self):
         from electrum.util import create_bip21_uri
-        amount = self.amount
-        if amount:
-            a, u = self.amount.split()
-            assert u == self.app.base_unit
-            amount = Decimal(a) * pow(10, self.app.decimal_point())
+        amount = self.app.get_amount(self.amount)
         return create_bip21_uri(self.address, amount, self.message)
 
     def do_copy(self):
