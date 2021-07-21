@@ -98,8 +98,7 @@ class SettingsDialog(WindowModalDialog):
             if self.config.num_zeros != value:
                 self.config.num_zeros = value
                 self.config.set_key('num_zeros', value, True)
-                self.window.history_list.update()
-                self.window.address_list.update()
+                self.window.need_update.set()
         nz.valueChanged.connect(on_nz)
         gui_widgets.append((nz_label, nz))
 
@@ -190,6 +189,17 @@ class SettingsDialog(WindowModalDialog):
         self.set_alias_color()
         self.alias_e.editingFinished.connect(self.on_alias_edit)
         oa_widgets.append((alias_label, self.alias_e))
+
+        msat_cb = QCheckBox(_("Show amounts with msat precision"))
+        msat_cb.setChecked(bool(self.config.get('amt_precision_post_satoshi', False)))
+        def on_msat_checked(b: bool):
+            prec = 3 if b else 0
+            if self.config.amt_precision_post_satoshi != prec:
+                self.config.amt_precision_post_satoshi = prec
+                self.config.set_key('amt_precision_post_satoshi', prec)
+                self.window.need_update.set()
+        msat_cb.stateChanged.connect(on_msat_checked)
+        lightning_widgets.append((msat_cb, None))
 
         # units
         units = base_units_list
@@ -345,7 +355,7 @@ class SettingsDialog(WindowModalDialog):
         msg = _('Choose which online block explorer to use for functions that open a web browser')
         block_ex_label = HelpLabel(_('Online Block Explorer') + ':', msg)
         block_ex_combo = QComboBox()
-        block_ex_custom_e = QLineEdit(self.config.get('block_explorer_custom') or '')
+        block_ex_custom_e = QLineEdit(str(self.config.get('block_explorer_custom') or ''))
         block_ex_combo.addItems(block_explorers)
         block_ex_combo.setCurrentIndex(
             block_ex_combo.findText(util.block_explorer(self.config) or BLOCK_EX_CUSTOM_ITEM))

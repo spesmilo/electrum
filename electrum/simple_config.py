@@ -110,6 +110,7 @@ class SimpleConfig(Logger):
         except UnknownBaseUnit:
             self.decimal_point = DECIMAL_POINT_DEFAULT
         self.num_zeros = int(self.get('num_zeros', 0))
+        self.amt_precision_post_satoshi = int(self.get('amt_precision_post_satoshi', 0))
 
     def electrum_path(self):
         # Read electrum_path from command line
@@ -665,6 +666,7 @@ class SimpleConfig(Logger):
             decimal_point=self.decimal_point,
             is_diff=is_diff,
             whitespaces=whitespaces,
+            precision=self.amt_precision_post_satoshi,
         )
 
     def format_amount_and_units(self, amount):

@@ -27,6 +27,7 @@ electrum_data
 
 # build workspaces
 contrib/build-wine/tmp/
+contrib/build-wine/signed/
 contrib/build-wine/fresh_clone/
 contrib/build-linux/sdist/fresh_clone/
 contrib/build-linux/appimage/build/
