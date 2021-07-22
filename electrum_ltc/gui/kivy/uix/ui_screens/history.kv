@@ -22,11 +22,12 @@
     is_mine: True
     amount: '--'
     amount_color: '#FF6657' if self.is_mine else '#2EA442'
-    confirmations: 0
     date: ''
     quote_text: ''
     amount_str: self.quote_text if app.is_fiat else self.amount
-    unit_str: app.fx.ccy if app.is_fiat else app.base_unit
+    base_unit: ''
+    fx_ccy: ''
+    unit_str: self.fx_ccy if app.is_fiat else self.base_unit
     Image:
         id: icon
         source: root.icon
