@@ -712,13 +712,13 @@ class BaseWizard(Logger):
 
     def request_passphrase(self, seed, opt_passphrase):
         if opt_passphrase:
-            f = lambda x: self.confirm_seed(seed, x)
-            self.passphrase_dialog(run_next=f)
+            f = lambda x: self.run('confirm_seed', seed, x)
+            self.run('passphrase_dialog', f)
         else:
             self.run('confirm_seed', seed, '')
 
     def confirm_seed(self, seed, passphrase):
-        f = lambda x: self.confirm_passphrase(seed, passphrase)
+        f = lambda x: self.run('confirm_passphrase', seed, passphrase)
         self.confirm_seed_dialog(run_next=f, seed=seed if self.config.get('debug_seed') else '', test=lambda x: x==seed)
 
     def confirm_passphrase(self, seed, passphrase):
