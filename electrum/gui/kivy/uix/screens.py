@@ -341,7 +341,9 @@ class SendScreen(CScreen, Logger):
     def do_pay_invoice(self, invoice):
         if invoice.is_lightning():
             if self.app.wallet.lnworker:
-                self.app.protected(_('Pay lightning invoice?'), self._do_pay_lightning, (invoice,))
+                amount_sat = invoice.get_amount_sat()
+                msg = _("Pay lightning invoice?") + '\n\n' + _("This will send {}?").format(self.app.format_amount_and_units_with_fiat(amount_sat)) +'\n'
+                self.app.protected(msg, self._do_pay_lightning, (invoice,))
             else:
                 self.app.show_error(_("Lightning payments are not available for this wallet"))
         else:
