@@ -973,6 +973,13 @@ class ElectrumWindow(App, Logger):
             return 'max'
         return format_satoshis_plain(x, decimal_point=self.decimal_point()) + ' ' + self.base_unit
 
+    def format_amount_and_units_with_fiat(self, x) -> str:
+        text = self.format_amount_and_units(x)
+        fiat = self.fx.format_amount_and_units(x) if self.fx else None
+        if text and fiat:
+            text += f' ({fiat})'
+        return text
+
     def format_fee_rate(self, fee_rate):
         # fee_rate is in sat/kB
         return format_fee_satoshis(fee_rate/1000) + ' sat/byte'
