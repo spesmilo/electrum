@@ -627,11 +627,16 @@ def chunks(items, size: int):
         yield items[i: i + size]
 
 
-def format_satoshis_plain(x, *, decimal_point=8) -> str:
+def format_satoshis_plain(
+        x: Union[int, float, Decimal, str],  # amount in satoshis,
+        *,
+        decimal_point: int = 8,  # how much to shift decimal point to left (default: sat->BTC)
+) -> str:
     """Display a satoshi amount scaled.  Always uses a '.' as a decimal
     point and has no thousands separator"""
     if x == '!':
         return 'max'
+    assert isinstance(x, (int, float, Decimal)), f"{x!r} should be a number"
     scale_factor = pow(10, decimal_point)
     return "{:.8f}".format(Decimal(x) / scale_factor).rstrip('0').rstrip('.')
 
