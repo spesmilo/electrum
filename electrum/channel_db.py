@@ -826,7 +826,7 @@ class ChannelDB(SqlDB):
             *,
             my_channels: Dict[ShortChannelID, 'Channel'] = None,
             private_route_edges: Dict[ShortChannelID, 'RouteEdge'] = None,
-    ) -> Set[bytes]:
+    ) -> Set[ShortChannelID]:
         """Returns the set of short channel IDs where node_id is one of the channel participants."""
         if not self.data_loaded.is_set():
             raise Exception("channelDB data not loaded yet!")
