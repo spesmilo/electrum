@@ -684,7 +684,7 @@ def format_satoshis(
         fract_part += "0" * (num_zeros - len(fract_part))
     # add whitespaces as thousands' separator for better readability of numbers
     if add_thousands_sep:
-        sign = integer_part[0] if integer_part[0] == "+" or integer_part[0] == "-" else ""
+        sign = integer_part[0] if integer_part[0] in ("+", "-") else ""
         if sign == "-":
             integer_part = integer_part[1:]
         integer_part = "{:,}".format(int(integer_part)).replace(',', " ")
