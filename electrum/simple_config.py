@@ -659,7 +659,7 @@ class SimpleConfig(Logger):
             except:
                 pass
 
-    def format_amount(self, x, is_diff = True, whitespaces = False, add_thousands_sep = True):
+    def format_amount(self, x, is_diff=False, whitespaces=False, add_thousands_sep=True):
         return format_satoshis(
             x,
             num_zeros=self.num_zeros,
