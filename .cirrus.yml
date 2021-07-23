@@ -1,0 +1,51 @@
+task:
+  container:
+    image: $ELECTRUM_IMAGE
+    cpu: 1
+    memory: 1G
+  matrix:
+    - name: Tox Python $ELECTRUM_PYTHON_VERSION
+      env:
+        ELECTRUM_IMAGE: python:$ELECTRUM_PYTHON_VERSION
+        TOXENV: py3
+        ELECTRUM_PYTHON_NAME: python3
+      matrix:
+       - env:
+           ELECTRUM_PYTHON_VERSION: 3.6
+       - env:
+           ELECTRUM_PYTHON_VERSION: 3.7
+       - env:
+           ELECTRUM_PYTHON_VERSION: 3.8
+       - env:
+           ELECTRUM_PYTHON_VERSION: 3.9
+       - env:
+           ELECTRUM_PYTHON_VERSION: 3
+       - env:
+           ELECTRUM_PYTHON_VERSION: rc
+    - name: Tox PyPy
+      allow_failures: true
+      env:
+        ELECTRUM_IMAGE: pypy:3
+        TOXENV: pypy3
+        ELECTRUM_PYTHON_NAME: pypy3
+  pip_cache:
+    folder: ~/.cache/pip
+    fingerprint_script: echo $ELECTRUM_IMAGE && cat $ELECTRUM_REQUIREMENTS
+    populate_script: mkdir -p ~/.cache/pip
+  electrum_cache:
+    folder: /tmp/electrum-build
+    populate_script: mkdir -p /tmp/electrum-build
+  version_script:
+    - $ELECTRUM_PYTHON_NAME --version
+  tag_script:
+    - git tag
+  install_script:
+    - apt-get update
+    - apt-get -y install libsecp256k1-0
+    - pip install -r $ELECTRUM_REQUIREMENTS
+  tox_script:
+    - tox
+  coveralls_script:
+    - coveralls
+  env:
+    ELECTRUM_REQUIREMENTS: contrib/requirements/requirements-travis.txt
