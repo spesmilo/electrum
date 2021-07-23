@@ -115,24 +115,13 @@ def wizard_dialog(func):
                     raise
             # next dialog
             try:
-                while True:
-                    try:
-                        run_next(*out)
-                    except ReRunDialog:
-                        # restore state, and then let the loop re-run next
-                        wizard.go_back(rerun_previous=False)
-                    else:
-                        break
-            except GoBack as e:
+                run_next(*out)
+            except GoBack:
                 # to go back from the next dialog, we ask the wizard to restore state
-                wizard.go_back(rerun_previous=False)
-                # and we re-run the current dialog
-                if wizard.can_go_back():
-                    # also rerun any calculations that might have populated the inputs to the current dialog,
-                    # by going back to just after the *previous* dialog finished
-                    raise ReRunDialog() from e
-                else:
-                    continue
+                rerun_previous = wizard.can_go_back()
+                wizard.go_back(rerun_previous=rerun_previous)
+                if rerun_previous:
+                    break
             else:
                 break
     return func_wrapper
