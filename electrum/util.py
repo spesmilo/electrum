@@ -684,12 +684,13 @@ def format_satoshis(
         fract_part += "0" * (num_zeros - len(fract_part))
     # add whitespaces as thousands' separator for better readability of numbers
     if add_thousands_sep:
-        sign = integer_part[0]
-        integer_part = "{:,}".format(int(integer_part)).replace(',', ' ')
+        sign = integer_part[0] if integer_part[0] == "+" or integer_part[0] == "-" else ""
+        if sign == "-":
+            integer_part = integer_part[1:]
+        integer_part = "{:,}".format(int(integer_part)).replace(',', " ")
+        integer_part = sign + integer_part
         fract_part = " ".join(fract_part[i:i+3] for i in range(0, len(fract_part), 3))
-        result = sign + integer_part + DECIMAL_POINT + fract_part
-    else: 
-        result = integer_part + DECIMAL_POINT + fract_part
+    result = integer_part + DECIMAL_POINT + fract_part
     # add leading/trailing whitespaces so that numbers can be aligned in a column
     if whitespaces:
         # add trailing whitespaces
