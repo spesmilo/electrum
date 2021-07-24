@@ -144,3 +144,17 @@ task:
       env:
         ELECTRUM_LINTERS: E,F,W,C90
       allow_failures: true
+
+task:
+  name: Windows build
+  container:
+    dockerfile: contrib/build-wine/Dockerfile
+    cpu: 1
+    memory: 2G
+  build_script:
+    - cd contrib/build-wine
+    - ./make_win.sh
+  binaries_artifacts:
+    path: "contrib/build-wine/dist/*"
+  env:
+    CIRRUS_WORKING_DIR: /opt/wine64/drive_c/electrum
