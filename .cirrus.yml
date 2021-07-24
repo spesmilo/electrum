@@ -49,3 +49,30 @@ task:
     - coveralls
   env:
     ELECTRUM_REQUIREMENTS: contrib/requirements/requirements-travis.txt
+
+task:
+  name: Locale
+  container:
+    image: $ELECTRUM_IMAGE
+    cpu: 1
+    memory: 1G
+  pip_cache:
+    folder: ~/.cache/pip
+    fingerprint_script: echo Locale && echo $ELECTRUM_IMAGE && cat $ELECTRUM_REQUIREMENTS
+    populate_script: mkdir -p ~/.cache/pip
+  electrum_cache:
+    folder: /tmp/electrum-build
+    populate_script: mkdir -p /tmp/electrum-build
+  install_script:
+    - apt-get update
+    - apt-get -y install libsecp256k1-0
+    - pip install -r $ELECTRUM_REQUIREMENTS
+    - pip install requests
+  locale_script:
+    - contrib/push_locale
+  env:
+    ELECTRUM_IMAGE: python:3.7
+    ELECTRUM_REQUIREMENTS: contrib/requirements/requirements-travis.txt
+  depends_on:
+    - Tox Python 3.9
+  only_if: $CIRRUS_BRANCH == 'master'
