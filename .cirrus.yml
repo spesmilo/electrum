@@ -78,6 +78,46 @@ task:
   only_if: $CIRRUS_BRANCH == 'master'
 
 task:
+  name: Regtest functional tests
+  container:
+    image: $ELECTRUM_IMAGE
+    cpu: 1
+    memory: 1G
+  pip_cache:
+    folder: ~/.cache/pip
+    fingerprint_script: echo Regtest && echo $ELECTRUM_IMAGE && cat $ELECTRUM_REQUIREMENTS
+    populate_script: mkdir -p ~/.cache/pip
+  electrum_cache:
+    folder: /tmp/electrum-build
+    populate_script: mkdir -p /tmp/electrum-build
+  bitcoind_cache:
+    folder: /tmp/bitcoind
+    populate_script: mkdir -p /tmp/bitcoind
+  install_script:
+    - apt-get update
+    - apt-get -y install libsecp256k1-0 curl jq bc
+    - pip3 install .[tests]
+    - pip3 install electrumx
+    - "BITCOIND_VERSION=$(curl https://bitcoincore.org/en/download/ | grep -E -i --only-matching 'Latest version: [0-9\\.]+' | grep -E --only-matching '[0-9\\.]+')"
+    - BITCOIND_FILENAME=bitcoin-$BITCOIND_VERSION-x86_64-linux-gnu.tar.gz
+    - BITCOIND_PATH=/tmp/bitcoind/$BITCOIND_FILENAME
+    - BITCOIND_URL=https://bitcoincore.org/bin/bitcoin-core-$BITCOIND_VERSION/$BITCOIND_FILENAME
+    - tar -xaf $BITCOIND_PATH || (rm -f /tmp/bitcoind/* && curl --output $BITCOIND_PATH $BITCOIND_URL && tar -xaf $BITCOIND_PATH)
+    - cp -a bitcoin-$BITCOIND_VERSION/* /usr/
+  bitcoind_service_background_script:
+    - electrum/tests/regtest/run_bitcoind.sh
+  electrumx_service_background_script:
+    - electrum/tests/regtest/run_electrumx.sh
+  regtest_script:
+    - sleep 10s
+    - python3 -m unittest electrum/tests/regtest.py
+  env:
+    ELECTRUM_IMAGE: python:3.7
+    ELECTRUM_REQUIREMENTS: contrib/requirements/requirements-travis.txt
+    # ElectrumX exits with an error without this:
+    ALLOW_ROOT: 1
+
+task:
   container:
     image: $ELECTRUM_IMAGE
     cpu: 1
