@@ -185,3 +185,14 @@ task:
     - shasum -a 256 dist/*.dmg
   binaries_artifacts:
     path: "dist/*"
+
+task:
+  name: AppImage build
+  container:
+    dockerfile: contrib/build-linux/appimage/Dockerfile
+    cpu: 2
+    memory: 1G
+  build_script:
+    - ./contrib/build-linux/appimage/make_appimage.sh
+  binaries_artifacts:
+    path: "dist/*"
