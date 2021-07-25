@@ -207,3 +207,15 @@ task:
     - ./contrib/build-linux/sdist/make_sdist.sh
   binaries_artifacts:
     path: "dist/*"
+
+task:
+  name: Submodules
+  container:
+    image: python:3.7
+    cpu: 1
+    memory: 1G
+  fetch_script:
+    - git fetch --all --tags
+  check_script:
+    - ./contrib/deterministic-build/check_submodules.sh
+  only_if: $CIRRUS_TAG != ''
