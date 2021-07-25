@@ -158,3 +158,14 @@ task:
     path: "contrib/build-wine/dist/*"
   env:
     CIRRUS_WORKING_DIR: /opt/wine64/drive_c/electrum
+
+task:
+  name: Android build
+  container:
+    dockerfile: contrib/android/Dockerfile
+    cpu: 2
+    memory: 2G
+  build_script:
+    - ./contrib/android/make_apk
+  binaries_artifacts:
+    path: "dist/*"
