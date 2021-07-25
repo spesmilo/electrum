@@ -196,3 +196,14 @@ task:
     - ./contrib/build-linux/appimage/make_appimage.sh
   binaries_artifacts:
     path: "dist/*"
+
+task:
+  name: tarball build
+  container:
+    dockerfile: contrib/build-linux/sdist/Dockerfile
+    cpu: 1
+    memory: 1G
+  build_script:
+    - ./contrib/build-linux/sdist/make_sdist.sh
+  binaries_artifacts:
+    path: "dist/*"
