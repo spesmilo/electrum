@@ -10,6 +10,7 @@ class TestLightning(unittest.TestCase):
         process = subprocess.Popen(['electrum/tests/regtest/regtest.sh'] + args, stderr=subprocess.STDOUT, stdout=subprocess.PIPE)
         for line in iter(process.stdout.readline, b''):
             sys.stdout.write(line.decode(sys.stdout.encoding))
+            sys.stdout.flush()
         process.wait(timeout=timeout)
         process.stdout.close()
         assert process.returncode == 0
