@@ -76,3 +76,31 @@ task:
   depends_on:
     - Tox Python 3.9
   only_if: $CIRRUS_BRANCH == 'master'
+
+task:
+  container:
+    image: $ELECTRUM_IMAGE
+    cpu: 1
+    memory: 1G
+  pip_cache:
+    folder: ~/.cache/pip
+    fingerprint_script: echo Flake8 && echo $ELECTRUM_IMAGE && cat $ELECTRUM_REQUIREMENTS
+    populate_script: mkdir -p ~/.cache/pip
+  electrum_cache:
+    folder: /tmp/electrum-build
+    populate_script: mkdir -p /tmp/electrum-build
+  install_script:
+    - pip install flake8
+  flake8_script:
+    - flake8 . --count --select=$ELECTRUM_LINTERS --show-source --statistics
+  env:
+    ELECTRUM_IMAGE: python:3.7
+    ELECTRUM_REQUIREMENTS: contrib/requirements/requirements-travis.txt
+  matrix:
+    - name: Flake8 Mandatory
+      env:
+        ELECTRUM_LINTERS: E9,F63,F7,F82
+    - name: Flake8 Non-Mandatory
+      env:
+        ELECTRUM_LINTERS: E,F,W,C90
+      allow_failures: true
