@@ -169,3 +169,19 @@ task:
     - ./contrib/android/make_apk
   binaries_artifacts:
     path: "dist/*"
+
+task:
+  name: MacOS build
+  macos_instance:
+    image: catalina-xcode-11.3.1
+  env:
+    TARGET_OS: macOS
+  install_script:
+    - git fetch --all --tags
+  build_script:
+    - ./contrib/osx/make_osx
+  sum_script:
+    - ls -lah dist
+    - shasum -a 256 dist/*.dmg
+  binaries_artifacts:
+    path: "dist/*"
