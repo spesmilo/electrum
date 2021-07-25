@@ -60,9 +60,6 @@ class ScriptTypeNotSupported(Exception): pass
 class GoBack(Exception): pass
 
 
-class ReRunDialog(Exception): pass
-
-
 class ChooseHwDeviceAgain(Exception): pass
 
 
@@ -355,8 +352,9 @@ class BaseWizard(Logger):
             descr = f"{label} [{info.model_name or name}, {state}, {transport_str}]"
             choices.append(((name, info), descr))
         msg = _('Select a device') + ':'
+        f = lambda *args: self.run('on_device', *args, purpose=purpose, storage=storage)
         self.choice_dialog(title=title, message=msg, choices=choices,
-                           run_next=lambda *args: self.on_device(*args, purpose=purpose, storage=storage))
+                           run_next=f)
 
     def on_device(self, name, device_info: 'DeviceInfo', *, purpose, storage: WalletStorage = None):
         self.plugin = self.plugins.get_plugin(name)
@@ -377,9 +375,7 @@ class BaseWizard(Logger):
                 # will need to re-pair
                 devmgr.unpair_id(device_info.device.id_)
             raise ChooseHwDeviceAgain()
-        except GoBack:
-            raise ChooseHwDeviceAgain()
-        except (UserCancelled, ReRunDialog):
+        except (UserCancelled, GoBack):
             raise
         except UserFacingException as e:
             self.show_error(str(e))
@@ -392,7 +388,7 @@ class BaseWizard(Logger):
         if purpose == HWD_SETUP_NEW_WALLET:
             def f(derivation, script_type):
                 derivation = normalize_bip32_derivation(derivation)
-                self.run('on_hw_derivation', name, device_info, derivation, script_type)
+                self.on_hw_derivation(name, device_info, derivation, script_type)
             self.derivation_and_script_type_dialog(f)
         elif purpose == HWD_SETUP_DECRYPT_WALLET:
             password = client.get_password_for_storage_encryption()

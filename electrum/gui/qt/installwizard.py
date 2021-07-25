@@ -19,7 +19,7 @@ from PyQt5.QtWidgets import (QWidget, QDialog, QLabel, QHBoxLayout, QMessageBox,
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.storage import WalletStorage, StorageReadWriteError
 from electrum.util import UserCancelled, InvalidPassword, WalletFileException, get_new_wallet_name
-from electrum.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET, GoBack, ReRunDialog
+from electrum.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET, GoBack
 from electrum.network import Network
 from electrum.i18n import _
 
