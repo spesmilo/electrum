@@ -524,10 +524,10 @@ class BaseWizard(Logger):
                 self.on_restore_bip43(root_seed)
             self.passphrase_dialog(run_next=f, is_restoring=True) if is_ext else f('')
         elif self.seed_type in ['standard', 'segwit']:
-            f = lambda passphrase: self.run('create_keystore', seed, passphrase)
+            f = lambda passphrase: self.create_keystore(seed, passphrase)
             self.passphrase_dialog(run_next=f, is_restoring=True) if is_ext else f('')
         elif self.seed_type == 'old':
-            self.run('create_keystore', seed, '')
+            self.create_keystore(seed, '')
         elif mnemonic.is_any_2fa_seed_type(self.seed_type):
             self.load_2fa()
             self.run('on_restore_seed', seed, is_ext)
@@ -574,6 +574,9 @@ class BaseWizard(Logger):
                 self.show_error(_('Wrong key type') + ' %s'%t1)
                 self.run('choose_keystore')
                 return
+            # if a standard wallet will always create only 1 keystore,
+            # we can clear the list to make reusable with going back in the wizard
+            self.keystores.clear()
             self.keystores.append(k)
             self.run('create_wallet')
         elif self.wallet_type == 'multisig':
@@ -586,7 +589,7 @@ class BaseWizard(Logger):
                 self.show_error(_('Error: duplicate master public key'))
                 self.run('choose_keystore')
                 return
-            if len(self.keystores)>0:
+            if len(self.keystores) > 0:
                 t2 = xpub_type(self.keystores[0].xpub)
                 if t1 != t2:
                     self.show_error(_('Cannot add this cosigner:') + '\n' + "Their key type is '%s', we are '%s'"%(t1, t2))
@@ -609,6 +612,8 @@ class BaseWizard(Logger):
         encrypt_keystore = any(k.may_have_password() for k in self.keystores)
         # note: the following condition ("if") is duplicated logic from
         # wallet.get_available_storage_encryption_version()
+        # reset stack to disable 'back' button in password dialog
+        #self.reset_stack()
         if self.wallet_type == 'standard' and isinstance(self.keystores[0], Hardware_KeyStore):
             # offer encrypting with a pw derived from the hw device
             k = self.keystores[0]  # type: Hardware_KeyStore
@@ -631,8 +636,6 @@ class BaseWizard(Logger):
                     storage_enc_version=StorageEncryptionVersion.XPUB_PASSWORD,
                     encrypt_keystore=False))
         else:
-            # reset stack to disable 'back' button in password dialog
-            self.reset_stack()
             # prompt the user to set an arbitrary password
             self.request_password(
                 run_next=lambda password, encrypt_storage: self.on_password(
@@ -714,20 +717,20 @@ class BaseWizard(Logger):
             self.run('confirm_seed', seed, '')
 
     def confirm_seed(self, seed, passphrase):
-        f = lambda x: self.run('confirm_passphrase', seed, passphrase)
+        f = lambda x: self.create_keystore(seed, '')
+        if passphrase:
+            f = lambda x: self.run('confirm_passphrase', seed, passphrase)
         self.confirm_seed_dialog(run_next=f, seed=seed if self.config.get('debug_seed') else '', test=lambda x: x==seed)
 
     def confirm_passphrase(self, seed, passphrase):
-        f = lambda x: self.run('create_keystore', seed, x)
-        if passphrase:
-            title = _('Confirm Seed Extension')
-            message = '\n'.join([
-                _('Your seed extension must be saved together with your seed.'),
-                _('Please type it here.'),
-            ])
-            self.line_dialog(run_next=f, title=title, message=message, default='', test=lambda x: x==passphrase)
-        else:
-            f('')
+        assert passphrase
+        f = lambda x: self.create_keystore(seed, x)
+        title = _('Confirm Seed Extension')
+        message = '\n'.join([
+            _('Your seed extension must be saved together with your seed.'),
+            _('Please type it here.'),
+        ])
+        self.line_dialog(run_next=f, title=title, message=message, default='', test=lambda x: x==passphrase)
 
     def show_error(self, msg: Union[str, BaseException]) -> None:
         raise NotImplementedError()
