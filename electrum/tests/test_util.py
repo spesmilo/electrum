@@ -87,7 +87,7 @@ class TestUtil(ElectrumTestCase):
 
     def test_format_satoshis_plain_to_mbtc(self):
         self.assertEqual("0.01234", format_satoshis_plain(1234, decimal_point=5))
-      
+
     def _do_test_parse_URI(self, uri, expected):
         result = parse_URI(uri)
         self.assertEqual(expected, result)
