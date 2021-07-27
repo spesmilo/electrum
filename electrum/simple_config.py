@@ -667,7 +667,7 @@ class SimpleConfig(Logger):
             is_diff=is_diff,
             whitespaces=whitespaces,
             precision=self.amt_precision_post_satoshi,
-            add_thousands_sep = add_thousands_sep,
+            add_thousands_sep=add_thousands_sep,
         )
 
     def format_amount_and_units(self, amount):
