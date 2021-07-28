@@ -693,11 +693,16 @@ def format_satoshis(
     result = integer_part + DECIMAL_POINT + fract_part
     # add leading/trailing whitespaces so that numbers can be aligned in a column
     if whitespaces:
+        target_fract_len = overall_precision
+        target_integer_len = 14 - decimal_point  # should be enough for up to unsigned 999999 BTC
+        if add_thousands_sep:
+            target_fract_len += max(0, (target_fract_len - 1) // 3)
+            target_integer_len += max(0, (target_integer_len - 1) // 3)
         # add trailing whitespaces
-        result += " " * (overall_precision - len(fract_part))
+        result += " " * (target_fract_len - len(fract_part))
         # add leading whitespaces
-        target_len = 15 + precision
-        result = " " * (target_len - len(result)) + result
+        target_total_len = target_integer_len + 1 + target_fract_len
+        result = " " * (target_total_len - len(result)) + result
     return result
 
 
