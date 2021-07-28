@@ -192,8 +192,8 @@ class SettingsDialog(WindowModalDialog):
 
         msat_cb = QCheckBox(_("Show amounts with msat precision"))
         msat_cb.setChecked(bool(self.config.get('amt_precision_post_satoshi', False)))
-        def on_msat_checked(b: bool):
-            prec = 3 if b else 0
+        def on_msat_checked(v):
+            prec = 3 if v == Qt.Checked else 0
             if self.config.amt_precision_post_satoshi != prec:
                 self.config.amt_precision_post_satoshi = prec
                 self.config.set_key('amt_precision_post_satoshi', prec)
