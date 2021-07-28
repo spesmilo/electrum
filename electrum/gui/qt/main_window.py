@@ -218,11 +218,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.utxo_tab = self.create_utxo_tab()
         self.console_tab = self.create_console_tab()
         self.contacts_tab = self.create_contacts_tab()
+        self.staking_tab = self.create_staking_tab()
         # todo uncomment when turn on lightning
 #        self.channels_tab = self.create_channels_tab()
         tabs.addTab(self.create_history_tab(), read_QIcon("tab_history.png"), _('History'))
         tabs.addTab(self.send_tab, read_QIcon("tab_send.png"), _('Send'))
         tabs.addTab(self.receive_tab, read_QIcon("tab_receive.png"), _('Receive'))
+        tabs.addTab(self.staking_tab, read_QIcon("tab_receive.png"), _('Staking'))
 
         def add_optional_tab(tabs, tab, icon, description, name):
             tab.tab_icon = icon
@@ -2009,6 +2011,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def create_contacts_tab(self):
         from .contact_list import ContactList
         self.contact_list = l = ContactList(self)
+        return self.create_list_tab(l)
+
+    def create_staking_tab(self):
+        from .staking_list import StakingList
+        self.staking_list = l = StakingList(self)
         return self.create_list_tab(l)
 
     def remove_address(self, addr):
