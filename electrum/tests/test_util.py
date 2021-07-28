@@ -70,6 +70,14 @@ class TestUtil(ElectrumTestCase):
     def test_format_satoshis_diff_negative(self):
         self.assertEqual("-0.00001234", format_satoshis(-1234, is_diff=True))
         self.assertEqual("-456789.00001234", format_satoshis(-45678900001234, is_diff=True))
+        
+    def test_format_satoshis_add_thousands_sep(self):
+        self.assertEqual("178 890 000.", format_satoshis(Decimal(178890000), decimal_point=0, add_thousands_sep=True))
+        self.assertEqual("458 312.757 48", format_satoshis(Decimal("45831275.748"), decimal_point=2, add_thousands_sep=True, precision=5))
+        self.assertEqual("+4 583 127.574 8", format_satoshis(Decimal("45831275.748"), decimal_point=1, is_diff=True, add_thousands_sep=True, precision=4))
+        self.assertEqual("+456 789 112.004 56", format_satoshis(Decimal("456789112.00456"), decimal_point=0, is_diff=True, add_thousands_sep=True, precision=5)) 
+        self.assertEqual("-0.000 012 34", format_satoshis(-1234, is_diff=True, add_thousands_sep=True)) 
+        self.assertEqual("-456 789.000 012 34", format_satoshis(-45678900001234, is_diff=True, add_thousands_sep=True))
 
     def test_format_satoshis_plain(self):
         self.assertEqual("0.00001234", format_satoshis_plain(1234))
