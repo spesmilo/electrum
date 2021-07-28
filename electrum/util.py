@@ -627,11 +627,16 @@ def chunks(items, size: int):
         yield items[i: i + size]
 
 
-def format_satoshis_plain(x, *, decimal_point=8) -> str:
+def format_satoshis_plain(
+        x: Union[int, float, Decimal, str],  # amount in satoshis,
+        *,
+        decimal_point: int = 8,  # how much to shift decimal point to left (default: sat->BTC)
+) -> str:
     """Display a satoshi amount scaled.  Always uses a '.' as a decimal
     point and has no thousands separator"""
     if x == '!':
         return 'max'
+    assert isinstance(x, (int, float, Decimal)), f"{x!r} should be a number"
     scale_factor = pow(10, decimal_point)
     return "{:.8f}".format(Decimal(x) / scale_factor).rstrip('0').rstrip('.')
 
@@ -654,6 +659,7 @@ def format_satoshis(
         precision: int = 0,  # extra digits after satoshi precision
         is_diff: bool = False,  # if True, enforce a leading sign (+/-)
         whitespaces: bool = False,  # if True, add whitespaces, to align numbers in a column
+        add_thousands_sep: bool = False,  # if True, add whitespaces, for better readability of the numbers
 ) -> str:
     if x is None:
         return 'unknown'
@@ -676,14 +682,27 @@ def format_satoshis(
     integer_part, fract_part = result.split(".")
     if len(fract_part) < num_zeros:
         fract_part += "0" * (num_zeros - len(fract_part))
+    # add whitespaces as thousands' separator for better readability of numbers
+    if add_thousands_sep:
+        sign = integer_part[0] if integer_part[0] in ("+", "-") else ""
+        if sign == "-":
+            integer_part = integer_part[1:]
+        integer_part = "{:,}".format(int(integer_part)).replace(',', " ")
+        integer_part = sign + integer_part
+        fract_part = " ".join(fract_part[i:i+3] for i in range(0, len(fract_part), 3))
     result = integer_part + DECIMAL_POINT + fract_part
     # add leading/trailing whitespaces so that numbers can be aligned in a column
     if whitespaces:
+        target_fract_len = overall_precision
+        target_integer_len = 14 - decimal_point  # should be enough for up to unsigned 999999 BTC
+        if add_thousands_sep:
+            target_fract_len += max(0, (target_fract_len - 1) // 3)
+            target_integer_len += max(0, (target_integer_len - 1) // 3)
         # add trailing whitespaces
-        result += " " * (overall_precision - len(fract_part))
+        result += " " * (target_fract_len - len(fract_part))
         # add leading whitespaces
-        target_len = 15 + precision
-        result = " " * (target_len - len(result)) + result
+        target_total_len = target_integer_len + 1 + target_fract_len
+        result = " " * (target_total_len - len(result)) + result
     return result
 
 
