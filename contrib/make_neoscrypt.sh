@@ -43,7 +43,8 @@ info "Building $pkgname..."
     if ! [ -x configure ] ; then
         echo "libneoscrypt_la_LDFLAGS = -no-undefined" >> Makefile.am
         echo "LDFLAGS = -no-undefined" >> Makefile.am
-        echo "CFLAGS=-Wall -O2 -fomit-frame-pointer -fno-stack-protector"
+        echo "CFLAGS=-Wall -O2 -fomit-frame-pointer -fno-stack-protector" >> Makefile.am
+        echo "DEFINES=-DNEOSCRYPT_ASM -DNEOSCRYPT_OPT -DNEOSCRYPT_MINER_4WAY -DNEOSCRYPT_SHA256" >> Makefile.am
         ./autogen.sh || fail "Could not run autogen for $pkgname. Please make sure you have automake and libtool installed, and try again."
     fi 
     if ! [ -r config.status ] ; then
