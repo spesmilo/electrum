@@ -313,7 +313,7 @@ class Blockchain(Logger):
 
     @classmethod
     def verify_header(cls, header: dict, prev_hash: str, target: int, expected_header_hash: str=None) -> None:
-        _hash = hash_header(header)
+        _hash = pow_hash_header(header)
         if expected_header_hash and expected_header_hash != _hash:
             raise Exception("hash mismatches with expected: {} vs {}".format(expected_header_hash, _hash))
         if prev_hash != header.get('prev_block_hash'):
@@ -629,7 +629,8 @@ class Blockchain(Logger):
         if prev_hash != header.get('prev_block_hash'):
             return False
         try:
-            target = self.get_target(height, None)
+#            target = self.get_target(height, None)
+            target = self.get_target(height)
         except MissingHeader:
             return False
         try:
