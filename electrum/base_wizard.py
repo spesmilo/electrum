@@ -239,6 +239,7 @@ class BaseWizard(Logger):
             for addr in text.split():
                 assert bitcoin.is_address(addr)
                 self.data['addresses'][addr] = {}
+            f = lambda x: self.run('create_wallet')
         elif keystore.is_private_key_list(text):
             self.data['addresses'] = {}
             k = keystore.Imported_KeyStore({})
@@ -248,10 +249,11 @@ class BaseWizard(Logger):
                 txin_type, pubkey = k.import_privkey(pk, None)
                 addr = bitcoin.pubkey_to_address(txin_type, pubkey)
                 self.data['addresses'][addr] = {'type':txin_type, 'pubkey':pubkey}
-            self.keystores.append(k)
+            self._append_keystore(k)
+            f = lambda x: self.create_wallet()
         else:
             return self.terminate(aborted=True)
-        return self.run('create_wallet')
+        return f('')
 
     def restore_from_key(self):
         if self.wallet_type == 'standard':
