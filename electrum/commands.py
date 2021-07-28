@@ -711,29 +711,31 @@ class Commands:
         return json_normalize(wallet.get_detailed_history(**kwargs))
 
     @command('wp')
-    async def bumpfee(self, tx, new_fee_rate, coins=None, strategies=None, password=None, wallet: Abstract_Wallet = None):
+    async def bumpfee(self, tx, new_fee_rate, coins=None, strategies=None, password=None, unsigned=False, wallet: Abstract_Wallet = None):
         """ Bump the Fee for an unconfirmed Transaction """
         tx = Transaction(tx)
         domain_coins = coins.split(',') if coins else None
         strategies = strategies.split(',') if strategies else None
-        bumpfee_strategies = []
-        for strategy in strategies:
-            if strategy == 'CoinChooser':
-                bumpfee_strategies.append(BumpFeeStrategy.COINCHOOSER)
-            elif strategy == 'DecreaseChange':
-                bumpfee_strategies.append(BumpFeeStrategy.DECREASE_CHANGE)
-            elif strategy == 'DecreasePayment':
-                bumpfee_strategies.append(BumpFeeStrategy.DECREASE_PAYMENT)
-            else:
-                return "Invalid Choice of Strategies."
+        bumpfee_strategies = None
+        if strategies is not None:
+            bumpfee_strategies = []
+            for strategy in strategies:
+                if strategy == 'CoinChooser':
+                    bumpfee_strategies.append(BumpFeeStrategy.COINCHOOSER)
+                elif strategy == 'DecreaseChange':
+                    bumpfee_strategies.append(BumpFeeStrategy.DECREASE_CHANGE)
+                elif strategy == 'DecreasePayment':
+                    bumpfee_strategies.append(BumpFeeStrategy.DECREASE_PAYMENT)
+                else:
+                    return "Invalid Choice of Strategies."
         new_tx = wallet.bump_fee(
             tx=tx,
             txid=tx.txid(),
             coins=domain_coins,
             strategies=bumpfee_strategies,
             new_fee_rate=new_fee_rate)
-        wallet.add_transaction(new_tx)
-        wallet.sign_transaction(new_tx, password)
+        if not unsigned:
+            wallet.sign_transaction(new_tx, password)
         return new_tx.serialize()
 
     @command('wl')
