@@ -92,6 +92,10 @@ class BaseWizard(Logger):
         self.is_kivy = config.get('gui') == 'kivy'
         self.seed_type = None
 
+    def _append_keystore(self, keystore: KeyStore):
+        self.reset_stack()
+        self.keystores.append(keystore)
+
     def set_icon(self, icon):
         pass
 
@@ -269,8 +273,15 @@ class BaseWizard(Logger):
     def choose_hw_device(self, purpose=HWD_SETUP_NEW_WALLET, *, storage: WalletStorage = None):
         while True:
             try:
-                self._choose_hw_device(purpose=purpose, storage=storage)
+                # if we start over with an empty stack, append so we can GoBack here
+                f = lambda x: self._choose_hw_device(purpose=purpose, storage=storage)
+                if len(self._stack) == 0:
+                    f = lambda x: self.run('_choose_hw_device', purpose=purpose, storage=storage)
+                f('')
             except ChooseHwDeviceAgain:
+                # sanity check in case there are left over items, revert the stack so we can start over cleanly
+                while self.can_go_back() and self._stack[-1].action != 'choose_hw_device':
+                    self.go_back(rerun_previous=False)
                 pass
             else:
                 break
@@ -352,7 +363,7 @@ class BaseWizard(Logger):
             descr = f"{label} [{info.model_name or name}, {state}, {transport_str}]"
             choices.append(((name, info), descr))
         msg = _('Select a device') + ':'
-        f = lambda *args: self.run('on_device', *args, purpose=purpose, storage=storage)
+        f = lambda *args: self.on_device(*args, purpose=purpose, storage=storage)
         self.choice_dialog(title=title, message=msg, choices=choices,
                            run_next=f)
 
@@ -389,7 +400,7 @@ class BaseWizard(Logger):
             def f(derivation, script_type):
                 derivation = normalize_bip32_derivation(derivation)
                 self.on_hw_derivation(name, device_info, derivation, script_type)
-            self.derivation_and_script_type_dialog(f)
+            self.run('derivation_and_script_type_dialog', f)
         elif purpose == HWD_SETUP_DECRYPT_WALLET:
             password = client.get_password_for_storage_encryption()
             try:
@@ -574,11 +585,8 @@ class BaseWizard(Logger):
                 self.show_error(_('Wrong key type') + ' %s'%t1)
                 self.run('choose_keystore')
                 return
-            # if a standard wallet will always create only 1 keystore,
-            # we can clear the list to make reusable with going back in the wizard
-            self.keystores.clear()
-            self.keystores.append(k)
-            self.run('create_wallet')
+            self._append_keystore(k)
+            self.create_wallet()
         elif self.wallet_type == 'multisig':
             assert has_xpub
             if t1 not in ['standard', 'p2wsh', 'p2wsh-p2sh']:
@@ -597,23 +605,19 @@ class BaseWizard(Logger):
                     return
             if len(self.keystores) == 0:
                 xpub = k.get_master_public_key()
-                self.reset_stack()
-                self.keystores.append(k)
+                self._append_keystore(k)
                 self.run('show_xpub_and_add_cosigners', xpub)
                 return
-            self.reset_stack()
-            self.keystores.append(k)
+            self._append_keystore(k)
             if len(self.keystores) < self.n:
                 self.run('choose_keystore')
             else:
-                self.run('create_wallet')
+                self.create_wallet()
 
     def create_wallet(self):
         encrypt_keystore = any(k.may_have_password() for k in self.keystores)
         # note: the following condition ("if") is duplicated logic from
         # wallet.get_available_storage_encryption_version()
-        # reset stack to disable 'back' button in password dialog
-        #self.reset_stack()
         if self.wallet_type == 'standard' and isinstance(self.keystores[0], Hardware_KeyStore):
             # offer encrypting with a pw derived from the hw device
             k = self.keystores[0]  # type: Hardware_KeyStore
@@ -624,10 +628,12 @@ class BaseWizard(Logger):
             except UserCancelled:
                 devmgr = self.plugins.device_manager
                 devmgr.unpair_xpub(k.xpub)
+                self.keystores.pop()
                 raise ChooseHwDeviceAgain()
             except BaseException as e:
                 self.logger.exception('')
                 self.show_error(str(e))
+                self.keystores.pop()
                 raise ChooseHwDeviceAgain()
             self.request_storage_encryption(
                 run_next=lambda encrypt_storage: self.on_password(
