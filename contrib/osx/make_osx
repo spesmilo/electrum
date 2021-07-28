@@ -179,7 +179,7 @@ pyinstaller --noconfirm --ascii --clean --name $VERSION contrib/osx/osx.spec || 
 
 info "Adding bitcoin URI types to Info.plist"
 plutil -insert 'CFBundleURLTypes' \
-	-xml '<array><dict> <key>CFBundleURLName</key> <string>bitcoin</string> <key>CFBundleURLSchemes</key> <array><string>bitcoin</string></array> </dict></array>' \
+	-xml '<array><dict> <key>CFBundleURLName</key> <string>bitcoin</string> <key>CFBundleURLSchemes</key> <array><string>bitcoin</string><string>lightning</string></array> </dict></array>' \
 	-- dist/$PACKAGE.app/Contents/Info.plist \
 	|| fail "Could not add keys to Info.plist. Make sure the program 'plutil' exists and is installed."
 
