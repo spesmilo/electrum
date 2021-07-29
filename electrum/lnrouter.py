@@ -517,7 +517,7 @@ class LNPathFinder(Logger):
             nodeA: bytes,
             nodeB: bytes,
             invoice_amount_msat: int,
-            my_channels: Dict[ShortChannelID, 'Channel'] = None,
+            my_sending_channels: Dict[ShortChannelID, 'Channel'] = None,
             private_route_edges: Dict[ShortChannelID, RouteEdge] = None,
     ) -> Dict[bytes, PathEdge]:
         # note: we don't lock self.channel_db, so while the path finding runs,
@@ -551,24 +551,24 @@ class LNPathFinder(Logger):
                         edge_endnode, my_channels={}, private_route_edges=private_route_edges)
                 else:  # in the next steps, we only take sending channels
                     channels_for_endnode = self.channel_db.get_channels_for_node(
-                        edge_endnode, my_channels=my_channels, private_route_edges={})
+                        edge_endnode, my_channels=my_sending_channels, private_route_edges={})
             else:
                 channels_for_endnode = self.channel_db.get_channels_for_node(
-                    edge_endnode, my_channels=my_channels, private_route_edges=private_route_edges)
+                    edge_endnode, my_channels=my_sending_channels, private_route_edges=private_route_edges)
 
             for edge_channel_id in channels_for_endnode:
                 assert isinstance(edge_channel_id, bytes)
                 if blacklist and edge_channel_id in blacklist:
                     continue
                 channel_info = self.channel_db.get_channel_info(
-                    edge_channel_id, my_channels=my_channels, private_route_edges=private_route_edges)
+                    edge_channel_id, my_channels=my_sending_channels, private_route_edges=private_route_edges)
                 if channel_info is None:
                     continue
                 edge_startnode = channel_info.node2_id if channel_info.node1_id == edge_endnode else channel_info.node1_id
-                is_mine = edge_channel_id in my_channels
+                is_mine = edge_channel_id in my_sending_channels
                 if is_mine:
                     if edge_startnode == nodeA:  # payment outgoing, on our channel
-                        if not my_channels[edge_channel_id].can_pay(amount_msat, check_frozen=True):
+                        if not my_sending_channels[edge_channel_id].can_pay(amount_msat, check_frozen=True):
                             continue
                 edge_cost, fee_for_edge_msat = self._edge_cost(
                     short_channel_id=edge_channel_id,
@@ -577,7 +577,7 @@ class LNPathFinder(Logger):
                     payment_amt_msat=amount_msat,
                     ignore_costs=(edge_startnode == nodeA),
                     is_mine=is_mine,
-                    my_channels=my_channels,
+                    my_channels=my_sending_channels,
                     private_route_edges=private_route_edges)
                 alt_dist_to_neighbour = distance_from_start[edge_endnode] + edge_cost
                 if alt_dist_to_neighbour < distance_from_start[edge_startnode]:
@@ -601,21 +601,21 @@ class LNPathFinder(Logger):
             nodeA: bytes,
             nodeB: bytes,
             invoice_amount_msat: int,
-            my_channels: Dict[ShortChannelID, 'Channel'] = None,
+            my_sending_channels: Dict[ShortChannelID, 'Channel'] = None,
             private_route_edges: Dict[ShortChannelID, RouteEdge] = None,
     ) -> Optional[LNPaymentPath]:
         """Return a path from nodeA to nodeB."""
         assert type(nodeA) is bytes
         assert type(nodeB) is bytes
         assert type(invoice_amount_msat) is int
-        if my_channels is None:
-            my_channels = {}
+        if my_sending_channels is None:
+            my_sending_channels = {}
 
         previous_hops = self.get_shortest_path_hops(
             nodeA=nodeA,
             nodeB=nodeB,
             invoice_amount_msat=invoice_amount_msat,
-            my_channels=my_channels,
+            my_sending_channels=my_sending_channels,
             private_route_edges=private_route_edges)
 
         if nodeA not in previous_hops:
@@ -677,7 +677,7 @@ class LNPathFinder(Logger):
             nodeB: bytes,
             invoice_amount_msat: int,
             path = None,
-            my_channels: Dict[ShortChannelID, 'Channel'] = None,
+            my_sending_channels: Dict[ShortChannelID, 'Channel'] = None,
             private_route_edges: Dict[ShortChannelID, RouteEdge] = None,
     ) -> Optional[LNPaymentRoute]:
         route = None
@@ -686,9 +686,9 @@ class LNPathFinder(Logger):
                 nodeA=nodeA,
                 nodeB=nodeB,
                 invoice_amount_msat=invoice_amount_msat,
-                my_channels=my_channels,
+                my_sending_channels=my_sending_channels,
                 private_route_edges=private_route_edges)
         if path:
             route = self.create_route_from_path(
-                path, my_channels=my_channels, private_route_edges=private_route_edges)
+                path, my_channels=my_sending_channels, private_route_edges=private_route_edges)
         return route
