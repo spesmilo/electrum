@@ -129,16 +129,28 @@ info "generating locale"
 info "Installing some build-time deps for compilation..."
 brew install autoconf automake libtool gettext coreutils pkgconfig
 
-info "Building libsecp256k1 dylib..."
-"$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
+if [ ! -f "$PROJECT_ROOT"/electrum/libsecp256k1.0.dylib ]; then
+    info "Building libsecp256k1 dylib..."
+    "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
+else
+    info "Skipping libsecp256k1 build: reusing already built dylib."
+fi
 cp "$PROJECT_ROOT"/electrum/libsecp256k1.0.dylib "$CONTRIB"/osx
 
-info "Building ZBar dylib..."
-"$CONTRIB"/make_zbar.sh || fail "Could not build ZBar dylib"
+if [ ! -f "$PROJECT_ROOT"/electrum/libzbar.0.dylib ]; then
+    info "Building ZBar dylib..."
+    "$CONTRIB"/make_zbar.sh || fail "Could not build ZBar dylib"
+else
+    info "Skipping ZBar build: reusing already built dylib."
+fi
 cp "$PROJECT_ROOT"/electrum/libzbar.0.dylib "$CONTRIB"/osx
 
-info "Building libusb dylib..."
-"$CONTRIB"/make_libusb.sh || fail "Could not build libusb dylib"
+if [ ! -f "$PROJECT_ROOT"/electrum/libusb-1.0.dylib ]; then
+    info "Building libusb dylib..."
+    "$CONTRIB"/make_libusb.sh || fail "Could not build libusb dylib"
+else
+    info "Skipping libusb build: reusing already built dylib."
+fi
 cp "$PROJECT_ROOT"/electrum/libusb-1.0.dylib "$CONTRIB"/osx
 
 
