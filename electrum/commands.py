@@ -711,10 +711,13 @@ class Commands:
         return json_normalize(wallet.get_detailed_history(**kwargs))
 
     @command('wp')
-    async def bumpfee(self, tx, new_fee_rate, coins=None, strategies=None, password=None, unsigned=False, wallet: Abstract_Wallet = None):
+    async def bumpfee(self, tx, new_fee_rate, from_coins=None, strategies=None, password=None, unsigned=False, wallet: Abstract_Wallet = None):
         """ Bump the Fee for an unconfirmed Transaction """
         tx = Transaction(tx)
-        domain_coins = coins.split(',') if coins else None
+        domain_coins = from_coins.split(',') if from_coins else None
+        coins = wallet.get_spendable_coins(None)
+        if domain_coins is not None:
+            coins = [coin for coin in coins if (coin.prevout.to_str() in domain_coins)]
         strategies = strategies.split(',') if strategies else None
         bumpfee_strategies = None
         if strategies is not None:
@@ -727,11 +730,11 @@ class Commands:
                 elif strategy == 'DecreasePayment':
                     bumpfee_strategies.append(BumpFeeStrategy.DECREASE_PAYMENT)
                 else:
-                    return "Invalid Choice of Strategies."
+                    raise Exception("Invalid Choice of Strategies")
         new_tx = wallet.bump_fee(
             tx=tx,
             txid=tx.txid(),
-            coins=domain_coins,
+            coins=coins,
             strategies=bumpfee_strategies,
             new_fee_rate=new_fee_rate)
         if not unsigned:
@@ -1330,7 +1333,6 @@ command_options = {
     'iknowwhatimdoing': (None, "Acknowledge that I understand the full implications of what I am about to do"),
     'gossip':      (None, "Apply command to gossip node instead of wallet"),
     'connection_string':      (None, "Lightning network node ID or network address"),
-    'coins':    (None, "Source coins (must be in wallet; use sweep to spend from non-wallet address)."),
     'strategies': (None, "Select RBF any one or multiple RBF strategies in any order, separated by ','; Options : 'CoinChooser','DecreaseChange','DecreasePayment' "),
 }
 
