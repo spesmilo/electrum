@@ -153,6 +153,11 @@ class BaseWizard(Logger):
         choices = [pair for pair in wallet_kinds if pair[0] in wallet_types]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.on_wallet_type)
 
+    def rerun_on_error(self, action, msg):
+        self.show_error(msg)
+        self.reset_stack()
+        self.run(action)
+
     def upgrade_db(self, storage, db):
         exc = None  # type: Optional[Exception]
         def on_finished():
@@ -584,26 +589,23 @@ class BaseWizard(Logger):
             t1 = xpub_type(k.xpub)
         if self.wallet_type == 'standard':
             if has_xpub and t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:
-                self.show_error(_('Wrong key type') + ' %s'%t1)
-                self.run('choose_keystore')
+                self.rerun_on_error(action='choose_keystore', msg=_('Wrong key type') + ' %s'%t1)
                 return
             self._append_keystore(k)
             self.create_wallet()
         elif self.wallet_type == 'multisig':
             assert has_xpub
             if t1 not in ['standard', 'p2wsh', 'p2wsh-p2sh']:
-                self.show_error(_('Wrong key type') + ' %s'%t1)
-                self.run('choose_keystore')
+                self.rerun_on_error(action='choose_keystore', msg=_('Wrong key type') + ' %s'%t1)
                 return
             if k.xpub in map(lambda x: x.xpub, self.keystores):
-                self.show_error(_('Error: duplicate master public key'))
-                self.run('choose_keystore')
+                self.rerun_on_error(action='choose_keystore', msg=_('Error: duplicate master public key'))
                 return
             if len(self.keystores) > 0:
                 t2 = xpub_type(self.keystores[0].xpub)
                 if t1 != t2:
-                    self.show_error(_('Cannot add this cosigner:') + '\n' + "Their key type is '%s', we are '%s'"%(t1, t2))
-                    self.run('choose_keystore')
+                    self.rerun_on_error(action='choose_keystore',
+                                        msg=_('Cannot add this cosigner:') + '\n' + "Their key type is '%s', we are '%s'"%(t1, t2))
                     return
             if len(self.keystores) == 0:
                 xpub = k.get_master_public_key()
