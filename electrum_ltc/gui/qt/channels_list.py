@@ -83,12 +83,12 @@ class ChannelsList(MyTreeView):
         for subject in (REMOTE, LOCAL):
             if isinstance(chan, Channel):
                 can_send = chan.available_to_spend(subject) / 1000
-                label = self.parent.format_amount(can_send)
+                label = self.parent.format_amount(can_send, whitespaces=True)
                 other = subject.inverted()
                 bal_other = chan.balance(other)//1000
                 bal_minus_htlcs_other = chan.balance_minus_outgoing_htlcs(other)//1000
                 if bal_other != bal_minus_htlcs_other:
-                    label += ' (+' + self.parent.format_amount(bal_other - bal_minus_htlcs_other) + ')'
+                    label += ' (+' + self.parent.format_amount(bal_other - bal_minus_htlcs_other, whitespaces=True) + ')'
             else:
                 assert isinstance(chan, ChannelBackup)
                 label = ''
