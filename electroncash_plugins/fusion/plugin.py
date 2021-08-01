@@ -659,8 +659,8 @@ class FusionPlugin(BasePlugin):
     def wallet_can_fuse(wallet) -> bool:
         return can_fuse_from(wallet) and can_fuse_to(wallet)
 
-    @classmethod
-    def is_fuz_coin(cls, wallet, coin) -> Optional[bool]:
+    @staticmethod
+    def is_fuz_coin(wallet, coin) -> Optional[bool]:
         """ Returns True if the coin in question is definitely a CashFusion coin (uses heuristic matching),
         or False if the coin in question is not from a CashFusion tx. Returns None if the tx for the coin
         is not (yet) known to the wallet (None == inconclusive answer, caller may wish to try again later). """
