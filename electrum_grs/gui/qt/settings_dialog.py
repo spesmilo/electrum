@@ -192,8 +192,8 @@ class SettingsDialog(WindowModalDialog):
 
         msat_cb = QCheckBox(_("Show amounts with msat precision"))
         msat_cb.setChecked(bool(self.config.get('amt_precision_post_satoshi', False)))
-        def on_msat_checked(b: bool):
-            prec = 3 if b else 0
+        def on_msat_checked(v):
+            prec = 3 if v == Qt.Checked else 0
             if self.config.amt_precision_post_satoshi != prec:
                 self.config.amt_precision_post_satoshi = prec
                 self.config.set_key('amt_precision_post_satoshi', prec)
@@ -224,6 +224,17 @@ class SettingsDialog(WindowModalDialog):
             self.window.update_status()
         unit_combo.currentIndexChanged.connect(lambda x: on_unit(x, nz))
         gui_widgets.append((unit_label, unit_combo))
+
+        thousandsep_cb = QCheckBox(_("Add thousand separators to bitcoin amounts"))
+        thousandsep_cb.setChecked(bool(self.config.get('amt_add_thousands_sep', False)))
+        def on_set_thousandsep(v):
+            checked = v == Qt.Checked
+            if self.config.amt_add_thousands_sep != checked:
+                self.config.amt_add_thousands_sep = checked
+                self.config.set_key('amt_add_thousands_sep', checked)
+                self.window.need_update.set()
+        thousandsep_cb.stateChanged.connect(on_set_thousandsep)
+        gui_widgets.append((thousandsep_cb, None))
 
         qr_combo = QComboBox()
         qr_combo.addItem("Default", "default")
