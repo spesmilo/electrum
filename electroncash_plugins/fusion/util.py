@@ -36,6 +36,7 @@ from .protocol import Protocol
 
 import hashlib
 import ecdsa
+from typing import Union, Tuple
 
 # Internally used exceptions, shouldn't leak out of this plugin.
 class FusionError(Exception):
@@ -165,3 +166,11 @@ def rand_position(seed, num_positions, counter):
     """
     int64 = int.from_bytes(sha256(seed + counter.to_bytes(4, 'big'))[:8], 'big')
     return (int64 * num_positions) >> 64
+
+
+def get_coin_name(coin: dict, also_return_txid_n=False) -> Union[str, Tuple[str, str, int]]:
+    tx_id, n = coin['prevout_hash'], coin['prevout_n']
+    name = "{}:{}".format(tx_id, n)
+    if not also_return_txid_n:
+        return name
+    return name, tx_id, n
