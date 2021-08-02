@@ -263,7 +263,7 @@ class Contacts(util.PrintError):
         for record in records:
             string = record.strings[0].decode('utf-8')
             if string.startswith('oa1:' + prefix):
-                address = cls.find_regex(string, r'recipient_address=([A-Za-z0-9]+)')
+                address = cls.find_regex(string, r'recipient_address=([A-Za-z0-9:]+)')
                 name = cls.find_regex(string, r'recipient_name=([^;]+)')
                 if not name:
                     name = address
