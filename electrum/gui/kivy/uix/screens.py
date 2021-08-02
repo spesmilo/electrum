@@ -17,7 +17,7 @@ from electrum import bitcoin, constants
 from electrum.transaction import tx_from_any, PartialTxOutput
 from electrum.util import (parse_URI, InvalidBitcoinURI, TxMinedInfo, maybe_extract_bolt11_invoice,
                            InvoiceError, format_time)
-from electrum.lnaddr import lndecode
+from electrum.lnaddr import lndecode, LnInvoiceException
 from electrum.logging import Logger
 
 from .dialogs.confirm_tx_dialog import ConfirmTxDialog
@@ -170,6 +170,15 @@ class SendScreen(CScreen, Logger):
     def set_URI(self, text: str):
         if not self.app.wallet:
             return
+        # interpret as lighting URI
+        bolt11_invoice = maybe_extract_bolt11_invoice(text)
+        if bolt11_invoice:
+            self.set_ln_invoice(bolt11_invoice)
+        # interpret as BIP21 URI
+        else:
+            self.set_bip21(text)
+
+    def set_bip21(self, text: str):
         try:
             uri = parse_URI(text, self.app.on_pr, loop=self.app.asyncio_loop)
         except InvalidBitcoinURI as e:
@@ -188,8 +197,8 @@ class SendScreen(CScreen, Logger):
         try:
             invoice = str(invoice).lower()
             lnaddr = lndecode(invoice)
-        except Exception as e:
-            self.app.show_info(invoice + _(" is not a valid Lightning invoice: ") + repr(e)) # repr because str(Exception()) == ''
+        except LnInvoiceException as e:
+            self.app.show_info(_("Invoice is not a valid Lightning invoice: ") + repr(e)) # repr because str(Exception()) == ''
             return
         self.address = invoice
         self.message = dict(lnaddr.tags).get('d', None)
