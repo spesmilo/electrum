@@ -78,7 +78,7 @@ class StakingList(MyTreeView):
             sel_key = self.model().itemFromIndex(s_idx).data(Qt.UserRole)
             selected_keys.append(sel_key)
         if not selected_keys or not idx.isValid():
-            pass  # co wyświetlić?
+            pass  # todo co wyświetlić?
         else:
             column_title = self.model().horizontalHeaderItem(column).text()
             column_data = '\n'.join(self.model().itemFromIndex(s_idx).text()
