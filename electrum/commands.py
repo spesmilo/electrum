@@ -1333,6 +1333,7 @@ command_options = {
     'iknowwhatimdoing': (None, "Acknowledge that I understand the full implications of what I am about to do"),
     'gossip':      (None, "Apply command to gossip node instead of wallet"),
     'connection_string':      (None, "Lightning network node ID or network address"),
+    'new_fee_rate': (None, "The Updated/Increased Transaction fee rate (in sat/byte)"),
     'strategies': (None, "Select RBF any one or multiple RBF strategies in any order, separated by ','; Options : 'CoinChooser','DecreaseChange','DecreasePayment' "),
 }
 
