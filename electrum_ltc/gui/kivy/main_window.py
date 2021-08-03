@@ -229,10 +229,8 @@ class ElectrumWindow(App, Logger):
     def on_new_intent(self, intent):
         data = str(intent.getDataString())
         scheme = str(intent.getScheme()).lower()
-        if scheme == BITCOIN_BIP21_URI_SCHEME:
+        if scheme == BITCOIN_BIP21_URI_SCHEME or scheme == LIGHTNING_URI_SCHEME:
             self.set_URI(data)
-        elif scheme == LIGHTNING_URI_SCHEME:
-            self.set_ln_invoice(data)
 
     def on_language(self, instance, language):
         self.logger.info('language: {}'.format(language))
