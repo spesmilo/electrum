@@ -2014,8 +2014,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         return self.create_list_tab(l)
 
     def create_staking_tab(self):
-        from .staking_list import StakingList
-        self.staking_list = l = StakingList(self)
+        from .stake_dialog import create
+        self.staking_list = l = create(self)
         return self.create_list_tab(l)
 
     def remove_address(self, addr):
