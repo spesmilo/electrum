@@ -132,11 +132,15 @@ Section
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME} Testnet.lnk" "$INSTDIR\electrum-grs-${PRODUCT_VERSION}.exe" "--testnet" "$INSTDIR\electrum-grs-${PRODUCT_VERSION}.exe" 0
 
 
-  ;Links groestlcoin: URI's to Electrum-GRS
+  ;Links groestlcoin: and lightning: URIs to Electrum-GRS
   WriteRegStr HKCU "Software\Classes\groestlcoin" "" "URL:groestlcoin Protocol"
   WriteRegStr HKCU "Software\Classes\groestlcoin" "URL Protocol" ""
   WriteRegStr HKCU "Software\Classes\groestlcoin" "DefaultIcon" "$\"$INSTDIR\electrum-grs.ico, 0$\""
   WriteRegStr HKCU "Software\Classes\groestlcoin\shell\open\command" "" "$\"$INSTDIR\electrum-grs-${PRODUCT_VERSION}.exe$\" $\"%1$\""
+  WriteRegStr HKCU "Software\Classes\lightning" "" "URL:lightning Protocol"
+  WriteRegStr HKCU "Software\Classes\lightning" "URL Protocol" ""
+  WriteRegStr HKCU "Software\Classes\lightning" "DefaultIcon" "$\"$INSTDIR\electrum-grs.ico, 0$\""
+  WriteRegStr HKCU "Software\Classes\lightning\shell\open\command" "" "$\"$INSTDIR\electrum-grs-${PRODUCT_VERSION}.exe$\" $\"%1$\""
 
   ;Adds an uninstaller possibility to Windows Uninstall or change a program section
   WriteRegStr HKCU "${PRODUCT_UNINST_KEY}" "DisplayName" "$(^Name)"

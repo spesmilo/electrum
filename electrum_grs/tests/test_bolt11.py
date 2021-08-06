@@ -28,10 +28,11 @@ class TestBolt11(ElectrumTestCase):
             Decimal(123)/10**6: '123u',
             Decimal(123)/1000: '123m',
             Decimal(3): '3',
+            Decimal(1000): '1000',
         }
 
         for i, o in tests.items():
-            assert shorten_amount(i) == o
+            self.assertEqual(shorten_amount(i), o)
             assert unshorten_amount(shorten_amount(i)) == i
 
     @staticmethod

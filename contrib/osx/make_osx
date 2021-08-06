@@ -179,7 +179,7 @@ pyinstaller --noconfirm --ascii --clean --name $VERSION contrib/osx/osx.spec || 
 
 info "Adding groestlcoin URI types to Info.plist"
 plutil -insert 'CFBundleURLTypes' \
-	-xml '<array><dict> <key>CFBundleURLName</key> <string>groestlcoin</string> <key>CFBundleURLSchemes</key> <array><string>groestlcoin</string></array> </dict></array>' \
+	-xml '<array><dict> <key>CFBundleURLName</key> <string>groestlcoin</string> <key>CFBundleURLSchemes</key> <array><string>groestlcoin</string><string>lightning</string></array> </dict></array>' \
 	-- dist/$PACKAGE.app/Contents/Info.plist \
 	|| fail "Could not add keys to Info.plist. Make sure the program 'plutil' exists and is installed."
 
