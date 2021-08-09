@@ -521,6 +521,12 @@ class SatochipPlugin(HW_PluginBase):
         
         # check setup
         while(client.cc.card_present):
+        
+            # check that card is indeed a Satochip
+            if (client.cc.card_type != "Satochip"):
+                raise Exception(_('Failed to create a client for this device.') + '\n' +
+                            _('Inserted card is not a Satochip!'))
+        
             (response, sw1, sw2, d)=client.cc.card_get_status()
             
             # check version

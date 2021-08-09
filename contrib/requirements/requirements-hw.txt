@@ -5,5 +5,5 @@ keepkey>=6.3.1
 btchip-python>=0.1.30
 ckcc-protocol>=0.7.7
 pyscard>=1.9.9
-pysatochip==0.11.4
+pysatochip==0.12.3
 bitbox02>=5.0.0
