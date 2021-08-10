@@ -25,11 +25,13 @@
 
 
 from PyQt5.QtCore import QSize, Qt
-from PyQt5.QtWidgets import (QGridLayout, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QToolButton)
-
+from PyQt5.QtWidgets import (QGridLayout, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QToolButton,
+                             QTextBrowser)
+from PyQt5 import QtCore, QtGui
 from electrum.i18n import _
+from .terms_and_conditions_mixin import load_terms_and_conditions
 
-from .util import read_QIcon
+from .util import read_QIcon, WindowModalDialog, OkButton
 
 
 class CustomButton(QPushButton):
@@ -47,7 +49,6 @@ class CustomButton(QPushButton):
         """Drops the unwanted PyQt5 "checked" argument"""
         self.func()
 
-
     def key_press_event(self, e):
         if e.key() in [Qt.Key_Return, Qt.Key_Enter]:
             self.func()
@@ -57,8 +58,8 @@ def create(self):
 
     self.receive_grid = grid = QGridLayout()
 
-    from .stake_create_dialog import CreateStaking
-    self.create_stake_dialog = CreateStaking(parent=None, title=_('Create Staking'))
+    from .create_new_stake_window import CreateNewStaking
+    self.create_stake_dialog = CreateNewStaking(parent=None)
 
     self.stake_button = CustomButton(text=_('Stake'), func=self.create_stake_dialog, icon=read_QIcon("electrum.png"))
 
@@ -74,6 +75,17 @@ def create(self):
 
     from .staking_list import StakingList
     self.staking_list = StakingList(self)
+
+    font = QtGui.QFont()
+    font.setUnderline(True)
+    self.terms_button = QPushButton()
+    self.terms_button.setFont(font)
+    self.terms_button.setText(_("Terms & Conditions"))
+    self.terms_button.setMaximumSize(QtCore.QSize(140, 16777215))
+    self.terms_button.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+    self.terms_button.setStyleSheet("border: none;")
+    self.terms_button.setAutoDefault(True)
+    self.terms_button.clicked.connect(terms_and_conditions_view)
 
     # layout
     vbox_g = QVBoxLayout()
@@ -91,7 +103,33 @@ def create(self):
     vbox.addStretch(1)
     vbox.addWidget(self.receive_requests_label)
     vbox.addWidget(self.staking_list)
+    vbox.addWidget(self.terms_button)
     vbox.setStretchFactor(self.staking_list, 1000)
 
     return w
 
+
+def terms_and_conditions_view():
+    terms = load_terms_and_conditions(config={})
+    dialog = WindowModalDialog(None, _('Terms & Conditions'))
+    # size and icon position the same like in install wizard
+    dialog.setMinimumSize(600, 400)
+    main_vbox = QVBoxLayout(dialog)
+    logo_vbox = QVBoxLayout()
+    logo_vbox.addStretch(1)
+    logo_hbox = QHBoxLayout()
+    logo_hbox.addLayout(logo_vbox)
+    logo_hbox.addSpacing(5)
+    vbox = QVBoxLayout()
+    text_browser = QTextBrowser()
+    text_browser.setReadOnly(True)
+    text_browser.setOpenExternalLinks(True)
+    text_browser.setHtml(terms)
+    vbox.addWidget(text_browser)
+    footer = QHBoxLayout()
+    footer.addStretch(1)
+    footer.addWidget(OkButton(dialog))
+    vbox.addLayout(footer)
+    logo_hbox.addLayout(vbox)
+    main_vbox.addLayout(logo_hbox)
+    dialog.exec_()
