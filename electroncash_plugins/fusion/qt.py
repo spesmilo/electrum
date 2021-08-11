@@ -172,9 +172,6 @@ class Plugin(FusionPlugin, QObject):
         if can_fuse:
             sbbtn = FusionButton(self, wallet)
             self.server_status_changed_signal.connect(sbbtn.update_server_error)
-        elif networks.net is networks.TaxCoinNet:
-            sbmsg = _('CashFusion is not available on ABC TaxCoin')
-            sbbtn = DisabledFusionButton(wallet, sbmsg)
         else:
             # If we can not fuse we create a dummy fusion button that just displays a message
             sbmsg = _('This wallet type ({wtype}) cannot be used with CashFusion.\n\nPlease use a standard deterministic spending wallet with CashFusion.').format(wtype=wallet.wallet_type)

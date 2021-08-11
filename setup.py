@@ -123,9 +123,6 @@ class MakeAllBeforeSdist(setuptools.command.sdist.sdist):
 
 
 platform_package_data = {
-    'electroncash_gui.qt': [
-        'data/ard_mone.mp3'
-    ],
 }
 
 if sys.platform in ('linux'):
@@ -183,7 +180,6 @@ setup(
             'servers_testnet.json',
             'servers_testnet4.json',
             'servers_scalenet.json',
-            'servers_taxcoin.json',
             'currencies.json',
             'www/index.html',
             'wordlist/*.txt',

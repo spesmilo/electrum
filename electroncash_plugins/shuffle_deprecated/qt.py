@@ -545,7 +545,7 @@ class Plugin(BasePlugin):
         return _("CashShuffle Protocol")
 
     def is_available(self):
-        return networks.net is not networks.TaxCoinNet
+        return True
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)

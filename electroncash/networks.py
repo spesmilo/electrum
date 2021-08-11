@@ -152,7 +152,6 @@ class TestNet4(TestNet):
     asert_daa.anchor = Anchor(height=16844, bits=486604799, prev_time=1605451779)
 
 
-
 class ScaleNet(TestNet):
     GENESIS = "00000000e6453dc2dfe1ffa19023f86002eb11dbb8e87d0291a4599f0430be52"
     TITLE = 'Electron Cash Scalenet'
@@ -175,58 +174,6 @@ class ScaleNet(TestNet):
     VERIFICATION_BLOCK_HEIGHT = 2016
     asert_daa = ASERTDaa(is_testnet=False)  # Despite being a "testnet", ScaleNet uses 2d half-life
     asert_daa.anchor = None  # Intentionally not specified because it's after checkpoint; blockchain.py will calculate
-
-
-
-class TaxCoinNet(AbstractNet):
-    """ This is for supporting ABC tax coin. Use CLI arg --taxcoin to see this network.
-    Users using this network cannot see BCH and vice-versa, due to the checkpoint block.
-    If one wants to see both chains one can run 2 clients since they will use different data
-    directories. """
-    TESTNET = False
-    WIF_PREFIX = 0x80
-    ADDRTYPE_P2PKH = 0
-    ADDRTYPE_P2PKH_BITPAY = 28
-    ADDRTYPE_P2SH = 5
-    ADDRTYPE_P2SH_BITPAY = 40
-    CASHADDR_PREFIX = "bitcoincash"
-    HEADERS_URL = "http://bitcoincash.com/files/blockchain_headers"  # Unused
-    GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
-    DEFAULT_PORTS = {'t': '50001', 's': '50002'}
-    DEFAULT_SERVERS = _read_json_dict('servers_taxcoin.json')  # DO NOT MODIFY IN CLIENT CODE
-    TITLE = "Electron Tax - 'Ard Moné Edition"
-    BASE_UNITS = {'TAX': 8, 'mTAX': 5, 'sechets': 2}
-    DEFAULT_UNIT = "TAX"
-
-    # Bitcoin Cash fork block specification
-    BITCOIN_CASH_FORK_BLOCK_HEIGHT = 478559
-    BITCOIN_CASH_FORK_BLOCK_HASH = "000000000000000000651ef99cb9fcbe0dadde1d424bd9f15ff20136191a5eec"
-
-    # Nov 13. 2017 HF to CW144 DAA height (height of last block mined on old DAA)
-    CW144_HEIGHT = 504031
-
-    # Note: this is not the Merkle root of the verification block itself , but a Merkle root of
-    # all blockchain headers up until and including this block. To get this value you need to
-    # connect to an ElectrumX server you trust and issue it a protocol command. This can be
-    # done in the console as follows:
-    #
-    #    network.synchronous_get(("blockchain.block.header", [height, height]))
-    #
-    # Consult the ElectrumX documentation for more details.
-    VERIFICATION_BLOCK_MERKLE_ROOT = "d0d925862df595918416020caf5467b7ae67ae8f807daf60626c36755b62f9a2"
-    VERIFICATION_BLOCK_HEIGHT = 661648  # ABC fork block
-    asert_daa = ASERTDaa(is_testnet=False)
-    asert_daa.anchor = Anchor(height=661647, bits=402971390, prev_time=1605447844)
-
-    # Version numbers for BIP32 extended keys
-    # standard: xprv, xpub
-    XPRV_HEADERS = {
-        'standard': 0x0488ade4,
-    }
-
-    XPUB_HEADERS = {
-        'standard': 0x0488b21e,
-    }
 
 
 # All new code should access this to get the current network config.
@@ -261,12 +208,6 @@ def set_testnet4():
 def set_scalenet():
     global net
     net = ScaleNet
-    _set_units()
-
-
-def set_taxcoin():
-    global net
-    net = TaxCoinNet
     _set_units()
 
 

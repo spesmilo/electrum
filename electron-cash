@@ -468,10 +468,9 @@ def process_config_options(args):
     have_testnet = config_options.get("testnet", False)
     have_testnet4 = config_options.get("testnet4", False)
     have_scalenet = config_options.get("scalenet", False)
-    have_taxcoin = config_options.get("taxcoin", False)
-    if have_testnet + have_testnet4 + have_scalenet + have_taxcoin > 1:
+    if have_testnet + have_testnet4 + have_scalenet > 1:
         sys.exit(
-            "Invalid combination of --testnet, --testnet4, --scalenet, and/or --taxcoin"
+            "Invalid combination of --testnet, --testnet4, and/or --scalenet"
         )
     elif have_testnet:
         networks.set_testnet()
@@ -479,8 +478,6 @@ def process_config_options(args):
         networks.set_testnet4()
     elif have_scalenet:
         networks.set_scalenet()
-    elif have_taxcoin:
-        networks.set_taxcoin()
 
     # check uri
     uri = config_options.get("url")

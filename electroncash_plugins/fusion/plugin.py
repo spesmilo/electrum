@@ -321,7 +321,7 @@ class FusionPlugin(BasePlugin):
         return _("CashFusion Protocol")
 
     def is_available(self):
-        return networks.net is not networks.TaxCoinNet
+        return True
 
     def set_remote_donation_address(self, address : str):
         self.remote_donation_address = ((isinstance(address, str) and address) or '')[:100]
