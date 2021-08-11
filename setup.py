@@ -123,6 +123,7 @@ class MakeAllBeforeSdist(setuptools.command.sdist.sdist):
 
 
 platform_package_data = {
+    'electroncash_gui.qt': [],
 }
 
 if sys.platform in ('linux'):
