@@ -244,8 +244,6 @@ class CreateNewStaking(WindowModalDialog):
             return True
 
 
-
-
 class CreateNewStakingTwo(WindowModalDialog):
 
     def __call__(self, *args, **kwargs):
