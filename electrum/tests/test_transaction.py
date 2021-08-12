@@ -917,3 +917,148 @@ class TestTransactionTestnet(TestCaseForTestnet):
                          tx.txid())
         self.assertEqual('020000000001019ad573c69e60c209e0ff36f281ae4f700a8d59f846e7ff5c020352fd1e97808600000000000000000001fa840100000000001600145a209b202bc19b3d345a75cf8ab51cb471913a790247304402207b191c1e3ff1a2d3541770b496c9f871406114746b3aa7347ec4ef0423d3a975022043d3a746fa7a794d97e95d74b6d17d618dfc4cd7644476813e08006f271e51bd012a046c4f855fb1752102aec53aa5f347219a7378b13006eb16ce48125f9cf14f04a5509a565ad5e51507ac6c4f855f',
                          tx.serialize())
+
+class Test_Sighash_Types(ElectrumTestCase):
+    def check_sighash_types_sighash_all(self):
+        #Input of transaction
+        locktime=0
+        prevout = TxOutpoint(txid=bfh('6eb98797a21c6c10aa74edf29d618be109f48a8e94c694f3701e08ca69186436'), out_idx=1)
+        txin = PartialTxInput(prevout=prevout)
+        txin.nsequence=0xffffffff
+        txin.script_type='p2sh-p2wsh'
+        witness_script = bfh('56210307b8ae49ac90a048e9b53357a2354b3334e9c8bee813ecb98e99a7e07e8c3ba32103b28f0c28bfab54554ae8c658ac5c3e0ce6e79ad336331f78c428dd43eea8449b21034b8113d703413d57761b8b9781957b8c0ac1dfe69f492580ca4195f50376ba4a21033400f6afecb833092a9a21cfdf1ed1376e58c5d1f47de74683123987e967a8f42103a6d48b1131e94ba04d9737d61acdaa1322008af9602b3b14862c07a1789aac162102d8b661b0b3302ee2f162b09e07a55ad5dfbe673a9f01d9f0c19617681024306b56ae')
+        txin.witness_script = witness_script
+        redeem_script = bfh('0020a16b5755f7f6f96dbd65f5f0d6ab9418b89af4b1f14a1bb8a09062c35f0dcb54')
+        txin.redeem_script = redeem_script
+        txin.pubkeys = [bfh('0307b8ae49ac90a048e9b53357a2354b3334e9c8bee813ecb98e99a7e07e8c3ba3')]
+        privkey = bfh('730fff80e1413068a05b57d6a58261f07551163369787f349438ea38ca80fac6')
+        txin._trusted_value_sats = 987654321
+        #Set flag to SIGHASH_ALL
+        txin.sighash=1
+        #Output of Transaction
+        txout1 = PartialTxOutput(scriptpubkey=bfh('76a914389ffce9cd9ae88dcc0631e88a821ffdbe9bfe2688ac'), value=900000000)
+        txout2 = PartialTxOutput(scriptpubkey=bfh('76a9147480a33f950689af511e6e84c138dbbd3c3ee41588ac'), value=87000000)
+        tx = PartialTransaction.from_io(inputs=[txin], outputs=[txout1,txout2], locktime=locktime, version=1, BIP69_sort=False)
+        sig = tx.sign_txin(0,privkey)
+        self.assertEqual('304402206ac44d672dac41f9b00e28f4df20c52eeb087207e8d758d76d92c6fab3b73e2b0220367750dbbe19290069cba53d096f44530e4f98acaa594810388cf7409a1870ce01',
+                        sig)
+
+    def check_sighash_types_sighash_none(self):
+        #Input of transaction
+        locktime=0
+        prevout = TxOutpoint(txid=bfh('6eb98797a21c6c10aa74edf29d618be109f48a8e94c694f3701e08ca69186436'), out_idx=1)
+        txin = PartialTxInput(prevout=prevout)
+        txin.nsequence=0xffffffff
+        txin.script_type='p2sh-p2wsh'
+        witness_script = bfh('56210307b8ae49ac90a048e9b53357a2354b3334e9c8bee813ecb98e99a7e07e8c3ba32103b28f0c28bfab54554ae8c658ac5c3e0ce6e79ad336331f78c428dd43eea8449b21034b8113d703413d57761b8b9781957b8c0ac1dfe69f492580ca4195f50376ba4a21033400f6afecb833092a9a21cfdf1ed1376e58c5d1f47de74683123987e967a8f42103a6d48b1131e94ba04d9737d61acdaa1322008af9602b3b14862c07a1789aac162102d8b661b0b3302ee2f162b09e07a55ad5dfbe673a9f01d9f0c19617681024306b56ae')
+        txin.witness_script = witness_script
+        redeem_script = bfh('0020a16b5755f7f6f96dbd65f5f0d6ab9418b89af4b1f14a1bb8a09062c35f0dcb54')
+        txin.redeem_script = redeem_script
+        txin.pubkeys = [bfh('03b28f0c28bfab54554ae8c658ac5c3e0ce6e79ad336331f78c428dd43eea8449b')]
+        privkey = bfh('11fa3d25a17cbc22b29c44a484ba552b5a53149d106d3d853e22fdd05a2d8bb3')
+        txin._trusted_value_sats = 987654321
+        #Set flag to SIGHASH_NONE
+        txin.sighash=2
+        #Output of Transaction
+        txout1 = PartialTxOutput(scriptpubkey=bfh('76a914389ffce9cd9ae88dcc0631e88a821ffdbe9bfe2688ac'), value=900000000)
+        txout2 = PartialTxOutput(scriptpubkey=bfh('76a9147480a33f950689af511e6e84c138dbbd3c3ee41588ac'), value=87000000)
+        tx = PartialTransaction.from_io(inputs=[txin], outputs=[txout1,txout2], locktime=locktime, version=1, BIP69_sort=False)
+        sig = tx.sign_txin(0,privkey)
+        self.assertEqual('3044022068c7946a43232757cbdf9176f009a928e1cd9a1a8c212f15c1e11ac9f2925d9002205b75f937ff2f9f3c1246e547e54f62e027f64eefa2695578cc6432cdabce271502',
+                        sig)
+
+    def check_sighash_types_sighash_single(self):
+        #Input of transaction
+        locktime=0
+        prevout = TxOutpoint(txid=bfh('6eb98797a21c6c10aa74edf29d618be109f48a8e94c694f3701e08ca69186436'), out_idx=1)
+        txin = PartialTxInput(prevout=prevout)
+        txin.nsequence=0xffffffff
+        txin.script_type='p2sh-p2wsh'
+        witness_script = bfh('56210307b8ae49ac90a048e9b53357a2354b3334e9c8bee813ecb98e99a7e07e8c3ba32103b28f0c28bfab54554ae8c658ac5c3e0ce6e79ad336331f78c428dd43eea8449b21034b8113d703413d57761b8b9781957b8c0ac1dfe69f492580ca4195f50376ba4a21033400f6afecb833092a9a21cfdf1ed1376e58c5d1f47de74683123987e967a8f42103a6d48b1131e94ba04d9737d61acdaa1322008af9602b3b14862c07a1789aac162102d8b661b0b3302ee2f162b09e07a55ad5dfbe673a9f01d9f0c19617681024306b56ae')
+        txin.witness_script = witness_script
+        redeem_script = bfh('0020a16b5755f7f6f96dbd65f5f0d6ab9418b89af4b1f14a1bb8a09062c35f0dcb54')
+        txin.redeem_script = redeem_script
+        txin.pubkeys = [bfh('034b8113d703413d57761b8b9781957b8c0ac1dfe69f492580ca4195f50376ba4a')]
+        privkey = bfh('77bf4141a87d55bdd7f3cd0bdccf6e9e642935fec45f2f30047be7b799120661')
+        txin._trusted_value_sats = 987654321
+        #Set flag to SIGHASH_SINGLE
+        txin.sighash=3
+        #Output of Transaction
+        txout1 = PartialTxOutput(scriptpubkey=bfh('76a914389ffce9cd9ae88dcc0631e88a821ffdbe9bfe2688ac'), value=900000000)
+        txout2 = PartialTxOutput(scriptpubkey=bfh('76a9147480a33f950689af511e6e84c138dbbd3c3ee41588ac'), value=87000000)
+        tx = PartialTransaction.from_io(inputs=[txin], outputs=[txout1,txout2], locktime=locktime, version=1, BIP69_sort=False)
+        sig = tx.sign_txin(0,privkey)
+        self.assertEqual('3044022059ebf56d98010a932cf8ecfec54c48e6139ed6adb0728c09cbe1e4fa0915302e022007cd986c8fa870ff5d2b3a89139c9fe7e499259875357e20fcbb15571c76795403',
+                        sig)
+
+    def check_sighash_types_sighash_all_anyonecanpay(self):
+        #Input of transaction
+        locktime=0
+        prevout = TxOutpoint(txid=bfh('6eb98797a21c6c10aa74edf29d618be109f48a8e94c694f3701e08ca69186436'), out_idx=1)
+        txin = PartialTxInput(prevout=prevout)
+        txin.nsequence=0xffffffff
+        txin.script_type='p2sh-p2wsh'
+        witness_script = bfh('56210307b8ae49ac90a048e9b53357a2354b3334e9c8bee813ecb98e99a7e07e8c3ba32103b28f0c28bfab54554ae8c658ac5c3e0ce6e79ad336331f78c428dd43eea8449b21034b8113d703413d57761b8b9781957b8c0ac1dfe69f492580ca4195f50376ba4a21033400f6afecb833092a9a21cfdf1ed1376e58c5d1f47de74683123987e967a8f42103a6d48b1131e94ba04d9737d61acdaa1322008af9602b3b14862c07a1789aac162102d8b661b0b3302ee2f162b09e07a55ad5dfbe673a9f01d9f0c19617681024306b56ae')
+        txin.witness_script = witness_script
+        redeem_script = bfh('0020a16b5755f7f6f96dbd65f5f0d6ab9418b89af4b1f14a1bb8a09062c35f0dcb54')
+        txin.redeem_script = redeem_script
+        txin.pubkeys = [bfh('033400f6afecb833092a9a21cfdf1ed1376e58c5d1f47de74683123987e967a8f4')]
+        privkey = bfh('14af36970f5025ea3e8b5542c0f8ebe7763e674838d08808896b63c3351ffe49')
+        txin._trusted_value_sats = 987654321
+        #Set flag to SIGHASH_ALL|ANYONECANPAY
+        txin.sighash=0x81
+        #Output of Transaction
+        txout1 = PartialTxOutput(scriptpubkey=bfh('76a914389ffce9cd9ae88dcc0631e88a821ffdbe9bfe2688ac'), value=900000000)
+        txout2 = PartialTxOutput(scriptpubkey=bfh('76a9147480a33f950689af511e6e84c138dbbd3c3ee41588ac'), value=87000000)
+        tx = PartialTransaction.from_io(inputs=[txin], outputs=[txout1,txout2], locktime=locktime, version=1, BIP69_sort=False)
+        sig = tx.sign_txin(0,privkey)
+        self.assertEqual('3045022100fbefd94bd0a488d50b79102b5dad4ab6ced30c4069f1eaa69a4b5a763414067e02203156c6a5c9cf88f91265f5a942e96213afae16d83321c8b31bb342142a14d16381',
+                         sig)
+
+    def check_sighash_types_sighash_none_anyonecanpay(self):
+        #Input of transaction
+        locktime=0
+        prevout = TxOutpoint(txid=bfh('6eb98797a21c6c10aa74edf29d618be109f48a8e94c694f3701e08ca69186436'), out_idx=1)
+        txin = PartialTxInput(prevout=prevout)
+        txin.nsequence=0xffffffff
+        txin.script_type='p2sh-p2wsh'
+        witness_script = bfh('56210307b8ae49ac90a048e9b53357a2354b3334e9c8bee813ecb98e99a7e07e8c3ba32103b28f0c28bfab54554ae8c658ac5c3e0ce6e79ad336331f78c428dd43eea8449b21034b8113d703413d57761b8b9781957b8c0ac1dfe69f492580ca4195f50376ba4a21033400f6afecb833092a9a21cfdf1ed1376e58c5d1f47de74683123987e967a8f42103a6d48b1131e94ba04d9737d61acdaa1322008af9602b3b14862c07a1789aac162102d8b661b0b3302ee2f162b09e07a55ad5dfbe673a9f01d9f0c19617681024306b56ae')
+        txin.witness_script = witness_script
+        redeem_script = bfh('0020a16b5755f7f6f96dbd65f5f0d6ab9418b89af4b1f14a1bb8a09062c35f0dcb54')
+        txin.redeem_script = redeem_script
+        txin.pubkeys = [bfh('03a6d48b1131e94ba04d9737d61acdaa1322008af9602b3b14862c07a1789aac16')]
+        privkey = bfh('fe9a95c19eef81dde2b95c1284ef39be497d128e2aa46916fb02d552485e0323')
+        txin._trusted_value_sats = 987654321
+        #Set flag to SIGHASH_NONE|ANYONECANPAY
+        txin.sighash=0x82
+        #Output of Transaction
+        txout1 = PartialTxOutput(scriptpubkey=bfh('76a914389ffce9cd9ae88dcc0631e88a821ffdbe9bfe2688ac'), value=900000000)
+        txout2 = PartialTxOutput(scriptpubkey=bfh('76a9147480a33f950689af511e6e84c138dbbd3c3ee41588ac'), value=87000000)
+        tx = PartialTransaction.from_io(inputs=[txin], outputs=[txout1,txout2], locktime=locktime, version=1, BIP69_sort=False)
+        sig = tx.sign_txin(0,privkey)
+        self.assertEqual('3045022100a5263ea0553ba89221984bd7f0b13613db16e7a70c549a86de0cc0444141a407022005c360ef0ae5a5d4f9f2f87a56c1546cc8268cab08c73501d6b3be2e1e1a8a0882',
+                         sig)
+
+    def check_sighash_types_sighash_single_anyonecanpay(self):
+        #Input of transaction
+        locktime=0
+        prevout = TxOutpoint(txid=bfh('6eb98797a21c6c10aa74edf29d618be109f48a8e94c694f3701e08ca69186436'), out_idx=1)
+        txin = PartialTxInput(prevout=prevout)
+        txin.nsequence=0xffffffff
+        txin.script_type='p2sh-p2wsh'
+        witness_script = bfh('56210307b8ae49ac90a048e9b53357a2354b3334e9c8bee813ecb98e99a7e07e8c3ba32103b28f0c28bfab54554ae8c658ac5c3e0ce6e79ad336331f78c428dd43eea8449b21034b8113d703413d57761b8b9781957b8c0ac1dfe69f492580ca4195f50376ba4a21033400f6afecb833092a9a21cfdf1ed1376e58c5d1f47de74683123987e967a8f42103a6d48b1131e94ba04d9737d61acdaa1322008af9602b3b14862c07a1789aac162102d8b661b0b3302ee2f162b09e07a55ad5dfbe673a9f01d9f0c19617681024306b56ae')
+        txin.witness_script = witness_script
+        redeem_script = bfh('0020a16b5755f7f6f96dbd65f5f0d6ab9418b89af4b1f14a1bb8a09062c35f0dcb54')
+        txin.redeem_script = redeem_script
+        txin.pubkeys = [bfh('02d8b661b0b3302ee2f162b09e07a55ad5dfbe673a9f01d9f0c19617681024306b')]
+        privkey = bfh('428a7aee9f0c2af0cd19af3cf1c78149951ea528726989b2e83e4778d2c3f890')
+        txin._trusted_value_sats = 987654321
+        #Set flag to SIGHASH_SINGLE|ANYONECANPAY
+        txin.sighash=0x83
+        #Output of Transaction
+        txout1 = PartialTxOutput(scriptpubkey=bfh('76a914389ffce9cd9ae88dcc0631e88a821ffdbe9bfe2688ac'), value=900000000)
+        txout2 = PartialTxOutput(scriptpubkey=bfh('76a9147480a33f950689af511e6e84c138dbbd3c3ee41588ac'), value=87000000)
+        tx = PartialTransaction.from_io(inputs=[txin], outputs=[txout1,txout2], locktime=locktime, version=1, BIP69_sort=False)
+        sig = tx.sign_txin(0,privkey)
+        self.assertEqual('30440220525406a1482936d5a21888260dc165497a90a15669636d8edca6b9fe490d309c022032af0c646a34a44d1f4576bf6a4a74b67940f8faa84c7df9abe12a01a11e2b4783',
+                         sig)
