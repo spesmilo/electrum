@@ -14,6 +14,8 @@ class CreateNewStaking(WindowModalDialog):
 
     def __init__(self, parent):
         super().__init__(parent)
+        self.parent = parent
+        self.MIN_AMOUNT = 5
         self.stake_value = 0
         self.setObjectName("create_stake_window")
         self.setEnabled(True)
@@ -39,8 +41,9 @@ class CreateNewStaking(WindowModalDialog):
         self.title.setAlignment(QtCore.Qt.AlignCenter)
         self.Main_v_layout.addWidget(self.title)
         self.description_label = QtWidgets.QLabel(self.verticalLayoutWidget)
-        self.description_label.setText(_("Sed ut perspiciatis, unde omnis iste natus error sit voluptatem accusantium "
-                                         "doloremque laudantium, totam rem aperiam eaque ipsa, "))
+        self.description_label.setText(
+            _("Sed ut perspiciatis, unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, "
+              "totam rem aperiam eaque ipsa, "))
         self.description_label.setMinimumSize(QtCore.QSize(300, 0))
         self.description_label.setMaximumSize(QtCore.QSize(900, 60))
         self.description_label.setAlignment(QtCore.Qt.AlignLeading | QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop)
@@ -54,13 +57,23 @@ class CreateNewStaking(WindowModalDialog):
         self.gridLayout.addWidget(self.period_label, 3, 0, 1, 1)
         self.spinBox_amount = QtWidgets.QDoubleSpinBox(self.verticalLayoutWidget)
         self.spinBox_amount.setDecimals(8)
-        self.spinBox_amount.setRange(5, 99999999999)
-        self.spinBox_amount.valueChanged.connect(self.valuechange)
+        self.spinBox_amount.setRange(self.MIN_AMOUNT, 99999999999)
+        self.spinBox_amount.valueChanged.connect(self.value_change)
 
         self.gridLayout.addWidget(self.spinBox_amount, 0, 1, 1, 4)
         self.amount_label = QtWidgets.QLabel(self.verticalLayoutWidget)
         self.amount_label.setText(_("Amount"))
         self.gridLayout.addWidget(self.amount_label, 0, 0, 1, 1)
+
+        self.amount_value_error_label = QtWidgets.QLabel()
+        self.amount_value_error_label.setText(_("You Don't have enough funds"))
+        self.amount_value_error_label.setStyleSheet('color: red')
+
+        if self.valid_enough_coins(min_coins=self.MIN_AMOUNT):
+            self.amount_value_error_label.hide()
+
+        self.gridLayout.addWidget(self.amount_value_error_label, 1, 0, 1, 5)
+
         self.radio30 = QtWidgets.QRadioButton(self.verticalLayoutWidget)
         self.radio30.setText(_("30 Days"))
         self.radio30.setChecked(True)
@@ -69,22 +82,22 @@ class CreateNewStaking(WindowModalDialog):
             'blocks': 144 * 30,
         }
         self.radio30.toggled.connect(lambda: self.radio_state(self.radio30))
-        self.radio30.toggled.connect(self.valuechange)
+        self.radio30.toggled.connect(self.value_change)
         self.gridLayout.addWidget(self.radio30, 3, 1, 1, 1)
         self.radio90 = QtWidgets.QRadioButton(self.verticalLayoutWidget)
         self.radio90.setText(_("90 Days"))
         self.radio90.toggled.connect(lambda: self.radio_state(self.radio90))
-        self.radio90.toggled.connect(self.valuechange)
+        self.radio90.toggled.connect(self.value_change)
         self.gridLayout.addWidget(self.radio90, 3, 2, 1, 1)
         self.radio180 = QtWidgets.QRadioButton(self.verticalLayoutWidget)
         self.radio180.setText(_("180 Days"))
         self.radio180.toggled.connect(lambda: self.radio_state(self.radio180))
-        self.radio180.toggled.connect(self.valuechange)
+        self.radio180.toggled.connect(self.value_change)
         self.gridLayout.addWidget(self.radio180, 3, 3, 1, 1)
         self.radio360 = QtWidgets.QRadioButton(self.verticalLayoutWidget)
         self.radio360.setText(_("360 Days"))
         self.radio360.toggled.connect(lambda: self.radio_state(self.radio360))
-        self.radio360.toggled.connect(self.valuechange)
+        self.radio360.toggled.connect(self.value_change)
         self.gridLayout.addWidget(self.radio360, 3, 4, 1, 1)
         self.Main_v_layout.addLayout(self.gridLayout)
         self.vl_rewords = QtWidgets.QVBoxLayout()
@@ -145,7 +158,7 @@ class CreateNewStaking(WindowModalDialog):
         self.horizontalLayout.addItem(spacer_item1)
         self.cancel_button = QtWidgets.QPushButton(self.verticalLayoutWidget)
         self.cancel_button.setText(_("Cancel"))
-        self.cancel_button.clicked.connect(self.on_push_cancel_window)
+        self.cancel_button.clicked.connect(self.on_push_cancel_button)
         self.cancel_button.setMaximumSize(QtCore.QSize(60, 16777215))
         self.cancel_button.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
         self.horizontalLayout.addWidget(self.cancel_button)
@@ -153,20 +166,27 @@ class CreateNewStaking(WindowModalDialog):
         self.next_button.setText(_("Next"))
         self.next_button.setMaximumSize(QtCore.QSize(60, 16777215))
         self.next_button.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
-        self.next_button.clicked.connect(self.on_push_next_window)
+        self.next_button.clicked.connect(self.on_push_next_button)
         self.horizontalLayout.addWidget(self.next_button)
         self.gridLayout_2.addLayout(self.horizontalLayout, 0, 5, 1, 2)
         self.Main_v_layout.addLayout(self.gridLayout_2)
 
-    def on_push_next_window(self):
+    def on_push_next_button(self):
+        # todo: if user coins >= amount for stake go next, if not nothing
         self.dialog = dialog = CreateNewStakingTwo(parent=self)
         dialog.show()
         self.hide()
 
-    def on_push_cancel_window(self):
+    def on_push_cancel_button(self):
         self.hide()
 
-    def valuechange(self):
+    def value_change(self):
+
+        if self.valid_enough_coins(min_coins=self.spinBox_amount.value()):
+            self.amount_value_error_label.hide()
+        else:
+            self.amount_value_error_label.show()
+
         self.ep_label.setText(
             _("Estimated payout: ") +
             str(self.spinBox_amount.value() * self.period['days'] * 0.21) +
@@ -212,6 +232,18 @@ class CreateNewStaking(WindowModalDialog):
                     'days': 360,
                     'blocks': 144 * 360,
                 }
+
+    def valid_enough_coins(self, min_coins):
+        coin = 0
+        for i in self.parent.wallet.get_spendable_coins(None, nonlocal_only=True):
+            coin += i._trusted_value_sats
+        min_coins *= 100000000
+        if not coin >= min_coins:
+            return False
+        else:
+            return True
+
+
 
 
 class CreateNewStakingTwo(WindowModalDialog):
@@ -352,24 +384,24 @@ class CreateNewStakingTwo(WindowModalDialog):
         self.button_layout.addWidget(self.back_button)
         self.cancel_button = QtWidgets.QPushButton()
         self.cancel_button.setText(_("Cancel"))
-        self.cancel_button.clicked.connect(self.on_push_cancel_window)
+        self.cancel_button.clicked.connect(self.on_push_cancel_button)
         self.button_layout.addWidget(self.cancel_button)
         self.send_button = QtWidgets.QPushButton()
         self.send_button.setText(_("Send"))
         self.send_button.clicked.connect(self.on_push_send_window)
         self.button_layout.addWidget(self.send_button)
         self.main_box.addLayout(self.button_layout)
-        # self.send_button.clicked.connect(self.on_push_send_window)
 
     def on_push_back_button(self):
         dialog = self.parent()
         dialog.show()
         self.hide()
 
-    def on_push_cancel_window(self):
+    def on_push_cancel_button(self):
         self.hide()
 
-    def on_push_send_window(self):  # todo: valid password and coins
+    def on_push_send_window(self):
+        # todo: valid password
         dialog = CreateNewStakingFinish(parent=self)
         dialog.show()
         self.hide()
@@ -391,12 +423,10 @@ class CreateNewStakingFinish(WindowModalDialog):
         self.info_label = QtWidgets.QLabel()
         self.info_label.setText(_("Succes!"))
         self.main_box.addWidget(self.info_label)
-
         self.info_label1 = QtWidgets.QLabel()
-        transaction_id = 'ab56766804280c622dedb5d608e9a43df027409686de77e417d0b74ea32b5f3c'
+        transaction_id = 'ab56766804280c622dedb5d608e9a43df027409686de77e417d0b74ea32b5f3c'  # todo
         self.info_label1.setText(_("Transaction ID:") + transaction_id)
         self.main_box.addWidget(self.info_label1)
-
         self.button_layout = QtWidgets.QHBoxLayout()
         spacer_item = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
         self.button_layout.addItem(spacer_item)

@@ -35,14 +35,14 @@ from .util import read_QIcon, WindowModalDialog, OkButton
 
 
 class CustomButton(QPushButton):
-    def __init__(self, text, func=None, icon=None):
+    def __init__(self, text, trigger=None, icon=None):
         QPushButton.__init__(self, text)
         super().__init__()
         self.setText(text)
         if icon is not None:
             self.setIcon(icon)
         self.clicked.connect(self.on_press)
-        self.func = func
+        self.func = trigger
         self.setIconSize(QSize(20, 20))
 
     def on_press(self, checked=False):
@@ -59,9 +59,9 @@ def create(self):
     self.receive_grid = grid = QGridLayout()
 
     from .create_new_stake_window import CreateNewStaking
-    self.create_stake_dialog = CreateNewStaking(parent=None)
+    self.create_stake_dialog = CreateNewStaking(self)
 
-    self.stake_button = CustomButton(text=_('Stake'), func=self.create_stake_dialog, icon=read_QIcon("electrum.png"))
+    self.stake_button = CustomButton(text=_('Stake'), trigger=self.create_stake_dialog, icon=read_QIcon("electrum.png"))
 
     self.claim_rewords_button = CustomButton(text=_('Claim Rewords'))
 
