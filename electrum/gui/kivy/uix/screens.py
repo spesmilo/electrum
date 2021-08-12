@@ -17,7 +17,7 @@ from electrum import bitcoin, constants
 from electrum.transaction import tx_from_any, PartialTxOutput
 from electrum.util import (parse_URI, InvalidBitcoinURI, TxMinedInfo, maybe_extract_bolt11_invoice,
                            InvoiceError, format_time)
-from electrum.lnaddr import lndecode
+from electrum.lnaddr import lndecode, LnInvoiceException
 from electrum.logging import Logger
 
 from .dialogs.confirm_tx_dialog import ConfirmTxDialog
@@ -113,7 +113,6 @@ class HistoryScreen(CScreen):
         timestamp = tx_item['timestamp']
         key = tx_item.get('txid') or tx_item['payment_hash']
         if is_lightning:
-            status = 0
             status_str = 'unconfirmed' if timestamp is None else format_time(int(timestamp))
             icon = f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/lightning'
             message = tx_item['label']
@@ -122,7 +121,6 @@ class HistoryScreen(CScreen):
             fee_text = '' if fee is None else 'fee: %d sat'%fee
         else:
             tx_hash = tx_item['txid']
-            conf = tx_item['confirmations']
             tx_mined_info = TxMinedInfo(height=tx_item['height'],
                                         conf=tx_item['confirmations'],
                                         timestamp=tx_item['timestamp'])
@@ -141,9 +139,11 @@ class HistoryScreen(CScreen):
         value = tx_item['value'].value
         if value is not None:
             ri['is_mine'] = value <= 0
-            ri['amount'] = self.app.format_amount(value, is_diff = True)
+            ri['amount'] = self.app.format_amount(value, is_diff=True)
+            ri['base_unit'] = self.app.base_unit
             if 'fiat_value' in tx_item:
                 ri['quote_text'] = str(tx_item['fiat_value'])
+                ri['fx_ccy'] = tx_item['fiat_value'].ccy
         return ri
 
     def update(self, see_all=False):
@@ -170,6 +170,15 @@ class SendScreen(CScreen, Logger):
     def set_URI(self, text: str):
         if not self.app.wallet:
             return
+        # interpret as lighting URI
+        bolt11_invoice = maybe_extract_bolt11_invoice(text)
+        if bolt11_invoice:
+            self.set_ln_invoice(bolt11_invoice)
+        # interpret as BIP21 URI
+        else:
+            self.set_bip21(text)
+
+    def set_bip21(self, text: str):
         try:
             uri = parse_URI(text, self.app.on_pr, loop=self.app.asyncio_loop)
         except InvalidBitcoinURI as e:
@@ -188,8 +197,8 @@ class SendScreen(CScreen, Logger):
         try:
             invoice = str(invoice).lower()
             lnaddr = lndecode(invoice)
-        except Exception as e:
-            self.app.show_info(invoice + _(" is not a valid Lightning invoice: ") + repr(e)) # repr because str(Exception()) == ''
+        except LnInvoiceException as e:
+            self.app.show_info(_("Invoice is not a valid Lightning invoice: ") + repr(e)) # repr because str(Exception()) == ''
             return
         self.address = invoice
         self.message = dict(lnaddr.tags).get('d', None)
@@ -341,7 +350,9 @@ class SendScreen(CScreen, Logger):
     def do_pay_invoice(self, invoice):
         if invoice.is_lightning():
             if self.app.wallet.lnworker:
-                self.app.protected(_('Pay lightning invoice?'), self._do_pay_lightning, (invoice,))
+                amount_sat = invoice.get_amount_sat()
+                msg = _("Pay lightning invoice?") + '\n\n' + _("This will send {}?").format(self.app.format_amount_and_units_with_fiat(amount_sat)) +'\n'
+                self.app.protected(msg, self._do_pay_lightning, (invoice,))
             else:
                 self.app.show_error(_("Lightning payments are not available for this wallet"))
         else:
@@ -418,11 +429,7 @@ class ReceiveScreen(CScreen):
 
     def get_URI(self):
         from electrum.util import create_bip21_uri
-        amount = self.amount
-        if amount:
-            a, u = self.amount.split()
-            assert u == self.app.base_unit
-            amount = Decimal(a) * pow(10, self.app.decimal_point())
+        amount = self.app.get_amount(self.amount)
         return create_bip21_uri(self.address, amount, self.message)
 
     def do_copy(self):
