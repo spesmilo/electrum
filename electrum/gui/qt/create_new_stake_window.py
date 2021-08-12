@@ -172,10 +172,10 @@ class CreateNewStaking(WindowModalDialog):
         self.Main_v_layout.addLayout(self.gridLayout_2)
 
     def on_push_next_button(self):
-        # todo: if user coins >= amount for stake go next, if not nothing
-        self.dialog = dialog = CreateNewStakingTwo(parent=self)
-        dialog.show()
-        self.hide()
+        if self.valid_enough_coins(min_coins=self.spinBox_amount.value()):
+            self.dialog = dialog = CreateNewStakingTwo(parent=self)
+            dialog.show()
+            self.hide()
 
     def on_push_cancel_button(self):
         self.hide()
