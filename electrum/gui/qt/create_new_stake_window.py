@@ -415,6 +415,7 @@ class CreateNewStakingTwo(WindowModalDialog):
                 self.wallet.check_password(password)
             except Exception as e:
                 self.password_error_label.show()
+                self.password_lineEdit.setStyleSheet("background-color: red;")
                 return
 
         self.is_send = True
