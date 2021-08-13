@@ -1,5 +1,5 @@
 from electrum.i18n import _
-from .util import (WindowModalDialog, )
+from .util import (WindowModalDialog, PasswordLineEdit, )
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.Qt import QUrl, QDesktopServices
 
@@ -364,7 +364,7 @@ class CreateNewStakingTwo(WindowModalDialog):
         self.password_label.setText(_("Password:"))
         self.password_label.setMaximumSize(QtCore.QSize(16777215, 40))
         self.password_layout.addWidget(self.password_label)
-        self.password_lineEdit = QtWidgets.QLineEdit()
+        self.password_lineEdit = PasswordLineEdit()
         self.password_lineEdit.setText("")
         self.password_layout.addWidget(self.password_lineEdit)
         self.main_box.addLayout(self.password_layout)
