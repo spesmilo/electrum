@@ -1,10 +1,7 @@
-from typing import TYPE_CHECKING
-
 from electrum.i18n import _
 from .util import (WindowModalDialog, )
 from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.Qt import QApplication, QUrl, QDesktopServices
-import sys
+from PyQt5.Qt import QUrl, QDesktopServices
 
 
 class CreateNewStaking(WindowModalDialog):
@@ -17,12 +14,11 @@ class CreateNewStaking(WindowModalDialog):
         self.parent = parent
         self.MIN_AMOUNT = 5
         self.stake_value = 0
-        self.setObjectName("create_stake_window")
         self.setEnabled(True)
         self.setMinimumSize(QtCore.QSize(440, 400))
         self.setMaximumSize(QtCore.QSize(440, 400))
         self.setBaseSize(QtCore.QSize(440, 400))
-        self.setWindowTitle("Create New Stake")
+        self.setWindowTitle(_("Create New Stake"))
         self.verticalLayoutWidget = QtWidgets.QWidget(self)
         self.verticalLayoutWidget.setGeometry(QtCore.QRect(0, 10, 431, 391))
         self.Main_v_layout = QtWidgets.QVBoxLayout(self.verticalLayoutWidget)
@@ -57,7 +53,7 @@ class CreateNewStaking(WindowModalDialog):
         self.gridLayout.addWidget(self.period_label, 3, 0, 1, 1)
         self.spinBox_amount = QtWidgets.QDoubleSpinBox(self.verticalLayoutWidget)
         self.spinBox_amount.setDecimals(8)
-        self.spinBox_amount.setRange(self.MIN_AMOUNT, 99999999999)
+        self.spinBox_amount.setRange(self.MIN_AMOUNT, self.get_spendable_coins())
         self.spinBox_amount.valueChanged.connect(self.value_change)
 
         self.gridLayout.addWidget(self.spinBox_amount, 0, 1, 1, 4)
@@ -66,7 +62,7 @@ class CreateNewStaking(WindowModalDialog):
         self.gridLayout.addWidget(self.amount_label, 0, 0, 1, 1)
 
         self.amount_value_error_label = QtWidgets.QLabel()
-        self.amount_value_error_label.setText(_("You Don't have enough funds"))
+        self.amount_value_error_label.setText(_("The minimum stake value is 5 ELCASH"))
         self.amount_value_error_label.setStyleSheet('color: red')
 
         if self.valid_enough_coins(min_coins=self.MIN_AMOUNT):
@@ -164,6 +160,10 @@ class CreateNewStaking(WindowModalDialog):
         self.horizontalLayout.addWidget(self.cancel_button)
         self.next_button = QtWidgets.QPushButton(self.verticalLayoutWidget)
         self.next_button.setText(_("Next"))
+
+        if not self.valid_enough_coins(self.MIN_AMOUNT):
+            self.next_button.setEnabled(False)
+
         self.next_button.setMaximumSize(QtCore.QSize(60, 16777215))
         self.next_button.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
         self.next_button.clicked.connect(self.on_push_next_button)
@@ -205,7 +205,6 @@ class CreateNewStaking(WindowModalDialog):
     def radio_state(self, b):
         if b.text() == "30 Days":
             if b.isChecked():
-                print(b.text() + " is selected")
                 self.period = {
                     'days': 30,
                     'blocks': 144 * 30,
@@ -213,35 +212,35 @@ class CreateNewStaking(WindowModalDialog):
 
         if b.text() == "90 Days":
             if b.isChecked():
-                print(b.text() + " is selected")
                 self.period = {
                     'days': 90,
                     'blocks': 144 * 90,
                 }
         if b.text() == "180 Days":
             if b.isChecked():
-                print(b.text() + " is selected")
                 self.period = {
                     'days': 180,
                     'blocks': 144 * 180,
                 }
         if b.text() == "360 Days":
             if b.isChecked():
-                print(b.text() + " is selected")
                 self.period = {
                     'days': 360,
                     'blocks': 144 * 360,
                 }
 
     def valid_enough_coins(self, min_coins):
-        coin = 0
-        for i in self.parent.wallet.get_spendable_coins(None, nonlocal_only=True):
-            coin += i._trusted_value_sats
-        min_coins *= 100000000
-        if not coin >= min_coins:
+        coins = self.get_spendable_coins()
+        if not coins >= min_coins:
             return False
         else:
             return True
+
+    def get_spendable_coins(self):
+        coins = 0
+        for i in self.parent.wallet.get_spendable_coins(None, nonlocal_only=True):
+            coins += i._trusted_value_sats
+        return coins * 0.00000001
 
 
 class CreateNewStakingTwo(WindowModalDialog):
@@ -251,6 +250,9 @@ class CreateNewStakingTwo(WindowModalDialog):
 
     def __init__(self, parent):
         super().__init__(parent)
+        self.parent = parent
+        self.wallet = parent.parent.wallet
+        self.password_required = self.wallet.has_keystore_encryption()
         self.setWindowModality(QtCore.Qt.WindowModal)
         self.setEnabled(True)
         self.resize(420, 500)
@@ -370,6 +372,12 @@ class CreateNewStakingTwo(WindowModalDialog):
         self.password_error_label.setText(_("incorrect password"))
         self.password_error_label.setStyleSheet('color: red')
         self.main_box.addWidget(self.password_error_label)
+        self.password_error_label.hide()
+
+        if not self.password_required:
+            self.password_label.hide()
+            self.password_lineEdit.hide()
+
         self.text_tabel = QtWidgets.QLabel()
         self.text_tabel.setText(_("Click Send to proceed"))
         self.main_box.addWidget(self.text_tabel)
@@ -391,7 +399,7 @@ class CreateNewStakingTwo(WindowModalDialog):
         self.main_box.addLayout(self.button_layout)
 
     def on_push_back_button(self):
-        dialog = self.parent()
+        dialog = self.parent
         dialog.show()
         self.hide()
 
@@ -399,10 +407,20 @@ class CreateNewStakingTwo(WindowModalDialog):
         self.hide()
 
     def on_push_send_window(self):
-        # todo: valid password
+        password = self.password_lineEdit.text() or None
+        if self.password_required:
+            if password is None:
+                return
+            try:
+                self.wallet.check_password(password)
+            except Exception as e:
+                self.password_error_label.show()
+                return
+
+        self.is_send = True
+        self.hide()
         dialog = CreateNewStakingFinish(parent=self)
         dialog.show()
-        self.hide()
 
 
 class CreateNewStakingFinish(WindowModalDialog):
@@ -416,7 +434,7 @@ class CreateNewStakingFinish(WindowModalDialog):
         self.setEnabled(True)
         self.setMinimumSize(QtCore.QSize(720, 100))
         self.setMaximumSize(QtCore.QSize(720, 100))
-        self.setWindowTitle("Create New Stake")
+        self.setWindowTitle(_("Create New Stake"))
         self.main_box = QtWidgets.QVBoxLayout(self)
         self.info_label = QtWidgets.QLabel()
         self.info_label.setText(_("Succes!"))
