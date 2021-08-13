@@ -7,7 +7,8 @@ from PyQt5.Qt import QUrl, QDesktopServices
 class CreateNewStaking(WindowModalDialog):
 
     def __call__(self, *args, **kwargs):
-        self.show()
+        self.value_change()
+        self.open()
 
     def __init__(self, parent):
         super().__init__(parent)
@@ -178,14 +179,18 @@ class CreateNewStaking(WindowModalDialog):
             self.hide()
 
     def on_push_cancel_button(self):
-        self.hide()
+        self.close()
 
     def value_change(self):
 
+        self.spinBox_amount.setRange(self.MIN_AMOUNT, self.get_spendable_coins())
+
         if self.valid_enough_coins(min_coins=self.spinBox_amount.value()):
             self.amount_value_error_label.hide()
+            self.next_button.setEnabled(True)
         else:
             self.amount_value_error_label.show()
+            self.next_button.setEnabled(False)
 
         self.ep_label.setText(
             _("Estimated payout: ") +
@@ -404,7 +409,7 @@ class CreateNewStakingTwo(WindowModalDialog):
         self.hide()
 
     def on_push_cancel_button(self):
-        self.hide()
+        self.close()
 
     def on_push_send_window(self):
         password = self.password_lineEdit.text() or None
@@ -460,8 +465,8 @@ class CreateNewStakingFinish(WindowModalDialog):
     def on_push_explorer_button(self):
         url = QUrl("https://explorer.electriccash.global/")
         QDesktopServices.openUrl(url)
-        self.hide()
+        self.close()
 
     def on_push_ok_button(self):
-        self.hide()
+        self.close()
 
