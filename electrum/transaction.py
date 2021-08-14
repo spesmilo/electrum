@@ -1909,7 +1909,7 @@ class PartialTransaction(Transaction):
         txin = self.inputs()[txin_index]
         txin.validate_data(for_signing=True)
         sighash = txin.sighash if txin.sighash is not None else SIGHASH_ALL
-        sighash_type = '0' + hex(sighash)[2:] if len(hex(sighash)) < 4 else hex(sighash)[2:]
+        sighash_type = '{0:02x}'.format(sighash)
         pre_hash = sha256d(bfh(self.serialize_preimage(txin_index,
                                                        bip143_shared_txdigest_fields=bip143_shared_txdigest_fields)))
         privkey = ecc.ECPrivkey(privkey_bytes)
