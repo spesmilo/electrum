@@ -39,6 +39,7 @@ from collections import defaultdict
 
 import electroncash.schnorr as schnorr
 from electroncash.address import Address
+from electroncash import networks
 from electroncash.util import PrintError, ServerError, TimeoutException
 from . import fusion_pb2 as pb
 from . import compatibility
@@ -232,6 +233,7 @@ class FusionServer(GenericServer):
         super().__init__(bindhost, port, ClientThread, upnp = upnp)
         self.config = config
         self.network = network
+        self.is_testnet = networks.net.TESTNET
         self.announcehost = announcehost
         self.donation_address = donation_address
         self.waiting_pools = {t: WaitingPool(Params.min_clients, Params.max_tier_client_tags) for t in Params.tiers}
@@ -343,8 +345,9 @@ class FusionServer(GenericServer):
         start_ev = threading.Event()
         client.start_ev = start_ev
 
-        if client_ip.startswith('127.'):
+        if self.is_testnet or client_ip.startswith('127.'):
             # localhost is whitelisted to allow unlimited access
+            # we also allow unlimited access for testnets
             client.tags = []
         else:
             # Default tag: this IP cannot be present in too many fuses.
