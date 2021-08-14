@@ -115,12 +115,9 @@ info "generating locale"
 ) || fail "failed generating locale"
 
 
-info "Downloading libusb..."
-curl https://homebrew.bintray.com/bottles/libusb-1.0.23.high_sierra.bottle.tar.gz | \
-tar xz --directory "$BUILDDIR"
-cp "$BUILDDIR/libusb/1.0.23/lib/libusb-1.0.dylib" contrib/osx
-echo "caea266f3fc3982adc55d6cb8d9bad10f6e61f0c24ce5901aa1804618e08e14d  contrib/osx/libusb-1.0.dylib" | \
-    shasum -a 256 -c || fail "libusb checksum mismatched"
+info "Building libusb dylib..."
+"$CONTRIB"/make_libusb.sh || fail "Could not build libusb dylib"
+cp "$PROJECT_ROOT"/electrum/libusb-1.0.dylib "$CONTRIB"/osx
 
 info "Preparing for building libsecp256k1"
 brew install autoconf automake libtool
