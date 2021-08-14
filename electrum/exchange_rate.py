@@ -306,7 +306,7 @@ class CoinDesk(ExchangeBase):
 class CoinGecko(ExchangeBase):
 
     async def get_rates(self, ccy):
-        json = await self.get_json('api.coingecko.com', '/api/v3/exchange_rates')
+        json = await self.get_json('api.coingecko.com', '/api/v3/coins/widecoin?localization=false&tickers=false&community_data=false&developer_data=false&sparkline=false')
         return dict([(ccy.upper(), Decimal(d['value']))
                      for ccy, d in json['rates'].items()])
 
