@@ -46,6 +46,7 @@ class Conf:
         CoinbaseSeenLatch = False
         FusionMode = 'normal'
         QueudAutofuse = 4
+        FuseDepth = 0  # Fuse forever by default
         Selector = ('fraction', 0.1)  # coin selector options
         SelfFusePlayers = 1 # self-fusing control (1 = just self, more than 1 = self fuse up to N times)
         SpendOnlyFusedCoins = False  # spendable_coin_filter @hook
@@ -113,6 +114,16 @@ class Conf:
             assert i >= 1
             i = int(i)
         self.wallet.storage.put('cashfusion_queued_autofuse', i)
+
+    @property
+    def fuse_depth(self) -> int:
+        return int(self.wallet.storage.get('cashfusion_fuse_depth', self.Defaults.FuseDepth))
+    @fuse_depth.setter
+    def fuse_depth(self, i : Optional[int]):
+        if i is not None:
+            assert i >= 0
+            i = int(i)
+        self.wallet.storage.put('cashfusion_fuse_depth', i)
 
     @property
     def selector(self) -> Tuple[str, Union[int,float]]:

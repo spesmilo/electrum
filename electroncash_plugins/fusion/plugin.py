@@ -73,6 +73,9 @@ MAX_AUTOFUSIONS_PER_WALLET = 10
 
 CONSOLIDATE_MAX_OUTPUTS = MIN_TX_COMPONENTS // 3
 
+# Threshold for the amount (sats) for a wallet to be fully fused. This is to avoid refuse when dusted.
+FUSE_DEPTH_THRESHOLD = 0.95
+
 pnp = None
 def get_upnp():
     """ return an initialized UPnP singleton """
@@ -598,6 +601,19 @@ class FusionPlugin(BasePlugin):
                     for f in list(wallet._fusions_auto):
                         f.stop('Wallet has unconfirmed coins... waiting.', not_if_running = True)
                     continue
+
+                fuse_depth = Conf(wallet).fuse_depth
+                if fuse_depth > 0:
+                    sum_eligible_values = 0
+                    sum_fuz_values = 0
+                    for eaddr, ecoins in eligible:
+                        ecoins_value = sum(ecoin['value'] for ecoin in ecoins)
+                        sum_eligible_values += ecoins_value
+                        if self.is_fuz_address(wallet, eaddr, fuse_depth - 1):
+                            sum_fuz_values += ecoins_value
+                    if sum_eligible_values != 0 and sum_fuz_values / sum_eligible_values >= FUSE_DEPTH_THRESHOLD:
+                        continue
+
                 if not dont_start_fusions and num_auto < min(target_num_auto, MAX_AUTOFUSIONS_PER_WALLET):
                     # we don't have enough auto-fusions running, so start one
                     fraction = get_target_params_2(wallet_conf, sum_value)
@@ -660,10 +676,11 @@ class FusionPlugin(BasePlugin):
         return can_fuse_from(wallet) and can_fuse_to(wallet)
 
     @staticmethod
-    def is_fuz_coin(wallet, coin) -> Optional[bool]:
+    def is_fuz_coin(wallet, coin, fuz_parents=0) -> Optional[bool]:
         """ Returns True if the coin in question is definitely a CashFusion coin (uses heuristic matching),
         or False if the coin in question is not from a CashFusion tx. Returns None if the tx for the coin
-        is not (yet) known to the wallet (None == inconclusive answer, caller may wish to try again later). """
+        is not (yet) known to the wallet (None == inconclusive answer, caller may wish to try again later).
+        Optionally check recursively if the depth of fused coins is sufficient. """
         cache = getattr(wallet, "_cashfusion_is_fuz_coin_cache", None)
         if cache is None:
             cache = wallet._cashfusion_is_fuz_coin_cache = dict()
@@ -672,6 +689,8 @@ class FusionPlugin(BasePlugin):
         if answer is not None:
             # check cache, if cache hit, return answer and avoid the lookup below
             return answer
+
+        fuz_parents = min(fuz_parents, 900)  # paranoia: clamp recursion to 900
 
         def check_is_fuz_tx():
             tx = wallet.transactions.get(tx_id, None)
@@ -688,10 +707,18 @@ class FusionPlugin(BasePlugin):
                     # Nope, lokad prefix not found
                     return False
                 # Step 2 - are at least 1 of the inputs from me? (DoS prevention measure)
+                fuz_input_found = False
                 for inp in inputs:
                     inp_addr = inp.get('address', None)
                     if inp_addr is not None and wallet.is_mine(inp_addr):
-                        return True  # Success! This tx matches our heuristics
+                        fuz_input_found = True
+                        if fuz_parents <= 0:
+                            return True  # This transaction is a CashFusion tx
+                        # [Optional] Step 3 - Check if all inputs from the wallet are also fusions
+                        if not FusionPlugin.is_fuz_coin(wallet, inp, fuz_parents - 1):
+                            return False  # Not all parents were CashFusion transactions
+                if fuz_input_found:
+                    return True  # All parents where CashFusion transactions with sufficient depth
                 # Failure -- this tx has the lokad but no inputs are "from me".
                 print_error(f"CashFusion: txid \"{tx_id}\" has a CashFusion-style OP_RETURN but none of the "
                             "inputs are from this wallet. This is UNEXPECTED!")
@@ -716,7 +743,7 @@ class FusionPlugin(BasePlugin):
         return answer
 
     @classmethod
-    def is_fuz_address(cls, wallet, address):
+    def is_fuz_address(cls, wallet, address, fuz_parents=0):
         """ Returns True if address contains any fused UTXOs.
             If you want thread safety, caller must hold wallet locks. """
         assert isinstance(address, Address)
@@ -728,7 +755,7 @@ class FusionPlugin(BasePlugin):
             return True
         utxos = wallet.get_addr_utxo(address)
         for coin in utxos.values():
-            if cls.is_fuz_coin(wallet, coin):
+            if cls.is_fuz_coin(wallet, coin, fuz_parents):
                 cache.add(address)
                 return True
         return False
