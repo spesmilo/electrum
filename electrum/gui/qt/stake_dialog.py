@@ -54,40 +54,39 @@ class CustomButton(QPushButton):
             self.func()
 
 
-def create(self):
+def staking_dialog(window):
 
-    self.receive_grid = grid = QGridLayout()
+    window.receive_grid = grid = QGridLayout()
 
-    from .create_new_stake_window import CreateNewStaking
-    self.create_stake_dialog = CreateNewStaking(self)
+    from .create_new_stake_window import CreateNewStakingWindow
+    window.create_stake_dialog = CreateNewStakingWindow(window)
 
-    self.stake_button = CustomButton(text=_('Stake'), trigger=self.create_stake_dialog, icon=read_QIcon("electrum.png"))
+    window.stake_button = CustomButton(text=_('Stake'), trigger=window.create_stake_dialog, icon=read_QIcon("electrum.png"))
 
-    self.claim_rewords_button = CustomButton(text=_('Claim Rewords'))
+    window.claim_rewords_button = CustomButton(text=_('Claim Rewords'))
 
-    self.staking_header = buttons = QHBoxLayout()
+    window.staking_header = buttons = QHBoxLayout()
     buttons.addStretch(1)
-    buttons.addWidget(self.stake_button)
-    buttons.addWidget(self.claim_rewords_button)
+    buttons.addWidget(window.stake_button)
+    buttons.addWidget(window.claim_rewords_button)
     grid.addLayout(buttons, 4, 3, 1, 2)
 
-    self.receive_requests_label = QLabel(_('Staking History'))
+    window.receive_requests_label = QLabel(_('Staking History'))
 
     from .staking_list import StakingList
-    self.staking_list = StakingList(self)
+    window.staking_list = StakingList(window)
 
     font = QtGui.QFont()
     font.setUnderline(True)
-    self.terms_button = QPushButton()
-    self.terms_button.setFont(font)
-    self.terms_button.setText(_("Terms & Conditions"))
-    self.terms_button.setMaximumSize(QtCore.QSize(140, 16777215))
-    self.terms_button.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
-    self.terms_button.setStyleSheet("border: none;")
-    self.terms_button.setAutoDefault(True)
-    self.terms_button.clicked.connect(terms_and_conditions_view)
+    window.terms_button = QPushButton()
+    window.terms_button.setFont(font)
+    window.terms_button.setText(_("Terms & Conditions"))
+    window.terms_button.setMaximumSize(QtCore.QSize(140, 16777215))
+    window.terms_button.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+    window.terms_button.setStyleSheet("border: none;")
+    window.terms_button.setAutoDefault(True)
+    window.terms_button.clicked.connect(terms_and_conditions_view)
 
-    # layout
     vbox_g = QVBoxLayout()
     vbox_g.addLayout(grid)
     vbox_g.addStretch()
@@ -96,15 +95,15 @@ def create(self):
     hbox.addStretch()
 
     w = QWidget()
-    w.searchable_list = self.staking_list
+    w.searchable_list = window.staking_list
     vbox = QVBoxLayout(w)
     vbox.addLayout(hbox)
 
     vbox.addStretch(1)
-    vbox.addWidget(self.receive_requests_label)
-    vbox.addWidget(self.staking_list)
-    vbox.addWidget(self.terms_button)
-    vbox.setStretchFactor(self.staking_list, 1000)
+    vbox.addWidget(window.receive_requests_label)
+    vbox.addWidget(window.staking_list)
+    vbox.addWidget(window.terms_button)
+    vbox.setStretchFactor(window.staking_list, 1000)
 
     return w
 
