@@ -265,9 +265,10 @@ class Plugin(FusionPlugin, QObject):
         header = utxo_list.headerItem()
         header_labels = [header.text(i) for i in range(header.columnCount())]
         col = len(header_labels) - 1
-        for i, lbl in enumerate(header_labels):  # find the column
+        # find the column, iterate in reverse since it's likely last
+        for i, lbl in enumerate(reversed(header_labels)):
             if lbl == label_text:
-                col = i
+                col = len(header_labels) - 1 - i
                 break
         return col, header, header_labels
 
