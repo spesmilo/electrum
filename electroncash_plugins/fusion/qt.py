@@ -258,19 +258,29 @@ class Plugin(FusionPlugin, QObject):
         utxo_list.wallet.print_error("[fusion] Patched utxo_list")
 
     @staticmethod
-    def find_utxo_list_fusion_column(utxo_list):
+    def find_utxo_list_fusion_column(utxo_list, *, just_column=False):
         label_text = getattr(utxo_list, '_fusion_patched_', None)
         if label_text is None:
             return
         header = utxo_list.headerItem()
-        header_labels = [header.text(i) for i in range(header.columnCount())]
-        col = len(header_labels) - 1
-        # find the column, iterate in reverse since it's likely last
-        for i, lbl in enumerate(reversed(header_labels)):
-            if lbl == label_text:
-                col = len(header_labels) - 1 - i
-                break
-        return col, header, header_labels
+        if just_column:
+            # fast path, query just the column
+            col_ct = header.columnCount()
+            if not col_ct:
+                return None
+            # iterate in reverse (it's likely last)
+            for i in range(col_ct - 1, -1, -1):
+                if header.text(i) == label_text:
+                    return i
+        else:
+            header_labels = [header.text(i) for i in range(header.columnCount())]
+            col = len(header_labels) - 1
+            # find the column, iterate in reverse since it's likely last
+            for i, lbl in enumerate(reversed(header_labels)):
+                if lbl == label_text:
+                    col = len(header_labels) - 1 - i
+                    break
+            return col, header, header_labels
 
     @staticmethod
     def unpatch_utxo_list(utxo_list):
@@ -285,10 +295,9 @@ class Plugin(FusionPlugin, QObject):
 
     @hook
     def utxo_list_item_setup(self, utxo_list, item, utxo, name):
-        tup = self.find_utxo_list_fusion_column(utxo_list)
-        if not tup:
+        col = self.find_utxo_list_fusion_column(utxo_list, just_column=True)
+        if col is None:
             return
-        col, __, __ = tup
 
         wallet = utxo_list.wallet
         fuse_depth = Conf(wallet).fuse_depth

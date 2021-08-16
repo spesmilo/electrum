@@ -66,25 +66,34 @@ def network_callback(window, event, *args):
         if len(args) == 2 and hasattr(window, 'wallet') and args[1] is window.wallet and args[0]:
             window._shuffle_sigs.tx.emit(window, args[0])
 
-def find_utxo_list_shuffle_column(utxo_list):
+def find_utxo_list_shuffle_column(utxo_list, *, just_column=False):
     label_text = getattr(utxo_list, '_shuffle_patched_', None)
     if label_text is None:
         return
     header = utxo_list.headerItem()
-    header_labels = [header.text(i) for i in range(header.columnCount())]
-    col = len(header_labels) - 1
-    # find the column, iterate in reverse since it's likely last
-    for i, lbl in enumerate(reversed(header_labels)):
-        if lbl == label_text:
-            col = len(header_labels) - 1 - i
-            break
-    return col, header, header_labels
+    if just_column:
+        # fast path, query just the column
+        col_ct = header.columnCount()
+        if not col_ct:
+            return
+        # iterate in reverse (it's likely last)
+        for i in range(col_ct - 1, -1, -1):
+            if header.text(i) == label_text:
+                return i
+    else:
+        header_labels = [header.text(i) for i in range(header.columnCount())]
+        col = len(header_labels) - 1
+        # find the column, iterate in reverse since it's likely last
+        for i, lbl in enumerate(reversed(header_labels)):
+            if lbl == label_text:
+                col = len(header_labels) - 1 - i
+                break
+        return col, header, header_labels
 
 def my_custom_item_setup(utxo_list, item, utxo, name):
-    tup = find_utxo_list_shuffle_column(utxo_list)
-    if not tup:
+    col = find_utxo_list_shuffle_column(utxo_list, just_column=True)
+    if col is None:
         return
-    col, __, __ = tup
 
     prog = utxo_list.in_progress.get(name, "")
     frozenstring = item.data(0, utxo_list.DataRoles.frozen_flags) or ""
