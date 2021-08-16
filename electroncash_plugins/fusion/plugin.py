@@ -780,6 +780,16 @@ class FusionPlugin(BasePlugin):
         return answer
 
     @classmethod
+    def get_coin_known_fuz_count(cls, wallet, coin, *, require_depth=0):
+        res = cls.is_fuz_coin(wallet, coin, require_depth=require_depth)
+        if require_depth > 0:
+            # check if has at least 1 fusion
+            res = cls.is_fuz_coin(wallet, coin, require_depth=0)
+        if res:
+            return wallet._cashfusion_is_fuz_txid_cache.get(coin['prevout_hash'], 0) + 1
+        return 0
+
+    @classmethod
     def is_fuz_address(cls, wallet, address, *, require_depth=0):
         """ Returns True if address contains any fused UTXOs.
             Optionally, specify require_depth, in which case True is returned

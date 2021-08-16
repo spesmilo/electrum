@@ -232,6 +232,9 @@ class Plugin(FusionPlugin, QObject):
         self.add_wallet(wallet, window.gui_object.get_cached_password(wallet))
         sbbtn.update_state()
 
+        # Set up the utxo_list column
+        self.patch_utxo_list(window.utxo_list)
+
         # prompt for password if auto-fuse was enabled
         if want_autofuse and not self.is_autofusing(wallet):
             def callback(password):
@@ -242,6 +245,76 @@ class Plugin(FusionPlugin, QObject):
                                callback_ok = callback)
             d.show()
             self.widgets.add(d)
+
+    @staticmethod
+    def patch_utxo_list(utxo_list):
+        if getattr(utxo_list, '_fusion_patched_', None) is not None:
+            return
+        header = utxo_list.headerItem()
+        header_labels = [header.text(i) for i in range(header.columnCount())]
+        header_labels.append(_("Fusion Status"))
+        utxo_list.update_headers(header_labels)
+        utxo_list._fusion_patched_ = header_labels[-1]  # save the text to be able to find the column later
+        utxo_list.wallet.print_error("[fusion] Patched utxo_list")
+
+    @staticmethod
+    def find_utxo_list_shuffle_column(utxo_list):
+        label_text = getattr(utxo_list, '_fusion_patched_', None)
+        if label_text is None:
+            return
+        header = utxo_list.headerItem()
+        header_labels = [header.text(i) for i in range(header.columnCount())]
+        col = len(header_labels) - 1
+        for i, lbl in enumerate(header_labels):  # find the column
+            if lbl == label_text:
+                col = i
+                break
+        return col, header, header_labels
+
+    @staticmethod
+    def unpatch_utxo_list(utxo_list):
+        tup = Plugin.find_utxo_list_shuffle_column(utxo_list)
+        if tup is None:
+            return
+        col, header, header_labels = tup
+        del header_labels[col]
+        utxo_list.update_headers(header_labels)
+        delattr(utxo_list, '_fusion_patched_')
+        utxo_list.wallet.print_error("[fusion] Unpatched utxo_list")
+
+    @hook
+    def utxo_list_item_setup(self, utxo_list, item, utxo, name):
+        tup = self.find_utxo_list_shuffle_column(utxo_list)
+        if not tup:
+            return
+        col, __, __ = tup
+
+        wallet = utxo_list.wallet
+        fuse_depth = Conf(wallet).fuse_depth
+        frozenstring = item.data(0, utxo_list.DataRoles.frozen_flags) or ""
+        is_slp = 's' in frozenstring
+        is_fused = self.is_fuz_coin(wallet, utxo, require_depth=fuse_depth-1)
+        is_partially_fused = is_fused if fuse_depth <= 1 else self.is_fuz_coin(wallet, utxo)
+
+        item.setIcon(col, QIcon())
+        if is_slp:
+            item.setText(col, _("SLP Token"))
+        elif is_fused:
+            item.setText(col, _("Fused"))
+            item.setIcon(col, icon_fusion_logo)
+        elif is_partially_fused:
+            count = self.get_coin_known_fuz_count(wallet, utxo, require_depth=fuse_depth-1)
+            item.setText(col, _("Partial {count}/{total}").format(count=count, total=fuse_depth))
+            item.setIcon(col, icon_fusion_logo_gray)
+        elif self.is_fuz_address(wallet, utxo['address'], require_depth=fuse_depth-1):
+            item.setText(col, _("Fusion Addr"))
+        elif utxo['height'] <= 0:
+            item.setText(col, _("Unconfirmed"))
+        elif utxo['coinbase']:
+            # we disallow coinbase coins unconditionally -- due to miner feedback (they don't like shuffling these)
+            item.setText(col, _("Coinbase"))
+        else:
+            item.setText(col, _("Unfused"))
 
     @hook
     def spendable_coin_filter(self, window, coins):
@@ -314,6 +387,7 @@ class Plugin(FusionPlugin, QObject):
 
     @hook
     def on_close_window(self, window):
+        self.unpatch_utxo_list(window.utxo_list)
         # Invoked when closing wallet or entire application
         # Also called by on_close, above.
         wallet = window.wallet
@@ -1393,6 +1467,11 @@ class WalletSettingsDialog(WindowModalDialog):
                 chk.setText(label)
                 chk.setToolTip(tooltip)
         self.refresh()
+        # Coins tab may need redisplay if we changed these settings
+        if prevval != newval:
+            main_window = self.wallet.weak_window()
+            if main_window:
+                main_window.utxo_list.update()
 
     def clicked_confirmed_only(self, checked):
         self.conf.autofuse_confirmed_only = checked

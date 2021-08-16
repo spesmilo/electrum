@@ -66,9 +66,24 @@ def network_callback(window, event, *args):
         if len(args) == 2 and hasattr(window, 'wallet') and args[1] is window.wallet and args[0]:
             window._shuffle_sigs.tx.emit(window, args[0])
 
-def my_custom_item_setup(utxo_list, item, utxo, name):
-    if not hasattr(utxo_list.wallet, 'is_coin_shuffled'):
+def find_utxo_list_shuffle_column(utxo_list):
+    label_text = getattr(utxo_list, '_shuffle_patched_', None)
+    if label_text is None:
         return
+    header = utxo_list.headerItem()
+    header_labels = [header.text(i) for i in range(header.columnCount())]
+    col = len(header_labels) - 1
+    for i, lbl in enumerate(header_labels):  # find the column
+        if lbl == label_text:
+            col = i
+            break
+    return col, header, header_labels
+
+def my_custom_item_setup(utxo_list, item, utxo, name):
+    tup = find_utxo_list_shuffle_column(utxo_list)
+    if not tup:
+        return
+    col, __, __ = tup
 
     prog = utxo_list.in_progress.get(name, "")
     frozenstring = item.data(0, utxo_list.DataRoles.frozen_flags) or ""
@@ -78,51 +93,51 @@ def my_custom_item_setup(utxo_list, item, utxo, name):
     u_value = utxo['value']
 
     if is_slp:
-        item.setText(5, _("SLP Token"))
+        item.setText(col, _("SLP Token"))
     elif not is_reshuffle and utxo_list.wallet.is_coin_shuffled(utxo):  # already shuffled
-        item.setText(5, _("Shuffled"))
+        item.setText(col, _("Shuffled"))
     elif not is_reshuffle and utxo['address'] in utxo_list.wallet._shuffled_address_cache:  # we hit the cache directly as a performance hack. we don't really need a super-accurate reply as this is for UI and the cache will eventually be accurate
-        item.setText(5, _("Shuffled Addr"))
+        item.setText(col, _("Shuffled Addr"))
     elif not prog and ("a" in frozenstring or "c" in frozenstring):
-        item.setText(5, _("Frozen"))
+        item.setText(col, _("Frozen"))
     elif u_value >= BackgroundShufflingThread.UPPER_BOUND: # too big
-        item.setText(5, _("Too big"))
+        item.setText(col, _("Too big"))
     elif u_value < BackgroundShufflingThread.LOWER_BOUND: # too small
-        item.setText(5, _("Too small"))
+        item.setText(col, _("Too small"))
     elif utxo['height'] <= 0: # not_confirmed
         if is_reshuffle:
-            item.setText(5, _("Unconfirmed (reshuf)"))
+            item.setText(col, _("Unconfirmed (reshuf)"))
         else:
-            item.setText(5, _("Unconfirmed"))
+            item.setText(col, _("Unconfirmed"))
     elif utxo['coinbase']:  # we disallow coinbase coins unconditionally -- due to miner feedback (they don't like shuffling these)
-        item.setText(5, _("Coinbase"))
+        item.setText(col, _("Coinbase"))
     elif (u_value >= BackgroundShufflingThread.LOWER_BOUND
               and u_value < BackgroundShufflingThread.UPPER_BOUND): # queued_labels
         window = utxo_list.parent
         if (window and window.background_process and utxo_list.wallet.network
                 and utxo_list.wallet.network.is_connected()):
             if window.background_process.get_paused():
-                item.setText(5, _("Paused"))
+                item.setText(col, _("Paused"))
             else:
                 if is_reshuffle:
-                    item.setText(5, _("In queue (reshuf)"))
+                    item.setText(col, _("In queue (reshuf)"))
                 else:
-                    item.setText(5, _("In queue"))
+                    item.setText(col, _("In queue"))
         else:
-            item.setText(5, _("Offline"))
+            item.setText(col, _("Offline"))
 
     if prog == 'in progress': # in progress
-        item.setText(5, _("In progress"))
+        item.setText(col, _("In progress"))
     elif prog.startswith('phase '):
-        item.setText(5, _("Phase {}").format(prog.split()[-1]))
+        item.setText(col, _("Phase {}").format(prog.split()[-1]))
     elif prog == 'wait for others': # wait for others
-        item.setText(5, _("Wait for others"))
+        item.setText(col, _("Wait for others"))
     elif prog.startswith("got players"): # got players > 1
         num, tot = (int(x) for x in prog.rsplit(' ', 2)[-2:])
         txt = "{} ({}/{})".format(_("Players"), num, tot)
-        item.setText(5, txt)
+        item.setText(col, txt)
     elif prog == "completed":
-        item.setText(5, _("Done"))
+        item.setText(col, _("Done"))
 
 def my_custom_utxo_context_menu_setup(window, utxo_list, menu, selected):
     ''' Adds CashShuffle related actions to the utxo_list context (right-click)
@@ -429,14 +444,14 @@ def monkey_patches_apply(window):
         print_error("[shuffle] Patched window")
 
     def patch_utxo_list(utxo_list):
-        if getattr(utxo_list, '_shuffle_patched_', None):
+        if getattr(utxo_list, '_shuffle_patched_', None) is not None:
             return
         header = utxo_list.headerItem()
         header_labels = [header.text(i) for i in range(header.columnCount())]
         header_labels.append(_("Shuffle status"))
         utxo_list.update_headers(header_labels)
         utxo_list.in_progress = dict()
-        utxo_list._shuffle_patched_ = True
+        utxo_list._shuffle_patched_ = header_labels[-1]  # save the text to be able to find the column later
         print_error("[shuffle] Patched utxo_list")
 
     def patch_wallet(wallet):
@@ -494,11 +509,11 @@ def monkey_patches_remove(window):
         # Note that at this point an additional monkey patch: 'window.__disabled_sendtab_extra__' may stick around until the plugin is unloaded altogether
 
     def restore_utxo_list(utxo_list):
-        if not getattr(utxo_list, '_shuffle_patched_', None):
+        tup = find_utxo_list_shuffle_column(utxo_list)
+        if not tup:
             return
-        header = utxo_list.headerItem()
-        header_labels = [header.text(i) for i in range(header.columnCount())]
-        del header_labels[-1]
+        col, header, header_labels = tup
+        del header_labels[col]
         utxo_list.update_headers(header_labels)
         utxo_list.in_progress = None
         delattr(window.utxo_list, "in_progress")
