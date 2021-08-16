@@ -718,10 +718,6 @@ class FusionPlugin(BasePlugin):
             if tx is None:
                 # Not found in wallet.transactions so its fuz status is as yet "unknown". Indicate this.
                 return None
-            if tx.is_memory_compact():
-                # work on a copy of the tx so we don't eat memory
-                # (fully deserializing the instance in wallet.transactions can add up)
-                tx = Transaction(str(tx))
             inputs = tx.inputs()
             outputs = tx.outputs()
             # We expect: OP_RETURN (4) FUZ\x00
@@ -758,7 +754,11 @@ class FusionPlugin(BasePlugin):
             # maybe cache the answer if it's a definitive answer True/False
             if require_depth == 0:
                 # we got an answer for this coin's tx itself
-                cache[txid] = False if not answer else 0
+                if not answer:
+                    cache[txid] = False
+                elif not cached_val:
+                    # only set the cached val if it was missing previously, to avoid overwriting higher values
+                    cache[txid] = 0
             elif answer and (cached_val is None or cached_val < require_depth):
                 # indicate true up to the depth we just checked
                 cache[txid] = require_depth
