@@ -4,7 +4,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.Qt import QUrl, QDesktopServices
 
 
-class CreateNewStaking(WindowModalDialog):
+class CreateNewStakingWindow(WindowModalDialog):
 
     def __call__(self, *args, **kwargs):
         self.value_change()
@@ -71,32 +71,8 @@ class CreateNewStaking(WindowModalDialog):
 
         self.gridLayout.addWidget(self.amount_value_error_label, 1, 0, 1, 5)
 
-        self.radio30 = QtWidgets.QRadioButton(self.verticalLayoutWidget)
-        self.radio30.setText(_("30 Days"))
-        self.radio30.setChecked(True)
-        self.period = {
-            'days': 30,
-            'blocks': 144 * 30,
-        }
-        self.radio30.toggled.connect(lambda: self.radio_state(self.radio30))
-        self.radio30.toggled.connect(self.value_change)
-        self.gridLayout.addWidget(self.radio30, 3, 1, 1, 1)
-        self.radio90 = QtWidgets.QRadioButton(self.verticalLayoutWidget)
-        self.radio90.setText(_("90 Days"))
-        self.radio90.toggled.connect(lambda: self.radio_state(self.radio90))
-        self.radio90.toggled.connect(self.value_change)
-        self.gridLayout.addWidget(self.radio90, 3, 2, 1, 1)
-        self.radio180 = QtWidgets.QRadioButton(self.verticalLayoutWidget)
-        self.radio180.setText(_("180 Days"))
-        self.radio180.toggled.connect(lambda: self.radio_state(self.radio180))
-        self.radio180.toggled.connect(self.value_change)
-        self.gridLayout.addWidget(self.radio180, 3, 3, 1, 1)
-        self.radio360 = QtWidgets.QRadioButton(self.verticalLayoutWidget)
-        self.radio360.setText(_("360 Days"))
-        self.radio360.toggled.connect(lambda: self.radio_state(self.radio360))
-        self.radio360.toggled.connect(self.value_change)
-        self.gridLayout.addWidget(self.radio360, 3, 4, 1, 1)
-        self.Main_v_layout.addLayout(self.gridLayout)
+        self.add_radio()
+
         self.vl_rewords = QtWidgets.QVBoxLayout()
         self.vl_rewords.setSizeConstraint(QtWidgets.QLayout.SetMinimumSize)
         self.vl_rewords.setSpacing(0)
@@ -172,6 +148,34 @@ class CreateNewStaking(WindowModalDialog):
         self.gridLayout_2.addLayout(self.horizontalLayout, 0, 5, 1, 2)
         self.Main_v_layout.addLayout(self.gridLayout_2)
 
+    def add_radio(self):
+        self.radio30 = QtWidgets.QRadioButton(self.verticalLayoutWidget)
+        self.radio30.setText(_("30 Days"))
+        self.radio30.setChecked(True)
+        self.period = {
+            'days': 30,
+            'blocks': 144 * 30,
+        }
+        self.radio30.toggled.connect(lambda: self.radio_state(self.radio30))
+        self.radio30.toggled.connect(self.value_change)
+        self.gridLayout.addWidget(self.radio30, 3, 1, 1, 1)
+        self.radio90 = QtWidgets.QRadioButton(self.verticalLayoutWidget)
+        self.radio90.setText(_("90 Days"))
+        self.radio90.toggled.connect(lambda: self.radio_state(self.radio90))
+        self.radio90.toggled.connect(self.value_change)
+        self.gridLayout.addWidget(self.radio90, 3, 2, 1, 1)
+        self.radio180 = QtWidgets.QRadioButton(self.verticalLayoutWidget)
+        self.radio180.setText(_("180 Days"))
+        self.radio180.toggled.connect(lambda: self.radio_state(self.radio180))
+        self.radio180.toggled.connect(self.value_change)
+        self.gridLayout.addWidget(self.radio180, 3, 3, 1, 1)
+        self.radio360 = QtWidgets.QRadioButton(self.verticalLayoutWidget)
+        self.radio360.setText(_("360 Days"))
+        self.radio360.toggled.connect(lambda: self.radio_state(self.radio360))
+        self.radio360.toggled.connect(self.value_change)
+        self.gridLayout.addWidget(self.radio360, 3, 4, 1, 1)
+        self.Main_v_layout.addLayout(self.gridLayout)
+
     def on_push_next_button(self):
         if self.valid_enough_coins(min_coins=self.spinBox_amount.value()):
             self.dialog = dialog = CreateNewStakingTwo(parent=self)
@@ -208,31 +212,26 @@ class CreateNewStaking(WindowModalDialog):
             ' GP')
 
     def radio_state(self, b):
-        if b.text() == "30 Days":
-            if b.isChecked():
-                self.period = {
-                    'days': 30,
-                    'blocks': 144 * 30,
-                }
-
-        if b.text() == "90 Days":
-            if b.isChecked():
-                self.period = {
-                    'days': 90,
-                    'blocks': 144 * 90,
-                }
-        if b.text() == "180 Days":
-            if b.isChecked():
-                self.period = {
-                    'days': 180,
-                    'blocks': 144 * 180,
-                }
-        if b.text() == "360 Days":
-            if b.isChecked():
-                self.period = {
-                    'days': 360,
-                    'blocks': 144 * 360,
-                }
+        if b.text() == "30 Days" and b.isChecked():
+            self.period = {
+                'days': 30,
+                'blocks': 144 * 30,
+            }
+        elif b.text() == "90 Days" and b.isChecked():
+            self.period = {
+                'days': 90,
+                'blocks': 144 * 90,
+            }
+        elif b.text() == "180 Days" and b.isChecked():
+            self.period = {
+                'days': 180,
+                'blocks': 144 * 180,
+            }
+        elif b.text() == "360 Days" and b.isChecked():
+            self.period = {
+                'days': 360,
+                'blocks': 144 * 360,
+            }
 
     def valid_enough_coins(self, min_coins):
         coins = self.get_spendable_coins()
