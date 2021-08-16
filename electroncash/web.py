@@ -40,9 +40,6 @@ from .i18n import _
 DEFAULT_EXPLORER = "Blockchair.com"
 
 mainnet_block_explorers = {
-    'Bitcoin.com': ('https://explorer.bitcoin.com/bch',
-                    Address.FMT_CASHADDR,
-                    {'tx': 'tx', 'addr': 'address', 'block' : 'block'}),
     'Blockchair.com': ('https://blockchair.com/bitcoin-cash',
                        Address.FMT_CASHADDR,
                        {'tx': 'transaction', 'addr': 'address', 'block' : 'block'}),
@@ -69,12 +66,9 @@ mainnet_block_explorers = {
                    {'tx': 'tx', 'addr': 'address', 'block': 'block-height'}),
 }
 
-DEFAULT_EXPLORER_TESTNET = 'Bitcoin.com'
+DEFAULT_EXPLORER_TESTNET = 'Blockchain.com'
 
 testnet_block_explorers = {
-    'Bitcoin.com'   : ('https://explorer.bitcoin.com/tbch',
-                       Address.FMT_LEGACY,  # For some reason testnet expects legacy and fails on bchtest: addresses.
-                       {'tx': 'tx', 'addr': 'address', 'block' : 'block'}),
     'BlockExplorer.one': ('https://blockexplorer.one/bch/testnet',
                    Address.FMT_CASHADDR,
                    {'tx': 'tx', 'addr': 'address', 'block' : 'blockHash'}),
