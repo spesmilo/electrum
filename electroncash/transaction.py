@@ -417,6 +417,12 @@ class Transaction:
         # there!
         self.ephemeral = dict()
 
+    def is_memory_compact(self):
+        """Returns True if the tx is stored in memory only as self.raw (serialized) and has no deserialized data
+        structures currently in memory. """
+        return (self.raw is not None
+                and self._inputs is None and self._outputs is None and self.locktime == 0 and self.version == 1)
+
     def set_sign_schnorr(self, b):
         self._sign_schnorr = b
 
