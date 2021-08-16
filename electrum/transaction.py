@@ -1359,12 +1359,19 @@ class PartialTxInput(TxInput, PSBTSection):
         inner_type = None
         if type is not None:
             if type == 'p2sh':
-                inner_type = get_script_type_from_output_script(self.redeem_script)
-            elif type == 'p2wsh':
-                inner_type = get_script_type_from_output_script(self.witness_script)
-            if inner_type is not None:
-                type = inner_type + '-' + type
+                try:
+                    if self.redeem_script is not None:
+                        redeem_script = self.redeem_script
+                    else:
+                        data_len = int(self.script_sig[0])
+                        redeem_script = self.script_sig[1:data_len]
+                    inner_type = get_script_type_from_output_script(redeem_script)
+                except:
+                    pass
+                if inner_type is not None:
+                    type = inner_type + '-' + type
             if type in ('p2pkh', 'p2wpkh-p2sh', 'p2wpkh'):
+                # only covering so far the types defined for the use in payjoin
                 self.script_type = type
         return
 
@@ -2067,7 +2074,7 @@ class PayjoinTransaction():
     VERSION = 1
     VSIZE_SENDER_TYPE ={'p2wpkh':68,
                         'p2pkh':148,
-                        'p2wpkh-p2sh':91
+                        'p2wpkh-p2sh':91 # inner = p2wpkh; outer = p2sh
                         }
 
     def __init__(self, payjoin_link=None):
