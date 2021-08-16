@@ -258,7 +258,7 @@ class Plugin(FusionPlugin, QObject):
         utxo_list.wallet.print_error("[fusion] Patched utxo_list")
 
     @staticmethod
-    def find_utxo_list_shuffle_column(utxo_list):
+    def find_utxo_list_fusion_column(utxo_list):
         label_text = getattr(utxo_list, '_fusion_patched_', None)
         if label_text is None:
             return
@@ -273,7 +273,7 @@ class Plugin(FusionPlugin, QObject):
 
     @staticmethod
     def unpatch_utxo_list(utxo_list):
-        tup = Plugin.find_utxo_list_shuffle_column(utxo_list)
+        tup = Plugin.find_utxo_list_fusion_column(utxo_list)
         if tup is None:
             return
         col, header, header_labels = tup
@@ -284,7 +284,7 @@ class Plugin(FusionPlugin, QObject):
 
     @hook
     def utxo_list_item_setup(self, utxo_list, item, utxo, name):
-        tup = self.find_utxo_list_shuffle_column(utxo_list)
+        tup = self.find_utxo_list_fusion_column(utxo_list)
         if not tup:
             return
         col, __, __ = tup
