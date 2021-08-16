@@ -317,7 +317,9 @@ class Plugin(FusionPlugin, QObject):
             item.setText(col, _("Partial {count}/{total}").format(count=count, total=fuse_depth))
             item.setIcon(col, icon_fusion_logo_gray)
         elif self.is_fuz_address(wallet, utxo['address'], require_depth=fuse_depth-1):
-            item.setText(col, _("Fusion Addr"))
+            item.setText(col, _("Fuse Addr"))
+            item.setIcon(col, icon_fusion_logo)
+            item.setToolTip(col, _("This coin shares an address with a fused coin. Do not spend separately."))
         elif utxo['height'] <= 0:
             item.setText(col, _("Unconfirmed"))
         elif utxo['coinbase']:
