@@ -40,7 +40,7 @@ class PopupWidget(QWidget):
         self.pointerPos = self.LeftSide
         self._timer = None
         self.activation_hides = activation_hides
-        self.dark_mode = dark_mode
+        self.dark_mode = dark_mode and sys.platform.lower() != "darwin"
 
         #self.resize(200, 50)
 
