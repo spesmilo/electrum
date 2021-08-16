@@ -313,7 +313,7 @@ class Plugin(FusionPlugin, QObject):
             item.setText(col, _("Fused"))
             item.setIcon(col, icon_fusion_logo)
         elif is_partially_fused:
-            count = self.get_coin_known_fuz_count(wallet, utxo, require_depth=fuse_depth-1)
+            count = self.get_coin_fuz_count(wallet, utxo, require_depth=fuse_depth-1)
             item.setText(col, _("Partial {count}/{total}").format(count=count, total=fuse_depth))
             item.setIcon(col, icon_fusion_logo_gray)
         elif self.is_fuz_address(wallet, utxo['address'], require_depth=fuse_depth-1):
