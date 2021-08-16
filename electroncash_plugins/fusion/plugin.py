@@ -76,6 +76,9 @@ CONSOLIDATE_MAX_OUTPUTS = MIN_TX_COMPONENTS // 3
 # Threshold for the amount (sats) for a wallet to be fully fused. This is to avoid refuse when dusted.
 FUSE_DEPTH_THRESHOLD = 0.95
 
+# We don't allow a fuse depth beyond this in the wallet UI
+MAX_LIMIT_FUSE_DEPTH = 10
+
 pnp = None
 def get_upnp():
     """ return an initialized UPnP singleton """
@@ -781,13 +784,21 @@ class FusionPlugin(BasePlugin):
 
     @classmethod
     def get_coin_known_fuz_count(cls, wallet, coin, *, require_depth=0):
-        res = cls.is_fuz_coin(wallet, coin, require_depth=require_depth)
-        if require_depth > 0:
-            # check if has at least 1 fusion
-            res = cls.is_fuz_coin(wallet, coin, require_depth=0)
-        if res:
-            return wallet._cashfusion_is_fuz_txid_cache.get(coin['prevout_hash'], 0) + 1
-        return 0
+        """ Will return a fuz count for a coin. Unfused or unknown coins have count 0, coins
+        that appear in a fuz tx have count 1, coins whose wallet parent txs are all fuz are 2, 3, etc
+        depending on how far back the fuz perdicate is satisfied.
+
+        This function only checks up to 10 ancestors deep so tha maximum return value is 10. """
+        require_depth = min(max(require_depth, 0), MAX_LIMIT_FUSE_DEPTH - 1)
+        cached_ct = wallet._cashfusion_is_fuz_txid_cache.get(coin['prevout_hash'])
+        if isinstance(cached_ct, int) and cached_ct >= require_depth:
+            return cached_ct + 1
+        ret = 0
+        for i in range(cached_ct or 0, require_depth + 1, 1):
+            ret = i
+            if not cls.is_fuz_coin(wallet, coin, require_depth=i):
+                break
+        return ret
 
     @classmethod
     def is_fuz_address(cls, wallet, address, *, require_depth=0):
