@@ -30,23 +30,23 @@ class CreateNewStakingWindow(WindowModalDialog):
         self.Main_v_layout.setSpacing(10)
 
         self.title = QtWidgets.QLabel(self.verticalLayoutWidget)
-        self.set_title()
+        self.setup_title()
 
         self.description_label = QtWidgets.QLabel(self.verticalLayoutWidget)
-        self.set_description()
+        self.setup_description()
 
         self.amount_value_error_label = QtWidgets.QLabel()
         self.amount_label = QtWidgets.QLabel(self.verticalLayoutWidget)
         self.spinBox_amount = QtWidgets.QDoubleSpinBox(self.verticalLayoutWidget)
         self.period_label = QtWidgets.QLabel(self.verticalLayoutWidget)
         self.gridLayout = QtWidgets.QGridLayout()
-        self.set_amount()
+        self.setup_amount()
 
         self.radio30 = QtWidgets.QRadioButton(self.verticalLayoutWidget)
         self.radio90 = QtWidgets.QRadioButton(self.verticalLayoutWidget)
         self.radio180 = QtWidgets.QRadioButton(self.verticalLayoutWidget)
         self.radio360 = QtWidgets.QRadioButton(self.verticalLayoutWidget)
-        self.set_radios()
+        self.setup_radios()
 
         self.estimate_label = QtWidgets.QLabel(self.verticalLayoutWidget)
         self.pred_rew = QtWidgets.QLabel(self.verticalLayoutWidget)
@@ -54,19 +54,19 @@ class CreateNewStakingWindow(WindowModalDialog):
         self.gp_value_label = QtWidgets.QLabel()
         self.rewords_text_label = QtWidgets.QLabel(self.verticalLayoutWidget)
         self.vl_rewords = QtWidgets.QVBoxLayout()
-        self.set_rewords()
+        self.setup_rewords()
 
         self.gridLayout_2 = QtWidgets.QGridLayout()
         self.description2_label = QtWidgets.QLabel()
         self.terms_button = QtWidgets.QPushButton()
-        self.set_description2()
+        self.setup_description2()
 
         self.next_button = QtWidgets.QPushButton(self.verticalLayoutWidget)
         self.cancel_button = QtWidgets.QPushButton(self.verticalLayoutWidget)
         self.horizontalLayout = QtWidgets.QHBoxLayout()
-        self.set_next_cancel_buttons()
+        self.setup_next_cancel_buttons()
 
-    def set_title(self):
+    def setup_title(self):
         self.title.setText(_("Create New Stake"))
         self.title.setMinimumSize(QtCore.QSize(300, 0))
         self.title.setMaximumSize(QtCore.QSize(16777215, 25))
@@ -78,7 +78,7 @@ class CreateNewStakingWindow(WindowModalDialog):
         self.title.setAlignment(QtCore.Qt.AlignCenter)
         self.Main_v_layout.addWidget(self.title)
 
-    def set_description(self):
+    def setup_description(self):
         self.description_label.setText(
             _("Sed ut perspiciatis, unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, "
               "totam rem aperiam eaque ipsa, "))
@@ -90,7 +90,7 @@ class CreateNewStakingWindow(WindowModalDialog):
         self.description_label.setOpenExternalLinks(False)
         self.Main_v_layout.addWidget(self.description_label)
 
-    def set_amount(self):
+    def setup_amount(self):
         self.period_label.setText(_("Period"))
         self.gridLayout.addWidget(self.period_label, 3, 0, 1, 1)
         self.spinBox_amount.setDecimals(8)
@@ -109,7 +109,7 @@ class CreateNewStakingWindow(WindowModalDialog):
 
         self.gridLayout.addWidget(self.amount_value_error_label, 1, 0, 1, 5)
 
-    def set_radios(self):
+    def setup_radios(self):
         self.radio30.setText(_("30 Days"))
         self.radio30.setChecked(True)
         self.radio30.toggled.connect(lambda: self.radio_state(self.radio30))
@@ -129,7 +129,7 @@ class CreateNewStakingWindow(WindowModalDialog):
         self.gridLayout.addWidget(self.radio360, 3, 4, 1, 1)
         self.Main_v_layout.addLayout(self.gridLayout)
 
-    def set_rewords(self):
+    def setup_rewords(self):
         self.vl_rewords.setSizeConstraint(QtWidgets.QLayout.SetMinimumSize)
         self.rewords_text_label.setText(_("Guaranteed rewords:"))
         self.rewords_text_label.setMaximumSize(QtCore.QSize(16777215, 20))
@@ -155,7 +155,7 @@ class CreateNewStakingWindow(WindowModalDialog):
         self.vl_rewords.addWidget(self.estimate_label)
         self.Main_v_layout.addLayout(self.vl_rewords)
 
-    def set_description2(self):
+    def setup_description2(self):
         self.description2_label.setText(_("Click Next to go confirmation view. "))
         self.description2_label.setMaximumSize(QtCore.QSize(16777215, 50))
         self.Main_v_layout.addWidget(self.description2_label)
@@ -171,7 +171,7 @@ class CreateNewStakingWindow(WindowModalDialog):
         self.terms_button.setAutoDefault(True)
         self.gridLayout_2.addWidget(self.terms_button, 0, 1, 1, 1)
 
-    def set_next_cancel_buttons(self):
+    def setup_next_cancel_buttons(self):
         spacer_item1 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
         self.horizontalLayout.addItem(spacer_item1)
         self.cancel_button.setText(_("Cancel"))
@@ -280,7 +280,7 @@ class CreateNewStakingTwo(WindowModalDialog):
         self.main_box = QtWidgets.QVBoxLayout(self)
 
         self.title = QtWidgets.QLabel()
-        self.set_title()
+        self.setup_title()
 
         self.data_grid_box = QtWidgets.QGridLayout()
         self.payout_label_2 = QtWidgets.QLabel()
@@ -298,27 +298,27 @@ class CreateNewStakingTwo(WindowModalDialog):
         self.rewords_label = QtWidgets.QLabel()
         self.block_label = QtWidgets.QLabel()
         self.payout_label = QtWidgets.QLabel()
-        self.set_detail()
-        self.set_rewords()
+        self.setup_detail()
+        self.setup_rewords()
 
         self.penalty_label = QtWidgets.QLabel()
         self.description_label = QtWidgets.QLabel()
-        self.set_description()
+        self.setup_description()
 
         self.password_layout = QtWidgets.QHBoxLayout()
         self.password_label = QtWidgets.QLabel()
         self.password_lineEdit = PasswordLineEdit()
         self.password_error_label = QtWidgets.QLabel()
-        self.set_password_label()
+        self.setup_password_label()
 
         self.text_tabel = QtWidgets.QLabel()
         self.button_layout = QtWidgets.QHBoxLayout()
         self.back_button = QtWidgets.QPushButton()
         self.cancel_button = QtWidgets.QPushButton()
         self.send_button = QtWidgets.QPushButton()
-        self.set_buttons()
+        self.setup_buttons()
 
-    def set_title(self):
+    def setup_title(self):
         self.title.setText(_("Staking Detail"))
         size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Maximum)
         size_policy.setHorizontalStretch(0)
@@ -333,7 +333,7 @@ class CreateNewStakingTwo(WindowModalDialog):
         self.title.setAlignment(QtCore.Qt.AlignCenter)
         self.main_box.addWidget(self.title)
 
-    def set_detail(self):
+    def setup_detail(self):
         self.payout_label_2.setText(
             str(self.parent.spinBox_amount.value() * self.parent.period['days'] * 0.021) +
             ' ELCASH'
@@ -368,7 +368,7 @@ class CreateNewStakingTwo(WindowModalDialog):
         font.setWeight(75)
         self.g_reword.setFont(font)
 
-    def set_rewords(self):
+    def setup_rewords(self):
         self.g_reword.setText(_("Guaranted rewords:"))
         self.data_grid_box.addWidget(self.g_reword, 3, 0, 1, 1)
         blocks_period = self.parent.period['blocks']
@@ -382,7 +382,7 @@ class CreateNewStakingTwo(WindowModalDialog):
         self.data_grid_box.addWidget(self.amount_label, 0, 0, 1, 1)
         self.main_box.addLayout(self.data_grid_box)
 
-    def set_description(self):
+    def setup_description(self):
         self.penalty_label.setMaximumSize(QtCore.QSize(16777215, 40))
         font = QtGui.QFont()
         font.setBold(True)
@@ -407,7 +407,7 @@ class CreateNewStakingTwo(WindowModalDialog):
         self.description_label.setWordWrap(True)
         self.main_box.addWidget(self.description_label)
 
-    def set_password_label(self):
+    def setup_password_label(self):
         self.password_label.setText(_("Password:"))
         self.password_label.setMaximumSize(QtCore.QSize(16777215, 40))
         self.password_layout.addWidget(self.password_label)
@@ -423,7 +423,7 @@ class CreateNewStakingTwo(WindowModalDialog):
             self.password_label.hide()
             self.password_lineEdit.hide()
 
-    def set_buttons(self):
+    def setup_buttons(self):
         self.text_tabel.setText(_("Click Send to proceed"))
         self.main_box.addWidget(self.text_tabel)
         spacer_item = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
