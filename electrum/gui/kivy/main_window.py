@@ -24,6 +24,7 @@ from electrum import blockchain
 from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed
 from electrum.interface import PREFERRED_NETWORK_PROTOCOL, ServerAddr
 from electrum.logging import Logger
+from electrum.bitcoin import COIN
 
 from electrum.gui import messages
 from .i18n import _
@@ -230,10 +231,8 @@ class ElectrumWindow(App, Logger):
     def on_new_intent(self, intent):
         data = str(intent.getDataString())
         scheme = str(intent.getScheme()).lower()
-        if scheme == BITCOIN_BIP21_URI_SCHEME:
+        if scheme == BITCOIN_BIP21_URI_SCHEME or scheme == LIGHTNING_URI_SCHEME:
             self.set_URI(data)
-        elif scheme == LIGHTNING_URI_SCHEME:
-            self.set_ln_invoice(data)
 
     def on_language(self, instance, language):
         self.logger.info('language: {}'.format(language))
@@ -320,7 +319,7 @@ class ElectrumWindow(App, Logger):
         rate = self.fx.exchange_rate()
         if rate.is_nan():
             return ''
-        fiat_amount = self.get_amount(amount_str + ' ' + self.base_unit) * rate / pow(10, 8)
+        fiat_amount = self.get_amount(amount_str + ' ' + self.base_unit) * rate / COIN
         return "{:.2f}".format(fiat_amount).rstrip('0').rstrip('.')
 
     def fiat_to_btc(self, fiat_amount):
@@ -329,10 +328,12 @@ class ElectrumWindow(App, Logger):
         rate = self.fx.exchange_rate()
         if rate.is_nan():
             return ''
-        satoshis = int(pow(10,8) * Decimal(fiat_amount) / Decimal(rate))
+        satoshis = COIN * Decimal(fiat_amount) / Decimal(rate)
         return format_satoshis_plain(satoshis, decimal_point=self.decimal_point())
 
-    def get_amount(self, amount_str):
+    def get_amount(self, amount_str: str) -> Optional[int]:
+        if not amount_str:
+            return None
         a, u = amount_str.split()
         assert u == self.base_unit
         try:
@@ -964,19 +965,16 @@ class ElectrumWindow(App, Logger):
         return format_satoshis_plain(amount_after_all_fees, decimal_point=self.decimal_point())
 
     def format_amount(self, x, is_diff=False, whitespaces=False):
-        return format_satoshis(
-            x,
-            num_zeros=0,
-            decimal_point=self.decimal_point(),
-            is_diff=is_diff,
-            whitespaces=whitespaces,
-        )
+        return self.electrum_config.format_amount(x, is_diff=is_diff, whitespaces=whitespaces)
 
     def format_amount_and_units(self, x) -> str:
         if x is None:
             return 'none'
         if x == '!':
             return 'max'
+        # FIXME this is using format_satoshis_plain instead of config.format_amount
+        #       as we sometimes convert the returned string back to numbers,
+        #       via self.get_amount()... the need for converting back should be removed
         return format_satoshis_plain(x, decimal_point=self.decimal_point()) + ' ' + self.base_unit
 
     def format_amount_and_units_with_fiat(self, x) -> str:
