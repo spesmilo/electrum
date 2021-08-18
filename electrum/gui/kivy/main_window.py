@@ -123,16 +123,18 @@ class ElectrumWindow(App, Logger):
     auto_connect = BooleanProperty(False)
     def on_auto_connect(self, instance, x):
         net_params = self.network.get_parameters()
-        net_params = net_params._replace(auto_connect=self.auto_connect)
-        self.network.run_from_another_thread(self.network.set_parameters(net_params))
+        if net_params.auto_connect != self.auto_connect:
+            net_params = net_params._replace(auto_connect=self.auto_connect)
+            self.network.run_from_another_thread(self.network.set_parameters(net_params))
     def toggle_auto_connect(self, x):
         self.auto_connect = not self.auto_connect
 
     oneserver = BooleanProperty(False)
     def on_oneserver(self, instance, x):
         net_params = self.network.get_parameters()
-        net_params = net_params._replace(oneserver=self.oneserver)
-        self.network.run_from_another_thread(self.network.set_parameters(net_params))
+        if net_params.oneserver != self.oneserver:
+            net_params = net_params._replace(oneserver=self.oneserver)
+            self.network.run_from_another_thread(self.network.set_parameters(net_params))
     def toggle_oneserver(self, x):
         self.oneserver = not self.oneserver
 
@@ -388,6 +390,9 @@ class ElectrumWindow(App, Logger):
         Logger.__init__(self)
 
         self.electrum_config = config = kwargs.get('config', None)  # type: SimpleConfig
+        print("hello\n\n\n")
+        print(self.electrum_config.get('auto_connect'))
+        print("\n\n\n\n")
         self.language = config.get('language', 'en')
         self.network = network = kwargs.get('network', None)  # type: Network
         if self.network:
@@ -400,6 +405,8 @@ class ElectrumWindow(App, Logger):
             self.oneserver = net_params.oneserver
             self.proxy_config = net_params.proxy if net_params.proxy else {}
             self.update_proxy_str(self.proxy_config)
+            print(self.auto_connect)
+            print("\n\nhere\n\n")
 
         self.plugins = kwargs.get('plugins', None)  # type: Plugins
         self.gui_object = kwargs.get('gui_object', None)  # type: ElectrumGui
@@ -638,8 +645,12 @@ class ElectrumWindow(App, Logger):
             util.register_callback(self.on_channel_db, ['channel_db'])
             util.register_callback(self.set_num_peers, ['gossip_peers'])
             util.register_callback(self.set_unknown_channels, ['unknown_channels'])
-        # load wallet
-        self.load_wallet_by_name(self.electrum_config.get_wallet_path(use_gui_last_wallet=True))
+        
+        if self.electrum_config.get('auto_connect') is None:
+            self.popup_dialog("first_screen")
+        else:
+            # load wallet
+            self.load_wallet_by_name(self.electrum_config.get_wallet_path(use_gui_last_wallet=True))
         # URI passed in config
         uri = self.electrum_config.get('url')
         if uri:
@@ -687,6 +698,7 @@ class ElectrumWindow(App, Logger):
             storage.check_password(self.password)
             self.on_open_wallet(self.password, storage)
             return
+        print("jijiji")
         d = OpenWalletDialog(self, path, self.on_open_wallet)
         d.open()
 

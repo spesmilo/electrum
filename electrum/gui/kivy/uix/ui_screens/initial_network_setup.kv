@@ -1,0 +1,16 @@
+Popup:
+    id: nd
+    title: _('Network Setup')
+    NetworkDialog
+        BoxLayout:
+            orientation:'horizontal'
+            size_hint: 1, 0.2
+            Widget:
+                size_hint: 0.5, None
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('Next')
+                on_release:
+                    app.load_wallet_by_name(app.electrum_config.get_wallet_path(use_gui_last_wallet=True))
+                    nd.dismiss()

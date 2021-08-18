@@ -1,0 +1,38 @@
+Popup:
+    id: nd
+    title: _('Network Setup')
+    BoxLayout:
+        orientation: 'vertical'
+        padding: '10dp'
+        spacing: '10dp'
+        TopLabel:
+            text: _("How do you want to connect to a server?")
+            font_size: '16pt'
+            bold: True
+        TopLabel:
+            text: _("Electrum communicates with remote servers to get information about your transactions and addresses. The servers all fulfill the same purpose only differing in hardware. In most cases you simply want to let Electrum pick one at random.  However if you prefer feel free to select a server manually.")
+            font_size: '14pt'
+            spacing: '10dp'
+        BoxLayout:
+            orientation: 'horizontal'
+            padding: '10dp'
+            spacing: '10dp'
+            Button:
+                size_hint: 0.5, None
+                halign: 'right'
+                height: '48dp'
+                text: _('Auto connect')
+                on_release:
+                    app.toggle_auto_connect
+                    app.load_wallet_by_name(app.electrum_config.get_wallet_path(use_gui_last_wallet=True))
+                    nd.dismiss()
+            Button:
+                size_hint: 0.5,None
+                halign: 'right'
+                height: '48dp'
+                text: _('Select server manually')
+                on_release:
+                    app.popup_dialog("initial_network_setup")
+                    nd.dismiss()
+        Widget:
+            size_hint: 1,1
