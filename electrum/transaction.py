@@ -35,7 +35,7 @@ import base64
 from typing import (Sequence, Union, NamedTuple, Tuple, Optional, Iterable,
                     Callable, List, Dict, Set, TYPE_CHECKING)
 from collections import defaultdict
-from enum import IntEnum, IntFlag
+from enum import IntEnum
 import itertools
 import binascii
 import copy
@@ -88,16 +88,19 @@ class MissingTxInputAmount(Exception):
     pass
 
 
-class Sighash(IntFlag):
-    SIGHASH_ALL = 1
-    SIGHASH_NONE = 2
-    SIGHASH_SINGLE = 3
-    SIGHASH_ANYONECANPAY = 0X80
+class Sighash(IntEnum):
+    ALL = 1
+    NONE = 2
+    SINGLE = 3
+    ANYONECANPAY = 0x80
 
-class BaseSighash(IntFlag):
-    SIGHASH_ALL = 1
-    SIGHASH_NONE = 2
-    SIGHASH_SINGLE = 3
+    @classmethod
+    def is_valid(cls, sighash) -> bool:
+        for flag in Sighash:
+            for base_flag in [Sighash.ALL, Sighash.NONE, Sighash.SINGLE]:
+                if (flag & ~0x1f | base_flag) == sighash:
+                    return True
+        return False
 
 
 class TxOutput:
@@ -1868,28 +1871,28 @@ class PartialTransaction(Transaction):
         inputs = self.inputs()
         outputs = self.outputs()
         txin = inputs[txin_index]
-        sighash = txin.sighash if txin.sighash is not None else Sighash.SIGHASH_ALL
-        if not self.is_flag_valid(sighash):
+        sighash = txin.sighash if txin.sighash is not None else Sighash.ALL
+        if not Sighash.is_valid(sighash):
             raise Exception("SIGHASH_FLAG not supported!")
         nHashType = int_to_hex(sighash, 4)
         preimage_script = self.get_preimage_script(txin)
         if txin.is_segwit():
             if bip143_shared_txdigest_fields is None:
                 bip143_shared_txdigest_fields = self._calc_bip143_shared_txdigest_fields()
-            if not(sighash & Sighash.SIGHASH_ANYONECANPAY):
+            if not(sighash & Sighash.ANYONECANPAY):
                 hashPrevouts = bip143_shared_txdigest_fields.hashPrevouts
             else:
-                hashPrevouts = ('0'*64)
-            if (not(sighash & Sighash.SIGHASH_ANYONECANPAY) and (sighash & 0x1f) != Sighash.SIGHASH_SINGLE and (sighash & 0x1f) != Sighash.SIGHASH_NONE):
+                hashPrevouts = '00' * 32
+            if (not(sighash & Sighash.ANYONECANPAY) and (sighash & 0x1f) != Sighash.SINGLE and (sighash & 0x1f) != Sighash.NONE):
                 hashSequence = bip143_shared_txdigest_fields.hashSequence
             else:
-                hashSequence = ('0'*64)
-            if ((sighash & 0x1f) != Sighash.SIGHASH_SINGLE and (sighash & 0x1f) != Sighash.SIGHASH_NONE):
+                hashSequence = '00' * 32
+            if ((sighash & 0x1f) != Sighash.SINGLE and (sighash & 0x1f) != Sighash.NONE):
                 hashOutputs = bip143_shared_txdigest_fields.hashOutputs
-            elif ((sighash & 0x1f) == Sighash.SIGHASH_SINGLE and txin_index < len(outputs)):
+            elif ((sighash & 0x1f) == Sighash.SINGLE and txin_index < len(outputs)):
                 hashOutputs = bh2u(sha256d(bfh(outputs[txin_index].serialize_to_network().hex())))
             else:
-                hashOutputs = ('0'*64)
+                hashOutputs = '00' * 32
             outpoint = txin.prevout.serialize_to_network().hex()
             scriptCode = var_int(len(preimage_script) // 2) + preimage_script
             amount = int_to_hex(txin.value_sats(), 8)
@@ -1923,8 +1926,8 @@ class PartialTransaction(Transaction):
     def sign_txin(self, txin_index, privkey_bytes, *, bip143_shared_txdigest_fields=None) -> str:
         txin = self.inputs()[txin_index]
         txin.validate_data(for_signing=True)
-        sighash = txin.sighash if txin.sighash is not None else Sighash.SIGHASH_ALL
-        sighash_type = '{0:02x}'.format(sighash)
+        sighash = txin.sighash if txin.sighash is not None else Sighash.ALL
+        sighash_type = sighash.to_bytes(length=1, byteorder="big").hex()
         pre_hash = sha256d(bfh(self.serialize_preimage(txin_index,
                                                        bip143_shared_txdigest_fields=bip143_shared_txdigest_fields)))
         privkey = ecc.ECPrivkey(privkey_bytes)

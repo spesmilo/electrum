@@ -926,8 +926,7 @@ class TestSighashTypes(ElectrumTestCase):
     txin = PartialTxInput(prevout=prevout)
     txin.nsequence=0xffffffff
     txin.script_type='p2sh-p2wsh'
-    witness_script = bfh('56210307b8ae49ac90a048e9b53357a2354b3334e9c8bee813ecb98e99a7e07e8c3ba32103b28f0c28bfab54554ae8c658ac5c3e0ce6e79ad336331f78c428dd43eea8449b21034b8113d703413d57761b8b9781957b8c0ac1dfe69f492580ca4195f50376ba4a21033400f6afecb833092a9a21cfdf1ed1376e58c5d1f47de74683123987e967a8f42103a6d48b1131e94ba04d9737d61acdaa1322008af9602b3b14862c07a1789aac162102d8b661b0b3302ee2f162b09e07a55ad5dfbe673a9f01d9f0c19617681024306b56ae')
-    txin.witness_script = witness_script
+    txin.witness_script = bfh('56210307b8ae49ac90a048e9b53357a2354b3334e9c8bee813ecb98e99a7e07e8c3ba32103b28f0c28bfab54554ae8c658ac5c3e0ce6e79ad336331f78c428dd43eea8449b21034b8113d703413d57761b8b9781957b8c0ac1dfe69f492580ca4195f50376ba4a21033400f6afecb833092a9a21cfdf1ed1376e58c5d1f47de74683123987e967a8f42103a6d48b1131e94ba04d9737d61acdaa1322008af9602b3b14862c07a1789aac162102d8b661b0b3302ee2f162b09e07a55ad5dfbe673a9f01d9f0c19617681024306b56ae')
     redeem_script = bfh('0020a16b5755f7f6f96dbd65f5f0d6ab9418b89af4b1f14a1bb8a09062c35f0dcb54')
     txin.redeem_script = redeem_script
     txin._trusted_value_sats = 987654321
@@ -936,7 +935,7 @@ class TestSighashTypes(ElectrumTestCase):
     txout2 = PartialTxOutput(scriptpubkey=bfh('76a9147480a33f950689af511e6e84c138dbbd3c3ee41588ac'), value=87000000)
 
     def test_check_sighash_types_sighash_all(self):
-        self.txin.sighash=Sighash.SIGHASH_ALL
+        self.txin.sighash=Sighash.ALL
         self.txin.pubkeys = [bfh('0307b8ae49ac90a048e9b53357a2354b3334e9c8bee813ecb98e99a7e07e8c3ba3')]
         privkey = bfh('730fff80e1413068a05b57d6a58261f07551163369787f349438ea38ca80fac6')
         tx = PartialTransaction.from_io(inputs=[self.txin], outputs=[self.txout1,self.txout2], locktime=self.locktime, version=1, BIP69_sort=False)
@@ -945,7 +944,7 @@ class TestSighashTypes(ElectrumTestCase):
                         sig)
 
     def test_check_sighash_types_sighash_none(self):
-        self.txin.sighash=Sighash.SIGHASH_NONE
+        self.txin.sighash=Sighash.NONE
         self.txin.pubkeys = [bfh('03b28f0c28bfab54554ae8c658ac5c3e0ce6e79ad336331f78c428dd43eea8449b')]
         privkey = bfh('11fa3d25a17cbc22b29c44a484ba552b5a53149d106d3d853e22fdd05a2d8bb3')
         tx = PartialTransaction.from_io(inputs=[self.txin], outputs=[self.txout1,self.txout2], locktime=self.locktime, version=1, BIP69_sort=False)
@@ -954,7 +953,7 @@ class TestSighashTypes(ElectrumTestCase):
                         sig)
 
     def test_check_sighash_types_sighash_single(self):
-        self.txin.sighash=Sighash.SIGHASH_SINGLE
+        self.txin.sighash=Sighash.SINGLE
         self.txin.pubkeys = [bfh('034b8113d703413d57761b8b9781957b8c0ac1dfe69f492580ca4195f50376ba4a')]
         privkey = bfh('77bf4141a87d55bdd7f3cd0bdccf6e9e642935fec45f2f30047be7b799120661')
         tx = PartialTransaction.from_io(inputs=[self.txin], outputs=[self.txout1,self.txout2], locktime=self.locktime, version=1, BIP69_sort=False)
@@ -963,27 +962,27 @@ class TestSighashTypes(ElectrumTestCase):
                         sig)
 
     def test_check_sighash_types_sighash_all_anyonecanpay(self):
-        self.txin.sighash=Sighash.SIGHASH_ALL|Sighash.SIGHASH_ANYONECANPAY
+        self.txin.sighash=Sighash.ALL|Sighash.ANYONECANPAY
         self.txin.pubkeys = [bfh('033400f6afecb833092a9a21cfdf1ed1376e58c5d1f47de74683123987e967a8f4')]
         privkey = bfh('14af36970f5025ea3e8b5542c0f8ebe7763e674838d08808896b63c3351ffe49')
         tx = PartialTransaction.from_io(inputs=[self.txin], outputs=[self.txout1,self.txout2], locktime=self.locktime, version=1, BIP69_sort=False)
         sig = tx.sign_txin(0,privkey)
-        #Note that this test is modified to the new signature rules which were introduced after bip143.
+        # Note that the expected sig differs from the one in BIP-0143, due to us grinding the R value. see https://github.com/bitcoin/bitcoin/pull/13666
         self.assertEqual('304402204976f1b85fdc32f37567aae08e694935d614d7d4d580ea31b69c646dd984592d022021ab570800f360ac0a7eb1c819c3559e1017595322c8f70e505b21bd12b7d4cb81',
                          sig)
 
     def test_check_sighash_types_sighash_none_anyonecanpay(self):
-        self.txin.sighash=Sighash.SIGHASH_NONE|Sighash.SIGHASH_ANYONECANPAY
+        self.txin.sighash=Sighash.NONE|Sighash.ANYONECANPAY
         self.txin.pubkeys = [bfh('03a6d48b1131e94ba04d9737d61acdaa1322008af9602b3b14862c07a1789aac16')]
         privkey = bfh('fe9a95c19eef81dde2b95c1284ef39be497d128e2aa46916fb02d552485e0323')
         tx = PartialTransaction.from_io(inputs=[self.txin], outputs=[self.txout1,self.txout2], locktime=self.locktime, version=1, BIP69_sort=False)
         sig = tx.sign_txin(0,privkey)
-        #Note that this test is modified to the new signature rules which were introduced after bip143.
+        # Note that the expected sig differs from the one in BIP-0143, due to us grinding the R value. see https://github.com/bitcoin/bitcoin/pull/13666
         self.assertEqual('304402205bd0cb0799b3b91305199b0ec9f9887732cb4f363e5c05ccbacb54f2b14b9839022066229a06db9c7fddffebbca357d7dd3715ac138f835e20c204ae79bef2696ef282',
                          sig)
 
     def test_check_sighash_types_sighash_single_anyonecanpay(self):
-        self.txin.sighash=Sighash.SIGHASH_SINGLE|Sighash.SIGHASH_ANYONECANPAY
+        self.txin.sighash=Sighash.SINGLE|Sighash.ANYONECANPAY
         self.txin.pubkeys = [bfh('02d8b661b0b3302ee2f162b09e07a55ad5dfbe673a9f01d9f0c19617681024306b')]
         privkey = bfh('428a7aee9f0c2af0cd19af3cf1c78149951ea528726989b2e83e4778d2c3f890')
         tx = PartialTransaction.from_io(inputs=[self.txin], outputs=[self.txout1,self.txout2], locktime=self.locktime, version=1, BIP69_sort=False)
