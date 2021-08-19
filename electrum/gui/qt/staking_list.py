@@ -36,6 +36,7 @@ from electrum.bitcoin import is_address
 from electrum.util import block_explorer_URL
 from electrum.plugin import run_hook
 from .history_list import HistoryModel
+from .staking_sort_model import StakingSortModel, StakingColumns, get_item_key
 
 from .util import MyTreeView, webopen, WindowModalDialog, Buttons, OkButton, CancelButton, CloseButton, filename_field
 from ...plot import plot_history, NothingToPlotException
@@ -43,18 +44,6 @@ from ...plot import plot_history, NothingToPlotException
 mock = {
     'start_date'
 }
-
-
-def get_item_key(tx_item):
-    return tx_item.get('txid') or tx_item['payment_hash']
-
-
-class StakingColumns(IntEnum):
-    START_DATE = 0
-    AMOUNT = 1
-    STAKING_PERIOD = 2
-    BLOCKS_LEFT = 3
-    TYPE = 4
 
 
 class StakingList(MyTreeView):
@@ -86,7 +75,7 @@ class StakingList(MyTreeView):
         super().__init__(parent, self.create_menu)
         self.config = parent.config
         self.hm = model
-        self.proxy = HistorySortModel(self)
+        self.proxy = StakingSortModel(self)
         self.proxy.setSourceModel(model)
         self.setModel(self.proxy)
         self.setSortingEnabled(True)
@@ -362,7 +351,6 @@ class StakingList(MyTreeView):
         for tx in to_delete:
             self.wallet.remove_transaction(tx)
         self.wallet.save_db()
-        # need to update at least: history_list, utxo_list, address_list
         self.parent.need_update.set()
 
     def onFileAdded(self, fn):
