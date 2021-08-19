@@ -226,6 +226,10 @@ plutil -insert 'NSCameraUsageDescription' \
 	-- dist/$PACKAGE.app/Contents/Info.plist \
 	|| fail "Could not add keys to Info.plist. Make sure the program 'plutil' exists and is installed."
 
+plutil -insert 'LSMinimumSystemVersion' \
+       -string '10.14.0' \
+	-- dist/$PACKAGE.app/Contents/Info.plist \
+	|| fail "Could not add keys to Info.plist. Make sure the program 'plutil' exists and is installed."
 
 FORCE_MOJAVE_DARK=1  # Set to 1 to try and add the Info.plist key to force mojave dark mode support.
                      # On PyQt 5.14.1, it doesn't work, but on 5.15.2 it does.
