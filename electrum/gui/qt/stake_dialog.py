@@ -29,6 +29,7 @@ from PyQt5.QtWidgets import (QGridLayout, QLabel, QPushButton, QHBoxLayout, QVBo
                              QTextBrowser)
 from PyQt5 import QtCore, QtGui
 from electrum.i18n import _
+from .history_list import HistoryModel
 from .terms_and_conditions_mixin import load_terms_and_conditions
 
 from .util import read_QIcon, WindowModalDialog, OkButton
@@ -61,6 +62,7 @@ def staking_dialog(window):
     from .create_new_stake_window import CreateNewStakingWindow
     window.create_stake_dialog = CreateNewStakingWindow(window)
 
+
     window.stake_button = CustomButton(text=_('Stake'), trigger=window.create_stake_dialog, icon=read_QIcon("electrum.png"))
 
     window.claim_rewords_button = CustomButton(text=_('Claim Rewords'))
@@ -74,7 +76,9 @@ def staking_dialog(window):
     window.receive_requests_label = QLabel(_('Staking History'))
 
     from .staking_list import StakingList
-    window.staking_list = StakingList(window)
+    # window.staking_list = StakingList(window)
+
+    window.history_list = StakingList(window, HistoryModel(window))
 
     font = QtGui.QFont()
     font.setUnderline(True)

@@ -1,8 +1,10 @@
 import threading
 from datetime import date
+from decimal import Decimal
+from enum import IntEnum
 
 from electrum.gui.qt.custom_model import CustomModel
-from electrum.gui.qt.staking_list import StakingColumns, get_item_key
+from electrum.gui.qt.history_list import HistoryNode
 from electrum.i18n import _
 from electrum.logging import get_logger, Logger
 from electrum.util import OrderedDictWithIndex
@@ -11,6 +13,33 @@ from PyQt5.QtCore import (Qt, QPersistentModelIndex, QModelIndex, QAbstractItemM
 from electrum.util import (block_explorer_URL, profiler, TxMinedInfo,
                            OrderedDictWithIndex, timestamp_to_datetime,
                            Satoshis, Fiat, format_time)
+
+
+class HistorySortModel(QSortFilterProxyModel):
+    def lessThan(self, source_left: QModelIndex, source_right: QModelIndex):
+        item1 = self.sourceModel().data(source_left, Qt.UserRole)
+        item2 = self.sourceModel().data(source_right, Qt.UserRole)
+        if item1 is None or item2 is None:
+            raise Exception(f'UserRole not set for column {source_left.column()}')
+        v1 = item1.value()
+        v2 = item2.value()
+        if v1 is None or isinstance(v1, Decimal) and v1.is_nan(): v1 = -float("inf")
+        if v2 is None or isinstance(v2, Decimal) and v2.is_nan(): v2 = -float("inf")
+        try:
+            return v1 < v2
+        except:
+            return False
+
+class StakingColumns(IntEnum):
+    START_DATE = 0
+    AMOUNT = 1
+    STAKING_PERIOD = 2
+    BLOCKS_LEFT = 3
+    TYPE = 4
+
+
+def get_item_key(tx_item):
+    return tx_item.get('txid') or tx_item['payment_hash']
 
 
 class StakingModel(CustomModel, Logger):
