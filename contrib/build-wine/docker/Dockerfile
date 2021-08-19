@@ -1,3 +1,5 @@
+# Docker file for building Electron Cash for Windows
+
 FROM ubuntu:18.04@sha256:2aeed98f2fa91c365730dc5d70d18e95e8d53ad4f1bbf4269c3bb625060383f0
 
 ARG UBUNTU_MIRROR=http://archive.ubuntu.com/ubuntu/
@@ -31,7 +33,7 @@ RUN echo deb ${UBUNTU_MIRROR} bionic main restricted universe multiverse > /etc/
     apt-add-repository https://dl.winehq.org/wine-builds/ubuntu/ && \
     apt-add-repository 'deb https://download.opensuse.org/repositories/Emulators:/Wine:/Debian/xUbuntu_18.04/ ./' && \
     apt-get update -q && \
-    apt-get install -qy \
+    apt-get install -qy  \
         wget=1.19.4-1ubuntu2.2 \
         git=1:2.17.1-1ubuntu0.8 \
         p7zip-full=16.02+dfsg-6 \
