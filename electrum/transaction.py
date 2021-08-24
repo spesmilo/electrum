@@ -1890,7 +1890,7 @@ class PartialTransaction(Transaction):
             if ((sighash & 0x1f) != Sighash.SINGLE and (sighash & 0x1f) != Sighash.NONE):
                 hashOutputs = bip143_shared_txdigest_fields.hashOutputs
             elif ((sighash & 0x1f) == Sighash.SINGLE and txin_index < len(outputs)):
-                hashOutputs = bh2u(sha256d(bfh(outputs[txin_index].serialize_to_network().hex())))
+                hashOutputs = bh2u(sha256d(outputs[txin_index].serialize_to_network()))
             else:
                 hashOutputs = '00' * 32
             outpoint = txin.prevout.serialize_to_network().hex()
