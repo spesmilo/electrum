@@ -58,7 +58,7 @@ sudo docker run -it --rm \
     -v "$PROJECT_ROOT_OR_FRESHCLONE_ROOT"/.buildozer/.gradle:/home/user/.gradle \
     $DOCKER_RUN_FLAGS \
     --workdir /home/user/wspace/electrum-grs \
-    electrum-android-builder-img \
+    electrum-grs-android-builder-img \
     ./contrib/android/make_apk "$@"
 
 # make sure resulting binary location is independent of fresh_clone
