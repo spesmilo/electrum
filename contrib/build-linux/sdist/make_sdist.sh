@@ -41,7 +41,7 @@ git submodule update --init
         dir="$PROJECT_ROOT/electrum_grs/$i/LC_MESSAGES"
         mkdir -p "$dir"
         msgfmt --output-file="$dir/electrum.mo" "$i/electrum.po" || true
-        cp $i/electrum.po "$PROJECT_ROOT/electrum/$i/electrum.po"
+        cp $i/electrum.po "$PROJECT_ROOT/electrum_grs/$i/electrum.po"
     done
 )
 
