@@ -44,7 +44,7 @@ fi
 info "building binary..."
 sudo docker run -it \
     --name electrum-grs-appimage-builder-cont \
-    -v "$PROJECT_ROOT_OR_FRESHCLONE_ROOT":/opt/electrum \
+    -v "$PROJECT_ROOT_OR_FRESHCLONE_ROOT":/opt/electrum-grs \
     --rm \
     --workdir /opt/electrum-grs/contrib/build-linux/appimage \
     electrum-grs-appimage-builder-img \
