@@ -23,13 +23,13 @@ fi
 info "building docker image."
 sudo docker build \
     $DOCKER_BUILD_FLAGS \
-    -t electrum-wine-builder-img \
+    -t electrum-grs-wine-builder-img \
     "$CONTRIB_WINE"
 
 # maybe do fresh clone
 if [ ! -z "$ELECBUILD_COMMIT" ] ; then
     info "ELECBUILD_COMMIT=$ELECBUILD_COMMIT. doing fresh clone and git checkout."
-    FRESH_CLONE="$CONTRIB_WINE/fresh_clone/electrum" && \
+    FRESH_CLONE="$CONTRIB_WINE/fresh_clone/electrum-grs" && \
         sudo rm -rf "$FRESH_CLONE" && \
         umask 0022 && \
         git clone "$PROJECT_ROOT" "$FRESH_CLONE" && \
@@ -42,11 +42,11 @@ fi
 
 info "building binary..."
 sudo docker run -it \
-    --name electrum-wine-builder-cont \
-    -v "$PROJECT_ROOT_OR_FRESHCLONE_ROOT":/opt/wine64/drive_c/electrum \
+    --name electrum-grs-wine-builder-cont \
+    -v "$PROJECT_ROOT_OR_FRESHCLONE_ROOT":/opt/wine64/drive_c/electrum-grs \
     --rm \
-    --workdir /opt/wine64/drive_c/electrum/contrib/build-wine \
-    electrum-wine-builder-img \
+    --workdir /opt/wine64/drive_c/electrum-grs/contrib/build-wine \
+    electrum-grs-wine-builder-img \
     ./make_win.sh
 
 # make sure resulting binary location is independent of fresh_clone
