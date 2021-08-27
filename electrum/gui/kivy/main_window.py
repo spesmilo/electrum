@@ -127,6 +127,11 @@ class ElectrumWindow(App, Logger):
         if net_params.auto_connect != self.auto_connect:
             net_params = net_params._replace(auto_connect=self.auto_connect)
             self.network.run_from_another_thread(self.network.set_parameters(net_params))
+
+    def set_auto_connect(self, x: bool):
+        self.electrum_config.set_key('auto_connect',x)
+        self.auto_connect = x
+
     def toggle_auto_connect(self, x):
         self.auto_connect = not self.auto_connect
 
